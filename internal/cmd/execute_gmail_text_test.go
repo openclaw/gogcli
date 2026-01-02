@@ -105,6 +105,94 @@ func TestExecute_GmailThread_Text_Download(t *testing.T) {
 	}
 }
 
+func TestExecute_GmailThread_Text_FullFlag(t *testing.T) {
+	origNew := newGmailService
+	t.Cleanup(func() { newGmailService = origNew })
+
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+
+	longBody := strings.Repeat("a", 600)
+	bodyEncoded := base64.RawURLEncoding.EncodeToString([]byte(longBody))
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case strings.Contains(r.URL.Path, "/gmail/v1/users/me/threads/t-thread-1"):
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"id": "t-thread-1",
+				"messages": []map[string]any{
+					{
+						"id": "m-thread-1",
+						"payload": map[string]any{
+							"headers": []map[string]any{
+								{"name": "From", "value": "Me <me@example.com>"},
+								{"name": "To", "value": "You <you@example.com>"},
+								{"name": "Subject", "value": "Hello"},
+								{"name": "Date", "value": "Wed, 17 Dec 2025 14:00:00 -0800"},
+							},
+							"parts": []map[string]any{
+								{
+									"mimeType": "text/plain",
+									"body":     map[string]any{"data": bodyEncoded},
+								},
+							},
+						},
+					},
+				},
+			})
+			return
+		default:
+			http.NotFound(w, r)
+			return
+		}
+	}))
+	defer srv.Close()
+
+	svc, err := gmail.NewService(context.Background(),
+		option.WithoutAuthentication(),
+		option.WithHTTPClient(srv.Client()),
+		option.WithEndpoint(srv.URL+"/"),
+	)
+	if err != nil {
+		t.Fatalf("NewService: %v", err)
+	}
+	newGmailService = func(context.Context, string) (*gmail.Service, error) { return svc, nil }
+
+	t.Run("default truncates", func(t *testing.T) {
+		out := captureStdout(t, func() {
+			_ = captureStderr(t, func() {
+				if execErr := Execute([]string{"--account", "a@b.com", "gmail", "thread", "get", "t-thread-1"}); execErr != nil {
+					t.Fatalf("Execute: %v", execErr)
+				}
+			})
+		})
+
+		if !strings.Contains(out, "[truncated") {
+			t.Fatalf("expected truncated output, got=%q", out)
+		}
+		if strings.Contains(out, longBody) {
+			t.Fatalf("expected body to be truncated, got=%q", out)
+		}
+	})
+
+	t.Run("--full shows complete body", func(t *testing.T) {
+		out := captureStdout(t, func() {
+			_ = captureStderr(t, func() {
+				if execErr := Execute([]string{"--account", "a@b.com", "gmail", "thread", "get", "t-thread-1", "--full"}); execErr != nil {
+					t.Fatalf("Execute: %v", execErr)
+				}
+			})
+		})
+
+		if strings.Contains(out, "[truncated") {
+			t.Fatalf("expected full output, got=%q", out)
+		}
+		if !strings.Contains(out, longBody) {
+			t.Fatalf("expected full body, got=%q", out)
+		}
+	})
+}
+
 func TestExecute_GmailDraftsGet_Text_Download(t *testing.T) {
 	origNew := newGmailService
 	t.Cleanup(func() { newGmailService = origNew })

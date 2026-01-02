@@ -50,6 +50,7 @@ type GmailThreadGetCmd struct {
 	ThreadID string `arg:"" name:"threadId" help:"Thread ID"`
 	Download bool   `name:"download" help:"Download attachments"`
 	OutDir   string `name:"out-dir" help:"Directory to write attachments to (default: current directory)"`
+	Full     bool   `name:"full" help:"Show complete message bodies without truncation"`
 }
 
 func (c *GmailThreadGetCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -129,7 +130,7 @@ func (c *GmailThreadGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 
 	// Show message count upfront so users know how many messages to expect
-	u.Out().Printf("Thread contains %d message(s)\n", len(thread.Messages))
+	u.Out().Printf("Thread contains %d message(s)", len(thread.Messages))
 	u.Out().Println("")
 
 	for i, msg := range thread.Messages {
@@ -150,11 +151,13 @@ func (c *GmailThreadGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 				// Strip HTML tags for cleaner text output
 				cleanBody = stripHTMLTags(body)
 			}
-			// Limit body preview to avoid overwhelming output
-			// Use runes to avoid breaking multi-byte UTF-8 characters
-			runes := []rune(cleanBody)
-			if len(runes) > 500 {
-				cleanBody = string(runes[:500]) + "... [truncated]"
+			if !c.Full {
+				// Limit body preview to avoid overwhelming output.
+				// Use runes to avoid breaking multi-byte UTF-8 characters.
+				runes := []rune(cleanBody)
+				if len(runes) > 500 {
+					cleanBody = string(runes[:500]) + "... [truncated; use --full]"
+				}
 			}
 			u.Out().Println(cleanBody)
 			u.Out().Println("")
