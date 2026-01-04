@@ -26,7 +26,7 @@ func TestExecute_GmailGet_Metadata_JSON(t *testing.T) {
 			t.Fatalf("format=%q", got)
 		}
 		gotHeaders := r.URL.Query()["metadataHeaders"]
-		if len(gotHeaders) != 2 || !containsAll(gotHeaders, []string{"Subject", "Date"}) {
+		if len(gotHeaders) != 3 || !containsAll(gotHeaders, []string{"Subject", "Date", "List-Unsubscribe"}) {
 			t.Fatalf("metadataHeaders=%#v", gotHeaders)
 		}
 		w.Header().Set("Content-Type", "application/json")

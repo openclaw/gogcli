@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/mail"
 	"os"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -123,6 +124,15 @@ func headerValue(p *gmail.MessagePart, name string) string {
 	return ""
 }
 
+func hasHeaderName(headers []string, name string) bool {
+	for _, h := range headers {
+		if strings.EqualFold(strings.TrimSpace(h), name) {
+			return true
+		}
+	}
+	return false
+}
+
 func formatGmailDate(raw string) string {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
@@ -132,6 +142,73 @@ func formatGmailDate(raw string) string {
 		return t.Format("2006-01-02 15:04")
 	}
 	return raw
+}
+
+var listUnsubscribeLinkPattern = regexp.MustCompile(`<([^>]+)>`)
+
+func bestUnsubscribeLink(p *gmail.MessagePart) string {
+	links := parseListUnsubscribe(headerValue(p, "List-Unsubscribe"))
+	if len(links) == 0 {
+		return ""
+	}
+	for _, link := range links {
+		lower := strings.ToLower(link)
+		if strings.HasPrefix(lower, "http://") || strings.HasPrefix(lower, "https://") {
+			return link
+		}
+	}
+	return links[0]
+}
+
+func parseListUnsubscribe(raw string) []string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil
+	}
+	candidates := make([]string, 0)
+	matches := listUnsubscribeLinkPattern.FindAllStringSubmatch(raw, -1)
+	if len(matches) > 0 {
+		for _, match := range matches {
+			candidate := strings.TrimSpace(match[1])
+			if candidate == "" {
+				continue
+			}
+			candidates = append(candidates, candidate)
+		}
+	} else {
+		parts := strings.Split(raw, ",")
+		for _, part := range parts {
+			candidate := strings.TrimSpace(strings.Trim(part, "<>\""))
+			if candidate == "" {
+				continue
+			}
+			candidates = append(candidates, candidate)
+		}
+	}
+	filtered := make([]string, 0, len(candidates))
+	seen := make(map[string]struct{})
+	for _, candidate := range candidates {
+		if !isUnsubscribeLink(candidate) {
+			continue
+		}
+		if _, ok := seen[candidate]; ok {
+			continue
+		}
+		seen[candidate] = struct{}{}
+		filtered = append(filtered, candidate)
+	}
+	return filtered
+}
+
+func isUnsubscribeLink(raw string) bool {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return false
+	}
+	lower := strings.ToLower(raw)
+	return strings.HasPrefix(lower, "http://") ||
+		strings.HasPrefix(lower, "https://") ||
+		strings.HasPrefix(lower, "mailto:")
 }
 
 func mailParseDate(s string) (time.Time, error) {

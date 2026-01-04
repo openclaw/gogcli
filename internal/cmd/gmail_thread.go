@@ -140,6 +140,10 @@ func (c *GmailThreadGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 		u.Out().Printf("To: %s", headerValue(msg.Payload, "To"))
 		u.Out().Printf("Subject: %s", headerValue(msg.Payload, "Subject"))
 		u.Out().Printf("Date: %s", headerValue(msg.Payload, "Date"))
+		unsubscribe := bestUnsubscribeLink(msg.Payload)
+		if unsubscribe != "" {
+			u.Out().Printf("Unsubscribe: %s", unsubscribe)
+		}
 		u.Out().Println("")
 
 		body, isHTML := bestBodyForDisplay(msg.Payload)

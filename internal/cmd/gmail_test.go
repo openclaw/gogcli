@@ -24,6 +24,29 @@ func TestHeaderValue(t *testing.T) {
 	}
 }
 
+func TestBestUnsubscribeLink(t *testing.T) {
+	p := &gmail.MessagePart{
+		Headers: []*gmail.MessagePartHeader{
+			{Name: "List-Unsubscribe", Value: "<mailto:unsubscribe@example.com>, <https://example.com/unsub?id=1>"},
+		},
+	}
+	if got := bestUnsubscribeLink(p); got != "https://example.com/unsub?id=1" {
+		t.Fatalf("unexpected: %q", got)
+	}
+	p.Headers[0].Value = "mailto:unsubscribe@example.com, https://example.com/unsub"
+	if got := bestUnsubscribeLink(p); got != "https://example.com/unsub" {
+		t.Fatalf("unexpected: %q", got)
+	}
+	p.Headers[0].Value = "<mailto:unsubscribe@example.com>"
+	if got := bestUnsubscribeLink(p); got != "mailto:unsubscribe@example.com" {
+		t.Fatalf("unexpected: %q", got)
+	}
+	p.Headers[0].Value = "not a link"
+	if got := bestUnsubscribeLink(p); got != "" {
+		t.Fatalf("unexpected: %q", got)
+	}
+}
+
 func TestSanitizeTab(t *testing.T) {
 	if got := sanitizeTab("a\tb"); got != "a b" {
 		t.Fatalf("unexpected: %q", got)
