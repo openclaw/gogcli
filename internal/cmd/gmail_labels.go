@@ -15,6 +15,7 @@ import (
 type GmailLabelsCmd struct {
 	List   GmailLabelsListCmd   `cmd:"" name:"list" help:"List labels"`
 	Get    GmailLabelsGetCmd    `cmd:"" name:"get" help:"Get label details (including counts)"`
+	Create GmailLabelsCreateCmd `cmd:"" name:"create" help:"Create a new label"`
 	Modify GmailLabelsModifyCmd `cmd:"" name:"modify" help:"Modify labels on threads"`
 }
 
@@ -61,6 +62,43 @@ func (c *GmailLabelsGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u.Out().Printf("messages_unread\t%d", l.MessagesUnread)
 	u.Out().Printf("threads_total\t%d", l.ThreadsTotal)
 	u.Out().Printf("threads_unread\t%d", l.ThreadsUnread)
+	return nil
+}
+
+type GmailLabelsCreateCmd struct {
+	Name string `arg:"" help:"Label name"`
+}
+
+func (c *GmailLabelsCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
+	u := ui.FromContext(ctx)
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
+	}
+
+	name := strings.TrimSpace(c.Name)
+	if name == "" {
+		return usage("label name is required")
+	}
+
+	svc, err := newGmailService(ctx, account)
+	if err != nil {
+		return err
+	}
+
+	label, err := svc.Users.Labels.Create("me", &gmail.Label{
+		Name:                  name,
+		LabelListVisibility:   "labelShow",
+		MessageListVisibility: "show",
+	}).Context(ctx).Do()
+	if err != nil {
+		return err
+	}
+
+	if outfmt.IsJSON(ctx) {
+		return outfmt.WriteJSON(os.Stdout, map[string]any{"label": label})
+	}
+	u.Out().Printf("Created label: %s (id: %s)", label.Name, label.Id)
 	return nil
 }
 
