@@ -365,7 +365,7 @@ func (c *ContactsOtherDeleteCmd) Run(ctx context.Context, flags *RootFlags) erro
 		return err
 	}
 	if _, err := contactsSvc.People.DeleteContact(copied.ResourceName).Do(); err != nil {
-		return fmt.Errorf("delete copied contact: %w", err)
+		return fmt.Errorf("delete copied contact %s: %w", copied.ResourceName, err)
 	}
 
 	if outfmt.IsJSON(ctx) {

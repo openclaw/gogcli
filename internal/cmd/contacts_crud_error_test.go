@@ -325,7 +325,7 @@ func TestContactsOtherDelete_DeleteFailure(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}
-	if !strings.Contains(err.Error(), "delete copied contact:") {
-		t.Fatalf("expected error to contain 'delete copied contact:', got: %v", err)
+	if !strings.Contains(err.Error(), "delete copied contact") {
+		t.Fatalf("expected error to contain 'delete copied contact', got: %v", err)
 	}
 }
