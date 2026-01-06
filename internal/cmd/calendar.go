@@ -219,6 +219,7 @@ type CalendarCreateCmd struct {
 	Location    string `name:"location" help:"Location"`
 	Attendees   string `name:"attendees" help:"Comma-separated attendee emails"`
 	AllDay      bool   `name:"all-day" help:"All-day event (use date-only in --from/--to)"`
+	Recurrence  string `name:"recurrence" help:"Recurrence rule (YEARLY, MONTHLY, WEEKLY, DAILY or full RRULE)"`
 }
 
 func (c *CalendarCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -248,6 +249,7 @@ func (c *CalendarCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
 		Start:       buildEventDateTime(c.From, c.AllDay),
 		End:         buildEventDateTime(c.To, c.AllDay),
 		Attendees:   buildAttendees(c.Attendees),
+		Recurrence:  buildRecurrence(c.Recurrence),
 	}
 
 	created, err := svc.Events.Insert(calendarID, event).Do()
@@ -590,6 +592,17 @@ func buildAttendees(csv string) []*calendar.EventAttendee {
 		out = append(out, &calendar.EventAttendee{Email: a})
 	}
 	return out
+}
+
+func buildRecurrence(rule string) []string {
+	rule = strings.TrimSpace(strings.ToUpper(rule))
+	if rule == "" {
+		return nil
+	}
+	if !strings.HasPrefix(rule, "RRULE:") {
+		rule = "RRULE:FREQ=" + rule
+	}
+	return []string{rule}
 }
 
 func splitCSV(s string) []string {
