@@ -7,6 +7,8 @@ import (
 	"strings"
 	"time"
 
+	"google.golang.org/api/people/v1"
+
 	"github.com/steipete/gogcli/internal/outfmt"
 	"github.com/steipete/gogcli/internal/ui"
 )
@@ -177,6 +179,7 @@ func (c *ContactsDirectorySearchCmd) Run(ctx context.Context, flags *RootFlags) 
 type ContactsOtherCmd struct {
 	List   ContactsOtherListCmd   `cmd:"" name:"list" help:"List other contacts"`
 	Search ContactsOtherSearchCmd `cmd:"" name:"search" help:"Search other contacts"`
+	Delete ContactsOtherDeleteCmd `cmd:"" name:"delete" help:"Delete an other contact"`
 }
 
 type ContactsOtherListCmd struct {
@@ -321,5 +324,54 @@ func (c *ContactsOtherSearchCmd) Run(ctx context.Context, flags *RootFlags) erro
 			sanitizeTab(primaryPhone(p)),
 		)
 	}
+	return nil
+}
+
+type ContactsOtherDeleteCmd struct {
+	ResourceName string `arg:"" name:"resourceName" help:"Resource name (otherContacts/...)"`
+}
+
+func (c *ContactsOtherDeleteCmd) Run(ctx context.Context, flags *RootFlags) error {
+	u := ui.FromContext(ctx)
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
+	}
+	resourceName := strings.TrimSpace(c.ResourceName)
+	if !strings.HasPrefix(resourceName, "otherContacts/") {
+		return usage("resourceName must start with otherContacts/")
+	}
+
+	if confirmErr := confirmDestructive(ctx, flags, fmt.Sprintf("delete other contact %s", resourceName)); confirmErr != nil {
+		return confirmErr
+	}
+
+	// Step 1: Copy the other contact to My Contacts group
+	otherSvc, err := newPeopleOtherContactsService(ctx, account)
+	if err != nil {
+		return err
+	}
+	copied, err := otherSvc.OtherContacts.CopyOtherContactToMyContactsGroup(
+		resourceName,
+		&people.CopyOtherContactToMyContactsGroupRequest{},
+	).Do()
+	if err != nil {
+		return fmt.Errorf("copy to my contacts: %w", err)
+	}
+
+	// Step 2: Delete the copied contact from My Contacts
+	contactsSvc, err := newPeopleContactsService(ctx, account)
+	if err != nil {
+		return err
+	}
+	if _, err := contactsSvc.People.DeleteContact(copied.ResourceName).Do(); err != nil {
+		return fmt.Errorf("delete copied contact: %w", err)
+	}
+
+	if outfmt.IsJSON(ctx) {
+		return outfmt.WriteJSON(os.Stdout, map[string]any{"deleted": true, "resource": resourceName})
+	}
+	u.Out().Printf("deleted\ttrue")
+	u.Out().Printf("resource\t%s", resourceName)
 	return nil
 }
