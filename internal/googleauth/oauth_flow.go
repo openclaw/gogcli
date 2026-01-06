@@ -286,25 +286,34 @@ func extractCodeAndState(rawURL string) (code string, state string, err error) {
 	}
 }
 
+// readLine reads a single line from r, handling EOF without newline gracefully.
+// It supports both Unix (\n) and Windows (\r\n) line endings.
+// If the input ends with EOF before a newline, the accumulated content is returned.
 func readLine(r io.Reader) (string, error) {
 	br := bufio.NewReader(r)
+
 	var sb strings.Builder
+
 	for {
 		b, err := br.ReadByte()
 		if err != nil {
 			if errors.Is(err, io.EOF) && sb.Len() > 0 {
 				return sb.String(), nil
 			}
-			return "", err
+
+			return "", fmt.Errorf("reading byte: %w", err)
 		}
+
 		if b == '\n' || b == '\r' {
 			if b == '\r' {
 				if next, _ := br.Peek(1); len(next) == 1 && next[0] == '\n' {
 					_, _ = br.ReadByte()
 				}
 			}
+
 			return sb.String(), nil
 		}
+
 		sb.WriteByte(b)
 	}
 }
