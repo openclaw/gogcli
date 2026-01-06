@@ -112,6 +112,56 @@ func TestAuthorize_Manual_Success(t *testing.T) {
 	}
 }
 
+func TestAuthorize_Manual_Success_NoNewline(t *testing.T) {
+	origRead := readClientCredentials
+	origEndpoint := oauthEndpoint
+	origState := randomStateFn
+
+	t.Cleanup(func() {
+		readClientCredentials = origRead
+		oauthEndpoint = origEndpoint
+		randomStateFn = origState
+	})
+
+	readClientCredentials = func() (config.ClientCredentials, error) {
+		return config.ClientCredentials{ClientID: "id", ClientSecret: "secret"}, nil
+	}
+	randomStateFn = func() (string, error) { return "state123", nil }
+
+	tokenSrv := newTokenServer(t)
+	defer tokenSrv.Close()
+	oauthEndpoint = oauth2EndpointForTest(tokenSrv.URL)
+
+	origStdin := os.Stdin
+	t.Cleanup(func() { os.Stdin = origStdin })
+
+	var r *os.File
+	var w *os.File
+
+	if pr, pw, err := os.Pipe(); err != nil {
+		t.Fatalf("pipe: %v", err)
+	} else {
+		r = pr
+		w = pw
+	}
+	os.Stdin = r
+	_, _ = w.WriteString("http://localhost:1/?code=abc&state=state123")
+	_ = w.Close()
+
+	rt, err := Authorize(context.Background(), AuthorizeOptions{
+		Scopes:  []string{"s1"},
+		Manual:  true,
+		Timeout: 2 * time.Second,
+	})
+	if err != nil {
+		t.Fatalf("Authorize: %v", err)
+	}
+
+	if rt != "rt" {
+		t.Fatalf("unexpected refresh token: %q", rt)
+	}
+}
+
 func TestAuthorize_Manual_StateMismatch(t *testing.T) {
 	origRead := readClientCredentials
 	origEndpoint := oauthEndpoint

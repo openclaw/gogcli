@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"html/template"
+	"io"
 	"net"
 	"net/http"
 	"net/url"
@@ -100,7 +101,7 @@ func Authorize(ctx context.Context, opts AuthorizeOptions) (string, error) {
 		fmt.Fprintln(os.Stderr)
 
 		fmt.Fprint(os.Stderr, "Paste redirect URL: ")
-		line, readErr := bufio.NewReader(os.Stdin).ReadString('\n')
+		line, readErr := readLine(os.Stdin)
 
 		if readErr != nil && !errors.Is(readErr, os.ErrClosed) {
 			return "", fmt.Errorf("read redirect url: %w", readErr)
@@ -282,6 +283,29 @@ func extractCodeAndState(rawURL string) (code string, state string, err error) {
 		return "", "", errNoCodeInURL
 	} else {
 		return code, parsed.Query().Get("state"), nil
+	}
+}
+
+func readLine(r io.Reader) (string, error) {
+	br := bufio.NewReader(r)
+	var sb strings.Builder
+	for {
+		b, err := br.ReadByte()
+		if err != nil {
+			if errors.Is(err, io.EOF) && sb.Len() > 0 {
+				return sb.String(), nil
+			}
+			return "", err
+		}
+		if b == '\n' || b == '\r' {
+			if b == '\r' {
+				if next, _ := br.Peek(1); len(next) == 1 && next[0] == '\n' {
+					_, _ = br.ReadByte()
+				}
+			}
+			return sb.String(), nil
+		}
+		sb.WriteByte(b)
 	}
 }
 
