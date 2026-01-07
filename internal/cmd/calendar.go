@@ -34,7 +34,7 @@ type CalendarCmd struct {
 }
 
 type CalendarCalendarsCmd struct {
-	Max  int64  `name:"max" help:"Max results" default:"100"`
+	Max  int64  `name:"max" aliases:"limit" help:"Max results" default:"100"`
 	Page string `name:"page" help:"Page token"`
 }
 
@@ -77,7 +77,7 @@ func (c *CalendarCalendarsCmd) Run(ctx context.Context, flags *RootFlags) error 
 
 type CalendarAclCmd struct {
 	CalendarID string `arg:"" name:"calendarId" help:"Calendar ID"`
-	Max        int64  `name:"max" help:"Max results" default:"100"`
+	Max        int64  `name:"max" aliases:"limit" help:"Max results" default:"100"`
 	Page       string `name:"page" help:"Page token"`
 }
 
@@ -132,7 +132,7 @@ type CalendarEventsCmd struct {
 	CalendarID string `arg:"" name:"calendarId" optional:"" help:"Calendar ID"`
 	From       string `name:"from" help:"Start time (RFC3339; default: now)"`
 	To         string `name:"to" help:"End time (RFC3339; default: +7d)"`
-	Max        int64  `name:"max" help:"Max results" default:"10"`
+	Max        int64  `name:"max" aliases:"limit" help:"Max results" default:"10"`
 	Page       string `name:"page" help:"Page token"`
 	Query      string `name:"query" help:"Free text search"`
 	All        bool   `name:"all" help:"Fetch events from all calendars"`
@@ -269,7 +269,8 @@ type CalendarUpdateCmd struct {
 	To          string `name:"to" help:"New end time (RFC3339; set empty to clear)"`
 	Description string `name:"description" help:"New description (set empty to clear)"`
 	Location    string `name:"location" help:"New location (set empty to clear)"`
-	Attendees   string `name:"attendees" help:"Comma-separated attendee emails (set empty to clear)"`
+	Attendees   string `name:"attendees" help:"Comma-separated attendee emails (replaces all; set empty to clear)"`
+	AddAttendee string `name:"add-attendee" help:"Comma-separated attendee emails to add (preserves existing attendees)"`
 	AllDay      bool   `name:"all-day" help:"All-day event (use date-only in --from/--to)"`
 }
 
@@ -293,6 +294,11 @@ func (c *CalendarUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *
 		if !flagProvided(kctx, "from") || !flagProvided(kctx, "to") {
 			return usage("when changing --all-day, also provide --from and --to")
 		}
+	}
+
+	// Cannot use both --attendees and --add-attendee at the same time.
+	if flagProvided(kctx, "attendees") && flagProvided(kctx, "add-attendee") {
+		return usage("cannot use both --attendees and --add-attendee; use --attendees to replace all, or --add-attendee to add")
 	}
 
 	patch := &calendar.Event{}
@@ -321,13 +327,25 @@ func (c *CalendarUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *
 		patch.Attendees = buildAttendees(c.Attendees)
 		changed = true
 	}
-	if !changed {
-		return usage("no updates provided")
-	}
 
 	svc, err := newCalendarService(ctx, account)
 	if err != nil {
 		return err
+	}
+
+	// For --add-attendee, fetch current event to preserve existing attendees with metadata.
+	if flagProvided(kctx, "add-attendee") {
+		var existing *calendar.Event
+		existing, err = svc.Events.Get(calendarID, eventID).Do()
+		if err != nil {
+			return fmt.Errorf("failed to fetch current event: %w", err)
+		}
+		patch.Attendees = mergeAttendees(existing.Attendees, c.AddAttendee)
+		changed = true
+	}
+
+	if !changed {
+		return usage("no updates provided")
 	}
 
 	updated, err := svc.Events.Patch(calendarID, eventID, patch).Do()
@@ -588,6 +606,39 @@ func buildAttendees(csv string) []*calendar.EventAttendee {
 	out := make([]*calendar.EventAttendee, 0, len(addrs))
 	for _, a := range addrs {
 		out = append(out, &calendar.EventAttendee{Email: a})
+	}
+	return out
+}
+
+// mergeAttendees preserves existing attendees (with all their metadata like responseStatus)
+// and adds new attendees from the CSV string. Duplicates (by email) are skipped.
+func mergeAttendees(existing []*calendar.EventAttendee, addCSV string) []*calendar.EventAttendee {
+	newEmails := splitCSV(addCSV)
+	if len(newEmails) == 0 {
+		return existing
+	}
+
+	// Build a set of existing emails for deduplication
+	existingEmails := make(map[string]bool, len(existing))
+	for _, a := range existing {
+		if a != nil && a.Email != "" {
+			existingEmails[strings.ToLower(a.Email)] = true
+		}
+	}
+
+	// Start with existing attendees (preserving all metadata)
+	out := make([]*calendar.EventAttendee, 0, len(existing)+len(newEmails))
+	out = append(out, existing...)
+
+	// Add new attendees that don't already exist
+	for _, email := range newEmails {
+		if !existingEmails[strings.ToLower(email)] {
+			out = append(out, &calendar.EventAttendee{
+				Email:          email,
+				ResponseStatus: "needsAction",
+			})
+			existingEmails[strings.ToLower(email)] = true
+		}
 	}
 	return out
 }

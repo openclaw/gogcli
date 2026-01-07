@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 
@@ -13,10 +14,14 @@ import (
 func TestAuthAddCmd_JSON(t *testing.T) {
 	origAuth := authorizeGoogle
 	origOpen := openSecretsStore
+	origKeychain := ensureKeychainAccess
 	t.Cleanup(func() {
 		authorizeGoogle = origAuth
 		openSecretsStore = origOpen
+		ensureKeychainAccess = origKeychain
 	})
+
+	ensureKeychainAccess = func() error { return nil }
 
 	store := newMemSecretsStore()
 	openSecretsStore = func() (secrets.Store, error) { return store, nil }
@@ -68,5 +73,43 @@ func TestAuthAddCmd_JSON(t *testing.T) {
 	}
 	if tok.RefreshToken != "rt" || !strings.Contains(strings.Join(tok.Services, ","), "gmail") {
 		t.Fatalf("unexpected token: %#v", tok)
+	}
+}
+
+func TestAuthAddCmd_KeychainError(t *testing.T) {
+	origAuth := authorizeGoogle
+	origOpen := openSecretsStore
+	origKeychain := ensureKeychainAccess
+	t.Cleanup(func() {
+		authorizeGoogle = origAuth
+		openSecretsStore = origOpen
+		ensureKeychainAccess = origKeychain
+	})
+
+	// Simulate keychain locked error
+	ensureKeychainAccess = func() error {
+		return errors.New("keychain is locked")
+	}
+
+	authCalled := false
+	authorizeGoogle = func(_ context.Context, _ googleauth.AuthorizeOptions) (string, error) {
+		authCalled = true
+		return "rt", nil
+	}
+
+	store := newMemSecretsStore()
+	openSecretsStore = func() (secrets.Store, error) { return store, nil }
+
+	cmd := &AuthAddCmd{Email: "test@example.com", ServicesCSV: "gmail"}
+	err := cmd.Run(context.Background())
+
+	if err == nil {
+		t.Fatal("expected error when keychain is locked")
+	}
+	if !strings.Contains(err.Error(), "keychain") {
+		t.Errorf("expected error to mention keychain, got: %v", err)
+	}
+	if authCalled {
+		t.Error("authorizeGoogle should not be called when keychain check fails")
 	}
 }

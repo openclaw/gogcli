@@ -1,10 +1,21 @@
 # Changelog
 
-## 0.4.3 - Unreleased
+## 0.5.0 - Unreleased
 
+- Config: add JSON5 `config.json` (comments ok) and `gog auth status`/help now show keyring backend + config path.
+- CLI: help now defaults to grouped output (no expanded subcommands); use `GOG_HELP=full gog --help` for full expansion.
+- CLI: help shows build version + git SHA and adds colored headings/command names (respects `NO_COLOR` and `--color`).
 - Auth: `gog auth list --check` validates refresh tokens by exchanging for an access token.
+- Auth: OAuth browser flow now finishes immediately after callback (no 30s “stuck” delay).
+- Homebrew: tap now installs GitHub release binaries (macOS) to reduce Keychain prompt churn.
 - Secrets: add `GOG_KEYRING_BACKEND={auto|keychain|file}` to force backend (use `file` to avoid Keychain prompts; pair with `GOG_KEYRING_PASSWORD`).
 - Sheets: `sheets update|append --copy-validation-from ...` copies data validation onto written cells (#29) — thanks @mahmoudashraf93.
+- Docs: explain macOS Keychain prompts and backend options.
+- DX: remove pnpm wrapper; use `make gog`.
+- DX: `make gogcli -- ...` passes args to the CLI; add `make gogcli-help` convenience target.
+- Calendar: `gog calendar update --add-attendee ...` adds attendees without replacing existing RSVP state (#24) — thanks @salmonumbrella.
+- Gmail: `gog gmail thread attachments` list/download attachments (#27) — thanks @salmonumbrella.
+- Gmail: reorganize `gog gmail --help` into sections and add `gog gmail settings ...` (old subcommands remain available).
 
 ## 0.4.2 - 2025-12-31
 
@@ -138,7 +149,7 @@ Initial public release of `gog`: a single Go CLI that unifies Gmail, Calendar, D
   - Linting via pinned `golangci-lint` with repo config.
   - Tests using stdlib `testing` + `httptest`, with steadily increased unit coverage.
   - GitHub Actions CI running format checks, tests, and lint.
-  - `pnpm gog` helper to build+run (`pnpm gog auth add you@gmail.com`).
+  - `make` builds `./bin/gog` for local dev (`make && ./bin/gog auth add you@gmail.com`).
 
 ### Notes / Known Limitations
 

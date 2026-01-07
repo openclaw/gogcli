@@ -56,10 +56,11 @@ type DriveCmd struct {
 	Unshare     DriveUnshareCmd     `cmd:"" name:"unshare" help:"Remove a permission from a file"`
 	Permissions DrivePermissionsCmd `cmd:"" name:"permissions" help:"List permissions on a file"`
 	URL         DriveURLCmd         `cmd:"" name:"url" help:"Print web URLs for files"`
+	Comments    DriveCommentsCmd    `cmd:"" name:"comments" help:"Manage comments on files"`
 }
 
 type DriveLsCmd struct {
-	Max    int64  `name:"max" help:"Max results" default:"20"`
+	Max    int64  `name:"max" aliases:"limit" help:"Max results" default:"20"`
 	Page   string `name:"page" help:"Page token"`
 	Query  string `name:"query" help:"Drive query filter"`
 	Parent string `name:"parent" help:"Folder ID to list (default: root)"`
@@ -130,7 +131,7 @@ func (c *DriveLsCmd) Run(ctx context.Context, flags *RootFlags) error {
 
 type DriveSearchCmd struct {
 	Query []string `arg:"" name:"query" help:"Search query"`
-	Max   int64    `name:"max" help:"Max results" default:"20"`
+	Max   int64    `name:"max" aliases:"limit" help:"Max results" default:"20"`
 	Page  string   `name:"page" help:"Page token"`
 }
 
@@ -684,7 +685,7 @@ func (c *DriveUnshareCmd) Run(ctx context.Context, flags *RootFlags) error {
 
 type DrivePermissionsCmd struct {
 	FileID string `arg:"" name:"fileId" help:"File ID"`
-	Max    int64  `name:"max" help:"Max results" default:"100"`
+	Max    int64  `name:"max" aliases:"limit" help:"Max results" default:"100"`
 	Page   string `name:"page" help:"Page token"`
 }
 

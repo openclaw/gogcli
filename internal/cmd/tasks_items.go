@@ -20,7 +20,7 @@ const (
 
 type TasksListCmd struct {
 	TasklistID    string `arg:"" name:"tasklistId" help:"Task list ID"`
-	Max           int64  `name:"max" help:"Max results (max allowed: 100)" default:"20"`
+	Max           int64  `name:"max" aliases:"limit" help:"Max results (max allowed: 100)" default:"20"`
 	Page          string `name:"page" help:"Page token"`
 	ShowCompleted bool   `name:"show-completed" help:"Include completed tasks (requires --show-hidden for some clients)" default:"true"`
 	ShowDeleted   bool   `name:"show-deleted" help:"Include deleted tasks"`

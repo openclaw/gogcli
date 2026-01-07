@@ -23,7 +23,7 @@ type GmailDraftsCmd struct {
 }
 
 type GmailDraftsListCmd struct {
-	Max  int64  `name:"max" help:"Max results" default:"20"`
+	Max  int64  `name:"max" aliases:"limit" help:"Max results" default:"20"`
 	Page string `name:"page" help:"Page token"`
 }
 

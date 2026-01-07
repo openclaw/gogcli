@@ -222,6 +222,7 @@ func Authorize(ctx context.Context, opts AuthorizeOptions) (string, error) {
 
 	select {
 	case code := <-codeCh:
+		fmt.Fprintln(os.Stderr, "Authorization received. Finishing…")
 		var tok *oauth2.Token
 
 		if t, exchangeErr := cfg.Exchange(ctx, code); exchangeErr != nil {
@@ -235,9 +236,10 @@ func Authorize(ctx context.Context, opts AuthorizeOptions) (string, error) {
 			_ = srv.Close()
 			return "", errNoRefreshToken
 		}
-		// Keep server running so CLI waits for the user to finish auth flow (Ctrl+C ok).
-		waitPostSuccess(ctx, postSuccessDisplaySeconds*time.Second)
-		_ = srv.Close()
+
+		shutdownCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+		defer cancel()
+		_ = srv.Shutdown(shutdownCtx)
 
 		return tok.RefreshToken, nil
 	case err := <-errCh:
@@ -317,8 +319,7 @@ func renderCancelledPage(w http.ResponseWriter) {
 }
 
 // waitPostSuccess waits for the specified duration or until the context is
-// cancelled (e.g., via Ctrl+C). This allows the success page to remain visible
-// while still supporting graceful early termination.
+// cancelled (e.g., via Ctrl+C). Kept for tests and potential future UX tweaks.
 func waitPostSuccess(ctx context.Context, d time.Duration) {
 	select {
 	case <-time.After(d):

@@ -1,100 +1,107 @@
 package secrets
 
 import (
+	"errors"
+	"os"
+	"path/filepath"
 	"testing"
-	"time"
 
-	"github.com/99designs/keyring"
+	"github.com/steipete/gogcli/internal/config"
 )
 
-func TestTokenKey(t *testing.T) {
-	if got := tokenKey("a@b.com"); got != "token:a@b.com" {
-		t.Fatalf("unexpected: %q", got)
+func TestResolveKeyringBackendInfo_Default(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, "xdg-config"))
+	t.Setenv("GOG_KEYRING_BACKEND", "")
+
+	info, err := ResolveKeyringBackendInfo()
+	if err != nil {
+		t.Fatalf("ResolveKeyringBackendInfo: %v", err)
+	}
+
+	if info.Value != "auto" {
+		t.Fatalf("expected auto, got %q", info.Value)
+	}
+
+	if info.Source != keyringBackendSourceDefault {
+		t.Fatalf("expected source default, got %q", info.Source)
 	}
 }
 
-func TestParseTokenKey(t *testing.T) {
-	email, ok := ParseTokenKey("token:a@b.com")
-	if !ok {
-		t.Fatalf("expected ok")
+func TestResolveKeyringBackendInfo_Config(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, "xdg-config"))
+	t.Setenv("GOG_KEYRING_BACKEND", "")
+
+	path, err := config.ConfigPath()
+	if err != nil {
+		t.Fatalf("ConfigPath: %v", err)
 	}
 
-	if email != "a@b.com" {
-		t.Fatalf("unexpected: %q", email)
+	if mkErr := os.MkdirAll(filepath.Dir(path), 0o700); mkErr != nil {
+		t.Fatalf("mkdir: %v", mkErr)
 	}
 
-	if _, ok := ParseTokenKey("nope"); ok {
-		t.Fatalf("expected not ok")
+	if writeErr := os.WriteFile(path, []byte(`{ keyring_backend: "file" }`), 0o600); writeErr != nil {
+		t.Fatalf("write config: %v", writeErr)
+	}
+
+	info, err := ResolveKeyringBackendInfo()
+	if err != nil {
+		t.Fatalf("ResolveKeyringBackendInfo: %v", err)
+	}
+
+	if info.Value != "file" {
+		t.Fatalf("expected file, got %q", info.Value)
+	}
+
+	if info.Source != keyringBackendSourceConfig {
+		t.Fatalf("expected source config, got %q", info.Source)
 	}
 }
 
-func TestKeyringStore_TokenRoundtrip(t *testing.T) {
-	s := &KeyringStore{ring: keyring.NewArrayKeyring(nil)}
+func TestResolveKeyringBackendInfo_EnvOverridesConfig(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, "xdg-config"))
+	t.Setenv("GOG_KEYRING_BACKEND", "keychain")
 
-	createdAt := time.Date(2025, 12, 12, 0, 0, 0, 0, time.UTC)
-	if err := s.SetToken("A@B.COM", Token{
-		Email:        "A@B.COM",
-		Services:     []string{"gmail"},
-		Scopes:       []string{"scope1"},
-		CreatedAt:    createdAt,
-		RefreshToken: "rt",
-	}); err != nil {
-		t.Fatalf("SetToken: %v", err)
-	}
-
-	got, err := s.GetToken("a@b.com")
+	path, err := config.ConfigPath()
 	if err != nil {
-		t.Fatalf("GetToken: %v", err)
+		t.Fatalf("ConfigPath: %v", err)
 	}
 
-	if got.Email != "a@b.com" {
-		t.Fatalf("email: %q", got.Email)
+	if mkErr := os.MkdirAll(filepath.Dir(path), 0o700); mkErr != nil {
+		t.Fatalf("mkdir: %v", mkErr)
 	}
 
-	if got.RefreshToken != "rt" {
-		t.Fatalf("refresh token mismatch")
+	if writeErr := os.WriteFile(path, []byte(`{ keyring_backend: "file" }`), 0o600); writeErr != nil {
+		t.Fatalf("write config: %v", writeErr)
 	}
 
-	if got.CreatedAt.IsZero() {
-		t.Fatalf("expected createdAt")
-	}
-
-	list, err := s.ListTokens()
+	info, err := ResolveKeyringBackendInfo()
 	if err != nil {
-		t.Fatalf("ListTokens: %v", err)
+		t.Fatalf("ResolveKeyringBackendInfo: %v", err)
 	}
 
-	if len(list) != 1 || list[0].Email != "a@b.com" {
-		t.Fatalf("unexpected list: %#v", list)
+	if info.Value != "keychain" {
+		t.Fatalf("expected keychain, got %q", info.Value)
 	}
 
-	if err := s.DeleteToken("a@b.com"); err != nil {
-		t.Fatalf("DeleteToken: %v", err)
-	}
-
-	if _, err := s.GetToken("a@b.com"); err == nil {
-		t.Fatalf("expected error after delete")
+	if info.Source != keyringBackendSourceEnv {
+		t.Fatalf("expected source env, got %q", info.Source)
 	}
 }
 
-func TestKeyringStore_DefaultAccount_Roundtrip(t *testing.T) {
-	s := &KeyringStore{ring: keyring.NewArrayKeyring(nil)}
-
-	// Missing default should be empty without error.
-	if got, err := s.GetDefaultAccount(); err != nil || got != "" {
-		t.Fatalf("unexpected default: %q err=%v", got, err)
+func TestAllowedBackends_Invalid(t *testing.T) {
+	_, err := allowedBackends(KeyringBackendInfo{Value: "nope"})
+	if err == nil {
+		t.Fatalf("expected error")
 	}
 
-	if err := s.SetDefaultAccount("A@B.COM"); err != nil {
-		t.Fatalf("SetDefaultAccount: %v", err)
-	}
-
-	got, err := s.GetDefaultAccount()
-	if err != nil {
-		t.Fatalf("GetDefaultAccount: %v", err)
-	}
-
-	if got != "a@b.com" {
-		t.Fatalf("unexpected default: %q", got)
+	if !errors.Is(err, errInvalidKeyringBackend) {
+		t.Fatalf("expected invalid backend error, got %v", err)
 	}
 }

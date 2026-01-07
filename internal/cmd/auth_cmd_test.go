@@ -13,6 +13,7 @@ import (
 
 	"github.com/99designs/keyring"
 
+	"github.com/steipete/gogcli/internal/config"
 	"github.com/steipete/gogcli/internal/secrets"
 )
 
@@ -91,8 +92,13 @@ func (s *memSecretsStore) SetDefaultAccount(email string) error {
 
 func TestAuthTokens_ExportImportRoundtrip_JSON(t *testing.T) {
 	origOpen := openSecretsStore
-	t.Cleanup(func() { openSecretsStore = origOpen })
+	origKeychain := ensureKeychainAccess
+	t.Cleanup(func() {
+		openSecretsStore = origOpen
+		ensureKeychainAccess = origKeychain
+	})
 
+	ensureKeychainAccess = func() error { return nil }
 	store := newMemSecretsStore()
 	createdAt := time.Date(2025, 12, 12, 0, 0, 0, 0, time.UTC)
 	if err := store.SetToken("A@B.COM", secrets.Token{
@@ -162,12 +168,106 @@ func TestAuthTokens_ExportImportRoundtrip_JSON(t *testing.T) {
 	}
 }
 
+func TestAuthStatus_JSON(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("GOG_KEYRING_BACKEND", "file")
+
+	out := captureStdout(t, func() {
+		_ = captureStderr(t, func() {
+			if err := Execute([]string{"--json", "auth", "status"}); err != nil {
+				t.Fatalf("Execute: %v", err)
+			}
+		})
+	})
+
+	var payload struct {
+		Config struct {
+			Path   string `json:"path"`
+			Exists bool   `json:"exists"`
+		} `json:"config"`
+		Keyring struct {
+			Backend string `json:"backend"`
+			Source  string `json:"source"`
+		} `json:"keyring"`
+	}
+	if err := json.Unmarshal([]byte(out), &payload); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if payload.Keyring.Backend != "file" {
+		t.Fatalf("unexpected backend: %q", payload.Keyring.Backend)
+	}
+	if payload.Keyring.Source != "env" {
+		t.Fatalf("unexpected backend source: %q", payload.Keyring.Source)
+	}
+	if payload.Config.Path == "" {
+		t.Fatalf("expected config path")
+	}
+}
+
+func TestAuthStatus_Text_ConfigFile(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, "xdg-config"))
+
+	cfgPath, err := config.ConfigPath()
+	if err != nil {
+		t.Fatalf("ConfigPath: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Dir(cfgPath), 0o700); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := os.WriteFile(cfgPath, []byte(`{ keyring_backend: "file" }`), 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	out := captureStdout(t, func() {
+		_ = captureStderr(t, func() {
+			if err := Execute([]string{"auth", "status"}); err != nil {
+				t.Fatalf("Execute: %v", err)
+			}
+		})
+	})
+
+	if !strings.Contains(out, "config_exists\ttrue") {
+		t.Fatalf("expected config_exists true, got: %q", out)
+	}
+	if !strings.Contains(out, "keyring_backend\tfile") {
+		t.Fatalf("expected keyring_backend file, got: %q", out)
+	}
+	if !strings.Contains(out, "keyring_backend_source\tconfig") {
+		t.Fatalf("expected keyring_backend_source config, got: %q", out)
+	}
+}
+
 func TestAuthTokensExport_RequiresOut(t *testing.T) {
 	err := Execute([]string{"--json", "auth", "tokens", "export", "a@b.com"})
 	if err == nil {
 		t.Fatalf("expected error")
 	}
 	if !strings.Contains(err.Error(), "empty outPath") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestAuthTokensImport_NoInput(t *testing.T) {
+	origKeychain := ensureKeychainAccess
+	t.Cleanup(func() { ensureKeychainAccess = origKeychain })
+
+	ensureKeychainAccess = func() error {
+		return errors.New("keychain locked")
+	}
+
+	outPath := filepath.Join(t.TempDir(), "token.json")
+	if err := os.WriteFile(outPath, []byte(`{"email":"a@b.com","refresh_token":"rt"}`), 0o600); err != nil {
+		t.Fatalf("write token file: %v", err)
+	}
+
+	err := Execute([]string{"--json", "--no-input", "auth", "tokens", "import", outPath})
+	if err == nil {
+		t.Fatalf("expected error")
+	}
+	if !strings.Contains(err.Error(), "keychain access") {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }

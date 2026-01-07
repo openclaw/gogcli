@@ -25,7 +25,7 @@ type ContactsCmd struct {
 
 type ContactsSearchCmd struct {
 	Query []string `arg:"" name:"query" help:"Search query"`
-	Max   int64    `name:"max" help:"Max results" default:"50"`
+	Max   int64    `name:"max" aliases:"limit" help:"Max results" default:"50"`
 }
 
 func (c *ContactsSearchCmd) Run(ctx context.Context, flags *RootFlags) error {

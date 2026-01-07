@@ -4,8 +4,10 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/99designs/keyring"
+	"github.com/alecthomas/kong"
 	ggoogleapi "google.golang.org/api/googleapi"
 
 	"github.com/steipete/gogcli/internal/config"
@@ -15,6 +17,12 @@ import (
 func Format(err error) string {
 	if err == nil {
 		return ""
+	}
+
+	// Handle Kong parse errors with better messaging
+	var parseErr *kong.ParseError
+	if errors.As(err, &parseErr) {
+		return formatParseError(parseErr)
 	}
 
 	var authErr *gogapi.AuthRequiredError
@@ -50,4 +58,26 @@ func Format(err error) string {
 	}
 
 	return err.Error()
+}
+
+// formatParseError enhances Kong parse errors with helpful hints.
+func formatParseError(err *kong.ParseError) string {
+	msg := err.Error()
+
+	// If Kong already provided a suggestion, use it as-is
+	if strings.Contains(msg, "did you mean") {
+		return msg
+	}
+
+	// For unknown flag errors without suggestions, add a help hint
+	if strings.HasPrefix(msg, "unknown flag") {
+		return msg + "\nRun with --help to see available flags"
+	}
+
+	// For missing required flags
+	if strings.Contains(msg, "missing") || strings.Contains(msg, "required") {
+		return msg + "\nRun with --help to see usage"
+	}
+
+	return msg
 }

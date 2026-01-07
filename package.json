@@ -1,7 +1,0 @@
-{
-  "name": "gogcli",
-  "private": true,
-  "scripts": {
-    "gog": "node scripts/gog.mjs"
-  }
-}

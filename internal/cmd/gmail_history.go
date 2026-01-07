@@ -11,7 +11,7 @@ import (
 
 type GmailHistoryCmd struct {
 	Since string `name:"since" help:"Start history ID"`
-	Max   int64  `name:"max" help:"Max results" default:"100"`
+	Max   int64  `name:"max" aliases:"limit" help:"Max results" default:"100"`
 	Page  string `name:"page" help:"Page token"`
 }
 

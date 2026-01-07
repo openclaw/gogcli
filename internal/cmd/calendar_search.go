@@ -17,7 +17,7 @@ type CalendarSearchCmd struct {
 	From       string `name:"from" help:"Start time (RFC3339; default: 30 days ago)"`
 	To         string `name:"to" help:"End time (RFC3339; default: 90 days from now)"`
 	CalendarID string `name:"calendar" help:"Calendar ID" default:"primary"`
-	Max        int64  `name:"max" help:"Max results" default:"25"`
+	Max        int64  `name:"max" aliases:"limit" help:"Max results" default:"25"`
 }
 
 func (c *CalendarSearchCmd) Run(ctx context.Context, flags *RootFlags) error {

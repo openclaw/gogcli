@@ -19,16 +19,18 @@ import (
 )
 
 var (
-	openSecretsStore  = secrets.OpenDefault
-	authorizeGoogle   = googleauth.Authorize
-	startManageServer = googleauth.StartManageServer
-	checkRefreshToken = googleauth.CheckRefreshToken
+	openSecretsStore     = secrets.OpenDefault
+	authorizeGoogle      = googleauth.Authorize
+	startManageServer    = googleauth.StartManageServer
+	checkRefreshToken    = googleauth.CheckRefreshToken
+	ensureKeychainAccess = secrets.EnsureKeychainAccess
 )
 
 type AuthCmd struct {
 	Credentials AuthCredentialsCmd `cmd:"" name:"credentials" help:"Store OAuth client credentials"`
 	Add         AuthAddCmd         `cmd:"" name:"add" help:"Authorize and store a refresh token"`
 	List        AuthListCmd        `cmd:"" name:"list" help:"List stored accounts"`
+	Status      AuthStatusCmd      `cmd:"" name:"status" help:"Show auth configuration and keyring backend"`
 	Remove      AuthRemoveCmd      `cmd:"" name:"remove" help:"Remove a stored refresh token"`
 	Tokens      AuthTokensCmd      `cmd:"" name:"tokens" help:"Manage stored refresh tokens"`
 	Manage      AuthManageCmd      `cmd:"" name:"manage" help:"Open accounts manager in browser" aliases:"login"`
@@ -264,10 +266,21 @@ func (c *AuthTokensImportCmd) Run(ctx context.Context) error {
 		createdAt = parsed
 	}
 
+	// Pre-flight: ensure keychain is accessible before storing token
+	if keychainErr := ensureKeychainAccess(); keychainErr != nil {
+		return fmt.Errorf("keychain access: %w", keychainErr)
+	}
+
 	store, err := openSecretsStore()
 	if err != nil {
 		return err
 	}
+
+	// Pre-flight: ensure keychain is accessible before storing token
+	if err := ensureKeychainAccess(); err != nil {
+		return fmt.Errorf("keychain access: %w", err)
+	}
+
 	if err := store.SetToken(ex.Email, secrets.Token{
 		Email:        ex.Email,
 		Services:     ex.Services,
@@ -327,6 +340,11 @@ func (c *AuthAddCmd) Run(ctx context.Context) error {
 		return err
 	}
 
+	// Pre-flight: ensure keychain is accessible before starting OAuth
+	if keychainErr := ensureKeychainAccess(); keychainErr != nil {
+		return fmt.Errorf("keychain access: %w", keychainErr)
+	}
+
 	refreshToken, err := authorizeGoogle(ctx, googleauth.AuthorizeOptions{
 		Services:     services,
 		Scopes:       scopes,
@@ -370,6 +388,41 @@ func (c *AuthAddCmd) Run(ctx context.Context) error {
 type AuthListCmd struct {
 	Check   bool          `name:"check" help:"Verify refresh tokens by exchanging for an access token (requires credentials.json)"`
 	Timeout time.Duration `name:"timeout" help:"Per-token check timeout" default:"15s"`
+}
+
+type AuthStatusCmd struct{}
+
+func (c *AuthStatusCmd) Run(ctx context.Context) error {
+	u := ui.FromContext(ctx)
+	configPath, err := config.ConfigPath()
+	if err != nil {
+		return err
+	}
+	configExists, err := config.ConfigExists()
+	if err != nil {
+		return err
+	}
+	backendInfo, err := secrets.ResolveKeyringBackendInfo()
+	if err != nil {
+		return err
+	}
+	if outfmt.IsJSON(ctx) {
+		return outfmt.WriteJSON(os.Stdout, map[string]any{
+			"config": map[string]any{
+				"path":   configPath,
+				"exists": configExists,
+			},
+			"keyring": map[string]any{
+				"backend": backendInfo.Value,
+				"source":  backendInfo.Source,
+			},
+		})
+	}
+	u.Out().Printf("config_path\t%s", configPath)
+	u.Out().Printf("config_exists\t%t", configExists)
+	u.Out().Printf("keyring_backend\t%s", backendInfo.Value)
+	u.Out().Printf("keyring_backend_source\t%s", backendInfo.Source)
+	return nil
 }
 
 func (c *AuthListCmd) Run(ctx context.Context) error {

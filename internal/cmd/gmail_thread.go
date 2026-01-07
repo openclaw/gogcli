@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"google.golang.org/api/gmail/v1"
@@ -16,9 +17,33 @@ import (
 	"github.com/steipete/gogcli/internal/ui"
 )
 
+// HTML stripping patterns for cleaner text output.
+var (
+	// Remove script blocks entirely (including content)
+	scriptPattern = regexp.MustCompile(`(?is)<script[^>]*>.*?</script>`)
+	// Remove style blocks entirely (including content)
+	stylePattern = regexp.MustCompile(`(?is)<style[^>]*>.*?</style>`)
+	// Remove all HTML tags
+	htmlTagPattern = regexp.MustCompile(`<[^>]*>`)
+	// Collapse multiple whitespace/newlines
+	whitespacePattern = regexp.MustCompile(`\s+`)
+)
+
+func stripHTMLTags(s string) string {
+	// First remove script and style blocks entirely
+	s = scriptPattern.ReplaceAllString(s, "")
+	s = stylePattern.ReplaceAllString(s, "")
+	// Then remove remaining HTML tags
+	s = htmlTagPattern.ReplaceAllString(s, " ")
+	// Collapse whitespace
+	s = whitespacePattern.ReplaceAllString(s, " ")
+	return strings.TrimSpace(s)
+}
+
 type GmailThreadCmd struct {
-	Get    GmailThreadGetCmd    `cmd:"" name:"get" help:"Get a thread with all messages (optionally download attachments)"`
-	Modify GmailThreadModifyCmd `cmd:"" name:"modify" help:"Modify labels on all messages in a thread"`
+	Get         GmailThreadGetCmd         `cmd:"" name:"get" help:"Get a thread with all messages (optionally download attachments)"`
+	Modify      GmailThreadModifyCmd      `cmd:"" name:"modify" help:"Modify labels on all messages in a thread"`
+	Attachments GmailThreadAttachmentsCmd `cmd:"" name:"attachments" help:"List all attachments in a thread"`
 }
 
 type GmailThreadGetCmd struct {
@@ -103,20 +128,35 @@ func (c *GmailThreadGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return nil
 	}
 
-	for _, msg := range thread.Messages {
+	// Show message count upfront so users know how many messages to expect
+	u.Out().Printf("Thread contains %d message(s)\n", len(thread.Messages))
+	u.Out().Println("")
+
+	for i, msg := range thread.Messages {
 		if msg == nil {
 			continue
 		}
-		u.Out().Printf("Message: %s", msg.Id)
+		u.Out().Printf("=== Message %d/%d: %s ===", i+1, len(thread.Messages), msg.Id)
 		u.Out().Printf("From: %s", headerValue(msg.Payload, "From"))
 		u.Out().Printf("To: %s", headerValue(msg.Payload, "To"))
 		u.Out().Printf("Subject: %s", headerValue(msg.Payload, "Subject"))
 		u.Out().Printf("Date: %s", headerValue(msg.Payload, "Date"))
 		u.Out().Println("")
 
-		body := bestBodyText(msg.Payload)
+		body, isHTML := bestBodyForDisplay(msg.Payload)
 		if body != "" {
-			u.Out().Println(body)
+			cleanBody := body
+			if isHTML {
+				// Strip HTML tags for cleaner text output
+				cleanBody = stripHTMLTags(body)
+			}
+			// Limit body preview to avoid overwhelming output
+			// Use runes to avoid breaking multi-byte UTF-8 characters
+			runes := []rune(cleanBody)
+			if len(runes) > 500 {
+				cleanBody = string(runes[:500]) + "... [truncated]"
+			}
+			u.Out().Println(cleanBody)
 			u.Out().Println("")
 		}
 
@@ -206,6 +246,137 @@ func (c *GmailThreadModifyCmd) Run(ctx context.Context, flags *RootFlags) error 
 	return nil
 }
 
+// GmailThreadAttachmentsCmd lists all attachments in a thread.
+type GmailThreadAttachmentsCmd struct {
+	ThreadID string `arg:"" name:"threadId" help:"Thread ID"`
+	Download bool   `name:"download" help:"Download all attachments"`
+	OutDir   string `name:"out-dir" help:"Directory to write attachments to (default: current directory)"`
+}
+
+func (c *GmailThreadAttachmentsCmd) Run(ctx context.Context, flags *RootFlags) error {
+	u := ui.FromContext(ctx)
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
+	}
+	threadID := strings.TrimSpace(c.ThreadID)
+	if threadID == "" {
+		return usage("empty threadId")
+	}
+
+	svc, err := newGmailService(ctx, account)
+	if err != nil {
+		return err
+	}
+
+	thread, err := svc.Users.Threads.Get("me", threadID).Format("full").Context(ctx).Do()
+	if err != nil {
+		return err
+	}
+
+	if thread == nil || len(thread.Messages) == 0 {
+		if outfmt.IsJSON(ctx) {
+			return outfmt.WriteJSON(os.Stdout, map[string]any{
+				"threadId":    threadID,
+				"attachments": []any{},
+			})
+		}
+		u.Err().Println("Empty thread")
+		return nil
+	}
+
+	var attachDir string
+	if c.Download {
+		if strings.TrimSpace(c.OutDir) == "" {
+			attachDir = "."
+		} else {
+			attachDir = filepath.Clean(c.OutDir)
+		}
+	}
+
+	type attachmentOutput struct {
+		MessageID    string `json:"messageId"`
+		AttachmentID string `json:"attachmentId"`
+		Filename     string `json:"filename"`
+		Size         int64  `json:"size"`
+		SizeHuman    string `json:"sizeHuman"`
+		MimeType     string `json:"mimeType"`
+		Path         string `json:"path,omitempty"`
+		Cached       bool   `json:"cached,omitempty"`
+	}
+
+	var allAttachments []attachmentOutput
+	for _, msg := range thread.Messages {
+		if msg == nil {
+			continue
+		}
+		for _, a := range collectAttachments(msg.Payload) {
+			att := attachmentOutput{
+				MessageID:    msg.Id,
+				AttachmentID: a.AttachmentID,
+				Filename:     a.Filename,
+				Size:         a.Size,
+				SizeHuman:    formatBytes(a.Size),
+				MimeType:     a.MimeType,
+			}
+			if c.Download {
+				outPath, cached, err := downloadAttachment(ctx, svc, msg.Id, a, attachDir)
+				if err != nil {
+					return err
+				}
+				att.Path = outPath
+				att.Cached = cached
+			}
+			allAttachments = append(allAttachments, att)
+		}
+	}
+
+	if outfmt.IsJSON(ctx) {
+		return outfmt.WriteJSON(os.Stdout, map[string]any{
+			"threadId":    threadID,
+			"attachments": allAttachments,
+		})
+	}
+
+	if len(allAttachments) == 0 {
+		u.Out().Println("No attachments found")
+		return nil
+	}
+
+	u.Out().Printf("Found %d attachment(s):\n", len(allAttachments))
+	for _, a := range allAttachments {
+		if c.Download {
+			status := "Saved"
+			if a.Cached {
+				status = "Cached"
+			}
+			u.Out().Printf("  %s: %s (%s) - %s", status, a.Filename, a.SizeHuman, a.Path)
+		} else {
+			u.Out().Printf("  - %s (%s) [%s]", a.Filename, a.SizeHuman, a.MimeType)
+		}
+	}
+	return nil
+}
+
+// formatBytes formats bytes into human-readable format.
+func formatBytes(bytes int64) string {
+	const (
+		KB = 1024
+		MB = KB * 1024
+		GB = MB * 1024
+	)
+	switch {
+	case bytes >= GB:
+		return fmt.Sprintf("%.1f GB", float64(bytes)/float64(GB))
+	case bytes >= MB:
+		return fmt.Sprintf("%.1f MB", float64(bytes)/float64(MB))
+	case bytes >= KB:
+		return fmt.Sprintf("%.1f KB", float64(bytes)/float64(KB))
+	default:
+		return fmt.Sprintf("%d B", bytes)
+	}
+}
+
 type GmailURLCmd struct {
 	ThreadIDs []string `arg:"" name:"threadId" help:"Thread IDs"`
 }
@@ -245,9 +416,13 @@ func collectAttachments(p *gmail.MessagePart) []attachmentInfo {
 		return nil
 	}
 	var out []attachmentInfo
-	if p.Filename != "" && p.Body != nil && p.Body.AttachmentId != "" {
+	if p.Body != nil && p.Body.AttachmentId != "" {
+		filename := p.Filename
+		if strings.TrimSpace(filename) == "" {
+			filename = "attachment"
+		}
 		out = append(out, attachmentInfo{
-			Filename:     p.Filename,
+			Filename:     filename,
 			Size:         p.Body.Size,
 			MimeType:     p.MimeType,
 			AttachmentID: p.Body.AttachmentId,
@@ -269,6 +444,21 @@ func bestBodyText(p *gmail.MessagePart) string {
 	}
 	html := findPartBody(p, "text/html")
 	return html
+}
+
+func bestBodyForDisplay(p *gmail.MessagePart) (string, bool) {
+	if p == nil {
+		return "", false
+	}
+	plain := findPartBody(p, "text/plain")
+	if plain != "" {
+		return plain, false
+	}
+	html := findPartBody(p, "text/html")
+	if html == "" {
+		return "", false
+	}
+	return html, true
 }
 
 func findPartBody(p *gmail.MessagePart, mimeType string) string {

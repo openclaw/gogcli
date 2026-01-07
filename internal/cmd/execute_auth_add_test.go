@@ -12,10 +12,14 @@ import (
 func TestExecute_AuthAdd_JSON(t *testing.T) {
 	origOpen := openSecretsStore
 	origAuth := authorizeGoogle
+	origKeychain := ensureKeychainAccess
 	t.Cleanup(func() {
 		openSecretsStore = origOpen
 		authorizeGoogle = origAuth
+		ensureKeychainAccess = origKeychain
 	})
+
+	ensureKeychainAccess = func() error { return nil }
 
 	store := newMemSecretsStore()
 	openSecretsStore = func() (secrets.Store, error) { return store, nil }

@@ -22,7 +22,7 @@ type ContactsDirectoryCmd struct {
 }
 
 type ContactsDirectoryListCmd struct {
-	Max  int64  `name:"max" help:"Max results" default:"50"`
+	Max  int64  `name:"max" aliases:"limit" help:"Max results" default:"50"`
 	Page string `name:"page" help:"Page token"`
 }
 
@@ -98,7 +98,7 @@ func (c *ContactsDirectoryListCmd) Run(ctx context.Context, flags *RootFlags) er
 
 type ContactsDirectorySearchCmd struct {
 	Query []string `arg:"" name:"query" help:"Search query"`
-	Max   int64    `name:"max" help:"Max results" default:"50"`
+	Max   int64    `name:"max" aliases:"limit" help:"Max results" default:"50"`
 	Page  string   `name:"page" help:"Page token"`
 }
 
@@ -180,7 +180,7 @@ type ContactsOtherCmd struct {
 }
 
 type ContactsOtherListCmd struct {
-	Max  int64  `name:"max" help:"Max results" default:"100"`
+	Max  int64  `name:"max" aliases:"limit" help:"Max results" default:"100"`
 	Page string `name:"page" help:"Page token"`
 }
 
@@ -254,7 +254,7 @@ func (c *ContactsOtherListCmd) Run(ctx context.Context, flags *RootFlags) error 
 
 type ContactsOtherSearchCmd struct {
 	Query []string `arg:"" name:"query" help:"Search query"`
-	Max   int64    `name:"max" help:"Max results" default:"50"`
+	Max   int64    `name:"max" aliases:"limit" help:"Max results" default:"50"`
 }
 
 func (c *ContactsOtherSearchCmd) Run(ctx context.Context, flags *RootFlags) error {

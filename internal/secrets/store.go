@@ -46,12 +46,39 @@ var (
 	errMissingEmail          = errors.New("missing email")
 	errMissingRefreshToken   = errors.New("missing refresh token")
 	errNoTTY                 = errors.New("no TTY available for keyring file backend password prompt")
-	errInvalidKeyringBackend = errors.New("invalid keyring backend (expected auto, keychain, or file)")
+	errInvalidKeyringBackend = errors.New("invalid keyring backend")
 )
 
-func allowedBackendsFromEnv() ([]keyring.BackendType, error) {
-	backend := strings.ToLower(strings.TrimSpace(os.Getenv(keyringBackendEnv)))
-	switch backend {
+type KeyringBackendInfo struct {
+	Value  string
+	Source string
+}
+
+const (
+	keyringBackendSourceEnv     = "env"
+	keyringBackendSourceConfig  = "config"
+	keyringBackendSourceDefault = "default"
+)
+
+func ResolveKeyringBackendInfo() (KeyringBackendInfo, error) {
+	if v := strings.TrimSpace(os.Getenv(keyringBackendEnv)); v != "" {
+		return KeyringBackendInfo{Value: strings.ToLower(v), Source: keyringBackendSourceEnv}, nil
+	}
+
+	cfg, err := config.ReadConfig()
+	if err != nil {
+		return KeyringBackendInfo{}, fmt.Errorf("read config: %w", err)
+	}
+
+	if cfg.KeyringBackend != "" {
+		return KeyringBackendInfo{Value: cfg.KeyringBackend, Source: keyringBackendSourceConfig}, nil
+	}
+
+	return KeyringBackendInfo{Value: "auto", Source: keyringBackendSourceDefault}, nil
+}
+
+func allowedBackends(info KeyringBackendInfo) ([]keyring.BackendType, error) {
+	switch info.Value {
 	case "", "auto":
 		return nil, nil
 	case "keychain":
@@ -59,8 +86,21 @@ func allowedBackendsFromEnv() ([]keyring.BackendType, error) {
 	case "file":
 		return []keyring.BackendType{keyring.FileBackend}, nil
 	default:
-		return nil, fmt.Errorf("%w: %s=%q", errInvalidKeyringBackend, keyringBackendEnv, backend)
+		return nil, fmt.Errorf("%w: %q (expected auto, keychain, or file)", errInvalidKeyringBackend, info.Value)
 	}
+}
+
+// wrapKeychainError wraps keychain errors with helpful guidance on macOS.
+func wrapKeychainError(err error) error {
+	if err == nil {
+		return nil
+	}
+
+	if IsKeychainLockedError(err.Error()) {
+		return fmt.Errorf("%w\n\nYour macOS keychain is locked. To unlock it, run:\n  security unlock-keychain ~/Library/Keychains/login.keychain-db", err)
+	}
+
+	return err
 }
 
 func fileKeyringPasswordFuncFrom(password string, isTTY bool) keyring.PromptFunc {
@@ -90,7 +130,12 @@ func OpenDefault() (Store, error) {
 		return nil, fmt.Errorf("ensure keyring dir: %w", err)
 	}
 
-	allowedBackends, err := allowedBackendsFromEnv()
+	backendInfo, err := ResolveKeyringBackendInfo()
+	if err != nil {
+		return nil, err
+	}
+
+	allowedBackends, err := allowedBackends(backendInfo)
 	if err != nil {
 		return nil, err
 	}
@@ -153,7 +198,7 @@ func (s *KeyringStore) SetToken(email string, tok Token) error {
 		Key:  tokenKey(email),
 		Data: payload,
 	}); err != nil {
-		return fmt.Errorf("store token: %w", err)
+		return wrapKeychainError(fmt.Errorf("store token: %w", err))
 	}
 
 	return nil

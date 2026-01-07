@@ -91,7 +91,7 @@ func TestExecute_GmailThread_Text_Download(t *testing.T) {
 			}
 		})
 	})
-	if !strings.Contains(out, "Message: m-thread-1") || !strings.Contains(out, "Attachments:") || !(strings.Contains(out, "Saved:") || strings.Contains(out, "Cached:")) {
+	if !strings.Contains(out, "=== Message 1/1: m-thread-1 ===") || !strings.Contains(out, "Attachments:") || !(strings.Contains(out, "Saved:") || strings.Contains(out, "Cached:")) {
 		t.Fatalf("unexpected out=%q", out)
 	}
 

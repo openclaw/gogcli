@@ -144,8 +144,13 @@ func TestAuthList_Check_Text(t *testing.T) {
 
 func TestAuthTokensExportImport_Text(t *testing.T) {
 	origOpen := openSecretsStore
-	t.Cleanup(func() { openSecretsStore = origOpen })
+	origKeychain := ensureKeychainAccess
+	t.Cleanup(func() {
+		openSecretsStore = origOpen
+		ensureKeychainAccess = origKeychain
+	})
 
+	ensureKeychainAccess = func() error { return nil }
 	store := newMemSecretsStore()
 	openSecretsStore = func() (secrets.Store, error) { return store, nil }
 

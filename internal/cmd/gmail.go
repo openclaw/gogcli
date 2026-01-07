@@ -19,28 +19,44 @@ import (
 var newGmailService = googleapi.NewGmail
 
 type GmailCmd struct {
-	Search      GmailSearchCmd      `cmd:"" name:"search" help:"Search threads using Gmail query syntax"`
-	Thread      GmailThreadCmd      `cmd:"" name:"thread" help:"Thread operations (get, modify)"`
-	Get         GmailGetCmd         `cmd:"" name:"get" help:"Get a message (full|metadata|raw)"`
-	Attachment  GmailAttachmentCmd  `cmd:"" name:"attachment" help:"Download a single attachment"`
-	URL         GmailURLCmd         `cmd:"" name:"url" help:"Print Gmail web URLs for threads"`
-	Labels      GmailLabelsCmd      `cmd:"" name:"labels" help:"Label operations"`
-	Send        GmailSendCmd        `cmd:"" name:"send" help:"Send an email"`
-	Drafts      GmailDraftsCmd      `cmd:"" name:"drafts" help:"Draft operations"`
-	Watch       GmailWatchCmd       `cmd:"" name:"watch" help:"Manage Gmail watch"`
-	History     GmailHistoryCmd     `cmd:"" name:"history" help:"Gmail history"`
-	AutoForward GmailAutoForwardCmd `cmd:"" name:"autoforward" help:"Auto-forwarding settings"`
-	Batch       GmailBatchCmd       `cmd:"" name:"batch" help:"Batch operations"`
-	Delegates   GmailDelegatesCmd   `cmd:"" name:"delegates" help:"Delegate operations"`
-	Filters     GmailFiltersCmd     `cmd:"" name:"filters" help:"Filter operations"`
-	Forwarding  GmailForwardingCmd  `cmd:"" name:"forwarding" help:"Forwarding addresses"`
-	SendAs      GmailSendAsCmd      `cmd:"" name:"sendas" help:"Send-as settings"`
-	Vacation    GmailVacationCmd    `cmd:"" name:"vacation" help:"Vacation responder"`
+	Search     GmailSearchCmd     `cmd:"" name:"search" group:"Read" help:"Search threads using Gmail query syntax"`
+	Thread     GmailThreadCmd     `cmd:"" name:"thread" group:"Organize" help:"Thread operations (get, modify)"`
+	Get        GmailGetCmd        `cmd:"" name:"get" group:"Read" help:"Get a message (full|metadata|raw)"`
+	Attachment GmailAttachmentCmd `cmd:"" name:"attachment" group:"Read" help:"Download a single attachment"`
+	URL        GmailURLCmd        `cmd:"" name:"url" group:"Read" help:"Print Gmail web URLs for threads"`
+	History    GmailHistoryCmd    `cmd:"" name:"history" group:"Read" help:"Gmail history"`
+
+	Labels GmailLabelsCmd `cmd:"" name:"labels" group:"Organize" help:"Label operations"`
+	Batch  GmailBatchCmd  `cmd:"" name:"batch" group:"Organize" help:"Batch operations"`
+
+	Send   GmailSendCmd   `cmd:"" name:"send" group:"Write" help:"Send an email"`
+	Drafts GmailDraftsCmd `cmd:"" name:"drafts" group:"Write" help:"Draft operations"`
+
+	Settings GmailSettingsCmd `cmd:"" name:"settings" group:"Admin" help:"Settings and admin"`
+
+	// Kept for backwards-compatibility; hidden from default help.
+	Watch       GmailWatchCmd       `cmd:"" name:"watch" hidden:"" help:"Manage Gmail watch"`
+	AutoForward GmailAutoForwardCmd `cmd:"" name:"autoforward" hidden:"" help:"Auto-forwarding settings"`
+	Delegates   GmailDelegatesCmd   `cmd:"" name:"delegates" hidden:"" help:"Delegate operations"`
+	Filters     GmailFiltersCmd     `cmd:"" name:"filters" hidden:"" help:"Filter operations"`
+	Forwarding  GmailForwardingCmd  `cmd:"" name:"forwarding" hidden:"" help:"Forwarding addresses"`
+	SendAs      GmailSendAsCmd      `cmd:"" name:"sendas" hidden:"" help:"Send-as settings"`
+	Vacation    GmailVacationCmd    `cmd:"" name:"vacation" hidden:"" help:"Vacation responder"`
+}
+
+type GmailSettingsCmd struct {
+	Filters     GmailFiltersCmd     `cmd:"" name:"filters" group:"Organize" help:"Filter operations"`
+	Delegates   GmailDelegatesCmd   `cmd:"" name:"delegates" group:"Admin" help:"Delegate operations"`
+	Forwarding  GmailForwardingCmd  `cmd:"" name:"forwarding" group:"Admin" help:"Forwarding addresses"`
+	AutoForward GmailAutoForwardCmd `cmd:"" name:"autoforward" group:"Admin" help:"Auto-forwarding settings"`
+	SendAs      GmailSendAsCmd      `cmd:"" name:"sendas" group:"Admin" help:"Send-as settings"`
+	Vacation    GmailVacationCmd    `cmd:"" name:"vacation" group:"Admin" help:"Vacation responder"`
+	Watch       GmailWatchCmd       `cmd:"" name:"watch" group:"Admin" help:"Manage Gmail watch"`
 }
 
 type GmailSearchCmd struct {
 	Query []string `arg:"" name:"query" help:"Search query"`
-	Max   int64    `name:"max" help:"Max results" default:"10"`
+	Max   int64    `name:"max" aliases:"limit" help:"Max results" default:"10"`
 	Page  string   `name:"page" help:"Page token"`
 }
 

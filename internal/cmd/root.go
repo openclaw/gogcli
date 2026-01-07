@@ -9,8 +9,10 @@ import (
 
 	"github.com/alecthomas/kong"
 
+	"github.com/steipete/gogcli/internal/config"
 	"github.com/steipete/gogcli/internal/errfmt"
 	"github.com/steipete/gogcli/internal/outfmt"
+	"github.com/steipete/gogcli/internal/secrets"
 	"github.com/steipete/gogcli/internal/ui"
 )
 
@@ -34,7 +36,7 @@ type CLI struct {
 	Docs       DocsCmd       `cmd:"" help:"Google Docs (export via Drive)"`
 	Slides     SlidesCmd     `cmd:"" help:"Google Slides"`
 	Calendar   CalendarCmd   `cmd:"" help:"Google Calendar"`
-	Gmail      GmailCmd      `cmd:"" help:"Gmail"`
+	Gmail      GmailCmd      `cmd:"" aliases:"mail,email" help:"Gmail"`
 	Contacts   ContactsCmd   `cmd:"" help:"Google Contacts"`
 	Tasks      TasksCmd      `cmd:"" help:"Google Tasks"`
 	People     PeopleCmd     `cmd:"" help:"Google People"`
@@ -47,6 +49,7 @@ type exitPanic struct{ code int }
 
 func Execute(args []string) (err error) {
 	envMode := outfmt.FromEnv()
+	expandHelp := os.Getenv("GOG_HELP") == "full" || os.Getenv("GOG_HELP_EXPAND") == "1"
 	vars := kong.Vars{
 		"color":   envOr("GOG_COLOR", "auto"),
 		"json":    boolString(envMode.JSON),
@@ -58,8 +61,12 @@ func Execute(args []string) (err error) {
 	parser, err := kong.New(
 		cli,
 		kong.Name("gog"),
-		kong.Description("Google CLI for Gmail/Calendar/Drive/Contacts/Tasks/Sheets/Docs/Slides/People"),
+		kong.Description(helpDescription()),
 		kong.Vars(vars),
+		kong.ConfigureHelp(kong.HelpOptions{
+			NoExpandSubcommands: !expandHelp,
+		}),
+		kong.Help(helpPrinter),
 		kong.Writers(os.Stdout, os.Stderr),
 		kong.Exit(func(code int) { panic(exitPanic{code: code}) }),
 	)
@@ -158,6 +165,27 @@ func boolString(v bool) string {
 		return "true"
 	}
 	return "false"
+}
+
+func helpDescription() string {
+	desc := "Google CLI for Gmail/Calendar/Drive/Contacts/Tasks/Sheets/Docs/Slides/People"
+
+	configPath, err := config.ConfigPath()
+	configLine := "unknown"
+	if err != nil {
+		configLine = fmt.Sprintf("error: %v", err)
+	} else if configPath != "" {
+		configLine = configPath
+	}
+
+	backendInfo, err := secrets.ResolveKeyringBackendInfo()
+	if err != nil {
+		backendLine := fmt.Sprintf("error: %v", err)
+		return fmt.Sprintf("%s\n\nConfig:\n  file: %s\n  keyring backend: %s", desc, configLine, backendLine)
+	}
+
+	backendLine := fmt.Sprintf("%s (source: %s)", backendInfo.Value, backendInfo.Source)
+	return fmt.Sprintf("%s\n\nConfig:\n  file: %s\n  keyring backend: %s", desc, configLine, backendLine)
 }
 
 // newUsageError wraps errors in a way main() can map to exit code 2.

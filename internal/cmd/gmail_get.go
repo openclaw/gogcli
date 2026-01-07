@@ -64,7 +64,20 @@ func (c *GmailGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{"message": msg})
+		// Include a flattened headers map for easier querying
+		// (e.g., jq '.headers.to' instead of complex nested queries)
+		headers := map[string]string{
+			"from":    headerValue(msg.Payload, "From"),
+			"to":      headerValue(msg.Payload, "To"),
+			"cc":      headerValue(msg.Payload, "Cc"),
+			"bcc":     headerValue(msg.Payload, "Bcc"),
+			"subject": headerValue(msg.Payload, "Subject"),
+			"date":    headerValue(msg.Payload, "Date"),
+		}
+		return outfmt.WriteJSON(os.Stdout, map[string]any{
+			"message": msg,
+			"headers": headers,
+		})
 	}
 
 	u.Out().Printf("id\t%s", msg.Id)

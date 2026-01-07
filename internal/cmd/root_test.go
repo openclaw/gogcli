@@ -27,6 +27,37 @@ func TestExecute_Help(t *testing.T) {
 	if !strings.Contains(out, "Google CLI") && !strings.Contains(out, "Usage:") {
 		t.Fatalf("unexpected help output: %q", out)
 	}
+	if !strings.Contains(out, "config.json") || !strings.Contains(out, "keyring backend") {
+		t.Fatalf("expected config info in help output: %q", out)
+	}
+	if strings.Contains(out, "gmail (mail,email) thread get") {
+		t.Fatalf("expected collapsed help (no expanded subcommands), got: %q", out)
+	}
+}
+
+func TestExecute_Help_GmailHasGroupsAndRelativeCommands(t *testing.T) {
+	out := captureStdout(t, func() {
+		_ = captureStderr(t, func() {
+			if err := Execute([]string{"gmail", "--help"}); err != nil {
+				t.Fatalf("Execute: %v", err)
+			}
+		})
+	})
+	if !strings.Contains(out, "\nRead\n") || !strings.Contains(out, "\nWrite\n") || !strings.Contains(out, "\nAdmin\n") {
+		t.Fatalf("expected command groups in gmail help, got: %q", out)
+	}
+	if !strings.Contains(out, "\n  search <query>") {
+		t.Fatalf("expected relative command summaries in gmail help, got: %q", out)
+	}
+	if strings.Contains(out, "\n  gmail (mail,email) search <query>") {
+		t.Fatalf("unexpected full command prefix in gmail help, got: %q", out)
+	}
+	if strings.Contains(out, "\n  watch <command>") {
+		t.Fatalf("expected watch to be under gmail settings (not top-level gmail help), got: %q", out)
+	}
+	if !strings.Contains(out, "\n  settings <command>") {
+		t.Fatalf("expected settings subgroup in gmail help, got: %q", out)
+	}
 }
 
 func TestExecute_UnknownCommand(t *testing.T) {

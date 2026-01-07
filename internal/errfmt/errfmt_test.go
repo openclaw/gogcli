@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/99designs/keyring"
+	"github.com/alecthomas/kong"
 	ggoogleapi "google.golang.org/api/googleapi"
 
 	"github.com/steipete/gogcli/internal/config"
@@ -61,6 +62,71 @@ func TestFormat_GoogleAPIError(t *testing.T) {
 
 	if !containsAll(got, "403", "insufficientPermissions", "nope") {
 		t.Fatalf("unexpected: %q", got)
+	}
+}
+
+func TestFormat_KongParseError_UnknownFlag(t *testing.T) {
+	// Use real Kong parser to generate a parse error
+	type TestCmd struct {
+		Max int64 `name:"max" help:"Max results"`
+	}
+
+	parser, err := kong.New(&TestCmd{})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, parseErr := parser.Parse([]string{"--xyz"})
+	if parseErr == nil {
+		t.Fatal("expected parse error")
+	}
+
+	got := Format(parseErr)
+	if !containsAll(got, "unknown flag", "--help") {
+		t.Fatalf("expected help hint, got: %q", got)
+	}
+}
+
+func TestFormat_KongParseError_WithSuggestion(t *testing.T) {
+	// Use real Kong parser - typo should trigger suggestion
+	type TestCmd struct {
+		Limit int64 `name:"limit" help:"Limit results"`
+	}
+
+	parser, err := kong.New(&TestCmd{})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, parseErr := parser.Parse([]string{"--limi"})
+	if parseErr == nil {
+		t.Fatal("expected parse error")
+	}
+
+	got := Format(parseErr)
+	// Kong provides a "did you mean" suggestion for close matches
+	if strings.Contains(got, "did you mean") {
+		// When Kong provides a suggestion, we should NOT add extra help
+		if strings.Contains(got, "Run with --help") {
+			t.Fatalf("should not add help hint when Kong provides suggestion, got: %q", got)
+		}
+	}
+}
+
+func TestFormat_KongParseError_UnknownFlagWithAlias(t *testing.T) {
+	// Test that aliases work and don't produce errors
+	type TestCmd struct {
+		Max int64 `name:"max" aliases:"limit" help:"Max results"`
+	}
+
+	parser, err := kong.New(&TestCmd{})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, parseErr := parser.Parse([]string{"--limit", "10"})
+	if parseErr != nil {
+		t.Fatalf("--limit alias should work, got error: %v", parseErr)
 	}
 }
 

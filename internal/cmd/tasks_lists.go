@@ -18,7 +18,7 @@ type TasksListsCmd struct {
 }
 
 type TasksListsListCmd struct {
-	Max  int64  `name:"max" help:"Max results (max allowed: 1000)" default:"100"`
+	Max  int64  `name:"max" aliases:"limit" help:"Max results (max allowed: 1000)" default:"100"`
 	Page string `name:"page" help:"Page token"`
 }
 
