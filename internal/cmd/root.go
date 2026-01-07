@@ -174,7 +174,7 @@ func helpDescription() string {
 	}
 
 	backendInfo, err := secrets.ResolveKeyringBackendInfo()
-	backendLine := "unknown"
+	var backendLine string
 	if err != nil {
 		backendLine = fmt.Sprintf("error: %v", err)
 	} else {

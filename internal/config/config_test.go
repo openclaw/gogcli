@@ -16,9 +16,11 @@ func TestConfigPath(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ConfigPath: %v", err)
 	}
+
 	if filepath.Base(path) != "config.json" {
 		t.Fatalf("unexpected config file: %q", filepath.Base(path))
 	}
+
 	if filepath.Base(filepath.Dir(path)) != AppName {
 		t.Fatalf("unexpected config dir: %q", filepath.Dir(path))
 	}
@@ -33,6 +35,7 @@ func TestReadConfig_Missing(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ReadConfig: %v", err)
 	}
+
 	if cfg.KeyringBackend != "" {
 		t.Fatalf("expected empty config, got %q", cfg.KeyringBackend)
 	}
@@ -47,14 +50,16 @@ func TestReadConfig_JSON5(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ConfigPath: %v", err)
 	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+
+	if err = os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}
 	data := `{
   // allow comments + trailing commas
   keyring_backend: "file",
 }`
-	if err := os.WriteFile(path, []byte(data), 0o600); err != nil {
+
+	if err = os.WriteFile(path, []byte(data), 0o600); err != nil {
 		t.Fatalf("write config: %v", err)
 	}
 
@@ -62,6 +67,7 @@ func TestReadConfig_JSON5(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ReadConfig: %v", err)
 	}
+
 	if got := strings.TrimSpace(cfg.KeyringBackend); got != "file" {
 		t.Fatalf("expected keyring_backend=file, got %q", got)
 	}

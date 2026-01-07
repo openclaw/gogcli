@@ -19,9 +19,11 @@ func TestResolveKeyringBackendInfo_Default(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ResolveKeyringBackendInfo: %v", err)
 	}
+
 	if info.Value != "auto" {
 		t.Fatalf("expected auto, got %q", info.Value)
 	}
+
 	if info.Source != keyringBackendSourceDefault {
 		t.Fatalf("expected source default, got %q", info.Source)
 	}
@@ -37,10 +39,12 @@ func TestResolveKeyringBackendInfo_Config(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ConfigPath: %v", err)
 	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+
+	if err = os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}
-	if err := os.WriteFile(path, []byte(`{ keyring_backend: "file" }`), 0o600); err != nil {
+
+	if err = os.WriteFile(path, []byte(`{ keyring_backend: "file" }`), 0o600); err != nil {
 		t.Fatalf("write config: %v", err)
 	}
 
@@ -48,9 +52,11 @@ func TestResolveKeyringBackendInfo_Config(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ResolveKeyringBackendInfo: %v", err)
 	}
+
 	if info.Value != "file" {
 		t.Fatalf("expected file, got %q", info.Value)
 	}
+
 	if info.Source != keyringBackendSourceConfig {
 		t.Fatalf("expected source config, got %q", info.Source)
 	}
@@ -66,10 +72,12 @@ func TestResolveKeyringBackendInfo_EnvOverridesConfig(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ConfigPath: %v", err)
 	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+
+	if err = os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}
-	if err := os.WriteFile(path, []byte(`{ keyring_backend: "file" }`), 0o600); err != nil {
+
+	if err = os.WriteFile(path, []byte(`{ keyring_backend: "file" }`), 0o600); err != nil {
 		t.Fatalf("write config: %v", err)
 	}
 
@@ -77,9 +85,11 @@ func TestResolveKeyringBackendInfo_EnvOverridesConfig(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ResolveKeyringBackendInfo: %v", err)
 	}
+
 	if info.Value != "keychain" {
 		t.Fatalf("expected keychain, got %q", info.Value)
 	}
+
 	if info.Source != keyringBackendSourceEnv {
 		t.Fatalf("expected source env, got %q", info.Source)
 	}
@@ -90,6 +100,7 @@ func TestAllowedBackends_Invalid(t *testing.T) {
 	if err == nil {
 		t.Fatalf("expected error")
 	}
+
 	if !errors.Is(err, errInvalidKeyringBackend) {
 		t.Fatalf("expected invalid backend error, got %v", err)
 	}
