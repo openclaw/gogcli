@@ -60,7 +60,7 @@ func copyDataValidation(ctx context.Context, svc *sheets.Service, spreadsheetID,
 
 func fetchSheetIDMap(ctx context.Context, svc *sheets.Service, spreadsheetID string) (map[string]int64, error) {
 	call := svc.Spreadsheets.Get(spreadsheetID).
-		Fields("sheets.properties.sheetId", "sheets.properties.title")
+		Fields("sheets(properties(sheetId,title))")
 	if ctx != nil {
 		call = call.Context(ctx)
 	}

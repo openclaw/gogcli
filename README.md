@@ -402,9 +402,9 @@ gog sheets export <spreadsheetId> --format xlsx --out ./sheet.xlsx
 # Write
 gog sheets update <spreadsheetId> 'A1' 'val1|val2,val3|val4'
 gog sheets update <spreadsheetId> 'A1' --values-json '[["a","b"],["c","d"]]'
-gog sheets update <spreadsheetId> 'Sheet1!A1:C1' 'new|row|data' --copy-validation-from 'Sheet1'!A2:C2
+gog sheets update <spreadsheetId> 'Sheet1!A1:C1' 'new|row|data' --copy-validation-from 'Sheet1!A2:C2'
 gog sheets append <spreadsheetId> 'Sheet1!A:C' 'new|row|data'
-gog sheets append <spreadsheetId> 'Sheet1!A:C' 'new|row|data' --copy-validation-from 'Sheet1'!A2:C2
+gog sheets append <spreadsheetId> 'Sheet1!A:C' 'new|row|data' --copy-validation-from 'Sheet1!A2:C2'
 gog sheets clear <spreadsheetId> 'Sheet1!A1:B10'
 
 # Create
