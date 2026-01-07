@@ -37,8 +37,10 @@ type Token struct {
 	RefreshToken string    `json:"-"`
 }
 
-const keyringPasswordEnv = "GOG_KEYRING_PASSWORD" //nolint:gosec // env var name, not a credential
-const keyringBackendEnv = "GOG_KEYRING_BACKEND"   //nolint:gosec // env var name, not a credential
+const (
+	keyringPasswordEnv = "GOG_KEYRING_PASSWORD" //nolint:gosec // env var name, not a credential
+	keyringBackendEnv  = "GOG_KEYRING_BACKEND"  //nolint:gosec // env var name, not a credential
+)
 
 var (
 	errMissingEmail        = errors.New("missing email")
