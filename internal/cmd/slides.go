@@ -21,7 +21,7 @@ type SlidesCmd struct {
 
 type SlidesExportCmd struct {
 	PresentationID string `arg:"" name:"presentationId" help:"Presentation ID"`
-	Out            string `name:"out" help:"Output file path (default: gogcli config dir)"`
+	Out            string `name:"out" aliases:"output" help:"Output file path (default: gogcli config dir)"`
 	Format         string `name:"format" help:"Export format: pdf|pptx" default:"pptx"`
 }
 

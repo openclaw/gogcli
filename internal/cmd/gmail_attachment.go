@@ -19,7 +19,7 @@ import (
 type GmailAttachmentCmd struct {
 	MessageID    string `arg:"" name:"messageId" help:"Message ID"`
 	AttachmentID string `arg:"" name:"attachmentId" help:"Attachment ID"`
-	Out          string `name:"out" help:"Write to a specific path (default: gogcli config dir)"`
+	Out          string `name:"out" aliases:"output" help:"Write to a specific path (default: gogcli config dir)"`
 	Name         string `name:"name" help:"Filename (only used when --out is empty)"`
 }
 

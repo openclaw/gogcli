@@ -36,7 +36,7 @@ type SheetsCmd struct {
 
 type SheetsExportCmd struct {
 	SpreadsheetID string `arg:"" name:"spreadsheetId" help:"Spreadsheet ID"`
-	Out           string `name:"out" help:"Output file path (default: gogcli config dir)"`
+	Out           string `name:"out" aliases:"output" help:"Output file path (default: gogcli config dir)"`
 	Format        string `name:"format" help:"Export format: pdf|xlsx|csv" default:"xlsx"`
 }
 

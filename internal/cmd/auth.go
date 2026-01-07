@@ -144,7 +144,7 @@ func (c *AuthTokensDeleteCmd) Run(ctx context.Context, flags *RootFlags) error {
 
 type AuthTokensExportCmd struct {
 	Email     string `arg:"" name:"email" help:"Email"`
-	OutPath   string `name:"out" help:"Output file path (required)"`
+	OutPath   string `name:"out" aliases:"output" help:"Output file path (required)"`
 	Overwrite bool   `name:"overwrite" help:"Overwrite output file if it exists"`
 }
 

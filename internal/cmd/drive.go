@@ -246,7 +246,7 @@ func (c *DriveGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 
 type DriveDownloadCmd struct {
 	FileID string `arg:"" name:"fileId" help:"File ID"`
-	Out    string `name:"out" help:"Output file path (default: gogcli config dir)"`
+	Out    string `name:"out" aliases:"output" help:"Output file path (default: gogcli config dir)"`
 	Format string `name:"format" help:"Export format for Google Docs files: pdf|csv|xlsx|pptx|txt|png|docx (default: auto)"`
 }
 

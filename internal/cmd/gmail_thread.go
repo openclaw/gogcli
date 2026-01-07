@@ -49,7 +49,7 @@ type GmailThreadCmd struct {
 type GmailThreadGetCmd struct {
 	ThreadID string `arg:"" name:"threadId" help:"Thread ID"`
 	Download bool   `name:"download" help:"Download attachments"`
-	OutDir   string `name:"out-dir" help:"Directory to write attachments to (default: current directory)"`
+	OutDir   string `name:"out-dir" aliases:"output-dir" help:"Directory to write attachments to (default: current directory)"`
 }
 
 func (c *GmailThreadGetCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -250,7 +250,7 @@ func (c *GmailThreadModifyCmd) Run(ctx context.Context, flags *RootFlags) error 
 type GmailThreadAttachmentsCmd struct {
 	ThreadID string `arg:"" name:"threadId" help:"Thread ID"`
 	Download bool   `name:"download" help:"Download all attachments"`
-	OutDir   string `name:"out-dir" help:"Directory to write attachments to (default: current directory)"`
+	OutDir   string `name:"out-dir" aliases:"output-dir" help:"Directory to write attachments to (default: current directory)"`
 }
 
 func (c *GmailThreadAttachmentsCmd) Run(ctx context.Context, flags *RootFlags) error {
