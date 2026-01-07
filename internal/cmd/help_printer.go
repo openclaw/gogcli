@@ -7,11 +7,10 @@ import (
 	"os"
 	"strconv"
 	"strings"
-	"syscall"
-	"unsafe"
 
 	"github.com/alecthomas/kong"
 	"github.com/muesli/termenv"
+	"golang.org/x/term"
 )
 
 func helpPrinter(options kong.HelpOptions, ctx *kong.Context) error {
@@ -211,18 +210,9 @@ func guessColumns(w io.Writer) int {
 		return 80
 	}
 
-	var dimensions [4]uint16
-	if _, _, err := syscall.Syscall6(
-		syscall.SYS_IOCTL,
-		uintptr(f.Fd()),
-		uintptr(syscall.TIOCGWINSZ),
-		uintptr(unsafe.Pointer(&dimensions)),
-		0, 0, 0,
-	); err == 0 {
-		if dimensions[1] == 0 {
-			return 80
-		}
-		return int(dimensions[1])
+	width, _, err := term.GetSize(int(f.Fd()))
+	if err == nil && width > 0 {
+		return width
 	}
 	return 80
 }
