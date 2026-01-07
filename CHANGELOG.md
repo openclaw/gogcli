@@ -16,6 +16,7 @@
 - DX: `make gogcli -- ...` passes args to the CLI; add `make gogcli-help` convenience target.
 - Calendar: `gog calendar update --add-attendee ...` adds attendees without replacing existing RSVP state (#24) — thanks @salmonumbrella.
 - Gmail: `gog gmail thread attachments` list/download attachments (#27) — thanks @salmonumbrella.
+- Gmail: `gog gmail thread get --full` shows complete bodies (default truncates) (#25) — thanks @salmonumbrella.
 - Gmail: reorganize `gog gmail --help` into sections and add `gog gmail settings ...` (old subcommands remain available).
 
 ## 0.4.2 - 2025-12-31
