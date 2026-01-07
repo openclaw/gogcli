@@ -37,7 +37,10 @@ func AllServices() []Service {
 func Scopes(service Service) ([]string, error) {
 	switch service {
 	case ServiceGmail:
-		return []string{"https://mail.google.com/"}, nil
+		return []string{
+			"https://mail.google.com/",
+			"https://www.googleapis.com/auth/gmail.settings.basic",
+		}, nil
 	case ServiceCalendar:
 		return []string{"https://www.googleapis.com/auth/calendar"}, nil
 	case ServiceDrive:
