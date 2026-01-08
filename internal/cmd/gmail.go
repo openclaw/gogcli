@@ -57,9 +57,10 @@ type GmailSettingsCmd struct {
 }
 
 type GmailSearchCmd struct {
-	Query []string `arg:"" name:"query" help:"Search query"`
-	Max   int64    `name:"max" aliases:"limit" help:"Max results" default:"10"`
-	Page  string   `name:"page" help:"Page token"`
+	Query  []string `arg:"" name:"query" help:"Search query"`
+	Max    int64    `name:"max" aliases:"limit" help:"Max results" default:"10"`
+	Page   string   `name:"page" help:"Page token"`
+	Oldest bool     `name:"oldest" help:"Show first message date instead of last"`
 }
 
 func (c *GmailSearchCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -94,7 +95,7 @@ func (c *GmailSearchCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 
 	// Fetch thread details concurrently (fixes N+1 query pattern)
-	items, err := fetchThreadDetails(ctx, svc, resp.Threads, idToName)
+	items, err := fetchThreadDetails(ctx, svc, resp.Threads, idToName, c.Oldest)
 	if err != nil {
 		return err
 	}
@@ -127,6 +128,13 @@ func firstMessage(t *gmail.Thread) *gmail.Message {
 		return nil
 	}
 	return t.Messages[0]
+}
+
+func lastMessage(t *gmail.Thread) *gmail.Message {
+	if t == nil || len(t.Messages) == 0 {
+		return nil
+	}
+	return t.Messages[len(t.Messages)-1]
 }
 
 func headerValue(p *gmail.MessagePart, name string) string {
@@ -258,7 +266,9 @@ type threadItem struct {
 
 // fetchThreadDetails fetches thread metadata concurrently with bounded parallelism.
 // This eliminates N+1 queries by fetching all threads in parallel.
-func fetchThreadDetails(ctx context.Context, svc *gmail.Service, threads []*gmail.Thread, idToName map[string]string) ([]threadItem, error) {
+// When oldest is false (default), the date shown is from the last message in the thread.
+// When oldest is true, the date shown is from the first message in the thread.
+func fetchThreadDetails(ctx context.Context, svc *gmail.Service, threads []*gmail.Thread, idToName map[string]string, oldest bool) ([]threadItem, error) {
 	if len(threads) == 0 {
 		return nil, nil
 	}
@@ -304,21 +314,28 @@ func fetchThreadDetails(ctx context.Context, svc *gmail.Service, threads []*gmai
 			}
 
 			item := threadItem{ID: threadID}
-			if msg := firstMessage(thread); msg != nil {
-				item.Date = formatGmailDate(headerValue(msg.Payload, "Date"))
-				item.From = sanitizeTab(headerValue(msg.Payload, "From"))
-				item.Subject = sanitizeTab(headerValue(msg.Payload, "Subject"))
-				if len(msg.LabelIds) > 0 {
-					names := make([]string, 0, len(msg.LabelIds))
-					for _, id := range msg.LabelIds {
-						if n, ok := idToName[id]; ok {
+			if first := firstMessage(thread); first != nil {
+				item.From = sanitizeTab(headerValue(first.Payload, "From"))
+				item.Subject = sanitizeTab(headerValue(first.Payload, "Subject"))
+				if len(first.LabelIds) > 0 {
+					names := make([]string, 0, len(first.LabelIds))
+					for _, lid := range first.LabelIds {
+						if n, ok := idToName[lid]; ok {
 							names = append(names, n)
 						} else {
-							names = append(names, id)
+							names = append(names, lid)
 						}
 					}
 					item.Labels = names
 				}
+			}
+			// Date from last message by default, first if --oldest
+			dateMsg := lastMessage(thread)
+			if oldest {
+				dateMsg = firstMessage(thread)
+			}
+			if dateMsg != nil {
+				item.Date = formatGmailDate(headerValue(dateMsg.Payload, "Date"))
 			}
 
 			results <- result{index: idx, item: item}

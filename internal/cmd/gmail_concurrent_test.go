@@ -14,7 +14,7 @@ import (
 )
 
 func TestFetchThreadDetails_Empty(t *testing.T) {
-	items, err := fetchThreadDetails(context.Background(), nil, nil, nil)
+	items, err := fetchThreadDetails(context.Background(), nil, nil, nil, false)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -75,7 +75,7 @@ func TestFetchThreadDetails_Concurrent(t *testing.T) {
 		"INBOX": "Inbox",
 	}
 
-	items, err := fetchThreadDetails(context.Background(), svc, threads, idToName)
+	items, err := fetchThreadDetails(context.Background(), svc, threads, idToName, false)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -133,7 +133,7 @@ func TestFetchThreadDetails_SkipsEmptyIDs(t *testing.T) {
 		{Id: ""},        // Should be skipped
 	}
 
-	items, err := fetchThreadDetails(context.Background(), svc, threads, nil)
+	items, err := fetchThreadDetails(context.Background(), svc, threads, nil, false)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -176,7 +176,7 @@ func TestFetchThreadDetails_ContextCanceled(t *testing.T) {
 
 	threads := []*gmail.Thread{{Id: "thread1"}}
 
-	_, err := fetchThreadDetails(ctx, svc, threads, nil)
+	_, err := fetchThreadDetails(ctx, svc, threads, nil, false)
 	// Context was canceled, we may or may not get an error depending on timing.
 	// Either nil or context.Canceled is acceptable.
 	_ = err
