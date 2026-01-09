@@ -120,6 +120,7 @@ func TestExpandPath(t *testing.T) {
 				t.Errorf("ExpandPath() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
+
 			if got != tt.want {
 				t.Errorf("ExpandPath() = %q, want %q", got, tt.want)
 			}
