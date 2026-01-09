@@ -24,6 +24,14 @@ func resolveDriveDownloadDestPath(meta *drive.File, outPathFlag string) (string,
 	}
 
 	destPath := strings.TrimSpace(outPathFlag)
+	// Expand ~ to home directory (shell doesn't expand when path is quoted).
+	if destPath != "" {
+		expanded, err := config.ExpandPath(destPath)
+		if err != nil {
+			return "", err
+		}
+		destPath = expanded
+	}
 	// Sanitize filename to prevent path traversal.
 	safeName := filepath.Base(meta.Name)
 	if safeName == "" || safeName == "." || safeName == ".." {

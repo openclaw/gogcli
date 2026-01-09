@@ -10,6 +10,7 @@ import (
 
 	"google.golang.org/api/gmail/v1"
 
+	"github.com/steipete/gogcli/internal/config"
 	"github.com/steipete/gogcli/internal/outfmt"
 	"github.com/steipete/gogcli/internal/tracking"
 	"github.com/steipete/gogcli/internal/ui"
@@ -147,7 +148,11 @@ func (c *GmailSendCmd) Run(ctx context.Context, flags *RootFlags) error {
 
 	atts := make([]mailAttachment, 0, len(c.Attach))
 	for _, p := range c.Attach {
-		atts = append(atts, mailAttachment{Path: p})
+		expanded, expandErr := config.ExpandPath(p)
+		if expandErr != nil {
+			return expandErr
+		}
+		atts = append(atts, mailAttachment{Path: expanded})
 	}
 
 	var trackingCfg *tracking.Config

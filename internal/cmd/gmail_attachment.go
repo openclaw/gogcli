@@ -71,7 +71,11 @@ func (c *GmailAttachmentCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return nil
 	}
 
-	path, cached, bytes, err := downloadAttachmentToPath(ctx, svc, messageID, attachmentID, c.Output.Path, -1)
+	outPath, err := config.ExpandPath(c.Output.Path)
+	if err != nil {
+		return err
+	}
+	path, cached, bytes, err := downloadAttachmentToPath(ctx, svc, messageID, attachmentID, outPath, -1)
 	if err != nil {
 		return err
 	}

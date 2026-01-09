@@ -13,6 +13,7 @@ import (
 	"google.golang.org/api/drive/v3"
 	gapi "google.golang.org/api/googleapi"
 
+	"github.com/steipete/gogcli/internal/config"
 	"github.com/steipete/gogcli/internal/googleapi"
 	"github.com/steipete/gogcli/internal/outfmt"
 	"github.com/steipete/gogcli/internal/ui"
@@ -329,6 +330,10 @@ func (c *DriveUploadCmd) Run(ctx context.Context, flags *RootFlags) error {
 	localPath := strings.TrimSpace(c.LocalPath)
 	if localPath == "" {
 		return usage("empty localPath")
+	}
+	localPath, err = config.ExpandPath(localPath)
+	if err != nil {
+		return err
 	}
 
 	f, err := os.Open(localPath) //nolint:gosec // user-provided path

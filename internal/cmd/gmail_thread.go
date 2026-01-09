@@ -14,6 +14,7 @@ import (
 
 	"google.golang.org/api/gmail/v1"
 
+	"github.com/steipete/gogcli/internal/config"
 	"github.com/steipete/gogcli/internal/outfmt"
 	"github.com/steipete/gogcli/internal/ui"
 )
@@ -81,7 +82,11 @@ func (c *GmailThreadGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 			// Default: current directory, not gogcli config dir.
 			attachDir = "."
 		} else {
-			attachDir = filepath.Clean(c.OutputDir.Dir)
+			expanded, err := config.ExpandPath(c.OutputDir.Dir)
+			if err != nil {
+				return err
+			}
+			attachDir = filepath.Clean(expanded)
 		}
 	}
 
@@ -292,7 +297,11 @@ func (c *GmailThreadAttachmentsCmd) Run(ctx context.Context, flags *RootFlags) e
 		if strings.TrimSpace(c.OutputDir.Dir) == "" {
 			attachDir = "."
 		} else {
-			attachDir = filepath.Clean(c.OutputDir.Dir)
+			expanded, err := config.ExpandPath(c.OutputDir.Dir)
+			if err != nil {
+				return err
+			}
+			attachDir = filepath.Clean(expanded)
 		}
 	}
 

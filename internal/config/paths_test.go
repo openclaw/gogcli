@@ -71,6 +71,62 @@ func TestPaths_CreateDirs(t *testing.T) {
 	}
 }
 
+func TestExpandPath(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	tests := []struct {
+		name    string
+		input   string
+		want    string
+		wantErr bool
+	}{
+		{
+			name:  "empty path",
+			input: "",
+			want:  "",
+		},
+		{
+			name:  "tilde only",
+			input: "~",
+			want:  home,
+		},
+		{
+			name:  "tilde with subpath",
+			input: "~/Downloads/file.txt",
+			want:  filepath.Join(home, "Downloads/file.txt"),
+		},
+		{
+			name:  "absolute path unchanged",
+			input: "/usr/local/bin",
+			want:  "/usr/local/bin",
+		},
+		{
+			name:  "relative path unchanged",
+			input: "relative/path/file.txt",
+			want:  "relative/path/file.txt",
+		},
+		{
+			name:  "tilde in middle unchanged",
+			input: "/some/~/path",
+			want:  "/some/~/path",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := ExpandPath(tt.input)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("ExpandPath() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if got != tt.want {
+				t.Errorf("ExpandPath() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestKeepServiceAccountPath_SafeFilename(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)

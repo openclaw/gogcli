@@ -67,6 +67,10 @@ func (c *AuthCredentialsCmd) Run(ctx context.Context) error {
 	if inPath == "-" {
 		b, err = io.ReadAll(os.Stdin)
 	} else {
+		inPath, err = config.ExpandPath(inPath)
+		if err != nil {
+			return err
+		}
 		b, err = os.ReadFile(inPath) //nolint:gosec // user-provided path
 	}
 	if err != nil {
@@ -184,6 +188,10 @@ func (c *AuthTokensExportCmd) Run(ctx context.Context) error {
 	if outPath == "" {
 		return usage("empty outPath")
 	}
+	outPath, err := config.ExpandPath(outPath)
+	if err != nil {
+		return err
+	}
 
 	store, err := openSecretsStore()
 	if err != nil {
@@ -259,6 +267,10 @@ func (c *AuthTokensImportCmd) Run(ctx context.Context) error {
 	if inPath == "-" {
 		b, err = io.ReadAll(os.Stdin)
 	} else {
+		inPath, err = config.ExpandPath(inPath)
+		if err != nil {
+			return err
+		}
 		b, err = os.ReadFile(inPath) //nolint:gosec // user-provided path
 	}
 	if err != nil {
@@ -607,6 +619,10 @@ func (c *AuthKeepCmd) Run(ctx context.Context) error {
 	keyPath := strings.TrimSpace(c.Key)
 	if keyPath == "" {
 		return usage("empty key path")
+	}
+	keyPath, err := config.ExpandPath(keyPath)
+	if err != nil {
+		return err
 	}
 
 	data, err := os.ReadFile(keyPath) //nolint:gosec // user-provided path

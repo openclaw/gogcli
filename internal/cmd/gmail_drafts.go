@@ -331,7 +331,11 @@ func buildDraftMessage(ctx context.Context, svc *gmail.Service, account string, 
 
 	atts := make([]mailAttachment, 0, len(input.Attach))
 	for _, p := range input.Attach {
-		atts = append(atts, mailAttachment{Path: p})
+		expanded, expandErr := config.ExpandPath(p)
+		if expandErr != nil {
+			return nil, "", expandErr
+		}
+		atts = append(atts, mailAttachment{Path: expanded})
 	}
 
 	raw, err := buildRFC822(mailOptions{
