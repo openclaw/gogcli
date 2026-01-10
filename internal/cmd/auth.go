@@ -341,6 +341,7 @@ type AuthAddCmd struct {
 	Manual       bool   `name:"manual" help:"Browserless auth flow (paste redirect URL)"`
 	ForceConsent bool   `name:"force-consent" help:"Force consent screen to obtain a refresh token"`
 	ServicesCSV  string `name:"services" help:"Services to authorize: user|all or comma-separated ${auth_services} (Keep uses service account: gog auth keep)" default:"user"`
+	Readonly     bool   `name:"readonly" help:"Use read-only scopes where available"`
 }
 
 func (c *AuthAddCmd) Run(ctx context.Context) error {
@@ -354,7 +355,7 @@ func (c *AuthAddCmd) Run(ctx context.Context) error {
 		return fmt.Errorf("no services selected")
 	}
 
-	scopes, err := googleauth.ScopesForManage(services)
+	scopes, err := googleauth.ScopesForManage(services, c.Readonly)
 	if err != nil {
 		return err
 	}

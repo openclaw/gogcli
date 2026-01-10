@@ -207,23 +207,31 @@ gog auth add you@gmail.com --services sheets --force-consent
 
 `--services all` is accepted as an alias for `user` for backwards compatibility.
 
+To restrict access to **read-only** scopes (where available), use the `--readonly` flag:
+
+```bash
+gog auth add you@gmail.com --services drive --readonly
+```
+
+This will request `https://www.googleapis.com/auth/drive.readonly` instead of the full Drive scope.
+
 Docs commands are implemented via the Drive API, and `docs` requests both Drive and Docs API scopes.
 
 Service scope matrix (auto-generated; run `go run scripts/gen-auth-services-md.go`):
 
 <!-- auth-services:start -->
-| Service | User | APIs | Scopes | Notes |
-| --- | --- | --- | --- | --- |
-| gmail | yes | Gmail API | `https://mail.google.com/`<br>`https://www.googleapis.com/auth/gmail.settings.basic` |  |
-| calendar | yes | Calendar API | `https://www.googleapis.com/auth/calendar` |  |
-| drive | yes | Drive API | `https://www.googleapis.com/auth/drive` |  |
-| docs | yes | Docs API, Drive API | `https://www.googleapis.com/auth/drive`<br>`https://www.googleapis.com/auth/documents` | Export/copy/create via Drive |
-| contacts | yes | People API | `https://www.googleapis.com/auth/contacts`<br>`https://www.googleapis.com/auth/contacts.other.readonly`<br>`https://www.googleapis.com/auth/directory.readonly` | Contacts + other contacts + directory |
-| tasks | yes | Tasks API | `https://www.googleapis.com/auth/tasks` |  |
-| sheets | yes | Sheets API, Drive API | `https://www.googleapis.com/auth/spreadsheets` | Export via Drive |
-| people | yes | People API | `profile` | OIDC profile scope |
-| groups | no | Cloud Identity API | `https://www.googleapis.com/auth/cloud-identity.groups.readonly` | Workspace only |
-| keep | no | Keep API | `https://www.googleapis.com/auth/keep` | Workspace only; service account |
+| Service | User | APIs | Scopes | Readonly Scopes | Notes |
+| --- | --- | --- | --- | --- | --- |
+| gmail | yes | Gmail API | `https://mail.google.com/`<br>`https://www.googleapis.com/auth/gmail.settings.basic` | `https://www.googleapis.com/auth/gmail.readonly` |  |
+| calendar | yes | Calendar API | `https://www.googleapis.com/auth/calendar` | `https://www.googleapis.com/auth/calendar.readonly` |  |
+| drive | yes | Drive API | `https://www.googleapis.com/auth/drive` | `https://www.googleapis.com/auth/drive.readonly` |  |
+| docs | yes | Docs API, Drive API | `https://www.googleapis.com/auth/drive`<br>`https://www.googleapis.com/auth/documents` | `https://www.googleapis.com/auth/drive.readonly`<br>`https://www.googleapis.com/auth/documents.readonly` | Export/copy/create via Drive |
+| contacts | yes | People API | `https://www.googleapis.com/auth/contacts`<br>`https://www.googleapis.com/auth/contacts.other.readonly`<br>`https://www.googleapis.com/auth/directory.readonly` | `https://www.googleapis.com/auth/contacts.readonly`<br>`https://www.googleapis.com/auth/contacts.other.readonly`<br>`https://www.googleapis.com/auth/directory.readonly` | Contacts + other contacts + directory |
+| tasks | yes | Tasks API | `https://www.googleapis.com/auth/tasks` | `https://www.googleapis.com/auth/tasks.readonly` |  |
+| sheets | yes | Sheets API, Drive API | `https://www.googleapis.com/auth/spreadsheets` | `https://www.googleapis.com/auth/spreadsheets.readonly` | Export via Drive |
+| people | yes | People API | `profile` |  | OIDC profile scope |
+| groups | no | Cloud Identity API | `https://www.googleapis.com/auth/cloud-identity.groups.readonly` |  | Workspace only |
+| keep | no | Keep API | `https://www.googleapis.com/auth/keep` | `https://www.googleapis.com/auth/keep.readonly` | Workspace only; service account |
 <!-- auth-services:end -->
 
 ### Google Keep (Workspace only)

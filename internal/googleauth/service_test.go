@@ -172,7 +172,7 @@ func containsScope(scopes []string, want string) bool {
 }
 
 func TestScopesForServices_UnionSorted(t *testing.T) {
-	scopes, err := ScopesForServices([]Service{ServiceContacts, ServiceGmail, ServiceTasks, ServicePeople, ServiceContacts})
+	scopes, err := ScopesForServices([]Service{ServiceContacts, ServiceGmail, ServiceTasks, ServicePeople, ServiceContacts}, false)
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
@@ -211,7 +211,7 @@ func TestScopesForServices_UnionSorted(t *testing.T) {
 }
 
 func TestScopes_DocsIncludesDriveAndDocsScopes(t *testing.T) {
-	scopes, err := Scopes(ServiceDocs)
+	scopes, err := Scopes(ServiceDocs, false)
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
@@ -235,7 +235,48 @@ func TestScopes_DocsIncludesDriveAndDocsScopes(t *testing.T) {
 }
 
 func TestScopes_UnknownService(t *testing.T) {
-	if _, err := Scopes(Service("nope")); err == nil {
+	if _, err := Scopes(Service("nope"), false); err == nil {
 		t.Fatalf("expected error")
+	}
+}
+
+func TestScopes_Readonly(t *testing.T) {
+	tests := []struct {
+		service Service
+		want    []string
+	}{
+		{ServiceGmail, []string{"https://www.googleapis.com/auth/gmail.readonly", "https://www.googleapis.com/auth/gmail.settings.basic"}},
+		{ServiceDrive, []string{"https://www.googleapis.com/auth/drive.readonly"}},
+		{ServiceCalendar, []string{"https://www.googleapis.com/auth/calendar.readonly"}},
+	}
+
+	for _, tt := range tests {
+		scopes, err := Scopes(tt.service, true)
+		if err != nil {
+			t.Fatalf("Scopes(%q, true) err: %v", tt.service, err)
+		}
+
+		if len(scopes) != len(tt.want) {
+			t.Fatalf("Scopes(%q, true) len=%d, want %d (%v)", tt.service, len(scopes), len(tt.want), scopes)
+		}
+
+		for _, wantScope := range tt.want {
+			if !containsScope(scopes, wantScope) {
+				t.Fatalf("Scopes(%q, true) missing %q", tt.service, wantScope)
+			}
+		}
+	}
+}
+
+func TestScopes_ReadonlyFallback(t *testing.T) {
+	// ServiceGroups has no readonlyScopes defined, should return default scopes
+	scopes, err := Scopes(ServiceGroups, true)
+	if err != nil {
+		t.Fatalf("err: %v", err)
+	}
+
+	want := "https://www.googleapis.com/auth/cloud-identity.groups.readonly"
+	if !containsScope(scopes, want) {
+		t.Fatalf("missing %q", want)
 	}
 }

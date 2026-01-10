@@ -623,6 +623,40 @@
                 gap: 6px;
             }
         }
+
+        .options-bar {
+            display: flex;
+            justify-content: center;
+            margin-top: 24px;
+        }
+
+        .checkbox-label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+            color: var(--text-secondary);
+            cursor: pointer;
+            user-select: none;
+            background: var(--bg-surface);
+            padding: 8px 16px;
+            border-radius: 99px;
+            border: 1px solid var(--border);
+            transition: all 0.2s;
+        }
+
+        .checkbox-label:hover {
+            background: var(--bg-elevated);
+            border-color: var(--border-active);
+            color: var(--text);
+        }
+
+        .checkbox-label input {
+            accent-color: var(--g-blue);
+            width: 15px;
+            height: 15px;
+            cursor: pointer;
+        }
     </style>
 </head>
 <body>
@@ -643,6 +677,12 @@
                     First time? Set up Google Cloud credentials →
                 </a>
             </p>
+            <div class="options-bar">
+                <label class="checkbox-label" title="Request limited read-only access to your data">
+                    <input type="checkbox" id="readonly-global">
+                    Use read-only permissions
+                </label>
+            </div>
         </header>
 
         <!-- Accounts Section -->
@@ -790,7 +830,8 @@
 
         function addAccount() {
             // Redirect to OAuth flow
-            window.location.href = '/auth/start';
+            const readonly = document.getElementById('readonly-global').checked;
+            window.location.href = '/auth/start?readonly=' + readonly;
         }
 
         async function setDefault(email) {

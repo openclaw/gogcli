@@ -31,10 +31,12 @@ const (
 var errUnknownService = errors.New("unknown service")
 
 type serviceInfo struct {
-	scopes []string
-	user   bool
-	apis   []string
-	note   string
+	scopes         []string
+	readonlyScopes []string
+
+	user bool
+	apis []string
+	note string
 }
 
 var serviceOrder = []Service{
@@ -56,18 +58,23 @@ var serviceInfoByService = map[Service]serviceInfo{
 			"https://mail.google.com/",
 			"https://www.googleapis.com/auth/gmail.settings.basic",
 		},
+		readonlyScopes: []string{
+			"https://www.googleapis.com/auth/gmail.readonly",
+		},
 		user: true,
 		apis: []string{"Gmail API"},
 	},
 	ServiceCalendar: {
-		scopes: []string{"https://www.googleapis.com/auth/calendar"},
-		user:   true,
-		apis:   []string{"Calendar API"},
+		scopes:         []string{"https://www.googleapis.com/auth/calendar"},
+		readonlyScopes: []string{"https://www.googleapis.com/auth/calendar.readonly"},
+		user:           true,
+		apis:           []string{"Calendar API"},
 	},
 	ServiceDrive: {
-		scopes: []string{"https://www.googleapis.com/auth/drive"},
-		user:   true,
-		apis:   []string{"Drive API"},
+		scopes:         []string{"https://www.googleapis.com/auth/drive"},
+		readonlyScopes: []string{"https://www.googleapis.com/auth/drive.readonly"},
+		user:           true,
+		apis:           []string{"Drive API"},
 	},
 	ServiceDocs: {
 		// Docs commands are implemented via Drive APIs (export/copy/create),
@@ -75,6 +82,10 @@ var serviceInfoByService = map[Service]serviceInfo{
 		scopes: []string{
 			"https://www.googleapis.com/auth/drive",
 			"https://www.googleapis.com/auth/documents",
+		},
+		readonlyScopes: []string{
+			"https://www.googleapis.com/auth/drive.readonly",
+			"https://www.googleapis.com/auth/documents.readonly",
 		},
 		user: true,
 		apis: []string{"Docs API", "Drive API"},
@@ -86,14 +97,20 @@ var serviceInfoByService = map[Service]serviceInfo{
 			"https://www.googleapis.com/auth/contacts.other.readonly",
 			"https://www.googleapis.com/auth/directory.readonly",
 		},
+		readonlyScopes: []string{
+			"https://www.googleapis.com/auth/contacts.readonly",
+			"https://www.googleapis.com/auth/contacts.other.readonly",
+			"https://www.googleapis.com/auth/directory.readonly",
+		},
 		user: true,
 		apis: []string{"People API"},
 		note: "Contacts + other contacts + directory",
 	},
 	ServiceTasks: {
-		scopes: []string{"https://www.googleapis.com/auth/tasks"},
-		user:   true,
-		apis:   []string{"Tasks API"},
+		scopes:         []string{"https://www.googleapis.com/auth/tasks"},
+		readonlyScopes: []string{"https://www.googleapis.com/auth/tasks.readonly"},
+		user:           true,
+		apis:           []string{"Tasks API"},
 	},
 	ServicePeople: {
 		// Needed for "people/me" requests.
@@ -103,9 +120,10 @@ var serviceInfoByService = map[Service]serviceInfo{
 		note:   "OIDC profile scope",
 	},
 	ServiceSheets: {
-		scopes: []string{"https://www.googleapis.com/auth/spreadsheets"},
-		user:   true,
-		apis:   []string{"Sheets API", "Drive API"},
+		scopes:         []string{"https://www.googleapis.com/auth/spreadsheets"},
+		readonlyScopes: []string{"https://www.googleapis.com/auth/spreadsheets.readonly"},
+		user:           true,
+		apis:           []string{"Sheets API", "Drive API"},
 		note:   "Export via Drive",
 	},
 	ServiceGroups: {
@@ -115,10 +133,11 @@ var serviceInfoByService = map[Service]serviceInfo{
 		note:   "Workspace only",
 	},
 	ServiceKeep: {
-		scopes: []string{"https://www.googleapis.com/auth/keep"},
-		user:   false,
-		apis:   []string{"Keep API"},
-		note:   "Workspace only; service account",
+		scopes:         []string{"https://www.googleapis.com/auth/keep"},
+		readonlyScopes: []string{"https://www.googleapis.com/auth/keep.readonly"},
+		user:           false,
+		apis:           []string{"Keep API"},
+		note:           "Workspace only; service account",
 	},
 }
 
@@ -143,21 +162,25 @@ func AllServices() []Service {
 	return out
 }
 
-func Scopes(service Service) ([]string, error) {
+func Scopes(service Service, readonly bool) ([]string, error) {
 	info, ok := serviceInfoByService[service]
 	if !ok {
 		return nil, errUnknownService
 	}
 
+	if readonly && len(info.readonlyScopes) > 0 {
+		return append([]string(nil), info.readonlyScopes...), nil
+	}
 	return append([]string(nil), info.scopes...), nil
 }
 
 type ServiceInfo struct {
-	Service Service  `json:"service"`
-	User    bool     `json:"user"`
-	Scopes  []string `json:"scopes"`
-	APIs    []string `json:"apis,omitempty"`
-	Note    string   `json:"note,omitempty"`
+	Service        Service  `json:"service"`
+	User           bool     `json:"user"`
+	Scopes         []string `json:"scopes"`
+	ReadonlyScopes []string `json:"readonly_scopes,omitempty"`
+	APIs           []string `json:"apis,omitempty"`
+	Note           string   `json:"note,omitempty"`
 }
 
 func ServicesInfo() []ServiceInfo {
@@ -169,11 +192,12 @@ func ServicesInfo() []ServiceInfo {
 		}
 
 		out = append(out, ServiceInfo{
-			Service: svc,
-			User:    info.user,
-			Scopes:  append([]string(nil), info.scopes...),
-			APIs:    append([]string(nil), info.apis...),
-			Note:    info.note,
+			Service:        svc,
+			User:           info.user,
+			Scopes:         append([]string(nil), info.scopes...),
+			ReadonlyScopes: append([]string(nil), info.readonlyScopes...),
+			APIs:           append([]string(nil), info.apis...),
+			Note:           info.note,
 		})
 	}
 
@@ -185,8 +209,8 @@ func ServicesMarkdown(infos []ServiceInfo) string {
 		return ""
 	}
 	var b strings.Builder
-	b.WriteString("| Service | User | APIs | Scopes | Notes |\n")
-	b.WriteString("| --- | --- | --- | --- | --- |\n")
+	b.WriteString("| Service | User | APIs | Scopes | Readonly Scopes | Notes |\n")
+	b.WriteString("| --- | --- | --- | --- | --- | --- |\n")
 
 	for _, info := range infos {
 		userLabel := "no"
@@ -202,6 +226,8 @@ func ServicesMarkdown(infos []ServiceInfo) string {
 		b.WriteString(strings.Join(info.APIs, ", "))
 		b.WriteString(" | ")
 		b.WriteString(markdownScopes(info.Scopes))
+		b.WriteString(" | ")
+		b.WriteString(markdownScopes(info.ReadonlyScopes))
 		b.WriteString(" | ")
 		b.WriteString(info.Note)
 		b.WriteString(" |\n")
@@ -223,11 +249,11 @@ func markdownScopes(scopes []string) string {
 	return strings.Join(parts, "<br>")
 }
 
-func ScopesForServices(services []Service) ([]string, error) {
+func ScopesForServices(services []Service, readonly bool) ([]string, error) {
 	set := make(map[string]struct{})
 
 	for _, svc := range services {
-		scopes, err := Scopes(svc)
+		scopes, err := Scopes(svc, readonly)
 		if err != nil {
 			return nil, err
 		}
@@ -247,8 +273,8 @@ func ScopesForServices(services []Service) ([]string, error) {
 	return out, nil
 }
 
-func ScopesForManage(services []Service) ([]string, error) {
-	scopes, err := ScopesForServices(services)
+func ScopesForManage(services []Service, readonly bool) ([]string, error) {
+	scopes, err := ScopesForServices(services, readonly)
 	if err != nil {
 		return nil, err
 	}

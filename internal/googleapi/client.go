@@ -36,8 +36,13 @@ func tokenSourceForAccount(ctx context.Context, service googleauth.Service, emai
 	}
 
 	var requiredScopes []string
+	// Always request full scopes for the client. The actual permissions are determined by the
+	// tokens returned during authentication (which honor the --readonly flag).
+	// If we restricted scopes here, write operations would fail with a scope error before
+	// even attempting the request, even if the token technically had permission.
+	// By requesting full scopes, we let the API decide based on the token's privileges.
 
-	if scopes, err := googleauth.Scopes(service); err != nil {
+	if scopes, err := googleauth.Scopes(service, false); err != nil {
 		return nil, fmt.Errorf("resolve scopes: %w", err)
 	} else {
 		requiredScopes = scopes

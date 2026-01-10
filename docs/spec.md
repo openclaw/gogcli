@@ -134,7 +134,14 @@ Flag aliases:
 ### Implemented
 
 - `gog auth credentials <credentials.json|->`
-- `gog auth add <email> [--services user|all|gmail,calendar,drive,docs,contacts,tasks,sheets,people,groups] [--manual] [--force-consent]`
+### `gog auth add [email]`
+
+Authorize and store a refresh token.
+
+- `--services`: Comma-separated list of services (default: "user" = gmail, calendar, drive, docs, contacts, tasks, sheets, people).
+- `--readonly`: Use read-only scopes where available.
+- `--force-consent`: Force the consent screen (useful if no refresh token is returned).
+- `--manual`: Print the authorization URL and wait for the code (for remote servers).
 - `gog auth services [--markdown]`
 - `gog auth keep <email> --key <service-account.json>` (Google Keep; Workspace only)
 - `gog auth list`

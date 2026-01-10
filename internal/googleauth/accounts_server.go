@@ -43,9 +43,10 @@ type ManageServer struct {
 	listener   net.Listener
 	server     *http.Server
 	store      secrets.Store
-	fetchEmail func(ctx context.Context, tok *oauth2.Token) (string, error)
-	oauthState string
-	resultCh   chan error
+	fetchEmail    func(ctx context.Context, tok *oauth2.Token) (string, error)
+	oauthState    string
+	oauthReadonly bool
+	resultCh      chan error
 }
 
 var (
@@ -224,7 +225,10 @@ func (ms *ManageServer) handleAuthStart(w http.ResponseWriter, r *http.Request) 
 		services = AllServices()
 	}
 
-	scopes, err := ScopesForManage(services)
+	readonly := r.URL.Query().Get("readonly") == "true"
+	ms.oauthReadonly = readonly
+
+	scopes, err := ScopesForManage(services, readonly)
 	if err != nil {
 		http.Error(w, "Failed to get scopes", http.StatusInternalServerError)
 		return
@@ -285,7 +289,7 @@ func (ms *ManageServer) handleOAuthCallback(w http.ResponseWriter, r *http.Reque
 		services = AllServices()
 	}
 
-	scopes, err := ScopesForManage(services)
+	scopes, err := ScopesForManage(services, ms.oauthReadonly)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		renderErrorPage(w, "Failed to get scopes: "+err.Error())
