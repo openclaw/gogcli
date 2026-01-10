@@ -211,7 +211,7 @@ func TestScopesForServices_UnionSorted(t *testing.T) {
 }
 
 func TestScopesForManageWithOptions_Readonly(t *testing.T) {
-	scopes, err := ScopesForManageWithOptions([]Service{ServiceGmail, ServiceDrive, ServiceCalendar, ServiceContacts, ServiceTasks, ServiceSheets, ServiceDocs, ServicePeople}, ScopeOptions{
+	scopes, err := ScopesForManageWithOptions([]Service{ServiceGmail, ServiceDrive, ServiceCalendar, ServiceContacts, ServiceTasks, ServiceSheets, ServiceDocs, ServicePeople, ServiceKeep}, ScopeOptions{
 		Readonly:   true,
 		DriveScope: DriveScopeFull,
 	})
@@ -230,6 +230,7 @@ func TestScopesForManageWithOptions_Readonly(t *testing.T) {
 		"https://www.googleapis.com/auth/tasks.readonly",
 		"https://www.googleapis.com/auth/spreadsheets.readonly",
 		"https://www.googleapis.com/auth/documents.readonly",
+		"https://www.googleapis.com/auth/keep.readonly",
 		"profile",
 	}
 	for _, w := range want {
@@ -247,6 +248,7 @@ func TestScopesForManageWithOptions_Readonly(t *testing.T) {
 		"https://www.googleapis.com/auth/tasks",
 		"https://www.googleapis.com/auth/spreadsheets",
 		"https://www.googleapis.com/auth/documents",
+		"https://www.googleapis.com/auth/keep",
 	}
 	for _, nw := range notWant {
 		if containsScope(scopes, nw) {

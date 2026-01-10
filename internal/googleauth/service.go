@@ -383,6 +383,10 @@ func scopesForServiceWithOptions(service Service, opts ScopeOptions) ([]string, 
 	case ServiceGroups:
 		return Scopes(service)
 	case ServiceKeep:
+		if opts.Readonly {
+			return []string{"https://www.googleapis.com/auth/keep.readonly"}, nil
+		}
+
 		return Scopes(service)
 	default:
 		return nil, errUnknownService
