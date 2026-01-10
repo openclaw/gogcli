@@ -13,7 +13,7 @@ import (
 type CalendarCmd struct {
 	Calendars       CalendarCalendarsCmd       `cmd:"" name:"calendars" help:"List calendars"`
 	ACL             CalendarAclCmd             `cmd:"" name:"acl" help:"List calendar ACL"`
-	Events          CalendarEventsCmd          `cmd:"" name:"events" help:"List events from a calendar or all calendars"`
+	Events          CalendarEventsCmd          `cmd:"" name:"events" aliases:"list" help:"List events from a calendar or all calendars"`
 	Event           CalendarEventCmd           `cmd:"" name:"event" help:"Get event"`
 	Create          CalendarCreateCmd          `cmd:"" name:"create" help:"Create an event"`
 	Update          CalendarUpdateCmd          `cmd:"" name:"update" help:"Update an event"`

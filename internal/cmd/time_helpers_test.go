@@ -44,6 +44,19 @@ func TestParseTimeExprMore(t *testing.T) {
 		t.Fatalf("expected UTC location, got %v", parsed.Location())
 	}
 
+	// Test ISO 8601 with numeric timezone without colon (macOS date +%z format)
+	parsed, err = parseTimeExpr("2025-01-09T16:38:41-0800", now, loc)
+	if err != nil {
+		t.Fatalf("parseTimeExpr iso8601 numeric tz: %v", err)
+	}
+	if parsed.Hour() != 16 || parsed.Minute() != 38 || parsed.Second() != 41 {
+		t.Fatalf("unexpected iso8601 numeric tz time: %v", parsed)
+	}
+	_, offset := parsed.Zone()
+	if offset != -8*3600 {
+		t.Fatalf("unexpected iso8601 numeric tz offset: %d", offset)
+	}
+
 	parsed, err = parseTimeExpr("yesterday", now, loc)
 	if err != nil {
 		t.Fatalf("parseTimeExpr yesterday: %v", err)

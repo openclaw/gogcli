@@ -130,6 +130,7 @@ func ResolveTimeRangeWithDefaults(ctx context.Context, svc *calendar.Service, fl
 
 // parseTimeExpr parses a time expression which can be:
 // - RFC3339: 2026-01-05T14:00:00-08:00
+// - ISO 8601 with numeric timezone: 2026-01-05T14:00:00-0800 (no colon)
 // - Date only: 2026-01-05 (interpreted as start of day in user's timezone)
 // - Relative: today, tomorrow, monday, next tuesday
 func parseTimeExpr(expr string, now time.Time, loc *time.Location) (time.Time, error) {
@@ -137,6 +138,12 @@ func parseTimeExpr(expr string, now time.Time, loc *time.Location) (time.Time, e
 
 	// Try RFC3339 first (before lowercasing)
 	if t, err := time.Parse(time.RFC3339, expr); err == nil {
+		return t, nil
+	}
+
+	// Try ISO 8601 with numeric timezone without colon (e.g., -0800)
+	// This is what macOS `date +%Y-%m-%dT%H:%M:%S%z` produces
+	if t, err := time.Parse("2006-01-02T15:04:05-0700", expr); err == nil {
 		return t, nil
 	}
 
