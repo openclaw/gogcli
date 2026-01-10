@@ -226,7 +226,7 @@ func (c *DriveGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{"file": f})
+		return outfmt.WriteJSON(os.Stdout, map[string]any{strFile: f})
 	}
 
 	u.Out().Printf("id\t%s", f.Id)
@@ -370,7 +370,7 @@ func (c *DriveUploadCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{"file": created})
+		return outfmt.WriteJSON(os.Stdout, map[string]any{strFile: created})
 	}
 
 	u.Out().Printf("id\t%s", created.Id)
@@ -518,7 +518,7 @@ func (c *DriveMoveCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{"file": updated})
+		return outfmt.WriteJSON(os.Stdout, map[string]any{strFile: updated})
 	}
 
 	u.Out().Printf("id\t%s", updated.Id)
@@ -561,7 +561,7 @@ func (c *DriveRenameCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{"file": updated})
+		return outfmt.WriteJSON(os.Stdout, map[string]any{strFile: updated})
 	}
 
 	u.Out().Printf("id\t%s", updated.Id)
@@ -823,7 +823,7 @@ func driveType(mimeType string) string {
 	if mimeType == "application/vnd.google-apps.folder" {
 		return "folder"
 	}
-	return "file" //nolint:goconst // readability; used as a display value and JSON key elsewhere.
+	return strFile
 }
 
 func formatDateTime(iso string) string {

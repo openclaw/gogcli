@@ -69,7 +69,7 @@ func (c *AuthKeyringCmd) Run(ctx context.Context) error {
 	allowed := map[string]struct{}{
 		"auto":     {},
 		"keychain": {},
-		"file":     {},
+		strFile:    {},
 	}
 	if _, ok := allowed[backend]; !ok {
 		return usagef("invalid backend: %q (expected auto, keychain, or file)", c.Backend)
@@ -94,7 +94,7 @@ func (c *AuthKeyringCmd) Run(ctx context.Context) error {
 		u.Err().Printf("NOTE: GOG_KEYRING_BACKEND=%s overrides config.json", v)
 	}
 
-	if backend == "file" &&
+	if backend == strFile &&
 		u != nil &&
 		!outfmt.IsJSON(ctx) &&
 		!outfmt.IsPlain(ctx) {

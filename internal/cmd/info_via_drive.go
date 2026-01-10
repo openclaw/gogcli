@@ -60,7 +60,7 @@ func infoViaDrive(ctx context.Context, flags *RootFlags, opts infoViaDriveOption
 	}
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{"file": f})
+		return outfmt.WriteJSON(os.Stdout, map[string]any{strFile: f})
 	}
 
 	u.Out().Printf("id\t%s", f.Id)

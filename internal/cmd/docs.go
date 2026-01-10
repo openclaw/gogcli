@@ -90,7 +90,7 @@ func (c *DocsInfoCmd) Run(ctx context.Context, flags *RootFlags) error {
 
 	if outfmt.IsJSON(ctx) {
 		return outfmt.WriteJSON(os.Stdout, map[string]any{
-			"file":     file,
+			strFile:    file,
 			"document": doc,
 		})
 	}
@@ -151,7 +151,7 @@ func (c *DocsCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{"file": created})
+		return outfmt.WriteJSON(os.Stdout, map[string]any{strFile: created})
 	}
 
 	u.Out().Printf("id\t%s", created.Id)

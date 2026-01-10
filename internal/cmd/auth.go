@@ -32,7 +32,7 @@ func ensureKeychainAccessIfNeeded() error {
 	if err != nil {
 		return fmt.Errorf("resolve keyring backend: %w", err)
 	}
-	if backendInfo.Value == "file" {
+	if backendInfo.Value == strFile {
 		return nil
 	}
 	return ensureKeychainAccess()

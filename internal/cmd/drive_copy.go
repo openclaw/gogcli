@@ -82,7 +82,7 @@ func copyViaDrive(ctx context.Context, flags *RootFlags, opts copyViaDriveOption
 	}
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{"file": created})
+		return outfmt.WriteJSON(os.Stdout, map[string]any{strFile: created})
 	}
 	u.Out().Printf("id\t%s", created.Id)
 	u.Out().Printf("name\t%s", created.Name)
