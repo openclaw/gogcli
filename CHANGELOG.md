@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- Paths: expand leading `~` in user-provided file paths (e.g. `--out "~/Downloads/file.pdf"`). (#56) — thanks @salmonumbrella.
+- Calendar: accept ISO 8601 timezones without colon (e.g. `-0800`) and add `gog calendar list` alias. (#56) — thanks @salmonumbrella.
+
 ## 0.5.3 - 2026-01-10
 
 ### Fixed
