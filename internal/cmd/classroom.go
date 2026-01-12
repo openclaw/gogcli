@@ -22,8 +22,9 @@ type ClassroomCmd struct {
 }
 
 type ClassroomCoursesCmd struct {
-	List ClassroomCoursesListCmd `cmd:"" default:"withargs" help:"List courses"`
-	Get  ClassroomCoursesGetCmd  `cmd:"" name:"get" help:"Get course details"`
+	List   ClassroomCoursesListCmd   `cmd:"" default:"withargs" help:"List courses"`
+	Get    ClassroomCoursesGetCmd    `cmd:"" name:"get" help:"Get course details"`
+	Create ClassroomCoursesCreateCmd `cmd:"" name:"create" help:"Create a new course"`
 }
 
 type ClassroomCoursesListCmd struct {
@@ -33,6 +34,13 @@ type ClassroomCoursesListCmd struct {
 
 type ClassroomCoursesGetCmd struct {
 	CourseID string `arg:"" name:"course-id" help:"Course ID to get details for"`
+}
+
+type ClassroomCoursesCreateCmd struct {
+	Name        string `name:"name" required:"" help:"Course name (required)"`
+	Section     string `name:"section" help:"Course section (e.g., 'Period 1')"`
+	Description string `name:"description" help:"Course description"`
+	Room        string `name:"room" help:"Room location"`
 }
 
 func (c *ClassroomCoursesListCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -151,6 +159,38 @@ func (c *ClassroomCoursesGetCmd) Run(ctx context.Context, flags *RootFlags) erro
 	fmt.Fprintf(w, "Enrollment Code:\t%s\n", orDash(course.EnrollmentCode))
 	fmt.Fprintf(w, "Web URL:\t%s\n", course.AlternateLink)
 
+	return nil
+}
+
+func (c *ClassroomCoursesCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
+	}
+
+	svc, err := newClassroomService(ctx, account)
+	if err != nil {
+		return err
+	}
+
+	course := &classroom.Course{
+		Name:        c.Name,
+		Section:     c.Section,
+		Description: c.Description,
+		Room:        c.Room,
+		OwnerId:     "me",
+	}
+
+	created, err := svc.Courses.Create(course).Do()
+	if err != nil {
+		return err
+	}
+
+	if outfmt.IsJSON(ctx) {
+		return outfmt.WriteJSON(os.Stdout, created)
+	}
+
+	fmt.Printf("Created course: %s\n", created.Id)
 	return nil
 }
 
