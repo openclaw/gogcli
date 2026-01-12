@@ -28,6 +28,7 @@ type ClassroomCoursesCmd struct {
 	Create ClassroomCoursesCreateCmd `cmd:"" name:"create" help:"Create a new course"`
 	Update ClassroomCoursesUpdateCmd `cmd:"" name:"update" help:"Update course details"`
 	Delete ClassroomCoursesDeleteCmd `cmd:"" name:"delete" help:"Delete a course"`
+	URL    ClassroomCoursesURLCmd    `cmd:"" name:"url" help:"Get course web URL"`
 }
 
 type ClassroomCoursesListCmd struct {
@@ -57,6 +58,10 @@ type ClassroomCoursesUpdateCmd struct {
 
 type ClassroomCoursesDeleteCmd struct {
 	CourseID string `arg:"" name:"course-id" help:"Course ID to delete"`
+}
+
+type ClassroomCoursesURLCmd struct {
+	CourseID string `arg:"" name:"course-id" help:"Course ID"`
 }
 
 func (c *ClassroomCoursesListCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -299,6 +304,41 @@ func (c *ClassroomCoursesDeleteCmd) Run(ctx context.Context, flags *RootFlags) e
 	}
 
 	fmt.Printf("Deleted course: %s\n", c.CourseID)
+	return nil
+}
+
+func (c *ClassroomCoursesURLCmd) Run(ctx context.Context, flags *RootFlags) error {
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
+	}
+
+	svc, err := newClassroomService(ctx, account)
+	if err != nil {
+		return err
+	}
+
+	course, err := svc.Courses.Get(c.CourseID).Do()
+	if err != nil {
+		var gerr *googleapi.Error
+		if errors.As(err, &gerr) && gerr.Code == http.StatusNotFound {
+			return usagef("course not found: %s", c.CourseID)
+		}
+		return err
+	}
+
+	url := course.AlternateLink
+	if url == "" {
+		url = fmt.Sprintf("https://classroom.google.com/c/%s", c.CourseID)
+	}
+
+	if outfmt.IsJSON(ctx) {
+		return outfmt.WriteJSON(os.Stdout, map[string]string{
+			"url": url,
+		})
+	}
+
+	fmt.Println(url)
 	return nil
 }
 
