@@ -27,6 +27,7 @@ type ClassroomCoursesCmd struct {
 	Get    ClassroomCoursesGetCmd    `cmd:"" name:"get" help:"Get course details"`
 	Create ClassroomCoursesCreateCmd `cmd:"" name:"create" help:"Create a new course"`
 	Update ClassroomCoursesUpdateCmd `cmd:"" name:"update" help:"Update course details"`
+	Delete ClassroomCoursesDeleteCmd `cmd:"" name:"delete" help:"Delete a course"`
 }
 
 type ClassroomCoursesListCmd struct {
@@ -52,6 +53,10 @@ type ClassroomCoursesUpdateCmd struct {
 	Description string `name:"description" help:"New course description"`
 	Room        string `name:"room" help:"New room location"`
 	State       string `name:"state" help:"New course state (ACTIVE, ARCHIVED, PROVISIONED, DECLINED, SUSPENDED)"`
+}
+
+type ClassroomCoursesDeleteCmd struct {
+	CourseID string `arg:"" name:"course-id" help:"Course ID to delete"`
 }
 
 func (c *ClassroomCoursesListCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -260,6 +265,40 @@ func (c *ClassroomCoursesUpdateCmd) Run(ctx context.Context, flags *RootFlags) e
 	}
 
 	fmt.Printf("Updated course: %s\n", updated.Id)
+	return nil
+}
+
+func (c *ClassroomCoursesDeleteCmd) Run(ctx context.Context, flags *RootFlags) error {
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
+	}
+
+	if confirmErr := confirmDestructive(ctx, flags, fmt.Sprintf("delete course %s", c.CourseID)); confirmErr != nil {
+		return confirmErr
+	}
+
+	svc, err := newClassroomService(ctx, account)
+	if err != nil {
+		return err
+	}
+
+	if _, err := svc.Courses.Delete(c.CourseID).Do(); err != nil {
+		var gerr *googleapi.Error
+		if errors.As(err, &gerr) && gerr.Code == http.StatusNotFound {
+			return usagef("course not found: %s", c.CourseID)
+		}
+		return err
+	}
+
+	if outfmt.IsJSON(ctx) {
+		return outfmt.WriteJSON(os.Stdout, map[string]any{
+			"deleted": true,
+			"id":      c.CourseID,
+		})
+	}
+
+	fmt.Printf("Deleted course: %s\n", c.CourseID)
 	return nil
 }
 
