@@ -10,16 +10,17 @@ import (
 type Service string
 
 const (
-	ServiceGmail    Service = "gmail"
-	ServiceCalendar Service = "calendar"
-	ServiceDrive    Service = "drive"
-	ServiceDocs     Service = "docs"
-	ServiceContacts Service = "contacts"
-	ServiceTasks    Service = "tasks"
-	ServicePeople   Service = "people"
-	ServiceSheets   Service = "sheets"
-	ServiceGroups   Service = "groups"
-	ServiceKeep     Service = "keep"
+	ServiceGmail     Service = "gmail"
+	ServiceCalendar  Service = "calendar"
+	ServiceDrive     Service = "drive"
+	ServiceDocs      Service = "docs"
+	ServiceContacts  Service = "contacts"
+	ServiceTasks     Service = "tasks"
+	ServicePeople    Service = "people"
+	ServiceSheets    Service = "sheets"
+	ServiceGroups    Service = "groups"
+	ServiceKeep      Service = "keep"
+	ServiceClassroom Service = "classroom"
 )
 
 const (
@@ -64,6 +65,7 @@ var serviceOrder = []Service{
 	ServicePeople,
 	ServiceGroups,
 	ServiceKeep,
+	ServiceClassroom,
 }
 
 var serviceInfoByService = map[Service]serviceInfo{
@@ -138,6 +140,20 @@ var serviceInfoByService = map[Service]serviceInfo{
 		user:   false,
 		apis:   []string{"Keep API"},
 		note:   "Workspace only; service account (domain-wide delegation)",
+	},
+	ServiceClassroom: {
+		scopes: []string{
+			"https://www.googleapis.com/auth/classroom.courses",
+			"https://www.googleapis.com/auth/classroom.rosters",
+			"https://www.googleapis.com/auth/classroom.coursework.students",
+			"https://www.googleapis.com/auth/classroom.announcements",
+			"https://www.googleapis.com/auth/classroom.topics",
+			"https://www.googleapis.com/auth/classroom.profile.emails",
+			"https://www.googleapis.com/auth/classroom.profile.photos",
+		},
+		user: true,
+		apis: []string{"Classroom API"},
+		note: "Works with Education accounts; limited with personal accounts",
 	},
 }
 
@@ -383,6 +399,8 @@ func scopesForServiceWithOptions(service Service, opts ScopeOptions) ([]string, 
 	case ServiceGroups:
 		return Scopes(service)
 	case ServiceKeep:
+		return Scopes(service)
+	case ServiceClassroom:
 		return Scopes(service)
 	default:
 		return nil, errUnknownService
