@@ -2,17 +2,20 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"net/http"
 	"os"
 
 	"google.golang.org/api/classroom/v1"
+	"google.golang.org/api/googleapi"
 
-	"github.com/steipete/gogcli/internal/googleapi"
+	intgoogleapi "github.com/steipete/gogcli/internal/googleapi"
 	"github.com/steipete/gogcli/internal/outfmt"
 	"github.com/steipete/gogcli/internal/ui"
 )
 
-var newClassroomService = googleapi.NewClassroom
+var newClassroomService = intgoogleapi.NewClassroom
 
 type ClassroomCmd struct {
 	Courses ClassroomCoursesCmd `cmd:"" name:"courses" help:"Manage courses" default:"withargs"`
@@ -20,11 +23,16 @@ type ClassroomCmd struct {
 
 type ClassroomCoursesCmd struct {
 	List ClassroomCoursesListCmd `cmd:"" default:"withargs" help:"List courses"`
+	Get  ClassroomCoursesGetCmd  `cmd:"" name:"get" help:"Get course details"`
 }
 
 type ClassroomCoursesListCmd struct {
 	Role string `name:"role" help:"Filter by role: teacher or student"`
 	Max  int64  `name:"max" aliases:"limit" help:"Max results per page" default:"100"`
+}
+
+type ClassroomCoursesGetCmd struct {
+	CourseID string `arg:"" name:"course-id" help:"Course ID to get details for"`
 }
 
 func (c *ClassroomCoursesListCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -104,4 +112,51 @@ func (c *ClassroomCoursesListCmd) Run(ctx context.Context, flags *RootFlags) err
 		)
 	}
 	return nil
+}
+
+func (c *ClassroomCoursesGetCmd) Run(ctx context.Context, flags *RootFlags) error {
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
+	}
+
+	svc, err := newClassroomService(ctx, account)
+	if err != nil {
+		return err
+	}
+
+	course, err := svc.Courses.Get(c.CourseID).Do()
+	if err != nil {
+		var gerr *googleapi.Error
+		if errors.As(err, &gerr) && gerr.Code == http.StatusNotFound {
+			return usagef("course not found: %s", c.CourseID)
+		}
+		return err
+	}
+
+	if outfmt.IsJSON(ctx) {
+		return outfmt.WriteJSON(os.Stdout, course)
+	}
+
+	w, flush := tableWriter(ctx)
+	defer flush()
+
+	fmt.Fprintf(w, "Name:\t%s\n", course.Name)
+	fmt.Fprintf(w, "Section:\t%s\n", orDash(course.Section))
+	fmt.Fprintf(w, "Description:\t%s\n", orDash(course.Description))
+	fmt.Fprintf(w, "Room:\t%s\n", orDash(course.Room))
+	fmt.Fprintf(w, "Owner ID:\t%s\n", course.OwnerId)
+	fmt.Fprintf(w, "State:\t%s\n", course.CourseState)
+	fmt.Fprintf(w, "Creation Time:\t%s\n", course.CreationTime)
+	fmt.Fprintf(w, "Enrollment Code:\t%s\n", orDash(course.EnrollmentCode))
+	fmt.Fprintf(w, "Web URL:\t%s\n", course.AlternateLink)
+
+	return nil
+}
+
+func orDash(s string) string {
+	if s == "" {
+		return "-"
+	}
+	return s
 }
