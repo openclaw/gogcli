@@ -20,7 +20,21 @@ var newClassroomService = intgoogleapi.NewClassroom
 
 type ClassroomCmd struct {
 	Courses ClassroomCoursesCmd `cmd:"" name:"courses" help:"Manage courses" default:"withargs"`
+	Roster  ClassroomRosterCmd  `cmd:"" name:"roster" help:"Manage course roster (students and teachers)"`
 }
+
+type ClassroomRosterCmd struct {
+	CourseID string                   `arg:"" name:"course-id" help:"Course ID" required:""`
+	List     ClassroomRosterListCmd   `cmd:"" default:"withargs" help:"List roster members"`
+	Add      ClassroomRosterAddCmd    `cmd:"" name:"add" help:"Add student or teacher"`
+	Remove   ClassroomRosterRemoveCmd `cmd:"" name:"remove" help:"Remove student or teacher"`
+}
+
+type (
+	ClassroomRosterListCmd   struct{}
+	ClassroomRosterAddCmd    struct{}
+	ClassroomRosterRemoveCmd struct{}
+)
 
 type ClassroomCoursesCmd struct {
 	List   ClassroomCoursesListCmd   `cmd:"" default:"withargs" help:"List courses"`
