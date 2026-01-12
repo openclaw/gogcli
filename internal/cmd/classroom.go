@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strings"
 
 	"google.golang.org/api/classroom/v1"
 	"google.golang.org/api/googleapi"
@@ -25,6 +26,7 @@ type ClassroomCoursesCmd struct {
 	List   ClassroomCoursesListCmd   `cmd:"" default:"withargs" help:"List courses"`
 	Get    ClassroomCoursesGetCmd    `cmd:"" name:"get" help:"Get course details"`
 	Create ClassroomCoursesCreateCmd `cmd:"" name:"create" help:"Create a new course"`
+	Update ClassroomCoursesUpdateCmd `cmd:"" name:"update" help:"Update course details"`
 }
 
 type ClassroomCoursesListCmd struct {
@@ -41,6 +43,15 @@ type ClassroomCoursesCreateCmd struct {
 	Section     string `name:"section" help:"Course section (e.g., 'Period 1')"`
 	Description string `name:"description" help:"Course description"`
 	Room        string `name:"room" help:"Room location"`
+}
+
+type ClassroomCoursesUpdateCmd struct {
+	CourseID    string `arg:"" name:"course-id" help:"Course ID to update"`
+	Name        string `name:"name" help:"New course name"`
+	Section     string `name:"section" help:"New course section"`
+	Description string `name:"description" help:"New course description"`
+	Room        string `name:"room" help:"New room location"`
+	State       string `name:"state" help:"New course state (ACTIVE, ARCHIVED, PROVISIONED, DECLINED, SUSPENDED)"`
 }
 
 func (c *ClassroomCoursesListCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -191,6 +202,64 @@ func (c *ClassroomCoursesCreateCmd) Run(ctx context.Context, flags *RootFlags) e
 	}
 
 	fmt.Printf("Created course: %s\n", created.Id)
+	return nil
+}
+
+func (c *ClassroomCoursesUpdateCmd) Run(ctx context.Context, flags *RootFlags) error {
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
+	}
+
+	svc, err := newClassroomService(ctx, account)
+	if err != nil {
+		return err
+	}
+
+	course := &classroom.Course{}
+	var mask []string
+
+	if c.Name != "" {
+		course.Name = c.Name
+		mask = append(mask, "name")
+	}
+	if c.Section != "" {
+		course.Section = c.Section
+		mask = append(mask, "section")
+	}
+	if c.Description != "" {
+		course.Description = c.Description
+		mask = append(mask, "description")
+	}
+	if c.Room != "" {
+		course.Room = c.Room
+		mask = append(mask, "room")
+	}
+	if c.State != "" {
+		switch c.State {
+		case "ACTIVE", "ARCHIVED", "PROVISIONED", "DECLINED", "SUSPENDED":
+			course.CourseState = c.State
+			mask = append(mask, "courseState")
+		default:
+			return usagef("invalid state: %s (must be ACTIVE, ARCHIVED, PROVISIONED, DECLINED, or SUSPENDED)", c.State)
+		}
+	}
+
+	if len(mask) == 0 {
+		return usage("no fields to update")
+	}
+
+	updateMask := strings.Join(mask, ",")
+	updated, err := svc.Courses.Patch(c.CourseID, course).UpdateMask(updateMask).Do()
+	if err != nil {
+		return err
+	}
+
+	if outfmt.IsJSON(ctx) {
+		return outfmt.WriteJSON(os.Stdout, updated)
+	}
+
+	fmt.Printf("Updated course: %s\n", updated.Id)
 	return nil
 }
 
