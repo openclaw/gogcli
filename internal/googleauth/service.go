@@ -401,6 +401,19 @@ func scopesForServiceWithOptions(service Service, opts ScopeOptions) ([]string, 
 	case ServiceKeep:
 		return Scopes(service)
 	case ServiceClassroom:
+		if opts.Readonly {
+			// Profile scopes don't have readonly variants - they're already read-only by nature
+			return []string{
+				"https://www.googleapis.com/auth/classroom.courses.readonly",
+				"https://www.googleapis.com/auth/classroom.rosters.readonly",
+				"https://www.googleapis.com/auth/classroom.coursework.students.readonly",
+				"https://www.googleapis.com/auth/classroom.announcements.readonly",
+				"https://www.googleapis.com/auth/classroom.topics.readonly",
+				"https://www.googleapis.com/auth/classroom.profile.emails",
+				"https://www.googleapis.com/auth/classroom.profile.photos",
+			}, nil
+		}
+
 		return Scopes(service)
 	default:
 		return nil, errUnknownService
