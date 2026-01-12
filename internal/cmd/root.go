@@ -46,6 +46,7 @@ type CLI struct {
 	Gmail      GmailCmd      `cmd:"" aliases:"mail,email" help:"Gmail"`
 	Contacts   ContactsCmd   `cmd:"" help:"Google Contacts"`
 	Tasks      TasksCmd      `cmd:"" help:"Google Tasks"`
+	Classroom  ClassroomCmd  `cmd:"" name:"classroom" help:"Google Classroom commands"`
 	People     PeopleCmd     `cmd:"" help:"Google People"`
 	Keep       KeepCmd       `cmd:"" help:"Google Keep (Workspace only)"`
 	Sheets     SheetsCmd     `cmd:"" help:"Google Sheets"`
