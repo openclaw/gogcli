@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -1103,4 +1104,77 @@ func orDash(s string) string {
 		return "-"
 	}
 	return s
+}
+
+func (c *ClassroomSubmissionsGetCmd) Run(ctx context.Context, flags *RootFlags) error {
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
+	}
+
+	svc, err := newClassroomService(ctx, account)
+	if err != nil {
+		return err
+	}
+
+	sub, err := svc.Courses.CourseWork.StudentSubmissions.Get(c.CourseID, c.WorkID, c.SubmissionID).Do()
+	if err != nil {
+		var gerr *googleapi.Error
+		if errors.As(err, &gerr) && gerr.Code == http.StatusNotFound {
+			return usagef("submission not found: %s", c.SubmissionID)
+		}
+		return err
+	}
+
+	if outfmt.IsJSON(ctx) {
+		return outfmt.WriteJSON(os.Stdout, sub)
+	}
+
+	w, flush := tableWriter(ctx)
+	defer flush()
+
+	fmt.Fprintf(w, "User ID:\t%s\n", sub.UserId)
+	fmt.Fprintf(w, "State:\t%s\n", sub.State)
+
+	assignedGrade := "-"
+	if sub.AssignedGrade != 0 {
+		assignedGrade = fmt.Sprintf("%g", sub.AssignedGrade)
+	}
+	fmt.Fprintf(w, "Assigned Grade:\t%s\n", assignedGrade)
+
+	draftGrade := "-"
+	if sub.DraftGrade != 0 {
+		draftGrade = fmt.Sprintf("%g", sub.DraftGrade)
+	}
+	fmt.Fprintf(w, "Draft Grade:\t%s\n", draftGrade)
+
+	fmt.Fprintf(w, "Late:\t%s\n", strconv.FormatBool(sub.Late))
+
+	fmt.Fprintf(w, "Creation Time:\t%s\n", sub.CreationTime)
+	fmt.Fprintf(w, "Update Time:\t%s\n", sub.UpdateTime)
+
+	if sub.AssignmentSubmission != nil && len(sub.AssignmentSubmission.Attachments) > 0 {
+		fmt.Fprintln(w, "\nAttachments:")
+		for _, a := range sub.AssignmentSubmission.Attachments {
+			if a.DriveFile != nil {
+				title := a.DriveFile.Title
+				url := a.DriveFile.AlternateLink
+				if title == "" {
+					title = "Drive File"
+				}
+				fmt.Fprintf(w, "  [Drive File] %s (%s)\n", title, url)
+			}
+			if a.YouTubeVideo != nil {
+				fmt.Fprintf(w, "  [YouTube] %s (%s)\n", a.YouTubeVideo.Title, a.YouTubeVideo.AlternateLink)
+			}
+			if a.Link != nil {
+				fmt.Fprintf(w, "  [Link] %s (%s)\n", a.Link.Title, a.Link.Url)
+			}
+			if a.Form != nil {
+				fmt.Fprintf(w, "  [Form] %s (%s)\n", a.Form.Title, a.Form.FormUrl)
+			}
+		}
+	}
+
+	return nil
 }
