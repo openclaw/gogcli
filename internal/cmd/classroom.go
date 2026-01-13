@@ -20,10 +20,45 @@ import (
 var newClassroomService = intgoogleapi.NewClassroom
 
 type ClassroomCmd struct {
-	Courses ClassroomCoursesCmd `cmd:"" name:"courses" help:"Manage courses" default:"withargs"`
-	Roster  ClassroomRosterCmd  `cmd:"" name:"roster" help:"Manage course roster (students and teachers)"`
-	Work    ClassroomWorkCmd    `cmd:"" name:"work" help:"Manage coursework (assignments and materials)"`
+	Courses     ClassroomCoursesCmd     `cmd:"" name:"courses" help:"Manage courses" default:"withargs"`
+	Roster      ClassroomRosterCmd      `cmd:"" name:"roster" help:"Manage course roster (students and teachers)"`
+	Work        ClassroomWorkCmd        `cmd:"" name:"work" help:"Manage coursework (assignments and materials)"`
+	Submissions ClassroomSubmissionsCmd `cmd:"" name:"submissions" help:"Manage student submissions"`
 }
+
+type ClassroomSubmissionsCmd struct {
+	List   ClassroomSubmissionsListCmd   `cmd:"" default:"withargs" help:"List student submissions"`
+	Get    ClassroomSubmissionsGetCmd    `cmd:"" name:"get" help:"Get submission details"`
+	Grade  ClassroomSubmissionsGradeCmd  `cmd:"" name:"grade" help:"Grade a submission"`
+	Return ClassroomSubmissionsReturnCmd `cmd:"" name:"return" help:"Return a submission"`
+}
+
+type (
+	ClassroomSubmissionsListCmd struct {
+		CourseID string `arg:"" name:"course-id" help:"Course ID" required:""`
+		WorkID   string `arg:"" name:"work-id" help:"CourseWork ID" required:""`
+		State    string `name:"state" help:"Filter by state (NEW, CREATED, TURNED_IN, RETURNED, RECLAIMED_BY_STUDENT)"`
+		Max      int64  `name:"max" aliases:"limit" help:"Max results per page" default:"100"`
+	}
+	ClassroomSubmissionsGetCmd struct {
+		CourseID     string `arg:"" name:"course-id" help:"Course ID" required:""`
+		WorkID       string `arg:"" name:"work-id" help:"CourseWork ID" required:""`
+		SubmissionID string `arg:"" name:"submission-id" help:"Submission ID" required:""`
+	}
+	ClassroomSubmissionsGradeCmd struct {
+		CourseID     string  `arg:"" name:"course-id" help:"Course ID" required:""`
+		WorkID       string  `arg:"" name:"work-id" help:"CourseWork ID" required:""`
+		SubmissionID string  `arg:"" name:"submission-id" help:"Submission ID" required:""`
+		Grade        float64 `name:"grade" required:"" help:"Draft grade to assign"`
+		Return       bool    `name:"return" help:"Return submission after grading"`
+	}
+	ClassroomSubmissionsReturnCmd struct {
+		CourseID     string `arg:"" name:"course-id" help:"Course ID" required:""`
+		WorkID       string `arg:"" name:"work-id" help:"CourseWork ID" required:""`
+		SubmissionID string `arg:"" name:"submission-id" help:"Submission ID" optional:""`
+		All          bool   `name:"all" help:"Return all turned-in or graded submissions"`
+	}
+)
 
 type ClassroomWorkCmd struct {
 	List   ClassroomWorkListCmd   `cmd:"" default:"withargs" help:"List coursework"`
@@ -61,7 +96,7 @@ type (
 		Due         string   `name:"due" help:"New due date (RFC3339, date, relative)"`
 		Points      *float64 `name:"points" help:"New maximum points"`
 		TopicId     string   `name:"topic" help:"New topic ID"`
-		State       string   `name:"state" enum:"PUBLISHED,DRAFT" help:"New state (PUBLISHED or DRAFT)"`
+		State       string   `name:"state" help:"New state (PUBLISHED or DRAFT)"`
 	}
 	ClassroomWorkDeleteCmd struct {
 		CourseID string `arg:"" name:"course-id" help:"Course ID" required:""`
@@ -674,8 +709,13 @@ func (c *ClassroomWorkUpdateCmd) Run(ctx context.Context, flags *RootFlags) erro
 		mask = append(mask, "description")
 	}
 	if c.State != "" {
-		cw.State = c.State
-		mask = append(mask, "state")
+		switch c.State {
+		case "PUBLISHED", "DRAFT":
+			cw.State = c.State
+			mask = append(mask, "state")
+		default:
+			return usagef("invalid state: %s (must be PUBLISHED or DRAFT)", c.State)
+		}
 	}
 	if c.TopicId != "" {
 		cw.TopicId = c.TopicId
