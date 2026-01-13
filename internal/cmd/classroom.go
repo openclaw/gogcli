@@ -31,8 +31,15 @@ type ClassroomRosterCmd struct {
 }
 
 type (
-	ClassroomRosterListCmd   struct{}
-	ClassroomRosterAddCmd    struct{}
+	ClassroomRosterListCmd struct {
+		Students bool  `name:"students" help:"List students only"`
+		Teachers bool  `name:"teachers" help:"List teachers only"`
+		Max      int64 `name:"max" aliases:"limit" help:"Max results per page" default:"100"`
+	}
+	ClassroomRosterAddCmd struct {
+		Email string `name:"email" required:"" help:"Email address of user to add"`
+		Role  string `name:"role" required:"" enum:"student,teacher" help:"Role to assign (student or teacher)"`
+	}
 	ClassroomRosterRemoveCmd struct{}
 )
 
@@ -353,6 +360,175 @@ func (c *ClassroomCoursesURLCmd) Run(ctx context.Context, flags *RootFlags) erro
 	}
 
 	fmt.Println(url)
+	return nil
+}
+
+func (c *ClassroomRosterListCmd) Run(ctx context.Context, roster *ClassroomRosterCmd, flags *RootFlags) error {
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
+	}
+
+	svc, err := newClassroomService(ctx, account)
+	if err != nil {
+		return err
+	}
+
+	// Determine what to fetch
+	fetchStudents := c.Students
+	fetchTeachers := c.Teachers
+	if !fetchStudents && !fetchTeachers {
+		fetchStudents = true
+		fetchTeachers = true
+	}
+
+	type rosterMember struct {
+		UserID string `json:"userId"`
+		Email  string `json:"email"`
+		Name   string `json:"name"`
+		Role   string `json:"role"`
+	}
+
+	var members []rosterMember
+
+	if fetchTeachers {
+		pageToken := ""
+		for {
+			call := svc.Courses.Teachers.List(roster.CourseID).PageSize(c.Max)
+			if pageToken != "" {
+				call = call.PageToken(pageToken)
+			}
+
+			resp, err := call.Do()
+			if err != nil {
+				return fmt.Errorf("listing teachers: %w", err)
+			}
+
+			for _, teacher := range resp.Teachers {
+				email := ""
+				name := ""
+				if teacher.Profile != nil {
+					email = teacher.Profile.EmailAddress
+					if teacher.Profile.Name != nil {
+						name = teacher.Profile.Name.FullName
+					}
+				}
+				members = append(members, rosterMember{
+					UserID: teacher.UserId,
+					Email:  email,
+					Name:   name,
+					Role:   "TEACHER",
+				})
+			}
+
+			pageToken = resp.NextPageToken
+			if pageToken == "" {
+				break
+			}
+		}
+	}
+
+	if fetchStudents {
+		pageToken := ""
+		for {
+			call := svc.Courses.Students.List(roster.CourseID).PageSize(c.Max)
+			if pageToken != "" {
+				call = call.PageToken(pageToken)
+			}
+
+			resp, err := call.Do()
+			if err != nil {
+				return fmt.Errorf("listing students: %w", err)
+			}
+
+			for _, student := range resp.Students {
+				email := ""
+				name := ""
+				if student.Profile != nil {
+					email = student.Profile.EmailAddress
+					if student.Profile.Name != nil {
+						name = student.Profile.Name.FullName
+					}
+				}
+				members = append(members, rosterMember{
+					UserID: student.UserId,
+					Email:  email,
+					Name:   name,
+					Role:   "STUDENT",
+				})
+			}
+
+			pageToken = resp.NextPageToken
+			if pageToken == "" {
+				break
+			}
+		}
+	}
+
+	if outfmt.IsJSON(ctx) {
+		return outfmt.WriteJSON(os.Stdout, members)
+	}
+
+	if len(members) == 0 {
+		ui.FromContext(ctx).Err().Println("No roster members found")
+		return nil
+	}
+
+	w, flush := tableWriter(ctx)
+	defer flush()
+	fmt.Fprintln(w, "USER_ID\tEMAIL\tNAME\tROLE")
+	for _, m := range members {
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\n",
+			m.UserID,
+			orDash(m.Email),
+			orDash(m.Name),
+			m.Role,
+		)
+	}
+	return nil
+}
+
+func (c *ClassroomRosterAddCmd) Run(ctx context.Context, roster *ClassroomRosterCmd, flags *RootFlags) error {
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
+	}
+
+	svc, err := newClassroomService(ctx, account)
+	if err != nil {
+		return err
+	}
+
+	var created any
+
+	switch c.Role {
+	case "student":
+		student := &classroom.Student{
+			UserId: c.Email,
+		}
+		res, err := svc.Courses.Students.Create(roster.CourseID, student).Do()
+		if err != nil {
+			return err
+		}
+		created = res
+	case "teacher":
+		teacher := &classroom.Teacher{
+			UserId: c.Email,
+		}
+		res, err := svc.Courses.Teachers.Create(roster.CourseID, teacher).Do()
+		if err != nil {
+			return err
+		}
+		created = res
+	default:
+		return usagef("invalid role: %s", c.Role)
+	}
+
+	if outfmt.IsJSON(ctx) {
+		return outfmt.WriteJSON(os.Stdout, created)
+	}
+
+	fmt.Printf("Added %s: %s\n", c.Role, c.Email)
 	return nil
 }
 
