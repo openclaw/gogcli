@@ -34,7 +34,10 @@ type ClassroomWorkCmd struct {
 }
 
 type (
-	ClassroomWorkListCmd   struct{}
+	ClassroomWorkListCmd struct {
+		Type string `name:"type" enum:"assignment,material" help:"Filter by type (assignment or material)"`
+		Max  int64  `name:"max" aliases:"limit" help:"Max results per page" default:"100"`
+	}
 	ClassroomWorkGetCmd    struct{}
 	ClassroomWorkCreateCmd struct{}
 	ClassroomWorkUpdateCmd struct{}
@@ -384,6 +387,130 @@ func (c *ClassroomCoursesURLCmd) Run(ctx context.Context, flags *RootFlags) erro
 	return nil
 }
 
+func (c *ClassroomWorkListCmd) Run(ctx context.Context, work *ClassroomWorkCmd, flags *RootFlags) error {
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
+	}
+
+	svc, err := newClassroomService(ctx, account)
+	if err != nil {
+		return err
+	}
+
+	var allWork []*classroom.CourseWork
+	var allMaterials []*classroom.CourseWorkMaterial
+
+	fetchWork := c.Type == "" || c.Type == "assignment"
+	fetchMaterials := c.Type == "" || c.Type == "material"
+
+	if fetchWork {
+		pageToken := ""
+		for {
+			call := svc.Courses.CourseWork.List(work.CourseID).PageSize(c.Max)
+			if pageToken != "" {
+				call = call.PageToken(pageToken)
+			}
+
+			resp, err := call.Do()
+			if err != nil {
+				return fmt.Errorf("listing coursework: %w", err)
+			}
+
+			for _, cw := range resp.CourseWork {
+				if c.Type == "assignment" && cw.WorkType != "ASSIGNMENT" {
+					continue
+				}
+				allWork = append(allWork, cw)
+			}
+
+			pageToken = resp.NextPageToken
+			if pageToken == "" {
+				break
+			}
+		}
+	}
+
+	if fetchMaterials {
+		pageToken := ""
+		for {
+			call := svc.Courses.CourseWorkMaterials.List(work.CourseID).PageSize(c.Max)
+			if pageToken != "" {
+				call = call.PageToken(pageToken)
+			}
+
+			resp, err := call.Do()
+			if err != nil {
+				return fmt.Errorf("listing coursework materials: %w", err)
+			}
+
+			allMaterials = append(allMaterials, resp.CourseWorkMaterial...)
+
+			pageToken = resp.NextPageToken
+			if pageToken == "" {
+				break
+			}
+		}
+	}
+
+	if outfmt.IsJSON(ctx) {
+		result := map[string]any{
+			"courseWork":          allWork,
+			"courseWorkMaterials": allMaterials,
+		}
+		return outfmt.WriteJSON(os.Stdout, result)
+	}
+
+	if len(allWork) == 0 && len(allMaterials) == 0 {
+		ui.FromContext(ctx).Err().Println("No coursework found")
+		return nil
+	}
+
+	w, flush := tableWriter(ctx)
+	defer flush()
+	fmt.Fprintln(w, "WORK_ID\tTITLE\tTYPE\tSTATE\tDUE_DATE\tMAX_POINTS")
+
+	for _, cw := range allWork {
+		dueDate := formatDueDate(cw.DueDate, cw.DueTime)
+		maxPoints := "-"
+		if cw.MaxPoints != 0 {
+			maxPoints = fmt.Sprintf("%g", cw.MaxPoints)
+		}
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\n",
+			cw.Id,
+			cw.Title,
+			cw.WorkType,
+			cw.State,
+			dueDate,
+			maxPoints,
+		)
+	}
+
+	for _, cm := range allMaterials {
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\n",
+			cm.Id,
+			cm.Title,
+			"MATERIAL",
+			cm.State,
+			"-",
+			"-",
+		)
+	}
+
+	return nil
+}
+
+func formatDueDate(d *classroom.Date, t *classroom.TimeOfDay) string {
+	if d == nil {
+		return "-"
+	}
+	dateStr := fmt.Sprintf("%04d-%02d-%02d", d.Year, d.Month, d.Day)
+	if t != nil {
+		return fmt.Sprintf("%s %02d:%02d", dateStr, t.Hours, t.Minutes)
+	}
+	return dateStr
+}
+
 func (c *ClassroomRosterListCmd) Run(ctx context.Context, roster *ClassroomRosterCmd, flags *RootFlags) error {
 	account, err := requireAccount(flags)
 	if err != nil {
@@ -395,7 +522,6 @@ func (c *ClassroomRosterListCmd) Run(ctx context.Context, roster *ClassroomRoste
 		return err
 	}
 
-	// Determine what to fetch
 	fetchStudents := c.Students
 	fetchTeachers := c.Teachers
 	if !fetchStudents && !fetchTeachers {
