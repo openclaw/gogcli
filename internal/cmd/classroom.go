@@ -1023,6 +1023,81 @@ func (c *ClassroomRosterRemoveCmd) Run(ctx context.Context, flags *RootFlags) er
 	return nil
 }
 
+func (c *ClassroomSubmissionsListCmd) Run(ctx context.Context, flags *RootFlags) error {
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
+	}
+
+	svc, err := newClassroomService(ctx, account)
+	if err != nil {
+		return err
+	}
+
+	call := svc.Courses.CourseWork.StudentSubmissions.List(c.CourseID, c.WorkID).PageSize(c.Max)
+
+	if c.State != "" {
+		call = call.States(c.State)
+	}
+
+	var allSubmissions []*classroom.StudentSubmission
+	pageToken := ""
+
+	for {
+		if pageToken != "" {
+			call = call.PageToken(pageToken)
+		}
+
+		resp, err := call.Do()
+		if err != nil {
+			return fmt.Errorf("listing submissions: %w", err)
+		}
+
+		allSubmissions = append(allSubmissions, resp.StudentSubmissions...)
+
+		pageToken = resp.NextPageToken
+		if pageToken == "" {
+			break
+		}
+	}
+
+	if outfmt.IsJSON(ctx) {
+		return outfmt.WriteJSON(os.Stdout, map[string]any{
+			"submissions": allSubmissions,
+		})
+	}
+
+	if len(allSubmissions) == 0 {
+		ui.FromContext(ctx).Err().Println("No submissions found")
+		return nil
+	}
+
+	w, flush := tableWriter(ctx)
+	defer flush()
+	fmt.Fprintln(w, "SUBMISSION_ID\tUSER_ID\tSTATE\tASSIGNED_GRADE\tLATE")
+
+	for _, sub := range allSubmissions {
+		assignedGrade := "-"
+		if sub.AssignedGrade != 0 {
+			assignedGrade = fmt.Sprintf("%g", sub.AssignedGrade)
+		}
+
+		late := "false"
+		if sub.Late {
+			late = "true"
+		}
+
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n",
+			sub.Id,
+			sub.UserId,
+			sub.State,
+			assignedGrade,
+			late,
+		)
+	}
+	return nil
+}
+
 func orDash(s string) string {
 	if s == "" {
 		return "-"
