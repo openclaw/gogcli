@@ -40,7 +40,10 @@ type (
 		Email string `name:"email" required:"" help:"Email address of user to add"`
 		Role  string `name:"role" required:"" enum:"student,teacher" help:"Role to assign (student or teacher)"`
 	}
-	ClassroomRosterRemoveCmd struct{}
+	ClassroomRosterRemoveCmd struct {
+		Email string `name:"email" required:"" help:"Email address of user to remove"`
+		Role  string `name:"role" required:"" enum:"student,teacher" help:"Role to remove (student or teacher)"`
+	}
 )
 
 type ClassroomCoursesCmd struct {
@@ -529,6 +532,54 @@ func (c *ClassroomRosterAddCmd) Run(ctx context.Context, roster *ClassroomRoster
 	}
 
 	fmt.Printf("Added %s: %s\n", c.Role, c.Email)
+	return nil
+}
+
+func (c *ClassroomRosterRemoveCmd) Run(ctx context.Context, roster *ClassroomRosterCmd, flags *RootFlags) error {
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
+	}
+
+	if confirmErr := confirmDestructive(ctx, flags, fmt.Sprintf("remove %s %s from course %s", c.Role, c.Email, roster.CourseID)); confirmErr != nil {
+		return confirmErr
+	}
+
+	svc, err := newClassroomService(ctx, account)
+	if err != nil {
+		return err
+	}
+
+	switch c.Role {
+	case "student":
+		if _, err := svc.Courses.Students.Delete(roster.CourseID, c.Email).Do(); err != nil {
+			var gerr *googleapi.Error
+			if errors.As(err, &gerr) && gerr.Code == http.StatusNotFound {
+				return usagef("student not found in course: %s", c.Email)
+			}
+			return err
+		}
+	case "teacher":
+		if _, err := svc.Courses.Teachers.Delete(roster.CourseID, c.Email).Do(); err != nil {
+			var gerr *googleapi.Error
+			if errors.As(err, &gerr) && gerr.Code == http.StatusNotFound {
+				return usagef("teacher not found in course: %s", c.Email)
+			}
+			return err
+		}
+	default:
+		return usagef("invalid role: %s", c.Role)
+	}
+
+	if outfmt.IsJSON(ctx) {
+		return outfmt.WriteJSON(os.Stdout, map[string]any{
+			"removed": true,
+			"role":    c.Role,
+			"email":   c.Email,
+		})
+	}
+
+	fmt.Printf("Removed %s: %s\n", c.Role, c.Email)
 	return nil
 }
 
