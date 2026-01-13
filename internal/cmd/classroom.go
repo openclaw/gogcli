@@ -21,7 +21,25 @@ var newClassroomService = intgoogleapi.NewClassroom
 type ClassroomCmd struct {
 	Courses ClassroomCoursesCmd `cmd:"" name:"courses" help:"Manage courses" default:"withargs"`
 	Roster  ClassroomRosterCmd  `cmd:"" name:"roster" help:"Manage course roster (students and teachers)"`
+	Work    ClassroomWorkCmd    `cmd:"" name:"work" help:"Manage coursework (assignments and materials)"`
 }
+
+type ClassroomWorkCmd struct {
+	CourseID string                 `arg:"" name:"course-id" help:"Course ID" required:""`
+	List     ClassroomWorkListCmd   `cmd:"" default:"withargs" help:"List coursework"`
+	Get      ClassroomWorkGetCmd    `cmd:"" name:"get" help:"Get coursework details"`
+	Create   ClassroomWorkCreateCmd `cmd:"" name:"create" help:"Create new coursework"`
+	Update   ClassroomWorkUpdateCmd `cmd:"" name:"update" help:"Update coursework"`
+	Delete   ClassroomWorkDeleteCmd `cmd:"" name:"delete" help:"Delete coursework"`
+}
+
+type (
+	ClassroomWorkListCmd   struct{}
+	ClassroomWorkGetCmd    struct{}
+	ClassroomWorkCreateCmd struct{}
+	ClassroomWorkUpdateCmd struct{}
+	ClassroomWorkDeleteCmd struct{}
+)
 
 type ClassroomRosterCmd struct {
 	CourseID string                   `arg:"" name:"course-id" help:"Course ID" required:""`
