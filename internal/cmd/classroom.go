@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	"google.golang.org/api/classroom/v1"
 	"google.golang.org/api/googleapi"
@@ -25,45 +26,63 @@ type ClassroomCmd struct {
 }
 
 type ClassroomWorkCmd struct {
-	CourseID string                 `arg:"" name:"course-id" help:"Course ID" required:""`
-	List     ClassroomWorkListCmd   `cmd:"" default:"withargs" help:"List coursework"`
-	Get      ClassroomWorkGetCmd    `cmd:"" name:"get" help:"Get coursework details"`
-	Create   ClassroomWorkCreateCmd `cmd:"" name:"create" help:"Create new coursework"`
-	Update   ClassroomWorkUpdateCmd `cmd:"" name:"update" help:"Update coursework"`
-	Delete   ClassroomWorkDeleteCmd `cmd:"" name:"delete" help:"Delete coursework"`
+	List   ClassroomWorkListCmd   `cmd:"" default:"withargs" help:"List coursework"`
+	Get    ClassroomWorkGetCmd    `cmd:"" name:"get" help:"Get coursework details"`
+	Create ClassroomWorkCreateCmd `cmd:"" name:"create" help:"Create new coursework"`
+	Update ClassroomWorkUpdateCmd `cmd:"" name:"update" help:"Update coursework"`
+	Delete ClassroomWorkDeleteCmd `cmd:"" name:"delete" help:"Delete coursework"`
 }
 
 type (
 	ClassroomWorkListCmd struct {
-		Type string `name:"type" enum:"assignment,material" help:"Filter by type (assignment or material)"`
-		Max  int64  `name:"max" aliases:"limit" help:"Max results per page" default:"100"`
+		CourseID string `arg:"" name:"course-id" help:"Course ID" required:""`
+		Type     string `name:"type" help:"Filter by type (assignment or material)"`
+		Max      int64  `name:"max" aliases:"limit" help:"Max results per page" default:"100"`
 	}
-	ClassroomWorkGetCmd    struct{}
-	ClassroomWorkCreateCmd struct{}
-	ClassroomWorkUpdateCmd struct{}
-	ClassroomWorkDeleteCmd struct{}
+	ClassroomWorkGetCmd struct {
+		CourseID string `arg:"" name:"course-id" help:"Course ID" required:""`
+		WorkID   string `arg:"" name:"work-id" help:"CourseWork ID" required:""`
+	}
+	ClassroomWorkCreateCmd struct {
+		CourseID    string `arg:"" name:"course-id" help:"Course ID" required:""`
+		Title       string `name:"title" required:"" help:"Coursework title"`
+		Description string `name:"description" help:"Description"`
+		Due         string `name:"due" help:"Due date (RFC3339, date, relative)"`
+		Points      int64  `name:"points" help:"Maximum points"`
+		TopicId     string `name:"topic" help:"Topic ID"`
+		State       string `name:"state" enum:"PUBLISHED,DRAFT" default:"PUBLISHED" help:"State (PUBLISHED or DRAFT)"`
+		Type        string `name:"type" enum:"ASSIGNMENT,SHORT_ANSWER_QUESTION,MULTIPLE_CHOICE_QUESTION" default:"ASSIGNMENT" help:"Type of coursework"`
+	}
+	ClassroomWorkUpdateCmd struct {
+		CourseID string `arg:"" name:"course-id" help:"Course ID" required:""`
+	}
+	ClassroomWorkDeleteCmd struct {
+		CourseID string `arg:"" name:"course-id" help:"Course ID" required:""`
+	}
 )
 
 type ClassroomRosterCmd struct {
-	CourseID string                   `arg:"" name:"course-id" help:"Course ID" required:""`
-	List     ClassroomRosterListCmd   `cmd:"" default:"withargs" help:"List roster members"`
-	Add      ClassroomRosterAddCmd    `cmd:"" name:"add" help:"Add student or teacher"`
-	Remove   ClassroomRosterRemoveCmd `cmd:"" name:"remove" help:"Remove student or teacher"`
+	List   ClassroomRosterListCmd   `cmd:"" default:"withargs" help:"List roster members"`
+	Add    ClassroomRosterAddCmd    `cmd:"" name:"add" help:"Add student or teacher"`
+	Remove ClassroomRosterRemoveCmd `cmd:"" name:"remove" help:"Remove student or teacher"`
 }
 
 type (
 	ClassroomRosterListCmd struct {
-		Students bool  `name:"students" help:"List students only"`
-		Teachers bool  `name:"teachers" help:"List teachers only"`
-		Max      int64 `name:"max" aliases:"limit" help:"Max results per page" default:"100"`
+		CourseID string `arg:"" name:"course-id" help:"Course ID" required:""`
+		Students bool   `name:"students" help:"List students only"`
+		Teachers bool   `name:"teachers" help:"List teachers only"`
+		Max      int64  `name:"max" aliases:"limit" help:"Max results per page" default:"100"`
 	}
 	ClassroomRosterAddCmd struct {
-		Email string `name:"email" required:"" help:"Email address of user to add"`
-		Role  string `name:"role" required:"" enum:"student,teacher" help:"Role to assign (student or teacher)"`
+		CourseID string `arg:"" name:"course-id" help:"Course ID" required:""`
+		Email    string `name:"email" required:"" help:"Email address of user to add"`
+		Role     string `name:"role" required:"" enum:"student,teacher" help:"Role to assign (student or teacher)"`
 	}
 	ClassroomRosterRemoveCmd struct {
-		Email string `name:"email" required:"" help:"Email address of user to remove"`
-		Role  string `name:"role" required:"" enum:"student,teacher" help:"Role to remove (student or teacher)"`
+		CourseID string `arg:"" name:"course-id" help:"Course ID" required:""`
+		Email    string `name:"email" required:"" help:"Email address of user to remove"`
+		Role     string `name:"role" required:"" enum:"student,teacher" help:"Role to remove (student or teacher)"`
 	}
 )
 
@@ -387,7 +406,7 @@ func (c *ClassroomCoursesURLCmd) Run(ctx context.Context, flags *RootFlags) erro
 	return nil
 }
 
-func (c *ClassroomWorkListCmd) Run(ctx context.Context, work *ClassroomWorkCmd, flags *RootFlags) error {
+func (c *ClassroomWorkListCmd) Run(ctx context.Context, flags *RootFlags) error {
 	account, err := requireAccount(flags)
 	if err != nil {
 		return err
@@ -396,6 +415,10 @@ func (c *ClassroomWorkListCmd) Run(ctx context.Context, work *ClassroomWorkCmd, 
 	svc, err := newClassroomService(ctx, account)
 	if err != nil {
 		return err
+	}
+
+	if c.Type != "" && c.Type != "assignment" && c.Type != "material" {
+		return usagef("invalid type: %q (must be 'assignment' or 'material')", c.Type)
 	}
 
 	var allWork []*classroom.CourseWork
@@ -407,7 +430,7 @@ func (c *ClassroomWorkListCmd) Run(ctx context.Context, work *ClassroomWorkCmd, 
 	if fetchWork {
 		pageToken := ""
 		for {
-			call := svc.Courses.CourseWork.List(work.CourseID).PageSize(c.Max)
+			call := svc.Courses.CourseWork.List(c.CourseID).PageSize(c.Max)
 			if pageToken != "" {
 				call = call.PageToken(pageToken)
 			}
@@ -434,7 +457,7 @@ func (c *ClassroomWorkListCmd) Run(ctx context.Context, work *ClassroomWorkCmd, 
 	if fetchMaterials {
 		pageToken := ""
 		for {
-			call := svc.Courses.CourseWorkMaterials.List(work.CourseID).PageSize(c.Max)
+			call := svc.Courses.CourseWorkMaterials.List(c.CourseID).PageSize(c.Max)
 			if pageToken != "" {
 				call = call.PageToken(pageToken)
 			}
@@ -500,6 +523,126 @@ func (c *ClassroomWorkListCmd) Run(ctx context.Context, work *ClassroomWorkCmd, 
 	return nil
 }
 
+func (c *ClassroomWorkGetCmd) Run(ctx context.Context, flags *RootFlags) error {
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
+	}
+
+	svc, err := newClassroomService(ctx, account)
+	if err != nil {
+		return err
+	}
+
+	cw, err := svc.Courses.CourseWork.Get(c.CourseID, c.WorkID).Do()
+	if err != nil {
+		var gerr *googleapi.Error
+		if errors.As(err, &gerr) && gerr.Code == http.StatusNotFound {
+			return usagef("coursework not found: %s", c.WorkID)
+		}
+		return err
+	}
+
+	if outfmt.IsJSON(ctx) {
+		return outfmt.WriteJSON(os.Stdout, cw)
+	}
+
+	w, flush := tableWriter(ctx)
+	defer flush()
+
+	fmt.Fprintf(w, "Title:\t%s\n", cw.Title)
+	fmt.Fprintf(w, "Description:\t%s\n", orDash(cw.Description))
+	fmt.Fprintf(w, "State:\t%s\n", cw.State)
+	fmt.Fprintf(w, "Type:\t%s\n", cw.WorkType)
+	fmt.Fprintf(w, "Due:\t%s\n", formatDueDate(cw.DueDate, cw.DueTime))
+
+	maxPoints := "-"
+	if cw.MaxPoints != 0 {
+		maxPoints = fmt.Sprintf("%g", cw.MaxPoints)
+	}
+	fmt.Fprintf(w, "Max Points:\t%s\n", maxPoints)
+
+	fmt.Fprintf(w, "Topic ID:\t%s\n", orDash(cw.TopicId))
+	fmt.Fprintf(w, "Creation Time:\t%s\n", cw.CreationTime)
+	fmt.Fprintf(w, "Update Time:\t%s\n", cw.UpdateTime)
+	fmt.Fprintf(w, "Web URL:\t%s\n", cw.AlternateLink)
+
+	if len(cw.Materials) > 0 {
+		fmt.Fprintln(w, "\nMaterials:")
+		for _, m := range cw.Materials {
+			if m.DriveFile != nil && m.DriveFile.DriveFile != nil {
+				fmt.Fprintf(w, "  [Drive File] %s (%s)\n", m.DriveFile.DriveFile.Title, m.DriveFile.DriveFile.AlternateLink)
+			}
+			if m.YoutubeVideo != nil {
+				fmt.Fprintf(w, "  [YouTube] %s (%s)\n", m.YoutubeVideo.Title, m.YoutubeVideo.AlternateLink)
+			}
+			if m.Link != nil {
+				fmt.Fprintf(w, "  [Link] %s (%s)\n", m.Link.Title, m.Link.Url)
+			}
+			if m.Form != nil {
+				fmt.Fprintf(w, "  [Form] %s (%s)\n", m.Form.Title, m.Form.FormUrl)
+			}
+		}
+	}
+
+	return nil
+}
+
+func (c *ClassroomWorkCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
+	}
+
+	svc, err := newClassroomService(ctx, account)
+	if err != nil {
+		return err
+	}
+
+	cw := &classroom.CourseWork{
+		Title:       c.Title,
+		Description: c.Description,
+		State:       c.State,
+		WorkType:    c.Type,
+		TopicId:     c.TopicId,
+	}
+
+	if c.Points > 0 {
+		cw.MaxPoints = float64(c.Points)
+	}
+
+	if c.Due != "" {
+		// Use local timezone for parsing
+		var t time.Time
+		t, err = parseTimeExpr(c.Due, time.Now(), time.Local)
+		if err != nil {
+			return fmt.Errorf("invalid due date: %w", err)
+		}
+
+		cw.DueDate = &classroom.Date{
+			Year:  int64(t.Year()),
+			Month: int64(t.Month()),
+			Day:   int64(t.Day()),
+		}
+		cw.DueTime = &classroom.TimeOfDay{
+			Hours:   int64(t.Hour()),
+			Minutes: int64(t.Minute()),
+		}
+	}
+
+	created, err := svc.Courses.CourseWork.Create(c.CourseID, cw).Do()
+	if err != nil {
+		return err
+	}
+
+	if outfmt.IsJSON(ctx) {
+		return outfmt.WriteJSON(os.Stdout, created)
+	}
+
+	fmt.Printf("Created coursework: %s\n", created.Id)
+	return nil
+}
+
 func formatDueDate(d *classroom.Date, t *classroom.TimeOfDay) string {
 	if d == nil {
 		return "-"
@@ -511,7 +654,7 @@ func formatDueDate(d *classroom.Date, t *classroom.TimeOfDay) string {
 	return dateStr
 }
 
-func (c *ClassroomRosterListCmd) Run(ctx context.Context, roster *ClassroomRosterCmd, flags *RootFlags) error {
+func (c *ClassroomRosterListCmd) Run(ctx context.Context, flags *RootFlags) error {
 	account, err := requireAccount(flags)
 	if err != nil {
 		return err
@@ -541,7 +684,7 @@ func (c *ClassroomRosterListCmd) Run(ctx context.Context, roster *ClassroomRoste
 	if fetchTeachers {
 		pageToken := ""
 		for {
-			call := svc.Courses.Teachers.List(roster.CourseID).PageSize(c.Max)
+			call := svc.Courses.Teachers.List(c.CourseID).PageSize(c.Max)
 			if pageToken != "" {
 				call = call.PageToken(pageToken)
 			}
@@ -578,7 +721,7 @@ func (c *ClassroomRosterListCmd) Run(ctx context.Context, roster *ClassroomRoste
 	if fetchStudents {
 		pageToken := ""
 		for {
-			call := svc.Courses.Students.List(roster.CourseID).PageSize(c.Max)
+			call := svc.Courses.Students.List(c.CourseID).PageSize(c.Max)
 			if pageToken != "" {
 				call = call.PageToken(pageToken)
 			}
@@ -635,7 +778,7 @@ func (c *ClassroomRosterListCmd) Run(ctx context.Context, roster *ClassroomRoste
 	return nil
 }
 
-func (c *ClassroomRosterAddCmd) Run(ctx context.Context, roster *ClassroomRosterCmd, flags *RootFlags) error {
+func (c *ClassroomRosterAddCmd) Run(ctx context.Context, flags *RootFlags) error {
 	account, err := requireAccount(flags)
 	if err != nil {
 		return err
@@ -653,7 +796,7 @@ func (c *ClassroomRosterAddCmd) Run(ctx context.Context, roster *ClassroomRoster
 		student := &classroom.Student{
 			UserId: c.Email,
 		}
-		res, err := svc.Courses.Students.Create(roster.CourseID, student).Do()
+		res, err := svc.Courses.Students.Create(c.CourseID, student).Do()
 		if err != nil {
 			return err
 		}
@@ -662,7 +805,7 @@ func (c *ClassroomRosterAddCmd) Run(ctx context.Context, roster *ClassroomRoster
 		teacher := &classroom.Teacher{
 			UserId: c.Email,
 		}
-		res, err := svc.Courses.Teachers.Create(roster.CourseID, teacher).Do()
+		res, err := svc.Courses.Teachers.Create(c.CourseID, teacher).Do()
 		if err != nil {
 			return err
 		}
@@ -679,13 +822,13 @@ func (c *ClassroomRosterAddCmd) Run(ctx context.Context, roster *ClassroomRoster
 	return nil
 }
 
-func (c *ClassroomRosterRemoveCmd) Run(ctx context.Context, roster *ClassroomRosterCmd, flags *RootFlags) error {
+func (c *ClassroomRosterRemoveCmd) Run(ctx context.Context, flags *RootFlags) error {
 	account, err := requireAccount(flags)
 	if err != nil {
 		return err
 	}
 
-	if confirmErr := confirmDestructive(ctx, flags, fmt.Sprintf("remove %s %s from course %s", c.Role, c.Email, roster.CourseID)); confirmErr != nil {
+	if confirmErr := confirmDestructive(ctx, flags, fmt.Sprintf("remove %s %s from course %s", c.Role, c.Email, c.CourseID)); confirmErr != nil {
 		return confirmErr
 	}
 
@@ -696,7 +839,7 @@ func (c *ClassroomRosterRemoveCmd) Run(ctx context.Context, roster *ClassroomRos
 
 	switch c.Role {
 	case "student":
-		if _, err := svc.Courses.Students.Delete(roster.CourseID, c.Email).Do(); err != nil {
+		if _, err := svc.Courses.Students.Delete(c.CourseID, c.Email).Do(); err != nil {
 			var gerr *googleapi.Error
 			if errors.As(err, &gerr) && gerr.Code == http.StatusNotFound {
 				return usagef("student not found in course: %s", c.Email)
@@ -704,7 +847,7 @@ func (c *ClassroomRosterRemoveCmd) Run(ctx context.Context, roster *ClassroomRos
 			return err
 		}
 	case "teacher":
-		if _, err := svc.Courses.Teachers.Delete(roster.CourseID, c.Email).Do(); err != nil {
+		if _, err := svc.Courses.Teachers.Delete(c.CourseID, c.Email).Do(); err != nil {
 			var gerr *googleapi.Error
 			if errors.As(err, &gerr) && gerr.Code == http.StatusNotFound {
 				return usagef("teacher not found in course: %s", c.Email)
