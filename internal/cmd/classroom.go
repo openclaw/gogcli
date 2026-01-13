@@ -54,7 +54,14 @@ type (
 		Type        string `name:"type" enum:"ASSIGNMENT,SHORT_ANSWER_QUESTION,MULTIPLE_CHOICE_QUESTION" default:"ASSIGNMENT" help:"Type of coursework"`
 	}
 	ClassroomWorkUpdateCmd struct {
-		CourseID string `arg:"" name:"course-id" help:"Course ID" required:""`
+		CourseID    string   `arg:"" name:"course-id" help:"Course ID" required:""`
+		WorkID      string   `arg:"" name:"work-id" help:"CourseWork ID" required:""`
+		Title       string   `name:"title" help:"New title"`
+		Description string   `name:"description" help:"New description"`
+		Due         string   `name:"due" help:"New due date (RFC3339, date, relative)"`
+		Points      *float64 `name:"points" help:"New maximum points"`
+		TopicId     string   `name:"topic" help:"New topic ID"`
+		State       string   `name:"state" enum:"PUBLISHED,DRAFT" help:"New state (PUBLISHED or DRAFT)"`
 	}
 	ClassroomWorkDeleteCmd struct {
 		CourseID string `arg:"" name:"course-id" help:"Course ID" required:""`
@@ -640,6 +647,77 @@ func (c *ClassroomWorkCreateCmd) Run(ctx context.Context, flags *RootFlags) erro
 	}
 
 	fmt.Printf("Created coursework: %s\n", created.Id)
+	return nil
+}
+
+func (c *ClassroomWorkUpdateCmd) Run(ctx context.Context, flags *RootFlags) error {
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
+	}
+
+	svc, err := newClassroomService(ctx, account)
+	if err != nil {
+		return err
+	}
+
+	cw := &classroom.CourseWork{}
+	var mask []string
+
+	if c.Title != "" {
+		cw.Title = c.Title
+		mask = append(mask, "title")
+	}
+	if c.Description != "" {
+		cw.Description = c.Description
+		mask = append(mask, "description")
+	}
+	if c.State != "" {
+		cw.State = c.State
+		mask = append(mask, "state")
+	}
+	if c.TopicId != "" {
+		cw.TopicId = c.TopicId
+		mask = append(mask, "topicId")
+	}
+	if c.Points != nil {
+		cw.MaxPoints = *c.Points
+		mask = append(mask, "maxPoints")
+	}
+	if c.Due != "" {
+		var t time.Time
+		t, err = parseTimeExpr(c.Due, time.Now(), time.Local)
+		if err != nil {
+			return fmt.Errorf("invalid due date: %w", err)
+		}
+
+		cw.DueDate = &classroom.Date{
+			Year:  int64(t.Year()),
+			Month: int64(t.Month()),
+			Day:   int64(t.Day()),
+		}
+		cw.DueTime = &classroom.TimeOfDay{
+			Hours:   int64(t.Hour()),
+			Minutes: int64(t.Minute()),
+		}
+		mask = append(mask, "dueDate", "dueTime")
+	}
+
+	if len(mask) == 0 {
+		return usage("no fields to update")
+	}
+
+	updateMask := strings.Join(mask, ",")
+	updated, err := svc.Courses.CourseWork.Patch(c.CourseID, c.WorkID, cw).UpdateMask(updateMask).Do()
+	if err != nil {
+		return err
+	}
+
+	if outfmt.IsJSON(ctx) {
+		return outfmt.WriteJSON(os.Stdout, updated)
+	}
+
+	fmt.Printf("Updated coursework: %s\n", updated.Id)
 	return nil
 }
 
