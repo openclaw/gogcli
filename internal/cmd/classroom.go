@@ -65,6 +65,7 @@ type (
 	}
 	ClassroomWorkDeleteCmd struct {
 		CourseID string `arg:"" name:"course-id" help:"Course ID" required:""`
+		WorkID   string `arg:"" name:"work-id" help:"CourseWork ID" required:""`
 	}
 )
 
@@ -718,6 +719,40 @@ func (c *ClassroomWorkUpdateCmd) Run(ctx context.Context, flags *RootFlags) erro
 	}
 
 	fmt.Printf("Updated coursework: %s\n", updated.Id)
+	return nil
+}
+
+func (c *ClassroomWorkDeleteCmd) Run(ctx context.Context, flags *RootFlags) error {
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
+	}
+
+	if confirmErr := confirmDestructive(ctx, flags, fmt.Sprintf("delete coursework %s", c.WorkID)); confirmErr != nil {
+		return confirmErr
+	}
+
+	svc, err := newClassroomService(ctx, account)
+	if err != nil {
+		return err
+	}
+
+	if _, err := svc.Courses.CourseWork.Delete(c.CourseID, c.WorkID).Do(); err != nil {
+		var gerr *googleapi.Error
+		if errors.As(err, &gerr) && gerr.Code == http.StatusNotFound {
+			return usagef("coursework not found: %s", c.WorkID)
+		}
+		return err
+	}
+
+	if outfmt.IsJSON(ctx) {
+		return outfmt.WriteJSON(os.Stdout, map[string]any{
+			"deleted": true,
+			"id":      c.WorkID,
+		})
+	}
+
+	fmt.Printf("Deleted coursework: %s\n", c.WorkID)
 	return nil
 }
 
