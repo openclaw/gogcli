@@ -16,8 +16,8 @@ func TestCompletionCmdRun(t *testing.T) {
 			t.Fatalf("Run: %v", err)
 		}
 	})
-	if !strings.Contains(out, "bash") {
-		t.Fatalf("expected shell in output: %q", out)
+	if !strings.Contains(out, "__complete") {
+		t.Fatalf("expected __complete in output: %q", out)
 	}
 }
 

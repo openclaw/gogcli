@@ -37,45 +37,27 @@ type CLI struct {
 
 	Version kong.VersionFlag `help:"Print version and exit"`
 
-	Auth       AuthCmd       `cmd:"" help:"Auth and credentials"`
-	Groups     GroupsCmd     `cmd:"" help:"Google Groups"`
-	Drive      DriveCmd      `cmd:"" help:"Google Drive"`
-	Docs       DocsCmd       `cmd:"" help:"Google Docs (export via Drive)"`
-	Slides     SlidesCmd     `cmd:"" help:"Google Slides"`
-	Calendar   CalendarCmd   `cmd:"" help:"Google Calendar"`
-	Gmail      GmailCmd      `cmd:"" aliases:"mail,email" help:"Gmail"`
-	Contacts   ContactsCmd   `cmd:"" help:"Google Contacts"`
-	Tasks      TasksCmd      `cmd:"" help:"Google Tasks"`
-	People     PeopleCmd     `cmd:"" help:"Google People"`
-	Keep       KeepCmd       `cmd:"" help:"Google Keep (Workspace only)"`
-	Sheets     SheetsCmd     `cmd:"" help:"Google Sheets"`
-	VersionCmd VersionCmd    `cmd:"" name:"version" help:"Print version"`
-	Completion CompletionCmd `cmd:"" help:"Generate shell completion scripts"`
+	Auth       AuthCmd               `cmd:"" help:"Auth and credentials"`
+	Groups     GroupsCmd             `cmd:"" help:"Google Groups"`
+	Drive      DriveCmd              `cmd:"" help:"Google Drive"`
+	Docs       DocsCmd               `cmd:"" help:"Google Docs (export via Drive)"`
+	Slides     SlidesCmd             `cmd:"" help:"Google Slides"`
+	Calendar   CalendarCmd           `cmd:"" help:"Google Calendar"`
+	Gmail      GmailCmd              `cmd:"" aliases:"mail,email" help:"Gmail"`
+	Contacts   ContactsCmd           `cmd:"" help:"Google Contacts"`
+	Tasks      TasksCmd              `cmd:"" help:"Google Tasks"`
+	People     PeopleCmd             `cmd:"" help:"Google People"`
+	Keep       KeepCmd               `cmd:"" help:"Google Keep (Workspace only)"`
+	Sheets     SheetsCmd             `cmd:"" help:"Google Sheets"`
+	VersionCmd VersionCmd            `cmd:"" name:"version" help:"Print version"`
+	Completion CompletionCmd         `cmd:"" help:"Generate shell completion scripts"`
+	Complete   CompletionInternalCmd `cmd:"" name:"__complete" hidden:"" help:"Internal completion helper"`
 }
 
 type exitPanic struct{ code int }
 
 func Execute(args []string) (err error) {
-	envMode := outfmt.FromEnv()
-	vars := kong.Vars{
-		"auth_services": googleauth.UserServiceCSV(),
-		"color":         envOr("GOG_COLOR", "auto"),
-		"json":          boolString(envMode.JSON),
-		"plain":         boolString(envMode.Plain),
-		"version":       VersionString(),
-	}
-
-	cli := &CLI{}
-	parser, err := kong.New(
-		cli,
-		kong.Name("gog"),
-		kong.Description(helpDescription()),
-		kong.ConfigureHelp(helpOptions()),
-		kong.Help(helpPrinter),
-		kong.Vars(vars),
-		kong.Writers(os.Stdout, os.Stderr),
-		kong.Exit(func(code int) { panic(exitPanic{code: code}) }),
-	)
+	parser, cli, err := newParser(helpDescription())
 	if err != nil {
 		return err
 	}
@@ -173,8 +155,39 @@ func boolString(v bool) string {
 	return "false"
 }
 
+func newParser(description string) (*kong.Kong, *CLI, error) {
+	envMode := outfmt.FromEnv()
+	vars := kong.Vars{
+		"auth_services": googleauth.UserServiceCSV(),
+		"color":         envOr("GOG_COLOR", "auto"),
+		"json":          boolString(envMode.JSON),
+		"plain":         boolString(envMode.Plain),
+		"version":       VersionString(),
+	}
+
+	cli := &CLI{}
+	parser, err := kong.New(
+		cli,
+		kong.Name("gog"),
+		kong.Description(description),
+		kong.ConfigureHelp(helpOptions()),
+		kong.Help(helpPrinter),
+		kong.Vars(vars),
+		kong.Writers(os.Stdout, os.Stderr),
+		kong.Exit(func(code int) { panic(exitPanic{code: code}) }),
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+	return parser, cli, nil
+}
+
+func baseDescription() string {
+	return "Google CLI for Gmail/Calendar/Drive/Contacts/Tasks/Sheets/Docs/Slides/People"
+}
+
 func helpDescription() string {
-	desc := "Google CLI for Gmail/Calendar/Drive/Contacts/Tasks/Sheets/Docs/Slides/People"
+	desc := baseDescription()
 
 	configPath, err := config.ConfigPath()
 	configLine := "unknown"
