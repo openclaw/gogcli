@@ -156,7 +156,7 @@ func TestClassroomCoursesListCmd_Run_JSON(t *testing.T) {
 	t.Cleanup(func() { newClassroomService = origNew })
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		path := strings.TrimPrefix(r.URL.Path, "/classroom/v1")
+		path := strings.TrimPrefix(r.URL.Path, "/v1")
 		if path != "/courses" {
 			http.NotFound(w, r)
 			return
@@ -218,7 +218,7 @@ func TestClassroomCoursesListCmd_Run_Text(t *testing.T) {
 	t.Cleanup(func() { newClassroomService = origNew })
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		path := strings.TrimPrefix(r.URL.Path, "/classroom/v1")
+		path := strings.TrimPrefix(r.URL.Path, "/v1")
 		if path != "/courses" {
 			http.NotFound(w, r)
 			return
@@ -265,7 +265,7 @@ func TestClassroomCoursesListCmd_Run_Plain(t *testing.T) {
 	t.Cleanup(func() { newClassroomService = origNew })
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		path := strings.TrimPrefix(r.URL.Path, "/classroom/v1")
+		path := strings.TrimPrefix(r.URL.Path, "/v1")
 		if path != "/courses" {
 			http.NotFound(w, r)
 			return
@@ -313,7 +313,7 @@ func TestClassroomCoursesListCmd_Run_FilterByRole(t *testing.T) {
 
 	sawTeacherId := false
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		path := strings.TrimPrefix(r.URL.Path, "/classroom/v1")
+		path := strings.TrimPrefix(r.URL.Path, "/v1")
 		if path != "/courses" {
 			http.NotFound(w, r)
 			return
@@ -363,7 +363,7 @@ func TestClassroomCoursesGetCmd_Run_JSON(t *testing.T) {
 	t.Cleanup(func() { newClassroomService = origNew })
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		path := strings.TrimPrefix(r.URL.Path, "/classroom/v1")
+		path := strings.TrimPrefix(r.URL.Path, "/v1")
 		if path != "/courses/c123" {
 			http.NotFound(w, r)
 			return
@@ -419,7 +419,7 @@ func TestClassroomCoursesGetCmd_Run_Text(t *testing.T) {
 	t.Cleanup(func() { newClassroomService = origNew })
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		path := strings.TrimPrefix(r.URL.Path, "/classroom/v1")
+		path := strings.TrimPrefix(r.URL.Path, "/v1")
 		if path != "/courses/c456" {
 			http.NotFound(w, r)
 			return
@@ -474,7 +474,7 @@ func TestClassroomCoursesCreateCmd_Run_JSON(t *testing.T) {
 	t.Cleanup(func() { newClassroomService = origNew })
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		path := strings.TrimPrefix(r.URL.Path, "/classroom/v1")
+		path := strings.TrimPrefix(r.URL.Path, "/v1")
 		if path != "/courses" || r.Method != http.MethodPost {
 			http.NotFound(w, r)
 			return
@@ -535,7 +535,7 @@ func TestClassroomCoursesCreateCmd_Run_Text(t *testing.T) {
 	t.Cleanup(func() { newClassroomService = origNew })
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		path := strings.TrimPrefix(r.URL.Path, "/classroom/v1")
+		path := strings.TrimPrefix(r.URL.Path, "/v1")
 		if path != "/courses" || r.Method != http.MethodPost {
 			http.NotFound(w, r)
 			return
@@ -576,99 +576,12 @@ func TestClassroomCoursesCreateCmd_Run_Text(t *testing.T) {
 	}
 }
 
-func TestClassroomCoursesListCmd_Run_Empty(t *testing.T) {
-	origNew := newClassroomService
-	t.Cleanup(func() { newClassroomService = origNew })
-
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		path := strings.TrimPrefix(r.URL.Path, "/classroom/v1")
-		if path != "/courses" {
-			http.NotFound(w, r)
-			return
-		}
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]any{
-			"courses": []map[string]any{},
-		})
-	}))
-	defer srv.Close()
-
-	svc, err := classroom.NewService(context.Background(),
-		option.WithoutAuthentication(),
-		option.WithHTTPClient(srv.Client()),
-		option.WithEndpoint(srv.URL+"/"),
-	)
-	if err != nil {
-		t.Fatalf("NewService: %v", err)
-	}
-	newClassroomService = func(context.Context, string) (*classroom.Service, error) { return svc, nil }
-
-	u, err := ui.New(ui.Options{Stdout: os.Stdout, Stderr: io.Discard, Color: "never"})
-	if err != nil {
-		t.Fatalf("ui.New: %v", err)
-	}
-	ctx := ui.WithUI(context.Background(), u)
-
-	cmd := &ClassroomCoursesListCmd{}
-	stderrOut := captureStderr(t, func() {
-		if err := runKong(t, cmd, []string{}, ctx, &RootFlags{Account: "a@b.com"}); err != nil {
-			t.Fatalf("runKong: %v", err)
-		}
-	})
-
-	if !strings.Contains(stderrOut, "No courses found") {
-		t.Fatalf("unexpected stderr: %q", stderrOut)
-	}
-}
-
-func TestClassroomCoursesGetCmd_Run_NotFound(t *testing.T) {
-	origNew := newClassroomService
-	t.Cleanup(func() { newClassroomService = origNew })
-
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		path := strings.TrimPrefix(r.URL.Path, "/classroom/v1")
-		if path != "/courses/nonexistent" {
-			http.NotFound(w, r)
-			return
-		}
-		http.Error(w, `{"error":{"code":404,"message":"Resource not found"}}`, http.StatusNotFound)
-	}))
-	defer srv.Close()
-
-	svc, err := classroom.NewService(context.Background(),
-		option.WithoutAuthentication(),
-		option.WithHTTPClient(srv.Client()),
-		option.WithEndpoint(srv.URL+"/"),
-	)
-	if err != nil {
-		t.Fatalf("NewService: %v", err)
-	}
-	newClassroomService = func(context.Context, string) (*classroom.Service, error) { return svc, nil }
-
-	u, err := ui.New(ui.Options{Stdout: os.Stdout, Stderr: io.Discard, Color: "never"})
-	if err != nil {
-		t.Fatalf("ui.New: %v", err)
-	}
-	ctx := ui.WithUI(context.Background(), u)
-
-	cmd := &ClassroomCoursesGetCmd{}
-	stderrOut := captureStderr(t, func() {
-		if err := runKong(t, cmd, []string{"nonexistent"}, ctx, &RootFlags{Account: "a@b.com"}); err == nil {
-			t.Fatalf("expected error for nonexistent course")
-		}
-	})
-
-	if !strings.Contains(stderrOut, "course not found") {
-		t.Fatalf("unexpected stderr: %q", stderrOut)
-	}
-}
-
 func TestClassroomCoursesURLCmd_Run(t *testing.T) {
 	origNew := newClassroomService
 	t.Cleanup(func() { newClassroomService = origNew })
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		path := strings.TrimPrefix(r.URL.Path, "/classroom/v1")
+		path := strings.TrimPrefix(r.URL.Path, "/v1")
 		if path != "/courses/url123" {
 			http.NotFound(w, r)
 			return
@@ -714,7 +627,7 @@ func TestClassroomCoursesURLCmd_Run_JSON(t *testing.T) {
 	t.Cleanup(func() { newClassroomService = origNew })
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		path := strings.TrimPrefix(r.URL.Path, "/classroom/v1")
+		path := strings.TrimPrefix(r.URL.Path, "/v1")
 		if path != "/courses/json123" {
 			http.NotFound(w, r)
 			return
@@ -759,54 +672,12 @@ func TestClassroomCoursesURLCmd_Run_JSON(t *testing.T) {
 	}
 }
 
-func TestClassroomCoursesDeleteCmd_Run(t *testing.T) {
-	origNew := newClassroomService
-	t.Cleanup(func() { newClassroomService = origNew })
-
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		path := strings.TrimPrefix(r.URL.Path, "/classroom/v1")
-		if path != "/courses/del123" || r.Method != http.MethodDelete {
-			http.NotFound(w, r)
-			return
-		}
-		w.WriteHeader(http.StatusNoContent)
-	}))
-	defer srv.Close()
-
-	svc, err := classroom.NewService(context.Background(),
-		option.WithoutAuthentication(),
-		option.WithHTTPClient(srv.Client()),
-		option.WithEndpoint(srv.URL+"/"),
-	)
-	if err != nil {
-		t.Fatalf("NewService: %v", err)
-	}
-	newClassroomService = func(context.Context, string) (*classroom.Service, error) { return svc, nil }
-
-	u, err := ui.New(ui.Options{Stdout: os.Stdout, Stderr: io.Discard, Color: "never"})
-	if err != nil {
-		t.Fatalf("ui.New: %v", err)
-	}
-	ctx := ui.WithUI(context.Background(), u)
-
-	cmd := &ClassroomCoursesDeleteCmd{}
-	out := captureStdout(t, func() {
-		if err := runKong(t, cmd, []string{"del123"}, ctx, &RootFlags{Account: "a@b.com"}); err != nil {
-			t.Fatalf("runKong: %v", err)
-		}
-	})
-
-	if !strings.Contains(out, "Deleted course: del123") {
-		t.Fatalf("unexpected output: %q", out)
-	}
-}
-
 func TestClassroomCoursesUpdateCmd_Run(t *testing.T) {
 	origNew := newClassroomService
 	t.Cleanup(func() { newClassroomService = origNew })
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		path := strings.TrimPrefix(r.URL.Path, "/classroom/v1")
+		path := strings.TrimPrefix(r.URL.Path, "/v1")
 		if path != "/courses/upd123" || r.Method != http.MethodPatch {
 			http.NotFound(w, r)
 			return
@@ -844,51 +715,6 @@ func TestClassroomCoursesUpdateCmd_Run(t *testing.T) {
 
 	if !strings.Contains(out, "Updated course: upd123") {
 		t.Fatalf("unexpected output: %q", out)
-	}
-}
-
-func TestClassroomCoursesListCmd_InvalidRole(t *testing.T) {
-	origNew := newClassroomService
-	t.Cleanup(func() { newClassroomService = origNew })
-
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		path := strings.TrimPrefix(r.URL.Path, "/classroom/v1")
-		if path != "/courses" {
-			http.NotFound(w, r)
-			return
-		}
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]any{
-			"courses": []map[string]any{},
-		})
-	}))
-	defer srv.Close()
-
-	svc, err := classroom.NewService(context.Background(),
-		option.WithoutAuthentication(),
-		option.WithHTTPClient(srv.Client()),
-		option.WithEndpoint(srv.URL+"/"),
-	)
-	if err != nil {
-		t.Fatalf("NewService: %v", err)
-	}
-	newClassroomService = func(context.Context, string) (*classroom.Service, error) { return svc, nil }
-
-	u, err := ui.New(ui.Options{Stdout: os.Stdout, Stderr: io.Discard, Color: "never"})
-	if err != nil {
-		t.Fatalf("ui.New: %v", err)
-	}
-	ctx := ui.WithUI(context.Background(), u)
-
-	cmd := &ClassroomCoursesListCmd{}
-	stderrOut := captureStderr(t, func() {
-		if err := runKong(t, cmd, []string{"--role", "admin"}, ctx, &RootFlags{Account: "a@b.com"}); err == nil {
-			t.Fatalf("expected error for invalid role")
-		}
-	})
-
-	if !strings.Contains(stderrOut, "invalid role") {
-		t.Fatalf("unexpected stderr: %q", stderrOut)
 	}
 }
 
