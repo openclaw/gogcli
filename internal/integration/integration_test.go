@@ -135,3 +135,19 @@ func TestContactsSmoke(t *testing.T) {
 		t.Fatalf("People connections: %v", err)
 	}
 }
+
+func TestClassroomSmoke(t *testing.T) {
+	account := integrationAccount(t)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	svc, err := googleapi.NewClassroom(ctx, account)
+	if err != nil {
+		t.Fatalf("NewClassroom: %v", err)
+	}
+	_, err = svc.Courses.List().PageSize(1).Do()
+	if err != nil {
+		t.Fatalf("Courses list: %v", err)
+	}
+}
