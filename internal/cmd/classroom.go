@@ -1811,13 +1811,12 @@ func (c *ClassroomInvitationsListCmd) Run(ctx context.Context, flags *RootFlags)
 
 	w, flush := tableWriter(ctx)
 	defer flush()
-	fmt.Fprintln(w, "INVITATION_ID\tCOURSE_ID\tEMAIL\tROLE")
+	fmt.Fprintln(w, "INVITATION_ID\tCOURSE_ID\tROLE")
 
 	for _, inv := range allInvitations {
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\n",
+		fmt.Fprintf(w, "%s\t%s\t%s\n",
 			inv.Id,
 			inv.CourseId,
-			inv.UserId,
 			inv.Role,
 		)
 	}
