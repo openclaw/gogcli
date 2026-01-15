@@ -70,6 +70,60 @@ func TestFormatGmailDate(t *testing.T) {
 	}
 }
 
+func TestFormatGmailDateInLocation_Timezones(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		timezone string
+		expected string
+	}{
+		{
+			name:     "UTC input to America/New_York output",
+			input:    "Mon, 02 Jan 2006 15:04:05 +0000",
+			timezone: "America/New_York",
+			expected: "2006-01-02 10:04", // 15:04 UTC - 5 hours = 10:04 EST
+		},
+		{
+			name:     "UTC input to Europe/London output",
+			input:    "Mon, 02 Jan 2006 15:04:05 +0000",
+			timezone: "Europe/London",
+			expected: "2006-01-02 15:04", // UTC+0 in January (no DST)
+		},
+		{
+			name:     "America/Los_Angeles input to UTC output",
+			input:    "Mon, 02 Jan 2006 08:00:00 -0800",
+			timezone: "UTC",
+			expected: "2006-01-02 16:00", // 08:00 PST + 8 hours = 16:00 UTC
+		},
+		{
+			name:     "Europe/Berlin input to Asia/Tokyo output",
+			input:    "Mon, 02 Jan 2006 12:00:00 +0100",
+			timezone: "Asia/Tokyo",
+			expected: "2006-01-02 20:00", // 12:00 CET - 1 + 9 = 20:00 JST
+		},
+		{
+			name:     "negative offset input to positive offset output crossing midnight",
+			input:    "Mon, 02 Jan 2006 20:00:00 -0500",
+			timezone: "Europe/Paris",
+			expected: "2006-01-03 02:00", // 20:00 EST + 5 + 1 = 02:00 next day CET
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			loc, err := time.LoadLocation(tt.timezone)
+			if err != nil {
+				t.Fatalf("failed to load timezone %s: %v", tt.timezone, err)
+			}
+			got := formatGmailDateInLocation(tt.input, loc)
+			if got != tt.expected {
+				t.Errorf("formatGmailDateInLocation(%q, %s) = %q, want %q",
+					tt.input, tt.timezone, got, tt.expected)
+			}
+		})
+	}
+}
+
 func TestFirstMessage(t *testing.T) {
 	if firstMessage(nil) != nil {
 		t.Fatalf("expected nil")
