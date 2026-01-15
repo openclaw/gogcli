@@ -61,7 +61,7 @@ type GmailSearchCmd struct {
 	Max      int64    `name:"max" aliases:"limit" help:"Max results" default:"10"`
 	Page     string   `name:"page" help:"Page token"`
 	Oldest   bool     `name:"oldest" help:"Show first message date instead of last"`
-	Timezone string   `name:"timezone" help:"Output timezone (e.g., America/New_York, UTC)"`
+	Timezone string   `name:"timezone" short:"z" help:"Output timezone (e.g., America/New_York, UTC)"`
 	Local    bool     `name:"local" help:"Use local timezone for output (overrides --timezone)"`
 }
 
