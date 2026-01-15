@@ -194,6 +194,8 @@ type GmailWatchServeCmd struct {
 	Bind         string `name:"bind" help:"Bind address" default:"127.0.0.1"`
 	Port         int    `name:"port" help:"Listen port" default:"8788"`
 	Path         string `name:"path" help:"Push handler path" default:"/gmail-pubsub"`
+	Timezone     string `name:"timezone" help:"Output timezone for message dates (e.g., America/New_York, UTC)"`
+	Local        bool   `name:"local" help:"Use local timezone for message dates (overrides --timezone)"`
 	VerifyOIDC   bool   `name:"verify-oidc" help:"Verify Pub/Sub OIDC tokens"`
 	OIDCEmail    string `name:"oidc-email" help:"Expected service account email"`
 	OIDCAudience string `name:"oidc-audience" help:"Expected OIDC audience"`
@@ -225,6 +227,11 @@ func (c *GmailWatchServeCmd) Run(ctx context.Context, kctx *kong.Context, flags 
 	}
 	if c.OIDCAudience != "" && !c.VerifyOIDC {
 		return usage("--oidc-audience requires --verify-oidc")
+	}
+
+	loc, err := resolveOutputLocation(c.Timezone, c.Local)
+	if err != nil {
+		return err
 	}
 
 	store, err := loadGmailWatchStore(account)
@@ -293,6 +300,7 @@ func (c *GmailWatchServeCmd) Run(ctx context.Context, kctx *kong.Context, flags 
 		AllowNoHook:  hook == nil,
 		IncludeBody:  includeBody,
 		MaxBodyBytes: maxBytes,
+		DateLocation: loc,
 	}
 	if hook != nil {
 		cfg.HookURL = hook.URL

@@ -293,7 +293,7 @@ func (s *gmailWatchServer) fetchMessages(ctx context.Context, svc *gmail.Service
 			From:     headerValue(msg.Payload, "From"),
 			To:       headerValue(msg.Payload, "To"),
 			Subject:  headerValue(msg.Payload, "Subject"),
-			Date:     formatGmailDate(headerValue(msg.Payload, "Date")),
+			Date:     formatGmailDateInLocation(headerValue(msg.Payload, "Date"), s.cfg.DateLocation),
 			Snippet:  msg.Snippet,
 			Labels:   msg.LabelIds,
 		}

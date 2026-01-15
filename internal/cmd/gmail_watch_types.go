@@ -55,6 +55,7 @@ type gmailWatchServeConfig struct {
 	HistoryMax    int64
 	ResyncMax     int64
 	HookTimeout   time.Duration
+	DateLocation  *time.Location
 	PersistHook   bool
 	AllowNoHook   bool
 	VerboseOutput bool

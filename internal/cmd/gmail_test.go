@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"testing"
+	"time"
 
 	"google.golang.org/api/gmail/v1"
 )
@@ -58,11 +59,12 @@ func TestSanitizeTab(t *testing.T) {
 }
 
 func TestFormatGmailDate(t *testing.T) {
-	got := formatGmailDate("Mon, 02 Jan 2006 15:04:05 -0700")
-	if got != "2006-01-02 15:04" {
+	loc := time.UTC
+	got := formatGmailDateInLocation("Mon, 02 Jan 2006 15:04:05 -0700", loc)
+	if got != "2006-01-02 22:04" {
 		t.Fatalf("unexpected: %q", got)
 	}
-	if got := formatGmailDate("not a date"); got != "not a date" {
+	if got := formatGmailDateInLocation("not a date", loc); got != "not a date" {
 		t.Fatalf("unexpected: %q", got)
 	}
 }
