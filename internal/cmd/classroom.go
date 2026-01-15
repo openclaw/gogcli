@@ -1178,3 +1178,133 @@ func (c *ClassroomSubmissionsGetCmd) Run(ctx context.Context, flags *RootFlags) 
 
 	return nil
 }
+
+func (c *ClassroomSubmissionsGradeCmd) Run(ctx context.Context, flags *RootFlags) error {
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
+	}
+
+	svc, err := newClassroomService(ctx, account)
+	if err != nil {
+		return err
+	}
+
+	sub := &classroom.StudentSubmission{
+		DraftGrade: c.Grade,
+	}
+
+	updated, err := svc.Courses.CourseWork.StudentSubmissions.Patch(c.CourseID, c.WorkID, c.SubmissionID, sub).UpdateMask("draftGrade").Do()
+	if err != nil {
+		return err
+	}
+
+	if c.Return {
+		empty := &classroom.ReturnStudentSubmissionRequest{}
+		if _, err = svc.Courses.CourseWork.StudentSubmissions.Return(c.CourseID, c.WorkID, c.SubmissionID, empty).Do(); err != nil {
+			return fmt.Errorf("grading succeeded but returning failed: %w", err)
+		}
+		updated, err = svc.Courses.CourseWork.StudentSubmissions.Get(c.CourseID, c.WorkID, c.SubmissionID).Do()
+		if err != nil {
+			return fmt.Errorf("grading and returning succeeded but fetching updated submission failed: %w", err)
+		}
+	}
+
+	if outfmt.IsJSON(ctx) {
+		return outfmt.WriteJSON(os.Stdout, updated)
+	}
+
+	if c.Return {
+		fmt.Printf("Graded and returned submission %s: %g points\n", c.SubmissionID, c.Grade)
+	} else {
+		fmt.Printf("Graded submission %s: %g points\n", c.SubmissionID, c.Grade)
+	}
+
+	return nil
+}
+
+func (c *ClassroomSubmissionsReturnCmd) Run(ctx context.Context, flags *RootFlags) error {
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
+	}
+
+	svc, err := newClassroomService(ctx, account)
+	if err != nil {
+		return err
+	}
+
+	if c.All {
+		return c.returnAll(ctx, svc)
+	}
+
+	if c.SubmissionID == "" {
+		return usage("submission-id is required when --all is not specified")
+	}
+
+	empty := &classroom.ReturnStudentSubmissionRequest{}
+	if _, err = svc.Courses.CourseWork.StudentSubmissions.Return(c.CourseID, c.WorkID, c.SubmissionID, empty).Do(); err != nil {
+		return err
+	}
+
+	if outfmt.IsJSON(ctx) {
+		return outfmt.WriteJSON(os.Stdout, map[string]any{
+			"returned":     true,
+			"submissionId": c.SubmissionID,
+		})
+	}
+
+	fmt.Printf("Returned submission: %s\n", c.SubmissionID)
+	return nil
+}
+
+func (c *ClassroomSubmissionsReturnCmd) returnAll(ctx context.Context, svc *classroom.Service) error {
+	var allSubmissions []*classroom.StudentSubmission
+	pageToken := ""
+
+	for {
+		call := svc.Courses.CourseWork.StudentSubmissions.List(c.CourseID, c.WorkID).PageSize(100)
+		if pageToken != "" {
+			call = call.PageToken(pageToken)
+		}
+
+		resp, err := call.Do()
+		if err != nil {
+			return fmt.Errorf("listing submissions: %w", err)
+		}
+
+		for _, sub := range resp.StudentSubmissions {
+			if sub.State == "TURNED_IN" || sub.DraftGrade != 0 {
+				allSubmissions = append(allSubmissions, sub)
+			}
+		}
+
+		pageToken = resp.NextPageToken
+		if pageToken == "" {
+			break
+		}
+	}
+
+	if len(allSubmissions) == 0 {
+		ui.FromContext(ctx).Err().Println("No submissions to return")
+		return nil
+	}
+
+	returnedCount := 0
+	for _, sub := range allSubmissions {
+		empty := &classroom.ReturnStudentSubmissionRequest{}
+		if _, err := svc.Courses.CourseWork.StudentSubmissions.Return(c.CourseID, c.WorkID, sub.Id, empty).Do(); err != nil {
+			return fmt.Errorf("returning submission %s: %w", sub.Id, err)
+		}
+		returnedCount++
+	}
+
+	if outfmt.IsJSON(ctx) {
+		return outfmt.WriteJSON(os.Stdout, map[string]any{
+			"returned": returnedCount,
+		})
+	}
+
+	fmt.Printf("Returned %d submissions\n", returnedCount)
+	return nil
+}
