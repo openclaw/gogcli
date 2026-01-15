@@ -75,7 +75,7 @@ func TestExecute_GmailSearch_JSON(t *testing.T) {
 
 	out := captureStdout(t, func() {
 		_ = captureStderr(t, func() {
-			if err := Execute([]string{"--json", "--account", "a@b.com", "gmail", "search", "newer_than:7d", "--max", "1"}); err != nil {
+			if err := Execute([]string{"--json", "--account", "a@b.com", "gmail", "search", "newer_than:7d", "--max", "1", "--timezone", "UTC"}); err != nil {
 				t.Fatalf("Execute: %v", err)
 			}
 		})
@@ -100,7 +100,7 @@ func TestExecute_GmailSearch_JSON(t *testing.T) {
 	if parsed.Threads[0].ID != "t1" || parsed.Threads[0].Subject != "Hello" {
 		t.Fatalf("unexpected thread: %#v", parsed.Threads[0])
 	}
-	if parsed.Threads[0].Date != "2006-01-02 15:04" {
+	if parsed.Threads[0].Date != "2006-01-02 22:04" {
 		t.Fatalf("unexpected date: %q", parsed.Threads[0].Date)
 	}
 	if len(parsed.Threads[0].Labels) != 1 || parsed.Threads[0].Labels[0] != "INBOX" {
