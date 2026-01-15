@@ -20,6 +20,13 @@ import (
 
 var newClassroomService = intgoogleapi.NewClassroom
 
+const (
+	roleStudent = "student"
+	roleTeacher = "teacher"
+	roleSTUDENT = "STUDENT"
+	roleTEACHER = "TEACHER"
+)
+
 type ClassroomCmd struct {
 	Courses       ClassroomCoursesCmd       `cmd:"" name:"courses" help:"Manage courses" default:"withargs"`
 	Roster        ClassroomRosterCmd        `cmd:"" name:"roster" help:"Manage course roster (students and teachers)"`
@@ -27,6 +34,7 @@ type ClassroomCmd struct {
 	Submissions   ClassroomSubmissionsCmd   `cmd:"" name:"submissions" help:"Manage student submissions"`
 	Announcements ClassroomAnnouncementsCmd `cmd:"" name:"announcements" help:"Manage course announcements"`
 	Topics        ClassroomTopicsCmd        `cmd:"" name:"topics" help:"Manage course topics"`
+	Invitations   ClassroomInvitationsCmd   `cmd:"" name:"invitations" help:"Manage course invitations"`
 }
 
 type ClassroomSubmissionsCmd struct {
@@ -1009,7 +1017,7 @@ func (c *ClassroomRosterAddCmd) Run(ctx context.Context, flags *RootFlags) error
 	var created any
 
 	switch c.Role {
-	case "student":
+	case roleStudent:
 		student := &classroom.Student{
 			UserId: c.Email,
 		}
@@ -1018,7 +1026,7 @@ func (c *ClassroomRosterAddCmd) Run(ctx context.Context, flags *RootFlags) error
 			return err
 		}
 		created = res
-	case "teacher":
+	case roleTeacher:
 		teacher := &classroom.Teacher{
 			UserId: c.Email,
 		}
@@ -1055,7 +1063,7 @@ func (c *ClassroomRosterRemoveCmd) Run(ctx context.Context, flags *RootFlags) er
 	}
 
 	switch c.Role {
-	case "student":
+	case roleStudent:
 		if _, err := svc.Courses.Students.Delete(c.CourseID, c.Email).Do(); err != nil {
 			var gerr *googleapi.Error
 			if errors.As(err, &gerr) && gerr.Code == http.StatusNotFound {
@@ -1063,7 +1071,7 @@ func (c *ClassroomRosterRemoveCmd) Run(ctx context.Context, flags *RootFlags) er
 			}
 			return err
 		}
-	case "teacher":
+	case roleTeacher:
 		if _, err := svc.Courses.Teachers.Delete(c.CourseID, c.Email).Do(); err != nil {
 			var gerr *googleapi.Error
 			if errors.As(err, &gerr) && gerr.Code == http.StatusNotFound {
@@ -1751,3 +1759,197 @@ func (c *ClassroomTopicsDeleteCmd) Run(ctx context.Context, flags *RootFlags) er
 	fmt.Printf("Deleted topic: %s\n", c.TopicID)
 	return nil
 }
+
+func (c *ClassroomInvitationsListCmd) Run(ctx context.Context, flags *RootFlags) error {
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
+	}
+
+	svc, err := newClassroomService(ctx, account)
+	if err != nil {
+		return err
+	}
+
+	var allInvitations []*classroom.Invitation
+	pageToken := ""
+
+	for {
+		call := svc.Invitations.List().PageSize(c.Max).UserId("me")
+
+		if c.CourseID != "" {
+			call = call.CourseId(c.CourseID)
+		}
+
+		if pageToken != "" {
+			call = call.PageToken(pageToken)
+		}
+
+		resp, err := call.Do()
+		if err != nil {
+			return fmt.Errorf("listing invitations: %w", err)
+		}
+
+		allInvitations = append(allInvitations, resp.Invitations...)
+
+		pageToken = resp.NextPageToken
+		if pageToken == "" {
+			break
+		}
+	}
+
+	if outfmt.IsJSON(ctx) {
+		return outfmt.WriteJSON(os.Stdout, map[string]any{
+			"invitations": allInvitations,
+		})
+	}
+
+	if len(allInvitations) == 0 {
+		ui.FromContext(ctx).Err().Println("No invitations found")
+		return nil
+	}
+
+	w, flush := tableWriter(ctx)
+	defer flush()
+	fmt.Fprintln(w, "INVITATION_ID\tCOURSE_ID\tEMAIL\tROLE")
+
+	for _, inv := range allInvitations {
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\n",
+			inv.Id,
+			inv.CourseId,
+			inv.UserId,
+			inv.Role,
+		)
+	}
+	return nil
+}
+
+func (c *ClassroomInvitationsAcceptCmd) Run(ctx context.Context, flags *RootFlags) error {
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
+	}
+
+	svc, err := newClassroomService(ctx, account)
+	if err != nil {
+		return err
+	}
+
+	_, err = svc.Invitations.Accept(c.InvitationID).Do()
+	if err != nil {
+		var gerr *googleapi.Error
+		if errors.As(err, &gerr) && gerr.Code == http.StatusNotFound {
+			return usagef("invitation not found: %s", c.InvitationID)
+		}
+		return err
+	}
+
+	if outfmt.IsJSON(ctx) {
+		return outfmt.WriteJSON(os.Stdout, map[string]any{
+			"accepted":      true,
+			"invitation_id": c.InvitationID,
+		})
+	}
+
+	fmt.Printf("Accepted invitation: %s\n", c.InvitationID)
+	return nil
+}
+
+func (c *ClassroomInvitationsCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
+	}
+
+	svc, err := newClassroomService(ctx, account)
+	if err != nil {
+		return err
+	}
+
+	var role string
+	switch c.Role {
+	case roleStudent:
+		role = roleSTUDENT
+	case roleTeacher:
+		role = roleTEACHER
+	default:
+		return usagef("invalid role: %s (must be student or teacher)", c.Role)
+	}
+
+	invitation := &classroom.Invitation{
+		CourseId: c.CourseID,
+		UserId:   c.Email,
+		Role:     role,
+	}
+
+	created, err := svc.Invitations.Create(invitation).Do()
+	if err != nil {
+		return err
+	}
+
+	if outfmt.IsJSON(ctx) {
+		return outfmt.WriteJSON(os.Stdout, created)
+	}
+
+	fmt.Printf("Created invitation: %s\n", created.Id)
+	return nil
+}
+
+func (c *ClassroomInvitationsDeleteCmd) Run(ctx context.Context, flags *RootFlags) error {
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
+	}
+
+	if confirmErr := confirmDestructive(ctx, flags, fmt.Sprintf("delete invitation %s", c.InvitationID)); confirmErr != nil {
+		return confirmErr
+	}
+
+	svc, err := newClassroomService(ctx, account)
+	if err != nil {
+		return err
+	}
+
+	if _, err := svc.Invitations.Delete(c.InvitationID).Do(); err != nil {
+		var gerr *googleapi.Error
+		if errors.As(err, &gerr) && gerr.Code == http.StatusNotFound {
+			return usagef("invitation not found: %s", c.InvitationID)
+		}
+		return err
+	}
+
+	if outfmt.IsJSON(ctx) {
+		return outfmt.WriteJSON(os.Stdout, map[string]any{
+			"deleted":      true,
+			"invitationId": c.InvitationID,
+		})
+	}
+
+	fmt.Printf("Deleted invitation: %s\n", c.InvitationID)
+	return nil
+}
+
+type ClassroomInvitationsCmd struct {
+	List   ClassroomInvitationsListCmd   `cmd:"" default:"withargs" help:"List invitations"`
+	Accept ClassroomInvitationsAcceptCmd `cmd:"" name:"accept" help:"Accept an invitation"`
+	Create ClassroomInvitationsCreateCmd `cmd:"" name:"create" help:"Create invitation"`
+	Delete ClassroomInvitationsDeleteCmd `cmd:"" name:"delete" help:"Delete invitation"`
+}
+
+type (
+	ClassroomInvitationsListCmd struct {
+		CourseID string `name:"course" help:"Filter by course ID (optional)"`
+		Max      int64  `name:"max" aliases:"limit" help:"Max results per page" default:"100"`
+	}
+	ClassroomInvitationsAcceptCmd struct {
+		InvitationID string `arg:"" name:"invitation-id" help:"Invitation ID to accept"`
+	}
+	ClassroomInvitationsCreateCmd struct {
+		CourseID string `arg:"" name:"course-id" help:"Course ID" required:""`
+		Email    string `name:"email" required:"" help:"Email address to invite"`
+		Role     string `name:"role" required:"" enum:"student,teacher" help:"Role to assign (student or teacher)"`
+	}
+	ClassroomInvitationsDeleteCmd struct {
+		InvitationID string `arg:"" name:"invitation-id" help:"Invitation ID to delete"`
+	}
+)
