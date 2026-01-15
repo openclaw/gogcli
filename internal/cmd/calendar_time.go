@@ -25,13 +25,17 @@ func (c *CalendarTimeCmd) Run(ctx context.Context, flags *RootFlags) error {
 	var tz string
 	var loc *time.Location
 
-	if c.Timezone != "" {
-		tz = c.Timezone
-		loc, err = time.LoadLocation(c.Timezone)
-		if err != nil {
-			return fmt.Errorf("invalid timezone %q: %w", c.Timezone, err)
-		}
+	// Check for explicitly configured timezone (flag, env, or config)
+	loc, err = getConfiguredTimezone(c.Timezone)
+	if err != nil {
+		return err
+	}
+
+	if loc != nil {
+		// Timezone was explicitly configured
+		tz = loc.String()
 	} else {
+		// Fall back to Google Calendar's timezone
 		svc, err := newCalendarService(ctx, account)
 		if err != nil {
 			return err

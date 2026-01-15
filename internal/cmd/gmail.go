@@ -289,6 +289,41 @@ func resolveOutputLocation(timezone string, local bool) (*time.Location, error) 
 	return time.Local, nil
 }
 
+// getConfiguredTimezone returns the timezone from flag, env var, or config file.
+// Returns nil if no timezone is explicitly configured.
+func getConfiguredTimezone(timezone string) (*time.Location, error) {
+	// Check explicit --timezone flag
+	trimmed := strings.TrimSpace(timezone)
+	if trimmed != "" && !strings.EqualFold(trimmed, "local") {
+		loc, err := time.LoadLocation(trimmed)
+		if err != nil {
+			return nil, fmt.Errorf("invalid timezone %q: %w", trimmed, err)
+		}
+		return loc, nil
+	}
+
+	// Check GOG_TIMEZONE environment variable
+	if envTZ := os.Getenv("GOG_TIMEZONE"); envTZ != "" {
+		loc, err := time.LoadLocation(envTZ)
+		if err != nil {
+			return nil, fmt.Errorf("invalid GOG_TIMEZONE %q: %w", envTZ, err)
+		}
+		return loc, nil
+	}
+
+	// Check config file
+	if cfg, err := config.ReadConfig(); err == nil && cfg.DefaultTimezone != "" {
+		loc, err := time.LoadLocation(cfg.DefaultTimezone)
+		if err != nil {
+			return nil, fmt.Errorf("invalid default_timezone in config %q: %w", cfg.DefaultTimezone, err)
+		}
+		return loc, nil
+	}
+
+	// No explicit timezone configured
+	return nil, nil
+}
+
 var listUnsubscribeLinkPattern = regexp.MustCompile(`<([^>]+)>`)
 
 func bestUnsubscribeLink(p *gmail.MessagePart) string {
