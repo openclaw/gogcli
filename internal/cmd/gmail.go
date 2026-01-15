@@ -57,10 +57,12 @@ type GmailSettingsCmd struct {
 }
 
 type GmailSearchCmd struct {
-	Query  []string `arg:"" name:"query" help:"Search query"`
-	Max    int64    `name:"max" aliases:"limit" help:"Max results" default:"10"`
-	Page   string   `name:"page" help:"Page token"`
-	Oldest bool     `name:"oldest" help:"Show first message date instead of last"`
+	Query    []string `arg:"" name:"query" help:"Search query"`
+	Max      int64    `name:"max" aliases:"limit" help:"Max results" default:"10"`
+	Page     string   `name:"page" help:"Page token"`
+	Oldest   bool     `name:"oldest" help:"Show first message date instead of last"`
+	Timezone string   `name:"timezone" help:"Output timezone (e.g., America/New_York, UTC)"`
+	Local    bool     `name:"local" help:"Use local timezone for output (overrides --timezone)"`
 }
 
 func (c *GmailSearchCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -94,8 +96,13 @@ func (c *GmailSearchCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
+	loc, err := resolveOutputLocation(c.Timezone, c.Local)
+	if err != nil {
+		return err
+	}
+
 	// Fetch thread details concurrently (fixes N+1 query pattern)
-	items, err := fetchThreadDetails(ctx, svc, resp.Threads, idToName, c.Oldest)
+	items, err := fetchThreadDetails(ctx, svc, resp.Threads, idToName, c.Oldest, loc)
 	if err != nil {
 		return err
 	}
@@ -228,14 +235,39 @@ func hasHeaderName(headers []string, name string) bool {
 }
 
 func formatGmailDate(raw string) string {
+	return formatGmailDateInLocation(raw, time.Local)
+}
+
+func formatGmailDateInLocation(raw string, loc *time.Location) string {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
 		return ""
 	}
+	if loc == nil {
+		loc = time.Local
+	}
 	if t, err := mailParseDate(raw); err == nil {
-		return t.Format("2006-01-02 15:04")
+		return t.In(loc).Format("2006-01-02 15:04")
 	}
 	return raw
+}
+
+func resolveOutputLocation(timezone string, local bool) (*time.Location, error) {
+	if local {
+		return time.Local, nil
+	}
+	trimmed := strings.TrimSpace(timezone)
+	if trimmed == "" {
+		return time.Local, nil
+	}
+	if strings.EqualFold(trimmed, "local") {
+		return time.Local, nil
+	}
+	loc, err := time.LoadLocation(trimmed)
+	if err != nil {
+		return nil, fmt.Errorf("invalid timezone %q: %w", trimmed, err)
+	}
+	return loc, nil
 }
 
 var listUnsubscribeLinkPattern = regexp.MustCompile(`<([^>]+)>`)
@@ -337,7 +369,7 @@ type threadItem struct {
 // This eliminates N+1 queries by fetching all threads in parallel.
 // When oldest is false (default), the date shown is from the last message in the thread.
 // When oldest is true, the date shown is from the first message in the thread.
-func fetchThreadDetails(ctx context.Context, svc *gmail.Service, threads []*gmail.Thread, idToName map[string]string, oldest bool) ([]threadItem, error) {
+func fetchThreadDetails(ctx context.Context, svc *gmail.Service, threads []*gmail.Thread, idToName map[string]string, oldest bool, loc *time.Location) ([]threadItem, error) {
 	if len(threads) == 0 {
 		return nil, nil
 	}
@@ -404,7 +436,7 @@ func fetchThreadDetails(ctx context.Context, svc *gmail.Service, threads []*gmai
 				dateMsg = oldestMessageByDate(thread)
 			}
 			if dateMsg != nil {
-				item.Date = formatGmailDate(headerValue(dateMsg.Payload, "Date"))
+				item.Date = formatGmailDateInLocation(headerValue(dateMsg.Payload, "Date"), loc)
 			}
 
 			results <- result{index: idx, item: item}
