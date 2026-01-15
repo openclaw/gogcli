@@ -235,10 +235,6 @@ func hasHeaderName(headers []string, name string) bool {
 	return false
 }
 
-func formatGmailDate(raw string) string {
-	return formatGmailDateInLocation(raw, time.Local)
-}
-
 func formatGmailDateInLocation(raw string, loc *time.Location) string {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
@@ -324,8 +320,8 @@ func getConfiguredTimezone(timezone string) (*time.Location, error) {
 		}
 	}
 
-	// No explicit timezone configured
-	return nil, nil
+	// No explicit timezone configured; nil signals caller to use its own fallback
+	return nil, nil //nolint:nilnil // intentional: nil means no config, let caller decide fallback
 }
 
 var listUnsubscribeLinkPattern = regexp.MustCompile(`<([^>]+)>`)
