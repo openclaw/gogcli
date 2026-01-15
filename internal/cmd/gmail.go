@@ -12,6 +12,7 @@ import (
 
 	"google.golang.org/api/gmail/v1"
 
+	"github.com/steipete/gogcli/internal/config"
 	"github.com/steipete/gogcli/internal/googleapi"
 	"github.com/steipete/gogcli/internal/outfmt"
 	"github.com/steipete/gogcli/internal/ui"
@@ -256,18 +257,36 @@ func resolveOutputLocation(timezone string, local bool) (*time.Location, error) 
 	if local {
 		return time.Local, nil
 	}
+
+	// Check explicit --timezone flag
 	trimmed := strings.TrimSpace(timezone)
-	if trimmed == "" {
-		return time.Local, nil
+	if trimmed != "" && !strings.EqualFold(trimmed, "local") {
+		loc, err := time.LoadLocation(trimmed)
+		if err != nil {
+			return nil, fmt.Errorf("invalid timezone %q: %w", trimmed, err)
+		}
+		return loc, nil
 	}
-	if strings.EqualFold(trimmed, "local") {
-		return time.Local, nil
+
+	// Check GOG_TIMEZONE environment variable
+	if envTZ := os.Getenv("GOG_TIMEZONE"); envTZ != "" {
+		loc, err := time.LoadLocation(envTZ)
+		if err != nil {
+			return nil, fmt.Errorf("invalid GOG_TIMEZONE %q: %w", envTZ, err)
+		}
+		return loc, nil
 	}
-	loc, err := time.LoadLocation(trimmed)
-	if err != nil {
-		return nil, fmt.Errorf("invalid timezone %q: %w", trimmed, err)
+
+	// Check config file
+	if cfg, err := config.ReadConfig(); err == nil && cfg.DefaultTimezone != "" {
+		loc, err := time.LoadLocation(cfg.DefaultTimezone)
+		if err != nil {
+			return nil, fmt.Errorf("invalid default_timezone in config %q: %w", cfg.DefaultTimezone, err)
+		}
+		return loc, nil
 	}
-	return loc, nil
+
+	return time.Local, nil
 }
 
 var listUnsubscribeLinkPattern = regexp.MustCompile(`<([^>]+)>`)
