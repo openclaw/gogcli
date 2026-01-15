@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -296,6 +297,124 @@ func TestResolveOutputLocation(t *testing.T) {
 
 			if got.String() != tt.wantName {
 				t.Fatalf("expected location %q, got %q", tt.wantName, got.String())
+			}
+		})
+	}
+}
+
+func TestResolveOutputLocation_EnvVar(t *testing.T) {
+	// Save and restore GOG_TIMEZONE
+	orig := os.Getenv("GOG_TIMEZONE")
+	defer os.Setenv("GOG_TIMEZONE", orig)
+
+	// Test GOG_TIMEZONE takes effect when no flag provided
+	os.Setenv("GOG_TIMEZONE", "America/New_York")
+	loc, err := resolveOutputLocation("", false)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if loc.String() != "America/New_York" {
+		t.Errorf("expected America/New_York, got %s", loc.String())
+	}
+
+	// Test flag takes precedence over env var
+	loc, err = resolveOutputLocation("UTC", false)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if loc.String() != "UTC" {
+		t.Errorf("expected UTC (from flag), got %s", loc.String())
+	}
+
+	// Test invalid env var returns error
+	os.Setenv("GOG_TIMEZONE", "Invalid/Zone")
+	_, err = resolveOutputLocation("", false)
+	if err == nil {
+		t.Fatal("expected error for invalid GOG_TIMEZONE")
+	}
+	if !strings.Contains(err.Error(), "GOG_TIMEZONE") {
+		t.Errorf("error should mention GOG_TIMEZONE: %v", err)
+	}
+}
+
+func TestGetConfiguredTimezone(t *testing.T) {
+	// Save and restore GOG_TIMEZONE
+	orig := os.Getenv("GOG_TIMEZONE")
+	defer os.Setenv("GOG_TIMEZONE", orig)
+	os.Setenv("GOG_TIMEZONE", "")
+
+	tests := []struct {
+		name     string
+		flag     string
+		env      string
+		wantNil  bool
+		wantZone string
+		wantErr  bool
+	}{
+		{
+			name:     "flag takes precedence",
+			flag:     "UTC",
+			env:      "America/New_York",
+			wantZone: "UTC",
+		},
+		{
+			name:     "env var used when no flag",
+			flag:     "",
+			env:      "Europe/London",
+			wantZone: "Europe/London",
+		},
+		{
+			name:    "returns nil when nothing configured",
+			flag:    "",
+			env:     "",
+			wantNil: true,
+		},
+		{
+			name:    "invalid flag returns error",
+			flag:    "Invalid/Zone",
+			wantErr: true,
+		},
+		{
+			name:    "invalid env returns error",
+			flag:    "",
+			env:     "Bad/Zone",
+			wantErr: true,
+		},
+		{
+			name:    "local flag value returns nil",
+			flag:    "local",
+			env:     "",
+			wantNil: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			os.Setenv("GOG_TIMEZONE", tt.env)
+			loc, err := getConfiguredTimezone(tt.flag)
+
+			if tt.wantErr {
+				if err == nil {
+					t.Fatal("expected error")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			if tt.wantNil {
+				if loc != nil {
+					t.Errorf("expected nil, got %s", loc.String())
+				}
+				return
+			}
+
+			if loc == nil {
+				t.Fatal("expected non-nil location")
+			}
+			if loc.String() != tt.wantZone {
+				t.Errorf("expected %s, got %s", tt.wantZone, loc.String())
 			}
 		})
 	}
