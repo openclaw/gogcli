@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -150,5 +151,98 @@ func TestMessageByDate(t *testing.T) {
 	}
 	if got := messageByDate(noDates, true); got == nil || got.Id != "a" {
 		t.Fatalf("unexpected fallback oldest: %#v", got)
+	}
+}
+
+func TestResolveOutputLocation(t *testing.T) {
+	tests := []struct {
+		name        string
+		timezone    string
+		local       bool
+		wantLocal   bool
+		wantName    string
+		wantErr     bool
+		errContains string
+	}{
+		{
+			name:      "local=true returns time.Local",
+			timezone:  "America/New_York",
+			local:     true,
+			wantLocal: true,
+		},
+		{
+			name:      "empty timezone returns time.Local",
+			timezone:  "",
+			local:     false,
+			wantLocal: true,
+		},
+		{
+			name:      "whitespace only returns time.Local",
+			timezone:  "   ",
+			local:     false,
+			wantLocal: true,
+		},
+		{
+			name:      "timezone=local (lowercase) returns time.Local",
+			timezone:  "local",
+			local:     false,
+			wantLocal: true,
+		},
+		{
+			name:      "timezone=LOCAL (uppercase) returns time.Local",
+			timezone:  "LOCAL",
+			local:     false,
+			wantLocal: true,
+		},
+		{
+			name:     "timezone=America/New_York returns that location",
+			timezone: "America/New_York",
+			local:    false,
+			wantName: "America/New_York",
+		},
+		{
+			name:     "timezone=UTC returns UTC",
+			timezone: "UTC",
+			local:    false,
+			wantName: "UTC",
+		},
+		{
+			name:        "invalid timezone returns error",
+			timezone:    "Invalid/Zone",
+			local:       false,
+			wantErr:     true,
+			errContains: "invalid timezone",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := resolveOutputLocation(tt.timezone, tt.local)
+
+			if tt.wantErr {
+				if err == nil {
+					t.Fatalf("expected error, got nil")
+				}
+				if tt.errContains != "" && !strings.Contains(err.Error(), tt.errContains) {
+					t.Fatalf("error %q does not contain %q", err.Error(), tt.errContains)
+				}
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			if tt.wantLocal {
+				if got != time.Local {
+					t.Fatalf("expected time.Local, got %v", got)
+				}
+				return
+			}
+
+			if got.String() != tt.wantName {
+				t.Fatalf("expected location %q, got %q", tt.wantName, got.String())
+			}
+		})
 	}
 }
