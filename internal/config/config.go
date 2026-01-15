@@ -10,7 +10,8 @@ import (
 )
 
 type File struct {
-	KeyringBackend string `json:"keyring_backend,omitempty"`
+	KeyringBackend  string `json:"keyring_backend,omitempty"`
+	DefaultTimezone string `json:"default_timezone,omitempty"`
 }
 
 func ConfigPath() (string, error) {
