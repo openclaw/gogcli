@@ -9,6 +9,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/alecthomas/kong"
 
@@ -32,6 +33,41 @@ func withPrimaryCalendar(next http.Handler) http.Handler {
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+func pickTimezoneExcluding(t *testing.T, exclude ...string) string {
+	t.Helper()
+
+	excluded := make(map[string]struct{}, len(exclude))
+	for _, v := range exclude {
+		excluded[strings.ToLower(v)] = struct{}{}
+	}
+
+	candidates := []string{
+		"UTC",
+		"America/New_York",
+		"America/Los_Angeles",
+		"Europe/London",
+		"Asia/Tokyo",
+	}
+
+	for _, tz := range candidates {
+		if _, ok := excluded[strings.ToLower(tz)]; ok {
+			continue
+		}
+		if _, err := time.LoadLocation(tz); err != nil {
+			continue
+		}
+		return tz
+	}
+
+	t.Skipf("no suitable timezone available (exclude=%v)", exclude)
+	return ""
+}
+
+func pickNonLocalTimezone(t *testing.T) string {
+	t.Helper()
+	return pickTimezoneExcluding(t, time.Local.String(), "local")
 }
 
 func captureStdout(t *testing.T, fn func()) string {
