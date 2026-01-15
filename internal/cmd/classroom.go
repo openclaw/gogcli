@@ -26,6 +26,7 @@ type ClassroomCmd struct {
 	Work          ClassroomWorkCmd          `cmd:"" name:"work" help:"Manage coursework (assignments and materials)"`
 	Submissions   ClassroomSubmissionsCmd   `cmd:"" name:"submissions" help:"Manage student submissions"`
 	Announcements ClassroomAnnouncementsCmd `cmd:"" name:"announcements" help:"Manage course announcements"`
+	Topics        ClassroomTopicsCmd        `cmd:"" name:"topics" help:"Manage course topics"`
 }
 
 type ClassroomSubmissionsCmd struct {
@@ -34,6 +35,33 @@ type ClassroomSubmissionsCmd struct {
 	Grade  ClassroomSubmissionsGradeCmd  `cmd:"" name:"grade" help:"Grade a submission"`
 	Return ClassroomSubmissionsReturnCmd `cmd:"" name:"return" help:"Return a submission"`
 }
+
+type ClassroomTopicsCmd struct {
+	List   ClassroomTopicsListCmd   `cmd:"" default:"withargs" help:"List topics"`
+	Create ClassroomTopicsCreateCmd `cmd:"" name:"create" help:"Create topic"`
+	Update ClassroomTopicsUpdateCmd `cmd:"" name:"update" help:"Update topic"`
+	Delete ClassroomTopicsDeleteCmd `cmd:"" name:"delete" help:"Delete topic"`
+}
+
+type (
+	ClassroomTopicsListCmd struct {
+		CourseID string `arg:"" name:"course-id" help:"Course ID" required:""`
+		Max      int64  `name:"max" aliases:"limit" help:"Max results per page" default:"100"`
+	}
+	ClassroomTopicsCreateCmd struct {
+		CourseID string `arg:"" name:"course-id" help:"Course ID" required:""`
+		Name     string `name:"name" required:"" help:"Topic name"`
+	}
+	ClassroomTopicsUpdateCmd struct {
+		CourseID string `arg:"" name:"course-id" help:"Course ID" required:""`
+		TopicID  string `arg:"" name:"topic-id" help:"Topic ID" required:""`
+		Name     string `name:"name" required:"" help:"New topic name"`
+	}
+	ClassroomTopicsDeleteCmd struct {
+		CourseID string `arg:"" name:"course-id" help:"Course ID" required:""`
+		TopicID  string `arg:"" name:"topic-id" help:"Topic ID" required:""`
+	}
+)
 
 type ClassroomAnnouncementsCmd struct {
 	List   ClassroomAnnouncementsListCmd   `cmd:"" default:"withargs" help:"List announcements"`
@@ -1573,5 +1601,153 @@ func (c *ClassroomAnnouncementsDeleteCmd) Run(ctx context.Context, flags *RootFl
 	}
 
 	fmt.Printf("Deleted announcement: %s\n", c.AnnouncementID)
+	return nil
+}
+
+func (c *ClassroomTopicsListCmd) Run(ctx context.Context, flags *RootFlags) error {
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
+	}
+
+	svc, err := newClassroomService(ctx, account)
+	if err != nil {
+		return err
+	}
+
+	var allTopics []*classroom.Topic
+	pageToken := ""
+
+	for {
+		call := svc.Courses.Topics.List(c.CourseID).PageSize(c.Max)
+		if pageToken != "" {
+			call = call.PageToken(pageToken)
+		}
+
+		resp, err := call.Do()
+		if err != nil {
+			return fmt.Errorf("listing topics: %w", err)
+		}
+
+		allTopics = append(allTopics, resp.Topic...)
+
+		pageToken = resp.NextPageToken
+		if pageToken == "" {
+			break
+		}
+	}
+
+	if outfmt.IsJSON(ctx) {
+		return outfmt.WriteJSON(os.Stdout, map[string]any{
+			"topics": allTopics,
+		})
+	}
+
+	if len(allTopics) == 0 {
+		ui.FromContext(ctx).Err().Println("No topics found")
+		return nil
+	}
+
+	w, flush := tableWriter(ctx)
+	defer flush()
+	fmt.Fprintln(w, "TOPIC_ID\tNAME\tUPDATE_TIME")
+
+	for _, t := range allTopics {
+		fmt.Fprintf(w, "%s\t%s\t%s\n",
+			t.TopicId,
+			t.Name,
+			t.UpdateTime,
+		)
+	}
+	return nil
+}
+
+func (c *ClassroomTopicsCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
+	}
+
+	svc, err := newClassroomService(ctx, account)
+	if err != nil {
+		return err
+	}
+
+	topic := &classroom.Topic{
+		Name: c.Name,
+	}
+
+	created, err := svc.Courses.Topics.Create(c.CourseID, topic).Do()
+	if err != nil {
+		return err
+	}
+
+	if outfmt.IsJSON(ctx) {
+		return outfmt.WriteJSON(os.Stdout, created)
+	}
+
+	fmt.Printf("Created topic: %s\n", created.TopicId)
+	return nil
+}
+
+func (c *ClassroomTopicsUpdateCmd) Run(ctx context.Context, flags *RootFlags) error {
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
+	}
+
+	svc, err := newClassroomService(ctx, account)
+	if err != nil {
+		return err
+	}
+
+	topic := &classroom.Topic{
+		Name: c.Name,
+	}
+
+	updated, err := svc.Courses.Topics.Patch(c.CourseID, c.TopicID, topic).UpdateMask("name").Do()
+	if err != nil {
+		return err
+	}
+
+	if outfmt.IsJSON(ctx) {
+		return outfmt.WriteJSON(os.Stdout, updated)
+	}
+
+	fmt.Printf("Updated topic: %s\n", updated.TopicId)
+	return nil
+}
+
+func (c *ClassroomTopicsDeleteCmd) Run(ctx context.Context, flags *RootFlags) error {
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
+	}
+
+	if confirmErr := confirmDestructive(ctx, flags, fmt.Sprintf("delete topic %s", c.TopicID)); confirmErr != nil {
+		return confirmErr
+	}
+
+	svc, err := newClassroomService(ctx, account)
+	if err != nil {
+		return err
+	}
+
+	if _, err := svc.Courses.Topics.Delete(c.CourseID, c.TopicID).Do(); err != nil {
+		var gerr *googleapi.Error
+		if errors.As(err, &gerr) && gerr.Code == http.StatusNotFound {
+			return usagef("topic not found: %s", c.TopicID)
+		}
+		return err
+	}
+
+	if outfmt.IsJSON(ctx) {
+		return outfmt.WriteJSON(os.Stdout, map[string]any{
+			"deleted": true,
+			"id":      c.TopicID,
+		})
+	}
+
+	fmt.Printf("Deleted topic: %s\n", c.TopicID)
 	return nil
 }
