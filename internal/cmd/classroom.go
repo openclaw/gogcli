@@ -2113,3 +2113,38 @@ func (c *ClassroomGuardiansInviteCmd) Run(ctx context.Context, flags *RootFlags)
 	fmt.Printf("Invited guardian: %s for student: %s\n", c.Email, c.StudentID)
 	return nil
 }
+
+func (c *ClassroomGuardiansRemoveCmd) Run(ctx context.Context, flags *RootFlags) error {
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
+	}
+
+	if confirmErr := confirmDestructive(ctx, flags, fmt.Sprintf("remove guardian %s from student %s", c.GuardianID, c.StudentID)); confirmErr != nil {
+		return confirmErr
+	}
+
+	svc, err := newClassroomService(ctx, account)
+	if err != nil {
+		return err
+	}
+
+	if _, err := svc.UserProfiles.Guardians.Delete(c.StudentID, c.GuardianID).Do(); err != nil {
+		var gerr *googleapi.Error
+		if errors.As(err, &gerr) && gerr.Code == http.StatusNotFound {
+			return usagef("guardian not found: %s", c.GuardianID)
+		}
+		return err
+	}
+
+	if outfmt.IsJSON(ctx) {
+		return outfmt.WriteJSON(os.Stdout, map[string]any{
+			"deleted":    true,
+			"guardianId": c.GuardianID,
+			"studentId":  c.StudentID,
+		})
+	}
+
+	fmt.Printf("Removed guardian: %s\n", c.GuardianID)
+	return nil
+}
