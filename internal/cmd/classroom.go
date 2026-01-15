@@ -1390,7 +1390,7 @@ func (c *ClassroomAnnouncementsListCmd) Run(ctx context.Context, flags *RootFlag
 
 	w, flush := tableWriter(ctx)
 	defer flush()
-	fmt.Fprintln(w, "ANNOUNCEMENT_ID\tSTATE\tCREATOR\tTEXT")
+	fmt.Fprintln(w, "ANNOUNCEMENT_ID\tTEXT\tCREATION_TIME\tCREATOR_USER_ID")
 
 	for _, a := range allAnnouncements {
 		text := a.Text
@@ -1399,9 +1399,9 @@ func (c *ClassroomAnnouncementsListCmd) Run(ctx context.Context, flags *RootFlag
 		}
 		fmt.Fprintf(w, "%s\t%s\t%s\t%s\n",
 			a.Id,
-			a.State,
-			a.CreatorUserId,
 			text,
+			a.CreationTime,
+			a.CreatorUserId,
 		)
 	}
 	return nil
