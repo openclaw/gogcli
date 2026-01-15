@@ -1440,6 +1440,25 @@ func (c *ClassroomAnnouncementsGetCmd) Run(ctx context.Context, flags *RootFlags
 	fmt.Fprintf(w, "Creator User ID:\t%s\n", ann.CreatorUserId)
 	fmt.Fprintf(w, "Creation Time:\t%s\n", ann.CreationTime)
 	fmt.Fprintf(w, "Update Time:\t%s\n", ann.UpdateTime)
+	fmt.Fprintf(w, "Web URL:\t%s\n", ann.AlternateLink)
+
+	if len(ann.Materials) > 0 {
+		fmt.Fprintln(w, "\nMaterials:")
+		for _, m := range ann.Materials {
+			if m.DriveFile != nil && m.DriveFile.DriveFile != nil {
+				fmt.Fprintf(w, "  [Drive File] %s (%s)\n", m.DriveFile.DriveFile.Title, m.DriveFile.DriveFile.AlternateLink)
+			}
+			if m.YoutubeVideo != nil {
+				fmt.Fprintf(w, "  [YouTube] %s (%s)\n", m.YoutubeVideo.Title, m.YoutubeVideo.AlternateLink)
+			}
+			if m.Link != nil {
+				fmt.Fprintf(w, "  [Link] %s (%s)\n", m.Link.Title, m.Link.Url)
+			}
+			if m.Form != nil {
+				fmt.Fprintf(w, "  [Form] %s (%s)\n", m.Form.Title, m.Form.FormUrl)
+			}
+		}
+	}
 
 	return nil
 }
