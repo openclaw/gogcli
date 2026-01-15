@@ -2001,6 +2001,69 @@ func (c *ClassroomProfileCmd) Run(ctx context.Context, flags *RootFlags) error {
 	return nil
 }
 
+func (c *ClassroomGuardiansListCmd) Run(ctx context.Context, flags *RootFlags) error {
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
+	}
+
+	svc, err := newClassroomService(ctx, account)
+	if err != nil {
+		return err
+	}
+
+	var allGuardians []*classroom.Guardian
+	pageToken := ""
+
+	for {
+		call := svc.UserProfiles.Guardians.List(c.StudentID).PageSize(c.Max)
+		if pageToken != "" {
+			call = call.PageToken(pageToken)
+		}
+
+		resp, err := call.Do()
+		if err != nil {
+			return fmt.Errorf("listing guardians: %w", err)
+		}
+
+		allGuardians = append(allGuardians, resp.Guardians...)
+
+		pageToken = resp.NextPageToken
+		if pageToken == "" {
+			break
+		}
+	}
+
+	if outfmt.IsJSON(ctx) {
+		return outfmt.WriteJSON(os.Stdout, map[string]any{
+			"guardians": allGuardians,
+		})
+	}
+
+	if len(allGuardians) == 0 {
+		ui.FromContext(ctx).Err().Println("No guardians found")
+		return nil
+	}
+
+	w, flush := tableWriter(ctx)
+	defer flush()
+	fmt.Fprintln(w, "GUARDIAN_ID\tINVITED_EMAIL\tGUARDIAN_EMAIL")
+
+	for _, g := range allGuardians {
+		invitedEmail := orDash(g.InvitedEmailAddress)
+		guardianEmail := ""
+		if g.GuardianProfile != nil {
+			guardianEmail = orDash(g.GuardianProfile.EmailAddress)
+		}
+		fmt.Fprintf(w, "%s\t%s\t%s\n",
+			g.GuardianId,
+			invitedEmail,
+			guardianEmail,
+		)
+	}
+	return nil
+}
+
 type ClassroomGuardiansCmd struct {
 	List   ClassroomGuardiansListCmd   `cmd:"" default:"withargs" help:"List guardians for a student"`
 	Invite ClassroomGuardiansInviteCmd `cmd:"" name:"invite" help:"Invite a guardian for a student"`
