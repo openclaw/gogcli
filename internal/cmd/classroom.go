@@ -35,6 +35,7 @@ type ClassroomCmd struct {
 	Announcements ClassroomAnnouncementsCmd `cmd:"" name:"announcements" help:"Manage course announcements"`
 	Topics        ClassroomTopicsCmd        `cmd:"" name:"topics" help:"Manage course topics"`
 	Invitations   ClassroomInvitationsCmd   `cmd:"" name:"invitations" help:"Manage course invitations"`
+	Profile       ClassroomProfileCmd       `cmd:"" name:"profile" help:"View user profile"`
 }
 
 type ClassroomSubmissionsCmd struct {
@@ -1952,3 +1953,49 @@ type (
 		InvitationID string `arg:"" name:"invitation-id" help:"Invitation ID to delete"`
 	}
 )
+
+type ClassroomProfileCmd struct {
+	UserID string `arg:"" name:"user-id" help:"User ID (use 'me' for current user)" default:"me"`
+}
+
+func (c *ClassroomProfileCmd) Run(ctx context.Context, flags *RootFlags) error {
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
+	}
+
+	svc, err := newClassroomService(ctx, account)
+	if err != nil {
+		return err
+	}
+
+	profile, err := svc.UserProfiles.Get(c.UserID).Do()
+	if err != nil {
+		var gerr *googleapi.Error
+		if errors.As(err, &gerr) && gerr.Code == http.StatusNotFound {
+			return usagef("user not found: %s", c.UserID)
+		}
+		return err
+	}
+
+	if outfmt.IsJSON(ctx) {
+		return outfmt.WriteJSON(os.Stdout, profile)
+	}
+
+	w, flush := tableWriter(ctx)
+	defer flush()
+
+	fmt.Fprintf(w, "ID:\t%s\n", profile.Id)
+	fmt.Fprintf(w, "Email:\t%s\n", orDash(profile.EmailAddress))
+	fmt.Fprintf(w, "Full Name:\t%s\n", orDash(profile.Name.FullName))
+	fmt.Fprintf(w, "Given Name:\t%s\n", orDash(profile.Name.GivenName))
+	fmt.Fprintf(w, "Family Name:\t%s\n", orDash(profile.Name.FamilyName))
+	fmt.Fprintf(w, "Photo URL:\t%s\n", orDash(profile.PhotoUrl))
+
+	fmt.Fprintln(w, "Permissions:")
+	for _, p := range profile.Permissions {
+		fmt.Fprintf(w, "  %s\n", p.Permission)
+	}
+
+	return nil
+}
