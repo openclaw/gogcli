@@ -21,10 +21,11 @@ import (
 var newClassroomService = intgoogleapi.NewClassroom
 
 type ClassroomCmd struct {
-	Courses     ClassroomCoursesCmd     `cmd:"" name:"courses" help:"Manage courses" default:"withargs"`
-	Roster      ClassroomRosterCmd      `cmd:"" name:"roster" help:"Manage course roster (students and teachers)"`
-	Work        ClassroomWorkCmd        `cmd:"" name:"work" help:"Manage coursework (assignments and materials)"`
-	Submissions ClassroomSubmissionsCmd `cmd:"" name:"submissions" help:"Manage student submissions"`
+	Courses       ClassroomCoursesCmd       `cmd:"" name:"courses" help:"Manage courses" default:"withargs"`
+	Roster        ClassroomRosterCmd        `cmd:"" name:"roster" help:"Manage course roster (students and teachers)"`
+	Work          ClassroomWorkCmd          `cmd:"" name:"work" help:"Manage coursework (assignments and materials)"`
+	Submissions   ClassroomSubmissionsCmd   `cmd:"" name:"submissions" help:"Manage student submissions"`
+	Announcements ClassroomAnnouncementsCmd `cmd:"" name:"announcements" help:"Manage course announcements"`
 }
 
 type ClassroomSubmissionsCmd struct {
@@ -33,6 +34,40 @@ type ClassroomSubmissionsCmd struct {
 	Grade  ClassroomSubmissionsGradeCmd  `cmd:"" name:"grade" help:"Grade a submission"`
 	Return ClassroomSubmissionsReturnCmd `cmd:"" name:"return" help:"Return a submission"`
 }
+
+type ClassroomAnnouncementsCmd struct {
+	List   ClassroomAnnouncementsListCmd   `cmd:"" default:"withargs" help:"List announcements"`
+	Get    ClassroomAnnouncementsGetCmd    `cmd:"" name:"get" help:"Get announcement details"`
+	Create ClassroomAnnouncementsCreateCmd `cmd:"" name:"create" help:"Create announcement"`
+	Update ClassroomAnnouncementsUpdateCmd `cmd:"" name:"update" help:"Update announcement"`
+	Delete ClassroomAnnouncementsDeleteCmd `cmd:"" name:"delete" help:"Delete announcement"`
+}
+
+type (
+	ClassroomAnnouncementsListCmd struct {
+		CourseID string `arg:"" name:"course-id" help:"Course ID" required:""`
+		Max      int64  `name:"max" aliases:"limit" help:"Max results per page" default:"100"`
+	}
+	ClassroomAnnouncementsGetCmd struct {
+		CourseID       string `arg:"" name:"course-id" help:"Course ID" required:""`
+		AnnouncementID string `arg:"" name:"announcement-id" help:"Announcement ID" required:""`
+	}
+	ClassroomAnnouncementsCreateCmd struct {
+		CourseID string `arg:"" name:"course-id" help:"Course ID" required:""`
+		Text     string `name:"text" required:"" help:"Announcement text"`
+		State    string `name:"state" enum:"PUBLISHED,DRAFT" default:"PUBLISHED" help:"State (PUBLISHED or DRAFT)"`
+	}
+	ClassroomAnnouncementsUpdateCmd struct {
+		CourseID       string `arg:"" name:"course-id" help:"Course ID" required:""`
+		AnnouncementID string `arg:"" name:"announcement-id" help:"Announcement ID" required:""`
+		Text           string `name:"text" help:"New announcement text"`
+		State          string `name:"state" help:"New state (PUBLISHED or DRAFT)"`
+	}
+	ClassroomAnnouncementsDeleteCmd struct {
+		CourseID       string `arg:"" name:"course-id" help:"Course ID" required:""`
+		AnnouncementID string `arg:"" name:"announcement-id" help:"Announcement ID" required:""`
+	}
+)
 
 type (
 	ClassroomSubmissionsListCmd struct {
@@ -1306,5 +1341,218 @@ func (c *ClassroomSubmissionsReturnCmd) returnAll(ctx context.Context, svc *clas
 	}
 
 	fmt.Printf("Returned %d submissions\n", returnedCount)
+	return nil
+}
+
+func (c *ClassroomAnnouncementsListCmd) Run(ctx context.Context, flags *RootFlags) error {
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
+	}
+
+	svc, err := newClassroomService(ctx, account)
+	if err != nil {
+		return err
+	}
+
+	var allAnnouncements []*classroom.Announcement
+	pageToken := ""
+
+	for {
+		call := svc.Courses.Announcements.List(c.CourseID).PageSize(c.Max)
+		if pageToken != "" {
+			call = call.PageToken(pageToken)
+		}
+
+		resp, err := call.Do()
+		if err != nil {
+			return fmt.Errorf("listing announcements: %w", err)
+		}
+
+		allAnnouncements = append(allAnnouncements, resp.Announcements...)
+
+		pageToken = resp.NextPageToken
+		if pageToken == "" {
+			break
+		}
+	}
+
+	if outfmt.IsJSON(ctx) {
+		return outfmt.WriteJSON(os.Stdout, map[string]any{
+			"announcements": allAnnouncements,
+		})
+	}
+
+	if len(allAnnouncements) == 0 {
+		ui.FromContext(ctx).Err().Println("No announcements found")
+		return nil
+	}
+
+	w, flush := tableWriter(ctx)
+	defer flush()
+	fmt.Fprintln(w, "ANNOUNCEMENT_ID\tSTATE\tCREATOR\tTEXT")
+
+	for _, a := range allAnnouncements {
+		text := a.Text
+		if len(text) > 50 {
+			text = text[:47] + "..."
+		}
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\n",
+			a.Id,
+			a.State,
+			a.CreatorUserId,
+			text,
+		)
+	}
+	return nil
+}
+
+func (c *ClassroomAnnouncementsGetCmd) Run(ctx context.Context, flags *RootFlags) error {
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
+	}
+
+	svc, err := newClassroomService(ctx, account)
+	if err != nil {
+		return err
+	}
+
+	ann, err := svc.Courses.Announcements.Get(c.CourseID, c.AnnouncementID).Do()
+	if err != nil {
+		var gerr *googleapi.Error
+		if errors.As(err, &gerr) && gerr.Code == http.StatusNotFound {
+			return usagef("announcement not found: %s", c.AnnouncementID)
+		}
+		return err
+	}
+
+	if outfmt.IsJSON(ctx) {
+		return outfmt.WriteJSON(os.Stdout, ann)
+	}
+
+	w, flush := tableWriter(ctx)
+	defer flush()
+
+	fmt.Fprintf(w, "ID:\t%s\n", ann.Id)
+	fmt.Fprintf(w, "Text:\t%s\n", ann.Text)
+	fmt.Fprintf(w, "State:\t%s\n", ann.State)
+	fmt.Fprintf(w, "Creator User ID:\t%s\n", ann.CreatorUserId)
+	fmt.Fprintf(w, "Creation Time:\t%s\n", ann.CreationTime)
+	fmt.Fprintf(w, "Update Time:\t%s\n", ann.UpdateTime)
+
+	return nil
+}
+
+func (c *ClassroomAnnouncementsCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
+	}
+
+	svc, err := newClassroomService(ctx, account)
+	if err != nil {
+		return err
+	}
+
+	if c.State != "" && c.State != "PUBLISHED" && c.State != "DRAFT" {
+		return usagef("invalid state: %s (must be PUBLISHED or DRAFT)", c.State)
+	}
+
+	ann := &classroom.Announcement{
+		Text:  c.Text,
+		State: c.State,
+	}
+
+	created, err := svc.Courses.Announcements.Create(c.CourseID, ann).Do()
+	if err != nil {
+		return err
+	}
+
+	if outfmt.IsJSON(ctx) {
+		return outfmt.WriteJSON(os.Stdout, created)
+	}
+
+	fmt.Printf("Created announcement: %s\n", created.Id)
+	return nil
+}
+
+func (c *ClassroomAnnouncementsUpdateCmd) Run(ctx context.Context, flags *RootFlags) error {
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
+	}
+
+	svc, err := newClassroomService(ctx, account)
+	if err != nil {
+		return err
+	}
+
+	ann := &classroom.Announcement{}
+	var mask []string
+
+	if c.Text != "" {
+		ann.Text = c.Text
+		mask = append(mask, "text")
+	}
+	if c.State != "" {
+		switch c.State {
+		case "PUBLISHED", "DRAFT":
+			ann.State = c.State
+			mask = append(mask, "state")
+		default:
+			return usagef("invalid state: %s (must be PUBLISHED or DRAFT)", c.State)
+		}
+	}
+
+	if len(mask) == 0 {
+		return usage("no fields to update")
+	}
+
+	updateMask := strings.Join(mask, ",")
+	updated, err := svc.Courses.Announcements.Patch(c.CourseID, c.AnnouncementID, ann).UpdateMask(updateMask).Do()
+	if err != nil {
+		return err
+	}
+
+	if outfmt.IsJSON(ctx) {
+		return outfmt.WriteJSON(os.Stdout, updated)
+	}
+
+	fmt.Printf("Updated announcement: %s\n", updated.Id)
+	return nil
+}
+
+func (c *ClassroomAnnouncementsDeleteCmd) Run(ctx context.Context, flags *RootFlags) error {
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
+	}
+
+	if confirmErr := confirmDestructive(ctx, flags, fmt.Sprintf("delete announcement %s", c.AnnouncementID)); confirmErr != nil {
+		return confirmErr
+	}
+
+	svc, err := newClassroomService(ctx, account)
+	if err != nil {
+		return err
+	}
+
+	if _, err := svc.Courses.Announcements.Delete(c.CourseID, c.AnnouncementID).Do(); err != nil {
+		var gerr *googleapi.Error
+		if errors.As(err, &gerr) && gerr.Code == http.StatusNotFound {
+			return usagef("announcement not found: %s", c.AnnouncementID)
+		}
+		return err
+	}
+
+	if outfmt.IsJSON(ctx) {
+		return outfmt.WriteJSON(os.Stdout, map[string]any{
+			"deleted": true,
+			"id":      c.AnnouncementID,
+		})
+	}
+
+	fmt.Printf("Deleted announcement: %s\n", c.AnnouncementID)
 	return nil
 }
