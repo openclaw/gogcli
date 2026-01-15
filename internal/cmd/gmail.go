@@ -281,9 +281,11 @@ func resolveOutputLocation(timezone string, local bool) (*time.Location, error) 
 	if cfg, err := config.ReadConfig(); err == nil && cfg.DefaultTimezone != "" {
 		loc, err := time.LoadLocation(cfg.DefaultTimezone)
 		if err != nil {
-			return nil, fmt.Errorf("invalid default_timezone in config %q: %w", cfg.DefaultTimezone, err)
+			// Warning: invalid timezone in config, fall back to local
+			fmt.Fprintf(os.Stderr, "warning: invalid default_timezone in config %q, using local timezone\n", cfg.DefaultTimezone)
+		} else {
+			return loc, nil
 		}
-		return loc, nil
 	}
 
 	return time.Local, nil
@@ -315,9 +317,11 @@ func getConfiguredTimezone(timezone string) (*time.Location, error) {
 	if cfg, err := config.ReadConfig(); err == nil && cfg.DefaultTimezone != "" {
 		loc, err := time.LoadLocation(cfg.DefaultTimezone)
 		if err != nil {
-			return nil, fmt.Errorf("invalid default_timezone in config %q: %w", cfg.DefaultTimezone, err)
+			// Warning: invalid timezone in config, fall back
+			fmt.Fprintf(os.Stderr, "warning: invalid default_timezone in config %q, ignoring\n", cfg.DefaultTimezone)
+		} else {
+			return loc, nil
 		}
-		return loc, nil
 	}
 
 	// No explicit timezone configured
