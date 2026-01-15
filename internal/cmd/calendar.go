@@ -127,7 +127,7 @@ func (c *CalendarAclCmd) Run(ctx context.Context, flags *RootFlags) error {
 }
 
 type CalendarEventsCmd struct {
-	CalendarID        string `arg:"" name:"calendarId" optional:"" help:"Calendar ID"`
+	CalendarID        string `arg:"" name:"calendarId" optional:"" help:"Calendar ID (default: primary)"`
 	From              string `name:"from" help:"Start time (RFC3339, date, or relative: today, tomorrow, monday)"`
 	To                string `name:"to" help:"End time (RFC3339, date, or relative)"`
 	Today             bool   `name:"today" help:"Today only (timezone-aware)"`
@@ -150,11 +150,12 @@ func (c *CalendarEventsCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
-	if !c.All && strings.TrimSpace(c.CalendarID) == "" {
-		return usage("calendarId required unless --all is specified")
-	}
-	if c.All && strings.TrimSpace(c.CalendarID) != "" {
+	calendarID := strings.TrimSpace(c.CalendarID)
+	if c.All && calendarID != "" {
 		return usage("calendarId not allowed with --all flag")
+	}
+	if !c.All && calendarID == "" {
+		calendarID = "primary"
 	}
 
 	svc, err := newCalendarService(ctx, account)
@@ -181,7 +182,6 @@ func (c *CalendarEventsCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if c.All {
 		return listAllCalendarsEvents(ctx, svc, from, to, c.Max, c.Page, c.Query, c.PrivatePropFilter, c.SharedPropFilter, c.Fields)
 	}
-	calendarID := strings.TrimSpace(c.CalendarID)
 	return listCalendarEvents(ctx, svc, calendarID, from, to, c.Max, c.Page, c.Query, c.PrivatePropFilter, c.SharedPropFilter, c.Fields)
 }
 

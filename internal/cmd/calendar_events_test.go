@@ -65,3 +65,53 @@ func TestListCalendarEvents_JSON(t *testing.T) {
 		t.Fatalf("unexpected json: %#v", parsed)
 	}
 }
+
+func TestCalendarEventsCmd_DefaultsToPrimary(t *testing.T) {
+	origNew := newCalendarService
+	t.Cleanup(func() { newCalendarService = origNew })
+
+	srv := httptest.NewServer(withPrimaryCalendar(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.Contains(r.URL.Path, "/calendars/primary/events") && r.Method == http.MethodGet {
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"items": []map[string]any{
+					{"id": "e1", "summary": "Event"},
+				},
+				"nextPageToken": "",
+			})
+			return
+		}
+		http.NotFound(w, r)
+	})))
+	defer srv.Close()
+
+	svc, err := calendar.NewService(context.Background(),
+		option.WithoutAuthentication(),
+		option.WithHTTPClient(srv.Client()),
+		option.WithEndpoint(srv.URL+"/"),
+	)
+	if err != nil {
+		t.Fatalf("NewService: %v", err)
+	}
+	newCalendarService = func(context.Context, string) (*calendar.Service, error) { return svc, nil }
+
+	u, err := ui.New(ui.Options{Stdout: io.Discard, Stderr: io.Discard, Color: "never"})
+	if err != nil {
+		t.Fatalf("ui.New: %v", err)
+	}
+	ctx := outfmt.WithMode(ui.WithUI(context.Background(), u), outfmt.Mode{JSON: true})
+	flags := &RootFlags{Account: "a@b.com"}
+
+	cmd := &CalendarEventsCmd{
+		From: "2025-01-01T00:00:00Z",
+		To:   "2025-01-02T00:00:00Z",
+	}
+	out := captureStdout(t, func() {
+		if err := cmd.Run(ctx, flags); err != nil {
+			t.Fatalf("Run: %v", err)
+		}
+	})
+	if !strings.Contains(out, "\"events\"") {
+		t.Fatalf("unexpected output: %q", out)
+	}
+}
