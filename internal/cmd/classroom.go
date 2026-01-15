@@ -2084,3 +2084,32 @@ type (
 		GuardianID string `arg:"" name:"guardian-id" help:"Guardian ID to remove" required:""`
 	}
 )
+
+func (c *ClassroomGuardiansInviteCmd) Run(ctx context.Context, flags *RootFlags) error {
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
+	}
+
+	svc, err := newClassroomService(ctx, account)
+	if err != nil {
+		return err
+	}
+
+	invitation := &classroom.GuardianInvitation{
+		InvitedEmailAddress: c.Email,
+		StudentId:           c.StudentID,
+	}
+
+	created, err := svc.UserProfiles.GuardianInvitations.Create(c.StudentID, invitation).Do()
+	if err != nil {
+		return err
+	}
+
+	if outfmt.IsJSON(ctx) {
+		return outfmt.WriteJSON(os.Stdout, created)
+	}
+
+	fmt.Printf("Invited guardian: %s for student: %s\n", c.Email, c.StudentID)
+	return nil
+}
