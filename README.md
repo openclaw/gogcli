@@ -13,6 +13,7 @@ Google in your terminal — CLI for Gmail, Calendar, Drive, Docs, Slides, Sheets
 - **Sheets** - read/write/update spreadsheets, create new sheets (and export via Drive)
 - **Docs/Slides** - export to PDF/DOCX/PPTX via Drive (plus create/copy, docs-to-text)
 - **People** - access profile information
+- **Classroom** - manage courses, coursework, roster, announcements, and submissions (Education accounts)
 - **Keep (Workspace only)** - list/get/search notes and download attachments (service account + domain-wide delegation)
 - **Groups** - list groups you belong to, view group members (Google Workspace)
 - **Multiple accounts** - manage multiple Google accounts simultaneously
@@ -67,6 +68,7 @@ Before adding an account, create OAuth2 credentials from Google Cloud Console:
    - People API (Contacts): https://console.cloud.google.com/apis/api/people.googleapis.com
    - Google Tasks API: https://console.cloud.google.com/apis/api/tasks.googleapis.com
    - Google Sheets API: https://console.cloud.google.com/apis/api/sheets.googleapis.com
+   - Google Classroom API: https://console.cloud.google.com/apis/api/classroom.googleapis.com
    - Cloud Identity API (Groups): https://console.cloud.google.com/apis/api/cloudidentity.googleapis.com
 3. Configure OAuth consent screen: https://console.cloud.google.com/auth/branding
 4. If your app is in "Testing", add test users: https://console.cloud.google.com/auth/audience
@@ -247,6 +249,7 @@ Service scope matrix (auto-generated; run `go run scripts/gen-auth-services-md.g
 | people | yes | People API | `profile` | OIDC profile scope |
 | groups | no | Cloud Identity API | `https://www.googleapis.com/auth/cloud-identity.groups.readonly` | Workspace only |
 | keep | no | Keep API | `https://www.googleapis.com/auth/keep.readonly` | Workspace only; service account (domain-wide delegation) |
+| classroom | yes | Classroom API | `https://www.googleapis.com/auth/classroom.courses`<br>`https://www.googleapis.com/auth/classroom.rosters`<br>`https://www.googleapis.com/auth/classroom.coursework.students`<br>`https://www.googleapis.com/auth/classroom.announcements`<br>`https://www.googleapis.com/auth/classroom.topics`<br>`https://www.googleapis.com/auth/classroom.profile.emails`<br>`https://www.googleapis.com/auth/classroom.profile.photos` | Works with Education accounts; limited with personal accounts |
 <!-- auth-services:end -->
 
 ### Service Accounts (Workspace only)
@@ -702,6 +705,70 @@ Note: Groups commands require the Cloud Identity API and the `cloud-identity.gro
 ```bash
 gog auth add your@email.com --services groups --force-consent
 ```
+
+### Classroom
+
+```bash
+# Courses
+gog classroom courses list                              # List your courses
+gog classroom courses list --role teacher               # List courses you teach
+gog classroom courses list --role student               # List courses you're enrolled in
+gog classroom courses get <courseId>                    # Get course details
+gog classroom courses create --name "Math 101"          # Create a course
+gog classroom courses update <courseId> --name "Math 102" # Update course
+gog classroom courses delete <courseId>                 # Delete a course
+gog classroom courses url <courseId>                    # Get course web URL
+
+# Coursework (assignments and materials)
+gog classroom work list <courseId>                      # List coursework
+gog classroom work list <courseId> --type assignment    # List assignments only
+gog classroom work get <courseId> <workId>              # Get coursework details
+gog classroom work create <courseId> --title "Homework 1" --points 100 # Create assignment
+gog classroom work update <courseId> <workId> --title "Updated" # Update coursework
+gog classroom work delete <courseId> <workId>           # Delete coursework
+
+# Roster (students and teachers)
+gog classroom roster list <courseId>                    # List all members
+gog classroom roster list <courseId> --students         # List students only
+gog classroom roster list <courseId> --teachers         # List teachers only
+gog classroom roster add <courseId> --email student@school.edu --role student
+gog classroom roster add <courseId> --email teacher@school.edu --role teacher
+gog classroom roster remove <courseId> --email student@school.edu --role student
+
+# Submissions
+gog classroom submissions list <courseId> <workId>      # List submissions
+gog classroom submissions get <courseId> <workId> <subId> # Get submission details
+gog classroom submissions grade <courseId> <workId> <subId> --grade 85
+gog classroom submissions grade <courseId> <workId> <subId> --grade 85 --return
+gog classroom submissions return <courseId> <workId> <subId>
+gog classroom submissions return <courseId> <workId> --all # Return all turned-in
+
+# Announcements
+gog classroom announcements list <courseId>             # List announcements
+gog classroom announcements get <courseId> <annId>      # Get announcement
+gog classroom announcements create <courseId> --text "Welcome to class!"
+gog classroom announcements update <courseId> <annId> --text "Updated text"
+gog classroom announcements delete <courseId> <annId>   # Delete announcement
+
+# Topics
+gog classroom topics list <courseId>                    # List topics
+gog classroom topics create <courseId> --name "Unit 1"  # Create topic
+gog classroom topics update <courseId> <topicId> --name "Unit 2"
+gog classroom topics delete <courseId> <topicId>        # Delete topic
+
+# Invitations
+gog classroom invitations list                          # List your invitations
+gog classroom invitations list --course <courseId>      # Filter by course
+gog classroom invitations create <courseId> --email student@school.edu --role student
+gog classroom invitations accept <invitationId>         # Accept invitation
+gog classroom invitations delete <invitationId>         # Delete invitation
+
+# Profile
+gog classroom profile                                   # Get your profile
+gog classroom profile <userId>                          # Get another user's profile
+```
+
+Note: Classroom commands require a Google Workspace for Education account. Personal Google accounts have limited Classroom functionality.
 
 ### Docs
 
