@@ -256,7 +256,10 @@ func resolveOutputLocation(timezone string, local bool) (*time.Location, error) 
 
 	// Check explicit --timezone flag
 	trimmed := strings.TrimSpace(timezone)
-	if trimmed != "" && !strings.EqualFold(trimmed, "local") {
+	if strings.EqualFold(trimmed, "local") {
+		return time.Local, nil
+	}
+	if trimmed != "" {
 		loc, err := time.LoadLocation(trimmed)
 		if err != nil {
 			return nil, fmt.Errorf("invalid timezone %q: %w", trimmed, err)
@@ -288,11 +291,15 @@ func resolveOutputLocation(timezone string, local bool) (*time.Location, error) 
 }
 
 // getConfiguredTimezone returns the timezone from flag, env var, or config file.
-// Returns nil if no timezone is explicitly configured.
+// Returns nil if no timezone is explicitly configured. The special value "local"
+// returns time.Local to explicitly use the local timezone.
 func getConfiguredTimezone(timezone string) (*time.Location, error) {
 	// Check explicit --timezone flag
 	trimmed := strings.TrimSpace(timezone)
-	if trimmed != "" && !strings.EqualFold(trimmed, "local") {
+	if strings.EqualFold(trimmed, "local") {
+		return time.Local, nil
+	}
+	if trimmed != "" {
 		loc, err := time.LoadLocation(trimmed)
 		if err != nil {
 			return nil, fmt.Errorf("invalid timezone %q: %w", trimmed, err)

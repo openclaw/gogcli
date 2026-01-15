@@ -307,23 +307,44 @@ func TestResolveOutputLocation_EnvVar(t *testing.T) {
 	orig := os.Getenv("GOG_TIMEZONE")
 	defer os.Setenv("GOG_TIMEZONE", orig)
 
+	envTZ := pickNonLocalTimezone(t)
+	flagTZ := pickTimezoneExcluding(t, envTZ)
+
 	// Test GOG_TIMEZONE takes effect when no flag provided
-	os.Setenv("GOG_TIMEZONE", "America/New_York")
+	os.Setenv("GOG_TIMEZONE", envTZ)
 	loc, err := resolveOutputLocation("", false)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if loc.String() != "America/New_York" {
-		t.Errorf("expected America/New_York, got %s", loc.String())
+	if loc.String() != envTZ {
+		t.Errorf("expected %s, got %s", envTZ, loc.String())
 	}
 
 	// Test flag takes precedence over env var
-	loc, err = resolveOutputLocation("UTC", false)
+	loc, err = resolveOutputLocation(flagTZ, false)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if loc.String() != "UTC" {
-		t.Errorf("expected UTC (from flag), got %s", loc.String())
+	if loc.String() != flagTZ {
+		t.Errorf("expected %s (from flag), got %s", flagTZ, loc.String())
+	}
+
+	// Test --timezone local overrides env var
+	loc, err = resolveOutputLocation("local", false)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if loc != time.Local {
+		t.Errorf("expected time.Local, got %s", loc.String())
+	}
+
+	// Test --local overrides env var
+	loc, err = resolveOutputLocation("", true)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if loc != time.Local {
+		t.Errorf("expected time.Local, got %s", loc.String())
 	}
 
 	// Test invalid env var returns error
@@ -344,12 +365,13 @@ func TestGetConfiguredTimezone(t *testing.T) {
 	os.Setenv("GOG_TIMEZONE", "")
 
 	tests := []struct {
-		name     string
-		flag     string
-		env      string
-		wantNil  bool
-		wantZone string
-		wantErr  bool
+		name      string
+		flag      string
+		env       string
+		wantLocal bool
+		wantNil   bool
+		wantZone  string
+		wantErr   bool
 	}{
 		{
 			name:     "flag takes precedence",
@@ -381,10 +403,10 @@ func TestGetConfiguredTimezone(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name:    "local flag value returns nil",
-			flag:    "local",
-			env:     "",
-			wantNil: true,
+			name:      "local flag returns time.Local",
+			flag:      "local",
+			env:       "UTC",
+			wantLocal: true,
 		},
 	}
 
@@ -401,6 +423,13 @@ func TestGetConfiguredTimezone(t *testing.T) {
 			}
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
+			}
+
+			if tt.wantLocal {
+				if loc != time.Local {
+					t.Errorf("expected time.Local, got %s", loc.String())
+				}
+				return
 			}
 
 			if tt.wantNil {
