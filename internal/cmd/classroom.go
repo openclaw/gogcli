@@ -36,6 +36,7 @@ type ClassroomCmd struct {
 	Topics        ClassroomTopicsCmd        `cmd:"" name:"topics" help:"Manage course topics"`
 	Invitations   ClassroomInvitationsCmd   `cmd:"" name:"invitations" help:"Manage course invitations"`
 	Profile       ClassroomProfileCmd       `cmd:"" name:"profile" help:"View user profile"`
+	Guardians     ClassroomGuardiansCmd     `cmd:"" name:"guardians" help:"Manage student guardians"`
 }
 
 type ClassroomSubmissionsCmd struct {
@@ -1999,3 +2000,24 @@ func (c *ClassroomProfileCmd) Run(ctx context.Context, flags *RootFlags) error {
 
 	return nil
 }
+
+type ClassroomGuardiansCmd struct {
+	List   ClassroomGuardiansListCmd   `cmd:"" default:"withargs" help:"List guardians for a student"`
+	Invite ClassroomGuardiansInviteCmd `cmd:"" name:"invite" help:"Invite a guardian for a student"`
+	Remove ClassroomGuardiansRemoveCmd `cmd:"" name:"remove" help:"Remove a guardian from a student"`
+}
+
+type (
+	ClassroomGuardiansListCmd struct {
+		StudentID string `arg:"" name:"student-id" help:"Student ID" required:""`
+		Max       int64  `name:"max" aliases:"limit" help:"Max results per page" default:"100"`
+	}
+	ClassroomGuardiansInviteCmd struct {
+		StudentID string `arg:"" name:"student-id" help:"Student ID" required:""`
+		Email     string `name:"email" required:"" help:"Email address of guardian to invite"`
+	}
+	ClassroomGuardiansRemoveCmd struct {
+		StudentID  string `arg:"" name:"student-id" help:"Student ID" required:""`
+		GuardianID string `arg:"" name:"guardian-id" help:"Guardian ID to remove" required:""`
+	}
+)
