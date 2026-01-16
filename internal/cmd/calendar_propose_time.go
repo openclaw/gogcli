@@ -14,7 +14,7 @@ import (
 )
 
 const (
-	proposeTimeErrorMessage    = "Google Calendar API does not support proposing new times programmatically (since 2018). Open the browser and upvote hte issue."
+	proposeTimeErrorMessage    = "Google Calendar API does not support proposing new times programmatically (since 2018). Open the browser and upvote the issue."
 	proposeTimeIssueTrackerURL = "https://issuetracker.google.com/issues/170465098"
 )
 
