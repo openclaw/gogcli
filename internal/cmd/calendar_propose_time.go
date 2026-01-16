@@ -13,6 +13,11 @@ import (
 	"github.com/steipete/gogcli/internal/ui"
 )
 
+const (
+	proposeTimeErrorMessage    = "Google Calendar API does not support proposing new times programmatically (since 2018)."
+	proposeTimeIssueTrackerURL = "https://issuetracker.google.com/issues/170465098"
+)
+
 // CalendarProposeTimeCmd generates a browser URL for proposing a new meeting time.
 // This is a workaround for a Google Calendar API limitation (since 2018).
 type CalendarProposeTimeCmd struct {
@@ -92,11 +97,13 @@ func (c *CalendarProposeTimeCmd) Run(ctx context.Context, flags *RootFlags) erro
 	// JSON output
 	if outfmt.IsJSON(ctx) {
 		result := map[string]any{
-			"event_id":    eventID,
-			"calendar_id": calendarID,
-			"summary":     event.Summary,
-			"propose_url": proposeURL,
-			"limitation":  "Google Calendar API does not support proposing new times programmatically (since 2018)",
+			"event_id":          eventID,
+			"calendar_id":       calendarID,
+			"summary":           event.Summary,
+			"propose_url":       proposeURL,
+			"limitation":        proposeTimeErrorMessage,
+			"issue_tracker_url": proposeTimeIssueTrackerURL,
+			"error_message":     proposeTimeErrorMessage,
 		}
 		if event.Start != nil {
 			if event.Start.DateTime != "" {
@@ -122,7 +129,8 @@ func (c *CalendarProposeTimeCmd) Run(ctx context.Context, flags *RootFlags) erro
 	}
 
 	// Text output
-	u.Out().Println("# Google Calendar API limitation (since 2018)")
+	u.Out().Printf("# Error: %s\n", proposeTimeErrorMessage)
+	u.Out().Printf("# Issue tracker: %s\n", proposeTimeIssueTrackerURL)
 	u.Out().Println("# \"Propose new time\" is only available via browser")
 	u.Out().Println("")
 	u.Out().Printf("event\t%s\n", orEmpty(event.Summary, "(no title)"))

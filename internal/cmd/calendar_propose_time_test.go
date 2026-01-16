@@ -120,6 +120,12 @@ func TestCalendarProposeTimeCmd_Text(t *testing.T) {
 	if !strings.Contains(out, "proposetime/") {
 		t.Errorf("output missing proposetime URL path: %q", out)
 	}
+	if !strings.Contains(out, proposeTimeIssueTrackerURL) {
+		t.Errorf("output missing issue tracker URL: %q", out)
+	}
+	if !strings.Contains(out, "Error: "+proposeTimeErrorMessage) {
+		t.Errorf("output missing error message: %q", out)
+	}
 
 	// Verify browser was opened
 	if browserOpened == "" {
