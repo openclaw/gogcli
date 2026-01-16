@@ -9,6 +9,8 @@ import (
 	"runtime"
 	"strings"
 
+	"google.golang.org/api/calendar/v3"
+
 	"github.com/steipete/gogcli/internal/outfmt"
 	"github.com/steipete/gogcli/internal/ui"
 )
@@ -90,7 +92,12 @@ func (c *CalendarProposeTimeCmd) Run(ctx context.Context, flags *RootFlags) erro
 			event.Attendees[*selfIdx].Comment = strings.TrimSpace(c.Comment)
 		}
 
-		if _, err := svc.Events.Patch(calendarID, eventID, event).Do(); err != nil {
+		// Create a minimal patch with only attendees to avoid side effects
+		patchEvent := &calendar.Event{
+			Attendees: event.Attendees,
+		}
+
+		if _, err := svc.Events.Patch(calendarID, eventID, patchEvent).Do(); err != nil {
 			return fmt.Errorf("failed to decline event: %w", err)
 		}
 	}

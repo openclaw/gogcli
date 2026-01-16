@@ -65,6 +65,11 @@ func expandRepeatSchedule(start time.Time, unit repeatUnit, count int, until *ti
 	if count < 0 {
 		count = 0
 	}
+	// Defensive guard: if neither count nor until is set, return single occurrence
+	// to prevent infinite loop (caller should validate, but be safe)
+	if count == 0 && until == nil {
+		return []time.Time{start}
+	}
 	out := []time.Time{}
 	for i := 0; ; i++ {
 		t := addRepeat(start, unit, i)

@@ -14,6 +14,7 @@ import (
 	"google.golang.org/api/calendar/v3"
 	"google.golang.org/api/option"
 
+	"github.com/steipete/gogcli/internal/outfmt"
 	"github.com/steipete/gogcli/internal/ui"
 )
 
@@ -136,6 +137,89 @@ func TestCalendarProposeTimeCmd_Text(t *testing.T) {
 	}
 	if !strings.Contains(browserOpened, "proposetime/") {
 		t.Errorf("browser URL incorrect: %q", browserOpened)
+	}
+}
+
+func TestCalendarProposeTimeCmd_JSON(t *testing.T) {
+	origNew := newCalendarService
+	origOpen := openProposeTimeBrowser
+	t.Cleanup(func() {
+		newCalendarService = origNew
+		openProposeTimeBrowser = origOpen
+	})
+	openProposeTimeBrowser = func(url string) error { return nil }
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := strings.TrimPrefix(r.URL.Path, "/calendar/v3")
+		if strings.Contains(path, "/calendars/cal1/events/evt1") && r.Method == http.MethodGet {
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"id":      "evt1",
+				"summary": "Team Meeting",
+				"start":   map[string]string{"dateTime": "2026-01-16T19:30:00-08:00"},
+				"end":     map[string]string{"dateTime": "2026-01-16T20:30:00-08:00"},
+				"attendees": []map[string]any{
+					{"email": "a@b.com", "self": true},
+					{"email": "organizer@b.com", "organizer": true},
+				},
+			})
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer srv.Close()
+
+	svc, err := calendar.NewService(context.Background(),
+		option.WithoutAuthentication(),
+		option.WithHTTPClient(srv.Client()),
+		option.WithEndpoint(srv.URL+"/"),
+	)
+	if err != nil {
+		t.Fatalf("NewService: %v", err)
+	}
+	newCalendarService = func(context.Context, string) (*calendar.Service, error) { return svc, nil }
+
+	flags := &RootFlags{Account: "a@b.com", JSON: true}
+	out := captureStdout(t, func() {
+		u, uiErr := ui.New(ui.Options{Stdout: os.Stdout, Stderr: io.Discard, Color: "never"})
+		if uiErr != nil {
+			t.Fatalf("ui.New: %v", uiErr)
+		}
+		ctx := ui.WithUI(context.Background(), u)
+		ctx = outfmt.WithMode(ctx, outfmt.Mode{JSON: true})
+
+		cmd := &CalendarProposeTimeCmd{}
+		if err := runKong(t, cmd, []string{"cal1", "evt1"}, ctx, flags); err != nil {
+			t.Fatalf("propose-time JSON: %v", err)
+		}
+	})
+
+	// Parse and verify JSON structure
+	var result map[string]any
+	if err := json.Unmarshal([]byte(out), &result); err != nil {
+		t.Fatalf("failed to parse JSON output: %v\noutput: %s", err, out)
+	}
+
+	// Verify required fields
+	requiredFields := []string{"event_id", "calendar_id", "summary", "propose_url", "api_limitation", "issue_tracker_url", "upvote_action", "current_start", "current_end"}
+	for _, field := range requiredFields {
+		if _, ok := result[field]; !ok {
+			t.Errorf("JSON missing required field %q", field)
+		}
+	}
+
+	if result["event_id"] != "evt1" {
+		t.Errorf("event_id = %v, want evt1", result["event_id"])
+	}
+	if result["calendar_id"] != "cal1" {
+		t.Errorf("calendar_id = %v, want cal1", result["calendar_id"])
+	}
+	if result["summary"] != "Team Meeting" {
+		t.Errorf("summary = %v, want Team Meeting", result["summary"])
+	}
+	proposeURL, ok := result["propose_url"].(string)
+	if !ok || !strings.Contains(proposeURL, "proposetime/") {
+		t.Errorf("propose_url invalid: %v", result["propose_url"])
 	}
 }
 
