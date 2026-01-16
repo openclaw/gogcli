@@ -30,6 +30,9 @@ func TestCalendarCreateCmd_ValidationErrors(t *testing.T) {
 	}{
 		{"missing calendar", CalendarCreateCmd{}},
 		{"missing summary", CalendarCreateCmd{CalendarID: "cal1", From: "2025-01-01T00:00:00Z", To: "2025-01-01T01:00:00Z"}},
+		{"invalid event type", CalendarCreateCmd{CalendarID: "cal1", Summary: "S", From: "2025-01-01T00:00:00Z", To: "2025-01-01T01:00:00Z", EventType: "nope"}},
+		{"working location missing type", CalendarCreateCmd{CalendarID: "cal1", EventType: "working-location", From: "2025-01-01", To: "2025-01-02"}},
+		{"working location with time", CalendarCreateCmd{CalendarID: "cal1", EventType: "working-location", From: "2025-01-01T00:00:00Z", To: "2025-01-02T00:00:00Z", WorkingLocationType: "home"}},
 		{"invalid color", CalendarCreateCmd{CalendarID: "cal1", Summary: "S", From: "2025-01-01T00:00:00Z", To: "2025-01-01T01:00:00Z", ColorId: "12"}},
 		{"invalid visibility", CalendarCreateCmd{CalendarID: "cal1", Summary: "S", From: "2025-01-01T00:00:00Z", To: "2025-01-01T01:00:00Z", Visibility: "nope"}},
 		{"invalid transparency", CalendarCreateCmd{CalendarID: "cal1", Summary: "S", From: "2025-01-01T00:00:00Z", To: "2025-01-01T01:00:00Z", Transparency: "nope"}},
@@ -178,6 +181,27 @@ func TestCalendarUpdateCmd_ValidationErrors(t *testing.T) {
 		kctx := parseKongContext(t, cmd, []string{"cal", "evt"})
 		if err := cmd.Run(ctx, kctx, flags); err == nil {
 			t.Fatalf("expected error for no updates")
+		}
+	}
+	{
+		cmd := &CalendarUpdateCmd{CalendarID: "cal", EventID: "evt", EventType: "nope"}
+		kctx := parseKongContext(t, cmd, []string{"cal", "evt", "--event-type", "nope"})
+		if err := cmd.Run(ctx, kctx, flags); err == nil {
+			t.Fatalf("expected error for invalid event-type")
+		}
+	}
+	{
+		cmd := &CalendarUpdateCmd{CalendarID: "cal", EventID: "evt", EventType: "working-location"}
+		kctx := parseKongContext(t, cmd, []string{"cal", "evt", "--event-type", "working-location"})
+		if err := cmd.Run(ctx, kctx, flags); err == nil {
+			t.Fatalf("expected error for working-location without type")
+		}
+	}
+	{
+		cmd := &CalendarUpdateCmd{CalendarID: "cal", EventID: "evt", EventType: "working-location", WorkingLocationType: "home", From: "2025-01-01T00:00:00Z", To: "2025-01-02T00:00:00Z"}
+		kctx := parseKongContext(t, cmd, []string{"cal", "evt", "--event-type", "working-location", "--working-location-type", "home", "--from", "2025-01-01T00:00:00Z", "--to", "2025-01-02T00:00:00Z"})
+		if err := cmd.Run(ctx, kctx, flags); err == nil {
+			t.Fatalf("expected error for working-location with time range")
 		}
 	}
 }

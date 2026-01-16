@@ -41,7 +41,7 @@ func listCalendarEvents(ctx context.Context, svc *calendar.Service, calendarID, 
 	}
 	if outfmt.IsJSON(ctx) {
 		return outfmt.WriteJSON(os.Stdout, map[string]any{
-			"events":        resp.Items,
+			"events":        wrapEventsWithDays(resp.Items),
 			"nextPageToken": resp.NextPageToken,
 		})
 	}
@@ -64,7 +64,9 @@ func listCalendarEvents(ctx context.Context, svc *calendar.Service, calendarID, 
 
 type eventWithCalendar struct {
 	*calendar.Event
-	CalendarID string
+	CalendarID     string
+	StartDayOfWeek string `json:"startDayOfWeek,omitempty"`
+	EndDayOfWeek   string `json:"endDayOfWeek,omitempty"`
 }
 
 func listAllCalendarsEvents(ctx context.Context, svc *calendar.Service, from, to string, maxResults int64, page, query, privatePropFilter, sharedPropFilter, fields string) error {
@@ -107,7 +109,13 @@ func listAllCalendarsEvents(ctx context.Context, svc *calendar.Service, from, to
 			continue
 		}
 		for _, e := range events.Items {
-			all = append(all, &eventWithCalendar{Event: e, CalendarID: cal.Id})
+			startDay, endDay := eventDaysOfWeek(e)
+			all = append(all, &eventWithCalendar{
+				Event:          e,
+				CalendarID:     cal.Id,
+				StartDayOfWeek: startDay,
+				EndDayOfWeek:   endDay,
+			})
 		}
 	}
 

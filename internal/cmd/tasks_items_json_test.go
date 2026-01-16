@@ -33,6 +33,10 @@ func TestTasksItems_JSONPaths(t *testing.T) {
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(map[string]any{"id": "t1", "title": "Task"})
 			return
+		case strings.HasSuffix(r.URL.Path, "/tasks/v1/lists/l1/tasks/t1") && r.Method == http.MethodGet:
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{"id": "t1", "title": "Task"})
+			return
 		case strings.Contains(r.URL.Path, "/tasks/v1/lists/l1/tasks/t1") && r.Method == http.MethodPatch:
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(map[string]any{"id": "t1", "title": "Task", "status": "completed"})
@@ -93,6 +97,15 @@ func TestTasksItems_JSONPaths(t *testing.T) {
 			"--title", "Task",
 		}, ctx, flags); err != nil {
 			t.Fatalf("add: %v", err)
+		}
+	})
+
+	// get
+	_ = captureStdout(t, func() {
+		if err := runKong(t, &TasksGetCmd{}, []string{
+			"l1", "t1",
+		}, ctx, flags); err != nil {
+			t.Fatalf("get: %v", err)
 		}
 	})
 

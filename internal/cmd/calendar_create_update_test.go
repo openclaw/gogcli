@@ -233,6 +233,196 @@ func TestCalendarUpdateCmd_AddAttendee(t *testing.T) {
 	}
 }
 
+func TestCalendarCreateCmd_EventTypeFocusTimeDefaults(t *testing.T) {
+	origNew := newCalendarService
+	t.Cleanup(func() { newCalendarService = origNew })
+
+	var gotEvent calendar.Event
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := strings.TrimPrefix(r.URL.Path, "/calendar/v3")
+		if r.Method == http.MethodPost && path == "/calendars/cal/events" {
+			_ = json.NewDecoder(r.Body).Decode(&gotEvent)
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"id": "ev1",
+			})
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer srv.Close()
+
+	svc, err := calendar.NewService(context.Background(),
+		option.WithoutAuthentication(),
+		option.WithHTTPClient(srv.Client()),
+		option.WithEndpoint(srv.URL+"/"),
+	)
+	if err != nil {
+		t.Fatalf("NewService: %v", err)
+	}
+	newCalendarService = func(context.Context, string) (*calendar.Service, error) { return svc, nil }
+
+	u, err := ui.New(ui.Options{Stdout: os.Stdout, Stderr: os.Stderr, Color: "never"})
+	if err != nil {
+		t.Fatalf("ui.New: %v", err)
+	}
+	ctx := outfmt.WithMode(ui.WithUI(context.Background(), u), outfmt.Mode{JSON: true})
+
+	cmd := &CalendarCreateCmd{}
+	if err := runKong(t, cmd, []string{
+		"cal",
+		"--event-type", "focus-time",
+		"--from", "2025-01-02T10:00:00Z",
+		"--to", "2025-01-02T11:00:00Z",
+	}, ctx, &RootFlags{Account: "a@b.com"}); err != nil {
+		t.Fatalf("runKong: %v", err)
+	}
+
+	if gotEvent.EventType != eventTypeFocusTime {
+		t.Fatalf("expected focusTime event type, got %q", gotEvent.EventType)
+	}
+	if gotEvent.Summary != defaultFocusSummary {
+		t.Fatalf("expected default summary, got %q", gotEvent.Summary)
+	}
+	if gotEvent.Transparency != transparencyOpaque {
+		t.Fatalf("expected opaque transparency, got %q", gotEvent.Transparency)
+	}
+	if gotEvent.FocusTimeProperties == nil {
+		t.Fatalf("expected focus time properties")
+	}
+	if gotEvent.FocusTimeProperties.AutoDeclineMode != "declineAllConflictingInvitations" {
+		t.Fatalf("unexpected autoDeclineMode: %q", gotEvent.FocusTimeProperties.AutoDeclineMode)
+	}
+	if gotEvent.FocusTimeProperties.ChatStatus != defaultFocusChatStatus {
+		t.Fatalf("unexpected chat status: %q", gotEvent.FocusTimeProperties.ChatStatus)
+	}
+}
+
+func TestCalendarCreateCmd_EventTypeWorkingLocation(t *testing.T) {
+	origNew := newCalendarService
+	t.Cleanup(func() { newCalendarService = origNew })
+
+	var gotEvent calendar.Event
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := strings.TrimPrefix(r.URL.Path, "/calendar/v3")
+		if r.Method == http.MethodPost && path == "/calendars/cal/events" {
+			_ = json.NewDecoder(r.Body).Decode(&gotEvent)
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"id": "ev1",
+			})
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer srv.Close()
+
+	svc, err := calendar.NewService(context.Background(),
+		option.WithoutAuthentication(),
+		option.WithHTTPClient(srv.Client()),
+		option.WithEndpoint(srv.URL+"/"),
+	)
+	if err != nil {
+		t.Fatalf("NewService: %v", err)
+	}
+	newCalendarService = func(context.Context, string) (*calendar.Service, error) { return svc, nil }
+
+	u, err := ui.New(ui.Options{Stdout: os.Stdout, Stderr: os.Stderr, Color: "never"})
+	if err != nil {
+		t.Fatalf("ui.New: %v", err)
+	}
+	ctx := outfmt.WithMode(ui.WithUI(context.Background(), u), outfmt.Mode{JSON: true})
+
+	cmd := &CalendarCreateCmd{}
+	if err := runKong(t, cmd, []string{
+		"cal",
+		"--event-type", "working-location",
+		"--working-location-type", "office",
+		"--working-office-label", "HQ",
+		"--from", "2025-01-01",
+		"--to", "2025-01-02",
+	}, ctx, &RootFlags{Account: "a@b.com"}); err != nil {
+		t.Fatalf("runKong: %v", err)
+	}
+
+	if gotEvent.EventType != eventTypeWorkingLocation {
+		t.Fatalf("expected workingLocation event type, got %q", gotEvent.EventType)
+	}
+	if gotEvent.Summary != "Working from HQ" {
+		t.Fatalf("expected working location summary, got %q", gotEvent.Summary)
+	}
+	if gotEvent.Start == nil || gotEvent.Start.Date != "2025-01-01" {
+		t.Fatalf("unexpected start date: %#v", gotEvent.Start)
+	}
+	if gotEvent.End == nil || gotEvent.End.Date != "2025-01-02" {
+		t.Fatalf("unexpected end date: %#v", gotEvent.End)
+	}
+	if gotEvent.WorkingLocationProperties == nil || gotEvent.WorkingLocationProperties.Type != "officeLocation" {
+		t.Fatalf("unexpected working location props: %#v", gotEvent.WorkingLocationProperties)
+	}
+}
+
+func TestCalendarUpdateCmd_EventTypeOOO(t *testing.T) {
+	origNew := newCalendarService
+	t.Cleanup(func() { newCalendarService = origNew })
+
+	var gotEvent calendar.Event
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := strings.TrimPrefix(r.URL.Path, "/calendar/v3")
+		if r.Method == http.MethodPatch && path == "/calendars/cal/events/ev" {
+			_ = json.NewDecoder(r.Body).Decode(&gotEvent)
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"id": "ev",
+			})
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer srv.Close()
+
+	svc, err := calendar.NewService(context.Background(),
+		option.WithoutAuthentication(),
+		option.WithHTTPClient(srv.Client()),
+		option.WithEndpoint(srv.URL+"/"),
+	)
+	if err != nil {
+		t.Fatalf("NewService: %v", err)
+	}
+	newCalendarService = func(context.Context, string) (*calendar.Service, error) { return svc, nil }
+
+	u, err := ui.New(ui.Options{Stdout: os.Stdout, Stderr: os.Stderr, Color: "never"})
+	if err != nil {
+		t.Fatalf("ui.New: %v", err)
+	}
+	ctx := outfmt.WithMode(ui.WithUI(context.Background(), u), outfmt.Mode{JSON: true})
+
+	cmd := &CalendarUpdateCmd{}
+	if err := runKong(t, cmd, []string{
+		"cal",
+		"ev",
+		"--event-type", "out-of-office",
+	}, ctx, &RootFlags{Account: "a@b.com"}); err != nil {
+		t.Fatalf("runKong: %v", err)
+	}
+
+	if gotEvent.EventType != eventTypeOutOfOffice {
+		t.Fatalf("expected outOfOffice event type, got %q", gotEvent.EventType)
+	}
+	if gotEvent.Transparency != transparencyOpaque {
+		t.Fatalf("expected opaque transparency, got %q", gotEvent.Transparency)
+	}
+	if gotEvent.OutOfOfficeProperties == nil {
+		t.Fatalf("expected out-of-office properties")
+	}
+	if gotEvent.OutOfOfficeProperties.AutoDeclineMode != "declineAllConflictingInvitations" {
+		t.Fatalf("unexpected autoDeclineMode: %q", gotEvent.OutOfOfficeProperties.AutoDeclineMode)
+	}
+	if gotEvent.OutOfOfficeProperties.DeclineMessage != defaultOOODeclineMsg {
+		t.Fatalf("unexpected decline message: %q", gotEvent.OutOfOfficeProperties.DeclineMessage)
+	}
+}
+
 func TestCalendarUpdateCmd_ScopeFuture(t *testing.T) {
 	origNew := newCalendarService
 	t.Cleanup(func() { newCalendarService = origNew })

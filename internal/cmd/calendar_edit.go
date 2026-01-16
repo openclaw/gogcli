@@ -37,6 +37,18 @@ type CalendarCreateCmd struct {
 	Attachments           []string `name:"attachment" help:"File attachment URL (can be repeated)"`
 	PrivateProps          []string `name:"private-prop" help:"Private extended property (key=value, can be repeated)"`
 	SharedProps           []string `name:"shared-prop" help:"Shared extended property (key=value, can be repeated)"`
+	EventType             string   `name:"event-type" help:"Event type: default, focus-time, out-of-office, working-location"`
+	FocusAutoDecline      string   `name:"focus-auto-decline" help:"Focus Time auto-decline mode: none, all, new"`
+	FocusDeclineMessage   string   `name:"focus-decline-message" help:"Focus Time decline message"`
+	FocusChatStatus       string   `name:"focus-chat-status" help:"Focus Time chat status: available, doNotDisturb"`
+	OOOAutoDecline        string   `name:"ooo-auto-decline" help:"Out of Office auto-decline mode: none, all, new"`
+	OOODeclineMessage     string   `name:"ooo-decline-message" help:"Out of Office decline message"`
+	WorkingLocationType   string   `name:"working-location-type" help:"Working location type: home, office, custom"`
+	WorkingOfficeLabel    string   `name:"working-office-label" help:"Working location office name/label"`
+	WorkingBuildingId     string   `name:"working-building-id" help:"Working location building ID"`
+	WorkingFloorId        string   `name:"working-floor-id" help:"Working location floor ID"`
+	WorkingDeskId         string   `name:"working-desk-id" help:"Working location desk ID"`
+	WorkingCustomLabel    string   `name:"working-custom-label" help:"Working location custom label"`
 }
 
 func (c *CalendarCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -50,7 +62,16 @@ func (c *CalendarCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return usage("empty calendarId")
 	}
 
-	if strings.TrimSpace(c.Summary) == "" || strings.TrimSpace(c.From) == "" || strings.TrimSpace(c.To) == "" {
+	eventType, err := c.resolveCreateEventType()
+	if err != nil {
+		return err
+	}
+
+	summary := strings.TrimSpace(c.Summary)
+	if summary == "" {
+		summary = c.defaultSummaryForEventType(eventType)
+	}
+	if summary == "" || strings.TrimSpace(c.From) == "" || strings.TrimSpace(c.To) == "" {
 		return usage("required: --summary, --from, --to")
 	}
 
@@ -75,17 +96,23 @@ func (c *CalendarCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
+	allDay, err := resolveCreateAllDay(c.From, c.To, c.AllDay, eventType)
+	if err != nil {
+		return err
+	}
+	transparency = applyEventTypeTransparencyDefault(transparency, eventType)
+
 	svc, err := newCalendarService(ctx, account)
 	if err != nil {
 		return err
 	}
 
 	event := &calendar.Event{
-		Summary:            strings.TrimSpace(c.Summary),
+		Summary:            summary,
 		Description:        strings.TrimSpace(c.Description),
 		Location:           strings.TrimSpace(c.Location),
-		Start:              buildEventDateTime(c.From, c.AllDay),
-		End:                buildEventDateTime(c.To, c.AllDay),
+		Start:              buildEventDateTime(c.From, allDay),
+		End:                buildEventDateTime(c.To, allDay),
 		Attendees:          buildAttendees(c.Attendees),
 		Recurrence:         buildRecurrence(c.Recurrence),
 		Reminders:          reminders,
@@ -112,6 +139,10 @@ func (c *CalendarCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
 		}
 	}
 
+	if err = c.applyCreateEventType(event, eventType); err != nil {
+		return err
+	}
+
 	call := svc.Events.Insert(calendarID, event)
 	if sendUpdates != "" {
 		call = call.SendUpdates(sendUpdates)
@@ -127,10 +158,139 @@ func (c *CalendarCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{"event": created})
+		return outfmt.WriteJSON(os.Stdout, map[string]any{"event": wrapEventWithDays(created)})
 	}
 	printCalendarEvent(u, created)
 	return nil
+}
+
+func (c *CalendarCreateCmd) resolveCreateEventType() (string, error) {
+	focusFlags := strings.TrimSpace(c.FocusAutoDecline) != "" ||
+		strings.TrimSpace(c.FocusDeclineMessage) != "" ||
+		strings.TrimSpace(c.FocusChatStatus) != ""
+	oooFlags := strings.TrimSpace(c.OOOAutoDecline) != "" ||
+		strings.TrimSpace(c.OOODeclineMessage) != ""
+	workingFlags := strings.TrimSpace(c.WorkingLocationType) != "" ||
+		strings.TrimSpace(c.WorkingOfficeLabel) != "" ||
+		strings.TrimSpace(c.WorkingBuildingId) != "" ||
+		strings.TrimSpace(c.WorkingFloorId) != "" ||
+		strings.TrimSpace(c.WorkingDeskId) != "" ||
+		strings.TrimSpace(c.WorkingCustomLabel) != ""
+
+	return resolveEventType(c.EventType, focusFlags, oooFlags, workingFlags)
+}
+
+func (c *CalendarCreateCmd) defaultSummaryForEventType(eventType string) string {
+	switch eventType {
+	case eventTypeFocusTime:
+		return defaultFocusSummary
+	case eventTypeOutOfOffice:
+		return defaultOOOSummary
+	case eventTypeWorkingLocation:
+		return workingLocationSummary(workingLocationInput{
+			Type:        c.WorkingLocationType,
+			OfficeLabel: c.WorkingOfficeLabel,
+			CustomLabel: c.WorkingCustomLabel,
+		})
+	default:
+		return ""
+	}
+}
+
+func resolveCreateAllDay(from, to string, allDay bool, eventType string) (bool, error) {
+	if eventType != eventTypeWorkingLocation {
+		return allDay, nil
+	}
+	if strings.Contains(from, "T") || strings.Contains(to, "T") {
+		return false, usage("working-location requires date-only --from/--to (YYYY-MM-DD)")
+	}
+	return true, nil
+}
+
+func applyEventTypeTransparencyDefault(transparency, eventType string) string {
+	if transparency == "" && (eventType == eventTypeFocusTime || eventType == eventTypeOutOfOffice) {
+		return transparencyOpaque
+	}
+	return transparency
+}
+
+func (c *CalendarCreateCmd) applyCreateEventType(event *calendar.Event, eventType string) error {
+	switch eventType {
+	case eventTypeDefault:
+		event.EventType = eventTypeDefault
+	case eventTypeFocusTime:
+		props, err := c.buildFocusTimeProperties()
+		if err != nil {
+			return err
+		}
+		event.EventType = eventTypeFocusTime
+		event.FocusTimeProperties = props
+	case eventTypeOutOfOffice:
+		props, err := c.buildOutOfOfficeProperties()
+		if err != nil {
+			return err
+		}
+		event.EventType = eventTypeOutOfOffice
+		event.OutOfOfficeProperties = props
+	case eventTypeWorkingLocation:
+		props, err := buildWorkingLocationProperties(workingLocationInput{
+			Type:        c.WorkingLocationType,
+			OfficeLabel: c.WorkingOfficeLabel,
+			BuildingId:  c.WorkingBuildingId,
+			FloorId:     c.WorkingFloorId,
+			DeskId:      c.WorkingDeskId,
+			CustomLabel: c.WorkingCustomLabel,
+		})
+		if err != nil {
+			return err
+		}
+		event.EventType = eventTypeWorkingLocation
+		event.WorkingLocationProperties = props
+	}
+	return nil
+}
+
+func (c *CalendarCreateCmd) buildFocusTimeProperties() (*calendar.EventFocusTimeProperties, error) {
+	autoDecline := strings.TrimSpace(c.FocusAutoDecline)
+	if autoDecline == "" {
+		autoDecline = defaultFocusAutoDecline
+	}
+	autoDeclineMode, err := validateAutoDeclineMode(autoDecline)
+	if err != nil {
+		return nil, err
+	}
+	chatStatus := strings.TrimSpace(c.FocusChatStatus)
+	if chatStatus == "" {
+		chatStatus = defaultFocusChatStatus
+	}
+	chatStatusValue, err := validateChatStatus(chatStatus)
+	if err != nil {
+		return nil, err
+	}
+	return &calendar.EventFocusTimeProperties{
+		AutoDeclineMode: autoDeclineMode,
+		DeclineMessage:  strings.TrimSpace(c.FocusDeclineMessage),
+		ChatStatus:      chatStatusValue,
+	}, nil
+}
+
+func (c *CalendarCreateCmd) buildOutOfOfficeProperties() (*calendar.EventOutOfOfficeProperties, error) {
+	autoDecline := strings.TrimSpace(c.OOOAutoDecline)
+	if autoDecline == "" {
+		autoDecline = defaultOOOAutoDecline
+	}
+	autoDeclineMode, err := validateAutoDeclineMode(autoDecline)
+	if err != nil {
+		return nil, err
+	}
+	declineMessage := strings.TrimSpace(c.OOODeclineMessage)
+	if declineMessage == "" {
+		declineMessage = defaultOOODeclineMsg
+	}
+	return &calendar.EventOutOfOfficeProperties{
+		AutoDeclineMode: autoDeclineMode,
+		DeclineMessage:  declineMessage,
+	}, nil
 }
 
 type CalendarUpdateCmd struct {
@@ -156,6 +316,18 @@ type CalendarUpdateCmd struct {
 	OriginalStartTime     string   `name:"original-start" help:"Original start time of instance (required for scope=single,future)"`
 	PrivateProps          []string `name:"private-prop" help:"Private extended property (key=value, can be repeated)"`
 	SharedProps           []string `name:"shared-prop" help:"Shared extended property (key=value, can be repeated)"`
+	EventType             string   `name:"event-type" help:"Event type: default, focus-time, out-of-office, working-location"`
+	FocusAutoDecline      string   `name:"focus-auto-decline" help:"Focus Time auto-decline mode: none, all, new"`
+	FocusDeclineMessage   string   `name:"focus-decline-message" help:"Focus Time decline message (set empty to clear)"`
+	FocusChatStatus       string   `name:"focus-chat-status" help:"Focus Time chat status: available, doNotDisturb"`
+	OOOAutoDecline        string   `name:"ooo-auto-decline" help:"Out of Office auto-decline mode: none, all, new"`
+	OOODeclineMessage     string   `name:"ooo-decline-message" help:"Out of Office decline message (set empty to clear)"`
+	WorkingLocationType   string   `name:"working-location-type" help:"Working location type: home, office, custom"`
+	WorkingOfficeLabel    string   `name:"working-office-label" help:"Working location office name/label"`
+	WorkingBuildingId     string   `name:"working-building-id" help:"Working location building ID"`
+	WorkingFloorId        string   `name:"working-floor-id" help:"Working location floor ID"`
+	WorkingDeskId         string   `name:"working-desk-id" help:"Working location desk ID"`
+	WorkingCustomLabel    string   `name:"working-custom-label" help:"Working location custom label"`
 }
 
 func (c *CalendarUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *RootFlags) error {
@@ -251,7 +423,7 @@ func (c *CalendarUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *
 		}
 	}
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{"event": updated})
+		return outfmt.WriteJSON(os.Stdout, map[string]any{"event": wrapEventWithDays(updated)})
 	}
 	printCalendarEvent(u, updated)
 	return nil
@@ -261,6 +433,79 @@ func (c *CalendarUpdateCmd) buildUpdatePatch(kctx *kong.Context) (*calendar.Even
 	patch := &calendar.Event{}
 	changed := false
 
+	eventType, eventTypeRequested, focusFlags, oooFlags, workingFlags, err := c.resolveUpdateEventType(kctx)
+	if err != nil {
+		return nil, false, err
+	}
+
+	if c.applyTextFields(kctx, patch) {
+		changed = true
+	}
+
+	timeChanged, err := c.applyTimeFields(kctx, patch, eventType)
+	if err != nil {
+		return nil, false, err
+	}
+	if timeChanged {
+		changed = true
+	}
+
+	if c.applyAttendees(kctx, patch) {
+		changed = true
+	}
+
+	if c.applyRecurrence(kctx, patch) {
+		changed = true
+	}
+
+	remindersChanged, err := c.applyReminders(kctx, patch)
+	if err != nil {
+		return nil, false, err
+	}
+	if remindersChanged {
+		changed = true
+	}
+
+	displayChanged, err := c.applyDisplayOptions(kctx, patch)
+	if err != nil {
+		return nil, false, err
+	}
+	if displayChanged {
+		changed = true
+	}
+
+	if c.applyGuestOptions(kctx, patch) {
+		changed = true
+	}
+
+	if c.applyExtendedProperties(kctx, patch) {
+		changed = true
+	}
+
+	eventTypeChanged, err := c.applyEventTypeProperties(kctx, patch, eventType, eventTypeRequested, focusFlags, oooFlags, workingFlags)
+	if err != nil {
+		return nil, false, err
+	}
+	if eventTypeChanged {
+		changed = true
+	}
+
+	return patch, changed, nil
+}
+
+func (c *CalendarUpdateCmd) resolveUpdateEventType(kctx *kong.Context) (string, bool, bool, bool, bool, error) {
+	focusFlags := flagProvidedAny(kctx, "focus-auto-decline", "focus-decline-message", "focus-chat-status")
+	oooFlags := flagProvidedAny(kctx, "ooo-auto-decline", "ooo-decline-message")
+	workingFlags := flagProvidedAny(kctx, "working-location-type", "working-office-label", "working-building-id", "working-floor-id", "working-desk-id", "working-custom-label")
+	eventType, err := resolveEventType(c.EventType, focusFlags, oooFlags, workingFlags)
+	if err != nil {
+		return "", false, false, false, false, err
+	}
+	return eventType, eventType != "", focusFlags, oooFlags, workingFlags, nil
+}
+
+func (c *CalendarUpdateCmd) applyTextFields(kctx *kong.Context, patch *calendar.Event) bool {
+	changed := false
 	if flagProvided(kctx, "summary") {
 		patch.Summary = strings.TrimSpace(c.Summary)
 		changed = true
@@ -273,45 +518,85 @@ func (c *CalendarUpdateCmd) buildUpdatePatch(kctx *kong.Context) (*calendar.Even
 		patch.Location = strings.TrimSpace(c.Location)
 		changed = true
 	}
+	return changed
+}
+
+func resolveUpdateAllDay(value string, allDay bool, eventType string) (bool, error) {
+	if eventType != eventTypeWorkingLocation {
+		return allDay, nil
+	}
+	if strings.Contains(value, "T") {
+		return false, usage("working-location requires date-only --from/--to (YYYY-MM-DD)")
+	}
+	return true, nil
+}
+
+func (c *CalendarUpdateCmd) applyTimeFields(kctx *kong.Context, patch *calendar.Event, eventType string) (bool, error) {
+	changed := false
 	if flagProvided(kctx, "from") {
-		patch.Start = buildEventDateTime(c.From, c.AllDay)
+		allDay, err := resolveUpdateAllDay(c.From, c.AllDay, eventType)
+		if err != nil {
+			return false, err
+		}
+		patch.Start = buildEventDateTime(c.From, allDay)
 		changed = true
 	}
 	if flagProvided(kctx, "to") {
-		patch.End = buildEventDateTime(c.To, c.AllDay)
-		changed = true
-	}
-	if flagProvided(kctx, "attendees") {
-		patch.Attendees = buildAttendees(c.Attendees)
-		changed = true
-	}
-	if flagProvided(kctx, "rrule") {
-		recurrence := buildRecurrence(c.Recurrence)
-		if recurrence == nil {
-			patch.Recurrence = []string{}
-			patch.ForceSendFields = append(patch.ForceSendFields, "Recurrence")
-		} else {
-			patch.Recurrence = recurrence
-		}
-		changed = true
-	}
-	if flagProvided(kctx, "reminder") {
-		reminders, err := buildReminders(c.Reminders)
+		allDay, err := resolveUpdateAllDay(c.To, c.AllDay, eventType)
 		if err != nil {
-			return nil, false, err
+			return false, err
 		}
-		if reminders == nil {
-			patch.Reminders = &calendar.EventReminders{UseDefault: true}
-			patch.ForceSendFields = append(patch.ForceSendFields, "Reminders")
-		} else {
-			patch.Reminders = reminders
-		}
+		patch.End = buildEventDateTime(c.To, allDay)
 		changed = true
 	}
+	return changed, nil
+}
+
+func (c *CalendarUpdateCmd) applyAttendees(kctx *kong.Context, patch *calendar.Event) bool {
+	if !flagProvided(kctx, "attendees") {
+		return false
+	}
+	patch.Attendees = buildAttendees(c.Attendees)
+	return true
+}
+
+func (c *CalendarUpdateCmd) applyRecurrence(kctx *kong.Context, patch *calendar.Event) bool {
+	if !flagProvided(kctx, "rrule") {
+		return false
+	}
+	recurrence := buildRecurrence(c.Recurrence)
+	if recurrence == nil {
+		patch.Recurrence = []string{}
+		patch.ForceSendFields = append(patch.ForceSendFields, "Recurrence")
+	} else {
+		patch.Recurrence = recurrence
+	}
+	return true
+}
+
+func (c *CalendarUpdateCmd) applyReminders(kctx *kong.Context, patch *calendar.Event) (bool, error) {
+	if !flagProvided(kctx, "reminder") {
+		return false, nil
+	}
+	reminders, err := buildReminders(c.Reminders)
+	if err != nil {
+		return false, err
+	}
+	if reminders == nil {
+		patch.Reminders = &calendar.EventReminders{UseDefault: true}
+		patch.ForceSendFields = append(patch.ForceSendFields, "Reminders")
+	} else {
+		patch.Reminders = reminders
+	}
+	return true, nil
+}
+
+func (c *CalendarUpdateCmd) applyDisplayOptions(kctx *kong.Context, patch *calendar.Event) (bool, error) {
+	changed := false
 	if flagProvided(kctx, "event-color") {
 		colorId, err := validateColorId(c.ColorId)
 		if err != nil {
-			return nil, false, err
+			return false, err
 		}
 		patch.ColorId = colorId
 		changed = true
@@ -319,7 +604,7 @@ func (c *CalendarUpdateCmd) buildUpdatePatch(kctx *kong.Context) (*calendar.Even
 	if flagProvided(kctx, "visibility") {
 		visibility, err := validateVisibility(c.Visibility)
 		if err != nil {
-			return nil, false, err
+			return false, err
 		}
 		patch.Visibility = visibility
 		changed = true
@@ -327,11 +612,16 @@ func (c *CalendarUpdateCmd) buildUpdatePatch(kctx *kong.Context) (*calendar.Even
 	if flagProvided(kctx, "transparency") {
 		transparency, err := validateTransparency(c.Transparency)
 		if err != nil {
-			return nil, false, err
+			return false, err
 		}
 		patch.Transparency = transparency
 		changed = true
 	}
+	return changed, nil
+}
+
+func (c *CalendarUpdateCmd) applyGuestOptions(kctx *kong.Context, patch *calendar.Event) bool {
+	changed := false
 	if flagProvided(kctx, "guests-can-invite") {
 		if c.GuestsCanInviteOthers != nil {
 			patch.GuestsCanInviteOthers = c.GuestsCanInviteOthers
@@ -353,12 +643,112 @@ func (c *CalendarUpdateCmd) buildUpdatePatch(kctx *kong.Context) (*calendar.Even
 		patch.ForceSendFields = append(patch.ForceSendFields, "GuestsCanSeeOtherGuests")
 		changed = true
 	}
-	if flagProvided(kctx, "private-prop") || flagProvided(kctx, "shared-prop") {
-		patch.ExtendedProperties = buildExtendedProperties(c.PrivateProps, c.SharedProps)
+	return changed
+}
+
+func (c *CalendarUpdateCmd) applyExtendedProperties(kctx *kong.Context, patch *calendar.Event) bool {
+	if !flagProvided(kctx, "private-prop") && !flagProvided(kctx, "shared-prop") {
+		return false
+	}
+	patch.ExtendedProperties = buildExtendedProperties(c.PrivateProps, c.SharedProps)
+	return true
+}
+
+func (c *CalendarUpdateCmd) applyEventTypeProperties(kctx *kong.Context, patch *calendar.Event, eventType string, eventTypeRequested, focusFlags, oooFlags, workingFlags bool) (bool, error) {
+	changed := false
+	if eventTypeRequested {
+		patch.EventType = eventType
+		changed = true
+		if eventType == eventTypeDefault {
+			patch.NullFields = append(patch.NullFields, "FocusTimeProperties", "OutOfOfficeProperties", "WorkingLocationProperties")
+		}
+	}
+	if eventTypeRequested && !flagProvided(kctx, "transparency") &&
+		(eventType == eventTypeFocusTime || eventType == eventTypeOutOfOffice) {
+		patch.Transparency = transparencyOpaque
 		changed = true
 	}
 
-	return patch, changed, nil
+	switch eventType {
+	case eventTypeFocusTime:
+		if eventTypeRequested || focusFlags {
+			props, err := c.buildUpdateFocusTimeProperties()
+			if err != nil {
+				return false, err
+			}
+			patch.FocusTimeProperties = props
+			changed = true
+		}
+	case eventTypeOutOfOffice:
+		if eventTypeRequested || oooFlags {
+			props, err := c.buildUpdateOutOfOfficeProperties(flagProvided(kctx, "ooo-decline-message"))
+			if err != nil {
+				return false, err
+			}
+			patch.OutOfOfficeProperties = props
+			changed = true
+		}
+	case eventTypeWorkingLocation:
+		if eventTypeRequested || workingFlags {
+			props, err := buildWorkingLocationProperties(workingLocationInput{
+				Type:        c.WorkingLocationType,
+				OfficeLabel: c.WorkingOfficeLabel,
+				BuildingId:  c.WorkingBuildingId,
+				FloorId:     c.WorkingFloorId,
+				DeskId:      c.WorkingDeskId,
+				CustomLabel: c.WorkingCustomLabel,
+			})
+			if err != nil {
+				return false, err
+			}
+			patch.WorkingLocationProperties = props
+			changed = true
+		}
+	}
+	return changed, nil
+}
+
+func (c *CalendarUpdateCmd) buildUpdateFocusTimeProperties() (*calendar.EventFocusTimeProperties, error) {
+	autoDecline := strings.TrimSpace(c.FocusAutoDecline)
+	if autoDecline == "" {
+		autoDecline = defaultFocusAutoDecline
+	}
+	autoDeclineMode, err := validateAutoDeclineMode(autoDecline)
+	if err != nil {
+		return nil, err
+	}
+	chatStatus := strings.TrimSpace(c.FocusChatStatus)
+	if chatStatus == "" {
+		chatStatus = defaultFocusChatStatus
+	}
+	chatStatusValue, err := validateChatStatus(chatStatus)
+	if err != nil {
+		return nil, err
+	}
+	return &calendar.EventFocusTimeProperties{
+		AutoDeclineMode: autoDeclineMode,
+		DeclineMessage:  strings.TrimSpace(c.FocusDeclineMessage),
+		ChatStatus:      chatStatusValue,
+	}, nil
+}
+
+func (c *CalendarUpdateCmd) buildUpdateOutOfOfficeProperties(declineProvided bool) (*calendar.EventOutOfOfficeProperties, error) {
+	autoDecline := strings.TrimSpace(c.OOOAutoDecline)
+	if autoDecline == "" {
+		autoDecline = defaultOOOAutoDecline
+	}
+	autoDeclineMode, err := validateAutoDeclineMode(autoDecline)
+	if err != nil {
+		return nil, err
+	}
+	declineMessage := strings.TrimSpace(c.OOODeclineMessage)
+	if declineMessage == "" && !declineProvided {
+		declineMessage = defaultOOODeclineMsg
+	}
+	return &calendar.EventOutOfOfficeProperties{
+		AutoDeclineMode: autoDeclineMode,
+		DeclineMessage:  declineMessage,
+	}, nil
 }
 
 func applyUpdateScope(ctx context.Context, svc *calendar.Service, calendarID, eventID, scope, originalStartTime string, patch *calendar.Event) (string, []string, error) {

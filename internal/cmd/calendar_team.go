@@ -26,14 +26,16 @@ type CalendarTeamCmd struct {
 
 // teamEvent represents a calendar event with owner information.
 type teamEvent struct {
-	Who       string `json:"who"`
-	ID        string `json:"id"`
-	Start     string `json:"start"`
-	End       string `json:"end"`
-	Summary   string `json:"summary"`
-	Status    string `json:"status,omitempty"`
-	dedupeKey string
-	sortKey   time.Time
+	Who            string `json:"who"`
+	ID             string `json:"id"`
+	Start          string `json:"start"`
+	End            string `json:"end"`
+	Summary        string `json:"summary"`
+	Status         string `json:"status,omitempty"`
+	StartDayOfWeek string `json:"startDayOfWeek,omitempty"`
+	EndDayOfWeek   string `json:"endDayOfWeek,omitempty"`
+	dedupeKey      string
+	sortKey        time.Time
 }
 
 func (c *CalendarTeamCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -223,19 +225,22 @@ func (c *CalendarTeamCmd) runEvents(ctx context.Context, svc *calendar.Service, 
 				}
 
 				start, end := formatEventTime(ev, tr.Location)
+				startDay, endDay := eventDaysOfWeek(ev)
 				startTime := parseEventStart(ev, tr.Location)
 				dedupeKey := eventDedupeKey(ev, startTime)
 
 				mu.Lock()
 				events = append(events, teamEvent{
-					Who:       email,
-					ID:        ev.Id,
-					Start:     start,
-					End:       end,
-					Summary:   summary,
-					Status:    ev.Status,
-					dedupeKey: dedupeKey,
-					sortKey:   startTime,
+					Who:            email,
+					ID:             ev.Id,
+					Start:          start,
+					End:            end,
+					Summary:        summary,
+					Status:         ev.Status,
+					StartDayOfWeek: startDay,
+					EndDayOfWeek:   endDay,
+					dedupeKey:      dedupeKey,
+					sortKey:        startTime,
 				})
 				mu.Unlock()
 			}

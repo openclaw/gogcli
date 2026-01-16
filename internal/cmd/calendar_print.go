@@ -15,7 +15,7 @@ func printCalendarEvent(u *ui.UI, event *calendar.Event) {
 	}
 	u.Out().Printf("id\t%s", event.Id)
 	u.Out().Printf("summary\t%s", orEmpty(event.Summary, "(no title)"))
-	if event.EventType != "" && event.EventType != "default" {
+	if event.EventType != "" && event.EventType != eventTypeDefault {
 		u.Out().Printf("type\t%s", event.EventType)
 	}
 	u.Out().Printf("start\t%s", eventStart(event))

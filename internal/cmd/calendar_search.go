@@ -59,7 +59,7 @@ func (c *CalendarSearchCmd) Run(ctx context.Context, flags *RootFlags) error {
 
 	if outfmt.IsJSON(ctx) {
 		return outfmt.WriteJSON(os.Stdout, map[string]any{
-			"events": resp.Items,
+			"events": wrapEventsWithDays(resp.Items),
 			"query":  query,
 		})
 	}

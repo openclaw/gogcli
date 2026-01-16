@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/alecthomas/kong"
 	"google.golang.org/api/tasks/v1"
@@ -103,13 +104,62 @@ func (c *TasksListCmd) Run(ctx context.Context, flags *RootFlags) error {
 	return nil
 }
 
-type TasksAddCmd struct {
+type TasksGetCmd struct {
 	TasklistID string `arg:"" name:"tasklistId" help:"Task list ID"`
-	Title      string `name:"title" help:"Task title (required)"`
-	Notes      string `name:"notes" help:"Task notes/description"`
-	Due        string `name:"due" help:"Due date/time (RFC3339)"`
-	Parent     string `name:"parent" help:"Parent task ID (create as subtask)"`
-	Previous   string `name:"previous" help:"Previous sibling task ID (controls ordering)"`
+	TaskID     string `arg:"" name:"taskId" help:"Task ID"`
+}
+
+func (c *TasksGetCmd) Run(ctx context.Context, flags *RootFlags) error {
+	u := ui.FromContext(ctx)
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
+	}
+	tasklistID := strings.TrimSpace(c.TasklistID)
+	taskID := strings.TrimSpace(c.TaskID)
+	if tasklistID == "" {
+		return usage("empty tasklistId")
+	}
+	if taskID == "" {
+		return usage("empty taskId")
+	}
+
+	svc, err := newTasksService(ctx, account)
+	if err != nil {
+		return err
+	}
+
+	task, err := svc.Tasks.Get(tasklistID, taskID).Do()
+	if err != nil {
+		return err
+	}
+	if outfmt.IsJSON(ctx) {
+		return outfmt.WriteJSON(os.Stdout, map[string]any{"task": task})
+	}
+	u.Out().Printf("id\t%s", task.Id)
+	u.Out().Printf("title\t%s", task.Title)
+	if strings.TrimSpace(task.Status) != "" {
+		u.Out().Printf("status\t%s", task.Status)
+	}
+	if strings.TrimSpace(task.Due) != "" {
+		u.Out().Printf("due\t%s", task.Due)
+	}
+	if strings.TrimSpace(task.WebViewLink) != "" {
+		u.Out().Printf("link\t%s", task.WebViewLink)
+	}
+	return nil
+}
+
+type TasksAddCmd struct {
+	TasklistID  string `arg:"" name:"tasklistId" help:"Task list ID"`
+	Title       string `name:"title" help:"Task title (required)"`
+	Notes       string `name:"notes" help:"Task notes/description"`
+	Due         string `name:"due" help:"Due date (RFC3339 or YYYY-MM-DD; time may be ignored by Google Tasks)"`
+	Parent      string `name:"parent" help:"Parent task ID (create as subtask)"`
+	Previous    string `name:"previous" help:"Previous sibling task ID (controls ordering)"`
+	Repeat      string `name:"repeat" help:"Repeat task: daily, weekly, monthly, yearly"`
+	RepeatCount int    `name:"repeat-count" help:"Number of occurrences to create (requires --repeat)"`
+	RepeatUntil string `name:"repeat-until" help:"Repeat until date/time (RFC3339 or YYYY-MM-DD; requires --repeat)"`
 }
 
 func (c *TasksAddCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -126,41 +176,152 @@ func (c *TasksAddCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return usage("required: --title")
 	}
 
-	svc, err := newTasksService(ctx, account)
+	repeatUnit, err := parseRepeatUnit(c.Repeat)
+	if err != nil {
+		return err
+	}
+	if repeatUnit == repeatNone && (strings.TrimSpace(c.RepeatUntil) != "" || c.RepeatCount != 0) {
+		return usage("--repeat is required when using --repeat-count or --repeat-until")
+	}
+
+	if repeatUnit == repeatNone {
+		svc, svcErr := newTasksService(ctx, account)
+		if svcErr != nil {
+			return svcErr
+		}
+		warnTasksDueTime(u, c.Due)
+		task := &tasks.Task{
+			Title: strings.TrimSpace(c.Title),
+			Notes: strings.TrimSpace(c.Notes),
+			Due:   strings.TrimSpace(c.Due),
+		}
+		call := svc.Tasks.Insert(tasklistID, task)
+		if strings.TrimSpace(c.Parent) != "" {
+			call = call.Parent(strings.TrimSpace(c.Parent))
+		}
+		if strings.TrimSpace(c.Previous) != "" {
+			call = call.Previous(strings.TrimSpace(c.Previous))
+		}
+
+		created, createErr := call.Do()
+		if createErr != nil {
+			return createErr
+		}
+		if outfmt.IsJSON(ctx) {
+			return outfmt.WriteJSON(os.Stdout, map[string]any{"task": created})
+		}
+		u.Out().Printf("id\t%s", created.Id)
+		u.Out().Printf("title\t%s", created.Title)
+		if strings.TrimSpace(created.Status) != "" {
+			u.Out().Printf("status\t%s", created.Status)
+		}
+		if strings.TrimSpace(created.Due) != "" {
+			u.Out().Printf("due\t%s", created.Due)
+		}
+		if strings.TrimSpace(created.WebViewLink) != "" {
+			u.Out().Printf("link\t%s", created.WebViewLink)
+		}
+		return nil
+	}
+
+	if strings.TrimSpace(c.Due) == "" {
+		return usage("--due is required when using --repeat")
+	}
+	if c.RepeatCount < 0 {
+		return usage("--repeat-count must be >= 0")
+	}
+	if strings.TrimSpace(c.RepeatUntil) == "" && c.RepeatCount == 0 {
+		return usage("--repeat requires --repeat-count or --repeat-until")
+	}
+
+	warnTasksDueTime(u, c.Due)
+
+	dueTime, dueHasTime, err := parseTaskDate(c.Due)
 	if err != nil {
 		return err
 	}
 
-	task := &tasks.Task{
-		Title: strings.TrimSpace(c.Title),
-		Notes: strings.TrimSpace(c.Notes),
-		Due:   strings.TrimSpace(c.Due),
-	}
-	call := svc.Tasks.Insert(tasklistID, task)
-	if strings.TrimSpace(c.Parent) != "" {
-		call = call.Parent(strings.TrimSpace(c.Parent))
-	}
-	if strings.TrimSpace(c.Previous) != "" {
-		call = call.Previous(strings.TrimSpace(c.Previous))
+	var until *time.Time
+	if strings.TrimSpace(c.RepeatUntil) != "" {
+		untilValue, untilHasTime, parseErr := parseTaskDate(c.RepeatUntil)
+		if parseErr != nil {
+			return parseErr
+		}
+		if !dueHasTime && untilHasTime {
+			untilValue = time.Date(untilValue.Year(), untilValue.Month(), untilValue.Day(), 0, 0, 0, 0, time.UTC)
+		}
+		until = &untilValue
 	}
 
-	created, err := call.Do()
-	if err != nil {
-		return err
+	schedule := expandRepeatSchedule(dueTime, repeatUnit, c.RepeatCount, until)
+	if len(schedule) == 0 {
+		return usage("repeat produced no occurrences")
 	}
+
+	svc, svcErr := newTasksService(ctx, account)
+	if svcErr != nil {
+		return svcErr
+	}
+
+	parent := strings.TrimSpace(c.Parent)
+	previous := strings.TrimSpace(c.Previous)
+	baseTitle := strings.TrimSpace(c.Title)
+	createdTasks := make([]*tasks.Task, 0, len(schedule))
+
+	for i, due := range schedule {
+		title := baseTitle
+		if len(schedule) > 1 {
+			title = fmt.Sprintf("%s (#%d/%d)", baseTitle, i+1, len(schedule))
+		}
+		task := &tasks.Task{
+			Title: title,
+			Notes: strings.TrimSpace(c.Notes),
+			Due:   formatTaskDue(due, dueHasTime),
+		}
+		call := svc.Tasks.Insert(tasklistID, task)
+		if parent != "" {
+			call = call.Parent(parent)
+		}
+		if previous != "" {
+			call = call.Previous(previous)
+		}
+		created, createErr := call.Do()
+		if createErr != nil {
+			return createErr
+		}
+		createdTasks = append(createdTasks, created)
+		if previous != "" {
+			previous = created.Id
+		}
+	}
+
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{"task": created})
+		return outfmt.WriteJSON(os.Stdout, map[string]any{
+			"tasks": createdTasks,
+			"count": len(createdTasks),
+		})
 	}
-	u.Out().Printf("id\t%s", created.Id)
-	u.Out().Printf("title\t%s", created.Title)
-	if strings.TrimSpace(created.Status) != "" {
-		u.Out().Printf("status\t%s", created.Status)
+	if len(createdTasks) == 1 {
+		created := createdTasks[0]
+		u.Out().Printf("id\t%s", created.Id)
+		u.Out().Printf("title\t%s", created.Title)
+		if strings.TrimSpace(created.Status) != "" {
+			u.Out().Printf("status\t%s", created.Status)
+		}
+		if strings.TrimSpace(created.Due) != "" {
+			u.Out().Printf("due\t%s", created.Due)
+		}
+		if strings.TrimSpace(created.WebViewLink) != "" {
+			u.Out().Printf("link\t%s", created.WebViewLink)
+		}
+		return nil
 	}
-	if strings.TrimSpace(created.Due) != "" {
-		u.Out().Printf("due\t%s", created.Due)
-	}
-	if strings.TrimSpace(created.WebViewLink) != "" {
-		u.Out().Printf("link\t%s", created.WebViewLink)
+
+	w, flush := tableWriter(ctx)
+	defer flush()
+	fmt.Fprintln(w, "ID\tTITLE\tDUE")
+	for _, task := range createdTasks {
+		fmt.Fprintf(w, "%s\t%s\t%s\n", task.Id, task.Title, strings.TrimSpace(task.Due))
 	}
 	return nil
 }
@@ -170,7 +331,7 @@ type TasksUpdateCmd struct {
 	TaskID     string `arg:"" name:"taskId" help:"Task ID"`
 	Title      string `name:"title" help:"New title (set empty to clear)"`
 	Notes      string `name:"notes" help:"New notes (set empty to clear)"`
-	Due        string `name:"due" help:"New due date/time (RFC3339; set empty to clear)"`
+	Due        string `name:"due" help:"New due date (RFC3339 or YYYY-MM-DD; time may be ignored; set empty to clear)"`
 	Status     string `name:"status" help:"New status: needsAction|completed (set empty to clear)"`
 }
 
@@ -202,6 +363,7 @@ func (c *TasksUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *Roo
 	if flagProvided(kctx, "due") {
 		patch.Due = strings.TrimSpace(c.Due)
 		changed = true
+		warnTasksDueTime(u, c.Due)
 	}
 	if flagProvided(kctx, "status") {
 		patch.Status = strings.TrimSpace(c.Status)

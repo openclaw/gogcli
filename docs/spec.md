@@ -120,10 +120,12 @@ We intentionally avoid storing refresh tokens in plain JSON on disk.
 
 Environment:
 
-- `GOG_ACCOUNT=you@gmail.com` (used when `--account` is not set; otherwise uses keyring default or a single stored token)
+- `GOG_ACCOUNT=you@gmail.com` (email or alias; used when `--account` is not set; otherwise uses keyring default or a single stored token)
 - `GOG_KEYRING_PASSWORD=...` (used when keyring falls back to encrypted file backend in non-interactive environments)
 - `GOG_KEYRING_BACKEND={auto|keychain|file}` (force backend; use `file` to avoid Keychain prompts and pair with `GOG_KEYRING_PASSWORD` for non-interactive)
+- `GOG_ENABLE_COMMANDS=calendar,tasks` (optional allowlist of top-level commands)
 - `config.json` can also set `keyring_backend` (JSON5; env vars take precedence)
+- `config.json` can also set `account_aliases` for `gog auth alias` (JSON5)
 
 Flag aliases:
 - `--out` also accepts `--output`.
@@ -138,6 +140,9 @@ Flag aliases:
 - `gog auth services [--markdown]`
 - `gog auth keep <email> --key <service-account.json>` (Google Keep; Workspace only)
 - `gog auth list`
+- `gog auth alias list`
+- `gog auth alias set <alias> <email>`
+- `gog auth alias unset <alias>`
 - `gog auth status`
 - `gog auth remove <email>`
 - `gog auth tokens list`
@@ -159,11 +164,12 @@ Flag aliases:
 - `gog calendar acl <calendarId>`
 - `gog calendar events <calendarId> [--from RFC3339] [--to RFC3339] [--max N] [--page TOKEN] [--query Q]`
 - `gog calendar event <calendarId> <eventId>`
-- `gog calendar create <calendarId> --summary S --from DT --to DT [--description D] [--location L] [--attendees a@b.com,c@d.com] [--all-day]`
-- `gog calendar update <calendarId> <eventId> [--summary S] [--from DT] [--to DT] [--description D] [--location L] [--attendees ...] [--add-attendee ...] [--all-day]`
+- `gog calendar create <calendarId> --summary S --from DT --to DT [--description D] [--location L] [--attendees a@b.com,c@d.com] [--all-day] [--event-type TYPE]`
+- `gog calendar update <calendarId> <eventId> [--summary S] [--from DT] [--to DT] [--description D] [--location L] [--attendees ...] [--add-attendee ...] [--all-day] [--event-type TYPE]`
 - `gog calendar delete <calendarId> <eventId>`
 - `gog calendar freebusy <calendarIds> --from RFC3339 --to RFC3339`
 - `gog calendar respond <calendarId> <eventId> --status accepted|declined|tentative [--send-updates all|none|externalOnly]`
+- `gog time now [--timezone TZ]`
 - `gog gmail search <query> [--max N] [--page TOKEN]`
 - `gog gmail thread get <threadId> [--download]`
 - `gog gmail thread modify <threadId> [--add ...] [--remove ...]`
@@ -186,8 +192,9 @@ Flag aliases:
 - `gog tasks lists [--max N] [--page TOKEN]`
 - `gog tasks lists create <title>`
 - `gog tasks list <tasklistId> [--max N] [--page TOKEN]`
-- `gog tasks add <tasklistId> --title T [--notes N] [--due RFC3339] [--parent ID] [--previous ID]`
-- `gog tasks update <tasklistId> <taskId> [--title T] [--notes N] [--due RFC3339] [--status needsAction|completed]`
+- `gog tasks get <tasklistId> <taskId>`
+- `gog tasks add <tasklistId> --title T [--notes N] [--due RFC3339|YYYY-MM-DD] [--repeat daily|weekly|monthly|yearly] [--repeat-count N] [--repeat-until DT] [--parent ID] [--previous ID]`
+- `gog tasks update <tasklistId> <taskId> [--title T] [--notes N] [--due RFC3339|YYYY-MM-DD] [--status needsAction|completed]`
 - `gog tasks done <tasklistId> <taskId>`
 - `gog tasks undo <tasklistId> <taskId>`
 - `gog tasks delete <tasklistId> <taskId>`

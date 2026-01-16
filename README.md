@@ -301,10 +301,11 @@ gog keep get <noteId> --account you@yourdomain.com
 
 ### Environment Variables
 
-- `GOG_ACCOUNT` - Default account email to use (avoids repeating `--account`; otherwise uses keyring default or a single stored token)
+- `GOG_ACCOUNT` - Default account email or alias to use (avoids repeating `--account`; otherwise uses keyring default or a single stored token)
 - `GOG_JSON` - Default JSON output
 - `GOG_PLAIN` - Default plain output
 - `GOG_COLOR` - Color mode: `auto` (default), `always`, or `never`
+- `GOG_ENABLE_COMMANDS` - Comma-separated allowlist of top-level commands (e.g., `calendar,tasks`)
 
 ### Config File (JSON5)
 
@@ -322,7 +323,20 @@ Example (JSON5 supports comments and trailing commas):
 {
   // Avoid macOS Keychain prompts
   keyring_backend: "file",
+  // Optional account aliases
+  account_aliases: {
+    work: "work@company.com",
+    personal: "me@gmail.com",
+  },
 }
+```
+
+### Account Aliases
+
+```bash
+gog auth alias set work work@company.com
+gog auth alias list
+gog auth alias unset work
 ```
  
 ## Security
@@ -534,6 +548,25 @@ gog calendar update <calendarId> <eventId> \
   --from 2025-01-15T11:00:00Z \
   --to 2025-01-15T12:00:00Z
 
+# Special event types via --event-type (focus-time/out-of-office/working-location)
+gog calendar create primary \
+  --event-type focus-time \
+  --from 2025-01-15T13:00:00Z \
+  --to 2025-01-15T14:00:00Z
+
+gog calendar create primary \
+  --event-type out-of-office \
+  --from 2025-01-20 \
+  --to 2025-01-21 \
+  --all-day
+
+gog calendar create primary \
+  --event-type working-location \
+  --working-location-type office \
+  --working-office-label "HQ" \
+  --from 2025-01-22 \
+  --to 2025-01-23
+
 # Add attendees without replacing existing attendees/RSVP state
 gog calendar update <calendarId> <eventId> \
   --add-attendee "alice@example.com,bob@example.com"
@@ -552,6 +585,13 @@ gog calendar freebusy --calendars "primary,work@example.com" \
 
 gog calendar conflicts --calendars "primary,work@example.com" \
   --today                             # Today's conflicts
+```
+
+### Time
+
+```bash
+gog time now
+gog time now --timezone UTC
 ```
 
 ### Drive
@@ -647,12 +687,16 @@ gog tasks lists create <title>
 
 # Tasks in a list
 gog tasks list <tasklistId> --max 50
+gog tasks get <tasklistId> <taskId>
 gog tasks add <tasklistId> --title "Task title"
+gog tasks add <tasklistId> --title "Weekly sync" --due 2025-02-01 --repeat weekly --repeat-count 4
 gog tasks update <tasklistId> <taskId> --title "New title"
 gog tasks done <tasklistId> <taskId>
 gog tasks undo <tasklistId> <taskId>
 gog tasks delete <tasklistId> <taskId>
 gog tasks clear <tasklistId>
+
+# Note: Google Tasks treats due dates as date-only; time components may be ignored.
 ```
 
 ### Sheets
@@ -869,7 +913,8 @@ gog --verbose gmail search 'newer_than:7d'
 
 All commands support these flags:
 
-- `--account <email>` - Account to use (overrides GOG_ACCOUNT)
+- `--account <email|alias|auto>` - Account to use (overrides GOG_ACCOUNT)
+- `--enable-commands <csv>` - Allowlist top-level commands (e.g., `calendar,tasks`)
 - `--json` - Output JSON to stdout (best for scripting)
 - `--plain` - Output stable, parseable text to stdout (TSV; no colors)
 - `--color <mode>` - Color mode: `auto`, `always`, or `never` (default: auto)

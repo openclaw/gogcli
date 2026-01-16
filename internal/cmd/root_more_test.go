@@ -69,3 +69,13 @@ func TestHelpDescription(t *testing.T) {
 		t.Fatalf("expected keyring backend line, got: %q", out)
 	}
 }
+
+func TestEnableCommandsBlocks(t *testing.T) {
+	err := Execute([]string{"--enable-commands", "calendar", "tasks", "list", "l1"})
+	if err == nil {
+		t.Fatalf("expected error")
+	}
+	if !strings.Contains(err.Error(), "not enabled") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}

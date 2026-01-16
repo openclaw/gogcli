@@ -53,6 +53,7 @@ type AuthCmd struct {
 	Add         AuthAddCmd            `cmd:"" name:"add" help:"Authorize and store a refresh token"`
 	Services    AuthServicesCmd       `cmd:"" name:"services" help:"List supported auth services and scopes"`
 	List        AuthListCmd           `cmd:"" name:"list" help:"List stored accounts"`
+	Aliases     AuthAliasCmd          `cmd:"" name:"alias" help:"Manage account aliases"`
 	Status      AuthStatusCmd         `cmd:"" name:"status" help:"Show auth configuration and keyring backend"`
 	Keyring     AuthKeyringCmd        `cmd:"" name:"keyring" help:"Configure keyring backend"`
 	Remove      AuthRemoveCmd         `cmd:"" name:"remove" help:"Remove a stored refresh token"`

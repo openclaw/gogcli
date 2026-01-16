@@ -41,6 +41,15 @@ func TestTasksValidationErrors(t *testing.T) {
 	if err := (&TasksAddCmd{TasklistID: "l1"}).Run(ctx, flags); err == nil {
 		t.Fatalf("expected add missing title")
 	}
+	if err := (&TasksAddCmd{TasklistID: "l1", Title: "Task", Repeat: "daily"}).Run(ctx, flags); err == nil {
+		t.Fatalf("expected add repeat missing due")
+	}
+	if err := (&TasksAddCmd{TasklistID: "l1", Title: "Task", Repeat: "daily", Due: "2025-01-01"}).Run(ctx, flags); err == nil {
+		t.Fatalf("expected add repeat missing count/until")
+	}
+	if err := (&TasksAddCmd{TasklistID: "l1", Title: "Task", RepeatCount: 2}).Run(ctx, flags); err == nil {
+		t.Fatalf("expected add repeat-count without repeat")
+	}
 
 	{
 		cmd := &TasksUpdateCmd{}

@@ -10,7 +10,8 @@ import (
 )
 
 type File struct {
-	KeyringBackend string `json:"keyring_backend,omitempty"`
+	KeyringBackend string            `json:"keyring_backend,omitempty"`
+	AccountAliases map[string]string `json:"account_aliases,omitempty"`
 }
 
 func ConfigPath() (string, error) {

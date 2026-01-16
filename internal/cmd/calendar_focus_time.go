@@ -49,7 +49,7 @@ func (c *CalendarFocusTimeCmd) Run(ctx context.Context, flags *RootFlags) error 
 		Summary:      strings.TrimSpace(c.Summary),
 		Start:        &calendar.EventDateTime{DateTime: strings.TrimSpace(c.From)},
 		End:          &calendar.EventDateTime{DateTime: strings.TrimSpace(c.To)},
-		EventType:    "focusTime",
+		EventType:    eventTypeFocusTime,
 		Transparency: "opaque",
 		FocusTimeProperties: &calendar.EventFocusTimeProperties{
 			AutoDeclineMode: autoDeclineMode,
@@ -65,7 +65,7 @@ func (c *CalendarFocusTimeCmd) Run(ctx context.Context, flags *RootFlags) error 
 	}
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{"event": created})
+		return outfmt.WriteJSON(os.Stdout, map[string]any{"event": wrapEventWithDays(created)})
 	}
 	printCalendarEvent(u, created)
 	return nil

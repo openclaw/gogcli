@@ -13,3 +13,12 @@ func flagProvided(kctx *kong.Context, name string) bool {
 	}
 	return false
 }
+
+func flagProvidedAny(kctx *kong.Context, names ...string) bool {
+	for _, name := range names {
+		if flagProvided(kctx, name) {
+			return true
+		}
+	}
+	return false
+}

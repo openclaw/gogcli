@@ -23,13 +23,14 @@ const (
 )
 
 type RootFlags struct {
-	Color   string `help:"Color output: auto|always|never" default:"${color}"`
-	Account string `help:"Account email for API commands (gmail/calendar/drive/docs/slides/contacts/tasks/people/sheets)"`
-	JSON    bool   `help:"Output JSON to stdout (best for scripting)" default:"${json}"`
-	Plain   bool   `help:"Output stable, parseable text to stdout (TSV; no colors)" default:"${plain}"`
-	Force   bool   `help:"Skip confirmations for destructive commands"`
-	NoInput bool   `help:"Never prompt; fail instead (useful for CI)"`
-	Verbose bool   `help:"Enable verbose logging"`
+	Color          string `help:"Color output: auto|always|never" default:"${color}"`
+	Account        string `help:"Account email for API commands (gmail/calendar/drive/docs/slides/contacts/tasks/people/sheets)"`
+	EnableCommands string `help:"Comma-separated list of enabled top-level commands (restricts CLI)" default:"${enabled_commands}"`
+	JSON           bool   `help:"Output JSON to stdout (best for scripting)" default:"${json}"`
+	Plain          bool   `help:"Output stable, parseable text to stdout (TSV; no colors)" default:"${plain}"`
+	Force          bool   `help:"Skip confirmations for destructive commands"`
+	NoInput        bool   `help:"Never prompt; fail instead (useful for CI)"`
+	Verbose        bool   `help:"Enable verbose logging"`
 }
 
 type CLI struct {
@@ -43,6 +44,7 @@ type CLI struct {
 	Docs       DocsCmd       `cmd:"" help:"Google Docs (export via Drive)"`
 	Slides     SlidesCmd     `cmd:"" help:"Google Slides"`
 	Calendar   CalendarCmd   `cmd:"" help:"Google Calendar"`
+	Time       TimeCmd       `cmd:"" help:"Local time utilities"`
 	Gmail      GmailCmd      `cmd:"" aliases:"mail,email" help:"Gmail"`
 	Contacts   ContactsCmd   `cmd:"" help:"Google Contacts"`
 	Tasks      TasksCmd      `cmd:"" help:"Google Tasks"`
@@ -58,11 +60,12 @@ type exitPanic struct{ code int }
 func Execute(args []string) (err error) {
 	envMode := outfmt.FromEnv()
 	vars := kong.Vars{
-		"auth_services": googleauth.UserServiceCSV(),
-		"color":         envOr("GOG_COLOR", "auto"),
-		"json":          boolString(envMode.JSON),
-		"plain":         boolString(envMode.Plain),
-		"version":       VersionString(),
+		"auth_services":    googleauth.UserServiceCSV(),
+		"color":            envOr("GOG_COLOR", "auto"),
+		"enabled_commands": envOr("GOG_ENABLE_COMMANDS", ""),
+		"json":             boolString(envMode.JSON),
+		"plain":            boolString(envMode.Plain),
+		"version":          VersionString(),
 	}
 
 	cli := &CLI{}
@@ -99,6 +102,11 @@ func Execute(args []string) (err error) {
 		parsedErr := wrapParseError(err)
 		_, _ = fmt.Fprintln(os.Stderr, errfmt.Format(parsedErr))
 		return parsedErr
+	}
+
+	if err = enforceEnabledCommands(kctx, cli.EnableCommands); err != nil {
+		_, _ = fmt.Fprintln(os.Stderr, errfmt.Format(err))
+		return err
 	}
 
 	logLevel := slog.LevelWarn

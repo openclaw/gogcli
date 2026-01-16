@@ -216,7 +216,7 @@ func (c *CalendarEventCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{"event": event})
+		return outfmt.WriteJSON(os.Stdout, map[string]any{"event": wrapEventWithDays(event)})
 	}
 	printCalendarEvent(u, event)
 	return nil

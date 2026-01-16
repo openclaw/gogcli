@@ -42,7 +42,7 @@ func (c *CalendarOOOCmd) Run(ctx context.Context, flags *RootFlags) error {
 		Summary:      strings.TrimSpace(c.Summary),
 		Start:        buildEventDateTime(c.From, c.AllDay),
 		End:          buildEventDateTime(c.To, c.AllDay),
-		EventType:    "outOfOffice",
+		EventType:    eventTypeOutOfOffice,
 		Transparency: "opaque",
 		OutOfOfficeProperties: &calendar.EventOutOfOfficeProperties{
 			AutoDeclineMode: autoDeclineMode,
@@ -56,7 +56,7 @@ func (c *CalendarOOOCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{"event": created})
+		return outfmt.WriteJSON(os.Stdout, map[string]any{"event": wrapEventWithDays(created)})
 	}
 	printCalendarEvent(u, created)
 	return nil

@@ -47,7 +47,7 @@ func (c *CalendarWorkingLocationCmd) Run(ctx context.Context, flags *RootFlags) 
 		Summary:                   summary,
 		Start:                     &calendar.EventDateTime{Date: strings.TrimSpace(c.From)},
 		End:                       &calendar.EventDateTime{Date: strings.TrimSpace(c.To)},
-		EventType:                 "workingLocation",
+		EventType:                 eventTypeWorkingLocation,
 		WorkingLocationProperties: props,
 	}
 
@@ -57,14 +57,42 @@ func (c *CalendarWorkingLocationCmd) Run(ctx context.Context, flags *RootFlags) 
 	}
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{"event": created})
+		return outfmt.WriteJSON(os.Stdout, map[string]any{"event": wrapEventWithDays(created)})
 	}
 	printCalendarEvent(u, created)
 	return nil
 }
 
 func (c *CalendarWorkingLocationCmd) buildWorkingLocationProperties() (*calendar.EventWorkingLocationProperties, error) {
-	locType := strings.TrimSpace(strings.ToLower(c.Type))
+	return buildWorkingLocationProperties(workingLocationInput{
+		Type:        c.Type,
+		OfficeLabel: c.OfficeLabel,
+		BuildingId:  c.BuildingId,
+		FloorId:     c.FloorId,
+		DeskId:      c.DeskId,
+		CustomLabel: c.CustomLabel,
+	})
+}
+
+func (c *CalendarWorkingLocationCmd) generateSummary() string {
+	return workingLocationSummary(workingLocationInput{
+		Type:        c.Type,
+		OfficeLabel: c.OfficeLabel,
+		CustomLabel: c.CustomLabel,
+	})
+}
+
+type workingLocationInput struct {
+	Type        string
+	OfficeLabel string
+	BuildingId  string
+	FloorId     string
+	DeskId      string
+	CustomLabel string
+}
+
+func buildWorkingLocationProperties(input workingLocationInput) (*calendar.EventWorkingLocationProperties, error) {
+	locType := strings.TrimSpace(strings.ToLower(input.Type))
 	props := &calendar.EventWorkingLocationProperties{}
 
 	switch locType {
@@ -74,18 +102,18 @@ func (c *CalendarWorkingLocationCmd) buildWorkingLocationProperties() (*calendar
 	case "office":
 		props.Type = "officeLocation"
 		props.OfficeLocation = &calendar.EventWorkingLocationPropertiesOfficeLocation{
-			Label:      strings.TrimSpace(c.OfficeLabel),
-			BuildingId: strings.TrimSpace(c.BuildingId),
-			FloorId:    strings.TrimSpace(c.FloorId),
-			DeskId:     strings.TrimSpace(c.DeskId),
+			Label:      strings.TrimSpace(input.OfficeLabel),
+			BuildingId: strings.TrimSpace(input.BuildingId),
+			FloorId:    strings.TrimSpace(input.FloorId),
+			DeskId:     strings.TrimSpace(input.DeskId),
 		}
 	case "custom":
-		if strings.TrimSpace(c.CustomLabel) == "" {
+		if strings.TrimSpace(input.CustomLabel) == "" {
 			return nil, fmt.Errorf("--custom-label is required for type=custom")
 		}
 		props.Type = "customLocation"
 		props.CustomLocation = &calendar.EventWorkingLocationPropertiesCustomLocation{
-			Label: strings.TrimSpace(c.CustomLabel),
+			Label: strings.TrimSpace(input.CustomLabel),
 		}
 	default:
 		return nil, fmt.Errorf("invalid location type: %q (must be home, office, or custom)", locType)
@@ -94,18 +122,18 @@ func (c *CalendarWorkingLocationCmd) buildWorkingLocationProperties() (*calendar
 	return props, nil
 }
 
-func (c *CalendarWorkingLocationCmd) generateSummary() string {
-	locType := strings.TrimSpace(strings.ToLower(c.Type))
+func workingLocationSummary(input workingLocationInput) string {
+	locType := strings.TrimSpace(strings.ToLower(input.Type))
 	switch locType {
 	case "home":
 		return "Working from home"
 	case "office":
-		if strings.TrimSpace(c.OfficeLabel) != "" {
-			return fmt.Sprintf("Working from %s", strings.TrimSpace(c.OfficeLabel))
+		if strings.TrimSpace(input.OfficeLabel) != "" {
+			return fmt.Sprintf("Working from %s", strings.TrimSpace(input.OfficeLabel))
 		}
 		return "Working from office"
 	case "custom":
-		return fmt.Sprintf("Working from %s", strings.TrimSpace(c.CustomLabel))
+		return fmt.Sprintf("Working from %s", strings.TrimSpace(input.CustomLabel))
 	default:
 		return "Working location"
 	}
