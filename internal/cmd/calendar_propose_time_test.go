@@ -123,8 +123,11 @@ func TestCalendarProposeTimeCmd_Text(t *testing.T) {
 	if !strings.Contains(out, proposeTimeIssueTrackerURL) {
 		t.Errorf("output missing issue tracker URL: %q", out)
 	}
-	if !strings.Contains(out, "Error: "+proposeTimeErrorMessage) {
-		t.Errorf("output missing error message: %q", out)
+	if !strings.Contains(out, "API Limitation: "+proposeTimeAPILimitation) {
+		t.Errorf("output missing API limitation message: %q", out)
+	}
+	if !strings.Contains(out, "Action: "+proposeTimeUpvoteAction) {
+		t.Errorf("output missing upvote action: %q", out)
 	}
 
 	// Verify browser was opened

@@ -14,8 +14,9 @@ import (
 )
 
 const (
-	proposeTimeErrorMessage    = "Google Calendar API does not support proposing new times programmatically (since 2018). Open the browser and upvote the issue."
+	proposeTimeAPILimitation   = "The Google Calendar API has no endpoint for proposing new meeting times. This is a known limitation since 2018."
 	proposeTimeIssueTrackerURL = "https://issuetracker.google.com/issues/170465098"
+	proposeTimeUpvoteAction    = "Open the issue tracker link above in a new browser tab and click the '+1' button to upvote. More votes = higher priority for Google to fix."
 )
 
 // CalendarProposeTimeCmd generates a browser URL for proposing a new meeting time.
@@ -101,9 +102,9 @@ func (c *CalendarProposeTimeCmd) Run(ctx context.Context, flags *RootFlags) erro
 			"calendar_id":       calendarID,
 			"summary":           event.Summary,
 			"propose_url":       proposeURL,
-			"limitation":        proposeTimeErrorMessage,
+			"api_limitation":    proposeTimeAPILimitation,
 			"issue_tracker_url": proposeTimeIssueTrackerURL,
-			"error_message":     proposeTimeErrorMessage,
+			"upvote_action":     proposeTimeUpvoteAction,
 		}
 		if event.Start != nil {
 			if event.Start.DateTime != "" {
@@ -129,9 +130,9 @@ func (c *CalendarProposeTimeCmd) Run(ctx context.Context, flags *RootFlags) erro
 	}
 
 	// Text output
-	u.Out().Printf("# Error: %s\n", proposeTimeErrorMessage)
+	u.Out().Printf("# API Limitation: %s\n", proposeTimeAPILimitation)
 	u.Out().Printf("# Issue tracker: %s\n", proposeTimeIssueTrackerURL)
-	u.Out().Println("# \"Propose new time\" is only available via browser")
+	u.Out().Printf("# Action: %s\n", proposeTimeUpvoteAction)
 	u.Out().Println("")
 	u.Out().Printf("event\t%s\n", orEmpty(event.Summary, "(no title)"))
 	if event.Start != nil {
