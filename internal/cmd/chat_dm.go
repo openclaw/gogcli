@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"strings"
 
@@ -49,7 +50,7 @@ func (c *ChatDMSendCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 	if space == nil || space.Name == "" {
-		return nil
+		return fmt.Errorf("failed to setup DM space for %q", email)
 	}
 
 	message := &chat.Message{Text: text}
@@ -110,13 +111,12 @@ func (c *ChatDMSpaceCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if err != nil {
 		return err
 	}
+	if space == nil {
+		return fmt.Errorf("failed to setup DM space for %q", email)
+	}
 
 	if outfmt.IsJSON(ctx) {
 		return outfmt.WriteJSON(os.Stdout, map[string]any{"space": space})
-	}
-
-	if space == nil {
-		return nil
 	}
 	if space.Name != "" {
 		u.Out().Printf("resource\t%s", space.Name)
@@ -130,7 +130,7 @@ func (c *ChatDMSpaceCmd) Run(ctx context.Context, flags *RootFlags) error {
 func setupDMSpace(ctx context.Context, svc *chat.Service, email string) (*chat.Space, error) {
 	user := normalizeUser(email)
 	if user == "" {
-		return nil, nil
+		return nil, fmt.Errorf("invalid email: %q", email)
 	}
 	return svc.Spaces.Setup(&chat.SetUpSpaceRequest{
 		Space: &chat.Space{
