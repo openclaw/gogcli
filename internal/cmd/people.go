@@ -29,7 +29,7 @@ func (c *PeopleMeCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
-	person, err := svc.People.Get("people/me").
+	person, err := svc.People.Get(peopleMeResource).
 		PersonFields("names,emailAddresses,photos").
 		Do()
 	if err != nil {

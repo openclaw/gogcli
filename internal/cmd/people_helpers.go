@@ -7,13 +7,15 @@ import (
 
 const peopleAPIEnableURL = "https://console.developers.google.com/apis/api/people.googleapis.com/overview"
 
+const peopleMeResource = "people/me"
+
 func normalizePeopleResource(raw string) string {
 	resource := strings.TrimSpace(raw)
 	if resource == "" {
 		return ""
 	}
 	if resource == "me" {
-		return "people/me"
+		return peopleMeResource
 	}
 	if strings.HasPrefix(resource, "people/") {
 		return resource

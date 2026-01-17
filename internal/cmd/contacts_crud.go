@@ -32,7 +32,7 @@ func (c *ContactsListCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
-	resp, err := svc.People.Connections.List("people/me").
+	resp, err := svc.People.Connections.List(peopleMeResource).
 		PersonFields(contactsReadMask).
 		PageSize(c.Max).
 		PageToken(c.Page).
