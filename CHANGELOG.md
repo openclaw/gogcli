@@ -10,6 +10,7 @@
 - Classroom: normalize assignee updates + fix grade update masks. (#74) — thanks @salmonumbrella.
 - Classroom: scan pages when filtering coursework/materials by topic. (#73) — thanks @salmonumbrella.
 - CLI: enable shell completions and stop flag suggestions after `--`. (#77) — thanks @salmonumbrella.
+- Timezone: honor `--timezone local` and allow env/config defaults for Gmail + Calendar output. (#79) — thanks @salmonumbrella.
 
 ### Build
 

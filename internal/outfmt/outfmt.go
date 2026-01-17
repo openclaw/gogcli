@@ -64,6 +64,25 @@ func WriteJSON(w io.Writer, v any) error {
 	return nil
 }
 
+func KeyValuePayload(key string, value any) map[string]any {
+	return map[string]any{
+		"key":   key,
+		"value": value,
+	}
+}
+
+func KeysPayload(keys []string) map[string]any {
+	return map[string]any{
+		"keys": keys,
+	}
+}
+
+func PathPayload(path string) map[string]any {
+	return map[string]any{
+		"path": path,
+	}
+}
+
 func envBool(key string) bool {
 	v := strings.TrimSpace(strings.ToLower(os.Getenv(key)))
 	switch v {
