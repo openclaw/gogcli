@@ -142,5 +142,5 @@ func setupDMSpace(ctx context.Context, svc *chat.Service, email string) (*chat.S
 				Type: "HUMAN",
 			},
 		}},
-	}).Do()
+	}).Context(ctx).Do()
 }
