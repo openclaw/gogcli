@@ -140,7 +140,7 @@ func (c *CalendarProposeTimeCmd) Run(ctx context.Context, flags *RootFlags) erro
 	u.Out().Printf("# API Limitation: %s\n", proposeTimeAPILimitation)
 	u.Out().Printf("# Issue tracker: %s\n", proposeTimeIssueTrackerURL)
 	u.Out().Printf("# Action: %s\n", proposeTimeUpvoteAction)
-	u.Out().Println("")
+	u.Out().Printf("\n")
 	u.Out().Printf("event\t%s\n", orEmpty(event.Summary, "(no title)"))
 	if event.Start != nil {
 		start := event.Start.DateTime
@@ -159,24 +159,24 @@ func (c *CalendarProposeTimeCmd) Run(ctx context.Context, flags *RootFlags) erro
 	u.Out().Printf("propose_url\t%s\n", proposeURL)
 
 	if decline {
-		u.Out().Println("")
-		u.Out().Println("declined\tyes")
+		u.Out().Printf("\n")
+		u.Out().Printf("declined\tyes\n")
 		if strings.TrimSpace(c.Comment) != "" {
 			u.Out().Printf("comment\t%s\n", strings.TrimSpace(c.Comment))
 		}
 	} else {
-		u.Out().Println("")
-		u.Out().Println("Tip: To notify the organizer, decline with a comment:")
+		u.Out().Printf("\n")
+		u.Out().Printf("Tip: To notify the organizer, decline with a comment:\n")
 		u.Out().Printf("  gog calendar propose-time %s %s --decline --comment \"Can we do 5pm instead?\"\n", calendarID, eventID)
 	}
 
 	// Open browser if requested
 	if c.Open {
-		u.Out().Println("")
-		u.Out().Println("Opening browser...")
+		u.Out().Printf("\n")
+		u.Out().Printf("Opening browser...\n")
 		if err := openProposeTimeBrowser(proposeURL); err != nil {
 			u.Err().Printf("Failed to open browser: %v\n", err)
-			u.Err().Println("Please open the propose_url manually.")
+			u.Err().Printf("Please open the propose_url manually.\n")
 		}
 	}
 
