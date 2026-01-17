@@ -3,7 +3,6 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"net/mail"
 	"os"
 	"regexp"
 	"strings"
@@ -12,7 +11,6 @@ import (
 
 	"google.golang.org/api/gmail/v1"
 
-	"github.com/steipete/gogcli/internal/config"
 	"github.com/steipete/gogcli/internal/googleapi"
 	"github.com/steipete/gogcli/internal/outfmt"
 	"github.com/steipete/gogcli/internal/ui"
@@ -235,102 +233,6 @@ func hasHeaderName(headers []string, name string) bool {
 	return false
 }
 
-func formatGmailDateInLocation(raw string, loc *time.Location) string {
-	raw = strings.TrimSpace(raw)
-	if raw == "" {
-		return ""
-	}
-	if loc == nil {
-		loc = time.Local
-	}
-	if t, err := mailParseDate(raw); err == nil {
-		return t.In(loc).Format("2006-01-02 15:04")
-	}
-	return raw
-}
-
-func resolveOutputLocation(timezone string, local bool) (*time.Location, error) {
-	if local {
-		return time.Local, nil
-	}
-
-	// Check explicit --timezone flag
-	trimmed := strings.TrimSpace(timezone)
-	if strings.EqualFold(trimmed, "local") {
-		return time.Local, nil
-	}
-	if trimmed != "" {
-		loc, err := time.LoadLocation(trimmed)
-		if err != nil {
-			return nil, fmt.Errorf("invalid timezone %q: %w", trimmed, err)
-		}
-		return loc, nil
-	}
-
-	// Check GOG_TIMEZONE environment variable
-	if envTZ := os.Getenv("GOG_TIMEZONE"); envTZ != "" {
-		loc, err := time.LoadLocation(envTZ)
-		if err != nil {
-			return nil, fmt.Errorf("invalid GOG_TIMEZONE %q: %w", envTZ, err)
-		}
-		return loc, nil
-	}
-
-	// Check config file
-	if cfg, err := config.ReadConfig(); err == nil && cfg.DefaultTimezone != "" {
-		loc, err := time.LoadLocation(cfg.DefaultTimezone)
-		if err != nil {
-			// Warning: invalid timezone in config, fall back to local
-			fmt.Fprintf(os.Stderr, "warning: invalid default_timezone in config %q, using local timezone\n", cfg.DefaultTimezone)
-		} else {
-			return loc, nil
-		}
-	}
-
-	return time.Local, nil
-}
-
-// getConfiguredTimezone returns the timezone from flag, env var, or config file.
-// Returns nil if no timezone is explicitly configured. The special value "local"
-// returns time.Local to explicitly use the local timezone.
-func getConfiguredTimezone(timezone string) (*time.Location, error) {
-	// Check explicit --timezone flag
-	trimmed := strings.TrimSpace(timezone)
-	if strings.EqualFold(trimmed, "local") {
-		return time.Local, nil
-	}
-	if trimmed != "" {
-		loc, err := time.LoadLocation(trimmed)
-		if err != nil {
-			return nil, fmt.Errorf("invalid timezone %q: %w", trimmed, err)
-		}
-		return loc, nil
-	}
-
-	// Check GOG_TIMEZONE environment variable
-	if envTZ := os.Getenv("GOG_TIMEZONE"); envTZ != "" {
-		loc, err := time.LoadLocation(envTZ)
-		if err != nil {
-			return nil, fmt.Errorf("invalid GOG_TIMEZONE %q: %w", envTZ, err)
-		}
-		return loc, nil
-	}
-
-	// Check config file
-	if cfg, err := config.ReadConfig(); err == nil && cfg.DefaultTimezone != "" {
-		loc, err := time.LoadLocation(cfg.DefaultTimezone)
-		if err != nil {
-			// Warning: invalid timezone in config, fall back
-			fmt.Fprintf(os.Stderr, "warning: invalid default_timezone in config %q, ignoring\n", cfg.DefaultTimezone)
-		} else {
-			return loc, nil
-		}
-	}
-
-	// No explicit timezone configured; nil signals caller to use its own fallback
-	return nil, nil //nolint:nilnil // intentional: nil means no config, let caller decide fallback
-}
-
 var listUnsubscribeLinkPattern = regexp.MustCompile(`<([^>]+)>`)
 
 func bestUnsubscribeLink(p *gmail.MessagePart) string {
@@ -410,11 +312,6 @@ func isUnsubscribeLink(raw string) bool {
 	return strings.HasPrefix(lower, "http://") ||
 		strings.HasPrefix(lower, "https://") ||
 		strings.HasPrefix(lower, "mailto:")
-}
-
-func mailParseDate(s string) (time.Time, error) {
-	// net/mail has the most compatible Date parser, but we keep this isolated for easier tests/mocks later.
-	return mail.ParseDate(s)
 }
 
 // threadItem holds parsed thread metadata for display/JSON output

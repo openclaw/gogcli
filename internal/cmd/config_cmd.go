@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/steipete/gogcli/internal/config"
@@ -12,10 +14,56 @@ import (
 
 type ConfigCmd struct {
 	Get   ConfigGetCmd   `cmd:"" help:"Get a config value"`
+	Keys  ConfigKeysCmd  `cmd:"" help:"List available config keys"`
 	Set   ConfigSetCmd   `cmd:"" help:"Set a config value"`
 	Unset ConfigUnsetCmd `cmd:"" help:"Unset a config value"`
 	List  ConfigListCmd  `cmd:"" help:"List all config values"`
 	Path  ConfigPathCmd  `cmd:"" help:"Print config file path"`
+}
+
+type configKeySpec struct {
+	Get       func(config.File) string
+	Set       func(*config.File, string) error
+	Unset     func(*config.File)
+	EmptyHint func() string
+}
+
+var configKeyOrder = []string{"timezone", "keyring_backend"}
+
+var configKeySpecs = map[string]configKeySpec{
+	"timezone": {
+		Get: func(cfg config.File) string {
+			return cfg.DefaultTimezone
+		},
+		Set: func(cfg *config.File, value string) error {
+			if _, err := time.LoadLocation(value); err != nil {
+				return fmt.Errorf("invalid timezone %q: %w (use IANA timezone names like America/New_York, UTC, Europe/London)", value, err)
+			}
+			cfg.DefaultTimezone = value
+			return nil
+		},
+		Unset: func(cfg *config.File) {
+			cfg.DefaultTimezone = ""
+		},
+		EmptyHint: func() string {
+			return "(not set, using local: " + time.Local.String() + ")"
+		},
+	},
+	"keyring_backend": {
+		Get: func(cfg config.File) string {
+			return cfg.KeyringBackend
+		},
+		Set: func(cfg *config.File, value string) error {
+			cfg.KeyringBackend = value
+			return nil
+		},
+		Unset: func(cfg *config.File) {
+			cfg.KeyringBackend = ""
+		},
+		EmptyHint: func() string {
+			return "(not set, using auto)"
+		},
+	},
 }
 
 type ConfigGetCmd struct {
@@ -23,34 +71,37 @@ type ConfigGetCmd struct {
 }
 
 func (c *ConfigGetCmd) Run(ctx context.Context) error {
-	cfg, err := config.ReadConfig()
+	cfg, err := loadConfig()
 	if err != nil {
 		return err
 	}
 
-	var value string
-	switch c.Key {
-	case "timezone":
-		value = cfg.DefaultTimezone
-		if value == "" {
-			value = "(not set, using local: " + time.Local.String() + ")"
-		}
-	case "keyring_backend":
-		value = cfg.KeyringBackend
-		if value == "" {
-			value = "(not set, using auto)"
-		}
-	default:
-		return fmt.Errorf("unknown config key: %s (valid keys: timezone, keyring_backend)", c.Key)
+	spec, err := configKeySpecFor(c.Key)
+	if err != nil {
+		return err
 	}
+	values := configKeyValues(cfg)
+	value := values[c.Key]
 
 	if outfmt.IsJSON(ctx) {
+		return outfmt.WriteJSON(os.Stdout, configJSONPayload("", values, c.Key))
+	}
+	fmt.Fprintln(os.Stdout, formatConfigValue(value, spec.EmptyHint))
+	return nil
+}
+
+type ConfigKeysCmd struct{}
+
+func (c *ConfigKeysCmd) Run(ctx context.Context) error {
+	keys := configKeyNames()
+	if outfmt.IsJSON(ctx) {
 		return outfmt.WriteJSON(os.Stdout, map[string]any{
-			"key":   c.Key,
-			"value": value,
+			"keys": keys,
 		})
 	}
-	fmt.Fprintln(os.Stdout, value)
+	for _, key := range keys {
+		fmt.Fprintln(os.Stdout, key)
+	}
 	return nil
 }
 
@@ -60,22 +111,18 @@ type ConfigSetCmd struct {
 }
 
 func (c *ConfigSetCmd) Run(ctx context.Context) error {
-	cfg, err := config.ReadConfig()
+	cfg, err := loadConfig()
 	if err != nil {
 		return err
 	}
 
-	switch c.Key {
-	case "timezone":
-		// Validate timezone
-		if _, err := time.LoadLocation(c.Value); err != nil {
-			return fmt.Errorf("invalid timezone %q: %w (use IANA timezone names like America/New_York, UTC, Europe/London)", c.Value, err)
-		}
-		cfg.DefaultTimezone = c.Value
-	case "keyring_backend":
-		cfg.KeyringBackend = c.Value
-	default:
-		return fmt.Errorf("unknown config key: %s (valid keys: timezone, keyring_backend)", c.Key)
+	spec, err := configKeySpecFor(c.Key)
+	if err != nil {
+		return err
+	}
+
+	if err := spec.Set(&cfg, c.Value); err != nil {
+		return err
 	}
 
 	if err := config.WriteConfig(cfg); err != nil {
@@ -98,19 +145,20 @@ type ConfigUnsetCmd struct {
 }
 
 func (c *ConfigUnsetCmd) Run(ctx context.Context) error {
-	cfg, err := config.ReadConfig()
+	cfg, err := loadConfig()
 	if err != nil {
 		return err
 	}
 
-	switch c.Key {
-	case "timezone":
-		cfg.DefaultTimezone = ""
-	case "keyring_backend":
-		cfg.KeyringBackend = ""
-	default:
-		return fmt.Errorf("unknown config key: %s (valid keys: timezone, keyring_backend)", c.Key)
+	spec, err := configKeySpecFor(c.Key)
+	if err != nil {
+		return err
 	}
+
+	if spec.Unset == nil {
+		return fmt.Errorf("config key %s cannot be unset", c.Key)
+	}
+	spec.Unset(&cfg)
 
 	if err := config.WriteConfig(cfg); err != nil {
 		return err
@@ -129,7 +177,7 @@ func (c *ConfigUnsetCmd) Run(ctx context.Context) error {
 type ConfigListCmd struct{}
 
 func (c *ConfigListCmd) Run(ctx context.Context) error {
-	cfg, err := config.ReadConfig()
+	cfg, err := loadConfig()
 	if err != nil {
 		return err
 	}
@@ -137,16 +185,18 @@ func (c *ConfigListCmd) Run(ctx context.Context) error {
 	path, _ := config.ConfigPath()
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{
-			"path":            path,
-			"timezone":        cfg.DefaultTimezone,
-			"keyring_backend": cfg.KeyringBackend,
-		})
+		values := configKeyValues(cfg)
+		return outfmt.WriteJSON(os.Stdout, configJSONPayload(path, values, ""))
 	}
 
 	fmt.Fprintf(os.Stdout, "Config file: %s\n", path)
-	fmt.Fprintf(os.Stdout, "timezone: %s\n", valueOrDefault(cfg.DefaultTimezone, "(not set)"))
-	fmt.Fprintf(os.Stdout, "keyring_backend: %s\n", valueOrDefault(cfg.KeyringBackend, "(not set)"))
+	for _, key := range configKeyOrder {
+		spec, err := configKeySpecFor(key)
+		if err != nil {
+			return err
+		}
+		fmt.Fprintf(os.Stdout, "%s: %s\n", key, formatConfigValue(spec.Get(cfg), func() string { return "(not set)" }))
+	}
 	return nil
 }
 
@@ -167,9 +217,64 @@ func (c *ConfigPathCmd) Run(ctx context.Context) error {
 	return nil
 }
 
-func valueOrDefault(v, def string) string {
-	if v == "" {
-		return def
+func configKeySpecFor(key string) (configKeySpec, error) {
+	spec, ok := configKeySpecs[key]
+	if !ok {
+		return configKeySpec{}, fmt.Errorf("unknown config key: %s (valid keys: %s)", key, strings.Join(configKeyNames(), ", "))
 	}
-	return v
+	return spec, nil
+}
+
+func configKeyNames() []string {
+	names := make([]string, 0, len(configKeySpecs))
+	for name := range configKeySpecs {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names
+}
+
+func formatConfigValue(value string, emptyHint func() string) string {
+	if value != "" {
+		return value
+	}
+	if emptyHint != nil {
+		return emptyHint()
+	}
+	return "(not set)"
+}
+
+func configKeyValues(cfg config.File) map[string]string {
+	values := make(map[string]string, len(configKeySpecs))
+	for name, spec := range configKeySpecs {
+		values[name] = spec.Get(cfg)
+	}
+	return values
+}
+
+func configJSONPayload(path string, values map[string]string, key string) map[string]any {
+	if key != "" {
+		return map[string]any{
+			"key":   key,
+			"value": values[key],
+		}
+	}
+
+	payload := map[string]any{
+		"path": path,
+	}
+	for _, name := range configKeyOrder {
+		if value, ok := values[name]; ok {
+			payload[name] = value
+		}
+	}
+	return payload
+}
+
+func loadConfig() (config.File, error) {
+	cfg, err := config.ReadConfig()
+	if err != nil {
+		return config.File{}, err
+	}
+	return cfg, nil
 }

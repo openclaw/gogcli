@@ -124,7 +124,9 @@ Environment:
 - `GOG_ACCOUNT=you@gmail.com` (used when `--account` is not set; otherwise uses keyring default or a single stored token)
 - `GOG_KEYRING_PASSWORD=...` (used when keyring falls back to encrypted file backend in non-interactive environments)
 - `GOG_KEYRING_BACKEND={auto|keychain|file}` (force backend; use `file` to avoid Keychain prompts and pair with `GOG_KEYRING_PASSWORD` for non-interactive)
+- `GOG_TIMEZONE=America/New_York` (default output timezone; IANA name or `UTC`; `local` forces local timezone)
 - `config.json` can also set `keyring_backend` (JSON5; env vars take precedence)
+- `config.json` can also set `default_timezone` (IANA name or `UTC`)
 
 Flag aliases:
 - `--out` also accepts `--output`.
@@ -143,6 +145,12 @@ Flag aliases:
 - `gog auth remove <email>`
 - `gog auth tokens list`
 - `gog auth tokens delete <email>`
+- `gog config get <key>`
+- `gog config keys`
+- `gog config list`
+- `gog config path`
+- `gog config set <key> <value>`
+- `gog config unset <key>`
 - `gog drive ls [--parent ID] [--max N] [--page TOKEN] [--query Q]`
 - `gog drive search <text> [--max N] [--page TOKEN]`
 - `gog drive get <fileId>`
