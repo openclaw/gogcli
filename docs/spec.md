@@ -189,6 +189,14 @@ Flag aliases:
 - `gog gmail drafts delete <draftId>`
 - `gog gmail watch start|status|renew|stop|serve`
 - `gog gmail history --since <historyId>`
+- `gog chat spaces list [--max N] [--page TOKEN]`
+- `gog chat spaces find <displayName> [--max N]`
+- `gog chat spaces create <displayName> [--member email,...]`
+- `gog chat messages list <space> [--max N] [--page TOKEN] [--order ORDER] [--thread THREAD] [--unread]`
+- `gog chat messages send <space> --text TEXT [--thread THREAD]`
+- `gog chat threads list <space> [--max N] [--page TOKEN]`
+- `gog chat dm space <email>`
+- `gog chat dm send <email> --text TEXT [--thread THREAD]`
 - `gog tasks lists [--max N] [--page TOKEN]`
 - `gog tasks lists create <title>`
 - `gog tasks list <tasklistId> [--max N] [--page TOKEN]`
@@ -210,12 +218,16 @@ Flag aliases:
 - `gog contacts other list [--max N] [--page TOKEN]`
 - `gog contacts other search <query> [--max N]`
 - `gog people me`
+- `gog people get <people/...|userId>`
+- `gog people search <query> [--max N] [--page TOKEN]`
+- `gog people relations [<people/...|userId>] [--type TYPE]`
 
 ### Planned high-level command tree
 
 - `gog auth …`
   - `gog auth credentials <credentials.json>`
 - `gog gmail …`
+- `gog chat …`
 - `gog calendar …`
 - `gog drive …`
 - `gog contacts …`
@@ -226,6 +238,7 @@ Planned service identifiers (canonical):
 
 - `gmail`
 - `calendar`
+- `chat`
 - `drive`
 - `contacts`
 - `tasks`
@@ -238,6 +251,7 @@ Planned service identifiers (canonical):
 - `google.golang.org/api/option`
 - `google.golang.org/api/gmail/v1`
 - `google.golang.org/api/calendar/v3`
+- `google.golang.org/api/chat/v1`
 - `google.golang.org/api/drive/v3`
 - `google.golang.org/api/people/v1`
 - `google.golang.org/api/tasks/v1`
@@ -252,6 +266,11 @@ We store a single refresh token per Google account email.
 
 - Gmail: `https://mail.google.com/` (or narrower scopes if we decide later)
 - Calendar: `https://www.googleapis.com/auth/calendar`
+- Chat:
+  - `https://www.googleapis.com/auth/chat.spaces`
+  - `https://www.googleapis.com/auth/chat.messages`
+  - `https://www.googleapis.com/auth/chat.memberships`
+  - `https://www.googleapis.com/auth/chat.users.readstate.readonly`
 - Drive: `https://www.googleapis.com/auth/drive`
 - Contacts/Directory:
   - `https://www.googleapis.com/auth/contacts`

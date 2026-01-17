@@ -1,12 +1,13 @@
 # 🧭 gogcli — Google in your terminal.
 
-Google in your terminal — CLI for Gmail, Calendar, Drive, Docs, Slides, Sheets, Contacts, Tasks, People, Groups (Workspace), and Keep (Workspace-only).
+Google in your terminal — CLI for Gmail, Calendar, Chat, Drive, Docs, Slides, Sheets, Contacts, Tasks, People, Groups (Workspace), and Keep (Workspace-only).
 
 ## Features
 
 - **Gmail** - search threads, send emails, manage labels, drafts, filters, delegation, vacation settings, and watch (Pub/Sub push)
 - **Email tracking** - track opens for `gog gmail send --track` with a small Cloudflare Worker backend
 - **Calendar** - list/create/update events, detect conflicts, manage invitations, check free/busy status, team calendars
+- **Chat** - list spaces, read messages/threads, send messages and DMs
 - **Drive** - list/search/upload/download files, manage permissions, organize folders
 - **Contacts** - search/create/update contacts, access Workspace directory
 - **Tasks** - manage tasklists and tasks: create/add/update/done/undo/delete/clear
@@ -63,6 +64,7 @@ Before adding an account, create OAuth2 credentials from Google Cloud Console:
 2. Enable the APIs you need:
    - Gmail API: https://console.cloud.google.com/apis/api/gmail.googleapis.com
    - Google Calendar API: https://console.cloud.google.com/apis/api/calendar-json.googleapis.com
+   - Google Chat API: https://console.cloud.google.com/apis/api/chat.googleapis.com
    - Google Drive API: https://console.cloud.google.com/apis/api/drive.googleapis.com
    - People API (Contacts): https://console.cloud.google.com/apis/api/people.googleapis.com
    - Google Tasks API: https://console.cloud.google.com/apis/api/tasks.googleapis.com
@@ -239,6 +241,7 @@ Service scope matrix (auto-generated; run `go run scripts/gen-auth-services-md.g
 | --- | --- | --- | --- | --- |
 | gmail | yes | Gmail API | `https://mail.google.com/`<br>`https://www.googleapis.com/auth/gmail.settings.basic` |  |
 | calendar | yes | Calendar API | `https://www.googleapis.com/auth/calendar` |  |
+| chat | yes | Chat API | `https://www.googleapis.com/auth/chat.spaces`<br>`https://www.googleapis.com/auth/chat.messages`<br>`https://www.googleapis.com/auth/chat.memberships`<br>`https://www.googleapis.com/auth/chat.users.readstate.readonly` |  |
 | drive | yes | Drive API | `https://www.googleapis.com/auth/drive` |  |
 | docs | yes | Docs API, Drive API | `https://www.googleapis.com/auth/drive`<br>`https://www.googleapis.com/auth/documents` | Export/copy/create via Drive |
 | contacts | yes | People API | `https://www.googleapis.com/auth/contacts`<br>`https://www.googleapis.com/auth/contacts.other.readonly`<br>`https://www.googleapis.com/auth/directory.readonly` | Contacts + other contacts + directory |
@@ -727,6 +730,34 @@ gog sheets create "My New Spreadsheet" --sheets "Sheet1,Sheet2"
 ```bash
 # Profile
 gog people me
+gog people get people/<userId>
+
+# Search the Workspace directory
+gog people search "Ada Lovelace" --max 5
+
+# Relations (defaults to people/me)
+gog people relations
+gog people relations people/<userId> --type manager
+```
+
+### Chat
+
+```bash
+# Spaces
+gog chat spaces list
+gog chat spaces find "Engineering"
+gog chat spaces create "Engineering" --member alice@company.com --member bob@company.com
+
+# Messages
+gog chat messages list spaces/<spaceId> --max 5
+gog chat messages send spaces/<spaceId> --text "Build complete!" --thread spaces/<spaceId>/threads/<threadId>
+
+# Threads
+gog chat threads list spaces/<spaceId>
+
+# Direct messages
+gog chat dm space user@company.com
+gog chat dm send user@company.com --text "ping"
 ```
 
 ### Groups (Google Workspace)

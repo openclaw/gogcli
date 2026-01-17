@@ -12,6 +12,7 @@ type Service string
 const (
 	ServiceGmail    Service = "gmail"
 	ServiceCalendar Service = "calendar"
+	ServiceChat     Service = "chat"
 	ServiceDrive    Service = "drive"
 	ServiceDocs     Service = "docs"
 	ServiceContacts Service = "contacts"
@@ -56,6 +57,7 @@ type serviceInfo struct {
 var serviceOrder = []Service{
 	ServiceGmail,
 	ServiceCalendar,
+	ServiceChat,
 	ServiceDrive,
 	ServiceDocs,
 	ServiceContacts,
@@ -79,6 +81,16 @@ var serviceInfoByService = map[Service]serviceInfo{
 		scopes: []string{"https://www.googleapis.com/auth/calendar"},
 		user:   true,
 		apis:   []string{"Calendar API"},
+	},
+	ServiceChat: {
+		scopes: []string{
+			"https://www.googleapis.com/auth/chat.spaces",
+			"https://www.googleapis.com/auth/chat.messages",
+			"https://www.googleapis.com/auth/chat.memberships",
+			"https://www.googleapis.com/auth/chat.users.readstate.readonly",
+		},
+		user: true,
+		apis: []string{"Chat API"},
 	},
 	ServiceDrive: {
 		scopes: []string{"https://www.googleapis.com/auth/drive"},
@@ -341,6 +353,17 @@ func scopesForServiceWithOptions(service Service, opts ScopeOptions) ([]string, 
 	case ServiceCalendar:
 		if opts.Readonly {
 			return []string{"https://www.googleapis.com/auth/calendar.readonly"}, nil
+		}
+
+		return Scopes(service)
+	case ServiceChat:
+		if opts.Readonly {
+			return []string{
+				"https://www.googleapis.com/auth/chat.spaces.readonly",
+				"https://www.googleapis.com/auth/chat.messages.readonly",
+				"https://www.googleapis.com/auth/chat.memberships.readonly",
+				"https://www.googleapis.com/auth/chat.users.readstate.readonly",
+			}, nil
 		}
 
 		return Scopes(service)

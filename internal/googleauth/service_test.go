@@ -10,6 +10,7 @@ func TestParseService(t *testing.T) {
 		{"gmail", ServiceGmail},
 		{"GMAIL", ServiceGmail},
 		{"calendar", ServiceCalendar},
+		{"chat", ServiceChat},
 		{"drive", ServiceDrive},
 		{"docs", ServiceDocs},
 		{"contacts", ServiceContacts},
@@ -60,7 +61,7 @@ func TestExtractCodeAndState_Errors(t *testing.T) {
 
 func TestAllServices(t *testing.T) {
 	svcs := AllServices()
-	if len(svcs) != 10 {
+	if len(svcs) != 11 {
 		t.Fatalf("unexpected: %v", svcs)
 	}
 	seen := make(map[Service]bool)
@@ -69,7 +70,7 @@ func TestAllServices(t *testing.T) {
 		seen[s] = true
 	}
 
-	for _, want := range []Service{ServiceGmail, ServiceCalendar, ServiceDrive, ServiceDocs, ServiceContacts, ServiceTasks, ServicePeople, ServiceSheets, ServiceGroups, ServiceKeep} {
+	for _, want := range []Service{ServiceGmail, ServiceCalendar, ServiceChat, ServiceDrive, ServiceDocs, ServiceContacts, ServiceTasks, ServicePeople, ServiceSheets, ServiceGroups, ServiceKeep} {
 		if !seen[want] {
 			t.Fatalf("missing %q", want)
 		}
@@ -78,7 +79,7 @@ func TestAllServices(t *testing.T) {
 
 func TestUserServices(t *testing.T) {
 	svcs := UserServices()
-	if len(svcs) != 8 {
+	if len(svcs) != 9 {
 		t.Fatalf("unexpected: %v", svcs)
 	}
 
@@ -98,7 +99,7 @@ func TestUserServices(t *testing.T) {
 }
 
 func TestUserServiceCSV(t *testing.T) {
-	want := "gmail,calendar,drive,docs,contacts,tasks,sheets,people"
+	want := "gmail,calendar,chat,drive,docs,contacts,tasks,sheets,people"
 	if got := UserServiceCSV(); got != want {
 		t.Fatalf("unexpected user services csv: %q", got)
 	}
