@@ -49,9 +49,9 @@ func (c *ChatMessagesListCmd) Run(ctx context.Context, flags *RootFlags) error {
 		filters = append(filters, fmt.Sprintf("thread.name = \"%s\"", thread))
 	}
 	if c.Unread {
-		readState, err := svc.Users.Spaces.GetSpaceReadState(fmt.Sprintf("users/me/spaces/%s/spaceReadState", spaceID(space))).Do()
-		if err != nil {
-			return err
+		readState, readErr := svc.Users.Spaces.GetSpaceReadState(fmt.Sprintf("users/me/spaces/%s/spaceReadState", spaceID(space))).Do()
+		if readErr != nil {
+			return readErr
 		}
 		if readState.LastReadTime != "" {
 			filters = append(filters, fmt.Sprintf("createTime > \"%s\"", readState.LastReadTime))
