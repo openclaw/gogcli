@@ -74,14 +74,14 @@ func (c *ChatDMSendCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 
 	if resp == nil {
-		u.Out().Printf("space\t%s", space.Name)
+		u.Out().Printf("space\t%s\n", space.Name)
 		return nil
 	}
 	if resp.Name != "" {
-		u.Out().Printf("resource\t%s", resp.Name)
+		u.Out().Printf("resource\t%s\n", resp.Name)
 	}
 	if resp.Thread != nil && resp.Thread.Name != "" {
-		u.Out().Printf("thread\t%s", resp.Thread.Name)
+		u.Out().Printf("thread\t%s\n", resp.Thread.Name)
 	}
 	return nil
 }
@@ -119,10 +119,10 @@ func (c *ChatDMSpaceCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return outfmt.WriteJSON(os.Stdout, map[string]any{"space": space})
 	}
 	if space.Name != "" {
-		u.Out().Printf("resource\t%s", space.Name)
+		u.Out().Printf("resource\t%s\n", space.Name)
 	}
 	if space.DisplayName != "" {
-		u.Out().Printf("name\t%s", space.DisplayName)
+		u.Out().Printf("name\t%s\n", space.DisplayName)
 	}
 	return nil
 }
