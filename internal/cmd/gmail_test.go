@@ -210,6 +210,9 @@ func TestMessageByDate(t *testing.T) {
 }
 
 func TestResolveOutputLocation(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+
 	tests := []struct {
 		name        string
 		timezone    string
@@ -303,6 +306,9 @@ func TestResolveOutputLocation(t *testing.T) {
 }
 
 func TestResolveOutputLocation_EnvVar(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+
 	// Save and restore GOG_TIMEZONE
 	orig := os.Getenv("GOG_TIMEZONE")
 	defer os.Setenv("GOG_TIMEZONE", orig)
@@ -359,6 +365,9 @@ func TestResolveOutputLocation_EnvVar(t *testing.T) {
 }
 
 func TestGetConfiguredTimezone(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+
 	// Save and restore GOG_TIMEZONE
 	orig := os.Getenv("GOG_TIMEZONE")
 	defer os.Setenv("GOG_TIMEZONE", orig)

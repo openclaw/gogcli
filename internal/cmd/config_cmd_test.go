@@ -9,6 +9,7 @@ import (
 )
 
 func TestConfigCmd_JSONParity(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 
 	cfg := config.File{
@@ -59,6 +60,7 @@ func TestConfigCmd_JSONParity(t *testing.T) {
 }
 
 func TestConfigCmd_JSONEmptyValues(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	t.Setenv("XDG_CONFIG_HOME", filepath.Join(t.TempDir(), "config-home"))
 
 	listOut := captureStdout(t, func() {
