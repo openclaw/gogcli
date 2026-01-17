@@ -144,10 +144,6 @@ func (c *ConfigListCmd) Run(ctx context.Context) error {
 
 	fmt.Fprintf(os.Stdout, "Config file: %s\n", path)
 	for _, key := range keys {
-		spec, err := config.KeySpecFor(key)
-		if err != nil {
-			return err
-		}
 		value := config.GetValue(cfg, key)
 		fmt.Fprintf(os.Stdout, "%s: %s\n", key, formatConfigValue(value, func() string { return "(not set)" }))
 	}
