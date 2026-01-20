@@ -101,7 +101,7 @@ func (c *CalendarUsersCmd) Run(ctx context.Context, flags *RootFlags) error {
 	printNextPageHint(u, resp.NextPageToken)
 
 	u.Err().Println("\nTip: Use any email above as a calendar ID, e.g.:")
-	u.Err().Printf("  gog calendar events %s\n", primaryEmail(resp.People[0]))
+	u.Err().Printf("  gog calendar events %s", primaryEmail(resp.People[0]))
 
 	return nil
 }

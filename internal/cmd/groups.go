@@ -190,7 +190,7 @@ func (c *GroupsMembersCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 
 	if len(resp.Memberships) == 0 {
-		u.Err().Printf("No members in group %s\n", groupEmail)
+		u.Err().Printf("No members in group %s", groupEmail)
 		return nil
 	}
 

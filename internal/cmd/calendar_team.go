@@ -74,7 +74,7 @@ func (c *CalendarTeamCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 
 	if len(memberEmails) == 0 {
-		u.Err().Printf("No user members in group %s\n", groupEmail)
+		u.Err().Printf("No user members in group %s", groupEmail)
 		return nil
 	}
 
@@ -251,7 +251,7 @@ func (c *CalendarTeamCmd) runEvents(ctx context.Context, svc *calendar.Service, 
 
 	// Print warnings for errors
 	for _, e := range errors {
-		u.Err().Printf("Warning: %s\n", e)
+		u.Err().Printf("Warning: %s", e)
 	}
 
 	// Sort by start time
