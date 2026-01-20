@@ -115,9 +115,13 @@ func (c *GmailSearchCmd) Run(ctx context.Context, flags *RootFlags) error {
 	w, flush := tableWriter(ctx)
 	defer flush()
 
-	fmt.Fprintln(w, "ID\tDATE\tFROM\tSUBJECT\tLABELS")
+	fmt.Fprintln(w, "ID\tDATE\tFROM\tSUBJECT\tLABELS\tTHREAD")
 	for _, it := range items {
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", it.ID, it.Date, it.From, it.Subject, strings.Join(it.Labels, ","))
+		threadInfo := "-"
+		if it.MessageCount > 1 {
+			threadInfo = fmt.Sprintf("[%d msgs]", it.MessageCount)
+		}
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\n", it.ID, it.Date, it.From, it.Subject, strings.Join(it.Labels, ","), threadInfo)
 	}
 	printNextPageHint(u, resp.NextPageToken)
 	return nil
@@ -326,11 +330,12 @@ func mailParseDate(s string) (time.Time, error) {
 
 // threadItem holds parsed thread metadata for display/JSON output
 type threadItem struct {
-	ID      string   `json:"id"`
-	Date    string   `json:"date,omitempty"`
-	From    string   `json:"from,omitempty"`
-	Subject string   `json:"subject,omitempty"`
-	Labels  []string `json:"labels,omitempty"`
+	ID           string   `json:"id"`
+	Date         string   `json:"date,omitempty"`
+	From         string   `json:"from,omitempty"`
+	Subject      string   `json:"subject,omitempty"`
+	Labels       []string `json:"labels,omitempty"`
+	MessageCount int      `json:"messageCount,omitempty"` // Number of messages in the thread
 }
 
 // fetchThreadDetails fetches thread metadata concurrently with bounded parallelism.
@@ -382,7 +387,7 @@ func fetchThreadDetails(ctx context.Context, svc *gmail.Service, threads []*gmai
 				return
 			}
 
-			item := threadItem{ID: threadID}
+			item := threadItem{ID: threadID, MessageCount: len(thread.Messages)}
 			if first := firstMessage(thread); first != nil {
 				item.From = sanitizeTab(headerValue(first.Payload, "From"))
 				item.Subject = sanitizeTab(headerValue(first.Payload, "Subject"))
@@ -423,7 +428,7 @@ func fetchThreadDetails(ctx context.Context, svc *gmail.Service, threads []*gmai
 	for r := range results {
 		if r.err != nil {
 			hasErr = true
-			ordered[r.index] = threadItem{ID: "", Date: "", From: "", Subject: "", Labels: nil}
+			ordered[r.index] = threadItem{ID: "", Date: "", From: "", Subject: "", Labels: nil, MessageCount: 0}
 			continue
 		}
 		ordered[r.index] = r.item

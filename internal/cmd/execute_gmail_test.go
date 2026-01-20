@@ -83,11 +83,12 @@ func TestExecute_GmailSearch_JSON(t *testing.T) {
 
 	var parsed struct {
 		Threads []struct {
-			ID      string   `json:"id"`
-			Date    string   `json:"date"`
-			From    string   `json:"from"`
-			Subject string   `json:"subject"`
-			Labels  []string `json:"labels"`
+			ID           string   `json:"id"`
+			Date         string   `json:"date"`
+			From         string   `json:"from"`
+			Subject      string   `json:"subject"`
+			Labels       []string `json:"labels"`
+			MessageCount int      `json:"messageCount"`
 		} `json:"threads"`
 		NextPageToken string `json:"nextPageToken"`
 	}
@@ -99,6 +100,9 @@ func TestExecute_GmailSearch_JSON(t *testing.T) {
 	}
 	if parsed.Threads[0].ID != "t1" || parsed.Threads[0].Subject != "Hello" {
 		t.Fatalf("unexpected thread: %#v", parsed.Threads[0])
+	}
+	if parsed.Threads[0].MessageCount != 1 {
+		t.Fatalf("unexpected messageCount: %d", parsed.Threads[0].MessageCount)
 	}
 	if parsed.Threads[0].Date != "2006-01-02 15:04" {
 		t.Fatalf("unexpected date: %q", parsed.Threads[0].Date)
