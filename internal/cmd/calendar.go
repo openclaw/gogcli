@@ -14,7 +14,7 @@ type CalendarCmd struct {
 	Calendars       CalendarCalendarsCmd       `cmd:"" name:"calendars" help:"List calendars"`
 	ACL             CalendarAclCmd             `cmd:"" name:"acl" help:"List calendar ACL"`
 	Events          CalendarEventsCmd          `cmd:"" name:"events" aliases:"list" help:"List events from a calendar or all calendars"`
-	Event           CalendarEventCmd           `cmd:"" name:"event" help:"Get event"`
+	Event           CalendarEventCmd           `cmd:"" name:"event" aliases:"get" help:"Get event"`
 	Create          CalendarCreateCmd          `cmd:"" name:"create" help:"Create an event"`
 	Update          CalendarUpdateCmd          `cmd:"" name:"update" help:"Update an event"`
 	Delete          CalendarDeleteCmd          `cmd:"" name:"delete" help:"Delete an event"`
@@ -143,6 +143,7 @@ type CalendarEventsCmd struct {
 	PrivatePropFilter string `name:"private-prop-filter" help:"Filter by private extended property (key=value)"`
 	SharedPropFilter  string `name:"shared-prop-filter" help:"Filter by shared extended property (key=value)"`
 	Fields            string `name:"fields" help:"Comma-separated fields to return"`
+	Weekday           bool   `name:"weekday" help:"Include start/end day-of-week columns" default:"${calendar_weekday}"`
 }
 
 func (c *CalendarEventsCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -180,10 +181,10 @@ func (c *CalendarEventsCmd) Run(ctx context.Context, flags *RootFlags) error {
 	from, to := timeRange.FormatRFC3339()
 
 	if c.All {
-		return listAllCalendarsEvents(ctx, svc, from, to, c.Max, c.Page, c.Query, c.PrivatePropFilter, c.SharedPropFilter, c.Fields)
+		return listAllCalendarsEvents(ctx, svc, from, to, c.Max, c.Page, c.Query, c.PrivatePropFilter, c.SharedPropFilter, c.Fields, c.Weekday)
 	}
 	calendarID := strings.TrimSpace(c.CalendarID)
-	return listCalendarEvents(ctx, svc, calendarID, from, to, c.Max, c.Page, c.Query, c.PrivatePropFilter, c.SharedPropFilter, c.Fields)
+	return listCalendarEvents(ctx, svc, calendarID, from, to, c.Max, c.Page, c.Query, c.PrivatePropFilter, c.SharedPropFilter, c.Fields, c.Weekday)
 }
 
 type CalendarEventCmd struct {
@@ -215,9 +216,10 @@ func (c *CalendarEventCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if err != nil {
 		return err
 	}
+	tz, loc, _ := getCalendarLocation(ctx, svc, calendarID)
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{"event": wrapEventWithDays(event)})
+		return outfmt.WriteJSON(os.Stdout, map[string]any{"event": wrapEventWithDaysWithTimezone(event, tz, loc)})
 	}
-	printCalendarEvent(u, event)
+	printCalendarEventWithTimezone(u, event, tz, loc)
 	return nil
 }

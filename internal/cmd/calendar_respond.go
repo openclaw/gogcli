@@ -90,7 +90,8 @@ func (c *CalendarRespondCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{"event": wrapEventWithDays(updated)})
+		tz, loc, _ := getCalendarLocation(ctx, svc, calendarID)
+		return outfmt.WriteJSON(os.Stdout, map[string]any{"event": wrapEventWithDaysWithTimezone(updated, tz, loc)})
 	}
 
 	u.Out().Printf("id\t%s", updated.Id)

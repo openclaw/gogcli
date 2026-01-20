@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"strings"
 	"testing"
+	"time"
 
 	"google.golang.org/api/calendar/v3"
 
@@ -95,15 +96,20 @@ func TestPrintCalendarEvent_AllFields(t *testing.T) {
 		HtmlLink: "https://calendar.example.com/ev1",
 	}
 
-	printCalendarEvent(u, event)
+	printCalendarEventWithTimezone(u, event, "UTC", time.UTC)
 	got := out.String()
 
 	for _, want := range []string{
 		"id\tev1",
 		"summary\t(no title)",
 		"type\tfocusTime",
+		"timezone\tUTC",
 		"start\t2025-01-01T10:00:00Z",
+		"start-day-of-week\tWednesday",
+		"start-local\t2025-01-01T10:00:00Z",
 		"end\t2025-01-01T11:00:00Z",
+		"end-day-of-week\tWednesday",
+		"end-local\t2025-01-01T11:00:00Z",
 		"description\tdesc",
 		"location\toffice",
 		"color\t1",

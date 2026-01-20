@@ -64,10 +64,11 @@ func (c *CalendarFocusTimeCmd) Run(ctx context.Context, flags *RootFlags) error 
 		return err
 	}
 
+	tz, loc, _ := getCalendarLocation(ctx, svc, c.CalendarID)
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{"event": wrapEventWithDays(created)})
+		return outfmt.WriteJSON(os.Stdout, map[string]any{"event": wrapEventWithDaysWithTimezone(created, tz, loc)})
 	}
-	printCalendarEvent(u, created)
+	printCalendarEventWithTimezone(u, created, tz, loc)
 	return nil
 }
 

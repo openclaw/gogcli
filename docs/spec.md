@@ -162,8 +162,9 @@ Flag aliases:
 - `gog drive url <fileIds...>`
 - `gog calendar calendars`
 - `gog calendar acl <calendarId>`
-- `gog calendar events <calendarId> [--from RFC3339] [--to RFC3339] [--max N] [--page TOKEN] [--query Q]`
-- `gog calendar event <calendarId> <eventId>`
+- `gog calendar events <calendarId> [--from RFC3339] [--to RFC3339] [--max N] [--page TOKEN] [--query Q] [--weekday]`
+- `gog calendar event|get <calendarId> <eventId>`
+- `GOG_CALENDAR_WEEKDAY=1` defaults `--weekday` for `gog calendar events`
 - `gog calendar create <calendarId> --summary S --from DT --to DT [--description D] [--location L] [--attendees a@b.com,c@d.com] [--all-day] [--event-type TYPE]`
 - `gog calendar update <calendarId> <eventId> [--summary S] [--from DT] [--to DT] [--description D] [--location L] [--attendees ...] [--add-attendee ...] [--all-day] [--event-type TYPE]`
 - `gog calendar delete <calendarId> <eventId>`

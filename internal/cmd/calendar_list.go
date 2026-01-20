@@ -13,7 +13,7 @@ import (
 	"github.com/steipete/gogcli/internal/ui"
 )
 
-func listCalendarEvents(ctx context.Context, svc *calendar.Service, calendarID, from, to string, maxResults int64, page, query, privatePropFilter, sharedPropFilter, fields string) error {
+func listCalendarEvents(ctx context.Context, svc *calendar.Service, calendarID, from, to string, maxResults int64, page, query, privatePropFilter, sharedPropFilter, fields string, showWeekday bool) error {
 	u := ui.FromContext(ctx)
 
 	call := svc.Events.List(calendarID).
@@ -54,6 +54,16 @@ func listCalendarEvents(ctx context.Context, svc *calendar.Service, calendarID, 
 	w, flush := tableWriter(ctx)
 	defer flush()
 
+	if showWeekday {
+		fmt.Fprintln(w, "ID\tSTART\tSTART_DOW\tEND\tEND_DOW\tSUMMARY")
+		for _, e := range resp.Items {
+			startDay, endDay := eventDaysOfWeek(e)
+			fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\n", e.Id, eventStart(e), startDay, eventEnd(e), endDay, e.Summary)
+		}
+		printNextPageHint(u, resp.NextPageToken)
+		return nil
+	}
+
 	fmt.Fprintln(w, "ID\tSTART\tEND\tSUMMARY")
 	for _, e := range resp.Items {
 		fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", e.Id, eventStart(e), eventEnd(e), e.Summary)
@@ -67,9 +77,12 @@ type eventWithCalendar struct {
 	CalendarID     string
 	StartDayOfWeek string `json:"startDayOfWeek,omitempty"`
 	EndDayOfWeek   string `json:"endDayOfWeek,omitempty"`
+	Timezone       string `json:"timezone,omitempty"`
+	StartLocal     string `json:"startLocal,omitempty"`
+	EndLocal       string `json:"endLocal,omitempty"`
 }
 
-func listAllCalendarsEvents(ctx context.Context, svc *calendar.Service, from, to string, maxResults int64, page, query, privatePropFilter, sharedPropFilter, fields string) error {
+func listAllCalendarsEvents(ctx context.Context, svc *calendar.Service, from, to string, maxResults int64, page, query, privatePropFilter, sharedPropFilter, fields string, showWeekday bool) error {
 	u := ui.FromContext(ctx)
 
 	calResp, err := svc.CalendarList.List().Context(ctx).Do()
@@ -110,11 +123,17 @@ func listAllCalendarsEvents(ctx context.Context, svc *calendar.Service, from, to
 		}
 		for _, e := range events.Items {
 			startDay, endDay := eventDaysOfWeek(e)
+			evTimezone := eventTimezone(e)
+			startLocal := formatEventLocal(e.Start, nil)
+			endLocal := formatEventLocal(e.End, nil)
 			all = append(all, &eventWithCalendar{
 				Event:          e,
 				CalendarID:     cal.Id,
 				StartDayOfWeek: startDay,
 				EndDayOfWeek:   endDay,
+				Timezone:       evTimezone,
+				StartLocal:     startLocal,
+				EndLocal:       endLocal,
 			})
 		}
 	}
@@ -129,6 +148,14 @@ func listAllCalendarsEvents(ctx context.Context, svc *calendar.Service, from, to
 
 	w, flush := tableWriter(ctx)
 	defer flush()
+	if showWeekday {
+		fmt.Fprintln(w, "CALENDAR\tID\tSTART\tSTART_DOW\tEND\tEND_DOW\tSUMMARY")
+		for _, e := range all {
+			fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\n", e.CalendarID, e.Id, eventStart(e.Event), e.StartDayOfWeek, eventEnd(e.Event), e.EndDayOfWeek, e.Summary)
+		}
+		return nil
+	}
+
 	fmt.Fprintln(w, "CALENDAR\tID\tSTART\tEND\tSUMMARY")
 	for _, e := range all {
 		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", e.CalendarID, e.Id, eventStart(e.Event), eventEnd(e.Event), e.Summary)

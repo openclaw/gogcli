@@ -157,10 +157,11 @@ func (c *CalendarCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if err != nil {
 		return err
 	}
+	tz, loc, _ := getCalendarLocation(ctx, svc, calendarID)
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{"event": wrapEventWithDays(created)})
+		return outfmt.WriteJSON(os.Stdout, map[string]any{"event": wrapEventWithDaysWithTimezone(created, tz, loc)})
 	}
-	printCalendarEvent(u, created)
+	printCalendarEventWithTimezone(u, created, tz, loc)
 	return nil
 }
 
@@ -422,10 +423,11 @@ func (c *CalendarUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *
 			return err
 		}
 	}
+	tz, loc, _ := getCalendarLocation(ctx, svc, calendarID)
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{"event": wrapEventWithDays(updated)})
+		return outfmt.WriteJSON(os.Stdout, map[string]any{"event": wrapEventWithDaysWithTimezone(updated, tz, loc)})
 	}
-	printCalendarEvent(u, updated)
+	printCalendarEventWithTimezone(u, updated, tz, loc)
 	return nil
 }
 

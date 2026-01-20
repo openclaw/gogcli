@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"google.golang.org/api/calendar/v3"
 
@@ -10,16 +11,61 @@ import (
 )
 
 func printCalendarEvent(u *ui.UI, event *calendar.Event) {
+	printCalendarEventWithTimezone(u, event, "", nil)
+}
+
+func printCalendarEventWithTimezone(u *ui.UI, event *calendar.Event, calendarTimezone string, loc *time.Location) {
 	if u == nil || event == nil {
 		return
 	}
+	calendarTimezone = strings.TrimSpace(calendarTimezone)
+	eventTimezone := eventTimezone(event)
+
+	if loc == nil && calendarTimezone != "" {
+		if loaded, err := time.LoadLocation(calendarTimezone); err == nil {
+			loc = loaded
+		} else {
+			calendarTimezone = ""
+		}
+	}
+	if calendarTimezone == "" {
+		calendarTimezone = eventTimezone
+		if loc == nil && calendarTimezone != "" {
+			if loaded, err := time.LoadLocation(calendarTimezone); err == nil {
+				loc = loaded
+			} else {
+				calendarTimezone = ""
+			}
+		}
+	}
+
 	u.Out().Printf("id\t%s", event.Id)
 	u.Out().Printf("summary\t%s", orEmpty(event.Summary, "(no title)"))
 	if event.EventType != "" && event.EventType != eventTypeDefault {
 		u.Out().Printf("type\t%s", event.EventType)
 	}
+	if calendarTimezone != "" {
+		u.Out().Printf("timezone\t%s", calendarTimezone)
+	}
+	if eventTimezone != "" && eventTimezone != calendarTimezone {
+		u.Out().Printf("event-timezone\t%s", eventTimezone)
+	}
+
 	u.Out().Printf("start\t%s", eventStart(event))
+	startDay, endDay := eventDaysOfWeek(event)
+	if startDay != "" {
+		u.Out().Printf("start-day-of-week\t%s", startDay)
+	}
+	if startLocal := formatEventLocal(event.Start, loc); startLocal != "" {
+		u.Out().Printf("start-local\t%s", startLocal)
+	}
 	u.Out().Printf("end\t%s", eventEnd(event))
+	if endDay != "" {
+		u.Out().Printf("end-day-of-week\t%s", endDay)
+	}
+	if endLocal := formatEventLocal(event.End, loc); endLocal != "" {
+		u.Out().Printf("end-local\t%s", endLocal)
+	}
 	if event.Description != "" {
 		u.Out().Printf("description\t%s", event.Description)
 	}
@@ -134,6 +180,42 @@ func eventEnd(e *calendar.Event) string {
 		return e.End.DateTime
 	}
 	return e.End.Date
+}
+
+func eventTimezone(e *calendar.Event) string {
+	if e == nil {
+		return ""
+	}
+	if e.Start != nil && strings.TrimSpace(e.Start.TimeZone) != "" {
+		return strings.TrimSpace(e.Start.TimeZone)
+	}
+	if e.End != nil && strings.TrimSpace(e.End.TimeZone) != "" {
+		return strings.TrimSpace(e.End.TimeZone)
+	}
+	return ""
+}
+
+func formatEventLocal(dt *calendar.EventDateTime, loc *time.Location) string {
+	if dt == nil {
+		return ""
+	}
+	if dt.DateTime != "" {
+		if loc == nil && strings.TrimSpace(dt.TimeZone) != "" {
+			if loaded, err := time.LoadLocation(strings.TrimSpace(dt.TimeZone)); err == nil {
+				loc = loaded
+			}
+		}
+		if t, ok := parseEventTime(dt.DateTime, dt.TimeZone); ok {
+			if loc != nil {
+				return t.In(loc).Format(time.RFC3339)
+			}
+			return t.Format(time.RFC3339)
+		}
+	}
+	if dt.Date != "" {
+		return dt.Date
+	}
+	return ""
 }
 
 func orEmpty(s string, fallback string) string {

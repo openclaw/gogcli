@@ -39,4 +39,7 @@ func TestWrapEventsWithDays(t *testing.T) {
 	if wrapped[0].StartDayOfWeek != "Thursday" {
 		t.Fatalf("unexpected start day: %q", wrapped[0].StartDayOfWeek)
 	}
+	if wrapped[0].StartLocal != "2025-01-02" {
+		t.Fatalf("unexpected start local: %q", wrapped[0].StartLocal)
+	}
 }

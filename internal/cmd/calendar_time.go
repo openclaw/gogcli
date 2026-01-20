@@ -37,19 +37,9 @@ func (c *CalendarTimeCmd) Run(ctx context.Context, flags *RootFlags) error {
 			return err
 		}
 
-		cal, err := svc.CalendarList.Get(c.CalendarID).Do()
+		tz, loc, err = getCalendarLocation(ctx, svc, c.CalendarID)
 		if err != nil {
-			return fmt.Errorf("failed to get calendar %q: %w", c.CalendarID, err)
-		}
-
-		tz = cal.TimeZone
-		if tz == "" {
-			return fmt.Errorf("calendar %q has no timezone set", c.CalendarID)
-		}
-
-		loc, err = time.LoadLocation(tz)
-		if err != nil {
-			return fmt.Errorf("invalid calendar timezone %q: %w", tz, err)
+			return err
 		}
 	}
 

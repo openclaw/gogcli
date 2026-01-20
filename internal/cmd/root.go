@@ -63,6 +63,7 @@ func Execute(args []string) (err error) {
 	vars := kong.Vars{
 		"auth_services":    googleauth.UserServiceCSV(),
 		"color":            envOr("GOG_COLOR", "auto"),
+		"calendar_weekday": envOr("GOG_CALENDAR_WEEKDAY", "false"),
 		"enabled_commands": envOr("GOG_ENABLE_COMMANDS", ""),
 		"json":             boolString(envMode.JSON),
 		"plain":            boolString(envMode.Plain),

@@ -517,15 +517,35 @@ gog calendar events <calendarId> --tomorrow                 # Tomorrow's events
 gog calendar events <calendarId> --week                     # This week (Mon-Sun by default; use --week-start)
 gog calendar events <calendarId> --days 3                   # Next 3 days
 gog calendar events <calendarId> --from today --to friday   # Relative dates
+gog calendar events <calendarId> --from today --to friday --weekday   # Include weekday columns
 gog calendar events <calendarId> --from 2025-01-01T00:00:00Z --to 2025-01-08T00:00:00Z
 gog calendar events --all             # Fetch events from all calendars
 gog calendar event <calendarId> <eventId>
+gog calendar get <calendarId> <eventId>                     # Alias for event
 gog calendar search "meeting" --today
 gog calendar search "meeting" --tomorrow
 gog calendar search "meeting" --days 365
 gog calendar search "meeting" --from 2025-01-01T00:00:00Z --to 2025-01-31T00:00:00Z --max 50
 
 # Search defaults to 30 days ago through 90 days ahead unless you set --from/--to/--today/--week/--days.
+# Tip: set GOG_CALENDAR_WEEKDAY=1 to default --weekday for calendar events output.
+
+# JSON event output includes timezone and localized times (useful for agents).
+gog calendar get <calendarId> <eventId> --json
+# {
+#   "event": {
+#     "id": "...",
+#     "summary": "...",
+#     "startDayOfWeek": "Friday",
+#     "endDayOfWeek": "Friday",
+#     "timezone": "America/Los_Angeles",
+#     "eventTimezone": "America/New_York",
+#     "startLocal": "2026-01-23T20:45:00-08:00",
+#     "endLocal": "2026-01-23T22:45:00-08:00",
+#     "start": { "dateTime": "2026-01-23T23:45:00-05:00" },
+#     "end": { "dateTime": "2026-01-24T01:45:00-05:00" }
+#   }
+# }
 
 # Team calendars (requires Cloud Identity API for Google Workspace)
 gog calendar team <group-email> --today           # Show team's events for today

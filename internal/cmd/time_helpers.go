@@ -28,6 +28,27 @@ type TimeRange struct {
 	Location *time.Location
 }
 
+// getCalendarLocation fetches a calendar's timezone and returns it as a location.
+func getCalendarLocation(ctx context.Context, svc *calendar.Service, calendarID string) (string, *time.Location, error) {
+	calendarID = strings.TrimSpace(calendarID)
+	if calendarID == "" {
+		return "", nil, fmt.Errorf("calendarId required")
+	}
+
+	cal, err := svc.CalendarList.Get(calendarID).Context(ctx).Do()
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to get calendar %q: %w", calendarID, err)
+	}
+	if cal.TimeZone == "" {
+		return "", nil, fmt.Errorf("calendar %q has no timezone set", calendarID)
+	}
+	loc, err := time.LoadLocation(cal.TimeZone)
+	if err != nil {
+		return "", nil, fmt.Errorf("invalid calendar timezone %q: %w", cal.TimeZone, err)
+	}
+	return cal.TimeZone, loc, nil
+}
+
 // getUserTimezone fetches the timezone from the user's primary calendar.
 func getUserTimezone(ctx context.Context, svc *calendar.Service) (*time.Location, error) {
 	cal, err := svc.CalendarList.Get("primary").Context(ctx).Do()

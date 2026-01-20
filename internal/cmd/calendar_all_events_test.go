@@ -83,7 +83,7 @@ func TestListAllCalendarsEvents_JSON(t *testing.T) {
 	ctx = outfmt.WithMode(ctx, outfmt.Mode{JSON: true})
 
 	jsonOut := captureStdout(t, func() {
-		if err := listAllCalendarsEvents(ctx, svc, "2025-01-01T00:00:00Z", "2025-01-02T00:00:00Z", 10, "", "", "", "", ""); err != nil {
+		if err := listAllCalendarsEvents(ctx, svc, "2025-01-01T00:00:00Z", "2025-01-02T00:00:00Z", 10, "", "", "", "", "", false); err != nil {
 			t.Fatalf("listAllCalendarsEvents: %v", err)
 		}
 	})
