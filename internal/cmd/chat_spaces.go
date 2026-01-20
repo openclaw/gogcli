@@ -36,6 +36,7 @@ func (c *ChatSpacesListCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 
 	resp, err := svc.Spaces.List().
+		Context(ctx).
 		PageSize(c.Max).
 		PageToken(c.Page).
 		Do()
@@ -117,7 +118,7 @@ func (c *ChatSpacesFindCmd) Run(ctx context.Context, flags *RootFlags) error {
 	var matches []*chat.Space
 	pageToken := ""
 	for {
-		call := svc.Spaces.List().PageSize(c.Max)
+		call := svc.Spaces.List().Context(ctx).PageSize(c.Max)
 		if pageToken != "" {
 			call = call.PageToken(pageToken)
 		}
@@ -225,7 +226,7 @@ func (c *ChatSpacesCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
 			DisplayName: displayName,
 		},
 		Memberships: memberships,
-	}).Do()
+	}).Context(ctx).Do()
 	if err != nil {
 		return err
 	}

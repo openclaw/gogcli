@@ -49,7 +49,7 @@ func (c *ChatMessagesListCmd) Run(ctx context.Context, flags *RootFlags) error {
 		filters = append(filters, fmt.Sprintf("thread.name = \"%s\"", thread))
 	}
 	if c.Unread {
-		readState, readErr := svc.Users.Spaces.GetSpaceReadState(fmt.Sprintf("users/me/spaces/%s/spaceReadState", spaceID(space))).Do()
+		readState, readErr := svc.Users.Spaces.GetSpaceReadState(fmt.Sprintf("users/me/spaces/%s/spaceReadState", spaceID(space))).Context(ctx).Do()
 		if readErr != nil {
 			return readErr
 		}
@@ -60,6 +60,7 @@ func (c *ChatMessagesListCmd) Run(ctx context.Context, flags *RootFlags) error {
 	filter := strings.Join(filters, " AND ")
 
 	call := svc.Spaces.Messages.List(space).
+		Context(ctx).
 		PageSize(c.Max).
 		PageToken(c.Page)
 	if strings.TrimSpace(c.Order) != "" {
@@ -158,7 +159,7 @@ func (c *ChatMessagesSendCmd) Run(ctx context.Context, flags *RootFlags) error {
 		message.Thread = &chat.Thread{Name: thread}
 	}
 
-	call := svc.Spaces.Messages.Create(space, message)
+	call := svc.Spaces.Messages.Create(space, message).Context(ctx)
 	if thread != "" {
 		call = call.MessageReplyOption("REPLY_MESSAGE_FALLBACK_TO_NEW_THREAD")
 	}

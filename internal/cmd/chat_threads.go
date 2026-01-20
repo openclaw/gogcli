@@ -39,6 +39,7 @@ func (c *ChatThreadsListCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 
 	resp, err := svc.Spaces.Messages.List(space).
+		Context(ctx).
 		PageSize(c.Max).
 		PageToken(c.Page).
 		OrderBy("createTime desc").

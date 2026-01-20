@@ -59,7 +59,7 @@ func (c *ChatDMSendCmd) Run(ctx context.Context, flags *RootFlags) error {
 		message.Thread = &chat.Thread{Name: thread}
 	}
 
-	call := svc.Spaces.Messages.Create(space.Name, message)
+	call := svc.Spaces.Messages.Create(space.Name, message).Context(ctx)
 	if thread != "" {
 		call = call.MessageReplyOption("REPLY_MESSAGE_FALLBACK_TO_NEW_THREAD")
 	}
