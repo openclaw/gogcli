@@ -215,14 +215,14 @@ func (c *ChatSpacesCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
 		memberships = append(memberships, &chat.Membership{
 			Member: &chat.User{
 				Name: user,
-				Type: "HUMAN",
+				Type: userTypeHuman,
 			},
 		})
 	}
 
 	resp, err := svc.Spaces.Setup(&chat.SetUpSpaceRequest{
 		Space: &chat.Space{
-			SpaceType:   "SPACE",
+			SpaceType:   spaceTypeSpace,
 			DisplayName: displayName,
 		},
 		Memberships: memberships,

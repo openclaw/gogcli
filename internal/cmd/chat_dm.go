@@ -61,7 +61,7 @@ func (c *ChatDMSendCmd) Run(ctx context.Context, flags *RootFlags) error {
 
 	call := svc.Spaces.Messages.Create(space.Name, message).Context(ctx)
 	if thread != "" {
-		call = call.MessageReplyOption("REPLY_MESSAGE_FALLBACK_TO_NEW_THREAD")
+		call = call.MessageReplyOption(messageReplyOptionFallbackToNewThread)
 	}
 
 	resp, err := call.Do()
@@ -134,12 +134,12 @@ func setupDMSpace(ctx context.Context, svc *chat.Service, email string) (*chat.S
 	}
 	return svc.Spaces.Setup(&chat.SetUpSpaceRequest{
 		Space: &chat.Space{
-			SpaceType: "DIRECT_MESSAGE",
+			SpaceType: spaceTypeDirectMessage,
 		},
 		Memberships: []*chat.Membership{{
 			Member: &chat.User{
 				Name: user,
-				Type: "HUMAN",
+				Type: userTypeHuman,
 			},
 		}},
 	}).Context(ctx).Do()

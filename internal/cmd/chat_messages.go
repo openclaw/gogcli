@@ -161,7 +161,7 @@ func (c *ChatMessagesSendCmd) Run(ctx context.Context, flags *RootFlags) error {
 
 	call := svc.Spaces.Messages.Create(space, message).Context(ctx)
 	if thread != "" {
-		call = call.MessageReplyOption("REPLY_MESSAGE_FALLBACK_TO_NEW_THREAD")
+		call = call.MessageReplyOption(messageReplyOptionFallbackToNewThread)
 	}
 
 	resp, err := call.Do()
