@@ -18,26 +18,8 @@ func printCalendarEventWithTimezone(u *ui.UI, event *calendar.Event, calendarTim
 	if u == nil || event == nil {
 		return
 	}
-	calendarTimezone = strings.TrimSpace(calendarTimezone)
 	eventTimezone := eventTimezone(event)
-
-	if loc == nil && calendarTimezone != "" {
-		if loaded, err := time.LoadLocation(calendarTimezone); err == nil {
-			loc = loaded
-		} else {
-			calendarTimezone = ""
-		}
-	}
-	if calendarTimezone == "" {
-		calendarTimezone = eventTimezone
-		if loc == nil && calendarTimezone != "" {
-			if loaded, err := time.LoadLocation(calendarTimezone); err == nil {
-				loc = loaded
-			} else {
-				calendarTimezone = ""
-			}
-		}
-	}
+	calendarTimezone, loc = resolveEventTimezone(event, calendarTimezone, loc)
 
 	u.Out().Printf("id\t%s", event.Id)
 	u.Out().Printf("summary\t%s", orEmpty(event.Summary, "(no title)"))

@@ -37,26 +37,8 @@ func wrapEventWithDaysWithTimezone(event *calendar.Event, calendarTimezone strin
 		return nil
 	}
 	startDay, endDay := eventDaysOfWeek(event)
-	calendarTimezone = strings.TrimSpace(calendarTimezone)
 	evTimezone := eventTimezone(event)
-
-	if loc == nil && calendarTimezone != "" {
-		if loaded, err := time.LoadLocation(calendarTimezone); err == nil {
-			loc = loaded
-		} else {
-			calendarTimezone = ""
-		}
-	}
-	if calendarTimezone == "" {
-		calendarTimezone = evTimezone
-		if loc == nil && calendarTimezone != "" {
-			if loaded, err := time.LoadLocation(calendarTimezone); err == nil {
-				loc = loaded
-			} else {
-				calendarTimezone = ""
-			}
-		}
-	}
+	calendarTimezone, loc = resolveEventTimezone(event, calendarTimezone, loc)
 
 	startLocal := formatEventLocal(event.Start, loc)
 	endLocal := formatEventLocal(event.End, loc)
@@ -151,4 +133,32 @@ func loadEventLocation(tz string) (*time.Location, bool) {
 		return nil, false
 	}
 	return loc, true
+}
+
+// resolveEventTimezone resolves the timezone and location for an event.
+// It tries the calendar timezone first, then falls back to the event's timezone.
+// Returns the resolved timezone name and location. If loc is already provided,
+// it will be used as-is (only calendarTimezone may be updated for display).
+func resolveEventTimezone(event *calendar.Event, calendarTimezone string, loc *time.Location) (string, *time.Location) {
+	calendarTimezone = strings.TrimSpace(calendarTimezone)
+	evTimezone := eventTimezone(event)
+
+	if loc == nil && calendarTimezone != "" {
+		if loaded, err := time.LoadLocation(calendarTimezone); err == nil {
+			loc = loaded
+		} else {
+			calendarTimezone = ""
+		}
+	}
+	if calendarTimezone == "" {
+		calendarTimezone = evTimezone
+		if loc == nil && calendarTimezone != "" {
+			if loaded, err := time.LoadLocation(calendarTimezone); err == nil {
+				loc = loaded
+			} else {
+				calendarTimezone = ""
+			}
+		}
+	}
+	return calendarTimezone, loc
 }
