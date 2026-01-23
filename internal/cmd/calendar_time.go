@@ -21,6 +21,17 @@ func (c *CalendarTimeCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
+	calendarID := c.CalendarID
+	if calendarID == "" {
+		calendarID = "primary"
+	} else {
+		resolved, resolveErr := resolveCalendarID(calendarID)
+		if resolveErr != nil {
+			return resolveErr
+		}
+		calendarID = resolved
+	}
+
 	var tz string
 	var loc *time.Location
 
@@ -40,9 +51,9 @@ func (c *CalendarTimeCmd) Run(ctx context.Context, flags *RootFlags) error {
 			return err
 		}
 
-		calendarID, resolveErr := resolveCalendarID(ctx, svc, c.CalendarID)
-		if resolveErr != nil {
-			return resolveErr
+		calendarID, err = resolveCalendarID(ctx, svc, calendarID)
+		if err != nil {
+			return err
 		}
 		tz, loc, err = getCalendarLocation(ctx, svc, calendarID)
 		if err != nil {
