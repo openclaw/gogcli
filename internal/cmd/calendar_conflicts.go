@@ -43,6 +43,16 @@ func (c *CalendarConflictsCmd) Run(ctx context.Context, flags *RootFlags) error 
 		return errors.New("no calendar IDs provided")
 	}
 
+	// Resolve aliases for all calendar IDs
+	resolvedIDs := make([]string, 0, len(calendarIDs))
+	for _, id := range calendarIDs {
+		resolved, resolveErr := resolveCalendarID(id)
+		if resolveErr != nil {
+			return resolveErr
+		}
+		resolvedIDs = append(resolvedIDs, resolved)
+	}
+
 	svc, err := newCalendarService(ctx, account)
 	if err != nil {
 		return err
@@ -63,8 +73,8 @@ func (c *CalendarConflictsCmd) Run(ctx context.Context, flags *RootFlags) error 
 
 	from, to := timeRange.FormatRFC3339()
 
-	items := make([]*calendar.FreeBusyRequestItem, 0, len(calendarIDs))
-	for _, id := range calendarIDs {
+	items := make([]*calendar.FreeBusyRequestItem, 0, len(resolvedIDs))
+	for _, id := range resolvedIDs {
 		items = append(items, &calendar.FreeBusyRequestItem{Id: id})
 	}
 
