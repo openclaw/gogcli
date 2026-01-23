@@ -13,6 +13,7 @@ import (
 type CalendarCmd struct {
 	Calendars       CalendarCalendarsCmd       `cmd:"" name:"calendars" help:"List calendars"`
 	ACL             CalendarAclCmd             `cmd:"" name:"acl" help:"List calendar ACL"`
+	Alias           CalendarAliasCmd           `cmd:"" name:"alias" help:"Manage calendar aliases"`
 	Events          CalendarEventsCmd          `cmd:"" name:"events" aliases:"list" help:"List events from a calendar or all calendars"`
 	Event           CalendarEventCmd           `cmd:"" name:"event" aliases:"get" help:"Get event"`
 	Create          CalendarCreateCmd          `cmd:"" name:"create" help:"Create an event"`
@@ -86,9 +87,9 @@ func (c *CalendarAclCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if err != nil {
 		return err
 	}
-	calendarID := strings.TrimSpace(c.CalendarID)
-	if calendarID == "" {
-		return usage("calendarId required")
+	calendarID, err := resolveCalendarID(c.CalendarID)
+	if err != nil {
+		return err
 	}
 
 	svc, err := newCalendarService(ctx, account)
@@ -156,8 +157,17 @@ func (c *CalendarEventsCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if c.All && calendarID != "" {
 		return usage("calendarId not allowed with --all flag")
 	}
-	if !c.All && calendarID == "" {
-		calendarID = "primary"
+	if !c.All {
+		if calendarID == "" {
+			calendarID = "primary"
+		} else {
+			// Resolve alias if provided
+			resolved, resolveErr := resolveCalendarID(calendarID)
+			if resolveErr != nil {
+				return resolveErr
+			}
+			calendarID = resolved
+		}
 	}
 
 	svc, err := newCalendarService(ctx, account)
@@ -198,11 +208,11 @@ func (c *CalendarEventCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if err != nil {
 		return err
 	}
-	calendarID := strings.TrimSpace(c.CalendarID)
-	eventID := strings.TrimSpace(c.EventID)
-	if calendarID == "" {
-		return usage("empty calendarId")
+	calendarID, err := resolveCalendarID(c.CalendarID)
+	if err != nil {
+		return err
 	}
+	eventID := strings.TrimSpace(c.EventID)
 	if eventID == "" {
 		return usage("empty eventId")
 	}
