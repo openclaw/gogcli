@@ -53,9 +53,9 @@ type CalendarCreateCmd struct {
 
 func (c *CalendarCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
-	calendarID := strings.TrimSpace(c.CalendarID)
-	if calendarID == "" {
-		return usage("empty calendarId")
+	calendarID, err := resolveCalendarID(c.CalendarID)
+	if err != nil {
+		return err
 	}
 
 	eventType, err := c.resolveCreateEventType()
@@ -349,11 +349,11 @@ type CalendarUpdateCmd struct {
 
 func (c *CalendarUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
-	calendarID := strings.TrimSpace(c.CalendarID)
-	eventID := normalizeCalendarEventID(c.EventID)
-	if calendarID == "" {
-		return usage("empty calendarId")
+	calendarID, err := resolveCalendarID(c.CalendarID)
+	if err != nil {
+		return err
 	}
+	eventID := normalizeCalendarEventID(c.EventID)
 	if eventID == "" {
 		return usage("empty eventId")
 	}
@@ -947,11 +947,11 @@ type CalendarDeleteCmd struct {
 
 func (c *CalendarDeleteCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
-	calendarID := strings.TrimSpace(c.CalendarID)
-	eventID := normalizeCalendarEventID(c.EventID)
-	if calendarID == "" {
-		return usage("empty calendarId")
+	calendarID, err := resolveCalendarID(c.CalendarID)
+	if err != nil {
+		return err
 	}
+	eventID := normalizeCalendarEventID(c.EventID)
 	if eventID == "" {
 		return usage("empty eventId")
 	}

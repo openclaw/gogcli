@@ -22,11 +22,11 @@ type CalendarRespondCmd struct {
 
 func (c *CalendarRespondCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
-	calendarID := strings.TrimSpace(c.CalendarID)
-	eventID := normalizeCalendarEventID(c.EventID)
-	if calendarID == "" {
-		return usage("empty calendarId")
+	calendarID, err := resolveCalendarID(c.CalendarID)
+	if err != nil {
+		return err
 	}
+	eventID := normalizeCalendarEventID(c.EventID)
 	if eventID == "" {
 		return usage("empty eventId")
 	}
