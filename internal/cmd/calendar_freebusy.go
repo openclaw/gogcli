@@ -29,6 +29,17 @@ func (c *CalendarFreeBusyCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if len(calendarIDs) == 0 {
 		return usage("no calendar IDs provided")
 	}
+
+	// Resolve aliases for all calendar IDs
+	resolvedIDs := make([]string, 0, len(calendarIDs))
+	for _, id := range calendarIDs {
+		resolved, resolveErr := resolveCalendarID(id)
+		if resolveErr != nil {
+			return resolveErr
+		}
+		resolvedIDs = append(resolvedIDs, resolved)
+	}
+
 	if strings.TrimSpace(c.From) == "" || strings.TrimSpace(c.To) == "" {
 		return usage("required: --from and --to")
 	}
@@ -41,9 +52,9 @@ func (c *CalendarFreeBusyCmd) Run(ctx context.Context, flags *RootFlags) error {
 	req := &calendar.FreeBusyRequest{
 		TimeMin: c.From,
 		TimeMax: c.To,
-		Items:   make([]*calendar.FreeBusyRequestItem, 0, len(calendarIDs)),
+		Items:   make([]*calendar.FreeBusyRequestItem, 0, len(resolvedIDs)),
 	}
-	for _, id := range calendarIDs {
+	for _, id := range resolvedIDs {
 		req.Items = append(req.Items, &calendar.FreeBusyRequestItem{Id: id})
 	}
 
