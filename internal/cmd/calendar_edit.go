@@ -57,9 +57,9 @@ func (c *CalendarCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if err != nil {
 		return err
 	}
-	calendarID := strings.TrimSpace(c.CalendarID)
-	if calendarID == "" {
-		return usage("empty calendarId")
+	calendarID, err := resolveCalendarID(c.CalendarID)
+	if err != nil {
+		return err
 	}
 
 	eventType, err := c.resolveCreateEventType()
@@ -337,11 +337,11 @@ func (c *CalendarUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *
 	if err != nil {
 		return err
 	}
-	calendarID := strings.TrimSpace(c.CalendarID)
-	eventID := strings.TrimSpace(c.EventID)
-	if calendarID == "" {
-		return usage("empty calendarId")
+	calendarID, err := resolveCalendarID(c.CalendarID)
+	if err != nil {
+		return err
 	}
+	eventID := strings.TrimSpace(c.EventID)
 	if eventID == "" {
 		return usage("empty eventId")
 	}
@@ -813,11 +813,11 @@ func (c *CalendarDeleteCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if err != nil {
 		return err
 	}
-	calendarID := strings.TrimSpace(c.CalendarID)
-	eventID := strings.TrimSpace(c.EventID)
-	if calendarID == "" {
-		return usage("empty calendarId")
+	calendarID, err := resolveCalendarID(c.CalendarID)
+	if err != nil {
+		return err
 	}
+	eventID := strings.TrimSpace(c.EventID)
 	if eventID == "" {
 		return usage("empty eventId")
 	}

@@ -38,11 +38,11 @@ func (c *CalendarProposeTimeCmd) Run(ctx context.Context, flags *RootFlags) erro
 		return err
 	}
 
-	calendarID := strings.TrimSpace(c.CalendarID)
-	eventID := strings.TrimSpace(c.EventID)
-	if calendarID == "" {
-		return usage("empty calendarId")
+	calendarID, err := resolveCalendarID(c.CalendarID)
+	if err != nil {
+		return err
 	}
+	eventID := strings.TrimSpace(c.EventID)
 	if eventID == "" {
 		return usage("empty eventId")
 	}
