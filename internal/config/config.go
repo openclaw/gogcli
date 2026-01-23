@@ -15,6 +15,7 @@ type File struct {
 	AccountAliases  map[string]string `json:"account_aliases,omitempty"`
 	AccountClients  map[string]string `json:"account_clients,omitempty"`
 	ClientDomains   map[string]string `json:"client_domains,omitempty"`
+	CalendarAliases map[string]string `json:"calendar_aliases,omitempty"`
 }
 
 func ConfigPath() (string, error) {
