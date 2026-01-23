@@ -30,6 +30,17 @@ func (c *CalendarFocusTimeCmd) Run(ctx context.Context, flags *RootFlags) error 
 		return err
 	}
 
+	calendarID := c.CalendarID
+	if calendarID == "" {
+		calendarID = "primary"
+	} else {
+		resolved, resolveErr := resolveCalendarID(calendarID)
+		if resolveErr != nil {
+			return resolveErr
+		}
+		calendarID = resolved
+	}
+
 	autoDeclineMode, err := validateAutoDeclineMode(c.AutoDecline)
 	if err != nil {
 		return err
@@ -59,12 +70,12 @@ func (c *CalendarFocusTimeCmd) Run(ctx context.Context, flags *RootFlags) error 
 		Recurrence: buildRecurrence(c.Recurrence),
 	}
 
-	created, err := svc.Events.Insert(c.CalendarID, event).Do()
+	created, err := svc.Events.Insert(calendarID, event).Do()
 	if err != nil {
 		return err
 	}
 
-	tz, loc, _ := getCalendarLocation(ctx, svc, c.CalendarID)
+	tz, loc, _ := getCalendarLocation(ctx, svc, calendarID)
 	if outfmt.IsJSON(ctx) {
 		return outfmt.WriteJSON(os.Stdout, map[string]any{"event": wrapEventWithDaysWithTimezone(created, tz, loc)})
 	}

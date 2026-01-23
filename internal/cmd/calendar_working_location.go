@@ -31,6 +31,17 @@ func (c *CalendarWorkingLocationCmd) Run(ctx context.Context, flags *RootFlags) 
 		return err
 	}
 
+	calendarID := c.CalendarID
+	if calendarID == "" {
+		calendarID = "primary"
+	} else {
+		resolved, resolveErr := resolveCalendarID(calendarID)
+		if resolveErr != nil {
+			return resolveErr
+		}
+		calendarID = resolved
+	}
+
 	props, err := c.buildWorkingLocationProperties()
 	if err != nil {
 		return err
@@ -51,12 +62,12 @@ func (c *CalendarWorkingLocationCmd) Run(ctx context.Context, flags *RootFlags) 
 		WorkingLocationProperties: props,
 	}
 
-	created, err := svc.Events.Insert(c.CalendarID, event).Do()
+	created, err := svc.Events.Insert(calendarID, event).Do()
 	if err != nil {
 		return err
 	}
 
-	tz, loc, _ := getCalendarLocation(ctx, svc, c.CalendarID)
+	tz, loc, _ := getCalendarLocation(ctx, svc, calendarID)
 	if outfmt.IsJSON(ctx) {
 		return outfmt.WriteJSON(os.Stdout, map[string]any{"event": wrapEventWithDaysWithTimezone(created, tz, loc)})
 	}
