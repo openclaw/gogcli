@@ -84,6 +84,9 @@ func Authorize(ctx context.Context, opts AuthorizeOptions) (string, error) {
 	ctx, cancel := context.WithTimeout(ctx, opts.Timeout)
 	defer cancel()
 
+	// Cleanup any spawned Chrome process on all exit paths
+	defer CleanupChrome()
+
 	if opts.Manual {
 		redirectURI := "http://localhost:1"
 		cfg := oauth2.Config{
