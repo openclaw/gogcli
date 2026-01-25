@@ -20,7 +20,7 @@ type GmailSendCmd struct {
 	To               string   `name:"to" help:"Recipients (comma-separated; required unless --reply-all is used)"`
 	Cc               string   `name:"cc" help:"CC recipients (comma-separated)"`
 	Bcc              string   `name:"bcc" help:"BCC recipients (comma-separated)"`
-	Subject          string   `name:"subject" help:"Subject (required)"`
+	Subject          string   `name:"subject" help:"Subject (required unless replying)"`
 	Body             string   `name:"body" help:"Body (plain text; required unless --body-html is set)"`
 	BodyFile         string   `name:"body-file" help:"Body file path (plain text; '-' for stdin)"`
 	BodyHTML         string   `name:"body-html" help:"Body (HTML; optional)"`
@@ -88,9 +88,12 @@ func (c *GmailSendCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if strings.TrimSpace(c.To) == "" && !c.ReplyAll {
 		return usage("required: --to (or use --reply-all with --reply-to-message-id or --thread-id)")
 	}
-	if strings.TrimSpace(c.Subject) == "" {
+
+	subject := strings.TrimSpace(c.Subject)
+	if subject == "" && replyToMessageID == "" && threadID == "" {
 		return usage("required: --subject")
 	}
+
 	if strings.TrimSpace(body) == "" && strings.TrimSpace(c.BodyHTML) == "" {
 		return usage("required: --body, --body-file, or --body-html")
 	}
@@ -138,6 +141,11 @@ func (c *GmailSendCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
+	// Auto-populate subject for replies if not specified
+	if subject == "" && (replyToMessageID != "" || threadID != "") {
+		subject = ensureRePrefix(replyInfo.Subject)
+	}
+
 	// Determine recipients
 	var toRecipients, ccRecipients []string
 	if c.ReplyAll {
@@ -181,7 +189,7 @@ func (c *GmailSendCmd) Run(ctx context.Context, flags *RootFlags) error {
 	results, err := sendGmailBatches(ctx, svc, sendMessageOptions{
 		FromAddr:    fromAddr,
 		ReplyTo:     c.ReplyTo,
-		Subject:     c.Subject,
+		Subject:     subject,
 		Body:        body,
 		BodyHTML:    c.BodyHTML,
 		ReplyInfo:   replyInfo,
@@ -388,6 +396,17 @@ func firstRecipient(toRecipients, ccRecipients, bccRecipients []string) string {
 	return ""
 }
 
+func ensureRePrefix(subject string) string {
+	subject = strings.TrimSpace(subject)
+	if subject == "" {
+		return ""
+	}
+	if strings.HasPrefix(strings.ToLower(subject), "re:") {
+		return subject
+	}
+	return "Re: " + subject
+}
+
 func injectTrackingPixelHTML(htmlBody, pixelHTML string) string {
 	lower := strings.ToLower(htmlBody)
 	if i := strings.LastIndex(lower, "</body>"); i != -1 {
@@ -447,6 +466,7 @@ type replyInfo struct {
 	InReplyTo   string
 	References  string
 	ThreadID    string
+	Subject     string
 	FromAddr    string   // Original sender
 	ReplyToAddr string   // Original Reply-To header (per RFC 5322, use this instead of From if present)
 	ToAddrs     []string // Original To recipients
@@ -471,7 +491,7 @@ func fetchReplyInfo(ctx context.Context, svc *gmail.Service, replyToMessageID st
 	if replyToMessageID != "" {
 		msg, err := svc.Users.Messages.Get("me", replyToMessageID).
 			Format("metadata").
-			MetadataHeaders("Message-ID", "Message-Id", "References", "In-Reply-To", "From", "Reply-To", "To", "Cc").
+			MetadataHeaders("Message-ID", "Message-Id", "References", "In-Reply-To", "From", "Reply-To", "To", "Cc", "Subject").
 			Context(ctx).
 			Do()
 		if err != nil {
@@ -482,7 +502,7 @@ func fetchReplyInfo(ctx context.Context, svc *gmail.Service, replyToMessageID st
 
 	thread, err := svc.Users.Threads.Get("me", threadID).
 		Format("metadata").
-		MetadataHeaders("Message-ID", "Message-Id", "References", "In-Reply-To", "From", "Reply-To", "To", "Cc").
+		MetadataHeaders("Message-ID", "Message-Id", "References", "In-Reply-To", "From", "Reply-To", "To", "Cc", "Subject").
 		Context(ctx).
 		Do()
 	if err != nil {
@@ -509,6 +529,7 @@ func replyInfoFromMessage(msg *gmail.Message) *replyInfo {
 	}
 	info := &replyInfo{
 		ThreadID:    msg.ThreadId,
+		Subject:     headerValue(msg.Payload, "Subject"),
 		FromAddr:    headerValue(msg.Payload, "From"),
 		ReplyToAddr: headerValue(msg.Payload, "Reply-To"),
 		ToAddrs:     parseEmailAddresses(headerValue(msg.Payload, "To")),
