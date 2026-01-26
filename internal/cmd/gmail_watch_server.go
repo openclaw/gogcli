@@ -241,6 +241,9 @@ func (s *gmailWatchServer) resyncHistory(ctx context.Context, svc *gmail.Service
 	if err != nil {
 		return nil, err
 	}
+	if len(msgs) == 0 {
+		s.logf("watch: resync returned no messages")
+	}
 
 	if err := s.store.Update(func(state *gmailWatchState) error {
 		shouldUpdate, err := shouldUpdateHistoryID(state.HistoryID, historyID)

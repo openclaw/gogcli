@@ -580,6 +580,7 @@ gog gmail history --since <historyId>
 Gmail watch (Pub/Sub push):
 - Create Pub/Sub topic + push subscription (OIDC preferred; shared token ok for dev).
 - Full flow + payload details: `docs/watch.md`.
+- Use `--resync-on-empty` if your webhook receives empty `messages: []` despite emails arriving. This can happen due to race conditions with rapid push notifications; the flag falls back to `messages.list` when history returns no new messages.
 
 ### Email Tracking
 
