@@ -255,3 +255,57 @@ func TestRandomMessageID(t *testing.T) {
 		t.Fatalf("unexpected: %q", id)
 	}
 }
+
+func TestEncodeAddressHeader(t *testing.T) {
+	// Plain email without display name - unchanged
+	if got := encodeAddressHeader("test@example.com"); got != "test@example.com" {
+		t.Fatalf("plain email changed: %q", got)
+	}
+
+	// ASCII display name - unchanged
+	if got := encodeAddressHeader("John Doe <john@example.com>"); got != "John Doe <john@example.com>" {
+		t.Fatalf("ASCII name changed: %q", got)
+	}
+
+	// UTF-8 display name - should be encoded
+	got := encodeAddressHeader("Jørgen Østergaard <jorgen@example.com>")
+	if strings.Contains(got, "Jørgen") {
+		t.Fatalf("UTF-8 name not encoded: %q", got)
+	}
+	if !strings.Contains(got, "=?utf-8?q?") {
+		t.Fatalf("expected MIME encoding: %q", got)
+	}
+	if !strings.Contains(got, "<jorgen@example.com>") {
+		t.Fatalf("email address missing: %q", got)
+	}
+
+	// Invalid address - returned as-is
+	if got := encodeAddressHeader("not a valid address"); got != "not a valid address" {
+		t.Fatalf("invalid address changed: %q", got)
+	}
+}
+
+func TestBuildRFC822UTF8FromDisplayName(t *testing.T) {
+	raw, err := buildRFC822(mailOptions{
+		From:    "Jørgen Østergaard <jorgen@example.com>",
+		To:      []string{"recipient@example.com"},
+		Subject: "Test",
+		Body:    "Hello",
+	}, nil)
+	if err != nil {
+		t.Fatalf("err: %v", err)
+	}
+	s := string(raw)
+	// The display name should be MIME-encoded, not raw UTF-8
+	if strings.Contains(s, "From: Jørgen") {
+		t.Fatalf("From header contains unencoded UTF-8: %q", s)
+	}
+	// Should contain encoded-word format (may be quoted by mail.Address.String)
+	if !strings.Contains(s, "=?utf-8?q?") {
+		t.Fatalf("expected MIME-encoded From display name: %q", s)
+	}
+	// Should still contain the email address
+	if !strings.Contains(s, "<jorgen@example.com>") {
+		t.Fatalf("missing email address in From header: %q", s)
+	}
+}

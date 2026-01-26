@@ -65,7 +65,7 @@ func buildRFC822(opts mailOptions, cfg *rfc822Config) ([]byte, error) {
 		}
 	}
 
-	writeHeader(&b, "From", opts.From)
+	writeHeader(&b, "From", encodeAddressHeader(opts.From))
 	if len(opts.To) > 0 {
 		writeHeader(&b, "To", strings.Join(opts.To, ", "))
 	}
@@ -294,6 +294,30 @@ func encodeHeaderIfNeeded(v string) string {
 		return v
 	}
 	return mime.QEncoding.Encode("utf-8", v)
+}
+
+// encodeAddressHeader encodes the display name portion of an email address
+// if it contains non-ASCII characters. The email address itself is not encoded.
+// Input: "Display Name <email@example.com>" or "email@example.com"
+// Output: "=?utf-8?q?Encoded_Name?= <email@example.com>" or unchanged if ASCII
+func encodeAddressHeader(addr string) string {
+	parsed, err := mail.ParseAddress(addr)
+	if err != nil {
+		// Can't parse, return as-is
+		return addr
+	}
+
+	if parsed.Name == "" || isASCII(parsed.Name) {
+		// No display name or ASCII-only, return as-is
+		return addr
+	}
+
+	// Encode the display name and reconstruct
+	encoded := &mail.Address{
+		Name:    mime.QEncoding.Encode("utf-8", parsed.Name),
+		Address: parsed.Address,
+	}
+	return encoded.String()
 }
 
 func isASCII(s string) bool {
