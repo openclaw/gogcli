@@ -18,7 +18,7 @@ func TestAuthURLParams(t *testing.T) {
 		Scopes:      []string{"s1"},
 	}
 
-	u1 := cfg.AuthCodeURL("state", authURLParams(false)...)
+	u1 := cfg.AuthCodeURL("state", authURLParams(false, true)...)
 	var parsed1 *url.URL
 
 	if p, err := url.Parse(u1); err != nil {
@@ -39,7 +39,7 @@ func TestAuthURLParams(t *testing.T) {
 		t.Fatalf("expected no prompt, got: %q", prompt)
 	}
 
-	u2 := cfg.AuthCodeURL("state", authURLParams(true)...)
+	u2 := cfg.AuthCodeURL("state", authURLParams(true, true)...)
 	var parsed2 *url.URL
 
 	if p, err := url.Parse(u2); err != nil {
@@ -50,6 +50,19 @@ func TestAuthURLParams(t *testing.T) {
 
 	if parsed2.Query().Get("prompt") != "consent" {
 		t.Fatalf("expected consent prompt, got: %q", parsed2.Query().Get("prompt"))
+	}
+
+	u3 := cfg.AuthCodeURL("state", authURLParams(false, false)...)
+	var parsed3 *url.URL
+
+	if p, err := url.Parse(u3); err != nil {
+		t.Fatalf("parse: %v", err)
+	} else {
+		parsed3 = p
+	}
+
+	if includeScopes := parsed3.Query().Get("include_granted_scopes"); includeScopes != "" {
+		t.Fatalf("expected no include_granted_scopes, got: %q", includeScopes)
 	}
 }
 

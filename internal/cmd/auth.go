@@ -485,6 +485,7 @@ type AuthAddCmd struct {
 	ServicesCSV  string        `name:"services" help:"Services to authorize: user|all or comma-separated ${auth_services} (Keep uses service account: gog auth service-account set)" default:"user"`
 	Readonly     bool          `name:"readonly" help:"Use read-only scopes where available (still includes OIDC identity scopes)"`
 	DriveScope   string        `name:"drive-scope" help:"Drive scope mode: full|readonly|file" enum:"full,readonly,file" default:"full"`
+	GmailScope   string `name:"gmail-scope" help:"Gmail scope mode: full|readonly" enum:"full,readonly" default:"full"`
 }
 
 func (c *AuthAddCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -504,12 +505,19 @@ func (c *AuthAddCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return fmt.Errorf("no services selected")
 	}
 
-	if c.Readonly && c.DriveScope == strFile {
+	driveScope := strings.ToLower(strings.TrimSpace(c.DriveScope))
+	if c.Readonly && driveScope == strFile {
 		return usage("cannot combine --readonly with --drive-scope=file (file is write-capable)")
 	}
+	gmailScope := strings.ToLower(strings.TrimSpace(c.GmailScope))
+	disableIncludeGrantedScopes := c.Readonly ||
+		driveScope == "readonly" ||
+		driveScope == strFile ||
+		gmailScope == "readonly"
 	scopes, err := googleauth.ScopesForManageWithOptions(services, googleauth.ScopeOptions{
 		Readonly:   c.Readonly,
-		DriveScope: googleauth.DriveScopeMode(c.DriveScope),
+		DriveScope: googleauth.DriveScopeMode(driveScope),
+		GmailScope: googleauth.GmailScopeMode(gmailScope),
 	})
 	if err != nil {
 		return err
@@ -543,13 +551,14 @@ func (c *AuthAddCmd) Run(ctx context.Context, flags *RootFlags) error {
 			if authURL != "" || authCode != "" {
 				return usage("remote step 1 does not accept --auth-url or --auth-code")
 			}
-			result, manualErr := manualAuthURL(ctx, googleauth.AuthorizeOptions{
-				Services:     services,
-				Scopes:       scopes,
-				Manual:       true,
-				ForceConsent: c.ForceConsent,
-				Client:       client,
-			})
+				result, manualErr := manualAuthURL(ctx, googleauth.AuthorizeOptions{
+					Services:                    services,
+					Scopes:                      scopes,
+					Manual:                      true,
+					ForceConsent:                c.ForceConsent,
+					DisableIncludeGrantedScopes: disableIncludeGrantedScopes,
+					Client:                      client,
+				})
 			if manualErr != nil {
 				return manualErr
 			}
@@ -586,12 +595,13 @@ func (c *AuthAddCmd) Run(ctx context.Context, flags *RootFlags) error {
 		"manual":        c.Manual,
 		"remote":        c.Remote,
 		"step":          c.Step,
-		"force_consent": c.ForceConsent,
-		"readonly":      c.Readonly,
-		"drive_scope":   c.DriveScope,
-	}); dryRunErr != nil {
-		return dryRunErr
-	}
+			"force_consent": c.ForceConsent,
+			"readonly":      c.Readonly,
+			"drive_scope":   c.DriveScope,
+			"gmail_scope":   c.GmailScope,
+		}); dryRunErr != nil {
+			return dryRunErr
+		}
 
 	// Pre-flight: ensure keychain is accessible before starting OAuth
 	if keychainErr := ensureKeychainAccessIfNeeded(); keychainErr != nil {
@@ -599,15 +609,16 @@ func (c *AuthAddCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 
 	refreshToken, err := authorizeGoogle(ctx, googleauth.AuthorizeOptions{
-		Services:     services,
-		Scopes:       scopes,
-		Manual:       manual,
-		ForceConsent: c.ForceConsent,
-		Timeout:      timeout,
-		Client:       client,
-		AuthURL:      authURL,
-		AuthCode:     authCode,
-		RequireState: c.Remote,
+		Services:                    services,
+		Scopes:                      scopes,
+		Manual:                      manual,
+		ForceConsent:                c.ForceConsent,
+		DisableIncludeGrantedScopes: disableIncludeGrantedScopes,
+		Timeout:                     timeout,
+		Client:                      client,
+		AuthURL:                     authURL,
+		AuthCode:                    authCode,
+		RequireState:                c.Remote,
 	})
 	if err != nil {
 		return err

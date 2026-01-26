@@ -117,7 +117,7 @@ func authorizeManualInteractive(ctx context.Context, opts AuthorizeOptions, cfg 
 	}
 
 	cfg.RedirectURL = setup.redirectURI
-	authURL := cfg.AuthCodeURL(setup.state, authURLParams(opts.ForceConsent)...)
+	authURL := cfg.AuthCodeURL(setup.state, authURLParams(opts.ForceConsent, !opts.DisableIncludeGrantedScopes)...)
 
 	fmt.Fprintln(os.Stderr, "Visit this URL to authorize:")
 	fmt.Fprintln(os.Stderr, authURL)
@@ -247,7 +247,7 @@ func ManualAuthURL(ctx context.Context, opts AuthorizeOptions) (ManualAuthURLRes
 	}
 
 	return ManualAuthURLResult{
-		URL:         cfg.AuthCodeURL(setup.state, authURLParams(opts.ForceConsent)...),
+		URL:         cfg.AuthCodeURL(setup.state, authURLParams(opts.ForceConsent, !opts.DisableIncludeGrantedScopes)...),
 		StateReused: setup.reused,
 	}, nil
 }

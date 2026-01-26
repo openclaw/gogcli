@@ -279,6 +279,31 @@ func TestScopesForManageWithOptions_Readonly(t *testing.T) {
 	}
 }
 
+func TestScopesForManageWithOptions_GmailScopeReadonly(t *testing.T) {
+	scopes, err := ScopesForManageWithOptions([]Service{ServiceGmail, ServiceDrive}, ScopeOptions{
+		GmailScope: GmailScopeReadonly,
+	})
+	if err != nil {
+		t.Fatalf("err: %v", err)
+	}
+
+	if !containsScope(scopes, "https://www.googleapis.com/auth/gmail.readonly") {
+		t.Fatalf("missing gmail.readonly in %v", scopes)
+	}
+	for _, nw := range []string{
+		"https://www.googleapis.com/auth/gmail.modify",
+		"https://www.googleapis.com/auth/gmail.settings.basic",
+		"https://www.googleapis.com/auth/gmail.settings.sharing",
+	} {
+		if containsScope(scopes, nw) {
+			t.Fatalf("unexpected %q in %v", nw, scopes)
+		}
+	}
+	if !containsScope(scopes, "https://www.googleapis.com/auth/drive") {
+		t.Fatalf("missing drive in %v", scopes)
+	}
+}
+
 func TestScopes_ServiceKeep_DefaultIsReadonly(t *testing.T) {
 	scopes, err := Scopes(ServiceKeep)
 	if err != nil {

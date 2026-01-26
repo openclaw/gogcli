@@ -24,6 +24,7 @@ type AuthorizeOptions struct {
 	Scopes       []string
 	Manual       bool
 	ForceConsent bool
+	DisableIncludeGrantedScopes bool
 	Timeout      time.Duration
 	Client       string
 	AuthCode     string
@@ -204,7 +205,7 @@ func authorizeServer(ctx context.Context, opts AuthorizeOptions, creds config.Cl
 		}
 	}()
 
-	authURL := cfg.AuthCodeURL(state, authURLParams(opts.ForceConsent)...)
+	authURL := cfg.AuthCodeURL(state, authURLParams(opts.ForceConsent, !opts.DisableIncludeGrantedScopes)...)
 
 	fmt.Fprintln(os.Stderr, "Opening browser for authorization…")
 	fmt.Fprintln(os.Stderr, "If the browser doesn't open, visit this URL:")
@@ -245,10 +246,10 @@ func authorizeServer(ctx context.Context, opts AuthorizeOptions, creds config.Cl
 	}
 }
 
-func authURLParams(forceConsent bool) []oauth2.AuthCodeOption {
-	opts := []oauth2.AuthCodeOption{
-		oauth2.AccessTypeOffline,
-		oauth2.SetAuthURLParam("include_granted_scopes", "true"),
+func authURLParams(forceConsent bool, includeGrantedScopes bool) []oauth2.AuthCodeOption {
+	opts := []oauth2.AuthCodeOption{oauth2.AccessTypeOffline}
+	if includeGrantedScopes {
+		opts = append(opts, oauth2.SetAuthURLParam("include_granted_scopes", "true"))
 	}
 	if forceConsent {
 		opts = append(opts, oauth2.SetAuthURLParam("prompt", "consent"))

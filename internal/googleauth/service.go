@@ -36,6 +36,7 @@ const (
 var (
 	errUnknownService    = errors.New("unknown service")
 	errInvalidDriveScope = errors.New("invalid drive scope")
+	errInvalidGmailScope = errors.New("invalid gmail scope")
 )
 
 type DriveScopeMode string
@@ -46,9 +47,17 @@ const (
 	DriveScopeFile     DriveScopeMode = "file"
 )
 
+type GmailScopeMode string
+
+const (
+	GmailScopeFull     GmailScopeMode = "full"
+	GmailScopeReadonly GmailScopeMode = "readonly"
+)
+
 type ScopeOptions struct {
 	Readonly   bool
 	DriveScope DriveScopeMode
+	GmailScope GmailScopeMode
 }
 
 type serviceInfo struct {
@@ -400,6 +409,13 @@ func scopesForServiceWithOptions(service Service, opts ScopeOptions) ([]string, 
 		return nil, fmt.Errorf("%w %q (expected full|readonly|file)", errInvalidDriveScope, opts.DriveScope)
 	}
 
+	gmailScope := strings.TrimSpace(string(opts.GmailScope))
+	switch gmailScope {
+	case "", string(GmailScopeFull), string(GmailScopeReadonly):
+	default:
+		return nil, fmt.Errorf("%w %q (expected full|readonly)", errInvalidGmailScope, opts.GmailScope)
+	}
+
 	driveScopeValue := func() string {
 		if opts.Readonly {
 			return "https://www.googleapis.com/auth/drive.readonly"
@@ -417,7 +433,7 @@ func scopesForServiceWithOptions(service Service, opts ScopeOptions) ([]string, 
 
 	switch service {
 	case ServiceGmail:
-		if opts.Readonly {
+		if opts.Readonly || opts.GmailScope == GmailScopeReadonly {
 			return []string{"https://www.googleapis.com/auth/gmail.readonly"}, nil
 		}
 
