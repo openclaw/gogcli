@@ -188,6 +188,10 @@ func (s *gmailWatchServer) handlePush(ctx context.Context, payload gmailPushPayl
 	}
 
 	messageIDs := collectHistoryMessageIDs(historyResp)
+	if len(messageIDs) == 0 && s.cfg.ResyncOnEmpty {
+		s.logf("watch: history returned no messages, falling back to messages.list")
+		return s.resyncHistory(ctx, svc, payload.HistoryID, payload.MessageID)
+	}
 	msgs, err := s.fetchMessages(ctx, svc, messageIDs)
 	if err != nil {
 		return nil, err

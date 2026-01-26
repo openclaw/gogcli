@@ -549,3 +549,162 @@ func TestFormatUnixMillis(t *testing.T) {
 		t.Fatalf("unexpected: %q", got)
 	}
 }
+
+func TestGmailWatchServer_ResyncOnEmpty(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	store, err := newGmailWatchStore("a@b.com")
+	if err != nil {
+		t.Fatalf("store: %v", err)
+	}
+	if updateErr := store.Update(func(s *gmailWatchState) error {
+		s.Account = "a@b.com"
+		s.HistoryID = "100"
+		return nil
+	}); updateErr != nil {
+		t.Fatalf("seed: %v", updateErr)
+	}
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case strings.Contains(r.URL.Path, "/gmail/v1/users/me/history"):
+			// Return empty history - no messagesAdded
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"historyId": "200",
+				"history":   []map[string]any{},
+			})
+			return
+		case strings.Contains(r.URL.Path, "/gmail/v1/users/me/messages") && !strings.Contains(r.URL.Path, "/m1"):
+			// messages.list fallback
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"messages": []map[string]any{
+					{"id": "m1"},
+				},
+			})
+			return
+		case strings.Contains(r.URL.Path, "/gmail/v1/users/me/messages/m1"):
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"id":       "m1",
+				"threadId": "t1",
+				"snippet":  "resync fallback",
+				"payload": map[string]any{
+					"headers": []map[string]any{{"name": "Subject", "value": "Resync"}},
+				},
+			})
+			return
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+
+	gsvc, err := gmail.NewService(context.Background(),
+		option.WithoutAuthentication(),
+		option.WithHTTPClient(srv.Client()),
+		option.WithEndpoint(srv.URL+"/"),
+	)
+	if err != nil {
+		t.Fatalf("NewService: %v", err)
+	}
+
+	server := &gmailWatchServer{
+		cfg: gmailWatchServeConfig{
+			Account:       "a@b.com",
+			HistoryMax:    10,
+			ResyncMax:     10,
+			ResyncOnEmpty: true,
+		},
+		store:      store,
+		newService: func(context.Context, string) (*gmail.Service, error) { return gsvc, nil },
+		hookClient: srv.Client(),
+		logf:       func(string, ...any) {},
+		warnf:      func(string, ...any) {},
+	}
+
+	got, err := server.handlePush(context.Background(), gmailPushPayload{EmailAddress: "a@b.com", HistoryID: "200"})
+	if err != nil {
+		t.Fatalf("handlePush: %v", err)
+	}
+	if got == nil {
+		t.Fatalf("expected payload")
+	}
+	if len(got.Messages) != 1 {
+		t.Fatalf("expected 1 message from resync fallback, got %d", len(got.Messages))
+	}
+	if got.Messages[0].ID != "m1" || got.Messages[0].Snippet != "resync fallback" {
+		t.Fatalf("unexpected message: %#v", got.Messages[0])
+	}
+}
+
+func TestGmailWatchServer_ResyncOnEmpty_Disabled(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	store, err := newGmailWatchStore("a@b.com")
+	if err != nil {
+		t.Fatalf("store: %v", err)
+	}
+	if updateErr := store.Update(func(s *gmailWatchState) error {
+		s.Account = "a@b.com"
+		s.HistoryID = "100"
+		return nil
+	}); updateErr != nil {
+		t.Fatalf("seed: %v", updateErr)
+	}
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case strings.Contains(r.URL.Path, "/gmail/v1/users/me/history"):
+			// Return empty history - no messagesAdded
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"historyId": "200",
+				"history":   []map[string]any{},
+			})
+			return
+		default:
+			// Should NOT call messages.list when ResyncOnEmpty is disabled
+			t.Fatalf("unexpected API call: %s", r.URL.Path)
+		}
+	}))
+	defer srv.Close()
+
+	gsvc, err := gmail.NewService(context.Background(),
+		option.WithoutAuthentication(),
+		option.WithHTTPClient(srv.Client()),
+		option.WithEndpoint(srv.URL+"/"),
+	)
+	if err != nil {
+		t.Fatalf("NewService: %v", err)
+	}
+
+	server := &gmailWatchServer{
+		cfg: gmailWatchServeConfig{
+			Account:       "a@b.com",
+			HistoryMax:    10,
+			ResyncMax:     10,
+			ResyncOnEmpty: false, // Disabled - should NOT fallback
+		},
+		store:      store,
+		newService: func(context.Context, string) (*gmail.Service, error) { return gsvc, nil },
+		hookClient: srv.Client(),
+		logf:       func(string, ...any) {},
+		warnf:      func(string, ...any) {},
+	}
+
+	got, err := server.handlePush(context.Background(), gmailPushPayload{EmailAddress: "a@b.com", HistoryID: "200"})
+	if err != nil {
+		t.Fatalf("handlePush: %v", err)
+	}
+	if got == nil {
+		t.Fatalf("expected payload")
+	}
+	// Without ResyncOnEmpty, should return empty messages array
+	if len(got.Messages) != 0 {
+		t.Fatalf("expected 0 messages when ResyncOnEmpty is disabled, got %d", len(got.Messages))
+	}
+}
