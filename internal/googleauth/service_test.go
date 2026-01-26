@@ -290,6 +290,7 @@ func TestScopesForManageWithOptions_GmailScopeReadonly(t *testing.T) {
 	if !containsScope(scopes, "https://www.googleapis.com/auth/gmail.readonly") {
 		t.Fatalf("missing gmail.readonly in %v", scopes)
 	}
+
 	for _, nw := range []string{
 		"https://www.googleapis.com/auth/gmail.modify",
 		"https://www.googleapis.com/auth/gmail.settings.basic",
@@ -299,6 +300,7 @@ func TestScopesForManageWithOptions_GmailScopeReadonly(t *testing.T) {
 			t.Fatalf("unexpected %q in %v", nw, scopes)
 		}
 	}
+
 	if !containsScope(scopes, "https://www.googleapis.com/auth/drive") {
 		t.Fatalf("missing drive in %v", scopes)
 	}

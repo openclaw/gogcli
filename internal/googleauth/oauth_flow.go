@@ -251,6 +251,7 @@ func authURLParams(forceConsent bool, includeGrantedScopes bool) []oauth2.AuthCo
 	if includeGrantedScopes {
 		opts = append(opts, oauth2.SetAuthURLParam("include_granted_scopes", "true"))
 	}
+
 	if forceConsent {
 		opts = append(opts, oauth2.SetAuthURLParam("prompt", "consent"))
 	}
