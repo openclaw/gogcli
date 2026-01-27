@@ -22,7 +22,7 @@ type CalendarCreateCmd struct {
 	Location              string   `name:"location" help:"Location"`
 	Attendees             string   `name:"attendees" help:"Comma-separated attendee emails"`
 	AllDay                bool     `name:"all-day" help:"All-day event (use date-only in --from/--to)"`
-	Recurrence            []string `name:"rrule" help:"Recurrence rules (e.g., 'RRULE:FREQ=MONTHLY;BYMONTHDAY=11'). Can be repeated."`
+	Recurrence            []string `name:"rrule" sep:"none" help:"Recurrence rules (e.g., 'RRULE:FREQ=MONTHLY;BYMONTHDAY=11'). Can be repeated."`
 	Reminders             []string `name:"reminder" help:"Custom reminders as method:duration (e.g., popup:30m, email:1d). Can be repeated (max 5)."`
 	ColorId               string   `name:"event-color" help:"Event color ID (1-11). Use 'gog calendar colors' to see available colors."`
 	Visibility            string   `name:"visibility" help:"Event visibility: default, public, private, confidential"`
@@ -305,7 +305,7 @@ type CalendarUpdateCmd struct {
 	Attendees             string   `name:"attendees" help:"Comma-separated attendee emails (replaces all; set empty to clear)"`
 	AddAttendee           string   `name:"add-attendee" help:"Comma-separated attendee emails to add (preserves existing attendees)"`
 	AllDay                bool     `name:"all-day" help:"All-day event (use date-only in --from/--to)"`
-	Recurrence            []string `name:"rrule" help:"Recurrence rules (e.g., 'RRULE:FREQ=MONTHLY;BYMONTHDAY=11'). Can be repeated. Set empty to clear."`
+	Recurrence            []string `name:"rrule" sep:"none" help:"Recurrence rules (e.g., 'RRULE:FREQ=MONTHLY;BYMONTHDAY=11'). Can be repeated. Set empty to clear."`
 	Reminders             []string `name:"reminder" help:"Custom reminders as method:duration (e.g., popup:30m, email:1d). Can be repeated (max 5). Set empty to clear."`
 	ColorId               string   `name:"event-color" help:"Event color ID (1-11, or empty to clear)"`
 	Visibility            string   `name:"visibility" help:"Event visibility: default, public, private, confidential"`

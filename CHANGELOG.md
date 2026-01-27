@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- Calendar: fix recurrence rules with BYDAY parameter (e.g., `BYDAY=MO,TU,WE,TH,FR`). (#120)
+
 ## 0.9.0 - 2026-01-22
 
 ### Highlights

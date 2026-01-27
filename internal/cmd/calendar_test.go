@@ -232,6 +232,33 @@ func TestBuildRecurrence(t *testing.T) {
 	if len(got) != 2 || got[0] != "RRULE:FREQ=DAILY" || got[1] != "EXDATE:20250101" {
 		t.Fatalf("unexpected: %#v", got)
 	}
+
+	// Test BYDAY parameter with commas (issue #120)
+	got = buildRecurrence([]string{"RRULE:FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR"})
+	if len(got) != 1 || got[0] != "RRULE:FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR" {
+		t.Fatalf("BYDAY rule corrupted: %#v", got)
+	}
+
+	// Test multiple rrule flags with BYDAY and EXDATE (issue #120)
+	got = buildRecurrence([]string{
+		"RRULE:FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR",
+		"EXDATE:20260130T100000Z",
+	})
+	if len(got) != 2 {
+		t.Fatalf("expected 2 rules, got %d: %#v", len(got), got)
+	}
+	if got[0] != "RRULE:FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR" {
+		t.Fatalf("first rule corrupted: %q", got[0])
+	}
+	if got[1] != "EXDATE:20260130T100000Z" {
+		t.Fatalf("second rule corrupted: %q", got[1])
+	}
+
+	// Test other comma-containing parameters (BYMONTH, BYMONTHDAY)
+	got = buildRecurrence([]string{"RRULE:FREQ=YEARLY;BYMONTH=1,2,3;BYMONTHDAY=1,15"})
+	if len(got) != 1 || got[0] != "RRULE:FREQ=YEARLY;BYMONTH=1,2,3;BYMONTHDAY=1,15" {
+		t.Fatalf("BYMONTH/BYMONTHDAY rule corrupted: %#v", got)
+	}
 }
 
 func TestParseDuration(t *testing.T) {
