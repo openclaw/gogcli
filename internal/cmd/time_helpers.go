@@ -42,7 +42,7 @@ func getCalendarLocation(ctx context.Context, svc *calendar.Service, calendarID 
 	if cal.TimeZone == "" {
 		return "", nil, fmt.Errorf("calendar %q has no timezone set", calendarID)
 	}
-	loc, err := time.LoadLocation(cal.TimeZone)
+	loc, err := loadLocationWithFallback(cal.TimeZone)
 	if err != nil {
 		return "", nil, fmt.Errorf("invalid calendar timezone %q: %w", cal.TimeZone, err)
 	}
@@ -61,7 +61,7 @@ func getUserTimezone(ctx context.Context, svc *calendar.Service) (*time.Location
 		return time.UTC, nil
 	}
 
-	loc, err := time.LoadLocation(cal.TimeZone)
+	loc, err := loadLocationWithFallback(cal.TimeZone)
 	if err != nil {
 		return nil, fmt.Errorf("invalid calendar timezone %q: %w", cal.TimeZone, err)
 	}

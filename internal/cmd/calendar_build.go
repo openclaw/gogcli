@@ -48,7 +48,7 @@ func extractTimezone(value string) string {
 		"America/Phoenix",
 		"America/Los_Angeles",
 	} {
-		loc, err := time.LoadLocation(candidate)
+		loc, err := loadLocationWithFallback(candidate)
 		if err != nil {
 			continue
 		}

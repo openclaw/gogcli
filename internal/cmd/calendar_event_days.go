@@ -124,7 +124,7 @@ func loadEventLocation(tz string) (*time.Location, bool) {
 	if tz == "" {
 		return nil, false
 	}
-	loc, err := time.LoadLocation(tz)
+	loc, err := loadLocationWithFallback(tz)
 	if err != nil {
 		return nil, false
 	}
@@ -140,7 +140,7 @@ func resolveEventTimezone(event *calendar.Event, calendarTimezone string, loc *t
 	evTimezone := eventTimezone(event)
 
 	if loc == nil && calendarTimezone != "" {
-		if loaded, err := time.LoadLocation(calendarTimezone); err == nil {
+		if loaded, err := loadLocationWithFallback(calendarTimezone); err == nil {
 			loc = loaded
 		} else {
 			calendarTimezone = ""
@@ -149,7 +149,7 @@ func resolveEventTimezone(event *calendar.Event, calendarTimezone string, loc *t
 	if calendarTimezone == "" {
 		calendarTimezone = evTimezone
 		if loc == nil && calendarTimezone != "" {
-			if loaded, err := time.LoadLocation(calendarTimezone); err == nil {
+			if loaded, err := loadLocationWithFallback(calendarTimezone); err == nil {
 				loc = loaded
 			} else {
 				calendarTimezone = ""

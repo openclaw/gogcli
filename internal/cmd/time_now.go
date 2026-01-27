@@ -25,7 +25,7 @@ func (c *TimeNowCmd) Run(ctx context.Context) error {
 	tz := loc.String()
 	if strings.TrimSpace(c.Timezone) != "" {
 		var err error
-		loc, err = time.LoadLocation(strings.TrimSpace(c.Timezone))
+		loc, err = loadLocationWithFallback(strings.TrimSpace(c.Timezone))
 		if err != nil {
 			return fmt.Errorf("invalid timezone %q: %w", c.Timezone, err)
 		}

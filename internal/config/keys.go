@@ -7,6 +7,32 @@ import (
 	"time"
 )
 
+// loadLocationWithFallback attempts to load a timezone location,
+// with fallback to a fixed offset for Windows compatibility.
+// On Windows, time.LoadLocation() may fail for IANA timezone names like "Pacific/Auckland".
+// This function provides a fallback by using the fixed UTC offset instead.
+func loadLocationWithFallback(tzName string) (*time.Location, error) {
+	// First try the standard Go timezone loader
+	loc, err := time.LoadLocation(tzName)
+	if err == nil {
+		return loc, nil
+	}
+
+	// Fallback: try to parse as a fixed offset directly (e.g., "UTC+13:00")
+	if len(tzName) > 3 && (tzName[0:3] == "UTC" || tzName[0:3] == "GMT") {
+		offsetStr := tzName[3:]
+		var offsetHours, offsetMinutes int
+		fmt.Sscanf(offsetStr, "%d:%d", &offsetHours, &offsetMinutes)
+		offsetSeconds := offsetHours*3600 + offsetMinutes*60
+		if offsetStr[0] == '-' {
+			offsetSeconds = -offsetSeconds
+		}
+		return time.FixedZone(tzName, offsetSeconds), nil
+	}
+
+	return nil, fmt.Errorf("unknown time zone %q", tzName)
+}
+
 type Key string
 
 const (
@@ -34,8 +60,8 @@ var keySpecs = map[Key]KeySpec{
 			return cfg.DefaultTimezone
 		},
 		Set: func(cfg *File, value string) error {
-			if _, err := time.LoadLocation(value); err != nil {
-				return fmt.Errorf("invalid timezone %q: %w (use IANA timezone names like America/New_York, UTC, Europe/London)", value, err)
+			if _, err := loadLocationWithFallback(value); err != nil {
+				return fmt.Errorf("invalid timezone %q: %w (use IANA timezone names like America/New_York, UTC, Europe/London, or Pacific/Auckland)", value, err)
 			}
 			cfg.DefaultTimezone = value
 			return nil

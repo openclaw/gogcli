@@ -156,7 +156,7 @@ func formatEventLocal(dt *calendar.EventDateTime, loc *time.Location) string {
 	}
 	if dt.DateTime != "" {
 		if loc == nil && strings.TrimSpace(dt.TimeZone) != "" {
-			if loaded, err := time.LoadLocation(strings.TrimSpace(dt.TimeZone)); err == nil {
+			if loaded, err := loadLocationWithFallback(strings.TrimSpace(dt.TimeZone)); err == nil {
 				loc = loaded
 			}
 		}
