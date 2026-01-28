@@ -199,6 +199,51 @@ func TestDecodeBodyCharset_ISO2022JP(t *testing.T) {
 	}
 }
 
+func TestDecodeBodyCharset_ISO2022JP_MixedASCIIAndJapanese(t *testing.T) {
+	// Test mixed ASCII and Japanese text (e.g., "Hello こんにちは World")
+	source := "Hello \u3053\u3093\u306b\u3061\u306f World"
+	encoded, err := japanese.ISO2022JP.NewEncoder().Bytes([]byte(source))
+	if err != nil {
+		t.Fatalf("encode iso-2022-jp: %v", err)
+	}
+	got := decodeBodyCharset(encoded, "text/plain; charset=iso-2022-jp")
+	if string(got) != source {
+		t.Fatalf("unexpected decoded charset: expected %q, got %q", source, string(got))
+	}
+}
+
+func TestDecodeBodyCharset_ISO2022JP_EmptyContent(t *testing.T) {
+	// Test empty content with ISO-2022-JP charset header
+	got := decodeBodyCharset([]byte{}, "text/plain; charset=iso-2022-jp")
+	if len(got) != 0 {
+		t.Fatalf("expected empty result for empty input, got %q", string(got))
+	}
+}
+
+func TestDecodeBodyCharset_ISO2022JP_MalformedSequence(t *testing.T) {
+	// Test malformed ISO-2022-JP sequences - should gracefully return original data
+	// ISO-2022-JP uses escape sequences like ESC $ B for switching to JIS X 0208
+	// This creates an invalid sequence: starts escape but doesn't complete properly
+	malformed := []byte{0x1b, 0x24, 0x42, 0xff, 0xfe, 0x1b, 0x28, 0x42} // ESC $ B + invalid bytes + ESC ( B
+	got := decodeBodyCharset(malformed, "text/plain; charset=iso-2022-jp")
+	// The decoder should either return the original malformed data or a decoded version
+	// (graceful degradation means it shouldn't panic or error)
+	if got == nil {
+		t.Fatalf("expected non-nil result for malformed input")
+	}
+}
+
+func TestDecodeBodyCharset_ISO2022JP_TruncatedEscapeSequence(t *testing.T) {
+	// Test truncated escape sequence - incomplete ISO-2022-JP escape
+	// ESC $ without the final byte is incomplete
+	truncated := []byte{0x1b, 0x24}
+	got := decodeBodyCharset(truncated, "text/plain; charset=iso-2022-jp")
+	// Should gracefully handle and return something (original or partial decode)
+	if got == nil {
+		t.Fatalf("expected non-nil result for truncated escape sequence")
+	}
+}
+
 func TestMimeTypeMatches(t *testing.T) {
 	if !mimeTypeMatches("Text/Plain; charset=UTF-8", "text/plain") {
 		t.Fatalf("expected mime match")
