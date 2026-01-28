@@ -590,20 +590,22 @@ func (c *DocsUpdateCmd) Run(ctx context.Context, flags *RootFlags) error {
 		if strings.TrimSpace(c.RequiredRev) != "" || strings.TrimSpace(c.TargetRev) != "" {
 			return usage("use only one of --body-* or revision flags")
 		}
-		raw, err := readJSONInput(bodyJSON, bodyFile, "body")
+		var raw string
+		raw, err = readJSONInput(bodyJSON, bodyFile, "body")
 		if err != nil {
 			return err
 		}
-		if err := json.Unmarshal([]byte(raw), &req); err != nil {
+		if err = json.Unmarshal([]byte(raw), &req); err != nil {
 			return fmt.Errorf("invalid batchUpdate JSON: %w", err)
 		}
 	default:
-		raw, err := readJSONInput(reqJSON, reqFile, "requests")
+		var raw string
+		raw, err = readJSONInput(reqJSON, reqFile, "requests")
 		if err != nil {
 			return err
 		}
 		var requests []*docs.Request
-		if err := json.Unmarshal([]byte(raw), &requests); err != nil {
+		if err = json.Unmarshal([]byte(raw), &requests); err != nil {
 			return fmt.Errorf("invalid requests JSON: %w", err)
 		}
 		req.Requests = requests
