@@ -39,6 +39,8 @@ func TestGmailGetCmd_JSON_Full(t *testing.T) {
 				"headers": []map[string]any{
 					{"name": "From", "value": "a@example.com"},
 					{"name": "To", "value": "b@example.com"},
+					{"name": "Cc", "value": "c@example.com"},
+					{"name": "Bcc", "value": "d@example.com"},
 					{"name": "Subject", "value": "S"},
 					{"name": "Date", "value": "Fri, 26 Dec 2025 10:00:00 +0000"},
 					{"name": "List-Unsubscribe", "value": "<mailto:unsubscribe@example.com>"},
@@ -84,6 +86,16 @@ func TestGmailGetCmd_JSON_Full(t *testing.T) {
 	}
 	if parsed["unsubscribe"] != "mailto:unsubscribe@example.com" {
 		t.Fatalf("unexpected unsubscribe: %v", parsed["unsubscribe"])
+	}
+	headers, ok := parsed["headers"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected headers map, got: %T", parsed["headers"])
+	}
+	if headers["cc"] != "c@example.com" {
+		t.Fatalf("unexpected cc header: %v", headers["cc"])
+	}
+	if headers["bcc"] != "d@example.com" {
+		t.Fatalf("unexpected bcc header: %v", headers["bcc"])
 	}
 }
 
@@ -204,6 +216,8 @@ func TestGmailGetCmd_JSON_Metadata_WithAttachments(t *testing.T) {
 				"headers": []map[string]any{
 					{"name": "From", "value": "a@example.com"},
 					{"name": "To", "value": "b@example.com"},
+					{"name": "Cc", "value": "c@example.com"},
+					{"name": "Bcc", "value": "d@example.com"},
 					{"name": "Subject", "value": "Metadata attachments"},
 					{"name": "Date", "value": "Fri, 26 Dec 2025 10:00:00 +0000"},
 				},
@@ -256,6 +270,16 @@ func TestGmailGetCmd_JSON_Metadata_WithAttachments(t *testing.T) {
 	if _, ok := parsed["body"]; ok {
 		t.Fatalf("expected no body for metadata output")
 	}
+	headers, ok := parsed["headers"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected headers map, got: %T", parsed["headers"])
+	}
+	if headers["cc"] != "c@example.com" {
+		t.Fatalf("unexpected cc header: %v", headers["cc"])
+	}
+	if headers["bcc"] != "d@example.com" {
+		t.Fatalf("unexpected bcc header: %v", headers["bcc"])
+	}
 	attachments, ok := parsed["attachments"].([]any)
 	if !ok || len(attachments) != 1 {
 		t.Fatalf("expected 1 attachment, got: %v", parsed["attachments"])
@@ -298,6 +322,8 @@ func TestGmailGetCmd_Text_Full_WithAttachments(t *testing.T) {
 				"headers": []map[string]any{
 					{"name": "From", "value": "a@example.com"},
 					{"name": "To", "value": "b@example.com"},
+					{"name": "Cc", "value": "c@example.com"},
+					{"name": "Bcc", "value": "d@example.com"},
 					{"name": "Subject", "value": "Test"},
 					{"name": "Date", "value": "Fri, 26 Dec 2025 10:00:00 +0000"},
 				},
@@ -349,6 +375,12 @@ func TestGmailGetCmd_Text_Full_WithAttachments(t *testing.T) {
 	if !strings.Contains(out, "attachment\treport.pdf\t"+formatBytes(54321)+"\tapplication/pdf\tANGjdJ-xyz789") {
 		t.Fatalf("expected attachment line in output, got: %q", out)
 	}
+	if !strings.Contains(out, "cc\tc@example.com") {
+		t.Fatalf("expected cc header in output, got: %q", out)
+	}
+	if !strings.Contains(out, "bcc\td@example.com") {
+		t.Fatalf("expected bcc header in output, got: %q", out)
+	}
 }
 
 func TestGmailGetCmd_Text_Metadata_WithAttachments(t *testing.T) {
@@ -371,6 +403,8 @@ func TestGmailGetCmd_Text_Metadata_WithAttachments(t *testing.T) {
 				"headers": []map[string]any{
 					{"name": "From", "value": "a@example.com"},
 					{"name": "To", "value": "b@example.com"},
+					{"name": "Cc", "value": "c@example.com"},
+					{"name": "Bcc", "value": "d@example.com"},
 					{"name": "Subject", "value": "Metadata"},
 					{"name": "Date", "value": "Fri, 26 Dec 2025 10:00:00 +0000"},
 				},
@@ -424,6 +458,12 @@ func TestGmailGetCmd_Text_Metadata_WithAttachments(t *testing.T) {
 	}
 	if strings.Contains(out, "metadata body") {
 		t.Fatalf("unexpected body output for metadata: %q", out)
+	}
+	if !strings.Contains(out, "cc\tc@example.com") {
+		t.Fatalf("expected cc header in output, got: %q", out)
+	}
+	if !strings.Contains(out, "bcc\td@example.com") {
+		t.Fatalf("expected bcc header in output, got: %q", out)
 	}
 }
 
