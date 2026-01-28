@@ -100,7 +100,7 @@ func TestFetchReplyInfoFromThread(t *testing.T) {
 	}
 	newGmailService = func(context.Context, string) (*gmail.Service, error) { return svc, nil }
 
-	info, err := fetchReplyInfo(context.Background(), svc, "", "t1")
+	info, err := fetchReplyInfo(context.Background(), svc, "", "t1", false)
 	if err != nil {
 		t.Fatalf("fetchReplyInfo: %v", err)
 	}
@@ -132,5 +132,70 @@ func TestWriteSendResults_JSON(t *testing.T) {
 	}
 	if payload["messageId"] != "m1" || payload["threadId"] != "t1" || payload["tracking_id"] != "trk" {
 		t.Fatalf("unexpected json payload: %#v", payload)
+	}
+}
+
+func TestWithHistory(t *testing.T) {
+	origNew := newGmailService
+	t.Cleanup(func() { newGmailService = origNew })
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := strings.TrimPrefix(r.URL.Path, "/gmail/v1")
+		switch {
+		case r.Method == http.MethodGet && path == "/users/me/threads/t1":
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"id": "t1",
+				"messages": []map[string]any{
+					{
+						"id":           "m1",
+						"internalDate": "200",
+						"payload": map[string]any{
+							"mimeType": "text/plain",
+							"headers": []map[string]any{
+								{"name": "Message-ID", "value": "<m1>"},
+								{"name": "From", "value": "a@example.com"},
+								{"name": "Date", "value": "Wed, 28 Jan 2026 10:00:00 +0000"},
+							},
+							"body": map[string]any{
+								"data": "SGVsbG8gd29ybGQ=", // "Hello world"
+							},
+						},
+					},
+				},
+			})
+			return
+		default:
+			http.NotFound(w, r)
+			return
+		}
+	}))
+	defer srv.Close()
+
+	svc, err := gmail.NewService(context.Background(),
+		option.WithoutAuthentication(),
+		option.WithHTTPClient(srv.Client()),
+		option.WithEndpoint(srv.URL+"/"),
+	)
+	if err != nil {
+		t.Fatalf("NewService: %v", err)
+	}
+
+	info, err := fetchReplyInfo(context.Background(), svc, "", "t1", true)
+	if err != nil {
+		t.Fatalf("fetchReplyInfo: %v", err)
+	}
+
+	if info.OriginalBody != "Hello world" {
+		t.Fatalf("expected 'Hello world', got %q", info.OriginalBody)
+	}
+
+	quoted := quoteBody(info.OriginalBody, info.FromAddr, info.Date)
+	expectedPrefix := "On Wed, 28 Jan 2026 10:00:00 +0000, a@example.com wrote:"
+	if !strings.Contains(quoted, expectedPrefix) {
+		t.Fatalf("quoted body missing prefix: %q", quoted)
+	}
+	if !strings.Contains(quoted, "> Hello world") {
+		t.Fatalf("quoted body missing quoted text: %q", quoted)
 	}
 }

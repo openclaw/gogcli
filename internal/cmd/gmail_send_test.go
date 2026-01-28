@@ -179,7 +179,7 @@ func TestFetchReplyInfo_ThreadID(t *testing.T) {
 		t.Fatalf("NewService: %v", err)
 	}
 
-	info, err := fetchReplyInfo(context.Background(), svc, "", "t1")
+	info, err := fetchReplyInfo(context.Background(), svc, "", "t1", false)
 	if err != nil {
 		t.Fatalf("fetchReplyInfo: %v", err)
 	}
@@ -910,7 +910,7 @@ func TestFetchReplyInfo(t *testing.T) {
 	ctx := context.Background()
 
 	// Test m1: multiple recipients
-	info, err := fetchReplyInfo(ctx, svc, "m1", "")
+	info, err := fetchReplyInfo(ctx, svc, "m1", "", false)
 	if err != nil {
 		t.Fatalf("fetchReplyInfo(m1): %v", err)
 	}
@@ -930,7 +930,7 @@ func TestFetchReplyInfo(t *testing.T) {
 	}
 
 	// Test m2: sender with display name
-	info, err = fetchReplyInfo(ctx, svc, "m2", "")
+	info, err = fetchReplyInfo(ctx, svc, "m2", "", false)
 	if err != nil {
 		t.Fatalf("fetchReplyInfo(m2): %v", err)
 	}
@@ -939,7 +939,7 @@ func TestFetchReplyInfo(t *testing.T) {
 	}
 
 	// Test empty message ID
-	info, err = fetchReplyInfo(ctx, svc, "", "")
+	info, err = fetchReplyInfo(ctx, svc, "", "", false)
 	if err != nil {
 		t.Fatalf("fetchReplyInfo(''): %v", err)
 	}
@@ -948,7 +948,7 @@ func TestFetchReplyInfo(t *testing.T) {
 	}
 
 	// Test m3: message with Reply-To header
-	info, err = fetchReplyInfo(ctx, svc, "m3", "")
+	info, err = fetchReplyInfo(ctx, svc, "m3", "", false)
 	if err != nil {
 		t.Fatalf("fetchReplyInfo(m3): %v", err)
 	}

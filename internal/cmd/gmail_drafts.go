@@ -299,7 +299,7 @@ func buildDraftMessage(ctx context.Context, svc *gmail.Service, account string, 
 		}
 	}
 
-	info, err := fetchReplyInfo(ctx, svc, input.ReplyToMessageID, input.ReplyToThreadID)
+	info, err := fetchReplyInfo(ctx, svc, input.ReplyToMessageID, input.ReplyToThreadID, false)
 	if err != nil {
 		return nil, "", err
 	}
