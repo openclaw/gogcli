@@ -62,7 +62,7 @@ func TestParseTimeExprMore(t *testing.T) {
 		t.Fatalf("parseTimeExpr yesterday: %v", err)
 	}
 
-	if !parsed.Equal(startOfDay(now.AddDate(0, 0, -1))) {
+	if !parsed.Equal(startOfDay(now.In(loc).AddDate(0, 0, -1))) {
 		t.Fatalf("unexpected yesterday: %v", parsed)
 	}
 
@@ -91,6 +91,42 @@ func TestParseTimeExprMore(t *testing.T) {
 
 	if parsed.Location() != loc {
 		t.Fatalf("expected loc, got %v", parsed.Location())
+	}
+}
+
+func TestParseTimeExprRelativeDurations(t *testing.T) {
+	now := time.Date(2025, 1, 10, 12, 0, 0, 0, time.UTC)
+
+	parsed, err := parseTimeExpr("2h ago", now, time.UTC)
+	if err != nil {
+		t.Fatalf("parseTimeExpr 2h ago: %v", err)
+	}
+	if !parsed.Equal(now.Add(-2 * time.Hour)) {
+		t.Fatalf("unexpected 2h ago: %v", parsed)
+	}
+
+	parsed, err = parseTimeExpr("30m", now, time.UTC)
+	if err != nil {
+		t.Fatalf("parseTimeExpr 30m: %v", err)
+	}
+	if !parsed.Equal(now.Add(30 * time.Minute)) {
+		t.Fatalf("unexpected 30m: %v", parsed)
+	}
+
+	parsed, err = parseTimeExpr("2w ago", now, time.UTC)
+	if err != nil {
+		t.Fatalf("parseTimeExpr 2w ago: %v", err)
+	}
+	if !parsed.Equal(now.AddDate(0, 0, -14)) {
+		t.Fatalf("unexpected 2w ago: %v", parsed)
+	}
+
+	parsed, err = parseTimeExpr("1mo", now, time.UTC)
+	if err != nil {
+		t.Fatalf("parseTimeExpr 1mo: %v", err)
+	}
+	if !parsed.Equal(now.AddDate(0, 1, 0)) {
+		t.Fatalf("unexpected 1mo: %v", parsed)
 	}
 }
 
