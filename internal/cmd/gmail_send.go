@@ -32,6 +32,7 @@ type GmailSendCmd struct {
 	From             string   `name:"from" help:"Send from this email address (must be a verified send-as alias)"`
 	Track            bool     `name:"track" help:"Enable open tracking (requires tracking setup)"`
 	TrackSplit       bool     `name:"track-split" help:"Send tracked messages separately per recipient"`
+	WithHistory      bool     `name:"with-history" help:"Include original message body in reply (requires --reply-to-message-id or --thread-id)"`
 }
 
 type sendBatch struct {
@@ -97,6 +98,9 @@ func (c *GmailSendCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if c.TrackSplit && !c.Track {
 		return usage("--track-split requires --track")
 	}
+	if c.WithHistory && replyToMessageID == "" && threadID == "" {
+		return usage("--with-history requires --reply-to-message-id or --thread-id")
+	}
 
 	svc, err := newGmailService(ctx, account)
 	if err != nil {
@@ -133,9 +137,28 @@ func (c *GmailSendCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 
 	// Fetch reply info (includes recipient headers for reply-all)
-	replyInfo, err := fetchReplyInfo(ctx, svc, replyToMessageID, threadID)
+	replyInfo, err := fetchReplyInfo(ctx, svc, replyToMessageID, threadID, c.WithHistory)
 	if err != nil {
 		return err
+	}
+
+	if c.WithHistory {
+		if replyInfo.OriginalBody != "" {
+			quoted := quoteBody(replyInfo.OriginalBody, replyInfo.FromAddr, replyInfo.Date)
+			if body != "" {
+				body = body + "\n\n" + quoted
+			} else {
+				body = quoted
+			}
+		}
+		if replyInfo.OriginalHTML != "" {
+			quotedHTML := quoteHTML(replyInfo.OriginalHTML, replyInfo.FromAddr, replyInfo.Date)
+			if c.BodyHTML != "" {
+				c.BodyHTML = c.BodyHTML + "<br><br>" + quotedHTML
+			} else {
+				c.BodyHTML = quotedHTML
+			}
+		}
 	}
 
 	// Determine recipients
@@ -444,34 +467,42 @@ func buildReplyAllRecipients(info *replyInfo, selfEmail string) (to, cc []string
 
 // replyInfo contains all information extracted from the original message for replying
 type replyInfo struct {
-	InReplyTo   string
-	References  string
-	ThreadID    string
-	FromAddr    string   // Original sender
-	ReplyToAddr string   // Original Reply-To header (per RFC 5322, use this instead of From if present)
-	ToAddrs     []string // Original To recipients
-	CcAddrs     []string // Original Cc recipients
+	InReplyTo    string
+	References   string
+	ThreadID     string
+	FromAddr     string   // Original sender
+	ReplyToAddr  string   // Original Reply-To header (per RFC 5322, use this instead of From if present)
+	ToAddrs      []string // Original To recipients
+	CcAddrs      []string // Original Cc recipients
+	Date         string   // Original date
+	OriginalBody string   // Original plain text body
+	OriginalHTML string   // Original HTML body
 }
 
 func replyHeaders(ctx context.Context, svc *gmail.Service, replyToMessageID string) (inReplyTo string, references string, threadID string, err error) {
-	info, err := fetchReplyInfo(ctx, svc, replyToMessageID, "")
+	info, err := fetchReplyInfo(ctx, svc, replyToMessageID, "", false)
 	if err != nil {
 		return "", "", "", err
 	}
 	return info.InReplyTo, info.References, info.ThreadID, nil
 }
 
-func fetchReplyInfo(ctx context.Context, svc *gmail.Service, replyToMessageID string, threadID string) (*replyInfo, error) {
+func fetchReplyInfo(ctx context.Context, svc *gmail.Service, replyToMessageID string, threadID string, full bool) (*replyInfo, error) {
 	replyToMessageID = strings.TrimSpace(replyToMessageID)
 	threadID = strings.TrimSpace(threadID)
 	if replyToMessageID == "" && threadID == "" {
 		return &replyInfo{}, nil
 	}
 
+	format := "metadata"
+	if full {
+		format = "full"
+	}
+
 	if replyToMessageID != "" {
 		msg, err := svc.Users.Messages.Get("me", replyToMessageID).
-			Format("metadata").
-			MetadataHeaders("Message-ID", "Message-Id", "References", "In-Reply-To", "From", "Reply-To", "To", "Cc").
+			Format(format).
+			MetadataHeaders("Message-ID", "Message-Id", "References", "In-Reply-To", "From", "Reply-To", "To", "Cc", "Date").
 			Context(ctx).
 			Do()
 		if err != nil {
@@ -481,8 +512,8 @@ func fetchReplyInfo(ctx context.Context, svc *gmail.Service, replyToMessageID st
 	}
 
 	thread, err := svc.Users.Threads.Get("me", threadID).
-		Format("metadata").
-		MetadataHeaders("Message-ID", "Message-Id", "References", "In-Reply-To", "From", "Reply-To", "To", "Cc").
+		Format(format).
+		MetadataHeaders("Message-ID", "Message-Id", "References", "In-Reply-To", "From", "Reply-To", "To", "Cc", "Date").
 		Context(ctx).
 		Do()
 	if err != nil {
@@ -513,6 +544,12 @@ func replyInfoFromMessage(msg *gmail.Message) *replyInfo {
 		ReplyToAddr: headerValue(msg.Payload, "Reply-To"),
 		ToAddrs:     parseEmailAddresses(headerValue(msg.Payload, "To")),
 		CcAddrs:     parseEmailAddresses(headerValue(msg.Payload, "Cc")),
+		Date:        headerValue(msg.Payload, "Date"),
+	}
+
+	if msg.Payload != nil {
+		info.OriginalBody = findPartBody(msg.Payload, "text/plain")
+		info.OriginalHTML = findPartBody(msg.Payload, "text/html")
 	}
 
 	// Prefer Message-ID and References from the original message.
@@ -625,4 +662,27 @@ func deduplicateAddresses(addresses []string) []string {
 		}
 	}
 	return result
+}
+
+func quoteBody(body, from, date string) string {
+	prefix := "On " + date + ", " + from + " wrote:\n"
+	lines := strings.Split(body, "\n")
+	for i, line := range lines {
+		lines[i] = "> " + line
+	}
+	return prefix + strings.Join(lines, "\n")
+}
+
+func quoteHTML(html, from, date string) string {
+	header := fmt.Sprintf("<div>On %s, %s wrote:</div>", htmlEscape(date), htmlEscape(from))
+	return header + "<blockquote style=\"margin:0 0 0 .8ex;border-left:1px #ccc solid;padding-left:1ex\">" + html + "</blockquote>"
+}
+
+func htmlEscape(s string) string {
+	s = strings.ReplaceAll(s, "&", "&amp;")
+	s = strings.ReplaceAll(s, "<", "&lt;")
+	s = strings.ReplaceAll(s, ">", "&gt;")
+	s = strings.ReplaceAll(s, "\"", "&quot;")
+	s = strings.ReplaceAll(s, "'", "&#39;")
+	return s
 }
