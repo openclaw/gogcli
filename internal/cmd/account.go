@@ -10,6 +10,10 @@ import (
 
 var openSecretsStoreForAccount = secrets.OpenDefault
 
+// AccessTokenPlaceholderAccount is used when --access-token is provided but no --account.
+// The actual account identity is embedded in the token itself.
+const AccessTokenPlaceholderAccount = "access-token-user"
+
 func requireAccount(flags *RootFlags) (string, error) {
 	client := config.DefaultClientName
 	var err error
@@ -19,6 +23,10 @@ func requireAccount(flags *RootFlags) (string, error) {
 	if err != nil {
 		return "", err
 	}
+
+	// If access token is provided, account is optional - use placeholder if not specified
+	hasAccessToken := flags != nil && strings.TrimSpace(flags.AccessToken) != ""
+
 	if v := strings.TrimSpace(flags.Account); v != "" {
 		if resolved, ok, err := resolveAccountAlias(v); err != nil {
 			return "", err
@@ -44,6 +52,11 @@ func requireAccount(flags *RootFlags) (string, error) {
 		if v != "" {
 			return v, nil
 		}
+	}
+
+	// When using access token, account resolution from keyring isn't needed
+	if hasAccessToken {
+		return AccessTokenPlaceholderAccount, nil
 	}
 
 	if store, err := openSecretsStoreForAccount(); err == nil {

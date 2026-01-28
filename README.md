@@ -419,9 +419,51 @@ gog keep list --account you@yourdomain.com
 gog keep get <noteId> --account you@yourdomain.com
 ```
 
+### Direct Access Token (Headless/CI)
+
+For headless environments where browser-based OAuth isn't possible, you can pass an access token directly. This bypasses the normal refresh token flow entirely—no keyring, no stored credentials required.
+
+```bash
+# Via flag
+gog gmail labels list --access-token "ya29.a0AfH6SM..."
+
+# Via environment variable
+export GOG_ACCESS_TOKEN="ya29.a0AfH6SM..."
+gog gmail labels list
+```
+
+When using `--access-token`:
+- The `--account` flag is optional (the token itself identifies the user)
+- No OAuth client credentials or keyring access is needed
+- A warning is printed to stderr: `Note: Using direct access token (expires in ~1 hour; no auto-refresh)`
+
+**Caveats:**
+- Access tokens expire in ~1 hour; long-running operations may fail mid-execution
+- No automatic refresh—you must provide a fresh token
+- No scope validation—you'll get API errors if the token lacks required scopes
+
+**Obtaining an access token:**
+
+If you have a refresh token managed externally, exchange it for an access token:
+
+```bash
+curl -X POST https://oauth2.googleapis.com/token \
+  -d "client_id=YOUR_CLIENT_ID" \
+  -d "client_secret=YOUR_CLIENT_SECRET" \
+  -d "refresh_token=YOUR_REFRESH_TOKEN" \
+  -d "grant_type=refresh_token"
+```
+
+Or if you have `gcloud` configured:
+
+```bash
+gog gmail labels list --access-token "$(gcloud auth print-access-token)"
+```
+
 ### Environment Variables
 
 - `GOG_ACCOUNT` - Default account email or alias to use (avoids repeating `--account`; otherwise uses keyring default or a single stored token)
+- `GOG_ACCESS_TOKEN` - Use provided access token directly (bypasses stored refresh tokens)
 - `GOG_CLIENT` - OAuth client name (selects stored credentials + token bucket)
 - `GOG_JSON` - Default JSON output
 - `GOG_PLAIN` - Default plain output
@@ -1400,6 +1442,7 @@ gog --verbose gmail search 'newer_than:7d'
 All commands support these flags:
 
 - `--account <email|alias|auto>` - Account to use (overrides GOG_ACCOUNT)
+- `--access-token <token>` - Use access token directly (bypasses keyring; for headless/CI)
 - `--enable-commands <csv>` - Allowlist top-level commands (e.g., `calendar,tasks`)
 - `--json` - Output JSON to stdout (best for scripting)
 - `--plain` - Output stable, parseable text to stdout (TSV; no colors)

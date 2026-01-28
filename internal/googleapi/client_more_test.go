@@ -13,6 +13,7 @@ import (
 	"github.com/99designs/keyring"
 	"golang.org/x/oauth2"
 
+	"github.com/steipete/gogcli/internal/authclient"
 	"github.com/steipete/gogcli/internal/config"
 	"github.com/steipete/gogcli/internal/googleauth"
 	"github.com/steipete/gogcli/internal/secrets"
@@ -182,6 +183,37 @@ func TestOptionsForAccount_HappyPath(t *testing.T) {
 	}
 
 	opts, err := optionsForAccount(context.Background(), googleauth.ServiceDrive, "a@b.com")
+	if err != nil {
+		t.Fatalf("unexpected err: %v", err)
+	}
+
+	if len(opts) == 0 {
+		t.Fatalf("expected client options")
+	}
+}
+
+func TestOptionsForAccountScopes_AccessTokenBypassesRefreshToken(t *testing.T) {
+	origRead := readClientCredentials
+	origOpen := openSecretsStore
+
+	t.Cleanup(func() {
+		readClientCredentials = origRead
+		openSecretsStore = origOpen
+	})
+
+	// These should NOT be called when access token is in context
+	readClientCredentials = func(string) (config.ClientCredentials, error) {
+		t.Fatalf("readClientCredentials should not be called when access token is provided")
+		return config.ClientCredentials{}, nil
+	}
+	openSecretsStore = func() (secrets.Store, error) {
+		t.Fatalf("openSecretsStore should not be called when access token is provided")
+		return nil, errBoom
+	}
+
+	ctx := authclient.WithAccessToken(context.Background(), "ya29.test-access-token")
+
+	opts, err := optionsForAccountScopes(ctx, "gmail", "any@email.com", []string{"scope1"})
 	if err != nil {
 		t.Fatalf("unexpected err: %v", err)
 	}

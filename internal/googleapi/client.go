@@ -95,11 +95,13 @@ func optionsForAccount(ctx context.Context, service googleauth.Service, email st
 func optionsForAccountScopes(ctx context.Context, serviceLabel string, email string, scopes []string) ([]option.ClientOption, error) {
 	slog.Debug("creating client options with custom scopes", "serviceLabel", serviceLabel, "email", email)
 
-	var creds config.ClientCredentials
-
 	var ts oauth2.TokenSource
 
-	if serviceAccountTS, saPath, ok, err := tokenSourceForServiceAccountScopes(ctx, email, scopes); err != nil {
+	// Check for direct access token first (bypasses refresh token flow)
+	if accessToken := authclient.AccessTokenFromContext(ctx); accessToken != "" {
+		slog.Debug("using direct access token", "serviceLabel", serviceLabel)
+		ts = oauth2.StaticTokenSource(&oauth2.Token{AccessToken: accessToken})
+	} else if serviceAccountTS, saPath, ok, err := tokenSourceForServiceAccountScopes(ctx, email, scopes); err != nil {
 		return nil, fmt.Errorf("service account token source: %w", err)
 	} else if ok {
 		slog.Debug("using service account credentials", "email", email, "path", saPath)
@@ -110,10 +112,9 @@ func optionsForAccountScopes(ctx context.Context, serviceLabel string, email str
 			return nil, fmt.Errorf("resolve client: %w", err)
 		}
 
-		if c, err := readClientCredentials(client); err != nil {
+		creds, err := readClientCredentials(client)
+		if err != nil {
 			return nil, fmt.Errorf("read credentials: %w", err)
-		} else {
-			creds = c
 		}
 
 		if tokenSource, err := tokenSourceForAccountScopes(ctx, serviceLabel, email, client, creds.ClientID, creds.ClientSecret, scopes); err != nil {

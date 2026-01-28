@@ -10,6 +10,8 @@ import (
 
 type contextKey struct{}
 
+type accessTokenKey struct{}
+
 func WithClient(ctx context.Context, client string) context.Context {
 	client = strings.TrimSpace(client)
 	if client == "" {
@@ -60,4 +62,30 @@ func ResolveClientWithOverride(email string, override string) (string, error) {
 	}
 
 	return client, nil
+}
+
+// WithAccessToken stores an access token in the context for direct API authentication.
+// When set, this bypasses the normal refresh token flow.
+func WithAccessToken(ctx context.Context, token string) context.Context {
+	token = strings.TrimSpace(token)
+	if token == "" {
+		return ctx
+	}
+
+	return context.WithValue(ctx, accessTokenKey{}, token)
+}
+
+// AccessTokenFromContext retrieves the access token from the context, if set.
+func AccessTokenFromContext(ctx context.Context) string {
+	if ctx == nil {
+		return ""
+	}
+
+	if v := ctx.Value(accessTokenKey{}); v != nil {
+		if s, ok := v.(string); ok {
+			return s
+		}
+	}
+
+	return ""
 }
