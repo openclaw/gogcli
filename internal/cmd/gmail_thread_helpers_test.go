@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"golang.org/x/text/encoding/japanese"
 	"google.golang.org/api/gmail/v1"
 )
 
@@ -182,6 +183,18 @@ func TestDecodeBodyCharset_ISO88591(t *testing.T) {
 	input := []byte{0x63, 0x61, 0x66, 0xe9} // "café" in ISO-8859-1
 	got := decodeBodyCharset(input, "text/plain; charset=iso-8859-1")
 	if string(got) != "café" {
+		t.Fatalf("unexpected decoded charset: %q", string(got))
+	}
+}
+
+func TestDecodeBodyCharset_ISO2022JP(t *testing.T) {
+	source := "\u65e5\u672c\u8a9e\u30c6\u30b9\u30c8"
+	encoded, err := japanese.ISO2022JP.NewEncoder().Bytes([]byte(source))
+	if err != nil {
+		t.Fatalf("encode iso-2022-jp: %v", err)
+	}
+	got := decodeBodyCharset(encoded, "text/plain; charset=iso-2022-jp")
+	if string(got) != source {
 		t.Fatalf("unexpected decoded charset: %q", string(got))
 	}
 }
