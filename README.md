@@ -789,10 +789,18 @@ gog drive drives --max 100
 ```bash
 # Docs
 gog docs info <docId>
+gog docs info <docId> --tab <tabId>
 gog docs cat <docId> --max-bytes 10000
+gog docs cat <docId> --tab <tabId>
 gog docs create "My Doc"
 gog docs copy <docId> "My Doc Copy"
 gog docs export <docId> --format pdf --out ./doc.pdf
+gog docs insert <docId> --text "Hello" --index 1
+gog docs replace <docId> --match "foo" --replace "bar"
+gog docs tabs list <docId>
+gog docs tabs add <docId> "New Tab"
+gog docs tabs delete <docId> <tabId>
+gog docs update <docId> --requests-json '[{"insertText":{"text":"Hi","location":{"index":1}}}]'
 
 # Slides
 gog slides info <presentationId>

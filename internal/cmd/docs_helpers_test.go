@@ -9,12 +9,16 @@ import (
 )
 
 func TestDocsWebViewLink(t *testing.T) {
-	if docsWebViewLink("") != "" {
+	if docsWebViewLink("", "") != "" {
 		t.Fatalf("expected empty link")
 	}
-	link := docsWebViewLink("abc")
+	link := docsWebViewLink("abc", "")
 	if link != "https://docs.google.com/document/d/abc/edit" {
 		t.Fatalf("unexpected link: %q", link)
+	}
+	link = docsWebViewLink("abc", "tab1")
+	if link != "https://docs.google.com/document/d/abc/edit?tab=tab1" {
+		t.Fatalf("unexpected tab link: %q", link)
 	}
 }
 
