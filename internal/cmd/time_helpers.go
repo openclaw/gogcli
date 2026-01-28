@@ -6,8 +6,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/steipete/gogcli/internal/cli"
 	"google.golang.org/api/calendar/v3"
+
+	"github.com/steipete/gogcli/internal/cli"
 )
 
 // TimeRangeFlags provides common time range options for calendar commands.
@@ -107,17 +108,17 @@ func ResolveTimeRangeWithDefaults(ctx context.Context, svc *calendar.Service, fl
 	// Handle convenience flags first
 	switch {
 	case flags.Today:
-		from = startOfDay(now)
+		from = cli.StartOfDay(now)
 		to = endOfDay(now)
 	case flags.Tomorrow:
 		tomorrow := now.AddDate(0, 0, 1)
-		from = startOfDay(tomorrow)
+		from = cli.StartOfDay(tomorrow)
 		to = endOfDay(tomorrow)
 	case flags.Week:
 		from = startOfWeek(now, weekStart)
 		to = endOfWeek(now, weekStart)
 	case flags.Days > 0:
-		from = startOfDay(now)
+		from = cli.StartOfDay(now)
 		to = endOfDay(now.AddDate(0, 0, flags.Days-1))
 	default:
 		// Parse --from and --to, or use defaults
@@ -168,54 +169,6 @@ func parseTimeExpr(expr string, now time.Time, loc *time.Location) (time.Time, e
 	return time.Time{}, fmt.Errorf("cannot parse %q as time (try: 2026-01-05, today, tomorrow, monday, 2h ago, 30m)", expr)
 }
 
-// parseWeekday parses weekday expressions like "monday", "next tuesday"
-func parseWeekday(expr string, now time.Time) (time.Time, bool) {
-	expr = strings.TrimSpace(expr)
-	next := false
-	if strings.HasPrefix(expr, "next ") {
-		next = true
-		expr = strings.TrimPrefix(expr, "next ")
-	}
-
-	weekdays := map[string]time.Weekday{
-		"sunday":    time.Sunday,
-		"sun":       time.Sunday,
-		"monday":    time.Monday,
-		"mon":       time.Monday,
-		"tuesday":   time.Tuesday,
-		"tue":       time.Tuesday,
-		"wednesday": time.Wednesday,
-		"wed":       time.Wednesday,
-		"thursday":  time.Thursday,
-		"thu":       time.Thursday,
-		"friday":    time.Friday,
-		"fri":       time.Friday,
-		"saturday":  time.Saturday,
-		"sat":       time.Saturday,
-	}
-
-	targetDay, ok := weekdays[expr]
-	if !ok {
-		return time.Time{}, false
-	}
-
-	currentDay := now.Weekday()
-	daysUntil := int(targetDay) - int(currentDay)
-	if daysUntil < 0 || (daysUntil == 0 && next) {
-		daysUntil += 7 // Next week
-	}
-
-	if daysUntil == 0 {
-		return startOfDay(now), true
-	}
-	return startOfDay(now.AddDate(0, 0, daysUntil)), true
-}
-
-// startOfDay returns the start of the day (00:00:00) in the given time's location.
-func startOfDay(t time.Time) time.Time {
-	return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, t.Location())
-}
-
 // endOfDay returns the end of the day (23:59:59.999) in the given time's location.
 func endOfDay(t time.Time) time.Time {
 	return time.Date(t.Year(), t.Month(), t.Day(), 23, 59, 59, 999999999, t.Location())
@@ -229,7 +182,7 @@ func startOfWeek(t time.Time, weekStart time.Weekday) time.Time {
 	if daysBack < 0 {
 		daysBack += 7
 	}
-	return startOfDay(t.AddDate(0, 0, -daysBack))
+	return cli.StartOfDay(t.AddDate(0, 0, -daysBack))
 }
 
 // endOfWeek returns the end of the week for the given time.

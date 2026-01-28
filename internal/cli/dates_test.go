@@ -12,6 +12,7 @@ func TestParseRelativeTimeRelativeDurations(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ParseRelativeTime 2h ago: %v", err)
 	}
+
 	if !parsed.Equal(now.Add(-2 * time.Hour)) {
 		t.Fatalf("unexpected 2h ago: %v", parsed)
 	}
@@ -20,6 +21,7 @@ func TestParseRelativeTimeRelativeDurations(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ParseRelativeTime 30m: %v", err)
 	}
+
 	if !parsed.Equal(now.Add(30 * time.Minute)) {
 		t.Fatalf("unexpected 30m: %v", parsed)
 	}
@@ -28,6 +30,7 @@ func TestParseRelativeTimeRelativeDurations(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ParseRelativeTime 1d ago: %v", err)
 	}
+
 	if !parsed.Equal(now.AddDate(0, 0, -1)) {
 		t.Fatalf("unexpected 1d ago: %v", parsed)
 	}
@@ -40,7 +43,8 @@ func TestParseRelativeTimeWeekday(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ParseRelativeTime monday: %v", err)
 	}
-	if parsed.Weekday() != time.Monday || !parsed.After(startOfDay(now)) {
+
+	if parsed.Weekday() != time.Monday || !parsed.After(StartOfDay(now)) {
 		t.Fatalf("unexpected monday: %v", parsed)
 	}
 
@@ -48,7 +52,8 @@ func TestParseRelativeTimeWeekday(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ParseRelativeTime next friday: %v", err)
 	}
-	if parsed.Weekday() != time.Friday || !parsed.After(startOfDay(now)) {
+
+	if parsed.Weekday() != time.Friday || !parsed.After(StartOfDay(now)) {
 		t.Fatalf("unexpected next friday: %v", parsed)
 	}
 }
@@ -61,6 +66,7 @@ func TestParseRelativeTimeDatesAndRFC3339(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ParseRelativeTime date: %v", err)
 	}
+
 	if parsed.Location() != loc || parsed.Hour() != 0 {
 		t.Fatalf("unexpected date parse: %v", parsed)
 	}
@@ -69,6 +75,7 @@ func TestParseRelativeTimeDatesAndRFC3339(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ParseRelativeTime rfc3339: %v", err)
 	}
+
 	if parsed.Location() != time.UTC || parsed.Hour() != 10 {
 		t.Fatalf("unexpected rfc3339 parse: %v", parsed)
 	}

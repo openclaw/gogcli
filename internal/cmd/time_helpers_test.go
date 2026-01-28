@@ -3,6 +3,8 @@ package cmd
 import (
 	"testing"
 	"time"
+
+	"github.com/steipete/gogcli/internal/cli"
 )
 
 func TestParseTimeExpr(t *testing.T) {
@@ -13,7 +15,7 @@ func TestParseTimeExpr(t *testing.T) {
 		t.Fatalf("parseTimeExpr today: %v", err)
 	}
 
-	if !parsed.Equal(startOfDay(now)) {
+	if !parsed.Equal(cli.StartOfDay(now)) {
 		t.Fatalf("unexpected today: %v", parsed)
 	}
 
@@ -62,7 +64,7 @@ func TestParseTimeExprMore(t *testing.T) {
 		t.Fatalf("parseTimeExpr yesterday: %v", err)
 	}
 
-	if !parsed.Equal(startOfDay(now.In(loc).AddDate(0, 0, -1))) {
+	if !parsed.Equal(cli.StartOfDay(now.In(loc).AddDate(0, 0, -1))) {
 		t.Fatalf("unexpected yesterday: %v", parsed)
 	}
 
@@ -132,13 +134,13 @@ func TestParseTimeExprRelativeDurations(t *testing.T) {
 
 func TestParseWeekday(t *testing.T) {
 	now := time.Date(2025, 1, 10, 12, 0, 0, 0, time.UTC)
-	parsed, ok := parseWeekday("monday", now)
+	parsed, ok := cli.ParseWeekday("monday", now)
 	if !ok || parsed.Weekday() != time.Monday {
 		t.Fatalf("unexpected weekday: %v ok=%v", parsed, ok)
 	}
 
-	next, ok := parseWeekday("next monday", now)
-	if !ok || next.Weekday() != time.Monday || !next.After(startOfDay(now)) {
+	next, ok := cli.ParseWeekday("next monday", now)
+	if !ok || next.Weekday() != time.Monday || !next.After(cli.StartOfDay(now)) {
 		t.Fatalf("unexpected next weekday: %v ok=%v", next, ok)
 	}
 }
@@ -186,7 +188,7 @@ func TestWeekBounds(t *testing.T) {
 
 func TestDayBounds(t *testing.T) {
 	now := time.Date(2025, 1, 8, 12, 34, 56, 0, time.UTC)
-	start := startOfDay(now)
+	start := cli.StartOfDay(now)
 	end := endOfDay(now)
 	if start.Hour() != 0 || start.Minute() != 0 || start.Second() != 0 {
 		t.Fatalf("unexpected startOfDay: %v", start)
