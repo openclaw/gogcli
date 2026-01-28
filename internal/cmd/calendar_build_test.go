@@ -1,34 +1,85 @@
 package cmd
 
-import "testing"
+import (
+	"testing"
+	"time"
+)
 
 func TestExtractTimezone(t *testing.T) {
-	tests := []struct {
-		input    string
-		expected string
-	}{
-		{"2026-01-08T11:00:00-05:00", "America/New_York"},
-		{"2026-07-08T11:00:00-04:00", "America/New_York"},
-		{"2026-01-08T11:00:00-06:00", "America/Chicago"},
-		{"2026-07-08T11:00:00-05:00", "America/Chicago"},
-		{"2026-01-08T11:00:00-07:00", "America/Denver"},
-		{"2026-07-08T11:00:00-07:00", "America/Phoenix"},
-		{"2026-01-08T11:00:00-08:00", "America/Los_Angeles"},
-		{"2026-01-08T16:00:00Z", "UTC"},
-		{"2026-01-08T11:00:00+00:00", "UTC"},
-		{"invalid", ""},
-		{"2026-01-08T11:00:00-04:00", ""}, // not a common US offset on this date
-		{"2026-01-08T11:00:00+05:30", ""}, // India - not mapped
+	// Test UTC cases - always returns "UTC"
+	utcTests := []string{
+		"2026-01-08T16:00:00Z",
+		"2026-01-08T11:00:00+00:00",
+		"2026-07-15T09:30:00Z",
 	}
-
-	for _, tc := range tests {
-		t.Run(tc.input, func(t *testing.T) {
-			got := extractTimezone(tc.input)
-			if got != tc.expected {
-				t.Errorf("extractTimezone(%q) = %q, want %q", tc.input, got, tc.expected)
+	for _, input := range utcTests {
+		t.Run("UTC_"+input, func(t *testing.T) {
+			got := extractTimezone(input)
+			if got != "UTC" {
+				t.Errorf("extractTimezone(%q) = %q, want %q", input, got, "UTC")
 			}
 		})
 	}
+
+	// Test local timezone - when offset matches local and IANA name is available
+	t.Run("local_timezone_match", func(t *testing.T) {
+		localName := time.Local.String()
+		// Skip if local timezone doesn't have a real IANA name
+		if localName == "Local" || localName == "" {
+			t.Skip("local timezone doesn't have IANA name available")
+		}
+
+		// Create a time in the local timezone and format it as RFC3339
+		now := time.Now()
+		localTime := now.Format(time.RFC3339)
+		got := extractTimezone(localTime)
+		if got != localName {
+			t.Errorf("extractTimezone(%q) = %q, want %q (local timezone)", localTime, got, localName)
+		}
+	})
+
+	// Test with explicit timezone to ensure non-UTC handling works
+	t.Run("explicit_timezone_europe_berlin", func(t *testing.T) {
+		loc, err := time.LoadLocation("Europe/Berlin")
+		if err != nil {
+			t.Skip("Europe/Berlin timezone not available")
+		}
+
+		// Temporarily set local timezone for this test
+		origLocal := time.Local
+		time.Local = loc
+		defer func() { time.Local = origLocal }()
+
+		// Winter time: +01:00
+		input := "2026-01-15T14:00:00+01:00"
+		got := extractTimezone(input)
+		if got != "Europe/Berlin" {
+			t.Errorf("extractTimezone(%q) = %q, want %q", input, got, "Europe/Berlin")
+		}
+	})
+
+	// Test invalid input
+	t.Run("invalid", func(t *testing.T) {
+		if got := extractTimezone("invalid"); got != "" {
+			t.Errorf("extractTimezone(invalid) = %q, want empty", got)
+		}
+	})
+
+	// Non-matching offsets return empty (caller uses calendar/configured timezone)
+	t.Run("non_matching_offset", func(t *testing.T) {
+		// Use +05:30 (India) which is unlikely to be the local timezone
+		input := "2026-01-08T11:00:00+05:30"
+		testTime, _ := time.Parse(time.RFC3339, input)
+		_, localOffset := testTime.In(time.Local).Zone()
+		_, inputOffset := testTime.Zone()
+		if localOffset == inputOffset {
+			t.Skip("local timezone matches test offset, skipping")
+		}
+		got := extractTimezone(input)
+		if got != "" {
+			t.Errorf("extractTimezone(%q) = %q, want empty for non-matching offset", input, got)
+		}
+	})
 }
 
 func TestBuildAttachments(t *testing.T) {

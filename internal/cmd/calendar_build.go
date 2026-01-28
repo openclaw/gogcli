@@ -13,12 +13,24 @@ import (
 const tzUTC = "UTC"
 
 func buildEventDateTime(value string, allDay bool) *calendar.EventDateTime {
+	return buildEventDateTimeWithTimezone(value, allDay, "")
+}
+
+// buildEventDateTimeWithTimezone builds an EventDateTime from an RFC3339 string.
+//
+// For recurring events, Google Calendar requires start/end.timeZone to be set to an
+// IANA timezone name (e.g. "Europe/Berlin").
+func buildEventDateTimeWithTimezone(value string, allDay bool, tzOverride string) *calendar.EventDateTime {
 	value = strings.TrimSpace(value)
 	if allDay {
 		return &calendar.EventDateTime{Date: value}
 	}
 
 	edt := &calendar.EventDateTime{DateTime: value}
+	if tz := strings.TrimSpace(tzOverride); tz != "" {
+		edt.TimeZone = tz
+		return edt
+	}
 	if tz := extractTimezone(value); tz != "" {
 		edt.TimeZone = tz
 	}
@@ -27,6 +39,14 @@ func buildEventDateTime(value string, allDay bool) *calendar.EventDateTime {
 
 // extractTimezone attempts to determine a timezone from an RFC3339 datetime string.
 // Returns an IANA timezone name if determinable, empty string otherwise.
+//
+// This function handles two unambiguous cases:
+//   - UTC (offset 0) returns "UTC"
+//   - Local timezone match returns time.Local's IANA name
+//
+// For other offsets, returns "" since offset-to-IANA mapping is inherently ambiguous
+// (multiple IANA zones can share the same offset). Callers should use GOG_TIMEZONE
+// or the calendar's timezone for recurring events.
 func extractTimezone(value string) string {
 	t, err := time.Parse(time.RFC3339, value)
 	if err != nil {
@@ -34,29 +54,25 @@ func extractTimezone(value string) string {
 	}
 
 	_, offset := t.Zone()
+
+	// UTC is unambiguous
 	if offset == 0 {
 		return tzUTC
 	}
 
-	// RFC3339 values have a fixed offset, but Google Calendar requires an IANA timezone
-	// name for recurring events. We guess by checking which common zones match the
-	// offset at this instant.
-	for _, candidate := range []string{
-		"America/New_York",
-		"America/Chicago",
-		"America/Denver",
-		"America/Phoenix",
-		"America/Los_Angeles",
-	} {
-		loc, err := time.LoadLocation(candidate)
-		if err != nil {
-			continue
-		}
-		_, candidateOffset := t.In(loc).Zone()
-		if candidateOffset == offset {
-			return candidate
+	// Check if offset matches local timezone at this moment
+	_, localOffset := t.In(time.Local).Zone()
+	if localOffset == offset {
+		localName := time.Local.String()
+		// time.Local.String() returns "Local" if IANA name isn't available;
+		// only return it if we have a real IANA name (contains "/")
+		if localName != "Local" && localName != "" {
+			return localName
 		}
 	}
+
+	// Cannot reliably determine IANA timezone from offset alone.
+	// Caller should use GOG_TIMEZONE or calendar timezone for recurring events.
 	return ""
 }
 

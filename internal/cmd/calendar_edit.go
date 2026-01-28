@@ -16,8 +16,8 @@ import (
 type CalendarCreateCmd struct {
 	CalendarID            string   `arg:"" name:"calendarId" help:"Calendar ID"`
 	Summary               string   `name:"summary" help:"Event summary/title"`
-	From                  string   `name:"from" help:"Start time (RFC3339)"`
-	To                    string   `name:"to" help:"End time (RFC3339)"`
+	From                  string   `name:"from" help:"Start time (RFC3339). For recurring events, timezone is inferred from GOG_TIMEZONE env var, config, or calendar settings."`
+	To                    string   `name:"to" help:"End time (RFC3339). For recurring events, timezone is inferred from GOG_TIMEZONE env var, config, or calendar settings."`
 	Description           string   `name:"description" help:"Description"`
 	Location              string   `name:"location" help:"Location"`
 	Attendees             string   `name:"attendees" help:"Comma-separated attendee emails"`
@@ -107,14 +107,36 @@ func (c *CalendarCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
+	// For recurring events, Google Calendar requires start/end.timeZone to be set to an
+	// IANA timezone name (a fixed RFC3339 offset alone is not sufficient).
+	recurrence := buildRecurrence(c.Recurrence)
+	start := buildEventDateTime(c.From, allDay)
+	end := buildEventDateTime(c.To, allDay)
+	if !allDay && len(recurrence) > 0 {
+		tz := ""
+		if loc, err := getConfiguredTimezone(""); err == nil && loc != nil {
+			tz = loc.String()
+		}
+		if tz == "" {
+			calTZ, _, err := getCalendarLocation(ctx, svc, calendarID)
+			if err == nil {
+				tz = calTZ
+			}
+		}
+		if tz != "" {
+			start = buildEventDateTimeWithTimezone(c.From, allDay, tz)
+			end = buildEventDateTimeWithTimezone(c.To, allDay, tz)
+		}
+	}
+
 	event := &calendar.Event{
 		Summary:            summary,
 		Description:        strings.TrimSpace(c.Description),
 		Location:           strings.TrimSpace(c.Location),
-		Start:              buildEventDateTime(c.From, allDay),
-		End:                buildEventDateTime(c.To, allDay),
+		Start:              start,
+		End:                end,
 		Attendees:          buildAttendees(c.Attendees),
-		Recurrence:         buildRecurrence(c.Recurrence),
+		Recurrence:         recurrence,
 		Reminders:          reminders,
 		ColorId:            colorId,
 		Visibility:         visibility,
@@ -298,8 +320,8 @@ type CalendarUpdateCmd struct {
 	CalendarID            string   `arg:"" name:"calendarId" help:"Calendar ID"`
 	EventID               string   `arg:"" name:"eventId" help:"Event ID"`
 	Summary               string   `name:"summary" help:"New summary/title (set empty to clear)"`
-	From                  string   `name:"from" help:"New start time (RFC3339; set empty to clear)"`
-	To                    string   `name:"to" help:"New end time (RFC3339; set empty to clear)"`
+	From                  string   `name:"from" help:"New start time (RFC3339; set empty to clear). For recurring events, timezone uses GOG_TIMEZONE or calendar settings."`
+	To                    string   `name:"to" help:"New end time (RFC3339; set empty to clear). For recurring events, timezone uses GOG_TIMEZONE or calendar settings."`
 	Description           string   `name:"description" help:"New description (set empty to clear)"`
 	Location              string   `name:"location" help:"New location (set empty to clear)"`
 	Attendees             string   `name:"attendees" help:"Comma-separated attendee emails (replaces all; set empty to clear)"`

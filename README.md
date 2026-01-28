@@ -685,13 +685,18 @@ gog calendar update <calendarId> <eventId> \
   --send-updates externalOnly
 
 # Recurrence + reminders
+# Tip (recommended for recurring events): pass local times without an explicit offset,
+# so the event is anchored in the calendar's timezone.
 gog calendar create <calendarId> \
   --summary "Payment" \
-  --from 2025-02-11T09:00:00-03:00 \
-  --to 2025-02-11T09:15:00-03:00 \
+  --from 2025-02-11T09:00:00 \
+  --to 2025-02-11T09:15:00 \
   --rrule "RRULE:FREQ=MONTHLY;BYMONTHDAY=11" \
   --reminder "email:3d" \
   --reminder "popup:30m"
+
+# If you need a different timezone for the recurring event, set an IANA timezone name:
+# export GOG_TIMEZONE=Asia/Kolkata
 
 # Special event types via --event-type (focus-time/out-of-office/working-location)
 gog calendar create primary \
