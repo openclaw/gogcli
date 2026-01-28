@@ -254,3 +254,68 @@ func TestResolveCalendarIDs_IndexOutOfRange(t *testing.T) {
 		t.Fatalf("expected usage error, got %v", err)
 	}
 }
+
+func TestResolveCalendarIDs_UnrecognizedName(t *testing.T) {
+	srv := httptest.NewServer(withPrimaryCalendar(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.Contains(r.URL.Path, "/calendarList") &&
+			!strings.Contains(r.URL.Path, "/calendarList/primary") &&
+			r.Method == http.MethodGet {
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"items": []map[string]any{
+					{"id": "c1", "summary": "Work"},
+					{"id": "c2", "summary": "Family"},
+				},
+			})
+			return
+		}
+		http.NotFound(w, r)
+	})))
+	defer srv.Close()
+
+	svc, err := calendar.NewService(context.Background(),
+		option.WithoutAuthentication(),
+		option.WithHTTPClient(srv.Client()),
+		option.WithEndpoint(srv.URL+"/"),
+	)
+	if err != nil {
+		t.Fatalf("NewService: %v", err)
+	}
+
+	// Test single unrecognized name
+	_, err = resolveCalendarIDs(context.Background(), svc, []string{"NonExistent"})
+	if err == nil {
+		t.Fatalf("expected error for unrecognized calendar name")
+	}
+	var ee *ExitError
+	if !errors.As(err, &ee) || ee.Code != 2 {
+		t.Fatalf("expected usage error, got %v", err)
+	}
+	if !strings.Contains(err.Error(), "unrecognized calendar name(s)") {
+		t.Fatalf("expected error message to mention unrecognized calendar, got: %v", err)
+	}
+	if !strings.Contains(err.Error(), "NonExistent") {
+		t.Fatalf("expected error message to include the unrecognized name, got: %v", err)
+	}
+
+	// Test multiple unrecognized names
+	_, err = resolveCalendarIDs(context.Background(), svc, []string{"Work", "Unknown1", "Unknown2"})
+	if err == nil {
+		t.Fatalf("expected error for unrecognized calendar names")
+	}
+	if !errors.As(err, &ee) || ee.Code != 2 {
+		t.Fatalf("expected usage error, got %v", err)
+	}
+	if !strings.Contains(err.Error(), "Unknown1") || !strings.Contains(err.Error(), "Unknown2") {
+		t.Fatalf("expected error message to include all unrecognized names, got: %v", err)
+	}
+
+	// Test valid names still work
+	ids, err := resolveCalendarIDs(context.Background(), svc, []string{"Work", "Family"})
+	if err != nil {
+		t.Fatalf("unexpected error for valid calendar names: %v", err)
+	}
+	if len(ids) != 2 || ids[0] != "c1" || ids[1] != "c2" {
+		t.Fatalf("unexpected ids: %v", ids)
+	}
+}

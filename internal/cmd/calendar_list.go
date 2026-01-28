@@ -214,6 +214,7 @@ func resolveCalendarIDs(ctx context.Context, svc *calendar.Service, inputs []str
 
 	out := make([]string, 0, len(inputs))
 	seen := make(map[string]struct{}, len(inputs))
+	var unrecognized []string
 
 	for _, raw := range inputs {
 		value := strings.TrimSpace(raw)
@@ -245,7 +246,11 @@ func resolveCalendarIDs(ctx context.Context, svc *calendar.Service, inputs []str
 			appendUniqueCalendarID(&out, seen, id)
 			continue
 		}
-		appendUniqueCalendarID(&out, seen, value)
+		unrecognized = append(unrecognized, value)
+	}
+
+	if len(unrecognized) > 0 {
+		return nil, usagef("unrecognized calendar name(s): %s", strings.Join(unrecognized, ", "))
 	}
 
 	return out, nil
