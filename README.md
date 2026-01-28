@@ -623,6 +623,8 @@ gog calendar events <calendarId> --from today --to friday   # Relative dates
 gog calendar events <calendarId> --from today --to friday --weekday   # Include weekday columns
 gog calendar events <calendarId> --from 2025-01-01T00:00:00Z --to 2025-01-08T00:00:00Z
 gog calendar events --all             # Fetch events from all calendars
+gog calendar events --calendars 1,3   # Fetch events from calendar indices (see gog calendar calendars)
+gog calendar events --cal Work --cal Personal  # Fetch events from calendars by name/ID
 gog calendar event <calendarId> <eventId>
 gog calendar get <calendarId> <eventId>                     # Alias for event
 gog calendar search "meeting" --today
