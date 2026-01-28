@@ -140,6 +140,7 @@ func (c *GmailDraftsGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u.Out().Printf("Message-ID: %s", msg.Id)
 	u.Out().Printf("To: %s", headerValue(msg.Payload, "To"))
 	u.Out().Printf("Cc: %s", headerValue(msg.Payload, "Cc"))
+	u.Out().Printf("Bcc: %s", headerValue(msg.Payload, "Bcc"))
 	u.Out().Printf("Subject: %s", headerValue(msg.Payload, "Subject"))
 	u.Out().Println("")
 
