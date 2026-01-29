@@ -12,6 +12,7 @@ import (
 type File struct {
 	KeyringBackend  string            `json:"keyring_backend,omitempty"`
 	DefaultTimezone string            `json:"default_timezone,omitempty"`
+	PlacesAPIKey    string            `json:"places_api_key,omitempty"`
 	AccountAliases  map[string]string `json:"account_aliases,omitempty"`
 	AccountClients  map[string]string `json:"account_clients,omitempty"`
 	ClientDomains   map[string]string `json:"client_domains,omitempty"`

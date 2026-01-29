@@ -669,6 +669,28 @@ gog calendar create <calendarId> \
   --attendees "alice@example.com,bob@example.com" \
   --location "Zoom"
 
+# Place lookup for locations (requires Places API (New) enabled + API key)
+# Google Cloud Console → APIs & Services → Library → enable "Places API (New)".
+# Credentials → Create API key (restrict to Places API (New) if possible).
+# Store via "gog auth manage" (Places API Key) or:
+gog config set places_api_key "..."
+# Or use an environment variable (overrides stored keys):
+export GOOGLE_PLACES_API_KEY="..."
+# Note: config storage is plain text; keychain is recommended.
+# Headless/CI: gog auth places-key set --key "..." --store keychain|config
+gog calendar create <calendarId> \
+  --summary "Coffee" \
+  --from 2025-01-15T14:00:00Z \
+  --to 2025-01-15T15:00:00Z \
+  --location-search "Elysian Coffee Vancouver"
+
+gog calendar create <calendarId> \
+  --summary "Coffee" \
+  --from 2025-01-15T14:00:00Z \
+  --to 2025-01-15T15:00:00Z \
+  --place-id ChIJ...
+# Optional locale hints: --place-language en --place-region US
+
 gog calendar update <calendarId> <eventId> \
   --summary "Updated Meeting" \
   --from 2025-01-15T11:00:00Z \

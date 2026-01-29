@@ -285,6 +285,27 @@ func GetSecret(key string) ([]byte, error) {
 	return item.Data, nil
 }
 
+func DeleteSecret(key string) error {
+	key = strings.TrimSpace(key)
+	if key == "" {
+		return errMissingSecretKey
+	}
+
+	ring, err := openKeyringFunc()
+	if err != nil {
+		return err
+	}
+
+	if err := ring.Remove(key); err != nil {
+		if errors.Is(err, keyring.ErrKeyNotFound) {
+			return nil
+		}
+		return wrapKeychainError(fmt.Errorf("delete secret: %w", err))
+	}
+
+	return nil
+}
+
 func (s *KeyringStore) Keys() ([]string, error) {
 	keys, err := s.ring.Keys()
 	if err != nil {

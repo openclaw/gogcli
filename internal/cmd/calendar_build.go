@@ -232,3 +232,55 @@ func buildExtendedProperties(privateProps, sharedProps []string) *calendar.Event
 
 	return props
 }
+
+func mergeExtendedProperties(base *calendar.EventExtendedProperties, addPrivate, addShared map[string]string) *calendar.EventExtendedProperties {
+	if base == nil && len(addPrivate) == 0 && len(addShared) == 0 {
+		return nil
+	}
+	if base == nil {
+		base = &calendar.EventExtendedProperties{}
+	}
+	if len(addPrivate) > 0 {
+		if base.Private == nil {
+			base.Private = make(map[string]string)
+		}
+		for k, v := range addPrivate {
+			if strings.TrimSpace(k) == "" {
+				continue
+			}
+			base.Private[k] = v
+		}
+	}
+	if len(addShared) > 0 {
+		if base.Shared == nil {
+			base.Shared = make(map[string]string)
+		}
+		for k, v := range addShared {
+			if strings.TrimSpace(k) == "" {
+				continue
+			}
+			base.Shared[k] = v
+		}
+	}
+	return base
+}
+
+func cloneExtendedProperties(props *calendar.EventExtendedProperties) *calendar.EventExtendedProperties {
+	if props == nil {
+		return nil
+	}
+	clone := &calendar.EventExtendedProperties{}
+	if len(props.Private) > 0 {
+		clone.Private = make(map[string]string, len(props.Private))
+		for k, v := range props.Private {
+			clone.Private[k] = v
+		}
+	}
+	if len(props.Shared) > 0 {
+		clone.Shared = make(map[string]string, len(props.Shared))
+		for k, v := range props.Shared {
+			clone.Shared[k] = v
+		}
+	}
+	return clone
+}

@@ -15,6 +15,7 @@ func TestConfigCmd_JSONParity(t *testing.T) {
 	cfg := config.File{
 		KeyringBackend:  "file",
 		DefaultTimezone: "UTC",
+		PlacesAPIKey:    "places-123",
 	}
 	if err := config.WriteConfig(cfg); err != nil {
 		t.Fatalf("write config: %v", err)
@@ -31,6 +32,7 @@ func TestConfigCmd_JSONParity(t *testing.T) {
 	var list struct {
 		Timezone       string `json:"timezone"`
 		KeyringBackend string `json:"keyring_backend"`
+		PlacesAPIKey   string `json:"places_api_key"`
 	}
 	if err := json.Unmarshal([]byte(listOut), &list); err != nil {
 		t.Fatalf("list json parse: %v\nout=%q", err, listOut)
@@ -74,6 +76,7 @@ func TestConfigCmd_JSONEmptyValues(t *testing.T) {
 	var list struct {
 		Timezone       string `json:"timezone"`
 		KeyringBackend string `json:"keyring_backend"`
+		PlacesAPIKey   string `json:"places_api_key"`
 	}
 	if err := json.Unmarshal([]byte(listOut), &list); err != nil {
 		t.Fatalf("list json parse: %v\nout=%q", err, listOut)
@@ -83,6 +86,9 @@ func TestConfigCmd_JSONEmptyValues(t *testing.T) {
 	}
 	if list.KeyringBackend != "" {
 		t.Fatalf("expected empty keyring_backend, got %q", list.KeyringBackend)
+	}
+	if list.PlacesAPIKey != "" {
+		t.Fatalf("expected empty places_api_key, got %q", list.PlacesAPIKey)
 	}
 
 	getOut := captureStdout(t, func() {

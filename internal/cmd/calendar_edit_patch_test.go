@@ -37,7 +37,7 @@ func TestCalendarUpdateBuildPatch(t *testing.T) {
 		t.Fatalf("parse: %v", err)
 	}
 
-	patch, changed, err := cmd.buildUpdatePatch(kctx)
+	patch, changed, err := cmd.buildUpdatePatch(kctx, nil, false)
 	if err != nil {
 		t.Fatalf("buildUpdatePatch: %v", err)
 	}
@@ -71,7 +71,7 @@ func TestCalendarUpdateBuildPatch_ClearFields(t *testing.T) {
 		t.Fatalf("parse: %v", err)
 	}
 
-	patch, changed, err := cmd.buildUpdatePatch(kctx)
+	patch, changed, err := cmd.buildUpdatePatch(kctx, nil, false)
 	if err != nil {
 		t.Fatalf("buildUpdatePatch: %v", err)
 	}

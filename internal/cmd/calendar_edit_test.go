@@ -44,7 +44,7 @@ func TestCalendarUpdatePatchClearsRecurrence(t *testing.T) {
 	cmd := &CalendarUpdateCmd{}
 	kctx := parseKongContext(t, cmd, []string{"cal1", "evt1", "--rrule", " "})
 
-	patch, _, err := cmd.buildUpdatePatch(kctx)
+	patch, _, err := cmd.buildUpdatePatch(kctx, nil, false)
 	if err != nil {
 		t.Fatalf("buildUpdatePatch: %v", err)
 	}
@@ -63,7 +63,7 @@ func TestCalendarUpdatePatchClearsReminders(t *testing.T) {
 	cmd := &CalendarUpdateCmd{}
 	kctx := parseKongContext(t, cmd, []string{"cal1", "evt1", "--reminder", " "})
 
-	patch, _, err := cmd.buildUpdatePatch(kctx)
+	patch, _, err := cmd.buildUpdatePatch(kctx, nil, false)
 	if err != nil {
 		t.Fatalf("buildUpdatePatch: %v", err)
 	}

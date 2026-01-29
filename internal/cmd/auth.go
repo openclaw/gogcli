@@ -15,6 +15,7 @@ import (
 	"github.com/steipete/gogcli/internal/config"
 	"github.com/steipete/gogcli/internal/googleauth"
 	"github.com/steipete/gogcli/internal/outfmt"
+	placescfg "github.com/steipete/gogcli/internal/places"
 	"github.com/steipete/gogcli/internal/secrets"
 	"github.com/steipete/gogcli/internal/ui"
 )
@@ -60,6 +61,7 @@ type AuthCmd struct {
 	Remove      AuthRemoveCmd         `cmd:"" name:"remove" help:"Remove a stored refresh token"`
 	Tokens      AuthTokensCmd         `cmd:"" name:"tokens" help:"Manage stored refresh tokens"`
 	Manage      AuthManageCmd         `cmd:"" name:"manage" help:"Open accounts manager in browser" aliases:"login"`
+	PlacesKey   AuthPlacesKeyCmd      `cmd:"" name:"places-key" help:"Manage Places API key for calendar lookups"`
 	ServiceAcct AuthServiceAccountCmd `cmd:"" name:"service-account" help:"Configure service account (Workspace only; domain-wide delegation)"`
 	Keep        AuthKeepCmd           `cmd:"" name:"keep" help:"Configure service account for Google Keep (Workspace only)"`
 }
@@ -980,6 +982,145 @@ func (c *AuthManageCmd) Run(ctx context.Context) error {
 		ForceConsent: c.ForceConsent,
 		Client:       authclient.ClientOverrideFromContext(ctx),
 	})
+}
+
+type AuthPlacesKeyCmd struct {
+	Status AuthPlacesKeyStatusCmd `cmd:"" name:"status" help:"Show Places API key status"`
+	Set    AuthPlacesKeySetCmd    `cmd:"" name:"set" help:"Store Places API key"`
+	Clear  AuthPlacesKeyClearCmd  `cmd:"" name:"clear" help:"Remove stored Places API key"`
+}
+
+type AuthPlacesKeyStatusCmd struct{}
+
+func (c *AuthPlacesKeyStatusCmd) Run(ctx context.Context) error {
+	u := ui.FromContext(ctx)
+
+	state, err := placescfg.LoadAPIKey()
+	if err != nil {
+		return err
+	}
+	configured := strings.TrimSpace(state.Key) != ""
+	hint := placescfg.MaskAPIKey(state.Key)
+
+	if outfmt.IsJSON(ctx) {
+		return outfmt.WriteJSON(os.Stdout, map[string]any{
+			"configured": configured,
+			"source":     state.Source,
+			"hint":       hint,
+		})
+	}
+
+	u.Out().Printf("configured\t%t", configured)
+	u.Out().Printf("source\t%s", state.Source)
+	if hint != "" {
+		u.Out().Printf("hint\t%s", hint)
+	}
+	return nil
+}
+
+type AuthPlacesKeySetCmd struct {
+	Key   string `name:"key" help:"Places API key or '-' to read from stdin"`
+	Store string `name:"store" help:"Storage: keychain or config" default:"keychain"`
+}
+
+func (c *AuthPlacesKeySetCmd) Run(ctx context.Context) error {
+	u := ui.FromContext(ctx)
+
+	key := strings.TrimSpace(c.Key)
+	if key == "" {
+		return usage("missing --key (use --key - to read from stdin)")
+	}
+	if key == "-" {
+		b, err := io.ReadAll(os.Stdin)
+		if err != nil {
+			return err
+		}
+		key = strings.TrimSpace(string(b))
+		if key == "" {
+			return usage("empty key from stdin")
+		}
+	}
+
+	store := strings.ToLower(strings.TrimSpace(c.Store))
+	if store == "" {
+		store = "keychain"
+	}
+
+	switch store {
+	case "keychain":
+		if err := ensureKeychainAccessIfNeeded(); err != nil {
+			return err
+		}
+		if err := placescfg.SaveAPIKeyKeychain(key); err != nil {
+			return err
+		}
+	case "config":
+		if err := placescfg.SaveAPIKeyConfig(key); err != nil {
+			return err
+		}
+	default:
+		return usage("invalid --store (use keychain or config)")
+	}
+
+	if outfmt.IsJSON(ctx) {
+		return outfmt.WriteJSON(os.Stdout, map[string]any{
+			"saved":  true,
+			"store":  store,
+			"source": store,
+		})
+	}
+	u.Out().Printf("saved\ttrue")
+	u.Out().Printf("store\t%s", store)
+	return nil
+}
+
+type AuthPlacesKeyClearCmd struct {
+	Store string `name:"store" help:"Storage to clear: keychain, config, all" default:"all"`
+}
+
+func (c *AuthPlacesKeyClearCmd) Run(ctx context.Context) error {
+	u := ui.FromContext(ctx)
+
+	store := strings.ToLower(strings.TrimSpace(c.Store))
+	if store == "" {
+		store = "all"
+	}
+
+	switch store {
+	case "keychain":
+		if err := ensureKeychainAccessIfNeeded(); err != nil {
+			return err
+		}
+		if err := placescfg.ClearAPIKeyKeychain(); err != nil {
+			return err
+		}
+	case "config":
+		if err := placescfg.ClearAPIKeyConfig(); err != nil {
+			return err
+		}
+	case "all":
+		if err := ensureKeychainAccessIfNeeded(); err != nil {
+			return err
+		}
+		if err := placescfg.ClearAPIKeyKeychain(); err != nil {
+			return err
+		}
+		if err := placescfg.ClearAPIKeyConfig(); err != nil {
+			return err
+		}
+	default:
+		return usage("invalid --store (use keychain, config, or all)")
+	}
+
+	if outfmt.IsJSON(ctx) {
+		return outfmt.WriteJSON(os.Stdout, map[string]any{
+			"cleared": true,
+			"store":   store,
+		})
+	}
+	u.Out().Printf("cleared\ttrue")
+	u.Out().Printf("store\t%s", store)
+	return nil
 }
 
 type AuthKeepCmd struct {

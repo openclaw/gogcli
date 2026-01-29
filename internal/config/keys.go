@@ -12,6 +12,7 @@ type Key string
 const (
 	KeyTimezone       Key = "timezone"
 	KeyKeyringBackend Key = "keyring_backend"
+	KeyPlacesAPIKey   Key = "places_api_key"
 )
 
 type KeySpec struct {
@@ -25,6 +26,7 @@ type KeySpec struct {
 var keyOrder = []Key{
 	KeyTimezone,
 	KeyKeyringBackend,
+	KeyPlacesAPIKey,
 }
 
 var keySpecs = map[Key]KeySpec{
@@ -61,6 +63,22 @@ var keySpecs = map[Key]KeySpec{
 		},
 		EmptyHint: func() string {
 			return "(not set, using auto)"
+		},
+	},
+	KeyPlacesAPIKey: {
+		Key: KeyPlacesAPIKey,
+		Get: func(cfg File) string {
+			return cfg.PlacesAPIKey
+		},
+		Set: func(cfg *File, value string) error {
+			cfg.PlacesAPIKey = strings.TrimSpace(value)
+			return nil
+		},
+		Unset: func(cfg *File) {
+			cfg.PlacesAPIKey = ""
+		},
+		EmptyHint: func() string {
+			return "(not set, prefer keychain)"
 		},
 	},
 }

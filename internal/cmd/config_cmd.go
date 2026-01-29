@@ -19,7 +19,7 @@ type ConfigCmd struct {
 }
 
 type ConfigGetCmd struct {
-	Key string `arg:"" help:"Config key to get (timezone)"`
+	Key string `arg:"" help:"Config key to get (timezone, keyring_backend, places_api_key)"`
 }
 
 func (c *ConfigGetCmd) Run(ctx context.Context) error {
@@ -59,7 +59,7 @@ func (c *ConfigKeysCmd) Run(ctx context.Context) error {
 }
 
 type ConfigSetCmd struct {
-	Key   string `arg:"" help:"Config key to set (timezone)"`
+	Key   string `arg:"" help:"Config key to set (timezone, keyring_backend, places_api_key)"`
 	Value string `arg:"" help:"Value to set"`
 }
 
@@ -92,7 +92,7 @@ func (c *ConfigSetCmd) Run(ctx context.Context) error {
 }
 
 type ConfigUnsetCmd struct {
-	Key string `arg:"" help:"Config key to unset (timezone)"`
+	Key string `arg:"" help:"Config key to unset (timezone, keyring_backend, places_api_key)"`
 }
 
 func (c *ConfigUnsetCmd) Run(ctx context.Context) error {

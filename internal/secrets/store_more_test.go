@@ -136,6 +136,30 @@ func TestSetSecretMissingKey(t *testing.T) {
 	}
 }
 
+func TestDeleteSecret(t *testing.T) {
+	origOpen := openKeyringFunc
+	t.Cleanup(func() { openKeyringFunc = origOpen })
+
+	ring := keyring.NewArrayKeyring(nil)
+	openKeyringFunc = func() (keyring.Keyring, error) { return ring, nil }
+
+	if err := SetSecret("places/test", []byte("value")); err != nil {
+		t.Fatalf("SetSecret: %v", err)
+	}
+
+	if err := DeleteSecret("places/test"); err != nil {
+		t.Fatalf("DeleteSecret: %v", err)
+	}
+
+	if _, err := ring.Get("places/test"); !errors.Is(err, keyring.ErrKeyNotFound) {
+		t.Fatalf("expected key to be deleted, got %v", err)
+	}
+
+	if err := DeleteSecret("places/test"); err != nil {
+		t.Fatalf("DeleteSecret idempotent: %v", err)
+	}
+}
+
 func TestOpenDefaultError(t *testing.T) {
 	origOpen := openKeyringFunc
 

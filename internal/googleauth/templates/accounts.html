@@ -152,6 +152,105 @@
             margin-bottom: 24px;
         }
 
+        .places-section {
+            margin-bottom: 24px;
+        }
+
+        .places-card {
+            background: var(--bg-surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .places-status {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 13px;
+            color: var(--text-muted);
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--g-green);
+            box-shadow: 0 0 0 4px rgba(52, 168, 83, 0.12);
+        }
+
+        .status-dot.off {
+            background: var(--g-red);
+            box-shadow: 0 0 0 4px rgba(234, 67, 53, 0.12);
+        }
+
+        .places-input {
+            width: 100%;
+            padding: 10px 12px;
+            border-radius: var(--radius-sm);
+            border: 1px solid var(--border);
+            background: var(--bg-elevated);
+            color: var(--text);
+            font-size: 13px;
+            font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+        }
+
+        .places-input:focus {
+            outline: none;
+            border-color: var(--border-active);
+            box-shadow: 0 0 0 3px rgba(66, 133, 244, 0.18);
+        }
+
+        .places-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .places-btn {
+            padding: 8px 12px;
+            border-radius: 10px;
+            border: 1px solid var(--border);
+            background: var(--bg-elevated);
+            color: var(--text);
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .places-btn:hover {
+            border-color: var(--border-active);
+            background: var(--bg-hover);
+        }
+
+        .places-btn.primary {
+            border-color: rgba(66, 133, 244, 0.4);
+            background: linear-gradient(135deg, rgba(66, 133, 244, 0.18), rgba(66, 133, 244, 0.06));
+        }
+
+        .places-btn.primary:hover {
+            border-color: var(--g-blue);
+        }
+
+        .places-btn.danger {
+            border-color: rgba(234, 67, 53, 0.5);
+            background: rgba(234, 67, 53, 0.08);
+            color: #fecaca;
+        }
+
+        .places-btn.danger:hover {
+            border-color: var(--g-red);
+        }
+
+        .places-hint {
+            font-size: 12px;
+            color: var(--text-dim);
+        }
+
         .section-header {
             display: flex;
             align-items: center;
@@ -750,6 +849,26 @@
             </button>
         </div>
 
+        <div class="places-section">
+            <div class="section-header">
+                <span class="section-label">Places API Key</span>
+                <span id="placesBadge" class="account-badge">Not configured</span>
+            </div>
+            <div class="places-card">
+                <div class="places-status">
+                    <span id="placesStatusDot" class="status-dot off"></span>
+                    <span id="placesStatusText">Loading Places API key status...</span>
+                </div>
+                <input id="placesApiKey" class="places-input" type="password" placeholder="AIza..." autocomplete="off" spellcheck="false" />
+                <div class="places-actions">
+                    <button class="places-btn primary" onclick="savePlacesKey('keychain')">Save to Keychain</button>
+                    <button class="places-btn" onclick="savePlacesKey('config')">Save to Config</button>
+                    <button class="places-btn danger" onclick="clearPlacesKey()">Clear Stored Key</button>
+                </div>
+                <p id="placesHint" class="places-hint">Required for calendar place lookup. Config storage is plain text; environment variables override stored keys.</p>
+            </div>
+        </div>
+
         <!-- Info Card -->
         <div class="info-card">
             <div class="info-icon">
@@ -778,6 +897,7 @@
     <script>
         const csrfToken = '{{.CSRFToken}}';
         let accounts = [];
+        let placesState = { configured: false, source: 'none', hint: '' };
 
         // Generate a gradient based on email first letter
         function getAvatarGradient(email) {
@@ -799,6 +919,23 @@
                 console.error('Failed to load accounts:', err);
                 accounts = [];
                 renderAccounts();
+            }
+        }
+
+        async function loadPlacesKey() {
+            try {
+                const response = await fetch('/places-key');
+                const data = await response.json();
+                placesState = {
+                    configured: !!data.configured,
+                    source: data.source || 'none',
+                    hint: data.hint || ''
+                };
+                renderPlacesKey();
+            } catch (err) {
+                console.error('Failed to load Places key:', err);
+                placesState = { configured: false, source: 'error', hint: '' };
+                renderPlacesKey();
             }
         }
 
@@ -863,9 +1000,108 @@
             }
         }
 
+        function sourceLabel(source) {
+            switch (source) {
+                case 'env':
+                    return 'environment';
+                case 'keychain':
+                    return 'keychain';
+                case 'config':
+                    return 'config';
+                case 'error':
+                    return 'error';
+                default:
+                    return 'not set';
+            }
+        }
+
+        function renderPlacesKey() {
+            const badge = document.getElementById('placesBadge');
+            const statusDot = document.getElementById('placesStatusDot');
+            const statusText = document.getElementById('placesStatusText');
+            const hint = document.getElementById('placesHint');
+
+            if (!placesState.configured) {
+                badge.textContent = 'Not configured';
+                statusDot.classList.add('off');
+                statusText.textContent = placesState.source === 'error'
+                    ? 'Failed to load Places API key status'
+                    : 'No Places API key configured';
+                hint.textContent = 'Required for calendar place lookup. Config storage is plain text; environment variables override stored keys.';
+                return;
+            }
+
+            const label = sourceLabel(placesState.source);
+            badge.textContent = 'Configured (' + label + ')';
+            statusDot.classList.remove('off');
+            statusText.textContent = 'Configured via ' + label + (placesState.hint ? ' ' + placesState.hint : '');
+            if (placesState.source === 'env') {
+                hint.textContent = 'Environment variable overrides stored keys. Update your shell config to change it.';
+            } else if (placesState.source === 'config') {
+                hint.textContent = 'Stored in config.json (plain text). Keychain storage is recommended.';
+            } else {
+                hint.textContent = 'Stored in keychain. You can clear or replace it here.';
+            }
+        }
+
         function addAccount() {
             // Redirect to OAuth flow
             window.location.href = '/auth/start';
+        }
+
+        async function savePlacesKey(store) {
+            const input = document.getElementById('placesApiKey');
+            const apiKey = (input.value || '').trim();
+            if (!apiKey) {
+                alert('Enter a Places API key first.');
+                return;
+            }
+
+            try {
+                const response = await fetch('/places-key', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-Token': csrfToken
+                    },
+                    body: JSON.stringify({ apiKey, store })
+                });
+                const data = await response.json();
+                if (data && data.success) {
+                    input.value = '';
+                    await loadPlacesKey();
+                } else {
+                    alert('Failed to save Places API key.');
+                }
+            } catch (err) {
+                console.error('Failed to save Places key:', err);
+                alert('Failed to save Places API key.');
+            }
+        }
+
+        async function clearPlacesKey() {
+            if (!confirm('Clear stored Places API key?')) {
+                return;
+            }
+            try {
+                const response = await fetch('/places-key/clear', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-Token': csrfToken
+                    },
+                    body: JSON.stringify({ store: 'all' })
+                });
+                const data = await response.json();
+                if (data && data.success) {
+                    await loadPlacesKey();
+                } else {
+                    alert('Failed to clear Places API key.');
+                }
+            } catch (err) {
+                console.error('Failed to clear Places key:', err);
+                alert('Failed to clear Places API key.');
+            }
         }
 
         function upgradePermissions(email, event) {
@@ -917,6 +1153,7 @@
 
         // Initialize
         loadAccounts();
+        loadPlacesKey();
     </script>
 </body>
 </html>`

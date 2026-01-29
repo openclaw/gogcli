@@ -20,6 +20,7 @@ import (
 	"golang.org/x/oauth2"
 
 	"github.com/steipete/gogcli/internal/config"
+	placescfg "github.com/steipete/gogcli/internal/places"
 	"github.com/steipete/gogcli/internal/secrets"
 )
 
@@ -122,6 +123,8 @@ func StartManageServer(ctx context.Context, opts ManageServerOptions) error {
 	mux.HandleFunc("/oauth2/callback", ms.handleOAuthCallback)
 	mux.HandleFunc("/set-default", ms.handleSetDefault)
 	mux.HandleFunc("/remove-account", ms.handleRemoveAccount)
+	mux.HandleFunc("/places-key", ms.handlePlacesKey)
+	mux.HandleFunc("/places-key/clear", ms.handlePlacesKeyClear)
 
 	ms.server = &http.Server{
 		Handler:      mux,
@@ -489,6 +492,147 @@ func (ms *ManageServer) handleRemoveAccount(w http.ResponseWriter, r *http.Reque
 
 	if err := ms.store.DeleteToken(ms.client, req.Email); err != nil {
 		writeJSONError(w, "Failed to remove account", http.StatusInternalServerError)
+		return
+	}
+
+	writeJSON(w, map[string]any{"success": true})
+}
+
+func (ms *ManageServer) handlePlacesKey(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		state, err := placescfg.LoadAPIKey()
+		if err != nil {
+			writeJSONError(w, "Failed to load Places API key", http.StatusInternalServerError)
+			return
+		}
+		key := strings.TrimSpace(state.Key)
+		writeJSON(w, map[string]any{
+			"configured": key != "",
+			"source":     state.Source,
+			"hint":       placescfg.MaskAPIKey(key),
+		})
+		return
+	case http.MethodPost:
+		if r.Header.Get("X-CSRF-Token") != ms.csrfToken {
+			writeJSONError(w, "Invalid CSRF token", http.StatusForbidden)
+			return
+		}
+
+		var req struct {
+			APIKey string `json:"apiKey"`
+			Store  string `json:"store"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeJSONError(w, "Invalid request", http.StatusBadRequest)
+			return
+		}
+		apiKey := strings.TrimSpace(req.APIKey)
+		if apiKey == "" {
+			writeJSONError(w, "Empty API key", http.StatusBadRequest)
+			return
+		}
+		store := strings.ToLower(strings.TrimSpace(req.Store))
+		if store == "" {
+			store = "keychain"
+		}
+
+		switch store {
+		case "keychain":
+			if ok, err := shouldEnsureKeychainAccess(); err != nil {
+				writeJSONError(w, "Failed to resolve keyring backend", http.StatusInternalServerError)
+				return
+			} else if ok {
+				if err := ensureKeychainAccess(); err != nil {
+					writeJSONError(w, "Failed to unlock keychain", http.StatusInternalServerError)
+					return
+				}
+			}
+			if err := placescfg.SaveAPIKeyKeychain(apiKey); err != nil {
+				writeJSONError(w, "Failed to store Places API key", http.StatusInternalServerError)
+				return
+			}
+		case "config":
+			if err := placescfg.SaveAPIKeyConfig(apiKey); err != nil {
+				writeJSONError(w, "Failed to store Places API key", http.StatusInternalServerError)
+				return
+			}
+		default:
+			writeJSONError(w, "Invalid store", http.StatusBadRequest)
+			return
+		}
+
+		writeJSON(w, map[string]any{"success": true})
+		return
+	default:
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+}
+
+func (ms *ManageServer) handlePlacesKeyClear(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if r.Header.Get("X-CSRF-Token") != ms.csrfToken {
+		writeJSONError(w, "Invalid CSRF token", http.StatusForbidden)
+		return
+	}
+
+	var req struct {
+		Store string `json:"store"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSONError(w, "Invalid request", http.StatusBadRequest)
+		return
+	}
+
+	store := strings.ToLower(strings.TrimSpace(req.Store))
+	if store == "" {
+		store = "all"
+	}
+
+	switch store {
+	case "keychain":
+		if ok, err := shouldEnsureKeychainAccess(); err != nil {
+			writeJSONError(w, "Failed to resolve keyring backend", http.StatusInternalServerError)
+			return
+		} else if ok {
+			if err := ensureKeychainAccess(); err != nil {
+				writeJSONError(w, "Failed to unlock keychain", http.StatusInternalServerError)
+				return
+			}
+		}
+		if err := placescfg.ClearAPIKeyKeychain(); err != nil {
+			writeJSONError(w, "Failed to clear Places API key", http.StatusInternalServerError)
+			return
+		}
+	case "config":
+		if err := placescfg.ClearAPIKeyConfig(); err != nil {
+			writeJSONError(w, "Failed to clear Places API key", http.StatusInternalServerError)
+			return
+		}
+	case "all":
+		if ok, err := shouldEnsureKeychainAccess(); err != nil {
+			writeJSONError(w, "Failed to resolve keyring backend", http.StatusInternalServerError)
+			return
+		} else if ok {
+			if err := ensureKeychainAccess(); err != nil {
+				writeJSONError(w, "Failed to unlock keychain", http.StatusInternalServerError)
+				return
+			}
+		}
+		if err := placescfg.ClearAPIKeyKeychain(); err != nil {
+			writeJSONError(w, "Failed to clear Places API key", http.StatusInternalServerError)
+			return
+		}
+		if err := placescfg.ClearAPIKeyConfig(); err != nil {
+			writeJSONError(w, "Failed to clear Places API key", http.StatusInternalServerError)
+			return
+		}
+	default:
+		writeJSONError(w, "Invalid store", http.StatusBadRequest)
 		return
 	}
 

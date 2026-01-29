@@ -20,6 +20,10 @@ type CalendarCreateCmd struct {
 	To                    string   `name:"to" help:"End time (RFC3339)"`
 	Description           string   `name:"description" help:"Description"`
 	Location              string   `name:"location" help:"Location"`
+	LocationSearch        string   `name:"location-search" help:"Search Google Places for a location (requires GOOGLE_PLACES_API_KEY)"`
+	PlaceID               string   `name:"place-id" help:"Google Places ID for the location (requires GOOGLE_PLACES_API_KEY)"`
+	PlaceLanguage         string   `name:"place-language" help:"Places API language code (e.g., en, en-US)"`
+	PlaceRegion           string   `name:"place-region" help:"Places API region code (e.g., US, DE)"`
 	Attendees             string   `name:"attendees" help:"Comma-separated attendee emails"`
 	AllDay                bool     `name:"all-day" help:"All-day event (use date-only in --from/--to)"`
 	Recurrence            []string `name:"rrule" help:"Recurrence rules (e.g., 'RRULE:FREQ=MONTHLY;BYMONTHDAY=11'). Can be repeated."`
@@ -102,6 +106,31 @@ func (c *CalendarCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 	transparency = applyEventTypeTransparencyDefault(transparency, eventType)
 
+	locationSet := strings.TrimSpace(c.Location) != ""
+	if err := validatePlaceLocationFlags(locationSet, strings.TrimSpace(c.LocationSearch) != "", c.LocationSearch, strings.TrimSpace(c.PlaceID) != "", c.PlaceID); err != nil {
+		return err
+	}
+
+	place, err := resolveCalendarPlace(ctx, placeLookup{
+		SearchText: c.LocationSearch,
+		PlaceID:    c.PlaceID,
+		Language:   c.PlaceLanguage,
+		Region:     c.PlaceRegion,
+	})
+	if err != nil {
+		return err
+	}
+	if place != nil {
+		resolvedLocation, err := formatPlaceLocation(place)
+		if err != nil {
+			return err
+		}
+		c.Location = resolvedLocation
+		if u != nil {
+			u.Err().Printf("Using place: %s (%s)\n", placeLabel(place), place.PlaceID)
+		}
+	}
+
 	svc, err := newCalendarService(ctx, account)
 	if err != nil {
 		return err
@@ -121,7 +150,7 @@ func (c *CalendarCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
 		Transparency:       transparency,
 		ConferenceData:     buildConferenceData(c.WithMeet),
 		Attachments:        buildAttachments(c.Attachments),
-		ExtendedProperties: buildExtendedProperties(c.PrivateProps, c.SharedProps),
+		ExtendedProperties: mergeExtendedProperties(buildExtendedProperties(c.PrivateProps, c.SharedProps), placePrivateProps(place), nil),
 	}
 	if c.GuestsCanInviteOthers != nil {
 		event.GuestsCanInviteOthers = c.GuestsCanInviteOthers
@@ -302,6 +331,10 @@ type CalendarUpdateCmd struct {
 	To                    string   `name:"to" help:"New end time (RFC3339; set empty to clear)"`
 	Description           string   `name:"description" help:"New description (set empty to clear)"`
 	Location              string   `name:"location" help:"New location (set empty to clear)"`
+	LocationSearch        string   `name:"location-search" help:"Search Google Places for a location (requires GOOGLE_PLACES_API_KEY)"`
+	PlaceID               string   `name:"place-id" help:"Google Places ID for the location (requires GOOGLE_PLACES_API_KEY)"`
+	PlaceLanguage         string   `name:"place-language" help:"Places API language code (e.g., en, en-US)"`
+	PlaceRegion           string   `name:"place-region" help:"Places API region code (e.g., US, DE)"`
 	Attendees             string   `name:"attendees" help:"Comma-separated attendee emails (replaces all; set empty to clear)"`
 	AddAttendee           string   `name:"add-attendee" help:"Comma-separated attendee emails to add (preserves existing attendees)"`
 	AllDay                bool     `name:"all-day" help:"All-day event (use date-only in --from/--to)"`
@@ -376,7 +409,36 @@ func (c *CalendarUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *
 		return usage("cannot use both --attendees and --add-attendee; use --attendees to replace all, or --add-attendee to add")
 	}
 
-	patch, changed, err := c.buildUpdatePatch(kctx)
+	locationSet := flagProvided(kctx, "location")
+	if err := validatePlaceLocationFlags(locationSet, flagProvided(kctx, "location-search"), c.LocationSearch, flagProvided(kctx, "place-id"), c.PlaceID); err != nil {
+		return err
+	}
+
+	place, err := resolveCalendarPlace(ctx, placeLookup{
+		SearchText: c.LocationSearch,
+		PlaceID:    c.PlaceID,
+		Language:   c.PlaceLanguage,
+		Region:     c.PlaceRegion,
+	})
+	if err != nil {
+		return err
+	}
+
+	forceLocation := false
+	placeProps := placePrivateProps(place)
+	if place != nil {
+		resolvedLocation, err := formatPlaceLocation(place)
+		if err != nil {
+			return err
+		}
+		c.Location = resolvedLocation
+		forceLocation = true
+		if u != nil {
+			u.Err().Printf("Using place: %s (%s)\n", placeLabel(place), place.PlaceID)
+		}
+	}
+
+	patch, changed, err := c.buildUpdatePatch(kctx, placeProps, forceLocation)
 	if err != nil {
 		return err
 	}
@@ -395,14 +457,20 @@ func (c *CalendarUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *
 		return err
 	}
 
-	// For --add-attendee, fetch current event to preserve existing attendees with metadata.
-	if wantsAddAttendee {
+	needsPropMerge := len(placeProps) > 0 && !flagProvided(kctx, "private-prop") && !flagProvided(kctx, "shared-prop")
+	if wantsAddAttendee || needsPropMerge {
 		existing, getErr := svc.Events.Get(calendarID, eventID).Context(ctx).Do()
 		if getErr != nil {
 			return fmt.Errorf("failed to fetch current event: %w", getErr)
 		}
-		patch.Attendees = mergeAttendees(existing.Attendees, c.AddAttendee)
-		changed = true
+		if wantsAddAttendee {
+			patch.Attendees = mergeAttendees(existing.Attendees, c.AddAttendee)
+			changed = true
+		}
+		if needsPropMerge {
+			patch.ExtendedProperties = mergeExtendedProperties(cloneExtendedProperties(existing.ExtendedProperties), placeProps, nil)
+			changed = true
+		}
 	}
 
 	if !changed {
@@ -431,7 +499,7 @@ func (c *CalendarUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *
 	return nil
 }
 
-func (c *CalendarUpdateCmd) buildUpdatePatch(kctx *kong.Context) (*calendar.Event, bool, error) {
+func (c *CalendarUpdateCmd) buildUpdatePatch(kctx *kong.Context, placeProps map[string]string, forceLocation bool) (*calendar.Event, bool, error) {
 	patch := &calendar.Event{}
 	changed := false
 
@@ -440,7 +508,7 @@ func (c *CalendarUpdateCmd) buildUpdatePatch(kctx *kong.Context) (*calendar.Even
 		return nil, false, err
 	}
 
-	if c.applyTextFields(kctx, patch) {
+	if c.applyTextFields(kctx, patch, forceLocation) {
 		changed = true
 	}
 
@@ -480,7 +548,7 @@ func (c *CalendarUpdateCmd) buildUpdatePatch(kctx *kong.Context) (*calendar.Even
 		changed = true
 	}
 
-	if c.applyExtendedProperties(kctx, patch) {
+	if c.applyExtendedProperties(kctx, patch, placeProps) {
 		changed = true
 	}
 
@@ -506,7 +574,7 @@ func (c *CalendarUpdateCmd) resolveUpdateEventType(kctx *kong.Context) (string, 
 	return eventType, eventType != "", focusFlags, oooFlags, workingFlags, nil
 }
 
-func (c *CalendarUpdateCmd) applyTextFields(kctx *kong.Context, patch *calendar.Event) bool {
+func (c *CalendarUpdateCmd) applyTextFields(kctx *kong.Context, patch *calendar.Event, forceLocation bool) bool {
 	changed := false
 	if flagProvided(kctx, "summary") {
 		patch.Summary = strings.TrimSpace(c.Summary)
@@ -516,7 +584,7 @@ func (c *CalendarUpdateCmd) applyTextFields(kctx *kong.Context, patch *calendar.
 		patch.Description = strings.TrimSpace(c.Description)
 		changed = true
 	}
-	if flagProvided(kctx, "location") {
+	if flagProvided(kctx, "location") || forceLocation {
 		patch.Location = strings.TrimSpace(c.Location)
 		changed = true
 	}
@@ -648,11 +716,12 @@ func (c *CalendarUpdateCmd) applyGuestOptions(kctx *kong.Context, patch *calenda
 	return changed
 }
 
-func (c *CalendarUpdateCmd) applyExtendedProperties(kctx *kong.Context, patch *calendar.Event) bool {
-	if !flagProvided(kctx, "private-prop") && !flagProvided(kctx, "shared-prop") {
+func (c *CalendarUpdateCmd) applyExtendedProperties(kctx *kong.Context, patch *calendar.Event, placeProps map[string]string) bool {
+	hasProps := flagProvided(kctx, "private-prop") || flagProvided(kctx, "shared-prop") || len(placeProps) > 0
+	if !hasProps {
 		return false
 	}
-	patch.ExtendedProperties = buildExtendedProperties(c.PrivateProps, c.SharedProps)
+	patch.ExtendedProperties = mergeExtendedProperties(buildExtendedProperties(c.PrivateProps, c.SharedProps), placeProps, nil)
 	return true
 }
 
