@@ -487,6 +487,39 @@ func TestGmailLabelsCreateCmd_DuplicateName_Preflight(t *testing.T) {
 	}
 }
 
+func TestGmailLabelsCreateCmd_NameCheckIgnoresIDs(t *testing.T) {
+	var createCalled bool
+	srv := newLabelsServer(t, []map[string]any{
+		{"id": "gog/pr-review", "name": "gog-pr-review", "type": "user"},
+	}, func(w http.ResponseWriter, r *http.Request) {
+		createCalled = true
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"id":   "Label_42",
+			"name": "gog/pr-review",
+			"type": "user",
+		})
+	})
+	defer srv.Close()
+	stubGmailService(t, srv)
+
+	flags := &RootFlags{Account: "a@b.com"}
+
+	u, uiErr := ui.New(ui.Options{Stdout: io.Discard, Stderr: io.Discard, Color: "never"})
+	if uiErr != nil {
+		t.Fatalf("ui.New: %v", uiErr)
+	}
+	ctx := ui.WithUI(context.Background(), u)
+
+	cmd := &GmailLabelsCreateCmd{}
+	if err := runKong(t, cmd, []string{"gog/pr-review"}, ctx, flags); err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+	if !createCalled {
+		t.Fatal("expected create call")
+	}
+}
+
 func TestGmailLabelsCreateCmd_DuplicateName_APIError(t *testing.T) {
 	srv := newLabelsServer(t, []map[string]any{}, func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")

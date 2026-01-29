@@ -31,11 +31,11 @@ func resolveLabelIDs(labels []string, nameToID map[string]string) []string {
 }
 
 func ensureLabelNameAvailable(svc *gmail.Service, name string) error {
-	idMap, err := fetchLabelNameToID(svc)
+	nameMap, err := fetchLabelNameSet(svc)
 	if err != nil {
 		return err
 	}
-	if _, ok := idMap[strings.ToLower(name)]; ok {
+	if _, ok := nameMap[strings.ToLower(name)]; ok {
 		return usagef("label already exists: %s", name)
 	}
 	return nil
@@ -93,4 +93,19 @@ func labelDuplicateReason(reason string) bool {
 	default:
 		return false
 	}
+}
+
+func fetchLabelNameSet(svc *gmail.Service) (map[string]struct{}, error) {
+	resp, err := svc.Users.Labels.List("me").Do()
+	if err != nil {
+		return nil, err
+	}
+	m := make(map[string]struct{}, len(resp.Labels))
+	for _, l := range resp.Labels {
+		if l.Name == "" {
+			continue
+		}
+		m[strings.ToLower(l.Name)] = struct{}{}
+	}
+	return m, nil
 }
