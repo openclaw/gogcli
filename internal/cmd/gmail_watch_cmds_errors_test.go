@@ -484,7 +484,7 @@ func TestWriteWatchState_LastPushMessageID(t *testing.T) {
 		LastDeliveryStatusNote: "note",
 		LastPushMessageID:      "msg1",
 	}
-	if err := writeWatchState(ctx, state); err != nil {
+	if err := writeWatchState(ctx, state, false); err != nil {
 		t.Fatalf("writeWatchState: %v", err)
 	}
 	if !strings.Contains(out.String(), "last_push_message_id") {

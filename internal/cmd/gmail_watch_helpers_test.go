@@ -40,7 +40,7 @@ func TestWriteWatchState_TextAndJSON(t *testing.T) {
 			t.Fatalf("ui.New: %v", uiErr)
 		}
 		ctx := ui.WithUI(context.Background(), u)
-		if err := writeWatchState(ctx, state); err != nil {
+		if err := writeWatchState(ctx, state, false); err != nil {
 			t.Fatalf("writeWatchState: %v", err)
 		}
 	})
@@ -58,7 +58,7 @@ func TestWriteWatchState_TextAndJSON(t *testing.T) {
 		}
 		ctx := ui.WithUI(context.Background(), u)
 		ctx = outfmt.WithMode(ctx, outfmt.Mode{JSON: true})
-		if err := writeWatchState(ctx, state); err != nil {
+		if err := writeWatchState(ctx, state, false); err != nil {
 			t.Fatalf("writeWatchState json: %v", err)
 		}
 	})

@@ -93,10 +93,12 @@ func (c *GmailWatchStartCmd) Run(ctx context.Context, kctx *kong.Context, flags 
 		return err
 	}
 
-	return writeWatchState(ctx, state)
+	return writeWatchState(ctx, state, false)
 }
 
-type GmailWatchStatusCmd struct{}
+type GmailWatchStatusCmd struct {
+	ShowSecrets bool `help:"Show secret values (e.g. hook token) in plaintext"`
+}
 
 func (c *GmailWatchStatusCmd) Run(ctx context.Context, flags *RootFlags) error {
 	account, err := requireAccount(flags)
@@ -107,7 +109,7 @@ func (c *GmailWatchStatusCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if err != nil {
 		return err
 	}
-	return writeWatchState(ctx, store.Get())
+	return writeWatchState(ctx, store.Get(), c.ShowSecrets)
 }
 
 type GmailWatchRenewCmd struct {
@@ -156,7 +158,7 @@ func (c *GmailWatchRenewCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
-	return writeWatchState(ctx, updated)
+	return writeWatchState(ctx, updated, false)
 }
 
 type GmailWatchStopCmd struct{}
@@ -335,8 +337,15 @@ func (c *GmailWatchServeCmd) Run(ctx context.Context, kctx *kong.Context, flags 
 	return listenAndServe(httpServer)
 }
 
-func writeWatchState(ctx context.Context, state gmailWatchState) error {
+func writeWatchState(ctx context.Context, state gmailWatchState, showSecrets bool) error {
 	if outfmt.IsJSON(ctx) {
+		if !showSecrets && state.Hook != nil && state.Hook.Token != "" {
+			redacted := state
+			h := *state.Hook
+			h.Token = "[REDACTED]"
+			redacted.Hook = &h
+			return outfmt.WriteJSON(os.Stdout, map[string]any{"watch": redacted})
+		}
 		return outfmt.WriteJSON(os.Stdout, map[string]any{"watch": state})
 	}
 	u := ui.FromContext(ctx)
@@ -367,7 +376,13 @@ func writeWatchState(ctx context.Context, state gmailWatchState) error {
 			u.Out().Printf("hook_max_bytes\t%d", state.Hook.MaxBytes)
 		}
 		if state.Hook.Token != "" {
-			u.Out().Printf("hook_token\t%s", state.Hook.Token)
+			if showSecrets {
+				u.Out().Printf("hook_token\t%s", state.Hook.Token)
+			} else if len(state.Hook.Token) > 4 {
+				u.Out().Printf("hook_token\t%s...(%d chars)", state.Hook.Token[:4], len(state.Hook.Token))
+			} else {
+				u.Out().Printf("hook_token\t[REDACTED]")
+			}
 		}
 	}
 	if state.LastDeliveryStatus != "" {
