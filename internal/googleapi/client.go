@@ -123,10 +123,13 @@ func tokenSourceForAccountScopes(ctx context.Context, serviceLabel string, email
 		Scopes:       requiredScopes,
 	}
 
-	// Ensure refresh-token exchanges don't hang forever and respect custom CA certs.
+	// Ensure refresh-token exchanges don't hang forever, respect custom CA certs, and use proxy.
 	ctx = context.WithValue(ctx, oauth2.HTTPClient, &http.Client{
-		Transport: &http.Transport{TLSClientConfig: buildTLSConfig()},
-		Timeout:   defaultHTTPTimeout,
+		Transport: &http.Transport{
+			TLSClientConfig: buildTLSConfig(),
+			Proxy:           http.ProxyFromEnvironment,
+		},
+		Timeout: defaultHTTPTimeout,
 	})
 
 	return cfg.TokenSource(ctx, &oauth2.Token{RefreshToken: tok.RefreshToken}), nil
