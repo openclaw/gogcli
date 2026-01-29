@@ -3,10 +3,12 @@ package googleapi
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/99designs/keyring"
@@ -26,6 +28,50 @@ var (
 	readClientCredentials = config.ReadClientCredentialsFor
 	openSecretsStore      = secrets.OpenDefault
 )
+
+// buildTLSConfig creates a TLS config that loads CA certificates from:
+// 1. System cert pool
+// 2. Linux system CA bundles (fallback for CGO_ENABLED=0 builds)
+// 3. SSL_CERT_FILE environment variable (if set) - standard env var for custom CA certs
+// This enables gogcli to work through MITM proxies (e.g., mitmproxy, corporate proxies).
+func buildTLSConfig() *tls.Config {
+	pool, err := x509.SystemCertPool()
+	if err != nil || pool == nil {
+		slog.Debug("failed to load system cert pool, creating empty pool", "error", err)
+		pool = x509.NewCertPool()
+	}
+
+	// On Linux, SystemCertPool may not include all system certs (especially with CGO_ENABLED=0).
+	// Explicitly load the system CA bundle as a fallback.
+	for _, bundlePath := range []string{
+		"/etc/ssl/certs/ca-certificates.crt", // Debian/Ubuntu
+		"/etc/pki/tls/certs/ca-bundle.crt",   // RHEL/CentOS
+		"/etc/ssl/ca-bundle.pem",             // OpenSUSE
+	} {
+		//nolint:gosec // G304: These are well-known system CA bundle paths
+		if certs, err := os.ReadFile(bundlePath); err == nil {
+			pool.AppendCertsFromPEM(certs)
+			slog.Debug("loaded system CA bundle", "path", bundlePath)
+
+			break
+		}
+	}
+
+	// Load from SSL_CERT_FILE if set (standard env var for custom CA certs)
+	if certFile := os.Getenv("SSL_CERT_FILE"); certFile != "" {
+		//nolint:gosec // G304: SSL_CERT_FILE is a standard env var users set intentionally
+		if certs, err := os.ReadFile(certFile); err != nil {
+			slog.Debug("failed to read SSL_CERT_FILE", "path", certFile, "error", err)
+		} else if pool.AppendCertsFromPEM(certs) {
+			slog.Debug("loaded custom CA certs from SSL_CERT_FILE", "path", certFile)
+		}
+	}
+
+	return &tls.Config{
+		MinVersion: tls.VersionTLS12,
+		RootCAs:    pool,
+	}
+}
 
 func tokenSourceForAccount(ctx context.Context, service googleauth.Service, email string) (oauth2.TokenSource, error) {
 	client, err := authclient.ResolveClient(ctx, email)
@@ -77,8 +123,11 @@ func tokenSourceForAccountScopes(ctx context.Context, serviceLabel string, email
 		Scopes:       requiredScopes,
 	}
 
-	// Ensure refresh-token exchanges don't hang forever.
-	ctx = context.WithValue(ctx, oauth2.HTTPClient, &http.Client{Timeout: defaultHTTPTimeout})
+	// Ensure refresh-token exchanges don't hang forever and respect custom CA certs.
+	ctx = context.WithValue(ctx, oauth2.HTTPClient, &http.Client{
+		Transport: &http.Transport{TLSClientConfig: buildTLSConfig()},
+		Timeout:   defaultHTTPTimeout,
+	})
 
 	return cfg.TokenSource(ctx, &oauth2.Token{RefreshToken: tok.RefreshToken}), nil
 }
