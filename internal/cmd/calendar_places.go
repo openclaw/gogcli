@@ -62,14 +62,14 @@ func resolveCalendarPlace(ctx context.Context, lookup placeLookup) (*calendarPla
 	region := strings.TrimSpace(lookup.Region)
 
 	if searchText != "" {
-		resp, err := client.Resolve(ctx, goplaces.LocationResolveRequest{
+		resp, resolveErr := client.Resolve(ctx, goplaces.LocationResolveRequest{
 			LocationText: searchText,
 			Limit:        1,
 			Language:     language,
 			Region:       region,
 		})
-		if err != nil {
-			return nil, err
+		if resolveErr != nil {
+			return nil, resolveErr
 		}
 		if len(resp.Results) == 0 {
 			return nil, fmt.Errorf("no places matched %q", searchText)

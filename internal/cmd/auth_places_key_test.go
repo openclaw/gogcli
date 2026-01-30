@@ -40,8 +40,8 @@ func TestAuthPlacesKeyConfigFlow(t *testing.T) {
 
 	statusOut := captureStdout(t, func() {
 		_ = captureStderr(t, func() {
-			if err := Execute([]string{"--json", "auth", "places-key", "status"}); err != nil {
-				t.Fatalf("Execute status: %v", err)
+			if execErr := Execute([]string{"--json", "auth", "places-key", "status"}); execErr != nil {
+				t.Fatalf("Execute status: %v", execErr)
 			}
 		})
 	})
@@ -50,8 +50,8 @@ func TestAuthPlacesKeyConfigFlow(t *testing.T) {
 		Configured bool   `json:"configured"`
 		Source     string `json:"source"`
 	}
-	if err := json.Unmarshal([]byte(statusOut), &status); err != nil {
-		t.Fatalf("status json parse: %v\nout=%q", err, statusOut)
+	if unmarshalErr := json.Unmarshal([]byte(statusOut), &status); unmarshalErr != nil {
+		t.Fatalf("status json parse: %v\nout=%q", unmarshalErr, statusOut)
 	}
 	if !status.Configured {
 		t.Fatalf("expected configured true")
@@ -62,8 +62,8 @@ func TestAuthPlacesKeyConfigFlow(t *testing.T) {
 
 	clearOut := captureStdout(t, func() {
 		_ = captureStderr(t, func() {
-			if err := Execute([]string{"--json", "auth", "places-key", "clear", "--store", "config"}); err != nil {
-				t.Fatalf("Execute clear: %v", err)
+			if execErr := Execute([]string{"--json", "auth", "places-key", "clear", "--store", "config"}); execErr != nil {
+				t.Fatalf("Execute clear: %v", execErr)
 			}
 		})
 	})
@@ -71,8 +71,8 @@ func TestAuthPlacesKeyConfigFlow(t *testing.T) {
 	var clearResp struct {
 		Cleared bool `json:"cleared"`
 	}
-	if err := json.Unmarshal([]byte(clearOut), &clearResp); err != nil {
-		t.Fatalf("clear json parse: %v\nout=%q", err, clearOut)
+	if unmarshalErr := json.Unmarshal([]byte(clearOut), &clearResp); unmarshalErr != nil {
+		t.Fatalf("clear json parse: %v\nout=%q", unmarshalErr, clearOut)
 	}
 	if !clearResp.Cleared {
 		t.Fatalf("expected cleared true")

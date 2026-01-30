@@ -300,6 +300,7 @@ func DeleteSecret(key string) error {
 		if errors.Is(err, keyring.ErrKeyNotFound) {
 			return nil
 		}
+
 		return wrapKeychainError(fmt.Errorf("delete secret: %w", err))
 	}
 

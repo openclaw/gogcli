@@ -107,8 +107,8 @@ func (c *CalendarCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
 	transparency = applyEventTypeTransparencyDefault(transparency, eventType)
 
 	locationSet := strings.TrimSpace(c.Location) != ""
-	if err := validatePlaceLocationFlags(locationSet, strings.TrimSpace(c.LocationSearch) != "", c.LocationSearch, strings.TrimSpace(c.PlaceID) != "", c.PlaceID); err != nil {
-		return err
+	if validateErr := validatePlaceLocationFlags(locationSet, strings.TrimSpace(c.LocationSearch) != "", c.LocationSearch, strings.TrimSpace(c.PlaceID) != "", c.PlaceID); validateErr != nil {
+		return validateErr
 	}
 
 	place, err := resolveCalendarPlace(ctx, placeLookup{
@@ -121,9 +121,9 @@ func (c *CalendarCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 	if place != nil {
-		resolvedLocation, err := formatPlaceLocation(place)
-		if err != nil {
-			return err
+		resolvedLocation, formatErr := formatPlaceLocation(place)
+		if formatErr != nil {
+			return formatErr
 		}
 		c.Location = resolvedLocation
 		if u != nil {
@@ -410,8 +410,8 @@ func (c *CalendarUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *
 	}
 
 	locationSet := flagProvided(kctx, "location")
-	if err := validatePlaceLocationFlags(locationSet, flagProvided(kctx, "location-search"), c.LocationSearch, flagProvided(kctx, "place-id"), c.PlaceID); err != nil {
-		return err
+	if validateErr := validatePlaceLocationFlags(locationSet, flagProvided(kctx, "location-search"), c.LocationSearch, flagProvided(kctx, "place-id"), c.PlaceID); validateErr != nil {
+		return validateErr
 	}
 
 	place, err := resolveCalendarPlace(ctx, placeLookup{
@@ -427,9 +427,9 @@ func (c *CalendarUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *
 	forceLocation := false
 	placeProps := placePrivateProps(place)
 	if place != nil {
-		resolvedLocation, err := formatPlaceLocation(place)
-		if err != nil {
-			return err
+		resolvedLocation, formatErr := formatPlaceLocation(place)
+		if formatErr != nil {
+			return formatErr
 		}
 		c.Location = resolvedLocation
 		forceLocation = true

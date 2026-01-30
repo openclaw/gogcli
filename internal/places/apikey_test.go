@@ -43,6 +43,7 @@ func TestSaveAPIKeyKeychain_EmptyKey(t *testing.T) {
 			if err == nil {
 				t.Error("expected error for empty key")
 			}
+
 			if err.Error() != "empty places api key" {
 				t.Errorf("unexpected error: %v", err)
 			}
@@ -58,12 +59,14 @@ func TestSaveAPIKeyConfig_EmptyKey(t *testing.T) {
 		{name: "empty", key: ""},
 		{name: "whitespace only", key: "   "},
 	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			err := SaveAPIKeyConfig(tt.key)
 			if err == nil {
 				t.Error("expected error for empty key")
 			}
+
 			if err.Error() != "empty places api key" {
 				t.Errorf("unexpected error: %v", err)
 			}
@@ -75,12 +78,15 @@ func TestAPIKeySource_Constants(t *testing.T) {
 	if APIKeySourceNone != "none" {
 		t.Errorf("APIKeySourceNone = %q, want %q", APIKeySourceNone, "none")
 	}
+
 	if APIKeySourceEnv != "env" {
 		t.Errorf("APIKeySourceEnv = %q, want %q", APIKeySourceEnv, "env")
 	}
+
 	if APIKeySourceKeychain != "keychain" {
 		t.Errorf("APIKeySourceKeychain = %q, want %q", APIKeySourceKeychain, "keychain")
 	}
+
 	if APIKeySourceConfig != "config" {
 		t.Errorf("APIKeySourceConfig = %q, want %q", APIKeySourceConfig, "config")
 	}

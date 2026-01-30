@@ -77,7 +77,7 @@ func validateAutoDeclineMode(s string) (string, error) {
 	switch s {
 	case "", "none":
 		return "declineNone", nil
-	case "all":
+	case scopeAll:
 		return "declineAllConflictingInvitations", nil
 	case "new":
 		return "declineOnlyNewConflictingInvitations", nil

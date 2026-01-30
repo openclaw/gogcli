@@ -512,6 +512,7 @@ func (ms *ManageServer) handlePlacesKey(w http.ResponseWriter, r *http.Request) 
 			"source":     state.Source,
 			"hint":       placescfg.MaskAPIKey(key),
 		})
+
 		return
 	case http.MethodPost:
 		if r.Header.Get("X-CSRF-Token") != ms.csrfToken {
@@ -527,11 +528,13 @@ func (ms *ManageServer) handlePlacesKey(w http.ResponseWriter, r *http.Request) 
 			writeJSONError(w, "Invalid request", http.StatusBadRequest)
 			return
 		}
+
 		apiKey := strings.TrimSpace(req.APIKey)
 		if apiKey == "" {
 			writeJSONError(w, "Empty API key", http.StatusBadRequest)
 			return
 		}
+
 		store := strings.ToLower(strings.TrimSpace(req.Store))
 		if store == "" {
 			store = "keychain"
@@ -548,6 +551,7 @@ func (ms *ManageServer) handlePlacesKey(w http.ResponseWriter, r *http.Request) 
 					return
 				}
 			}
+
 			if err := placescfg.SaveAPIKeyKeychain(apiKey); err != nil {
 				writeJSONError(w, "Failed to store Places API key", http.StatusInternalServerError)
 				return
@@ -563,6 +567,7 @@ func (ms *ManageServer) handlePlacesKey(w http.ResponseWriter, r *http.Request) 
 		}
 
 		writeJSON(w, map[string]any{"success": true})
+
 		return
 	default:
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -575,6 +580,7 @@ func (ms *ManageServer) handlePlacesKeyClear(w http.ResponseWriter, r *http.Requ
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
+
 	if r.Header.Get("X-CSRF-Token") != ms.csrfToken {
 		writeJSONError(w, "Invalid CSRF token", http.StatusForbidden)
 		return
@@ -604,6 +610,7 @@ func (ms *ManageServer) handlePlacesKeyClear(w http.ResponseWriter, r *http.Requ
 				return
 			}
 		}
+
 		if err := placescfg.ClearAPIKeyKeychain(); err != nil {
 			writeJSONError(w, "Failed to clear Places API key", http.StatusInternalServerError)
 			return
@@ -623,10 +630,12 @@ func (ms *ManageServer) handlePlacesKeyClear(w http.ResponseWriter, r *http.Requ
 				return
 			}
 		}
+
 		if err := placescfg.ClearAPIKeyKeychain(); err != nil {
 			writeJSONError(w, "Failed to clear Places API key", http.StatusInternalServerError)
 			return
 		}
+
 		if err := placescfg.ClearAPIKeyConfig(); err != nil {
 			writeJSONError(w, "Failed to clear Places API key", http.StatusInternalServerError)
 			return

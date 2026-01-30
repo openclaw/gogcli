@@ -138,6 +138,7 @@ func TestSetSecretMissingKey(t *testing.T) {
 
 func TestDeleteSecret(t *testing.T) {
 	origOpen := openKeyringFunc
+
 	t.Cleanup(func() { openKeyringFunc = origOpen })
 
 	ring := keyring.NewArrayKeyring(nil)
