@@ -77,6 +77,72 @@ func TestClientCredentials_Roundtrip(t *testing.T) {
 	}
 }
 
+func TestReadClientCredentials_EnvVars(t *testing.T) {
+	t.Run("env vars take precedence", func(t *testing.T) {
+		home := t.TempDir()
+		t.Setenv("HOME", home)
+		t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, "xdg-config"))
+
+		// Write file credentials first
+		fileIn := ClientCredentials{ClientID: "file-id", ClientSecret: "file-secret"}
+		if err := WriteClientCredentials(fileIn); err != nil {
+			t.Fatalf("WriteClientCredentials: %v", err)
+		}
+
+		// Set env vars
+		t.Setenv("GOG_CLIENT_ID", "env-id")
+		t.Setenv("GOG_CLIENT_SECRET", "env-secret")
+
+		// Env vars should win
+		out, err := ReadClientCredentials()
+		if err != nil {
+			t.Fatalf("ReadClientCredentials: %v", err)
+		}
+
+		if out.ClientID != "env-id" || out.ClientSecret != "env-secret" {
+			t.Fatalf("expected env vars to take precedence, got: %#v", out)
+		}
+	})
+
+	t.Run("env vars only (no file)", func(t *testing.T) {
+		home := t.TempDir()
+		t.Setenv("HOME", home)
+		t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, "xdg-config"))
+		t.Setenv("GOG_CLIENT_ID", "env-only-id")
+		t.Setenv("GOG_CLIENT_SECRET", "env-only-secret")
+
+		out, err := ReadClientCredentials()
+		if err != nil {
+			t.Fatalf("ReadClientCredentials: %v", err)
+		}
+
+		if out.ClientID != "env-only-id" || out.ClientSecret != "env-only-secret" {
+			t.Fatalf("unexpected: %#v", out)
+		}
+	})
+
+	t.Run("partial env vars fall through to file", func(t *testing.T) {
+		home := t.TempDir()
+		t.Setenv("HOME", home)
+		t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, "xdg-config"))
+
+		// Only set one env var
+		t.Setenv("GOG_CLIENT_ID", "env-id")
+		// GOG_CLIENT_SECRET not set
+
+		// Should fall through to file (and fail since no file exists)
+		_, err := ReadClientCredentials()
+		if err == nil {
+			t.Fatalf("expected error when partial env and no file")
+		}
+
+		var missingErr *CredentialsMissingError
+		if !errors.As(err, &missingErr) {
+			t.Fatalf("expected CredentialsMissingError, got %T: %v", err, err)
+		}
+	})
+}
+
 func TestReadClientCredentials_Errors(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)

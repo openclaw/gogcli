@@ -88,6 +88,13 @@ func ReadClientCredentials() (ClientCredentials, error) {
 }
 
 func ReadClientCredentialsFor(client string) (ClientCredentials, error) {
+	// Check env vars first (for multi-tenant deployments like Puffin)
+	if id := os.Getenv("GOG_CLIENT_ID"); id != "" {
+		if secret := os.Getenv("GOG_CLIENT_SECRET"); secret != "" {
+			return ClientCredentials{ClientID: id, ClientSecret: secret}, nil
+		}
+	}
+
 	path, err := ClientCredentialsPathFor(client)
 	if err != nil {
 		return ClientCredentials{}, fmt.Errorf("resolve credentials path: %w", err)
