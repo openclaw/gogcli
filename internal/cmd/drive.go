@@ -33,6 +33,7 @@ const (
 	mimePptx               = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
 	mimePNG                = "image/png"
 	mimeTextPlain          = "text/plain"
+	mimeHTML               = "text/html"
 	extPDF                 = ".pdf"
 	extCSV                 = ".csv"
 	extXlsx                = ".xlsx"
@@ -40,6 +41,7 @@ const (
 	extPptx                = ".pptx"
 	extPNG                 = ".png"
 	extTXT                 = ".txt"
+	extHTML                = ".html"
 )
 
 type DriveCmd struct {
@@ -249,7 +251,7 @@ func (c *DriveGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 type DriveDownloadCmd struct {
 	FileID string         `arg:"" name:"fileId" help:"File ID"`
 	Output OutputPathFlag `embed:""`
-	Format string         `name:"format" help:"Export format for Google Docs files: pdf|csv|xlsx|pptx|txt|png|docx (default: auto)"`
+	Format string         `name:"format" help:"Export format for Google Docs files: pdf|csv|xlsx|pptx|txt|png|docx|html (default: auto)"`
 }
 
 func (c *DriveDownloadCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -991,8 +993,10 @@ func driveExportMimeTypeForFormat(googleMimeType string, format string) (string,
 			return mimeDocx, nil
 		case "txt":
 			return mimeTextPlain, nil
+		case "html":
+			return mimeHTML, nil
 		default:
-			return "", fmt.Errorf("invalid --format %q for Google Doc (use pdf|docx|txt)", format)
+			return "", fmt.Errorf("invalid --format %q for Google Doc (use pdf|docx|txt|html)", format)
 		}
 	case driveMimeGoogleSheet:
 		switch format {
@@ -1047,6 +1051,8 @@ func driveExportExtension(mimeType string) string {
 		return extPNG
 	case mimeTextPlain:
 		return extTXT
+	case mimeHTML:
+		return extHTML
 	default:
 		return extPDF
 	}
