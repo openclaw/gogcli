@@ -86,6 +86,28 @@ func TestDocsCreateCat_ValidationErrors(t *testing.T) {
 	}
 }
 
+func TestDocsWriteUpdate_ValidationErrors(t *testing.T) {
+	u, uiErr := ui.New(ui.Options{Stdout: io.Discard, Stderr: io.Discard, Color: "never"})
+	if uiErr != nil {
+		t.Fatalf("ui.New: %v", uiErr)
+	}
+	ctx := ui.WithUI(context.Background(), u)
+	flags := &RootFlags{Account: "a@b.com"}
+
+	if err := (&DocsWriteCmd{}).Run(ctx, nil, flags); err == nil {
+		t.Fatalf("expected missing docId error")
+	}
+	if err := (&DocsWriteCmd{DocID: "doc1"}).Run(ctx, nil, flags); err == nil {
+		t.Fatalf("expected missing text error")
+	}
+	if err := (&DocsUpdateCmd{}).Run(ctx, nil, flags); err == nil {
+		t.Fatalf("expected missing docId error")
+	}
+	if err := (&DocsUpdateCmd{DocID: "doc1"}).Run(ctx, nil, flags); err == nil {
+		t.Fatalf("expected missing text error")
+	}
+}
+
 func TestDocsCat_JSON_EmptyDoc(t *testing.T) {
 	origNew := newDocsService
 	t.Cleanup(func() { newDocsService = origNew })
