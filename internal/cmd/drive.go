@@ -165,6 +165,7 @@ func (c *DriveSearchCmd) Run(ctx context.Context, flags *RootFlags) error {
 		PageSize(c.Max).
 		PageToken(c.Page).
 		OrderBy("modifiedTime desc").
+		Corpora("allDrives").
 		SupportsAllDrives(true).
 		IncludeItemsFromAllDrives(true).
 		Fields("nextPageToken, files(id, name, mimeType, size, modifiedTime, parents, webViewLink)").
