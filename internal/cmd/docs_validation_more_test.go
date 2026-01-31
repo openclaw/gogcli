@@ -9,12 +9,27 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/alecthomas/kong"
 	"google.golang.org/api/docs/v1"
 	"google.golang.org/api/option"
 
 	"github.com/steipete/gogcli/internal/outfmt"
 	"github.com/steipete/gogcli/internal/ui"
 )
+
+func parseDocsKong(t *testing.T, cmd any, args []string) *kong.Context {
+	t.Helper()
+
+	parser, err := kong.New(cmd)
+	if err != nil {
+		t.Fatalf("kong new: %v", err)
+	}
+	kctx, err := parser.Parse(args)
+	if err != nil {
+		t.Fatalf("kong parse: %v", err)
+	}
+	return kctx
+}
 
 func TestDocsInfo_ValidationAndText(t *testing.T) {
 	u, uiErr := ui.New(ui.Options{Stdout: io.Discard, Stderr: io.Discard, Color: "never"})
@@ -149,5 +164,36 @@ func TestDocsCat_JSON_EmptyDoc(t *testing.T) {
 	})
 	if !strings.Contains(out, "\"text\"") {
 		t.Fatalf("unexpected json: %q", out)
+	}
+}
+
+func TestDocsUpdate_InvalidIndex(t *testing.T) {
+	u, uiErr := ui.New(ui.Options{Stdout: io.Discard, Stderr: io.Discard, Color: "never"})
+	if uiErr != nil {
+		t.Fatalf("ui.New: %v", uiErr)
+	}
+	ctx := ui.WithUI(context.Background(), u)
+	flags := &RootFlags{Account: "a@b.com"}
+
+	tests := []struct {
+		name string
+		args []string
+	}{
+		{"zero index", []string{"doc1", "--text", "hello", "--index", "0"}},
+		{"negative index", []string{"doc1", "--text", "hello", "--index=-1"}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cmd := &DocsUpdateCmd{}
+			kctx := parseDocsKong(t, cmd, tt.args)
+			err := cmd.Run(ctx, kctx, flags)
+			if err == nil {
+				t.Fatalf("expected invalid --index error for %s", tt.name)
+			}
+			if !strings.Contains(err.Error(), "invalid --index") {
+				t.Fatalf("expected 'invalid --index' error, got: %v", err)
+			}
+		})
 	}
 }
