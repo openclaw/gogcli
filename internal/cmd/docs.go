@@ -332,7 +332,8 @@ func (c *DocsUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *Root
 
 	insertIndex := c.Index
 	if insertIndex <= 0 {
-		doc, err := svc.Documents.Get(id).
+		var doc *docs.Document
+		doc, err = svc.Documents.Get(id).
 			Fields("documentId,body/content(startIndex,endIndex)").
 			Context(ctx).
 			Do()

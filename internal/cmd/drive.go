@@ -40,6 +40,7 @@ const (
 	extPptx                = ".pptx"
 	extPNG                 = ".png"
 	extTXT                 = ".txt"
+	formatAuto             = "auto"
 )
 
 type DriveCmd struct {
@@ -902,7 +903,7 @@ func guessMimeType(path string) string {
 func downloadDriveFile(ctx context.Context, svc *drive.Service, meta *drive.File, destPath string, format string) (string, int64, error) {
 	isGoogleDoc := strings.HasPrefix(meta.MimeType, "application/vnd.google-apps.")
 	normalizedFormat := strings.ToLower(strings.TrimSpace(format))
-	if normalizedFormat == "auto" {
+	if normalizedFormat == formatAuto {
 		normalizedFormat = ""
 	}
 
@@ -986,7 +987,7 @@ func driveExportMimeType(googleMimeType string) string {
 
 func driveExportMimeTypeForFormat(googleMimeType string, format string) (string, error) {
 	format = strings.ToLower(strings.TrimSpace(format))
-	if format == "" || format == "auto" {
+	if format == "" || format == formatAuto {
 		return driveExportMimeType(googleMimeType), nil
 	}
 
