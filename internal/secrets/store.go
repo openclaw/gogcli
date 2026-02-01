@@ -126,7 +126,18 @@ func fileKeyringPasswordFuncFrom(password string, isTTY bool) keyring.PromptFunc
 }
 
 func fileKeyringPasswordFunc() keyring.PromptFunc {
-	return fileKeyringPasswordFuncFrom(os.Getenv(keyringPasswordEnv), term.IsTerminal(int(os.Stdin.Fd())))
+	password, isSet := os.LookupEnv(keyringPasswordEnv)
+	if isSet {
+		return keyring.FixedStringPrompt(password)
+	}
+
+	if term.IsTerminal(int(os.Stdin.Fd())) {
+		return keyring.TerminalPrompt
+	}
+
+	return func(_ string) (string, error) {
+		return "", fmt.Errorf("%w; set %s", errNoTTY, keyringPasswordEnv)
+	}
 }
 
 func normalizeKeyringBackend(value string) string {
