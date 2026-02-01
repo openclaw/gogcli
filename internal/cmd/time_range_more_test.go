@@ -221,6 +221,41 @@ func TestResolveTimeRangeWithDefaultsToNowNoExpansion(t *testing.T) {
 	}
 }
 
+func TestResolveTimeRangeWithDefaultsToMondayEndOfDay(t *testing.T) {
+	svc := newCalendarServiceWithTimezone(t, "UTC")
+	flags := TimeRangeFlags{
+		From: "2025-01-05T10:00:00Z",
+		To:   "monday",
+	}
+
+	// Capture now BEFORE calling the function to avoid midnight boundary flakiness
+	now := time.Now().In(time.UTC)
+
+	tr, err := ResolveTimeRangeWithDefaults(context.Background(), svc, flags, TimeRangeDefaults{})
+	if err != nil {
+		t.Fatalf("ResolveTimeRangeWithDefaults: %v", err)
+	}
+
+	expectedFrom := time.Date(2025, 1, 5, 10, 0, 0, 0, time.UTC)
+	if !tr.From.Equal(expectedFrom) {
+		t.Fatalf("unexpected from: %v", tr.From)
+	}
+
+	// "monday" is relative to now, so we calculate expected Monday
+	// parseWeekday returns the upcoming Monday (or today if already Monday)
+	currentDay := now.Weekday()
+	daysUntil := int(time.Monday) - int(currentDay)
+	if daysUntil < 0 {
+		daysUntil += 7
+	}
+	expectedMonday := now.AddDate(0, 0, daysUntil)
+	expectedTo := time.Date(expectedMonday.Year(), expectedMonday.Month(), expectedMonday.Day(), 23, 59, 59, 999999999, time.UTC)
+
+	if !tr.To.Equal(expectedTo) {
+		t.Fatalf("expected --to monday to expand to end-of-day %v, got %v", expectedTo, tr.To)
+	}
+}
+
 func TestIsDayExpr(t *testing.T) {
 	loc := time.UTC
 	// Use a fixed reference time: Wednesday, January 15, 2025
