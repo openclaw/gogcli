@@ -1,12 +1,13 @@
 module github.com/steipete/gogcli
 
-go 1.25
+go 1.24.0
 
 require (
 	github.com/99designs/keyring v1.2.2
 	github.com/alecthomas/kong v1.13.0
 	github.com/muesli/termenv v0.16.0
 	github.com/yosuke-furukawa/json5 v0.1.1
+	golang.org/x/net v0.49.0
 	golang.org/x/oauth2 v0.34.0
 	golang.org/x/term v0.39.0
 	google.golang.org/api v0.260.0
@@ -40,7 +41,6 @@ require (
 	go.opentelemetry.io/otel/metric v1.39.0 // indirect
 	go.opentelemetry.io/otel/trace v1.39.0 // indirect
 	golang.org/x/crypto v0.47.0 // indirect
-	golang.org/x/net v0.49.0 // indirect
 	golang.org/x/sys v0.40.0 // indirect
 	golang.org/x/text v0.33.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260114163908-3f89685c29c3 // indirect
