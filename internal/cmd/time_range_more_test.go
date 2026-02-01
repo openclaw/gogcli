@@ -161,3 +161,80 @@ func TestGetUserTimezoneInvalid(t *testing.T) {
 		t.Fatalf("expected error")
 	}
 }
+
+func TestIsDayExpr(t *testing.T) {
+	loc := time.UTC
+	// Use a fixed reference time: Wednesday, January 15, 2025
+	now := time.Date(2025, 1, 15, 10, 30, 0, 0, loc)
+
+	tests := []struct {
+		name string
+		expr string
+		want bool
+	}{
+		// Relative day keywords -> true
+		{"today", "today", true},
+		{"tomorrow", "tomorrow", true},
+		{"yesterday", "yesterday", true},
+		{"today uppercase", "TODAY", true},
+		{"today mixed case", "ToDay", true},
+
+		// "now" is a precise moment -> false
+		{"now", "now", false},
+		{"now uppercase", "NOW", false},
+
+		// Weekday names -> true
+		{"monday", "monday", true},
+		{"tuesday", "tuesday", true},
+		{"wednesday", "wednesday", true},
+		{"thursday", "thursday", true},
+		{"friday", "friday", true},
+		{"saturday", "saturday", true},
+		{"sunday", "sunday", true},
+		{"mon abbreviation", "mon", true},
+		{"tue abbreviation", "tue", true},
+		{"wed abbreviation", "wed", true},
+		{"thu abbreviation", "thu", true},
+		{"fri abbreviation", "fri", true},
+		{"sat abbreviation", "sat", true},
+		{"sun abbreviation", "sun", true},
+		{"Monday uppercase", "MONDAY", true},
+		{"next monday", "next monday", true},
+		{"next tuesday", "next tuesday", true},
+
+		// ISO date (YYYY-MM-DD) -> true
+		{"iso date", "2025-01-05", true},
+		{"iso date future", "2026-12-31", true},
+		{"iso date past", "2020-01-01", true},
+
+		// RFC3339 timestamps -> false (precise moment, not a day)
+		{"rfc3339 utc", "2025-01-05T10:00:00Z", false},
+		{"rfc3339 offset", "2025-01-05T10:00:00-08:00", false},
+		{"rfc3339 positive offset", "2025-01-05T10:00:00+05:30", false},
+
+		// ISO 8601 with numeric timezone (no colon) -> false
+		{"iso8601 no colon", "2025-01-05T10:00:00-0800", false},
+
+		// Date with time but no timezone -> false (has time component)
+		{"datetime no tz", "2025-01-05T15:04:05", false},
+		{"datetime space separator", "2025-01-05 15:04", false},
+
+		// Empty string -> false
+		{"empty string", "", false},
+		{"whitespace only", "   ", false},
+
+		// Invalid expressions -> false
+		{"invalid word", "notaday", false},
+		{"invalid format", "01-05-2025", false},
+		{"partial date", "2025-01", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := isDayExpr(tt.expr, now, loc)
+			if got != tt.want {
+				t.Errorf("isDayExpr(%q) = %v, want %v", tt.expr, got, tt.want)
+			}
+		})
+	}
+}
