@@ -162,6 +162,65 @@ func TestGetUserTimezoneInvalid(t *testing.T) {
 	}
 }
 
+func TestResolveTimeRangeWithDefaultsToTomorrowEndOfDay(t *testing.T) {
+	svc := newCalendarServiceWithTimezone(t, "UTC")
+	flags := TimeRangeFlags{
+		From: "2025-01-05T10:00:00Z",
+		To:   "tomorrow",
+	}
+
+	// Capture now BEFORE calling the function to avoid midnight boundary flakiness
+	now := time.Now().In(time.UTC)
+
+	tr, err := ResolveTimeRangeWithDefaults(context.Background(), svc, flags, TimeRangeDefaults{})
+	if err != nil {
+		t.Fatalf("ResolveTimeRangeWithDefaults: %v", err)
+	}
+
+	expectedFrom := time.Date(2025, 1, 5, 10, 0, 0, 0, time.UTC)
+	if !tr.From.Equal(expectedFrom) {
+		t.Fatalf("unexpected from: %v", tr.From)
+	}
+
+	// "tomorrow" is relative to now, so we calculate expected tomorrow
+	expectedTomorrow := now.AddDate(0, 0, 1)
+	expectedTo := time.Date(expectedTomorrow.Year(), expectedTomorrow.Month(), expectedTomorrow.Day(), 23, 59, 59, 999999999, time.UTC)
+
+	if !tr.To.Equal(expectedTo) {
+		t.Fatalf("expected --to tomorrow to expand to end-of-day %v, got %v", expectedTo, tr.To)
+	}
+}
+
+func TestResolveTimeRangeWithDefaultsToNowNoExpansion(t *testing.T) {
+	svc := newCalendarServiceWithTimezone(t, "UTC")
+	flags := TimeRangeFlags{
+		From: "2025-01-05T10:00:00Z",
+		To:   "now",
+	}
+
+	before := time.Now().In(time.UTC)
+	tr, err := ResolveTimeRangeWithDefaults(context.Background(), svc, flags, TimeRangeDefaults{})
+	if err != nil {
+		t.Fatalf("ResolveTimeRangeWithDefaults: %v", err)
+	}
+	after := time.Now().In(time.UTC)
+
+	expectedFrom := time.Date(2025, 1, 5, 10, 0, 0, 0, time.UTC)
+	if !tr.From.Equal(expectedFrom) {
+		t.Fatalf("unexpected from: %v", tr.From)
+	}
+
+	// "now" should NOT be expanded to end-of-day; it should be the current time
+	if tr.To.Before(before) || tr.To.After(after) {
+		t.Fatalf("expected --to now to be current time (between %v and %v), got %v", before, after, tr.To)
+	}
+
+	// Verify it's NOT end-of-day (23:59:59.999999999)
+	if tr.To.Hour() == 23 && tr.To.Minute() == 59 && tr.To.Second() == 59 && tr.To.Nanosecond() == 999999999 {
+		t.Fatalf("expected --to now NOT to expand to end-of-day, but got %v", tr.To)
+	}
+}
+
 func TestIsDayExpr(t *testing.T) {
 	loc := time.UTC
 	// Use a fixed reference time: Wednesday, January 15, 2025
