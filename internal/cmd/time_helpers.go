@@ -131,9 +131,13 @@ func ResolveTimeRangeWithDefaults(ctx context.Context, svc *calendar.Service, fl
 
 		switch {
 		case flags.To != "":
+			toIsDayExpr := isDayExpr(flags.To, now, loc)
 			to, err = parseTimeExpr(flags.To, now, loc)
 			if err != nil {
 				return nil, fmt.Errorf("invalid --to: %w", err)
+			}
+			if toIsDayExpr {
+				to = endOfDay(to)
 			}
 		case flags.From != "" && defaults.ToFromOffset != 0:
 			to = from.Add(defaults.ToFromOffset)
@@ -147,6 +151,27 @@ func ResolveTimeRangeWithDefaults(ctx context.Context, svc *calendar.Service, fl
 		To:       to,
 		Location: loc,
 	}, nil
+}
+
+func isDayExpr(expr string, now time.Time, loc *time.Location) bool {
+	expr = strings.TrimSpace(expr)
+	if expr == "" {
+		return false
+	}
+	exprLower := strings.ToLower(expr)
+	switch exprLower {
+	case "today", "tomorrow", "yesterday":
+		return true
+	case "now":
+		return false
+	}
+	if _, ok := parseWeekday(exprLower, now); ok {
+		return true
+	}
+	if _, err := time.ParseInLocation("2006-01-02", expr, loc); err == nil {
+		return true
+	}
+	return false
 }
 
 // parseTimeExpr parses a time expression which can be:

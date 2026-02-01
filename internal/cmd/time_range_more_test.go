@@ -86,6 +86,27 @@ func TestResolveTimeRangeWithDefaultsFromTo(t *testing.T) {
 	}
 }
 
+func TestResolveTimeRangeWithDefaultsToDateOnlyEndOfDay(t *testing.T) {
+	svc := newCalendarServiceWithTimezone(t, "UTC")
+	flags := TimeRangeFlags{
+		From: "2025-01-05T10:00:00Z",
+		To:   "2025-01-05",
+	}
+	tr, err := ResolveTimeRangeWithDefaults(context.Background(), svc, flags, TimeRangeDefaults{})
+	if err != nil {
+		t.Fatalf("ResolveTimeRangeWithDefaults: %v", err)
+	}
+
+	expectedFrom := time.Date(2025, 1, 5, 10, 0, 0, 0, time.UTC)
+	expectedTo := time.Date(2025, 1, 5, 23, 59, 59, 999999999, time.UTC)
+	if !tr.From.Equal(expectedFrom) {
+		t.Fatalf("unexpected from: %v", tr.From)
+	}
+	if !tr.To.Equal(expectedTo) {
+		t.Fatalf("unexpected to: %v", tr.To)
+	}
+}
+
 func TestResolveTimeRangeWithDefaultsFromOffset(t *testing.T) {
 	svc := newCalendarServiceWithTimezone(t, "UTC")
 	flags := TimeRangeFlags{From: "2025-01-05T10:00:00Z"}
