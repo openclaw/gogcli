@@ -329,6 +329,7 @@ type CalendarUpdateCmd struct {
 	WorkingFloorId        string   `name:"working-floor-id" help:"Working location floor ID"`
 	WorkingDeskId         string   `name:"working-desk-id" help:"Working location desk ID"`
 	WorkingCustomLabel    string   `name:"working-custom-label" help:"Working location custom label"`
+	SendUpdates           string   `name:"send-updates" help:"Notification mode: all, externalOnly, none (default: all)"`
 }
 
 func (c *CalendarUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *RootFlags) error {
@@ -376,6 +377,11 @@ func (c *CalendarUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *
 		return usage("cannot use both --attendees and --add-attendee; use --attendees to replace all, or --add-attendee to add")
 	}
 
+	sendUpdates, err := validateSendUpdates(c.SendUpdates)
+	if err != nil {
+		return err
+	}
+
 	patch, changed, err := c.buildUpdatePatch(kctx)
 	if err != nil {
 		return err
@@ -414,12 +420,16 @@ func (c *CalendarUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *
 		return err
 	}
 
-	updated, err := svc.Events.Patch(calendarID, targetEventID, patch).Do()
+	call := svc.Events.Patch(calendarID, targetEventID, patch)
+	if sendUpdates != "" {
+		call = call.SendUpdates(sendUpdates)
+	}
+	updated, err := call.Do()
 	if err != nil {
 		return err
 	}
 	if scope == scopeFuture {
-		if err := truncateParentRecurrence(ctx, svc, calendarID, eventID, parentRecurrence, c.OriginalStartTime); err != nil {
+		if err := truncateParentRecurrence(ctx, svc, calendarID, eventID, parentRecurrence, c.OriginalStartTime, sendUpdates); err != nil {
 			return err
 		}
 	}
@@ -791,12 +801,16 @@ func applyUpdateScope(ctx context.Context, svc *calendar.Service, calendarID, ev
 	return targetEventID, parentRecurrence, nil
 }
 
-func truncateParentRecurrence(ctx context.Context, svc *calendar.Service, calendarID, eventID string, parentRecurrence []string, originalStartTime string) error {
+func truncateParentRecurrence(ctx context.Context, svc *calendar.Service, calendarID, eventID string, parentRecurrence []string, originalStartTime, sendUpdates string) error {
 	truncated, err := truncateRecurrence(parentRecurrence, originalStartTime)
 	if err != nil {
 		return err
 	}
-	_, err = svc.Events.Patch(calendarID, eventID, &calendar.Event{Recurrence: truncated}).Context(ctx).Do()
+	call := svc.Events.Patch(calendarID, eventID, &calendar.Event{Recurrence: truncated}).Context(ctx)
+	if sendUpdates != "" {
+		call = call.SendUpdates(sendUpdates)
+	}
+	_, err = call.Do()
 	return err
 }
 
@@ -805,6 +819,7 @@ type CalendarDeleteCmd struct {
 	EventID           string `arg:"" name:"eventId" help:"Event ID"`
 	Scope             string `name:"scope" help:"For recurring events: single, future, all" default:"all"`
 	OriginalStartTime string `name:"original-start" help:"Original start time of instance (required for scope=single,future)"`
+	SendUpdates       string `name:"send-updates" help:"Notification mode: all, externalOnly, none (default: all)"`
 }
 
 func (c *CalendarDeleteCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -838,6 +853,11 @@ func (c *CalendarDeleteCmd) Run(ctx context.Context, flags *RootFlags) error {
 	case scopeAll:
 	default:
 		return fmt.Errorf("invalid scope: %q (must be single, future, or all)", scope)
+	}
+
+	sendUpdates, err := validateSendUpdates(c.SendUpdates)
+	if err != nil {
+		return err
 	}
 
 	confirmMessage := fmt.Sprintf("delete event %s from calendar %s", eventID, calendarID)
@@ -876,7 +896,11 @@ func (c *CalendarDeleteCmd) Run(ctx context.Context, flags *RootFlags) error {
 		targetEventID = instanceID
 	}
 
-	if err := svc.Events.Delete(calendarID, targetEventID).Do(); err != nil {
+	deleteCall := svc.Events.Delete(calendarID, targetEventID)
+	if sendUpdates != "" {
+		deleteCall = deleteCall.SendUpdates(sendUpdates)
+	}
+	if err := deleteCall.Do(); err != nil {
 		return err
 	}
 	if scope == scopeFuture {
@@ -884,7 +908,11 @@ func (c *CalendarDeleteCmd) Run(ctx context.Context, flags *RootFlags) error {
 		if truncateErr != nil {
 			return truncateErr
 		}
-		_, patchErr := svc.Events.Patch(calendarID, eventID, &calendar.Event{Recurrence: truncated}).Context(ctx).Do()
+		patchCall := svc.Events.Patch(calendarID, eventID, &calendar.Event{Recurrence: truncated}).Context(ctx)
+		if sendUpdates != "" {
+			patchCall = patchCall.SendUpdates(sendUpdates)
+		}
+		_, patchErr := patchCall.Do()
 		if patchErr != nil {
 			return patchErr
 		}
