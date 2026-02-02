@@ -254,3 +254,44 @@ func TestDownloadAttachment_Cached(t *testing.T) {
 		t.Fatalf("expected cached path %q, got %q cached=%v", outPath, gotPath, cached)
 	}
 }
+
+func TestIsQuotedPrintableEncoding(t *testing.T) {
+	tests := []struct {
+		input string
+		want  bool
+	}{
+		{"quoted-printable", true},
+		{"QUOTED-PRINTABLE", true},
+		{"Quoted-Printable", true},
+		{"  quoted-printable  ", true},
+		{"base64", false},
+		{"", false},
+	}
+	for _, tc := range tests {
+		got := isQuotedPrintableEncoding(tc.input)
+		if got != tc.want {
+			t.Fatalf("isQuotedPrintableEncoding(%q) = %v, want %v", tc.input, got, tc.want)
+		}
+	}
+}
+
+func TestIsUTF8Charset(t *testing.T) {
+	tests := []struct {
+		input string
+		want  bool
+	}{
+		{"", true},
+		{"utf-8", true},
+		{"UTF-8", true},
+		{"us-ascii", true},
+		{"US-ASCII", true},
+		{"iso-8859-1", false},
+		{"windows-1252", false},
+	}
+	for _, tc := range tests {
+		got := isUTF8Charset(tc.input)
+		if got != tc.want {
+			t.Fatalf("isUTF8Charset(%q) = %v, want %v", tc.input, got, tc.want)
+		}
+	}
+}
