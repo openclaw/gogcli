@@ -181,7 +181,7 @@ func collectAttachments(p *gmail.MessagePart) []attachmentInfo {
 	if p.Body != nil && p.Body.AttachmentId != "" {
 		filename := p.Filename
 		if strings.TrimSpace(filename) == "" {
-			filename = "attachment"
+			filename = defaultAttachmentFilename
 		}
 		out = append(out, attachmentInfo{
 			Filename:     filename,

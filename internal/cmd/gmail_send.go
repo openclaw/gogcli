@@ -104,32 +104,14 @@ func (c *GmailSendCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 
 	// Determine the From address
-	fromAddr := account
-	sendingEmail := account // The email we're sending from (without display name)
+	fromAddr, err := resolveSendFrom(ctx, svc, account, c.From)
+	if err != nil {
+		return err
+	}
+	// The email we're sending from (without display name)
+	sendingEmail := account
 	if strings.TrimSpace(c.From) != "" {
-		// Validate that this is a configured send-as alias
-		var sa *gmail.SendAs
-		sa, err = svc.Users.Settings.SendAs.Get("me", c.From).Context(ctx).Do()
-		if err != nil {
-			return fmt.Errorf("invalid --from address %q: %w", c.From, err)
-		}
-		if sa.VerificationStatus != gmailVerificationAccepted {
-			return fmt.Errorf("--from address %q is not verified (status: %s)", c.From, sa.VerificationStatus)
-		}
 		sendingEmail = c.From
-		fromAddr = c.From
-		// Include display name if set
-		if sa.DisplayName != "" {
-			fromAddr = sa.DisplayName + " <" + c.From + ">"
-		}
-	} else {
-		// No --from specified: look up the primary account's send-as settings
-		// to get the display name
-		sa, saErr := svc.Users.Settings.SendAs.Get("me", account).Context(ctx).Do()
-		if saErr == nil && sa.DisplayName != "" {
-			fromAddr = sa.DisplayName + " <" + account + ">"
-		}
-		// If lookup fails, we just use the plain email address (no error)
 	}
 
 	// Fetch reply info (includes recipient headers for reply-all)

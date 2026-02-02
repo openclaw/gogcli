@@ -55,7 +55,7 @@ func (c *GmailForwardCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return fmt.Errorf("message %s has no payload", messageID)
 	}
 
-	fromAddr, err := resolveForwardFrom(ctx, svc, account, c.From)
+	fromAddr, err := resolveSendFrom(ctx, svc, account, c.From)
 	if err != nil {
 		return err
 	}
@@ -63,9 +63,6 @@ func (c *GmailForwardCmd) Run(ctx context.Context, flags *RootFlags) error {
 	subject := strings.TrimSpace(c.Subject)
 	if subject == "" {
 		subject = forwardSubject(headerValue(msg.Payload, "Subject"))
-	}
-	if subject == "" {
-		subject = "Fwd: (no subject)"
 	}
 
 	plainBody, htmlBody := buildForwardBodies(msg.Payload, prefacePlain, c.BodyHTML)
@@ -111,33 +108,6 @@ func (c *GmailForwardCmd) Run(ctx context.Context, flags *RootFlags) error {
 	return writeSendResults(ctx, u, fromAddr, results)
 }
 
-func resolveForwardFrom(ctx context.Context, svc *gmail.Service, account, from string) (string, error) {
-	fromAddr := account
-	from = strings.TrimSpace(from)
-	if from != "" {
-		sa, err := svc.Users.Settings.SendAs.Get("me", from).Context(ctx).Do()
-		if err != nil {
-			return "", fmt.Errorf("invalid --from address %q: %w", from, err)
-		}
-		if sa.VerificationStatus != gmailVerificationAccepted {
-			return "", fmt.Errorf("--from address %q is not verified (status: %s)", from, sa.VerificationStatus)
-		}
-		fromAddr = from
-		if sa.DisplayName != "" {
-			fromAddr = sa.DisplayName + " <" + from + ">"
-		}
-		return fromAddr, nil
-	}
-
-	// No --from specified: look up the primary account's send-as settings
-	// to get the display name
-	sa, saErr := svc.Users.Settings.SendAs.Get("me", account).Context(ctx).Do()
-	if saErr == nil && sa.DisplayName != "" {
-		fromAddr = sa.DisplayName + " <" + account + ">"
-	}
-	return fromAddr, nil
-}
-
 func forwardSubject(original string) string {
 	subject := strings.TrimSpace(original)
 	if subject == "" {
@@ -168,7 +138,8 @@ func forwardHeaderFields(p *gmail.MessagePart) []forwardHeaderField {
 }
 
 func forwardHeaderPlain(p *gmail.MessagePart) string {
-	lines := []string{"-------- Forwarded message --------"}
+	lines := make([]string, 0, 6)
+	lines = append(lines, "-------- Forwarded message --------")
 	for _, field := range forwardHeaderFields(p) {
 		lines = append(lines, fmt.Sprintf("%s: %s", field.Label, field.Value))
 	}
@@ -176,7 +147,8 @@ func forwardHeaderPlain(p *gmail.MessagePart) string {
 }
 
 func forwardHeaderHTML(p *gmail.MessagePart) string {
-	lines := []string{html.EscapeString("-------- Forwarded message --------")}
+	lines := make([]string, 0, 6)
+	lines = append(lines, html.EscapeString("-------- Forwarded message --------"))
 	for _, field := range forwardHeaderFields(p) {
 		lines = append(lines, fmt.Sprintf("%s: %s", html.EscapeString(field.Label), html.EscapeString(field.Value)))
 	}
@@ -247,7 +219,7 @@ func collectForwardAttachments(ctx context.Context, svc *gmail.Service, messageI
 			hasInlineData := strings.TrimSpace(p.Body.Data) != "" && filename != ""
 			if hasAttachmentID || hasInlineData {
 				if filename == "" {
-					filename = "attachment"
+					filename = defaultAttachmentFilename
 				}
 				att := mailAttachment{Filename: filename, MIMEType: p.MimeType}
 				var data []byte
