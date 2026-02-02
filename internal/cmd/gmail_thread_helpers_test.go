@@ -170,6 +170,24 @@ func TestFindPartBody_SkipsQuotedPrintableWhenAlreadyDecoded(t *testing.T) {
 	}
 }
 
+func TestFindPartBody_DecodesQuotedPrintableEquals(t *testing.T) {
+	// In QP encoding, = is encoded as =3D, so "a=b" becomes "a=3Db"
+	qp := "a=3Db"
+	encoded := base64.RawURLEncoding.EncodeToString([]byte(qp))
+	part := &gmail.MessagePart{
+		MimeType: "text/plain",
+		Headers: []*gmail.MessagePartHeader{
+			{Name: "Content-Transfer-Encoding", Value: "quoted-printable"},
+			{Name: "Content-Type", Value: "text/plain; charset=utf-8"},
+		},
+		Body: &gmail.MessagePartBody{Data: encoded},
+	}
+	got := findPartBody(part, "text/plain")
+	if got != "a=b" {
+		t.Fatalf("unexpected decoded body: %q, want %q", got, "a=b")
+	}
+}
+
 func TestFindPartBody_DecodesBase64Transfer(t *testing.T) {
 	inner := base64.StdEncoding.EncodeToString([]byte("plain body"))
 	encoded := base64.RawURLEncoding.EncodeToString([]byte(inner))
