@@ -303,8 +303,8 @@ func TestDocsWriteUpdate_FileInputErrors(t *testing.T) {
 	// Test with empty file
 	tmpDir := t.TempDir()
 	emptyFile := filepath.Join(tmpDir, "empty.txt")
-	if err := os.WriteFile(emptyFile, []byte(""), 0o600); err != nil {
-		t.Fatalf("write empty temp file: %v", err)
+	if writeErr := os.WriteFile(emptyFile, []byte(""), 0o600); writeErr != nil {
+		t.Fatalf("write empty temp file: %v", writeErr)
 	}
 	err = runKong(t, &DocsWriteCmd{}, []string{"doc1", "--file", emptyFile}, ctx, flags)
 	if err == nil {
@@ -316,8 +316,8 @@ func TestDocsWriteUpdate_FileInputErrors(t *testing.T) {
 
 	// Test that --text and --file are mutually exclusive
 	testFile := filepath.Join(tmpDir, "test.txt")
-	if err := os.WriteFile(testFile, []byte("content"), 0o600); err != nil {
-		t.Fatalf("write test temp file: %v", err)
+	if writeErr := os.WriteFile(testFile, []byte("content"), 0o600); writeErr != nil {
+		t.Fatalf("write test temp file: %v", writeErr)
 	}
 	err = runKong(t, &DocsWriteCmd{}, []string{"doc1", "--text", "hello", "--file", testFile}, ctx, flags)
 	if err == nil {
