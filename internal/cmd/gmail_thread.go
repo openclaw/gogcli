@@ -510,12 +510,18 @@ func isQuotedPrintableEncoding(value string) bool {
 	if value == "" {
 		return false
 	}
+	// Handle potential parameters defensively, though RFC 2045 doesn't define them.
 	if idx := strings.Index(value, ";"); idx != -1 {
 		value = value[:idx]
 	}
 	return strings.EqualFold(strings.TrimSpace(value), "quoted-printable")
 }
 
+// shouldSkipQuotedPrintable returns true when QP decoding should be skipped.
+// This handles emails where Content-Transfer-Encoding is declared as quoted-printable
+// but the body is already decoded. Applying QP decoding to such content corrupts
+// '=' characters (e.g., in URLs). We detect this by checking if raw is valid UTF-8
+// but decoded becomes invalid (indicating the decoder treated literal '=' as escapes).
 func shouldSkipQuotedPrintable(raw, decoded []byte, charsetLabel string) bool {
 	if !isUTF8Charset(charsetLabel) {
 		return false
