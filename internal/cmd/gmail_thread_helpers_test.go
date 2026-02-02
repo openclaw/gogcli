@@ -153,6 +153,23 @@ func TestFindPartBody_DecodesQuotedPrintable(t *testing.T) {
 	}
 }
 
+func TestFindPartBody_SkipsQuotedPrintableWhenAlreadyDecoded(t *testing.T) {
+	body := "https://example.com/auth?token_hash=abc123&type=magiclink"
+	encoded := base64.RawURLEncoding.EncodeToString([]byte(body))
+	part := &gmail.MessagePart{
+		MimeType: "text/plain",
+		Headers: []*gmail.MessagePartHeader{
+			{Name: "Content-Transfer-Encoding", Value: "quoted-printable"},
+			{Name: "Content-Type", Value: "text/plain; charset=utf-8"},
+		},
+		Body: &gmail.MessagePartBody{Data: encoded},
+	}
+	got := findPartBody(part, "text/plain")
+	if got != body {
+		t.Fatalf("unexpected decoded body: %q", got)
+	}
+}
+
 func TestFindPartBody_DecodesBase64Transfer(t *testing.T) {
 	inner := base64.StdEncoding.EncodeToString([]byte("plain body"))
 	encoded := base64.RawURLEncoding.EncodeToString([]byte(inner))
