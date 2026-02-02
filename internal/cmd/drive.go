@@ -364,9 +364,9 @@ func (c *DriveUploadCmd) Run(ctx context.Context, flags *RootFlags) error {
 		meta.Parents = []string{parent}
 	}
 	if c.Convert {
-		convertMimeType, err := driveUploadConvertMimeType(localPath)
-		if err != nil {
-			return err
+		convertMimeType, convertErr := driveUploadConvertMimeType(localPath)
+		if convertErr != nil {
+			return convertErr
 		}
 		meta.MimeType = convertMimeType
 	}
