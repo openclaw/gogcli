@@ -96,3 +96,32 @@ func TestGuessMimeTypeMore(t *testing.T) {
 		}
 	}
 }
+
+func TestDriveUploadConvertMimeType(t *testing.T) {
+	tests := map[string]string{
+		"file.doc":  driveMimeGoogleDoc,
+		"file.docx": driveMimeGoogleDoc,
+		"file.xls":  driveMimeGoogleSheet,
+		"file.xlsx": driveMimeGoogleSheet,
+		"file.csv":  driveMimeGoogleSheet,
+		"file.ppt":  driveMimeGoogleSlides,
+		"file.pptx": driveMimeGoogleSlides,
+	}
+
+	for name, expected := range tests {
+		got, err := driveUploadConvertMimeType(name)
+		if err != nil {
+			t.Fatalf("driveUploadConvertMimeType(%q) error: %v", name, err)
+		}
+		if got != expected {
+			t.Fatalf("driveUploadConvertMimeType(%q) = %q, want %q", name, got, expected)
+		}
+	}
+
+	if _, err := driveUploadConvertMimeType("file.pdf"); err == nil {
+		t.Fatalf("expected error for unsupported extension")
+	}
+	if _, err := driveUploadConvertMimeType("file"); err == nil {
+		t.Fatalf("expected error for missing extension")
+	}
+}

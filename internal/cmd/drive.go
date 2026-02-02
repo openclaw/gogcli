@@ -323,6 +323,7 @@ type DriveUploadCmd struct {
 	LocalPath string `arg:"" name:"localPath" help:"Path to local file"`
 	Name      string `name:"name" help:"Override filename"`
 	Parent    string `name:"parent" help:"Destination folder ID"`
+	Convert   bool   `name:"convert" help:"Convert supported uploads to Google Workspace formats"`
 }
 
 func (c *DriveUploadCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -361,6 +362,13 @@ func (c *DriveUploadCmd) Run(ctx context.Context, flags *RootFlags) error {
 	parent := strings.TrimSpace(c.Parent)
 	if parent != "" {
 		meta.Parents = []string{parent}
+	}
+	if c.Convert {
+		convertMimeType, err := driveUploadConvertMimeType(localPath)
+		if err != nil {
+			return err
+		}
+		meta.MimeType = convertMimeType
 	}
 
 	mimeType := guessMimeType(localPath)
@@ -900,6 +908,24 @@ func guessMimeType(path string) string {
 		return "text/markdown"
 	default:
 		return "application/octet-stream"
+	}
+}
+
+func driveUploadConvertMimeType(path string) (string, error) {
+	ext := strings.ToLower(filepath.Ext(path))
+	switch ext {
+	case ".doc", extDocx:
+		return driveMimeGoogleDoc, nil
+	case ".xls", extXlsx, extCSV:
+		return driveMimeGoogleSheet, nil
+	case ".ppt", extPptx:
+		return driveMimeGoogleSlides, nil
+	default:
+		supported := "supported: .doc, .docx, .xls, .xlsx, .csv, .ppt, .pptx"
+		if ext == "" {
+			return "", fmt.Errorf("unsupported --convert for files without extension (%s)", supported)
+		}
+		return "", fmt.Errorf("unsupported --convert for %q (%s)", ext, supported)
 	}
 }
 
