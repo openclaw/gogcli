@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- Gmail: add `--attach` flag to `send` command for file attachments (repeatable).
+
 ## 0.9.0 - 2026-01-22
 
 ### Highlights
