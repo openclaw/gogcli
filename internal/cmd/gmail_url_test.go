@@ -11,7 +11,7 @@ import (
 	"github.com/steipete/gogcli/internal/ui"
 )
 
-func TestGmailURLCmd_JSON(t *testing.T) {
+func TestGmailURLCmd_JSON_URL(t *testing.T) {
 	u, err := ui.New(ui.Options{Stdout: os.Stdout, Stderr: os.Stderr, Color: "never"})
 	if err != nil {
 		t.Fatalf("ui.New: %v", err)
@@ -35,7 +35,7 @@ func TestGmailURLCmd_JSON(t *testing.T) {
 	}
 }
 
-func TestGmailURLCmd_Text(t *testing.T) {
+func TestGmailURLCmd_Text_URL(t *testing.T) {
 	cmd := GmailURLCmd{ThreadIDs: []string{"t1"}}
 	out := captureStdout(t, func() {
 		u, err := ui.New(ui.Options{Stdout: os.Stdout, Stderr: os.Stderr, Color: "never"})

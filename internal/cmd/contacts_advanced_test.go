@@ -11,7 +11,6 @@ import (
 	"strings"
 	"testing"
 
-	"google.golang.org/api/option"
 	"google.golang.org/api/people/v1"
 
 	"github.com/steipete/gogcli/internal/outfmt"
@@ -1109,18 +1108,4 @@ func TestContactsDelegatesListCmd_WithUserOverride(t *testing.T) {
 	_ = captureStderr(t, func() {
 		_ = cmd.Run(testContextWithStderr(t), flags)
 	})
-}
-
-// --- newPeopleServiceWithEndpoint helper for complex scenarios ---
-
-func newPeopleServiceWithEndpoint(t *testing.T, endpoint string) *people.Service {
-	t.Helper()
-	svc, err := people.NewService(context.Background(),
-		option.WithoutAuthentication(),
-		option.WithEndpoint(endpoint),
-	)
-	if err != nil {
-		t.Fatalf("NewService: %v", err)
-	}
-	return svc
 }

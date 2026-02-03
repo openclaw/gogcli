@@ -68,7 +68,7 @@ func TestBestBodyText_MimeTypeWithParams(t *testing.T) {
 	}
 }
 
-func TestDecodeBase64URL(t *testing.T) {
+func TestDecodeBase64URL_Thread(t *testing.T) {
 	got, err := decodeBase64URL(base64.RawURLEncoding.EncodeToString([]byte("ok")))
 	if err != nil {
 		t.Fatalf("err: %v", err)
@@ -88,7 +88,7 @@ func TestDecodeBase64URL(t *testing.T) {
 	}
 }
 
-func TestStripHTMLTags(t *testing.T) {
+func TestStripHTMLTags_Thread(t *testing.T) {
 	tests := []struct {
 		name  string
 		input string

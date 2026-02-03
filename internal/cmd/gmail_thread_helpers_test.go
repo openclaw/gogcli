@@ -18,7 +18,7 @@ func TestStripHTMLTags_More(t *testing.T) {
 	}
 }
 
-func TestFormatBytes(t *testing.T) {
+func TestFormatBytes_Helpers(t *testing.T) {
 	if got := formatBytes(500); got != "500 B" {
 		t.Fatalf("unexpected bytes format: %q", got)
 	}
@@ -66,7 +66,7 @@ func TestCollectAttachments_More(t *testing.T) {
 	}
 }
 
-func TestAttachmentLine(t *testing.T) {
+func TestAttachmentLine_Helpers(t *testing.T) {
 	att := attachmentOutput{
 		Filename:     "file.txt",
 		Size:         12,
@@ -186,7 +186,7 @@ func TestDecodeBodyCharset_ISO88591(t *testing.T) {
 	}
 }
 
-func TestMimeTypeMatches(t *testing.T) {
+func TestMimeTypeMatches_Helpers(t *testing.T) {
 	if !mimeTypeMatches("Text/Plain; charset=UTF-8", "text/plain") {
 		t.Fatalf("expected mime match")
 	}
