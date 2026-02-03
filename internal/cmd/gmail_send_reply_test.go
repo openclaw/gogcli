@@ -100,7 +100,7 @@ func TestFetchReplyInfoFromThread(t *testing.T) {
 	}
 	newGmailService = func(context.Context, string) (*gmail.Service, error) { return svc, nil }
 
-	info, err := fetchReplyInfo(context.Background(), svc, "", "t1")
+	info, err := fetchReplyInfo(context.Background(), svc, "", "t1", false)
 	if err != nil {
 		t.Fatalf("fetchReplyInfo: %v", err)
 	}

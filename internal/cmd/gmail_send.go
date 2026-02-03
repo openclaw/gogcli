@@ -32,6 +32,7 @@ type GmailSendCmd struct {
 	From             string   `name:"from" help:"Send from this email address (must be a verified send-as alias)"`
 	Track            bool     `name:"track" help:"Enable open tracking (requires tracking setup)"`
 	TrackSplit       bool     `name:"track-split" help:"Send tracked messages separately per recipient"`
+	Quote            bool     `name:"quote" help:"Include quoted original message in reply (requires --reply-to-message-id or --thread-id)"`
 }
 
 type sendBatch struct {
@@ -84,6 +85,11 @@ func (c *GmailSendCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return usage("--reply-all requires --reply-to-message-id or --thread-id")
 	}
 
+	// Validate --quote requires a reply target
+	if c.Quote && replyToMessageID == "" && threadID == "" {
+		return usage("--quote requires --reply-to-message-id or --thread-id")
+	}
+
 	// --to is required unless --reply-all is used
 	if strings.TrimSpace(c.To) == "" && !c.ReplyAll {
 		return usage("required: --to (or use --reply-all with --reply-to-message-id or --thread-id)")
@@ -132,10 +138,15 @@ func (c *GmailSendCmd) Run(ctx context.Context, flags *RootFlags) error {
 		// If lookup fails, we just use the plain email address (no error)
 	}
 
-	// Fetch reply info (includes recipient headers for reply-all)
-	replyInfo, err := fetchReplyInfo(ctx, svc, replyToMessageID, threadID)
+	// Fetch reply info (includes recipient headers for reply-all, and body for quoting)
+	replyInfo, err := fetchReplyInfo(ctx, svc, replyToMessageID, threadID, c.Quote)
 	if err != nil {
 		return err
+	}
+
+	// If quoting, append the quoted original message to the body
+	if c.Quote && replyInfo.Body != "" {
+		body = body + formatQuotedMessage(replyInfo.FromAddr, replyInfo.Date, replyInfo.Body)
 	}
 
 	// Determine recipients
@@ -451,40 +462,54 @@ type replyInfo struct {
 	ReplyToAddr string   // Original Reply-To header (per RFC 5322, use this instead of From if present)
 	ToAddrs     []string // Original To recipients
 	CcAddrs     []string // Original Cc recipients
+	Date        string   // Original message date (for quoting)
+	Body        string   // Original message body (for quoting)
 }
 
 func replyHeaders(ctx context.Context, svc *gmail.Service, replyToMessageID string) (inReplyTo string, references string, threadID string, err error) {
-	info, err := fetchReplyInfo(ctx, svc, replyToMessageID, "")
+	info, err := fetchReplyInfo(ctx, svc, replyToMessageID, "", false)
 	if err != nil {
 		return "", "", "", err
 	}
 	return info.InReplyTo, info.References, info.ThreadID, nil
 }
 
-func fetchReplyInfo(ctx context.Context, svc *gmail.Service, replyToMessageID string, threadID string) (*replyInfo, error) {
+func fetchReplyInfo(ctx context.Context, svc *gmail.Service, replyToMessageID string, threadID string, includeBody bool) (*replyInfo, error) {
 	replyToMessageID = strings.TrimSpace(replyToMessageID)
 	threadID = strings.TrimSpace(threadID)
 	if replyToMessageID == "" && threadID == "" {
 		return &replyInfo{}, nil
 	}
 
+	// Use "full" format when we need the body for quoting, otherwise "metadata"
+	format := "metadata"
+	if includeBody {
+		format = "full"
+	}
+
 	if replyToMessageID != "" {
-		msg, err := svc.Users.Messages.Get("me", replyToMessageID).
-			Format("metadata").
-			MetadataHeaders("Message-ID", "Message-Id", "References", "In-Reply-To", "From", "Reply-To", "To", "Cc").
-			Context(ctx).
-			Do()
+		call := svc.Users.Messages.Get("me", replyToMessageID).Context(ctx)
+		if format == "metadata" {
+			call = call.Format("metadata").
+				MetadataHeaders("Message-ID", "Message-Id", "References", "In-Reply-To", "From", "Reply-To", "To", "Cc", "Date")
+		} else {
+			call = call.Format("full")
+		}
+		msg, err := call.Do()
 		if err != nil {
 			return nil, err
 		}
-		return replyInfoFromMessage(msg), nil
+		return replyInfoFromMessage(msg, includeBody), nil
 	}
 
-	thread, err := svc.Users.Threads.Get("me", threadID).
-		Format("metadata").
-		MetadataHeaders("Message-ID", "Message-Id", "References", "In-Reply-To", "From", "Reply-To", "To", "Cc").
-		Context(ctx).
-		Do()
+	threadCall := svc.Users.Threads.Get("me", threadID).Context(ctx)
+	if format == "metadata" {
+		threadCall = threadCall.Format("metadata").
+			MetadataHeaders("Message-ID", "Message-Id", "References", "In-Reply-To", "From", "Reply-To", "To", "Cc", "Date")
+	} else {
+		threadCall = threadCall.Format("full")
+	}
+	thread, err := threadCall.Do()
 	if err != nil {
 		return nil, err
 	}
@@ -496,14 +521,14 @@ func fetchReplyInfo(ctx context.Context, svc *gmail.Service, replyToMessageID st
 	if msg == nil {
 		return nil, fmt.Errorf("thread %s has no messages", threadID)
 	}
-	info := replyInfoFromMessage(msg)
+	info := replyInfoFromMessage(msg, includeBody)
 	if info.ThreadID == "" {
 		info.ThreadID = thread.Id
 	}
 	return info, nil
 }
 
-func replyInfoFromMessage(msg *gmail.Message) *replyInfo {
+func replyInfoFromMessage(msg *gmail.Message, includeBody bool) *replyInfo {
 	if msg == nil {
 		return &replyInfo{}
 	}
@@ -513,6 +538,12 @@ func replyInfoFromMessage(msg *gmail.Message) *replyInfo {
 		ReplyToAddr: headerValue(msg.Payload, "Reply-To"),
 		ToAddrs:     parseEmailAddresses(headerValue(msg.Payload, "To")),
 		CcAddrs:     parseEmailAddresses(headerValue(msg.Payload, "Cc")),
+		Date:        headerValue(msg.Payload, "Date"),
+	}
+
+	// Include body if requested (for quoting)
+	if includeBody {
+		info.Body = bestBodyText(msg.Payload)
 	}
 
 	// Prefer Message-ID and References from the original message.
@@ -625,4 +656,34 @@ func deduplicateAddresses(addresses []string) []string {
 		}
 	}
 	return result
+}
+
+// formatQuotedMessage formats the original message as a quoted reply.
+// It adds an attribution line and prefixes each line with "> ".
+func formatQuotedMessage(from, date, body string) string {
+	if body == "" {
+		return ""
+	}
+
+	var sb strings.Builder
+	sb.WriteString("\n\n")
+
+	// Attribution line
+	if date != "" && from != "" {
+		sb.WriteString(fmt.Sprintf("On %s, %s wrote:\n", date, from))
+	} else if from != "" {
+		sb.WriteString(fmt.Sprintf("%s wrote:\n", from))
+	} else {
+		sb.WriteString("Original message:\n")
+	}
+
+	// Quote each line with "> " prefix
+	lines := strings.Split(body, "\n")
+	for _, line := range lines {
+		sb.WriteString("> ")
+		sb.WriteString(line)
+		sb.WriteString("\n")
+	}
+
+	return sb.String()
 }
