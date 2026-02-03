@@ -29,6 +29,8 @@ const (
 	ServiceInboundSSO     Service = "inboundsso"
 	ServiceAccessContext  Service = "accesscontext"
 	ServiceLicensing      Service = "licensing"
+	ServiceDataTransfer   Service = "datatransfer"
+	ServiceForms          Service = "forms"
 )
 
 const (
@@ -82,6 +84,8 @@ var serviceOrder = []Service{
 	ServiceInboundSSO,
 	ServiceAccessContext,
 	ServiceLicensing,
+	ServiceDataTransfer,
+	ServiceForms,
 }
 
 var serviceInfoByService = map[Service]serviceInfo{
@@ -205,6 +209,8 @@ var serviceInfoByService = map[Service]serviceInfo{
 			"https://www.googleapis.com/auth/admin.directory.customer",
 			"https://www.googleapis.com/auth/admin.directory.customer.readonly",
 			"https://www.googleapis.com/auth/apps.groups.settings",
+			"https://www.googleapis.com/auth/admin.chrome.printers",
+			"https://www.googleapis.com/auth/admin.chrome.printers.readonly",
 		},
 		user: false,
 		apis: []string{"Admin SDK Directory API", "Groups Settings API"},
@@ -261,6 +267,24 @@ var serviceInfoByService = map[Service]serviceInfo{
 		user: false,
 		apis: []string{"Enterprise License Manager API"},
 		note: "Workspace licenses",
+	},
+	ServiceDataTransfer: {
+		scopes: []string{
+			"https://www.googleapis.com/auth/admin.datatransfer",
+			"https://www.googleapis.com/auth/admin.datatransfer.readonly",
+		},
+		user: false,
+		apis: []string{"Admin SDK Data Transfer API"},
+		note: "Workspace data transfers",
+	},
+	ServiceForms: {
+		scopes: []string{
+			"https://www.googleapis.com/auth/forms.body",
+			"https://www.googleapis.com/auth/forms.responses.readonly",
+		},
+		user: true,
+		apis: []string{"Forms API"},
+		note: "Forms and responses",
 	},
 }
 
@@ -554,6 +578,8 @@ func scopesForServiceWithOptions(service Service, opts ScopeOptions) ([]string, 
 	case ServiceGroups:
 		return Scopes(service)
 	case ServiceKeep:
+		return Scopes(service)
+	case ServiceAdminDirectory, ServiceReports, ServiceVault, ServiceAlertCenter, ServiceInboundSSO, ServiceAccessContext, ServiceLicensing, ServiceDataTransfer, ServiceForms:
 		return Scopes(service)
 	default:
 		return nil, errUnknownService

@@ -56,6 +56,9 @@ type CLI struct {
 	Licenses   LicensesCmd           `cmd:"" help:"Workspace licenses"`
 	Resources  ResourcesCmd          `cmd:"" help:"Calendar resources"`
 	Schemas    SchemasCmd            `cmd:"" help:"Custom user schemas"`
+	Transfer   TransferCmd           `cmd:"" name:"transfer" help:"Data transfer"`
+	Printers   PrintersCmd           `cmd:"" help:"Chrome printers"`
+	Forms      FormsCmd              `cmd:"" help:"Google Forms"`
 	Drive      DriveCmd              `cmd:"" help:"Google Drive"`
 	Docs       DocsCmd               `cmd:"" help:"Google Docs (export via Drive)"`
 	Slides     SlidesCmd             `cmd:"" help:"Google Slides"`

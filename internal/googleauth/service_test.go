@@ -27,6 +27,8 @@ func TestParseService(t *testing.T) {
 		{"inboundsso", ServiceInboundSSO},
 		{"accesscontext", ServiceAccessContext},
 		{"licensing", ServiceLicensing},
+		{"datatransfer", ServiceDataTransfer},
+		{"forms", ServiceForms},
 	}
 	for _, tt := range tests {
 		got, err := ParseService(tt.in)
@@ -69,7 +71,7 @@ func TestExtractCodeAndState_Errors(t *testing.T) {
 
 func TestAllServices(t *testing.T) {
 	svcs := AllServices()
-	if len(svcs) != 19 {
+	if len(svcs) != 21 {
 		t.Fatalf("unexpected: %v", svcs)
 	}
 	seen := make(map[Service]bool)
@@ -78,7 +80,7 @@ func TestAllServices(t *testing.T) {
 		seen[s] = true
 	}
 
-	for _, want := range []Service{ServiceGmail, ServiceCalendar, ServiceChat, ServiceClassroom, ServiceDrive, ServiceDocs, ServiceContacts, ServiceTasks, ServicePeople, ServiceSheets, ServiceGroups, ServiceKeep, ServiceAdminDirectory, ServiceReports, ServiceVault, ServiceAlertCenter, ServiceInboundSSO, ServiceAccessContext, ServiceLicensing} {
+	for _, want := range []Service{ServiceGmail, ServiceCalendar, ServiceChat, ServiceClassroom, ServiceDrive, ServiceDocs, ServiceContacts, ServiceTasks, ServicePeople, ServiceSheets, ServiceGroups, ServiceKeep, ServiceAdminDirectory, ServiceReports, ServiceVault, ServiceAlertCenter, ServiceInboundSSO, ServiceAccessContext, ServiceLicensing, ServiceDataTransfer, ServiceForms} {
 		if !seen[want] {
 			t.Fatalf("missing %q", want)
 		}
@@ -87,16 +89,19 @@ func TestAllServices(t *testing.T) {
 
 func TestUserServices(t *testing.T) {
 	svcs := UserServices()
-	if len(svcs) != 10 {
+	if len(svcs) != 11 {
 		t.Fatalf("unexpected: %v", svcs)
 	}
 
 	seenDocs := false
+	seenForms := false
 
 	for _, s := range svcs {
 		switch s {
 		case ServiceDocs:
 			seenDocs = true
+		case ServiceForms:
+			seenForms = true
 		case ServiceKeep:
 			t.Fatalf("unexpected keep in user services")
 		}
@@ -105,10 +110,13 @@ func TestUserServices(t *testing.T) {
 	if !seenDocs {
 		t.Fatalf("missing docs in user services")
 	}
+	if !seenForms {
+		t.Fatalf("missing forms in user services")
+	}
 }
 
 func TestUserServiceCSV(t *testing.T) {
-	want := "gmail,calendar,chat,classroom,drive,docs,contacts,tasks,sheets,people"
+	want := "gmail,calendar,chat,classroom,drive,docs,contacts,tasks,sheets,people,forms"
 	if got := UserServiceCSV(); got != want {
 		t.Fatalf("unexpected user services csv: %q", got)
 	}
