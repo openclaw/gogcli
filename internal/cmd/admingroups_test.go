@@ -81,7 +81,7 @@ func stubGroupsSettings(t *testing.T, handler http.Handler) *httptest.Server {
 	svc, err := groupssettings.NewService(context.Background(),
 		option.WithoutAuthentication(),
 		option.WithHTTPClient(srv.Client()),
-		option.WithEndpoint(srv.URL+"/"),
+		option.WithEndpoint(srv.URL+"/groups/v1/groups/"),
 	)
 	if err != nil {
 		t.Fatalf("new groupssettings service: %v", err)

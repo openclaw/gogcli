@@ -16,7 +16,7 @@ func TestDomainsListCmd(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"domains": []map[string]any{
-				{"domainName": "example.com", "isPrimary": true, "verified": true, "creationTime": 1700000000},
+				{"domainName": "example.com", "isPrimary": true, "verified": true, "creationTime": "1700000000"},
 			},
 		})
 	})

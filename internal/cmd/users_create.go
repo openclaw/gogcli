@@ -22,7 +22,7 @@ type UsersCreateCmd struct {
 	Archived       bool   `name:"archived" help:"Create user in archived state"`
 	RecoveryEmail  string `name:"recovery-email" help:"Recovery email address"`
 	RecoveryPhone  string `name:"recovery-phone" help:"Recovery phone number (E.164 format)"`
-	HashFunction   string `name:"hash-function" enum:"MD5,SHA-1,crypt" help:"Password hash function if pre-hashed"`
+	HashFunction   string `name:"hash-function" help:"Password hash function if pre-hashed (MD5, SHA-1, crypt)"`
 }
 
 func (c *UsersCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -61,7 +61,11 @@ func (c *UsersCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 
 	if c.HashFunction != "" {
-		user.HashFunction = c.HashFunction
+		hash, err := normalizeUserHashFunction(c.HashFunction)
+		if err != nil {
+			return err
+		}
+		user.HashFunction = hash
 	}
 	if c.RecoveryEmail != "" {
 		user.RecoveryEmail = c.RecoveryEmail

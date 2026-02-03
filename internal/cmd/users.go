@@ -84,6 +84,21 @@ func randChar(set string) (byte, error) {
 	return set[idx], nil
 }
 
+func normalizeUserHashFunction(value string) (string, error) {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "md5":
+		return "MD5", nil
+	case "sha-1", "sha1":
+		return "SHA-1", nil
+	case "crypt":
+		return "crypt", nil
+	case "":
+		return "", nil
+	default:
+		return "", usage("invalid --hash-function (expected MD5, SHA-1, crypt)")
+	}
+}
+
 func randInt(max int) (int, error) {
 	if max <= 0 {
 		return 0, fmt.Errorf("invalid max %d", max)

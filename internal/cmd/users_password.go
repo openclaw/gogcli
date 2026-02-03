@@ -15,7 +15,7 @@ type UsersPasswordCmd struct {
 	User           string `arg:"" name:"user" help:"User email or ID"`
 	Password       string `name:"password" aliases:"pass" help:"New password (generated if not specified)"`
 	ChangePassword bool   `name:"change-password" default:"true" help:"Require password change on next login"`
-	HashFunction   string `name:"hash-function" enum:"MD5,SHA-1,crypt" help:"Password hash function if pre-hashed"`
+	HashFunction   string `name:"hash-function" help:"Password hash function if pre-hashed (MD5, SHA-1, crypt)"`
 }
 
 func (c *UsersPasswordCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -46,7 +46,11 @@ func (c *UsersPasswordCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 	user.ForceSendFields = append(user.ForceSendFields, "ChangePasswordAtNextLogin")
 	if c.HashFunction != "" {
-		user.HashFunction = c.HashFunction
+		hash, err := normalizeUserHashFunction(c.HashFunction)
+		if err != nil {
+			return err
+		}
+		user.HashFunction = hash
 	}
 
 	updated, err := svc.Users.Update(c.User, user).Context(ctx).Do()

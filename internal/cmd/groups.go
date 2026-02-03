@@ -136,12 +136,13 @@ func getRelationType(relationType string) string {
 }
 
 type GroupsMembersCmd struct {
-	GroupEmail string                 `arg:"" name:"groupEmail" help:"Group email (e.g., engineering@company.com)"`
-	Max        int64                  `name:"max" aliases:"limit" help:"Max results" default:"100"`
-	Page       string                 `name:"page" help:"Page token"`
-	Add        GroupsMembersAddCmd    `cmd:"" name:"add" help:"Add member to group (admin)"`
-	Remove     GroupsMembersRemoveCmd `cmd:"" name:"remove" help:"Remove member from group (admin)"`
-	Sync       GroupsMembersSyncCmd   `cmd:"" name:"sync" help:"Sync group members from CSV (admin)"`
+	Action      string `arg:"" name:"action" help:"Action: add/remove/sync (default: list)" optional:""`
+	GroupEmail  string `arg:"" name:"groupEmail" help:"Group email (e.g., engineering@company.com)" optional:""`
+	MemberEmail string `arg:"" name:"memberEmail" help:"Member email (for add/remove)" optional:""`
+	Max         int64  `name:"max" aliases:"limit" help:"Max results" default:"100"`
+	Page        string `name:"page" help:"Page token"`
+	Role        string `name:"role" default:"MEMBER" enum:"MEMBER,MANAGER,OWNER" help:"Member role (add only)"`
+	File        string `name:"file" help:"CSV file with member emails (sync only)"`
 }
 
 func (c *GroupsMembersCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -151,9 +152,58 @@ func (c *GroupsMembersCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
+	action := strings.ToLower(strings.TrimSpace(c.Action))
 	groupEmail := strings.TrimSpace(c.GroupEmail)
-	if groupEmail == "" {
-		return usage("group email required")
+	memberEmail := strings.TrimSpace(c.MemberEmail)
+
+	switch action {
+	case "", "list", "add", "remove", "sync":
+	default:
+		if groupEmail != "" {
+			return usage("unknown action (expected add, remove, sync)")
+		}
+		groupEmail = c.Action
+		action = ""
+	}
+
+	switch action {
+	case "":
+		if groupEmail == "" {
+			return usage("group email required")
+		}
+	case "list":
+		if groupEmail == "" {
+			return usage("group email required")
+		}
+		action = ""
+	case "add":
+		if groupEmail == "" || memberEmail == "" {
+			return usage("group and member email required")
+		}
+		return (&GroupsMembersAddCmd{
+			Group: groupEmail,
+			Email: memberEmail,
+			Role:  c.Role,
+		}).Run(ctx, flags)
+	case "remove":
+		if groupEmail == "" || memberEmail == "" {
+			return usage("group and member email required")
+		}
+		return (&GroupsMembersRemoveCmd{
+			Group: groupEmail,
+			Email: memberEmail,
+		}).Run(ctx, flags)
+	case "sync":
+		if groupEmail == "" {
+			return usage("group email required")
+		}
+		if strings.TrimSpace(c.File) == "" {
+			return usage("--file is required")
+		}
+		return (&GroupsMembersSyncCmd{
+			Group: groupEmail,
+			File:  c.File,
+		}).Run(ctx, flags)
 	}
 
 	svc, err := newCloudIdentityService(ctx, account)
