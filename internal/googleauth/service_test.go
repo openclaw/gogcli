@@ -26,6 +26,7 @@ func TestParseService(t *testing.T) {
 		{"alertcenter", ServiceAlertCenter},
 		{"inboundsso", ServiceInboundSSO},
 		{"accesscontext", ServiceAccessContext},
+		{"licensing", ServiceLicensing},
 	}
 	for _, tt := range tests {
 		got, err := ParseService(tt.in)
@@ -68,7 +69,7 @@ func TestExtractCodeAndState_Errors(t *testing.T) {
 
 func TestAllServices(t *testing.T) {
 	svcs := AllServices()
-	if len(svcs) != 18 {
+	if len(svcs) != 19 {
 		t.Fatalf("unexpected: %v", svcs)
 	}
 	seen := make(map[Service]bool)
@@ -77,7 +78,7 @@ func TestAllServices(t *testing.T) {
 		seen[s] = true
 	}
 
-	for _, want := range []Service{ServiceGmail, ServiceCalendar, ServiceChat, ServiceClassroom, ServiceDrive, ServiceDocs, ServiceContacts, ServiceTasks, ServicePeople, ServiceSheets, ServiceGroups, ServiceKeep, ServiceAdminDirectory, ServiceReports, ServiceVault, ServiceAlertCenter, ServiceInboundSSO, ServiceAccessContext} {
+	for _, want := range []Service{ServiceGmail, ServiceCalendar, ServiceChat, ServiceClassroom, ServiceDrive, ServiceDocs, ServiceContacts, ServiceTasks, ServicePeople, ServiceSheets, ServiceGroups, ServiceKeep, ServiceAdminDirectory, ServiceReports, ServiceVault, ServiceAlertCenter, ServiceInboundSSO, ServiceAccessContext, ServiceLicensing} {
 		if !seen[want] {
 			t.Fatalf("missing %q", want)
 		}

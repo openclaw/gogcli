@@ -28,6 +28,7 @@ const (
 	ServiceAlertCenter    Service = "alertcenter"
 	ServiceInboundSSO     Service = "inboundsso"
 	ServiceAccessContext  Service = "accesscontext"
+	ServiceLicensing      Service = "licensing"
 )
 
 const (
@@ -80,6 +81,7 @@ var serviceOrder = []Service{
 	ServiceAlertCenter,
 	ServiceInboundSSO,
 	ServiceAccessContext,
+	ServiceLicensing,
 }
 
 var serviceInfoByService = map[Service]serviceInfo{
@@ -251,6 +253,14 @@ var serviceInfoByService = map[Service]serviceInfo{
 		user: false,
 		apis: []string{"Access Context Manager API"},
 		note: "Context-aware access levels",
+	},
+	ServiceLicensing: {
+		scopes: []string{
+			"https://www.googleapis.com/auth/apps.licensing",
+		},
+		user: false,
+		apis: []string{"Enterprise License Manager API"},
+		note: "Workspace licenses",
 	},
 }
 

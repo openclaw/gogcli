@@ -53,6 +53,9 @@ type CLI struct {
 	Alerts     AlertsCmd             `cmd:"" help:"Security alerts"`
 	SSO        SSOCmd                `cmd:"" name:"sso" help:"Inbound SSO"`
 	CAA        CAACmd                `cmd:"" name:"caa" help:"Context-aware access"`
+	Licenses   LicensesCmd           `cmd:"" help:"Workspace licenses"`
+	Resources  ResourcesCmd          `cmd:"" help:"Calendar resources"`
+	Schemas    SchemasCmd            `cmd:"" help:"Custom user schemas"`
 	Drive      DriveCmd              `cmd:"" help:"Google Drive"`
 	Docs       DocsCmd               `cmd:"" help:"Google Docs (export via Drive)"`
 	Slides     SlidesCmd             `cmd:"" help:"Google Slides"`
