@@ -194,10 +194,10 @@ func (s *gmailWatchServer) handlePush(ctx context.Context, payload gmailPushPayl
 		nextHistoryID = formatHistoryID(historyResp.HistoryId)
 	}
 	if len(s.cfg.HistoryTypes) > 0 && (historyResp == nil || len(historyResp.History) == 0) {
-		if err := store.Update(func(state *gmailWatchState) error {
+		if updateErr := store.Update(func(state *gmailWatchState) error {
 			return updateStateAfterHistory(state, nextHistoryID, payload.MessageID)
-		}); err != nil {
-			s.warnf("watch: failed to update state: %v", err)
+		}); updateErr != nil {
+			s.warnf("watch: failed to update state: %v", updateErr)
 		}
 		return nil, errNoNewMessages
 	}
