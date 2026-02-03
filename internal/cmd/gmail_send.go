@@ -147,10 +147,12 @@ func (c *GmailSendCmd) Run(ctx context.Context, flags *RootFlags) error {
 
 	// If quoting, append the quoted original message to the body
 	var quoteHTML string
-	if c.Quote && replyInfo.Body != "" {
+	if c.Quote && (replyInfo.Body != "" || replyInfo.BodyHTML != "") {
 		// Save original user body before appending quote (for HTML generation)
 		userBody := body
-		body += formatQuotedMessage(replyInfo.FromAddr, replyInfo.Date, replyInfo.Body)
+		if replyInfo.Body != "" {
+			body += formatQuotedMessage(replyInfo.FromAddr, replyInfo.Date, replyInfo.Body)
+		}
 
 		// Use original HTML body if available to preserve formatting, otherwise convert plain text
 		quoteContent := replyInfo.BodyHTML
@@ -713,12 +715,6 @@ func formatQuotedMessage(from, date, body string) string {
 	}
 
 	return sb.String()
-}
-
-func formatQuotedMessageHTML(from, date, body string) string {
-	escapedBody := html.EscapeString(body)
-	escapedBody = strings.ReplaceAll(escapedBody, "\n", "<br>\n")
-	return formatQuotedMessageHTMLWithContent(from, date, escapedBody)
 }
 
 // formatQuotedMessageHTMLWithContent wraps pre-formatted HTML content in a blockquote.
