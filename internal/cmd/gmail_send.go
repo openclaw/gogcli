@@ -152,7 +152,14 @@ func (c *GmailSendCmd) Run(ctx context.Context, flags *RootFlags) error {
 		// For HTML: include user's body text (escaped) + the HTML quote
 		userBodyHTML := html.EscapeString(strings.TrimSpace(c.Body))
 		userBodyHTML = strings.ReplaceAll(userBodyHTML, "\n", "<br>\n")
-		bodyHTML = userBodyHTML + formatQuotedMessageHTML(replyInfo.FromAddr, replyInfo.Date, replyInfo.Body)
+		// Use original HTML body if available to preserve formatting, otherwise convert plain text
+		quoteContent := replyInfo.BodyHTML
+		if quoteContent == "" {
+			// Fallback to plain text converted to HTML
+			quoteContent = html.EscapeString(replyInfo.Body)
+			quoteContent = strings.ReplaceAll(quoteContent, "\n", "<br>\n")
+		}
+		bodyHTML = userBodyHTML + formatQuotedMessageHTMLWithContent(replyInfo.FromAddr, replyInfo.Date, quoteContent)
 	}
 
 	// Determine recipients
@@ -473,7 +480,8 @@ type replyInfo struct {
 	ToAddrs     []string // Original To recipients
 	CcAddrs     []string // Original Cc recipients
 	Date        string   // Original message date (for quoting)
-	Body        string   // Original message body (for quoting)
+	Body        string   // Original message plain text body (for quoting)
+	BodyHTML    string   // Original message HTML body (for quoting with formatting)
 }
 
 func replyHeaders(ctx context.Context, svc *gmail.Service, replyToMessageID string) (inReplyTo string, references string, threadID string, err error) {
@@ -554,6 +562,7 @@ func replyInfoFromMessage(msg *gmail.Message, includeBody bool) *replyInfo {
 	// Include body if requested (for quoting)
 	if includeBody {
 		info.Body = bestBodyText(msg.Payload)
+		info.BodyHTML = findPartBody(msg.Payload, "text/html")
 	}
 
 	// Prefer Message-ID and References from the original message.
@@ -700,13 +709,18 @@ func formatQuotedMessage(from, date, body string) string {
 }
 
 func formatQuotedMessageHTML(from, date, body string) string {
+	escapedBody := html.EscapeString(body)
+	escapedBody = strings.ReplaceAll(escapedBody, "\n", "<br>\n")
+	return formatQuotedMessageHTMLWithContent(from, date, escapedBody)
+}
+
+// formatQuotedMessageHTMLWithContent wraps pre-formatted HTML content in a blockquote.
+// Use this when the content is already HTML (preserves original formatting).
+func formatQuotedMessageHTMLWithContent(from, date, htmlContent string) string {
 	senderName := from
 	if addr, err := mail.ParseAddress(from); err == nil && addr.Name != "" {
 		senderName = addr.Name
 	}
-
-	escapedBody := html.EscapeString(body)
-	escapedBody = strings.ReplaceAll(escapedBody, "\n", "<br>\n")
 
 	dateStr := date
 	if date == "" {
@@ -716,5 +730,5 @@ func formatQuotedMessageHTML(from, date, body string) string {
 	return fmt.Sprintf(`<br><br><div class="gmail_quote"><div class="gmail_attr">On %s, %s wrote:</div><blockquote class="gmail_quote" style="margin:0 0 0 .8ex;border-left:1px #ccc solid;padding-left:1ex">%s</blockquote></div>`,
 		html.EscapeString(dateStr),
 		html.EscapeString(senderName),
-		escapedBody)
+		htmlContent)
 }
