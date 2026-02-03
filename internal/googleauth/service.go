@@ -25,6 +25,9 @@ const (
 	ServiceAdminDirectory Service = "admin"
 	ServiceReports        Service = "reports"
 	ServiceVault          Service = "vault"
+	ServiceAlertCenter    Service = "alertcenter"
+	ServiceInboundSSO     Service = "inboundsso"
+	ServiceAccessContext  Service = "accesscontext"
 )
 
 const (
@@ -74,6 +77,9 @@ var serviceOrder = []Service{
 	ServiceAdminDirectory,
 	ServiceReports,
 	ServiceVault,
+	ServiceAlertCenter,
+	ServiceInboundSSO,
+	ServiceAccessContext,
 }
 
 var serviceInfoByService = map[Service]serviceInfo{
@@ -220,6 +226,31 @@ var serviceInfoByService = map[Service]serviceInfo{
 		user: false,
 		apis: []string{"Google Vault API", "Cloud Storage API"},
 		note: "Vault exports (Cloud Storage download)",
+	},
+	ServiceAlertCenter: {
+		scopes: []string{
+			"https://www.googleapis.com/auth/apps.alerts",
+		},
+		user: false,
+		apis: []string{"Google Workspace Alert Center API"},
+		note: "Workspace alerts",
+	},
+	ServiceInboundSSO: {
+		scopes: []string{
+			"https://www.googleapis.com/auth/cloud-identity.inboundsso",
+			"https://www.googleapis.com/auth/cloud-identity.inboundsso.readonly",
+		},
+		user: false,
+		apis: []string{"Cloud Identity API"},
+		note: "Inbound SSO profiles + assignments",
+	},
+	ServiceAccessContext: {
+		scopes: []string{
+			"https://www.googleapis.com/auth/cloud-platform",
+		},
+		user: false,
+		apis: []string{"Access Context Manager API"},
+		note: "Context-aware access levels",
 	},
 }
 

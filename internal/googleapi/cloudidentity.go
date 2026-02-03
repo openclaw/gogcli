@@ -5,6 +5,8 @@ import (
 	"fmt"
 
 	"google.golang.org/api/cloudidentity/v1"
+
+	"github.com/steipete/gogcli/internal/googleauth"
 )
 
 const (
@@ -21,4 +23,17 @@ func NewCloudIdentityGroups(ctx context.Context, email string) (*cloudidentity.S
 	} else {
 		return svc, nil
 	}
+}
+
+// NewCloudIdentityInboundSSO creates a Cloud Identity service for inbound SSO administration.
+func NewCloudIdentityInboundSSO(ctx context.Context, email string) (*cloudidentity.Service, error) {
+	opts, err := optionsForAccount(ctx, googleauth.ServiceInboundSSO, email)
+	if err != nil {
+		return nil, fmt.Errorf("cloudidentity inbound sso options: %w", err)
+	}
+	svc, err := cloudidentity.NewService(ctx, opts...)
+	if err != nil {
+		return nil, fmt.Errorf("create cloudidentity inbound sso service: %w", err)
+	}
+	return svc, nil
 }

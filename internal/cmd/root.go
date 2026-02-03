@@ -50,6 +50,9 @@ type CLI struct {
 	Admins     AdminsCmd             `cmd:"" help:"Admin assignments"`
 	Reports    ReportsCmd            `cmd:"" help:"Admin reports"`
 	Vault      VaultCmd              `cmd:"" help:"Google Vault"`
+	Alerts     AlertsCmd             `cmd:"" help:"Security alerts"`
+	SSO        SSOCmd                `cmd:"" name:"sso" help:"Inbound SSO"`
+	CAA        CAACmd                `cmd:"" name:"caa" help:"Context-aware access"`
 	Drive      DriveCmd              `cmd:"" help:"Google Drive"`
 	Docs       DocsCmd               `cmd:"" help:"Google Docs (export via Drive)"`
 	Slides     SlidesCmd             `cmd:"" help:"Google Slides"`
