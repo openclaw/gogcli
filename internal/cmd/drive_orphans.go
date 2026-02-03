@@ -13,8 +13,8 @@ import (
 )
 
 type DriveOrphansCmd struct {
-	List    DriveOrphansListCmd    `cmd:"" name:"list" aliases:"ls" help:"List orphaned files"`
-	Collect DriveOrphansCollectCmd `cmd:"" name:"collect" help:"Move orphaned files into a folder"`
+	List    DriveOrphansListCmd    `cmd:"" name:"list" aliases:"ls" help:"List orphaned files. This finds files owned by the user that are not in root. Note: files whose parent folders were deleted may not be detected; use Drive's 'Organize files' UI for comprehensive orphan recovery."`
+	Collect DriveOrphansCollectCmd `cmd:"" name:"collect" help:"Move orphaned files into a folder. This finds files owned by the user that are not in root. Note: files whose parent folders were deleted may not be detected; use Drive's 'Organize files' UI for comprehensive orphan recovery."`
 }
 
 type DriveOrphansListCmd struct {
