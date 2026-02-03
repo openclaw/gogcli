@@ -146,7 +146,7 @@ func (c *GmailSendCmd) Run(ctx context.Context, flags *RootFlags) error {
 
 	// If quoting, append the quoted original message to the body
 	if c.Quote && replyInfo.Body != "" {
-		body = body + formatQuotedMessage(replyInfo.FromAddr, replyInfo.Date, replyInfo.Body)
+		body += formatQuotedMessage(replyInfo.FromAddr, replyInfo.Date, replyInfo.Body)
 	}
 
 	// Determine recipients
@@ -482,18 +482,18 @@ func fetchReplyInfo(ctx context.Context, svc *gmail.Service, replyToMessageID st
 	}
 
 	// Use "full" format when we need the body for quoting, otherwise "metadata"
-	format := "metadata"
+	format := gmailFormatMetadata
 	if includeBody {
-		format = "full"
+		format = gmailFormatFull
 	}
 
 	if replyToMessageID != "" {
 		call := svc.Users.Messages.Get("me", replyToMessageID).Context(ctx)
-		if format == "metadata" {
-			call = call.Format("metadata").
+		if format == gmailFormatMetadata {
+			call = call.Format(gmailFormatMetadata).
 				MetadataHeaders("Message-ID", "Message-Id", "References", "In-Reply-To", "From", "Reply-To", "To", "Cc", "Date")
 		} else {
-			call = call.Format("full")
+			call = call.Format(gmailFormatFull)
 		}
 		msg, err := call.Do()
 		if err != nil {
@@ -503,11 +503,11 @@ func fetchReplyInfo(ctx context.Context, svc *gmail.Service, replyToMessageID st
 	}
 
 	threadCall := svc.Users.Threads.Get("me", threadID).Context(ctx)
-	if format == "metadata" {
-		threadCall = threadCall.Format("metadata").
+	if format == gmailFormatMetadata {
+		threadCall = threadCall.Format(gmailFormatMetadata).
 			MetadataHeaders("Message-ID", "Message-Id", "References", "In-Reply-To", "From", "Reply-To", "To", "Cc", "Date")
 	} else {
-		threadCall = threadCall.Format("full")
+		threadCall = threadCall.Format(gmailFormatFull)
 	}
 	thread, err := threadCall.Do()
 	if err != nil {
@@ -669,11 +669,12 @@ func formatQuotedMessage(from, date, body string) string {
 	sb.WriteString("\n\n")
 
 	// Attribution line
-	if date != "" && from != "" {
+	switch {
+	case date != "" && from != "":
 		sb.WriteString(fmt.Sprintf("On %s, %s wrote:\n", date, from))
-	} else if from != "" {
+	case from != "":
 		sb.WriteString(fmt.Sprintf("%s wrote:\n", from))
-	} else {
+	default:
 		sb.WriteString("Original message:\n")
 	}
 

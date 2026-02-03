@@ -30,7 +30,7 @@ func TestReplyInfoFromMessage_More(t *testing.T) {
 			},
 		},
 	}
-	info := replyInfoFromMessage(msg)
+	info := replyInfoFromMessage(msg, false)
 	if info.InReplyTo != "<m1>" {
 		t.Fatalf("unexpected InReplyTo: %q", info.InReplyTo)
 	}
