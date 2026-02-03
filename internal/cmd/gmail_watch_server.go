@@ -207,10 +207,10 @@ func (s *gmailWatchServer) handlePush(ctx context.Context, payload gmailPushPayl
 	if err != nil {
 		return nil, err
 	}
-	if err := store.Update(func(state *gmailWatchState) error {
+	if updateErr := store.Update(func(state *gmailWatchState) error {
 		return updateStateAfterHistory(state, nextHistoryID, payload.MessageID)
-	}); err != nil {
-		s.warnf("watch: failed to update state: %v", err)
+	}); updateErr != nil {
+		s.warnf("watch: failed to update state: %v", updateErr)
 	}
 
 	return &gmailHookPayload{
@@ -238,10 +238,10 @@ func (s *gmailWatchServer) resyncHistory(ctx context.Context, svc *gmail.Service
 		return nil, err
 	}
 
-	if err := s.store.Update(func(state *gmailWatchState) error {
+	if updateErr := s.store.Update(func(state *gmailWatchState) error {
 		return updateStateAfterHistory(state, historyID, messageID)
-	}); err != nil {
-		s.warnf("watch: failed to update state after resync: %v", err)
+	}); updateErr != nil {
+		s.warnf("watch: failed to update state after resync: %v", updateErr)
 	}
 
 	return &gmailHookPayload{
