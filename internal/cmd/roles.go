@@ -173,7 +173,8 @@ func (c *RolesCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return outfmt.WriteJSON(os.Stdout, created)
 	}
 
-	fmt.Fprintf(os.Stdout, "Created role: %s (%d)\n", created.RoleName, created.RoleId)
+	u := ui.FromContext(ctx)
+	u.Out().Printf("Created role: %s (%d)\n", created.RoleName, created.RoleId)
 	return nil
 }
 
@@ -244,7 +245,8 @@ func (c *RolesUpdateCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return outfmt.WriteJSON(os.Stdout, updated)
 	}
 
-	fmt.Fprintf(os.Stdout, "Updated role: %s (%d)\n", updated.RoleName, updated.RoleId)
+	u := ui.FromContext(ctx)
+	u.Out().Printf("Updated role: %s (%d)\n", updated.RoleName, updated.RoleId)
 	return nil
 }
 
