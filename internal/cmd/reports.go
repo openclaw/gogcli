@@ -28,11 +28,12 @@ type ReportsCmd struct {
 }
 
 type ReportsUserCmd struct {
-	Date    string `name:"date" help:"Report date (YYYY-MM-DD)"`
-	User    string `name:"user" help:"User email or ID (default: all)"`
-	Filters string `name:"filters" help:"Filters query"`
-	Max     int64  `name:"max" aliases:"limit" default:"100" help:"Max results"`
-	Page    string `name:"page" help:"Page token"`
+	Date    string       `name:"date" help:"Report date (YYYY-MM-DD)"`
+	User    string       `name:"user" help:"User email or ID (default: all)"`
+	Filters string       `name:"filters" help:"Filters query"`
+	Max     int64        `name:"max" aliases:"limit" default:"100" help:"Max results"`
+	Page    string       `name:"page" help:"Page token"`
+	ToDrive ToDriveFlags `embed:""`
 }
 
 func (c *ReportsUserCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -43,15 +44,17 @@ func (c *ReportsUserCmd) Run(ctx context.Context, flags *RootFlags) error {
 		Filters:     c.Filters,
 		Max:         c.Max,
 		Page:        c.Page,
+		ToDrive:     c.ToDrive,
 	})
 }
 
 type ReportsAdminCmd struct {
-	Date    string `name:"date" help:"Report date (YYYY-MM-DD)"`
-	Event   string `name:"event" help:"Event name filter"`
-	Filters string `name:"filters" help:"Filters query"`
-	Max     int64  `name:"max" aliases:"limit" default:"100" help:"Max results"`
-	Page    string `name:"page" help:"Page token"`
+	Date    string       `name:"date" help:"Report date (YYYY-MM-DD)"`
+	Event   string       `name:"event" help:"Event name filter"`
+	Filters string       `name:"filters" help:"Filters query"`
+	Max     int64        `name:"max" aliases:"limit" default:"100" help:"Max results"`
+	Page    string       `name:"page" help:"Page token"`
+	ToDrive ToDriveFlags `embed:""`
 }
 
 func (c *ReportsAdminCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -62,15 +65,17 @@ func (c *ReportsAdminCmd) Run(ctx context.Context, flags *RootFlags) error {
 		Filters:     c.Filters,
 		Max:         c.Max,
 		Page:        c.Page,
+		ToDrive:     c.ToDrive,
 	})
 }
 
 type ReportsLoginCmd struct {
-	Date    string `name:"date" help:"Report date (YYYY-MM-DD)"`
-	User    string `name:"user" help:"User email or ID (default: all)"`
-	Filters string `name:"filters" help:"Filters query"`
-	Max     int64  `name:"max" aliases:"limit" default:"100" help:"Max results"`
-	Page    string `name:"page" help:"Page token"`
+	Date    string       `name:"date" help:"Report date (YYYY-MM-DD)"`
+	User    string       `name:"user" help:"User email or ID (default: all)"`
+	Filters string       `name:"filters" help:"Filters query"`
+	Max     int64        `name:"max" aliases:"limit" default:"100" help:"Max results"`
+	Page    string       `name:"page" help:"Page token"`
+	ToDrive ToDriveFlags `embed:""`
 }
 
 func (c *ReportsLoginCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -81,15 +86,17 @@ func (c *ReportsLoginCmd) Run(ctx context.Context, flags *RootFlags) error {
 		Filters:     c.Filters,
 		Max:         c.Max,
 		Page:        c.Page,
+		ToDrive:     c.ToDrive,
 	})
 }
 
 type ReportsDriveCmd struct {
-	Date    string `name:"date" help:"Report date (YYYY-MM-DD)"`
-	User    string `name:"user" help:"User email or ID (default: all)"`
-	Filters string `name:"filters" help:"Filters query"`
-	Max     int64  `name:"max" aliases:"limit" default:"100" help:"Max results"`
-	Page    string `name:"page" help:"Page token"`
+	Date    string       `name:"date" help:"Report date (YYYY-MM-DD)"`
+	User    string       `name:"user" help:"User email or ID (default: all)"`
+	Filters string       `name:"filters" help:"Filters query"`
+	Max     int64        `name:"max" aliases:"limit" default:"100" help:"Max results"`
+	Page    string       `name:"page" help:"Page token"`
+	ToDrive ToDriveFlags `embed:""`
 }
 
 func (c *ReportsDriveCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -100,6 +107,7 @@ func (c *ReportsDriveCmd) Run(ctx context.Context, flags *RootFlags) error {
 		Filters:     c.Filters,
 		Max:         c.Max,
 		Page:        c.Page,
+		ToDrive:     c.ToDrive,
 	})
 }
 
@@ -162,6 +170,7 @@ type activityReportOptions struct {
 	Filters     string
 	Max         int64
 	Page        string
+	ToDrive     ToDriveFlags
 }
 
 func runActivityReport(ctx context.Context, flags *RootFlags, opts activityReportOptions) error {
@@ -204,18 +213,12 @@ func runActivityReport(ctx context.Context, flags *RootFlags, opts activityRepor
 		return fmt.Errorf("fetch %s report: %w", opts.Application, err)
 	}
 
-	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, resp)
-	}
-
 	if len(resp.Items) == 0 {
 		u.Err().Println("No events found")
 		return nil
 	}
 
-	w, flush := tableWriter(ctx)
-	defer flush()
-	fmt.Fprintln(w, "TIME\tACTOR\tIP\tEVENTS")
+	rows := make([][]string, 0, len(resp.Items))
 	for _, item := range resp.Items {
 		if item == nil {
 			continue
@@ -226,11 +229,35 @@ func runActivityReport(ctx context.Context, flags *RootFlags, opts activityRepor
 			actor = item.Actor.Email
 		}
 		events := activityEventNames(item.Events)
+		rows = append(rows, toDriveRow(
+			timeStr,
+			actor,
+			item.IpAddress,
+			events,
+		))
+	}
+
+	reportTitle := fmt.Sprintf("Reports %s", strings.Title(opts.Application))
+	if ok, err := writeToDrive(ctx, flags, toDriveTitle(reportTitle, opts.ToDrive), []string{"TIME", "ACTOR", "IP", "EVENTS"}, rows, opts.ToDrive); ok {
+		return err
+	}
+
+	if outfmt.IsJSON(ctx) {
+		return outfmt.WriteJSON(os.Stdout, resp)
+	}
+
+	w, flush := tableWriter(ctx)
+	defer flush()
+	fmt.Fprintln(w, "TIME\tACTOR\tIP\tEVENTS")
+	for _, row := range rows {
+		if len(row) < 4 {
+			continue
+		}
 		fmt.Fprintf(w, "%s\t%s\t%s\t%s\n",
-			sanitizeTab(timeStr),
-			sanitizeTab(actor),
-			sanitizeTab(item.IpAddress),
-			sanitizeTab(events),
+			sanitizeTab(row[0]),
+			sanitizeTab(row[1]),
+			sanitizeTab(row[2]),
+			sanitizeTab(row[3]),
 		)
 	}
 	printNextPageHint(u, resp.NextPageToken)

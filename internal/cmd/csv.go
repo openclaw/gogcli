@@ -1,18 +1,85 @@
 package cmd
 
-import "strings"
+import (
+	"context"
+	"fmt"
+	"strings"
 
-func splitCSV(s string) []string {
-	s = strings.TrimSpace(s)
-	if s == "" {
+	csvproc "github.com/steipete/gogcli/internal/csv"
+	"github.com/steipete/gogcli/internal/ui"
+)
+
+type CSVCmd struct {
+	File     string   `arg:"" name:"file" help:"CSV file path"`
+	Command  []string `arg:"" name:"command" help:"Command template to execute"`
+	Fields   string   `name:"fields" help:"Comma-separated list of fields to include"`
+	Match    []string `name:"matchfield" help:"Only process rows where FIELD:REGEX matches"`
+	Skip     []string `name:"skipfield" help:"Skip rows where FIELD:REGEX matches"`
+	SkipRows int      `name:"skiprows" help:"Skip first N data rows"`
+	MaxRows  int      `name:"maxrows" help:"Max number of rows to process"`
+}
+
+func (c *CSVCmd) Run(ctx context.Context, flags *RootFlags) error {
+	u := ui.FromContext(ctx)
+	if strings.TrimSpace(c.File) == "" {
+		return usage("file is required")
+	}
+	if len(c.Command) == 0 {
+		return usage("command is required")
+	}
+
+	matchFilters, err := csvproc.ParseFieldFilters(c.Match)
+	if err != nil {
+		return err
+	}
+	skipFilters, err := csvproc.ParseFieldFilters(c.Skip)
+	if err != nil {
+		return err
+	}
+
+	fields := splitCSVFields(c.Fields)
+	processed := 0
+	failed := 0
+
+	err = csvproc.Process(c.File, csvproc.Options{
+		Fields:   fields,
+		Match:    matchFilters,
+		Skip:     skipFilters,
+		SkipRows: c.SkipRows,
+		MaxRows:  c.MaxRows,
+	}, func(row csvproc.Row) error {
+		processed++
+		args, err := csvproc.SubstituteArgs(c.Command, row)
+		if err != nil {
+			failed++
+			return fmt.Errorf("row %d: %w", row.Index, err)
+		}
+		if err := executeSubcommand(ctx, flags, args); err != nil {
+			failed++
+			return fmt.Errorf("row %d: %w", row.Index, err)
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+
+	if u != nil {
+		u.Err().Printf("CSV complete: processed=%d failed=%d\n", processed, failed)
+	}
+	return nil
+}
+
+func splitCSVFields(input string) []string {
+	trimmed := strings.TrimSpace(input)
+	if trimmed == "" {
 		return nil
 	}
-	parts := strings.Split(s, ",")
+	parts := strings.Split(trimmed, ",")
 	out := make([]string, 0, len(parts))
-	for _, p := range parts {
-		p = strings.TrimSpace(p)
-		if p != "" {
-			out = append(out, p)
+	for _, part := range parts {
+		if value := strings.TrimSpace(part); value != "" {
+			out = append(out, value)
 		}
 	}
 	return out

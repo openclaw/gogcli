@@ -11,17 +11,18 @@ import (
 )
 
 type UsersListCmd struct {
-	Domain     string `name:"domain" short:"d" help:"Domain to list users from"`
-	Query      string `name:"query" short:"q" help:"Search query (e.g., 'email:admin*', 'name:John*', 'orgUnitPath=/Sales')"`
-	OrgUnit    string `name:"org-unit" aliases:"ou" help:"Organizational unit path"`
-	Max        int64  `name:"max" aliases:"limit" default:"100" help:"Maximum users to return"`
-	Page       string `name:"page" help:"Page token for pagination"`
-	Suspended  *bool  `name:"suspended" help:"Filter by suspended state"`
-	Admin      *bool  `name:"admin" help:"Filter by admin status"`
-	OrderBy    string `name:"order-by" default:"email" enum:"email,familyName,givenName" help:"Sort field"`
-	SortOrder  string `name:"sort-order" default:"ASCENDING" enum:"ASCENDING,DESCENDING" help:"Sort direction"`
-	Projection string `name:"projection" default:"basic" enum:"basic,full,custom" help:"Amount of user data to return"`
-	Fields     string `name:"fields" help:"Custom fields to return (comma-separated)"`
+	Domain     string       `name:"domain" short:"d" help:"Domain to list users from"`
+	Query      string       `name:"query" short:"q" help:"Search query (e.g., 'email:admin*', 'name:John*', 'orgUnitPath=/Sales')"`
+	OrgUnit    string       `name:"org-unit" aliases:"ou" help:"Organizational unit path"`
+	Max        int64        `name:"max" aliases:"limit" default:"100" help:"Maximum users to return"`
+	Page       string       `name:"page" help:"Page token for pagination"`
+	Suspended  *bool        `name:"suspended" help:"Filter by suspended state"`
+	Admin      *bool        `name:"admin" help:"Filter by admin status"`
+	OrderBy    string       `name:"order-by" default:"email" enum:"email,familyName,givenName" help:"Sort field"`
+	SortOrder  string       `name:"sort-order" default:"ASCENDING" enum:"ASCENDING,DESCENDING" help:"Sort direction"`
+	Projection string       `name:"projection" default:"basic" enum:"basic,full,custom" help:"Amount of user data to return"`
+	Fields     string       `name:"fields" help:"Custom fields to return (comma-separated)"`
+	ToDrive    ToDriveFlags `embed:""`
 }
 
 func (c *UsersListCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -77,19 +78,12 @@ func (c *UsersListCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return fmt.Errorf("list users: %w", err)
 	}
 
-	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, resp)
-	}
-
 	if len(resp.Users) == 0 {
 		u.Err().Println("No users found")
 		return nil
 	}
 
-	tw, flush := tableWriter(ctx)
-	defer flush()
-
-	fmt.Fprintln(tw, "EMAIL\tNAME\tSUSPENDED\tADMIN\tORG UNIT\tLAST LOGIN")
+	rows := make([][]string, 0, len(resp.Users))
 	for _, user := range resp.Users {
 		if user == nil {
 			continue
@@ -106,13 +100,39 @@ func (c *UsersListCmd) Run(ctx context.Context, flags *RootFlags) error {
 		if user.Name != nil {
 			name = strings.TrimSpace(strings.Join([]string{user.Name.GivenName, user.Name.FamilyName}, " "))
 		}
+		rows = append(rows, toDriveRow(
+			user.PrimaryEmail,
+			name,
+			suspended,
+			admin,
+			user.OrgUnitPath,
+			formatDateTime(user.LastLoginTime),
+		))
+	}
+
+	if ok, err := writeToDrive(ctx, flags, toDriveTitle("Users", c.ToDrive), []string{"EMAIL", "NAME", "SUSPENDED", "ADMIN", "ORG UNIT", "LAST LOGIN"}, rows, c.ToDrive); ok {
+		return err
+	}
+
+	if outfmt.IsJSON(ctx) {
+		return outfmt.WriteJSON(os.Stdout, resp)
+	}
+
+	tw, flush := tableWriter(ctx)
+	defer flush()
+
+	fmt.Fprintln(tw, "EMAIL\tNAME\tSUSPENDED\tADMIN\tORG UNIT\tLAST LOGIN")
+	for _, row := range rows {
+		if len(row) < 6 {
+			continue
+		}
 		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\n",
-			sanitizeTab(user.PrimaryEmail),
-			sanitizeTab(name),
-			sanitizeTab(suspended),
-			sanitizeTab(admin),
-			sanitizeTab(user.OrgUnitPath),
-			sanitizeTab(formatDateTime(user.LastLoginTime)),
+			sanitizeTab(row[0]),
+			sanitizeTab(row[1]),
+			sanitizeTab(row[2]),
+			sanitizeTab(row[3]),
+			sanitizeTab(row[4]),
+			sanitizeTab(row[5]),
 		)
 	}
 

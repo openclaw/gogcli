@@ -40,53 +40,55 @@ type CLI struct {
 
 	Version kong.VersionFlag `help:"Print version and exit"`
 
-	Auth       AuthCmd               `cmd:"" help:"Auth and credentials"`
-	Groups     GroupsCmd             `cmd:"" help:"Google Groups"`
-	Users      UsersCmd              `cmd:"" help:"Workspace users"`
-	Orgunits   OrgunitsCmd           `cmd:"" help:"Organizational units"`
-	Domains    DomainsCmd            `cmd:"" help:"Workspace domains"`
-	Aliases    AliasesCmd            `cmd:"" help:"Workspace aliases"`
-	Roles      RolesCmd              `cmd:"" help:"Admin roles"`
-	Admins     AdminsCmd             `cmd:"" help:"Admin assignments"`
-	Reports    ReportsCmd            `cmd:"" help:"Admin reports"`
-	Vault      VaultCmd              `cmd:"" help:"Google Vault"`
-	Alerts     AlertsCmd             `cmd:"" help:"Security alerts"`
-	SSO        SSOCmd                `cmd:"" name:"sso" help:"Inbound SSO"`
-	CAA        CAACmd                `cmd:"" name:"caa" help:"Context-aware access"`
-	Licenses   LicensesCmd           `cmd:"" help:"Workspace licenses"`
-	Resources  ResourcesCmd          `cmd:"" help:"Calendar resources"`
-	Schemas    SchemasCmd            `cmd:"" help:"Custom user schemas"`
-	Transfer   TransferCmd           `cmd:"" name:"transfer" help:"Data transfer"`
-	Printers   PrintersCmd           `cmd:"" help:"Chrome printers"`
-	Forms      FormsCmd              `cmd:"" help:"Google Forms"`
-	Sites      SitesCmd              `cmd:"" help:"Google Sites"`
-	YouTube    YouTubeCmd            `cmd:"" help:"YouTube"`
-	Looker     LookerStudioCmd       `cmd:"" name:"lookerstudio" help:"Looker Studio"`
-	Meet       MeetCmd               `cmd:"" help:"Google Meet"`
-	Analytics  AnalyticsCmd          `cmd:"" help:"Analytics Admin"`
-	Labels     LabelsCmd             `cmd:"" help:"Drive Labels"`
-	CI              CloudIdentityCmd   `cmd:"" name:"ci" help:"Cloud Identity"`
-	Reseller        ResellerCmd        `cmd:"" help:"Reseller API"`
-	Channel         ChannelCmd         `cmd:"" help:"Cloud Channel"`
-	Projects        ProjectsCmd        `cmd:"" help:"GCP projects"`
-	ServiceAccounts ServiceAccountsCmd `cmd:"" name:"serviceaccounts" help:"Service accounts"`
-	Drive      DriveCmd              `cmd:"" help:"Google Drive"`
-	Docs       DocsCmd               `cmd:"" help:"Google Docs (export via Drive)"`
-	Slides     SlidesCmd             `cmd:"" help:"Google Slides"`
-	Calendar   CalendarCmd           `cmd:"" help:"Google Calendar"`
-	Classroom  ClassroomCmd          `cmd:"" help:"Google Classroom"`
-	Time       TimeCmd               `cmd:"" help:"Local time utilities"`
-	Gmail      GmailCmd              `cmd:"" aliases:"mail,email" help:"Gmail"`
-	Chat       ChatCmd               `cmd:"" help:"Google Chat"`
-	Contacts   ContactsCmd           `cmd:"" help:"Google Contacts"`
-	Tasks      TasksCmd              `cmd:"" help:"Google Tasks"`
-	People     PeopleCmd             `cmd:"" help:"Google People"`
-	Keep       KeepCmd               `cmd:"" help:"Google Keep (Workspace only)"`
-	Sheets     SheetsCmd             `cmd:"" help:"Google Sheets"`
-	Config     ConfigCmd             `cmd:"" help:"Manage configuration"`
-	VersionCmd VersionCmd            `cmd:"" name:"version" help:"Print version"`
-	Completion CompletionCmd         `cmd:"" help:"Generate shell completion scripts"`
-	Complete   CompletionInternalCmd `cmd:"" name:"__complete" hidden:"" help:"Internal completion helper"`
+	Auth            AuthCmd               `cmd:"" help:"Auth and credentials"`
+	Groups          GroupsCmd             `cmd:"" help:"Google Groups"`
+	Users           UsersCmd              `cmd:"" help:"Workspace users"`
+	Orgunits        OrgunitsCmd           `cmd:"" help:"Organizational units"`
+	Domains         DomainsCmd            `cmd:"" help:"Workspace domains"`
+	Aliases         AliasesCmd            `cmd:"" help:"Workspace aliases"`
+	Roles           RolesCmd              `cmd:"" help:"Admin roles"`
+	Admins          AdminsCmd             `cmd:"" help:"Admin assignments"`
+	Reports         ReportsCmd            `cmd:"" help:"Admin reports"`
+	Vault           VaultCmd              `cmd:"" help:"Google Vault"`
+	Alerts          AlertsCmd             `cmd:"" help:"Security alerts"`
+	SSO             SSOCmd                `cmd:"" name:"sso" help:"Inbound SSO"`
+	CAA             CAACmd                `cmd:"" name:"caa" help:"Context-aware access"`
+	Licenses        LicensesCmd           `cmd:"" help:"Workspace licenses"`
+	Resources       ResourcesCmd          `cmd:"" help:"Calendar resources"`
+	Schemas         SchemasCmd            `cmd:"" help:"Custom user schemas"`
+	Transfer        TransferCmd           `cmd:"" name:"transfer" help:"Data transfer"`
+	Printers        PrintersCmd           `cmd:"" help:"Chrome printers"`
+	Forms           FormsCmd              `cmd:"" help:"Google Forms"`
+	Sites           SitesCmd              `cmd:"" help:"Google Sites"`
+	YouTube         YouTubeCmd            `cmd:"" help:"YouTube"`
+	Looker          LookerStudioCmd       `cmd:"" name:"lookerstudio" help:"Looker Studio"`
+	Meet            MeetCmd               `cmd:"" help:"Google Meet"`
+	Analytics       AnalyticsCmd          `cmd:"" help:"Analytics Admin"`
+	Labels          LabelsCmd             `cmd:"" help:"Drive Labels"`
+	CI              CloudIdentityCmd      `cmd:"" name:"ci" help:"Cloud Identity"`
+	Reseller        ResellerCmd           `cmd:"" help:"Reseller API"`
+	Channel         ChannelCmd            `cmd:"" help:"Cloud Channel"`
+	Projects        ProjectsCmd           `cmd:"" help:"GCP projects"`
+	ServiceAccounts ServiceAccountsCmd    `cmd:"" name:"serviceaccounts" help:"Service accounts"`
+	Drive           DriveCmd              `cmd:"" help:"Google Drive"`
+	Docs            DocsCmd               `cmd:"" help:"Google Docs (export via Drive)"`
+	Slides          SlidesCmd             `cmd:"" help:"Google Slides"`
+	Calendar        CalendarCmd           `cmd:"" help:"Google Calendar"`
+	Classroom       ClassroomCmd          `cmd:"" help:"Google Classroom"`
+	Time            TimeCmd               `cmd:"" help:"Local time utilities"`
+	Gmail           GmailCmd              `cmd:"" aliases:"mail,email" help:"Gmail"`
+	Chat            ChatCmd               `cmd:"" help:"Google Chat"`
+	Contacts        ContactsCmd           `cmd:"" help:"Google Contacts"`
+	Tasks           TasksCmd              `cmd:"" help:"Google Tasks"`
+	People          PeopleCmd             `cmd:"" help:"Google People"`
+	Keep            KeepCmd               `cmd:"" help:"Google Keep (Workspace only)"`
+	Sheets          SheetsCmd             `cmd:"" help:"Google Sheets"`
+	Config          ConfigCmd             `cmd:"" help:"Manage configuration"`
+	CSV             CSVCmd                `cmd:"" name:"csv" help:"Process commands from CSV files"`
+	Batch           BatchCmd              `cmd:"" help:"Run commands from a file"`
+	VersionCmd      VersionCmd            `cmd:"" name:"version" help:"Print version"`
+	Completion      CompletionCmd         `cmd:"" help:"Generate shell completion scripts"`
+	Complete        CompletionInternalCmd `cmd:"" name:"__complete" hidden:"" help:"Internal completion helper"`
 }
 
 type exitPanic struct{ code int }
