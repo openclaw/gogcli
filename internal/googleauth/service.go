@@ -10,18 +10,19 @@ import (
 type Service string
 
 const (
-	ServiceGmail     Service = "gmail"
-	ServiceCalendar  Service = "calendar"
-	ServiceChat      Service = "chat"
-	ServiceClassroom Service = "classroom"
-	ServiceDrive     Service = "drive"
-	ServiceDocs      Service = "docs"
-	ServiceContacts  Service = "contacts"
-	ServiceTasks     Service = "tasks"
-	ServicePeople    Service = "people"
-	ServiceSheets    Service = "sheets"
-	ServiceGroups    Service = "groups"
-	ServiceKeep      Service = "keep"
+	ServiceGmail          Service = "gmail"
+	ServiceCalendar       Service = "calendar"
+	ServiceChat           Service = "chat"
+	ServiceClassroom      Service = "classroom"
+	ServiceDrive          Service = "drive"
+	ServiceDocs           Service = "docs"
+	ServiceContacts       Service = "contacts"
+	ServiceTasks          Service = "tasks"
+	ServicePeople         Service = "people"
+	ServiceSheets         Service = "sheets"
+	ServiceGroups         Service = "groups"
+	ServiceKeep           Service = "keep"
+	ServiceAdminDirectory Service = "admin"
 )
 
 const (
@@ -68,6 +69,7 @@ var serviceOrder = []Service{
 	ServicePeople,
 	ServiceGroups,
 	ServiceKeep,
+	ServiceAdminDirectory,
 }
 
 var serviceInfoByService = map[Service]serviceInfo{
@@ -169,6 +171,32 @@ var serviceInfoByService = map[Service]serviceInfo{
 		user:   false,
 		apis:   []string{"Keep API"},
 		note:   "Workspace only; service account (domain-wide delegation)",
+	},
+	ServiceAdminDirectory: {
+		scopes: []string{
+			"https://www.googleapis.com/auth/admin.directory.user",
+			"https://www.googleapis.com/auth/admin.directory.user.readonly",
+			"https://www.googleapis.com/auth/admin.directory.orgunit",
+			"https://www.googleapis.com/auth/admin.directory.orgunit.readonly",
+			"https://www.googleapis.com/auth/admin.directory.group",
+			"https://www.googleapis.com/auth/admin.directory.group.readonly",
+			"https://www.googleapis.com/auth/admin.directory.group.member",
+			"https://www.googleapis.com/auth/admin.directory.group.member.readonly",
+			"https://www.googleapis.com/auth/admin.directory.domain",
+			"https://www.googleapis.com/auth/admin.directory.domain.readonly",
+			"https://www.googleapis.com/auth/admin.directory.rolemanagement",
+			"https://www.googleapis.com/auth/admin.directory.rolemanagement.readonly",
+			"https://www.googleapis.com/auth/admin.directory.userschema",
+			"https://www.googleapis.com/auth/admin.directory.userschema.readonly",
+			"https://www.googleapis.com/auth/admin.directory.resource.calendar",
+			"https://www.googleapis.com/auth/admin.directory.resource.calendar.readonly",
+			"https://www.googleapis.com/auth/admin.directory.customer",
+			"https://www.googleapis.com/auth/admin.directory.customer.readonly",
+			"https://www.googleapis.com/auth/apps.groups.settings",
+		},
+		user: false,
+		apis: []string{"Admin SDK Directory API", "Groups Settings API"},
+		note: "Workspace admin (domain-wide delegation)",
 	},
 }
 

@@ -24,8 +24,12 @@ const (
 )
 
 type GroupsCmd struct {
-	List    GroupsListCmd    `cmd:"" name:"list" help:"List groups you belong to"`
-	Members GroupsMembersCmd `cmd:"" name:"members" help:"List members of a group"`
+	List     GroupsListCmd     `cmd:"" name:"list" help:"List groups you belong to"`
+	Members  GroupsMembersCmd  `cmd:"" name:"members" help:"List or manage group members"`
+	Create   GroupsCreateCmd   `cmd:"" name:"create" aliases:"add" help:"Create a group (admin)"`
+	Update   GroupsUpdateCmd   `cmd:"" name:"update" help:"Update a group (admin)"`
+	Delete   GroupsDeleteCmd   `cmd:"" name:"delete" aliases:"rm" help:"Delete a group (admin)"`
+	Settings GroupsSettingsCmd `cmd:"" name:"settings" help:"Get or update group settings (admin)"`
 }
 
 type GroupsListCmd struct {
@@ -132,9 +136,12 @@ func getRelationType(relationType string) string {
 }
 
 type GroupsMembersCmd struct {
-	GroupEmail string `arg:"" name:"groupEmail" help:"Group email (e.g., engineering@company.com)"`
-	Max        int64  `name:"max" aliases:"limit" help:"Max results" default:"100"`
-	Page       string `name:"page" help:"Page token"`
+	GroupEmail string                 `arg:"" name:"groupEmail" help:"Group email (e.g., engineering@company.com)"`
+	Max        int64                  `name:"max" aliases:"limit" help:"Max results" default:"100"`
+	Page       string                 `name:"page" help:"Page token"`
+	Add        GroupsMembersAddCmd    `cmd:"" name:"add" help:"Add member to group (admin)"`
+	Remove     GroupsMembersRemoveCmd `cmd:"" name:"remove" help:"Remove member from group (admin)"`
+	Sync       GroupsMembersSyncCmd   `cmd:"" name:"sync" help:"Sync group members from CSV (admin)"`
 }
 
 func (c *GroupsMembersCmd) Run(ctx context.Context, flags *RootFlags) error {

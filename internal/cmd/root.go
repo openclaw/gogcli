@@ -25,7 +25,7 @@ const (
 
 type RootFlags struct {
 	Color          string `help:"Color output: auto|always|never" default:"${color}"`
-	Account        string `help:"Account email for API commands (gmail/calendar/chat/classroom/drive/docs/slides/contacts/tasks/people/sheets)"`
+	Account        string `help:"Account email for API commands (gmail/calendar/chat/classroom/drive/docs/slides/contacts/tasks/people/sheets/admin)"`
 	Client         string `help:"OAuth client name (selects stored credentials + token bucket)" default:"${client}"`
 	EnableCommands string `help:"Comma-separated list of enabled top-level commands (restricts CLI)" default:"${enabled_commands}"`
 	JSON           bool   `help:"Output JSON to stdout (best for scripting)" default:"${json}"`
@@ -42,6 +42,10 @@ type CLI struct {
 
 	Auth       AuthCmd               `cmd:"" help:"Auth and credentials"`
 	Groups     GroupsCmd             `cmd:"" help:"Google Groups"`
+	Users      UsersCmd              `cmd:"" help:"Workspace users"`
+	Orgunits   OrgunitsCmd           `cmd:"" help:"Organizational units"`
+	Domains    DomainsCmd            `cmd:"" help:"Workspace domains"`
+	Aliases    AliasesCmd            `cmd:"" help:"Workspace aliases"`
 	Drive      DriveCmd              `cmd:"" help:"Google Drive"`
 	Docs       DocsCmd               `cmd:"" help:"Google Docs (export via Drive)"`
 	Slides     SlidesCmd             `cmd:"" help:"Google Slides"`
