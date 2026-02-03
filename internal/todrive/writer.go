@@ -70,9 +70,13 @@ func (w *Writer) Write(ctx context.Context, headers []string, rows [][]string, o
 		spreadsheetURL = url
 	}
 
+	sheetName := "Data"
 	if spreadsheetID == "" {
 		created, err := w.sheets.Spreadsheets.Create(&sheets.Spreadsheet{
 			Properties: &sheets.SpreadsheetProperties{Title: title},
+			Sheets: []*sheets.Sheet{{
+				Properties: &sheets.SheetProperties{Title: sheetName},
+			}},
 		}).Context(ctx).Do()
 		if err != nil {
 			return nil, fmt.Errorf("create sheet: %w", err)
@@ -84,6 +88,15 @@ func (w *Writer) Write(ctx context.Context, headers []string, rows [][]string, o
 				return nil, err
 			}
 		}
+	} else {
+		// Get the first sheet name from existing spreadsheet metadata
+		ss, err := w.sheets.Spreadsheets.Get(spreadsheetID).Fields("sheets.properties.title").Context(ctx).Do()
+		if err != nil {
+			return nil, fmt.Errorf("fetch spreadsheet metadata: %w", err)
+		}
+		if len(ss.Sheets) > 0 && ss.Sheets[0].Properties != nil && ss.Sheets[0].Properties.Title != "" {
+			sheetName = ss.Sheets[0].Properties.Title
+		}
 	}
 
 	if spreadsheetID == "" {
@@ -91,7 +104,7 @@ func (w *Writer) Write(ctx context.Context, headers []string, rows [][]string, o
 	}
 
 	if opts.Update {
-		_, _ = w.sheets.Spreadsheets.Values.Clear(spreadsheetID, "Sheet1", &sheets.ClearValuesRequest{}).Context(ctx).Do()
+		_, _ = w.sheets.Spreadsheets.Values.Clear(spreadsheetID, sheetName, &sheets.ClearValuesRequest{}).Context(ctx).Do()
 	}
 
 	values := make([][]interface{}, 0, len(rows)+1)
@@ -102,7 +115,7 @@ func (w *Writer) Write(ctx context.Context, headers []string, rows [][]string, o
 		values = append(values, toInterfaceRow(row))
 	}
 
-	_, err := w.sheets.Spreadsheets.Values.Update(spreadsheetID, "Sheet1!A1", &sheets.ValueRange{
+	_, err := w.sheets.Spreadsheets.Values.Update(spreadsheetID, sheetName+"!A1", &sheets.ValueRange{
 		Values: values,
 	}).ValueInputOption("RAW").Context(ctx).Do()
 	if err != nil {

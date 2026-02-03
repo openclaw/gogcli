@@ -25,12 +25,12 @@ func TestWriterCreateAndWrite(t *testing.T) {
 				"spreadsheetUrl": "https://sheet/1",
 			})
 			return
-		case r.Method == http.MethodPut && strings.Contains(r.URL.Path, "/v4/spreadsheets/sheet1/values/Sheet1!A1"):
+		case r.Method == http.MethodPut && strings.Contains(r.URL.Path, "/v4/spreadsheets/sheet1/values/Data!A1"):
 			var vr sheets.ValueRange
 			_ = json.NewDecoder(r.Body).Decode(&vr)
 			gotValues = vr.Values
 			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(map[string]any{"updatedRange": "Sheet1!A1"})
+			_ = json.NewEncoder(w).Encode(map[string]any{"updatedRange": "Data!A1"})
 			return
 		default:
 			http.NotFound(w, r)
