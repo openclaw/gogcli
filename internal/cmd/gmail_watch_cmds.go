@@ -204,7 +204,7 @@ type GmailWatchServeCmd struct {
 	HookToken    string   `name:"hook-token" help:"Webhook bearer token"`
 	IncludeBody  bool     `name:"include-body" help:"Include text/plain body in hook payload"`
 	MaxBytes     int      `name:"max-bytes" help:"Max bytes of body to include" default:"20000"`
-	HistoryTypes []string `name:"history-types" help:"History types to include (repeatable, comma-separated: messageAdded,messageDeleted,labelAdded,labelRemoved). Default: all"`
+	HistoryTypes []string `name:"history-types" help:"History types to include (repeatable, comma-separated: messageAdded,messageDeleted,labelAdded,labelRemoved). Default: messageAdded"`
 	SaveHook     bool     `name:"save-hook" help:"Persist hook settings to watch state"`
 }
 

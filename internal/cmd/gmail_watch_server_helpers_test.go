@@ -96,6 +96,27 @@ func TestParseHistoryTypes(t *testing.T) {
 	}
 }
 
+func TestParseHistoryTypes_DefaultsToMessageAdded(t *testing.T) {
+	// When no history types are provided, default to messageAdded for backward compatibility.
+	got, err := parseHistoryTypes(nil)
+	if err != nil {
+		t.Fatalf("parseHistoryTypes(nil): %v", err)
+	}
+	want := []string{"messageAdded"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("expected default %v, got %v", want, got)
+	}
+
+	// Empty slice should also default to messageAdded.
+	got, err = parseHistoryTypes([]string{})
+	if err != nil {
+		t.Fatalf("parseHistoryTypes([]string{}): %v", err)
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("expected default %v, got %v", want, got)
+	}
+}
+
 func TestDecodeGmailPushPayload(t *testing.T) {
 	payload := `{"emailAddress":"a@b.com","historyId":"123"}`
 	env := &pubsubPushEnvelope{}

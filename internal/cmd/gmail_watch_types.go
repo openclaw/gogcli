@@ -75,7 +75,9 @@ var gmailHistoryTypeAliases = map[string]string{
 
 func parseHistoryTypes(values []string) ([]string, error) {
 	if len(values) == 0 {
-		return nil, nil
+		// Default to messageAdded for backward compatibility.
+		// Previously this was hardcoded; returning nil would fetch ALL types.
+		return []string{"messageAdded"}, nil
 	}
 	out := make([]string, 0, len(values))
 	seen := make(map[string]struct{})
