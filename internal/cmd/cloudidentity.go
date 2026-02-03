@@ -14,9 +14,14 @@ import (
 	"github.com/steipete/gogcli/internal/ui"
 )
 
-const cloudIdentityDefaultParent = "customers/my_customer"
-
 var newCloudIdentityAdminService = googleapi.NewCloudIdentity
+
+func cloudIdentityParent() string {
+	if id := os.Getenv("GOG_CUSTOMER_ID"); id != "" {
+		return "customers/" + id
+	}
+	return "customers/my_customer"
+}
 
 type CloudIdentityCmd struct {
 	Groups   CloudIdentityGroupsCmd   `cmd:"" name:"groups" help:"Cloud Identity groups"`
@@ -33,7 +38,7 @@ type CloudIdentityGroupsCmd struct {
 }
 
 type CloudIdentityGroupsListCmd struct {
-	Parent string `name:"parent" help:"Customer parent (customers/my_customer or customers/C123)"`
+	Parent string `name:"parent" help:"Customer parent (default: customers/my_customer, override with GOG_CUSTOMER_ID env var)"`
 	Max    int64  `name:"max" aliases:"limit" default:"100" help:"Max results"`
 	Page   string `name:"page" help:"Page token"`
 }
@@ -52,7 +57,7 @@ func (c *CloudIdentityGroupsListCmd) Run(ctx context.Context, flags *RootFlags) 
 
 	parent := strings.TrimSpace(c.Parent)
 	if parent == "" {
-		parent = cloudIdentityDefaultParent
+		parent = cloudIdentityParent()
 	}
 
 	call := svc.Groups.List().Parent(parent).PageSize(c.Max)
@@ -152,7 +157,7 @@ func (c *CloudIdentityGroupsGetCmd) Run(ctx context.Context, flags *RootFlags) e
 type CloudIdentityGroupsCreateCmd struct {
 	Email        string `name:"email" help:"Group email" required:""`
 	DisplayName  string `name:"display-name" help:"Display name"`
-	Parent       string `name:"parent" help:"Customer parent (customers/my_customer or customers/C123)"`
+	Parent       string `name:"parent" help:"Customer parent (default: customers/my_customer, override with GOG_CUSTOMER_ID env var)"`
 	DynamicQuery string `name:"dynamic-query" help:"Dynamic group membership query"`
 }
 
@@ -170,7 +175,7 @@ func (c *CloudIdentityGroupsCreateCmd) Run(ctx context.Context, flags *RootFlags
 
 	parent := strings.TrimSpace(c.Parent)
 	if parent == "" {
-		parent = cloudIdentityDefaultParent
+		parent = cloudIdentityParent()
 	}
 
 	svc, err := newCloudIdentityAdminService(ctx, account)
