@@ -146,12 +146,12 @@ func (c *GmailSendCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 
 	// If quoting, append the quoted original message to the body
-	var bodyHTML string
+	var quoteHTML string
 	if c.Quote && replyInfo.Body != "" {
+		// Save original user body before appending quote (for HTML generation)
+		userBody := body
 		body += formatQuotedMessage(replyInfo.FromAddr, replyInfo.Date, replyInfo.Body)
-		// For HTML: include user's body text (escaped) + the HTML quote
-		userBodyHTML := html.EscapeString(strings.TrimSpace(c.Body))
-		userBodyHTML = strings.ReplaceAll(userBodyHTML, "\n", "<br>\n")
+
 		// Use original HTML body if available to preserve formatting, otherwise convert plain text
 		quoteContent := replyInfo.BodyHTML
 		if quoteContent == "" {
@@ -159,7 +159,14 @@ func (c *GmailSendCmd) Run(ctx context.Context, flags *RootFlags) error {
 			quoteContent = html.EscapeString(replyInfo.Body)
 			quoteContent = strings.ReplaceAll(quoteContent, "\n", "<br>\n")
 		}
-		bodyHTML = userBodyHTML + formatQuotedMessageHTMLWithContent(replyInfo.FromAddr, replyInfo.Date, quoteContent)
+		quoteHTML = formatQuotedMessageHTMLWithContent(replyInfo.FromAddr, replyInfo.Date, quoteContent)
+
+		// If user didn't provide --body-html, generate HTML from plain text body + quote
+		if strings.TrimSpace(c.BodyHTML) == "" {
+			userBodyHTML := html.EscapeString(strings.TrimSpace(userBody))
+			userBodyHTML = strings.ReplaceAll(userBodyHTML, "\n", "<br>\n")
+			quoteHTML = userBodyHTML + quoteHTML
+		}
 	}
 
 	// Determine recipients
@@ -203,8 +210,8 @@ func (c *GmailSendCmd) Run(ctx context.Context, flags *RootFlags) error {
 
 	batches := buildSendBatches(toRecipients, ccRecipients, bccRecipients, c.Track, c.TrackSplit)
 	htmlBody := c.BodyHTML
-	if bodyHTML != "" {
-		htmlBody += bodyHTML
+	if quoteHTML != "" {
+		htmlBody += quoteHTML
 	}
 	results, err := sendGmailBatches(ctx, svc, sendMessageOptions{
 		FromAddr:    fromAddr,
