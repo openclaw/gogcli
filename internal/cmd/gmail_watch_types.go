@@ -54,11 +54,49 @@ type gmailWatchServeConfig struct {
 	MaxBodyBytes  int
 	HistoryMax    int64
 	ResyncMax     int64
+	HistoryTypes  []string
 	HookTimeout   time.Duration
 	DateLocation  *time.Location
 	PersistHook   bool
 	AllowNoHook   bool
 	VerboseOutput bool
+}
+
+var gmailHistoryTypeAliases = map[string]string{
+	"messageadded":    "messageAdded",
+	"messagesadded":   "messageAdded",
+	"messagedeleted":  "messageDeleted",
+	"messagesdeleted": "messageDeleted",
+	"labeladded":      "labelAdded",
+	"labelsadded":     "labelAdded",
+	"labelremoved":    "labelRemoved",
+	"labelsremoved":   "labelRemoved",
+}
+
+func parseHistoryTypes(values []string) ([]string, error) {
+	if len(values) == 0 {
+		return nil, nil
+	}
+	out := make([]string, 0, len(values))
+	seen := make(map[string]struct{})
+	for _, raw := range values {
+		for _, part := range strings.Split(raw, ",") {
+			trimmed := strings.TrimSpace(part)
+			if trimmed == "" {
+				continue
+			}
+			normalized, ok := gmailHistoryTypeAliases[strings.ToLower(trimmed)]
+			if !ok {
+				return nil, usage("--history-types must be one of messageAdded,messageDeleted,labelAdded,labelRemoved")
+			}
+			if _, exists := seen[normalized]; exists {
+				continue
+			}
+			seen[normalized] = struct{}{}
+			out = append(out, normalized)
+		}
+	}
+	return out, nil
 }
 
 type pubsubPushEnvelope struct {

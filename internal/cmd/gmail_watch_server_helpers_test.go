@@ -8,6 +8,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -50,6 +51,15 @@ func TestCollectHistoryMessageIDs(t *testing.T) {
 					{Message: &gmail.Message{Id: "m1"}},
 					nil,
 				},
+				MessagesDeleted: []*gmail.HistoryMessageDeleted{
+					{Message: &gmail.Message{Id: "m4"}},
+				},
+				LabelsAdded: []*gmail.HistoryLabelAdded{
+					{Message: &gmail.Message{Id: "m5"}},
+				},
+				LabelsRemoved: []*gmail.HistoryLabelRemoved{
+					{Message: &gmail.Message{Id: "m6"}},
+				},
 				Messages: []*gmail.Message{
 					{Id: "m2"},
 					{Id: ""},
@@ -62,8 +72,27 @@ func TestCollectHistoryMessageIDs(t *testing.T) {
 	}
 	ids := collectHistoryMessageIDs(resp)
 	joined := strings.Join(ids, ",")
-	if !strings.Contains(joined, "m1") || !strings.Contains(joined, "m2") || !strings.Contains(joined, "m3") {
+	if !strings.Contains(joined, "m1") ||
+		!strings.Contains(joined, "m2") ||
+		!strings.Contains(joined, "m3") ||
+		!strings.Contains(joined, "m4") ||
+		!strings.Contains(joined, "m5") ||
+		!strings.Contains(joined, "m6") {
 		t.Fatalf("unexpected ids: %v", ids)
+	}
+}
+
+func TestParseHistoryTypes(t *testing.T) {
+	got, err := parseHistoryTypes([]string{"messageAdded,labelRemoved", "labelsAdded", "messagesDeleted", "messageAdded"})
+	if err != nil {
+		t.Fatalf("parseHistoryTypes: %v", err)
+	}
+	want := []string{"messageAdded", "labelRemoved", "labelAdded", "messageDeleted"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("unexpected types: %v", got)
+	}
+	if _, err := parseHistoryTypes([]string{"nope"}); err == nil {
+		t.Fatalf("expected error for invalid history type")
 	}
 }
 

@@ -48,7 +48,8 @@ gog gmail watch serve \
   [--verify-oidc] [--oidc-email <svc@...>] [--oidc-audience <aud>] \
   [--token <shared>] \
   [--hook-url <url>] [--hook-token <token>] \
-  [--include-body] [--max-bytes <n>] [--save-hook]
+  [--include-body] [--max-bytes <n>] \
+  [--history-types <type>...] [--save-hook]
 
 gog gmail history --since <historyId> [--max <n>] [--page <token>]
 ```
@@ -58,6 +59,7 @@ Notes:
 - `watch renew` reuses stored topic/labels.
 - `watch stop` calls Gmail stop + clears state.
 - `watch serve` uses stored hook if `--hook-url` not provided.
+- `watch serve --history-types` accepts `messageAdded`, `messageDeleted`, `labelAdded`, `labelRemoved` (repeatable or comma-separated). Default: all.
 
 ## State
 

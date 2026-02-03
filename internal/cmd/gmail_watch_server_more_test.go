@@ -141,6 +141,93 @@ func TestGmailWatchServer_ServeHTTP_AllowNoHook(t *testing.T) {
 	}
 }
 
+func TestGmailWatchServer_ServeHTTP_HistoryTypes_NoMatch(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	store, err := newGmailWatchStore("a@b.com")
+	if err != nil {
+		t.Fatalf("store: %v", err)
+	}
+	// Seed state so StartHistoryID returns non-zero.
+	if updateErr := store.Update(func(s *gmailWatchState) error {
+		s.Account = "a@b.com"
+		s.HistoryID = "100"
+		return nil
+	}); updateErr != nil {
+		t.Fatalf("seed: %v", updateErr)
+	}
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case strings.Contains(r.URL.Path, "/gmail/v1/users/me/history"):
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"historyId": "200",
+				"history":   []map[string]any{},
+			})
+			return
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+
+	gsvc, err := gmail.NewService(context.Background(),
+		option.WithoutAuthentication(),
+		option.WithHTTPClient(srv.Client()),
+		option.WithEndpoint(srv.URL+"/"),
+	)
+	if err != nil {
+		t.Fatalf("NewService: %v", err)
+	}
+
+	u, err := ui.New(ui.Options{Stdout: io.Discard, Stderr: io.Discard, Color: "never"})
+	if err != nil {
+		t.Fatalf("ui.New: %v", err)
+	}
+	ctx := ui.WithUI(context.Background(), u)
+	ctx = outfmt.WithMode(ctx, outfmt.Mode{JSON: true})
+
+	s := &gmailWatchServer{
+		cfg: gmailWatchServeConfig{
+			Account:      "a@b.com",
+			Path:         "/gmail-pubsub",
+			SharedToken:  "tok",
+			AllowNoHook:  true,
+			HistoryMax:   100,
+			ResyncMax:    10,
+			HistoryTypes: []string{"messageAdded"},
+		},
+		store:      store,
+		newService: func(context.Context, string) (*gmail.Service, error) { return gsvc, nil },
+		hookClient: srv.Client(),
+		logf:       func(string, ...any) {},
+		warnf:      func(string, ...any) {},
+	}
+
+	push := pubsubPushEnvelope{}
+	push.Message.Data = base64.StdEncoding.EncodeToString([]byte(`{"emailAddress":"a@b.com","historyId":"200"}`))
+	body, _ := json.Marshal(push)
+
+	req := httptest.NewRequest(http.MethodPost, "/gmail-pubsub?token=tok", bytes.NewReader(body))
+	req = req.WithContext(ctx)
+
+	rr := httptest.NewRecorder()
+	s.ServeHTTP(rr, req)
+	if rr.Code != http.StatusAccepted {
+		t.Fatalf("status: %d body=%q", rr.Code, rr.Body.String())
+	}
+	if rr.Body.Len() != 0 {
+		t.Fatalf("expected empty body, got %q", rr.Body.String())
+	}
+
+	st := store.Get()
+	if st.HistoryID != "200" {
+		t.Fatalf("expected history updated, got %q", st.HistoryID)
+	}
+}
+
 func TestGmailWatchHelpers(t *testing.T) {
 	if got := bearerToken(&http.Request{Header: http.Header{"Authorization": []string{"Bearer tok"}}}); got != "tok" {
 		t.Fatalf("bearer: %q", got)
