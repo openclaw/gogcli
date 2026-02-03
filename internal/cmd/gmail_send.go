@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+	"html"
 	"net/mail"
 	"os"
 	"strings"
@@ -145,8 +146,10 @@ func (c *GmailSendCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 
 	// If quoting, append the quoted original message to the body
+	var bodyHTML string
 	if c.Quote && replyInfo.Body != "" {
 		body += formatQuotedMessage(replyInfo.FromAddr, replyInfo.Date, replyInfo.Body)
+		bodyHTML = formatQuotedMessageHTML(replyInfo.FromAddr, replyInfo.Date, replyInfo.Body)
 	}
 
 	// Determine recipients
@@ -189,12 +192,16 @@ func (c *GmailSendCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 
 	batches := buildSendBatches(toRecipients, ccRecipients, bccRecipients, c.Track, c.TrackSplit)
+	htmlBody := c.BodyHTML
+	if bodyHTML != "" {
+		htmlBody += bodyHTML
+	}
 	results, err := sendGmailBatches(ctx, svc, sendMessageOptions{
 		FromAddr:    fromAddr,
 		ReplyTo:     c.ReplyTo,
 		Subject:     c.Subject,
 		Body:        body,
-		BodyHTML:    c.BodyHTML,
+		BodyHTML:    htmlBody,
 		ReplyInfo:   replyInfo,
 		Attachments: atts,
 		Track:       c.Track,
@@ -687,4 +694,24 @@ func formatQuotedMessage(from, date, body string) string {
 	}
 
 	return sb.String()
+}
+
+func formatQuotedMessageHTML(from, date, body string) string {
+	senderName := from
+	if addr, err := mail.ParseAddress(from); err == nil && addr.Name != "" {
+		senderName = addr.Name
+	}
+
+	escapedBody := html.EscapeString(body)
+	escapedBody = strings.ReplaceAll(escapedBody, "\n", "<br>\n")
+
+	dateStr := date
+	if date == "" {
+		dateStr = "an earlier date"
+	}
+
+	return fmt.Sprintf(`<br><br><div class="gmail_quote"><div class="gmail_attr">On %s, %s wrote:</div><blockquote class="gmail_quote" style="margin:0 0 0 .8ex;border-left:1px #ccc solid;padding-left:1ex">%s</blockquote></div>`,
+		html.EscapeString(dateStr),
+		html.EscapeString(senderName),
+		escapedBody)
 }
