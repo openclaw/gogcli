@@ -12,7 +12,7 @@ import (
 )
 
 type BatchCmd struct {
-	File     string `arg:"" name:"file" help:"Batch file"`
+	File     string `arg:"" name:"file" help:"Batch file (one command per line, lines starting with # are comments)"`
 	Parallel int    `name:"parallel" help:"Number of commands to run in parallel" default:"1"`
 	DryRun   bool   `name:"dry-run" help:"Preview commands without executing"`
 }

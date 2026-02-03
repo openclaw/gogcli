@@ -11,10 +11,10 @@ import (
 
 type CSVCmd struct {
 	File     string   `arg:"" name:"file" help:"CSV file path"`
-	Command  []string `arg:"" name:"command" help:"Command template to execute"`
+	Command  []string `arg:"" name:"command" help:"Command template to execute. Use ~field for substitution (e.g., 'users create ~email --first-name ~firstName')"`
 	Fields   string   `name:"fields" help:"Comma-separated list of fields to include"`
-	Match    []string `name:"matchfield" help:"Only process rows where FIELD:REGEX matches"`
-	Skip     []string `name:"skipfield" help:"Skip rows where FIELD:REGEX matches"`
+	Match    []string `name:"matchfield" help:"Only process rows where FIELD:REGEX matches (e.g., 'status:^active$')"`
+	Skip     []string `name:"skipfield" help:"Skip rows where FIELD:REGEX matches (e.g., 'email:@test\\.com$')"`
 	SkipRows int      `name:"skiprows" help:"Skip first N data rows"`
 	MaxRows  int      `name:"maxrows" help:"Max number of rows to process"`
 	DryRun   bool     `name:"dry-run" help:"Preview commands without executing"`

@@ -158,7 +158,7 @@ type CloudIdentityGroupsCreateCmd struct {
 	Email        string `name:"email" help:"Group email" required:""`
 	DisplayName  string `name:"display-name" help:"Display name"`
 	Parent       string `name:"parent" help:"Customer parent (default: customers/my_customer, override with GOG_CUSTOMER_ID env var)"`
-	DynamicQuery string `name:"dynamic-query" help:"Dynamic group membership query"`
+	DynamicQuery string `name:"dynamic-query" help:"CEL expression for dynamic membership (e.g., 'user.is_enrolled_in_2sv == true')"`
 }
 
 func (c *CloudIdentityGroupsCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
