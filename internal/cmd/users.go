@@ -43,9 +43,10 @@ func generatePassword(length int) (string, error) {
 	const lower = "abcdefghijklmnopqrstuvwxyz"
 	const upper = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 	const digits = "0123456789"
-	const all = lower + upper + digits
+	const special = "!@#$%^&*()_+-=[]{}|;:,.<>?"
+	const all = lower + upper + digits + special
 
-	sets := []string{lower, upper, digits}
+	sets := []string{lower, upper, digits, special}
 	b := make([]byte, length)
 	for i, set := range sets {
 		ch, err := randChar(set)
