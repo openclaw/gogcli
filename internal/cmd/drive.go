@@ -56,6 +56,12 @@ type DriveCmd struct {
 	Share       DriveShareCmd       `cmd:"" name:"share" help:"Share a file or folder"`
 	Unshare     DriveUnshareCmd     `cmd:"" name:"unshare" help:"Remove a permission from a file"`
 	Permissions DrivePermissionsCmd `cmd:"" name:"permissions" help:"List permissions on a file"`
+	Orphans     DriveOrphansCmd     `cmd:"" name:"orphans" help:"Manage orphaned files"`
+	Cleanup     DriveCleanupCmd     `cmd:"" name:"cleanup" help:"Cleanup Drive content"`
+	Revisions   DriveRevisionsCmd   `cmd:"" name:"revisions" help:"Manage file revisions"`
+	Shortcuts   DriveShortcutsCmd   `cmd:"" name:"shortcuts" help:"Manage shortcuts"`
+	Activity    DriveActivityCmd    `cmd:"" name:"activity" help:"Show file activity"`
+	Transfer    DriveTransferCmd    `cmd:"" name:"transfer" help:"Transfer file ownership"`
 	URL         DriveURLCmd         `cmd:"" name:"url" help:"Print web URLs for files"`
 	Comments    DriveCommentsCmd    `cmd:"" name:"comments" help:"Manage comments on files"`
 	Drives      DriveDrivesCmd      `cmd:"" name:"drives" help:"List shared drives (Team Drives)"`

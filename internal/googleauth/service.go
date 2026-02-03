@@ -35,6 +35,12 @@ const (
 	ServiceMeet           Service = "meet"
 	ServiceAnalytics      Service = "analytics"
 	ServiceDriveLabels    Service = "drivelabels"
+	ServiceDriveActivity  Service = "driveactivity"
+	ServiceCloudIdentity  Service = "cloudidentity"
+	ServiceReseller       Service = "reseller"
+	ServiceCloudChannel   Service = "cloudchannel"
+	ServiceCloudResource  Service = "cloudresourcemanager"
+	ServiceIAM            Service = "iam"
 )
 
 const (
@@ -94,6 +100,12 @@ var serviceOrder = []Service{
 	ServiceMeet,
 	ServiceAnalytics,
 	ServiceDriveLabels,
+	ServiceDriveActivity,
+	ServiceCloudIdentity,
+	ServiceReseller,
+	ServiceCloudChannel,
+	ServiceCloudResource,
+	ServiceIAM,
 }
 
 var serviceInfoByService = map[Service]serviceInfo{
@@ -331,6 +343,62 @@ var serviceInfoByService = map[Service]serviceInfo{
 		user: false,
 		apis: []string{"Drive Labels API"},
 		note: "Drive classification labels",
+	},
+	ServiceDriveActivity: {
+		scopes: []string{
+			"https://www.googleapis.com/auth/drive.activity",
+			"https://www.googleapis.com/auth/drive.activity.readonly",
+		},
+		user: false,
+		apis: []string{"Drive Activity API"},
+		note: "Drive activity history",
+	},
+	ServiceCloudIdentity: {
+		scopes: []string{
+			"https://www.googleapis.com/auth/cloud-identity.groups",
+			"https://www.googleapis.com/auth/cloud-identity.groups.readonly",
+			"https://www.googleapis.com/auth/cloud-identity.policies",
+			"https://www.googleapis.com/auth/cloud-identity.policies.readonly",
+		},
+		user: false,
+		apis: []string{"Cloud Identity API"},
+		note: "Cloud Identity groups + policies",
+	},
+	ServiceReseller: {
+		scopes: []string{
+			"https://www.googleapis.com/auth/apps.order",
+			"https://www.googleapis.com/auth/apps.order.readonly",
+		},
+		user: false,
+		apis: []string{"Reseller API"},
+		note: "Workspace reseller",
+	},
+	ServiceCloudChannel: {
+		scopes: []string{
+			"https://www.googleapis.com/auth/apps.order",
+			"https://www.googleapis.com/auth/apps.reports.usage.readonly",
+		},
+		user: false,
+		apis: []string{"Cloud Channel API"},
+		note: "Cloud Channel customers + offers",
+	},
+	ServiceCloudResource: {
+		scopes: []string{
+			"https://www.googleapis.com/auth/cloud-platform",
+			"https://www.googleapis.com/auth/cloud-platform.read-only",
+		},
+		user: false,
+		apis: []string{"Cloud Resource Manager API"},
+		note: "GCP projects",
+	},
+	ServiceIAM: {
+		scopes: []string{
+			"https://www.googleapis.com/auth/cloud-platform",
+			"https://www.googleapis.com/auth/cloud-platform.read-only",
+		},
+		user: false,
+		apis: []string{"IAM API"},
+		note: "Service accounts",
 	},
 }
 
@@ -625,7 +693,7 @@ func scopesForServiceWithOptions(service Service, opts ScopeOptions) ([]string, 
 		return Scopes(service)
 	case ServiceKeep:
 		return Scopes(service)
-	case ServiceAdminDirectory, ServiceReports, ServiceVault, ServiceAlertCenter, ServiceInboundSSO, ServiceAccessContext, ServiceLicensing, ServiceDataTransfer, ServiceForms, ServiceYouTube, ServiceMeet, ServiceAnalytics, ServiceDriveLabels:
+	case ServiceAdminDirectory, ServiceReports, ServiceVault, ServiceAlertCenter, ServiceInboundSSO, ServiceAccessContext, ServiceLicensing, ServiceDataTransfer, ServiceForms, ServiceYouTube, ServiceMeet, ServiceAnalytics, ServiceDriveLabels, ServiceDriveActivity, ServiceCloudIdentity, ServiceReseller, ServiceCloudChannel, ServiceCloudResource, ServiceIAM:
 		return Scopes(service)
 	default:
 		return nil, errUnknownService

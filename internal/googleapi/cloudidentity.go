@@ -37,3 +37,16 @@ func NewCloudIdentityInboundSSO(ctx context.Context, email string) (*cloudidenti
 	}
 	return svc, nil
 }
+
+// NewCloudIdentity creates a Cloud Identity service for admin-level group and policy management.
+func NewCloudIdentity(ctx context.Context, email string) (*cloudidentity.Service, error) {
+	opts, err := optionsForAccount(ctx, googleauth.ServiceCloudIdentity, email)
+	if err != nil {
+		return nil, fmt.Errorf("cloud identity options: %w", err)
+	}
+	svc, err := cloudidentity.NewService(ctx, opts...)
+	if err != nil {
+		return nil, fmt.Errorf("create cloud identity service: %w", err)
+	}
+	return svc, nil
+}

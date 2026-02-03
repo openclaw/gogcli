@@ -21,6 +21,11 @@ type ContactsCmd struct {
 	Delete    ContactsDeleteCmd    `cmd:"" name:"delete" help:"Delete a contact"`
 	Directory ContactsDirectoryCmd `cmd:"" name:"directory" help:"Directory contacts"`
 	Other     ContactsOtherCmd     `cmd:"" name:"other" help:"Other contacts"`
+	Delegates ContactsDelegatesCmd `cmd:"" name:"delegates" help:"Contact delegates"`
+	Domain    ContactsDomainCmd    `cmd:"" name:"domain" help:"Domain shared contacts"`
+	Import    ContactsImportCmd    `cmd:"" name:"import" help:"Import contacts from CSV"`
+	Export    ContactsExportCmd    `cmd:"" name:"export" help:"Export contacts to CSV"`
+	Dedup     ContactsDedupCmd     `cmd:"" name:"dedup" help:"Deduplicate contacts"`
 }
 
 type ContactsSearchCmd struct {

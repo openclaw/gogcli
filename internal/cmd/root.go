@@ -65,6 +65,11 @@ type CLI struct {
 	Meet       MeetCmd               `cmd:"" help:"Google Meet"`
 	Analytics  AnalyticsCmd          `cmd:"" help:"Analytics Admin"`
 	Labels     LabelsCmd             `cmd:"" help:"Drive Labels"`
+	CI              CloudIdentityCmd   `cmd:"" name:"ci" help:"Cloud Identity"`
+	Reseller        ResellerCmd        `cmd:"" help:"Reseller API"`
+	Channel         ChannelCmd         `cmd:"" help:"Cloud Channel"`
+	Projects        ProjectsCmd        `cmd:"" help:"GCP projects"`
+	ServiceAccounts ServiceAccountsCmd `cmd:"" name:"serviceaccounts" help:"Service accounts"`
 	Drive      DriveCmd              `cmd:"" help:"Google Drive"`
 	Docs       DocsCmd               `cmd:"" help:"Google Docs (export via Drive)"`
 	Slides     SlidesCmd             `cmd:"" help:"Google Slides"`
