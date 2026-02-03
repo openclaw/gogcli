@@ -143,6 +143,68 @@ func TestDriveRevisionsListCmd(t *testing.T) {
 	}
 }
 
+func TestDriveRevisionsGetCmd(t *testing.T) {
+	h := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet || !strings.Contains(r.URL.Path, "/files/file1/revisions/rev1") {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"id":           "rev1",
+			"modifiedTime": "2026-01-15T10:30:00Z",
+			"mimeType":     "text/plain",
+			"keepForever":  true,
+			"lastModifyingUser": map[string]any{
+				"emailAddress": "editor@example.com",
+			},
+		})
+	})
+	stubDrive(t, h)
+
+	flags := &RootFlags{Account: "user@example.com"}
+	cmd := &DriveRevisionsGetCmd{FileID: "file1", RevisionID: "rev1"}
+
+	out := captureStdout(t, func() {
+		if err := cmd.Run(testContextWithStdout(t), flags); err != nil {
+			t.Fatalf("Run: %v", err)
+		}
+	})
+
+	if !strings.Contains(out, "rev1") || !strings.Contains(out, "2026-01-15") {
+		t.Fatalf("unexpected output: %s", out)
+	}
+}
+
+func TestDriveRevisionsDeleteCmd(t *testing.T) {
+	var deleted bool
+	h := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodDelete || !strings.Contains(r.URL.Path, "/files/file1/revisions/rev1") {
+			http.NotFound(w, r)
+			return
+		}
+		deleted = true
+		w.WriteHeader(http.StatusNoContent)
+	})
+	stubDrive(t, h)
+
+	flags := &RootFlags{Account: "user@example.com", Force: true}
+	cmd := &DriveRevisionsDeleteCmd{FileID: "file1", RevisionID: "rev1"}
+
+	out := captureStdout(t, func() {
+		if err := cmd.Run(testContextWithStdout(t), flags); err != nil {
+			t.Fatalf("Run: %v", err)
+		}
+	})
+
+	if !deleted {
+		t.Fatalf("expected delete request")
+	}
+	if !strings.Contains(out, "Deleted revision") {
+		t.Fatalf("unexpected output: %s", out)
+	}
+}
+
 func TestDriveShortcutsCreateCmd(t *testing.T) {
 	var gotMime string
 	h := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -173,6 +235,35 @@ func TestDriveShortcutsCreateCmd(t *testing.T) {
 		t.Fatalf("unexpected mime: %s", gotMime)
 	}
 	if !strings.Contains(out, "Created shortcut") {
+		t.Fatalf("unexpected output: %s", out)
+	}
+}
+
+func TestDriveShortcutsDeleteCmd(t *testing.T) {
+	var deleted bool
+	h := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodDelete || !strings.Contains(r.URL.Path, "/files/shortcut1") {
+			http.NotFound(w, r)
+			return
+		}
+		deleted = true
+		w.WriteHeader(http.StatusNoContent)
+	})
+	stubDrive(t, h)
+
+	flags := &RootFlags{Account: "user@example.com", Force: true}
+	cmd := &DriveShortcutsDeleteCmd{ShortcutID: "shortcut1"}
+
+	out := captureStdout(t, func() {
+		if err := cmd.Run(testContextWithStdout(t), flags); err != nil {
+			t.Fatalf("Run: %v", err)
+		}
+	})
+
+	if !deleted {
+		t.Fatalf("expected delete request")
+	}
+	if !strings.Contains(out, "Deleted shortcut") {
 		t.Fatalf("unexpected output: %s", out)
 	}
 }
