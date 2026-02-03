@@ -195,18 +195,7 @@ func (s *gmailWatchServer) handlePush(ctx context.Context, payload gmailPushPayl
 	}
 	if len(s.cfg.HistoryTypes) > 0 && (historyResp == nil || len(historyResp.History) == 0) {
 		if err := store.Update(func(state *gmailWatchState) error {
-			shouldUpdate, err := shouldUpdateHistoryID(state.HistoryID, nextHistoryID)
-			if err != nil {
-				return err
-			}
-			if shouldUpdate {
-				state.HistoryID = nextHistoryID
-			}
-			if payload.MessageID != "" {
-				state.LastPushMessageID = payload.MessageID
-			}
-			state.UpdatedAtMs = time.Now().UnixMilli()
-			return nil
+			return updateStateAfterHistory(state, nextHistoryID, payload.MessageID)
 		}); err != nil {
 			s.warnf("watch: failed to update state: %v", err)
 		}
@@ -219,18 +208,7 @@ func (s *gmailWatchServer) handlePush(ctx context.Context, payload gmailPushPayl
 		return nil, err
 	}
 	if err := store.Update(func(state *gmailWatchState) error {
-		shouldUpdate, err := shouldUpdateHistoryID(state.HistoryID, nextHistoryID)
-		if err != nil {
-			return err
-		}
-		if shouldUpdate {
-			state.HistoryID = nextHistoryID
-		}
-		if payload.MessageID != "" {
-			state.LastPushMessageID = payload.MessageID
-		}
-		state.UpdatedAtMs = time.Now().UnixMilli()
-		return nil
+		return updateStateAfterHistory(state, nextHistoryID, payload.MessageID)
 	}); err != nil {
 		s.warnf("watch: failed to update state: %v", err)
 	}
@@ -261,18 +239,7 @@ func (s *gmailWatchServer) resyncHistory(ctx context.Context, svc *gmail.Service
 	}
 
 	if err := s.store.Update(func(state *gmailWatchState) error {
-		shouldUpdate, err := shouldUpdateHistoryID(state.HistoryID, historyID)
-		if err != nil {
-			return err
-		}
-		if shouldUpdate {
-			state.HistoryID = historyID
-		}
-		if messageID != "" {
-			state.LastPushMessageID = messageID
-		}
-		state.UpdatedAtMs = time.Now().UnixMilli()
-		return nil
+		return updateStateAfterHistory(state, historyID, messageID)
 	}); err != nil {
 		s.warnf("watch: failed to update state after resync: %v", err)
 	}
@@ -461,6 +428,23 @@ func pathMatches(expected, actual string) bool {
 		return strings.HasPrefix(actual, expected)
 	}
 	return strings.HasPrefix(actual, expected+"/")
+}
+
+// updateStateAfterHistory updates the stored state with the new history ID and push message ID.
+// This is a common operation after processing history, whether messages were found or not.
+func updateStateAfterHistory(state *gmailWatchState, historyID, pushMessageID string) error {
+	shouldUpdate, err := shouldUpdateHistoryID(state.HistoryID, historyID)
+	if err != nil {
+		return err
+	}
+	if shouldUpdate {
+		state.HistoryID = historyID
+	}
+	if pushMessageID != "" {
+		state.LastPushMessageID = pushMessageID
+	}
+	state.UpdatedAtMs = time.Now().UnixMilli()
+	return nil
 }
 
 func isStaleHistoryError(err error) bool {

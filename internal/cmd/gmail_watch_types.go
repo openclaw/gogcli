@@ -63,6 +63,12 @@ type gmailWatchServeConfig struct {
 }
 
 var gmailHistoryTypeAliases = map[string]string{
+	// Canonical forms (for robustness when users provide exact casing)
+	"messageAdded":   "messageAdded",
+	"messageDeleted": "messageDeleted",
+	"labelAdded":     "labelAdded",
+	"labelRemoved":   "labelRemoved",
+	// Lowercase aliases
 	"messageadded":    "messageAdded",
 	"messagesadded":   "messageAdded",
 	"messagedeleted":  "messageDeleted",

@@ -59,7 +59,7 @@ Notes:
 - `watch renew` reuses stored topic/labels.
 - `watch stop` calls Gmail stop + clears state.
 - `watch serve` uses stored hook if `--hook-url` not provided.
-- `watch serve --history-types` accepts `messageAdded`, `messageDeleted`, `labelAdded`, `labelRemoved` (repeatable or comma-separated). Default: all.
+- `watch serve --history-types` accepts `messageAdded`, `messageDeleted`, `labelAdded`, `labelRemoved` (repeatable or comma-separated). Default: `messageAdded` (for backward compatibility).
 
 ## State
 

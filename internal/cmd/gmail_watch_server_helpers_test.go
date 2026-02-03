@@ -87,6 +87,11 @@ func TestCollectHistoryMessageIDs(t *testing.T) {
 		t.Fatalf("deleted message m4 should not be in fetch ids: %v", result.FetchIDs)
 	}
 
+	// Verify exact count: 5 unique fetch IDs (m1, m2, m3, m5, m6)
+	if len(result.FetchIDs) != 5 {
+		t.Fatalf("expected 5 unique fetch ids, got %d: %v", len(result.FetchIDs), result.FetchIDs)
+	}
+
 	// Deleted message m4 should be in deleted IDs
 	if len(result.DeletedIDs) != 1 || result.DeletedIDs[0] != "m4" {
 		t.Fatalf("expected deleted ids [m4], got: %v", result.DeletedIDs)
@@ -175,6 +180,38 @@ func TestParseHistoryTypes_DefaultsToMessageAdded(t *testing.T) {
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("expected default %v, got %v", want, got)
+	}
+}
+
+func TestParseHistoryTypes_EmptyStringsInInput(t *testing.T) {
+	// Test that empty strings between commas are handled correctly.
+	got, err := parseHistoryTypes([]string{"messageAdded,,labelAdded"})
+	if err != nil {
+		t.Fatalf("parseHistoryTypes with empty strings: %v", err)
+	}
+	want := []string{"messageAdded", "labelAdded"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("expected %v, got %v", want, got)
+	}
+
+	// Test leading/trailing empty parts.
+	got, err = parseHistoryTypes([]string{",messageAdded,", ",labelRemoved,"})
+	if err != nil {
+		t.Fatalf("parseHistoryTypes with leading/trailing empty: %v", err)
+	}
+	want = []string{"messageAdded", "labelRemoved"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("expected %v, got %v", want, got)
+	}
+
+	// Test whitespace-only parts.
+	got, err = parseHistoryTypes([]string{"messageAdded, ,labelAdded"})
+	if err != nil {
+		t.Fatalf("parseHistoryTypes with whitespace: %v", err)
+	}
+	want = []string{"messageAdded", "labelAdded"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("expected %v, got %v", want, got)
 	}
 }
 
