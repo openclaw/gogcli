@@ -92,3 +92,72 @@ func TestBatchCmdParsing(t *testing.T) {
 		t.Fatalf("expected quoted arg to be preserved: %v", calls)
 	}
 }
+
+func TestBatchCmdDryRun(t *testing.T) {
+	batchPath := filepath.Join(t.TempDir(), "batch.txt")
+	content := "# comment\n" +
+		"users create \"user one@example.com\" --first-name \"User One\"\n" +
+		"users create user2@example.com --first-name User2\n"
+	if err := os.WriteFile(batchPath, []byte(content), 0o600); err != nil {
+		t.Fatalf("write batch: %v", err)
+	}
+
+	orig := executeSubcommand
+	t.Cleanup(func() { executeSubcommand = orig })
+
+	var mu sync.Mutex
+	calls := [][]string{}
+	executeSubcommand = func(_ context.Context, _ *RootFlags, args []string) error {
+		mu.Lock()
+		defer mu.Unlock()
+		calls = append(calls, append([]string{}, args...))
+		return nil
+	}
+
+	cmd := &BatchCmd{File: batchPath, DryRun: true}
+	if err := cmd.Run(testContext(t), &RootFlags{}); err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+
+	// No commands should have been executed
+	if len(calls) != 0 {
+		t.Fatalf("expected 0 commands to be executed in dry-run, got %d", len(calls))
+	}
+}
+
+func TestCSVCmdDryRun(t *testing.T) {
+	csvPath := filepath.Join(t.TempDir(), "users.csv")
+	data := "email,first,last,dept\n" +
+		"alice@example.com,Alice,Example,Sales\n" +
+		"bob@example.com,Bob,Example,HR\n"
+	if err := os.WriteFile(csvPath, []byte(data), 0o600); err != nil {
+		t.Fatalf("write csv: %v", err)
+	}
+
+	orig := executeSubcommand
+	t.Cleanup(func() { executeSubcommand = orig })
+
+	var mu sync.Mutex
+	calls := [][]string{}
+	executeSubcommand = func(_ context.Context, _ *RootFlags, args []string) error {
+		mu.Lock()
+		defer mu.Unlock()
+		calls = append(calls, append([]string{}, args...))
+		return nil
+	}
+
+	cmd := &CSVCmd{
+		File:    csvPath,
+		Command: []string{"users", "create", "~email", "--first-name", "~~first~~"},
+		DryRun:  true,
+	}
+
+	if err := cmd.Run(testContext(t), &RootFlags{}); err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+
+	// No commands should have been executed
+	if len(calls) != 0 {
+		t.Fatalf("expected 0 commands to be executed in dry-run, got %d", len(calls))
+	}
+}

@@ -14,6 +14,7 @@ import (
 type BatchCmd struct {
 	File     string `arg:"" name:"file" help:"Batch file"`
 	Parallel int    `name:"parallel" help:"Number of commands to run in parallel" default:"1"`
+	DryRun   bool   `name:"dry-run" help:"Preview commands without executing"`
 }
 
 func (c *BatchCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -28,6 +29,19 @@ func (c *BatchCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 	if len(lines) == 0 {
 		return fmt.Errorf("no commands found")
+	}
+
+	// Handle dry-run mode
+	if c.DryRun {
+		for _, task := range lines {
+			if u != nil {
+				u.Err().Printf("[dry-run] line %d: %s\n", task.Line, strings.Join(task.Args, " "))
+			}
+		}
+		if u != nil {
+			u.Err().Printf("Batch preview: total=%d (no commands executed)\n", len(lines))
+		}
+		return nil
 	}
 
 	parallel := c.Parallel

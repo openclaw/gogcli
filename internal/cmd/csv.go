@@ -17,6 +17,7 @@ type CSVCmd struct {
 	Skip     []string `name:"skipfield" help:"Skip rows where FIELD:REGEX matches"`
 	SkipRows int      `name:"skiprows" help:"Skip first N data rows"`
 	MaxRows  int      `name:"maxrows" help:"Max number of rows to process"`
+	DryRun   bool     `name:"dry-run" help:"Preview commands without executing"`
 }
 
 func (c *CSVCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -54,6 +55,12 @@ func (c *CSVCmd) Run(ctx context.Context, flags *RootFlags) error {
 			failed++
 			return fmt.Errorf("row %d: %w", row.Index, err)
 		}
+		if c.DryRun {
+			if u != nil {
+				u.Err().Printf("[dry-run] row %d: %s\n", row.Index, strings.Join(args, " "))
+			}
+			return nil
+		}
 		if err := executeSubcommand(ctx, flags, args); err != nil {
 			failed++
 			return fmt.Errorf("row %d: %w", row.Index, err)
@@ -65,7 +72,11 @@ func (c *CSVCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 
 	if u != nil {
-		u.Err().Printf("CSV complete: processed=%d failed=%d\n", processed, failed)
+		if c.DryRun {
+			u.Err().Printf("CSV preview: processed=%d failed=%d (no commands executed)\n", processed, failed)
+		} else {
+			u.Err().Printf("CSV complete: processed=%d failed=%d\n", processed, failed)
+		}
 	}
 	return nil
 }
