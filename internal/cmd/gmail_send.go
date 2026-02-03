@@ -149,7 +149,10 @@ func (c *GmailSendCmd) Run(ctx context.Context, flags *RootFlags) error {
 	var bodyHTML string
 	if c.Quote && replyInfo.Body != "" {
 		body += formatQuotedMessage(replyInfo.FromAddr, replyInfo.Date, replyInfo.Body)
-		bodyHTML = formatQuotedMessageHTML(replyInfo.FromAddr, replyInfo.Date, replyInfo.Body)
+		// For HTML: include user's body text (escaped) + the HTML quote
+		userBodyHTML := html.EscapeString(strings.TrimSpace(c.Body))
+		userBodyHTML = strings.ReplaceAll(userBodyHTML, "\n", "<br>\n")
+		bodyHTML = userBodyHTML + formatQuotedMessageHTML(replyInfo.FromAddr, replyInfo.Date, replyInfo.Body)
 	}
 
 	// Determine recipients
