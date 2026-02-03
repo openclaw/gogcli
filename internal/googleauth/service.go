@@ -23,6 +23,8 @@ const (
 	ServiceGroups         Service = "groups"
 	ServiceKeep           Service = "keep"
 	ServiceAdminDirectory Service = "admin"
+	ServiceReports        Service = "reports"
+	ServiceVault          Service = "vault"
 )
 
 const (
@@ -70,6 +72,8 @@ var serviceOrder = []Service{
 	ServiceGroups,
 	ServiceKeep,
 	ServiceAdminDirectory,
+	ServiceReports,
+	ServiceVault,
 }
 
 var serviceInfoByService = map[Service]serviceInfo{
@@ -197,6 +201,25 @@ var serviceInfoByService = map[Service]serviceInfo{
 		user: false,
 		apis: []string{"Admin SDK Directory API", "Groups Settings API"},
 		note: "Workspace admin (domain-wide delegation)",
+	},
+	ServiceReports: {
+		scopes: []string{
+			"https://www.googleapis.com/auth/admin.reports.audit.readonly",
+			"https://www.googleapis.com/auth/admin.reports.usage.readonly",
+		},
+		user: false,
+		apis: []string{"Admin SDK Reports API"},
+		note: "Workspace audit + usage reports",
+	},
+	ServiceVault: {
+		scopes: []string{
+			"https://www.googleapis.com/auth/ediscovery",
+			"https://www.googleapis.com/auth/ediscovery.readonly",
+			"https://www.googleapis.com/auth/devstorage.read_only",
+		},
+		user: false,
+		apis: []string{"Google Vault API", "Cloud Storage API"},
+		note: "Vault exports (Cloud Storage download)",
 	},
 }
 

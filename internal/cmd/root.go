@@ -46,6 +46,10 @@ type CLI struct {
 	Orgunits   OrgunitsCmd           `cmd:"" help:"Organizational units"`
 	Domains    DomainsCmd            `cmd:"" help:"Workspace domains"`
 	Aliases    AliasesCmd            `cmd:"" help:"Workspace aliases"`
+	Roles      RolesCmd              `cmd:"" help:"Admin roles"`
+	Admins     AdminsCmd             `cmd:"" help:"Admin assignments"`
+	Reports    ReportsCmd            `cmd:"" help:"Admin reports"`
+	Vault      VaultCmd              `cmd:"" help:"Google Vault"`
 	Drive      DriveCmd              `cmd:"" help:"Google Drive"`
 	Docs       DocsCmd               `cmd:"" help:"Google Docs (export via Drive)"`
 	Slides     SlidesCmd             `cmd:"" help:"Google Slides"`
