@@ -598,7 +598,7 @@ func TestTransferApplicationsCmd_JSON(t *testing.T) {
 
 	var result struct {
 		Applications []struct {
-			ID   int64  `json:"id,string"`
+			ID   string `json:"id"`
 			Name string `json:"name"`
 		} `json:"applications"`
 	}
