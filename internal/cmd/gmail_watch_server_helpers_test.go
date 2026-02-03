@@ -70,15 +70,76 @@ func TestCollectHistoryMessageIDs(t *testing.T) {
 			},
 		},
 	}
-	ids := collectHistoryMessageIDs(resp)
-	joined := strings.Join(ids, ",")
-	if !strings.Contains(joined, "m1") ||
-		!strings.Contains(joined, "m2") ||
-		!strings.Contains(joined, "m3") ||
-		!strings.Contains(joined, "m4") ||
-		!strings.Contains(joined, "m5") ||
-		!strings.Contains(joined, "m6") {
-		t.Fatalf("unexpected ids: %v", ids)
+	result := collectHistoryMessageIDs(resp)
+
+	// Check fetch IDs contain added, labels, and general messages
+	fetchJoined := strings.Join(result.FetchIDs, ",")
+	if !strings.Contains(fetchJoined, "m1") ||
+		!strings.Contains(fetchJoined, "m2") ||
+		!strings.Contains(fetchJoined, "m3") ||
+		!strings.Contains(fetchJoined, "m5") ||
+		!strings.Contains(fetchJoined, "m6") {
+		t.Fatalf("unexpected fetch ids: %v", result.FetchIDs)
+	}
+
+	// Deleted message m4 should NOT be in fetch IDs
+	if strings.Contains(fetchJoined, "m4") {
+		t.Fatalf("deleted message m4 should not be in fetch ids: %v", result.FetchIDs)
+	}
+
+	// Deleted message m4 should be in deleted IDs
+	if len(result.DeletedIDs) != 1 || result.DeletedIDs[0] != "m4" {
+		t.Fatalf("expected deleted ids [m4], got: %v", result.DeletedIDs)
+	}
+}
+
+func TestCollectHistoryMessageIDs_DeletedRemovesFromFetch(t *testing.T) {
+	// Test that if a message is added then deleted, it ends up only in DeletedIDs
+	resp := &gmail.ListHistoryResponse{
+		History: []*gmail.History{
+			{
+				MessagesAdded: []*gmail.HistoryMessageAdded{
+					{Message: &gmail.Message{Id: "m1"}},
+				},
+			},
+			{
+				MessagesDeleted: []*gmail.HistoryMessageDeleted{
+					{Message: &gmail.Message{Id: "m1"}}, // Same message deleted later
+				},
+			},
+		},
+	}
+	result := collectHistoryMessageIDs(resp)
+
+	// m1 should not be in fetch IDs since it was deleted
+	for _, id := range result.FetchIDs {
+		if id == "m1" {
+			t.Fatalf("deleted message m1 should not be in fetch ids: %v", result.FetchIDs)
+		}
+	}
+
+	// m1 should be in deleted IDs
+	found := false
+	for _, id := range result.DeletedIDs {
+		if id == "m1" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("deleted message m1 should be in deleted ids: %v", result.DeletedIDs)
+	}
+}
+
+func TestCollectHistoryMessageIDs_EmptyResponse(t *testing.T) {
+	result := collectHistoryMessageIDs(nil)
+	if len(result.FetchIDs) != 0 || len(result.DeletedIDs) != 0 {
+		t.Fatalf("expected empty result for nil response")
+	}
+
+	result = collectHistoryMessageIDs(&gmail.ListHistoryResponse{})
+	if len(result.FetchIDs) != 0 || len(result.DeletedIDs) != 0 {
+		t.Fatalf("expected empty result for empty response")
 	}
 }
 

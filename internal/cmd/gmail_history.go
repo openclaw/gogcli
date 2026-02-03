@@ -44,7 +44,9 @@ func (c *GmailHistoryCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
-	ids := collectHistoryMessageIDs(resp)
+	historyIDs := collectHistoryMessageIDs(resp)
+	// Since this command only requests messageAdded, FetchIDs contains all relevant IDs
+	ids := historyIDs.FetchIDs
 	if outfmt.IsJSON(ctx) {
 		return outfmt.WriteJSON(os.Stdout, map[string]any{
 			"historyId":     formatHistoryID(resp.HistoryId),

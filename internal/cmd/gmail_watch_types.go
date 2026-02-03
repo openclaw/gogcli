@@ -159,8 +159,9 @@ type gmailHookMessage struct {
 }
 
 type gmailHookPayload struct {
-	Source    string             `json:"source"`
-	Account   string             `json:"account"`
-	HistoryID string             `json:"historyId"`
-	Messages  []gmailHookMessage `json:"messages"`
+	Source            string             `json:"source"`
+	Account           string             `json:"account"`
+	HistoryID         string             `json:"historyId"`
+	Messages          []gmailHookMessage `json:"messages"`
+	DeletedMessageIDs []string           `json:"deletedMessageIds,omitempty"`
 }

@@ -213,8 +213,8 @@ func (s *gmailWatchServer) handlePush(ctx context.Context, payload gmailPushPayl
 		return nil, errNoNewMessages
 	}
 
-	messageIDs := collectHistoryMessageIDs(historyResp)
-	msgs, err := s.fetchMessages(ctx, svc, messageIDs)
+	historyIDs := collectHistoryMessageIDs(historyResp)
+	msgs, err := s.fetchMessages(ctx, svc, historyIDs.FetchIDs)
 	if err != nil {
 		return nil, err
 	}
@@ -236,10 +236,11 @@ func (s *gmailWatchServer) handlePush(ctx context.Context, payload gmailPushPayl
 	}
 
 	return &gmailHookPayload{
-		Source:    "gmail",
-		Account:   s.cfg.Account,
-		HistoryID: nextHistoryID,
-		Messages:  msgs,
+		Source:            "gmail",
+		Account:           s.cfg.Account,
+		HistoryID:         nextHistoryID,
+		Messages:          msgs,
+		DeletedMessageIDs: historyIDs.DeletedIDs,
 	}, nil
 }
 
@@ -494,22 +495,58 @@ func isNotFoundAPIError(err error) bool {
 	return false
 }
 
-func collectHistoryMessageIDs(resp *gmail.ListHistoryResponse) []string {
+// historyMessageIDs holds the result of collecting message IDs from history.
+// FetchIDs contains messages that should be fetched (added, label changes, etc.).
+// DeletedIDs contains messages that were deleted and cannot be fetched.
+type historyMessageIDs struct {
+	FetchIDs   []string
+	DeletedIDs []string
+}
+
+func collectHistoryMessageIDs(resp *gmail.ListHistoryResponse) historyMessageIDs {
 	if resp == nil || len(resp.History) == 0 {
-		return nil
+		return historyMessageIDs{}
 	}
-	seen := make(map[string]struct{})
-	out := make([]string, 0)
-	addMessage := func(id string) {
+	seenFetch := make(map[string]struct{})
+	seenDeleted := make(map[string]struct{})
+	var result historyMessageIDs
+
+	addFetch := func(id string) {
 		if strings.TrimSpace(id) == "" {
 			return
 		}
-		if _, ok := seen[id]; ok {
+		if _, ok := seenFetch[id]; ok {
 			return
 		}
-		seen[id] = struct{}{}
-		out = append(out, id)
+		// If already marked as deleted, don't add to fetch list
+		if _, ok := seenDeleted[id]; ok {
+			return
+		}
+		seenFetch[id] = struct{}{}
+		result.FetchIDs = append(result.FetchIDs, id)
 	}
+
+	addDeleted := func(id string) {
+		if strings.TrimSpace(id) == "" {
+			return
+		}
+		if _, ok := seenDeleted[id]; ok {
+			return
+		}
+		// Remove from fetch list if previously added
+		if _, ok := seenFetch[id]; ok {
+			delete(seenFetch, id)
+			for i, fid := range result.FetchIDs {
+				if fid == id {
+					result.FetchIDs = append(result.FetchIDs[:i], result.FetchIDs[i+1:]...)
+					break
+				}
+			}
+		}
+		seenDeleted[id] = struct{}{}
+		result.DeletedIDs = append(result.DeletedIDs, id)
+	}
+
 	for _, h := range resp.History {
 		if h == nil {
 			continue
@@ -518,32 +555,32 @@ func collectHistoryMessageIDs(resp *gmail.ListHistoryResponse) []string {
 			if added == nil || added.Message == nil || added.Message.Id == "" {
 				continue
 			}
-			addMessage(added.Message.Id)
+			addFetch(added.Message.Id)
 		}
 		for _, deleted := range h.MessagesDeleted {
 			if deleted == nil || deleted.Message == nil || deleted.Message.Id == "" {
 				continue
 			}
-			addMessage(deleted.Message.Id)
+			addDeleted(deleted.Message.Id)
 		}
 		for _, added := range h.LabelsAdded {
 			if added == nil || added.Message == nil || added.Message.Id == "" {
 				continue
 			}
-			addMessage(added.Message.Id)
+			addFetch(added.Message.Id)
 		}
 		for _, removed := range h.LabelsRemoved {
 			if removed == nil || removed.Message == nil || removed.Message.Id == "" {
 				continue
 			}
-			addMessage(removed.Message.Id)
+			addFetch(removed.Message.Id)
 		}
 		for _, msg := range h.Messages {
 			if msg == nil || msg.Id == "" {
 				continue
 			}
-			addMessage(msg.Id)
+			addFetch(msg.Id)
 		}
 	}
-	return out
+	return result
 }
