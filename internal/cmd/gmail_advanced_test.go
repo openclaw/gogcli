@@ -19,6 +19,16 @@ import (
 	"github.com/steipete/gogcli/internal/ui"
 )
 
+func testContextJSONGmail(t *testing.T) context.Context {
+	t.Helper()
+	u, err := ui.New(ui.Options{Stdout: io.Discard, Stderr: io.Discard, Color: "never"})
+	if err != nil {
+		t.Fatalf("ui.New: %v", err)
+	}
+	ctx := ui.WithUI(context.Background(), u)
+	return outfmt.WithMode(ctx, outfmt.Mode{JSON: true})
+}
+
 // ==================== gmail_attachments.go tests ====================
 
 func TestAttachmentOutputFromInfo(t *testing.T) {
@@ -637,11 +647,11 @@ func TestLooksLikeBase64(t *testing.T) {
 		input    []byte
 		expected bool
 	}{
-		{[]byte("SGVsbG8gV29ybGQ="), true},                  // "Hello World" base64 encoded
-		{[]byte("SGVsbG8gV29ybGQ"), true},                   // Without padding
-		{[]byte("SGVs bG8g V29y bGQ="), true},               // With spaces
-		{[]byte("SGVs\nbG8g\nV29y\nbGQ="), true},            // With newlines
-		{[]byte("!@#$%^&*()"), false},                       // Special characters
+		{[]byte("SGVsbG8gV29ybGQ="), true},                 // "Hello World" base64 encoded
+		{[]byte("SGVsbG8gV29ybGQ"), true},                  // Without padding
+		{[]byte("SGVs bG8g V29y bGQ="), true},              // With spaces
+		{[]byte("SGVs\nbG8g\nV29y\nbGQ="), true},           // With newlines
+		{[]byte("!@#$%^&*()"), false},                      // Special characters
 		{[]byte("Hello World with special chars!"), false}, // Regular text
 		{[]byte(""), false},
 		{[]byte("   "), false},
@@ -841,13 +851,7 @@ func TestGmailURLCmd_JSON_MultipleThreads(t *testing.T) {
 	flags := &RootFlags{Account: "test@example.com"}
 
 	out := captureStdout(t, func() {
-		u, uiErr := ui.New(ui.Options{Stdout: io.Discard, Stderr: io.Discard, Color: "never"})
-		if uiErr != nil {
-			t.Fatalf("ui.New: %v", uiErr)
-		}
-		ctx := ui.WithUI(context.Background(), u)
-		ctx = outfmt.WithMode(ctx, outfmt.Mode{JSON: true})
-
+		ctx := testContextJSONGmail(t)
 		cmd := &GmailURLCmd{ThreadIDs: []string{"t1", "t2"}}
 		if err := runKong(t, cmd, []string{"t1", "t2"}, ctx, flags); err != nil {
 			t.Fatalf("execute: %v", err)
@@ -925,13 +929,7 @@ func TestGmailThreadAttachmentsCmd_EmptyThread_JSON(t *testing.T) {
 	flags := &RootFlags{Account: "a@b.com"}
 
 	out := captureStdout(t, func() {
-		u, uiErr := ui.New(ui.Options{Stdout: io.Discard, Stderr: io.Discard, Color: "never"})
-		if uiErr != nil {
-			t.Fatalf("ui.New: %v", uiErr)
-		}
-		ctx := ui.WithUI(context.Background(), u)
-		ctx = outfmt.WithMode(ctx, outfmt.Mode{JSON: true})
-
+		ctx := testContextJSONGmail(t)
 		cmd := &GmailThreadAttachmentsCmd{}
 		if err := runKong(t, cmd, []string{"t1"}, ctx, flags); err != nil {
 			t.Fatalf("execute: %v", err)
@@ -1005,13 +1003,7 @@ func TestGmailThreadAttachmentsCmd_WithAttachments_JSON(t *testing.T) {
 	flags := &RootFlags{Account: "a@b.com"}
 
 	out := captureStdout(t, func() {
-		u, uiErr := ui.New(ui.Options{Stdout: io.Discard, Stderr: io.Discard, Color: "never"})
-		if uiErr != nil {
-			t.Fatalf("ui.New: %v", uiErr)
-		}
-		ctx := ui.WithUI(context.Background(), u)
-		ctx = outfmt.WithMode(ctx, outfmt.Mode{JSON: true})
-
+		ctx := testContextJSONGmail(t)
 		cmd := &GmailThreadAttachmentsCmd{}
 		if err := runKong(t, cmd, []string{"t1"}, ctx, flags); err != nil {
 			t.Fatalf("execute: %v", err)
@@ -1100,13 +1092,7 @@ func TestGmailThreadAttachmentsCmd_Download_JSON(t *testing.T) {
 	flags := &RootFlags{Account: "a@b.com"}
 
 	out := captureStdout(t, func() {
-		u, uiErr := ui.New(ui.Options{Stdout: io.Discard, Stderr: io.Discard, Color: "never"})
-		if uiErr != nil {
-			t.Fatalf("ui.New: %v", uiErr)
-		}
-		ctx := ui.WithUI(context.Background(), u)
-		ctx = outfmt.WithMode(ctx, outfmt.Mode{JSON: true})
-
+		ctx := testContextJSONGmail(t)
 		cmd := &GmailThreadAttachmentsCmd{Download: true, OutputDir: OutputDirFlag{Dir: outDir}}
 		if err := runKong(t, cmd, []string{"t1", "--download", "--out-dir", outDir}, ctx, flags); err != nil {
 			t.Fatalf("execute: %v", err)
@@ -1170,13 +1156,7 @@ func TestGmailThreadGetCmd_JSON_EmptyThread(t *testing.T) {
 	flags := &RootFlags{Account: "a@b.com"}
 
 	out := captureStdout(t, func() {
-		u, uiErr := ui.New(ui.Options{Stdout: io.Discard, Stderr: io.Discard, Color: "never"})
-		if uiErr != nil {
-			t.Fatalf("ui.New: %v", uiErr)
-		}
-		ctx := ui.WithUI(context.Background(), u)
-		ctx = outfmt.WithMode(ctx, outfmt.Mode{JSON: true})
-
+		ctx := testContextJSONGmail(t)
 		cmd := &GmailThreadGetCmd{}
 		if err := runKong(t, cmd, []string{"t1"}, ctx, flags); err != nil {
 			t.Fatalf("execute: %v", err)
@@ -1308,13 +1288,7 @@ func TestGmailThreadModifyCmd_Success_JSON(t *testing.T) {
 	flags := &RootFlags{Account: "a@b.com"}
 
 	out := captureStdout(t, func() {
-		u, uiErr := ui.New(ui.Options{Stdout: io.Discard, Stderr: io.Discard, Color: "never"})
-		if uiErr != nil {
-			t.Fatalf("ui.New: %v", uiErr)
-		}
-		ctx := ui.WithUI(context.Background(), u)
-		ctx = outfmt.WithMode(ctx, outfmt.Mode{JSON: true})
-
+		ctx := testContextJSONGmail(t)
 		cmd := &GmailThreadModifyCmd{}
 		if err := runKong(t, cmd, []string{"t1", "--add", "MyLabel", "--remove", "OldLabel"}, ctx, flags); err != nil {
 			t.Fatalf("execute: %v", err)

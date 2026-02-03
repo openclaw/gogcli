@@ -18,6 +18,15 @@ import (
 	"github.com/steipete/gogcli/internal/ui"
 )
 
+func testContextJSONSSO(t *testing.T) context.Context {
+	t.Helper()
+	u, err := ui.New(ui.Options{Stdout: os.Stdout, Stderr: io.Discard, Color: "never"})
+	if err != nil {
+		t.Fatalf("ui.New: %v", err)
+	}
+	return outfmt.WithMode(ui.WithUI(context.Background(), u), outfmt.Mode{JSON: true})
+}
+
 // -----------------------------------------------------------------------------
 // SSOSettingsGetCmd Tests
 // -----------------------------------------------------------------------------
@@ -84,8 +93,7 @@ func TestSSOSettingsGetCmd_JSON(t *testing.T) {
 	flags := &RootFlags{Account: "admin@example.com"}
 	cmd := &SSOSettingsGetCmd{}
 
-	u, _ := ui.New(ui.Options{Stdout: os.Stdout, Stderr: io.Discard, Color: "never"})
-	ctx := outfmt.WithMode(ui.WithUI(context.Background(), u), outfmt.Mode{JSON: true})
+	ctx := testContextJSONSSO(t)
 
 	out := captureStdout(t, func() {
 		if err := cmd.Run(ctx, flags); err != nil {
@@ -352,7 +360,7 @@ func TestSSOSettingsUpdateCmd_Certificate(t *testing.T) {
 func TestSSOSettingsUpdateCmd_CertificateFromFile(t *testing.T) {
 	tmpFile := filepath.Join(t.TempDir(), "cert.pem")
 	certContent := "-----BEGIN CERTIFICATE-----\nfilecontent\n-----END CERTIFICATE-----"
-	if err := os.WriteFile(tmpFile, []byte(certContent), 0600); err != nil {
+	if err := os.WriteFile(tmpFile, []byte(certContent), 0o600); err != nil {
 		t.Fatalf("WriteFile: %v", err)
 	}
 
@@ -416,8 +424,7 @@ func TestSSOSettingsUpdateCmd_JSON(t *testing.T) {
 	flags := &RootFlags{Account: "admin@example.com"}
 	cmd := &SSOSettingsUpdateCmd{SSOURL: "https://sso.example.com"}
 
-	u, _ := ui.New(ui.Options{Stdout: os.Stdout, Stderr: io.Discard, Color: "never"})
-	ctx := outfmt.WithMode(ui.WithUI(context.Background(), u), outfmt.Mode{JSON: true})
+	ctx := testContextJSONSSO(t)
 
 	out := captureStdout(t, func() {
 		if err := cmd.Run(ctx, flags); err != nil {
@@ -464,7 +471,7 @@ func TestSSOSettingsUpdateCmd_MissingAccount(t *testing.T) {
 
 func TestSSOSettingsUpdateCmd_EmptyCertificate(t *testing.T) {
 	tmpFile := filepath.Join(t.TempDir(), "empty.pem")
-	if err := os.WriteFile(tmpFile, []byte("   "), 0600); err != nil {
+	if err := os.WriteFile(tmpFile, []byte("   "), 0o600); err != nil {
 		t.Fatalf("WriteFile: %v", err)
 	}
 
@@ -498,45 +505,6 @@ func TestSSOSettingsUpdateCmd_EmptyCertificate(t *testing.T) {
 // SSOAssignmentsListCmd Tests
 // -----------------------------------------------------------------------------
 
-func TestSSOAssignmentsListCmd(t *testing.T) {
-	h := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet || !strings.Contains(r.URL.Path, "/v1/inboundSsoAssignments") {
-			http.NotFound(w, r)
-			return
-		}
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]any{
-			"inboundSsoAssignments": []map[string]any{
-				{
-					"name":          "inboundSsoAssignments/assignment-1",
-					"ssoMode":       "SSO_OFF",
-					"targetOrgUnit": "orgUnits/ou-123",
-					"samlSsoInfo": map[string]any{
-						"inboundSamlSsoProfile": "inboundSamlSsoProfiles/profile-1",
-					},
-				},
-			},
-		})
-	})
-	stubInboundSSO(t, h)
-
-	flags := &RootFlags{Account: "admin@example.com"}
-	cmd := &SSOAssignmentsListCmd{}
-
-	out := captureStdout(t, func() {
-		if err := cmd.Run(testContextWithStdout(t), flags); err != nil {
-			t.Fatalf("Run: %v", err)
-		}
-	})
-
-	if !strings.Contains(out, "assignment-1") {
-		t.Fatalf("unexpected output: %s", out)
-	}
-	if !strings.Contains(out, "SSO_OFF") {
-		t.Fatalf("expected mode in output: %s", out)
-	}
-}
-
 func TestSSOAssignmentsListCmd_JSON(t *testing.T) {
 	h := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet || !strings.Contains(r.URL.Path, "/v1/inboundSsoAssignments") {
@@ -560,8 +528,7 @@ func TestSSOAssignmentsListCmd_JSON(t *testing.T) {
 	flags := &RootFlags{Account: "admin@example.com"}
 	cmd := &SSOAssignmentsListCmd{}
 
-	u, _ := ui.New(ui.Options{Stdout: os.Stdout, Stderr: io.Discard, Color: "never"})
-	ctx := outfmt.WithMode(ui.WithUI(context.Background(), u), outfmt.Mode{JSON: true})
+	ctx := testContextJSONSSO(t)
 
 	out := captureStdout(t, func() {
 		if err := cmd.Run(ctx, flags); err != nil {
@@ -569,12 +536,28 @@ func TestSSOAssignmentsListCmd_JSON(t *testing.T) {
 		}
 	})
 
-	var result map[string]any
+	var result struct {
+		InboundSsoAssignments []struct {
+			Name          string `json:"name"`
+			SsoMode       string `json:"ssoMode"`
+			TargetOrgUnit string `json:"targetOrgUnit"`
+		} `json:"inboundSsoAssignments"`
+		NextPageToken string `json:"nextPageToken"`
+	}
 	if err := json.Unmarshal([]byte(out), &result); err != nil {
 		t.Fatalf("failed to parse JSON: %v", err)
 	}
-	if result["nextPageToken"] != "token-123" {
-		t.Fatalf("unexpected nextPageToken: %v", result["nextPageToken"])
+	if result.NextPageToken != "token-123" {
+		t.Fatalf("unexpected nextPageToken: %v", result.NextPageToken)
+	}
+	if len(result.InboundSsoAssignments) != 1 {
+		t.Fatalf("expected 1 assignment, got %d", len(result.InboundSsoAssignments))
+	}
+	if result.InboundSsoAssignments[0].Name != "inboundSsoAssignments/assignment-1" {
+		t.Fatalf("unexpected assignment name: %s", result.InboundSsoAssignments[0].Name)
+	}
+	if result.InboundSsoAssignments[0].SsoMode != "SSO_OFF" {
+		t.Fatalf("unexpected assignment mode: %s", result.InboundSsoAssignments[0].SsoMode)
 	}
 }
 
@@ -972,8 +955,7 @@ func TestSSOAssignmentsCreateCmd_JSON(t *testing.T) {
 	flags := &RootFlags{Account: "admin@example.com"}
 	cmd := &SSOAssignmentsCreateCmd{OrgUnit: "/Test", Mode: "SSO_OFF"}
 
-	u, _ := ui.New(ui.Options{Stdout: os.Stdout, Stderr: io.Discard, Color: "never"})
-	ctx := outfmt.WithMode(ui.WithUI(context.Background(), u), outfmt.Mode{JSON: true})
+	ctx := testContextJSONSSO(t)
 
 	out := captureStdout(t, func() {
 		if err := cmd.Run(ctx, flags); err != nil {
@@ -1017,46 +999,13 @@ func TestSSOAssignmentsCreateCmd_EmptyOrgUnit(t *testing.T) {
 // SSOAssignmentsDeleteCmd Tests
 // -----------------------------------------------------------------------------
 
-func TestSSOAssignmentsDeleteCmd(t *testing.T) {
+func TestSSOAssignmentsDeleteCmd_JSON(t *testing.T) {
 	var deleteCalled bool
 	var deletedID string
 	h := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodDelete && strings.Contains(r.URL.Path, "/v1/inboundSsoAssignments/") {
 			deleteCalled = true
 			deletedID = strings.TrimPrefix(r.URL.Path, "/v1/inboundSsoAssignments/")
-			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(map[string]any{
-				"name": "operations/op-delete-1",
-			})
-			return
-		}
-		http.NotFound(w, r)
-	})
-	stubInboundSSO(t, h)
-
-	flags := &RootFlags{Account: "admin@example.com", Force: true}
-	cmd := &SSOAssignmentsDeleteCmd{AssignmentID: "inboundSsoAssignments/assignment-1"}
-
-	out := captureStdout(t, func() {
-		if err := cmd.Run(testContextWithStdout(t), flags); err != nil {
-			t.Fatalf("Run: %v", err)
-		}
-	})
-
-	if !deleteCalled {
-		t.Fatal("delete was not called")
-	}
-	if deletedID != "assignment-1" {
-		t.Fatalf("unexpected deleted ID: %s", deletedID)
-	}
-	if !strings.Contains(out, "Deleted inbound SSO assignment") {
-		t.Fatalf("unexpected output: %s", out)
-	}
-}
-
-func TestSSOAssignmentsDeleteCmd_JSON(t *testing.T) {
-	h := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == http.MethodDelete {
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"name": "operations/op-delete-json",
@@ -1070,8 +1019,7 @@ func TestSSOAssignmentsDeleteCmd_JSON(t *testing.T) {
 	flags := &RootFlags{Account: "admin@example.com", Force: true}
 	cmd := &SSOAssignmentsDeleteCmd{AssignmentID: "inboundSsoAssignments/assignment-json"}
 
-	u, _ := ui.New(ui.Options{Stdout: os.Stdout, Stderr: io.Discard, Color: "never"})
-	ctx := outfmt.WithMode(ui.WithUI(context.Background(), u), outfmt.Mode{JSON: true})
+	ctx := testContextJSONSSO(t)
 
 	out := captureStdout(t, func() {
 		if err := cmd.Run(ctx, flags); err != nil {
@@ -1082,6 +1030,12 @@ func TestSSOAssignmentsDeleteCmd_JSON(t *testing.T) {
 	var result map[string]any
 	if err := json.Unmarshal([]byte(out), &result); err != nil {
 		t.Fatalf("failed to parse JSON: %v", err)
+	}
+	if !deleteCalled {
+		t.Fatal("delete was not called")
+	}
+	if deletedID != "assignment-json" {
+		t.Fatalf("unexpected deleted ID: %s", deletedID)
 	}
 	if result["name"] != "operations/op-delete-json" {
 		t.Fatalf("unexpected operation name: %v", result["name"])
@@ -1212,7 +1166,7 @@ func TestReadValueOrFile(t *testing.T) {
 
 	// Test @file syntax
 	tmpFile := filepath.Join(t.TempDir(), "testfile.txt")
-	if err := os.WriteFile(tmpFile, []byte("file-content"), 0600); err != nil {
+	if err := os.WriteFile(tmpFile, []byte("file-content"), 0o600); err != nil {
 		t.Fatalf("WriteFile: %v", err)
 	}
 
@@ -1238,7 +1192,7 @@ func TestReadValueOrFile(t *testing.T) {
 
 	// Test file path detection (file exists)
 	tmpFile2 := filepath.Join(t.TempDir(), "detectfile.txt")
-	if err := os.WriteFile(tmpFile2, []byte("detected-content"), 0600); err != nil {
+	if err := os.WriteFile(tmpFile2, []byte("detected-content"), 0o600); err != nil {
 		t.Fatalf("WriteFile: %v", err)
 	}
 
@@ -1355,8 +1309,7 @@ func TestClearInboundSSOAssignments_JSON(t *testing.T) {
 	flags := &RootFlags{Account: "admin@example.com"}
 	cmd := &SSOAssignmentsCreateCmd{OrgUnit: "/Test", Mode: "NONE"}
 
-	u, _ := ui.New(ui.Options{Stdout: os.Stdout, Stderr: io.Discard, Color: "never"})
-	ctx := outfmt.WithMode(ui.WithUI(context.Background(), u), outfmt.Mode{JSON: true})
+	ctx := testContextJSONSSO(t)
 
 	out := captureStdout(t, func() {
 		if err := cmd.Run(ctx, flags); err != nil {

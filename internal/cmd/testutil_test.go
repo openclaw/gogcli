@@ -6,12 +6,15 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/alecthomas/kong"
+	"google.golang.org/api/cloudchannel/v1"
+	"google.golang.org/api/option"
 
 	"github.com/steipete/gogcli/internal/googleauth"
 )
@@ -68,6 +71,22 @@ func pickTimezoneExcluding(t *testing.T, exclude ...string) string {
 func pickNonLocalTimezone(t *testing.T) string {
 	t.Helper()
 	return pickTimezoneExcluding(t, time.Local.String(), "local")
+}
+
+func newCloudChannelServiceStub(t *testing.T, handler http.HandlerFunc) (*cloudchannel.Service, func()) {
+	t.Helper()
+
+	srv := httptest.NewServer(handler)
+	svc, err := cloudchannel.NewService(context.Background(),
+		option.WithoutAuthentication(),
+		option.WithHTTPClient(srv.Client()),
+		option.WithEndpoint(srv.URL+"/"),
+	)
+	if err != nil {
+		srv.Close()
+		t.Fatalf("NewService: %v", err)
+	}
+	return svc, srv.Close
 }
 
 func captureStdout(t *testing.T, fn func()) string {
