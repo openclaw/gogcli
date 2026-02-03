@@ -86,6 +86,7 @@ type ProjectsGetCmd struct {
 }
 
 func (c *ProjectsGetCmd) Run(ctx context.Context, flags *RootFlags) error {
+	u := ui.FromContext(ctx)
 	account, err := requireAccount(flags)
 	if err != nil {
 		return err
@@ -111,10 +112,10 @@ func (c *ProjectsGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return outfmt.WriteJSON(os.Stdout, resp)
 	}
 
-	fmt.Fprintf(os.Stdout, "Project ID: %s\n", resp.ProjectId)
-	fmt.Fprintf(os.Stdout, "Name:       %s\n", resp.DisplayName)
-	fmt.Fprintf(os.Stdout, "State:      %s\n", resp.State)
-	fmt.Fprintf(os.Stdout, "Parent:     %s\n", resp.Parent)
+	u.Out().Printf("Project ID: %s\n", resp.ProjectId)
+	u.Out().Printf("Name:       %s\n", resp.DisplayName)
+	u.Out().Printf("State:      %s\n", resp.State)
+	u.Out().Printf("Parent:     %s\n", resp.Parent)
 	return nil
 }
 

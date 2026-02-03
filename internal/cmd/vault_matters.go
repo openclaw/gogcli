@@ -92,6 +92,7 @@ type VaultMattersGetCmd struct {
 }
 
 func (c *VaultMattersGetCmd) Run(ctx context.Context, flags *RootFlags) error {
+	u := ui.FromContext(ctx)
 	account, err := requireAccount(flags)
 	if err != nil {
 		return err
@@ -111,11 +112,11 @@ func (c *VaultMattersGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return outfmt.WriteJSON(os.Stdout, matter)
 	}
 
-	fmt.Fprintf(os.Stdout, "Matter ID:   %s\n", matter.MatterId)
-	fmt.Fprintf(os.Stdout, "Name:        %s\n", matter.Name)
-	fmt.Fprintf(os.Stdout, "State:       %s\n", matter.State)
+	u.Out().Printf("Matter ID:   %s\n", matter.MatterId)
+	u.Out().Printf("Name:        %s\n", matter.Name)
+	u.Out().Printf("State:       %s\n", matter.State)
 	if matter.Description != "" {
-		fmt.Fprintf(os.Stdout, "Description: %s\n", matter.Description)
+		u.Out().Printf("Description: %s\n", matter.Description)
 	}
 	return nil
 }
@@ -146,7 +147,8 @@ func (c *VaultMattersCreateCmd) Run(ctx context.Context, flags *RootFlags) error
 		return outfmt.WriteJSON(os.Stdout, created)
 	}
 
-	fmt.Fprintf(os.Stdout, "Created matter: %s (%s)\n", created.Name, created.MatterId)
+	u := ui.FromContext(ctx)
+	u.Out().Printf("Created matter: %s (%s)\n", created.Name, created.MatterId)
 	return nil
 }
 
@@ -193,7 +195,8 @@ func (c *VaultMattersUpdateCmd) Run(ctx context.Context, flags *RootFlags) error
 		return outfmt.WriteJSON(os.Stdout, updated)
 	}
 
-	fmt.Fprintf(os.Stdout, "Updated matter: %s (%s)\n", updated.Name, updated.MatterId)
+	u := ui.FromContext(ctx)
+	u.Out().Printf("Updated matter: %s (%s)\n", updated.Name, updated.MatterId)
 	return nil
 }
 
@@ -262,7 +265,8 @@ func (c *VaultMattersReopenCmd) Run(ctx context.Context, flags *RootFlags) error
 	if resp != nil && resp.Matter != nil && resp.Matter.MatterId != "" {
 		matterID = resp.Matter.MatterId
 	}
-	fmt.Fprintf(os.Stdout, "Reopened matter: %s\n", matterID)
+	u := ui.FromContext(ctx)
+	u.Out().Printf("Reopened matter: %s\n", matterID)
 	return nil
 }
 

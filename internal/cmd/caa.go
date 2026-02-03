@@ -98,6 +98,7 @@ type CAALevelsGetCmd struct {
 }
 
 func (c *CAALevelsGetCmd) Run(ctx context.Context, flags *RootFlags) error {
+	u := ui.FromContext(ctx)
 	account, err := requireAccount(flags)
 	if err != nil {
 		return err
@@ -127,19 +128,19 @@ func (c *CAALevelsGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return outfmt.WriteJSON(os.Stdout, level)
 	}
 
-	fmt.Fprintf(os.Stdout, "Name:        %s\n", level.Name)
+	u.Out().Printf("Name:        %s\n", level.Name)
 	if level.Title != "" {
-		fmt.Fprintf(os.Stdout, "Title:       %s\n", level.Title)
+		u.Out().Printf("Title:       %s\n", level.Title)
 	}
 	if level.Description != "" {
-		fmt.Fprintf(os.Stdout, "Description: %s\n", level.Description)
+		u.Out().Printf("Description: %s\n", level.Description)
 	}
-	fmt.Fprintf(os.Stdout, "Type:        %s\n", accessLevelType(level))
+	u.Out().Printf("Type:        %s\n", accessLevelType(level))
 	if level.Custom != nil && level.Custom.Expr != nil && level.Custom.Expr.Expression != "" {
-		fmt.Fprintf(os.Stdout, "Expression:  %s\n", level.Custom.Expr.Expression)
+		u.Out().Printf("Expression:  %s\n", level.Custom.Expr.Expression)
 	}
 	if level.Basic != nil {
-		fmt.Fprintf(os.Stdout, "Conditions:  %d\n", len(level.Basic.Conditions))
+		u.Out().Printf("Conditions:  %d\n", len(level.Basic.Conditions))
 	}
 	return nil
 }

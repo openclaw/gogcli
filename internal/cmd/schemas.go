@@ -70,6 +70,7 @@ type SchemasGetCmd struct {
 }
 
 func (c *SchemasGetCmd) Run(ctx context.Context, flags *RootFlags) error {
+	u := ui.FromContext(ctx)
 	account, err := requireAccount(flags)
 	if err != nil {
 		return err
@@ -94,18 +95,18 @@ func (c *SchemasGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return outfmt.WriteJSON(os.Stdout, schema)
 	}
 
-	fmt.Fprintf(os.Stdout, "Name:   %s\n", schema.SchemaName)
-	fmt.Fprintf(os.Stdout, "ID:     %s\n", schema.SchemaId)
+	u.Out().Printf("Name:   %s\n", schema.SchemaName)
+	u.Out().Printf("ID:     %s\n", schema.SchemaId)
 	if schema.DisplayName != "" {
-		fmt.Fprintf(os.Stdout, "Display: %s\n", schema.DisplayName)
+		u.Out().Printf("Display: %s\n", schema.DisplayName)
 	}
 	if len(schema.Fields) > 0 {
-		fmt.Fprintf(os.Stdout, "Fields: %d\n", len(schema.Fields))
+		u.Out().Printf("Fields: %d\n", len(schema.Fields))
 		for _, field := range schema.Fields {
 			if field == nil {
 				continue
 			}
-			fmt.Fprintf(os.Stdout, "- %s (%s)\n", field.FieldName, field.FieldType)
+			u.Out().Printf("- %s (%s)\n", field.FieldName, field.FieldType)
 		}
 	}
 	return nil

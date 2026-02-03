@@ -83,6 +83,7 @@ type VaultExportsGetCmd struct {
 }
 
 func (c *VaultExportsGetCmd) Run(ctx context.Context, flags *RootFlags) error {
+	u := ui.FromContext(ctx)
 	account, err := requireAccount(flags)
 	if err != nil {
 		return err
@@ -102,12 +103,12 @@ func (c *VaultExportsGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return outfmt.WriteJSON(os.Stdout, exp)
 	}
 
-	fmt.Fprintf(os.Stdout, "Export ID: %s\n", exp.Id)
-	fmt.Fprintf(os.Stdout, "Name:      %s\n", exp.Name)
-	fmt.Fprintf(os.Stdout, "Status:    %s\n", exp.Status)
-	fmt.Fprintf(os.Stdout, "Created:   %s\n", exp.CreateTime)
+	u.Out().Printf("Export ID: %s\n", exp.Id)
+	u.Out().Printf("Name:      %s\n", exp.Name)
+	u.Out().Printf("Status:    %s\n", exp.Status)
+	u.Out().Printf("Created:   %s\n", exp.CreateTime)
 	if exp.Query != nil {
-		fmt.Fprintf(os.Stdout, "Corpus:    %s\n", exp.Query.Corpus)
+		u.Out().Printf("Corpus:    %s\n", exp.Query.Corpus)
 	}
 	return nil
 }
@@ -152,7 +153,8 @@ func (c *VaultExportsCreateCmd) Run(ctx context.Context, flags *RootFlags) error
 		return outfmt.WriteJSON(os.Stdout, created)
 	}
 
-	fmt.Fprintf(os.Stdout, "Created export: %s (%s)\n", created.Name, created.Id)
+	u := ui.FromContext(ctx)
+	u.Out().Printf("Created export: %s (%s)\n", created.Name, created.Id)
 	return nil
 }
 

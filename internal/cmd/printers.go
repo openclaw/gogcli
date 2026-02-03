@@ -93,6 +93,7 @@ type PrintersGetCmd struct {
 }
 
 func (c *PrintersGetCmd) Run(ctx context.Context, flags *RootFlags) error {
+	u := ui.FromContext(ctx)
 	account, err := requireAccount(flags)
 	if err != nil {
 		return err
@@ -118,14 +119,14 @@ func (c *PrintersGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return outfmt.WriteJSON(os.Stdout, printer)
 	}
 
-	fmt.Fprintf(os.Stdout, "ID:        %s\n", printer.Id)
-	fmt.Fprintf(os.Stdout, "Name:      %s\n", printer.DisplayName)
-	fmt.Fprintf(os.Stdout, "URI:       %s\n", printer.Uri)
+	u.Out().Printf("ID:        %s\n", printer.Id)
+	u.Out().Printf("Name:      %s\n", printer.DisplayName)
+	u.Out().Printf("URI:       %s\n", printer.Uri)
 	if printer.OrgUnitId != "" {
-		fmt.Fprintf(os.Stdout, "Org Unit:  %s\n", printer.OrgUnitId)
+		u.Out().Printf("Org Unit:  %s\n", printer.OrgUnitId)
 	}
 	if printer.Description != "" {
-		fmt.Fprintf(os.Stdout, "Desc:      %s\n", printer.Description)
+		u.Out().Printf("Desc:      %s\n", printer.Description)
 	}
 	return nil
 }

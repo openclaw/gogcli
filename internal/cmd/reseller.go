@@ -110,6 +110,7 @@ type ResellerCustomersGetCmd struct {
 }
 
 func (c *ResellerCustomersGetCmd) Run(ctx context.Context, flags *RootFlags) error {
+	u := ui.FromContext(ctx)
 	account, err := requireAccount(flags)
 	if err != nil {
 		return err
@@ -134,13 +135,13 @@ func (c *ResellerCustomersGetCmd) Run(ctx context.Context, flags *RootFlags) err
 		return outfmt.WriteJSON(os.Stdout, resp)
 	}
 
-	fmt.Fprintf(os.Stdout, "Customer ID:  %s\n", resp.CustomerId)
-	fmt.Fprintf(os.Stdout, "Domain:       %s\n", resp.CustomerDomain)
+	u.Out().Printf("Customer ID:  %s\n", resp.CustomerId)
+	u.Out().Printf("Domain:       %s\n", resp.CustomerDomain)
 	if resp.CustomerType != "" {
-		fmt.Fprintf(os.Stdout, "Type:         %s\n", resp.CustomerType)
+		u.Out().Printf("Type:         %s\n", resp.CustomerType)
 	}
 	if resp.PrimaryAdmin != nil && resp.PrimaryAdmin.PrimaryEmail != "" {
-		fmt.Fprintf(os.Stdout, "Primary Admin: %s\n", resp.PrimaryAdmin.PrimaryEmail)
+		u.Out().Printf("Primary Admin: %s\n", resp.PrimaryAdmin.PrimaryEmail)
 	}
 	return nil
 }
@@ -275,6 +276,7 @@ type ResellerSubscriptionsGetCmd struct {
 }
 
 func (c *ResellerSubscriptionsGetCmd) Run(ctx context.Context, flags *RootFlags) error {
+	u := ui.FromContext(ctx)
 	account, err := requireAccount(flags)
 	if err != nil {
 		return err
@@ -300,14 +302,14 @@ func (c *ResellerSubscriptionsGetCmd) Run(ctx context.Context, flags *RootFlags)
 		return outfmt.WriteJSON(os.Stdout, resp)
 	}
 
-	fmt.Fprintf(os.Stdout, "Customer:      %s\n", resp.CustomerId)
-	fmt.Fprintf(os.Stdout, "Subscription:  %s\n", resp.SubscriptionId)
-	fmt.Fprintf(os.Stdout, "SKU:           %s\n", resp.SkuId)
+	u.Out().Printf("Customer:      %s\n", resp.CustomerId)
+	u.Out().Printf("Subscription:  %s\n", resp.SubscriptionId)
+	u.Out().Printf("SKU:           %s\n", resp.SkuId)
 	if resp.Plan != nil {
-		fmt.Fprintf(os.Stdout, "Plan:          %s\n", resp.Plan.PlanName)
+		u.Out().Printf("Plan:          %s\n", resp.Plan.PlanName)
 	}
 	if resp.Status != "" {
-		fmt.Fprintf(os.Stdout, "Status:        %s\n", resp.Status)
+		u.Out().Printf("Status:        %s\n", resp.Status)
 	}
 	return nil
 }

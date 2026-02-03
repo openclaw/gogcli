@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"context"
-	"fmt"
 	"os"
 
 	"github.com/steipete/gogcli/internal/outfmt"
@@ -13,11 +12,11 @@ func writeDeleteResult(ctx context.Context, u *ui.UI, resourceName string) error
 	if outfmt.IsJSON(ctx) {
 		return outfmt.WriteJSON(os.Stdout, map[string]any{"deleted": true, "resource": resourceName})
 	}
-	if u == nil {
-		_, _ = fmt.Fprintf(os.Stdout, "deleted\ttrue\nresource\t%s\n", resourceName)
-		return nil
+	out := u
+	if out == nil {
+		out = ui.FromContext(ctx)
 	}
-	u.Out().Printf("deleted\ttrue")
-	u.Out().Printf("resource\t%s", resourceName)
+	out.Out().Printf("deleted\ttrue")
+	out.Out().Printf("resource\t%s", resourceName)
 	return nil
 }

@@ -94,6 +94,7 @@ type FormsGetCmd struct {
 }
 
 func (c *FormsGetCmd) Run(ctx context.Context, flags *RootFlags) error {
+	u := ui.FromContext(ctx)
 	account, err := requireAccount(flags)
 	if err != nil {
 		return err
@@ -122,10 +123,10 @@ func (c *FormsGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if form.Info != nil {
 		title = form.Info.Title
 	}
-	fmt.Fprintf(os.Stdout, "ID:    %s\n", form.FormId)
-	fmt.Fprintf(os.Stdout, "Title: %s\n", title)
+	u.Out().Printf("ID:    %s\n", form.FormId)
+	u.Out().Printf("Title: %s\n", title)
 	if form.ResponderUri != "" {
-		fmt.Fprintf(os.Stdout, "Responder URL: %s\n", form.ResponderUri)
+		u.Out().Printf("Responder URL: %s\n", form.ResponderUri)
 	}
 	return nil
 }

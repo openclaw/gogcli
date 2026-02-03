@@ -39,7 +39,7 @@ func TestSSOSettingsGetCmd(t *testing.T) {
 	cmd := &SSOSettingsGetCmd{}
 
 	out := captureStdout(t, func() {
-		if err := cmd.Run(testContext(t), flags); err != nil {
+		if err := cmd.Run(testContextWithStdout(t), flags); err != nil {
 			t.Fatalf("Run: %v", err)
 		}
 	})

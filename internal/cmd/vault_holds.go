@@ -81,6 +81,7 @@ type VaultHoldsGetCmd struct {
 }
 
 func (c *VaultHoldsGetCmd) Run(ctx context.Context, flags *RootFlags) error {
+	u := ui.FromContext(ctx)
 	account, err := requireAccount(flags)
 	if err != nil {
 		return err
@@ -100,10 +101,10 @@ func (c *VaultHoldsGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return outfmt.WriteJSON(os.Stdout, hold)
 	}
 
-	fmt.Fprintf(os.Stdout, "Hold ID:  %s\n", hold.HoldId)
-	fmt.Fprintf(os.Stdout, "Name:     %s\n", hold.Name)
-	fmt.Fprintf(os.Stdout, "Corpus:   %s\n", hold.Corpus)
-	fmt.Fprintf(os.Stdout, "Scope:    %s\n", holdScope(hold))
+	u.Out().Printf("Hold ID:  %s\n", hold.HoldId)
+	u.Out().Printf("Name:     %s\n", hold.Name)
+	u.Out().Printf("Corpus:   %s\n", hold.Corpus)
+	u.Out().Printf("Scope:    %s\n", holdScope(hold))
 	return nil
 }
 
@@ -184,7 +185,8 @@ func (c *VaultHoldsCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return outfmt.WriteJSON(os.Stdout, created)
 	}
 
-	fmt.Fprintf(os.Stdout, "Created hold: %s (%s)\n", created.Name, created.HoldId)
+	u := ui.FromContext(ctx)
+	u.Out().Printf("Created hold: %s (%s)\n", created.Name, created.HoldId)
 	return nil
 }
 

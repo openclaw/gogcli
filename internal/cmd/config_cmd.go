@@ -2,11 +2,11 @@ package cmd
 
 import (
 	"context"
-	"fmt"
 	"os"
 
 	"github.com/steipete/gogcli/internal/config"
 	"github.com/steipete/gogcli/internal/outfmt"
+	"github.com/steipete/gogcli/internal/ui"
 )
 
 type ConfigCmd struct {
@@ -41,7 +41,8 @@ func (c *ConfigGetCmd) Run(ctx context.Context) error {
 	if outfmt.IsJSON(ctx) {
 		return outfmt.WriteJSON(os.Stdout, outfmt.KeyValuePayload(key.String(), value))
 	}
-	fmt.Fprintln(os.Stdout, formatConfigValue(value, spec.EmptyHint))
+	u := ui.FromContext(ctx)
+	u.Out().Println(formatConfigValue(value, spec.EmptyHint))
 	return nil
 }
 
@@ -52,8 +53,9 @@ func (c *ConfigKeysCmd) Run(ctx context.Context) error {
 	if outfmt.IsJSON(ctx) {
 		return outfmt.WriteJSON(os.Stdout, outfmt.KeysPayload(keys))
 	}
+	u := ui.FromContext(ctx)
 	for _, key := range keys {
-		fmt.Fprintln(os.Stdout, key)
+		u.Out().Println(key)
 	}
 	return nil
 }
@@ -87,7 +89,8 @@ func (c *ConfigSetCmd) Run(ctx context.Context) error {
 		payload["saved"] = true
 		return outfmt.WriteJSON(os.Stdout, payload)
 	}
-	fmt.Fprintf(os.Stdout, "Set %s = %s\n", c.Key, c.Value)
+	u := ui.FromContext(ctx)
+	u.Out().Printf("Set %s = %s\n", c.Key, c.Value)
 	return nil
 }
 
@@ -119,7 +122,8 @@ func (c *ConfigUnsetCmd) Run(ctx context.Context) error {
 		payload["removed"] = true
 		return outfmt.WriteJSON(os.Stdout, payload)
 	}
-	fmt.Fprintf(os.Stdout, "Unset %s\n", c.Key)
+	u := ui.FromContext(ctx)
+	u.Out().Printf("Unset %s\n", c.Key)
 	return nil
 }
 
@@ -142,10 +146,11 @@ func (c *ConfigListCmd) Run(ctx context.Context) error {
 		return outfmt.WriteJSON(os.Stdout, payload)
 	}
 
-	fmt.Fprintf(os.Stdout, "Config file: %s\n", path)
+	u := ui.FromContext(ctx)
+	u.Out().Printf("Config file: %s\n", path)
 	for _, key := range keys {
 		value := config.GetValue(cfg, key)
-		fmt.Fprintf(os.Stdout, "%s: %s\n", key, formatConfigValue(value, func() string { return "(not set)" }))
+		u.Out().Printf("%s: %s\n", key, formatConfigValue(value, func() string { return "(not set)" }))
 	}
 	return nil
 }
@@ -161,7 +166,8 @@ func (c *ConfigPathCmd) Run(ctx context.Context) error {
 	if outfmt.IsJSON(ctx) {
 		return outfmt.WriteJSON(os.Stdout, outfmt.PathPayload(path))
 	}
-	fmt.Fprintln(os.Stdout, path)
+	u := ui.FromContext(ctx)
+	u.Out().Println(path)
 	return nil
 }
 

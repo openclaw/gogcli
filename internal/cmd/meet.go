@@ -94,6 +94,7 @@ type MeetSpacesGetCmd struct {
 }
 
 func (c *MeetSpacesGetCmd) Run(ctx context.Context, flags *RootFlags) error {
+	u := ui.FromContext(ctx)
 	account, err := requireAccount(flags)
 	if err != nil {
 		return err
@@ -121,11 +122,11 @@ func (c *MeetSpacesGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return outfmt.WriteJSON(os.Stdout, resp)
 	}
 
-	fmt.Fprintf(os.Stdout, "Name: %s\n", resp.Name)
-	fmt.Fprintf(os.Stdout, "Meeting Code: %s\n", resp.MeetingCode)
-	fmt.Fprintf(os.Stdout, "Meeting URI: %s\n", resp.MeetingUri)
+	u.Out().Printf("Name: %s\n", resp.Name)
+	u.Out().Printf("Meeting Code: %s\n", resp.MeetingCode)
+	u.Out().Printf("Meeting URI: %s\n", resp.MeetingUri)
 	if resp.Config != nil {
-		fmt.Fprintf(os.Stdout, "Access Type: %s\n", resp.Config.AccessType)
+		u.Out().Printf("Access Type: %s\n", resp.Config.AccessType)
 	}
 	return nil
 }

@@ -105,6 +105,7 @@ type LicensesGetCmd struct {
 }
 
 func (c *LicensesGetCmd) Run(ctx context.Context, flags *RootFlags) error {
+	u := ui.FromContext(ctx)
 	account, err := requireAccount(flags)
 	if err != nil {
 		return err
@@ -129,14 +130,14 @@ func (c *LicensesGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return outfmt.WriteJSON(os.Stdout, assignment)
 	}
 
-	fmt.Fprintf(os.Stdout, "User:        %s\n", assignment.UserId)
-	fmt.Fprintf(os.Stdout, "Product:     %s\n", assignment.ProductId)
+	u.Out().Printf("User:        %s\n", assignment.UserId)
+	u.Out().Printf("Product:     %s\n", assignment.ProductId)
 	if assignment.ProductName != "" {
-		fmt.Fprintf(os.Stdout, "Product Name: %s\n", assignment.ProductName)
+		u.Out().Printf("Product Name: %s\n", assignment.ProductName)
 	}
-	fmt.Fprintf(os.Stdout, "SKU:         %s\n", assignment.SkuId)
+	u.Out().Printf("SKU:         %s\n", assignment.SkuId)
 	if assignment.SkuName != "" {
-		fmt.Fprintf(os.Stdout, "SKU Name:    %s\n", assignment.SkuName)
+		u.Out().Printf("SKU Name:    %s\n", assignment.SkuName)
 	}
 	return nil
 }

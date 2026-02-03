@@ -28,6 +28,7 @@ type SSOSettingsCmd struct {
 type SSOSettingsGetCmd struct{}
 
 func (c *SSOSettingsGetCmd) Run(ctx context.Context, flags *RootFlags) error {
+	u := ui.FromContext(ctx)
 	account, err := requireAccount(flags)
 	if err != nil {
 		return err
@@ -47,30 +48,30 @@ func (c *SSOSettingsGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return outfmt.WriteJSON(os.Stdout, profile)
 	}
 
-	fmt.Fprintf(os.Stdout, "Profile:           %s\n", profile.Name)
+	u.Out().Printf("Profile:           %s\n", profile.Name)
 	if profile.DisplayName != "" {
-		fmt.Fprintf(os.Stdout, "Display Name:      %s\n", profile.DisplayName)
+		u.Out().Printf("Display Name:      %s\n", profile.DisplayName)
 	}
 	if profile.IdpConfig != nil {
 		if profile.IdpConfig.EntityId != "" {
-			fmt.Fprintf(os.Stdout, "Entity ID:         %s\n", profile.IdpConfig.EntityId)
+			u.Out().Printf("Entity ID:         %s\n", profile.IdpConfig.EntityId)
 		}
 		if profile.IdpConfig.SingleSignOnServiceUri != "" {
-			fmt.Fprintf(os.Stdout, "SSO URL:           %s\n", profile.IdpConfig.SingleSignOnServiceUri)
+			u.Out().Printf("SSO URL:           %s\n", profile.IdpConfig.SingleSignOnServiceUri)
 		}
 		if profile.IdpConfig.LogoutRedirectUri != "" {
-			fmt.Fprintf(os.Stdout, "Logout URL:        %s\n", profile.IdpConfig.LogoutRedirectUri)
+			u.Out().Printf("Logout URL:        %s\n", profile.IdpConfig.LogoutRedirectUri)
 		}
 		if profile.IdpConfig.ChangePasswordUri != "" {
-			fmt.Fprintf(os.Stdout, "Change Password:   %s\n", profile.IdpConfig.ChangePasswordUri)
+			u.Out().Printf("Change Password:   %s\n", profile.IdpConfig.ChangePasswordUri)
 		}
 	}
 	if profile.SpConfig != nil {
 		if profile.SpConfig.EntityId != "" {
-			fmt.Fprintf(os.Stdout, "SP Entity ID:      %s\n", profile.SpConfig.EntityId)
+			u.Out().Printf("SP Entity ID:      %s\n", profile.SpConfig.EntityId)
 		}
 		if profile.SpConfig.AssertionConsumerServiceUri != "" {
-			fmt.Fprintf(os.Stdout, "SP ACS URL:        %s\n", profile.SpConfig.AssertionConsumerServiceUri)
+			u.Out().Printf("SP ACS URL:        %s\n", profile.SpConfig.AssertionConsumerServiceUri)
 		}
 	}
 	return nil

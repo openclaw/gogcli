@@ -96,6 +96,7 @@ type AlertsGetCmd struct {
 }
 
 func (c *AlertsGetCmd) Run(ctx context.Context, flags *RootFlags) error {
+	u := ui.FromContext(ctx)
 	account, err := requireAccount(flags)
 	if err != nil {
 		return err
@@ -115,17 +116,17 @@ func (c *AlertsGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return outfmt.WriteJSON(os.Stdout, alert)
 	}
 
-	fmt.Fprintf(os.Stdout, "Alert ID:    %s\n", alert.AlertId)
-	fmt.Fprintf(os.Stdout, "Type:        %s\n", alert.Type)
-	fmt.Fprintf(os.Stdout, "Source:      %s\n", alert.Source)
-	fmt.Fprintf(os.Stdout, "Created:     %s\n", alert.CreateTime)
-	fmt.Fprintf(os.Stdout, "Updated:     %s\n", alert.UpdateTime)
-	fmt.Fprintf(os.Stdout, "Deleted:     %t\n", alert.Deleted)
+	u.Out().Printf("Alert ID:    %s\n", alert.AlertId)
+	u.Out().Printf("Type:        %s\n", alert.Type)
+	u.Out().Printf("Source:      %s\n", alert.Source)
+	u.Out().Printf("Created:     %s\n", alert.CreateTime)
+	u.Out().Printf("Updated:     %s\n", alert.UpdateTime)
+	u.Out().Printf("Deleted:     %t\n", alert.Deleted)
 	if alert.StartTime != "" {
-		fmt.Fprintf(os.Stdout, "Start Time:  %s\n", alert.StartTime)
+		u.Out().Printf("Start Time:  %s\n", alert.StartTime)
 	}
 	if alert.EndTime != "" {
-		fmt.Fprintf(os.Stdout, "End Time:    %s\n", alert.EndTime)
+		u.Out().Printf("End Time:    %s\n", alert.EndTime)
 	}
 	return nil
 }
@@ -278,6 +279,7 @@ type AlertsSettingsCmd struct {
 type AlertsSettingsGetCmd struct{}
 
 func (c *AlertsSettingsGetCmd) Run(ctx context.Context, flags *RootFlags) error {
+	u := ui.FromContext(ctx)
 	account, err := requireAccount(flags)
 	if err != nil {
 		return err
@@ -297,12 +299,12 @@ func (c *AlertsSettingsGetCmd) Run(ctx context.Context, flags *RootFlags) error 
 		return outfmt.WriteJSON(os.Stdout, settings)
 	}
 
-	fmt.Fprintf(os.Stdout, "Notifications: %d\n", len(settings.Notifications))
+	u.Out().Printf("Notifications: %d\n", len(settings.Notifications))
 	for _, n := range settings.Notifications {
 		if n == nil || n.CloudPubsubTopic == nil {
 			continue
 		}
-		fmt.Fprintf(os.Stdout, "- %s\n", n.CloudPubsubTopic.TopicName)
+		u.Out().Printf("- %s\n", n.CloudPubsubTopic.TopicName)
 	}
 	return nil
 }

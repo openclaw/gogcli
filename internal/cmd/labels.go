@@ -95,6 +95,7 @@ type LabelsGetCmd struct {
 }
 
 func (c *LabelsGetCmd) Run(ctx context.Context, flags *RootFlags) error {
+	u := ui.FromContext(ctx)
 	account, err := requireAccount(flags)
 	if err != nil {
 		return err
@@ -124,11 +125,11 @@ func (c *LabelsGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if resp.Properties != nil {
 		title = resp.Properties.Title
 	}
-	fmt.Fprintf(os.Stdout, "Name: %s\n", resp.Name)
-	fmt.Fprintf(os.Stdout, "Title: %s\n", title)
-	fmt.Fprintf(os.Stdout, "Type: %s\n", resp.LabelType)
+	u.Out().Printf("Name: %s\n", resp.Name)
+	u.Out().Printf("Title: %s\n", title)
+	u.Out().Printf("Type: %s\n", resp.LabelType)
 	if resp.Lifecycle != nil {
-		fmt.Fprintf(os.Stdout, "State: %s\n", resp.Lifecycle.State)
+		u.Out().Printf("State: %s\n", resp.Lifecycle.State)
 	}
 	return nil
 }

@@ -86,6 +86,7 @@ type DriveRevisionsGetCmd struct {
 }
 
 func (c *DriveRevisionsGetCmd) Run(ctx context.Context, flags *RootFlags) error {
+	u := ui.FromContext(ctx)
 	account, err := requireAccount(flags)
 	if err != nil {
 		return err
@@ -111,12 +112,12 @@ func (c *DriveRevisionsGetCmd) Run(ctx context.Context, flags *RootFlags) error 
 		return outfmt.WriteJSON(os.Stdout, rev)
 	}
 
-	fmt.Fprintf(os.Stdout, "ID: %s\n", rev.Id)
-	fmt.Fprintf(os.Stdout, "Modified: %s\n", rev.ModifiedTime)
-	fmt.Fprintf(os.Stdout, "Mime: %s\n", rev.MimeType)
-	fmt.Fprintf(os.Stdout, "Keep: %t\n", rev.KeepForever)
+	u.Out().Printf("ID: %s\n", rev.Id)
+	u.Out().Printf("Modified: %s\n", rev.ModifiedTime)
+	u.Out().Printf("Mime: %s\n", rev.MimeType)
+	u.Out().Printf("Keep: %t\n", rev.KeepForever)
 	if rev.LastModifyingUser != nil {
-		fmt.Fprintf(os.Stdout, "User: %s\n", rev.LastModifyingUser.EmailAddress)
+		u.Out().Printf("User: %s\n", rev.LastModifyingUser.EmailAddress)
 	}
 	return nil
 }

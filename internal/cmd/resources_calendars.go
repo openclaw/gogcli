@@ -97,6 +97,7 @@ type ResourcesCalendarsGetCmd struct {
 }
 
 func (c *ResourcesCalendarsGetCmd) Run(ctx context.Context, flags *RootFlags) error {
+	u := ui.FromContext(ctx)
 	account, err := requireAccount(flags)
 	if err != nil {
 		return err
@@ -121,24 +122,24 @@ func (c *ResourcesCalendarsGetCmd) Run(ctx context.Context, flags *RootFlags) er
 		return outfmt.WriteJSON(os.Stdout, resource)
 	}
 
-	fmt.Fprintf(os.Stdout, "ID:          %s\n", resource.ResourceId)
-	fmt.Fprintf(os.Stdout, "Name:        %s\n", resource.ResourceName)
-	fmt.Fprintf(os.Stdout, "Email:       %s\n", resource.ResourceEmail)
-	fmt.Fprintf(os.Stdout, "Category:    %s\n", resource.ResourceCategory)
+	u.Out().Printf("ID:          %s\n", resource.ResourceId)
+	u.Out().Printf("Name:        %s\n", resource.ResourceName)
+	u.Out().Printf("Email:       %s\n", resource.ResourceEmail)
+	u.Out().Printf("Category:    %s\n", resource.ResourceCategory)
 	if resource.ResourceDescription != "" {
-		fmt.Fprintf(os.Stdout, "Description: %s\n", resource.ResourceDescription)
+		u.Out().Printf("Description: %s\n", resource.ResourceDescription)
 	}
 	if resource.UserVisibleDescription != "" {
-		fmt.Fprintf(os.Stdout, "User Desc:   %s\n", resource.UserVisibleDescription)
+		u.Out().Printf("User Desc:   %s\n", resource.UserVisibleDescription)
 	}
 	if resource.BuildingId != "" {
-		fmt.Fprintf(os.Stdout, "Building:    %s\n", resource.BuildingId)
+		u.Out().Printf("Building:    %s\n", resource.BuildingId)
 	}
 	if resource.FloorName != "" {
-		fmt.Fprintf(os.Stdout, "Floor:       %s\n", resource.FloorName)
+		u.Out().Printf("Floor:       %s\n", resource.FloorName)
 	}
 	if resource.Capacity != 0 {
-		fmt.Fprintf(os.Stdout, "Capacity:    %d\n", resource.Capacity)
+		u.Out().Printf("Capacity:    %d\n", resource.Capacity)
 	}
 	return nil
 }

@@ -82,6 +82,7 @@ type ResourcesBuildingsGetCmd struct {
 }
 
 func (c *ResourcesBuildingsGetCmd) Run(ctx context.Context, flags *RootFlags) error {
+	u := ui.FromContext(ctx)
 	account, err := requireAccount(flags)
 	if err != nil {
 		return err
@@ -106,13 +107,13 @@ func (c *ResourcesBuildingsGetCmd) Run(ctx context.Context, flags *RootFlags) er
 		return outfmt.WriteJSON(os.Stdout, building)
 	}
 
-	fmt.Fprintf(os.Stdout, "ID:          %s\n", building.BuildingId)
-	fmt.Fprintf(os.Stdout, "Name:        %s\n", building.BuildingName)
+	u.Out().Printf("ID:          %s\n", building.BuildingId)
+	u.Out().Printf("Name:        %s\n", building.BuildingName)
 	if building.Description != "" {
-		fmt.Fprintf(os.Stdout, "Description: %s\n", building.Description)
+		u.Out().Printf("Description: %s\n", building.Description)
 	}
 	if len(building.FloorNames) > 0 {
-		fmt.Fprintf(os.Stdout, "Floors:      %s\n", strings.Join(building.FloorNames, ", "))
+		u.Out().Printf("Floors:      %s\n", strings.Join(building.FloorNames, ", "))
 	}
 	return nil
 }

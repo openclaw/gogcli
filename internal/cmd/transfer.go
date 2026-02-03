@@ -99,6 +99,7 @@ type TransferGetCmd struct {
 }
 
 func (c *TransferGetCmd) Run(ctx context.Context, flags *RootFlags) error {
+	u := ui.FromContext(ctx)
 	account, err := requireAccount(flags)
 	if err != nil {
 		return err
@@ -123,12 +124,12 @@ func (c *TransferGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return outfmt.WriteJSON(os.Stdout, transfer)
 	}
 
-	fmt.Fprintf(os.Stdout, "ID:        %s\n", transfer.Id)
-	fmt.Fprintf(os.Stdout, "Old Owner: %s\n", transfer.OldOwnerUserId)
-	fmt.Fprintf(os.Stdout, "New Owner: %s\n", transfer.NewOwnerUserId)
-	fmt.Fprintf(os.Stdout, "Status:    %s\n", transfer.OverallTransferStatusCode)
+	u.Out().Printf("ID:        %s\n", transfer.Id)
+	u.Out().Printf("Old Owner: %s\n", transfer.OldOwnerUserId)
+	u.Out().Printf("New Owner: %s\n", transfer.NewOwnerUserId)
+	u.Out().Printf("Status:    %s\n", transfer.OverallTransferStatusCode)
 	if len(transfer.ApplicationDataTransfers) > 0 {
-		fmt.Fprintf(os.Stdout, "Apps:      %d\n", len(transfer.ApplicationDataTransfers))
+		u.Out().Printf("Apps:      %d\n", len(transfer.ApplicationDataTransfers))
 	}
 	return nil
 }
