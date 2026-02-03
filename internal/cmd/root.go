@@ -59,6 +59,12 @@ type CLI struct {
 	Transfer   TransferCmd           `cmd:"" name:"transfer" help:"Data transfer"`
 	Printers   PrintersCmd           `cmd:"" help:"Chrome printers"`
 	Forms      FormsCmd              `cmd:"" help:"Google Forms"`
+	Sites      SitesCmd              `cmd:"" help:"Google Sites"`
+	YouTube    YouTubeCmd            `cmd:"" help:"YouTube"`
+	Looker     LookerStudioCmd       `cmd:"" name:"lookerstudio" help:"Looker Studio"`
+	Meet       MeetCmd               `cmd:"" help:"Google Meet"`
+	Analytics  AnalyticsCmd          `cmd:"" help:"Analytics Admin"`
+	Labels     LabelsCmd             `cmd:"" help:"Drive Labels"`
 	Drive      DriveCmd              `cmd:"" help:"Google Drive"`
 	Docs       DocsCmd               `cmd:"" help:"Google Docs (export via Drive)"`
 	Slides     SlidesCmd             `cmd:"" help:"Google Slides"`

@@ -31,6 +31,10 @@ const (
 	ServiceLicensing      Service = "licensing"
 	ServiceDataTransfer   Service = "datatransfer"
 	ServiceForms          Service = "forms"
+	ServiceYouTube        Service = "youtube"
+	ServiceMeet           Service = "meet"
+	ServiceAnalytics      Service = "analytics"
+	ServiceDriveLabels    Service = "drivelabels"
 )
 
 const (
@@ -86,6 +90,10 @@ var serviceOrder = []Service{
 	ServiceLicensing,
 	ServiceDataTransfer,
 	ServiceForms,
+	ServiceYouTube,
+	ServiceMeet,
+	ServiceAnalytics,
+	ServiceDriveLabels,
 }
 
 var serviceInfoByService = map[Service]serviceInfo{
@@ -285,6 +293,44 @@ var serviceInfoByService = map[Service]serviceInfo{
 		user: true,
 		apis: []string{"Forms API"},
 		note: "Forms and responses",
+	},
+	ServiceYouTube: {
+		scopes: []string{
+			"https://www.googleapis.com/auth/youtube.readonly",
+		},
+		user: false,
+		apis: []string{"YouTube Data API"},
+		note: "YouTube channels",
+	},
+	ServiceMeet: {
+		scopes: []string{
+			"https://www.googleapis.com/auth/meetings.space.created",
+			"https://www.googleapis.com/auth/meetings.space.readonly",
+			"https://www.googleapis.com/auth/meetings.space.settings",
+		},
+		user: false,
+		apis: []string{"Google Meet API"},
+		note: "Meet spaces",
+	},
+	ServiceAnalytics: {
+		scopes: []string{
+			"https://www.googleapis.com/auth/analytics.edit",
+			"https://www.googleapis.com/auth/analytics.readonly",
+		},
+		user: false,
+		apis: []string{"Google Analytics Admin API"},
+		note: "Analytics admin",
+	},
+	ServiceDriveLabels: {
+		scopes: []string{
+			"https://www.googleapis.com/auth/drive.admin.labels",
+			"https://www.googleapis.com/auth/drive.admin.labels.readonly",
+			"https://www.googleapis.com/auth/drive.labels",
+			"https://www.googleapis.com/auth/drive.labels.readonly",
+		},
+		user: false,
+		apis: []string{"Drive Labels API"},
+		note: "Drive classification labels",
 	},
 }
 
@@ -579,7 +625,7 @@ func scopesForServiceWithOptions(service Service, opts ScopeOptions) ([]string, 
 		return Scopes(service)
 	case ServiceKeep:
 		return Scopes(service)
-	case ServiceAdminDirectory, ServiceReports, ServiceVault, ServiceAlertCenter, ServiceInboundSSO, ServiceAccessContext, ServiceLicensing, ServiceDataTransfer, ServiceForms:
+	case ServiceAdminDirectory, ServiceReports, ServiceVault, ServiceAlertCenter, ServiceInboundSSO, ServiceAccessContext, ServiceLicensing, ServiceDataTransfer, ServiceForms, ServiceYouTube, ServiceMeet, ServiceAnalytics, ServiceDriveLabels:
 		return Scopes(service)
 	default:
 		return nil, errUnknownService
