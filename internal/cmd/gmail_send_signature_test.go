@@ -453,6 +453,163 @@ func TestSignatureFileContentType_HTML(t *testing.T) {
 	}
 }
 
+func TestAppendSignaturePlain(t *testing.T) {
+	tests := []struct {
+		name      string
+		body      string
+		signature string
+		want      string
+	}{
+		{name: "normal case", body: "Hello", signature: "-- John", want: "Hello\n\n--\n-- John"},
+		{name: "empty signature", body: "Hello", signature: "", want: "Hello"},
+		{name: "whitespace-only signature", body: "Hello", signature: "   ", want: "Hello"},
+		{name: "empty body with signature", body: "", signature: "Sig", want: "\n\n--\nSig"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := appendSignaturePlain(tt.body, tt.signature)
+			if got != tt.want {
+				t.Errorf("appendSignaturePlain(%q, %q)\ngot:  %q\nwant: %q", tt.body, tt.signature, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestAppendSignatureHTML(t *testing.T) {
+	tests := []struct {
+		name      string
+		body      string
+		signature string
+		want      string
+	}{
+		{
+			name:      "normal case",
+			body:      "<p>Hi</p>",
+			signature: "<div>Sig</div>",
+			want:      "<p>Hi</p>\n\n" + `<div class="gmail_signature"><div>Sig</div></div>`,
+		},
+		{name: "empty signature", body: "<p>Hi</p>", signature: "", want: "<p>Hi</p>"},
+		{name: "whitespace-only signature", body: "<p>Hi</p>", signature: "   ", want: "<p>Hi</p>"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := appendSignatureHTML(tt.body, tt.signature)
+			if got != tt.want {
+				t.Errorf("appendSignatureHTML(%q, %q)\ngot:  %q\nwant: %q", tt.body, tt.signature, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestValidateSignatureFlags(t *testing.T) {
+	tests := []struct {
+		name          string
+		signature     bool
+		signatureName string
+		signatureFile string
+		wantErr       bool
+	}{
+		{name: "no flags set", signature: false, signatureName: "", signatureFile: "", wantErr: false},
+		{name: "only --signature", signature: true, signatureName: "", signatureFile: "", wantErr: false},
+		{name: "only --signature-name", signature: false, signatureName: "alias@example.com", signatureFile: "", wantErr: false},
+		{name: "only --signature-file", signature: false, signatureName: "", signatureFile: "/tmp/sig.html", wantErr: false},
+		{name: "--signature + --signature-name", signature: true, signatureName: "alias@example.com", signatureFile: "", wantErr: true},
+		{name: "--signature + --signature-file", signature: true, signatureName: "", signatureFile: "/tmp/sig.html", wantErr: true},
+		{name: "--signature-name + --signature-file", signature: false, signatureName: "alias@example.com", signatureFile: "/tmp/sig.html", wantErr: true},
+		{name: "all three", signature: true, signatureName: "alias@example.com", signatureFile: "/tmp/sig.html", wantErr: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateSignatureFlags(tt.signature, tt.signatureName, tt.signatureFile)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("validateSignatureFlags(%v, %q, %q) error = %v, wantErr = %v",
+					tt.signature, tt.signatureName, tt.signatureFile, err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestGmailSendCmd_SignatureNameAlias(t *testing.T) {
+	origNew := newGmailService
+	t.Cleanup(func() { newGmailService = origNew })
+
+	var gotRaw string
+	var gotSendAsGetPath string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := strings.TrimPrefix(r.URL.Path, "/gmail/v1")
+		switch {
+		case r.Method == http.MethodGet && strings.HasPrefix(path, "/users/me/settings/sendAs/"):
+			gotSendAsGetPath = path
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"sendAsEmail":        "alias@example.com",
+				"signature":          "<div>Alias Sig</div>",
+				"verificationStatus": "accepted",
+			})
+			return
+		case r.Method == http.MethodPost && path == "/users/me/messages/send":
+			var payload struct {
+				Raw string `json:"raw"`
+			}
+			if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+				t.Fatalf("decode payload: %v", err)
+			}
+			decoded, err := base64.RawURLEncoding.DecodeString(payload.Raw)
+			if err != nil {
+				t.Fatalf("decode raw: %v", err)
+			}
+			gotRaw = string(decoded)
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{"id": "m1"})
+			return
+		default:
+			http.NotFound(w, r)
+			return
+		}
+	}))
+	defer srv.Close()
+
+	svc, err := gmail.NewService(context.Background(),
+		option.WithoutAuthentication(),
+		option.WithHTTPClient(srv.Client()),
+		option.WithEndpoint(srv.URL+"/"),
+	)
+	if err != nil {
+		t.Fatalf("NewService: %v", err)
+	}
+	newGmailService = func(context.Context, string) (*gmail.Service, error) { return svc, nil }
+
+	u, err := ui.New(ui.Options{Stdout: io.Discard, Stderr: io.Discard, Color: "never"})
+	if err != nil {
+		t.Fatalf("ui.New: %v", err)
+	}
+	ctx := ui.WithUI(context.Background(), u)
+
+	cmd := &GmailSendCmd{
+		To:            "recipient@example.com",
+		Subject:       "Hello",
+		Body:          "Body",
+		SignatureName: "alias@example.com",
+	}
+	if err := cmd.Run(ctx, &RootFlags{Account: "a@b.com"}); err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+
+	// Verify the SendAs.Get call used alias@example.com, not the account email a@b.com.
+	wantPath := "/users/me/settings/sendAs/alias@example.com"
+	if gotSendAsGetPath != wantPath {
+		t.Errorf("expected SendAs.Get path %q, got %q", wantPath, gotSendAsGetPath)
+	}
+
+	if gotRaw == "" {
+		t.Fatal("expected raw message")
+	}
+	// The signature HTML should be converted to plain text "Alias Sig" and appended.
+	if !strings.Contains(gotRaw, "Body\r\n\r\n--\r\nAlias Sig") {
+		t.Errorf("expected alias signature in plain body, got: %q", gotRaw)
+	}
+}
+
 func TestSignatureHTMLToPlain(t *testing.T) {
 	tests := []struct {
 		name string
