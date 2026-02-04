@@ -180,13 +180,18 @@ func TestLooksLikeQuotedPrintable(t *testing.T) {
 		input string
 		want  bool
 	}{
-		{"actual QP with hex", "Price =E2=82=AC99", true},
+		{"actual QP uppercase hex", "Price =E2=82=AC99", true},
 		{"soft line break CRLF", "line=\r\ncontinued", true},
 		{"soft line break LF", "line=\ncontinued", true},
-		{"plain URL with equals", "https://example.com?foo=bar", false},
+		{"plain URL lowercase", "https://example.com?foo=bar", false},
+		{"URL with multiple params", "https://example.com?a=b1&c=d2", false},
+		{"lowercase hex sequence", "test=ab", false}, // lowercase not matched
+		{"uppercase hex sequence", "test=AB", true},
+		{"mixed case hex", "test=Ab", false}, // requires both uppercase
 		{"plain text", "Hello World", false},
 		{"equals at end", "foo=", false},
 		{"short input", "=", false},
+		{"QP encoded equals", "foo=3Dbar", true}, // =3D is QP for =
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
