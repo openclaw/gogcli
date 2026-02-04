@@ -473,6 +473,105 @@ func TestAuthAddCmd_SheetsDriveScopeFile(t *testing.T) {
 	}
 }
 
+func TestAuthAddCmd_RemoteStep1_PrintsAuthURL(t *testing.T) {
+	origManualURL := manualAuthURL
+	origAuth := authorizeGoogle
+	origKeychain := ensureKeychainAccess
+	t.Cleanup(func() {
+		manualAuthURL = origManualURL
+		authorizeGoogle = origAuth
+		ensureKeychainAccess = origKeychain
+	})
+
+	manualCalled := false
+	manualAuthURL = func(context.Context, googleauth.AuthorizeOptions) (googleauth.ManualAuthURLResult, error) {
+		manualCalled = true
+		return googleauth.ManualAuthURLResult{
+			URL:         "https://example.com/auth",
+			StateReused: true,
+		}, nil
+	}
+	authorizeGoogle = func(context.Context, googleauth.AuthorizeOptions) (string, error) {
+		t.Fatal("authorizeGoogle should not be called in remote step 1")
+		return "", nil
+	}
+	ensureKeychainAccess = func() error {
+		t.Fatal("keychain access should not be checked in remote step 1")
+		return nil
+	}
+
+	out := captureStdout(t, func() {
+		_ = captureStderr(t, func() {
+			if err := Execute([]string{
+				"auth",
+				"add",
+				"user@example.com",
+				"--services",
+				"gmail",
+				"--remote",
+				"--step",
+				"1",
+			}); err != nil {
+				t.Fatalf("Execute: %v", err)
+			}
+		})
+	})
+
+	if !manualCalled {
+		t.Fatalf("expected manualAuthURL to be called")
+	}
+	if !strings.Contains(out, "auth_url\thttps://example.com/auth") {
+		t.Fatalf("unexpected output: %q", out)
+	}
+	if !strings.Contains(out, "state_reused\ttrue") {
+		t.Fatalf("expected state_reused output, got: %q", out)
+	}
+}
+
+func TestAuthAddCmd_AuthCode_PassesThrough(t *testing.T) {
+	origAuth := authorizeGoogle
+	origOpen := openSecretsStore
+	origKeychain := ensureKeychainAccess
+	origFetch := fetchAuthorizedEmail
+	t.Cleanup(func() {
+		authorizeGoogle = origAuth
+		openSecretsStore = origOpen
+		ensureKeychainAccess = origKeychain
+		fetchAuthorizedEmail = origFetch
+	})
+
+	ensureKeychainAccess = func() error { return nil }
+	openSecretsStore = func() (secrets.Store, error) { return newMemSecretsStore(), nil }
+
+	var gotOpts googleauth.AuthorizeOptions
+	authorizeGoogle = func(ctx context.Context, opts googleauth.AuthorizeOptions) (string, error) {
+		gotOpts = opts
+		return "rt", nil
+	}
+	fetchAuthorizedEmail = func(context.Context, string, string, []string, time.Duration) (string, error) {
+		return "user@example.com", nil
+	}
+
+	if err := Execute([]string{
+		"auth",
+		"add",
+		"user@example.com",
+		"--services",
+		"gmail",
+		"--auth-code",
+		"abc123",
+	}); err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+
+	if !gotOpts.Manual {
+		t.Fatalf("expected manual auth when auth-code is provided")
+	}
+	if gotOpts.AuthCode != "abc123" {
+		t.Fatalf("expected auth-code to be passed through, got %q", gotOpts.AuthCode)
+	}
+}
+
 func containsStringInSlice(items []string, want string) bool {
 	for _, it := range items {
 		if it == want {

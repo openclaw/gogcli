@@ -26,6 +26,7 @@ var (
 	checkRefreshToken    = googleauth.CheckRefreshToken
 	ensureKeychainAccess = secrets.EnsureKeychainAccess
 	fetchAuthorizedEmail = googleauth.EmailForRefreshToken
+	manualAuthURL        = googleauth.ManualAuthURL
 )
 
 func ensureKeychainAccessIfNeeded() error {
@@ -479,12 +480,17 @@ func (c *AuthTokensImportCmd) Run(ctx context.Context) error {
 }
 
 type AuthAddCmd struct {
-	Email        string `arg:"" name:"email" help:"Email"`
-	Manual       bool   `name:"manual" help:"Browserless auth flow (paste redirect URL)"`
-	ForceConsent bool   `name:"force-consent" help:"Force consent screen to obtain a refresh token"`
-	ServicesCSV  string `name:"services" help:"Services to authorize: user|all or comma-separated ${auth_services} (Keep uses service account: gog auth service-account set)" default:"user"`
-	Readonly     bool   `name:"readonly" help:"Use read-only scopes where available (still includes OIDC identity scopes)"`
-	DriveScope   string `name:"drive-scope" help:"Drive scope mode: full|readonly|file" enum:"full,readonly,file" default:"full"`
+	Email        string        `arg:"" name:"email" help:"Email"`
+	Manual       bool          `name:"manual" help:"Browserless auth flow (paste redirect URL)"`
+	Remote       bool          `name:"remote" help:"Remote/server-friendly manual flow (print URL, then exchange code)"`
+	Step         int           `name:"step" help:"Remote auth step: 1=print URL, 2=exchange code"`
+	AuthURL      string        `name:"auth-url" help:"Redirect URL from browser (manual flow)"`
+	AuthCode     string        `name:"auth-code" help:"Authorization code from browser (manual flow; skips state check)"`
+	Timeout      time.Duration `name:"timeout" help:"Authorization timeout (manual flows default to 5m)"`
+	ForceConsent bool          `name:"force-consent" help:"Force consent screen to obtain a refresh token"`
+	ServicesCSV  string        `name:"services" help:"Services to authorize: user|all or comma-separated ${auth_services} (Keep uses service account: gog auth service-account set)" default:"user"`
+	Readonly     bool          `name:"readonly" help:"Use read-only scopes where available (still includes OIDC identity scopes)"`
+	DriveScope   string        `name:"drive-scope" help:"Drive scope mode: full|readonly|file" enum:"full,readonly,file" default:"full"`
 }
 
 func (c *AuthAddCmd) Run(ctx context.Context) error {
@@ -515,6 +521,66 @@ func (c *AuthAddCmd) Run(ctx context.Context) error {
 		return err
 	}
 
+	authURL := strings.TrimSpace(c.AuthURL)
+	authCode := strings.TrimSpace(c.AuthCode)
+	if authURL != "" && authCode != "" {
+		return usage("cannot combine --auth-url with --auth-code")
+	}
+	if c.Step != 0 && c.Step != 1 && c.Step != 2 {
+		return usage("step must be 1 or 2")
+	}
+	if c.Step != 0 && !c.Remote {
+		return usage("--step requires --remote")
+	}
+
+	manual := c.Manual || c.Remote || authURL != "" || authCode != ""
+
+	if c.Remote {
+		step := c.Step
+		if step == 0 {
+			if authURL != "" || authCode != "" {
+				step = 2
+			} else {
+				step = 1
+			}
+		}
+		switch step {
+		case 1:
+			if authURL != "" || authCode != "" {
+				return usage("remote step 1 does not accept --auth-url or --auth-code")
+			}
+			result, err := manualAuthURL(ctx, googleauth.AuthorizeOptions{
+				Services:     services,
+				Scopes:       scopes,
+				Manual:       true,
+				ForceConsent: c.ForceConsent,
+				Client:       client,
+			})
+			if err != nil {
+				return err
+			}
+			if outfmt.IsJSON(ctx) {
+				return outfmt.WriteJSON(os.Stdout, map[string]any{
+					"auth_url":     result.URL,
+					"state_reused": result.StateReused,
+				})
+			}
+			u.Out().Printf("auth_url\t%s", result.URL)
+			u.Out().Printf("state_reused\t%t", result.StateReused)
+			u.Err().Println("Run again with --remote --step 2 --auth-url <redirect-url> (or --auth-code <code>)")
+			return nil
+		case 2:
+			if authURL == "" && authCode == "" {
+				return usage("remote step 2 requires --auth-url or --auth-code")
+			}
+		}
+	}
+
+	timeout := c.Timeout
+	if timeout == 0 && manual {
+		timeout = 5 * time.Minute
+	}
+
 	// Pre-flight: ensure keychain is accessible before starting OAuth
 	if keychainErr := ensureKeychainAccessIfNeeded(); keychainErr != nil {
 		return fmt.Errorf("keychain access: %w", keychainErr)
@@ -523,9 +589,12 @@ func (c *AuthAddCmd) Run(ctx context.Context) error {
 	refreshToken, err := authorizeGoogle(ctx, googleauth.AuthorizeOptions{
 		Services:     services,
 		Scopes:       scopes,
-		Manual:       c.Manual,
+		Manual:       manual,
 		ForceConsent: c.ForceConsent,
+		Timeout:      timeout,
 		Client:       client,
+		AuthURL:      authURL,
+		AuthCode:     authCode,
 	})
 	if err != nil {
 		return err
