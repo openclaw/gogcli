@@ -528,6 +528,81 @@ func TestAuthAddCmd_RemoteStep1_PrintsAuthURL(t *testing.T) {
 	}
 }
 
+func TestAuthAddCmd_RemoteStep2_RejectsAuthCode(t *testing.T) {
+	err := Execute([]string{
+		"auth",
+		"add",
+		"user@example.com",
+		"--services",
+		"gmail",
+		"--remote",
+		"--step",
+		"2",
+		"--auth-code",
+		"abc123",
+	})
+	if err == nil {
+		t.Fatalf("expected error")
+	}
+	var ee *ExitError
+	if !errors.As(err, &ee) || ee.Code != 2 {
+		t.Fatalf("expected exit code 2, got %T %#v", err, err)
+	}
+	if !strings.Contains(err.Error(), "remote step 2 requires --auth-url") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestAuthAddCmd_RemoteStep2_PassesAuthURL(t *testing.T) {
+	origAuth := authorizeGoogle
+	origOpen := openSecretsStore
+	origKeychain := ensureKeychainAccess
+	origFetch := fetchAuthorizedEmail
+	t.Cleanup(func() {
+		authorizeGoogle = origAuth
+		openSecretsStore = origOpen
+		ensureKeychainAccess = origKeychain
+		fetchAuthorizedEmail = origFetch
+	})
+
+	ensureKeychainAccess = func() error { return nil }
+	openSecretsStore = func() (secrets.Store, error) { return newMemSecretsStore(), nil }
+
+	var gotOpts googleauth.AuthorizeOptions
+	authorizeGoogle = func(ctx context.Context, opts googleauth.AuthorizeOptions) (string, error) {
+		gotOpts = opts
+		return "rt", nil
+	}
+	fetchAuthorizedEmail = func(context.Context, string, string, []string, time.Duration) (string, error) {
+		return "user@example.com", nil
+	}
+
+	if err := Execute([]string{
+		"auth",
+		"add",
+		"user@example.com",
+		"--services",
+		"gmail",
+		"--remote",
+		"--step",
+		"2",
+		"--auth-url",
+		"http://localhost:1/?code=abc&state=state123",
+	}); err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+
+	if !gotOpts.Manual {
+		t.Fatalf("expected manual auth in remote step 2")
+	}
+	if !gotOpts.RequireState {
+		t.Fatalf("expected require state in remote step 2")
+	}
+	if gotOpts.AuthURL == "" {
+		t.Fatalf("expected auth URL to be passed through")
+	}
+}
+
 func TestAuthAddCmd_AuthCode_PassesThrough(t *testing.T) {
 	origAuth := authorizeGoogle
 	origOpen := openSecretsStore

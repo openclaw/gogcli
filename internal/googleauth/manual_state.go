@@ -73,6 +73,40 @@ func loadManualState(client string, scopes []string, forceConsent bool) (string,
 	return st.State, true, nil
 }
 
+func loadManualStateStrict(client string, scopes []string, forceConsent bool) (string, error) {
+	path, err := manualStatePathFn()
+	if err != nil {
+		return "", err
+	}
+
+	data, err := os.ReadFile(path) //nolint:gosec // config path
+	if err != nil {
+		if os.IsNotExist(err) {
+			return "", errManualStateMissing
+		}
+		return "", fmt.Errorf("read manual auth state: %w", err)
+	}
+
+	var st manualState
+	if err := json.Unmarshal(data, &st); err != nil {
+		_ = os.Remove(path)
+		return "", errManualStateMissing
+	}
+	if st.State == "" {
+		_ = os.Remove(path)
+		return "", errManualStateMissing
+	}
+	if manualStateNowFn().Sub(st.CreatedAt) > manualStateTTL {
+		_ = os.Remove(path)
+		return "", errManualStateMissing
+	}
+	if st.Client != client || st.ForceConsent != forceConsent || !scopesEqual(st.Scopes, scopes) {
+		return "", errManualStateMismatch
+	}
+
+	return st.State, nil
+}
+
 func saveManualState(client string, scopes []string, forceConsent bool, state string) error {
 	path, err := manualStatePathFn()
 	if err != nil {

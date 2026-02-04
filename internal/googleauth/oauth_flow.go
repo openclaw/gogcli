@@ -31,6 +31,7 @@ type AuthorizeOptions struct {
 	Client       string
 	AuthCode     string
 	AuthURL      string
+	RequireState bool
 }
 
 type ManualAuthURLResult struct {
@@ -58,12 +59,15 @@ var (
 )
 
 var (
-	errAuthorization  = errors.New("authorization error")
-	errMissingCode    = errors.New("missing code")
-	errMissingScopes  = errors.New("missing scopes")
-	errNoCodeInURL    = errors.New("no code found in URL")
-	errNoRefreshToken = errors.New("no refresh token received; try again with --force-consent")
-	errStateMismatch  = errors.New("state mismatch")
+	errAuthorization       = errors.New("authorization error")
+	errMissingCode         = errors.New("missing code")
+	errMissingState        = errors.New("missing state in redirect URL")
+	errMissingScopes       = errors.New("missing scopes")
+	errNoCodeInURL         = errors.New("no code found in URL")
+	errNoRefreshToken      = errors.New("no refresh token received; try again with --force-consent")
+	errManualStateMissing  = errors.New("manual auth state missing; run remote step 1 again")
+	errManualStateMismatch = errors.New("manual auth state mismatch; run remote step 1 again")
+	errStateMismatch       = errors.New("state mismatch")
 )
 
 func Authorize(ctx context.Context, opts AuthorizeOptions) (string, error) {
@@ -106,16 +110,29 @@ func Authorize(ctx context.Context, opts AuthorizeOptions) (string, error) {
 				if parseErr != nil {
 					return "", parseErr
 				}
+				if opts.RequireState && gotState == "" {
+					return "", errMissingState
+				}
 			}
 			if strings.TrimSpace(code) == "" {
 				return "", errMissingCode
 			}
 
 			if gotState != "" {
-				if cachedState, ok, cacheErr := loadManualState(opts.Client, opts.Scopes, opts.ForceConsent); cacheErr != nil {
-					return "", cacheErr
-				} else if ok && gotState != cachedState {
-					return "", errStateMismatch
+				if opts.RequireState {
+					cachedState, cacheErr := loadManualStateStrict(opts.Client, opts.Scopes, opts.ForceConsent)
+					if cacheErr != nil {
+						return "", cacheErr
+					}
+					if gotState != cachedState {
+						return "", errManualStateMismatch
+					}
+				} else {
+					if cachedState, ok, cacheErr := loadManualState(opts.Client, opts.Scopes, opts.ForceConsent); cacheErr != nil {
+						return "", cacheErr
+					} else if ok && gotState != cachedState {
+						return "", errStateMismatch
+					}
 				}
 			}
 

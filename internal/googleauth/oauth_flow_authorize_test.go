@@ -314,6 +314,103 @@ func TestAuthorize_Manual_AuthCode(t *testing.T) {
 	}
 }
 
+func TestAuthorize_Manual_AuthURL_RequireStateMissing(t *testing.T) {
+	origRead := readClientCredentials
+	origEndpoint := oauthEndpoint
+
+	t.Cleanup(func() {
+		readClientCredentials = origRead
+		oauthEndpoint = origEndpoint
+	})
+	useTempManualStatePath(t)
+
+	readClientCredentials = func(string) (config.ClientCredentials, error) {
+		return config.ClientCredentials{ClientID: "id", ClientSecret: "secret"}, nil
+	}
+	oauthEndpoint = oauth2EndpointForTest("http://example.com")
+
+	_, err := Authorize(context.Background(), AuthorizeOptions{
+		Scopes:       []string{"s1"},
+		Manual:       true,
+		AuthURL:      "http://localhost:1/?code=abc",
+		RequireState: true,
+		Client:       "default",
+		Timeout:      2 * time.Second,
+	})
+	if err == nil {
+		t.Fatalf("expected error")
+	}
+	if !errors.Is(err, errMissingState) {
+		t.Fatalf("expected missing state error, got: %v", err)
+	}
+}
+
+func TestAuthorize_Manual_AuthURL_RequireStateMissingCache(t *testing.T) {
+	origRead := readClientCredentials
+	origEndpoint := oauthEndpoint
+
+	t.Cleanup(func() {
+		readClientCredentials = origRead
+		oauthEndpoint = origEndpoint
+	})
+	useTempManualStatePath(t)
+
+	readClientCredentials = func(string) (config.ClientCredentials, error) {
+		return config.ClientCredentials{ClientID: "id", ClientSecret: "secret"}, nil
+	}
+	oauthEndpoint = oauth2EndpointForTest("http://example.com")
+
+	_, err := Authorize(context.Background(), AuthorizeOptions{
+		Scopes:       []string{"s1"},
+		Manual:       true,
+		AuthURL:      "http://localhost:1/?code=abc&state=state123",
+		RequireState: true,
+		Client:       "default",
+		Timeout:      2 * time.Second,
+	})
+	if err == nil {
+		t.Fatalf("expected error")
+	}
+	if !errors.Is(err, errManualStateMissing) {
+		t.Fatalf("expected manual state missing error, got: %v", err)
+	}
+}
+
+func TestAuthorize_Manual_AuthURL_RequireStateMismatch(t *testing.T) {
+	origRead := readClientCredentials
+	origEndpoint := oauthEndpoint
+
+	t.Cleanup(func() {
+		readClientCredentials = origRead
+		oauthEndpoint = origEndpoint
+	})
+	useTempManualStatePath(t)
+
+	readClientCredentials = func(string) (config.ClientCredentials, error) {
+		return config.ClientCredentials{ClientID: "id", ClientSecret: "secret"}, nil
+	}
+	oauthEndpoint = oauth2EndpointForTest("http://example.com")
+
+	if err := saveManualState("default", []string{"s1"}, false, "state123"); err != nil {
+		t.Fatalf("save manual state: %v", err)
+	}
+
+	_, err := Authorize(context.Background(), AuthorizeOptions{
+		Scopes:       []string{"s1"},
+		Manual:       true,
+		AuthURL:      "http://localhost:1/?code=abc&state=DIFFERENT",
+		RequireState: true,
+		Client:       "default",
+		Timeout:      2 * time.Second,
+	})
+	if err == nil {
+		t.Fatalf("expected error")
+	}
+	if !errors.Is(err, errManualStateMismatch) {
+		t.Fatalf("expected manual state mismatch error, got: %v", err)
+	}
+}
+
 func TestAuthorize_ServerFlow_Success(t *testing.T) {
 	origRead := readClientCredentials
 	origEndpoint := oauthEndpoint
