@@ -106,7 +106,7 @@ func (c *GmailSendCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return usage("--track-split requires --track")
 	}
 
-	if err := validateSignatureFlags(c.Signature, c.SignatureName, c.SignatureFile); err != nil {
+	if err = validateSignatureFlags(c.Signature, c.SignatureName, c.SignatureFile); err != nil {
 		return err
 	}
 
@@ -303,7 +303,7 @@ func (c *GmailSendCmd) resolveSignature(ctx context.Context, svc *gmail.Service,
 			HTML:  sa.Signature,
 		}, nil
 	default:
-		return nil, nil
+		return nil, nil //nolint:nilnil // nil result + nil error means no signature was requested
 	}
 }
 
