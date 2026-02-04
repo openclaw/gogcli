@@ -27,7 +27,7 @@ func (c *OrgunitsDeleteCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
-	if err := svc.Orgunits.Delete(adminCustomerID, c.Path).Context(ctx).Do(); err != nil {
+	if err := svc.Orgunits.Delete(adminCustomerID(), c.Path).Context(ctx).Do(); err != nil {
 		return fmt.Errorf("delete org unit %s: %w", c.Path, err)
 	}
 

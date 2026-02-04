@@ -25,7 +25,7 @@ func (c *OrgunitsGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
-	ou, err := svc.Orgunits.Get(adminCustomerID, c.Path).Context(ctx).Do()
+	ou, err := svc.Orgunits.Get(adminCustomerID(), c.Path).Context(ctx).Do()
 	if err != nil {
 		return fmt.Errorf("get org unit %s: %w", c.Path, err)
 	}

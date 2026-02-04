@@ -25,7 +25,7 @@ func (c *DomainsListCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
-	resp, err := svc.Domains.List(adminCustomerID).Context(ctx).Do()
+	resp, err := svc.Domains.List(adminCustomerID()).Context(ctx).Do()
 	if err != nil {
 		return fmt.Errorf("list domains: %w", err)
 	}

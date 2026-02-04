@@ -41,7 +41,7 @@ func (c *OrgunitsCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
 		Description:       c.Description,
 	}
 
-	created, err := svc.Orgunits.Insert(adminCustomerID, org).Context(ctx).Do()
+	created, err := svc.Orgunits.Insert(adminCustomerID(), org).Context(ctx).Do()
 	if err != nil {
 		return fmt.Errorf("create org unit: %w", err)
 	}

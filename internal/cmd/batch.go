@@ -73,8 +73,7 @@ func (c *BatchCmd) Run(ctx context.Context, flags *RootFlags) error {
 		tasks <- task
 	}
 	close(tasks)
-	wg.Wait()
-	close(results)
+	go func() { wg.Wait(); close(results) }()
 
 	failed := 0
 	for err := range results {

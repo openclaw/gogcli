@@ -37,7 +37,7 @@ func (c *ResourcesBuildingsListCmd) Run(ctx context.Context, flags *RootFlags) e
 		return err
 	}
 
-	call := svc.Resources.Buildings.List(adminCustomerID)
+	call := svc.Resources.Buildings.List(adminCustomerID())
 	if c.Max > 0 {
 		call = call.MaxResults(c.Max)
 	}
@@ -98,7 +98,7 @@ func (c *ResourcesBuildingsGetCmd) Run(ctx context.Context, flags *RootFlags) er
 		return err
 	}
 
-	building, err := svc.Resources.Buildings.Get(adminCustomerID, buildingID).Context(ctx).Do()
+	building, err := svc.Resources.Buildings.Get(adminCustomerID(), buildingID).Context(ctx).Do()
 	if err != nil {
 		return fmt.Errorf("get building %s: %w", buildingID, err)
 	}
@@ -149,7 +149,7 @@ func (c *ResourcesBuildingsCreateCmd) Run(ctx context.Context, flags *RootFlags)
 		building.FloorNames = floors
 	}
 
-	created, err := svc.Resources.Buildings.Insert(adminCustomerID, building).Context(ctx).Do()
+	created, err := svc.Resources.Buildings.Insert(adminCustomerID(), building).Context(ctx).Do()
 	if err != nil {
 		return fmt.Errorf("create building %s: %w", name, err)
 	}
@@ -197,7 +197,7 @@ func (c *ResourcesBuildingsUpdateCmd) Run(ctx context.Context, flags *RootFlags)
 		patch.Description = strings.TrimSpace(*c.Description)
 	}
 
-	updated, err := svc.Resources.Buildings.Patch(adminCustomerID, buildingID, patch).Context(ctx).Do()
+	updated, err := svc.Resources.Buildings.Patch(adminCustomerID(), buildingID, patch).Context(ctx).Do()
 	if err != nil {
 		return fmt.Errorf("update building %s: %w", buildingID, err)
 	}
@@ -235,7 +235,7 @@ func (c *ResourcesBuildingsDeleteCmd) Run(ctx context.Context, flags *RootFlags)
 		return err
 	}
 
-	if err := svc.Resources.Buildings.Delete(adminCustomerID, buildingID).Context(ctx).Do(); err != nil {
+	if err := svc.Resources.Buildings.Delete(adminCustomerID(), buildingID).Context(ctx).Do(); err != nil {
 		return fmt.Errorf("delete building %s: %w", buildingID, err)
 	}
 

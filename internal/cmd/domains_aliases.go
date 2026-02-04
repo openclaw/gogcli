@@ -25,7 +25,7 @@ func (c *DomainsAliasesListCmd) Run(ctx context.Context, flags *RootFlags) error
 		return err
 	}
 
-	resp, err := svc.DomainAliases.List(adminCustomerID).Context(ctx).Do()
+	resp, err := svc.DomainAliases.List(adminCustomerID()).Context(ctx).Do()
 	if err != nil {
 		return fmt.Errorf("list domain aliases: %w", err)
 	}
@@ -77,7 +77,7 @@ func (c *DomainsAliasesCreateCmd) Run(ctx context.Context, flags *RootFlags) err
 		DomainAliasName:  c.Alias,
 		ParentDomainName: c.Parent,
 	}
-	created, err := svc.DomainAliases.Insert(adminCustomerID, req).Context(ctx).Do()
+	created, err := svc.DomainAliases.Insert(adminCustomerID(), req).Context(ctx).Do()
 	if err != nil {
 		return fmt.Errorf("create domain alias %s: %w", c.Alias, err)
 	}
@@ -110,7 +110,7 @@ func (c *DomainsAliasesDeleteCmd) Run(ctx context.Context, flags *RootFlags) err
 		return err
 	}
 
-	if err := svc.DomainAliases.Delete(adminCustomerID, c.Alias).Context(ctx).Do(); err != nil {
+	if err := svc.DomainAliases.Delete(adminCustomerID(), c.Alias).Context(ctx).Do(); err != nil {
 		return fmt.Errorf("delete domain alias %s: %w", c.Alias, err)
 	}
 

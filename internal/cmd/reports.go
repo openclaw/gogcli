@@ -278,7 +278,7 @@ func runUsageReport(ctx context.Context, flags *RootFlags, application, date, pa
 
 	date = reportDate(date)
 
-	call := svc.CustomerUsageReports.Get(date).CustomerId(adminCustomerID)
+	call := svc.CustomerUsageReports.Get(date).CustomerId(adminCustomerID())
 	params := strings.TrimSpace(parameters)
 	if params == "" {
 		params = application

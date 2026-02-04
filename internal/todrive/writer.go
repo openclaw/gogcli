@@ -140,7 +140,7 @@ func (w *Writer) Write(ctx context.Context, headers []string, rows [][]string, o
 }
 
 func (w *Writer) findSpreadsheet(ctx context.Context, name, folderID string) (string, string, error) {
-	query := fmt.Sprintf("mimeType='application/vnd.google-apps.spreadsheet' and name='%s' and trashed=false", escapeDriveQuery(name))
+	query := fmt.Sprintf("mimeType='application/vnd.google-apps.spreadsheet' and name='%s' and trashed=false", googleapi.EscapeDriveQueryValue(name))
 	if strings.TrimSpace(folderID) != "" {
 		query = fmt.Sprintf("%s and '%s' in parents", query, googleapi.EscapeDriveQueryValue(strings.TrimSpace(folderID)))
 	}
@@ -191,6 +191,3 @@ func toInterfaceRow(values []string) []interface{} {
 	return row
 }
 
-func escapeDriveQuery(value string) string {
-	return googleapi.EscapeDriveQueryValue(value)
-}

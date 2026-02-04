@@ -44,7 +44,7 @@ func (c *TransferListCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
-	call := svc.Transfers.List().CustomerId(adminCustomerID)
+	call := svc.Transfers.List().CustomerId(adminCustomerID())
 	if c.OldOwner != "" {
 		call = call.OldOwnerUserId(c.OldOwner)
 	}

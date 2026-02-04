@@ -33,7 +33,7 @@ func (c *OrgunitsListCmd) Run(ctx context.Context, flags *RootFlags) error {
 		parent = "/"
 	}
 
-	resp, err := svc.Orgunits.List(adminCustomerID).
+	resp, err := svc.Orgunits.List(adminCustomerID()).
 		OrgUnitPath(parent).
 		Type(c.Type).
 		Context(ctx).

@@ -220,22 +220,22 @@ func TestSplitCSVFields(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
-			got := splitCSVFields(tt.input)
+			got := splitCSV(tt.input)
 			if tt.want == nil && got != nil {
-				t.Errorf("splitCSVFields(%q) = %v, want nil", tt.input, got)
+				t.Errorf("splitCSV(%q) = %v, want nil", tt.input, got)
 				return
 			}
 			if tt.want != nil && got == nil {
-				t.Errorf("splitCSVFields(%q) = nil, want %v", tt.input, tt.want)
+				t.Errorf("splitCSV(%q) = nil, want %v", tt.input, tt.want)
 				return
 			}
 			if len(got) != len(tt.want) {
-				t.Errorf("splitCSVFields(%q) = %v, want %v", tt.input, got, tt.want)
+				t.Errorf("splitCSV(%q) = %v, want %v", tt.input, got, tt.want)
 				return
 			}
 			for i := range got {
 				if got[i] != tt.want[i] {
-					t.Errorf("splitCSVFields(%q)[%d] = %v, want %v", tt.input, i, got[i], tt.want[i])
+					t.Errorf("splitCSV(%q)[%d] = %v, want %v", tt.input, i, got[i], tt.want[i])
 				}
 			}
 		})

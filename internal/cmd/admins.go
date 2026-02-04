@@ -36,7 +36,7 @@ func (c *AdminsListCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
-	call := svc.RoleAssignments.List(adminCustomerID).MaxResults(c.Max)
+	call := svc.RoleAssignments.List(adminCustomerID()).MaxResults(c.Max)
 	if c.Page != "" {
 		call = call.PageToken(c.Page)
 	}
@@ -127,7 +127,7 @@ func (c *AdminsCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
 		assignment.OrgUnitId = orgID
 	}
 
-	created, err := svc.RoleAssignments.Insert(adminCustomerID, assignment).Context(ctx).Do()
+	created, err := svc.RoleAssignments.Insert(adminCustomerID(), assignment).Context(ctx).Do()
 	if err != nil {
 		return fmt.Errorf("assign role %s to %s: %w", c.Role, c.User, err)
 	}
@@ -160,7 +160,7 @@ func (c *AdminsDeleteCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
-	if err := svc.RoleAssignments.Delete(adminCustomerID, c.AssignmentID).Context(ctx).Do(); err != nil {
+	if err := svc.RoleAssignments.Delete(adminCustomerID(), c.AssignmentID).Context(ctx).Do(); err != nil {
 		return fmt.Errorf("delete admin assignment %s: %w", c.AssignmentID, err)
 	}
 
@@ -199,7 +199,7 @@ func resolveUserID(ctx context.Context, svc *admin.Service, user string) (string
 }
 
 func resolveOrgUnitID(ctx context.Context, svc *admin.Service, path string) (string, error) {
-	ou, err := svc.Orgunits.Get(adminCustomerID, path).Context(ctx).Do()
+	ou, err := svc.Orgunits.Get(adminCustomerID(), path).Context(ctx).Do()
 	if err != nil {
 		return "", fmt.Errorf("resolve org unit %s: %w", path, err)
 	}

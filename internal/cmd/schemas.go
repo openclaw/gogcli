@@ -35,7 +35,7 @@ func (c *SchemasListCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
-	resp, err := svc.Schemas.List(adminCustomerID).Context(ctx).Do()
+	resp, err := svc.Schemas.List(adminCustomerID()).Context(ctx).Do()
 	if err != nil {
 		return fmt.Errorf("list schemas: %w", err)
 	}
@@ -86,7 +86,7 @@ func (c *SchemasGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
-	schema, err := svc.Schemas.Get(adminCustomerID, name).Context(ctx).Do()
+	schema, err := svc.Schemas.Get(adminCustomerID(), name).Context(ctx).Do()
 	if err != nil {
 		return fmt.Errorf("get schema %s: %w", name, err)
 	}
@@ -148,7 +148,7 @@ func (c *SchemasCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
 		Fields:      fields,
 	}
 
-	created, err := svc.Schemas.Insert(adminCustomerID, schema).Context(ctx).Do()
+	created, err := svc.Schemas.Insert(adminCustomerID(), schema).Context(ctx).Do()
 	if err != nil {
 		return fmt.Errorf("create schema %s: %w", name, err)
 	}
@@ -188,7 +188,7 @@ func (c *SchemasUpdateCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
-	schema, err := svc.Schemas.Get(adminCustomerID, name).Context(ctx).Do()
+	schema, err := svc.Schemas.Get(adminCustomerID(), name).Context(ctx).Do()
 	if err != nil {
 		return fmt.Errorf("get schema %s: %w", name, err)
 	}
@@ -248,7 +248,7 @@ func (c *SchemasUpdateCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 
 	schema.Fields = updatedFields
-	updated, err := svc.Schemas.Update(adminCustomerID, name, schema).Context(ctx).Do()
+	updated, err := svc.Schemas.Update(adminCustomerID(), name, schema).Context(ctx).Do()
 	if err != nil {
 		return fmt.Errorf("update schema %s: %w", name, err)
 	}
@@ -286,7 +286,7 @@ func (c *SchemasDeleteCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
-	if err := svc.Schemas.Delete(adminCustomerID, name).Context(ctx).Do(); err != nil {
+	if err := svc.Schemas.Delete(adminCustomerID(), name).Context(ctx).Do(); err != nil {
 		return fmt.Errorf("delete schema %s: %w", name, err)
 	}
 

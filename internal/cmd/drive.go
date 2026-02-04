@@ -815,12 +815,8 @@ func buildDriveListQuery(folderID string, userQuery string) string {
 }
 
 func buildDriveSearchQuery(text string) string {
-	q := fmt.Sprintf("fullText contains '%s'", escapeDriveQueryString(text))
+	q := fmt.Sprintf("fullText contains '%s'", googleapi.EscapeDriveQueryValue(text))
 	return q + " and trashed = false"
-}
-
-func escapeDriveQueryString(s string) string {
-	return googleapi.EscapeDriveQueryValue(s)
 }
 
 func driveType(mimeType string) string {

@@ -4,13 +4,31 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
 	"google.golang.org/api/cloudchannel/v1"
+	"google.golang.org/api/option"
 
 	"github.com/steipete/gogcli/internal/outfmt"
 )
+
+func newCloudChannelServiceStub(t *testing.T, handler http.HandlerFunc) (*cloudchannel.Service, func()) {
+	t.Helper()
+
+	srv := httptest.NewServer(handler)
+	svc, err := cloudchannel.NewService(context.Background(),
+		option.WithoutAuthentication(),
+		option.WithHTTPClient(srv.Client()),
+		option.WithEndpoint(srv.URL+"/"),
+	)
+	if err != nil {
+		srv.Close()
+		t.Fatalf("NewService: %v", err)
+	}
+	return svc, srv.Close
+}
 
 func stubCloudChannelService(t *testing.T, svc *cloudchannel.Service) {
 	t.Helper()

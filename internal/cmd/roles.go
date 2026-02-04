@@ -40,7 +40,7 @@ func (c *RolesListCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
-	call := svc.Roles.List(adminCustomerID).MaxResults(c.Max)
+	call := svc.Roles.List(adminCustomerID()).MaxResults(c.Max)
 	if c.Page != "" {
 		call = call.PageToken(c.Page)
 	}
@@ -100,7 +100,7 @@ func (c *RolesGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 	if role == nil {
-		role, err = svc.Roles.Get(adminCustomerID, roleID).Context(ctx).Do()
+		role, err = svc.Roles.Get(adminCustomerID(), roleID).Context(ctx).Do()
 		if err != nil {
 			return fmt.Errorf("get role %s: %w", c.Role, err)
 		}
@@ -164,7 +164,7 @@ func (c *RolesCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
 		RolePrivileges:  privs,
 	}
 
-	created, err := svc.Roles.Insert(adminCustomerID, role).Context(ctx).Do()
+	created, err := svc.Roles.Insert(adminCustomerID(), role).Context(ctx).Do()
 	if err != nil {
 		return fmt.Errorf("create role %s: %w", c.Name, err)
 	}
@@ -202,7 +202,7 @@ func (c *RolesUpdateCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 	if role == nil {
-		role, err = svc.Roles.Get(adminCustomerID, roleID).Context(ctx).Do()
+		role, err = svc.Roles.Get(adminCustomerID(), roleID).Context(ctx).Do()
 		if err != nil {
 			return fmt.Errorf("get role %s: %w", c.Role, err)
 		}
@@ -236,7 +236,7 @@ func (c *RolesUpdateCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return usage("no updates specified")
 	}
 
-	updated, err := svc.Roles.Update(adminCustomerID, roleID, role).Context(ctx).Do()
+	updated, err := svc.Roles.Update(adminCustomerID(), roleID, role).Context(ctx).Do()
 	if err != nil {
 		return fmt.Errorf("update role %s: %w", c.Role, err)
 	}
@@ -275,7 +275,7 @@ func (c *RolesDeleteCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
-	if err := svc.Roles.Delete(adminCustomerID, roleID).Context(ctx).Do(); err != nil {
+	if err := svc.Roles.Delete(adminCustomerID(), roleID).Context(ctx).Do(); err != nil {
 		return fmt.Errorf("delete role %s: %w", c.Role, err)
 	}
 
@@ -297,7 +297,7 @@ func (c *RolesPrivilegesCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
-	resp, err := svc.Privileges.List(adminCustomerID).Context(ctx).Do()
+	resp, err := svc.Privileges.List(adminCustomerID()).Context(ctx).Do()
 	if err != nil {
 		return fmt.Errorf("list privileges: %w", err)
 	}
@@ -353,7 +353,7 @@ func resolveRole(ctx context.Context, svc *admin.Service, role string) (string, 
 
 func listAllRoles(ctx context.Context, svc *admin.Service) ([]*admin.Role, error) {
 	roles := make([]*admin.Role, 0)
-	call := svc.Roles.List(adminCustomerID).MaxResults(200)
+	call := svc.Roles.List(adminCustomerID()).MaxResults(200)
 	for {
 		resp, err := call.Context(ctx).Do()
 		if err != nil {
@@ -437,7 +437,7 @@ func updateRolePrivileges(ctx context.Context, svc *admin.Service, existing []*a
 }
 
 func privilegeMap(ctx context.Context, svc *admin.Service) (map[string]*admin.Privilege, error) {
-	resp, err := svc.Privileges.List(adminCustomerID).Context(ctx).Do()
+	resp, err := svc.Privileges.List(adminCustomerID()).Context(ctx).Do()
 	if err != nil {
 		return nil, fmt.Errorf("list privileges: %w", err)
 	}

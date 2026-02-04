@@ -38,7 +38,7 @@ func (c *ResourcesCalendarsListCmd) Run(ctx context.Context, flags *RootFlags) e
 		return err
 	}
 
-	call := svc.Resources.Calendars.List(adminCustomerID)
+	call := svc.Resources.Calendars.List(adminCustomerID())
 	if c.Max > 0 {
 		call = call.MaxResults(c.Max)
 	}
@@ -113,7 +113,7 @@ func (c *ResourcesCalendarsGetCmd) Run(ctx context.Context, flags *RootFlags) er
 		return err
 	}
 
-	resource, err := svc.Resources.Calendars.Get(adminCustomerID, resourceID).Context(ctx).Do()
+	resource, err := svc.Resources.Calendars.Get(adminCustomerID(), resourceID).Context(ctx).Do()
 	if err != nil {
 		return fmt.Errorf("get calendar resource %s: %w", resourceID, err)
 	}
@@ -177,7 +177,7 @@ func (c *ResourcesCalendarsCreateCmd) Run(ctx context.Context, flags *RootFlags)
 		Capacity:         c.Capacity,
 	}
 
-	created, err := svc.Resources.Calendars.Insert(adminCustomerID, resource).Context(ctx).Do()
+	created, err := svc.Resources.Calendars.Insert(adminCustomerID(), resource).Context(ctx).Do()
 	if err != nil {
 		return fmt.Errorf("create calendar resource %s: %w", name, err)
 	}
@@ -225,7 +225,7 @@ func (c *ResourcesCalendarsUpdateCmd) Run(ctx context.Context, flags *RootFlags)
 		patch.Capacity = *c.Capacity
 	}
 
-	updated, err := svc.Resources.Calendars.Patch(adminCustomerID, resourceID, patch).Context(ctx).Do()
+	updated, err := svc.Resources.Calendars.Patch(adminCustomerID(), resourceID, patch).Context(ctx).Do()
 	if err != nil {
 		return fmt.Errorf("update calendar resource %s: %w", resourceID, err)
 	}
@@ -263,7 +263,7 @@ func (c *ResourcesCalendarsDeleteCmd) Run(ctx context.Context, flags *RootFlags)
 		return err
 	}
 
-	if err := svc.Resources.Calendars.Delete(adminCustomerID, resourceID).Context(ctx).Do(); err != nil {
+	if err := svc.Resources.Calendars.Delete(adminCustomerID(), resourceID).Context(ctx).Do(); err != nil {
 		return fmt.Errorf("delete calendar resource %s: %w", resourceID, err)
 	}
 

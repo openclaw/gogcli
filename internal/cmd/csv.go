@@ -38,7 +38,7 @@ func (c *CSVCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
-	fields := splitCSVFields(c.Fields)
+	fields := splitCSV(c.Fields)
 	processed := 0
 	failed := 0
 
@@ -79,19 +79,4 @@ func (c *CSVCmd) Run(ctx context.Context, flags *RootFlags) error {
 		}
 	}
 	return nil
-}
-
-func splitCSVFields(input string) []string {
-	trimmed := strings.TrimSpace(input)
-	if trimmed == "" {
-		return nil
-	}
-	parts := strings.Split(trimmed, ",")
-	out := make([]string, 0, len(parts))
-	for _, part := range parts {
-		if value := strings.TrimSpace(part); value != "" {
-			out = append(out, value)
-		}
-	}
-	return out
 }

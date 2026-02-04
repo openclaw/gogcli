@@ -273,7 +273,7 @@ func (c *PrintersDeleteCmd) Run(ctx context.Context, flags *RootFlags) error {
 }
 
 func printerParent() string {
-	return fmt.Sprintf("customers/%s", adminCustomerID)
+	return fmt.Sprintf("customers/%s", adminCustomerID())
 }
 
 func printerResourceName(id string) string {
@@ -281,5 +281,5 @@ func printerResourceName(id string) string {
 	if strings.HasPrefix(id, "customers/") {
 		return id
 	}
-	return fmt.Sprintf("customers/%s/chrome/printers/%s", adminCustomerID, id)
+	return fmt.Sprintf("customers/%s/chrome/printers/%s", adminCustomerID(), id)
 }

@@ -28,7 +28,7 @@ func (c *DomainsCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 
 	req := &admin.Domains{DomainName: c.Domain}
-	created, err := svc.Domains.Insert(adminCustomerID, req).Context(ctx).Do()
+	created, err := svc.Domains.Insert(adminCustomerID(), req).Context(ctx).Do()
 	if err != nil {
 		return fmt.Errorf("create domain %s: %w", c.Domain, err)
 	}

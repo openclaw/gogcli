@@ -53,7 +53,7 @@ func (c *OrgunitsUpdateCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
-	updated, err := svc.Orgunits.Update(adminCustomerID, c.Path, org).Context(ctx).Do()
+	updated, err := svc.Orgunits.Update(adminCustomerID(), c.Path, org).Context(ctx).Do()
 	if err != nil {
 		return fmt.Errorf("update org unit %s: %w", c.Path, err)
 	}

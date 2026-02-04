@@ -35,7 +35,7 @@ func (c *ResourcesFeaturesListCmd) Run(ctx context.Context, flags *RootFlags) er
 		return err
 	}
 
-	call := svc.Resources.Features.List(adminCustomerID)
+	call := svc.Resources.Features.List(adminCustomerID())
 	if c.Max > 0 {
 		call = call.MaxResults(c.Max)
 	}
@@ -92,7 +92,7 @@ func (c *ResourcesFeaturesCreateCmd) Run(ctx context.Context, flags *RootFlags) 
 	}
 
 	feature := &admin.Feature{Name: name}
-	created, err := svc.Resources.Features.Insert(adminCustomerID, feature).Context(ctx).Do()
+	created, err := svc.Resources.Features.Insert(adminCustomerID(), feature).Context(ctx).Do()
 	if err != nil {
 		return fmt.Errorf("create feature %s: %w", name, err)
 	}
@@ -130,7 +130,7 @@ func (c *ResourcesFeaturesDeleteCmd) Run(ctx context.Context, flags *RootFlags) 
 		return err
 	}
 
-	if err := svc.Resources.Features.Delete(adminCustomerID, name).Context(ctx).Do(); err != nil {
+	if err := svc.Resources.Features.Delete(adminCustomerID(), name).Context(ctx).Do(); err != nil {
 		return fmt.Errorf("delete feature %s: %w", name, err)
 	}
 

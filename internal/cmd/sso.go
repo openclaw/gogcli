@@ -387,7 +387,7 @@ func resolveOrgUnitResource(ctx context.Context, flags *RootFlags, orgUnit strin
 		return "", err
 	}
 
-	ou, err := svc.Orgunits.Get(adminCustomerID, orgUnit).Context(ctx).Do()
+	ou, err := svc.Orgunits.Get(adminCustomerID(), orgUnit).Context(ctx).Do()
 	if err != nil {
 		return "", fmt.Errorf("resolve org unit %s: %w", orgUnit, err)
 	}
@@ -431,6 +431,11 @@ func clearInboundSSOAssignments(ctx context.Context, svc *cloudidentity.Service,
 	return nil
 }
 
+// readValueOrFile interprets value as either a literal string or a file reference.
+// Prefix with "@" to explicitly read from a file path (e.g. "@/path/to/cert.pem").
+// JSON values (starting with "{" or "[") are returned as-is. As a fallback,
+// if the value happens to match an existing file path on disk it will be read;
+// prefer the "@" prefix to avoid ambiguity.
 func readValueOrFile(value string) (string, error) {
 	trimmed := strings.TrimSpace(value)
 	if trimmed == "" {

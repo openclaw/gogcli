@@ -47,7 +47,7 @@ func (c *LicensesListCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
-	customer := adminCustomerID
+	customer := adminCustomerID()
 	var resp *licensing.LicenseAssignmentList
 	if strings.TrimSpace(c.SKU) != "" {
 		call := svc.LicenseAssignments.ListForProductAndSku(product, c.SKU, customer)

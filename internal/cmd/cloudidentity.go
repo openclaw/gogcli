@@ -133,15 +133,16 @@ func (c *CloudIdentityGroupsGetCmd) Run(ctx context.Context, flags *RootFlags) e
 		return outfmt.WriteJSON(os.Stdout, group)
 	}
 
-	fmt.Fprintf(os.Stdout, "Name:        %s\n", group.Name)
+	u := ui.FromContext(ctx)
+	u.Out().Printf("Name:        %s\n", group.Name)
 	if group.GroupKey != nil {
-		fmt.Fprintf(os.Stdout, "Email:       %s\n", group.GroupKey.Id)
+		u.Out().Printf("Email:       %s\n", group.GroupKey.Id)
 	}
 	if group.DisplayName != "" {
-		fmt.Fprintf(os.Stdout, "Display Name: %s\n", group.DisplayName)
+		u.Out().Printf("Display Name: %s\n", group.DisplayName)
 	}
 	if group.Parent != "" {
-		fmt.Fprintf(os.Stdout, "Parent:      %s\n", group.Parent)
+		u.Out().Printf("Parent:      %s\n", group.Parent)
 	}
 	if len(group.Labels) > 0 {
 		labels := make([]string, 0, len(group.Labels))
@@ -149,7 +150,7 @@ func (c *CloudIdentityGroupsGetCmd) Run(ctx context.Context, flags *RootFlags) e
 			labels = append(labels, key)
 		}
 		sort.Strings(labels)
-		fmt.Fprintf(os.Stdout, "Labels:      %s\n", strings.Join(labels, ", "))
+		u.Out().Printf("Labels:      %s\n", strings.Join(labels, ", "))
 	}
 	return nil
 }

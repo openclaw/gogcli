@@ -1,20 +1,22 @@
 package cmd
 
+// NOTE: Command tests in this package MUST NOT use t.Parallel() because they
+// rely on replacing package-level service factory variables (e.g.
+// newAlertCenterService, newAdminDirectoryService) with test stubs. Running
+// tests concurrently would cause data races on these shared variables.
+
 import (
 	"context"
 	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
-	"net/http/httptest"
 	"os"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/alecthomas/kong"
-	"google.golang.org/api/cloudchannel/v1"
-	"google.golang.org/api/option"
 
 	"github.com/steipete/gogcli/internal/googleauth"
 	"github.com/steipete/gogcli/internal/outfmt"
@@ -82,22 +84,6 @@ func testContextJSON(t *testing.T) context.Context {
 		t.Fatalf("ui.New: %v", err)
 	}
 	return outfmt.WithMode(ui.WithUI(context.Background(), u), outfmt.Mode{JSON: true})
-}
-
-func newCloudChannelServiceStub(t *testing.T, handler http.HandlerFunc) (*cloudchannel.Service, func()) {
-	t.Helper()
-
-	srv := httptest.NewServer(handler)
-	svc, err := cloudchannel.NewService(context.Background(),
-		option.WithoutAuthentication(),
-		option.WithHTTPClient(srv.Client()),
-		option.WithEndpoint(srv.URL+"/"),
-	)
-	if err != nil {
-		srv.Close()
-		t.Fatalf("NewService: %v", err)
-	}
-	return svc, srv.Close
 }
 
 func captureStdout(t *testing.T, fn func()) string {

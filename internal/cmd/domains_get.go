@@ -25,7 +25,7 @@ func (c *DomainsGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
-	domain, err := svc.Domains.Get(adminCustomerID, c.Domain).Context(ctx).Do()
+	domain, err := svc.Domains.Get(adminCustomerID(), c.Domain).Context(ctx).Do()
 	if err != nil {
 		return fmt.Errorf("get domain %s: %w", c.Domain, err)
 	}

@@ -27,7 +27,7 @@ func (c *DomainsDeleteCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
-	if err := svc.Domains.Delete(adminCustomerID, c.Domain).Context(ctx).Do(); err != nil {
+	if err := svc.Domains.Delete(adminCustomerID(), c.Domain).Context(ctx).Do(); err != nil {
 		return fmt.Errorf("delete domain %s: %w", c.Domain, err)
 	}
 

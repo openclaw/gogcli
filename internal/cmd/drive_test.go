@@ -1,6 +1,10 @@
 package cmd
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/steipete/gogcli/internal/googleapi"
+)
 
 func TestBuildDriveListQuery(t *testing.T) {
 	t.Run("adds parent and trashed", func(t *testing.T) {
@@ -33,7 +37,7 @@ func TestBuildDriveSearchQuery(t *testing.T) {
 }
 
 func TestEscapeDriveQueryString(t *testing.T) {
-	got := escapeDriveQueryString("a'b")
+	got := googleapi.EscapeDriveQueryValue("a'b")
 	if got != "a\\'b" {
 		t.Fatalf("unexpected: %q", got)
 	}
