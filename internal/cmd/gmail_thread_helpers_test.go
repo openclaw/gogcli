@@ -153,6 +153,41 @@ func TestFindPartBody_DecodesQuotedPrintable(t *testing.T) {
 	}
 }
 
+func TestFindPartBody_SkipsQuotedPrintableWhenAlreadyDecoded(t *testing.T) {
+	body := "https://example.com/auth?token_hash=abc123&type=magiclink"
+	encoded := base64.RawURLEncoding.EncodeToString([]byte(body))
+	part := &gmail.MessagePart{
+		MimeType: "text/plain",
+		Headers: []*gmail.MessagePartHeader{
+			{Name: "Content-Transfer-Encoding", Value: "quoted-printable"},
+			{Name: "Content-Type", Value: "text/plain; charset=utf-8"},
+		},
+		Body: &gmail.MessagePartBody{Data: encoded},
+	}
+	got := findPartBody(part, "text/plain")
+	if got != body {
+		t.Fatalf("unexpected decoded body: %q", got)
+	}
+}
+
+func TestFindPartBody_DecodesQuotedPrintableEquals(t *testing.T) {
+	// In QP encoding, = is encoded as =3D, so "a=b" becomes "a=3Db"
+	qp := "a=3Db"
+	encoded := base64.RawURLEncoding.EncodeToString([]byte(qp))
+	part := &gmail.MessagePart{
+		MimeType: "text/plain",
+		Headers: []*gmail.MessagePartHeader{
+			{Name: "Content-Transfer-Encoding", Value: "quoted-printable"},
+			{Name: "Content-Type", Value: "text/plain; charset=utf-8"},
+		},
+		Body: &gmail.MessagePartBody{Data: encoded},
+	}
+	got := findPartBody(part, "text/plain")
+	if got != "a=b" {
+		t.Fatalf("unexpected decoded body: %q, want %q", got, "a=b")
+	}
+}
+
 func TestFindPartBody_DecodesBase64Transfer(t *testing.T) {
 	inner := base64.StdEncoding.EncodeToString([]byte("plain body"))
 	encoded := base64.RawURLEncoding.EncodeToString([]byte(inner))
@@ -235,5 +270,46 @@ func TestDownloadAttachment_Cached(t *testing.T) {
 	}
 	if !cached || gotPath != outPath {
 		t.Fatalf("expected cached path %q, got %q cached=%v", outPath, gotPath, cached)
+	}
+}
+
+func TestIsQuotedPrintableEncoding(t *testing.T) {
+	tests := []struct {
+		input string
+		want  bool
+	}{
+		{"quoted-printable", true},
+		{"QUOTED-PRINTABLE", true},
+		{"Quoted-Printable", true},
+		{"  quoted-printable  ", true},
+		{"base64", false},
+		{"", false},
+	}
+	for _, tc := range tests {
+		got := isQuotedPrintableEncoding(tc.input)
+		if got != tc.want {
+			t.Fatalf("isQuotedPrintableEncoding(%q) = %v, want %v", tc.input, got, tc.want)
+		}
+	}
+}
+
+func TestIsUTF8Charset(t *testing.T) {
+	tests := []struct {
+		input string
+		want  bool
+	}{
+		{"", true},
+		{"utf-8", true},
+		{"UTF-8", true},
+		{"us-ascii", true},
+		{"US-ASCII", true},
+		{"iso-8859-1", false},
+		{"windows-1252", false},
+	}
+	for _, tc := range tests {
+		got := isUTF8Charset(tc.input)
+		if got != tc.want {
+			t.Fatalf("isUTF8Charset(%q) = %v, want %v", tc.input, got, tc.want)
+		}
 	}
 }

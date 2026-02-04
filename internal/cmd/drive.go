@@ -40,6 +40,7 @@ const (
 	extPptx                = ".pptx"
 	extPNG                 = ".png"
 	extTXT                 = ".txt"
+	formatAuto             = "auto"
 )
 
 type DriveCmd struct {
@@ -87,11 +88,13 @@ func (c *DriveLsCmd) Run(ctx context.Context, flags *RootFlags) error {
 
 	q := buildDriveListQuery(folderID, c.Query)
 
+	// Include files from shared drives, not just personal "My Drive"
 	resp, err := svc.Files.List().
 		Q(q).
 		PageSize(c.Max).
 		PageToken(c.Page).
 		OrderBy("modifiedTime desc").
+		Corpora("allDrives").
 		SupportsAllDrives(true).
 		IncludeItemsFromAllDrives(true).
 		Fields("nextPageToken, files(id, name, mimeType, size, modifiedTime, parents, webViewLink)").
@@ -158,6 +161,7 @@ func (c *DriveSearchCmd) Run(ctx context.Context, flags *RootFlags) error {
 		PageSize(c.Max).
 		PageToken(c.Page).
 		OrderBy("modifiedTime desc").
+		Corpora("allDrives").
 		SupportsAllDrives(true).
 		IncludeItemsFromAllDrives(true).
 		Fields("nextPageToken, files(id, name, mimeType, size, modifiedTime, parents, webViewLink)").
@@ -319,6 +323,7 @@ type DriveUploadCmd struct {
 	LocalPath string `arg:"" name:"localPath" help:"Path to local file"`
 	Name      string `name:"name" help:"Override filename"`
 	Parent    string `name:"parent" help:"Destination folder ID"`
+	Convert   bool   `name:"convert" help:"Convert supported uploads to Google Workspace formats"`
 }
 
 func (c *DriveUploadCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -357,6 +362,13 @@ func (c *DriveUploadCmd) Run(ctx context.Context, flags *RootFlags) error {
 	parent := strings.TrimSpace(c.Parent)
 	if parent != "" {
 		meta.Parents = []string{parent}
+	}
+	if c.Convert {
+		convertMimeType, convertErr := driveUploadConvertMimeType(localPath)
+		if convertErr != nil {
+			return convertErr
+		}
+		meta.MimeType = convertMimeType
 	}
 
 	mimeType := guessMimeType(localPath)
@@ -899,8 +911,34 @@ func guessMimeType(path string) string {
 	}
 }
 
+func driveUploadConvertMimeType(path string) (string, error) {
+	ext := strings.ToLower(filepath.Ext(path))
+	switch ext {
+	case ".doc", extDocx:
+		return driveMimeGoogleDoc, nil
+	case ".xls", extXlsx, extCSV:
+		return driveMimeGoogleSheet, nil
+	case ".ppt", extPptx:
+		return driveMimeGoogleSlides, nil
+	default:
+		supported := "supported: .doc, .docx, .xls, .xlsx, .csv, .ppt, .pptx"
+		if ext == "" {
+			return "", fmt.Errorf("unsupported --convert for files without extension (%s)", supported)
+		}
+		return "", fmt.Errorf("unsupported --convert for %q (%s)", ext, supported)
+	}
+}
+
 func downloadDriveFile(ctx context.Context, svc *drive.Service, meta *drive.File, destPath string, format string) (string, int64, error) {
 	isGoogleDoc := strings.HasPrefix(meta.MimeType, "application/vnd.google-apps.")
+	normalizedFormat := strings.ToLower(strings.TrimSpace(format))
+	if normalizedFormat == formatAuto {
+		normalizedFormat = ""
+	}
+
+	if !isGoogleDoc && normalizedFormat != "" {
+		return "", 0, fmt.Errorf("--format %q not supported for non-Google Workspace files (mimeType=%q); file can only be downloaded as-is", format, meta.MimeType)
+	}
 
 	var (
 		resp    *http.Response
@@ -910,11 +948,11 @@ func downloadDriveFile(ctx context.Context, svc *drive.Service, meta *drive.File
 
 	if isGoogleDoc {
 		var exportMimeType string
-		if strings.TrimSpace(format) == "" {
+		if normalizedFormat == "" {
 			exportMimeType = driveExportMimeType(meta.MimeType)
 		} else {
 			var mimeErr error
-			exportMimeType, mimeErr = driveExportMimeTypeForFormat(meta.MimeType, format)
+			exportMimeType, mimeErr = driveExportMimeTypeForFormat(meta.MimeType, normalizedFormat)
 			if mimeErr != nil {
 				return "", 0, mimeErr
 			}
@@ -978,7 +1016,7 @@ func driveExportMimeType(googleMimeType string) string {
 
 func driveExportMimeTypeForFormat(googleMimeType string, format string) (string, error) {
 	format = strings.ToLower(strings.TrimSpace(format))
-	if format == "" {
+	if format == "" || format == formatAuto {
 		return driveExportMimeType(googleMimeType), nil
 	}
 
