@@ -119,15 +119,21 @@ func (c *GmailSendCmd) Run(ctx context.Context, flags *RootFlags) error {
 		sendingEmail = c.From
 		fromAddr = c.From
 		// Include display name if set
-		if sa.DisplayName != "" {
-			fromAddr = sa.DisplayName + " <" + c.From + ">"
+		displayName := strings.TrimSpace(sa.DisplayName)
+		if displayName == "" {
+			if fallback, listErr := sendAsDisplayNameFromList(ctx, svc, c.From); listErr == nil {
+				displayName = fallback
+			}
+		}
+		if displayName != "" {
+			fromAddr = displayName + " <" + c.From + ">"
 		}
 	} else {
 		// No --from specified: look up the primary account's send-as settings
 		// to get the display name
-		sa, saErr := svc.Users.Settings.SendAs.Get("me", account).Context(ctx).Do()
-		if saErr == nil && sa.DisplayName != "" {
-			fromAddr = sa.DisplayName + " <" + account + ">"
+		displayName := primarySendAsDisplayName(ctx, svc, account)
+		if displayName != "" {
+			fromAddr = displayName + " <" + account + ">"
 		}
 		// If lookup fails, we just use the plain email address (no error)
 	}
@@ -215,6 +221,81 @@ func (c *GmailSendCmd) resolveTrackingConfig(account string, toRecipients, ccRec
 	}
 
 	return trackingCfg, nil
+}
+
+func primarySendAsDisplayName(ctx context.Context, svc *gmail.Service, account string) string {
+	account = strings.TrimSpace(account)
+	if account == "" || svc == nil {
+		return ""
+	}
+
+	sa, err := svc.Users.Settings.SendAs.Get("me", account).Context(ctx).Do()
+	if err == nil {
+		if displayName := strings.TrimSpace(sa.DisplayName); displayName != "" {
+			return displayName
+		}
+	}
+
+	displayName, err := primarySendAsDisplayNameFromList(ctx, svc, account)
+	if err != nil {
+		return ""
+	}
+	return displayName
+}
+
+func sendAsDisplayNameFromList(ctx context.Context, svc *gmail.Service, email string) (string, error) {
+	email = strings.TrimSpace(email)
+	if email == "" || svc == nil {
+		return "", nil
+	}
+
+	resp, err := svc.Users.Settings.SendAs.List("me").Context(ctx).Do()
+	if err != nil {
+		return "", err
+	}
+
+	needle := strings.ToLower(email)
+	for _, sa := range resp.SendAs {
+		if strings.ToLower(strings.TrimSpace(sa.SendAsEmail)) == needle {
+			return strings.TrimSpace(sa.DisplayName), nil
+		}
+	}
+
+	return "", nil
+}
+
+func primarySendAsDisplayNameFromList(ctx context.Context, svc *gmail.Service, account string) (string, error) {
+	account = strings.TrimSpace(account)
+	if account == "" || svc == nil {
+		return "", nil
+	}
+
+	resp, err := svc.Users.Settings.SendAs.List("me").Context(ctx).Do()
+	if err != nil {
+		return "", err
+	}
+
+	needle := strings.ToLower(account)
+	var primary *gmail.SendAs
+	for _, sa := range resp.SendAs {
+		if sa.IsPrimary {
+			primary = sa
+		}
+		if strings.ToLower(strings.TrimSpace(sa.SendAsEmail)) == needle {
+			if displayName := strings.TrimSpace(sa.DisplayName); displayName != "" {
+				return displayName, nil
+			}
+			if primary == nil && sa.IsPrimary {
+				primary = sa
+			}
+		}
+	}
+
+	if primary != nil {
+		return strings.TrimSpace(primary.DisplayName), nil
+	}
+
+	return "", nil
 }
 
 func buildSendBatches(toRecipients, ccRecipients, bccRecipients []string, track, trackSplit bool) []sendBatch {
