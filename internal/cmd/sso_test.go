@@ -3,7 +3,6 @@ package cmd
 import (
 	"context"
 	"encoding/json"
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -13,19 +12,7 @@ import (
 
 	"google.golang.org/api/cloudidentity/v1"
 	"google.golang.org/api/option"
-
-	"github.com/steipete/gogcli/internal/outfmt"
-	"github.com/steipete/gogcli/internal/ui"
 )
-
-func testContextJSONSSO(t *testing.T) context.Context {
-	t.Helper()
-	u, err := ui.New(ui.Options{Stdout: os.Stdout, Stderr: io.Discard, Color: "never"})
-	if err != nil {
-		t.Fatalf("ui.New: %v", err)
-	}
-	return outfmt.WithMode(ui.WithUI(context.Background(), u), outfmt.Mode{JSON: true})
-}
 
 // -----------------------------------------------------------------------------
 // SSOSettingsGetCmd Tests
@@ -93,7 +80,7 @@ func TestSSOSettingsGetCmd_JSON(t *testing.T) {
 	flags := &RootFlags{Account: "admin@example.com"}
 	cmd := &SSOSettingsGetCmd{}
 
-	ctx := testContextJSONSSO(t)
+	ctx := testContextJSON(t)
 
 	out := captureStdout(t, func() {
 		if err := cmd.Run(ctx, flags); err != nil {
@@ -424,7 +411,7 @@ func TestSSOSettingsUpdateCmd_JSON(t *testing.T) {
 	flags := &RootFlags{Account: "admin@example.com"}
 	cmd := &SSOSettingsUpdateCmd{SSOURL: "https://sso.example.com"}
 
-	ctx := testContextJSONSSO(t)
+	ctx := testContextJSON(t)
 
 	out := captureStdout(t, func() {
 		if err := cmd.Run(ctx, flags); err != nil {
@@ -528,7 +515,7 @@ func TestSSOAssignmentsListCmd_JSON(t *testing.T) {
 	flags := &RootFlags{Account: "admin@example.com"}
 	cmd := &SSOAssignmentsListCmd{}
 
-	ctx := testContextJSONSSO(t)
+	ctx := testContextJSON(t)
 
 	out := captureStdout(t, func() {
 		if err := cmd.Run(ctx, flags); err != nil {
@@ -955,7 +942,7 @@ func TestSSOAssignmentsCreateCmd_JSON(t *testing.T) {
 	flags := &RootFlags{Account: "admin@example.com"}
 	cmd := &SSOAssignmentsCreateCmd{OrgUnit: "/Test", Mode: "SSO_OFF"}
 
-	ctx := testContextJSONSSO(t)
+	ctx := testContextJSON(t)
 
 	out := captureStdout(t, func() {
 		if err := cmd.Run(ctx, flags); err != nil {
@@ -1019,7 +1006,7 @@ func TestSSOAssignmentsDeleteCmd_JSON(t *testing.T) {
 	flags := &RootFlags{Account: "admin@example.com", Force: true}
 	cmd := &SSOAssignmentsDeleteCmd{AssignmentID: "inboundSsoAssignments/assignment-json"}
 
-	ctx := testContextJSONSSO(t)
+	ctx := testContextJSON(t)
 
 	out := captureStdout(t, func() {
 		if err := cmd.Run(ctx, flags); err != nil {
@@ -1309,7 +1296,7 @@ func TestClearInboundSSOAssignments_JSON(t *testing.T) {
 	flags := &RootFlags{Account: "admin@example.com"}
 	cmd := &SSOAssignmentsCreateCmd{OrgUnit: "/Test", Mode: "NONE"}
 
-	ctx := testContextJSONSSO(t)
+	ctx := testContextJSON(t)
 
 	out := captureStdout(t, func() {
 		if err := cmd.Run(ctx, flags); err != nil {

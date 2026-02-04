@@ -13,7 +13,6 @@ import (
 	"google.golang.org/api/meet/v2"
 	"google.golang.org/api/option"
 
-	"github.com/steipete/gogcli/internal/outfmt"
 	"github.com/steipete/gogcli/internal/ui"
 )
 
@@ -79,13 +78,26 @@ func TestMeetSpacesListCmd(t *testing.T) {
 	cmd := &MeetSpacesListCmd{}
 
 	out := captureStdout(t, func() {
-		if err := cmd.Run(testMeetContext(t), flags); err != nil {
+		if err := cmd.Run(testContextJSON(t), flags); err != nil {
 			t.Fatalf("Run: %v", err)
 		}
 	})
 
-	if !strings.Contains(out, "spaces/space1") {
-		t.Fatalf("unexpected output: %s", out)
+	var parsed struct {
+		ConferenceRecords []struct {
+			Name      string `json:"name"`
+			Space     string `json:"space"`
+			StartTime string `json:"startTime"`
+		} `json:"conferenceRecords"`
+	}
+	if err := json.Unmarshal([]byte(out), &parsed); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if len(parsed.ConferenceRecords) != 1 {
+		t.Fatalf("expected 1 record, got %d", len(parsed.ConferenceRecords))
+	}
+	if parsed.ConferenceRecords[0].Space != "spaces/space1" {
+		t.Fatalf("unexpected space: %s", parsed.ConferenceRecords[0].Space)
 	}
 }
 
@@ -130,8 +142,7 @@ func TestMeetSpacesListCmd_JSON(t *testing.T) {
 	flags := &RootFlags{Account: "user@example.com"}
 	cmd := &MeetSpacesListCmd{}
 
-	ctx := testMeetContext(t)
-	ctx = outfmt.WithMode(ctx, outfmt.Mode{JSON: true})
+	ctx := testContextJSON(t)
 
 	out := captureStdout(t, func() {
 		if err := cmd.Run(ctx, flags); err != nil {
@@ -323,8 +334,7 @@ func TestMeetSpacesGetCmd_JSON(t *testing.T) {
 	flags := &RootFlags{Account: "user@example.com"}
 	cmd := &MeetSpacesGetCmd{Space: "abc123"}
 
-	ctx := testMeetContext(t)
-	ctx = outfmt.WithMode(ctx, outfmt.Mode{JSON: true})
+	ctx := testContextJSON(t)
 
 	out := captureStdout(t, func() {
 		if err := cmd.Run(ctx, flags); err != nil {
@@ -401,13 +411,21 @@ func TestMeetSpacesCreateCmd_NoAccessType(t *testing.T) {
 	cmd := &MeetSpacesCreateCmd{}
 
 	out := captureStdout(t, func() {
-		if err := cmd.Run(testMeetContextWithStdout(t), flags); err != nil {
+		if err := cmd.Run(testContextJSON(t), flags); err != nil {
 			t.Fatalf("Run: %v", err)
 		}
 	})
 
-	if !strings.Contains(out, "spaces/newspace") {
-		t.Fatalf("unexpected output: %s", out)
+	var parsed struct {
+		Name        string `json:"name"`
+		MeetingCode string `json:"meetingCode"`
+		MeetingURI  string `json:"meetingUri"`
+	}
+	if err := json.Unmarshal([]byte(out), &parsed); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if parsed.Name != "spaces/newspace" {
+		t.Fatalf("unexpected name: %s", parsed.Name)
 	}
 }
 
@@ -483,8 +501,7 @@ func TestMeetSpacesCreateCmd_JSON(t *testing.T) {
 	flags := &RootFlags{Account: "user@example.com"}
 	cmd := &MeetSpacesCreateCmd{}
 
-	ctx := testMeetContext(t)
-	ctx = outfmt.WithMode(ctx, outfmt.Mode{JSON: true})
+	ctx := testContextJSON(t)
 
 	out := captureStdout(t, func() {
 		if err := cmd.Run(ctx, flags); err != nil {
@@ -601,8 +618,7 @@ func TestMeetSpacesEndCmd_JSON(t *testing.T) {
 	flags := &RootFlags{Account: "user@example.com"}
 	cmd := &MeetSpacesEndCmd{Space: "abc123"}
 
-	ctx := testMeetContext(t)
-	ctx = outfmt.WithMode(ctx, outfmt.Mode{JSON: true})
+	ctx := testContextJSON(t)
 
 	out := captureStdout(t, func() {
 		if err := cmd.Run(ctx, flags); err != nil {

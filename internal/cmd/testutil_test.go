@@ -17,6 +17,8 @@ import (
 	"google.golang.org/api/option"
 
 	"github.com/steipete/gogcli/internal/googleauth"
+	"github.com/steipete/gogcli/internal/outfmt"
+	"github.com/steipete/gogcli/internal/ui"
 )
 
 // withPrimaryCalendar wraps an http.Handler to also respond to primary calendar requests
@@ -71,6 +73,15 @@ func pickTimezoneExcluding(t *testing.T, exclude ...string) string {
 func pickNonLocalTimezone(t *testing.T) string {
 	t.Helper()
 	return pickTimezoneExcluding(t, time.Local.String(), "local")
+}
+
+func testContextJSON(t *testing.T) context.Context {
+	t.Helper()
+	u, err := ui.New(ui.Options{Stdout: os.Stdout, Stderr: io.Discard, Color: "never"})
+	if err != nil {
+		t.Fatalf("ui.New: %v", err)
+	}
+	return outfmt.WithMode(ui.WithUI(context.Background(), u), outfmt.Mode{JSON: true})
 }
 
 func newCloudChannelServiceStub(t *testing.T, handler http.HandlerFunc) (*cloudchannel.Service, func()) {

@@ -228,14 +228,38 @@ func TestChannelOffersListCmd(t *testing.T) {
 	flags := &RootFlags{Account: "admin@example.com"}
 	cmd := &ChannelOffersListCmd{ChannelAccount: "acc"}
 
+	ctx := testContextJSON(t)
 	out := captureStdout(t, func() {
-		if err := cmd.Run(testContext(t), flags); err != nil {
+		if err := cmd.Run(ctx, flags); err != nil {
 			t.Fatalf("Run: %v", err)
 		}
 	})
 
-	if !strings.Contains(out, "offers/offer1") || !strings.Contains(out, "sku1") || !strings.Contains(out, "product1") {
-		t.Fatalf("unexpected output: %s", out)
+	var parsed struct {
+		Offers []struct {
+			Name string `json:"name"`
+			Sku  struct {
+				Name    string `json:"name"`
+				Product struct {
+					Name string `json:"name"`
+				} `json:"product"`
+			} `json:"sku"`
+		} `json:"offers"`
+	}
+	if err := json.Unmarshal([]byte(out), &parsed); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if len(parsed.Offers) != 1 {
+		t.Fatalf("expected 1 offer, got %d", len(parsed.Offers))
+	}
+	if parsed.Offers[0].Name != "accounts/acc/offers/offer1" {
+		t.Fatalf("unexpected offer name: %s", parsed.Offers[0].Name)
+	}
+	if parsed.Offers[0].Sku.Name != "sku1" {
+		t.Fatalf("unexpected sku name: %s", parsed.Offers[0].Sku.Name)
+	}
+	if parsed.Offers[0].Sku.Product.Name != "product1" {
+		t.Fatalf("unexpected product name: %s", parsed.Offers[0].Sku.Product.Name)
 	}
 }
 
@@ -438,14 +462,31 @@ func TestChannelEntitlementsListCmd(t *testing.T) {
 	flags := &RootFlags{Account: "admin@example.com"}
 	cmd := &ChannelEntitlementsListCmd{ChannelAccount: "acc", Customer: "cust1"}
 
+	ctx := testContextJSON(t)
 	out := captureStdout(t, func() {
-		if err := cmd.Run(testContext(t), flags); err != nil {
+		if err := cmd.Run(ctx, flags); err != nil {
 			t.Fatalf("Run: %v", err)
 		}
 	})
 
-	if !strings.Contains(out, "entitlements/e1") {
-		t.Fatalf("unexpected output: %s", out)
+	var parsed struct {
+		Entitlements []struct {
+			Name              string `json:"name"`
+			Offer             string `json:"offer"`
+			ProvisioningState string `json:"provisioningState"`
+		} `json:"entitlements"`
+	}
+	if err := json.Unmarshal([]byte(out), &parsed); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if len(parsed.Entitlements) != 1 {
+		t.Fatalf("expected 1 entitlement, got %d", len(parsed.Entitlements))
+	}
+	if parsed.Entitlements[0].Name != "accounts/acc/customers/cust1/entitlements/e1" {
+		t.Fatalf("unexpected entitlement name: %s", parsed.Entitlements[0].Name)
+	}
+	if parsed.Entitlements[0].ProvisioningState != "ACTIVE" {
+		t.Fatalf("unexpected provisioning state: %s", parsed.Entitlements[0].ProvisioningState)
 	}
 }
 
