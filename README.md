@@ -531,6 +531,9 @@ gog gmail send --to a@b.com --subject "Hi" --body "Plain fallback"
 gog gmail send --to a@b.com --subject "Hi" --body-file ./message.txt
 gog gmail send --to a@b.com --subject "Hi" --body-file -   # Read body from stdin
 gog gmail send --to a@b.com --subject "Hi" --body "Plain fallback" --body-html "<p>Hello</p>"
+gog gmail send --to a@b.com --subject "Hi" --body "Plain fallback" --signature
+gog gmail send --to a@b.com --subject "Hi" --body-html "<p>Hello</p>" --signature-name alias@example.com
+gog gmail send --to a@b.com --subject "Hi" --body "Plain fallback" --signature-file ./signature.txt
 gog gmail drafts list
 gog gmail drafts create --subject "Draft" --body "Body"
 gog gmail drafts create --to a@b.com --subject "Draft" --body "Body"

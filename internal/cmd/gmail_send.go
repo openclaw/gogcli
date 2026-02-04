@@ -30,6 +30,9 @@ type GmailSendCmd struct {
 	ReplyTo          string   `name:"reply-to" help:"Reply-To header address"`
 	Attach           []string `name:"attach" help:"Attachment file path (repeatable)"`
 	From             string   `name:"from" help:"Send from this email address (must be a verified send-as alias)"`
+	Signature        bool     `name:"signature" help:"Append the default Gmail signature to the message body"`
+	SignatureName    string   `name:"signature-name" help:"Append signature from this send-as alias (uses Gmail signature HTML)"`
+	SignatureFile    string   `name:"signature-file" help:"Append signature from a local file path"`
 	Track            bool     `name:"track" help:"Enable open tracking (requires tracking setup)"`
 	TrackSplit       bool     `name:"track-split" help:"Send tracked messages separately per recipient"`
 }
@@ -58,6 +61,11 @@ type sendMessageOptions struct {
 	Attachments []mailAttachment
 	Track       bool
 	TrackingCfg *tracking.Config
+}
+
+type signatureContent struct {
+	Plain string
+	HTML  string
 }
 
 func (c *GmailSendCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -98,6 +106,10 @@ func (c *GmailSendCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return usage("--track-split requires --track")
 	}
 
+	if err := validateSignatureFlags(c.Signature, c.SignatureName, c.SignatureFile); err != nil {
+		return err
+	}
+
 	svc, err := newGmailService(ctx, account)
 	if err != nil {
 		return err
@@ -130,6 +142,22 @@ func (c *GmailSendCmd) Run(ctx context.Context, flags *RootFlags) error {
 			fromAddr = sa.DisplayName + " <" + account + ">"
 		}
 		// If lookup fails, we just use the plain email address (no error)
+	}
+
+	bodyHTML := c.BodyHTML
+	if c.Signature || strings.TrimSpace(c.SignatureName) != "" || strings.TrimSpace(c.SignatureFile) != "" {
+		sig, sigErr := c.resolveSignature(ctx, svc, u, sendingEmail)
+		if sigErr != nil {
+			return sigErr
+		}
+		if sig != nil {
+			if strings.TrimSpace(body) != "" {
+				body = appendSignaturePlain(body, sig.Plain)
+			}
+			if strings.TrimSpace(bodyHTML) != "" {
+				bodyHTML = appendSignatureHTML(bodyHTML, sig.HTML)
+			}
+		}
 	}
 
 	// Fetch reply info (includes recipient headers for reply-all)
@@ -183,7 +211,7 @@ func (c *GmailSendCmd) Run(ctx context.Context, flags *RootFlags) error {
 		ReplyTo:     c.ReplyTo,
 		Subject:     c.Subject,
 		Body:        body,
-		BodyHTML:    c.BodyHTML,
+		BodyHTML:    bodyHTML,
 		ReplyInfo:   replyInfo,
 		Attachments: atts,
 		Track:       c.Track,
@@ -217,6 +245,68 @@ func (c *GmailSendCmd) resolveTrackingConfig(account string, toRecipients, ccRec
 	return trackingCfg, nil
 }
 
+func validateSignatureFlags(signature bool, signatureName, signatureFile string) error {
+	count := 0
+	if signature {
+		count++
+	}
+	if strings.TrimSpace(signatureName) != "" {
+		count++
+	}
+	if strings.TrimSpace(signatureFile) != "" {
+		count++
+	}
+	if count > 1 {
+		return usage("use only one of --signature, --signature-name, or --signature-file")
+	}
+	return nil
+}
+
+func (c *GmailSendCmd) resolveSignature(ctx context.Context, svc *gmail.Service, u *ui.UI, sendingEmail string) (*signatureContent, error) {
+	sigName := strings.TrimSpace(c.SignatureName)
+	sigFile := strings.TrimSpace(c.SignatureFile)
+	switch {
+	case sigFile != "":
+		path, err := config.ExpandPath(sigFile)
+		if err != nil {
+			return nil, err
+		}
+		b, err := os.ReadFile(path) //nolint:gosec // user-provided path
+		if err != nil {
+			if os.IsNotExist(err) {
+				return nil, fmt.Errorf("signature file not found: %s", path)
+			}
+			return nil, fmt.Errorf("read signature file %q: %w", path, err)
+		}
+		content := string(b)
+		if strings.TrimSpace(content) == "" {
+			u.Err().Printf("Warning: signature file is empty (%s)", path)
+		}
+		return &signatureContent{
+			Plain: content,
+			HTML:  content,
+		}, nil
+	case sigName != "" || c.Signature:
+		sendAsEmail := sendingEmail
+		if sigName != "" {
+			sendAsEmail = sigName
+		}
+		sa, err := svc.Users.Settings.SendAs.Get("me", sendAsEmail).Context(ctx).Do()
+		if err != nil {
+			return nil, fmt.Errorf("fetch signature for %q: %w", sendAsEmail, err)
+		}
+		if strings.TrimSpace(sa.Signature) == "" {
+			u.Err().Printf("Warning: signature not set for %s", sendAsEmail)
+		}
+		return &signatureContent{
+			Plain: signatureHTMLToPlain(sa.Signature),
+			HTML:  sa.Signature,
+		}, nil
+	default:
+		return nil, nil
+	}
+}
+
 func buildSendBatches(toRecipients, ccRecipients, bccRecipients []string, track, trackSplit bool) []sendBatch {
 	totalRecipients := len(toRecipients) + len(ccRecipients) + len(bccRecipients)
 	if track && trackSplit && totalRecipients > 1 {
@@ -241,6 +331,31 @@ func buildSendBatches(toRecipients, ccRecipients, bccRecipients []string, track,
 		Bcc:               bccRecipients,
 		TrackingRecipient: trackingRecipient,
 	}}
+}
+
+func appendSignaturePlain(body, signature string) string {
+	if strings.TrimSpace(signature) == "" {
+		return body
+	}
+	return body + "\n\n--\n" + signature
+}
+
+func appendSignatureHTML(bodyHTML, signatureHTML string) string {
+	if strings.TrimSpace(signatureHTML) == "" {
+		return bodyHTML
+	}
+	wrapped := `<div class="gmail_signature">` + signatureHTML + `</div>`
+	return bodyHTML + "\n\n" + wrapped
+}
+
+func signatureHTMLToPlain(signatureHTML string) string {
+	if strings.TrimSpace(signatureHTML) == "" {
+		return ""
+	}
+	withBreaks := strings.ReplaceAll(signatureHTML, "<br>", "\n")
+	withBreaks = strings.ReplaceAll(withBreaks, "<br/>", "\n")
+	withBreaks = strings.ReplaceAll(withBreaks, "<br />", "\n")
+	return strings.TrimSpace(stripHTML(withBreaks))
 }
 
 func sendGmailBatches(ctx context.Context, svc *gmail.Service, opts sendMessageOptions, batches []sendBatch) ([]sendResult, error) {

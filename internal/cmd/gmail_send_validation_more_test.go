@@ -30,6 +30,7 @@ func TestGmailSendCmd_ValidationErrors(t *testing.T) {
 		{To: "a@b.com", Body: "B"},
 		{To: "a@b.com", Subject: "S"},
 		{To: "a@b.com", Subject: "S", Body: "B", TrackSplit: true},
+		{To: "a@b.com", Subject: "S", Body: "B", Signature: true, SignatureName: "alias@example.com"},
 	}
 
 	for _, cmd := range cases {
