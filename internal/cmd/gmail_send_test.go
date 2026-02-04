@@ -316,6 +316,82 @@ func TestGmailSendCmd_RunJSON_WithFrom(t *testing.T) {
 	}
 }
 
+func TestGmailSendCmd_RunJSON_WithFromDisplayNameFallbackToList(t *testing.T) {
+	origNew := newGmailService
+	t.Cleanup(func() { newGmailService = origNew })
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := strings.TrimPrefix(r.URL.Path, "/gmail/v1")
+		switch {
+		case r.Method == http.MethodGet && path == "/users/me/settings/sendAs/alias@example.com":
+			// Return send-as settings with empty display name but valid verification.
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"sendAsEmail":        "alias@example.com",
+				"displayName":        "",
+				"verificationStatus": "accepted",
+			})
+			return
+		case r.Method == http.MethodGet && path == "/users/me/settings/sendAs":
+			// Fallback list endpoint returns the alias with a populated display name.
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"sendAs": []map[string]any{
+					{
+						"sendAsEmail":        "alias@example.com",
+						"displayName":        "Alias From List",
+						"verificationStatus": "accepted",
+					},
+				},
+			})
+			return
+		case r.Method == http.MethodPost && path == "/users/me/messages/send":
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"id":       "m2b",
+				"threadId": "t2b",
+			})
+			return
+		default:
+			http.NotFound(w, r)
+			return
+		}
+	}))
+	defer srv.Close()
+
+	svc, err := gmail.NewService(context.Background(),
+		option.WithoutAuthentication(),
+		option.WithHTTPClient(srv.Client()),
+		option.WithEndpoint(srv.URL+"/"),
+	)
+	if err != nil {
+		t.Fatalf("NewService: %v", err)
+	}
+	newGmailService = func(context.Context, string) (*gmail.Service, error) { return svc, nil }
+
+	u, err := ui.New(ui.Options{Stdout: os.Stdout, Stderr: os.Stderr, Color: "never"})
+	if err != nil {
+		t.Fatalf("ui.New: %v", err)
+	}
+	ctx := outfmt.WithMode(ui.WithUI(context.Background(), u), outfmt.Mode{JSON: true})
+
+	cmd := &GmailSendCmd{
+		To:      "a@example.com",
+		From:    "alias@example.com",
+		Subject: "Hello",
+		Body:    "Body",
+	}
+
+	out := captureStdout(t, func() {
+		if err := cmd.Run(ctx, &RootFlags{Account: "a@b.com"}); err != nil {
+			t.Fatalf("Run: %v", err)
+		}
+	})
+	if !strings.Contains(out, "\"from\"") || !strings.Contains(out, "Alias From List <alias@example.com>") {
+		t.Fatalf("expected from with display name from list fallback, got: %q", out)
+	}
+}
+
 func TestGmailSendCmd_RunJSON_PrimaryAccountDisplayName(t *testing.T) {
 	origNew := newGmailService
 	t.Cleanup(func() { newGmailService = origNew })
