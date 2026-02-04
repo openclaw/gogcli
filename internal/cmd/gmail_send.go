@@ -285,9 +285,6 @@ func primarySendAsDisplayNameFromList(ctx context.Context, svc *gmail.Service, a
 			if displayName := strings.TrimSpace(sa.DisplayName); displayName != "" {
 				return displayName, nil
 			}
-			if primary == nil && sa.IsPrimary {
-				primary = sa
-			}
 		}
 	}
 
