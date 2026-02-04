@@ -227,6 +227,232 @@ func TestGmailSendCmd_SignatureFileTooLarge(t *testing.T) {
 	}
 }
 
+func TestIsLikelyHTML(t *testing.T) {
+	tests := []struct {
+		name string
+		in   string
+		want bool
+	}{
+		{name: "empty", in: "", want: false},
+		{name: "plain text", in: "Hello world", want: false},
+		{name: "angle brackets no tag", in: "1 < 2 > 0", want: false},
+		{name: "div tag", in: "<div>hello</div>", want: true},
+		{name: "br tag", in: "line<br>break", want: true},
+		{name: "p tag", in: "<p>paragraph</p>", want: true},
+		{name: "anchor tag", in: `<a href="x">link</a>`, want: true},
+		{name: "self-closing br", in: "text<br/>more", want: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := isLikelyHTML(tt.in)
+			if got != tt.want {
+				t.Errorf("isLikelyHTML(%q) = %v, want %v", tt.in, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestPlainTextToHTML(t *testing.T) {
+	tests := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{name: "empty", in: "", want: ""},
+		{name: "simple text", in: "Hello", want: "Hello"},
+		{name: "newlines", in: "Line1\nLine2\nLine3", want: "Line1<br>\nLine2<br>\nLine3"},
+		{name: "escapes ampersand", in: "A & B", want: "A &amp; B"},
+		{name: "escapes angle brackets", in: "1 < 2 > 0", want: "1 &lt; 2 &gt; 0"},
+		{name: "combined escapes and newlines", in: "A & B\nC < D", want: "A &amp; B<br>\nC &lt; D"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := plainTextToHTML(tt.in)
+			if got != tt.want {
+				t.Errorf("plainTextToHTML(%q)\ngot:  %q\nwant: %q", tt.in, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestSignatureFileContentType_PlainText(t *testing.T) {
+	origNew := newGmailService
+	t.Cleanup(func() { newGmailService = origNew })
+
+	var gotRaw string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := strings.TrimPrefix(r.URL.Path, "/gmail/v1")
+		switch {
+		case r.Method == http.MethodGet && path == "/users/me/settings/sendAs/a@b.com":
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"sendAsEmail":        "a@b.com",
+				"verificationStatus": "accepted",
+			})
+			return
+		case r.Method == http.MethodPost && path == "/users/me/messages/send":
+			var payload struct {
+				Raw string `json:"raw"`
+			}
+			if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+				t.Fatalf("decode payload: %v", err)
+			}
+			decoded, err := base64.RawURLEncoding.DecodeString(payload.Raw)
+			if err != nil {
+				t.Fatalf("decode raw: %v", err)
+			}
+			gotRaw = string(decoded)
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{"id": "m1"})
+			return
+		default:
+			http.NotFound(w, r)
+			return
+		}
+	}))
+	defer srv.Close()
+
+	svc, err := gmail.NewService(context.Background(),
+		option.WithoutAuthentication(),
+		option.WithHTTPClient(srv.Client()),
+		option.WithEndpoint(srv.URL+"/"),
+	)
+	if err != nil {
+		t.Fatalf("NewService: %v", err)
+	}
+	newGmailService = func(context.Context, string) (*gmail.Service, error) { return svc, nil }
+
+	u, err := ui.New(ui.Options{Stdout: io.Discard, Stderr: io.Discard, Color: "never"})
+	if err != nil {
+		t.Fatalf("ui.New: %v", err)
+	}
+	ctx := ui.WithUI(context.Background(), u)
+
+	// Write a plain-text signature file with special characters and newlines.
+	tmp := filepath.Join(t.TempDir(), "sig.txt")
+	if writeErr := os.WriteFile(tmp, []byte("Best & regards\nJohn Doe\n© 2024"), 0o600); writeErr != nil {
+		t.Fatalf("write temp file: %v", writeErr)
+	}
+
+	cmd := &GmailSendCmd{
+		To:            "a@example.com",
+		Subject:       "Hello",
+		Body:          "Body",
+		BodyHTML:      "<p>Body</p>",
+		SignatureFile: tmp,
+	}
+	if err := cmd.Run(ctx, &RootFlags{Account: "a@b.com"}); err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+
+	if gotRaw == "" {
+		t.Fatal("expected raw message")
+	}
+
+	// Plain part should contain the file verbatim (no HTML escaping).
+	if !strings.Contains(gotRaw, "Best & regards") {
+		t.Errorf("plain body should contain original plain text, got: %q", gotRaw)
+	}
+
+	// HTML part should have escaped entities and <br> for newlines.
+	if !strings.Contains(gotRaw, "Best &amp; regards<br>") {
+		t.Errorf("HTML body should contain escaped entities and <br>, got: %q", gotRaw)
+	}
+	if !strings.Contains(gotRaw, "© 2024") {
+		t.Errorf("HTML body should contain the copyright line, got: %q", gotRaw)
+	}
+}
+
+func TestSignatureFileContentType_HTML(t *testing.T) {
+	origNew := newGmailService
+	t.Cleanup(func() { newGmailService = origNew })
+
+	var gotRaw string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := strings.TrimPrefix(r.URL.Path, "/gmail/v1")
+		switch {
+		case r.Method == http.MethodGet && path == "/users/me/settings/sendAs/a@b.com":
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"sendAsEmail":        "a@b.com",
+				"verificationStatus": "accepted",
+			})
+			return
+		case r.Method == http.MethodPost && path == "/users/me/messages/send":
+			var payload struct {
+				Raw string `json:"raw"`
+			}
+			if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+				t.Fatalf("decode payload: %v", err)
+			}
+			decoded, err := base64.RawURLEncoding.DecodeString(payload.Raw)
+			if err != nil {
+				t.Fatalf("decode raw: %v", err)
+			}
+			gotRaw = string(decoded)
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{"id": "m1"})
+			return
+		default:
+			http.NotFound(w, r)
+			return
+		}
+	}))
+	defer srv.Close()
+
+	svc, err := gmail.NewService(context.Background(),
+		option.WithoutAuthentication(),
+		option.WithHTTPClient(srv.Client()),
+		option.WithEndpoint(srv.URL+"/"),
+	)
+	if err != nil {
+		t.Fatalf("NewService: %v", err)
+	}
+	newGmailService = func(context.Context, string) (*gmail.Service, error) { return svc, nil }
+
+	u, err := ui.New(ui.Options{Stdout: io.Discard, Stderr: io.Discard, Color: "never"})
+	if err != nil {
+		t.Fatalf("ui.New: %v", err)
+	}
+	ctx := ui.WithUI(context.Background(), u)
+
+	// Write an HTML signature file.
+	tmp := filepath.Join(t.TempDir(), "sig.html")
+	htmlSig := `<div>John Doe</div><div><a href="https://example.com">My Site</a></div>`
+	if writeErr := os.WriteFile(tmp, []byte(htmlSig), 0o600); writeErr != nil {
+		t.Fatalf("write temp file: %v", writeErr)
+	}
+
+	cmd := &GmailSendCmd{
+		To:            "a@example.com",
+		Subject:       "Hello",
+		Body:          "Body",
+		BodyHTML:      "<p>Body</p>",
+		SignatureFile: tmp,
+	}
+	if err := cmd.Run(ctx, &RootFlags{Account: "a@b.com"}); err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+
+	if gotRaw == "" {
+		t.Fatal("expected raw message")
+	}
+
+	// HTML part should contain the file content verbatim (as-is).
+	if !strings.Contains(gotRaw, htmlSig) {
+		t.Errorf("HTML body should contain original HTML signature, got: %q", gotRaw)
+	}
+
+	// Plain part should have gone through signatureHTMLToPlain.
+	// signatureHTMLToPlain converts <a> tags to "text (URL)" format.
+	if !strings.Contains(gotRaw, "My Site (https://example.com)") {
+		t.Errorf("plain body should contain converted anchor tag, got: %q", gotRaw)
+	}
+	if !strings.Contains(gotRaw, "John Doe") {
+		t.Errorf("plain body should contain text from div, got: %q", gotRaw)
+	}
+}
+
 func TestSignatureHTMLToPlain(t *testing.T) {
 	tests := []struct {
 		name string

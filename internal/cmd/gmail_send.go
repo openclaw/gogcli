@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+	"html"
 	"net/mail"
 	"os"
 	"regexp"
@@ -293,9 +294,15 @@ func (c *GmailSendCmd) resolveSignature(ctx context.Context, svc *gmail.Service,
 		if strings.TrimSpace(content) == "" {
 			u.Err().Printf("Warning: signature file is empty (%s)", path)
 		}
+		if isLikelyHTML(content) {
+			return &signatureContent{
+				Plain: signatureHTMLToPlain(content),
+				HTML:  content,
+			}, nil
+		}
 		return &signatureContent{
 			Plain: content,
-			HTML:  content,
+			HTML:  plainTextToHTML(content),
 		}, nil
 	case sigName != "" || c.Signature:
 		sendAsEmail := sendingEmail
@@ -414,6 +421,22 @@ func signatureHTMLToPlain(signatureHTML string) string {
 	s = strings.Join(lines, "\n")
 
 	return strings.TrimSpace(s)
+}
+
+// htmlTagRe matches an opening HTML tag like <div>, <br/>, <a href="...">.
+var htmlTagRe = regexp.MustCompile(`<[a-zA-Z][^>]*>`)
+
+// isLikelyHTML reports whether s appears to contain HTML markup.
+func isLikelyHTML(s string) bool {
+	return htmlTagRe.MatchString(s)
+}
+
+// plainTextToHTML converts plain text to a simple HTML representation.
+// It escapes HTML entities and converts newlines to <br> tags.
+func plainTextToHTML(s string) string {
+	s = html.EscapeString(s)
+	s = strings.ReplaceAll(s, "\n", "<br>\n")
+	return s
 }
 
 func sendGmailBatches(ctx context.Context, svc *gmail.Service, opts sendMessageOptions, batches []sendBatch) ([]sendResult, error) {
