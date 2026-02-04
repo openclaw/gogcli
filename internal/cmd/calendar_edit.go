@@ -325,6 +325,7 @@ type CalendarUpdateCmd struct {
 	ColorId               string   `name:"event-color" help:"Event color ID (1-11, or empty to clear)"`
 	Visibility            string   `name:"visibility" help:"Event visibility: default, public, private, confidential"`
 	Transparency          string   `name:"transparency" help:"Show as busy (opaque) or free (transparent). Aliases: busy, free"`
+	SendUpdates           string   `name:"send-updates" help:"Notification mode: all, externalOnly, none (default: all)"`
 	GuestsCanInviteOthers *bool    `name:"guests-can-invite" help:"Allow guests to invite others"`
 	GuestsCanModify       *bool    `name:"guests-can-modify" help:"Allow guests to modify event"`
 	GuestsCanSeeOthers    *bool    `name:"guests-can-see-others" help:"Allow guests to see other guests"`
