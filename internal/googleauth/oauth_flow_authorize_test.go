@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -54,6 +55,19 @@ func newTokenServer(t *testing.T) *httptest.Server {
 	}))
 }
 
+func useTempManualStatePath(t *testing.T) {
+	t.Helper()
+
+	origPath := manualStatePathFn
+	dir := t.TempDir()
+	manualStatePathFn = func() (string, error) {
+		return filepath.Join(dir, "oauth-manual-state.json"), nil
+	}
+	t.Cleanup(func() {
+		manualStatePathFn = origPath
+	})
+}
+
 func TestAuthorize_MissingScopes(t *testing.T) {
 	_, err := Authorize(context.Background(), AuthorizeOptions{})
 	if err == nil || !strings.Contains(err.Error(), "missing scopes") {
@@ -71,6 +85,7 @@ func TestAuthorize_Manual_Success(t *testing.T) {
 		oauthEndpoint = origEndpoint
 		randomStateFn = origState
 	})
+	useTempManualStatePath(t)
 
 	readClientCredentials = func(string) (config.ClientCredentials, error) {
 		return config.ClientCredentials{ClientID: "id", ClientSecret: "secret"}, nil
@@ -122,6 +137,7 @@ func TestAuthorize_Manual_Success_NoNewline(t *testing.T) {
 		oauthEndpoint = origEndpoint
 		randomStateFn = origState
 	})
+	useTempManualStatePath(t)
 
 	readClientCredentials = func(string) (config.ClientCredentials, error) {
 		return config.ClientCredentials{ClientID: "id", ClientSecret: "secret"}, nil
@@ -173,6 +189,7 @@ func TestAuthorize_Manual_CancelEOF(t *testing.T) {
 		oauthEndpoint = origEndpoint
 		randomStateFn = origState
 	})
+	useTempManualStatePath(t)
 
 	readClientCredentials = func(string) (config.ClientCredentials, error) {
 		return config.ClientCredentials{ClientID: "id", ClientSecret: "secret"}, nil
@@ -218,6 +235,7 @@ func TestAuthorize_Manual_StateMismatch(t *testing.T) {
 		oauthEndpoint = origEndpoint
 		randomStateFn = origState
 	})
+	useTempManualStatePath(t)
 
 	readClientCredentials = func(string) (config.ClientCredentials, error) {
 		return config.ClientCredentials{ClientID: "id", ClientSecret: "secret"}, nil
@@ -251,6 +269,48 @@ func TestAuthorize_Manual_StateMismatch(t *testing.T) {
 		Timeout: 2 * time.Second,
 	}); err == nil || !strings.Contains(err.Error(), "state mismatch") {
 		t.Fatalf("expected state mismatch, got: %v", err)
+	}
+}
+
+func TestAuthorize_Manual_AuthCode(t *testing.T) {
+	origRead := readClientCredentials
+	origEndpoint := oauthEndpoint
+	origState := randomStateFn
+
+	t.Cleanup(func() {
+		readClientCredentials = origRead
+		oauthEndpoint = origEndpoint
+		randomStateFn = origState
+	})
+	useTempManualStatePath(t)
+
+	readClientCredentials = func(string) (config.ClientCredentials, error) {
+		return config.ClientCredentials{ClientID: "id", ClientSecret: "secret"}, nil
+	}
+	stateCalled := false
+	randomStateFn = func() (string, error) {
+		stateCalled = true
+		return "state123", nil
+	}
+
+	tokenSrv := newTokenServer(t)
+	defer tokenSrv.Close()
+	oauthEndpoint = oauth2EndpointForTest(tokenSrv.URL)
+
+	rt, err := Authorize(context.Background(), AuthorizeOptions{
+		Scopes:   []string{"s1"},
+		Manual:   true,
+		AuthCode: "abc",
+		Timeout:  2 * time.Second,
+	})
+	if err != nil {
+		t.Fatalf("Authorize: %v", err)
+	}
+	if rt != "rt" {
+		t.Fatalf("unexpected refresh token: %q", rt)
+	}
+	if stateCalled {
+		t.Fatalf("unexpected state generation in auth-code flow")
 	}
 }
 
