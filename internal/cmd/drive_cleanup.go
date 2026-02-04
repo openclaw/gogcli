@@ -8,6 +8,7 @@ import (
 
 	"google.golang.org/api/drive/v3"
 
+	"github.com/steipete/gogcli/internal/googleapi"
 	"github.com/steipete/gogcli/internal/outfmt"
 	"github.com/steipete/gogcli/internal/ui"
 )
@@ -43,7 +44,7 @@ func (c *DriveCleanupEmptyFoldersCmd) Run(ctx context.Context, flags *RootFlags)
 
 	query := "mimeType='application/vnd.google-apps.folder' and trashed=false"
 	if strings.TrimSpace(c.Parent) != "" {
-		query = fmt.Sprintf("%s and '%s' in parents", query, strings.TrimSpace(c.Parent))
+		query = fmt.Sprintf("%s and '%s' in parents", query, googleapi.EscapeDriveQueryValue(strings.TrimSpace(c.Parent)))
 	}
 
 	deleted := 0
@@ -99,7 +100,7 @@ func (c *DriveCleanupEmptyFoldersCmd) Run(ctx context.Context, flags *RootFlags)
 
 func driveFolderHasChildren(ctx context.Context, svc *drive.Service, folderID string) (bool, error) {
 	resp, err := svc.Files.List().
-		Q(fmt.Sprintf("'%s' in parents and trashed=false", folderID)).
+		Q(fmt.Sprintf("'%s' in parents and trashed=false", googleapi.EscapeDriveQueryValue(folderID))).
 		PageSize(1).
 		Fields("files(id)").
 		SupportsAllDrives(true).

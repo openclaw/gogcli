@@ -8,6 +8,7 @@ import (
 
 	"google.golang.org/api/drive/v3"
 
+	"github.com/steipete/gogcli/internal/googleapi"
 	"github.com/steipete/gogcli/internal/outfmt"
 	"github.com/steipete/gogcli/internal/ui"
 )
@@ -45,7 +46,7 @@ func (c *DriveTransferCmd) Run(ctx context.Context, flags *RootFlags) error {
 	pageToken := ""
 	for {
 		call := svc.Files.List().
-			Q(fmt.Sprintf("'%s' in owners and trashed=false", from)).
+			Q(fmt.Sprintf("'%s' in owners and trashed=false", googleapi.EscapeDriveQueryValue(from))).
 			Fields("nextPageToken, files(id, name, owners(emailAddress), permissions(id,emailAddress))").
 			SupportsAllDrives(true).
 			IncludeItemsFromAllDrives(true)

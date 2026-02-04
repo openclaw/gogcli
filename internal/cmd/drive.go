@@ -802,7 +802,7 @@ func (c *DriveURLCmd) Run(ctx context.Context, flags *RootFlags) error {
 
 func buildDriveListQuery(folderID string, userQuery string) string {
 	q := strings.TrimSpace(userQuery)
-	parent := fmt.Sprintf("'%s' in parents", folderID)
+	parent := fmt.Sprintf("'%s' in parents", googleapi.EscapeDriveQueryValue(folderID))
 	if q != "" {
 		q = q + " and " + parent
 	} else {
@@ -820,10 +820,7 @@ func buildDriveSearchQuery(text string) string {
 }
 
 func escapeDriveQueryString(s string) string {
-	// Escape backslashes first, then single quotes
-	s = strings.ReplaceAll(s, "\\", "\\\\")
-	s = strings.ReplaceAll(s, "'", "\\'")
-	return s
+	return googleapi.EscapeDriveQueryValue(s)
 }
 
 func driveType(mimeType string) string {
