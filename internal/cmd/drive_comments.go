@@ -410,12 +410,14 @@ func (c *DriveCommentsResolveCmd) Run(ctx context.Context, flags *RootFlags) err
 		return err
 	}
 
-	comment := &drive.Comment{
-		Resolved: true,
+	// Google Drive API requires creating a reply with action="resolve"
+	// to mark a comment as resolved (the resolved field is read-only)
+	reply := &drive.Reply{
+		Action: "resolve",
 	}
 
-	updated, err := svc.Comments.Update(fileID, commentID, comment).
-		Fields("id, resolved, modifiedTime").
+	created, err := svc.Replies.Create(fileID, commentID, reply).
+		Fields("id, action, createdTime").
 		Context(ctx).
 		Do()
 	if err != nil {
@@ -425,16 +427,19 @@ func (c *DriveCommentsResolveCmd) Run(ctx context.Context, flags *RootFlags) err
 	if outfmt.IsJSON(ctx) {
 		return outfmt.WriteJSON(os.Stdout, map[string]any{
 			"fileId":    fileID,
-			"commentId": updated.Id,
-			"resolved":  updated.Resolved,
-			"modified":  updated.ModifiedTime,
+			"commentId": commentID,
+			"replyId":   created.Id,
+			"action":    created.Action,
+			"resolved":  true,
+			"created":   created.CreatedTime,
 		})
 	}
 
 	u.Out().Printf("file_id\t%s", fileID)
-	u.Out().Printf("comment_id\t%s", updated.Id)
-	u.Out().Printf("resolved\t%t", updated.Resolved)
-	u.Out().Printf("modified\t%s", updated.ModifiedTime)
+	u.Out().Printf("comment_id\t%s", commentID)
+	u.Out().Printf("reply_id\t%s", created.Id)
+	u.Out().Printf("resolved\t%t", true)
+	u.Out().Printf("created\t%s", created.CreatedTime)
 	return nil
 }
 

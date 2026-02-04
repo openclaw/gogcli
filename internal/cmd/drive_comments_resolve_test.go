@@ -19,19 +19,19 @@ func TestDriveCommentsResolveCmd(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := strings.TrimPrefix(r.URL.Path, "/drive/v3")
 		switch {
-		case r.Method == http.MethodPatch && path == "/files/file1/comments/c1":
+		case r.Method == http.MethodPost && path == "/files/file1/comments/c1/replies":
 			var payload map[string]any
 			if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
 				t.Fatalf("decode body: %v", err)
 			}
-			if payload["resolved"] != true {
-				t.Fatalf("expected resolved=true, got: %#v", payload["resolved"])
+			if payload["action"] != "resolve" {
+				t.Fatalf("expected action=resolve, got: %#v", payload["action"])
 			}
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(map[string]any{
-				"id":           "c1",
-				"resolved":     true,
-				"modifiedTime": "2026-02-04T12:00:00Z",
+				"id":          "r1",
+				"action":      "resolve",
+				"createdTime": "2026-02-04T12:00:00Z",
 			})
 			return
 		default:
@@ -62,13 +62,15 @@ func TestDriveCommentsResolveCmd(t *testing.T) {
 	var parsed struct {
 		FileID    string `json:"fileId"`
 		CommentID string `json:"commentId"`
+		ReplyID   string `json:"replyId"`
+		Action    string `json:"action"`
 		Resolved  bool   `json:"resolved"`
-		Modified  string `json:"modified"`
+		Created   string `json:"created"`
 	}
 	if err := json.Unmarshal([]byte(jsonOut), &parsed); err != nil {
 		t.Fatalf("json parse: %v out=%q", err, jsonOut)
 	}
-	if parsed.FileID != "file1" || parsed.CommentID != "c1" || !parsed.Resolved {
+	if parsed.FileID != "file1" || parsed.CommentID != "c1" || !parsed.Resolved || parsed.Action != "resolve" {
 		t.Fatalf("unexpected json: %#v", parsed)
 	}
 
@@ -92,12 +94,12 @@ func TestDocsCommentsResolveCmd(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := strings.TrimPrefix(r.URL.Path, "/drive/v3")
 		switch {
-		case r.Method == http.MethodPatch && path == "/files/doc1/comments/c1":
+		case r.Method == http.MethodPost && path == "/files/doc1/comments/c1/replies":
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(map[string]any{
-				"id":           "c1",
-				"resolved":     true,
-				"modifiedTime": "2026-02-04T12:00:00Z",
+				"id":          "r1",
+				"action":      "resolve",
+				"createdTime": "2026-02-04T12:00:00Z",
 			})
 			return
 		default:
