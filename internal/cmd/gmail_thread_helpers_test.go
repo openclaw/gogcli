@@ -153,6 +153,51 @@ func TestFindPartBody_DecodesQuotedPrintable(t *testing.T) {
 	}
 }
 
+func TestFindPartBody_PreservesURLsWhenAlreadyDecoded(t *testing.T) {
+	// Gmail API sometimes returns already-decoded content even when
+	// Content-Transfer-Encoding header says quoted-printable.
+	// URLs with = should be preserved, not corrupted to U+FFFD.
+	// See: https://github.com/steipete/gogcli/issues/159
+	url := "https://example.com/auth?token_hash=abc123&type=magiclink"
+	encoded := base64.RawURLEncoding.EncodeToString([]byte(url))
+	part := &gmail.MessagePart{
+		MimeType: "text/plain",
+		Headers: []*gmail.MessagePartHeader{
+			{Name: "Content-Transfer-Encoding", Value: "quoted-printable"},
+			{Name: "Content-Type", Value: "text/plain; charset=utf-8"},
+		},
+		Body: &gmail.MessagePartBody{Data: encoded},
+	}
+	got := findPartBody(part, "text/plain")
+	if got != url {
+		t.Fatalf("URL corrupted: expected %q, got %q", url, got)
+	}
+}
+
+func TestLooksLikeQuotedPrintable(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  bool
+	}{
+		{"actual QP with hex", "Price =E2=82=AC99", true},
+		{"soft line break CRLF", "line=\r\ncontinued", true},
+		{"soft line break LF", "line=\ncontinued", true},
+		{"plain URL with equals", "https://example.com?foo=bar", false},
+		{"plain text", "Hello World", false},
+		{"equals at end", "foo=", false},
+		{"short input", "=", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := looksLikeQuotedPrintable([]byte(tt.input))
+			if got != tt.want {
+				t.Errorf("looksLikeQuotedPrintable(%q) = %v, want %v", tt.input, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestFindPartBody_DecodesBase64Transfer(t *testing.T) {
 	inner := base64.StdEncoding.EncodeToString([]byte("plain body"))
 	encoded := base64.RawURLEncoding.EncodeToString([]byte(inner))

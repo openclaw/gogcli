@@ -464,6 +464,9 @@ func decodeTransferEncoding(data []byte, encoding string) []byte {
 			return decoded
 		}
 	case "quoted-printable":
+		if !looksLikeQuotedPrintable(data) {
+			return data
+		}
 		if decoded, err := io.ReadAll(quotedprintable.NewReader(bytes.NewReader(data))); err == nil {
 			return decoded
 		}
@@ -508,6 +511,29 @@ func looksLikeBase64(data []byte) bool {
 		}
 	}
 	return true
+}
+
+// looksLikeQuotedPrintable checks if data appears to contain quoted-printable
+// encoded sequences (=XX where XX is hex). This prevents double-decoding when
+// the Gmail API has already decoded the content.
+func looksLikeQuotedPrintable(data []byte) bool {
+	for i := 0; i < len(data)-2; i++ {
+		if data[i] == '=' {
+			// Check for soft line break (=\r\n or =\n)
+			if data[i+1] == '\r' || data[i+1] == '\n' {
+				return true
+			}
+			// Check for hex-encoded byte (=XX)
+			if isHexDigit(data[i+1]) && isHexDigit(data[i+2]) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func isHexDigit(b byte) bool {
+	return (b >= '0' && b <= '9') || (b >= 'A' && b <= 'F') || (b >= 'a' && b <= 'f')
 }
 
 func decodeAnyBase64(data []byte) ([]byte, error) {
