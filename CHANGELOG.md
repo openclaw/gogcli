@@ -1,5 +1,12 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+
+- Drive: `drive comments resolve` command to mark a comment as resolved.
+- Docs: `docs comments` subcommand with list, read, create, reply, resolve, and delete operations (aliases to drive comments).
+
 ## 0.9.0 - 2026-01-22
 
 ### Highlights

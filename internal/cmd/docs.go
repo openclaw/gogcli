@@ -24,13 +24,14 @@ import (
 var newDocsService = googleapi.NewDocs
 
 type DocsCmd struct {
-	Export DocsExportCmd `cmd:"" name:"export" help:"Export a Google Doc (pdf|docx|txt)"`
-	Info   DocsInfoCmd   `cmd:"" name:"info" help:"Get Google Doc metadata"`
-	Create DocsCreateCmd `cmd:"" name:"create" help:"Create a Google Doc"`
-	Copy   DocsCopyCmd   `cmd:"" name:"copy" help:"Copy a Google Doc"`
-	Write  DocsWriteCmd  `cmd:"" name:"write" help:"Write content to a Google Doc"`
-	Update DocsUpdateCmd `cmd:"" name:"update" help:"Insert text at a specific index in a Google Doc"`
-	Cat    DocsCatCmd    `cmd:"" name:"cat" help:"Print a Google Doc as plain text"`
+	Export   DocsExportCmd   `cmd:"" name:"export" help:"Export a Google Doc (pdf|docx|txt)"`
+	Info     DocsInfoCmd     `cmd:"" name:"info" help:"Get Google Doc metadata"`
+	Create   DocsCreateCmd   `cmd:"" name:"create" help:"Create a Google Doc"`
+	Copy     DocsCopyCmd     `cmd:"" name:"copy" help:"Copy a Google Doc"`
+	Write    DocsWriteCmd    `cmd:"" name:"write" help:"Write content to a Google Doc"`
+	Update   DocsUpdateCmd   `cmd:"" name:"update" help:"Insert text at a specific index in a Google Doc"`
+	Cat      DocsCatCmd      `cmd:"" name:"cat" help:"Print a Google Doc as plain text"`
+	Comments DocsCommentsCmd `cmd:"" name:"comments" help:"Manage comments on a Google Doc"`
 }
 
 type DocsExportCmd struct {
