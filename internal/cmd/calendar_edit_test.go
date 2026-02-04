@@ -94,9 +94,9 @@ func TestApplyCreateEventType_Default(t *testing.T) {
 
 func TestApplyCreateEventType_FocusTime(t *testing.T) {
 	cmd := &CalendarCreateCmd{
-		FocusAutoDecline:  "all",
+		FocusAutoDecline:    "all",
 		FocusDeclineMessage: "I'm busy",
-		FocusChatStatus:   "doNotDisturb",
+		FocusChatStatus:     "doNotDisturb",
 	}
 	event := &calendar.Event{}
 
@@ -144,7 +144,7 @@ func TestApplyCreateEventType_FocusTimeDefaults(t *testing.T) {
 
 func TestApplyCreateEventType_OutOfOffice(t *testing.T) {
 	cmd := &CalendarCreateCmd{
-		OOOAutoDecline:  "new",
+		OOOAutoDecline:    "new",
 		OOODeclineMessage: "On vacation",
 	}
 	event := &calendar.Event{}

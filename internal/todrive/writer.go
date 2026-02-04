@@ -12,8 +12,10 @@ import (
 	"github.com/steipete/gogcli/internal/googleapi"
 )
 
-var newDriveService = googleapi.NewDrive
-var newSheetsService = googleapi.NewSheets
+var (
+	newDriveService  = googleapi.NewDrive
+	newSheetsService = googleapi.NewSheets
+)
 
 const defaultSheetName = "Report"
 
@@ -190,4 +192,3 @@ func toInterfaceRow(values []string) []interface{} {
 	}
 	return row
 }
-

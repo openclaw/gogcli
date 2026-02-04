@@ -166,7 +166,7 @@ func (c *DriveOrphansCollectCmd) Run(ctx context.Context, flags *RootFlags) erro
 
 	if outfmt.IsJSON(ctx) {
 		return outfmt.WriteJSON(os.Stdout, map[string]any{
-			"moved":   moved,
+			"moved":  moved,
 			"folder": folderID,
 		})
 	}

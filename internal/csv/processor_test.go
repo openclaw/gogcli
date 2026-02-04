@@ -852,7 +852,7 @@ func TestProcess_MalformedCSV(t *testing.T) {
 	// Unbalanced quotes cause csv.ReadAll to fail
 	err := os.WriteFile(path, []byte(`email,name
 "alice@test.com,"Alice
-`), 0644)
+`), 0o644)
 	if err != nil {
 		t.Fatalf("write file: %v", err)
 	}
@@ -1174,4 +1174,3 @@ bob@test.com,Bob,inactive
 		t.Errorf("row[1].name: got %q, want %q", rows[1].Values["name"], "Bob")
 	}
 }
-

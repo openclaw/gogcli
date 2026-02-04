@@ -432,8 +432,8 @@ func TestWrapEventsWithDays_Nil(t *testing.T) {
 
 func TestWrapEventsWithDays_Multiple(t *testing.T) {
 	events := []*calendar.Event{
-		{Start: &calendar.EventDateTime{Date: "2025-01-06"}, End: &calendar.EventDateTime{Date: "2025-01-06"}}, // Monday
-		{Start: &calendar.EventDateTime{Date: "2025-01-07"}, End: &calendar.EventDateTime{Date: "2025-01-07"}}, // Tuesday
+		{Start: &calendar.EventDateTime{Date: "2025-01-06"}, End: &calendar.EventDateTime{Date: "2025-01-06"}},                             // Monday
+		{Start: &calendar.EventDateTime{Date: "2025-01-07"}, End: &calendar.EventDateTime{Date: "2025-01-07"}},                             // Tuesday
 		{Start: &calendar.EventDateTime{DateTime: "2025-01-08T10:00:00Z"}, End: &calendar.EventDateTime{DateTime: "2025-01-08T11:00:00Z"}}, // Wednesday
 	}
 	wrapped := wrapEventsWithDays(events)

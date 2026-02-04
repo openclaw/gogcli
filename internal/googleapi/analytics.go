@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"google.golang.org/api/analyticsadmin/v1beta"
+	analyticsadmin "google.golang.org/api/analyticsadmin/v1beta"
 
 	"github.com/steipete/gogcli/internal/googleauth"
 )
