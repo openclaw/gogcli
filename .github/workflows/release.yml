@@ -1,4 +1,5 @@
 name: release
+# CampusIQ fork release workflow
 
 on:
   push:

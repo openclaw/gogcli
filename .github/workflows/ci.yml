@@ -1,4 +1,5 @@
 name: ci
+# CampusIQ fork CI workflow
 
 on:
   push:
