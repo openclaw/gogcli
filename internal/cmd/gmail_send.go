@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/mail"
 	"os"
+	"regexp"
 	"strings"
 
 	"google.golang.org/api/gmail/v1"
@@ -348,14 +349,61 @@ func appendSignatureHTML(bodyHTML, signatureHTML string) string {
 	return bodyHTML + "\n\n" + wrapped
 }
 
+// sigAnchorRe matches <a href="URL">text</a> and captures href and link text.
+var sigAnchorRe = regexp.MustCompile(`(?i)<a\s[^>]*href=["']([^"']+)["'][^>]*>(.*?)</a>`)
+
+// sigMultiNewlineRe collapses three or more consecutive newlines to two.
+var sigMultiNewlineRe = regexp.MustCompile(`\n{3,}`)
+
 func signatureHTMLToPlain(signatureHTML string) string {
 	if strings.TrimSpace(signatureHTML) == "" {
 		return ""
 	}
-	withBreaks := strings.ReplaceAll(signatureHTML, "<br>", "\n")
-	withBreaks = strings.ReplaceAll(withBreaks, "<br/>", "\n")
-	withBreaks = strings.ReplaceAll(withBreaks, "<br />", "\n")
-	return strings.TrimSpace(stripHTML(withBreaks))
+
+	s := signatureHTML
+
+	// Convert <a href="URL">text</a> to "text (URL)" before stripping tags.
+	s = sigAnchorRe.ReplaceAllStringFunc(s, func(match string) string {
+		sub := sigAnchorRe.FindStringSubmatch(match)
+		if len(sub) < 3 {
+			return match
+		}
+		href := sub[1]
+		text := strings.TrimSpace(stripHTML(sub[2]))
+		if text == "" {
+			return href
+		}
+		if text == href {
+			return href
+		}
+		return text + " (" + href + ")"
+	})
+
+	// Convert block-closing tags to newlines.
+	for _, tag := range []string{"</p>", "</div>", "</tr>"} {
+		s = strings.ReplaceAll(s, tag, "\n")
+		s = strings.ReplaceAll(s, strings.ToUpper(tag), "\n")
+	}
+
+	// Convert <br> variants to newlines.
+	s = strings.ReplaceAll(s, "<br>", "\n")
+	s = strings.ReplaceAll(s, "<br/>", "\n")
+	s = strings.ReplaceAll(s, "<br />", "\n")
+
+	// Strip remaining HTML tags.
+	s = stripHTML(s)
+
+	// Collapse runs of 3+ newlines to 2.
+	s = sigMultiNewlineRe.ReplaceAllString(s, "\n\n")
+
+	// Trim trailing whitespace from each line, then trim the whole string.
+	lines := strings.Split(s, "\n")
+	for i, line := range lines {
+		lines[i] = strings.TrimRight(line, " \t")
+	}
+	s = strings.Join(lines, "\n")
+
+	return strings.TrimSpace(s)
 }
 
 func sendGmailBatches(ctx context.Context, svc *gmail.Service, opts sendMessageOptions, batches []sendBatch) ([]sendResult, error) {

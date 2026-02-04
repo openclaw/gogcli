@@ -186,3 +186,96 @@ func TestGmailSendCmd_SignatureFileMissing(t *testing.T) {
 		t.Fatalf("expected signature file error, got: %v", err)
 	}
 }
+
+func TestSignatureHTMLToPlain(t *testing.T) {
+	tests := []struct {
+		name string
+		html string
+		want string
+	}{
+		{
+			name: "empty string",
+			html: "",
+			want: "",
+		},
+		{
+			name: "whitespace only",
+			html: "   \t\n  ",
+			want: "",
+		},
+		{
+			name: "simple div",
+			html: "<div>Sig</div>",
+			want: "Sig",
+		},
+		{
+			name: "p tags with line breaks",
+			html: "<p>Line1</p><p>Line2</p>",
+			want: "Line1\nLine2",
+		},
+		{
+			name: "anchor tag converted to text with URL",
+			html: `<a href="https://example.com">My Site</a>`,
+			want: "My Site (https://example.com)",
+		},
+		{
+			name: "anchor tag where text equals URL",
+			html: `<a href="https://example.com">https://example.com</a>`,
+			want: "https://example.com",
+		},
+		{
+			name: "anchor tag with no text",
+			html: `<a href="https://example.com"></a>`,
+			want: "https://example.com",
+		},
+		{
+			name: "table with rows",
+			html: "<table><tr><td>Row1</td></tr><tr><td>Row2</td></tr></table>",
+			want: "Row1\nRow2",
+		},
+		{
+			name: "br tag",
+			html: "Line1<br>Line2",
+			want: "Line1\nLine2",
+		},
+		{
+			name: "br self-closing no space",
+			html: "Line1<br/>Line2",
+			want: "Line1\nLine2",
+		},
+		{
+			name: "br self-closing with space",
+			html: "Line1<br />Line2",
+			want: "Line1\nLine2",
+		},
+		{
+			name: "multiple consecutive newlines collapsed",
+			html: "<p>A</p><p></p><p></p><p></p><p>B</p>",
+			want: "A\n\nB",
+		},
+		{
+			name: "mixed tags",
+			html: `<div>John Doe</div><div><a href="https://example.com">example.com</a></div><div>555-1234</div>`,
+			want: "John Doe\nexample.com (https://example.com)\n555-1234",
+		},
+		{
+			name: "trailing whitespace trimmed",
+			html: "<div>Hello   </div>",
+			want: "Hello",
+		},
+		{
+			name: "plain text passthrough",
+			html: "Just plain text",
+			want: "Just plain text",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := signatureHTMLToPlain(tt.html)
+			if got != tt.want {
+				t.Errorf("signatureHTMLToPlain(%q)\ngot:  %q\nwant: %q", tt.html, got, tt.want)
+			}
+		})
+	}
+}
