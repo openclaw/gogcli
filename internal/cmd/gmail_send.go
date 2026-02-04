@@ -17,6 +17,9 @@ import (
 	"github.com/steipete/gogcli/internal/ui"
 )
 
+// maxSignatureFileSize is the maximum allowed size for a --signature-file (1 MB).
+const maxSignatureFileSize = 1 << 20
+
 type GmailSendCmd struct {
 	To               string   `name:"to" help:"Recipients (comma-separated; required unless --reply-all is used)"`
 	Cc               string   `name:"cc" help:"CC recipients (comma-separated)"`
@@ -272,11 +275,18 @@ func (c *GmailSendCmd) resolveSignature(ctx context.Context, svc *gmail.Service,
 		if err != nil {
 			return nil, err
 		}
-		b, err := os.ReadFile(path) //nolint:gosec // user-provided path
+		info, err := os.Stat(path)
 		if err != nil {
 			if os.IsNotExist(err) {
 				return nil, fmt.Errorf("signature file not found: %s", path)
 			}
+			return nil, fmt.Errorf("stat signature file %q: %w", path, err)
+		}
+		if info.Size() > maxSignatureFileSize {
+			return nil, fmt.Errorf("signature file too large (%d bytes, max %d)", info.Size(), maxSignatureFileSize)
+		}
+		b, err := os.ReadFile(path) //nolint:gosec // user-provided path
+		if err != nil {
 			return nil, fmt.Errorf("read signature file %q: %w", path, err)
 		}
 		content := string(b)

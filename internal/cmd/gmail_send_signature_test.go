@@ -7,6 +7,8 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -184,6 +186,44 @@ func TestGmailSendCmd_SignatureFileMissing(t *testing.T) {
 	}
 	if err := cmd.Run(ctx, &RootFlags{Account: "a@b.com"}); err == nil || !strings.Contains(err.Error(), "signature file") {
 		t.Fatalf("expected signature file error, got: %v", err)
+	}
+}
+
+func TestGmailSendCmd_SignatureFileTooLarge(t *testing.T) {
+	origNew := newGmailService
+	t.Cleanup(func() { newGmailService = origNew })
+
+	svc, err := gmail.NewService(context.Background(), option.WithoutAuthentication())
+	if err != nil {
+		t.Fatalf("NewService: %v", err)
+	}
+	newGmailService = func(context.Context, string) (*gmail.Service, error) { return svc, nil }
+
+	u, err := ui.New(ui.Options{Stdout: io.Discard, Stderr: io.Discard, Color: "never"})
+	if err != nil {
+		t.Fatalf("ui.New: %v", err)
+	}
+	ctx := ui.WithUI(context.Background(), u)
+
+	// Create a temp file larger than maxSignatureFileSize (1 MB).
+	tmp := filepath.Join(t.TempDir(), "big_sig.html")
+	data := make([]byte, maxSignatureFileSize+1)
+	if writeErr := os.WriteFile(tmp, data, 0o600); writeErr != nil {
+		t.Fatalf("write temp file: %v", writeErr)
+	}
+
+	cmd := &GmailSendCmd{
+		To:            "a@example.com",
+		Subject:       "Hello",
+		Body:          "Body",
+		SignatureFile: tmp,
+	}
+	err = cmd.Run(ctx, &RootFlags{Account: "a@b.com"})
+	if err == nil {
+		t.Fatal("expected error for oversized signature file, got nil")
+	}
+	if !strings.Contains(err.Error(), "signature file too large") {
+		t.Fatalf("expected 'signature file too large' error, got: %v", err)
 	}
 }
 
