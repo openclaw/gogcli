@@ -115,7 +115,7 @@ func (c *GroupsDeleteCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
-	if err := confirmDestructive(ctx, flags, fmt.Sprintf("delete group %s", c.Group)); err != nil {
+	if err = confirmDestructive(ctx, flags, fmt.Sprintf("delete group %s", c.Group)); err != nil {
 		return err
 	}
 
@@ -154,9 +154,9 @@ func (c *GroupsSettingsCmd) Run(ctx context.Context, flags *RootFlags) error {
 
 	hasUpdates := c.WhoCanJoin != nil || c.WhoCanPost != nil || c.WhoCanViewGroup != nil || c.WhoCanViewMembers != nil
 	if !hasUpdates {
-		settings, err := svc.Groups.Get(c.Group).Context(ctx).Do()
-		if err != nil {
-			return fmt.Errorf("get group settings %s: %w", c.Group, err)
+		settings, getErr := svc.Groups.Get(c.Group).Context(ctx).Do()
+		if getErr != nil {
+			return fmt.Errorf("get group settings %s: %w", c.Group, getErr)
 		}
 		if outfmt.IsJSON(ctx) {
 			return outfmt.WriteJSON(os.Stdout, settings)
@@ -249,7 +249,7 @@ func (c *GroupsMembersRemoveCmd) Run(ctx context.Context, flags *RootFlags) erro
 		return err
 	}
 
-	if err := confirmDestructive(ctx, flags, fmt.Sprintf("remove %s from %s", c.Email, c.Group)); err != nil {
+	if err = confirmDestructive(ctx, flags, fmt.Sprintf("remove %s from %s", c.Email, c.Group)); err != nil {
 		return err
 	}
 
@@ -355,7 +355,7 @@ func normalizeGroupRole(role string) (string, error) {
 }
 
 func readCSVEmails(path string) ([]string, error) {
-	f, err := os.Open(path)
+	f, err := os.Open(path) //nolint:gosec // G304: user-provided file path is intentional
 	if err != nil {
 		return nil, fmt.Errorf("open CSV: %w", err)
 	}

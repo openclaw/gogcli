@@ -101,7 +101,7 @@ func (c *DriveOrphansCollectCmd) Run(ctx context.Context, flags *RootFlags) erro
 		account = strings.TrimSpace(c.User)
 	}
 
-	if err := confirmDestructive(ctx, flags, "collect orphaned files into a folder"); err != nil {
+	if err = confirmDestructive(ctx, flags, "collect orphaned files into a folder"); err != nil {
 		return err
 	}
 

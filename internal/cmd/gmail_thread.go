@@ -573,7 +573,7 @@ func downloadAttachment(ctx context.Context, svc *gmail.Service, messageID strin
 	// Sanitize filename to prevent path traversal attacks
 	safeFilename := filepath.Base(a.Filename)
 	if safeFilename == "" || safeFilename == "." || safeFilename == ".." {
-		safeFilename = "attachment"
+		safeFilename = defaultAttachmentName
 	}
 	filename := fmt.Sprintf("%s_%s_%s", messageID, shortID, safeFilename)
 	outPath := filepath.Join(dir, filename)

@@ -181,7 +181,7 @@ func (c *ProjectsDeleteCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return usage("project is required")
 	}
 
-	if err := confirmDestructive(ctx, flags, fmt.Sprintf("delete project %s", project)); err != nil {
+	if err = confirmDestructive(ctx, flags, fmt.Sprintf("delete project %s", project)); err != nil {
 		return err
 	}
 

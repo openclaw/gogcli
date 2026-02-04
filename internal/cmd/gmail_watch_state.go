@@ -33,7 +33,7 @@ func gmailWatchStatePath(account string) (string, error) {
 func sanitizeAccountForPath(account string) string {
 	clean := strings.TrimSpace(strings.ToLower(account))
 	if clean == "" {
-		return "unknown"
+		return trackingUnknown
 	}
 	var b strings.Builder
 	b.Grow(len(clean))

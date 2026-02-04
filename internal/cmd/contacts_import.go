@@ -108,7 +108,8 @@ func (c *ContactsExportCmd) Run(ctx context.Context, flags *RootFlags) error {
 		if pageToken != "" {
 			call = call.PageToken(pageToken)
 		}
-		resp, err := call.Do()
+		var resp *people.ListConnectionsResponse
+		resp, err = call.Do()
 		if err != nil {
 			return fmt.Errorf("list contacts: %w", err)
 		}
@@ -262,7 +263,7 @@ func openCSVReader(path string) (*csv.Reader, io.Closer, error) {
 	if trimmed == "-" {
 		return csv.NewReader(os.Stdin), nil, nil
 	}
-	f, err := os.Open(trimmed)
+	f, err := os.Open(trimmed) //nolint:gosec // G304: user-provided file path is intentional
 	if err != nil {
 		return nil, nil, fmt.Errorf("open csv: %w", err)
 	}
@@ -277,7 +278,7 @@ func openCSVWriter(path string) (*csv.Writer, io.Closer, error) {
 	if trimmed == "-" {
 		return csv.NewWriter(os.Stdout), nil, nil
 	}
-	f, err := os.Create(trimmed)
+	f, err := os.Create(trimmed) //nolint:gosec // G304: user-provided file path is intentional
 	if err != nil {
 		return nil, nil, fmt.Errorf("create csv: %w", err)
 	}

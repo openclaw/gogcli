@@ -340,7 +340,7 @@ func TestDriveTransferCmd(t *testing.T) {
 	}
 }
 
-func stubDriveActivity(t *testing.T, handler http.Handler) *httptest.Server {
+func stubDriveActivity(t *testing.T, handler http.Handler) {
 	t.Helper()
 
 	srv := httptest.NewServer(handler)
@@ -358,5 +358,4 @@ func stubDriveActivity(t *testing.T, handler http.Handler) *httptest.Server {
 		newDriveActivityService = orig
 		srv.Close()
 	})
-	return srv
 }

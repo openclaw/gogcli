@@ -277,7 +277,7 @@ func (c *SchemasDeleteCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return usage("schema name is required")
 	}
 
-	if err := confirmDestructive(ctx, flags, fmt.Sprintf("delete schema %s", name)); err != nil {
+	if err = confirmDestructive(ctx, flags, fmt.Sprintf("delete schema %s", name)); err != nil {
 		return err
 	}
 

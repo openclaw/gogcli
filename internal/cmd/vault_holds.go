@@ -154,24 +154,24 @@ func (c *VaultHoldsCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 
 	if orgUnit != "" {
-		adminSvc, err := newAdminDirectory(ctx, account)
-		if err != nil {
-			return err
+		adminSvc, adminErr := newAdminDirectory(ctx, account)
+		if adminErr != nil {
+			return adminErr
 		}
-		orgID, err := resolveOrgUnitID(ctx, adminSvc, orgUnit)
-		if err != nil {
-			return err
+		orgID, orgErr := resolveOrgUnitID(ctx, adminSvc, orgUnit)
+		if orgErr != nil {
+			return orgErr
 		}
 		hold.OrgUnit = &vault.HeldOrgUnit{OrgUnitId: orgID}
 	}
 
 	if strings.TrimSpace(c.Query) != "" {
-		if hold.Corpus == "DRIVE" {
+		switch hold.Corpus {
+		case "DRIVE":
 			return usage("drive holds do not support --query")
-		}
-		if hold.Corpus == "MAIL" {
+		case "MAIL":
 			hold.Query = &vault.CorpusQuery{MailQuery: &vault.HeldMailQuery{Terms: c.Query}}
-		} else if hold.Corpus == "GROUPS" {
+		case "GROUPS":
 			hold.Query = &vault.CorpusQuery{GroupsQuery: &vault.HeldGroupsQuery{Terms: c.Query}}
 		}
 	}
@@ -202,7 +202,7 @@ func (c *VaultHoldsDeleteCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
-	if err := confirmDestructive(ctx, flags, fmt.Sprintf("delete hold %s", c.HoldID)); err != nil {
+	if err = confirmDestructive(ctx, flags, fmt.Sprintf("delete hold %s", c.HoldID)); err != nil {
 		return err
 	}
 

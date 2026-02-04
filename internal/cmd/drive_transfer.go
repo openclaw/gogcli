@@ -33,7 +33,7 @@ func (c *DriveTransferCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return usage("--from and --to are required")
 	}
 
-	if err := confirmDestructive(ctx, flags, fmt.Sprintf("transfer Drive ownership from %s to %s", from, to)); err != nil {
+	if err = confirmDestructive(ctx, flags, fmt.Sprintf("transfer Drive ownership from %s to %s", from, to)); err != nil {
 		return err
 	}
 

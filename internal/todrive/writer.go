@@ -2,6 +2,7 @@ package todrive
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -16,6 +17,8 @@ var (
 	newDriveService  = googleapi.NewDrive
 	newSheetsService = googleapi.NewSheets
 )
+
+var errMissingSpreadsheetID = errors.New("missing spreadsheet id")
 
 const defaultSheetName = "Report"
 
@@ -45,10 +48,12 @@ func New(ctx context.Context, account string) (*Writer, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	sheetsSvc, err := newSheetsService(ctx, account)
 	if err != nil {
 		return nil, err
 	}
+
 	return &Writer{drive: driveSvc, sheets: sheetsSvc}, nil
 }
 
@@ -57,12 +62,14 @@ func (w *Writer) Write(ctx context.Context, headers []string, rows [][]string, o
 	if title == "" {
 		title = defaultSheetName
 	}
+
 	if opts.Timestamp {
 		title = fmt.Sprintf("%s-%s", title, time.Now().Format("2006-01-02-150405"))
 	}
 
 	spreadsheetID := ""
 	spreadsheetURL := ""
+
 	if opts.Update {
 		id, url, err := w.findSpreadsheet(ctx, title, opts.FolderID)
 		if err != nil {
@@ -85,6 +92,7 @@ func (w *Writer) Write(ctx context.Context, headers []string, rows [][]string, o
 		}
 		spreadsheetID = created.SpreadsheetId
 		spreadsheetURL = created.SpreadsheetUrl
+
 		if strings.TrimSpace(opts.FolderID) != "" {
 			if err := w.moveToFolder(ctx, spreadsheetID, opts.FolderID); err != nil {
 				return nil, err
@@ -96,13 +104,14 @@ func (w *Writer) Write(ctx context.Context, headers []string, rows [][]string, o
 		if err != nil {
 			return nil, fmt.Errorf("fetch spreadsheet metadata: %w", err)
 		}
+
 		if len(ss.Sheets) > 0 && ss.Sheets[0].Properties != nil && ss.Sheets[0].Properties.Title != "" {
 			sheetName = ss.Sheets[0].Properties.Title
 		}
 	}
 
 	if spreadsheetID == "" {
-		return nil, fmt.Errorf("missing spreadsheet id")
+		return nil, errMissingSpreadsheetID
 	}
 
 	if opts.Update {
@@ -113,6 +122,7 @@ func (w *Writer) Write(ctx context.Context, headers []string, rows [][]string, o
 	if len(headers) > 0 {
 		values = append(values, toInterfaceRow(headers))
 	}
+
 	for _, row := range rows {
 		values = append(values, toInterfaceRow(row))
 	}
@@ -146,14 +156,18 @@ func (w *Writer) findSpreadsheet(ctx context.Context, name, folderID string) (st
 	if strings.TrimSpace(folderID) != "" {
 		query = fmt.Sprintf("%s and '%s' in parents", query, googleapi.EscapeDriveQueryValue(strings.TrimSpace(folderID)))
 	}
+
 	resp, err := w.drive.Files.List().Q(query).Fields("files(id,name,webViewLink)").Context(ctx).Do()
 	if err != nil {
 		return "", "", fmt.Errorf("find sheet: %w", err)
 	}
+
 	if len(resp.Files) == 0 {
 		return "", "", nil
 	}
+
 	file := resp.Files[0]
+
 	return file.Id, file.WebViewLink, nil
 }
 
@@ -162,14 +176,18 @@ func (w *Writer) moveToFolder(ctx context.Context, fileID, folderID string) erro
 	if err != nil {
 		return fmt.Errorf("fetch parents: %w", err)
 	}
+
 	remove := strings.Join(file.Parents, ",")
+
 	call := w.drive.Files.Update(fileID, nil).AddParents(folderID)
 	if remove != "" {
 		call = call.RemoveParents(remove)
 	}
+
 	if _, err := call.Context(ctx).Do(); err != nil {
 		return fmt.Errorf("move sheet: %w", err)
 	}
+
 	return nil
 }
 
@@ -182,6 +200,7 @@ func (w *Writer) shareWith(ctx context.Context, fileID, email string) error {
 	if err != nil {
 		return fmt.Errorf("share sheet: %w", err)
 	}
+
 	return nil
 }
 
@@ -190,5 +209,6 @@ func toInterfaceRow(values []string) []interface{} {
 	for i, value := range values {
 		row[i] = value
 	}
+
 	return row
 }

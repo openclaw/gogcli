@@ -14,9 +14,11 @@ func NewAccessContextManager(ctx context.Context, email string) (*accesscontextm
 	if err != nil {
 		return nil, fmt.Errorf("access context options: %w", err)
 	}
+
 	svc, err := accesscontextmanager.NewService(ctx, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("create access context service: %w", err)
 	}
+
 	return svc, nil
 }

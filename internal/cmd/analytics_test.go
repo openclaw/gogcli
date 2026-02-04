@@ -98,7 +98,7 @@ func TestAnalyticsDataStreamsCmd(t *testing.T) {
 	}
 }
 
-func stubAnalytics(t *testing.T, handler http.Handler) *httptest.Server {
+func stubAnalytics(t *testing.T, handler http.Handler) {
 	t.Helper()
 
 	srv := httptest.NewServer(handler)
@@ -116,5 +116,4 @@ func stubAnalytics(t *testing.T, handler http.Handler) *httptest.Server {
 		newAnalyticsAdminService = orig
 		srv.Close()
 	})
-	return srv
 }

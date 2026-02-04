@@ -119,7 +119,8 @@ func (c *AdminsCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
 		ScopeType:  "CUSTOMER",
 	}
 	if strings.TrimSpace(c.OrgUnit) != "" {
-		orgID, err := resolveOrgUnitID(ctx, svc, c.OrgUnit)
+		var orgID string
+		orgID, err = resolveOrgUnitID(ctx, svc, c.OrgUnit)
 		if err != nil {
 			return err
 		}
@@ -151,7 +152,7 @@ func (c *AdminsDeleteCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
-	if err := confirmDestructive(ctx, flags, fmt.Sprintf("delete admin assignment %s", c.AssignmentID)); err != nil {
+	if err = confirmDestructive(ctx, flags, fmt.Sprintf("delete admin assignment %s", c.AssignmentID)); err != nil {
 		return err
 	}
 

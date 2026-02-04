@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -17,6 +18,8 @@ import (
 
 	"github.com/steipete/gogcli/internal/ui"
 )
+
+var errUnexpectedServiceCreation = errors.New("unexpected service creation")
 
 // ==================== gmail_attachments.go tests ====================
 
@@ -486,7 +489,7 @@ func TestParseListUnsubscribe_NoBrackets(t *testing.T) {
 
 func TestParseListUnsubscribe_InvalidLinks(t *testing.T) {
 	result := parseListUnsubscribe("not a link, also not a link")
-	if result != nil && len(result) != 0 {
+	if len(result) != 0 {
 		t.Fatalf("expected no valid links, got %v", result)
 	}
 }
@@ -727,7 +730,7 @@ func TestGmailThreadGetCmd_EmptyThreadID(t *testing.T) {
 	// No server needed since validation happens before API call
 	newGmailService = func(context.Context, string) (*gmail.Service, error) {
 		t.Fatalf("should not create service for empty thread ID")
-		return nil, nil
+		return nil, errUnexpectedServiceCreation
 	}
 
 	flags := &RootFlags{Account: "a@b.com"}
@@ -750,7 +753,7 @@ func TestGmailThreadModifyCmd_EmptyThreadID(t *testing.T) {
 
 	newGmailService = func(context.Context, string) (*gmail.Service, error) {
 		t.Fatalf("should not create service for empty thread ID")
-		return nil, nil
+		return nil, errUnexpectedServiceCreation
 	}
 
 	flags := &RootFlags{Account: "a@b.com"}
@@ -773,7 +776,7 @@ func TestGmailThreadModifyCmd_NoLabels(t *testing.T) {
 
 	newGmailService = func(context.Context, string) (*gmail.Service, error) {
 		t.Fatalf("should not create service when no labels specified")
-		return nil, nil
+		return nil, errUnexpectedServiceCreation
 	}
 
 	flags := &RootFlags{Account: "a@b.com"}
@@ -796,7 +799,7 @@ func TestGmailThreadAttachmentsCmd_EmptyThreadID(t *testing.T) {
 
 	newGmailService = func(context.Context, string) (*gmail.Service, error) {
 		t.Fatalf("should not create service for empty thread ID")
-		return nil, nil
+		return nil, errUnexpectedServiceCreation
 	}
 
 	flags := &RootFlags{Account: "a@b.com"}
@@ -819,7 +822,7 @@ func TestGmailAttachmentCmd_MissingArgs(t *testing.T) {
 
 	newGmailService = func(context.Context, string) (*gmail.Service, error) {
 		t.Fatalf("should not create service for missing args")
-		return nil, nil
+		return nil, errUnexpectedServiceCreation
 	}
 
 	flags := &RootFlags{Account: "a@b.com"}
@@ -1083,8 +1086,8 @@ func TestGmailThreadAttachmentsCmd_Download_JSON(t *testing.T) {
 	out := captureStdout(t, func() {
 		ctx := testContextJSON(t)
 		cmd := &GmailThreadAttachmentsCmd{Download: true, OutputDir: OutputDirFlag{Dir: outDir}}
-		if err := runKong(t, cmd, []string{"t1", "--download", "--out-dir", outDir}, ctx, flags); err != nil {
-			t.Fatalf("execute: %v", err)
+		if runErr := runKong(t, cmd, []string{"t1", "--download", "--out-dir", outDir}, ctx, flags); runErr != nil {
+			t.Fatalf("execute: %v", runErr)
 		}
 	})
 
@@ -1095,7 +1098,7 @@ func TestGmailThreadAttachmentsCmd_Download_JSON(t *testing.T) {
 			Cached bool   `json:"cached"`
 		} `json:"attachments"`
 	}
-	if err := json.Unmarshal([]byte(out), &parsed); err != nil {
+	if err = json.Unmarshal([]byte(out), &parsed); err != nil {
 		t.Fatalf("json parse: %v", err)
 	}
 	if len(parsed.Attachments) != 1 {

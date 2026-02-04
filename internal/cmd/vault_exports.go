@@ -184,7 +184,7 @@ func (c *VaultExportsDownloadCmd) Run(ctx context.Context, flags *RootFlags) err
 		return fmt.Errorf("export %s has no Cloud Storage files", c.ExportID)
 	}
 
-	if err := os.MkdirAll(c.Output, 0o755); err != nil {
+	if err = os.MkdirAll(c.Output, 0o750); err != nil {
 		return fmt.Errorf("create output dir: %w", err)
 	}
 
@@ -236,7 +236,7 @@ func downloadExportFile(ctx context.Context, svc *storage.Service, file *vault.C
 	}
 	path := filepath.Join(outputDir, name)
 
-	out, err := os.Create(path)
+	out, err := os.Create(path) //nolint:gosec // path is constructed from validated components
 	if err != nil {
 		return "", fmt.Errorf("create file: %w", err)
 	}

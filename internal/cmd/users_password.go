@@ -46,7 +46,8 @@ func (c *UsersPasswordCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 	user.ForceSendFields = append(user.ForceSendFields, "ChangePasswordAtNextLogin")
 	if c.HashFunction != "" {
-		hash, err := normalizeUserHashFunction(c.HashFunction)
+		var hash string
+		hash, err = normalizeUserHashFunction(c.HashFunction)
 		if err != nil {
 			return err
 		}

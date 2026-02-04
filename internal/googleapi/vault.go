@@ -14,9 +14,11 @@ func NewVault(ctx context.Context, email string) (*vault.Service, error) {
 	if err != nil {
 		return nil, fmt.Errorf("vault options: %w", err)
 	}
+
 	svc, err := vault.NewService(ctx, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("create vault service: %w", err)
 	}
+
 	return svc, nil
 }

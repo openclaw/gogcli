@@ -70,7 +70,7 @@ func TestYouTubeChannelsCmd(t *testing.T) {
 	}
 }
 
-func stubYouTube(t *testing.T, handler http.Handler) *httptest.Server {
+func stubYouTube(t *testing.T, handler http.Handler) {
 	t.Helper()
 
 	srv := httptest.NewServer(handler)
@@ -88,5 +88,4 @@ func stubYouTube(t *testing.T, handler http.Handler) *httptest.Server {
 		newYouTubeService = orig
 		srv.Close()
 	})
-	return srv
 }

@@ -162,7 +162,7 @@ func (c *LookerStudioPermissionsRemoveCmd) Run(ctx context.Context, flags *RootF
 		return usage("asset-id and permission-id are required")
 	}
 
-	if err := confirmDestructive(ctx, flags, fmt.Sprintf("remove permission %s from asset %s", permissionID, assetID)); err != nil {
+	if err = confirmDestructive(ctx, flags, fmt.Sprintf("remove permission %s from asset %s", permissionID, assetID)); err != nil {
 		return err
 	}
 

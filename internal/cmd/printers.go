@@ -49,7 +49,8 @@ func (c *PrintersListCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if strings.TrimSpace(c.OrgUnit) != "" {
 		orgUnit := strings.TrimSpace(c.OrgUnit)
 		orgUnit = strings.TrimPrefix(orgUnit, "orgUnits/")
-		orgUnitID, err := resolveOrgUnitID(ctx, svc, orgUnit)
+		var orgUnitID string
+		orgUnitID, err = resolveOrgUnitID(ctx, svc, orgUnit)
 		if err != nil {
 			return err
 		}
@@ -162,7 +163,8 @@ func (c *PrintersCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if strings.TrimSpace(c.OrgUnit) != "" {
 		orgUnit := strings.TrimSpace(c.OrgUnit)
 		orgUnit = strings.TrimPrefix(orgUnit, "orgUnits/")
-		orgUnitID, err := resolveOrgUnitID(ctx, svc, orgUnit)
+		var orgUnitID string
+		orgUnitID, err = resolveOrgUnitID(ctx, svc, orgUnit)
 		if err != nil {
 			return err
 		}
@@ -251,7 +253,7 @@ func (c *PrintersDeleteCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return usage("printer ID is required")
 	}
 
-	if err := confirmDestructive(ctx, flags, fmt.Sprintf("delete printer %s", printerID)); err != nil {
+	if err = confirmDestructive(ctx, flags, fmt.Sprintf("delete printer %s", printerID)); err != nil {
 		return err
 	}
 

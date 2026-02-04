@@ -46,6 +46,8 @@ func stubClassroomService(t *testing.T, handler http.Handler) (*classroom.Servic
 
 // classroomTestHandler returns a comprehensive mock handler for classroom API endpoints.
 func classroomTestHandler(t *testing.T) http.Handler {
+	t.Helper()
+
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		writeJSON := func(data any) {
 			w.Header().Set("Content-Type", "application/json")

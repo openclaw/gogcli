@@ -137,7 +137,7 @@ func (c *AliasesDeleteCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
-	if err := confirmDestructive(ctx, flags, fmt.Sprintf("delete alias %s", c.Alias)); err != nil {
+	if err = confirmDestructive(ctx, flags, fmt.Sprintf("delete alias %s", c.Alias)); err != nil {
 		return err
 	}
 

@@ -290,7 +290,7 @@ func TestCalendarCreateCmd_EventTypeFocusTimeDefaults(t *testing.T) {
 	if gotEvent.FocusTimeProperties == nil {
 		t.Fatalf("expected focus time properties")
 	}
-	if gotEvent.FocusTimeProperties.AutoDeclineMode != "declineAllConflictingInvitations" {
+	if gotEvent.FocusTimeProperties.AutoDeclineMode != declineAllConflicting {
 		t.Fatalf("unexpected autoDeclineMode: %q", gotEvent.FocusTimeProperties.AutoDeclineMode)
 	}
 	if gotEvent.FocusTimeProperties.ChatStatus != defaultFocusChatStatus {
@@ -357,7 +357,7 @@ func TestCalendarCreateCmd_EventTypeWorkingLocation(t *testing.T) {
 	if gotEvent.End == nil || gotEvent.End.Date != "2025-01-02" {
 		t.Fatalf("unexpected end date: %#v", gotEvent.End)
 	}
-	if gotEvent.WorkingLocationProperties == nil || gotEvent.WorkingLocationProperties.Type != "officeLocation" {
+	if gotEvent.WorkingLocationProperties == nil || gotEvent.WorkingLocationProperties.Type != locTypeOffice {
 		t.Fatalf("unexpected working location props: %#v", gotEvent.WorkingLocationProperties)
 	}
 }
@@ -415,7 +415,7 @@ func TestCalendarUpdateCmd_EventTypeOOO(t *testing.T) {
 	if gotEvent.OutOfOfficeProperties == nil {
 		t.Fatalf("expected out-of-office properties")
 	}
-	if gotEvent.OutOfOfficeProperties.AutoDeclineMode != "declineAllConflictingInvitations" {
+	if gotEvent.OutOfOfficeProperties.AutoDeclineMode != declineAllConflicting {
 		t.Fatalf("unexpected autoDeclineMode: %q", gotEvent.OutOfOfficeProperties.AutoDeclineMode)
 	}
 	if gotEvent.OutOfOfficeProperties.DeclineMessage != defaultOOODeclineMsg {

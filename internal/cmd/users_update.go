@@ -94,7 +94,7 @@ func (c *UsersUpdateCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 
 	if c.Admin != nil {
-		if err := svc.Users.MakeAdmin(c.User, &admin.UserMakeAdmin{Status: *c.Admin}).Context(ctx).Do(); err != nil {
+		if err = svc.Users.MakeAdmin(c.User, &admin.UserMakeAdmin{Status: *c.Admin}).Context(ctx).Do(); err != nil {
 			return fmt.Errorf("update admin status for %s: %w", c.User, err)
 		}
 		if !hasFieldUpdates {

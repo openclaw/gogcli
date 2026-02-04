@@ -18,6 +18,7 @@ func EscapeDriveQueryValue(s string) string {
 	// Escape backslashes first, then single quotes.
 	s = strings.ReplaceAll(s, "\\", "\\\\")
 	s = strings.ReplaceAll(s, "'", "\\'")
+
 	return s
 }
 

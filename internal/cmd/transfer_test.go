@@ -95,7 +95,7 @@ func TestTransferCreateCmd(t *testing.T) {
 	}
 }
 
-func stubDataTransfer(t *testing.T, handler http.Handler) *httptest.Server {
+func stubDataTransfer(t *testing.T, handler http.Handler) {
 	t.Helper()
 
 	srv := httptest.NewServer(handler)
@@ -113,7 +113,6 @@ func stubDataTransfer(t *testing.T, handler http.Handler) *httptest.Server {
 		newDataTransferService = orig
 		srv.Close()
 	})
-	return srv
 }
 
 func TestTransferListCmd_JSON(t *testing.T) {

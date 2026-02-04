@@ -211,7 +211,7 @@ func (c *VaultMattersCloseCmd) Run(ctx context.Context, flags *RootFlags) error 
 		return err
 	}
 
-	if err := confirmDestructive(ctx, flags, fmt.Sprintf("close matter %s", c.MatterID)); err != nil {
+	if err = confirmDestructive(ctx, flags, fmt.Sprintf("close matter %s", c.MatterID)); err != nil {
 		return err
 	}
 
@@ -281,7 +281,7 @@ func (c *VaultMattersDeleteCmd) Run(ctx context.Context, flags *RootFlags) error
 		return err
 	}
 
-	if err := confirmDestructive(ctx, flags, fmt.Sprintf("delete matter %s", c.MatterID)); err != nil {
+	if err = confirmDestructive(ctx, flags, fmt.Sprintf("delete matter %s", c.MatterID)); err != nil {
 		return err
 	}
 

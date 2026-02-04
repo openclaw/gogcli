@@ -13,6 +13,8 @@ import (
 	"github.com/steipete/gogcli/internal/ui"
 )
 
+const ssoModeOff = "SSO_OFF"
+
 var newInboundSSOService = googleapi.NewCloudIdentityInboundSSO
 
 type SSOCmd struct {
@@ -325,7 +327,7 @@ func (c *SSOAssignmentsDeleteCmd) Run(ctx context.Context, flags *RootFlags) err
 		return usage("assignment ID is required")
 	}
 
-	if err := confirmDestructive(ctx, flags, fmt.Sprintf("delete inbound SSO assignment %s", c.AssignmentID)); err != nil {
+	if err = confirmDestructive(ctx, flags, fmt.Sprintf("delete inbound SSO assignment %s", c.AssignmentID)); err != nil {
 		return err
 	}
 
@@ -363,8 +365,8 @@ func firstInboundSamlProfile(ctx context.Context, svc *cloudidentity.Service) (*
 
 func mapInboundSSOMode(mode string) (string, error) {
 	switch strings.ToUpper(strings.TrimSpace(mode)) {
-	case "SSO_OFF":
-		return "SSO_OFF", nil
+	case ssoModeOff:
+		return ssoModeOff, nil
 	case "SSO_ON":
 		return "DOMAIN_WIDE_SAML_IF_ENABLED", nil
 	default:
@@ -446,7 +448,7 @@ func readValueOrFile(value string) (string, error) {
 		if path == "" {
 			return "", fmt.Errorf("empty @file path")
 		}
-		data, err := os.ReadFile(path)
+		data, err := os.ReadFile(path) //nolint:gosec // G304: user-provided file path is intentional
 		if err != nil {
 			return "", err
 		}
@@ -456,7 +458,7 @@ func readValueOrFile(value string) (string, error) {
 		return trimmed, nil
 	}
 	if info, err := os.Stat(trimmed); err == nil && !info.IsDir() {
-		data, err := os.ReadFile(trimmed)
+		data, err := os.ReadFile(trimmed) //nolint:gosec // G304: user-provided file path is intentional
 		if err != nil {
 			return "", err
 		}

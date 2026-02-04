@@ -412,7 +412,7 @@ func TestAuthKeyringCmd_DefaultConvertsToAuto(t *testing.T) {
 	}
 	ctx := ui.WithUI(context.Background(), u)
 
-	if err := runKong(t, &AuthKeyringCmd{}, []string{"default"}, ctx, nil); err != nil {
+	if err = runKong(t, &AuthKeyringCmd{}, []string{"default"}, ctx, nil); err != nil {
 		t.Fatalf("run: %v", err)
 	}
 
@@ -522,12 +522,12 @@ func TestBestServiceAccountPathAndMtime_ServiceAccountPath(t *testing.T) {
 	}
 
 	// Create the config directory
-	if err := os.MkdirAll(filepath.Dir(saPath), 0o700); err != nil {
+	if err = os.MkdirAll(filepath.Dir(saPath), 0o700); err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}
 
 	// Write a service account file
-	if err := os.WriteFile(saPath, []byte(`{"type":"service_account"}`), 0o600); err != nil {
+	if err = os.WriteFile(saPath, []byte(`{"type":"service_account"}`), 0o600); err != nil {
 		t.Fatalf("write: %v", err)
 	}
 

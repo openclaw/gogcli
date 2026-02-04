@@ -95,7 +95,7 @@ func TestVaultExportsDownloadCmd(t *testing.T) {
 	}
 }
 
-func stubVault(t *testing.T, handler http.Handler) *httptest.Server {
+func stubVault(t *testing.T, handler http.Handler) {
 	t.Helper()
 
 	srv := httptest.NewServer(handler)
@@ -113,10 +113,9 @@ func stubVault(t *testing.T, handler http.Handler) *httptest.Server {
 		newVaultService = orig
 		srv.Close()
 	})
-	return srv
 }
 
-func stubStorage(t *testing.T, handler http.Handler) *httptest.Server {
+func stubStorage(t *testing.T, handler http.Handler) {
 	t.Helper()
 
 	srv := httptest.NewServer(handler)
@@ -134,7 +133,6 @@ func stubStorage(t *testing.T, handler http.Handler) *httptest.Server {
 		newStorageService = orig
 		srv.Close()
 	})
-	return srv
 }
 
 func TestVaultMattersGetCmd(t *testing.T) {

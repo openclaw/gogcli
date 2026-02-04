@@ -150,7 +150,7 @@ func TestExitError_Unwrap(t *testing.T) {
 
 	// errors.Unwrap should return the inner error
 	unwrapped := errors.Unwrap(exitErr)
-	if unwrapped != innerErr {
+	if !errors.Is(unwrapped, innerErr) {
 		t.Fatalf("Unwrap should return inner error, got %v", unwrapped)
 	}
 
@@ -174,7 +174,7 @@ func TestExitError_ExitCodes(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			err := &ExitError{Code: tc.code, Err: errors.New("test")}
+			err := &ExitError{Code: tc.code}
 			if err.Code != tc.code {
 				t.Fatalf("expected code %d, got %d", tc.code, err.Code)
 			}

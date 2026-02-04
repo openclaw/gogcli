@@ -254,7 +254,7 @@ func (c *ResourcesCalendarsDeleteCmd) Run(ctx context.Context, flags *RootFlags)
 		return usage("resource ID is required")
 	}
 
-	if err := confirmDestructive(ctx, flags, fmt.Sprintf("delete calendar resource %s", resourceID)); err != nil {
+	if err = confirmDestructive(ctx, flags, fmt.Sprintf("delete calendar resource %s", resourceID)); err != nil {
 		return err
 	}
 

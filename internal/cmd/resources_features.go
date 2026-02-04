@@ -121,7 +121,7 @@ func (c *ResourcesFeaturesDeleteCmd) Run(ctx context.Context, flags *RootFlags) 
 		return usage("feature name is required")
 	}
 
-	if err := confirmDestructive(ctx, flags, fmt.Sprintf("delete feature %s", name)); err != nil {
+	if err = confirmDestructive(ctx, flags, fmt.Sprintf("delete feature %s", name)); err != nil {
 		return err
 	}
 

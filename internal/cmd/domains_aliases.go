@@ -101,7 +101,7 @@ func (c *DomainsAliasesDeleteCmd) Run(ctx context.Context, flags *RootFlags) err
 		return err
 	}
 
-	if err := confirmDestructive(ctx, flags, fmt.Sprintf("delete domain alias %s", c.Alias)); err != nil {
+	if err = confirmDestructive(ctx, flags, fmt.Sprintf("delete domain alias %s", c.Alias)); err != nil {
 		return err
 	}
 

@@ -14,9 +14,11 @@ func NewDataTransfer(ctx context.Context, email string) (*datatransfer.Service, 
 	if err != nil {
 		return nil, fmt.Errorf("datatransfer options: %w", err)
 	}
+
 	svc, err := datatransfer.NewService(ctx, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("create datatransfer service: %w", err)
 	}
+
 	return svc, nil
 }

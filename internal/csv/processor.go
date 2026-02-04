@@ -2,11 +2,20 @@ package csv
 
 import (
 	"encoding/csv"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"regexp"
 	"strings"
+)
+
+var (
+	errEmptyCSV            = errors.New("empty csv")
+	errFileRequired        = errors.New("file is required")
+	errInvalidToken        = errors.New("invalid replacement token")
+	errInvalidFilterFormat = errors.New("invalid filter format")
+	errInvalidFilterField  = errors.New("invalid filter field")
 )
 
 type FieldFilter struct {
@@ -32,6 +41,7 @@ func Process(path string, opts Options, fn func(Row) error) error {
 	if err != nil {
 		return err
 	}
+
 	if closer != nil {
 		defer closer.Close()
 	}
@@ -40,23 +50,27 @@ func Process(path string, opts Options, fn func(Row) error) error {
 	if err != nil {
 		return fmt.Errorf("read csv: %w", err)
 	}
+
 	if len(records) == 0 {
-		return fmt.Errorf("empty csv")
+		return errEmptyCSV
 	}
 
 	headers := normalizeHeader(records[0])
 	selected := normalizeFields(opts.Fields)
 
 	processed := 0
+
 	for i, row := range records[1:] {
 		rowIndex := i + 1
 		if opts.SkipRows > 0 && rowIndex <= opts.SkipRows {
 			continue
 		}
+
 		values := mapRow(headers, row, selected)
 		if !matchesAllFilters(values, opts.Match) {
 			continue
 		}
+
 		if matchesAnyFilter(values, opts.Skip) {
 			continue
 		}
@@ -83,21 +97,25 @@ func SubstituteArgs(args []string, row Row) ([]string, error) {
 		}
 		out[i] = sub
 	}
+
 	return out, nil
 }
 
 func openCSV(path string) (*csv.Reader, io.Closer, error) {
 	trimmed := strings.TrimSpace(path)
 	if trimmed == "" {
-		return nil, nil, fmt.Errorf("file is required")
+		return nil, nil, errFileRequired
 	}
+
 	if trimmed == "-" {
 		return csv.NewReader(os.Stdin), nil, nil
 	}
-	f, err := os.Open(trimmed)
+
+	f, err := os.Open(trimmed) //nolint:gosec // G304: user-provided file path is intentional
 	if err != nil {
 		return nil, nil, fmt.Errorf("open csv: %w", err)
 	}
+
 	return csv.NewReader(f), f, nil
 }
 
@@ -106,6 +124,7 @@ func normalizeHeader(header []string) []string {
 	for i, h := range header {
 		out[i] = normalizeField(h)
 	}
+
 	return out
 }
 
@@ -113,12 +132,14 @@ func normalizeFields(fields []string) map[string]struct{} {
 	if len(fields) == 0 {
 		return nil
 	}
+
 	set := make(map[string]struct{}, len(fields))
 	for _, f := range fields {
 		if f = normalizeField(f); f != "" {
 			set[f] = struct{}{}
 		}
 	}
+
 	return set
 }
 
@@ -132,17 +153,20 @@ func mapRow(headers, row []string, allowed map[string]struct{}) map[string]strin
 		if key == "" {
 			continue
 		}
+
 		if allowed != nil {
 			if _, ok := allowed[key]; !ok {
 				continue
 			}
 		}
+
 		if i >= len(row) {
 			values[key] = ""
 			continue
 		}
 		values[key] = strings.TrimSpace(row[i])
 	}
+
 	return values
 }
 
@@ -150,15 +174,18 @@ func matchesAllFilters(values map[string]string, filters []FieldFilter) bool {
 	if len(filters) == 0 {
 		return true
 	}
+
 	for _, filter := range filters {
 		value := values[filter.Field]
 		if filter.Regex == nil {
 			continue
 		}
+
 		if !filter.Regex.MatchString(value) {
 			return false
 		}
 	}
+
 	return true
 }
 
@@ -166,15 +193,18 @@ func matchesAnyFilter(values map[string]string, filters []FieldFilter) bool {
 	if len(filters) == 0 {
 		return false
 	}
+
 	for _, filter := range filters {
 		value := values[filter.Field]
 		if filter.Regex == nil {
 			continue
 		}
+
 		if filter.Regex.MatchString(value) {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -184,6 +214,7 @@ func substituteArg(arg string, row Row) (string, error) {
 		if err != nil {
 			return "", err
 		}
+
 		return replaced, nil
 	}
 
@@ -192,6 +223,7 @@ func substituteArg(arg string, row Row) (string, error) {
 		if field == "" {
 			return "", nil
 		}
+
 		return row.Values[field], nil
 	}
 
@@ -206,11 +238,13 @@ func replaceDoubleTilde(input string, row Row) (string, error) {
 			return out, nil
 		}
 		rest := out[start+2:]
+
 		end := strings.Index(rest, "~~")
 		if end == -1 {
 			return out, nil
 		}
 		token := rest[:end]
+
 		replacement, err := resolveToken(token, row)
 		if err != nil {
 			return "", err
@@ -223,20 +257,23 @@ func resolveToken(token string, row Row) (string, error) {
 	if strings.Contains(token, "~!~") {
 		parts := strings.Split(token, "~!~")
 		if len(parts) != 3 {
-			return "", fmt.Errorf("invalid replacement token: %s", token)
+			return "", fmt.Errorf("%w: %s", errInvalidToken, token)
 		}
 		field := normalizeField(parts[0])
 		pattern := parts[1]
 		repl := parts[2]
 		value := row.Values[field]
+
 		re, err := regexp.Compile(pattern)
 		if err != nil {
 			return "", fmt.Errorf("invalid regex %q: %w", pattern, err)
 		}
+
 		return re.ReplaceAllString(value, repl), nil
 	}
 
 	field := normalizeField(token)
+
 	return row.Values[field], nil
 }
 
@@ -247,19 +284,24 @@ func ParseFieldFilters(inputs []string) ([]FieldFilter, error) {
 		if trimmed == "" {
 			continue
 		}
+
 		parts := strings.SplitN(trimmed, ":", 2)
 		if len(parts) != 2 {
-			return nil, fmt.Errorf("invalid filter %q (expected FIELD:REGEX)", item)
+			return nil, fmt.Errorf("%w: %q (expected FIELD:REGEX)", errInvalidFilterFormat, item)
 		}
+
 		field := normalizeField(parts[0])
 		if field == "" {
-			return nil, fmt.Errorf("invalid filter %q (missing field)", item)
+			return nil, fmt.Errorf("%w: %q (missing field)", errInvalidFilterField, item)
 		}
+
 		re, err := regexp.Compile(parts[1])
 		if err != nil {
 			return nil, fmt.Errorf("invalid filter regex %q: %w", parts[1], err)
 		}
+
 		filters = append(filters, FieldFilter{Field: field, Regex: re})
 	}
+
 	return filters, nil
 }

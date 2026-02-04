@@ -140,7 +140,7 @@ func (c *DriveRevisionsDeleteCmd) Run(ctx context.Context, flags *RootFlags) err
 		return usage("file-id and revision-id are required")
 	}
 
-	if err := confirmDestructive(ctx, flags, fmt.Sprintf("delete revision %s for file %s", revID, fileID)); err != nil {
+	if err = confirmDestructive(ctx, flags, fmt.Sprintf("delete revision %s for file %s", revID, fileID)); err != nil {
 		return err
 	}
 

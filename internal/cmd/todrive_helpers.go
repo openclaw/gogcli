@@ -76,9 +76,9 @@ func toDriveRow(values ...string) []string {
 
 func toDriveBool(value bool) string {
 	if value {
-		return "true"
+		return strTrue
 	}
-	return "false"
+	return strFalse
 }
 
 func toDriveNumber(value int64) string {

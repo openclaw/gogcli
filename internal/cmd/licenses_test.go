@@ -459,7 +459,7 @@ func TestLicensesProductsCmd_ContainsExpectedProducts(t *testing.T) {
 	}
 }
 
-func stubLicensing(t *testing.T, handler http.Handler) *httptest.Server {
+func stubLicensing(t *testing.T, handler http.Handler) {
 	t.Helper()
 
 	srv := httptest.NewServer(handler)
@@ -477,5 +477,4 @@ func stubLicensing(t *testing.T, handler http.Handler) *httptest.Server {
 		newLicensingService = orig
 		srv.Close()
 	})
-	return srv
 }

@@ -226,7 +226,7 @@ func (c *ResourcesBuildingsDeleteCmd) Run(ctx context.Context, flags *RootFlags)
 		return usage("building ID is required")
 	}
 
-	if err := confirmDestructive(ctx, flags, fmt.Sprintf("delete building %s", buildingID)); err != nil {
+	if err = confirmDestructive(ctx, flags, fmt.Sprintf("delete building %s", buildingID)); err != nil {
 		return err
 	}
 

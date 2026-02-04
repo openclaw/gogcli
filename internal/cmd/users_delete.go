@@ -18,7 +18,7 @@ func (c *UsersDeleteCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
-	if err := confirmDestructive(ctx, flags, fmt.Sprintf("delete user %s", c.User)); err != nil {
+	if err = confirmDestructive(ctx, flags, fmt.Sprintf("delete user %s", c.User)); err != nil {
 		return err
 	}
 

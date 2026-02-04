@@ -63,7 +63,7 @@ func (c *AuthKeyringCmd) Run(ctx context.Context) error {
 	}
 
 	if backend == "default" {
-		backend = "auto"
+		backend = colorAuto
 	}
 
 	allowed := map[string]struct{}{

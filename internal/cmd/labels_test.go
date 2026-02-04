@@ -779,7 +779,7 @@ func TestLabelsUpdateCmd_APIError(t *testing.T) {
 
 // ========== Helper Functions ==========
 
-func stubDriveLabels(t *testing.T, handler http.Handler) *httptest.Server {
+func stubDriveLabels(t *testing.T, handler http.Handler) {
 	t.Helper()
 
 	srv := httptest.NewServer(handler)
@@ -797,5 +797,4 @@ func stubDriveLabels(t *testing.T, handler http.Handler) *httptest.Server {
 		newDriveLabelsService = orig
 		srv.Close()
 	})
-	return srv
 }

@@ -9,7 +9,7 @@ func TestValidateAutoDeclineMode(t *testing.T) {
 		wantErr bool
 	}{
 		{"none", "declineNone", false},
-		{"all", "declineAllConflictingInvitations", false},
+		{"all", declineAllConflicting, false},
 		{"new", "declineOnlyNewConflictingInvitations", false},
 		{"", "declineNone", false},
 		{"invalid", "", true},

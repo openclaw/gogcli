@@ -120,6 +120,7 @@ func TestUserServices(t *testing.T) {
 	if !seenDocs {
 		t.Fatalf("missing docs in user services")
 	}
+
 	if !seenForms {
 		t.Fatalf("missing forms in user services")
 	}

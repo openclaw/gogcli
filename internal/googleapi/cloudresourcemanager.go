@@ -14,9 +14,11 @@ func NewCloudResourceManager(ctx context.Context, email string) (*cloudresourcem
 	if err != nil {
 		return nil, fmt.Errorf("cloud resource manager options: %w", err)
 	}
+
 	svc, err := cloudresourcemanager.NewService(ctx, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("create cloud resource manager service: %w", err)
 	}
+
 	return svc, nil
 }

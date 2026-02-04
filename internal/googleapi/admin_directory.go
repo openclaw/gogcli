@@ -14,9 +14,11 @@ func NewAdminDirectory(ctx context.Context, email string) (*admin.Service, error
 	if err != nil {
 		return nil, fmt.Errorf("admin directory options: %w", err)
 	}
+
 	svc, err := admin.NewService(ctx, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("create admin directory service: %w", err)
 	}
+
 	return svc, nil
 }

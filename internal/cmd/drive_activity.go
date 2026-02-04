@@ -102,7 +102,7 @@ func activityActor(actors []*driveactivity.Actor) string {
 	if actor.Anonymous != nil {
 		return "anonymous"
 	}
-	return "unknown"
+	return trackingUnknown
 }
 
 func activityAction(detail *driveactivity.ActionDetail) string {

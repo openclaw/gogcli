@@ -544,7 +544,7 @@ func TestFormsResponsesCmd_Pagination(t *testing.T) {
 	}
 }
 
-func stubForms(t *testing.T, handler http.Handler) *httptest.Server {
+func stubForms(t *testing.T, handler http.Handler) {
 	t.Helper()
 
 	srv := httptest.NewServer(handler)
@@ -562,10 +562,9 @@ func stubForms(t *testing.T, handler http.Handler) *httptest.Server {
 		newFormsService = orig
 		srv.Close()
 	})
-	return srv
 }
 
-func stubDrive(t *testing.T, handler http.Handler) *httptest.Server {
+func stubDrive(t *testing.T, handler http.Handler) {
 	t.Helper()
 
 	srv := httptest.NewServer(handler)
@@ -583,5 +582,4 @@ func stubDrive(t *testing.T, handler http.Handler) *httptest.Server {
 		newDriveService = orig
 		srv.Close()
 	})
-	return srv
 }

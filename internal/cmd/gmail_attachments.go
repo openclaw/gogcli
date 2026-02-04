@@ -10,6 +10,8 @@ import (
 	"github.com/steipete/gogcli/internal/ui"
 )
 
+const defaultAttachmentName = "attachment"
+
 type attachmentInfo struct {
 	Filename     string
 	Size         int64
@@ -181,7 +183,7 @@ func collectAttachments(p *gmail.MessagePart) []attachmentInfo {
 	if p.Body != nil && p.Body.AttachmentId != "" {
 		filename := p.Filename
 		if strings.TrimSpace(filename) == "" {
-			filename = "attachment"
+			filename = defaultAttachmentName
 		}
 		out = append(out, attachmentInfo{
 			Filename:     filename,

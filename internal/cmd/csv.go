@@ -50,10 +50,10 @@ func (c *CSVCmd) Run(ctx context.Context, flags *RootFlags) error {
 		MaxRows:  c.MaxRows,
 	}, func(row csvproc.Row) error {
 		processed++
-		args, err := csvproc.SubstituteArgs(c.Command, row)
-		if err != nil {
+		args, subErr := csvproc.SubstituteArgs(c.Command, row)
+		if subErr != nil {
 			failed++
-			return fmt.Errorf("row %d: %w", row.Index, err)
+			return fmt.Errorf("row %d: %w", row.Index, subErr)
 		}
 		if c.DryRun {
 			if u != nil {
@@ -61,9 +61,9 @@ func (c *CSVCmd) Run(ctx context.Context, flags *RootFlags) error {
 			}
 			return nil
 		}
-		if err := executeSubcommand(ctx, flags, args); err != nil {
+		if execErr := executeSubcommand(ctx, flags, args); execErr != nil {
 			failed++
-			return fmt.Errorf("row %d: %w", row.Index, err)
+			return fmt.Errorf("row %d: %w", row.Index, execErr)
 		}
 		return nil
 	})

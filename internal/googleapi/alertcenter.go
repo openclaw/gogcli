@@ -14,9 +14,11 @@ func NewAlertCenter(ctx context.Context, email string) (*alertcenter.Service, er
 	if err != nil {
 		return nil, fmt.Errorf("alertcenter options: %w", err)
 	}
+
 	svc, err := alertcenter.NewService(ctx, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("create alertcenter service: %w", err)
 	}
+
 	return svc, nil
 }

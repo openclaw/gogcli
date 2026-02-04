@@ -14,9 +14,11 @@ func NewMeet(ctx context.Context, email string) (*meet.Service, error) {
 	if err != nil {
 		return nil, fmt.Errorf("meet options: %w", err)
 	}
+
 	svc, err := meet.NewService(ctx, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("create meet service: %w", err)
 	}
+
 	return svc, nil
 }

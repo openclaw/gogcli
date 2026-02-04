@@ -33,7 +33,7 @@ func (c *DriveCleanupEmptyFoldersCmd) Run(ctx context.Context, flags *RootFlags)
 		account = strings.TrimSpace(c.User)
 	}
 
-	if err := confirmDestructive(ctx, flags, "delete empty Drive folders"); err != nil {
+	if err = confirmDestructive(ctx, flags, "delete empty Drive folders"); err != nil {
 		return err
 	}
 

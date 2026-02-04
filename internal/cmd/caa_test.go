@@ -405,7 +405,7 @@ func TestAccessLevelTitle(t *testing.T) {
 	}
 }
 
-func stubAccessContextManager(t *testing.T, handler http.Handler) *httptest.Server {
+func stubAccessContextManager(t *testing.T, handler http.Handler) {
 	t.Helper()
 
 	srv := httptest.NewServer(handler)
@@ -423,5 +423,4 @@ func stubAccessContextManager(t *testing.T, handler http.Handler) *httptest.Serv
 		newAccessContextManagerService = orig
 		srv.Close()
 	})
-	return srv
 }

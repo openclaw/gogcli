@@ -152,7 +152,7 @@ func (c *ServiceAccountsDeleteCmd) Run(ctx context.Context, flags *RootFlags) er
 		return usage("service account is required")
 	}
 
-	if err := confirmDestructive(ctx, flags, fmt.Sprintf("delete service account %s", sa)); err != nil {
+	if err = confirmDestructive(ctx, flags, fmt.Sprintf("delete service account %s", sa)); err != nil {
 		return err
 	}
 
@@ -272,7 +272,7 @@ func (c *ServiceAccountsKeysCreateCmd) Run(ctx context.Context, flags *RootFlags
 		return fmt.Errorf("decode key data: %w", err)
 	}
 
-	if err := os.MkdirAll(filepath.Dir(output), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(output), 0o750); err != nil {
 		return fmt.Errorf("create output dir: %w", err)
 	}
 	if err := os.WriteFile(output, payload, 0o600); err != nil {
@@ -306,7 +306,7 @@ func (c *ServiceAccountsKeysDeleteCmd) Run(ctx context.Context, flags *RootFlags
 		return usage("service account and key are required")
 	}
 
-	if err := confirmDestructive(ctx, flags, fmt.Sprintf("delete key %s", key)); err != nil {
+	if err = confirmDestructive(ctx, flags, fmt.Sprintf("delete key %s", key)); err != nil {
 		return err
 	}
 

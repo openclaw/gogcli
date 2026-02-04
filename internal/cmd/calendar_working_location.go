@@ -12,6 +12,8 @@ import (
 	"github.com/steipete/gogcli/internal/ui"
 )
 
+const locTypeOffice = "officeLocation"
+
 type CalendarWorkingLocationCmd struct {
 	CalendarID  string `arg:"" name:"calendarId" help:"Calendar ID (default: primary)" default:"primary"`
 	From        string `name:"from" required:"" help:"Start date (YYYY-MM-DD)"`
@@ -101,7 +103,7 @@ func buildWorkingLocationProperties(input workingLocationInput) (*calendar.Event
 		props.Type = "homeOffice"
 		props.HomeOffice = map[string]any{}
 	case "office":
-		props.Type = "officeLocation"
+		props.Type = locTypeOffice
 		props.OfficeLocation = &calendar.EventWorkingLocationPropertiesOfficeLocation{
 			Label:      strings.TrimSpace(input.OfficeLabel),
 			BuildingId: strings.TrimSpace(input.BuildingId),

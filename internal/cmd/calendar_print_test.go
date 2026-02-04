@@ -87,7 +87,7 @@ func TestPrintCalendarEvent_AllFields(t *testing.T) {
 			DeclineMessage:  "OOO",
 		},
 		WorkingLocationProperties: &calendar.EventWorkingLocationProperties{
-			Type: "officeLocation",
+			Type: locTypeOffice,
 		},
 		Source: &calendar.EventSource{
 			Url:   "https://source.example.com",

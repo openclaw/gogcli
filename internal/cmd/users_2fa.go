@@ -20,7 +20,7 @@ func (c *UsersTurnOff2SVCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
-	if err := confirmDestructive(ctx, flags, fmt.Sprintf("turn off 2-step verification for %s", c.User)); err != nil {
+	if err = confirmDestructive(ctx, flags, fmt.Sprintf("turn off 2-step verification for %s", c.User)); err != nil {
 		return err
 	}
 
@@ -118,7 +118,7 @@ func (c *UsersBackupCodesDeleteCmd) Run(ctx context.Context, flags *RootFlags) e
 		return err
 	}
 
-	if err := confirmDestructive(ctx, flags, fmt.Sprintf("delete all backup codes for %s", c.User)); err != nil {
+	if err = confirmDestructive(ctx, flags, fmt.Sprintf("delete all backup codes for %s", c.User)); err != nil {
 		return err
 	}
 

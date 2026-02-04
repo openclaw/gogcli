@@ -18,7 +18,7 @@ func (c *DomainsDeleteCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
-	if err := confirmDestructive(ctx, flags, fmt.Sprintf("delete domain %s", c.Domain)); err != nil {
+	if err = confirmDestructive(ctx, flags, fmt.Sprintf("delete domain %s", c.Domain)); err != nil {
 		return err
 	}
 

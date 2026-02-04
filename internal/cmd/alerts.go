@@ -142,7 +142,7 @@ func (c *AlertsDeleteCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
-	if err := confirmDestructive(ctx, flags, fmt.Sprintf("delete alert %s", c.AlertID)); err != nil {
+	if err = confirmDestructive(ctx, flags, fmt.Sprintf("delete alert %s", c.AlertID)); err != nil {
 		return err
 	}
 

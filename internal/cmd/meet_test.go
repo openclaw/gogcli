@@ -36,7 +36,7 @@ func testMeetContextWithStdout(t *testing.T) context.Context {
 	return ui.WithUI(context.Background(), u)
 }
 
-func stubMeet(t *testing.T, handler http.Handler) *httptest.Server {
+func stubMeet(t *testing.T, handler http.Handler) {
 	t.Helper()
 
 	srv := httptest.NewServer(handler)
@@ -54,7 +54,6 @@ func stubMeet(t *testing.T, handler http.Handler) *httptest.Server {
 		newMeetService = orig
 		srv.Close()
 	})
-	return srv
 }
 
 // MeetSpacesListCmd tests

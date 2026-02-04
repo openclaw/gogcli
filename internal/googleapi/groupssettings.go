@@ -14,9 +14,11 @@ func NewGroupsSettings(ctx context.Context, email string) (*groupssettings.Servi
 	if err != nil {
 		return nil, fmt.Errorf("groups settings options: %w", err)
 	}
+
 	svc, err := groupssettings.NewService(ctx, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("create groups settings service: %w", err)
 	}
+
 	return svc, nil
 }

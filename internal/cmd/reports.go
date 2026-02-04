@@ -8,6 +8,8 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 	reports "google.golang.org/api/admin/reports/v1"
 
 	"github.com/steipete/gogcli/internal/googleapi"
@@ -237,7 +239,7 @@ func runActivityReport(ctx context.Context, flags *RootFlags, opts activityRepor
 		))
 	}
 
-	reportTitle := fmt.Sprintf("Reports %s", strings.Title(opts.Application))
+	reportTitle := fmt.Sprintf("Reports %s", cases.Title(language.English).String(opts.Application))
 	if ok, err := writeToDrive(ctx, flags, toDriveTitle(reportTitle, opts.ToDrive), []string{"TIME", "ACTOR", "IP", "EVENTS"}, rows, opts.ToDrive); ok {
 		return err
 	}

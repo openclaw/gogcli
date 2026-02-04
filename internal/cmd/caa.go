@@ -191,7 +191,8 @@ func (c *CAALevelsCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 
 	if c.Basic {
-		conditions, err := parseCAAConditions(c.Conditions)
+		var conditions []*accesscontextmanager.Condition
+		conditions, err = parseCAAConditions(c.Conditions)
 		if err != nil {
 			return err
 		}
@@ -269,7 +270,8 @@ func (c *CAALevelsUpdateCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 
 	if len(c.Conditions) > 0 {
-		conditions, err := parseCAAConditions(c.Conditions)
+		var conditions []*accesscontextmanager.Condition
+		conditions, err = parseCAAConditions(c.Conditions)
 		if err != nil {
 			return err
 		}
@@ -330,7 +332,7 @@ func (c *CAALevelsDeleteCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
-	if err := confirmDestructive(ctx, flags, fmt.Sprintf("delete access level %s", fullName)); err != nil {
+	if err = confirmDestructive(ctx, flags, fmt.Sprintf("delete access level %s", fullName)); err != nil {
 		return err
 	}
 
@@ -391,7 +393,7 @@ func accessLevelType(level *accesscontextmanager.AccessLevel) string {
 	if level.Custom != nil {
 		return "custom"
 	}
-	return "unknown"
+	return trackingUnknown
 }
 
 func accessLevelTitle(name string) string {

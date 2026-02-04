@@ -120,7 +120,7 @@ func (c *ContactsDelegatesRemoveCmd) Run(ctx context.Context, flags *RootFlags) 
 		return usage("--delegate is required")
 	}
 
-	if err := confirmDestructive(ctx, flags, fmt.Sprintf("remove delegate %s", delegate)); err != nil {
+	if err = confirmDestructive(ctx, flags, fmt.Sprintf("remove delegate %s", delegate)); err != nil {
 		return err
 	}
 

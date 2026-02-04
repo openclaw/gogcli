@@ -147,7 +147,7 @@ func TestUsersCountCmd(t *testing.T) {
 	}
 }
 
-func stubAdminDirectory(t *testing.T, handler http.Handler) *httptest.Server {
+func stubAdminDirectory(t *testing.T, handler http.Handler) {
 	t.Helper()
 
 	srv := httptest.NewServer(handler)
@@ -161,7 +161,6 @@ func stubAdminDirectory(t *testing.T, handler http.Handler) *httptest.Server {
 		newAdminDirectory = orig
 		srv.Close()
 	})
-	return srv
 }
 
 func newAdminDirectoryForServer(srv *httptest.Server) (*admin.Service, error) {

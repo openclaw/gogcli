@@ -616,7 +616,7 @@ func TestAlertsSettingsUpdateCmd_JSON(t *testing.T) {
 	}
 }
 
-func stubAlertCenter(t *testing.T, handler http.Handler) *httptest.Server {
+func stubAlertCenter(t *testing.T, handler http.Handler) {
 	t.Helper()
 
 	srv := httptest.NewServer(handler)
@@ -634,5 +634,4 @@ func stubAlertCenter(t *testing.T, handler http.Handler) *httptest.Server {
 		newAlertCenterService = orig
 		srv.Close()
 	})
-	return srv
 }

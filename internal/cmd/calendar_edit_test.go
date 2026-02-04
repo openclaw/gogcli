@@ -110,7 +110,7 @@ func TestApplyCreateEventType_FocusTime(t *testing.T) {
 	if event.FocusTimeProperties == nil {
 		t.Fatal("expected FocusTimeProperties to be set")
 	}
-	if event.FocusTimeProperties.AutoDeclineMode != "declineAllConflictingInvitations" {
+	if event.FocusTimeProperties.AutoDeclineMode != declineAllConflicting {
 		t.Fatalf("unexpected AutoDeclineMode: %q", event.FocusTimeProperties.AutoDeclineMode)
 	}
 	if event.FocusTimeProperties.DeclineMessage != "I'm busy" {
@@ -132,8 +132,8 @@ func TestApplyCreateEventType_FocusTimeDefaults(t *testing.T) {
 	if event.FocusTimeProperties == nil {
 		t.Fatal("expected FocusTimeProperties to be set")
 	}
-	// Default auto decline mode should be "all" -> "declineAllConflictingInvitations"
-	if event.FocusTimeProperties.AutoDeclineMode != "declineAllConflictingInvitations" {
+	// Default auto decline mode should be "all" -> declineAllConflicting
+	if event.FocusTimeProperties.AutoDeclineMode != declineAllConflicting {
 		t.Fatalf("unexpected default AutoDeclineMode: %q", event.FocusTimeProperties.AutoDeclineMode)
 	}
 	// Default chat status should be "doNotDisturb"
@@ -221,7 +221,7 @@ func TestApplyCreateEventType_WorkingLocation_Office(t *testing.T) {
 	if event.WorkingLocationProperties == nil {
 		t.Fatal("expected WorkingLocationProperties to be set")
 	}
-	if event.WorkingLocationProperties.Type != "officeLocation" {
+	if event.WorkingLocationProperties.Type != locTypeOffice {
 		t.Fatalf("unexpected working location type: %q", event.WorkingLocationProperties.Type)
 	}
 	office := event.WorkingLocationProperties.OfficeLocation

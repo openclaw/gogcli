@@ -14,9 +14,11 @@ func NewReports(ctx context.Context, email string) (*reports.Service, error) {
 	if err != nil {
 		return nil, fmt.Errorf("reports options: %w", err)
 	}
+
 	svc, err := reports.NewService(ctx, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("create reports service: %w", err)
 	}
+
 	return svc, nil
 }

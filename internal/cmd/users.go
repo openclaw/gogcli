@@ -100,11 +100,11 @@ func normalizeUserHashFunction(value string) (string, error) {
 	}
 }
 
-func randInt(max int) (int, error) {
-	if max <= 0 {
-		return 0, fmt.Errorf("invalid max %d", max)
+func randInt(maxVal int) (int, error) {
+	if maxVal <= 0 {
+		return 0, fmt.Errorf("invalid max %d", maxVal)
 	}
-	n, err := rand.Int(rand.Reader, big.NewInt(int64(max)))
+	n, err := rand.Int(rand.Reader, big.NewInt(int64(maxVal)))
 	if err != nil {
 		return 0, err
 	}

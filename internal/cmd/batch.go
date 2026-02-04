@@ -104,7 +104,7 @@ func readBatchLines(path string) ([]batchTask, error) {
 	if strings.TrimSpace(path) == "-" {
 		scanner = bufio.NewScanner(os.Stdin)
 	} else {
-		f, err := os.Open(path)
+		f, err := os.Open(path) //nolint:gosec // G304: user-provided file path is intentional
 		if err != nil {
 			return nil, fmt.Errorf("open batch file: %w", err)
 		}

@@ -40,6 +40,7 @@ const (
 	extPptx                = ".pptx"
 	extPNG                 = ".png"
 	extTXT                 = ".txt"
+	roleReader             = "reader"
 )
 
 type DriveCmd struct {
@@ -600,9 +601,9 @@ func (c *DriveShareCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 	role := strings.TrimSpace(c.Role)
 	if role == "" {
-		role = "reader"
+		role = roleReader
 	}
-	if role != "reader" && role != "writer" {
+	if role != roleReader && role != "writer" {
 		return usage("invalid --role (expected reader|writer)")
 	}
 

@@ -285,7 +285,7 @@ func (c *CloudIdentityGroupsDeleteCmd) Run(ctx context.Context, flags *RootFlags
 		return usage("group is required")
 	}
 
-	if err := confirmDestructive(ctx, flags, fmt.Sprintf("delete group %s", groupKey)); err != nil {
+	if err = confirmDestructive(ctx, flags, fmt.Sprintf("delete group %s", groupKey)); err != nil {
 		return err
 	}
 
@@ -462,7 +462,7 @@ func (c *CloudIdentityMembersRemoveCmd) Run(ctx context.Context, flags *RootFlag
 		return usage("--email is required")
 	}
 
-	if err := confirmDestructive(ctx, flags, fmt.Sprintf("remove %s from %s", memberEmail, groupKey)); err != nil {
+	if err = confirmDestructive(ctx, flags, fmt.Sprintf("remove %s from %s", memberEmail, groupKey)); err != nil {
 		return err
 	}
 

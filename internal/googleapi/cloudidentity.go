@@ -31,10 +31,12 @@ func NewCloudIdentityInboundSSO(ctx context.Context, email string) (*cloudidenti
 	if err != nil {
 		return nil, fmt.Errorf("cloudidentity inbound sso options: %w", err)
 	}
+
 	svc, err := cloudidentity.NewService(ctx, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("create cloudidentity inbound sso service: %w", err)
 	}
+
 	return svc, nil
 }
 
@@ -44,9 +46,11 @@ func NewCloudIdentity(ctx context.Context, email string) (*cloudidentity.Service
 	if err != nil {
 		return nil, fmt.Errorf("cloud identity options: %w", err)
 	}
+
 	svc, err := cloudidentity.NewService(ctx, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("create cloud identity service: %w", err)
 	}
+
 	return svc, nil
 }

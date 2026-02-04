@@ -86,7 +86,7 @@ func (c *DriveShortcutsDeleteCmd) Run(ctx context.Context, flags *RootFlags) err
 		return usage("shortcut-id is required")
 	}
 
-	if err := confirmDestructive(ctx, flags, fmt.Sprintf("delete shortcut %s", shortcutID)); err != nil {
+	if err = confirmDestructive(ctx, flags, fmt.Sprintf("delete shortcut %s", shortcutID)); err != nil {
 		return err
 	}
 

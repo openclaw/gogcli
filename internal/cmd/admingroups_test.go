@@ -73,7 +73,7 @@ func TestGroupsSettingsCmd_Get(t *testing.T) {
 	}
 }
 
-func stubGroupsSettings(t *testing.T, handler http.Handler) *httptest.Server {
+func stubGroupsSettings(t *testing.T, handler http.Handler) {
 	t.Helper()
 
 	srv := httptest.NewServer(handler)
@@ -91,7 +91,6 @@ func stubGroupsSettings(t *testing.T, handler http.Handler) *httptest.Server {
 		newGroupsSettings = orig
 		srv.Close()
 	})
-	return srv
 }
 
 func TestReadCSVEmails(t *testing.T) {
@@ -365,8 +364,7 @@ func TestListGroupMembers(t *testing.T) {
 			},
 		})
 	})
-	srv := stubAdminDirectory(t, h)
-	_ = srv
+	stubAdminDirectory(t, h)
 
 	svc, _ := newAdminDirectoryForServer(httptest.NewServer(h))
 	members, err := listGroupMembers(context.Background(), svc, "team@example.com")

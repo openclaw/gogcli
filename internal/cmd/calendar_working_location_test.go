@@ -129,7 +129,7 @@ func TestCalendarWorkingLocation_RunJSON(t *testing.T) {
 		t.Fatalf("unexpected summary: %q", gotEvent.Summary)
 	}
 	props := gotEvent.WorkingLocationProperties
-	if props == nil || props.Type != "officeLocation" || props.OfficeLocation == nil {
+	if props == nil || props.Type != locTypeOffice || props.OfficeLocation == nil {
 		t.Fatalf("unexpected working location props: %#v", props)
 	}
 	if props.OfficeLocation.Label != "HQ" || props.OfficeLocation.BuildingId != "b1" || props.OfficeLocation.FloorId != "f1" || props.OfficeLocation.DeskId != "d1" {

@@ -175,7 +175,6 @@ func (c *GroupsMembersCmd) Run(ctx context.Context, flags *RootFlags) error {
 		if groupEmail == "" {
 			return usage("group email required")
 		}
-		action = ""
 	case "add":
 		if groupEmail == "" || memberEmail == "" {
 			return usage("group and member email required")

@@ -197,7 +197,7 @@ func (c *LicensesRevokeCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return usage("user is required")
 	}
 
-	if err := confirmDestructive(ctx, flags, fmt.Sprintf("revoke license %s/%s for %s", c.Product, c.SKU, user)); err != nil {
+	if err = confirmDestructive(ctx, flags, fmt.Sprintf("revoke license %s/%s for %s", c.Product, c.SKU, user)); err != nil {
 		return err
 	}
 

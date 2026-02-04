@@ -18,7 +18,7 @@ func (c *OrgunitsDeleteCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
-	if err := confirmDestructive(ctx, flags, fmt.Sprintf("delete org unit %s", c.Path)); err != nil {
+	if err = confirmDestructive(ctx, flags, fmt.Sprintf("delete org unit %s", c.Path)); err != nil {
 		return err
 	}
 

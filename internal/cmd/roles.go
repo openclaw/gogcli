@@ -224,7 +224,8 @@ func (c *RolesUpdateCmd) Run(ctx context.Context, flags *RootFlags) error {
 	addNames := splitCSV(c.AddPrivileges)
 	removeNames := splitCSV(c.RemovePrivileges)
 	if len(addNames) > 0 || len(removeNames) > 0 {
-		updatedPrivs, err := updateRolePrivileges(ctx, svc, role.RolePrivileges, addNames, removeNames)
+		var updatedPrivs []*admin.RoleRolePrivileges
+		updatedPrivs, err = updateRolePrivileges(ctx, svc, role.RolePrivileges, addNames, removeNames)
 		if err != nil {
 			return err
 		}
@@ -261,7 +262,7 @@ func (c *RolesDeleteCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
-	if err := confirmDestructive(ctx, flags, fmt.Sprintf("delete role %s", c.Role)); err != nil {
+	if err = confirmDestructive(ctx, flags, fmt.Sprintf("delete role %s", c.Role)); err != nil {
 		return err
 	}
 

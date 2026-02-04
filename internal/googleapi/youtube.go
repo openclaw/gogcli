@@ -14,9 +14,11 @@ func NewYouTube(ctx context.Context, email string) (*youtube.Service, error) {
 	if err != nil {
 		return nil, fmt.Errorf("youtube options: %w", err)
 	}
+
 	svc, err := youtube.NewService(ctx, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("create youtube service: %w", err)
 	}
+
 	return svc, nil
 }

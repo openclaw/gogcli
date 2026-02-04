@@ -14,9 +14,11 @@ func NewDriveActivity(ctx context.Context, email string) (*driveactivity.Service
 	if err != nil {
 		return nil, fmt.Errorf("drive activity options: %w", err)
 	}
+
 	svc, err := driveactivity.NewService(ctx, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("create drive activity service: %w", err)
 	}
+
 	return svc, nil
 }

@@ -1628,7 +1628,7 @@ func TestFormatUsageParameters(t *testing.T) {
 	}
 }
 
-func stubReports(t *testing.T, handler http.Handler) *httptest.Server {
+func stubReports(t *testing.T, handler http.Handler) {
 	t.Helper()
 
 	srv := httptest.NewServer(handler)
@@ -1646,5 +1646,4 @@ func stubReports(t *testing.T, handler http.Handler) *httptest.Server {
 		newReportsService = orig
 		srv.Close()
 	})
-	return srv
 }

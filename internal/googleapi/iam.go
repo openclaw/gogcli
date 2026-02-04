@@ -14,9 +14,11 @@ func NewIAM(ctx context.Context, email string) (*iam.Service, error) {
 	if err != nil {
 		return nil, fmt.Errorf("iam options: %w", err)
 	}
+
 	svc, err := iam.NewService(ctx, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("create iam service: %w", err)
 	}
+
 	return svc, nil
 }

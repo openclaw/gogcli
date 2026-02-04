@@ -8,17 +8,22 @@ import (
 	"testing"
 )
 
+var errCallbackFailed = errors.New("callback failed")
+
 // Helper to create temp CSV files for testing
 func createTempCSV(t *testing.T, content string) string {
 	t.Helper()
+
 	f, err := os.CreateTemp(t.TempDir(), "test-*.csv")
 	if err != nil {
 		t.Fatalf("create temp file: %v", err)
 	}
 	defer f.Close()
+
 	if _, err := f.WriteString(content); err != nil {
 		t.Fatalf("write temp file: %v", err)
 	}
+
 	return f.Name()
 }
 
@@ -89,9 +94,11 @@ func TestSubstituteArgs_SimpleSubstitution(t *testing.T) {
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
+
 			if len(got) != len(tt.want) {
 				t.Fatalf("got %d args, want %d", len(got), len(tt.want))
 			}
+
 			for i := range got {
 				if got[i] != tt.want[i] {
 					t.Errorf("arg[%d]: got %q, want %q", i, got[i], tt.want[i])
@@ -154,9 +161,11 @@ func TestSubstituteArgs_AdvancedSubstitution(t *testing.T) {
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
+
 			if len(got) != len(tt.want) {
 				t.Fatalf("got %d args, want %d", len(got), len(tt.want))
 			}
+
 			for i := range got {
 				if got[i] != tt.want[i] {
 					t.Errorf("arg[%d]: got %q, want %q", i, got[i], tt.want[i])
@@ -237,14 +246,18 @@ func TestSubstituteArgs_RegexReplacement(t *testing.T) {
 				if err == nil {
 					t.Fatalf("expected error, got nil")
 				}
+
 				return
 			}
+
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
+
 			if len(got) != len(tt.want) {
 				t.Fatalf("got %d args, want %d", len(got), len(tt.want))
 			}
+
 			for i := range got {
 				if got[i] != tt.want[i] {
 					t.Errorf("arg[%d]: got %q, want %q", i, got[i], tt.want[i])
@@ -256,10 +269,12 @@ func TestSubstituteArgs_RegexReplacement(t *testing.T) {
 
 func TestSubstituteArgs_EmptyArgs(t *testing.T) {
 	row := Row{Index: 1, Values: map[string]string{"a": "b"}}
+
 	got, err := SubstituteArgs([]string{}, row)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+
 	if len(got) != 0 {
 		t.Errorf("expected empty slice, got %v", got)
 	}
@@ -332,13 +347,16 @@ func TestParseFieldFilters_Valid(t *testing.T) {
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
+
 			if len(got) != len(tt.want) {
 				t.Fatalf("got %d filters, want %d", len(got), len(tt.want))
 			}
+
 			for i, wf := range tt.want {
 				if got[i].Field != wf.field {
 					t.Errorf("filter[%d].Field: got %q, want %q", i, got[i].Field, wf.field)
 				}
+
 				if got[i].Regex.String() != wf.pattern {
 					t.Errorf("filter[%d].Regex: got %q, want %q", i, got[i].Regex.String(), wf.pattern)
 				}
@@ -376,6 +394,7 @@ func TestParseFieldFilters_Errors(t *testing.T) {
 			if err == nil {
 				t.Fatal("expected error, got nil")
 			}
+
 			if !strings.Contains(err.Error(), tt.wantErr) {
 				t.Errorf("error %q should contain %q", err.Error(), tt.wantErr)
 			}
@@ -396,6 +415,7 @@ charlie@example.com,Charlie,Brown
 	path := createTempCSV(t, csv)
 
 	var rows []Row
+
 	err := Process(path, Options{}, func(row Row) error {
 		rows = append(rows, row)
 		return nil
@@ -403,6 +423,7 @@ charlie@example.com,Charlie,Brown
 	if err != nil {
 		t.Fatalf("Process error: %v", err)
 	}
+
 	if len(rows) != 3 {
 		t.Fatalf("expected 3 rows, got %d", len(rows))
 	}
@@ -411,9 +432,11 @@ charlie@example.com,Charlie,Brown
 	if rows[0].Index != 1 {
 		t.Errorf("row[0].Index: got %d, want 1", rows[0].Index)
 	}
+
 	if rows[0].Values["email"] != "alice@example.com" {
 		t.Errorf("row[0].email: got %q", rows[0].Values["email"])
 	}
+
 	if rows[0].Values["firstname"] != "Alice" {
 		t.Errorf("row[0].firstname: got %q", rows[0].Values["firstname"])
 	}
@@ -426,6 +449,7 @@ test@test.com,Test,User
 	path := createTempCSV(t, csv)
 
 	var row Row
+
 	err := Process(path, Options{}, func(r Row) error {
 		row = r
 		return nil
@@ -438,9 +462,11 @@ test@test.com,Test,User
 	if row.Values["email"] != "test@test.com" {
 		t.Errorf("email field not found or wrong: %v", row.Values)
 	}
+
 	if row.Values["first name"] != "Test" {
 		t.Errorf("first name field not found or wrong: %v", row.Values)
 	}
+
 	if row.Values["last_name"] != "User" {
 		t.Errorf("last_name field not found or wrong: %v", row.Values)
 	}
@@ -453,6 +479,7 @@ user@test.com,User,admin,active
 	path := createTempCSV(t, csv)
 
 	var row Row
+
 	err := Process(path, Options{Fields: []string{"email", "role"}}, func(r Row) error {
 		row = r
 		return nil
@@ -465,12 +492,15 @@ user@test.com,User,admin,active
 	if _, ok := row.Values["email"]; !ok {
 		t.Error("email field should be present")
 	}
+
 	if _, ok := row.Values["role"]; !ok {
 		t.Error("role field should be present")
 	}
+
 	if _, ok := row.Values["name"]; ok {
 		t.Error("name field should NOT be present")
 	}
+
 	if _, ok := row.Values["status"]; ok {
 		t.Error("status field should NOT be present")
 	}
@@ -488,6 +518,7 @@ charlie@test.com,active,user
 	matchFilters, _ := ParseFieldFilters([]string{"status:^active$"})
 
 	var emails []string
+
 	err := Process(path, Options{Match: matchFilters}, func(row Row) error {
 		emails = append(emails, row.Values["email"])
 		return nil
@@ -499,6 +530,7 @@ charlie@test.com,active,user
 	if len(emails) != 2 {
 		t.Fatalf("expected 2 matching rows, got %d", len(emails))
 	}
+
 	if emails[0] != "alice@test.com" || emails[1] != "charlie@test.com" {
 		t.Errorf("wrong emails matched: %v", emails)
 	}
@@ -515,6 +547,7 @@ charlie@test.com,active,user
 	skipFilters, _ := ParseFieldFilters([]string{"status:inactive"})
 
 	var emails []string
+
 	err := Process(path, Options{Skip: skipFilters}, func(row Row) error {
 		emails = append(emails, row.Values["email"])
 		return nil
@@ -526,6 +559,7 @@ charlie@test.com,active,user
 	if len(emails) != 2 {
 		t.Fatalf("expected 2 rows (skipping inactive), got %d", len(emails))
 	}
+
 	for _, e := range emails {
 		if e == "bob@test.com" {
 			t.Error("bob@test.com should have been skipped")
@@ -547,6 +581,7 @@ dave@test.com,inactive,admin
 	skipFilters, _ := ParseFieldFilters([]string{"role:^guest$"})
 
 	var emails []string
+
 	err := Process(path, Options{Match: matchFilters, Skip: skipFilters}, func(row Row) error {
 		emails = append(emails, row.Values["email"])
 		return nil
@@ -559,6 +594,7 @@ dave@test.com,inactive,admin
 	if len(emails) != 2 {
 		t.Fatalf("expected 2 rows, got %d: %v", len(emails), emails)
 	}
+
 	expected := map[string]bool{"alice@test.com": true, "bob@test.com": true}
 	for _, e := range emails {
 		if !expected[e] {
@@ -578,6 +614,7 @@ charlie@example.net,example.net
 	matchFilters, _ := ParseFieldFilters([]string{"email:@example\\."})
 
 	var emails []string
+
 	err := Process(path, Options{Match: matchFilters}, func(row Row) error {
 		emails = append(emails, row.Values["email"])
 		return nil
@@ -601,6 +638,7 @@ row4@test.com,Row4
 	path := createTempCSV(t, csv)
 
 	var emails []string
+
 	err := Process(path, Options{SkipRows: 2}, func(row Row) error {
 		emails = append(emails, row.Values["email"])
 		return nil
@@ -612,6 +650,7 @@ row4@test.com,Row4
 	if len(emails) != 2 {
 		t.Fatalf("expected 2 rows after skipping 2, got %d", len(emails))
 	}
+
 	if emails[0] != "row3@test.com" {
 		t.Errorf("first email should be row3@test.com, got %s", emails[0])
 	}
@@ -627,6 +666,7 @@ row4@test.com,Row4
 	path := createTempCSV(t, csv)
 
 	var count int
+
 	err := Process(path, Options{MaxRows: 2}, func(row Row) error {
 		count++
 		return nil
@@ -651,6 +691,7 @@ row5@test.com,Row5
 	path := createTempCSV(t, csv)
 
 	var emails []string
+
 	err := Process(path, Options{SkipRows: 2, MaxRows: 2}, func(row Row) error {
 		emails = append(emails, row.Values["email"])
 		return nil
@@ -662,6 +703,7 @@ row5@test.com,Row5
 	if len(emails) != 2 {
 		t.Fatalf("expected 2 rows, got %d", len(emails))
 	}
+
 	if emails[0] != "row3@test.com" || emails[1] != "row4@test.com" {
 		t.Errorf("wrong emails: %v", emails)
 	}
@@ -674,19 +716,20 @@ bob@test.com,Bob
 `
 	path := createTempCSV(t, csv)
 
-	callbackErr := errors.New("callback failed")
 	var count int
 	err := Process(path, Options{}, func(row Row) error {
 		count++
 		if count == 1 {
-			return callbackErr
+			return errCallbackFailed
 		}
+
 		return nil
 	})
 
-	if err != callbackErr {
+	if !errors.Is(err, errCallbackFailed) {
 		t.Errorf("expected callback error, got: %v", err)
 	}
+
 	if count != 1 {
 		t.Errorf("callback should have been called once, got %d", count)
 	}
@@ -694,6 +737,7 @@ bob@test.com,Bob
 
 func TestProcess_EmptyCSV(t *testing.T) {
 	path := createTempCSV(t, "")
+
 	err := Process(path, Options{}, func(row Row) error {
 		return nil
 	})
@@ -708,6 +752,7 @@ func TestProcess_HeaderOnly(t *testing.T) {
 	path := createTempCSV(t, csv)
 
 	var count int
+
 	err := Process(path, Options{}, func(row Row) error {
 		count++
 		return nil
@@ -715,6 +760,7 @@ func TestProcess_HeaderOnly(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Process error: %v", err)
 	}
+
 	if count != 0 {
 		t.Errorf("expected 0 rows (header only), got %d", count)
 	}
@@ -763,6 +809,7 @@ alice@test.com,Alice
 	if err == nil {
 		t.Error("expected error for short row")
 	}
+
 	if !strings.Contains(err.Error(), "wrong number of fields") {
 		t.Errorf("expected 'wrong number of fields' error, got: %v", err)
 	}
@@ -775,6 +822,7 @@ func TestProcess_ValueTrimming(t *testing.T) {
 	path := createTempCSV(t, csv)
 
 	var row Row
+
 	err := Process(path, Options{}, func(r Row) error {
 		row = r
 		return nil
@@ -787,6 +835,7 @@ func TestProcess_ValueTrimming(t *testing.T) {
 	if row.Values["email"] != "alice@test.com" {
 		t.Errorf("email not trimmed: %q", row.Values["email"])
 	}
+
 	if row.Values["name"] != "Alice" {
 		t.Errorf("name not trimmed: %q", row.Values["name"])
 	}
@@ -800,6 +849,7 @@ alice@test.com,ignored,Alice
 	path := createTempCSV(t, csv)
 
 	var row Row
+
 	err := Process(path, Options{}, func(r Row) error {
 		row = r
 		return nil
@@ -811,9 +861,11 @@ alice@test.com,ignored,Alice
 	if _, ok := row.Values[""]; ok {
 		t.Error("empty header column should not create a value")
 	}
+
 	if row.Values["email"] != "alice@test.com" {
 		t.Errorf("wrong email: %q", row.Values["email"])
 	}
+
 	if row.Values["name"] != "Alice" {
 		t.Errorf("wrong name: %q", row.Values["name"])
 	}
@@ -828,6 +880,7 @@ row3@test.com
 	path := createTempCSV(t, csv)
 
 	var indices []int
+
 	err := Process(path, Options{}, func(row Row) error {
 		indices = append(indices, row.Index)
 		return nil
@@ -883,12 +936,15 @@ bob@example.com,Bob,Jones,Sales
 	}
 
 	var results [][]string
+
 	err := Process(path, Options{}, func(row Row) error {
 		args, err := SubstituteArgs(template, row)
 		if err != nil {
 			return err
 		}
+
 		results = append(results, args)
+
 		return nil
 	})
 	if err != nil {
@@ -930,6 +986,7 @@ dave@test.com,active,guest
 	matchFilters, _ := ParseFieldFilters([]string{"status:^active$", "role:^admin$"})
 
 	var emails []string
+
 	err := Process(path, Options{Match: matchFilters}, func(row Row) error {
 		emails = append(emails, row.Values["email"])
 		return nil
@@ -957,6 +1014,7 @@ dave@test.com,active,guest
 	skipFilters, _ := ParseFieldFilters([]string{"status:inactive", "status:suspended"})
 
 	var emails []string
+
 	err := Process(path, Options{Skip: skipFilters}, func(row Row) error {
 		emails = append(emails, row.Values["email"])
 		return nil
@@ -982,6 +1040,7 @@ alice@test.com,active
 	nilFilter := FieldFilter{Field: "status", Regex: nil}
 
 	var count int
+
 	err := Process(path, Options{Match: []FieldFilter{nilFilter}}, func(row Row) error {
 		count++
 		return nil
@@ -1009,6 +1068,7 @@ func TestSubstituteArgs_NestedTildes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+
 	if args[0] != "/home/~user/files" {
 		t.Errorf("tilde in value should be preserved, got: %s", args[0])
 	}
@@ -1021,6 +1081,7 @@ func TestSubstituteArgs_EmptyRow(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+
 	if args[0] != "" || args[1] != "" {
 		t.Errorf("missing fields should return empty strings, got: %v", args)
 	}
@@ -1055,9 +1116,11 @@ func TestParseFieldFilters_ComplexRegex(t *testing.T) {
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
+
 			if len(filters) != 1 {
 				t.Fatalf("expected 1 filter, got %d", len(filters))
 			}
+
 			if filters[0].Regex.String() != tt.pattern {
 				t.Errorf("pattern mismatch: got %q, want %q", filters[0].Regex.String(), tt.pattern)
 			}
@@ -1075,6 +1138,7 @@ charlie@test.com,Normal text,tag4|tag5|tag6
 	path := createTempCSV(t, csv)
 
 	var rows []Row
+
 	err := Process(path, Options{}, func(row Row) error {
 		rows = append(rows, row)
 		return nil
@@ -1107,6 +1171,7 @@ Français,Paris,🇫🇷
 	path := createTempCSV(t, csv)
 
 	var rows []Row
+
 	err := Process(path, Options{}, func(row Row) error {
 		rows = append(rows, row)
 		return nil
@@ -1144,17 +1209,20 @@ bob@test.com,Bob,inactive
 	// Write CSV data to the pipe
 	go func() {
 		defer w.Close()
-		if _, err := w.WriteString(csv); err != nil {
-			t.Errorf("write to pipe: %v", err)
+
+		if _, writeErr := w.WriteString(csv); writeErr != nil {
+			t.Errorf("write to pipe: %v", writeErr)
 		}
 	}()
 
 	// Temporarily replace stdin
 	oldStdin := os.Stdin
 	os.Stdin = r
+
 	defer func() { os.Stdin = oldStdin }()
 
 	var rows []Row
+
 	err = Process("-", Options{}, func(row Row) error {
 		rows = append(rows, row)
 		return nil
@@ -1170,6 +1238,7 @@ bob@test.com,Bob,inactive
 	if rows[0].Values["email"] != "alice@test.com" {
 		t.Errorf("row[0].email: got %q, want %q", rows[0].Values["email"], "alice@test.com")
 	}
+
 	if rows[1].Values["name"] != "Bob" {
 		t.Errorf("row[1].name: got %q, want %q", rows[1].Values["name"], "Bob")
 	}

@@ -61,7 +61,8 @@ func (c *UsersCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 
 	if c.HashFunction != "" {
-		hash, err := normalizeUserHashFunction(c.HashFunction)
+		var hash string
+		hash, err = normalizeUserHashFunction(c.HashFunction)
 		if err != nil {
 			return err
 		}

@@ -254,7 +254,7 @@ func (c *LabelsDeleteCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 	label = normalizeLabelName(label)
 
-	if err := confirmDestructive(ctx, flags, fmt.Sprintf("delete label %s", label)); err != nil {
+	if err = confirmDestructive(ctx, flags, fmt.Sprintf("delete label %s", label)); err != nil {
 		return err
 	}
 
@@ -327,7 +327,7 @@ func (c *LabelsDisableCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 	label = normalizeLabelName(label)
 
-	if err := confirmDestructive(ctx, flags, fmt.Sprintf("disable label %s", label)); err != nil {
+	if err = confirmDestructive(ctx, flags, fmt.Sprintf("disable label %s", label)); err != nil {
 		return err
 	}
 

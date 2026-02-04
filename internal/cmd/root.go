@@ -21,6 +21,9 @@ import (
 const (
 	colorAuto  = "auto"
 	colorNever = "never"
+
+	strTrue  = "true"
+	strFalse = "false"
 )
 
 type RootFlags struct {
@@ -193,9 +196,9 @@ func envOr(key, fallback string) string {
 
 func boolString(v bool) string {
 	if v {
-		return "true"
+		return strTrue
 	}
-	return "false"
+	return strFalse
 }
 
 func newParser(description string) (*kong.Kong, *CLI, error) {

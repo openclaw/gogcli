@@ -14,9 +14,11 @@ func NewDriveLabels(ctx context.Context, email string) (*drivelabels.Service, er
 	if err != nil {
 		return nil, fmt.Errorf("drive labels options: %w", err)
 	}
+
 	svc, err := drivelabels.NewService(ctx, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("create drive labels service: %w", err)
 	}
+
 	return svc, nil
 }

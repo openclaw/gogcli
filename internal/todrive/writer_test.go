@@ -24,13 +24,16 @@ func TestWriterCreateAndWrite(t *testing.T) {
 				"spreadsheetId":  "sheet1",
 				"spreadsheetUrl": "https://sheet/1",
 			})
+
 			return
 		case r.Method == http.MethodPut && strings.Contains(r.URL.Path, "/v4/spreadsheets/sheet1/values/Data!A1"):
 			var vr sheets.ValueRange
 			_ = json.NewDecoder(r.Body).Decode(&vr)
 			gotValues = vr.Values
+
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(map[string]any{"updatedRange": "Data!A1"})
+
 			return
 		default:
 			http.NotFound(w, r)
@@ -46,6 +49,7 @@ func TestWriterCreateAndWrite(t *testing.T) {
 
 	origSheets := newSheetsService
 	origDrive := newDriveService
+
 	t.Cleanup(func() {
 		newSheetsService = origSheets
 		newDriveService = origDrive
@@ -75,9 +79,11 @@ func TestWriterCreateAndWrite(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Write: %v", err)
 	}
+
 	if res.SpreadsheetID != "sheet1" {
 		t.Fatalf("unexpected id: %s", res.SpreadsheetID)
 	}
+
 	if len(gotValues) != 2 {
 		t.Fatalf("expected 2 rows, got %d", len(gotValues))
 	}

@@ -14,9 +14,11 @@ func NewStorage(ctx context.Context, email string) (*storage.Service, error) {
 	if err != nil {
 		return nil, fmt.Errorf("storage options: %w", err)
 	}
+
 	svc, err := storage.NewService(ctx, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("create storage service: %w", err)
 	}
+
 	return svc, nil
 }

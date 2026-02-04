@@ -1153,7 +1153,7 @@ func TestReadValueOrFile(t *testing.T) {
 
 	// Test @file syntax
 	tmpFile := filepath.Join(t.TempDir(), "testfile.txt")
-	if err := os.WriteFile(tmpFile, []byte("file-content"), 0o600); err != nil {
+	if err = os.WriteFile(tmpFile, []byte("file-content"), 0o600); err != nil {
 		t.Fatalf("WriteFile: %v", err)
 	}
 
@@ -1163,7 +1163,7 @@ func TestReadValueOrFile(t *testing.T) {
 	}
 
 	// Test @file with empty path
-	result, err = readValueOrFile("@")
+	_, err = readValueOrFile("@")
 	if err == nil {
 		t.Fatal("expected error for empty @file path")
 	}
@@ -1179,7 +1179,7 @@ func TestReadValueOrFile(t *testing.T) {
 
 	// Test file path detection (file exists)
 	tmpFile2 := filepath.Join(t.TempDir(), "detectfile.txt")
-	if err := os.WriteFile(tmpFile2, []byte("detected-content"), 0o600); err != nil {
+	if err = os.WriteFile(tmpFile2, []byte("detected-content"), 0o600); err != nil {
 		t.Fatalf("WriteFile: %v", err)
 	}
 
@@ -1189,7 +1189,7 @@ func TestReadValueOrFile(t *testing.T) {
 	}
 
 	// Test nonexistent file in @syntax
-	result, err = readValueOrFile("@/nonexistent/file.txt")
+	_, err = readValueOrFile("@/nonexistent/file.txt")
 	if err == nil {
 		t.Fatal("expected error for nonexistent @file")
 	}
@@ -1321,7 +1321,7 @@ func TestClearInboundSSOAssignments_JSON(t *testing.T) {
 // Test Helper Functions
 // -----------------------------------------------------------------------------
 
-func stubInboundSSO(t *testing.T, handler http.Handler) *httptest.Server {
+func stubInboundSSO(t *testing.T, handler http.Handler) {
 	t.Helper()
 
 	srv := httptest.NewServer(handler)
@@ -1339,5 +1339,4 @@ func stubInboundSSO(t *testing.T, handler http.Handler) *httptest.Server {
 		newInboundSSOService = orig
 		srv.Close()
 	})
-	return srv
 }
