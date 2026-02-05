@@ -549,15 +549,15 @@ func (c *AuthAddCmd) Run(ctx context.Context) error {
 			if authURL != "" || authCode != "" {
 				return usage("remote step 1 does not accept --auth-url or --auth-code")
 			}
-			result, err := manualAuthURL(ctx, googleauth.AuthorizeOptions{
+			result, manualErr := manualAuthURL(ctx, googleauth.AuthorizeOptions{
 				Services:     services,
 				Scopes:       scopes,
 				Manual:       true,
 				ForceConsent: c.ForceConsent,
 				Client:       client,
 			})
-			if err != nil {
-				return err
+			if manualErr != nil {
+				return manualErr
 			}
 			if outfmt.IsJSON(ctx) {
 				return outfmt.WriteJSON(os.Stdout, map[string]any{

@@ -33,7 +33,7 @@ var (
 func manualStatePath() (string, error) {
 	dir, err := config.EnsureDir()
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("ensure config dir: %w", err)
 	}
 
 	return filepath.Join(dir, manualStateFilename), nil
@@ -48,24 +48,35 @@ func loadManualState(client string, scopes []string, forceConsent bool) (string,
 	data, err := os.ReadFile(path) //nolint:gosec // config path
 	if err != nil {
 		if os.IsNotExist(err) {
-			return "", false, nil
+			err = nil
+			return "", false, err
 		}
+
 		return "", false, fmt.Errorf("read manual auth state: %w", err)
 	}
 
 	var st manualState
-	if err := json.Unmarshal(data, &st); err != nil {
+
+	unmarshalErr := json.Unmarshal(data, &st)
+	if unmarshalErr != nil {
 		_ = os.Remove(path)
-		return "", false, nil
+		unmarshalErr = nil
+
+		return "", false, unmarshalErr //nolint:nilerr // invalid state should be treated as a cache miss
 	}
+
 	if st.State == "" {
 		_ = os.Remove(path)
+
 		return "", false, nil
 	}
+
 	if manualStateNowFn().Sub(st.CreatedAt) > manualStateTTL {
 		_ = os.Remove(path)
+
 		return "", false, nil
 	}
+
 	if st.Client != client || st.ForceConsent != forceConsent || !scopesEqual(st.Scopes, scopes) {
 		return "", false, nil
 	}
@@ -84,22 +95,29 @@ func loadManualStateStrict(client string, scopes []string, forceConsent bool) (s
 		if os.IsNotExist(err) {
 			return "", errManualStateMissing
 		}
+
 		return "", fmt.Errorf("read manual auth state: %w", err)
 	}
 
 	var st manualState
 	if err := json.Unmarshal(data, &st); err != nil {
 		_ = os.Remove(path)
+
 		return "", errManualStateMissing
 	}
+
 	if st.State == "" {
 		_ = os.Remove(path)
+
 		return "", errManualStateMissing
 	}
+
 	if manualStateNowFn().Sub(st.CreatedAt) > manualStateTTL {
 		_ = os.Remove(path)
+
 		return "", errManualStateMissing
 	}
+
 	if st.Client != client || st.ForceConsent != forceConsent || !scopesEqual(st.Scopes, scopes) {
 		return "", errManualStateMismatch
 	}
@@ -125,12 +143,14 @@ func saveManualState(client string, scopes []string, forceConsent bool, state st
 	if err != nil {
 		return fmt.Errorf("encode manual auth state: %w", err)
 	}
+
 	data = append(data, '\n')
 
 	tmp := path + ".tmp"
 	if err := os.WriteFile(tmp, data, 0o600); err != nil {
 		return fmt.Errorf("write manual auth state: %w", err)
 	}
+
 	if err := os.Rename(tmp, path); err != nil {
 		return fmt.Errorf("commit manual auth state: %w", err)
 	}
@@ -148,6 +168,7 @@ func clearManualState() error {
 		if os.IsNotExist(err) {
 			return nil
 		}
+
 		return fmt.Errorf("remove manual auth state: %w", err)
 	}
 
@@ -161,6 +182,7 @@ func normalizeScopes(scopes []string) []string {
 
 	out := append([]string(nil), scopes...)
 	sort.Strings(out)
+
 	return out
 }
 
@@ -170,10 +192,12 @@ func scopesEqual(a, b []string) bool {
 	}
 	na := normalizeScopes(a)
 	nb := normalizeScopes(b)
+
 	for i := range na {
 		if na[i] != nb[i] {
 			return false
 		}
 	}
+
 	return true
 }

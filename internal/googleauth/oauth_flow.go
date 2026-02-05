@@ -79,122 +79,163 @@ func Authorize(ctx context.Context, opts AuthorizeOptions) (string, error) {
 		return "", errMissingScopes
 	}
 
-	var creds config.ClientCredentials
-
-	if c, err := readClientCredentials(opts.Client); err != nil {
+	creds, err := readClientCredentials(opts.Client)
+	if err != nil {
 		return "", err
-	} else {
-		creds = c
 	}
 
 	ctx, cancel := context.WithTimeout(ctx, opts.Timeout)
 	defer cancel()
 
 	if opts.Manual {
-		authURLInput := strings.TrimSpace(opts.AuthURL)
-		authCodeInput := strings.TrimSpace(opts.AuthCode)
-		redirectURI := "http://localhost:1"
-		cfg := oauth2.Config{
-			ClientID:     creds.ClientID,
-			ClientSecret: creds.ClientSecret,
-			Endpoint:     oauthEndpoint,
-			RedirectURL:  redirectURI,
-			Scopes:       opts.Scopes,
-		}
-		if authURLInput != "" || authCodeInput != "" {
-			code := authCodeInput
-			gotState := ""
-			if authURLInput != "" {
-				var parseErr error
-				code, gotState, parseErr = extractCodeAndState(authURLInput)
-				if parseErr != nil {
-					return "", parseErr
-				}
-				if opts.RequireState && gotState == "" {
-					return "", errMissingState
-				}
-			}
-			if strings.TrimSpace(code) == "" {
-				return "", errMissingCode
-			}
+		return authorizeManual(ctx, opts, creds)
+	}
 
-			if gotState != "" {
-				if opts.RequireState {
-					cachedState, cacheErr := loadManualStateStrict(opts.Client, opts.Scopes, opts.ForceConsent)
-					if cacheErr != nil {
-						return "", cacheErr
-					}
-					if gotState != cachedState {
-						return "", errManualStateMismatch
-					}
-				} else {
-					if cachedState, ok, cacheErr := loadManualState(opts.Client, opts.Scopes, opts.ForceConsent); cacheErr != nil {
-						return "", cacheErr
-					} else if ok && gotState != cachedState {
-						return "", errStateMismatch
-					}
-				}
-			}
+	return authorizeServer(ctx, opts, creds)
+}
 
-			tok, exchangeErr := cfg.Exchange(ctx, code)
-			if exchangeErr != nil {
-				return "", fmt.Errorf("exchange code: %w", exchangeErr)
-			}
+func authorizeManual(ctx context.Context, opts AuthorizeOptions, creds config.ClientCredentials) (string, error) {
+	authURLInput := strings.TrimSpace(opts.AuthURL)
+	authCodeInput := strings.TrimSpace(opts.AuthCode)
 
-			if tok.RefreshToken == "" {
-				return "", errNoRefreshToken
-			}
+	redirectURI := "http://localhost:1"
+	cfg := oauth2.Config{
+		ClientID:     creds.ClientID,
+		ClientSecret: creds.ClientSecret,
+		Endpoint:     oauthEndpoint,
+		RedirectURL:  redirectURI,
+		Scopes:       opts.Scopes,
+	}
 
-			_ = clearManualState()
+	if authURLInput != "" || authCodeInput != "" {
+		return authorizeManualWithCode(ctx, opts, cfg, authURLInput, authCodeInput)
+	}
 
-			return tok.RefreshToken, nil
-		}
+	return authorizeManualInteractive(ctx, opts, cfg)
+}
 
-		setup, err := manualAuthSetup(opts, cfg)
-		if err != nil {
-			return "", err
-		}
+func authorizeManualWithCode(
+	ctx context.Context,
+	opts AuthorizeOptions,
+	cfg oauth2.Config,
+	authURLInput string,
+	authCodeInput string,
+) (string, error) {
+	code := strings.TrimSpace(authCodeInput)
+	gotState := ""
 
-		fmt.Fprintln(os.Stderr, "Visit this URL to authorize:")
-		fmt.Fprintln(os.Stderr, setup.authURL)
-		fmt.Fprintln(os.Stderr)
-		fmt.Fprintln(os.Stderr, "After authorizing, you'll be redirected to a localhost URL that won't load.")
-		fmt.Fprintln(os.Stderr, "Copy the URL from your browser's address bar and paste it here.")
-		fmt.Fprintln(os.Stderr)
-
-		line, readErr := input.PromptLine(ctx, "Paste redirect URL (Enter or Ctrl-D): ")
-		if readErr != nil && !errors.Is(readErr, os.ErrClosed) {
-			if errors.Is(readErr, io.EOF) {
-				return "", fmt.Errorf("authorization canceled: %w", context.Canceled)
-			}
-
-			return "", fmt.Errorf("read redirect url: %w", readErr)
-		}
-		line = strings.TrimSpace(line)
-
-		code, gotState, parseErr := extractCodeAndState(line)
+	if authURLInput != "" {
+		parsedCode, parsedState, parseErr := extractCodeAndState(authURLInput)
 		if parseErr != nil {
 			return "", parseErr
 		}
 
-		if gotState != "" && gotState != setup.state {
-			return "", errStateMismatch
+		code = parsedCode
+		gotState = parsedState
+
+		if opts.RequireState && gotState == "" {
+			return "", errMissingState
 		}
-
-		tok, exchangeErr := cfg.Exchange(ctx, code)
-		if exchangeErr != nil {
-			return "", fmt.Errorf("exchange code: %w", exchangeErr)
-		}
-
-		if tok.RefreshToken == "" {
-			return "", errNoRefreshToken
-		}
-
-		_ = clearManualState()
-
-		return tok.RefreshToken, nil
 	}
 
+	if strings.TrimSpace(code) == "" {
+		return "", errMissingCode
+	}
+
+	if gotState != "" {
+		if err := validateManualState(opts, gotState); err != nil {
+			return "", err
+		}
+	}
+
+	tok, exchangeErr := cfg.Exchange(ctx, code)
+	if exchangeErr != nil {
+		return "", fmt.Errorf("exchange code: %w", exchangeErr)
+	}
+
+	if tok.RefreshToken == "" {
+		return "", errNoRefreshToken
+	}
+
+	_ = clearManualState()
+
+	return tok.RefreshToken, nil
+}
+
+func authorizeManualInteractive(ctx context.Context, opts AuthorizeOptions, cfg oauth2.Config) (string, error) {
+	setup, err := manualAuthSetup(opts, cfg)
+	if err != nil {
+		return "", err
+	}
+
+	fmt.Fprintln(os.Stderr, "Visit this URL to authorize:")
+	fmt.Fprintln(os.Stderr, setup.authURL)
+	fmt.Fprintln(os.Stderr)
+	fmt.Fprintln(os.Stderr, "After authorizing, you'll be redirected to a localhost URL that won't load.")
+	fmt.Fprintln(os.Stderr, "Copy the URL from your browser's address bar and paste it here.")
+	fmt.Fprintln(os.Stderr)
+
+	line, readErr := input.PromptLine(ctx, "Paste redirect URL (Enter or Ctrl-D): ")
+	if readErr != nil && !errors.Is(readErr, os.ErrClosed) {
+		if errors.Is(readErr, io.EOF) {
+			return "", fmt.Errorf("authorization canceled: %w", context.Canceled)
+		}
+
+		return "", fmt.Errorf("read redirect url: %w", readErr)
+	}
+
+	line = strings.TrimSpace(line)
+
+	code, gotState, parseErr := extractCodeAndState(line)
+	if parseErr != nil {
+		return "", parseErr
+	}
+
+	if gotState != "" && gotState != setup.state {
+		return "", errStateMismatch
+	}
+
+	tok, exchangeErr := cfg.Exchange(ctx, code)
+	if exchangeErr != nil {
+		return "", fmt.Errorf("exchange code: %w", exchangeErr)
+	}
+
+	if tok.RefreshToken == "" {
+		return "", errNoRefreshToken
+	}
+
+	_ = clearManualState()
+
+	return tok.RefreshToken, nil
+}
+
+func validateManualState(opts AuthorizeOptions, gotState string) error {
+	if opts.RequireState {
+		cachedState, cacheErr := loadManualStateStrict(opts.Client, opts.Scopes, opts.ForceConsent)
+		if cacheErr != nil {
+			return cacheErr
+		}
+
+		if gotState != cachedState {
+			return errManualStateMismatch
+		}
+
+		return nil
+	}
+
+	cachedState, ok, cacheErr := loadManualState(opts.Client, opts.Scopes, opts.ForceConsent)
+	if cacheErr != nil {
+		return cacheErr
+	}
+
+	if ok && gotState != cachedState {
+		return errStateMismatch
+	}
+
+	return nil
+}
+
+func authorizeServer(ctx context.Context, opts AuthorizeOptions, creds config.ClientCredentials) (string, error) {
 	state, err := randomStateFn()
 	if err != nil {
 		return "", err
@@ -338,6 +379,7 @@ func ManualAuthURL(ctx context.Context, opts AuthorizeOptions) (ManualAuthURLRes
 	if opts.Timeout <= 0 {
 		opts.Timeout = 2 * time.Minute
 	}
+
 	if len(opts.Scopes) == 0 {
 		return ManualAuthURLResult{}, errMissingScopes
 	}
@@ -378,11 +420,13 @@ func manualAuthSetup(opts AuthorizeOptions, cfg oauth2.Config) (manualAuthSetupR
 	if err != nil {
 		return manualAuthSetupResult{}, err
 	}
+
 	if !reused {
 		state, err = randomStateFn()
 		if err != nil {
 			return manualAuthSetupResult{}, err
 		}
+
 		if err := saveManualState(opts.Client, opts.Scopes, opts.ForceConsent, state); err != nil {
 			return manualAuthSetupResult{}, err
 		}

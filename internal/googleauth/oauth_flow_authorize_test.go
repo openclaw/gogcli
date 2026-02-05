@@ -63,6 +63,7 @@ func useTempManualStatePath(t *testing.T) {
 	manualStatePathFn = func() (string, error) {
 		return filepath.Join(dir, "oauth-manual-state.json"), nil
 	}
+
 	t.Cleanup(func() {
 		manualStatePathFn = origPath
 	})
@@ -85,6 +86,7 @@ func TestAuthorize_Manual_Success(t *testing.T) {
 		oauthEndpoint = origEndpoint
 		randomStateFn = origState
 	})
+
 	useTempManualStatePath(t)
 
 	readClientCredentials = func(string) (config.ClientCredentials, error) {
@@ -306,9 +308,11 @@ func TestAuthorize_Manual_AuthCode(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Authorize: %v", err)
 	}
+
 	if rt != "rt" {
 		t.Fatalf("unexpected refresh token: %q", rt)
 	}
+
 	if stateCalled {
 		t.Fatalf("unexpected state generation in auth-code flow")
 	}
@@ -340,6 +344,7 @@ func TestAuthorize_Manual_AuthURL_RequireStateMissing(t *testing.T) {
 	if err == nil {
 		t.Fatalf("expected error")
 	}
+
 	if !errors.Is(err, errMissingState) {
 		t.Fatalf("expected missing state error, got: %v", err)
 	}
@@ -371,6 +376,7 @@ func TestAuthorize_Manual_AuthURL_RequireStateMissingCache(t *testing.T) {
 	if err == nil {
 		t.Fatalf("expected error")
 	}
+
 	if !errors.Is(err, errManualStateMissing) {
 		t.Fatalf("expected manual state missing error, got: %v", err)
 	}
@@ -406,6 +412,7 @@ func TestAuthorize_Manual_AuthURL_RequireStateMismatch(t *testing.T) {
 	if err == nil {
 		t.Fatalf("expected error")
 	}
+
 	if !errors.Is(err, errManualStateMismatch) {
 		t.Fatalf("expected manual state mismatch error, got: %v", err)
 	}
