@@ -52,6 +52,7 @@ type gmailWatchServeConfig struct {
 	HookToken     string
 	IncludeBody   bool
 	MaxBodyBytes  int
+	ExcludeLabels []string
 	HistoryMax    int64
 	ResyncMax     int64
 	HookTimeout   time.Duration

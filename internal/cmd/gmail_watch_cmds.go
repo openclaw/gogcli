@@ -191,20 +191,21 @@ func (c *GmailWatchStopCmd) Run(ctx context.Context, flags *RootFlags) error {
 }
 
 type GmailWatchServeCmd struct {
-	Bind         string `name:"bind" help:"Bind address" default:"127.0.0.1"`
-	Port         int    `name:"port" help:"Listen port" default:"8788"`
-	Path         string `name:"path" help:"Push handler path" default:"/gmail-pubsub"`
-	Timezone     string `name:"timezone" short:"z" help:"Output timezone (IANA name, e.g. America/New_York, UTC). Default: local"`
-	Local        bool   `name:"local" help:"Use local timezone (default behavior, useful to override --timezone)"`
-	VerifyOIDC   bool   `name:"verify-oidc" help:"Verify Pub/Sub OIDC tokens"`
-	OIDCEmail    string `name:"oidc-email" help:"Expected service account email"`
-	OIDCAudience string `name:"oidc-audience" help:"Expected OIDC audience"`
-	SharedToken  string `name:"token" help:"Shared token for x-gog-token or ?token="`
-	HookURL      string `name:"hook-url" help:"Webhook URL to forward messages"`
-	HookToken    string `name:"hook-token" help:"Webhook bearer token"`
-	IncludeBody  bool   `name:"include-body" help:"Include text/plain body in hook payload"`
-	MaxBytes     int    `name:"max-bytes" help:"Max bytes of body to include" default:"20000"`
-	SaveHook     bool   `name:"save-hook" help:"Persist hook settings to watch state"`
+	Bind          string `name:"bind" help:"Bind address" default:"127.0.0.1"`
+	Port          int    `name:"port" help:"Listen port" default:"8788"`
+	Path          string `name:"path" help:"Push handler path" default:"/gmail-pubsub"`
+	Timezone      string `name:"timezone" short:"z" help:"Output timezone (IANA name, e.g. America/New_York, UTC). Default: local"`
+	Local         bool   `name:"local" help:"Use local timezone (default behavior, useful to override --timezone)"`
+	VerifyOIDC    bool   `name:"verify-oidc" help:"Verify Pub/Sub OIDC tokens"`
+	OIDCEmail     string `name:"oidc-email" help:"Expected service account email"`
+	OIDCAudience  string `name:"oidc-audience" help:"Expected OIDC audience"`
+	SharedToken   string `name:"token" help:"Shared token for x-gog-token or ?token="`
+	HookURL       string `name:"hook-url" help:"Webhook URL to forward messages"`
+	HookToken     string `name:"hook-token" help:"Webhook bearer token"`
+	IncludeBody   bool   `name:"include-body" help:"Include text/plain body in hook payload"`
+	MaxBytes      int    `name:"max-bytes" help:"Max bytes of body to include" default:"20000"`
+	ExcludeLabels string `name:"exclude-labels" help:"Comma-separated list of Gmail label IDs to exclude from hook payload (e.g. SPAM,TRASH). Set to empty string to disable." default:"SPAM,TRASH"`
+	SaveHook      bool   `name:"save-hook" help:"Persist hook settings to watch state"`
 }
 
 func (c *GmailWatchServeCmd) Run(ctx context.Context, kctx *kong.Context, flags *RootFlags) error {
@@ -286,21 +287,23 @@ func (c *GmailWatchServeCmd) Run(ctx context.Context, kctx *kong.Context, flags 
 	}
 
 	cfg := gmailWatchServeConfig{
-		Account:      account,
-		Bind:         c.Bind,
-		Port:         c.Port,
-		Path:         c.Path,
-		VerifyOIDC:   c.VerifyOIDC,
-		OIDCEmail:    c.OIDCEmail,
-		OIDCAudience: c.OIDCAudience,
-		SharedToken:  c.SharedToken,
-		HookTimeout:  defaultHookRequestTimeoutSec * time.Second,
-		HistoryMax:   defaultHistoryMaxResults,
-		ResyncMax:    defaultHistoryResyncMax,
-		AllowNoHook:  hook == nil,
-		IncludeBody:  includeBody,
-		MaxBodyBytes: maxBytes,
-		DateLocation: loc,
+		Account:       account,
+		Bind:          c.Bind,
+		Port:          c.Port,
+		Path:          c.Path,
+		VerifyOIDC:    c.VerifyOIDC,
+		OIDCEmail:     c.OIDCEmail,
+		OIDCAudience:  c.OIDCAudience,
+		SharedToken:   c.SharedToken,
+		HookTimeout:   defaultHookRequestTimeoutSec * time.Second,
+		HistoryMax:    defaultHistoryMaxResults,
+		ResyncMax:     defaultHistoryResyncMax,
+		AllowNoHook:   hook == nil,
+		IncludeBody:   includeBody,
+		MaxBodyBytes:  maxBytes,
+		DateLocation:  loc,
+		ExcludeLabels: splitCommaList(c.ExcludeLabels),
+		VerboseOutput: flags.Verbose,
 	}
 	if hook != nil {
 		cfg.HookURL = hook.URL
@@ -315,13 +318,14 @@ func (c *GmailWatchServeCmd) Run(ctx context.Context, kctx *kong.Context, flags 
 
 	hookClient := &http.Client{Timeout: cfg.HookTimeout}
 	server := &gmailWatchServer{
-		cfg:        cfg,
-		store:      store,
-		validator:  validator,
-		newService: newGmailService,
-		hookClient: hookClient,
-		logf:       u.Err().Printf,
-		warnf:      u.Err().Printf,
+		cfg:             cfg,
+		store:           store,
+		validator:       validator,
+		newService:      newGmailService,
+		hookClient:      hookClient,
+		excludeLabelIDs: lowerStringSet(cfg.ExcludeLabels),
+		logf:            u.Err().Printf,
+		warnf:           u.Err().Printf,
 	}
 
 	addr := net.JoinHostPort(c.Bind, strconv.Itoa(c.Port))
