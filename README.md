@@ -5,6 +5,18 @@
 
 Fast, script-friendly CLI for Gmail, Calendar, Chat, Classroom, Drive, Docs, Slides, Sheets, Contacts, Tasks, People, Groups (Workspace), and Keep (Workspace-only). JSON-first output, multiple accounts, and least-privilege auth built in.
 
+## Fork Status
+
+This is a CampusIQ-maintained fork of [steipete/gogcli](https://github.com/steipete/gogcli).
+
+**Why:** Upstream has limited merge activity (30+ open PRs, batch review cycles). We needed Google Docs write/update commands and Drive/Docs comments support on our timeline.
+
+**Strategy:** Soft fork — we own this fully but keep `upstream` remote for future cherry-picking. No binary rename, no Go module path changes.
+
+**Distribution:** Via Homebrew tap (`brew install degree-analytics/tap/gogcli`).
+
+**Upstream:** PR #185 remains open as a contribution. We have no dependency on it being merged.
+
 ## Features
 
 - **Gmail** - search threads and messages, send emails, view attachments, manage labels/drafts/filters/delegation/vacation settings, history, and watch (Pub/Sub push)
