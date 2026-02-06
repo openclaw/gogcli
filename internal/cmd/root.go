@@ -112,6 +112,17 @@ func Execute(args []string) (err error) {
 
 	kctx, err := parser.Parse(args)
 	if err != nil {
+		// External command discovery (cargo/git-style plugins)
+		// Design: Post-parse fallback (Option B)
+		// Why: Built-in commands always take precedence over external plugins.
+		// This prevents accidental or malicious shadowing of core functionality
+		// and follows the git/cargo convention where built-ins win.
+		// See: https://github.com/steipete/gogcli/issues/188
+		if extErr := tryExternalCommand(args); extErr == nil || !errors.Is(extErr, ErrExternalNotFound) {
+			// Either external command executed (replaced process) or exec failed
+			return extErr
+		}
+		// No external command found; return original Kong parse error
 		parsedErr := wrapParseError(err)
 		_, _ = fmt.Fprintln(os.Stderr, errfmt.Format(parsedErr))
 		return parsedErr
