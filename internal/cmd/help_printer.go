@@ -47,6 +47,7 @@ func helpPrinter(options kong.HelpOptions, ctx *kong.Context) error {
 
 	out := rewriteCommandSummaries(buf.String(), ctx.Selected())
 	out = injectBuildLine(out)
+	out = injectExternalPlugins(out, ctx.Selected())
 	out = colorizeHelp(out, helpProfile(origStdout, helpColorMode(ctx.Args)))
 	_, err := io.WriteString(origStdout, out)
 	return err
@@ -138,10 +139,16 @@ func colorizeHelp(out string, profile termenv.Profile) string {
 	}
 
 	inCommands := false
+	inPlugins := false
 	lines := strings.Split(out, "\n")
 	for i, line := range lines {
 		if line == "Commands:" {
 			inCommands = true
+			inPlugins = false
+		}
+		if line == "Plugins:" {
+			inPlugins = true
+			inCommands = false
 		}
 		switch {
 		case strings.HasPrefix(line, "Usage:"):
@@ -149,6 +156,8 @@ func colorizeHelp(out string, profile termenv.Profile) string {
 		case line == "Flags:":
 			lines[i] = section(line)
 		case line == "Commands:":
+			lines[i] = section(line)
+		case line == "Plugins:":
 			lines[i] = section(line)
 		case line == "Arguments:":
 			lines[i] = section(line)
@@ -160,6 +169,8 @@ func colorizeHelp(out string, profile termenv.Profile) string {
 			lines[i] = colorizeCommandSummaryLine(line, cmdName, dim)
 		case inCommands && strings.HasPrefix(line, "    ") && strings.TrimSpace(line) != "":
 			lines[i] = "    " + dim(strings.TrimPrefix(line, "    "))
+		case inPlugins && strings.HasPrefix(line, "  ") && strings.TrimSpace(line) != "":
+			lines[i] = colorizePluginLine(line, cmdName, dim)
 		}
 	}
 	return strings.Join(lines, "\n")
@@ -188,6 +199,33 @@ func colorizeCommandSummaryLine(line string, cmdName func(string) string, dim fu
 	tail = strings.ReplaceAll(tail, ">", dim(">"))
 	tail = strings.ReplaceAll(tail, "[flags]", dim("[flags]"))
 	return "  " + styled + " " + tail
+}
+
+// colorizePluginLine colorizes a plugin line in the Plugins: section.
+// Plugin lines look like: "  docs headings  List document headings"
+func colorizePluginLine(line string, cmdName func(string) string, dim func(string) string) string {
+	if !strings.HasPrefix(line, "  ") {
+		return line
+	}
+	rest := strings.TrimPrefix(line, "  ")
+	if rest == "" {
+		return line
+	}
+
+	// Find where the command name ends (two or more spaces indicate description start)
+	parts := strings.SplitN(rest, "  ", 2)
+	name := parts[0]
+	if name == "" {
+		return line
+	}
+
+	styled := cmdName(name)
+	if len(parts) == 1 {
+		return "  " + styled
+	}
+
+	// Description is dimmed
+	return "  " + styled + "  " + dim(parts[1])
 }
 
 func rewriteCommandSummaries(out string, selected *kong.Node) string {
@@ -222,4 +260,60 @@ func guessColumns(w io.Writer) int {
 		return width
 	}
 	return 80
+}
+
+// injectExternalPlugins adds discovered external plugins to help output.
+// Plugins are displayed in a separate "Plugins:" section after "Commands:".
+//
+// Discovery is lazy: only scans PATH when help is requested.
+// The --help-oneliner protocol is used to get plugin descriptions.
+// Plugins that don't respond within 100ms get no description.
+func injectExternalPlugins(out string, selected *kong.Node) string {
+	// Only show plugins in root help (not subcommand help)
+	if selected != nil && selected.Parent != nil {
+		return out
+	}
+
+	plugins := DiscoverExternalPlugins()
+	if len(plugins) == 0 {
+		return out
+	}
+
+	// Fetch oneliners (with timeout)
+	plugins = FetchOneliners(plugins)
+
+	// Build plugins section
+	var sb strings.Builder
+	sb.WriteString("\nPlugins:\n")
+
+	// Find max command name length for alignment
+	maxLen := 0
+	for _, p := range plugins {
+		if len(p.CommandName()) > maxLen {
+			maxLen = len(p.CommandName())
+		}
+	}
+
+	for _, p := range plugins {
+		cmdName := p.CommandName()
+		padding := strings.Repeat(" ", maxLen-len(cmdName)+2)
+		if p.Oneliner != "" {
+			sb.WriteString(fmt.Sprintf("  %s%s%s\n", cmdName, padding, p.Oneliner))
+		} else {
+			sb.WriteString(fmt.Sprintf("  %s\n", cmdName))
+		}
+	}
+
+	// Insert before "Run ... --help" line or at end
+	lines := strings.Split(out, "\n")
+	for i, line := range lines {
+		if strings.HasPrefix(line, "Run \"") && strings.HasSuffix(line, " --help\" for more information on a command.") {
+			before := strings.Join(lines[:i], "\n")
+			after := strings.Join(lines[i:], "\n")
+			return before + sb.String() + after
+		}
+	}
+
+	// Append at end if no "Run ... --help" line found
+	return out + sb.String()
 }
