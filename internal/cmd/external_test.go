@@ -3,6 +3,7 @@ package cmd
 import (
 	"errors"
 	"os/exec"
+	"strings"
 	"testing"
 )
 
@@ -246,5 +247,126 @@ func TestGroupPluginsByTopLevel_EmptySubcommands(t *testing.T) {
 	}
 	if len(groups["docs"]) != 1 {
 		t.Errorf("docs group has %d plugins, want 1", len(groups["docs"]))
+	}
+}
+
+func TestSetEnvVar(t *testing.T) {
+	tests := []struct {
+		name     string
+		env      []string
+		key      string
+		value    string
+		wantLen  int
+		wantLast string
+	}{
+		{
+			name:     "add new variable to empty env",
+			env:      []string{},
+			key:      "GOG_TEST",
+			value:    "value",
+			wantLen:  1,
+			wantLast: "GOG_TEST=value",
+		},
+		{
+			name:     "add new variable to existing env",
+			env:      []string{"PATH=/usr/bin", "HOME=/home/user"},
+			key:      "GOG_TEST",
+			value:    "value",
+			wantLen:  3,
+			wantLast: "GOG_TEST=value",
+		},
+		{
+			name:     "override existing variable",
+			env:      []string{"PATH=/usr/bin", "GOG_TEST=old"},
+			key:      "GOG_TEST",
+			value:    "new",
+			wantLen:  2,
+			wantLast: "GOG_TEST=new",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := setEnvVar(tt.env, tt.key, tt.value)
+			if len(result) != tt.wantLen {
+				t.Errorf("len = %d, want %d", len(result), tt.wantLen)
+			}
+
+			// Check that the variable is set correctly
+			found := false
+			for _, e := range result {
+				if e == tt.wantLast {
+					found = true
+					break
+				}
+			}
+			if !found {
+				t.Errorf("did not find %q in result %v", tt.wantLast, result)
+			}
+		})
+	}
+}
+
+func TestBuildPluginEnv(t *testing.T) {
+	// Test that buildPluginEnv adds expected variables
+	env := buildPluginEnv("/usr/bin/gog-docs-headings", []string{"docs", "headings"})
+
+	// Check for expected variables
+	expectations := map[string]bool{
+		"GOG_CORE_VERSION":     false,
+		"GOG_PLUGIN_NAME":      false,
+		"GOG_PLUGIN_INVOKED_AS": false,
+	}
+
+	for _, e := range env {
+		for key := range expectations {
+			if strings.HasPrefix(e, key+"=") {
+				expectations[key] = true
+			}
+		}
+	}
+
+	for key, found := range expectations {
+		if !found {
+			t.Errorf("expected %s to be set in plugin env", key)
+		}
+	}
+
+	// Verify specific values
+	for _, e := range env {
+		if strings.HasPrefix(e, "GOG_PLUGIN_NAME=") {
+			if e != "GOG_PLUGIN_NAME=gog-docs-headings" {
+				t.Errorf("GOG_PLUGIN_NAME = %q, want gog-docs-headings", e)
+			}
+		}
+		if strings.HasPrefix(e, "GOG_PLUGIN_INVOKED_AS=") {
+			if e != "GOG_PLUGIN_INVOKED_AS=gog docs headings" {
+				t.Errorf("GOG_PLUGIN_INVOKED_AS = %q, want 'gog docs headings'", e)
+			}
+		}
+	}
+}
+
+func TestFindExternalCommandWithMatched(t *testing.T) {
+	// Test that matchedArgs is returned correctly for env var construction
+	origLookPath := lookPath
+	defer func() { lookPath = origLookPath }()
+
+	lookPath = mockLookPath(map[string]string{
+		"gog-docs-headings": "/usr/bin/gog-docs-headings",
+	})
+
+	path, remaining, matched := findExternalCommandWithMatched([]string{"docs", "headings", "--docid", "ABC"})
+
+	if path != "/usr/bin/gog-docs-headings" {
+		t.Errorf("path = %q, want /usr/bin/gog-docs-headings", path)
+	}
+
+	if !slicesEqual(remaining, []string{"--docid", "ABC"}) {
+		t.Errorf("remaining = %v, want [--docid ABC]", remaining)
+	}
+
+	if !slicesEqual(matched, []string{"docs", "headings"}) {
+		t.Errorf("matched = %v, want [docs headings]", matched)
 	}
 }

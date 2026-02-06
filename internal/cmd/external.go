@@ -11,6 +11,8 @@ import (
 	"strings"
 	"syscall"
 	"time"
+
+	"github.com/steipete/gogcli/internal/config"
 )
 
 // externalCommandPrefix is the prefix for external plugin binaries.
@@ -47,38 +49,119 @@ func tryExternalCommand(args []string) error {
 		return ErrExternalNotFound
 	}
 
-	path, remainingArgs := findExternalCommand(args)
+	path, remainingArgs, matchedArgs := findExternalCommandWithMatched(args)
 	if path == "" {
 		return ErrExternalNotFound
 	}
 
-	return execExternal(path, remainingArgs)
+	return execExternal(path, remainingArgs, matchedArgs)
 }
 
 // findExternalCommand searches PATH for a matching external plugin binary.
 // Uses longest-first matching: tries most specific binary name first.
 // Returns the path to the binary and remaining arguments to pass to it.
 func findExternalCommand(args []string) (binaryPath string, remainingArgs []string) {
+	path, remaining, _ := findExternalCommandWithMatched(args)
+	return path, remaining
+}
+
+// findExternalCommandWithMatched is like findExternalCommand but also returns
+// the matched subcommand args (for building GOG_PLUGIN_INVOKED_AS).
+func findExternalCommandWithMatched(args []string) (binaryPath string, remainingArgs []string, matchedArgs []string) {
 	// Longest-first: start with all args, progressively try fewer
 	// Why: More specific plugins take precedence (e.g., gog-docs-headings over gog-docs)
 	for i := len(args); i > 0; i-- {
 		binaryName := externalCommandPrefix + strings.Join(args[:i], "-")
-		if path, err := exec.LookPath(binaryName); err == nil {
-			return path, args[i:]
+		if path, err := lookPath(binaryName); err == nil {
+			return path, args[i:], args[:i]
 		}
 	}
-	return "", nil
+	return "", nil, nil
 }
 
 // execExternal replaces the current process with the external command.
 // Uses syscall.Exec for true process replacement (no child process).
-func execExternal(binaryPath string, args []string) error {
+//
+// Environment variables passed to plugins:
+//   - GOG_CORE_VERSION: Version of the gog CLI
+//   - GOG_CORE_PATH: Path to the gog binary (for plugins to call back)
+//   - GOG_CONFIG_PATH: Path to config file (for shared configuration)
+//   - GOG_PLUGIN_NAME: Binary name of the plugin being executed
+//   - GOG_PLUGIN_INVOKED_AS: How user invoked the command (e.g., "gog docs headings")
+//   - GOG_COLOR: Color preference from parent (auto/always/never)
+//   - GOG_OUTPUT_FORMAT: Output format if --json or --plain was specified
+//
+// Why pass env vars: Allows plugins to share configuration, reuse auth,
+// and maintain consistent output formatting with the core CLI.
+func execExternal(binaryPath string, args []string, matchedArgs []string) error {
 	// Build argv: binary name followed by remaining arguments
 	argv := append([]string{binaryPath}, args...)
 
+	// Build environment with plugin-specific variables
+	env := buildPluginEnv(binaryPath, matchedArgs)
+
 	// Use syscall.Exec to replace current process
 	// This is the standard pattern for CLI plugin dispatch (git, cargo)
-	return syscall.Exec(binaryPath, argv, os.Environ())
+	return syscall.Exec(binaryPath, argv, env)
+}
+
+// buildPluginEnv creates the environment for plugin execution.
+// Inherits current environment and adds GOG_* variables for plugin integration.
+func buildPluginEnv(binaryPath string, matchedArgs []string) []string {
+	// Start with current environment
+	env := os.Environ()
+
+	// Add plugin-specific variables
+	pluginVars := map[string]string{
+		"GOG_CORE_VERSION": version,
+		"GOG_PLUGIN_NAME":  filepath.Base(binaryPath),
+	}
+
+	// GOG_PLUGIN_INVOKED_AS: the command as user typed it
+	if len(matchedArgs) > 0 {
+		pluginVars["GOG_PLUGIN_INVOKED_AS"] = "gog " + strings.Join(matchedArgs, " ")
+	}
+
+	// GOG_CORE_PATH: path to gog binary for callbacks
+	if corePath, err := os.Executable(); err == nil {
+		pluginVars["GOG_CORE_PATH"] = corePath
+	}
+
+	// GOG_CONFIG_PATH: shared config file
+	if configPath, err := config.ConfigPath(); err == nil {
+		pluginVars["GOG_CONFIG_PATH"] = configPath
+	}
+
+	// Inherit color preference if set
+	if color := os.Getenv("GOG_COLOR"); color != "" {
+		pluginVars["GOG_COLOR"] = color
+	}
+
+	// Set output format if JSON or plain mode
+	if os.Getenv("GOG_JSON") == "true" {
+		pluginVars["GOG_OUTPUT_FORMAT"] = "json"
+	} else if os.Getenv("GOG_PLAIN") == "true" {
+		pluginVars["GOG_OUTPUT_FORMAT"] = "plain"
+	}
+
+	// Add/override with our plugin variables
+	for k, v := range pluginVars {
+		env = setEnvVar(env, k, v)
+	}
+
+	return env
+}
+
+// setEnvVar sets or overrides an environment variable in a []string env.
+func setEnvVar(env []string, key, value string) []string {
+	prefix := key + "="
+	for i, e := range env {
+		if strings.HasPrefix(e, prefix) {
+			env[i] = prefix + value
+			return env
+		}
+	}
+	return append(env, prefix+value)
 }
 
 // LookPath is a variable to allow mocking in tests.
