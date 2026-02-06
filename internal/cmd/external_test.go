@@ -159,3 +159,92 @@ func slicesEqual(a, b []string) bool {
 	}
 	return true
 }
+
+func TestExternalPlugin_CommandName(t *testing.T) {
+	tests := []struct {
+		name        string
+		subcommands []string
+		want        string
+	}{
+		{
+			name:        "single subcommand",
+			subcommands: []string{"docs"},
+			want:        "docs",
+		},
+		{
+			name:        "two subcommands",
+			subcommands: []string{"docs", "headings"},
+			want:        "docs headings",
+		},
+		{
+			name:        "three subcommands",
+			subcommands: []string{"docs", "headings", "list"},
+			want:        "docs headings list",
+		},
+		{
+			name:        "empty subcommands",
+			subcommands: []string{},
+			want:        "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := ExternalPlugin{Subcommands: tt.subcommands}
+			if got := p.CommandName(); got != tt.want {
+				t.Errorf("CommandName() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestGroupPluginsByTopLevel(t *testing.T) {
+	// Test that plugins are correctly grouped by their first subcommand.
+	// This is used to display plugins under their parent command in help.
+
+	plugins := []ExternalPlugin{
+		{Name: "docs-headings", Subcommands: []string{"docs", "headings"}},
+		{Name: "docs-bookmarks", Subcommands: []string{"docs", "bookmarks"}},
+		{Name: "sheets-formulas", Subcommands: []string{"sheets", "formulas"}},
+		{Name: "hello", Subcommands: []string{"hello"}},
+	}
+
+	groups := GroupPluginsByTopLevel(plugins)
+
+	// Check docs group
+	if len(groups["docs"]) != 2 {
+		t.Errorf("docs group has %d plugins, want 2", len(groups["docs"]))
+	}
+
+	// Check sheets group
+	if len(groups["sheets"]) != 1 {
+		t.Errorf("sheets group has %d plugins, want 1", len(groups["sheets"]))
+	}
+
+	// Check hello group (single-level plugin)
+	if len(groups["hello"]) != 1 {
+		t.Errorf("hello group has %d plugins, want 1", len(groups["hello"]))
+	}
+
+	// Check total groups
+	if len(groups) != 3 {
+		t.Errorf("got %d groups, want 3", len(groups))
+	}
+}
+
+func TestGroupPluginsByTopLevel_EmptySubcommands(t *testing.T) {
+	// Plugins with empty subcommands should be skipped
+	plugins := []ExternalPlugin{
+		{Name: "", Subcommands: []string{}},
+		{Name: "docs", Subcommands: []string{"docs"}},
+	}
+
+	groups := GroupPluginsByTopLevel(plugins)
+
+	if len(groups) != 1 {
+		t.Errorf("got %d groups, want 1", len(groups))
+	}
+	if len(groups["docs"]) != 1 {
+		t.Errorf("docs group has %d plugins, want 1", len(groups["docs"]))
+	}
+}
