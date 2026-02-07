@@ -17,7 +17,7 @@ import (
 
 const (
 	contactsReadMask    = "names,emailAddresses,phoneNumbers"
-	contactsGetReadMask = contactsReadMask + ",birthdays"
+	contactsGetReadMask = contactsReadMask + ",birthdays,urls,biographies,addresses,organizations"
 )
 
 type ContactsListCmd struct {
