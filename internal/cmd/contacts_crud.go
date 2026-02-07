@@ -2,7 +2,9 @@ package cmd
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 
@@ -217,6 +219,7 @@ type ContactsUpdateCmd struct {
 	Family       string `name:"family" help:"Family name"`
 	Email        string `name:"email" help:"Email address (empty clears)"`
 	Phone        string `name:"phone" help:"Phone number (empty clears)"`
+	FromFile     string `name:"from-file" help:"Update from JSON file (use - for stdin)"`
 }
 
 func (c *ContactsUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *RootFlags) error {
@@ -233,6 +236,11 @@ func (c *ContactsUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *
 	svc, err := newPeopleContactsService(ctx, account)
 	if err != nil {
 		return err
+	}
+
+	// Handle JSON input from file or stdin
+	if c.FromFile != "" {
+		return c.updateFromJSON(ctx, svc, resourceName, u)
 	}
 
 	existing, err := svc.People.Get(resourceName).PersonFields(contactsReadMask).Do()
@@ -290,6 +298,90 @@ func (c *ContactsUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *
 		return outfmt.WriteJSON(os.Stdout, map[string]any{"contact": updated})
 	}
 	u.Out().Printf("resource\t%s", updated.ResourceName)
+	return nil
+}
+
+// updateFromJSON updates a contact from JSON input (file or stdin)
+func (c *ContactsUpdateCmd) updateFromJSON(ctx context.Context, svc *people.Service, resourceName string, u *ui.UI) error {
+	var reader io.Reader
+	if c.FromFile == "-" {
+		reader = os.Stdin
+	} else {
+		f, err := os.Open(c.FromFile)
+		if err != nil {
+			return fmt.Errorf("failed to open file: %w", err)
+		}
+		defer f.Close()
+		reader = f
+	}
+
+	// Read and parse JSON
+	data, err := io.ReadAll(reader)
+	if err != nil {
+		return fmt.Errorf("failed to read input: %w", err)
+	}
+
+	// Support both direct Person JSON and wrapped format from "gog contacts get --json"
+	var input struct {
+		Contact *people.Person `json:"contact"`
+	}
+	if err := json.Unmarshal(data, &input); err != nil {
+		return fmt.Errorf("failed to parse JSON: %w", err)
+	}
+
+	person := input.Contact
+	if person == nil {
+		// Try parsing as direct Person object
+		person = &people.Person{}
+		if err := json.Unmarshal(data, person); err != nil {
+			return fmt.Errorf("failed to parse JSON as Person: %w", err)
+		}
+	}
+
+	// Build update mask based on what fields are present in the JSON
+	var updateFields []string
+	if len(person.Names) > 0 {
+		updateFields = append(updateFields, "names")
+	}
+	if len(person.EmailAddresses) > 0 {
+		updateFields = append(updateFields, "emailAddresses")
+	}
+	if len(person.PhoneNumbers) > 0 {
+		updateFields = append(updateFields, "phoneNumbers")
+	}
+	if len(person.Urls) > 0 {
+		updateFields = append(updateFields, "urls")
+	}
+	if len(person.Biographies) > 0 {
+		updateFields = append(updateFields, "biographies")
+	}
+	if len(person.Addresses) > 0 {
+		updateFields = append(updateFields, "addresses")
+	}
+	if len(person.Birthdays) > 0 {
+		updateFields = append(updateFields, "birthdays")
+	}
+	if len(person.Organizations) > 0 {
+		updateFields = append(updateFields, "organizations")
+	}
+
+	if len(updateFields) == 0 {
+		return usage("no fields to update in JSON input")
+	}
+
+	// Perform the update
+	updated, err := svc.People.UpdateContact(resourceName, person).
+		UpdatePersonFields(strings.Join(updateFields, ",")).
+		Do()
+	if err != nil {
+		return fmt.Errorf("failed to update contact: %w", err)
+	}
+
+	if outfmt.IsJSON(ctx) {
+		return outfmt.WriteJSON(os.Stdout, map[string]any{"contact": updated})
+	}
+	u.Out().Printf("resource\t%s", updated.ResourceName)
+	u.Out().Println("✓ Updated from JSON")
 	return nil
 }
 
