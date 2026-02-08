@@ -131,7 +131,7 @@ func ResolveTimeRangeWithDefaults(ctx context.Context, svc *calendar.Service, fl
 
 		switch {
 		case flags.To != "":
-			to, err = parseTimeExpr(flags.To, now, loc)
+			to, err = parseTimeExprEndOfDay(flags.To, now, loc)
 			if err != nil {
 				return nil, fmt.Errorf("invalid --to: %w", err)
 			}
@@ -147,6 +147,23 @@ func ResolveTimeRangeWithDefaults(ctx context.Context, svc *calendar.Service, fl
 		To:       to,
 		Location: loc,
 	}, nil
+}
+
+// parseTimeExprEndOfDay is like parseTimeExpr but interprets date-only values
+// and relative day expressions as end of day (23:59:59.999999999) instead of
+// start of day. This is useful for --to flags where "2026-01-05" should mean
+// "through the end of Jan 5" rather than "midnight at the start of Jan 5".
+func parseTimeExprEndOfDay(expr string, now time.Time, loc *time.Location) (time.Time, error) {
+	t, err := parseTimeExpr(expr, now, loc)
+	if err != nil {
+		return t, err
+	}
+	// If the result is exactly midnight (start of day), it was likely a date-only
+	// or relative day expression — adjust to end of day.
+	if t.Hour() == 0 && t.Minute() == 0 && t.Second() == 0 && t.Nanosecond() == 0 {
+		return endOfDay(t), nil
+	}
+	return t, nil
 }
 
 // parseTimeExpr parses a time expression which can be:

@@ -161,6 +161,50 @@ func TestDayBounds(t *testing.T) {
 	}
 }
 
+func TestParseTimeExprEndOfDay(t *testing.T) {
+	now := time.Date(2025, 1, 10, 12, 0, 0, 0, time.UTC)
+	loc := time.FixedZone("IST", 5*3600+30*60)
+
+	// Date-only should resolve to end of day
+	parsed, err := parseTimeExprEndOfDay("2025-01-05", now, loc)
+	if err != nil {
+		t.Fatalf("parseTimeExprEndOfDay date: %v", err)
+	}
+	if parsed.Hour() != 23 || parsed.Minute() != 59 || parsed.Second() != 59 {
+		t.Fatalf("expected end of day, got %v", parsed)
+	}
+	if parsed.Location() != loc {
+		t.Fatalf("expected loc %v, got %v", loc, parsed.Location())
+	}
+
+	// Relative "today" should resolve to end of day
+	parsed, err = parseTimeExprEndOfDay("today", now, time.UTC)
+	if err != nil {
+		t.Fatalf("parseTimeExprEndOfDay today: %v", err)
+	}
+	if parsed.Hour() != 23 || parsed.Minute() != 59 || parsed.Second() != 59 {
+		t.Fatalf("expected end of day for today, got %v", parsed)
+	}
+
+	// RFC3339 with explicit time should NOT be adjusted
+	parsed, err = parseTimeExprEndOfDay("2025-01-05T14:00:00Z", now, loc)
+	if err != nil {
+		t.Fatalf("parseTimeExprEndOfDay rfc3339: %v", err)
+	}
+	if parsed.Hour() != 14 {
+		t.Fatalf("expected hour 14, got %v", parsed.Hour())
+	}
+
+	// Explicit midnight RFC3339 IS adjusted (acceptable trade-off)
+	parsed, err = parseTimeExprEndOfDay("2025-01-05T00:00:00Z", now, loc)
+	if err != nil {
+		t.Fatalf("parseTimeExprEndOfDay midnight rfc3339: %v", err)
+	}
+	if parsed.Hour() != 23 {
+		t.Fatalf("explicit midnight gets adjusted to end of day (known behavior), got hour %v", parsed.Hour())
+	}
+}
+
 func TestParseWeekStartVariants(t *testing.T) {
 	if wd, ok := parseWeekStart("tues"); !ok || wd != time.Tuesday {
 		t.Fatalf("unexpected week start: %v ok=%v", wd, ok)
