@@ -27,6 +27,7 @@ type SheetsCmd struct {
 	Get      SheetsGetCmd      `cmd:"" name:"get" aliases:"read,show" help:"Get values from a range"`
 	Update   SheetsUpdateCmd   `cmd:"" name:"update" aliases:"edit,set" help:"Update values in a range"`
 	Append   SheetsAppendCmd   `cmd:"" name:"append" aliases:"add" help:"Append values to a range"`
+	Insert   SheetsInsertCmd   `cmd:"" name:"insert" help:"Insert empty rows or columns into a sheet"`
 	Clear    SheetsClearCmd    `cmd:"" name:"clear" help:"Clear values in a range"`
 	Format   SheetsFormatCmd   `cmd:"" name:"format" help:"Apply cell formatting to a range"`
 	Notes    SheetsNotesCmd    `cmd:"" name:"notes" help:"Get cell notes from a range"`
