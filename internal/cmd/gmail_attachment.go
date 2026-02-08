@@ -23,16 +23,56 @@ type GmailAttachmentCmd struct {
 	Name         string         `name:"name" help:"Filename (only used when --out is empty)"`
 }
 
+const defaultGmailAttachmentFilename = "attachment.bin"
+
 func (c *GmailAttachmentCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
-	messageID := strings.TrimSpace(c.MessageID)
+	messageID := normalizeGmailMessageID(c.MessageID)
 	attachmentID := strings.TrimSpace(c.AttachmentID)
 	if messageID == "" || attachmentID == "" {
 		return usage("messageId/attachmentId required")
+	}
+
+	outPathFlag := strings.TrimSpace(c.Output.Path)
+	var destPath string
+	if outPathFlag == "" {
+		dir, dirErr := config.GmailAttachmentsDir()
+		if dirErr != nil {
+			return dirErr
+		}
+		filename := strings.TrimSpace(c.Name)
+		if filename == "" {
+			filename = defaultGmailAttachmentFilename
+		}
+		safeFilename := filepath.Base(filename)
+		if safeFilename == "" || safeFilename == "." || safeFilename == ".." {
+			safeFilename = defaultGmailAttachmentFilename
+		}
+		shortID := attachmentID
+		if len(shortID) > 8 {
+			shortID = shortID[:8]
+		}
+		destPath = filepath.Join(dir, fmt.Sprintf("%s_%s_%s", messageID, shortID, safeFilename))
+	} else {
+		outPath, err := config.ExpandPath(outPathFlag)
+		if err != nil {
+			return err
+		}
+		destPath = outPath
+	}
+
+	// Avoid touching auth/keyring and avoid writing files in dry-run mode.
+	if err := dryRunExit(ctx, flags, "gmail.attachment.download", map[string]any{
+		"message_id":    messageID,
+		"attachment_id": attachmentID,
+		"path":          destPath,
+	}); err != nil {
+		return err
+	}
+
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
 	}
 
 	svc, err := newGmailService(ctx, account)
@@ -47,11 +87,11 @@ func (c *GmailAttachmentCmd) Run(ctx context.Context, flags *RootFlags) error {
 		}
 		filename := strings.TrimSpace(c.Name)
 		if filename == "" {
-			filename = "attachment.bin"
+			filename = defaultGmailAttachmentFilename
 		}
 		safeFilename := filepath.Base(filename)
 		if safeFilename == "" || safeFilename == "." || safeFilename == ".." {
-			safeFilename = "attachment.bin"
+			safeFilename = defaultGmailAttachmentFilename
 		}
 		shortID := attachmentID
 		if len(shortID) > 8 {
@@ -63,7 +103,7 @@ func (c *GmailAttachmentCmd) Run(ctx context.Context, flags *RootFlags) error {
 			return dlErr
 		}
 		if outfmt.IsJSON(ctx) {
-			return outfmt.WriteJSON(os.Stdout, map[string]any{"path": path, "cached": cached, "bytes": bytes})
+			return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{"path": path, "cached": cached, "bytes": bytes})
 		}
 		u.Out().Printf("path\t%s", path)
 		u.Out().Printf("cached\t%t", cached)
@@ -80,7 +120,7 @@ func (c *GmailAttachmentCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{"path": path, "cached": cached, "bytes": bytes})
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{"path": path, "cached": cached, "bytes": bytes})
 	}
 	u.Out().Printf("path\t%s", path)
 	u.Out().Printf("cached\t%t", cached)

@@ -11,9 +11,28 @@ import (
 	"golang.org/x/term"
 
 	"github.com/steipete/gogcli/internal/input"
+	"github.com/steipete/gogcli/internal/outfmt"
+	"github.com/steipete/gogcli/internal/ui"
 )
 
 func confirmDestructive(ctx context.Context, flags *RootFlags, action string) error {
+	if flags != nil && flags.DryRun {
+		// Dry-run exits successfully after printing the intended action.
+		if outfmt.IsJSON(ctx) {
+			_ = outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
+				"dry_run": true,
+				"action":  action,
+			})
+		} else if outfmt.IsPlain(ctx) {
+			fmt.Fprintf(os.Stdout, "dry_run\ttrue\n")
+			fmt.Fprintf(os.Stdout, "action\t%s\n", action)
+		} else if u := ui.FromContext(ctx); u != nil {
+			u.Out().Printf("Dry run: would %s", action)
+		} else {
+			fmt.Printf("Dry run: would %s\n", action)
+		}
+		return &ExitError{Code: 0, Err: nil}
+	}
 	if flags.Force {
 		return nil
 	}

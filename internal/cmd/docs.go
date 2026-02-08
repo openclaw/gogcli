@@ -22,11 +22,11 @@ import (
 var newDocsService = googleapi.NewDocs
 
 type DocsCmd struct {
-	Export      DocsExportCmd      `cmd:"" name:"export" help:"Export a Google Doc (pdf|docx|txt)"`
-	Info        DocsInfoCmd        `cmd:"" name:"info" help:"Get Google Doc metadata"`
-	Create      DocsCreateCmd      `cmd:"" name:"create" help:"Create a Google Doc"`
-	Copy        DocsCopyCmd        `cmd:"" name:"copy" help:"Copy a Google Doc"`
-	Cat         DocsCatCmd         `cmd:"" name:"cat" help:"Print a Google Doc as plain text"`
+	Export      DocsExportCmd      `cmd:"" name:"export" aliases:"download,dl" help:"Export a Google Doc (pdf|docx|txt)"`
+	Info        DocsInfoCmd        `cmd:"" name:"info" aliases:"get,show" help:"Get Google Doc metadata"`
+	Create      DocsCreateCmd      `cmd:"" name:"create" aliases:"add,new" help:"Create a Google Doc"`
+	Copy        DocsCopyCmd        `cmd:"" name:"copy" aliases:"cp,duplicate" help:"Copy a Google Doc"`
+	Cat         DocsCatCmd         `cmd:"" name:"cat" aliases:"text,read" help:"Print a Google Doc as plain text"`
 	ListTabs    DocsListTabsCmd    `cmd:"" name:"list-tabs" help:"List all tabs in a Google Doc"`
 	Write       DocsWriteCmd       `cmd:"" name:"write" help:"Write content to a Google Doc"`
 	Insert      DocsInsertCmd      `cmd:"" name:"insert" help:"Insert text at a specific position"`

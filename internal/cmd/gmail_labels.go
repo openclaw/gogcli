@@ -13,11 +13,11 @@ import (
 )
 
 type GmailLabelsCmd struct {
-	List   GmailLabelsListCmd   `cmd:"" name:"list" help:"List labels"`
-	Get    GmailLabelsGetCmd    `cmd:"" name:"get" help:"Get label details (including counts)"`
-	Create GmailLabelsCreateCmd `cmd:"" name:"create" help:"Create a new label"`
-	Modify GmailLabelsModifyCmd `cmd:"" name:"modify" help:"Modify labels on threads"`
-	Delete GmailLabelsDeleteCmd `cmd:"" name:"delete" help:"Delete a label"`
+	List   GmailLabelsListCmd   `cmd:"" name:"list" aliases:"ls" help:"List labels"`
+	Get    GmailLabelsGetCmd    `cmd:"" name:"get" aliases:"info,show" help:"Get label details (including counts)"`
+	Create GmailLabelsCreateCmd `cmd:"" name:"create" aliases:"add,new" help:"Create a new label"`
+	Modify GmailLabelsModifyCmd `cmd:"" name:"modify" aliases:"update,edit,set" help:"Modify labels on threads"`
+	Delete GmailLabelsDeleteCmd `cmd:"" name:"delete" aliases:"rm,del" help:"Delete a label"`
 }
 
 type GmailLabelsGetCmd struct {

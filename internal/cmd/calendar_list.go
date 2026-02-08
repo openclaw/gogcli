@@ -13,42 +13,67 @@ import (
 	"github.com/steipete/gogcli/internal/ui"
 )
 
-func listCalendarEvents(ctx context.Context, svc *calendar.Service, calendarID, from, to string, maxResults int64, page, query, privatePropFilter, sharedPropFilter, fields string, showWeekday bool) error {
+func listCalendarEvents(ctx context.Context, svc *calendar.Service, calendarID, from, to string, maxResults int64, page string, allPages bool, failEmpty bool, query, privatePropFilter, sharedPropFilter, fields string, showWeekday bool) error {
 	u := ui.FromContext(ctx)
 
-	call := svc.Events.List(calendarID).
-		TimeMin(from).
-		TimeMax(to).
-		MaxResults(maxResults).
-		PageToken(page).
-		SingleEvents(true).
-		OrderBy("startTime")
-	if strings.TrimSpace(query) != "" {
-		call = call.Q(query)
+	fetch := func(pageToken string) ([]*calendar.Event, string, error) {
+		call := svc.Events.List(calendarID).
+			TimeMin(from).
+			TimeMax(to).
+			MaxResults(maxResults).
+			SingleEvents(true).
+			OrderBy("startTime")
+		if strings.TrimSpace(pageToken) != "" {
+			call = call.PageToken(pageToken)
+		}
+		if strings.TrimSpace(query) != "" {
+			call = call.Q(query)
+		}
+		if strings.TrimSpace(privatePropFilter) != "" {
+			call = call.PrivateExtendedProperty(privatePropFilter)
+		}
+		if strings.TrimSpace(sharedPropFilter) != "" {
+			call = call.SharedExtendedProperty(sharedPropFilter)
+		}
+		if strings.TrimSpace(fields) != "" {
+			call = call.Fields(gapi.Field(fields))
+		}
+		resp, err := call.Context(ctx).Do()
+		if err != nil {
+			return nil, "", err
+		}
+		return resp.Items, resp.NextPageToken, nil
 	}
-	if strings.TrimSpace(privatePropFilter) != "" {
-		call = call.PrivateExtendedProperty(privatePropFilter)
-	}
-	if strings.TrimSpace(sharedPropFilter) != "" {
-		call = call.SharedExtendedProperty(sharedPropFilter)
-	}
-	if strings.TrimSpace(fields) != "" {
-		call = call.Fields(gapi.Field(fields))
-	}
-	resp, err := call.Context(ctx).Do()
+
+	items, nextPageToken, err := fetch(page)
 	if err != nil {
 		return err
 	}
+
+	if allPages {
+		all, err := collectAllPages(page, fetch)
+		if err != nil {
+			return err
+		}
+		items = all
+		nextPageToken = ""
+	}
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{
-			"events":        wrapEventsWithDays(resp.Items),
-			"nextPageToken": resp.NextPageToken,
-		})
+		if err := outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
+			"events":        wrapEventsWithDays(items),
+			"nextPageToken": nextPageToken,
+		}); err != nil {
+			return err
+		}
+		if len(items) == 0 {
+			return failEmptyExit(failEmpty)
+		}
+		return nil
 	}
 
-	if len(resp.Items) == 0 {
+	if len(items) == 0 {
 		u.Err().Println("No events")
-		return nil
+		return failEmptyExit(failEmpty)
 	}
 
 	w, flush := tableWriter(ctx)
@@ -56,19 +81,19 @@ func listCalendarEvents(ctx context.Context, svc *calendar.Service, calendarID, 
 
 	if showWeekday {
 		fmt.Fprintln(w, "ID\tSTART\tSTART_DOW\tEND\tEND_DOW\tSUMMARY")
-		for _, e := range resp.Items {
+		for _, e := range items {
 			startDay, endDay := eventDaysOfWeek(e)
 			fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\n", e.Id, eventStart(e), startDay, eventEnd(e), endDay, e.Summary)
 		}
-		printNextPageHint(u, resp.NextPageToken)
+		printNextPageHint(u, nextPageToken)
 		return nil
 	}
 
 	fmt.Fprintln(w, "ID\tSTART\tEND\tSUMMARY")
-	for _, e := range resp.Items {
+	for _, e := range items {
 		fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", e.Id, eventStart(e), eventEnd(e), e.Summary)
 	}
-	printNextPageHint(u, resp.NextPageToken)
+	printNextPageHint(u, nextPageToken)
 	return nil
 }
 
@@ -82,7 +107,7 @@ type eventWithCalendar struct {
 	EndLocal       string `json:"endLocal,omitempty"`
 }
 
-func listAllCalendarsEvents(ctx context.Context, svc *calendar.Service, from, to string, maxResults int64, page, query, privatePropFilter, sharedPropFilter, fields string, showWeekday bool) error {
+func listAllCalendarsEvents(ctx context.Context, svc *calendar.Service, from, to string, maxResults int64, page string, allPages bool, failEmpty bool, query, privatePropFilter, sharedPropFilter, fields string, showWeekday bool) error {
 	u := ui.FromContext(ctx)
 
 	calResp, err := svc.CalendarList.List().Context(ctx).Do()
@@ -92,36 +117,55 @@ func listAllCalendarsEvents(ctx context.Context, svc *calendar.Service, from, to
 
 	if len(calResp.Items) == 0 {
 		u.Err().Println("No calendars")
-		return nil
+		return failEmptyExit(failEmpty)
 	}
 
 	all := []*eventWithCalendar{}
 	for _, cal := range calResp.Items {
-		call := svc.Events.List(cal.Id).
-			TimeMin(from).
-			TimeMax(to).
-			MaxResults(maxResults).
-			PageToken(page).
-			SingleEvents(true).
-			OrderBy("startTime")
-		if strings.TrimSpace(query) != "" {
-			call = call.Q(query)
+		fetch := func(pageToken string) ([]*calendar.Event, string, error) {
+			call := svc.Events.List(cal.Id).
+				TimeMin(from).
+				TimeMax(to).
+				MaxResults(maxResults).
+				SingleEvents(true).
+				OrderBy("startTime")
+			if strings.TrimSpace(pageToken) != "" {
+				call = call.PageToken(pageToken)
+			}
+			if strings.TrimSpace(query) != "" {
+				call = call.Q(query)
+			}
+			if strings.TrimSpace(privatePropFilter) != "" {
+				call = call.PrivateExtendedProperty(privatePropFilter)
+			}
+			if strings.TrimSpace(sharedPropFilter) != "" {
+				call = call.SharedExtendedProperty(sharedPropFilter)
+			}
+			if strings.TrimSpace(fields) != "" {
+				call = call.Fields(gapi.Field(fields))
+			}
+			events, err := call.Context(ctx).Do()
+			if err != nil {
+				return nil, "", err
+			}
+			return events.Items, events.NextPageToken, nil
 		}
-		if strings.TrimSpace(privatePropFilter) != "" {
-			call = call.PrivateExtendedProperty(privatePropFilter)
-		}
-		if strings.TrimSpace(sharedPropFilter) != "" {
-			call = call.SharedExtendedProperty(sharedPropFilter)
-		}
-		if strings.TrimSpace(fields) != "" {
-			call = call.Fields(gapi.Field(fields))
-		}
-		events, err := call.Context(ctx).Do()
+
+		events, next, err := fetch(page)
 		if err != nil {
 			u.Err().Printf("calendar %s: %v", cal.Id, err)
 			continue
 		}
-		for _, e := range events.Items {
+		if allPages && strings.TrimSpace(next) != "" {
+			allEvents, err := collectAllPages(page, fetch)
+			if err != nil {
+				u.Err().Printf("calendar %s: %v", cal.Id, err)
+			} else {
+				events = allEvents
+			}
+		}
+
+		for _, e := range events {
 			startDay, endDay := eventDaysOfWeek(e)
 			evTimezone := eventTimezone(e)
 			startLocal := formatEventLocal(e.Start, nil)
@@ -139,11 +183,17 @@ func listAllCalendarsEvents(ctx context.Context, svc *calendar.Service, from, to
 	}
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{"events": all})
+		if err := outfmt.WriteJSON(ctx, os.Stdout, map[string]any{"events": all}); err != nil {
+			return err
+		}
+		if len(all) == 0 {
+			return failEmptyExit(failEmpty)
+		}
+		return nil
 	}
 	if len(all) == 0 {
 		u.Err().Println("No events")
-		return nil
+		return failEmptyExit(failEmpty)
 	}
 
 	w, flush := tableWriter(ctx)

@@ -18,8 +18,10 @@ type TasksListsCmd struct {
 }
 
 type TasksListsListCmd struct {
-	Max  int64  `name:"max" aliases:"limit" help:"Max results (max allowed: 1000)" default:"100"`
-	Page string `name:"page" help:"Page token"`
+	Max       int64  `name:"max" aliases:"limit" help:"Max results (max allowed: 1000)" default:"100"`
+	Page      string `name:"page" aliases:"cursor" help:"Page token"`
+	All       bool   `name:"all" aliases:"all-pages,allpages" help:"Fetch all pages"`
+	FailEmpty bool   `name:"fail-empty" aliases:"non-empty,require-results" help:"Exit with code 3 if no results"`
 }
 
 func (c *TasksListsListCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -34,31 +36,59 @@ func (c *TasksListsListCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
-	call := svc.Tasklists.List().MaxResults(c.Max).PageToken(c.Page)
-	resp, err := call.Do()
-	if err != nil {
-		return err
+	fetch := func(pageToken string) ([]*tasks.TaskList, string, error) {
+		call := svc.Tasklists.List().MaxResults(c.Max).Context(ctx)
+		if strings.TrimSpace(pageToken) != "" {
+			call = call.PageToken(pageToken)
+		}
+		resp, err := call.Do()
+		if err != nil {
+			return nil, "", err
+		}
+		return resp.Items, resp.NextPageToken, nil
+	}
+
+	var items []*tasks.TaskList
+	nextPageToken := ""
+	if c.All {
+		all, err := collectAllPages(c.Page, fetch)
+		if err != nil {
+			return err
+		}
+		items = all
+	} else {
+		var err error
+		items, nextPageToken, err = fetch(c.Page)
+		if err != nil {
+			return err
+		}
 	}
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{
-			"tasklists":     resp.Items,
-			"nextPageToken": resp.NextPageToken,
-		})
+		if err := outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
+			"tasklists":     items,
+			"nextPageToken": nextPageToken,
+		}); err != nil {
+			return err
+		}
+		if len(items) == 0 {
+			return failEmptyExit(c.FailEmpty)
+		}
+		return nil
 	}
 
-	if len(resp.Items) == 0 {
+	if len(items) == 0 {
 		u.Err().Println("No task lists")
-		return nil
+		return failEmptyExit(c.FailEmpty)
 	}
 
 	w, flush := tableWriter(ctx)
 	defer flush()
 	fmt.Fprintln(w, "ID\tTITLE")
-	for _, tl := range resp.Items {
+	for _, tl := range items {
 		fmt.Fprintf(w, "%s\t%s\n", tl.Id, tl.Title)
 	}
-	printNextPageHint(u, resp.NextPageToken)
+	printNextPageHint(u, nextPageToken)
 	return nil
 }
 
@@ -68,13 +98,20 @@ type TasksListsCreateCmd struct {
 
 func (c *TasksListsCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
 	title := strings.TrimSpace(strings.Join(c.Title, " "))
 	if title == "" {
 		return usage("empty title")
+	}
+
+	if err := dryRunExit(ctx, flags, "tasks.lists.create", map[string]any{
+		"title": title,
+	}); err != nil {
+		return err
+	}
+
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
 	}
 
 	svc, err := newTasksService(ctx, account)
@@ -88,7 +125,7 @@ func (c *TasksListsCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{"tasklist": created})
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{"tasklist": created})
 	}
 	u.Out().Printf("id\t%s", created.Id)
 	u.Out().Printf("title\t%s", created.Title)

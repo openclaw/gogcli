@@ -62,13 +62,9 @@ type sendMessageOptions struct {
 
 func (c *GmailSendCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
 
-	replyToMessageID := strings.TrimSpace(c.ReplyToMessageID)
-	threadID := strings.TrimSpace(c.ThreadID)
+	replyToMessageID := normalizeGmailMessageID(c.ReplyToMessageID)
+	threadID := normalizeGmailThreadID(c.ThreadID)
 
 	body, err := resolveBodyInput(c.Body, c.BodyFile)
 	if err != nil {
@@ -96,6 +92,42 @@ func (c *GmailSendCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 	if c.TrackSplit && !c.Track {
 		return usage("--track-split requires --track")
+	}
+	if c.Track && strings.TrimSpace(c.BodyHTML) == "" {
+		return fmt.Errorf("--track requires --body-html (pixel must be in HTML)")
+	}
+
+	attachPaths := make([]string, 0, len(c.Attach))
+	for _, p := range c.Attach {
+		expanded, expandErr := config.ExpandPath(p)
+		if expandErr != nil {
+			return expandErr
+		}
+		attachPaths = append(attachPaths, expanded)
+	}
+
+	if dryRunErr := dryRunExit(ctx, flags, "gmail.send", map[string]any{
+		"to":                  splitCSV(c.To),
+		"cc":                  splitCSV(c.Cc),
+		"bcc":                 splitCSV(c.Bcc),
+		"subject":             strings.TrimSpace(c.Subject),
+		"reply_to_message_id": replyToMessageID,
+		"thread_id":           threadID,
+		"reply_all":           c.ReplyAll,
+		"reply_to":            strings.TrimSpace(c.ReplyTo),
+		"from":                strings.TrimSpace(c.From),
+		"body_len":            len(strings.TrimSpace(body)),
+		"body_html_len":       len(strings.TrimSpace(c.BodyHTML)),
+		"attachments":         attachPaths,
+		"track":               c.Track,
+		"track_split":         c.TrackSplit,
+	}); dryRunErr != nil {
+		return dryRunErr
+	}
+
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
 	}
 
 	svc, err := newGmailService(ctx, account)
@@ -166,13 +198,9 @@ func (c *GmailSendCmd) Run(ctx context.Context, flags *RootFlags) error {
 
 	bccRecipients := splitCSV(c.Bcc)
 
-	atts := make([]mailAttachment, 0, len(c.Attach))
-	for _, p := range c.Attach {
-		expanded, expandErr := config.ExpandPath(p)
-		if expandErr != nil {
-			return expandErr
-		}
-		atts = append(atts, mailAttachment{Path: expanded})
+	atts := make([]mailAttachment, 0, len(attachPaths))
+	for _, p := range attachPaths {
+		atts = append(atts, mailAttachment{Path: p})
 	}
 
 	var trackingCfg *tracking.Config
@@ -402,7 +430,7 @@ func writeSendResults(ctx context.Context, u *ui.UI, fromAddr string, results []
 			if results[0].TrackingID != "" {
 				resp["tracking_id"] = results[0].TrackingID
 			}
-			return outfmt.WriteJSON(os.Stdout, resp)
+			return outfmt.WriteJSON(ctx, os.Stdout, resp)
 		}
 
 		items := make([]map[string]any, 0, len(results))
@@ -420,7 +448,7 @@ func writeSendResults(ctx context.Context, u *ui.UI, fromAddr string, results []
 			}
 			items = append(items, item)
 		}
-		return outfmt.WriteJSON(os.Stdout, map[string]any{"messages": items})
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{"messages": items})
 	}
 
 	if len(results) == 1 {

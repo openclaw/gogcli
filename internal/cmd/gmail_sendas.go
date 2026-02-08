@@ -16,12 +16,12 @@ import (
 )
 
 type GmailSendAsCmd struct {
-	List   GmailSendAsListCmd   `cmd:"" name:"list" help:"List send-as aliases"`
-	Get    GmailSendAsGetCmd    `cmd:"" name:"get" help:"Get details of a send-as alias"`
-	Create GmailSendAsCreateCmd `cmd:"" name:"create" help:"Create a new send-as alias"`
-	Verify GmailSendAsVerifyCmd `cmd:"" name:"verify" help:"Resend verification email for a send-as alias"`
-	Delete GmailSendAsDeleteCmd `cmd:"" name:"delete" help:"Delete a send-as alias"`
-	Update GmailSendAsUpdateCmd `cmd:"" name:"update" help:"Update a send-as alias"`
+	List   GmailSendAsListCmd   `cmd:"" name:"list" aliases:"ls" help:"List send-as aliases"`
+	Get    GmailSendAsGetCmd    `cmd:"" name:"get" aliases:"info,show" help:"Get details of a send-as alias"`
+	Create GmailSendAsCreateCmd `cmd:"" name:"create" aliases:"add,new" help:"Create a new send-as alias"`
+	Verify GmailSendAsVerifyCmd `cmd:"" name:"verify" aliases:"resend" help:"Resend verification email for a send-as alias"`
+	Delete GmailSendAsDeleteCmd `cmd:"" name:"delete" aliases:"rm,del,remove" help:"Delete a send-as alias"`
+	Update GmailSendAsUpdateCmd `cmd:"" name:"update" aliases:"edit,set" help:"Update a send-as alias"`
 }
 
 type GmailSendAsListCmd struct{}
@@ -46,7 +46,7 @@ func (c *GmailSendAsListCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{"sendAs": resp.SendAs})
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{"sendAs": resp.SendAs})
 	}
 
 	if len(resp.SendAs) == 0 {
@@ -102,7 +102,7 @@ func (c *GmailSendAsGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{"sendAs": sa})
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{"sendAs": sa})
 	}
 
 	u.Out().Printf("send_as_email\t%s", sa.SendAsEmail)
@@ -126,18 +126,9 @@ type GmailSendAsCreateCmd struct {
 
 func (c *GmailSendAsCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
 	sendAsEmail := strings.TrimSpace(c.Email)
 	if sendAsEmail == "" {
 		return errors.New("email is required")
-	}
-
-	svc, err := newGmailService(ctx, account)
-	if err != nil {
-		return err
 	}
 
 	sendAs := &gmail.SendAs{
@@ -148,13 +139,29 @@ func (c *GmailSendAsCreateCmd) Run(ctx context.Context, flags *RootFlags) error 
 		TreatAsAlias:   c.TreatAsAlias,
 	}
 
+	if err := dryRunExit(ctx, flags, "gmail.sendas.create", map[string]any{
+		"send_as": sendAs,
+	}); err != nil {
+		return err
+	}
+
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
+	}
+
+	svc, err := newGmailService(ctx, account)
+	if err != nil {
+		return err
+	}
+
 	created, err := svc.Users.Settings.SendAs.Create("me", sendAs).Do()
 	if err != nil {
 		return err
 	}
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{"sendAs": created})
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{"sendAs": created})
 	}
 
 	u.Out().Printf("send_as_email\t%s", created.SendAsEmail)
@@ -169,13 +176,20 @@ type GmailSendAsVerifyCmd struct {
 
 func (c *GmailSendAsVerifyCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
 	sendAsEmail := strings.TrimSpace(c.Email)
 	if sendAsEmail == "" {
 		return errors.New("email is required")
+	}
+
+	if err := dryRunExit(ctx, flags, "gmail.sendas.verify", map[string]any{
+		"email": sendAsEmail,
+	}); err != nil {
+		return err
+	}
+
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
 	}
 
 	svc, err := newGmailService(ctx, account)
@@ -189,7 +203,7 @@ func (c *GmailSendAsVerifyCmd) Run(ctx context.Context, flags *RootFlags) error 
 	}
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
 			"email":   sendAsEmail,
 			"message": "Verification email sent",
 		})
@@ -205,13 +219,18 @@ type GmailSendAsDeleteCmd struct {
 
 func (c *GmailSendAsDeleteCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
 	sendAsEmail := strings.TrimSpace(c.Email)
 	if sendAsEmail == "" {
 		return errors.New("email is required")
+	}
+
+	if confirmErr := confirmDestructive(ctx, flags, fmt.Sprintf("delete gmail send-as alias %s", sendAsEmail)); confirmErr != nil {
+		return confirmErr
+	}
+
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
 	}
 
 	svc, err := newGmailService(ctx, account)
@@ -225,7 +244,7 @@ func (c *GmailSendAsDeleteCmd) Run(ctx context.Context, flags *RootFlags) error 
 	}
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
 			"email":   sendAsEmail,
 			"deleted": true,
 		})
@@ -246,13 +265,38 @@ type GmailSendAsUpdateCmd struct {
 
 func (c *GmailSendAsUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
 	sendAsEmail := strings.TrimSpace(c.Email)
 	if sendAsEmail == "" {
 		return errors.New("email is required")
+	}
+
+	updates := map[string]any{}
+	if flagProvided(kctx, "display-name") {
+		updates["display_name"] = c.DisplayName
+	}
+	if flagProvided(kctx, "reply-to") {
+		updates["reply_to"] = c.ReplyTo
+	}
+	if flagProvided(kctx, "signature") {
+		updates["signature"] = c.Signature
+	}
+	if flagProvided(kctx, "treat-as-alias") {
+		updates["treat_as_alias"] = c.TreatAsAlias
+	}
+	if flagProvided(kctx, "make-default") {
+		updates["make_default"] = c.MakeDefault
+	}
+
+	if err := dryRunExit(ctx, flags, "gmail.sendas.update", map[string]any{
+		"email":   sendAsEmail,
+		"updates": updates,
+	}); err != nil {
+		return err
+	}
+
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
 	}
 
 	svc, err := newGmailService(ctx, account)
@@ -289,7 +333,7 @@ func (c *GmailSendAsUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flag
 	}
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{"sendAs": updated})
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{"sendAs": updated})
 	}
 
 	u.Out().Printf("Updated send-as alias: %s", updated.SendAsEmail)

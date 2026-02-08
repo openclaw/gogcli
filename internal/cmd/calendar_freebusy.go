@@ -53,7 +53,7 @@ func (c *CalendarFreeBusyCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{"calendars": resp.Calendars})
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{"calendars": resp.Calendars})
 	}
 
 	if len(resp.Calendars) == 0 {

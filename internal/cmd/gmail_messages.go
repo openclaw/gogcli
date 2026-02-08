@@ -15,13 +15,15 @@ import (
 )
 
 type GmailMessagesCmd struct {
-	Search GmailMessagesSearchCmd `cmd:"" name:"search" group:"Read" help:"Search messages using Gmail query syntax"`
+	Search GmailMessagesSearchCmd `cmd:"" name:"search" aliases:"find,query,ls,list" group:"Read" help:"Search messages using Gmail query syntax"`
 }
 
 type GmailMessagesSearchCmd struct {
 	Query       []string `arg:"" name:"query" help:"Search query"`
 	Max         int64    `name:"max" aliases:"limit" help:"Max results" default:"10"`
-	Page        string   `name:"page" help:"Page token"`
+	Page        string   `name:"page" aliases:"cursor" help:"Page token"`
+	All         bool     `name:"all" aliases:"all-pages,allpages" help:"Fetch all pages"`
+	FailEmpty   bool     `name:"fail-empty" aliases:"non-empty,require-results" help:"Exit with code 3 if no results"`
 	Timezone    string   `name:"timezone" short:"z" help:"Output timezone (IANA name, e.g. America/New_York, UTC). Default: local"`
 	Local       bool     `name:"local" help:"Use local timezone (default behavior, useful to override --timezone)"`
 	IncludeBody bool     `name:"include-body" help:"Include decoded message body (JSON is full; text output is truncated)"`
@@ -43,15 +45,50 @@ func (c *GmailMessagesSearchCmd) Run(ctx context.Context, flags *RootFlags) erro
 		return err
 	}
 
-	resp, err := svc.Users.Messages.List("me").
-		Q(query).
-		MaxResults(c.Max).
-		PageToken(c.Page).
-		Fields("messages(id,threadId),nextPageToken").
-		Context(ctx).
-		Do()
-	if err != nil {
-		return err
+	fetch := func(pageToken string) ([]*gmail.Message, string, error) {
+		call := svc.Users.Messages.List("me").
+			Q(query).
+			MaxResults(c.Max).
+			Fields("messages(id,threadId),nextPageToken").
+			Context(ctx)
+		if strings.TrimSpace(pageToken) != "" {
+			call = call.PageToken(pageToken)
+		}
+		resp, err := call.Do()
+		if err != nil {
+			return nil, "", err
+		}
+		return resp.Messages, resp.NextPageToken, nil
+	}
+
+	var messages []*gmail.Message
+	nextPageToken := ""
+	if c.All {
+		all, err := collectAllPages(c.Page, fetch)
+		if err != nil {
+			return err
+		}
+		messages = all
+	} else {
+		var err error
+		messages, nextPageToken, err = fetch(c.Page)
+		if err != nil {
+			return err
+		}
+	}
+
+	if len(messages) == 0 {
+		if outfmt.IsJSON(ctx) {
+			if err := outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
+				"messages":      []messageItem{},
+				"nextPageToken": nextPageToken,
+			}); err != nil {
+				return err
+			}
+			return failEmptyExit(c.FailEmpty)
+		}
+		u.Err().Println("No results")
+		return failEmptyExit(c.FailEmpty)
 	}
 
 	idToName, err := fetchLabelIDToName(svc)
@@ -64,21 +101,27 @@ func (c *GmailMessagesSearchCmd) Run(ctx context.Context, flags *RootFlags) erro
 		return err
 	}
 
-	items, err := fetchMessageDetails(ctx, svc, resp.Messages, idToName, loc, c.IncludeBody)
+	items, err := fetchMessageDetails(ctx, svc, messages, idToName, loc, c.IncludeBody)
 	if err != nil {
 		return err
 	}
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{
+		if err := outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
 			"messages":      items,
-			"nextPageToken": resp.NextPageToken,
-		})
+			"nextPageToken": nextPageToken,
+		}); err != nil {
+			return err
+		}
+		if len(items) == 0 {
+			return failEmptyExit(c.FailEmpty)
+		}
+		return nil
 	}
 
 	if len(items) == 0 {
 		u.Err().Println("No results")
-		return nil
+		return failEmptyExit(c.FailEmpty)
 	}
 
 	w, flush := tableWriter(ctx)
@@ -100,7 +143,7 @@ func (c *GmailMessagesSearchCmd) Run(ctx context.Context, flags *RootFlags) erro
 			fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\n", it.ID, it.ThreadID, it.Date, it.From, it.Subject, strings.Join(it.Labels, ","))
 		}
 	}
-	printNextPageHint(u, resp.NextPageToken)
+	printNextPageHint(u, nextPageToken)
 	return nil
 }
 

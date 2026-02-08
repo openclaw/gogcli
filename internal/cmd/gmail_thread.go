@@ -47,9 +47,9 @@ func stripHTMLTags(s string) string {
 }
 
 type GmailThreadCmd struct {
-	Get         GmailThreadGetCmd         `cmd:"" name:"get" default:"withargs" help:"Get a thread with all messages (optionally download attachments)"`
-	Modify      GmailThreadModifyCmd      `cmd:"" name:"modify" help:"Modify labels on all messages in a thread"`
-	Attachments GmailThreadAttachmentsCmd `cmd:"" name:"attachments" help:"List all attachments in a thread"`
+	Get         GmailThreadGetCmd         `cmd:"" name:"get" aliases:"info,show" default:"withargs" help:"Get a thread with all messages (optionally download attachments)"`
+	Modify      GmailThreadModifyCmd      `cmd:"" name:"modify" aliases:"update,edit,set" help:"Modify labels on all messages in a thread"`
+	Attachments GmailThreadAttachmentsCmd `cmd:"" name:"attachments" aliases:"files" help:"List all attachments in a thread"`
 }
 
 type GmailThreadGetCmd struct {
@@ -66,6 +66,7 @@ func (c *GmailThreadGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 	threadID := strings.TrimSpace(c.ThreadID)
+	threadID = normalizeGmailThreadID(threadID)
 	if threadID == "" {
 		return usage("empty threadId")
 	}
@@ -108,7 +109,7 @@ func (c *GmailThreadGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 				downloadedFiles = append(downloadedFiles, attachmentDownloadSummaries(downloads)...)
 			}
 		}
-		return outfmt.WriteJSON(os.Stdout, map[string]any{
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
 			"thread":     thread,
 			"downloaded": downloadedFiles,
 		})
@@ -180,11 +181,8 @@ type GmailThreadModifyCmd struct {
 
 func (c *GmailThreadModifyCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
 	threadID := strings.TrimSpace(c.ThreadID)
+	threadID = normalizeGmailThreadID(threadID)
 	if threadID == "" {
 		return usage("empty threadId")
 	}
@@ -193,6 +191,19 @@ func (c *GmailThreadModifyCmd) Run(ctx context.Context, flags *RootFlags) error 
 	removeLabels := splitCSV(c.Remove)
 	if len(addLabels) == 0 && len(removeLabels) == 0 {
 		return usage("must specify --add and/or --remove")
+	}
+
+	if err := dryRunExit(ctx, flags, "gmail.thread.modify", map[string]any{
+		"thread_id": threadID,
+		"add":       addLabels,
+		"remove":    removeLabels,
+	}); err != nil {
+		return err
+	}
+
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
 	}
 
 	svc, err := newGmailService(ctx, account)
@@ -219,7 +230,7 @@ func (c *GmailThreadModifyCmd) Run(ctx context.Context, flags *RootFlags) error 
 	}
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
 			"modified":      threadID,
 			"addedLabels":   addIDs,
 			"removedLabels": removeIDs,
@@ -244,6 +255,7 @@ func (c *GmailThreadAttachmentsCmd) Run(ctx context.Context, flags *RootFlags) e
 		return err
 	}
 	threadID := strings.TrimSpace(c.ThreadID)
+	threadID = normalizeGmailThreadID(threadID)
 	if threadID == "" {
 		return usage("empty threadId")
 	}
@@ -260,7 +272,7 @@ func (c *GmailThreadAttachmentsCmd) Run(ctx context.Context, flags *RootFlags) e
 
 	if thread == nil || len(thread.Messages) == 0 {
 		if outfmt.IsJSON(ctx) {
-			return outfmt.WriteJSON(os.Stdout, map[string]any{
+			return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
 				"threadId":    threadID,
 				"attachments": []any{},
 			})
@@ -300,7 +312,7 @@ func (c *GmailThreadAttachmentsCmd) Run(ctx context.Context, flags *RootFlags) e
 	}
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
 			"threadId":    threadID,
 			"attachments": allAttachments,
 		})
@@ -339,14 +351,16 @@ func (c *GmailURLCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if outfmt.IsJSON(ctx) {
 		urls := make([]map[string]string, 0, len(c.ThreadIDs))
 		for _, id := range c.ThreadIDs {
+			id = normalizeGmailThreadID(id)
 			urls = append(urls, map[string]string{
 				"id":  id,
 				"url": fmt.Sprintf("https://mail.google.com/mail/?authuser=%s#all/%s", url.QueryEscape(account), id),
 			})
 		}
-		return outfmt.WriteJSON(os.Stdout, map[string]any{"urls": urls})
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{"urls": urls})
 	}
 	for _, id := range c.ThreadIDs {
+		id = normalizeGmailThreadID(id)
 		threadURL := fmt.Sprintf("https://mail.google.com/mail/?authuser=%s#all/%s", url.QueryEscape(account), id)
 		u.Out().Printf("%s\t%s", id, threadURL)
 	}

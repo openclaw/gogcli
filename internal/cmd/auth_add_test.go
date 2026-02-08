@@ -114,7 +114,7 @@ func TestAuthAddCmd_KeychainError(t *testing.T) {
 	openSecretsStore = func() (secrets.Store, error) { return store, nil }
 
 	cmd := &AuthAddCmd{Email: "test@example.com", ServicesCSV: "gmail"}
-	err := cmd.Run(context.Background())
+	err := cmd.Run(context.Background(), &RootFlags{})
 
 	if err == nil {
 		t.Fatal("expected error when keychain is locked")

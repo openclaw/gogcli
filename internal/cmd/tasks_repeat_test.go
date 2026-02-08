@@ -28,6 +28,15 @@ func TestTasksAddCmd_RepeatCreatesMultiple(t *testing.T) {
 	)
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/tasks/v1/users/@me/lists" && r.Method == http.MethodGet {
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"items": []map[string]any{
+					{"id": "l1", "title": "One"},
+				},
+			})
+			return
+		}
 		if !(r.URL.Path == "/tasks/v1/lists/l1/tasks" && r.Method == http.MethodPost) {
 			http.NotFound(w, r)
 			return
@@ -112,6 +121,15 @@ func TestTasksAddCmd_RepeatUntilDateOnlyWithTimeDue(t *testing.T) {
 	var gotDue []string
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/tasks/v1/users/@me/lists" && r.Method == http.MethodGet {
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"items": []map[string]any{
+					{"id": "l1", "title": "One"},
+				},
+			})
+			return
+		}
 		if !(r.URL.Path == "/tasks/v1/lists/l1/tasks" && r.Method == http.MethodPost) {
 			http.NotFound(w, r)
 			return

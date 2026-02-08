@@ -73,7 +73,7 @@ func (c *GmailTrackOpensCmd) queryByTrackingID(ctx context.Context, cfg *trackin
 		if err := json.Unmarshal(body, &anyJSON); err != nil {
 			return fmt.Errorf("decode response: %w", err)
 		}
-		return outfmt.WriteJSON(os.Stdout, anyJSON)
+		return outfmt.WriteJSON(ctx, os.Stdout, anyJSON)
 	}
 
 	var result struct {
@@ -172,7 +172,7 @@ func (c *GmailTrackOpensCmd) queryAdmin(ctx context.Context, cfg *tracking.Confi
 	}
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, result)
+		return outfmt.WriteJSON(ctx, os.Stdout, result)
 	}
 
 	if len(result.Opens) == 0 {

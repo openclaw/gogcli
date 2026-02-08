@@ -584,6 +584,21 @@ func (c *AuthAddCmd) Run(ctx context.Context) error {
 		timeout = 5 * time.Minute
 	}
 
+	if dryRunErr := dryRunExit(ctx, flags, "auth.add", map[string]any{
+		"email":         strings.TrimSpace(c.Email),
+		"client":        client,
+		"services":      services,
+		"scopes":        scopes,
+		"manual":        c.Manual,
+		"remote":        c.Remote,
+		"step":          c.Step,
+		"force_consent": c.ForceConsent,
+		"readonly":      c.Readonly,
+		"drive_scope":   c.DriveScope,
+	}); dryRunErr != nil {
+		return dryRunErr
+	}
+
 	// Pre-flight: ensure keychain is accessible before starting OAuth
 	if keychainErr := ensureKeychainAccessIfNeeded(); keychainErr != nil {
 		return fmt.Errorf("keychain access: %w", keychainErr)

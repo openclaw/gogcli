@@ -64,7 +64,7 @@ func TestGmailSendAsCreateVerifyDeleteUpdate_Text(t *testing.T) {
 	}
 	newGmailService = func(context.Context, string) (*gmail.Service, error) { return svc, nil }
 
-	flags := &RootFlags{Account: "a@b.com"}
+	flags := &RootFlags{Account: "a@b.com", Force: true}
 
 	createOut := captureStdout(t, func() {
 		errOut := captureStderr(t, func() {

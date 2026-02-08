@@ -47,7 +47,7 @@ func TestExecute_Help_GmailHasGroupsAndRelativeCommands(t *testing.T) {
 	if !strings.Contains(out, "\nRead\n") || !strings.Contains(out, "\nWrite\n") || !strings.Contains(out, "\nAdmin\n") {
 		t.Fatalf("expected command groups in gmail help, got: %q", out)
 	}
-	if !strings.Contains(out, "\n  search <query>") {
+	if !strings.Contains(out, "\n  search") || !strings.Contains(out, "Search threads using Gmail query syntax") {
 		t.Fatalf("expected relative command summaries in gmail help, got: %q", out)
 	}
 	if strings.Contains(out, "\n  gmail (mail,email) search <query>") {
