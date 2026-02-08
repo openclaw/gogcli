@@ -158,12 +158,50 @@ func parseTimeExprEndOfDay(expr string, now time.Time, loc *time.Location) (time
 	if err != nil {
 		return t, err
 	}
-	// If the result is exactly midnight (start of day), it was likely a date-only
-	// or relative day expression — adjust to end of day.
-	if t.Hour() == 0 && t.Minute() == 0 && t.Second() == 0 && t.Nanosecond() == 0 {
+	// Only adjust to end-of-day for date-only or relative day expressions.
+	// If the input is a full timestamp (contains "T" or "t" indicating time
+	// components), respect the exact time the user specified — even midnight.
+	if isDateOnlyOrRelative(expr) {
 		return endOfDay(t), nil
 	}
 	return t, nil
+}
+
+// isDateOnlyOrRelative returns true if the expression is a date-only string
+// (YYYY-MM-DD) or a relative day keyword (today, tomorrow, yesterday, weekday
+// names). These should be adjusted to end-of-day when used as an upper bound.
+// Full timestamps (RFC3339, datetime with T separator) return false.
+func isDateOnlyOrRelative(expr string) bool {
+	trimmed := strings.TrimSpace(expr)
+	lower := strings.ToLower(trimmed)
+
+	// Relative day keywords
+	switch lower {
+	case "today", "tomorrow", "yesterday", "now":
+		return true
+	}
+
+	// Weekday names: "monday", "next tuesday", etc.
+	candidate := lower
+	if strings.HasPrefix(candidate, "next ") {
+		candidate = strings.TrimPrefix(candidate, "next ")
+	}
+	weekdays := []string{"sunday", "sun", "monday", "mon", "tuesday", "tue",
+		"wednesday", "wed", "thursday", "thu", "friday", "fri", "saturday", "sat"}
+	for _, wd := range weekdays {
+		if candidate == wd {
+			return true
+		}
+	}
+
+	// Date-only: YYYY-MM-DD (exactly 10 chars, no time component)
+	if len(trimmed) == 10 {
+		if _, err := time.Parse("2006-01-02", trimmed); err == nil {
+			return true
+		}
+	}
+
+	return false
 }
 
 // parseTimeExpr parses a time expression which can be:

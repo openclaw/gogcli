@@ -195,13 +195,49 @@ func TestParseTimeExprEndOfDay(t *testing.T) {
 		t.Fatalf("expected hour 14, got %v", parsed.Hour())
 	}
 
-	// Explicit midnight RFC3339 IS adjusted (acceptable trade-off)
+	// Explicit midnight RFC3339 should NOT be adjusted — user intentionally specified midnight
 	parsed, err = parseTimeExprEndOfDay("2025-01-05T00:00:00Z", now, loc)
 	if err != nil {
 		t.Fatalf("parseTimeExprEndOfDay midnight rfc3339: %v", err)
 	}
-	if parsed.Hour() != 23 {
-		t.Fatalf("explicit midnight gets adjusted to end of day (known behavior), got hour %v", parsed.Hour())
+	if parsed.Hour() != 0 || parsed.Minute() != 0 || parsed.Second() != 0 {
+		t.Fatalf("explicit midnight RFC3339 should be preserved, got %v", parsed)
+	}
+
+	// ISO 8601 with numeric timezone should NOT be adjusted
+	parsed, err = parseTimeExprEndOfDay("2025-01-05T00:00:00-0800", now, loc)
+	if err != nil {
+		t.Fatalf("parseTimeExprEndOfDay iso8601: %v", err)
+	}
+	if parsed.Hour() != 0 || parsed.Minute() != 0 || parsed.Second() != 0 {
+		t.Fatalf("explicit midnight ISO8601 should be preserved, got %v", parsed)
+	}
+
+	// Local datetime without timezone should NOT be adjusted
+	parsed, err = parseTimeExprEndOfDay("2025-01-05T10:30:00", now, loc)
+	if err != nil {
+		t.Fatalf("parseTimeExprEndOfDay local datetime: %v", err)
+	}
+	if parsed.Hour() != 10 || parsed.Minute() != 30 {
+		t.Fatalf("local datetime should be preserved, got %v", parsed)
+	}
+
+	// Weekday expression should resolve to end of day
+	parsed, err = parseTimeExprEndOfDay("monday", now, time.UTC)
+	if err != nil {
+		t.Fatalf("parseTimeExprEndOfDay monday: %v", err)
+	}
+	if parsed.Hour() != 23 || parsed.Minute() != 59 || parsed.Second() != 59 {
+		t.Fatalf("expected end of day for monday, got %v", parsed)
+	}
+
+	// "tomorrow" should resolve to end of day
+	parsed, err = parseTimeExprEndOfDay("tomorrow", now, time.UTC)
+	if err != nil {
+		t.Fatalf("parseTimeExprEndOfDay tomorrow: %v", err)
+	}
+	if parsed.Hour() != 23 || parsed.Minute() != 59 || parsed.Second() != 59 {
+		t.Fatalf("expected end of day for tomorrow, got %v", parsed)
 	}
 }
 
