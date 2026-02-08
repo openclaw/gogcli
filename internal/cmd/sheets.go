@@ -29,6 +29,7 @@ type SheetsCmd struct {
 	Append   SheetsAppendCmd   `cmd:"" name:"append" help:"Append values to a range"`
 	Clear    SheetsClearCmd    `cmd:"" name:"clear" help:"Clear values in a range"`
 	Format   SheetsFormatCmd   `cmd:"" name:"format" help:"Apply cell formatting to a range"`
+	Notes    SheetsNotesCmd    `cmd:"" name:"notes" help:"Get cell notes from a range"`
 	Metadata SheetsMetadataCmd `cmd:"" name:"metadata" help:"Get spreadsheet metadata"`
 	Create   SheetsCreateCmd   `cmd:"" name:"create" help:"Create a new spreadsheet"`
 	Copy     SheetsCopyCmd     `cmd:"" name:"copy" help:"Copy a Google Sheet"`
