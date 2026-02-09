@@ -68,11 +68,22 @@ var (
 	errManualStateMissing  = errors.New("manual auth state missing; run remote step 1 again")
 	errManualStateMismatch = errors.New("manual auth state mismatch; run remote step 1 again")
 	errStateMismatch       = errors.New("state mismatch")
+
+	errInvalidAuthorizeOptionsAuthURLAndCode    = errors.New("cannot combine auth-url with auth-code")
+	errInvalidAuthorizeOptionsAuthCodeWithState = errors.New("auth-code is not valid when state is required; provide auth-url")
 )
 
 func Authorize(ctx context.Context, opts AuthorizeOptions) (string, error) {
 	if opts.Timeout <= 0 {
 		opts.Timeout = 2 * time.Minute
+	}
+
+	if strings.TrimSpace(opts.AuthURL) != "" && strings.TrimSpace(opts.AuthCode) != "" {
+		return "", errInvalidAuthorizeOptionsAuthURLAndCode
+	}
+
+	if opts.RequireState && strings.TrimSpace(opts.AuthCode) != "" {
+		return "", errInvalidAuthorizeOptionsAuthCodeWithState
 	}
 
 	if len(opts.Scopes) == 0 {
@@ -157,7 +168,9 @@ func authorizeManualWithCode(
 		return "", errNoRefreshToken
 	}
 
-	_ = clearManualState()
+	if gotState != "" {
+		_ = clearManualState(gotState)
+	}
 
 	return tok.RefreshToken, nil
 }
@@ -204,31 +217,45 @@ func authorizeManualInteractive(ctx context.Context, opts AuthorizeOptions, cfg 
 		return "", errNoRefreshToken
 	}
 
-	_ = clearManualState()
+	_ = clearManualState(setup.state)
 
 	return tok.RefreshToken, nil
 }
 
 func validateManualState(opts AuthorizeOptions, gotState string) error {
 	if opts.RequireState {
-		cachedState, cacheErr := loadManualStateStrict(opts.Client, opts.Scopes, opts.ForceConsent)
-		if cacheErr != nil {
-			return cacheErr
+		if gotState == "" {
+			return errMissingState
 		}
+	}
 
-		if gotState != cachedState {
-			return errManualStateMismatch
+	if gotState == "" {
+		return nil
+	}
+
+	path, err := manualStatePathFor(gotState)
+	if err != nil {
+		return err
+	}
+
+	st, ok, err := loadManualStateByPath(path)
+	if err != nil {
+		return err
+	}
+
+	if !ok {
+		if opts.RequireState {
+			return errManualStateMissing
 		}
 
 		return nil
 	}
 
-	cachedState, ok, cacheErr := loadManualState(opts.Client, opts.Scopes, opts.ForceConsent)
-	if cacheErr != nil {
-		return cacheErr
-	}
+	if st.Client != opts.Client || st.ForceConsent != opts.ForceConsent || !scopesEqual(st.Scopes, opts.Scopes) {
+		if opts.RequireState {
+			return errManualStateMismatch
+		}
 
-	if ok && gotState != cachedState {
 		return errStateMismatch
 	}
 

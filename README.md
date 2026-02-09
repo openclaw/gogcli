@@ -103,6 +103,21 @@ gog auth add you@gmail.com
 
 This will open a browser window for OAuth authorization. The refresh token is stored securely in your system keychain.
 
+Headless / remote server flow (no browser on the server):
+
+```bash
+# Step 1: print auth URL (open it locally in a browser)
+gog auth add you@gmail.com --services user --remote --step 1
+
+# Step 2: paste the full redirect URL from your browser address bar
+gog auth add you@gmail.com --services user --remote --step 2 --auth-url 'http://localhost:1/?code=...&state=...'
+```
+
+Notes:
+
+- The `state` is cached on disk for a short time (about 10 minutes). If it expires, rerun step 1.
+- Remote step 2 requires a redirect URL that includes `state` (state check mandatory).
+
 ### 4. Test Authentication
 
 ```bash

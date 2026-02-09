@@ -548,7 +548,7 @@ func TestAuthAddCmd_RemoteStep2_RejectsAuthCode(t *testing.T) {
 	if !errors.As(err, &ee) || ee.Code != 2 {
 		t.Fatalf("expected exit code 2, got %T %#v", err, err)
 	}
-	if !strings.Contains(err.Error(), "remote step 2 requires --auth-url") {
+	if !strings.Contains(err.Error(), "--auth-code is not valid with --remote") {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }

@@ -485,7 +485,7 @@ type AuthAddCmd struct {
 	Remote       bool          `name:"remote" help:"Remote/server-friendly manual flow (print URL, then exchange code)"`
 	Step         int           `name:"step" help:"Remote auth step: 1=print URL, 2=exchange code"`
 	AuthURL      string        `name:"auth-url" help:"Redirect URL from browser (manual flow; required for --remote --step 2)"`
-	AuthCode     string        `name:"auth-code" help:"Authorization code from browser (manual flow; skips state check; not valid with --remote)"`
+	AuthCode     string        `name:"auth-code" hidden:"" help:"UNSAFE: Authorization code from browser (manual flow; skips state check; not valid with --remote)"`
 	Timeout      time.Duration `name:"timeout" help:"Authorization timeout (manual flows default to 5m)"`
 	ForceConsent bool          `name:"force-consent" help:"Force consent screen to obtain a refresh token"`
 	ServicesCSV  string        `name:"services" help:"Services to authorize: user|all or comma-separated ${auth_services} (Keep uses service account: gog auth service-account set)" default:"user"`
@@ -570,11 +570,11 @@ func (c *AuthAddCmd) Run(ctx context.Context) error {
 			u.Err().Println("Run again with --remote --step 2 --auth-url <redirect-url>")
 			return nil
 		case 2:
-			if authURL == "" && authCode == "" {
-				return usage("remote step 2 requires --auth-url or --auth-code")
-			}
 			if authCode != "" {
-				return usage("remote step 2 requires --auth-url (state check is mandatory)")
+				return usage("--auth-code is not valid with --remote (state check is mandatory)")
+			}
+			if authURL == "" {
+				return usage("remote step 2 requires --auth-url")
 			}
 		}
 	}

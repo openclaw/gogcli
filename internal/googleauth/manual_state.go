@@ -2,16 +2,23 @@ package googleauth
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/steipete/gogcli/internal/config"
 )
 
-const manualStateFilename = "oauth-manual-state.json"
+const (
+	manualStateFilePrefix = "oauth-manual-state-"
+	manualStateFileSuffix = ".json"
+)
+
+var errEmptyManualAuthState = errors.New("empty manual auth state")
 
 // manualStateTTL controls how long a stored manual auth state is considered valid.
 // This should be shorter than typical OAuth code expiration windows.
@@ -26,107 +33,131 @@ type manualState struct {
 }
 
 var (
-	manualStatePathFn = manualStatePath
-	manualStateNowFn  = time.Now
+	manualStateDirFn = manualStateDir
+	manualStateNowFn = time.Now
 )
 
-func manualStatePath() (string, error) {
+func manualStateDir() (string, error) {
 	dir, err := config.EnsureDir()
 	if err != nil {
 		return "", fmt.Errorf("ensure config dir: %w", err)
 	}
 
-	return filepath.Join(dir, manualStateFilename), nil
+	return dir, nil
 }
 
-func loadManualState(client string, scopes []string, forceConsent bool) (string, bool, error) {
-	path, err := manualStatePathFn()
-	if err != nil {
-		return "", false, err
-	}
-
-	data, err := os.ReadFile(path) //nolint:gosec // config path
-	if err != nil {
-		if os.IsNotExist(err) {
-			err = nil
-			return "", false, err
-		}
-
-		return "", false, fmt.Errorf("read manual auth state: %w", err)
-	}
-
-	var st manualState
-
-	unmarshalErr := json.Unmarshal(data, &st)
-	if unmarshalErr != nil {
-		_ = os.Remove(path)
-		unmarshalErr = nil
-
-		return "", false, unmarshalErr //nolint:nilerr // invalid state should be treated as a cache miss
-	}
-
-	if st.State == "" {
-		_ = os.Remove(path)
-
-		return "", false, nil
-	}
-
-	if manualStateNowFn().Sub(st.CreatedAt) > manualStateTTL {
-		_ = os.Remove(path)
-
-		return "", false, nil
-	}
-
-	if st.Client != client || st.ForceConsent != forceConsent || !scopesEqual(st.Scopes, scopes) {
-		return "", false, nil
-	}
-
-	return st.State, true, nil
-}
-
-func loadManualStateStrict(client string, scopes []string, forceConsent bool) (string, error) {
-	path, err := manualStatePathFn()
+func manualStatePathFor(state string) (string, error) {
+	dir, err := manualStateDirFn()
 	if err != nil {
 		return "", err
 	}
 
+	state = strings.TrimSpace(state)
+	if state == "" {
+		return "", errEmptyManualAuthState
+	}
+
+	return filepath.Join(dir, manualStateFilePrefix+state+manualStateFileSuffix), nil
+}
+
+func isManualStateFilename(name string) (state string, ok bool) {
+	if !strings.HasPrefix(name, manualStateFilePrefix) || !strings.HasSuffix(name, manualStateFileSuffix) {
+		return "", false
+	}
+
+	state = strings.TrimSuffix(strings.TrimPrefix(name, manualStateFilePrefix), manualStateFileSuffix)
+	if strings.TrimSpace(state) == "" {
+		return "", false
+	}
+
+	return state, true
+}
+
+func loadManualState(client string, scopes []string, forceConsent bool) (string, bool, error) {
+	dir, err := manualStateDirFn()
+	if err != nil {
+		return "", false, err
+	}
+
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return "", false, fmt.Errorf("read manual auth state dir: %w", err)
+	}
+
+	var (
+		bestState   string
+		bestCreated time.Time
+	)
+
+	for _, ent := range entries {
+		if ent.IsDir() {
+			continue
+		}
+
+		state, ok := isManualStateFilename(ent.Name())
+		if !ok {
+			continue
+		}
+
+		path := filepath.Join(dir, ent.Name())
+
+		st, valid, loadErr := loadManualStateByPath(path)
+		if loadErr != nil {
+			return "", false, loadErr
+		}
+
+		if !valid {
+			continue
+		}
+
+		if st.Client != client || st.ForceConsent != forceConsent || !scopesEqual(st.Scopes, scopes) {
+			continue
+		}
+
+		if bestState == "" || st.CreatedAt.After(bestCreated) {
+			bestState = state
+			bestCreated = st.CreatedAt
+		}
+	}
+
+	if bestState == "" {
+		return "", false, nil
+	}
+
+	return bestState, true, nil
+}
+
+func loadManualStateByPath(path string) (manualState, bool, error) {
 	data, err := os.ReadFile(path) //nolint:gosec // config path
 	if err != nil {
 		if os.IsNotExist(err) {
-			return "", errManualStateMissing
+			return manualState{}, false, nil
 		}
 
-		return "", fmt.Errorf("read manual auth state: %w", err)
+		return manualState{}, false, fmt.Errorf("read manual auth state: %w", err)
 	}
 
 	var st manualState
 	if err := json.Unmarshal(data, &st); err != nil {
 		_ = os.Remove(path)
-
-		return "", errManualStateMissing
+		return manualState{}, false, nil //nolint:nilerr // invalid state should be treated as a cache miss
 	}
 
 	if st.State == "" {
 		_ = os.Remove(path)
-
-		return "", errManualStateMissing
+		return manualState{}, false, nil
 	}
 
 	if manualStateNowFn().Sub(st.CreatedAt) > manualStateTTL {
 		_ = os.Remove(path)
-
-		return "", errManualStateMissing
+		return manualState{}, false, nil
 	}
 
-	if st.Client != client || st.ForceConsent != forceConsent || !scopesEqual(st.Scopes, scopes) {
-		return "", errManualStateMismatch
-	}
-
-	return st.State, nil
+	return st, true, nil
 }
 
 func saveManualState(client string, scopes []string, forceConsent bool, state string) error {
-	path, err := manualStatePathFn()
+	path, err := manualStatePathFor(state)
 	if err != nil {
 		return err
 	}
@@ -158,8 +189,8 @@ func saveManualState(client string, scopes []string, forceConsent bool, state st
 	return nil
 }
 
-func clearManualState() error {
-	path, err := manualStatePathFn()
+func clearManualState(state string) error {
+	path, err := manualStatePathFor(state)
 	if err != nil {
 		return err
 	}

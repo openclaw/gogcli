@@ -99,6 +99,9 @@ Implementation: `internal/secrets/store.go`.
 
 - Desktop OAuth 2.0 flow using local HTTP redirect on an ephemeral port.
 - Supports a browserless/manual flow (paste redirect URL) for headless environments.
+- Supports a remote/server-friendly 2-step manual flow:
+  - Step 1 prints an auth URL (`gog auth add ... --remote --step 1`)
+  - Step 2 exchanges the pasted redirect URL and requires `state` validation (`--remote --step 2 --auth-url ...`)
 - Refresh token issuance:
   - requests `access_type=offline`
   - supports `--force-consent` to force the consent prompt when Google doesn't return a refresh token
@@ -119,6 +122,7 @@ Scope selection note:
   - `credentials-<client>.json` (OAuth client id/secret; named clients)
 - State:
   - `state/gmail-watch/<account>.json` (Gmail watch state)
+  - `oauth-manual-state-<state>.json` (temporary manual OAuth state cache; expires quickly; no tokens)
 - Secrets:
   - refresh tokens in keyring
 
@@ -148,7 +152,7 @@ Flag aliases:
 - `gog auth credentials <credentials.json|->`
 - `gog auth credentials list`
 - `gog --client <name> auth credentials <credentials.json|->`
-- `gog auth add <email> [--services user|all|gmail,calendar,classroom,drive,docs,contacts,tasks,sheets,people,groups] [--readonly] [--drive-scope full|readonly|file] [--manual] [--force-consent]`
+- `gog auth add <email> [--services user|all|gmail,calendar,classroom,drive,docs,contacts,tasks,sheets,people,groups] [--readonly] [--drive-scope full|readonly|file] [--manual] [--remote] [--step 1|2] [--auth-url URL] [--timeout DURATION] [--force-consent]`
 - `gog auth services [--markdown]`
 - `gog auth keep <email> --key <service-account.json>` (Google Keep; Workspace only)
 - `gog auth list`

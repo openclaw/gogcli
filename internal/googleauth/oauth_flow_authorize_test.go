@@ -9,7 +9,6 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -58,14 +57,12 @@ func newTokenServer(t *testing.T) *httptest.Server {
 func useTempManualStatePath(t *testing.T) {
 	t.Helper()
 
-	origPath := manualStatePathFn
+	origDir := manualStateDirFn
 	dir := t.TempDir()
-	manualStatePathFn = func() (string, error) {
-		return filepath.Join(dir, "oauth-manual-state.json"), nil
-	}
+	manualStateDirFn = func() (string, error) { return dir, nil }
 
 	t.Cleanup(func() {
-		manualStatePathFn = origPath
+		manualStateDirFn = origDir
 	})
 }
 
@@ -382,7 +379,7 @@ func TestAuthorize_Manual_AuthURL_RequireStateMissingCache(t *testing.T) {
 	}
 }
 
-func TestAuthorize_Manual_AuthURL_RequireStateMismatch(t *testing.T) {
+func TestAuthorize_Manual_AuthURL_RequireStateMissingForDifferentState(t *testing.T) {
 	origRead := readClientCredentials
 	origEndpoint := oauthEndpoint
 
@@ -413,8 +410,8 @@ func TestAuthorize_Manual_AuthURL_RequireStateMismatch(t *testing.T) {
 		t.Fatalf("expected error")
 	}
 
-	if !errors.Is(err, errManualStateMismatch) {
-		t.Fatalf("expected manual state mismatch error, got: %v", err)
+	if !errors.Is(err, errManualStateMissing) {
+		t.Fatalf("expected manual state missing error, got: %v", err)
 	}
 }
 
