@@ -13,10 +13,11 @@ import (
 )
 
 type SlidesCmd struct {
-	Export SlidesExportCmd `cmd:"" name:"export" help:"Export a Google Slides deck (pdf|pptx)"`
-	Info   SlidesInfoCmd   `cmd:"" name:"info" help:"Get Google Slides presentation metadata"`
-	Create SlidesCreateCmd `cmd:"" name:"create" help:"Create a Google Slides presentation"`
-	Copy   SlidesCopyCmd   `cmd:"" name:"copy" help:"Copy a Google Slides presentation"`
+	Export   SlidesExportCmd   `cmd:"" name:"export" help:"Export a Google Slides deck (pdf|pptx)"`
+	Info     SlidesInfoCmd     `cmd:"" name:"info" help:"Get Google Slides presentation metadata"`
+	Create   SlidesCreateCmd   `cmd:"" name:"create" help:"Create a Google Slides presentation"`
+	Copy     SlidesCopyCmd     `cmd:"" name:"copy" help:"Copy a Google Slides presentation"`
+	AddSlide SlidesAddSlideCmd `cmd:"" name:"add-slide" help:"Add a slide with a full-bleed image and optional speaker notes"`
 }
 
 type SlidesExportCmd struct {
