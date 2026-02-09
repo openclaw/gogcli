@@ -178,7 +178,7 @@ Flag aliases:
 - `gog drive delete <fileId>`
 - `gog drive move <fileId> --parent ID`
 - `gog drive rename <fileId> <newName>`
-- `gog drive share <fileId> [--anyone | --email addr] [--role reader|writer] [--discoverable]`
+- `gog drive share <fileId> --to anyone|user|domain [--email addr] [--domain example.com] [--role reader|writer] [--discoverable]`
 - `gog drive permissions <fileId> [--max N] [--page TOKEN]`
 - `gog drive unshare <fileId> <permissionId>`
 - `gog drive url <fileIds...>`

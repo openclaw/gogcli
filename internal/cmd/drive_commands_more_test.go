@@ -107,13 +107,63 @@ func TestDriveCommands_MoreCoverage(t *testing.T) {
 			w.WriteHeader(http.StatusNoContent)
 			return
 		case r.Method == http.MethodPost && strings.HasSuffix(path, "/permissions"):
-			_ = json.NewEncoder(w).Encode(map[string]any{
-				"id":           "perm1",
-				"type":         "user",
-				"role":         "reader",
-				"emailAddress": "share@example.com",
-			})
-			return
+			var req map[string]any
+			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+				http.Error(w, "bad json", http.StatusBadRequest)
+				return
+			}
+			typ, _ := req["type"].(string)
+			role, _ := req["role"].(string)
+			if role == "" {
+				role = "reader"
+			}
+
+			switch typ {
+			case "user":
+				email, _ := req["emailAddress"].(string)
+				if email == "" {
+					http.Error(w, "missing emailAddress", http.StatusBadRequest)
+					return
+				}
+				_ = json.NewEncoder(w).Encode(map[string]any{
+					"id":           "perm1",
+					"type":         "user",
+					"role":         role,
+					"emailAddress": email,
+				})
+				return
+			case "domain":
+				domain, _ := req["domain"].(string)
+				if domain == "" {
+					http.Error(w, "missing domain", http.StatusBadRequest)
+					return
+				}
+				resp := map[string]any{
+					"id":     "perm1",
+					"type":   "domain",
+					"role":   role,
+					"domain": domain,
+				}
+				if afd, ok := req["allowFileDiscovery"].(bool); ok {
+					resp["allowFileDiscovery"] = afd
+				}
+				_ = json.NewEncoder(w).Encode(resp)
+				return
+			case "anyone":
+				resp := map[string]any{
+					"id":   "perm1",
+					"type": "anyone",
+					"role": role,
+				}
+				if afd, ok := req["allowFileDiscovery"].(bool); ok {
+					resp["allowFileDiscovery"] = afd
+				}
+				_ = json.NewEncoder(w).Encode(resp)
+				return
+			default:
+				http.Error(w, "invalid type", http.StatusBadRequest)
+				return
+			}
 		case r.Method == http.MethodDelete && strings.Contains(path, "/permissions/"):
 			w.WriteHeader(http.StatusNoContent)
 			return
@@ -191,9 +241,14 @@ func TestDriveCommands_MoreCoverage(t *testing.T) {
 		t.Fatalf("unexpected rename output: %q", out)
 	}
 
-	out = run("--json", "--account", "a@b.com", "drive", "share", "file1", "--email", "share@example.com")
+	out = run("--json", "--account", "a@b.com", "drive", "share", "file1", "--to", "user", "--email", "share@example.com")
 	if !strings.Contains(out, "\"permissionId\"") {
 		t.Fatalf("unexpected share json: %q", out)
+	}
+
+	out = run("--json", "--account", "a@b.com", "drive", "share", "file1", "--to", "domain", "--domain", "example.com", "--role", "writer")
+	if !strings.Contains(out, "\"permissionId\"") {
+		t.Fatalf("unexpected domain share json: %q", out)
 	}
 
 	out = run("--force", "--account", "a@b.com", "drive", "unshare", "file1", "perm1")

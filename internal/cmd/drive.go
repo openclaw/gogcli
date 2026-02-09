@@ -40,6 +40,13 @@ const (
 	extPptx                = ".pptx"
 	extPNG                 = ".png"
 	extTXT                 = ".txt"
+
+	driveShareToAnyone = "anyone"
+	driveShareToUser   = "user"
+	driveShareToDomain = "domain"
+
+	drivePermRoleReader = "reader"
+	drivePermRoleWriter = "writer"
 )
 
 type DriveCmd struct {
@@ -572,8 +579,10 @@ func (c *DriveRenameCmd) Run(ctx context.Context, flags *RootFlags) error {
 
 type DriveShareCmd struct {
 	FileID       string `arg:"" name:"fileId" help:"File ID"`
-	Anyone       bool   `name:"anyone" help:"Make publicly accessible"`
-	Email        string `name:"email" help:"Share with specific user"`
+	To           string `name:"to" help:"Share target: anyone|user|domain"`
+	Anyone       bool   `name:"anyone" hidden:"" help:"(deprecated) Use --to=anyone"`
+	Email        string `name:"email" help:"User email (for --to=user)"`
+	Domain       string `name:"domain" help:"Domain (for --to=domain; e.g. example.com)"`
 	Role         string `name:"role" help:"Permission: reader|writer" default:"reader"`
 	Discoverable bool   `name:"discoverable" help:"Allow file discovery in search (anyone/domain only)"`
 }
@@ -589,14 +598,58 @@ func (c *DriveShareCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return usage("empty fileId")
 	}
 
-	if !c.Anyone && strings.TrimSpace(c.Email) == "" {
-		return usage("must specify --anyone or --email")
+	to := strings.TrimSpace(c.To)
+	email := strings.TrimSpace(c.Email)
+	domain := strings.TrimSpace(c.Domain)
+
+	// Back-compat: allow legacy target flags without --to, but keep it unambiguous.
+	// New UX: prefer explicit --to + matching parameter.
+	if to == "" {
+		switch {
+		case c.Anyone && email == "" && domain == "":
+			to = driveShareToAnyone
+		case !c.Anyone && email != "" && domain == "":
+			to = driveShareToUser
+		case !c.Anyone && email == "" && domain != "":
+			to = driveShareToDomain
+		case !c.Anyone && email == "" && domain == "":
+			return usage("must specify --to (anyone|user|domain)")
+		default:
+			return usage("ambiguous share target (use --to=anyone|user|domain)")
+		}
+	}
+
+	switch to {
+	case driveShareToAnyone:
+		if email != "" || domain != "" {
+			return usage("--to=anyone cannot be combined with --email or --domain")
+		}
+	case driveShareToUser:
+		if email == "" {
+			return usage("missing --email for --to=user")
+		}
+		if domain != "" || c.Anyone {
+			return usage("--to=user cannot be combined with --anyone or --domain")
+		}
+		if c.Discoverable {
+			return usage("--discoverable is only valid for --to=anyone or --to=domain")
+		}
+	case driveShareToDomain:
+		if domain == "" {
+			return usage("missing --domain for --to=domain")
+		}
+		if email != "" || c.Anyone {
+			return usage("--to=domain cannot be combined with --anyone or --email")
+		}
+	default:
+		// Should be guarded by enum, but keep a friendly message for future changes.
+		return usage("invalid --to (expected anyone|user|domain)")
 	}
 	role := strings.TrimSpace(c.Role)
 	if role == "" {
-		role = "reader"
+		role = drivePermRoleReader
 	}
-	if role != "reader" && role != "writer" {
+	if role != drivePermRoleReader && role != drivePermRoleWriter {
 		return usage("invalid --role (expected reader|writer)")
 	}
 
@@ -606,18 +659,23 @@ func (c *DriveShareCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 
 	perm := &drive.Permission{Role: role}
-	if c.Anyone {
+	switch to {
+	case driveShareToAnyone:
 		perm.Type = "anyone"
 		perm.AllowFileDiscovery = c.Discoverable
-	} else {
+	case driveShareToDomain:
+		perm.Type = "domain"
+		perm.Domain = domain
+		perm.AllowFileDiscovery = c.Discoverable
+	default:
 		perm.Type = "user"
-		perm.EmailAddress = strings.TrimSpace(c.Email)
+		perm.EmailAddress = email
 	}
 
 	created, err := svc.Permissions.Create(fileID, perm).
 		SupportsAllDrives(true).
 		SendNotificationEmail(false).
-		Fields("id, type, role, emailAddress").
+		Fields("id, type, role, emailAddress, domain, allowFileDiscovery").
 		Context(ctx).
 		Do()
 	if err != nil {
@@ -713,7 +771,7 @@ func (c *DrivePermissionsCmd) Run(ctx context.Context, flags *RootFlags) error {
 
 	call := svc.Permissions.List(fileID).
 		SupportsAllDrives(true).
-		Fields("nextPageToken, permissions(id, type, role, emailAddress)").
+		Fields("nextPageToken, permissions(id, type, role, emailAddress, domain)").
 		Context(ctx)
 	if c.Max > 0 {
 		call = call.PageSize(c.Max)
@@ -744,6 +802,9 @@ func (c *DrivePermissionsCmd) Run(ctx context.Context, flags *RootFlags) error {
 	fmt.Fprintln(w, "ID\tTYPE\tROLE\tEMAIL")
 	for _, p := range resp.Permissions {
 		email := p.EmailAddress
+		if email == "" && p.Domain != "" {
+			email = p.Domain
+		}
 		if email == "" {
 			email = "-"
 		}
