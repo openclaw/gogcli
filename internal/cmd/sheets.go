@@ -118,15 +118,15 @@ func (c *SheetsGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return nil
 	}
 
-	tw := tabwriter.NewWriter(os.Stdout, 0, 4, 2, ' ', 0)
+	w, flush := tableWriter(ctx)
+	defer flush()
 	for _, row := range resp.Values {
 		cells := make([]string, len(row))
 		for i, cell := range row {
 			cells[i] = fmt.Sprintf("%v", cell)
 		}
-		fmt.Fprintln(tw, strings.Join(cells, "\t"))
+		fmt.Fprintln(w, strings.Join(cells, "\t"))
 	}
-	_ = tw.Flush()
 	return nil
 }
 
