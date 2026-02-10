@@ -41,32 +41,32 @@ type MarkdownElement struct {
 
 // TextStyle represents text formatting
 type TextStyle struct {
-	Bold      bool
-	Italic    bool
-	Code      bool
-	Link      string
-	Start     int
-	End       int
+	Bold   bool
+	Italic bool
+	Code  bool
+	Link  string
+	Start int
+	End   int
 }
 
 // ParagraphStyle represents paragraph-level formatting
 type ParagraphStyle struct {
-	Type      MarkdownElementType
-	Start     int
-	End       int
+	Type  MarkdownElementType
+	Start int
+	End   int
 }
 
 // ParseMarkdown parses markdown text into structured elements
 func ParseMarkdown(text string) []MarkdownElement {
 	var elements []MarkdownElement
 	lines := strings.Split(text, "\n")
-	
+
 	inCodeBlock := false
 	var codeBlockContent strings.Builder
-	
+
 	for i := 0; i < len(lines); i++ {
 		line := lines[i]
-		
+
 		// Handle code blocks
 		if strings.HasPrefix(line, "```") {
 			if inCodeBlock {
@@ -83,7 +83,7 @@ func ParseMarkdown(text string) []MarkdownElement {
 			}
 			continue
 		}
-		
+
 		if inCodeBlock {
 			if codeBlockContent.Len() > 0 {
 				codeBlockContent.WriteString("\n")
@@ -91,12 +91,12 @@ func ParseMarkdown(text string) []MarkdownElement {
 			codeBlockContent.WriteString(line)
 			continue
 		}
-		
+
 		// Empty line
 		if strings.TrimSpace(line) == "" {
 			continue
 		}
-		
+
 		// Horizontal rule
 		if isHorizontalRule(line) {
 			elements = append(elements, MarkdownElement{
@@ -104,7 +104,7 @@ func ParseMarkdown(text string) []MarkdownElement {
 			})
 			continue
 		}
-		
+
 		// Headings
 		if headingLevel, content := parseHeading(line); headingLevel > 0 {
 			headingType := MDHeading1
@@ -128,7 +128,7 @@ func ParseMarkdown(text string) []MarkdownElement {
 			})
 			continue
 		}
-		
+
 		// Blockquote
 		if strings.HasPrefix(line, "> ") {
 			content := strings.TrimPrefix(line, "> ")
@@ -138,7 +138,7 @@ func ParseMarkdown(text string) []MarkdownElement {
 			})
 			continue
 		}
-		
+
 		// Numbered list
 		if match := regexp.MustCompile(`^(\d+)\.\s+(.+)`).FindStringSubmatch(line); match != nil {
 			elements = append(elements, MarkdownElement{
@@ -147,7 +147,7 @@ func ParseMarkdown(text string) []MarkdownElement {
 			})
 			continue
 		}
-		
+
 		// Bullet list
 		if strings.HasPrefix(line, "- ") || strings.HasPrefix(line, "* ") {
 			content := strings.TrimPrefix(strings.TrimPrefix(line, "- "), "* ")
@@ -157,107 +157,169 @@ func ParseMarkdown(text string) []MarkdownElement {
 			})
 			continue
 		}
-		
+
 		// Regular paragraph
 		elements = append(elements, MarkdownElement{
 			Type:    MDParagraph,
 			Content: line,
 		})
 	}
-	
+
 	return elements
 }
 
+// InlineMatch represents a matched inline pattern
+type InlineMatch struct {
+	Start   int
+	End     int
+	Content string
+	Type    string
+	URL     string
+}
+
 // ParseInlineFormatting parses inline markdown formatting within text
+// Returns styles with indices relative to the stripped plain text
 func ParseInlineFormatting(text string) ([]TextStyle, string) {
-	var styles []TextStyle
-	plainText := text
-	offset := 0
-	
-	// Bold and italic (***text*** or **_text_**)
-	biRegex := regexp.MustCompile(`\*\*\*([^*]+)\*\*\*|\*\*_([^_]+)_\*\*`)
-	plainText = biRegex.ReplaceAllStringFunc(plainText, func(match string) string {
-		extract := biRegex.FindStringSubmatch(match)
-		content := extract[1]
-		if extract[2] != "" {
-			content = extract[2]
-		}
-		start := offset
-		offset += len(content)
-		styles = append(styles, TextStyle{
-			Bold:   true,
-			Italic: true,
-			Start:  start,
-			End:    offset,
-		})
-		return content
-	})
-	
-	// Bold (**text**)
-	boldRegex := regexp.MustCompile(`\*\*([^*]+)\*\*`)
-	plainText = boldRegex.ReplaceAllStringFunc(plainText, func(match string) string {
-		extract := boldRegex.FindStringSubmatch(match)
-		content := extract[1]
-		start := offset
-		offset += len(content)
-		styles = append(styles, TextStyle{
-			Bold:  true,
-			Start: start,
-			End:   offset,
-		})
-		return content
-	})
-	
-	// Italic (*text* or _text_)
-	italicRegex := regexp.MustCompile(`\*([^*]+)\*|_([^_]+)_`)
-	plainText = italicRegex.ReplaceAllStringFunc(plainText, func(match string) string {
-		extract := italicRegex.FindStringSubmatch(match)
-		content := extract[1]
-		if extract[2] != "" {
-			content = extract[2]
-		}
-		start := offset
-		offset += len(content)
-		styles = append(styles, TextStyle{
-			Italic: true,
-			Start:  start,
-			End:    offset,
-		})
-		return content
-	})
-	
-	// Inline code (`code`)
-	codeRegex := regexp.MustCompile("`([^`]+)`")
-	plainText = codeRegex.ReplaceAllStringFunc(plainText, func(match string) string {
-		extract := codeRegex.FindStringSubmatch(match)
-		content := extract[1]
-		start := offset
-		offset += len(content)
-		styles = append(styles, TextStyle{
-			Code:  true,
-			Start: start,
-			End:   offset,
-		})
-		return content
-	})
-	
+	var matches []InlineMatch
+
 	// Links [text](url)
 	linkRegex := regexp.MustCompile(`\[([^\]]+)\]\(([^)]+)\)`)
-	plainText = linkRegex.ReplaceAllStringFunc(plainText, func(match string) string {
-		extract := linkRegex.FindStringSubmatch(match)
-		text := extract[1]
-		url := extract[2]
-		start := offset
-		offset += len(text)
-		styles = append(styles, TextStyle{
-			Link:  url,
-			Start: start,
-			End:   offset,
+	for _, idx := range linkRegex.FindAllStringSubmatchIndex(text, -1) {
+		matches = append(matches, InlineMatch{
+			Start:   idx[0],
+			End:     idx[1],
+			Content: text[idx[2]:idx[3]],
+			Type:    "link",
+			URL:     text[idx[4]:idx[5]],
 		})
-		return text
-	})
-	
-	return styles, plainText
+	}
+
+	// Inline code (`code`)
+	codeRegex := regexp.MustCompile("`([^`]+)`")
+	for _, idx := range codeRegex.FindAllStringSubmatchIndex(text, -1) {
+		matches = append(matches, InlineMatch{
+			Start:   idx[0],
+			End:     idx[1],
+			Content: text[idx[2]:idx[3]],
+			Type:    "code",
+		})
+	}
+
+	// Bold and italic (***text***)
+	biRegex := regexp.MustCompile(`\*\*\*([^*]+)\*\*\*`)
+	for _, idx := range biRegex.FindAllStringSubmatchIndex(text, -1) {
+		matches = append(matches, InlineMatch{
+			Start:   idx[0],
+			End:     idx[1],
+			Content: text[idx[2]:idx[3]],
+			Type:    "bolditalic",
+		})
+	}
+
+	// Bold (**text**)
+	boldRegex := regexp.MustCompile(`\*\*([^*]+)\*\*`)
+	for _, idx := range boldRegex.FindAllStringSubmatchIndex(text, -1) {
+		// Check if this overlaps with an existing match
+		overlaps := false
+		for _, m := range matches {
+			if idx[0] >= m.Start && idx[1] <= m.End {
+				overlaps = true
+				break
+			}
+		}
+		if !overlaps {
+			matches = append(matches, InlineMatch{
+				Start:   idx[0],
+				End:     idx[1],
+				Content: text[idx[2]:idx[3]],
+				Type:    "bold",
+			})
+		}
+	}
+
+	// Italic (*text*)
+	italicRegex := regexp.MustCompile(`\*([^*]+)\*`)
+	for _, idx := range italicRegex.FindAllStringSubmatchIndex(text, -1) {
+		// Check if this overlaps with an existing match
+		overlaps := false
+		for _, m := range matches {
+			if idx[0] >= m.Start && idx[1] <= m.End {
+				overlaps = true
+				break
+			}
+		}
+		if !overlaps {
+			matches = append(matches, InlineMatch{
+				Start:   idx[0],
+				End:     idx[1],
+				Content: text[idx[2]:idx[3]],
+				Type:    "italic",
+			})
+		}
+	}
+
+	// Sort matches by start position
+	for i := 0; i < len(matches)-1; i++ {
+		for j := i + 1; j < len(matches); j++ {
+			if matches[i].Start > matches[j].Start {
+				matches[i], matches[j] = matches[j], matches[i]
+			}
+		}
+	}
+
+	// Build the stripped text and track position mapping
+	var stripped strings.Builder
+	positionMap := make(map[int]int)
+
+	for i, ch := range text {
+		insideMatch := false
+		for _, m := range matches {
+			if i >= m.Start && i < m.End {
+				insideMatch = true
+				// If this is the start of a match, add the content
+				if i == m.Start {
+					positionMap[i] = stripped.Len()
+					stripped.WriteString(m.Content)
+				}
+				break
+			}
+		}
+
+		if !insideMatch {
+			positionMap[i] = stripped.Len()
+			stripped.WriteRune(ch)
+		}
+	}
+	positionMap[len(text)] = stripped.Len()
+
+	strippedText := stripped.String()
+
+	// Convert matches to styles with correct positions
+	var styles []TextStyle
+	for _, m := range matches {
+		style := TextStyle{
+			Start: positionMap[m.Start],
+			End:   positionMap[m.End],
+		}
+
+		switch m.Type {
+		case "bold":
+			style.Bold = true
+		case "italic":
+			style.Italic = true
+		case "bolditalic":
+			style.Bold = true
+			style.Italic = true
+		case "code":
+			style.Code = true
+		case "link":
+			style.Link = m.URL
+		}
+
+		styles = append(styles, style)
+	}
+
+	return styles, strippedText
 }
 
 func parseHeading(line string) (int, string) {

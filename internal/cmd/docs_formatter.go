@@ -10,9 +10,9 @@ import (
 func MarkdownToDocsRequests(elements []MarkdownElement) ([]*docs.Request, string) {
 	var requests []*docs.Request
 	var plainText strings.Builder
-	charOffset := int64(1) // Docs indices start at 1
+	charOffset := int64(1)
 
-	for i, el := range elements {
+	for _, el := range elements {
 		startOffset := charOffset
 
 		switch el.Type {
@@ -22,7 +22,7 @@ func MarkdownToDocsRequests(elements []MarkdownElement) ([]*docs.Request, string
 			plainText.WriteString("\n")
 			charOffset += int64(len(el.Content) + 1)
 
-			// Apply heading style after we know the position
+			// Apply heading style
 			headingStyle := getHeadingStyle(el.Type)
 			requests = append(requests, &docs.Request{
 				UpdateParagraphStyle: &docs.UpdateParagraphStyleRequest{
@@ -36,10 +36,6 @@ func MarkdownToDocsRequests(elements []MarkdownElement) ([]*docs.Request, string
 					Fields: "namedStyleType",
 				},
 			})
-
-			// Parse and apply inline formatting (simplified - skip for now)
-			// TODO: Fix inline formatting indices
-
 
 		case MDCodeBlock:
 			// Add code block text
@@ -91,55 +87,34 @@ func MarkdownToDocsRequests(elements []MarkdownElement) ([]*docs.Request, string
 							Magnitude: 36,
 							Unit:      "PT",
 						},
-						IndentFirstLine: &docs.Dimension{
-							Magnitude: 0,
-							Unit:      "PT",
-						},
 					},
-					Fields: "indentStart,indentFirstLine",
-				},
-			})
-			requests = append(requests, &docs.Request{
-				UpdateTextStyle: &docs.UpdateTextStyleRequest{
-					Range: &docs.Range{
-						StartIndex: startOffset,
-						EndIndex:   charOffset,
-					},
-					TextStyle: &docs.TextStyle{
-						Italic: true,
-					},
-					Fields: "italic",
+					Fields: "indentStart",
 				},
 			})
 
 		case MDListItem, MDNumberedList:
 			// Add list item text
+			prefix := "• "
+			if el.Type == MDNumberedList {
+				prefix = "1. "
+			}
+			plainText.WriteString(prefix)
 			plainText.WriteString(el.Content)
 			plainText.WriteString("\n")
-			charOffset += int64(len(el.Content) + 1)
-
-			// Inline formatting: TODO - fix indices
-			_ = el.Content
+			charOffset += int64(len(prefix) + len(el.Content) + 1)
 
 		case MDHorizontalRule:
-			// Add horizontal rule as a line
-			plainText.WriteString("────────────────────────────────────────\n")
-			charOffset += 41
+			// Add horizontal rule as a separator line
+			separator := "────────────────────────────────────────"
+			plainText.WriteString(separator)
+			plainText.WriteString("\n")
+			charOffset += int64(len(separator) + 1)
 
 		case MDParagraph:
 			// Add paragraph text
 			plainText.WriteString(el.Content)
 			plainText.WriteString("\n")
 			charOffset += int64(len(el.Content) + 1)
-
-			// Inline formatting: TODO - fix indices
-			_ = el.Content
-		}
-
-		// Add spacing between elements (except for last one)
-		if i < len(elements)-1 && el.Type != MDHorizontalRule {
-			plainText.WriteString("\n")
-			charOffset += 1
 		}
 	}
 
@@ -162,72 +137,5 @@ func getHeadingStyle(elType MarkdownElementType) string {
 		return "HEADING_6"
 	default:
 		return "NORMAL_TEXT"
-	}
-}
-
-func createTextStyleRequest(start, end int64, style TextStyle) *docs.Request {
-	textStyle := &docs.TextStyle{}
-
-	if style.Bold {
-		textStyle.Bold = true
-	}
-	if style.Italic {
-		textStyle.Italic = true
-	}
-	if style.Code {
-		textStyle.WeightedFontFamily = &docs.WeightedFontFamily{
-			FontFamily: "Courier New",
-			Weight:     400,
-		}
-	}
-
-	fields := ""
-	if style.Bold {
-		fields += "bold,"
-	}
-	if style.Italic {
-		fields += "italic,"
-	}
-	if style.Code {
-		fields += "weightedFontFamily,"
-	}
-	fields = strings.TrimSuffix(fields, ",")
-
-	return &docs.Request{
-		UpdateTextStyle: &docs.UpdateTextStyleRequest{
-			Range: &docs.Range{
-				StartIndex: start,
-				EndIndex:   end,
-			},
-			TextStyle: textStyle,
-			Fields:    fields,
-		},
-	}
-}
-
-func createLinkRequest(start, end int64, url string) *docs.Request {
-	return &docs.Request{
-		UpdateTextStyle: &docs.UpdateTextStyleRequest{
-			Range: &docs.Range{
-				StartIndex: start,
-				EndIndex:   end,
-			},
-			TextStyle: &docs.TextStyle{
-				Link: &docs.Link{
-					Url: url,
-				},
-				Underline: true,
-				ForegroundColor: &docs.OptionalColor{
-					Color: &docs.Color{
-						RgbColor: &docs.RgbColor{
-							Red:   0.07,
-							Green: 0.30,
-							Blue:  0.78,
-						},
-					},
-				},
-			},
-			Fields: "link,underline,foregroundColor",
-		},
 	}
 }
