@@ -359,16 +359,7 @@ func (c *DocsUpdateCmd) Run(ctx context.Context, flags *RootFlags) error {
 	var requests []*docs.Request
 
 	if c.Append {
-		// Find the end of the document
-		endIndex := int64(1)
-		if doc.Body != nil && len(doc.Body.Content) > 0 {
-			lastEl := doc.Body.Content[len(doc.Body.Content)-1]
-			if lastEl != nil && lastEl.EndIndex != nil {
-				endIndex = *lastEl.EndIndex - 1 // Insert before final newline
-			}
-		}
-
-		// Insert text at the end
+		// Insert text at the end of the document
 		requests = []*docs.Request{
 			{
 				InsertText: &docs.InsertTextRequest{
@@ -380,26 +371,20 @@ func (c *DocsUpdateCmd) Run(ctx context.Context, flags *RootFlags) error {
 			},
 		}
 	} else {
-		// Replace all content: delete existing content first, then insert new
-		if doc.Body != nil && len(doc.Body.Content) > 1 {
-			// Delete content between start (1) and end (excluding final segment break)
-			for i := len(doc.Body.Content) - 1; i >= 0; i-- {
-				el := doc.Body.Content[i]
-				if el == nil || el.StartIndex == nil || el.EndIndex == nil {
-					continue
-				}
-				start := *el.StartIndex
-				end := *el.EndIndex
-				if end > start && end > 1 {
-					requests = append(requests, &docs.Request{
-						DeleteContentRange: &docs.DeleteContentRangeRequest{
-							Range: &docs.Range{
-								StartIndex: &start,
-								EndIndex:   &end,
-							},
+		// Replace all content: delete from start to end-1 (excluding final segment break)
+		if doc.Body != nil && len(doc.Body.Content) > 0 {
+			lastEl := doc.Body.Content[len(doc.Body.Content)-1]
+			if lastEl != nil && lastEl.EndIndex > 2 {
+				// Delete everything from index 1 to end-1
+				endIdx := lastEl.EndIndex - 1
+				requests = append(requests, &docs.Request{
+					DeleteContentRange: &docs.DeleteContentRangeRequest{
+						Range: &docs.Range{
+							StartIndex: 1,
+							EndIndex:   endIdx,
 						},
-					})
-				}
+					},
+				})
 			}
 		}
 
