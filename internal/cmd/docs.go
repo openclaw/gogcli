@@ -27,6 +27,7 @@ type DocsCmd struct {
 	Create DocsCreateCmd `cmd:"" name:"create" help:"Create a Google Doc"`
 	Copy   DocsCopyCmd   `cmd:"" name:"copy" help:"Copy a Google Doc"`
 	Cat    DocsCatCmd    `cmd:"" name:"cat" help:"Print a Google Doc as plain text"`
+	Update DocsUpdateCmd `cmd:"" name:"update" help:"Update content in a Google Doc"`
 }
 
 type DocsExportCmd struct {
@@ -301,6 +302,140 @@ func (c *DocsCatCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 	_, err = io.WriteString(os.Stdout, text)
 	return err
+}
+
+type DocsUpdateCmd struct {
+	DocID       string `arg:"" name:"docId" help:"Doc ID"`
+	Content     string `name:"content" help:"Text content to insert (mutually exclusive with --content-file)"`
+	ContentFile string `name:"content-file" help:"File containing text content to insert"`
+	Append      bool   `name:"append" help:"Append to end of document instead of replacing all content"`
+}
+
+func (c *DocsUpdateCmd) Run(ctx context.Context, flags *RootFlags) error {
+	u := ui.FromContext(ctx)
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
+	}
+
+	id := strings.TrimSpace(c.DocID)
+	if id == "" {
+		return usage("empty docId")
+	}
+
+	// Get content from flag or file
+	var content string
+	if c.ContentFile != "" {
+		data, err := os.ReadFile(c.ContentFile)
+		if err != nil {
+			return fmt.Errorf("read content file: %w", err)
+		}
+		content = string(data)
+	} else if c.Content != "" {
+		content = c.Content
+	} else {
+		return usage("either --content or --content-file is required")
+	}
+
+	svc, err := newDocsService(ctx, account)
+	if err != nil {
+		return err
+	}
+
+	// First, get the document to find its structure
+	doc, err := svc.Documents.Get(id).
+		Context(ctx).
+		Do()
+	if err != nil {
+		if isDocsNotFound(err) {
+			return fmt.Errorf("doc not found or not a Google Doc (id=%s)", id)
+		}
+		return err
+	}
+	if doc == nil {
+		return errors.New("doc not found")
+	}
+
+	var requests []*docs.Request
+
+	if c.Append {
+		// Find the end of the document
+		endIndex := int64(1)
+		if doc.Body != nil && len(doc.Body.Content) > 0 {
+			lastEl := doc.Body.Content[len(doc.Body.Content)-1]
+			if lastEl != nil && lastEl.EndIndex != nil {
+				endIndex = *lastEl.EndIndex - 1 // Insert before final newline
+			}
+		}
+
+		// Insert text at the end
+		requests = []*docs.Request{
+			{
+				InsertText: &docs.InsertTextRequest{
+					EndOfSegmentLocation: &docs.EndOfSegmentLocation{
+						SegmentId: "",
+					},
+					Text: content,
+				},
+			},
+		}
+	} else {
+		// Replace all content: delete existing content first, then insert new
+		if doc.Body != nil && len(doc.Body.Content) > 1 {
+			// Delete content between start (1) and end (excluding final segment break)
+			for i := len(doc.Body.Content) - 1; i >= 0; i-- {
+				el := doc.Body.Content[i]
+				if el == nil || el.StartIndex == nil || el.EndIndex == nil {
+					continue
+				}
+				start := *el.StartIndex
+				end := *el.EndIndex
+				if end > start && end > 1 {
+					requests = append(requests, &docs.Request{
+						DeleteContentRange: &docs.DeleteContentRangeRequest{
+							Range: &docs.Range{
+								StartIndex: &start,
+								EndIndex:   &end,
+							},
+						},
+					})
+				}
+			}
+		}
+
+		// Insert new content at the beginning
+		requests = append(requests, &docs.Request{
+			InsertText: &docs.InsertTextRequest{
+				Location: &docs.Location{
+					Index: 1,
+				},
+				Text: content,
+			},
+		})
+	}
+
+	// Execute the batch update
+	_, err = svc.Documents.BatchUpdate(id, &docs.BatchUpdateDocumentRequest{
+		Requests: requests,
+	}).Context(ctx).Do()
+	if err != nil {
+		return fmt.Errorf("update document: %w", err)
+	}
+
+	if outfmt.IsJSON(ctx) {
+		return outfmt.WriteJSON(os.Stdout, map[string]any{
+			"success": true,
+			"docId":   id,
+			"action":  map[string]any{"append": c.Append},
+		})
+	}
+
+	action := "Updated"
+	if c.Append {
+		action = "Appended to"
+	}
+	u.Out().Printf("%s document %s", action, id)
+	return nil
 }
 
 func docsWebViewLink(id string) string {
