@@ -308,6 +308,7 @@ type DocsUpdateCmd struct {
 	DocID       string `arg:"" name:"docId" help:"Doc ID"`
 	Content     string `name:"content" help:"Text content to insert (mutually exclusive with --content-file)"`
 	ContentFile string `name:"content-file" help:"File containing text content to insert"`
+	Format      string `name:"format" help:"Content format: plain|markdown" default:"plain"`
 	Append      bool   `name:"append" help:"Append to end of document instead of replacing all content"`
 }
 
@@ -357,6 +358,16 @@ func (c *DocsUpdateCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 
 	var requests []*docs.Request
+	var textToInsert string
+	var formattingRequests []*docs.Request
+
+	// Parse markdown if format is markdown
+	if c.Format == "markdown" {
+		elements := ParseMarkdown(content)
+		formattingRequests, textToInsert = MarkdownToDocsRequests(elements)
+	} else {
+		textToInsert = content
+	}
 
 	if c.Append {
 		// Insert text at the end of the document
@@ -366,7 +377,7 @@ func (c *DocsUpdateCmd) Run(ctx context.Context, flags *RootFlags) error {
 					EndOfSegmentLocation: &docs.EndOfSegmentLocation{
 						SegmentId: "",
 					},
-					Text: content,
+					Text: textToInsert,
 				},
 			},
 		}
@@ -394,9 +405,14 @@ func (c *DocsUpdateCmd) Run(ctx context.Context, flags *RootFlags) error {
 				Location: &docs.Location{
 					Index: 1,
 				},
-				Text: content,
+				Text: textToInsert,
 			},
 		})
+
+		// Add formatting requests for markdown
+		if c.Format == "markdown" {
+			requests = append(requests, formattingRequests...)
+		}
 	}
 
 	// Execute the batch update
