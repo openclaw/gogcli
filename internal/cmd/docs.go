@@ -310,6 +310,7 @@ type DocsUpdateCmd struct {
 	ContentFile string `name:"content-file" help:"File containing text content to insert"`
 	Format      string `name:"format" help:"Content format: plain|markdown" default:"plain"`
 	Append      bool   `name:"append" help:"Append to end of document instead of replacing all content"`
+	Debug       bool   `name:"debug" help:"Enable debug output for markdown formatter"`
 }
 
 func (c *DocsUpdateCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -317,6 +318,11 @@ func (c *DocsUpdateCmd) Run(ctx context.Context, flags *RootFlags) error {
 	account, err := requireAccount(flags)
 	if err != nil {
 		return err
+	}
+
+	// Enable debug mode
+	if c.Debug {
+		debugMarkdown = true
 	}
 
 	id := strings.TrimSpace(c.DocID)
