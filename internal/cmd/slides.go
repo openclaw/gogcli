@@ -17,7 +17,9 @@ type SlidesCmd struct {
 	Info     SlidesInfoCmd     `cmd:"" name:"info" help:"Get Google Slides presentation metadata"`
 	Create   SlidesCreateCmd   `cmd:"" name:"create" help:"Create a Google Slides presentation"`
 	Copy     SlidesCopyCmd     `cmd:"" name:"copy" help:"Copy a Google Slides presentation"`
-	AddSlide SlidesAddSlideCmd `cmd:"" name:"add-slide" help:"Add a slide with a full-bleed image and optional speaker notes"`
+	AddSlide    SlidesAddSlideCmd    `cmd:"" name:"add-slide" help:"Add a slide with a full-bleed image and optional speaker notes"`
+	ListSlides  SlidesListSlidesCmd  `cmd:"" name:"list-slides" help:"List all slides with their object IDs"`
+	DeleteSlide SlidesDeleteSlideCmd `cmd:"" name:"delete-slide" help:"Delete a slide by object ID"`
 }
 
 type SlidesExportCmd struct {
