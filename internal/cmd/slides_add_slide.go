@@ -23,6 +23,7 @@ type SlidesAddSlideCmd struct {
 	Image          string `arg:"" name:"image" help:"Local image file (PNG/JPG)" type:"existingfile"`
 	Notes          string `name:"notes" help:"Speaker notes text"`
 	NotesFile      string `name:"notes-file" help:"Path to file containing speaker notes" type:"existingfile"`
+	Before         string `name:"before" help:"Insert before this slide ID (appends to end if omitted)" optional:""`
 }
 
 func (c *SlidesAddSlideCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -125,19 +126,42 @@ func (c *SlidesAddSlideCmd) Run(ctx context.Context, flags *RootFlags) error {
 	pageHeight := pres.PageSize.Height
 	initialSlideCount := len(pres.Slides)
 
+	// Resolve insertion index from --before flag
+	var insertionIndex int64
+	useBefore := c.Before != ""
+	if useBefore {
+		found := false
+		for i, s := range pres.Slides {
+			if s.ObjectId == c.Before {
+				insertionIndex = int64(i)
+				found = true
+				break
+			}
+		}
+		if !found {
+			return fmt.Errorf("slide %q not found in presentation", c.Before)
+		}
+	}
+
 	// Generate a unique slide object ID
 	slideID := fmt.Sprintf("s_%d", time.Now().UnixNano())
+
+	createSlideReq := &slides.CreateSlideRequest{
+		ObjectId: slideID,
+		SlideLayoutReference: &slides.LayoutReference{
+			PredefinedLayout: "BLANK",
+		},
+	}
+	if useBefore {
+		createSlideReq.InsertionIndex = insertionIndex
+		createSlideReq.ForceSendFields = []string{"InsertionIndex"}
+	}
 
 	// Create the slide with a full-bleed image in one batch
 	_, err = slidesSvc.Presentations.BatchUpdate(presentationID, &slides.BatchUpdatePresentationRequest{
 		Requests: []*slides.Request{
 			{
-				CreateSlide: &slides.CreateSlideRequest{
-					ObjectId: slideID,
-					SlideLayoutReference: &slides.LayoutReference{
-						PredefinedLayout: "BLANK",
-					},
-				},
+				CreateSlide: createSlideReq,
 			},
 			{
 				CreateImage: &slides.CreateImageRequest{
@@ -214,6 +238,9 @@ func (c *SlidesAddSlideCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 
 	slideNum := initialSlideCount + 1
+	if useBefore {
+		slideNum = int(insertionIndex) + 1
+	}
 	link := fmt.Sprintf("https://docs.google.com/presentation/d/%s/edit", presentationID)
 
 	if outfmt.IsJSON(ctx) {

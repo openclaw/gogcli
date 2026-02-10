@@ -503,6 +503,205 @@ func TestSlidesAddSlide_JSON(t *testing.T) {
 	}
 }
 
+func TestSlidesAddSlide_Before(t *testing.T) {
+	origSlides := newSlidesService
+	origDrive := newDriveService
+	t.Cleanup(func() {
+		newSlidesService = origSlides
+		newDriveService = origDrive
+	})
+
+	var capturedCreateSlide *slides.CreateSlideRequest
+
+	// Presentation has 3 slides; we insert before the second one (index 1).
+	presResp := map[string]any{
+		"presentationId": "pres1",
+		"pageSize": map[string]any{
+			"width":  map[string]any{"magnitude": 9144000, "unit": "EMU"},
+			"height": map[string]any{"magnitude": 5143500, "unit": "EMU"},
+		},
+		"slides": []any{
+			map[string]any{"objectId": "slide_a", "slideProperties": map[string]any{}},
+			map[string]any{"objectId": "slide_b", "slideProperties": map[string]any{}},
+			map[string]any{"objectId": "slide_c", "slideProperties": map[string]any{}},
+		},
+	}
+
+	slidesSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		switch {
+		case strings.HasSuffix(r.URL.Path, ":batchUpdate") && r.Method == http.MethodPost:
+			var req slides.BatchUpdatePresentationRequest
+			if err := json.NewDecoder(r.Body).Decode(&req); err == nil {
+				for _, rr := range req.Requests {
+					if rr.CreateSlide != nil {
+						capturedCreateSlide = rr.CreateSlide
+					}
+				}
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"presentationId": "pres1",
+				"replies":        []any{},
+			})
+		case strings.Contains(r.URL.Path, "/presentations/pres1") && r.Method == http.MethodGet:
+			_ = json.NewEncoder(w).Encode(presResp)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer slidesSrv.Close()
+
+	driveSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		switch {
+		case strings.Contains(r.URL.Path, "/upload/") && r.Method == http.MethodPost:
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"id":             "img_before",
+				"webContentLink": "https://drive.google.com/uc?id=img_before",
+			})
+		case strings.Contains(r.URL.Path, "/files/img_before/permissions") && r.Method == http.MethodPost:
+			_ = json.NewEncoder(w).Encode(map[string]any{"id": "perm1"})
+		case strings.Contains(r.URL.Path, "/files/img_before") && r.Method == http.MethodDelete:
+			w.WriteHeader(http.StatusNoContent)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer driveSrv.Close()
+
+	slidesSvc, err := slides.NewService(context.Background(),
+		option.WithoutAuthentication(),
+		option.WithHTTPClient(slidesSrv.Client()),
+		option.WithEndpoint(slidesSrv.URL+"/"),
+	)
+	if err != nil {
+		t.Fatalf("slides.NewService: %v", err)
+	}
+	newSlidesService = func(context.Context, string) (*slides.Service, error) { return slidesSvc, nil }
+
+	driveSvc, err := drive.NewService(context.Background(),
+		option.WithoutAuthentication(),
+		option.WithHTTPClient(driveSrv.Client()),
+		option.WithEndpoint(driveSrv.URL+"/"),
+	)
+	if err != nil {
+		t.Fatalf("drive.NewService: %v", err)
+	}
+	newDriveService = func(context.Context, string) (*drive.Service, error) { return driveSvc, nil }
+
+	imgPath := newTestImage(t, "test.png")
+	flags := &RootFlags{Account: "a@b.com"}
+
+	out := captureStdout(t, func() {
+		u, uiErr := ui.New(ui.Options{Stdout: os.Stdout, Stderr: io.Discard, Color: "never"})
+		if uiErr != nil {
+			t.Fatalf("ui.New: %v", uiErr)
+		}
+		ctx := ui.WithUI(context.Background(), u)
+
+		cmd := &SlidesAddSlideCmd{
+			PresentationID: "pres1",
+			Image:          imgPath,
+			Before:         "slide_b",
+		}
+		if err := cmd.Run(ctx, flags); err != nil {
+			t.Fatalf("Run: %v", err)
+		}
+	})
+
+	if capturedCreateSlide == nil {
+		t.Fatal("expected CreateSlide request to be captured")
+	}
+	if capturedCreateSlide.InsertionIndex != 1 {
+		t.Errorf("expected InsertionIndex=1, got %d", capturedCreateSlide.InsertionIndex)
+	}
+	// Slide inserted before index 1 → new slide is slide number 2
+	if !strings.Contains(out, "slide\t2") {
+		t.Errorf("expected slide number 2, got: %q", out)
+	}
+}
+
+func TestSlidesAddSlide_BeforeNotFound(t *testing.T) {
+	origSlides := newSlidesService
+	origDrive := newDriveService
+	t.Cleanup(func() {
+		newSlidesService = origSlides
+		newDriveService = origDrive
+	})
+
+	slidesSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		switch {
+		case strings.Contains(r.URL.Path, "/presentations/pres1") && r.Method == http.MethodGet:
+			_ = json.NewEncoder(w).Encode(slidesPresGetResponse("", false))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer slidesSrv.Close()
+
+	driveSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		switch {
+		case strings.Contains(r.URL.Path, "/upload/") && r.Method == http.MethodPost:
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"id":             "img_nf",
+				"webContentLink": "https://drive.google.com/uc?id=img_nf",
+			})
+		case strings.Contains(r.URL.Path, "/files/img_nf/permissions") && r.Method == http.MethodPost:
+			_ = json.NewEncoder(w).Encode(map[string]any{"id": "perm1"})
+		case strings.Contains(r.URL.Path, "/files/img_nf") && r.Method == http.MethodDelete:
+			w.WriteHeader(http.StatusNoContent)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer driveSrv.Close()
+
+	slidesSvc, err := slides.NewService(context.Background(),
+		option.WithoutAuthentication(),
+		option.WithHTTPClient(slidesSrv.Client()),
+		option.WithEndpoint(slidesSrv.URL+"/"),
+	)
+	if err != nil {
+		t.Fatalf("slides.NewService: %v", err)
+	}
+	newSlidesService = func(context.Context, string) (*slides.Service, error) { return slidesSvc, nil }
+
+	driveSvc, err := drive.NewService(context.Background(),
+		option.WithoutAuthentication(),
+		option.WithHTTPClient(driveSrv.Client()),
+		option.WithEndpoint(driveSrv.URL+"/"),
+	)
+	if err != nil {
+		t.Fatalf("drive.NewService: %v", err)
+	}
+	newDriveService = func(context.Context, string) (*drive.Service, error) { return driveSvc, nil }
+
+	imgPath := newTestImage(t, "test.png")
+	flags := &RootFlags{Account: "a@b.com"}
+
+	u, uiErr := ui.New(ui.Options{Stdout: io.Discard, Stderr: io.Discard, Color: "never"})
+	if uiErr != nil {
+		t.Fatalf("ui.New: %v", uiErr)
+	}
+	ctx := ui.WithUI(context.Background(), u)
+
+	cmd := &SlidesAddSlideCmd{
+		PresentationID: "pres1",
+		Image:          imgPath,
+		Before:         "nonexistent_slide",
+	}
+	err = cmd.Run(ctx, flags)
+	if err == nil || !strings.Contains(err.Error(), `slide "nonexistent_slide" not found`) {
+		t.Fatalf("expected slide-not-found error, got: %v", err)
+	}
+}
+
 func TestSlidesAddSlide_UnsupportedFormat(t *testing.T) {
 	origSlides := newSlidesService
 	origDrive := newDriveService
