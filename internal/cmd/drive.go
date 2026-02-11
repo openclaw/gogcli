@@ -311,21 +311,28 @@ func (c *DriveDownloadCmd) Run(ctx context.Context, flags *RootFlags) error {
 }
 
 type DriveCopyCmd struct {
-	FileID string `arg:"" name:"fileId" help:"File ID"`
-	Name   string `arg:"" name:"name" help:"New file name"`
-	Parent string `name:"parent" help:"Destination folder ID"`
+	FileID    string `arg:"" name:"fileId" help:"File ID"`
+	Name      string `arg:"" name:"name" help:"New file name"`
+	Parent    string `name:"parent" help:"Destination folder ID"`
+	ConvertTo string `name:"convert-to" help:"Convert copied file to: sheet|doc|slides"`
 }
 
 func (c *DriveCopyCmd) Run(ctx context.Context, flags *RootFlags) error {
+	targetMimeType, err := driveConvertToMimeType(c.ConvertTo)
+	if err != nil {
+		return err
+	}
+
 	return copyViaDrive(ctx, flags, copyViaDriveOptions{
 		ArgName: "fileId",
-	}, c.FileID, c.Name, c.Parent)
+	}, c.FileID, c.Name, c.Parent, targetMimeType)
 }
 
 type DriveUploadCmd struct {
 	LocalPath string `arg:"" name:"localPath" help:"Path to local file"`
 	Name      string `name:"name" help:"Override filename"`
 	Parent    string `name:"parent" help:"Destination folder ID"`
+	ConvertTo string `name:"convert-to" help:"Convert uploaded file to: sheet|doc|slides"`
 }
 
 func (c *DriveUploadCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -340,6 +347,11 @@ func (c *DriveUploadCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return usage("empty localPath")
 	}
 	localPath, err = config.ExpandPath(localPath)
+	if err != nil {
+		return err
+	}
+
+	targetMimeType, err := driveConvertToMimeType(c.ConvertTo)
 	if err != nil {
 		return err
 	}
@@ -361,6 +373,9 @@ func (c *DriveUploadCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 
 	meta := &drive.File{Name: fileName}
+	if targetMimeType != "" {
+		meta.MimeType = targetMimeType
+	}
 	parent := strings.TrimSpace(c.Parent)
 	if parent != "" {
 		meta.Parents = []string{parent}
@@ -957,6 +972,21 @@ func guessMimeType(path string) string {
 		return "text/markdown"
 	default:
 		return "application/octet-stream"
+	}
+}
+
+func driveConvertToMimeType(convertTo string) (string, error) {
+	switch strings.ToLower(strings.TrimSpace(convertTo)) {
+	case "":
+		return "", nil
+	case "sheet":
+		return driveMimeGoogleSheet, nil
+	case "doc":
+		return driveMimeGoogleDoc, nil
+	case "slides":
+		return driveMimeGoogleSlides, nil
+	default:
+		return "", usagef("invalid --convert-to %q (expected: sheet|doc|slides)", convertTo)
 	}
 }
 

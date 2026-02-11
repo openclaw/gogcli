@@ -174,7 +174,7 @@ func (c *DocsCopyCmd) Run(ctx context.Context, flags *RootFlags) error {
 		ArgName:      "docId",
 		ExpectedMime: "application/vnd.google-apps.document",
 		KindLabel:    "Google Doc",
-	}, c.DocID, c.Title, c.Parent)
+	}, c.DocID, c.Title, c.Parent, "")
 }
 
 type DocsCatCmd struct {

@@ -173,7 +173,8 @@ Flag aliases:
 - `gog drive search <text> [--max N] [--page TOKEN]`
 - `gog drive get <fileId>`
 - `gog drive download <fileId> [--out PATH]`
-- `gog drive upload <localPath> [--name N] [--parent ID]`
+- `gog drive copy <fileId> <name> [--parent ID] [--convert-to sheet|doc|slides]`
+- `gog drive upload <localPath> [--name N] [--parent ID] [--convert-to sheet|doc|slides]`
 - `gog drive mkdir <name> [--parent ID]`
 - `gog drive delete <fileId>`
 - `gog drive move <fileId> --parent ID`

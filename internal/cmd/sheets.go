@@ -62,7 +62,7 @@ func (c *SheetsCopyCmd) Run(ctx context.Context, flags *RootFlags) error {
 		ArgName:      "spreadsheetId",
 		ExpectedMime: "application/vnd.google-apps.spreadsheet",
 		KindLabel:    "Google Sheet",
-	}, c.SpreadsheetID, c.Title, c.Parent)
+	}, c.SpreadsheetID, c.Title, c.Parent, "")
 }
 
 type SheetsGetCmd struct {

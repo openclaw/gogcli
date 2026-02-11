@@ -3,6 +3,10 @@ package cmd
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"io"
+	"mime"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -17,6 +21,21 @@ import (
 func TestDriveCommands_MoreCoverage(t *testing.T) {
 	origNew := newDriveService
 	t.Cleanup(func() { newDriveService = origNew })
+
+	convertTargets := []struct {
+		name string
+		mime string
+	}{
+		{name: "sheet", mime: driveMimeGoogleSheet},
+		{name: "doc", mime: driveMimeGoogleDoc},
+		{name: "slides", mime: driveMimeGoogleSlides},
+	}
+	convertTargetByMime := make(map[string]string, len(convertTargets))
+	sawCopyConvert := make(map[string]bool, len(convertTargets))
+	sawUploadConvert := make(map[string]bool, len(convertTargets))
+	for _, target := range convertTargets {
+		convertTargetByMime[target.mime] = target.name
+	}
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := strings.TrimPrefix(r.URL.Path, "/drive/v3")
@@ -81,12 +100,34 @@ func TestDriveCommands_MoreCoverage(t *testing.T) {
 			})
 			return
 		case r.Method == http.MethodPost && strings.HasSuffix(path, "/copy"):
+			var req map[string]any
+			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+				http.Error(w, "bad json", http.StatusBadRequest)
+				return
+			}
+			if mt, _ := req["mimeType"].(string); mt != "" {
+				if name, ok := convertTargetByMime[mt]; ok {
+					sawCopyConvert[name] = true
+				}
+			}
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"id":   "copy1",
 				"name": "Copy",
 			})
 			return
 		case r.Method == http.MethodPost && path == "/files":
+			if strings.HasPrefix(r.URL.Path, "/upload/drive/v3") {
+				meta, err := parseDriveUploadMetadata(r)
+				if err != nil {
+					http.Error(w, "bad upload metadata", http.StatusBadRequest)
+					return
+				}
+				if mt, _ := meta["mimeType"].(string); mt != "" {
+					if name, ok := convertTargetByMime[mt]; ok {
+						sawUploadConvert[name] = true
+					}
+				}
+			}
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"id":          "new1",
 				"name":        "New",
@@ -216,6 +257,12 @@ func TestDriveCommands_MoreCoverage(t *testing.T) {
 	if !strings.Contains(out, "\"file\"") {
 		t.Fatalf("unexpected copy json: %q", out)
 	}
+	for _, target := range convertTargets {
+		out = run("--json", "--account", "a@b.com", "drive", "copy", "file1", "Copy as "+target.name, "--convert-to", target.name)
+		if !strings.Contains(out, "\"file\"") {
+			t.Fatalf("unexpected copy(convert=%s) json: %q", target.name, out)
+		}
+	}
 
 	tmp := filepath.Join(t.TempDir(), "upload.txt")
 	if err := os.WriteFile(tmp, []byte("data"), 0o600); err != nil {
@@ -224,6 +271,12 @@ func TestDriveCommands_MoreCoverage(t *testing.T) {
 	out = run("--json", "--account", "a@b.com", "drive", "upload", tmp)
 	if !strings.Contains(out, "\"file\"") {
 		t.Fatalf("unexpected upload json: %q", out)
+	}
+	for _, target := range convertTargets {
+		out = run("--json", "--account", "a@b.com", "drive", "upload", tmp, "--convert-to", target.name)
+		if !strings.Contains(out, "\"file\"") {
+			t.Fatalf("unexpected upload(convert=%s) json: %q", target.name, out)
+		}
 	}
 
 	out = run("--account", "a@b.com", "drive", "mkdir", "Folder")
@@ -272,4 +325,50 @@ func TestDriveCommands_MoreCoverage(t *testing.T) {
 	if !strings.Contains(out, "\"deleted\"") {
 		t.Fatalf("unexpected delete json: %q", out)
 	}
+	for _, target := range convertTargets {
+		if !sawCopyConvert[target.name] {
+			t.Fatalf("expected copy --convert-to %s to set mimeType=%q", target.name, target.mime)
+		}
+		if !sawUploadConvert[target.name] {
+			t.Fatalf("expected upload --convert-to %s to set mimeType=%q", target.name, target.mime)
+		}
+	}
+}
+
+func parseDriveUploadMetadata(r *http.Request) (map[string]any, error) {
+	mediaType, params, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
+	if err != nil {
+		return nil, err
+	}
+	if !strings.HasPrefix(mediaType, "multipart/") {
+		return nil, errors.New("expected multipart upload content type")
+	}
+	boundary := strings.TrimSpace(params["boundary"])
+	if boundary == "" {
+		return nil, errors.New("missing multipart boundary")
+	}
+
+	reader := multipart.NewReader(r.Body, boundary)
+	for {
+		part, err := reader.NextPart()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		if err != nil {
+			return nil, err
+		}
+
+		body, err := io.ReadAll(part)
+		_ = part.Close()
+		if err != nil {
+			return nil, err
+		}
+
+		var payload map[string]any
+		if err := json.Unmarshal(body, &payload); err == nil {
+			return payload, nil
+		}
+	}
+
+	return nil, errors.New("upload metadata part not found")
 }

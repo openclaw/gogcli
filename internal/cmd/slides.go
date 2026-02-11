@@ -113,5 +113,5 @@ func (c *SlidesCopyCmd) Run(ctx context.Context, flags *RootFlags) error {
 		ArgName:      "presentationId",
 		ExpectedMime: "application/vnd.google-apps.presentation",
 		KindLabel:    "Google Slides presentation",
-	}, c.PresentationID, c.Title, c.Parent)
+	}, c.PresentationID, c.Title, c.Parent, "")
 }

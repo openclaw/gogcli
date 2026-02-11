@@ -19,7 +19,15 @@ type copyViaDriveOptions struct {
 	KindLabel    string
 }
 
-func copyViaDrive(ctx context.Context, flags *RootFlags, opts copyViaDriveOptions, id string, name string, parent string) error {
+func copyViaDrive(
+	ctx context.Context,
+	flags *RootFlags,
+	opts copyViaDriveOptions,
+	id string,
+	name string,
+	parent string,
+	targetMimeType string,
+) error {
 	u := ui.FromContext(ctx)
 	account, err := requireAccount(flags)
 	if err != nil {
@@ -65,6 +73,10 @@ func copyViaDrive(ctx context.Context, flags *RootFlags, opts copyViaDriveOption
 
 	parent = strings.TrimSpace(parent)
 	req := &drive.File{Name: name}
+	targetMimeType = strings.TrimSpace(targetMimeType)
+	if targetMimeType != "" {
+		req.MimeType = targetMimeType
+	}
 	if parent != "" {
 		req.Parents = []string{parent}
 	}
