@@ -15,6 +15,7 @@ type GmailGetCmd struct {
 	MessageID string `arg:"" name:"messageId" help:"Message ID"`
 	Format    string `name:"format" help:"Message format: full|metadata|raw" default:"full"`
 	Headers   string `name:"headers" help:"Metadata headers (comma-separated; only for --format=metadata)"`
+	Safe      bool   `name:"safe" help:"Sanitize output: strip HTML, remove URLs, decode entities"`
 }
 
 const (
@@ -78,17 +79,30 @@ func (c *GmailGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 			"subject": headerValue(msg.Payload, "Subject"),
 			"date":    headerValue(msg.Payload, "Date"),
 		}
+		if c.Safe {
+			for k, v := range headers {
+				headers[k] = sanitizeText(v)
+			}
+		}
 		payload := map[string]any{
 			"message": msg,
 			"headers": headers,
 		}
-		if unsubscribe != "" {
+		if unsubscribe != "" && !c.Safe {
 			payload["unsubscribe"] = unsubscribe
 		}
 		if format == gmailFormatFull {
-			if body := bestBodyText(msg.Payload); body != "" {
+			if c.Safe {
+				safeBody, isHTML := bestBodyForDisplay(msg.Payload)
+				if safeBody != "" {
+					payload["body"] = sanitizeBodyText(safeBody, isHTML)
+				}
+			} else if body := bestBodyText(msg.Payload); body != "" {
 				payload["body"] = body
 			}
+		}
+		if c.Safe {
+			clearPayloadBodies(msg.Payload)
 		}
 		if format == gmailFormatFull || format == gmailFormatMetadata {
 			attachments := collectAttachments(msg.Payload)
@@ -117,11 +131,17 @@ func (c *GmailGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 		u.Out().Println(string(decoded))
 		return nil
 	case gmailFormatMetadata, gmailFormatFull:
-		u.Out().Printf("from\t%s", headerValue(msg.Payload, "From"))
-		u.Out().Printf("to\t%s", headerValue(msg.Payload, "To"))
-		u.Out().Printf("subject\t%s", headerValue(msg.Payload, "Subject"))
+		if c.Safe {
+			u.Out().Printf("from\t%s", sanitizeText(headerValue(msg.Payload, "From")))
+			u.Out().Printf("to\t%s", sanitizeText(headerValue(msg.Payload, "To")))
+			u.Out().Printf("subject\t%s", sanitizeText(headerValue(msg.Payload, "Subject")))
+		} else {
+			u.Out().Printf("from\t%s", headerValue(msg.Payload, "From"))
+			u.Out().Printf("to\t%s", headerValue(msg.Payload, "To"))
+			u.Out().Printf("subject\t%s", headerValue(msg.Payload, "Subject"))
+		}
 		u.Out().Printf("date\t%s", headerValue(msg.Payload, "Date"))
-		if unsubscribe != "" {
+		if unsubscribe != "" && !c.Safe {
 			u.Out().Printf("unsubscribe\t%s", unsubscribe)
 		}
 		attachments := attachmentOutputs(collectAttachments(msg.Payload))
@@ -130,10 +150,18 @@ func (c *GmailGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 			printAttachmentLines(u.Out(), attachments)
 		}
 		if format == gmailFormatFull {
-			body := bestBodyText(msg.Payload)
-			if body != "" {
-				u.Out().Println("")
-				u.Out().Println(body)
+			if c.Safe {
+				body, isHTML := bestBodyForDisplay(msg.Payload)
+				if body != "" {
+					u.Out().Println("")
+					u.Out().Println(sanitizeBodyText(body, isHTML))
+				}
+			} else {
+				body := bestBodyText(msg.Payload)
+				if body != "" {
+					u.Out().Println("")
+					u.Out().Println(body)
+				}
 			}
 		}
 		return nil

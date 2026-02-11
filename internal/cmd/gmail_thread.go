@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	htmlpkg "html"
 	"io"
 	"mime"
 	"mime/quotedprintable"
@@ -15,6 +16,7 @@ import (
 	"regexp"
 	"strings"
 
+	"golang.org/x/net/html"
 	"golang.org/x/net/html/charset"
 	"google.golang.org/api/gmail/v1"
 
@@ -46,6 +48,102 @@ func stripHTMLTags(s string) string {
 	return strings.TrimSpace(s)
 }
 
+// --safe mode sanitization functions.
+
+// urlPattern matches HTTP and HTTPS URLs.
+var urlPattern = regexp.MustCompile(`https?://[^\s<>"'` + "`" + `\]\)]+`)
+
+// blockElements is the set of HTML elements that produce visual line breaks.
+var blockElements = map[string]bool{
+	"div": true, "p": true, "br": true, "li": true, "tr": true,
+	"h1": true, "h2": true, "h3": true, "h4": true, "h5": true, "h6": true,
+	"blockquote": true, "pre": true, "hr": true, "table": true,
+	"ul": true, "ol": true, "dl": true, "dt": true, "dd": true,
+	"section": true, "article": true, "header": true, "footer": true,
+}
+
+// safeExtractTextFromHTML uses the golang.org/x/net/html tokenizer to properly
+// extract text content from HTML, skipping script and style blocks.
+// Unlike stripHTMLTags (regex-based), this uses a full HTML parser for
+// robust handling of malformed HTML, making it suitable for --safe mode.
+func safeExtractTextFromHTML(s string) string {
+	tokenizer := html.NewTokenizer(strings.NewReader(s))
+	var buf strings.Builder
+	skip := false
+	for {
+		tt := tokenizer.Next()
+		switch tt {
+		case html.ErrorToken:
+			// Collapse whitespace in the final result.
+			result := whitespacePattern.ReplaceAllString(buf.String(), " ")
+			return strings.TrimSpace(result)
+		case html.StartTagToken, html.SelfClosingTagToken:
+			tn, _ := tokenizer.TagName()
+			tag := string(tn)
+			if tag == "script" || tag == "style" {
+				skip = true
+			}
+			if blockElements[tag] {
+				buf.WriteByte(' ')
+			}
+		case html.EndTagToken:
+			tn, _ := tokenizer.TagName()
+			tag := string(tn)
+			if tag == "script" || tag == "style" {
+				skip = false
+			}
+			if blockElements[tag] {
+				buf.WriteByte(' ')
+			}
+		case html.TextToken:
+			if !skip {
+				buf.Write(tokenizer.Text())
+			}
+		}
+	}
+}
+
+// stripURLs replaces all HTTP/HTTPS URLs with [url removed].
+func stripURLs(s string) string {
+	return urlPattern.ReplaceAllString(s, "[url removed]")
+}
+
+// sanitizeBodyText sanitizes email body content for safe display.
+// It extracts text from HTML (if needed), decodes HTML entities, and strips URLs.
+func sanitizeBodyText(body string, isHTML bool) string {
+	if body == "" {
+		return ""
+	}
+	text := body
+	if isHTML {
+		text = safeExtractTextFromHTML(text)
+	}
+	text = htmlpkg.UnescapeString(text)
+	text = stripURLs(text)
+	text = whitespacePattern.ReplaceAllString(text, " ")
+	return strings.TrimSpace(text)
+}
+
+// sanitizeText applies lightweight sanitization to header values and other text.
+func sanitizeText(s string) string {
+	s = htmlpkg.UnescapeString(s)
+	return stripURLs(s)
+}
+
+// clearPayloadBodies recursively clears body data on all text/* MIME parts
+// to prevent raw content from leaking into JSON output.
+func clearPayloadBodies(p *gmail.MessagePart) {
+	if p == nil {
+		return
+	}
+	if strings.HasPrefix(strings.ToLower(p.MimeType), "text/") && p.Body != nil {
+		p.Body.Data = ""
+	}
+	for _, part := range p.Parts {
+		clearPayloadBodies(part)
+	}
+}
+
 type GmailThreadCmd struct {
 	Get         GmailThreadGetCmd         `cmd:"" name:"get" default:"withargs" help:"Get a thread with all messages (optionally download attachments)"`
 	Modify      GmailThreadModifyCmd      `cmd:"" name:"modify" help:"Modify labels on all messages in a thread"`
@@ -56,6 +154,7 @@ type GmailThreadGetCmd struct {
 	ThreadID  string        `arg:"" name:"threadId" help:"Thread ID"`
 	Download  bool          `name:"download" help:"Download attachments"`
 	Full      bool          `name:"full" help:"Show full message bodies"`
+	Safe      bool          `name:"safe" help:"Sanitize output: strip HTML, remove URLs, decode entities"`
 	OutputDir OutputDirFlag `embed:""`
 }
 
@@ -108,6 +207,22 @@ func (c *GmailThreadGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 				downloadedFiles = append(downloadedFiles, attachmentDownloadSummaries(downloads)...)
 			}
 		}
+		if c.Safe && thread != nil {
+			bodies := make(map[string]string, len(thread.Messages))
+			for _, msg := range thread.Messages {
+				if msg == nil || msg.Id == "" {
+					continue
+				}
+				body, isHTML := bestBodyForDisplay(msg.Payload)
+				bodies[msg.Id] = sanitizeBodyText(body, isHTML)
+				clearPayloadBodies(msg.Payload)
+			}
+			return outfmt.WriteJSON(os.Stdout, map[string]any{
+				"thread":     thread,
+				"bodies":     bodies,
+				"downloaded": downloadedFiles,
+			})
+		}
 		return outfmt.WriteJSON(os.Stdout, map[string]any{
 			"thread":     thread,
 			"downloaded": downloadedFiles,
@@ -127,18 +242,29 @@ func (c *GmailThreadGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 			continue
 		}
 		u.Out().Printf("=== Message %d/%d: %s ===", i+1, len(thread.Messages), msg.Id)
-		u.Out().Printf("From: %s", headerValue(msg.Payload, "From"))
-		u.Out().Printf("To: %s", headerValue(msg.Payload, "To"))
-		u.Out().Printf("Subject: %s", headerValue(msg.Payload, "Subject"))
+		if c.Safe {
+			u.Out().Printf("From: %s", sanitizeText(headerValue(msg.Payload, "From")))
+			u.Out().Printf("To: %s", sanitizeText(headerValue(msg.Payload, "To")))
+			u.Out().Printf("Subject: %s", sanitizeText(headerValue(msg.Payload, "Subject")))
+		} else {
+			u.Out().Printf("From: %s", headerValue(msg.Payload, "From"))
+			u.Out().Printf("To: %s", headerValue(msg.Payload, "To"))
+			u.Out().Printf("Subject: %s", headerValue(msg.Payload, "Subject"))
+		}
 		u.Out().Printf("Date: %s", headerValue(msg.Payload, "Date"))
 		u.Out().Println("")
 
 		body, isHTML := bestBodyForDisplay(msg.Payload)
 		if body != "" {
-			cleanBody := body
-			if isHTML {
-				// Strip HTML tags for cleaner text output
-				cleanBody = stripHTMLTags(body)
+			var cleanBody string
+			if c.Safe {
+				cleanBody = sanitizeBodyText(body, isHTML)
+			} else {
+				cleanBody = body
+				if isHTML {
+					// Strip HTML tags for cleaner text output
+					cleanBody = stripHTMLTags(body)
+				}
 			}
 			// Limit body preview to avoid overwhelming output
 			// Use runes to avoid breaking multi-byte UTF-8 characters
@@ -361,8 +487,8 @@ func bestBodyText(p *gmail.MessagePart) string {
 	if plain != "" {
 		return plain
 	}
-	html := findPartBody(p, "text/html")
-	return html
+	htmlBody := findPartBody(p, "text/html")
+	return htmlBody
 }
 
 func bestBodyForDisplay(p *gmail.MessagePart) (string, bool) {
@@ -376,11 +502,11 @@ func bestBodyForDisplay(p *gmail.MessagePart) (string, bool) {
 		}
 		return plain, false
 	}
-	html := findPartBody(p, "text/html")
-	if html == "" {
+	htmlBody := findPartBody(p, "text/html")
+	if htmlBody == "" {
 		return "", false
 	}
-	return html, true
+	return htmlBody, true
 }
 
 func findPartBody(p *gmail.MessagePart, mimeType string) string {

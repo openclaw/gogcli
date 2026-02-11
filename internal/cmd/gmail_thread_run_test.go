@@ -248,3 +248,103 @@ func TestGmailThreadGetAndAttachments_JSON(t *testing.T) {
 		t.Fatalf("unexpected empty attachments output: %q", emptyAttachOut)
 	}
 }
+
+func TestGmailThreadGet_Safe(t *testing.T) {
+	origNew := newGmailService
+	t.Cleanup(func() { newGmailService = origNew })
+
+	htmlBody := base64.RawURLEncoding.EncodeToString([]byte(
+		`<html><body><script>fetch('https://track.com/pixel')</script><p>Hello visit https://phish.com/login now</p></body></html>`,
+	))
+	threadResp := map[string]any{
+		"id": "t1",
+		"messages": []map[string]any{
+			{
+				"id": "m1",
+				"payload": map[string]any{
+					"headers": []map[string]any{
+						{"name": "From", "value": "a@example.com"},
+						{"name": "To", "value": "b@example.com"},
+						{"name": "Subject", "value": "Check https://evil.com now"},
+						{"name": "Date", "value": "Mon, 1 Jan 2025 00:00:00 +0000"},
+					},
+					"mimeType": "text/html",
+					"body": map[string]any{
+						"data": htmlBody,
+					},
+				},
+			},
+		},
+	}
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := strings.TrimPrefix(r.URL.Path, "/gmail/v1")
+		if r.Method == http.MethodGet && path == "/users/me/threads/t1" {
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(threadResp)
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer srv.Close()
+
+	svc, err := gmail.NewService(context.Background(),
+		option.WithoutAuthentication(),
+		option.WithHTTPClient(srv.Client()),
+		option.WithEndpoint(srv.URL+"/"),
+	)
+	if err != nil {
+		t.Fatalf("NewService: %v", err)
+	}
+	newGmailService = func(context.Context, string) (*gmail.Service, error) { return svc, nil }
+
+	// Test text output with --safe
+	textOut := captureStdout(t, func() {
+		_ = captureStderr(t, func() {
+			if err := Execute([]string{"--account", "a@b.com", "gmail", "thread", "get", "t1", "--safe"}); err != nil {
+				t.Fatalf("Execute --safe text: %v", err)
+			}
+		})
+	})
+	if strings.Contains(textOut, "https://") {
+		t.Fatalf("--safe text output should not contain URLs, got: %q", textOut)
+	}
+	if !strings.Contains(textOut, "[url removed]") {
+		t.Fatalf("--safe text output should contain [url removed], got: %q", textOut)
+	}
+	if !strings.Contains(textOut, "Hello") {
+		t.Fatalf("--safe text output should contain plain text 'Hello', got: %q", textOut)
+	}
+	if strings.Contains(textOut, "<script>") || strings.Contains(textOut, "fetch(") {
+		t.Fatalf("--safe text output should not contain script content, got: %q", textOut)
+	}
+
+	// Test JSON output with --safe
+	jsonOut := captureStdout(t, func() {
+		_ = captureStderr(t, func() {
+			if err := Execute([]string{"--json", "--account", "a@b.com", "gmail", "thread", "get", "t1", "--safe"}); err != nil {
+				t.Fatalf("Execute --safe json: %v", err)
+			}
+		})
+	})
+	var payload struct {
+		Thread map[string]any    `json:"thread"`
+		Bodies map[string]string `json:"bodies"`
+	}
+	if err := json.Unmarshal([]byte(jsonOut), &payload); err != nil {
+		t.Fatalf("decode json: %v", err)
+	}
+	if payload.Bodies == nil {
+		t.Fatalf("--safe JSON should include 'bodies' map")
+	}
+	safeBody, ok := payload.Bodies["m1"]
+	if !ok {
+		t.Fatalf("--safe JSON 'bodies' should have entry for m1")
+	}
+	if strings.Contains(safeBody, "https://") {
+		t.Fatalf("--safe JSON body should not contain URLs, got: %q", safeBody)
+	}
+	if !strings.Contains(safeBody, "Hello") {
+		t.Fatalf("--safe JSON body should contain 'Hello', got: %q", safeBody)
+	}
+}

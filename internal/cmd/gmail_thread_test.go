@@ -192,6 +192,247 @@ func TestBestBodyForDisplay(t *testing.T) {
 	}
 }
 
+func TestExtractTextFromHTML(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{
+			name:  "basic HTML",
+			input: "<p>Hello world</p>",
+			want:  "Hello world",
+		},
+		{
+			name:  "script block removed",
+			input: "<script>alert('xss')</script>safe text",
+			want:  "safe text",
+		},
+		{
+			name:  "style block removed",
+			input: "<style>body{color:red}</style>visible",
+			want:  "visible",
+		},
+		{
+			name:  "nested tags",
+			input: "<div><span>inner</span></div>",
+			want:  "inner",
+		},
+		{
+			name:  "block elements add spaces",
+			input: "<p>first</p><p>second</p>",
+			want:  "first second",
+		},
+		{
+			name:  "malformed HTML consumed safely",
+			input: `<a href="https://evil.com/login>Click here</a>`,
+			want:  "",
+		},
+		{
+			name:  "entities decoded by tokenizer",
+			input: "<p>a &amp; b</p>",
+			want:  "a & b",
+		},
+		{
+			name:  "complex email HTML",
+			input: `<html><head><style>.x{}</style></head><body><div>Hello</div><script>track()</script><p>World</p></body></html>`,
+			want:  "Hello World",
+		},
+		{
+			name:  "empty input",
+			input: "",
+			want:  "",
+		},
+		{
+			name:  "plain text unchanged",
+			input: "no tags here",
+			want:  "no tags here",
+		},
+		{
+			name:  "self closing tags",
+			input: "line1<br/>line2",
+			want:  "line1 line2",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := safeExtractTextFromHTML(tt.input)
+			if got != tt.want {
+				t.Errorf("safeExtractTextFromHTML(%q) = %q, want %q", tt.input, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestStripURLs(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{
+			name:  "http URL",
+			input: "visit http://example.com for info",
+			want:  "visit [url removed] for info",
+		},
+		{
+			name:  "https URL",
+			input: "click https://example.com/page",
+			want:  "click [url removed]",
+		},
+		{
+			name:  "URL with query params",
+			input: "track https://track.example.com/open?id=abc123&utm_source=email here",
+			want:  "track [url removed] here",
+		},
+		{
+			name:  "multiple URLs",
+			input: "see https://a.com and http://b.com ok",
+			want:  "see [url removed] and [url removed] ok",
+		},
+		{
+			name:  "no URLs unchanged",
+			input: "plain text with no links",
+			want:  "plain text with no links",
+		},
+		{
+			name:  "empty string",
+			input: "",
+			want:  "",
+		},
+		{
+			name:  "URL at start",
+			input: "https://evil.com/phish is bad",
+			want:  "[url removed] is bad",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := stripURLs(tt.input)
+			if got != tt.want {
+				t.Errorf("stripURLs(%q) = %q, want %q", tt.input, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestSanitizeBodyText(t *testing.T) {
+	tests := []struct {
+		name   string
+		body   string
+		isHTML bool
+		want   string
+	}{
+		{
+			name:   "HTML with URL",
+			body:   `<p>Click <a href="https://evil.com">here</a> now</p>`,
+			isHTML: true,
+			want:   "Click here now",
+		},
+		{
+			name:   "plain text with URL",
+			body:   "Visit https://example.com for details",
+			isHTML: false,
+			want:   "Visit [url removed] for details",
+		},
+		{
+			name:   "HTML entities decoded then URL stripped",
+			body:   "check &#104;ttps://evil.com/payload here",
+			isHTML: false,
+			want:   "check [url removed] here",
+		},
+		{
+			name:   "HTML with script and tracking",
+			body:   `<script>fetch('https://track.com/pixel')</script><p>Hello https://phish.com</p>`,
+			isHTML: true,
+			want:   "Hello [url removed]",
+		},
+		{
+			name:   "empty body",
+			body:   "",
+			isHTML: false,
+			want:   "",
+		},
+		{
+			name:   "plain text no URLs",
+			body:   "Just a normal message",
+			isHTML: false,
+			want:   "Just a normal message",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := sanitizeBodyText(tt.body, tt.isHTML)
+			if got != tt.want {
+				t.Errorf("sanitizeBodyText(%q, %v) = %q, want %q", tt.body, tt.isHTML, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestSanitizeText(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{
+			name:  "URL in subject",
+			input: "Check https://evil.com now",
+			want:  "Check [url removed] now",
+		},
+		{
+			name:  "HTML entity decoded",
+			input: "a &amp; b",
+			want:  "a & b",
+		},
+		{
+			name:  "no changes needed",
+			input: "Normal Subject Line",
+			want:  "Normal Subject Line",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := sanitizeText(tt.input)
+			if got != tt.want {
+				t.Errorf("sanitizeText(%q) = %q, want %q", tt.input, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestClearPayloadBodies(t *testing.T) {
+	p := &gmail.MessagePart{
+		MimeType: "multipart/alternative",
+		Parts: []*gmail.MessagePart{
+			{
+				MimeType: "text/plain",
+				Body:     &gmail.MessagePartBody{Data: "c29tZSBkYXRh"},
+			},
+			{
+				MimeType: "text/html",
+				Body:     &gmail.MessagePartBody{Data: "PHA-aHRtbDwvcD4"},
+			},
+			{
+				MimeType: "image/png",
+				Body:     &gmail.MessagePartBody{Data: "imagedata", AttachmentId: "att1"},
+			},
+		},
+	}
+	clearPayloadBodies(p)
+
+	if p.Parts[0].Body.Data != "" {
+		t.Errorf("text/plain body should be cleared, got %q", p.Parts[0].Body.Data)
+	}
+	if p.Parts[1].Body.Data != "" {
+		t.Errorf("text/html body should be cleared, got %q", p.Parts[1].Body.Data)
+	}
+	if p.Parts[2].Body.Data != "imagedata" {
+		t.Errorf("image/png body should be preserved, got %q", p.Parts[2].Body.Data)
+	}
+}
+
 func encodeBase64URL(value string) string {
 	return base64.RawURLEncoding.EncodeToString([]byte(value))
 }

@@ -537,8 +537,10 @@ gog gmail search 'newer_than:7d' --max 10
 gog gmail thread get <threadId>
 gog gmail thread get <threadId> --download              # Download attachments to current dir
 gog gmail thread get <threadId> --download --out-dir ./attachments
+gog gmail thread get <threadId> --safe                  # Safe mode (see below)
 gog gmail get <messageId>
 gog gmail get <messageId> --format metadata
+gog gmail get <messageId> --safe                        # Safe mode (see below)
 gog gmail attachment <messageId> <attachmentId>
 gog gmail attachment <messageId> <attachmentId> --out ./attachment.bin
 gog gmail url <threadId>              # Print Gmail web URL
@@ -594,6 +596,12 @@ gog gmail watch serve --bind 127.0.0.1 --token <shared> --hook-url http://127.0.
 gog gmail watch serve --bind 0.0.0.0 --verify-oidc --oidc-email <svc@...> --hook-url <url>
 gog gmail history --since <historyId>
 ```
+
+Safe mode (`--safe`):
+- Strips all HTML using a full parser (not regex), removing scripts, styles, and tags
+- Replaces all URLs with `[url removed]` to prevent phishing and tracking
+- Decodes HTML entities to catch obfuscated URLs
+- In JSON mode, provides a sanitized `bodies` map and clears raw body data from the payload
 
 Gmail watch (Pub/Sub push):
 - Create Pub/Sub topic + push subscription (OIDC preferred; shared token ok for dev).
