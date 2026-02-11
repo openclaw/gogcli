@@ -35,11 +35,35 @@ type Slide struct {
 func ParseMarkdownToSlides(markdown string) []Slide {
 	var slides []Slide
 	
-	// Split by slide separators (---)
-	slideTexts := strings.Split(markdown, "\n---\n")
+	// Split by slide separators (--- on its own line)
+	lines := strings.Split(markdown, "\n")
+	var currentSlide strings.Builder
+	inSlide := false
 	
-	for _, slideText := range slideTexts {
-		slide := parseSlide(slideText)
+	for _, line := range lines {
+		if strings.TrimSpace(line) == "---" {
+			if currentSlide.Len() > 0 {
+				slide := parseSlide(currentSlide.String())
+				if slide.Title != "" {
+					slides = append(slides, slide)
+				}
+				currentSlide.Reset()
+			}
+			inSlide = false
+		} else {
+			if !inSlide {
+				inSlide = true
+			}
+			if currentSlide.Len() > 0 {
+				currentSlide.WriteString("\n")
+			}
+			currentSlide.WriteString(line)
+		}
+	}
+	
+	// Handle the last slide
+	if currentSlide.Len() > 0 {
+		slide := parseSlide(currentSlide.String())
 		if slide.Title != "" {
 			slides = append(slides, slide)
 		}
@@ -94,9 +118,9 @@ func parseSlide(text string) Slide {
 			continue
 		}
 		
-		// Title (# heading)
-		if strings.HasPrefix(line, "# ") {
-			title := strings.TrimPrefix(line, "# ")
+		// Title (## heading for slides)
+		if strings.HasPrefix(line, "## ") {
+			title := strings.TrimPrefix(line, "## ")
 			// Remove formatting markers
 			title = stripInlineFormatting(title)
 			slide.Title = title
@@ -158,11 +182,6 @@ func stripInlineFormatting(text string) string {
 	text = strings.ReplaceAll(text, "`", "")
 	
 	// Remove links but keep text [text](url) -> text
-	linkRegex := strings.NewReplacer(
-		"[", "",
-		"](", " ",
-		")", "",
-	)
 	// Simple approach: just remove brackets and parens for now
 	
 	return text

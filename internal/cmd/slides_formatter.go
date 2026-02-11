@@ -8,104 +8,132 @@ import (
 )
 
 // SlidesToAPIRequests converts slide structures to Google Slides API batch update requests
-func SlidesToAPIRequests(slides []Slide) ([]*slides.Request, map[int]string) {
+func SlidesToAPIRequests(slideData []Slide) ([]*slides.Request, map[int]string) {
 	var requests []*slides.Request
 	slideIDs := make(map[int]string)
 	
-	for i, slide := range slides {
+	for i, slide := range slideData {
 		slideID := fmt.Sprintf("slide_%d", i+1)
 		slideIDs[i] = slideID
 		
-		// Create slide
+		// Create blank slide
 		requests = append(requests, &slides.Request{
 			CreateSlide: &slides.CreateSlideRequest{
 				ObjectId: slideID,
 				SlideLayoutReference: &slides.LayoutReference{
-					PredefinedLayout: string(slide.Layout),
+					PredefinedLayout: "BLANK",
 				},
 			},
 		})
 		
-		// Add text elements
+		// Add title box
+		titleID := fmt.Sprintf("title_%d", i+1)
+		requests = append(requests, &slides.Request{
+			CreateShape: &slides.CreateShapeRequest{
+				ObjectId: titleID,
+				ShapeType: "TEXT_BOX",
+				ElementProperties: &slides.PageElementProperties{
+					PageObjectId: slideID,
+					Transform: &slides.AffineTransform{
+						ScaleX:      1,
+						ScaleY:      1,
+						TranslateX:  72 * 0.5,  // 0.5 inches from left
+						TranslateY:  72 * 0.5,  // 0.5 inches from top
+						Unit:        "PT",
+					},
+					Size: &slides.Size{
+						Width:  &slides.Dimension{Magnitude: 612 - 72, Unit: "PT"},
+						Height: &slides.Dimension{Magnitude: 100, Unit: "PT"},
+					},
+				},
+			},
+		})
+		
+		// Add title text
 		for _, elem := range slide.Elements {
-			switch elem.Type {
-			case "title":
-				// Insert title text
+			if elem.Type == "title" {
 				requests = append(requests, &slides.Request{
 					InsertText: &slides.InsertTextRequest{
-						ObjectId: slideID,
-						Text:     elem.Content,
+						ObjectId:  titleID,
+						Text:      elem.Content,
+						InsertionIndex: 0,
 					},
 				})
 				
-			case "bullets":
-				// Insert bullet points
-				text := strings.Join(elem.Items, "\n")
-				requests = append(requests, &slides.Request{
-					InsertText: &slides.InsertTextRequest{
-						ObjectId: slideID,
-						Text:     text,
-					},
-				})
-				
-				// Create bullet list formatting
-				for idx, item := range elem.Items {
-					startIndex := int64(0)
-					for j := 0; j < idx; j++ {
-						startIndex += int64(len(elem.Items[j]) + 1) // +1 for newline
-					}
-					endIndex := startIndex + int64(len(item))
-					
-					requests = append(requests, &slides.Request{
-						CreateParagraphBullets: &slides.CreateParagraphBulletsRequest{
-							ObjectId: slideID,
-							TextRange: &slides.Range{
-								Type:       "FIXED_RANGE",
-								StartIndex: &startIndex,
-								EndIndex:   &endIndex,
-							},
-							BulletPreset: "BULLET_DISC_CIRCLE_SQUARE",
-						},
-					})
-				}
-				
-			case "body":
-				// Insert body text
-				requests = append(requests, &slides.Request{
-					InsertText: &slides.InsertTextRequest{
-						ObjectId: slideID,
-						Text:     elem.Content,
-					},
-				})
-				
-			case "code":
-				// Insert code as monospace text
-				requests = append(requests, &slides.Request{
-					InsertText: &slides.InsertTextRequest{
-						ObjectId: slideID,
-						Text:     elem.Content,
-					},
-				})
-				
-				// Apply monospace font
-				startIndex := int64(0)
-				endIndex := int64(len(elem.Content))
-				
+				// Make title bold
 				requests = append(requests, &slides.Request{
 					UpdateTextStyle: &slides.UpdateTextStyleRequest{
-						ObjectId: slideID,
+						ObjectId: titleID,
 						TextRange: &slides.Range{
-							Type:       "FIXED_RANGE",
-							StartIndex: &startIndex,
-							EndIndex:   &endIndex,
+							Type: "ALL",
 						},
 						Style: &slides.TextStyle{
-							FontFamily: "Courier New",
+							Bold: true,
+							FontSize: &slides.Dimension{
+								Magnitude: 36,
+								Unit:      "PT",
+							},
 						},
-						Fields: "fontFamily",
+						Fields: "bold,fontSize",
 					},
 				})
 			}
+		}
+		
+		// Add body box
+		bodyID := fmt.Sprintf("body_%d", i+1)
+		requests = append(requests, &slides.Request{
+			CreateShape: &slides.CreateShapeRequest{
+				ObjectId: bodyID,
+				ShapeType: "TEXT_BOX",
+				ElementProperties: &slides.PageElementProperties{
+					PageObjectId: slideID,
+					Transform: &slides.AffineTransform{
+						ScaleX:      1,
+						ScaleY:      1,
+						TranslateX:  72 * 0.5,
+						TranslateY:  72 * 1.5,  // Below title
+						Unit:        "PT",
+					},
+					Size: &slides.Size{
+						Width:  &slides.Dimension{Magnitude: 612 - 72, Unit: "PT"},
+						Height: &slides.Dimension{Magnitude: 300, Unit: "PT"},
+					},
+				},
+			},
+		})
+		
+		// Build body content
+		var bodyContent strings.Builder
+		for _, elem := range slide.Elements {
+			if elem.Type != "title" {
+				switch elem.Type {
+				case "body":
+					bodyContent.WriteString(elem.Content)
+					bodyContent.WriteString("\n")
+				case "bullets":
+					for _, item := range elem.Items {
+						bodyContent.WriteString("• ")
+						bodyContent.WriteString(item)
+						bodyContent.WriteString("\n")
+					}
+				case "code":
+					bodyContent.WriteString("```\n")
+					bodyContent.WriteString(elem.Content)
+					bodyContent.WriteString("\n```\n")
+				}
+			}
+		}
+		
+		// Add body text if there's content
+		if bodyContent.Len() > 0 {
+			requests = append(requests, &slides.Request{
+				InsertText: &slides.InsertTextRequest{
+					ObjectId:  bodyID,
+					Text:      bodyContent.String(),
+					InsertionIndex: 0,
+				},
+			})
 		}
 	}
 	
