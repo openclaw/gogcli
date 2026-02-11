@@ -3,20 +3,28 @@ package cmd
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"strings"
 
 	"google.golang.org/api/drive/v3"
+	"google.golang.org/api/slides/v1"
 
 	"github.com/steipete/gogcli/internal/outfmt"
 	"github.com/steipete/gogcli/internal/ui"
 )
 
+// Debug flag for slides creation
+var debugSlides = false
+
+var newSlidesService = googleapi.NewSlides
+
 type SlidesCmd struct {
-	Export SlidesExportCmd `cmd:"" name:"export" help:"Export a Google Slides deck (pdf|pptx)"`
-	Info   SlidesInfoCmd   `cmd:"" name:"info" help:"Get Google Slides presentation metadata"`
-	Create SlidesCreateCmd `cmd:"" name:"create" help:"Create a Google Slides presentation"`
-	Copy   SlidesCopyCmd   `cmd:"" name:"copy" help:"Copy a Google Slides presentation"`
+	Export           SlidesExportCmd           `cmd:"" name:"export" help:"Export a Google Slides deck (pdf|pptx)"`
+	Info             SlidesInfoCmd             `cmd:"" name:"info" help:"Get Google Slides presentation metadata"`
+	Create           SlidesCreateCmd           `cmd:"" name:"create" help:"Create a Google Slides presentation"`
+	CreateFromMarkdown SlidesCreateFromMarkdownCmd `cmd:"" name:"create-from-markdown" help:"Create a Google Slides presentation from markdown"`
+	Copy             SlidesCopyCmd             `cmd:"" name:"copy" help:"Copy a Google Slides presentation"`
 }
 
 type SlidesExportCmd struct {
@@ -98,6 +106,104 @@ func (c *SlidesCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u.Out().Printf("mime\t%s", created.MimeType)
 	if created.WebViewLink != "" {
 		u.Out().Printf("link\t%s", created.WebViewLink)
+	}
+	return nil
+}
+
+type SlidesCreateFromMarkdownCmd struct {
+	Title        string `arg:"" name:"title" help:"Presentation title"`
+	Content      string `name:"content" help:"Markdown content (inline)"`
+	ContentFile  string `name:"content-file" help:"Read markdown content from file"`
+	Parent       string `name:"parent" help:"Destination folder ID"`
+	Debug        bool   `name:"debug" help:"Show debug output"`
+}
+
+func (c *SlidesCreateFromMarkdownCmd) Run(ctx context.Context, flags *RootFlags) error {
+	u := ui.FromContext(ctx)
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
+	}
+
+	title := strings.TrimSpace(c.Title)
+	if title == "" {
+		return usage("empty title")
+	}
+
+	// Get markdown content
+	var markdown string
+	if c.ContentFile != "" {
+		data, err := os.ReadFile(c.ContentFile)
+		if err != nil {
+			return fmt.Errorf("failed to read content file: %w", err)
+		}
+		markdown = string(data)
+	} else if c.Content != "" {
+		markdown = c.Content
+	} else {
+		return usage("either --content or --content-file is required")
+	}
+
+	if c.Debug {
+		debugSlides = true
+	}
+
+	// Create Slides service
+	slidesSvc, err := newSlidesService(ctx, account)
+	if err != nil {
+		return err
+	}
+
+	// Create presentation from markdown
+	presentation, err := CreatePresentationFromMarkdown(title, markdown, slidesSvc)
+	if err != nil {
+		return err
+	}
+
+	// Move to parent folder if specified
+	if c.Parent != "" {
+		driveSvc, err := newDriveService(ctx, account)
+		if err != nil {
+			return err
+		}
+
+		_, err = driveSvc.Files.Update(presentation.PresentationId, &drive.File{}).
+			AddParents(c.Parent).
+			SupportsAllDrives(true).
+			Context(ctx).
+			Do()
+		if err != nil {
+			return fmt.Errorf("failed to move presentation to folder: %w", err)
+		}
+	}
+
+	// Get presentation link
+	driveSvc, err := newDriveService(ctx, account)
+	if err != nil {
+		return err
+	}
+
+	file, err := driveSvc.Files.Get(presentation.PresentationId).
+		Fields("id, name, webViewLink").
+		SupportsAllDrives(true).
+		Context(ctx).
+		Do()
+	if err != nil {
+		return err
+	}
+
+	if outfmt.IsJSON(ctx) {
+		return outfmt.WriteJSON(os.Stdout, map[string]any{
+			"presentation": presentation,
+			"file":         file,
+		})
+	}
+
+	u.Out().Printf("Created presentation with %d slides", len(ParseMarkdownToSlides(markdown)))
+	u.Out().Printf("id\t%s", presentation.PresentationId)
+	u.Out().Printf("name\t%s", file.Name)
+	if file.WebViewLink != "" {
+		u.Out().Printf("link\t%s", file.WebViewLink)
 	}
 	return nil
 }
