@@ -6,6 +6,7 @@
 
 - Gmail: add `--exclude-labels` to `watch serve` (defaults: `SPAM,TRASH`). (#194) — thanks @salmonumbrella.
 - Drive: share files with an entire Workspace domain via `drive share --to domain`. (#192) — thanks @Danielkweber.
+- Drive: add `drive upload --replace` to update files in-place (preserves `fileId`/shared link). (#232) — thanks @xapids.
 
 ### Fixed
 

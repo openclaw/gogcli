@@ -323,9 +323,12 @@ func (c *DriveCopyCmd) Run(ctx context.Context, flags *RootFlags) error {
 }
 
 type DriveUploadCmd struct {
-	LocalPath string `arg:"" name:"localPath" help:"Path to local file"`
-	Name      string `name:"name" help:"Override filename"`
-	Parent    string `name:"parent" help:"Destination folder ID"`
+	LocalPath           string `arg:"" name:"localPath" help:"Path to local file"`
+	Name                string `name:"name" help:"Override filename (create) or rename target (replace)"`
+	Parent              string `name:"parent" help:"Destination folder ID (create only)"`
+	ReplaceFileID       string `name:"replace" help:"Replace the content of an existing Drive file ID (preserves shared link/permissions)"`
+	MimeType            string `name:"mime-type" help:"Override MIME type inference"`
+	KeepRevisionForever bool   `name:"keep-revision-forever" help:"Keep the new head revision forever (binary files only)"`
 }
 
 func (c *DriveUploadCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -350,41 +353,101 @@ func (c *DriveUploadCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 	defer f.Close()
 
-	fileName := strings.TrimSpace(c.Name)
-	if fileName == "" {
-		fileName = filepath.Base(localPath)
+	replaceFileID := strings.TrimSpace(c.ReplaceFileID)
+	parent := strings.TrimSpace(c.Parent)
+	if replaceFileID != "" && parent != "" {
+		return usage("--parent cannot be combined with --replace (use drive move)")
 	}
+
+	mimeType := strings.TrimSpace(c.MimeType)
+	if mimeType == "" {
+		mimeType = guessMimeType(localPath)
+	}
+
+	fileName := strings.TrimSpace(c.Name)
 
 	svc, err := newDriveService(ctx, account)
 	if err != nil {
 		return err
 	}
 
-	meta := &drive.File{Name: fileName}
-	parent := strings.TrimSpace(c.Parent)
-	if parent != "" {
-		meta.Parents = []string{parent}
+	if replaceFileID == "" {
+		if fileName == "" {
+			fileName = filepath.Base(localPath)
+		}
+
+		meta := &drive.File{Name: fileName}
+		if parent != "" {
+			meta.Parents = []string{parent}
+		}
+
+		created, err := svc.Files.Create(meta).
+			SupportsAllDrives(true).
+			Media(f, gapi.ContentType(mimeType)).
+			Fields("id, name, mimeType, size, webViewLink").
+			Context(ctx).
+			Do()
+		if err != nil {
+			return err
+		}
+
+		if outfmt.IsJSON(ctx) {
+			return outfmt.WriteJSON(os.Stdout, map[string]any{strFile: created})
+		}
+
+		u.Out().Printf("id\t%s", created.Id)
+		u.Out().Printf("name\t%s", created.Name)
+		if created.WebViewLink != "" {
+			u.Out().Printf("link\t%s", created.WebViewLink)
+		}
+		return nil
 	}
 
-	mimeType := guessMimeType(localPath)
-	created, err := svc.Files.Create(meta).
+	// Replace content in-place while preserving file ID (and thus shared links/permissions).
+	// Drive supports this only for files with binary content (not Google Workspace files).
+	existing, err := svc.Files.Get(replaceFileID).
 		SupportsAllDrives(true).
-		Media(f, gapi.ContentType(mimeType)).
-		Fields("id, name, mimeType, size, webViewLink").
+		Fields("id, mimeType").
 		Context(ctx).
 		Do()
 	if err != nil {
 		return err
 	}
-
-	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{strFile: created})
+	if strings.HasPrefix(existing.MimeType, "application/vnd.google-apps.") {
+		return fmt.Errorf("cannot replace content for Google Workspace files (mimeType=%s)", existing.MimeType)
 	}
 
-	u.Out().Printf("id\t%s", created.Id)
-	u.Out().Printf("name\t%s", created.Name)
-	if created.WebViewLink != "" {
-		u.Out().Printf("link\t%s", created.WebViewLink)
+	meta := &drive.File{}
+	if fileName != "" {
+		meta.Name = fileName
+	}
+
+	call := svc.Files.Update(replaceFileID, meta).
+		SupportsAllDrives(true).
+		Media(f, gapi.ContentType(mimeType)).
+		Fields("id, name, mimeType, size, webViewLink").
+		Context(ctx)
+	if c.KeepRevisionForever {
+		call = call.KeepRevisionForever(true)
+	}
+	updated, err := call.Do()
+	if err != nil {
+		return err
+	}
+
+	if outfmt.IsJSON(ctx) {
+		return outfmt.WriteJSON(os.Stdout, map[string]any{
+			strFile:           updated,
+			"replaced":        true,
+			"preservedFileId": updated.Id == replaceFileID,
+		})
+	}
+
+	u.Out().Printf("id\t%s", updated.Id)
+	u.Out().Printf("name\t%s", updated.Name)
+	u.Out().Printf("replaced\ttrue")
+	if updated.WebViewLink != "" {
+		u.Out().Printf("link\t%s", updated.WebViewLink)
 	}
 	return nil
 }
