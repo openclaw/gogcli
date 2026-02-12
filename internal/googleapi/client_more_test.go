@@ -268,24 +268,29 @@ func TestNewBaseTransport_RespectsProxyAndTLSMinimum(t *testing.T) {
 	if transport == nil {
 		t.Fatalf("expected transport")
 	}
+
 	if transport.Proxy == nil {
 		t.Fatalf("expected proxy func")
 	}
+
 	if transport.TLSClientConfig == nil {
 		t.Fatalf("expected TLS config")
 	}
+
 	if transport.TLSClientConfig.MinVersion < tls.VersionTLS12 {
 		t.Fatalf("expected TLS min version >= 1.2, got %d", transport.TLSClientConfig.MinVersion)
 	}
 
-	req, err := http.NewRequest(http.MethodGet, "https://www.googleapis.com", nil)
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "https://www.googleapis.com", nil)
 	if err != nil {
 		t.Fatalf("new request: %v", err)
 	}
+
 	proxyURL, err := transport.Proxy(req)
 	if err != nil {
 		t.Fatalf("proxy lookup: %v", err)
 	}
+
 	if proxyURL == nil || !strings.Contains(proxyURL.String(), "127.0.0.1:8888") {
 		t.Fatalf("expected HTTPS proxy to be honored, got: %v", proxyURL)
 	}

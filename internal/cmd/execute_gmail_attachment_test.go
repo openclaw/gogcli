@@ -408,7 +408,7 @@ func TestExecute_GmailAttachment_StaleFileIsRedownloaded(t *testing.T) {
 	newGmailService = func(context.Context, string) (*gmail.Service, error) { return svc, nil }
 
 	outPath := filepath.Join(t.TempDir(), "invoice.pdf")
-	if err := os.WriteFile(outPath, []byte("stale"), 0o600); err != nil {
+	if writeErr := os.WriteFile(outPath, []byte("stale"), 0o600); writeErr != nil {
 		t.Fatalf("WriteFile: %v", err)
 	}
 

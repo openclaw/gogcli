@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"strconv"
 
 	"github.com/alecthomas/kong"
 
@@ -162,10 +163,7 @@ func envOr(key, fallback string) string {
 }
 
 func boolString(v bool) string {
-	if v {
-		return "true"
-	}
-	return "false"
+	return strconv.FormatBool(v)
 }
 
 func newParser(description string) (*kong.Kong, *CLI, error) {
