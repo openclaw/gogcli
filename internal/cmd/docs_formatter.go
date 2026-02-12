@@ -218,6 +218,75 @@ func MarkdownToDocsRequests(elements []MarkdownElement) ([]*docs.Request, string
 			// Add empty line
 			plainText.WriteString("\n")
 			charOffset += utf16Len("\n")
+
+		case MDTable:
+			// Handle markdown table - convert to formatted text representation
+			// Google Docs API table insertion is complex and requires multiple API calls
+			// For now, render as formatted text table
+			if len(el.TableCells) == 0 {
+				continue
+			}
+
+			rows := len(el.TableCells)
+			cols := len(el.TableCells[0])
+			if rows == 0 || cols == 0 {
+				continue
+			}
+
+			if debugMarkdown {
+				fmt.Printf("[TABLE] %d rows x %d cols - rendering as formatted text\n", rows, cols)
+			}
+
+			// Calculate column widths
+			colWidths := make([]int, cols)
+			for _, row := range el.TableCells {
+				for colIdx, cell := range row {
+					if colIdx < len(colWidths) && len(cell) > colWidths[colIdx] {
+						colWidths[colIdx] = len(cell)
+					}
+				}
+			}
+
+			// Render table as text
+			for rowIdx, row := range el.TableCells {
+				var line strings.Builder
+				for colIdx, cell := range row {
+					if colIdx < len(colWidths) {
+						// Pad cell to column width
+						padding := colWidths[colIdx] - len(cell)
+						line.WriteString("| ")
+						line.WriteString(cell)
+						line.WriteString(strings.Repeat(" ", padding))
+						line.WriteString(" ")
+					}
+				}
+				line.WriteString("|")
+
+				plainText.WriteString(line.String())
+				plainText.WriteString("\n")
+				charOffset += utf16Len(line.String() + "\n")
+
+				// Add separator after header row
+				if rowIdx == 0 {
+					var sep strings.Builder
+					for colIdx := 0; colIdx < cols; colIdx++ {
+						if colIdx < len(colWidths) {
+							sep.WriteString("|-")
+							sep.WriteString(strings.Repeat("-", colWidths[colIdx]))
+							sep.WriteString("-")
+						}
+					}
+					sep.WriteString("|")
+
+					plainText.WriteString(sep.String())
+					plainText.WriteString("\n")
+					charOffset += utf16Len(sep.String() + "\n")
+				}
+			}
+
+			// Add empty line after table
+			plainText.WriteString("\n")
+			charOffset += utf16Len("\n")
 		}
 	}
 
@@ -297,4 +366,49 @@ func getHeadingStyle(elType MarkdownElementType) string {
 	default:
 		return "NORMAL_TEXT"
 	}
+}
+
+// buildTextStyleFromStyle creates a docs.TextStyle from a TextStyle
+func buildTextStyleFromStyle(style TextStyle) *docs.TextStyle {
+	textStyle := &docs.TextStyle{}
+	
+	if style.Bold {
+		textStyle.Bold = true
+	}
+	if style.Italic {
+		textStyle.Italic = true
+	}
+	if style.Code {
+		textStyle.WeightedFontFamily = &docs.WeightedFontFamily{
+			FontFamily: "Courier New",
+			Weight:     400,
+		}
+	}
+	if style.Link != "" {
+		textStyle.Link = &docs.Link{
+			Url: style.Link,
+		}
+	}
+	
+	return textStyle
+}
+
+// getStyleFields returns the fields string for a TextStyle
+func getStyleFields(style TextStyle) string {
+	var fields []string
+	
+	if style.Bold {
+		fields = append(fields, "bold")
+	}
+	if style.Italic {
+		fields = append(fields, "italic")
+	}
+	if style.Code {
+		fields = append(fields, "weightedFontFamily")
+	}
+	if style.Link != "" {
+		fields = append(fields, "link")
+	}
+	
+	return strings.Join(fields, ",")
 }

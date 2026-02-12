@@ -31,15 +31,17 @@ const (
 	MDHorizontalRule
 	MDParagraph
 	MDEmptyLine
+	MDTable
 )
 
 // MarkdownElement represents a parsed markdown element
 type MarkdownElement struct {
-	Type     MarkdownElementType
-	Content  string
-	Children []MarkdownElement
-	URL      string // for links
-	Level    int    // for headings and lists
+	Type       MarkdownElementType
+	Content    string
+	Children   []MarkdownElement
+	URL        string // for links
+	Level      int    // for headings and lists
+	TableCells [][]string // for tables: rows of cells
 }
 
 // TextStyle represents text formatting
@@ -172,6 +174,31 @@ func ParseMarkdown(text string) []MarkdownElement {
 			continue
 		}
 
+		// Table detection - line starts with | and has multiple |
+		if strings.HasPrefix(line, "|") && strings.Count(line, "|") >= 2 {
+			if debugMarkdown {
+				fmt.Printf("[TABLE DEBUG] Found potential table row: %q\n", line)
+				if i+1 < len(lines) {
+					fmt.Printf("[TABLE DEBUG] Next line: %q, isSep: %v\n", lines[i+1], isTableSeparator(lines[i+1]))
+				}
+			}
+			// Check if next line is separator (|---|---| pattern)
+			if i+1 < len(lines) && isTableSeparator(lines[i+1]) {
+				if debugMarkdown {
+					fmt.Printf("[TABLE DEBUG] Parsing table starting at line %d\n", i)
+				}
+				// Parse table
+				tableCells := parseMarkdownTable(lines[i:])
+				elements = append(elements, MarkdownElement{
+					Type:       MDTable,
+					TableCells: tableCells,
+				})
+				// Skip all table lines
+				i += len(tableCells) + 1 // +1 for separator line
+				continue
+			}
+		}
+
 		// Regular paragraph
 		elements = append(elements, MarkdownElement{
 			Type:    MDParagraph,
@@ -180,6 +207,83 @@ func ParseMarkdown(text string) []MarkdownElement {
 	}
 
 	return elements
+}
+
+// isTableSeparator checks if a line is a markdown table separator (|---|---|)
+func isTableSeparator(line string) bool {
+	trimmed := strings.TrimSpace(line)
+	if !strings.HasPrefix(trimmed, "|") || !strings.HasSuffix(trimmed, "|") {
+		return false
+	}
+	// Remove outer pipes
+	inner := strings.Trim(trimmed, "|")
+	// Split by | and check each segment
+	segments := strings.Split(inner, "|")
+	for _, seg := range segments {
+		seg = strings.TrimSpace(seg)
+		if seg == "" {
+			continue
+		}
+		// Each segment should be only dashes (with optional leading/trailing colon for alignment)
+		for i, c := range seg {
+			if c != '-' && c != ' ' && c != ':' {
+				return false
+			}
+			// Colon only allowed at start or end for alignment
+			if c == ':' && i != 0 && i != len(seg)-1 {
+				return false
+			}
+		}
+		// Must have at least one dash
+		if strings.Count(seg, "-") == 0 {
+			return false
+		}
+	}
+	return len(segments) > 1
+}
+
+// parseMarkdownTable parses a markdown table into rows of cells
+func parseMarkdownTable(lines []string) [][]string {
+	var rows [][]string
+	
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			break
+		}
+		if !strings.HasPrefix(line, "|") {
+			break
+		}
+		// Skip separator line
+		if isTableSeparator(line) {
+			continue
+		}
+		
+		// Parse row: | cell1 | cell2 | cell3 |
+		cells := parseTableRow(line)
+		if len(cells) > 0 {
+			rows = append(rows, cells)
+		}
+	}
+	
+	return rows
+}
+
+// parseTableRow parses a single table row into cells
+func parseTableRow(line string) []string {
+	// Remove outer pipes
+	trimmed := strings.Trim(line, "|")
+	
+	// Split by |
+	parts := strings.Split(trimmed, "|")
+	
+	var cells []string
+	for _, part := range parts {
+		cell := strings.TrimSpace(part)
+		cells = append(cells, cell)
+	}
+	
+	return cells
 }
 
 // InlineMatch represents a matched inline pattern
