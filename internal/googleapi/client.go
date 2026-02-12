@@ -149,13 +149,13 @@ func newBaseTransport() *http.Transport {
 		}
 	}
 
+	// Clone() deep-copies TLSClientConfig, so no additional clone needed.
 	transport := defaultTransport.Clone()
 	if transport.TLSClientConfig == nil {
 		transport.TLSClientConfig = &tls.Config{MinVersion: tls.VersionTLS12}
 		return transport
 	}
 
-	transport.TLSClientConfig = transport.TLSClientConfig.Clone()
 	if transport.TLSClientConfig.MinVersion < tls.VersionTLS12 {
 		transport.TLSClientConfig.MinVersion = tls.VersionTLS12
 	}

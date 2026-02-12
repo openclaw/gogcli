@@ -127,6 +127,90 @@ func TestDownloadAttachmentToPath_DirectoryNotCacheHit(t *testing.T) {
 	}
 }
 
+func TestSanitizeAttachmentFilename(t *testing.T) {
+	tests := []struct {
+		name     string
+		fallback string
+		want     string
+	}{
+		{"report.pdf", "attachment.bin", "report.pdf"},
+		{"", "attachment.bin", "attachment.bin"},
+		{"   ", "attachment.bin", "attachment.bin"},
+		{".", "attachment.bin", "attachment.bin"},
+		{"..", "attachment.bin", "attachment.bin"},
+		{"../../etc/passwd", "attachment.bin", "passwd"},
+		{"../../../secret.txt", "attachment.bin", "secret.txt"},
+		{"/absolute/path/file.txt", "attachment.bin", "file.txt"},
+		{"dir/subdir/file.txt", "attachment.bin", "file.txt"},
+		{"normal.txt", "fallback.dat", "normal.txt"},
+	}
+	for _, tt := range tests {
+		got := sanitizeAttachmentFilename(tt.name, tt.fallback)
+		if got != tt.want {
+			t.Errorf("sanitizeAttachmentFilename(%q, %q) = %q, want %q", tt.name, tt.fallback, got, tt.want)
+		}
+	}
+}
+
+func TestResolveAttachmentOutputPath(t *testing.T) {
+	t.Run("explicit file path", func(t *testing.T) {
+		path, err := resolveAttachmentOutputPath("m1", "a1", "/tmp/out.bin", "")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if path != "/tmp/out.bin" {
+			t.Fatalf("got %q, want /tmp/out.bin", path)
+		}
+	})
+
+	t.Run("directory target appends filename", func(t *testing.T) {
+		dir := t.TempDir()
+		path, err := resolveAttachmentOutputPath("m1", "abcdefghij", dir, "")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		want := filepath.Join(dir, "m1_abcdefgh_attachment.bin")
+		if path != want {
+			t.Fatalf("got %q, want %q", path, want)
+		}
+	})
+
+	t.Run("directory target with custom name", func(t *testing.T) {
+		dir := t.TempDir()
+		path, err := resolveAttachmentOutputPath("m1", "abcdefghij", dir, "report.pdf")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		want := filepath.Join(dir, "report.pdf")
+		if path != want {
+			t.Fatalf("got %q, want %q", path, want)
+		}
+	})
+
+	t.Run("traversal in name is stripped", func(t *testing.T) {
+		dir := t.TempDir()
+		path, err := resolveAttachmentOutputPath("m1", "abcdefghij", dir, "../../etc/passwd")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		want := filepath.Join(dir, "passwd")
+		if path != want {
+			t.Fatalf("got %q, want %q", path, want)
+		}
+	})
+
+	t.Run("trailing separator treated as directory", func(t *testing.T) {
+		path, err := resolveAttachmentOutputPath("m1", "abcdefghij", "/tmp/newdir/", "report.pdf")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		want := filepath.Join("/tmp/newdir", "report.pdf")
+		if path != want {
+			t.Fatalf("got %q, want %q", path, want)
+		}
+	})
+}
+
 func httptestServerForAttachment(t *testing.T, data string) *httptest.Server {
 	t.Helper()
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
