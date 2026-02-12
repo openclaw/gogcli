@@ -110,15 +110,15 @@ Headless / remote server flow (no browser on the server):
 
 ```bash
 # Step 1: print auth URL (open it locally in a browser)
-gog auth add you@gmail.com --services user --remote --step 1
+gog auth add you@gmail.com --manual
 
 # Step 2: paste the full redirect URL from your browser address bar
-gog auth add you@gmail.com --services user --remote --step 2 --auth-url 'http://localhost:1/?code=...&state=...'
+'http://localhost:1/?code=...&state=...'
 ```
 
 Notes:
 
-- The `state` is cached on disk for a short time (about 10 minutes). If it expires, rerun step 1.
+- The `state` is cached on disk for a short time (about 10 minutes). If it expires, rerun command.
 - Remote step 2 requires a redirect URL that includes `state` (state check mandatory).
 
 ### 4. Test Authentication
