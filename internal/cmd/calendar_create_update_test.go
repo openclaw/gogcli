@@ -120,6 +120,63 @@ func TestCalendarCreateCmd_WithMeetAndAttachments(t *testing.T) {
 	}
 }
 
+func TestCalendarCreateCmd_RecurringOffsetTimezoneFallback(t *testing.T) {
+	origNew := newCalendarService
+	t.Cleanup(func() { newCalendarService = origNew })
+
+	var gotEvent calendar.Event
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := strings.TrimPrefix(r.URL.Path, "/calendar/v3")
+		if r.Method == http.MethodPost && path == "/calendars/cal/events" {
+			_ = json.NewDecoder(r.Body).Decode(&gotEvent)
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"id": "ev3",
+			})
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer srv.Close()
+
+	svc, err := calendar.NewService(context.Background(),
+		option.WithoutAuthentication(),
+		option.WithHTTPClient(srv.Client()),
+		option.WithEndpoint(srv.URL+"/"),
+	)
+	if err != nil {
+		t.Fatalf("NewService: %v", err)
+	}
+	newCalendarService = func(context.Context, string) (*calendar.Service, error) { return svc, nil }
+
+	u, err := ui.New(ui.Options{Stdout: os.Stdout, Stderr: os.Stderr, Color: "never"})
+	if err != nil {
+		t.Fatalf("ui.New: %v", err)
+	}
+	ctx := outfmt.WithMode(ui.WithUI(context.Background(), u), outfmt.Mode{JSON: true})
+
+	cmd := &CalendarCreateCmd{}
+	if err := runKong(t, cmd, []string{
+		"cal",
+		"--summary", "Recurring Test",
+		"--from", "2026-02-13T08:00:00+02:00",
+		"--to", "2026-02-13T09:00:00+02:00",
+		"--rrule", "FREQ=WEEKLY;BYDAY=TU,TH",
+	}, ctx, &RootFlags{Account: "a@b.com"}); err != nil {
+		t.Fatalf("runKong: %v", err)
+	}
+
+	if gotEvent.Start == nil || gotEvent.Start.TimeZone != "Etc/GMT-2" {
+		t.Fatalf("expected start timezone fallback Etc/GMT-2, got %#v", gotEvent.Start)
+	}
+	if gotEvent.End == nil || gotEvent.End.TimeZone != "Etc/GMT-2" {
+		t.Fatalf("expected end timezone fallback Etc/GMT-2, got %#v", gotEvent.End)
+	}
+	if len(gotEvent.Recurrence) == 0 {
+		t.Fatalf("expected recurrence to be set")
+	}
+}
+
 func TestCalendarUpdateCmd_RunJSON(t *testing.T) {
 	origNew := newCalendarService
 	t.Cleanup(func() { newCalendarService = origNew })

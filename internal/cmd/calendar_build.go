@@ -57,6 +57,16 @@ func extractTimezone(value string) string {
 			return candidate
 		}
 	}
+
+	// Fallback for fixed whole-hour offsets when no regional timezone match is found.
+	// NOTE: IANA "Etc/GMT" names use reversed signs (e.g. +02:00 => Etc/GMT-2).
+	if offset%3600 == 0 {
+		hours := offset / 3600
+		if hours > 0 {
+			return fmt.Sprintf("Etc/GMT-%d", hours)
+		}
+		return fmt.Sprintf("Etc/GMT+%d", -hours)
+	}
 	return ""
 }
 
