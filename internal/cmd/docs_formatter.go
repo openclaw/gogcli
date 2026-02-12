@@ -10,10 +10,18 @@ import (
 // Debug flag for markdown formatter
 var debugMarkdown = false
 
+// TableData represents a table to be inserted natively
+type TableData struct {
+	StartIndex int64
+	Cells      [][]string
+}
+
 // MarkdownToDocsRequests converts parsed markdown elements to Google Docs batch update requests
-func MarkdownToDocsRequests(elements []MarkdownElement) ([]*docs.Request, string) {
+// Returns: requests, plainText, tableData (for native table insertion)
+func MarkdownToDocsRequests(elements []MarkdownElement) ([]*docs.Request, string, []TableData) {
 	var requests []*docs.Request
 	var plainText strings.Builder
+	var tables []TableData
 	charOffset := int64(1)
 
 	if debugMarkdown {
@@ -220,9 +228,7 @@ func MarkdownToDocsRequests(elements []MarkdownElement) ([]*docs.Request, string
 			charOffset += utf16Len("\n")
 
 		case MDTable:
-			// Handle markdown table - convert to formatted text representation
-			// Google Docs API table insertion is complex and requires multiple API calls
-			// For now, render as formatted text table
+			// Handle markdown table - save for native insertion
 			if len(el.TableCells) == 0 {
 				continue
 			}
@@ -234,57 +240,16 @@ func MarkdownToDocsRequests(elements []MarkdownElement) ([]*docs.Request, string
 			}
 
 			if debugMarkdown {
-				fmt.Printf("[TABLE] %d rows x %d cols - rendering as formatted text\n", rows, cols)
+				fmt.Printf("[TABLE] %d rows x %d cols at offset %d - saving for native insertion\n", rows, cols, charOffset)
 			}
 
-			// Calculate column widths
-			colWidths := make([]int, cols)
-			for _, row := range el.TableCells {
-				for colIdx, cell := range row {
-					if colIdx < len(colWidths) && len(cell) > colWidths[colIdx] {
-						colWidths[colIdx] = len(cell)
-					}
-				}
-			}
+			// Save table data for native insertion
+			tables = append(tables, TableData{
+				StartIndex: charOffset,
+				Cells:      el.TableCells,
+			})
 
-			// Render table as text
-			for rowIdx, row := range el.TableCells {
-				var line strings.Builder
-				for colIdx, cell := range row {
-					if colIdx < len(colWidths) {
-						// Pad cell to column width
-						padding := colWidths[colIdx] - len(cell)
-						line.WriteString("| ")
-						line.WriteString(cell)
-						line.WriteString(strings.Repeat(" ", padding))
-						line.WriteString(" ")
-					}
-				}
-				line.WriteString("|")
-
-				plainText.WriteString(line.String())
-				plainText.WriteString("\n")
-				charOffset += utf16Len(line.String() + "\n")
-
-				// Add separator after header row
-				if rowIdx == 0 {
-					var sep strings.Builder
-					for colIdx := 0; colIdx < cols; colIdx++ {
-						if colIdx < len(colWidths) {
-							sep.WriteString("|-")
-							sep.WriteString(strings.Repeat("-", colWidths[colIdx]))
-							sep.WriteString("-")
-						}
-					}
-					sep.WriteString("|")
-
-					plainText.WriteString(sep.String())
-					plainText.WriteString("\n")
-					charOffset += utf16Len(sep.String() + "\n")
-				}
-			}
-
-			// Add empty line after table
+			// Add a placeholder newline (table will be inserted here)
 			plainText.WriteString("\n")
 			charOffset += utf16Len("\n")
 		}
@@ -294,11 +259,11 @@ func MarkdownToDocsRequests(elements []MarkdownElement) ([]*docs.Request, string
 		fmt.Printf("\n[FINAL] plainText length: %d\n", plainText.Len())
 		fmt.Printf("[FINAL] Final charOffset: %d\n", charOffset)
 		fmt.Printf("[FINAL] Total requests: %d\n", len(requests))
+		fmt.Printf("[FINAL] Total tables: %d\n", len(tables))
 		fmt.Printf("\n[FINAL] plainText content:\n%s\n[END]\n", plainText.String())
-		fmt.Printf("[FINAL] plainText bytes: %v\n", []byte(plainText.String()))
 	}
 
-	return requests, plainText.String()
+	return requests, plainText.String(), tables
 }
 
 // buildTextStyleRequest creates a text style update request from a TextStyle

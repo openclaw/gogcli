@@ -366,11 +366,12 @@ func (c *DocsUpdateCmd) Run(ctx context.Context, flags *RootFlags) error {
 	var requests []*docs.Request
 	var textToInsert string
 	var formattingRequests []*docs.Request
+	var tables []TableData
 
 	// Parse markdown if format is markdown
 	if c.Format == "markdown" {
 		elements := ParseMarkdown(content)
-		formattingRequests, textToInsert = MarkdownToDocsRequests(elements)
+		formattingRequests, textToInsert, tables = MarkdownToDocsRequests(elements)
 	} else {
 		textToInsert = content
 	}
@@ -427,6 +428,17 @@ func (c *DocsUpdateCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}).Context(ctx).Do()
 	if err != nil {
 		return fmt.Errorf("update document: %w", err)
+	}
+
+	// Insert native tables (multi-step operation)
+	if len(tables) > 0 {
+		tableInserter := NewTableInserter(svc, id, ctx)
+		for _, table := range tables {
+			_, err := tableInserter.InsertNativeTable(table.StartIndex, table.Cells)
+			if err != nil {
+				return fmt.Errorf("insert native table: %w", err)
+			}
+		}
 	}
 
 	if outfmt.IsJSON(ctx) {
