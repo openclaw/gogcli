@@ -37,15 +37,30 @@ func TestDownloadAttachmentToPath_CachedBySize(t *testing.T) {
 
 func TestDownloadAttachmentToPath_CachedByAnySize(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "b.bin")
-	if err := os.WriteFile(path, []byte("abcd"), 0o600); err != nil {
+	if err := os.WriteFile(path, []byte("stale"), 0o600); err != nil {
 		t.Fatalf("WriteFile: %v", err)
 	}
-	gotPath, cached, bytes, err := downloadAttachmentToPath(context.Background(), nil, "m1", "a1", path, -1)
+	srv := httptestServerForAttachment(t, base64.RawURLEncoding.EncodeToString([]byte("fresh")))
+
+	gsvc, err := gmail.NewService(context.Background(),
+		option.WithoutAuthentication(),
+		option.WithHTTPClient(srv.Client()),
+		option.WithEndpoint(srv.URL+"/"),
+	)
+	if err != nil {
+		t.Fatalf("NewService: %v", err)
+	}
+	gotPath, cached, bytes, err := downloadAttachmentToPath(context.Background(), gsvc, "m1", "a1", path, -1)
 	if err != nil {
 		t.Fatalf("downloadAttachmentToPath: %v", err)
 	}
-	if gotPath != path || !cached || bytes != 4 {
+	if gotPath != path || cached || bytes != 5 {
 		t.Fatalf("unexpected result: path=%q cached=%v bytes=%d", gotPath, cached, bytes)
+	}
+	if data, err := os.ReadFile(path); err != nil {
+		t.Fatalf("ReadFile: %v", err)
+	} else if string(data) != "fresh" {
+		t.Fatalf("unexpected data: %q", string(data))
 	}
 }
 
@@ -91,6 +106,24 @@ func TestDownloadAttachmentToPath_EmptyData(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "d.bin")
 	if _, _, _, err := downloadAttachmentToPath(context.Background(), gsvc, "m1", "a1", path, 0); err == nil {
 		t.Fatalf("expected error")
+	}
+}
+
+func TestDownloadAttachmentToPath_DirectoryNotCacheHit(t *testing.T) {
+	dir := t.TempDir()
+	srv := httptestServerForAttachment(t, base64.RawURLEncoding.EncodeToString([]byte("x")))
+
+	gsvc, err := gmail.NewService(context.Background(),
+		option.WithoutAuthentication(),
+		option.WithHTTPClient(srv.Client()),
+		option.WithEndpoint(srv.URL+"/"),
+	)
+	if err != nil {
+		t.Fatalf("NewService: %v", err)
+	}
+
+	if _, _, _, err := downloadAttachmentToPath(context.Background(), gsvc, "m1", "a1", dir, -1); err == nil {
+		t.Fatalf("expected error for directory output path")
 	}
 }
 
