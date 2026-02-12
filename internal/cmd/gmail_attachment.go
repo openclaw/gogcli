@@ -75,6 +75,18 @@ func (c *GmailAttachmentCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if err != nil {
 		return err
 	}
+	// When --out is a directory, combine it with --name (or a default filename)
+	if fi, statErr := os.Stat(outPath); statErr == nil && fi.IsDir() {
+		filename := strings.TrimSpace(c.Name)
+		if filename == "" {
+			shortID := attachmentID
+			if len(shortID) > 8 {
+				shortID = shortID[:8]
+			}
+			filename = fmt.Sprintf("%s_%s_attachment.bin", messageID, shortID)
+		}
+		outPath = filepath.Join(outPath, filepath.Base(filename))
+	}
 	path, cached, bytes, err := downloadAttachmentToPath(ctx, svc, messageID, attachmentID, outPath, -1)
 	if err != nil {
 		return err
@@ -100,12 +112,11 @@ func downloadAttachmentToPath(
 		return "", false, 0, errors.New("missing outPath")
 	}
 
-	if expectedSize > 0 {
-		if st, err := os.Stat(outPath); err == nil && st.Size() == expectedSize {
+	if st, err := os.Stat(outPath); err == nil && !st.IsDir() {
+		if expectedSize > 0 && st.Size() == expectedSize {
 			return outPath, true, st.Size(), nil
 		}
-	} else if expectedSize == -1 {
-		if st, err := os.Stat(outPath); err == nil && st.Size() > 0 {
+		if expectedSize == -1 && st.Size() > 0 {
 			return outPath, true, st.Size(), nil
 		}
 	}
