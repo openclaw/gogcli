@@ -109,17 +109,16 @@ This will open a browser window for OAuth authorization. The refresh token is st
 Headless / remote server flow (no browser on the server):
 
 ```bash
-# Step 1: print auth URL (open it locally in a browser)
-gog auth add you@gmail.com --services user --remote --step 1
-
-# Step 2: paste the full redirect URL from your browser address bar
-gog auth add you@gmail.com --services user --remote --step 2 --auth-url 'http://localhost:1/?code=...&state=...'
+# Browserless auth flow - prints URL, then paste the redirect URL when prompted
+gog auth add you@gmail.com --services user --manual
 ```
 
 Notes:
 
-- The `state` is cached on disk for a short time (about 10 minutes). If it expires, rerun step 1.
-- Remote step 2 requires a redirect URL that includes `state` (state check mandatory).
+- The CLI will print an authorization URL. Open it in your local browser.
+- After approving, Google will redirect to localhost with a code. Copy that full URL.
+- Paste the redirect URL back into the terminal when prompted.
+- If the state expires (about 10 minutes), just rerun the command.
 
 ### 4. Test Authentication
 
