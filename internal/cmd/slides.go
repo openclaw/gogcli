@@ -55,8 +55,9 @@ func (c *SlidesInfoCmd) Run(ctx context.Context, flags *RootFlags) error {
 }
 
 type SlidesCreateCmd struct {
-	Title  string `arg:"" name:"title" help:"Presentation title"`
-	Parent string `name:"parent" help:"Destination folder ID"`
+	Title    string `arg:"" name:"title" help:"Presentation title"`
+	Parent   string `name:"parent" help:"Destination folder ID"`
+	Template string `name:"template" help:"Template presentation ID to copy from"`
 }
 
 func (c *SlidesCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -76,23 +77,47 @@ func (c *SlidesCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
-	f := &drive.File{
-		Name:     title,
-		MimeType: "application/vnd.google-apps.presentation",
-	}
-	parent := strings.TrimSpace(c.Parent)
-	if parent != "" {
-		f.Parents = []string{parent}
-	}
+	var created *drive.File
 
-	created, err := svc.Files.Create(f).
-		SupportsAllDrives(true).
-		Fields("id, name, mimeType, webViewLink").
-		Context(ctx).
-		Do()
-	if err != nil {
-		return err
+	// If template is provided, copy from it
+	if c.Template != "" {
+		f := &drive.File{
+			Name: title,
+		}
+		parent := strings.TrimSpace(c.Parent)
+		if parent != "" {
+			f.Parents = []string{parent}
+		}
+
+		created, err = svc.Files.Copy(c.Template, f).
+			SupportsAllDrives(true).
+			Fields("id, name, mimeType, webViewLink").
+			Context(ctx).
+			Do()
+		if err != nil {
+			return fmt.Errorf("failed to copy template: %w", err)
+		}
+	} else {
+		// Create blank presentation
+		f := &drive.File{
+			Name:     title,
+			MimeType: "application/vnd.google-apps.presentation",
+		}
+		parent := strings.TrimSpace(c.Parent)
+		if parent != "" {
+			f.Parents = []string{parent}
+		}
+
+		created, err = svc.Files.Create(f).
+			SupportsAllDrives(true).
+			Fields("id, name, mimeType, webViewLink").
+			Context(ctx).
+			Do()
+		if err != nil {
+			return err
+		}
 	}
+	
 	if created == nil {
 		return errors.New("create failed")
 	}
