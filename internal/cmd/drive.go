@@ -381,14 +381,14 @@ func (c *DriveUploadCmd) Run(ctx context.Context, flags *RootFlags) error {
 			meta.Parents = []string{parent}
 		}
 
-		created, err := svc.Files.Create(meta).
+		created, createErr := svc.Files.Create(meta).
 			SupportsAllDrives(true).
 			Media(f, gapi.ContentType(mimeType)).
 			Fields("id, name, mimeType, size, webViewLink").
 			Context(ctx).
 			Do()
-		if err != nil {
-			return err
+		if createErr != nil {
+			return createErr
 		}
 
 		if outfmt.IsJSON(ctx) {
