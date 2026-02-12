@@ -16,6 +16,7 @@ type GmailLabelsCmd struct {
 	List   GmailLabelsListCmd   `cmd:"" name:"list" help:"List labels"`
 	Get    GmailLabelsGetCmd    `cmd:"" name:"get" help:"Get label details (including counts)"`
 	Create GmailLabelsCreateCmd `cmd:"" name:"create" help:"Create a new label"`
+	Delete GmailLabelsDeleteCmd `cmd:"" name:"delete" help:"Delete a label"`
 	Modify GmailLabelsModifyCmd `cmd:"" name:"modify" help:"Modify labels on threads"`
 }
 
@@ -109,6 +110,64 @@ func createLabel(ctx context.Context, svc *gmail.Service, name string) (*gmail.L
 		LabelListVisibility:   "labelShow",
 		MessageListVisibility: "show",
 	}).Context(ctx).Do()
+}
+
+type GmailLabelsDeleteCmd struct {
+	Label string `arg:"" name:"labelIdOrName" help:"Label ID or name"`
+}
+
+func (c *GmailLabelsDeleteCmd) Run(ctx context.Context, flags *RootFlags) error {
+	u := ui.FromContext(ctx)
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
+	}
+
+	raw := strings.TrimSpace(c.Label)
+	if raw == "" {
+		return usage("label name or ID is required")
+	}
+
+	svc, err := newGmailService(ctx, account)
+	if err != nil {
+		return err
+	}
+
+	idMap, err := fetchLabelNameToID(svc)
+	if err != nil {
+		return err
+	}
+	id := raw
+	if v, ok := idMap[strings.ToLower(raw)]; ok {
+		id = v
+	}
+
+	// Look up label details for confirmation
+	label, err := svc.Users.Labels.Get("me", id).Context(ctx).Do()
+	if err != nil {
+		return fmt.Errorf("label not found: %w", err)
+	}
+
+	// System labels cannot be deleted
+	if label.Type == "system" {
+		return fmt.Errorf("cannot delete system label %q", label.Name)
+	}
+
+	if !flags.Force {
+		u.Err().Printf("Delete label %q (id: %s)? This cannot be undone.", label.Name, label.Id)
+		u.Err().Printf("Use --force to skip this confirmation.")
+		return fmt.Errorf("aborted (use --force to skip confirmation)")
+	}
+
+	if err := svc.Users.Labels.Delete("me", id).Context(ctx).Do(); err != nil {
+		return err
+	}
+
+	if outfmt.IsJSON(ctx) {
+		return outfmt.WriteJSON(os.Stdout, map[string]any{"deleted": label.Id, "name": label.Name})
+	}
+	u.Out().Printf("Deleted label: %s (id: %s)", label.Name, label.Id)
+	return nil
 }
 
 type GmailLabelsListCmd struct{}
