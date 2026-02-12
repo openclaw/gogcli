@@ -17,6 +17,7 @@ type GmailLabelsCmd struct {
 	Get    GmailLabelsGetCmd    `cmd:"" name:"get" help:"Get label details (including counts)"`
 	Create GmailLabelsCreateCmd `cmd:"" name:"create" help:"Create a new label"`
 	Modify GmailLabelsModifyCmd `cmd:"" name:"modify" help:"Modify labels on threads"`
+	Delete GmailLabelsDeleteCmd `cmd:"" name:"delete" help:"Delete a label"`
 }
 
 type GmailLabelsGetCmd struct {
@@ -224,6 +225,65 @@ func fetchLabelNameToID(svc *gmail.Service) (map[string]string, error) {
 		}
 	}
 	return m, nil
+}
+
+type GmailLabelsDeleteCmd struct {
+	Label string `arg:"" name:"labelIdOrName" help:"Label ID or name"`
+}
+
+func (c *GmailLabelsDeleteCmd) Run(ctx context.Context, flags *RootFlags) error {
+	u := ui.FromContext(ctx)
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
+	}
+
+	svc, err := newGmailService(ctx, account)
+	if err != nil {
+		return err
+	}
+
+	raw := strings.TrimSpace(c.Label)
+	if raw == "" {
+		return usage("empty label")
+	}
+
+	// For destructive operations, try exact ID match first before name lookup
+	label, err := svc.Users.Labels.Get("me", raw).Context(ctx).Do()
+	if err != nil {
+		// Not a valid ID, try resolving as name
+		idMap, mapErr := fetchLabelNameToID(svc)
+		if mapErr != nil {
+			return mapErr
+		}
+		id, ok := idMap[strings.ToLower(raw)]
+		if !ok {
+			return fmt.Errorf("label not found: %s", raw)
+		}
+		label, err = svc.Users.Labels.Get("me", id).Context(ctx).Do()
+		if err != nil {
+			return err
+		}
+	}
+
+	// System labels cannot be deleted
+	if label.Type == "system" {
+		return fmt.Errorf("cannot delete system label %q", label.Name)
+	}
+
+	if confirmErr := confirmDestructive(ctx, flags, fmt.Sprintf("delete label %q", label.Name)); confirmErr != nil {
+		return confirmErr
+	}
+
+	if err := svc.Users.Labels.Delete("me", label.Id).Context(ctx).Do(); err != nil {
+		return err
+	}
+
+	if outfmt.IsJSON(ctx) {
+		return outfmt.WriteJSON(os.Stdout, map[string]any{"deleted": true, "id": label.Id, "name": label.Name})
+	}
+	u.Out().Printf("Deleted label: %s (id: %s)", label.Name, label.Id)
+	return nil
 }
 
 func fetchLabelIDToName(svc *gmail.Service) (map[string]string, error) {
