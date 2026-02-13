@@ -167,3 +167,40 @@ func TestTasksAddCmd_RepeatUntilDateOnlyWithTimeDue(t *testing.T) {
 		t.Fatalf("unexpected due schedule: %#v", gotDue)
 	}
 }
+
+func TestParseTaskDate_FlexibleFormats(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name        string
+		value       string
+		wantErr     bool
+		wantHasTime bool
+	}{
+		{name: "date", value: "2026-02-13", wantHasTime: false},
+		{name: "rfc3339", value: "2026-02-13T10:20:30Z", wantHasTime: true},
+		{name: "local minutes T", value: "2026-02-13T10:20", wantHasTime: true},
+		{name: "local seconds space", value: "2026-02-13 10:20:30", wantHasTime: true},
+		{name: "iso offset", value: "2026-02-13T10:20:30-0800", wantHasTime: true},
+		{name: "invalid", value: "nope", wantErr: true},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			_, gotHasTime, err := parseTaskDate(tc.value)
+			if tc.wantErr {
+				if err == nil {
+					t.Fatalf("expected error")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("parseTaskDate: %v", err)
+			}
+			if gotHasTime != tc.wantHasTime {
+				t.Fatalf("hasTime=%v want %v", gotHasTime, tc.wantHasTime)
+			}
+		})
+	}
+}

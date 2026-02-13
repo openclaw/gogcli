@@ -10,6 +10,7 @@ import (
 	"google.golang.org/api/people/v1"
 
 	"github.com/steipete/gogcli/internal/outfmt"
+	"github.com/steipete/gogcli/internal/timeparse"
 	"github.com/steipete/gogcli/internal/ui"
 )
 
@@ -217,6 +218,10 @@ type ContactsUpdateCmd struct {
 	Family       string `name:"family" help:"Family name"`
 	Email        string `name:"email" help:"Email address (empty clears)"`
 	Phone        string `name:"phone" help:"Phone number (empty clears)"`
+
+	// Extra People API fields (not previously exposed by gog)
+	Birthday string `name:"birthday" help:"Birthday in YYYY-MM-DD (empty clears)"`
+	Notes    string `name:"notes" help:"Notes (stored as People API biography; empty clears)"`
 }
 
 func (c *ContactsUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *RootFlags) error {
@@ -235,12 +240,12 @@ func (c *ContactsUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *
 		return err
 	}
 
-	existing, err := svc.People.Get(resourceName).PersonFields(contactsReadMask).Do()
+	existing, err := svc.People.Get(resourceName).PersonFields(contactsReadMask + ",birthdays,biographies").Do()
 	if err != nil {
 		return err
 	}
 
-	updateFields := make([]string, 0, 3)
+	updateFields := make([]string, 0, 5)
 
 	if flagProvided(kctx, "given") || flagProvided(kctx, "family") {
 		curGiven := ""
@@ -276,6 +281,35 @@ func (c *ContactsUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *
 		updateFields = append(updateFields, "phoneNumbers")
 	}
 
+	if flagProvided(kctx, "birthday") {
+		if strings.TrimSpace(c.Birthday) == "" {
+			existing.Birthdays = nil
+		} else {
+			d, parseErr := parseYYYYMMDD(strings.TrimSpace(c.Birthday))
+			if parseErr != nil {
+				return usage("invalid --birthday (expected YYYY-MM-DD)")
+			}
+			existing.Birthdays = []*people.Birthday{{
+				Date:     d,
+				Metadata: &people.FieldMetadata{Primary: true},
+			}}
+		}
+		updateFields = append(updateFields, "birthdays")
+	}
+
+	if flagProvided(kctx, "notes") {
+		if strings.TrimSpace(c.Notes) == "" {
+			existing.Biographies = nil
+		} else {
+			existing.Biographies = []*people.Biography{{
+				Value:       c.Notes,
+				ContentType: "TEXT_PLAIN",
+				Metadata:    &people.FieldMetadata{Primary: true},
+			}}
+		}
+		updateFields = append(updateFields, "biographies")
+	}
+
 	if len(updateFields) == 0 {
 		return usage("no updates provided")
 	}
@@ -295,6 +329,14 @@ func (c *ContactsUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *
 
 type ContactsDeleteCmd struct {
 	ResourceName string `arg:"" name:"resourceName" help:"Resource name (people/...)"`
+}
+
+func parseYYYYMMDD(s string) (*people.Date, error) {
+	t, err := timeparse.ParseDate(s)
+	if err != nil {
+		return nil, err
+	}
+	return &people.Date{Year: int64(t.Year()), Month: int64(t.Month()), Day: int64(t.Day())}, nil
 }
 
 func (c *ContactsDeleteCmd) Run(ctx context.Context, flags *RootFlags) error {

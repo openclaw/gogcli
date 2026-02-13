@@ -170,3 +170,21 @@ func TestParseWeekStartVariants(t *testing.T) {
 		t.Fatalf("expected invalid week start")
 	}
 }
+
+func TestParseTimeExpr_LocalMinutesWithT(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2025, 1, 10, 12, 0, 0, 0, time.UTC)
+	loc := time.FixedZone("Offset", -5*3600)
+
+	parsed, err := parseTimeExpr("2025-01-05T10:30", now, loc)
+	if err != nil {
+		t.Fatalf("parseTimeExpr local minutes: %v", err)
+	}
+	if parsed.Location() != loc {
+		t.Fatalf("expected loc, got %v", parsed.Location())
+	}
+	if parsed.Hour() != 10 || parsed.Minute() != 30 {
+		t.Fatalf("unexpected time: %v", parsed)
+	}
+}

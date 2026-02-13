@@ -123,6 +123,7 @@ func optionsForAccountScopes(ctx context.Context, serviceLabel string, email str
 		}
 	}
 	baseTransport := &http.Transport{
+		Proxy: http.ProxyFromEnvironment,
 		TLSClientConfig: &tls.Config{
 			MinVersion: tls.VersionTLS12,
 		},

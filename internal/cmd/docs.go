@@ -27,6 +27,7 @@ type DocsCmd struct {
 	Create DocsCreateCmd `cmd:"" name:"create" help:"Create a Google Doc"`
 	Copy   DocsCopyCmd   `cmd:"" name:"copy" help:"Copy a Google Doc"`
 	Cat    DocsCatCmd    `cmd:"" name:"cat" help:"Print a Google Doc as plain text"`
+	Update DocsUpdateCmd `cmd:"" name:"update" help:"Update content in a Google Doc"`
 }
 
 type DocsExportCmd struct {
@@ -110,6 +111,7 @@ func (c *DocsInfoCmd) Run(ctx context.Context, flags *RootFlags) error {
 type DocsCreateCmd struct {
 	Title  string `arg:"" name:"title" help:"Doc title"`
 	Parent string `name:"parent" help:"Destination folder ID"`
+	File   string `name:"file" help:"Markdown file to import" type:"existingfile"`
 }
 
 func (c *DocsCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -124,7 +126,7 @@ func (c *DocsCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return usage("empty title")
 	}
 
-	svc, err := newDriveService(ctx, account)
+	driveSvc, err := newDriveService(ctx, account)
 	if err != nil {
 		return err
 	}
@@ -138,16 +140,41 @@ func (c *DocsCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
 		f.Parents = []string{parent}
 	}
 
-	created, err := svc.Files.Create(f).
+	createCall := driveSvc.Files.Create(f).
 		SupportsAllDrives(true).
-		Fields("id, name, mimeType, webViewLink").
-		Context(ctx).
-		Do()
+		Fields("id, name, mimeType, webViewLink")
+
+	// When --file is set, upload the markdown content and let Drive convert it.
+	var images []markdownImage
+	if c.File != "" {
+		raw, readErr := os.ReadFile(c.File)
+		if readErr != nil {
+			return fmt.Errorf("read markdown file: %w", readErr)
+		}
+		content := string(raw)
+
+		var cleaned string
+		cleaned, images = extractMarkdownImages(content)
+
+		createCall = createCall.Media(
+			strings.NewReader(cleaned),
+			gapi.ContentType("text/markdown"),
+		)
+	}
+
+	created, err := createCall.Context(ctx).Do()
 	if err != nil {
 		return err
 	}
 	if created == nil {
 		return errors.New("create failed")
+	}
+
+	// Pass 2: insert images if any were found.
+	if len(images) > 0 {
+		if err := c.insertImages(ctx, account, driveSvc, created.Id, images); err != nil {
+			return fmt.Errorf("insert images: %w", err)
+		}
 	}
 
 	if outfmt.IsJSON(ctx) {
@@ -161,6 +188,63 @@ func (c *DocsCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
 		u.Out().Printf("link\t%s", created.WebViewLink)
 	}
 	return nil
+}
+
+// insertImages performs pass 2: reads back the created doc, resolves image URLs,
+// and replaces placeholder text with inline images.
+func (c *DocsCreateCmd) insertImages(ctx context.Context, account string, driveSvc *drive.Service, docID string, images []markdownImage) error {
+	docsSvc, err := newDocsService(ctx, account)
+	if err != nil {
+		return err
+	}
+
+	// Read back the document to find placeholder positions.
+	doc, err := docsSvc.Documents.Get(docID).Context(ctx).Do()
+	if err != nil {
+		return fmt.Errorf("read back document: %w", err)
+	}
+
+	placeholders := findPlaceholderIndices(doc, len(images))
+	if len(placeholders) == 0 {
+		return nil
+	}
+
+	// Resolve image URLs — upload local files to Drive temporarily.
+	imageURLs := make(map[int]string)
+	var tempFileIDs []string
+	defer cleanupDriveFileIDsBestEffort(ctx, driveSvc, tempFileIDs)
+
+	for _, img := range images {
+		if _, ok := placeholders[img.placeholder()]; !ok {
+			continue
+		}
+		if img.isRemote() {
+			imageURLs[img.index] = img.originalRef
+			continue
+		}
+
+		realPath, resolveErr := resolveMarkdownImagePath(c.File, img.originalRef)
+		if resolveErr != nil {
+			return resolveErr
+		}
+
+		url, fileID, uploadErr := uploadLocalImage(ctx, driveSvc, realPath)
+		if uploadErr != nil {
+			return uploadErr
+		}
+		tempFileIDs = append(tempFileIDs, fileID)
+		imageURLs[img.index] = url
+	}
+
+	reqs := buildImageInsertRequests(placeholders, images, imageURLs)
+	if len(reqs) == 0 {
+		return nil
+	}
+
+	_, err = docsSvc.Documents.BatchUpdate(docID, &docs.BatchUpdateDocumentRequest{
+		Requests: reqs,
+	}).Context(ctx).Do()
+	return err
 }
 
 type DocsCopyCmd struct {
@@ -218,6 +302,180 @@ func (c *DocsCatCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 	_, err = io.WriteString(os.Stdout, text)
 	return err
+}
+
+type DocsUpdateCmd struct {
+	DocID       string `arg:"" name:"docId" help:"Doc ID"`
+	Content     string `name:"content" help:"Text content to insert (mutually exclusive with --content-file)"`
+	ContentFile string `name:"content-file" help:"File containing text content to insert"`
+	Format      string `name:"format" help:"Content format: plain|markdown" default:"plain"`
+	Append      bool   `name:"append" help:"Append to end of document instead of replacing all content"`
+	Debug       bool   `name:"debug" help:"Enable debug output for markdown formatter"`
+}
+
+const (
+	docsContentFormatPlain    = "plain"
+	docsContentFormatMarkdown = "markdown"
+)
+
+func (c *DocsUpdateCmd) Run(ctx context.Context, flags *RootFlags) error {
+	u := ui.FromContext(ctx)
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
+	}
+
+	if c.Debug {
+		debugMarkdown = true
+	}
+
+	id := strings.TrimSpace(c.DocID)
+	if id == "" {
+		return usage("empty docId")
+	}
+
+	var content string
+	switch {
+	case c.ContentFile != "":
+		var data []byte
+		data, err = os.ReadFile(c.ContentFile)
+		if err != nil {
+			return fmt.Errorf("read content file: %w", err)
+		}
+		content = string(data)
+	case c.Content != "":
+		content = c.Content
+	default:
+		return usage("either --content or --content-file is required")
+	}
+
+	format := strings.ToLower(strings.TrimSpace(c.Format))
+	if format == "" {
+		format = docsContentFormatPlain
+	}
+	switch format {
+	case docsContentFormatPlain, docsContentFormatMarkdown:
+	default:
+		return usage("format must be plain or markdown")
+	}
+
+	svc, err := newDocsService(ctx, account)
+	if err != nil {
+		return err
+	}
+
+	doc, err := svc.Documents.Get(id).
+		Context(ctx).
+		Do()
+	if err != nil {
+		if isDocsNotFound(err) {
+			return fmt.Errorf("doc not found or not a Google Doc (id=%s)", id)
+		}
+		return err
+	}
+	if doc == nil {
+		return errors.New("doc not found")
+	}
+
+	insertIndex := int64(1)
+	if c.Append && doc.Body != nil && len(doc.Body.Content) > 0 {
+		lastEl := doc.Body.Content[len(doc.Body.Content)-1]
+		if lastEl != nil && lastEl.EndIndex > 1 {
+			insertIndex = lastEl.EndIndex - 1
+		}
+	}
+
+	baseIndex := int64(1)
+	if c.Append {
+		baseIndex = insertIndex
+	}
+
+	var requests []*docs.Request
+	var textToInsert string
+	var formattingRequests []*docs.Request
+	var tables []TableData
+
+	if format == docsContentFormatMarkdown {
+		elements := ParseMarkdown(content)
+		formattingRequests, textToInsert, tables = MarkdownToDocsRequests(elements, baseIndex)
+	} else {
+		textToInsert = content
+	}
+
+	if c.Append {
+		requests = append(requests, &docs.Request{
+			InsertText: &docs.InsertTextRequest{
+				Location: &docs.Location{Index: insertIndex},
+				Text:     textToInsert,
+			},
+		})
+		if format == docsContentFormatMarkdown {
+			requests = append(requests, formattingRequests...)
+		}
+	} else {
+		if doc.Body != nil && len(doc.Body.Content) > 0 {
+			lastEl := doc.Body.Content[len(doc.Body.Content)-1]
+			if lastEl != nil && lastEl.EndIndex > 2 {
+				endIdx := lastEl.EndIndex - 1
+				requests = append(requests, &docs.Request{
+					DeleteContentRange: &docs.DeleteContentRangeRequest{
+						Range: &docs.Range{
+							StartIndex: 1,
+							EndIndex:   endIdx,
+						},
+					},
+				})
+			}
+		}
+
+		requests = append(requests, &docs.Request{
+			InsertText: &docs.InsertTextRequest{
+				Location: &docs.Location{Index: 1},
+				Text:     textToInsert,
+			},
+		})
+
+		if format == docsContentFormatMarkdown {
+			requests = append(requests, formattingRequests...)
+		}
+	}
+
+	_, err = svc.Documents.BatchUpdate(id, &docs.BatchUpdateDocumentRequest{
+		Requests: requests,
+	}).Context(ctx).Do()
+	if err != nil {
+		return fmt.Errorf("update document: %w", err)
+	}
+
+	if len(tables) > 0 {
+		tableInserter := NewTableInserter(svc, id)
+		tableOffset := int64(0)
+		for _, table := range tables {
+			tableIndex := table.StartIndex + tableOffset
+			tableEnd, err := tableInserter.InsertNativeTable(ctx, tableIndex, table.Cells)
+			if err != nil {
+				return fmt.Errorf("insert native table: %w", err)
+			}
+			if tableEnd > tableIndex {
+				tableOffset += (tableEnd - tableIndex) - 1
+			}
+		}
+	}
+
+	if outfmt.IsJSON(ctx) {
+		return outfmt.WriteJSON(os.Stdout, map[string]any{
+			"success": true,
+			"docId":   id,
+			"action":  map[string]any{"append": c.Append},
+		})
+	}
+
+	action := "Updated"
+	if c.Append {
+		action = "Appended to"
+	}
+	u.Out().Printf("%s document %s", action, id)
+	return nil
 }
 
 func docsWebViewLink(id string) string {

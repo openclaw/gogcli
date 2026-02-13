@@ -3,8 +3,10 @@ package googleapi
 import (
 	"context"
 	"errors"
+	"net/http"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 
 	"github.com/99designs/keyring"
@@ -255,5 +257,93 @@ func TestOptionsForAccountScopes_ServiceAccountPreferred(t *testing.T) {
 
 	if len(opts) == 0 {
 		t.Fatalf("expected client options")
+	}
+}
+
+func extractHTTPClientFromOption(t *testing.T, opt any) *http.Client {
+	t.Helper()
+
+	apply := reflect.ValueOf(opt).MethodByName("Apply")
+	if !apply.IsValid() {
+		t.Fatalf("option does not implement Apply: %T", opt)
+	}
+
+	if apply.Type().NumIn() != 1 {
+		t.Fatalf("unexpected Apply signature for %T", opt)
+	}
+
+	settingsArg := apply.Type().In(0)
+	if settingsArg.Kind() != reflect.Pointer {
+		t.Fatalf("unexpected Apply argument kind for %T: %s", opt, settingsArg.Kind())
+	}
+
+	settings := reflect.New(settingsArg.Elem())
+	apply.Call([]reflect.Value{settings})
+
+	httpClientField := settings.Elem().FieldByName("HTTPClient")
+	if !httpClientField.IsValid() {
+		t.Fatalf("dial settings missing HTTPClient field")
+	}
+
+	if httpClientField.IsNil() {
+		t.Fatalf("HTTPClient was not set by option %T", opt)
+	}
+
+	httpClient, ok := httpClientField.Interface().(*http.Client)
+	if !ok {
+		t.Fatalf("HTTPClient field has unexpected type: %T", httpClientField.Interface())
+	}
+
+	return httpClient
+}
+
+func TestOptionsForAccountScopes_ConfiguresProxyOnCustomBaseTransport(t *testing.T) {
+	origRead := readClientCredentials
+	origOpen := openSecretsStore
+
+	t.Cleanup(func() {
+		readClientCredentials = origRead
+		openSecretsStore = origOpen
+	})
+
+	readClientCredentials = func(string) (config.ClientCredentials, error) {
+		return config.ClientCredentials{ClientID: "id", ClientSecret: "secret"}, nil
+	}
+	openSecretsStore = func() (secrets.Store, error) {
+		return &stubStore{tok: secrets.Token{Email: "a@b.com", RefreshToken: "rt"}}, nil
+	}
+
+	opts, err := optionsForAccountScopes(context.Background(), "svc", "a@b.com", []string{"s1"})
+	if err != nil {
+		t.Fatalf("unexpected err: %v", err)
+	}
+
+	if len(opts) == 0 {
+		t.Fatalf("expected client options")
+	}
+
+	httpClient := extractHTTPClientFromOption(t, opts[0])
+
+	retryTransport, ok := httpClient.Transport.(*RetryTransport)
+	if !ok {
+		t.Fatalf("expected RetryTransport, got %T", httpClient.Transport)
+	}
+
+	oauthTransport, ok := retryTransport.Base.(*oauth2.Transport)
+	if !ok {
+		t.Fatalf("expected oauth2.Transport, got %T", retryTransport.Base)
+	}
+
+	baseTransport, ok := oauthTransport.Base.(*http.Transport)
+	if !ok {
+		t.Fatalf("expected http.Transport, got %T", oauthTransport.Base)
+	}
+
+	if baseTransport.Proxy == nil {
+		t.Fatalf("expected base transport proxy function")
+	}
+
+	if got, want := reflect.ValueOf(baseTransport.Proxy).Pointer(), reflect.ValueOf(http.ProxyFromEnvironment).Pointer(); got != want {
+		t.Fatalf("unexpected proxy function: got %v want %v", got, want)
 	}
 }

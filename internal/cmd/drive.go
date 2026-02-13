@@ -326,6 +326,8 @@ type DriveUploadCmd struct {
 	LocalPath string `arg:"" name:"localPath" help:"Path to local file"`
 	Name      string `name:"name" help:"Override filename"`
 	Parent    string `name:"parent" help:"Destination folder ID"`
+	Convert   bool   `name:"convert" help:"Auto-convert to native Google format based on file extension"`
+	ConvertTo string `name:"convert-to" help:"Convert to a specific Google format: doc|sheet|slides"`
 }
 
 func (c *DriveUploadCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -351,8 +353,14 @@ func (c *DriveUploadCmd) Run(ctx context.Context, flags *RootFlags) error {
 	defer f.Close()
 
 	fileName := strings.TrimSpace(c.Name)
+	isExplicitName := fileName != ""
 	if fileName == "" {
 		fileName = filepath.Base(localPath)
+	}
+
+	convertMimeType, convert, err := driveUploadConvertMimeType(localPath, c.Convert, c.ConvertTo)
+	if err != nil {
+		return err
 	}
 
 	svc, err := newDriveService(ctx, account)
@@ -364,6 +372,13 @@ func (c *DriveUploadCmd) Run(ctx context.Context, flags *RootFlags) error {
 	parent := strings.TrimSpace(c.Parent)
 	if parent != "" {
 		meta.Parents = []string{parent}
+	}
+
+	if convert {
+		meta.MimeType = convertMimeType
+		if !isExplicitName {
+			meta.Name = stripOfficeExt(meta.Name)
+		}
 	}
 
 	mimeType := guessMimeType(localPath)
@@ -1110,6 +1125,69 @@ func driveExportExtension(mimeType string) string {
 		return extTXT
 	default:
 		return extPDF
+	}
+}
+
+// googleConvertMimeType returns the Google-native MIME type for convertible
+// Office/text formats. The boolean indicates whether the extension is supported.
+func googleConvertMimeType(path string) (string, bool) {
+	ext := strings.ToLower(filepath.Ext(path))
+	switch ext {
+	case extDocx, ".doc":
+		return driveMimeGoogleDoc, true
+	case extXlsx, ".xls", extCSV:
+		return driveMimeGoogleSheet, true
+	case extPptx, ".ppt":
+		return driveMimeGoogleSlides, true
+	case extTXT, ".html":
+		return driveMimeGoogleDoc, true
+	default:
+		return "", false
+	}
+}
+
+func googleConvertTargetMimeType(target string) (string, bool) {
+	switch strings.ToLower(strings.TrimSpace(target)) {
+	case "doc":
+		return driveMimeGoogleDoc, true
+	case "sheet":
+		return driveMimeGoogleSheet, true
+	case "slides":
+		return driveMimeGoogleSlides, true
+	default:
+		return "", false
+	}
+}
+
+func driveUploadConvertMimeType(path string, auto bool, target string) (string, bool, error) {
+	target = strings.TrimSpace(target)
+	if target != "" {
+		mimeType, ok := googleConvertTargetMimeType(target)
+		if !ok {
+			return "", false, fmt.Errorf("--convert-to: invalid value %q (use doc|sheet|slides)", target)
+		}
+		return mimeType, true, nil
+	}
+	if !auto {
+		return "", false, nil
+	}
+
+	mimeType, ok := googleConvertMimeType(path)
+	if !ok {
+		return "", false, fmt.Errorf("--convert: unsupported file type %q (supported: docx, xlsx, pptx, doc, xls, ppt, csv, txt, html)", filepath.Ext(path))
+	}
+	return mimeType, true, nil
+}
+
+// stripOfficeExt removes common Office extensions from a filename so
+// the resulting Google Doc/Sheet/Slides has a clean name.
+func stripOfficeExt(name string) string {
+	ext := strings.ToLower(filepath.Ext(name))
+	switch ext {
+	case extDocx, ".doc", extXlsx, ".xls", extPptx, ".ppt":
+		return strings.TrimSuffix(name, filepath.Ext(name))
+	default:
+		return name
 	}
 }
 

@@ -14,11 +14,11 @@ func TestParseService(t *testing.T) {
 		{"classroom", ServiceClassroom},
 		{"drive", ServiceDrive},
 		{"docs", ServiceDocs},
+		{"slides", ServiceSlides},
 		{"contacts", ServiceContacts},
 		{"tasks", ServiceTasks},
 		{"people", ServicePeople},
 		{"sheets", ServiceSheets},
-		{"slides", ServiceSlides},
 		{"groups", ServiceGroups},
 		{"keep", ServiceKeep},
 	}
@@ -72,7 +72,7 @@ func TestAllServices(t *testing.T) {
 		seen[s] = true
 	}
 
-	for _, want := range []Service{ServiceGmail, ServiceCalendar, ServiceChat, ServiceClassroom, ServiceDrive, ServiceDocs, ServiceContacts, ServiceTasks, ServicePeople, ServiceSheets, ServiceSlides, ServiceGroups, ServiceKeep} {
+	for _, want := range []Service{ServiceGmail, ServiceCalendar, ServiceChat, ServiceClassroom, ServiceDrive, ServiceDocs, ServiceSlides, ServiceContacts, ServiceTasks, ServicePeople, ServiceSheets, ServiceGroups, ServiceKeep} {
 		if !seen[want] {
 			t.Fatalf("missing %q", want)
 		}
@@ -86,11 +86,14 @@ func TestUserServices(t *testing.T) {
 	}
 
 	seenDocs := false
+	seenSlides := false
 
 	for _, s := range svcs {
 		switch s {
 		case ServiceDocs:
 			seenDocs = true
+		case ServiceSlides:
+			seenSlides = true
 		case ServiceKeep:
 			t.Fatalf("unexpected keep in user services")
 		}
@@ -99,10 +102,14 @@ func TestUserServices(t *testing.T) {
 	if !seenDocs {
 		t.Fatalf("missing docs in user services")
 	}
+
+	if !seenSlides {
+		t.Fatalf("missing slides in user services")
+	}
 }
 
 func TestUserServiceCSV(t *testing.T) {
-	want := "gmail,calendar,chat,classroom,drive,docs,contacts,tasks,sheets,slides,people"
+	want := "gmail,calendar,chat,classroom,drive,docs,slides,contacts,tasks,sheets,people"
 	if got := UserServiceCSV(); got != want {
 		t.Fatalf("unexpected user services csv: %q", got)
 	}

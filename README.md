@@ -106,7 +106,19 @@ gog auth add you@gmail.com
 
 This will open a browser window for OAuth authorization. The refresh token is stored securely in your system keychain.
 
-Headless / remote server flow (no browser on the server):
+Headless / remote server flows (no browser on the server):
+
+Manual interactive flow (recommended):
+
+```bash
+gog auth add you@gmail.com --services user --manual
+```
+
+- The CLI prints an auth URL. Open it in a local browser.
+- After approval, copy the full localhost redirect URL from the browser address bar.
+- Paste that URL back into the terminal when prompted.
+
+Split remote flow (`--remote`, useful for two-step/scripted handoff):
 
 ```bash
 # Step 1: print auth URL (open it locally in a browser)
@@ -115,8 +127,6 @@ gog auth add you@gmail.com --services user --remote --step 1
 # Step 2: paste the full redirect URL from your browser address bar
 gog auth add you@gmail.com --services user --remote --step 2 --auth-url 'http://localhost:1/?code=...&state=...'
 ```
-
-Notes:
 
 - The `state` is cached on disk for a short time (about 10 minutes). If it expires, rerun step 1.
 - Remote step 2 requires a redirect URL that includes `state` (state check mandatory).
@@ -780,6 +790,9 @@ gog drive copy <fileId> "Copy Name"
 
 # Upload and download
 gog drive upload ./path/to/file --parent <folderId>
+gog drive upload ./report.docx --convert
+gog drive upload ./chart.png --convert-to sheet
+gog drive upload ./report.docx --convert --name report.docx
 gog drive download <fileId> --out ./downloaded.bin
 gog drive download <fileId> --format pdf --out ./exported.pdf
 gog drive download <fileId> --format docx --out ./doc.docx
@@ -839,14 +852,16 @@ gog contacts other search "John" --max 50
 
 # Create and update
 gog contacts create \
-  --given-name "John" \
-  --family-name "Doe" \
+  --given "John" \
+  --family "Doe" \
   --email "john@example.com" \
   --phone "+1234567890"
 
 gog contacts update people/<resourceName> \
-  --given-name "Jane" \
-  --email "jane@example.com"
+  --given "Jane" \
+  --email "jane@example.com" \
+  --birthday "1990-05-12" \
+  --notes "Met at WWDC"
 
 gog contacts delete people/<resourceName>
 
@@ -875,6 +890,7 @@ gog tasks delete <tasklistId> <taskId>
 gog tasks clear <tasklistId>
 
 # Note: Google Tasks treats due dates as date-only; time components may be ignored.
+# See docs/dates.md for all supported date/time input formats across commands.
 ```
 
 ### Sheets

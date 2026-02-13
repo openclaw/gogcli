@@ -16,11 +16,11 @@ const (
 	ServiceClassroom Service = "classroom"
 	ServiceDrive     Service = "drive"
 	ServiceDocs      Service = "docs"
+	ServiceSlides    Service = "slides"
 	ServiceContacts  Service = "contacts"
 	ServiceTasks     Service = "tasks"
 	ServicePeople    Service = "people"
 	ServiceSheets    Service = "sheets"
-	ServiceSlides    Service = "slides"
 	ServiceGroups    Service = "groups"
 	ServiceKeep      Service = "keep"
 )
@@ -63,10 +63,10 @@ var serviceOrder = []Service{
 	ServiceClassroom,
 	ServiceDrive,
 	ServiceDocs,
+	ServiceSlides,
 	ServiceContacts,
 	ServiceTasks,
 	ServiceSheets,
-	ServiceSlides,
 	ServicePeople,
 	ServiceGroups,
 	ServiceKeep,
@@ -129,6 +129,16 @@ var serviceInfoByService = map[Service]serviceInfo{
 		apis: []string{"Docs API", "Drive API"},
 		note: "Export/copy/create via Drive",
 	},
+	ServiceSlides: {
+		// Slides commands use both Slides API and Drive API
+		scopes: []string{
+			"https://www.googleapis.com/auth/drive",
+			"https://www.googleapis.com/auth/presentations",
+		},
+		user: true,
+		apis: []string{"Slides API", "Drive API"},
+		note: "Create/edit presentations",
+	},
 	ServiceContacts: {
 		scopes: []string{
 			"https://www.googleapis.com/auth/contacts",
@@ -159,15 +169,6 @@ var serviceInfoByService = map[Service]serviceInfo{
 		user: true,
 		apis: []string{"Sheets API", "Drive API"},
 		note: "Export via Drive",
-	},
-	ServiceSlides: {
-		scopes: []string{
-			"https://www.googleapis.com/auth/drive",
-			"https://www.googleapis.com/auth/presentations",
-		},
-		user: true,
-		apis: []string{"Slides API", "Drive API"},
-		note: "Slide content via Slides API + Drive",
 	},
 	ServiceGroups: {
 		scopes: []string{"https://www.googleapis.com/auth/cloud-identity.groups.readonly"},
@@ -443,6 +444,13 @@ func scopesForServiceWithOptions(service Service, opts ScopeOptions) ([]string, 
 		}
 
 		return []string{driveScopeValue(), docScope}, nil
+	case ServiceSlides:
+		slidesScope := "https://www.googleapis.com/auth/presentations"
+		if opts.Readonly {
+			slidesScope = "https://www.googleapis.com/auth/presentations.readonly"
+		}
+
+		return []string{driveScopeValue(), slidesScope}, nil
 	case ServiceContacts:
 		contactsScope := "https://www.googleapis.com/auth/contacts"
 		if opts.Readonly {
@@ -470,13 +478,6 @@ func scopesForServiceWithOptions(service Service, opts ScopeOptions) ([]string, 
 		}
 
 		return []string{driveScopeValue(), sheetsScope}, nil
-	case ServiceSlides:
-		slidesScope := "https://www.googleapis.com/auth/presentations"
-		if opts.Readonly {
-			slidesScope = "https://www.googleapis.com/auth/presentations.readonly"
-		}
-
-		return []string{driveScopeValue(), slidesScope}, nil
 	case ServiceGroups:
 		return Scopes(service)
 	case ServiceKeep:
