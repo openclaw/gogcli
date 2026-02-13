@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"google.golang.org/api/docs/v1"
@@ -110,6 +111,7 @@ func (c *DocsInfoCmd) Run(ctx context.Context, flags *RootFlags) error {
 type DocsCreateCmd struct {
 	Title  string `arg:"" name:"title" help:"Doc title"`
 	Parent string `name:"parent" help:"Destination folder ID"`
+	File   string `name:"file" help:"Markdown file to import" type:"existingfile"`
 }
 
 func (c *DocsCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -124,7 +126,7 @@ func (c *DocsCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return usage("empty title")
 	}
 
-	svc, err := newDriveService(ctx, account)
+	driveSvc, err := newDriveService(ctx, account)
 	if err != nil {
 		return err
 	}
@@ -138,16 +140,41 @@ func (c *DocsCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
 		f.Parents = []string{parent}
 	}
 
-	created, err := svc.Files.Create(f).
+	createCall := driveSvc.Files.Create(f).
 		SupportsAllDrives(true).
-		Fields("id, name, mimeType, webViewLink").
-		Context(ctx).
-		Do()
+		Fields("id, name, mimeType, webViewLink")
+
+	// When --file is set, upload the markdown content and let Drive convert it.
+	var images []markdownImage
+	if c.File != "" {
+		raw, err := os.ReadFile(c.File)
+		if err != nil {
+			return fmt.Errorf("read markdown file: %w", err)
+		}
+		content := string(raw)
+
+		var cleaned string
+		cleaned, images = extractMarkdownImages(content)
+
+		createCall = createCall.Media(
+			strings.NewReader(cleaned),
+			gapi.ContentType("text/markdown"),
+		)
+	}
+
+	created, err := createCall.Context(ctx).Do()
 	if err != nil {
 		return err
 	}
 	if created == nil {
 		return errors.New("create failed")
+	}
+
+	// Pass 2: insert images if any were found.
+	if len(images) > 0 {
+		if err := c.insertImages(ctx, account, driveSvc, created.Id, images); err != nil {
+			return fmt.Errorf("insert images: %w", err)
+		}
 	}
 
 	if outfmt.IsJSON(ctx) {
@@ -161,6 +188,84 @@ func (c *DocsCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
 		u.Out().Printf("link\t%s", created.WebViewLink)
 	}
 	return nil
+}
+
+// insertImages performs pass 2: reads back the created doc, resolves image URLs,
+// and replaces placeholder text with inline images.
+func (c *DocsCreateCmd) insertImages(ctx context.Context, account string, driveSvc *drive.Service, docID string, images []markdownImage) error {
+	docsSvc, err := newDocsService(ctx, account)
+	if err != nil {
+		return err
+	}
+
+	// Read back the document to find placeholder positions.
+	doc, err := docsSvc.Documents.Get(docID).Context(ctx).Do()
+	if err != nil {
+		return fmt.Errorf("read back document: %w", err)
+	}
+
+	placeholders := findPlaceholderIndices(doc, len(images))
+	if len(placeholders) == 0 {
+		return nil
+	}
+
+	// Resolve image URLs — upload local files to Drive temporarily.
+	imageURLs := make(map[int]string)
+	var tempFileIDs []string
+	defer func() {
+		for _, id := range tempFileIDs {
+			_ = driveSvc.Files.Delete(id).Context(ctx).Do()
+		}
+	}()
+
+	mdDir, err := filepath.Abs(filepath.Dir(c.File))
+	if err != nil {
+		return fmt.Errorf("resolve markdown directory: %w", err)
+	}
+	for _, img := range images {
+		if _, ok := placeholders[img.placeholder()]; !ok {
+			continue
+		}
+		if img.isRemote() {
+			imageURLs[img.index] = img.originalRef
+		} else {
+			imgPath := img.originalRef
+			if !filepath.IsAbs(imgPath) {
+				imgPath = filepath.Join(mdDir, imgPath)
+			}
+			imgPath = filepath.Clean(imgPath)
+
+			// Prevent path traversal outside the markdown file's directory.
+			realPath, err := filepath.EvalSymlinks(imgPath)
+			if err != nil {
+				return fmt.Errorf("resolve image path %q: %w", img.originalRef, err)
+			}
+			realDir, err := filepath.EvalSymlinks(mdDir)
+			if err != nil {
+				return fmt.Errorf("resolve markdown directory: %w", err)
+			}
+			if !strings.HasPrefix(realPath, realDir+string(filepath.Separator)) {
+				return fmt.Errorf("image path %q resolves outside markdown file directory", img.originalRef)
+			}
+
+			url, fileID, err := uploadLocalImage(ctx, driveSvc, realPath)
+			if err != nil {
+				return err
+			}
+			tempFileIDs = append(tempFileIDs, fileID)
+			imageURLs[img.index] = url
+		}
+	}
+
+	reqs := buildImageInsertRequests(placeholders, images, imageURLs)
+	if len(reqs) == 0 {
+		return nil
+	}
+
+	_, err = docsSvc.Documents.BatchUpdate(docID, &docs.BatchUpdateDocumentRequest{
+		Requests: reqs,
+	}).Context(ctx).Do()
+	return err
 }
 
 type DocsCopyCmd struct {
