@@ -33,6 +33,10 @@ func TestErrors_IsHelpers(t *testing.T) {
 	if !IsPermissionDeniedError(&PermissionDeniedError{Resource: "file", Action: "read"}) {
 		t.Fatalf("expected IsPermissionDeniedError")
 	}
+
+	if !IsInvalidGrantError(&InvalidGrantError{Cause: errBase}) {
+		t.Fatalf("expected IsInvalidGrantError")
+	}
 }
 
 func TestErrors_Messages(t *testing.T) {
@@ -79,5 +83,14 @@ func TestErrors_Messages(t *testing.T) {
 
 	if got := (&QuotaExceededError{}).Error(); got != "API quota exceeded" {
 		t.Fatalf("unexpected: %q", got)
+	}
+
+	igErr := &InvalidGrantError{Cause: errBase}
+	if got := igErr.Error(); !strings.Contains(got, "expired or revoked") || !strings.Contains(got, "--force-consent") {
+		t.Fatalf("unexpected: %q", got)
+	}
+
+	if !errors.Is(igErr, errBase) {
+		t.Fatalf("expected unwrap to match base")
 	}
 }

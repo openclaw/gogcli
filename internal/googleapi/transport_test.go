@@ -3,6 +3,7 @@ package googleapi
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -344,6 +345,125 @@ func TestRetryTransport_RetryAfterHeader(t *testing.T) {
 	// Should have waited ~1 second based on Retry-After header
 	if elapsed < 900*time.Millisecond || elapsed > 2*time.Second {
 		t.Errorf("expected ~1s delay from Retry-After, got %v", elapsed)
+	}
+}
+
+func TestRetryTransport_InvalidGrant(t *testing.T) {
+	mock := &mockTransport{
+		errors: []error{
+			fmt.Errorf("oauth2: cannot fetch token: 400 Bad Request\nResponse: {\"error\":\"invalid_grant\",\"error_description\":\"Token has been expired or revoked.\"}"),
+		},
+	}
+
+	rt := NewRetryTransport(mock)
+	req, _ := http.NewRequestWithContext(context.Background(), "GET", "https://example.com", nil)
+
+	resp, err := rt.RoundTrip(req)
+	if resp != nil {
+		defer resp.Body.Close()
+	}
+
+	if err == nil {
+		t.Fatal("expected error")
+	}
+
+	if !IsInvalidGrantError(err) {
+		t.Errorf("expected InvalidGrantError, got %T: %v", err, err)
+	}
+
+	// Verify the error message includes re-auth guidance
+	if !strings.Contains(err.Error(), "--force-consent") {
+		t.Errorf("expected --force-consent hint in error: %v", err)
+	}
+}
+
+func TestRetryTransport_NonInvalidGrantError(t *testing.T) {
+	mock := &mockTransport{
+		errors: []error{
+			errors.New("network connection refused"),
+		},
+	}
+
+	rt := NewRetryTransport(mock)
+	req, _ := http.NewRequestWithContext(context.Background(), "GET", "https://example.com", nil)
+
+	resp, err := rt.RoundTrip(req)
+	if resp != nil {
+		defer resp.Body.Close()
+	}
+
+	if err == nil {
+		t.Fatal("expected error")
+	}
+
+	if IsInvalidGrantError(err) {
+		t.Errorf("should NOT be InvalidGrantError for a network error")
+	}
+}
+
+func TestRetryTransport_401_Retry(t *testing.T) {
+	mock := &mockTransport{
+		responses: []*http.Response{
+			{StatusCode: 401, Body: io.NopCloser(strings.NewReader("unauthorized"))},
+			{StatusCode: 200, Body: io.NopCloser(strings.NewReader("ok"))},
+		},
+	}
+
+	rt := NewRetryTransport(mock)
+
+	req, _ := http.NewRequestWithContext(context.Background(), "GET", "https://example.com", nil)
+	var resp *http.Response
+
+	if r, err := rt.RoundTrip(req); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	} else {
+		resp = r
+	}
+
+	if resp.Body != nil {
+		defer resp.Body.Close()
+	}
+
+	if resp.StatusCode != 200 {
+		t.Errorf("expected 200 after retry, got %d", resp.StatusCode)
+	}
+
+	if mock.calls != 2 {
+		t.Errorf("expected 2 calls (1 retry), got %d", mock.calls)
+	}
+}
+
+func TestRetryTransport_401_MaxRetries(t *testing.T) {
+	mock := &mockTransport{
+		responses: []*http.Response{
+			{StatusCode: 401, Body: io.NopCloser(strings.NewReader("unauthorized"))},
+			{StatusCode: 401, Body: io.NopCloser(strings.NewReader("unauthorized"))},
+			{StatusCode: 401, Body: io.NopCloser(strings.NewReader("unauthorized"))},
+		},
+	}
+
+	rt := NewRetryTransport(mock)
+
+	req, _ := http.NewRequestWithContext(context.Background(), "GET", "https://example.com", nil)
+	var resp *http.Response
+
+	if r, err := rt.RoundTrip(req); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	} else {
+		resp = r
+	}
+
+	if resp.Body != nil {
+		defer resp.Body.Close()
+	}
+
+	if resp.StatusCode != 401 {
+		t.Errorf("expected 401 after max retries, got %d", resp.StatusCode)
+	}
+	// 1 initial + 1 retry = 2 total (MaxUnauthorizedRetries = 1)
+
+	if mock.calls != 2 {
+		t.Errorf("expected 2 calls, got %d", mock.calls)
 	}
 }
 

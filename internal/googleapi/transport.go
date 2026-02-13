@@ -8,6 +8,7 @@ import (
 	"math/rand/v2"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -50,6 +51,7 @@ func (t *RetryTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	var err error
 	retries429 := 0
 	retries5xx := 0
+	retries401 := 0
 
 	for {
 		// Reset body for retry
@@ -67,6 +69,10 @@ func (t *RetryTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 
 		resp, err = t.Base.RoundTrip(req)
 		if err != nil {
+			if isInvalidGrant(err) {
+				return nil, &InvalidGrantError{Cause: err}
+			}
+
 			return nil, fmt.Errorf("round trip: %w", err)
 		}
 
@@ -127,7 +133,29 @@ func (t *RetryTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 			continue
 		}
 
-		// Other errors (4xx except 429): don't retry
+		// Unauthorized (401): access token may have been revoked before
+		// expiry. Retry once so the oauth2.Transport can re-fetch a new
+		// access token using the refresh token.
+		if resp.StatusCode == http.StatusUnauthorized {
+			if retries401 >= MaxUnauthorizedRetries {
+				return resp, nil
+			}
+
+			slog.Debug("unauthorized, retrying to refresh access token",
+				"attempt", retries401+1)
+
+			drainAndClose(resp.Body)
+
+			if err := t.sleep(req.Context(), UnauthorizedRetryDelay); err != nil {
+				return nil, err
+			}
+
+			retries401++
+
+			continue
+		}
+
+		// Other errors (4xx except 429, 401): don't retry
 		return resp, nil
 	}
 }
@@ -236,4 +264,14 @@ func drainAndClose(body io.ReadCloser) {
 	}
 	_, _ = io.Copy(io.Discard, io.LimitReader(body, 1<<20))
 	_ = body.Close()
+}
+
+// isInvalidGrant checks whether the error indicates an OAuth invalid_grant
+// response, which means the refresh token has expired or been revoked.
+func isInvalidGrant(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	return strings.Contains(err.Error(), "invalid_grant")
 }

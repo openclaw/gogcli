@@ -122,3 +122,23 @@ func IsPermissionDeniedError(err error) bool {
 	var e *PermissionDeniedError
 	return errors.As(err, &e)
 }
+
+// InvalidGrantError indicates the OAuth refresh token has been expired or
+// revoked. The user must re-authorize to obtain a new refresh token.
+type InvalidGrantError struct {
+	Cause error
+}
+
+func (e *InvalidGrantError) Error() string {
+	return fmt.Sprintf("oauth2 refresh token expired or revoked (re-authorize with: gog auth add --force-consent): %v", e.Cause)
+}
+
+func (e *InvalidGrantError) Unwrap() error {
+	return e.Cause
+}
+
+// IsInvalidGrantError checks if the error is an invalid grant error
+func IsInvalidGrantError(err error) bool {
+	var e *InvalidGrantError
+	return errors.As(err, &e)
+}
