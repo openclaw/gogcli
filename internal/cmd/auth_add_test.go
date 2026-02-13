@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/steipete/gogcli/internal/config"
-	"github.com/steipete/gogcli/internal/googleauth"
-	"github.com/steipete/gogcli/internal/secrets"
+	"github.com/degree-analytics/ratatosk/internal/config"
+	"github.com/degree-analytics/ratatosk/internal/googleauth"
+	"github.com/degree-analytics/ratatosk/internal/secrets"
 )
 
 func TestAuthAddCmd_JSON(t *testing.T) {

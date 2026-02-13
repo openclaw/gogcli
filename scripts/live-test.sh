@@ -17,10 +17,10 @@ Options:
   --fast              Skip slower tests (docs/sheets/slides)
   --strict            Fail on optional tests (groups/keep/enterprise)
   --allow-nontest     Allow running against non-test accounts
-  --account <email>   Account to use (defaults to GOG_IT_ACCOUNT or first auth)
+  --account <email>   Account to use (defaults to RATA_IT_ACCOUNT or first auth)
   --skip <list>       Comma-separated skip list (e.g., gmail,drive,docs)
   --auth <services>   Re-auth before running (e.g., all,groups)
-  --client <name>     OAuth client to use (passes GOG_CLIENT)
+  --client <name>     OAuth client to use (passes RATA_CLIENT)
   -h, --help          Show this help
 
 Skip keys (base):
@@ -31,21 +31,21 @@ Skip keys (base):
   tasks, contacts, people, groups, keep, classroom
 
 Env:
-  GOG_LIVE_EMAIL_TEST=steipete+gogtest@gmail.com
-  GOG_LIVE_GROUP_EMAIL=<group@domain>
-  GOG_LIVE_CLASSROOM_COURSE=<courseId>
-  GOG_LIVE_CLASSROOM_CREATE=1
-  GOG_LIVE_CLASSROOM_ALLOW_STATE=1
-  GOG_LIVE_TRACK=1
-  GOG_LIVE_ALLOW_NONTEST=1
-  GOG_LIVE_CALENDAR_RESPOND=1
-  GOG_LIVE_GMAIL_BATCH_DELETE=1
-  GOG_LIVE_GMAIL_FILTERS=1
-  GOG_LIVE_CLIENT=work
-  GOG_LIVE_GMAIL_WATCH_TOPIC=projects/.../topics/...
-  GOG_LIVE_CALENDAR_RECURRENCE=1
-  GOG_KEEP_SERVICE_ACCOUNT=/path/to/service-account.json
-  GOG_KEEP_IMPERSONATE=user@workspace-domain
+  RATA_LIVE_EMAIL_TEST=steipete+gogtest@gmail.com
+  RATA_LIVE_GROUP_EMAIL=<group@domain>
+  RATA_LIVE_CLASSROOM_COURSE=<courseId>
+  RATA_LIVE_CLASSROOM_CREATE=1
+  RATA_LIVE_CLASSROOM_ALLOW_STATE=1
+  RATA_LIVE_TRACK=1
+  RATA_LIVE_ALLOW_NONTEST=1
+  RATA_LIVE_CALENDAR_RESPOND=1
+  RATA_LIVE_GMAIL_BATCH_DELETE=1
+  RATA_LIVE_GMAIL_FILTERS=1
+  RATA_LIVE_CLIENT=work
+  RATA_LIVE_GMAIL_WATCH_TOPIC=projects/.../topics/...
+  RATA_LIVE_CALENDAR_RECURRENCE=1
+  RATA_KEEP_SERVICE_ACCOUNT=/path/to/service-account.json
+  RATA_KEEP_IMPERSONATE=user@workspace-domain
 USAGE
 }
 
@@ -89,17 +89,17 @@ while [ $# -gt 0 ]; do
   shift
 done
 
-if [ -n "${GOG_LIVE_FAST:-}" ]; then
+if [ -n "${RATA_LIVE_FAST:-${GOG_LIVE_FAST:-}}" ]; then
   FAST=true
 fi
-if [ -z "$AUTH_SERVICES" ] && [ -n "${GOG_LIVE_AUTH:-}" ]; then
-  AUTH_SERVICES="$GOG_LIVE_AUTH"
+if [ -z "$AUTH_SERVICES" ] && [ -n "${RATA_LIVE_AUTH:-${GOG_LIVE_AUTH:-}}" ]; then
+  AUTH_SERVICES="${RATA_LIVE_AUTH:-${GOG_LIVE_AUTH:-}}"
 fi
-if [ -z "$CLIENT" ] && [ -n "${GOG_LIVE_CLIENT:-}" ]; then
-  CLIENT="$GOG_LIVE_CLIENT"
+if [ -z "$CLIENT" ] && [ -n "${RATA_LIVE_CLIENT:-${GOG_LIVE_CLIENT:-}}" ]; then
+  CLIENT="${RATA_LIVE_CLIENT:-${GOG_LIVE_CLIENT:-}}"
 fi
 
-SKIP="${SKIP:-${GOG_LIVE_SKIP:-}}"
+SKIP="${SKIP:-${RATA_LIVE_SKIP:-${GOG_LIVE_SKIP:-}}}"
 if [ "$FAST" = true ]; then
   if [ -n "$SKIP" ]; then
     SKIP="$SKIP,docs,sheets,slides"
@@ -108,13 +108,13 @@ if [ "$FAST" = true ]; then
   fi
 fi
 
-BIN="${GOG_BIN:-./bin/gog}"
+BIN="${RATA_BIN:-${GOG_BIN:-./bin/rata}}"
 if [ ! -x "$BIN" ]; then
   make build >/dev/null
 fi
 
 if [ -n "$CLIENT" ]; then
-  export GOG_CLIENT="$CLIENT"
+  export RATA_CLIENT="$CLIENT"
   echo "Using OAuth client: $CLIENT"
 fi
 
@@ -124,7 +124,7 @@ if ! command -v "$PY" >/dev/null 2>&1; then
 fi
 
 if [ -z "$ACCOUNT" ]; then
-  ACCOUNT="${GOG_IT_ACCOUNT:-}"
+  ACCOUNT="${RATA_IT_ACCOUNT:-${GOG_IT_ACCOUNT:-}}"
 fi
 if [ -z "$ACCOUNT" ]; then
   acct_json=$($BIN auth list --json)
@@ -137,9 +137,9 @@ fi
 
 echo "Using account: $ACCOUNT"
 
-EMAIL_TEST="${GOG_LIVE_EMAIL_TEST:-steipete+gogtest@gmail.com}"
+EMAIL_TEST="${RATA_LIVE_EMAIL_TEST:-${GOG_LIVE_EMAIL_TEST:-steipete+gogtest@gmail.com}}"
 TS=$(date +%Y%m%d%H%M%S)
-LIVE_TMP=$(mktemp -d "${TMPDIR:-/tmp}/gog-live-$TS-XXXX")
+LIVE_TMP=$(mktemp -d "${TMPDIR:-/tmp}/rata-live-$TS-XXXX")
 trap 'rm -rf "$LIVE_TMP"' EXIT
 
 source scripts/live-tests/common.sh

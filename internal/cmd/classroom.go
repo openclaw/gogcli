@@ -1,6 +1,6 @@
 package cmd
 
-import "github.com/steipete/gogcli/internal/googleapi"
+import "github.com/degree-analytics/ratatosk/internal/googleapi"
 
 var newClassroomService = googleapi.NewClassroom
 

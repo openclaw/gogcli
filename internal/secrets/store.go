@@ -12,7 +12,7 @@ import (
 	"github.com/99designs/keyring"
 	"golang.org/x/term"
 
-	"github.com/steipete/gogcli/internal/config"
+	"github.com/degree-analytics/ratatosk/internal/config"
 )
 
 type Store interface {
@@ -39,8 +39,10 @@ type Token struct {
 }
 
 const (
-	keyringPasswordEnv = "GOG_KEYRING_PASSWORD" //nolint:gosec // env var name, not a credential
-	keyringBackendEnv  = "GOG_KEYRING_BACKEND"  //nolint:gosec // env var name, not a credential
+	keyringPasswordEnv       = "RATA_KEYRING_PASSWORD"  //nolint:gosec // env var name, not a credential
+	keyringPasswordEnvLegacy = "GOG_KEYRING_PASSWORD"   //nolint:gosec // env var name, not a credential
+	keyringBackendEnv        = "RATA_KEYRING_BACKEND"   //nolint:gosec // env var name, not a credential
+	keyringBackendEnvLegacy  = "GOG_KEYRING_BACKEND"    //nolint:gosec // env var name, not a credential
 )
 
 var (
@@ -67,7 +69,7 @@ const (
 )
 
 func ResolveKeyringBackendInfo() (KeyringBackendInfo, error) {
-	if v := normalizeKeyringBackend(os.Getenv(keyringBackendEnv)); v != "" {
+	if v := normalizeKeyringBackend(config.EnvWithFallback(keyringBackendEnv, keyringBackendEnvLegacy)); v != "" {
 		return KeyringBackendInfo{Value: v, Source: keyringBackendSourceEnv}, nil
 	}
 
@@ -126,7 +128,7 @@ func fileKeyringPasswordFuncFrom(password string, isTTY bool) keyring.PromptFunc
 }
 
 func fileKeyringPasswordFunc() keyring.PromptFunc {
-	return fileKeyringPasswordFuncFrom(os.Getenv(keyringPasswordEnv), term.IsTerminal(int(os.Stdin.Fd())))
+	return fileKeyringPasswordFuncFrom(config.EnvWithFallback(keyringPasswordEnv, keyringPasswordEnvLegacy), term.IsTerminal(int(os.Stdin.Fd())))
 }
 
 func normalizeKeyringBackend(value string) string {
@@ -180,7 +182,7 @@ func openKeyring() (keyring.Keyring, error) {
 		// Homebrew upgrades install a new binary with a different hash, causing the
 		// new binary to lose access to existing keychain items. With false, users may
 		// see a one-time keychain prompt after upgrade (click "Always Allow"), but
-		// tokens survive across upgrades. See: https://github.com/steipete/gogcli/issues/86
+		// tokens survive across upgrades. See: https://github.com/degree-analytics/ratatosk/issues/86
 		KeychainTrustApplication: false,
 		AllowedBackends:          backends,
 		FileDir:                  keyringDir,
@@ -231,7 +233,7 @@ func openKeyringWithTimeout(cfg keyring.Config, timeout time.Duration) (keyring.
 		return res.ring, nil
 	case <-time.After(timeout):
 		return nil, fmt.Errorf("%w after %v (D-Bus SecretService may be unresponsive); "+
-			"set GOG_KEYRING_BACKEND=file and GOG_KEYRING_PASSWORD=<password> to use encrypted file storage instead",
+			"set RATA_KEYRING_BACKEND=file and RATA_KEYRING_PASSWORD=<password> to use encrypted file storage instead",
 			errKeyringTimeout, timeout)
 	}
 }

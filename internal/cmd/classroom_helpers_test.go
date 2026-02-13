@@ -33,7 +33,7 @@ func TestWrapClassroomError(t *testing.T) {
 		{
 			name:     "insufficientPermissions wraps with re-auth hint",
 			err:      errors.New("insufficientPermissions: Request had insufficient auth"),
-			contains: "gog auth add",
+			contains: "rata auth add",
 		},
 		{
 			name:     "insufficient authentication scopes wraps with re-auth hint",

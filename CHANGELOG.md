@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Changed
+
+- **Identity rename**: gogcli → ratatosk, gog → rata. Module path, binary, env vars (RATA_* with GOG_* fallback), config directory (with backward compat), shell completions, and all documentation updated. (ENG-4751)
+
 ### Added
 
 - Drive: `drive comments resolve` command to mark a comment as resolved.

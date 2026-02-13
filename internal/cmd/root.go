@@ -9,13 +9,13 @@ import (
 
 	"github.com/alecthomas/kong"
 
-	"github.com/steipete/gogcli/internal/authclient"
-	"github.com/steipete/gogcli/internal/config"
-	"github.com/steipete/gogcli/internal/errfmt"
-	"github.com/steipete/gogcli/internal/googleauth"
-	"github.com/steipete/gogcli/internal/outfmt"
-	"github.com/steipete/gogcli/internal/secrets"
-	"github.com/steipete/gogcli/internal/ui"
+	"github.com/degree-analytics/ratatosk/internal/authclient"
+	"github.com/degree-analytics/ratatosk/internal/config"
+	"github.com/degree-analytics/ratatosk/internal/errfmt"
+	"github.com/degree-analytics/ratatosk/internal/googleauth"
+	"github.com/degree-analytics/ratatosk/internal/outfmt"
+	"github.com/degree-analytics/ratatosk/internal/secrets"
+	"github.com/degree-analytics/ratatosk/internal/ui"
 )
 
 const (
@@ -156,10 +156,11 @@ func wrapParseError(err error) error {
 	return err
 }
 
-func envOr(key, fallback string) string {
-	if v := os.Getenv(key); v != "" {
+func envOrWithFallback(primary, legacy, fallback string) string {
+	if v := config.EnvWithFallback(primary, legacy); v != "" {
 		return v
 	}
+
 	return fallback
 }
 
@@ -174,10 +175,10 @@ func newParser(description string) (*kong.Kong, *CLI, error) {
 	envMode := outfmt.FromEnv()
 	vars := kong.Vars{
 		"auth_services":    googleauth.UserServiceCSV(),
-		"color":            envOr("GOG_COLOR", "auto"),
-		"calendar_weekday": envOr("GOG_CALENDAR_WEEKDAY", "false"),
-		"client":           envOr("GOG_CLIENT", ""),
-		"enabled_commands": envOr("GOG_ENABLE_COMMANDS", ""),
+		"color":            envOrWithFallback("RATA_COLOR", "GOG_COLOR", "auto"),
+		"calendar_weekday": envOrWithFallback("RATA_CALENDAR_WEEKDAY", "GOG_CALENDAR_WEEKDAY", "false"),
+		"client":           envOrWithFallback("RATA_CLIENT", "GOG_CLIENT", ""),
+		"enabled_commands": envOrWithFallback("RATA_ENABLE_COMMANDS", "GOG_ENABLE_COMMANDS", ""),
 		"json":             boolString(envMode.JSON),
 		"plain":            boolString(envMode.Plain),
 		"version":          VersionString(),
@@ -186,7 +187,7 @@ func newParser(description string) (*kong.Kong, *CLI, error) {
 	cli := &CLI{}
 	parser, err := kong.New(
 		cli,
-		kong.Name("gog"),
+		kong.Name("rata"),
 		kong.Description(description),
 		kong.ConfigureHelp(helpOptions()),
 		kong.Help(helpPrinter),

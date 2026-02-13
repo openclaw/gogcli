@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/steipete/gogcli/internal/outfmt"
+	"github.com/degree-analytics/ratatosk/internal/outfmt"
 )
 
 func TestCompletionCmdRun(t *testing.T) {

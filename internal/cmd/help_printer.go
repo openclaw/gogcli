@@ -11,10 +11,12 @@ import (
 	"github.com/alecthomas/kong"
 	"github.com/muesli/termenv"
 	"golang.org/x/term"
+
+	"github.com/degree-analytics/ratatosk/internal/config"
 )
 
 func helpOptions() kong.HelpOptions {
-	mode := strings.ToLower(strings.TrimSpace(os.Getenv("GOG_HELP")))
+	mode := strings.ToLower(strings.TrimSpace(config.EnvWithFallback("RATA_HELP", "GOG_HELP")))
 	return kong.HelpOptions{
 		NoExpandSubcommands: mode != "full",
 	}
@@ -80,7 +82,7 @@ func injectBuildLine(out string) string {
 }
 
 func helpColorMode(args []string) string {
-	if v := strings.ToLower(strings.TrimSpace(os.Getenv("GOG_COLOR"))); v != "" {
+	if v := strings.ToLower(strings.TrimSpace(config.EnvWithFallback("RATA_COLOR", "GOG_COLOR"))); v != "" {
 		return v
 	}
 	for i := 0; i < len(args); i++ {

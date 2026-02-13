@@ -7,8 +7,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/steipete/gogcli/internal/outfmt"
-	"github.com/steipete/gogcli/internal/ui"
+	"github.com/degree-analytics/ratatosk/internal/outfmt"
+	"github.com/degree-analytics/ratatosk/internal/ui"
 )
 
 type exportViaDriveOptions struct {

@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/steipete/gogcli/internal/outfmt"
-	"github.com/steipete/gogcli/internal/ui"
+	"github.com/degree-analytics/ratatosk/internal/outfmt"
+	"github.com/degree-analytics/ratatosk/internal/ui"
 )
 
 func TestWriteWatchState_TextAndJSON(t *testing.T) {

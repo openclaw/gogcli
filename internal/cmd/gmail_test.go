@@ -357,10 +357,10 @@ func TestResolveOutputLocation_EnvVar(t *testing.T) {
 	os.Setenv("GOG_TIMEZONE", "Invalid/Zone")
 	_, err = resolveOutputLocation("", false)
 	if err == nil {
-		t.Fatal("expected error for invalid GOG_TIMEZONE")
+		t.Fatal("expected error for invalid RATA_TIMEZONE")
 	}
-	if !strings.Contains(err.Error(), "GOG_TIMEZONE") {
-		t.Errorf("error should mention GOG_TIMEZONE: %v", err)
+	if !strings.Contains(err.Error(), "RATA_TIMEZONE") {
+		t.Errorf("error should mention RATA_TIMEZONE: %v", err)
 	}
 }
 

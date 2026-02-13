@@ -8,8 +8,8 @@ import (
 
 	"google.golang.org/api/drive/v3"
 
-	"github.com/steipete/gogcli/internal/outfmt"
-	"github.com/steipete/gogcli/internal/ui"
+	"github.com/degree-analytics/ratatosk/internal/outfmt"
+	"github.com/degree-analytics/ratatosk/internal/ui"
 )
 
 // DriveCommentsCmd is the parent command for comments subcommands

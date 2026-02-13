@@ -1,8 +1,8 @@
 ---
-summary: "Release checklist for gogcli (GitHub release + Homebrew tap)"
+summary: "Release checklist for ratatosk (GitHub release + Homebrew tap)"
 ---
 
-# Releasing `gogcli`
+# Releasing `ratatosk`
 
 This playbook mirrors the Homebrew + GitHub flow used in `../camsnap`.
 
@@ -15,15 +15,15 @@ scripts/verify-release.sh X.Y.Z
 ```
 
 Assumptions:
-- Repo: `steipete/gogcli`
-- Tap repo: `../homebrew-tap` (tap: `steipete/tap`)
-- Homebrew formula name: `gogcli` (installs the `gog` binary)
+- Repo: `degree-analytics/ratatosk`
+- Tap repo: `../homebrew-tap` (tap: `degree-analytics/tap`)
+- Homebrew formula name: `ratatosk` (installs the `rata` binary)
 
 ## 0) Prereqs
 - Clean working tree on `main`.
 - Go toolchain installed (Go version comes from `go.mod`).
 - `make` works locally.
-- Access to the tap repo (e.g. `steipete/homebrew-tap`).
+- Access to the tap repo (e.g. `degree-analytics/homebrew-tap`).
 
 ## 1) Verify build is green
 ```sh
@@ -69,42 +69,42 @@ gh workflow run release.yml -f tag=vX.Y.Z
 ```
 
 ## 5) Update (or add) the Homebrew formula
-In the tap repo (assumed sibling at `../homebrew-tap`), create/update `Formula/gogcli.rb`.
+In the tap repo (assumed sibling at `../homebrew-tap`), create/update `Formula/ratatosk.rb`.
 
 Recommended formula shape (build-from-source, no binary assets needed):
 - `version "X.Y.Z"`
-- `url "https://github.com/steipete/gogcli/archive/refs/tags/vX.Y.Z.tar.gz"`
+- `url "https://github.com/degree-analytics/ratatosk/archive/refs/tags/vX.Y.Z.tar.gz"`
 - `sha256 "<sha256>"`
 - `depends_on "go" => :build`
 - Build:
-  - `system "go", "build", *std_go_args(ldflags: "-s -w"), "./cmd/gog"`
+  - `system "go", "build", *std_go_args(ldflags: "-s -w"), "./cmd/rata"`
 
 Compute the SHA256 for the tag tarball:
 ```sh
-curl -L -o /tmp/gogcli.tar.gz https://github.com/steipete/gogcli/archive/refs/tags/vX.Y.Z.tar.gz
-shasum -a 256 /tmp/gogcli.tar.gz
+curl -L -o /tmp/ratatosk.tar.gz https://github.com/degree-analytics/ratatosk/archive/refs/tags/vX.Y.Z.tar.gz
+shasum -a 256 /tmp/ratatosk.tar.gz
 ```
 
 Commit + push in the tap repo:
 ```sh
 cd ../homebrew-tap
-git add Formula/gogcli.rb
-git commit -m "gogcli vX.Y.Z"
+git add Formula/ratatosk.rb
+git commit -m "ratatosk vX.Y.Z"
 git push origin main
 ```
 
 ## 6) Sanity-check install from tap
 ```sh
 brew update
-brew uninstall gogcli || true
-brew untap steipete/tap || true
-brew tap steipete/tap
-brew install steipete/tap/gogcli
-brew test steipete/tap/gogcli
+brew uninstall ratatosk || true
+brew untap degree-analytics/tap || true
+brew tap degree-analytics/tap
+brew install degree-analytics/tap/ratatosk
+brew test degree-analytics/tap/ratatosk
 
-gog --help
+rata --help
 ```
 
 ## Notes
-- `gog` currently does not print a version string; use tags + changelog as the source of truth.
-- If you later add `gog version`, update this doc to validate `gog version` post-install.
+- `rata` currently does not print a version string; use tags + changelog as the source of truth.
+- If you later add `rata version`, update this doc to validate `rata version` post-install.

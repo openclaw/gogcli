@@ -18,8 +18,8 @@ import (
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 
-	"github.com/steipete/gogcli/internal/config"
-	"github.com/steipete/gogcli/internal/input"
+	"github.com/degree-analytics/ratatosk/internal/config"
+	"github.com/degree-analytics/ratatosk/internal/input"
 )
 
 type AuthorizeOptions struct {

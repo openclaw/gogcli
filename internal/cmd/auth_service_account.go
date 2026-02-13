@@ -7,9 +7,9 @@ import (
 	"os"
 	"strings"
 
-	"github.com/steipete/gogcli/internal/config"
-	"github.com/steipete/gogcli/internal/outfmt"
-	"github.com/steipete/gogcli/internal/ui"
+	"github.com/degree-analytics/ratatosk/internal/config"
+	"github.com/degree-analytics/ratatosk/internal/outfmt"
+	"github.com/degree-analytics/ratatosk/internal/ui"
 )
 
 type AuthServiceAccountCmd struct {
@@ -113,7 +113,7 @@ func (c *AuthServiceAccountSetCmd) Run(ctx context.Context) error {
 	if info.ClientID != "" {
 		u.Out().Printf("client_id\t%s", info.ClientID)
 	}
-	u.Out().Println("Service account configured. Use: gog <cmd> --account " + email)
+	u.Out().Println("Service account configured. Use: rata <cmd> --account " + email)
 	return nil
 }
 

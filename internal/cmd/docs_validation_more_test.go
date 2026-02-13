@@ -13,8 +13,8 @@ import (
 	"google.golang.org/api/docs/v1"
 	"google.golang.org/api/option"
 
-	"github.com/steipete/gogcli/internal/outfmt"
-	"github.com/steipete/gogcli/internal/ui"
+	"github.com/degree-analytics/ratatosk/internal/outfmt"
+	"github.com/degree-analytics/ratatosk/internal/ui"
 )
 
 func parseDocsKong(t *testing.T, cmd any, args []string) *kong.Context {

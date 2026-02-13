@@ -2,29 +2,29 @@
 
 ## Project Structure
 
-- `cmd/gog/`: CLI entrypoint.
+- `cmd/rata/`: CLI entrypoint.
 - `internal/`: implementation (`cmd/`, Google API/OAuth, config/secrets, output/UI).
 - Tests: `*_test.go` next to code; opt-in integration suite in `internal/integration/` (build-tagged).
-- `bin/`: build outputs; `docs/`: specs/releasing; `scripts/`: release helpers + `scripts/gog.mjs`.
+- `bin/`: build outputs; `docs/`: specs/releasing; `scripts/`: release helpers + `scripts/rata.mjs`.
 
 ## Build, Test, and Development Commands
 
-- `make` / `make build`: build `bin/gog`.
+- `make` / `make build`: build `bin/rata`.
 - `make tools`: install pinned dev tools into `.tools/`.
 - `make fmt` / `make lint` / `make test` / `make ci`: format, lint, test, full local gate.
-- Optional: `pnpm gog …`: build + run in one step.
+- Optional: `pnpm rata …`: build + run in one step.
 - Hooks: `lefthook install` enables pre-commit/pre-push checks.
 
 ## Coding Style & Naming Conventions
 
-- Formatting: `make fmt` (`goimports` local prefix `github.com/steipete/gogcli` + `gofumpt`).
+- Formatting: `make fmt` (`goimports` local prefix `github.com/degree-analytics/ratatosk` + `gofumpt`).
 - Output: keep stdout parseable (`--json` / `--plain`); send human hints/progress to stderr.
 
 ## Testing Guidelines
 
 - Unit tests: stdlib `testing` (and `httptest` where needed).
 - Integration tests (local only):
-  - `GOG_IT_ACCOUNT=you@gmail.com go test -tags=integration ./internal/integration`
+  - `RATA_IT_ACCOUNT=you@gmail.com go test -tags=integration ./internal/integration`
   - Requires OAuth client credentials + a stored refresh token in your keyring.
 
 ## Commit & Pull Request Guidelines
@@ -45,4 +45,4 @@
 ## Security & Configuration Tips
 
 - Never commit OAuth client credential JSON files or tokens.
-- Prefer OS keychain backends; use `GOG_KEYRING_BACKEND=file` + `GOG_KEYRING_PASSWORD` only for headless environments.
+- Prefer OS keychain backends; use `RATA_KEYRING_BACKEND=file` + `RATA_KEYRING_PASSWORD` only for headless environments.

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Accounts - gog</title>
+    <title>Accounts - rata</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -707,7 +707,7 @@
             <h1>Google Accounts</h1>
             <p class="subtitle">Manage your connected accounts</p>
             <p class="setup-link">
-                <a href="https://github.com/steipete/gogcli#quick-start" target="_blank">
+                <a href="https://github.com/degree-analytics/ratatosk#quick-start" target="_blank">
                     First time? Set up Google Cloud credentials →
                 </a>
             </p>
@@ -738,7 +738,7 @@
                 </svg>
             </div>
             <h3>No accounts connected</h3>
-            <p>Connect your Google account to get started with gog</p>
+            <p>Connect your Google account to get started with rata</p>
             <button class="connect-btn" onclick="addAccount()">
                 <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                     <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="white"/>
@@ -760,14 +760,14 @@
             </div>
             <div class="info-content">
                 <h4>Use from terminal</h4>
-                <p>Run <code>gog calendar list</code> or <code>gog gmail search</code> to interact with your Google services.</p>
+                <p>Run <code>rata calendar list</code> or <code>rata gmail search</code> to interact with your Google services.</p>
             </div>
         </div>
 
         <footer class="footer">
             <p>You can close this window and return to your terminal.</p>
             <p class="github-link">
-                <a href="https://github.com/steipete/gogcli" target="_blank">
+                <a href="https://github.com/degree-analytics/ratatosk" target="_blank">
                     <span class="icon-github"></span>
                     View on GitHub
                 </a>
@@ -894,7 +894,7 @@
         }
 
         async function removeAccount(email) {
-            if (!confirm('Remove ' + email + ' from gog?')) {
+            if (!confirm('Remove ' + email + ' from rata?')) {
                 return;
             }
             try {

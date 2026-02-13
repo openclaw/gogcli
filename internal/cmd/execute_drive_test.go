@@ -15,9 +15,9 @@ import (
 	"google.golang.org/api/drive/v3"
 	"google.golang.org/api/option"
 
-	"github.com/steipete/gogcli/internal/config"
-	"github.com/steipete/gogcli/internal/outfmt"
-	"github.com/steipete/gogcli/internal/ui"
+	"github.com/degree-analytics/ratatosk/internal/config"
+	"github.com/degree-analytics/ratatosk/internal/outfmt"
+	"github.com/degree-analytics/ratatosk/internal/ui"
 )
 
 func TestExecute_DriveGet_JSON(t *testing.T) {

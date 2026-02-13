@@ -9,7 +9,7 @@ import (
 
 	"github.com/99designs/keyring"
 
-	"github.com/steipete/gogcli/internal/config"
+	"github.com/degree-analytics/ratatosk/internal/config"
 )
 
 var errTestKeychain = errors.New("test -25308 error")

@@ -11,7 +11,7 @@ import (
 
 	"github.com/99designs/keyring"
 
-	"github.com/steipete/gogcli/internal/config"
+	"github.com/degree-analytics/ratatosk/internal/config"
 )
 
 var errKeyringOpenBlocked = errors.New("keyring open blocked")
@@ -242,8 +242,8 @@ func TestOpenKeyringWithTimeout_Timeout(t *testing.T) {
 		t.Fatalf("expected keyring timeout error, got: %v", err)
 	}
 
-	if !strings.Contains(err.Error(), "GOG_KEYRING_BACKEND=file") {
-		t.Fatalf("expected timeout error with GOG_KEYRING_BACKEND guidance, got: %v", err)
+	if !strings.Contains(err.Error(), "RATA_KEYRING_BACKEND=file") {
+		t.Fatalf("expected timeout error with RATA_KEYRING_BACKEND guidance, got: %v", err)
 	}
 }
 

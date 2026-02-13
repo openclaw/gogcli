@@ -1,4 +1,4 @@
-# gogcli spec
+# ratatosk spec
 
 ## Goal
 
@@ -28,7 +28,7 @@ This replaces the existing separate CLIs (`gmcli`, `gccli`, `gdcli`) and the Pyt
 ## CLI framework
 
 - `github.com/alecthomas/kong`
-- Root command: `gog`
+- Root command: `rata`
 - Global flag:
   - `--color=auto|always|never` (default `auto`)
   - `--json` (JSON output to stdout)
@@ -44,9 +44,9 @@ Notes:
 
 Environment:
 
-- `GOG_COLOR=auto|always|never` (default `auto`, overridden by `--color`)
-- `GOG_JSON=1` (default JSON output; overridden by flags)
-- `GOG_PLAIN=1` (default plain output; overridden by flags)
+- `RATA_COLOR=auto|always|never` (default `auto`, overridden by `--color`)
+- `RATA_JSON=1` (default JSON output; overridden by flags)
+- `RATA_PLAIN=1` (default plain output; overridden by flags)
 
 ## Output (TTY-aware colors)
 
@@ -65,13 +65,13 @@ Implementation: `internal/ui/ui.go`.
 ### OAuth client credentials (non-secret-ish)
 
 - Stored on disk in the per-user config directory:
-  - `$(os.UserConfigDir())/gogcli/credentials.json` (default client)
-  - `$(os.UserConfigDir())/gogcli/credentials-<client>.json` (named clients)
+  - `$(os.UserConfigDir())/ratatosk/credentials.json` (default client)
+  - `$(os.UserConfigDir())/ratatosk/credentials-<client>.json` (named clients)
 - Written with mode `0600`.
 - Command:
-  - `gog auth credentials <credentials.json>`
-  - `gog --client <name> auth credentials <credentials.json>`
-  - `gog auth credentials list`
+  - `rata auth credentials <credentials.json>`
+  - `rata --client <name> auth credentials <credentials.json>`
+  - `rata auth credentials list`
 - Supports Google’s downloaded JSON format:
   - `installed.client_id/client_secret` or `web.client_id/client_secret`
 
@@ -80,18 +80,18 @@ Implementation: `internal/config/*`.
 ### Refresh tokens (secrets)
 
 - Stored in OS credential store via `github.com/99designs/keyring`.
-- Key namespace is `gogcli` (keyring `ServiceName`).
+- Key namespace is `ratatosk` (keyring `ServiceName`).
 - Key format: `token:<client>:<email>` (default client uses `token:default:<email>`)
 - Legacy key format: `token:<email>` (migrated on first read)
 - Stored payload is JSON (refresh token + metadata like selected services/scopes).
 - Fallback: if no OS credential store is available, keyring may use its encrypted "file" backend:
-  - Directory: `$(os.UserConfigDir())/gogcli/keyring/` (one file per key)
-  - Password: prompts on TTY; for non-interactive runs set `GOG_KEYRING_PASSWORD`
+  - Directory: `$(os.UserConfigDir())/ratatosk/keyring/` (one file per key)
+  - Password: prompts on TTY; for non-interactive runs set `RATA_KEYRING_PASSWORD`
 
 Current minimal management commands (implemented):
 
-- `gog auth tokens list` (keys only)
-- `gog auth tokens delete <email>`
+- `rata auth tokens list` (keys only)
+- `rata auth tokens delete <email>`
 
 Implementation: `internal/secrets/store.go`.
 
@@ -108,11 +108,11 @@ Scope selection note:
 
 - The consent screen shows the scopes the CLI requested.
 - Users cannot selectively un-check individual requested scopes in the consent screen; they either approve all requested scopes or cancel.
-- To request fewer scopes, choose fewer services via `gog auth add --services ...` or use `gog auth add --readonly` where applicable.
+- To request fewer scopes, choose fewer services via `rata auth add --services ...` or use `rata auth add --readonly` where applicable.
 
 ## Config layout
 
-- Base config dir: `$(os.UserConfigDir())/gogcli/`
+- Base config dir: `$(os.UserConfigDir())/ratatosk/`
 - Files:
   - `config.json` (JSON5; comments and trailing commas allowed)
   - `credentials.json` (OAuth client id/secret; default client)
@@ -126,15 +126,15 @@ We intentionally avoid storing refresh tokens in plain JSON on disk.
 
 Environment:
 
-- `GOG_ACCOUNT=you@gmail.com` (email or alias; used when `--account` is not set; otherwise uses keyring default or a single stored token)
-- `GOG_CLIENT=work` (select OAuth client bucket; see `--client`)
-- `GOG_KEYRING_PASSWORD=...` (used when keyring falls back to encrypted file backend in non-interactive environments)
-- `GOG_KEYRING_BACKEND={auto|keychain|file}` (force backend; use `file` to avoid Keychain prompts and pair with `GOG_KEYRING_PASSWORD` for non-interactive)
-- `GOG_TIMEZONE=America/New_York` (default output timezone; IANA name or `UTC`; `local` forces local timezone)
-- `GOG_ENABLE_COMMANDS=calendar,tasks` (optional allowlist of top-level commands)
+- `RATA_ACCOUNT=you@gmail.com` (email or alias; used when `--account` is not set; otherwise uses keyring default or a single stored token)
+- `RATA_CLIENT=work` (select OAuth client bucket; see `--client`)
+- `RATA_KEYRING_PASSWORD=...` (used when keyring falls back to encrypted file backend in non-interactive environments)
+- `RATA_KEYRING_BACKEND={auto|keychain|file}` (force backend; use `file` to avoid Keychain prompts and pair with `RATA_KEYRING_PASSWORD` for non-interactive)
+- `RATA_TIMEZONE=America/New_York` (default output timezone; IANA name or `UTC`; `local` forces local timezone)
+- `RATA_ENABLE_COMMANDS=calendar,tasks` (optional allowlist of top-level commands)
 - `config.json` can also set `keyring_backend` (JSON5; env vars take precedence)
 - `config.json` can also set `default_timezone` (IANA name or `UTC`)
-- `config.json` can also set `account_aliases` for `gog auth alias` (JSON5)
+- `config.json` can also set `account_aliases` for `rata auth alias` (JSON5)
 - `config.json` can also set `account_clients` (email -> client) and `client_domains` (domain -> client)
 
 Flag aliases:
@@ -145,176 +145,176 @@ Flag aliases:
 
 ### Implemented
 
-- `gog auth credentials <credentials.json|->`
-- `gog auth credentials list`
-- `gog --client <name> auth credentials <credentials.json|->`
-- `gog auth add <email> [--services user|all|gmail,calendar,classroom,drive,docs,contacts,tasks,sheets,people,groups] [--readonly] [--drive-scope full|readonly|file] [--manual] [--force-consent]`
-- `gog auth services [--markdown]`
-- `gog auth keep <email> --key <service-account.json>` (Google Keep; Workspace only)
-- `gog auth list`
-- `gog auth alias list`
-- `gog auth alias set <alias> <email>`
-- `gog auth alias unset <alias>`
-- `gog auth status`
-- `gog auth remove <email>`
-- `gog auth tokens list`
-- `gog auth tokens delete <email>`
-- `gog config get <key>`
-- `gog config keys`
-- `gog config list`
-- `gog config path`
-- `gog config set <key> <value>`
-- `gog config unset <key>`
-- `gog drive ls [--parent ID] [--max N] [--page TOKEN] [--query Q]`
-- `gog drive search <text> [--max N] [--page TOKEN]`
-- `gog drive get <fileId>`
-- `gog drive download <fileId> [--out PATH]`
-- `gog drive upload <localPath> [--name N] [--parent ID] [--convert]`
-- `gog drive mkdir <name> [--parent ID]`
-- `gog drive delete <fileId>`
-- `gog drive move <fileId> --parent ID`
-- `gog drive rename <fileId> <newName>`
-- `gog drive share <fileId> [--anyone | --email addr] [--role reader|writer] [--discoverable]`
-- `gog drive permissions <fileId> [--max N] [--page TOKEN]`
-- `gog drive unshare <fileId> <permissionId>`
-- `gog drive url <fileIds...>`
-- `gog drive drives [--max N] [--page TOKEN] [--query Q]`
-- `gog calendar calendars`
-- `gog calendar acl <calendarId>`
-- `gog calendar events <calendarId> [--from RFC3339] [--to RFC3339] [--max N] [--page TOKEN] [--query Q] [--weekday]`
-- `gog calendar event|get <calendarId> <eventId>`
-- `GOG_CALENDAR_WEEKDAY=1` defaults `--weekday` for `gog calendar events`
-- `gog calendar create <calendarId> --summary S --from DT --to DT [--description D] [--location L] [--attendees a@b.com,c@d.com] [--all-day] [--event-type TYPE]`
-- `gog calendar update <calendarId> <eventId> [--summary S] [--from DT] [--to DT] [--description D] [--location L] [--attendees ...] [--add-attendee ...] [--all-day] [--event-type TYPE]`
-- `gog calendar delete <calendarId> <eventId>`
-- `gog calendar freebusy <calendarIds> --from RFC3339 --to RFC3339`
-- `gog calendar respond <calendarId> <eventId> --status accepted|declined|tentative [--send-updates all|none|externalOnly]`
-- `gog time now [--timezone TZ]`
-- `gog classroom courses [--state ...] [--max N] [--page TOKEN]`
-- `gog classroom courses get <courseId>`
-- `gog classroom courses create --name NAME [--owner me] [--state ACTIVE|...]`
-- `gog classroom courses update <courseId> [--name ...] [--state ...]`
-- `gog classroom courses delete <courseId>`
-- `gog classroom courses archive <courseId>`
-- `gog classroom courses unarchive <courseId>`
-- `gog classroom courses join <courseId> [--role student|teacher] [--user me]`
-- `gog classroom courses leave <courseId> [--role student|teacher] [--user me]`
-- `gog classroom courses url <courseId...>`
-- `gog classroom students <courseId> [--max N] [--page TOKEN]`
-- `gog classroom students get <courseId> <userId>`
-- `gog classroom students add <courseId> <userId> [--enrollment-code CODE]`
-- `gog classroom students remove <courseId> <userId>`
-- `gog classroom teachers <courseId> [--max N] [--page TOKEN]`
-- `gog classroom teachers get <courseId> <userId>`
-- `gog classroom teachers add <courseId> <userId>`
-- `gog classroom teachers remove <courseId> <userId>`
-- `gog classroom roster <courseId> [--students] [--teachers]`
-- `gog classroom coursework <courseId> [--state ...] [--topic TOPIC_ID] [--scan-pages N] [--max N] [--page TOKEN]`
-- `gog classroom coursework get <courseId> <courseworkId>`
-- `gog classroom coursework create <courseId> --title TITLE [--type ASSIGNMENT|...]`
-- `gog classroom coursework update <courseId> <courseworkId> [--title ...]`
-- `gog classroom coursework delete <courseId> <courseworkId>`
-- `gog classroom coursework assignees <courseId> <courseworkId> [--mode ...] [--add-student ...]`
-- `gog classroom materials <courseId> [--state ...] [--topic TOPIC_ID] [--scan-pages N] [--max N] [--page TOKEN]`
-- `gog classroom materials get <courseId> <materialId>`
-- `gog classroom materials create <courseId> --title TITLE`
-- `gog classroom materials update <courseId> <materialId> [--title ...]`
-- `gog classroom materials delete <courseId> <materialId>`
-- `gog classroom submissions <courseId> <courseworkId> [--state ...] [--max N] [--page TOKEN]`
-- `gog classroom submissions get <courseId> <courseworkId> <submissionId>`
-- `gog classroom submissions turn-in <courseId> <courseworkId> <submissionId>`
-- `gog classroom submissions reclaim <courseId> <courseworkId> <submissionId>`
-- `gog classroom submissions return <courseId> <courseworkId> <submissionId>`
-- `gog classroom submissions grade <courseId> <courseworkId> <submissionId> [--draft N] [--assigned N]`
-- `gog classroom announcements <courseId> [--state ...] [--max N] [--page TOKEN]`
-- `gog classroom announcements get <courseId> <announcementId>`
-- `gog classroom announcements create <courseId> --text TEXT`
-- `gog classroom announcements update <courseId> <announcementId> [--text ...]`
-- `gog classroom announcements delete <courseId> <announcementId>`
-- `gog classroom announcements assignees <courseId> <announcementId> [--mode ...]`
-- `gog classroom topics <courseId> [--max N] [--page TOKEN]`
-- `gog classroom topics get <courseId> <topicId>`
-- `gog classroom topics create <courseId> --name NAME`
-- `gog classroom topics update <courseId> <topicId> --name NAME`
-- `gog classroom topics delete <courseId> <topicId>`
-- `gog classroom invitations [--course ID] [--user ID]`
-- `gog classroom invitations get <invitationId>`
-- `gog classroom invitations create <courseId> <userId> --role STUDENT|TEACHER|OWNER`
-- `gog classroom invitations accept <invitationId>`
-- `gog classroom invitations delete <invitationId>`
-- `gog classroom guardians <studentId> [--max N] [--page TOKEN]`
-- `gog classroom guardians get <studentId> <guardianId>`
-- `gog classroom guardians delete <studentId> <guardianId>`
-- `gog classroom guardian-invitations <studentId> [--state ...] [--max N] [--page TOKEN]`
-- `gog classroom guardian-invitations get <studentId> <invitationId>`
-- `gog classroom guardian-invitations create <studentId> --email EMAIL`
-- `gog classroom profile [userId]`
-- `gog gmail search <query> [--max N] [--page TOKEN]`
-- `gog gmail messages search <query> [--max N] [--page TOKEN] [--include-body]`
-- `gog gmail thread get <threadId> [--download]`
-- `gog gmail thread modify <threadId> [--add ...] [--remove ...]`
-- `gog gmail get <messageId> [--format full|metadata|raw] [--headers ...]`
-- `gog gmail attachment <messageId> <attachmentId> [--out PATH] [--name NAME]`
-- `gog gmail url <threadIds...>`
-- `gog gmail labels list`
-- `gog gmail labels get <labelIdOrName>`
-- `gog gmail labels create <name>`
-- `gog gmail labels modify <threadIds...> [--add ...] [--remove ...]`
-- `gog gmail send --to a@b.com --subject S [--body B] [--body-html H] [--cc ...] [--bcc ...] [--reply-to-message-id <messageId>] [--reply-to addr] [--attach <file>...]`
-- `gog gmail drafts list [--max N] [--page TOKEN]`
-- `gog gmail drafts get <draftId> [--download]`
-- `gog gmail drafts create --subject S [--to a@b.com] [--body B] [--body-html H] [--cc ...] [--bcc ...] [--reply-to-message-id <messageId>] [--reply-to addr] [--attach <file>...]`
-- `gog gmail drafts update <draftId> --subject S [--to a@b.com] [--body B] [--body-html H] [--cc ...] [--bcc ...] [--reply-to-message-id <messageId>] [--reply-to addr] [--attach <file>...]`
-- `gog gmail drafts send <draftId>`
-- `gog gmail drafts delete <draftId>`
-- `gog gmail watch start|status|renew|stop|serve`
-- `gog gmail history --since <historyId>`
-- `gog chat spaces list [--max N] [--page TOKEN]`
-- `gog chat spaces find <displayName> [--max N]`
-- `gog chat spaces create <displayName> [--member email,...]`
-- `gog chat messages list <space> [--max N] [--page TOKEN] [--order ORDER] [--thread THREAD] [--unread]`
-- `gog chat messages send <space> --text TEXT [--thread THREAD]`
-- `gog chat threads list <space> [--max N] [--page TOKEN]`
-- `gog chat dm space <email>`
-- `gog chat dm send <email> --text TEXT [--thread THREAD]`
-- `gog tasks lists [--max N] [--page TOKEN]`
-- `gog tasks lists create <title>`
-- `gog tasks list <tasklistId> [--max N] [--page TOKEN]`
-- `gog tasks get <tasklistId> <taskId>`
-- `gog tasks add <tasklistId> --title T [--notes N] [--due RFC3339|YYYY-MM-DD] [--repeat daily|weekly|monthly|yearly] [--repeat-count N] [--repeat-until DT] [--parent ID] [--previous ID]`
-- `gog tasks update <tasklistId> <taskId> [--title T] [--notes N] [--due RFC3339|YYYY-MM-DD] [--status needsAction|completed]`
-- `gog tasks done <tasklistId> <taskId>`
-- `gog tasks undo <tasklistId> <taskId>`
-- `gog tasks delete <tasklistId> <taskId>`
-- `gog tasks clear <tasklistId>`
-- `gog contacts search <query> [--max N]`
-- `gog contacts list [--max N] [--page TOKEN]`
-- `gog contacts get <people/...|email>`
-- `gog contacts create --given NAME [--family NAME] [--email addr] [--phone num]`
-- `gog contacts update <people/...> [--given NAME] [--family NAME] [--email addr] [--phone num]`
-- `gog contacts delete <people/...>`
-- `gog contacts directory list [--max N] [--page TOKEN]`
-- `gog contacts directory search <query> [--max N] [--page TOKEN]`
-- `gog contacts other list [--max N] [--page TOKEN]`
-- `gog contacts other search <query> [--max N]`
-- `gog people me`
-- `gog people get <people/...|userId>`
-- `gog people search <query> [--max N] [--page TOKEN]`
-- `gog people relations [<people/...|userId>] [--type TYPE]`
+- `rata auth credentials <credentials.json|->`
+- `rata auth credentials list`
+- `rata --client <name> auth credentials <credentials.json|->`
+- `rata auth add <email> [--services user|all|gmail,calendar,classroom,drive,docs,contacts,tasks,sheets,people,groups] [--readonly] [--drive-scope full|readonly|file] [--manual] [--force-consent]`
+- `rata auth services [--markdown]`
+- `rata auth keep <email> --key <service-account.json>` (Google Keep; Workspace only)
+- `rata auth list`
+- `rata auth alias list`
+- `rata auth alias set <alias> <email>`
+- `rata auth alias unset <alias>`
+- `rata auth status`
+- `rata auth remove <email>`
+- `rata auth tokens list`
+- `rata auth tokens delete <email>`
+- `rata config get <key>`
+- `rata config keys`
+- `rata config list`
+- `rata config path`
+- `rata config set <key> <value>`
+- `rata config unset <key>`
+- `rata drive ls [--parent ID] [--max N] [--page TOKEN] [--query Q]`
+- `rata drive search <text> [--max N] [--page TOKEN]`
+- `rata drive get <fileId>`
+- `rata drive download <fileId> [--out PATH]`
+- `rata drive upload <localPath> [--name N] [--parent ID] [--convert]`
+- `rata drive mkdir <name> [--parent ID]`
+- `rata drive delete <fileId>`
+- `rata drive move <fileId> --parent ID`
+- `rata drive rename <fileId> <newName>`
+- `rata drive share <fileId> [--anyone | --email addr] [--role reader|writer] [--discoverable]`
+- `rata drive permissions <fileId> [--max N] [--page TOKEN]`
+- `rata drive unshare <fileId> <permissionId>`
+- `rata drive url <fileIds...>`
+- `rata drive drives [--max N] [--page TOKEN] [--query Q]`
+- `rata calendar calendars`
+- `rata calendar acl <calendarId>`
+- `rata calendar events <calendarId> [--from RFC3339] [--to RFC3339] [--max N] [--page TOKEN] [--query Q] [--weekday]`
+- `rata calendar event|get <calendarId> <eventId>`
+- `RATA_CALENDAR_WEEKDAY=1` defaults `--weekday` for `rata calendar events`
+- `rata calendar create <calendarId> --summary S --from DT --to DT [--description D] [--location L] [--attendees a@b.com,c@d.com] [--all-day] [--event-type TYPE]`
+- `rata calendar update <calendarId> <eventId> [--summary S] [--from DT] [--to DT] [--description D] [--location L] [--attendees ...] [--add-attendee ...] [--all-day] [--event-type TYPE]`
+- `rata calendar delete <calendarId> <eventId>`
+- `rata calendar freebusy <calendarIds> --from RFC3339 --to RFC3339`
+- `rata calendar respond <calendarId> <eventId> --status accepted|declined|tentative [--send-updates all|none|externalOnly]`
+- `rata time now [--timezone TZ]`
+- `rata classroom courses [--state ...] [--max N] [--page TOKEN]`
+- `rata classroom courses get <courseId>`
+- `rata classroom courses create --name NAME [--owner me] [--state ACTIVE|...]`
+- `rata classroom courses update <courseId> [--name ...] [--state ...]`
+- `rata classroom courses delete <courseId>`
+- `rata classroom courses archive <courseId>`
+- `rata classroom courses unarchive <courseId>`
+- `rata classroom courses join <courseId> [--role student|teacher] [--user me]`
+- `rata classroom courses leave <courseId> [--role student|teacher] [--user me]`
+- `rata classroom courses url <courseId...>`
+- `rata classroom students <courseId> [--max N] [--page TOKEN]`
+- `rata classroom students get <courseId> <userId>`
+- `rata classroom students add <courseId> <userId> [--enrollment-code CODE]`
+- `rata classroom students remove <courseId> <userId>`
+- `rata classroom teachers <courseId> [--max N] [--page TOKEN]`
+- `rata classroom teachers get <courseId> <userId>`
+- `rata classroom teachers add <courseId> <userId>`
+- `rata classroom teachers remove <courseId> <userId>`
+- `rata classroom roster <courseId> [--students] [--teachers]`
+- `rata classroom coursework <courseId> [--state ...] [--topic TOPIC_ID] [--scan-pages N] [--max N] [--page TOKEN]`
+- `rata classroom coursework get <courseId> <courseworkId>`
+- `rata classroom coursework create <courseId> --title TITLE [--type ASSIGNMENT|...]`
+- `rata classroom coursework update <courseId> <courseworkId> [--title ...]`
+- `rata classroom coursework delete <courseId> <courseworkId>`
+- `rata classroom coursework assignees <courseId> <courseworkId> [--mode ...] [--add-student ...]`
+- `rata classroom materials <courseId> [--state ...] [--topic TOPIC_ID] [--scan-pages N] [--max N] [--page TOKEN]`
+- `rata classroom materials get <courseId> <materialId>`
+- `rata classroom materials create <courseId> --title TITLE`
+- `rata classroom materials update <courseId> <materialId> [--title ...]`
+- `rata classroom materials delete <courseId> <materialId>`
+- `rata classroom submissions <courseId> <courseworkId> [--state ...] [--max N] [--page TOKEN]`
+- `rata classroom submissions get <courseId> <courseworkId> <submissionId>`
+- `rata classroom submissions turn-in <courseId> <courseworkId> <submissionId>`
+- `rata classroom submissions reclaim <courseId> <courseworkId> <submissionId>`
+- `rata classroom submissions return <courseId> <courseworkId> <submissionId>`
+- `rata classroom submissions grade <courseId> <courseworkId> <submissionId> [--draft N] [--assigned N]`
+- `rata classroom announcements <courseId> [--state ...] [--max N] [--page TOKEN]`
+- `rata classroom announcements get <courseId> <announcementId>`
+- `rata classroom announcements create <courseId> --text TEXT`
+- `rata classroom announcements update <courseId> <announcementId> [--text ...]`
+- `rata classroom announcements delete <courseId> <announcementId>`
+- `rata classroom announcements assignees <courseId> <announcementId> [--mode ...]`
+- `rata classroom topics <courseId> [--max N] [--page TOKEN]`
+- `rata classroom topics get <courseId> <topicId>`
+- `rata classroom topics create <courseId> --name NAME`
+- `rata classroom topics update <courseId> <topicId> --name NAME`
+- `rata classroom topics delete <courseId> <topicId>`
+- `rata classroom invitations [--course ID] [--user ID]`
+- `rata classroom invitations get <invitationId>`
+- `rata classroom invitations create <courseId> <userId> --role STUDENT|TEACHER|OWNER`
+- `rata classroom invitations accept <invitationId>`
+- `rata classroom invitations delete <invitationId>`
+- `rata classroom guardians <studentId> [--max N] [--page TOKEN]`
+- `rata classroom guardians get <studentId> <guardianId>`
+- `rata classroom guardians delete <studentId> <guardianId>`
+- `rata classroom guardian-invitations <studentId> [--state ...] [--max N] [--page TOKEN]`
+- `rata classroom guardian-invitations get <studentId> <invitationId>`
+- `rata classroom guardian-invitations create <studentId> --email EMAIL`
+- `rata classroom profile [userId]`
+- `rata gmail search <query> [--max N] [--page TOKEN]`
+- `rata gmail messages search <query> [--max N] [--page TOKEN] [--include-body]`
+- `rata gmail thread get <threadId> [--download]`
+- `rata gmail thread modify <threadId> [--add ...] [--remove ...]`
+- `rata gmail get <messageId> [--format full|metadata|raw] [--headers ...]`
+- `rata gmail attachment <messageId> <attachmentId> [--out PATH] [--name NAME]`
+- `rata gmail url <threadIds...>`
+- `rata gmail labels list`
+- `rata gmail labels get <labelIdOrName>`
+- `rata gmail labels create <name>`
+- `rata gmail labels modify <threadIds...> [--add ...] [--remove ...]`
+- `rata gmail send --to a@b.com --subject S [--body B] [--body-html H] [--cc ...] [--bcc ...] [--reply-to-message-id <messageId>] [--reply-to addr] [--attach <file>...]`
+- `rata gmail drafts list [--max N] [--page TOKEN]`
+- `rata gmail drafts get <draftId> [--download]`
+- `rata gmail drafts create --subject S [--to a@b.com] [--body B] [--body-html H] [--cc ...] [--bcc ...] [--reply-to-message-id <messageId>] [--reply-to addr] [--attach <file>...]`
+- `rata gmail drafts update <draftId> --subject S [--to a@b.com] [--body B] [--body-html H] [--cc ...] [--bcc ...] [--reply-to-message-id <messageId>] [--reply-to addr] [--attach <file>...]`
+- `rata gmail drafts send <draftId>`
+- `rata gmail drafts delete <draftId>`
+- `rata gmail watch start|status|renew|stop|serve`
+- `rata gmail history --since <historyId>`
+- `rata chat spaces list [--max N] [--page TOKEN]`
+- `rata chat spaces find <displayName> [--max N]`
+- `rata chat spaces create <displayName> [--member email,...]`
+- `rata chat messages list <space> [--max N] [--page TOKEN] [--order ORDER] [--thread THREAD] [--unread]`
+- `rata chat messages send <space> --text TEXT [--thread THREAD]`
+- `rata chat threads list <space> [--max N] [--page TOKEN]`
+- `rata chat dm space <email>`
+- `rata chat dm send <email> --text TEXT [--thread THREAD]`
+- `rata tasks lists [--max N] [--page TOKEN]`
+- `rata tasks lists create <title>`
+- `rata tasks list <tasklistId> [--max N] [--page TOKEN]`
+- `rata tasks get <tasklistId> <taskId>`
+- `rata tasks add <tasklistId> --title T [--notes N] [--due RFC3339|YYYY-MM-DD] [--repeat daily|weekly|monthly|yearly] [--repeat-count N] [--repeat-until DT] [--parent ID] [--previous ID]`
+- `rata tasks update <tasklistId> <taskId> [--title T] [--notes N] [--due RFC3339|YYYY-MM-DD] [--status needsAction|completed]`
+- `rata tasks done <tasklistId> <taskId>`
+- `rata tasks undo <tasklistId> <taskId>`
+- `rata tasks delete <tasklistId> <taskId>`
+- `rata tasks clear <tasklistId>`
+- `rata contacts search <query> [--max N]`
+- `rata contacts list [--max N] [--page TOKEN]`
+- `rata contacts get <people/...|email>`
+- `rata contacts create --given NAME [--family NAME] [--email addr] [--phone num]`
+- `rata contacts update <people/...> [--given NAME] [--family NAME] [--email addr] [--phone num]`
+- `rata contacts delete <people/...>`
+- `rata contacts directory list [--max N] [--page TOKEN]`
+- `rata contacts directory search <query> [--max N] [--page TOKEN]`
+- `rata contacts other list [--max N] [--page TOKEN]`
+- `rata contacts other search <query> [--max N]`
+- `rata people me`
+- `rata people get <people/...|userId>`
+- `rata people search <query> [--max N] [--page TOKEN]`
+- `rata people relations [<people/...|userId>] [--type TYPE]`
 
 ### Planned high-level command tree
 
-- `gog auth …`
-  - `gog auth credentials <credentials.json>`
-  - `gog auth credentials list`
-  - `gog --client <name> auth credentials <credentials.json>`
-- `gog gmail …`
-- `gog chat …`
-- `gog calendar …`
-- `gog drive …`
-- `gog contacts …`
-- `gog tasks …`
-- `gog people …`
+- `rata auth …`
+  - `rata auth credentials <credentials.json>`
+  - `rata auth credentials list`
+  - `rata --client <name> auth credentials <credentials.json>`
+- `rata gmail …`
+- `rata chat …`
+- `rata calendar …`
+- `rata drive …`
+- `rata contacts …`
+- `rata tasks …`
+- `rata people …`
 
 Planned service identifiers (canonical):
 
@@ -342,9 +342,9 @@ Planned service identifiers (canonical):
 
 We store a single refresh token per Google account email.
 
-- `gog auth add` requests a union of scopes based on `--services`.
+- `rata auth add` requests a union of scopes based on `--services`.
 - Each API client refreshes an access token for the subset of scopes needed for that service.
-- If you later want additional services, re-run `gog auth add <email> --services ...` (may require `--force-consent` to mint a new refresh token).
+- If you later want additional services, re-run `rata auth add <email> --services ...` (may require `--force-consent` to mint a new refresh token).
 
 - Gmail: `https://mail.google.com/` (or narrower scopes if we decide later)
 - Calendar: `https://www.googleapis.com/auth/calendar`
@@ -375,7 +375,7 @@ We avoid heavy table deps unless we decide we need them.
 
 ## Code layout (current)
 
-- `cmd/gog/main.go` — binary entrypoint
+- `cmd/rata/main.go` — binary entrypoint
 - `internal/cmd/*` — kong command structs
 - `internal/ui/*` — color + printing
 - `internal/config/*` — config paths + credential parsing/writing
@@ -411,11 +411,11 @@ Commands:
 There is an opt-in integration test suite guarded by build tags (not run in CI).
 
 - Requires:
-  - stored `credentials.json` (or `credentials-<client>.json`) via `gog auth credentials ...`
-  - refresh token in keyring via `gog auth add <email>`
+  - stored `credentials.json` (or `credentials-<client>.json`) via `rata auth credentials ...`
+  - refresh token in keyring via `rata auth add <email>`
 - Run:
-  - `GOG_IT_ACCOUNT=you@gmail.com go test -tags=integration ./internal/integration`
-  - optional: `GOG_CLIENT=work` to select a non-default OAuth client
+  - `RATA_IT_ACCOUNT=you@gmail.com go test -tags=integration ./internal/integration`
+  - optional: `RATA_CLIENT=work` to select a non-default OAuth client
 
 ## CI (GitHub Actions)
 

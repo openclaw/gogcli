@@ -6,7 +6,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/steipete/gogcli/internal/outfmt"
+	"github.com/degree-analytics/ratatosk/internal/outfmt"
 )
 
 var (

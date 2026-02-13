@@ -202,7 +202,7 @@ def find(x):
 print(find(obj))' <<<"$1"
 }
 
-gog() {
+rata() {
   "$BIN" --account "$ACCOUNT" "$@"
 }
 
@@ -235,12 +235,12 @@ is_consumer_account() {
 }
 
 ensure_test_account() {
-  if [ "${ALLOW_NONTEST:-false}" = true ] || [ -n "${GOG_LIVE_ALLOW_NONTEST:-}" ]; then
+  if [ "${ALLOW_NONTEST:-false}" = true ] || [ -n "${RATA_LIVE_ALLOW_NONTEST:-${GOG_LIVE_ALLOW_NONTEST:-}}" ]; then
     return 0
   fi
   if ! is_test_account "$ACCOUNT"; then
     echo "Refusing to run live tests against non-test account: $ACCOUNT" >&2
-    echo "Pass --allow-nontest or set GOG_LIVE_ALLOW_NONTEST=1 to override." >&2
+    echo "Pass --allow-nontest or set RATA_LIVE_ALLOW_NONTEST=1 to override." >&2
     exit 2
   fi
 }

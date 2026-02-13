@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/steipete/gogcli/internal/outfmt"
-	"github.com/steipete/gogcli/internal/ui"
+	"github.com/degree-analytics/ratatosk/internal/outfmt"
+	"github.com/degree-analytics/ratatosk/internal/ui"
 )
 
 const calendarUsersRequestTimeout = 20 * time.Second
@@ -101,7 +101,7 @@ func (c *CalendarUsersCmd) Run(ctx context.Context, flags *RootFlags) error {
 	printNextPageHint(u, resp.NextPageToken)
 
 	u.Err().Println("\nTip: Use any email above as a calendar ID, e.g.:")
-	u.Err().Printf("  gog calendar events %s", primaryEmail(resp.People[0]))
+	u.Err().Printf("  rata calendar events %s", primaryEmail(resp.People[0]))
 
 	return nil
 }

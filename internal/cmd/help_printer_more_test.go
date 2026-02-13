@@ -28,7 +28,7 @@ func TestHelpProfileAutoDefault(t *testing.T) {
 }
 
 func TestColorizeHelpNoColor(t *testing.T) {
-	in := "Usage: gog\nFlags:\n"
+	in := "Usage: rata\nFlags:\n"
 	out := colorizeHelp(in, termenv.Ascii)
 	if out != in {
 		t.Fatalf("expected no color changes")

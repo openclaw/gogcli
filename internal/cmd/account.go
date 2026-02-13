@@ -1,11 +1,10 @@
 package cmd
 
 import (
-	"os"
 	"strings"
 
-	"github.com/steipete/gogcli/internal/config"
-	"github.com/steipete/gogcli/internal/secrets"
+	"github.com/degree-analytics/ratatosk/internal/config"
+	"github.com/degree-analytics/ratatosk/internal/secrets"
 )
 
 var openSecretsStoreForAccount = secrets.OpenDefault
@@ -32,7 +31,7 @@ func requireAccount(flags *RootFlags) (string, error) {
 			return v, nil
 		}
 	}
-	if v := strings.TrimSpace(os.Getenv("GOG_ACCOUNT")); v != "" {
+	if v := strings.TrimSpace(config.EnvWithFallback("RATA_ACCOUNT", "GOG_ACCOUNT")); v != "" {
 		if resolved, ok, err := resolveAccountAlias(v); err != nil {
 			return "", err
 		} else if ok {
@@ -76,7 +75,7 @@ func requireAccount(flags *RootFlags) (string, error) {
 		}
 	}
 
-	return "", usage("missing --account (or set GOG_ACCOUNT, set default via `gog auth manage`, or store exactly one token)")
+	return "", usage("missing --account (or set RATA_ACCOUNT, set default via `rata auth manage`, or store exactly one token)")
 }
 
 func resolveAccountAlias(value string) (string, bool, error) {

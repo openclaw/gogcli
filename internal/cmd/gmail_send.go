@@ -10,10 +10,10 @@ import (
 
 	"google.golang.org/api/gmail/v1"
 
-	"github.com/steipete/gogcli/internal/config"
-	"github.com/steipete/gogcli/internal/outfmt"
-	"github.com/steipete/gogcli/internal/tracking"
-	"github.com/steipete/gogcli/internal/ui"
+	"github.com/degree-analytics/ratatosk/internal/config"
+	"github.com/degree-analytics/ratatosk/internal/outfmt"
+	"github.com/degree-analytics/ratatosk/internal/tracking"
+	"github.com/degree-analytics/ratatosk/internal/ui"
 )
 
 type GmailSendCmd struct {
@@ -211,7 +211,7 @@ func (c *GmailSendCmd) resolveTrackingConfig(account string, toRecipients, ccRec
 		return nil, fmt.Errorf("load tracking config: %w", err)
 	}
 	if !trackingCfg.IsConfigured() {
-		return nil, fmt.Errorf("tracking not configured; run 'gog gmail track setup' first")
+		return nil, fmt.Errorf("tracking not configured; run 'rata gmail track setup' first")
 	}
 
 	return trackingCfg, nil

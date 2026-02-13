@@ -9,7 +9,7 @@ import (
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 
-	"github.com/steipete/gogcli/internal/config"
+	"github.com/degree-analytics/ratatosk/internal/config"
 )
 
 var newServiceAccountTokenSource = func(ctx context.Context, keyJSON []byte, subject string, scopes []string) (oauth2.TokenSource, error) {

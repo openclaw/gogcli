@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Connected - gog</title>
+    <title>Connected - rata</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -598,7 +598,7 @@
             {{if .Email}}
             <p class="account-email">Authorized as <strong>{{.Email}}</strong></p>
             {{else}}
-            <p class="account-email">gog is now authorized to access <strong>Google Workspace</strong></p>
+            <p class="account-email">rata is now authorized to access <strong>Google Workspace</strong></p>
             {{end}}
 
             <div class="services-row" id="servicesRow">
@@ -618,14 +618,14 @@
             <div class="terminal-body">
                 <div class="terminal-line">
                     <span class="terminal-prompt">$</span>
-                    <span class="terminal-cmd">gog</span>
+                    <span class="terminal-cmd">rata</span>
                     <span class="terminal-arg">calendar</span>
                     <span class="terminal-arg">list</span>
                 </div>
                 <div class="terminal-output success">Fetching calendars...</div>
                 <div class="terminal-line">
                     <span class="terminal-prompt">$</span>
-                    <span class="terminal-cmd">gog</span>
+                    <span class="terminal-cmd">rata</span>
                     <span class="terminal-arg">gmail</span>
                     <span class="terminal-arg">search</span>
                     <span class="terminal-cmd">"is:unread"</span>
@@ -666,14 +666,14 @@
             </div>
             <div class="info-content">
                 <h4>Return to your terminal</h4>
-                <p>You can close this window. Run <code>gog --help</code> to see available commands.</p>
+                <p>You can close this window. Run <code>rata --help</code> to see available commands.</p>
             </div>
         </div>
 
         <footer class="footer">
             <p>Closing in <span id="countdown">{{.CountdownSeconds}}</span> seconds...</p>
             <p class="github-link">
-                <a href="https://github.com/steipete/gogcli" target="_blank" rel="noopener noreferrer">
+                <a href="https://github.com/degree-analytics/ratatosk" target="_blank" rel="noopener noreferrer">
                     <span class="icon-github"></span>
                     View on GitHub
                 </a>

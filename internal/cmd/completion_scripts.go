@@ -20,22 +20,22 @@ func completionScript(shell string) (string, error) {
 func bashCompletionScript() string {
 	return `#!/usr/bin/env bash
 
-_gog_complete() {
+_rata_complete() {
   local IFS=$'\n'
   local completions
-  completions=$(gog __complete --cword "$COMP_CWORD" -- "${COMP_WORDS[@]}")
+  completions=$(rata __complete --cword "$COMP_CWORD" -- "${COMP_WORDS[@]}")
   COMPREPLY=()
   if [[ -n "$completions" ]]; then
     COMPREPLY=( $completions )
   fi
 }
 
-complete -F _gog_complete gog
+complete -F _rata_complete rata
 `
 }
 
 func zshCompletionScript() string {
-	return `#compdef gog
+	return `#compdef rata
 
 autoload -Uz bashcompinit
 bashcompinit
@@ -43,26 +43,26 @@ bashcompinit
 }
 
 func fishCompletionScript() string {
-	return `function __gog_complete
+	return `function __rata_complete
   set -l words (commandline -opc)
   set -l cur (commandline -ct)
   set -l cword (count $words)
   if test -n "$cur"
     set cword (math $cword - 1)
   end
-  gog __complete --cword $cword -- $words
+  rata __complete --cword $cword -- $words
 end
 
-complete -c gog -f -a "(__gog_complete)"
+complete -c rata -f -a "(__rata_complete)"
 `
 }
 
 func powerShellCompletionScript() string {
-	return `Register-ArgumentCompleter -CommandName gog -ScriptBlock {
+	return `Register-ArgumentCompleter -CommandName rata -ScriptBlock {
   param($commandName, $wordToComplete, $cursorPosition, $commandAst, $fakeBoundParameter)
   $elements = $commandAst.CommandElements | ForEach-Object { $_.ToString() }
   $cword = $elements.Count - 1
-  $completions = gog __complete --cword $cword -- $elements
+  $completions = rata __complete --cword $cword -- $elements
   foreach ($completion in $completions) {
     [System.Management.Automation.CompletionResult]::new($completion, $completion, 'ParameterValue', $completion)
   }

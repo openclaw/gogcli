@@ -121,7 +121,7 @@ func TestExecute_GmailWatch_MoreCommands(t *testing.T) {
 	}
 
 	// Ensure dir exists but file doesn't.
-	if !strings.Contains(p, filepath.Join("gogcli", "state", "gmail-watch")) {
+	if !strings.Contains(p, filepath.Join("ratatosk", "state", "gmail-watch")) && !strings.Contains(p, filepath.Join("gogcli", "state", "gmail-watch")) {
 		t.Fatalf("unexpected state path: %s", p)
 	}
 }

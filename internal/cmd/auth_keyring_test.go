@@ -8,10 +8,10 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/steipete/gogcli/internal/config"
-	"github.com/steipete/gogcli/internal/outfmt"
-	"github.com/steipete/gogcli/internal/secrets"
-	"github.com/steipete/gogcli/internal/ui"
+	"github.com/degree-analytics/ratatosk/internal/config"
+	"github.com/degree-analytics/ratatosk/internal/outfmt"
+	"github.com/degree-analytics/ratatosk/internal/secrets"
+	"github.com/degree-analytics/ratatosk/internal/ui"
 )
 
 func TestAuthKeyringSet_WritesConfig(t *testing.T) {
@@ -100,7 +100,7 @@ func TestAuthKeyring_FileBackendPasswordHint(t *testing.T) {
 	if err = runKong(t, &AuthKeyringCmd{}, []string{"file"}, ctx, nil); err != nil {
 		t.Fatalf("run: %v", err)
 	}
-	if !bytes.Contains(stderr.Bytes(), []byte("GOG_KEYRING_PASSWORD found in environment")) {
+	if !bytes.Contains(stderr.Bytes(), []byte("RATA_KEYRING_PASSWORD found in environment")) {
 		t.Fatalf("expected password env note, got:\n%s", stderr.String())
 	}
 
@@ -111,8 +111,8 @@ func TestAuthKeyring_FileBackendPasswordHint(t *testing.T) {
 	if err = runKong(t, &AuthKeyringCmd{}, []string{"file"}, ctx, nil); err != nil {
 		t.Fatalf("run: %v", err)
 	}
-	if !bytes.Contains(stderr.Bytes(), []byte("requires GOG_KEYRING_PASSWORD")) &&
-		!bytes.Contains(stderr.Bytes(), []byte("Hint: set GOG_KEYRING_PASSWORD")) {
+	if !bytes.Contains(stderr.Bytes(), []byte("requires RATA_KEYRING_PASSWORD")) &&
+		!bytes.Contains(stderr.Bytes(), []byte("Hint: set RATA_KEYRING_PASSWORD")) {
 		t.Fatalf("expected password hint, got:\n%s", stderr.String())
 	}
 }

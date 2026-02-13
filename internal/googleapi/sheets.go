@@ -7,7 +7,7 @@ import (
 
 	"google.golang.org/api/sheets/v4"
 
-	"github.com/steipete/gogcli/internal/googleauth"
+	"github.com/degree-analytics/ratatosk/internal/googleauth"
 )
 
 func NewSheets(ctx context.Context, email string) (*sheets.Service, error) {

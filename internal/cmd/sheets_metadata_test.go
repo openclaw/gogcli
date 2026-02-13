@@ -13,8 +13,8 @@ import (
 	"google.golang.org/api/option"
 	"google.golang.org/api/sheets/v4"
 
-	"github.com/steipete/gogcli/internal/outfmt"
-	"github.com/steipete/gogcli/internal/ui"
+	"github.com/degree-analytics/ratatosk/internal/outfmt"
+	"github.com/degree-analytics/ratatosk/internal/ui"
 )
 
 func TestSheetsMetadataCmd_TextAndJSON(t *testing.T) {

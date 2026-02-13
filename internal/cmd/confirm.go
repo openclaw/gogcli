@@ -10,7 +10,7 @@ import (
 
 	"golang.org/x/term"
 
-	"github.com/steipete/gogcli/internal/input"
+	"github.com/degree-analytics/ratatosk/internal/input"
 )
 
 func confirmDestructive(ctx context.Context, flags *RootFlags, action string) error {

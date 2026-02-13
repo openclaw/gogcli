@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/steipete/gogcli/internal/config"
+	"github.com/degree-analytics/ratatosk/internal/config"
 )
 
 type timezoneResolveMode int
@@ -18,7 +18,7 @@ const (
 
 const (
 	flagTimezoneLabel   = "timezone"
-	envTimezoneLabel    = "GOG_TIMEZONE"
+	envTimezoneLabel    = "RATA_TIMEZONE"
 	configTimezoneLabel = "default_timezone"
 	warnConfigFallback  = "warning: invalid %s in config %q, using local timezone\n"
 	warnConfigIgnore    = "warning: invalid %s in config %q, ignoring\n"
@@ -44,7 +44,7 @@ func resolveTimezone(timezone string, local bool, mode timezoneResolveMode) (*ti
 		return loc, err
 	}
 
-	if loc, ok, err := parseTimezoneValue(envTimezoneLabel, os.Getenv("GOG_TIMEZONE"), false); ok || err != nil {
+	if loc, ok, err := parseTimezoneValue(envTimezoneLabel, config.EnvWithFallback("RATA_TIMEZONE", "GOG_TIMEZONE"), false); ok || err != nil {
 		return loc, err
 	}
 

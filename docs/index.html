@@ -3,19 +3,19 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>gog — Google in your terminal</title>
+    <title>rata — Google in your terminal</title>
     <meta
       name="description"
-      content="gog: a single CLI for Gmail, Calendar, Drive, Contacts, Tasks, Sheets, Docs, Slides, and People."
+      content="rata: a single CLI for Gmail, Calendar, Drive, Contacts, Tasks, Sheets, Docs, Slides, and People."
     />
     <meta name="theme-color" content="#0b0b11" />
-    <meta property="og:title" content="gog — Google in your terminal" />
+    <meta property="og:title" content="rata — Google in your terminal" />
     <meta
       property="og:description"
       content="One CLI for Gmail, Calendar, Drive, Contacts, Tasks, Sheets, Docs, Slides, and People."
     />
     <meta property="og:type" content="website" />
-    <meta property="og:url" content="https://gogcli.sh/" />
+    <meta property="og:url" content="https://ratatosk.sh/" />
     <meta name="twitter:card" content="summary_large_image" />
 
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -40,15 +40,15 @@
       <div class="wrap top__row">
         <a class="brand" href="/">
           <span class="brand__mark" aria-hidden="true"></span>
-          <span class="brand__name">gog</span>
-          <span class="brand__tag">gogcli</span>
+          <span class="brand__name">rata</span>
+          <span class="brand__tag">ratatosk</span>
         </a>
         <nav class="nav">
           <a href="#install">Install</a>
           <a href="#quickstart">Quickstart</a>
           <a href="#features">Features</a>
           <a href="#examples">Examples</a>
-          <a class="nav__cta" href="https://github.com/steipete/gogcli">GitHub</a>
+          <a class="nav__cta" href="https://github.com/degree-analytics/ratatosk">GitHub</a>
         </nav>
       </div>
     </header>
@@ -64,7 +64,7 @@
               <span class="hero__word hero__word--mono">terminal</span>
             </h1>
             <p class="lede">
-              <strong>gog</strong> unifies Gmail, Calendar, Drive, Contacts, Tasks, Sheets, Docs, Slides, and People
+              <strong>rata</strong> unifies Gmail, Calendar, Drive, Contacts, Tasks, Sheets, Docs, Slides, and People
               under one CLI — with JSON output and sane defaults.
             </p>
 
@@ -82,11 +82,11 @@
 
             <div class="hero__actions">
               <a class="btn btn--primary" href="#install">Install</a>
-              <a class="btn btn--ghost" href="https://github.com/steipete/gogcli#quick-start">Readme</a>
+              <a class="btn btn--ghost" href="https://github.com/degree-analytics/ratatosk#quick-start">Readme</a>
             </div>
 
             <p class="note">
-              Tip: set a default in <code>gog auth manage</code> or export <code>GOG_ACCOUNT=you@gmail.com</code> once, stop repeating <code>--account</code>.
+              Tip: set a default in <code>rata auth manage</code> or export <code>RATA_ACCOUNT=you@gmail.com</code> once, stop repeating <code>--account</code>.
             </p>
           </div>
 
@@ -98,18 +98,18 @@
                   <span class="dot dot--y"></span>
                   <span class="dot dot--g"></span>
                 </span>
-                <span class="term__title">gogcli.sh</span>
+                <span class="term__title">ratatosk.sh</span>
               </div>
               <div class="term__body">
                 <pre class="term__pre"><code id="demo">
-$ brew install steipete/tap/gogcli
-$ gog auth credentials ~/Downloads/client_secret.json
-$ gog auth add you@gmail.com
+$ brew install degree-analytics/tap/ratatosk
+$ rata auth credentials ~/Downloads/client_secret.json
+$ rata auth add you@gmail.com
 
-$ export GOG_ACCOUNT=you@gmail.com
-$ gog gmail labels list
-$ gog calendar calendars --max 5 --json | jq '.calendars[].summary'
-$ gog drive ls --query "mimeType='application/pdf'" --max 3
+$ export RATA_ACCOUNT=you@gmail.com
+$ rata gmail labels list
+$ rata calendar calendars --max 5 --json | jq '.calendars[].summary'
+$ rata drive ls --query "mimeType='application/pdf'" --max 3
 </code></pre>
               </div>
             </div>
@@ -121,7 +121,7 @@ $ gog drive ls --query "mimeType='application/pdf'" --max 3
               </div>
               <div class="meta__item">
                 <div class="meta__k">Accounts</div>
-                <div class="meta__v">multi-account + <code>gog auth manage</code></div>
+                <div class="meta__v">multi-account + <code>rata auth manage</code></div>
               </div>
               <div class="meta__item">
                 <div class="meta__k">Secrets</div>
@@ -142,14 +142,14 @@ $ gog drive ls --query "mimeType='application/pdf'" --max 3
           <div class="cols">
             <div class="card block">
               <h3>Homebrew</h3>
-              <pre class="code"><code>brew install steipete/tap/gogcli</code></pre>
+              <pre class="code"><code>brew install degree-analytics/tap/ratatosk</code></pre>
             </div>
             <div class="card block">
               <h3>From source</h3>
-              <pre class="code"><code>git clone https://github.com/steipete/gogcli.git
-cd gogcli
+              <pre class="code"><code>git clone https://github.com/degree-analytics/ratatosk.git
+cd ratatosk
 make
-./bin/gog --help</code></pre>
+./bin/rata --help</code></pre>
             </div>
           </div>
         </div>
@@ -169,8 +169,8 @@ make
               <div class="step__n">1</div>
               <div class="step__b">
                 <h3>Store credentials</h3>
-                <p>Save your downloaded client JSON into gog’s config.</p>
-                <pre class="code"><code>gog auth credentials ~/Downloads/client_secret_....json</code></pre>
+                <p>Save your downloaded client JSON into rata's config.</p>
+                <pre class="code"><code>rata auth credentials ~/Downloads/client_secret_....json</code></pre>
               </div>
             </div>
             <div class="step">
@@ -178,7 +178,7 @@ make
               <div class="step__b">
                 <h3>Authorize an account</h3>
                 <p>Browser flow by default. Use <code>--manual</code> for headless.</p>
-                <pre class="code"><code>gog auth add you@gmail.com</code></pre>
+                <pre class="code"><code>rata auth add you@gmail.com</code></pre>
               </div>
             </div>
             <div class="step">
@@ -186,8 +186,8 @@ make
               <div class="step__b">
                 <h3>Run commands</h3>
                 <p>Use <code>--json</code> for scripting.</p>
-                <pre class="code"><code>export GOG_ACCOUNT=you@gmail.com
-gog gmail search 'newer_than:7d' --max 10 --json | jq</code></pre>
+                <pre class="code"><code>export RATA_ACCOUNT=you@gmail.com
+rata gmail search 'newer_than:7d' --max 10 --json | jq</code></pre>
               </div>
             </div>
           </div>
@@ -200,7 +200,7 @@ gog gmail search 'newer_than:7d' --max 10 --json | jq</code></pre>
                 If you add scopes later and Google doesn’t return a refresh token, re-run with
                 <code>--force-consent</code>.
               </p>
-              <pre class="code"><code>gog auth add you@gmail.com --services sheets --force-consent</code></pre>
+              <pre class="code"><code>rata auth add you@gmail.com --services sheets --force-consent</code></pre>
             </div>
           </div>
         </div>
@@ -250,22 +250,22 @@ gog gmail search 'newer_than:7d' --max 10 --json | jq</code></pre>
           <div class="cols">
             <div class="card block">
               <h3>Find unread mail</h3>
-              <pre class="code"><code>gog gmail search 'is:unread newer_than:7d' --max 20</code></pre>
+              <pre class="code"><code>rata gmail search 'is:unread newer_than:7d' --max 20</code></pre>
               <p class="muted">Pipe JSON to jq for scripts.</p>
-              <pre class="code"><code>gog gmail search 'newer_than:7d' --max 50 --json | jq '.threads[] | .subject'</code></pre>
+              <pre class="code"><code>rata gmail search 'newer_than:7d' --max 50 --json | jq '.threads[] | .subject'</code></pre>
             </div>
             <div class="card block">
               <h3>Export a Sheet as PDF</h3>
-              <pre class="code"><code>gog sheets export &lt;spreadsheetId&gt; --format pdf --out ./sheet.pdf</code></pre>
+              <pre class="code"><code>rata sheets export &lt;spreadsheetId&gt; --format pdf --out ./sheet.pdf</code></pre>
               <p class="muted">Docs and Slides are similar.</p>
-              <pre class="code"><code>gog docs export &lt;docId&gt; --format docx --out ./doc.docx
-gog slides export &lt;presentationId&gt; --format pptx --out ./deck.pptx</code></pre>
+              <pre class="code"><code>rata docs export &lt;docId&gt; --format docx --out ./doc.docx
+rata slides export &lt;presentationId&gt; --format pptx --out ./deck.pptx</code></pre>
             </div>
           </div>
 
           <div class="footerline">
-            <a class="btn btn--primary" href="https://github.com/steipete/gogcli">Go to GitHub</a>
-            <a class="btn btn--ghost" href="https://github.com/steipete/gogcli/blob/main/CHANGELOG.md">Changelog</a>
+            <a class="btn btn--primary" href="https://github.com/degree-analytics/ratatosk">Go to GitHub</a>
+            <a class="btn btn--ghost" href="https://github.com/degree-analytics/ratatosk/blob/main/CHANGELOG.md">Changelog</a>
           </div>
         </div>
       </section>
@@ -276,18 +276,18 @@ gog slides export &lt;presentationId&gt; --format pptx --out ./deck.pptx</code><
         <div class="sitefoot__left">
           <div class="sitefoot__brand">
             <span class="brand__mark brand__mark--small" aria-hidden="true"></span>
-            <span>gog</span>
+            <span>rata</span>
           </div>
           <div class="sitefoot__small">
             <span>Built by <a href="https://steipete.me">Peter Steinberger</a>.</span>
             <span class="sep" aria-hidden="true">·</span>
-            <a href="https://github.com/steipete/gogcli/blob/main/LICENSE">MIT</a>
+            <a href="https://github.com/degree-analytics/ratatosk/blob/main/LICENSE">MIT</a>
           </div>
         </div>
         <div class="sitefoot__right">
-          <a href="https://github.com/steipete/gogcli">Source</a>
-          <a href="https://github.com/steipete/gogcli#installation">Install</a>
-          <a href="https://github.com/steipete/gogcli#commands">Commands</a>
+          <a href="https://github.com/degree-analytics/ratatosk">Source</a>
+          <a href="https://github.com/degree-analytics/ratatosk#installation">Install</a>
+          <a href="https://github.com/degree-analytics/ratatosk#commands">Commands</a>
         </div>
       </div>
 

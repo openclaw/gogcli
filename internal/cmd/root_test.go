@@ -6,13 +6,19 @@ import (
 	"testing"
 )
 
-func TestEnvOr(t *testing.T) {
-	t.Setenv("X_TEST", "")
-	if got := envOr("X_TEST", "fallback"); got != "fallback" {
+func TestEnvOrWithFallback(t *testing.T) {
+	t.Setenv("X_PRIMARY", "")
+	t.Setenv("X_LEGACY", "")
+	if got := envOrWithFallback("X_PRIMARY", "X_LEGACY", "fallback"); got != "fallback" {
 		t.Fatalf("unexpected: %q", got)
 	}
-	t.Setenv("X_TEST", "value")
-	if got := envOr("X_TEST", "fallback"); got != "value" {
+	t.Setenv("X_PRIMARY", "value")
+	if got := envOrWithFallback("X_PRIMARY", "X_LEGACY", "fallback"); got != "value" {
+		t.Fatalf("unexpected: %q", got)
+	}
+	t.Setenv("X_PRIMARY", "")
+	t.Setenv("X_LEGACY", "legacy")
+	if got := envOrWithFallback("X_PRIMARY", "X_LEGACY", "fallback"); got != "legacy" {
 		t.Fatalf("unexpected: %q", got)
 	}
 }

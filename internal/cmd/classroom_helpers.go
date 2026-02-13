@@ -20,7 +20,7 @@ func wrapClassroomError(err error) error {
 	}
 	if strings.Contains(errStr, "insufficientPermissions") ||
 		strings.Contains(errStr, "insufficient authentication scopes") {
-		return fmt.Errorf("insufficient permissions for Classroom API; re-authenticate with: gog auth add <account> --services classroom\n\nOriginal error: %w", err)
+		return fmt.Errorf("insufficient permissions for Classroom API; re-authenticate with: rata auth add <account> --services classroom\n\nOriginal error: %w", err)
 	}
 	return err
 }

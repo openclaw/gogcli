@@ -7,26 +7,26 @@ import (
 
 	"golang.org/x/term"
 
-	"github.com/steipete/gogcli/internal/config"
-	"github.com/steipete/gogcli/internal/outfmt"
-	"github.com/steipete/gogcli/internal/secrets"
-	"github.com/steipete/gogcli/internal/ui"
+	"github.com/degree-analytics/ratatosk/internal/config"
+	"github.com/degree-analytics/ratatosk/internal/outfmt"
+	"github.com/degree-analytics/ratatosk/internal/secrets"
+	"github.com/degree-analytics/ratatosk/internal/ui"
 )
 
 type AuthKeyringCmd struct {
 	Backend  string `arg:"" optional:"" name:"backend" help:"Keyring backend: auto|keychain|file"`
-	Backend2 string `arg:"" optional:"" name:"backend2" help:"(compat) Use: gog auth keyring set <backend>"`
+	Backend2 string `arg:"" optional:"" name:"backend2" help:"(compat) Use: rata auth keyring set <backend>"`
 }
 
 func (c *AuthKeyringCmd) Run(ctx context.Context) error {
 	u := ui.FromContext(ctx)
 
-	const keyringPasswordEnv = "GOG_KEYRING_PASSWORD" //nolint:gosec // env var name, not a credential
+	const keyringPasswordEnv = "RATA_KEYRING_PASSWORD" //nolint:gosec // env var name, not a credential
 
 	backend := strings.ToLower(strings.TrimSpace(c.Backend))
 	backend2 := strings.ToLower(strings.TrimSpace(c.Backend2))
 
-	// Backwards compat for earlier suggestion: `gog auth keyring set <backend>`.
+	// Backwards compat for earlier suggestion: `rata auth keyring set <backend>`.
 	if backend == "set" {
 		backend = backend2
 		backend2 = ""
@@ -54,7 +54,7 @@ func (c *AuthKeyringCmd) Run(ctx context.Context) error {
 		u.Out().Printf("path\t%s", path)
 		u.Out().Printf("keyring_backend\t%s", info.Value)
 		u.Out().Printf("source\t%s", info.Source)
-		u.Err().Println("Hint: gog auth keyring <auto|keychain|file>")
+		u.Err().Println("Hint: rata auth keyring <auto|keychain|file>")
 		return nil
 	}
 
@@ -87,19 +87,19 @@ func (c *AuthKeyringCmd) Run(ctx context.Context) error {
 	path, _ := config.ConfigPath()
 
 	// Env var wins; warn so it doesn't look "broken".
-	if v := strings.TrimSpace(os.Getenv("GOG_KEYRING_BACKEND")); v != "" &&
+	if v := strings.TrimSpace(config.EnvWithFallback("RATA_KEYRING_BACKEND", "GOG_KEYRING_BACKEND")); v != "" &&
 		u != nil &&
 		!outfmt.IsJSON(ctx) &&
 		!outfmt.IsPlain(ctx) {
-		u.Err().Printf("NOTE: GOG_KEYRING_BACKEND=%s overrides config.json", v)
+		u.Err().Printf("NOTE: RATA_KEYRING_BACKEND=%s overrides config.json", v)
 	}
 
 	if backend == strFile &&
 		u != nil &&
 		!outfmt.IsJSON(ctx) &&
 		!outfmt.IsPlain(ctx) {
-		if v := strings.TrimSpace(os.Getenv(keyringPasswordEnv)); v != "" {
-			u.Err().Println("GOG_KEYRING_PASSWORD found in environment.")
+		if v := strings.TrimSpace(config.EnvWithFallback(keyringPasswordEnv, "GOG_KEYRING_PASSWORD")); v != "" {
+			u.Err().Println("RATA_KEYRING_PASSWORD found in environment.")
 		} else if !term.IsTerminal(int(os.Stdin.Fd())) {
 			u.Err().Printf("NOTE: file keyring backend in non-interactive context requires %s", keyringPasswordEnv)
 		} else {

@@ -7,9 +7,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/steipete/gogcli/internal/outfmt"
-	"github.com/steipete/gogcli/internal/tracking"
-	"github.com/steipete/gogcli/internal/ui"
+	"github.com/degree-analytics/ratatosk/internal/outfmt"
+	"github.com/degree-analytics/ratatosk/internal/tracking"
+	"github.com/degree-analytics/ratatosk/internal/ui"
 )
 
 func TestResolveTrackingConfig(t *testing.T) {

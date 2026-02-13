@@ -16,15 +16,15 @@ Goal: one implementation for “export Google *Thing* via Drive”.
 
 Each service command is a thin wrapper:
 
-- `gog docs export <docId> --format pdf|docx|txt`
-- `gog slides export <presentationId> --format pdf|pptx`
-- `gog sheets export <spreadsheetId> --format pdf|xlsx|csv`
+- `rata docs export <docId> --format pdf|docx|txt`
+- `rata slides export <presentationId> --format pdf|pptx`
+- `rata sheets export <spreadsheetId> --format pdf|xlsx|csv`
 
 ## Conventions
 
 - Arg is always the Drive file id (Doc/Sheet/Slides id).
 - Type guard: compare `mimeType` and error with `file is not a <KindLabel> (mimeType="...")`.
-- `--out` defaults to `$(os.UserConfigDir())/gogcli/drive-downloads/` (via `internal/config:EnsureDriveDownloadsDir`).
+- `--out` defaults to `$(os.UserConfigDir())/ratatosk/drive-downloads/` (via `internal/config:EnsureDriveDownloadsDir`).
 - `--out` can be dir or explicit file path (via `internal/cmd/drive_download_helpers.go:resolveDriveDownloadDestPath`).
 - Output
   - `--json`: `{ "path": "...", "size": <bytes> }`

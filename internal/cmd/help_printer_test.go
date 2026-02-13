@@ -40,7 +40,7 @@ func TestInjectBuildLine(t *testing.T) {
 	version = "1.2.3"
 	commit = "abc"
 
-	in := "Usage: gog\nFlags:\n"
+	in := "Usage: rata\nFlags:\n"
 	out := injectBuildLine(in)
 	if !bytes.Contains([]byte(out), []byte("Build: 1.2.3 (abc)")) {
 		t.Fatalf("build line missing: %q", out)
@@ -128,7 +128,7 @@ func TestHelpOptionsEnv(t *testing.T) {
 }
 
 func TestColorizeHelp(t *testing.T) {
-	in := "Usage: gog\nCommands:\n  foo [flags]\n"
+	in := "Usage: rata\nCommands:\n  foo [flags]\n"
 	out := colorizeHelp(in, termenv.TrueColor)
 	if out == in {
 		t.Fatalf("expected colorized output")

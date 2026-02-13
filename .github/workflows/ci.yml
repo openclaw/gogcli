@@ -54,4 +54,4 @@ jobs:
       - name: Test
         run: go test ./...
       - name: Build (Keychain / cgo)
-        run: CGO_ENABLED=1 go build ./cmd/gog
+        run: CGO_ENABLED=1 go build ./cmd/rata

@@ -6,7 +6,7 @@ import (
 
 	"google.golang.org/api/calendar/v3"
 
-	"github.com/steipete/gogcli/internal/googleauth"
+	"github.com/degree-analytics/ratatosk/internal/googleauth"
 )
 
 func NewCalendar(ctx context.Context, email string) (*calendar.Service, error) {

@@ -10,10 +10,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/steipete/gogcli/internal/config"
-	"github.com/steipete/gogcli/internal/outfmt"
-	"github.com/steipete/gogcli/internal/secrets"
-	"github.com/steipete/gogcli/internal/ui"
+	"github.com/degree-analytics/ratatosk/internal/config"
+	"github.com/degree-analytics/ratatosk/internal/outfmt"
+	"github.com/degree-analytics/ratatosk/internal/secrets"
+	"github.com/degree-analytics/ratatosk/internal/ui"
 )
 
 func TestAuthTokensExportImport_JSON(t *testing.T) {

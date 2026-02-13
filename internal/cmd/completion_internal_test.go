@@ -11,12 +11,12 @@ func TestCompleteWordsStopsAfterTerminator(t *testing.T) {
 		{
 			name:  "current-is-terminator",
 			cword: 1,
-			words: []string{"gog", "--"},
+			words: []string{"rata", "--"},
 		},
 		{
 			name:  "after-terminator",
 			cword: 3,
-			words: []string{"gog", "auth", "--", "-"},
+			words: []string{"rata", "auth", "--", "-"},
 		},
 	}
 

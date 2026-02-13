@@ -1,5 +1,5 @@
 ---
-summary: "Gmail watch + Pub/Sub push in gog"
+summary: "Gmail watch + Pub/Sub push in rata"
 read_when:
   - Adding Gmail watch/push support
   - Wiring Gmail to downstream webhooks
@@ -7,19 +7,19 @@ read_when:
 
 # Gmail watch
 
-Goal: Gmail push → Pub/Sub → `gog` HTTP handler → downstream webhook.
+Goal: Gmail push → Pub/Sub → `rata` HTTP handler → downstream webhook.
 
 ## Quick start
 
 1) Create a Pub/Sub topic (GCP project).
-2) Create a push subscription targeting your `gog gmail watch serve` endpoint.
+2) Create a push subscription targeting your `rata gmail watch serve` endpoint.
 3) Configure push auth:
    - Preferred: OIDC JWT from a service account.
    - Fallback/dev: shared token header `x-gog-token` or `?token=`.
 4) Start watch:
 
 ```
-gog gmail watch start \
+rata gmail watch start \
   --topic projects/<project>/topics/<topic> \
   --label INBOX
 ```
@@ -27,7 +27,7 @@ gog gmail watch start \
 5) Run handler:
 
 ```
-gog gmail watch serve \
+rata gmail watch serve \
   --bind 127.0.0.1 \
   --port 8788 \
   --path /gmail-pubsub \
@@ -38,19 +38,19 @@ gog gmail watch serve \
 ## CLI surface
 
 ```
-gog gmail watch start --topic <gcp-topic> [--label <idOrName>...] [--ttl <sec|duration>]
-gog gmail watch status
-gog gmail watch renew [--ttl <sec|duration>]
-gog gmail watch stop
+rata gmail watch start --topic <gcp-topic> [--label <idOrName>...] [--ttl <sec|duration>]
+rata gmail watch status
+rata gmail watch renew [--ttl <sec|duration>]
+rata gmail watch stop
 
-gog gmail watch serve \
+rata gmail watch serve \
   --bind 127.0.0.1 --port 8788 --path /gmail-pubsub \
   [--verify-oidc] [--oidc-email <svc@...>] [--oidc-audience <aud>] \
   [--token <shared>] \
   [--hook-url <url>] [--hook-token <token>] \
   [--include-body] [--max-bytes <n>] [--save-hook]
 
-gog gmail history --since <historyId> [--max <n>] [--page <token>]
+rata gmail history --since <historyId> [--max <n>] [--page <token>]
 ```
 
 Notes:
@@ -64,7 +64,7 @@ Notes:
 Path (per account):
 
 ```
-~/.config/gogcli/state/gmail-watch/<account>.json
+~/.config/ratatosk/state/gmail-watch/<account>.json
 ```
 
 Schema (v1):

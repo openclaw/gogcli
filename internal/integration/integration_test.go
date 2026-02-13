@@ -9,17 +9,17 @@ import (
 	"testing"
 	"time"
 
-	"github.com/steipete/gogcli/internal/authclient"
-	"github.com/steipete/gogcli/internal/config"
-	"github.com/steipete/gogcli/internal/googleapi"
-	"github.com/steipete/gogcli/internal/googleauth"
-	"github.com/steipete/gogcli/internal/secrets"
+	"github.com/degree-analytics/ratatosk/internal/authclient"
+	"github.com/degree-analytics/ratatosk/internal/config"
+	"github.com/degree-analytics/ratatosk/internal/googleapi"
+	"github.com/degree-analytics/ratatosk/internal/googleauth"
+	"github.com/degree-analytics/ratatosk/internal/secrets"
 )
 
 func integrationAccount(t *testing.T) string {
 	t.Helper()
 
-	if v := strings.TrimSpace(os.Getenv("GOG_IT_ACCOUNT")); v != "" {
+	if v := strings.TrimSpace(firstNonEmpty(os.Getenv("RATA_IT_ACCOUNT"), os.Getenv("GOG_IT_ACCOUNT"))); v != "" {
 		return v
 	}
 
@@ -40,7 +40,7 @@ func integrationAccount(t *testing.T) string {
 		return tokens[0].Email
 	}
 
-	t.Skip("set GOG_IT_ACCOUNT (or set a default account via `gog auth manage`, or store exactly one token)")
+	t.Skip("set RATA_IT_ACCOUNT (or set a default account via `rata auth manage`, or store exactly one token)")
 	return ""
 }
 

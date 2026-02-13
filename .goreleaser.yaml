@@ -1,19 +1,19 @@
 version: 2
 
-project_name: gogcli
+project_name: ratatosk
 
 changelog:
   disable: true
 
 builds:
-  - id: gog
-    main: ./cmd/gog
-    binary: gog
+  - id: rata
+    main: ./cmd/rata
+    binary: rata
     ldflags: >-
       -s -w
-      -X github.com/steipete/gogcli/internal/cmd.version={{ .Tag }}
-      -X github.com/steipete/gogcli/internal/cmd.commit={{ .ShortCommit }}
-      -X github.com/steipete/gogcli/internal/cmd.date={{ .Date }}
+      -X github.com/degree-analytics/ratatosk/internal/cmd.version={{ .Tag }}
+      -X github.com/degree-analytics/ratatosk/internal/cmd.commit={{ .ShortCommit }}
+      -X github.com/degree-analytics/ratatosk/internal/cmd.date={{ .Date }}
     env:
       - CGO_ENABLED=0
     targets:
@@ -21,14 +21,14 @@ builds:
       - linux_arm64
       - windows_amd64
       - windows_arm64
-  - id: gog_darwin
-    main: ./cmd/gog
-    binary: gog
+  - id: rata_darwin
+    main: ./cmd/rata
+    binary: rata
     ldflags: >-
       -s -w
-      -X github.com/steipete/gogcli/internal/cmd.version={{ .Tag }}
-      -X github.com/steipete/gogcli/internal/cmd.commit={{ .ShortCommit }}
-      -X github.com/steipete/gogcli/internal/cmd.date={{ .Date }}
+      -X github.com/degree-analytics/ratatosk/internal/cmd.version={{ .Tag }}
+      -X github.com/degree-analytics/ratatosk/internal/cmd.commit={{ .ShortCommit }}
+      -X github.com/degree-analytics/ratatosk/internal/cmd.date={{ .Date }}
     env:
       - CGO_ENABLED=1
     targets:
@@ -37,8 +37,8 @@ builds:
 
 archives:
   - builds:
-      - gog
-      - gog_darwin
+      - rata
+      - rata_darwin
     format: tar.gz
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     format_overrides:

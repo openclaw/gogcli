@@ -28,8 +28,8 @@ func FromFlags(jsonOut bool, plainOut bool) (Mode, error) {
 
 func FromEnv() Mode {
 	return Mode{
-		JSON:  envBool("GOG_JSON"),
-		Plain: envBool("GOG_PLAIN"),
+		JSON:  envBoolWithFallback("RATA_JSON", "GOG_JSON"),
+		Plain: envBoolWithFallback("RATA_PLAIN", "GOG_PLAIN"),
 	}
 }
 
@@ -83,9 +83,16 @@ func PathPayload(path string) map[string]any {
 	}
 }
 
-func envBool(key string) bool {
-	v := strings.TrimSpace(strings.ToLower(os.Getenv(key)))
-	switch v {
+func envBoolWithFallback(primary, legacy string) bool {
+	if v := os.Getenv(primary); v != "" {
+		return parseBool(v)
+	}
+
+	return parseBool(os.Getenv(legacy))
+}
+
+func parseBool(v string) bool {
+	switch strings.TrimSpace(strings.ToLower(v)) {
 	case "1", "true", "yes", "y", "on":
 		return true
 	default:

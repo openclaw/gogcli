@@ -5,24 +5,24 @@ Use multiple OAuth client credentials (for different Google Cloud projects or br
 ## How it works
 
 - Default client name: `default`
-- Default credentials file: `$(os.UserConfigDir())/gogcli/credentials.json`
-- Named credentials files: `$(os.UserConfigDir())/gogcli/credentials-<client>.json`
+- Default credentials file: `$(os.UserConfigDir())/ratatosk/credentials.json`
+- Named credentials files: `$(os.UserConfigDir())/ratatosk/credentials-<client>.json`
 - Tokens are stored per client (`token:<client>:<email>`). Default client also writes legacy keys for backwards compatibility.
 - Default account is stored per client, with a legacy global fallback for the default client.
 
 ## Selecting a client
 
-Use `--client` (or `GOG_CLIENT`) to pick which credentials + token bucket to use:
+Use `--client` (or `RATA_CLIENT`) to pick which credentials + token bucket to use:
 
 ```
-gog --client work auth credentials ~/Downloads/work-client.json
-gog --client work auth add you@company.com
-gog --client work gmail search "is:unread"
+rata --client work auth credentials ~/Downloads/work-client.json
+rata --client work auth add you@company.com
+rata --client work gmail search "is:unread"
 ```
 
-When `--client` is not set, `gog` resolves the client in this order:
+When `--client` is not set, `rata` resolves the client in this order:
 
-1) `--client` / `GOG_CLIENT` override
+1) `--client` / `RATA_CLIENT` override
 2) `account_clients` map in config
 3) `client_domains` map in config
 4) Credentials file named after the email domain (e.g. `credentials-example.com.json`)
@@ -33,7 +33,7 @@ When `--client` is not set, `gog` resolves the client in this order:
 To auto-select a client for a domain:
 
 ```
-gog --client work auth credentials ~/Downloads/work.json --domain example.com
+rata --client work auth credentials ~/Downloads/work.json --domain example.com
 ```
 
 This writes `client_domains` into `config.json` so any `@example.com` account selects the `work` client.
@@ -41,7 +41,7 @@ This writes `client_domains` into `config.json` so any `@example.com` account se
 ## Listing stored credentials
 
 ```
-gog auth credentials list
+rata auth credentials list
 ```
 
 Shows stored credential files plus any configured domain mappings.

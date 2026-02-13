@@ -3,7 +3,7 @@ package main
 import (
 	"os"
 
-	"github.com/steipete/gogcli/internal/cmd"
+	"github.com/degree-analytics/ratatosk/internal/cmd"
 )
 
 func main() {

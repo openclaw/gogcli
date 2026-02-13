@@ -1,5 +1,5 @@
 ---
-summary: "Email open tracking in gog (Gmail + Cloudflare Worker)"
+summary: "Email open tracking in rata (Gmail + Cloudflare Worker)"
 read_when:
   - Adding/changing Gmail email open tracking
   - Deploying the tracking worker (Cloudflare D1)
@@ -7,12 +7,12 @@ read_when:
 
 # Email tracking
 
-Goal: track email opens for `gog gmail send` via a tiny tracking pixel served from a Cloudflare Worker.
+Goal: track email opens for `rata gmail send` via a tiny tracking pixel served from a Cloudflare Worker.
 
 High-level:
-- `gog gmail send --track` injects a 1×1 image URL into the HTML body.
+- `rata gmail send --track` injects a 1×1 image URL into the HTML body.
 - The Worker receives the request, stores an “open” row in D1, and returns a transparent pixel.
-- `gog gmail track opens …` queries the Worker and prints opens.
+- `rata gmail track opens …` queries the Worker and prints opens.
 
 Privacy note:
 - Tracking is inherently sensitive. Treat this as *instrumentation you opt into per email*.
@@ -23,7 +23,7 @@ Privacy note:
 Create per-account tracking config + keys:
 
 ```sh
-gog gmail track setup --worker-url https://gog-email-tracker.<acct>.workers.dev
+rata gmail track setup --worker-url https://gog-email-tracker.<acct>.workers.dev
 ```
 
 This writes a local config file containing:
@@ -33,7 +33,7 @@ This writes a local config file containing:
 Optional: auto-provision + deploy with wrangler:
 
 ```sh
-gog gmail track setup --worker-url https://gog-email-tracker.<acct>.workers.dev --deploy
+rata gmail track setup --worker-url https://gog-email-tracker.<acct>.workers.dev --deploy
 ```
 
 Flags:
@@ -41,7 +41,7 @@ Flags:
 - `--db-name`: default to worker name.
 - `--worker-dir`: default `internal/tracking/worker`.
 
-Re-run `gog gmail track setup` any time to re-print the current `TRACKING_KEY` / `ADMIN_KEY` values (it’s idempotent unless you pass explicit `--tracking-key` / `--admin-key`).
+Re-run `rata gmail track setup` any time to re-print the current `TRACKING_KEY` / `ADMIN_KEY` values (it’s idempotent unless you pass explicit `--tracking-key` / `--admin-key`).
 
 ## Deploy (Cloudflare Worker + D1)
 
@@ -52,7 +52,7 @@ cd internal/tracking/worker
 pnpm install
 ```
 
-Provision secrets (use values printed by `gog gmail track setup`):
+Provision secrets (use values printed by `rata gmail track setup`):
 
 ```sh
 pnpm exec wrangler secret put TRACKING_KEY
@@ -81,7 +81,7 @@ Tracked email constraints:
 Optional per-recipient sends:
 
 ```sh
-gog gmail send \
+rata gmail send \
   --to a@example.com,b@example.com \
   --subject "Hello" \
   --body-html "<p>Hi!</p>" \
@@ -94,7 +94,7 @@ gog gmail send \
 Example:
 
 ```sh
-gog gmail send \
+rata gmail send \
   --to recipient@example.com \
   --subject "Hello" \
   --body-html "<p>Hi!</p>" \
@@ -106,24 +106,24 @@ gog gmail send \
 By tracking id:
 
 ```sh
-gog gmail track opens <tracking_id>
+rata gmail track opens <tracking_id>
 ```
 
 By recipient:
 
 ```sh
-gog gmail track opens --to recipient@example.com
+rata gmail track opens --to recipient@example.com
 ```
 
 Status:
 
 ```sh
-gog gmail track status
+rata gmail track status
 ```
 
 ## Troubleshooting
 
-- `required: --worker-url`: run `gog gmail track setup --worker-url …` first (or pass `--worker-url` again).
+- `required: --worker-url`: run `rata gmail track setup --worker-url …` first (or pass `--worker-url` again).
 - `401`/`403` on `/opens`: admin key mismatch; redeploy secrets and re-run `track setup` if needed.
 - No opens recorded:
   - ensure the HTML body contains the injected pixel (view “original” in your mail client).

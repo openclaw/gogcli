@@ -11,12 +11,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/steipete/gogcli/internal/authclient"
-	"github.com/steipete/gogcli/internal/config"
-	"github.com/steipete/gogcli/internal/googleauth"
-	"github.com/steipete/gogcli/internal/outfmt"
-	"github.com/steipete/gogcli/internal/secrets"
-	"github.com/steipete/gogcli/internal/ui"
+	"github.com/degree-analytics/ratatosk/internal/authclient"
+	"github.com/degree-analytics/ratatosk/internal/config"
+	"github.com/degree-analytics/ratatosk/internal/googleauth"
+	"github.com/degree-analytics/ratatosk/internal/outfmt"
+	"github.com/degree-analytics/ratatosk/internal/secrets"
+	"github.com/degree-analytics/ratatosk/internal/ui"
 )
 
 var (
@@ -482,7 +482,7 @@ type AuthAddCmd struct {
 	Email        string `arg:"" name:"email" help:"Email"`
 	Manual       bool   `name:"manual" help:"Browserless auth flow (paste redirect URL)"`
 	ForceConsent bool   `name:"force-consent" help:"Force consent screen to obtain a refresh token"`
-	ServicesCSV  string `name:"services" help:"Services to authorize: user|all or comma-separated ${auth_services} (Keep uses service account: gog auth service-account set)" default:"user"`
+	ServicesCSV  string `name:"services" help:"Services to authorize: user|all or comma-separated ${auth_services} (Keep uses service account: rata auth service-account set)" default:"user"`
 	Readonly     bool   `name:"readonly" help:"Use read-only scopes where available (still includes OIDC identity scopes)"`
 	DriveScope   string `name:"drive-scope" help:"Drive scope mode: full|readonly|file" enum:"full,readonly,file" default:"full"`
 }
@@ -964,7 +964,7 @@ func (c *AuthRemoveCmd) Run(ctx context.Context, flags *RootFlags) error {
 
 type AuthManageCmd struct {
 	ForceConsent bool          `name:"force-consent" help:"Force consent screen when adding accounts"`
-	ServicesCSV  string        `name:"services" help:"Services to authorize: user|all or comma-separated ${auth_services} (Keep uses service account: gog auth service-account set)" default:"user"`
+	ServicesCSV  string        `name:"services" help:"Services to authorize: user|all or comma-separated ${auth_services} (Keep uses service account: rata auth service-account set)" default:"user"`
 	Timeout      time.Duration `name:"timeout" help:"Server timeout duration" default:"10m"`
 }
 
@@ -1043,7 +1043,7 @@ func (c *AuthKeepCmd) Run(ctx context.Context) error {
 	}
 	u.Out().Printf("email\t%s", email)
 	u.Out().Printf("path\t%s", destPath)
-	u.Out().Println("Keep service account configured. Use: gog keep list --account " + email)
+	u.Out().Println("Keep service account configured. Use: rata keep list --account " + email)
 	return nil
 }
 
@@ -1062,7 +1062,7 @@ func parseAuthServices(servicesCSV string) ([]googleauth.Service, error) {
 			return nil, err
 		}
 		if svc == googleauth.ServiceKeep {
-			return nil, usage("Keep auth is Workspace-only and requires a service account. Use: gog auth service-account set <email> --key <service-account.json>")
+			return nil, usage("Keep auth is Workspace-only and requires a service account. Use: rata auth service-account set <email> --key <service-account.json>")
 		}
 		if _, ok := seen[svc]; ok {
 			continue

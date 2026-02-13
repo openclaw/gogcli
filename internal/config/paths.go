@@ -9,7 +9,10 @@ import (
 	"strings"
 )
 
-const AppName = "gogcli"
+const (
+	AppName       = "ratatosk"
+	LegacyAppName = "gogcli"
+)
 
 func Dir() (string, error) {
 	base, err := os.UserConfigDir()
@@ -17,7 +20,17 @@ func Dir() (string, error) {
 		return "", fmt.Errorf("resolve user config dir: %w", err)
 	}
 
-	return filepath.Join(base, AppName), nil
+	dir := filepath.Join(base, AppName)
+
+	// Backward compat: if the new config dir doesn't exist but the legacy one does, use legacy.
+	if _, err := os.Stat(dir); os.IsNotExist(err) {
+		legacyDir := filepath.Join(base, LegacyAppName)
+		if _, err := os.Stat(legacyDir); err == nil {
+			return legacyDir, nil
+		}
+	}
+
+	return dir, nil
 }
 
 func EnsureDir() (string, error) {

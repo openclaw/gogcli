@@ -5,7 +5,7 @@ import (
 
 	"google.golang.org/api/people/v1"
 
-	"github.com/steipete/gogcli/internal/googleapi"
+	"github.com/degree-analytics/ratatosk/internal/googleapi"
 )
 
 var (
