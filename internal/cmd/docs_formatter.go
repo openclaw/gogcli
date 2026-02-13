@@ -16,13 +16,14 @@ type TableData struct {
 	Cells      [][]string
 }
 
-// MarkdownToDocsRequests converts parsed markdown elements to Google Docs batch update requests
+// MarkdownToDocsRequests converts parsed markdown elements to Google Docs batch
+// update requests. baseIndex is the insertion location in the document.
 // Returns: requests, plainText, tableData (for native table insertion)
-func MarkdownToDocsRequests(elements []MarkdownElement) ([]*docs.Request, string, []TableData) {
+func MarkdownToDocsRequests(elements []MarkdownElement, baseIndex int64) ([]*docs.Request, string, []TableData) {
 	var requests []*docs.Request
 	var plainText strings.Builder
 	var tables []TableData
-	charOffset := int64(1)
+	charOffset := baseIndex
 
 	if debugMarkdown {
 		fmt.Printf("[DEBUG] Starting MarkdownToDocsRequests with %d elements\n", len(elements))
@@ -71,7 +72,7 @@ func MarkdownToDocsRequests(elements []MarkdownElement) ([]*docs.Request, string
 				textStyleReq := buildTextStyleRequest(style, startOffset)
 				if textStyleReq != nil {
 					if debugMarkdown {
-						fmt.Printf("  Style request: [%d, %d]\n", 
+						fmt.Printf("  Style request: [%d, %d]\n",
 							textStyleReq.UpdateTextStyle.Range.StartIndex,
 							textStyleReq.UpdateTextStyle.Range.EndIndex)
 					}
@@ -172,7 +173,7 @@ func MarkdownToDocsRequests(elements []MarkdownElement) ([]*docs.Request, string
 			plainText.WriteString(prefix)
 			plainText.WriteString(strippedContent)
 			plainText.WriteString("\n")
-			charOffset += prefixLen + utf16Len(strippedContent + "\n")
+			charOffset += prefixLen + utf16Len(strippedContent+"\n")
 
 			// Apply inline text styles (offset by prefix length)
 			for _, style := range styles {
@@ -214,7 +215,7 @@ func MarkdownToDocsRequests(elements []MarkdownElement) ([]*docs.Request, string
 				textStyleReq := buildTextStyleRequest(style, startOffset)
 				if textStyleReq != nil {
 					if debugMarkdown {
-						fmt.Printf("  Style request: [%d, %d]\n", 
+						fmt.Printf("  Style request: [%d, %d]\n",
 							textStyleReq.UpdateTextStyle.Range.StartIndex,
 							textStyleReq.UpdateTextStyle.Range.EndIndex)
 					}
@@ -331,49 +332,4 @@ func getHeadingStyle(elType MarkdownElementType) string {
 	default:
 		return "NORMAL_TEXT"
 	}
-}
-
-// buildTextStyleFromStyle creates a docs.TextStyle from a TextStyle
-func buildTextStyleFromStyle(style TextStyle) *docs.TextStyle {
-	textStyle := &docs.TextStyle{}
-	
-	if style.Bold {
-		textStyle.Bold = true
-	}
-	if style.Italic {
-		textStyle.Italic = true
-	}
-	if style.Code {
-		textStyle.WeightedFontFamily = &docs.WeightedFontFamily{
-			FontFamily: "Courier New",
-			Weight:     400,
-		}
-	}
-	if style.Link != "" {
-		textStyle.Link = &docs.Link{
-			Url: style.Link,
-		}
-	}
-	
-	return textStyle
-}
-
-// getStyleFields returns the fields string for a TextStyle
-func getStyleFields(style TextStyle) string {
-	var fields []string
-	
-	if style.Bold {
-		fields = append(fields, "bold")
-	}
-	if style.Italic {
-		fields = append(fields, "italic")
-	}
-	if style.Code {
-		fields = append(fields, "weightedFontFamily")
-	}
-	if style.Link != "" {
-		fields = append(fields, "link")
-	}
-	
-	return strings.Join(fields, ",")
 }

@@ -39,8 +39,8 @@ type MarkdownElement struct {
 	Type       MarkdownElementType
 	Content    string
 	Children   []MarkdownElement
-	URL        string // for links
-	Level      int    // for headings and lists
+	URL        string     // for links
+	Level      int        // for headings and lists
 	TableCells [][]string // for tables: rows of cells
 }
 
@@ -104,9 +104,6 @@ func ParseMarkdown(text string) []MarkdownElement {
 
 		// Empty line
 		if strings.TrimSpace(line) == "" {
-			elements = append(elements, MarkdownElement{
-				Type: MDEmptyLine,
-			})
 			continue
 		}
 
@@ -194,7 +191,7 @@ func ParseMarkdown(text string) []MarkdownElement {
 					TableCells: tableCells,
 				})
 				// Skip all table lines
-				i += len(tableCells) + 1 // +1 for separator line
+				i += len(tableCells) // loop increment handles separator line offset
 				continue
 			}
 		}
@@ -245,7 +242,7 @@ func isTableSeparator(line string) bool {
 // parseMarkdownTable parses a markdown table into rows of cells
 func parseMarkdownTable(lines []string) [][]string {
 	var rows [][]string
-	
+
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
 		if line == "" {
@@ -258,14 +255,14 @@ func parseMarkdownTable(lines []string) [][]string {
 		if isTableSeparator(line) {
 			continue
 		}
-		
+
 		// Parse row: | cell1 | cell2 | cell3 |
 		cells := parseTableRow(line)
 		if len(cells) > 0 {
 			rows = append(rows, cells)
 		}
 	}
-	
+
 	return rows
 }
 
@@ -273,20 +270,22 @@ func parseMarkdownTable(lines []string) [][]string {
 func parseTableRow(line string) []string {
 	// Remove outer pipes
 	trimmed := strings.Trim(line, "|")
-	
+
 	// Split by |
 	parts := strings.Split(trimmed, "|")
-	
-	var cells []string
+
+	cells := make([]string, 0, len(parts))
 	for _, part := range parts {
 		cell := strings.TrimSpace(part)
 		cells = append(cells, cell)
 	}
-	
+
 	return cells
 }
 
 // InlineMatch represents a matched inline pattern
+const inlineTypeCode = "code"
+
 type InlineMatch struct {
 	Start   int
 	End     int
@@ -319,7 +318,7 @@ func ParseInlineFormatting(text string) ([]TextStyle, string) {
 			Start:   idx[0],
 			End:     idx[1],
 			Content: text[idx[2]:idx[3]],
-			Type:    "code",
+			Type:    inlineTypeCode,
 		})
 	}
 
@@ -436,14 +435,14 @@ func ParseInlineFormatting(text string) ([]TextStyle, string) {
 	strippedText := stripped.String()
 
 	// Convert matches to styles with stripped UTF-16 positions
-	var styles []TextStyle
+	styles := make([]TextStyle, 0, len(matches))
 	for _, m := range matches {
 		styles = append(styles, TextStyle{
 			Start:  positionMap[m.Start],
 			End:    positionMap[m.End],
 			Bold:   m.Type == "bold" || m.Type == "bolditalic",
 			Italic: m.Type == "italic" || m.Type == "bolditalic",
-			Code:   m.Type == "code",
+			Code:   m.Type == inlineTypeCode,
 			Link:   m.URL,
 		})
 	}

@@ -20,11 +20,11 @@ var debugSlides = false
 var newSlidesService = googleapi.NewSlides
 
 type SlidesCmd struct {
-	Export           SlidesExportCmd           `cmd:"" name:"export" help:"Export a Google Slides deck (pdf|pptx)"`
-	Info             SlidesInfoCmd             `cmd:"" name:"info" help:"Get Google Slides presentation metadata"`
-	Create           SlidesCreateCmd           `cmd:"" name:"create" help:"Create a Google Slides presentation"`
+	Export             SlidesExportCmd             `cmd:"" name:"export" help:"Export a Google Slides deck (pdf|pptx)"`
+	Info               SlidesInfoCmd               `cmd:"" name:"info" help:"Get Google Slides presentation metadata"`
+	Create             SlidesCreateCmd             `cmd:"" name:"create" help:"Create a Google Slides presentation"`
 	CreateFromMarkdown SlidesCreateFromMarkdownCmd `cmd:"" name:"create-from-markdown" help:"Create a Google Slides presentation from markdown"`
-	Copy             SlidesCopyCmd             `cmd:"" name:"copy" help:"Copy a Google Slides presentation"`
+	Copy               SlidesCopyCmd               `cmd:"" name:"copy" help:"Copy a Google Slides presentation"`
 }
 
 type SlidesExportCmd struct {
@@ -117,7 +117,7 @@ func (c *SlidesCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
 			return err
 		}
 	}
-	
+
 	if created == nil {
 		return errors.New("create failed")
 	}
@@ -136,11 +136,11 @@ func (c *SlidesCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
 }
 
 type SlidesCreateFromMarkdownCmd struct {
-	Title        string `arg:"" name:"title" help:"Presentation title"`
-	Content      string `name:"content" help:"Markdown content (inline)"`
-	ContentFile  string `name:"content-file" help:"Read markdown content from file"`
-	Parent       string `name:"parent" help:"Destination folder ID"`
-	Debug        bool   `name:"debug" help:"Show debug output"`
+	Title       string `arg:"" name:"title" help:"Presentation title"`
+	Content     string `name:"content" help:"Markdown content (inline)"`
+	ContentFile string `name:"content-file" help:"Read markdown content from file"`
+	Parent      string `name:"parent" help:"Destination folder ID"`
+	Debug       bool   `name:"debug" help:"Show debug output"`
 }
 
 func (c *SlidesCreateFromMarkdownCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -157,15 +157,17 @@ func (c *SlidesCreateFromMarkdownCmd) Run(ctx context.Context, flags *RootFlags)
 
 	// Get markdown content
 	var markdown string
-	if c.ContentFile != "" {
-		data, err := os.ReadFile(c.ContentFile)
+	switch {
+	case c.ContentFile != "":
+		var data []byte
+		data, err = os.ReadFile(c.ContentFile)
 		if err != nil {
 			return fmt.Errorf("failed to read content file: %w", err)
 		}
 		markdown = string(data)
-	} else if c.Content != "" {
+	case c.Content != "":
 		markdown = c.Content
-	} else {
+	default:
 		return usage("either --content or --content-file is required")
 	}
 
@@ -187,12 +189,13 @@ func (c *SlidesCreateFromMarkdownCmd) Run(ctx context.Context, flags *RootFlags)
 
 	// Move to parent folder if specified
 	if c.Parent != "" {
-		driveSvc, err := newDriveService(ctx, account)
+		var parentDriveSvc *drive.Service
+		parentDriveSvc, err = newDriveService(ctx, account)
 		if err != nil {
 			return err
 		}
 
-		_, err = driveSvc.Files.Update(presentation.PresentationId, &drive.File{}).
+		_, err = parentDriveSvc.Files.Update(presentation.PresentationId, &drive.File{}).
 			AddParents(c.Parent).
 			SupportsAllDrives(true).
 			Context(ctx).
@@ -203,7 +206,8 @@ func (c *SlidesCreateFromMarkdownCmd) Run(ctx context.Context, flags *RootFlags)
 	}
 
 	// Get presentation link
-	driveSvc, err := newDriveService(ctx, account)
+	var driveSvc *drive.Service
+	driveSvc, err = newDriveService(ctx, account)
 	if err != nil {
 		return err
 	}

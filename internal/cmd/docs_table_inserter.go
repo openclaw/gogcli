@@ -9,22 +9,20 @@ import (
 
 // TableInserter handles multi-step table insertion for native Google Docs tables
 type TableInserter struct {
-	svc    *docs.Service
-	docID  string
-	ctx    context.Context
+	svc   *docs.Service
+	docID string
 }
 
-func NewTableInserter(svc *docs.Service, docID string, ctx context.Context) *TableInserter {
+func NewTableInserter(svc *docs.Service, docID string) *TableInserter {
 	return &TableInserter{
 		svc:   svc,
 		docID: docID,
-		ctx:   ctx,
 	}
 }
 
 // InsertNativeTable inserts a native Google Docs table and populates it with content
 // Returns the end index of the table after insertion
-func (ti *TableInserter) InsertNativeTable(tableIndex int64, cells [][]string) (int64, error) {
+func (ti *TableInserter) InsertNativeTable(ctx context.Context, tableIndex int64, cells [][]string) (int64, error) {
 	if len(cells) == 0 || len(cells[0]) == 0 {
 		return tableIndex, nil
 	}
@@ -45,13 +43,13 @@ func (ti *TableInserter) InsertNativeTable(tableIndex int64, cells [][]string) (
 
 	_, err := ti.svc.Documents.BatchUpdate(ti.docID, &docs.BatchUpdateDocumentRequest{
 		Requests: []*docs.Request{insertTableReq},
-	}).Context(ti.ctx).Do()
+	}).Context(ctx).Do()
 	if err != nil {
 		return tableIndex, fmt.Errorf("insert table: %w", err)
 	}
 
 	// Step 2: Fetch the document to get cell indices
-	doc, err := ti.svc.Documents.Get(ti.docID).Context(ti.ctx).Do()
+	doc, err := ti.svc.Documents.Get(ti.docID).Context(ctx).Do()
 	if err != nil {
 		return tableIndex, fmt.Errorf("get document after table insert: %w", err)
 	}
@@ -92,7 +90,7 @@ func (ti *TableInserter) InsertNativeTable(tableIndex int64, cells [][]string) (
 					UpdateTextStyle: &docs.UpdateTextStyleRequest{
 						Range: &docs.Range{
 							StartIndex: cellIdx,
-							EndIndex:   cellIdx + int64(len(cellContent)),
+							EndIndex:   cellIdx + utf16Len(cellContent),
 						},
 						TextStyle: &docs.TextStyle{
 							Bold: true,
@@ -109,13 +107,13 @@ func (ti *TableInserter) InsertNativeTable(tableIndex int64, cells [][]string) (
 
 			_, err := ti.svc.Documents.BatchUpdate(ti.docID, &docs.BatchUpdateDocumentRequest{
 				Requests: requests,
-			}).Context(ti.ctx).Do()
+			}).Context(ctx).Do()
 			if err != nil {
 				return tableEndIndex, fmt.Errorf("insert cell text: %w", err)
 			}
 
 			// Update indices for subsequent cells (they shift by the content length)
-			ti.updateIndicesAfter(cellIdx, int64(len(cellContent)), cellIndices, &tableEndIndex)
+			ti.updateIndicesAfter(cellIdx, utf16Len(cellContent), cellIndices, &tableEndIndex)
 		}
 	}
 
@@ -161,6 +159,10 @@ func (ti *TableInserter) getTableCellIndices(doc *docs.Document, tableStartIndex
 				break
 			}
 		}
+	}
+
+	if tableEndIndex == 0 {
+		return cellIndices, tableEndIndex, fmt.Errorf("table not found near index %d", tableStartIndex)
 	}
 
 	return cellIndices, tableEndIndex, nil

@@ -444,6 +444,13 @@ func scopesForServiceWithOptions(service Service, opts ScopeOptions) ([]string, 
 		}
 
 		return []string{driveScopeValue(), docScope}, nil
+	case ServiceSlides:
+		slidesScope := "https://www.googleapis.com/auth/presentations"
+		if opts.Readonly {
+			slidesScope = "https://www.googleapis.com/auth/presentations.readonly"
+		}
+
+		return []string{driveScopeValue(), slidesScope}, nil
 	case ServiceContacts:
 		contactsScope := "https://www.googleapis.com/auth/contacts"
 		if opts.Readonly {

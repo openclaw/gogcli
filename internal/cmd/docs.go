@@ -313,6 +313,11 @@ type DocsUpdateCmd struct {
 	Debug       bool   `name:"debug" help:"Enable debug output for markdown formatter"`
 }
 
+const (
+	docsContentFormatPlain    = "plain"
+	docsContentFormatMarkdown = "markdown"
+)
+
 func (c *DocsUpdateCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
 	account, err := requireAccount(flags)
@@ -320,7 +325,6 @@ func (c *DocsUpdateCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
-	// Enable debug mode
 	if c.Debug {
 		debugMarkdown = true
 	}
@@ -330,18 +334,29 @@ func (c *DocsUpdateCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return usage("empty docId")
 	}
 
-	// Get content from flag or file
 	var content string
-	if c.ContentFile != "" {
-		data, err := os.ReadFile(c.ContentFile)
+	switch {
+	case c.ContentFile != "":
+		var data []byte
+		data, err = os.ReadFile(c.ContentFile)
 		if err != nil {
 			return fmt.Errorf("read content file: %w", err)
 		}
 		content = string(data)
-	} else if c.Content != "" {
+	case c.Content != "":
 		content = c.Content
-	} else {
+	default:
 		return usage("either --content or --content-file is required")
+	}
+
+	format := strings.ToLower(strings.TrimSpace(c.Format))
+	if format == "" {
+		format = docsContentFormatPlain
+	}
+	switch format {
+	case docsContentFormatPlain, docsContentFormatMarkdown:
+	default:
+		return usage("format must be plain or markdown")
 	}
 
 	svc, err := newDocsService(ctx, account)
@@ -349,7 +364,6 @@ func (c *DocsUpdateCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
-	// First, get the document to find its structure
 	doc, err := svc.Documents.Get(id).
 		Context(ctx).
 		Do()
@@ -363,37 +377,45 @@ func (c *DocsUpdateCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return errors.New("doc not found")
 	}
 
+	insertIndex := int64(1)
+	if c.Append && doc.Body != nil && len(doc.Body.Content) > 0 {
+		lastEl := doc.Body.Content[len(doc.Body.Content)-1]
+		if lastEl != nil && lastEl.EndIndex > 1 {
+			insertIndex = lastEl.EndIndex - 1
+		}
+	}
+
+	baseIndex := int64(1)
+	if c.Append {
+		baseIndex = insertIndex
+	}
+
 	var requests []*docs.Request
 	var textToInsert string
 	var formattingRequests []*docs.Request
 	var tables []TableData
 
-	// Parse markdown if format is markdown
-	if c.Format == "markdown" {
+	if format == docsContentFormatMarkdown {
 		elements := ParseMarkdown(content)
-		formattingRequests, textToInsert, tables = MarkdownToDocsRequests(elements)
+		formattingRequests, textToInsert, tables = MarkdownToDocsRequests(elements, baseIndex)
 	} else {
 		textToInsert = content
 	}
 
 	if c.Append {
-		// Insert text at the end of the document
-		requests = []*docs.Request{
-			{
-				InsertText: &docs.InsertTextRequest{
-					EndOfSegmentLocation: &docs.EndOfSegmentLocation{
-						SegmentId: "",
-					},
-					Text: textToInsert,
-				},
+		requests = append(requests, &docs.Request{
+			InsertText: &docs.InsertTextRequest{
+				Location: &docs.Location{Index: insertIndex},
+				Text:     textToInsert,
 			},
+		})
+		if format == docsContentFormatMarkdown {
+			requests = append(requests, formattingRequests...)
 		}
 	} else {
-		// Replace all content: delete from start to end-1 (excluding final segment break)
 		if doc.Body != nil && len(doc.Body.Content) > 0 {
 			lastEl := doc.Body.Content[len(doc.Body.Content)-1]
 			if lastEl != nil && lastEl.EndIndex > 2 {
-				// Delete everything from index 1 to end-1
 				endIdx := lastEl.EndIndex - 1
 				requests = append(requests, &docs.Request{
 					DeleteContentRange: &docs.DeleteContentRangeRequest{
@@ -406,23 +428,18 @@ func (c *DocsUpdateCmd) Run(ctx context.Context, flags *RootFlags) error {
 			}
 		}
 
-		// Insert new content at the beginning
 		requests = append(requests, &docs.Request{
 			InsertText: &docs.InsertTextRequest{
-				Location: &docs.Location{
-					Index: 1,
-				},
-				Text: textToInsert,
+				Location: &docs.Location{Index: 1},
+				Text:     textToInsert,
 			},
 		})
 
-		// Add formatting requests for markdown
-		if c.Format == "markdown" {
+		if format == docsContentFormatMarkdown {
 			requests = append(requests, formattingRequests...)
 		}
 	}
 
-	// Execute the batch update
 	_, err = svc.Documents.BatchUpdate(id, &docs.BatchUpdateDocumentRequest{
 		Requests: requests,
 	}).Context(ctx).Do()
@@ -430,13 +447,17 @@ func (c *DocsUpdateCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return fmt.Errorf("update document: %w", err)
 	}
 
-	// Insert native tables (multi-step operation)
 	if len(tables) > 0 {
-		tableInserter := NewTableInserter(svc, id, ctx)
+		tableInserter := NewTableInserter(svc, id)
+		tableOffset := int64(0)
 		for _, table := range tables {
-			_, err := tableInserter.InsertNativeTable(table.StartIndex, table.Cells)
+			tableIndex := table.StartIndex + tableOffset
+			tableEnd, err := tableInserter.InsertNativeTable(ctx, tableIndex, table.Cells)
 			if err != nil {
 				return fmt.Errorf("insert native table: %w", err)
+			}
+			if tableEnd > tableIndex {
+				tableOffset += (tableEnd - tableIndex) - 1
 			}
 		}
 	}

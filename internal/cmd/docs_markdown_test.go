@@ -122,8 +122,8 @@ func TestParseInlineFormatting(t *testing.T) {
 
 func TestParseHeading(t *testing.T) {
 	tests := []struct {
-		line           string
-		expectedLevel  int
+		line            string
+		expectedLevel   int
 		expectedContent string
 	}{
 		{"# Title", 1, "Title"},
@@ -165,5 +165,19 @@ func TestIsHorizontalRule(t *testing.T) {
 		if result != tt.expected {
 			t.Errorf("isHorizontalRule(%q) = %v, want %v", tt.line, result, tt.expected)
 		}
+	}
+}
+
+func TestParseMarkdown_TableDoesNotSkipFollowingLine(t *testing.T) {
+	input := "| Name | Value |\n| --- | --- |\n| a | b |\nAfter table"
+	got := ParseMarkdown(input)
+	if len(got) != 2 {
+		t.Fatalf("expected 2 elements, got %d", len(got))
+	}
+	if got[0].Type != MDTable {
+		t.Fatalf("first element type = %v, want %v", got[0].Type, MDTable)
+	}
+	if got[1].Type != MDParagraph || got[1].Content != "After table" {
+		t.Fatalf("second element = %#v, want paragraph 'After table'", got[1])
 	}
 }
