@@ -295,7 +295,7 @@ Flag aliases:
 - `gog contacts list [--max N] [--page TOKEN]`
 - `gog contacts get <people/...|email>`
 - `gog contacts create --given NAME [--family NAME] [--email addr] [--phone num]`
-- `gog contacts update <people/...> [--given NAME] [--family NAME] [--email addr] [--phone num]`
+- `gog contacts update <people/...> [--given NAME] [--family NAME] [--email addr] [--phone num] [--birthday YYYY-MM-DD] [--notes TEXT]`
 - `gog contacts delete <people/...>`
 - `gog contacts directory list [--max N] [--page TOKEN]`
 - `gog contacts directory search <query> [--max N] [--page TOKEN]`
@@ -305,6 +305,14 @@ Flag aliases:
 - `gog people get <people/...|userId>`
 - `gog people search <query> [--max N] [--page TOKEN]`
 - `gog people relations [<people/...|userId>] [--type TYPE]`
+
+Date/time input conventions (shared parser):
+
+- Date-only: `YYYY-MM-DD`
+- Datetime: `RFC3339` / `RFC3339Nano` / `YYYY-MM-DDTHH:MM[:SS]` / `YYYY-MM-DD HH:MM[:SS]`
+- Numeric timezone offset accepted: `YYYY-MM-DDTHH:MM:SS-0800`
+- Calendar range flags also accept relatives: `now`, `today`, `tomorrow`, `yesterday`, weekday names (`monday`, `next friday`)
+- Tracking `--since` also accepts durations like `24h`
 
 ### Planned high-level command tree
 

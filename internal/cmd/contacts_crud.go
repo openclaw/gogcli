@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	"time"
 
 	"github.com/alecthomas/kong"
 	"google.golang.org/api/people/v1"
 
 	"github.com/steipete/gogcli/internal/outfmt"
+	"github.com/steipete/gogcli/internal/timeparse"
 	"github.com/steipete/gogcli/internal/ui"
 )
 
@@ -285,8 +285,8 @@ func (c *ContactsUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *
 		if strings.TrimSpace(c.Birthday) == "" {
 			existing.Birthdays = nil
 		} else {
-			d, err := parseYYYYMMDD(strings.TrimSpace(c.Birthday))
-			if err != nil {
+			d, parseErr := parseYYYYMMDD(strings.TrimSpace(c.Birthday))
+			if parseErr != nil {
 				return usage("invalid --birthday (expected YYYY-MM-DD)")
 			}
 			existing.Birthdays = []*people.Birthday{{
@@ -332,7 +332,7 @@ type ContactsDeleteCmd struct {
 }
 
 func parseYYYYMMDD(s string) (*people.Date, error) {
-	t, err := time.Parse("2006-01-02", s)
+	t, err := timeparse.ParseDate(s)
 	if err != nil {
 		return nil, err
 	}

@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"google.golang.org/api/calendar/v3"
+
+	"github.com/steipete/gogcli/internal/timeparse"
 )
 
 // TimeRangeFlags provides common time range options for calendar commands.
@@ -155,53 +157,7 @@ func ResolveTimeRangeWithDefaults(ctx context.Context, svc *calendar.Service, fl
 // - Date only: 2026-01-05 (interpreted as start of day in user's timezone)
 // - Relative: today, tomorrow, monday, next tuesday
 func parseTimeExpr(expr string, now time.Time, loc *time.Location) (time.Time, error) {
-	expr = strings.TrimSpace(expr)
-
-	// Try RFC3339 first (before lowercasing)
-	if t, err := time.Parse(time.RFC3339, expr); err == nil {
-		return t, nil
-	}
-
-	// Try ISO 8601 with numeric timezone without colon (e.g., -0800)
-	// This is what macOS `date +%Y-%m-%dT%H:%M:%S%z` produces
-	if t, err := time.Parse("2006-01-02T15:04:05-0700", expr); err == nil {
-		return t, nil
-	}
-
-	// Now lowercase for relative expressions
-	exprLower := strings.ToLower(expr)
-
-	// Try relative expressions
-	switch exprLower {
-	case "now":
-		return now, nil
-	case "today":
-		return startOfDay(now), nil
-	case "tomorrow":
-		return startOfDay(now.AddDate(0, 0, 1)), nil
-	case "yesterday":
-		return startOfDay(now.AddDate(0, 0, -1)), nil
-	}
-
-	// Try day of week (this week or next)
-	if t, ok := parseWeekday(exprLower, now); ok {
-		return t, nil
-	}
-
-	// Try date only (YYYY-MM-DD)
-	if t, err := time.ParseInLocation("2006-01-02", expr, loc); err == nil {
-		return t, nil
-	}
-
-	// Try date with time but no timezone
-	if t, err := time.ParseInLocation("2006-01-02T15:04:05", expr, loc); err == nil {
-		return t, nil
-	}
-	if t, err := time.ParseInLocation("2006-01-02 15:04", expr, loc); err == nil {
-		return t, nil
-	}
-
-	return time.Time{}, fmt.Errorf("cannot parse %q as time (try: 2026-01-05, today, tomorrow, monday)", expr)
+	return timeparse.ParseRangeExpr(expr, now, loc)
 }
 
 // parseWeekday parses weekday expressions like "monday", "next tuesday"

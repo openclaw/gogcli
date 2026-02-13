@@ -839,14 +839,16 @@ gog contacts other search "John" --max 50
 
 # Create and update
 gog contacts create \
-  --given-name "John" \
-  --family-name "Doe" \
+  --given "John" \
+  --family "Doe" \
   --email "john@example.com" \
   --phone "+1234567890"
 
 gog contacts update people/<resourceName> \
-  --given-name "Jane" \
-  --email "jane@example.com"
+  --given "Jane" \
+  --email "jane@example.com" \
+  --birthday "1990-05-12" \
+  --notes "Met at WWDC"
 
 gog contacts delete people/<resourceName>
 
@@ -875,6 +877,7 @@ gog tasks delete <tasklistId> <taskId>
 gog tasks clear <tasklistId>
 
 # Note: Google Tasks treats due dates as date-only; time components may be ignored.
+# See docs/dates.md for all supported date/time input formats across commands.
 ```
 
 ### Sheets
