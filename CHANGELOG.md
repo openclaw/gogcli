@@ -3,6 +3,7 @@
 ## Unreleased
 
 ### Added
+- Slides: add add-slide/list-slides/delete-slide/read-slide/update-notes/replace-slide for image decks, including --before insertion and --notes '' clear behavior. (#214) — thanks @chrismdp.
 
 - Contacts: support `contacts update --birthday` and `--notes`; unify shared date parsing and docs. (#233) — thanks @rosssivertsen.
 - Gmail: add `--exclude-labels` to `watch serve` (defaults: `SPAM,TRASH`). (#194) — thanks @salmonumbrella.

@@ -168,10 +168,8 @@ func TestSlidesReplaceSlide(t *testing.T) {
 	}
 	if capturedRequests[0].ReplaceImage == nil {
 		t.Error("expected ReplaceImage request")
-	} else {
-		if capturedRequests[0].ReplaceImage.ImageObjectId != "img_on_slide" {
-			t.Errorf("expected image object ID img_on_slide, got %q", capturedRequests[0].ReplaceImage.ImageObjectId)
-		}
+	} else if capturedRequests[0].ReplaceImage.ImageObjectId != "img_on_slide" {
+		t.Errorf("expected image object ID img_on_slide, got %q", capturedRequests[0].ReplaceImage.ImageObjectId)
 	}
 
 	if !deleteCalled {
@@ -263,7 +261,7 @@ func TestSlidesReplaceSlide_WithNotes(t *testing.T) {
 			PresentationID: "pres1",
 			SlideID:        "slide_1",
 			Image:          imgPath,
-			Notes:          "New notes for replaced slide",
+			Notes:          ptrString("New notes for replaced slide"),
 		}
 		if err := cmd.Run(ctx, flags); err != nil {
 			t.Fatalf("Run: %v", err)
@@ -557,5 +555,201 @@ func TestSlidesReplaceSlide_NoImage(t *testing.T) {
 	err = cmd.Run(ctx, flags)
 	if err == nil || !strings.Contains(err.Error(), "no image found on slide") {
 		t.Fatalf("expected no-image error, got: %v", err)
+	}
+}
+
+func TestSlidesReplaceSlide_ClearNotesWithEmptyFlag(t *testing.T) {
+	origSlides := newSlidesService
+	origDrive := newDriveService
+	t.Cleanup(func() {
+		newSlidesService = origSlides
+		newDriveService = origDrive
+	})
+
+	var capturedRequests []*slides.Request
+
+	slidesSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		switch {
+		case strings.HasSuffix(r.URL.Path, ":batchUpdate") && r.Method == http.MethodPost:
+			var req slides.BatchUpdatePresentationRequest
+			if err := json.NewDecoder(r.Body).Decode(&req); err == nil {
+				capturedRequests = req.Requests
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"presentationId": "pres1",
+				"replies":        []any{},
+			})
+		case strings.Contains(r.URL.Path, "/presentations/pres1") && r.Method == http.MethodGet:
+			_ = json.NewEncoder(w).Encode(replaceSlidePresResponse())
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer slidesSrv.Close()
+
+	driveSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		switch {
+		case strings.Contains(r.URL.Path, "/upload/") && r.Method == http.MethodPost:
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"id":             "new_img_clear",
+				"webContentLink": "https://drive.google.com/uc?id=new_img_clear",
+			})
+		case strings.Contains(r.URL.Path, "/files/new_img_clear/permissions") && r.Method == http.MethodPost:
+			_ = json.NewEncoder(w).Encode(map[string]any{"id": "perm1"})
+		case strings.Contains(r.URL.Path, "/files/new_img_clear") && r.Method == http.MethodDelete:
+			w.WriteHeader(http.StatusNoContent)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer driveSrv.Close()
+
+	slidesSvc, err := slides.NewService(context.Background(),
+		option.WithoutAuthentication(),
+		option.WithHTTPClient(slidesSrv.Client()),
+		option.WithEndpoint(slidesSrv.URL+"/"),
+	)
+	if err != nil {
+		t.Fatalf("slides.NewService: %v", err)
+	}
+	newSlidesService = func(context.Context, string) (*slides.Service, error) { return slidesSvc, nil }
+
+	driveSvc, err := drive.NewService(context.Background(),
+		option.WithoutAuthentication(),
+		option.WithHTTPClient(driveSrv.Client()),
+		option.WithEndpoint(driveSrv.URL+"/"),
+	)
+	if err != nil {
+		t.Fatalf("drive.NewService: %v", err)
+	}
+	newDriveService = func(context.Context, string) (*drive.Service, error) { return driveSvc, nil }
+
+	imgPath := newTestImage(t, "replacement-clear.png")
+	flags := &RootFlags{Account: "a@b.com"}
+	u, uiErr := ui.New(ui.Options{Stdout: io.Discard, Stderr: io.Discard, Color: "never"})
+	if uiErr != nil {
+		t.Fatalf("ui.New: %v", uiErr)
+	}
+	ctx := ui.WithUI(context.Background(), u)
+
+	cmd := &SlidesReplaceSlideCmd{
+		PresentationID: "pres1",
+		SlideID:        "slide_1",
+		Image:          imgPath,
+		Notes:          ptrString(""),
+	}
+	if err := cmd.Run(ctx, flags); err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+
+	if len(capturedRequests) != 2 {
+		t.Fatalf("expected ReplaceImage + DeleteText (2 requests), got %d", len(capturedRequests))
+	}
+	if capturedRequests[0].ReplaceImage == nil {
+		t.Fatal("expected first request to be ReplaceImage")
+	}
+	if capturedRequests[1].DeleteText == nil {
+		t.Fatal("expected second request to be DeleteText")
+	}
+}
+
+func TestSlidesReplaceSlide_WithNotes_MissingPlaceholderFails(t *testing.T) {
+	origSlides := newSlidesService
+	origDrive := newDriveService
+	t.Cleanup(func() {
+		newSlidesService = origSlides
+		newDriveService = origDrive
+	})
+
+	presResp := map[string]any{
+		"presentationId": "pres1",
+		"slides": []any{
+			map[string]any{
+				"objectId": "slide_1",
+				"slideProperties": map[string]any{
+					"notesPage": map[string]any{},
+				},
+				"pageElements": []any{
+					map[string]any{
+						"objectId": "img_on_slide",
+						"image":    map[string]any{"contentUrl": "https://example.com/old.png"},
+					},
+				},
+			},
+		},
+	}
+
+	slidesSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if strings.HasSuffix(r.URL.Path, ":batchUpdate") && r.Method == http.MethodPost {
+			t.Fatal("batchUpdate should not be called when notes placeholder is missing")
+		}
+		if strings.Contains(r.URL.Path, "/presentations/pres1") && r.Method == http.MethodGet {
+			_ = json.NewEncoder(w).Encode(presResp)
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer slidesSrv.Close()
+
+	driveSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case strings.Contains(r.URL.Path, "/upload/") && r.Method == http.MethodPost:
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"id":             "new_img_missing_notes",
+				"webContentLink": "https://drive.google.com/uc?id=new_img_missing_notes",
+			})
+		case strings.Contains(r.URL.Path, "/files/new_img_missing_notes/permissions") && r.Method == http.MethodPost:
+			_ = json.NewEncoder(w).Encode(map[string]any{"id": "perm1"})
+		case strings.Contains(r.URL.Path, "/files/new_img_missing_notes") && r.Method == http.MethodDelete:
+			w.WriteHeader(http.StatusNoContent)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer driveSrv.Close()
+
+	slidesSvc, err := slides.NewService(context.Background(),
+		option.WithoutAuthentication(),
+		option.WithHTTPClient(slidesSrv.Client()),
+		option.WithEndpoint(slidesSrv.URL+"/"),
+	)
+	if err != nil {
+		t.Fatalf("slides.NewService: %v", err)
+	}
+	newSlidesService = func(context.Context, string) (*slides.Service, error) { return slidesSvc, nil }
+
+	driveSvc, err := drive.NewService(context.Background(),
+		option.WithoutAuthentication(),
+		option.WithHTTPClient(driveSrv.Client()),
+		option.WithEndpoint(driveSrv.URL+"/"),
+	)
+	if err != nil {
+		t.Fatalf("drive.NewService: %v", err)
+	}
+	newDriveService = func(context.Context, string) (*drive.Service, error) { return driveSvc, nil }
+
+	imgPath := newTestImage(t, "replacement-missing-notes.png")
+	flags := &RootFlags{Account: "a@b.com"}
+	u, uiErr := ui.New(ui.Options{Stdout: io.Discard, Stderr: io.Discard, Color: "never"})
+	if uiErr != nil {
+		t.Fatalf("ui.New: %v", uiErr)
+	}
+	ctx := ui.WithUI(context.Background(), u)
+
+	cmd := &SlidesReplaceSlideCmd{
+		PresentationID: "pres1",
+		SlideID:        "slide_1",
+		Image:          imgPath,
+		Notes:          ptrString("new notes"),
+	}
+	err = cmd.Run(ctx, flags)
+	if err == nil || !strings.Contains(err.Error(), "could not find speaker notes placeholder") {
+		t.Fatalf("expected missing-notes-placeholder error, got: %v", err)
 	}
 }

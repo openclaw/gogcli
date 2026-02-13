@@ -713,11 +713,11 @@ func TestSlidesAddSlide_UnsupportedFormat(t *testing.T) {
 	// Services should not be called for a format error
 	newSlidesService = func(context.Context, string) (*slides.Service, error) {
 		t.Fatal("slides service should not be created")
-		return nil, nil
+		return nil, context.Canceled
 	}
 	newDriveService = func(context.Context, string) (*drive.Service, error) {
 		t.Fatal("drive service should not be created")
-		return nil, nil
+		return nil, context.Canceled
 	}
 
 	imgPath := newTestImage(t, "test.bmp")

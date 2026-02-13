@@ -113,12 +113,12 @@ func uploadLocalImage(ctx context.Context, driveSvc *drive.Service, path string)
 	ext := strings.ToLower(filepath.Ext(path))
 	var mimeType string
 	switch ext {
-	case ".png":
-		mimeType = "image/png"
-	case ".jpg", ".jpeg":
-		mimeType = "image/jpeg"
-	case ".gif":
-		mimeType = "image/gif"
+	case extPNG:
+		mimeType = mimePNG
+	case imageExtJPG, imageExtJPEG:
+		mimeType = imageMimeJPEG
+	case imageExtGIF:
+		mimeType = imageMimeGIF
 	default:
 		return "", "", fmt.Errorf("unsupported image format %q (use PNG, JPG, or GIF)", ext)
 	}

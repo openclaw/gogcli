@@ -44,7 +44,7 @@ func (c *SlidesReadSlideCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 
 	// Find the target slide and its position
-	var slideIndex int = -1
+	slideIndex := -1
 	for i, s := range pres.Slides {
 		if s.ObjectId == slideID {
 			slideIndex = i
@@ -62,7 +62,7 @@ func (c *SlidesReadSlideCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if np := slide.SlideProperties.NotesPage; np != nil {
 		for _, el := range np.PageElements {
 			if el.Shape != nil && el.Shape.Text != nil {
-				if el.Shape.Placeholder != nil && el.Shape.Placeholder.Type == "BODY" {
+				if el.Shape.Placeholder != nil && el.Shape.Placeholder.Type == placeholderTypeBody {
 					for _, te := range el.Shape.Text.TextElements {
 						if te.TextRun != nil {
 							notesText += te.TextRun.Content

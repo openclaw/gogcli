@@ -84,7 +84,7 @@ func TestSlidesDeleteSlide_EmptyID(t *testing.T) {
 
 	newSlidesService = func(context.Context, string) (*slides.Service, error) {
 		t.Fatal("slides service should not be created")
-		return nil, nil
+		return nil, context.Canceled
 	}
 
 	flags := &RootFlags{Account: "a@b.com"}

@@ -11,12 +11,9 @@ import (
 	"google.golang.org/api/drive/v3"
 	"google.golang.org/api/slides/v1"
 
-	"github.com/steipete/gogcli/internal/googleapi"
 	"github.com/steipete/gogcli/internal/outfmt"
 	"github.com/steipete/gogcli/internal/ui"
 )
-
-var newSlidesService = googleapi.NewSlides
 
 type SlidesAddSlideCmd struct {
 	PresentationID string `arg:"" name:"presentationId" help:"Presentation ID"`
@@ -55,12 +52,12 @@ func (c *SlidesAddSlideCmd) Run(ctx context.Context, flags *RootFlags) error {
 	ext := strings.ToLower(filepath.Ext(c.Image))
 	var mimeType string
 	switch ext {
-	case ".png":
-		mimeType = "image/png"
-	case ".jpg", ".jpeg":
-		mimeType = "image/jpeg"
-	case ".gif":
-		mimeType = "image/gif"
+	case extPNG:
+		mimeType = mimePNG
+	case imageExtJPG, imageExtJPEG:
+		mimeType = imageMimeJPEG
+	case imageExtGIF:
+		mimeType = imageMimeGIF
 	default:
 		return fmt.Errorf("unsupported image format %q (use PNG, JPG, or GIF)", ext)
 	}
@@ -106,9 +103,9 @@ func (c *SlidesAddSlideCmd) Run(ctx context.Context, flags *RootFlags) error {
 	// Obtain a public download URL
 	imageURL := driveFile.WebContentLink
 	if imageURL == "" {
-		got, err := driveSvc.Files.Get(driveFile.Id).Fields("webContentLink").Context(ctx).Do()
-		if err != nil {
-			return fmt.Errorf("get image URL: %w", err)
+		got, getErr := driveSvc.Files.Get(driveFile.Id).Fields("webContentLink").Context(ctx).Do()
+		if getErr != nil {
+			return fmt.Errorf("get image URL: %w", getErr)
 		}
 		imageURL = got.WebContentLink
 	}
@@ -208,7 +205,7 @@ func (c *SlidesAddSlideCmd) Run(ctx context.Context, flags *RootFlags) error {
 				if notesObjectID == "" {
 					for _, el := range np.PageElements {
 						if el.Shape != nil && el.Shape.Placeholder != nil &&
-							el.Shape.Placeholder.Type == "BODY" {
+							el.Shape.Placeholder.Type == placeholderTypeBody {
 							notesObjectID = el.ObjectId
 							break
 						}

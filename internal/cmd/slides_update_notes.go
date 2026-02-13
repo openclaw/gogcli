@@ -12,28 +12,31 @@ import (
 )
 
 type SlidesUpdateNotesCmd struct {
-	PresentationID string `arg:"" name:"presentationId" help:"Presentation ID"`
-	SlideID        string `arg:"" name:"slideId" help:"Slide object ID"`
-	Notes          string `name:"notes" help:"Speaker notes text"`
-	NotesFile      string `name:"notes-file" help:"Path to file containing speaker notes" type:"existingfile"`
+	PresentationID string  `arg:"" name:"presentationId" help:"Presentation ID"`
+	SlideID        string  `arg:"" name:"slideId" help:"Slide object ID"`
+	Notes          *string `name:"notes" help:"Speaker notes text (use --notes '' to clear notes)"`
+	NotesFile      string  `name:"notes-file" help:"Path to file containing speaker notes" type:"existingfile"`
 }
 
 func (c *SlidesUpdateNotesCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
 
-	// Resolve notes: --notes-file takes precedence over --notes
+	// Resolve notes: --notes-file takes precedence over --notes.
 	var notes string
+	updateNotes := false
 	if c.NotesFile != "" {
 		data, err := os.ReadFile(c.NotesFile)
 		if err != nil {
 			return fmt.Errorf("read notes file: %w", err)
 		}
 		notes = string(data)
-	} else {
-		notes = c.Notes
+		updateNotes = true
+	} else if c.Notes != nil {
+		notes = *c.Notes
+		updateNotes = true
 	}
 
-	if notes == "" {
+	if !updateNotes {
 		return usage("provide --notes or --notes-file")
 	}
 
@@ -61,7 +64,7 @@ func (c *SlidesUpdateNotesCmd) Run(ctx context.Context, flags *RootFlags) error 
 		return fmt.Errorf("get presentation: %w", err)
 	}
 
-	// Find the target slide
+	// Find the target slide.
 	var found bool
 	var notesObjectID string
 	for _, s := range pres.Slides {
@@ -76,7 +79,7 @@ func (c *SlidesUpdateNotesCmd) Run(ctx context.Context, flags *RootFlags) error 
 			if notesObjectID == "" {
 				for _, el := range np.PageElements {
 					if el.Shape != nil && el.Shape.Placeholder != nil &&
-						el.Shape.Placeholder.Type == "BODY" {
+						el.Shape.Placeholder.Type == placeholderTypeBody {
 						notesObjectID = el.ObjectId
 						break
 					}
@@ -93,24 +96,27 @@ func (c *SlidesUpdateNotesCmd) Run(ctx context.Context, flags *RootFlags) error 
 		return fmt.Errorf("could not find speaker notes placeholder on slide %s", slideID)
 	}
 
-	// Clear existing notes then insert new ones in a single batch
-	_, err = slidesSvc.Presentations.BatchUpdate(presentationID, &slides.BatchUpdatePresentationRequest{
-		Requests: []*slides.Request{
-			{
-				DeleteText: &slides.DeleteTextRequest{
-					ObjectId: notesObjectID,
-					TextRange: &slides.Range{
-						Type: "ALL",
-					},
-				},
-			},
-			{
-				InsertText: &slides.InsertTextRequest{
-					ObjectId: notesObjectID,
-					Text:     notes,
+	requests := []*slides.Request{
+		{
+			DeleteText: &slides.DeleteTextRequest{
+				ObjectId: notesObjectID,
+				TextRange: &slides.Range{
+					Type: "ALL",
 				},
 			},
 		},
+	}
+	if notes != "" {
+		requests = append(requests, &slides.Request{
+			InsertText: &slides.InsertTextRequest{
+				ObjectId: notesObjectID,
+				Text:     notes,
+			},
+		})
+	}
+
+	_, err = slidesSvc.Presentations.BatchUpdate(presentationID, &slides.BatchUpdatePresentationRequest{
+		Requests: requests,
 	}).Context(ctx).Do()
 	if err != nil {
 		return fmt.Errorf("update speaker notes: %w", err)
