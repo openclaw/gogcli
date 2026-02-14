@@ -63,7 +63,7 @@ func TestAuthManageCmd(t *testing.T) {
 	}
 
 	cmd := AuthManageCmd{ServicesCSV: "gmail,calendar", ForceConsent: true}
-	if err := cmd.Run(context.Background()); err != nil {
+	if err := cmd.Run(context.Background(), &RootFlags{}); err != nil {
 		t.Fatalf("AuthManageCmd: %v", err)
 	}
 	if !captured.ForceConsent || len(captured.Services) != 2 {
@@ -80,7 +80,7 @@ func TestAuthServicesCmd_Markdown(t *testing.T) {
 
 	cmd := AuthServicesCmd{Markdown: true}
 	out := captureStdout(t, func() {
-		if err := cmd.Run(ctx); err != nil {
+		if err := cmd.Run(ctx, &RootFlags{}); err != nil {
 			t.Fatalf("AuthServicesCmd: %v", err)
 		}
 	})
@@ -98,7 +98,7 @@ func TestAuthServicesCmd_JSON(t *testing.T) {
 
 	cmd := AuthServicesCmd{}
 	out := captureStdout(t, func() {
-		if err := cmd.Run(ctx); err != nil {
+		if err := cmd.Run(ctx, &RootFlags{}); err != nil {
 			t.Fatalf("AuthServicesCmd: %v", err)
 		}
 	})
@@ -116,7 +116,7 @@ func TestAuthServicesCmd_Table(t *testing.T) {
 
 	cmd := AuthServicesCmd{}
 	out := captureStdout(t, func() {
-		if err := cmd.Run(ctx); err != nil {
+		if err := cmd.Run(ctx, &RootFlags{}); err != nil {
 			t.Fatalf("AuthServicesCmd: %v", err)
 		}
 	})

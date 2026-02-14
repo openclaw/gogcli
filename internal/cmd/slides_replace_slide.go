@@ -208,7 +208,7 @@ func (c *SlidesReplaceSlideCmd) Run(ctx context.Context, flags *RootFlags) error
 	link := fmt.Sprintf("https://docs.google.com/presentation/d/%s/edit", presentationID)
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
 			"slideNumber":    slideIndex + 1,
 			"slideObjectId":  slideID,
 			"presentationId": presentationID,

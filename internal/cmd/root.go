@@ -280,7 +280,7 @@ func envOr(key, fallback string) string {
 func envBool(key string) bool {
 	v := strings.TrimSpace(strings.ToLower(os.Getenv(key)))
 	switch v {
-	case "1", "true", "yes", "y", "on":
+	case "1", strTrue, "yes", "y", "on":
 		return true
 	default:
 		return false

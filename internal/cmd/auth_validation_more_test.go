@@ -63,20 +63,20 @@ func TestAuthTokensList_ErrorsAndEmpty(t *testing.T) {
 	ctx := ui.WithUI(context.Background(), u)
 
 	openSecretsStore = func() (secrets.Store, error) { return nil, errors.New("boom") }
-	if err := (&AuthTokensListCmd{}).Run(ctx); err == nil {
+	if err := (&AuthTokensListCmd{}).Run(ctx, &RootFlags{}); err == nil {
 		t.Fatalf("expected open error")
 	}
 
 	openSecretsStore = func() (secrets.Store, error) {
 		return &memStoreErr{keysErr: errors.New("keys")}, nil
 	}
-	if err := (&AuthTokensListCmd{}).Run(ctx); err == nil {
+	if err := (&AuthTokensListCmd{}).Run(ctx, &RootFlags{}); err == nil {
 		t.Fatalf("expected keys error")
 	}
 
 	store := newMemStore()
 	openSecretsStore = func() (secrets.Store, error) { return store, nil }
-	if err := (&AuthTokensListCmd{}).Run(ctx); err != nil {
+	if err := (&AuthTokensListCmd{}).Run(ctx, &RootFlags{}); err != nil {
 		t.Fatalf("empty list: %v", err)
 	}
 }

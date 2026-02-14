@@ -115,7 +115,7 @@ func TestAuthList_CheckJSON(t *testing.T) {
 
 	listCmd := AuthListCmd{Check: true}
 	out := captureStdout(t, func() {
-		runErr := listCmd.Run(ctx)
+		runErr := listCmd.Run(ctx, &RootFlags{})
 		if runErr != nil {
 			t.Fatalf("list: %v", runErr)
 		}

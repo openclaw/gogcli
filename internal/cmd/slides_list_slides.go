@@ -46,7 +46,7 @@ func (c *SlidesListSlidesCmd) Run(ctx context.Context, flags *RootFlags) error {
 				"objectId": s.ObjectId,
 			}
 		}
-		return outfmt.WriteJSON(os.Stdout, map[string]any{
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
 			"presentationId": presentationID,
 			"title":          pres.Title,
 			"slideCount":     len(pres.Slides),
