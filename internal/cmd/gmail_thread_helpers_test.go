@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"google.golang.org/api/gmail/v1"
@@ -167,6 +168,27 @@ func TestFindPartBody_QuotedPrintablePreservesLiteralHexLikeSequence(t *testing.
 	got := findPartBody(part, "text/html")
 	if got != body {
 		t.Fatalf("unexpected decoded body: %q", got)
+	}
+}
+
+func TestFindPartBody_QuotedPrintableSoftBreakWithLiteralHexURL(t *testing.T) {
+	// Body has a QP soft line break (=\n) AND a literal hex-like URL param (&p=91).
+	// The soft break triggers shouldDecodeQuotedPrintable -> true via the early
+	// return. Phase 2 (shouldPreserveRawQuotedPrintable) must detect that decoding
+	// corrupts =91 (byte 0x91, invalid UTF-8) and preserve the raw body.
+	body := "Hello=\nWorld https://example.com/?p=91"
+	encoded := base64.RawURLEncoding.EncodeToString([]byte(body))
+	part := &gmail.MessagePart{
+		MimeType: "text/html",
+		Headers: []*gmail.MessagePartHeader{
+			{Name: "Content-Transfer-Encoding", Value: "quoted-printable"},
+			{Name: "Content-Type", Value: "text/html; charset=utf-8"},
+		},
+		Body: &gmail.MessagePartBody{Data: encoded},
+	}
+	got := findPartBody(part, "text/html")
+	if !strings.Contains(got, "p=91") {
+		t.Fatalf("expected literal p=91 preserved, got: %q", got)
 	}
 }
 
