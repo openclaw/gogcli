@@ -119,7 +119,7 @@ func TestReplyInfoFromMessage(t *testing.T) {
 			},
 		},
 	}
-	info := replyInfoFromMessage(msg)
+	info := replyInfoFromMessage(msg, false)
 	if info.ThreadID != "t1" {
 		t.Fatalf("unexpected thread id: %q", info.ThreadID)
 	}

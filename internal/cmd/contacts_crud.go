@@ -10,12 +10,15 @@ import (
 	"google.golang.org/api/people/v1"
 
 	"github.com/steipete/gogcli/internal/outfmt"
+	"github.com/steipete/gogcli/internal/timeparse"
 	"github.com/steipete/gogcli/internal/ui"
 )
 
 const (
-	contactsReadMask    = "names,emailAddresses,phoneNumbers"
-	contactsGetReadMask = contactsReadMask + ",birthdays"
+	contactsReadMask = "names,emailAddresses,phoneNumbers"
+	// contactsGetReadMask is tuned for round-tripping `gog contacts get --json`
+	// into `gog contacts update --from-file`.
+	contactsGetReadMask = contactsReadMask + ",birthdays,urls,biographies,addresses,organizations,metadata"
 )
 
 type ContactsListCmd struct {
@@ -62,7 +65,7 @@ func (c *ContactsListCmd) Run(ctx context.Context, flags *RootFlags) error {
 				Phone:    primaryPhone(p),
 			})
 		}
-		return outfmt.WriteJSON(os.Stdout, map[string]any{
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
 			"contacts":      items,
 			"nextPageToken": resp.NextPageToken,
 		})
@@ -140,7 +143,7 @@ func (c *ContactsGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 		}
 		if p == nil {
 			if outfmt.IsJSON(ctx) {
-				return outfmt.WriteJSON(os.Stdout, map[string]any{"found": false})
+				return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{"found": false})
 			}
 			u.Err().Println("Not found")
 			return nil
@@ -148,7 +151,7 @@ func (c *ContactsGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{"contact": p})
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{"contact": p})
 	}
 
 	u.Out().Printf("resource\t%s", p.ResourceName)
@@ -205,7 +208,7 @@ func (c *ContactsCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{"contact": created})
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{"contact": created})
 	}
 	u.Out().Printf("resource\t%s", created.ResourceName)
 	return nil
@@ -217,6 +220,12 @@ type ContactsUpdateCmd struct {
 	Family       string `name:"family" help:"Family name"`
 	Email        string `name:"email" help:"Email address (empty clears)"`
 	Phone        string `name:"phone" help:"Phone number (empty clears)"`
+	FromFile     string `name:"from-file" help:"Update from contact JSON file (use - for stdin)"`
+	IgnoreETag   bool   `name:"ignore-etag" help:"Allow updating even if the JSON etag is stale (may overwrite concurrent changes)"`
+
+	// Extra People API fields (not previously exposed by gog)
+	Birthday string `name:"birthday" help:"Birthday in YYYY-MM-DD (empty clears)"`
+	Notes    string `name:"notes" help:"Notes (stored as People API biography; empty clears)"`
 }
 
 func (c *ContactsUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *RootFlags) error {
@@ -235,12 +244,19 @@ func (c *ContactsUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *
 		return err
 	}
 
-	existing, err := svc.People.Get(resourceName).PersonFields(contactsReadMask).Do()
+	if strings.TrimSpace(c.FromFile) != "" {
+		if flagProvided(kctx, "given") || flagProvided(kctx, "family") || flagProvided(kctx, "email") || flagProvided(kctx, "phone") || flagProvided(kctx, "birthday") || flagProvided(kctx, "notes") {
+			return usage("can't combine --from-file with other update flags")
+		}
+		return c.updateFromJSON(ctx, svc, resourceName, u)
+	}
+
+	existing, err := svc.People.Get(resourceName).PersonFields(contactsReadMask + ",birthdays,biographies,metadata").Do()
 	if err != nil {
 		return err
 	}
 
-	updateFields := make([]string, 0, 3)
+	updateFields := make([]string, 0, 5)
 
 	if flagProvided(kctx, "given") || flagProvided(kctx, "family") {
 		curGiven := ""
@@ -261,7 +277,7 @@ func (c *ContactsUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *
 	}
 	if flagProvided(kctx, "email") {
 		if strings.TrimSpace(c.Email) == "" {
-			existing.EmailAddresses = nil
+			existing.EmailAddresses = nil // will be forced to [] for patch
 		} else {
 			existing.EmailAddresses = []*people.EmailAddress{{Value: strings.TrimSpace(c.Email)}}
 		}
@@ -269,15 +285,49 @@ func (c *ContactsUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *
 	}
 	if flagProvided(kctx, "phone") {
 		if strings.TrimSpace(c.Phone) == "" {
-			existing.PhoneNumbers = nil
+			existing.PhoneNumbers = nil // will be forced to [] for patch
 		} else {
 			existing.PhoneNumbers = []*people.PhoneNumber{{Value: strings.TrimSpace(c.Phone)}}
 		}
 		updateFields = append(updateFields, "phoneNumbers")
 	}
 
+	if flagProvided(kctx, "birthday") {
+		if strings.TrimSpace(c.Birthday) == "" {
+			existing.Birthdays = nil // will be forced to [] for patch
+		} else {
+			d, parseErr := parseYYYYMMDD(strings.TrimSpace(c.Birthday))
+			if parseErr != nil {
+				return usage("invalid --birthday (expected YYYY-MM-DD)")
+			}
+			existing.Birthdays = []*people.Birthday{{
+				Date:     d,
+				Metadata: &people.FieldMetadata{Primary: true},
+			}}
+		}
+		updateFields = append(updateFields, "birthdays")
+	}
+
+	if flagProvided(kctx, "notes") {
+		if strings.TrimSpace(c.Notes) == "" {
+			existing.Biographies = nil // will be forced to [] for patch
+		} else {
+			existing.Biographies = []*people.Biography{{
+				Value:       c.Notes,
+				ContentType: "TEXT_PLAIN",
+				Metadata:    &people.FieldMetadata{Primary: true},
+			}}
+		}
+		updateFields = append(updateFields, "biographies")
+	}
+
 	if len(updateFields) == 0 {
 		return usage("no updates provided")
+	}
+
+	for _, f := range updateFields {
+		// Clearing list fields requires forcing them into the patch payload (Google API client omits empty values by default).
+		forceSendEmptyPersonListField(existing, f)
 	}
 
 	updated, err := svc.People.UpdateContact(resourceName, existing).
@@ -287,7 +337,7 @@ func (c *ContactsUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *
 		return err
 	}
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{"contact": updated})
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{"contact": updated})
 	}
 	u.Out().Printf("resource\t%s", updated.ResourceName)
 	return nil
@@ -295,6 +345,14 @@ func (c *ContactsUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *
 
 type ContactsDeleteCmd struct {
 	ResourceName string `arg:"" name:"resourceName" help:"Resource name (people/...)"`
+}
+
+func parseYYYYMMDD(s string) (*people.Date, error) {
+	t, err := timeparse.ParseDate(s)
+	if err != nil {
+		return nil, err
+	}
+	return &people.Date{Year: int64(t.Year()), Month: int64(t.Month()), Day: int64(t.Day())}, nil
 }
 
 func (c *ContactsDeleteCmd) Run(ctx context.Context, flags *RootFlags) error {

@@ -13,12 +13,12 @@ import (
 )
 
 type ClassroomSubmissionsCmd struct {
-	List    ClassroomSubmissionsListCmd    `cmd:"" default:"withargs" help:"List student submissions"`
-	Get     ClassroomSubmissionsGetCmd     `cmd:"" help:"Get a student submission"`
-	TurnIn  ClassroomSubmissionsTurnInCmd  `cmd:"" name:"turn-in" help:"Turn in a submission"`
-	Reclaim ClassroomSubmissionsReclaimCmd `cmd:"" help:"Reclaim a submission"`
-	Return  ClassroomSubmissionsReturnCmd  `cmd:"" help:"Return a submission"`
-	Grade   ClassroomSubmissionsGradeCmd   `cmd:"" help:"Set draft/assigned grades"`
+	List    ClassroomSubmissionsListCmd    `cmd:"" default:"withargs" aliases:"ls" help:"List student submissions"`
+	Get     ClassroomSubmissionsGetCmd     `cmd:"" aliases:"info,show" help:"Get a student submission"`
+	TurnIn  ClassroomSubmissionsTurnInCmd  `cmd:"" name:"turn-in" aliases:"turnin" help:"Turn in a submission"`
+	Reclaim ClassroomSubmissionsReclaimCmd `cmd:"" aliases:"undo" help:"Reclaim a submission"`
+	Return  ClassroomSubmissionsReturnCmd  `cmd:"" aliases:"send" help:"Return a submission"`
+	Grade   ClassroomSubmissionsGradeCmd   `cmd:"" aliases:"set,edit" help:"Set draft/assigned grades"`
 }
 
 type ClassroomSubmissionsListCmd struct {
@@ -28,7 +28,9 @@ type ClassroomSubmissionsListCmd struct {
 	Late         string `name:"late" help:"Late filter: late|not-late"`
 	UserID       string `name:"user" help:"Filter by user ID or email"`
 	Max          int64  `name:"max" aliases:"limit" help:"Max results" default:"100"`
-	Page         string `name:"page" help:"Page token"`
+	Page         string `name:"page" aliases:"cursor" help:"Page token"`
+	All          bool   `name:"all" aliases:"all-pages,allpages" help:"Fetch all pages"`
+	FailEmpty    bool   `name:"fail-empty" aliases:"non-empty,require-results" help:"Exit with code 3 if no results"`
 }
 
 func (c *ClassroomSubmissionsListCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -51,49 +53,77 @@ func (c *ClassroomSubmissionsListCmd) Run(ctx context.Context, flags *RootFlags)
 		return wrapClassroomError(err)
 	}
 
-	call := svc.Courses.CourseWork.StudentSubmissions.List(courseID, courseworkID).PageSize(c.Max).PageToken(c.Page).Context(ctx)
-	if states := splitCSV(c.States); len(states) > 0 {
-		upper := make([]string, 0, len(states))
-		for _, state := range states {
-			upper = append(upper, strings.ToUpper(state))
+	fetch := func(pageToken string) ([]*classroom.StudentSubmission, string, error) {
+		call := svc.Courses.CourseWork.StudentSubmissions.List(courseID, courseworkID).PageSize(c.Max).Context(ctx)
+		if strings.TrimSpace(pageToken) != "" {
+			call = call.PageToken(pageToken)
 		}
-		call.States(upper...)
-	}
-	if v := strings.TrimSpace(c.UserID); v != "" {
-		call.UserId(v)
-	}
-	if v := strings.ToLower(strings.TrimSpace(c.Late)); v != "" {
-		switch v {
-		case "late", "late_only", "late-only":
-			call.Late("LATE_ONLY")
-		case "not-late", "not_late", "not_late_only", "not-late-only", "not-late_only":
-			call.Late("NOT_LATE_ONLY")
-		default:
-			call.Late(strings.ToUpper(v))
+		if states := splitCSV(c.States); len(states) > 0 {
+			upper := make([]string, 0, len(states))
+			for _, state := range states {
+				upper = append(upper, strings.ToUpper(state))
+			}
+			call.States(upper...)
 		}
+		if v := strings.TrimSpace(c.UserID); v != "" {
+			call.UserId(v)
+		}
+		if v := strings.ToLower(strings.TrimSpace(c.Late)); v != "" {
+			switch v {
+			case "late", "late_only", "late-only":
+				call.Late("LATE_ONLY")
+			case "not-late", "not_late", "not_late_only", "not-late-only", "not-late_only":
+				call.Late("NOT_LATE_ONLY")
+			default:
+				call.Late(strings.ToUpper(v))
+			}
+		}
+
+		resp, err := call.Do()
+		if err != nil {
+			return nil, "", wrapClassroomError(err)
+		}
+		return resp.StudentSubmissions, resp.NextPageToken, nil
 	}
 
-	resp, err := call.Do()
-	if err != nil {
-		return wrapClassroomError(err)
+	var submissions []*classroom.StudentSubmission
+	nextPageToken := ""
+	if c.All {
+		all, err := collectAllPages(c.Page, fetch)
+		if err != nil {
+			return err
+		}
+		submissions = all
+	} else {
+		var err error
+		submissions, nextPageToken, err = fetch(c.Page)
+		if err != nil {
+			return err
+		}
 	}
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{
-			"submissions":   resp.StudentSubmissions,
-			"nextPageToken": resp.NextPageToken,
-		})
+		if err := outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
+			"submissions":   submissions,
+			"nextPageToken": nextPageToken,
+		}); err != nil {
+			return err
+		}
+		if len(submissions) == 0 {
+			return failEmptyExit(c.FailEmpty)
+		}
+		return nil
 	}
 
-	if len(resp.StudentSubmissions) == 0 {
+	if len(submissions) == 0 {
 		u.Err().Println("No submissions")
-		return nil
+		return failEmptyExit(c.FailEmpty)
 	}
 
 	w, flush := tableWriter(ctx)
 	defer flush()
 	fmt.Fprintln(w, "ID\tUSER_ID\tSTATE\tLATE\tDRAFT\tASSIGNED\tUPDATED")
-	for _, sub := range resp.StudentSubmissions {
+	for _, sub := range submissions {
 		if sub == nil {
 			continue
 		}
@@ -107,7 +137,7 @@ func (c *ClassroomSubmissionsListCmd) Run(ctx context.Context, flags *RootFlags)
 			sanitizeTab(sub.UpdateTime),
 		)
 	}
-	printNextPageHint(u, resp.NextPageToken)
+	printNextPageHint(u, nextPageToken)
 	return nil
 }
 
@@ -147,7 +177,7 @@ func (c *ClassroomSubmissionsGetCmd) Run(ctx context.Context, flags *RootFlags) 
 	}
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{"submission": sub})
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{"submission": sub})
 	}
 
 	u.Out().Printf("id\t%s", sub.Id)
@@ -197,10 +227,6 @@ func (c *ClassroomSubmissionsReturnCmd) Run(ctx context.Context, flags *RootFlag
 
 func submissionAction(ctx context.Context, flags *RootFlags, courseID, courseworkID, submissionID, action string) error {
 	u := ui.FromContext(ctx)
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
 	courseID = strings.TrimSpace(courseID)
 	courseworkID = strings.TrimSpace(courseworkID)
 	submissionID = strings.TrimSpace(submissionID)
@@ -212,6 +238,20 @@ func submissionAction(ctx context.Context, flags *RootFlags, courseID, coursewor
 	}
 	if submissionID == "" {
 		return usage("empty submissionId")
+	}
+
+	if err := dryRunExit(ctx, flags, "classroom.submissions."+action, map[string]any{
+		"course_id":     courseID,
+		"coursework_id": courseworkID,
+		"submission_id": submissionID,
+		"action":        action,
+	}); err != nil {
+		return err
+	}
+
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
 	}
 
 	svc, err := newClassroomService(ctx, account)
@@ -237,7 +277,7 @@ func submissionAction(ctx context.Context, flags *RootFlags, courseID, coursewor
 	}
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
 			"ok":           true,
 			"courseId":     courseID,
 			"courseworkId": courseworkID,
@@ -263,10 +303,6 @@ type ClassroomSubmissionsGradeCmd struct {
 
 func (c *ClassroomSubmissionsGradeCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
 	courseID := strings.TrimSpace(c.CourseID)
 	courseworkID := strings.TrimSpace(c.CourseworkID)
 	submissionID := strings.TrimSpace(c.SubmissionID)
@@ -302,6 +338,22 @@ func (c *ClassroomSubmissionsGradeCmd) Run(ctx context.Context, flags *RootFlags
 		return usage("no grades specified")
 	}
 
+	if err := dryRunExit(ctx, flags, "classroom.submissions.grade", map[string]any{
+		"course_id":     courseID,
+		"coursework_id": courseworkID,
+		"submission_id": submissionID,
+		"update_mask":   updateMask(fields),
+		"update_fields": fields,
+		"submission":    sub,
+	}); err != nil {
+		return err
+	}
+
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
+	}
+
 	svc, err := newClassroomService(ctx, account)
 	if err != nil {
 		return wrapClassroomError(err)
@@ -313,7 +365,7 @@ func (c *ClassroomSubmissionsGradeCmd) Run(ctx context.Context, flags *RootFlags
 	}
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{"submission": updated})
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{"submission": updated})
 	}
 	u.Out().Printf("id\t%s", updated.Id)
 	u.Out().Printf("draft_grade\t%s", formatFloatValue(updated.DraftGrade))

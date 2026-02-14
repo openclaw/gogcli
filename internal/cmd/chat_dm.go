@@ -13,8 +13,8 @@ import (
 )
 
 type ChatDMCmd struct {
-	Send  ChatDMSendCmd  `cmd:"" name:"send" help:"Send a direct message"`
-	Space ChatDMSpaceCmd `cmd:"" name:"space" help:"Find or create a DM space"`
+	Send  ChatDMSendCmd  `cmd:"" name:"send" aliases:"create,post" help:"Send a direct message"`
+	Space ChatDMSpaceCmd `cmd:"" name:"space" aliases:"find,setup" help:"Find or create a DM space"`
 }
 
 type ChatDMSendCmd struct {
@@ -25,14 +25,6 @@ type ChatDMSendCmd struct {
 
 func (c *ChatDMSendCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
-	if err = requireWorkspaceAccount(account); err != nil {
-		return err
-	}
-
 	email := strings.TrimSpace(c.Email)
 	if email == "" {
 		return usage("required: email")
@@ -41,6 +33,23 @@ func (c *ChatDMSendCmd) Run(ctx context.Context, flags *RootFlags) error {
 	text := strings.TrimSpace(c.Text)
 	if text == "" {
 		return usage("required: --text")
+	}
+	thread := strings.TrimSpace(c.Thread)
+
+	if err := dryRunExit(ctx, flags, "chat.dm.send", map[string]any{
+		"email":  email,
+		"text":   text,
+		"thread": thread,
+	}); err != nil {
+		return err
+	}
+
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
+	}
+	if err = requireWorkspaceAccount(account); err != nil {
+		return err
 	}
 
 	svc, err := newChatService(ctx, account)
@@ -57,7 +66,6 @@ func (c *ChatDMSendCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 
 	message := &chat.Message{Text: text}
-	thread := strings.TrimSpace(c.Thread)
 	if thread != "" {
 		threadName, threadErr := normalizeThread(space.Name, thread)
 		if threadErr != nil {
@@ -77,7 +85,7 @@ func (c *ChatDMSendCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{"message": resp})
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{"message": resp})
 	}
 
 	if resp == nil {
@@ -99,17 +107,23 @@ type ChatDMSpaceCmd struct {
 
 func (c *ChatDMSpaceCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
+	email := strings.TrimSpace(c.Email)
+	if email == "" {
+		return usage("required: email")
+	}
+
+	if err := dryRunExit(ctx, flags, "chat.dm.space", map[string]any{
+		"email": email,
+	}); err != nil {
+		return err
+	}
+
 	account, err := requireAccount(flags)
 	if err != nil {
 		return err
 	}
 	if err = requireWorkspaceAccount(account); err != nil {
 		return err
-	}
-
-	email := strings.TrimSpace(c.Email)
-	if email == "" {
-		return usage("required: email")
 	}
 
 	svc, err := newChatService(ctx, account)
@@ -126,7 +140,7 @@ func (c *ChatDMSpaceCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{"space": space})
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{"space": space})
 	}
 	if space.Name != "" {
 		u.Out().Printf("resource\t%s", space.Name)

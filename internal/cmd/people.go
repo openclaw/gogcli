@@ -10,8 +10,8 @@ import (
 
 type PeopleCmd struct {
 	Me        PeopleMeCmd        `cmd:"" name:"me" help:"Show your profile (people/me)"`
-	Get       PeopleGetCmd       `cmd:"" name:"get" help:"Get a user profile by ID"`
-	Search    PeopleSearchCmd    `cmd:"" name:"search" help:"Search the Workspace directory"`
+	Get       PeopleGetCmd       `cmd:"" name:"get" aliases:"info,show" help:"Get a user profile by ID"`
+	Search    PeopleSearchCmd    `cmd:"" name:"search" aliases:"find,query" help:"Search the Workspace directory"`
 	Relations PeopleRelationsCmd `cmd:"" name:"relations" help:"Get user relations"`
 }
 
@@ -37,7 +37,7 @@ func (c *PeopleMeCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{"person": person})
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{"person": person})
 	}
 
 	name := ""

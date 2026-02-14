@@ -38,6 +38,14 @@ type Token struct {
 	RefreshToken string    `json:"-"`
 }
 
+func keyringItem(key string, data []byte) keyring.Item {
+	return keyring.Item{
+		Key:   key,
+		Data:  data,
+		Label: config.AppName, // to show "gogcli" in security dialog instead of "" (empty string)
+	}
+}
+
 const (
 	keyringPasswordEnv = "GOG_KEYRING_PASSWORD" //nolint:gosec // env var name, not a credential
 	keyringBackendEnv  = "GOG_KEYRING_BACKEND"  //nolint:gosec // env var name, not a credential
@@ -256,10 +264,7 @@ func SetSecret(key string, value []byte) error {
 		return err
 	}
 
-	if err := ring.Set(keyring.Item{
-		Key:  key,
-		Data: value,
-	}); err != nil {
+	if err := ring.Set(keyringItem(key, value)); err != nil {
 		return wrapKeychainError(fmt.Errorf("store secret: %w", err))
 	}
 
@@ -330,18 +335,12 @@ func (s *KeyringStore) SetToken(client string, email string, tok Token) error {
 		return fmt.Errorf("encode token: %w", err)
 	}
 
-	if err := s.ring.Set(keyring.Item{
-		Key:  tokenKey(normalizedClient, email),
-		Data: payload,
-	}); err != nil {
+	if err := s.ring.Set(keyringItem(tokenKey(normalizedClient, email), payload)); err != nil {
 		return wrapKeychainError(fmt.Errorf("store token: %w", err))
 	}
 
 	if normalizedClient == config.DefaultClientName {
-		if err := s.ring.Set(keyring.Item{
-			Key:  legacyTokenKey(email),
-			Data: payload,
-		}); err != nil {
+		if err := s.ring.Set(keyringItem(legacyTokenKey(email), payload)); err != nil {
 			return wrapKeychainError(fmt.Errorf("store legacy token: %w", err))
 		}
 	}
@@ -365,10 +364,7 @@ func (s *KeyringStore) GetToken(client string, email string) (Token, error) {
 		if normalizedClient == config.DefaultClientName {
 			if legacyItem, legacyErr := s.ring.Get(legacyTokenKey(email)); legacyErr == nil {
 				item = legacyItem
-				if migrateErr := s.ring.Set(keyring.Item{
-					Key:  tokenKey(normalizedClient, email),
-					Data: legacyItem.Data,
-				}); migrateErr != nil {
+				if migrateErr := s.ring.Set(keyringItem(tokenKey(normalizedClient, email), legacyItem.Data)); migrateErr != nil {
 					return Token{}, wrapKeychainError(fmt.Errorf("migrate token: %w", migrateErr))
 				}
 			} else {
@@ -549,18 +545,12 @@ func (s *KeyringStore) SetDefaultAccount(client string, email string) error {
 	}
 
 	if normalizedClient != "" {
-		if err := s.ring.Set(keyring.Item{
-			Key:  defaultAccountKeyForClient(normalizedClient),
-			Data: []byte(email),
-		}); err != nil {
+		if err := s.ring.Set(keyringItem(defaultAccountKeyForClient(normalizedClient), []byte(email))); err != nil {
 			return fmt.Errorf("store default account: %w", err)
 		}
 	}
 
-	if err := s.ring.Set(keyring.Item{
-		Key:  defaultAccountKey,
-		Data: []byte(email),
-	}); err != nil {
+	if err := s.ring.Set(keyringItem(defaultAccountKey, []byte(email))); err != nil {
 		return fmt.Errorf("store default account: %w", err)
 	}
 

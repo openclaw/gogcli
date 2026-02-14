@@ -2,9 +2,12 @@ package googleapi
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
+	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/99designs/keyring"
@@ -255,5 +258,40 @@ func TestOptionsForAccountScopes_ServiceAccountPreferred(t *testing.T) {
 
 	if len(opts) == 0 {
 		t.Fatalf("expected client options")
+	}
+}
+
+func TestNewBaseTransport_RespectsProxyAndTLSMinimum(t *testing.T) {
+	t.Setenv("HTTPS_PROXY", "http://127.0.0.1:8888")
+
+	transport := newBaseTransport()
+	if transport == nil {
+		t.Fatalf("expected transport")
+	}
+
+	if transport.Proxy == nil {
+		t.Fatalf("expected proxy func")
+	}
+
+	if transport.TLSClientConfig == nil {
+		t.Fatalf("expected TLS config")
+	}
+
+	if transport.TLSClientConfig.MinVersion < tls.VersionTLS12 {
+		t.Fatalf("expected TLS min version >= 1.2, got %d", transport.TLSClientConfig.MinVersion)
+	}
+
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "https://www.googleapis.com", nil)
+	if err != nil {
+		t.Fatalf("new request: %v", err)
+	}
+
+	proxyURL, err := transport.Proxy(req)
+	if err != nil {
+		t.Fatalf("proxy lookup: %v", err)
+	}
+
+	if proxyURL == nil || !strings.Contains(proxyURL.String(), "127.0.0.1:8888") {
+		t.Fatalf("expected HTTPS proxy to be honored, got: %v", proxyURL)
 	}
 }

@@ -3,9 +3,44 @@
 ## Unreleased
 
 ### Added
+- Forms: add `forms` command group (create/get forms, list/get responses).
+- Apps Script: add `appscript` command group (create/get projects, fetch content, run deployed functions).
+- Contacts: update contacts from JSON via `contacts update --from-file` (PR #200 — thanks @jrossi).
+- Drive: add `drive ls|search --no-all-drives` to restrict queries to "My Drive" for faster/narrower results. (#258)
+- Gmail: add `gmail send --quote` to include quoted original message in replies. (#169) — thanks @terry-li-hm.
 
-- Gmail: add `--exclude-labels` to `watch serve` (defaults: `SPAM,TRASH`). (#194) — thanks @salmonumbrella.
+### Fixed
+- Auth: manual OAuth flow uses an ephemeral loopback redirect port (avoids unsafe/privileged ports in browsers). (#172) — thanks @spookyuser.
+- Gmail: when `gmail attachment --out` points to a directory (or ends with a trailing slash), combine with `--name` and avoid false cache hits on directories. (#248) — thanks @zerone0x.
+- Calendar: fall back to fixed-offset timezones (`Etc/GMT±N`) for recurring events when given RFC3339 offset datetimes; harden Gmail attachment output paths and cache validation; honor proxy defaults for Google API transports. (#228) — thanks @salmonumbrella.
+- Calendar: allow opting into attendee notifications for updates and cancellations via `calendar update|delete --send-updates all|externalOnly|none`. (#163) — thanks @tonimelisma.
+- Gmail: include primary display name in `gmail send` From header when using service account impersonation (domain-wide delegation). (#184) — thanks @salmonumbrella.
+- Drive: include shared drives in `drive ls` and `drive search`; reject `drive download --format` for non-Google Workspace files. (#256) — thanks @salmonumbrella.
+- Drive: validate `drive download --format` values and error early for unknown formats. (#259)
+
+## 0.10.0 - 2026-02-14
+
+### Added
+- Docs/Slides: add `docs update` markdown formatting + table insertion, plus markdown-driven slides creation and template-based slide creation. (#219) — thanks @maxceem.
+- Slides: add add-slide/list-slides/delete-slide/read-slide/update-notes/replace-slide for image decks, including --before insertion and --notes '' clear behavior. (#214) — thanks @chrismdp.
+- Docs: add tab support (`docs list-tabs`, `docs cat --tab`, `docs cat --all-tabs`) and editing commands (`docs write|insert|delete|find-replace`). (#225) — thanks @alexknowshtml.
+- Docs: add `docs create --file` to import Markdown into Google Docs with inline image support and hardened temp-file cleanup. (#244) — thanks @maxceem.
+- Drive: add `drive upload --replace` to update files in-place (preserves `fileId`/shared link). (#232) — thanks @salmonumbrella.
+- Drive: add upload conversion flags `--convert` (auto) and `--convert-to` (`doc|sheet|slides`). (#240) — thanks @Danielkweber.
 - Drive: share files with an entire Workspace domain via `drive share --to domain`. (#192) — thanks @Danielkweber.
+- Gmail: add `--exclude-labels` to `watch serve` (defaults: `SPAM,TRASH`). (#194) — thanks @salmonumbrella.
+- Gmail: add `gmail labels delete <labelIdOrName>` with confirm + system-label guardrails and case-sensitive ID handling. (#231) — thanks @Helmi.
+- Contacts: support `contacts update --birthday` and `--notes`; unify shared date parsing and docs. (#233) — thanks @rosssivertsen.
+
+### Fixed
+- Live tests: make `scripts/live-test.sh` and `scripts/live-chat-test.sh` CWD-safe (repo-root aware builds and sourcing).
+- Calendar: interpret date-only and relative day `--to` values as inclusive end-of-day while keeping `--to now` as a point-in-time bound. (#204) — thanks @mjaskolski.
+- Auth: improve remote/server-friendly manual OAuth flow (`auth add --remote`). (#187) — thanks @salmonumbrella.
+- Gmail: avoid false quoted-printable detection for already-decoded URLs with uppercase hex-like tokens while still decoding unambiguous markers (`=3D`, chained escapes, soft breaks). (#186) — thanks @100menotu001.
+- Sheets: preserve TSV tab delimiters for `sheets get --plain` output. (#212) — thanks @salmonumbrella.
+- CLI: land PR #201 with conflict-resolution fixes for `--fields` rewrite, calendar `--all` paging, schema command-path parsing, and case-sensitive Gmail watch exclude-label IDs. (#201) — thanks @salmonumbrella.
+- Secrets: set keyring item labels to `gogcli` so macOS security prompts show a clear item name. (#106) — thanks @maxceem.
+
 ## 0.9.0 - 2026-01-22
 
 ### Highlights

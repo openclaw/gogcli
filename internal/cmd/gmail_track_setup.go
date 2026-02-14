@@ -28,6 +28,14 @@ type GmailTrackSetupCmd struct {
 
 func (c *GmailTrackSetupCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
+
+	// Avoid hitting the keyring for implicit account selection in dry-run mode.
+	if flags != nil && flags.DryRun &&
+		strings.TrimSpace(flags.Account) == "" &&
+		strings.TrimSpace(os.Getenv("GOG_ACCOUNT")) == "" {
+		return usage("missing --account (dry-run requires an explicit account and does not auto-select)")
+	}
+
 	account, cfg, err := loadTrackingConfigForAccount(flags)
 	if err != nil {
 		return err
@@ -58,7 +66,7 @@ func (c *GmailTrackSetupCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if c.WorkerURL == "" {
 		c.WorkerURL = strings.TrimSpace(cfg.WorkerURL)
 	}
-	if c.WorkerURL == "" && !flags.NoInput {
+	if c.WorkerURL == "" && !flags.NoInput && !(flags != nil && flags.DryRun) {
 		line, readErr := input.PromptLine(ctx, "Tracking worker base URL (e.g. https://...workers.dev): ")
 		if readErr != nil {
 			if errors.Is(readErr, io.EOF) || errors.Is(readErr, os.ErrClosed) {
@@ -97,6 +105,24 @@ func (c *GmailTrackSetupCmd) Run(ctx context.Context, flags *RootFlags) error {
 		}
 	}
 
+	if c.WorkerDir == "" {
+		c.WorkerDir = filepath.Join("internal", "tracking", "worker")
+	}
+
+	// Avoid touching keyring and avoid provisioning/deploying in dry-run mode.
+	if err := dryRunExit(ctx, flags, "gmail.track.setup", map[string]any{
+		"account":          account,
+		"worker_url":       c.WorkerURL,
+		"worker_name":      workerName,
+		"database_name":    c.DatabaseName,
+		"deploy":           c.Deploy,
+		"worker_dir":       c.WorkerDir,
+		"tracking_key_set": strings.TrimSpace(key) != "",
+		"admin_key_set":    strings.TrimSpace(adminKey) != "",
+	}); err != nil {
+		return err
+	}
+
 	if err := tracking.SaveSecrets(account, key, adminKey); err != nil {
 		return fmt.Errorf("save tracking secrets: %w", err)
 	}
@@ -108,10 +134,6 @@ func (c *GmailTrackSetupCmd) Run(ctx context.Context, flags *RootFlags) error {
 	cfg.SecretsInKeyring = true
 	cfg.TrackingKey = ""
 	cfg.AdminKey = ""
-
-	if c.WorkerDir == "" {
-		c.WorkerDir = filepath.Join("internal", "tracking", "worker")
-	}
 
 	if c.Deploy {
 		dbID, deployErr := tracking.DeployWorker(ctx, u.Err(), tracking.DeployOptions{
