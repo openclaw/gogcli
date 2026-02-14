@@ -30,6 +30,30 @@ func TestBuildDriveSearchQuery(t *testing.T) {
 	if got != "fullText contains 'hello world' and trashed = false" {
 		t.Fatalf("unexpected: %q", got)
 	}
+
+	t.Run("passes through filter query", func(t *testing.T) {
+		got := buildDriveSearchQuery("mimeType = 'application/vnd.google-apps.document'")
+		want := "mimeType = 'application/vnd.google-apps.document' and trashed = false"
+		if got != want {
+			t.Fatalf("unexpected: %q", got)
+		}
+	})
+
+	t.Run("plain text containing trashed still appends trashed=false", func(t *testing.T) {
+		got := buildDriveSearchQuery("trashed")
+		want := "fullText contains 'trashed' and trashed = false"
+		if got != want {
+			t.Fatalf("unexpected: %q", got)
+		}
+	})
+
+	t.Run("does not add trashed when already present", func(t *testing.T) {
+		got := buildDriveSearchQuery("mimeType != 'application/vnd.google-apps.folder' and TrAsHeD = true")
+		want := "mimeType != 'application/vnd.google-apps.folder' and TrAsHeD = true"
+		if got != want {
+			t.Fatalf("unexpected: %q", got)
+		}
+	})
 }
 
 func TestEscapeDriveQueryString(t *testing.T) {
@@ -48,5 +72,66 @@ func TestFormatDriveSize(t *testing.T) {
 	}
 	if got := formatDriveSize(1024); got != "1.0 KB" {
 		t.Fatalf("unexpected: %q", got)
+	}
+}
+
+func TestLooksLikeDriveFilterQuery(t *testing.T) {
+	tests := []struct {
+		name  string
+		query string
+		want  bool
+	}{
+		// --- Should return true (filter queries) ---
+
+		// Field comparisons
+		{name: "mimeType equals", query: "mimeType = 'application/vnd.google-apps.document'", want: true},
+		{name: "name not equals", query: "name != 'untitled'", want: true},
+		{name: "modifiedTime greater than", query: "modifiedTime > '2024-01-01'", want: true},
+		{name: "trashed equals", query: "trashed = true", want: true},
+		{name: "starred equals", query: "starred = false", want: true},
+		{name: "createdTime less than", query: "createdTime < '2023-06-01'", want: true},
+		{name: "viewedByMeTime gte", query: "viewedByMeTime >= '2024-01-01'", want: true},
+		{name: "visibility equals", query: "visibility = 'anyoneWithLink'", want: true},
+
+		// Contains
+		{name: "name contains", query: "name contains 'report'", want: true},
+		{name: "fullText contains", query: "fullText contains 'budget'", want: true},
+
+		// Membership (in)
+		{name: "in parents", query: "'folder123' in parents", want: true},
+		{name: "in owners", query: "'user@example.com' in owners", want: true},
+		{name: "in writers", query: "'user@example.com' in writers", want: true},
+		{name: "in readers", query: "'reader@example.com' in readers", want: true},
+
+		// Has property
+		{name: "properties has", query: "properties has { key='department' and value='finance' }", want: true},
+		{name: "appProperties has", query: "appProperties has { key='project' and value='alpha' }", want: true},
+
+		// sharedWithMe (case-insensitive)
+		{name: "sharedWithMe exact", query: "sharedWithMe", want: true},
+		{name: "sharedWithMe uppercase", query: "SHAREDWITHME", want: true},
+		{name: "sharedWithMe mixed case", query: "SharedWithMe", want: true},
+
+		// Compound queries
+		{name: "compound mimeType and name contains", query: "mimeType = 'application/pdf' and name contains 'report'", want: true},
+		{name: "compound trashed and starred", query: "trashed = false and starred = true", want: true},
+
+		// --- Should return false (natural language / plain text) ---
+		{name: "plain text meeting notes", query: "meeting notes", want: false},
+		{name: "plain text find my documents", query: "find my documents", want: false},
+		{name: "plain text trashed files", query: "trashed files", want: false},
+		{name: "plain text hello world", query: "hello world", want: false},
+		{name: "plain text important", query: "important", want: false},
+		{name: "empty string", query: "", want: false},
+		{name: "whitespace only", query: "   ", want: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := looksLikeDriveFilterQuery(tt.query)
+			if got != tt.want {
+				t.Errorf("looksLikeDriveFilterQuery(%q) = %v, want %v", tt.query, got, tt.want)
+			}
+		})
 	}
 }

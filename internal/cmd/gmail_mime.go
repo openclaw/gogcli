@@ -65,21 +65,21 @@ func buildRFC822(opts mailOptions, cfg *rfc822Config) ([]byte, error) {
 		}
 	}
 
-	writeHeader(&b, "From", opts.From)
+	writeHeader(&b, "From", formatAddressHeader(opts.From))
 	if len(opts.To) > 0 {
-		writeHeader(&b, "To", strings.Join(opts.To, ", "))
+		writeHeader(&b, "To", formatAddressHeaders(opts.To))
 	}
 	if len(opts.Cc) > 0 {
-		writeHeader(&b, "Cc", strings.Join(opts.Cc, ", "))
+		writeHeader(&b, "Cc", formatAddressHeaders(opts.Cc))
 	}
 	if len(opts.Bcc) > 0 {
-		writeHeader(&b, "Bcc", strings.Join(opts.Bcc, ", "))
+		writeHeader(&b, "Bcc", formatAddressHeaders(opts.Bcc))
 	}
 	if strings.TrimSpace(opts.ReplyTo) != "" {
 		if err := validateHeaderValue(opts.ReplyTo); err != nil {
 			return nil, fmt.Errorf("invalid Reply-To: %w", err)
 		}
-		writeHeader(&b, "Reply-To", strings.TrimSpace(opts.ReplyTo))
+		writeHeader(&b, "Reply-To", formatAddressHeader(opts.ReplyTo))
 	}
 	if err := validateHeaderValue(opts.Subject); err != nil {
 		return nil, fmt.Errorf("invalid Subject: %w", err)
@@ -215,6 +215,33 @@ func writeHeader(b *bytes.Buffer, name, value string) {
 	b.WriteString(": ")
 	b.WriteString(value)
 	b.WriteString("\r\n")
+}
+
+func formatAddressHeader(value string) string {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return trimmed
+	}
+	addr, err := mail.ParseAddress(trimmed)
+	if err != nil {
+		return trimmed
+	}
+	if strings.TrimSpace(addr.Name) == "" {
+		return addr.Address
+	}
+	return addr.String()
+}
+
+func formatAddressHeaders(values []string) string {
+	formatted := make([]string, 0, len(values))
+	for _, value := range values {
+		trimmed := strings.TrimSpace(value)
+		if trimmed == "" {
+			continue
+		}
+		formatted = append(formatted, formatAddressHeader(trimmed))
+	}
+	return strings.Join(formatted, ", ")
 }
 
 func wrapBase64(b []byte) string {

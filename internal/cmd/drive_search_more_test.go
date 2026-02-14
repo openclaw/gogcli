@@ -162,3 +162,62 @@ func TestDriveSearchCmd_NoResultsAndEmptyQuery(t *testing.T) {
 		t.Fatalf("expected empty query error")
 	}
 }
+
+func TestDriveSearchCmd_PassesThroughDriveFilterQueries(t *testing.T) {
+	origNew := newDriveService
+	t.Cleanup(func() { newDriveService = origNew })
+
+	const query = "mimeType = 'application/vnd.google-apps.document'"
+	const wantQ = query + " and trashed = false"
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.NotFound(w, r)
+			return
+		}
+		if errMsg := driveAllDrivesQueryError(r); errMsg != "" {
+			http.Error(w, errMsg, http.StatusBadRequest)
+			return
+		}
+		if got := r.URL.Query().Get("q"); got != wantQ {
+			http.Error(w, "unexpected query: "+got, http.StatusBadRequest)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"files": []map[string]any{
+				{
+					"id":           "f1",
+					"name":         "Doc",
+					"mimeType":     "application/vnd.google-apps.document",
+					"modifiedTime": "2025-12-12T14:37:47Z",
+				},
+			},
+		})
+	}))
+	t.Cleanup(srv.Close)
+
+	svc, err := drive.NewService(context.Background(),
+		option.WithoutAuthentication(),
+		option.WithHTTPClient(srv.Client()),
+		option.WithEndpoint(srv.URL+"/"),
+	)
+	if err != nil {
+		t.Fatalf("NewService: %v", err)
+	}
+	newDriveService = func(context.Context, string) (*drive.Service, error) { return svc, nil }
+
+	flags := &RootFlags{Account: "a@b.com"}
+	var errBuf bytes.Buffer
+	u, uiErr := ui.New(ui.Options{Stdout: io.Discard, Stderr: &errBuf, Color: "never"})
+	if uiErr != nil {
+		t.Fatalf("ui.New: %v", uiErr)
+	}
+	ctx := ui.WithUI(context.Background(), u)
+	_ = captureStdout(t, func() {
+		cmd := &DriveSearchCmd{}
+		if execErr := runKong(t, cmd, []string{query}, ctx, flags); execErr != nil {
+			t.Fatalf("execute: %v", execErr)
+		}
+	})
+}
