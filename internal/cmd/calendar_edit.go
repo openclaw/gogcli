@@ -27,7 +27,7 @@ type CalendarCreateCmd struct {
 	ColorId               string   `name:"event-color" help:"Event color ID (1-11). Use 'gog calendar colors' to see available colors."`
 	Visibility            string   `name:"visibility" help:"Event visibility: default, public, private, confidential"`
 	Transparency          string   `name:"transparency" help:"Show as busy (opaque) or free (transparent). Aliases: busy, free"`
-	SendUpdates           string   `name:"send-updates" help:"Notification mode: all, externalOnly, none (default: all)"`
+	SendUpdates           string   `name:"send-updates" help:"Notification mode: all, externalOnly, none (default: none)"`
 	GuestsCanInviteOthers *bool    `name:"guests-can-invite" help:"Allow guests to invite others"`
 	GuestsCanModify       *bool    `name:"guests-can-modify" help:"Allow guests to modify event"`
 	GuestsCanSeeOthers    *bool    `name:"guests-can-see-others" help:"Allow guests to see other guests"`
@@ -344,6 +344,7 @@ type CalendarUpdateCmd struct {
 	WorkingFloorId        string   `name:"working-floor-id" help:"Working location floor ID"`
 	WorkingDeskId         string   `name:"working-desk-id" help:"Working location desk ID"`
 	WorkingCustomLabel    string   `name:"working-custom-label" help:"Working location custom label"`
+	SendUpdates           string   `name:"send-updates" help:"Notification mode: all, externalOnly, none (default: none)"`
 }
 
 func (c *CalendarUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *RootFlags) error {
@@ -387,6 +388,11 @@ func (c *CalendarUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *
 		return usage("cannot use both --attendees and --add-attendee; use --attendees to replace all, or --add-attendee to add")
 	}
 
+	sendUpdates, err := validateSendUpdates(c.SendUpdates)
+	if err != nil {
+		return err
+	}
+
 	patch, changed, err := c.buildUpdatePatch(kctx)
 	if err != nil {
 		return err
@@ -404,6 +410,7 @@ func (c *CalendarUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *
 	if dryRunErr := dryRunExit(ctx, flags, "calendar.update", map[string]any{
 		"calendar_id":          calendarID,
 		"event_id":             eventID,
+		"send_updates":         sendUpdates,
 		"scope":                scope,
 		"original_start_time":  strings.TrimSpace(c.OriginalStartTime),
 		"add_attendee":         strings.TrimSpace(c.AddAttendee),
@@ -447,12 +454,16 @@ func (c *CalendarUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *
 		return err
 	}
 
-	updated, err := svc.Events.Patch(calendarID, targetEventID, patch).Do()
+	call := svc.Events.Patch(calendarID, targetEventID, patch).Context(ctx)
+	if sendUpdates != "" {
+		call = call.SendUpdates(sendUpdates)
+	}
+	updated, err := call.Do()
 	if err != nil {
 		return err
 	}
 	if scope == scopeFuture {
-		if err := truncateParentRecurrence(ctx, svc, calendarID, eventID, parentRecurrence, c.OriginalStartTime); err != nil {
+		if err := truncateParentRecurrence(ctx, svc, calendarID, eventID, parentRecurrence, c.OriginalStartTime, sendUpdates); err != nil {
 			return err
 		}
 	}
@@ -824,12 +835,16 @@ func applyUpdateScope(ctx context.Context, svc *calendar.Service, calendarID, ev
 	return targetEventID, parentRecurrence, nil
 }
 
-func truncateParentRecurrence(ctx context.Context, svc *calendar.Service, calendarID, eventID string, parentRecurrence []string, originalStartTime string) error {
+func truncateParentRecurrence(ctx context.Context, svc *calendar.Service, calendarID, eventID string, parentRecurrence []string, originalStartTime, sendUpdates string) error {
 	truncated, err := truncateRecurrence(parentRecurrence, originalStartTime)
 	if err != nil {
 		return err
 	}
-	_, err = svc.Events.Patch(calendarID, eventID, &calendar.Event{Recurrence: truncated}).Context(ctx).Do()
+	call := svc.Events.Patch(calendarID, eventID, &calendar.Event{Recurrence: truncated}).Context(ctx)
+	if sendUpdates != "" {
+		call = call.SendUpdates(sendUpdates)
+	}
+	_, err = call.Do()
 	return err
 }
 
@@ -838,6 +853,7 @@ type CalendarDeleteCmd struct {
 	EventID           string `arg:"" name:"eventId" help:"Event ID"`
 	Scope             string `name:"scope" help:"For recurring events: single, future, all" default:"all"`
 	OriginalStartTime string `name:"original-start" help:"Original start time of instance (required for scope=single,future)"`
+	SendUpdates       string `name:"send-updates" help:"Notification mode: all, externalOnly, none (default: none)"`
 }
 
 func (c *CalendarDeleteCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -867,6 +883,11 @@ func (c *CalendarDeleteCmd) Run(ctx context.Context, flags *RootFlags) error {
 	case scopeAll:
 	default:
 		return fmt.Errorf("invalid scope: %q (must be single, future, or all)", scope)
+	}
+
+	sendUpdates, err := validateSendUpdates(c.SendUpdates)
+	if err != nil {
+		return err
 	}
 
 	confirmMessage := fmt.Sprintf("delete event %s from calendar %s", eventID, calendarID)
@@ -914,7 +935,11 @@ func (c *CalendarDeleteCmd) Run(ctx context.Context, flags *RootFlags) error {
 		targetEventID = instanceID
 	}
 
-	if err := svc.Events.Delete(calendarID, targetEventID).Do(); err != nil {
+	deleteCall := svc.Events.Delete(calendarID, targetEventID).Context(ctx)
+	if sendUpdates != "" {
+		deleteCall = deleteCall.SendUpdates(sendUpdates)
+	}
+	if err := deleteCall.Do(); err != nil {
 		return err
 	}
 	if scope == scopeFuture {
@@ -922,7 +947,11 @@ func (c *CalendarDeleteCmd) Run(ctx context.Context, flags *RootFlags) error {
 		if truncateErr != nil {
 			return truncateErr
 		}
-		_, patchErr := svc.Events.Patch(calendarID, eventID, &calendar.Event{Recurrence: truncated}).Context(ctx).Do()
+		patchCall := svc.Events.Patch(calendarID, eventID, &calendar.Event{Recurrence: truncated}).Context(ctx)
+		if sendUpdates != "" {
+			patchCall = patchCall.SendUpdates(sendUpdates)
+		}
+		_, patchErr := patchCall.Do()
 		if patchErr != nil {
 			return patchErr
 		}

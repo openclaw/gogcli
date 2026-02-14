@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"google.golang.org/api/calendar/v3"
+
 	"github.com/steipete/gogcli/internal/authclient"
 	"github.com/steipete/gogcli/internal/config"
 	"github.com/steipete/gogcli/internal/googleapi"
@@ -156,4 +158,46 @@ func TestClassroomSmoke(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Courses list: %v", err)
 	}
+}
+
+func TestCalendarSendUpdates(t *testing.T) {
+	account := integrationAccount(t)
+	attendee := strings.TrimSpace(os.Getenv("GOG_IT_ATTENDEE"))
+	if attendee == "" {
+		t.Skip("set GOG_IT_ATTENDEE to test --send-updates with attendees")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	svc, err := googleapi.NewCalendar(ctx, account)
+	if err != nil {
+		t.Fatalf("NewCalendar: %v", err)
+	}
+
+	// Create event with attendee
+	start := time.Now().Add(time.Hour).Truncate(time.Minute)
+	event := &calendar.Event{
+		Summary:   "gogcli-send-updates-test",
+		Start:     &calendar.EventDateTime{DateTime: start.Format(time.RFC3339)},
+		End:       &calendar.EventDateTime{DateTime: start.Add(time.Hour).Format(time.RFC3339)},
+		Attendees: []*calendar.EventAttendee{{Email: attendee}},
+	}
+
+	created, err := svc.Events.Insert("primary", event).SendUpdates("all").Do()
+	if err != nil {
+		t.Fatalf("Insert: %v", err)
+	}
+	defer svc.Events.Delete("primary", created.Id).SendUpdates("all").Do()
+
+	// Update with SendUpdates
+	_, err = svc.Events.Patch("primary", created.Id, &calendar.Event{
+		Summary: "gogcli-send-updates-test-UPDATED",
+	}).SendUpdates("all").Do()
+	if err != nil {
+		t.Fatalf("Patch with SendUpdates: %v", err)
+	}
+
+	// Delete happens in defer with SendUpdates
+	t.Logf("Created and updated event %s with attendee %s - check attendee email for notifications", created.Id, attendee)
 }

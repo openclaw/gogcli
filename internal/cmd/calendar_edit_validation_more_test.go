@@ -204,6 +204,13 @@ func TestCalendarUpdateCmd_ValidationErrors(t *testing.T) {
 			t.Fatalf("expected error for working-location with time range")
 		}
 	}
+	{
+		cmd := &CalendarUpdateCmd{CalendarID: "cal", EventID: "evt", Summary: "S", SendUpdates: "invalid"}
+		kctx := parseKongContext(t, cmd, []string{"cal", "evt", "--summary", "S", "--send-updates", "invalid"})
+		if err := cmd.Run(ctx, kctx, flags); err == nil {
+			t.Fatalf("expected error for invalid send-updates")
+		}
+	}
 }
 
 func TestCalendarDeleteCmd_ValidationErrors(t *testing.T) {
@@ -223,6 +230,7 @@ func TestCalendarDeleteCmd_ValidationErrors(t *testing.T) {
 		{"invalid scope", CalendarDeleteCmd{CalendarID: "cal", EventID: "evt", Scope: "nope"}},
 		{"scope single missing original", CalendarDeleteCmd{CalendarID: "cal", EventID: "evt", Scope: scopeSingle}},
 		{"scope future missing original", CalendarDeleteCmd{CalendarID: "cal", EventID: "evt", Scope: scopeFuture}},
+		{"invalid send-updates", CalendarDeleteCmd{CalendarID: "cal", EventID: "evt", SendUpdates: "invalid"}},
 	}
 
 	for _, tc := range cases {

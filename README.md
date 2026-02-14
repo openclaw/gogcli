@@ -594,6 +594,7 @@ gog gmail labels list
 gog gmail labels get INBOX --json  # Includes message counts
 gog gmail labels create "My Label"
 gog gmail labels modify <threadId> --add STARRED --remove INBOX
+gog gmail labels delete <labelIdOrName>  # Deletes user label (guards system labels; confirm)
 
 # Batch operations
 gog gmail batch delete <messageId> <messageId>
@@ -737,6 +738,10 @@ gog calendar create <calendarId> \
 gog calendar update <calendarId> <eventId> \
   --send-updates externalOnly
 
+# Default: no attendee notifications unless you pass --send-updates.
+gog calendar delete <calendarId> <eventId> \
+  --send-updates all --force
+
 # Recurrence + reminders
 gog calendar create <calendarId> \
   --summary "Payment" \
@@ -833,11 +838,12 @@ gog drive rename <fileId> "New Name"
 gog drive move <fileId> --parent <destinationFolderId>
 gog drive delete <fileId>             # Move to trash
 
-	# Permissions
-	gog drive permissions <fileId>
-	gog drive share <fileId> --to user --email user@example.com --role reader
-	gog drive share <fileId> --to user --email user@example.com --role writer
-	gog drive unshare <fileId> --permission-id <permissionId>
+# Permissions
+gog drive permissions <fileId>
+gog drive share <fileId> --to user --email user@example.com --role reader
+gog drive share <fileId> --to user --email user@example.com --role writer
+gog drive share <fileId> --to domain --domain example.com --role reader
+gog drive unshare <fileId> --permission-id <permissionId>
 
 # Shared drives (Team Drives)
 gog drive drives --max 100
@@ -850,14 +856,26 @@ gog drive drives --max 100
 gog docs info <docId>
 gog docs cat <docId> --max-bytes 10000
 gog docs create "My Doc"
+gog docs create "My Doc" --file ./doc.md            # Import markdown
 gog docs copy <docId> "My Doc Copy"
 gog docs export <docId> --format pdf --out ./doc.pdf
+gog docs list-tabs <docId>
+gog docs cat <docId> --tab "Notes"
+gog docs cat <docId> --all-tabs
+gog docs update <docId> --format markdown --content-file ./doc.md
+gog docs write <docId> --replace --markdown --file ./doc.md
+gog docs find-replace <docId> "old" "new"
 
 # Slides
 gog slides info <presentationId>
 gog slides create "My Deck"
+gog slides create-from-markdown "My Deck" --content-file ./slides.md
 gog slides copy <presentationId> "My Deck Copy"
 gog slides export <presentationId> --format pdf --out ./deck.pdf
+gog slides list-slides <presentationId>
+gog slides add-slide <presentationId> ./slide.png --notes "Speaker notes"
+gog slides update-notes <presentationId> <slideId> --notes "Updated notes"
+gog slides replace-slide <presentationId> <slideId> ./new-slide.png --notes "New notes"
 
 # Sheets
 gog sheets copy <spreadsheetId> "My Sheet Copy"
