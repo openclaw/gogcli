@@ -15,8 +15,10 @@ import (
 )
 
 const (
-	contactsReadMask    = "names,emailAddresses,phoneNumbers"
-	contactsGetReadMask = contactsReadMask + ",birthdays"
+	contactsReadMask = "names,emailAddresses,phoneNumbers"
+	// contactsGetReadMask is tuned for round-tripping `gog contacts get --json`
+	// into `gog contacts update --from-file`.
+	contactsGetReadMask = contactsReadMask + ",birthdays,urls,biographies,addresses,organizations,metadata"
 )
 
 type ContactsListCmd struct {
@@ -218,6 +220,8 @@ type ContactsUpdateCmd struct {
 	Family       string `name:"family" help:"Family name"`
 	Email        string `name:"email" help:"Email address (empty clears)"`
 	Phone        string `name:"phone" help:"Phone number (empty clears)"`
+	FromFile     string `name:"from-file" help:"Update from contact JSON file (use - for stdin)"`
+	IgnoreETag   bool   `name:"ignore-etag" help:"Allow updating even if the JSON etag is stale (may overwrite concurrent changes)"`
 
 	// Extra People API fields (not previously exposed by gog)
 	Birthday string `name:"birthday" help:"Birthday in YYYY-MM-DD (empty clears)"`
@@ -240,7 +244,14 @@ func (c *ContactsUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *
 		return err
 	}
 
-	existing, err := svc.People.Get(resourceName).PersonFields(contactsReadMask + ",birthdays,biographies").Do()
+	if strings.TrimSpace(c.FromFile) != "" {
+		if flagProvided(kctx, "given") || flagProvided(kctx, "family") || flagProvided(kctx, "email") || flagProvided(kctx, "phone") || flagProvided(kctx, "birthday") || flagProvided(kctx, "notes") {
+			return usage("can't combine --from-file with other update flags")
+		}
+		return c.updateFromJSON(ctx, svc, resourceName, u)
+	}
+
+	existing, err := svc.People.Get(resourceName).PersonFields(contactsReadMask + ",birthdays,biographies,metadata").Do()
 	if err != nil {
 		return err
 	}
@@ -266,7 +277,7 @@ func (c *ContactsUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *
 	}
 	if flagProvided(kctx, "email") {
 		if strings.TrimSpace(c.Email) == "" {
-			existing.EmailAddresses = nil
+			existing.EmailAddresses = nil // will be forced to [] for patch
 		} else {
 			existing.EmailAddresses = []*people.EmailAddress{{Value: strings.TrimSpace(c.Email)}}
 		}
@@ -274,7 +285,7 @@ func (c *ContactsUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *
 	}
 	if flagProvided(kctx, "phone") {
 		if strings.TrimSpace(c.Phone) == "" {
-			existing.PhoneNumbers = nil
+			existing.PhoneNumbers = nil // will be forced to [] for patch
 		} else {
 			existing.PhoneNumbers = []*people.PhoneNumber{{Value: strings.TrimSpace(c.Phone)}}
 		}
@@ -283,7 +294,7 @@ func (c *ContactsUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *
 
 	if flagProvided(kctx, "birthday") {
 		if strings.TrimSpace(c.Birthday) == "" {
-			existing.Birthdays = nil
+			existing.Birthdays = nil // will be forced to [] for patch
 		} else {
 			d, parseErr := parseYYYYMMDD(strings.TrimSpace(c.Birthday))
 			if parseErr != nil {
@@ -299,7 +310,7 @@ func (c *ContactsUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *
 
 	if flagProvided(kctx, "notes") {
 		if strings.TrimSpace(c.Notes) == "" {
-			existing.Biographies = nil
+			existing.Biographies = nil // will be forced to [] for patch
 		} else {
 			existing.Biographies = []*people.Biography{{
 				Value:       c.Notes,
@@ -312,6 +323,11 @@ func (c *ContactsUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *
 
 	if len(updateFields) == 0 {
 		return usage("no updates provided")
+	}
+
+	for _, f := range updateFields {
+		// Clearing list fields requires forcing them into the patch payload (Google API client omits empty values by default).
+		forceSendEmptySliceField(existing, jsonFieldToGoField(f))
 	}
 
 	updated, err := svc.People.UpdateContact(resourceName, existing).

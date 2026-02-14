@@ -873,6 +873,11 @@ gog contacts update people/<resourceName> \
   --birthday "1990-05-12" \
   --notes "Met at WWDC"
 
+# Update via JSON (see docs/contacts-json-update.md)
+gog contacts get people/<resourceName> --json | \
+  jq '(.contact.urls //= []) | (.contact.urls += [{"value":"obsidian://open?vault=notes&file=People/John%20Doe","type":"profile"}])' | \
+  gog contacts update people/<resourceName> --from-file -
+
 gog contacts delete people/<resourceName>
 
 # Workspace directory (requires Google Workspace)
