@@ -184,8 +184,8 @@ func TestContactsUpdate_FromFile_CantCombineWithFlags(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateTemp: %v", err)
 	}
-	if _, err := tmp.WriteString(`{"resourceName":"people/c1","urls":[]}`); err != nil {
-		t.Fatalf("write temp: %v", err)
+	if _, writeErr := tmp.WriteString(`{"resourceName":"people/c1","urls":[]}`); writeErr != nil {
+		t.Fatalf("write temp: %v", writeErr)
 	}
 	_ = tmp.Close()
 

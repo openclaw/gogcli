@@ -45,6 +45,13 @@ var contactsUpdateMaskFields = map[string]struct{}{
 	"userDefined":    {},
 }
 
+const (
+	contactsJSONKeyContact  = "contact"
+	contactsJSONKeyETag     = "etag"
+	contactsJSONKeyMetadata = "metadata"
+	contactsJSONKeyResource = "resourceName"
+)
+
 func jsonFieldToGoField(jsonField string) string {
 	jsonField = strings.TrimSpace(jsonField)
 	if jsonField == "" {
@@ -125,6 +132,7 @@ func openFileOrStdin(path string) (io.Reader, func(), error) {
 	if path == "-" {
 		return os.Stdin, nil, nil
 	}
+	// #nosec G304 -- user-controlled CLI input; reading arbitrary files is expected here.
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, nil, fmt.Errorf("open %s: %w", path, err)
@@ -143,7 +151,7 @@ func parseContactsUpdateJSON(data []byte) (*people.Person, map[string]json.RawMe
 	if err := json.Unmarshal(data, &outer); err != nil {
 		return nil, nil, fmt.Errorf("parse JSON: %w", err)
 	}
-	if raw, ok := outer["contact"]; ok && len(raw) > 0 && raw[0] == '{' {
+	if raw, ok := outer[contactsJSONKeyContact]; ok && len(raw) > 0 && raw[0] == '{' {
 		data = raw
 	}
 
@@ -167,7 +175,7 @@ func contactsUpdateMaskFromKeys(keys map[string]json.RawMessage) ([]string, erro
 			continue
 		}
 		switch k {
-		case "resourceName", "etag", "metadata":
+		case contactsJSONKeyResource, contactsJSONKeyETag, contactsJSONKeyMetadata:
 			// Allowed (but not part of updatePersonFields).
 			continue
 		default:
