@@ -36,6 +36,11 @@ Practical rule: include only fields you want to change, at the top level of the 
 
 If the JSON contains unsupported fields (for `updateContact`), gog errors instead of silently ignoring them.
 
+Notes:
+
+- Some fields are “singleton” for contact sources. Don’t include more than one value for `biographies`, `birthdays`, `genders`, or `names`.
+- If you update `memberships`, the Person must include contact group memberships or the API will error.
+
 ## Clearing Fields
 
 Clearing list fields is supported by including the key with an empty value:
@@ -49,4 +54,3 @@ To avoid overwriting concurrent contact edits, gog compares the JSON etag with t
 
 - If they mismatch, update fails with an etag error.
 - Use `--ignore-etag` to apply your JSON changes to the latest version anyway.
-
