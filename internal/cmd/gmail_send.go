@@ -247,7 +247,7 @@ func primarySendAsDisplayName(ctx context.Context, svc *gmail.Service, account s
 }
 
 func primaryProfileDisplayName(ctx context.Context, account string) string {
-	account = strings.TrimSpace(account)
+	account = strings.TrimSpace(account) // intentional: also safe for standalone callers
 	if account == "" || newPeopleContactsService == nil {
 		return ""
 	}
