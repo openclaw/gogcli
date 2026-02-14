@@ -14,6 +14,7 @@
 - Calendar: fall back to fixed-offset timezones (`Etc/GMT±N`) for recurring events when given RFC3339 offset datetimes; harden Gmail attachment output paths and cache validation; honor proxy defaults for Google API transports. (#228) — thanks @salmonumbrella.
 - Gmail: include primary display name in `gmail send` From header when using service account impersonation (domain-wide delegation). (#184) — thanks @salmonumbrella.
 - Drive: include shared drives in `drive ls` and `drive search`; reject `drive download --format` for non-Google Workspace files. (#256) — thanks @salmonumbrella.
+- Drive: validate `drive download --format` values and error early for unknown formats. (#259)
 
 ## 0.10.0 - 2026-02-14
 
