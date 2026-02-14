@@ -69,10 +69,11 @@ type DriveCmd struct {
 }
 
 type DriveLsCmd struct {
-	Max    int64  `name:"max" aliases:"limit" help:"Max results" default:"20"`
-	Page   string `name:"page" aliases:"cursor" help:"Page token"`
-	Query  string `name:"query" help:"Drive query filter"`
-	Parent string `name:"parent" help:"Folder ID to list (default: root)"`
+	Max       int64  `name:"max" aliases:"limit" help:"Max results" default:"20"`
+	Page      string `name:"page" aliases:"cursor" help:"Page token"`
+	Query     string `name:"query" help:"Drive query filter"`
+	Parent    string `name:"parent" help:"Folder ID to list (default: root)"`
+	AllDrives bool   `name:"all-drives" help:"Search across all drives without parent folder constraint"`
 }
 
 func (c *DriveLsCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -82,26 +83,41 @@ func (c *DriveLsCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
-	folderID := strings.TrimSpace(c.Parent)
-	if folderID == "" {
-		folderID = "root"
-	}
-
 	svc, err := newDriveService(ctx, account)
 	if err != nil {
 		return err
 	}
 
-	q := buildDriveListQuery(folderID, c.Query)
+	var q string
+	if c.AllDrives {
+		q = strings.TrimSpace(c.Query)
+		if q == "" {
+			return usage("--all-drives requires --query")
+		}
+		if !strings.Contains(q, "trashed") {
+			q += " and trashed = false"
+		}
+	} else {
+		folderID := strings.TrimSpace(c.Parent)
+		if folderID == "" {
+			folderID = "root"
+		}
+		q = buildDriveListQuery(folderID, c.Query)
+	}
 
-	resp, err := svc.Files.List().
+	call := svc.Files.List().
 		Q(q).
 		PageSize(c.Max).
 		PageToken(c.Page).
 		OrderBy("modifiedTime desc").
 		SupportsAllDrives(true).
 		IncludeItemsFromAllDrives(true).
-		Fields("nextPageToken, files(id, name, mimeType, size, modifiedTime, parents, webViewLink)").
+		Fields("nextPageToken, files(id, name, mimeType, size, modifiedTime, parents, webViewLink)")
+	if c.AllDrives {
+		call = call.Corpora("allDrives")
+	}
+
+	resp, err := call.
 		Context(ctx).
 		Do()
 	if err != nil {
