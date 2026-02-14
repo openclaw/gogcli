@@ -73,8 +73,8 @@ func (c *GmailAttachmentCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 	if dest.EnsureDefaultDir {
 		// Ensure the config dir exists (so permissions are correct) before we write under it.
-		if _, err := config.EnsureGmailAttachmentsDir(); err != nil {
-			return err
+		if _, ensureErr := config.EnsureGmailAttachmentsDir(); ensureErr != nil {
+			return ensureErr
 		}
 	}
 
@@ -206,9 +206,12 @@ func cachedRegularFile(outPath string, expectedSize int64) (cached bool, size in
 	if expectedSize <= 0 {
 		return false, 0, nil
 	}
-	st, err := os.Stat(outPath)
-	if err != nil {
-		return false, 0, nil
+	st, statErr := os.Stat(outPath)
+	if statErr != nil {
+		if os.IsNotExist(statErr) {
+			return false, 0, nil
+		}
+		return false, 0, statErr
 	}
 	if st.IsDir() {
 		return false, 0, fmt.Errorf("outPath is a directory: %s", outPath)
