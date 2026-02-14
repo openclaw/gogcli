@@ -14,10 +14,10 @@ import (
 )
 
 type GmailDelegatesCmd struct {
-	List   GmailDelegatesListCmd   `cmd:"" name:"list" help:"List all delegates"`
-	Get    GmailDelegatesGetCmd    `cmd:"" name:"get" help:"Get a specific delegate's information"`
-	Add    GmailDelegatesAddCmd    `cmd:"" name:"add" help:"Add a delegate"`
-	Remove GmailDelegatesRemoveCmd `cmd:"" name:"remove" help:"Remove a delegate"`
+	List   GmailDelegatesListCmd   `cmd:"" name:"list" aliases:"ls" help:"List all delegates"`
+	Get    GmailDelegatesGetCmd    `cmd:"" name:"get" aliases:"info,show" help:"Get a specific delegate's information"`
+	Add    GmailDelegatesAddCmd    `cmd:"" name:"add" aliases:"create,new" help:"Add a delegate"`
+	Remove GmailDelegatesRemoveCmd `cmd:"" name:"remove" aliases:"delete,rm,del" help:"Remove a delegate"`
 }
 
 type GmailDelegatesListCmd struct{}
@@ -40,7 +40,7 @@ func (c *GmailDelegatesListCmd) Run(ctx context.Context, flags *RootFlags) error
 	}
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{"delegates": resp.Delegates})
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{"delegates": resp.Delegates})
 	}
 
 	if len(resp.Delegates) == 0 {
@@ -85,7 +85,7 @@ func (c *GmailDelegatesGetCmd) Run(ctx context.Context, flags *RootFlags) error 
 	}
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{"delegate": delegate})
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{"delegate": delegate})
 	}
 
 	u.Out().Printf("delegate_email\t%s", delegate.DelegateEmail)
@@ -99,6 +99,17 @@ type GmailDelegatesAddCmd struct {
 
 func (c *GmailDelegatesAddCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
+	delegateEmail := strings.TrimSpace(c.DelegateEmail)
+	if delegateEmail == "" {
+		return usage("empty delegateEmail")
+	}
+
+	if err := dryRunExit(ctx, flags, "gmail.delegates.add", map[string]any{
+		"delegate_email": delegateEmail,
+	}); err != nil {
+		return err
+	}
+
 	account, err := requireAccount(flags)
 	if err != nil {
 		return err
@@ -109,10 +120,6 @@ func (c *GmailDelegatesAddCmd) Run(ctx context.Context, flags *RootFlags) error 
 		return err
 	}
 
-	delegateEmail := strings.TrimSpace(c.DelegateEmail)
-	if delegateEmail == "" {
-		return usage("empty delegateEmail")
-	}
 	delegate := &gmail.Delegate{
 		DelegateEmail: delegateEmail,
 	}
@@ -123,7 +130,7 @@ func (c *GmailDelegatesAddCmd) Run(ctx context.Context, flags *RootFlags) error 
 	}
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{"delegate": created})
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{"delegate": created})
 	}
 
 	u.Out().Println("Delegate added successfully")
@@ -139,6 +146,15 @@ type GmailDelegatesRemoveCmd struct {
 
 func (c *GmailDelegatesRemoveCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
+	delegateEmail := strings.TrimSpace(c.DelegateEmail)
+	if delegateEmail == "" {
+		return usage("empty delegateEmail")
+	}
+
+	if confirmErr := confirmDestructive(ctx, flags, fmt.Sprintf("remove gmail delegate %s", delegateEmail)); confirmErr != nil {
+		return confirmErr
+	}
+
 	account, err := requireAccount(flags)
 	if err != nil {
 		return err
@@ -149,17 +165,13 @@ func (c *GmailDelegatesRemoveCmd) Run(ctx context.Context, flags *RootFlags) err
 		return err
 	}
 
-	delegateEmail := strings.TrimSpace(c.DelegateEmail)
-	if delegateEmail == "" {
-		return usage("empty delegateEmail")
-	}
 	err = svc.Users.Settings.Delegates.Delete("me", delegateEmail).Do()
 	if err != nil {
 		return err
 	}
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
 			"success":       true,
 			"delegateEmail": delegateEmail,
 		})

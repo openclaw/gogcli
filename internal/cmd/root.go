@@ -6,8 +6,11 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"strconv"
+	"strings"
 
 	"github.com/alecthomas/kong"
+	"golang.org/x/term"
 
 	"github.com/steipete/gogcli/internal/authclient"
 	"github.com/steipete/gogcli/internal/config"
@@ -21,18 +24,22 @@ import (
 const (
 	colorAuto  = "auto"
 	colorNever = "never"
+	strTrue    = "true"
 )
 
 type RootFlags struct {
 	Color          string `help:"Color output: auto|always|never" default:"${color}"`
-	Account        string `help:"Account email for API commands (gmail/calendar/chat/classroom/drive/docs/slides/contacts/tasks/people/sheets)"`
+	Account        string `help:"Account email for API commands (gmail/calendar/chat/classroom/drive/docs/slides/contacts/tasks/people/sheets/forms/appscript)" aliases:"acct" short:"a"`
 	Client         string `help:"OAuth client name (selects stored credentials + token bucket)" default:"${client}"`
 	EnableCommands string `help:"Comma-separated list of enabled top-level commands (restricts CLI)" default:"${enabled_commands}"`
-	JSON           bool   `help:"Output JSON to stdout (best for scripting)" default:"${json}"`
-	Plain          bool   `help:"Output stable, parseable text to stdout (TSV; no colors)" default:"${plain}"`
-	Force          bool   `help:"Skip confirmations for destructive commands"`
-	NoInput        bool   `help:"Never prompt; fail instead (useful for CI)"`
-	Verbose        bool   `help:"Enable verbose logging"`
+	JSON           bool   `help:"Output JSON to stdout (best for scripting)" default:"${json}" aliases:"machine" short:"j"`
+	Plain          bool   `help:"Output stable, parseable text to stdout (TSV; no colors)" default:"${plain}" aliases:"tsv" short:"p"`
+	ResultsOnly    bool   `name:"results-only" help:"In JSON mode, emit only the primary result (drops envelope fields like nextPageToken)"`
+	Select         string `name:"select" aliases:"pick,project" help:"In JSON mode, select comma-separated fields (best-effort; supports dot paths). Desire path: use --fields for most commands."`
+	DryRun         bool   `help:"Do not make changes; print intended actions and exit successfully" aliases:"noop,preview,dryrun" short:"n"`
+	Force          bool   `help:"Skip confirmations for destructive commands" aliases:"yes,assume-yes" short:"y"`
+	NoInput        bool   `help:"Never prompt; fail instead (useful for CI)" aliases:"non-interactive,noninteractive"`
+	Verbose        bool   `help:"Enable verbose logging" short:"v"`
 }
 
 type CLI struct {
@@ -40,22 +47,40 @@ type CLI struct {
 
 	Version kong.VersionFlag `help:"Print version and exit"`
 
+	// Action-first desire paths (agent-friendly shortcuts).
+	Send     GmailSendCmd     `cmd:"" name:"send" help:"Send an email (alias for 'gmail send')"`
+	Ls       DriveLsCmd       `cmd:"" name:"ls" aliases:"list" help:"List Drive files (alias for 'drive ls')"`
+	Search   DriveSearchCmd   `cmd:"" name:"search" aliases:"find" help:"Search Drive files (alias for 'drive search')"`
+	Open     OpenCmd          `cmd:"" name:"open" aliases:"browse" help:"Print a best-effort web URL for a Google URL/ID (offline)"`
+	Download DriveDownloadCmd `cmd:"" name:"download" aliases:"dl" help:"Download a Drive file (alias for 'drive download')"`
+	Upload   DriveUploadCmd   `cmd:"" name:"upload" aliases:"up,put" help:"Upload a file to Drive (alias for 'drive upload')"`
+	Login    AuthAddCmd       `cmd:"" name:"login" help:"Authorize and store a refresh token (alias for 'auth add')"`
+	Logout   AuthRemoveCmd    `cmd:"" name:"logout" help:"Remove a stored refresh token (alias for 'auth remove')"`
+	Status   AuthStatusCmd    `cmd:"" name:"status" aliases:"st" help:"Show auth/config status (alias for 'auth status')"`
+	Me       PeopleMeCmd      `cmd:"" name:"me" help:"Show your profile (alias for 'people me')"`
+	Whoami   PeopleMeCmd      `cmd:"" name:"whoami" aliases:"who-am-i" help:"Show your profile (alias for 'people me')"`
+
 	Auth       AuthCmd               `cmd:"" help:"Auth and credentials"`
-	Groups     GroupsCmd             `cmd:"" help:"Google Groups"`
-	Drive      DriveCmd              `cmd:"" help:"Google Drive"`
-	Docs       DocsCmd               `cmd:"" help:"Google Docs (export via Drive)"`
-	Slides     SlidesCmd             `cmd:"" help:"Google Slides"`
-	Calendar   CalendarCmd           `cmd:"" help:"Google Calendar"`
-	Classroom  ClassroomCmd          `cmd:"" help:"Google Classroom"`
+	Groups     GroupsCmd             `cmd:"" aliases:"group" help:"Google Groups"`
+	Drive      DriveCmd              `cmd:"" aliases:"drv" help:"Google Drive"`
+	Docs       DocsCmd               `cmd:"" aliases:"doc" help:"Google Docs (export via Drive)"`
+	Slides     SlidesCmd             `cmd:"" aliases:"slide" help:"Google Slides"`
+	Calendar   CalendarCmd           `cmd:"" aliases:"cal" help:"Google Calendar"`
+	Classroom  ClassroomCmd          `cmd:"" aliases:"class" help:"Google Classroom"`
 	Time       TimeCmd               `cmd:"" help:"Local time utilities"`
 	Gmail      GmailCmd              `cmd:"" aliases:"mail,email" help:"Gmail"`
 	Chat       ChatCmd               `cmd:"" help:"Google Chat"`
-	Contacts   ContactsCmd           `cmd:"" help:"Google Contacts"`
-	Tasks      TasksCmd              `cmd:"" help:"Google Tasks"`
-	People     PeopleCmd             `cmd:"" help:"Google People"`
+	Contacts   ContactsCmd           `cmd:"" aliases:"contact" help:"Google Contacts"`
+	Tasks      TasksCmd              `cmd:"" aliases:"task" help:"Google Tasks"`
+	People     PeopleCmd             `cmd:"" aliases:"person" help:"Google People"`
 	Keep       KeepCmd               `cmd:"" help:"Google Keep (Workspace only)"`
-	Sheets     SheetsCmd             `cmd:"" help:"Google Sheets"`
+	Sheets     SheetsCmd             `cmd:"" aliases:"sheet" help:"Google Sheets"`
+	Forms      FormsCmd              `cmd:"" aliases:"form" help:"Google Forms"`
+	AppScript  AppScriptCmd          `cmd:"" name:"appscript" aliases:"script,apps-script" help:"Google Apps Script"`
 	Config     ConfigCmd             `cmd:"" help:"Manage configuration"`
+	ExitCodes  AgentExitCodesCmd     `cmd:"" name:"exit-codes" aliases:"exitcodes" help:"Print stable exit codes (alias for 'agent exit-codes')"`
+	Agent      AgentCmd              `cmd:"" help:"Agent-friendly helpers"`
+	Schema     SchemaCmd             `cmd:"" help:"Machine-readable command/flag schema" aliases:"help-json,helpjson"`
 	VersionCmd VersionCmd            `cmd:"" name:"version" help:"Print version"`
 	Completion CompletionCmd         `cmd:"" help:"Generate shell completion scripts"`
 	Complete   CompletionInternalCmd `cmd:"" name:"__complete" hidden:"" help:"Internal completion helper"`
@@ -64,6 +89,8 @@ type CLI struct {
 type exitPanic struct{ code int }
 
 func Execute(args []string) (err error) {
+	args = rewriteDesirePathArgs(args)
+
 	parser, cli, err := newParser(helpDescription())
 	if err != nil {
 		return err
@@ -103,6 +130,12 @@ func Execute(args []string) (err error) {
 		Level: logLevel,
 	})))
 
+	// Opt-in "agent mode": default to JSON when stdout is piped/non-TTY.
+	// We intentionally do this after parsing so `--plain` can override it.
+	if envBool("GOG_AUTO_JSON") && !cli.JSON && !cli.Plain && !term.IsTerminal(int(os.Stdout.Fd())) {
+		cli.JSON = true
+	}
+
 	mode, err := outfmt.FromFlags(cli.JSON, cli.Plain)
 	if err != nil {
 		return newUsageError(err)
@@ -110,6 +143,10 @@ func Execute(args []string) (err error) {
 
 	ctx := context.Background()
 	ctx = outfmt.WithMode(ctx, mode)
+	ctx = outfmt.WithJSONTransform(ctx, outfmt.JSONTransform{
+		ResultsOnly: cli.ResultsOnly,
+		Select:      splitCommaList(cli.Select),
+	})
 	ctx = authclient.WithClient(ctx, cli.Client)
 
 	uiColor := cli.Color
@@ -134,13 +171,94 @@ func Execute(args []string) (err error) {
 	if err == nil {
 		return nil
 	}
+	// Some commands intentionally exit early with success.
+	if ExitCode(err) == 0 {
+		return nil
+	}
+	err = stableExitCode(err)
 
 	if u := ui.FromContext(ctx); u != nil {
-		u.Err().Error(errfmt.Format(err))
+		msg := strings.TrimSpace(errfmt.Format(err))
+		if msg != "" {
+			u.Err().Error(msg)
+		}
 		return err
 	}
-	_, _ = fmt.Fprintln(os.Stderr, errfmt.Format(err))
+	msg := strings.TrimSpace(errfmt.Format(err))
+	if msg != "" {
+		_, _ = fmt.Fprintln(os.Stderr, msg)
+	}
 	return err
+}
+
+func rewriteDesirePathArgs(args []string) []string {
+	// `--fields` is already used by `calendar events` for the Calendar API `fields` parameter.
+	// Agents frequently guess `--fields` to mean "select output fields", so we squat it
+	// everywhere else by rewriting to the global `--select` flag.
+	//
+	// We avoid adding `--fields` as a real alias because Kong would treat it as a duplicate flag.
+	keepFields := isCalendarEventsCommand(args)
+
+	out := make([]string, 0, len(args))
+	for i, a := range args {
+		if a == "--" {
+			out = append(out, args[i:]...)
+			break
+		}
+		if keepFields {
+			out = append(out, a)
+			continue
+		}
+		if a == "--fields" {
+			out = append(out, "--select")
+			continue
+		}
+		if strings.HasPrefix(a, "--fields=") {
+			out = append(out, "--select="+strings.TrimPrefix(a, "--fields="))
+			continue
+		}
+		out = append(out, a)
+	}
+	return out
+}
+
+func isCalendarEventsCommand(args []string) bool {
+	cmdTokens := make([]string, 0, 2)
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		if a == "--" {
+			break
+		}
+		if strings.HasPrefix(a, "-") {
+			if globalFlagTakesValue(a) && i+1 < len(args) {
+				i++
+			}
+			continue
+		}
+		cmdTokens = append(cmdTokens, a)
+		if len(cmdTokens) >= 2 {
+			break
+		}
+	}
+
+	if len(cmdTokens) < 2 {
+		return false
+	}
+	cmd0 := strings.TrimSpace(strings.ToLower(cmdTokens[0]))
+	cmd1 := strings.TrimSpace(strings.ToLower(cmdTokens[1]))
+	if cmd0 != "calendar" && cmd0 != "cal" {
+		return false
+	}
+	return cmd1 == "events" || cmd1 == "ls" || cmd1 == "list"
+}
+
+func globalFlagTakesValue(flag string) bool {
+	switch flag {
+	case "--color", "--account", "--acct", "--client", "--enable-commands", "--select", "--pick", "--project", "-a":
+		return true
+	default:
+		return false
+	}
 }
 
 func wrapParseError(err error) error {
@@ -161,11 +279,18 @@ func envOr(key, fallback string) string {
 	return fallback
 }
 
-func boolString(v bool) string {
-	if v {
-		return "true"
+func envBool(key string) bool {
+	v := strings.TrimSpace(strings.ToLower(os.Getenv(key)))
+	switch v {
+	case "1", strTrue, "yes", "y", "on":
+		return true
+	default:
+		return false
 	}
-	return "false"
+}
+
+func boolString(v bool) string {
+	return strconv.FormatBool(v)
 }
 
 func newParser(description string) (*kong.Kong, *CLI, error) {
@@ -199,7 +324,7 @@ func newParser(description string) (*kong.Kong, *CLI, error) {
 }
 
 func baseDescription() string {
-	return "Google CLI for Gmail/Calendar/Chat/Classroom/Drive/Contacts/Tasks/Sheets/Docs/Slides/People"
+	return "Google CLI for Gmail/Calendar/Chat/Classroom/Drive/Contacts/Tasks/Sheets/Docs/Slides/People/Forms/App Script"
 }
 
 func helpDescription() string {

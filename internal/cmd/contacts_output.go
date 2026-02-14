@@ -11,7 +11,7 @@ import (
 
 func writeDeleteResult(ctx context.Context, u *ui.UI, resourceName string) error {
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{"deleted": true, "resource": resourceName})
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{"deleted": true, "resource": resourceName})
 	}
 	if u == nil {
 		_, _ = fmt.Fprintf(os.Stdout, "deleted\ttrue\nresource\t%s\n", resourceName)

@@ -18,7 +18,7 @@ type AuthKeyringCmd struct {
 	Backend2 string `arg:"" optional:"" name:"backend2" help:"(compat) Use: gog auth keyring set <backend>"`
 }
 
-func (c *AuthKeyringCmd) Run(ctx context.Context) error {
+func (c *AuthKeyringCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
 
 	const keyringPasswordEnv = "GOG_KEYRING_PASSWORD" //nolint:gosec // env var name, not a credential
@@ -41,7 +41,7 @@ func (c *AuthKeyringCmd) Run(ctx context.Context) error {
 		}
 
 		if outfmt.IsJSON(ctx) {
-			return outfmt.WriteJSON(os.Stdout, map[string]any{
+			return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
 				"keyring_backend": info.Value,
 				"source":          info.Source,
 				"path":            path,
@@ -75,6 +75,14 @@ func (c *AuthKeyringCmd) Run(ctx context.Context) error {
 		return usagef("invalid backend: %q (expected auto, keychain, or file)", c.Backend)
 	}
 
+	path, _ := config.ConfigPath()
+	if err := dryRunExit(ctx, flags, "auth.keyring.set", map[string]any{
+		"path":            path,
+		"keyring_backend": backend,
+	}); err != nil {
+		return err
+	}
+
 	cfg, err := config.ReadConfig()
 	if err != nil {
 		return err
@@ -83,8 +91,6 @@ func (c *AuthKeyringCmd) Run(ctx context.Context) error {
 	if err := config.WriteConfig(cfg); err != nil {
 		return err
 	}
-
-	path, _ := config.ConfigPath()
 
 	// Env var wins; warn so it doesn't look "broken".
 	if v := strings.TrimSpace(os.Getenv("GOG_KEYRING_BACKEND")); v != "" &&
@@ -108,7 +114,7 @@ func (c *AuthKeyringCmd) Run(ctx context.Context) error {
 	}
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
 			"written":         true,
 			"path":            path,
 			"keyring_backend": backend,

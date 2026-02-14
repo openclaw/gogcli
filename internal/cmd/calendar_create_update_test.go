@@ -22,7 +22,7 @@ func TestCalendarCreateCmd_RunJSON(t *testing.T) {
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := strings.TrimPrefix(r.URL.Path, "/calendar/v3")
-		if r.Method == http.MethodPost && path == "/calendars/cal/events" {
+		if r.Method == http.MethodPost && path == "/calendars/cal@example.com/events" {
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"id":      "ev1",
@@ -53,7 +53,7 @@ func TestCalendarCreateCmd_RunJSON(t *testing.T) {
 	cmd := &CalendarCreateCmd{}
 	out := captureStdout(t, func() {
 		if err := runKong(t, cmd, []string{
-			"cal",
+			"cal@example.com",
 			"--summary", "Meeting",
 			"--from", "2025-01-02T10:00:00Z",
 			"--to", "2025-01-02T11:00:00Z",
@@ -73,7 +73,7 @@ func TestCalendarCreateCmd_WithMeetAndAttachments(t *testing.T) {
 	var sawConference, sawAttachments bool
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := strings.TrimPrefix(r.URL.Path, "/calendar/v3")
-		if r.Method == http.MethodPost && path == "/calendars/cal/events" {
+		if r.Method == http.MethodPost && path == "/calendars/cal@example.com/events" {
 			var body calendar.Event
 			_ = json.NewDecoder(r.Body).Decode(&body)
 			sawConference = body.ConferenceData != nil
@@ -106,7 +106,7 @@ func TestCalendarCreateCmd_WithMeetAndAttachments(t *testing.T) {
 
 	cmd := &CalendarCreateCmd{}
 	if err := runKong(t, cmd, []string{
-		"cal",
+		"cal@example.com",
 		"--summary", "Meet",
 		"--from", "2025-01-02T10:00:00Z",
 		"--to", "2025-01-02T11:00:00Z",
@@ -120,13 +120,77 @@ func TestCalendarCreateCmd_WithMeetAndAttachments(t *testing.T) {
 	}
 }
 
+func TestCalendarCreateCmd_RecurringOffsetTimezoneFallback(t *testing.T) {
+	origNew := newCalendarService
+	t.Cleanup(func() { newCalendarService = origNew })
+
+	var gotEvent calendar.Event
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodPost && strings.Contains(r.URL.Path, "/calendars/") && strings.HasSuffix(r.URL.Path, "/events"):
+			_ = json.NewDecoder(r.Body).Decode(&gotEvent)
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"id": "ev3",
+			})
+			return
+		case r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/users/me/calendarList/"):
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"id":       "primary",
+				"timeZone": "UTC",
+			})
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer srv.Close()
+
+	svc, err := calendar.NewService(context.Background(),
+		option.WithoutAuthentication(),
+		option.WithHTTPClient(srv.Client()),
+		option.WithEndpoint(srv.URL+"/"),
+	)
+	if err != nil {
+		t.Fatalf("NewService: %v", err)
+	}
+	newCalendarService = func(context.Context, string) (*calendar.Service, error) { return svc, nil }
+
+	u, err := ui.New(ui.Options{Stdout: os.Stdout, Stderr: os.Stderr, Color: "never"})
+	if err != nil {
+		t.Fatalf("ui.New: %v", err)
+	}
+	ctx := outfmt.WithMode(ui.WithUI(context.Background(), u), outfmt.Mode{JSON: true})
+
+	cmd := &CalendarCreateCmd{}
+	if err := runKong(t, cmd, []string{
+		"primary",
+		"--summary", "Recurring Test",
+		"--from", "2026-02-13T08:00:00+02:00",
+		"--to", "2026-02-13T09:00:00+02:00",
+		"--rrule", "FREQ=WEEKLY;BYDAY=TU,TH",
+	}, ctx, &RootFlags{Account: "a@b.com"}); err != nil {
+		t.Fatalf("runKong: %v", err)
+	}
+
+	if gotEvent.Start == nil || gotEvent.Start.TimeZone != "Etc/GMT-2" {
+		t.Fatalf("expected start timezone fallback Etc/GMT-2, got %#v", gotEvent.Start)
+	}
+	if gotEvent.End == nil || gotEvent.End.TimeZone != "Etc/GMT-2" {
+		t.Fatalf("expected end timezone fallback Etc/GMT-2, got %#v", gotEvent.End)
+	}
+	if len(gotEvent.Recurrence) == 0 {
+		t.Fatalf("expected recurrence to be set")
+	}
+}
+
 func TestCalendarUpdateCmd_RunJSON(t *testing.T) {
 	origNew := newCalendarService
 	t.Cleanup(func() { newCalendarService = origNew })
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := strings.TrimPrefix(r.URL.Path, "/calendar/v3")
-		if r.Method == http.MethodPatch && path == "/calendars/cal/events/ev" {
+		if r.Method == http.MethodPatch && path == "/calendars/cal@example.com/events/ev" {
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"id":      "ev",
@@ -157,7 +221,7 @@ func TestCalendarUpdateCmd_RunJSON(t *testing.T) {
 	cmd := &CalendarUpdateCmd{}
 	out := captureStdout(t, func() {
 		if err := runKong(t, cmd, []string{
-			"cal",
+			"cal@example.com",
 			"ev",
 			"--summary", "Updated",
 			"--scope", "all",
@@ -178,7 +242,7 @@ func TestCalendarUpdateCmd_AddAttendee(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := strings.TrimPrefix(r.URL.Path, "/calendar/v3")
 		switch {
-		case r.Method == http.MethodGet && path == "/calendars/cal/events/ev":
+		case r.Method == http.MethodGet && path == "/calendars/cal@example.com/events/ev":
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"id": "ev",
@@ -187,7 +251,7 @@ func TestCalendarUpdateCmd_AddAttendee(t *testing.T) {
 				},
 			})
 			return
-		case r.Method == http.MethodPatch && path == "/calendars/cal/events/ev":
+		case r.Method == http.MethodPatch && path == "/calendars/cal@example.com/events/ev":
 			var body calendar.Event
 			_ = json.NewDecoder(r.Body).Decode(&body)
 			patchedAttendees = len(body.Attendees)
@@ -221,7 +285,7 @@ func TestCalendarUpdateCmd_AddAttendee(t *testing.T) {
 
 	cmd := &CalendarUpdateCmd{}
 	if err := runKong(t, cmd, []string{
-		"cal",
+		"cal@example.com",
 		"ev",
 		"--add-attendee", "b@example.com",
 		"--scope", "all",
@@ -240,7 +304,7 @@ func TestCalendarCreateCmd_EventTypeFocusTimeDefaults(t *testing.T) {
 	var gotEvent calendar.Event
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := strings.TrimPrefix(r.URL.Path, "/calendar/v3")
-		if r.Method == http.MethodPost && path == "/calendars/cal/events" {
+		if r.Method == http.MethodPost && path == "/calendars/cal@example.com/events" {
 			_ = json.NewDecoder(r.Body).Decode(&gotEvent)
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(map[string]any{
@@ -270,7 +334,7 @@ func TestCalendarCreateCmd_EventTypeFocusTimeDefaults(t *testing.T) {
 
 	cmd := &CalendarCreateCmd{}
 	if err := runKong(t, cmd, []string{
-		"cal",
+		"cal@example.com",
 		"--event-type", "focus-time",
 		"--from", "2025-01-02T10:00:00Z",
 		"--to", "2025-01-02T11:00:00Z",
@@ -305,7 +369,7 @@ func TestCalendarCreateCmd_EventTypeWorkingLocation(t *testing.T) {
 	var gotEvent calendar.Event
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := strings.TrimPrefix(r.URL.Path, "/calendar/v3")
-		if r.Method == http.MethodPost && path == "/calendars/cal/events" {
+		if r.Method == http.MethodPost && path == "/calendars/cal@example.com/events" {
 			_ = json.NewDecoder(r.Body).Decode(&gotEvent)
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(map[string]any{
@@ -335,7 +399,7 @@ func TestCalendarCreateCmd_EventTypeWorkingLocation(t *testing.T) {
 
 	cmd := &CalendarCreateCmd{}
 	if err := runKong(t, cmd, []string{
-		"cal",
+		"cal@example.com",
 		"--event-type", "working-location",
 		"--working-location-type", "office",
 		"--working-office-label", "HQ",
@@ -369,7 +433,7 @@ func TestCalendarUpdateCmd_EventTypeOOO(t *testing.T) {
 	var gotEvent calendar.Event
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := strings.TrimPrefix(r.URL.Path, "/calendar/v3")
-		if r.Method == http.MethodPatch && path == "/calendars/cal/events/ev" {
+		if r.Method == http.MethodPatch && path == "/calendars/cal@example.com/events/ev" {
 			_ = json.NewDecoder(r.Body).Decode(&gotEvent)
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(map[string]any{
@@ -399,7 +463,7 @@ func TestCalendarUpdateCmd_EventTypeOOO(t *testing.T) {
 
 	cmd := &CalendarUpdateCmd{}
 	if err := runKong(t, cmd, []string{
-		"cal",
+		"cal@example.com",
 		"ev",
 		"--event-type", "out-of-office",
 	}, ctx, &RootFlags{Account: "a@b.com"}); err != nil {
@@ -481,14 +545,14 @@ func TestCalendarUpdateCmd_ScopeFuture(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := strings.TrimPrefix(r.URL.Path, "/calendar/v3")
 		switch {
-		case r.Method == http.MethodGet && path == "/calendars/cal/events/ev":
+		case r.Method == http.MethodGet && path == "/calendars/cal@example.com/events/ev":
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"id":         "ev",
 				"recurrence": []string{"RRULE:FREQ=DAILY"},
 			})
 			return
-		case r.Method == http.MethodGet && strings.HasPrefix(path, "/calendars/cal/events/ev/instances"):
+		case r.Method == http.MethodGet && strings.HasPrefix(path, "/calendars/cal@example.com/events/ev/instances"):
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"items": []map[string]any{
@@ -501,11 +565,11 @@ func TestCalendarUpdateCmd_ScopeFuture(t *testing.T) {
 				},
 			})
 			return
-		case r.Method == http.MethodPatch && path == "/calendars/cal/events/ev_1":
+		case r.Method == http.MethodPatch && path == "/calendars/cal@example.com/events/ev_1":
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(map[string]any{"id": "ev_1"})
 			return
-		case r.Method == http.MethodPatch && path == "/calendars/cal/events/ev":
+		case r.Method == http.MethodPatch && path == "/calendars/cal@example.com/events/ev":
 			truncated = true
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(map[string]any{"id": "ev"})
@@ -535,7 +599,7 @@ func TestCalendarUpdateCmd_ScopeFuture(t *testing.T) {
 
 	cmd := &CalendarUpdateCmd{}
 	if err := runKong(t, cmd, []string{
-		"cal",
+		"cal@example.com",
 		"ev",
 		"--summary", "Updated",
 		"--scope", "future",

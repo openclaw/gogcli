@@ -17,7 +17,8 @@ func TestExtractTimezone(t *testing.T) {
 		{"2026-01-08T16:00:00Z", "UTC"},
 		{"2026-01-08T11:00:00+00:00", "UTC"},
 		{"invalid", ""},
-		{"2026-01-08T11:00:00-04:00", ""}, // not a common US offset on this date
+		{"2026-01-08T11:00:00-04:00", "Etc/GMT+4"},
+		{"2026-01-08T11:00:00+02:00", "Etc/GMT-2"},
 		{"2026-01-08T11:00:00+05:30", ""}, // India - not mapped
 	}
 

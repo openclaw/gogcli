@@ -25,10 +25,10 @@ var (
 )
 
 type GmailWatchCmd struct {
-	Start  GmailWatchStartCmd  `cmd:"" name:"start" help:"Start Gmail watch for Pub/Sub"`
-	Status GmailWatchStatusCmd `cmd:"" name:"status" help:"Show stored watch state"`
-	Renew  GmailWatchRenewCmd  `cmd:"" name:"renew" help:"Renew Gmail watch using stored config"`
-	Stop   GmailWatchStopCmd   `cmd:"" name:"stop" help:"Stop Gmail watch and clear stored state"`
+	Start  GmailWatchStartCmd  `cmd:"" name:"start" aliases:"begin" help:"Start Gmail watch for Pub/Sub"`
+	Status GmailWatchStatusCmd `cmd:"" name:"status" aliases:"ls" help:"Show stored watch state"`
+	Renew  GmailWatchRenewCmd  `cmd:"" name:"renew" aliases:"update" help:"Renew Gmail watch using stored config"`
+	Stop   GmailWatchStopCmd   `cmd:"" name:"stop" aliases:"rm,delete" help:"Stop Gmail watch and clear stored state"`
 	Serve  GmailWatchServeCmd  `cmd:"" name:"serve" help:"Run Pub/Sub push handler"`
 }
 
@@ -43,10 +43,6 @@ type GmailWatchStartCmd struct {
 }
 
 func (c *GmailWatchStartCmd) Run(ctx context.Context, kctx *kong.Context, flags *RootFlags) error {
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
 	if strings.TrimSpace(c.Topic) == "" {
 		return usage("--topic is required")
 	}
@@ -62,6 +58,21 @@ func (c *GmailWatchStartCmd) Run(ctx context.Context, kctx *kong.Context, flags 
 		} else {
 			return err
 		}
+	}
+
+	if dryRunErr := dryRunExit(ctx, flags, "gmail.watch.start", map[string]any{
+		"topic":   strings.TrimSpace(c.Topic),
+		"labels":  c.Labels,
+		"ttl_raw": strings.TrimSpace(c.TTL),
+		"ttl":     ttl.String(),
+		"hook":    hook,
+	}); dryRunErr != nil {
+		return dryRunErr
+	}
+
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
 	}
 
 	svc, err := newGmailService(ctx, account)
@@ -133,6 +144,16 @@ func (c *GmailWatchRenewCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
+	if dryRunErr := dryRunExit(ctx, flags, "gmail.watch.renew", map[string]any{
+		"topic":   strings.TrimSpace(state.Topic),
+		"labels":  state.Labels,
+		"ttl_raw": strings.TrimSpace(c.TTL),
+		"ttl":     ttl.String(),
+		"hook":    state.Hook,
+	}); dryRunErr != nil {
+		return dryRunErr
+	}
+
 	svc, err := newGmailService(ctx, account)
 	if err != nil {
 		return err
@@ -163,13 +184,14 @@ type GmailWatchStopCmd struct{}
 
 func (c *GmailWatchStopCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
 
 	if confirmErr := confirmDestructive(ctx, flags, "stop gmail watch and clear stored state"); confirmErr != nil {
 		return confirmErr
+	}
+
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
 	}
 
 	svc, err := newGmailService(ctx, account)
@@ -184,27 +206,28 @@ func (c *GmailWatchStopCmd) Run(ctx context.Context, flags *RootFlags) error {
 		_ = os.Remove(store.path)
 	}
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{"stopped": true})
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{"stopped": true})
 	}
 	u.Out().Printf("stopped\ttrue")
 	return nil
 }
 
 type GmailWatchServeCmd struct {
-	Bind         string `name:"bind" help:"Bind address" default:"127.0.0.1"`
-	Port         int    `name:"port" help:"Listen port" default:"8788"`
-	Path         string `name:"path" help:"Push handler path" default:"/gmail-pubsub"`
-	Timezone     string `name:"timezone" short:"z" help:"Output timezone (IANA name, e.g. America/New_York, UTC). Default: local"`
-	Local        bool   `name:"local" help:"Use local timezone (default behavior, useful to override --timezone)"`
-	VerifyOIDC   bool   `name:"verify-oidc" help:"Verify Pub/Sub OIDC tokens"`
-	OIDCEmail    string `name:"oidc-email" help:"Expected service account email"`
-	OIDCAudience string `name:"oidc-audience" help:"Expected OIDC audience"`
-	SharedToken  string `name:"token" help:"Shared token for x-gog-token or ?token="`
-	HookURL      string `name:"hook-url" help:"Webhook URL to forward messages"`
-	HookToken    string `name:"hook-token" help:"Webhook bearer token"`
-	IncludeBody  bool   `name:"include-body" help:"Include text/plain body in hook payload"`
-	MaxBytes     int    `name:"max-bytes" help:"Max bytes of body to include" default:"20000"`
-	SaveHook     bool   `name:"save-hook" help:"Persist hook settings to watch state"`
+	Bind          string `name:"bind" help:"Bind address" default:"127.0.0.1"`
+	Port          int    `name:"port" help:"Listen port" default:"8788"`
+	Path          string `name:"path" help:"Push handler path" default:"/gmail-pubsub"`
+	Timezone      string `name:"timezone" short:"z" help:"Output timezone (IANA name, e.g. America/New_York, UTC). Default: local"`
+	Local         bool   `name:"local" help:"Use local timezone (default behavior, useful to override --timezone)"`
+	VerifyOIDC    bool   `name:"verify-oidc" help:"Verify Pub/Sub OIDC tokens"`
+	OIDCEmail     string `name:"oidc-email" help:"Expected service account email"`
+	OIDCAudience  string `name:"oidc-audience" help:"Expected OIDC audience"`
+	SharedToken   string `name:"token" help:"Shared token for x-gog-token or ?token="`
+	HookURL       string `name:"hook-url" help:"Webhook URL to forward messages"`
+	HookToken     string `name:"hook-token" help:"Webhook bearer token"`
+	IncludeBody   bool   `name:"include-body" help:"Include text/plain body in hook payload"`
+	MaxBytes      int    `name:"max-bytes" help:"Max bytes of body to include" default:"20000"`
+	ExcludeLabels string `name:"exclude-labels" help:"List of Gmail label IDs to exclude from hook payload (e.g. SPAM,TRASH,Label_123). Set to empty string to disable." default:"SPAM,TRASH"`
+	SaveHook      bool   `name:"save-hook" help:"Persist hook settings to watch state"`
 }
 
 func (c *GmailWatchServeCmd) Run(ctx context.Context, kctx *kong.Context, flags *RootFlags) error {
@@ -286,21 +309,23 @@ func (c *GmailWatchServeCmd) Run(ctx context.Context, kctx *kong.Context, flags 
 	}
 
 	cfg := gmailWatchServeConfig{
-		Account:      account,
-		Bind:         c.Bind,
-		Port:         c.Port,
-		Path:         c.Path,
-		VerifyOIDC:   c.VerifyOIDC,
-		OIDCEmail:    c.OIDCEmail,
-		OIDCAudience: c.OIDCAudience,
-		SharedToken:  c.SharedToken,
-		HookTimeout:  defaultHookRequestTimeoutSec * time.Second,
-		HistoryMax:   defaultHistoryMaxResults,
-		ResyncMax:    defaultHistoryResyncMax,
-		AllowNoHook:  hook == nil,
-		IncludeBody:  includeBody,
-		MaxBodyBytes: maxBytes,
-		DateLocation: loc,
+		Account:       account,
+		Bind:          c.Bind,
+		Port:          c.Port,
+		Path:          c.Path,
+		VerifyOIDC:    c.VerifyOIDC,
+		OIDCEmail:     c.OIDCEmail,
+		OIDCAudience:  c.OIDCAudience,
+		SharedToken:   c.SharedToken,
+		HookTimeout:   defaultHookRequestTimeoutSec * time.Second,
+		HistoryMax:    defaultHistoryMaxResults,
+		ResyncMax:     defaultHistoryResyncMax,
+		AllowNoHook:   hook == nil,
+		IncludeBody:   includeBody,
+		MaxBodyBytes:  maxBytes,
+		DateLocation:  loc,
+		ExcludeLabels: splitCommaList(c.ExcludeLabels),
+		VerboseOutput: flags.Verbose,
 	}
 	if hook != nil {
 		cfg.HookURL = hook.URL
@@ -315,13 +340,14 @@ func (c *GmailWatchServeCmd) Run(ctx context.Context, kctx *kong.Context, flags 
 
 	hookClient := &http.Client{Timeout: cfg.HookTimeout}
 	server := &gmailWatchServer{
-		cfg:        cfg,
-		store:      store,
-		validator:  validator,
-		newService: newGmailService,
-		hookClient: hookClient,
-		logf:       u.Err().Printf,
-		warnf:      u.Err().Printf,
+		cfg:             cfg,
+		store:           store,
+		validator:       validator,
+		newService:      newGmailService,
+		hookClient:      hookClient,
+		excludeLabelIDs: stringSet(cfg.ExcludeLabels),
+		logf:            u.Err().Printf,
+		warnf:           u.Err().Printf,
 	}
 
 	addr := net.JoinHostPort(c.Bind, strconv.Itoa(c.Port))
@@ -337,7 +363,7 @@ func (c *GmailWatchServeCmd) Run(ctx context.Context, kctx *kong.Context, flags 
 
 func writeWatchState(ctx context.Context, state gmailWatchState) error {
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{"watch": state})
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{"watch": state})
 	}
 	u := ui.FromContext(ctx)
 	u.Out().Printf("account\t%s", state.Account)

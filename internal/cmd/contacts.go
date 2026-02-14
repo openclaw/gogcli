@@ -14,11 +14,11 @@ import (
 
 type ContactsCmd struct {
 	Search    ContactsSearchCmd    `cmd:"" name:"search" help:"Search contacts by name/email/phone"`
-	List      ContactsListCmd      `cmd:"" name:"list" help:"List contacts"`
-	Get       ContactsGetCmd       `cmd:"" name:"get" help:"Get a contact"`
-	Create    ContactsCreateCmd    `cmd:"" name:"create" help:"Create a contact"`
-	Update    ContactsUpdateCmd    `cmd:"" name:"update" help:"Update a contact"`
-	Delete    ContactsDeleteCmd    `cmd:"" name:"delete" help:"Delete a contact"`
+	List      ContactsListCmd      `cmd:"" name:"list" aliases:"ls" help:"List contacts"`
+	Get       ContactsGetCmd       `cmd:"" name:"get" aliases:"info,show" help:"Get a contact"`
+	Create    ContactsCreateCmd    `cmd:"" name:"create" aliases:"add,new" help:"Create a contact"`
+	Update    ContactsUpdateCmd    `cmd:"" name:"update" aliases:"edit,set" help:"Update a contact"`
+	Delete    ContactsDeleteCmd    `cmd:"" name:"delete" aliases:"rm,del,remove" help:"Delete a contact"`
 	Directory ContactsDirectoryCmd `cmd:"" name:"directory" help:"Directory contacts"`
 	Other     ContactsOtherCmd     `cmd:"" name:"other" help:"Other contacts"`
 }
@@ -69,7 +69,7 @@ func (c *ContactsSearchCmd) Run(ctx context.Context, flags *RootFlags) error {
 				Phone:    primaryPhone(p),
 			})
 		}
-		return outfmt.WriteJSON(os.Stdout, map[string]any{"contacts": items})
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{"contacts": items})
 	}
 	if len(resp.Results) == 0 {
 		u.Err().Println("No results")

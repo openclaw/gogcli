@@ -23,7 +23,7 @@ func TestCalendarRespondCmd_Text(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := strings.TrimPrefix(r.URL.Path, "/calendar/v3")
 		switch {
-		case strings.Contains(path, "/calendars/cal1/events/evt1") && r.Method == http.MethodGet:
+		case strings.Contains(path, "/calendars/cal1@example.com/events/evt1") && r.Method == http.MethodGet:
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"id":      "evt1",
@@ -33,7 +33,7 @@ func TestCalendarRespondCmd_Text(t *testing.T) {
 				},
 			})
 			return
-		case strings.Contains(path, "/calendars/cal1/events/evt1") && r.Method == http.MethodPatch:
+		case strings.Contains(path, "/calendars/cal1@example.com/events/evt1") && r.Method == http.MethodPatch:
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"id":       "evt1",
@@ -67,7 +67,7 @@ func TestCalendarRespondCmd_Text(t *testing.T) {
 		ctx := ui.WithUI(context.Background(), u)
 
 		cmd := &CalendarRespondCmd{}
-		if err := runKong(t, cmd, []string{"cal1", "evt1", "--status", "accepted", "--comment", "ok"}, ctx, flags); err != nil {
+		if err := runKong(t, cmd, []string{"cal1@example.com", "evt1", "--status", "accepted", "--comment", "ok"}, ctx, flags); err != nil {
 			t.Fatalf("respond: %v", err)
 		}
 	})

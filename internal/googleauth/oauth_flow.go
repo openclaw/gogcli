@@ -7,10 +7,8 @@ import (
 	"errors"
 	"fmt"
 	"html/template"
-	"io"
 	"net"
 	"net/http"
-	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -19,7 +17,6 @@ import (
 	"golang.org/x/oauth2/google"
 
 	"github.com/steipete/gogcli/internal/config"
-	"github.com/steipete/gogcli/internal/input"
 )
 
 type AuthorizeOptions struct {
@@ -29,6 +26,14 @@ type AuthorizeOptions struct {
 	ForceConsent bool
 	Timeout      time.Duration
 	Client       string
+	AuthCode     string
+	AuthURL      string
+	RequireState bool
+}
+
+type ManualAuthURLResult struct {
+	URL         string
+	StateReused bool
 }
 
 // postSuccessDisplaySeconds is the number of seconds the success page remains
@@ -48,15 +53,24 @@ var (
 	openBrowserFn         = openBrowser
 	oauthEndpoint         = google.Endpoint
 	randomStateFn         = randomState
+	manualRedirectURIFn   = randomManualRedirectURI
 )
 
 var (
-	errAuthorization  = errors.New("authorization error")
-	errMissingCode    = errors.New("missing code")
-	errMissingScopes  = errors.New("missing scopes")
-	errNoCodeInURL    = errors.New("no code found in URL")
-	errNoRefreshToken = errors.New("no refresh token received; try again with --force-consent")
-	errStateMismatch  = errors.New("state mismatch")
+	errAuthorization       = errors.New("authorization error")
+	errInvalidRedirectURL  = errors.New("invalid redirect URL")
+	errMissingCode         = errors.New("missing code")
+	errMissingRedirectURI  = errors.New("missing redirect uri; provide auth-url")
+	errMissingState        = errors.New("missing state in redirect URL")
+	errMissingScopes       = errors.New("missing scopes")
+	errNoCodeInURL         = errors.New("no code found in URL")
+	errNoRefreshToken      = errors.New("no refresh token received; try again with --force-consent")
+	errManualStateMissing  = errors.New("manual auth state missing; run remote step 1 again")
+	errManualStateMismatch = errors.New("manual auth state mismatch; run remote step 1 again")
+	errStateMismatch       = errors.New("state mismatch")
+
+	errInvalidAuthorizeOptionsAuthURLAndCode    = errors.New("cannot combine auth-url with auth-code")
+	errInvalidAuthorizeOptionsAuthCodeWithState = errors.New("auth-code is not valid when state is required; provide auth-url")
 )
 
 func Authorize(ctx context.Context, opts AuthorizeOptions) (string, error) {
@@ -64,19 +78,19 @@ func Authorize(ctx context.Context, opts AuthorizeOptions) (string, error) {
 		opts.Timeout = 2 * time.Minute
 	}
 
+	if strings.TrimSpace(opts.AuthURL) != "" && strings.TrimSpace(opts.AuthCode) != "" {
+		return "", errInvalidAuthorizeOptionsAuthURLAndCode
+	}
+
+	if opts.RequireState && strings.TrimSpace(opts.AuthCode) != "" {
+		return "", errInvalidAuthorizeOptionsAuthCodeWithState
+	}
+
 	if len(opts.Scopes) == 0 {
 		return "", errMissingScopes
 	}
 
-	var creds config.ClientCredentials
-
-	if c, err := readClientCredentials(opts.Client); err != nil {
-		return "", err
-	} else {
-		creds = c
-	}
-
-	state, err := randomStateFn()
+	creds, err := readClientCredentials(opts.Client)
 	if err != nil {
 		return "", err
 	}
@@ -85,55 +99,16 @@ func Authorize(ctx context.Context, opts AuthorizeOptions) (string, error) {
 	defer cancel()
 
 	if opts.Manual {
-		redirectURI := "http://localhost:1"
-		cfg := oauth2.Config{
-			ClientID:     creds.ClientID,
-			ClientSecret: creds.ClientSecret,
-			Endpoint:     oauthEndpoint,
-			RedirectURL:  redirectURI,
-			Scopes:       opts.Scopes,
-		}
-		authURL := cfg.AuthCodeURL(state, authURLParams(opts.ForceConsent)...)
+		return authorizeManual(ctx, opts, creds)
+	}
 
-		fmt.Fprintln(os.Stderr, "Visit this URL to authorize:")
-		fmt.Fprintln(os.Stderr, authURL)
-		fmt.Fprintln(os.Stderr)
-		fmt.Fprintln(os.Stderr, "After authorizing, you'll be redirected to a localhost URL that won't load.")
-		fmt.Fprintln(os.Stderr, "Copy the URL from your browser's address bar and paste it here.")
-		fmt.Fprintln(os.Stderr)
+	return authorizeServer(ctx, opts, creds)
+}
 
-		line, readErr := input.PromptLine(ctx, "Paste redirect URL (Enter or Ctrl-D): ")
-		if readErr != nil && !errors.Is(readErr, os.ErrClosed) {
-			if errors.Is(readErr, io.EOF) {
-				return "", fmt.Errorf("authorization canceled: %w", context.Canceled)
-			}
-
-			return "", fmt.Errorf("read redirect url: %w", readErr)
-		}
-		line = strings.TrimSpace(line)
-
-		code, gotState, parseErr := extractCodeAndState(line)
-		if parseErr != nil {
-			return "", parseErr
-		}
-
-		if gotState != "" && gotState != state {
-			return "", errStateMismatch
-		}
-
-		var tok *oauth2.Token
-
-		if t, exchangeErr := cfg.Exchange(ctx, code); exchangeErr != nil {
-			return "", fmt.Errorf("exchange code: %w", exchangeErr)
-		} else {
-			tok = t
-		}
-
-		if tok.RefreshToken == "" {
-			return "", errNoRefreshToken
-		}
-
-		return tok.RefreshToken, nil
+func authorizeServer(ctx context.Context, opts AuthorizeOptions, creds config.ClientCredentials) (string, error) {
+	state, err := randomStateFn()
+	if err != nil {
+		return "", err
 	}
 
 	ln, err := (&net.ListenConfig{}).Listen(ctx, "tcp", "127.0.0.1:0")
@@ -289,19 +264,6 @@ func randomState() (string, error) {
 	}
 
 	return base64.RawURLEncoding.EncodeToString(b), nil
-}
-
-func extractCodeAndState(rawURL string) (code string, state string, err error) {
-	parsed, err := url.Parse(rawURL)
-	if err != nil {
-		return "", "", fmt.Errorf("parse redirect url: %w", err)
-	}
-
-	if code := parsed.Query().Get("code"); code == "" {
-		return "", "", errNoCodeInURL
-	} else {
-		return code, parsed.Query().Get("state"), nil
-	}
 }
 
 // renderSuccessPage renders the success HTML template

@@ -14,10 +14,13 @@ func TestParseService(t *testing.T) {
 		{"classroom", ServiceClassroom},
 		{"drive", ServiceDrive},
 		{"docs", ServiceDocs},
+		{"slides", ServiceSlides},
 		{"contacts", ServiceContacts},
 		{"tasks", ServiceTasks},
 		{"people", ServicePeople},
 		{"sheets", ServiceSheets},
+		{"forms", ServiceForms},
+		{"appscript", ServiceAppScript},
 		{"groups", ServiceGroups},
 		{"keep", ServiceKeep},
 	}
@@ -40,7 +43,7 @@ func TestParseService_Invalid(t *testing.T) {
 }
 
 func TestExtractCodeAndState(t *testing.T) {
-	code, state, err := extractCodeAndState("http://localhost:1/?code=abc&state=xyz")
+	code, state, err := extractCodeAndState("http://127.0.0.1:55555/oauth2/callback?code=abc&state=xyz")
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
@@ -55,14 +58,14 @@ func TestExtractCodeAndState_Errors(t *testing.T) {
 		t.Fatalf("expected error")
 	}
 
-	if _, _, err := extractCodeAndState("http://localhost:1/?state=xyz"); err == nil {
+	if _, _, err := extractCodeAndState("http://127.0.0.1:55555/oauth2/callback?state=xyz"); err == nil {
 		t.Fatalf("expected error")
 	}
 }
 
 func TestAllServices(t *testing.T) {
 	svcs := AllServices()
-	if len(svcs) != 12 {
+	if len(svcs) != 15 {
 		t.Fatalf("unexpected: %v", svcs)
 	}
 	seen := make(map[Service]bool)
@@ -71,7 +74,7 @@ func TestAllServices(t *testing.T) {
 		seen[s] = true
 	}
 
-	for _, want := range []Service{ServiceGmail, ServiceCalendar, ServiceChat, ServiceClassroom, ServiceDrive, ServiceDocs, ServiceContacts, ServiceTasks, ServicePeople, ServiceSheets, ServiceGroups, ServiceKeep} {
+	for _, want := range []Service{ServiceGmail, ServiceCalendar, ServiceChat, ServiceClassroom, ServiceDrive, ServiceDocs, ServiceSlides, ServiceContacts, ServiceTasks, ServicePeople, ServiceSheets, ServiceForms, ServiceAppScript, ServiceGroups, ServiceKeep} {
 		if !seen[want] {
 			t.Fatalf("missing %q", want)
 		}
@@ -80,16 +83,21 @@ func TestAllServices(t *testing.T) {
 
 func TestUserServices(t *testing.T) {
 	svcs := UserServices()
-	if len(svcs) != 10 {
+	if len(svcs) != 13 {
 		t.Fatalf("unexpected: %v", svcs)
 	}
 
 	seenDocs := false
+	seenSlides := false
 
 	for _, s := range svcs {
 		switch s {
 		case ServiceDocs:
 			seenDocs = true
+		case ServiceSlides:
+			seenSlides = true
+		case ServiceForms, ServiceAppScript:
+			// expected user services
 		case ServiceKeep:
 			t.Fatalf("unexpected keep in user services")
 		}
@@ -98,10 +106,14 @@ func TestUserServices(t *testing.T) {
 	if !seenDocs {
 		t.Fatalf("missing docs in user services")
 	}
+
+	if !seenSlides {
+		t.Fatalf("missing slides in user services")
+	}
 }
 
 func TestUserServiceCSV(t *testing.T) {
-	want := "gmail,calendar,chat,classroom,drive,docs,contacts,tasks,sheets,people"
+	want := "gmail,calendar,chat,classroom,drive,docs,slides,contacts,tasks,sheets,people,forms,appscript"
 	if got := UserServiceCSV(); got != want {
 		t.Fatalf("unexpected user services csv: %q", got)
 	}
@@ -217,7 +229,7 @@ func TestScopesForServices_UnionSorted(t *testing.T) {
 }
 
 func TestScopesForManageWithOptions_Readonly(t *testing.T) {
-	scopes, err := ScopesForManageWithOptions([]Service{ServiceGmail, ServiceDrive, ServiceCalendar, ServiceContacts, ServiceTasks, ServiceSheets, ServiceDocs, ServicePeople}, ScopeOptions{
+	scopes, err := ScopesForManageWithOptions([]Service{ServiceGmail, ServiceDrive, ServiceCalendar, ServiceContacts, ServiceTasks, ServiceSheets, ServiceDocs, ServicePeople, ServiceForms, ServiceAppScript}, ScopeOptions{
 		Readonly:   true,
 		DriveScope: DriveScopeFull,
 	})
@@ -236,6 +248,10 @@ func TestScopesForManageWithOptions_Readonly(t *testing.T) {
 		"https://www.googleapis.com/auth/tasks.readonly",
 		"https://www.googleapis.com/auth/spreadsheets.readonly",
 		"https://www.googleapis.com/auth/documents.readonly",
+		"https://www.googleapis.com/auth/forms.body.readonly",
+		"https://www.googleapis.com/auth/forms.responses.readonly",
+		"https://www.googleapis.com/auth/script.projects.readonly",
+		"https://www.googleapis.com/auth/script.deployments.readonly",
 		"profile",
 	}
 	for _, w := range want {
@@ -417,6 +433,40 @@ func TestScopes_GmailIncludesSettingsSharing(t *testing.T) {
 		if !containsScope(scopes, want) {
 			t.Fatalf("missing %q in %v", want, scopes)
 		}
+	}
+}
+
+func TestScopes_FormsIncludesBodyAndResponses(t *testing.T) {
+	scopes, err := Scopes(ServiceForms)
+	if err != nil {
+		t.Fatalf("err: %v", err)
+	}
+
+	if !containsScope(scopes, "https://www.googleapis.com/auth/forms.body") {
+		t.Fatalf("missing forms.body in %v", scopes)
+	}
+
+	if !containsScope(scopes, "https://www.googleapis.com/auth/forms.responses.readonly") {
+		t.Fatalf("missing forms.responses.readonly in %v", scopes)
+	}
+}
+
+func TestScopesForServiceWithOptions_AppScriptReadonly(t *testing.T) {
+	scopes, err := scopesForServiceWithOptions(ServiceAppScript, ScopeOptions{Readonly: true})
+	if err != nil {
+		t.Fatalf("err: %v", err)
+	}
+
+	if !containsScope(scopes, "https://www.googleapis.com/auth/script.projects.readonly") {
+		t.Fatalf("missing script.projects.readonly in %v", scopes)
+	}
+
+	if !containsScope(scopes, "https://www.googleapis.com/auth/script.deployments.readonly") {
+		t.Fatalf("missing script.deployments.readonly in %v", scopes)
+	}
+
+	if containsScope(scopes, "https://www.googleapis.com/auth/script.projects") {
+		t.Fatalf("unexpected script.projects in %v", scopes)
 	}
 }
 

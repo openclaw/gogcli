@@ -23,7 +23,7 @@ func TestCalendarUpdateAndDelete(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := strings.TrimPrefix(r.URL.Path, "/calendar/v3")
 		switch {
-		case strings.Contains(path, "/calendars/cal1/events/evt1") && r.Method == http.MethodGet:
+		case strings.Contains(path, "/calendars/cal1@example.com/events/evt1") && r.Method == http.MethodGet:
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"id":       "evt1",
@@ -33,7 +33,7 @@ func TestCalendarUpdateAndDelete(t *testing.T) {
 				"htmlLink": "http://example.com/event",
 			})
 			return
-		case strings.Contains(path, "/calendars/cal1/events/evt1") && (r.Method == http.MethodPut || r.Method == http.MethodPatch):
+		case strings.Contains(path, "/calendars/cal1@example.com/events/evt1") && (r.Method == http.MethodPut || r.Method == http.MethodPatch):
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"id":       "evt1",
@@ -41,7 +41,7 @@ func TestCalendarUpdateAndDelete(t *testing.T) {
 				"htmlLink": "http://example.com/event",
 			})
 			return
-		case strings.Contains(path, "/calendars/cal1/events/evt1") && r.Method == http.MethodDelete:
+		case strings.Contains(path, "/calendars/cal1@example.com/events/evt1") && r.Method == http.MethodDelete:
 			w.WriteHeader(http.StatusNoContent)
 			return
 		default:
@@ -71,14 +71,14 @@ func TestCalendarUpdateAndDelete(t *testing.T) {
 
 	// update requires changes
 	updateCmd := &CalendarUpdateCmd{}
-	if err := runKong(t, updateCmd, []string{"cal1", "evt1"}, ctx, flags); err == nil {
+	if err := runKong(t, updateCmd, []string{"cal1@example.com", "evt1"}, ctx, flags); err == nil {
 		t.Fatalf("expected no updates error")
 	}
 
 	// update json
 	jsonOut := captureStdout(t, func() {
 		updateCmd = &CalendarUpdateCmd{}
-		if err := runKong(t, updateCmd, []string{"cal1", "evt1", "--summary", "Updated"}, jsonCtx, flags); err != nil {
+		if err := runKong(t, updateCmd, []string{"cal1@example.com", "evt1", "--summary", "Updated"}, jsonCtx, flags); err != nil {
 			t.Fatalf("update: %v", err)
 		}
 	})
@@ -89,7 +89,7 @@ func TestCalendarUpdateAndDelete(t *testing.T) {
 	// delete json
 	_ = captureStdout(t, func() {
 		deleteCmd := &CalendarDeleteCmd{}
-		if err := runKong(t, deleteCmd, []string{"cal1", "evt1"}, jsonCtx, flags); err != nil {
+		if err := runKong(t, deleteCmd, []string{"cal1@example.com", "evt1"}, jsonCtx, flags); err != nil {
 			t.Fatalf("delete: %v", err)
 		}
 	})

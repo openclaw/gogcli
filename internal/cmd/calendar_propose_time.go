@@ -33,13 +33,9 @@ type CalendarProposeTimeCmd struct {
 
 func (c *CalendarProposeTimeCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
 
 	calendarID := strings.TrimSpace(c.CalendarID)
-	eventID := strings.TrimSpace(c.EventID)
+	eventID := normalizeCalendarEventID(c.EventID)
 	if calendarID == "" {
 		return usage("empty calendarId")
 	}
@@ -47,16 +43,8 @@ func (c *CalendarProposeTimeCmd) Run(ctx context.Context, flags *RootFlags) erro
 		return usage("empty eventId")
 	}
 
-	svc, err := newCalendarService(ctx, account)
-	if err != nil {
-		return err
-	}
-
-	// Fetch event to display info and verify it exists
-	event, err := svc.Events.Get(calendarID, eventID).Do()
-	if err != nil {
-		return fmt.Errorf("failed to get event: %w", err)
-	}
+	// Handle --comment implies --decline
+	decline := c.Decline || strings.TrimSpace(c.Comment) != ""
 
 	// Generate the propose-time URL
 	// Format: base64(eventId + " " + calendarId)
@@ -64,8 +52,43 @@ func (c *CalendarProposeTimeCmd) Run(ctx context.Context, flags *RootFlags) erro
 	encoded := base64.StdEncoding.EncodeToString([]byte(payload))
 	proposeURL := "https://calendar.google.com/calendar/u/0/r/proposetime/" + encoded
 
-	// Handle --comment implies --decline
-	decline := c.Decline || strings.TrimSpace(c.Comment) != ""
+	// Avoid touching auth/keyring and avoid mutating the event in dry-run mode.
+	if err := dryRunExit(ctx, flags, "calendar.propose_time", map[string]any{
+		"calendar_id": calendarID,
+		"event_id":    eventID,
+		"propose_url": proposeURL,
+		"open":        c.Open,
+		"decline":     decline,
+		"comment":     strings.TrimSpace(c.Comment),
+	}); err != nil {
+		return err
+	}
+
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
+	}
+
+	svc, err := newCalendarService(ctx, account)
+	if err != nil {
+		return err
+	}
+
+	calendarID, err = resolveCalendarID(ctx, svc, calendarID)
+	if err != nil {
+		return err
+	}
+
+	// Recompute URL in case the user provided a calendar name instead of an ID.
+	payload = eventID + " " + calendarID
+	encoded = base64.StdEncoding.EncodeToString([]byte(payload))
+	proposeURL = "https://calendar.google.com/calendar/u/0/r/proposetime/" + encoded
+
+	// Fetch event to display info and verify it exists
+	event, err := svc.Events.Get(calendarID, eventID).Do()
+	if err != nil {
+		return fmt.Errorf("failed to get event: %w", err)
+	}
 
 	// If declining, update the event response
 	if decline {
@@ -133,7 +156,7 @@ func (c *CalendarProposeTimeCmd) Run(ctx context.Context, flags *RootFlags) erro
 				result["comment"] = strings.TrimSpace(c.Comment)
 			}
 		}
-		return outfmt.WriteJSON(os.Stdout, result)
+		return outfmt.WriteJSON(ctx, os.Stdout, result)
 	}
 
 	// Text output

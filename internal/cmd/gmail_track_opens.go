@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/steipete/gogcli/internal/outfmt"
+	"github.com/steipete/gogcli/internal/timeparse"
 	"github.com/steipete/gogcli/internal/tracking"
 	"github.com/steipete/gogcli/internal/ui"
 )
@@ -72,7 +73,7 @@ func (c *GmailTrackOpensCmd) queryByTrackingID(ctx context.Context, cfg *trackin
 		if err := json.Unmarshal(body, &anyJSON); err != nil {
 			return fmt.Errorf("decode response: %w", err)
 		}
-		return outfmt.WriteJSON(os.Stdout, anyJSON)
+		return outfmt.WriteJSON(ctx, os.Stdout, anyJSON)
 	}
 
 	var result struct {
@@ -171,7 +172,7 @@ func (c *GmailTrackOpensCmd) queryAdmin(ctx context.Context, cfg *tracking.Confi
 	}
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, result)
+		return outfmt.WriteJSON(ctx, os.Stdout, result)
 	}
 
 	if len(result.Opens) == 0 {
@@ -196,20 +197,12 @@ func parseTrackingSince(s string) (string, error) {
 		return "", usage("empty --since")
 	}
 
-	if d, err := time.ParseDuration(s); err == nil {
-		return time.Now().Add(-d).UTC().Format(time.RFC3339), nil
+	parsed, err := timeparse.ParseSince(s, time.Now(), time.Local)
+	if err != nil {
+		return "", usagef("invalid --since %q (use duration like 24h, date YYYY-MM-DD, or RFC3339)", s)
 	}
-
-	if t, err := time.Parse("2006-01-02", s); err == nil {
-		return t.UTC().Format(time.RFC3339), nil
+	if parsed.UseRFC3339Nano {
+		return parsed.Time.Format(time.RFC3339Nano), nil
 	}
-
-	if t, err := time.Parse(time.RFC3339, s); err == nil {
-		return t.UTC().Format(time.RFC3339), nil
-	}
-	if t, err := time.Parse(time.RFC3339Nano, s); err == nil {
-		return t.UTC().Format(time.RFC3339Nano), nil
-	}
-
-	return "", usagef("invalid --since %q (use duration like 24h, date YYYY-MM-DD, or RFC3339)", s)
+	return parsed.Time.Format(time.RFC3339), nil
 }

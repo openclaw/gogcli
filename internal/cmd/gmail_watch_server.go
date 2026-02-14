@@ -26,13 +26,14 @@ const (
 )
 
 type gmailWatchServer struct {
-	cfg        gmailWatchServeConfig
-	store      *gmailWatchStore
-	validator  *idtoken.Validator
-	newService func(context.Context, string) (*gmail.Service, error)
-	hookClient *http.Client
-	logf       func(string, ...any)
-	warnf      func(string, ...any)
+	cfg             gmailWatchServeConfig
+	store           *gmailWatchStore
+	validator       *idtoken.Validator
+	newService      func(context.Context, string) (*gmail.Service, error)
+	hookClient      *http.Client
+	excludeLabelIDs map[string]struct{}
+	logf            func(string, ...any)
+	warnf           func(string, ...any)
 }
 
 func (s *gmailWatchServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -188,7 +189,7 @@ func (s *gmailWatchServer) handlePush(ctx context.Context, payload gmailPushPayl
 	}
 
 	messageIDs := collectHistoryMessageIDs(historyResp)
-	msgs, err := s.fetchMessages(ctx, svc, messageIDs)
+	msgs, excluded, err := s.fetchMessages(ctx, svc, messageIDs)
 	if err != nil {
 		return nil, err
 	}
@@ -214,6 +215,13 @@ func (s *gmailWatchServer) handlePush(ctx context.Context, payload gmailPushPayl
 		s.warnf("watch: failed to update state: %v", err)
 	}
 
+	if excluded > 0 && len(msgs) == 0 {
+		if s.cfg.VerboseOutput {
+			s.logf("watch: skipping hook; all messages excluded")
+		}
+		return nil, errNoNewMessages
+	}
+
 	return &gmailHookPayload{
 		Source:    "gmail",
 		Account:   s.cfg.Account,
@@ -233,7 +241,7 @@ func (s *gmailWatchServer) resyncHistory(ctx context.Context, svc *gmail.Service
 			ids = append(ids, m.Id)
 		}
 	}
-	msgs, err := s.fetchMessages(ctx, svc, ids)
+	msgs, excluded, err := s.fetchMessages(ctx, svc, ids)
 	if err != nil {
 		return nil, err
 	}
@@ -255,6 +263,13 @@ func (s *gmailWatchServer) resyncHistory(ctx context.Context, svc *gmail.Service
 		s.warnf("watch: failed to update state after resync: %v", err)
 	}
 
+	if excluded > 0 && len(msgs) == 0 {
+		if s.cfg.VerboseOutput {
+			s.logf("watch: skipping hook; all messages excluded")
+		}
+		return nil, errNoNewMessages
+	}
+
 	return &gmailHookPayload{
 		Source:    "gmail",
 		Account:   s.cfg.Account,
@@ -263,11 +278,12 @@ func (s *gmailWatchServer) resyncHistory(ctx context.Context, svc *gmail.Service
 	}, nil
 }
 
-func (s *gmailWatchServer) fetchMessages(ctx context.Context, svc *gmail.Service, ids []string) ([]gmailHookMessage, error) {
+func (s *gmailWatchServer) fetchMessages(ctx context.Context, svc *gmail.Service, ids []string) ([]gmailHookMessage, int, error) {
 	messages := make([]gmailHookMessage, 0, len(ids))
+	excluded := 0
 	format := gmailWatchFormatMetadata
 	if s.cfg.IncludeBody {
-		format = "full"
+		format = gmailFormatFull
 	}
 	for _, id := range ids {
 		if strings.TrimSpace(id) == "" {
@@ -282,9 +298,16 @@ func (s *gmailWatchServer) fetchMessages(ctx context.Context, svc *gmail.Service
 			if isNotFoundAPIError(err) {
 				continue
 			}
-			return nil, err
+			return nil, excluded, err
 		}
 		if msg == nil {
+			continue
+		}
+		if s.isExcludedLabel(msg.LabelIds) {
+			excluded++
+			if s.cfg.VerboseOutput {
+				s.logf("watch: excluded message %s labels=%v", msg.Id, msg.LabelIds)
+			}
 			continue
 		}
 		item := gmailHookMessage{
@@ -303,7 +326,23 @@ func (s *gmailWatchServer) fetchMessages(ctx context.Context, svc *gmail.Service
 		}
 		messages = append(messages, item)
 	}
-	return messages, nil
+	return messages, excluded, nil
+}
+
+func (s *gmailWatchServer) isExcludedLabel(labelIDs []string) bool {
+	if len(labelIDs) == 0 || len(s.excludeLabelIDs) == 0 {
+		return false
+	}
+	for _, id := range labelIDs {
+		trimmed := strings.TrimSpace(id)
+		if trimmed == "" {
+			continue
+		}
+		if _, ok := s.excludeLabelIDs[trimmed]; ok {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *gmailWatchServer) sendHook(ctx context.Context, payload *gmailHookPayload) error {

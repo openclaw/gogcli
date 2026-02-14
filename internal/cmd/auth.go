@@ -26,6 +26,7 @@ var (
 	checkRefreshToken    = googleauth.CheckRefreshToken
 	ensureKeychainAccess = secrets.EnsureKeychainAccess
 	fetchAuthorizedEmail = googleauth.EmailForRefreshToken
+	manualAuthURL        = googleauth.ManualAuthURL
 )
 
 func ensureKeychainAccessIfNeeded() error {
@@ -74,7 +75,7 @@ type AuthCredentialsSetCmd struct {
 	Domains string `name:"domain" help:"Comma-separated domains to map to this client (e.g. example.com)"`
 }
 
-func (c *AuthCredentialsSetCmd) Run(ctx context.Context) error {
+func (c *AuthCredentialsSetCmd) Run(ctx context.Context, _ *RootFlags) error {
 	u := ui.FromContext(ctx)
 	client, err := normalizeClientForFlag(authclient.ClientOverrideFromContext(ctx))
 	if err != nil {
@@ -120,7 +121,7 @@ func (c *AuthCredentialsSetCmd) Run(ctx context.Context) error {
 		}
 	}
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
 			"saved":  true,
 			"path":   outPath,
 			"client": client,
@@ -133,7 +134,7 @@ func (c *AuthCredentialsSetCmd) Run(ctx context.Context) error {
 
 type AuthCredentialsListCmd struct{}
 
-func (c *AuthCredentialsListCmd) Run(ctx context.Context) error {
+func (c *AuthCredentialsListCmd) Run(ctx context.Context, _ *RootFlags) error {
 	u := ui.FromContext(ctx)
 	cfg, err := config.ReadConfig()
 	if err != nil {
@@ -192,14 +193,14 @@ func (c *AuthCredentialsListCmd) Run(ctx context.Context) error {
 
 	if len(entries) == 0 {
 		if outfmt.IsJSON(ctx) {
-			return outfmt.WriteJSON(os.Stdout, map[string]any{"clients": []entry{}})
+			return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{"clients": []entry{}})
 		}
 		u.Err().Println("No OAuth client credentials stored")
 		return nil
 	}
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{"clients": entries})
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{"clients": entries})
 	}
 
 	w, done := tableWriter(ctx)
@@ -220,7 +221,7 @@ type AuthTokensCmd struct {
 
 type AuthTokensListCmd struct{}
 
-func (c *AuthTokensListCmd) Run(ctx context.Context) error {
+func (c *AuthTokensListCmd) Run(ctx context.Context, _ *RootFlags) error {
 	u := ui.FromContext(ctx)
 	store, err := openSecretsStore()
 	if err != nil {
@@ -241,13 +242,13 @@ func (c *AuthTokensListCmd) Run(ctx context.Context) error {
 
 	if len(filtered) == 0 {
 		if outfmt.IsJSON(ctx) {
-			return outfmt.WriteJSON(os.Stdout, map[string]any{"keys": []string{}})
+			return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{"keys": []string{}})
 		}
 		u.Err().Println("No tokens stored")
 		return nil
 	}
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{"keys": filtered})
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{"keys": filtered})
 	}
 	for _, k := range filtered {
 		u.Out().Println(k)
@@ -282,7 +283,7 @@ func (c *AuthTokensDeleteCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
 			"deleted": true,
 			"email":   email,
 			"client":  client,
@@ -300,7 +301,7 @@ type AuthTokensExportCmd struct {
 	Overwrite bool                   `name:"overwrite" help:"Overwrite output file if it exists"`
 }
 
-func (c *AuthTokensExportCmd) Run(ctx context.Context) error {
+func (c *AuthTokensExportCmd) Run(ctx context.Context, _ *RootFlags) error {
 	u := ui.FromContext(ctx)
 	email := strings.TrimSpace(c.Email)
 	if email == "" {
@@ -371,7 +372,7 @@ func (c *AuthTokensExportCmd) Run(ctx context.Context) error {
 
 	u.Err().Println("WARNING: exported file contains a refresh token (keep it safe and delete it when done)")
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
 			"exported": true,
 			"email":    tok.Email,
 			"client":   client,
@@ -389,7 +390,7 @@ type AuthTokensImportCmd struct {
 	InPath string `arg:"" name:"inPath" help:"Input path or '-' for stdin"`
 }
 
-func (c *AuthTokensImportCmd) Run(ctx context.Context) error {
+func (c *AuthTokensImportCmd) Run(ctx context.Context, _ *RootFlags) error {
 	u := ui.FromContext(ctx)
 	inPath := c.InPath
 	var b []byte
@@ -466,7 +467,7 @@ func (c *AuthTokensImportCmd) Run(ctx context.Context) error {
 
 	u.Err().Println("Imported refresh token into keyring")
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
 			"imported": true,
 			"email":    ex.Email,
 			"client":   client,
@@ -479,15 +480,20 @@ func (c *AuthTokensImportCmd) Run(ctx context.Context) error {
 }
 
 type AuthAddCmd struct {
-	Email        string `arg:"" name:"email" help:"Email"`
-	Manual       bool   `name:"manual" help:"Browserless auth flow (paste redirect URL)"`
-	ForceConsent bool   `name:"force-consent" help:"Force consent screen to obtain a refresh token"`
-	ServicesCSV  string `name:"services" help:"Services to authorize: user|all or comma-separated ${auth_services} (Keep uses service account: gog auth service-account set)" default:"user"`
-	Readonly     bool   `name:"readonly" help:"Use read-only scopes where available (still includes OIDC identity scopes)"`
-	DriveScope   string `name:"drive-scope" help:"Drive scope mode: full|readonly|file" enum:"full,readonly,file" default:"full"`
+	Email        string        `arg:"" name:"email" help:"Email"`
+	Manual       bool          `name:"manual" help:"Browserless auth flow (paste redirect URL)"`
+	Remote       bool          `name:"remote" help:"Remote/server-friendly manual flow (print URL, then exchange code)"`
+	Step         int           `name:"step" help:"Remote auth step: 1=print URL, 2=exchange code"`
+	AuthURL      string        `name:"auth-url" help:"Redirect URL from browser (manual flow; required for --remote --step 2)"`
+	AuthCode     string        `name:"auth-code" hidden:"" help:"UNSAFE: Authorization code from browser (manual flow; skips state check; not valid with --remote)"`
+	Timeout      time.Duration `name:"timeout" help:"Authorization timeout (manual flows default to 5m)"`
+	ForceConsent bool          `name:"force-consent" help:"Force consent screen to obtain a refresh token"`
+	ServicesCSV  string        `name:"services" help:"Services to authorize: user|all or comma-separated ${auth_services} (Keep uses service account: gog auth service-account set)" default:"user"`
+	Readonly     bool          `name:"readonly" help:"Use read-only scopes where available (still includes OIDC identity scopes)"`
+	DriveScope   string        `name:"drive-scope" help:"Drive scope mode: full|readonly|file" enum:"full,readonly,file" default:"full"`
 }
 
-func (c *AuthAddCmd) Run(ctx context.Context) error {
+func (c *AuthAddCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
 
 	override := authclient.ClientOverrideFromContext(ctx)
@@ -515,6 +521,84 @@ func (c *AuthAddCmd) Run(ctx context.Context) error {
 		return err
 	}
 
+	authURL := strings.TrimSpace(c.AuthURL)
+	authCode := strings.TrimSpace(c.AuthCode)
+	if authURL != "" && authCode != "" {
+		return usage("cannot combine --auth-url with --auth-code")
+	}
+	if c.Step != 0 && c.Step != 1 && c.Step != 2 {
+		return usage("step must be 1 or 2")
+	}
+	if c.Step != 0 && !c.Remote {
+		return usage("--step requires --remote")
+	}
+
+	manual := c.Manual || c.Remote || authURL != "" || authCode != ""
+
+	if c.Remote {
+		step := c.Step
+		if step == 0 {
+			if authURL != "" || authCode != "" {
+				step = 2
+			} else {
+				step = 1
+			}
+		}
+		switch step {
+		case 1:
+			if authURL != "" || authCode != "" {
+				return usage("remote step 1 does not accept --auth-url or --auth-code")
+			}
+			result, manualErr := manualAuthURL(ctx, googleauth.AuthorizeOptions{
+				Services:     services,
+				Scopes:       scopes,
+				Manual:       true,
+				ForceConsent: c.ForceConsent,
+				Client:       client,
+			})
+			if manualErr != nil {
+				return manualErr
+			}
+			if outfmt.IsJSON(ctx) {
+				return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
+					"auth_url":     result.URL,
+					"state_reused": result.StateReused,
+				})
+			}
+			u.Out().Printf("auth_url\t%s", result.URL)
+			u.Out().Printf("state_reused\t%t", result.StateReused)
+			u.Err().Println("Run again with --remote --step 2 --auth-url <redirect-url>")
+			return nil
+		case 2:
+			if authCode != "" {
+				return usage("--auth-code is not valid with --remote (state check is mandatory)")
+			}
+			if authURL == "" {
+				return usage("remote step 2 requires --auth-url")
+			}
+		}
+	}
+
+	timeout := c.Timeout
+	if timeout == 0 && manual {
+		timeout = 5 * time.Minute
+	}
+
+	if dryRunErr := dryRunExit(ctx, flags, "auth.add", map[string]any{
+		"email":         strings.TrimSpace(c.Email),
+		"client":        client,
+		"services":      services,
+		"scopes":        scopes,
+		"manual":        c.Manual,
+		"remote":        c.Remote,
+		"step":          c.Step,
+		"force_consent": c.ForceConsent,
+		"readonly":      c.Readonly,
+		"drive_scope":   c.DriveScope,
+	}); dryRunErr != nil {
+		return dryRunErr
+	}
+
 	// Pre-flight: ensure keychain is accessible before starting OAuth
 	if keychainErr := ensureKeychainAccessIfNeeded(); keychainErr != nil {
 		return fmt.Errorf("keychain access: %w", keychainErr)
@@ -523,9 +607,13 @@ func (c *AuthAddCmd) Run(ctx context.Context) error {
 	refreshToken, err := authorizeGoogle(ctx, googleauth.AuthorizeOptions{
 		Services:     services,
 		Scopes:       scopes,
-		Manual:       c.Manual,
+		Manual:       manual,
 		ForceConsent: c.ForceConsent,
+		Timeout:      timeout,
 		Client:       client,
+		AuthURL:      authURL,
+		AuthCode:     authCode,
+		RequireState: c.Remote,
 	})
 	if err != nil {
 		return err
@@ -571,7 +659,7 @@ func (c *AuthAddCmd) Run(ctx context.Context) error {
 		}
 	}
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
 			"stored":   true,
 			"email":    authorizedEmail,
 			"services": serviceNames,
@@ -642,7 +730,7 @@ func (c *AuthStatusCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
 			"config": map[string]any{
 				"path":   configPath,
 				"exists": configExists,
@@ -682,7 +770,7 @@ func (c *AuthStatusCmd) Run(ctx context.Context, flags *RootFlags) error {
 	return nil
 }
 
-func (c *AuthListCmd) Run(ctx context.Context) error {
+func (c *AuthListCmd) Run(ctx context.Context, _ *RootFlags) error {
 	u := ui.FromContext(ctx)
 	store, err := openSecretsStore()
 	if err != nil {
@@ -817,7 +905,7 @@ func (c *AuthListCmd) Run(ctx context.Context) error {
 			}
 			out = append(out, it)
 		}
-		return outfmt.WriteJSON(os.Stdout, map[string]any{"accounts": out})
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{"accounts": out})
 	}
 	if len(entries) == 0 {
 		u.Err().Println("No tokens stored")
@@ -896,10 +984,10 @@ type AuthServicesCmd struct {
 	Markdown bool `name:"markdown" help:"Output Markdown table"`
 }
 
-func (c *AuthServicesCmd) Run(ctx context.Context) error {
+func (c *AuthServicesCmd) Run(ctx context.Context, _ *RootFlags) error {
 	infos := googleauth.ServicesInfo()
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{"services": infos})
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{"services": infos})
 	}
 	if c.Markdown {
 		_, err := io.WriteString(os.Stdout, googleauth.ServicesMarkdown(infos))
@@ -950,7 +1038,7 @@ func (c *AuthRemoveCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
 			"deleted": true,
 			"email":   email,
 			"client":  client,
@@ -968,7 +1056,7 @@ type AuthManageCmd struct {
 	Timeout      time.Duration `name:"timeout" help:"Server timeout duration" default:"10m"`
 }
 
-func (c *AuthManageCmd) Run(ctx context.Context) error {
+func (c *AuthManageCmd) Run(ctx context.Context, _ *RootFlags) error {
 	services, err := parseAuthServices(c.ServicesCSV)
 	if err != nil {
 		return err
@@ -987,7 +1075,7 @@ type AuthKeepCmd struct {
 	Key   string `name:"key" required:"" help:"Path to service account JSON key file"`
 }
 
-func (c *AuthKeepCmd) Run(ctx context.Context) error {
+func (c *AuthKeepCmd) Run(ctx context.Context, _ *RootFlags) error {
 	u := ui.FromContext(ctx)
 
 	email := strings.TrimSpace(c.Email)
@@ -1034,7 +1122,7 @@ func (c *AuthKeepCmd) Run(ctx context.Context) error {
 	}
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
 			"stored": true,
 			"email":  email,
 			"path":   destPath,

@@ -69,7 +69,7 @@ func TestCalendarProposeTimeCmd_Text(t *testing.T) {
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := strings.TrimPrefix(r.URL.Path, "/calendar/v3")
-		if strings.Contains(path, "/calendars/cal1/events/evt1") && r.Method == http.MethodGet {
+		if strings.Contains(path, "/calendars/cal1@example.com/events/evt1") && r.Method == http.MethodGet {
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"id":      "evt1",
@@ -106,7 +106,7 @@ func TestCalendarProposeTimeCmd_Text(t *testing.T) {
 		ctx := ui.WithUI(context.Background(), u)
 
 		cmd := &CalendarProposeTimeCmd{}
-		if err := runKong(t, cmd, []string{"cal1", "evt1", "--open"}, ctx, flags); err != nil {
+		if err := runKong(t, cmd, []string{"cal1@example.com", "evt1", "--open"}, ctx, flags); err != nil {
 			t.Fatalf("propose-time: %v", err)
 		}
 	})
@@ -151,7 +151,7 @@ func TestCalendarProposeTimeCmd_JSON(t *testing.T) {
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := strings.TrimPrefix(r.URL.Path, "/calendar/v3")
-		if strings.Contains(path, "/calendars/cal1/events/evt1") && r.Method == http.MethodGet {
+		if strings.Contains(path, "/calendars/cal1@example.com/events/evt1") && r.Method == http.MethodGet {
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"id":      "evt1",
@@ -189,7 +189,7 @@ func TestCalendarProposeTimeCmd_JSON(t *testing.T) {
 		ctx = outfmt.WithMode(ctx, outfmt.Mode{JSON: true})
 
 		cmd := &CalendarProposeTimeCmd{}
-		if err := runKong(t, cmd, []string{"cal1", "evt1"}, ctx, flags); err != nil {
+		if err := runKong(t, cmd, []string{"cal1@example.com", "evt1"}, ctx, flags); err != nil {
 			t.Fatalf("propose-time JSON: %v", err)
 		}
 	})
@@ -211,8 +211,8 @@ func TestCalendarProposeTimeCmd_JSON(t *testing.T) {
 	if result["event_id"] != "evt1" {
 		t.Errorf("event_id = %v, want evt1", result["event_id"])
 	}
-	if result["calendar_id"] != "cal1" {
-		t.Errorf("calendar_id = %v, want cal1", result["calendar_id"])
+	if result["calendar_id"] != "cal1@example.com" {
+		t.Errorf("calendar_id = %v, want cal1@example.com", result["calendar_id"])
 	}
 	if result["summary"] != "Team Meeting" {
 		t.Errorf("summary = %v, want Team Meeting", result["summary"])
@@ -239,7 +239,7 @@ func TestCalendarProposeTimeCmd_WithDecline(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := strings.TrimPrefix(r.URL.Path, "/calendar/v3")
 		switch {
-		case strings.Contains(path, "/calendars/cal1/events/evt1") && r.Method == http.MethodGet:
+		case strings.Contains(path, "/calendars/cal1@example.com/events/evt1") && r.Method == http.MethodGet:
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"id":      "evt1",
@@ -251,7 +251,7 @@ func TestCalendarProposeTimeCmd_WithDecline(t *testing.T) {
 					{"email": "organizer@b.com", "organizer": true},
 				},
 			})
-		case strings.Contains(path, "/calendars/cal1/events/evt1") && r.Method == http.MethodPatch:
+		case strings.Contains(path, "/calendars/cal1@example.com/events/evt1") && r.Method == http.MethodPatch:
 			patchCalled = true
 			sendUpdates = r.URL.Query().Get("sendUpdates")
 			var body map[string]any
@@ -290,7 +290,7 @@ func TestCalendarProposeTimeCmd_WithDecline(t *testing.T) {
 		ctx := ui.WithUI(context.Background(), u)
 
 		cmd := &CalendarProposeTimeCmd{}
-		if err := runKong(t, cmd, []string{"cal1", "evt1", "--comment", "Can we do 5pm instead?"}, ctx, flags); err != nil {
+		if err := runKong(t, cmd, []string{"cal1@example.com", "evt1", "--comment", "Can we do 5pm instead?"}, ctx, flags); err != nil {
 			t.Fatalf("propose-time with decline: %v", err)
 		}
 	})

@@ -85,7 +85,7 @@ func TestCalendarCreateCmd_WithExtras(t *testing.T) {
 	yes := true
 	no := false
 	cmd := &CalendarCreateCmd{
-		CalendarID:            "cal1",
+		CalendarID:            "cal1@example.com",
 		Summary:               "Title",
 		From:                  "2025-01-01T00:00:00Z",
 		To:                    "2025-01-01T01:00:00Z",

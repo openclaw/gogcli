@@ -191,6 +191,139 @@ func TestDownloadDriveFile_ErrorPaths(t *testing.T) {
 	}
 }
 
+func TestGoogleConvertMimeType(t *testing.T) {
+	cases := []struct {
+		path     string
+		wantMime string
+		wantOK   bool
+	}{
+		{"report.docx", driveMimeGoogleDoc, true},
+		{"report.DOCX", driveMimeGoogleDoc, true},
+		{"old.doc", driveMimeGoogleDoc, true},
+		{"budget.xlsx", driveMimeGoogleSheet, true},
+		{"budget.xls", driveMimeGoogleSheet, true},
+		{"data.csv", driveMimeGoogleSheet, true},
+		{"deck.pptx", driveMimeGoogleSlides, true},
+		{"deck.ppt", driveMimeGoogleSlides, true},
+		{"notes.txt", driveMimeGoogleDoc, true},
+		{"page.html", driveMimeGoogleDoc, true},
+		{"photo.png", "", false},
+		{"archive.zip", "", false},
+		{"binary.exe", "", false},
+	}
+	for _, tc := range cases {
+		mime, ok := googleConvertMimeType(tc.path)
+		if ok != tc.wantOK || mime != tc.wantMime {
+			t.Errorf("googleConvertMimeType(%q) = (%q, %v), want (%q, %v)", tc.path, mime, ok, tc.wantMime, tc.wantOK)
+		}
+	}
+}
+
+func TestGoogleConvertTargetMimeType(t *testing.T) {
+	cases := []struct {
+		target   string
+		wantMime string
+		wantOK   bool
+	}{
+		{"doc", driveMimeGoogleDoc, true},
+		{"sheet", driveMimeGoogleSheet, true},
+		{"slides", driveMimeGoogleSlides, true},
+		{"DOC", driveMimeGoogleDoc, true},
+		{"unknown", "", false},
+	}
+	for _, tc := range cases {
+		mime, ok := googleConvertTargetMimeType(tc.target)
+		if ok != tc.wantOK || mime != tc.wantMime {
+			t.Errorf("googleConvertTargetMimeType(%q) = (%q, %v), want (%q, %v)", tc.target, mime, ok, tc.wantMime, tc.wantOK)
+		}
+	}
+}
+
+func TestDriveUploadConvertMimeType(t *testing.T) {
+	mimeType, convert, err := driveUploadConvertMimeType("report.docx", true, "")
+	if err != nil {
+		t.Fatalf("auto convert: %v", err)
+	}
+	if !convert || mimeType != driveMimeGoogleDoc {
+		t.Fatalf("auto convert = (%q, %v), want (%q, true)", mimeType, convert, driveMimeGoogleDoc)
+	}
+
+	mimeType, convert, err = driveUploadConvertMimeType("photo.png", false, "sheet")
+	if err != nil {
+		t.Fatalf("explicit convert: %v", err)
+	}
+	if !convert || mimeType != driveMimeGoogleSheet {
+		t.Fatalf("explicit convert = (%q, %v), want (%q, true)", mimeType, convert, driveMimeGoogleSheet)
+	}
+
+	mimeType, convert, err = driveUploadConvertMimeType("photo.png", false, "")
+	if err != nil {
+		t.Fatalf("no convert: %v", err)
+	}
+	if convert || mimeType != "" {
+		t.Fatalf("no convert = (%q, %v), want empty/false", mimeType, convert)
+	}
+
+	if _, _, err = driveUploadConvertMimeType("photo.png", false, "not-a-target"); err == nil {
+		t.Fatalf("expected error for invalid --convert-to target")
+	}
+}
+
+func TestStripOfficeExt(t *testing.T) {
+	cases := []struct {
+		name string
+		want string
+	}{
+		{"report.docx", "report"},
+		{"report.doc", "report"},
+		{"budget.xlsx", "budget"},
+		{"budget.xls", "budget"},
+		{"deck.pptx", "deck"},
+		{"deck.ppt", "deck"},
+		{"notes.txt", "notes.txt"},
+		{"photo.png", "photo.png"},
+		{"no-ext", "no-ext"},
+	}
+	for _, tc := range cases {
+		got := stripOfficeExt(tc.name)
+		if got != tc.want {
+			t.Errorf("stripOfficeExt(%q) = %q, want %q", tc.name, got, tc.want)
+		}
+	}
+}
+
+func TestDriveUpload_ConvertUnsupported(t *testing.T) {
+	u, uiErr := ui.New(ui.Options{Stdout: io.Discard, Stderr: io.Discard, Color: "never"})
+	if uiErr != nil {
+		t.Fatalf("ui.New: %v", uiErr)
+	}
+	ctx := ui.WithUI(context.Background(), u)
+	flags := &RootFlags{Account: "a@b.com"}
+
+	tmp := filepath.Join(t.TempDir(), "photo.png")
+	if err := os.WriteFile(tmp, []byte("png-data"), 0o600); err != nil {
+		t.Fatalf("write temp: %v", err)
+	}
+
+	origNew := newDriveService
+	t.Cleanup(func() { newDriveService = origNew })
+	newServiceCalled := false
+	newDriveService = func(context.Context, string) (*drive.Service, error) {
+		newServiceCalled = true
+		return &drive.Service{}, nil
+	}
+
+	cmd := &DriveUploadCmd{LocalPath: tmp, Convert: true}
+	if err := cmd.Run(ctx, flags); err == nil {
+		t.Fatalf("expected error for unsupported --convert type")
+	} else if !strings.Contains(err.Error(), "--convert: unsupported") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if newServiceCalled {
+		t.Fatalf("newDriveService should not be called when --convert validation fails")
+	}
+}
+
 func TestDriveWebLink_Error(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "boom", http.StatusInternalServerError)

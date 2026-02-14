@@ -15,10 +15,10 @@ import (
 )
 
 type GmailFiltersCmd struct {
-	List   GmailFiltersListCmd   `cmd:"" name:"list" help:"List all email filters"`
-	Get    GmailFiltersGetCmd    `cmd:"" name:"get" help:"Get a specific filter"`
-	Create GmailFiltersCreateCmd `cmd:"" name:"create" help:"Create a new email filter"`
-	Delete GmailFiltersDeleteCmd `cmd:"" name:"delete" help:"Delete a filter"`
+	List   GmailFiltersListCmd   `cmd:"" name:"list" aliases:"ls" help:"List all email filters"`
+	Get    GmailFiltersGetCmd    `cmd:"" name:"get" aliases:"info,show" help:"Get a specific filter"`
+	Create GmailFiltersCreateCmd `cmd:"" name:"create" aliases:"add,new" help:"Create a new email filter"`
+	Delete GmailFiltersDeleteCmd `cmd:"" name:"delete" aliases:"rm,del,remove" help:"Delete a filter"`
 }
 
 type GmailFiltersListCmd struct{}
@@ -41,7 +41,7 @@ func (c *GmailFiltersListCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{"filters": resp.Filter})
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{"filters": resp.Filter})
 	}
 
 	if len(resp.Filter) == 0 {
@@ -100,7 +100,7 @@ func (c *GmailFiltersGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{"filter": filter})
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{"filter": filter})
 	}
 
 	u.Out().Printf("id\t%s", filter.Id)
@@ -168,10 +168,6 @@ type GmailFiltersCreateCmd struct {
 
 func (c *GmailFiltersCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
 
 	// Validate that at least one criteria is specified
 	if c.From == "" && c.To == "" && c.Subject == "" && c.Query == "" && !c.HasAttachment {
@@ -181,6 +177,34 @@ func (c *GmailFiltersCreateCmd) Run(ctx context.Context, flags *RootFlags) error
 	// Validate that at least one action is specified
 	if c.AddLabel == "" && c.RemoveLabel == "" && !c.Archive && !c.MarkRead && !c.Star && c.Forward == "" && !c.Trash && !c.NeverSpam && !c.Important {
 		return errors.New("must specify at least one action flag (--add-label, --remove-label, --archive, --mark-read, --star, --forward, --trash, --never-spam, or --important)")
+	}
+
+	if err := dryRunExit(ctx, flags, "gmail.filters.create", map[string]any{
+		"criteria": map[string]any{
+			"from":           strings.TrimSpace(c.From),
+			"to":             strings.TrimSpace(c.To),
+			"subject":        strings.TrimSpace(c.Subject),
+			"query":          strings.TrimSpace(c.Query),
+			"has_attachment": c.HasAttachment,
+		},
+		"actions": map[string]any{
+			"add_label":    splitCSV(c.AddLabel),
+			"remove_label": splitCSV(c.RemoveLabel),
+			"archive":      c.Archive,
+			"mark_read":    c.MarkRead,
+			"star":         c.Star,
+			"forward":      strings.TrimSpace(c.Forward),
+			"trash":        c.Trash,
+			"never_spam":   c.NeverSpam,
+			"important":    c.Important,
+		},
+	}); err != nil {
+		return err
+	}
+
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
 	}
 
 	svc, err := newGmailService(ctx, account)
@@ -293,7 +317,7 @@ func (c *GmailFiltersCreateCmd) Run(ctx context.Context, flags *RootFlags) error
 	}
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{"filter": created})
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{"filter": created})
 	}
 
 	u.Out().Println("Filter created successfully")
@@ -322,6 +346,15 @@ type GmailFiltersDeleteCmd struct {
 
 func (c *GmailFiltersDeleteCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
+	filterID := strings.TrimSpace(c.FilterID)
+	if filterID == "" {
+		return usage("empty filterId")
+	}
+
+	if confirmErr := confirmDestructive(ctx, flags, fmt.Sprintf("delete gmail filter %s", filterID)); confirmErr != nil {
+		return confirmErr
+	}
+
 	account, err := requireAccount(flags)
 	if err != nil {
 		return err
@@ -332,17 +365,13 @@ func (c *GmailFiltersDeleteCmd) Run(ctx context.Context, flags *RootFlags) error
 		return err
 	}
 
-	filterID := strings.TrimSpace(c.FilterID)
-	if filterID == "" {
-		return usage("empty filterId")
-	}
 	err = svc.Users.Settings.Filters.Delete("me", filterID).Do()
 	if err != nil {
 		return err
 	}
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
 			"success":  true,
 			"filterId": filterID,
 		})

@@ -19,7 +19,7 @@ type CalendarTeamCmd struct {
 	GroupEmail string `arg:"" help:"Google Group email (e.g., engineering@company.com)"`
 	FreeBusy   bool   `name:"freebusy" help:"Show only busy/free blocks (faster, single API call)"`
 	Query      string `name:"query" short:"q" help:"Filter events by title (case-insensitive)"`
-	Max        int64  `name:"max" help:"Max events per calendar" default:"100"`
+	Max        int64  `name:"max" aliases:"limit" help:"Max events per calendar" default:"100"`
 	NoDedup    bool   `name:"no-dedup" help:"Show each person's view without deduplication"`
 	TimeRangeFlags
 }
@@ -136,7 +136,7 @@ func (c *CalendarTeamCmd) runFreeBusy(ctx context.Context, svc *calendar.Service
 	}
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
 			"group":    c.GroupEmail,
 			"timeMin":  tr.From.Format(time.RFC3339),
 			"timeMax":  tr.To.Format(time.RFC3339),
@@ -265,7 +265,7 @@ func (c *CalendarTeamCmd) runEvents(ctx context.Context, svc *calendar.Service, 
 	}
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
 			"group":    c.GroupEmail,
 			"timeMin":  tr.From.Format(time.RFC3339),
 			"timeMax":  tr.To.Format(time.RFC3339),
