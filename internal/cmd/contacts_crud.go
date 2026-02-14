@@ -327,7 +327,7 @@ func (c *ContactsUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *
 
 	for _, f := range updateFields {
 		// Clearing list fields requires forcing them into the patch payload (Google API client omits empty values by default).
-		forceSendEmptySliceField(existing, jsonFieldToGoField(f))
+		forceSendEmptyPersonListField(existing, f)
 	}
 
 	updated, err := svc.People.UpdateContact(resourceName, existing).

@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"reflect"
 	"sort"
 	"strings"
 
@@ -52,12 +51,12 @@ const (
 	contactsJSONKeyResource = "resourceName"
 )
 
-func jsonFieldToGoField(jsonField string) string {
-	jsonField = strings.TrimSpace(jsonField)
-	if jsonField == "" {
+func contactsPersonFieldToGoField(personField string) string {
+	personField = strings.TrimSpace(personField)
+	if personField == "" {
 		return ""
 	}
-	return strings.ToUpper(jsonField[:1]) + jsonField[1:]
+	return strings.ToUpper(personField[:1]) + personField[1:]
 }
 
 func appendUnique(ss []string, v string) []string {
@@ -69,27 +68,126 @@ func appendUnique(ss []string, v string) []string {
 	return append(ss, v)
 }
 
-func forceSendEmptySliceField(p *people.Person, goField string) {
-	if p == nil || strings.TrimSpace(goField) == "" {
+func forceSendEmptyPersonListField(p *people.Person, personField string) {
+	if p == nil {
 		return
 	}
-	rv := reflect.ValueOf(p)
-	if rv.Kind() != reflect.Pointer || rv.IsNil() {
+	personField = strings.TrimSpace(personField)
+	if personField == "" {
 		return
 	}
-	elem := rv.Elem()
-	if elem.Kind() != reflect.Struct {
+
+	// Google API client omits empty values by default. For list clears, we need to:
+	// - ensure the field is an empty (non-nil) slice
+	// - add the Go struct field name to ForceSendFields
+	switch personField {
+	case "addresses":
+		if p.Addresses == nil {
+			p.Addresses = []*people.Address{}
+		}
+	case "biographies":
+		if p.Biographies == nil {
+			p.Biographies = []*people.Biography{}
+		}
+	case "birthdays":
+		if p.Birthdays == nil {
+			p.Birthdays = []*people.Birthday{}
+		}
+	case "calendarUrls":
+		if p.CalendarUrls == nil {
+			p.CalendarUrls = []*people.CalendarUrl{}
+		}
+	case "clientData":
+		if p.ClientData == nil {
+			p.ClientData = []*people.ClientData{}
+		}
+	case "emailAddresses":
+		if p.EmailAddresses == nil {
+			p.EmailAddresses = []*people.EmailAddress{}
+		}
+	case "events":
+		if p.Events == nil {
+			p.Events = []*people.Event{}
+		}
+	case "externalIds":
+		if p.ExternalIds == nil {
+			p.ExternalIds = []*people.ExternalId{}
+		}
+	case "genders":
+		if p.Genders == nil {
+			p.Genders = []*people.Gender{}
+		}
+	case "imClients":
+		if p.ImClients == nil {
+			p.ImClients = []*people.ImClient{}
+		}
+	case "interests":
+		if p.Interests == nil {
+			p.Interests = []*people.Interest{}
+		}
+	case "locales":
+		if p.Locales == nil {
+			p.Locales = []*people.Locale{}
+		}
+	case "locations":
+		if p.Locations == nil {
+			p.Locations = []*people.Location{}
+		}
+	case "memberships":
+		if p.Memberships == nil {
+			p.Memberships = []*people.Membership{}
+		}
+	case "miscKeywords":
+		if p.MiscKeywords == nil {
+			p.MiscKeywords = []*people.MiscKeyword{}
+		}
+	case "names":
+		if p.Names == nil {
+			p.Names = []*people.Name{}
+		}
+	case "nicknames":
+		if p.Nicknames == nil {
+			p.Nicknames = []*people.Nickname{}
+		}
+	case "occupations":
+		if p.Occupations == nil {
+			p.Occupations = []*people.Occupation{}
+		}
+	case "organizations":
+		if p.Organizations == nil {
+			p.Organizations = []*people.Organization{}
+		}
+	case "phoneNumbers":
+		if p.PhoneNumbers == nil {
+			p.PhoneNumbers = []*people.PhoneNumber{}
+		}
+	case "relations":
+		if p.Relations == nil {
+			p.Relations = []*people.Relation{}
+		}
+	case "sipAddresses":
+		if p.SipAddresses == nil {
+			p.SipAddresses = []*people.SipAddress{}
+		}
+	case "urls":
+		if p.Urls == nil {
+			p.Urls = []*people.Url{}
+		}
+	case "userDefined":
+		if p.UserDefined == nil {
+			p.UserDefined = []*people.UserDefined{}
+		}
+	default:
 		return
 	}
-	fv := elem.FieldByName(goField)
-	if !fv.IsValid() || fv.Kind() != reflect.Slice {
-		return
-	}
-	if fv.IsNil() {
-		fv.Set(reflect.MakeSlice(fv.Type(), 0, 0))
-	}
-	if fv.Len() == 0 {
-		p.ForceSendFields = appendUnique(p.ForceSendFields, goField)
+
+	goField := contactsPersonFieldToGoField(personField)
+	p.ForceSendFields = appendUnique(p.ForceSendFields, goField)
+}
+
+func forceSendEmptyPersonListFields(p *people.Person, personFields []string) {
+	for _, f := range personFields {
+		forceSendEmptyPersonListField(p, f)
 	}
 }
 
@@ -184,7 +282,7 @@ func contactsUpdateMaskFromKeys(keys map[string]json.RawMessage) ([]string, erro
 	}
 	if len(unsupported) > 0 {
 		sort.Strings(unsupported)
-		return nil, usage("JSON contains fields that aren't updatable via people.updateContact updatePersonFields: " + strings.Join(unsupported, ", "))
+		return nil, usage("JSON contains unsupported keys for contacts update: " + strings.Join(unsupported, ", ") + ". Include only fields you want to change (for example: urls, biographies, addresses, organizations, ...). Tip: start from `gog contacts get ... --json` and delete keys you don't want to update.")
 	}
 	sort.Strings(update)
 	return update, nil
@@ -240,9 +338,7 @@ func (c *ContactsUpdateCmd) updateFromJSON(ctx context.Context, svc *people.Serv
 		inputPerson.Etag = curETag
 	}
 
-	for _, f := range updateFields {
-		forceSendEmptySliceField(inputPerson, jsonFieldToGoField(f))
-	}
+	forceSendEmptyPersonListFields(inputPerson, updateFields)
 
 	updated, err := svc.People.UpdateContact(resourceName, inputPerson).
 		UpdatePersonFields(strings.Join(updateFields, ",")).
