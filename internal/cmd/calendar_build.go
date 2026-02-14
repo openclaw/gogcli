@@ -41,21 +41,34 @@ func extractTimezone(value string) string {
 	// RFC3339 values have a fixed offset, but Google Calendar requires an IANA timezone
 	// name for recurring events. We guess by checking which common zones match the
 	// offset at this instant.
-	for _, candidate := range []string{
-		"America/New_York",
-		"America/Chicago",
-		"America/Denver",
-		"America/Phoenix",
-		"America/Los_Angeles",
-	} {
-		loc, err := time.LoadLocation(candidate)
-		if err != nil {
-			continue
+	switch offset {
+	case -4 * 3600, -5 * 3600, -6 * 3600, -7 * 3600, -8 * 3600:
+		for _, candidate := range []string{
+			"America/New_York",
+			"America/Chicago",
+			"America/Denver",
+			"America/Phoenix",
+			"America/Los_Angeles",
+		} {
+			loc, err := time.LoadLocation(candidate)
+			if err != nil {
+				continue
+			}
+			_, candidateOffset := t.In(loc).Zone()
+			if candidateOffset == offset {
+				return candidate
+			}
 		}
-		_, candidateOffset := t.In(loc).Zone()
-		if candidateOffset == offset {
-			return candidate
+	}
+
+	// Fallback for fixed whole-hour offsets when no regional timezone match is found.
+	// NOTE: IANA "Etc/GMT" names use reversed signs (e.g. +02:00 => Etc/GMT-2).
+	if offset%3600 == 0 {
+		hours := offset / 3600
+		if hours > 0 {
+			return fmt.Sprintf("Etc/GMT-%d", hours)
 		}
+		return fmt.Sprintf("Etc/GMT+%d", -hours)
 	}
 	return ""
 }

@@ -2,11 +2,12 @@ package googleapi
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"net/http"
 	"os"
 	"path/filepath"
-	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/99designs/keyring"
@@ -260,90 +261,37 @@ func TestOptionsForAccountScopes_ServiceAccountPreferred(t *testing.T) {
 	}
 }
 
-func extractHTTPClientFromOption(t *testing.T, opt any) *http.Client {
-	t.Helper()
+func TestNewBaseTransport_RespectsProxyAndTLSMinimum(t *testing.T) {
+	t.Setenv("HTTPS_PROXY", "http://127.0.0.1:8888")
 
-	apply := reflect.ValueOf(opt).MethodByName("Apply")
-	if !apply.IsValid() {
-		t.Fatalf("option does not implement Apply: %T", opt)
+	transport := newBaseTransport()
+	if transport == nil {
+		t.Fatalf("expected transport")
 	}
 
-	if apply.Type().NumIn() != 1 {
-		t.Fatalf("unexpected Apply signature for %T", opt)
+	if transport.Proxy == nil {
+		t.Fatalf("expected proxy func")
 	}
 
-	settingsArg := apply.Type().In(0)
-	if settingsArg.Kind() != reflect.Pointer {
-		t.Fatalf("unexpected Apply argument kind for %T: %s", opt, settingsArg.Kind())
+	if transport.TLSClientConfig == nil {
+		t.Fatalf("expected TLS config")
 	}
 
-	settings := reflect.New(settingsArg.Elem())
-	apply.Call([]reflect.Value{settings})
-
-	httpClientField := settings.Elem().FieldByName("HTTPClient")
-	if !httpClientField.IsValid() {
-		t.Fatalf("dial settings missing HTTPClient field")
+	if transport.TLSClientConfig.MinVersion < tls.VersionTLS12 {
+		t.Fatalf("expected TLS min version >= 1.2, got %d", transport.TLSClientConfig.MinVersion)
 	}
 
-	if httpClientField.IsNil() {
-		t.Fatalf("HTTPClient was not set by option %T", opt)
-	}
-
-	httpClient, ok := httpClientField.Interface().(*http.Client)
-	if !ok {
-		t.Fatalf("HTTPClient field has unexpected type: %T", httpClientField.Interface())
-	}
-
-	return httpClient
-}
-
-func TestOptionsForAccountScopes_ConfiguresProxyOnCustomBaseTransport(t *testing.T) {
-	origRead := readClientCredentials
-	origOpen := openSecretsStore
-
-	t.Cleanup(func() {
-		readClientCredentials = origRead
-		openSecretsStore = origOpen
-	})
-
-	readClientCredentials = func(string) (config.ClientCredentials, error) {
-		return config.ClientCredentials{ClientID: "id", ClientSecret: "secret"}, nil
-	}
-	openSecretsStore = func() (secrets.Store, error) {
-		return &stubStore{tok: secrets.Token{Email: "a@b.com", RefreshToken: "rt"}}, nil
-	}
-
-	opts, err := optionsForAccountScopes(context.Background(), "svc", "a@b.com", []string{"s1"})
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "https://www.googleapis.com", nil)
 	if err != nil {
-		t.Fatalf("unexpected err: %v", err)
+		t.Fatalf("new request: %v", err)
 	}
 
-	if len(opts) == 0 {
-		t.Fatalf("expected client options")
+	proxyURL, err := transport.Proxy(req)
+	if err != nil {
+		t.Fatalf("proxy lookup: %v", err)
 	}
 
-	httpClient := extractHTTPClientFromOption(t, opts[0])
-
-	retryTransport, ok := httpClient.Transport.(*RetryTransport)
-	if !ok {
-		t.Fatalf("expected RetryTransport, got %T", httpClient.Transport)
-	}
-
-	oauthTransport, ok := retryTransport.Base.(*oauth2.Transport)
-	if !ok {
-		t.Fatalf("expected oauth2.Transport, got %T", retryTransport.Base)
-	}
-
-	baseTransport, ok := oauthTransport.Base.(*http.Transport)
-	if !ok {
-		t.Fatalf("expected http.Transport, got %T", oauthTransport.Base)
-	}
-
-	if baseTransport.Proxy == nil {
-		t.Fatalf("expected base transport proxy function")
-	}
-
-	if got, want := reflect.ValueOf(baseTransport.Proxy).Pointer(), reflect.ValueOf(http.ProxyFromEnvironment).Pointer(); got != want {
-		t.Fatalf("unexpected proxy function: got %v want %v", got, want)
+	if proxyURL == nil || !strings.Contains(proxyURL.String(), "127.0.0.1:8888") {
+		t.Fatalf("expected HTTPS proxy to be honored, got: %v", proxyURL)
 	}
 }

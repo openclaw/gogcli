@@ -59,6 +59,9 @@ func TestExecute_DriveMoreCommands_JSON(t *testing.T) {
 			})
 			return
 		case strings.Contains(path, "/files/id1") && r.Method == http.MethodDelete:
+			if got := r.URL.Query().Get("supportsAllDrives"); got != "true" {
+				t.Fatalf("expected supportsAllDrives=true, got: %q (raw=%q)", got, r.URL.RawQuery)
+			}
 			w.WriteHeader(http.StatusNoContent)
 			return
 		case strings.Contains(path, "/files/id1") && (r.Method == http.MethodPatch || r.Method == http.MethodPut):
@@ -224,6 +227,9 @@ func TestExecute_DriveMoreCommands_Text(t *testing.T) {
 			})
 			return
 		case strings.Contains(path, "/files/id1") && r.Method == http.MethodDelete:
+			if got := r.URL.Query().Get("supportsAllDrives"); got != "true" {
+				t.Fatalf("expected supportsAllDrives=true, got: %q (raw=%q)", got, r.URL.RawQuery)
+			}
 			w.WriteHeader(http.StatusNoContent)
 			return
 		case strings.Contains(path, "/files/id1") && (r.Method == http.MethodPatch || r.Method == http.MethodPut):

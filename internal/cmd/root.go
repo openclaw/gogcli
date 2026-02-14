@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/alecthomas/kong"
@@ -24,7 +25,6 @@ const (
 	colorAuto  = "auto"
 	colorNever = "never"
 	strTrue    = "true"
-	strFalse   = "false"
 )
 
 type RootFlags struct {
@@ -290,10 +290,7 @@ func envBool(key string) bool {
 }
 
 func boolString(v bool) string {
-	if v {
-		return strTrue
-	}
-	return strFalse
+	return strconv.FormatBool(v)
 }
 
 func newParser(description string) (*kong.Kong, *CLI, error) {

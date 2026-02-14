@@ -20,46 +20,10 @@ type GmailAttachmentCmd struct {
 	MessageID    string         `arg:"" name:"messageId" help:"Message ID"`
 	AttachmentID string         `arg:"" name:"attachmentId" help:"Attachment ID"`
 	Output       OutputPathFlag `embed:""`
-	Name         string         `name:"name" help:"Filename (used with default dir or when --out is a directory)"`
+	Name         string         `name:"name" help:"Filename (used when --out is empty or points to a directory)"`
 }
 
 const defaultGmailAttachmentFilename = "attachment.bin"
-
-func sanitizeAttachmentFilename(name string) string {
-	filename := strings.TrimSpace(name)
-	if filename == "" {
-		filename = defaultGmailAttachmentFilename
-	}
-
-	// Ensure users can't escape the output dir when `--out` is a directory.
-	safeFilename := filepath.Base(filename)
-	if safeFilename == "" || safeFilename == "." || safeFilename == ".." {
-		safeFilename = defaultGmailAttachmentFilename
-	}
-	return safeFilename
-}
-
-func resolveAttachmentOutPath(outPathFlag string, name string) (string, error) {
-	outPath, err := config.ExpandPath(outPathFlag)
-	if err != nil {
-		return "", err
-	}
-
-	// Directory intent:
-	// - existing directory path
-	// - or explicit trailing slash for a (possibly non-existent) directory
-	isDir := strings.HasSuffix(outPathFlag, string(os.PathSeparator)) || strings.HasSuffix(outPathFlag, "/") || strings.HasSuffix(outPathFlag, "\\")
-	if !isDir {
-		if info, statErr := os.Stat(outPath); statErr == nil && info.IsDir() {
-			isDir = true
-		}
-	}
-	if isDir {
-		outPath = filepath.Join(outPath, sanitizeAttachmentFilename(name))
-	}
-
-	return outPath, nil
-}
 
 func printAttachmentDownloadResult(ctx context.Context, u *ui.UI, path string, cached bool, bytes int64) error {
 	if outfmt.IsJSON(ctx) {
@@ -79,25 +43,9 @@ func (c *GmailAttachmentCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return usage("messageId/attachmentId required")
 	}
 
-	outPathFlag := strings.TrimSpace(c.Output.Path)
-	var destPath string
-	if outPathFlag == "" {
-		dir, dirErr := config.GmailAttachmentsDir()
-		if dirErr != nil {
-			return dirErr
-		}
-		safeFilename := sanitizeAttachmentFilename(c.Name)
-		shortID := attachmentID
-		if len(shortID) > 8 {
-			shortID = shortID[:8]
-		}
-		destPath = filepath.Join(dir, fmt.Sprintf("%s_%s_%s", messageID, shortID, safeFilename))
-	} else {
-		outPath, err := resolveAttachmentOutPath(outPathFlag, c.Name)
-		if err != nil {
-			return err
-		}
-		destPath = outPath
+	destPath, err := resolveAttachmentOutputPath(messageID, attachmentID, c.Output.Path, c.Name, false)
+	if err != nil {
+		return err
 	}
 
 	// Avoid touching auth/keyring and avoid writing files in dry-run mode.
@@ -119,33 +67,95 @@ func (c *GmailAttachmentCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
-	if outPathFlag == "" {
-		dir, dirErr := config.EnsureGmailAttachmentsDir()
-		if dirErr != nil {
-			return dirErr
-		}
-		safeFilename := sanitizeAttachmentFilename(c.Name)
-		shortID := attachmentID
-		if len(shortID) > 8 {
-			shortID = shortID[:8]
-		}
-		destPath := filepath.Join(dir, fmt.Sprintf("%s_%s_%s", messageID, shortID, safeFilename))
-		path, cached, bytes, dlErr := downloadAttachmentToPath(ctx, svc, messageID, attachmentID, destPath, -1)
-		if dlErr != nil {
-			return dlErr
-		}
-		return printAttachmentDownloadResult(ctx, u, path, cached, bytes)
-	}
-
-	outPath, err := resolveAttachmentOutPath(outPathFlag, c.Name)
+	destPath, err = resolveAttachmentOutputPath(messageID, attachmentID, c.Output.Path, c.Name, true)
 	if err != nil {
 		return err
 	}
-	path, cached, bytes, err := downloadAttachmentToPath(ctx, svc, messageID, attachmentID, outPath, -1)
+
+	expectedSize := int64(-1)
+	if st, statErr := os.Stat(destPath); statErr == nil && st.Mode().IsRegular() {
+		// Only hit messages.get when we might have a cache-hit candidate.
+		expectedSize = lookupAttachmentSizeEstimate(ctx, svc, messageID, attachmentID)
+	}
+	path, cached, bytes, err := downloadAttachmentToPath(ctx, svc, messageID, attachmentID, destPath, expectedSize)
 	if err != nil {
 		return err
 	}
 	return printAttachmentDownloadResult(ctx, u, path, cached, bytes)
+}
+
+func resolveAttachmentOutputPath(messageID, attachmentID, outPathFlag, name string, ensureDefaultDir bool) (string, error) {
+	shortID := attachmentID
+	if len(shortID) > 8 {
+		shortID = shortID[:8]
+	}
+	safeFilename := sanitizeAttachmentFilename(name, defaultGmailAttachmentFilename)
+
+	if strings.TrimSpace(outPathFlag) == "" {
+		var dir string
+		var err error
+		if ensureDefaultDir {
+			dir, err = config.EnsureGmailAttachmentsDir()
+		} else {
+			dir, err = config.GmailAttachmentsDir()
+		}
+		if err != nil {
+			return "", err
+		}
+		return filepath.Join(dir, fmt.Sprintf("%s_%s_%s", messageID, shortID, safeFilename)), nil
+	}
+
+	outPath, err := config.ExpandPath(outPathFlag)
+	if err != nil {
+		return "", err
+	}
+
+	// Directory intent:
+	// - existing directory path
+	// - or explicit trailing slash for a (possibly non-existent) directory
+	isDir := strings.HasSuffix(strings.TrimSpace(outPathFlag), string(os.PathSeparator)) ||
+		strings.HasSuffix(outPathFlag, "/") ||
+		strings.HasSuffix(outPathFlag, "\\")
+	if !isDir {
+		if st, statErr := os.Stat(outPath); statErr == nil && st.IsDir() {
+			isDir = true
+		}
+	}
+	if isDir {
+		filename := safeFilename
+		if strings.TrimSpace(name) == "" {
+			filename = fmt.Sprintf("%s_%s_attachment.bin", messageID, shortID)
+		}
+		return filepath.Join(outPath, filename), nil
+	}
+
+	return outPath, nil
+}
+
+func sanitizeAttachmentFilename(name, fallback string) string {
+	// Normalize Windows-style separators too; prevents "..\\..\\x" escapes when treating `--name` as a filename.
+	clean := strings.ReplaceAll(strings.TrimSpace(name), "\\", "/")
+	safeFilename := filepath.Base(clean)
+	if safeFilename == "" || safeFilename == "." || safeFilename == ".." {
+		return fallback
+	}
+	return safeFilename
+}
+
+func lookupAttachmentSizeEstimate(ctx context.Context, svc *gmail.Service, messageID, attachmentID string) int64 {
+	if svc == nil {
+		return -1
+	}
+	msg, err := svc.Users.Messages.Get("me", messageID).Format("full").Fields("payload").Context(ctx).Do()
+	if err != nil || msg == nil {
+		return -1
+	}
+	for _, a := range collectAttachments(msg.Payload) {
+		if a.AttachmentID == attachmentID && a.Size > 0 {
+			return a.Size
+		}
+	}
+	return -1
 }
 
 func downloadAttachmentToPath(
@@ -160,14 +170,17 @@ func downloadAttachmentToPath(
 		return "", false, 0, errors.New("missing outPath")
 	}
 
-	if expectedSize > 0 {
-		if st, err := os.Stat(outPath); err == nil && st.Mode().IsRegular() && st.Size() == expectedSize {
+	if st, err := os.Stat(outPath); err == nil {
+		if st.IsDir() {
+			return "", false, 0, fmt.Errorf("outPath is a directory: %s", outPath)
+		}
+		if st.Mode().IsRegular() && expectedSize > 0 && st.Size() == expectedSize {
 			return outPath, true, st.Size(), nil
 		}
-	} else if expectedSize == -1 {
-		if st, err := os.Stat(outPath); err == nil && st.Mode().IsRegular() && st.Size() > 0 {
-			return outPath, true, st.Size(), nil
-		}
+	}
+
+	if svc == nil {
+		return "", false, 0, errors.New("missing gmail service")
 	}
 
 	body, err := svc.Users.Messages.Attachments.Get("me", messageID, attachmentID).Context(ctx).Do()

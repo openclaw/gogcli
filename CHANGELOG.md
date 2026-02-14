@@ -8,6 +8,7 @@
 
 ### Fixed
 - Gmail: when `gmail attachment --out` points to a directory (or ends with a trailing slash), combine with `--name` and avoid false cache hits on directories. (#248) — thanks @zerone0x.
+- Calendar: fall back to fixed-offset timezones (`Etc/GMT±N`) for recurring events when given RFC3339 offset datetimes; harden Gmail attachment output paths and cache validation; honor proxy defaults for Google API transports. (#228) — thanks @salmonumbrella.
 
 ## 0.10.0 - 2026-02-14
 

@@ -38,17 +38,32 @@ func TestDownloadAttachmentToPath_CachedBySize(t *testing.T) {
 	}
 }
 
-func TestDownloadAttachmentToPath_CachedByAnySize(t *testing.T) {
+func TestDownloadAttachmentToPath_ExpectedSizeUnknown_Redownloads(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "b.bin")
-	if err := os.WriteFile(path, []byte("abcd"), 0o600); err != nil {
+	if err := os.WriteFile(path, []byte("stale"), 0o600); err != nil {
 		t.Fatalf("WriteFile: %v", err)
 	}
-	gotPath, cached, bytes, err := downloadAttachmentToPath(context.Background(), nil, "m1", "a1", path, -1)
+	srv := httptestServerForAttachment(t, base64.RawURLEncoding.EncodeToString([]byte("fresh")))
+
+	gsvc, err := gmail.NewService(context.Background(),
+		option.WithoutAuthentication(),
+		option.WithHTTPClient(srv.Client()),
+		option.WithEndpoint(srv.URL+"/"),
+	)
+	if err != nil {
+		t.Fatalf("NewService: %v", err)
+	}
+	gotPath, cached, bytes, err := downloadAttachmentToPath(context.Background(), gsvc, "m1", "a1", path, -1)
 	if err != nil {
 		t.Fatalf("downloadAttachmentToPath: %v", err)
 	}
-	if gotPath != path || !cached || bytes != 4 {
+	if gotPath != path || cached || bytes != 5 {
 		t.Fatalf("unexpected result: path=%q cached=%v bytes=%d", gotPath, cached, bytes)
+	}
+	if data, err := os.ReadFile(path); err != nil {
+		t.Fatalf("ReadFile: %v", err)
+	} else if string(data) != "fresh" {
+		t.Fatalf("unexpected data: %q", string(data))
 	}
 }
 
@@ -97,11 +112,10 @@ func TestDownloadAttachmentToPath_EmptyData(t *testing.T) {
 	}
 }
 
-func TestDownloadAttachmentToPath_DirectoryNotCached(t *testing.T) {
+func TestDownloadAttachmentToPath_DirectoryNotCacheHit(t *testing.T) {
 	dir := t.TempDir()
-	// A directory should not be treated as a cached attachment even though
-	// os.Stat succeeds and Size() > 0 on directories.
-	srv := httptestServerForAttachment(t, base64.RawURLEncoding.EncodeToString([]byte("data")))
+	srv := httptestServerForAttachment(t, base64.RawURLEncoding.EncodeToString([]byte("x")))
+
 	gsvc, err := gmail.NewService(context.Background(),
 		option.WithoutAuthentication(),
 		option.WithHTTPClient(srv.Client()),
@@ -111,42 +125,8 @@ func TestDownloadAttachmentToPath_DirectoryNotCached(t *testing.T) {
 		t.Fatalf("NewService: %v", err)
 	}
 
-	outPath := filepath.Join(dir, "subdir")
-	if err := os.Mkdir(outPath, 0o700); err != nil {
-		t.Fatalf("Mkdir: %v", err)
-	}
-
-	// With expectedSize == -1, a directory should NOT be returned as cached.
-	// Instead it should attempt download and fail trying to write to the dir path.
-	_, _, _, dlErr := downloadAttachmentToPath(context.Background(), gsvc, "m1", "a1", outPath, -1)
-	// We expect an error because outPath is a directory and WriteFile to a dir fails.
-	if dlErr == nil {
-		t.Fatalf("expected error when outPath is a directory")
-	}
-}
-
-func TestDownloadAttachmentToPath_DirectoryNotCachedBySize(t *testing.T) {
-	dir := t.TempDir()
-	// Even with a positive expectedSize matching the directory's metadata
-	// size, a directory should not be treated as a cached file.
-	srv := httptestServerForAttachment(t, base64.RawURLEncoding.EncodeToString([]byte("data")))
-	gsvc, err := gmail.NewService(context.Background(),
-		option.WithoutAuthentication(),
-		option.WithHTTPClient(srv.Client()),
-		option.WithEndpoint(srv.URL+"/"),
-	)
-	if err != nil {
-		t.Fatalf("NewService: %v", err)
-	}
-
-	// Pass the directory size as expectedSize - should NOT match because
-	// the path is a directory, not a regular file.
-	info, _ := os.Stat(dir)
-	_, cached, _, dlErr := downloadAttachmentToPath(context.Background(), gsvc, "m1", "a1", dir, info.Size())
-	// It should not return cached=true; it will try to download and fail
-	// because WriteFile to a directory fails.
-	if dlErr == nil && cached {
-		t.Fatalf("directory should not be treated as cached file")
+	if _, _, _, err := downloadAttachmentToPath(context.Background(), gsvc, "m1", "a1", dir, -1); err == nil {
+		t.Fatalf("expected error for directory output path")
 	}
 }
 
@@ -197,6 +177,111 @@ func TestGmailAttachmentCmd_DryRun_OutDirTrailingSlash_UsesNameEvenIfMissing(t *
 	}
 }
 
+func TestGmailAttachmentCmd_DryRun_OutDirTrailingSlash_NoName_UsesStableDefault(t *testing.T) {
+	base := t.TempDir()
+	outDir := filepath.Join(base, "newdir") + string(os.PathSeparator)
+	got := mustDryRunAttachmentPath(t, "m1", "a1", "--out", outDir)
+	want := filepath.Join(filepath.Join(base, "newdir"), "m1_a1_attachment.bin")
+	if got != want {
+		t.Fatalf("unexpected path: got=%q want=%q", got, want)
+	}
+}
+
+func TestSanitizeAttachmentFilename(t *testing.T) {
+	tests := []struct {
+		name     string
+		fallback string
+		want     string
+	}{
+		{"report.pdf", "attachment.bin", "report.pdf"},
+		{"", "attachment.bin", "attachment.bin"},
+		{"   ", "attachment.bin", "attachment.bin"},
+		{".", "attachment.bin", "attachment.bin"},
+		{"..", "attachment.bin", "attachment.bin"},
+		{"../../etc/passwd", "attachment.bin", "passwd"},
+		{"..\\..\\etc\\passwd", "attachment.bin", "passwd"},
+		{"../../../secret.txt", "attachment.bin", "secret.txt"},
+		{"/absolute/path/file.txt", "attachment.bin", "file.txt"},
+		{"dir/subdir/file.txt", "attachment.bin", "file.txt"},
+		{"normal.txt", "fallback.dat", "normal.txt"},
+	}
+	for _, tt := range tests {
+		got := sanitizeAttachmentFilename(tt.name, tt.fallback)
+		if got != tt.want {
+			t.Errorf("sanitizeAttachmentFilename(%q, %q) = %q, want %q", tt.name, tt.fallback, got, tt.want)
+		}
+	}
+}
+
+func TestResolveAttachmentOutputPath(t *testing.T) {
+	t.Run("explicit file path", func(t *testing.T) {
+		path, err := resolveAttachmentOutputPath("m1", "a1", "/tmp/out.bin", "", false)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if path != "/tmp/out.bin" {
+			t.Fatalf("got %q, want /tmp/out.bin", path)
+		}
+	})
+
+	t.Run("directory target appends filename", func(t *testing.T) {
+		dir := t.TempDir()
+		path, err := resolveAttachmentOutputPath("m1", "abcdefghij", dir, "", false)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		want := filepath.Join(dir, "m1_abcdefgh_attachment.bin")
+		if path != want {
+			t.Fatalf("got %q, want %q", path, want)
+		}
+	})
+
+	t.Run("directory target with custom name", func(t *testing.T) {
+		dir := t.TempDir()
+		path, err := resolveAttachmentOutputPath("m1", "abcdefghij", dir, "report.pdf", false)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		want := filepath.Join(dir, "report.pdf")
+		if path != want {
+			t.Fatalf("got %q, want %q", path, want)
+		}
+	})
+
+	t.Run("traversal in name is stripped", func(t *testing.T) {
+		dir := t.TempDir()
+		path, err := resolveAttachmentOutputPath("m1", "abcdefghij", dir, "../../etc/passwd", false)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		want := filepath.Join(dir, "passwd")
+		if path != want {
+			t.Fatalf("got %q, want %q", path, want)
+		}
+	})
+
+	t.Run("trailing separator treated as directory", func(t *testing.T) {
+		path, err := resolveAttachmentOutputPath("m1", "abcdefghij", "/tmp/newdir/", "report.pdf", false)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		want := filepath.Join("/tmp/newdir", "report.pdf")
+		if path != want {
+			t.Fatalf("got %q, want %q", path, want)
+		}
+	})
+
+	t.Run("trailing separator with no name uses stable default", func(t *testing.T) {
+		path, err := resolveAttachmentOutputPath("m1", "abcdefghij", "/tmp/newdir/", "", false)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		want := filepath.Join("/tmp/newdir", "m1_abcdefgh_attachment.bin")
+		if path != want {
+			t.Fatalf("got %q, want %q", path, want)
+		}
+	})
+}
 func httptestServerForAttachment(t *testing.T, data string) *httptest.Server {
 	t.Helper()
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
