@@ -20,7 +20,7 @@ type GmailAttachmentCmd struct {
 	MessageID    string         `arg:"" name:"messageId" help:"Message ID"`
 	AttachmentID string         `arg:"" name:"attachmentId" help:"Attachment ID"`
 	Output       OutputPathFlag `embed:""`
-	Name         string         `name:"name" help:"Filename (only used when --out is empty)"`
+	Name         string         `name:"name" help:"Filename (used with default dir or when --out is a directory)"`
 }
 
 const defaultGmailAttachmentFilename = "attachment.bin"
@@ -57,6 +57,17 @@ func (c *GmailAttachmentCmd) Run(ctx context.Context, flags *RootFlags) error {
 		outPath, err := config.ExpandPath(outPathFlag)
 		if err != nil {
 			return err
+		}
+		if info, statErr := os.Stat(outPath); statErr == nil && info.IsDir() {
+			filename := strings.TrimSpace(c.Name)
+			if filename == "" {
+				filename = defaultGmailAttachmentFilename
+			}
+			safeFilename := filepath.Base(filename)
+			if safeFilename == "" || safeFilename == "." || safeFilename == ".." {
+				safeFilename = defaultGmailAttachmentFilename
+			}
+			outPath = filepath.Join(outPath, safeFilename)
 		}
 		destPath = outPath
 	}
@@ -115,6 +126,17 @@ func (c *GmailAttachmentCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if err != nil {
 		return err
 	}
+	if info, statErr := os.Stat(outPath); statErr == nil && info.IsDir() {
+		filename := strings.TrimSpace(c.Name)
+		if filename == "" {
+			filename = defaultGmailAttachmentFilename
+		}
+		safeFilename := filepath.Base(filename)
+		if safeFilename == "" || safeFilename == "." || safeFilename == ".." {
+			safeFilename = defaultGmailAttachmentFilename
+		}
+		outPath = filepath.Join(outPath, safeFilename)
+	}
 	path, cached, bytes, err := downloadAttachmentToPath(ctx, svc, messageID, attachmentID, outPath, -1)
 	if err != nil {
 		return err
@@ -141,11 +163,11 @@ func downloadAttachmentToPath(
 	}
 
 	if expectedSize > 0 {
-		if st, err := os.Stat(outPath); err == nil && st.Size() == expectedSize {
+		if st, err := os.Stat(outPath); err == nil && st.Mode().IsRegular() && st.Size() == expectedSize {
 			return outPath, true, st.Size(), nil
 		}
 	} else if expectedSize == -1 {
-		if st, err := os.Stat(outPath); err == nil && st.Size() > 0 {
+		if st, err := os.Stat(outPath); err == nil && st.Mode().IsRegular() && st.Size() > 0 {
 			return outPath, true, st.Size(), nil
 		}
 	}

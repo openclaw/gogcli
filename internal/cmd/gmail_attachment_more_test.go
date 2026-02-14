@@ -94,6 +94,59 @@ func TestDownloadAttachmentToPath_EmptyData(t *testing.T) {
 	}
 }
 
+func TestDownloadAttachmentToPath_DirectoryNotCached(t *testing.T) {
+	dir := t.TempDir()
+	// A directory should not be treated as a cached attachment even though
+	// os.Stat succeeds and Size() > 0 on directories.
+	srv := httptestServerForAttachment(t, base64.RawURLEncoding.EncodeToString([]byte("data")))
+	gsvc, err := gmail.NewService(context.Background(),
+		option.WithoutAuthentication(),
+		option.WithHTTPClient(srv.Client()),
+		option.WithEndpoint(srv.URL+"/"),
+	)
+	if err != nil {
+		t.Fatalf("NewService: %v", err)
+	}
+
+	outPath := filepath.Join(dir, "subdir")
+	if err := os.Mkdir(outPath, 0o700); err != nil {
+		t.Fatalf("Mkdir: %v", err)
+	}
+
+	// With expectedSize == -1, a directory should NOT be returned as cached.
+	// Instead it should attempt download and fail trying to write to the dir path.
+	_, _, _, dlErr := downloadAttachmentToPath(context.Background(), gsvc, "m1", "a1", outPath, -1)
+	// We expect an error because outPath is a directory and WriteFile to a dir fails.
+	if dlErr == nil {
+		t.Fatalf("expected error when outPath is a directory")
+	}
+}
+
+func TestDownloadAttachmentToPath_DirectoryNotCachedBySize(t *testing.T) {
+	dir := t.TempDir()
+	// Even with a positive expectedSize matching the directory's metadata
+	// size, a directory should not be treated as a cached file.
+	srv := httptestServerForAttachment(t, base64.RawURLEncoding.EncodeToString([]byte("data")))
+	gsvc, err := gmail.NewService(context.Background(),
+		option.WithoutAuthentication(),
+		option.WithHTTPClient(srv.Client()),
+		option.WithEndpoint(srv.URL+"/"),
+	)
+	if err != nil {
+		t.Fatalf("NewService: %v", err)
+	}
+
+	// Pass the directory size as expectedSize — should NOT match because
+	// the path is a directory, not a regular file.
+	info, _ := os.Stat(dir)
+	_, cached, _, dlErr := downloadAttachmentToPath(context.Background(), gsvc, "m1", "a1", dir, info.Size())
+	// It should not return cached=true; it will try to download and fail
+	// because WriteFile to a directory fails.
+	if dlErr == nil && cached {
+		t.Fatalf("directory should not be treated as cached file")
+	}
+}
+
 func httptestServerForAttachment(t *testing.T, data string) *httptest.Server {
 	t.Helper()
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
