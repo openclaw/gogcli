@@ -8,6 +8,8 @@
 - Contacts: update contacts from JSON via `contacts update --from-file` (PR #200 — thanks @jrossi).
 - Drive: add `drive ls|search --no-all-drives` to restrict queries to "My Drive" for faster/narrower results. (#258)
 - Gmail: add `gmail send --quote` to include quoted original message in replies. (#169) — thanks @terry-li-hm.
+- Sheets: add `sheets notes` to read cell notes. (#208) — thanks @andybergon.
+- Docs: add `docs comments` for listing and managing Google Doc comments. (#263) — thanks @alextnetto.
 
 ### Fixed
 - Auth: manual OAuth flow uses an ephemeral loopback redirect port (avoids unsafe/privileged ports in browsers). (#172) — thanks @spookyuser.

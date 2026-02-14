@@ -14,22 +14,22 @@ import (
 
 // DocsCommentsCmd is the parent command for comment operations on a Google Doc.
 type DocsCommentsCmd struct {
-	List   DocsCommentsListCmd   `cmd:"" name:"list" aliases:"ls" help:"List comments on a Google Doc"`
-	Get    DocsCommentsGetCmd    `cmd:"" name:"get" aliases:"info,show" help:"Get a comment by ID"`
-	Add    DocsCommentsAddCmd    `cmd:"" name:"add" aliases:"create,new" help:"Add a comment to a Google Doc"`
-	Reply  DocsCommentsReplyCmd  `cmd:"" name:"reply" aliases:"respond" help:"Reply to a comment"`
+	List    DocsCommentsListCmd    `cmd:"" name:"list" aliases:"ls" help:"List comments on a Google Doc"`
+	Get     DocsCommentsGetCmd     `cmd:"" name:"get" aliases:"info,show" help:"Get a comment by ID"`
+	Add     DocsCommentsAddCmd     `cmd:"" name:"add" aliases:"create,new" help:"Add a comment to a Google Doc"`
+	Reply   DocsCommentsReplyCmd   `cmd:"" name:"reply" aliases:"respond" help:"Reply to a comment"`
 	Resolve DocsCommentsResolveCmd `cmd:"" name:"resolve" help:"Resolve a comment (mark as done)"`
-	Delete DocsCommentsDeleteCmd `cmd:"" name:"delete" aliases:"rm,del,remove" help:"Delete a comment"`
+	Delete  DocsCommentsDeleteCmd  `cmd:"" name:"delete" aliases:"rm,del,remove" help:"Delete a comment"`
 }
 
 // DocsCommentsListCmd lists comments on a Google Doc.
 type DocsCommentsListCmd struct {
-	DocID         string `arg:"" name:"docId" help:"Google Doc ID or URL"`
+	DocID           string `arg:"" name:"docId" help:"Google Doc ID or URL"`
 	IncludeResolved bool   `name:"include-resolved" aliases:"resolved" help:"Include resolved comments (default: open only)"`
-	Max           int64  `name:"max" aliases:"limit" help:"Max results per page" default:"100"`
-	Page          string `name:"page" aliases:"cursor" help:"Page token for pagination"`
-	All           bool   `name:"all" aliases:"all-pages" help:"Fetch all pages"`
-	FailEmpty     bool   `name:"fail-empty" aliases:"non-empty,require-results" help:"Exit with code 3 if no results"`
+	Max             int64  `name:"max" aliases:"limit" help:"Max results per page" default:"100"`
+	Page            string `name:"page" aliases:"cursor" help:"Page token for pagination"`
+	All             bool   `name:"all" aliases:"all-pages" help:"Fetch all pages"`
+	FailEmpty       bool   `name:"fail-empty" aliases:"non-empty,require-results" help:"Exit with code 3 if no results"`
 }
 
 func (c *DocsCommentsListCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -42,6 +42,9 @@ func (c *DocsCommentsListCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if docID == "" {
 		return usage("empty docId")
 	}
+	if c.Max <= 0 {
+		return usage("max must be > 0")
+	}
 
 	svc, err := newDriveService(ctx, account)
 	if err != nil {
@@ -52,7 +55,7 @@ func (c *DocsCommentsListCmd) Run(ctx context.Context, flags *RootFlags) error {
 		call := svc.Comments.List(docID).
 			IncludeDeleted(false).
 			PageSize(c.Max).
-			Fields("nextPageToken", "comments(id,author,content,createdTime,modifiedTime,resolved,quotedFileContent,replies)").
+			Fields("nextPageToken", "comments(id,author,content,createdTime,modifiedTime,resolved,quotedFileContent,replies(id,author,content,createdTime,modifiedTime,action,deleted))").
 			Context(ctx)
 		if strings.TrimSpace(pageToken) != "" {
 			call = call.PageToken(pageToken)
@@ -73,10 +76,33 @@ func (c *DocsCommentsListCmd) Run(ctx context.Context, flags *RootFlags) error {
 		}
 		comments = all
 	} else {
-		var err error
-		comments, nextPageToken, err = fetch(c.Page)
-		if err != nil {
-			return err
+		if c.IncludeResolved {
+			var err error
+			comments, nextPageToken, err = fetch(c.Page)
+			if err != nil {
+				return err
+			}
+		} else {
+			// Default: open-only. Scan forward until we find at least one open comment (or run out of pages).
+			pageToken := c.Page
+			for {
+				pageComments, token, err := fetch(pageToken)
+				if err != nil {
+					return err
+				}
+				open := filterOpenComments(pageComments)
+				if len(open) > 0 {
+					comments = open
+					nextPageToken = token
+					break
+				}
+				if strings.TrimSpace(token) == "" {
+					comments = nil
+					nextPageToken = ""
+					break
+				}
+				pageToken = token
+			}
 		}
 	}
 
@@ -106,25 +132,48 @@ func (c *DocsCommentsListCmd) Run(ctx context.Context, flags *RootFlags) error {
 
 	w, flush := tableWriter(ctx)
 	defer flush()
-	fmt.Fprintln(w, "ID\tAUTHOR\tQUOTED\tCONTENT\tCREATED\tRESOLVED\tREPLIES")
+	fmt.Fprintln(w, "TYPE\tID\tAUTHOR\tQUOTED\tCONTENT\tCREATED\tRESOLVED\tACTION")
 	for _, comment := range comments {
+		if comment == nil {
+			continue
+		}
 		author := ""
 		if comment.Author != nil {
 			author = comment.Author.DisplayName
 		}
 		quoted := ""
 		if comment.QuotedFileContent != nil {
-			quoted = truncateString(comment.QuotedFileContent.Value, 30)
+			quoted = truncateString(oneLineTSV(comment.QuotedFileContent.Value), 30)
 		}
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%t\t%d\n",
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%t\t%s\n",
+			"comment",
 			comment.Id,
-			author,
+			oneLineTSV(author),
 			quoted,
-			truncateString(comment.Content, 50),
+			truncateString(oneLineTSV(comment.Content), 50),
 			formatDateTime(comment.CreatedTime),
 			comment.Resolved,
-			len(comment.Replies),
+			"",
 		)
+		for _, r := range comment.Replies {
+			if r == nil {
+				continue
+			}
+			rAuthor := ""
+			if r.Author != nil {
+				rAuthor = r.Author.DisplayName
+			}
+			fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
+				"reply",
+				r.Id,
+				oneLineTSV(rAuthor),
+				"",
+				truncateString(oneLineTSV(r.Content), 50),
+				formatDateTime(r.CreatedTime),
+				"",
+				oneLineTSV(r.Action),
+			)
+		}
 	}
 	printNextPageHint(u, nextPageToken)
 	return nil
@@ -179,6 +228,9 @@ func (c *DocsCommentsGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if comment.QuotedFileContent != nil && comment.QuotedFileContent.Value != "" {
 		u.Out().Printf("quoted\t%s", comment.QuotedFileContent.Value)
 	}
+	if strings.TrimSpace(comment.Anchor) != "" {
+		u.Out().Printf("anchor\t%s", comment.Anchor)
+	}
 	if len(comment.Replies) > 0 {
 		u.Out().Printf("replies\t%d", len(comment.Replies))
 		for _, r := range comment.Replies {
@@ -186,7 +238,11 @@ func (c *DocsCommentsGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 			if r.Author != nil {
 				rAuthor = r.Author.DisplayName
 			}
-			u.Out().Printf("  reply\t%s\t%s\t%s", r.Id, rAuthor, truncateString(r.Content, 60))
+			action := ""
+			if strings.TrimSpace(r.Action) != "" {
+				action = r.Action
+			}
+			u.Out().Printf("  reply\t%s\t%s\t%s\t%s", r.Id, rAuthor, truncateString(r.Content, 60), action)
 		}
 	}
 	return nil
@@ -196,7 +252,8 @@ func (c *DocsCommentsGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 type DocsCommentsAddCmd struct {
 	DocID   string `arg:"" name:"docId" help:"Google Doc ID or URL"`
 	Content string `arg:"" name:"content" help:"Comment text"`
-	Quoted  string `name:"quoted" help:"Text to anchor the comment to (highlighted text in the doc)"`
+	Quoted  string `name:"quoted" help:"Quoted text to attach to the comment (shown in UIs when available)"`
+	Anchor  string `name:"anchor" help:"Anchor JSON string (advanced; editor UIs may still treat as unanchored)"`
 }
 
 func (c *DocsCommentsAddCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -204,6 +261,7 @@ func (c *DocsCommentsAddCmd) Run(ctx context.Context, flags *RootFlags) error {
 	docID := normalizeGoogleID(strings.TrimSpace(c.DocID))
 	content := strings.TrimSpace(c.Content)
 	quoted := strings.TrimSpace(c.Quoted)
+	anchor := strings.TrimSpace(c.Anchor)
 	if docID == "" {
 		return usage("empty docId")
 	}
@@ -215,6 +273,7 @@ func (c *DocsCommentsAddCmd) Run(ctx context.Context, flags *RootFlags) error {
 		"doc_id":  docID,
 		"content": content,
 		"quoted":  quoted,
+		"anchor":  anchor,
 	}); err != nil {
 		return err
 	}
@@ -233,9 +292,12 @@ func (c *DocsCommentsAddCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if quoted != "" {
 		comment.QuotedFileContent = &drive.CommentQuotedFileContent{Value: quoted}
 	}
+	if anchor != "" {
+		comment.Anchor = anchor
+	}
 
 	created, err := svc.Comments.Create(docID, comment).
-		Fields("id, author, content, createdTime, quotedFileContent").
+		Fields("id, author, content, createdTime, quotedFileContent, anchor").
 		Context(ctx).
 		Do()
 	if err != nil {
@@ -429,9 +491,20 @@ func (c *DocsCommentsDeleteCmd) Run(ctx context.Context, flags *RootFlags) error
 func filterOpenComments(comments []*drive.Comment) []*drive.Comment {
 	var open []*drive.Comment
 	for _, c := range comments {
+		if c == nil {
+			continue
+		}
 		if !c.Resolved {
 			open = append(open, c)
 		}
 	}
 	return open
+}
+
+func oneLineTSV(s string) string {
+	s = strings.ReplaceAll(s, "\r\n", "\n")
+	s = strings.ReplaceAll(s, "\r", "\n")
+	s = strings.ReplaceAll(s, "\t", " ")
+	s = strings.ReplaceAll(s, "\n", "\\n")
+	return strings.TrimSpace(s)
 }

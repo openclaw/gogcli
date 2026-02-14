@@ -56,6 +56,37 @@ func newCommentsTestServer(t *testing.T) *httptest.Server {
 			})
 			return
 
+		// List comments: first page has only resolved, second page has open.
+		case r.Method == http.MethodGet && path == "/files/scan/comments":
+			w.Header().Set("Content-Type", "application/json")
+			if r.URL.Query().Get("pageToken") == "p2" {
+				_ = json.NewEncoder(w).Encode(map[string]any{
+					"comments": []map[string]any{
+						{
+							"id":          "c-open",
+							"author":      map[string]any{"displayName": "Dana"},
+							"content":     "Open comment",
+							"createdTime": "2025-06-03T10:00:00Z",
+							"resolved":    false,
+						},
+					},
+				})
+				return
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"comments": []map[string]any{
+					{
+						"id":          "c-res",
+						"author":      map[string]any{"displayName": "Eli"},
+						"content":     "Resolved only",
+						"createdTime": "2025-06-03T09:00:00Z",
+						"resolved":    true,
+					},
+				},
+				"nextPageToken": "p2",
+			})
+			return
+
 		// List comments on empty doc
 		case r.Method == http.MethodGet && path == "/files/empty/comments":
 			w.Header().Set("Content-Type", "application/json")
@@ -90,6 +121,7 @@ func newCommentsTestServer(t *testing.T) *httptest.Server {
 		case r.Method == http.MethodPost && path == "/files/doc1/comments":
 			var body struct {
 				Content           string `json:"content"`
+				Anchor            string `json:"anchor"`
 				QuotedFileContent struct {
 					Value string `json:"value"`
 				} `json:"quotedFileContent"`
@@ -100,6 +132,7 @@ func newCommentsTestServer(t *testing.T) *httptest.Server {
 				"id":          "c3",
 				"content":     body.Content,
 				"createdTime": "2025-06-02T08:00:00Z",
+				"anchor":      body.Anchor,
 				"quotedFileContent": map[string]any{
 					"value": body.QuotedFileContent.Value,
 				},
@@ -228,12 +261,39 @@ func TestDocsCommentsList_PlainText(t *testing.T) {
 	if !strings.Contains(out, "Needs revision") {
 		t.Fatalf("expected comment content in output, got: %q", out)
 	}
-	if !strings.Contains(out, "QUOTED") {
-		t.Fatalf("expected QUOTED header in output, got: %q", out)
+	if !strings.Contains(out, "TYPE") {
+		t.Fatalf("expected TYPE header in output, got: %q", out)
+	}
+	if !strings.Contains(out, "Working on it") {
+		t.Fatalf("expected reply content in output, got: %q", out)
 	}
 	// Resolved comment should be filtered out in default mode
 	if strings.Contains(out, "LGTM") {
 		t.Fatalf("resolved comment should be filtered, got: %q", out)
+	}
+}
+
+func TestDocsCommentsList_ScansPagesForOpenComments(t *testing.T) {
+	srv := newCommentsTestServer(t)
+	defer srv.Close()
+	setupDriveServiceFromServer(t, srv)
+
+	jsonOut := captureStdout(t, func() {
+		_ = captureStderr(t, func() {
+			if err := Execute([]string{"--json", "--account", "a@b.com", "docs", "comments", "list", "scan"}); err != nil {
+				t.Fatalf("Execute: %v", err)
+			}
+		})
+	})
+
+	var parsed struct {
+		Comments []*drive.Comment `json:"comments"`
+	}
+	if err := json.Unmarshal([]byte(jsonOut), &parsed); err != nil {
+		t.Fatalf("json parse: %v\nout=%q", err, jsonOut)
+	}
+	if len(parsed.Comments) != 1 || parsed.Comments[0].Id != "c-open" {
+		t.Fatalf("expected scan to return open comment, got %#v", parsed.Comments)
 	}
 }
 
@@ -312,7 +372,7 @@ func TestDocsCommentsAdd_JSON(t *testing.T) {
 
 	jsonOut := captureStdout(t, func() {
 		_ = captureStderr(t, func() {
-			if err := Execute([]string{"--json", "--account", "a@b.com", "docs", "comments", "add", "doc1", "Nice work", "--quoted", "some text"}); err != nil {
+			if err := Execute([]string{"--json", "--account", "a@b.com", "docs", "comments", "add", "doc1", "Nice work", "--quoted", "some text", "--anchor", "{\"a\":1}"}); err != nil {
 				t.Fatalf("Execute: %v", err)
 			}
 		})
@@ -329,6 +389,9 @@ func TestDocsCommentsAdd_JSON(t *testing.T) {
 	}
 	if parsed.Comment.Content != "Nice work" {
 		t.Fatalf("expected content 'Nice work', got %q", parsed.Comment.Content)
+	}
+	if parsed.Comment.Anchor != "{\"a\":1}" {
+		t.Fatalf("expected anchor, got %q", parsed.Comment.Anchor)
 	}
 }
 
@@ -511,5 +574,18 @@ func TestFilterOpenComments_Nil(t *testing.T) {
 	open := filterOpenComments(nil)
 	if open != nil {
 		t.Fatalf("expected nil, got %v", open)
+	}
+}
+
+func TestFilterOpenComments_NilElements(t *testing.T) {
+	comments := []*drive.Comment{
+		nil,
+		{Id: "c1", Resolved: true},
+		nil,
+		{Id: "c2", Resolved: false},
+	}
+	open := filterOpenComments(comments)
+	if len(open) != 1 || open[0].Id != "c2" {
+		t.Fatalf("unexpected open comments: %#v", open)
 	}
 }
