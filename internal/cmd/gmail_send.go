@@ -171,6 +171,12 @@ func (c *GmailSendCmd) Run(ctx context.Context, flags *RootFlags) error {
 		}
 	}
 
+	// Build effective HTML body once (needed for tracking validation + send).
+	htmlBody := c.BodyHTML
+	if quoteHTML != "" {
+		htmlBody += quoteHTML
+	}
+
 	// Determine recipients
 	var toRecipients, ccRecipients []string
 	if c.ReplyAll {
@@ -204,17 +210,13 @@ func (c *GmailSendCmd) Run(ctx context.Context, flags *RootFlags) error {
 
 	var trackingCfg *tracking.Config
 	if c.Track {
-		trackingCfg, err = c.resolveTrackingConfig(account, toRecipients, ccRecipients, bccRecipients)
+		trackingCfg, err = c.resolveTrackingConfig(account, toRecipients, ccRecipients, bccRecipients, htmlBody)
 		if err != nil {
 			return err
 		}
 	}
 
 	batches := buildSendBatches(toRecipients, ccRecipients, bccRecipients, c.Track, c.TrackSplit)
-	htmlBody := c.BodyHTML
-	if quoteHTML != "" {
-		htmlBody += quoteHTML
-	}
 	results, err := sendGmailBatches(ctx, svc, sendMessageOptions{
 		FromAddr:    fromAddr,
 		ReplyTo:     c.ReplyTo,
@@ -233,14 +235,14 @@ func (c *GmailSendCmd) Run(ctx context.Context, flags *RootFlags) error {
 	return writeSendResults(ctx, u, fromAddr, results)
 }
 
-func (c *GmailSendCmd) resolveTrackingConfig(account string, toRecipients, ccRecipients, bccRecipients []string) (*tracking.Config, error) {
+func (c *GmailSendCmd) resolveTrackingConfig(account string, toRecipients, ccRecipients, bccRecipients []string, htmlBody string) (*tracking.Config, error) {
 	totalRecipients := len(toRecipients) + len(ccRecipients) + len(bccRecipients)
 	if totalRecipients != 1 && !c.TrackSplit {
 		return nil, usage("--track requires exactly 1 recipient (no cc/bcc); use --track-split for per-recipient sends")
 	}
 
-	if strings.TrimSpace(c.BodyHTML) == "" {
-		return nil, fmt.Errorf("--track requires --body-html (pixel must be in HTML)")
+	if strings.TrimSpace(htmlBody) == "" {
+		return nil, fmt.Errorf("--track requires an HTML body (use --body-html or --quote)")
 	}
 
 	trackingCfg, err := tracking.LoadConfig(account)
@@ -508,15 +510,9 @@ func fetchReplyInfo(ctx context.Context, svc *gmail.Service, replyToMessageID st
 		return &replyInfo{}, nil
 	}
 
-	// Use "full" format when we need the body for quoting, otherwise "metadata"
-	format := gmailFormatMetadata
-	if includeBody {
-		format = gmailFormatFull
-	}
-
 	if replyToMessageID != "" {
 		call := svc.Users.Messages.Get("me", replyToMessageID).Context(ctx)
-		if format == gmailFormatMetadata {
+		if !includeBody {
 			call = call.Format(gmailFormatMetadata).
 				MetadataHeaders("Message-ID", "Message-Id", "References", "In-Reply-To", "From", "Reply-To", "To", "Cc", "Date")
 		} else {
@@ -529,14 +525,14 @@ func fetchReplyInfo(ctx context.Context, svc *gmail.Service, replyToMessageID st
 		return replyInfoFromMessage(msg, includeBody), nil
 	}
 
-	threadCall := svc.Users.Threads.Get("me", threadID).Context(ctx)
-	if format == gmailFormatMetadata {
-		threadCall = threadCall.Format(gmailFormatMetadata).
-			MetadataHeaders("Message-ID", "Message-Id", "References", "In-Reply-To", "From", "Reply-To", "To", "Cc", "Date")
-	} else {
-		threadCall = threadCall.Format(gmailFormatFull)
-	}
-	thread, err := threadCall.Do()
+	// For thread replies, we always need just headers to select the latest message.
+	// If includeBody is true (quoting), fetch that single message in "full" format afterwards
+	// to avoid pulling entire thread bodies.
+	thread, err := svc.Users.Threads.Get("me", threadID).
+		Format(gmailFormatMetadata).
+		MetadataHeaders("Message-ID", "Message-Id", "References", "In-Reply-To", "From", "Reply-To", "To", "Cc", "Date").
+		Context(ctx).
+		Do()
 	if err != nil {
 		return nil, err
 	}
@@ -548,6 +544,17 @@ func fetchReplyInfo(ctx context.Context, svc *gmail.Service, replyToMessageID st
 	if msg == nil {
 		return nil, fmt.Errorf("thread %s has no messages", threadID)
 	}
+	// If quoting, refetch the selected message in full format to get body parts.
+	if includeBody && msg.Id != "" {
+		fullMsg, fullErr := svc.Users.Messages.Get("me", msg.Id).
+			Format(gmailFormatFull).
+			Context(ctx).
+			Do()
+		if fullErr == nil && fullMsg != nil {
+			msg = fullMsg
+		}
+	}
+
 	info := replyInfoFromMessage(msg, includeBody)
 	if info.ThreadID == "" {
 		info.ThreadID = thread.Id
@@ -570,7 +577,11 @@ func replyInfoFromMessage(msg *gmail.Message, includeBody bool) *replyInfo {
 
 	// Include body if requested (for quoting)
 	if includeBody {
-		info.Body = bestBodyText(msg.Payload)
+		plain := findPartBody(msg.Payload, "text/plain")
+		// Some messages (or broken clients) put HTML into text/plain; never dump raw HTML into the plain quote.
+		if plain != "" && !looksLikeHTML(plain) {
+			info.Body = plain
+		}
 		info.BodyHTML = findPartBody(msg.Payload, "text/html")
 	}
 

@@ -267,7 +267,7 @@ func (s *gmailWatchServer) fetchMessages(ctx context.Context, svc *gmail.Service
 	messages := make([]gmailHookMessage, 0, len(ids))
 	format := gmailWatchFormatMetadata
 	if s.cfg.IncludeBody {
-		format = "full"
+		format = gmailFormatFull
 	}
 	for _, id := range ids {
 		if strings.TrimSpace(id) == "" {
