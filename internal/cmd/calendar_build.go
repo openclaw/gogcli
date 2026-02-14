@@ -25,22 +25,19 @@ func buildEventDateTime(value string, allDay bool) *calendar.EventDateTime {
 	return edt
 }
 
-// extractTimezone attempts to determine a timezone from an RFC3339 datetime string.
-// Returns an IANA timezone name if determinable, empty string otherwise.
-func extractTimezone(value string) string {
-	t, err := time.Parse(time.RFC3339, value)
-	if err != nil {
-		return ""
+func etcGMTForOffsetSeconds(offset int) (string, bool) {
+	if offset == 0 || offset%3600 != 0 {
+		return "", false
 	}
-
-	_, offset := t.Zone()
-	if offset == 0 {
-		return tzUTC
+	hours := offset / 3600
+	if hours > 0 {
+		// NOTE: IANA "Etc/GMT" names use reversed signs (e.g. +02:00 => Etc/GMT-2).
+		return fmt.Sprintf("Etc/GMT-%d", hours), true
 	}
+	return fmt.Sprintf("Etc/GMT+%d", -hours), true
+}
 
-	// RFC3339 values have a fixed offset, but Google Calendar requires an IANA timezone
-	// name for recurring events. We guess by checking which common zones match the
-	// offset at this instant.
+func usIANAForOffsetAt(t time.Time, offset int) string {
 	switch offset {
 	case -4 * 3600, -5 * 3600, -6 * 3600, -7 * 3600, -8 * 3600:
 		for _, candidate := range []string{
@@ -60,15 +57,32 @@ func extractTimezone(value string) string {
 			}
 		}
 	}
+	return ""
+}
+
+// extractTimezone attempts to determine a timezone from an RFC3339 datetime string.
+// Returns an IANA timezone name if determinable, empty string otherwise.
+func extractTimezone(value string) string {
+	t, err := time.Parse(time.RFC3339, value)
+	if err != nil {
+		return ""
+	}
+
+	_, offset := t.Zone()
+	if offset == 0 {
+		return tzUTC
+	}
+
+	// RFC3339 values have a fixed offset, but Google Calendar requires an IANA timezone
+	// name for recurring events. We guess by checking which common zones match the
+	// offset at this instant.
+	if tz := usIANAForOffsetAt(t, offset); tz != "" {
+		return tz
+	}
 
 	// Fallback for fixed whole-hour offsets when no regional timezone match is found.
-	// NOTE: IANA "Etc/GMT" names use reversed signs (e.g. +02:00 => Etc/GMT-2).
-	if offset%3600 == 0 {
-		hours := offset / 3600
-		if hours > 0 {
-			return fmt.Sprintf("Etc/GMT-%d", hours)
-		}
-		return fmt.Sprintf("Etc/GMT+%d", -hours)
+	if tz, ok := etcGMTForOffsetSeconds(offset); ok {
+		return tz
 	}
 	return ""
 }
