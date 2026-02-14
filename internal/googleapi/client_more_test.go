@@ -2,7 +2,9 @@ package googleapi
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
+	"net/http"
 	"os"
 	"path/filepath"
 	"testing"
@@ -159,6 +161,31 @@ func TestOptionsForAccountScopes_HappyPath(t *testing.T) {
 
 	if len(opts) == 0 {
 		t.Fatalf("expected client options")
+	}
+}
+
+func TestNewBaseTransport_UsesProxyFromEnvironment(t *testing.T) {
+	t.Setenv("HTTPS_PROXY", "http://proxy.example:3128")
+	t.Setenv("NO_PROXY", "")
+
+	transport := newBaseTransport()
+	if transport.Proxy == nil {
+		t.Fatalf("expected proxy function")
+	}
+	if transport.TLSClientConfig == nil || transport.TLSClientConfig.MinVersion != tls.VersionTLS12 {
+		t.Fatalf("expected tls min version 1.2, got: %#v", transport.TLSClientConfig)
+	}
+
+	req, err := http.NewRequest(http.MethodGet, "https://www.googleapis.com/calendar/v3/users/me/calendarList", nil)
+	if err != nil {
+		t.Fatalf("new request: %v", err)
+	}
+	proxyURL, err := transport.Proxy(req)
+	if err != nil {
+		t.Fatalf("proxy lookup: %v", err)
+	}
+	if proxyURL == nil || proxyURL.String() != "http://proxy.example:3128" {
+		t.Fatalf("unexpected proxy url: %#v", proxyURL)
 	}
 }
 

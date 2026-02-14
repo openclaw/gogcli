@@ -122,11 +122,7 @@ func optionsForAccountScopes(ctx context.Context, serviceLabel string, email str
 			ts = tokenSource
 		}
 	}
-	baseTransport := &http.Transport{
-		TLSClientConfig: &tls.Config{
-			MinVersion: tls.VersionTLS12,
-		},
-	}
+	baseTransport := newBaseTransport()
 	// Wrap with retry logic for 429 and 5xx errors
 	retryTransport := NewRetryTransport(&oauth2.Transport{
 		Source: ts,
@@ -140,4 +136,13 @@ func optionsForAccountScopes(ctx context.Context, serviceLabel string, email str
 	slog.Debug("client options with custom scopes created successfully", "serviceLabel", serviceLabel, "email", email)
 
 	return []option.ClientOption{option.WithHTTPClient(c)}, nil
+}
+
+func newBaseTransport() *http.Transport {
+	return &http.Transport{
+		Proxy: http.ProxyFromEnvironment,
+		TLSClientConfig: &tls.Config{
+			MinVersion: tls.VersionTLS12,
+		},
+	}
 }

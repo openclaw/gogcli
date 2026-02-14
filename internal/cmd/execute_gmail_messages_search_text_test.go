@@ -175,3 +175,88 @@ func TestExecute_GmailMessagesSearch_JSON_IncludeBody(t *testing.T) {
 		t.Fatalf("expected decoded body, got: %q", out)
 	}
 }
+
+func TestExecute_GmailMessagesSearch_JSON_IncludeBody_PreservesLiteralHexLikeQuery(t *testing.T) {
+	origNew := newGmailService
+	t.Cleanup(func() { newGmailService = origNew })
+
+	const rawBody = "<a href=\"https://example.com/?post_type=product&p=91\">open</a>"
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := r.URL.Path
+		switch {
+		case strings.Contains(path, "/users/me/messages") && !strings.Contains(path, "/users/me/messages/"):
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"messages": []map[string]any{
+					{"id": "m1", "threadId": "t1"},
+				},
+			})
+			return
+		case strings.Contains(path, "/users/me/messages/m1"):
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"id":       "m1",
+				"threadId": "t1",
+				"labelIds": []string{"INBOX"},
+				"payload": map[string]any{
+					"mimeType": "multipart/alternative",
+					"headers": []map[string]any{
+						{"name": "From", "value": "Example <no-reply@example.com>"},
+						{"name": "Subject", "value": "Receipt"},
+						{"name": "Date", "value": "Mon, 02 Jan 2006 15:04:05 -0700"},
+					},
+					"parts": []map[string]any{
+						{
+							"mimeType": "text/html",
+							"headers": []map[string]any{
+								{"name": "Content-Transfer-Encoding", "value": "quoted-printable"},
+								{"name": "Content-Type", "value": "text/html; charset=utf-8"},
+							},
+							"body": map[string]any{
+								"data": encodeBase64URL(rawBody),
+							},
+						},
+					},
+				},
+			})
+			return
+		case strings.Contains(path, "/users/me/labels"):
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"labels": []map[string]any{
+					{"id": "INBOX", "name": "INBOX", "type": "system"},
+				},
+			})
+			return
+		default:
+			http.NotFound(w, r)
+			return
+		}
+	}))
+	defer srv.Close()
+
+	svc, err := gmail.NewService(context.Background(),
+		option.WithoutAuthentication(),
+		option.WithHTTPClient(srv.Client()),
+		option.WithEndpoint(srv.URL+"/"),
+	)
+	if err != nil {
+		t.Fatalf("NewService: %v", err)
+	}
+	newGmailService = func(context.Context, string) (*gmail.Service, error) { return svc, nil }
+
+	out := captureStdout(t, func() {
+		_ = captureStderr(t, func() {
+			if err := Execute([]string{"--json", "--account", "a@b.com", "gmail", "messages", "search", "from:example.com", "--include-body"}); err != nil {
+				t.Fatalf("Execute: %v", err)
+			}
+		})
+	})
+	if !strings.Contains(out, "post_type=product&p=91") {
+		t.Fatalf("expected literal query string preserved, got: %q", out)
+	}
+	if strings.Contains(out, "\\ufffd") {
+		t.Fatalf("expected no replacement character, got: %q", out)
+	}
+}

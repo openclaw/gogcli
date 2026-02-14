@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"unicode/utf8"
 
 	"golang.org/x/net/html/charset"
 	"google.golang.org/api/gmail/v1"
@@ -442,16 +443,39 @@ func decodePartBody(p *gmail.MessagePart) (string, error) {
 		return "", err
 	}
 
+	contentType := strings.TrimSpace(headerValue(p, "Content-Type"))
 	decoded := raw
 	if cte := strings.TrimSpace(headerValue(p, "Content-Transfer-Encoding")); cte != "" {
-		decoded = decodeTransferEncoding(decoded, cte)
+		decoded = decodeTransferEncodingForBody(decoded, cte, contentType)
 	}
 
-	if contentType := strings.TrimSpace(headerValue(p, "Content-Type")); contentType != "" {
+	if contentType != "" {
 		decoded = decodeBodyCharset(decoded, contentType)
 	}
 
 	return string(decoded), nil
+}
+
+func decodeTransferEncodingForBody(data []byte, encoding string, contentType string) []byte {
+	switch strings.ToLower(strings.TrimSpace(encoding)) {
+	case "quoted-printable":
+		return decodeQuotedPrintableBody(data, contentType)
+	default:
+		return decodeTransferEncoding(data, encoding)
+	}
+}
+
+func decodeQuotedPrintableBody(data []byte, contentType string) []byte {
+	if !shouldDecodeQuotedPrintable(data, contentType) {
+		return data
+	}
+
+	decoded := decodeTransferEncoding(data, "quoted-printable")
+	if shouldPreserveRawQuotedPrintable(data, decoded, contentType) {
+		return data
+	}
+
+	return decoded
 }
 
 func decodeTransferEncoding(data []byte, encoding string) []byte {
@@ -471,12 +495,79 @@ func decodeTransferEncoding(data []byte, encoding string) []byte {
 	return data
 }
 
-func decodeBodyCharset(data []byte, contentType string) []byte {
-	_, params, err := mime.ParseMediaType(contentType)
-	if err != nil {
-		return data
+func shouldDecodeQuotedPrintable(data []byte, contentType string) bool {
+	// For non-UTF-8 charsets we still need quoted-printable decoding so charset
+	// conversion can interpret the byte stream correctly.
+	if charsetLabel := contentTypeCharset(contentType); charsetLabel != "" && !strings.EqualFold(charsetLabel, "utf-8") {
+		return true
 	}
-	charsetLabel := strings.TrimSpace(params["charset"])
+
+	if bytes.Contains(data, []byte("=\r\n")) || bytes.Contains(data, []byte("=\n")) {
+		return true
+	}
+
+	escapeCount := 0
+	for i := 0; i+2 < len(data); i++ {
+		if data[i] != '=' || !isHexByte(data[i+1]) || !isHexByte(data[i+2]) {
+			continue
+		}
+		escapeCount++
+
+		hi := upperHexByte(data[i+1])
+		lo := upperHexByte(data[i+2])
+		if hi == '3' && lo == 'D' {
+			return true
+		}
+		if hi == '0' && (lo == '9' || lo == 'A' || lo == 'D') {
+			return true
+		}
+	}
+
+	// A single =XX sequence in otherwise readable UTF-8 text is often literal
+	// content (for example URLs with query params like p=91), not transfer
+	// encoding.
+	return escapeCount >= 2
+}
+
+func shouldPreserveRawQuotedPrintable(raw []byte, decoded []byte, contentType string) bool {
+	if bytes.Equal(raw, decoded) {
+		return false
+	}
+	if charsetLabel := contentTypeCharset(contentType); charsetLabel != "" && !strings.EqualFold(charsetLabel, "utf-8") {
+		return false
+	}
+	if utf8.Valid(raw) && !utf8.Valid(decoded) {
+		return true
+	}
+	return hasUnsafeControlBytes(decoded) && !hasUnsafeControlBytes(raw)
+}
+
+func hasUnsafeControlBytes(data []byte) bool {
+	for _, b := range data {
+		switch b {
+		case '\n', '\r', '\t':
+			continue
+		}
+		if b < 0x20 || b == 0x7f {
+			return true
+		}
+	}
+	return false
+}
+
+func isHexByte(b byte) bool {
+	return (b >= '0' && b <= '9') || (b >= 'a' && b <= 'f') || (b >= 'A' && b <= 'F')
+}
+
+func upperHexByte(b byte) byte {
+	if b >= 'a' && b <= 'f' {
+		return b - ('a' - 'A')
+	}
+	return b
+}
+
+func decodeBodyCharset(data []byte, contentType string) []byte {
+	charsetLabel := contentTypeCharset(contentType)
 	if charsetLabel == "" || strings.EqualFold(charsetLabel, "utf-8") {
 		return data
 	}
@@ -489,6 +580,14 @@ func decodeBodyCharset(data []byte, contentType string) []byte {
 		return data
 	}
 	return decoded
+}
+
+func contentTypeCharset(contentType string) string {
+	_, params, err := mime.ParseMediaType(contentType)
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(params["charset"])
 }
 
 func looksLikeBase64(data []byte) bool {

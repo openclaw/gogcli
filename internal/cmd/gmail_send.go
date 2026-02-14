@@ -237,10 +237,32 @@ func primarySendAsDisplayName(ctx context.Context, svc *gmail.Service, account s
 	}
 
 	displayName, err := primarySendAsDisplayNameFromList(ctx, svc, account)
+	if err == nil && displayName != "" {
+		return displayName
+	}
+
+	// Some Gmail accounts expose the profile name via People API while send-as
+	// settings return an empty display name for the primary address.
+	return primaryProfileDisplayName(ctx, account)
+}
+
+func primaryProfileDisplayName(ctx context.Context, account string) string {
+	account = strings.TrimSpace(account)
+	if account == "" || newPeopleContactsService == nil {
+		return ""
+	}
+
+	peopleSvc, err := newPeopleContactsService(ctx, account)
 	if err != nil {
 		return ""
 	}
-	return displayName
+
+	person, err := peopleSvc.People.Get(peopleMeResource).PersonFields("names").Do()
+	if err != nil {
+		return ""
+	}
+
+	return strings.TrimSpace(primaryName(person))
 }
 
 func sendAsDisplayNameFromList(ctx context.Context, svc *gmail.Service, email string) (string, error) {

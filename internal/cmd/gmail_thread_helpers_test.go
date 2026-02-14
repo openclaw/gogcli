@@ -153,6 +153,40 @@ func TestFindPartBody_DecodesQuotedPrintable(t *testing.T) {
 	}
 }
 
+func TestFindPartBody_QuotedPrintablePreservesLiteralHexLikeSequence(t *testing.T) {
+	body := "https://example.com/?post_type=product&p=91"
+	encoded := base64.RawURLEncoding.EncodeToString([]byte(body))
+	part := &gmail.MessagePart{
+		MimeType: "text/html",
+		Headers: []*gmail.MessagePartHeader{
+			{Name: "Content-Transfer-Encoding", Value: "quoted-printable"},
+			{Name: "Content-Type", Value: "text/html; charset=utf-8"},
+		},
+		Body: &gmail.MessagePartBody{Data: encoded},
+	}
+	got := findPartBody(part, "text/html")
+	if got != body {
+		t.Fatalf("unexpected decoded body: %q", got)
+	}
+}
+
+func TestFindPartBody_DecodesQuotedPrintable_NonUTF8Charset(t *testing.T) {
+	qp := "It=92s done"
+	encoded := base64.RawURLEncoding.EncodeToString([]byte(qp))
+	part := &gmail.MessagePart{
+		MimeType: "text/plain",
+		Headers: []*gmail.MessagePartHeader{
+			{Name: "Content-Transfer-Encoding", Value: "quoted-printable"},
+			{Name: "Content-Type", Value: "text/plain; charset=windows-1252"},
+		},
+		Body: &gmail.MessagePartBody{Data: encoded},
+	}
+	got := findPartBody(part, "text/plain")
+	if got != "It’s done" {
+		t.Fatalf("unexpected decoded body: %q", got)
+	}
+}
+
 func TestFindPartBody_DecodesBase64Transfer(t *testing.T) {
 	inner := base64.StdEncoding.EncodeToString([]byte("plain body"))
 	encoded := base64.RawURLEncoding.EncodeToString([]byte(inner))
