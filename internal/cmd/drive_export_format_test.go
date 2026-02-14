@@ -29,12 +29,6 @@ func TestDriveExportMimeTypeForFormat(t *testing.T) {
 			wantMime:   "application/pdf",
 		},
 		{
-			name:       "doc_auto",
-			googleMime: "application/vnd.google-apps.document",
-			format:     "auto",
-			wantMime:   "application/pdf",
-		},
-		{
 			name:       "doc_pdf",
 			googleMime: "application/vnd.google-apps.document",
 			format:     "pdf",
@@ -63,12 +57,6 @@ func TestDriveExportMimeTypeForFormat(t *testing.T) {
 			name:       "sheet_default",
 			googleMime: "application/vnd.google-apps.spreadsheet",
 			format:     "",
-			wantMime:   "text/csv",
-		},
-		{
-			name:       "sheet_auto",
-			googleMime: "application/vnd.google-apps.spreadsheet",
-			format:     "auto",
 			wantMime:   "text/csv",
 		},
 		{
