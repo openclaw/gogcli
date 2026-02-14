@@ -489,6 +489,7 @@ type ClassroomRosterCmd struct {
 	FailEmpty bool   `name:"fail-empty" aliases:"non-empty,require-results" help:"Exit with code 3 if no results"`
 }
 
+//nolint:gocyclo,cyclop // command orchestration across two role paths
 func (c *ClassroomRosterCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
 	account, err := requireAccount(flags)
@@ -519,16 +520,16 @@ func (c *ClassroomRosterCmd) Run(ctx context.Context, flags *RootFlags) error {
 			if strings.TrimSpace(pageToken) != "" {
 				call = call.PageToken(pageToken)
 			}
-			resp, err := call.Do()
-			if err != nil {
-				return nil, "", wrapClassroomError(err)
+			resp, callErr := call.Do()
+			if callErr != nil {
+				return nil, "", wrapClassroomError(callErr)
 			}
 			return resp.Students, resp.NextPageToken, nil
 		}
 		if c.All {
-			all, err := collectAllPages(c.Page, fetch)
-			if err != nil {
-				return err
+			all, collectErr := collectAllPages(c.Page, fetch)
+			if collectErr != nil {
+				return collectErr
 			}
 			students = all
 		} else {
@@ -544,16 +545,16 @@ func (c *ClassroomRosterCmd) Run(ctx context.Context, flags *RootFlags) error {
 			if strings.TrimSpace(pageToken) != "" {
 				call = call.PageToken(pageToken)
 			}
-			resp, err := call.Do()
-			if err != nil {
-				return nil, "", wrapClassroomError(err)
+			resp, callErr := call.Do()
+			if callErr != nil {
+				return nil, "", wrapClassroomError(callErr)
 			}
 			return resp.Teachers, resp.NextPageToken, nil
 		}
 		if c.All {
-			all, err := collectAllPages(c.Page, fetch)
-			if err != nil {
-				return err
+			all, collectErr := collectAllPages(c.Page, fetch)
+			if collectErr != nil {
+				return collectErr
 			}
 			teachers = all
 		} else {

@@ -54,9 +54,9 @@ func (c *GmailMessagesSearchCmd) Run(ctx context.Context, flags *RootFlags) erro
 		if strings.TrimSpace(pageToken) != "" {
 			call = call.PageToken(pageToken)
 		}
-		resp, err := call.Do()
-		if err != nil {
-			return nil, "", err
+		resp, callErr := call.Do()
+		if callErr != nil {
+			return nil, "", callErr
 		}
 		return resp.Messages, resp.NextPageToken, nil
 	}
@@ -64,26 +64,27 @@ func (c *GmailMessagesSearchCmd) Run(ctx context.Context, flags *RootFlags) erro
 	var messages []*gmail.Message
 	nextPageToken := ""
 	if c.All {
-		all, err := collectAllPages(c.Page, fetch)
-		if err != nil {
-			return err
+		all, collectErr := collectAllPages(c.Page, fetch)
+		if collectErr != nil {
+			return collectErr
 		}
 		messages = all
 	} else {
-		var err error
-		messages, nextPageToken, err = fetch(c.Page)
-		if err != nil {
-			return err
+		messagesPage, pageToken, fetchErr := fetch(c.Page)
+		if fetchErr != nil {
+			return fetchErr
 		}
+		messages = messagesPage
+		nextPageToken = pageToken
 	}
 
 	if len(messages) == 0 {
 		if outfmt.IsJSON(ctx) {
-			if err := outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
+			if writeErr := outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
 				"messages":      []messageItem{},
 				"nextPageToken": nextPageToken,
-			}); err != nil {
-				return err
+			}); writeErr != nil {
+				return writeErr
 			}
 			return failEmptyExit(c.FailEmpty)
 		}
@@ -107,11 +108,11 @@ func (c *GmailMessagesSearchCmd) Run(ctx context.Context, flags *RootFlags) erro
 	}
 
 	if outfmt.IsJSON(ctx) {
-		if err := outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
+		if writeErr := outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
 			"messages":      items,
 			"nextPageToken": nextPageToken,
-		}); err != nil {
-			return err
+		}); writeErr != nil {
+			return writeErr
 		}
 		if len(items) == 0 {
 			return failEmptyExit(c.FailEmpty)

@@ -45,18 +45,20 @@ func listCalendarEvents(ctx context.Context, svc *calendar.Service, calendarID, 
 		return resp.Items, resp.NextPageToken, nil
 	}
 
-	items, nextPageToken, err := fetch(page)
-	if err != nil {
-		return err
-	}
-
+	var items []*calendar.Event
+	nextPageToken := ""
 	if allPages {
 		all, err := collectAllPages(page, fetch)
 		if err != nil {
 			return err
 		}
 		items = all
-		nextPageToken = ""
+	} else {
+		var err error
+		items, nextPageToken, err = fetch(page)
+		if err != nil {
+			return err
+		}
 	}
 	if outfmt.IsJSON(ctx) {
 		if err := outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
@@ -144,24 +146,26 @@ func listAllCalendarsEvents(ctx context.Context, svc *calendar.Service, from, to
 			if strings.TrimSpace(fields) != "" {
 				call = call.Fields(gapi.Field(fields))
 			}
-			events, err := call.Context(ctx).Do()
-			if err != nil {
-				return nil, "", err
+			events, callErr := call.Context(ctx).Do()
+			if callErr != nil {
+				return nil, "", callErr
 			}
 			return events.Items, events.NextPageToken, nil
 		}
 
-		events, next, err := fetch(page)
-		if err != nil {
-			u.Err().Printf("calendar %s: %v", cal.Id, err)
-			continue
-		}
-		if allPages && strings.TrimSpace(next) != "" {
-			allEvents, err := collectAllPages(page, fetch)
+		var events []*calendar.Event
+		if allPages {
+			allEvents, collectErr := collectAllPages(page, fetch)
+			if collectErr != nil {
+				u.Err().Printf("calendar %s: %v", cal.Id, collectErr)
+				continue
+			}
+			events = allEvents
+		} else {
+			events, _, err = fetch(page)
 			if err != nil {
 				u.Err().Printf("calendar %s: %v", cal.Id, err)
-			} else {
-				events = allEvents
+				continue
 			}
 		}
 

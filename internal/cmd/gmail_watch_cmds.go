@@ -345,7 +345,7 @@ func (c *GmailWatchServeCmd) Run(ctx context.Context, kctx *kong.Context, flags 
 		validator:       validator,
 		newService:      newGmailService,
 		hookClient:      hookClient,
-		excludeLabelIDs: lowerStringSet(cfg.ExcludeLabels),
+		excludeLabelIDs: stringSet(cfg.ExcludeLabels),
 		logf:            u.Err().Printf,
 		warnf:           u.Err().Printf,
 	}

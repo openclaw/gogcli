@@ -602,12 +602,14 @@ gog gmail delegates remove --email delegate@example.com
 gog gmail watch start --topic projects/<p>/topics/<t> --label INBOX
 gog gmail watch serve --bind 127.0.0.1 --token <shared> --hook-url http://127.0.0.1:18789/hooks/agent
 gog gmail watch serve --bind 0.0.0.0 --verify-oidc --oidc-email <svc@...> --hook-url <url>
+gog gmail watch serve --bind 127.0.0.1 --token <shared> --exclude-labels SPAM,TRASH --hook-url http://127.0.0.1:18789/hooks/agent
 gog gmail history --since <historyId>
 ```
 
 Gmail watch (Pub/Sub push):
 - Create Pub/Sub topic + push subscription (OIDC preferred; shared token ok for dev).
 - Full flow + payload details: `docs/watch.md`.
+- `watch serve --exclude-labels` defaults to `SPAM,TRASH`; IDs are case-sensitive.
 
 ### Email Tracking
 

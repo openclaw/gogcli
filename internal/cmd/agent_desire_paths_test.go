@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -87,5 +88,39 @@ func TestDesirePaths_CursorAlias_Parses(t *testing.T) {
 	}
 	if _, err := parser.Parse([]string{"drive", "ls", "--cursor", "tok"}); err != nil {
 		t.Fatalf("Parse: %v", err)
+	}
+}
+
+func TestDesirePaths_RewriteFields_KeepsCalendarEventsWithGlobalFlagValue(t *testing.T) {
+	in := []string{"--account", "foo@example.com", "calendar", "events", "--fields", "items(id)"}
+	got := rewriteDesirePathArgs(in)
+	want := []string{"--account", "foo@example.com", "calendar", "events", "--fields", "items(id)"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("unexpected rewrite: got=%v want=%v", got, want)
+	}
+}
+
+func TestDesirePaths_RewriteFields_RewritesNonCalendarCommands(t *testing.T) {
+	in := []string{"--account", "foo@example.com", "drive", "ls", "--fields=id,name"}
+	got := rewriteDesirePathArgs(in)
+	want := []string{"--account", "foo@example.com", "drive", "ls", "--select=id,name"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("unexpected rewrite: got=%v want=%v", got, want)
+	}
+}
+
+func TestDesirePaths_RewriteFields_DoesNotRewriteAfterDoubleDash(t *testing.T) {
+	in := []string{"open", "--", "--fields"}
+	got := rewriteDesirePathArgs(in)
+	if !reflect.DeepEqual(got, in) {
+		t.Fatalf("unexpected rewrite: got=%v want=%v", got, in)
+	}
+}
+
+func TestDesirePaths_RewriteFields_KeepsCalendarEventsAlias(t *testing.T) {
+	in := []string{"-a", "foo@example.com", "cal", "ls", "--fields", "items(id)"}
+	got := rewriteDesirePathArgs(in)
+	if !reflect.DeepEqual(got, in) {
+		t.Fatalf("unexpected rewrite: got=%v want=%v", got, in)
 	}
 }

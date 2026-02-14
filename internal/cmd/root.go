@@ -195,34 +195,14 @@ func rewriteDesirePathArgs(args []string) []string {
 	// everywhere else by rewriting to the global `--select` flag.
 	//
 	// We avoid adding `--fields` as a real alias because Kong would treat it as a duplicate flag.
-	isCalendarEvents := func(cmd0, cmd1 string) bool {
-		cmd0 = strings.TrimSpace(strings.ToLower(cmd0))
-		cmd1 = strings.TrimSpace(strings.ToLower(cmd1))
-		if cmd0 != "calendar" && cmd0 != "cal" {
-			return false
-		}
-		return cmd1 == "events" || cmd1 == "ls" || cmd1 == "list"
-	}
-
-	// Best-effort: detect the first two command tokens (skipping flags).
-	cmdTokens := make([]string, 0, 2)
-	for _, a := range args {
-		if a == "--" {
-			break
-		}
-		if strings.HasPrefix(a, "-") {
-			continue
-		}
-		cmdTokens = append(cmdTokens, a)
-		if len(cmdTokens) >= 2 {
-			break
-		}
-	}
-
-	keepFields := len(cmdTokens) >= 2 && isCalendarEvents(cmdTokens[0], cmdTokens[1])
+	keepFields := isCalendarEventsCommand(args)
 
 	out := make([]string, 0, len(args))
-	for _, a := range args {
+	for i, a := range args {
+		if a == "--" {
+			out = append(out, args[i:]...)
+			break
+		}
 		if keepFields {
 			out = append(out, a)
 			continue
@@ -238,6 +218,45 @@ func rewriteDesirePathArgs(args []string) []string {
 		out = append(out, a)
 	}
 	return out
+}
+
+func isCalendarEventsCommand(args []string) bool {
+	cmdTokens := make([]string, 0, 2)
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		if a == "--" {
+			break
+		}
+		if strings.HasPrefix(a, "-") {
+			if globalFlagTakesValue(a) && i+1 < len(args) {
+				i++
+			}
+			continue
+		}
+		cmdTokens = append(cmdTokens, a)
+		if len(cmdTokens) >= 2 {
+			break
+		}
+	}
+
+	if len(cmdTokens) < 2 {
+		return false
+	}
+	cmd0 := strings.TrimSpace(strings.ToLower(cmdTokens[0]))
+	cmd1 := strings.TrimSpace(strings.ToLower(cmdTokens[1]))
+	if cmd0 != "calendar" && cmd0 != "cal" {
+		return false
+	}
+	return cmd1 == "events" || cmd1 == "ls" || cmd1 == "list"
+}
+
+func globalFlagTakesValue(flag string) bool {
+	switch flag {
+	case "--color", "--account", "--acct", "--client", "--enable-commands", "--select", "-a":
+		return true
+	default:
+		return false
+	}
 }
 
 func wrapParseError(err error) error {

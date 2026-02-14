@@ -15,7 +15,7 @@ import (
 func TestStableExitCode_PreservesExistingExitError(t *testing.T) {
 	in := &ExitError{Code: 3, Err: errors.New("no results")}
 	out := stableExitCode(in)
-	if out != in {
+	if !errors.Is(out, in) {
 		t.Fatalf("expected same error instance")
 	}
 	if got := ExitCode(out); got != 3 {
@@ -92,7 +92,7 @@ func TestStableExitCode_DeadlineExceeded(t *testing.T) {
 func TestStableExitCode_GenericErrorUnchanged(t *testing.T) {
 	in := errors.New("boom")
 	out := stableExitCode(in)
-	if out != in {
+	if !errors.Is(out, in) {
 		t.Fatalf("expected stableExitCode to return original error for generic errors")
 	}
 	if got := ExitCode(out); got != 1 {

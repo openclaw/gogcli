@@ -53,31 +53,32 @@ func (c *CalendarCalendarsCmd) Run(ctx context.Context, flags *RootFlags) error 
 		return err
 	}
 
-	resp, err := svc.CalendarList.List().MaxResults(c.Max).PageToken(c.Page).Do()
-	if err != nil {
-		return err
+	fetch := func(pageToken string) ([]*calendar.CalendarListEntry, string, error) {
+		call := svc.CalendarList.List().MaxResults(c.Max)
+		if strings.TrimSpace(pageToken) != "" {
+			call = call.PageToken(pageToken)
+		}
+		r, err := call.Do()
+		if err != nil {
+			return nil, "", err
+		}
+		return r.Items, r.NextPageToken, nil
 	}
 
-	items := resp.Items
-	nextPageToken := resp.NextPageToken
-
+	var items []*calendar.CalendarListEntry
+	nextPageToken := ""
 	if c.All {
-		all, err := collectAllPages(c.Page, func(pageToken string) ([]*calendar.CalendarListEntry, string, error) {
-			call := svc.CalendarList.List().MaxResults(c.Max)
-			if strings.TrimSpace(pageToken) != "" {
-				call = call.PageToken(pageToken)
-			}
-			r, err := call.Do()
-			if err != nil {
-				return nil, "", err
-			}
-			return r.Items, r.NextPageToken, nil
-		})
+		all, err := collectAllPages(c.Page, fetch)
 		if err != nil {
 			return err
 		}
 		items = all
-		nextPageToken = ""
+	} else {
+		var err error
+		items, nextPageToken, err = fetch(c.Page)
+		if err != nil {
+			return err
+		}
 	}
 	if outfmt.IsJSON(ctx) {
 		if err := outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
@@ -134,31 +135,32 @@ func (c *CalendarAclCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
-	resp, err := svc.Acl.List(calendarID).MaxResults(c.Max).PageToken(c.Page).Do()
-	if err != nil {
-		return err
+	fetch := func(pageToken string) ([]*calendar.AclRule, string, error) {
+		call := svc.Acl.List(calendarID).MaxResults(c.Max)
+		if strings.TrimSpace(pageToken) != "" {
+			call = call.PageToken(pageToken)
+		}
+		r, err := call.Do()
+		if err != nil {
+			return nil, "", err
+		}
+		return r.Items, r.NextPageToken, nil
 	}
 
-	items := resp.Items
-	nextPageToken := resp.NextPageToken
-
+	var items []*calendar.AclRule
+	nextPageToken := ""
 	if c.All {
-		all, err := collectAllPages(c.Page, func(pageToken string) ([]*calendar.AclRule, string, error) {
-			call := svc.Acl.List(calendarID).MaxResults(c.Max)
-			if strings.TrimSpace(pageToken) != "" {
-				call = call.PageToken(pageToken)
-			}
-			r, err := call.Do()
-			if err != nil {
-				return nil, "", err
-			}
-			return r.Items, r.NextPageToken, nil
-		})
+		all, err := collectAllPages(c.Page, fetch)
 		if err != nil {
 			return err
 		}
 		items = all
-		nextPageToken = ""
+	} else {
+		var err error
+		items, nextPageToken, err = fetch(c.Page)
+		if err != nil {
+			return err
+		}
 	}
 	if outfmt.IsJSON(ctx) {
 		if err := outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
@@ -225,7 +227,7 @@ func (c *CalendarEventsCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return usage("calendarId not allowed with --all flag")
 	}
 	if !c.All && calendarID == "" {
-		calendarID = "primary"
+		calendarID = primaryCalendarID
 	}
 
 	svc, err := newCalendarService(ctx, account)

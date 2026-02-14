@@ -71,15 +71,14 @@ func (c *ClassroomMaterialsListCmd) Run(ctx context.Context, flags *RootFlags) e
 		return resp.CourseWorkMaterial, resp.NextPageToken, nil
 	}
 
-	materials := []*classroom.CourseWorkMaterial{}
-	nextPageToken := ""
+	var materials []*classroom.CourseWorkMaterial
+	var nextPageToken string
 	if c.All {
 		all, err := collectAllPages(c.Page, fetch)
 		if err != nil {
 			return wrapClassroomError(err)
 		}
 		materials = all
-		nextPageToken = ""
 		if topic := strings.TrimSpace(c.Topic); topic != "" {
 			filtered := materials[:0]
 			for _, material := range materials {

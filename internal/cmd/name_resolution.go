@@ -10,6 +10,11 @@ import (
 	"google.golang.org/api/tasks/v1"
 )
 
+const (
+	defaultTaskListID = "@default"
+	primaryCalendarID = "primary"
+)
+
 // resolveTasklistID resolves a task list title to an ID (case-insensitive exact match).
 // If input matches an existing ID, it is returned unchanged.
 //
@@ -22,10 +27,10 @@ func resolveTasklistID(ctx context.Context, svc *tasks.Service, input string) (s
 	}
 	// Common agent desire path.
 	if strings.EqualFold(in, "default") {
-		in = "@default"
+		in = defaultTaskListID
 	}
 	// Special task list ID used by the API.
-	if in == "@default" {
+	if in == defaultTaskListID {
 		return in, nil
 	}
 	// Heuristic: task list IDs are typically long opaque strings. Avoid extra API
@@ -101,8 +106,8 @@ func resolveCalendarID(ctx context.Context, svc *calendar.Service, input string)
 	if in == "" {
 		return "", nil
 	}
-	if strings.EqualFold(in, "primary") {
-		return "primary", nil
+	if strings.EqualFold(in, primaryCalendarID) {
+		return primaryCalendarID, nil
 	}
 	// Calendar IDs are almost always email-like; avoid extra API calls when the
 	// user already provided an ID.

@@ -338,7 +338,7 @@ func (s *gmailWatchServer) isExcludedLabel(labelIDs []string) bool {
 		if trimmed == "" {
 			continue
 		}
-		if _, ok := s.excludeLabelIDs[strings.ToLower(trimmed)]; ok {
+		if _, ok := s.excludeLabelIDs[trimmed]; ok {
 			return true
 		}
 	}

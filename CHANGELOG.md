@@ -23,6 +23,7 @@
 
 - Secrets: set keyring item labels to `gogcli` so macOS security prompts show a clear item name. (#106) — thanks @maxceem.
 - Auth: improve remote/server-friendly manual OAuth flow (`auth add --remote`). (#187) — thanks @salmonumbrella.
+- CLI: land PR #201 with conflict-resolution fixes for `--fields` rewrite, calendar `--all` paging, schema command-path parsing, and case-sensitive Gmail watch exclude-label IDs. (#201) — thanks @salmonumbrella.
 
 ## 0.9.0 - 2026-01-22
 

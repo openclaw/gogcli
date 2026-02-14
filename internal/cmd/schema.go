@@ -13,7 +13,7 @@ import (
 )
 
 type SchemaCmd struct {
-	Command       []string `arg:"" optional:"" name:"command" help:"Optional command path to describe (e.g. 'drive ls'). Default: entire CLI"`
+	Command       []string `arg:"" optional:"" name:"command" help:"Optional command path to describe (e.g. drive ls). Default: entire CLI"`
 	IncludeHidden bool     `name:"include-hidden" help:"Include hidden commands and flags"`
 }
 
@@ -97,11 +97,13 @@ func (c *SchemaCmd) Run(ctx context.Context, kctx *kong.Context) error {
 func splitCommandPath(parts []string) []string {
 	out := make([]string, 0, len(parts))
 	for _, p := range parts {
-		p = strings.TrimSpace(p)
-		if p == "" {
-			continue
+		for _, tok := range strings.Fields(strings.TrimSpace(p)) {
+			tok = strings.TrimSpace(tok)
+			if tok == "" {
+				continue
+			}
+			out = append(out, tok)
 		}
-		out = append(out, p)
 	}
 	return out
 }

@@ -52,9 +52,9 @@ func (c *KeepListCmd) Run(ctx context.Context, flags *RootFlags, keep *KeepCmd) 
 		if strings.TrimSpace(c.Filter) != "" {
 			call = call.Filter(strings.TrimSpace(c.Filter))
 		}
-		resp, err := call.Do()
-		if err != nil {
-			return nil, "", err
+		resp, callErr := call.Do()
+		if callErr != nil {
+			return nil, "", callErr
 		}
 		return resp.Notes, resp.NextPageToken, nil
 	}
@@ -154,9 +154,9 @@ func (c *KeepSearchCmd) Run(ctx context.Context, flags *RootFlags, keep *KeepCmd
 		if strings.TrimSpace(pageToken) != "" {
 			call = call.PageToken(pageToken)
 		}
-		resp, err := call.Do()
-		if err != nil {
-			return nil, "", err
+		resp, callErr := call.Do()
+		if callErr != nil {
+			return nil, "", callErr
 		}
 
 		matches := make([]*keepapi.Note, 0, len(resp.Notes))

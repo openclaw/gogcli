@@ -25,7 +25,7 @@ func (c *OpenCmd) Run(ctx context.Context) error {
 
 	kind := strings.ToLower(strings.TrimSpace(c.Type))
 	if kind == "" {
-		kind = "auto"
+		kind = colorAuto
 	}
 
 	url := bestEffortWebURL(kind, target)
@@ -61,7 +61,7 @@ func bestEffortWebURL(kind string, input string) string {
 	id := normalizeGoogleID(input)
 
 	switch kind {
-	case "drive", "auto":
+	case "drive", colorAuto:
 		// If it's a known Google URL already, prefer canonicalized forms.
 		if u := parseMaybeURL(input); u != nil {
 			host := strings.ToLower(strings.TrimPrefix(strings.TrimSpace(u.Host), "www."))

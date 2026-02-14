@@ -72,15 +72,14 @@ func (c *ClassroomCourseworkListCmd) Run(ctx context.Context, flags *RootFlags) 
 		return resp.CourseWork, resp.NextPageToken, nil
 	}
 
-	coursework := []*classroom.CourseWork{}
-	nextPageToken := ""
+	var coursework []*classroom.CourseWork
+	var nextPageToken string
 	if c.All {
 		all, err := collectAllPages(c.Page, fetch)
 		if err != nil {
 			return wrapClassroomError(err)
 		}
 		coursework = all
-		nextPageToken = ""
 		if topic := strings.TrimSpace(c.Topic); topic != "" {
 			filtered := coursework[:0]
 			for _, work := range coursework {

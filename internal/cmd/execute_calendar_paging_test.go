@@ -79,6 +79,8 @@ func TestExecute_CalendarCalendars_AllPages_JSON(t *testing.T) {
 	origNew := newCalendarService
 	t.Cleanup(func() { newCalendarService = origNew })
 
+	page1Calls := 0
+	page2Calls := 0
 	srv := httptest.NewServer(withPrimaryCalendar(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !(strings.Contains(r.URL.Path, "calendarList") && r.Method == http.MethodGet) {
 			http.NotFound(w, r)
@@ -89,6 +91,7 @@ func TestExecute_CalendarCalendars_AllPages_JSON(t *testing.T) {
 		}
 		switch strings.TrimSpace(r.URL.Query().Get("pageToken")) {
 		case "":
+			page1Calls++
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"items": []map[string]any{
@@ -97,6 +100,7 @@ func TestExecute_CalendarCalendars_AllPages_JSON(t *testing.T) {
 				"nextPageToken": "p2",
 			})
 		case "p2":
+			page2Calls++
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"items": []map[string]any{
@@ -145,6 +149,9 @@ func TestExecute_CalendarCalendars_AllPages_JSON(t *testing.T) {
 	}
 	if len(parsed.Calendars) != 2 || parsed.Calendars[0].ID != "c1" || parsed.Calendars[1].ID != "c2" || parsed.NextPageToken != "" {
 		t.Fatalf("unexpected payload: %#v", parsed)
+	}
+	if page1Calls != 1 || page2Calls != 1 {
+		t.Fatalf("unexpected page call counts: page1=%d page2=%d", page1Calls, page2Calls)
 	}
 }
 
