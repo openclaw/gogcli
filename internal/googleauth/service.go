@@ -25,6 +25,7 @@ const (
 	ServiceAppScript Service = "appscript"
 	ServiceGroups    Service = "groups"
 	ServiceKeep      Service = "keep"
+	ServiceAds       Service = "ads"
 )
 
 const (
@@ -74,6 +75,7 @@ var serviceOrder = []Service{
 	ServiceAppScript,
 	ServiceGroups,
 	ServiceKeep,
+	ServiceAds,
 }
 
 var serviceInfoByService = map[Service]serviceInfo{
@@ -202,6 +204,12 @@ var serviceInfoByService = map[Service]serviceInfo{
 		user:   false,
 		apis:   []string{"Keep API"},
 		note:   "Workspace only; service account (domain-wide delegation)",
+	},
+	ServiceAds: {
+		scopes: []string{"https://www.googleapis.com/auth/adwords"},
+		user:   true,
+		apis:   []string{"Google Ads API"},
+		note:   "Auth only; use token with Google Ads API directly",
 	},
 }
 
@@ -521,6 +529,8 @@ func scopesForServiceWithOptions(service Service, opts ScopeOptions) ([]string, 
 	case ServiceGroups:
 		return Scopes(service)
 	case ServiceKeep:
+		return Scopes(service)
+	case ServiceAds:
 		return Scopes(service)
 	default:
 		return nil, errUnknownService
