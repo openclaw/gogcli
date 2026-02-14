@@ -24,7 +24,7 @@ func TestDriveLsCmd_TextAndJSON(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.Method == http.MethodGet && (r.URL.Path == "/drive/v3/files" || r.URL.Path == "/files"):
-			if errMsg := driveAllDrivesQueryError(r); errMsg != "" {
+			if errMsg := driveAllDrivesQueryError(r, true); errMsg != "" {
 				http.Error(w, errMsg, http.StatusBadRequest)
 				return
 			}
@@ -144,5 +144,46 @@ func TestDriveLsCmd_TextAndJSON(t *testing.T) {
 	})
 	if !strings.Contains(plainOut, "ID\tNAME\tTYPE\tSIZE\tMODIFIED") {
 		t.Fatalf("expected TSV header, got: %q", plainOut)
+	}
+}
+
+func TestDriveLsCmd_NoAllDrives(t *testing.T) {
+	origNew := newDriveService
+	t.Cleanup(func() { newDriveService = origNew })
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.NotFound(w, r)
+			return
+		}
+		if errMsg := driveAllDrivesQueryError(r, false); errMsg != "" {
+			http.Error(w, errMsg, http.StatusBadRequest)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{"files": []map[string]any{}})
+	}))
+	t.Cleanup(srv.Close)
+
+	svc, err := drive.NewService(context.Background(),
+		option.WithoutAuthentication(),
+		option.WithHTTPClient(srv.Client()),
+		option.WithEndpoint(srv.URL+"/"),
+	)
+	if err != nil {
+		t.Fatalf("NewService: %v", err)
+	}
+	newDriveService = func(context.Context, string) (*drive.Service, error) { return svc, nil }
+
+	flags := &RootFlags{Account: "a@b.com"}
+	u, uiErr := ui.New(ui.Options{Stdout: io.Discard, Stderr: io.Discard, Color: "never"})
+	if uiErr != nil {
+		t.Fatalf("ui.New: %v", uiErr)
+	}
+	ctx := ui.WithUI(context.Background(), u)
+
+	cmd := &DriveLsCmd{}
+	if execErr := runKong(t, cmd, []string{"--no-all-drives"}, ctx, flags); execErr != nil {
+		t.Fatalf("execute: %v", execErr)
 	}
 }

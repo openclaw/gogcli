@@ -169,10 +169,10 @@ Flag aliases:
 - `gog config path`
 - `gog config set <key> <value>`
 - `gog config unset <key>`
-- `gog drive ls [--parent ID] [--max N] [--page TOKEN] [--query Q]`
-- `gog drive search <text> [--max N] [--page TOKEN]`
+- `gog drive ls [--parent ID] [--max N] [--page TOKEN] [--query Q] [--[no-]all-drives]`
+- `gog drive search <text> [--max N] [--page TOKEN] [--[no-]all-drives]`
 - `gog drive get <fileId>`
-- `gog drive download <fileId> [--out PATH]`
+- `gog drive download <fileId> [--out PATH] [--format F]` (`--format` only applies to Google Workspace files)
 - `gog drive upload <localPath> [--name N] [--parent ID] [--convert] [--convert-to doc|sheet|slides]`
 - `gog drive mkdir <name> [--parent ID]`
 - `gog drive delete <fileId>`

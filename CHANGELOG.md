@@ -6,6 +6,7 @@
 - Forms: add `forms` command group (create/get forms, list/get responses).
 - Apps Script: add `appscript` command group (create/get projects, fetch content, run deployed functions).
 - Contacts: update contacts from JSON via `contacts update --from-file` (PR #200 — thanks @jrossi).
+- Drive: add `drive ls|search --no-all-drives` to restrict queries to "My Drive" for faster/narrower results.
 
 ### Fixed
 - Auth: manual OAuth flow uses an ephemeral loopback redirect port (avoids unsafe/privileged ports in browsers). (#172) — thanks @spookyuser.

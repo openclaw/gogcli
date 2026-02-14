@@ -801,7 +801,9 @@ gog time now --timezone UTC
 # List and search
 gog drive ls --max 20
 gog drive ls --parent <folderId> --max 20
+gog drive ls --no-all-drives            # Only list from "My Drive"
 gog drive search "invoice" --max 20
+gog drive search "invoice" --no-all-drives
 gog drive get <fileId>                # Get file metadata
 gog drive url <fileId>                # Print Drive web URL
 gog drive copy <fileId> "Copy Name"
@@ -813,7 +815,7 @@ gog drive upload ./report.docx --convert
 gog drive upload ./chart.png --convert-to sheet
 gog drive upload ./report.docx --convert --name report.docx
 gog drive download <fileId> --out ./downloaded.bin
-gog drive download <fileId> --format pdf --out ./exported.pdf
+gog drive download <fileId> --format pdf --out ./exported.pdf     # Google Workspace files only
 gog drive download <fileId> --format docx --out ./doc.docx
 gog drive download <fileId> --format pptx --out ./slides.pptx
 

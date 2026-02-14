@@ -17,16 +17,25 @@ import (
 	"github.com/steipete/gogcli/internal/ui"
 )
 
-func driveAllDrivesQueryError(r *http.Request) string {
+func driveAllDrivesQueryError(r *http.Request, wantAllDrives bool) string {
 	q := r.URL.Query()
-	if q.Get("corpora") != "allDrives" {
-		return "missing corpora=allDrives"
-	}
 	if q.Get("supportsAllDrives") != "true" {
 		return "missing supportsAllDrives=true"
 	}
-	if q.Get("includeItemsFromAllDrives") != "true" {
-		return "missing includeItemsFromAllDrives=true"
+	if wantAllDrives {
+		if q.Get("corpora") != "allDrives" {
+			return "missing corpora=allDrives"
+		}
+		if q.Get("includeItemsFromAllDrives") != "true" {
+			return "missing includeItemsFromAllDrives=true"
+		}
+		return ""
+	}
+	if got := q.Get("corpora"); got != "" {
+		return "unexpected corpora (expected none)"
+	}
+	if q.Get("includeItemsFromAllDrives") != "false" {
+		return "missing includeItemsFromAllDrives=false"
 	}
 	return ""
 }
@@ -45,7 +54,7 @@ func TestDriveSearchCmd_TextAndJSON(t *testing.T) {
 			http.NotFound(w, r)
 			return
 		}
-		if errMsg := driveAllDrivesQueryError(r); errMsg != "" {
+		if errMsg := driveAllDrivesQueryError(r, true); errMsg != "" {
 			http.Error(w, errMsg, http.StatusBadRequest)
 			return
 		}
@@ -118,7 +127,7 @@ func TestDriveSearchCmd_NoResultsAndEmptyQuery(t *testing.T) {
 			http.NotFound(w, r)
 			return
 		}
-		if errMsg := driveAllDrivesQueryError(r); errMsg != "" {
+		if errMsg := driveAllDrivesQueryError(r, true); errMsg != "" {
 			http.Error(w, errMsg, http.StatusBadRequest)
 			return
 		}
@@ -160,5 +169,51 @@ func TestDriveSearchCmd_NoResultsAndEmptyQuery(t *testing.T) {
 	cmd := &DriveSearchCmd{}
 	if err := runKong(t, cmd, []string{}, ctx, flags); err == nil {
 		t.Fatalf("expected empty query error")
+	}
+}
+
+func TestDriveSearchCmd_NoAllDrives(t *testing.T) {
+	origNew := newDriveService
+	t.Cleanup(func() { newDriveService = origNew })
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.NotFound(w, r)
+			return
+		}
+		path := strings.TrimPrefix(r.URL.Path, "/drive/v3")
+		if path != "/files" {
+			http.NotFound(w, r)
+			return
+		}
+		if errMsg := driveAllDrivesQueryError(r, false); errMsg != "" {
+			http.Error(w, errMsg, http.StatusBadRequest)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{"files": []map[string]any{}})
+	}))
+	t.Cleanup(srv.Close)
+
+	svc, err := drive.NewService(context.Background(),
+		option.WithoutAuthentication(),
+		option.WithHTTPClient(srv.Client()),
+		option.WithEndpoint(srv.URL+"/"),
+	)
+	if err != nil {
+		t.Fatalf("NewService: %v", err)
+	}
+	newDriveService = func(context.Context, string) (*drive.Service, error) { return svc, nil }
+
+	flags := &RootFlags{Account: "a@b.com"}
+	u, uiErr := ui.New(ui.Options{Stdout: io.Discard, Stderr: io.Discard, Color: "never"})
+	if uiErr != nil {
+		t.Fatalf("ui.New: %v", uiErr)
+	}
+	ctx := ui.WithUI(context.Background(), u)
+
+	cmd := &DriveSearchCmd{}
+	if execErr := runKong(t, cmd, []string{"hello", "--no-all-drives"}, ctx, flags); execErr != nil {
+		t.Fatalf("execute: %v", execErr)
 	}
 }

@@ -69,10 +69,11 @@ type DriveCmd struct {
 }
 
 type DriveLsCmd struct {
-	Max    int64  `name:"max" aliases:"limit" help:"Max results" default:"20"`
-	Page   string `name:"page" aliases:"cursor" help:"Page token"`
-	Query  string `name:"query" help:"Drive query filter"`
-	Parent string `name:"parent" help:"Folder ID to list (default: root)"`
+	Max       int64  `name:"max" aliases:"limit" help:"Max results" default:"20"`
+	Page      string `name:"page" aliases:"cursor" help:"Page token"`
+	Query     string `name:"query" help:"Drive query filter"`
+	Parent    string `name:"parent" help:"Folder ID to list (default: root)"`
+	AllDrives bool   `name:"all-drives" help:"Include shared drives (default: true)" default:"true" negatable:"_"`
 }
 
 func (c *DriveLsCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -94,15 +95,14 @@ func (c *DriveLsCmd) Run(ctx context.Context, flags *RootFlags) error {
 
 	q := buildDriveListQuery(folderID, c.Query)
 
-	// Include files from shared drives, not just personal "My Drive"
-	resp, err := svc.Files.List().
+	call := svc.Files.List().
 		Q(q).
 		PageSize(c.Max).
 		PageToken(c.Page).
-		OrderBy("modifiedTime desc").
-		Corpora("allDrives").
-		SupportsAllDrives(true).
-		IncludeItemsFromAllDrives(true).
+		OrderBy("modifiedTime desc")
+	call = driveFilesListCallWithDriveSupport(call, c.AllDrives)
+
+	resp, err := call.
 		Fields("nextPageToken, files(id, name, mimeType, size, modifiedTime, parents, webViewLink)").
 		Context(ctx).
 		Do()
@@ -141,9 +141,10 @@ func (c *DriveLsCmd) Run(ctx context.Context, flags *RootFlags) error {
 }
 
 type DriveSearchCmd struct {
-	Query []string `arg:"" name:"query" help:"Search query"`
-	Max   int64    `name:"max" aliases:"limit" help:"Max results" default:"20"`
-	Page  string   `name:"page" aliases:"cursor" help:"Page token"`
+	Query     []string `arg:"" name:"query" help:"Search query"`
+	Max       int64    `name:"max" aliases:"limit" help:"Max results" default:"20"`
+	Page      string   `name:"page" aliases:"cursor" help:"Page token"`
+	AllDrives bool     `name:"all-drives" help:"Include shared drives (default: true)" default:"true" negatable:"_"`
 }
 
 func (c *DriveSearchCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -162,14 +163,14 @@ func (c *DriveSearchCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
-	resp, err := svc.Files.List().
+	call := svc.Files.List().
 		Q(buildDriveSearchQuery(query)).
 		PageSize(c.Max).
 		PageToken(c.Page).
-		OrderBy("modifiedTime desc").
-		Corpora("allDrives").
-		SupportsAllDrives(true).
-		IncludeItemsFromAllDrives(true).
+		OrderBy("modifiedTime desc")
+	call = driveFilesListCallWithDriveSupport(call, c.AllDrives)
+
+	resp, err := call.
 		Fields("nextPageToken, files(id, name, mimeType, size, modifiedTime, parents, webViewLink)").
 		Context(ctx).
 		Do()
@@ -259,7 +260,7 @@ func (c *DriveGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 type DriveDownloadCmd struct {
 	FileID string         `arg:"" name:"fileId" help:"File ID"`
 	Output OutputPathFlag `embed:""`
-	Format string         `name:"format" help:"Export format for Google Docs files: pdf|csv|xlsx|pptx|txt|png|docx (default: auto)"`
+	Format string         `name:"format" help:"Export format for Google Docs files: pdf|csv|xlsx|pptx|txt|png|docx (default: inferred)"`
 }
 
 func (c *DriveDownloadCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -289,6 +290,9 @@ func (c *DriveDownloadCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 	if meta.Name == "" {
 		return errors.New("file has no name")
+	}
+	if formatErr := validateDriveDownloadFormat(meta, c.Format); formatErr != nil {
+		return formatErr
 	}
 
 	destPath, err := resolveDriveDownloadDestPath(meta, c.Output.Path)
@@ -1106,6 +1110,29 @@ func downloadDriveFile(ctx context.Context, svc *drive.Service, meta *drive.File
 		return "", 0, err
 	}
 	return outPath, n, nil
+}
+
+func driveFilesListCallWithDriveSupport(call *drive.FilesListCall, allDrives bool) *drive.FilesListCall {
+	// SupportsAllDrives must be set for shared drive file IDs to behave correctly.
+	call = call.SupportsAllDrives(true).IncludeItemsFromAllDrives(allDrives)
+	if allDrives {
+		call = call.Corpora("allDrives")
+	}
+	return call
+}
+
+func validateDriveDownloadFormat(meta *drive.File, format string) error {
+	if meta == nil {
+		return errors.New("missing file metadata")
+	}
+	isGoogleDoc := strings.HasPrefix(meta.MimeType, "application/vnd.google-apps.")
+	if isGoogleDoc {
+		return nil
+	}
+	if strings.TrimSpace(format) == "" {
+		return nil
+	}
+	return fmt.Errorf("--format %q not supported for non-Google Workspace files (mimeType=%q); file can only be downloaded as-is", format, meta.MimeType)
 }
 
 var driveDownload = func(ctx context.Context, svc *drive.Service, fileID string) (*http.Response, error) {
