@@ -517,31 +517,50 @@ func looksLikeBase64(data []byte) bool {
 // encoded sequences. This prevents double-decoding when the Gmail API has
 // already decoded the content.
 //
-// Detection strategy:
-// 1. Soft line breaks (=\r\n or =\n) are definitive QP markers
-// 2. For =XX hex sequences, we only match UPPERCASE hex (0-9, A-F) because:
-//    - Most QP encoders use uppercase per RFC 2045 recommendation
-//    - This avoids false positives from URLs like "?foo=bar" where "=ba"
-//      would otherwise match as lowercase hex
+// Detection strategy is intentionally conservative to avoid URL corruption:
+// 1. Soft line breaks (=\r\n or =\n)
+// 2. Escaped equals (=3D / =3d)
+// 3. Chained hex escapes (=XX=YY...), common in UTF-8 quoted-printable text
 func looksLikeQuotedPrintable(data []byte) bool {
 	for i := 0; i < len(data)-2; i++ {
-		if data[i] == '=' {
-			// Check for soft line break (=\r\n or =\n) - definitive QP marker
-			if data[i+1] == '\r' || data[i+1] == '\n' {
-				return true
-			}
-			// Check for hex-encoded byte with UPPERCASE hex only (=XX where X is 0-9 or A-F)
-			// This reduces false positives from URLs containing lowercase letters after =
-			if isUpperHexDigit(data[i+1]) && isUpperHexDigit(data[i+2]) {
-				return true
-			}
+		if data[i] != '=' {
+			continue
+		}
+		// Soft line break (="\r\n" or "\n") is a definitive QP marker.
+		if data[i+1] == '\r' || data[i+1] == '\n' {
+			return true
+		}
+		if !isHexDigit(data[i+1]) || !isHexDigit(data[i+2]) {
+			continue
+		}
+		// =3D (case-insensitive) encodes literal '=' and is a strong marker.
+		if isHexPair(data[i+1], data[i+2], '3', 'D') {
+			return true
+		}
+		// Chained escapes like =E2=82=AC are common in real QP bodies.
+		if i+3 < len(data) && data[i+3] == '=' {
+			return true
 		}
 	}
 	return false
 }
 
-func isUpperHexDigit(b byte) bool {
-	return (b >= '0' && b <= '9') || (b >= 'A' && b <= 'F')
+func isHexDigit(b byte) bool {
+	return (b >= '0' && b <= '9') || (b >= 'A' && b <= 'F') || (b >= 'a' && b <= 'f')
+}
+
+func isHexPair(a, b, hi, lo byte) bool {
+	return equalFoldHexNibble(a, hi) && equalFoldHexNibble(b, lo)
+}
+
+func equalFoldHexNibble(a, b byte) bool {
+	if a == b {
+		return true
+	}
+	if b >= 'A' && b <= 'F' {
+		return a == b+('a'-'A')
+	}
+	return false
 }
 
 func decodeAnyBase64(data []byte) ([]byte, error) {

@@ -158,7 +158,7 @@ func TestFindPartBody_PreservesURLsWhenAlreadyDecoded(t *testing.T) {
 	// Content-Transfer-Encoding header says quoted-printable.
 	// URLs with = should be preserved, not corrupted to U+FFFD.
 	// See: https://github.com/steipete/gogcli/issues/159
-	url := "https://example.com/auth?token_hash=abc123&type=magiclink"
+	url := "https://example.com/auth?token_hash=ABCD12&type=magiclink"
 	encoded := base64.RawURLEncoding.EncodeToString([]byte(url))
 	part := &gmail.MessagePart{
 		MimeType: "text/plain",
@@ -180,18 +180,21 @@ func TestLooksLikeQuotedPrintable(t *testing.T) {
 		input string
 		want  bool
 	}{
-		{"actual QP uppercase hex", "Price =E2=82=AC99", true},
+		{"actual QP uppercase chain", "Price =E2=82=AC99", true},
+		{"actual QP lowercase chain", "Price =e2=82=ac99", true},
 		{"soft line break CRLF", "line=\r\ncontinued", true},
 		{"soft line break LF", "line=\ncontinued", true},
 		{"plain URL lowercase", "https://example.com?foo=bar", false},
 		{"URL with multiple params", "https://example.com?a=b1&c=d2", false},
-		{"lowercase hex sequence", "test=ab", false}, // lowercase not matched
-		{"uppercase hex sequence", "test=AB", true},
-		{"mixed case hex", "test=Ab", false}, // requires both uppercase
+		{"URL with uppercase hex token", "https://example.com?token=ABCD12", false},
+		{"lowercase hex sequence", "test=ab", false},
+		{"uppercase hex sequence", "test=AB", false},
+		{"mixed case hex", "test=Ab", false},
 		{"plain text", "Hello World", false},
 		{"equals at end", "foo=", false},
 		{"short input", "=", false},
-		{"QP encoded equals", "foo=3Dbar", true}, // =3D is QP for =
+		{"QP encoded equals uppercase", "foo=3Dbar", true},
+		{"QP encoded equals lowercase", "foo=3dbar", true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
