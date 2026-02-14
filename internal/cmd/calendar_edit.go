@@ -27,7 +27,7 @@ type CalendarCreateCmd struct {
 	ColorId               string   `name:"event-color" help:"Event color ID (1-11). Use 'gog calendar colors' to see available colors."`
 	Visibility            string   `name:"visibility" help:"Event visibility: default, public, private, confidential"`
 	Transparency          string   `name:"transparency" help:"Show as busy (opaque) or free (transparent). Aliases: busy, free"`
-	SendUpdates           string   `name:"send-updates" help:"Notification mode: all, externalOnly, none (default: all)"`
+	SendUpdates           string   `name:"send-updates" help:"Notification mode: all, externalOnly, none (default: none)"`
 	GuestsCanInviteOthers *bool    `name:"guests-can-invite" help:"Allow guests to invite others"`
 	GuestsCanModify       *bool    `name:"guests-can-modify" help:"Allow guests to modify event"`
 	GuestsCanSeeOthers    *bool    `name:"guests-can-see-others" help:"Allow guests to see other guests"`
@@ -344,7 +344,7 @@ type CalendarUpdateCmd struct {
 	WorkingFloorId        string   `name:"working-floor-id" help:"Working location floor ID"`
 	WorkingDeskId         string   `name:"working-desk-id" help:"Working location desk ID"`
 	WorkingCustomLabel    string   `name:"working-custom-label" help:"Working location custom label"`
-	SendUpdates           string   `name:"send-updates" help:"Notification mode: all, externalOnly, none (default: all)"`
+	SendUpdates           string   `name:"send-updates" help:"Notification mode: all, externalOnly, none (default: none)"`
 }
 
 func (c *CalendarUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *RootFlags) error {
@@ -410,6 +410,7 @@ func (c *CalendarUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *
 	if dryRunErr := dryRunExit(ctx, flags, "calendar.update", map[string]any{
 		"calendar_id":          calendarID,
 		"event_id":             eventID,
+		"send_updates":         sendUpdates,
 		"scope":                scope,
 		"original_start_time":  strings.TrimSpace(c.OriginalStartTime),
 		"add_attendee":         strings.TrimSpace(c.AddAttendee),
@@ -453,7 +454,7 @@ func (c *CalendarUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *
 		return err
 	}
 
-	call := svc.Events.Patch(calendarID, targetEventID, patch)
+	call := svc.Events.Patch(calendarID, targetEventID, patch).Context(ctx)
 	if sendUpdates != "" {
 		call = call.SendUpdates(sendUpdates)
 	}
@@ -852,7 +853,7 @@ type CalendarDeleteCmd struct {
 	EventID           string `arg:"" name:"eventId" help:"Event ID"`
 	Scope             string `name:"scope" help:"For recurring events: single, future, all" default:"all"`
 	OriginalStartTime string `name:"original-start" help:"Original start time of instance (required for scope=single,future)"`
-	SendUpdates       string `name:"send-updates" help:"Notification mode: all, externalOnly, none (default: all)"`
+	SendUpdates       string `name:"send-updates" help:"Notification mode: all, externalOnly, none (default: none)"`
 }
 
 func (c *CalendarDeleteCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -934,7 +935,7 @@ func (c *CalendarDeleteCmd) Run(ctx context.Context, flags *RootFlags) error {
 		targetEventID = instanceID
 	}
 
-	deleteCall := svc.Events.Delete(calendarID, targetEventID)
+	deleteCall := svc.Events.Delete(calendarID, targetEventID).Context(ctx)
 	if sendUpdates != "" {
 		deleteCall = deleteCall.SendUpdates(sendUpdates)
 	}

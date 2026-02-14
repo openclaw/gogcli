@@ -93,7 +93,28 @@ func TestCalendarDeleteCmd_SendUpdates(t *testing.T) {
 	var gotSendUpdates string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := strings.TrimPrefix(r.URL.Path, "/calendar/v3")
-		if r.Method == http.MethodDelete && path == "/calendars/cal/events/ev" {
+		switch {
+		case r.Method == http.MethodGet && path == "/users/me/calendarList":
+			// resolveCalendarID() lists calendars and matches by Summary.
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"items": []map[string]any{
+					{
+						"id":       "cal",
+						"summary":  "cal",
+						"timeZone": "UTC",
+					},
+				},
+			})
+			return
+		case r.Method == http.MethodGet && strings.HasPrefix(path, "/users/me/calendarList/"):
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"id":       "cal",
+				"timeZone": "UTC",
+			})
+			return
+		case r.Method == http.MethodDelete && path == "/calendars/cal/events/ev":
 			gotSendUpdates = r.URL.Query().Get("sendUpdates")
 			w.WriteHeader(http.StatusNoContent)
 			return

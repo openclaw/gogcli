@@ -9,12 +9,13 @@ import (
 	"testing"
 	"time"
 
+	"google.golang.org/api/calendar/v3"
+
 	"github.com/steipete/gogcli/internal/authclient"
 	"github.com/steipete/gogcli/internal/config"
 	"github.com/steipete/gogcli/internal/googleapi"
 	"github.com/steipete/gogcli/internal/googleauth"
 	"github.com/steipete/gogcli/internal/secrets"
-	"google.golang.org/api/calendar/v3"
 )
 
 func integrationAccount(t *testing.T) string {
@@ -177,9 +178,9 @@ func TestCalendarSendUpdates(t *testing.T) {
 	// Create event with attendee
 	start := time.Now().Add(time.Hour).Truncate(time.Minute)
 	event := &calendar.Event{
-		Summary: "gogcli-send-updates-test",
-		Start:   &calendar.EventDateTime{DateTime: start.Format(time.RFC3339)},
-		End:     &calendar.EventDateTime{DateTime: start.Add(time.Hour).Format(time.RFC3339)},
+		Summary:   "gogcli-send-updates-test",
+		Start:     &calendar.EventDateTime{DateTime: start.Format(time.RFC3339)},
+		End:       &calendar.EventDateTime{DateTime: start.Add(time.Hour).Format(time.RFC3339)},
 		Attendees: []*calendar.EventAttendee{{Email: attendee}},
 	}
 

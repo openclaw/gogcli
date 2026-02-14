@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -44,7 +45,7 @@ func TestCalendarCreateCmd_RunJSON(t *testing.T) {
 	}
 	newCalendarService = func(context.Context, string) (*calendar.Service, error) { return svc, nil }
 
-	u, err := ui.New(ui.Options{Stdout: os.Stdout, Stderr: os.Stderr, Color: "never"})
+	u, err := ui.New(ui.Options{Stdout: io.Discard, Stderr: io.Discard, Color: "never"})
 	if err != nil {
 		t.Fatalf("ui.New: %v", err)
 	}
@@ -494,7 +495,29 @@ func TestCalendarUpdateCmd_SendUpdates(t *testing.T) {
 	var gotSendUpdates string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := strings.TrimPrefix(r.URL.Path, "/calendar/v3")
-		if r.Method == http.MethodPatch && path == "/calendars/cal/events/ev" {
+		switch {
+		case r.Method == http.MethodGet && path == "/users/me/calendarList":
+			// resolveCalendarID() lists calendars and matches by Summary.
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"items": []map[string]any{
+					{
+						"id":       "cal",
+						"summary":  "cal",
+						"timeZone": "UTC",
+					},
+				},
+			})
+			return
+		case r.Method == http.MethodGet && strings.HasPrefix(path, "/users/me/calendarList/"):
+			// getCalendarLocation() fetches the calendar timezone via CalendarList.Get.
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"id":       "cal",
+				"timeZone": "UTC",
+			})
+			return
+		case r.Method == http.MethodPatch && path == "/calendars/cal/events/ev":
 			gotSendUpdates = r.URL.Query().Get("sendUpdates")
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(map[string]any{
