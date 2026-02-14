@@ -73,7 +73,7 @@ type DriveLsCmd struct {
 	Page      string `name:"page" aliases:"cursor" help:"Page token"`
 	Query     string `name:"query" help:"Drive query filter"`
 	Parent    string `name:"parent" help:"Folder ID to list (default: root)"`
-	AllDrives bool   `name:"all-drives" help:"Include shared drives (default: true)" default:"true" negatable:"_"`
+	AllDrives bool   `name:"all-drives" help:"Include shared drives (default: true; use --no-all-drives for My Drive only)" default:"true" negatable:"_"`
 }
 
 func (c *DriveLsCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -144,7 +144,7 @@ type DriveSearchCmd struct {
 	Query     []string `arg:"" name:"query" help:"Search query"`
 	Max       int64    `name:"max" aliases:"limit" help:"Max results" default:"20"`
 	Page      string   `name:"page" aliases:"cursor" help:"Page token"`
-	AllDrives bool     `name:"all-drives" help:"Include shared drives (default: true)" default:"true" negatable:"_"`
+	AllDrives bool     `name:"all-drives" help:"Include shared drives (default: true; use --no-all-drives for My Drive only)" default:"true" negatable:"_"`
 }
 
 func (c *DriveSearchCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -274,6 +274,9 @@ func (c *DriveDownloadCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if fileID == "" {
 		return usage("empty fileId")
 	}
+	if formatErr := validateDriveDownloadFormatFlag(c.Format); formatErr != nil {
+		return formatErr
+	}
 
 	svc, err := newDriveService(ctx, account)
 	if err != nil {
@@ -291,8 +294,8 @@ func (c *DriveDownloadCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if meta.Name == "" {
 		return errors.New("file has no name")
 	}
-	if formatErr := validateDriveDownloadFormat(meta, c.Format); formatErr != nil {
-		return formatErr
+	if fileFormatErr := validateDriveDownloadFormatForFile(meta, c.Format); fileFormatErr != nil {
+		return fileFormatErr
 	}
 
 	destPath, err := resolveDriveDownloadDestPath(meta, c.Output.Path)
@@ -1062,8 +1065,8 @@ func downloadDriveFile(ctx context.Context, svc *drive.Service, meta *drive.File
 	origFormat := format
 	format = strings.ToLower(strings.TrimSpace(format))
 
-	if !isGoogleDoc && format != "" {
-		return "", 0, fmt.Errorf("--format %q not supported for non-Google Workspace files (mimeType=%q); file can only be downloaded as-is", origFormat, meta.MimeType)
+	if fileFormatErr := validateDriveDownloadFormatForFile(meta, origFormat); fileFormatErr != nil {
+		return "", 0, fileFormatErr
 	}
 
 	var (
@@ -1121,7 +1124,20 @@ func driveFilesListCallWithDriveSupport(call *drive.FilesListCall, allDrives boo
 	return call
 }
 
-func validateDriveDownloadFormat(meta *drive.File, format string) error {
+func validateDriveDownloadFormatFlag(format string) error {
+	format = strings.ToLower(strings.TrimSpace(format))
+	if format == "" {
+		return nil
+	}
+	switch format {
+	case "pdf", "csv", "xlsx", "pptx", "txt", "png", "docx":
+		return nil
+	default:
+		return usagef("invalid --format %q (use pdf|csv|xlsx|pptx|txt|png|docx)", format)
+	}
+}
+
+func validateDriveDownloadFormatForFile(meta *drive.File, format string) error {
 	if meta == nil {
 		return errors.New("missing file metadata")
 	}

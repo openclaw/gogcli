@@ -202,13 +202,13 @@ func TestExecute_DriveDownload_FormatRejected_NonGoogle(t *testing.T) {
 		}, nil
 	}
 
-	outPath := filepath.Join(t.TempDir(), "out.html")
+	outPath := filepath.Join(t.TempDir(), "out.pdf")
 	var execErr error
 	_ = captureStderr(t, func() {
 		execErr = Execute([]string{
 			"--account", "a@b.com",
 			"drive", "download", "id1",
-			"--format", "html",
+			"--format", "pdf",
 			"--out", outPath,
 		})
 	})
