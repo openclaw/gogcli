@@ -295,7 +295,7 @@ Flag aliases:
 - `gog contacts list [--max N] [--page TOKEN]`
 - `gog contacts get <people/...|email>`
 - `gog contacts create --given NAME [--family NAME] [--email addr] [--phone num]`
-- `gog contacts update <people/...> [--given NAME] [--family NAME] [--email addr] [--phone num] [--birthday YYYY-MM-DD] [--notes TEXT]`
+- `gog contacts update <people/...> [--given NAME] [--family NAME] [--email addr] [--phone num] [--birthday YYYY-MM-DD] [--notes TEXT] [--from-file PATH|-] [--ignore-etag]`
 - `gog contacts delete <people/...>`
 - `gog contacts directory list [--max N] [--page TOKEN]`
 - `gog contacts directory search <query> [--max N] [--page TOKEN]`
