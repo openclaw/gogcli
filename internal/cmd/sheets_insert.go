@@ -28,7 +28,7 @@ func (c *SheetsInsertCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
-	spreadsheetID := strings.TrimSpace(c.SpreadsheetID)
+	spreadsheetID := normalizeGoogleID(strings.TrimSpace(c.SpreadsheetID))
 	sheetName := strings.TrimSpace(c.Sheet)
 	if spreadsheetID == "" {
 		return usage("empty spreadsheetId")
@@ -99,7 +99,7 @@ func (c *SheetsInsertCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
 			"sheet":      sheetName,
 			"dimension":  apiDimension,
 			"start":      c.Start,
