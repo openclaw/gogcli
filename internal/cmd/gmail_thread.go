@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"unicode/utf8"
 
 	"golang.org/x/net/html/charset"
 	"google.golang.org/api/gmail/v1"
@@ -456,16 +457,145 @@ func decodePartBody(p *gmail.MessagePart) (string, error) {
 		return "", err
 	}
 
+	cte := strings.TrimSpace(headerValue(p, "Content-Transfer-Encoding"))
+	contentType := strings.TrimSpace(headerValue(p, "Content-Type"))
+	charsetLabel := contentTypeCharset(contentType)
+
 	decoded := raw
-	if cte := strings.TrimSpace(headerValue(p, "Content-Transfer-Encoding")); cte != "" {
-		decoded = decodeTransferEncoding(decoded, cte)
+	if cte != "" {
+		switch strings.ToLower(strings.TrimSpace(cte)) {
+		case "quoted-printable":
+			decoded = decodeQuotedPrintableTransfer(decoded, charsetLabel)
+		default:
+			decoded = decodeTransferEncoding(decoded, cte)
+		}
 	}
 
-	if contentType := strings.TrimSpace(headerValue(p, "Content-Type")); contentType != "" {
+	if contentType != "" {
 		decoded = decodeBodyCharset(decoded, contentType)
 	}
 
 	return string(decoded), nil
+}
+
+func contentTypeCharset(contentType string) string {
+	contentType = strings.TrimSpace(contentType)
+	if contentType == "" {
+		return ""
+	}
+	_, params, err := mime.ParseMediaType(contentType)
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(params["charset"])
+}
+
+func decodeQuotedPrintableTransfer(data []byte, charsetLabel string) []byte {
+	if !looksLikeQuotedPrintable(data) {
+		return data
+	}
+
+	// Some senders embed literal sequences like "&p=91" in HTML bodies. A strict
+	// quoted-printable decoder will interpret "=91" as hex-escaped byte 0x91.
+	// When the part charset is UTF-8 (or unspecified), that produces invalid UTF-8
+	// and ends up as U+FFFD (\ufffd) in JSON output.
+	//
+	// For UTF-8 parts, decode conservatively: decode only what we can safely
+	// validate as UTF-8, and always decode encoded '=' ("=3D").
+	if charsetLabel == "" || strings.EqualFold(charsetLabel, "utf-8") {
+		return decodeQuotedPrintableUTF8Safe(data)
+	}
+
+	if decoded, err := io.ReadAll(quotedprintable.NewReader(bytes.NewReader(data))); err == nil {
+		return decoded
+	}
+	return data
+}
+
+func decodeQuotedPrintableUTF8Safe(data []byte) []byte {
+	out := make([]byte, 0, len(data))
+	for i := 0; i < len(data); i++ {
+		b := data[i]
+		if b != '=' {
+			out = append(out, b)
+			continue
+		}
+
+		// Soft line breaks: =\r\n or =\n
+		if i+1 < len(data) {
+			switch data[i+1] {
+			case '\r':
+				if i+2 < len(data) && data[i+2] == '\n' {
+					i += 2
+					continue
+				}
+				i += 1
+				continue
+			case '\n':
+				i += 1
+				continue
+			}
+		}
+
+		// Hex escape: =XX
+		if i+2 < len(data) && isHexDigit(data[i+1]) && isHexDigit(data[i+2]) {
+			decoded := fromHexPair(data[i+1], data[i+2])
+
+			// Always decode encoded '='.
+			if decoded == '=' {
+				out = append(out, '=')
+				i += 2
+				continue
+			}
+
+			// Decode non-ASCII runs only when the resulting bytes form valid UTF-8.
+			if decoded >= 0x80 {
+				j := i
+				run := make([]byte, 0, 9)
+				for j+2 < len(data) && data[j] == '=' && isHexDigit(data[j+1]) && isHexDigit(data[j+2]) {
+					b2 := fromHexPair(data[j+1], data[j+2])
+					if b2 < 0x80 {
+						break
+					}
+					run = append(run, b2)
+					j += 3
+				}
+				if utf8.Valid(run) {
+					out = append(out, run...)
+				} else {
+					out = append(out, data[i:j]...)
+				}
+				i = j - 1
+				continue
+			}
+
+			// Ambiguous ASCII escapes (e.g. "=2F") are left intact.
+			out = append(out, '=', data[i+1], data[i+2])
+			i += 2
+			continue
+		}
+
+		// Not a recognized escape: keep '=' literally.
+		out = append(out, '=')
+	}
+	return out
+}
+
+func fromHexPair(a, b byte) byte {
+	return (hexNibble(a) << 4) | hexNibble(b)
+}
+
+func hexNibble(b byte) byte {
+	switch {
+	case b >= '0' && b <= '9':
+		return b - '0'
+	case b >= 'A' && b <= 'F':
+		return 10 + (b - 'A')
+	case b >= 'a' && b <= 'f':
+		return 10 + (b - 'a')
+	default:
+		return 0
+	}
 }
 
 func decodeTransferEncoding(data []byte, encoding string) []byte {

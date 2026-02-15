@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"unicode/utf8"
 
 	"google.golang.org/api/gmail/v1"
 )
@@ -156,9 +157,13 @@ func TestFindPartBody_DecodesQuotedPrintable(t *testing.T) {
 func TestFindPartBody_PreservesURLsWhenAlreadyDecoded(t *testing.T) {
 	// Gmail API sometimes returns already-decoded content even when
 	// Content-Transfer-Encoding header says quoted-printable.
-	// URLs with = should be preserved, not corrupted to U+FFFD.
-	// See: https://github.com/steipete/gogcli/issues/159
-	url := "https://example.com/auth?token_hash=ABCD12&type=magiclink"
+	//
+	// URLs containing "=XX" (XX are hex digits) must be preserved as-is and
+	// must not be interpreted as quoted-printable escapes.
+	// See:
+	// - https://github.com/steipete/gogcli/issues/159
+	// - https://github.com/steipete/gogcli/issues/245
+	url := "https://example.com/?post_type=product&p=91&token_hash=ABCD12&type=magiclink"
 	encoded := base64.RawURLEncoding.EncodeToString([]byte(url))
 	part := &gmail.MessagePart{
 		MimeType: "text/plain",
@@ -171,6 +176,32 @@ func TestFindPartBody_PreservesURLsWhenAlreadyDecoded(t *testing.T) {
 	got := findPartBody(part, "text/plain")
 	if got != url {
 		t.Fatalf("URL corrupted: expected %q, got %q", url, got)
+	}
+}
+
+func TestFindPartBody_PreservesURLsWithHexPairParametersWhenDecodingQuotedPrintable(t *testing.T) {
+	// Some messages contain literal URL parameters like "&p=91" while also
+	// containing other QP markers (e.g. =3D). A naive QP decoder will interpret
+	// "=91" as a hex escape and corrupt the URL.
+	//
+	// See: https://github.com/steipete/gogcli/issues/245
+	input := `<a href=3D"https://example.com/?post_type=product&p=91">link</a>`
+	want := `<a href="https://example.com/?post_type=product&p=91">link</a>`
+	encoded := base64.RawURLEncoding.EncodeToString([]byte(input))
+	part := &gmail.MessagePart{
+		MimeType: "text/html",
+		Headers: []*gmail.MessagePartHeader{
+			{Name: "Content-Transfer-Encoding", Value: "quoted-printable"},
+			{Name: "Content-Type", Value: "text/html; charset=utf-8"},
+		},
+		Body: &gmail.MessagePartBody{Data: encoded},
+	}
+	got := findPartBody(part, "text/html")
+	if got != want {
+		t.Fatalf("unexpected decoded body: %q", got)
+	}
+	if !utf8.ValidString(got) {
+		t.Fatalf("decoded body should be valid UTF-8")
 	}
 }
 
@@ -187,6 +218,7 @@ func TestLooksLikeQuotedPrintable(t *testing.T) {
 		{"plain URL lowercase", "https://example.com?foo=bar", false},
 		{"URL with multiple params", "https://example.com?a=b1&c=d2", false},
 		{"URL with uppercase hex token", "https://example.com?token=ABCD12", false},
+		{"URL with numeric param that looks like hex", "https://example.com/?post_type=product&p=91", false},
 		{"lowercase hex sequence", "test=ab", false},
 		{"uppercase hex sequence", "test=AB", false},
 		{"mixed case hex", "test=Ab", false},
