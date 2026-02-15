@@ -119,8 +119,9 @@ func wrapKeychainError(err error) error {
 	return err
 }
 
-func fileKeyringPasswordFuncFrom(password string, isSet bool, isTTY bool) keyring.PromptFunc {
-	if isSet {
+func fileKeyringPasswordFuncFrom(password string, passwordSet bool, isTTY bool) keyring.PromptFunc {
+	// Treat "set to empty string" as intentional; empty passphrase is valid.
+	if passwordSet {
 		return keyring.FixedStringPrompt(password)
 	}
 
@@ -134,8 +135,8 @@ func fileKeyringPasswordFuncFrom(password string, isSet bool, isTTY bool) keyrin
 }
 
 func fileKeyringPasswordFunc() keyring.PromptFunc {
-	password, isSet := os.LookupEnv(keyringPasswordEnv)
-	return fileKeyringPasswordFuncFrom(password, isSet, term.IsTerminal(int(os.Stdin.Fd())))
+	password, passwordSet := os.LookupEnv(keyringPasswordEnv)
+	return fileKeyringPasswordFuncFrom(password, passwordSet, term.IsTerminal(int(os.Stdin.Fd())))
 }
 
 func normalizeKeyringBackend(value string) string {

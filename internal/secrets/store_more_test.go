@@ -105,7 +105,7 @@ func TestWrapKeychainError(t *testing.T) {
 }
 
 func TestFileKeyringPasswordFuncFrom(t *testing.T) {
-	// Non-empty password with isSet=true returns that password.
+	// Non-empty password with passwordSet=true returns that password.
 	fn := fileKeyringPasswordFuncFrom("pw", true, false)
 	if got, err := fn("prompt"); err != nil {
 		t.Fatalf("expected password, got err: %v", err)
@@ -113,7 +113,7 @@ func TestFileKeyringPasswordFuncFrom(t *testing.T) {
 		t.Fatalf("unexpected password: %q", got)
 	}
 
-	// Empty password with isSet=true returns empty string (not an error).
+	// Empty password with passwordSet=true returns empty string (not an error).
 	fn = fileKeyringPasswordFuncFrom("", true, false)
 	if got, err := fn("prompt"); err != nil {
 		t.Fatalf("expected empty password, got err: %v", err)
