@@ -1,22 +1,26 @@
 # Changelog
 
-## Unreleased
+## 0.12.0 - Unreleased
+
+## 0.11.0 - 2026-02-15
 
 ### Added
-- Forms: add `forms` command group (create/get forms, list/get responses).
 - Apps Script: add `appscript` command group (create/get projects, fetch content, run deployed functions).
-- Contacts: update contacts from JSON via `contacts update --from-file` (PR #200 — thanks @jrossi).
-- Drive: add `drive ls|search --no-all-drives` to restrict queries to "My Drive" for faster/narrower results. (#258)
-- Gmail: add `gmail send --quote` to include quoted original message in replies. (#169) — thanks @terry-li-hm.
-- Sheets: add `sheets notes` to read cell notes. (#208) — thanks @andybergon.
+- Forms: add `forms` command group (create/get forms, list/get responses).
 - Docs: add `docs comments` for listing and managing Google Doc comments. (#263) — thanks @alextnetto.
+- Sheets: add `sheets notes` to read cell notes. (#208) — thanks @andybergon.
+- Gmail: add `gmail send --quote` to include quoted original message in replies. (#169) — thanks @terry-li-hm.
+- Drive: add `drive ls|search --no-all-drives` to restrict queries to "My Drive" for faster/narrower results. (#258)
+- Contacts: update contacts from JSON via `contacts update --from-file` (PR #200 — thanks @jrossi).
 
 ### Fixed
-- Auth: manual OAuth flow uses an ephemeral loopback redirect port (avoids unsafe/privileged ports in browsers). (#172) — thanks @spookyuser.
-- Gmail: when `gmail attachment --out` points to a directory (or ends with a trailing slash), combine with `--name` and avoid false cache hits on directories. (#248) — thanks @zerone0x.
-- Calendar: fall back to fixed-offset timezones (`Etc/GMT±N`) for recurring events when given RFC3339 offset datetimes; harden Gmail attachment output paths and cache validation; honor proxy defaults for Google API transports. (#228) — thanks @salmonumbrella.
+- Drive: make `drive delete` move files to trash by default; add `--permanent` for irreversible deletion. (#262) — thanks @laihenyi.
+- Drive/Gmail: pass through Drive API filter queries in `drive search`; RFC 2047-encode non-ASCII display names in mail headers (`From`/`To`/`Cc`/`Bcc`/`Reply-To`). (#260) — thanks @salmonumbrella.
 - Calendar: allow opting into attendee notifications for updates and cancellations via `calendar update|delete --send-updates all|externalOnly|none`. (#163) — thanks @tonimelisma.
+- Calendar: fall back to fixed-offset timezones (`Etc/GMT±N`) for recurring events when given RFC3339 offset datetimes; harden Gmail attachment output paths and cache validation; honor proxy defaults for Google API transports. (#228) — thanks @salmonumbrella.
+- Auth: manual OAuth flow uses an ephemeral loopback redirect port (avoids unsafe/privileged ports in browsers). (#172) — thanks @spookyuser.
 - Gmail: include primary display name in `gmail send` From header when using service account impersonation (domain-wide delegation). (#184) — thanks @salmonumbrella.
+- Gmail: when `gmail attachment --out` points to a directory (or ends with a trailing slash), combine with `--name` and avoid false cache hits on directories. (#248) — thanks @zerone0x.
 - Drive: include shared drives in `drive ls` and `drive search`; reject `drive download --format` for non-Google Workspace files. (#256) — thanks @salmonumbrella.
 - Drive: validate `drive download --format` values and error early for unknown formats. (#259)
 

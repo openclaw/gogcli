@@ -140,32 +140,20 @@ func (c *AuthServiceAccountUnsetCmd) Run(ctx context.Context, flags *RootFlags) 
 
 	if err := os.Remove(path); err != nil {
 		if os.IsNotExist(err) {
-			if outfmt.IsJSON(ctx) {
-				return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
-					"deleted": false,
-					"email":   email,
-					"path":    path,
-				})
-			}
-			u.Out().Printf("deleted\tfalse")
-			u.Out().Printf("email\t%s", email)
-			u.Out().Printf("path\t%s", path)
-			return nil
+			return writeResult(ctx, u,
+				kv("deleted", false),
+				kv("email", email),
+				kv("path", path),
+			)
 		}
 		return fmt.Errorf("remove service account: %w", err)
 	}
 
-	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
-			"deleted": true,
-			"email":   email,
-			"path":    path,
-		})
-	}
-	u.Out().Printf("deleted\ttrue")
-	u.Out().Printf("email\t%s", email)
-	u.Out().Printf("path\t%s", path)
-	return nil
+	return writeResult(ctx, u,
+		kv("deleted", true),
+		kv("email", email),
+		kv("path", path),
+	)
 }
 
 type AuthServiceAccountStatusCmd struct {

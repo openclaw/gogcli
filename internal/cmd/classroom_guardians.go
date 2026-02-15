@@ -184,17 +184,11 @@ func (c *ClassroomGuardiansDeleteCmd) Run(ctx context.Context, flags *RootFlags)
 		return wrapClassroomError(err)
 	}
 
-	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
-			"deleted":    true,
-			"studentId":  studentID,
-			"guardianId": guardianID,
-		})
-	}
-	u.Out().Printf("deleted\ttrue")
-	u.Out().Printf("student_id\t%s", studentID)
-	u.Out().Printf("guardian_id\t%s", guardianID)
-	return nil
+	return writeResult(ctx, u,
+		kv("deleted", true),
+		kv("studentId", studentID),
+		kv("guardianId", guardianID),
+	)
 }
 
 type ClassroomGuardianInvitesCmd struct {

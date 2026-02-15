@@ -956,15 +956,9 @@ func (c *CalendarDeleteCmd) Run(ctx context.Context, flags *RootFlags) error {
 			return patchErr
 		}
 	}
-	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
-			"deleted":    true,
-			"calendarId": calendarID,
-			"eventId":    targetEventID,
-		})
-	}
-	u.Out().Printf("deleted\ttrue")
-	u.Out().Printf("calendarId\t%s", calendarID)
-	u.Out().Printf("eventId\t%s", targetEventID)
-	return nil
+	return writeResult(ctx, u,
+		kv("deleted", true),
+		kv("calendarId", calendarID),
+		kv("eventId", targetEventID),
+	)
 }

@@ -329,17 +329,11 @@ func (c *ClassroomAnnouncementsDeleteCmd) Run(ctx context.Context, flags *RootFl
 		return wrapClassroomError(err)
 	}
 
-	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
-			"deleted":        true,
-			"courseId":       courseID,
-			"announcementId": announcementID,
-		})
-	}
-	u.Out().Printf("deleted\ttrue")
-	u.Out().Printf("course_id\t%s", courseID)
-	u.Out().Printf("announcement_id\t%s", announcementID)
-	return nil
+	return writeResult(ctx, u,
+		kv("deleted", true),
+		kv("courseId", courseID),
+		kv("announcementId", announcementID),
+	)
 }
 
 type ClassroomAnnouncementsAssigneesCmd struct {

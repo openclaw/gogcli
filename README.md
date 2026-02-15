@@ -65,6 +65,7 @@ Help:
 - For the full expanded command list: `GOG_HELP=full gog --help`.
 - Make shortcut: `make gog -- --help` (or `make gog -- gmail --help`).
 - `make gog-help` shows CLI help (note: `make gog --help` is Make’s own help; use `--`).
+- Version: `gog --version` or `gog version`.
 
 ## Quick Start
 
@@ -816,6 +817,7 @@ gog drive ls --parent <folderId> --max 20
 gog drive ls --no-all-drives            # Only list from "My Drive"
 gog drive search "invoice" --max 20
 gog drive search "invoice" --no-all-drives
+gog drive search "mimeType = 'application/pdf'" --raw-query
 gog drive get <fileId>                # Get file metadata
 gog drive url <fileId>                # Print Drive web URL
 gog drive copy <fileId> "Copy Name"
@@ -837,6 +839,7 @@ gog drive mkdir "New Folder" --parent <parentFolderId>
 gog drive rename <fileId> "New Name"
 gog drive move <fileId> --parent <destinationFolderId>
 gog drive delete <fileId>             # Move to trash
+gog drive delete <fileId> --permanent # Permanently delete
 
 # Permissions
 gog drive permissions <fileId>

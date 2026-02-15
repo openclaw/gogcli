@@ -365,18 +365,11 @@ func (c *DriveCommentsDeleteCmd) Run(ctx context.Context, flags *RootFlags) erro
 		return err
 	}
 
-	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
-			"deleted":   true,
-			"fileId":    fileID,
-			"commentId": commentID,
-		})
-	}
-
-	u.Out().Printf("deleted\ttrue")
-	u.Out().Printf("file_id\t%s", fileID)
-	u.Out().Printf("comment_id\t%s", commentID)
-	return nil
+	return writeResult(ctx, u,
+		kv("deleted", true),
+		kv("fileId", fileID),
+		kv("commentId", commentID),
+	)
 }
 
 type DriveCommentReplyCmd struct {

@@ -297,11 +297,11 @@ func (c *GmailLabelsDeleteCmd) Run(ctx context.Context, flags *RootFlags) error 
 		return err
 	}
 
-	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{"deleted": true, "id": label.Id, "name": label.Name})
-	}
-	u.Out().Printf("Deleted label: %s (id: %s)", label.Name, label.Id)
-	return nil
+	return writeResult(ctx, u,
+		kv("deleted", true),
+		kv("id", label.Id),
+		kv("name", label.Name),
+	)
 }
 
 func fetchLabelIDToName(svc *gmail.Service) (map[string]string, error) {

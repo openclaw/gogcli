@@ -473,18 +473,11 @@ func (c *DocsCommentsDeleteCmd) Run(ctx context.Context, flags *RootFlags) error
 		return err
 	}
 
-	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
-			"deleted":   true,
-			"docId":     docID,
-			"commentId": commentID,
-		})
-	}
-
-	u.Out().Printf("deleted\ttrue")
-	u.Out().Printf("docId\t%s", docID)
-	u.Out().Printf("commentId\t%s", commentID)
-	return nil
+	return writeResult(ctx, u,
+		kv("deleted", true),
+		kv("docId", docID),
+		kv("commentId", commentID),
+	)
 }
 
 // filterOpenComments returns only non-resolved comments.

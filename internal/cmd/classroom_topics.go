@@ -284,15 +284,9 @@ func (c *ClassroomTopicsDeleteCmd) Run(ctx context.Context, flags *RootFlags) er
 		return wrapClassroomError(err)
 	}
 
-	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
-			"deleted":  true,
-			"courseId": courseID,
-			"topicId":  topicID,
-		})
-	}
-	u.Out().Printf("deleted\ttrue")
-	u.Out().Printf("course_id\t%s", courseID)
-	u.Out().Printf("topic_id\t%s", topicID)
-	return nil
+	return writeResult(ctx, u,
+		kv("deleted", true),
+		kv("courseId", courseID),
+		kv("topicId", topicID),
+	)
 }

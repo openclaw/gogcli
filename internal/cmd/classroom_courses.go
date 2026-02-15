@@ -369,15 +369,10 @@ func (c *ClassroomCoursesDeleteCmd) Run(ctx context.Context, flags *RootFlags) e
 		return wrapClassroomError(err)
 	}
 
-	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
-			"deleted":  true,
-			"courseId": courseID,
-		})
-	}
-	u.Out().Printf("deleted\ttrue")
-	u.Out().Printf("course_id\t%s", courseID)
-	return nil
+	return writeResult(ctx, u,
+		kv("deleted", true),
+		kv("courseId", courseID),
+	)
 }
 
 type ClassroomCoursesArchiveCmd struct {
@@ -561,19 +556,12 @@ func (c *ClassroomCoursesLeaveCmd) Run(ctx context.Context, flags *RootFlags) er
 		return usagef("invalid role %q (expected student or teacher)", role)
 	}
 
-	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
-			"removed":  true,
-			"courseId": courseID,
-			"userId":   userID,
-			"role":     role,
-		})
-	}
-	u.Out().Printf("removed\ttrue")
-	u.Out().Printf("course_id\t%s", courseID)
-	u.Out().Printf("user_id\t%s", userID)
-	u.Out().Printf("role\t%s", role)
-	return nil
+	return writeResult(ctx, u,
+		kv("removed", true),
+		kv("courseId", courseID),
+		kv("userId", userID),
+		kv("role", role),
+	)
 }
 
 type ClassroomCoursesURLCmd struct {

@@ -375,15 +375,9 @@ func (c *ClassroomMaterialsDeleteCmd) Run(ctx context.Context, flags *RootFlags)
 		return wrapClassroomError(err)
 	}
 
-	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
-			"deleted":    true,
-			"courseId":   courseID,
-			"materialId": materialID,
-		})
-	}
-	u.Out().Printf("deleted\ttrue")
-	u.Out().Printf("course_id\t%s", courseID)
-	u.Out().Printf("material_id\t%s", materialID)
-	return nil
+	return writeResult(ctx, u,
+		kv("deleted", true),
+		kv("courseId", courseID),
+		kv("materialId", materialID),
+	)
 }

@@ -14,9 +14,9 @@ const (
 	defaultFocusSummary     = "Focus Time"
 	defaultOOOSummary       = "Out of office"
 	defaultOOODeclineMsg    = "I am out of office and will respond when I return."
-	defaultFocusAutoDecline = "all"
+	defaultFocusAutoDecline = literalAll
 	defaultFocusChatStatus  = "doNotDisturb"
-	defaultOOOAutoDecline   = "all"
+	defaultOOOAutoDecline   = literalAll
 )
 
 func normalizeEventType(raw string) (string, error) {

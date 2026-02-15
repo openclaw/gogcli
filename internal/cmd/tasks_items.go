@@ -644,15 +644,10 @@ func (c *TasksDeleteCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if err := svc.Tasks.Delete(tasklistID, taskID).Do(); err != nil {
 		return err
 	}
-	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
-			"deleted": true,
-			"id":      taskID,
-		})
-	}
-	u.Out().Printf("deleted\ttrue")
-	u.Out().Printf("id\t%s", taskID)
-	return nil
+	return writeResult(ctx, u,
+		kv("deleted", true),
+		kv("id", taskID),
+	)
 }
 
 type TasksClearCmd struct {
@@ -687,13 +682,8 @@ func (c *TasksClearCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if err := svc.Tasks.Clear(tasklistID).Do(); err != nil {
 		return err
 	}
-	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
-			"cleared":    true,
-			"tasklistId": tasklistID,
-		})
-	}
-	u.Out().Printf("cleared\ttrue")
-	u.Out().Printf("tasklistId\t%s", tasklistID)
-	return nil
+	return writeResult(ctx, u,
+		kv("cleared", true),
+		kv("tasklistId", tasklistID),
+	)
 }

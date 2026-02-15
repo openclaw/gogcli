@@ -237,17 +237,11 @@ func (c *ClassroomStudentsRemoveCmd) Run(ctx context.Context, flags *RootFlags) 
 		return wrapClassroomError(err)
 	}
 
-	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
-			"removed":  true,
-			"courseId": courseID,
-			"userId":   userID,
-		})
-	}
-	u.Out().Printf("removed\ttrue")
-	u.Out().Printf("course_id\t%s", courseID)
-	u.Out().Printf("user_id\t%s", userID)
-	return nil
+	return writeResult(ctx, u,
+		kv("removed", true),
+		kv("courseId", courseID),
+		kv("userId", userID),
+	)
 }
 
 type ClassroomTeachersCmd struct {
@@ -466,17 +460,11 @@ func (c *ClassroomTeachersRemoveCmd) Run(ctx context.Context, flags *RootFlags) 
 		return wrapClassroomError(err)
 	}
 
-	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
-			"removed":  true,
-			"courseId": courseID,
-			"userId":   userID,
-		})
-	}
-	u.Out().Printf("removed\ttrue")
-	u.Out().Printf("course_id\t%s", courseID)
-	u.Out().Printf("user_id\t%s", userID)
-	return nil
+	return writeResult(ctx, u,
+		kv("removed", true),
+		kv("courseId", courseID),
+		kv("userId", userID),
+	)
 }
 
 type ClassroomRosterCmd struct {

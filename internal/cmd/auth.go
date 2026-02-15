@@ -282,17 +282,11 @@ func (c *AuthTokensDeleteCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if err := store.DeleteToken(client, email); err != nil {
 		return err
 	}
-	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
-			"deleted": true,
-			"email":   email,
-			"client":  client,
-		})
-	}
-	u.Out().Printf("deleted\ttrue")
-	u.Out().Printf("email\t%s", email)
-	u.Out().Printf("client\t%s", client)
-	return nil
+	return writeResult(ctx, u,
+		kv("deleted", true),
+		kv("email", email),
+		kv("client", client),
+	)
 }
 
 type AuthTokensExportCmd struct {
@@ -1037,17 +1031,11 @@ func (c *AuthRemoveCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if err := store.DeleteToken(client, email); err != nil {
 		return err
 	}
-	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
-			"deleted": true,
-			"email":   email,
-			"client":  client,
-		})
-	}
-	u.Out().Printf("deleted\ttrue")
-	u.Out().Printf("email\t%s", email)
-	u.Out().Printf("client\t%s", client)
-	return nil
+	return writeResult(ctx, u,
+		kv("deleted", true),
+		kv("email", email),
+		kv("client", client),
+	)
 }
 
 type AuthManageCmd struct {
@@ -1137,7 +1125,7 @@ func (c *AuthKeepCmd) Run(ctx context.Context, _ *RootFlags) error {
 
 func parseAuthServices(servicesCSV string) ([]googleauth.Service, error) {
 	trimmed := strings.ToLower(strings.TrimSpace(servicesCSV))
-	if trimmed == "" || trimmed == "user" || trimmed == "all" {
+	if trimmed == "" || trimmed == "user" || trimmed == literalAll {
 		return googleauth.UserServices(), nil
 	}
 

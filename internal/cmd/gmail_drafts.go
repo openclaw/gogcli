@@ -232,12 +232,10 @@ func (c *GmailDraftsDeleteCmd) Run(ctx context.Context, flags *RootFlags) error 
 	if err := svc.Users.Drafts.Delete("me", draftID).Do(); err != nil {
 		return err
 	}
-	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{"deleted": true, "draftId": draftID})
-	}
-	u.Out().Printf("deleted\ttrue")
-	u.Out().Printf("draft_id\t%s", draftID)
-	return nil
+	return writeResult(ctx, u,
+		kv("deleted", true),
+		kv("draftId", draftID),
+	)
 }
 
 type GmailDraftsSendCmd struct {

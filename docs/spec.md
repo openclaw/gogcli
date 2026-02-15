@@ -6,9 +6,17 @@ Build a single, clean, modern Go CLI that talks to:
 
 - Gmail API
 - Google Calendar API
+- Google Chat API
 - Google Classroom API
 - Google Drive API
+- Google Docs API
+- Google Sheets API
+- Google Forms API
+- Apps Script API
+- Google Tasks API
+- Cloud Identity API (Groups)
 - Google People API (Contacts + directory)
+- Google Keep API (Workspace-only, service account)
 
 This replaces the existing separate CLIs (`gmcli`, `gccli`, `gdcli`) and the Python contacts server conceptually, but:
 
@@ -169,13 +177,14 @@ Flag aliases:
 - `gog config path`
 - `gog config set <key> <value>`
 - `gog config unset <key>`
+- `gog version`
 - `gog drive ls [--parent ID] [--max N] [--page TOKEN] [--query Q] [--[no-]all-drives]`
-- `gog drive search <text> [--max N] [--page TOKEN] [--[no-]all-drives]`
+- `gog drive search <text> [--raw-query] [--max N] [--page TOKEN] [--[no-]all-drives]`
 - `gog drive get <fileId>`
 - `gog drive download <fileId> [--out PATH] [--format F]` (`--format` only applies to Google Workspace files)
 - `gog drive upload <localPath> [--name N] [--parent ID] [--convert] [--convert-to doc|sheet|slides]`
 - `gog drive mkdir <name> [--parent ID]`
-- `gog drive delete <fileId>`
+- `gog drive delete <fileId> [--permanent]`
 - `gog drive move <fileId> --parent ID`
 - `gog drive rename <fileId> <newName>`
 - `gog drive share <fileId> --to anyone|user|domain [--email addr] [--domain example.com] [--role reader|writer] [--discoverable]`

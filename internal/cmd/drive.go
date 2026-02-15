@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"google.golang.org/api/drive/v3"
@@ -20,6 +21,16 @@ import (
 )
 
 var newDriveService = googleapi.NewDrive
+
+var (
+	driveSearchFieldComparisonPattern = regexp.MustCompile(`(?i)\b(?:mimeType|name|fullText|trashed|starred|modifiedTime|createdTime|viewedByMeTime|visibility)\b\s*(?:!=|<=|>=|=|<|>)`)
+	driveSearchContainsPattern        = regexp.MustCompile(`(?i)\b(?:name|fullText)\b\s+contains\s+'`)
+	driveSearchMembershipPattern      = regexp.MustCompile(`(?i)'[^']+'\s+in\s+(?:parents|owners|writers|readers)`)
+	driveSearchHasPattern             = regexp.MustCompile(`(?i)\b(?:properties|appProperties)\b\s+has\s+\{`)
+	// Only treat as "already constrained" when the query contains a real trashed predicate,
+	// not just the word inside a quoted literal (e.g. "name contains 'trashed'").
+	driveTrashedPredicatePattern = regexp.MustCompile(`(?i)\btrashed\b\s*(?:=|!=)\s*(?:true|false)\b`)
+)
 
 const (
 	driveMimeGoogleDoc     = "application/vnd.google-apps.document"
@@ -57,7 +68,7 @@ type DriveCmd struct {
 	Copy        DriveCopyCmd        `cmd:"" name:"copy" help:"Copy a file"`
 	Upload      DriveUploadCmd      `cmd:"" name:"upload" help:"Upload a file"`
 	Mkdir       DriveMkdirCmd       `cmd:"" name:"mkdir" help:"Create a folder"`
-	Delete      DriveDeleteCmd      `cmd:"" name:"delete" help:"Delete a file (moves to trash)" aliases:"rm,del"`
+	Delete      DriveDeleteCmd      `cmd:"" name:"delete" help:"Move a file to trash (use --permanent to delete forever)" aliases:"rm,del"`
 	Move        DriveMoveCmd        `cmd:"" name:"move" help:"Move a file to a different folder"`
 	Rename      DriveRenameCmd      `cmd:"" name:"rename" help:"Rename a file or folder"`
 	Share       DriveShareCmd       `cmd:"" name:"share" help:"Share a file or folder"`
@@ -142,6 +153,7 @@ func (c *DriveLsCmd) Run(ctx context.Context, flags *RootFlags) error {
 
 type DriveSearchCmd struct {
 	Query     []string `arg:"" name:"query" help:"Search query"`
+	RawQuery  bool     `name:"raw-query" aliases:"raw" help:"Treat query as Drive query language (pass through; may error if invalid)"`
 	Max       int64    `name:"max" aliases:"limit" help:"Max results" default:"20"`
 	Page      string   `name:"page" aliases:"cursor" help:"Page token"`
 	AllDrives bool     `name:"all-drives" help:"Include shared drives (default: true; use --no-all-drives for My Drive only)" default:"true" negatable:"_"`
@@ -164,7 +176,7 @@ func (c *DriveSearchCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 
 	call := svc.Files.List().
-		Q(buildDriveSearchQuery(query)).
+		Q(buildDriveSearchQuery(query, c.RawQuery)).
 		PageSize(c.Max).
 		PageToken(c.Page).
 		OrderBy("modifiedTime desc")
@@ -541,7 +553,8 @@ func (c *DriveMkdirCmd) Run(ctx context.Context, flags *RootFlags) error {
 }
 
 type DriveDeleteCmd struct {
-	FileID string `arg:"" name:"fileId" help:"File ID"`
+	FileID    string `arg:"" name:"fileId" help:"File ID"`
+	Permanent bool   `name:"permanent" help:"Permanently delete instead of moving to trash" default:"false"`
 }
 
 func (c *DriveDeleteCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -555,7 +568,11 @@ func (c *DriveDeleteCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return usage("empty fileId")
 	}
 
-	if confirmErr := confirmDestructive(ctx, flags, fmt.Sprintf("delete drive file %s", fileID)); confirmErr != nil {
+	action := "trash drive file"
+	if c.Permanent {
+		action = "permanently delete drive file"
+	}
+	if confirmErr := confirmDestructive(ctx, flags, fmt.Sprintf("%s %s", action, fileID)); confirmErr != nil {
 		return confirmErr
 	}
 
@@ -564,18 +581,28 @@ func (c *DriveDeleteCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
-	if err := svc.Files.Delete(fileID).SupportsAllDrives(true).Context(ctx).Do(); err != nil {
-		return err
+	trashed := !c.Permanent
+	deleted := c.Permanent
+
+	if c.Permanent {
+		if err := svc.Files.Delete(fileID).SupportsAllDrives(true).Context(ctx).Do(); err != nil {
+			return err
+		}
+	} else {
+		_, err := svc.Files.Update(fileID, &drive.File{Trashed: true}).
+			SupportsAllDrives(true).
+			Fields("id, trashed").
+			Context(ctx).
+			Do()
+		if err != nil {
+			return err
+		}
 	}
-	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
-			"deleted": true,
-			"id":      fileID,
-		})
-	}
-	u.Out().Printf("deleted\ttrue")
-	u.Out().Printf("id\t%s", fileID)
-	return nil
+	return writeResult(ctx, u,
+		kv("trashed", trashed),
+		kv("deleted", deleted),
+		kv("id", fileID),
+	)
 }
 
 type DriveMoveCmd struct {
@@ -833,18 +860,11 @@ func (c *DriveUnshareCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
-	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
-			"removed":      true,
-			"fileId":       fileID,
-			"permissionId": permissionID,
-		})
-	}
-
-	u.Out().Printf("removed\ttrue")
-	u.Out().Printf("file_id\t%s", fileID)
-	u.Out().Printf("permission_id\t%s", permissionID)
-	return nil
+	return writeResult(ctx, u,
+		kv("removed", true),
+		kv("fileId", fileID),
+		kv("permissionId", permissionID),
+	)
 }
 
 type DrivePermissionsCmd struct {
@@ -963,15 +983,53 @@ func buildDriveListQuery(folderID string, userQuery string) string {
 	} else {
 		q = parent
 	}
-	if !strings.Contains(q, "trashed") {
+	if !hasDriveTrashedPredicate(q) {
 		q += " and trashed = false"
 	}
 	return q
 }
 
-func buildDriveSearchQuery(text string) string {
-	q := fmt.Sprintf("fullText contains '%s'", escapeDriveQueryString(text))
-	return q + " and trashed = false"
+func buildDriveSearchQuery(text string, rawQuery bool) string {
+	q := strings.TrimSpace(text)
+	if q == "" {
+		return "trashed = false"
+	}
+	if rawQuery {
+		return buildDriveFilterQuery(q)
+	}
+	if !looksLikeDriveQueryLanguage(q) {
+		return fmt.Sprintf("fullText contains '%s' and trashed = false", escapeDriveQueryString(q))
+	}
+	return buildDriveFilterQuery(q)
+}
+
+func buildDriveFilterQuery(q string) string {
+	q = strings.TrimSpace(q)
+	if q == "" {
+		return "trashed = false"
+	}
+	if !hasDriveTrashedPredicate(q) {
+		q += " and trashed = false"
+	}
+	return q
+}
+
+// Heuristic detection for Drive query-language input.
+//
+// Motivation: keep `gog drive search foo bar` user-friendly (fullText search)
+// while still allowing power-users to paste raw Drive filters.
+func looksLikeDriveQueryLanguage(q string) bool {
+	if strings.EqualFold(q, "sharedWithMe") {
+		return true
+	}
+	return driveSearchFieldComparisonPattern.MatchString(q) ||
+		driveSearchContainsPattern.MatchString(q) ||
+		driveSearchMembershipPattern.MatchString(q) ||
+		driveSearchHasPattern.MatchString(q)
+}
+
+func hasDriveTrashedPredicate(q string) bool {
+	return driveTrashedPredicatePattern.MatchString(q)
 }
 
 func escapeDriveQueryString(s string) string {

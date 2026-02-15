@@ -110,13 +110,8 @@ func (c *AuthAliasUnsetCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if !deleted {
 		return usage("alias not found")
 	}
-	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
-			"deleted": true,
-			"alias":   alias,
-		})
-	}
-	u.Out().Printf("deleted\ttrue")
-	u.Out().Printf("alias\t%s", alias)
-	return nil
+	return writeResult(ctx, u,
+		kv("deleted", true),
+		kv("alias", alias),
+	)
 }
