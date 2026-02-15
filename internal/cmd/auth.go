@@ -1125,8 +1125,7 @@ func (c *AuthKeepCmd) Run(ctx context.Context, _ *RootFlags) error {
 
 func parseAuthServices(servicesCSV string) ([]googleauth.Service, error) {
 	trimmed := strings.ToLower(strings.TrimSpace(servicesCSV))
-	const servicesAll = scopeAll
-	if trimmed == "" || trimmed == "user" || trimmed == servicesAll {
+	if trimmed == "" || trimmed == "user" || trimmed == literalAll {
 		return googleauth.UserServices(), nil
 	}
 
