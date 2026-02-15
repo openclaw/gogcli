@@ -29,9 +29,11 @@ type KeepCmd struct {
 }
 
 type KeepListCmd struct {
-	Max    int64  `name:"max" help:"Max results" default:"100"`
-	Page   string `name:"page" help:"Page token"`
-	Filter string `name:"filter" help:"Filter expression (e.g. 'create_time > \"2024-01-01T00:00:00Z\"')"`
+	Max       int64  `name:"max" aliases:"limit" help:"Max results" default:"100"`
+	Page      string `name:"page" aliases:"cursor" help:"Page token"`
+	All       bool   `name:"all" aliases:"all-pages,allpages" help:"Fetch all pages"`
+	FailEmpty bool   `name:"fail-empty" aliases:"non-empty,require-results" help:"Exit with code 3 if no results"`
+	Filter    string `name:"filter" help:"Filter expression (e.g. 'create_time > \"2024-01-01T00:00:00Z\"')"`
 }
 
 func (c *KeepListCmd) Run(ctx context.Context, flags *RootFlags, keep *KeepCmd) error {
@@ -42,40 +44,66 @@ func (c *KeepListCmd) Run(ctx context.Context, flags *RootFlags, keep *KeepCmd) 
 		return err
 	}
 
-	call := svc.Notes.List().PageSize(c.Max).PageToken(c.Page)
-
-	if c.Filter != "" {
-		call = call.Filter(c.Filter)
+	fetch := func(pageToken string) ([]*keepapi.Note, string, error) {
+		call := svc.Notes.List().PageSize(c.Max).Context(ctx)
+		if strings.TrimSpace(pageToken) != "" {
+			call = call.PageToken(pageToken)
+		}
+		if strings.TrimSpace(c.Filter) != "" {
+			call = call.Filter(strings.TrimSpace(c.Filter))
+		}
+		resp, callErr := call.Do()
+		if callErr != nil {
+			return nil, "", callErr
+		}
+		return resp.Notes, resp.NextPageToken, nil
 	}
 
-	resp, err := call.Do()
-	if err != nil {
-		return err
+	var notes []*keepapi.Note
+	nextPageToken := ""
+	if c.All {
+		all, err := collectAllPages(c.Page, fetch)
+		if err != nil {
+			return err
+		}
+		notes = all
+	} else {
+		var err error
+		notes, nextPageToken, err = fetch(c.Page)
+		if err != nil {
+			return err
+		}
 	}
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{
-			"notes":         resp.Notes,
-			"nextPageToken": resp.NextPageToken,
-		})
+		if err := outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
+			"notes":         notes,
+			"nextPageToken": nextPageToken,
+		}); err != nil {
+			return err
+		}
+		if len(notes) == 0 {
+			return failEmptyExit(c.FailEmpty)
+		}
+		return nil
 	}
 
-	if len(resp.Notes) == 0 {
+	if len(notes) == 0 {
 		u.Err().Println("No notes")
-		return nil
+		return failEmptyExit(c.FailEmpty)
 	}
 
 	w, flush := tableWriter(ctx)
 	defer flush()
 	fmt.Fprintln(w, "NAME\tTITLE\tUPDATED")
-	for _, n := range resp.Notes {
+	for _, n := range notes {
 		title := n.Title
 		if title == "" {
 			title = noteSnippet(n)
 		}
 		fmt.Fprintf(w, "%s\t%s\t%s\n", n.Name, title, n.UpdateTime)
 	}
-	printNextPageHint(u, resp.NextPageToken)
+	printNextPageHint(u, nextPageToken)
 	return nil
 }
 
@@ -106,7 +134,7 @@ func noteContains(n *keepapi.Note, query string) bool {
 
 type KeepSearchCmd struct {
 	Query string `arg:"" name:"query" help:"Text to search for in title and body"`
-	Max   int64  `name:"max" help:"Max results to fetch before filtering" default:"500"`
+	Max   int64  `name:"max" aliases:"limit" help:"Max results to fetch before filtering" default:"500"`
 }
 
 func (c *KeepSearchCmd) Run(ctx context.Context, flags *RootFlags, keep *KeepCmd) error {
@@ -121,30 +149,32 @@ func (c *KeepSearchCmd) Run(ctx context.Context, flags *RootFlags, keep *KeepCmd
 		return err
 	}
 
-	var allNotes []*keepapi.Note
-	pageToken := ""
-
-	for {
-		call := svc.Notes.List().PageSize(c.Max).PageToken(pageToken)
-		resp, err := call.Do()
-		if err != nil {
-			return err
+	fetch := func(pageToken string) ([]*keepapi.Note, string, error) {
+		call := svc.Notes.List().PageSize(c.Max).Context(ctx)
+		if strings.TrimSpace(pageToken) != "" {
+			call = call.PageToken(pageToken)
+		}
+		resp, callErr := call.Do()
+		if callErr != nil {
+			return nil, "", callErr
 		}
 
+		matches := make([]*keepapi.Note, 0, len(resp.Notes))
 		for _, n := range resp.Notes {
 			if noteContains(n, c.Query) {
-				allNotes = append(allNotes, n)
+				matches = append(matches, n)
 			}
 		}
+		return matches, resp.NextPageToken, nil
+	}
 
-		if resp.NextPageToken == "" {
-			break
-		}
-		pageToken = resp.NextPageToken
+	allNotes, err := collectAllPages("", fetch)
+	if err != nil {
+		return err
 	}
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
 			"notes": allNotes,
 			"query": c.Query,
 			"count": len(allNotes),
@@ -193,7 +223,7 @@ func (c *KeepGetCmd) Run(ctx context.Context, flags *RootFlags, keep *KeepCmd) e
 	}
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{"note": note})
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{"note": note})
 	}
 
 	u.Out().Printf("name\t%s", note.Name)
@@ -224,14 +254,34 @@ type KeepAttachmentCmd struct {
 func (c *KeepAttachmentCmd) Run(ctx context.Context, flags *RootFlags, keep *KeepCmd) error {
 	u := ui.FromContext(ctx)
 
-	svc, err := getKeepService(ctx, flags, keep)
+	name := strings.TrimSpace(c.AttachmentName)
+	if !strings.Contains(name, "/attachments/") {
+		return fmt.Errorf("invalid attachment name format, expected: notes/<noteId>/attachments/<attachmentId>")
+	}
+
+	outPath := strings.TrimSpace(c.Out)
+	if outPath == "" {
+		parts := strings.Split(name, "/")
+		outPath = parts[len(parts)-1]
+	}
+	var err error
+	outPath, err = config.ExpandPath(outPath)
 	if err != nil {
 		return err
 	}
 
-	name := c.AttachmentName
-	if !strings.Contains(name, "/attachments/") {
-		return fmt.Errorf("invalid attachment name format, expected: notes/<noteId>/attachments/<attachmentId>")
+	// Avoid touching auth/keyring and avoid writing files in dry-run mode.
+	if dryRunErr := dryRunExit(ctx, flags, "keep.attachment.download", map[string]any{
+		"attachment_name": name,
+		"mime_type":       strings.TrimSpace(c.MimeType),
+		"out":             outPath,
+	}); dryRunErr != nil {
+		return dryRunErr
+	}
+
+	svc, err := getKeepService(ctx, flags, keep)
+	if err != nil {
+		return err
 	}
 
 	resp, err := svc.Media.Download(name).MimeType(c.MimeType).Download()
@@ -239,12 +289,6 @@ func (c *KeepAttachmentCmd) Run(ctx context.Context, flags *RootFlags, keep *Kee
 		return fmt.Errorf("download attachment: %w", err)
 	}
 	defer resp.Body.Close()
-
-	outPath := c.Out
-	if outPath == "" {
-		parts := strings.Split(name, "/")
-		outPath = parts[len(parts)-1]
-	}
 
 	if dir := filepath.Dir(outPath); dir != "." {
 		if mkdirErr := os.MkdirAll(dir, 0o700); mkdirErr != nil && !os.IsExist(mkdirErr) {
@@ -264,7 +308,7 @@ func (c *KeepAttachmentCmd) Run(ctx context.Context, flags *RootFlags, keep *Kee
 	}
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
 			"downloaded": true,
 			"path":       outPath,
 			"bytes":      written,

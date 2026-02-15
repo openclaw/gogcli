@@ -283,7 +283,7 @@ func (s *gmailWatchServer) fetchMessages(ctx context.Context, svc *gmail.Service
 	excluded := 0
 	format := gmailWatchFormatMetadata
 	if s.cfg.IncludeBody {
-		format = "full"
+		format = gmailFormatFull
 	}
 	for _, id := range ids {
 		if strings.TrimSpace(id) == "" {
@@ -338,7 +338,7 @@ func (s *gmailWatchServer) isExcludedLabel(labelIDs []string) bool {
 		if trimmed == "" {
 			continue
 		}
-		if _, ok := s.excludeLabelIDs[strings.ToLower(trimmed)]; ok {
+		if _, ok := s.excludeLabelIDs[trimmed]; ok {
 			return true
 		}
 	}

@@ -27,7 +27,7 @@ type CalendarCreateCmd struct {
 	ColorId               string   `name:"event-color" help:"Event color ID (1-11). Use 'gog calendar colors' to see available colors."`
 	Visibility            string   `name:"visibility" help:"Event visibility: default, public, private, confidential"`
 	Transparency          string   `name:"transparency" help:"Show as busy (opaque) or free (transparent). Aliases: busy, free"`
-	SendUpdates           string   `name:"send-updates" help:"Notification mode: all, externalOnly, none (default: all)"`
+	SendUpdates           string   `name:"send-updates" help:"Notification mode: all, externalOnly, none (default: none)"`
 	GuestsCanInviteOthers *bool    `name:"guests-can-invite" help:"Allow guests to invite others"`
 	GuestsCanModify       *bool    `name:"guests-can-modify" help:"Allow guests to modify event"`
 	GuestsCanSeeOthers    *bool    `name:"guests-can-see-others" help:"Allow guests to see other guests"`
@@ -53,10 +53,6 @@ type CalendarCreateCmd struct {
 
 func (c *CalendarCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
 	calendarID := strings.TrimSpace(c.CalendarID)
 	if calendarID == "" {
 		return usage("empty calendarId")
@@ -102,11 +98,6 @@ func (c *CalendarCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 	transparency = applyEventTypeTransparencyDefault(transparency, eventType)
 
-	svc, err := newCalendarService(ctx, account)
-	if err != nil {
-		return err
-	}
-
 	event := &calendar.Event{
 		Summary:            summary,
 		Description:        strings.TrimSpace(c.Description),
@@ -143,6 +134,30 @@ func (c *CalendarCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
+	if dryRunErr := dryRunExit(ctx, flags, "calendar.create", map[string]any{
+		"calendar_id":          calendarID,
+		"send_updates":         sendUpdates,
+		"conference_version_1": c.WithMeet,
+		"supports_attachments": len(event.Attachments) > 0,
+		"event":                event,
+	}); dryRunErr != nil {
+		return dryRunErr
+	}
+
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
+	}
+
+	svc, err := newCalendarService(ctx, account)
+	if err != nil {
+		return err
+	}
+	calendarID, err = resolveCalendarID(ctx, svc, calendarID)
+	if err != nil {
+		return err
+	}
+
 	call := svc.Events.Insert(calendarID, event)
 	if sendUpdates != "" {
 		call = call.SendUpdates(sendUpdates)
@@ -159,7 +174,7 @@ func (c *CalendarCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 	tz, loc, _ := getCalendarLocation(ctx, svc, calendarID)
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{"event": wrapEventWithDaysWithTimezone(created, tz, loc)})
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{"event": wrapEventWithDaysWithTimezone(created, tz, loc)})
 	}
 	printCalendarEventWithTimezone(u, created, tz, loc)
 	return nil
@@ -329,16 +344,13 @@ type CalendarUpdateCmd struct {
 	WorkingFloorId        string   `name:"working-floor-id" help:"Working location floor ID"`
 	WorkingDeskId         string   `name:"working-desk-id" help:"Working location desk ID"`
 	WorkingCustomLabel    string   `name:"working-custom-label" help:"Working location custom label"`
+	SendUpdates           string   `name:"send-updates" help:"Notification mode: all, externalOnly, none (default: none)"`
 }
 
 func (c *CalendarUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
 	calendarID := strings.TrimSpace(c.CalendarID)
-	eventID := strings.TrimSpace(c.EventID)
+	eventID := normalizeCalendarEventID(c.EventID)
 	if calendarID == "" {
 		return usage("empty calendarId")
 	}
@@ -376,6 +388,11 @@ func (c *CalendarUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *
 		return usage("cannot use both --attendees and --add-attendee; use --attendees to replace all, or --add-attendee to add")
 	}
 
+	sendUpdates, err := validateSendUpdates(c.SendUpdates)
+	if err != nil {
+		return err
+	}
+
 	patch, changed, err := c.buildUpdatePatch(kctx)
 	if err != nil {
 		return err
@@ -390,7 +407,30 @@ func (c *CalendarUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *
 		return usage("no updates provided")
 	}
 
+	if dryRunErr := dryRunExit(ctx, flags, "calendar.update", map[string]any{
+		"calendar_id":          calendarID,
+		"event_id":             eventID,
+		"send_updates":         sendUpdates,
+		"scope":                scope,
+		"original_start_time":  strings.TrimSpace(c.OriginalStartTime),
+		"add_attendee":         strings.TrimSpace(c.AddAttendee),
+		"patch":                patch,
+		"wants_add_attendee":   wantsAddAttendee,
+		"supports_attachments": len(patch.Attachments) > 0,
+	}); dryRunErr != nil {
+		return dryRunErr
+	}
+
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
+	}
+
 	svc, err := newCalendarService(ctx, account)
+	if err != nil {
+		return err
+	}
+	calendarID, err = resolveCalendarID(ctx, svc, calendarID)
 	if err != nil {
 		return err
 	}
@@ -414,18 +454,22 @@ func (c *CalendarUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *
 		return err
 	}
 
-	updated, err := svc.Events.Patch(calendarID, targetEventID, patch).Do()
+	call := svc.Events.Patch(calendarID, targetEventID, patch).Context(ctx)
+	if sendUpdates != "" {
+		call = call.SendUpdates(sendUpdates)
+	}
+	updated, err := call.Do()
 	if err != nil {
 		return err
 	}
 	if scope == scopeFuture {
-		if err := truncateParentRecurrence(ctx, svc, calendarID, eventID, parentRecurrence, c.OriginalStartTime); err != nil {
+		if err := truncateParentRecurrence(ctx, svc, calendarID, eventID, parentRecurrence, c.OriginalStartTime, sendUpdates); err != nil {
 			return err
 		}
 	}
 	tz, loc, _ := getCalendarLocation(ctx, svc, calendarID)
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{"event": wrapEventWithDaysWithTimezone(updated, tz, loc)})
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{"event": wrapEventWithDaysWithTimezone(updated, tz, loc)})
 	}
 	printCalendarEventWithTimezone(u, updated, tz, loc)
 	return nil
@@ -791,12 +835,16 @@ func applyUpdateScope(ctx context.Context, svc *calendar.Service, calendarID, ev
 	return targetEventID, parentRecurrence, nil
 }
 
-func truncateParentRecurrence(ctx context.Context, svc *calendar.Service, calendarID, eventID string, parentRecurrence []string, originalStartTime string) error {
+func truncateParentRecurrence(ctx context.Context, svc *calendar.Service, calendarID, eventID string, parentRecurrence []string, originalStartTime, sendUpdates string) error {
 	truncated, err := truncateRecurrence(parentRecurrence, originalStartTime)
 	if err != nil {
 		return err
 	}
-	_, err = svc.Events.Patch(calendarID, eventID, &calendar.Event{Recurrence: truncated}).Context(ctx).Do()
+	call := svc.Events.Patch(calendarID, eventID, &calendar.Event{Recurrence: truncated}).Context(ctx)
+	if sendUpdates != "" {
+		call = call.SendUpdates(sendUpdates)
+	}
+	_, err = call.Do()
 	return err
 }
 
@@ -805,16 +853,13 @@ type CalendarDeleteCmd struct {
 	EventID           string `arg:"" name:"eventId" help:"Event ID"`
 	Scope             string `name:"scope" help:"For recurring events: single, future, all" default:"all"`
 	OriginalStartTime string `name:"original-start" help:"Original start time of instance (required for scope=single,future)"`
+	SendUpdates       string `name:"send-updates" help:"Notification mode: all, externalOnly, none (default: none)"`
 }
 
 func (c *CalendarDeleteCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
 	calendarID := strings.TrimSpace(c.CalendarID)
-	eventID := strings.TrimSpace(c.EventID)
+	eventID := normalizeCalendarEventID(c.EventID)
 	if calendarID == "" {
 		return usage("empty calendarId")
 	}
@@ -840,6 +885,11 @@ func (c *CalendarDeleteCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return fmt.Errorf("invalid scope: %q (must be single, future, or all)", scope)
 	}
 
+	sendUpdates, err := validateSendUpdates(c.SendUpdates)
+	if err != nil {
+		return err
+	}
+
 	confirmMessage := fmt.Sprintf("delete event %s from calendar %s", eventID, calendarID)
 	if scope == scopeSingle {
 		confirmMessage = fmt.Sprintf("delete event %s (instance start %s) from calendar %s", eventID, c.OriginalStartTime, calendarID)
@@ -851,7 +901,16 @@ func (c *CalendarDeleteCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return confirmErr
 	}
 
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
+	}
+
 	svc, err := newCalendarService(ctx, account)
+	if err != nil {
+		return err
+	}
+	calendarID, err = resolveCalendarID(ctx, svc, calendarID)
 	if err != nil {
 		return err
 	}
@@ -876,7 +935,11 @@ func (c *CalendarDeleteCmd) Run(ctx context.Context, flags *RootFlags) error {
 		targetEventID = instanceID
 	}
 
-	if err := svc.Events.Delete(calendarID, targetEventID).Do(); err != nil {
+	deleteCall := svc.Events.Delete(calendarID, targetEventID).Context(ctx)
+	if sendUpdates != "" {
+		deleteCall = deleteCall.SendUpdates(sendUpdates)
+	}
+	if err := deleteCall.Do(); err != nil {
 		return err
 	}
 	if scope == scopeFuture {
@@ -884,20 +947,18 @@ func (c *CalendarDeleteCmd) Run(ctx context.Context, flags *RootFlags) error {
 		if truncateErr != nil {
 			return truncateErr
 		}
-		_, patchErr := svc.Events.Patch(calendarID, eventID, &calendar.Event{Recurrence: truncated}).Context(ctx).Do()
+		patchCall := svc.Events.Patch(calendarID, eventID, &calendar.Event{Recurrence: truncated}).Context(ctx)
+		if sendUpdates != "" {
+			patchCall = patchCall.SendUpdates(sendUpdates)
+		}
+		_, patchErr := patchCall.Do()
 		if patchErr != nil {
 			return patchErr
 		}
 	}
-	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{
-			"deleted":    true,
-			"calendarId": calendarID,
-			"eventId":    targetEventID,
-		})
-	}
-	u.Out().Printf("deleted\ttrue")
-	u.Out().Printf("calendarId\t%s", calendarID)
-	u.Out().Printf("eventId\t%s", targetEventID)
-	return nil
+	return writeResult(ctx, u,
+		kv("deleted", true),
+		kv("calendarId", calendarID),
+		kv("eventId", targetEventID),
+	)
 }

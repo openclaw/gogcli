@@ -13,17 +13,19 @@ import (
 )
 
 type ClassroomTopicsCmd struct {
-	List   ClassroomTopicsListCmd   `cmd:"" default:"withargs" help:"List topics"`
-	Get    ClassroomTopicsGetCmd    `cmd:"" help:"Get a topic"`
-	Create ClassroomTopicsCreateCmd `cmd:"" help:"Create a topic"`
-	Update ClassroomTopicsUpdateCmd `cmd:"" help:"Update a topic"`
-	Delete ClassroomTopicsDeleteCmd `cmd:"" help:"Delete a topic" aliases:"rm"`
+	List   ClassroomTopicsListCmd   `cmd:"" default:"withargs" aliases:"ls" help:"List topics"`
+	Get    ClassroomTopicsGetCmd    `cmd:"" aliases:"info,show" help:"Get a topic"`
+	Create ClassroomTopicsCreateCmd `cmd:"" aliases:"add,new" help:"Create a topic"`
+	Update ClassroomTopicsUpdateCmd `cmd:"" aliases:"edit,set" help:"Update a topic"`
+	Delete ClassroomTopicsDeleteCmd `cmd:"" aliases:"rm,del,remove" help:"Delete a topic"`
 }
 
 type ClassroomTopicsListCmd struct {
-	CourseID string `arg:"" name:"courseId" help:"Course ID or alias"`
-	Max      int64  `name:"max" aliases:"limit" help:"Max results" default:"100"`
-	Page     string `name:"page" help:"Page token"`
+	CourseID  string `arg:"" name:"courseId" help:"Course ID or alias"`
+	Max       int64  `name:"max" aliases:"limit" help:"Max results" default:"100"`
+	Page      string `name:"page" aliases:"cursor" help:"Page token"`
+	All       bool   `name:"all" aliases:"all-pages,allpages" help:"Fetch all pages"`
+	FailEmpty bool   `name:"fail-empty" aliases:"non-empty,require-results" help:"Exit with code 3 if no results"`
 }
 
 func (c *ClassroomTopicsListCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -42,27 +44,56 @@ func (c *ClassroomTopicsListCmd) Run(ctx context.Context, flags *RootFlags) erro
 		return wrapClassroomError(err)
 	}
 
-	resp, err := svc.Courses.Topics.List(courseID).PageSize(c.Max).PageToken(c.Page).Context(ctx).Do()
-	if err != nil {
-		return wrapClassroomError(err)
+	fetch := func(pageToken string) ([]*classroom.Topic, string, error) {
+		call := svc.Courses.Topics.List(courseID).PageSize(c.Max).Context(ctx)
+		if strings.TrimSpace(pageToken) != "" {
+			call = call.PageToken(pageToken)
+		}
+		resp, err := call.Do()
+		if err != nil {
+			return nil, "", wrapClassroomError(err)
+		}
+		return resp.Topic, resp.NextPageToken, nil
+	}
+
+	var topics []*classroom.Topic
+	nextPageToken := ""
+	if c.All {
+		all, err := collectAllPages(c.Page, fetch)
+		if err != nil {
+			return err
+		}
+		topics = all
+	} else {
+		var err error
+		topics, nextPageToken, err = fetch(c.Page)
+		if err != nil {
+			return err
+		}
 	}
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{
-			"topics":        resp.Topic,
-			"nextPageToken": resp.NextPageToken,
-		})
+		if err := outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
+			"topics":        topics,
+			"nextPageToken": nextPageToken,
+		}); err != nil {
+			return err
+		}
+		if len(topics) == 0 {
+			return failEmptyExit(c.FailEmpty)
+		}
+		return nil
 	}
 
-	if len(resp.Topic) == 0 {
+	if len(topics) == 0 {
 		u.Err().Println("No topics")
-		return nil
+		return failEmptyExit(c.FailEmpty)
 	}
 
 	w, flush := tableWriter(ctx)
 	defer flush()
 	fmt.Fprintln(w, "TOPIC_ID\tNAME\tUPDATED")
-	for _, topic := range resp.Topic {
+	for _, topic := range topics {
 		if topic == nil {
 			continue
 		}
@@ -72,7 +103,7 @@ func (c *ClassroomTopicsListCmd) Run(ctx context.Context, flags *RootFlags) erro
 			sanitizeTab(topic.UpdateTime),
 		)
 	}
-	printNextPageHint(u, resp.NextPageToken)
+	printNextPageHint(u, nextPageToken)
 	return nil
 }
 
@@ -107,7 +138,7 @@ func (c *ClassroomTopicsGetCmd) Run(ctx context.Context, flags *RootFlags) error
 	}
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{"topic": topic})
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{"topic": topic})
 	}
 
 	u.Out().Printf("id\t%s", topic.TopicId)
@@ -125,10 +156,6 @@ type ClassroomTopicsCreateCmd struct {
 
 func (c *ClassroomTopicsCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
 	courseID := strings.TrimSpace(c.CourseID)
 	if courseID == "" {
 		return usage("empty courseId")
@@ -138,19 +165,31 @@ func (c *ClassroomTopicsCreateCmd) Run(ctx context.Context, flags *RootFlags) er
 		return usage("empty name")
 	}
 
+	topic := &classroom.Topic{Name: name}
+	if err := dryRunExit(ctx, flags, "classroom.topics.create", map[string]any{
+		"course_id": courseID,
+		"topic":     topic,
+	}); err != nil {
+		return err
+	}
+
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
+	}
+
 	svc, err := newClassroomService(ctx, account)
 	if err != nil {
 		return wrapClassroomError(err)
 	}
 
-	topic := &classroom.Topic{Name: name}
 	created, err := svc.Courses.Topics.Create(courseID, topic).Context(ctx).Do()
 	if err != nil {
 		return wrapClassroomError(err)
 	}
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{"topic": created})
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{"topic": created})
 	}
 	u.Out().Printf("id\t%s", created.TopicId)
 	u.Out().Printf("name\t%s", created.Name)
@@ -165,10 +204,6 @@ type ClassroomTopicsUpdateCmd struct {
 
 func (c *ClassroomTopicsUpdateCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
 	courseID := strings.TrimSpace(c.CourseID)
 	topicID := strings.TrimSpace(c.TopicID)
 	name := strings.TrimSpace(c.Name)
@@ -182,19 +217,33 @@ func (c *ClassroomTopicsUpdateCmd) Run(ctx context.Context, flags *RootFlags) er
 		return usage("empty name")
 	}
 
+	topic := &classroom.Topic{Name: name}
+	if err := dryRunExit(ctx, flags, "classroom.topics.update", map[string]any{
+		"course_id":   courseID,
+		"topic_id":    topicID,
+		"update_mask": "name",
+		"topic":       topic,
+	}); err != nil {
+		return err
+	}
+
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
+	}
+
 	svc, err := newClassroomService(ctx, account)
 	if err != nil {
 		return wrapClassroomError(err)
 	}
 
-	topic := &classroom.Topic{Name: name}
 	updated, err := svc.Courses.Topics.Patch(courseID, topicID, topic).UpdateMask("name").Context(ctx).Do()
 	if err != nil {
 		return wrapClassroomError(err)
 	}
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{"topic": updated})
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{"topic": updated})
 	}
 	u.Out().Printf("id\t%s", updated.TopicId)
 	u.Out().Printf("name\t%s", updated.Name)
@@ -208,10 +257,6 @@ type ClassroomTopicsDeleteCmd struct {
 
 func (c *ClassroomTopicsDeleteCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
 	courseID := strings.TrimSpace(c.CourseID)
 	topicID := strings.TrimSpace(c.TopicID)
 	if courseID == "" {
@@ -221,7 +266,11 @@ func (c *ClassroomTopicsDeleteCmd) Run(ctx context.Context, flags *RootFlags) er
 		return usage("empty topicId")
 	}
 
-	err = confirmDestructive(ctx, flags, fmt.Sprintf("delete topic %s from %s", topicID, courseID))
+	if err := confirmDestructive(ctx, flags, fmt.Sprintf("delete topic %s from %s", topicID, courseID)); err != nil {
+		return err
+	}
+
+	account, err := requireAccount(flags)
 	if err != nil {
 		return err
 	}
@@ -235,15 +284,9 @@ func (c *ClassroomTopicsDeleteCmd) Run(ctx context.Context, flags *RootFlags) er
 		return wrapClassroomError(err)
 	}
 
-	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{
-			"deleted":  true,
-			"courseId": courseID,
-			"topicId":  topicID,
-		})
-	}
-	u.Out().Printf("deleted\ttrue")
-	u.Out().Printf("course_id\t%s", courseID)
-	u.Out().Printf("topic_id\t%s", topicID)
-	return nil
+	return writeResult(ctx, u,
+		kv("deleted", true),
+		kv("courseId", courseID),
+		kv("topicId", topicID),
+	)
 }

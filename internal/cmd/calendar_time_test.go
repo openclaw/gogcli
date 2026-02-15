@@ -276,10 +276,10 @@ func TestCalendarTimeCmd_CustomCalendar(t *testing.T) {
 	t.Cleanup(func() { newCalendarService = origNew })
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if strings.Contains(r.URL.Path, "/users/me/calendarList/custom-cal-id") && r.Method == http.MethodGet {
+		if strings.Contains(r.URL.Path, "/users/me/calendarList/custom-cal-id@example.com") && r.Method == http.MethodGet {
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(map[string]any{
-				"id":       "custom-cal-id",
+				"id":       "custom-cal-id@example.com",
 				"summary":  "Custom Calendar",
 				"timeZone": "Europe/London",
 			})
@@ -301,7 +301,7 @@ func TestCalendarTimeCmd_CustomCalendar(t *testing.T) {
 
 	out := captureStdout(t, func() {
 		_ = captureStderr(t, func() {
-			if err := Execute([]string{"--json", "--account", "a@b.com", "calendar", "time", "--calendar", "custom-cal-id"}); err != nil {
+			if err := Execute([]string{"--json", "--account", "a@b.com", "calendar", "time", "--calendar", "custom-cal-id@example.com"}); err != nil {
 				t.Fatalf("Execute: %v", err)
 			}
 		})

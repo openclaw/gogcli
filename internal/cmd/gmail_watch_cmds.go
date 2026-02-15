@@ -25,10 +25,10 @@ var (
 )
 
 type GmailWatchCmd struct {
-	Start  GmailWatchStartCmd  `cmd:"" name:"start" help:"Start Gmail watch for Pub/Sub"`
-	Status GmailWatchStatusCmd `cmd:"" name:"status" help:"Show stored watch state"`
-	Renew  GmailWatchRenewCmd  `cmd:"" name:"renew" help:"Renew Gmail watch using stored config"`
-	Stop   GmailWatchStopCmd   `cmd:"" name:"stop" help:"Stop Gmail watch and clear stored state"`
+	Start  GmailWatchStartCmd  `cmd:"" name:"start" aliases:"begin" help:"Start Gmail watch for Pub/Sub"`
+	Status GmailWatchStatusCmd `cmd:"" name:"status" aliases:"ls" help:"Show stored watch state"`
+	Renew  GmailWatchRenewCmd  `cmd:"" name:"renew" aliases:"update" help:"Renew Gmail watch using stored config"`
+	Stop   GmailWatchStopCmd   `cmd:"" name:"stop" aliases:"rm,delete" help:"Stop Gmail watch and clear stored state"`
 	Serve  GmailWatchServeCmd  `cmd:"" name:"serve" help:"Run Pub/Sub push handler"`
 }
 
@@ -43,10 +43,6 @@ type GmailWatchStartCmd struct {
 }
 
 func (c *GmailWatchStartCmd) Run(ctx context.Context, kctx *kong.Context, flags *RootFlags) error {
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
 	if strings.TrimSpace(c.Topic) == "" {
 		return usage("--topic is required")
 	}
@@ -62,6 +58,21 @@ func (c *GmailWatchStartCmd) Run(ctx context.Context, kctx *kong.Context, flags 
 		} else {
 			return err
 		}
+	}
+
+	if dryRunErr := dryRunExit(ctx, flags, "gmail.watch.start", map[string]any{
+		"topic":   strings.TrimSpace(c.Topic),
+		"labels":  c.Labels,
+		"ttl_raw": strings.TrimSpace(c.TTL),
+		"ttl":     ttl.String(),
+		"hook":    hook,
+	}); dryRunErr != nil {
+		return dryRunErr
+	}
+
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
 	}
 
 	svc, err := newGmailService(ctx, account)
@@ -133,6 +144,16 @@ func (c *GmailWatchRenewCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
+	if dryRunErr := dryRunExit(ctx, flags, "gmail.watch.renew", map[string]any{
+		"topic":   strings.TrimSpace(state.Topic),
+		"labels":  state.Labels,
+		"ttl_raw": strings.TrimSpace(c.TTL),
+		"ttl":     ttl.String(),
+		"hook":    state.Hook,
+	}); dryRunErr != nil {
+		return dryRunErr
+	}
+
 	svc, err := newGmailService(ctx, account)
 	if err != nil {
 		return err
@@ -163,13 +184,14 @@ type GmailWatchStopCmd struct{}
 
 func (c *GmailWatchStopCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
 
 	if confirmErr := confirmDestructive(ctx, flags, "stop gmail watch and clear stored state"); confirmErr != nil {
 		return confirmErr
+	}
+
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
 	}
 
 	svc, err := newGmailService(ctx, account)
@@ -184,7 +206,7 @@ func (c *GmailWatchStopCmd) Run(ctx context.Context, flags *RootFlags) error {
 		_ = os.Remove(store.path)
 	}
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{"stopped": true})
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{"stopped": true})
 	}
 	u.Out().Printf("stopped\ttrue")
 	return nil
@@ -323,7 +345,7 @@ func (c *GmailWatchServeCmd) Run(ctx context.Context, kctx *kong.Context, flags 
 		validator:       validator,
 		newService:      newGmailService,
 		hookClient:      hookClient,
-		excludeLabelIDs: lowerStringSet(cfg.ExcludeLabels),
+		excludeLabelIDs: stringSet(cfg.ExcludeLabels),
 		logf:            u.Err().Printf,
 		warnf:           u.Err().Printf,
 	}
@@ -341,7 +363,7 @@ func (c *GmailWatchServeCmd) Run(ctx context.Context, kctx *kong.Context, flags 
 
 func writeWatchState(ctx context.Context, state gmailWatchState) error {
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{"watch": state})
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{"watch": state})
 	}
 	u := ui.FromContext(ctx)
 	u.Out().Printf("account\t%s", state.Account)

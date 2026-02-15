@@ -3,6 +3,8 @@ set -euo pipefail
 
 ACCOUNT=""
 ALLOW_NONTEST=false
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd -- "$SCRIPT_DIR/.." && pwd)"
 
 usage() {
   cat <<'USAGE'
@@ -46,9 +48,9 @@ while [ $# -gt 0 ]; do
   shift
 done
 
-BIN="${GOG_BIN:-./bin/gog}"
+BIN="${GOG_BIN:-$ROOT_DIR/bin/gog}"
 if [ ! -x "$BIN" ]; then
-  make build >/dev/null
+  make -C "$ROOT_DIR" build >/dev/null
 fi
 
 PY="${PYTHON:-python3}"

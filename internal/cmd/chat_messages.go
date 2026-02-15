@@ -13,17 +13,19 @@ import (
 )
 
 type ChatMessagesCmd struct {
-	List ChatMessagesListCmd `cmd:"" name:"list" help:"List messages"`
-	Send ChatMessagesSendCmd `cmd:"" name:"send" help:"Send a message"`
+	List ChatMessagesListCmd `cmd:"" name:"list" aliases:"ls" help:"List messages"`
+	Send ChatMessagesSendCmd `cmd:"" name:"send" aliases:"create,post" help:"Send a message"`
 }
 
 type ChatMessagesListCmd struct {
-	Space  string `arg:"" name:"space" help:"Space name (spaces/...)"`
-	Max    int64  `name:"max" aliases:"limit" help:"Max results" default:"50"`
-	Page   string `name:"page" help:"Page token"`
-	Order  string `name:"order" help:"Order by (e.g. createTime desc)"`
-	Thread string `name:"thread" help:"Filter by thread (spaces/.../threads/...)"`
-	Unread bool   `name:"unread" help:"Only messages after last read time"`
+	Space     string `arg:"" name:"space" help:"Space name (spaces/...)"`
+	Max       int64  `name:"max" aliases:"limit" help:"Max results" default:"50"`
+	Page      string `name:"page" aliases:"cursor" help:"Page token"`
+	All       bool   `name:"all" aliases:"all-pages,allpages" help:"Fetch all pages"`
+	FailEmpty bool   `name:"fail-empty" aliases:"non-empty,require-results" help:"Exit with code 3 if no results"`
+	Order     string `name:"order" help:"Order by (e.g. createTime desc)"`
+	Thread    string `name:"thread" help:"Filter by thread (spaces/.../threads/...)"`
+	Unread    bool   `name:"unread" help:"Only messages after last read time"`
 }
 
 func (c *ChatMessagesListCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -66,19 +68,40 @@ func (c *ChatMessagesListCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 	filter := strings.Join(filters, " AND ")
 
-	call := svc.Spaces.Messages.List(space).
-		PageSize(c.Max).
-		PageToken(c.Page)
-	if strings.TrimSpace(c.Order) != "" {
-		call = call.OrderBy(c.Order)
-	}
-	if filter != "" {
-		call = call.Filter(filter)
+	fetch := func(pageToken string) ([]*chat.Message, string, error) {
+		call := svc.Spaces.Messages.List(space).
+			PageSize(c.Max).
+			Context(ctx)
+		if strings.TrimSpace(pageToken) != "" {
+			call = call.PageToken(pageToken)
+		}
+		if strings.TrimSpace(c.Order) != "" {
+			call = call.OrderBy(c.Order)
+		}
+		if filter != "" {
+			call = call.Filter(filter)
+		}
+		resp, err := call.Do()
+		if err != nil {
+			return nil, "", err
+		}
+		return resp.Messages, resp.NextPageToken, nil
 	}
 
-	resp, err := call.Do()
-	if err != nil {
-		return err
+	var messages []*chat.Message
+	nextPageToken := ""
+	if c.All {
+		all, err := collectAllPages(c.Page, fetch)
+		if err != nil {
+			return err
+		}
+		messages = all
+	} else {
+		var err error
+		messages, nextPageToken, err = fetch(c.Page)
+		if err != nil {
+			return err
+		}
 	}
 
 	if outfmt.IsJSON(ctx) {
@@ -89,8 +112,8 @@ func (c *ChatMessagesListCmd) Run(ctx context.Context, flags *RootFlags) error {
 			CreateTime string `json:"createTime,omitempty"`
 			Thread     string `json:"thread,omitempty"`
 		}
-		items := make([]item, 0, len(resp.Messages))
-		for _, msg := range resp.Messages {
+		items := make([]item, 0, len(messages))
+		for _, msg := range messages {
 			if msg == nil {
 				continue
 			}
@@ -102,21 +125,27 @@ func (c *ChatMessagesListCmd) Run(ctx context.Context, flags *RootFlags) error {
 				Thread:     chatMessageThread(msg),
 			})
 		}
-		return outfmt.WriteJSON(os.Stdout, map[string]any{
+		if err := outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
 			"messages":      items,
-			"nextPageToken": resp.NextPageToken,
-		})
+			"nextPageToken": nextPageToken,
+		}); err != nil {
+			return err
+		}
+		if len(items) == 0 {
+			return failEmptyExit(c.FailEmpty)
+		}
+		return nil
 	}
 
-	if len(resp.Messages) == 0 {
+	if len(messages) == 0 {
 		u.Err().Println("No messages")
-		return nil
+		return failEmptyExit(c.FailEmpty)
 	}
 
 	w, flush := tableWriter(ctx)
 	defer flush()
 	fmt.Fprintln(w, "RESOURCE\tSENDER\tTIME\tTEXT")
-	for _, msg := range resp.Messages {
+	for _, msg := range messages {
 		if msg == nil {
 			continue
 		}
@@ -127,7 +156,7 @@ func (c *ChatMessagesListCmd) Run(ctx context.Context, flags *RootFlags) error {
 			sanitizeChatText(chatMessageText(msg)),
 		)
 	}
-	printNextPageHint(u, resp.NextPageToken)
+	printNextPageHint(u, nextPageToken)
 	return nil
 }
 
@@ -139,14 +168,6 @@ type ChatMessagesSendCmd struct {
 
 func (c *ChatMessagesSendCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
-	if err = requireWorkspaceAccount(account); err != nil {
-		return err
-	}
-
 	space, err := normalizeSpace(c.Space)
 	if err != nil {
 		return usage("required: space")
@@ -157,19 +178,39 @@ func (c *ChatMessagesSendCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return usage("required: --text")
 	}
 
-	svc, err := newChatService(ctx, account)
-	if err != nil {
-		return err
-	}
-
 	message := &chat.Message{Text: text}
 	thread := strings.TrimSpace(c.Thread)
+	threadName := ""
 	if thread != "" {
-		threadName, threadErr := normalizeThread(space, thread)
+		tn, threadErr := normalizeThread(space, thread)
 		if threadErr != nil {
 			return usage(fmt.Sprintf("invalid thread: %v", threadErr))
 		}
-		message.Thread = &chat.Thread{Name: threadName}
+		threadName = tn
+		message.Thread = &chat.Thread{Name: tn}
+	}
+
+	if dryRunErr := dryRunExit(ctx, flags, "chat.messages.send", map[string]any{
+		"space":                        space,
+		"text":                         text,
+		"thread":                       threadName,
+		"thread_raw":                   thread,
+		"reply_fallback_to_new_thread": thread != "",
+	}); dryRunErr != nil {
+		return dryRunErr
+	}
+
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
+	}
+	if err = requireWorkspaceAccount(account); err != nil {
+		return err
+	}
+
+	svc, err := newChatService(ctx, account)
+	if err != nil {
+		return err
 	}
 
 	call := svc.Spaces.Messages.Create(space, message)
@@ -183,7 +224,7 @@ func (c *ChatMessagesSendCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{"message": resp})
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{"message": resp})
 	}
 
 	if resp == nil {

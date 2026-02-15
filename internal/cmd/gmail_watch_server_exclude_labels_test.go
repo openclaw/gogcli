@@ -91,7 +91,7 @@ func TestGmailWatchServer_ServeHTTP_ExcludeLabels_SkipsHook(t *testing.T) {
 		store:           store,
 		newService:      func(context.Context, string) (*gmail.Service, error) { return gsvc, nil },
 		hookClient:      hookSrv.Client(),
-		excludeLabelIDs: map[string]struct{}{"spam": {}},
+		excludeLabelIDs: map[string]struct{}{"SPAM": {}},
 		logf:            func(string, ...any) {},
 		warnf:           func(string, ...any) {},
 	}
@@ -114,5 +114,15 @@ func TestGmailWatchServer_ServeHTTP_ExcludeLabels_SkipsHook(t *testing.T) {
 	st := store.Get()
 	if st.HistoryID != "200" {
 		t.Fatalf("expected history updated, got %q", st.HistoryID)
+	}
+}
+
+func TestGmailWatchServer_isExcludedLabel_CaseSensitive(t *testing.T) {
+	s := &gmailWatchServer{excludeLabelIDs: map[string]struct{}{"Label_ABC": {}}}
+	if !s.isExcludedLabel([]string{"Label_ABC"}) {
+		t.Fatalf("expected exact case label to match")
+	}
+	if s.isExcludedLabel([]string{"label_abc"}) {
+		t.Fatalf("expected case-mismatched label not to match")
 	}
 }

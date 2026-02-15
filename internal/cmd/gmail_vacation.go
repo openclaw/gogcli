@@ -14,8 +14,8 @@ import (
 )
 
 type GmailVacationCmd struct {
-	Get    GmailVacationGetCmd    `cmd:"" name:"get" help:"Get current vacation responder settings"`
-	Update GmailVacationUpdateCmd `cmd:"" name:"update" help:"Update vacation responder settings"`
+	Get    GmailVacationGetCmd    `cmd:"" name:"get" aliases:"info,show" help:"Get current vacation responder settings"`
+	Update GmailVacationUpdateCmd `cmd:"" name:"update" aliases:"edit,set" help:"Update vacation responder settings"`
 }
 
 type GmailVacationGetCmd struct{}
@@ -38,7 +38,7 @@ func (c *GmailVacationGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{"vacation": vacation})
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{"vacation": vacation})
 	}
 
 	u.Out().Printf("enable_auto_reply\t%t", vacation.EnableAutoReply)
@@ -69,13 +69,57 @@ type GmailVacationUpdateCmd struct {
 
 func (c *GmailVacationUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
+	if c.Enable && c.Disable {
+		return errors.New("cannot specify both --enable and --disable")
+	}
+
+	var err error
+	updates := map[string]any{}
+	if c.Enable {
+		updates["enable_auto_reply"] = true
+	}
+	if c.Disable {
+		updates["enable_auto_reply"] = false
+	}
+	if flagProvided(kctx, "subject") {
+		updates["response_subject"] = c.Subject
+	}
+	if flagProvided(kctx, "body") {
+		updates["response_body_html"] = c.Body
+		updates["response_body_plain_text"] = stripHTML(c.Body)
+	}
+	if flagProvided(kctx, "start") {
+		var t int64
+		t, err = parseRFC3339ToMillis(c.Start)
+		if err != nil {
+			return err
+		}
+		updates["start_time"] = t
+	}
+	if flagProvided(kctx, "end") {
+		var t int64
+		t, err = parseRFC3339ToMillis(c.End)
+		if err != nil {
+			return err
+		}
+		updates["end_time"] = t
+	}
+	if flagProvided(kctx, "contacts-only") {
+		updates["restrict_to_contacts"] = c.ContactsOnly
+	}
+	if flagProvided(kctx, "domain-only") {
+		updates["restrict_to_domain"] = c.DomainOnly
+	}
+
+	if dryRunErr := dryRunExit(ctx, flags, "gmail.vacation.update", map[string]any{
+		"updates": updates,
+	}); dryRunErr != nil {
+		return dryRunErr
+	}
+
 	account, err := requireAccount(flags)
 	if err != nil {
 		return err
-	}
-
-	if c.Enable && c.Disable {
-		return errors.New("cannot specify both --enable and --disable")
 	}
 
 	svc, err := newGmailService(ctx, account)
@@ -144,7 +188,7 @@ func (c *GmailVacationUpdateCmd) Run(ctx context.Context, kctx *kong.Context, fl
 	}
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{"vacation": updated})
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{"vacation": updated})
 	}
 
 	u.Out().Println("Vacation responder updated successfully")

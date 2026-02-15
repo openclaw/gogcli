@@ -29,6 +29,7 @@ type manualState struct {
 	Client       string    `json:"client"`
 	Scopes       []string  `json:"scopes"`
 	ForceConsent bool      `json:"force_consent,omitempty"`
+	RedirectURI  string    `json:"redirect_uri,omitempty"`
 	CreatedAt    time.Time `json:"created_at"`
 }
 
@@ -73,19 +74,19 @@ func isManualStateFilename(name string) (state string, ok bool) {
 	return state, true
 }
 
-func loadManualState(client string, scopes []string, forceConsent bool) (string, bool, error) {
+func loadManualState(client string, scopes []string, forceConsent bool) (manualState, bool, error) {
 	dir, err := manualStateDirFn()
 	if err != nil {
-		return "", false, err
+		return manualState{}, false, err
 	}
 
 	entries, err := os.ReadDir(dir)
 	if err != nil {
-		return "", false, fmt.Errorf("read manual auth state dir: %w", err)
+		return manualState{}, false, fmt.Errorf("read manual auth state dir: %w", err)
 	}
 
 	var (
-		bestState   string
+		bestState   manualState
 		bestCreated time.Time
 	)
 
@@ -94,7 +95,7 @@ func loadManualState(client string, scopes []string, forceConsent bool) (string,
 			continue
 		}
 
-		state, ok := isManualStateFilename(ent.Name())
+		_, ok := isManualStateFilename(ent.Name())
 		if !ok {
 			continue
 		}
@@ -103,7 +104,7 @@ func loadManualState(client string, scopes []string, forceConsent bool) (string,
 
 		st, valid, loadErr := loadManualStateByPath(path)
 		if loadErr != nil {
-			return "", false, loadErr
+			return manualState{}, false, loadErr
 		}
 
 		if !valid {
@@ -114,14 +115,20 @@ func loadManualState(client string, scopes []string, forceConsent bool) (string,
 			continue
 		}
 
-		if bestState == "" || st.CreatedAt.After(bestCreated) {
-			bestState = state
+		// RedirectURI is required for step 1 URL generation and step 2 Exchange.
+		// Older cache entries (pre-redirect tracking) should not be reused.
+		if strings.TrimSpace(st.RedirectURI) == "" {
+			continue
+		}
+
+		if bestState.State == "" || st.CreatedAt.After(bestCreated) {
+			bestState = st
 			bestCreated = st.CreatedAt
 		}
 	}
 
-	if bestState == "" {
-		return "", false, nil
+	if bestState.State == "" {
+		return manualState{}, false, nil
 	}
 
 	return bestState, true, nil
@@ -156,7 +163,7 @@ func loadManualStateByPath(path string) (manualState, bool, error) {
 	return st, true, nil
 }
 
-func saveManualState(client string, scopes []string, forceConsent bool, state string) error {
+func saveManualState(client string, scopes []string, forceConsent bool, state string, redirectURI string) error {
 	path, err := manualStatePathFor(state)
 	if err != nil {
 		return err
@@ -167,6 +174,7 @@ func saveManualState(client string, scopes []string, forceConsent bool, state st
 		Client:       client,
 		Scopes:       normalizeScopes(scopes),
 		ForceConsent: forceConsent,
+		RedirectURI:  strings.TrimSpace(redirectURI),
 		CreatedAt:    manualStateNowFn().UTC(),
 	}
 

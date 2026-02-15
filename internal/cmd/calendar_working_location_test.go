@@ -72,7 +72,7 @@ func TestCalendarWorkingLocation_RunJSON(t *testing.T) {
 	var gotEvent calendar.Event
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := strings.TrimPrefix(r.URL.Path, "/calendar/v3")
-		if r.Method == http.MethodPost && path == "/calendars/cal/events" {
+		if r.Method == http.MethodPost && path == "/calendars/cal@example.com/events" {
 			if err := json.NewDecoder(r.Body).Decode(&gotEvent); err != nil {
 				t.Fatalf("decode event: %v", err)
 			}
@@ -106,7 +106,7 @@ func TestCalendarWorkingLocation_RunJSON(t *testing.T) {
 	cmd := &CalendarWorkingLocationCmd{}
 	out := captureStdout(t, func() {
 		if err := runKong(t, cmd, []string{
-			"cal",
+			"cal@example.com",
 			"--from", "2025-01-01",
 			"--to", "2025-01-02",
 			"--type", "office",

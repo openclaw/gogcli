@@ -114,7 +114,7 @@ func TestAuthAddCmd_KeychainError(t *testing.T) {
 	openSecretsStore = func() (secrets.Store, error) { return store, nil }
 
 	cmd := &AuthAddCmd{Email: "test@example.com", ServicesCSV: "gmail"}
-	err := cmd.Run(context.Background())
+	err := cmd.Run(context.Background(), &RootFlags{})
 
 	if err == nil {
 		t.Fatal("expected error when keychain is locked")
@@ -587,7 +587,7 @@ func TestAuthAddCmd_RemoteStep2_PassesAuthURL(t *testing.T) {
 		"--step",
 		"2",
 		"--auth-url",
-		"http://localhost:1/?code=abc&state=state123",
+		"http://127.0.0.1:55555/oauth2/callback?code=abc&state=state123",
 	}); err != nil {
 		t.Fatalf("Execute: %v", err)
 	}

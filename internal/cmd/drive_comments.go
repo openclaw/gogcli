@@ -14,18 +14,20 @@ import (
 
 // DriveCommentsCmd is the parent command for comments subcommands
 type DriveCommentsCmd struct {
-	List   DriveCommentsListCmd   `cmd:"" name:"list" help:"List comments on a file"`
-	Get    DriveCommentsGetCmd    `cmd:"" name:"get" help:"Get a comment by ID"`
-	Create DriveCommentsCreateCmd `cmd:"" name:"create" help:"Create a comment on a file"`
-	Update DriveCommentsUpdateCmd `cmd:"" name:"update" help:"Update a comment"`
-	Delete DriveCommentsDeleteCmd `cmd:"" name:"delete" help:"Delete a comment"`
-	Reply  DriveCommentReplyCmd   `cmd:"" name:"reply" help:"Reply to a comment"`
+	List   DriveCommentsListCmd   `cmd:"" name:"list" aliases:"ls" help:"List comments on a file"`
+	Get    DriveCommentsGetCmd    `cmd:"" name:"get" aliases:"info,show" help:"Get a comment by ID"`
+	Create DriveCommentsCreateCmd `cmd:"" name:"create" aliases:"add,new" help:"Create a comment on a file"`
+	Update DriveCommentsUpdateCmd `cmd:"" name:"update" aliases:"edit,set" help:"Update a comment"`
+	Delete DriveCommentsDeleteCmd `cmd:"" name:"delete" aliases:"rm,del,remove" help:"Delete a comment"`
+	Reply  DriveCommentReplyCmd   `cmd:"" name:"reply" aliases:"respond" help:"Reply to a comment"`
 }
 
 type DriveCommentsListCmd struct {
 	FileID        string `arg:"" name:"fileId" help:"File ID"`
-	Max           int64  `name:"max" help:"Max results" default:"100"`
-	Page          string `name:"page" help:"Page token"`
+	Max           int64  `name:"max" aliases:"limit" help:"Max results" default:"100"`
+	Page          string `name:"page" aliases:"cursor" help:"Page token"`
+	All           bool   `name:"all" aliases:"all-pages,allpages" help:"Fetch all pages"`
+	FailEmpty     bool   `name:"fail-empty" aliases:"non-empty,require-results" help:"Exit with code 3 if no results"`
 	IncludeQuoted bool   `name:"include-quoted" help:"Include the quoted content the comment is anchored to"`
 }
 
@@ -35,7 +37,7 @@ func (c *DriveCommentsListCmd) Run(ctx context.Context, flags *RootFlags) error 
 	if err != nil {
 		return err
 	}
-	fileID := strings.TrimSpace(c.FileID)
+	fileID := normalizeGoogleID(strings.TrimSpace(c.FileID))
 	if fileID == "" {
 		return usage("empty fileId")
 	}
@@ -45,40 +47,65 @@ func (c *DriveCommentsListCmd) Run(ctx context.Context, flags *RootFlags) error 
 		return err
 	}
 
-	var call *drive.CommentsListCall
-	if c.IncludeQuoted {
-		call = svc.Comments.List(fileID).
-			IncludeDeleted(false).
-			PageSize(c.Max).
-			Fields("nextPageToken", "comments(id,author,content,createdTime,modifiedTime,resolved,quotedFileContent,replies)").
-			Context(ctx)
-	} else {
-		call = svc.Comments.List(fileID).
-			IncludeDeleted(false).
-			PageSize(c.Max).
-			Fields("nextPageToken", "comments(id,author,content,createdTime,modifiedTime,resolved,replies)").
-			Context(ctx)
-	}
-	if strings.TrimSpace(c.Page) != "" {
-		call = call.PageToken(c.Page)
+	fetch := func(pageToken string) ([]*drive.Comment, string, error) {
+		var call *drive.CommentsListCall
+		if c.IncludeQuoted {
+			call = svc.Comments.List(fileID).
+				IncludeDeleted(false).
+				PageSize(c.Max).
+				Fields("nextPageToken", "comments(id,author,content,createdTime,modifiedTime,resolved,quotedFileContent,replies)").
+				Context(ctx)
+		} else {
+			call = svc.Comments.List(fileID).
+				IncludeDeleted(false).
+				PageSize(c.Max).
+				Fields("nextPageToken", "comments(id,author,content,createdTime,modifiedTime,resolved,replies)").
+				Context(ctx)
+		}
+		if strings.TrimSpace(pageToken) != "" {
+			call = call.PageToken(pageToken)
+		}
+
+		resp, err := call.Do()
+		if err != nil {
+			return nil, "", err
+		}
+		return resp.Comments, resp.NextPageToken, nil
 	}
 
-	resp, err := call.Do()
-	if err != nil {
-		return err
+	var comments []*drive.Comment
+	nextPageToken := ""
+	if c.All {
+		all, err := collectAllPages(c.Page, fetch)
+		if err != nil {
+			return err
+		}
+		comments = all
+	} else {
+		var err error
+		comments, nextPageToken, err = fetch(c.Page)
+		if err != nil {
+			return err
+		}
 	}
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{
+		if err := outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
 			"fileId":        fileID,
-			"comments":      resp.Comments,
-			"nextPageToken": resp.NextPageToken,
-		})
+			"comments":      comments,
+			"nextPageToken": nextPageToken,
+		}); err != nil {
+			return err
+		}
+		if len(comments) == 0 {
+			return failEmptyExit(c.FailEmpty)
+		}
+		return nil
 	}
 
-	if len(resp.Comments) == 0 {
+	if len(comments) == 0 {
 		u.Err().Println("No comments")
-		return nil
+		return failEmptyExit(c.FailEmpty)
 	}
 
 	w, flush := tableWriter(ctx)
@@ -88,7 +115,7 @@ func (c *DriveCommentsListCmd) Run(ctx context.Context, flags *RootFlags) error 
 	} else {
 		fmt.Fprintln(w, "ID\tAUTHOR\tCONTENT\tCREATED\tRESOLVED\tREPLIES")
 	}
-	for _, comment := range resp.Comments {
+	for _, comment := range comments {
 		author := ""
 		if comment.Author != nil {
 			author = comment.Author.DisplayName
@@ -120,7 +147,7 @@ func (c *DriveCommentsListCmd) Run(ctx context.Context, flags *RootFlags) error 
 			)
 		}
 	}
-	printNextPageHint(u, resp.NextPageToken)
+	printNextPageHint(u, nextPageToken)
 	return nil
 }
 
@@ -135,7 +162,7 @@ func (c *DriveCommentsGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if err != nil {
 		return err
 	}
-	fileID := strings.TrimSpace(c.FileID)
+	fileID := normalizeGoogleID(strings.TrimSpace(c.FileID))
 	commentID := strings.TrimSpace(c.CommentID)
 	if fileID == "" {
 		return usage("empty fileId")
@@ -158,7 +185,7 @@ func (c *DriveCommentsGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{"comment": comment})
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{"comment": comment})
 	}
 
 	u.Out().Printf("id\t%s", comment.Id)
@@ -186,17 +213,27 @@ type DriveCommentsCreateCmd struct {
 
 func (c *DriveCommentsCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
-	fileID := strings.TrimSpace(c.FileID)
+	fileID := normalizeGoogleID(strings.TrimSpace(c.FileID))
 	content := strings.TrimSpace(c.Content)
+	quoted := strings.TrimSpace(c.Quoted)
 	if fileID == "" {
 		return usage("empty fileId")
 	}
 	if content == "" {
 		return usage("empty content")
+	}
+
+	if err := dryRunExit(ctx, flags, "drive.comments.create", map[string]any{
+		"file_id": fileID,
+		"content": content,
+		"quoted":  quoted,
+	}); err != nil {
+		return err
+	}
+
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
 	}
 
 	svc, err := newDriveService(ctx, account)
@@ -209,7 +246,7 @@ func (c *DriveCommentsCreateCmd) Run(ctx context.Context, flags *RootFlags) erro
 	}
 
 	// If quoted text is provided, anchor the comment to that text
-	if quoted := strings.TrimSpace(c.Quoted); quoted != "" {
+	if quoted != "" {
 		comment.QuotedFileContent = &drive.CommentQuotedFileContent{
 			Value: quoted,
 		}
@@ -224,7 +261,7 @@ func (c *DriveCommentsCreateCmd) Run(ctx context.Context, flags *RootFlags) erro
 	}
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{"comment": created})
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{"comment": created})
 	}
 
 	u.Out().Printf("id\t%s", created.Id)
@@ -241,11 +278,7 @@ type DriveCommentsUpdateCmd struct {
 
 func (c *DriveCommentsUpdateCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
-	fileID := strings.TrimSpace(c.FileID)
+	fileID := normalizeGoogleID(strings.TrimSpace(c.FileID))
 	commentID := strings.TrimSpace(c.CommentID)
 	content := strings.TrimSpace(c.Content)
 	if fileID == "" {
@@ -256,6 +289,19 @@ func (c *DriveCommentsUpdateCmd) Run(ctx context.Context, flags *RootFlags) erro
 	}
 	if content == "" {
 		return usage("empty content")
+	}
+
+	if err := dryRunExit(ctx, flags, "drive.comments.update", map[string]any{
+		"file_id":    fileID,
+		"comment_id": commentID,
+		"content":    content,
+	}); err != nil {
+		return err
+	}
+
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
 	}
 
 	svc, err := newDriveService(ctx, account)
@@ -276,7 +322,7 @@ func (c *DriveCommentsUpdateCmd) Run(ctx context.Context, flags *RootFlags) erro
 	}
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{"comment": updated})
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{"comment": updated})
 	}
 
 	u.Out().Printf("id\t%s", updated.Id)
@@ -292,11 +338,7 @@ type DriveCommentsDeleteCmd struct {
 
 func (c *DriveCommentsDeleteCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
-	fileID := strings.TrimSpace(c.FileID)
+	fileID := normalizeGoogleID(strings.TrimSpace(c.FileID))
 	commentID := strings.TrimSpace(c.CommentID)
 	if fileID == "" {
 		return usage("empty fileId")
@@ -309,6 +351,11 @@ func (c *DriveCommentsDeleteCmd) Run(ctx context.Context, flags *RootFlags) erro
 		return confirmErr
 	}
 
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
+	}
+
 	svc, err := newDriveService(ctx, account)
 	if err != nil {
 		return err
@@ -318,18 +365,11 @@ func (c *DriveCommentsDeleteCmd) Run(ctx context.Context, flags *RootFlags) erro
 		return err
 	}
 
-	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{
-			"deleted":   true,
-			"fileId":    fileID,
-			"commentId": commentID,
-		})
-	}
-
-	u.Out().Printf("deleted\ttrue")
-	u.Out().Printf("file_id\t%s", fileID)
-	u.Out().Printf("comment_id\t%s", commentID)
-	return nil
+	return writeResult(ctx, u,
+		kv("deleted", true),
+		kv("fileId", fileID),
+		kv("commentId", commentID),
+	)
 }
 
 type DriveCommentReplyCmd struct {
@@ -340,11 +380,7 @@ type DriveCommentReplyCmd struct {
 
 func (c *DriveCommentReplyCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
-	fileID := strings.TrimSpace(c.FileID)
+	fileID := normalizeGoogleID(strings.TrimSpace(c.FileID))
 	commentID := strings.TrimSpace(c.CommentID)
 	content := strings.TrimSpace(c.Content)
 	if fileID == "" {
@@ -355,6 +391,19 @@ func (c *DriveCommentReplyCmd) Run(ctx context.Context, flags *RootFlags) error 
 	}
 	if content == "" {
 		return usage("empty content")
+	}
+
+	if err := dryRunExit(ctx, flags, "drive.comments.reply", map[string]any{
+		"file_id":    fileID,
+		"comment_id": commentID,
+		"content":    content,
+	}); err != nil {
+		return err
+	}
+
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
 	}
 
 	svc, err := newDriveService(ctx, account)
@@ -375,7 +424,7 @@ func (c *DriveCommentReplyCmd) Run(ctx context.Context, flags *RootFlags) error 
 	}
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{"reply": created})
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{"reply": created})
 	}
 
 	u.Out().Printf("id\t%s", created.Id)

@@ -27,3 +27,13 @@ Use `internal/cmd/output_helpers.go:printNextPageHint(u, token)`:
 
 - prints to stderr
 - exact format (tests depend on it): `# Next page: --page <token>`
+
+## Result (Key-Value) Output
+
+Use `internal/cmd/output_helpers.go:writeResult(ctx, u, ...)` for simple command results (especially destructive operations).
+
+Rules:
+
+- Same keys in `--plain` and `--json` (no snake_case vs camelCase split).
+- Prefer explicit booleans for flags (e.g. `deleted`, `removed`, `trashed`).
+- Include primary identifiers (`id`, `fileId`, etc) as separate keys.

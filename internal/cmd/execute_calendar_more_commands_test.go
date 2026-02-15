@@ -16,7 +16,7 @@ func TestExecute_CalendarMoreCommands_JSON(t *testing.T) {
 	origNew := newCalendarService
 	t.Cleanup(func() { newCalendarService = origNew })
 
-	const calendarID = "c1"
+	const calendarID = "c1@example.com"
 	const eventID = "e1"
 
 	srv := httptest.NewServer(withPrimaryCalendar(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

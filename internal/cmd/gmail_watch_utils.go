@@ -70,7 +70,7 @@ func resolveLabelIDsWithService(svc *gmail.Service, labels []string) ([]string, 
 	return out, nil
 }
 
-func lowerStringSet(items []string) map[string]struct{} {
+func stringSet(items []string) map[string]struct{} {
 	if len(items) == 0 {
 		return nil
 	}
@@ -80,7 +80,7 @@ func lowerStringSet(items []string) map[string]struct{} {
 		if v == "" {
 			continue
 		}
-		out[strings.ToLower(v)] = struct{}{}
+		out[v] = struct{}{}
 	}
 	if len(out) == 0 {
 		return nil

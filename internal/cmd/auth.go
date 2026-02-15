@@ -75,7 +75,7 @@ type AuthCredentialsSetCmd struct {
 	Domains string `name:"domain" help:"Comma-separated domains to map to this client (e.g. example.com)"`
 }
 
-func (c *AuthCredentialsSetCmd) Run(ctx context.Context) error {
+func (c *AuthCredentialsSetCmd) Run(ctx context.Context, _ *RootFlags) error {
 	u := ui.FromContext(ctx)
 	client, err := normalizeClientForFlag(authclient.ClientOverrideFromContext(ctx))
 	if err != nil {
@@ -121,7 +121,7 @@ func (c *AuthCredentialsSetCmd) Run(ctx context.Context) error {
 		}
 	}
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
 			"saved":  true,
 			"path":   outPath,
 			"client": client,
@@ -134,7 +134,7 @@ func (c *AuthCredentialsSetCmd) Run(ctx context.Context) error {
 
 type AuthCredentialsListCmd struct{}
 
-func (c *AuthCredentialsListCmd) Run(ctx context.Context) error {
+func (c *AuthCredentialsListCmd) Run(ctx context.Context, _ *RootFlags) error {
 	u := ui.FromContext(ctx)
 	cfg, err := config.ReadConfig()
 	if err != nil {
@@ -193,14 +193,14 @@ func (c *AuthCredentialsListCmd) Run(ctx context.Context) error {
 
 	if len(entries) == 0 {
 		if outfmt.IsJSON(ctx) {
-			return outfmt.WriteJSON(os.Stdout, map[string]any{"clients": []entry{}})
+			return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{"clients": []entry{}})
 		}
 		u.Err().Println("No OAuth client credentials stored")
 		return nil
 	}
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{"clients": entries})
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{"clients": entries})
 	}
 
 	w, done := tableWriter(ctx)
@@ -221,7 +221,7 @@ type AuthTokensCmd struct {
 
 type AuthTokensListCmd struct{}
 
-func (c *AuthTokensListCmd) Run(ctx context.Context) error {
+func (c *AuthTokensListCmd) Run(ctx context.Context, _ *RootFlags) error {
 	u := ui.FromContext(ctx)
 	store, err := openSecretsStore()
 	if err != nil {
@@ -242,13 +242,13 @@ func (c *AuthTokensListCmd) Run(ctx context.Context) error {
 
 	if len(filtered) == 0 {
 		if outfmt.IsJSON(ctx) {
-			return outfmt.WriteJSON(os.Stdout, map[string]any{"keys": []string{}})
+			return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{"keys": []string{}})
 		}
 		u.Err().Println("No tokens stored")
 		return nil
 	}
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{"keys": filtered})
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{"keys": filtered})
 	}
 	for _, k := range filtered {
 		u.Out().Println(k)
@@ -282,17 +282,11 @@ func (c *AuthTokensDeleteCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if err := store.DeleteToken(client, email); err != nil {
 		return err
 	}
-	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{
-			"deleted": true,
-			"email":   email,
-			"client":  client,
-		})
-	}
-	u.Out().Printf("deleted\ttrue")
-	u.Out().Printf("email\t%s", email)
-	u.Out().Printf("client\t%s", client)
-	return nil
+	return writeResult(ctx, u,
+		kv("deleted", true),
+		kv("email", email),
+		kv("client", client),
+	)
 }
 
 type AuthTokensExportCmd struct {
@@ -301,7 +295,7 @@ type AuthTokensExportCmd struct {
 	Overwrite bool                   `name:"overwrite" help:"Overwrite output file if it exists"`
 }
 
-func (c *AuthTokensExportCmd) Run(ctx context.Context) error {
+func (c *AuthTokensExportCmd) Run(ctx context.Context, _ *RootFlags) error {
 	u := ui.FromContext(ctx)
 	email := strings.TrimSpace(c.Email)
 	if email == "" {
@@ -372,7 +366,7 @@ func (c *AuthTokensExportCmd) Run(ctx context.Context) error {
 
 	u.Err().Println("WARNING: exported file contains a refresh token (keep it safe and delete it when done)")
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
 			"exported": true,
 			"email":    tok.Email,
 			"client":   client,
@@ -390,7 +384,7 @@ type AuthTokensImportCmd struct {
 	InPath string `arg:"" name:"inPath" help:"Input path or '-' for stdin"`
 }
 
-func (c *AuthTokensImportCmd) Run(ctx context.Context) error {
+func (c *AuthTokensImportCmd) Run(ctx context.Context, _ *RootFlags) error {
 	u := ui.FromContext(ctx)
 	inPath := c.InPath
 	var b []byte
@@ -467,7 +461,7 @@ func (c *AuthTokensImportCmd) Run(ctx context.Context) error {
 
 	u.Err().Println("Imported refresh token into keyring")
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
 			"imported": true,
 			"email":    ex.Email,
 			"client":   client,
@@ -493,7 +487,7 @@ type AuthAddCmd struct {
 	DriveScope   string        `name:"drive-scope" help:"Drive scope mode: full|readonly|file" enum:"full,readonly,file" default:"full"`
 }
 
-func (c *AuthAddCmd) Run(ctx context.Context) error {
+func (c *AuthAddCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
 
 	override := authclient.ClientOverrideFromContext(ctx)
@@ -560,7 +554,7 @@ func (c *AuthAddCmd) Run(ctx context.Context) error {
 				return manualErr
 			}
 			if outfmt.IsJSON(ctx) {
-				return outfmt.WriteJSON(os.Stdout, map[string]any{
+				return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
 					"auth_url":     result.URL,
 					"state_reused": result.StateReused,
 				})
@@ -582,6 +576,21 @@ func (c *AuthAddCmd) Run(ctx context.Context) error {
 	timeout := c.Timeout
 	if timeout == 0 && manual {
 		timeout = 5 * time.Minute
+	}
+
+	if dryRunErr := dryRunExit(ctx, flags, "auth.add", map[string]any{
+		"email":         strings.TrimSpace(c.Email),
+		"client":        client,
+		"services":      services,
+		"scopes":        scopes,
+		"manual":        c.Manual,
+		"remote":        c.Remote,
+		"step":          c.Step,
+		"force_consent": c.ForceConsent,
+		"readonly":      c.Readonly,
+		"drive_scope":   c.DriveScope,
+	}); dryRunErr != nil {
+		return dryRunErr
 	}
 
 	// Pre-flight: ensure keychain is accessible before starting OAuth
@@ -644,7 +653,7 @@ func (c *AuthAddCmd) Run(ctx context.Context) error {
 		}
 	}
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
 			"stored":   true,
 			"email":    authorizedEmail,
 			"services": serviceNames,
@@ -715,7 +724,7 @@ func (c *AuthStatusCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
 			"config": map[string]any{
 				"path":   configPath,
 				"exists": configExists,
@@ -755,7 +764,7 @@ func (c *AuthStatusCmd) Run(ctx context.Context, flags *RootFlags) error {
 	return nil
 }
 
-func (c *AuthListCmd) Run(ctx context.Context) error {
+func (c *AuthListCmd) Run(ctx context.Context, _ *RootFlags) error {
 	u := ui.FromContext(ctx)
 	store, err := openSecretsStore()
 	if err != nil {
@@ -890,7 +899,7 @@ func (c *AuthListCmd) Run(ctx context.Context) error {
 			}
 			out = append(out, it)
 		}
-		return outfmt.WriteJSON(os.Stdout, map[string]any{"accounts": out})
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{"accounts": out})
 	}
 	if len(entries) == 0 {
 		u.Err().Println("No tokens stored")
@@ -969,10 +978,10 @@ type AuthServicesCmd struct {
 	Markdown bool `name:"markdown" help:"Output Markdown table"`
 }
 
-func (c *AuthServicesCmd) Run(ctx context.Context) error {
+func (c *AuthServicesCmd) Run(ctx context.Context, _ *RootFlags) error {
 	infos := googleauth.ServicesInfo()
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{"services": infos})
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{"services": infos})
 	}
 	if c.Markdown {
 		_, err := io.WriteString(os.Stdout, googleauth.ServicesMarkdown(infos))
@@ -1022,17 +1031,11 @@ func (c *AuthRemoveCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if err := store.DeleteToken(client, email); err != nil {
 		return err
 	}
-	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{
-			"deleted": true,
-			"email":   email,
-			"client":  client,
-		})
-	}
-	u.Out().Printf("deleted\ttrue")
-	u.Out().Printf("email\t%s", email)
-	u.Out().Printf("client\t%s", client)
-	return nil
+	return writeResult(ctx, u,
+		kv("deleted", true),
+		kv("email", email),
+		kv("client", client),
+	)
 }
 
 type AuthManageCmd struct {
@@ -1041,7 +1044,7 @@ type AuthManageCmd struct {
 	Timeout      time.Duration `name:"timeout" help:"Server timeout duration" default:"10m"`
 }
 
-func (c *AuthManageCmd) Run(ctx context.Context) error {
+func (c *AuthManageCmd) Run(ctx context.Context, _ *RootFlags) error {
 	services, err := parseAuthServices(c.ServicesCSV)
 	if err != nil {
 		return err
@@ -1060,7 +1063,7 @@ type AuthKeepCmd struct {
 	Key   string `name:"key" required:"" help:"Path to service account JSON key file"`
 }
 
-func (c *AuthKeepCmd) Run(ctx context.Context) error {
+func (c *AuthKeepCmd) Run(ctx context.Context, _ *RootFlags) error {
 	u := ui.FromContext(ctx)
 
 	email := strings.TrimSpace(c.Email)
@@ -1107,7 +1110,7 @@ func (c *AuthKeepCmd) Run(ctx context.Context) error {
 	}
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
 			"stored": true,
 			"email":  email,
 			"path":   destPath,
@@ -1122,7 +1125,7 @@ func (c *AuthKeepCmd) Run(ctx context.Context) error {
 
 func parseAuthServices(servicesCSV string) ([]googleauth.Service, error) {
 	trimmed := strings.ToLower(strings.TrimSpace(servicesCSV))
-	if trimmed == "" || trimmed == "user" || trimmed == "all" {
+	if trimmed == "" || trimmed == "user" || trimmed == literalAll {
 		return googleauth.UserServices(), nil
 	}
 

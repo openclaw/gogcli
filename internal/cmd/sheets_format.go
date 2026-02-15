@@ -22,12 +22,7 @@ type SheetsFormatCmd struct {
 
 func (c *SheetsFormatCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
-
-	spreadsheetID := strings.TrimSpace(c.SpreadsheetID)
+	spreadsheetID := normalizeGoogleID(strings.TrimSpace(c.SpreadsheetID))
 	rangeSpec := cleanRange(c.Range)
 	if spreadsheetID == "" {
 		return usage("empty spreadsheetId")
@@ -43,8 +38,13 @@ func (c *SheetsFormatCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return fmt.Errorf("provide format fields via --format-fields")
 	}
 
+	var err error
 	var format sheets.CellFormat
-	if err = json.Unmarshal([]byte(c.FormatJSON), &format); err != nil {
+	b, err := resolveInlineOrFileBytes(c.FormatJSON)
+	if err != nil {
+		return fmt.Errorf("read --format-json: %w", err)
+	}
+	if err = json.Unmarshal(b, &format); err != nil {
 		return fmt.Errorf("invalid format JSON: %w", err)
 	}
 
@@ -57,6 +57,20 @@ func (c *SheetsFormatCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 
 	rangeInfo, err := parseSheetRange(rangeSpec, "format")
+	if err != nil {
+		return err
+	}
+
+	if dryRunErr := dryRunExit(ctx, flags, "sheets.format", map[string]any{
+		"spreadsheet_id": spreadsheetID,
+		"range":          rangeSpec,
+		"fields":         formatFields,
+		"format":         format,
+	}); dryRunErr != nil {
+		return dryRunErr
+	}
+
+	account, err := requireAccount(flags)
 	if err != nil {
 		return err
 	}
@@ -94,7 +108,7 @@ func (c *SheetsFormatCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
 			"range":  rangeSpec,
 			"fields": formatFields,
 		})

@@ -15,17 +15,19 @@ import (
 )
 
 type GmailDraftsCmd struct {
-	List   GmailDraftsListCmd   `cmd:"" name:"list" help:"List drafts"`
-	Get    GmailDraftsGetCmd    `cmd:"" name:"get" help:"Get draft details"`
-	Delete GmailDraftsDeleteCmd `cmd:"" name:"delete" help:"Delete a draft"`
-	Send   GmailDraftsSendCmd   `cmd:"" name:"send" help:"Send a draft"`
-	Create GmailDraftsCreateCmd `cmd:"" name:"create" help:"Create a draft"`
-	Update GmailDraftsUpdateCmd `cmd:"" name:"update" help:"Update a draft"`
+	List   GmailDraftsListCmd   `cmd:"" name:"list" aliases:"ls" help:"List drafts"`
+	Get    GmailDraftsGetCmd    `cmd:"" name:"get" aliases:"info,show" help:"Get draft details"`
+	Delete GmailDraftsDeleteCmd `cmd:"" name:"delete" aliases:"rm,del,remove" help:"Delete a draft"`
+	Send   GmailDraftsSendCmd   `cmd:"" name:"send" aliases:"post" help:"Send a draft"`
+	Create GmailDraftsCreateCmd `cmd:"" name:"create" aliases:"add,new" help:"Create a draft"`
+	Update GmailDraftsUpdateCmd `cmd:"" name:"update" aliases:"edit,set" help:"Update a draft"`
 }
 
 type GmailDraftsListCmd struct {
-	Max  int64  `name:"max" aliases:"limit" help:"Max results" default:"20"`
-	Page string `name:"page" help:"Page token"`
+	Max       int64  `name:"max" aliases:"limit" help:"Max results" default:"20"`
+	Page      string `name:"page" aliases:"cursor" help:"Page token"`
+	All       bool   `name:"all" aliases:"all-pages,allpages" help:"Fetch all pages"`
+	FailEmpty bool   `name:"fail-empty" aliases:"non-empty,require-results" help:"Exit with code 3 if no results"`
 }
 
 func (c *GmailDraftsListCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -40,9 +42,32 @@ func (c *GmailDraftsListCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
-	resp, err := svc.Users.Drafts.List("me").MaxResults(c.Max).PageToken(c.Page).Do()
-	if err != nil {
-		return err
+	fetch := func(pageToken string) ([]*gmail.Draft, string, error) {
+		call := svc.Users.Drafts.List("me").MaxResults(c.Max).Context(ctx)
+		if strings.TrimSpace(pageToken) != "" {
+			call = call.PageToken(pageToken)
+		}
+		resp, err := call.Do()
+		if err != nil {
+			return nil, "", err
+		}
+		return resp.Drafts, resp.NextPageToken, nil
+	}
+
+	var drafts []*gmail.Draft
+	nextPageToken := ""
+	if c.All {
+		all, err := collectAllPages(c.Page, fetch)
+		if err != nil {
+			return err
+		}
+		drafts = all
+	} else {
+		var err error
+		drafts, nextPageToken, err = fetch(c.Page)
+		if err != nil {
+			return err
+		}
 	}
 	if outfmt.IsJSON(ctx) {
 		type item struct {
@@ -50,8 +75,8 @@ func (c *GmailDraftsListCmd) Run(ctx context.Context, flags *RootFlags) error {
 			MessageID string `json:"messageId,omitempty"`
 			ThreadID  string `json:"threadId,omitempty"`
 		}
-		items := make([]item, 0, len(resp.Drafts))
-		for _, d := range resp.Drafts {
+		items := make([]item, 0, len(drafts))
+		for _, d := range drafts {
 			if d == nil {
 				continue
 			}
@@ -62,27 +87,33 @@ func (c *GmailDraftsListCmd) Run(ctx context.Context, flags *RootFlags) error {
 			}
 			items = append(items, item{ID: d.Id, MessageID: msgID, ThreadID: threadID})
 		}
-		return outfmt.WriteJSON(os.Stdout, map[string]any{
+		if err := outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
 			"drafts":        items,
-			"nextPageToken": resp.NextPageToken,
-		})
-	}
-	if len(resp.Drafts) == 0 {
-		u.Err().Println("No drafts")
+			"nextPageToken": nextPageToken,
+		}); err != nil {
+			return err
+		}
+		if len(items) == 0 {
+			return failEmptyExit(c.FailEmpty)
+		}
 		return nil
+	}
+	if len(drafts) == 0 {
+		u.Err().Println("No drafts")
+		return failEmptyExit(c.FailEmpty)
 	}
 
 	w, flush := tableWriter(ctx)
 	defer flush()
 	fmt.Fprintln(w, "ID\tMESSAGE_ID")
-	for _, d := range resp.Drafts {
+	for _, d := range drafts {
 		msgID := ""
 		if d.Message != nil {
 			msgID = d.Message.Id
 		}
 		fmt.Fprintf(w, "%s\t%s\n", d.Id, msgID)
 	}
-	printNextPageHint(u, resp.NextPageToken)
+	printNextPageHint(u, nextPageToken)
 	return nil
 }
 
@@ -113,7 +144,7 @@ func (c *GmailDraftsGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 	if draft.Message == nil {
 		if outfmt.IsJSON(ctx) {
-			return outfmt.WriteJSON(os.Stdout, map[string]any{"draft": draft})
+			return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{"draft": draft})
 		}
 		u.Err().Println("Empty draft")
 		return nil
@@ -133,7 +164,7 @@ func (c *GmailDraftsGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 			}
 			out["downloaded"] = attachmentDownloadDraftOutputs(downloads)
 		}
-		return outfmt.WriteJSON(os.Stdout, out)
+		return outfmt.WriteJSON(ctx, os.Stdout, out)
 	}
 
 	u.Out().Printf("Draft-ID: %s", draft.Id)
@@ -179,10 +210,6 @@ type GmailDraftsDeleteCmd struct {
 
 func (c *GmailDraftsDeleteCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
 	draftID := strings.TrimSpace(c.DraftID)
 	if draftID == "" {
 		return usage("empty draftId")
@@ -190,6 +217,11 @@ func (c *GmailDraftsDeleteCmd) Run(ctx context.Context, flags *RootFlags) error 
 
 	if confirmErr := confirmDestructive(ctx, flags, fmt.Sprintf("delete gmail draft %s", draftID)); confirmErr != nil {
 		return confirmErr
+	}
+
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
 	}
 
 	svc, err := newGmailService(ctx, account)
@@ -200,12 +232,10 @@ func (c *GmailDraftsDeleteCmd) Run(ctx context.Context, flags *RootFlags) error 
 	if err := svc.Users.Drafts.Delete("me", draftID).Do(); err != nil {
 		return err
 	}
-	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{"deleted": true, "draftId": draftID})
-	}
-	u.Out().Printf("deleted\ttrue")
-	u.Out().Printf("draft_id\t%s", draftID)
-	return nil
+	return writeResult(ctx, u,
+		kv("deleted", true),
+		kv("draftId", draftID),
+	)
 }
 
 type GmailDraftsSendCmd struct {
@@ -214,13 +244,20 @@ type GmailDraftsSendCmd struct {
 
 func (c *GmailDraftsSendCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
 	draftID := strings.TrimSpace(c.DraftID)
 	if draftID == "" {
 		return usage("empty draftId")
+	}
+
+	if err := dryRunExit(ctx, flags, "gmail.drafts.send", map[string]any{
+		"draft_id": draftID,
+	}); err != nil {
+		return err
+	}
+
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
 	}
 
 	svc, err := newGmailService(ctx, account)
@@ -233,7 +270,7 @@ func (c *GmailDraftsSendCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
 			"messageId": msg.Id,
 			"threadId":  msg.ThreadId,
 		})
@@ -299,7 +336,7 @@ func buildDraftMessage(ctx context.Context, svc *gmail.Service, account string, 
 		}
 	}
 
-	info, err := fetchReplyInfo(ctx, svc, input.ReplyToMessageID, input.ReplyToThreadID)
+	info, err := fetchReplyInfo(ctx, svc, input.ReplyToMessageID, input.ReplyToThreadID, false)
 	if err != nil {
 		return nil, "", err
 	}
@@ -348,7 +385,7 @@ func writeDraftResult(ctx context.Context, u *ui.UI, draft *gmail.Draft, threadI
 		threadID = draft.Message.ThreadId
 	}
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
 			"draftId":  draft.Id,
 			"message":  draft.Message,
 			"threadId": threadID,
@@ -366,14 +403,20 @@ func writeDraftResult(ctx context.Context, u *ui.UI, draft *gmail.Draft, threadI
 
 func (c *GmailDraftsCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
 
 	body, err := resolveBodyInput(c.Body, c.BodyFile)
 	if err != nil {
 		return err
+	}
+	replyToMessageID := normalizeGmailMessageID(c.ReplyToMessageID)
+
+	attachPaths := make([]string, 0, len(c.Attach))
+	for _, p := range c.Attach {
+		expanded, expandErr := config.ExpandPath(p)
+		if expandErr != nil {
+			return expandErr
+		}
+		attachPaths = append(attachPaths, expanded)
 	}
 
 	input := draftComposeInput{
@@ -383,14 +426,34 @@ func (c *GmailDraftsCreateCmd) Run(ctx context.Context, flags *RootFlags) error 
 		Subject:          c.Subject,
 		Body:             body,
 		BodyHTML:         c.BodyHTML,
-		ReplyToMessageID: c.ReplyToMessageID,
+		ReplyToMessageID: replyToMessageID,
 		ReplyToThreadID:  "",
 		ReplyTo:          c.ReplyTo,
-		Attach:           c.Attach,
+		Attach:           attachPaths,
 		From:             c.From,
 	}
 	if validateErr := input.validate(); validateErr != nil {
 		return validateErr
+	}
+
+	if dryRunErr := dryRunExit(ctx, flags, "gmail.drafts.create", map[string]any{
+		"to":                  splitCSV(input.To),
+		"cc":                  splitCSV(input.Cc),
+		"bcc":                 splitCSV(input.Bcc),
+		"subject":             strings.TrimSpace(input.Subject),
+		"body_len":            len(strings.TrimSpace(input.Body)),
+		"body_html_len":       len(strings.TrimSpace(input.BodyHTML)),
+		"reply_to_message_id": strings.TrimSpace(input.ReplyToMessageID),
+		"reply_to":            strings.TrimSpace(input.ReplyTo),
+		"from":                strings.TrimSpace(input.From),
+		"attachments":         attachPaths,
+	}); dryRunErr != nil {
+		return dryRunErr
+	}
+
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
 	}
 
 	svc, err := newGmailService(ctx, account)
@@ -427,18 +490,9 @@ type GmailDraftsUpdateCmd struct {
 
 func (c *GmailDraftsUpdateCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
 	draftID := strings.TrimSpace(c.DraftID)
 	if draftID == "" {
 		return usage("empty draftId")
-	}
-
-	svc, err := newGmailService(ctx, account)
-	if err != nil {
-		return err
 	}
 
 	to := ""
@@ -448,9 +502,68 @@ func (c *GmailDraftsUpdateCmd) Run(ctx context.Context, flags *RootFlags) error 
 		to = *c.To
 	}
 
+	body, err := resolveBodyInput(c.Body, c.BodyFile)
+	if err != nil {
+		return err
+	}
+	replyToMessageID := normalizeGmailMessageID(c.ReplyToMessageID)
+
+	attachPaths := make([]string, 0, len(c.Attach))
+	for _, p := range c.Attach {
+		expanded, expandErr := config.ExpandPath(p)
+		if expandErr != nil {
+			return expandErr
+		}
+		attachPaths = append(attachPaths, expanded)
+	}
+
+	input := draftComposeInput{
+		To:               to,
+		Cc:               c.Cc,
+		Bcc:              c.Bcc,
+		Subject:          c.Subject,
+		Body:             body,
+		BodyHTML:         c.BodyHTML,
+		ReplyToMessageID: replyToMessageID,
+		ReplyToThreadID:  "",
+		ReplyTo:          c.ReplyTo,
+		Attach:           attachPaths,
+		From:             c.From,
+	}
+	if validateErr := input.validate(); validateErr != nil {
+		return validateErr
+	}
+
+	if dryRunErr := dryRunExit(ctx, flags, "gmail.drafts.update", map[string]any{
+		"draft_id":            draftID,
+		"to_keep_existing":    !toWasSet,
+		"to":                  splitCSV(input.To),
+		"cc":                  splitCSV(input.Cc),
+		"bcc":                 splitCSV(input.Bcc),
+		"subject":             strings.TrimSpace(input.Subject),
+		"body_len":            len(strings.TrimSpace(input.Body)),
+		"body_html_len":       len(strings.TrimSpace(input.BodyHTML)),
+		"reply_to_message_id": strings.TrimSpace(input.ReplyToMessageID),
+		"reply_to":            strings.TrimSpace(input.ReplyTo),
+		"from":                strings.TrimSpace(input.From),
+		"attachments":         attachPaths,
+	}); dryRunErr != nil {
+		return dryRunErr
+	}
+
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
+	}
+
+	svc, err := newGmailService(ctx, account)
+	if err != nil {
+		return err
+	}
+
 	existingThreadID := ""
 	existingTo := ""
-	if !toWasSet || strings.TrimSpace(c.ReplyToMessageID) == "" {
+	if !toWasSet || strings.TrimSpace(replyToMessageID) == "" {
 		existing, fetchErr := svc.Users.Drafts.Get("me", draftID).Format("full").Do()
 		if fetchErr != nil {
 			return fetchErr
@@ -466,32 +579,13 @@ func (c *GmailDraftsUpdateCmd) Run(ctx context.Context, flags *RootFlags) error 
 		to = existingTo
 	}
 
-	body, err := resolveBodyInput(c.Body, c.BodyFile)
-	if err != nil {
-		return err
-	}
-
 	replyToThreadID := ""
-	if strings.TrimSpace(c.ReplyToMessageID) == "" {
+	if strings.TrimSpace(replyToMessageID) == "" {
 		replyToThreadID = existingThreadID
 	}
 
-	input := draftComposeInput{
-		To:               to,
-		Cc:               c.Cc,
-		Bcc:              c.Bcc,
-		Subject:          c.Subject,
-		Body:             body,
-		BodyHTML:         c.BodyHTML,
-		ReplyToMessageID: c.ReplyToMessageID,
-		ReplyToThreadID:  replyToThreadID,
-		ReplyTo:          c.ReplyTo,
-		Attach:           c.Attach,
-		From:             c.From,
-	}
-	if validateErr := input.validate(); validateErr != nil {
-		return validateErr
-	}
+	input.To = to
+	input.ReplyToThreadID = replyToThreadID
 
 	msg, threadID, err := buildDraftMessage(ctx, svc, account, input)
 	if err != nil {

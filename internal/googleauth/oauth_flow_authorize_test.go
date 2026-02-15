@@ -20,6 +20,38 @@ import (
 
 var errMissingRedirectState = errors.New("missing redirect/state")
 
+const testRedirectURI = "http://127.0.0.1:55555/oauth2/callback"
+
+func useManualRedirectURI(t *testing.T) {
+	t.Helper()
+
+	orig := manualRedirectURIFn
+	manualRedirectURIFn = func(context.Context) (string, error) { return testRedirectURI, nil }
+
+	t.Cleanup(func() {
+		manualRedirectURIFn = orig
+	})
+}
+
+func useStdinPipe(t *testing.T) *os.File {
+	t.Helper()
+
+	orig := os.Stdin
+
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("pipe: %v", err)
+	}
+	os.Stdin = r
+
+	t.Cleanup(func() {
+		os.Stdin = orig
+		_ = r.Close()
+	})
+
+	return w
+}
+
 func newTokenServer(t *testing.T) *httptest.Server {
 	t.Helper()
 
@@ -91,25 +123,14 @@ func TestAuthorize_Manual_Success(t *testing.T) {
 	}
 	randomStateFn = func() (string, error) { return "state123", nil }
 
+	useManualRedirectURI(t)
+
 	tokenSrv := newTokenServer(t)
 	defer tokenSrv.Close()
 	oauthEndpoint = oauth2EndpointForTest(tokenSrv.URL)
 
-	origStdin := os.Stdin
-
-	t.Cleanup(func() { os.Stdin = origStdin })
-
-	var r *os.File
-	var w *os.File
-
-	if pr, pw, err := os.Pipe(); err != nil {
-		t.Fatalf("pipe: %v", err)
-	} else {
-		r = pr
-		w = pw
-	}
-	os.Stdin = r
-	_, _ = w.WriteString("http://localhost:1/?code=abc&state=state123\n")
+	w := useStdinPipe(t)
+	_, _ = w.WriteString("http://127.0.0.1:55555/oauth2/callback?code=abc&state=state123\n")
 	_ = w.Close()
 
 	rt, err := Authorize(context.Background(), AuthorizeOptions{
@@ -143,25 +164,14 @@ func TestAuthorize_Manual_Success_NoNewline(t *testing.T) {
 	}
 	randomStateFn = func() (string, error) { return "state123", nil }
 
+	useManualRedirectURI(t)
+
 	tokenSrv := newTokenServer(t)
 	defer tokenSrv.Close()
 	oauthEndpoint = oauth2EndpointForTest(tokenSrv.URL)
 
-	origStdin := os.Stdin
-
-	t.Cleanup(func() { os.Stdin = origStdin })
-
-	var r *os.File
-	var w *os.File
-
-	if pr, pw, err := os.Pipe(); err != nil {
-		t.Fatalf("pipe: %v", err)
-	} else {
-		r = pr
-		w = pw
-	}
-	os.Stdin = r
-	_, _ = w.WriteString("http://localhost:1/?code=abc&state=state123")
+	w := useStdinPipe(t)
+	_, _ = w.WriteString("http://127.0.0.1:55555/oauth2/callback?code=abc&state=state123")
 	_ = w.Close()
 
 	rt, err := Authorize(context.Background(), AuthorizeOptions{
@@ -195,22 +205,16 @@ func TestAuthorize_Manual_CancelEOF(t *testing.T) {
 	}
 	randomStateFn = func() (string, error) { return "state123", nil }
 
+	useManualRedirectURI(t)
+
 	tokenSrv := newTokenServer(t)
 	defer tokenSrv.Close()
 	oauthEndpoint = oauth2EndpointForTest(tokenSrv.URL)
 
-	origStdin := os.Stdin
-
-	t.Cleanup(func() { os.Stdin = origStdin })
-
-	r, w, err := os.Pipe()
-	if err != nil {
-		t.Fatalf("pipe: %v", err)
-	}
-	os.Stdin = r
+	w := useStdinPipe(t)
 	_ = w.Close()
 
-	_, err = Authorize(context.Background(), AuthorizeOptions{
+	_, err := Authorize(context.Background(), AuthorizeOptions{
 		Scopes:  []string{"s1"},
 		Manual:  true,
 		Timeout: 2 * time.Second,
@@ -241,25 +245,14 @@ func TestAuthorize_Manual_StateMismatch(t *testing.T) {
 	}
 	randomStateFn = func() (string, error) { return "state123", nil }
 
+	useManualRedirectURI(t)
+
 	tokenSrv := newTokenServer(t)
 	defer tokenSrv.Close()
 	oauthEndpoint = oauth2EndpointForTest(tokenSrv.URL)
 
-	origStdin := os.Stdin
-
-	t.Cleanup(func() { os.Stdin = origStdin })
-
-	var r *os.File
-	var w *os.File
-
-	if pr, pw, err := os.Pipe(); err != nil {
-		t.Fatalf("pipe: %v", err)
-	} else {
-		r = pr
-		w = pw
-	}
-	os.Stdin = r
-	_, _ = w.WriteString("http://localhost:1/?code=abc&state=DIFFERENT\n")
+	w := useStdinPipe(t)
+	_, _ = w.WriteString("http://127.0.0.1:55555/oauth2/callback?code=abc&state=DIFFERENT\n")
 	_ = w.Close()
 
 	if _, err := Authorize(context.Background(), AuthorizeOptions{
@@ -286,6 +279,11 @@ func TestAuthorize_Manual_AuthCode(t *testing.T) {
 	readClientCredentials = func(string) (config.ClientCredentials, error) {
 		return config.ClientCredentials{ClientID: "id", ClientSecret: "secret"}, nil
 	}
+
+	if err := saveManualState("", []string{"s1"}, false, "state123", testRedirectURI); err != nil {
+		t.Fatalf("save manual state: %v", err)
+	}
+
 	stateCalled := false
 	randomStateFn = func() (string, error) {
 		stateCalled = true
@@ -333,7 +331,7 @@ func TestAuthorize_Manual_AuthURL_RequireStateMissing(t *testing.T) {
 	_, err := Authorize(context.Background(), AuthorizeOptions{
 		Scopes:       []string{"s1"},
 		Manual:       true,
-		AuthURL:      "http://localhost:1/?code=abc",
+		AuthURL:      "http://127.0.0.1:55555/oauth2/callback?code=abc",
 		RequireState: true,
 		Client:       "default",
 		Timeout:      2 * time.Second,
@@ -365,7 +363,7 @@ func TestAuthorize_Manual_AuthURL_RequireStateMissingCache(t *testing.T) {
 	_, err := Authorize(context.Background(), AuthorizeOptions{
 		Scopes:       []string{"s1"},
 		Manual:       true,
-		AuthURL:      "http://localhost:1/?code=abc&state=state123",
+		AuthURL:      "http://127.0.0.1:55555/oauth2/callback?code=abc&state=state123",
 		RequireState: true,
 		Client:       "default",
 		Timeout:      2 * time.Second,
@@ -394,14 +392,14 @@ func TestAuthorize_Manual_AuthURL_RequireStateMissingForDifferentState(t *testin
 	}
 	oauthEndpoint = oauth2EndpointForTest("http://example.com")
 
-	if err := saveManualState("default", []string{"s1"}, false, "state123"); err != nil {
+	if err := saveManualState("default", []string{"s1"}, false, "state123", "http://127.0.0.1:55555/oauth2/callback"); err != nil {
 		t.Fatalf("save manual state: %v", err)
 	}
 
 	_, err := Authorize(context.Background(), AuthorizeOptions{
 		Scopes:       []string{"s1"},
 		Manual:       true,
-		AuthURL:      "http://localhost:1/?code=abc&state=DIFFERENT",
+		AuthURL:      "http://127.0.0.1:55555/oauth2/callback?code=abc&state=DIFFERENT",
 		RequireState: true,
 		Client:       "default",
 		Timeout:      2 * time.Second,

@@ -13,12 +13,12 @@ import (
 )
 
 type ClassroomCourseworkCmd struct {
-	List      ClassroomCourseworkListCmd      `cmd:"" default:"withargs" help:"List coursework"`
-	Get       ClassroomCourseworkGetCmd       `cmd:"" help:"Get coursework"`
-	Create    ClassroomCourseworkCreateCmd    `cmd:"" help:"Create coursework"`
-	Update    ClassroomCourseworkUpdateCmd    `cmd:"" help:"Update coursework"`
-	Delete    ClassroomCourseworkDeleteCmd    `cmd:"" help:"Delete coursework" aliases:"rm"`
-	Assignees ClassroomCourseworkAssigneesCmd `cmd:"" name:"assignees" help:"Modify coursework assignees"`
+	List      ClassroomCourseworkListCmd      `cmd:"" default:"withargs" aliases:"ls" help:"List coursework"`
+	Get       ClassroomCourseworkGetCmd       `cmd:"" aliases:"info,show" help:"Get coursework"`
+	Create    ClassroomCourseworkCreateCmd    `cmd:"" aliases:"add,new" help:"Create coursework"`
+	Update    ClassroomCourseworkUpdateCmd    `cmd:"" aliases:"edit,set" help:"Update coursework"`
+	Delete    ClassroomCourseworkDeleteCmd    `cmd:"" aliases:"rm,del,remove" help:"Delete coursework"`
+	Assignees ClassroomCourseworkAssigneesCmd `cmd:"" name:"assignees" aliases:"assign" help:"Modify coursework assignees"`
 }
 
 type ClassroomCourseworkListCmd struct {
@@ -27,7 +27,9 @@ type ClassroomCourseworkListCmd struct {
 	Topic     string `name:"topic" help:"Filter by topic ID"`
 	OrderBy   string `name:"order-by" help:"Order by (e.g., updateTime desc, dueDate desc)"`
 	Max       int64  `name:"max" aliases:"limit" help:"Max results" default:"100"`
-	Page      string `name:"page" help:"Page token"`
+	Page      string `name:"page" aliases:"cursor" help:"Page token"`
+	All       bool   `name:"all" aliases:"all-pages,allpages" help:"Fetch all pages"`
+	FailEmpty bool   `name:"fail-empty" aliases:"non-empty,require-results" help:"Exit with code 3 if no results"`
 	ScanPages int    `name:"scan-pages" help:"Pages to scan when filtering by topic" default:"3"`
 }
 
@@ -62,39 +64,70 @@ func (c *ClassroomCourseworkListCmd) Run(ctx context.Context, flags *RootFlags) 
 		return call.Do()
 	}
 
-	coursework, nextPageToken, err := scanClassroomTopicPages(
-		c.Topic,
-		c.Page,
-		c.ScanPages,
-		func(page string) ([]*classroom.CourseWork, string, error) {
-			resp, callErr := makeCall(page)
-			if callErr != nil {
-				return nil, "", callErr
+	fetch := func(page string) ([]*classroom.CourseWork, string, error) {
+		resp, callErr := makeCall(page)
+		if callErr != nil {
+			return nil, "", callErr
+		}
+		return resp.CourseWork, resp.NextPageToken, nil
+	}
+
+	var coursework []*classroom.CourseWork
+	var nextPageToken string
+	if c.All {
+		all, err := collectAllPages(c.Page, fetch)
+		if err != nil {
+			return wrapClassroomError(err)
+		}
+		coursework = all
+		if topic := strings.TrimSpace(c.Topic); topic != "" {
+			filtered := coursework[:0]
+			for _, work := range coursework {
+				if work == nil {
+					continue
+				}
+				if work.TopicId == topic {
+					filtered = append(filtered, work)
+				}
 			}
-			return resp.CourseWork, resp.NextPageToken, nil
-		},
-		func(work *classroom.CourseWork) string {
-			if work == nil {
-				return ""
-			}
-			return work.TopicId
-		},
-	)
-	if err != nil {
-		return wrapClassroomError(err)
+			coursework = filtered
+		}
+	} else {
+		var err error
+		coursework, nextPageToken, err = scanClassroomTopicPages(
+			c.Topic,
+			c.Page,
+			c.ScanPages,
+			fetch,
+			func(work *classroom.CourseWork) string {
+				if work == nil {
+					return ""
+				}
+				return work.TopicId
+			},
+		)
+		if err != nil {
+			return wrapClassroomError(err)
+		}
 	}
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{
+		if err := outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
 			"coursework":    coursework,
 			"nextPageToken": nextPageToken,
-		})
+		}); err != nil {
+			return err
+		}
+		if len(coursework) == 0 {
+			return failEmptyExit(c.FailEmpty)
+		}
+		return nil
 	}
 
 	if len(coursework) == 0 {
 		u.Err().Println("No coursework")
 		printNextPageHint(u, nextPageToken)
-		return nil
+		return failEmptyExit(c.FailEmpty)
 	}
 
 	w, flush := tableWriter(ctx)
@@ -148,7 +181,7 @@ func (c *ClassroomCourseworkGetCmd) Run(ctx context.Context, flags *RootFlags) e
 	}
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{"coursework": work})
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{"coursework": work})
 	}
 
 	u.Out().Printf("id\t%s", work.Id)
@@ -192,21 +225,12 @@ type ClassroomCourseworkCreateCmd struct {
 
 func (c *ClassroomCourseworkCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
 	courseID := strings.TrimSpace(c.CourseID)
 	if courseID == "" {
 		return usage("empty courseId")
 	}
 	if strings.TrimSpace(c.Title) == "" {
 		return usage("empty title")
-	}
-
-	svc, err := newClassroomService(ctx, account)
-	if err != nil {
-		return wrapClassroomError(err)
 	}
 
 	work := &classroom.CourseWork{
@@ -227,6 +251,7 @@ func (c *ClassroomCourseworkCreateCmd) Run(ctx context.Context, flags *RootFlags
 		work.ScheduledTime = v
 	}
 
+	var err error
 	var dueDate *classroom.Date
 	var dueTime *classroom.TimeOfDay
 	if strings.TrimSpace(c.Due) != "" {
@@ -258,13 +283,30 @@ func (c *ClassroomCourseworkCreateCmd) Run(ctx context.Context, flags *RootFlags
 		work.DueTime = dueTime
 	}
 
+	if dryRunErr := dryRunExit(ctx, flags, "classroom.coursework.create", map[string]any{
+		"course_id":  courseID,
+		"coursework": work,
+	}); dryRunErr != nil {
+		return dryRunErr
+	}
+
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
+	}
+
+	svc, err := newClassroomService(ctx, account)
+	if err != nil {
+		return wrapClassroomError(err)
+	}
+
 	created, err := svc.Courses.CourseWork.Create(courseID, work).Context(ctx).Do()
 	if err != nil {
 		return wrapClassroomError(err)
 	}
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{"coursework": created})
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{"coursework": created})
 	}
 	u.Out().Printf("id\t%s", created.Id)
 	u.Out().Printf("title\t%s", created.Title)
@@ -288,10 +330,6 @@ type ClassroomCourseworkUpdateCmd struct {
 
 func (c *ClassroomCourseworkUpdateCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
 	courseID := strings.TrimSpace(c.CourseID)
 	courseworkID := strings.TrimSpace(c.CourseworkID)
 	if courseID == "" {
@@ -329,6 +367,7 @@ func (c *ClassroomCourseworkUpdateCmd) Run(ctx context.Context, flags *RootFlags
 		fields = append(fields, "scheduledTime")
 	}
 
+	var err error
 	var dueDate *classroom.Date
 	var dueTime *classroom.TimeOfDay
 	if strings.TrimSpace(c.Due) != "" {
@@ -366,6 +405,21 @@ func (c *ClassroomCourseworkUpdateCmd) Run(ctx context.Context, flags *RootFlags
 		return usage("no updates specified")
 	}
 
+	if dryRunErr := dryRunExit(ctx, flags, "classroom.coursework.update", map[string]any{
+		"course_id":     courseID,
+		"coursework_id": courseworkID,
+		"update_mask":   updateMask(fields),
+		"update_fields": fields,
+		"coursework":    work,
+	}); dryRunErr != nil {
+		return dryRunErr
+	}
+
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
+	}
+
 	svc, err := newClassroomService(ctx, account)
 	if err != nil {
 		return wrapClassroomError(err)
@@ -377,7 +431,7 @@ func (c *ClassroomCourseworkUpdateCmd) Run(ctx context.Context, flags *RootFlags
 	}
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{"coursework": updated})
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{"coursework": updated})
 	}
 	u.Out().Printf("id\t%s", updated.Id)
 	u.Out().Printf("title\t%s", updated.Title)
@@ -392,10 +446,6 @@ type ClassroomCourseworkDeleteCmd struct {
 
 func (c *ClassroomCourseworkDeleteCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
 	courseID := strings.TrimSpace(c.CourseID)
 	courseworkID := strings.TrimSpace(c.CourseworkID)
 	if courseID == "" {
@@ -405,7 +455,11 @@ func (c *ClassroomCourseworkDeleteCmd) Run(ctx context.Context, flags *RootFlags
 		return usage("empty courseworkId")
 	}
 
-	err = confirmDestructive(ctx, flags, fmt.Sprintf("delete coursework %s from %s", courseworkID, courseID))
+	if err := confirmDestructive(ctx, flags, fmt.Sprintf("delete coursework %s from %s", courseworkID, courseID)); err != nil {
+		return err
+	}
+
+	account, err := requireAccount(flags)
 	if err != nil {
 		return err
 	}
@@ -419,17 +473,11 @@ func (c *ClassroomCourseworkDeleteCmd) Run(ctx context.Context, flags *RootFlags
 		return wrapClassroomError(err)
 	}
 
-	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{
-			"deleted":      true,
-			"courseId":     courseID,
-			"courseworkId": courseworkID,
-		})
-	}
-	u.Out().Printf("deleted\ttrue")
-	u.Out().Printf("course_id\t%s", courseID)
-	u.Out().Printf("coursework_id\t%s", courseworkID)
-	return nil
+	return writeResult(ctx, u,
+		kv("deleted", true),
+		kv("courseId", courseID),
+		kv("courseworkId", courseworkID),
+	)
 }
 
 type ClassroomCourseworkAssigneesCmd struct {
@@ -442,10 +490,6 @@ type ClassroomCourseworkAssigneesCmd struct {
 
 func (c *ClassroomCourseworkAssigneesCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
 	courseID := strings.TrimSpace(c.CourseID)
 	courseworkID := strings.TrimSpace(c.CourseworkID)
 	if courseID == "" {
@@ -467,6 +511,19 @@ func (c *ClassroomCourseworkAssigneesCmd) Run(ctx context.Context, flags *RootFl
 		return usage("no assignee changes specified")
 	}
 
+	if dryRunErr := dryRunExit(ctx, flags, "classroom.coursework.assignees", map[string]any{
+		"course_id":     courseID,
+		"coursework_id": courseworkID,
+		"request":       req,
+	}); dryRunErr != nil {
+		return dryRunErr
+	}
+
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
+	}
+
 	svc, err := newClassroomService(ctx, account)
 	if err != nil {
 		return wrapClassroomError(err)
@@ -478,7 +535,7 @@ func (c *ClassroomCourseworkAssigneesCmd) Run(ctx context.Context, flags *RootFl
 	}
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{"coursework": updated})
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{"coursework": updated})
 	}
 	u.Out().Printf("id\t%s", updated.Id)
 	u.Out().Printf("assignee_mode\t%s", updated.AssigneeMode)

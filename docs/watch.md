@@ -48,7 +48,7 @@ gog gmail watch serve \
   [--verify-oidc] [--oidc-email <svc@...>] [--oidc-audience <aud>] \
   [--token <shared>] \
   [--hook-url <url>] [--hook-token <token>] \
-  [--include-body] [--max-bytes <n>] [--save-hook]
+  [--include-body] [--max-bytes <n>] [--exclude-labels <id,id,...>] [--save-hook]
 
 gog gmail history --since <historyId> [--max <n>] [--page <token>]
 ```
@@ -58,6 +58,8 @@ Notes:
 - `watch renew` reuses stored topic/labels.
 - `watch stop` calls Gmail stop + clears state.
 - `watch serve` uses stored hook if `--hook-url` not provided.
+- `watch serve --exclude-labels` defaults to `SPAM,TRASH`; set to an empty string to disable.
+- Exclude label IDs are matched exactly (case-sensitive opaque IDs).
 
 ## State
 

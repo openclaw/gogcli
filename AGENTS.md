@@ -19,6 +19,7 @@
 
 - Formatting: `make fmt` (`goimports` local prefix `github.com/steipete/gogcli` + `gofumpt`).
 - Output: keep stdout parseable (`--json` / `--plain`); send human hints/progress to stderr.
+- Gmail labels: treat label IDs as case-sensitive opaque tokens; only case-fold label names for name lookup.
 
 ## Testing Guidelines
 
