@@ -153,6 +153,7 @@ func (c *DriveLsCmd) Run(ctx context.Context, flags *RootFlags) error {
 
 type DriveSearchCmd struct {
 	Query     []string `arg:"" name:"query" help:"Search query"`
+	RawQuery  bool     `name:"raw-query" aliases:"raw" help:"Treat query as Drive query language (pass through; may error if invalid)"`
 	Max       int64    `name:"max" aliases:"limit" help:"Max results" default:"20"`
 	Page      string   `name:"page" aliases:"cursor" help:"Page token"`
 	AllDrives bool     `name:"all-drives" help:"Include shared drives (default: true; use --no-all-drives for My Drive only)" default:"true" negatable:"_"`
@@ -175,7 +176,7 @@ func (c *DriveSearchCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 
 	call := svc.Files.List().
-		Q(buildDriveSearchQuery(query)).
+		Q(buildDriveSearchQuery(query, c.RawQuery)).
 		PageSize(c.Max).
 		PageToken(c.Page).
 		OrderBy("modifiedTime desc")
@@ -988,13 +989,24 @@ func buildDriveListQuery(folderID string, userQuery string) string {
 	return q
 }
 
-func buildDriveSearchQuery(text string) string {
+func buildDriveSearchQuery(text string, rawQuery bool) string {
 	q := strings.TrimSpace(text)
 	if q == "" {
 		return "trashed = false"
 	}
-	if !looksLikeDriveFilterQuery(q) {
+	if rawQuery {
+		return buildDriveFilterQuery(q)
+	}
+	if !looksLikeDriveQueryLanguage(q) {
 		return fmt.Sprintf("fullText contains '%s' and trashed = false", escapeDriveQueryString(q))
+	}
+	return buildDriveFilterQuery(q)
+}
+
+func buildDriveFilterQuery(q string) string {
+	q = strings.TrimSpace(q)
+	if q == "" {
+		return "trashed = false"
 	}
 	if !hasDriveTrashedPredicate(q) {
 		q += " and trashed = false"
@@ -1002,7 +1014,11 @@ func buildDriveSearchQuery(text string) string {
 	return q
 }
 
-func looksLikeDriveFilterQuery(q string) bool {
+// Heuristic detection for Drive query-language input.
+//
+// Motivation: keep `gog drive search foo bar` user-friendly (fullText search)
+// while still allowing power-users to paste raw Drive filters.
+func looksLikeDriveQueryLanguage(q string) bool {
 	if strings.EqualFold(q, "sharedWithMe") {
 		return true
 	}

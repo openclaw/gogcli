@@ -33,13 +33,13 @@ func TestBuildDriveListQuery(t *testing.T) {
 }
 
 func TestBuildDriveSearchQuery(t *testing.T) {
-	got := buildDriveSearchQuery("hello world")
+	got := buildDriveSearchQuery("hello world", false)
 	if got != "fullText contains 'hello world' and trashed = false" {
 		t.Fatalf("unexpected: %q", got)
 	}
 
 	t.Run("passes through filter query", func(t *testing.T) {
-		got := buildDriveSearchQuery("mimeType = 'application/vnd.google-apps.document'")
+		got := buildDriveSearchQuery("mimeType = 'application/vnd.google-apps.document'", false)
 		want := "mimeType = 'application/vnd.google-apps.document' and trashed = false"
 		if got != want {
 			t.Fatalf("unexpected: %q", got)
@@ -47,7 +47,7 @@ func TestBuildDriveSearchQuery(t *testing.T) {
 	})
 
 	t.Run("filter query containing quoted trashed still appends trashed=false", func(t *testing.T) {
-		got := buildDriveSearchQuery("name contains 'trashed'")
+		got := buildDriveSearchQuery("name contains 'trashed'", false)
 		want := "name contains 'trashed' and trashed = false"
 		if got != want {
 			t.Fatalf("unexpected: %q", got)
@@ -55,7 +55,7 @@ func TestBuildDriveSearchQuery(t *testing.T) {
 	})
 
 	t.Run("plain text containing trashed still appends trashed=false", func(t *testing.T) {
-		got := buildDriveSearchQuery("trashed")
+		got := buildDriveSearchQuery("trashed", false)
 		want := "fullText contains 'trashed' and trashed = false"
 		if got != want {
 			t.Fatalf("unexpected: %q", got)
@@ -63,8 +63,16 @@ func TestBuildDriveSearchQuery(t *testing.T) {
 	})
 
 	t.Run("does not add trashed when already present", func(t *testing.T) {
-		got := buildDriveSearchQuery("mimeType != 'application/vnd.google-apps.folder' and TrAsHeD = true")
+		got := buildDriveSearchQuery("mimeType != 'application/vnd.google-apps.folder' and TrAsHeD = true", false)
 		want := "mimeType != 'application/vnd.google-apps.folder' and TrAsHeD = true"
+		if got != want {
+			t.Fatalf("unexpected: %q", got)
+		}
+	})
+
+	t.Run("raw query bypasses fullText wrapping", func(t *testing.T) {
+		got := buildDriveSearchQuery("hello world", true)
+		want := "hello world and trashed = false"
 		if got != want {
 			t.Fatalf("unexpected: %q", got)
 		}
@@ -90,7 +98,7 @@ func TestFormatDriveSize(t *testing.T) {
 	}
 }
 
-func TestLooksLikeDriveFilterQuery(t *testing.T) {
+func TestLooksLikeDriveQueryLanguage(t *testing.T) {
 	tests := []struct {
 		name  string
 		query string
@@ -143,9 +151,9 @@ func TestLooksLikeDriveFilterQuery(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := looksLikeDriveFilterQuery(tt.query)
+			got := looksLikeDriveQueryLanguage(tt.query)
 			if got != tt.want {
-				t.Errorf("looksLikeDriveFilterQuery(%q) = %v, want %v", tt.query, got, tt.want)
+				t.Errorf("looksLikeDriveQueryLanguage(%q) = %v, want %v", tt.query, got, tt.want)
 			}
 		})
 	}
