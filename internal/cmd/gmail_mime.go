@@ -233,13 +233,36 @@ func formatAddressHeader(value string) string {
 }
 
 func formatAddressHeaders(values []string) string {
-	formatted := make([]string, 0, len(values))
+	parts := make([]string, 0, len(values))
 	for _, value := range values {
 		trimmed := strings.TrimSpace(value)
 		if trimmed == "" {
 			continue
 		}
-		formatted = append(formatted, formatAddressHeader(trimmed))
+		parts = append(parts, trimmed)
+	}
+	if len(parts) == 0 {
+		return ""
+	}
+
+	// Prefer parsing the full comma-separated list so callers can pass either
+	// repeated flags or a single comma-separated string.
+	if addrs, err := mail.ParseAddressList(strings.Join(parts, ", ")); err == nil {
+		formatted := make([]string, 0, len(addrs))
+		for _, addr := range addrs {
+			if strings.TrimSpace(addr.Name) == "" {
+				formatted = append(formatted, addr.Address)
+			} else {
+				formatted = append(formatted, addr.String())
+			}
+		}
+		return strings.Join(formatted, ", ")
+	}
+
+	// Fallback: per-part parsing; keep unparseable parts unchanged.
+	formatted := make([]string, 0, len(parts))
+	for _, p := range parts {
+		formatted = append(formatted, formatAddressHeader(p))
 	}
 	return strings.Join(formatted, ", ")
 }

@@ -341,3 +341,14 @@ func TestFormatAddressHeadersFiltersEmpty(t *testing.T) {
 		t.Fatalf("expected %q, got %q", expected, got)
 	}
 }
+
+func TestFormatAddressHeadersParsesCommaSeparatedList(t *testing.T) {
+	got := formatAddressHeaders([]string{"Alice <a@b.com>, Bob <b@c.com>"})
+	parts := strings.SplitN(got, ", ", 2)
+	if len(parts) != 2 {
+		t.Fatalf("expected 2 comma-separated parts, got %q", got)
+	}
+	if !strings.Contains(parts[0], "a@b.com") || !strings.Contains(parts[1], "b@c.com") {
+		t.Fatalf("expected both addresses in output, got %q", got)
+	}
+}
