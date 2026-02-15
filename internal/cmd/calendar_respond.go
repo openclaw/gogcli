@@ -7,6 +7,8 @@ import (
 	"os"
 	"strings"
 
+	"google.golang.org/api/calendar/v3"
+
 	"github.com/steipete/gogcli/internal/outfmt"
 	"github.com/steipete/gogcli/internal/ui"
 )
@@ -98,7 +100,11 @@ func (c *CalendarRespondCmd) Run(ctx context.Context, flags *RootFlags) error {
 		event.Attendees[*selfAttendee].Comment = strings.TrimSpace(c.Comment)
 	}
 
-	updated, err := svc.Events.Patch(calendarID, eventID, event).Do()
+	// Only patch the Attendees field to avoid issues with reminders validation
+	patch := &calendar.Event{
+		Attendees: event.Attendees,
+	}
+	updated, err := svc.Events.Patch(calendarID, eventID, patch).Do()
 	if err != nil {
 		return err
 	}
