@@ -18,7 +18,7 @@ Fast, script-friendly CLI for Gmail, Calendar, Chat, Classroom, Drive, Docs, Sli
 - **Sheets** - read/write/update spreadsheets, format cells, create new sheets (and export via Drive)
 - **Forms** - create/get forms and inspect responses
 - **Apps Script** - create/get projects, inspect content, and run functions
-- **Docs/Slides** - export to PDF/DOCX/PPTX via Drive (plus create/copy, docs-to-text)
+- **Docs/Slides** - export to PDF/DOCX/PPTX via Drive (plus create/copy, docs-to-text, template-based creation with text replacement)
 - **People** - access profile information
 - **Keep (Workspace only)** - list/get/search notes and download attachments (service account + domain-wide delegation)
 - **Groups** - list groups you belong to, view group members (Google Workspace)
@@ -873,6 +873,7 @@ gog docs find-replace <docId> "old" "new"
 gog slides info <presentationId>
 gog slides create "My Deck"
 gog slides create-from-markdown "My Deck" --content-file ./slides.md
+gog slides create-from-template <templateId> "My Deck" --replace "name=John" --replace "date=2026-02-15"
 gog slides copy <presentationId> "My Deck Copy"
 gog slides export <presentationId> --format pdf --out ./deck.pdf
 gog slides list-slides <presentationId>
@@ -1139,6 +1140,26 @@ gog docs export <docId> --format txt --out ./doc.txt
 # Export (via Drive)
 gog slides export <presentationId> --format pptx --out ./deck.pptx
 gog slides export <presentationId> --format pdf --out ./deck.pdf
+
+# Create from template with text replacements
+gog slides create-from-template <templateId> "Q1 Report" \
+  --replace "quarter=Q1 2026" \
+  --replace "revenue=$1.2M" \
+  --replace "growth=15%"
+
+# Use JSON file for many replacements
+cat > replacements.json <<EOF
+{
+  "name": "John Doe",
+  "title": "Sales Manager",
+  "date": "2026-02-15",
+  "sales": "125",
+  "target": "100"
+}
+EOF
+
+gog slides create-from-template <templateId> "Monthly Report" \
+  --replacements replacements.json
 ```
 
 ## Output Formats
