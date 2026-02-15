@@ -179,6 +179,29 @@ func TestFindPartBody_PreservesURLsWhenAlreadyDecoded(t *testing.T) {
 	}
 }
 
+func TestFindPartBody_DecodesQuotedPrintableButPreservesLiteralHexPairs(t *testing.T) {
+	// A body can contain real quoted-printable markers (=3D, =20, etc) *and*
+	// also contain malformed literal fragments like "&p=91".
+	//
+	// We should still decode the valid QP escapes while leaving the malformed
+	// ones intact.
+	qp := "hello=3Dworld=26x=20https://example.com/?post_type=product&p=91"
+	encoded := base64.RawURLEncoding.EncodeToString([]byte(qp))
+	part := &gmail.MessagePart{
+		MimeType: "text/plain",
+		Headers: []*gmail.MessagePartHeader{
+			{Name: "Content-Transfer-Encoding", Value: "quoted-printable"},
+			{Name: "Content-Type", Value: "text/plain; charset=utf-8"},
+		},
+		Body: &gmail.MessagePartBody{Data: encoded},
+	}
+	got := findPartBody(part, "text/plain")
+	want := "hello=world&x https://example.com/?post_type=product&p=91"
+	if got != want {
+		t.Fatalf("unexpected decoded body: got %q, want %q", got, want)
+	}
+}
+
 func TestFindPartBody_PreservesURLsWithHexPairParametersWhenDecodingQuotedPrintable(t *testing.T) {
 	// Some messages contain literal URL parameters like "&p=91" while also
 	// containing other QP markers (e.g. =3D). A naive QP decoder will interpret

@@ -569,7 +569,19 @@ func decodeQuotedPrintableUTF8Safe(data []byte) []byte {
 				continue
 			}
 
-			// Ambiguous ASCII escapes (e.g. "=2F") are left intact.
+			// Decode ASCII escapes (space, punctuation, etc). These are valid
+			// quoted-printable sequences and are extremely common (e.g. =20, =26).
+			//
+			// We *don't* decode non-ASCII bytes unless they form valid UTF-8 (above),
+			// which is what prevents malformed fragments like "&p=91" from turning
+			// into U+FFFD.
+			if decoded == '\t' || decoded == '\n' || decoded == '\r' || (decoded >= 0x20 && decoded <= 0x7E) {
+				out = append(out, decoded)
+				i += 2
+				continue
+			}
+
+			// Other control bytes are preserved literally.
 			out = append(out, '=', data[i+1], data[i+2])
 			i += 2
 			continue
