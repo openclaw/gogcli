@@ -2,6 +2,9 @@
 
 ## 0.12.0 - Unreleased
 
+### Fixed
+- Calendar: respond patches only attendees to avoid custom reminders validation errors. (#265) — thanks @sebasrodriguez.
+
 ## 0.11.0 - 2026-02-15
 
 ### Added

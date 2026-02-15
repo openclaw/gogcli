@@ -51,7 +51,11 @@ func TestExecute_CalendarRespond_JSON(t *testing.T) {
 			if first["responseStatus"] != "accepted" {
 				t.Fatalf("expected accepted, got %#v", first["responseStatus"])
 			}
-			_ = json.NewEncoder(w).Encode(payload)
+			// Calendar API returns the updated event; don't echo the patch payload (which may be partial).
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"id":        eventID,
+				"attendees": payload["attendees"],
+			})
 			return
 		default:
 			http.NotFound(w, r)

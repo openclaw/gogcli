@@ -31,9 +31,41 @@ func TestCalendarRespondCmd_Text(t *testing.T) {
 				"attendees": []map[string]any{
 					{"email": "a@b.com", "self": true},
 				},
+				// Invalid overrides payload: missing "minutes". Old code PATCHed full event, triggering API validation.
+				"reminders": map[string]any{
+					"useDefault": false,
+					"overrides": []map[string]any{
+						{"method": "popup"},
+					},
+				},
 			})
 			return
 		case strings.Contains(path, "/calendars/cal1@example.com/events/evt1") && r.Method == http.MethodPatch:
+			body, _ := io.ReadAll(r.Body)
+			var patch map[string]any
+			if err := json.Unmarshal(body, &patch); err != nil {
+				http.Error(w, "bad json", http.StatusBadRequest)
+				return
+			}
+			if _, ok := patch["reminders"]; ok {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusBadRequest)
+				_ = json.NewEncoder(w).Encode(map[string]any{
+					"error": map[string]any{
+						"code":    400,
+						"message": "Missing override reminder minutes",
+					},
+				})
+				return
+			}
+			if _, ok := patch["attendees"]; !ok {
+				t.Fatalf("PATCH missing attendees. body=%s", string(body))
+			}
+			for k := range patch {
+				if k != "attendees" {
+					t.Fatalf("PATCH should only contain attendees; got key %q. body=%s", k, string(body))
+				}
+			}
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"id":       "evt1",
