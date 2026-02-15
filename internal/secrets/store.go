@@ -58,6 +58,7 @@ var (
 	errNoTTY                 = errors.New("no TTY available for keyring file backend password prompt")
 	errInvalidKeyringBackend = errors.New("invalid keyring backend")
 	errKeyringTimeout        = errors.New("keyring connection timed out")
+	errTokenVerifyFailed     = errors.New("token verification failed: keyring wrote 0 bytes")
 	openKeyringFunc          = openKeyring
 	keyringOpenFunc          = keyring.Open
 )
@@ -337,8 +338,21 @@ func (s *KeyringStore) SetToken(client string, email string, tok Token) error {
 		return fmt.Errorf("encode token: %w", err)
 	}
 
-	if err := s.ring.Set(keyringItem(tokenKey(normalizedClient, email), payload)); err != nil {
+	primaryKey := tokenKey(normalizedClient, email)
+	if err := s.ring.Set(keyringItem(primaryKey, payload)); err != nil {
 		return wrapKeychainError(fmt.Errorf("store token: %w", err))
+	}
+
+	// Verify the token was actually persisted. On macOS, the Keychain can
+	// silently write 0 bytes when it is locked in a headless/server environment
+	// even though Set returns no error. Read back to catch this.
+	if item, readErr := s.ring.Get(primaryKey); readErr != nil {
+		return fmt.Errorf("%w: could not read back token after write: %w\n\n"+
+			"Workaround: switch to file-based keyring with: gog auth keyring file", errTokenVerifyFailed, readErr)
+	} else if len(item.Data) == 0 {
+		return fmt.Errorf("%w\n\n"+
+			"This usually happens when the macOS Keychain is locked in a headless environment.\n"+
+			"Workaround: switch to file-based keyring with: gog auth keyring file", errTokenVerifyFailed)
 	}
 
 	if normalizedClient == config.DefaultClientName {

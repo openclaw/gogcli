@@ -251,6 +251,61 @@ func TestGetTokenMigrationSetsLabel(t *testing.T) {
 	}
 }
 
+// silentDropKeyring simulates a macOS Keychain that silently writes 0 bytes.
+// Set returns nil (success), but Get returns an item with empty Data.
+type silentDropKeyring struct {
+	keyring.ArrayKeyring
+}
+
+func (s *silentDropKeyring) Set(_ keyring.Item) error { return nil }
+func (s *silentDropKeyring) Get(_ string) (keyring.Item, error) {
+	return keyring.Item{Data: nil}, nil
+}
+func (s *silentDropKeyring) Keys() ([]string, error) { return nil, nil }
+
+func TestSetTokenVerifyCatchesEmptyWrite(t *testing.T) {
+	store := &KeyringStore{ring: &silentDropKeyring{}}
+	client := config.DefaultClientName
+
+	err := store.SetToken(client, "a@b.com", Token{RefreshToken: "rt", CreatedAt: time.Now()})
+	if err == nil {
+		t.Fatal("expected error when keyring silently drops data")
+	}
+	if !errors.Is(err, errTokenVerifyFailed) {
+		t.Fatalf("expected errTokenVerifyFailed, got: %v", err)
+	}
+	if !strings.Contains(err.Error(), "gog auth keyring file") {
+		t.Fatalf("expected workaround suggestion in error, got: %v", err)
+	}
+}
+
+// readBackErrorKeyring simulates a keyring where Set succeeds but Get fails.
+type readBackErrorKeyring struct {
+	keyring.ArrayKeyring
+}
+
+func (r *readBackErrorKeyring) Set(_ keyring.Item) error { return nil }
+func (r *readBackErrorKeyring) Get(_ string) (keyring.Item, error) {
+	return keyring.Item{}, errors.New("read failed")
+}
+func (r *readBackErrorKeyring) Keys() ([]string, error) { return nil, nil }
+
+func TestSetTokenVerifyCatchesReadBackError(t *testing.T) {
+	store := &KeyringStore{ring: &readBackErrorKeyring{}}
+	client := config.DefaultClientName
+
+	err := store.SetToken(client, "a@b.com", Token{RefreshToken: "rt", CreatedAt: time.Now()})
+	if err == nil {
+		t.Fatal("expected error when keyring read-back fails")
+	}
+	if !errors.Is(err, errTokenVerifyFailed) {
+		t.Fatalf("expected errTokenVerifyFailed, got: %v", err)
+	}
+	if !strings.Contains(err.Error(), "could not read back") {
+		t.Fatalf("expected read-back error detail, got: %v", err)
+	}
+}
+
 func TestSetSecretSetsLabel(t *testing.T) {
 	ring := keyring.NewArrayKeyring(nil)
 	origOpen := openKeyringFunc
