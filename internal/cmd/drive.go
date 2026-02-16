@@ -44,6 +44,7 @@ const (
 	mimePptx               = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
 	mimePNG                = "image/png"
 	mimeTextPlain          = "text/plain"
+	mimeTextMarkdown       = "text/markdown"
 	extPDF                 = ".pdf"
 	extCSV                 = ".csv"
 	extXlsx                = ".xlsx"
@@ -51,6 +52,7 @@ const (
 	extPptx                = ".pptx"
 	extPNG                 = ".png"
 	extTXT                 = ".txt"
+	extMD                  = ".md"
 
 	driveShareToAnyone = "anyone"
 	driveShareToUser   = "user"
@@ -272,7 +274,7 @@ func (c *DriveGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 type DriveDownloadCmd struct {
 	FileID string         `arg:"" name:"fileId" help:"File ID"`
 	Output OutputPathFlag `embed:""`
-	Format string         `name:"format" help:"Export format for Google Docs files: pdf|csv|xlsx|pptx|txt|png|docx (default: inferred)"`
+	Format string         `name:"format" help:"Export format for Google Docs files: pdf|csv|xlsx|pptx|txt|png|docx|md (default: inferred)"`
 }
 
 func (c *DriveDownloadCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -1188,10 +1190,10 @@ func validateDriveDownloadFormatFlag(format string) error {
 		return nil
 	}
 	switch format {
-	case "pdf", "csv", "xlsx", "pptx", "txt", "png", "docx":
+	case "pdf", "csv", "xlsx", "pptx", "txt", "png", "docx", "md":
 		return nil
 	default:
-		return usagef("invalid --format %q (use pdf|csv|xlsx|pptx|txt|png|docx)", format)
+		return usagef("invalid --format %q (use pdf|csv|xlsx|pptx|txt|png|docx|md)", format)
 	}
 }
 
@@ -1252,8 +1254,10 @@ func driveExportMimeTypeForFormat(googleMimeType string, format string) (string,
 			return mimeDocx, nil
 		case "txt":
 			return mimeTextPlain, nil
+		case "md":
+			return mimeTextMarkdown, nil
 		default:
-			return "", fmt.Errorf("invalid --format %q for Google Doc (use pdf|docx|txt)", format)
+			return "", fmt.Errorf("invalid --format %q for Google Doc (use pdf|docx|txt|md)", format)
 		}
 	case driveMimeGoogleSheet:
 		switch format {
@@ -1308,6 +1312,8 @@ func driveExportExtension(mimeType string) string {
 		return extPNG
 	case mimeTextPlain:
 		return extTXT
+	case mimeTextMarkdown:
+		return extMD
 	default:
 		return extPDF
 	}
