@@ -816,50 +816,113 @@
                 emptyState.classList.add('hidden');
                 accountBadge.textContent = accounts.length + ' account' + (accounts.length !== 1 ? 's' : '');
 
-                accountsList.innerHTML = accounts.map((acc, index) => {
+                // Helper function to escape HTML and prevent XSS
+                function escapeHtml(text) {
+                    const div = document.createElement('div');
+                    div.textContent = text;
+                    return div.innerHTML;
+                }
+
+                accountsList.innerHTML = '';
+                accounts.forEach((acc, index) => {
                     const initial = acc.email.charAt(0).toUpperCase();
                     const isDefault = acc.isDefault;
                     const services = acc.services || ['calendar', 'gmail', 'drive'];
 
-                    return `
-                        <div class="account-card ${isDefault ? 'default' : ''}" data-email="${acc.email}" onclick="upgradePermissions('${acc.email}', event)">
-                            <div class="account-avatar" style="background: ${getAvatarGradient(acc.email)}">
-                                ${initial}
-                            </div>
-                            <div class="account-details">
-                                <div class="account-email">${acc.email}</div>
-                                <div class="account-services">
-                                    ${services.map(s => `<span class="service-tag ${s.toLowerCase()}">${s}</span>`).join('')}
-                                </div>
-                            </div>
-                            <div class="account-actions">
-                                <button class="upgrade-btn" onclick="upgradePermissions('${acc.email}', event)" title="Add more permissions">
-                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
-                                        <line x1="12" y1="5" x2="12" y2="19"/>
-                                        <line x1="5" y1="12" x2="19" y2="12"/>
-                                    </svg>
-                                    Permissions
-                                </button>
-                                ${isDefault ? `
-                                    <span class="default-badge">
-                                        <svg viewBox="0 0 24 24" fill="currentColor">
-                                            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
-                                        </svg>
-                                        Default
-                                    </span>
-                                ` : `
-                                    <button class="set-default-btn" onclick="event.stopPropagation(); setDefault('${acc.email}')">Set default</button>
-                                `}
-                                <button class="remove-btn" onclick="event.stopPropagation(); removeAccount('${acc.email}')" title="Remove account">
-                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-                                        <line x1="18" y1="6" x2="6" y2="18"/>
-                                        <line x1="6" y1="6" x2="18" y2="18"/>
-                                    </svg>
-                                </button>
-                            </div>
-                        </div>
+                    // Create account card element
+                    const accountCard = document.createElement('div');
+                    accountCard.className = 'account-card' + (isDefault ? ' default' : '');
+                    accountCard.setAttribute('data-email', acc.email);
+                    accountCard.onclick = (event) => upgradePermissions(acc.email, event);
+
+                    // Create avatar
+                    const avatar = document.createElement('div');
+                    avatar.className = 'account-avatar';
+                    avatar.style.background = getAvatarGradient(acc.email);
+                    avatar.textContent = initial;
+
+                    // Create account details
+                    const details = document.createElement('div');
+                    details.className = 'account-details';
+
+                    const emailDiv = document.createElement('div');
+                    emailDiv.className = 'account-email';
+                    emailDiv.textContent = acc.email; // Use textContent to prevent XSS
+
+                    const servicesDiv = document.createElement('div');
+                    servicesDiv.className = 'account-services';
+                    services.forEach(s => {
+                        const tag = document.createElement('span');
+                        tag.className = 'service-tag ' + s.toLowerCase();
+                        tag.textContent = s;
+                        servicesDiv.appendChild(tag);
+                    });
+
+                    details.appendChild(emailDiv);
+                    details.appendChild(servicesDiv);
+
+                    // Create actions section
+                    const actions = document.createElement('div');
+                    actions.className = 'account-actions';
+
+                    // Upgrade button
+                    const upgradeBtn = document.createElement('button');
+                    upgradeBtn.className = 'upgrade-btn';
+                    upgradeBtn.title = 'Add more permissions';
+                    upgradeBtn.onclick = (event) => upgradePermissions(acc.email, event);
+                    upgradeBtn.innerHTML = `
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+                            <line x1="12" y1="5" x2="12" y2="19"/>
+                            <line x1="5" y1="12" x2="19" y2="12"/>
+                        </svg>
+                        Permissions
                     `;
-                }).join('');
+                    actions.appendChild(upgradeBtn);
+
+                    // Default badge or set default button
+                    if (isDefault) {
+                        const defaultBadge = document.createElement('span');
+                        defaultBadge.className = 'default-badge';
+                        defaultBadge.innerHTML = `
+                            <svg viewBox="0 0 24 24" fill="currentColor">
+                                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+                            </svg>
+                            Default
+                        `;
+                        actions.appendChild(defaultBadge);
+                    } else {
+                        const setDefaultBtn = document.createElement('button');
+                        setDefaultBtn.className = 'set-default-btn';
+                        setDefaultBtn.textContent = 'Set default';
+                        setDefaultBtn.onclick = (event) => {
+                            event.stopPropagation();
+                            setDefault(acc.email);
+                        };
+                        actions.appendChild(setDefaultBtn);
+                    }
+
+                    // Remove button
+                    const removeBtn = document.createElement('button');
+                    removeBtn.className = 'remove-btn';
+                    removeBtn.title = 'Remove account';
+                    removeBtn.onclick = (event) => {
+                        event.stopPropagation();
+                        removeAccount(acc.email);
+                    };
+                    removeBtn.innerHTML = `
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                            <line x1="18" y1="6" x2="6" y2="18"/>
+                            <line x1="6" y1="6" x2="18" y2="18"/>
+                        </svg>
+                    `;
+                    actions.appendChild(removeBtn);
+
+                    // Assemble the card
+                    accountCard.appendChild(avatar);
+                    accountCard.appendChild(details);
+                    accountCard.appendChild(actions);
+                    accountsList.appendChild(accountCard);
+                });
             }
         }
 
