@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	"text/tabwriter"
 
 	"google.golang.org/api/drive/v3"
 	"google.golang.org/api/sheets/v4"
@@ -447,18 +446,18 @@ func (c *SheetsMetadataCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u.Out().Println("")
 	u.Out().Println("Sheets:")
 
-	tw := tabwriter.NewWriter(os.Stdout, 0, 4, 2, ' ', 0)
-	fmt.Fprintln(tw, "ID\tTITLE\tROWS\tCOLS")
+	w, flush := tableWriter(ctx)
+	defer flush()
+	fmt.Fprintln(w, "ID\tTITLE\tROWS\tCOLS")
 	for _, sheet := range resp.Sheets {
 		props := sheet.Properties
-		fmt.Fprintf(tw, "%d\t%s\t%d\t%d\n",
+		fmt.Fprintf(w, "%d\t%s\t%d\t%d\n",
 			props.SheetId,
 			props.Title,
 			props.GridProperties.RowCount,
 			props.GridProperties.ColumnCount,
 		)
 	}
-	_ = tw.Flush()
 	return nil
 }
 
