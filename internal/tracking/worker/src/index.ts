@@ -1,7 +1,43 @@
 import type { Env, PixelPayload } from './types';
-import { importKey, decrypt } from './crypto';
+import { decrypt } from './crypto';
 import { detectBot } from './bot';
 import { pixelResponse } from './pixel';
+
+const RATE_LIMIT_WINDOW_SECONDS = 60 * 60;
+const RATE_LIMIT_MAX_REQUESTS = 100;
+const DEDUPE_WINDOW_SQL = '-1 hour';
+
+function trackingKeysFromEnv(env: Env): Record<number, string> {
+  const keys: Record<number, string> = {};
+
+  for (const [name, value] of Object.entries(env)) {
+    if (typeof value !== 'string') {
+      continue;
+    }
+
+    if (!name.startsWith('TRACKING_KEY_V')) {
+      continue;
+    }
+
+    const versionText = name.substring('TRACKING_KEY_V'.length);
+    const version = Number.parseInt(versionText, 10);
+    if (!Number.isFinite(version) || version < 1 || version > 255) {
+      continue;
+    }
+    if (value.trim() === '') {
+      continue;
+    }
+
+    keys[version] = value.trim();
+  }
+
+  const legacyKey = typeof env.TRACKING_KEY === 'string' ? env.TRACKING_KEY.trim() : '';
+  if (Object.keys(keys).length === 0 && legacyKey !== '') {
+    keys[1] = legacyKey;
+  }
+
+  return keys;
+}
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
@@ -41,11 +77,11 @@ async function handlePixel(request: Request, env: Env, path: string): Promise<Re
   // Extract blob from /p/:blob.gif
   const blob = path.slice(3, -4); // Remove '/p/' and '.gif'
 
-  const key = await importKey(env.TRACKING_KEY);
+  const trackingKeys = trackingKeysFromEnv(env);
   let payload: PixelPayload;
 
   try {
-    payload = await decrypt(blob, key);
+    payload = await decrypt(blob, trackingKeys);
   } catch {
     // Still return pixel even if decryption fails (don't break email display)
     return pixelResponse();
@@ -61,8 +97,19 @@ async function handlePixel(request: Request, env: Env, path: string): Promise<Re
   const sentAt = payload.t * 1000; // Convert to ms
   const timeSinceDelivery = now - sentAt;
 
+  // Drop abusive traffic before writing to storage
+  if (await isRateLimited(env.RATE_KV, ip)) {
+    return pixelResponse();
+  }
+
+  const isDuplicate = await hasRecentOpen(env.DB, blob, ip);
+  if (isDuplicate) {
+    return pixelResponse();
+  }
+
   // Detect bots
-  const { isBot, botType } = detectBot(userAgent, ip, timeSinceDelivery);
+  const botManagement = (cf as any)?.botManagement;
+  const { isBot, botType } = detectBot(userAgent, ip, timeSinceDelivery, request.headers, botManagement);
 
   const openedAt = new Date().toISOString();
 
@@ -96,14 +143,45 @@ async function handlePixel(request: Request, env: Env, path: string): Promise<Re
   return pixelResponse();
 }
 
+async function isRateLimited(rateStore: KVNamespace, ip: string): Promise<boolean> {
+  const key = `rate:${ip}`;
+
+  try {
+    const raw = await rateStore.get(key);
+    const current = raw !== null ? parseInt(raw, 10) : 0;
+    const next = Number.isFinite(current) && current >= 0 ? current + 1 : 1;
+
+    await rateStore.put(key, String(next), { expirationTtl: RATE_LIMIT_WINDOW_SECONDS });
+    return next > RATE_LIMIT_MAX_REQUESTS;
+  } catch (error) {
+    console.error('Rate limit check failed:', error);
+    return false;
+  }
+}
+
+async function hasRecentOpen(db: D1Database, trackingId: string, ip: string): Promise<boolean> {
+  try {
+    const existing = await db.prepare(`
+      SELECT 1 FROM opens
+      WHERE tracking_id = ? AND ip = ? AND opened_at > datetime('now', ?)
+      LIMIT 1
+    `).bind(trackingId, ip, DEDUPE_WINDOW_SQL).first();
+
+    return existing !== null;
+  } catch (error) {
+    console.error('Failed to check duplicate open:', error);
+    return false;
+  }
+}
+
 async function handleQuery(request: Request, env: Env, path: string): Promise<Response> {
   const blob = path.slice(3); // Remove '/q/'
 
-  const key = await importKey(env.TRACKING_KEY);
+  const trackingKeys = trackingKeysFromEnv(env);
   let payload: PixelPayload;
 
   try {
-    payload = await decrypt(blob, key);
+    payload = await decrypt(blob, trackingKeys);
   } catch {
     return new Response('Invalid tracking ID', { status: 400 });
   }

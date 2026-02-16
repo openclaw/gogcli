@@ -25,6 +25,8 @@ type Config struct {
 	DatabaseID       string `json:"database_id,omitempty"`
 	SecretsInKeyring bool   `json:"secrets_in_keyring,omitempty"`
 	TrackingKey      string `json:"tracking_key,omitempty"`
+	TrackingKeyVersions []int  `json:"tracking_key_versions,omitempty"`
+	TrackingCurrentKeyVersion int `json:"tracking_current_key_version,omitempty"`
 	AdminKey         string `json:"admin_key,omitempty"`
 }
 
@@ -173,26 +175,95 @@ func SaveConfig(account string, cfg *Config) error {
 
 // IsConfigured returns true if tracking is set up.
 func (c *Config) IsConfigured() bool {
-	return c.Enabled && c.WorkerURL != "" && c.TrackingKey != ""
+	return c.Enabled && c.WorkerURL != "" && c.AdminKey != "" && (
+		strings.TrimSpace(c.TrackingKey) != "" ||
+			(len(c.TrackingKeyVersions) > 0 && c.TrackingCurrentKeyVersion > 0)
+	)
 }
 
 func hydrateConfig(account string, cfg *Config) (*Config, error) {
+	cfg.TrackingCurrentKeyVersion = normalizedTrackingCurrentKeyVersion(cfg.TrackingCurrentKeyVersion)
+
+	if len(cfg.TrackingKeyVersions) == 0 {
+		cfg.TrackingKeyVersions = append(cfg.TrackingKeyVersions, cfg.TrackingCurrentKeyVersion)
+		cfg.TrackingKeyVersions = dedupeSortedInts(cfg.TrackingKeyVersions)
+	}
+
 	if strings.TrimSpace(cfg.TrackingKey) == "" || strings.TrimSpace(cfg.AdminKey) == "" || cfg.SecretsInKeyring {
-		trackingKey, adminKey, secretErr := LoadSecrets(account)
+		trackingKeys, trackingCurrentVersion, secretErr := LoadTrackingKeys(account, cfg.TrackingKeyVersions, cfg.TrackingCurrentKeyVersion)
+		if secretErr != nil {
+			return nil, secretErr
+		}
+		secretTrackingKey, secretAdminKey, secretErr := LoadSecrets(account)
 		if secretErr != nil {
 			return nil, secretErr
 		}
 
 		if strings.TrimSpace(cfg.TrackingKey) == "" {
-			cfg.TrackingKey = trackingKey
+			cfg.TrackingKey = trackingKeys[trackingCurrentVersion]
+			if cfg.TrackingKey == "" {
+				cfg.TrackingKey = secretTrackingKey
+			}
 		}
 
 		if strings.TrimSpace(cfg.AdminKey) == "" {
-			cfg.AdminKey = adminKey
+			cfg.AdminKey = secretAdminKey
 		}
+
+		cfg.TrackingCurrentKeyVersion = normalizedTrackingCurrentKeyVersion(trackingCurrentVersion)
+
+		if len(cfg.TrackingKeyVersions) == 0 && trackingCurrentVersion > 0 {
+			cfg.TrackingKeyVersions = []int{trackingCurrentVersion}
+		}
+
+		cfg.TrackingKeyVersions = dedupeSortedInts(cfg.TrackingKeyVersions)
+	}
+
+	cfg.TrackingCurrentKeyVersion = normalizedTrackingCurrentKeyVersion(cfg.TrackingCurrentKeyVersion)
+
+	if len(cfg.TrackingKeyVersions) == 0 {
+		cfg.TrackingKeyVersions = []int{cfg.TrackingCurrentKeyVersion}
 	}
 
 	return cfg, nil
+}
+
+func normalizedTrackingCurrentKeyVersion(version int) int {
+	if version > 0 {
+		return version
+	}
+
+	return 1
+}
+
+func dedupeSortedInts(values []int) []int {
+	if len(values) == 0 {
+		return nil
+	}
+
+	seen := map[int]struct{}{}
+	for _, value := range values {
+		seen[value] = struct{}{}
+	}
+
+	delete(seen, 0)
+	delete(seen, -1)
+
+	deduped := make([]int, 0, len(seen))
+	for value := range seen {
+		deduped = append(deduped, value)
+	}
+
+	// simple in-place sort
+	for i := 1; i < len(deduped); i++ {
+		j := i
+		for j > 0 && deduped[j-1] > deduped[j] {
+			deduped[j-1], deduped[j] = deduped[j], deduped[j-1]
+			j--
+		}
+	}
+
+	return deduped
 }
 
 func normalizeAccount(account string) string {

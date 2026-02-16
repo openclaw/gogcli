@@ -134,6 +134,8 @@ func (c *GmailTrackSetupCmd) Run(ctx context.Context, flags *RootFlags) error {
 	cfg.SecretsInKeyring = true
 	cfg.TrackingKey = ""
 	cfg.AdminKey = ""
+	cfg.TrackingCurrentKeyVersion = 1
+	cfg.TrackingKeyVersions = []int{1}
 
 	if c.Deploy {
 		dbID, deployErr := tracking.DeployWorker(ctx, u.Err(), tracking.DeployOptions{

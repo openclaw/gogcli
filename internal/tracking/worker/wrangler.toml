@@ -6,3 +6,8 @@ compatibility_date = "2024-12-01"
 binding = "DB"
 database_name = "gog-email-tracker"
 database_id = "placeholder-will-be-replaced"
+
+[[kv_namespaces]]
+binding = "RATE_KV"
+id = "placeholder-will-be-replaced"
+preview_id = "placeholder-preview-will-be-replaced"

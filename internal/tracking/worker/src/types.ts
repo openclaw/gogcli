@@ -1,7 +1,13 @@
 export interface Env {
   DB: D1Database;
-  TRACKING_KEY: string;
+  TRACKING_KEY?: string;
+  TRACKING_KEY_CURRENT_VERSION?: string;
+  TRACKING_KEY_V1?: string;
+  TRACKING_KEY_V2?: string;
+  TRACKING_KEY_V3?: string;
   ADMIN_KEY: string;
+  RATE_KV: KVNamespace;
+  [key: string]: string | D1Database | KVNamespace | undefined;
 }
 
 export interface PixelPayload {

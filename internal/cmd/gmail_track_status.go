@@ -40,6 +40,12 @@ func (c *GmailTrackStatusCmd) Run(ctx context.Context, flags *RootFlags) error {
 		u.Out().Printf("database_id\t%s", cfg.DatabaseID)
 	}
 	u.Out().Printf("admin_configured\t%t", strings.TrimSpace(cfg.AdminKey) != "")
+	if cfg.TrackingCurrentKeyVersion > 0 {
+		u.Out().Printf("tracking_current_key_version\t%d", cfg.TrackingCurrentKeyVersion)
+	}
+	if len(cfg.TrackingKeyVersions) > 0 {
+		u.Out().Printf("tracking_key_versions\t%v", cfg.TrackingKeyVersions)
+	}
 
 	return nil
 }

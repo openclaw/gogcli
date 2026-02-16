@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"strconv"
 	"time"
 )
 
@@ -23,7 +24,12 @@ func GeneratePixelURL(cfg *Config, recipient, subject string) (string, string, e
 		SentAt:      time.Now().Unix(),
 	}
 
-	blob, err := Encrypt(payload, cfg.TrackingKey)
+	trackingKeyVersion := cfg.TrackingCurrentKeyVersion
+	if trackingKeyVersion == 0 {
+		trackingKeyVersion = 1
+	}
+
+	blob, err := EncryptWithVersion(payload, cfg.TrackingKey, strconv.Itoa(trackingKeyVersion))
 	if err != nil {
 		return "", "", fmt.Errorf("encrypt payload: %w", err)
 	}

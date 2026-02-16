@@ -59,3 +59,31 @@ func TestScopedSecretKey(t *testing.T) {
 		t.Fatalf("unexpected scoped key: %q", got)
 	}
 }
+
+func TestSaveAndLoadTrackingKeys(t *testing.T) {
+	setupTrackingKeyringEnv(t)
+
+	account := "a@b.com"
+	if err := SaveTrackingKeys(account, map[int]string{
+		1: "old-key",
+		2: "new-key",
+	}, 2, "admin-key"); err != nil {
+		t.Fatalf("SaveTrackingKeys: %v", err)
+	}
+
+	keys, currentVersion, err := LoadTrackingKeys(account, []int{1, 2}, 2)
+	if err != nil {
+		t.Fatalf("LoadTrackingKeys: %v", err)
+	}
+
+	if currentVersion != 2 {
+		t.Fatalf("unexpected current version: %d", currentVersion)
+	}
+
+	if got := keys[1]; got != "old-key" {
+		t.Fatalf("missing key v1: %q", got)
+	}
+	if got := keys[2]; got != "new-key" {
+		t.Fatalf("missing key v2: %q", got)
+	}
+}

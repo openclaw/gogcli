@@ -21,7 +21,9 @@ type DeployOptions struct {
 	WorkerName   string
 	DatabaseName string
 	TrackingKey  string
+	TrackingKeys map[int]string
 	AdminKey     string
+	TrackingCurrentVersion int
 }
 
 var (
@@ -84,8 +86,26 @@ func DeployWorker(ctx context.Context, logger DeployLogger, opts DeployOptions) 
 		return "", runErr
 	}
 
-	if runErr := runWranglerCommand(ctx, workerDir, strings.NewReader(opts.TrackingKey+"\n"), "secret", "put", "TRACKING_KEY", "--name", opts.WorkerName); runErr != nil {
+	trackingKeys, currentVersion, trackingErr := resolveTrackingDeploymentSecrets(opts)
+	if trackingErr != nil {
+		return "", trackingErr
+	}
+
+	for _, version := range trackingKeys {
+		secretName := fmt.Sprintf("TRACKING_KEY_V%d", version.version)
+		if runErr := runWranglerCommand(ctx, workerDir, strings.NewReader(version.key+"\n"), "secret", "put", secretName, "--name", opts.WorkerName); runErr != nil {
+			return "", runErr
+		}
+	}
+
+	if runErr := runWranglerCommand(ctx, workerDir, strings.NewReader(fmt.Sprintf("%d\n", currentVersion)), "secret", "put", "TRACKING_KEY_CURRENT_VERSION", "--name", opts.WorkerName); runErr != nil {
 		return "", runErr
+	}
+
+	if legacyKey, ok := trackingKeyByVersion(trackingKeys, currentVersion); ok {
+		if runErr := runWranglerCommand(ctx, workerDir, strings.NewReader(legacyKey+"\n"), "secret", "put", "TRACKING_KEY", "--name", opts.WorkerName); runErr != nil {
+			return "", runErr
+		}
 	}
 
 	if runErr := runWranglerCommand(ctx, workerDir, strings.NewReader(opts.AdminKey+"\n"), "secret", "put", "ADMIN_KEY", "--name", opts.WorkerName); runErr != nil {
@@ -107,6 +127,85 @@ func DeployWorker(ctx context.Context, logger DeployLogger, opts DeployOptions) 
 	}
 
 	return dbID, nil
+}
+
+type trackingDeploymentSecret struct {
+	version int
+	key     string
+}
+
+func resolveTrackingDeploymentSecrets(opts DeployOptions) ([]trackingDeploymentSecret, int, error) {
+	if len(opts.TrackingKeys) > 0 {
+		versions := sortedTrackingVersions(opts.TrackingKeys)
+		if len(versions) == 0 {
+			return nil, 0, fmt.Errorf("tracking key map is empty")
+		}
+
+		currentVersion := normalizedTrackingCurrentVersion(opts.TrackingCurrentVersion, versions)
+		secrets := make([]trackingDeploymentSecret, 0, len(versions))
+		for _, version := range versions {
+			key := strings.TrimSpace(opts.TrackingKeys[version])
+			if key == "" {
+				continue
+			}
+			secrets = append(secrets, trackingDeploymentSecret{version: version, key: key})
+		}
+		if len(secrets) == 0 {
+			return nil, 0, fmt.Errorf("tracking key map is empty")
+		}
+
+		return secrets, currentVersion, nil
+	}
+
+	if strings.TrimSpace(opts.TrackingKey) == "" {
+		return nil, 0, fmt.Errorf("missing tracking key")
+	}
+
+	return []trackingDeploymentSecret{
+		{
+			version: 1,
+			key:     opts.TrackingKey,
+		},
+	}, 1, nil
+}
+
+func normalizedTrackingCurrentVersion(current int, versions []int) int {
+	if current > 0 {
+		for _, version := range versions {
+			if version == current {
+				return current
+			}
+		}
+		return versions[len(versions)-1]
+	}
+
+	return versions[len(versions)-1]
+}
+
+func sortedTrackingVersions(keys map[int]string) []int {
+	versions := make([]int, 0, len(keys))
+	for version := range keys {
+		versions = append(versions, version)
+	}
+	// simple ascending order
+	for i := 1; i < len(versions); i++ {
+		j := i
+		for j > 0 && versions[j-1] > versions[j] {
+			versions[j-1], versions[j] = versions[j], versions[j-1]
+			j--
+		}
+	}
+
+	return versions
+}
+
+func trackingKeyByVersion(secrets []trackingDeploymentSecret, current int) (string, bool) {
+	for _, s := range secrets {
+		if s.version == current {
+			return s.key, true
+		}
+	}
+	return "", false
 }
 
 func ensureD1Database(ctx context.Context, workerDir, dbName string) (string, error) {

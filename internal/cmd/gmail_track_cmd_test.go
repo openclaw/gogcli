@@ -49,6 +49,51 @@ func TestGmailTrackSetupAndStatus(t *testing.T) {
 	}
 }
 
+func TestGmailTrackKeyRotate(t *testing.T) {
+	setupTrackingEnv(t)
+
+	if err := tracking.SaveSecrets("a@b.com", "legacy-key", "admin-key"); err != nil {
+		t.Fatalf("SaveSecrets: %v", err)
+	}
+
+	cfg := &tracking.Config{
+		Enabled:                  true,
+		WorkerURL:                "https://example.com",
+		WorkerName:               "gog-email-tracker-test",
+		DatabaseName:             "gog-email-tracker-test",
+		TrackingKeyVersions:      []int{1},
+		TrackingCurrentKeyVersion: 1,
+		SecretsInKeyring:         true,
+	}
+	if err := tracking.SaveConfig("a@b.com", cfg); err != nil {
+		t.Fatalf("SaveConfig: %v", err)
+	}
+
+	out := captureStdout(t, func() {
+		_ = captureStderr(t, func() {
+			if err := Execute([]string{"--account", "a@b.com", "--no-input", "--no-deploy", "gmail", "track", "key", "rotate"}); err != nil {
+				t.Fatalf("Execute: %v", err)
+			}
+		})
+	})
+
+	if !strings.Contains(out, "tracking_key_rotated\ttrue") {
+		t.Fatalf("unexpected rotate output: %q", out)
+	}
+	if !strings.Contains(out, "current_version\t2") {
+		t.Fatalf("expected key rotation version, got %q", out)
+	}
+
+	reloaded, err := tracking.LoadConfig("a@b.com")
+	if err != nil {
+		t.Fatalf("LoadConfig: %v", err)
+	}
+
+	if reloaded.TrackingCurrentKeyVersion != 2 {
+		t.Fatalf("expected rotated version 2, got %d", reloaded.TrackingCurrentKeyVersion)
+	}
+}
+
 func TestGmailTrackStatus_NotConfigured(t *testing.T) {
 	setupTrackingEnv(t)
 
