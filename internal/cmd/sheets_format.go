@@ -1,9 +1,11 @@
 package cmd
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 
@@ -38,13 +40,17 @@ func (c *SheetsFormatCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return fmt.Errorf("provide format fields via --format-fields")
 	}
 
+	if hasBoardersTypo(formatFields) {
+		return fmt.Errorf(`invalid --format-fields: found "boarders"; use "borders"`)
+	}
+
 	var err error
 	var format sheets.CellFormat
 	b, err := resolveInlineOrFileBytes(c.FormatJSON)
 	if err != nil {
 		return fmt.Errorf("read --format-json: %w", err)
 	}
-	if err = json.Unmarshal(b, &format); err != nil {
+	if err = decodeCellFormatJSON(b, &format); err != nil {
 		return fmt.Errorf("invalid format JSON: %w", err)
 	}
 
@@ -111,4 +117,36 @@ func (c *SheetsFormatCmd) Run(ctx context.Context, flags *RootFlags) error {
 
 	u.Out().Printf("Formatted %s", rangeSpec)
 	return nil
+}
+
+func decodeCellFormatJSON(data []byte, dst *sheets.CellFormat) error {
+	if dst == nil {
+		return fmt.Errorf("format is required")
+	}
+
+	dec := json.NewDecoder(bytes.NewReader(data))
+	dec.DisallowUnknownFields()
+
+	if err := dec.Decode(dst); err != nil {
+		return err
+	}
+	var extra any
+	if err := dec.Decode(&extra); err != io.EOF {
+		if err == nil {
+			return fmt.Errorf("multiple JSON values")
+		}
+		return err
+	}
+	return nil
+}
+
+func hasBoardersTypo(mask string) bool {
+	for _, part := range splitFieldMask(mask) {
+		for _, token := range strings.Split(part, ".") {
+			if strings.EqualFold(strings.TrimSpace(token), "boarders") {
+				return true
+			}
+		}
+	}
+	return false
 }

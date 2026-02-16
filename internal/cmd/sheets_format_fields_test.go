@@ -39,6 +39,19 @@ func TestApplyForceSendFields_NumberFormatType(t *testing.T) {
 	}
 }
 
+func TestApplyForceSendFields_BordersTopStyle(t *testing.T) {
+	format := sheets.CellFormat{}
+	if err := applyForceSendFields(&format, []string{"borders.top.style"}); err != nil {
+		t.Fatalf("applyForceSendFields: %v", err)
+	}
+	if format.Borders == nil || format.Borders.Top == nil {
+		t.Fatalf("expected borders.top to be allocated, got %#v", format.Borders)
+	}
+	if !hasString(format.Borders.Top.ForceSendFields, "Style") {
+		t.Fatalf("expected Style to be force-sent, got %#v", format.Borders.Top.ForceSendFields)
+	}
+}
+
 func TestApplyForceSendFields_NilFormat(t *testing.T) {
 	if err := applyForceSendFields(nil, []string{"textFormat.bold"}); err == nil {
 		t.Fatalf("expected error for nil format")
@@ -81,5 +94,17 @@ func TestNormalizeFormatMask_LeavesUnknowns(t *testing.T) {
 	}
 	if len(paths) != 0 {
 		t.Fatalf("unexpected format paths: %#v", paths)
+	}
+}
+
+func TestHasBoardersTypo(t *testing.T) {
+	if !hasBoardersTypo("boarders.top.style") {
+		t.Fatalf("expected typo detection for boarders")
+	}
+	if !hasBoardersTypo("userEnteredFormat.boarders.top.style") {
+		t.Fatalf("expected typo detection for userEnteredFormat.boarders")
+	}
+	if hasBoardersTypo("borders.top.style") {
+		t.Fatalf("did not expect typo detection for borders")
 	}
 }

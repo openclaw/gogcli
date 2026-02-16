@@ -30,6 +30,7 @@ type SheetsCmd struct {
 	Insert     SheetsInsertCmd      `cmd:"" name:"insert" help:"Insert empty rows or columns into a sheet"`
 	Clear      SheetsClearCmd       `cmd:"" name:"clear" help:"Clear values in a range"`
 	Format     SheetsFormatCmd      `cmd:"" name:"format" help:"Apply cell formatting to a range"`
+	ReadFormat SheetsReadFormatCmd  `cmd:"" name:"read-format" aliases:"get-format,format-read" help:"Read cell formatting from a range"`
 	Notes      SheetsNotesCmd       `cmd:"" name:"notes" help:"Get cell notes from a range"`
 	UpdateNote SheetsUpdateNoteCmd  `cmd:"" name:"update-note" aliases:"set-note" help:"Set or clear a cell note"`
 	Links      SheetsLinksCmd       `cmd:"" name:"links" aliases:"hyperlinks" help:"Get cell hyperlinks from a range"`
