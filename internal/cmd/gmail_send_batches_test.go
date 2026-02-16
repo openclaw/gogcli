@@ -52,6 +52,7 @@ func TestSendGmailBatches_WithTracking(t *testing.T) {
 		Enabled:     true,
 		WorkerURL:   "https://example.com",
 		TrackingKey: mustTrackingKey(t),
+		AdminKey:    "test-admin-key",
 	}
 
 	batches := buildSendBatches(

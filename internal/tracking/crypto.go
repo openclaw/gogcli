@@ -108,7 +108,8 @@ func DecryptWithVersions(blob string, keysByVersion map[string]string) (*PixelPa
 		plaintext, decryptErr := decryptWithOffset(ciphertext, key, 1)
 		if decryptErr == nil {
 			var payload PixelPayload
-			if unmarshalErr := json.Unmarshal(plaintext, &payload); unmarshalErr == nil {
+			unmarshalErr := json.Unmarshal(plaintext, &payload)
+			if unmarshalErr == nil {
 				return &payload, nil
 			}
 			if err == nil {
@@ -130,7 +131,8 @@ func DecryptWithVersions(blob string, keysByVersion map[string]string) (*PixelPa
 		plaintext, decryptErr := decryptWithOffset(ciphertext, key, 0)
 		if decryptErr == nil {
 			var payload PixelPayload
-			if unmarshalErr := json.Unmarshal(plaintext, &payload); unmarshalErr == nil {
+			unmarshalErr := json.Unmarshal(plaintext, &payload)
+			if unmarshalErr == nil {
 				return &payload, nil
 			}
 			if err == nil {
@@ -160,7 +162,14 @@ func decryptionVersionOrder(ciphertext []byte, keysByVersion map[string]string) 
 	prefixVersion := strconv.Itoa(prefix)
 	for i, version := range versions {
 		if version == prefixVersion {
-			return append([]string{prefixVersion}, append(versions[:i], versions[i+1:]...)...), nil
+			result := make([]string, 0, len(versions))
+			result = append(result, prefixVersion)
+			for j, v := range versions {
+				if j != i {
+					result = append(result, v)
+				}
+			}
+			return result, nil
 		}
 	}
 

@@ -11,6 +11,7 @@ func TestGeneratePixelURL(t *testing.T) {
 		Enabled:     true,
 		WorkerURL:   "https://test.workers.dev",
 		TrackingKey: key,
+		AdminKey:    "test-admin-key",
 	}
 
 	pixelURL, blob, err := GeneratePixelURL(cfg, "test@example.com", "Hello World")

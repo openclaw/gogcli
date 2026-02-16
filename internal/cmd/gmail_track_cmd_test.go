@@ -71,7 +71,7 @@ func TestGmailTrackKeyRotate(t *testing.T) {
 
 	out := captureStdout(t, func() {
 		_ = captureStderr(t, func() {
-			if err := Execute([]string{"--account", "a@b.com", "--no-input", "--no-deploy", "gmail", "track", "key", "rotate"}); err != nil {
+			if err := Execute([]string{"--account", "a@b.com", "--no-input", "gmail", "track", "key", "rotate", "--no-deploy"}); err != nil {
 				t.Fatalf("Execute: %v", err)
 			}
 		})
@@ -115,6 +115,9 @@ func TestGmailTrackOpens(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case strings.Contains(r.URL.Path, "/q/"):
+			if r.Header.Get("Authorization") != "Bearer adminkey" {
+				t.Fatalf("unexpected /q/ auth: %q", r.Header.Get("Authorization"))
+			}
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"tracking_id": "tid",

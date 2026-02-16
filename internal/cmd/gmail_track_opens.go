@@ -51,6 +51,7 @@ func (c *GmailTrackOpensCmd) queryByTrackingID(ctx context.Context, cfg *trackin
 	if err != nil {
 		return fmt.Errorf("build request: %w", err)
 	}
+	req.Header.Set("Authorization", "Bearer "+cfg.AdminKey)
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {

@@ -175,10 +175,9 @@ func SaveConfig(account string, cfg *Config) error {
 
 // IsConfigured returns true if tracking is set up.
 func (c *Config) IsConfigured() bool {
-	return c.Enabled && c.WorkerURL != "" && c.AdminKey != "" && (
-		strings.TrimSpace(c.TrackingKey) != "" ||
-			(len(c.TrackingKeyVersions) > 0 && c.TrackingCurrentKeyVersion > 0)
-	)
+	hasKey := strings.TrimSpace(c.TrackingKey) != "" ||
+		(len(c.TrackingKeyVersions) > 0 && c.TrackingCurrentKeyVersion > 0)
+	return c.Enabled && c.WorkerURL != "" && c.AdminKey != "" && hasKey
 }
 
 func hydrateConfig(account string, cfg *Config) (*Config, error) {
