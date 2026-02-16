@@ -22,7 +22,7 @@ import (
 var newDocsService = googleapi.NewDocs
 
 type DocsCmd struct {
-	Export      DocsExportCmd      `cmd:"" name:"export" aliases:"download,dl" help:"Export a Google Doc (pdf|docx|txt)"`
+	Export      DocsExportCmd      `cmd:"" name:"export" aliases:"download,dl" help:"Export a Google Doc (pdf|docx|txt|md|markdown)"`
 	Info        DocsInfoCmd        `cmd:"" name:"info" aliases:"get,show" help:"Get Google Doc metadata"`
 	Create      DocsCreateCmd      `cmd:"" name:"create" aliases:"add,new" help:"Create a Google Doc"`
 	Copy        DocsCopyCmd        `cmd:"" name:"copy" aliases:"cp,duplicate" help:"Copy a Google Doc"`
@@ -38,7 +38,7 @@ type DocsCmd struct {
 type DocsExportCmd struct {
 	DocID  string         `arg:"" name:"docId" help:"Doc ID"`
 	Output OutputPathFlag `embed:""`
-	Format string         `name:"format" help:"Export format: pdf|docx|txt" default:"pdf"`
+	Format string         `name:"format" help:"Export format: pdf|docx|txt|md|markdown" default:"pdf"`
 }
 
 func (c *DocsExportCmd) Run(ctx context.Context, flags *RootFlags) error {

@@ -47,6 +47,18 @@ func TestDriveExportMimeTypeForFormat(t *testing.T) {
 			wantMime:   "text/plain",
 		},
 		{
+			name:       "doc_md",
+			googleMime: "application/vnd.google-apps.document",
+			format:     "md",
+			wantMime:   "text/markdown",
+		},
+		{
+			name:       "doc_markdown",
+			googleMime: "application/vnd.google-apps.document",
+			format:     "markdown",
+			wantMime:   "text/markdown",
+		},
+		{
 			name:        "doc_invalid",
 			googleMime:  "application/vnd.google-apps.document",
 			format:      "xlsx",

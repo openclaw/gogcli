@@ -1140,6 +1140,7 @@ Note: Classroom commands require a Google Workspace for Education account. Perso
 gog docs export <docId> --format pdf --out ./doc.pdf
 gog docs export <docId> --format docx --out ./doc.docx
 gog docs export <docId> --format txt --out ./doc.txt
+gog docs export <docId> --format md --out ./doc.md
 ```
 
 ### Slides
