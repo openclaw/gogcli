@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"strings"
 
@@ -23,10 +22,6 @@ type SheetsInsertCmd struct {
 
 func (c *SheetsInsertCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
 
 	spreadsheetID := normalizeGoogleID(strings.TrimSpace(c.SpreadsheetID))
 	sheetName := strings.TrimSpace(c.Sheet)
@@ -47,14 +42,41 @@ func (c *SheetsInsertCmd) Run(ctx context.Context, flags *RootFlags) error {
 		apiDimension = "COLUMNS"
 		dimLabel = "column"
 	default:
-		return fmt.Errorf("dimension must be rows or cols, got %q", c.Dimension)
+		return usagef("dimension must be rows or cols, got %q", c.Dimension)
 	}
 
 	if c.Start < 1 {
-		return fmt.Errorf("start must be >= 1")
+		return usage("start must be >= 1")
 	}
 	if c.Count < 1 {
-		return fmt.Errorf("count must be >= 1")
+		return usage("count must be >= 1")
+	}
+
+	// Convert 1-based position to 0-based index for the API.
+	startIndex := c.Start - 1
+	if c.After {
+		startIndex = c.Start
+	}
+	endIndex := startIndex + c.Count
+	inheritFromBefore := c.After
+
+	if dryRunErr := dryRunExit(ctx, flags, "sheets.insert", map[string]any{
+		"spreadsheet_id":      spreadsheetID,
+		"sheet":               sheetName,
+		"dimension":           apiDimension,
+		"start":               c.Start,
+		"count":               c.Count,
+		"after":               c.After,
+		"start_index":         startIndex,
+		"end_index":           endIndex,
+		"inherit_from_before": inheritFromBefore,
+	}); dryRunErr != nil {
+		return dryRunErr
+	}
+
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
 	}
 
 	svc, err := newSheetsService(ctx, account)
@@ -68,15 +90,8 @@ func (c *SheetsInsertCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 	sheetID, ok := sheetIDs[sheetName]
 	if !ok {
-		return fmt.Errorf("unknown sheet %q", sheetName)
+		return usagef("unknown sheet %q", sheetName)
 	}
-
-	// Convert 1-based position to 0-based index for the API.
-	startIndex := c.Start - 1
-	if c.After {
-		startIndex = c.Start
-	}
-	endIndex := startIndex + c.Count
 
 	req := &sheets.BatchUpdateSpreadsheetRequest{
 		Requests: []*sheets.Request{
@@ -88,7 +103,7 @@ func (c *SheetsInsertCmd) Run(ctx context.Context, flags *RootFlags) error {
 						StartIndex: startIndex,
 						EndIndex:   endIndex,
 					},
-					InheritFromBefore: c.After,
+					InheritFromBefore: inheritFromBefore,
 				},
 			},
 		},
@@ -100,13 +115,16 @@ func (c *SheetsInsertCmd) Run(ctx context.Context, flags *RootFlags) error {
 
 	if outfmt.IsJSON(ctx) {
 		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
-			"sheet":      sheetName,
-			"dimension":  apiDimension,
-			"start":      c.Start,
-			"count":      c.Count,
-			"after":      c.After,
-			"startIndex": startIndex,
-			"endIndex":   endIndex,
+			"spreadsheetId":     spreadsheetID,
+			"sheet":             sheetName,
+			"sheetId":           sheetID,
+			"dimension":         apiDimension,
+			"start":             c.Start,
+			"count":             c.Count,
+			"after":             c.After,
+			"inheritFromBefore": inheritFromBefore,
+			"startIndex":        startIndex,
+			"endIndex":          endIndex,
 		})
 	}
 

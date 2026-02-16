@@ -2,6 +2,9 @@
 
 ## 0.12.0 - Unreleased
 
+### Added
+- Sheets: add `sheets insert` to insert rows/columns into a sheet. (#203) — thanks @andybergon.
+
 ### Fixed
 - Calendar: respond patches only attendees to avoid custom reminders validation errors. (#265) — thanks @sebasrodriguez.
 

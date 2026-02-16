@@ -148,6 +148,30 @@ func TestSheetsInsertCmd(t *testing.T) {
 		}
 	})
 
+	t.Run("insert cols after", func(t *testing.T) {
+		gotInsert = nil
+		cmd := &SheetsInsertCmd{}
+		if err := runKong(t, cmd, []string{
+			"s1", "Data", "cols", "3", "--count", "1", "--after",
+		}, ctx, flags); err != nil {
+			t.Fatalf("insert cols: %v", err)
+		}
+
+		if gotInsert == nil {
+			t.Fatal("expected insertDimension request")
+		}
+		// startCol=3 --after → startIndex=3, endIndex=4
+		if gotInsert.Range.StartIndex != 3 {
+			t.Fatalf("unexpected startIndex: %d, want 3", gotInsert.Range.StartIndex)
+		}
+		if gotInsert.Range.EndIndex != 4 {
+			t.Fatalf("unexpected endIndex: %d, want 4", gotInsert.Range.EndIndex)
+		}
+		if !gotInsert.InheritFromBefore {
+			t.Fatal("expected inheritFromBefore=true")
+		}
+	})
+
 	t.Run("invalid dimension", func(t *testing.T) {
 		cmd := &SheetsInsertCmd{}
 		err := runKong(t, cmd, []string{
