@@ -32,9 +32,21 @@ jobs:
       - name: Stash GoReleaser config
         run: cp .goreleaser.yaml /tmp/.goreleaser.yaml
 
+      - name: Validate release tag
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          if ! echo "$RELEASE_TAG" | grep -qE '^v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$'; then
+            echo "::error::Invalid tag format: $RELEASE_TAG"
+            exit 1
+          fi
+
       - name: Checkout release tag
         if: ${{ github.event_name == 'workflow_dispatch' }}
-        run: git checkout ${{ inputs.tag }}
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: git checkout "$RELEASE_TAG"
 
       - name: GoReleaser
         uses: goreleaser/goreleaser-action@v6
