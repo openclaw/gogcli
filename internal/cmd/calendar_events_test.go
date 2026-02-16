@@ -51,7 +51,7 @@ func TestListCalendarEvents_JSON(t *testing.T) {
 	ctx = outfmt.WithMode(ctx, outfmt.Mode{JSON: true})
 
 	jsonOut := captureStdout(t, func() {
-		if err := listCalendarEvents(ctx, svc, "cal1", "2025-01-01T00:00:00Z", "2025-01-02T00:00:00Z", 10, "", "", "", "", "", false); err != nil {
+		if err := listCalendarEvents(ctx, svc, "cal1", "2025-01-01T00:00:00Z", "2025-01-02T00:00:00Z", 10, "", false, false, "", "", "", "", false); err != nil {
 			t.Fatalf("listCalendarEvents: %v", err)
 		}
 	})
@@ -252,6 +252,47 @@ func TestResolveCalendarIDs_IndexOutOfRange(t *testing.T) {
 	var ee *ExitError
 	if !errors.As(err, &ee) || ee.Code != 2 {
 		t.Fatalf("expected usage error, got %v", err)
+	}
+}
+
+func TestResolveCalendarIDs_AmbiguousName(t *testing.T) {
+	srv := httptest.NewServer(withPrimaryCalendar(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.Contains(r.URL.Path, "/calendarList") &&
+			!strings.Contains(r.URL.Path, "/calendarList/primary") &&
+			r.Method == http.MethodGet {
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"items": []map[string]any{
+					{"id": "c1", "summary": "Work"},
+					{"id": "c2", "summary": "Work"},
+					{"id": "c3", "summary": "Family"},
+				},
+			})
+			return
+		}
+		http.NotFound(w, r)
+	})))
+	defer srv.Close()
+
+	svc, err := calendar.NewService(context.Background(),
+		option.WithoutAuthentication(),
+		option.WithHTTPClient(srv.Client()),
+		option.WithEndpoint(srv.URL+"/"),
+	)
+	if err != nil {
+		t.Fatalf("NewService: %v", err)
+	}
+
+	_, err = resolveCalendarIDs(context.Background(), svc, []string{"Work"})
+	if err == nil {
+		t.Fatalf("expected error")
+	}
+	var ee *ExitError
+	if !errors.As(err, &ee) || ee.Code != 2 {
+		t.Fatalf("expected usage error, got %v", err)
+	}
+	if !strings.Contains(err.Error(), "ambiguous") {
+		t.Fatalf("expected ambiguous error, got %v", err)
 	}
 }
 
