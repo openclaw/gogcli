@@ -16,6 +16,7 @@ import (
 
 type GmailMessagesCmd struct {
 	Search GmailMessagesSearchCmd `cmd:"" name:"search" aliases:"find,query,ls,list" group:"Read" help:"Search messages using Gmail query syntax"`
+	Modify GmailMessagesModifyCmd `cmd:"" name:"modify" aliases:"update,edit,set" group:"Organize" help:"Modify labels on a single message"`
 }
 
 type GmailMessagesSearchCmd struct {
@@ -145,6 +146,71 @@ func (c *GmailMessagesSearchCmd) Run(ctx context.Context, flags *RootFlags) erro
 		}
 	}
 	printNextPageHint(u, nextPageToken)
+	return nil
+}
+
+type GmailMessagesModifyCmd struct {
+	MessageID string `arg:"" name:"messageId" help:"Message ID"`
+	Add       string `name:"add" help:"Labels to add (comma-separated, name or ID)"`
+	Remove    string `name:"remove" help:"Labels to remove (comma-separated, name or ID)"`
+}
+
+func (c *GmailMessagesModifyCmd) Run(ctx context.Context, flags *RootFlags) error {
+	u := ui.FromContext(ctx)
+	messageID := normalizeGmailMessageID(strings.TrimSpace(c.MessageID))
+	if messageID == "" {
+		return usage("empty messageId")
+	}
+
+	addLabels := splitCSV(c.Add)
+	removeLabels := splitCSV(c.Remove)
+	if len(addLabels) == 0 && len(removeLabels) == 0 {
+		return usage("must specify --add and/or --remove")
+	}
+
+	if err := dryRunExit(ctx, flags, "gmail.messages.modify", map[string]any{
+		"message_id": messageID,
+		"add":        addLabels,
+		"remove":     removeLabels,
+	}); err != nil {
+		return err
+	}
+
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
+	}
+
+	svc, err := newGmailService(ctx, account)
+	if err != nil {
+		return err
+	}
+
+	idMap, err := fetchLabelNameToID(svc)
+	if err != nil {
+		return err
+	}
+
+	addIDs := resolveLabelIDs(addLabels, idMap)
+	removeIDs := resolveLabelIDs(removeLabels, idMap)
+
+	_, err = svc.Users.Messages.Modify("me", messageID, &gmail.ModifyMessageRequest{
+		AddLabelIds:    addIDs,
+		RemoveLabelIds: removeIDs,
+	}).Context(ctx).Do()
+	if err != nil {
+		return err
+	}
+
+	if outfmt.IsJSON(ctx) {
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
+			"modified":      messageID,
+			"addedLabels":   addIDs,
+			"removedLabels": removeIDs,
+		})
+	}
+
+	u.Out().Printf("Modified message %s", messageID)
 	return nil
 }
 
