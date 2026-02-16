@@ -1,12 +1,15 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
 	"time"
 
 	"google.golang.org/api/classroom/v1"
+
+	"github.com/steipete/gogcli/internal/timeparse"
 )
 
 func wrapClassroomError(err error) error {
@@ -58,13 +61,12 @@ func formatClassroomDue(d *classroom.Date, t *classroom.TimeOfDay) string {
 }
 
 func parseClassroomDate(value string) (*classroom.Date, error) {
-	value = strings.TrimSpace(value)
-	if value == "" {
-		return nil, fmt.Errorf("empty date")
-	}
-	parsed, err := time.Parse("2006-01-02", value)
+	parsed, err := timeparse.ParseDate(value)
 	if err != nil {
-		return nil, fmt.Errorf("invalid date %q (expected YYYY-MM-DD)", value)
+		if errors.Is(err, timeparse.ErrEmptyDate) {
+			return nil, err
+		}
+		return nil, fmt.Errorf("invalid date %q (expected YYYY-MM-DD)", strings.TrimSpace(value))
 	}
 	return &classroom.Date{Year: int64(parsed.Year()), Month: int64(parsed.Month()), Day: int64(parsed.Day())}, nil
 }
@@ -93,22 +95,24 @@ func parseClassroomDue(value string) (*classroom.Date, *classroom.TimeOfDay, err
 	if value == "" {
 		return nil, nil, nil
 	}
-	if t, err := time.Parse(time.RFC3339, value); err == nil {
-		utc := t.UTC()
-		return &classroom.Date{Year: int64(utc.Year()), Month: int64(utc.Month()), Day: int64(utc.Day())}, &classroom.TimeOfDay{Hours: int64(utc.Hour()), Minutes: int64(utc.Minute()), Seconds: int64(utc.Second())}, nil
+
+	parsed, err := timeparse.ParseDateTimeOrDate(value, time.UTC)
+	if err != nil {
+		return nil, nil, fmt.Errorf("invalid due value %q (expected RFC3339 or YYYY-MM-DD [HH:MM])", value)
 	}
-	if t, err := time.Parse("2006-01-02 15:04", value); err == nil {
-		utc := t.UTC()
-		return &classroom.Date{Year: int64(utc.Year()), Month: int64(utc.Month()), Day: int64(utc.Day())}, &classroom.TimeOfDay{Hours: int64(utc.Hour()), Minutes: int64(utc.Minute()), Seconds: int64(utc.Second())}, nil
+
+	utc := parsed.Time.UTC()
+	date := &classroom.Date{Year: int64(utc.Year()), Month: int64(utc.Month()), Day: int64(utc.Day())}
+	if !parsed.HasTime {
+		return date, nil, nil
 	}
-	if t, err := time.Parse("2006-01-02T15:04", value); err == nil {
-		utc := t.UTC()
-		return &classroom.Date{Year: int64(utc.Year()), Month: int64(utc.Month()), Day: int64(utc.Day())}, &classroom.TimeOfDay{Hours: int64(utc.Hour()), Minutes: int64(utc.Minute()), Seconds: int64(utc.Second())}, nil
+
+	clock := &classroom.TimeOfDay{
+		Hours:   int64(utc.Hour()),
+		Minutes: int64(utc.Minute()),
+		Seconds: int64(utc.Second()),
 	}
-	if d, err := parseClassroomDate(value); err == nil {
-		return d, nil, nil
-	}
-	return nil, nil, fmt.Errorf("invalid due value %q (expected RFC3339 or YYYY-MM-DD [HH:MM])", value)
+	return date, clock, nil
 }
 
 func updateMask(fields []string) string {

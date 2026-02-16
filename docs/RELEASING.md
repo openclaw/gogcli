@@ -106,5 +106,4 @@ gog --help
 ```
 
 ## Notes
-- `gog` currently does not print a version string; use tags + changelog as the source of truth.
-- If you later add `gog version`, update this doc to validate `gog version` post-install.
+- `gog --version` / `gog version` should report the release version post-install.

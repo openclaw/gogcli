@@ -6,12 +6,8 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
-	"net/http/httptest"
 	"strings"
 	"testing"
-
-	"google.golang.org/api/drive/v3"
-	"google.golang.org/api/option"
 
 	"github.com/steipete/gogcli/internal/outfmt"
 	"github.com/steipete/gogcli/internal/ui"
@@ -21,7 +17,7 @@ func TestDriveURLCmd_TextAndJSON(t *testing.T) {
 	origNew := newDriveService
 	t.Cleanup(func() { newDriveService = origNew })
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	svc, closeSrv := newDriveTestService(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var id string
 		switch {
 		case strings.HasPrefix(r.URL.Path, "/drive/v3/files/"):
@@ -48,20 +44,9 @@ func TestDriveURLCmd_TextAndJSON(t *testing.T) {
 			"webViewLink": web,
 		})
 	}))
-	defer srv.Close()
+	defer closeSrv()
 
-	svc, err := drive.NewService(context.Background(),
-		option.WithoutAuthentication(),
-		option.WithHTTPClient(srv.Client()),
-		option.WithEndpoint(srv.URL+"/"),
-	)
-	if err != nil {
-		t.Fatalf("NewService: %v", err)
-	}
-
-	newDriveService = func(context.Context, string) (*drive.Service, error) {
-		return svc, nil
-	}
+	newDriveService = stubDriveService(svc)
 
 	flags := &RootFlags{Account: "a@b.com"}
 

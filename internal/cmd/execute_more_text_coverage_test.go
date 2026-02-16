@@ -68,7 +68,7 @@ func TestExecute_ContactsGet_ByResource_Text(t *testing.T) {
 	t.Cleanup(func() { newPeopleContactsService = origNew })
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !(strings.Contains(r.URL.Path, "/people/c1") && r.Method == http.MethodGet) {
+		if !(strings.Contains(r.URL.Path, "/people/c1") && r.Method == http.MethodGet && !strings.Contains(r.URL.Path, ":")) {
 			http.NotFound(w, r)
 			return
 		}
@@ -103,6 +103,56 @@ func TestExecute_ContactsGet_ByResource_Text(t *testing.T) {
 	})
 	if !strings.Contains(out, "resource\tpeople/c1") || !strings.Contains(out, "email\tada@example.com") {
 		t.Fatalf("unexpected out=%q", out)
+	}
+}
+
+func TestExecute_ContactsGet_CustomFieldsSorted_Text(t *testing.T) {
+	origNew := newPeopleContactsService
+	t.Cleanup(func() { newPeopleContactsService = origNew })
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !(strings.Contains(r.URL.Path, "/people/c1") && r.Method == http.MethodGet) {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"resourceName": "people/c1",
+			"userDefined": []map[string]any{
+				{"key": "zzz", "value": "3"},
+				{"key": "aaa", "value": "1"},
+				{"key": "mmm", "value": "2"},
+			},
+		})
+	}))
+	defer srv.Close()
+
+	svc, err := people.NewService(context.Background(),
+		option.WithoutAuthentication(),
+		option.WithHTTPClient(srv.Client()),
+		option.WithEndpoint(srv.URL+"/"),
+	)
+	if err != nil {
+		t.Fatalf("NewService: %v", err)
+	}
+	newPeopleContactsService = func(context.Context, string) (*people.Service, error) { return svc, nil }
+
+	out := captureStdout(t, func() {
+		_ = captureStderr(t, func() {
+			if err := Execute([]string{"--account", "a@b.com", "contacts", "get", "people/c1"}); err != nil {
+				t.Fatalf("Execute: %v", err)
+			}
+		})
+	})
+
+	a := strings.Index(out, "custom:aaa\t1")
+	b := strings.Index(out, "custom:mmm\t2")
+	c := strings.Index(out, "custom:zzz\t3")
+	if a < 0 || b < 0 || c < 0 {
+		t.Fatalf("missing custom fields: %q", out)
+	}
+	if !(a < b && b < c) {
+		t.Fatalf("custom fields not sorted: %q", out)
 	}
 }
 

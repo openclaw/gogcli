@@ -30,6 +30,7 @@ func (c *GmailGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 	messageID := strings.TrimSpace(c.MessageID)
+	messageID = normalizeGmailMessageID(messageID)
 	if messageID == "" {
 		return usage("empty messageId")
 	}
@@ -96,7 +97,7 @@ func (c *GmailGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 				payload["attachments"] = attachmentOutputs(attachments)
 			}
 		}
-		return outfmt.WriteJSON(os.Stdout, payload)
+		return outfmt.WriteJSON(ctx, os.Stdout, payload)
 	}
 
 	u.Out().Printf("id\t%s", msg.Id)

@@ -19,20 +19,20 @@ import (
 var newGmailService = googleapi.NewGmail
 
 type GmailCmd struct {
-	Search     GmailSearchCmd     `cmd:"" name:"search" group:"Read" help:"Search threads using Gmail query syntax"`
-	Messages   GmailMessagesCmd   `cmd:"" name:"messages" group:"Read" help:"Message operations"`
-	Thread     GmailThreadCmd     `cmd:"" name:"thread" aliases:"read" group:"Organize" help:"Thread operations (get, modify)"`
-	Get        GmailGetCmd        `cmd:"" name:"get" group:"Read" help:"Get a message (full|metadata|raw)"`
+	Search     GmailSearchCmd     `cmd:"" name:"search" aliases:"find,query,ls,list" group:"Read" help:"Search threads using Gmail query syntax"`
+	Messages   GmailMessagesCmd   `cmd:"" name:"messages" aliases:"message,msg,msgs" group:"Read" help:"Message operations"`
+	Thread     GmailThreadCmd     `cmd:"" name:"thread" aliases:"threads,read" group:"Organize" help:"Thread operations (get, modify)"`
+	Get        GmailGetCmd        `cmd:"" name:"get" aliases:"info,show" group:"Read" help:"Get a message (full|metadata|raw)"`
 	Attachment GmailAttachmentCmd `cmd:"" name:"attachment" group:"Read" help:"Download a single attachment"`
 	URL        GmailURLCmd        `cmd:"" name:"url" group:"Read" help:"Print Gmail web URLs for threads"`
 	History    GmailHistoryCmd    `cmd:"" name:"history" group:"Read" help:"Gmail history"`
 
-	Labels GmailLabelsCmd `cmd:"" name:"labels" group:"Organize" help:"Label operations"`
+	Labels GmailLabelsCmd `cmd:"" name:"labels" aliases:"label" group:"Organize" help:"Label operations"`
 	Batch  GmailBatchCmd  `cmd:"" name:"batch" group:"Organize" help:"Batch operations"`
 
 	Send   GmailSendCmd   `cmd:"" name:"send" group:"Write" help:"Send an email"`
 	Track  GmailTrackCmd  `cmd:"" name:"track" group:"Write" help:"Email open tracking"`
-	Drafts GmailDraftsCmd `cmd:"" name:"drafts" group:"Write" help:"Draft operations"`
+	Drafts GmailDraftsCmd `cmd:"" name:"drafts" aliases:"draft" group:"Write" help:"Draft operations"`
 
 	Settings GmailSettingsCmd `cmd:"" name:"settings" group:"Admin" help:"Settings and admin"`
 
@@ -57,12 +57,14 @@ type GmailSettingsCmd struct {
 }
 
 type GmailSearchCmd struct {
-	Query    []string `arg:"" name:"query" help:"Search query"`
-	Max      int64    `name:"max" aliases:"limit" help:"Max results" default:"10"`
-	Page     string   `name:"page" help:"Page token"`
-	Oldest   bool     `name:"oldest" help:"Show first message date instead of last"`
-	Timezone string   `name:"timezone" short:"z" help:"Output timezone (IANA name, e.g. America/New_York, UTC). Default: local"`
-	Local    bool     `name:"local" help:"Use local timezone (default behavior, useful to override --timezone)"`
+	Query     []string `arg:"" name:"query" help:"Search query"`
+	Max       int64    `name:"max" aliases:"limit" help:"Max results" default:"10"`
+	Page      string   `name:"page" aliases:"cursor" help:"Page token"`
+	All       bool     `name:"all" aliases:"all-pages,allpages" help:"Fetch all pages"`
+	FailEmpty bool     `name:"fail-empty" aliases:"non-empty,require-results" help:"Exit with code 3 if no results"`
+	Oldest    bool     `name:"oldest" help:"Show first message date instead of last"`
+	Timezone  string   `name:"timezone" short:"z" help:"Output timezone (IANA name, e.g. America/New_York, UTC). Default: local"`
+	Local     bool     `name:"local" help:"Use local timezone (default behavior, useful to override --timezone)"`
 }
 
 func (c *GmailSearchCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -81,14 +83,50 @@ func (c *GmailSearchCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
-	resp, err := svc.Users.Threads.List("me").
-		Q(query).
-		MaxResults(c.Max).
-		PageToken(c.Page).
-		Context(ctx).
-		Do()
-	if err != nil {
-		return err
+	fetch := func(pageToken string) ([]*gmail.Thread, string, error) {
+		call := svc.Users.Threads.List("me").
+			Q(query).
+			MaxResults(c.Max).
+			Context(ctx)
+		if strings.TrimSpace(pageToken) != "" {
+			call = call.PageToken(pageToken)
+		}
+		resp, callErr := call.Do()
+		if callErr != nil {
+			return nil, "", callErr
+		}
+		return resp.Threads, resp.NextPageToken, nil
+	}
+
+	var threads []*gmail.Thread
+	nextPageToken := ""
+	if c.All {
+		all, collectErr := collectAllPages(c.Page, fetch)
+		if collectErr != nil {
+			return collectErr
+		}
+		threads = all
+	} else {
+		threadsPage, pageToken, fetchErr := fetch(c.Page)
+		if fetchErr != nil {
+			return fetchErr
+		}
+		threads = threadsPage
+		nextPageToken = pageToken
+	}
+
+	if len(threads) == 0 {
+		if outfmt.IsJSON(ctx) {
+			if writeErr := outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
+				"threads":       []threadItem{},
+				"nextPageToken": nextPageToken,
+			}); writeErr != nil {
+				return writeErr
+			}
+			return failEmptyExit(c.FailEmpty)
+		}
+		u.Err().Println("No results")
+		return failEmptyExit(c.FailEmpty)
 	}
 
 	idToName, err := fetchLabelIDToName(svc)
@@ -102,21 +140,27 @@ func (c *GmailSearchCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 
 	// Fetch thread details concurrently (fixes N+1 query pattern)
-	items, err := fetchThreadDetails(ctx, svc, resp.Threads, idToName, c.Oldest, loc)
+	items, err := fetchThreadDetails(ctx, svc, threads, idToName, c.Oldest, loc)
 	if err != nil {
 		return err
 	}
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{
+		if writeErr := outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
 			"threads":       items,
-			"nextPageToken": resp.NextPageToken,
-		})
+			"nextPageToken": nextPageToken,
+		}); writeErr != nil {
+			return writeErr
+		}
+		if len(items) == 0 {
+			return failEmptyExit(c.FailEmpty)
+		}
+		return nil
 	}
 
 	if len(items) == 0 {
 		u.Err().Println("No results")
-		return nil
+		return failEmptyExit(c.FailEmpty)
 	}
 
 	w, flush := tableWriter(ctx)
@@ -130,7 +174,7 @@ func (c *GmailSearchCmd) Run(ctx context.Context, flags *RootFlags) error {
 		}
 		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\n", it.ID, it.Date, it.From, it.Subject, strings.Join(it.Labels, ","), threadInfo)
 	}
-	printNextPageHint(u, resp.NextPageToken)
+	printNextPageHint(u, nextPageToken)
 	return nil
 }
 

@@ -6,14 +6,12 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
-	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"google.golang.org/api/drive/v3"
-	"google.golang.org/api/option"
 
 	"github.com/steipete/gogcli/internal/config"
 	"github.com/steipete/gogcli/internal/outfmt"
@@ -24,7 +22,7 @@ func TestExecute_DriveGet_JSON(t *testing.T) {
 	origNew := newDriveService
 	t.Cleanup(func() { newDriveService = origNew })
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	svc, closeSrv := newDriveTestService(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// google.golang.org/api/drive sometimes uses basepaths with or without /drive/v3.
 		// For this test we accept any GET and return the metadata payload.
 		if r.Method != http.MethodGet {
@@ -42,17 +40,9 @@ func TestExecute_DriveGet_JSON(t *testing.T) {
 			"starred":      true,
 		})
 	}))
-	defer srv.Close()
+	defer closeSrv()
 
-	svc, err := drive.NewService(context.Background(),
-		option.WithoutAuthentication(),
-		option.WithHTTPClient(srv.Client()),
-		option.WithEndpoint(srv.URL+"/"),
-	)
-	if err != nil {
-		t.Fatalf("NewService: %v", err)
-	}
-	newDriveService = func(context.Context, string) (*drive.Service, error) { return svc, nil }
+	newDriveService = stubDriveService(svc)
 
 	out := captureStdout(t, func() {
 		_ = captureStderr(t, func() {
@@ -88,7 +78,7 @@ func TestExecute_DriveDownload_JSON(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	svc, closeSrv := newDriveTestService(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Metadata fetch (Do()).
 		if r.Method != http.MethodGet {
 			http.NotFound(w, r)
@@ -101,17 +91,9 @@ func TestExecute_DriveDownload_JSON(t *testing.T) {
 			"mimeType": "application/pdf",
 		})
 	}))
-	defer srv.Close()
+	defer closeSrv()
 
-	svc, err := drive.NewService(context.Background(),
-		option.WithoutAuthentication(),
-		option.WithHTTPClient(srv.Client()),
-		option.WithEndpoint(srv.URL+"/"),
-	)
-	if err != nil {
-		t.Fatalf("NewService: %v", err)
-	}
-	newDriveService = func(context.Context, string) (*drive.Service, error) { return svc, nil }
+	newDriveService = stubDriveService(svc)
 
 	driveDownload = func(context.Context, *drive.Service, string) (*http.Response, error) {
 		return &http.Response{
@@ -154,7 +136,7 @@ func TestDriveDownloadCmd_FileHasNoName(t *testing.T) {
 	origNew := newDriveService
 	t.Cleanup(func() { newDriveService = origNew })
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	svc, closeSrv := newDriveTestService(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
 			http.NotFound(w, r)
 			return
@@ -166,17 +148,9 @@ func TestDriveDownloadCmd_FileHasNoName(t *testing.T) {
 			"mimeType": "application/pdf",
 		})
 	}))
-	defer srv.Close()
+	defer closeSrv()
 
-	svc, err := drive.NewService(context.Background(),
-		option.WithoutAuthentication(),
-		option.WithHTTPClient(srv.Client()),
-		option.WithEndpoint(srv.URL+"/"),
-	)
-	if err != nil {
-		t.Fatalf("NewService: %v", err)
-	}
-	newDriveService = func(context.Context, string) (*drive.Service, error) { return svc, nil }
+	newDriveService = stubDriveService(svc)
 
 	flags := &RootFlags{Account: "a@b.com"}
 	var errBuf bytes.Buffer
@@ -200,7 +174,7 @@ func TestExecute_DriveDownload_GoogleSheet_PDF(t *testing.T) {
 		driveExportDownload = origExport
 	})
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	svc, closeSrv := newDriveTestService(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Metadata fetch (Do()).
 		if r.Method != http.MethodGet {
 			http.NotFound(w, r)
@@ -213,17 +187,9 @@ func TestExecute_DriveDownload_GoogleSheet_PDF(t *testing.T) {
 			"mimeType": "application/vnd.google-apps.spreadsheet",
 		})
 	}))
-	defer srv.Close()
+	defer closeSrv()
 
-	svc, err := drive.NewService(context.Background(),
-		option.WithoutAuthentication(),
-		option.WithHTTPClient(srv.Client()),
-		option.WithEndpoint(srv.URL+"/"),
-	)
-	if err != nil {
-		t.Fatalf("NewService: %v", err)
-	}
-	newDriveService = func(context.Context, string) (*drive.Service, error) { return svc, nil }
+	newDriveService = stubDriveService(svc)
 
 	var gotMime string
 	driveExportDownload = func(_ context.Context, _ *drive.Service, fileID string, mimeType string) (*http.Response, error) {
@@ -277,7 +243,7 @@ func TestExecute_DriveDownload_GoogleDoc_DOCX(t *testing.T) {
 		driveExportDownload = origExport
 	})
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	svc, closeSrv := newDriveTestService(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
 			http.NotFound(w, r)
 			return
@@ -289,17 +255,9 @@ func TestExecute_DriveDownload_GoogleDoc_DOCX(t *testing.T) {
 			"mimeType": "application/vnd.google-apps.document",
 		})
 	}))
-	defer srv.Close()
+	defer closeSrv()
 
-	svc, err := drive.NewService(context.Background(),
-		option.WithoutAuthentication(),
-		option.WithHTTPClient(srv.Client()),
-		option.WithEndpoint(srv.URL+"/"),
-	)
-	if err != nil {
-		t.Fatalf("NewService: %v", err)
-	}
-	newDriveService = func(context.Context, string) (*drive.Service, error) { return svc, nil }
+	newDriveService = stubDriveService(svc)
 
 	var gotMime string
 	driveExportDownload = func(_ context.Context, _ *drive.Service, fileID string, mimeType string) (*http.Response, error) {
@@ -350,7 +308,7 @@ func TestExecute_DriveDownload_GoogleSlides_PPTX(t *testing.T) {
 		driveExportDownload = origExport
 	})
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	svc, closeSrv := newDriveTestService(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
 			http.NotFound(w, r)
 			return
@@ -362,17 +320,9 @@ func TestExecute_DriveDownload_GoogleSlides_PPTX(t *testing.T) {
 			"mimeType": "application/vnd.google-apps.presentation",
 		})
 	}))
-	defer srv.Close()
+	defer closeSrv()
 
-	svc, err := drive.NewService(context.Background(),
-		option.WithoutAuthentication(),
-		option.WithHTTPClient(srv.Client()),
-		option.WithEndpoint(srv.URL+"/"),
-	)
-	if err != nil {
-		t.Fatalf("NewService: %v", err)
-	}
-	newDriveService = func(context.Context, string) (*drive.Service, error) { return svc, nil }
+	newDriveService = stubDriveService(svc)
 
 	var gotMime string
 	driveExportDownload = func(_ context.Context, _ *drive.Service, fileID string, mimeType string) (*http.Response, error) {

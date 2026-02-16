@@ -25,22 +25,13 @@ type CalendarFocusTimeCmd struct {
 
 func (c *CalendarFocusTimeCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
-
+	calendarID := strings.TrimSpace(c.CalendarID)
 	autoDeclineMode, err := validateAutoDeclineMode(c.AutoDecline)
 	if err != nil {
 		return err
 	}
 
 	chatStatus, err := validateChatStatus(c.ChatStatus)
-	if err != nil {
-		return err
-	}
-
-	svc, err := newCalendarService(ctx, account)
 	if err != nil {
 		return err
 	}
@@ -59,14 +50,36 @@ func (c *CalendarFocusTimeCmd) Run(ctx context.Context, flags *RootFlags) error 
 		Recurrence: buildRecurrence(c.Recurrence),
 	}
 
-	created, err := svc.Events.Insert(c.CalendarID, event).Do()
+	if dryRunErr := dryRunExit(ctx, flags, "calendar.focus_time", map[string]any{
+		"calendar_id": calendarID,
+		"event":       event,
+	}); dryRunErr != nil {
+		return dryRunErr
+	}
+
+	account, err := requireAccount(flags)
 	if err != nil {
 		return err
 	}
 
-	tz, loc, _ := getCalendarLocation(ctx, svc, c.CalendarID)
+	svc, err := newCalendarService(ctx, account)
+	if err != nil {
+		return err
+	}
+
+	calendarID, err = resolveCalendarID(ctx, svc, calendarID)
+	if err != nil {
+		return err
+	}
+
+	created, err := svc.Events.Insert(calendarID, event).Do()
+	if err != nil {
+		return err
+	}
+
+	tz, loc, _ := getCalendarLocation(ctx, svc, calendarID)
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{"event": wrapEventWithDaysWithTimezone(created, tz, loc)})
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{"event": wrapEventWithDaysWithTimezone(created, tz, loc)})
 	}
 	printCalendarEventWithTimezone(u, created, tz, loc)
 	return nil
@@ -77,7 +90,7 @@ func validateAutoDeclineMode(s string) (string, error) {
 	switch s {
 	case "", "none":
 		return "declineNone", nil
-	case "all":
+	case defaultFocusAutoDecline:
 		return "declineAllConflictingInvitations", nil
 	case "new":
 		return "declineOnlyNewConflictingInvitations", nil

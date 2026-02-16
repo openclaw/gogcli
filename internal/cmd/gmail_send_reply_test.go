@@ -5,12 +5,10 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
-	"net/http/httptest"
 	"strings"
 	"testing"
 
 	"google.golang.org/api/gmail/v1"
-	"google.golang.org/api/option"
 
 	"github.com/steipete/gogcli/internal/outfmt"
 	"github.com/steipete/gogcli/internal/ui"
@@ -30,7 +28,7 @@ func TestReplyInfoFromMessage_More(t *testing.T) {
 			},
 		},
 	}
-	info := replyInfoFromMessage(msg)
+	info := replyInfoFromMessage(msg, false)
 	if info.InReplyTo != "<m1>" {
 		t.Fatalf("unexpected InReplyTo: %q", info.InReplyTo)
 	}
@@ -62,7 +60,7 @@ func TestFetchReplyInfoFromThread(t *testing.T) {
 	origNew := newGmailService
 	t.Cleanup(func() { newGmailService = origNew })
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	svc, cleanup := newGmailServiceForTest(t, func(w http.ResponseWriter, r *http.Request) {
 		path := strings.TrimPrefix(r.URL.Path, "/gmail/v1")
 		switch {
 		case r.Method == http.MethodGet && path == "/users/me/threads/t1":
@@ -87,20 +85,11 @@ func TestFetchReplyInfoFromThread(t *testing.T) {
 			http.NotFound(w, r)
 			return
 		}
-	}))
-	defer srv.Close()
-
-	svc, err := gmail.NewService(context.Background(),
-		option.WithoutAuthentication(),
-		option.WithHTTPClient(srv.Client()),
-		option.WithEndpoint(srv.URL+"/"),
-	)
-	if err != nil {
-		t.Fatalf("NewService: %v", err)
-	}
+	})
+	defer cleanup()
 	newGmailService = func(context.Context, string) (*gmail.Service, error) { return svc, nil }
 
-	info, err := fetchReplyInfo(context.Background(), svc, "", "t1")
+	info, err := fetchReplyInfo(context.Background(), svc, "", "t1", false)
 	if err != nil {
 		t.Fatalf("fetchReplyInfo: %v", err)
 	}

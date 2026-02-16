@@ -135,8 +135,49 @@ func TestBuildRFC822UTF8Subject(t *testing.T) {
 		t.Fatalf("err: %v", err)
 	}
 	s := string(raw)
-	if !strings.Contains(s, "Subject: =?utf-8?") {
+	if !strings.Contains(strings.ToLower(s), "subject: =?utf-8?") {
 		t.Fatalf("expected encoded-word Subject: %q", s)
+	}
+}
+
+func TestBuildRFC822UTF8FromDisplayName(t *testing.T) {
+	raw, err := buildRFC822(mailOptions{
+		From:    "Sérgio Bastos • Importrust <alias@domain.com>",
+		To:      []string{"c@d.com"},
+		Subject: "Hi",
+		Body:    "Hello",
+	}, nil)
+	if err != nil {
+		t.Fatalf("err: %v", err)
+	}
+	s := string(raw)
+	if !strings.Contains(strings.ToLower(s), "from: =?utf-8?") {
+		t.Fatalf("expected encoded-word From header: %q", s)
+	}
+	if !strings.Contains(s, "<alias@domain.com>") {
+		t.Fatalf("expected alias email in From header: %q", s)
+	}
+	if strings.Contains(s, "From: Sérgio Bastos • Importrust <alias@domain.com>") {
+		t.Fatalf("expected From header to be RFC 2047 encoded: %q", s)
+	}
+}
+
+func TestBuildRFC822PlainFromAddressStaysUnwrapped(t *testing.T) {
+	raw, err := buildRFC822(mailOptions{
+		From:    "a@b.com",
+		To:      []string{"c@d.com"},
+		Subject: "Hi",
+		Body:    "Hello",
+	}, nil)
+	if err != nil {
+		t.Fatalf("err: %v", err)
+	}
+	s := string(raw)
+	if !strings.Contains(s, "From: a@b.com\r\n") {
+		t.Fatalf("expected plain From address, got: %q", s)
+	}
+	if strings.Contains(s, "From: <a@b.com>\r\n") {
+		t.Fatalf("unexpected wrapped From address: %q", s)
 	}
 }
 
@@ -197,7 +238,7 @@ func TestEncodeHeaderIfNeeded(t *testing.T) {
 		t.Fatalf("unexpected: %q", got)
 	}
 	got := encodeHeaderIfNeeded("Grüße")
-	if got == "Grüße" || !strings.Contains(got, "=?utf-8?") {
+	if got == "Grüße" || !strings.Contains(strings.ToLower(got), "=?utf-8?") {
 		t.Fatalf("expected encoded-word, got: %q", got)
 	}
 }
@@ -253,5 +294,61 @@ func TestRandomMessageID(t *testing.T) {
 	}
 	if !regexp.MustCompile(`^<[A-Za-z0-9_-]+@gogcli\.local>$`).MatchString(id) {
 		t.Fatalf("unexpected: %q", id)
+	}
+}
+
+func TestFormatAddressHeaderUnparseable(t *testing.T) {
+	input := "not an email at all"
+	got := formatAddressHeader(input)
+	if got != input {
+		t.Fatalf("expected unparseable input returned unchanged, got: %q", got)
+	}
+}
+
+func TestFormatAddressHeadersMixed(t *testing.T) {
+	input := []string{"Alice <a@b.com>", "c@d.com", "Sérgio Bastos <s@b.com>"}
+	got := formatAddressHeaders(input)
+
+	// Should contain all three addresses comma-separated.
+	parts := strings.SplitN(got, ", ", 3)
+	if len(parts) != 3 {
+		t.Fatalf("expected 3 comma-separated parts, got %d: %q", len(parts), got)
+	}
+
+	// First part: display name "Alice" with address a@b.com.
+	if !strings.Contains(parts[0], "Alice") || !strings.Contains(parts[0], "a@b.com") {
+		t.Fatalf("unexpected first part: %q", parts[0])
+	}
+
+	// Second part: plain address, no angle brackets.
+	if parts[1] != "c@d.com" {
+		t.Fatalf("expected plain address c@d.com, got: %q", parts[1])
+	}
+
+	// Third part: non-ASCII name must be RFC 2047 encoded.
+	if !strings.Contains(strings.ToLower(parts[2]), "=?utf-8?") {
+		t.Fatalf("expected RFC 2047 encoded name in third part, got: %q", parts[2])
+	}
+	if !strings.Contains(parts[2], "s@b.com") {
+		t.Fatalf("expected address s@b.com in third part, got: %q", parts[2])
+	}
+}
+
+func TestFormatAddressHeadersFiltersEmpty(t *testing.T) {
+	got := formatAddressHeaders([]string{"a@b.com", "", "b@c.com"})
+	expected := "a@b.com, b@c.com"
+	if got != expected {
+		t.Fatalf("expected %q, got %q", expected, got)
+	}
+}
+
+func TestFormatAddressHeadersParsesCommaSeparatedList(t *testing.T) {
+	got := formatAddressHeaders([]string{"Alice <a@b.com>, Bob <b@c.com>"})
+	parts := strings.SplitN(got, ", ", 2)
+	if len(parts) != 2 {
+		t.Fatalf("expected 2 comma-separated parts, got %q", got)
+	}
+	if !strings.Contains(parts[0], "a@b.com") || !strings.Contains(parts[1], "b@c.com") {
+		t.Fatalf("expected both addresses in output, got %q", got)
 	}
 }

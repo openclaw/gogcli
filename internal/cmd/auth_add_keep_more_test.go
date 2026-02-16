@@ -50,7 +50,7 @@ func TestAuthAddCmd_JSON_More(t *testing.T) {
 
 	cmd := &AuthAddCmd{Email: "a@b.com", ServicesCSV: "gmail,drive"}
 	out := captureStdout(t, func() {
-		if err := cmd.Run(ctx); err != nil {
+		if err := cmd.Run(ctx, &RootFlags{}); err != nil {
 			t.Fatalf("Run: %v", err)
 		}
 	})
@@ -90,7 +90,7 @@ func TestAuthKeepCmd_JSON_More(t *testing.T) {
 
 	cmd := &AuthKeepCmd{Email: "user@example.com", Key: keyPath}
 	out := captureStdout(t, func() {
-		if runErr := cmd.Run(ctx); runErr != nil {
+		if runErr := cmd.Run(ctx, &RootFlags{}); runErr != nil {
 			t.Fatalf("Run: %v", runErr)
 		}
 	})

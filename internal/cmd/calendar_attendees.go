@@ -24,9 +24,15 @@ func buildAttendees(csv string) []*calendar.EventAttendee {
 // mergeAttendees preserves existing attendees (with all their metadata like responseStatus)
 // and adds new attendees from the CSV string. Duplicates (by email) are skipped.
 func mergeAttendees(existing []*calendar.EventAttendee, addCSV string) []*calendar.EventAttendee {
+	out, _ := mergeAttendeesWithChange(existing, addCSV)
+	return out
+}
+
+// mergeAttendeesWithChange returns the merged attendees and whether at least one attendee was added.
+func mergeAttendeesWithChange(existing []*calendar.EventAttendee, addCSV string) ([]*calendar.EventAttendee, bool) {
 	newEmails := splitCSV(addCSV)
 	if len(newEmails) == 0 {
-		return existing
+		return existing, false
 	}
 
 	// Build a set of existing emails for deduplication
@@ -42,6 +48,7 @@ func mergeAttendees(existing []*calendar.EventAttendee, addCSV string) []*calend
 	out = append(out, existing...)
 
 	// Add new attendees that don't already exist
+	added := false
 	for _, email := range newEmails {
 		if !existingEmails[strings.ToLower(email)] {
 			out = append(out, &calendar.EventAttendee{
@@ -49,9 +56,10 @@ func mergeAttendees(existing []*calendar.EventAttendee, addCSV string) []*calend
 				ResponseStatus: "needsAction",
 			})
 			existingEmails[strings.ToLower(email)] = true
+			added = true
 		}
 	}
-	return out
+	return out, added
 }
 
 func parseAttendee(s string) *calendar.EventAttendee {

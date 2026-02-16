@@ -6,9 +6,17 @@ Build a single, clean, modern Go CLI that talks to:
 
 - Gmail API
 - Google Calendar API
+- Google Chat API
 - Google Classroom API
 - Google Drive API
+- Google Docs API
+- Google Sheets API
+- Google Forms API
+- Apps Script API
+- Google Tasks API
+- Cloud Identity API (Groups)
 - Google People API (Contacts + directory)
+- Google Keep API (Workspace-only, service account)
 
 This replaces the existing separate CLIs (`gmcli`, `gccli`, `gdcli`) and the Python contacts server conceptually, but:
 
@@ -99,6 +107,9 @@ Implementation: `internal/secrets/store.go`.
 
 - Desktop OAuth 2.0 flow using local HTTP redirect on an ephemeral port.
 - Supports a browserless/manual flow (paste redirect URL) for headless environments.
+- Supports a remote/server-friendly 2-step manual flow:
+  - Step 1 prints an auth URL (`gog auth add ... --remote --step 1`)
+  - Step 2 exchanges the pasted redirect URL and requires `state` validation (`--remote --step 2 --auth-url ...`)
 - Refresh token issuance:
   - requests `access_type=offline`
   - supports `--force-consent` to force the consent prompt when Google doesn't return a refresh token
@@ -119,6 +130,7 @@ Scope selection note:
   - `credentials-<client>.json` (OAuth client id/secret; named clients)
 - State:
   - `state/gmail-watch/<account>.json` (Gmail watch state)
+  - `oauth-manual-state-<state>.json` (temporary manual OAuth state cache; expires quickly; no tokens)
 - Secrets:
   - refresh tokens in keyring
 
@@ -148,7 +160,7 @@ Flag aliases:
 - `gog auth credentials <credentials.json|->`
 - `gog auth credentials list`
 - `gog --client <name> auth credentials <credentials.json|->`
-- `gog auth add <email> [--services user|all|gmail,calendar,classroom,drive,docs,contacts,tasks,sheets,people,groups] [--readonly] [--drive-scope full|readonly|file] [--manual] [--force-consent]`
+- `gog auth add <email> [--services user|all|gmail,calendar,classroom,drive,docs,contacts,tasks,sheets,people,groups] [--readonly] [--drive-scope full|readonly|file] [--manual] [--remote] [--step 1|2] [--auth-url URL] [--timeout DURATION] [--force-consent]`
 - `gog auth services [--markdown]`
 - `gog auth keep <email> --key <service-account.json>` (Google Keep; Workspace only)
 - `gog auth list`
@@ -165,16 +177,17 @@ Flag aliases:
 - `gog config path`
 - `gog config set <key> <value>`
 - `gog config unset <key>`
-- `gog drive ls [--parent ID] [--max N] [--page TOKEN] [--query Q]`
-- `gog drive search <text> [--max N] [--page TOKEN]`
+- `gog version`
+- `gog drive ls [--parent ID] [--max N] [--page TOKEN] [--query Q] [--[no-]all-drives]`
+- `gog drive search <text> [--raw-query] [--max N] [--page TOKEN] [--[no-]all-drives]`
 - `gog drive get <fileId>`
-- `gog drive download <fileId> [--out PATH]`
-- `gog drive upload <localPath> [--name N] [--parent ID]`
+- `gog drive download <fileId> [--out PATH] [--format F]` (`--format` only applies to Google Workspace files)
+- `gog drive upload <localPath> [--name N] [--parent ID] [--convert] [--convert-to doc|sheet|slides]`
 - `gog drive mkdir <name> [--parent ID]`
-- `gog drive delete <fileId>`
+- `gog drive delete <fileId> [--permanent]`
 - `gog drive move <fileId> --parent ID`
 - `gog drive rename <fileId> <newName>`
-- `gog drive share <fileId> [--anyone | --email addr] [--role reader|writer] [--discoverable]`
+- `gog drive share <fileId> --to anyone|user|domain [--email addr] [--domain example.com] [--role reader|writer] [--discoverable]`
 - `gog drive permissions <fileId> [--max N] [--page TOKEN]`
 - `gog drive unshare <fileId> <permissionId>`
 - `gog drive url <fileIds...>`
@@ -291,7 +304,7 @@ Flag aliases:
 - `gog contacts list [--max N] [--page TOKEN]`
 - `gog contacts get <people/...|email>`
 - `gog contacts create --given NAME [--family NAME] [--email addr] [--phone num]`
-- `gog contacts update <people/...> [--given NAME] [--family NAME] [--email addr] [--phone num]`
+- `gog contacts update <people/...> [--given NAME] [--family NAME] [--email addr] [--phone num] [--birthday YYYY-MM-DD] [--notes TEXT] [--from-file PATH|-] [--ignore-etag]`
 - `gog contacts delete <people/...>`
 - `gog contacts directory list [--max N] [--page TOKEN]`
 - `gog contacts directory search <query> [--max N] [--page TOKEN]`
@@ -301,6 +314,14 @@ Flag aliases:
 - `gog people get <people/...|userId>`
 - `gog people search <query> [--max N] [--page TOKEN]`
 - `gog people relations [<people/...|userId>] [--type TYPE]`
+
+Date/time input conventions (shared parser):
+
+- Date-only: `YYYY-MM-DD`
+- Datetime: `RFC3339` / `RFC3339Nano` / `YYYY-MM-DDTHH:MM[:SS]` / `YYYY-MM-DD HH:MM[:SS]`
+- Numeric timezone offset accepted: `YYYY-MM-DDTHH:MM:SS-0800`
+- Calendar range flags also accept relatives: `now`, `today`, `tomorrow`, `yesterday`, weekday names (`monday`, `next friday`)
+- Tracking `--since` also accepts durations like `24h`
 
 ### Planned high-level command tree
 

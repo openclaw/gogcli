@@ -99,6 +99,15 @@ func TestExecute_SheetsMoreCommands(t *testing.T) {
 			t.Fatalf("unexpected out=%q", out)
 		}
 
+		plainOut := captureStdout(t, func() {
+			if err := Execute([]string{"--plain", "sheets", "get", "id1", `Sheet1\\!A1:B1`}); err != nil {
+				t.Fatalf("get plain: %v", err)
+			}
+		})
+		if plainOut != "a\tb\n" {
+			t.Fatalf("unexpected plain out=%q", plainOut)
+		}
+
 		_ = captureStdout(t, func() {
 			if err := Execute([]string{"--json", "sheets", "update", "id1", "Sheet1!A1:B1", "a|b"}); err != nil {
 				t.Fatalf("update: %v", err)

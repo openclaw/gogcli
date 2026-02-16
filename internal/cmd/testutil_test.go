@@ -164,9 +164,10 @@ func runKong(t *testing.T, cmd any, args []string, ctx context.Context, flags *R
 	if ctx != nil {
 		kctx.BindTo(ctx, (*context.Context)(nil))
 	}
-	if flags != nil {
-		kctx.Bind(flags)
+	if flags == nil {
+		flags = &RootFlags{}
 	}
+	kctx.Bind(flags)
 
 	return kctx.Run()
 }

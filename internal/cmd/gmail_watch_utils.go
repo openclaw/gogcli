@@ -69,3 +69,21 @@ func resolveLabelIDsWithService(svc *gmail.Service, labels []string) ([]string, 
 	}
 	return out, nil
 }
+
+func stringSet(items []string) map[string]struct{} {
+	if len(items) == 0 {
+		return nil
+	}
+	out := make(map[string]struct{}, len(items))
+	for _, item := range items {
+		v := strings.TrimSpace(item)
+		if v == "" {
+			continue
+		}
+		out[v] = struct{}{}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}

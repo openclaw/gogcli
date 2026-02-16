@@ -12,8 +12,8 @@ import (
 )
 
 type GmailBatchCmd struct {
-	Delete GmailBatchDeleteCmd `cmd:"" name:"delete" help:"Permanently delete multiple messages"`
-	Modify GmailBatchModifyCmd `cmd:"" name:"modify" help:"Modify labels on multiple messages"`
+	Delete GmailBatchDeleteCmd `cmd:"" name:"delete" aliases:"rm,del,remove" help:"Permanently delete multiple messages"`
+	Modify GmailBatchModifyCmd `cmd:"" name:"modify" aliases:"update,edit,set" help:"Modify labels on multiple messages"`
 }
 
 type GmailBatchDeleteCmd struct {
@@ -22,6 +22,22 @@ type GmailBatchDeleteCmd struct {
 
 func (c *GmailBatchDeleteCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
+	ids := make([]string, 0, len(c.MessageIDs))
+	for _, id := range c.MessageIDs {
+		id = normalizeGmailMessageID(id)
+		if id == "" {
+			continue
+		}
+		ids = append(ids, id)
+	}
+	if len(ids) == 0 {
+		return usage("missing messageId")
+	}
+
+	if confirmErr := confirmDestructive(ctx, flags, "permanently delete gmail messages"); confirmErr != nil {
+		return confirmErr
+	}
+
 	account, err := requireAccount(flags)
 	if err != nil {
 		return err
@@ -33,20 +49,20 @@ func (c *GmailBatchDeleteCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 
 	err = svc.Users.Messages.BatchDelete("me", &gmail.BatchDeleteMessagesRequest{
-		Ids: c.MessageIDs,
+		Ids: ids,
 	}).Do()
 	if err != nil {
 		return err
 	}
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{
-			"deleted": c.MessageIDs,
-			"count":   len(c.MessageIDs),
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
+			"deleted": ids,
+			"count":   len(ids),
 		})
 	}
 
-	u.Out().Printf("Deleted %d messages", len(c.MessageIDs))
+	u.Out().Printf("Deleted %d messages", len(ids))
 	return nil
 }
 
@@ -58,15 +74,34 @@ type GmailBatchModifyCmd struct {
 
 func (c *GmailBatchModifyCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
+	ids := make([]string, 0, len(c.MessageIDs))
+	for _, id := range c.MessageIDs {
+		id = normalizeGmailMessageID(id)
+		if id == "" {
+			continue
+		}
+		ids = append(ids, id)
 	}
-
+	if len(ids) == 0 {
+		return usage("missing messageId")
+	}
 	addLabels := splitCSV(c.Add)
 	removeLabels := splitCSV(c.Remove)
 	if len(addLabels) == 0 && len(removeLabels) == 0 {
 		return errors.New("must specify --add and/or --remove")
+	}
+
+	if err := dryRunExit(ctx, flags, "gmail.batch.modify", map[string]any{
+		"message_ids": ids,
+		"add":         addLabels,
+		"remove":      removeLabels,
+	}); err != nil {
+		return err
+	}
+
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
 	}
 
 	svc, err := newGmailService(ctx, account)
@@ -83,7 +118,7 @@ func (c *GmailBatchModifyCmd) Run(ctx context.Context, flags *RootFlags) error {
 	removeIDs := resolveLabelIDs(removeLabels, idMap)
 
 	err = svc.Users.Messages.BatchModify("me", &gmail.BatchModifyMessagesRequest{
-		Ids:            c.MessageIDs,
+		Ids:            ids,
 		AddLabelIds:    addIDs,
 		RemoveLabelIds: removeIDs,
 	}).Do()
@@ -92,14 +127,14 @@ func (c *GmailBatchModifyCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{
-			"modified":      c.MessageIDs,
-			"count":         len(c.MessageIDs),
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
+			"modified":      ids,
+			"count":         len(ids),
 			"addedLabels":   addIDs,
 			"removedLabels": removeIDs,
 		})
 	}
 
-	u.Out().Printf("Modified %d messages", len(c.MessageIDs))
+	u.Out().Printf("Modified %d messages", len(ids))
 	return nil
 }
