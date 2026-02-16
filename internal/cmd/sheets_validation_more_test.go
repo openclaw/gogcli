@@ -253,4 +253,21 @@ func TestParseSheetRangeAndGridRange(t *testing.T) {
 	if grid.SheetId != 9 {
 		t.Fatalf("unexpected sheet id: %d", grid.SheetId)
 	}
+	if !hasStringValue(grid.ForceSendFields, "SheetId") {
+		t.Fatalf("expected SheetId in ForceSendFields, got %#v", grid.ForceSendFields)
+	}
+
+	zero := toGridRange(a1Range{
+		SheetName: "Sheet1",
+		StartRow:  1,
+		EndRow:    2,
+		StartCol:  1,
+		EndCol:    2,
+	}, 0)
+	if zero.SheetId != 0 {
+		t.Fatalf("expected sheet id 0, got %d", zero.SheetId)
+	}
+	if !hasStringValue(zero.ForceSendFields, "SheetId") {
+		t.Fatalf("expected SheetId force-send for sheet id 0, got %#v", zero.ForceSendFields)
+	}
 }

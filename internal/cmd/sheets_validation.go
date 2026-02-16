@@ -9,25 +9,21 @@ import (
 )
 
 func copyDataValidation(ctx context.Context, svc *sheets.Service, spreadsheetID, sourceA1, destA1 string) error {
-	sourceRange, err := parseSheetRange(sourceA1, "copy-validation-from")
+	catalog, err := fetchSpreadsheetRangeCatalog(ctx, svc, spreadsheetID)
 	if err != nil {
 		return err
 	}
+
+	sourceGrid, _, err := resolveGridRangeWithCatalog(sourceA1, catalog, "copy-validation-from")
+	if err != nil {
+		return err
+	}
+
 	destRange, err := parseSheetRange(destA1, "updated")
 	if err != nil {
 		return err
 	}
-
-	sheetIDs, err := fetchSheetIDMap(ctx, svc, spreadsheetID)
-	if err != nil {
-		return err
-	}
-
-	sourceGrid, err := gridRangeFromMap(sourceRange, sheetIDs, "copy-validation-from")
-	if err != nil {
-		return err
-	}
-	destGrid, err := gridRangeFromMap(destRange, sheetIDs, "updated")
+	destGrid, err := gridRangeFromMap(destRange, catalog.SheetIDsByTitle, "updated")
 	if err != nil {
 		return err
 	}
@@ -52,34 +48,35 @@ func copyDataValidation(ctx context.Context, svc *sheets.Service, spreadsheetID,
 }
 
 func fetchSheetIDMap(ctx context.Context, svc *sheets.Service, spreadsheetID string) (map[string]int64, error) {
-	call := svc.Spreadsheets.Get(spreadsheetID).
-		Fields("sheets(properties(sheetId,title))")
-	if ctx != nil {
-		call = call.Context(ctx)
-	}
-	resp, err := call.Do()
+	catalog, err := fetchSpreadsheetRangeCatalog(ctx, svc, spreadsheetID)
 	if err != nil {
-		return nil, fmt.Errorf("get spreadsheet metadata: %w", err)
+		return nil, err
 	}
-
-	ids := make(map[string]int64, len(resp.Sheets))
-	for _, sheet := range resp.Sheets {
-		if sheet.Properties == nil {
-			continue
-		}
-		ids[sheet.Properties.Title] = sheet.Properties.SheetId
-	}
-	return ids, nil
+	return catalog.SheetIDsByTitle, nil
 }
 
 func toGridRange(r a1Range, sheetID int64) *sheets.GridRange {
-	return &sheets.GridRange{
+	gr := &sheets.GridRange{
 		SheetId:          sheetID,
-		StartRowIndex:    int64(r.StartRow - 1),
-		EndRowIndex:      int64(r.EndRow),
-		StartColumnIndex: int64(r.StartCol - 1),
-		EndColumnIndex:   int64(r.EndCol),
+		ForceSendFields:  []string{"SheetId"}, // sheetId can be 0 for the first sheet, but still must be sent.
+		StartRowIndex:    0,
+		EndRowIndex:      0,
+		StartColumnIndex: 0,
+		EndColumnIndex:   0,
 	}
+	if r.StartRow > 0 {
+		gr.StartRowIndex = int64(r.StartRow - 1)
+	}
+	if r.EndRow > 0 {
+		gr.EndRowIndex = int64(r.EndRow)
+	}
+	if r.StartCol > 0 {
+		gr.StartColumnIndex = int64(r.StartCol - 1)
+	}
+	if r.EndCol > 0 {
+		gr.EndColumnIndex = int64(r.EndCol)
+	}
+	return gr
 }
 
 func parseSheetRange(a1, label string) (a1Range, error) {

@@ -13,7 +13,11 @@ type a1Range struct {
 	StartCol, EndCol int
 }
 
-var a1CellRe = regexp.MustCompile(`^([A-Za-z]+)([0-9]+)$`)
+var (
+	a1CellRe = regexp.MustCompile(`^([A-Za-z]+)([0-9]+)$`)
+	a1ColRe  = regexp.MustCompile(`^([A-Za-z]+)$`)
+	a1RowRe  = regexp.MustCompile(`^([0-9]+)$`)
+)
 
 func parseA1Range(a1 string) (a1Range, error) {
 	raw := strings.TrimSpace(a1)
@@ -42,19 +46,96 @@ func parseA1Range(a1 string) (a1Range, error) {
 		endRef = strings.TrimSpace(parts[1])
 	}
 
-	startCol, startRow, err := parseA1Cell(startRef)
+	type refKind int
+	const (
+		refUnknown refKind = iota
+		refCell
+		refCol
+		refRow
+	)
+
+	parseRef := func(ref string) (kind refKind, col int, row int, err error) {
+		if strings.TrimSpace(ref) == "" {
+			return refUnknown, 0, 0, fmt.Errorf("empty A1 ref")
+		}
+		if m := a1CellRe.FindStringSubmatch(ref); m != nil {
+			c, err := colLettersToIndex(m[1])
+			if err != nil {
+				return refUnknown, 0, 0, err
+			}
+			r, err := strconv.Atoi(m[2])
+			if err != nil || r <= 0 {
+				return refUnknown, 0, 0, fmt.Errorf("invalid row in %q", ref)
+			}
+			return refCell, c, r, nil
+		}
+		if m := a1ColRe.FindStringSubmatch(ref); m != nil {
+			c, err := colLettersToIndex(m[1])
+			if err != nil {
+				return refUnknown, 0, 0, err
+			}
+			return refCol, c, 0, nil
+		}
+		if m := a1RowRe.FindStringSubmatch(ref); m != nil {
+			r, err := strconv.Atoi(m[1])
+			if err != nil || r <= 0 {
+				return refUnknown, 0, 0, fmt.Errorf("invalid row in %q", ref)
+			}
+			return refRow, 0, r, nil
+		}
+		return refUnknown, 0, 0, fmt.Errorf("invalid A1 ref %q", ref)
+	}
+
+	startKind, startCol, startRow, err := parseRef(startRef)
 	if err != nil {
 		return a1Range{}, err
 	}
-	endCol, endRow, err := parseA1Cell(endRef)
+	endKind, endCol, endRow, err := parseRef(endRef)
 	if err != nil {
 		return a1Range{}, err
 	}
 
-	if endRow < startRow {
+	// Without a ":" separator, A1 notation must be a cell reference (e.g. A1),
+	// not a row/column range shorthand.
+	if len(parts) == 1 && startKind != refCell {
+		return a1Range{}, fmt.Errorf("invalid A1 range %q", raw)
+	}
+
+	switch startKind {
+	case refCell:
+		switch endKind {
+		case refCell:
+			// ok
+		case refCol:
+			// A5:C (end row unbounded)
+			endRow = 0
+		default:
+			return a1Range{}, fmt.Errorf("invalid A1 range %q", raw)
+		}
+	case refCol:
+		switch endKind {
+		case refCol:
+			// A:C (rows unbounded)
+			startRow, endRow = 0, 0
+		default:
+			return a1Range{}, fmt.Errorf("invalid A1 range %q", raw)
+		}
+	case refRow:
+		switch endKind {
+		case refRow:
+			// 2:10 (cols unbounded)
+			startCol, endCol = 0, 0
+		default:
+			return a1Range{}, fmt.Errorf("invalid A1 range %q", raw)
+		}
+	default:
+		return a1Range{}, fmt.Errorf("invalid A1 range %q", raw)
+	}
+
+	if startRow > 0 && endRow > 0 && endRow < startRow {
 		startRow, endRow = endRow, startRow
 	}
-	if endCol < startCol {
+	if startCol > 0 && endCol > 0 && endCol < startCol {
 		startCol, endCol = endCol, startCol
 	}
 

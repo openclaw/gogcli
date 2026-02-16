@@ -13,7 +13,7 @@ import (
 
 type SheetsNotesCmd struct {
 	SpreadsheetID string `arg:"" name:"spreadsheetId" help:"Spreadsheet ID"`
-	Range         string `arg:"" name:"range" help:"Range (eg. Sheet1!A1:B10)"`
+	Range         string `arg:"" name:"range" help:"Range (A1 notation or named range name; e.g. Sheet1!A1:B10 or MyNamedRange)"`
 }
 
 func (c *SheetsNotesCmd) Run(ctx context.Context, flags *RootFlags) error {

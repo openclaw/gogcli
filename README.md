@@ -995,6 +995,7 @@ gog tasks clear <tasklistId>
 # Read
 gog sheets metadata <spreadsheetId>
 gog sheets get <spreadsheetId> 'Sheet1!A1:B10'
+gog sheets get <spreadsheetId> MyNamedRange
 
 # Export (via Drive)
 gog sheets export <spreadsheetId> --format pdf --out ./sheet.pdf
@@ -1004,12 +1005,25 @@ gog sheets export <spreadsheetId> --format xlsx --out ./sheet.xlsx
 gog sheets update <spreadsheetId> 'A1' 'val1|val2,val3|val4'
 gog sheets update <spreadsheetId> 'A1' --values-json '[["a","b"],["c","d"]]'
 gog sheets update <spreadsheetId> 'Sheet1!A1:C1' 'new|row|data' --copy-validation-from 'Sheet1!A2:C2'
+gog sheets update <spreadsheetId> MyNamedRange 'new|row|data'
+gog sheets update <spreadsheetId> 'Sheet1!A1:C1' 'new|row|data' --copy-validation-from MyValidationNamedRange
 gog sheets append <spreadsheetId> 'Sheet1!A:C' 'new|row|data'
 gog sheets append <spreadsheetId> 'Sheet1!A:C' 'new|row|data' --copy-validation-from 'Sheet1!A2:C2'
+gog sheets append <spreadsheetId> MyNamedRange 'new|row|data'
 gog sheets clear <spreadsheetId> 'Sheet1!A1:B10'
+gog sheets clear <spreadsheetId> MyNamedRange
 
 # Format
 gog sheets format <spreadsheetId> 'Sheet1!A1:B2' --format-json '{"textFormat":{"bold":true}}' --format-fields 'userEnteredFormat.textFormat.bold'
+gog sheets format <spreadsheetId> MyNamedRange --format-json '{"textFormat":{"bold":true}}' --format-fields 'userEnteredFormat.textFormat.bold'
+
+# Named ranges
+gog sheets named-ranges <spreadsheetId>
+gog sheets named-ranges get <spreadsheetId> MyNamedRange
+gog sheets named-ranges add <spreadsheetId> MyNamedRange 'Sheet1!A1:B2'
+gog sheets named-ranges add <spreadsheetId> MyCols 'Sheet1!A:C'
+gog sheets named-ranges update <spreadsheetId> MyNamedRange --name MyNamedRange2
+gog sheets named-ranges delete <spreadsheetId> MyNamedRange2
 
 # Insert rows/cols
 gog sheets insert <spreadsheetId> "Sheet1" rows 2 --count 3

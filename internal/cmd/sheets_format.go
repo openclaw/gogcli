@@ -15,7 +15,7 @@ import (
 
 type SheetsFormatCmd struct {
 	SpreadsheetID string `arg:"" name:"spreadsheetId" help:"Spreadsheet ID"`
-	Range         string `arg:"" name:"range" help:"Range (eg. Sheet1!A1:B2)"`
+	Range         string `arg:"" name:"range" help:"Range (A1 notation with sheet name, or named range name; e.g. Sheet1!A1:B2 or MyNamedRange)"`
 	FormatJSON    string `name:"format-json" help:"Cell format as JSON (Sheets API CellFormat)"`
 	FormatFields  string `name:"format-fields" help:"Format field mask (eg. userEnteredFormat.textFormat.bold or textFormat.bold)"`
 }
@@ -56,11 +56,6 @@ func (c *SheetsFormatCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
-	rangeInfo, err := parseSheetRange(rangeSpec, "format")
-	if err != nil {
-		return err
-	}
-
 	if dryRunErr := dryRunExit(ctx, flags, "sheets.format", map[string]any{
 		"spreadsheet_id": spreadsheetID,
 		"range":          rangeSpec,
@@ -80,11 +75,11 @@ func (c *SheetsFormatCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
-	sheetIDs, err := fetchSheetIDMap(ctx, svc, spreadsheetID)
+	catalog, err := fetchSpreadsheetRangeCatalog(ctx, svc, spreadsheetID)
 	if err != nil {
 		return err
 	}
-	gridRange, err := gridRangeFromMap(rangeInfo, sheetIDs, "format")
+	gridRange, _, err := resolveGridRangeWithCatalog(rangeSpec, catalog, "format")
 	if err != nil {
 		return err
 	}

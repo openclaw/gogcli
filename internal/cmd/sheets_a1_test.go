@@ -48,4 +48,34 @@ func TestParseA1Range(t *testing.T) {
 			t.Fatalf("expected error")
 		}
 	})
+
+	t.Run("columns", func(t *testing.T) {
+		r, err := parseA1Range("Sheet1!A:C")
+		if err != nil {
+			t.Fatalf("parseA1Range: %v", err)
+		}
+		if r.SheetName != "Sheet1" || r.StartCol != 1 || r.EndCol != 3 || r.StartRow != 0 || r.EndRow != 0 {
+			t.Fatalf("unexpected range: %#v", r)
+		}
+	})
+
+	t.Run("rows", func(t *testing.T) {
+		r, err := parseA1Range("Sheet1!2:10")
+		if err != nil {
+			t.Fatalf("parseA1Range: %v", err)
+		}
+		if r.SheetName != "Sheet1" || r.StartRow != 2 || r.EndRow != 10 || r.StartCol != 0 || r.EndCol != 0 {
+			t.Fatalf("unexpected range: %#v", r)
+		}
+	})
+
+	t.Run("open-ended rows", func(t *testing.T) {
+		r, err := parseA1Range("Sheet1!B5:D")
+		if err != nil {
+			t.Fatalf("parseA1Range: %v", err)
+		}
+		if r.SheetName != "Sheet1" || r.StartRow != 5 || r.EndRow != 0 || r.StartCol != 2 || r.EndCol != 4 {
+			t.Fatalf("unexpected range: %#v", r)
+		}
+	})
 }
