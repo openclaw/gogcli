@@ -888,6 +888,9 @@ gog sheets export <spreadsheetId> --format pdf --out ./sheet.pdf
 gog sheets format <spreadsheetId> 'Sheet1!A1:B2' --format-json '{"textFormat":{"bold":true}}' --format-fields 'userEnteredFormat.textFormat.bold'
 gog sheets insert <spreadsheetId> "Sheet1" rows 2 --count 3
 gog sheets notes <spreadsheetId> 'Sheet1!A1:B10'
+gog sheets add-tab <spreadsheetId> <tabName>
+gog sheets rename-tab <spreadsheetId> <oldName> <newName>
+gog sheets delete-tab <spreadsheetId> <tabName> --force
 ```
 
 ### Contacts
@@ -982,6 +985,11 @@ gog sheets notes <spreadsheetId> 'Sheet1!A1:B10'
 
 # Create
 gog sheets create "My New Spreadsheet" --sheets "Sheet1,Sheet2"
+
+# Tab management
+gog sheets add-tab <spreadsheetId> <tabName>
+gog sheets rename-tab <spreadsheetId> <oldName> <newName>
+gog sheets delete-tab <spreadsheetId> <tabName>          # use --force to skip confirmation
 ```
 
 ### Forms
