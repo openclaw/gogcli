@@ -120,6 +120,10 @@ func (c *GmailDelegatesAddCmd) Run(ctx context.Context, flags *RootFlags) error 
 		return err
 	}
 
+	if confirmErr := confirmSensitive(ctx, flags, fmt.Sprintf("add gmail delegate %s (grants mailbox read access)", delegateEmail)); confirmErr != nil {
+		return confirmErr
+	}
+
 	delegate := &gmail.Delegate{
 		DelegateEmail: delegateEmail,
 	}

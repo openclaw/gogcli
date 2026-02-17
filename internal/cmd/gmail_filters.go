@@ -279,6 +279,9 @@ func (c *GmailFiltersCreateCmd) Run(ctx context.Context, flags *RootFlags) error
 	}
 
 	if c.Forward != "" {
+		if confirmErr := confirmSensitive(ctx, flags, fmt.Sprintf("create gmail filter forwarding to %s", c.Forward)); confirmErr != nil {
+			return confirmErr
+		}
 		action.Forward = c.Forward
 	}
 

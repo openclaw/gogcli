@@ -785,6 +785,12 @@ func (c *DriveShareCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
+	if to == driveShareToAnyone {
+		if confirmErr := confirmSensitive(ctx, flags, fmt.Sprintf("share drive file %s with anyone (public)", fileID)); confirmErr != nil {
+			return confirmErr
+		}
+	}
+
 	perm := &drive.Permission{Role: role}
 	switch to {
 	case driveShareToAnyone:

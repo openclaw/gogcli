@@ -40,3 +40,9 @@ func confirmDestructive(ctx context.Context, flags *RootFlags, action string) er
 	}
 	return &ExitError{Code: 1, Err: errors.New("cancelled")}
 }
+
+// Made a new function to handle sensitive operations
+// Does the same work as confirmDestructive but with different name to eleminate confusion.
+func confirmSensitive(ctx context.Context, flags *RootFlags, action string) error {
+	return confirmDestructive(ctx, flags, action)
+}
