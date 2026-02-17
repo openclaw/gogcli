@@ -206,8 +206,9 @@ func buildReminders(reminders []string) (*calendar.EventReminders, error) {
 			return nil, err
 		}
 		overrides = append(overrides, &calendar.EventReminder{
-			Method:  method,
-			Minutes: minutes,
+			Method:          method,
+			Minutes:         minutes,
+			ForceSendFields: []string{"Minutes"},
 		})
 	}
 
