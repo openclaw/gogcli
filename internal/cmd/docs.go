@@ -114,9 +114,10 @@ func (c *DocsInfoCmd) Run(ctx context.Context, flags *RootFlags) error {
 }
 
 type DocsCreateCmd struct {
-	Title  string `arg:"" name:"title" help:"Doc title"`
-	Parent string `name:"parent" help:"Destination folder ID"`
-	File   string `name:"file" help:"Markdown file to import" type:"existingfile"`
+	Title    string `arg:"" name:"title" help:"Doc title"`
+	Parent   string `name:"parent" help:"Destination folder ID"`
+	File     string `name:"file" help:"Markdown file to import" type:"existingfile"`
+	Pageless bool   `name:"pageless" help:"Set document to pageless mode"`
 }
 
 func (c *DocsCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -179,6 +180,16 @@ func (c *DocsCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if len(images) > 0 {
 		if err := c.insertImages(ctx, account, driveSvc, created.Id, images); err != nil {
 			return fmt.Errorf("insert images: %w", err)
+		}
+	}
+
+	if c.Pageless {
+		docsSvc, svcErr := newDocsService(ctx, account)
+		if svcErr != nil {
+			return svcErr
+		}
+		if err := setDocumentPageless(ctx, docsSvc, created.Id); err != nil {
+			return fmt.Errorf("set pageless mode: %w", err)
 		}
 	}
 
@@ -324,6 +335,7 @@ type DocsUpdateCmd struct {
 	Format      string `name:"format" help:"Content format: plain|markdown" default:"plain"`
 	Append      bool   `name:"append" help:"Append to end of document instead of replacing all content"`
 	Debug       bool   `name:"debug" help:"Enable debug output for markdown formatter"`
+	Pageless    bool   `name:"pageless" help:"Set document to pageless mode"`
 }
 
 const (
@@ -475,6 +487,12 @@ func (c *DocsUpdateCmd) Run(ctx context.Context, flags *RootFlags) error {
 		}
 	}
 
+	if c.Pageless {
+		if err := setDocumentPageless(ctx, svc, id); err != nil {
+			return fmt.Errorf("set pageless mode: %w", err)
+		}
+	}
+
 	if outfmt.IsJSON(ctx) {
 		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
 			"success": true,
@@ -622,6 +640,7 @@ type DocsWriteCmd struct {
 	File     string `name:"file" short:"f" help:"Read content from file (use - for stdin)"`
 	Replace  bool   `name:"replace" help:"Replace all content (default: append)"`
 	Markdown bool   `name:"markdown" help:"Convert markdown to Google Docs formatting (requires --replace)"`
+	Pageless bool   `name:"pageless" help:"Set document to pageless mode"`
 }
 
 func (c *DocsWriteCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -669,6 +688,16 @@ func (c *DocsWriteCmd) writeMarkdown(ctx context.Context, account, docID, conten
 		Do()
 	if err != nil {
 		return fmt.Errorf("writing markdown to document: %w", err)
+	}
+
+	if c.Pageless {
+		docsSvc, svcErr := newDocsService(ctx, account)
+		if svcErr != nil {
+			return svcErr
+		}
+		if err := setDocumentPageless(ctx, docsSvc, docID); err != nil {
+			return fmt.Errorf("set pageless mode: %w", err)
+		}
 	}
 
 	if outfmt.IsJSON(ctx) {
@@ -743,6 +772,12 @@ func (c *DocsWriteCmd) writePlainText(ctx context.Context, account, docID, conte
 	}).Context(ctx).Do()
 	if err != nil {
 		return fmt.Errorf("writing to document: %w", err)
+	}
+
+	if c.Pageless {
+		if err := setDocumentPageless(ctx, svc, docID); err != nil {
+			return fmt.Errorf("set pageless mode: %w", err)
+		}
 	}
 
 	if outfmt.IsJSON(ctx) {
@@ -1150,6 +1185,23 @@ func tabInfoJSON(tab *docs.Tab) map[string]any {
 		}
 	}
 	return m
+}
+
+// setDocumentPageless switches a Google Doc to pageless mode via the Docs API.
+func setDocumentPageless(ctx context.Context, svc *docs.Service, docID string) error {
+	_, err := svc.Documents.BatchUpdate(docID, &docs.BatchUpdateDocumentRequest{
+		Requests: []*docs.Request{{
+			UpdateDocumentStyle: &docs.UpdateDocumentStyleRequest{
+				DocumentStyle: &docs.DocumentStyle{
+					DocumentFormat: &docs.DocumentFormat{
+						DocumentMode: "PAGELESS",
+					},
+				},
+				Fields: "documentFormat",
+			},
+		}},
+	}).Context(ctx).Do()
+	return err
 }
 
 func isDocsNotFound(err error) bool {
