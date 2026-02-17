@@ -150,6 +150,7 @@ func TestParseSince(t *testing.T) {
 		wantNano bool
 	}{
 		{name: "duration", value: "24h", want: now.Add(-24 * time.Hour).UTC()},
+		{name: "negative duration", value: "-24h", wantErr: true},
 		{name: "date", value: "2026-02-01", want: time.Date(2026, 2, 1, 0, 0, 0, 0, time.UTC)},
 		{name: "rfc3339", value: "2026-02-01T10:20:30Z", want: time.Date(2026, 2, 1, 10, 20, 30, 0, time.UTC)},
 		{name: "rfc3339nano", value: "2026-02-01T10:20:30.123456789Z", want: time.Date(2026, 2, 1, 10, 20, 30, 123456789, time.UTC), wantNano: true},

@@ -134,6 +134,9 @@ func ParseSince(value string, now time.Time, loc *time.Location) (SinceResult, e
 	}
 
 	if d, err := time.ParseDuration(value); err == nil {
+		if d < 0 {
+			return SinceResult{}, fmt.Errorf("%w: %q", ErrInvalidSince, value)
+		}
 		return SinceResult{Time: now.Add(-d).UTC()}, nil
 	}
 
