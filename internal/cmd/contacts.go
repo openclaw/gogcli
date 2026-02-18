@@ -177,13 +177,6 @@ func primaryOrganization(p *people.Person) (name, title string) {
 	return p.Organizations[0].Name, p.Organizations[0].Title
 }
 
-func primaryURL(p *people.Person) string {
-	if p == nil || len(p.Urls) == 0 || p.Urls[0] == nil {
-		return ""
-	}
-	return p.Urls[0].Value
-}
-
 func allURLs(p *people.Person) []string {
 	if p == nil || len(p.Urls) == 0 {
 		return nil

@@ -166,11 +166,12 @@ func (c *ContactsGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 		u.Out().Printf("birthday\t%s", bd)
 	}
 	if org, title := primaryOrganization(p); org != "" || title != "" {
-		if org != "" && title != "" {
+		switch {
+		case org != "" && title != "":
 			u.Out().Printf("organization\t%s (%s)", org, title)
-		} else if org != "" {
+		case org != "":
 			u.Out().Printf("organization\t%s", org)
-		} else {
+		default:
 			u.Out().Printf("title\t%s", title)
 		}
 	}
@@ -448,11 +449,11 @@ func (c *ContactsUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *
 		updateFields = append(updateFields, "biographies")
 	}
 	if wantCustom {
-		userDefined, clear, parseErr := parseCustomUserDefined(c.Custom, true)
+		userDefined, clearAll, parseErr := parseCustomUserDefined(c.Custom, true)
 		if parseErr != nil {
 			return usage(parseErr.Error())
 		}
-		if clear {
+		if clearAll {
 			existing.UserDefined = nil
 		} else {
 			existing.UserDefined = userDefined
