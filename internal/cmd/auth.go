@@ -484,6 +484,7 @@ type AuthAddCmd struct {
 	ForceConsent bool          `name:"force-consent" help:"Force consent screen to obtain a refresh token"`
 	ServicesCSV  string        `name:"services" help:"Services to authorize: user|all or comma-separated ${auth_services} (Keep uses service account: gog auth service-account set)" default:"user"`
 	Readonly     bool          `name:"readonly" help:"Use read-only scopes where available (still includes OIDC identity scopes)"`
+	Safe         bool          `name:"safe" help:"Use safe/restricted scopes (eg. Gmail drafts only, no send)"`
 	DriveScope   string        `name:"drive-scope" help:"Drive scope mode: full|readonly|file" enum:"full,readonly,file" default:"full"`
 }
 
@@ -509,6 +510,7 @@ func (c *AuthAddCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 	scopes, err := googleauth.ScopesForManageWithOptions(services, googleauth.ScopeOptions{
 		Readonly:   c.Readonly,
+		Safe:       c.Safe,
 		DriveScope: googleauth.DriveScopeMode(c.DriveScope),
 	})
 	if err != nil {
@@ -599,15 +601,16 @@ func (c *AuthAddCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 
 	refreshToken, err := authorizeGoogle(ctx, googleauth.AuthorizeOptions{
-		Services:     services,
-		Scopes:       scopes,
-		Manual:       manual,
-		ForceConsent: c.ForceConsent,
-		Timeout:      timeout,
-		Client:       client,
-		AuthURL:      authURL,
-		AuthCode:     authCode,
-		RequireState: c.Remote,
+		Services:             services,
+		Scopes:               scopes,
+		Manual:               manual,
+		ForceConsent:         c.ForceConsent,
+		Timeout:              timeout,
+		Client:               client,
+		AuthURL:              authURL,
+		AuthCode:             authCode,
+		RequireState:         c.Remote,
+		IncludeGrantedScopes: !c.Safe,
 	})
 	if err != nil {
 		return err

@@ -48,6 +48,7 @@ const (
 
 type ScopeOptions struct {
 	Readonly   bool
+	Safe       bool
 	DriveScope DriveScopeMode
 }
 
@@ -419,6 +420,12 @@ func scopesForServiceWithOptions(service Service, opts ScopeOptions) ([]string, 
 	case ServiceGmail:
 		if opts.Readonly {
 			return []string{"https://www.googleapis.com/auth/gmail.readonly"}, nil
+		}
+		if opts.Safe {
+			return []string{
+				"https://www.googleapis.com/auth/gmail.insert", // The safe scope, allows only drafting emails
+				"https://www.googleapis.com/auth/gmail.readonly",
+			}, nil
 		}
 
 		return Scopes(service)

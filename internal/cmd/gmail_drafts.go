@@ -469,7 +469,13 @@ func (c *GmailDraftsCreateCmd) Run(ctx context.Context, flags *RootFlags) error 
 
 	draft, err := svc.Users.Drafts.Create("me", &gmail.Draft{Message: msg}).Do()
 	if err != nil {
-		return err
+		// Fallback for safe mode (requires insert scope)
+		msg.LabelIds = []string{"DRAFT"}
+		insertedMsg, insertErr := svc.Users.Messages.Insert("me", msg).Do()
+		if insertErr != nil {
+			return fmt.Errorf("%w \n %v", err, insertErr)
+		}
+		draft = &gmail.Draft{Message: insertedMsg}
 	}
 	return writeDraftResult(ctx, u, draft, threadID)
 }

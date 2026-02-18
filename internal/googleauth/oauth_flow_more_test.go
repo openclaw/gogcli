@@ -18,7 +18,7 @@ func TestAuthURLParams(t *testing.T) {
 		Scopes:      []string{"s1"},
 	}
 
-	u1 := cfg.AuthCodeURL("state", authURLParams(false)...)
+	u1 := cfg.AuthCodeURL("state", authURLParams(false, true)...)
 	var parsed1 *url.URL
 
 	if p, err := url.Parse(u1); err != nil {
@@ -39,7 +39,7 @@ func TestAuthURLParams(t *testing.T) {
 		t.Fatalf("expected no prompt, got: %q", prompt)
 	}
 
-	u2 := cfg.AuthCodeURL("state", authURLParams(true)...)
+	u2 := cfg.AuthCodeURL("state", authURLParams(true, true)...)
 	var parsed2 *url.URL
 
 	if p, err := url.Parse(u2); err != nil {
