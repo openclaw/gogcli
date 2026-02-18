@@ -352,6 +352,20 @@ func TestBuildReminders(t *testing.T) {
 		t.Fatalf("unexpected override[1]: %#v", got.Overrides[1])
 	}
 
+	got, err = buildReminders([]string{"popup:0m"})
+	if err != nil {
+		t.Fatalf("unexpected error for 0-minute reminder: %v", err)
+	}
+	if got == nil || len(got.Overrides) != 1 {
+		t.Fatalf("unexpected 0-minute reminders payload: %#v", got)
+	}
+	if got.Overrides[0].Method != "popup" || got.Overrides[0].Minutes != 0 {
+		t.Fatalf("unexpected 0-minute override: %#v", got.Overrides[0])
+	}
+	if !hasStringValue(got.Overrides[0].ForceSendFields, "Minutes") {
+		t.Fatalf("expected Minutes to be force-sent for 0-minute reminder, got %#v", got.Overrides[0].ForceSendFields)
+	}
+
 	_, err = buildReminders([]string{"popup:1m", "popup:2m", "popup:3m", "popup:4m", "popup:5m", "popup:6m"})
 	if err == nil {
 		t.Fatalf("expected error for >5 reminders")

@@ -205,10 +205,15 @@ func buildReminders(reminders []string) (*calendar.EventReminders, error) {
 		if err != nil {
 			return nil, err
 		}
-		overrides = append(overrides, &calendar.EventReminder{
+		reminder := &calendar.EventReminder{
 			Method:  method,
 			Minutes: minutes,
-		})
+		}
+		if minutes == 0 {
+			// Minutes is an omitempty zero value; force-send 0 so Calendar API doesn't reject it.
+			reminder.ForceSendFields = []string{"Minutes"}
+		}
+		overrides = append(overrides, reminder)
 	}
 
 	// ForceSendFields ensures UseDefault=false is sent (not omitted as zero value)
