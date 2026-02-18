@@ -39,3 +39,39 @@ func TestAutoJSON_Version_RespectsExplicitPlainFlag(t *testing.T) {
 		t.Fatalf("expected text output (not json), got: %q", out)
 	}
 }
+
+func TestAutoJSON_Version_DefaultsToJSONWhenForceOutputEnabled(t *testing.T) {
+	t.Setenv("GOG_FORCE_OUTPUT", "1")
+
+	out := captureStdout(t, func() {
+		_ = captureStderr(t, func() {
+			if err := Execute([]string{"version"}); err != nil {
+				t.Fatalf("Execute: %v", err)
+			}
+		})
+	})
+
+	if !strings.HasPrefix(strings.TrimSpace(out), "{") {
+		t.Fatalf("expected json output, got: %q", out)
+	}
+	if !strings.Contains(out, "\"version\"") {
+		t.Fatalf("expected version field in json output, got: %q", out)
+	}
+}
+
+func TestAutoJSON_Version_DefaultsToJSONWhenNoInputAndPiped(t *testing.T) {
+	out := captureStdout(t, func() {
+		_ = captureStderr(t, func() {
+			if err := Execute([]string{"--non-interactive", "version"}); err != nil {
+				t.Fatalf("Execute: %v", err)
+			}
+		})
+	})
+
+	if !strings.HasPrefix(strings.TrimSpace(out), "{") {
+		t.Fatalf("expected json output, got: %q", out)
+	}
+	if !strings.Contains(out, "\"version\"") {
+		t.Fatalf("expected version field in json output, got: %q", out)
+	}
+}

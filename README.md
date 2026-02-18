@@ -414,6 +414,8 @@ gog keep get <noteId> --account you@yourdomain.com
 - `GOG_CLIENT` - OAuth client name (selects stored credentials + token bucket)
 - `GOG_JSON` - Default JSON output
 - `GOG_PLAIN` - Default plain output
+- `GOG_AUTO_JSON` - If stdout is non-TTY and neither `--json` nor `--plain` is set, default to JSON output
+- `GOG_FORCE_OUTPUT` - Alias for `GOG_AUTO_JSON` (useful for automation/agent runtimes)
 - `GOG_COLOR` - Color mode: `auto` (default), `always`, or `never`
 - `GOG_TIMEZONE` - Default output timezone for Calendar/Gmail (IANA name, `UTC`, or `local`)
 - `GOG_ENABLE_COMMANDS` - Comma-separated allowlist of top-level commands (e.g., `calendar,tasks`)

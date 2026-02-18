@@ -130,9 +130,15 @@ func Execute(args []string) (err error) {
 		Level: logLevel,
 	})))
 
-	// Opt-in "agent mode": default to JSON when stdout is piped/non-TTY.
+	// Agent/non-interactive mode: default to JSON when stdout is piped/non-TTY.
 	// We intentionally do this after parsing so `--plain` can override it.
-	if envBool("GOG_AUTO_JSON") && !cli.JSON && !cli.Plain && !term.IsTerminal(int(os.Stdout.Fd())) {
+	//
+	// Triggers:
+	// - GOG_AUTO_JSON=1 (existing behavior)
+	// - GOG_FORCE_OUTPUT=1 (automation-friendly alias)
+	// - --non-interactive (when stdout is piped)
+	autoJSON := envBool("GOG_AUTO_JSON") || envBool("GOG_FORCE_OUTPUT") || cli.NoInput
+	if autoJSON && !cli.JSON && !cli.Plain && !term.IsTerminal(int(os.Stdout.Fd())) {
 		cli.JSON = true
 	}
 
