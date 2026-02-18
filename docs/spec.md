@@ -55,6 +55,8 @@ Environment:
 - `GOG_COLOR=auto|always|never` (default `auto`, overridden by `--color`)
 - `GOG_JSON=1` (default JSON output; overridden by flags)
 - `GOG_PLAIN=1` (default plain output; overridden by flags)
+- `GOG_AUTO_JSON=1` (if stdout is non-TTY and neither `--json` nor `--plain` is set, default to JSON output)
+- `GOG_FORCE_OUTPUT=1` (alias for `GOG_AUTO_JSON`, intended for automation/agent runtimes)
 
 ## Output (TTY-aware colors)
 
