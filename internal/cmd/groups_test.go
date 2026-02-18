@@ -74,3 +74,23 @@ func TestTruncate(t *testing.T) {
 		t.Fatalf("unexpected truncate: %q", got)
 	}
 }
+
+func TestSearchTransitiveGroupsQuery(t *testing.T) {
+	got := searchTransitiveGroupsQuery("person@example.com")
+	if !strings.Contains(got, "member_key_id == 'person@example.com'") {
+		t.Fatalf("missing member_key_id clause: %q", got)
+	}
+	if !strings.Contains(got, "'"+groupLabelDiscussionForum+"' in labels") {
+		t.Fatalf("missing discussion label clause: %q", got)
+	}
+	if !strings.Contains(got, "'"+groupLabelDynamic+"' in labels") {
+		t.Fatalf("missing dynamic label clause: %q", got)
+	}
+}
+
+func TestSearchTransitiveGroupsQuery_EscapesSingleQuote(t *testing.T) {
+	got := searchTransitiveGroupsQuery("o'connor@example.com")
+	if !strings.Contains(got, "member_key_id == 'o\\'connor@example.com'") {
+		t.Fatalf("expected escaped single quote: %q", got)
+	}
+}

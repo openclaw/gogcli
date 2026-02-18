@@ -21,6 +21,9 @@ const (
 	groupRoleOwner   = "OWNER"
 	groupRoleManager = "MANAGER"
 	groupRoleMember  = "MEMBER"
+
+	groupLabelDiscussionForum = "cloudidentity.googleapis.com/groups.discussion_forum"
+	groupLabelDynamic         = "cloudidentity.googleapis.com/groups.dynamic"
 )
 
 type GroupsCmd struct {
@@ -51,7 +54,7 @@ func (c *GroupsListCmd) Run(ctx context.Context, flags *RootFlags) error {
 	// Using "groups/-" as parent searches across all groups
 	fetch := func(pageToken string) ([]*cloudidentity.GroupRelation, string, error) {
 		call := svc.Groups.Memberships.SearchTransitiveGroups("groups/-").
-			Query("member_key_id == '" + account + "'").
+			Query(searchTransitiveGroupsQuery(account)).
 			PageSize(c.Max).
 			Context(ctx)
 		if strings.TrimSpace(pageToken) != "" {
@@ -146,6 +149,16 @@ func wrapCloudIdentityError(err error, account string) error {
 		return errfmt.NewUserFacingError("Cloud Identity groups require a Google Workspace/Cloud Identity account; consumer accounts (gmail.com/googlemail.com) are not supported.", err)
 	}
 	return err
+}
+
+func searchTransitiveGroupsQuery(memberKeyID string) string {
+	memberKeyID = strings.ReplaceAll(strings.TrimSpace(memberKeyID), "'", "\\'")
+	return fmt.Sprintf(
+		"member_key_id == '%s' && ('%s' in labels || '%s' in labels)",
+		memberKeyID,
+		groupLabelDiscussionForum,
+		groupLabelDynamic,
+	)
 }
 
 // getRelationType returns a human-readable relation type.
