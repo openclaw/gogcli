@@ -788,6 +788,11 @@ func (c *DriveShareCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if role != drivePermRoleReader && role != drivePermRoleWriter {
 		return usage("invalid --role (expected reader|writer)")
 	}
+	if to == driveShareToAnyone {
+		if confirmErr := confirmDestructive(ctx, flags, fmt.Sprintf("share drive file %s with anyone (public)", fileID)); confirmErr != nil {
+			return confirmErr
+		}
+	}
 
 	svc, err := newDriveService(ctx, account)
 	if err != nil {

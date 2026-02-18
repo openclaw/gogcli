@@ -29,6 +29,15 @@ func TestGmailFiltersCreate_Validation(t *testing.T) {
 	}
 }
 
+func TestGmailFiltersCreate_Forward_NoInputRequiresForce(t *testing.T) {
+	flags := &RootFlags{Account: "a@b.com", NoInput: true}
+	cmd := &GmailFiltersCreateCmd{}
+	err := runKong(t, cmd, []string{"--from", "a@example.com", "--forward", "f@example.com"}, context.Background(), flags)
+	if err == nil || !strings.Contains(err.Error(), "refusing to create gmail filter forwarding") {
+		t.Fatalf("expected refusing error, got %v", err)
+	}
+}
+
 func TestGmailFilters_TextPaths(t *testing.T) {
 	origNew := newGmailService
 	t.Cleanup(func() { newGmailService = origNew })

@@ -168,6 +168,7 @@ type GmailFiltersCreateCmd struct {
 
 func (c *GmailFiltersCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
+	forwardTarget := strings.TrimSpace(c.Forward)
 
 	// Validate that at least one criteria is specified
 	if c.From == "" && c.To == "" && c.Subject == "" && c.Query == "" && !c.HasAttachment {
@@ -175,7 +176,7 @@ func (c *GmailFiltersCreateCmd) Run(ctx context.Context, flags *RootFlags) error
 	}
 
 	// Validate that at least one action is specified
-	if c.AddLabel == "" && c.RemoveLabel == "" && !c.Archive && !c.MarkRead && !c.Star && c.Forward == "" && !c.Trash && !c.NeverSpam && !c.Important {
+	if c.AddLabel == "" && c.RemoveLabel == "" && !c.Archive && !c.MarkRead && !c.Star && forwardTarget == "" && !c.Trash && !c.NeverSpam && !c.Important {
 		return errors.New("must specify at least one action flag (--add-label, --remove-label, --archive, --mark-read, --star, --forward, --trash, --never-spam, or --important)")
 	}
 
@@ -193,13 +194,18 @@ func (c *GmailFiltersCreateCmd) Run(ctx context.Context, flags *RootFlags) error
 			"archive":      c.Archive,
 			"mark_read":    c.MarkRead,
 			"star":         c.Star,
-			"forward":      strings.TrimSpace(c.Forward),
+			"forward":      forwardTarget,
 			"trash":        c.Trash,
 			"never_spam":   c.NeverSpam,
 			"important":    c.Important,
 		},
 	}); err != nil {
 		return err
+	}
+	if forwardTarget != "" {
+		if confirmErr := confirmDestructive(ctx, flags, fmt.Sprintf("create gmail filter forwarding to %s", forwardTarget)); confirmErr != nil {
+			return confirmErr
+		}
 	}
 
 	account, err := requireAccount(flags)
@@ -278,8 +284,8 @@ func (c *GmailFiltersCreateCmd) Run(ctx context.Context, flags *RootFlags) error
 		action.AddLabelIds = append(action.AddLabelIds, "STARRED")
 	}
 
-	if c.Forward != "" {
-		action.Forward = c.Forward
+	if forwardTarget != "" {
+		action.Forward = forwardTarget
 	}
 
 	if c.Trash {

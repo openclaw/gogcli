@@ -109,6 +109,9 @@ func (c *GmailDelegatesAddCmd) Run(ctx context.Context, flags *RootFlags) error 
 	}); err != nil {
 		return err
 	}
+	if confirmErr := confirmDestructive(ctx, flags, fmt.Sprintf("add gmail delegate %s (grants mailbox read access)", delegateEmail)); confirmErr != nil {
+		return confirmErr
+	}
 
 	account, err := requireAccount(flags)
 	if err != nil {

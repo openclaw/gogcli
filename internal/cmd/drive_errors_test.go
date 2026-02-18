@@ -67,4 +67,9 @@ func TestDriveDeleteUnshare_NoInput(t *testing.T) {
 	if err := runKong(t, unshareCmd, []string{"file1", "perm1"}, context.Background(), flags); err == nil || !strings.Contains(err.Error(), "refusing") {
 		t.Fatalf("expected refusing error, got %v", err)
 	}
+
+	shareCmd := &DriveShareCmd{}
+	if err := runKong(t, shareCmd, []string{"file1", "--to", "anyone"}, context.Background(), flags); err == nil || !strings.Contains(err.Error(), "refusing to share drive file file1 with anyone (public)") {
+		t.Fatalf("expected refusing error, got %v", err)
+	}
 }
