@@ -356,6 +356,7 @@ type DocsUpdateCmd struct {
 	Format      string `name:"format" help:"Content format: plain|markdown" default:"plain"`
 	Append      bool   `name:"append" help:"Append to end of document instead of replacing all content"`
 	Debug       bool   `name:"debug" help:"Enable debug output for markdown formatter"`
+	TabID       string `name:"tab-id" help:"Target a specific tab by ID (see list-tabs)"`
 }
 
 const (
@@ -409,22 +410,52 @@ func (c *DocsUpdateCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
-	doc, err := svc.Documents.Get(id).
-		Context(ctx).
-		Do()
-	if err != nil {
-		if isDocsNotFound(err) {
-			return fmt.Errorf("doc not found or not a Google Doc (id=%s)", id)
+	// Fetch document — use tab-aware API when --tab-id is set.
+	var bodyContent []*docs.StructuralElement
+	if c.TabID != "" {
+		doc, fetchErr := svc.Documents.Get(id).IncludeTabsContent(true).Context(ctx).Do()
+		if fetchErr != nil {
+			if isDocsNotFound(fetchErr) {
+				return fmt.Errorf("doc not found or not a Google Doc (id=%s)", id)
+			}
+			return fetchErr
 		}
-		return err
-	}
-	if doc == nil {
-		return errors.New("doc not found")
+		if doc == nil {
+			return errors.New("doc not found")
+		}
+		tabs := flattenTabs(doc.Tabs)
+		var found bool
+		for _, tab := range tabs {
+			if tab.TabProperties != nil && tab.TabProperties.TabId == c.TabID {
+				if tab.DocumentTab != nil && tab.DocumentTab.Body != nil {
+					bodyContent = tab.DocumentTab.Body.Content
+				}
+				found = true
+				break
+			}
+		}
+		if !found {
+			return fmt.Errorf("tab not found: %s", c.TabID)
+		}
+	} else {
+		doc, fetchErr := svc.Documents.Get(id).Context(ctx).Do()
+		if fetchErr != nil {
+			if isDocsNotFound(fetchErr) {
+				return fmt.Errorf("doc not found or not a Google Doc (id=%s)", id)
+			}
+			return fetchErr
+		}
+		if doc == nil {
+			return errors.New("doc not found")
+		}
+		if doc.Body != nil {
+			bodyContent = doc.Body.Content
+		}
 	}
 
 	insertIndex := int64(1)
-	if c.Append && doc.Body != nil && len(doc.Body.Content) > 0 {
-		lastEl := doc.Body.Content[len(doc.Body.Content)-1]
+	if c.Append && len(bodyContent) > 0 {
+		lastEl := bodyContent[len(bodyContent)-1]
 		if lastEl != nil && lastEl.EndIndex > 1 {
 			insertIndex = lastEl.EndIndex - 1
 		}
@@ -450,16 +481,17 @@ func (c *DocsUpdateCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if c.Append {
 		requests = append(requests, &docs.Request{
 			InsertText: &docs.InsertTextRequest{
-				Location: &docs.Location{Index: insertIndex},
+				Location: &docs.Location{Index: insertIndex, TabId: c.TabID},
 				Text:     textToInsert,
 			},
 		})
 		if format == docsContentFormatMarkdown {
+			setTabIdOnRequests(formattingRequests, c.TabID)
 			requests = append(requests, formattingRequests...)
 		}
 	} else {
-		if doc.Body != nil && len(doc.Body.Content) > 0 {
-			lastEl := doc.Body.Content[len(doc.Body.Content)-1]
+		if len(bodyContent) > 0 {
+			lastEl := bodyContent[len(bodyContent)-1]
 			if lastEl != nil && lastEl.EndIndex > 2 {
 				endIdx := lastEl.EndIndex - 1
 				requests = append(requests, &docs.Request{
@@ -467,6 +499,7 @@ func (c *DocsUpdateCmd) Run(ctx context.Context, flags *RootFlags) error {
 						Range: &docs.Range{
 							StartIndex: 1,
 							EndIndex:   endIdx,
+							TabId:      c.TabID,
 						},
 					},
 				})
@@ -475,12 +508,13 @@ func (c *DocsUpdateCmd) Run(ctx context.Context, flags *RootFlags) error {
 
 		requests = append(requests, &docs.Request{
 			InsertText: &docs.InsertTextRequest{
-				Location: &docs.Location{Index: 1},
+				Location: &docs.Location{Index: 1, TabId: c.TabID},
 				Text:     textToInsert,
 			},
 		})
 
 		if format == docsContentFormatMarkdown {
+			setTabIdOnRequests(formattingRequests, c.TabID)
 			requests = append(requests, formattingRequests...)
 		}
 	}
@@ -654,6 +688,7 @@ type DocsWriteCmd struct {
 	File     string `name:"file" short:"f" help:"Read content from file (use - for stdin)"`
 	Replace  bool   `name:"replace" help:"Replace all content (default: append)"`
 	Markdown bool   `name:"markdown" help:"Convert markdown to Google Docs formatting (requires --replace)"`
+	TabID    string `name:"tab-id" help:"Target a specific tab by ID (see list-tabs)"`
 }
 
 func (c *DocsWriteCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -686,6 +721,12 @@ func (c *DocsWriteCmd) writeMarkdown(ctx context.Context, account, docID, conten
 
 	if !c.Replace {
 		return usage("--markdown requires --replace (cannot append formatted markdown)")
+	}
+
+	// When targeting a specific tab, use Docs API batch approach since
+	// Drive API import cannot target tabs.
+	if c.TabID != "" {
+		return c.writeMarkdownToTab(ctx, account, docID, content)
 	}
 
 	driveSvc, err := newDriveService(ctx, account)
@@ -721,6 +762,94 @@ func (c *DocsWriteCmd) writeMarkdown(ctx context.Context, account, docID, conten
 	return nil
 }
 
+// writeMarkdownToTab replaces a tab's content with formatted markdown using
+// the Docs API batch approach (ParseMarkdown → MarkdownToDocsRequests).
+func (c *DocsWriteCmd) writeMarkdownToTab(ctx context.Context, account, docID, content string) error {
+	u := ui.FromContext(ctx)
+
+	svc, err := newDocsService(ctx, account)
+	if err != nil {
+		return err
+	}
+
+	endIndex, err := c.fetchEndIndex(ctx, svc, docID)
+	if err != nil {
+		return err
+	}
+
+	var requests []*docs.Request
+
+	// Delete existing tab content.
+	if endIndex > 1 {
+		requests = append(requests, &docs.Request{
+			DeleteContentRange: &docs.DeleteContentRangeRequest{
+				Range: &docs.Range{
+					StartIndex: 1,
+					EndIndex:   endIndex,
+					TabId:      c.TabID,
+				},
+			},
+		})
+	}
+
+	// Convert markdown to Docs API requests.
+	elements := ParseMarkdown(content)
+	formattingRequests, textToInsert, tables := MarkdownToDocsRequests(elements, 1)
+
+	requests = append(requests, &docs.Request{
+		InsertText: &docs.InsertTextRequest{
+			Text: textToInsert,
+			Location: &docs.Location{
+				Index: 1,
+				TabId: c.TabID,
+			},
+		},
+	})
+
+	// Stamp TabId on all formatting requests.
+	setTabIdOnRequests(formattingRequests, c.TabID)
+	requests = append(requests, formattingRequests...)
+
+	_, err = svc.Documents.BatchUpdate(docID, &docs.BatchUpdateDocumentRequest{
+		Requests: requests,
+	}).Context(ctx).Do()
+	if err != nil {
+		return fmt.Errorf("writing markdown to tab: %w", err)
+	}
+
+	// Insert native tables if any.
+	if len(tables) > 0 {
+		tableInserter := NewTableInserter(svc, docID)
+		tableOffset := int64(0)
+		for _, table := range tables {
+			tableIndex := table.StartIndex + tableOffset
+			tableEnd, tableErr := tableInserter.InsertNativeTable(ctx, tableIndex, table.Cells)
+			if tableErr != nil {
+				return fmt.Errorf("insert native table: %w", tableErr)
+			}
+			if tableEnd > tableIndex {
+				tableOffset += (tableEnd - tableIndex) - 1
+			}
+		}
+	}
+
+	if outfmt.IsJSON(ctx) {
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
+			"documentId": docID,
+			"written":    len(content),
+			"replaced":   true,
+			"markdown":   true,
+			"tabId":      c.TabID,
+		})
+	}
+
+	u.Out().Printf("documentId\t%s", docID)
+	u.Out().Printf("written\t%d bytes", len(content))
+	u.Out().Printf("mode\treplaced (markdown converted)")
+	u.Out().Printf("tabId\t%s", c.TabID)
+	return nil
+}
+
 func (c *DocsWriteCmd) writePlainText(ctx context.Context, account, docID, content string) error {
 	u := ui.FromContext(ctx)
 
@@ -732,24 +861,9 @@ func (c *DocsWriteCmd) writePlainText(ctx context.Context, account, docID, conte
 	var requests []*docs.Request
 
 	if c.Replace {
-		var doc *docs.Document
-		doc, err = svc.Documents.Get(docID).Context(ctx).Do()
-		if err != nil {
-			if isDocsNotFound(err) {
-				return fmt.Errorf("doc not found or not a Google Doc (id=%s)", docID)
-			}
-			return fmt.Errorf("getting document: %w", err)
-		}
-		if doc == nil {
-			return errors.New("doc not found")
-		}
-
-		endIndex := int64(0)
-		if doc.Body != nil && len(doc.Body.Content) > 0 {
-			lastEl := doc.Body.Content[len(doc.Body.Content)-1]
-			if lastEl != nil && lastEl.EndIndex > 1 {
-				endIndex = lastEl.EndIndex - 1
-			}
+		endIndex, fetchErr := c.fetchEndIndex(ctx, svc, docID)
+		if fetchErr != nil {
+			return fetchErr
 		}
 		if endIndex > 1 {
 			requests = append(requests, &docs.Request{
@@ -757,6 +871,7 @@ func (c *DocsWriteCmd) writePlainText(ctx context.Context, account, docID, conte
 					Range: &docs.Range{
 						StartIndex: 1,
 						EndIndex:   endIndex,
+						TabId:      c.TabID,
 					},
 				},
 			})
@@ -766,7 +881,7 @@ func (c *DocsWriteCmd) writePlainText(ctx context.Context, account, docID, conte
 	requests = append(requests, &docs.Request{
 		InsertText: &docs.InsertTextRequest{
 			Text:                 content,
-			EndOfSegmentLocation: &docs.EndOfSegmentLocation{},
+			EndOfSegmentLocation: &docs.EndOfSegmentLocation{TabId: c.TabID},
 		},
 	})
 
@@ -795,11 +910,63 @@ func (c *DocsWriteCmd) writePlainText(ctx context.Context, account, docID, conte
 	return nil
 }
 
+// fetchEndIndex returns the end index of the body content, fetching tab-aware
+// content when --tab-id is set.
+func (c *DocsWriteCmd) fetchEndIndex(ctx context.Context, svc *docs.Service, docID string) (int64, error) {
+	if c.TabID != "" {
+		doc, err := svc.Documents.Get(docID).IncludeTabsContent(true).Context(ctx).Do()
+		if err != nil {
+			if isDocsNotFound(err) {
+				return 0, fmt.Errorf("doc not found or not a Google Doc (id=%s)", docID)
+			}
+			return 0, fmt.Errorf("getting document: %w", err)
+		}
+		if doc == nil {
+			return 0, errors.New("doc not found")
+		}
+		tabs := flattenTabs(doc.Tabs)
+		for _, tab := range tabs {
+			if tab.TabProperties != nil && tab.TabProperties.TabId == c.TabID {
+				if tab.DocumentTab != nil && tab.DocumentTab.Body != nil {
+					content := tab.DocumentTab.Body.Content
+					if len(content) > 0 {
+						lastEl := content[len(content)-1]
+						if lastEl != nil && lastEl.EndIndex > 1 {
+							return lastEl.EndIndex - 1, nil
+						}
+					}
+				}
+				return 0, nil
+			}
+		}
+		return 0, fmt.Errorf("tab not found: %s", c.TabID)
+	}
+
+	doc, err := svc.Documents.Get(docID).Context(ctx).Do()
+	if err != nil {
+		if isDocsNotFound(err) {
+			return 0, fmt.Errorf("doc not found or not a Google Doc (id=%s)", docID)
+		}
+		return 0, fmt.Errorf("getting document: %w", err)
+	}
+	if doc == nil {
+		return 0, errors.New("doc not found")
+	}
+	if doc.Body != nil && len(doc.Body.Content) > 0 {
+		lastEl := doc.Body.Content[len(doc.Body.Content)-1]
+		if lastEl != nil && lastEl.EndIndex > 1 {
+			return lastEl.EndIndex - 1, nil
+		}
+	}
+	return 0, nil
+}
+
 type DocsInsertCmd struct {
 	DocID   string `arg:"" name:"docId" help:"Doc ID"`
 	Content string `arg:"" optional:"" name:"content" help:"Text to insert (or use --file / stdin)"`
 	Index   int64  `name:"index" help:"Character index to insert at (1 = beginning)" default:"1"`
 	File    string `name:"file" short:"f" help:"Read content from file (use - for stdin)"`
+	TabID   string `name:"tab-id" help:"Target a specific tab by ID (see list-tabs)"`
 }
 
 func (c *DocsInsertCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -837,6 +1004,7 @@ func (c *DocsInsertCmd) Run(ctx context.Context, flags *RootFlags) error {
 				Text: content,
 				Location: &docs.Location{
 					Index: c.Index,
+					TabId: c.TabID,
 				},
 			},
 		}},
@@ -863,6 +1031,7 @@ type DocsDeleteCmd struct {
 	DocID string `arg:"" name:"docId" help:"Doc ID"`
 	Start int64  `name:"start" required:"" help:"Start index (>= 1)"`
 	End   int64  `name:"end" required:"" help:"End index (> start)"`
+	TabID string `name:"tab-id" help:"Target a specific tab by ID (see list-tabs)"`
 }
 
 func (c *DocsDeleteCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -895,6 +1064,7 @@ func (c *DocsDeleteCmd) Run(ctx context.Context, flags *RootFlags) error {
 				Range: &docs.Range{
 					StartIndex: c.Start,
 					EndIndex:   c.End,
+					TabId:      c.TabID,
 				},
 			},
 		}},
@@ -942,6 +1112,7 @@ type DocsFindReplaceCmd struct {
 	Find        string `arg:"" name:"find" help:"Text to find"`
 	ReplaceText string `arg:"" name:"replace" help:"Replacement text"`
 	MatchCase   bool   `name:"match-case" help:"Case-sensitive matching"`
+	TabID       string `name:"tab-id" help:"Target a specific tab by ID (see list-tabs)"`
 }
 
 func (c *DocsFindReplaceCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -964,16 +1135,19 @@ func (c *DocsFindReplaceCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
+	req := &docs.ReplaceAllTextRequest{
+		ContainsText: &docs.SubstringMatchCriteria{
+			Text:      c.Find,
+			MatchCase: c.MatchCase,
+		},
+		ReplaceText: c.ReplaceText,
+	}
+	if c.TabID != "" {
+		req.TabsCriteria = &docs.TabsCriteria{TabIds: []string{c.TabID}}
+	}
+
 	result, err := svc.Documents.BatchUpdate(docID, &docs.BatchUpdateDocumentRequest{
-		Requests: []*docs.Request{{
-			ReplaceAllText: &docs.ReplaceAllTextRequest{
-				ContainsText: &docs.SubstringMatchCriteria{
-					Text:      c.Find,
-					MatchCase: c.MatchCase,
-				},
-				ReplaceText: c.ReplaceText,
-			},
-		}},
+		Requests: []*docs.Request{{ReplaceAllText: req}},
 	}).Context(ctx).Do()
 	if err != nil {
 		return fmt.Errorf("find-replace: %w", err)
@@ -1201,6 +1375,36 @@ func tabInfoJSON(tab *docs.Tab) map[string]any {
 		}
 	}
 	return m
+}
+
+// setTabIdOnRequests stamps TabId on all Location/Range/EndOfSegmentLocation
+// fields in a slice of requests, used for targeting tab-specific operations.
+func setTabIdOnRequests(requests []*docs.Request, tabID string) {
+	if tabID == "" {
+		return
+	}
+	for _, r := range requests {
+		if r == nil {
+			continue
+		}
+		if r.InsertText != nil {
+			if r.InsertText.Location != nil {
+				r.InsertText.Location.TabId = tabID
+			}
+			if r.InsertText.EndOfSegmentLocation != nil {
+				r.InsertText.EndOfSegmentLocation.TabId = tabID
+			}
+		}
+		if r.DeleteContentRange != nil && r.DeleteContentRange.Range != nil {
+			r.DeleteContentRange.Range.TabId = tabID
+		}
+		if r.UpdateParagraphStyle != nil && r.UpdateParagraphStyle.Range != nil {
+			r.UpdateParagraphStyle.Range.TabId = tabID
+		}
+		if r.UpdateTextStyle != nil && r.UpdateTextStyle.Range != nil {
+			r.UpdateTextStyle.Range.TabId = tabID
+		}
+	}
 }
 
 func isDocsNotFound(err error) bool {
