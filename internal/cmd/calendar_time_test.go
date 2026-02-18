@@ -20,7 +20,7 @@ func TestCalendarTimeCmd_JSON(t *testing.T) {
 	t.Cleanup(func() { newCalendarService = origNew })
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if strings.Contains(r.URL.Path, "/users/me/calendarList/primary") && r.Method == http.MethodGet {
+		if r.URL.Path == "/calendars/primary" && r.Method == http.MethodGet {
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"id":       "primary",
@@ -81,7 +81,7 @@ func TestCalendarTimeCmd_TableOutput(t *testing.T) {
 	t.Cleanup(func() { newCalendarService = origNew })
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if strings.Contains(r.URL.Path, "/users/me/calendarList/primary") && r.Method == http.MethodGet {
+		if r.URL.Path == "/calendars/primary" && r.Method == http.MethodGet {
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"id":       "primary",
@@ -276,7 +276,7 @@ func TestCalendarTimeCmd_CustomCalendar(t *testing.T) {
 	t.Cleanup(func() { newCalendarService = origNew })
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if strings.Contains(r.URL.Path, "/users/me/calendarList/custom-cal-id@example.com") && r.Method == http.MethodGet {
+		if strings.Contains(r.URL.Path, "/calendars/custom-cal-id@example.com") && r.Method == http.MethodGet {
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"id":       "custom-cal-id@example.com",

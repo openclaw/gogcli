@@ -18,11 +18,11 @@ import (
 
 // withPrimaryCalendar wraps an http.Handler to also respond to primary calendar requests
 // with a default timezone. This is needed because time-aware commands now fetch the
-// user's timezone from their primary calendar.
+// user's timezone from their primary calendar via Calendars.Get.
 func withPrimaryCalendar(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Handle primary calendar list request for timezone
-		if strings.Contains(r.URL.Path, "/calendarList/primary") && r.Method == http.MethodGet {
+		// Handle primary calendar request for timezone (Calendars.Get)
+		if r.URL.Path == "/calendars/primary" && r.Method == http.MethodGet {
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"id":       "primary",
