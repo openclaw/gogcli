@@ -31,13 +31,15 @@ type TimeRange struct {
 }
 
 // getCalendarLocation fetches a calendar's timezone and returns it as a location.
+// Uses Calendars.Get (not CalendarList.Get) so it works for service accounts
+// whose "primary" calendar may not appear in their CalendarList.
 func getCalendarLocation(ctx context.Context, svc *calendar.Service, calendarID string) (string, *time.Location, error) {
 	calendarID = strings.TrimSpace(calendarID)
 	if calendarID == "" {
 		return "", nil, fmt.Errorf("calendarId required")
 	}
 
-	cal, err := svc.CalendarList.Get(calendarID).Context(ctx).Do()
+	cal, err := svc.Calendars.Get(calendarID).Context(ctx).Do()
 	if err != nil {
 		return "", nil, fmt.Errorf("failed to get calendar %q: %w", calendarID, err)
 	}
@@ -52,8 +54,10 @@ func getCalendarLocation(ctx context.Context, svc *calendar.Service, calendarID 
 }
 
 // getUserTimezone fetches the timezone from the user's primary calendar.
+// Uses Calendars.Get (not CalendarList.Get) so it works for service accounts
+// whose "primary" calendar may not appear in their CalendarList.
 func getUserTimezone(ctx context.Context, svc *calendar.Service) (*time.Location, error) {
-	cal, err := svc.CalendarList.Get("primary").Context(ctx).Do()
+	cal, err := svc.Calendars.Get("primary").Context(ctx).Do()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get primary calendar: %w", err)
 	}

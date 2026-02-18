@@ -21,8 +21,8 @@ import (
 // user's timezone from their primary calendar.
 func withPrimaryCalendar(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Handle primary calendar list request for timezone
-		if strings.Contains(r.URL.Path, "/calendarList/primary") && r.Method == http.MethodGet {
+		// Handle primary calendar request for timezone
+		if r.URL.Path == "/calendars/primary" && r.Method == http.MethodGet {
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"id":       "primary",

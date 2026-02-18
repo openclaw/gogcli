@@ -107,7 +107,7 @@ func TestCalendarDeleteCmd_SendUpdates(t *testing.T) {
 				},
 			})
 			return
-		case r.Method == http.MethodGet && strings.HasPrefix(path, "/users/me/calendarList/"):
+		case r.Method == http.MethodGet && strings.HasPrefix(path, "/calendars/") && !strings.Contains(path, "/events"):
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"id":       "cal",

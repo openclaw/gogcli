@@ -159,7 +159,7 @@ func TestCalendarCreateCmd_RecurringOffsetTimezoneFallback(t *testing.T) {
 				"id": "ev3",
 			})
 			return
-		case r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/users/me/calendarList/"):
+		case r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/calendars/") && !strings.Contains(r.URL.Path, "/events"):
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"id":       "primary",
@@ -533,8 +533,8 @@ func TestCalendarUpdateCmd_SendUpdates(t *testing.T) {
 				},
 			})
 			return
-		case r.Method == http.MethodGet && strings.HasPrefix(path, "/users/me/calendarList/"):
-			// getCalendarLocation() fetches the calendar timezone via CalendarList.Get.
+		case r.Method == http.MethodGet && strings.HasPrefix(path, "/calendars/") && !strings.Contains(path, "/events"):
+			// getCalendarLocation() fetches the calendar timezone.
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"id":       "cal",
