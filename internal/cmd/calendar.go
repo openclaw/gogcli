@@ -14,6 +14,7 @@ import (
 
 type CalendarCmd struct {
 	Calendars       CalendarCalendarsCmd       `cmd:"" name:"calendars" help:"List calendars"`
+	Subscribe       CalendarSubscribeCmd       `cmd:"" name:"subscribe" aliases:"sub,add-calendar" help:"Add a calendar to your calendar list"`
 	ACL             CalendarAclCmd             `cmd:"" name:"acl" aliases:"permissions,perms" help:"List calendar ACL"`
 	Events          CalendarEventsCmd          `cmd:"" name:"events" aliases:"list,ls" help:"List events from a calendar or all calendars"`
 	Event           CalendarEventCmd           `cmd:"" name:"event" aliases:"get,info,show" help:"Get event"`
@@ -104,6 +105,51 @@ func (c *CalendarCalendarsCmd) Run(ctx context.Context, flags *RootFlags) error 
 		fmt.Fprintf(w, "%s\t%s\t%s\n", cal.Id, cal.Summary, cal.AccessRole)
 	}
 	printNextPageHint(u, nextPageToken)
+	return nil
+}
+
+type CalendarSubscribeCmd struct {
+	CalendarID string `arg:"" name:"calendarId" help:"Calendar ID to subscribe to (e.g., user@example.com or calendar ID)"`
+	ColorID    string `name:"color-id" help:"Color ID (1-24, see 'calendar colors')"`
+	Hidden     bool   `name:"hidden" help:"Hide from the calendar list UI"`
+	Selected   bool   `name:"selected" help:"Show events in the calendar UI" default:"true" negatable:""`
+}
+
+func (c *CalendarSubscribeCmd) Run(ctx context.Context, flags *RootFlags) error {
+	u := ui.FromContext(ctx)
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
+	}
+	calendarID := strings.TrimSpace(c.CalendarID)
+	if calendarID == "" {
+		return usage("calendarId required")
+	}
+
+	svc, err := newCalendarService(ctx, account)
+	if err != nil {
+		return err
+	}
+
+	entry := &calendar.CalendarListEntry{
+		Id:       calendarID,
+		Hidden:   c.Hidden,
+		Selected: c.Selected,
+	}
+	if c.ColorID != "" {
+		entry.ColorId = c.ColorID
+	}
+
+	added, err := svc.CalendarList.Insert(entry).Do()
+	if err != nil {
+		return err
+	}
+	if outfmt.IsJSON(ctx) {
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{"calendar": added})
+	}
+	u.Out().Printf("subscribed\t%s", added.Id)
+	u.Out().Printf("name\t%s", added.Summary)
+	u.Out().Printf("role\t%s", added.AccessRole)
 	return nil
 }
 
