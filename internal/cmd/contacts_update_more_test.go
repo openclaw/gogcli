@@ -309,6 +309,158 @@ func TestContactsCreate_Relation_Set(t *testing.T) {
 	}
 }
 
+func TestContactsUpdate_Address_Set(t *testing.T) {
+	var gotGetFields string
+	var gotUpdateFields string
+	var gotAddresses []map[string]any
+
+	svc, closeSrv := newPeopleService(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case strings.Contains(r.URL.Path, "people/c1") && r.Method == http.MethodGet && !strings.Contains(r.URL.Path, ":"):
+			gotGetFields = r.URL.Query().Get("personFields")
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"resourceName": "people/c1",
+				"names":        []map[string]any{{"givenName": "Ada", "familyName": "Lovelace"}},
+			})
+			return
+		case strings.Contains(r.URL.Path, ":updateContact") && (r.Method == http.MethodPatch || r.Method == http.MethodPost):
+			gotUpdateFields = r.URL.Query().Get("updatePersonFields")
+			var body map[string]any
+			if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+				t.Fatalf("decode body: %v", err)
+			}
+			if addrs, ok := body["addresses"].([]any); ok {
+				for _, addr := range addrs {
+					if m, ok := addr.(map[string]any); ok {
+						gotAddresses = append(gotAddresses, m)
+					}
+				}
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{"resourceName": "people/c1"})
+			return
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(closeSrv)
+	stubPeopleServices(t, svc)
+
+	u, err := ui.New(ui.Options{Stdout: io.Discard, Stderr: io.Discard, Color: "never"})
+	if err != nil {
+		t.Fatalf("ui.New: %v", err)
+	}
+	ctx := ui.WithUI(context.Background(), u)
+
+	if err := runKong(t, &ContactsUpdateCmd{}, []string{"people/c1", "--address", "123 Main St", "--address", "456 Side St"}, ctx, &RootFlags{Account: "a@b.com"}); err != nil {
+		t.Fatalf("runKong: %v", err)
+	}
+
+	if !strings.Contains(gotGetFields, "addresses") {
+		t.Fatalf("missing addresses in people.get fields: %q", gotGetFields)
+	}
+	if !strings.Contains(gotUpdateFields, "addresses") {
+		t.Fatalf("missing addresses in update fields: %q", gotUpdateFields)
+	}
+	if len(gotAddresses) != 2 {
+		t.Fatalf("expected 2 addresses, got %d", len(gotAddresses))
+	}
+	if gotAddresses[0]["streetAddress"] != "123 Main St" {
+		t.Fatalf("unexpected first address: %v", gotAddresses[0])
+	}
+	if gotAddresses[1]["streetAddress"] != "456 Side St" {
+		t.Fatalf("unexpected second address: %v", gotAddresses[1])
+	}
+}
+
+func TestContactsUpdate_Address_Clear(t *testing.T) {
+	var gotUpdateFields string
+
+	svc, closeSrv := newPeopleService(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case strings.Contains(r.URL.Path, "people/c1") && r.Method == http.MethodGet && !strings.Contains(r.URL.Path, ":"):
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"resourceName": "people/c1",
+				"addresses":    []map[string]any{{"streetAddress": "123 Main St"}},
+			})
+			return
+		case strings.Contains(r.URL.Path, ":updateContact") && (r.Method == http.MethodPatch || r.Method == http.MethodPost):
+			gotUpdateFields = r.URL.Query().Get("updatePersonFields")
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{"resourceName": "people/c1"})
+			return
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(closeSrv)
+	stubPeopleServices(t, svc)
+
+	u, err := ui.New(ui.Options{Stdout: io.Discard, Stderr: io.Discard, Color: "never"})
+	if err != nil {
+		t.Fatalf("ui.New: %v", err)
+	}
+	ctx := ui.WithUI(context.Background(), u)
+
+	if err := runKong(t, &ContactsUpdateCmd{}, []string{"people/c1", "--address", ""}, ctx, &RootFlags{Account: "a@b.com"}); err != nil {
+		t.Fatalf("runKong: %v", err)
+	}
+
+	if !strings.Contains(gotUpdateFields, "addresses") {
+		t.Fatalf("missing addresses in clear update fields: %q", gotUpdateFields)
+	}
+}
+
+func TestContactsCreate_Address_Set(t *testing.T) {
+	var gotAddresses []map[string]any
+
+	svc, closeSrv := newPeopleService(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case strings.HasSuffix(r.URL.Path, ":createContact") && r.Method == http.MethodPost:
+			var body map[string]any
+			if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+				t.Fatalf("decode body: %v", err)
+			}
+			if addrs, ok := body["addresses"].([]any); ok {
+				for _, addr := range addrs {
+					if m, ok := addr.(map[string]any); ok {
+						gotAddresses = append(gotAddresses, m)
+					}
+				}
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{"resourceName": "people/c1"})
+			return
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(closeSrv)
+	stubPeopleServices(t, svc)
+
+	u, err := ui.New(ui.Options{Stdout: io.Discard, Stderr: io.Discard, Color: "never"})
+	if err != nil {
+		t.Fatalf("ui.New: %v", err)
+	}
+	ctx := ui.WithUI(context.Background(), u)
+
+	if err := runKong(t, &ContactsCreateCmd{}, []string{"--given", "Ada", "--address", "123 Main St", "--address", "456 Side St"}, ctx, &RootFlags{Account: "a@b.com"}); err != nil {
+		t.Fatalf("runKong: %v", err)
+	}
+
+	if len(gotAddresses) != 2 {
+		t.Fatalf("expected 2 addresses, got %d", len(gotAddresses))
+	}
+	if gotAddresses[0]["streetAddress"] != "123 Main St" {
+		t.Fatalf("unexpected first address: %v", gotAddresses[0])
+	}
+	if gotAddresses[1]["streetAddress"] != "456 Side St" {
+		t.Fatalf("unexpected second address: %v", gotAddresses[1])
+	}
+}
+
 func leftPad2(s string) string {
 	s = strings.TrimSpace(s)
 	if len(s) >= 2 {

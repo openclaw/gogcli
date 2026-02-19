@@ -951,11 +951,13 @@ gog contacts create \
   --family "Doe" \
   --email "john@example.com" \
   --phone "+1234567890" \
+  --address "12 St James's Square, London" \
   --relation "spouse=Jane Doe"
 
 gog contacts update people/<resourceName> \
   --given "Jane" \
   --email "jane@example.com" \
+  --address "1 Infinite Loop, Cupertino" \
   --birthday "1990-05-12" \
   --notes "Met at WWDC" \
   --relation "friend=Bob"

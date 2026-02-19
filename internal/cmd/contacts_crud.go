@@ -18,7 +18,7 @@ import (
 const (
 	contactsReadMask       = "names,emailAddresses,phoneNumbers,organizations,urls"
 	contactsGetReadMask    = contactsReadMask + ",birthdays,biographies,addresses,userDefined,relations,metadata"
-	contactsUpdateReadMask = contactsReadMask + ",birthdays,biographies,userDefined,relations,metadata"
+	contactsUpdateReadMask = contactsReadMask + ",birthdays,biographies,addresses,userDefined,relations,metadata"
 )
 
 type ContactsListCmd struct {
@@ -178,6 +178,9 @@ func (c *ContactsGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 	for _, url := range allURLs(p) {
 		u.Out().Printf("url\t%s", url)
 	}
+	for _, addr := range allAddresses(p) {
+		u.Out().Printf("address\t%s", sanitizeTab(addr))
+	}
 	if bio := primaryBio(p); bio != "" {
 		u.Out().Printf("note\t%s", bio)
 	}
@@ -210,6 +213,7 @@ type ContactsCreateCmd struct {
 	Title        string   `name:"title" help:"Job title"`
 	URL          []string `name:"url" help:"URL (can be repeated for multiple URLs)"`
 	Note         string   `name:"note" help:"Note/biography"`
+	Address      []string `name:"address" sep:";" help:"Postal address (can be repeated for multiple addresses)"`
 	Custom       []string `name:"custom" help:"Custom field as key=value (can be repeated)"`
 	Relation     []string `name:"relation" help:"Relation as type=person (can be repeated)"`
 }
@@ -268,6 +272,19 @@ func contactsURLs(values []string) []*people.Url {
 	for _, u := range values {
 		if trimmed := strings.TrimSpace(u); trimmed != "" {
 			out = append(out, &people.Url{Value: trimmed})
+		}
+	}
+	return out
+}
+
+func contactsAddresses(values []string) []*people.Address {
+	if len(values) == 0 {
+		return nil
+	}
+	out := make([]*people.Address, 0, len(values))
+	for _, a := range values {
+		if trimmed := strings.TrimSpace(a); trimmed != "" {
+			out = append(out, &people.Address{StreetAddress: trimmed})
 		}
 	}
 	return out
@@ -350,6 +367,11 @@ func (c *ContactsCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if strings.TrimSpace(c.Note) != "" {
 		p.Biographies = []*people.Biography{{Value: strings.TrimSpace(c.Note)}}
 	}
+	if len(c.Address) > 0 {
+		if addrs := contactsAddresses(c.Address); len(addrs) > 0 {
+			p.Addresses = addrs
+		}
+	}
 	if len(c.Custom) > 0 {
 		userDefined, _, parseErr := parseCustomUserDefined(c.Custom, false)
 		if parseErr != nil {
@@ -390,6 +412,7 @@ type ContactsUpdateCmd struct {
 	Title        string   `name:"title" help:"Job title (empty clears)"`
 	URL          []string `name:"url" help:"URL (can be repeated; empty clears all)"`
 	Note         string   `name:"note" help:"Note/biography (empty clears)"`
+	Address      []string `name:"address" sep:";" help:"Postal address (can be repeated; empty clears all)"`
 	Custom       []string `name:"custom" help:"Custom field as key=value (can be repeated; empty clears all)"`
 	Relation     []string `name:"relation" help:"Relation as type=person (can be repeated; empty clears all)"`
 	FromFile     string   `name:"from-file" help:"Update from contact JSON file (use - for stdin)"`
@@ -438,6 +461,7 @@ func (c *ContactsUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *
 	wantTitle := flagProvided(kctx, "title")
 	wantURL := flagProvided(kctx, "url")
 	wantNote := flagProvided(kctx, "note")
+	wantAddress := flagProvided(kctx, "address")
 	wantBirthday := flagProvided(kctx, "birthday")
 	wantNotes := flagProvided(kctx, "notes")
 	wantCustom := flagProvided(kctx, "custom")
@@ -483,6 +507,15 @@ func (c *ContactsUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *
 			existing.Biographies = []*people.Biography{{Value: strings.TrimSpace(c.Note)}}
 		}
 		updateFields = append(updateFields, "biographies")
+	}
+	if wantAddress {
+		addrs := contactsAddresses(c.Address)
+		if len(addrs) == 0 {
+			existing.Addresses = nil // will be forced to [] for patch
+		} else {
+			existing.Addresses = addrs
+		}
+		updateFields = append(updateFields, "addresses")
 	}
 	if wantCustom {
 		userDefined, clearAll, parseErr := parseCustomUserDefined(c.Custom, true)

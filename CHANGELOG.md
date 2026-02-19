@@ -17,6 +17,7 @@
 - Sheets: add `sheets create --parent` to place new spreadsheets in a Drive folder. (#424) — thanks @ManManavadaria.
 - Contacts: support `--org`, `--title`, `--url`, `--note`, and `--custom` on create/update; include custom fields in get output with deterministic ordering. (#199) — thanks @phuctm97.
 - Contacts: add `--relation type=person` to contact create/update, include relations in text `contacts get`, and cover relation payload updates. (#351) — thanks @karbassi.
+- Contacts: add `--address` to contact create/update and include addresses in text `contacts get`. (#148) — thanks @beezly.
 - Docs: add `--pageless` to `docs create`, `docs write`, and `docs update` to switch documents into pageless mode after writes. (#300) — thanks @shohei-majima.
 - Gmail: add `watch serve --history-types` filtering (`messageAdded|messageDeleted|labelAdded|labelRemoved`) and include `deletedMessageIds` in webhook payloads. (#168) — thanks @salmonumbrella.
 - Drive: add `drive ls --all` (alias `--global`) to list across all accessible files; make `--all` and `--parent` mutually exclusive. (#107) — thanks @struong.
