@@ -111,7 +111,7 @@ func (c *DriveLsCmd) Run(ctx context.Context, flags *RootFlags) error {
 		PageSize(c.Max).
 		PageToken(c.Page).
 		OrderBy("modifiedTime desc")
-	call = driveFilesListCallWithDriveSupport(call, c.AllDrives)
+	call = driveFilesListCallWithDriveSupport(call, c.AllDrives, false)
 
 	resp, err := call.
 		Fields("nextPageToken, files(id, name, mimeType, size, modifiedTime, parents, webViewLink)").
@@ -180,7 +180,7 @@ func (c *DriveSearchCmd) Run(ctx context.Context, flags *RootFlags) error {
 		PageSize(c.Max).
 		PageToken(c.Page).
 		OrderBy("modifiedTime desc")
-	call = driveFilesListCallWithDriveSupport(call, c.AllDrives)
+	call = driveFilesListCallWithDriveSupport(call, c.AllDrives, true)
 
 	resp, err := call.
 		Fields("nextPageToken, files(id, name, mimeType, size, modifiedTime, parents, webViewLink)").
@@ -1173,10 +1173,10 @@ func downloadDriveFile(ctx context.Context, svc *drive.Service, meta *drive.File
 	return outPath, n, nil
 }
 
-func driveFilesListCallWithDriveSupport(call *drive.FilesListCall, allDrives bool) *drive.FilesListCall {
+func driveFilesListCallWithDriveSupport(call *drive.FilesListCall, allDrives bool, useCorpora bool) *drive.FilesListCall {
 	// SupportsAllDrives must be set for shared drive file IDs to behave correctly.
 	call = call.SupportsAllDrives(true).IncludeItemsFromAllDrives(allDrives)
-	if allDrives {
+	if allDrives && useCorpora {
 		call = call.Corpora("allDrives")
 	}
 	return call

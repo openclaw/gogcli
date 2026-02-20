@@ -31,7 +31,7 @@ func TestDriveSearchCmd_TextAndJSON(t *testing.T) {
 			http.NotFound(w, r)
 			return
 		}
-		if errMsg := driveAllDrivesQueryError(r, true); errMsg != "" {
+		if errMsg := driveAllDrivesQueryError(r, true, true); errMsg != "" {
 			http.Error(w, errMsg, http.StatusBadRequest)
 			return
 		}
@@ -104,7 +104,7 @@ func TestDriveSearchCmd_NoResultsAndEmptyQuery(t *testing.T) {
 			http.NotFound(w, r)
 			return
 		}
-		if errMsg := driveAllDrivesQueryError(r, true); errMsg != "" {
+		if errMsg := driveAllDrivesQueryError(r, true, true); errMsg != "" {
 			http.Error(w, errMsg, http.StatusBadRequest)
 			return
 		}
@@ -163,7 +163,7 @@ func TestDriveSearchCmd_NoAllDrives(t *testing.T) {
 			http.NotFound(w, r)
 			return
 		}
-		if errMsg := driveAllDrivesQueryError(r, false); errMsg != "" {
+		if errMsg := driveAllDrivesQueryError(r, false, false); errMsg != "" {
 			http.Error(w, errMsg, http.StatusBadRequest)
 			return
 		}
@@ -212,7 +212,7 @@ func TestDriveSearchCmd_PassesThroughDriveFilterQueries(t *testing.T) {
 			http.NotFound(w, r)
 			return
 		}
-		if errMsg := driveAllDrivesQueryError(r, true); errMsg != "" {
+		if errMsg := driveAllDrivesQueryError(r, true, true); errMsg != "" {
 			http.Error(w, errMsg, http.StatusBadRequest)
 			return
 		}
@@ -276,7 +276,7 @@ func TestDriveSearchCmd_RawQueryBypassesFullTextWrapping(t *testing.T) {
 			http.NotFound(w, r)
 			return
 		}
-		if errMsg := driveAllDrivesQueryError(r, true); errMsg != "" {
+		if errMsg := driveAllDrivesQueryError(r, true, true); errMsg != "" {
 			http.Error(w, errMsg, http.StatusBadRequest)
 			return
 		}

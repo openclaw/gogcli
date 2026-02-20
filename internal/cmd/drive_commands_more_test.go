@@ -34,7 +34,7 @@ func TestDriveCommands_MoreCoverage(t *testing.T) {
 		case r.Method == http.MethodGet && path == "/files":
 			q := r.URL.Query().Get("q")
 			if strings.Contains(q, "fullText contains") {
-				if errMsg := driveAllDrivesQueryError(r, true); errMsg != "" {
+				if errMsg := driveAllDrivesQueryError(r, true, true); errMsg != "" {
 					t.Fatalf("%s: %q", errMsg, r.URL.RawQuery)
 				}
 			}
