@@ -36,6 +36,19 @@ func TestExecute_Help(t *testing.T) {
 	}
 }
 
+func TestExecute_NoArgsShowsHelp(t *testing.T) {
+	out := captureStdout(t, func() {
+		_ = captureStderr(t, func() {
+			if err := Execute([]string{}); err != nil {
+				t.Fatalf("Execute: %v", err)
+			}
+		})
+	})
+	if !strings.Contains(out, "Usage:") {
+		t.Fatalf("expected usage output, got: %q", out)
+	}
+}
+
 func TestExecute_Help_GmailHasGroupsAndRelativeCommands(t *testing.T) {
 	out := captureStdout(t, func() {
 		_ = captureStderr(t, func() {

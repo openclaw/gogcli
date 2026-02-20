@@ -89,6 +89,9 @@ type CLI struct {
 type exitPanic struct{ code int }
 
 func Execute(args []string) (err error) {
+	if len(args) == 0 {
+		args = []string{"--help"}
+	}
 	args = rewriteDesirePathArgs(args)
 
 	parser, cli, err := newParser(helpDescription())
