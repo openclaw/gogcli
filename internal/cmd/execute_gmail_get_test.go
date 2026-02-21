@@ -256,6 +256,12 @@ func TestExecute_GmailGet_Metadata_Text(t *testing.T) {
 			http.Error(w, "bad format", http.StatusBadRequest)
 			return
 		}
+		gotHeaders := r.URL.Query()["metadataHeaders"]
+		if len(gotHeaders) != 4 || !containsAll(gotHeaders, []string{"From", "Subject", "Cc", "List-Unsubscribe"}) {
+			t.Errorf("metadataHeaders=%#v", gotHeaders)
+			http.Error(w, "bad metadataHeaders", http.StatusBadRequest)
+			return
+		}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"id":       "m1",
@@ -264,6 +270,7 @@ func TestExecute_GmailGet_Metadata_Text(t *testing.T) {
 			"payload": map[string]any{
 				"headers": []map[string]any{
 					{"name": "From", "value": "Me <me@example.com>"},
+					{"name": "CC", "value": "cc@example.com"},
 					{"name": "Subject", "value": "Hello"},
 				},
 			},
@@ -287,13 +294,13 @@ func TestExecute_GmailGet_Metadata_Text(t *testing.T) {
 				"--account", "a@b.com",
 				"gmail", "get", "m1",
 				"--format", "metadata",
-				"--headers", "From,Subject",
+				"--headers", "From,Subject,Cc",
 			}); err != nil {
 				t.Fatalf("Execute: %v", err)
 			}
 		})
 	})
-	if !strings.Contains(out, "id\tm1") || !strings.Contains(out, "subject\tHello") {
+	if !strings.Contains(out, "id\tm1") || !strings.Contains(out, "cc\tcc@example.com") || !strings.Contains(out, "subject\tHello") {
 		t.Fatalf("unexpected out=%q", out)
 	}
 }
