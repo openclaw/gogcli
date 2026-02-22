@@ -133,3 +133,54 @@ func TestParseCustomUserDefined_ClearAll(t *testing.T) {
 		t.Fatalf("expected empty fields, got %v", len(fields))
 	}
 }
+
+func TestParseRelations_InvalidInput(t *testing.T) {
+	if _, _, err := parseRelations([]string{"bad"}, true); err == nil {
+		t.Fatalf("expected error for missing '='")
+	}
+	if _, _, err := parseRelations([]string{"=Jane"}, true); err == nil {
+		t.Fatalf("expected error for empty type")
+	}
+	if _, _, err := parseRelations([]string{""}, false); err == nil {
+		t.Fatalf("expected error for empty relation value")
+	}
+}
+
+func TestParseRelations_ValidInput(t *testing.T) {
+	rels, clear, err := parseRelations([]string{"spouse=Jane", " friend = Bob "}, false)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if clear {
+		t.Fatalf("did not expect clear")
+	}
+	if len(rels) != 2 || rels[0].Type != "spouse" || rels[0].Person != "Jane" || rels[1].Type != "friend" || rels[1].Person != "Bob" {
+		t.Fatalf("unexpected relations: %#v", rels)
+	}
+}
+
+func TestParseRelations_ClearAll(t *testing.T) {
+	rels, clear, err := parseRelations([]string{""}, true)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !clear {
+		t.Fatalf("expected clear")
+	}
+	if len(rels) != 0 {
+		t.Fatalf("expected empty relations, got %v", len(rels))
+	}
+}
+
+func TestParseRelations_EmptySlice(t *testing.T) {
+	rels, clear, err := parseRelations(nil, false)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if clear {
+		t.Fatalf("did not expect clear")
+	}
+	if len(rels) != 0 {
+		t.Fatalf("expected empty, got %v", rels)
+	}
+}

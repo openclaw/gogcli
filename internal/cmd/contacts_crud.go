@@ -17,8 +17,8 @@ import (
 
 const (
 	contactsReadMask       = "names,emailAddresses,phoneNumbers,organizations,urls"
-	contactsGetReadMask    = contactsReadMask + ",birthdays,biographies,addresses,userDefined,metadata"
-	contactsUpdateReadMask = contactsReadMask + ",birthdays,biographies,userDefined,metadata"
+	contactsGetReadMask    = contactsReadMask + ",birthdays,biographies,addresses,userDefined,relations,metadata"
+	contactsUpdateReadMask = contactsReadMask + ",birthdays,biographies,userDefined,relations,metadata"
 )
 
 type ContactsListCmd struct {
@@ -181,6 +181,12 @@ func (c *ContactsGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if bio := primaryBio(p); bio != "" {
 		u.Out().Printf("note\t%s", bio)
 	}
+	for _, rel := range p.Relations {
+		if rel == nil {
+			continue
+		}
+		u.Out().Printf("relation:%s\t%s", rel.Type, rel.Person)
+	}
 	customFields := userDefinedFields(p)
 	if len(customFields) > 0 {
 		keys := make([]string, 0, len(customFields))
@@ -205,34 +211,53 @@ type ContactsCreateCmd struct {
 	URL          []string `name:"url" help:"URL (can be repeated for multiple URLs)"`
 	Note         string   `name:"note" help:"Note/biography"`
 	Custom       []string `name:"custom" help:"Custom field as key=value (can be repeated)"`
+	Relation     []string `name:"relation" help:"Relation as type=person (can be repeated)"`
 }
 
-func parseCustomUserDefined(values []string, allowEmptyClear bool) ([]*people.UserDefined, bool, error) {
+func parseKeyValuePairs(values []string, allowEmptyClear bool, flag, format string) ([][2]string, bool, error) {
 	if len(values) == 0 {
 		return nil, false, nil
 	}
 	if len(values) == 1 && strings.TrimSpace(values[0]) == "" {
 		if !allowEmptyClear {
-			return nil, false, fmt.Errorf("--custom entry cannot be empty")
+			return nil, false, fmt.Errorf("--%s entry cannot be empty", flag)
 		}
 		return nil, true, nil
 	}
 
-	userDefined := make([]*people.UserDefined, 0, len(values))
+	pairs := make([][2]string, 0, len(values))
 	for _, kv := range values {
 		parts := strings.SplitN(strings.TrimSpace(kv), "=", 2)
-		if len(parts) != 2 || strings.TrimSpace(parts[0]) == "" {
-			return nil, false, fmt.Errorf("expected key=value for --custom, got %q", kv)
+		if len(parts) != 2 || strings.TrimSpace(parts[0]) == "" || strings.TrimSpace(parts[1]) == "" {
+			return nil, false, fmt.Errorf("expected %s for --%s, got %q", format, flag, kv)
 		}
-		if strings.TrimSpace(parts[1]) == "" {
-			return nil, false, fmt.Errorf("expected key=value for --custom, got %q", kv)
-		}
-		userDefined = append(userDefined, &people.UserDefined{
-			Key:   strings.TrimSpace(parts[0]),
-			Value: strings.TrimSpace(parts[1]),
-		})
+		pairs = append(pairs, [2]string{strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1])})
 	}
-	return userDefined, false, nil
+	return pairs, false, nil
+}
+
+func parseCustomUserDefined(values []string, allowEmptyClear bool) ([]*people.UserDefined, bool, error) {
+	pairs, clear, err := parseKeyValuePairs(values, allowEmptyClear, "custom", "key=value")
+	if err != nil || clear {
+		return nil, clear, err
+	}
+	out := make([]*people.UserDefined, len(pairs))
+	for i, p := range pairs {
+		out[i] = &people.UserDefined{Key: p[0], Value: p[1]}
+	}
+	return out, false, nil
+}
+
+func parseRelations(values []string, allowEmptyClear bool) ([]*people.Relation, bool, error) {
+	pairs, clear, err := parseKeyValuePairs(values, allowEmptyClear, "relation", "type=person")
+	if err != nil || clear {
+		return nil, clear, err
+	}
+	out := make([]*people.Relation, len(pairs))
+	for i, p := range pairs {
+		out[i] = &people.Relation{Type: p[0], Person: p[1]}
+	}
+	return out, false, nil
 }
 
 func contactsURLs(values []string) []*people.Url {
@@ -334,6 +359,15 @@ func (c *ContactsCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
 			p.UserDefined = userDefined
 		}
 	}
+	if len(c.Relation) > 0 {
+		relations, _, parseErr := parseRelations(c.Relation, false)
+		if parseErr != nil {
+			return usage(parseErr.Error())
+		}
+		if len(relations) > 0 {
+			p.Relations = relations
+		}
+	}
 
 	created, err := svc.People.CreateContact(p).Do()
 	if err != nil {
@@ -357,6 +391,7 @@ type ContactsUpdateCmd struct {
 	URL          []string `name:"url" help:"URL (can be repeated; empty clears all)"`
 	Note         string   `name:"note" help:"Note/biography (empty clears)"`
 	Custom       []string `name:"custom" help:"Custom field as key=value (can be repeated; empty clears all)"`
+	Relation     []string `name:"relation" help:"Relation as type=person (can be repeated; empty clears all)"`
 	FromFile     string   `name:"from-file" help:"Update from contact JSON file (use - for stdin)"`
 	IgnoreETag   bool     `name:"ignore-etag" help:"Allow updating even if the JSON etag is stale (may overwrite concurrent changes)"`
 
@@ -382,7 +417,7 @@ func (c *ContactsUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *
 	}
 
 	if strings.TrimSpace(c.FromFile) != "" {
-		if flagProvided(kctx, "given") || flagProvided(kctx, "family") || flagProvided(kctx, "email") || flagProvided(kctx, "phone") || flagProvided(kctx, "birthday") || flagProvided(kctx, "notes") {
+		if flagProvided(kctx, "given") || flagProvided(kctx, "family") || flagProvided(kctx, "email") || flagProvided(kctx, "phone") || flagProvided(kctx, "birthday") || flagProvided(kctx, "notes") || flagProvided(kctx, "relation") {
 			return usage("can't combine --from-file with other update flags")
 		}
 		return c.updateFromJSON(ctx, svc, resourceName, u)
@@ -406,6 +441,7 @@ func (c *ContactsUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *
 	wantBirthday := flagProvided(kctx, "birthday")
 	wantNotes := flagProvided(kctx, "notes")
 	wantCustom := flagProvided(kctx, "custom")
+	wantRelation := flagProvided(kctx, "relation")
 
 	if wantGiven || wantFamily {
 		contactsApplyPersonName(existing, wantGiven, c.Given, wantFamily, c.Family)
@@ -459,6 +495,18 @@ func (c *ContactsUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *
 			existing.UserDefined = userDefined
 		}
 		updateFields = append(updateFields, "userDefined")
+	}
+	if wantRelation {
+		relations, clear, parseErr := parseRelations(c.Relation, true)
+		if parseErr != nil {
+			return usage(parseErr.Error())
+		}
+		if clear {
+			existing.Relations = nil
+		} else {
+			existing.Relations = relations
+		}
+		updateFields = append(updateFields, "relations")
 	}
 
 	if wantBirthday {
