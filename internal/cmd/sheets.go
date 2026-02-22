@@ -33,6 +33,7 @@ type SheetsCmd struct {
 	Notes    SheetsNotesCmd    `cmd:"" name:"notes" help:"Get cell notes from a range"`
 	Metadata SheetsMetadataCmd `cmd:"" name:"metadata" aliases:"info" help:"Get spreadsheet metadata"`
 	Create   SheetsCreateCmd   `cmd:"" name:"create" aliases:"new" help:"Create a new spreadsheet"`
+	Rename   SheetsRenameCmd   `cmd:"" name:"rename" aliases:"mv" help:"Rename a sheet tab (by index or name)"`
 	Copy     SheetsCopyCmd     `cmd:"" name:"copy" aliases:"cp,duplicate" help:"Copy a Google Sheet"`
 	Export   SheetsExportCmd   `cmd:"" name:"export" aliases:"download,dl" help:"Export a Google Sheet (pdf|xlsx|csv) via Drive"`
 }
