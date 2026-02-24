@@ -8,6 +8,8 @@ ACCOUNT=""
 SKIP=""
 AUTH_SERVICES=""
 CLIENT=""
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd -- "$SCRIPT_DIR/.." && pwd)"
 
 usage() {
   cat <<'USAGE'
@@ -39,6 +41,7 @@ Env:
   GOG_LIVE_TRACK=1
   GOG_LIVE_ALLOW_NONTEST=1
   GOG_LIVE_CALENDAR_RESPOND=1
+  GOG_LIVE_CALENDAR_ATTENDEE=attendee@domain.com
   GOG_LIVE_GMAIL_BATCH_DELETE=1
   GOG_LIVE_GMAIL_FILTERS=1
   GOG_LIVE_CLIENT=work
@@ -108,9 +111,9 @@ if [ "$FAST" = true ]; then
   fi
 fi
 
-BIN="${GOG_BIN:-./bin/gog}"
+BIN="${GOG_BIN:-$ROOT_DIR/bin/gog}"
 if [ ! -x "$BIN" ]; then
-  make build >/dev/null
+  make -C "$ROOT_DIR" build >/dev/null
 fi
 
 if [ -n "$CLIENT" ]; then
@@ -142,19 +145,19 @@ TS=$(date +%Y%m%d%H%M%S)
 LIVE_TMP=$(mktemp -d "${TMPDIR:-/tmp}/gog-live-$TS-XXXX")
 trap 'rm -rf "$LIVE_TMP"' EXIT
 
-source scripts/live-tests/common.sh
-source scripts/live-tests/core.sh
-source scripts/live-tests/gmail.sh
-source scripts/live-tests/drive.sh
-source scripts/live-tests/docs.sh
-source scripts/live-tests/sheets.sh
-source scripts/live-tests/slides.sh
-source scripts/live-tests/calendar.sh
-source scripts/live-tests/tasks.sh
-source scripts/live-tests/contacts.sh
-source scripts/live-tests/people.sh
-source scripts/live-tests/workspace.sh
-source scripts/live-tests/classroom.sh
+source "$ROOT_DIR/scripts/live-tests/common.sh"
+source "$ROOT_DIR/scripts/live-tests/core.sh"
+source "$ROOT_DIR/scripts/live-tests/gmail.sh"
+source "$ROOT_DIR/scripts/live-tests/drive.sh"
+source "$ROOT_DIR/scripts/live-tests/docs.sh"
+source "$ROOT_DIR/scripts/live-tests/sheets.sh"
+source "$ROOT_DIR/scripts/live-tests/slides.sh"
+source "$ROOT_DIR/scripts/live-tests/calendar.sh"
+source "$ROOT_DIR/scripts/live-tests/tasks.sh"
+source "$ROOT_DIR/scripts/live-tests/contacts.sh"
+source "$ROOT_DIR/scripts/live-tests/people.sh"
+source "$ROOT_DIR/scripts/live-tests/workspace.sh"
+source "$ROOT_DIR/scripts/live-tests/classroom.sh"
 
 ensure_test_account
 

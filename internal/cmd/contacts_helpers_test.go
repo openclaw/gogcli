@@ -95,3 +95,41 @@ func TestPrimaryBirthday_EdgeCases(t *testing.T) {
 		t.Fatalf("unexpected: %q", got)
 	}
 }
+
+func TestParseCustomUserDefined_InvalidInput(t *testing.T) {
+	if _, _, err := parseCustomUserDefined([]string{"bad"}, true); err == nil {
+		t.Fatalf("expected error for missing '='")
+	}
+	if _, _, err := parseCustomUserDefined([]string{"=value"}, true); err == nil {
+		t.Fatalf("expected error for empty key")
+	}
+	if _, _, err := parseCustomUserDefined([]string{""}, false); err == nil {
+		t.Fatalf("expected error for empty custom value")
+	}
+}
+
+func TestParseCustomUserDefined_ValidInput(t *testing.T) {
+	fields, clear, err := parseCustomUserDefined([]string{"team=devops", " repo = gog"}, false)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if clear {
+		t.Fatalf("did not expect clear")
+	}
+	if len(fields) != 2 || fields[0].Key != "team" || fields[0].Value != "devops" || fields[1].Key != "repo" || fields[1].Value != "gog" {
+		t.Fatalf("unexpected fields: %#v", fields)
+	}
+}
+
+func TestParseCustomUserDefined_ClearAll(t *testing.T) {
+	fields, clear, err := parseCustomUserDefined([]string{""}, true)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !clear {
+		t.Fatalf("expected clear")
+	}
+	if len(fields) != 0 {
+		t.Fatalf("expected empty fields, got %v", len(fields))
+	}
+}

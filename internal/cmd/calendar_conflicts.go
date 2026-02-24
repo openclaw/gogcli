@@ -46,7 +46,7 @@ func (c *CalendarConflictsCmd) Run(ctx context.Context, flags *RootFlags) error 
 	// Resolve aliases for all calendar IDs
 	resolvedIDs := make([]string, 0, len(calendarIDs))
 	for _, id := range calendarIDs {
-		resolved, resolveErr := resolveCalendarID(id)
+		resolved, resolveErr := resolveCalendarAliasID(id)
 		if resolveErr != nil {
 			return resolveErr
 		}
@@ -90,7 +90,7 @@ func (c *CalendarConflictsCmd) Run(ctx context.Context, flags *RootFlags) error 
 	conflicts := detectConflicts(resp.Calendars)
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
 			"conflicts": conflicts,
 			"count":     len(conflicts),
 		})

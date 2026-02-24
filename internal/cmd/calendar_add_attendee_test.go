@@ -97,3 +97,21 @@ func TestMergeAttendeesNewHaveNeedsAction(t *testing.T) {
 	}
 	t.Error("new attendee not found in result")
 }
+
+func TestMergeAttendeesWithChange(t *testing.T) {
+	existing := []*calendar.EventAttendee{
+		{Email: "existing@test.com", ResponseStatus: "accepted"},
+	}
+
+	if _, changed := mergeAttendeesWithChange(existing, "existing@test.com"); changed {
+		t.Fatalf("expected no change for duplicate attendee")
+	}
+
+	out, changed := mergeAttendeesWithChange(existing, "new@test.com")
+	if !changed {
+		t.Fatalf("expected changed=true when adding new attendee")
+	}
+	if len(out) != 2 {
+		t.Fatalf("expected 2 attendees after merge, got %d", len(out))
+	}
+}

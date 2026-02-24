@@ -27,7 +27,7 @@ func (c *CalendarAliasListCmd) Run(ctx context.Context) error {
 		return err
 	}
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{"aliases": aliases})
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{"aliases": aliases})
 	}
 	if len(aliases) == 0 {
 		u.Err().Println("No calendar aliases")
@@ -69,7 +69,7 @@ func (c *CalendarAliasSetCmd) Run(ctx context.Context) error {
 		return err
 	}
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
 			"alias":      strings.ToLower(alias),
 			"calendarId": calendarID,
 		})
@@ -97,7 +97,7 @@ func (c *CalendarAliasUnsetCmd) Run(ctx context.Context) error {
 		return usage("alias not found")
 	}
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
 			"deleted": true,
 			"alias":   strings.ToLower(alias),
 		})

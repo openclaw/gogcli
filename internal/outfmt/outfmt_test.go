@@ -3,6 +3,7 @@ package outfmt
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"testing"
 )
 
@@ -36,12 +37,47 @@ func TestContextMode(t *testing.T) {
 
 func TestWriteJSON(t *testing.T) {
 	var buf bytes.Buffer
-	if err := WriteJSON(&buf, map[string]any{"ok": true}); err != nil {
+	if err := WriteJSON(context.Background(), &buf, map[string]any{"ok": true}); err != nil {
 		t.Fatalf("err: %v", err)
 	}
 
 	if buf.Len() == 0 {
 		t.Fatalf("expected output")
+	}
+}
+
+func TestWriteJSON_ResultsOnlyAndSelect(t *testing.T) {
+	ctx := WithJSONTransform(context.Background(), JSONTransform{
+		ResultsOnly: true,
+		Select:      []string{"id"},
+	})
+
+	var buf bytes.Buffer
+	if err := WriteJSON(ctx, &buf, map[string]any{
+		"files": []map[string]any{
+			{"id": "1", "name": "one"},
+			{"id": "2", "name": "two"},
+		},
+		"nextPageToken": "tok",
+	}); err != nil {
+		t.Fatalf("WriteJSON: %v", err)
+	}
+
+	var got []map[string]any
+	if err := json.Unmarshal(buf.Bytes(), &got); err != nil {
+		t.Fatalf("unmarshal: %v (out=%q)", err, buf.String())
+	}
+
+	if len(got) != 2 {
+		t.Fatalf("expected 2 items, got %d", len(got))
+	}
+
+	if got[0]["id"] != "1" || got[1]["id"] != "2" {
+		t.Fatalf("unexpected ids: %#v", got)
+	}
+
+	if _, ok := got[0]["name"]; ok {
+		t.Fatalf("expected name to be stripped, got %#v", got[0])
 	}
 }
 

@@ -13,8 +13,8 @@ import (
 )
 
 type GmailAutoForwardCmd struct {
-	Get    GmailAutoForwardGetCmd    `cmd:"" name:"get" help:"Get current auto-forwarding settings"`
-	Update GmailAutoForwardUpdateCmd `cmd:"" name:"update" help:"Update auto-forwarding settings"`
+	Get    GmailAutoForwardGetCmd    `cmd:"" name:"get" aliases:"info,show" help:"Get current auto-forwarding settings"`
+	Update GmailAutoForwardUpdateCmd `cmd:"" name:"update" aliases:"edit,set" help:"Update auto-forwarding settings"`
 }
 
 type GmailAutoForwardGetCmd struct{}
@@ -37,7 +37,7 @@ func (c *GmailAutoForwardGetCmd) Run(ctx context.Context, flags *RootFlags) erro
 	}
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{"autoForwarding": autoForward})
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{"autoForwarding": autoForward})
 	}
 
 	u.Out().Printf("enabled\t%t", autoForward.Enabled)
@@ -59,13 +59,43 @@ type GmailAutoForwardUpdateCmd struct {
 
 func (c *GmailAutoForwardUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
-	account, err := requireAccount(flags)
-	if err != nil {
+	if c.Enable && c.Disable {
+		return errors.New("cannot specify both --enable and --disable")
+	}
+
+	updates := map[string]any{}
+	if c.Enable {
+		updates["enabled"] = true
+	}
+	if c.Disable {
+		updates["enabled"] = false
+	}
+	if flagProvided(kctx, "email") {
+		updates["email_address"] = c.Email
+	}
+	if flagProvided(kctx, "disposition") {
+		// Validate disposition value
+		validDispositions := map[string]bool{
+			"leaveInInbox": true,
+			"archive":      true,
+			"trash":        true,
+			"markRead":     true,
+		}
+		if !validDispositions[c.Disposition] {
+			return errors.New("invalid disposition value; must be one of: leaveInInbox, archive, trash, markRead")
+		}
+		updates["disposition"] = c.Disposition
+	}
+
+	if err := dryRunExit(ctx, flags, "gmail.autoforward.update", map[string]any{
+		"updates": updates,
+	}); err != nil {
 		return err
 	}
 
-	if c.Enable && c.Disable {
-		return errors.New("cannot specify both --enable and --disable")
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
 	}
 
 	svc, err := newGmailService(ctx, account)
@@ -97,16 +127,6 @@ func (c *GmailAutoForwardUpdateCmd) Run(ctx context.Context, kctx *kong.Context,
 		autoForward.EmailAddress = c.Email
 	}
 	if flagProvided(kctx, "disposition") {
-		// Validate disposition value
-		validDispositions := map[string]bool{
-			"leaveInInbox": true,
-			"archive":      true,
-			"trash":        true,
-			"markRead":     true,
-		}
-		if !validDispositions[c.Disposition] {
-			return errors.New("invalid disposition value; must be one of: leaveInInbox, archive, trash, markRead")
-		}
 		autoForward.Disposition = c.Disposition
 	}
 
@@ -116,7 +136,7 @@ func (c *GmailAutoForwardUpdateCmd) Run(ctx context.Context, kctx *kong.Context,
 	}
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{"autoForwarding": updated})
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{"autoForwarding": updated})
 	}
 
 	u.Out().Println("Auto-forwarding settings updated successfully")

@@ -77,7 +77,7 @@ func TestApplyUpdateScopeFuture_UsesParentRecurrence(t *testing.T) {
 		t.Fatalf("patch did not inherit recurrence: %#v", patch.Recurrence)
 	}
 
-	if err := truncateParentRecurrence(context.Background(), svc, "cal", "ev", parentRecurrence, originalStart); err != nil {
+	if err := truncateParentRecurrence(context.Background(), svc, "cal", "ev", parentRecurrence, originalStart, ""); err != nil {
 		t.Fatalf("truncateParentRecurrence: %v", err)
 	}
 	if len(patchedRecurrence) != 1 || !strings.Contains(patchedRecurrence[0], "UNTIL=") {

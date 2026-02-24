@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/steipete/gogcli/internal/timeparse"
 )
 
 type repeatUnit int
@@ -36,26 +38,15 @@ func parseRepeatUnit(raw string) (repeatUnit, error) {
 }
 
 func parseTaskDate(value string) (time.Time, bool, error) {
-	value = strings.TrimSpace(value)
-	if value == "" {
-		return time.Time{}, false, fmt.Errorf("empty date")
+	if dateOnly, err := timeparse.ParseDate(value); err == nil {
+		return dateOnly, false, nil
 	}
-	if t, err := time.Parse(time.RFC3339, value); err == nil {
-		return t, true, nil
+
+	parsed, err := timeparse.ParseDateTimeOrDate(value, time.Local)
+	if err != nil {
+		return time.Time{}, false, fmt.Errorf("invalid date/time %q (expected RFC3339 or YYYY-MM-DD)", strings.TrimSpace(value))
 	}
-	if t, err := time.Parse(time.RFC3339Nano, value); err == nil {
-		return t, true, nil
-	}
-	if t, err := time.Parse("2006-01-02", value); err == nil {
-		return t, false, nil
-	}
-	if t, err := time.ParseInLocation("2006-01-02T15:04:05", value, time.Local); err == nil {
-		return t, true, nil
-	}
-	if t, err := time.ParseInLocation("2006-01-02 15:04", value, time.Local); err == nil {
-		return t, true, nil
-	}
-	return time.Time{}, false, fmt.Errorf("invalid date/time %q (expected RFC3339 or YYYY-MM-DD)", value)
+	return parsed.Time, parsed.HasTime, nil
 }
 
 func expandRepeatSchedule(start time.Time, unit repeatUnit, count int, until *time.Time) []time.Time {

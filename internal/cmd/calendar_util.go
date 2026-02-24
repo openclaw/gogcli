@@ -12,9 +12,7 @@ func isAllDayEvent(e *calendar.Event) bool {
 	return e != nil && e.Start != nil && e.Start.Date != ""
 }
 
-// resolveCalendarID resolves a calendar ID, checking aliases first.
-// Returns an error if the calendar ID is empty after resolution.
-func resolveCalendarID(calendarID string) (string, error) {
+func resolveCalendarAliasID(calendarID string) (string, error) {
 	calendarID = strings.TrimSpace(calendarID)
 	if calendarID == "" {
 		return "", usage("empty calendarId")

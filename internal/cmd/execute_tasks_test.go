@@ -126,6 +126,15 @@ func TestExecute_TasksList_JSON(t *testing.T) {
 	t.Cleanup(func() { newTasksService = origNew })
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/tasks/v1/users/@me/lists" && r.Method == http.MethodGet {
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"items": []map[string]any{
+					{"id": "l1", "title": "One"},
+				},
+			})
+			return
+		}
 		if !(strings.HasPrefix(r.URL.Path, "/tasks/v1/lists/") && strings.HasSuffix(r.URL.Path, "/tasks") && r.Method == http.MethodGet) {
 			http.NotFound(w, r)
 			return
@@ -178,6 +187,15 @@ func TestExecute_TasksAdd_JSON(t *testing.T) {
 	t.Cleanup(func() { newTasksService = origNew })
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/tasks/v1/users/@me/lists" && r.Method == http.MethodGet {
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"items": []map[string]any{
+					{"id": "l1", "title": "One"},
+				},
+			})
+			return
+		}
 		if !(r.URL.Path == "/tasks/v1/lists/l1/tasks" && r.Method == http.MethodPost) {
 			http.NotFound(w, r)
 			return
@@ -238,6 +256,15 @@ func TestExecute_TasksGet_JSON(t *testing.T) {
 	t.Cleanup(func() { newTasksService = origNew })
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/tasks/v1/users/@me/lists" && r.Method == http.MethodGet {
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"items": []map[string]any{
+					{"id": "l1", "title": "One"},
+				},
+			})
+			return
+		}
 		if !(r.URL.Path == "/tasks/v1/lists/l1/tasks/t1" && r.Method == http.MethodGet) {
 			http.NotFound(w, r)
 			return
@@ -287,6 +314,15 @@ func TestExecute_TasksDone_JSON(t *testing.T) {
 	t.Cleanup(func() { newTasksService = origNew })
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/tasks/v1/users/@me/lists" && r.Method == http.MethodGet {
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"items": []map[string]any{
+					{"id": "l1", "title": "One"},
+				},
+			})
+			return
+		}
 		if !(r.URL.Path == "/tasks/v1/lists/l1/tasks/t1" && r.Method == http.MethodPatch) {
 			http.NotFound(w, r)
 			return
@@ -346,6 +382,15 @@ func TestExecute_TasksDelete_JSON(t *testing.T) {
 	t.Cleanup(func() { newTasksService = origNew })
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/tasks/v1/users/@me/lists" && r.Method == http.MethodGet {
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"items": []map[string]any{
+					{"id": "l1", "title": "One"},
+				},
+			})
+			return
+		}
 		if !(r.URL.Path == "/tasks/v1/lists/l1/tasks/t1" && r.Method == http.MethodDelete) {
 			http.NotFound(w, r)
 			return
@@ -389,6 +434,15 @@ func TestExecute_TasksUpdate_JSON(t *testing.T) {
 	t.Cleanup(func() { newTasksService = origNew })
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/tasks/v1/users/@me/lists" && r.Method == http.MethodGet {
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"items": []map[string]any{
+					{"id": "l1", "title": "One"},
+				},
+			})
+			return
+		}
 		if !(r.URL.Path == "/tasks/v1/lists/l1/tasks/t1" && r.Method == http.MethodPatch) {
 			http.NotFound(w, r)
 			return
@@ -449,6 +503,15 @@ func TestExecute_TasksUndo_JSON(t *testing.T) {
 	t.Cleanup(func() { newTasksService = origNew })
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/tasks/v1/users/@me/lists" && r.Method == http.MethodGet {
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"items": []map[string]any{
+					{"id": "l1", "title": "One"},
+				},
+			})
+			return
+		}
 		if !(r.URL.Path == "/tasks/v1/lists/l1/tasks/t1" && r.Method == http.MethodPatch) {
 			http.NotFound(w, r)
 			return
@@ -507,6 +570,15 @@ func TestExecute_TasksClear_JSON(t *testing.T) {
 	t.Cleanup(func() { newTasksService = origNew })
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/tasks/v1/users/@me/lists" && r.Method == http.MethodGet {
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"items": []map[string]any{
+					{"id": "l1", "title": "One"},
+				},
+			})
+			return
+		}
 		if !(r.URL.Path == "/tasks/v1/lists/l1/clear" && r.Method == http.MethodPost) {
 			http.NotFound(w, r)
 			return

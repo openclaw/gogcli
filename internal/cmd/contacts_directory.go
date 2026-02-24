@@ -24,8 +24,10 @@ type ContactsDirectoryCmd struct {
 }
 
 type ContactsDirectoryListCmd struct {
-	Max  int64  `name:"max" aliases:"limit" help:"Max results" default:"50"`
-	Page string `name:"page" help:"Page token"`
+	Max       int64  `name:"max" aliases:"limit" help:"Max results" default:"50"`
+	Page      string `name:"page" aliases:"cursor" help:"Page token"`
+	All       bool   `name:"all" aliases:"all-pages,allpages" help:"Fetch all pages"`
+	FailEmpty bool   `name:"fail-empty" aliases:"non-empty,require-results" help:"Exit with code 3 if no results"`
 }
 
 func (c *ContactsDirectoryListCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -40,18 +42,40 @@ func (c *ContactsDirectoryListCmd) Run(ctx context.Context, flags *RootFlags) er
 		return err
 	}
 
-	ctxTimeout, cancel := context.WithTimeout(ctx, directoryRequestTimeout)
-	defer cancel()
+	fetch := func(pageToken string) ([]*people.Person, string, error) {
+		ctxTimeout, cancel := context.WithTimeout(ctx, directoryRequestTimeout)
+		defer cancel()
 
-	resp, err := svc.People.ListDirectoryPeople().
-		Sources("DIRECTORY_SOURCE_TYPE_DOMAIN_PROFILE").
-		ReadMask(directoryReadMask).
-		PageSize(c.Max).
-		PageToken(c.Page).
-		Context(ctxTimeout).
-		Do()
-	if err != nil {
-		return err
+		call := svc.People.ListDirectoryPeople().
+			Sources("DIRECTORY_SOURCE_TYPE_DOMAIN_PROFILE").
+			ReadMask(directoryReadMask).
+			PageSize(c.Max).
+			Context(ctxTimeout)
+		if strings.TrimSpace(pageToken) != "" {
+			call = call.PageToken(pageToken)
+		}
+
+		resp, err := call.Do()
+		if err != nil {
+			return nil, "", err
+		}
+		return resp.People, resp.NextPageToken, nil
+	}
+
+	var peopleList []*people.Person
+	nextPageToken := ""
+	if c.All {
+		all, err := collectAllPages(c.Page, fetch)
+		if err != nil {
+			return err
+		}
+		peopleList = all
+	} else {
+		var err error
+		peopleList, nextPageToken, err = fetch(c.Page)
+		if err != nil {
+			return err
+		}
 	}
 	if outfmt.IsJSON(ctx) {
 		type item struct {
@@ -59,8 +83,8 @@ func (c *ContactsDirectoryListCmd) Run(ctx context.Context, flags *RootFlags) er
 			Name     string `json:"name,omitempty"`
 			Email    string `json:"email,omitempty"`
 		}
-		items := make([]item, 0, len(resp.People))
-		for _, p := range resp.People {
+		items := make([]item, 0, len(peopleList))
+		for _, p := range peopleList {
 			if p == nil {
 				continue
 			}
@@ -70,21 +94,27 @@ func (c *ContactsDirectoryListCmd) Run(ctx context.Context, flags *RootFlags) er
 				Email:    primaryEmail(p),
 			})
 		}
-		return outfmt.WriteJSON(os.Stdout, map[string]any{
+		if err := outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
 			"people":        items,
-			"nextPageToken": resp.NextPageToken,
-		})
+			"nextPageToken": nextPageToken,
+		}); err != nil {
+			return err
+		}
+		if len(items) == 0 {
+			return failEmptyExit(c.FailEmpty)
+		}
+		return nil
 	}
 
-	if len(resp.People) == 0 {
+	if len(peopleList) == 0 {
 		u.Err().Println("No results")
-		return nil
+		return failEmptyExit(c.FailEmpty)
 	}
 
 	w, flush := tableWriter(ctx)
 	defer flush()
 	fmt.Fprintln(w, "RESOURCE\tNAME\tEMAIL")
-	for _, p := range resp.People {
+	for _, p := range peopleList {
 		if p == nil {
 			continue
 		}
@@ -94,14 +124,16 @@ func (c *ContactsDirectoryListCmd) Run(ctx context.Context, flags *RootFlags) er
 			sanitizeTab(primaryEmail(p)),
 		)
 	}
-	printNextPageHint(u, resp.NextPageToken)
+	printNextPageHint(u, nextPageToken)
 	return nil
 }
 
 type ContactsDirectorySearchCmd struct {
-	Query []string `arg:"" name:"query" help:"Search query"`
-	Max   int64    `name:"max" aliases:"limit" help:"Max results" default:"50"`
-	Page  string   `name:"page" help:"Page token"`
+	Query     []string `arg:"" name:"query" help:"Search query"`
+	Max       int64    `name:"max" aliases:"limit" help:"Max results" default:"50"`
+	Page      string   `name:"page" aliases:"cursor" help:"Page token"`
+	All       bool     `name:"all" aliases:"all-pages,allpages" help:"Fetch all pages"`
+	FailEmpty bool     `name:"fail-empty" aliases:"non-empty,require-results" help:"Exit with code 3 if no results"`
 }
 
 func (c *ContactsDirectorySearchCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -117,19 +149,40 @@ func (c *ContactsDirectorySearchCmd) Run(ctx context.Context, flags *RootFlags) 
 		return err
 	}
 
-	ctxTimeout, cancel := context.WithTimeout(ctx, directoryRequestTimeout)
-	defer cancel()
+	fetch := func(pageToken string) ([]*people.Person, string, error) {
+		ctxTimeout, cancel := context.WithTimeout(ctx, directoryRequestTimeout)
+		defer cancel()
 
-	resp, err := svc.People.SearchDirectoryPeople().
-		Query(query).
-		Sources("DIRECTORY_SOURCE_TYPE_DOMAIN_PROFILE").
-		ReadMask(directoryReadMask).
-		PageSize(c.Max).
-		PageToken(c.Page).
-		Context(ctxTimeout).
-		Do()
-	if err != nil {
-		return err
+		call := svc.People.SearchDirectoryPeople().
+			Query(query).
+			Sources("DIRECTORY_SOURCE_TYPE_DOMAIN_PROFILE").
+			ReadMask(directoryReadMask).
+			PageSize(c.Max).
+			Context(ctxTimeout)
+		if strings.TrimSpace(pageToken) != "" {
+			call = call.PageToken(pageToken)
+		}
+		resp, err := call.Do()
+		if err != nil {
+			return nil, "", err
+		}
+		return resp.People, resp.NextPageToken, nil
+	}
+
+	var peopleList []*people.Person
+	nextPageToken := ""
+	if c.All {
+		all, err := collectAllPages(c.Page, fetch)
+		if err != nil {
+			return err
+		}
+		peopleList = all
+	} else {
+		var err error
+		peopleList, nextPageToken, err = fetch(c.Page)
+		if err != nil {
+			return err
+		}
 	}
 	if outfmt.IsJSON(ctx) {
 		type item struct {
@@ -137,8 +190,8 @@ func (c *ContactsDirectorySearchCmd) Run(ctx context.Context, flags *RootFlags) 
 			Name     string `json:"name,omitempty"`
 			Email    string `json:"email,omitempty"`
 		}
-		items := make([]item, 0, len(resp.People))
-		for _, p := range resp.People {
+		items := make([]item, 0, len(peopleList))
+		for _, p := range peopleList {
 			if p == nil {
 				continue
 			}
@@ -148,21 +201,27 @@ func (c *ContactsDirectorySearchCmd) Run(ctx context.Context, flags *RootFlags) 
 				Email:    primaryEmail(p),
 			})
 		}
-		return outfmt.WriteJSON(os.Stdout, map[string]any{
+		if err := outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
 			"people":        items,
-			"nextPageToken": resp.NextPageToken,
-		})
+			"nextPageToken": nextPageToken,
+		}); err != nil {
+			return err
+		}
+		if len(items) == 0 {
+			return failEmptyExit(c.FailEmpty)
+		}
+		return nil
 	}
 
-	if len(resp.People) == 0 {
+	if len(peopleList) == 0 {
 		u.Err().Println("No results")
-		return nil
+		return failEmptyExit(c.FailEmpty)
 	}
 
 	w, flush := tableWriter(ctx)
 	defer flush()
 	fmt.Fprintln(w, "RESOURCE\tNAME\tEMAIL")
-	for _, p := range resp.People {
+	for _, p := range peopleList {
 		if p == nil {
 			continue
 		}
@@ -172,7 +231,7 @@ func (c *ContactsDirectorySearchCmd) Run(ctx context.Context, flags *RootFlags) 
 			sanitizeTab(primaryEmail(p)),
 		)
 	}
-	printNextPageHint(u, resp.NextPageToken)
+	printNextPageHint(u, nextPageToken)
 	return nil
 }
 
@@ -183,8 +242,10 @@ type ContactsOtherCmd struct {
 }
 
 type ContactsOtherListCmd struct {
-	Max  int64  `name:"max" aliases:"limit" help:"Max results" default:"100"`
-	Page string `name:"page" help:"Page token"`
+	Max       int64  `name:"max" aliases:"limit" help:"Max results" default:"100"`
+	Page      string `name:"page" aliases:"cursor" help:"Page token"`
+	All       bool   `name:"all" aliases:"all-pages,allpages" help:"Fetch all pages"`
+	FailEmpty bool   `name:"fail-empty" aliases:"non-empty,require-results" help:"Exit with code 3 if no results"`
 }
 
 func (c *ContactsOtherListCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -199,13 +260,35 @@ func (c *ContactsOtherListCmd) Run(ctx context.Context, flags *RootFlags) error 
 		return err
 	}
 
-	resp, err := svc.OtherContacts.List().
-		ReadMask(contactsReadMask).
-		PageSize(c.Max).
-		PageToken(c.Page).
-		Do()
-	if err != nil {
-		return err
+	fetch := func(pageToken string) ([]*people.Person, string, error) {
+		call := svc.OtherContacts.List().
+			ReadMask(contactsReadMask).
+			PageSize(c.Max).
+			Context(ctx)
+		if strings.TrimSpace(pageToken) != "" {
+			call = call.PageToken(pageToken)
+		}
+		resp, err := call.Do()
+		if err != nil {
+			return nil, "", err
+		}
+		return resp.OtherContacts, resp.NextPageToken, nil
+	}
+
+	var contacts []*people.Person
+	nextPageToken := ""
+	if c.All {
+		all, err := collectAllPages(c.Page, fetch)
+		if err != nil {
+			return err
+		}
+		contacts = all
+	} else {
+		var err error
+		contacts, nextPageToken, err = fetch(c.Page)
+		if err != nil {
+			return err
+		}
 	}
 	if outfmt.IsJSON(ctx) {
 		type item struct {
@@ -214,8 +297,8 @@ func (c *ContactsOtherListCmd) Run(ctx context.Context, flags *RootFlags) error 
 			Email    string `json:"email,omitempty"`
 			Phone    string `json:"phone,omitempty"`
 		}
-		items := make([]item, 0, len(resp.OtherContacts))
-		for _, p := range resp.OtherContacts {
+		items := make([]item, 0, len(contacts))
+		for _, p := range contacts {
 			if p == nil {
 				continue
 			}
@@ -226,21 +309,27 @@ func (c *ContactsOtherListCmd) Run(ctx context.Context, flags *RootFlags) error 
 				Phone:    primaryPhone(p),
 			})
 		}
-		return outfmt.WriteJSON(os.Stdout, map[string]any{
+		if err := outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
 			"contacts":      items,
-			"nextPageToken": resp.NextPageToken,
-		})
+			"nextPageToken": nextPageToken,
+		}); err != nil {
+			return err
+		}
+		if len(items) == 0 {
+			return failEmptyExit(c.FailEmpty)
+		}
+		return nil
 	}
 
-	if len(resp.OtherContacts) == 0 {
+	if len(contacts) == 0 {
 		u.Err().Println("No results")
-		return nil
+		return failEmptyExit(c.FailEmpty)
 	}
 
 	w, flush := tableWriter(ctx)
 	defer flush()
 	fmt.Fprintln(w, "RESOURCE\tNAME\tEMAIL\tPHONE")
-	for _, p := range resp.OtherContacts {
+	for _, p := range contacts {
 		if p == nil {
 			continue
 		}
@@ -251,7 +340,7 @@ func (c *ContactsOtherListCmd) Run(ctx context.Context, flags *RootFlags) error 
 			sanitizeTab(primaryPhone(p)),
 		)
 	}
-	printNextPageHint(u, resp.NextPageToken)
+	printNextPageHint(u, nextPageToken)
 	return nil
 }
 
@@ -301,7 +390,7 @@ func (c *ContactsOtherSearchCmd) Run(ctx context.Context, flags *RootFlags) erro
 				Phone:    primaryPhone(p),
 			})
 		}
-		return outfmt.WriteJSON(os.Stdout, map[string]any{"contacts": items})
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{"contacts": items})
 	}
 
 	if len(resp.Results) == 0 {
@@ -333,10 +422,6 @@ type ContactsOtherDeleteCmd struct {
 
 func (c *ContactsOtherDeleteCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
 	resourceName := strings.TrimSpace(c.ResourceName)
 	if !strings.HasPrefix(resourceName, "otherContacts/") {
 		return usage("resourceName must start with otherContacts/")
@@ -344,6 +429,11 @@ func (c *ContactsOtherDeleteCmd) Run(ctx context.Context, flags *RootFlags) erro
 
 	if confirmErr := confirmDestructive(ctx, flags, fmt.Sprintf("delete other contact %s", resourceName)); confirmErr != nil {
 		return confirmErr
+	}
+
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
 	}
 
 	if err := deleteOtherContact(ctx, account, resourceName); err != nil {

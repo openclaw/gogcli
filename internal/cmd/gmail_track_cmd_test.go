@@ -285,3 +285,19 @@ func TestGmailTrackOpens_NotConfigured(t *testing.T) {
 		t.Fatalf("expected error for unconfigured tracking")
 	}
 }
+
+func TestParseTrackingSince_FlexibleFormats(t *testing.T) {
+	t.Parallel()
+
+	if parsed, err := parseTrackingSince("2026-02-13T10:20"); err != nil || parsed == "" {
+		t.Fatalf("unexpected local datetime parse: %q err=%v", parsed, err)
+	}
+
+	parsedNano, err := parseTrackingSince("2026-02-13T10:20:30.123456789Z")
+	if err != nil {
+		t.Fatalf("unexpected RFC3339Nano parse error: %v", err)
+	}
+	if !strings.Contains(parsedNano, ".123456789Z") {
+		t.Fatalf("expected nano precision output, got %q", parsedNano)
+	}
+}

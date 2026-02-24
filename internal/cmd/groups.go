@@ -24,13 +24,15 @@ const (
 )
 
 type GroupsCmd struct {
-	List    GroupsListCmd    `cmd:"" name:"list" help:"List groups you belong to"`
+	List    GroupsListCmd    `cmd:"" name:"list" aliases:"ls" help:"List groups you belong to"`
 	Members GroupsMembersCmd `cmd:"" name:"members" help:"List members of a group"`
 }
 
 type GroupsListCmd struct {
-	Max  int64  `name:"max" aliases:"limit" help:"Max results" default:"100"`
-	Page string `name:"page" help:"Page token"`
+	Max       int64  `name:"max" aliases:"limit" help:"Max results" default:"100"`
+	Page      string `name:"page" aliases:"cursor" help:"Page token"`
+	All       bool   `name:"all" aliases:"all-pages,allpages" help:"Fetch all pages"`
+	FailEmpty bool   `name:"fail-empty" aliases:"non-empty,require-results" help:"Exit with code 3 if no results"`
 }
 
 func (c *GroupsListCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -47,14 +49,35 @@ func (c *GroupsListCmd) Run(ctx context.Context, flags *RootFlags) error {
 
 	// Search for all groups the user belongs to
 	// Using "groups/-" as parent searches across all groups
-	resp, err := svc.Groups.Memberships.SearchTransitiveGroups("groups/-").
-		Query("member_key_id == '" + account + "'").
-		PageSize(c.Max).
-		PageToken(c.Page).
-		Context(ctx).
-		Do()
-	if err != nil {
-		return wrapCloudIdentityError(err, account)
+	fetch := func(pageToken string) ([]*cloudidentity.GroupRelation, string, error) {
+		call := svc.Groups.Memberships.SearchTransitiveGroups("groups/-").
+			Query("member_key_id == '" + account + "'").
+			PageSize(c.Max).
+			Context(ctx)
+		if strings.TrimSpace(pageToken) != "" {
+			call = call.PageToken(pageToken)
+		}
+		resp, err := call.Do()
+		if err != nil {
+			return nil, "", wrapCloudIdentityError(err, account)
+		}
+		return resp.Memberships, resp.NextPageToken, nil
+	}
+
+	var memberships []*cloudidentity.GroupRelation
+	nextPageToken := ""
+	if c.All {
+		all, err := collectAllPages(c.Page, fetch)
+		if err != nil {
+			return err
+		}
+		memberships = all
+	} else {
+		var err error
+		memberships, nextPageToken, err = fetch(c.Page)
+		if err != nil {
+			return err
+		}
 	}
 
 	if outfmt.IsJSON(ctx) {
@@ -63,8 +86,8 @@ func (c *GroupsListCmd) Run(ctx context.Context, flags *RootFlags) error {
 			DisplayName string `json:"displayName,omitempty"`
 			Role        string `json:"role,omitempty"`
 		}
-		items := make([]item, 0, len(resp.Memberships))
-		for _, m := range resp.Memberships {
+		items := make([]item, 0, len(memberships))
+		for _, m := range memberships {
 			if m == nil {
 				continue
 			}
@@ -74,21 +97,27 @@ func (c *GroupsListCmd) Run(ctx context.Context, flags *RootFlags) error {
 				Role:        getRelationType(m.RelationType),
 			})
 		}
-		return outfmt.WriteJSON(os.Stdout, map[string]any{
+		if err := outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
 			"groups":        items,
-			"nextPageToken": resp.NextPageToken,
-		})
+			"nextPageToken": nextPageToken,
+		}); err != nil {
+			return err
+		}
+		if len(items) == 0 {
+			return failEmptyExit(c.FailEmpty)
+		}
+		return nil
 	}
 
-	if len(resp.Memberships) == 0 {
+	if len(memberships) == 0 {
 		u.Err().Println("No groups found")
-		return nil
+		return failEmptyExit(c.FailEmpty)
 	}
 
 	w, flush := tableWriter(ctx)
 	defer flush()
 	fmt.Fprintln(w, "GROUP\tNAME\tRELATION")
-	for _, m := range resp.Memberships {
+	for _, m := range memberships {
 		if m == nil {
 			continue
 		}
@@ -98,7 +127,7 @@ func (c *GroupsListCmd) Run(ctx context.Context, flags *RootFlags) error {
 			sanitizeTab(getRelationType(m.RelationType)),
 		)
 	}
-	printNextPageHint(u, resp.NextPageToken)
+	printNextPageHint(u, nextPageToken)
 	return nil
 }
 
@@ -134,7 +163,9 @@ func getRelationType(relationType string) string {
 type GroupsMembersCmd struct {
 	GroupEmail string `arg:"" name:"groupEmail" help:"Group email (e.g., engineering@company.com)"`
 	Max        int64  `name:"max" aliases:"limit" help:"Max results" default:"100"`
-	Page       string `name:"page" help:"Page token"`
+	Page       string `name:"page" aliases:"cursor" help:"Page token"`
+	All        bool   `name:"all" aliases:"all-pages,allpages" help:"Fetch all pages"`
+	FailEmpty  bool   `name:"fail-empty" aliases:"non-empty,require-results" help:"Exit with code 3 if no results"`
 }
 
 func (c *GroupsMembersCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -161,13 +192,34 @@ func (c *GroupsMembersCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 
 	// List members of the group
-	resp, err := svc.Groups.Memberships.List(groupName).
-		PageSize(c.Max).
-		PageToken(c.Page).
-		Context(ctx).
-		Do()
-	if err != nil {
-		return fmt.Errorf("failed to list members: %w", err)
+	fetch := func(pageToken string) ([]*cloudidentity.Membership, string, error) {
+		call := svc.Groups.Memberships.List(groupName).
+			PageSize(c.Max).
+			Context(ctx)
+		if strings.TrimSpace(pageToken) != "" {
+			call = call.PageToken(pageToken)
+		}
+		resp, err := call.Do()
+		if err != nil {
+			return nil, "", fmt.Errorf("failed to list members: %w", err)
+		}
+		return resp.Memberships, resp.NextPageToken, nil
+	}
+
+	var memberships []*cloudidentity.Membership
+	nextPageToken := ""
+	if c.All {
+		all, err := collectAllPages(c.Page, fetch)
+		if err != nil {
+			return err
+		}
+		memberships = all
+	} else {
+		var err error
+		memberships, nextPageToken, err = fetch(c.Page)
+		if err != nil {
+			return err
+		}
 	}
 
 	if outfmt.IsJSON(ctx) {
@@ -176,8 +228,8 @@ func (c *GroupsMembersCmd) Run(ctx context.Context, flags *RootFlags) error {
 			Role  string `json:"role"`
 			Type  string `json:"type"`
 		}
-		items := make([]item, 0, len(resp.Memberships))
-		for _, m := range resp.Memberships {
+		items := make([]item, 0, len(memberships))
+		for _, m := range memberships {
 			if m == nil || m.PreferredMemberKey == nil {
 				continue
 			}
@@ -187,21 +239,27 @@ func (c *GroupsMembersCmd) Run(ctx context.Context, flags *RootFlags) error {
 				Type:  m.Type,
 			})
 		}
-		return outfmt.WriteJSON(os.Stdout, map[string]any{
+		if err := outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
 			"members":       items,
-			"nextPageToken": resp.NextPageToken,
-		})
+			"nextPageToken": nextPageToken,
+		}); err != nil {
+			return err
+		}
+		if len(items) == 0 {
+			return failEmptyExit(c.FailEmpty)
+		}
+		return nil
 	}
 
-	if len(resp.Memberships) == 0 {
+	if len(memberships) == 0 {
 		u.Err().Printf("No members in group %s", groupEmail)
-		return nil
+		return failEmptyExit(c.FailEmpty)
 	}
 
 	w, flush := tableWriter(ctx)
 	defer flush()
 	fmt.Fprintln(w, "EMAIL\tROLE\tTYPE")
-	for _, m := range resp.Memberships {
+	for _, m := range memberships {
 		if m == nil || m.PreferredMemberKey == nil {
 			continue
 		}
@@ -211,7 +269,7 @@ func (c *GroupsMembersCmd) Run(ctx context.Context, flags *RootFlags) error {
 			sanitizeTab(m.Type),
 		)
 	}
-	printNextPageHint(u, resp.NextPageToken)
+	printNextPageHint(u, nextPageToken)
 	return nil
 }
 
@@ -314,22 +372,16 @@ func collectGroupMemberEmailsRecursive(ctx context.Context, svc *cloudidentity.S
 }
 
 func listGroupMemberships(ctx context.Context, svc *cloudidentity.Service, groupName string, pageSize int64) ([]*cloudidentity.Membership, error) {
-	var memberships []*cloudidentity.Membership
-	pageToken := ""
-	for {
+	fetch := func(pageToken string) ([]*cloudidentity.Membership, string, error) {
 		call := svc.Groups.Memberships.List(groupName).PageSize(pageSize).Context(ctx)
-		if pageToken != "" {
+		if strings.TrimSpace(pageToken) != "" {
 			call = call.PageToken(pageToken)
 		}
 		resp, err := call.Do()
 		if err != nil {
-			return nil, err
+			return nil, "", err
 		}
-		memberships = append(memberships, resp.Memberships...)
-		if resp.NextPageToken == "" {
-			break
-		}
-		pageToken = resp.NextPageToken
+		return resp.Memberships, resp.NextPageToken, nil
 	}
-	return memberships, nil
+	return collectAllPages("", fetch)
 }

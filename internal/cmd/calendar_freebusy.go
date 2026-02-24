@@ -33,7 +33,7 @@ func (c *CalendarFreeBusyCmd) Run(ctx context.Context, flags *RootFlags) error {
 	// Resolve aliases for all calendar IDs
 	resolvedIDs := make([]string, 0, len(calendarIDs))
 	for _, id := range calendarIDs {
-		resolved, resolveErr := resolveCalendarID(id)
+		resolved, resolveErr := resolveCalendarAliasID(id)
 		if resolveErr != nil {
 			return resolveErr
 		}
@@ -64,7 +64,7 @@ func (c *CalendarFreeBusyCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{"calendars": resp.Calendars})
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{"calendars": resp.Calendars})
 	}
 
 	if len(resp.Calendars) == 0 {

@@ -34,7 +34,7 @@ func (c *CalendarSearchCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if calendarID == "" {
 		calendarID = "primary"
 	} else {
-		resolved, resolveErr := resolveCalendarID(calendarID)
+		resolved, resolveErr := resolveCalendarAliasID(calendarID)
 		if resolveErr != nil {
 			return resolveErr
 		}
@@ -42,6 +42,10 @@ func (c *CalendarSearchCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 
 	svc, err := newCalendarService(ctx, account)
+	if err != nil {
+		return err
+	}
+	calendarID, err = resolveCalendarID(ctx, svc, calendarID)
 	if err != nil {
 		return err
 	}
@@ -69,7 +73,7 @@ func (c *CalendarSearchCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
 			"events": wrapEventsWithDays(resp.Items),
 			"query":  query,
 		})

@@ -13,20 +13,22 @@ import (
 )
 
 type ClassroomAnnouncementsCmd struct {
-	List      ClassroomAnnouncementsListCmd      `cmd:"" default:"withargs" help:"List announcements"`
-	Get       ClassroomAnnouncementsGetCmd       `cmd:"" help:"Get an announcement"`
-	Create    ClassroomAnnouncementsCreateCmd    `cmd:"" help:"Create an announcement"`
-	Update    ClassroomAnnouncementsUpdateCmd    `cmd:"" help:"Update an announcement"`
-	Delete    ClassroomAnnouncementsDeleteCmd    `cmd:"" help:"Delete an announcement" aliases:"rm"`
-	Assignees ClassroomAnnouncementsAssigneesCmd `cmd:"" name:"assignees" help:"Modify announcement assignees"`
+	List      ClassroomAnnouncementsListCmd      `cmd:"" default:"withargs" aliases:"ls" help:"List announcements"`
+	Get       ClassroomAnnouncementsGetCmd       `cmd:"" aliases:"info,show" help:"Get an announcement"`
+	Create    ClassroomAnnouncementsCreateCmd    `cmd:"" aliases:"add,new" help:"Create an announcement"`
+	Update    ClassroomAnnouncementsUpdateCmd    `cmd:"" aliases:"edit,set" help:"Update an announcement"`
+	Delete    ClassroomAnnouncementsDeleteCmd    `cmd:"" aliases:"rm,del,remove" help:"Delete an announcement"`
+	Assignees ClassroomAnnouncementsAssigneesCmd `cmd:"" name:"assignees" aliases:"assign" help:"Modify announcement assignees"`
 }
 
 type ClassroomAnnouncementsListCmd struct {
-	CourseID string `arg:"" name:"courseId" help:"Course ID or alias"`
-	States   string `name:"state" help:"Announcement states filter (comma-separated: DRAFT,PUBLISHED,DELETED)"`
-	OrderBy  string `name:"order-by" help:"Order by (e.g., updateTime desc)"`
-	Max      int64  `name:"max" aliases:"limit" help:"Max results" default:"100"`
-	Page     string `name:"page" help:"Page token"`
+	CourseID  string `arg:"" name:"courseId" help:"Course ID or alias"`
+	States    string `name:"state" help:"Announcement states filter (comma-separated: DRAFT,PUBLISHED,DELETED)"`
+	OrderBy   string `name:"order-by" help:"Order by (e.g., updateTime desc)"`
+	Max       int64  `name:"max" aliases:"limit" help:"Max results" default:"100"`
+	Page      string `name:"page" aliases:"cursor" help:"Page token"`
+	All       bool   `name:"all" aliases:"all-pages,allpages" help:"Fetch all pages"`
+	FailEmpty bool   `name:"fail-empty" aliases:"non-empty,require-results" help:"Exit with code 3 if no results"`
 }
 
 func (c *ClassroomAnnouncementsListCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -45,39 +47,66 @@ func (c *ClassroomAnnouncementsListCmd) Run(ctx context.Context, flags *RootFlag
 		return wrapClassroomError(err)
 	}
 
-	call := svc.Courses.Announcements.List(courseID).PageSize(c.Max).PageToken(c.Page).Context(ctx)
-	if states := splitCSV(c.States); len(states) > 0 {
-		upper := make([]string, 0, len(states))
-		for _, state := range states {
-			upper = append(upper, strings.ToUpper(state))
+	fetch := func(pageToken string) ([]*classroom.Announcement, string, error) {
+		call := svc.Courses.Announcements.List(courseID).PageSize(c.Max).Context(ctx)
+		if strings.TrimSpace(pageToken) != "" {
+			call = call.PageToken(pageToken)
 		}
-		call.AnnouncementStates(upper...)
-	}
-	if v := strings.TrimSpace(c.OrderBy); v != "" {
-		call.OrderBy(v)
+		if states := splitCSV(c.States); len(states) > 0 {
+			upper := make([]string, 0, len(states))
+			for _, state := range states {
+				upper = append(upper, strings.ToUpper(state))
+			}
+			call.AnnouncementStates(upper...)
+		}
+		if v := strings.TrimSpace(c.OrderBy); v != "" {
+			call.OrderBy(v)
+		}
+		resp, err := call.Do()
+		if err != nil {
+			return nil, "", wrapClassroomError(err)
+		}
+		return resp.Announcements, resp.NextPageToken, nil
 	}
 
-	resp, err := call.Do()
-	if err != nil {
-		return wrapClassroomError(err)
+	var announcements []*classroom.Announcement
+	nextPageToken := ""
+	if c.All {
+		all, err := collectAllPages(c.Page, fetch)
+		if err != nil {
+			return err
+		}
+		announcements = all
+	} else {
+		var err error
+		announcements, nextPageToken, err = fetch(c.Page)
+		if err != nil {
+			return err
+		}
 	}
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{
-			"announcements": resp.Announcements,
-			"nextPageToken": resp.NextPageToken,
-		})
+		if err := outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
+			"announcements": announcements,
+			"nextPageToken": nextPageToken,
+		}); err != nil {
+			return err
+		}
+		if len(announcements) == 0 {
+			return failEmptyExit(c.FailEmpty)
+		}
+		return nil
 	}
 
-	if len(resp.Announcements) == 0 {
+	if len(announcements) == 0 {
 		u.Err().Println("No announcements")
-		return nil
+		return failEmptyExit(c.FailEmpty)
 	}
 
 	w, flush := tableWriter(ctx)
 	defer flush()
 	fmt.Fprintln(w, "ID\tSTATE\tTEXT\tSCHEDULED\tUPDATED")
-	for _, ann := range resp.Announcements {
+	for _, ann := range announcements {
 		if ann == nil {
 			continue
 		}
@@ -89,7 +118,7 @@ func (c *ClassroomAnnouncementsListCmd) Run(ctx context.Context, flags *RootFlag
 			sanitizeTab(ann.UpdateTime),
 		)
 	}
-	printNextPageHint(u, resp.NextPageToken)
+	printNextPageHint(u, nextPageToken)
 	return nil
 }
 
@@ -124,7 +153,7 @@ func (c *ClassroomAnnouncementsGetCmd) Run(ctx context.Context, flags *RootFlags
 	}
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{"announcement": ann})
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{"announcement": ann})
 	}
 
 	u.Out().Printf("id\t%s", ann.Id)
@@ -150,21 +179,12 @@ type ClassroomAnnouncementsCreateCmd struct {
 
 func (c *ClassroomAnnouncementsCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
 	courseID := strings.TrimSpace(c.CourseID)
 	if courseID == "" {
 		return usage("empty courseId")
 	}
 	if strings.TrimSpace(c.Text) == "" {
 		return usage("empty text")
-	}
-
-	svc, err := newClassroomService(ctx, account)
-	if err != nil {
-		return wrapClassroomError(err)
 	}
 
 	ann := &classroom.Announcement{Text: strings.TrimSpace(c.Text)}
@@ -175,13 +195,30 @@ func (c *ClassroomAnnouncementsCreateCmd) Run(ctx context.Context, flags *RootFl
 		ann.ScheduledTime = v
 	}
 
+	if err := dryRunExit(ctx, flags, "classroom.announcements.create", map[string]any{
+		"course_id":    courseID,
+		"announcement": ann,
+	}); err != nil {
+		return err
+	}
+
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
+	}
+
+	svc, err := newClassroomService(ctx, account)
+	if err != nil {
+		return wrapClassroomError(err)
+	}
+
 	created, err := svc.Courses.Announcements.Create(courseID, ann).Context(ctx).Do()
 	if err != nil {
 		return wrapClassroomError(err)
 	}
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{"announcement": created})
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{"announcement": created})
 	}
 	u.Out().Printf("id\t%s", created.Id)
 	u.Out().Printf("state\t%s", created.State)
@@ -198,10 +235,6 @@ type ClassroomAnnouncementsUpdateCmd struct {
 
 func (c *ClassroomAnnouncementsUpdateCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
 	courseID := strings.TrimSpace(c.CourseID)
 	announcementID := strings.TrimSpace(c.AnnouncementID)
 	if courseID == "" {
@@ -229,6 +262,21 @@ func (c *ClassroomAnnouncementsUpdateCmd) Run(ctx context.Context, flags *RootFl
 		return usage("no updates specified")
 	}
 
+	if err := dryRunExit(ctx, flags, "classroom.announcements.update", map[string]any{
+		"course_id":       courseID,
+		"announcement_id": announcementID,
+		"update_mask":     updateMask(fields),
+		"update_fields":   fields,
+		"announcement":    ann,
+	}); err != nil {
+		return err
+	}
+
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
+	}
+
 	svc, err := newClassroomService(ctx, account)
 	if err != nil {
 		return wrapClassroomError(err)
@@ -240,7 +288,7 @@ func (c *ClassroomAnnouncementsUpdateCmd) Run(ctx context.Context, flags *RootFl
 	}
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{"announcement": updated})
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{"announcement": updated})
 	}
 	u.Out().Printf("id\t%s", updated.Id)
 	u.Out().Printf("state\t%s", updated.State)
@@ -254,10 +302,6 @@ type ClassroomAnnouncementsDeleteCmd struct {
 
 func (c *ClassroomAnnouncementsDeleteCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
 	courseID := strings.TrimSpace(c.CourseID)
 	announcementID := strings.TrimSpace(c.AnnouncementID)
 	if courseID == "" {
@@ -267,7 +311,11 @@ func (c *ClassroomAnnouncementsDeleteCmd) Run(ctx context.Context, flags *RootFl
 		return usage("empty announcementId")
 	}
 
-	err = confirmDestructive(ctx, flags, fmt.Sprintf("delete announcement %s from %s", announcementID, courseID))
+	if err := confirmDestructive(ctx, flags, fmt.Sprintf("delete announcement %s from %s", announcementID, courseID)); err != nil {
+		return err
+	}
+
+	account, err := requireAccount(flags)
 	if err != nil {
 		return err
 	}
@@ -281,17 +329,11 @@ func (c *ClassroomAnnouncementsDeleteCmd) Run(ctx context.Context, flags *RootFl
 		return wrapClassroomError(err)
 	}
 
-	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{
-			"deleted":        true,
-			"courseId":       courseID,
-			"announcementId": announcementID,
-		})
-	}
-	u.Out().Printf("deleted\ttrue")
-	u.Out().Printf("course_id\t%s", courseID)
-	u.Out().Printf("announcement_id\t%s", announcementID)
-	return nil
+	return writeResult(ctx, u,
+		kv("deleted", true),
+		kv("courseId", courseID),
+		kv("announcementId", announcementID),
+	)
 }
 
 type ClassroomAnnouncementsAssigneesCmd struct {
@@ -304,10 +346,6 @@ type ClassroomAnnouncementsAssigneesCmd struct {
 
 func (c *ClassroomAnnouncementsAssigneesCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
 	courseID := strings.TrimSpace(c.CourseID)
 	announcementID := strings.TrimSpace(c.AnnouncementID)
 	if courseID == "" {
@@ -329,6 +367,19 @@ func (c *ClassroomAnnouncementsAssigneesCmd) Run(ctx context.Context, flags *Roo
 		return usage("no assignee changes specified")
 	}
 
+	if dryRunErr := dryRunExit(ctx, flags, "classroom.announcements.assignees", map[string]any{
+		"course_id":       courseID,
+		"announcement_id": announcementID,
+		"request":         req,
+	}); dryRunErr != nil {
+		return dryRunErr
+	}
+
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
+	}
+
 	svc, err := newClassroomService(ctx, account)
 	if err != nil {
 		return wrapClassroomError(err)
@@ -340,7 +391,7 @@ func (c *ClassroomAnnouncementsAssigneesCmd) Run(ctx context.Context, flags *Roo
 	}
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{"announcement": updated})
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{"announcement": updated})
 	}
 	u.Out().Printf("id\t%s", updated.Id)
 	u.Out().Printf("assignee_mode\t%s", updated.AssigneeMode)

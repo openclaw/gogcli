@@ -93,6 +93,36 @@ PY
     echo "==> calendar recurrence/reminders (skipped; set GOG_LIVE_CALENDAR_RECURRENCE=1)"
   fi
 
+  # Test --send-updates with attendee
+  if [ -n "${GOG_LIVE_CALENDAR_ATTENDEE:-}" ]; then
+    echo "==> calendar send-updates tests (attendee: $GOG_LIVE_CALENDAR_ATTENDEE)"
+
+    local attendee_json attendee_id
+    attendee_json=$(gog calendar create primary \
+      --summary "gogcli-attendee-$TS" \
+      --from "$START" --to "$END" \
+      --attendees "$GOG_LIVE_CALENDAR_ATTENDEE" \
+      --send-updates all --json)
+    attendee_id=$(extract_id "$attendee_json")
+
+    if [ -n "$attendee_id" ]; then
+      run_required "calendar" "calendar update with send-updates" \
+        gog calendar update primary "$attendee_id" \
+        --summary "gogcli-attendee-updated-$TS" \
+        --send-updates all --json >/dev/null
+
+      run_required "calendar" "calendar delete with send-updates" \
+        gog calendar delete primary "$attendee_id" \
+        --send-updates all --force >/dev/null
+
+      echo "    Check $GOG_LIVE_CALENDAR_ATTENDEE inbox for create/update/cancel notifications"
+    else
+      echo "    Failed to create event with attendee"
+    fi
+  else
+    echo "==> calendar send-updates (skipped; set GOG_LIVE_CALENDAR_ATTENDEE=email)"
+  fi
+
   if [ -n "${GOG_LIVE_GROUP_EMAIL:-}" ] && ! is_consumer_account "$ACCOUNT"; then
     run_optional "calendar-team" "calendar team" gog calendar team "$GOG_LIVE_GROUP_EMAIL" --json --max 5 >/dev/null
   fi
