@@ -282,6 +282,11 @@ Flag aliases:
 - `gog gmail drafts delete <draftId>`
 - `gog gmail watch start|status|renew|stop|serve`
 - `gog gmail history --since <historyId>`
+- `gog gmail snooze <threadId> --until <when>` (alias: `snooze add`)
+- `gog gmail snooze list [--all] [--timezone TZ] [--local]`
+- `gog gmail snooze wake [--all] [--dry-run]`
+- `gog gmail snooze cancel <threadId>`
+- `gog gmail snooze install-scheduler [--interval N] [--uninstall] [--platform macos|linux] [--account EMAIL]`
 - `gog chat spaces list [--max N] [--page TOKEN]`
 - `gog chat spaces find <displayName> [--max N]`
 - `gog chat spaces create <displayName> [--member email,...]`
@@ -314,6 +319,55 @@ Flag aliases:
 - `gog people get <people/...|userId>`
 - `gog people search <query> [--max N] [--page TOKEN]`
 - `gog people relations [<people/...|userId>] [--type TYPE]`
+
+### Gmail snooze
+
+Gmail has no native snooze API. `gog gmail snooze` implements snooze via label simulation:
+
+1. A `Snoozed` label is created in the account on first use (or reused if it already exists).
+2. Snoozing a thread removes the `INBOX` label and applies `Snoozed`.
+3. Waking a thread removes `Snoozed` and re-applies `INBOX`.
+
+#### Subcommands
+
+| Command | Description |
+|---|---|
+| `gmail snooze <threadId> --until <when>` | Snooze a thread. Alias: `snooze add`, `snooze set`. |
+| `gmail snooze list [--all]` | List pending snoozes for the current account (or all accounts with `--all`). |
+| `gmail snooze wake [--all] [--dry-run]` | Re-inbox threads whose snooze time has passed. Safe to run as a scheduled task. |
+| `gmail snooze cancel <threadId>` | Cancel a snooze and immediately return the thread to the inbox. Aliases: `unsnooze`, `remove`. |
+| `gmail snooze install-scheduler` | Install a platform-appropriate recurring scheduler to auto-wake snoozes. |
+
+#### `--until` date format
+
+The `--until` flag accepts any format from the [date/time conventions](dates.md):
+
+- RFC3339: `2026-03-01T09:00:00Z`
+- Date-only: `2026-03-01` (interpreted as start of day in local timezone)
+- Natural language: `tomorrow`, `friday`, `next monday`
+- Duration: `2h`, `in 30 minutes`, `3d`
+
+The wake time must be in the future; a past value is rejected with a usage error.
+
+#### State file
+
+Snooze state is persisted per account to:
+
+```
+$(os.UserConfigDir())/gogcli/state/gmail-snooze/<account>.json
+```
+
+The file is written with mode `0600`. It stores an array of snooze entries (thread ID, subject, account, wake timestamp, snoozed label ID, created timestamp). The format mirrors the `gmail-watch` state pattern.
+
+#### Auto-wake scheduler
+
+`gmail snooze install-scheduler` installs a recurring task that calls `gog gmail snooze wake --all`:
+
+- **macOS**: writes a launchd plist to `~/Library/LaunchAgents/com.gogcli.gmail-snooze-wake.plist` and loads it with `launchctl load -w`. Default check interval: 5 minutes (`--interval N` to override).
+- **Linux**: writes a systemd user service + timer to `~/.config/systemd/user/` and enables it with `systemctl --user enable --now`. Same `--interval` flag controls `OnUnitActiveSec`.
+- **Other platforms**: returns an error suggesting manual `cron` setup.
+
+Use `--uninstall` to remove the scheduled task. Use `--platform macos|linux` to override auto-detection.
 
 Date/time input conventions (shared parser):
 

@@ -241,6 +241,28 @@ func EnsureGmailWatchDir() (string, error) {
 	return dir, nil
 }
 
+func GmailSnoozeDir() (string, error) {
+	dir, err := Dir()
+	if err != nil {
+		return "", err
+	}
+
+	return filepath.Join(dir, "state", "gmail-snooze"), nil
+}
+
+func EnsureGmailSnoozeDir() (string, error) {
+	dir, err := GmailSnoozeDir()
+	if err != nil {
+		return "", err
+	}
+
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return "", fmt.Errorf("ensure gmail snooze dir: %w", err)
+	}
+
+	return dir, nil
+}
+
 // ExpandPath expands ~ at the beginning of a path to the user's home directory.
 // This is needed because ~ is a shell feature and is not expanded when paths
 // are quoted (e.g., --out "~/Downloads/file.pdf").

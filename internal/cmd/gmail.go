@@ -28,6 +28,7 @@ type GmailCmd struct {
 	History    GmailHistoryCmd    `cmd:"" name:"history" group:"Read" help:"Gmail history"`
 
 	Labels GmailLabelsCmd `cmd:"" name:"labels" aliases:"label" group:"Organize" help:"Label operations"`
+	Snooze GmailSnoozeCmd `cmd:"" name:"snooze" group:"Organize" help:"Snooze threads to reappear later"`
 	Batch  GmailBatchCmd  `cmd:"" name:"batch" group:"Organize" help:"Batch operations"`
 
 	Send   GmailSendCmd   `cmd:"" name:"send" group:"Write" help:"Send an email"`

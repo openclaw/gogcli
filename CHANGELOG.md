@@ -6,6 +6,7 @@
 - Sheets: add `sheets insert` to insert rows/columns into a sheet. (#203) — thanks @andybergon.
 - Gmail: add `watch serve --history-types` filtering (`messageAdded|messageDeleted|labelAdded|labelRemoved`) and include `deletedMessageIds` in webhook payloads. (#168) — thanks @salmonumbrella.
 - Contacts: support `--org`, `--title`, `--url`, `--note`, and `--custom` on create/update; include custom fields in get output with deterministic ordering. (#199) — thanks @phuctm97.
+- Gmail: add `gmail snooze` command group — snooze threads to reappear later with label simulation (`snooze <threadId> --until`, `snooze list`, `snooze wake [--all] [--dry-run]`, `snooze cancel <threadId>`, `snooze install-scheduler`). State persisted to `$(config.Dir())/state/gmail-snooze/<account>.json`.
 
 ### Fixed
 - Calendar: respond patches only attendees to avoid custom reminders validation errors. (#265) — thanks @sebasrodriguez.
