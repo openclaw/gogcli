@@ -25,7 +25,7 @@ func TestAuthCredentialsCmd_ErrorsAndStdin(t *testing.T) {
 	}
 	ctx := outfmt.WithMode(ui.WithUI(context.Background(), u), outfmt.Mode{JSON: true})
 
-	if err := (&AuthCredentialsSetCmd{Path: "/nope/credentials.json"}).Run(ctx); err == nil {
+	if err := (&AuthCredentialsSetCmd{Path: "/nope/credentials.json"}).Run(ctx, &RootFlags{}); err == nil {
 		t.Fatalf("expected read error")
 	}
 
@@ -33,7 +33,7 @@ func TestAuthCredentialsCmd_ErrorsAndStdin(t *testing.T) {
 	if err := os.WriteFile(tmp, []byte("nope"), 0o600); err != nil {
 		t.Fatalf("write: %v", err)
 	}
-	if err := (&AuthCredentialsSetCmd{Path: tmp}).Run(ctx); err == nil {
+	if err := (&AuthCredentialsSetCmd{Path: tmp}).Run(ctx, &RootFlags{}); err == nil {
 		t.Fatalf("expected parse error")
 	}
 
@@ -42,7 +42,7 @@ func TestAuthCredentialsCmd_ErrorsAndStdin(t *testing.T) {
 	creds := `{"installed":{"client_id":"id","client_secret":"secret"}}`
 	out := captureStdout(t, func() {
 		withStdin(t, creds, func() {
-			if err := (&AuthCredentialsSetCmd{Path: "-"}).Run(ctx); err != nil {
+			if err := (&AuthCredentialsSetCmd{Path: "-"}).Run(ctx, &RootFlags{}); err != nil {
 				t.Fatalf("stdin run: %v", err)
 			}
 		})
@@ -63,20 +63,20 @@ func TestAuthTokensList_ErrorsAndEmpty(t *testing.T) {
 	ctx := ui.WithUI(context.Background(), u)
 
 	openSecretsStore = func() (secrets.Store, error) { return nil, errors.New("boom") }
-	if err := (&AuthTokensListCmd{}).Run(ctx); err == nil {
+	if err := (&AuthTokensListCmd{}).Run(ctx, &RootFlags{}); err == nil {
 		t.Fatalf("expected open error")
 	}
 
 	openSecretsStore = func() (secrets.Store, error) {
 		return &memStoreErr{keysErr: errors.New("keys")}, nil
 	}
-	if err := (&AuthTokensListCmd{}).Run(ctx); err == nil {
+	if err := (&AuthTokensListCmd{}).Run(ctx, &RootFlags{}); err == nil {
 		t.Fatalf("expected keys error")
 	}
 
 	store := newMemStore()
 	openSecretsStore = func() (secrets.Store, error) { return store, nil }
-	if err := (&AuthTokensListCmd{}).Run(ctx); err != nil {
+	if err := (&AuthTokensListCmd{}).Run(ctx, &RootFlags{}); err != nil {
 		t.Fatalf("empty list: %v", err)
 	}
 }
@@ -137,22 +137,22 @@ func TestAuthTokensExport_UsageAndErrors(t *testing.T) {
 	}
 	ctx := ui.WithUI(context.Background(), u)
 
-	if err := (&AuthTokensExportCmd{}).Run(ctx); err == nil {
+	if err := (&AuthTokensExportCmd{}).Run(ctx, &RootFlags{}); err == nil {
 		t.Fatalf("expected missing email error")
 	}
-	if err := (&AuthTokensExportCmd{Email: "a@b.com"}).Run(ctx); err == nil {
+	if err := (&AuthTokensExportCmd{Email: "a@b.com"}).Run(ctx, &RootFlags{}); err == nil {
 		t.Fatalf("expected missing outPath error")
 	}
 
 	openSecretsStore = func() (secrets.Store, error) { return nil, errors.New("open") }
-	if err := (&AuthTokensExportCmd{Email: "a@b.com", Output: OutputPathRequiredFlag{Path: "out"}}).Run(ctx); err == nil {
+	if err := (&AuthTokensExportCmd{Email: "a@b.com", Output: OutputPathRequiredFlag{Path: "out"}}).Run(ctx, &RootFlags{}); err == nil {
 		t.Fatalf("expected open error")
 	}
 
 	openSecretsStore = func() (secrets.Store, error) {
 		return &memStoreErr{}, nil
 	}
-	if err := (&AuthTokensExportCmd{Email: "a@b.com", Output: OutputPathRequiredFlag{Path: "out"}}).Run(ctx); err == nil {
+	if err := (&AuthTokensExportCmd{Email: "a@b.com", Output: OutputPathRequiredFlag{Path: "out"}}).Run(ctx, &RootFlags{}); err == nil {
 		t.Fatalf("expected get token error")
 	}
 
@@ -164,12 +164,12 @@ func TestAuthTokensExport_UsageAndErrors(t *testing.T) {
 	if err := os.WriteFile(blocker, []byte("x"), 0o600); err != nil {
 		t.Fatalf("write: %v", err)
 	}
-	if err := (&AuthTokensExportCmd{Email: "a@b.com", Output: OutputPathRequiredFlag{Path: filepath.Join(blocker, "out.json")}}).Run(ctx); err == nil {
+	if err := (&AuthTokensExportCmd{Email: "a@b.com", Output: OutputPathRequiredFlag{Path: filepath.Join(blocker, "out.json")}}).Run(ctx, &RootFlags{}); err == nil {
 		t.Fatalf("expected mkdir error")
 	}
 
 	dir := t.TempDir()
-	if err := (&AuthTokensExportCmd{Email: "a@b.com", Output: OutputPathRequiredFlag{Path: dir}}).Run(ctx); err == nil {
+	if err := (&AuthTokensExportCmd{Email: "a@b.com", Output: OutputPathRequiredFlag{Path: dir}}).Run(ctx, &RootFlags{}); err == nil {
 		t.Fatalf("expected open error")
 	}
 }
@@ -188,7 +188,7 @@ func TestAuthTokensImport_ErrorsAndStdin(t *testing.T) {
 	}
 	ctx := ui.WithUI(context.Background(), u)
 
-	if err := (&AuthTokensImportCmd{InPath: "/nope/token.json"}).Run(ctx); err == nil {
+	if err := (&AuthTokensImportCmd{InPath: "/nope/token.json"}).Run(ctx, &RootFlags{}); err == nil {
 		t.Fatalf("expected read error")
 	}
 
@@ -196,7 +196,7 @@ func TestAuthTokensImport_ErrorsAndStdin(t *testing.T) {
 	if err := os.WriteFile(tmp, []byte("nope"), 0o600); err != nil {
 		t.Fatalf("write: %v", err)
 	}
-	if err := (&AuthTokensImportCmd{InPath: tmp}).Run(ctx); err == nil {
+	if err := (&AuthTokensImportCmd{InPath: tmp}).Run(ctx, &RootFlags{}); err == nil {
 		t.Fatalf("expected unmarshal error")
 	}
 
@@ -204,7 +204,7 @@ func TestAuthTokensImport_ErrorsAndStdin(t *testing.T) {
 	if err := os.WriteFile(missing, []byte(`{"email":""}`), 0o600); err != nil {
 		t.Fatalf("write: %v", err)
 	}
-	if err := (&AuthTokensImportCmd{InPath: missing}).Run(ctx); err == nil {
+	if err := (&AuthTokensImportCmd{InPath: missing}).Run(ctx, &RootFlags{}); err == nil {
 		t.Fatalf("expected missing fields error")
 	}
 
@@ -212,7 +212,7 @@ func TestAuthTokensImport_ErrorsAndStdin(t *testing.T) {
 	if err := os.WriteFile(badDate, []byte(`{"email":"a@b.com","refresh_token":"rt","created_at":"bad"}`), 0o600); err != nil {
 		t.Fatalf("write: %v", err)
 	}
-	if err := (&AuthTokensImportCmd{InPath: badDate}).Run(ctx); err == nil {
+	if err := (&AuthTokensImportCmd{InPath: badDate}).Run(ctx, &RootFlags{}); err == nil {
 		t.Fatalf("expected date parse error")
 	}
 
@@ -222,7 +222,7 @@ func TestAuthTokensImport_ErrorsAndStdin(t *testing.T) {
 
 	in := `{"email":"a@b.com","refresh_token":"rt"}`
 	withStdin(t, in, func() {
-		if err := (&AuthTokensImportCmd{InPath: "-"}).Run(ctx); err != nil {
+		if err := (&AuthTokensImportCmd{InPath: "-"}).Run(ctx, &RootFlags{}); err != nil {
 			t.Fatalf("stdin import: %v", err)
 		}
 	})
@@ -253,7 +253,7 @@ func TestAuthAdd_TextOutput(t *testing.T) {
 	}
 	ctx := ui.WithUI(context.Background(), u)
 
-	if err := (&AuthAddCmd{Email: "a@b.com", ServicesCSV: "gmail"}).Run(ctx); err != nil {
+	if err := (&AuthAddCmd{Email: "a@b.com", ServicesCSV: "gmail"}).Run(ctx, &RootFlags{}); err != nil {
 		t.Fatalf("add: %v", err)
 	}
 	if !strings.Contains(outBuf.String(), "email") || !strings.Contains(outBuf.String(), "services") {
@@ -268,10 +268,10 @@ func TestAuthKeep_Errors(t *testing.T) {
 	}
 	ctx := ui.WithUI(context.Background(), u)
 
-	if err := (&AuthKeepCmd{}).Run(ctx); err == nil {
+	if err := (&AuthKeepCmd{}).Run(ctx, &RootFlags{}); err == nil {
 		t.Fatalf("expected missing email error")
 	}
-	if err := (&AuthKeepCmd{Email: "a@b.com"}).Run(ctx); err == nil {
+	if err := (&AuthKeepCmd{Email: "a@b.com"}).Run(ctx, &RootFlags{}); err == nil {
 		t.Fatalf("expected missing key path error")
 	}
 
@@ -279,7 +279,7 @@ func TestAuthKeep_Errors(t *testing.T) {
 	if err := os.WriteFile(tmp, []byte("nope"), 0o600); err != nil {
 		t.Fatalf("write: %v", err)
 	}
-	if err := (&AuthKeepCmd{Email: "a@b.com", Key: tmp}).Run(ctx); err == nil {
+	if err := (&AuthKeepCmd{Email: "a@b.com", Key: tmp}).Run(ctx, &RootFlags{}); err == nil {
 		t.Fatalf("expected invalid json error")
 	}
 
@@ -287,7 +287,7 @@ func TestAuthKeep_Errors(t *testing.T) {
 	if err := os.WriteFile(wrong, []byte(`{"type":"user"}`), 0o600); err != nil {
 		t.Fatalf("write: %v", err)
 	}
-	if err := (&AuthKeepCmd{Email: "a@b.com", Key: wrong}).Run(ctx); err == nil {
+	if err := (&AuthKeepCmd{Email: "a@b.com", Key: wrong}).Run(ctx, &RootFlags{}); err == nil {
 		t.Fatalf("expected wrong type error")
 	}
 }
@@ -311,7 +311,7 @@ func TestAuthTokensExport_UsesCreatedAt(t *testing.T) {
 	ctx := ui.WithUI(context.Background(), u)
 
 	outPath := filepath.Join(t.TempDir(), "tok.json")
-	if err := (&AuthTokensExportCmd{Email: "a@b.com", Output: OutputPathRequiredFlag{Path: outPath}, Overwrite: true}).Run(ctx); err != nil {
+	if err := (&AuthTokensExportCmd{Email: "a@b.com", Output: OutputPathRequiredFlag{Path: outPath}, Overwrite: true}).Run(ctx, &RootFlags{}); err != nil {
 		t.Fatalf("export: %v", err)
 	}
 	data, err := os.ReadFile(outPath)

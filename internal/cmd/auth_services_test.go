@@ -20,7 +20,7 @@ func TestAuthServices_JSON(t *testing.T) {
 
 	out := captureStdout(t, func() {
 		cmd := &AuthServicesCmd{}
-		if err := cmd.Run(ctx); err != nil {
+		if err := cmd.Run(ctx, &RootFlags{}); err != nil {
 			t.Fatalf("run: %v", err)
 		}
 	})

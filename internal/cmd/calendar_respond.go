@@ -7,6 +7,8 @@ import (
 	"os"
 	"strings"
 
+	"google.golang.org/api/calendar/v3"
+
 	"github.com/steipete/gogcli/internal/outfmt"
 	"github.com/steipete/gogcli/internal/ui"
 )
@@ -20,12 +22,8 @@ type CalendarRespondCmd struct {
 
 func (c *CalendarRespondCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
 	calendarID := strings.TrimSpace(c.CalendarID)
-	eventID := strings.TrimSpace(c.EventID)
+	eventID := normalizeCalendarEventID(c.EventID)
 	if calendarID == "" {
 		return usage("empty calendarId")
 	}
@@ -49,7 +47,25 @@ func (c *CalendarRespondCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return fmt.Errorf("invalid status %q; must be one of: %s", status, strings.Join(validStatuses, ", "))
 	}
 
+	if err := dryRunExit(ctx, flags, "calendar.respond", map[string]any{
+		"calendar_id": calendarID,
+		"event_id":    eventID,
+		"status":      status,
+		"comment":     strings.TrimSpace(c.Comment),
+	}); err != nil {
+		return err
+	}
+
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
+	}
+
 	svc, err := newCalendarService(ctx, account)
+	if err != nil {
+		return err
+	}
+	calendarID, err = resolveCalendarID(ctx, svc, calendarID)
 	if err != nil {
 		return err
 	}
@@ -84,14 +100,18 @@ func (c *CalendarRespondCmd) Run(ctx context.Context, flags *RootFlags) error {
 		event.Attendees[*selfAttendee].Comment = strings.TrimSpace(c.Comment)
 	}
 
-	updated, err := svc.Events.Patch(calendarID, eventID, event).Do()
+	// Only patch the Attendees field to avoid issues with reminders validation
+	patch := &calendar.Event{
+		Attendees: event.Attendees,
+	}
+	updated, err := svc.Events.Patch(calendarID, eventID, patch).Do()
 	if err != nil {
 		return err
 	}
 
 	if outfmt.IsJSON(ctx) {
 		tz, loc, _ := getCalendarLocation(ctx, svc, calendarID)
-		return outfmt.WriteJSON(os.Stdout, map[string]any{"event": wrapEventWithDaysWithTimezone(updated, tz, loc)})
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{"event": wrapEventWithDaysWithTimezone(updated, tz, loc)})
 	}
 
 	u.Out().Printf("id\t%s", updated.Id)

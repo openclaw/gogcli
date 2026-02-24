@@ -52,7 +52,7 @@ func TestAuthTokensExportImport_JSON(t *testing.T) {
 		Output:    OutputPathRequiredFlag{Path: outPath},
 		Overwrite: true,
 	}
-	err = exportCmd.Run(ctx)
+	err = exportCmd.Run(ctx, &RootFlags{})
 	if err != nil {
 		t.Fatalf("export: %v", err)
 	}
@@ -75,7 +75,7 @@ func TestAuthTokensExportImport_JSON(t *testing.T) {
 	openSecretsStore = func() (secrets.Store, error) { return newStore, nil }
 
 	importCmd := AuthTokensImportCmd{InPath: outPath}
-	err = importCmd.Run(ctx)
+	err = importCmd.Run(ctx, &RootFlags{})
 	if err != nil {
 		t.Fatalf("import: %v", err)
 	}
@@ -115,7 +115,7 @@ func TestAuthList_CheckJSON(t *testing.T) {
 
 	listCmd := AuthListCmd{Check: true}
 	out := captureStdout(t, func() {
-		runErr := listCmd.Run(ctx)
+		runErr := listCmd.Run(ctx, &RootFlags{})
 		if runErr != nil {
 			t.Fatalf("list: %v", runErr)
 		}

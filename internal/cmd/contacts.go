@@ -14,11 +14,11 @@ import (
 
 type ContactsCmd struct {
 	Search    ContactsSearchCmd    `cmd:"" name:"search" help:"Search contacts by name/email/phone"`
-	List      ContactsListCmd      `cmd:"" name:"list" help:"List contacts"`
-	Get       ContactsGetCmd       `cmd:"" name:"get" help:"Get a contact"`
-	Create    ContactsCreateCmd    `cmd:"" name:"create" help:"Create a contact"`
-	Update    ContactsUpdateCmd    `cmd:"" name:"update" help:"Update a contact"`
-	Delete    ContactsDeleteCmd    `cmd:"" name:"delete" help:"Delete a contact"`
+	List      ContactsListCmd      `cmd:"" name:"list" aliases:"ls" help:"List contacts"`
+	Get       ContactsGetCmd       `cmd:"" name:"get" aliases:"info,show" help:"Get a contact"`
+	Create    ContactsCreateCmd    `cmd:"" name:"create" aliases:"add,new" help:"Create a contact"`
+	Update    ContactsUpdateCmd    `cmd:"" name:"update" aliases:"edit,set" help:"Update a contact"`
+	Delete    ContactsDeleteCmd    `cmd:"" name:"delete" aliases:"rm,del,remove" help:"Delete a contact"`
 	Directory ContactsDirectoryCmd `cmd:"" name:"directory" help:"Directory contacts"`
 	Other     ContactsOtherCmd     `cmd:"" name:"other" help:"Other contacts"`
 }
@@ -69,7 +69,7 @@ func (c *ContactsSearchCmd) Run(ctx context.Context, flags *RootFlags) error {
 				Phone:    primaryPhone(p),
 			})
 		}
-		return outfmt.WriteJSON(os.Stdout, map[string]any{"contacts": items})
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{"contacts": items})
 	}
 	if len(resp.Results) == 0 {
 		u.Err().Println("No results")
@@ -168,4 +168,51 @@ func formatPartialDate(d *people.Date) string {
 
 func sanitizeTab(s string) string {
 	return strings.ReplaceAll(s, "\t", " ")
+}
+
+func primaryOrganization(p *people.Person) (name, title string) {
+	if p == nil || len(p.Organizations) == 0 || p.Organizations[0] == nil {
+		return "", ""
+	}
+	return p.Organizations[0].Name, p.Organizations[0].Title
+}
+
+func primaryURL(p *people.Person) string {
+	if p == nil || len(p.Urls) == 0 || p.Urls[0] == nil {
+		return ""
+	}
+	return p.Urls[0].Value
+}
+
+func allURLs(p *people.Person) []string {
+	if p == nil || len(p.Urls) == 0 {
+		return nil
+	}
+	urls := make([]string, 0, len(p.Urls))
+	for _, u := range p.Urls {
+		if u != nil && u.Value != "" {
+			urls = append(urls, u.Value)
+		}
+	}
+	return urls
+}
+
+func primaryBio(p *people.Person) string {
+	if p == nil || len(p.Biographies) == 0 || p.Biographies[0] == nil {
+		return ""
+	}
+	return p.Biographies[0].Value
+}
+
+func userDefinedFields(p *people.Person) map[string]string {
+	if p == nil || len(p.UserDefined) == 0 {
+		return nil
+	}
+	fields := make(map[string]string, len(p.UserDefined))
+	for _, ud := range p.UserDefined {
+		if ud != nil && ud.Key != "" {
+			fields[ud.Key] = ud.Value
+		}
+	}
+	return fields
 }

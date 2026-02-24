@@ -24,6 +24,14 @@ func TestCalendarMoreCommands_JSON(t *testing.T) {
 		path := strings.TrimPrefix(r.URL.Path, "/calendar/v3")
 		switch {
 		case path == "/users/me/calendarList" && r.Method == http.MethodGet:
+			// Simulate paging: first response returns a page token, second ends.
+			if r.URL.Query().Get("pageToken") != "" {
+				w.Header().Set("Content-Type", "application/json")
+				_ = json.NewEncoder(w).Encode(map[string]any{
+					"items": []map[string]any{},
+				})
+				return
+			}
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"items": []map[string]any{

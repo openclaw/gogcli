@@ -24,3 +24,20 @@ func TestConfirmDestructiveNoInput(t *testing.T) {
 		t.Fatalf("expected ExitError code 2, got %#v", err)
 	}
 }
+
+func TestConfirmDestructiveDryRun(t *testing.T) {
+	flags := &RootFlags{DryRun: true}
+	out := captureStdout(t, func() {
+		err := confirmDestructive(context.TODO(), flags, "delete something")
+		if err == nil {
+			t.Fatalf("expected early exit error")
+		}
+		var exitErr *ExitError
+		if !errors.As(err, &exitErr) || exitErr.Code != 0 {
+			t.Fatalf("expected ExitError code 0, got %#v", err)
+		}
+	})
+	if out == "" {
+		t.Fatalf("expected output")
+	}
+}

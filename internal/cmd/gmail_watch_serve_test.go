@@ -112,6 +112,52 @@ func TestGmailWatchServeCmd_DefaultMaxBytes(t *testing.T) {
 	if got.cfg.MaxBodyBytes != defaultHookMaxBytes {
 		t.Fatalf("expected default max bytes, got %d", got.cfg.MaxBodyBytes)
 	}
+	if len(got.cfg.ExcludeLabels) != 2 || got.cfg.ExcludeLabels[0] != "SPAM" || got.cfg.ExcludeLabels[1] != "TRASH" {
+		t.Fatalf("unexpected exclude labels: %#v", got.cfg.ExcludeLabels)
+	}
+}
+
+func TestGmailWatchServeCmd_ExcludeLabels_Disable(t *testing.T) {
+	origListen := listenAndServe
+	t.Cleanup(func() { listenAndServe = origListen })
+
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	store, err := newGmailWatchStore("a@b.com")
+	if err != nil {
+		t.Fatalf("store: %v", err)
+	}
+	updateErr := store.Update(func(s *gmailWatchState) error {
+		s.Account = "a@b.com"
+		return nil
+	})
+	if updateErr != nil {
+		t.Fatalf("seed: %v", updateErr)
+	}
+
+	flags := &RootFlags{Account: "a@b.com"}
+	var got *gmailWatchServer
+	listenAndServe = func(srv *http.Server) error {
+		if gs, ok := srv.Handler.(*gmailWatchServer); ok {
+			got = gs
+		}
+		return nil
+	}
+
+	u, err := ui.New(ui.Options{Stdout: io.Discard, Stderr: io.Discard, Color: "never"})
+	if err != nil {
+		t.Fatalf("ui.New: %v", err)
+	}
+	if execErr := runKong(t, &GmailWatchServeCmd{}, []string{"--port", "9999", "--path", "/hook", "--exclude-labels", ""}, ui.WithUI(context.Background(), u), flags); execErr != nil {
+		t.Fatalf("execute: %v", execErr)
+	}
+	if got == nil {
+		t.Fatalf("expected server")
+	}
+	if len(got.cfg.ExcludeLabels) != 0 {
+		t.Fatalf("expected exclude labels disabled, got: %#v", got.cfg.ExcludeLabels)
+	}
 }
 
 func TestGmailWatchServeCmd_SaveHookAndOIDC(t *testing.T) {

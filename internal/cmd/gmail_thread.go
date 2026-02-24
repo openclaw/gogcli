@@ -16,6 +16,7 @@ import (
 	"strings"
 
 	"golang.org/x/net/html/charset"
+	"golang.org/x/text/encoding/ianaindex"
 	"google.golang.org/api/gmail/v1"
 
 	"github.com/steipete/gogcli/internal/config"
@@ -47,9 +48,9 @@ func stripHTMLTags(s string) string {
 }
 
 type GmailThreadCmd struct {
-	Get         GmailThreadGetCmd         `cmd:"" name:"get" default:"withargs" help:"Get a thread with all messages (optionally download attachments)"`
-	Modify      GmailThreadModifyCmd      `cmd:"" name:"modify" help:"Modify labels on all messages in a thread"`
-	Attachments GmailThreadAttachmentsCmd `cmd:"" name:"attachments" help:"List all attachments in a thread"`
+	Get         GmailThreadGetCmd         `cmd:"" name:"get" aliases:"info,show" default:"withargs" help:"Get a thread with all messages (optionally download attachments)"`
+	Modify      GmailThreadModifyCmd      `cmd:"" name:"modify" aliases:"update,edit,set" help:"Modify labels on all messages in a thread"`
+	Attachments GmailThreadAttachmentsCmd `cmd:"" name:"attachments" aliases:"files" help:"List all attachments in a thread"`
 }
 
 type GmailThreadGetCmd struct {
@@ -66,6 +67,7 @@ func (c *GmailThreadGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 	threadID := strings.TrimSpace(c.ThreadID)
+	threadID = normalizeGmailThreadID(threadID)
 	if threadID == "" {
 		return usage("empty threadId")
 	}
@@ -108,7 +110,7 @@ func (c *GmailThreadGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 				downloadedFiles = append(downloadedFiles, attachmentDownloadSummaries(downloads)...)
 			}
 		}
-		return outfmt.WriteJSON(os.Stdout, map[string]any{
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
 			"thread":     thread,
 			"downloaded": downloadedFiles,
 		})
@@ -180,11 +182,8 @@ type GmailThreadModifyCmd struct {
 
 func (c *GmailThreadModifyCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
 	threadID := strings.TrimSpace(c.ThreadID)
+	threadID = normalizeGmailThreadID(threadID)
 	if threadID == "" {
 		return usage("empty threadId")
 	}
@@ -193,6 +192,19 @@ func (c *GmailThreadModifyCmd) Run(ctx context.Context, flags *RootFlags) error 
 	removeLabels := splitCSV(c.Remove)
 	if len(addLabels) == 0 && len(removeLabels) == 0 {
 		return usage("must specify --add and/or --remove")
+	}
+
+	if err := dryRunExit(ctx, flags, "gmail.thread.modify", map[string]any{
+		"thread_id": threadID,
+		"add":       addLabels,
+		"remove":    removeLabels,
+	}); err != nil {
+		return err
+	}
+
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
 	}
 
 	svc, err := newGmailService(ctx, account)
@@ -219,7 +231,7 @@ func (c *GmailThreadModifyCmd) Run(ctx context.Context, flags *RootFlags) error 
 	}
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
 			"modified":      threadID,
 			"addedLabels":   addIDs,
 			"removedLabels": removeIDs,
@@ -244,6 +256,7 @@ func (c *GmailThreadAttachmentsCmd) Run(ctx context.Context, flags *RootFlags) e
 		return err
 	}
 	threadID := strings.TrimSpace(c.ThreadID)
+	threadID = normalizeGmailThreadID(threadID)
 	if threadID == "" {
 		return usage("empty threadId")
 	}
@@ -260,7 +273,7 @@ func (c *GmailThreadAttachmentsCmd) Run(ctx context.Context, flags *RootFlags) e
 
 	if thread == nil || len(thread.Messages) == 0 {
 		if outfmt.IsJSON(ctx) {
-			return outfmt.WriteJSON(os.Stdout, map[string]any{
+			return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
 				"threadId":    threadID,
 				"attachments": []any{},
 			})
@@ -300,7 +313,7 @@ func (c *GmailThreadAttachmentsCmd) Run(ctx context.Context, flags *RootFlags) e
 	}
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
 			"threadId":    threadID,
 			"attachments": allAttachments,
 		})
@@ -339,14 +352,16 @@ func (c *GmailURLCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if outfmt.IsJSON(ctx) {
 		urls := make([]map[string]string, 0, len(c.ThreadIDs))
 		for _, id := range c.ThreadIDs {
+			id = normalizeGmailThreadID(id)
 			urls = append(urls, map[string]string{
 				"id":  id,
 				"url": fmt.Sprintf("https://mail.google.com/mail/?authuser=%s#all/%s", url.QueryEscape(account), id),
 			})
 		}
-		return outfmt.WriteJSON(os.Stdout, map[string]any{"urls": urls})
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{"urls": urls})
 	}
 	for _, id := range c.ThreadIDs {
+		id = normalizeGmailThreadID(id)
 		threadURL := fmt.Sprintf("https://mail.google.com/mail/?authuser=%s#all/%s", url.QueryEscape(account), id)
 		u.Out().Printf("%s\t%s", id, threadURL)
 	}
@@ -464,6 +479,9 @@ func decodeTransferEncoding(data []byte, encoding string) []byte {
 			return decoded
 		}
 	case "quoted-printable":
+		if !looksLikeQuotedPrintable(data) {
+			return data
+		}
 		if decoded, err := io.ReadAll(quotedprintable.NewReader(bytes.NewReader(data))); err == nil {
 			return decoded
 		}
@@ -472,23 +490,69 @@ func decodeTransferEncoding(data []byte, encoding string) []byte {
 }
 
 func decodeBodyCharset(data []byte, contentType string) []byte {
-	_, params, err := mime.ParseMediaType(contentType)
-	if err != nil {
+	charsetLabel := charsetLabelFromContentType(contentType)
+	normalized := strings.ToLower(strings.ReplaceAll(strings.TrimSpace(charsetLabel), "_", "-"))
+	if charsetLabel == "" || normalized == "utf-8" || normalized == "utf8" {
 		return data
 	}
-	charsetLabel := strings.TrimSpace(params["charset"])
-	if charsetLabel == "" || strings.EqualFold(charsetLabel, "utf-8") {
-		return data
+	if decoded, ok := decodeWithCharsetLabel(data, charsetLabel); ok {
+		return decoded
+	}
+	return data
+}
+
+func charsetLabelFromContentType(contentType string) string {
+	_, params, err := mime.ParseMediaType(contentType)
+	if err == nil {
+		if label := strings.TrimSpace(params["charset"]); label != "" {
+			return label
+		}
+	}
+	lower := strings.ToLower(contentType)
+	idx := strings.Index(lower, "charset=")
+	if idx == -1 {
+		return ""
+	}
+	label := contentType[idx+len("charset="):]
+	label = strings.TrimLeft(label, " \t")
+	if cut := strings.IndexAny(label, "; \t"); cut != -1 {
+		label = label[:cut]
+	}
+	return strings.Trim(label, "\"'")
+}
+
+func decodeWithCharsetLabel(data []byte, charsetLabel string) ([]byte, bool) {
+	label := strings.TrimSpace(charsetLabel)
+	if label == "" {
+		return nil, false
+	}
+	if decoded, ok := decodeWithEncodingIndex(data, label); ok {
+		return decoded, true
+	}
+	if strings.Contains(label, "_") {
+		alt := strings.ReplaceAll(label, "_", "-")
+		if decoded, ok := decodeWithEncodingIndex(data, alt); ok {
+			return decoded, true
+		}
+	}
+	return nil, false
+}
+
+func decodeWithEncodingIndex(data []byte, charsetLabel string) ([]byte, bool) {
+	if enc, err := ianaindex.MIME.Encoding(charsetLabel); err == nil && enc != nil {
+		if decoded, err := enc.NewDecoder().Bytes(data); err == nil {
+			return decoded, true
+		}
 	}
 	reader, err := charset.NewReaderLabel(charsetLabel, bytes.NewReader(data))
 	if err != nil {
-		return data
+		return nil, false
 	}
 	decoded, err := io.ReadAll(reader)
 	if err != nil {
-		return data
+		return nil, false
 	}
-	return decoded
+	return decoded, true
 }
 
 func looksLikeBase64(data []byte) bool {
@@ -508,6 +572,56 @@ func looksLikeBase64(data []byte) bool {
 		}
 	}
 	return true
+}
+
+// looksLikeQuotedPrintable checks if data appears to contain quoted-printable
+// encoded sequences. This prevents double-decoding when the Gmail API has
+// already decoded the content.
+//
+// Detection strategy is intentionally conservative to avoid URL corruption:
+// 1. Soft line breaks (=\r\n or =\n)
+// 2. Escaped equals (=3D / =3d)
+// 3. Chained hex escapes (=XX=YY...), common in UTF-8 quoted-printable text
+func looksLikeQuotedPrintable(data []byte) bool {
+	for i := 0; i < len(data)-2; i++ {
+		if data[i] != '=' {
+			continue
+		}
+		// Soft line break (="\r\n" or "\n") is a definitive QP marker.
+		if data[i+1] == '\r' || data[i+1] == '\n' {
+			return true
+		}
+		if !isHexDigit(data[i+1]) || !isHexDigit(data[i+2]) {
+			continue
+		}
+		// =3D (case-insensitive) encodes literal '=' and is a strong marker.
+		if isHexPair(data[i+1], data[i+2], '3', 'D') {
+			return true
+		}
+		// Chained escapes like =E2=82=AC are common in real QP bodies.
+		if i+3 < len(data) && data[i+3] == '=' {
+			return true
+		}
+	}
+	return false
+}
+
+func isHexDigit(b byte) bool {
+	return (b >= '0' && b <= '9') || (b >= 'A' && b <= 'F') || (b >= 'a' && b <= 'f')
+}
+
+func isHexPair(a, b, hi, lo byte) bool {
+	return equalFoldHexNibble(a, hi) && equalFoldHexNibble(b, lo)
+}
+
+func equalFoldHexNibble(a, b byte) bool {
+	if a == b {
+		return true
+	}
+	if b >= 'A' && b <= 'F' {
+		return a == b+('a'-'A')
+	}
+	return false
 }
 
 func decodeAnyBase64(data []byte) ([]byte, error) {

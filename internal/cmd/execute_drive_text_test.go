@@ -1,22 +1,17 @@
 package cmd
 
 import (
-	"context"
 	"encoding/json"
 	"net/http"
-	"net/http/httptest"
 	"strings"
 	"testing"
-
-	"google.golang.org/api/drive/v3"
-	"google.golang.org/api/option"
 )
 
 func TestExecute_DriveGet_Text(t *testing.T) {
 	origNew := newDriveService
 	t.Cleanup(func() { newDriveService = origNew })
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	svc, closeSrv := newDriveTestService(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet || !strings.Contains(r.URL.Path, "/files/id1") {
 			http.NotFound(w, r)
 			return
@@ -33,17 +28,9 @@ func TestExecute_DriveGet_Text(t *testing.T) {
 			"webViewLink":  "https://example.com/id1",
 		})
 	}))
-	defer srv.Close()
+	defer closeSrv()
 
-	svc, err := drive.NewService(context.Background(),
-		option.WithoutAuthentication(),
-		option.WithHTTPClient(srv.Client()),
-		option.WithEndpoint(srv.URL+"/"),
-	)
-	if err != nil {
-		t.Fatalf("NewService: %v", err)
-	}
-	newDriveService = func(context.Context, string) (*drive.Service, error) { return svc, nil }
+	newDriveService = stubDriveService(svc)
 
 	out := captureStdout(t, func() {
 		_ = captureStderr(t, func() {
@@ -61,7 +48,7 @@ func TestExecute_DrivePermissions_Text_NoPermissions(t *testing.T) {
 	origNew := newDriveService
 	t.Cleanup(func() { newDriveService = origNew })
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	svc, closeSrv := newDriveTestService(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet || !strings.Contains(r.URL.Path, "/permissions") {
 			http.NotFound(w, r)
 			return
@@ -69,17 +56,9 @@ func TestExecute_DrivePermissions_Text_NoPermissions(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]any{"permissions": []any{}})
 	}))
-	defer srv.Close()
+	defer closeSrv()
 
-	svc, err := drive.NewService(context.Background(),
-		option.WithoutAuthentication(),
-		option.WithHTTPClient(srv.Client()),
-		option.WithEndpoint(srv.URL+"/"),
-	)
-	if err != nil {
-		t.Fatalf("NewService: %v", err)
-	}
-	newDriveService = func(context.Context, string) (*drive.Service, error) { return svc, nil }
+	newDriveService = stubDriveService(svc)
 
 	errOut := captureStderr(t, func() {
 		_ = captureStdout(t, func() {
@@ -97,7 +76,7 @@ func TestExecute_DrivePermissions_Text_WithPermissions(t *testing.T) {
 	origNew := newDriveService
 	t.Cleanup(func() { newDriveService = origNew })
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	svc, closeSrv := newDriveTestService(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet || !strings.Contains(r.URL.Path, "/permissions") {
 			http.NotFound(w, r)
 			return
@@ -110,17 +89,9 @@ func TestExecute_DrivePermissions_Text_WithPermissions(t *testing.T) {
 			},
 		})
 	}))
-	defer srv.Close()
+	defer closeSrv()
 
-	svc, err := drive.NewService(context.Background(),
-		option.WithoutAuthentication(),
-		option.WithHTTPClient(srv.Client()),
-		option.WithEndpoint(srv.URL+"/"),
-	)
-	if err != nil {
-		t.Fatalf("NewService: %v", err)
-	}
-	newDriveService = func(context.Context, string) (*drive.Service, error) { return svc, nil }
+	newDriveService = stubDriveService(svc)
 
 	out := captureStdout(t, func() {
 		_ = captureStderr(t, func() {
@@ -138,7 +109,7 @@ func TestExecute_DriveSearch_Text(t *testing.T) {
 	origNew := newDriveService
 	t.Cleanup(func() { newDriveService = origNew })
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	svc, closeSrv := newDriveTestService(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet || !strings.Contains(r.URL.Path, "/files") || strings.Contains(r.URL.Path, "/files/") {
 			http.NotFound(w, r)
 			return
@@ -151,17 +122,9 @@ func TestExecute_DriveSearch_Text(t *testing.T) {
 			"nextPageToken": "npt",
 		})
 	}))
-	defer srv.Close()
+	defer closeSrv()
 
-	svc, err := drive.NewService(context.Background(),
-		option.WithoutAuthentication(),
-		option.WithHTTPClient(srv.Client()),
-		option.WithEndpoint(srv.URL+"/"),
-	)
-	if err != nil {
-		t.Fatalf("NewService: %v", err)
-	}
-	newDriveService = func(context.Context, string) (*drive.Service, error) { return svc, nil }
+	newDriveService = stubDriveService(svc)
 
 	out := captureStdout(t, func() {
 		errOut := captureStderr(t, func() {

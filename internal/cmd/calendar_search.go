@@ -34,6 +34,10 @@ func (c *CalendarSearchCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if err != nil {
 		return err
 	}
+	calendarID, err := resolveCalendarID(ctx, svc, strings.TrimSpace(c.CalendarID))
+	if err != nil {
+		return err
+	}
 
 	timeRange, err := ResolveTimeRangeWithDefaults(ctx, svc, c.TimeRangeFlags, TimeRangeDefaults{
 		FromOffset: -30 * 24 * time.Hour,
@@ -44,7 +48,7 @@ func (c *CalendarSearchCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 	from, to := timeRange.FormatRFC3339()
 
-	call := svc.Events.List(c.CalendarID).
+	call := svc.Events.List(calendarID).
 		Q(query).
 		TimeMin(from).
 		TimeMax(to).
@@ -58,7 +62,7 @@ func (c *CalendarSearchCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
 			"events": wrapEventsWithDays(resp.Items),
 			"query":  query,
 		})

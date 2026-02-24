@@ -14,7 +14,10 @@ import (
 )
 
 func confirmDestructive(ctx context.Context, flags *RootFlags, action string) error {
-	if flags.Force {
+	if err := dryRunExit(ctx, flags, action, nil); err != nil {
+		return err
+	}
+	if flags == nil || flags.Force {
 		return nil
 	}
 

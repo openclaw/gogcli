@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"google.golang.org/api/calendar/v3"
+
+	"github.com/steipete/gogcli/internal/timeparse"
 )
 
 // TimeRangeFlags provides common time range options for calendar commands.
@@ -131,7 +133,7 @@ func ResolveTimeRangeWithDefaults(ctx context.Context, svc *calendar.Service, fl
 
 		switch {
 		case flags.To != "":
-			to, err = parseTimeExpr(flags.To, now, loc)
+			to, err = parseTimeExprEndOfDay(flags.To, now, loc)
 			if err != nil {
 				return nil, fmt.Errorf("invalid --to: %w", err)
 			}
@@ -149,59 +151,68 @@ func ResolveTimeRangeWithDefaults(ctx context.Context, svc *calendar.Service, fl
 	}, nil
 }
 
+// parseTimeExprEndOfDay is like parseTimeExpr but interprets date-only values
+// and relative day expressions as end of day (23:59:59.999999999) instead of
+// start of day. This is useful for --to flags where "2026-01-05" should mean
+// "through the end of Jan 5" rather than "midnight at the start of Jan 5".
+func parseTimeExprEndOfDay(expr string, now time.Time, loc *time.Location) (time.Time, error) {
+	t, err := parseTimeExpr(expr, now, loc)
+	if err != nil {
+		return t, err
+	}
+	// Only adjust to end-of-day for date-only or relative day expressions.
+	// If the input is a full timestamp (contains "T" or "t" indicating time
+	// components), respect the exact time the user specified — even midnight.
+	if isDateOnlyOrRelative(expr) {
+		return endOfDay(t), nil
+	}
+	return t, nil
+}
+
+// isDateOnlyOrRelative returns true if the expression is a date-only string
+// (YYYY-MM-DD) or a relative day keyword (today, tomorrow, yesterday, weekday
+// names). These should be adjusted to end-of-day when used as an upper bound.
+// Point-in-time values like "now" and full timestamps return false.
+func isDateOnlyOrRelative(expr string) bool {
+	trimmed := strings.TrimSpace(expr)
+	lower := strings.ToLower(trimmed)
+
+	// Relative day keywords
+	switch lower {
+	case "today", "tomorrow", "yesterday":
+		return true
+	}
+
+	// Weekday names: "monday", "next tuesday", etc.
+	candidate := lower
+	candidate = strings.TrimPrefix(candidate, "next ")
+	weekdays := []string{
+		"sunday", "sun", "monday", "mon", "tuesday", "tue",
+		"wednesday", "wed", "thursday", "thu", "friday", "fri", "saturday", "sat",
+	}
+	for _, wd := range weekdays {
+		if candidate == wd {
+			return true
+		}
+	}
+
+	// Date-only: YYYY-MM-DD (exactly 10 chars, no time component)
+	if len(trimmed) == 10 {
+		if _, err := time.Parse("2006-01-02", trimmed); err == nil {
+			return true
+		}
+	}
+
+	return false
+}
+
 // parseTimeExpr parses a time expression which can be:
 // - RFC3339: 2026-01-05T14:00:00-08:00
 // - ISO 8601 with numeric timezone: 2026-01-05T14:00:00-0800 (no colon)
 // - Date only: 2026-01-05 (interpreted as start of day in user's timezone)
 // - Relative: today, tomorrow, monday, next tuesday
 func parseTimeExpr(expr string, now time.Time, loc *time.Location) (time.Time, error) {
-	expr = strings.TrimSpace(expr)
-
-	// Try RFC3339 first (before lowercasing)
-	if t, err := time.Parse(time.RFC3339, expr); err == nil {
-		return t, nil
-	}
-
-	// Try ISO 8601 with numeric timezone without colon (e.g., -0800)
-	// This is what macOS `date +%Y-%m-%dT%H:%M:%S%z` produces
-	if t, err := time.Parse("2006-01-02T15:04:05-0700", expr); err == nil {
-		return t, nil
-	}
-
-	// Now lowercase for relative expressions
-	exprLower := strings.ToLower(expr)
-
-	// Try relative expressions
-	switch exprLower {
-	case "now":
-		return now, nil
-	case "today":
-		return startOfDay(now), nil
-	case "tomorrow":
-		return startOfDay(now.AddDate(0, 0, 1)), nil
-	case "yesterday":
-		return startOfDay(now.AddDate(0, 0, -1)), nil
-	}
-
-	// Try day of week (this week or next)
-	if t, ok := parseWeekday(exprLower, now); ok {
-		return t, nil
-	}
-
-	// Try date only (YYYY-MM-DD)
-	if t, err := time.ParseInLocation("2006-01-02", expr, loc); err == nil {
-		return t, nil
-	}
-
-	// Try date with time but no timezone
-	if t, err := time.ParseInLocation("2006-01-02T15:04:05", expr, loc); err == nil {
-		return t, nil
-	}
-	if t, err := time.ParseInLocation("2006-01-02 15:04", expr, loc); err == nil {
-		return t, nil
-	}
-
-	return time.Time{}, fmt.Errorf("cannot parse %q as time (try: 2026-01-05, today, tomorrow, monday)", expr)
+	return timeparse.ParseRangeExpr(expr, now, loc)
 }
 
 // parseWeekday parses weekday expressions like "monday", "next tuesday"

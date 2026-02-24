@@ -3,6 +3,10 @@ package cmd
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"io"
+	"mime"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -18,14 +22,22 @@ func TestDriveCommands_MoreCoverage(t *testing.T) {
 	origNew := newDriveService
 	t.Cleanup(func() { newDriveService = origNew })
 
+	uploadMetas := make([]map[string]any, 0, 4)
+
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := strings.TrimPrefix(r.URL.Path, "/drive/v3")
-		if strings.HasPrefix(r.URL.Path, "/upload/drive/v3") {
+		isUpload := strings.HasPrefix(r.URL.Path, "/upload/drive/v3")
+		if isUpload {
 			path = strings.TrimPrefix(r.URL.Path, "/upload/drive/v3")
 		}
 		switch {
 		case r.Method == http.MethodGet && path == "/files":
 			q := r.URL.Query().Get("q")
+			if strings.Contains(q, "fullText contains") {
+				if errMsg := driveAllDrivesQueryError(r, true); errMsg != "" {
+					t.Fatalf("%s: %q", errMsg, r.URL.RawQuery)
+				}
+			}
 			if strings.Contains(q, "empty") {
 				_ = json.NewEncoder(w).Encode(map[string]any{
 					"files": []map[string]any{},
@@ -87,10 +99,26 @@ func TestDriveCommands_MoreCoverage(t *testing.T) {
 			})
 			return
 		case r.Method == http.MethodPost && path == "/files":
+			respName := "New"
+			respMimeType := "text/plain"
+			if isUpload {
+				meta, err := readUploadMetadata(r)
+				if err != nil {
+					http.Error(w, err.Error(), http.StatusBadRequest)
+					return
+				}
+				uploadMetas = append(uploadMetas, meta)
+				if v, ok := meta["name"].(string); ok && strings.TrimSpace(v) != "" {
+					respName = v
+				}
+				if v, ok := meta["mimeType"].(string); ok && strings.TrimSpace(v) != "" {
+					respMimeType = v
+				}
+			}
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"id":          "new1",
-				"name":        "New",
-				"mimeType":    "text/plain",
+				"name":        respName,
+				"mimeType":    respMimeType,
 				"webViewLink": "https://drive.example/new1",
 			})
 			return
@@ -107,13 +135,63 @@ func TestDriveCommands_MoreCoverage(t *testing.T) {
 			w.WriteHeader(http.StatusNoContent)
 			return
 		case r.Method == http.MethodPost && strings.HasSuffix(path, "/permissions"):
-			_ = json.NewEncoder(w).Encode(map[string]any{
-				"id":           "perm1",
-				"type":         "user",
-				"role":         "reader",
-				"emailAddress": "share@example.com",
-			})
-			return
+			var req map[string]any
+			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+				http.Error(w, "bad json", http.StatusBadRequest)
+				return
+			}
+			typ, _ := req["type"].(string)
+			role, _ := req["role"].(string)
+			if role == "" {
+				role = "reader"
+			}
+
+			switch typ {
+			case "user":
+				email, _ := req["emailAddress"].(string)
+				if email == "" {
+					http.Error(w, "missing emailAddress", http.StatusBadRequest)
+					return
+				}
+				_ = json.NewEncoder(w).Encode(map[string]any{
+					"id":           "perm1",
+					"type":         "user",
+					"role":         role,
+					"emailAddress": email,
+				})
+				return
+			case "domain":
+				domain, _ := req["domain"].(string)
+				if domain == "" {
+					http.Error(w, "missing domain", http.StatusBadRequest)
+					return
+				}
+				resp := map[string]any{
+					"id":     "perm1",
+					"type":   "domain",
+					"role":   role,
+					"domain": domain,
+				}
+				if afd, ok := req["allowFileDiscovery"].(bool); ok {
+					resp["allowFileDiscovery"] = afd
+				}
+				_ = json.NewEncoder(w).Encode(resp)
+				return
+			case "anyone":
+				resp := map[string]any{
+					"id":   "perm1",
+					"type": "anyone",
+					"role": role,
+				}
+				if afd, ok := req["allowFileDiscovery"].(bool); ok {
+					resp["allowFileDiscovery"] = afd
+				}
+				_ = json.NewEncoder(w).Encode(resp)
+				return
+			default:
+				http.Error(w, "invalid type", http.StatusBadRequest)
+				return
+			}
 		case r.Method == http.MethodDelete && strings.Contains(path, "/permissions/"):
 			w.WriteHeader(http.StatusNoContent)
 			return
@@ -175,6 +253,54 @@ func TestDriveCommands_MoreCoverage(t *testing.T) {
 	if !strings.Contains(out, "\"file\"") {
 		t.Fatalf("unexpected upload json: %q", out)
 	}
+	baseMeta := latestUploadMeta(t, uploadMetas)
+	if got := toString(baseMeta["name"]); got != "upload.txt" {
+		t.Fatalf("upload name = %q, want upload.txt", got)
+	}
+	if _, ok := baseMeta["mimeType"]; ok {
+		t.Fatalf("unexpected mimeType on plain upload metadata: %#v", baseMeta)
+	}
+
+	docxTmp := filepath.Join(t.TempDir(), "report.docx")
+	if err := os.WriteFile(docxTmp, []byte("docx-data"), 0o600); err != nil {
+		t.Fatalf("write temp: %v", err)
+	}
+	out = run("--json", "--account", "a@b.com", "drive", "upload", docxTmp, "--convert")
+	if !strings.Contains(out, "\"file\"") {
+		t.Fatalf("unexpected upload --convert json: %q", out)
+	}
+	convertMeta := latestUploadMeta(t, uploadMetas)
+	if got := toString(convertMeta["mimeType"]); got != driveMimeGoogleDoc {
+		t.Fatalf("upload --convert mimeType = %q, want %q", got, driveMimeGoogleDoc)
+	}
+	if got := toString(convertMeta["name"]); got != "report" {
+		t.Fatalf("upload --convert name = %q, want report", got)
+	}
+
+	out = run("--json", "--account", "a@b.com", "drive", "upload", docxTmp, "--convert", "--name", "custom.docx")
+	if !strings.Contains(out, "\"file\"") {
+		t.Fatalf("unexpected upload --convert --name json: %q", out)
+	}
+	nameMeta := latestUploadMeta(t, uploadMetas)
+	if got := toString(nameMeta["name"]); got != "custom.docx" {
+		t.Fatalf("upload --convert --name kept name = %q, want custom.docx", got)
+	}
+
+	pngTmp := filepath.Join(t.TempDir(), "chart.png")
+	if err := os.WriteFile(pngTmp, []byte("png-data"), 0o600); err != nil {
+		t.Fatalf("write temp: %v", err)
+	}
+	out = run("--json", "--account", "a@b.com", "drive", "upload", pngTmp, "--convert-to", "sheet")
+	if !strings.Contains(out, "\"file\"") {
+		t.Fatalf("unexpected upload --convert-to json: %q", out)
+	}
+	explicitMeta := latestUploadMeta(t, uploadMetas)
+	if got := toString(explicitMeta["mimeType"]); got != driveMimeGoogleSheet {
+		t.Fatalf("upload --convert-to mimeType = %q, want %q", got, driveMimeGoogleSheet)
+	}
+	if got := toString(explicitMeta["name"]); got != "chart.png" {
+		t.Fatalf("upload --convert-to name = %q, want chart.png", got)
+	}
 
 	out = run("--account", "a@b.com", "drive", "mkdir", "Folder")
 	if !strings.Contains(out, "id") {
@@ -191,9 +317,14 @@ func TestDriveCommands_MoreCoverage(t *testing.T) {
 		t.Fatalf("unexpected rename output: %q", out)
 	}
 
-	out = run("--json", "--account", "a@b.com", "drive", "share", "file1", "--email", "share@example.com")
+	out = run("--json", "--account", "a@b.com", "drive", "share", "file1", "--to", "user", "--email", "share@example.com")
 	if !strings.Contains(out, "\"permissionId\"") {
 		t.Fatalf("unexpected share json: %q", out)
+	}
+
+	out = run("--json", "--account", "a@b.com", "drive", "share", "file1", "--to", "domain", "--domain", "example.com", "--role", "writer")
+	if !strings.Contains(out, "\"permissionId\"") {
+		t.Fatalf("unexpected domain share json: %q", out)
 	}
 
 	out = run("--force", "--account", "a@b.com", "drive", "unshare", "file1", "perm1")
@@ -217,4 +348,55 @@ func TestDriveCommands_MoreCoverage(t *testing.T) {
 	if !strings.Contains(out, "\"deleted\"") {
 		t.Fatalf("unexpected delete json: %q", out)
 	}
+}
+
+func readUploadMetadata(r *http.Request) (map[string]any, error) {
+	mediaType, params, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
+	if err != nil {
+		return nil, fmt.Errorf("parse content-type: %w", err)
+	}
+	if !strings.HasPrefix(mediaType, "multipart/") {
+		return nil, fmt.Errorf("unexpected content-type: %q", mediaType)
+	}
+	boundary := params["boundary"]
+	if boundary == "" {
+		return nil, fmt.Errorf("missing multipart boundary")
+	}
+
+	reader := multipart.NewReader(r.Body, boundary)
+	for {
+		part, partErr := reader.NextPart()
+		if partErr == io.EOF {
+			break
+		}
+		if partErr != nil {
+			return nil, fmt.Errorf("read multipart: %w", partErr)
+		}
+
+		contentType := part.Header.Get("Content-Type")
+		if !strings.HasPrefix(contentType, "application/json") {
+			continue
+		}
+
+		var meta map[string]any
+		if err := json.NewDecoder(part).Decode(&meta); err != nil {
+			return nil, fmt.Errorf("decode metadata json: %w", err)
+		}
+		return meta, nil
+	}
+
+	return nil, fmt.Errorf("metadata part not found")
+}
+
+func latestUploadMeta(t *testing.T, uploadMetas []map[string]any) map[string]any {
+	t.Helper()
+	if len(uploadMetas) == 0 {
+		t.Fatalf("expected at least one upload metadata entry")
+	}
+	return uploadMetas[len(uploadMetas)-1]
+}
+
+func toString(v any) string {
+	s, _ := v.(string)
+	return s
 }
