@@ -1,8 +1,8 @@
 name = "gog-email-tracker"
 main = "src/index.ts"
-compatibility_date = "2024-12-01"
+compatibility_date = "2026-01-01"
 
 [[d1_databases]]
 binding = "DB"
 database_name = "gog-email-tracker"
-database_id = "placeholder-will-be-replaced"
+database_id = "b47d9d90-2c92-4b22-a13a-21e9c1d28a0f"
