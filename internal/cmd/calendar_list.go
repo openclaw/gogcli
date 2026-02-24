@@ -20,6 +20,7 @@ func calendarEventsListCall(ctx context.Context, svc *calendar.Service, calendar
 		MaxResults(maxResults).
 		SingleEvents(true).
 		OrderBy("startTime").
+		ShowDeleted(false).
 		Context(ctx)
 	if strings.TrimSpace(pageToken) != "" {
 		call = call.PageToken(pageToken)
