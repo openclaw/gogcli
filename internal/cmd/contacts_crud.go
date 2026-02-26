@@ -247,7 +247,7 @@ func contactsURLs(values []string) []*people.Url {
 	return out
 }
 
-func contactsApplyPersonName(person *people.Person, givenSet bool, given, familySet bool, family string) {
+func contactsApplyPersonName(person *people.Person, givenSet bool, given string, familySet bool, family string) {
 	curGiven := ""
 	curFamily := ""
 	if len(person.Names) > 0 && person.Names[0] != nil {
@@ -263,7 +263,7 @@ func contactsApplyPersonName(person *people.Person, givenSet bool, given, family
 	person.Names = []*people.Name{{GivenName: curGiven, FamilyName: curFamily}}
 }
 
-func contactsApplyPersonOrganization(person *people.Person, orgSet bool, org, titleSet bool, title string) {
+func contactsApplyPersonOrganization(person *people.Person, orgSet bool, org string, titleSet bool, title string) {
 	curOrg := ""
 	curTitle := ""
 	if len(person.Organizations) > 0 && person.Organizations[0] != nil {
