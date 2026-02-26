@@ -7,8 +7,10 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/99designs/keyring"
 	"golang.org/x/oauth2"
@@ -29,14 +31,32 @@ type stubStore struct {
 	lastEmail  string
 	tok        secrets.Token
 	err        error
+
+	setClient string
+	setEmail  string
+	lastSet   secrets.Token
+	setCalls  int
+	setErr    error
 }
 
-func (s *stubStore) Keys() ([]string, error)                      { return nil, nil }
-func (s *stubStore) SetToken(string, string, secrets.Token) error { return nil }
-func (s *stubStore) DeleteToken(string, string) error             { return nil }
-func (s *stubStore) ListTokens() ([]secrets.Token, error)         { return nil, nil }
-func (s *stubStore) GetDefaultAccount(string) (string, error)     { return "", nil }
-func (s *stubStore) SetDefaultAccount(string, string) error       { return nil }
+func (s *stubStore) Keys() ([]string, error) { return nil, nil }
+func (s *stubStore) SetToken(client string, email string, tok secrets.Token) error {
+	s.setClient = client
+	s.setEmail = email
+	s.lastSet = tok
+	s.setCalls++
+
+	if s.setErr != nil {
+		return s.setErr
+	}
+
+	s.tok = tok
+	return nil
+}
+func (s *stubStore) DeleteToken(string, string) error         { return nil }
+func (s *stubStore) ListTokens() ([]secrets.Token, error)     { return nil, nil }
+func (s *stubStore) GetDefaultAccount(string) (string, error) { return "", nil }
+func (s *stubStore) SetDefaultAccount(string, string) error   { return nil }
 func (s *stubStore) GetToken(client string, email string) (secrets.Token, error) {
 	s.lastClient = client
 	s.lastEmail = email
@@ -121,6 +141,92 @@ func TestTokenSourceForAccountScopes_HappyPath(t *testing.T) {
 	// Ensure we pass through the email (store normalizes in production).
 	if s.lastEmail != "A@B.COM" {
 		t.Fatalf("expected email passed through, got: %q", s.lastEmail)
+	}
+}
+
+func TestPersistingTokenSource_PersistsRotatedRefreshToken(t *testing.T) {
+	stored := secrets.Token{
+		Client:       config.DefaultClientName,
+		Email:        "a@b.com",
+		RefreshToken: "old-refresh-token",
+		Services:     []string{"gmail"},
+		Scopes:       []string{"s1"},
+		CreatedAt:    time.Unix(1735689600, 0).UTC(),
+	}
+
+	store := &stubStore{tok: stored}
+	base := oauth2.StaticTokenSource(&oauth2.Token{AccessToken: "access", RefreshToken: "new-refresh-token"})
+	ts := newPersistingTokenSource(base, store, config.DefaultClientName, "A@B.COM", stored)
+
+	if _, err := ts.Token(); err != nil {
+		t.Fatalf("Token: %v", err)
+	}
+
+	if store.setCalls != 1 {
+		t.Fatalf("expected 1 SetToken call, got %d", store.setCalls)
+	}
+
+	if store.setClient != config.DefaultClientName {
+		t.Fatalf("unexpected client: %q", store.setClient)
+	}
+
+	if store.setEmail != "A@B.COM" {
+		t.Fatalf("unexpected email: %q", store.setEmail)
+	}
+
+	if store.lastSet.RefreshToken != "new-refresh-token" {
+		t.Fatalf("expected rotated refresh token to persist, got %q", store.lastSet.RefreshToken)
+	}
+
+	if !reflect.DeepEqual(store.lastSet.Services, stored.Services) {
+		t.Fatalf("services changed unexpectedly: %#v", store.lastSet.Services)
+	}
+
+	if !reflect.DeepEqual(store.lastSet.Scopes, stored.Scopes) {
+		t.Fatalf("scopes changed unexpectedly: %#v", store.lastSet.Scopes)
+	}
+
+	if !store.lastSet.CreatedAt.Equal(stored.CreatedAt) {
+		t.Fatalf("createdAt changed unexpectedly: %v", store.lastSet.CreatedAt)
+	}
+}
+
+func TestPersistingTokenSource_NoRotationDoesNotPersist(t *testing.T) {
+	stored := secrets.Token{Email: "a@b.com", RefreshToken: "same-token"}
+	store := &stubStore{tok: stored}
+	base := oauth2.StaticTokenSource(&oauth2.Token{AccessToken: "access", RefreshToken: "same-token"})
+	ts := newPersistingTokenSource(base, store, config.DefaultClientName, "a@b.com", stored)
+
+	if _, err := ts.Token(); err != nil {
+		t.Fatalf("Token: %v", err)
+	}
+
+	if store.setCalls != 0 {
+		t.Fatalf("expected no SetToken calls, got %d", store.setCalls)
+	}
+}
+
+func TestPersistingTokenSource_PersistFailureIsNonFatal(t *testing.T) {
+	stored := secrets.Token{Email: "a@b.com", RefreshToken: "old-token"}
+	store := &stubStore{tok: stored, setErr: errBoom}
+	base := oauth2.StaticTokenSource(&oauth2.Token{AccessToken: "access", RefreshToken: "new-token"})
+	ts := newPersistingTokenSource(base, store, config.DefaultClientName, "a@b.com", stored)
+
+	tok, err := ts.Token()
+	if err != nil {
+		t.Fatalf("Token: %v", err)
+	}
+
+	if tok.AccessToken != "access" {
+		t.Fatalf("unexpected access token: %q", tok.AccessToken)
+	}
+
+	if store.setCalls != 1 {
+		t.Fatalf("expected 1 SetToken attempt, got %d", store.setCalls)
+	}
+
+	if store.tok.RefreshToken != "old-token" {
+		t.Fatalf("store should keep old token on persist error, got %q", store.tok.RefreshToken)
 	}
 }
 

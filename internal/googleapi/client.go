@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strings"
+	"sync"
 	"time"
 
 	"github.com/99designs/keyring"
@@ -26,6 +28,58 @@ var (
 	readClientCredentials = config.ReadClientCredentialsFor
 	openSecretsStore      = secrets.OpenDefault
 )
+
+type persistingTokenSource struct {
+	base   oauth2.TokenSource
+	store  secrets.Store
+	client string
+	email  string
+
+	mu  sync.Mutex
+	tok secrets.Token
+}
+
+func newPersistingTokenSource(base oauth2.TokenSource, store secrets.Store, client string, email string, tok secrets.Token) oauth2.TokenSource {
+	return &persistingTokenSource{
+		base:   base,
+		store:  store,
+		client: client,
+		email:  email,
+		tok:    tok,
+	}
+}
+
+func (p *persistingTokenSource) Token() (*oauth2.Token, error) {
+	t, err := p.base.Token()
+	if err != nil {
+		return nil, err
+	}
+
+	refreshToken := strings.TrimSpace(t.RefreshToken)
+	if refreshToken == "" {
+		return t, nil
+	}
+
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	if refreshToken == p.tok.RefreshToken {
+		return t, nil
+	}
+
+	updated := p.tok
+	updated.RefreshToken = refreshToken
+
+	if err := p.store.SetToken(p.client, p.email, updated); err != nil {
+		slog.Warn("persist rotated refresh token failed", "email", p.email, "client", p.client, "err", err)
+		return t, nil
+	}
+
+	p.tok = updated
+	slog.Debug("persisted rotated refresh token", "email", p.email, "client", p.client)
+
+	return t, nil
+}
 
 func tokenSourceForAccount(ctx context.Context, service googleauth.Service, email string) (oauth2.TokenSource, error) {
 	client, err := authclient.ResolveClient(ctx, email)
@@ -80,7 +134,8 @@ func tokenSourceForAccountScopes(ctx context.Context, serviceLabel string, email
 	// Ensure refresh-token exchanges don't hang forever.
 	ctx = context.WithValue(ctx, oauth2.HTTPClient, &http.Client{Timeout: defaultHTTPTimeout})
 
-	return cfg.TokenSource(ctx, &oauth2.Token{RefreshToken: tok.RefreshToken}), nil
+	baseSource := cfg.TokenSource(ctx, &oauth2.Token{RefreshToken: tok.RefreshToken})
+	return newPersistingTokenSource(baseSource, store, client, email, tok), nil
 }
 
 func optionsForAccount(ctx context.Context, service googleauth.Service, email string) ([]option.ClientOption, error) {
