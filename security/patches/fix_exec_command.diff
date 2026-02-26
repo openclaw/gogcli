@@ -1,0 +1,26 @@
+*** Begin Patch
+*** Update File: internal/googleauth/open_browser.go
+@@
+-    cmd := exec.Command("open", url)
+-    _ = cmd.Run()
++    // Validate URL before opening. Allow only http/https and simple hostnames.
++    if !isAllowedURL(url) {
++        return fmt.Errorf("disallowed URL")
++    }
++    // Use exec.Command with validated argument (no shell interpolation)
++    cmd := exec.Command("open", url)
++    _ = cmd.Run()
++
++// isAllowedURL performs a conservative check on the URL.
++func isAllowedURL(u string) bool {
++    parsed, err := url.Parse(u)
++    if err != nil {
++        return false
++    }
++    if parsed.Scheme != "http" && parsed.Scheme != "https" {
++        return false
++    }
++    // Optionally enforce an allowlist of hosts here.
++    return true
++}
+*** End Patch

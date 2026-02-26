@@ -1,0 +1,14 @@
+*** Begin Patch
+*** Update File: .github/workflows/release.yml
+@@
+-      - name: Release
+-        run: |
+-          echo "Releasing ${{ github.ref }}"
+-          ./scripts/release.sh "${{ github.ref }}"
++      - name: Release
++        env:
++          GITHUB_REF: "${{ github.ref }}"
++        run: |
++          echo "Releasing \"$GITHUB_REF\""
++          ./scripts/release.sh "$GITHUB_REF"
+*** End Patch
