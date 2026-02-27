@@ -2,6 +2,8 @@ package cmd
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -19,11 +21,13 @@ type markdownImage struct {
 	index       int    // sequential index (0, 1, 2, ...)
 	alt         string // alt text
 	originalRef string // original path or URL
+	token       string // unique token per extraction to avoid collisions
 }
 
 // placeholder returns the placeholder string for this image.
+// Uses a unique token so it cannot collide with user content.
 func (m markdownImage) placeholder() string {
-	return fmt.Sprintf("<<IMG_%d>>", m.index)
+	return fmt.Sprintf("<<IMG_%s_%d>>", m.token, m.index)
 }
 
 // isRemote returns true if the image reference is a remote URL.
@@ -33,10 +37,21 @@ func (m markdownImage) isRemote() bool {
 
 var mdImageRe = regexp.MustCompile(`!\[([^\]]*)\]\((?:<([^>]+)>|([^)\s]+))(?:\s+(?:"[^"]*"|'[^']*'|\([^)]*\)))?\)`)
 
+// imgPlaceholderToken generates a random hex token for image placeholders.
+var imgPlaceholderToken = func() string {
+	b := make([]byte, 4)
+	if _, err := rand.Read(b); err != nil {
+		// Fallback — still very unlikely to collide with user text.
+		return "x0x0"
+	}
+	return hex.EncodeToString(b)
+}
+
 // extractMarkdownImages finds all ![alt](url) references in content,
-// replaces them with <<IMG_N>> placeholders, and returns the cleaned
-// content along with the extracted images.
+// replaces them with unique <<IMG_token_N>> placeholders, and returns the
+// cleaned content along with the extracted images.
 func extractMarkdownImages(content string) (string, []markdownImage) {
+	token := imgPlaceholderToken()
 	var images []markdownImage
 	idx := 0
 	cleaned := mdImageRe.ReplaceAllStringFunc(content, func(match string) string {
@@ -52,6 +67,7 @@ func extractMarkdownImages(content string) (string, []markdownImage) {
 			index:       idx,
 			alt:         subs[1],
 			originalRef: ref,
+			token:       token,
 		}
 		images = append(images, img)
 		placeholder := img.placeholder()
@@ -67,18 +83,18 @@ type docRange struct {
 	endIndex   int64
 }
 
-// findPlaceholderIndices walks a Google Doc body to locate <<IMG_N>> placeholders
+// findPlaceholderIndices walks a Google Doc body to locate image placeholders
 // and returns a map from placeholder string to its position.
-func findPlaceholderIndices(doc *docs.Document, count int) map[string]docRange {
+func findPlaceholderIndices(doc *docs.Document, images []markdownImage) map[string]docRange {
 	result := make(map[string]docRange)
-	if doc == nil || doc.Body == nil || count == 0 {
+	if doc == nil || doc.Body == nil || len(images) == 0 {
 		return result
 	}
 
 	// Build the set of placeholders we're looking for.
-	placeholders := make([]string, count)
-	for i := 0; i < count; i++ {
-		placeholders[i] = fmt.Sprintf("<<IMG_%d>>", i)
+	placeholders := make([]string, len(images))
+	for i, img := range images {
+		placeholders[i] = img.placeholder()
 	}
 
 	for _, el := range doc.Body.Content {
@@ -95,8 +111,9 @@ func findPlaceholderIndices(doc *docs.Document, count int) map[string]docRange {
 				if pos == -1 {
 					continue
 				}
-				absStart := pe.StartIndex + int64(pos)
-				absEnd := absStart + int64(len(ph))
+				// Use UTF-16 lengths — Google Docs indices are UTF-16 code units.
+				absStart := pe.StartIndex + utf16Len(text[:pos])
+				absEnd := absStart + utf16Len(ph)
 				result[ph] = docRange{
 					startIndex: absStart,
 					endIndex:   absEnd,
@@ -228,6 +245,73 @@ func pathWithinDir(path string, dir string) bool {
 	return !strings.HasPrefix(rel, ".."+string(filepath.Separator))
 }
 
+// insertImagesIntoDocs reads back a Google Doc to find <<IMG_token_N>> placeholders,
+// resolves image URLs (remote URLs used directly, local files uploaded to Drive),
+// and replaces the placeholders with inline images via BatchUpdate.
+func insertImagesIntoDocs(ctx context.Context, account string, svc *docs.Service, docID string, images []markdownImage, basePath string) error {
+	// Read back the document to find placeholder positions.
+	doc, err := svc.Documents.Get(docID).Context(ctx).Do()
+	if err != nil {
+		return fmt.Errorf("read back document: %w", err)
+	}
+
+	placeholders := findPlaceholderIndices(doc, images)
+	if len(placeholders) == 0 {
+		return nil
+	}
+
+	// Resolve image URLs — remote URLs used directly, local files uploaded.
+	imageURLs := make(map[int]string)
+	var driveSvc *drive.Service
+	var tempFileIDs []string
+
+	for _, img := range images {
+		if _, ok := placeholders[img.placeholder()]; !ok {
+			continue
+		}
+		if img.isRemote() {
+			imageURLs[img.index] = img.originalRef
+			continue
+		}
+		// Local file — need Drive service to upload.
+		if driveSvc == nil {
+			driveSvc, err = newDriveService(ctx, account)
+			if err != nil {
+				return err
+			}
+		}
+		realPath, resolveErr := resolveMarkdownImagePath(basePath, img.originalRef)
+		if resolveErr != nil {
+			return resolveErr
+		}
+		url, fileID, uploadErr := uploadLocalImage(ctx, driveSvc, realPath)
+		if uploadErr != nil {
+			return uploadErr
+		}
+		tempFileIDs = append(tempFileIDs, fileID)
+		imageURLs[img.index] = url
+	}
+
+	if driveSvc != nil {
+		defer cleanupDriveFileIDsBestEffort(ctx, driveSvc, tempFileIDs)
+	}
+
+	reqs := buildImageInsertRequests(placeholders, images, imageURLs)
+	if len(reqs) == 0 {
+		return nil
+	}
+
+	_, err = svc.Documents.BatchUpdate(docID, &docs.BatchUpdateDocumentRequest{
+		Requests: reqs,
+	}).Context(ctx).Do()
+	return err
+}
+
+// defaultImageMaxWidthPt is the maximum width for inserted inline images in points.
+// 468pt = US Letter (612pt) minus default 1-inch margins (72pt each side).
+// Setting only width lets the API scale height proportionally to maintain aspect ratio.
+const defaultImageMaxWidthPt = 468.0
+
 // buildImageInsertRequests creates the Docs API batch update requests to replace
 // placeholder text with inline images. Requests are ordered in reverse index order
 // so earlier positions are not invalidated as the document is modified.
@@ -268,12 +352,18 @@ func buildImageInsertRequests(placeholders map[string]docRange, images []markdow
 				},
 			},
 		})
-		// Then insert the image at that position.
+		// Then insert the image at that position, capped to page content width.
 		reqs = append(reqs, &docs.Request{
 			InsertInlineImage: &docs.InsertInlineImageRequest{
 				Uri: e.url,
 				Location: &docs.Location{
 					Index: e.dr.startIndex,
+				},
+				ObjectSize: &docs.Size{
+					Width: &docs.Dimension{
+						Magnitude: defaultImageMaxWidthPt,
+						Unit:      "PT",
+					},
 				},
 			},
 		})

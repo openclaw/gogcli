@@ -33,7 +33,7 @@ type DocsCmd struct {
 	Write       DocsWriteCmd       `cmd:"" name:"write" help:"Write content to a Google Doc"`
 	Insert      DocsInsertCmd      `cmd:"" name:"insert" help:"Insert text at a specific position"`
 	Delete      DocsDeleteCmd      `cmd:"" name:"delete" help:"Delete text range from document"`
-	FindReplace DocsFindReplaceCmd `cmd:"" name:"find-replace" help:"Find and replace text in document"`
+	FindReplace DocsFindReplaceCmd `cmd:"" name:"find-replace" help:"Find and replace text — supports plain text and markdown with images. Use --first for single occurrence."`
 	Update      DocsUpdateCmd      `cmd:"" name:"update" help:"Update content in a Google Doc"`
 	Edit        DocsEditCmd        `cmd:"" name:"edit" help:"Find and replace text in a Google Doc"`
 	Sed         DocsSedCmd         `cmd:"" name:"sed" help:"Regex find/replace (sed-style: s/pattern/replacement/g)"`
@@ -181,7 +181,7 @@ func (c *DocsCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
 
 	// Pass 2: insert images if any were found.
 	if len(images) > 0 {
-		if err := c.insertImages(ctx, account, driveSvc, created.Id, images); err != nil {
+		if err := c.insertImages(ctx, account, created.Id, images); err != nil {
 			return fmt.Errorf("insert images: %w", err)
 		}
 	}
@@ -201,59 +201,12 @@ func (c *DocsCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
 
 // insertImages performs pass 2: reads back the created doc, resolves image URLs,
 // and replaces placeholder text with inline images.
-func (c *DocsCreateCmd) insertImages(ctx context.Context, account string, driveSvc *drive.Service, docID string, images []markdownImage) error {
-	docsSvc, err := newDocsService(ctx, account)
+func (c *DocsCreateCmd) insertImages(ctx context.Context, account string, docID string, images []markdownImage) error {
+	svc, err := newDocsService(ctx, account)
 	if err != nil {
 		return err
 	}
-
-	// Read back the document to find placeholder positions.
-	doc, err := docsSvc.Documents.Get(docID).Context(ctx).Do()
-	if err != nil {
-		return fmt.Errorf("read back document: %w", err)
-	}
-
-	placeholders := findPlaceholderIndices(doc, len(images))
-	if len(placeholders) == 0 {
-		return nil
-	}
-
-	// Resolve image URLs — upload local files to Drive temporarily.
-	imageURLs := make(map[int]string)
-	var tempFileIDs []string
-	defer cleanupDriveFileIDsBestEffort(ctx, driveSvc, tempFileIDs)
-
-	for _, img := range images {
-		if _, ok := placeholders[img.placeholder()]; !ok {
-			continue
-		}
-		if img.isRemote() {
-			imageURLs[img.index] = img.originalRef
-			continue
-		}
-
-		realPath, resolveErr := resolveMarkdownImagePath(c.File, img.originalRef)
-		if resolveErr != nil {
-			return resolveErr
-		}
-
-		url, fileID, uploadErr := uploadLocalImage(ctx, driveSvc, realPath)
-		if uploadErr != nil {
-			return uploadErr
-		}
-		tempFileIDs = append(tempFileIDs, fileID)
-		imageURLs[img.index] = url
-	}
-
-	reqs := buildImageInsertRequests(placeholders, images, imageURLs)
-	if len(reqs) == 0 {
-		return nil
-	}
-
-	_, err = docsSvc.Documents.BatchUpdate(docID, &docs.BatchUpdateDocumentRequest{
-		Requests: reqs,
-	}).Context(ctx).Do()
-	return err
+	return insertImagesIntoDocs(ctx, account, svc, docID, images, c.File)
 }
 
 type DocsCopyCmd struct {
@@ -938,10 +891,13 @@ func (c *DocsClearCmd) Run(ctx context.Context, flags *RootFlags) error {
 }
 
 type DocsFindReplaceCmd struct {
-	DocID       string `arg:"" name:"docId" help:"Doc ID"`
-	Find        string `arg:"" name:"find" help:"Text to find"`
-	ReplaceText string `arg:"" name:"replace" help:"Replacement text"`
-	MatchCase   bool   `name:"match-case" help:"Case-sensitive matching"`
+	DocID       string `arg:"" name:"docId" help:"Document ID or URL."`
+	Find        string `arg:"" name:"find" help:"Text to search for in the document."`
+	ReplaceText string `arg:"" optional:"" name:"replace" help:"Replacement text (omit when using --content-file)."`
+	ContentFile string `name:"content-file" help:"Read replacement from a file instead of the positional argument."`
+	MatchCase   bool   `name:"match-case" help:"Case-sensitive matching (default: case-insensitive)."`
+	Format      string `name:"format" help:"Replacement format: 'plain' (default) or 'markdown'. Markdown converts bold, italic, headings, lists, code blocks, tables, and inline images (![alt](url)) into native Google Docs formatting." default:"plain" enum:"plain,markdown"`
+	First       bool   `name:"first" help:"Replace only the first occurrence instead of all."`
 }
 
 func (c *DocsFindReplaceCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -959,11 +915,87 @@ func (c *DocsFindReplaceCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return usage("find text cannot be empty")
 	}
 
+	// Resolve replacement text from arg or --content-file.
+	replaceText, err := c.resolveReplaceText()
+	if err != nil {
+		return err
+	}
+
+	format := strings.ToLower(strings.TrimSpace(c.Format))
+	if format == "" {
+		format = docsContentFormatPlain
+	}
+
 	svc, err := newDocsService(ctx, account)
 	if err != nil {
 		return err
 	}
 
+	// Plain replace-all (default path): use ReplaceAllText API.
+	if !c.First && format == docsContentFormatPlain {
+		return c.runReplaceAll(ctx, u, svc, docID, replaceText)
+	}
+
+	// All other paths need the document body to find occurrences.
+	doc, err := svc.Documents.Get(docID).Context(ctx).Do()
+	if err != nil {
+		if isDocsNotFound(err) {
+			return fmt.Errorf("doc not found or not a Google Doc (id=%s)", docID)
+		}
+		return err
+	}
+	if doc == nil {
+		return errors.New("doc not found")
+	}
+
+	if c.First {
+		// --first: single-occurrence replace.
+		startIdx, endIdx, total := findTextInDoc(doc, c.Find, c.MatchCase)
+		if total == 0 {
+			return c.printFirstResult(ctx, u, docID, 0, 0)
+		}
+		if format == docsContentFormatMarkdown {
+			err = c.runMarkdown(ctx, svc, account, doc, startIdx, endIdx, replaceText)
+		} else {
+			err = c.runPlain(ctx, svc, doc, startIdx, endIdx, replaceText)
+		}
+		if err != nil {
+			return err
+		}
+		return c.printFirstResult(ctx, u, docID, 1, total)
+	}
+
+	// Markdown replace-all (no --first): loop — find first, apply, repeat.
+	for {
+		startIdx, endIdx, total := findTextInDoc(doc, c.Find, c.MatchCase)
+		if total == 0 {
+			break
+		}
+		if err = c.runMarkdown(ctx, svc, account, doc, startIdx, endIdx, replaceText); err != nil {
+			return err
+		}
+		// Re-read the document for fresh indices.
+		doc, err = svc.Documents.Get(docID).Context(ctx).Do()
+		if err != nil {
+			return fmt.Errorf("re-reading document: %w", err)
+		}
+	}
+
+	if outfmt.IsJSON(ctx) {
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
+			"documentId": docID,
+			"find":       c.Find,
+			"success":    true,
+		})
+	}
+	u.Out().Printf("documentId\t%s", docID)
+	u.Out().Printf("find\t%s", c.Find)
+	u.Out().Printf("mode\tmarkdown replace-all")
+	return nil
+}
+
+// runReplaceAll uses the ReplaceAllText API for plain-text replace-all (the default path).
+func (c *DocsFindReplaceCmd) runReplaceAll(ctx context.Context, u *ui.UI, svc *docs.Service, docID, replaceText string) error {
 	result, err := svc.Documents.BatchUpdate(docID, &docs.BatchUpdateDocumentRequest{
 		Requests: []*docs.Request{{
 			ReplaceAllText: &docs.ReplaceAllTextRequest{
@@ -971,7 +1003,7 @@ func (c *DocsFindReplaceCmd) Run(ctx context.Context, flags *RootFlags) error {
 					Text:      c.Find,
 					MatchCase: c.MatchCase,
 				},
-				ReplaceText: c.ReplaceText,
+				ReplaceText: replaceText,
 			},
 		}},
 	}).Context(ctx).Do()
@@ -988,16 +1020,242 @@ func (c *DocsFindReplaceCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
 			"documentId":   result.DocumentId,
 			"find":         c.Find,
-			"replace":      c.ReplaceText,
+			"replace":      replaceText,
 			"replacements": replacements,
 		})
 	}
 
 	u.Out().Printf("documentId\t%s", result.DocumentId)
 	u.Out().Printf("find\t%s", c.Find)
-	u.Out().Printf("replace\t%s", c.ReplaceText)
+	u.Out().Printf("replace\t%s", replaceText)
 	u.Out().Printf("replacements\t%d", replacements)
 	return nil
+}
+
+// runPlain deletes the first occurrence and inserts the replacement text.
+func (c *DocsFindReplaceCmd) runPlain(ctx context.Context, svc *docs.Service, doc *docs.Document, startIdx, endIdx int64, replaceText string) error {
+	_, err := svc.Documents.BatchUpdate(doc.DocumentId, &docs.BatchUpdateDocumentRequest{
+		WriteControl: &docs.WriteControl{
+			RequiredRevisionId: doc.RevisionId,
+		},
+		Requests: []*docs.Request{
+			{
+				DeleteContentRange: &docs.DeleteContentRangeRequest{
+					Range: &docs.Range{
+						StartIndex: startIdx,
+						EndIndex:   endIdx,
+					},
+				},
+			},
+			{
+				InsertText: &docs.InsertTextRequest{
+					Location: &docs.Location{Index: startIdx},
+					Text:     replaceText,
+				},
+			},
+		},
+	}).Context(ctx).Do()
+	if err != nil {
+		return fmt.Errorf("replace: %w", err)
+	}
+	return nil
+}
+
+// runMarkdown deletes the first occurrence and inserts markdown-formatted content.
+// If the markdown contains ![alt](url) images, they are inserted as inline images
+// in a second pass after the text is placed.
+func (c *DocsFindReplaceCmd) runMarkdown(ctx context.Context, svc *docs.Service, account string, doc *docs.Document, startIdx, endIdx int64, replaceText string) error {
+	// Extract images before parsing markdown — they become <<IMG_N>> placeholders.
+	cleaned, images := extractMarkdownImages(replaceText)
+
+	// Parse markdown and build requests.
+	elements := ParseMarkdown(cleaned)
+	formattingRequests, textToInsert, tables := MarkdownToDocsRequests(elements, startIdx)
+
+	// Build batch: delete old text, insert new text, apply formatting.
+	requests := make([]*docs.Request, 0, 2+len(formattingRequests))
+	requests = append(requests, &docs.Request{
+		DeleteContentRange: &docs.DeleteContentRangeRequest{
+			Range: &docs.Range{
+				StartIndex: startIdx,
+				EndIndex:   endIdx,
+			},
+		},
+	})
+	requests = append(requests, &docs.Request{
+		InsertText: &docs.InsertTextRequest{
+			Location: &docs.Location{Index: startIdx},
+			Text:     textToInsert,
+		},
+	})
+	requests = append(requests, formattingRequests...)
+
+	_, err := svc.Documents.BatchUpdate(doc.DocumentId, &docs.BatchUpdateDocumentRequest{
+		WriteControl: &docs.WriteControl{
+			RequiredRevisionId: doc.RevisionId,
+		},
+		Requests: requests,
+	}).Context(ctx).Do()
+	if err != nil {
+		return fmt.Errorf("replace (markdown): %w", err)
+	}
+
+	// Handle native tables if any.
+	if len(tables) > 0 {
+		tableInserter := NewTableInserter(svc, doc.DocumentId)
+		tableOffset := int64(0)
+		for _, table := range tables {
+			tableIndex := table.StartIndex + tableOffset
+			tableEnd, tableErr := tableInserter.InsertNativeTable(ctx, tableIndex, table.Cells)
+			if tableErr != nil {
+				return fmt.Errorf("insert native table: %w", tableErr)
+			}
+			if tableEnd > tableIndex {
+				tableOffset += (tableEnd - tableIndex) - 1
+			}
+		}
+	}
+
+	// Pass 2: insert inline images if any were found.
+	if len(images) > 0 {
+		imgErr := c.insertImages(ctx, account, svc, doc.DocumentId, images)
+		// Always clean up <<IMG_N>> placeholders — even on success (belt and
+		// suspenders) and especially on failure so they never leak into the doc.
+		cleanupImagePlaceholders(ctx, svc, doc.DocumentId, images)
+		if imgErr != nil {
+			return fmt.Errorf("insert images: %w", imgErr)
+		}
+	}
+
+	return nil
+}
+
+// insertImages reads back the document to find <<IMG_N>> placeholders, resolves
+// image URLs, and replaces the placeholders with inline images.
+func (c *DocsFindReplaceCmd) insertImages(ctx context.Context, account string, svc *docs.Service, docID string, images []markdownImage) error {
+	basePath := c.ContentFile
+	if basePath == "" {
+		basePath = "."
+	}
+	return insertImagesIntoDocs(ctx, account, svc, docID, images, basePath)
+}
+
+// printFirstResult outputs the result for a single-occurrence replace (--first).
+func (c *DocsFindReplaceCmd) printFirstResult(ctx context.Context, u *ui.UI, docID string, replacements, total int) error {
+	if outfmt.IsJSON(ctx) {
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
+			"documentId":   docID,
+			"find":         c.Find,
+			"replacements": replacements,
+			"remaining":    total - replacements,
+		})
+	}
+
+	u.Out().Printf("documentId\t%s", docID)
+	u.Out().Printf("find\t%s", c.Find)
+	u.Out().Printf("replacements\t%d", replacements)
+	remaining := total - replacements
+	if remaining > 0 {
+		u.Out().Printf("remaining\t%d", remaining)
+	}
+	return nil
+}
+
+func (c *DocsFindReplaceCmd) resolveReplaceText() (string, error) {
+	if c.ContentFile != "" && c.ReplaceText != "" {
+		return "", usage("cannot use both replace argument and --content-file")
+	}
+	if c.ContentFile != "" {
+		data, err := os.ReadFile(c.ContentFile)
+		if err != nil {
+			return "", fmt.Errorf("read content file: %w", err)
+		}
+		return string(data), nil
+	}
+	return c.ReplaceText, nil
+}
+
+// cleanupImagePlaceholders removes any leftover image placeholder strings
+// from the document. This is called after image insertion (success or failure)
+// to guarantee placeholders never leak into the final document.
+func cleanupImagePlaceholders(ctx context.Context, svc *docs.Service, docID string, images []markdownImage) {
+	reqs := make([]*docs.Request, 0, len(images))
+	for _, img := range images {
+		reqs = append(reqs, &docs.Request{
+			ReplaceAllText: &docs.ReplaceAllTextRequest{
+				ContainsText: &docs.SubstringMatchCriteria{
+					Text:      img.placeholder(),
+					MatchCase: true,
+				},
+				ReplaceText: "",
+			},
+		})
+	}
+	// Best-effort: if cleanup fails, we tried.
+	_, _ = svc.Documents.BatchUpdate(docID, &docs.BatchUpdateDocumentRequest{
+		Requests: reqs,
+	}).Context(ctx).Do()
+}
+
+// findTextInDoc searches document body for the first occurrence of searchText.
+// Returns startIndex, endIndex of first match, and total match count.
+func findTextInDoc(doc *docs.Document, searchText string, matchCase bool) (int64, int64, int) {
+	if doc.Body == nil {
+		return 0, 0, 0
+	}
+
+	find := searchText
+	if !matchCase {
+		find = strings.ToLower(find)
+	}
+
+	var firstStart, firstEnd int64
+	total := 0
+
+	for _, el := range doc.Body.Content {
+		if el == nil || el.Paragraph == nil {
+			continue
+		}
+		// Build paragraph text with index tracking.
+		var paraText strings.Builder
+		var paraStart int64
+		first := true
+		for _, pe := range el.Paragraph.Elements {
+			if pe.TextRun == nil {
+				continue
+			}
+			if first {
+				paraStart = pe.StartIndex
+				first = false
+			}
+			paraText.WriteString(pe.TextRun.Content)
+		}
+
+		text := paraText.String()
+		compareText := text
+		if !matchCase {
+			compareText = strings.ToLower(text)
+		}
+
+		offset := 0
+		for {
+			idx := strings.Index(compareText[offset:], find)
+			if idx < 0 {
+				break
+			}
+			absIdx := offset + idx
+			matchStart := paraStart + utf16Len(text[:absIdx])
+			matchEnd := matchStart + utf16Len(searchText)
+			total++
+			if total == 1 {
+				firstStart = matchStart
+				firstEnd = matchEnd
+			}
+			offset = absIdx + len(find)
+		}
+	}
+
+	return firstStart, firstEnd, total
 }
 
 // resolveContentInput reads content from an argument, file, or stdin.
