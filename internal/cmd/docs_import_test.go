@@ -886,6 +886,68 @@ func TestFindPlaceholderIndices_EmojiPrefix(t *testing.T) {
 	}
 }
 
+func TestFindPlaceholderIndices_InsideTableCell(t *testing.T) {
+	// Drive's markdown converter puts table cell content inside Table > TableRow
+	// > TableCell > Content > Paragraph structures. Placeholders in table cells
+	// must be found by recursing into table elements.
+	doc := &docs.Document{
+		Body: &docs.Body{
+			Content: []*docs.StructuralElement{
+				{
+					Table: &docs.Table{
+						TableRows: []*docs.TableRow{
+							{
+								TableCells: []*docs.TableCell{
+									{
+										Content: []*docs.StructuralElement{
+											{
+												Paragraph: &docs.Paragraph{
+													Elements: []*docs.ParagraphElement{
+														{
+															StartIndex: 50,
+															TextRun:    &docs.TextRun{Content: "<<IMG_test_0>>\n"},
+														},
+													},
+												},
+											},
+										},
+									},
+									{
+										Content: []*docs.StructuralElement{
+											{
+												Paragraph: &docs.Paragraph{
+													Elements: []*docs.ParagraphElement{
+														{
+															StartIndex: 100,
+															TextRun:    &docs.TextRun{Content: "<<IMG_test_1>>\n"},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	result := findPlaceholderIndices(doc, testImages(2))
+	if len(result) != 2 {
+		t.Fatalf("expected 2 placeholders inside table cells, got %d", len(result))
+	}
+	dr0 := result["<<IMG_test_0>>"]
+	if dr0.startIndex != 50 {
+		t.Fatalf("IMG_0 startIndex = %d, want 50", dr0.startIndex)
+	}
+	dr1 := result["<<IMG_test_1>>"]
+	if dr1.startIndex != 100 {
+		t.Fatalf("IMG_1 startIndex = %d, want 100", dr1.startIndex)
+	}
+}
+
 func TestFindPlaceholderIndices_SplitAcrossTextRuns(t *testing.T) {
 	// Simulates the real-world scenario where Drive's markdown converter splits
 	// a placeholder across two text runs within the same paragraph.
