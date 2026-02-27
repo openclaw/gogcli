@@ -29,9 +29,12 @@ type SheetsCmd struct {
 	Append   SheetsAppendCmd   `cmd:"" name:"append" aliases:"add" help:"Append values to a range"`
 	Insert   SheetsInsertCmd   `cmd:"" name:"insert" help:"Insert empty rows or columns into a sheet"`
 	Clear    SheetsClearCmd    `cmd:"" name:"clear" help:"Clear values in a range"`
-	Format   SheetsFormatCmd   `cmd:"" name:"format" help:"Apply cell formatting to a range"`
-	Notes    SheetsNotesCmd    `cmd:"" name:"notes" help:"Get cell notes from a range"`
-	Metadata SheetsMetadataCmd `cmd:"" name:"metadata" aliases:"info" help:"Get spreadsheet metadata"`
+	Format            SheetsFormatCmd            `cmd:"" name:"format" help:"Apply cell formatting to a range"`
+	ConditionalFormat SheetsConditionalFormatCmd `cmd:"" name:"conditional-format" aliases:"cf" help:"Manage conditional formatting rules"`
+	Banding           SheetsBandingCmd           `cmd:"" name:"banding" help:"Manage alternating colors (banded ranges)"`
+	Chart             SheetsChartCmd             `cmd:"" name:"chart" help:"Manage embedded charts"`
+	Notes             SheetsNotesCmd             `cmd:"" name:"notes" help:"Get cell notes from a range"`
+	Metadata          SheetsMetadataCmd          `cmd:"" name:"metadata" aliases:"info" help:"Get spreadsheet metadata"`
 	Create   SheetsCreateCmd   `cmd:"" name:"create" aliases:"new" help:"Create a new spreadsheet"`
 	Copy     SheetsCopyCmd     `cmd:"" name:"copy" aliases:"cp,duplicate" help:"Copy a Google Sheet"`
 	Export   SheetsExportCmd   `cmd:"" name:"export" aliases:"download,dl" help:"Export a Google Sheet (pdf|xlsx|csv) via Drive"`
