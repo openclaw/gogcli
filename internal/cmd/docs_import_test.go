@@ -886,6 +886,80 @@ func TestFindPlaceholderIndices_EmojiPrefix(t *testing.T) {
 	}
 }
 
+func TestFindPlaceholderIndices_SplitAcrossTextRuns(t *testing.T) {
+	// Simulates the real-world scenario where Drive's markdown converter splits
+	// a placeholder across two text runs within the same paragraph.
+	// <<IMG_test_0>> is split as "text <<IMG_" in run1 and "test_0>> more" in run2.
+	doc := &docs.Document{
+		Body: &docs.Body{
+			Content: []*docs.StructuralElement{
+				{
+					Paragraph: &docs.Paragraph{
+						Elements: []*docs.ParagraphElement{
+							{
+								StartIndex: 1,
+								TextRun:    &docs.TextRun{Content: "text <<IMG_"},
+							},
+							{
+								StartIndex: 12,
+								TextRun:    &docs.TextRun{Content: "test_0>> more"},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	result := findPlaceholderIndices(doc, testImages(1))
+	if len(result) != 1 {
+		t.Fatalf("expected 1 placeholder across split runs, got %d", len(result))
+	}
+	dr := result["<<IMG_test_0>>"]
+	// "text " is 5 chars, so placeholder starts at 1+5=6
+	wantStart := int64(6)
+	if dr.startIndex != wantStart {
+		t.Fatalf("startIndex = %d, want %d", dr.startIndex, wantStart)
+	}
+	wantEnd := wantStart + int64(len("<<IMG_test_0>>"))
+	if dr.endIndex != wantEnd {
+		t.Fatalf("endIndex = %d, want %d", dr.endIndex, wantEnd)
+	}
+}
+
+func TestFindPlaceholderIndices_SplitAtAngleBrackets(t *testing.T) {
+	// Split right at the << boundary — most likely point Drive would split.
+	doc := &docs.Document{
+		Body: &docs.Body{
+			Content: []*docs.StructuralElement{
+				{
+					Paragraph: &docs.Paragraph{
+						Elements: []*docs.ParagraphElement{
+							{
+								StartIndex: 1,
+								TextRun:    &docs.TextRun{Content: "before <<"},
+							},
+							{
+								StartIndex: 10,
+								TextRun:    &docs.TextRun{Content: "IMG_test_0>> after"},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	result := findPlaceholderIndices(doc, testImages(1))
+	if len(result) != 1 {
+		t.Fatalf("expected 1 placeholder across angle-bracket split, got %d", len(result))
+	}
+	dr := result["<<IMG_test_0>>"]
+	// "before " is 7 chars
+	wantStart := int64(8)
+	if dr.startIndex != wantStart {
+		t.Fatalf("startIndex = %d, want %d", dr.startIndex, wantStart)
+	}
+}
+
 // ---------------------------------------------------------------------------
 // extractMarkdownImages: dimension parsing
 // ---------------------------------------------------------------------------

@@ -118,14 +118,14 @@ func TestResolveMarkdownImagePath(t *testing.T) {
 		t.Fatalf("write outside image: %v", outsideWriteErr)
 	}
 	_, err = resolveMarkdownImagePath(mdFile, "../outside.png")
-	if err == nil || !strings.Contains(err.Error(), "outside markdown file directory") {
+	if err == nil || !strings.Contains(err.Error(), "is outside the markdown file directory") {
 		t.Fatalf("expected traversal error, got %v", err)
 	}
 
 	linkPath := filepath.Join(mdDir, "link.png")
 	if err := os.Symlink(outsideImg, linkPath); err == nil {
 		_, err = resolveMarkdownImagePath(mdFile, "link.png")
-		if err == nil || !strings.Contains(err.Error(), "outside markdown file directory") {
+		if err == nil || !strings.Contains(err.Error(), "is outside the markdown file directory") {
 			t.Fatalf("expected symlink traversal error, got %v", err)
 		}
 	}

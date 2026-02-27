@@ -128,6 +128,10 @@ type docRange struct {
 
 // findPlaceholderIndices walks a Google Doc body to locate image placeholders
 // and returns a map from placeholder string to its position.
+//
+// Placeholders may span multiple TextRun elements (e.g. after Drive's markdown
+// converter splits text at formatting boundaries), so the search concatenates
+// all text within a paragraph before matching.
 func findPlaceholderIndices(doc *docs.Document, images []markdownImage) map[string]docRange {
 	result := make(map[string]docRange)
 	if doc == nil || doc.Body == nil || len(images) == 0 {
@@ -144,23 +148,52 @@ func findPlaceholderIndices(doc *docs.Document, images []markdownImage) map[stri
 		if el.Paragraph == nil {
 			continue
 		}
+
+		// Concatenate all text runs in this paragraph while tracking where
+		// each byte offset maps to an absolute UTF-16 document index.
+		// offsets[i] is the absolute UTF-16 index of paraText[i:].
+		var paraText strings.Builder
+		type runSpan struct {
+			byteStart int   // byte offset into paraText
+			absStart  int64 // absolute UTF-16 index from the API
+		}
+		var spans []runSpan
 		for _, pe := range el.Paragraph.Elements {
 			if pe.TextRun == nil {
 				continue
 			}
-			text := pe.TextRun.Content
-			for _, ph := range placeholders {
-				pos := strings.Index(text, ph)
-				if pos == -1 {
-					continue
+			spans = append(spans, runSpan{
+				byteStart: paraText.Len(),
+				absStart:  pe.StartIndex,
+			})
+			paraText.WriteString(pe.TextRun.Content)
+		}
+		if paraText.Len() == 0 {
+			continue
+		}
+
+		full := paraText.String()
+		for _, ph := range placeholders {
+			pos := strings.Index(full, ph)
+			if pos == -1 {
+				continue
+			}
+			// Map byte offset back to absolute UTF-16 index.
+			// Find which run span contains `pos`.
+			var baseAbs int64
+			var baseByteOff int
+			for i := len(spans) - 1; i >= 0; i-- {
+				if spans[i].byteStart <= pos {
+					baseAbs = spans[i].absStart
+					baseByteOff = spans[i].byteStart
+					break
 				}
-				// Use UTF-16 lengths — Google Docs indices are UTF-16 code units.
-				absStart := pe.StartIndex + utf16Len(text[:pos])
-				absEnd := absStart + utf16Len(ph)
-				result[ph] = docRange{
-					startIndex: absStart,
-					endIndex:   absEnd,
-				}
+			}
+			absStart := baseAbs + utf16Len(full[baseByteOff:pos])
+			absEnd := absStart + utf16Len(ph)
+			result[ph] = docRange{
+				startIndex: absStart,
+				endIndex:   absEnd,
 			}
 		}
 	}
@@ -272,7 +305,7 @@ func resolveMarkdownImagePath(markdownFilePath string, imageRef string) (string,
 	}
 
 	if !pathWithinDir(realPath, realDir) {
-		return "", fmt.Errorf("image path %q resolves outside markdown file directory", imageRef)
+		return "", fmt.Errorf("image %q is outside the markdown file directory (%s); local images must be in the same directory as the markdown file or a subdirectory — use relative paths or copy images alongside the .md file", imageRef, realDir)
 	}
 	return realPath, nil
 }

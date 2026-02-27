@@ -120,7 +120,7 @@ func (c *DocsInfoCmd) Run(ctx context.Context, flags *RootFlags) error {
 type DocsCreateCmd struct {
 	Title  string `arg:"" name:"title" help:"Doc title"`
 	Parent string `name:"parent" help:"Destination folder ID"`
-	File   string `name:"file" help:"Markdown file to import. Supports inline images via ![alt](url); append {width=N height=N} to control size in points." type:"existingfile"`
+	File   string `name:"file" help:"Markdown file to import. Supports inline images via ![alt](url); append {width=N height=N} to control size in points. Local images must be in the same directory as the markdown file or a subdirectory (use relative paths). Remote URLs (https://…) are used directly." type:"existingfile"`
 }
 
 func (c *DocsCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -896,7 +896,7 @@ type DocsFindReplaceCmd struct {
 	ReplaceText string `arg:"" optional:"" name:"replace" help:"Replacement text (omit when using --content-file)."`
 	ContentFile string `name:"content-file" help:"Read replacement from a file instead of the positional argument."`
 	MatchCase   bool   `name:"match-case" help:"Case-sensitive matching (default: case-insensitive)."`
-	Format      string `name:"format" help:"Replacement format: 'plain' (default) or 'markdown'. Markdown converts bold, italic, headings, lists, code blocks, tables, and inline images into native Google Docs formatting. Images use ![alt](url) syntax; append {width=N} or {width=N height=N} (or shorthand {w=N h=N}) to control size in points (default: 468pt full width)." default:"plain" enum:"plain,markdown"`
+	Format      string `name:"format" help:"Replacement format: 'plain' (default) or 'markdown'. Markdown converts bold, italic, headings, lists, code blocks, tables, and inline images into native Google Docs formatting. Images use ![alt](url) syntax; append {width=N} or {width=N height=N} (or shorthand {w=N h=N}) to control size in points (default: 468pt full width). Local images must be in the same directory as --content-file or a subdirectory; remote URLs (https://…) are used directly." default:"plain" enum:"plain,markdown"`
 	First       bool   `name:"first" help:"Replace only the first occurrence instead of all."`
 }
 
