@@ -886,6 +886,175 @@ func TestFindPlaceholderIndices_EmojiPrefix(t *testing.T) {
 	}
 }
 
+// ---------------------------------------------------------------------------
+// extractMarkdownImages: dimension parsing
+// ---------------------------------------------------------------------------
+
+func TestExtractMarkdownImages_WithDimensions(t *testing.T) {
+	origToken := imgPlaceholderToken
+	t.Cleanup(func() { imgPlaceholderToken = origToken })
+	imgPlaceholderToken = func() string { return "test" }
+
+	content := "![alt](url){width=200}"
+	cleaned, images := extractMarkdownImages(content)
+	if cleaned != "<<IMG_test_0>>" {
+		t.Fatalf("expected <<IMG_test_0>>, got %q", cleaned)
+	}
+	if len(images) != 1 {
+		t.Fatalf("expected 1 image, got %d", len(images))
+	}
+	if images[0].widthPt != 200 {
+		t.Fatalf("expected widthPt=200, got %v", images[0].widthPt)
+	}
+	if images[0].heightPt != 0 {
+		t.Fatalf("expected heightPt=0, got %v", images[0].heightPt)
+	}
+}
+
+func TestExtractMarkdownImages_WithBothDimensions(t *testing.T) {
+	origToken := imgPlaceholderToken
+	t.Cleanup(func() { imgPlaceholderToken = origToken })
+	imgPlaceholderToken = func() string { return "test" }
+
+	content := "![alt](url){width=200 height=150}"
+	cleaned, images := extractMarkdownImages(content)
+	if cleaned != "<<IMG_test_0>>" {
+		t.Fatalf("expected <<IMG_test_0>>, got %q", cleaned)
+	}
+	if len(images) != 1 {
+		t.Fatalf("expected 1 image, got %d", len(images))
+	}
+	if images[0].widthPt != 200 {
+		t.Fatalf("expected widthPt=200, got %v", images[0].widthPt)
+	}
+	if images[0].heightPt != 150 {
+		t.Fatalf("expected heightPt=150, got %v", images[0].heightPt)
+	}
+}
+
+func TestExtractMarkdownImages_WithShorthandDimensions(t *testing.T) {
+	origToken := imgPlaceholderToken
+	t.Cleanup(func() { imgPlaceholderToken = origToken })
+	imgPlaceholderToken = func() string { return "test" }
+
+	content := "![alt](url){w=200 h=150}"
+	cleaned, images := extractMarkdownImages(content)
+	if cleaned != "<<IMG_test_0>>" {
+		t.Fatalf("expected <<IMG_test_0>>, got %q", cleaned)
+	}
+	if len(images) != 1 {
+		t.Fatalf("expected 1 image, got %d", len(images))
+	}
+	if images[0].widthPt != 200 {
+		t.Fatalf("expected widthPt=200, got %v", images[0].widthPt)
+	}
+	if images[0].heightPt != 150 {
+		t.Fatalf("expected heightPt=150, got %v", images[0].heightPt)
+	}
+}
+
+func TestExtractMarkdownImages_NoDimensionsFallback(t *testing.T) {
+	origToken := imgPlaceholderToken
+	t.Cleanup(func() { imgPlaceholderToken = origToken })
+	imgPlaceholderToken = func() string { return "test" }
+
+	content := "![alt](url)"
+	_, images := extractMarkdownImages(content)
+	if len(images) != 1 {
+		t.Fatalf("expected 1 image, got %d", len(images))
+	}
+	if images[0].widthPt != 0 {
+		t.Fatalf("expected widthPt=0, got %v", images[0].widthPt)
+	}
+	if images[0].heightPt != 0 {
+		t.Fatalf("expected heightPt=0, got %v", images[0].heightPt)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// buildImageInsertRequests: dimension handling
+// ---------------------------------------------------------------------------
+
+func TestBuildImageInsertRequests_CustomWidth(t *testing.T) {
+	img := markdownImage{index: 0, originalRef: "https://x.com/a.png", token: "test", widthPt: 200}
+	placeholders := map[string]docRange{
+		"<<IMG_test_0>>": {startIndex: 10, endIndex: 24},
+	}
+	imageURLs := map[int]string{0: "https://x.com/a.png"}
+
+	reqs := buildImageInsertRequests(placeholders, []markdownImage{img}, imageURLs)
+	if len(reqs) != 2 {
+		t.Fatalf("expected 2 requests, got %d", len(reqs))
+	}
+	ins := reqs[1].InsertInlineImage
+	if ins.ObjectSize.Width == nil || ins.ObjectSize.Width.Magnitude != 200 {
+		t.Fatalf("expected width=200pt, got %+v", ins.ObjectSize.Width)
+	}
+	if ins.ObjectSize.Height != nil {
+		t.Fatalf("expected nil height for width-only, got %+v", ins.ObjectSize.Height)
+	}
+}
+
+func TestBuildImageInsertRequests_CustomBothDimensions(t *testing.T) {
+	img := markdownImage{index: 0, originalRef: "https://x.com/a.png", token: "test", widthPt: 200, heightPt: 150}
+	placeholders := map[string]docRange{
+		"<<IMG_test_0>>": {startIndex: 10, endIndex: 24},
+	}
+	imageURLs := map[int]string{0: "https://x.com/a.png"}
+
+	reqs := buildImageInsertRequests(placeholders, []markdownImage{img}, imageURLs)
+	if len(reqs) != 2 {
+		t.Fatalf("expected 2 requests, got %d", len(reqs))
+	}
+	ins := reqs[1].InsertInlineImage
+	if ins.ObjectSize.Width == nil || ins.ObjectSize.Width.Magnitude != 200 {
+		t.Fatalf("expected width=200pt, got %+v", ins.ObjectSize.Width)
+	}
+	if ins.ObjectSize.Height == nil || ins.ObjectSize.Height.Magnitude != 150 {
+		t.Fatalf("expected height=150pt, got %+v", ins.ObjectSize.Height)
+	}
+}
+
+func TestBuildImageInsertRequests_CustomHeightOnly(t *testing.T) {
+	img := markdownImage{index: 0, originalRef: "https://x.com/a.png", token: "test", heightPt: 150}
+	placeholders := map[string]docRange{
+		"<<IMG_test_0>>": {startIndex: 10, endIndex: 24},
+	}
+	imageURLs := map[int]string{0: "https://x.com/a.png"}
+
+	reqs := buildImageInsertRequests(placeholders, []markdownImage{img}, imageURLs)
+	if len(reqs) != 2 {
+		t.Fatalf("expected 2 requests, got %d", len(reqs))
+	}
+	ins := reqs[1].InsertInlineImage
+	if ins.ObjectSize.Width != nil {
+		t.Fatalf("expected nil width for height-only, got %+v", ins.ObjectSize.Width)
+	}
+	if ins.ObjectSize.Height == nil || ins.ObjectSize.Height.Magnitude != 150 {
+		t.Fatalf("expected height=150pt, got %+v", ins.ObjectSize.Height)
+	}
+}
+
+func TestBuildImageInsertRequests_DefaultWidth(t *testing.T) {
+	img := markdownImage{index: 0, originalRef: "https://x.com/a.png", token: "test"}
+	placeholders := map[string]docRange{
+		"<<IMG_test_0>>": {startIndex: 10, endIndex: 24},
+	}
+	imageURLs := map[int]string{0: "https://x.com/a.png"}
+
+	reqs := buildImageInsertRequests(placeholders, []markdownImage{img}, imageURLs)
+	if len(reqs) != 2 {
+		t.Fatalf("expected 2 requests, got %d", len(reqs))
+	}
+	ins := reqs[1].InsertInlineImage
+	if ins.ObjectSize.Width == nil || ins.ObjectSize.Width.Magnitude != defaultImageMaxWidthPt {
+		t.Fatalf("expected default width=%vpt, got %+v", defaultImageMaxWidthPt, ins.ObjectSize.Width)
+	}
+	if ins.ObjectSize.Height != nil {
+		t.Fatalf("expected nil height for default, got %+v", ins.ObjectSize.Height)
+	}
+}
+
 func TestFindPlaceholderIndices_MultipleBullets(t *testing.T) {
 	// Simulates the real-world scenario: markdown formatter inserts "• " prefixed
 	// list items containing image placeholders.

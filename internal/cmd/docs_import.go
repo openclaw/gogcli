@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -18,10 +19,12 @@ import (
 
 // markdownImage holds a parsed image reference from a markdown file.
 type markdownImage struct {
-	index       int    // sequential index (0, 1, 2, ...)
-	alt         string // alt text
-	originalRef string // original path or URL
-	token       string // unique token per extraction to avoid collisions
+	index       int     // sequential index (0, 1, 2, ...)
+	alt         string  // alt text
+	originalRef string  // original path or URL
+	token       string  // unique token per extraction to avoid collisions
+	widthPt     float64 // optional width in points (0 = use default)
+	heightPt    float64 // optional height in points (0 = use default)
 }
 
 // placeholder returns the placeholder string for this image.
@@ -35,7 +38,42 @@ func (m markdownImage) isRemote() bool {
 	return strings.HasPrefix(m.originalRef, "http://") || strings.HasPrefix(m.originalRef, "https://")
 }
 
-var mdImageRe = regexp.MustCompile(`!\[([^\]]*)\]\((?:<([^>]+)>|([^)\s]+))(?:\s+(?:"[^"]*"|'[^']*'|\([^)]*\)))?\)`)
+var mdImageRe = regexp.MustCompile(`!\[([^\]]*)\]\((?:<([^>]+)>|([^)\s]+))(?:\s+(?:"[^"]*"|'[^']*'|\([^)]*\)))?\)(?:\{([^}]*)\})?`)
+
+// parseImageDimAttrs parses Pandoc-style image dimension attributes from the
+// content inside {…} (e.g. "width=200 height=150" or "w=200 h=150").
+// Values are returned as integers; unspecified dimensions are 0.
+func parseImageDimAttrs(attrs string) (width, height int) {
+	for _, part := range strings.Fields(attrs) {
+		switch {
+		case strings.HasPrefix(part, "width="):
+			val := strings.TrimPrefix(part, "width=")
+			val = strings.TrimSuffix(val, "px")
+			val = strings.TrimSuffix(val, "%")
+			if n, err := strconv.Atoi(val); err == nil {
+				width = n
+			}
+		case strings.HasPrefix(part, "height="):
+			val := strings.TrimPrefix(part, "height=")
+			val = strings.TrimSuffix(val, "px")
+			val = strings.TrimSuffix(val, "%")
+			if n, err := strconv.Atoi(val); err == nil {
+				height = n
+			}
+		case strings.HasPrefix(part, "w="):
+			val := strings.TrimPrefix(part, "w=")
+			if n, err := strconv.Atoi(val); err == nil {
+				width = n
+			}
+		case strings.HasPrefix(part, "h="):
+			val := strings.TrimPrefix(part, "h=")
+			if n, err := strconv.Atoi(val); err == nil {
+				height = n
+			}
+		}
+	}
+	return width, height
+}
 
 // imgPlaceholderToken generates a random hex token for image placeholders.
 var imgPlaceholderToken = func() string {
@@ -68,6 +106,11 @@ func extractMarkdownImages(content string) (string, []markdownImage) {
 			alt:         subs[1],
 			originalRef: ref,
 			token:       token,
+		}
+		if len(subs) > 4 && subs[4] != "" {
+			w, h := parseImageDimAttrs(subs[4])
+			img.widthPt = float64(w)
+			img.heightPt = float64(h)
 		}
 		images = append(images, img)
 		placeholder := img.placeholder()
@@ -352,19 +395,26 @@ func buildImageInsertRequests(placeholders map[string]docRange, images []markdow
 				},
 			},
 		})
-		// Then insert the image at that position, capped to page content width.
+		// Then insert the image at that position.
+		objSize := &docs.Size{}
+		switch {
+		case e.image.widthPt > 0 && e.image.heightPt > 0:
+			objSize.Width = &docs.Dimension{Magnitude: e.image.widthPt, Unit: "PT"}
+			objSize.Height = &docs.Dimension{Magnitude: e.image.heightPt, Unit: "PT"}
+		case e.image.widthPt > 0:
+			objSize.Width = &docs.Dimension{Magnitude: e.image.widthPt, Unit: "PT"}
+		case e.image.heightPt > 0:
+			objSize.Height = &docs.Dimension{Magnitude: e.image.heightPt, Unit: "PT"}
+		default:
+			objSize.Width = &docs.Dimension{Magnitude: defaultImageMaxWidthPt, Unit: "PT"}
+		}
 		reqs = append(reqs, &docs.Request{
 			InsertInlineImage: &docs.InsertInlineImageRequest{
 				Uri: e.url,
 				Location: &docs.Location{
 					Index: e.dr.startIndex,
 				},
-				ObjectSize: &docs.Size{
-					Width: &docs.Dimension{
-						Magnitude: defaultImageMaxWidthPt,
-						Unit:      "PT",
-					},
-				},
+				ObjectSize: objSize,
 			},
 		})
 	}
