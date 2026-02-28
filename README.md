@@ -324,6 +324,17 @@ Notes:
 - `--drive-scope readonly` is enough for listing/downloading/exporting via Drive (write operations will 403).
 - `--drive-scope file` is write-capable (limited to files created/opened by this app) and can’t be combined with `--readonly`.
 
+Runtime read-only mode (command guard):
+
+```bash
+gog --read-only <command>
+# or
+export GOG_READ_ONLY=true
+```
+
+When enabled, mutating commands (`create`, `update`, `delete`, `send`, etc.) are blocked before execution.
+This is useful when you want one CLI profile that is strictly browse-only.
+
 If you need to add services later and Google doesn't return a refresh token, re-run with `--force-consent`:
 
 ```bash

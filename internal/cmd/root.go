@@ -37,6 +37,7 @@ type RootFlags struct {
 	ResultsOnly    bool   `name:"results-only" help:"In JSON mode, emit only the primary result (drops envelope fields like nextPageToken)"`
 	Select         string `name:"select" aliases:"pick,project" help:"In JSON mode, select comma-separated fields (best-effort; supports dot paths). Desire path: use --fields for most commands."`
 	DryRun         bool   `help:"Do not make changes; print intended actions and exit successfully" aliases:"noop,preview,dryrun" short:"n"`
+	ReadOnly       bool   `name:"read-only" help:"Block mutating commands; allow read/list/get/search/export operations only" default:"${read_only}"`
 	Force          bool   `help:"Skip confirmations for destructive commands" aliases:"yes,assume-yes" short:"y"`
 	NoInput        bool   `help:"Never prompt; fail instead (useful for CI)" aliases:"non-interactive,noninteractive"`
 	Verbose        bool   `help:"Enable verbose logging" short:"v"`
@@ -118,6 +119,10 @@ func Execute(args []string) (err error) {
 	}
 
 	if err = enforceEnabledCommands(kctx, cli.EnableCommands); err != nil {
+		_, _ = fmt.Fprintln(os.Stderr, errfmt.Format(err))
+		return err
+	}
+	if err = enforceReadOnlyCommand(kctx, cli.ReadOnly); err != nil {
 		_, _ = fmt.Fprintln(os.Stderr, errfmt.Format(err))
 		return err
 	}
@@ -303,6 +308,7 @@ func newParser(description string) (*kong.Kong, *CLI, error) {
 		"enabled_commands": envOr("GOG_ENABLE_COMMANDS", ""),
 		"json":             boolString(envMode.JSON),
 		"plain":            boolString(envMode.Plain),
+		"read_only":        envOr("GOG_READ_ONLY", "false"),
 		"version":          VersionString(),
 	}
 
