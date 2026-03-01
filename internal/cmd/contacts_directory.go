@@ -449,7 +449,11 @@ func deleteOtherContact(ctx context.Context, account, resourceName string) error
 	}
 	copied, err := otherSvc.OtherContacts.CopyOtherContactToMyContactsGroup(
 		resourceName,
-		&people.CopyOtherContactToMyContactsGroupRequest{},
+		&people.CopyOtherContactToMyContactsGroupRequest{
+			// CopyMask is required by the People API; omitting it causes a 400 "copyMask is required" error.
+			// See: https://developers.google.com/people/api/rest/v1/otherContacts/copyOtherContactToMyContactsGroup
+			CopyMask: "names,phoneNumbers,emailAddresses,organizations,biographies,urls,addresses,birthdays,events,relations,userDefined",
+		},
 	).Do()
 	if err != nil {
 		return fmt.Errorf("copy to my contacts: %w", err)
