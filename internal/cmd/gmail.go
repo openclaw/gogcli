@@ -29,6 +29,10 @@ type GmailCmd struct {
 
 	Labels GmailLabelsCmd `cmd:"" name:"labels" aliases:"label" group:"Organize" help:"Label operations"`
 	Batch  GmailBatchCmd  `cmd:"" name:"batch" group:"Organize" help:"Batch operations"`
+	Archive GmailArchiveCmd `cmd:"" name:"archive" group:"Organize" help:"Archive messages (remove from inbox)"`
+	Read    GmailReadCmd    `cmd:"" name:"read" aliases:"mark-read" group:"Organize" help:"Mark messages as read"`
+	Unread  GmailUnreadCmd  `cmd:"" name:"unread" aliases:"mark-unread" group:"Organize" help:"Mark messages as unread"`
+	Trash   GmailTrashMsgCmd `cmd:"" name:"trash" group:"Organize" help:"Move messages to trash"`
 
 	Send   GmailSendCmd   `cmd:"" name:"send" group:"Write" help:"Send an email"`
 	Track  GmailTrackCmd  `cmd:"" name:"track" group:"Write" help:"Email open tracking"`
