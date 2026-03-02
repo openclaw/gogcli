@@ -42,6 +42,34 @@ jobs:
       - name: Test
         run: pnpm -C internal/tracking/worker test
 
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Install tools
+        run: make tools
+        shell: bash
+      - name: Format check
+        run: make fmt-check
+        shell: bash
+      - name: Test
+        # Skip tests that depend on macOS Keychain / Linux keyring or Unix path semantics.
+        # These are covered by ubuntu-latest and macos-latest jobs.
+        # See https://github.com/steipete/gogcli/issues/395
+        run: >-
+          go test ./...
+          -skip 'TestAuth|TestListClientCredentials|TestReadClientCredentials|TestConfigExists|TestExpandPath|TestResolveKeyringBackendInfo|TestLoadSecrets_LegacyFallback'
+        shell: bash
+      - name: Lint
+        run: make lint
+        shell: bash
+      - name: Build
+        run: go build ./cmd/gog
+
   darwin-cgo-build:
     runs-on: macos-latest
     steps:
