@@ -197,6 +197,12 @@ func TestSheetsClearMetadataCreate_ValidationErrors(t *testing.T) {
 	if err := (&SheetsMetadataCmd{}).Run(ctx, flags); err == nil {
 		t.Fatalf("expected metadata missing spreadsheetId error")
 	}
+	if err := (&SheetsLinksCmd{}).Run(ctx, flags); err == nil {
+		t.Fatalf("expected links missing spreadsheetId error")
+	}
+	if err := (&SheetsLinksCmd{SpreadsheetID: "s1"}).Run(ctx, flags); err == nil {
+		t.Fatalf("expected links missing range error")
+	}
 	if err := (&SheetsCreateCmd{}).Run(ctx, flags); err == nil {
 		t.Fatalf("expected create missing title error")
 	}

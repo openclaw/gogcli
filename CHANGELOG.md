@@ -4,6 +4,7 @@
 
 ### Added
 - Sheets: add `sheets insert` to insert rows/columns into a sheet. (#203) — thanks @andybergon.
+- Sheets: add `sheets links` (alias `hyperlinks`) to list cell links from ranges, including rich-text links. (#374) — thanks @omothm.
 - Gmail: add `watch serve --history-types` filtering (`messageAdded|messageDeleted|labelAdded|labelRemoved`) and include `deletedMessageIds` in webhook payloads. (#168) — thanks @salmonumbrella.
 - Contacts: support `--org`, `--title`, `--url`, `--note`, and `--custom` on create/update; include custom fields in get output with deterministic ordering. (#199) — thanks @phuctm97.
 - Drive: add `drive ls --all` (alias `--global`) to list across all accessible files; make `--all` and `--parent` mutually exclusive. (#107) — thanks @struong.
