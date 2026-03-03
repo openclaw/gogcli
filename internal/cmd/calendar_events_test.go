@@ -114,6 +114,74 @@ func TestCalendarEventsCmd_DefaultsToPrimary(t *testing.T) {
 	}
 }
 
+func TestCalendarEventsCmd_TodayPrimaryAliasNotFound(t *testing.T) {
+	origNew := newCalendarService
+	t.Cleanup(func() { newCalendarService = origNew })
+
+	const calendarID = "oskar@firstmovr.com"
+	svc, closeServer := newTestCalendarService(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := strings.ReplaceAll(r.URL.Path, "%40", "@")
+		switch {
+		case strings.Contains(path, "/calendarList/primary") && r.Method == http.MethodGet:
+			http.NotFound(w, r)
+			return
+		case strings.Contains(path, "/calendarList") && r.Method == http.MethodGet:
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"items": []map[string]any{
+					{
+						"id":       calendarID,
+						"summary":  "Workspace Calendar",
+						"timeZone": "America/New_York",
+						"primary":  true,
+					},
+				},
+			})
+			return
+		case strings.Contains(path, "/calendars/"+calendarID+"/events") && r.Method == http.MethodGet:
+			if strings.TrimSpace(r.URL.Query().Get("timeMin")) == "" {
+				t.Errorf("expected timeMin query param")
+			}
+			if strings.TrimSpace(r.URL.Query().Get("timeMax")) == "" {
+				t.Errorf("expected timeMax query param")
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"items": []map[string]any{
+					{"id": "e1", "summary": "Event"},
+				},
+			})
+			return
+		default:
+			http.NotFound(w, r)
+			return
+		}
+	}))
+	defer closeServer()
+	newCalendarService = func(context.Context, string) (*calendar.Service, error) { return svc, nil }
+
+	u, err := ui.New(ui.Options{Stdout: io.Discard, Stderr: io.Discard, Color: "never"})
+	if err != nil {
+		t.Fatalf("ui.New: %v", err)
+	}
+	ctx := outfmt.WithMode(ui.WithUI(context.Background(), u), outfmt.Mode{JSON: true})
+	flags := &RootFlags{Account: "a@b.com"}
+
+	cmd := &CalendarEventsCmd{
+		CalendarID: calendarID,
+		Today:      true,
+	}
+	out := captureStdout(t, func() {
+		if err := cmd.Run(ctx, flags); err != nil {
+			t.Fatalf("Run: %v", err)
+		}
+	})
+
+	if !strings.Contains(out, "\"events\"") {
+		t.Fatalf("unexpected output: %q", out)
+	}
+}
+
 func TestCalendarEventsCmd_CalendarsFlag(t *testing.T) {
 	origNew := newCalendarService
 	t.Cleanup(func() { newCalendarService = origNew })

@@ -162,6 +162,44 @@ func TestGetUserTimezoneInvalid(t *testing.T) {
 	}
 }
 
+func TestGetUserTimezonePrimaryNotFoundFallsBackToCalendarList(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case strings.Contains(r.URL.Path, "/calendarList/primary") && r.Method == http.MethodGet:
+			http.NotFound(w, r)
+			return
+		case strings.Contains(r.URL.Path, "/calendarList") && r.Method == http.MethodGet:
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"items": []map[string]any{
+					{"id": "team@example.com", "summary": "Team", "timeZone": "America/Los_Angeles"},
+					{"id": "user@example.com", "summary": "User", "timeZone": "America/New_York", "primary": true},
+				},
+			})
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	t.Cleanup(srv.Close)
+
+	svc, err := calendar.NewService(context.Background(),
+		option.WithoutAuthentication(),
+		option.WithHTTPClient(srv.Client()),
+		option.WithEndpoint(srv.URL+"/"),
+	)
+	if err != nil {
+		t.Fatalf("NewService: %v", err)
+	}
+
+	loc, err := getUserTimezone(context.Background(), svc)
+	if err != nil {
+		t.Fatalf("getUserTimezone: %v", err)
+	}
+	if loc.String() != "America/New_York" {
+		t.Fatalf("expected primary calendar timezone fallback, got %q", loc.String())
+	}
+}
+
 func TestResolveTimeRangeWithDefaultsToTomorrowEndOfDay(t *testing.T) {
 	svc := newCalendarServiceWithTimezone(t, "UTC")
 	flags := TimeRangeFlags{

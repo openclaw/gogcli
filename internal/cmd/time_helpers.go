@@ -2,11 +2,14 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 	"time"
 
 	"google.golang.org/api/calendar/v3"
+	"google.golang.org/api/googleapi"
 
 	"github.com/steipete/gogcli/internal/timeparse"
 )
@@ -51,24 +54,76 @@ func getCalendarLocation(ctx context.Context, svc *calendar.Service, calendarID 
 	return cal.TimeZone, loc, nil
 }
 
-// getUserTimezone fetches the timezone from the user's primary calendar.
+// getUserTimezone fetches the user's timezone.
+// It prefers calendarList/primary, but falls back to calendarList entries because
+// some Workspace accounts return 404 for "primary".
 func getUserTimezone(ctx context.Context, svc *calendar.Service) (*time.Location, error) {
-	cal, err := svc.CalendarList.Get("primary").Context(ctx).Do()
-	if err != nil {
+	cal, err := svc.CalendarList.Get(primaryCalendarID).Context(ctx).Do()
+	if err == nil {
+		return loadTimezoneOrUTC(cal.TimeZone)
+	}
+
+	if !isGoogleNotFound(err) {
 		return nil, fmt.Errorf("failed to get primary calendar: %w", err)
 	}
 
-	if cal.TimeZone == "" {
-		// Fall back to UTC if no timezone set
+	calendars, listErr := listCalendarList(ctx, svc)
+	if listErr != nil {
+		return nil, fmt.Errorf("failed to get primary calendar and fallback calendar list lookup: %w", errors.Join(err, listErr))
+	}
+
+	return timezoneFromCalendarList(calendars)
+}
+
+func timezoneFromCalendarList(calendars []*calendar.CalendarListEntry) (*time.Location, error) {
+	ordered := make([]*calendar.CalendarListEntry, 0, len(calendars))
+	for _, cal := range calendars {
+		if cal != nil && cal.Primary {
+			ordered = append(ordered, cal)
+		}
+	}
+	for _, cal := range calendars {
+		if cal != nil && !cal.Primary {
+			ordered = append(ordered, cal)
+		}
+	}
+
+	var firstInvalid error
+	for _, cal := range ordered {
+		tz := strings.TrimSpace(cal.TimeZone)
+		if tz == "" {
+			continue
+		}
+		loc, err := time.LoadLocation(tz)
+		if err != nil {
+			if firstInvalid == nil {
+				firstInvalid = fmt.Errorf("invalid calendar timezone %q on calendar %q: %w", tz, cal.Id, err)
+			}
+			continue
+		}
+		return loc, nil
+	}
+	if firstInvalid != nil {
+		return nil, firstInvalid
+	}
+
+	return time.UTC, nil
+}
+
+func loadTimezoneOrUTC(timezone string) (*time.Location, error) {
+	if strings.TrimSpace(timezone) == "" {
 		return time.UTC, nil
 	}
-
-	loc, err := time.LoadLocation(cal.TimeZone)
+	loc, err := time.LoadLocation(timezone)
 	if err != nil {
-		return nil, fmt.Errorf("invalid calendar timezone %q: %w", cal.TimeZone, err)
+		return nil, fmt.Errorf("invalid calendar timezone %q: %w", timezone, err)
 	}
-
 	return loc, nil
+}
+
+func isGoogleNotFound(err error) bool {
+	var gerr *googleapi.Error
+	return errors.As(err, &gerr) && gerr.Code == http.StatusNotFound
 }
 
 // ResolveTimeRange resolves the time range flags into absolute times.
