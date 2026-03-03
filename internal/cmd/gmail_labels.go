@@ -16,6 +16,7 @@ type GmailLabelsCmd struct {
 	List   GmailLabelsListCmd   `cmd:"" name:"list" aliases:"ls" help:"List labels"`
 	Get    GmailLabelsGetCmd    `cmd:"" name:"get" aliases:"info,show" help:"Get label details (including counts)"`
 	Create GmailLabelsCreateCmd `cmd:"" name:"create" aliases:"add,new" help:"Create a new label"`
+	Rename GmailLabelsRenameCmd `cmd:"" name:"rename" aliases:"mv" help:"Rename a label"`
 	Modify GmailLabelsModifyCmd `cmd:"" name:"modify" aliases:"update,edit,set" help:"Modify labels on threads"`
 	Delete GmailLabelsDeleteCmd `cmd:"" name:"delete" aliases:"rm,del" help:"Delete a label"`
 }
@@ -110,6 +111,82 @@ func createLabel(ctx context.Context, svc *gmail.Service, name string) (*gmail.L
 		LabelListVisibility:   "labelShow",
 		MessageListVisibility: "show",
 	}).Context(ctx).Do()
+}
+
+type GmailLabelsRenameCmd struct {
+	Label   string `arg:"" name:"labelIdOrName" help:"Current label ID or name"`
+	NewName string `arg:"" name:"newName" help:"New label name"`
+}
+
+func (c *GmailLabelsRenameCmd) Run(ctx context.Context, flags *RootFlags) error {
+	u := ui.FromContext(ctx)
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
+	}
+
+	oldRaw := strings.TrimSpace(c.Label)
+	if oldRaw == "" {
+		return usage("label is required")
+	}
+	newName := strings.TrimSpace(c.NewName)
+	if newName == "" {
+		return usage("new name is required")
+	}
+
+	svc, err := newGmailService(ctx, account)
+	if err != nil {
+		return err
+	}
+
+	// Resolve the label: try exact ID first, then fall back to name lookup.
+	label, err := svc.Users.Labels.Get("me", oldRaw).Context(ctx).Do()
+	if err != nil {
+		if !isNotFoundAPIError(err) {
+			return err
+		}
+		idMap, mapErr := fetchLabelNameToID(svc)
+		if mapErr != nil {
+			return mapErr
+		}
+		id, ok := idMap[strings.ToLower(oldRaw)]
+		if !ok {
+			return fmt.Errorf("label not found: %s", oldRaw)
+		}
+		label, err = svc.Users.Labels.Get("me", id).Context(ctx).Do()
+		if err != nil {
+			return err
+		}
+	}
+
+	if label.Type == "system" {
+		return fmt.Errorf("cannot rename system label %q", label.Name)
+	}
+
+	if err := ensureLabelNameAvailable(svc, newName); err != nil {
+		return err
+	}
+
+	if exit := dryRunExit(ctx, flags, "labels.patch", map[string]string{
+		"id":      label.Id,
+		"oldName": label.Name,
+		"newName": newName,
+	}); exit != nil {
+		return exit
+	}
+
+	updated, err := svc.Users.Labels.Patch("me", label.Id, &gmail.Label{
+		Name: newName,
+	}).Context(ctx).Do()
+	if err != nil {
+		return mapLabelCreateError(err, newName)
+	}
+
+	if outfmt.IsJSON(ctx) {
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{"label": updated})
+	}
+	u.Out().Printf("Renamed label: %s → %s (id: %s)", label.Name, updated.Name, updated.Id)
+	return nil
 }
 
 type GmailLabelsListCmd struct{}
