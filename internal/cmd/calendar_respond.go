@@ -47,13 +47,13 @@ func (c *CalendarRespondCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return fmt.Errorf("invalid status %q; must be one of: %s", status, strings.Join(validStatuses, ", "))
 	}
 
-	if err := dryRunExit(ctx, flags, "calendar.respond", map[string]any{
+	if dryRunErr := dryRunExit(ctx, flags, "calendar.respond", map[string]any{
 		"calendar_id": calendarID,
 		"event_id":    eventID,
 		"status":      status,
 		"comment":     strings.TrimSpace(c.Comment),
-	}); err != nil {
-		return err
+	}); dryRunErr != nil {
+		return dryRunErr
 	}
 
 	account, err := requireAccount(flags)

@@ -53,15 +53,15 @@ func (c *CalendarProposeTimeCmd) Run(ctx context.Context, flags *RootFlags) erro
 	proposeURL := "https://calendar.google.com/calendar/u/0/r/proposetime/" + encoded
 
 	// Avoid touching auth/keyring and avoid mutating the event in dry-run mode.
-	if err := dryRunExit(ctx, flags, "calendar.propose_time", map[string]any{
+	if dryRunErr := dryRunExit(ctx, flags, "calendar.propose_time", map[string]any{
 		"calendar_id": calendarID,
 		"event_id":    eventID,
 		"propose_url": proposeURL,
 		"open":        c.Open,
 		"decline":     decline,
 		"comment":     strings.TrimSpace(c.Comment),
-	}); err != nil {
-		return err
+	}); dryRunErr != nil {
+		return dryRunErr
 	}
 
 	account, err := requireAccount(flags)

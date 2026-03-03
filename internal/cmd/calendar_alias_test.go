@@ -26,22 +26,22 @@ func TestCalendarAliasSetListUnset_JSON(t *testing.T) {
 
 	// set
 	_ = captureStdout(t, func() {
-		if err := runKong(t, &CalendarAliasSetCmd{}, []string{"family", "3656f8abc123@group.calendar.google.com"}, ctx, &RootFlags{}); err != nil {
-			t.Fatalf("set: %v", err)
+		if runErr := runKong(t, &CalendarAliasSetCmd{}, []string{"family", "3656f8abc123@group.calendar.google.com"}, ctx, &RootFlags{}); runErr != nil {
+			t.Fatalf("set: %v", runErr)
 		}
 	})
 
 	// list
 	out := captureStdout(t, func() {
-		if err := runKong(t, &CalendarAliasListCmd{}, []string{}, ctx, &RootFlags{}); err != nil {
-			t.Fatalf("list: %v", err)
+		if runErr := runKong(t, &CalendarAliasListCmd{}, []string{}, ctx, &RootFlags{}); runErr != nil {
+			t.Fatalf("list: %v", runErr)
 		}
 	})
 	var listResp struct {
 		Aliases map[string]string `json:"aliases"`
 	}
-	if err := json.Unmarshal([]byte(out), &listResp); err != nil {
-		t.Fatalf("list json: %v", err)
+	if unmarshalErr := json.Unmarshal([]byte(out), &listResp); unmarshalErr != nil {
+		t.Fatalf("list json: %v", unmarshalErr)
 	}
 	if listResp.Aliases["family"] != "3656f8abc123@group.calendar.google.com" {
 		t.Fatalf("unexpected aliases: %#v", listResp.Aliases)
@@ -49,8 +49,8 @@ func TestCalendarAliasSetListUnset_JSON(t *testing.T) {
 
 	// unset
 	_ = captureStdout(t, func() {
-		if err := runKong(t, &CalendarAliasUnsetCmd{}, []string{"family"}, ctx, &RootFlags{}); err != nil {
-			t.Fatalf("unset: %v", err)
+		if runErr := runKong(t, &CalendarAliasUnsetCmd{}, []string{"family"}, ctx, &RootFlags{}); runErr != nil {
+			t.Fatalf("unset: %v", runErr)
 		}
 	})
 

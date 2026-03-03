@@ -51,10 +51,11 @@ func (c *CalendarTimeCmd) Run(ctx context.Context, flags *RootFlags) error {
 			return err
 		}
 
-		calendarID, err = resolveCalendarID(ctx, svc, calendarID)
-		if err != nil {
-			return err
+		resolvedCalendarID, resolveErr := resolveCalendarID(ctx, svc, calendarID)
+		if resolveErr != nil {
+			return resolveErr
 		}
+		calendarID = resolvedCalendarID
 		tz, loc, err = getCalendarLocation(ctx, svc, calendarID)
 		if err != nil {
 			return err

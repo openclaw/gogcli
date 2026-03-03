@@ -39,6 +39,7 @@ func ResolveCalendarID(calendarID string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+
 	if ok {
 		return resolved, nil
 	}

@@ -52,6 +52,7 @@ func TestResolveCalendarID(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolve empty: %v", err)
 	}
+
 	if resolved != "primary" {
 		t.Fatalf("expected primary for empty, got %q", resolved)
 	}
@@ -61,19 +62,21 @@ func TestResolveCalendarID(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolve non-alias: %v", err)
 	}
+
 	if resolved != "some-calendar-id@group.calendar.google.com" {
 		t.Fatalf("expected unchanged, got %q", resolved)
 	}
 
 	// Set alias and resolve
-	if err := SetCalendarAlias("work", "work-calendar@group.calendar.google.com"); err != nil {
-		t.Fatalf("set alias: %v", err)
+	if setErr := SetCalendarAlias("work", "work-calendar@group.calendar.google.com"); setErr != nil {
+		t.Fatalf("set alias: %v", setErr)
 	}
 
 	resolved, err = ResolveCalendarID("work")
 	if err != nil {
 		t.Fatalf("resolve alias: %v", err)
 	}
+
 	if resolved != "work-calendar@group.calendar.google.com" {
 		t.Fatalf("expected resolved alias, got %q", resolved)
 	}
@@ -83,6 +86,7 @@ func TestResolveCalendarID(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolve uppercase alias: %v", err)
 	}
+
 	if resolved != "work-calendar@group.calendar.google.com" {
 		t.Fatalf("expected resolved alias for uppercase, got %q", resolved)
 	}

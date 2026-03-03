@@ -32,7 +32,7 @@ func (c *CalendarSearchCmd) Run(ctx context.Context, flags *RootFlags) error {
 
 	calendarID := c.CalendarID
 	if calendarID == "" {
-		calendarID = "primary"
+		calendarID = primaryCalendarID
 	} else {
 		resolved, resolveErr := resolveCalendarID(calendarID)
 		if resolveErr != nil {
