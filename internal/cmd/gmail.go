@@ -27,11 +27,11 @@ type GmailCmd struct {
 	URL        GmailURLCmd        `cmd:"" name:"url" group:"Read" help:"Print Gmail web URLs for threads"`
 	History    GmailHistoryCmd    `cmd:"" name:"history" group:"Read" help:"Gmail history"`
 
-	Labels GmailLabelsCmd `cmd:"" name:"labels" aliases:"label" group:"Organize" help:"Label operations"`
-	Batch  GmailBatchCmd  `cmd:"" name:"batch" group:"Organize" help:"Batch operations"`
-	Archive GmailArchiveCmd `cmd:"" name:"archive" group:"Organize" help:"Archive messages (remove from inbox)"`
-	Read    GmailReadCmd    `cmd:"" name:"read" aliases:"mark-read" group:"Organize" help:"Mark messages as read"`
-	Unread  GmailUnreadCmd  `cmd:"" name:"unread" aliases:"mark-unread" group:"Organize" help:"Mark messages as unread"`
+	Labels  GmailLabelsCmd   `cmd:"" name:"labels" aliases:"label" group:"Organize" help:"Label operations"`
+	Batch   GmailBatchCmd    `cmd:"" name:"batch" group:"Organize" help:"Batch operations"`
+	Archive GmailArchiveCmd  `cmd:"" name:"archive" group:"Organize" help:"Archive messages (remove from inbox)"`
+	Read    GmailReadCmd     `cmd:"" name:"mark-read" aliases:"read-messages" group:"Organize" help:"Mark messages as read"`
+	Unread  GmailUnreadCmd   `cmd:"" name:"unread" aliases:"mark-unread" group:"Organize" help:"Mark messages as unread"`
 	Trash   GmailTrashMsgCmd `cmd:"" name:"trash" group:"Organize" help:"Move messages to trash"`
 
 	Send   GmailSendCmd   `cmd:"" name:"send" group:"Write" help:"Send an email"`

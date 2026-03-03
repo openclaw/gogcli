@@ -20,7 +20,7 @@ type GmailArchiveCmd struct {
 }
 
 func (c *GmailArchiveCmd) Run(ctx context.Context, flags *RootFlags) error {
-	return gmailBulkLabelOp(ctx, flags, c.MessageIDs, c.Query, c.Max, nil, []string{"INBOX"}, "archived")
+	return gmailBulkLabelOp(ctx, flags, c.MessageIDs, c.Query, c.Max, nil, []string{"INBOX"}, "archived", "gmail.archive")
 }
 
 // GmailTrashMsgCmd moves messages to trash.
@@ -31,7 +31,7 @@ type GmailTrashMsgCmd struct {
 }
 
 func (c *GmailTrashMsgCmd) Run(ctx context.Context, flags *RootFlags) error {
-	return gmailBulkLabelOp(ctx, flags, c.MessageIDs, c.Query, c.Max, []string{"TRASH"}, []string{"INBOX"}, "trashed")
+	return gmailBulkLabelOp(ctx, flags, c.MessageIDs, c.Query, c.Max, []string{"TRASH"}, []string{"INBOX"}, "trashed", "gmail.trash")
 }
 
 // GmailReadCmd marks messages as read.
@@ -42,7 +42,7 @@ type GmailReadCmd struct {
 }
 
 func (c *GmailReadCmd) Run(ctx context.Context, flags *RootFlags) error {
-	return gmailBulkLabelOp(ctx, flags, c.MessageIDs, c.Query, c.Max, nil, []string{"UNREAD"}, "marked as read")
+	return gmailBulkLabelOp(ctx, flags, c.MessageIDs, c.Query, c.Max, nil, []string{"UNREAD"}, "marked as read", "gmail.read")
 }
 
 // GmailUnreadCmd marks messages as unread.
@@ -53,15 +53,34 @@ type GmailUnreadCmd struct {
 }
 
 func (c *GmailUnreadCmd) Run(ctx context.Context, flags *RootFlags) error {
-	return gmailBulkLabelOp(ctx, flags, c.MessageIDs, c.Query, c.Max, []string{"UNREAD"}, nil, "marked as unread")
+	return gmailBulkLabelOp(ctx, flags, c.MessageIDs, c.Query, c.Max, []string{"UNREAD"}, nil, "marked as unread", "gmail.unread")
 }
 
 // gmailBulkLabelOp handles the common pattern: resolve IDs (from args or query), then batch modify labels.
-func gmailBulkLabelOp(ctx context.Context, flags *RootFlags, messageIDs []string, query string, max int64, addLabels, removeLabels []string, verb string) error {
+func gmailBulkLabelOp(ctx context.Context, flags *RootFlags, messageIDs []string, query string, limit int64, addLabels, removeLabels []string, verb string, dryRunOp string) error {
 	u := ui.FromContext(ctx)
 
-	if len(messageIDs) == 0 && query == "" {
+	idsFromArgs := make([]string, 0, len(messageIDs))
+	for _, id := range messageIDs {
+		id = normalizeGmailMessageID(id)
+		if id != "" {
+			idsFromArgs = append(idsFromArgs, id)
+		}
+	}
+
+	if len(idsFromArgs) == 0 && query == "" {
 		return usage("provide message IDs or --query")
+	}
+
+	if err := dryRunExit(ctx, flags, dryRunOp, map[string]any{
+		"message_ids":    idsFromArgs,
+		"query":          strings.TrimSpace(query),
+		"max":            limit,
+		"added_labels":   nonNilStrings(addLabels),
+		"removed_labels": nonNilStrings(removeLabels),
+		"action":         verb,
+	}); err != nil {
+		return err
 	}
 
 	account, err := requireAccount(flags)
@@ -75,19 +94,14 @@ func gmailBulkLabelOp(ctx context.Context, flags *RootFlags, messageIDs []string
 	}
 
 	// Collect IDs: either from args or by searching
-	ids := make([]string, 0)
+	ids := make([]string, 0, len(idsFromArgs))
 	if query != "" {
-		ids, err = searchMessageIDs(ctx, svc, query, max)
+		ids, err = searchMessageIDs(ctx, svc, query, limit)
 		if err != nil {
 			return err
 		}
 	}
-	for _, id := range messageIDs {
-		id = normalizeGmailMessageID(id)
-		if id != "" {
-			ids = append(ids, id)
-		}
-	}
+	ids = append(ids, idsFromArgs...)
 
 	if len(ids) == 0 {
 		if outfmt.IsJSON(ctx) {
@@ -147,10 +161,10 @@ func gmailBulkLabelOp(ctx context.Context, flags *RootFlags, messageIDs []string
 }
 
 // searchMessageIDs returns message IDs matching a Gmail query.
-func searchMessageIDs(ctx context.Context, svc *gmail.Service, query string, max int64) ([]string, error) {
+func searchMessageIDs(ctx context.Context, svc *gmail.Service, query string, limit int64) ([]string, error) {
 	var ids []string
 	pageToken := ""
-	remaining := max
+	remaining := limit
 
 	for {
 		batchSize := remaining
@@ -200,4 +214,11 @@ func capitalizeFirst(s string) string {
 		return s
 	}
 	return strings.ToUpper(s[:1]) + s[1:]
+}
+
+func nonNilStrings(values []string) []string {
+	if values == nil {
+		return []string{}
+	}
+	return values
 }
