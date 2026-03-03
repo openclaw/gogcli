@@ -444,8 +444,8 @@ func (c *CalendarUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *
 		return err
 	}
 	if recurrenceProvided {
-		if err := ensureRecurringPatchDateTimes(ctx, svc, calendarID, targetEventID, patch); err != nil {
-			return err
+		if enrichErr := ensureRecurringPatchDateTimes(ctx, svc, calendarID, targetEventID, patch); enrichErr != nil {
+			return enrichErr
 		}
 	}
 
