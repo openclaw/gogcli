@@ -405,6 +405,93 @@ func writeDraftResult(ctx context.Context, u *ui.UI, draft *gmail.Draft, threadI
 	return nil
 }
 
+func resolveQuoteReplyTargetMessageID(ctx context.Context, svc *gmail.Service, threadID string, account string, excludeMessageID string) (string, error) {
+	threadID = strings.TrimSpace(threadID)
+	if threadID == "" {
+		return "", usage("--quote requires --reply-to-message-id or existing draft thread")
+	}
+
+	thread, err := fetchThreadForReplyInfo(ctx, svc, threadID)
+	if err != nil {
+		return "", err
+	}
+	if thread == nil || len(thread.Messages) == 0 {
+		return "", usage("--quote requires --reply-to-message-id or existing draft thread")
+	}
+
+	msg := selectLatestThreadReplyTarget(thread.Messages, account, excludeMessageID)
+	if msg == nil || strings.TrimSpace(msg.Id) == "" {
+		return "", usage("--quote requires --reply-to-message-id or existing draft thread with a non-draft, non-self message")
+	}
+	return msg.Id, nil
+}
+
+func selectLatestThreadReplyTarget(messages []*gmail.Message, account string, excludeMessageID string) *gmail.Message {
+	account = strings.ToLower(strings.TrimSpace(account))
+	excludeMessageID = strings.TrimSpace(excludeMessageID)
+
+	var selected *gmail.Message
+	var selectedDate int64
+	hasDate := false
+
+	for _, msg := range messages {
+		if msg == nil || strings.TrimSpace(msg.Id) == "" {
+			continue
+		}
+		if excludeMessageID != "" && strings.TrimSpace(msg.Id) == excludeMessageID {
+			continue
+		}
+		if hasLabel(msg.LabelIds, "DRAFT") {
+			continue
+		}
+		if account != "" && messageFromMatchesAccount(msg, account) {
+			continue
+		}
+
+		if msg.InternalDate <= 0 {
+			if selected == nil && !hasDate {
+				selected = msg
+			}
+			continue
+		}
+		if !hasDate || msg.InternalDate > selectedDate {
+			selected = msg
+			selectedDate = msg.InternalDate
+			hasDate = true
+		}
+	}
+	return selected
+}
+
+func hasLabel(labels []string, target string) bool {
+	target = strings.ToUpper(strings.TrimSpace(target))
+	if target == "" {
+		return false
+	}
+	for _, l := range labels {
+		if strings.ToUpper(strings.TrimSpace(l)) == target {
+			return true
+		}
+	}
+	return false
+}
+
+func messageFromMatchesAccount(msg *gmail.Message, account string) bool {
+	if msg == nil {
+		return false
+	}
+	fromHeader := headerValue(msg.Payload, "From")
+	if strings.TrimSpace(fromHeader) == "" {
+		return false
+	}
+	for _, addr := range parseEmailAddresses(fromHeader) {
+		if strings.EqualFold(addr, account) {
+			return true
+		}
+	}
+	return false
+}
+
 func (c *GmailDraftsCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
 
@@ -574,6 +661,7 @@ func (c *GmailDraftsUpdateCmd) Run(ctx context.Context, flags *RootFlags) error 
 	}
 
 	existingThreadID := ""
+	existingMessageID := ""
 	existingTo := ""
 	if !toWasSet || strings.TrimSpace(replyToMessageID) == "" {
 		existing, fetchErr := svc.Users.Drafts.Get("me", draftID).Format("full").Do()
@@ -582,6 +670,7 @@ func (c *GmailDraftsUpdateCmd) Run(ctx context.Context, flags *RootFlags) error 
 		}
 		if existing != nil && existing.Message != nil {
 			existingThreadID = strings.TrimSpace(existing.Message.ThreadId)
+			existingMessageID = strings.TrimSpace(existing.Message.Id)
 			if !toWasSet {
 				existingTo = strings.TrimSpace(headerValue(existing.Message.Payload, "To"))
 			}
@@ -592,6 +681,13 @@ func (c *GmailDraftsUpdateCmd) Run(ctx context.Context, flags *RootFlags) error 
 	}
 
 	replyToThreadID := ""
+	if c.Quote && strings.TrimSpace(replyToMessageID) == "" {
+		resolvedMessageID, resolveErr := resolveQuoteReplyTargetMessageID(ctx, svc, existingThreadID, account, existingMessageID)
+		if resolveErr != nil {
+			return resolveErr
+		}
+		replyToMessageID = resolvedMessageID
+	}
 	if strings.TrimSpace(replyToMessageID) == "" {
 		replyToThreadID = existingThreadID
 	}
@@ -600,6 +696,7 @@ func (c *GmailDraftsUpdateCmd) Run(ctx context.Context, flags *RootFlags) error 
 	}
 
 	input.To = to
+	input.ReplyToMessageID = replyToMessageID
 	input.ReplyToThreadID = replyToThreadID
 
 	msg, threadID, err := buildDraftMessage(ctx, svc, account, input)
