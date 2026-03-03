@@ -216,6 +216,7 @@ type GmailWatchServeCmd struct {
 	Bind          string   `name:"bind" help:"Bind address" default:"127.0.0.1"`
 	Port          int      `name:"port" help:"Listen port" default:"8788"`
 	Path          string   `name:"path" help:"Push handler path" default:"/gmail-pubsub"`
+	FetchDelay    string   `name:"fetch-delay" help:"Delay before fetching Gmail history (seconds or duration)" default:"3s"`
 	Timezone      string   `name:"timezone" short:"z" help:"Output timezone (IANA name, e.g. America/New_York, UTC). Default: local"`
 	Local         bool     `name:"local" help:"Use local timezone (default behavior, useful to override --timezone)"`
 	VerifyOIDC    bool     `name:"verify-oidc" help:"Verify Pub/Sub OIDC tokens"`
@@ -261,6 +262,13 @@ func (c *GmailWatchServeCmd) Run(ctx context.Context, kctx *kong.Context, flags 
 	historyTypes, err := parseHistoryTypes(c.HistoryTypes)
 	if err != nil {
 		return err
+	}
+	fetchDelay, err := parseDurationSeconds(c.FetchDelay)
+	if err != nil {
+		return err
+	}
+	if fetchDelay < 0 {
+		return usage("--fetch-delay must be >= 0")
 	}
 
 	store, err := loadGmailWatchStore(account)
@@ -326,6 +334,7 @@ func (c *GmailWatchServeCmd) Run(ctx context.Context, kctx *kong.Context, flags 
 		HookTimeout:   defaultHookRequestTimeoutSec * time.Second,
 		HistoryMax:    defaultHistoryMaxResults,
 		ResyncMax:     defaultHistoryResyncMax,
+		FetchDelay:    fetchDelay,
 		HistoryTypes:  historyTypes,
 		AllowNoHook:   hook == nil,
 		IncludeBody:   includeBody,

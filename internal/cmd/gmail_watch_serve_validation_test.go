@@ -37,4 +37,16 @@ func TestGmailWatchServeCmd_ValidationErrors(t *testing.T) {
 			t.Fatalf("expected error")
 		}
 	})
+
+	t.Run("fetch delay must be non-negative", func(t *testing.T) {
+		if err := runKong(t, &GmailWatchServeCmd{}, []string{"--fetch-delay", "-1", "--port", "9999"}, context.Background(), flags); err == nil {
+			t.Fatalf("expected error")
+		}
+	})
+
+	t.Run("fetch delay must parse as duration", func(t *testing.T) {
+		if err := runKong(t, &GmailWatchServeCmd{}, []string{"--fetch-delay", "not-a-duration", "--port", "9999"}, context.Background(), flags); err == nil {
+			t.Fatalf("expected error")
+		}
+	})
 }

@@ -12,6 +12,7 @@ const (
 	defaultHookMaxBytes          = 20000
 	defaultHistoryMaxResults     = 100
 	defaultHistoryResyncMax      = 10
+	defaultHistoryFetchDelay     = 3 * time.Second
 	defaultPushBodyLimitBytes    = 1024 * 1024
 	defaultHookRequestTimeoutSec = 10
 )
@@ -55,6 +56,7 @@ type gmailWatchServeConfig struct {
 	ExcludeLabels []string
 	HistoryMax    int64
 	ResyncMax     int64
+	FetchDelay    time.Duration
 	HistoryTypes  []string
 	HookTimeout   time.Duration
 	DateLocation  *time.Location

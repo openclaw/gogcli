@@ -362,6 +362,122 @@ func TestGmailWatchHelpers(t *testing.T) {
 	}
 }
 
+func TestGmailWatchServer_HandlePush_AppliesFetchDelay(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	store, err := newGmailWatchStore("a@b.com")
+	if err != nil {
+		t.Fatalf("store: %v", err)
+	}
+	if updateErr := store.Update(func(s *gmailWatchState) error {
+		s.Account = "a@b.com"
+		s.HistoryID = "100"
+		return nil
+	}); updateErr != nil {
+		t.Fatalf("seed: %v", updateErr)
+	}
+
+	var historyCalls int
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case strings.Contains(r.URL.Path, "/gmail/v1/users/me/history"):
+			historyCalls++
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"historyId": "200",
+				"history": []map[string]any{
+					{"messagesAdded": []map[string]any{
+						{"message": map[string]any{"id": "m1"}},
+					}},
+				},
+			})
+			return
+		case strings.Contains(r.URL.Path, "/gmail/v1/users/me/messages/m1"):
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"id":       "m1",
+				"threadId": "t1",
+				"snippet":  "hi",
+				"payload":  map[string]any{"headers": []map[string]any{{"name": "Subject", "value": "S"}}},
+			})
+			return
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+
+	gsvc, err := gmail.NewService(context.Background(),
+		option.WithoutAuthentication(),
+		option.WithHTTPClient(srv.Client()),
+		option.WithEndpoint(srv.URL+"/"),
+	)
+	if err != nil {
+		t.Fatalf("NewService: %v", err)
+	}
+
+	var slept time.Duration
+	var sleepCalls int
+	server := &gmailWatchServer{
+		cfg: gmailWatchServeConfig{
+			Account:    "a@b.com",
+			HistoryMax: 10,
+			FetchDelay: 5 * time.Second,
+		},
+		store:      store,
+		newService: func(context.Context, string) (*gmail.Service, error) { return gsvc, nil },
+		sleep: func(_ context.Context, d time.Duration) error {
+			sleepCalls++
+			slept = d
+			return nil
+		},
+		logf:  func(string, ...any) {},
+		warnf: func(string, ...any) {},
+	}
+
+	got, err := server.handlePush(context.Background(), gmailPushPayload{EmailAddress: "a@b.com", HistoryID: "200"})
+	if err != nil {
+		t.Fatalf("handlePush: %v", err)
+	}
+	if got == nil || len(got.Messages) != 1 {
+		t.Fatalf("unexpected payload: %#v", got)
+	}
+	if sleepCalls != 1 {
+		t.Fatalf("expected one sleep call, got %d", sleepCalls)
+	}
+	if slept != 5*time.Second {
+		t.Fatalf("expected 5s sleep, got %v", slept)
+	}
+	if historyCalls != 1 {
+		t.Fatalf("expected one history call, got %d", historyCalls)
+	}
+}
+
+func TestGmailWatchServer_HandlePush_FetchDelayCanceledContext(t *testing.T) {
+	var serviceCalls int
+	server := &gmailWatchServer{
+		cfg:   gmailWatchServeConfig{Account: "a@b.com", FetchDelay: time.Second},
+		store: &gmailWatchStore{state: gmailWatchState{HistoryID: "100"}},
+		newService: func(context.Context, string) (*gmail.Service, error) {
+			serviceCalls++
+			return nil, errors.New("unexpected newService call")
+		},
+		logf:  func(string, ...any) {},
+		warnf: func(string, ...any) {},
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	if _, err := server.handlePush(ctx, gmailPushPayload{HistoryID: "200"}); !errors.Is(err, context.Canceled) {
+		t.Fatalf("expected canceled context, got %v", err)
+	}
+	if serviceCalls != 0 {
+		t.Fatalf("expected no service calls, got %d", serviceCalls)
+	}
+}
+
 func TestGmailWatchServer_OIDCAudience(t *testing.T) {
 	s := &gmailWatchServer{
 		cfg: gmailWatchServeConfig{OIDCAudience: ""},
