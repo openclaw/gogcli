@@ -324,7 +324,7 @@ func TestAuthAddCmd_GmailScopeReadonly(t *testing.T) {
 		gotOpts.Scopes = append([]string(nil), opts.Scopes...)
 		return "rt", nil
 	}
-	fetchAuthorizedEmail = func(context.Context, string, []string, time.Duration) (string, error) {
+	fetchAuthorizedEmail = func(context.Context, string, string, []string, time.Duration) (string, error) {
 		return "user@example.com", nil
 	}
 
@@ -392,7 +392,7 @@ func TestAuthAddCmd_DriveScopeReadonly(t *testing.T) {
 		gotOpts.Scopes = append([]string(nil), opts.Scopes...)
 		return "rt", nil
 	}
-	fetchAuthorizedEmail = func(context.Context, string, []string, time.Duration) (string, error) {
+	fetchAuthorizedEmail = func(context.Context, string, string, []string, time.Duration) (string, error) {
 		return "user@example.com", nil
 	}
 

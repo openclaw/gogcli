@@ -485,7 +485,7 @@ type AuthAddCmd struct {
 	ServicesCSV  string        `name:"services" help:"Services to authorize: user|all or comma-separated ${auth_services} (Keep uses service account: gog auth service-account set)" default:"user"`
 	Readonly     bool          `name:"readonly" help:"Use read-only scopes where available (still includes OIDC identity scopes)"`
 	DriveScope   string        `name:"drive-scope" help:"Drive scope mode: full|readonly|file" enum:"full,readonly,file" default:"full"`
-	GmailScope   string `name:"gmail-scope" help:"Gmail scope mode: full|readonly" enum:"full,readonly" default:"full"`
+	GmailScope   string        `name:"gmail-scope" help:"Gmail scope mode: full|readonly" enum:"full,readonly" default:"full"`
 }
 
 func (c *AuthAddCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -551,14 +551,14 @@ func (c *AuthAddCmd) Run(ctx context.Context, flags *RootFlags) error {
 			if authURL != "" || authCode != "" {
 				return usage("remote step 1 does not accept --auth-url or --auth-code")
 			}
-				result, manualErr := manualAuthURL(ctx, googleauth.AuthorizeOptions{
-					Services:                    services,
-					Scopes:                      scopes,
-					Manual:                      true,
-					ForceConsent:                c.ForceConsent,
-					DisableIncludeGrantedScopes: disableIncludeGrantedScopes,
-					Client:                      client,
-				})
+			result, manualErr := manualAuthURL(ctx, googleauth.AuthorizeOptions{
+				Services:                    services,
+				Scopes:                      scopes,
+				Manual:                      true,
+				ForceConsent:                c.ForceConsent,
+				DisableIncludeGrantedScopes: disableIncludeGrantedScopes,
+				Client:                      client,
+			})
 			if manualErr != nil {
 				return manualErr
 			}
@@ -595,13 +595,13 @@ func (c *AuthAddCmd) Run(ctx context.Context, flags *RootFlags) error {
 		"manual":        c.Manual,
 		"remote":        c.Remote,
 		"step":          c.Step,
-			"force_consent": c.ForceConsent,
-			"readonly":      c.Readonly,
-			"drive_scope":   c.DriveScope,
-			"gmail_scope":   c.GmailScope,
-		}); dryRunErr != nil {
-			return dryRunErr
-		}
+		"force_consent": c.ForceConsent,
+		"readonly":      c.Readonly,
+		"drive_scope":   c.DriveScope,
+		"gmail_scope":   c.GmailScope,
+	}); dryRunErr != nil {
+		return dryRunErr
+	}
 
 	// Pre-flight: ensure keychain is accessible before starting OAuth
 	if keychainErr := ensureKeychainAccessIfNeeded(); keychainErr != nil {

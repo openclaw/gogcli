@@ -20,16 +20,16 @@ import (
 )
 
 type AuthorizeOptions struct {
-	Services     []Service
-	Scopes       []string
-	Manual       bool
-	ForceConsent bool
+	Services                    []Service
+	Scopes                      []string
+	Manual                      bool
+	ForceConsent                bool
 	DisableIncludeGrantedScopes bool
-	Timeout      time.Duration
-	Client       string
-	AuthCode     string
-	AuthURL      string
-	RequireState bool
+	Timeout                     time.Duration
+	Client                      string
+	AuthCode                    string
+	AuthURL                     string
+	RequireState                bool
 }
 
 type ManualAuthURLResult struct {
