@@ -204,8 +204,91 @@ func TestCalendarCreateCmd_RecurringOffsetTimezoneFallback(t *testing.T) {
 	if gotEvent.End == nil || gotEvent.End.TimeZone != "Etc/GMT-2" {
 		t.Fatalf("expected end timezone fallback Etc/GMT-2, got %#v", gotEvent.End)
 	}
-	if len(gotEvent.Recurrence) == 0 {
-		t.Fatalf("expected recurrence to be set")
+	if len(gotEvent.Recurrence) != 1 || gotEvent.Recurrence[0] != "FREQ=WEEKLY;BYDAY=TU,TH" {
+		t.Fatalf("unexpected recurrence payload: %#v", gotEvent.Recurrence)
+	}
+}
+
+func TestCalendarUpdateCmd_RecurrenceFillsMissingTimezone(t *testing.T) {
+	origNew := newCalendarService
+	t.Cleanup(func() { newCalendarService = origNew })
+
+	var (
+		gotPatch      calendar.Event
+		currentLoaded bool
+	)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := strings.TrimPrefix(r.URL.Path, "/calendar/v3")
+		switch {
+		case r.Method == http.MethodGet && path == "/calendars/cal@example.com/events/ev":
+			currentLoaded = true
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"id": "ev",
+				"start": map[string]any{
+					"dateTime": "2026-03-03T20:00:00+01:00",
+				},
+				"end": map[string]any{
+					"dateTime": "2026-03-03T20:30:00+01:00",
+				},
+			})
+			return
+		case r.Method == http.MethodPatch && path == "/calendars/cal@example.com/events/ev":
+			_ = json.NewDecoder(r.Body).Decode(&gotPatch)
+			if gotPatch.Start == nil || gotPatch.End == nil ||
+				gotPatch.Start.TimeZone == "" || gotPatch.End.TimeZone == "" {
+				w.WriteHeader(http.StatusBadRequest)
+				w.Header().Set("Content-Type", "application/json")
+				_ = json.NewEncoder(w).Encode(map[string]any{
+					"error": map[string]any{
+						"code":    400,
+						"message": "Missing time zone definition for start time.",
+					},
+				})
+				return
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"id": "ev",
+			})
+			return
+		case r.Method == http.MethodGet && path == "/users/me/calendarList/cal@example.com":
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"id":       "cal@example.com",
+				"timeZone": "UTC",
+			})
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer srv.Close()
+
+	svc := newCalendarServiceFromServer(t, srv)
+	newCalendarService = func(context.Context, string) (*calendar.Service, error) { return svc, nil }
+
+	ctx := newCalendarJSONContext(t)
+
+	cmd := &CalendarUpdateCmd{}
+	if err := runKong(t, cmd, []string{
+		"cal@example.com",
+		"ev",
+		"--rrule", "RRULE:FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR",
+	}, ctx, &RootFlags{Account: "a@b.com"}); err != nil {
+		t.Fatalf("runKong: %v", err)
+	}
+
+	if !currentLoaded {
+		t.Fatalf("expected existing event fetch for recurring timezone enrichment")
+	}
+	if gotPatch.Start == nil || gotPatch.Start.TimeZone != "Etc/GMT-1" {
+		t.Fatalf("expected start timezone Etc/GMT-1, got %#v", gotPatch.Start)
+	}
+	if gotPatch.End == nil || gotPatch.End.TimeZone != "Etc/GMT-1" {
+		t.Fatalf("expected end timezone Etc/GMT-1, got %#v", gotPatch.End)
+	}
+	if len(gotPatch.Recurrence) != 1 || gotPatch.Recurrence[0] != "RRULE:FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR" {
+		t.Fatalf("unexpected recurrence payload: %#v", gotPatch.Recurrence)
 	}
 }
 

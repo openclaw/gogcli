@@ -20,7 +20,7 @@ type CalendarFocusTimeCmd struct {
 	AutoDecline    string   `name:"auto-decline" help:"Auto-decline mode: none, all, new" default:"all"`
 	DeclineMessage string   `name:"decline-message" help:"Message for declined invitations"`
 	ChatStatus     string   `name:"chat-status" help:"Chat status: available, doNotDisturb" default:"doNotDisturb"`
-	Recurrence     []string `name:"rrule" help:"Recurrence rules. Can be repeated."`
+	Recurrence     []string `name:"rrule" help:"Recurrence rules. Can be repeated." sep:"none"`
 }
 
 func (c *CalendarFocusTimeCmd) Run(ctx context.Context, flags *RootFlags) error {

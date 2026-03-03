@@ -22,7 +22,7 @@ type CalendarCreateCmd struct {
 	Location              string   `name:"location" help:"Location"`
 	Attendees             string   `name:"attendees" help:"Comma-separated attendee emails"`
 	AllDay                bool     `name:"all-day" help:"All-day event (use date-only in --from/--to)"`
-	Recurrence            []string `name:"rrule" help:"Recurrence rules (e.g., 'RRULE:FREQ=MONTHLY;BYMONTHDAY=11'). Can be repeated."`
+	Recurrence            []string `name:"rrule" help:"Recurrence rules (e.g., 'RRULE:FREQ=MONTHLY;BYMONTHDAY=11'). Can be repeated." sep:"none"`
 	Reminders             []string `name:"reminder" help:"Custom reminders as method:duration (e.g., popup:30m, email:1d). Can be repeated (max 5)."`
 	ColorId               string   `name:"event-color" help:"Event color ID (1-11). Use 'gog calendar colors' to see available colors."`
 	Visibility            string   `name:"visibility" help:"Event visibility: default, public, private, confidential"`
@@ -320,7 +320,7 @@ type CalendarUpdateCmd struct {
 	Attendees             string   `name:"attendees" help:"Comma-separated attendee emails (replaces all; set empty to clear)"`
 	AddAttendee           string   `name:"add-attendee" help:"Comma-separated attendee emails to add (preserves existing attendees)"`
 	AllDay                bool     `name:"all-day" help:"All-day event (use date-only in --from/--to)"`
-	Recurrence            []string `name:"rrule" help:"Recurrence rules (e.g., 'RRULE:FREQ=MONTHLY;BYMONTHDAY=11'). Can be repeated. Set empty to clear."`
+	Recurrence            []string `name:"rrule" help:"Recurrence rules (e.g., 'RRULE:FREQ=MONTHLY;BYMONTHDAY=11'). Can be repeated. Set empty to clear." sep:"none"`
 	Reminders             []string `name:"reminder" help:"Custom reminders as method:duration (e.g., popup:30m, email:1d). Can be repeated (max 5). Set empty to clear."`
 	ColorId               string   `name:"event-color" help:"Event color ID (1-11, or empty to clear)"`
 	Visibility            string   `name:"visibility" help:"Event visibility: default, public, private, confidential"`
@@ -379,6 +379,7 @@ func (c *CalendarUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *
 	if err != nil {
 		return err
 	}
+	recurrenceProvided := flagProvided(kctx, "rrule")
 
 	patch, changed, err := c.buildUpdatePatch(kctx)
 	if err != nil {
@@ -441,6 +442,11 @@ func (c *CalendarUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *
 	targetEventID, parentRecurrence, err := applyUpdateScope(ctx, svc, calendarID, eventID, scope, c.OriginalStartTime, patch)
 	if err != nil {
 		return err
+	}
+	if recurrenceProvided {
+		if err := ensureRecurringPatchDateTimes(ctx, svc, calendarID, targetEventID, patch); err != nil {
+			return err
+		}
 	}
 
 	call := svc.Events.Patch(calendarID, targetEventID, patch).Context(ctx)
@@ -607,6 +613,83 @@ func (c *CalendarUpdateCmd) applyRecurrence(kctx *kong.Context, patch *calendar.
 		patch.Recurrence = recurrence
 	}
 	return true
+}
+
+func ensureRecurringPatchDateTimes(ctx context.Context, svc *calendar.Service, calendarID, eventID string, patch *calendar.Event) error {
+	if len(patch.Recurrence) == 0 {
+		return nil
+	}
+
+	patch.Start = normalizeRecurringPatchDateTime(patch.Start, nil)
+	patch.End = normalizeRecurringPatchDateTime(patch.End, nil)
+	if !recurringPatchDateTimeNeedsFetch(patch.Start) && !recurringPatchDateTimeNeedsFetch(patch.End) {
+		return nil
+	}
+
+	current, err := svc.Events.Get(calendarID, eventID).Context(ctx).Do()
+	if err != nil {
+		return fmt.Errorf("failed to fetch current event for recurrence timezone: %w", err)
+	}
+
+	patch.Start = normalizeRecurringPatchDateTime(patch.Start, current.Start)
+	patch.End = normalizeRecurringPatchDateTime(patch.End, current.End)
+	return nil
+}
+
+func recurringPatchDateTimeNeedsFetch(dt *calendar.EventDateTime) bool {
+	if dt == nil {
+		return true
+	}
+	if strings.TrimSpace(dt.Date) != "" {
+		return false
+	}
+	return strings.TrimSpace(dt.DateTime) == "" || strings.TrimSpace(dt.TimeZone) == ""
+}
+
+func normalizeRecurringPatchDateTime(primary, fallback *calendar.EventDateTime) *calendar.EventDateTime {
+	if primary == nil && fallback == nil {
+		return nil
+	}
+
+	var out *calendar.EventDateTime
+	if primary != nil {
+		out = cloneEventDateTime(primary)
+	} else {
+		out = cloneEventDateTime(fallback)
+	}
+	if out == nil {
+		return nil
+	}
+
+	if strings.TrimSpace(out.Date) != "" {
+		out.DateTime = ""
+		out.TimeZone = ""
+		return out
+	}
+	if strings.TrimSpace(out.DateTime) == "" && fallback != nil {
+		if strings.TrimSpace(fallback.Date) != "" {
+			return &calendar.EventDateTime{Date: fallback.Date}
+		}
+		out.DateTime = fallback.DateTime
+	}
+	if strings.TrimSpace(out.TimeZone) == "" && fallback != nil {
+		out.TimeZone = strings.TrimSpace(fallback.TimeZone)
+	}
+	if strings.TrimSpace(out.TimeZone) == "" && strings.TrimSpace(out.DateTime) != "" {
+		out.TimeZone = extractTimezone(out.DateTime)
+	}
+	return out
+}
+
+func cloneEventDateTime(in *calendar.EventDateTime) *calendar.EventDateTime {
+	if in == nil {
+		return nil
+	}
+	return &calendar.EventDateTime{
+		Date:     in.Date,
+		DateTime: in.DateTime,
+		TimeZone: in.TimeZone,
+	}
 }
 
 func (c *CalendarUpdateCmd) applyReminders(kctx *kong.Context, patch *calendar.Event) (bool, error) {
