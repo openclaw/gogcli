@@ -319,10 +319,18 @@ gog auth add you@gmail.com --services drive --drive-scope readonly
 gog auth add you@gmail.com --services drive --drive-scope file
 ```
 
+To control Gmail’s scope (default: `full`):
+
+```bash
+gog auth add you@gmail.com --services gmail --gmail-scope full
+gog auth add you@gmail.com --services gmail --gmail-scope readonly
+```
+
 Notes:
 
 - `--drive-scope readonly` is enough for listing/downloading/exporting via Drive (write operations will 403).
 - `--drive-scope file` is write-capable (limited to files created/opened by this app) and can’t be combined with `--readonly`.
+- `--gmail-scope readonly` requests `gmail.readonly` (no modify/settings write scopes).
 
 If you need to add services later and Google doesn't return a refresh token, re-run with `--force-consent`:
 

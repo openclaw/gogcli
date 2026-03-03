@@ -12,6 +12,7 @@
 - Secrets: respect empty `GOG_KEYRING_PASSWORD` (treat set-to-empty as intentional; avoids headless prompts). (#269) — thanks @zerone0x.
 - Calendar: reject ambiguous calendar-name selectors for `calendar events` instead of guessing. (#131) — thanks @salmonumbrella.
 - Gmail: `drafts update --quote` now picks a non-draft, non-self message from thread fallback (or errors clearly), avoiding self-quote loops and wrong reply headers. (#394) — thanks @salmonumbrella.
+- Auth: add `--gmail-scope full|readonly`, and disable `include_granted_scopes` for readonly/limited auth requests to avoid Drive/Gmail scope accumulation. (#113) — thanks @salmonumbrella.
 
 ## 0.11.0 - 2026-02-15
 
