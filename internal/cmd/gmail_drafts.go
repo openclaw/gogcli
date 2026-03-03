@@ -293,6 +293,7 @@ type GmailDraftsCreateCmd struct {
 	BodyHTML         string   `name:"body-html" help:"Body (HTML; optional)"`
 	ReplyToMessageID string   `name:"reply-to-message-id" help:"Reply to Gmail message ID (sets In-Reply-To/References and thread)"`
 	ReplyTo          string   `name:"reply-to" help:"Reply-To header address"`
+	Quote            bool     `name:"quote" help:"Include quoted original message in reply (requires --reply-to-message-id)"`
 	Attach           []string `name:"attach" help:"Attachment file path (repeatable)"`
 	From             string   `name:"from" help:"Send from this email address (must be a verified send-as alias)"`
 }
@@ -307,6 +308,7 @@ type draftComposeInput struct {
 	ReplyToMessageID string
 	ReplyToThreadID  string
 	ReplyTo          string
+	Quote            bool
 	Attach           []string
 	From             string
 }
@@ -337,13 +339,14 @@ func buildDraftMessage(ctx context.Context, svc *gmail.Service, account string, 
 		}
 	}
 
-	info, err := fetchReplyInfo(ctx, svc, input.ReplyToMessageID, input.ReplyToThreadID, false)
+	info, err := fetchReplyInfo(ctx, svc, input.ReplyToMessageID, input.ReplyToThreadID, input.Quote)
 	if err != nil {
 		return nil, "", err
 	}
 	inReplyTo := info.InReplyTo
 	references := info.References
 	threadID := info.ThreadID
+	body, htmlBody := applyQuoteToBodies(input.Body, input.BodyHTML, input.Quote, info)
 
 	atts := make([]mailAttachment, 0, len(input.Attach))
 	for _, p := range input.Attach {
@@ -361,8 +364,8 @@ func buildDraftMessage(ctx context.Context, svc *gmail.Service, account string, 
 		Bcc:         splitCSV(input.Bcc),
 		ReplyTo:     input.ReplyTo,
 		Subject:     input.Subject,
-		Body:        input.Body,
-		BodyHTML:    input.BodyHTML,
+		Body:        body,
+		BodyHTML:    htmlBody,
 		InReplyTo:   inReplyTo,
 		References:  references,
 		Attachments: atts,
@@ -410,6 +413,9 @@ func (c *GmailDraftsCreateCmd) Run(ctx context.Context, flags *RootFlags) error 
 		return err
 	}
 	replyToMessageID := normalizeGmailMessageID(c.ReplyToMessageID)
+	if c.Quote && replyToMessageID == "" {
+		return usage("--quote requires --reply-to-message-id")
+	}
 
 	attachPaths := make([]string, 0, len(c.Attach))
 	for _, p := range c.Attach {
@@ -430,6 +436,7 @@ func (c *GmailDraftsCreateCmd) Run(ctx context.Context, flags *RootFlags) error 
 		ReplyToMessageID: replyToMessageID,
 		ReplyToThreadID:  "",
 		ReplyTo:          c.ReplyTo,
+		Quote:            c.Quote,
 		Attach:           attachPaths,
 		From:             c.From,
 	}
@@ -446,6 +453,7 @@ func (c *GmailDraftsCreateCmd) Run(ctx context.Context, flags *RootFlags) error 
 		"body_html_len":       len(strings.TrimSpace(input.BodyHTML)),
 		"reply_to_message_id": strings.TrimSpace(input.ReplyToMessageID),
 		"reply_to":            strings.TrimSpace(input.ReplyTo),
+		"quote":               input.Quote,
 		"from":                strings.TrimSpace(input.From),
 		"attachments":         attachPaths,
 	}); dryRunErr != nil {
@@ -485,6 +493,7 @@ type GmailDraftsUpdateCmd struct {
 	BodyHTML         string   `name:"body-html" help:"Body (HTML; optional)"`
 	ReplyToMessageID string   `name:"reply-to-message-id" help:"Reply to Gmail message ID (sets In-Reply-To/References and thread)"`
 	ReplyTo          string   `name:"reply-to" help:"Reply-To header address"`
+	Quote            bool     `name:"quote" help:"Include quoted original message in reply"`
 	Attach           []string `name:"attach" help:"Attachment file path (repeatable)"`
 	From             string   `name:"from" help:"Send from this email address (must be a verified send-as alias)"`
 }
@@ -528,6 +537,7 @@ func (c *GmailDraftsUpdateCmd) Run(ctx context.Context, flags *RootFlags) error 
 		ReplyToMessageID: replyToMessageID,
 		ReplyToThreadID:  "",
 		ReplyTo:          c.ReplyTo,
+		Quote:            c.Quote,
 		Attach:           attachPaths,
 		From:             c.From,
 	}
@@ -546,6 +556,7 @@ func (c *GmailDraftsUpdateCmd) Run(ctx context.Context, flags *RootFlags) error 
 		"body_html_len":       len(strings.TrimSpace(input.BodyHTML)),
 		"reply_to_message_id": strings.TrimSpace(input.ReplyToMessageID),
 		"reply_to":            strings.TrimSpace(input.ReplyTo),
+		"quote":               input.Quote,
 		"from":                strings.TrimSpace(input.From),
 		"attachments":         attachPaths,
 	}); dryRunErr != nil {
@@ -583,6 +594,9 @@ func (c *GmailDraftsUpdateCmd) Run(ctx context.Context, flags *RootFlags) error 
 	replyToThreadID := ""
 	if strings.TrimSpace(replyToMessageID) == "" {
 		replyToThreadID = existingThreadID
+	}
+	if c.Quote && strings.TrimSpace(replyToMessageID) == "" && strings.TrimSpace(replyToThreadID) == "" {
+		return usage("--quote requires --reply-to-message-id or existing draft thread")
 	}
 
 	input.To = to
