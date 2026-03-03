@@ -29,6 +29,7 @@ type AuthorizeOptions struct {
 	Client                      string
 	AuthCode                    string
 	AuthURL                     string
+	RedirectURI                 string
 	RequireState                bool
 }
 
@@ -77,6 +78,15 @@ var (
 func Authorize(ctx context.Context, opts AuthorizeOptions) (string, error) {
 	if opts.Timeout <= 0 {
 		opts.Timeout = 2 * time.Minute
+	}
+
+	if strings.TrimSpace(opts.RedirectURI) != "" {
+		redirectURI, err := normalizeRedirectURI(opts.RedirectURI)
+		if err != nil {
+			return "", err
+		}
+
+		opts.RedirectURI = redirectURI
 	}
 
 	if strings.TrimSpace(opts.AuthURL) != "" && strings.TrimSpace(opts.AuthCode) != "" {

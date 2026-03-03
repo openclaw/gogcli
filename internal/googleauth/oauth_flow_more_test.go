@@ -1,6 +1,7 @@
 package googleauth
 
 import (
+	"context"
 	"net/url"
 	"strings"
 	"testing"
@@ -91,5 +92,51 @@ func TestRandomState(t *testing.T) {
 	// base64 RawURLEncoding charset should not include '+' or '/' or '='.
 	if strings.ContainsAny(s1, "+/=") || strings.ContainsAny(s2, "+/=") {
 		t.Fatalf("unexpected charset: %q %q", s1, s2)
+	}
+}
+
+func TestNormalizeRedirectURI(t *testing.T) {
+	t.Parallel()
+
+	got, err := normalizeRedirectURI("https://host.example/oauth2/callback")
+	if err != nil {
+		t.Fatalf("normalizeRedirectURI: %v", err)
+	}
+
+	if got != "https://host.example/oauth2/callback" {
+		t.Fatalf("unexpected redirect uri: %q", got)
+	}
+
+	got, err = normalizeRedirectURI("https://host.example")
+	if err != nil {
+		t.Fatalf("normalizeRedirectURI host-only: %v", err)
+	}
+
+	if got != "https://host.example/" {
+		t.Fatalf("expected trailing slash for host-only uri, got: %q", got)
+	}
+
+	if _, err := normalizeRedirectURI("host-only/path"); err == nil {
+		t.Fatalf("expected error for invalid redirect uri")
+	}
+
+	if _, err := normalizeRedirectURI("https://host.example/cb?x=1"); err == nil {
+		t.Fatalf("expected error when redirect uri has query")
+	}
+}
+
+func TestAuthorize_InvalidRedirectURI(t *testing.T) {
+	t.Parallel()
+
+	_, err := Authorize(context.Background(), AuthorizeOptions{
+		Scopes:      []string{"s1"},
+		Manual:      true,
+		RedirectURI: "host-only/path",
+	})
+	if err == nil {
+		t.Fatalf("expected invalid redirect uri error")
+	}
+	if !strings.Contains(err.Error(), "parse redirect uri") {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }

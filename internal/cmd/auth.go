@@ -478,6 +478,7 @@ type AuthAddCmd struct {
 	Manual       bool          `name:"manual" help:"Browserless auth flow (paste redirect URL)"`
 	Remote       bool          `name:"remote" help:"Remote/server-friendly manual flow (print URL, then exchange code)"`
 	Step         int           `name:"step" help:"Remote auth step: 1=print URL, 2=exchange code"`
+	RedirectURI  string        `name:"redirect-uri" help:"Override OAuth redirect URI for manual/remote flows (for example https://host.example/oauth2/callback)"`
 	AuthURL      string        `name:"auth-url" help:"Redirect URL from browser (manual flow; required for --remote --step 2)"`
 	AuthCode     string        `name:"auth-code" hidden:"" help:"UNSAFE: Authorization code from browser (manual flow; skips state check; not valid with --remote)"`
 	Timeout      time.Duration `name:"timeout" help:"Authorization timeout (manual flows default to 5m)"`
@@ -549,6 +550,7 @@ func (c *AuthAddCmd) Run(ctx context.Context, flags *RootFlags) error {
 
 	authURL := strings.TrimSpace(c.AuthURL)
 	authCode := strings.TrimSpace(c.AuthCode)
+	redirectURI := strings.TrimSpace(c.RedirectURI)
 	if authURL != "" && authCode != "" {
 		return usage("cannot combine --auth-url with --auth-code")
 	}
@@ -559,7 +561,7 @@ func (c *AuthAddCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return usage("--step requires --remote")
 	}
 
-	manual := c.Manual || c.Remote || authURL != "" || authCode != ""
+	manual := c.Manual || c.Remote || authURL != "" || authCode != "" || redirectURI != ""
 
 	if c.Remote {
 		step := c.Step
@@ -582,6 +584,7 @@ func (c *AuthAddCmd) Run(ctx context.Context, flags *RootFlags) error {
 				ForceConsent:                c.ForceConsent,
 				DisableIncludeGrantedScopes: disableIncludeGrantedScopes,
 				Client:                      client,
+				RedirectURI:                 redirectURI,
 			})
 			if manualErr != nil {
 				return manualErr
@@ -619,6 +622,7 @@ func (c *AuthAddCmd) Run(ctx context.Context, flags *RootFlags) error {
 		"manual":        c.Manual,
 		"remote":        c.Remote,
 		"step":          c.Step,
+		"redirect_uri":  redirectURI,
 		"force_consent": c.ForceConsent,
 		"readonly":      c.Readonly,
 		"drive_scope":   c.DriveScope,
@@ -642,6 +646,7 @@ func (c *AuthAddCmd) Run(ctx context.Context, flags *RootFlags) error {
 		Client:                      client,
 		AuthURL:                     authURL,
 		AuthCode:                    authCode,
+		RedirectURI:                 redirectURI,
 		RequireState:                c.Remote,
 	})
 	if err != nil {

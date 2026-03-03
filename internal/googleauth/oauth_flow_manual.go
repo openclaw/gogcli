@@ -82,6 +82,10 @@ func authorizeManualWithCode(
 		cfg.RedirectURL = gotRedirectURI
 	}
 
+	if cfg.RedirectURL == "" && strings.TrimSpace(opts.RedirectURI) != "" {
+		cfg.RedirectURL = strings.TrimSpace(opts.RedirectURI)
+	}
+
 	if cfg.RedirectURL == "" {
 		if cached, ok, err := loadManualState(opts.Client, opts.Scopes, opts.ForceConsent); err != nil {
 			return "", err
@@ -259,6 +263,16 @@ type manualAuthSetupResult struct {
 }
 
 func manualAuthSetup(ctx context.Context, opts AuthorizeOptions) (manualAuthSetupResult, error) {
+	redirectURIOverride := strings.TrimSpace(opts.RedirectURI)
+	if redirectURIOverride != "" {
+		normalized, err := normalizeRedirectURI(redirectURIOverride)
+		if err != nil {
+			return manualAuthSetupResult{}, err
+		}
+
+		redirectURIOverride = normalized
+	}
+
 	st, reused, err := loadManualState(opts.Client, opts.Scopes, opts.ForceConsent)
 	if err != nil {
 		return manualAuthSetupResult{}, err
@@ -267,10 +281,19 @@ func manualAuthSetup(ctx context.Context, opts AuthorizeOptions) (manualAuthSetu
 	state := st.State
 	redirectURI := st.RedirectURI
 
+	if redirectURIOverride != "" {
+		if !reused || st.RedirectURI != redirectURIOverride {
+			reused = false
+			redirectURI = redirectURIOverride
+		}
+	}
+
 	if !reused {
-		redirectURI, err = manualRedirectURIFn(ctx)
-		if err != nil {
-			return manualAuthSetupResult{}, err
+		if redirectURI == "" {
+			redirectURI, err = manualRedirectURIFn(ctx)
+			if err != nil {
+				return manualAuthSetupResult{}, err
+			}
 		}
 
 		state, err = randomStateFn()

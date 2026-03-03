@@ -313,6 +313,123 @@ func TestAuthorize_Manual_AuthCode(t *testing.T) {
 	}
 }
 
+func TestAuthorize_Manual_AuthCode_WithRedirectURI(t *testing.T) {
+	origRead := readClientCredentials
+	origEndpoint := oauthEndpoint
+
+	t.Cleanup(func() {
+		readClientCredentials = origRead
+		oauthEndpoint = origEndpoint
+	})
+	useTempManualStatePath(t)
+
+	readClientCredentials = func(string) (config.ClientCredentials, error) {
+		return config.ClientCredentials{ClientID: "id", ClientSecret: "secret"}, nil
+	}
+
+	wantRedirectURI := "https://host.example/oauth2/callback"
+
+	tokenSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/token" {
+			http.NotFound(w, r)
+			return
+		}
+
+		if err := r.ParseForm(); err != nil {
+			http.Error(w, "bad form", http.StatusBadRequest)
+			return
+		}
+
+		if r.Form.Get("redirect_uri") != wantRedirectURI {
+			http.Error(w, "bad redirect_uri", http.StatusBadRequest)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"access_token":  "at",
+			"refresh_token": "rt",
+			"token_type":    "Bearer",
+			"expires_in":    3600,
+		})
+	}))
+	defer tokenSrv.Close()
+	oauthEndpoint = oauth2EndpointForTest(tokenSrv.URL)
+
+	rt, err := Authorize(context.Background(), AuthorizeOptions{
+		Scopes:      []string{"s1"},
+		Manual:      true,
+		AuthCode:    "abc",
+		RedirectURI: wantRedirectURI,
+		Timeout:     2 * time.Second,
+	})
+	if err != nil {
+		t.Fatalf("Authorize: %v", err)
+	}
+
+	if rt != "rt" {
+		t.Fatalf("unexpected refresh token: %q", rt)
+	}
+}
+
+func TestAuthorize_Manual_AuthURL_PrefersAuthURLRedirectOverOverride(t *testing.T) {
+	origRead := readClientCredentials
+	origEndpoint := oauthEndpoint
+
+	t.Cleanup(func() {
+		readClientCredentials = origRead
+		oauthEndpoint = origEndpoint
+	})
+	useTempManualStatePath(t)
+
+	readClientCredentials = func(string) (config.ClientCredentials, error) {
+		return config.ClientCredentials{ClientID: "id", ClientSecret: "secret"}, nil
+	}
+
+	redirectFromAuthURL := "https://from-auth-url.example/oauth2/callback"
+	tokenSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/token" {
+			http.NotFound(w, r)
+			return
+		}
+
+		if err := r.ParseForm(); err != nil {
+			http.Error(w, "bad form", http.StatusBadRequest)
+			return
+		}
+
+		if r.Form.Get("redirect_uri") != redirectFromAuthURL {
+			http.Error(w, "bad redirect_uri", http.StatusBadRequest)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"access_token":  "at",
+			"refresh_token": "rt",
+			"token_type":    "Bearer",
+			"expires_in":    3600,
+		})
+	}))
+	defer tokenSrv.Close()
+	oauthEndpoint = oauth2EndpointForTest(tokenSrv.URL)
+
+	rt, err := Authorize(context.Background(), AuthorizeOptions{
+		Scopes:      []string{"s1"},
+		Manual:      true,
+		AuthURL:     redirectFromAuthURL + "?code=abc",
+		RedirectURI: "https://override.example/oauth2/callback",
+		Timeout:     2 * time.Second,
+	})
+	if err != nil {
+		t.Fatalf("Authorize: %v", err)
+	}
+
+	if rt != "rt" {
+		t.Fatalf("unexpected refresh token: %q", rt)
+	}
+}
+
 func TestAuthorize_Manual_AuthURL_RequireStateMissing(t *testing.T) {
 	origRead := readClientCredentials
 	origEndpoint := oauthEndpoint

@@ -756,6 +756,52 @@ func TestAuthAddCmd_RemoteStep1_OmitsDefaultScopeFlags(t *testing.T) {
 	}
 }
 
+func TestAuthAddCmd_RemoteStep1_PassesRedirectURI(t *testing.T) {
+	origManualURL := manualAuthURL
+	origAuth := authorizeGoogle
+	origKeychain := ensureKeychainAccess
+	t.Cleanup(func() {
+		manualAuthURL = origManualURL
+		authorizeGoogle = origAuth
+		ensureKeychainAccess = origKeychain
+	})
+
+	var gotOpts googleauth.AuthorizeOptions
+	manualAuthURL = func(_ context.Context, opts googleauth.AuthorizeOptions) (googleauth.ManualAuthURLResult, error) {
+		gotOpts = opts
+		return googleauth.ManualAuthURLResult{
+			URL: "https://example.com/auth",
+		}, nil
+	}
+	authorizeGoogle = func(context.Context, googleauth.AuthorizeOptions) (string, error) {
+		t.Fatal("authorizeGoogle should not be called in remote step 1")
+		return "", nil
+	}
+	ensureKeychainAccess = func() error {
+		t.Fatal("keychain access should not be checked in remote step 1")
+		return nil
+	}
+
+	if err := Execute([]string{
+		"auth",
+		"add",
+		"user@example.com",
+		"--services",
+		"gmail",
+		"--remote",
+		"--step",
+		"1",
+		"--redirect-uri",
+		"https://molty2.tail8108.ts.net/oauth2/callback",
+	}); err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+
+	if gotOpts.RedirectURI != "https://molty2.tail8108.ts.net/oauth2/callback" {
+		t.Fatalf("unexpected redirect uri: %q", gotOpts.RedirectURI)
+	}
+}
+
 func TestAuthAddCmd_RemoteStep2_RejectsAuthCode(t *testing.T) {
 	err := Execute([]string{
 		"auth",
@@ -828,6 +874,52 @@ func TestAuthAddCmd_RemoteStep2_PassesAuthURL(t *testing.T) {
 	}
 	if gotOpts.AuthURL == "" {
 		t.Fatalf("expected auth URL to be passed through")
+	}
+}
+
+func TestAuthAddCmd_RemoteStep2_PassesRedirectURI(t *testing.T) {
+	origAuth := authorizeGoogle
+	origOpen := openSecretsStore
+	origKeychain := ensureKeychainAccess
+	origFetch := fetchAuthorizedEmail
+	t.Cleanup(func() {
+		authorizeGoogle = origAuth
+		openSecretsStore = origOpen
+		ensureKeychainAccess = origKeychain
+		fetchAuthorizedEmail = origFetch
+	})
+
+	ensureKeychainAccess = func() error { return nil }
+	openSecretsStore = func() (secrets.Store, error) { return newMemSecretsStore(), nil }
+
+	var gotOpts googleauth.AuthorizeOptions
+	authorizeGoogle = func(ctx context.Context, opts googleauth.AuthorizeOptions) (string, error) {
+		gotOpts = opts
+		return "rt", nil
+	}
+	fetchAuthorizedEmail = func(context.Context, string, string, []string, time.Duration) (string, error) {
+		return "user@example.com", nil
+	}
+
+	if err := Execute([]string{
+		"auth",
+		"add",
+		"user@example.com",
+		"--services",
+		"gmail",
+		"--remote",
+		"--step",
+		"2",
+		"--redirect-uri",
+		"https://molty2.tail8108.ts.net/oauth2/callback",
+		"--auth-url",
+		"https://molty2.tail8108.ts.net/oauth2/callback?code=abc&state=state123",
+	}); err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+
+	if gotOpts.RedirectURI != "https://molty2.tail8108.ts.net/oauth2/callback" {
+		t.Fatalf("unexpected redirect uri: %q", gotOpts.RedirectURI)
 	}
 }
 
