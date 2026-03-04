@@ -99,7 +99,7 @@ func optionsForAccountScopes(ctx context.Context, serviceLabel string, email str
 
 	var ts oauth2.TokenSource
 
-	if serviceAccountTS, saPath, ok, err := tokenSourceForServiceAccountScopes(ctx, email, scopes); err != nil {
+	if serviceAccountTS, saPath, ok, err := tokenSourceForServiceAccountScopes(ctx, serviceLabel, email, scopes); err != nil {
 		return nil, fmt.Errorf("service account token source: %w", err)
 	} else if ok {
 		slog.Debug("using service account credentials", "email", email, "path", saPath)
