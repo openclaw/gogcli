@@ -275,10 +275,11 @@ func (c *DocsCopyCmd) Run(ctx context.Context, flags *RootFlags) error {
 }
 
 type DocsWriteCmd struct {
-	DocID  string `arg:"" name:"docId" help:"Doc ID"`
-	Text   string `name:"text" help:"Text to write"`
-	File   string `name:"file" help:"Text file path ('-' for stdin)"`
-	Append bool   `name:"append" help:"Append instead of replacing the document body"`
+	DocID     string `arg:"" name:"docId" help:"Doc ID"`
+	Text      string `name:"text" help:"Text to write"`
+	File      string `name:"file" help:"Text file path ('-' for stdin)"`
+	Append    bool   `name:"append" help:"Append instead of replacing the document body"`
+	TextColor string `name:"text-color" help:"Set text color (hex #RRGGBB or name: red, blue, green, ...)"`
 }
 
 func (c *DocsWriteCmd) Run(ctx context.Context, kctx *kong.Context, flags *RootFlags) error {
@@ -329,6 +330,15 @@ func (c *DocsWriteCmd) Run(ctx context.Context, kctx *kong.Context, flags *RootF
 		insertIndex = docsAppendIndex(endIndex)
 	}
 
+	// Parse text color if specified
+	var textColor *docs.OptionalColor
+	if c.TextColor != "" {
+		textColor, err = ParseTextColor(c.TextColor)
+		if err != nil {
+			return err
+		}
+	}
+
 	reqs := []*docs.Request{}
 	if !c.Append {
 		deleteEnd := endIndex - 1
@@ -351,6 +361,12 @@ func (c *DocsWriteCmd) Run(ctx context.Context, kctx *kong.Context, flags *RootF
 		},
 	})
 
+	// Apply text color to inserted text
+	if textColor != nil {
+		textEnd := insertIndex + utf16Len(text)
+		reqs = append(reqs, BuildColorRequest(insertIndex, textEnd, textColor))
+	}
+
 	resp, err := svc.Documents.BatchUpdate(id, &docs.BatchUpdateDocumentRequest{Requests: reqs}).
 		Context(ctx).
 		Do()
@@ -368,6 +384,9 @@ func (c *DocsWriteCmd) Run(ctx context.Context, kctx *kong.Context, flags *RootF
 			"append":     c.Append,
 			"index":      insertIndex,
 		}
+		if textColor != nil {
+			payload["textColor"] = c.TextColor
+		}
 		if resp.WriteControl != nil {
 			payload["writeControl"] = resp.WriteControl
 		}
@@ -378,6 +397,9 @@ func (c *DocsWriteCmd) Run(ctx context.Context, kctx *kong.Context, flags *RootF
 	u.Out().Printf("requests\t%d", len(reqs))
 	u.Out().Printf("append\t%t", c.Append)
 	u.Out().Printf("index\t%d", insertIndex)
+	if textColor != nil {
+		u.Out().Printf("textColor\t%s", c.TextColor)
+	}
 	if resp.WriteControl != nil && resp.WriteControl.RequiredRevisionId != "" {
 		u.Out().Printf("revision\t%s", resp.WriteControl.RequiredRevisionId)
 	}
@@ -385,10 +407,11 @@ func (c *DocsWriteCmd) Run(ctx context.Context, kctx *kong.Context, flags *RootF
 }
 
 type DocsUpdateCmd struct {
-	DocID string `arg:"" name:"docId" help:"Doc ID"`
-	Text  string `name:"text" help:"Text to insert"`
-	File  string `name:"file" help:"Text file path ('-' for stdin)"`
-	Index int64  `name:"index" help:"Insert index (default: end of document)"`
+	DocID     string `arg:"" name:"docId" help:"Doc ID"`
+	Text      string `name:"text" help:"Text to insert"`
+	File      string `name:"file" help:"Text file path ('-' for stdin)"`
+	Index     int64  `name:"index" help:"Insert index (default: end of document)"`
+	TextColor string `name:"text-color" help:"Set text color (hex #RRGGBB or name: red, blue, green, ...)"`
 }
 
 func (c *DocsUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *RootFlags) error {
@@ -442,6 +465,15 @@ func (c *DocsUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *Root
 		insertIndex = docsAppendIndex(docsDocumentEndIndex(doc))
 	}
 
+	// Parse text color if specified
+	var textColor *docs.OptionalColor
+	if c.TextColor != "" {
+		textColor, err = ParseTextColor(c.TextColor)
+		if err != nil {
+			return err
+		}
+	}
+
 	reqs := []*docs.Request{
 		{
 			InsertText: &docs.InsertTextRequest{
@@ -449,6 +481,12 @@ func (c *DocsUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *Root
 				Text:     text,
 			},
 		},
+	}
+
+	// Apply text color to inserted text
+	if textColor != nil {
+		textEnd := insertIndex + utf16Len(text)
+		reqs = append(reqs, BuildColorRequest(insertIndex, textEnd, textColor))
 	}
 
 	resp, err := svc.Documents.BatchUpdate(id, &docs.BatchUpdateDocumentRequest{Requests: reqs}).
@@ -467,6 +505,9 @@ func (c *DocsUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *Root
 			"requests":   len(reqs),
 			"index":      insertIndex,
 		}
+		if textColor != nil {
+			payload["textColor"] = c.TextColor
+		}
 		if resp.WriteControl != nil {
 			payload["writeControl"] = resp.WriteControl
 		}
@@ -476,6 +517,9 @@ func (c *DocsUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *Root
 	u.Out().Printf("id\t%s", resp.DocumentId)
 	u.Out().Printf("requests\t%d", len(reqs))
 	u.Out().Printf("index\t%d", insertIndex)
+	if textColor != nil {
+		u.Out().Printf("textColor\t%s", c.TextColor)
+	}
 	if resp.WriteControl != nil && resp.WriteControl.RequiredRevisionId != "" {
 		u.Out().Printf("revision\t%s", resp.WriteControl.RequiredRevisionId)
 	}
@@ -695,10 +739,11 @@ func (c *DocsListTabsCmd) Run(ctx context.Context, flags *RootFlags) error {
 // --- Write / Insert / Delete / Find-Replace commands ---
 
 type DocsInsertCmd struct {
-	DocID   string `arg:"" name:"docId" help:"Doc ID"`
-	Content string `arg:"" optional:"" name:"content" help:"Text to insert (or use --file / stdin)"`
-	Index   int64  `name:"index" help:"Character index to insert at (1 = beginning)" default:"1"`
-	File    string `name:"file" short:"f" help:"Read content from file (use - for stdin)"`
+	DocID     string `arg:"" name:"docId" help:"Doc ID"`
+	Content   string `arg:"" optional:"" name:"content" help:"Text to insert (or use --file / stdin)"`
+	Index     int64  `name:"index" help:"Character index to insert at (1 = beginning)" default:"1"`
+	File      string `name:"file" short:"f" help:"Read content from file (use - for stdin)"`
+	TextColor string `name:"text-color" help:"Set text color (hex #RRGGBB or name: red, blue, green, ...)"`
 }
 
 func (c *DocsInsertCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -730,31 +775,56 @@ func (c *DocsInsertCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
-	result, err := svc.Documents.BatchUpdate(docID, &docs.BatchUpdateDocumentRequest{
-		Requests: []*docs.Request{{
-			InsertText: &docs.InsertTextRequest{
-				Text: content,
-				Location: &docs.Location{
-					Index: c.Index,
-				},
+	// Parse text color if specified
+	var textColor *docs.OptionalColor
+	if c.TextColor != "" {
+		var colorErr error
+		textColor, colorErr = ParseTextColor(c.TextColor)
+		if colorErr != nil {
+			return colorErr
+		}
+	}
+
+	reqs := []*docs.Request{{
+		InsertText: &docs.InsertTextRequest{
+			Text: content,
+			Location: &docs.Location{
+				Index: c.Index,
 			},
-		}},
+		},
+	}}
+
+	// Apply text color to inserted text
+	if textColor != nil {
+		textEnd := c.Index + utf16Len(content)
+		reqs = append(reqs, BuildColorRequest(c.Index, textEnd, textColor))
+	}
+
+	result, err := svc.Documents.BatchUpdate(docID, &docs.BatchUpdateDocumentRequest{
+		Requests: reqs,
 	}).Context(ctx).Do()
 	if err != nil {
 		return fmt.Errorf("inserting text: %w", err)
 	}
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
+		payload := map[string]any{
 			"documentId": result.DocumentId,
 			"inserted":   len(content),
 			"atIndex":    c.Index,
-		})
+		}
+		if textColor != nil {
+			payload["textColor"] = c.TextColor
+		}
+		return outfmt.WriteJSON(ctx, os.Stdout, payload)
 	}
 
 	u.Out().Printf("documentId\t%s", result.DocumentId)
 	u.Out().Printf("inserted\t%d bytes", len(content))
 	u.Out().Printf("atIndex\t%d", c.Index)
+	if textColor != nil {
+		u.Out().Printf("textColor\t%s", c.TextColor)
+	}
 	return nil
 }
 
