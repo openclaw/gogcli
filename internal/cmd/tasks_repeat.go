@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -49,9 +50,83 @@ func parseTaskDate(value string) (time.Time, bool, error) {
 	return parsed.Time, parsed.HasTime, nil
 }
 
-func expandRepeatSchedule(start time.Time, unit repeatUnit, count int, until *time.Time) []time.Time {
+func parseRepeatRRule(raw string) (repeatUnit, int, error) {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return repeatNone, 0, fmt.Errorf("invalid --recur-rrule %q (must include FREQ)", raw)
+	}
+
+	if strings.HasPrefix(strings.ToUpper(trimmed), "RRULE:") {
+		trimmed = strings.TrimSpace(trimmed[len("RRULE:"):])
+	}
+	if trimmed == "" {
+		return repeatNone, 0, fmt.Errorf("invalid --recur-rrule %q (must include FREQ)", raw)
+	}
+
+	unit := repeatNone
+	interval := 1
+	seenFreq := false
+	seenInterval := false
+	for _, part := range strings.Split(trimmed, ";") {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+
+		kv := strings.SplitN(part, "=", 2)
+		if len(kv) != 2 {
+			return repeatNone, 0, fmt.Errorf("invalid --recur-rrule %q (malformed token %q)", raw, part)
+		}
+
+		key := strings.ToUpper(strings.TrimSpace(kv[0]))
+		value := strings.ToUpper(strings.TrimSpace(kv[1]))
+
+		switch key {
+		case "FREQ":
+			if seenFreq {
+				return repeatNone, 0, fmt.Errorf("invalid --recur-rrule %q (duplicate FREQ)", raw)
+			}
+			seenFreq = true
+			switch value {
+			case "DAILY":
+				unit = repeatDaily
+			case "WEEKLY":
+				unit = repeatWeekly
+			case "MONTHLY":
+				unit = repeatMonthly
+			case "YEARLY":
+				unit = repeatYearly
+			default:
+				return repeatNone, 0, fmt.Errorf("invalid --recur-rrule %q (unsupported FREQ %q)", raw, value)
+			}
+		case "INTERVAL":
+			if seenInterval {
+				return repeatNone, 0, fmt.Errorf("invalid --recur-rrule %q (duplicate INTERVAL)", raw)
+			}
+			seenInterval = true
+			parsed, err := strconv.Atoi(value)
+			if err != nil || parsed <= 0 {
+				return repeatNone, 0, fmt.Errorf("invalid --recur-rrule %q (INTERVAL must be a positive integer)", raw)
+			}
+			interval = parsed
+		default:
+			return repeatNone, 0, fmt.Errorf("invalid --recur-rrule %q (unsupported key %q; only FREQ and INTERVAL are supported)", raw, key)
+		}
+	}
+
+	if unit == repeatNone {
+		return repeatNone, 0, fmt.Errorf("invalid --recur-rrule %q (missing FREQ)", raw)
+	}
+
+	return unit, interval, nil
+}
+
+func expandRepeatSchedule(start time.Time, unit repeatUnit, interval int, count int, until *time.Time) []time.Time {
 	if unit == repeatNone {
 		return []time.Time{start}
+	}
+	if interval <= 0 {
+		interval = 1
 	}
 	if count < 0 {
 		count = 0
@@ -63,7 +138,7 @@ func expandRepeatSchedule(start time.Time, unit repeatUnit, count int, until *ti
 	}
 	out := []time.Time{}
 	for i := 0; ; i++ {
-		t := addRepeat(start, unit, i)
+		t := addRepeat(start, unit, i*interval)
 		if until != nil && t.After(*until) {
 			break
 		}

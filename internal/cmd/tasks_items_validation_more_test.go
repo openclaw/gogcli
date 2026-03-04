@@ -50,6 +50,18 @@ func TestTasksValidationErrors(t *testing.T) {
 	if err := (&TasksAddCmd{TasklistID: "l1", Title: "Task", RepeatCount: 2}).Run(ctx, flags); err == nil {
 		t.Fatalf("expected add repeat-count without repeat")
 	}
+	if err := (&TasksAddCmd{TasklistID: "l1", Title: "Task", Recur: "weekly", Due: "2025-01-01"}).Run(ctx, flags); err == nil {
+		t.Fatalf("expected add recur missing count/until")
+	}
+	if err := (&TasksAddCmd{TasklistID: "l1", Title: "Task", Recur: "weekly", RecurRRule: "FREQ=WEEKLY", Due: "2025-01-01", RepeatCount: 2}).Run(ctx, flags); err == nil {
+		t.Fatalf("expected add recur and recur-rrule conflict")
+	}
+	if err := (&TasksAddCmd{TasklistID: "l1", Title: "Task", Repeat: "weekly", Recur: "weekly", Due: "2025-01-01", RepeatCount: 2}).Run(ctx, flags); err == nil {
+		t.Fatalf("expected add repeat and recur conflict")
+	}
+	if err := (&TasksAddCmd{TasklistID: "l1", Title: "Task", RecurRRule: "FREQ=WEEKLY;BYDAY=MO", Due: "2025-01-01", RepeatCount: 2}).Run(ctx, flags); err == nil {
+		t.Fatalf("expected add recur-rrule unsupported token")
+	}
 
 	{
 		cmd := &TasksUpdateCmd{}

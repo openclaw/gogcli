@@ -194,9 +194,71 @@ type TasksAddCmd struct {
 	Due         string `name:"due" help:"Due date (RFC3339 or YYYY-MM-DD; time may be ignored by Google Tasks)"`
 	Parent      string `name:"parent" help:"Parent task ID (create as subtask)"`
 	Previous    string `name:"previous" help:"Previous sibling task ID (controls ordering)"`
-	Repeat      string `name:"repeat" help:"Repeat task: daily, weekly, monthly, yearly"`
-	RepeatCount int    `name:"repeat-count" help:"Number of occurrences to create (requires --repeat)"`
-	RepeatUntil string `name:"repeat-until" help:"Repeat until date/time (RFC3339 or YYYY-MM-DD; requires --repeat)"`
+	Repeat      string `name:"repeat" help:"Materialize repeated tasks: daily, weekly, monthly, yearly"`
+	Recur       string `name:"recur" help:"Alias for --repeat cadence: daily, weekly, monthly, yearly"`
+	RecurRRule  string `name:"recur-rrule" help:"Alias for --repeat cadence via RRULE (supports FREQ + optional INTERVAL)"`
+	RepeatCount int    `name:"repeat-count" help:"Number of occurrences to create (requires --repeat, --recur, or --recur-rrule)"`
+	RepeatUntil string `name:"repeat-until" help:"Repeat until date/time (RFC3339 or YYYY-MM-DD; requires --repeat, --recur, or --recur-rrule)"`
+}
+
+type tasksAddRepeatConfig struct {
+	Unit      repeatUnit
+	Interval  int
+	Repeat    string
+	Recur     string
+	RecurRule string
+	Until     string
+}
+
+func resolveTasksAddRepeatConfig(c *TasksAddCmd, due string) (tasksAddRepeatConfig, error) {
+	config := tasksAddRepeatConfig{
+		Interval:  1,
+		Repeat:    strings.TrimSpace(c.Repeat),
+		Recur:     strings.TrimSpace(c.Recur),
+		RecurRule: strings.TrimSpace(c.RecurRRule),
+		Until:     strings.TrimSpace(c.RepeatUntil),
+	}
+
+	if config.Repeat != "" && (config.Recur != "" || config.RecurRule != "") {
+		return tasksAddRepeatConfig{}, usage("--repeat cannot be combined with --recur or --recur-rrule")
+	}
+	if config.Recur != "" && config.RecurRule != "" {
+		return tasksAddRepeatConfig{}, usage("--recur and --recur-rrule are mutually exclusive")
+	}
+
+	var err error
+	switch {
+	case config.RecurRule != "":
+		config.Unit, config.Interval, err = parseRepeatRRule(config.RecurRule)
+	case config.Recur != "":
+		config.Unit, err = parseRepeatUnit(config.Recur)
+	default:
+		config.Unit, err = parseRepeatUnit(config.Repeat)
+	}
+	if err != nil {
+		return tasksAddRepeatConfig{}, err
+	}
+
+	if config.Unit == repeatNone && (config.Until != "" || c.RepeatCount != 0) {
+		return tasksAddRepeatConfig{}, usage("--repeat, --recur, or --recur-rrule is required when using --repeat-count or --repeat-until")
+	}
+
+	if config.Unit != repeatNone {
+		if due == "" {
+			return tasksAddRepeatConfig{}, usage("--due is required when using --repeat, --recur, or --recur-rrule")
+		}
+		if c.RepeatCount < 0 {
+			return tasksAddRepeatConfig{}, usage("--repeat-count must be >= 0")
+		}
+		if config.Until == "" && c.RepeatCount == 0 {
+			if config.Recur != "" || config.RecurRule != "" {
+				return tasksAddRepeatConfig{}, usage("Google Tasks API does not support server-side recurring metadata; use --repeat-count or --repeat-until with --recur/--recur-rrule to materialize occurrences")
+			}
+			return tasksAddRepeatConfig{}, usage("--repeat requires --repeat-count or --repeat-until")
+		}
+	}
+
+	return config, nil
 }
 
 func (c *TasksAddCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -213,26 +275,9 @@ func (c *TasksAddCmd) Run(ctx context.Context, flags *RootFlags) error {
 	due := strings.TrimSpace(c.Due)
 	parent := strings.TrimSpace(c.Parent)
 	previous := strings.TrimSpace(c.Previous)
-	repeatUntil := strings.TrimSpace(c.RepeatUntil)
-
-	repeatUnit, err := parseRepeatUnit(c.Repeat)
+	repeatConfig, err := resolveTasksAddRepeatConfig(c, due)
 	if err != nil {
 		return err
-	}
-	if repeatUnit == repeatNone && (repeatUntil != "" || c.RepeatCount != 0) {
-		return usage("--repeat is required when using --repeat-count or --repeat-until")
-	}
-
-	if repeatUnit != repeatNone {
-		if due == "" {
-			return usage("--due is required when using --repeat")
-		}
-		if c.RepeatCount < 0 {
-			return usage("--repeat-count must be >= 0")
-		}
-		if repeatUntil == "" && c.RepeatCount == 0 {
-			return usage("--repeat requires --repeat-count or --repeat-until")
-		}
 	}
 
 	if dryRunErr := dryRunExit(ctx, flags, "tasks.add", map[string]any{
@@ -242,9 +287,12 @@ func (c *TasksAddCmd) Run(ctx context.Context, flags *RootFlags) error {
 		"due":          due,
 		"parent":       parent,
 		"previous":     previous,
-		"repeat":       strings.TrimSpace(c.Repeat),
+		"repeat":       repeatConfig.Repeat,
+		"recur":        repeatConfig.Recur,
+		"recur_rrule":  repeatConfig.RecurRule,
+		"repeat_step":  repeatConfig.Interval,
 		"repeat_count": c.RepeatCount,
-		"repeat_until": repeatUntil,
+		"repeat_until": repeatConfig.Until,
 	}); dryRunErr != nil {
 		return dryRunErr
 	}
@@ -254,7 +302,7 @@ func (c *TasksAddCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
-	if repeatUnit == repeatNone {
+	if repeatConfig.Unit == repeatNone {
 		svc, svcErr := newTasksService(ctx, account)
 		if svcErr != nil {
 			return svcErr
@@ -314,8 +362,8 @@ func (c *TasksAddCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 
 	var until *time.Time
-	if repeatUntil != "" {
-		untilValue, untilHasTime, parseErr := parseTaskDate(repeatUntil)
+	if repeatConfig.Until != "" {
+		untilValue, untilHasTime, parseErr := parseTaskDate(repeatConfig.Until)
 		if parseErr != nil {
 			return parseErr
 		}
@@ -337,7 +385,7 @@ func (c *TasksAddCmd) Run(ctx context.Context, flags *RootFlags) error {
 		until = &untilValue
 	}
 
-	schedule := expandRepeatSchedule(dueTime, repeatUnit, c.RepeatCount, until)
+	schedule := expandRepeatSchedule(dueTime, repeatConfig.Unit, repeatConfig.Interval, c.RepeatCount, until)
 	if len(schedule) == 0 {
 		return usage("repeat produced no occurrences")
 	}
@@ -361,7 +409,7 @@ func (c *TasksAddCmd) Run(ctx context.Context, flags *RootFlags) error {
 		}
 		task := &tasks.Task{
 			Title: title,
-			Notes: strings.TrimSpace(c.Notes),
+			Notes: notes,
 			Due:   formatTaskDue(due, dueHasTime),
 		}
 		call := svc.Tasks.Insert(tasklistID, task)

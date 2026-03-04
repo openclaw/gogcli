@@ -14,7 +14,7 @@ Fast, script-friendly CLI for Gmail, Calendar, Chat, Classroom, Drive, Docs, Sli
 - **Chat** - list/find/create spaces, list messages/threads (filter by thread/unread), send messages and DMs (Workspace-only)
 - **Drive** - list/search/upload/download files, manage permissions/comments, organize folders, list shared drives
 - **Contacts** - search/create/update contacts, access Workspace directory/other contacts
-- **Tasks** - manage tasklists and tasks: get/create/add/update/done/undo/delete/clear, repeat schedules
+- **Tasks** - manage tasklists and tasks: get/create/add/update/done/undo/delete/clear, repeat schedule materialization
 - **Sheets** - read/write/update spreadsheets, insert rows/cols, format cells, read notes, create new sheets (and export via Drive)
 - **Forms** - create/get forms and inspect responses
 - **Apps Script** - create/get projects, inspect content, and run functions
@@ -960,6 +960,7 @@ gog tasks get <tasklistId> <taskId>
 gog tasks add <tasklistId> --title "Task title"
 gog tasks add <tasklistId> --title "Weekly sync" --due 2025-02-01 --repeat weekly --repeat-count 4
 gog tasks add <tasklistId> --title "Daily standup" --due 2025-02-01 --repeat daily --repeat-until 2025-02-05
+gog tasks add <tasklistId> --title "Bi-weekly review" --due 2025-02-01 --recur-rrule "FREQ=WEEKLY;INTERVAL=2" --repeat-count 3
 gog tasks update <tasklistId> <taskId> --title "New title"
 gog tasks done <tasklistId> <taskId>
 gog tasks undo <tasklistId> <taskId>
@@ -967,6 +968,7 @@ gog tasks delete <tasklistId> <taskId>
 gog tasks clear <tasklistId>
 
 # Note: Google Tasks treats due dates as date-only; time components may be ignored.
+# Note: Public Google Tasks API does not expose true recurring-task metadata; `--repeat*`/`--recur*` materialize concrete tasks.
 # See docs/dates.md for all supported date/time input formats across commands.
 ```
 
