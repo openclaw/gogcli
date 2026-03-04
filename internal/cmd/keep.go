@@ -25,6 +25,8 @@ type KeepCmd struct {
 	List       KeepListCmd       `cmd:"" default:"withargs" help:"List notes"`
 	Get        KeepGetCmd        `cmd:"" name:"get" help:"Get a note"`
 	Search     KeepSearchCmd     `cmd:"" name:"search" help:"Search notes by text (client-side)"`
+	Create     KeepCreateCmd     `cmd:"" name:"create" help:"Create a new note"`
+	Delete     KeepDeleteCmd     `cmd:"" name:"delete" help:"Delete a note"`
 	Attachment KeepAttachmentCmd `cmd:"" name:"attachment" help:"Download an attachment"`
 }
 
@@ -318,6 +320,105 @@ func (c *KeepAttachmentCmd) Run(ctx context.Context, flags *RootFlags, keep *Kee
 	u.Out().Printf("path\t%s", outPath)
 	u.Out().Printf("bytes\t%d", written)
 	return nil
+}
+
+type KeepCreateCmd struct {
+	Title string   `name:"title" help:"Note title"`
+	Text  string   `name:"text" help:"Note body text"`
+	Item  []string `name:"item" help:"List item text (repeatable; creates a checklist note)"`
+}
+
+func (c *KeepCreateCmd) Run(ctx context.Context, flags *RootFlags, keep *KeepCmd) error {
+	u := ui.FromContext(ctx)
+
+	title := strings.TrimSpace(c.Title)
+	text := strings.TrimSpace(c.Text)
+
+	if text == "" && len(c.Item) == 0 {
+		return usage("provide --text or at least one --item")
+	}
+	if text != "" && len(c.Item) > 0 {
+		return usage("--text and --item are mutually exclusive")
+	}
+
+	if dryRunErr := dryRunExit(ctx, flags, "keep.create", map[string]any{
+		"title": title,
+		"text":  text,
+		"items": c.Item,
+	}); dryRunErr != nil {
+		return dryRunErr
+	}
+
+	svc, err := getKeepService(ctx, flags, keep)
+	if err != nil {
+		return err
+	}
+
+	note := &keepapi.Note{Title: title}
+
+	if text != "" {
+		note.Body = &keepapi.Section{
+			Text: &keepapi.TextContent{Text: text},
+		}
+	} else {
+		items := make([]*keepapi.ListItem, 0, len(c.Item))
+		for _, it := range c.Item {
+			items = append(items, &keepapi.ListItem{
+				Text: &keepapi.TextContent{Text: strings.TrimSpace(it)},
+			})
+		}
+		note.Body = &keepapi.Section{
+			List: &keepapi.ListContent{ListItems: items},
+		}
+	}
+
+	created, err := svc.Notes.Create(note).Context(ctx).Do()
+	if err != nil {
+		return err
+	}
+
+	if outfmt.IsJSON(ctx) {
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{"note": created})
+	}
+
+	u.Out().Printf("name\t%s", created.Name)
+	u.Out().Printf("title\t%s", created.Title)
+	u.Out().Printf("created\t%s", created.CreateTime)
+	return nil
+}
+
+type KeepDeleteCmd struct {
+	NoteID string `arg:"" name:"noteId" help:"Note ID or name (e.g. notes/abc123)"`
+}
+
+func (c *KeepDeleteCmd) Run(ctx context.Context, flags *RootFlags, keep *KeepCmd) error {
+	u := ui.FromContext(ctx)
+
+	name := strings.TrimSpace(c.NoteID)
+	if name == "" {
+		return usage("empty noteId")
+	}
+	if !strings.HasPrefix(name, "notes/") {
+		name = "notes/" + name
+	}
+
+	if confirmErr := confirmDestructive(ctx, flags, fmt.Sprintf("delete note %s", name)); confirmErr != nil {
+		return confirmErr
+	}
+
+	svc, err := getKeepService(ctx, flags, keep)
+	if err != nil {
+		return err
+	}
+
+	if _, err := svc.Notes.Delete(name).Context(ctx).Do(); err != nil {
+		return err
+	}
+
+	return writeResult(ctx, u,
+		kv("deleted", true),
+		kv("name", name),
+	)
 }
 
 func getKeepService(ctx context.Context, flags *RootFlags, keepCmd *KeepCmd) (*keepapi.Service, error) {
