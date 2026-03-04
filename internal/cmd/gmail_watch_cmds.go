@@ -14,6 +14,7 @@ import (
 	"google.golang.org/api/gmail/v1"
 	"google.golang.org/api/idtoken"
 
+	"github.com/steipete/gogcli/internal/authclient"
 	"github.com/steipete/gogcli/internal/outfmt"
 	"github.com/steipete/gogcli/internal/ui"
 )
@@ -345,12 +346,20 @@ func (c *GmailWatchServeCmd) Run(ctx context.Context, kctx *kong.Context, flags 
 		cfg.MaxBodyBytes = defaultHookMaxBytes
 	}
 
+	selectedClient := strings.TrimSpace(flags.Client)
+	serviceFactory := func(ctx context.Context, account string) (*gmail.Service, error) {
+		if selectedClient != "" {
+			ctx = authclient.WithClient(ctx, selectedClient)
+		}
+		return newGmailService(ctx, account)
+	}
+
 	hookClient := &http.Client{Timeout: cfg.HookTimeout}
 	server := &gmailWatchServer{
 		cfg:             cfg,
 		store:           store,
 		validator:       validator,
-		newService:      newGmailService,
+		newService:      serviceFactory,
 		hookClient:      hookClient,
 		excludeLabelIDs: stringSet(cfg.ExcludeLabels),
 		logf:            u.Err().Printf,
