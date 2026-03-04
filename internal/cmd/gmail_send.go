@@ -164,7 +164,7 @@ func (c *GmailSendCmd) Run(ctx context.Context, flags *RootFlags) error {
 			}
 		}
 
-		if sa.VerificationStatus != gmailVerificationAccepted {
+		if !sendAsAllowedForFrom(sa) {
 			return fmt.Errorf("--from address %q is not verified (status: %s)", fromEmail, sa.VerificationStatus)
 		}
 

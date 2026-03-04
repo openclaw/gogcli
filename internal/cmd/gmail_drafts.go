@@ -330,7 +330,7 @@ func buildDraftMessage(ctx context.Context, svc *gmail.Service, account string, 
 		if err != nil {
 			return nil, "", fmt.Errorf("invalid --from address %q: %w", input.From, err)
 		}
-		if sa.VerificationStatus != gmailVerificationAccepted {
+		if !sendAsAllowedForFrom(sa) {
 			return nil, "", fmt.Errorf("--from address %q is not verified (status: %s)", input.From, sa.VerificationStatus)
 		}
 		fromAddr = input.From

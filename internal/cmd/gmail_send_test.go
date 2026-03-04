@@ -432,6 +432,71 @@ func TestGmailSendCmd_RunJSON_WithFrom(t *testing.T) {
 	}
 }
 
+func TestGmailSendCmd_RunJSON_WithFromWorkspaceAliasNoVerificationStatus(t *testing.T) {
+	origNew := newGmailService
+	t.Cleanup(func() { newGmailService = origNew })
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := strings.TrimPrefix(r.URL.Path, "/gmail/v1")
+		switch {
+		case r.Method == http.MethodGet && path == "/users/me/settings/sendAs":
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"sendAs": []map[string]any{
+					{
+						"sendAsEmail": "workspace-alias@example.com",
+						"displayName": "Workspace Alias",
+					},
+				},
+			})
+			return
+		case r.Method == http.MethodPost && path == "/users/me/messages/send":
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"id":       "m2w",
+				"threadId": "t2w",
+			})
+			return
+		default:
+			http.NotFound(w, r)
+			return
+		}
+	}))
+	defer srv.Close()
+
+	svc, err := gmail.NewService(context.Background(),
+		option.WithoutAuthentication(),
+		option.WithHTTPClient(srv.Client()),
+		option.WithEndpoint(srv.URL+"/"),
+	)
+	if err != nil {
+		t.Fatalf("NewService: %v", err)
+	}
+	newGmailService = func(context.Context, string) (*gmail.Service, error) { return svc, nil }
+
+	u, err := ui.New(ui.Options{Stdout: os.Stdout, Stderr: os.Stderr, Color: "never"})
+	if err != nil {
+		t.Fatalf("ui.New: %v", err)
+	}
+	ctx := outfmt.WithMode(ui.WithUI(context.Background(), u), outfmt.Mode{JSON: true})
+
+	cmd := &GmailSendCmd{
+		To:      "a@example.com",
+		From:    "workspace-alias@example.com",
+		Subject: "Hello",
+		Body:    "Body",
+	}
+
+	out := captureStdout(t, func() {
+		if err := cmd.Run(ctx, &RootFlags{Account: "a@b.com"}); err != nil {
+			t.Fatalf("Run: %v", err)
+		}
+	})
+	if !strings.Contains(out, "\"from\"") || !strings.Contains(out, "Workspace Alias <workspace-alias@example.com>") {
+		t.Fatalf("unexpected output: %q", out)
+	}
+}
+
 func TestGmailSendCmd_RunJSON_WithFromDisplayNameFallbackToList(t *testing.T) {
 	origNew := newGmailService
 	t.Cleanup(func() { newGmailService = origNew })
