@@ -36,6 +36,7 @@ type DocsCmd struct {
 	Insert      DocsInsertCmd      `cmd:"" name:"insert" help:"Insert text at a specific position"`
 	Delete      DocsDeleteCmd      `cmd:"" name:"delete" help:"Delete text range from document"`
 	FindReplace DocsFindReplaceCmd `cmd:"" name:"find-replace" help:"Find and replace text in document"`
+	Color       DocsColorCmd       `cmd:"" name:"color" help:"Apply text color to existing text in a document"`
 	Update      DocsUpdateCmd      `cmd:"" name:"update" help:"Insert text at a specific index in a Google Doc"`
 	Edit        DocsEditCmd        `cmd:"" name:"edit" help:"Find and replace text in a Google Doc"`
 	Sed         DocsSedCmd         `cmd:"" name:"sed" help:"Regex find/replace (sed-style: s/pattern/replacement/g)"`
@@ -1059,6 +1060,144 @@ func (c *DocsFindReplaceCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u.Out().Printf("find\t%s", c.Find)
 	u.Out().Printf("replace\t%s", c.ReplaceText)
 	u.Out().Printf("replacements\t%d", replacements)
+	return nil
+}
+
+type DocsColorCmd struct {
+	DocID     string `arg:"" name:"docId" help:"Doc ID"`
+	Find      string `arg:"" name:"find" help:"Text to find and color"`
+	TextColor string `arg:"" name:"color" help:"Text color (hex #RRGGBB or name: red, blue, green, ...)"`
+	MatchCase bool   `name:"match-case" help:"Case-sensitive matching" default:"true"`
+	All       bool   `name:"all" help:"Color all occurrences (default: first only)"`
+	Paragraph bool   `name:"paragraph" short:"P" help:"Color the entire paragraph(s) containing the match"`
+}
+
+func (c *DocsColorCmd) Run(ctx context.Context, flags *RootFlags) error {
+	u := ui.FromContext(ctx)
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
+	}
+
+	docID := strings.TrimSpace(c.DocID)
+	if docID == "" {
+		return usage("empty docId")
+	}
+	if c.Find == "" {
+		return usage("find text cannot be empty")
+	}
+
+	color, err := ParseTextColor(c.TextColor)
+	if err != nil {
+		return fmt.Errorf("invalid color: %w", err)
+	}
+
+	svc, err := newDocsService(ctx, account)
+	if err != nil {
+		return err
+	}
+
+	// Get document structure to find text indices
+	doc, err := svc.Documents.Get(docID).Context(ctx).Do()
+	if err != nil {
+		return fmt.Errorf("get document: %w", err)
+	}
+
+	// Walk structural elements to find the text
+	type match struct {
+		start int64
+		end   int64
+	}
+	var matches []match
+
+	findText := c.Find
+	for _, elem := range doc.Body.Content {
+		if elem.Paragraph == nil {
+			continue
+		}
+		// Build full paragraph text and track element boundaries
+		var paraText string
+		var paraStart, paraEnd int64
+		if len(elem.Paragraph.Elements) > 0 {
+			paraStart = elem.Paragraph.Elements[0].StartIndex
+			paraEnd = elem.Paragraph.Elements[len(elem.Paragraph.Elements)-1].EndIndex
+		}
+		for _, pe := range elem.Paragraph.Elements {
+			if pe.TextRun != nil {
+				paraText += pe.TextRun.Content
+			}
+		}
+
+		// Search within the paragraph text
+		searchIn := paraText
+		searchFor := findText
+		if !c.MatchCase {
+			searchIn = strings.ToLower(searchIn)
+			searchFor = strings.ToLower(searchFor)
+		}
+
+		offset := 0
+		for {
+			idx := strings.Index(searchIn[offset:], searchFor)
+			if idx < 0 {
+				break
+			}
+			if c.Paragraph {
+				// Color the entire paragraph, excluding trailing newline
+				end := paraEnd
+				if len(paraText) > 0 && paraText[len(paraText)-1] == '\n' {
+					end--
+				}
+				matches = append(matches, match{start: paraStart, end: end})
+			} else {
+				absIdx := offset + idx
+				start := paraStart + int64(absIdx)
+				end := start + int64(len(findText))
+				matches = append(matches, match{start: start, end: end})
+			}
+			if !c.All {
+				break
+			}
+			offset = offset + idx + len(searchFor)
+			if c.Paragraph {
+				break // one match per paragraph is enough
+			}
+		}
+		if len(matches) > 0 && !c.All {
+			break
+		}
+	}
+
+	if len(matches) == 0 {
+		return fmt.Errorf("text not found in document: %q", c.Find)
+	}
+
+	// Build color requests
+	var reqs []*docs.Request
+	for _, m := range matches {
+		reqs = append(reqs, BuildColorRequest(m.start, m.end, color))
+	}
+
+	_, err = svc.Documents.BatchUpdate(docID, &docs.BatchUpdateDocumentRequest{
+		Requests: reqs,
+	}).Context(ctx).Do()
+	if err != nil {
+		return fmt.Errorf("apply color: %w", err)
+	}
+
+	if outfmt.IsJSON(ctx) {
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
+			"documentId": docID,
+			"find":       c.Find,
+			"color":      c.TextColor,
+			"matches":    len(matches),
+		})
+	}
+
+	u.Out().Printf("documentId\t%s", docID)
+	u.Out().Printf("find\t%s", c.Find)
+	u.Out().Printf("color\t%s", c.TextColor)
+	u.Out().Printf("matches\t%d", len(matches))
 	return nil
 }
 
