@@ -167,6 +167,39 @@ func TestRequireAccount_UsesSingleStoredToken(t *testing.T) {
 	}
 }
 
+func TestRequireAccount_AccessTokenNoAccount(t *testing.T) {
+	t.Setenv("GOG_ACCOUNT", "")
+	flags := &RootFlags{AccessToken: "ya29.some-token"}
+
+	// Should NOT attempt to open keyring when access token is provided
+	prev := openSecretsStoreForAccount
+	t.Cleanup(func() { openSecretsStoreForAccount = prev })
+	openSecretsStoreForAccount = func() (secrets.Store, error) {
+		t.Fatal("openSecretsStoreForAccount should not be called when access token is provided")
+		return nil, errors.New("unreachable")
+	}
+
+	got, err := requireAccount(flags)
+	if err != nil {
+		t.Fatalf("err: %v", err)
+	}
+	if got != AccessTokenPlaceholderAccount {
+		t.Fatalf("expected %q, got %q", AccessTokenPlaceholderAccount, got)
+	}
+}
+
+func TestRequireAccount_AccessTokenWithExplicitAccount(t *testing.T) {
+	flags := &RootFlags{AccessToken: "ya29.some-token", Account: "explicit@example.com"}
+
+	got, err := requireAccount(flags)
+	if err != nil {
+		t.Fatalf("err: %v", err)
+	}
+	if got != "explicit@example.com" {
+		t.Fatalf("expected explicit@example.com, got %q", got)
+	}
+}
+
 func TestRequireAccount_MissingWhenMultipleTokensAndNoDefault(t *testing.T) {
 	t.Setenv("GOG_ACCOUNT", "")
 	flags := &RootFlags{}
