@@ -773,6 +773,73 @@ func TestAuthAddCmd_AuthCode_PassesThrough(t *testing.T) {
 	}
 }
 
+func TestAuthAddCmd_ExtraScopes(t *testing.T) {
+	origAuth := authorizeGoogle
+	origOpen := openSecretsStore
+	origKeychain := ensureKeychainAccess
+	origFetch := fetchAuthorizedEmail
+	t.Cleanup(func() {
+		authorizeGoogle = origAuth
+		openSecretsStore = origOpen
+		ensureKeychainAccess = origKeychain
+		fetchAuthorizedEmail = origFetch
+	})
+
+	ensureKeychainAccess = func() error { return nil }
+
+	store := newMemSecretsStore()
+	openSecretsStore = func() (secrets.Store, error) { return store, nil }
+
+	var gotOpts googleauth.AuthorizeOptions
+	authorizeGoogle = func(ctx context.Context, opts googleauth.AuthorizeOptions) (string, error) {
+		gotOpts = opts
+		gotOpts.Services = append([]googleauth.Service(nil), opts.Services...)
+		gotOpts.Scopes = append([]string(nil), opts.Scopes...)
+		return "rt", nil
+	}
+	fetchAuthorizedEmail = func(context.Context, string, string, []string, time.Duration) (string, error) {
+		return "user@example.com", nil
+	}
+
+	_ = captureStdout(t, func() {
+		_ = captureStderr(t, func() {
+			if err := Execute([]string{
+				"--json",
+				"auth",
+				"add",
+				"user@example.com",
+				"--services",
+				"gmail",
+				"--gmail-scope",
+				"readonly",
+				"--extra-scopes",
+				"https://www.googleapis.com/auth/gmail.labels,https://www.googleapis.com/auth/gmail.readonly",
+			}); err != nil {
+				t.Fatalf("Execute: %v", err)
+			}
+		})
+	})
+
+	// Extra scope should be present
+	if !containsStringInSlice(gotOpts.Scopes, "https://www.googleapis.com/auth/gmail.labels") {
+		t.Fatalf("missing gmail.labels in %v", gotOpts.Scopes)
+	}
+	// gmail.readonly from --gmail-scope=readonly should still be present
+	if !containsStringInSlice(gotOpts.Scopes, "https://www.googleapis.com/auth/gmail.readonly") {
+		t.Fatalf("missing gmail.readonly in %v", gotOpts.Scopes)
+	}
+	// Duplicate gmail.readonly (from extra-scopes) should be de-duplicated
+	count := 0
+	for _, s := range gotOpts.Scopes {
+		if s == "https://www.googleapis.com/auth/gmail.readonly" {
+			count++
+		}
+	}
+	if count != 1 {
+		t.Fatalf("expected gmail.readonly exactly once, got %d in %v", count, gotOpts.Scopes)
+	}
+}
+
 func containsStringInSlice(items []string, want string) bool {
 	for _, it := range items {
 		if it == want {

@@ -3,6 +3,7 @@
 ## 0.12.0 - Unreleased
 
 ### Added
+- Auth: add `--extra-scopes` flag to `auth add` for appending custom OAuth scope URIs beyond the built-in service scopes. (#420)
 - Sheets: add `sheets insert` to insert rows/columns into a sheet. (#203) — thanks @andybergon.
 - Sheets: add `sheets links` (alias `hyperlinks`) to list cell links from ranges, including rich-text links. (#374) — thanks @omothm.
 - Gmail: add `watch serve --history-types` filtering (`messageAdded|messageDeleted|labelAdded|labelRemoved`) and include `deletedMessageIds` in webhook payloads. (#168) — thanks @salmonumbrella.

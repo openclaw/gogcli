@@ -486,6 +486,7 @@ type AuthAddCmd struct {
 	Readonly     bool          `name:"readonly" help:"Use read-only scopes where available (still includes OIDC identity scopes)"`
 	DriveScope   string        `name:"drive-scope" help:"Drive scope mode: full|readonly|file" enum:"full,readonly,file" default:"full"`
 	GmailScope   string        `name:"gmail-scope" help:"Gmail scope mode: full|readonly" enum:"full,readonly" default:"full"`
+	ExtraScopes  string        `name:"extra-scopes" help:"Comma-separated list of additional OAuth scope URIs to request (appended after service scopes)"`
 }
 
 func (c *AuthAddCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -514,10 +515,20 @@ func (c *AuthAddCmd) Run(ctx context.Context, flags *RootFlags) error {
 		driveScope == "readonly" ||
 		driveScope == strFile ||
 		gmailScope == "readonly"
+
+	var extraScopes []string
+	for _, s := range strings.Split(c.ExtraScopes, ",") {
+		s = strings.TrimSpace(s)
+		if s != "" {
+			extraScopes = append(extraScopes, s)
+		}
+	}
+
 	scopes, err := googleauth.ScopesForManageWithOptions(services, googleauth.ScopeOptions{
-		Readonly:   c.Readonly,
-		DriveScope: googleauth.DriveScopeMode(driveScope),
-		GmailScope: googleauth.GmailScopeMode(gmailScope),
+		Readonly:    c.Readonly,
+		DriveScope:  googleauth.DriveScopeMode(driveScope),
+		GmailScope:  googleauth.GmailScopeMode(gmailScope),
+		ExtraScopes: extraScopes,
 	})
 	if err != nil {
 		return err
@@ -599,6 +610,7 @@ func (c *AuthAddCmd) Run(ctx context.Context, flags *RootFlags) error {
 		"readonly":      c.Readonly,
 		"drive_scope":   c.DriveScope,
 		"gmail_scope":   c.GmailScope,
+		"extra_scopes":  extraScopes,
 	}); dryRunErr != nil {
 		return dryRunErr
 	}

@@ -497,6 +497,39 @@ func TestScopesForServiceWithOptions_AppScriptReadonly(t *testing.T) {
 	}
 }
 
+func TestScopesForManageWithOptions_ExtraScopes(t *testing.T) {
+	scopes, err := ScopesForManageWithOptions([]Service{ServiceGmail}, ScopeOptions{
+		GmailScope: GmailScopeReadonly,
+		ExtraScopes: []string{
+			"https://www.googleapis.com/auth/gmail.labels",
+			"https://www.googleapis.com/auth/gmail.readonly", // duplicate
+		},
+	})
+	if err != nil {
+		t.Fatalf("err: %v", err)
+	}
+
+	if !containsScope(scopes, "https://www.googleapis.com/auth/gmail.labels") {
+		t.Fatalf("missing gmail.labels in %v", scopes)
+	}
+
+	if !containsScope(scopes, "https://www.googleapis.com/auth/gmail.readonly") {
+		t.Fatalf("missing gmail.readonly in %v", scopes)
+	}
+
+	// De-duplication: gmail.readonly should appear exactly once
+	count := 0
+	for _, s := range scopes {
+		if s == "https://www.googleapis.com/auth/gmail.readonly" {
+			count++
+		}
+	}
+
+	if count != 1 {
+		t.Fatalf("expected gmail.readonly exactly once, got %d in %v", count, scopes)
+	}
+}
+
 func TestScopes_UnknownService(t *testing.T) {
 	if _, err := Scopes(Service("nope")); err == nil {
 		t.Fatalf("expected error")
