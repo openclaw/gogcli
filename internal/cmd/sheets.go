@@ -8,6 +8,7 @@ import (
 	"strings"
 	"text/tabwriter"
 
+	"google.golang.org/api/drive/v3"
 	"google.golang.org/api/sheets/v4"
 
 	"github.com/steipete/gogcli/internal/googleapi"
@@ -464,6 +465,7 @@ func (c *SheetsMetadataCmd) Run(ctx context.Context, flags *RootFlags) error {
 type SheetsCreateCmd struct {
 	Title  string `arg:"" name:"title" help:"Spreadsheet title"`
 	Sheets string `name:"sheets" help:"Comma-separated sheet names to create"`
+	Parent string `name:"parent" help:"Destination folder ID"`
 }
 
 func (c *SheetsCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -511,6 +513,25 @@ func (c *SheetsCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
 	resp, err := svc.Spreadsheets.Create(spreadsheet).Do()
 	if err != nil {
 		return err
+	}
+
+	// Move to parent folder if specified
+	if c.Parent != "" {
+		var parentDriveSvc *drive.Service
+		parentDriveSvc, err = newDriveService(ctx, account)
+		if err != nil {
+			return err
+		}
+
+		_, err = parentDriveSvc.Files.Update(resp.SpreadsheetId, &drive.File{}).
+			AddParents(c.Parent).
+			SupportsAllDrives(true).
+			Context(ctx).
+			Do()
+		if err != nil {
+			u.Out().Errorf("Failed to move spreadsheet to folder: %v", err)
+			u.Out().Println("Spreadsheet created in Drive root. Move to desired folder if needed.")
+		}
 	}
 
 	if outfmt.IsJSON(ctx) {
