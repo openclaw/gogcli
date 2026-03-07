@@ -500,10 +500,10 @@ func formatRemoteStep2Instruction(services []googleauth.Service, c *AuthAddCmd) 
 	if c.Readonly {
 		parts = append(parts, "--readonly")
 	}
-	if driveScope := strings.ToLower(strings.TrimSpace(c.DriveScope)); driveScope != "" && driveScope != "full" {
+	if driveScope := strings.ToLower(strings.TrimSpace(c.DriveScope)); driveScope != "" && driveScope != string(googleauth.DriveScopeFull) {
 		parts = append(parts, "--drive-scope", driveScope)
 	}
-	if gmailScope := strings.ToLower(strings.TrimSpace(c.GmailScope)); gmailScope != "" && gmailScope != "full" {
+	if gmailScope := strings.ToLower(strings.TrimSpace(c.GmailScope)); gmailScope != "" && gmailScope != string(googleauth.GmailScopeFull) {
 		parts = append(parts, "--gmail-scope", gmailScope)
 	}
 	if c.ForceConsent {
