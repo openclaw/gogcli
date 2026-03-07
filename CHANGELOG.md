@@ -21,6 +21,7 @@
 - Calendar: hide cancelled/deleted events from `calendar events` list output by explicitly setting `showDeleted=false`. (#362) — thanks @sharukh010.
 - Calendar: use `Calendars.Get` for timezone lookups so service-account flows don’t 404 on `calendarList/primary`. (#325) — thanks @markwatson.
 - Auth: persist rotated OAuth refresh tokens returned during API calls so later commands keep working without re-auth. (#373) — thanks @joshp123.
+- Groups: include required label filters in transitive group searches so `groups list` doesn’t 400 on Cloud Identity. (#315) — thanks @salmonumbrella.
 - Gmail: fall back to `MimeType` charset hints when `Content-Type` headers are missing so GBK/GB2312 message bodies decode correctly. (#428) — thanks @WinnCook.
 - Gmail: add a fetch delay in `watch serve` so History API reads don't race message indexing. (#397) — thanks @salmonumbrella.
 - Gmail: allow Workspace-managed send-as aliases with empty verification status in `send` and `drafts create`. (#407) — thanks @salmonumbrella.
