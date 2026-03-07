@@ -17,6 +17,7 @@
 - Contacts: fix grouped parameter types in CRUD helpers to restore builds on newer Go toolchains. (#355) — thanks @laihenyi.
 - Timezone: embed the IANA timezone database so Windows builds can resolve calendar timezones correctly. (#388) — thanks @visionik.
 - Google API: use transport-level response-header timeouts for API clients while keeping token exchanges bounded, so large downloads are not cut short by `http.Client.Timeout`. (#425) — thanks @laihenyi.
+- Sheets: make `sheets metadata --plain` emit real TSV tab delimiters, with regression coverage for plain tabular sheet output. (#298) — thanks @mahsumaktas.
 - Auth: keep Keep-only service-account fallback isolated to Keep commands so other Google services do not accidentally pick it up. (#414) — thanks @jgwesterlund.
 - Contacts: send the required `copyMask` when deleting "other contacts", avoiding People API 400 errors. (#384) — thanks @rbansal42.
 - Calendar: hide cancelled/deleted events from `calendar events` list output by explicitly setting `showDeleted=false`. (#362) — thanks @sharukh010.
