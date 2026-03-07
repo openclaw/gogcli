@@ -7,7 +7,9 @@ import (
 	"path/filepath"
 	"testing"
 
+	"golang.org/x/text/encoding/ianaindex"
 	"golang.org/x/text/encoding/japanese"
+	"golang.org/x/text/encoding/simplifiedchinese"
 	"google.golang.org/api/gmail/v1"
 )
 
@@ -294,6 +296,40 @@ func TestDecodeBodyCharset_ISO2022JP_TruncatedEscapeSequence(t *testing.T) {
 	// Should gracefully handle and return something (original or partial decode)
 	if got == nil {
 		t.Fatalf("expected non-nil result for truncated escape sequence")
+	}
+}
+
+func TestDecodeBodyCharset_GBK(t *testing.T) {
+	source := "您的阿里云账户已欠费即将停服提醒"
+	enc, err := ianaindex.MIME.Encoding("gbk")
+	if err != nil || enc == nil {
+		t.Fatalf("lookup gbk encoding: %v", err)
+	}
+	encoded, err := enc.NewEncoder().Bytes([]byte(source))
+	if err != nil {
+		t.Fatalf("encode gbk: %v", err)
+	}
+	got := decodeBodyCharset(encoded, "text/plain; charset=gbk")
+	if string(got) != source {
+		t.Fatalf("unexpected decoded charset: expected %q, got %q", source, string(got))
+	}
+}
+
+func TestFindPartBody_UsesMimeTypeCharsetWhenHeaderMissing(t *testing.T) {
+	source := "您的阿里云账户已欠费即将停服提醒"
+	encodedBody, err := simplifiedchinese.GBK.NewEncoder().Bytes([]byte(source))
+	if err != nil {
+		t.Fatalf("encode gb2312: %v", err)
+	}
+	part := &gmail.MessagePart{
+		MimeType: "text/plain; charset=gb2312",
+		Body: &gmail.MessagePartBody{
+			Data: base64.RawURLEncoding.EncodeToString(encodedBody),
+		},
+	}
+	got := findPartBody(part, "text/plain")
+	if got != source {
+		t.Fatalf("unexpected decoded body: expected %q, got %q", source, got)
 	}
 }
 

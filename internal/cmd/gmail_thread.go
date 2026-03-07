@@ -462,7 +462,11 @@ func decodePartBody(p *gmail.MessagePart) (string, error) {
 		decoded = decodeTransferEncoding(decoded, cte)
 	}
 
-	if contentType := strings.TrimSpace(headerValue(p, "Content-Type")); contentType != "" {
+	contentType := strings.TrimSpace(headerValue(p, "Content-Type"))
+	if contentType == "" {
+		contentType = strings.TrimSpace(p.MimeType)
+	}
+	if contentType != "" {
 		decoded = decodeBodyCharset(decoded, contentType)
 	}
 
