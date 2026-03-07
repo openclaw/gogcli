@@ -22,6 +22,7 @@
 - Security: require confirmation before public Drive shares, Gmail forwarding filters, and Gmail delegate grants in no-input/agent flows. (#317) — thanks @salmonumbrella.
 - CLI: show root help instead of a parse error when `gog` is run with no arguments. (#342) — thanks @cstenglein.
 - Gmail: preserve `Cc` metadata output in plain `gmail get --format metadata` even when Gmail returns uppercase `CC` headers. (#343) — thanks @salmonumbrella.
+- Calendar: clarify that RFC3339 `--from/--to` timestamps must include a timezone while keeping date and relative-time help intact. (#409) — thanks @dbhurley.
 - Auth: keep Keep-only service-account fallback isolated to Keep commands so other Google services do not accidentally pick it up. (#414) — thanks @jgwesterlund.
 - Contacts: send the required `copyMask` when deleting "other contacts", avoiding People API 400 errors. (#384) — thanks @rbansal42.
 - Calendar: hide cancelled/deleted events from `calendar events` list output by explicitly setting `showDeleted=false`. (#362) — thanks @sharukh010.

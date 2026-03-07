@@ -249,8 +249,8 @@ type CalendarEventsCmd struct {
 	CalendarID        string   `arg:"" name:"calendarId" optional:"" help:"Calendar ID (default: primary)"`
 	Cal               []string `name:"cal" help:"Calendar ID or name (can be repeated)"`
 	Calendars         string   `name:"calendars" help:"Comma-separated calendar IDs, names, or indices from 'calendar calendars'"`
-	From              string   `name:"from" help:"Start time (RFC3339 with timezone, e.g. 2026-01-02T00:00:00-08:00)"`
-	To                string   `name:"to" help:"End time (RFC3339 with timezone, e.g. 2026-01-02T23:59:59-08:00)"`
+	From              string   `name:"from" help:"Start time (RFC3339 with timezone, date, or relative: today, tomorrow, monday)"`
+	To                string   `name:"to" help:"End time (RFC3339 with timezone, date, or relative)"`
 	Today             bool     `name:"today" help:"Today only (timezone-aware)"`
 	Tomorrow          bool     `name:"tomorrow" help:"Tomorrow only (timezone-aware)"`
 	Week              bool     `name:"week" help:"This week (uses --week-start, default Mon)"`
