@@ -25,6 +25,7 @@
 - Groups: include required label filters in transitive group searches so `groups list` doesn’t 400 on Cloud Identity. (#315) — thanks @salmonumbrella.
 - Gmail: fall back to `MimeType` charset hints when `Content-Type` headers are missing so GBK/GB2312 message bodies decode correctly. (#428) — thanks @WinnCook.
 - Auth: preserve scope-shaping flags in the remote step-2 replay guidance for `auth add --remote`. (#427) — thanks @doodaaatimmy-creator.
+- Calendar: preserve full RRULE values and recurring-event timezones during updates so recurrence edits don’t lose BYDAY lists or hit missing-timezone API errors. (#392) — thanks @salmonumbrella.
 - Gmail: add a fetch delay in `watch serve` so History API reads don't race message indexing. (#397) — thanks @salmonumbrella.
 - Gmail: allow Workspace-managed send-as aliases with empty verification status in `send` and `drafts create`. (#407) — thanks @salmonumbrella.
 - Gmail: preserve the selected `--client` during `watch serve` push handling instead of falling back to the default client. (#411) — thanks @chrysb.
