@@ -104,6 +104,7 @@ func TestSheetsFormatCmd(t *testing.T) {
 		t.Fatalf("expected bold text format, got %#v", gotRepeat.Cell.UserEnteredFormat.TextFormat)
 	}
 }
+
 func TestSheetsFormatCmdNamedRange(t *testing.T) {
 	origNew := newSheetsService
 	t.Cleanup(func() { newSheetsService = origNew })
