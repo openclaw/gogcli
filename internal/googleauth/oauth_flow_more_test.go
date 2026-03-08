@@ -136,6 +136,7 @@ func TestAuthorize_InvalidRedirectURI(t *testing.T) {
 	if err == nil {
 		t.Fatalf("expected invalid redirect uri error")
 	}
+
 	if !strings.Contains(err.Error(), "parse redirect uri") {
 		t.Fatalf("unexpected error: %v", err)
 	}
