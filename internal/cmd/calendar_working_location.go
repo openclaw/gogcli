@@ -29,7 +29,7 @@ func (c *CalendarWorkingLocationCmd) Run(ctx context.Context, flags *RootFlags) 
 	var err error
 	calendarID := strings.TrimSpace(c.CalendarID)
 	if calendarID == "" {
-		calendarID = "primary"
+		calendarID = primaryCalendarID
 	} else {
 		calendarID, err = resolveCalendarAliasID(calendarID)
 		if err != nil {
