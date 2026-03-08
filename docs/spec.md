@@ -272,6 +272,7 @@ Flag aliases:
 - `gog gmail labels list`
 - `gog gmail labels get <labelIdOrName>`
 - `gog gmail labels create <name>`
+- `gog gmail labels rename <labelIdOrName> <newName>`
 - `gog gmail labels modify <threadIds...> [--add ...] [--remove ...]`
 - `gog gmail send --to a@b.com --subject S [--body B] [--body-html H] [--cc ...] [--bcc ...] [--reply-to-message-id <messageId>] [--reply-to addr] [--attach <file>...]`
 - `gog gmail drafts list [--max N] [--page TOKEN]`

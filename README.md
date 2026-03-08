@@ -622,6 +622,7 @@ gog gmail drafts send <draftId>
 gog gmail labels list
 gog gmail labels get INBOX --json  # Includes message counts
 gog gmail labels create "My Label"
+gog gmail labels rename "Old Label" "New Label"
 gog gmail labels modify <threadId> --add STARRED --remove INBOX
 gog gmail labels delete <labelIdOrName>  # Deletes user label (guards system labels; confirm)
 

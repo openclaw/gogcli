@@ -139,13 +139,16 @@ func (c *GmailLabelsRenameCmd) Run(ctx context.Context, flags *RootFlags) error 
 		return err
 	}
 
-	// Resolve the label: try exact ID first, then fall back to name lookup.
+	// For destructive-ish rename operations, try exact ID first before name lookup.
 	label, err := svc.Users.Labels.Get("me", oldRaw).Context(ctx).Do()
 	if err != nil {
 		if !isNotFoundAPIError(err) {
 			return err
 		}
-		idMap, mapErr := fetchLabelNameToID(svc)
+		if looksLikeCustomLabelID(oldRaw) {
+			return fmt.Errorf("label not found: %s", oldRaw)
+		}
+		idMap, mapErr := fetchLabelNameOnlyToID(svc)
 		if mapErr != nil {
 			return mapErr
 		}
@@ -167,7 +170,7 @@ func (c *GmailLabelsRenameCmd) Run(ctx context.Context, flags *RootFlags) error 
 		return err
 	}
 
-	if exit := dryRunExit(ctx, flags, "labels.patch", map[string]string{
+	if exit := dryRunExit(ctx, flags, "gmail.labels.rename", map[string]string{
 		"id":      label.Id,
 		"oldName": label.Name,
 		"newName": newName,

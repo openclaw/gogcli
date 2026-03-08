@@ -293,6 +293,92 @@ func TestGmailLabelsRenameCmd_NotFound(t *testing.T) {
 	}
 }
 
+func TestGmailLabelsRenameCmd_WrongCaseIDDoesNotResolveAsIDAlias(t *testing.T) {
+	listCalled := false
+	patchCalled := false
+	getByResolvedIDCalled := false
+
+	newLabelsRenameService(t, func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && isLabelsItemPath(r.URL.Path):
+			id := pathTail(r.URL.Path)
+			if id == "label_777" {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusNotFound)
+				_ = json.NewEncoder(w).Encode(map[string]any{"error": map[string]any{"code": 404, "message": "Requested entity was not found."}})
+				return
+			}
+			if id == "Label_777" {
+				getByResolvedIDCalled = true
+				w.Header().Set("Content-Type", "application/json")
+				_ = json.NewEncoder(w).Encode(map[string]any{"id": "Label_777", "name": "Some Label", "type": "user"})
+				return
+			}
+			http.NotFound(w, r)
+			return
+		case r.Method == http.MethodGet && isLabelsListPath(r.URL.Path):
+			listCalled = true
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{"labels": []map[string]any{{"id": "Label_777", "name": "Some Label", "type": "user"}}})
+			return
+		case r.Method == http.MethodPatch && isLabelsItemPath(r.URL.Path):
+			patchCalled = true
+			http.Error(w, "patch should not be called", http.StatusInternalServerError)
+			return
+		default:
+			http.NotFound(w, r)
+		}
+	})
+
+	flags := &RootFlags{Account: "a@b.com"}
+	ctx := newLabelsRenameContext(t, false)
+
+	err := runKong(t, &GmailLabelsRenameCmd{}, []string{"label_777", "Renamed"}, ctx, flags)
+	if err == nil {
+		t.Fatal("expected not found error")
+	}
+	if !strings.Contains(err.Error(), "label not found: label_777") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if listCalled {
+		t.Fatal("wrong-case ID should not trigger name fallback")
+	}
+	if getByResolvedIDCalled || patchCalled {
+		t.Fatal("rename should not continue after wrong-case ID miss")
+	}
+}
+
+func TestGmailLabelsRenameCmd_NoFallbackOnNonNotFound(t *testing.T) {
+	listCalled := false
+
+	newLabelsRenameService(t, func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && isLabelsItemPath(r.URL.Path):
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusForbidden)
+			_ = json.NewEncoder(w).Encode(map[string]any{"error": map[string]any{"code": 403, "message": "forbidden"}})
+			return
+		case r.Method == http.MethodGet && isLabelsListPath(r.URL.Path):
+			listCalled = true
+			http.Error(w, "list should not be called", http.StatusInternalServerError)
+			return
+		default:
+			http.NotFound(w, r)
+		}
+	})
+
+	flags := &RootFlags{Account: "a@b.com"}
+	ctx := newLabelsRenameContext(t, false)
+
+	err := runKong(t, &GmailLabelsRenameCmd{}, []string{"Label_403", "Renamed"}, ctx, flags)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if listCalled {
+		t.Fatal("name fallback should not run on non-404 errors")
+	}
+}
+
 func TestGmailLabelsRenameCmd_EmptyArgs(t *testing.T) {
 	origNew := newGmailService
 	t.Cleanup(func() { newGmailService = origNew })
