@@ -25,7 +25,7 @@ func (c *CalendarTimeCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if calendarID == "" {
 		calendarID = "primary"
 	} else {
-		resolved, resolveErr := resolveCalendarID(calendarID)
+		resolved, resolveErr := resolveCalendarAliasID(calendarID)
 		if resolveErr != nil {
 			return resolveErr
 		}

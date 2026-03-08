@@ -34,7 +34,7 @@ func (c *CalendarSearchCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if calendarID == "" {
 		calendarID = primaryCalendarID
 	} else {
-		resolved, resolveErr := resolveCalendarID(calendarID)
+		resolved, resolveErr := resolveCalendarAliasID(calendarID)
 		if resolveErr != nil {
 			return resolveErr
 		}
@@ -45,7 +45,7 @@ func (c *CalendarSearchCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if err != nil {
 		return err
 	}
-	calendarID, err := resolveCalendarID(ctx, svc, strings.TrimSpace(c.CalendarID))
+	calendarID, err = resolveCalendarID(ctx, svc, calendarID)
 	if err != nil {
 		return err
 	}

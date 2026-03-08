@@ -151,6 +151,10 @@ func (c *CalendarAclCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if calendarID == "" {
 		return usage("calendarId required")
 	}
+	calendarID, err = resolveCalendarAliasID(calendarID)
+	if err != nil {
+		return err
+	}
 
 	svc, err := newCalendarService(ctx, account)
 	if err != nil {

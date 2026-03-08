@@ -9,6 +9,7 @@ import (
 	"google.golang.org/api/calendar/v3"
 	gapi "google.golang.org/api/googleapi"
 
+	"github.com/steipete/gogcli/internal/config"
 	"github.com/steipete/gogcli/internal/outfmt"
 	"github.com/steipete/gogcli/internal/ui"
 )
@@ -229,7 +230,19 @@ func renderCalendarEventsTable(ctx context.Context, events []*eventWithCalendar,
 }
 
 func resolveCalendarIDs(ctx context.Context, svc *calendar.Service, inputs []string) ([]string, error) {
-	return resolveCalendarInputs(ctx, svc, inputs, calendarResolveOptions{
+	aliasedInputs := make([]string, 0, len(inputs))
+	for _, input := range inputs {
+		resolved, ok, err := config.ResolveCalendarAlias(input)
+		if err != nil {
+			return nil, err
+		}
+		if ok {
+			aliasedInputs = append(aliasedInputs, resolved)
+			continue
+		}
+		aliasedInputs = append(aliasedInputs, input)
+	}
+	return resolveCalendarInputs(ctx, svc, aliasedInputs, calendarResolveOptions{
 		strict:        true,
 		allowIndex:    true,
 		allowIDLookup: true,

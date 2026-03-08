@@ -116,7 +116,7 @@ func TestCalendarAliasUnsetCmd_NotFound(t *testing.T) {
 	}
 }
 
-func TestResolveCalendarID_Integration(t *testing.T) {
+func TestResolveCalendarAliasID_Integration(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, "xdg-config"))
@@ -140,7 +140,7 @@ func TestResolveCalendarID_Integration(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := resolveCalendarID(tt.input)
+			got, err := resolveCalendarAliasID(tt.input)
 			if tt.wantErr {
 				if err == nil {
 					t.Fatal("expected error, got nil")

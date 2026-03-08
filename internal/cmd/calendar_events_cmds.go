@@ -5,6 +5,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/steipete/gogcli/internal/config"
 	"github.com/steipete/gogcli/internal/outfmt"
 	"github.com/steipete/gogcli/internal/ui"
 )
@@ -51,6 +52,21 @@ func (c *CalendarEventsCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 	if !c.All && calendarID == "" && len(calInputs) == 0 {
 		calendarID = primaryCalendarID
+	}
+	if calendarID != "" {
+		calendarID, err = resolveCalendarAliasID(calendarID)
+		if err != nil {
+			return err
+		}
+	}
+	for i, input := range calInputs {
+		resolved, ok, resolveErr := config.ResolveCalendarAlias(input)
+		if resolveErr != nil {
+			return resolveErr
+		}
+		if ok {
+			calInputs[i] = resolved
+		}
 	}
 
 	svc, err := newCalendarService(ctx, account)
@@ -110,6 +126,10 @@ func (c *CalendarEventCmd) Run(ctx context.Context, flags *RootFlags) error {
 	eventID := normalizeCalendarEventID(c.EventID)
 	if calendarID == "" {
 		return usage("empty calendarId")
+	}
+	calendarID, err = resolveCalendarAliasID(calendarID)
+	if err != nil {
+		return err
 	}
 	if eventID == "" {
 		return usage("empty eventId")

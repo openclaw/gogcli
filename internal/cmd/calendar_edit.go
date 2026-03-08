@@ -53,7 +53,7 @@ type CalendarCreateCmd struct {
 
 func (c *CalendarCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
-	calendarID, err := resolveCalendarID(c.CalendarID)
+	calendarID, err := resolveCalendarAliasID(c.CalendarID)
 	if err != nil {
 		return err
 	}
@@ -349,7 +349,7 @@ type CalendarUpdateCmd struct {
 
 func (c *CalendarUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
-	calendarID, err := resolveCalendarID(c.CalendarID)
+	calendarID, err := resolveCalendarAliasID(c.CalendarID)
 	if err != nil {
 		return err
 	}
@@ -947,7 +947,7 @@ type CalendarDeleteCmd struct {
 
 func (c *CalendarDeleteCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
-	calendarID, err := resolveCalendarID(c.CalendarID)
+	calendarID, err := resolveCalendarAliasID(c.CalendarID)
 	if err != nil {
 		return err
 	}

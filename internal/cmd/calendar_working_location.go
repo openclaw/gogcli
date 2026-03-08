@@ -31,7 +31,7 @@ func (c *CalendarWorkingLocationCmd) Run(ctx context.Context, flags *RootFlags) 
 	if calendarID == "" {
 		calendarID = "primary"
 	} else {
-		calendarID, err = resolveCalendarID(calendarID)
+		calendarID, err = resolveCalendarAliasID(calendarID)
 		if err != nil {
 			return err
 		}

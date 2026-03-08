@@ -34,7 +34,7 @@ type CalendarProposeTimeCmd struct {
 func (c *CalendarProposeTimeCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
 
-	calendarID, err := resolveCalendarID(c.CalendarID)
+	calendarID, err := resolveCalendarAliasID(c.CalendarID)
 	if err != nil {
 		return err
 	}
