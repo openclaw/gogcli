@@ -147,11 +147,11 @@ func TestParseRelations_InvalidInput(t *testing.T) {
 }
 
 func TestParseRelations_ValidInput(t *testing.T) {
-	rels, clear, err := parseRelations([]string{"spouse=Jane", " friend = Bob "}, false)
+	rels, clearAll, err := parseRelations([]string{"spouse=Jane", " friend = Bob "}, false)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if clear {
+	if clearAll {
 		t.Fatalf("did not expect clear")
 	}
 	if len(rels) != 2 || rels[0].Type != "spouse" || rels[0].Person != "Jane" || rels[1].Type != "friend" || rels[1].Person != "Bob" {
@@ -160,11 +160,11 @@ func TestParseRelations_ValidInput(t *testing.T) {
 }
 
 func TestParseRelations_ClearAll(t *testing.T) {
-	rels, clear, err := parseRelations([]string{""}, true)
+	rels, clearAll, err := parseRelations([]string{""}, true)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if !clear {
+	if !clearAll {
 		t.Fatalf("expected clear")
 	}
 	if len(rels) != 0 {
@@ -173,11 +173,11 @@ func TestParseRelations_ClearAll(t *testing.T) {
 }
 
 func TestParseRelations_EmptySlice(t *testing.T) {
-	rels, clear, err := parseRelations(nil, false)
+	rels, clearAll, err := parseRelations(nil, false)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if clear {
+	if clearAll {
 		t.Fatalf("did not expect clear")
 	}
 	if len(rels) != 0 {
