@@ -491,6 +491,9 @@ type AuthAddCmd struct {
 
 func formatRemoteStep2Instruction(services []googleauth.Service, c *AuthAddCmd) string {
 	parts := []string{"--remote", "--step", "2", "--auth-url", "<redirect-url>"}
+	if redirectURI := strings.TrimSpace(c.RedirectURI); redirectURI != "" {
+		parts = append(parts, "--redirect-uri", redirectURI)
+	}
 	if len(services) > 0 {
 		serialized := make([]string, 0, len(services))
 		for _, service := range services {
