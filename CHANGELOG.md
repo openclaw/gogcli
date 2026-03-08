@@ -3,6 +3,7 @@
 ## 0.12.0 - Unreleased
 
 ### Added
+- Contacts: add `--relation type=person` to contact create/update, include relations in text `contacts get`, and cover relation payload updates. (#351) — thanks @karbassi.
 - Gmail: add `gmail labels rename` to rename user labels by ID or exact name, with system-label guards and wrong-case ID safety. (#391) — thanks @adam-zethraeus.
 - Auth: add `--access-token` / `GOG_ACCESS_TOKEN` for direct access-token auth in headless or CI flows, bypassing stored refresh tokens. (#419) — thanks @mmkal.
 - Auth: add `auth add --redirect-uri` for manual/remote OAuth flows, so custom callback hosts can be reused across the printed auth URL, state cache, and code exchange. (#398) — thanks @salmonumbrella.

@@ -941,13 +941,15 @@ gog contacts create \
   --given "John" \
   --family "Doe" \
   --email "john@example.com" \
-  --phone "+1234567890"
+  --phone "+1234567890" \
+  --relation "spouse=Jane Doe"
 
 gog contacts update people/<resourceName> \
   --given "Jane" \
   --email "jane@example.com" \
   --birthday "1990-05-12" \
-  --notes "Met at WWDC"
+  --notes "Met at WWDC" \
+  --relation "friend=Bob"
 
 # Update via JSON (see docs/contacts-json-update.md)
 gog contacts get people/<resourceName> --json | \

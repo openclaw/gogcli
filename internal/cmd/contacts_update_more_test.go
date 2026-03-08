@@ -261,6 +261,54 @@ func TestContactsUpdate_Relation_Clear(t *testing.T) {
 	}
 }
 
+func TestContactsCreate_Relation_Set(t *testing.T) {
+	var gotRelations []map[string]any
+
+	svc, closeSrv := newPeopleService(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case strings.HasSuffix(r.URL.Path, ":createContact") && r.Method == http.MethodPost:
+			var body map[string]any
+			if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+				t.Fatalf("decode body: %v", err)
+			}
+			if rels, ok := body["relations"].([]any); ok {
+				for _, rel := range rels {
+					if m, ok := rel.(map[string]any); ok {
+						gotRelations = append(gotRelations, m)
+					}
+				}
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{"resourceName": "people/c1"})
+			return
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(closeSrv)
+	stubPeopleServices(t, svc)
+
+	u, err := ui.New(ui.Options{Stdout: io.Discard, Stderr: io.Discard, Color: "never"})
+	if err != nil {
+		t.Fatalf("ui.New: %v", err)
+	}
+	ctx := ui.WithUI(context.Background(), u)
+
+	if err := runKong(t, &ContactsCreateCmd{}, []string{"--given", "Ada", "--relation", "spouse=Charles", "--relation", "friend=Bob"}, ctx, &RootFlags{Account: "a@b.com"}); err != nil {
+		t.Fatalf("runKong: %v", err)
+	}
+
+	if len(gotRelations) != 2 {
+		t.Fatalf("expected 2 relations, got %d", len(gotRelations))
+	}
+	if gotRelations[0]["type"] != "spouse" || gotRelations[0]["person"] != "Charles" {
+		t.Fatalf("unexpected first relation: %v", gotRelations[0])
+	}
+	if gotRelations[1]["type"] != "friend" || gotRelations[1]["person"] != "Bob" {
+		t.Fatalf("unexpected second relation: %v", gotRelations[1])
+	}
+}
+
 func leftPad2(s string) string {
 	s = strings.TrimSpace(s)
 	if len(s) >= 2 {
