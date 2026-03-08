@@ -55,12 +55,12 @@ func (c *SheetsUpdateNoteCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
-	if err := dryRunExit(ctx, flags, "sheets.update-note", map[string]any{
+	if dryRunErr := dryRunExit(ctx, flags, "sheets.update-note", map[string]any{
 		"spreadsheet_id": spreadsheetID,
 		"range":          rangeSpec,
 		"note":           noteText,
-	}); err != nil {
-		return err
+	}); dryRunErr != nil {
+		return dryRunErr
 	}
 
 	account, err := requireAccount(flags)

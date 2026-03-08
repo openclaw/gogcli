@@ -79,7 +79,7 @@ func updateNoteHandler(recorder *updateNoteRecorder) http.Handler {
 	})
 }
 
-func expectRepeatCellRequest(t *testing.T, recorder *updateNoteRecorder, note string, startRow int64, endRow int64, startCol int64, endCol int64) {
+func expectRepeatCellRequest(t *testing.T, recorder *updateNoteRecorder, note string, endRow int64, endCol int64) {
 	t.Helper()
 
 	if len(recorder.requests) != 1 {
@@ -113,21 +113,19 @@ func expectRepeatCellRequest(t *testing.T, recorder *updateNoteRecorder, note st
 		t.Fatalf("expected range payload, got %#v", repeatCell["range"])
 	}
 
-	gotStartRow := float64(0)
-	if v, ok := gotRange["startRowIndex"]; ok {
-		gotStartRow = v.(float64)
+	if v, ok := gotRange["startRowIndex"]; ok && v.(float64) != 0 {
+		t.Fatalf("unexpected start row range: %#v", gotRange)
 	}
 	gotEndRow := gotRange["endRowIndex"]
-	if gotStartRow != float64(startRow) || gotEndRow != float64(endRow) {
+	if gotEndRow != float64(endRow) {
 		t.Fatalf("unexpected row range: %#v", gotRange)
 	}
 
-	gotStartCol := float64(0)
-	if v, ok := gotRange["startColumnIndex"]; ok {
-		gotStartCol = v.(float64)
+	if v, ok := gotRange["startColumnIndex"]; ok && v.(float64) != 0 {
+		t.Fatalf("unexpected start column range: %#v", gotRange)
 	}
 	gotEndCol := gotRange["endColumnIndex"]
-	if gotStartCol != float64(startCol) || gotEndCol != float64(endCol) {
+	if gotEndCol != float64(endCol) {
 		t.Fatalf("unexpected column range: %#v", gotRange)
 	}
 }
@@ -176,7 +174,7 @@ func TestSheetsUpdateNoteCmd_SingleCell_JSON(t *testing.T) {
 		t.Errorf("expected note 'Hello world', got %q", result["note"])
 	}
 
-	expectRepeatCellRequest(t, recorder, "Hello world", 0, 1, 0, 1)
+	expectRepeatCellRequest(t, recorder, "Hello world", 1, 1)
 }
 
 func TestSheetsUpdateNoteCmd_Range_JSON(t *testing.T) {
@@ -220,7 +218,7 @@ func TestSheetsUpdateNoteCmd_Range_JSON(t *testing.T) {
 		t.Errorf("expected 4 cells updated, got %v", result["cellsUpdated"])
 	}
 
-	expectRepeatCellRequest(t, recorder, "Same note", 0, 2, 0, 2)
+	expectRepeatCellRequest(t, recorder, "Same note", 2, 2)
 }
 
 func TestSheetsUpdateNoteCmd_ClearNote_Text(t *testing.T) {
@@ -259,7 +257,7 @@ func TestSheetsUpdateNoteCmd_ClearNote_Text(t *testing.T) {
 		t.Errorf("expected 'Cleared note' in output: %q", out)
 	}
 
-	expectRepeatCellRequest(t, recorder, "", 0, 1, 0, 1)
+	expectRepeatCellRequest(t, recorder, "", 1, 1)
 }
 
 func TestSheetsUpdateNoteCmd_NoteFile(t *testing.T) {
@@ -314,7 +312,7 @@ func TestSheetsUpdateNoteCmd_NoteFile(t *testing.T) {
 		t.Errorf("expected note %q, got %q", noteContent, result["note"])
 	}
 
-	expectRepeatCellRequest(t, recorder, noteContent, 0, 1, 0, 1)
+	expectRepeatCellRequest(t, recorder, noteContent, 1, 1)
 }
 
 func TestSheetsUpdateNoteCmd_MissingNote(t *testing.T) {

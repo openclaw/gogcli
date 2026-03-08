@@ -10,7 +10,10 @@ import (
 	"google.golang.org/api/calendar/v3"
 )
 
-const tzUTC = "UTC"
+const (
+	tzUTC               = "UTC"
+	reminderMethodPopup = "popup"
+)
 
 func buildEventDateTime(value string, allDay bool) *calendar.EventDateTime {
 	value = strings.TrimSpace(value)
@@ -166,7 +169,7 @@ func parseReminder(s string) (string, int64, error) {
 	}
 
 	method := strings.TrimSpace(strings.ToLower(parts[0]))
-	if method != "email" && method != "popup" {
+	if method != "email" && method != reminderMethodPopup {
 		return "", 0, fmt.Errorf("invalid reminder method: %q (expected 'email' or 'popup')", method)
 	}
 
