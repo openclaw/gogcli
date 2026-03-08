@@ -237,9 +237,9 @@ func parseKeyValuePairs(values []string, allowEmptyClear bool, flag, format stri
 }
 
 func parseCustomUserDefined(values []string, allowEmptyClear bool) ([]*people.UserDefined, bool, error) {
-	pairs, clear, err := parseKeyValuePairs(values, allowEmptyClear, "custom", "key=value")
-	if err != nil || clear {
-		return nil, clear, err
+	pairs, clearAll, err := parseKeyValuePairs(values, allowEmptyClear, "custom", "key=value")
+	if err != nil || clearAll {
+		return nil, clearAll, err
 	}
 	out := make([]*people.UserDefined, len(pairs))
 	for i, p := range pairs {
@@ -249,9 +249,9 @@ func parseCustomUserDefined(values []string, allowEmptyClear bool) ([]*people.Us
 }
 
 func parseRelations(values []string, allowEmptyClear bool) ([]*people.Relation, bool, error) {
-	pairs, clear, err := parseKeyValuePairs(values, allowEmptyClear, "relation", "type=person")
-	if err != nil || clear {
-		return nil, clear, err
+	pairs, clearAll, err := parseKeyValuePairs(values, allowEmptyClear, "relation", "type=person")
+	if err != nil || clearAll {
+		return nil, clearAll, err
 	}
 	out := make([]*people.Relation, len(pairs))
 	for i, p := range pairs {
@@ -497,11 +497,11 @@ func (c *ContactsUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *
 		updateFields = append(updateFields, "userDefined")
 	}
 	if wantRelation {
-		relations, clear, parseErr := parseRelations(c.Relation, true)
+		relations, clearAll, parseErr := parseRelations(c.Relation, true)
 		if parseErr != nil {
 			return usage(parseErr.Error())
 		}
-		if clear {
+		if clearAll {
 			existing.Relations = nil
 		} else {
 			existing.Relations = relations
