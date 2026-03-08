@@ -1037,6 +1037,14 @@ gog sheets named-ranges add <spreadsheetId> MyCols 'Sheet1!A:C'
 gog sheets named-ranges update <spreadsheetId> MyNamedRange --name MyNamedRange2
 gog sheets named-ranges delete <spreadsheetId> MyNamedRange2
 
+# Charts
+gog sheets chart list <spreadsheetId>
+gog sheets chart get <spreadsheetId> <chartId> --json > chart.json
+gog sheets chart create <spreadsheetId> --spec-json @chart.json
+gog sheets chart create <spreadsheetId> --spec-json @chart.json --sheet Sheet1 --anchor E10
+gog sheets chart update <spreadsheetId> <chartId> --spec-json '{"title":"New Title","basicChart":{"chartType":"PIE"}}'
+gog sheets chart delete <spreadsheetId> <chartId>
+
 # Insert rows/cols
 gog sheets insert <spreadsheetId> "Sheet1" rows 2 --count 3
 gog sheets insert <spreadsheetId> "Sheet1" cols 3 --after

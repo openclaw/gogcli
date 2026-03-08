@@ -6,6 +6,7 @@
 - Admin: add Workspace Admin Directory commands for users and groups, including user list/get/create/suspend and group membership list/add/remove. (#403) — thanks @dl-alexandre.
 - Auth: add `--access-token` / `GOG_ACCESS_TOKEN` for direct access-token auth in headless or CI flows, bypassing stored refresh tokens. (#419) — thanks @mmkal.
 - Chat: add `chat messages reactions create|list|delete` to manage emoji reactions on messages; `react` and `reaction` are aliases for the reactions command group. (#426) — thanks @fernandopps.
+- Sheets: add `sheets chart` subcommand with get/list/create/update/delete for managing embedded charts via `--spec-json` passthrough. (#432) — thanks @andybergon.
 - Sheets: add named range management (`sheets named-ranges`) and let range-based Sheets commands accept named range names where GridRange-backed operations are needed. (#278) — thanks @TheCrazyLex.
 - Sheets: add `add-tab`, `rename-tab`, and `delete-tab` commands for managing spreadsheet tabs, with delete dry-run/confirmation guardrails. (#309) — thanks @JulienMalige.
 - Docs: add `--tab-id` to editing commands so write/update/insert/delete/find-replace can target a specific Google Docs tab. (#330) — thanks @ignacioreyna.
