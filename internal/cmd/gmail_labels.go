@@ -166,8 +166,8 @@ func (c *GmailLabelsRenameCmd) Run(ctx context.Context, flags *RootFlags) error 
 		return fmt.Errorf("cannot rename system label %q", label.Name)
 	}
 
-	if err := ensureLabelNameAvailable(svc, newName); err != nil {
-		return err
+	if validateErr := ensureLabelNameAvailable(svc, newName); validateErr != nil {
+		return validateErr
 	}
 
 	if exit := dryRunExit(ctx, flags, "gmail.labels.rename", map[string]string{
