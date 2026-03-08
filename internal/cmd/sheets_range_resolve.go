@@ -51,15 +51,13 @@ func fetchSpreadsheetRangeCatalog(ctx context.Context, svc *sheets.Service, spre
 // resolveGridRangeWithCatalog accepts either:
 // - A1 notation with sheet name (e.g. Sheet1!A1:B2), or
 // - a named range name (e.g. MyNamedRange)
-//
-// It returns a GridRange and a stable display name (A1 or the named range name).
-func resolveGridRangeWithCatalog(input string, catalog *spreadsheetRangeCatalog, label string) (*sheets.GridRange, string, error) {
+func resolveGridRangeWithCatalog(input string, catalog *spreadsheetRangeCatalog, label string) (*sheets.GridRange, error) {
 	in := cleanRange(strings.TrimSpace(input))
 	if in == "" {
-		return nil, "", usagef("empty %s range", label)
+		return nil, usagef("empty %s range", label)
 	}
 	if catalog == nil {
-		return nil, "", fmt.Errorf("missing spreadsheet range catalog")
+		return nil, fmt.Errorf("missing spreadsheet range catalog")
 	}
 
 	// If the user provided an A1 reference with a sheet name, keep existing
@@ -67,21 +65,21 @@ func resolveGridRangeWithCatalog(input string, catalog *spreadsheetRangeCatalog,
 	if strings.Contains(in, "!") {
 		r, err := parseSheetRange(in, label)
 		if err != nil {
-			return nil, "", err
+			return nil, err
 		}
 		grid, err := gridRangeFromMap(r, catalog.SheetIDsByTitle, label)
 		if err != nil {
-			return nil, "", err
+			return nil, err
 		}
-		return grid, in, nil
+		return grid, nil
 	}
 
 	// Try resolving as a named range name (case-insensitive exact match).
-	nr, err := resolveNamedRangeByNameOrID(in, catalog.NamedRanges)
+	nr, found, err := resolveNamedRangeByNameOrID(in, catalog.NamedRanges)
 	if err != nil {
-		return nil, "", err
+		return nil, err
 	}
-	if nr != nil && nr.Range != nil {
+	if found && nr != nil && nr.Range != nil {
 		// Make sure sheetId is always sent even when it's 0.
 		gr := *nr.Range
 		needSheetID := true
@@ -94,18 +92,19 @@ func resolveGridRangeWithCatalog(input string, catalog *spreadsheetRangeCatalog,
 		if needSheetID {
 			fs := make([]string, len(gr.ForceSendFields), len(gr.ForceSendFields)+1)
 			copy(fs, gr.ForceSendFields)
-			gr.ForceSendFields = append(fs, "SheetId")
+			fs = append(fs, "SheetId")
+			gr.ForceSendFields = fs
 		}
-		return &gr, nr.Name, nil
+		return &gr, nil
 	}
 
 	// If it looks like A1 but doesn't include a sheet name, preserve the prior
 	// strict requirement for A1-with-sheet ranges for GridRange-based operations.
 	if _, a1Err := parseA1Range(in); a1Err == nil {
-		return nil, "", usagef("%s range must include a sheet name (e.g. Sheet1!A1:B2) or be a named range", label)
+		return nil, usagef("%s range must include a sheet name (e.g. Sheet1!A1:B2) or be a named range", label)
 	}
 
-	return nil, "", usagef("unknown named range %q", in)
+	return nil, usagef("unknown named range %q", in)
 }
 
 type namedRangeMatch struct {
@@ -117,11 +116,11 @@ type namedRangeMatch struct {
 // - exact ID match, or
 // - case-insensitive exact name match (errors if ambiguous).
 //
-// It returns nil,nil when no matches exist.
-func resolveNamedRangeByNameOrID(input string, namedRanges []*sheets.NamedRange) (*sheets.NamedRange, error) {
+// It returns found=false when no matches exist.
+func resolveNamedRangeByNameOrID(input string, namedRanges []*sheets.NamedRange) (*sheets.NamedRange, bool, error) {
 	in := strings.TrimSpace(input)
 	if in == "" {
-		return nil, nil
+		return nil, false, nil
 	}
 
 	// Prefer an exact ID match without any ambiguity.
@@ -130,7 +129,7 @@ func resolveNamedRangeByNameOrID(input string, namedRanges []*sheets.NamedRange)
 			continue
 		}
 		if strings.TrimSpace(nr.NamedRangeId) == in {
-			return nr, nil
+			return nr, true, nil
 		}
 	}
 
@@ -149,16 +148,16 @@ func resolveNamedRangeByNameOrID(input string, namedRanges []*sheets.NamedRange)
 	}
 
 	if len(matches) == 0 {
-		return nil, nil
+		return nil, false, nil
 	}
 	if len(matches) == 1 {
 		for _, nr := range namedRanges {
 			if nr != nil && strings.TrimSpace(nr.NamedRangeId) == matches[0].ID {
-				return nr, nil
+				return nr, true, nil
 			}
 		}
 		// Shouldn't happen, but be safe.
-		return nil, fmt.Errorf("named range match disappeared (id=%q)", matches[0].ID)
+		return nil, false, fmt.Errorf("named range match disappeared (id=%q)", matches[0].ID)
 	}
 
 	sort.Slice(matches, func(i, j int) bool {
@@ -175,5 +174,5 @@ func resolveNamedRangeByNameOrID(input string, namedRanges []*sheets.NamedRange)
 		}
 		parts = append(parts, fmt.Sprintf("%s (%s)", label, m.ID))
 	}
-	return nil, usagef("ambiguous named range %q; matches: %s", in, strings.Join(parts, ", "))
+	return nil, false, usagef("ambiguous named range %q; matches: %s", in, strings.Join(parts, ", "))
 }

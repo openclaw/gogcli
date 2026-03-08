@@ -182,23 +182,6 @@ func unquoteSheetName(name string) (string, error) {
 	return name, nil
 }
 
-func parseA1Cell(ref string) (int, int, error) {
-	matches := a1CellRe.FindStringSubmatch(ref)
-	if matches == nil {
-		return 0, 0, fmt.Errorf("invalid A1 cell %q", ref)
-	}
-
-	col, err := colLettersToIndex(matches[1])
-	if err != nil {
-		return 0, 0, err
-	}
-	row, err := strconv.Atoi(matches[2])
-	if err != nil || row <= 0 {
-		return 0, 0, fmt.Errorf("invalid row in %q", ref)
-	}
-	return col, row, nil
-}
-
 func colLettersToIndex(letters string) (int, error) {
 	letters = strings.ToUpper(strings.TrimSpace(letters))
 	if letters == "" {

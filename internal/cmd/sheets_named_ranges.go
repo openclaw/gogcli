@@ -122,11 +122,11 @@ func (c *SheetsNamedRangesGetCmd) Run(ctx context.Context, flags *RootFlags) err
 		return err
 	}
 
-	nr, err := resolveNamedRangeByNameOrID(in, catalog.NamedRanges)
+	nr, found, err := resolveNamedRangeByNameOrID(in, catalog.NamedRanges)
 	if err != nil {
 		return err
 	}
-	if nr == nil {
+	if !found || nr == nil {
 		return usagef("unknown named range %q", in)
 	}
 
@@ -168,12 +168,12 @@ func (c *SheetsNamedRangesAddCmd) Run(ctx context.Context, flags *RootFlags) err
 		return usage("empty range")
 	}
 
-	if err := dryRunExit(ctx, flags, "sheets.named_ranges.add", map[string]any{
+	if dryRunErr := dryRunExit(ctx, flags, "sheets.named_ranges.add", map[string]any{
 		"spreadsheet_id": spreadsheetID,
 		"name":           name,
 		"range":          rangeSpec,
-	}); err != nil {
-		return err
+	}); dryRunErr != nil {
+		return dryRunErr
 	}
 
 	svc, err := newSheetsService(ctx, account)
@@ -257,13 +257,13 @@ func (c *SheetsNamedRangesUpdateCmd) Run(ctx context.Context, flags *RootFlags) 
 		return usage("provide --name and/or --range")
 	}
 
-	if err := dryRunExit(ctx, flags, "sheets.named_ranges.update", map[string]any{
+	if dryRunErr := dryRunExit(ctx, flags, "sheets.named_ranges.update", map[string]any{
 		"spreadsheet_id": spreadsheetID,
 		"name_or_id":     in,
 		"name":           newName,
 		"range":          newRangeSpec,
-	}); err != nil {
-		return err
+	}); dryRunErr != nil {
+		return dryRunErr
 	}
 
 	svc, err := newSheetsService(ctx, account)
@@ -276,11 +276,11 @@ func (c *SheetsNamedRangesUpdateCmd) Run(ctx context.Context, flags *RootFlags) 
 		return err
 	}
 
-	existing, err := resolveNamedRangeByNameOrID(in, catalog.NamedRanges)
+	existing, found, err := resolveNamedRangeByNameOrID(in, catalog.NamedRanges)
 	if err != nil {
 		return err
 	}
-	if existing == nil {
+	if !found || existing == nil {
 		return usagef("unknown named range %q", in)
 	}
 	id := strings.TrimSpace(existing.NamedRangeId)
@@ -292,13 +292,13 @@ func (c *SheetsNamedRangesUpdateCmd) Run(ctx context.Context, flags *RootFlags) 
 		fields = append(fields, "name")
 	}
 	if newRangeSpec != "" {
-		r, err := parseSheetRange(newRangeSpec, "range")
-		if err != nil {
-			return err
+		parsedRange, parseErr := parseSheetRange(newRangeSpec, "range")
+		if parseErr != nil {
+			return parseErr
 		}
-		gridRange, err := gridRangeFromMap(r, catalog.SheetIDsByTitle, "range")
-		if err != nil {
-			return err
+		gridRange, gridErr := gridRangeFromMap(parsedRange, catalog.SheetIDsByTitle, "range")
+		if gridErr != nil {
+			return gridErr
 		}
 		update.Range = gridRange
 		fields = append(fields, "range")
@@ -315,19 +315,19 @@ func (c *SheetsNamedRangesUpdateCmd) Run(ctx context.Context, flags *RootFlags) 
 		},
 	}
 
-	if _, err := svc.Spreadsheets.BatchUpdate(spreadsheetID, req).Do(); err != nil {
-		return err
+	if _, batchErr := svc.Spreadsheets.BatchUpdate(spreadsheetID, req).Do(); batchErr != nil {
+		return batchErr
 	}
 
 	updatedCatalog, err := fetchSpreadsheetRangeCatalog(ctx, svc, spreadsheetID)
 	if err != nil {
 		return err
 	}
-	updated, err := resolveNamedRangeByNameOrID(id, updatedCatalog.NamedRanges)
+	updated, found, err := resolveNamedRangeByNameOrID(id, updatedCatalog.NamedRanges)
 	if err != nil {
 		return err
 	}
-	if updated == nil {
+	if !found || updated == nil {
 		return fmt.Errorf("updated named range not found (id=%q)", id)
 	}
 
@@ -363,11 +363,11 @@ func (c *SheetsNamedRangesDeleteCmd) Run(ctx context.Context, flags *RootFlags) 
 		return usage("empty nameOrId")
 	}
 
-	if err := dryRunExit(ctx, flags, "sheets.named_ranges.delete", map[string]any{
+	if dryRunErr := dryRunExit(ctx, flags, "sheets.named_ranges.delete", map[string]any{
 		"spreadsheet_id": spreadsheetID,
 		"name_or_id":     in,
-	}); err != nil {
-		return err
+	}); dryRunErr != nil {
+		return dryRunErr
 	}
 
 	svc, err := newSheetsService(ctx, account)
@@ -379,11 +379,11 @@ func (c *SheetsNamedRangesDeleteCmd) Run(ctx context.Context, flags *RootFlags) 
 	if err != nil {
 		return err
 	}
-	existing, err := resolveNamedRangeByNameOrID(in, catalog.NamedRanges)
+	existing, found, err := resolveNamedRangeByNameOrID(in, catalog.NamedRanges)
 	if err != nil {
 		return err
 	}
-	if existing == nil {
+	if !found || existing == nil {
 		return usagef("unknown named range %q", in)
 	}
 	id := strings.TrimSpace(existing.NamedRangeId)

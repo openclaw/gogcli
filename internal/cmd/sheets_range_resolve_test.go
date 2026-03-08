@@ -27,7 +27,7 @@ func TestResolveGridRangeWithCatalog_DoesNotMutateNamedRangeForceSendFields(t *t
 		NamedRanges: []*sheets.NamedRange{nr},
 	}
 
-	gr, _, err := resolveGridRangeWithCatalog("MyNamedRange", catalog, "format")
+	gr, err := resolveGridRangeWithCatalog("MyNamedRange", catalog, "format")
 	if err != nil {
 		t.Fatalf("resolveGridRangeWithCatalog: %v", err)
 	}
@@ -60,7 +60,7 @@ func TestResolveGridRangeWithCatalog_DedupsSheetIDForceSendField(t *testing.T) {
 		NamedRanges: []*sheets.NamedRange{nr},
 	}
 
-	gr, _, err := resolveGridRangeWithCatalog("MyNamedRange", catalog, "format")
+	gr, err := resolveGridRangeWithCatalog("MyNamedRange", catalog, "format")
 	if err != nil {
 		t.Fatalf("resolveGridRangeWithCatalog: %v", err)
 	}

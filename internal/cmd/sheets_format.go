@@ -79,7 +79,7 @@ func (c *SheetsFormatCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if err != nil {
 		return err
 	}
-	gridRange, _, err := resolveGridRangeWithCatalog(rangeSpec, catalog, "format")
+	gridRange, err := resolveGridRangeWithCatalog(rangeSpec, catalog, "format")
 	if err != nil {
 		return err
 	}

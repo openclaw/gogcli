@@ -14,7 +14,7 @@ func copyDataValidation(ctx context.Context, svc *sheets.Service, spreadsheetID,
 		return err
 	}
 
-	sourceGrid, _, err := resolveGridRangeWithCatalog(sourceA1, catalog, "copy-validation-from")
+	sourceGrid, err := resolveGridRangeWithCatalog(sourceA1, catalog, "copy-validation-from")
 	if err != nil {
 		return err
 	}
