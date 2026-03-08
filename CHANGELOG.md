@@ -11,6 +11,7 @@
 - Sheets: add `sheets create --parent` to place new spreadsheets in a Drive folder. (#424) — thanks @ManManavadaria.
 - Calendar: add `calendar subscribe` (aliases `sub`, `add-calendar`) to add a shared calendar to the current account’s calendar list. (#327) — thanks @cdthompson.
 - Gmail: add `watch serve --history-types` filtering (`messageAdded|messageDeleted|labelAdded|labelRemoved`) and include `deletedMessageIds` in webhook payloads. (#168) — thanks @salmonumbrella.
+- Gmail: add `gmail messages modify` for single-message label changes, complementing thread- and batch-level modify flows. (#281) — thanks @zerone0x.
 - Contacts: support `--org`, `--title`, `--url`, `--note`, and `--custom` on create/update; include custom fields in get output with deterministic ordering. (#199) — thanks @phuctm97.
 - Drive: add `drive ls --all` (alias `--global`) to list across all accessible files; make `--all` and `--parent` mutually exclusive. (#107) — thanks @struong.
 - Docs: update install docs to use the official Homebrew core formula (`brew install gogcli`). (#361) — thanks @zeldrisho.

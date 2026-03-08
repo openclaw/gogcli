@@ -39,7 +39,7 @@ func TestGmailMessagesModifyCmd_JSON(t *testing.T) {
 				RemoveLabelIds []string `json:"removeLabelIds"`
 			}
 			_ = json.NewDecoder(r.Body).Decode(&body)
-			if len(body.AddLabelIds) != 1 || body.AddLabelIds[0] != "TRASH" {
+			if len(body.AddLabelIds) != 1 || body.AddLabelIds[0] != "Label_1" {
 				http.Error(w, "bad addLabelIds", http.StatusBadRequest)
 				return
 			}
@@ -79,7 +79,7 @@ func TestGmailMessagesModifyCmd_JSON(t *testing.T) {
 
 		if err := runKong(t, &GmailMessagesModifyCmd{}, []string{
 			"msg1",
-			"--add", "TRASH",
+			"--add", "Custom",
 			"--remove", "INBOX",
 		}, ctx, flags); err != nil {
 			t.Fatalf("execute: %v", err)
@@ -97,7 +97,7 @@ func TestGmailMessagesModifyCmd_JSON(t *testing.T) {
 	if parsed.Modified != "msg1" {
 		t.Fatalf("unexpected modified: %q", parsed.Modified)
 	}
-	if len(parsed.AddedLabels) != 1 || parsed.AddedLabels[0] != "TRASH" {
+	if len(parsed.AddedLabels) != 1 || parsed.AddedLabels[0] != "Label_1" {
 		t.Fatalf("unexpected added labels: %#v", parsed.AddedLabels)
 	}
 	if len(parsed.RemovedLabels) != 1 || parsed.RemovedLabels[0] != "INBOX" {
@@ -113,7 +113,7 @@ func TestGmailMessagesModifyCmd_JSON(t *testing.T) {
 
 		if err := runKong(t, &GmailMessagesModifyCmd{}, []string{
 			"msg1",
-			"--add", "TRASH",
+			"--add", "Custom",
 			"--remove", "INBOX",
 		}, ctx, flags); err != nil {
 			t.Fatalf("execute plain: %v", err)
@@ -146,6 +146,13 @@ func TestGmailMessagesModifyCmd_ValidationErrors(t *testing.T) {
 		err := runKong(t, &GmailMessagesModifyCmd{}, []string{"msg1"}, ctx, flags)
 		if err == nil || !strings.Contains(err.Error(), "must specify --add and/or --remove") {
 			t.Fatalf("expected validation error, got %v", err)
+		}
+	})
+
+	t.Run("empty message id", func(t *testing.T) {
+		err := runKong(t, &GmailMessagesModifyCmd{}, []string{"", "--add", "INBOX"}, ctx, flags)
+		if err == nil || !strings.Contains(err.Error(), "empty messageId") {
+			t.Fatalf("expected empty messageId error, got %v", err)
 		}
 	})
 }

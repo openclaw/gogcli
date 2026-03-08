@@ -30,6 +30,15 @@ func resolveLabelIDs(labels []string, nameToID map[string]string) []string {
 	return out
 }
 
+func resolveModifyLabelIDs(svc *gmail.Service, addLabels, removeLabels []string) ([]string, []string, error) {
+	idMap, err := fetchLabelNameToID(svc)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return resolveLabelIDs(addLabels, idMap), resolveLabelIDs(removeLabels, idMap), nil
+}
+
 func ensureLabelNameAvailable(svc *gmail.Service, name string) error {
 	idMap, err := fetchLabelNameToID(svc)
 	if err != nil {

@@ -109,13 +109,10 @@ func (c *GmailBatchModifyCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
-	idMap, err := fetchLabelNameToID(svc)
+	addIDs, removeIDs, err := resolveModifyLabelIDs(svc, addLabels, removeLabels)
 	if err != nil {
 		return err
 	}
-
-	addIDs := resolveLabelIDs(addLabels, idMap)
-	removeIDs := resolveLabelIDs(removeLabels, idMap)
 
 	err = svc.Users.Messages.BatchModify("me", &gmail.BatchModifyMessagesRequest{
 		Ids:            ids,

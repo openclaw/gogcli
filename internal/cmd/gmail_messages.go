@@ -186,13 +186,10 @@ func (c *GmailMessagesModifyCmd) Run(ctx context.Context, flags *RootFlags) erro
 		return err
 	}
 
-	idMap, err := fetchLabelNameToID(svc)
+	addIDs, removeIDs, err := resolveModifyLabelIDs(svc, addLabels, removeLabels)
 	if err != nil {
 		return err
 	}
-
-	addIDs := resolveLabelIDs(addLabels, idMap)
-	removeIDs := resolveLabelIDs(removeLabels, idMap)
 
 	_, err = svc.Users.Messages.Modify("me", messageID, &gmail.ModifyMessageRequest{
 		AddLabelIds:    addIDs,
