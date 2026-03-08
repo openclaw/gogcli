@@ -656,6 +656,77 @@ func TestCalendarUpdateCmd_SendUpdates(t *testing.T) {
 	}
 }
 
+func TestCalendarCreateCmd_ReminderPopupZeroForceSendsMinutes(t *testing.T) {
+	origNew := newCalendarService
+	t.Cleanup(func() { newCalendarService = origNew })
+
+	var gotEvent map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := strings.TrimPrefix(r.URL.Path, "/calendar/v3")
+		switch {
+		case r.Method == http.MethodGet && path == "/users/me/calendarList":
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"items": []map[string]any{
+					{
+						"id":       "cal",
+						"summary":  "cal",
+						"timeZone": "UTC",
+					},
+				},
+			})
+			return
+		case r.Method == http.MethodPost && path == "/calendars/cal/events":
+			if err := json.NewDecoder(r.Body).Decode(&gotEvent); err != nil {
+				t.Fatalf("decode event: %v", err)
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"id":      "ev",
+				"summary": "Zero Reminder",
+			})
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer srv.Close()
+
+	svc := newCalendarServiceFromServer(t, srv)
+	newCalendarService = func(context.Context, string) (*calendar.Service, error) { return svc, nil }
+
+	ctx := newCalendarJSONContext(t)
+	cmd := &CalendarCreateCmd{}
+	if err := runKong(t, cmd, []string{
+		"cal",
+		"--summary", "Zero Reminder",
+		"--from", "2025-01-01T10:00:00Z",
+		"--to", "2025-01-01T11:00:00Z",
+		"--reminder", "popup:0m",
+	}, ctx, &RootFlags{Account: "a@b.com"}); err != nil {
+		t.Fatalf("runKong: %v", err)
+	}
+
+	reminders, ok := gotEvent["reminders"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected reminders payload, got %#v", gotEvent["reminders"])
+	}
+	overrides, ok := reminders["overrides"].([]any)
+	if !ok || len(overrides) != 1 {
+		t.Fatalf("expected one override, got %#v", reminders["overrides"])
+	}
+	override, ok := overrides[0].(map[string]any)
+	if !ok {
+		t.Fatalf("expected override object, got %#v", overrides[0])
+	}
+	if method, _ := override["method"].(string); method != "popup" {
+		t.Fatalf("expected popup reminder, got %#v", override)
+	}
+	minutes, ok := override["minutes"].(float64)
+	if !ok || minutes != 0 {
+		t.Fatalf("expected force-sent minutes=0, got %#v", override["minutes"])
+	}
+}
+
 func TestCalendarUpdateCmd_AddAttendeeNoOp(t *testing.T) {
 	origNew := newCalendarService
 	t.Cleanup(func() { newCalendarService = origNew })
