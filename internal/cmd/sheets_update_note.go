@@ -50,13 +50,9 @@ func (c *SheetsUpdateNoteCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return usage("provide --note or --note-file")
 	}
 
-	parsed, err := parseA1Range(rangeSpec)
+	parsed, err := parseSheetRange(rangeSpec, "note")
 	if err != nil {
-		return fmt.Errorf("invalid range: %w", err)
-	}
-
-	if parsed.SheetName == "" {
-		return usage("range must include a sheet name (eg. Sheet1!A1)")
+		return err
 	}
 
 	if err := dryRunExit(ctx, flags, "sheets.update-note", map[string]any{
@@ -82,43 +78,28 @@ func (c *SheetsUpdateNoteCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
-	sheetID, ok := sheetIDs[parsed.SheetName]
-	if !ok {
-		return usagef("unknown sheet %q", parsed.SheetName)
+	gridRange, err := gridRangeFromMap(parsed, sheetIDs, "note")
+	if err != nil {
+		return err
 	}
 
-	// Build updateCells requests for each cell in the range.
-	var requests []*sheets.Request
-	cellCount := 0
-	for row := parsed.StartRow; row <= parsed.EndRow; row++ {
-		for col := parsed.StartCol; col <= parsed.EndCol; col++ {
-			requests = append(requests, &sheets.Request{
-				UpdateCells: &sheets.UpdateCellsRequest{
-					Rows: []*sheets.RowData{
-						{
-							Values: []*sheets.CellData{
-								{Note: noteText},
-							},
-						},
+	cellCount := (parsed.EndRow - parsed.StartRow + 1) * (parsed.EndCol - parsed.StartCol + 1)
+	batchReq := &sheets.BatchUpdateSpreadsheetRequest{
+		Requests: []*sheets.Request{
+			{
+				RepeatCell: &sheets.RepeatCellRequest{
+					Range: gridRange,
+					Cell: &sheets.CellData{
+						Note: noteText,
 					},
 					Fields: "note",
-					Start: &sheets.GridCoordinate{
-						SheetId:     sheetID,
-						RowIndex:    int64(row - 1),
-						ColumnIndex: int64(col - 1),
-					},
 				},
-			})
-			cellCount++
-		}
-	}
-
-	batchReq := &sheets.BatchUpdateSpreadsheetRequest{
-		Requests: requests,
+			},
+		},
 	}
 
 	if _, err := svc.Spreadsheets.BatchUpdate(spreadsheetID, batchReq).Do(); err != nil {
-		return err
+		return fmt.Errorf("update note: %w", err)
 	}
 
 	if outfmt.IsJSON(ctx) {

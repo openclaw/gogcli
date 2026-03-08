@@ -17,7 +17,11 @@ import (
 	"github.com/steipete/gogcli/internal/ui"
 )
 
-func updateNoteHandler() http.Handler {
+type updateNoteRecorder struct {
+	requests []map[string]any
+}
+
+func updateNoteHandler(recorder *updateNoteRecorder) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := strings.TrimPrefix(r.URL.Path, "/sheets/v4")
 		path = strings.TrimPrefix(path, "/v4")
@@ -53,19 +57,14 @@ func updateNoteHandler() http.Handler {
 				return
 			}
 
-			// Verify the request structure.
+			recorder.requests = recorder.requests[:0]
 			for _, req := range requests {
-				reqMap := req.(map[string]any)
-				updateCells, ok := reqMap["updateCells"]
+				reqMap, ok := req.(map[string]any)
 				if !ok {
-					http.Error(w, "expected updateCells request", http.StatusBadRequest)
+					http.Error(w, "expected request object", http.StatusBadRequest)
 					return
 				}
-				uc := updateCells.(map[string]any)
-				if uc["fields"] != "note" {
-					http.Error(w, "expected fields=note", http.StatusBadRequest)
-					return
-				}
+				recorder.requests = append(recorder.requests, reqMap)
 			}
 
 			w.Header().Set("Content-Type", "application/json")
@@ -80,11 +79,65 @@ func updateNoteHandler() http.Handler {
 	})
 }
 
+func expectRepeatCellRequest(t *testing.T, recorder *updateNoteRecorder, note string, startRow int64, endRow int64, startCol int64, endCol int64) {
+	t.Helper()
+
+	if len(recorder.requests) != 1 {
+		t.Fatalf("expected 1 batchUpdate request, got %d", len(recorder.requests))
+	}
+
+	repeatCell, ok := recorder.requests[0]["repeatCell"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected repeatCell request, got %#v", recorder.requests[0])
+	}
+
+	if repeatCell["fields"] != "note" {
+		t.Fatalf("expected fields=note, got %#v", repeatCell["fields"])
+	}
+
+	cell, ok := repeatCell["cell"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected cell payload, got %#v", repeatCell["cell"])
+	}
+
+	gotNote, hasNote := cell["note"]
+	if note == "" && hasNote {
+		t.Fatalf("expected cleared note to omit note field, got %#v", cell)
+	}
+	if note != "" && (!hasNote || gotNote != note) {
+		t.Fatalf("expected note %q, got %#v", note, repeatCell["cell"])
+	}
+
+	gotRange, ok := repeatCell["range"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected range payload, got %#v", repeatCell["range"])
+	}
+
+	gotStartRow := float64(0)
+	if v, ok := gotRange["startRowIndex"]; ok {
+		gotStartRow = v.(float64)
+	}
+	gotEndRow := gotRange["endRowIndex"]
+	if gotStartRow != float64(startRow) || gotEndRow != float64(endRow) {
+		t.Fatalf("unexpected row range: %#v", gotRange)
+	}
+
+	gotStartCol := float64(0)
+	if v, ok := gotRange["startColumnIndex"]; ok {
+		gotStartCol = v.(float64)
+	}
+	gotEndCol := gotRange["endColumnIndex"]
+	if gotStartCol != float64(startCol) || gotEndCol != float64(endCol) {
+		t.Fatalf("unexpected column range: %#v", gotRange)
+	}
+}
+
 func TestSheetsUpdateNoteCmd_SingleCell_JSON(t *testing.T) {
 	origNew := newSheetsService
 	t.Cleanup(func() { newSheetsService = origNew })
 
-	srv := httptest.NewServer(updateNoteHandler())
+	recorder := &updateNoteRecorder{}
+	srv := httptest.NewServer(updateNoteHandler(recorder))
 	defer srv.Close()
 
 	svc, err := sheets.NewService(context.Background(),
@@ -122,13 +175,16 @@ func TestSheetsUpdateNoteCmd_SingleCell_JSON(t *testing.T) {
 	if result["note"] != "Hello world" {
 		t.Errorf("expected note 'Hello world', got %q", result["note"])
 	}
+
+	expectRepeatCellRequest(t, recorder, "Hello world", 0, 1, 0, 1)
 }
 
 func TestSheetsUpdateNoteCmd_Range_JSON(t *testing.T) {
 	origNew := newSheetsService
 	t.Cleanup(func() { newSheetsService = origNew })
 
-	srv := httptest.NewServer(updateNoteHandler())
+	recorder := &updateNoteRecorder{}
+	srv := httptest.NewServer(updateNoteHandler(recorder))
 	defer srv.Close()
 
 	svc, err := sheets.NewService(context.Background(),
@@ -163,13 +219,16 @@ func TestSheetsUpdateNoteCmd_Range_JSON(t *testing.T) {
 	if result["cellsUpdated"] != float64(4) {
 		t.Errorf("expected 4 cells updated, got %v", result["cellsUpdated"])
 	}
+
+	expectRepeatCellRequest(t, recorder, "Same note", 0, 2, 0, 2)
 }
 
 func TestSheetsUpdateNoteCmd_ClearNote_Text(t *testing.T) {
 	origNew := newSheetsService
 	t.Cleanup(func() { newSheetsService = origNew })
 
-	srv := httptest.NewServer(updateNoteHandler())
+	recorder := &updateNoteRecorder{}
+	srv := httptest.NewServer(updateNoteHandler(recorder))
 	defer srv.Close()
 
 	svc, err := sheets.NewService(context.Background(),
@@ -199,13 +258,16 @@ func TestSheetsUpdateNoteCmd_ClearNote_Text(t *testing.T) {
 	if !strings.Contains(out, "Cleared note") {
 		t.Errorf("expected 'Cleared note' in output: %q", out)
 	}
+
+	expectRepeatCellRequest(t, recorder, "", 0, 1, 0, 1)
 }
 
 func TestSheetsUpdateNoteCmd_NoteFile(t *testing.T) {
 	origNew := newSheetsService
 	t.Cleanup(func() { newSheetsService = origNew })
 
-	srv := httptest.NewServer(updateNoteHandler())
+	recorder := &updateNoteRecorder{}
+	srv := httptest.NewServer(updateNoteHandler(recorder))
 	defer srv.Close()
 
 	svc, err := sheets.NewService(context.Background(),
@@ -251,6 +313,8 @@ func TestSheetsUpdateNoteCmd_NoteFile(t *testing.T) {
 	if result["note"] != noteContent {
 		t.Errorf("expected note %q, got %q", noteContent, result["note"])
 	}
+
+	expectRepeatCellRequest(t, recorder, noteContent, 0, 1, 0, 1)
 }
 
 func TestSheetsUpdateNoteCmd_MissingNote(t *testing.T) {
