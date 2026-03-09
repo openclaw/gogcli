@@ -18,6 +18,13 @@ func TestCalendarDeleteCmd_ScopeSingle(t *testing.T) {
 	svc, closeSvc := newCalendarServiceForTest(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := strings.TrimPrefix(r.URL.Path, "/calendar/v3")
 		switch {
+		case r.Method == http.MethodGet && path == "/calendars/cal@example.com/events/ev":
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"id":         "ev",
+				"recurrence": []string{"RRULE:FREQ=DAILY"},
+			})
+			return
 		case r.Method == http.MethodGet && strings.HasPrefix(path, "/calendars/cal@example.com/events/ev/instances"):
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(map[string]any{
@@ -225,5 +232,84 @@ func TestCalendarDeleteCmd_DryRunSkipsService(t *testing.T) {
 	}
 	if payload.Op != "calendar.delete" || payload.Request["event_id"] != "ev" {
 		t.Fatalf("unexpected dry-run output: %#v", payload)
+	}
+}
+
+func TestCalendarDeleteCmd_ScopeFuture_InstanceEventID(t *testing.T) {
+	origNew := newCalendarService
+	t.Cleanup(func() { newCalendarService = origNew })
+
+	var patchedRecurrence []string
+	svc, closeSvc := newCalendarServiceForTest(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := strings.TrimPrefix(r.URL.Path, "/calendar/v3")
+		switch {
+		case r.Method == http.MethodGet && path == "/calendars/cal@example.com/events/ev_instance":
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"id":               "ev_instance",
+				"recurringEventId": "ev_master",
+			})
+			return
+		case r.Method == http.MethodGet && path == "/calendars/cal@example.com/events/ev_master":
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"id":         "ev_master",
+				"recurrence": []string{"RRULE:FREQ=DAILY"},
+			})
+			return
+		case r.Method == http.MethodGet && strings.HasPrefix(path, "/calendars/cal@example.com/events/ev_master/instances"):
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"items": []map[string]any{
+					{
+						"id": "ev_2",
+						"originalStartTime": map[string]any{
+							"dateTime": "2025-01-02T10:00:00Z",
+						},
+					},
+				},
+			})
+			return
+		case r.Method == http.MethodDelete && path == "/calendars/cal@example.com/events/ev_2":
+			w.WriteHeader(http.StatusNoContent)
+			return
+		case r.Method == http.MethodPatch && path == "/calendars/cal@example.com/events/ev_master":
+			var body calendar.Event
+			_ = json.NewDecoder(r.Body).Decode(&body)
+			patchedRecurrence = append([]string{}, body.Recurrence...)
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(body)
+			return
+		default:
+			http.NotFound(w, r)
+			return
+		}
+	}))
+	defer closeSvc()
+	newCalendarService = func(context.Context, string) (*calendar.Service, error) { return svc, nil }
+
+	ctx := newCalendarJSONContext(t)
+
+	cmd := CalendarDeleteCmd{
+		CalendarID:        "cal@example.com",
+		EventID:           "ev_instance",
+		Scope:             scopeFuture,
+		OriginalStartTime: "2025-01-02T10:00:00Z",
+	}
+	flags := &RootFlags{Account: "a@b.com", Force: true}
+	out := captureStdout(t, func() {
+		if err := cmd.Run(ctx, flags); err != nil {
+			t.Fatalf("CalendarDeleteCmd: %v", err)
+		}
+	})
+	var payload struct {
+		Deleted bool   `json:"deleted"`
+		EventID string `json:"eventId"`
+	}
+	if err := json.Unmarshal([]byte(out), &payload); err != nil {
+		t.Fatalf("decode output: %v", err)
+	}
+	if !payload.Deleted || payload.EventID != "ev_2" || len(patchedRecurrence) == 0 {
+		t.Fatalf("unexpected output: %#v", payload)
 	}
 }

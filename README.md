@@ -851,9 +851,11 @@ gog calendar propose-time <calendarId> <eventId> --decline --comment "Can we do 
 gog calendar freebusy --calendars "primary,work@example.com" \
   --from 2025-01-15T00:00:00Z \
   --to 2025-01-16T00:00:00Z
+gog calendar freebusy --cal Work --from 2025-01-15T00:00:00Z --to 2025-01-16T00:00:00Z
 
 gog calendar conflicts --calendars "primary,work@example.com" \
   --today                             # Today's conflicts
+gog calendar conflicts --all --today # Check conflicts across all calendars
 ```
 
 ### Time

@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"strings"
 
 	"google.golang.org/api/calendar/v3"
@@ -50,4 +51,113 @@ func prepareCalendarIDs(inputs []string) ([]string, error) {
 		prepared = append(prepared, resolved)
 	}
 	return prepared, nil
+}
+
+func collectCalendarInputs(cal []string, calendars string) []string {
+	inputs := append([]string{}, cal...)
+	if strings.TrimSpace(calendars) != "" {
+		inputs = append(inputs, splitCSV(calendars)...)
+	}
+	return inputs
+}
+
+func resolveAllCalendarIDs(ctx context.Context, svc *calendar.Service) ([]string, error) {
+	calendars, err := listCalendarList(ctx, svc)
+	if err != nil {
+		return nil, err
+	}
+
+	ids := make([]string, 0, len(calendars))
+	seen := make(map[string]struct{}, len(calendars))
+	for _, cal := range calendars {
+		if cal == nil {
+			continue
+		}
+		id := strings.TrimSpace(cal.Id)
+		if id == "" {
+			continue
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		ids = append(ids, id)
+	}
+	return ids, nil
+}
+
+func resolveSelectedCalendarIDs(ctx context.Context, svc *calendar.Service, cal []string, calendars string, all, defaultPrimary bool) ([]string, error) {
+	inputs := collectCalendarInputs(cal, calendars)
+	if all {
+		if len(inputs) > 0 {
+			return nil, usage("--cal/--calendars not allowed with --all")
+		}
+		return resolveAllCalendarIDs(ctx, svc)
+	}
+
+	if len(inputs) == 0 && defaultPrimary {
+		inputs = []string{primaryCalendarID}
+	}
+	if len(inputs) == 0 {
+		return nil, usage("no calendar IDs provided")
+	}
+
+	prepared, err := prepareCalendarIDs(inputs)
+	if err != nil {
+		return nil, err
+	}
+
+	needsLookup := false
+	hasIndex := false
+	for _, input := range prepared {
+		input = strings.TrimSpace(input)
+		if input == "" {
+			continue
+		}
+		if strings.EqualFold(input, primaryCalendarID) || strings.Contains(input, "@") {
+			continue
+		}
+		if isDigits(input) {
+			hasIndex = true
+		}
+		needsLookup = true
+		break
+	}
+	if !needsLookup {
+		return dedupePreparedCalendarIDs(prepared), nil
+	}
+
+	ids, err := resolveCalendarInputs(ctx, svc, prepared, calendarResolveOptions{
+		strict:        true,
+		allowIndex:    true,
+		allowIDLookup: true,
+	})
+	if err == nil {
+		return ids, nil
+	}
+	var exitErr *ExitError
+	if !hasIndex && !errors.As(err, &exitErr) && isGoogleNotFound(err) {
+		return dedupePreparedCalendarIDs(prepared), nil
+	}
+	return nil, err
+}
+
+func dedupePreparedCalendarIDs(inputs []string) []string {
+	out := make([]string, 0, len(inputs))
+	seen := make(map[string]struct{}, len(inputs))
+	for _, input := range inputs {
+		input = strings.TrimSpace(input)
+		if strings.EqualFold(input, primaryCalendarID) {
+			input = primaryCalendarID
+		}
+		if input == "" {
+			continue
+		}
+		if _, ok := seen[input]; ok {
+			continue
+		}
+		seen[input] = struct{}{}
+		out = append(out, input)
+	}
+	return out
 }

@@ -20,6 +20,7 @@
 - Gmail: add `gmail messages modify` for single-message label changes, complementing thread- and batch-level modify flows. (#281) — thanks @zerone0x.
 - Calendar: add `calendar subscribe` (aliases `sub`, `add-calendar`) to add a shared calendar to the current account’s calendar list. (#327) — thanks @cdthompson.
 - Calendar: add `calendar alias list|set|unset`, and let calendar commands resolve configured aliases before API/name lookup. (#393) — thanks @salmonumbrella.
+- Calendar: let `calendar freebusy` / `calendar conflicts` accept `--cal`, names, indices, and `--all` like `calendar events`. (#319) — thanks @salmonumbrella.
 - Slides: add `create-from-template` with `--replace` / `--replacements`, dry-run support, and template placeholder replacement stats. (#273) — thanks @penguinco.
 - Forms: add form update/question-management commands plus response watch create/list/delete/renew, with delete-question validation and confirmation guardrails. (#274) — thanks @alexknowshtml.
 - Sheets: add `sheets update-note` / `set-note` to write or clear cell notes across a range. (#430) — thanks @andybergon.
@@ -56,6 +57,7 @@
 - Auth: preserve scope-shaping flags in the remote step-2 replay guidance for `auth add --remote`. (#427) — thanks @doodaaatimmy-creator.
 - Auth: add `--gmail-scope full|readonly`, and disable `include_granted_scopes` for readonly/limited auth requests to avoid Drive/Gmail scope accumulation. (#113) — thanks @salmonumbrella.
 - Calendar: force-send `minutes=0` for `--reminder popup:0m` so zero-minute popup reminders survive Google Calendar API JSON omission rules. (#316) — thanks @salmonumbrella.
+- Calendar: let recurring `calendar update --scope=future` and `calendar delete --scope=future` start from an instance event ID by resolving the parent series first. (#319) — thanks @salmonumbrella.
 - Calendar: hide cancelled/deleted events from `calendar events` list output by explicitly setting `showDeleted=false`. (#362) — thanks @sharukh010.
 - Sheets: harden `sheets format` against `boarders` typo (JSON and field mask), with clearer error messages. (#284) — thanks @nilzzzzzz.
 - Sheets: force-send empty note values so `sheets update-note --note ''` reliably clears notes via the API. (#341) — thanks @Shehryar.

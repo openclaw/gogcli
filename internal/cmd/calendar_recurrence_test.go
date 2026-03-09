@@ -1,11 +1,16 @@
 package cmd
 
 import (
+	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
 
 	"google.golang.org/api/calendar/v3"
+	"google.golang.org/api/option"
 )
 
 func TestOriginalStartRange(t *testing.T) {
@@ -71,5 +76,81 @@ func TestRecurrenceUntil_Extra(t *testing.T) {
 	}
 	if until != time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC).Format("20060102") {
 		t.Fatalf("unexpected date until: %s", until)
+	}
+}
+
+func TestResolveRecurringSeriesID_Instance(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := strings.TrimPrefix(r.URL.Path, "/calendar/v3")
+		if r.Method == http.MethodGet && path == "/calendars/cal/events/ev_instance" {
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"id":               "ev_instance",
+				"recurringEventId": "ev_master",
+			})
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer srv.Close()
+
+	svc, err := calendar.NewService(context.Background(),
+		option.WithoutAuthentication(),
+		option.WithHTTPClient(srv.Client()),
+		option.WithEndpoint(srv.URL+"/"),
+	)
+	if err != nil {
+		t.Fatalf("NewService: %v", err)
+	}
+
+	got, err := resolveRecurringSeriesID(context.Background(), svc, "cal", "ev_instance")
+	if err != nil {
+		t.Fatalf("resolveRecurringSeriesID: %v", err)
+	}
+	if got != "ev_master" {
+		t.Fatalf("unexpected recurring series id: %q", got)
+	}
+}
+
+func TestResolveRecurringParentEvent_Instance(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := strings.TrimPrefix(r.URL.Path, "/calendar/v3")
+		switch {
+		case r.Method == http.MethodGet && path == "/calendars/cal/events/ev_instance":
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"id":               "ev_instance",
+				"recurringEventId": "ev_master",
+			})
+		case r.Method == http.MethodGet && path == "/calendars/cal/events/ev_master":
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"id":         "ev_master",
+				"recurrence": []string{"RRULE:FREQ=WEEKLY"},
+			})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+
+	svc, err := calendar.NewService(context.Background(),
+		option.WithoutAuthentication(),
+		option.WithHTTPClient(srv.Client()),
+		option.WithEndpoint(srv.URL+"/"),
+	)
+	if err != nil {
+		t.Fatalf("NewService: %v", err)
+	}
+
+	parentID, recurrence, err := resolveRecurringParentEvent(context.Background(), svc, "cal", "ev_instance")
+	if err != nil {
+		t.Fatalf("resolveRecurringParentEvent: %v", err)
+	}
+	if parentID != "ev_master" {
+		t.Fatalf("unexpected parent id: %q", parentID)
+	}
+	if len(recurrence) != 1 || recurrence[0] != "RRULE:FREQ=WEEKLY" {
+		t.Fatalf("unexpected recurrence: %#v", recurrence)
 	}
 }

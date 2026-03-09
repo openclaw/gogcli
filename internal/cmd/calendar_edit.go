@@ -705,16 +705,15 @@ func (c *CalendarUpdateCmd) buildUpdateOutOfOfficeProperties(declineProvided boo
 func applyUpdateScope(ctx context.Context, svc *calendar.Service, calendarID, eventID, scope, originalStartTime string, patch *calendar.Event) (string, []string, error) {
 	targetEventID := eventID
 	var parentRecurrence []string
+	recurringEventID := eventID
 
 	if scope == scopeFuture {
-		parent, err := svc.Events.Get(calendarID, eventID).Context(ctx).Do()
+		parentID, recurrence, err := resolveRecurringParentEvent(ctx, svc, calendarID, eventID)
 		if err != nil {
 			return "", nil, err
 		}
-		if len(parent.Recurrence) == 0 {
-			return "", nil, fmt.Errorf("event %s is not a recurring event", eventID)
-		}
-		parentRecurrence = parent.Recurrence
+		recurringEventID = parentID
+		parentRecurrence = recurrence
 		recurrenceOverride := len(patch.Recurrence) > 0
 		if !recurrenceOverride {
 			for _, field := range patch.ForceSendFields {
@@ -730,7 +729,14 @@ func applyUpdateScope(ctx context.Context, svc *calendar.Service, calendarID, ev
 	}
 
 	if scope == scopeSingle || scope == scopeFuture {
-		instanceID, err := resolveRecurringInstanceID(ctx, svc, calendarID, eventID, originalStartTime)
+		if scope == scopeSingle {
+			var err error
+			recurringEventID, err = resolveRecurringSeriesID(ctx, svc, calendarID, eventID)
+			if err != nil {
+				return "", nil, err
+			}
+		}
+		instanceID, err := resolveRecurringInstanceID(ctx, svc, calendarID, recurringEventID, originalStartTime)
 		if err != nil {
 			return "", nil, err
 		}
@@ -823,18 +829,27 @@ func (c *CalendarDeleteCmd) Run(ctx context.Context, flags *RootFlags) error {
 
 	targetEventID := eventID
 	var parentRecurrence []string
+	parentEventID := eventID
 	if scope == scopeFuture {
-		parent, getErr := mutation.svc.Events.Get(mutation.calendarID, eventID).Context(ctx).Do()
-		if getErr != nil {
-			return getErr
+		parentID, recurrence, resolveErr := resolveRecurringParentEvent(ctx, mutation.svc, mutation.calendarID, eventID)
+		if resolveErr != nil {
+			return resolveErr
 		}
-		if len(parent.Recurrence) == 0 {
-			return fmt.Errorf("event %s is not a recurring event", eventID)
-		}
-		parentRecurrence = parent.Recurrence
+		parentEventID = parentID
+		parentRecurrence = recurrence
 	}
 	if scope == scopeSingle || scope == scopeFuture {
-		instanceID, resolveErr := resolveRecurringInstanceID(ctx, mutation.svc, mutation.calendarID, eventID, c.OriginalStartTime)
+		recurringEventID := eventID
+		if scope == scopeSingle {
+			recurringEventID, err = resolveRecurringSeriesID(ctx, mutation.svc, mutation.calendarID, eventID)
+			if err != nil {
+				return err
+			}
+		}
+		if scope == scopeFuture {
+			recurringEventID = parentEventID
+		}
+		instanceID, resolveErr := resolveRecurringInstanceID(ctx, mutation.svc, mutation.calendarID, recurringEventID, c.OriginalStartTime)
 		if resolveErr != nil {
 			return resolveErr
 		}
@@ -849,7 +864,7 @@ func (c *CalendarDeleteCmd) Run(ctx context.Context, flags *RootFlags) error {
 		if truncateErr != nil {
 			return truncateErr
 		}
-		_, patchErr := mutation.patchEvent(ctx, eventID, &calendar.Event{Recurrence: truncated}, sendUpdates)
+		_, patchErr := mutation.patchEvent(ctx, parentEventID, &calendar.Event{Recurrence: truncated}, sendUpdates)
 		if patchErr != nil {
 			return patchErr
 		}
