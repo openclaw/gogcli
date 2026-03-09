@@ -18,6 +18,7 @@
 - Auth: add `auth add|manage --listen-addr` plus `--redirect-host` for browser OAuth behind proxies or remote loopback forwarding. (#227) — thanks @cyberfox.
 - Auth: add `--extra-scopes` to `auth add` for appending custom OAuth scope URIs beyond the built-in service scopes. (#421) — thanks @peteradams2026.
 - Gmail: add `gmail labels rename` to rename user labels by ID or exact name, with system-label guards and wrong-case ID safety. (#391) — thanks @adam-zethraeus.
+- Gmail: add `gmail filters export` to dump filter definitions as JSON to stdout or a file for backup/script workflows. (#119) — thanks @Jeswang.
 - Gmail: add `gmail messages modify` for single-message label changes, complementing thread- and batch-level modify flows. (#281) — thanks @zerone0x.
 - Calendar: add `calendar subscribe` (aliases `sub`, `add-calendar`) to add a shared calendar to the current account’s calendar list. (#327) — thanks @cdthompson.
 - Calendar: add `calendar alias list|set|unset`, and let calendar commands resolve configured aliases before API/name lookup. (#393) — thanks @salmonumbrella.

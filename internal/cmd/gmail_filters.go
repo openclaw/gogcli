@@ -19,6 +19,7 @@ type GmailFiltersCmd struct {
 	Get    GmailFiltersGetCmd    `cmd:"" name:"get" aliases:"info,show" help:"Get a specific filter"`
 	Create GmailFiltersCreateCmd `cmd:"" name:"create" aliases:"add,new" help:"Create a new email filter"`
 	Delete GmailFiltersDeleteCmd `cmd:"" name:"delete" aliases:"rm,del,remove" help:"Delete a filter"`
+	Export GmailFiltersExportCmd `cmd:"" name:"export" help:"Export filters as JSON"`
 }
 
 type GmailFiltersListCmd struct{}
@@ -384,5 +385,54 @@ func (c *GmailFiltersDeleteCmd) Run(ctx context.Context, flags *RootFlags) error
 	}
 
 	u.Out().Printf("Filter %s deleted successfully", filterID)
+	return nil
+}
+
+type GmailFiltersExportCmd struct {
+	Out string `name:"out" short:"o" help:"Write JSON export to this file (defaults to stdout)"`
+}
+
+func (c *GmailFiltersExportCmd) Run(ctx context.Context, flags *RootFlags) error {
+	u := ui.FromContext(ctx)
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
+	}
+
+	svc, err := newGmailService(ctx, account)
+	if err != nil {
+		return err
+	}
+
+	resp, err := svc.Users.Settings.Filters.List("me").Do()
+	if err != nil {
+		return err
+	}
+
+	payload := map[string]any{"filters": resp.Filter}
+	outPath := strings.TrimSpace(c.Out)
+	if outPath == "" {
+		return outfmt.WriteJSON(ctx, os.Stdout, payload)
+	}
+
+	f, err := os.Create(outPath) //nolint:gosec // explicit user-selected output path
+	if err != nil {
+		return err
+	}
+	defer func() { _ = f.Close() }()
+
+	if err := outfmt.WriteJSON(ctx, f, payload); err != nil {
+		return err
+	}
+
+	if outfmt.IsJSON(ctx) {
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
+			"exported": true,
+			"path":     outPath,
+			"count":    len(resp.Filter),
+		})
+	}
+
+	u.Out().Printf("Exported %d filters to %s", len(resp.Filter), outPath)
 	return nil
 }
