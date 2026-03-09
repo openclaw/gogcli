@@ -84,14 +84,18 @@ func (c *SheetsUpdateNoteCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 
 	cellCount := (parsed.EndRow - parsed.StartRow + 1) * (parsed.EndCol - parsed.StartCol + 1)
+	cellData := &sheets.CellData{
+		Note: noteText,
+	}
+	if noteText == "" {
+		cellData.ForceSendFields = []string{"Note"}
+	}
 	batchReq := &sheets.BatchUpdateSpreadsheetRequest{
 		Requests: []*sheets.Request{
 			{
 				RepeatCell: &sheets.RepeatCellRequest{
-					Range: gridRange,
-					Cell: &sheets.CellData{
-						Note: noteText,
-					},
+					Range:  gridRange,
+					Cell:   cellData,
 					Fields: "note",
 				},
 			},

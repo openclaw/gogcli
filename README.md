@@ -16,6 +16,7 @@ Fast, script-friendly CLI for Gmail, Calendar, Chat, Classroom, Drive, Docs, Sli
 - **Contacts** - search/create/update contacts, access Workspace directory/other contacts
 - **Tasks** - manage tasklists and tasks: get/create/add/update/done/undo/delete/clear, repeat schedule materialization
 - **Sheets** - read/write/update spreadsheets, insert rows/cols, format cells, read notes, create new sheets (and export via Drive)
+- **Sheets** - read/write/update spreadsheets, insert rows/cols, format cells, read notes, find/replace text, create new sheets (and export via Drive)
 - **Forms** - create/get forms and inspect responses
 - **Apps Script** - create/get projects, inspect content, and run functions
 - **Docs/Slides** - export to PDF/DOCX/PPTX via Drive (plus create/copy, docs-to-text, template-based creation with text replacement, and **sedmat** sed-style document editing with Markdown formatting, images, and tables)
@@ -950,6 +951,8 @@ gog sheets format <spreadsheetId> 'Sheet1!A1:B2' --format-json '{"borders":{"top
 gog sheets read-format <spreadsheetId> 'Sheet1!A1:B2'
 gog sheets insert <spreadsheetId> "Sheet1" rows 2 --count 3
 gog sheets notes <spreadsheetId> 'Sheet1!A1:B10'
+gog sheets find-replace <spreadsheetId> "old" "new"
+gog sheets find-replace <spreadsheetId> "old" "new" --sheet Sheet1 --match-entire
 gog sheets links <spreadsheetId> 'Sheet1!A1:B10'
 gog sheets add-tab <spreadsheetId> <tabName>
 gog sheets rename-tab <spreadsheetId> <oldName> <newName>
@@ -1043,6 +1046,9 @@ gog sheets update <spreadsheetId> MyNamedRange 'new|row|data'
 gog sheets update <spreadsheetId> 'Sheet1!A1:C1' 'new|row|data' --copy-validation-from MyValidationNamedRange
 gog sheets append <spreadsheetId> 'Sheet1!A:C' 'new|row|data'
 gog sheets append <spreadsheetId> 'Sheet1!A:C' 'new|row|data' --copy-validation-from 'Sheet1!A2:C2'
+gog sheets find-replace <spreadsheetId> "old" "new"
+gog sheets find-replace <spreadsheetId> "old" "new" --sheet Sheet1 --regex
+gog sheets update-note <spreadsheetId> 'Sheet1!A1' --note ''
 gog sheets append <spreadsheetId> MyNamedRange 'new|row|data'
 gog sheets clear <spreadsheetId> 'Sheet1!A1:B10'
 gog sheets clear <spreadsheetId> MyNamedRange

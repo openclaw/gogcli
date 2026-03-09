@@ -23,6 +23,7 @@
 - Slides: add `create-from-template` with `--replace` / `--replacements`, dry-run support, and template placeholder replacement stats. (#273) — thanks @penguinco.
 - Forms: add form update/question-management commands plus response watch create/list/delete/renew, with delete-question validation and confirmation guardrails. (#274) — thanks @alexknowshtml.
 - Sheets: add `sheets update-note` / `set-note` to write or clear cell notes across a range. (#430) — thanks @andybergon.
+- Sheets: add `sheets find-replace` to replace text across a spreadsheet or a specific tab, with exact-match, regex, and formula search options. (#341) — thanks @Shehryar.
 - Sheets: add `sheets create --parent` to place new spreadsheets in a Drive folder. (#424) — thanks @ManManavadaria.
 - Sheets: add `sheets read-format` to inspect `userEnteredFormat` / `effectiveFormat` per cell. (#284) — thanks @nilzzzzzz.
 - Contacts: support `--org`, `--title`, `--url`, `--note`, and `--custom` on create/update; include custom fields in get output with deterministic ordering. (#199) — thanks @phuctm97.
@@ -57,6 +58,7 @@
 - Calendar: force-send `minutes=0` for `--reminder popup:0m` so zero-minute popup reminders survive Google Calendar API JSON omission rules. (#316) — thanks @salmonumbrella.
 - Calendar: hide cancelled/deleted events from `calendar events` list output by explicitly setting `showDeleted=false`. (#362) — thanks @sharukh010.
 - Sheets: harden `sheets format` against `boarders` typo (JSON and field mask), with clearer error messages. (#284) — thanks @nilzzzzzz.
+- Sheets: force-send empty note values so `sheets update-note --note ''` reliably clears notes via the API. (#341) — thanks @Shehryar.
 - Calendar: reject ambiguous calendar-name selectors for `calendar events` instead of guessing. (#131) — thanks @salmonumbrella.
 - Calendar: respond patches only attendees to avoid custom reminders validation errors. (#265) — thanks @sebasrodriguez.
 - Calendar: clarify that RFC3339 `--from/--to` timestamps must include a timezone while keeping date and relative-time help intact. (#409) — thanks @dbhurley.

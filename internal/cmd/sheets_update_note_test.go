@@ -101,10 +101,7 @@ func expectRepeatCellRequest(t *testing.T, recorder *updateNoteRecorder, note st
 	}
 
 	gotNote, hasNote := cell["note"]
-	if note == "" && hasNote {
-		t.Fatalf("expected cleared note to omit note field, got %#v", cell)
-	}
-	if note != "" && (!hasNote || gotNote != note) {
+	if !hasNote || gotNote != note {
 		t.Fatalf("expected note %q, got %#v", note, repeatCell["cell"])
 	}
 
