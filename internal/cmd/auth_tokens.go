@@ -129,7 +129,8 @@ func (c *AuthTokensExportCmd) Run(ctx context.Context, _ *RootFlags) error {
 		return err
 	}
 
-	if mkErr := os.MkdirAll(filepath.Dir(outPath), 0o700); mkErr != nil { //nolint:gosec // user-provided destination directory
+	// #nosec G301 -- destination directory is explicitly chosen by the caller.
+	if mkErr := os.MkdirAll(filepath.Dir(outPath), 0o700); mkErr != nil {
 		return mkErr
 	}
 
