@@ -950,6 +950,10 @@ gog sheets copy <spreadsheetId> "My Sheet Copy"
 gog sheets export <spreadsheetId> --format pdf --out ./sheet.pdf
 gog sheets format <spreadsheetId> 'Sheet1!A1:B2' --format-json '{"textFormat":{"bold":true}}' --format-fields 'userEnteredFormat.textFormat.bold'
 gog sheets format <spreadsheetId> 'Sheet1!A1:B2' --format-json '{"borders":{"top":{"style":"SOLID"}}}' --format-fields 'userEnteredFormat.borders.top.style'
+gog sheets merge <spreadsheetId> 'Sheet1!A1:B2'
+gog sheets number-format <spreadsheetId> 'Sheet1!C:C' --type CURRENCY --pattern '$#,##0.00'
+gog sheets freeze <spreadsheetId> --rows 1 --cols 1
+gog sheets resize-columns <spreadsheetId> 'Sheet1!A:C' --auto
 gog sheets read-format <spreadsheetId> 'Sheet1!A1:B2'
 gog sheets insert <spreadsheetId> "Sheet1" rows 2 --count 3
 gog sheets notes <spreadsheetId> 'Sheet1!A1:B10'
@@ -1059,6 +1063,12 @@ gog sheets clear <spreadsheetId> MyNamedRange
 gog sheets format <spreadsheetId> 'Sheet1!A1:B2' --format-json '{"textFormat":{"bold":true}}' --format-fields 'userEnteredFormat.textFormat.bold'
 gog sheets format <spreadsheetId> MyNamedRange --format-json '{"textFormat":{"bold":true}}' --format-fields 'userEnteredFormat.textFormat.bold'
 gog sheets format <spreadsheetId> 'Sheet1!A1:B2' --format-json '{"borders":{"top":{"style":"SOLID"}}}' --format-fields 'userEnteredFormat.borders.top.style'
+gog sheets merge <spreadsheetId> 'Sheet1!A1:B2'
+gog sheets unmerge <spreadsheetId> 'Sheet1!A1:B2'
+gog sheets number-format <spreadsheetId> 'Sheet1!C:C' --type CURRENCY --pattern '$#,##0.00'
+gog sheets freeze <spreadsheetId> --rows 1 --cols 1
+gog sheets resize-columns <spreadsheetId> 'Sheet1!A:C' --auto
+gog sheets resize-rows <spreadsheetId> 'Sheet1!1:10' --height 36
 gog sheets read-format <spreadsheetId> 'Sheet1!A1:B2'
 gog sheets read-format <spreadsheetId> 'Sheet1!A1:B2' --effective
 

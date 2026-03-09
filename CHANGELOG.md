@@ -8,6 +8,7 @@
 - Auth: add Application Default Credentials mode via `GOG_AUTH_MODE=adc` for Workload Identity, Cloud Run, and local `gcloud` ADC flows without stored OAuth refresh tokens. (#357) — thanks @tengis617.
 - Chat: add `chat messages reactions create|list|delete` to manage emoji reactions on messages; `chat messages react <message> <emoji>` as a shorthand for creating reactions; `reaction` is an alias for `reactions`. (#426) — thanks @fernandopps.
 - Sheets: add named range management (`sheets named-ranges`) and let range-based Sheets commands accept named range names where GridRange-backed operations are needed. (#278) — thanks @TheCrazyLex.
+- Sheets: add `merge`, `unmerge`, `number-format`, `freeze`, `resize-columns`, and `resize-rows` commands for spreadsheet layout/format control. (#320) — thanks @Shehryar.
 - Sheets: add `add-tab`, `rename-tab`, and `delete-tab` commands for managing spreadsheet tabs, with delete dry-run/confirmation guardrails. (#309) — thanks @JulienMalige.
 - Docs: add `--tab-id` to editing commands so write/update/insert/delete/find-replace can target a specific Google Docs tab. (#330) — thanks @ignacioreyna.
 - Docs: add native Google Docs Markdown export via `docs export --format md`. (#282) — thanks @fprochazka.
