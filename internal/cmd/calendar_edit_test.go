@@ -50,6 +50,7 @@ func TestCalendarUpdatePatchClearsRecurrence(t *testing.T) {
 	}
 	if patch == nil {
 		t.Fatal("expected patch")
+		return
 	}
 	if patch.Recurrence == nil || len(patch.Recurrence) != 0 {
 		t.Fatalf("expected empty recurrence, got %#v", patch.Recurrence)
@@ -69,6 +70,7 @@ func TestCalendarUpdatePatchClearsReminders(t *testing.T) {
 	}
 	if patch == nil {
 		t.Fatal("expected patch")
+		return
 	}
 	if patch.Reminders == nil || !patch.Reminders.UseDefault {
 		t.Fatalf("expected reminders.UseDefault=true, got %#v", patch.Reminders)

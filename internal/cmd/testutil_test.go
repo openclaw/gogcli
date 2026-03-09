@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -21,8 +22,8 @@ import (
 // user's timezone from their primary calendar.
 func withPrimaryCalendar(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Handle primary calendar list request for timezone
-		if strings.Contains(r.URL.Path, "/calendarList/primary") && r.Method == http.MethodGet {
+		// Handle primary calendar request for timezone
+		if r.URL.Path == "/calendars/primary" && r.Method == http.MethodGet {
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"id":       "primary",
@@ -80,13 +81,20 @@ func captureStdout(t *testing.T, fn func()) string {
 	}
 	os.Stdout = w
 
+	var buf bytes.Buffer
+	done := make(chan struct{})
+	go func() {
+		_, _ = io.Copy(&buf, r)
+		close(done)
+	}()
+
 	fn()
 
 	_ = w.Close()
 	os.Stdout = orig
-	b, _ := io.ReadAll(r)
+	<-done
 	_ = r.Close()
-	return string(b)
+	return buf.String()
 }
 
 func captureStderr(t *testing.T, fn func()) string {
@@ -99,13 +107,20 @@ func captureStderr(t *testing.T, fn func()) string {
 	}
 	os.Stderr = w
 
+	var buf bytes.Buffer
+	done := make(chan struct{})
+	go func() {
+		_, _ = io.Copy(&buf, r)
+		close(done)
+	}()
+
 	fn()
 
 	_ = w.Close()
 	os.Stderr = orig
-	b, _ := io.ReadAll(r)
+	<-done
 	_ = r.Close()
-	return string(b)
+	return buf.String()
 }
 
 func withStdin(t *testing.T, input string, fn func()) {
@@ -164,9 +179,10 @@ func runKong(t *testing.T, cmd any, args []string, ctx context.Context, flags *R
 	if ctx != nil {
 		kctx.BindTo(ctx, (*context.Context)(nil))
 	}
-	if flags != nil {
-		kctx.Bind(flags)
+	if flags == nil {
+		flags = &RootFlags{}
 	}
+	kctx.Bind(flags)
 
 	return kctx.Run()
 }

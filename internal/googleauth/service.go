@@ -16,12 +16,16 @@ const (
 	ServiceClassroom Service = "classroom"
 	ServiceDrive     Service = "drive"
 	ServiceDocs      Service = "docs"
+	ServiceSlides    Service = "slides"
 	ServiceContacts  Service = "contacts"
 	ServiceTasks     Service = "tasks"
 	ServicePeople    Service = "people"
 	ServiceSheets    Service = "sheets"
+	ServiceForms     Service = "forms"
+	ServiceAppScript Service = "appscript"
 	ServiceGroups    Service = "groups"
 	ServiceKeep      Service = "keep"
+	ServiceAdmin     Service = "admin"
 )
 
 const (
@@ -33,6 +37,7 @@ const (
 var (
 	errUnknownService    = errors.New("unknown service")
 	errInvalidDriveScope = errors.New("invalid drive scope")
+	errInvalidGmailScope = errors.New("invalid gmail scope")
 )
 
 type DriveScopeMode string
@@ -43,9 +48,18 @@ const (
 	DriveScopeFile     DriveScopeMode = "file"
 )
 
+type GmailScopeMode string
+
+const (
+	GmailScopeFull     GmailScopeMode = "full"
+	GmailScopeReadonly GmailScopeMode = "readonly"
+)
+
 type ScopeOptions struct {
-	Readonly   bool
-	DriveScope DriveScopeMode
+	Readonly    bool
+	DriveScope  DriveScopeMode
+	GmailScope  GmailScopeMode
+	ExtraScopes []string
 }
 
 type serviceInfo struct {
@@ -62,12 +76,16 @@ var serviceOrder = []Service{
 	ServiceClassroom,
 	ServiceDrive,
 	ServiceDocs,
+	ServiceSlides,
 	ServiceContacts,
 	ServiceTasks,
 	ServiceSheets,
 	ServicePeople,
+	ServiceForms,
+	ServiceAppScript,
 	ServiceGroups,
 	ServiceKeep,
+	ServiceAdmin,
 }
 
 var serviceInfoByService = map[Service]serviceInfo{
@@ -127,6 +145,16 @@ var serviceInfoByService = map[Service]serviceInfo{
 		apis: []string{"Docs API", "Drive API"},
 		note: "Export/copy/create via Drive",
 	},
+	ServiceSlides: {
+		// Slides commands use both Slides API and Drive API
+		scopes: []string{
+			"https://www.googleapis.com/auth/drive",
+			"https://www.googleapis.com/auth/presentations",
+		},
+		user: true,
+		apis: []string{"Slides API", "Drive API"},
+		note: "Create/edit presentations",
+	},
 	ServiceContacts: {
 		scopes: []string{
 			"https://www.googleapis.com/auth/contacts",
@@ -158,6 +186,23 @@ var serviceInfoByService = map[Service]serviceInfo{
 		apis: []string{"Sheets API", "Drive API"},
 		note: "Export via Drive",
 	},
+	ServiceForms: {
+		scopes: []string{
+			"https://www.googleapis.com/auth/forms.body",
+			"https://www.googleapis.com/auth/forms.responses.readonly",
+		},
+		user: true,
+		apis: []string{"Forms API"},
+	},
+	ServiceAppScript: {
+		scopes: []string{
+			"https://www.googleapis.com/auth/script.projects",
+			"https://www.googleapis.com/auth/script.deployments",
+			"https://www.googleapis.com/auth/script.processes",
+		},
+		user: true,
+		apis: []string{"Apps Script API"},
+	},
 	ServiceGroups: {
 		scopes: []string{"https://www.googleapis.com/auth/cloud-identity.groups.readonly"},
 		user:   false,
@@ -165,10 +210,20 @@ var serviceInfoByService = map[Service]serviceInfo{
 		note:   "Workspace only",
 	},
 	ServiceKeep: {
-		scopes: []string{"https://www.googleapis.com/auth/keep.readonly"},
+		scopes: []string{"https://www.googleapis.com/auth/keep"},
 		user:   false,
 		apis:   []string{"Keep API"},
 		note:   "Workspace only; service account (domain-wide delegation)",
+	},
+	ServiceAdmin: {
+		scopes: []string{
+			"https://www.googleapis.com/auth/admin.directory.user",
+			"https://www.googleapis.com/auth/admin.directory.group",
+			"https://www.googleapis.com/auth/admin.directory.group.member",
+		},
+		user: false,
+		apis: []string{"Admin SDK Directory API"},
+		note: "Workspace only; service account with domain-wide delegation required",
 	},
 }
 
@@ -332,7 +387,12 @@ func ScopesForManageWithOptions(services []Service, opts ScopeOptions) ([]string
 		return nil, err
 	}
 
-	return mergeScopes(scopes, []string{scopeOpenID, scopeEmail, scopeUserinfoEmail}), nil
+	merged := mergeScopes(scopes, []string{scopeOpenID, scopeEmail, scopeUserinfoEmail})
+	if len(opts.ExtraScopes) > 0 {
+		merged = mergeScopes(merged, opts.ExtraScopes)
+	}
+
+	return merged, nil
 }
 
 func scopesForServicesWithOptions(services []Service, opts ScopeOptions) ([]string, error) {
@@ -367,6 +427,13 @@ func scopesForServiceWithOptions(service Service, opts ScopeOptions) ([]string, 
 		return nil, fmt.Errorf("%w %q (expected full|readonly|file)", errInvalidDriveScope, opts.DriveScope)
 	}
 
+	gmailScope := strings.TrimSpace(string(opts.GmailScope))
+	switch gmailScope {
+	case "", string(GmailScopeFull), string(GmailScopeReadonly):
+	default:
+		return nil, fmt.Errorf("%w %q (expected full|readonly)", errInvalidGmailScope, opts.GmailScope)
+	}
+
 	driveScopeValue := func() string {
 		if opts.Readonly {
 			return "https://www.googleapis.com/auth/drive.readonly"
@@ -384,7 +451,7 @@ func scopesForServiceWithOptions(service Service, opts ScopeOptions) ([]string, 
 
 	switch service {
 	case ServiceGmail:
-		if opts.Readonly {
+		if opts.Readonly || opts.GmailScope == GmailScopeReadonly {
 			return []string{"https://www.googleapis.com/auth/gmail.readonly"}, nil
 		}
 
@@ -432,6 +499,13 @@ func scopesForServiceWithOptions(service Service, opts ScopeOptions) ([]string, 
 		}
 
 		return []string{driveScopeValue(), docScope}, nil
+	case ServiceSlides:
+		slidesScope := "https://www.googleapis.com/auth/presentations"
+		if opts.Readonly {
+			slidesScope = "https://www.googleapis.com/auth/presentations.readonly"
+		}
+
+		return []string{driveScopeValue(), slidesScope}, nil
 	case ServiceContacts:
 		contactsScope := "https://www.googleapis.com/auth/contacts"
 		if opts.Readonly {
@@ -459,6 +533,25 @@ func scopesForServiceWithOptions(service Service, opts ScopeOptions) ([]string, 
 		}
 
 		return []string{driveScopeValue(), sheetsScope}, nil
+	case ServiceForms:
+		formBodyScope := "https://www.googleapis.com/auth/forms.body"
+		if opts.Readonly {
+			formBodyScope = "https://www.googleapis.com/auth/forms.body.readonly"
+		}
+
+		return []string{
+			formBodyScope,
+			"https://www.googleapis.com/auth/forms.responses.readonly",
+		}, nil
+	case ServiceAppScript:
+		if opts.Readonly {
+			return []string{
+				"https://www.googleapis.com/auth/script.projects.readonly",
+				"https://www.googleapis.com/auth/script.deployments.readonly",
+			}, nil
+		}
+
+		return Scopes(service)
 	case ServiceGroups:
 		return Scopes(service)
 	case ServiceKeep:

@@ -6,7 +6,7 @@ import (
 )
 
 var startCommand = func(name string, args ...string) error {
-	return exec.Command(name, args...).Start()
+	return exec.Command(name, args...).Start() //nolint:gosec // command/args come from fixed OS mapping and caller URL
 }
 
 func openBrowser(u string) error {

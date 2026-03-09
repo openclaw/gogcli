@@ -39,7 +39,7 @@ func (c *ClassroomProfileGetCmd) Run(ctx context.Context, flags *RootFlags) erro
 	}
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{"profile": profile})
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{"profile": profile})
 	}
 
 	u.Out().Printf("id\t%s", profile.Id)

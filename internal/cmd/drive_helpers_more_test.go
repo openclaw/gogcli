@@ -51,6 +51,12 @@ func TestDriveExportExtension(t *testing.T) {
 	if got := driveExportExtension("text/plain"); got != ".txt" {
 		t.Fatalf("unexpected: %q", got)
 	}
+	if got := driveExportExtension("text/markdown"); got != ".md" {
+		t.Fatalf("unexpected: %q", got)
+	}
+	if got := driveExportExtension("text/html"); got != ".html" {
+		t.Fatalf("unexpected: %q", got)
+	}
 	if got := driveExportExtension("nope"); got != ".pdf" {
 		t.Fatalf("unexpected: %q", got)
 	}

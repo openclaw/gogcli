@@ -1,6 +1,7 @@
 package secrets
 
 import (
+	"encoding/json"
 	"errors"
 	"runtime"
 	"strings"
@@ -12,7 +13,10 @@ import (
 	"github.com/steipete/gogcli/internal/config"
 )
 
-var errTestKeychain = errors.New("test -25308 error")
+var (
+	errTestKeychain = errors.New("test -25308 error")
+	errTestReadBack = errors.New("test read-back failure")
+)
 
 func TestKeyringStore_ListDeleteDefault(t *testing.T) {
 	ring := keyring.NewArrayKeyring(nil)
@@ -104,14 +108,24 @@ func TestWrapKeychainError(t *testing.T) {
 }
 
 func TestFileKeyringPasswordFuncFrom(t *testing.T) {
-	fn := fileKeyringPasswordFuncFrom("pw", false)
+	// Non-empty password with passwordSet=true returns that password.
+	fn := fileKeyringPasswordFuncFrom("pw", true, false)
 	if got, err := fn("prompt"); err != nil {
 		t.Fatalf("expected password, got err: %v", err)
 	} else if got != "pw" {
 		t.Fatalf("unexpected password: %q", got)
 	}
 
-	fn = fileKeyringPasswordFuncFrom("", false)
+	// Empty password with passwordSet=true returns empty string (not an error).
+	fn = fileKeyringPasswordFuncFrom("", true, false)
+	if got, err := fn("prompt"); err != nil {
+		t.Fatalf("expected empty password, got err: %v", err)
+	} else if got != "" {
+		t.Fatalf("expected empty password, got: %q", got)
+	}
+
+	// Env var not set and no TTY returns errNoTTY.
+	fn = fileKeyringPasswordFuncFrom("", false, false)
 	if _, err := fn("prompt"); err == nil || !errors.Is(err, errNoTTY) {
 		t.Fatalf("expected no TTY error, got: %v", err)
 	}
@@ -160,5 +174,164 @@ func TestKeyringStoreDeleteAndDefaultErrors(t *testing.T) {
 
 	if err := store.SetDefaultAccount(client, " "); !errors.Is(err, errMissingEmail) {
 		t.Fatalf("expected missing email, got %v", err)
+	}
+}
+
+func TestKeyringStoreWritePathsSetLabel(t *testing.T) {
+	ring := keyring.NewArrayKeyring(nil)
+	store := &KeyringStore{ring: ring}
+	email := "A@B.COM"
+	client := config.DefaultClientName
+	tok := Token{RefreshToken: "rt", CreatedAt: time.Now().UTC()}
+
+	if err := store.SetToken(client, email, tok); err != nil {
+		t.Fatalf("SetToken: %v", err)
+	}
+
+	for _, k := range []string{
+		tokenKey(client, normalize(email)),
+		legacyTokenKey(normalize(email)),
+	} {
+		it, err := ring.Get(k)
+		if err != nil {
+			t.Fatalf("Get(%q): %v", k, err)
+		}
+
+		if it.Label != config.AppName {
+			t.Fatalf("expected label %q for key %q, got %q", config.AppName, k, it.Label)
+		}
+	}
+
+	if err := store.SetDefaultAccount(client, email); err != nil {
+		t.Fatalf("SetDefaultAccount: %v", err)
+	}
+
+	for _, k := range []string{
+		defaultAccountKeyForClient(client),
+		defaultAccountKey,
+	} {
+		it, err := ring.Get(k)
+		if err != nil {
+			t.Fatalf("Get(%q): %v", k, err)
+		}
+
+		if it.Label != config.AppName {
+			t.Fatalf("expected label %q for key %q, got %q", config.AppName, k, it.Label)
+		}
+	}
+}
+
+func TestGetTokenMigrationSetsLabel(t *testing.T) {
+	ring := keyring.NewArrayKeyring(nil)
+	store := &KeyringStore{ring: ring}
+	email := "a@b.com"
+	client := config.DefaultClientName
+
+	payload, err := json.Marshal(storedToken{
+		RefreshToken: "rt",
+		CreatedAt:    time.Now().UTC(),
+	})
+	if err != nil {
+		t.Fatalf("Marshal: %v", err)
+	}
+
+	// Simulate an old legacy item created before label support.
+	if setErr := ring.Set(keyring.Item{Key: legacyTokenKey(email), Data: payload}); setErr != nil {
+		t.Fatalf("Set legacy token: %v", setErr)
+	}
+
+	if _, getErr := store.GetToken(client, email); getErr != nil {
+		t.Fatalf("GetToken: %v", getErr)
+	}
+
+	it, err := ring.Get(tokenKey(client, email))
+	if err != nil {
+		t.Fatalf("Get migrated key: %v", err)
+	}
+
+	if it.Label != config.AppName {
+		t.Fatalf("expected migrated label %q, got %q", config.AppName, it.Label)
+	}
+}
+
+// silentDropKeyring simulates a macOS Keychain that silently writes 0 bytes.
+// Set returns nil (success), but Get returns an item with empty Data.
+type silentDropKeyring struct {
+	keyring.ArrayKeyring
+}
+
+func (s *silentDropKeyring) Set(_ keyring.Item) error { return nil }
+func (s *silentDropKeyring) Get(_ string) (keyring.Item, error) {
+	return keyring.Item{Data: nil}, nil
+}
+func (s *silentDropKeyring) Keys() ([]string, error) { return nil, nil }
+
+func TestSetTokenVerifyCatchesEmptyWrite(t *testing.T) {
+	store := &KeyringStore{ring: &silentDropKeyring{}}
+	client := config.DefaultClientName
+
+	err := store.SetToken(client, "a@b.com", Token{RefreshToken: "rt", CreatedAt: time.Now()})
+	if err == nil {
+		t.Fatal("expected error when keyring silently drops data")
+	}
+
+	if !errors.Is(err, errTokenVerifyFailed) {
+		t.Fatalf("expected errTokenVerifyFailed, got: %v", err)
+	}
+
+	if !strings.Contains(err.Error(), "gog auth keyring file") {
+		t.Fatalf("expected workaround suggestion in error, got: %v", err)
+	}
+}
+
+// readBackErrorKeyring simulates a keyring where Set succeeds but Get fails.
+type readBackErrorKeyring struct {
+	keyring.ArrayKeyring
+}
+
+func (r *readBackErrorKeyring) Set(_ keyring.Item) error { return nil }
+func (r *readBackErrorKeyring) Get(_ string) (keyring.Item, error) {
+	return keyring.Item{}, errTestReadBack
+}
+func (r *readBackErrorKeyring) Keys() ([]string, error) { return nil, nil }
+
+func TestSetTokenVerifyCatchesReadBackError(t *testing.T) {
+	store := &KeyringStore{ring: &readBackErrorKeyring{}}
+	client := config.DefaultClientName
+
+	err := store.SetToken(client, "a@b.com", Token{RefreshToken: "rt", CreatedAt: time.Now()})
+	if err == nil {
+		t.Fatal("expected error when keyring read-back fails")
+	}
+
+	if !errors.Is(err, errTokenVerifyFailed) {
+		t.Fatalf("expected errTokenVerifyFailed, got: %v", err)
+	}
+
+	if !strings.Contains(err.Error(), "could not read back") {
+		t.Fatalf("expected read-back error detail, got: %v", err)
+	}
+}
+
+func TestSetSecretSetsLabel(t *testing.T) {
+	ring := keyring.NewArrayKeyring(nil)
+	origOpen := openKeyringFunc
+
+	t.Cleanup(func() { openKeyringFunc = origOpen })
+
+	openKeyringFunc = func() (keyring.Keyring, error) { return ring, nil }
+
+	key := "test/secret"
+	if err := SetSecret(key, []byte("value")); err != nil {
+		t.Fatalf("SetSecret: %v", err)
+	}
+
+	it, err := ring.Get(key)
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+
+	if it.Label != config.AppName {
+		t.Fatalf("expected label %q, got %q", config.AppName, it.Label)
 	}
 }

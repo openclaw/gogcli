@@ -3,13 +3,9 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"os"
 	"strings"
 
 	"google.golang.org/api/calendar/v3"
-
-	"github.com/steipete/gogcli/internal/outfmt"
-	"github.com/steipete/gogcli/internal/ui"
 )
 
 type CalendarWorkingLocationCmd struct {
@@ -25,18 +21,11 @@ type CalendarWorkingLocationCmd struct {
 }
 
 func (c *CalendarWorkingLocationCmd) Run(ctx context.Context, flags *RootFlags) error {
-	u := ui.FromContext(ctx)
-	account, err := requireAccount(flags)
+	calendarID, err := prepareCalendarID(c.CalendarID, true)
 	if err != nil {
 		return err
 	}
-
 	props, err := c.buildWorkingLocationProperties()
-	if err != nil {
-		return err
-	}
-
-	svc, err := newCalendarService(ctx, account)
 	if err != nil {
 		return err
 	}
@@ -48,20 +37,28 @@ func (c *CalendarWorkingLocationCmd) Run(ctx context.Context, flags *RootFlags) 
 		Start:                     &calendar.EventDateTime{Date: strings.TrimSpace(c.From)},
 		End:                       &calendar.EventDateTime{Date: strings.TrimSpace(c.To)},
 		EventType:                 eventTypeWorkingLocation,
+		Visibility:                visibilityPublic,
+		Transparency:              transparencyTransparent,
 		WorkingLocationProperties: props,
 	}
 
-	created, err := svc.Events.Insert(c.CalendarID, event).Do()
+	if dryRunErr := dryRunExit(ctx, flags, "calendar.working_location", map[string]any{
+		"calendar_id": calendarID,
+		"event":       event,
+	}); dryRunErr != nil {
+		return dryRunErr
+	}
+
+	mutation, err := newCalendarMutationContext(ctx, flags, calendarID)
 	if err != nil {
 		return err
 	}
 
-	tz, loc, _ := getCalendarLocation(ctx, svc, c.CalendarID)
-	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{"event": wrapEventWithDaysWithTimezone(created, tz, loc)})
+	created, err := mutation.insertEvent(ctx, event, calendarInsertOptions{})
+	if err != nil {
+		return err
 	}
-	printCalendarEventWithTimezone(u, created, tz, loc)
-	return nil
+	return mutation.writeEvent(ctx, created)
 }
 
 func (c *CalendarWorkingLocationCmd) buildWorkingLocationProperties() (*calendar.EventWorkingLocationProperties, error) {

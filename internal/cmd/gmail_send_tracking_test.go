@@ -21,18 +21,18 @@ func TestResolveTrackingConfig(t *testing.T) {
 	cmd.BodyHTML = "<html></html>"
 
 	// Multiple recipients without split should fail.
-	if _, err := cmd.resolveTrackingConfig("a@b.com", []string{"a@b.com", "b@b.com"}, nil, nil); err == nil {
+	if _, err := cmd.resolveTrackingConfig("a@b.com", []string{"a@b.com", "b@b.com"}, nil, nil, cmd.BodyHTML); err == nil {
 		t.Fatalf("expected error for multiple recipients without split")
 	}
 
 	cmd.TrackSplit = true
 	cmd.BodyHTML = ""
-	if _, err := cmd.resolveTrackingConfig("a@b.com", []string{"a@b.com"}, nil, nil); err == nil {
+	if _, err := cmd.resolveTrackingConfig("a@b.com", []string{"a@b.com"}, nil, nil, cmd.BodyHTML); err == nil {
 		t.Fatalf("expected error for missing body html")
 	}
 
 	cmd.BodyHTML = "<html></html>"
-	if _, err := cmd.resolveTrackingConfig("a@b.com", []string{"a@b.com"}, nil, nil); err == nil {
+	if _, err := cmd.resolveTrackingConfig("a@b.com", []string{"a@b.com"}, nil, nil, cmd.BodyHTML); err == nil {
 		t.Fatalf("expected error for unconfigured tracking")
 	}
 
@@ -51,7 +51,7 @@ func TestResolveTrackingConfig(t *testing.T) {
 		t.Fatalf("SaveConfig: %v", err)
 	}
 
-	got, err := cmd.resolveTrackingConfig("a@b.com", []string{"a@b.com"}, nil, nil)
+	got, err := cmd.resolveTrackingConfig("a@b.com", []string{"a@b.com"}, nil, nil, cmd.BodyHTML)
 	if err != nil {
 		t.Fatalf("resolveTrackingConfig: %v", err)
 	}

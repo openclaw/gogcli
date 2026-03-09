@@ -1,7 +1,7 @@
 {
   "name": "gog-email-tracker",
   "version": "1.0.0",
-  "packageManager": "pnpm@10.27.0",
+  "packageManager": "pnpm@10.30.3",
   "private": true,
   "scripts": {
     "dev": "wrangler dev",
@@ -11,10 +11,10 @@
     "test": "vitest run"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^4.20260117.0",
+    "@cloudflare/workers-types": "^4.20260307.1",
     "typescript": "^5.9.3",
-    "vitest": "^4.0.17",
-    "wrangler": "^4.59.2"
+    "vitest": "^4.0.18",
+    "wrangler": "^4.71.0"
   },
   "pnpm": {
     "overrides": {

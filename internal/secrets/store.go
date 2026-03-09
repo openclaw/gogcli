@@ -38,6 +38,14 @@ type Token struct {
 	RefreshToken string    `json:"-"`
 }
 
+func keyringItem(key string, data []byte) keyring.Item {
+	return keyring.Item{
+		Key:   key,
+		Data:  data,
+		Label: config.AppName, // to show "gogcli" in security dialog instead of "" (empty string)
+	}
+}
+
 const (
 	keyringPasswordEnv = "GOG_KEYRING_PASSWORD" //nolint:gosec // env var name, not a credential
 	keyringBackendEnv  = "GOG_KEYRING_BACKEND"  //nolint:gosec // env var name, not a credential
@@ -50,6 +58,7 @@ var (
 	errNoTTY                 = errors.New("no TTY available for keyring file backend password prompt")
 	errInvalidKeyringBackend = errors.New("invalid keyring backend")
 	errKeyringTimeout        = errors.New("keyring connection timed out")
+	errTokenVerifyFailed     = errors.New("token verification failed: keyring wrote 0 bytes")
 	openKeyringFunc          = openKeyring
 	keyringOpenFunc          = keyring.Open
 )
@@ -111,8 +120,9 @@ func wrapKeychainError(err error) error {
 	return err
 }
 
-func fileKeyringPasswordFuncFrom(password string, isTTY bool) keyring.PromptFunc {
-	if password != "" {
+func fileKeyringPasswordFuncFrom(password string, passwordSet bool, isTTY bool) keyring.PromptFunc {
+	// Treat "set to empty string" as intentional; empty passphrase is valid.
+	if passwordSet {
 		return keyring.FixedStringPrompt(password)
 	}
 
@@ -126,7 +136,8 @@ func fileKeyringPasswordFuncFrom(password string, isTTY bool) keyring.PromptFunc
 }
 
 func fileKeyringPasswordFunc() keyring.PromptFunc {
-	return fileKeyringPasswordFuncFrom(os.Getenv(keyringPasswordEnv), term.IsTerminal(int(os.Stdin.Fd())))
+	password, passwordSet := os.LookupEnv(keyringPasswordEnv)
+	return fileKeyringPasswordFuncFrom(password, passwordSet, term.IsTerminal(int(os.Stdin.Fd()))) //nolint:gosec // os file descriptor fits int on supported targets
 }
 
 func normalizeKeyringBackend(value string) string {
@@ -256,10 +267,7 @@ func SetSecret(key string, value []byte) error {
 		return err
 	}
 
-	if err := ring.Set(keyring.Item{
-		Key:  key,
-		Data: value,
-	}); err != nil {
+	if err := ring.Set(keyringItem(key, value)); err != nil {
 		return wrapKeychainError(fmt.Errorf("store secret: %w", err))
 	}
 
@@ -295,7 +303,7 @@ func (s *KeyringStore) Keys() ([]string, error) {
 }
 
 type storedToken struct {
-	RefreshToken string    `json:"refresh_token"`
+	RefreshToken string    `json:"refresh_token"` //nolint:gosec // persisted token schema intentionally uses refresh_token
 	Services     []string  `json:"services,omitempty"`
 	Scopes       []string  `json:"scopes,omitempty"`
 	CreatedAt    time.Time `json:"created_at,omitempty"`
@@ -330,18 +338,25 @@ func (s *KeyringStore) SetToken(client string, email string, tok Token) error {
 		return fmt.Errorf("encode token: %w", err)
 	}
 
-	if err := s.ring.Set(keyring.Item{
-		Key:  tokenKey(normalizedClient, email),
-		Data: payload,
-	}); err != nil {
+	primaryKey := tokenKey(normalizedClient, email)
+	if err := s.ring.Set(keyringItem(primaryKey, payload)); err != nil {
 		return wrapKeychainError(fmt.Errorf("store token: %w", err))
 	}
 
+	// Verify the token was actually persisted. On macOS, the Keychain can
+	// silently write 0 bytes when it is locked in a headless/server environment
+	// even though Set returns no error. Read back to catch this.
+	if item, readErr := s.ring.Get(primaryKey); readErr != nil {
+		return fmt.Errorf("%w: could not read back token after write: %w\n\n"+
+			"Workaround: switch to file-based keyring with: gog auth keyring file", errTokenVerifyFailed, readErr)
+	} else if len(item.Data) == 0 {
+		return fmt.Errorf("%w\n\n"+
+			"This usually happens when the macOS Keychain is locked in a headless environment.\n"+
+			"Workaround: switch to file-based keyring with: gog auth keyring file", errTokenVerifyFailed)
+	}
+
 	if normalizedClient == config.DefaultClientName {
-		if err := s.ring.Set(keyring.Item{
-			Key:  legacyTokenKey(email),
-			Data: payload,
-		}); err != nil {
+		if err := s.ring.Set(keyringItem(legacyTokenKey(email), payload)); err != nil {
 			return wrapKeychainError(fmt.Errorf("store legacy token: %w", err))
 		}
 	}
@@ -365,10 +380,7 @@ func (s *KeyringStore) GetToken(client string, email string) (Token, error) {
 		if normalizedClient == config.DefaultClientName {
 			if legacyItem, legacyErr := s.ring.Get(legacyTokenKey(email)); legacyErr == nil {
 				item = legacyItem
-				if migrateErr := s.ring.Set(keyring.Item{
-					Key:  tokenKey(normalizedClient, email),
-					Data: legacyItem.Data,
-				}); migrateErr != nil {
+				if migrateErr := s.ring.Set(keyringItem(tokenKey(normalizedClient, email), legacyItem.Data)); migrateErr != nil {
 					return Token{}, wrapKeychainError(fmt.Errorf("migrate token: %w", migrateErr))
 				}
 			} else {
@@ -549,18 +561,12 @@ func (s *KeyringStore) SetDefaultAccount(client string, email string) error {
 	}
 
 	if normalizedClient != "" {
-		if err := s.ring.Set(keyring.Item{
-			Key:  defaultAccountKeyForClient(normalizedClient),
-			Data: []byte(email),
-		}); err != nil {
+		if err := s.ring.Set(keyringItem(defaultAccountKeyForClient(normalizedClient), []byte(email))); err != nil {
 			return fmt.Errorf("store default account: %w", err)
 		}
 	}
 
-	if err := s.ring.Set(keyring.Item{
-		Key:  defaultAccountKey,
-		Data: []byte(email),
-	}); err != nil {
+	if err := s.ring.Set(keyringItem(defaultAccountKey, []byte(email))); err != nil {
 		return fmt.Errorf("store default account: %w", err)
 	}
 

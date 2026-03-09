@@ -9,6 +9,51 @@ import (
 	"google.golang.org/api/calendar/v3"
 )
 
+func resolveRecurringSeriesID(ctx context.Context, svc *calendar.Service, calendarID, eventID string) (string, error) {
+	eventID = strings.TrimSpace(eventID)
+	if eventID == "" {
+		return "", fmt.Errorf("event ID required")
+	}
+
+	event, err := svc.Events.Get(calendarID, eventID).Context(ctx).Do()
+	if err != nil {
+		return "", err
+	}
+	if recurringEventID := strings.TrimSpace(event.RecurringEventId); recurringEventID != "" {
+		return recurringEventID, nil
+	}
+	if len(event.Recurrence) > 0 {
+		if resolvedID := strings.TrimSpace(event.Id); resolvedID != "" {
+			return resolvedID, nil
+		}
+		return eventID, nil
+	}
+	return "", fmt.Errorf("event %s is not a recurring event", eventID)
+}
+
+func resolveRecurringParentEvent(ctx context.Context, svc *calendar.Service, calendarID, eventID string) (string, []string, error) {
+	eventID = strings.TrimSpace(eventID)
+	if eventID == "" {
+		return "", nil, fmt.Errorf("event ID required")
+	}
+
+	parentID, err := resolveRecurringSeriesID(ctx, svc, calendarID, eventID)
+	if err != nil {
+		return "", nil, err
+	}
+	parent, err := svc.Events.Get(calendarID, parentID).Context(ctx).Do()
+	if err != nil {
+		return "", nil, err
+	}
+	if len(parent.Recurrence) == 0 {
+		return "", nil, fmt.Errorf("event %s is not a recurring event", eventID)
+	}
+	if resolvedID := strings.TrimSpace(parent.Id); resolvedID != "" {
+		parentID = resolvedID
+	}
+	return parentID, parent.Recurrence, nil
+}
+
 func resolveRecurringInstanceID(ctx context.Context, svc *calendar.Service, calendarID, recurringEventID, originalStart string) (string, error) {
 	originalStart = strings.TrimSpace(originalStart)
 	if originalStart == "" {

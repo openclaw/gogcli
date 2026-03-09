@@ -30,6 +30,7 @@ func (c *GmailGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 	messageID := strings.TrimSpace(c.MessageID)
+	messageID = normalizeGmailMessageID(messageID)
 	if messageID == "" {
 		return usage("empty messageId")
 	}
@@ -53,7 +54,7 @@ func (c *GmailGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if format == gmailFormatMetadata {
 		headerList := splitCSV(c.Headers)
 		if len(headerList) == 0 {
-			headerList = []string{"From", "To", "Subject", "Date"}
+			headerList = []string{"From", "To", "Cc", "Bcc", "Subject", "Date"}
 		}
 		if !hasHeaderName(headerList, "List-Unsubscribe") {
 			headerList = append(headerList, "List-Unsubscribe")
@@ -96,7 +97,7 @@ func (c *GmailGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 				payload["attachments"] = attachmentOutputs(attachments)
 			}
 		}
-		return outfmt.WriteJSON(os.Stdout, payload)
+		return outfmt.WriteJSON(ctx, os.Stdout, payload)
 	}
 
 	u.Out().Printf("id\t%s", msg.Id)
@@ -119,6 +120,8 @@ func (c *GmailGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 	case gmailFormatMetadata, gmailFormatFull:
 		u.Out().Printf("from\t%s", headerValue(msg.Payload, "From"))
 		u.Out().Printf("to\t%s", headerValue(msg.Payload, "To"))
+		u.Out().Printf("cc\t%s", headerValue(msg.Payload, "Cc"))
+		u.Out().Printf("bcc\t%s", headerValue(msg.Payload, "Bcc"))
 		u.Out().Printf("subject\t%s", headerValue(msg.Payload, "Subject"))
 		u.Out().Printf("date\t%s", headerValue(msg.Payload, "Date"))
 		if unsubscribe != "" {

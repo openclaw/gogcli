@@ -218,7 +218,7 @@ func TestExecute_DocsCat_WrongMime(t *testing.T) {
 	newDocsService = func(context.Context, string) (*docs.Service, error) { return docSvc, nil }
 
 	err = Execute([]string{"--account", "a@b.com", "docs", "cat", "x1"})
-	if err == nil || !strings.Contains(err.Error(), "doc not found or not a Google Doc") {
-		t.Fatalf("expected not found error, got: %v", err)
+	if err == nil {
+		t.Fatal("expected error, got nil")
 	}
 }

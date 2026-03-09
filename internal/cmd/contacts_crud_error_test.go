@@ -120,6 +120,16 @@ func TestContactsOtherDelete_Success_JSON(t *testing.T) {
 	svc, closeSrv := newPeopleService(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case strings.Contains(r.URL.Path, "otherContacts/") && strings.Contains(r.URL.Path, ":copyOtherContactToMyContactsGroup") && r.Method == http.MethodPost:
+			var req struct {
+				CopyMask string `json:"copyMask"`
+			}
+			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+				t.Fatalf("decode request: %v", err)
+			}
+			if req.CopyMask != otherContactCopyMask {
+				t.Fatalf("expected copyMask %q, got %q", otherContactCopyMask, req.CopyMask)
+			}
+
 			// Mock CopyOtherContactToMyContactsGroup response
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(map[string]any{

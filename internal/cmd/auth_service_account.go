@@ -42,48 +42,12 @@ func parseServiceAccountJSON(data []byte) (serviceAccountJSONInfo, error) {
 	return info, nil
 }
 
-func storeServiceAccountKey(impersonateEmail string, keyPath string) (string, serviceAccountJSONInfo, error) {
-	keyPath = strings.TrimSpace(keyPath)
-	if keyPath == "" {
-		return "", serviceAccountJSONInfo{}, usage("empty key path")
-	}
-	keyPath, err := config.ExpandPath(keyPath)
-	if err != nil {
-		return "", serviceAccountJSONInfo{}, err
-	}
-
-	data, err := os.ReadFile(keyPath) //nolint:gosec // user-provided path
-	if err != nil {
-		return "", serviceAccountJSONInfo{}, fmt.Errorf("read service account key: %w", err)
-	}
-
-	info, err := parseServiceAccountJSON(data)
-	if err != nil {
-		return "", serviceAccountJSONInfo{}, err
-	}
-
-	destPath, err := config.ServiceAccountPath(impersonateEmail)
-	if err != nil {
-		return "", serviceAccountJSONInfo{}, err
-	}
-
-	if _, err := config.EnsureDir(); err != nil {
-		return "", serviceAccountJSONInfo{}, err
-	}
-
-	if err := os.WriteFile(destPath, data, 0o600); err != nil {
-		return "", serviceAccountJSONInfo{}, fmt.Errorf("write service account: %w", err)
-	}
-
-	return destPath, info, nil
-}
-
 type AuthServiceAccountSetCmd struct {
 	Email string `arg:"" name:"email" help:"Email to impersonate (Workspace user email)" required:""`
 	Key   string `name:"key" required:"" help:"Path to service account JSON key file"`
 }
 
-func (c *AuthServiceAccountSetCmd) Run(ctx context.Context) error {
+func (c *AuthServiceAccountSetCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
 
 	email := strings.TrimSpace(c.Email)
@@ -91,13 +55,49 @@ func (c *AuthServiceAccountSetCmd) Run(ctx context.Context) error {
 		return usage("empty email")
 	}
 
-	destPath, info, err := storeServiceAccountKey(email, c.Key)
+	keyPath := strings.TrimSpace(c.Key)
+	if keyPath == "" {
+		return usage("empty key path")
+	}
+	keyPath, err := config.ExpandPath(keyPath)
 	if err != nil {
 		return err
 	}
 
+	data, err := os.ReadFile(keyPath) //nolint:gosec // user-provided path
+	if err != nil {
+		return fmt.Errorf("read service account key: %w", err)
+	}
+
+	info, err := parseServiceAccountJSON(data)
+	if err != nil {
+		return err
+	}
+
+	destPath, err := config.ServiceAccountPath(email)
+	if err != nil {
+		return err
+	}
+
+	if err := dryRunExit(ctx, flags, "auth.service_account.set", map[string]any{
+		"email":        email,
+		"key_path":     keyPath,
+		"dest_path":    destPath,
+		"client_email": info.ClientEmail,
+		"client_id":    info.ClientID,
+	}); err != nil {
+		return err
+	}
+
+	if _, err := config.EnsureDir(); err != nil {
+		return err
+	}
+	if err := os.WriteFile(destPath, data, 0o600); err != nil {
+		return fmt.Errorf("write service account: %w", err)
+	}
+
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
 			"stored":       true,
 			"email":        email,
 			"path":         destPath,
@@ -140,32 +140,20 @@ func (c *AuthServiceAccountUnsetCmd) Run(ctx context.Context, flags *RootFlags) 
 
 	if err := os.Remove(path); err != nil {
 		if os.IsNotExist(err) {
-			if outfmt.IsJSON(ctx) {
-				return outfmt.WriteJSON(os.Stdout, map[string]any{
-					"deleted": false,
-					"email":   email,
-					"path":    path,
-				})
-			}
-			u.Out().Printf("deleted\tfalse")
-			u.Out().Printf("email\t%s", email)
-			u.Out().Printf("path\t%s", path)
-			return nil
+			return writeResult(ctx, u,
+				kv("deleted", false),
+				kv("email", email),
+				kv("path", path),
+			)
 		}
 		return fmt.Errorf("remove service account: %w", err)
 	}
 
-	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{
-			"deleted": true,
-			"email":   email,
-			"path":    path,
-		})
-	}
-	u.Out().Printf("deleted\ttrue")
-	u.Out().Printf("email\t%s", email)
-	u.Out().Printf("path\t%s", path)
-	return nil
+	return writeResult(ctx, u,
+		kv("deleted", true),
+		kv("email", email),
+		kv("path", path),
+	)
 }
 
 type AuthServiceAccountStatusCmd struct {
@@ -189,7 +177,7 @@ func (c *AuthServiceAccountStatusCmd) Run(ctx context.Context) error {
 	if err != nil {
 		if os.IsNotExist(err) {
 			if outfmt.IsJSON(ctx) {
-				return outfmt.WriteJSON(os.Stdout, map[string]any{
+				return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
 					"email":   email,
 					"path":    path,
 					"exists":  false,
@@ -211,7 +199,7 @@ func (c *AuthServiceAccountStatusCmd) Run(ctx context.Context) error {
 	}
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
 			"email":        email,
 			"path":         path,
 			"exists":       true,

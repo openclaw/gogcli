@@ -14,17 +14,17 @@ var (
 
 type ClientCredentials struct {
 	ClientID     string `json:"client_id"`
-	ClientSecret string `json:"client_secret"`
+	ClientSecret string `json:"client_secret"` //nolint:gosec // required OAuth client payload field
 }
 
 type googleCredentialsFile struct {
 	Installed *struct {
 		ClientID     string `json:"client_id"`
-		ClientSecret string `json:"client_secret"`
+		ClientSecret string `json:"client_secret"` //nolint:gosec // required OAuth client payload field
 	} `json:"installed"`
 	Web *struct {
 		ClientID     string `json:"client_id"`
-		ClientSecret string `json:"client_secret"`
+		ClientSecret string `json:"client_secret"` //nolint:gosec // required OAuth client payload field
 	} `json:"web"`
 }
 

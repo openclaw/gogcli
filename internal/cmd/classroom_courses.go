@@ -13,16 +13,16 @@ import (
 )
 
 type ClassroomCoursesCmd struct {
-	List      ClassroomCoursesListCmd      `cmd:"" default:"withargs" help:"List courses"`
-	Get       ClassroomCoursesGetCmd       `cmd:"" help:"Get a course"`
-	Create    ClassroomCoursesCreateCmd    `cmd:"" help:"Create a course"`
-	Update    ClassroomCoursesUpdateCmd    `cmd:"" help:"Update a course"`
-	Delete    ClassroomCoursesDeleteCmd    `cmd:"" help:"Delete a course" aliases:"rm"`
-	Archive   ClassroomCoursesArchiveCmd   `cmd:"" help:"Archive a course"`
-	Unarchive ClassroomCoursesUnarchiveCmd `cmd:"" help:"Unarchive a course"`
-	Join      ClassroomCoursesJoinCmd      `cmd:"" help:"Join a course"`
-	Leave     ClassroomCoursesLeaveCmd     `cmd:"" help:"Leave a course"`
-	URL       ClassroomCoursesURLCmd       `cmd:"" name:"url" help:"Print Classroom web URLs for courses"`
+	List      ClassroomCoursesListCmd      `cmd:"" default:"withargs" aliases:"ls" help:"List courses"`
+	Get       ClassroomCoursesGetCmd       `cmd:"" aliases:"info,show" help:"Get a course"`
+	Create    ClassroomCoursesCreateCmd    `cmd:"" aliases:"add,new" help:"Create a course"`
+	Update    ClassroomCoursesUpdateCmd    `cmd:"" aliases:"edit,set" help:"Update a course"`
+	Delete    ClassroomCoursesDeleteCmd    `cmd:"" aliases:"rm,del,remove" help:"Delete a course"`
+	Archive   ClassroomCoursesArchiveCmd   `cmd:"" aliases:"arch" help:"Archive a course"`
+	Unarchive ClassroomCoursesUnarchiveCmd `cmd:"" aliases:"unarch,restore" help:"Unarchive a course"`
+	Join      ClassroomCoursesJoinCmd      `cmd:"" aliases:"enroll" help:"Join a course"`
+	Leave     ClassroomCoursesLeaveCmd     `cmd:"" aliases:"unenroll" help:"Leave a course"`
+	URL       ClassroomCoursesURLCmd       `cmd:"" name:"url" aliases:"link" help:"Print Classroom web URLs for courses"`
 }
 
 type ClassroomCoursesListCmd struct {
@@ -30,7 +30,9 @@ type ClassroomCoursesListCmd struct {
 	TeacherID string `name:"teacher" help:"Filter by teacher user ID or email"`
 	StudentID string `name:"student" help:"Filter by student user ID or email"`
 	Max       int64  `name:"max" aliases:"limit" help:"Max results" default:"100"`
-	Page      string `name:"page" help:"Page token"`
+	Page      string `name:"page" aliases:"cursor" help:"Page token"`
+	All       bool   `name:"all" aliases:"all-pages,allpages" help:"Fetch all pages"`
+	FailEmpty bool   `name:"fail-empty" aliases:"non-empty,require-results" help:"Exit with code 3 if no results"`
 }
 
 func (c *ClassroomCoursesListCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -45,42 +47,69 @@ func (c *ClassroomCoursesListCmd) Run(ctx context.Context, flags *RootFlags) err
 		return wrapClassroomError(err)
 	}
 
-	call := svc.Courses.List().PageSize(c.Max).PageToken(c.Page).Context(ctx)
-	if states := splitCSV(c.States); len(states) > 0 {
-		upper := make([]string, 0, len(states))
-		for _, state := range states {
-			upper = append(upper, strings.ToUpper(state))
+	fetch := func(pageToken string) ([]*classroom.Course, string, error) {
+		call := svc.Courses.List().PageSize(c.Max).Context(ctx)
+		if strings.TrimSpace(pageToken) != "" {
+			call = call.PageToken(pageToken)
 		}
-		call.CourseStates(upper...)
-	}
-	if v := strings.TrimSpace(c.TeacherID); v != "" {
-		call.TeacherId(v)
-	}
-	if v := strings.TrimSpace(c.StudentID); v != "" {
-		call.StudentId(v)
+		if states := splitCSV(c.States); len(states) > 0 {
+			upper := make([]string, 0, len(states))
+			for _, state := range states {
+				upper = append(upper, strings.ToUpper(state))
+			}
+			call.CourseStates(upper...)
+		}
+		if v := strings.TrimSpace(c.TeacherID); v != "" {
+			call.TeacherId(v)
+		}
+		if v := strings.TrimSpace(c.StudentID); v != "" {
+			call.StudentId(v)
+		}
+		resp, err := call.Do()
+		if err != nil {
+			return nil, "", wrapClassroomError(err)
+		}
+		return resp.Courses, resp.NextPageToken, nil
 	}
 
-	resp, err := call.Do()
-	if err != nil {
-		return wrapClassroomError(err)
+	var courses []*classroom.Course
+	nextPageToken := ""
+	if c.All {
+		all, err := collectAllPages(c.Page, fetch)
+		if err != nil {
+			return err
+		}
+		courses = all
+	} else {
+		var err error
+		courses, nextPageToken, err = fetch(c.Page)
+		if err != nil {
+			return err
+		}
 	}
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{
-			"courses":       resp.Courses,
-			"nextPageToken": resp.NextPageToken,
-		})
+		if err := outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
+			"courses":       courses,
+			"nextPageToken": nextPageToken,
+		}); err != nil {
+			return err
+		}
+		if len(courses) == 0 {
+			return failEmptyExit(c.FailEmpty)
+		}
+		return nil
 	}
 
-	if len(resp.Courses) == 0 {
+	if len(courses) == 0 {
 		u.Err().Println("No courses")
-		return nil
+		return failEmptyExit(c.FailEmpty)
 	}
 
 	w, flush := tableWriter(ctx)
 	defer flush()
 	fmt.Fprintln(w, "ID\tNAME\tSECTION\tSTATE\tOWNER")
-	for _, course := range resp.Courses {
+	for _, course := range courses {
 		if course == nil {
 			continue
 		}
@@ -92,7 +121,7 @@ func (c *ClassroomCoursesListCmd) Run(ctx context.Context, flags *RootFlags) err
 			sanitizeTab(course.OwnerId),
 		)
 	}
-	printNextPageHint(u, resp.NextPageToken)
+	printNextPageHint(u, nextPageToken)
 	return nil
 }
 
@@ -122,7 +151,7 @@ func (c *ClassroomCoursesGetCmd) Run(ctx context.Context, flags *RootFlags) erro
 	}
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{"course": course})
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{"course": course})
 	}
 
 	u.Out().Printf("id\t%s", course.Id)
@@ -164,10 +193,6 @@ type ClassroomCoursesCreateCmd struct {
 
 func (c *ClassroomCoursesCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
 	name := strings.TrimSpace(c.Name)
 	if name == "" {
 		return usage("empty name")
@@ -175,11 +200,6 @@ func (c *ClassroomCoursesCreateCmd) Run(ctx context.Context, flags *RootFlags) e
 	owner := strings.TrimSpace(c.OwnerID)
 	if owner == "" {
 		return usage("empty owner")
-	}
-
-	svc, err := newClassroomService(ctx, account)
-	if err != nil {
-		return wrapClassroomError(err)
 	}
 
 	course := &classroom.Course{
@@ -202,13 +222,29 @@ func (c *ClassroomCoursesCreateCmd) Run(ctx context.Context, flags *RootFlags) e
 		course.CourseState = strings.ToUpper(v)
 	}
 
+	if err := dryRunExit(ctx, flags, "classroom.courses.create", map[string]any{
+		"course": course,
+	}); err != nil {
+		return err
+	}
+
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
+	}
+
+	svc, err := newClassroomService(ctx, account)
+	if err != nil {
+		return wrapClassroomError(err)
+	}
+
 	created, err := svc.Courses.Create(course).Context(ctx).Do()
 	if err != nil {
 		return wrapClassroomError(err)
 	}
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{"course": created})
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{"course": created})
 	}
 	u.Out().Printf("id\t%s", created.Id)
 	u.Out().Printf("name\t%s", created.Name)
@@ -229,10 +265,6 @@ type ClassroomCoursesUpdateCmd struct {
 }
 
 func (c *ClassroomCoursesUpdateCmd) Run(ctx context.Context, flags *RootFlags) error {
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
 	courseID := strings.TrimSpace(c.CourseID)
 	if courseID == "" {
 		return usage("empty courseId")
@@ -274,6 +306,20 @@ func (c *ClassroomCoursesUpdateCmd) Run(ctx context.Context, flags *RootFlags) e
 		return usage("no updates specified")
 	}
 
+	if err := dryRunExit(ctx, flags, "classroom.courses.update", map[string]any{
+		"course_id":     courseID,
+		"update_mask":   updateMask(fields),
+		"update_fields": fields,
+		"course":        course,
+	}); err != nil {
+		return err
+	}
+
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
+	}
+
 	svc, err := newClassroomService(ctx, account)
 	if err != nil {
 		return wrapClassroomError(err)
@@ -285,7 +331,7 @@ func (c *ClassroomCoursesUpdateCmd) Run(ctx context.Context, flags *RootFlags) e
 	}
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{"course": updated})
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{"course": updated})
 	}
 	u := ui.FromContext(ctx)
 	u.Out().Printf("id\t%s", updated.Id)
@@ -300,16 +346,16 @@ type ClassroomCoursesDeleteCmd struct {
 
 func (c *ClassroomCoursesDeleteCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
 	courseID := strings.TrimSpace(c.CourseID)
 	if courseID == "" {
 		return usage("empty courseId")
 	}
 
-	err = confirmDestructive(ctx, flags, fmt.Sprintf("delete course %s", courseID))
+	if err := confirmDestructive(ctx, flags, fmt.Sprintf("delete course %s", courseID)); err != nil {
+		return err
+	}
+
+	account, err := requireAccount(flags)
 	if err != nil {
 		return err
 	}
@@ -323,15 +369,10 @@ func (c *ClassroomCoursesDeleteCmd) Run(ctx context.Context, flags *RootFlags) e
 		return wrapClassroomError(err)
 	}
 
-	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{
-			"deleted":  true,
-			"courseId": courseID,
-		})
-	}
-	u.Out().Printf("deleted\ttrue")
-	u.Out().Printf("course_id\t%s", courseID)
-	return nil
+	return writeResult(ctx, u,
+		kv("deleted", true),
+		kv("courseId", courseID),
+	)
 }
 
 type ClassroomCoursesArchiveCmd struct {
@@ -352,13 +393,30 @@ func (c *ClassroomCoursesUnarchiveCmd) Run(ctx context.Context, flags *RootFlags
 
 func updateCourseState(ctx context.Context, flags *RootFlags, courseID, state string) error {
 	u := ui.FromContext(ctx)
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
 	courseID = strings.TrimSpace(courseID)
 	if courseID == "" {
 		return usage("empty courseId")
+	}
+
+	course := &classroom.Course{CourseState: state}
+	op := "classroom.courses.update_state"
+	switch state {
+	case "ARCHIVED":
+		op = "classroom.courses.archive"
+	case "ACTIVE":
+		op = "classroom.courses.unarchive"
+	}
+	if err := dryRunExit(ctx, flags, op, map[string]any{
+		"course_id":   courseID,
+		"courseState": state,
+		"course":      course,
+	}); err != nil {
+		return err
+	}
+
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
 	}
 
 	svc, err := newClassroomService(ctx, account)
@@ -366,14 +424,13 @@ func updateCourseState(ctx context.Context, flags *RootFlags, courseID, state st
 		return wrapClassroomError(err)
 	}
 
-	course := &classroom.Course{CourseState: state}
 	updated, err := svc.Courses.Patch(courseID, course).UpdateMask("courseState").Context(ctx).Do()
 	if err != nil {
 		return wrapClassroomError(err)
 	}
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{"course": updated})
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{"course": updated})
 	}
 	u.Out().Printf("id\t%s", updated.Id)
 	u.Out().Printf("state\t%s", updated.CourseState)
@@ -389,10 +446,6 @@ type ClassroomCoursesJoinCmd struct {
 
 func (c *ClassroomCoursesJoinCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
 	courseID := strings.TrimSpace(c.CourseID)
 	if courseID == "" {
 		return usage("empty courseId")
@@ -401,6 +454,20 @@ func (c *ClassroomCoursesJoinCmd) Run(ctx context.Context, flags *RootFlags) err
 	userID := strings.TrimSpace(c.UserID)
 	if userID == "" {
 		return usage("empty user")
+	}
+
+	if err := dryRunExit(ctx, flags, "classroom.courses.join", map[string]any{
+		"course_id":       courseID,
+		"role":            role,
+		"user_id":         userID,
+		"enrollment_code": strings.TrimSpace(c.EnrollmentCode),
+	}); err != nil {
+		return err
+	}
+
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
 	}
 
 	svc, err := newClassroomService(ctx, account)
@@ -420,7 +487,7 @@ func (c *ClassroomCoursesJoinCmd) Run(ctx context.Context, flags *RootFlags) err
 			return wrapClassroomError(err)
 		}
 		if outfmt.IsJSON(ctx) {
-			return outfmt.WriteJSON(os.Stdout, map[string]any{"student": created})
+			return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{"student": created})
 		}
 		u.Out().Printf("user_id\t%s", created.UserId)
 		u.Out().Printf("email\t%s", profileEmail(created.Profile))
@@ -433,7 +500,7 @@ func (c *ClassroomCoursesJoinCmd) Run(ctx context.Context, flags *RootFlags) err
 			return wrapClassroomError(err)
 		}
 		if outfmt.IsJSON(ctx) {
-			return outfmt.WriteJSON(os.Stdout, map[string]any{"teacher": created})
+			return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{"teacher": created})
 		}
 		u.Out().Printf("user_id\t%s", created.UserId)
 		u.Out().Printf("email\t%s", profileEmail(created.Profile))
@@ -452,10 +519,6 @@ type ClassroomCoursesLeaveCmd struct {
 
 func (c *ClassroomCoursesLeaveCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
 	courseID := strings.TrimSpace(c.CourseID)
 	if courseID == "" {
 		return usage("empty courseId")
@@ -466,7 +529,11 @@ func (c *ClassroomCoursesLeaveCmd) Run(ctx context.Context, flags *RootFlags) er
 		return usage("empty user")
 	}
 
-	err = confirmDestructive(ctx, flags, fmt.Sprintf("remove %s %s from course %s", role, userID, courseID))
+	if err := confirmDestructive(ctx, flags, fmt.Sprintf("remove %s %s from course %s", role, userID, courseID)); err != nil {
+		return err
+	}
+
+	account, err := requireAccount(flags)
 	if err != nil {
 		return err
 	}
@@ -489,19 +556,12 @@ func (c *ClassroomCoursesLeaveCmd) Run(ctx context.Context, flags *RootFlags) er
 		return usagef("invalid role %q (expected student or teacher)", role)
 	}
 
-	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{
-			"removed":  true,
-			"courseId": courseID,
-			"userId":   userID,
-			"role":     role,
-		})
-	}
-	u.Out().Printf("removed\ttrue")
-	u.Out().Printf("course_id\t%s", courseID)
-	u.Out().Printf("user_id\t%s", userID)
-	u.Out().Printf("role\t%s", role)
-	return nil
+	return writeResult(ctx, u,
+		kv("removed", true),
+		kv("courseId", courseID),
+		kv("userId", userID),
+		kv("role", role),
+	)
 }
 
 type ClassroomCoursesURLCmd struct {
@@ -532,7 +592,7 @@ func (c *ClassroomCoursesURLCmd) Run(ctx context.Context, flags *RootFlags) erro
 			}
 			urls = append(urls, map[string]string{"id": id, "url": link})
 		}
-		return outfmt.WriteJSON(os.Stdout, map[string]any{"urls": urls})
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{"urls": urls})
 	}
 
 	for _, id := range c.CourseIDs {

@@ -22,6 +22,7 @@ func TestExecute_GmailThreadDraftsSend_JSON(t *testing.T) {
 	// Keep attachments out of real config.
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, "xdg-config"))
 	wd := t.TempDir()
 	origWD, _ := os.Getwd()
 	t.Cleanup(func() { _ = os.Chdir(origWD) })

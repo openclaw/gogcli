@@ -4,13 +4,13 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+	"html"
 	"net/mail"
 	"os"
 	"strings"
 
 	"google.golang.org/api/gmail/v1"
 
-	"github.com/steipete/gogcli/internal/config"
 	"github.com/steipete/gogcli/internal/outfmt"
 	"github.com/steipete/gogcli/internal/tracking"
 	"github.com/steipete/gogcli/internal/ui"
@@ -32,6 +32,7 @@ type GmailSendCmd struct {
 	From             string   `name:"from" help:"Send from this email address (must be a verified send-as alias)"`
 	Track            bool     `name:"track" help:"Enable open tracking (requires tracking setup)"`
 	TrackSplit       bool     `name:"track-split" help:"Send tracked messages separately per recipient"`
+	Quote            bool     `name:"quote" help:"Include quoted original message in reply (requires --reply-to-message-id or --thread-id)"`
 }
 
 type sendBatch struct {
@@ -62,13 +63,9 @@ type sendMessageOptions struct {
 
 func (c *GmailSendCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
 
-	replyToMessageID := strings.TrimSpace(c.ReplyToMessageID)
-	threadID := strings.TrimSpace(c.ThreadID)
+	replyToMessageID := normalizeGmailMessageID(c.ReplyToMessageID)
+	threadID := normalizeGmailThreadID(c.ThreadID)
 
 	body, err := resolveBodyInput(c.Body, c.BodyFile)
 	if err != nil {
@@ -84,6 +81,11 @@ func (c *GmailSendCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return usage("--reply-all requires --reply-to-message-id or --thread-id")
 	}
 
+	// Validate --quote requires a reply target
+	if c.Quote && replyToMessageID == "" && threadID == "" {
+		return usage("--quote requires --reply-to-message-id or --thread-id")
+	}
+
 	// --to is required unless --reply-all is used
 	if strings.TrimSpace(c.To) == "" && !c.ReplyAll {
 		return usage("required: --to (or use --reply-all with --reply-to-message-id or --thread-id)")
@@ -97,49 +99,45 @@ func (c *GmailSendCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if c.TrackSplit && !c.Track {
 		return usage("--track-split requires --track")
 	}
+	if c.Track && strings.TrimSpace(c.BodyHTML) == "" {
+		return fmt.Errorf("--track requires --body-html (pixel must be in HTML)")
+	}
 
-	svc, err := newGmailService(ctx, account)
+	attachPaths, err := expandComposeAttachmentPaths(c.Attach)
 	if err != nil {
 		return err
 	}
 
-	// Determine the From address
-	fromAddr := account
-	sendingEmail := account // The email we're sending from (without display name)
-	if strings.TrimSpace(c.From) != "" {
-		// Validate that this is a configured send-as alias
-		var sa *gmail.SendAs
-		sa, err = svc.Users.Settings.SendAs.Get("me", c.From).Context(ctx).Do()
-		if err != nil {
-			return fmt.Errorf("invalid --from address %q: %w", c.From, err)
-		}
-		if sa.VerificationStatus != gmailVerificationAccepted {
-			return fmt.Errorf("--from address %q is not verified (status: %s)", c.From, sa.VerificationStatus)
-		}
-		sendingEmail = c.From
-		fromAddr = c.From
-		// Include display name if set
-		displayName := strings.TrimSpace(sa.DisplayName)
-		if displayName == "" {
-			if fallback, listErr := sendAsDisplayNameFromList(ctx, svc, c.From); listErr == nil {
-				displayName = fallback
-			}
-		}
-		if displayName != "" {
-			fromAddr = displayName + " <" + c.From + ">"
-		}
-	} else {
-		// No --from specified: look up the primary account's send-as settings
-		// to get the display name
-		displayName := primarySendAsDisplayName(ctx, svc, account)
-		if displayName != "" {
-			fromAddr = displayName + " <" + account + ">"
-		}
-		// If lookup fails, we just use the plain email address (no error)
+	if dryRunErr := dryRunExit(ctx, flags, "gmail.send", map[string]any{
+		"to":                  splitCSV(c.To),
+		"cc":                  splitCSV(c.Cc),
+		"bcc":                 splitCSV(c.Bcc),
+		"subject":             strings.TrimSpace(c.Subject),
+		"reply_to_message_id": replyToMessageID,
+		"thread_id":           threadID,
+		"reply_all":           c.ReplyAll,
+		"reply_to":            strings.TrimSpace(c.ReplyTo),
+		"from":                strings.TrimSpace(c.From),
+		"body_len":            len(strings.TrimSpace(body)),
+		"body_html_len":       len(strings.TrimSpace(c.BodyHTML)),
+		"attachments":         attachPaths,
+		"track":               c.Track,
+		"track_split":         c.TrackSplit,
+	}); dryRunErr != nil {
+		return dryRunErr
 	}
 
-	// Fetch reply info (includes recipient headers for reply-all)
-	replyInfo, err := fetchReplyInfo(ctx, svc, replyToMessageID, threadID)
+	account, svc, err := requireGmailService(ctx, flags)
+	if err != nil {
+		return err
+	}
+
+	sendAsList, sendAsListErr := listSendAs(ctx, svc)
+	from, err := resolveComposeFrom(ctx, svc, account, c.From, sendAsList, sendAsListErr)
+	if err != nil {
+		return err
+	}
+	replyInfo, body, htmlBody, err := prepareComposeReply(ctx, svc, replyToMessageID, threadID, c.Quote, body, c.BodyHTML)
 	if err != nil {
 		return err
 	}
@@ -148,7 +146,7 @@ func (c *GmailSendCmd) Run(ctx context.Context, flags *RootFlags) error {
 	var toRecipients, ccRecipients []string
 	if c.ReplyAll {
 		// Auto-populate recipients from original message
-		toRecipients, ccRecipients = buildReplyAllRecipients(replyInfo, sendingEmail)
+		toRecipients, ccRecipients = buildReplyAllRecipients(replyInfo, from.sendingEmail)
 	}
 
 	// Explicit --to and --cc override (not merge with) auto-populated recipients
@@ -166,18 +164,11 @@ func (c *GmailSendCmd) Run(ctx context.Context, flags *RootFlags) error {
 
 	bccRecipients := splitCSV(c.Bcc)
 
-	atts := make([]mailAttachment, 0, len(c.Attach))
-	for _, p := range c.Attach {
-		expanded, expandErr := config.ExpandPath(p)
-		if expandErr != nil {
-			return expandErr
-		}
-		atts = append(atts, mailAttachment{Path: expanded})
-	}
+	atts := attachmentsFromPaths(attachPaths)
 
 	var trackingCfg *tracking.Config
 	if c.Track {
-		trackingCfg, err = c.resolveTrackingConfig(account, toRecipients, ccRecipients, bccRecipients)
+		trackingCfg, err = c.resolveTrackingConfig(account, toRecipients, ccRecipients, bccRecipients, htmlBody)
 		if err != nil {
 			return err
 		}
@@ -185,11 +176,11 @@ func (c *GmailSendCmd) Run(ctx context.Context, flags *RootFlags) error {
 
 	batches := buildSendBatches(toRecipients, ccRecipients, bccRecipients, c.Track, c.TrackSplit)
 	results, err := sendGmailBatches(ctx, svc, sendMessageOptions{
-		FromAddr:    fromAddr,
+		FromAddr:    from.header,
 		ReplyTo:     c.ReplyTo,
 		Subject:     c.Subject,
 		Body:        body,
-		BodyHTML:    c.BodyHTML,
+		BodyHTML:    htmlBody,
 		ReplyInfo:   replyInfo,
 		Attachments: atts,
 		Track:       c.Track,
@@ -199,17 +190,17 @@ func (c *GmailSendCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
-	return writeSendResults(ctx, u, fromAddr, results)
+	return writeSendResults(ctx, u, from.header, results)
 }
 
-func (c *GmailSendCmd) resolveTrackingConfig(account string, toRecipients, ccRecipients, bccRecipients []string) (*tracking.Config, error) {
+func (c *GmailSendCmd) resolveTrackingConfig(account string, toRecipients, ccRecipients, bccRecipients []string, htmlBody string) (*tracking.Config, error) {
 	totalRecipients := len(toRecipients) + len(ccRecipients) + len(bccRecipients)
 	if totalRecipients != 1 && !c.TrackSplit {
 		return nil, usage("--track requires exactly 1 recipient (no cc/bcc); use --track-split for per-recipient sends")
 	}
 
-	if strings.TrimSpace(c.BodyHTML) == "" {
-		return nil, fmt.Errorf("--track requires --body-html (pixel must be in HTML)")
+	if strings.TrimSpace(htmlBody) == "" {
+		return nil, fmt.Errorf("--track requires an HTML body (use --body-html or --quote)")
 	}
 
 	trackingCfg, err := tracking.LoadConfig(account)
@@ -223,76 +214,55 @@ func (c *GmailSendCmd) resolveTrackingConfig(account string, toRecipients, ccRec
 	return trackingCfg, nil
 }
 
-func primarySendAsDisplayName(ctx context.Context, svc *gmail.Service, account string) string {
+func listSendAs(ctx context.Context, svc *gmail.Service) ([]*gmail.SendAs, error) {
+	if svc == nil {
+		return nil, nil
+	}
+	resp, err := svc.Users.Settings.SendAs.List("me").Context(ctx).Do()
+	if err != nil {
+		return nil, err
+	}
+	return resp.SendAs, nil
+}
+
+func findSendAsByEmail(sendAs []*gmail.SendAs, email string) *gmail.SendAs {
+	needle := strings.ToLower(strings.TrimSpace(email))
+	if needle == "" {
+		return nil
+	}
+	for _, sa := range sendAs {
+		if sa == nil {
+			continue
+		}
+		if strings.ToLower(strings.TrimSpace(sa.SendAsEmail)) == needle {
+			return sa
+		}
+	}
+	return nil
+}
+
+func primaryDisplayNameFromSendAsList(sendAs []*gmail.SendAs, account string) string {
 	account = strings.TrimSpace(account)
-	if account == "" || svc == nil {
+	if account == "" {
 		return ""
 	}
 
-	sa, err := svc.Users.Settings.SendAs.Get("me", account).Context(ctx).Do()
-	if err == nil {
+	if sa := findSendAsByEmail(sendAs, account); sa != nil {
 		if displayName := strings.TrimSpace(sa.DisplayName); displayName != "" {
 			return displayName
 		}
 	}
 
-	displayName, err := primarySendAsDisplayNameFromList(ctx, svc, account)
-	if err != nil {
-		return ""
-	}
-	return displayName
-}
-
-func sendAsDisplayNameFromList(ctx context.Context, svc *gmail.Service, email string) (string, error) {
-	email = strings.TrimSpace(email)
-	if email == "" || svc == nil {
-		return "", nil
-	}
-
-	resp, err := svc.Users.Settings.SendAs.List("me").Context(ctx).Do()
-	if err != nil {
-		return "", err
-	}
-
-	needle := strings.ToLower(email)
-	for _, sa := range resp.SendAs {
-		if strings.ToLower(strings.TrimSpace(sa.SendAsEmail)) == needle {
-			return strings.TrimSpace(sa.DisplayName), nil
+	for _, sa := range sendAs {
+		if sa == nil || !sa.IsPrimary {
+			continue
+		}
+		if displayName := strings.TrimSpace(sa.DisplayName); displayName != "" {
+			return displayName
 		}
 	}
 
-	return "", nil
-}
-
-func primarySendAsDisplayNameFromList(ctx context.Context, svc *gmail.Service, account string) (string, error) {
-	account = strings.TrimSpace(account)
-	if account == "" || svc == nil {
-		return "", nil
-	}
-
-	resp, err := svc.Users.Settings.SendAs.List("me").Context(ctx).Do()
-	if err != nil {
-		return "", err
-	}
-
-	needle := strings.ToLower(account)
-	var primary *gmail.SendAs
-	for _, sa := range resp.SendAs {
-		if sa.IsPrimary {
-			primary = sa
-		}
-		if strings.ToLower(strings.TrimSpace(sa.SendAsEmail)) == needle {
-			if displayName := strings.TrimSpace(sa.DisplayName); displayName != "" {
-				return displayName, nil
-			}
-		}
-	}
-
-	if primary != nil {
-		return strings.TrimSpace(primary.DisplayName), nil
-	}
-
-	return "", nil
+	return ""
 }
 
 func buildSendBatches(toRecipients, ccRecipients, bccRecipients []string, track, trackSplit bool) []sendBatch {
@@ -402,7 +372,7 @@ func writeSendResults(ctx context.Context, u *ui.UI, fromAddr string, results []
 			if results[0].TrackingID != "" {
 				resp["tracking_id"] = results[0].TrackingID
 			}
-			return outfmt.WriteJSON(os.Stdout, resp)
+			return outfmt.WriteJSON(ctx, os.Stdout, resp)
 		}
 
 		items := make([]map[string]any, 0, len(results))
@@ -420,7 +390,7 @@ func writeSendResults(ctx context.Context, u *ui.UI, fromAddr string, results []
 			}
 			items = append(items, item)
 		}
-		return outfmt.WriteJSON(os.Stdout, map[string]any{"messages": items})
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{"messages": items})
 	}
 
 	if len(results) == 1 {
@@ -529,17 +499,20 @@ type replyInfo struct {
 	ReplyToAddr string   // Original Reply-To header (per RFC 5322, use this instead of From if present)
 	ToAddrs     []string // Original To recipients
 	CcAddrs     []string // Original Cc recipients
+	Date        string   // Original message date (for quoting)
+	Body        string   // Original message plain text body (for quoting)
+	BodyHTML    string   // Original message HTML body (for quoting with formatting)
 }
 
 func replyHeaders(ctx context.Context, svc *gmail.Service, replyToMessageID string) (inReplyTo string, references string, threadID string, err error) {
-	info, err := fetchReplyInfo(ctx, svc, replyToMessageID, "")
+	info, err := fetchReplyInfo(ctx, svc, replyToMessageID, "", false)
 	if err != nil {
 		return "", "", "", err
 	}
 	return info.InReplyTo, info.References, info.ThreadID, nil
 }
 
-func fetchReplyInfo(ctx context.Context, svc *gmail.Service, replyToMessageID string, threadID string) (*replyInfo, error) {
+func fetchReplyInfo(ctx context.Context, svc *gmail.Service, replyToMessageID string, threadID string, includeQuoteBodies bool) (*replyInfo, error) {
 	replyToMessageID = strings.TrimSpace(replyToMessageID)
 	threadID = strings.TrimSpace(threadID)
 	if replyToMessageID == "" && threadID == "" {
@@ -547,22 +520,17 @@ func fetchReplyInfo(ctx context.Context, svc *gmail.Service, replyToMessageID st
 	}
 
 	if replyToMessageID != "" {
-		msg, err := svc.Users.Messages.Get("me", replyToMessageID).
-			Format("metadata").
-			MetadataHeaders("Message-ID", "Message-Id", "References", "In-Reply-To", "From", "Reply-To", "To", "Cc").
-			Context(ctx).
-			Do()
+		msg, err := fetchMessageForReplyInfo(ctx, svc, replyToMessageID, includeQuoteBodies)
 		if err != nil {
 			return nil, err
 		}
-		return replyInfoFromMessage(msg), nil
+		return replyInfoFromMessage(msg, includeQuoteBodies), nil
 	}
 
-	thread, err := svc.Users.Threads.Get("me", threadID).
-		Format("metadata").
-		MetadataHeaders("Message-ID", "Message-Id", "References", "In-Reply-To", "From", "Reply-To", "To", "Cc").
-		Context(ctx).
-		Do()
+	// For thread replies, we always need just headers to select the latest message.
+	// If includeQuoteBodies is true (quoting), fetch that single message in "full" format afterwards
+	// to avoid pulling entire thread bodies.
+	thread, err := fetchThreadForReplyInfo(ctx, svc, threadID)
 	if err != nil {
 		return nil, err
 	}
@@ -574,14 +542,42 @@ func fetchReplyInfo(ctx context.Context, svc *gmail.Service, replyToMessageID st
 	if msg == nil {
 		return nil, fmt.Errorf("thread %s has no messages", threadID)
 	}
-	info := replyInfoFromMessage(msg)
+	// If quoting, refetch the selected message in full format to get body parts.
+	if includeQuoteBodies && msg.Id != "" {
+		fullMsg, fullErr := fetchMessageForReplyInfo(ctx, svc, msg.Id, true)
+		if fullErr == nil && fullMsg != nil {
+			msg = fullMsg
+		}
+	}
+
+	info := replyInfoFromMessage(msg, includeQuoteBodies)
 	if info.ThreadID == "" {
 		info.ThreadID = thread.Id
 	}
 	return info, nil
 }
 
-func replyInfoFromMessage(msg *gmail.Message) *replyInfo {
+var replyInfoMetadataHeaders = []string{"Message-ID", "Message-Id", "References", "In-Reply-To", "From", "Reply-To", "To", "Cc", "Date"}
+
+func fetchMessageForReplyInfo(ctx context.Context, svc *gmail.Service, messageID string, includeQuoteBodies bool) (*gmail.Message, error) {
+	call := svc.Users.Messages.Get("me", messageID).Context(ctx)
+	if includeQuoteBodies {
+		call = call.Format(gmailFormatFull)
+	} else {
+		call = call.Format(gmailFormatMetadata).MetadataHeaders(replyInfoMetadataHeaders...)
+	}
+	return call.Do()
+}
+
+func fetchThreadForReplyInfo(ctx context.Context, svc *gmail.Service, threadID string) (*gmail.Thread, error) {
+	return svc.Users.Threads.Get("me", threadID).
+		Format(gmailFormatMetadata).
+		MetadataHeaders(replyInfoMetadataHeaders...).
+		Context(ctx).
+		Do()
+}
+
+func replyInfoFromMessage(msg *gmail.Message, includeQuoteBodies bool) *replyInfo {
 	if msg == nil {
 		return &replyInfo{}
 	}
@@ -591,6 +587,17 @@ func replyInfoFromMessage(msg *gmail.Message) *replyInfo {
 		ReplyToAddr: headerValue(msg.Payload, "Reply-To"),
 		ToAddrs:     parseEmailAddresses(headerValue(msg.Payload, "To")),
 		CcAddrs:     parseEmailAddresses(headerValue(msg.Payload, "Cc")),
+		Date:        headerValue(msg.Payload, "Date"),
+	}
+
+	// Include body if requested (for quoting)
+	if includeQuoteBodies {
+		plain := findPartBody(msg.Payload, "text/plain")
+		// Some messages (or broken clients) put HTML into text/plain; never dump raw HTML into the plain quote.
+		if plain != "" && !looksLikeHTML(plain) {
+			info.Body = plain
+		}
+		info.BodyHTML = findPartBody(msg.Payload, "text/html")
 	}
 
 	// Prefer Message-ID and References from the original message.
@@ -703,4 +710,93 @@ func deduplicateAddresses(addresses []string) []string {
 		}
 	}
 	return result
+}
+
+func escapeTextToHTML(value string) string {
+	value = html.EscapeString(value)
+	return strings.ReplaceAll(value, "\n", "<br>\n")
+}
+
+func applyQuoteToBodies(plainBody string, htmlBody string, quote bool, info *replyInfo) (string, string) {
+	if !quote || info == nil {
+		return plainBody, htmlBody
+	}
+	if info.Body == "" && info.BodyHTML == "" {
+		return plainBody, htmlBody
+	}
+
+	userPlain := plainBody
+	outPlain := plainBody
+	if info.Body != "" {
+		outPlain += formatQuotedMessage(info.FromAddr, info.Date, info.Body)
+	}
+
+	quoteContent := info.BodyHTML
+	if quoteContent == "" && info.Body != "" {
+		quoteContent = escapeTextToHTML(info.Body)
+	}
+	if quoteContent == "" {
+		return outPlain, htmlBody
+	}
+
+	quoteHTML := formatQuotedMessageHTMLWithContent(info.FromAddr, info.Date, quoteContent)
+
+	outHTML := htmlBody
+	if strings.TrimSpace(outHTML) == "" {
+		outHTML = escapeTextToHTML(strings.TrimSpace(userPlain)) + quoteHTML
+	} else {
+		outHTML += quoteHTML
+	}
+
+	return outPlain, outHTML
+}
+
+// formatQuotedMessage formats the original message as a quoted reply.
+// It adds an attribution line and prefixes each line with "> ".
+func formatQuotedMessage(from, date, body string) string {
+	if body == "" {
+		return ""
+	}
+
+	var sb strings.Builder
+	sb.WriteString("\n\n")
+
+	// Attribution line
+	switch {
+	case date != "" && from != "":
+		fmt.Fprintf(&sb, "On %s, %s wrote:\n", date, from)
+	case from != "":
+		fmt.Fprintf(&sb, "%s wrote:\n", from)
+	default:
+		sb.WriteString("Original message:\n")
+	}
+
+	// Quote each line with "> " prefix
+	lines := strings.Split(body, "\n")
+	for _, line := range lines {
+		sb.WriteString("> ")
+		sb.WriteString(line)
+		sb.WriteString("\n")
+	}
+
+	return sb.String()
+}
+
+// formatQuotedMessageHTMLWithContent wraps pre-formatted HTML content in a blockquote.
+// Use this when the content is already HTML (preserves original formatting).
+func formatQuotedMessageHTMLWithContent(from, date, htmlContent string) string {
+	senderName := from
+	if addr, err := mail.ParseAddress(from); err == nil && addr.Name != "" {
+		senderName = addr.Name
+	}
+
+	dateStr := date
+	if date == "" {
+		dateStr = "an earlier date"
+	}
+
+	return fmt.Sprintf(`<br><br><div class="gmail_quote"><div class="gmail_attr">On %s, %s wrote:</div><blockquote class="gmail_quote" style="margin:0 0 0 .8ex;border-left:1px #ccc solid;padding-left:1ex">%s</blockquote></div>`,
+		html.EscapeString(dateStr),
+		html.EscapeString(senderName),
+		htmlContent)
 }

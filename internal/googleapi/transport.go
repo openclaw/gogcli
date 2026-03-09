@@ -86,7 +86,7 @@ func (t *RetryTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 			}
 
 			delay := t.calculateBackoff(retries429, resp)
-			slog.Debug("rate limited, retrying",
+			slog.Debug("rate limited, retrying", //nolint:gosec // logged values are internal retry metadata
 				"delay", delay,
 				"attempt", retries429+1,
 				"max_retries", t.MaxRetries429)
@@ -112,7 +112,7 @@ func (t *RetryTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 				return resp, nil
 			}
 
-			slog.Debug("server error, retrying",
+			slog.Debug("server error, retrying", //nolint:gosec // logged values are internal retry metadata
 				"status", resp.StatusCode,
 				"attempt", retries5xx+1)
 

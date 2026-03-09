@@ -376,6 +376,7 @@ func TestParseClassroomDue(t *testing.T) {
 			} else {
 				if gotDate == nil {
 					t.Fatal("expected non-nil date")
+					return
 				}
 				if gotDate.Year != tt.wantDate.Year || gotDate.Month != tt.wantDate.Month || gotDate.Day != tt.wantDate.Day {
 					t.Errorf("date = %+v, want %+v", gotDate, tt.wantDate)
@@ -389,6 +390,7 @@ func TestParseClassroomDue(t *testing.T) {
 			} else {
 				if gotTime == nil {
 					t.Fatal("expected non-nil time")
+					return
 				}
 				if gotTime.Hours != tt.wantTime.Hours || gotTime.Minutes != tt.wantTime.Minutes {
 					t.Errorf("time = %+v, want %+v", gotTime, tt.wantTime)

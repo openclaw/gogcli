@@ -38,6 +38,7 @@ var keySpecs = map[Key]KeySpec{
 				return fmt.Errorf("invalid timezone %q: %w (use IANA timezone names like America/New_York, UTC, Europe/London)", value, err)
 			}
 			cfg.DefaultTimezone = value
+
 			return nil
 		},
 		Unset: func(cfg *File) {
@@ -54,6 +55,7 @@ var keySpecs = map[Key]KeySpec{
 		},
 		Set: func(cfg *File, value string) error {
 			cfg.KeyringBackend = value
+
 			return nil
 		},
 		Unset: func(cfg *File) {

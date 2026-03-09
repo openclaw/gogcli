@@ -17,6 +17,21 @@ func TestValidateColorID(t *testing.T) {
 	}
 }
 
+func TestValidateCalendarColorID(t *testing.T) {
+	if got, err := validateCalendarColorId(""); err != nil || got != "" {
+		t.Fatalf("expected empty ok, got %q %v", got, err)
+	}
+	if got, err := validateCalendarColorId("24"); err != nil || got != "24" {
+		t.Fatalf("expected valid id, got %q %v", got, err)
+	}
+	if _, err := validateCalendarColorId("25"); err == nil {
+		t.Fatalf("expected error for out of range")
+	}
+	if _, err := validateCalendarColorId("nope"); err == nil {
+		t.Fatalf("expected error for non-numeric")
+	}
+}
+
 func TestValidateVisibilityMore(t *testing.T) {
 	if got, err := validateVisibility(""); err != nil || got != "" {
 		t.Fatalf("expected empty ok, got %q %v", got, err)

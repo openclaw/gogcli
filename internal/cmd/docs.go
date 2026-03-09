@@ -1,16 +1,12 @@
 package cmd
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
-	"io"
-	"net/http"
 	"os"
 	"strings"
 
-	"google.golang.org/api/docs/v1"
 	"google.golang.org/api/drive/v3"
 	gapi "google.golang.org/api/googleapi"
 
@@ -22,17 +18,28 @@ import (
 var newDocsService = googleapi.NewDocs
 
 type DocsCmd struct {
-	Export DocsExportCmd `cmd:"" name:"export" help:"Export a Google Doc (pdf|docx|txt)"`
-	Info   DocsInfoCmd   `cmd:"" name:"info" help:"Get Google Doc metadata"`
-	Create DocsCreateCmd `cmd:"" name:"create" help:"Create a Google Doc"`
-	Copy   DocsCopyCmd   `cmd:"" name:"copy" help:"Copy a Google Doc"`
-	Cat    DocsCatCmd    `cmd:"" name:"cat" help:"Print a Google Doc as plain text"`
+	Export      DocsExportCmd      `cmd:"" name:"export" aliases:"download,dl" help:"Export a Google Doc (pdf|docx|txt|md)"`
+	Info        DocsInfoCmd        `cmd:"" name:"info" aliases:"get,show" help:"Get Google Doc metadata"`
+	Create      DocsCreateCmd      `cmd:"" name:"create" aliases:"add,new" help:"Create a Google Doc"`
+	Copy        DocsCopyCmd        `cmd:"" name:"copy" aliases:"cp,duplicate" help:"Copy a Google Doc"`
+	Cat         DocsCatCmd         `cmd:"" name:"cat" aliases:"text,read" help:"Print a Google Doc as plain text"`
+	Comments    DocsCommentsCmd    `cmd:"" name:"comments" help:"Manage comments on files"`
+	ListTabs    DocsListTabsCmd    `cmd:"" name:"list-tabs" help:"List all tabs in a Google Doc"`
+	Write       DocsWriteCmd       `cmd:"" name:"write" help:"Write content to a Google Doc"`
+	Insert      DocsInsertCmd      `cmd:"" name:"insert" help:"Insert text at a specific position"`
+	Delete      DocsDeleteCmd      `cmd:"" name:"delete" help:"Delete text range from document"`
+	FindReplace DocsFindReplaceCmd `cmd:"" name:"find-replace" help:"Find and replace text. Supports plain text or markdown with images; use --first for a single occurrence."`
+	Update      DocsUpdateCmd      `cmd:"" name:"update" help:"Insert text at a specific index in a Google Doc"`
+	Edit        DocsEditCmd        `cmd:"" name:"edit" help:"Find and replace text in a Google Doc"`
+	Sed         DocsSedCmd         `cmd:"" name:"sed" help:"Regex find/replace (sed-style: s/pattern/replacement/g)"`
+	Clear       DocsClearCmd       `cmd:"" name:"clear" help:"Clear all content from a Google Doc"`
+	Structure   DocsStructureCmd   `cmd:"" name:"structure" aliases:"struct" help:"Show document structure with numbered paragraphs"`
 }
 
 type DocsExportCmd struct {
 	DocID  string         `arg:"" name:"docId" help:"Doc ID"`
 	Output OutputPathFlag `embed:""`
-	Format string         `name:"format" help:"Export format: pdf|docx|txt" default:"pdf"`
+	Format string         `name:"format" help:"Export format: pdf|docx|txt|md|html" default:"pdf"`
 }
 
 func (c *DocsExportCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -50,17 +57,12 @@ type DocsInfoCmd struct {
 
 func (c *DocsInfoCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
-
 	id := strings.TrimSpace(c.DocID)
 	if id == "" {
 		return usage("empty docId")
 	}
 
-	svc, err := newDocsService(ctx, account)
+	svc, err := requireDocsService(ctx, flags)
 	if err != nil {
 		return err
 	}
@@ -89,7 +91,7 @@ func (c *DocsInfoCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
 			strFile:    file,
 			"document": doc,
 		})
@@ -108,23 +110,20 @@ func (c *DocsInfoCmd) Run(ctx context.Context, flags *RootFlags) error {
 }
 
 type DocsCreateCmd struct {
-	Title  string `arg:"" name:"title" help:"Doc title"`
-	Parent string `name:"parent" help:"Destination folder ID"`
+	Title    string `arg:"" name:"title" help:"Doc title"`
+	Parent   string `name:"parent" help:"Destination folder ID"`
+	File     string `name:"file" help:"Markdown file to import. Supports inline images via ![alt](url); append {width=N height=N} to control size in points. Local images must be in the same directory as the markdown file or a subdirectory (use relative paths). Remote URLs (https://...) are used directly." type:"existingfile"`
+	Pageless bool   `name:"pageless" help:"Set document to pageless mode"`
 }
 
 func (c *DocsCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
-
 	title := strings.TrimSpace(c.Title)
 	if title == "" {
 		return usage("empty title")
 	}
 
-	svc, err := newDriveService(ctx, account)
+	account, driveSvc, err := requireDriveService(ctx, flags)
 	if err != nil {
 		return err
 	}
@@ -138,11 +137,29 @@ func (c *DocsCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
 		f.Parents = []string{parent}
 	}
 
-	created, err := svc.Files.Create(f).
+	createCall := driveSvc.Files.Create(f).
 		SupportsAllDrives(true).
-		Fields("id, name, mimeType, webViewLink").
-		Context(ctx).
-		Do()
+		Fields("id, name, mimeType, webViewLink")
+
+	// When --file is set, upload the markdown content and let Drive convert it.
+	var images []markdownImage
+	if c.File != "" {
+		raw, readErr := os.ReadFile(c.File)
+		if readErr != nil {
+			return fmt.Errorf("read markdown file: %w", readErr)
+		}
+		content := string(raw)
+
+		var cleaned string
+		cleaned, images = extractMarkdownImages(content)
+
+		createCall = createCall.Media(
+			strings.NewReader(cleaned),
+			gapi.ContentType("text/markdown"),
+		)
+	}
+
+	created, err := createCall.Context(ctx).Do()
 	if err != nil {
 		return err
 	}
@@ -150,8 +167,24 @@ func (c *DocsCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return errors.New("create failed")
 	}
 
+	// Pass 2: insert images if any were found.
+	if len(images) > 0 {
+		if err := c.insertImages(ctx, account, created.Id, images); err != nil {
+			return fmt.Errorf("insert images: %w", err)
+		}
+	}
+	if c.Pageless {
+		docsSvc, svcErr := newDocsService(ctx, account)
+		if svcErr != nil {
+			return svcErr
+		}
+		if err := setDocumentPageless(ctx, docsSvc, created.Id); err != nil {
+			return fmt.Errorf("set pageless mode: %w", err)
+		}
+	}
+
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{strFile: created})
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{strFile: created})
 	}
 
 	u.Out().Printf("id\t%s", created.Id)
@@ -161,6 +194,16 @@ func (c *DocsCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
 		u.Out().Printf("link\t%s", created.WebViewLink)
 	}
 	return nil
+}
+
+// insertImages performs pass 2: reads back the created doc, resolves image URLs,
+// and replaces placeholder text with inline images.
+func (c *DocsCreateCmd) insertImages(ctx context.Context, account string, docID string, images []markdownImage) error {
+	svc, err := newDocsService(ctx, account)
+	if err != nil {
+		return err
+	}
+	return insertImagesIntoDocs(ctx, account, svc, docID, images, c.File)
 }
 
 type DocsCopyCmd struct {
@@ -175,142 +218,4 @@ func (c *DocsCopyCmd) Run(ctx context.Context, flags *RootFlags) error {
 		ExpectedMime: "application/vnd.google-apps.document",
 		KindLabel:    "Google Doc",
 	}, c.DocID, c.Title, c.Parent)
-}
-
-type DocsCatCmd struct {
-	DocID    string `arg:"" name:"docId" help:"Doc ID"`
-	MaxBytes int64  `name:"max-bytes" help:"Max bytes to read (0 = unlimited)" default:"2000000"`
-}
-
-func (c *DocsCatCmd) Run(ctx context.Context, flags *RootFlags) error {
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
-
-	id := strings.TrimSpace(c.DocID)
-	if id == "" {
-		return usage("empty docId")
-	}
-
-	svc, err := newDocsService(ctx, account)
-	if err != nil {
-		return err
-	}
-
-	doc, err := svc.Documents.Get(id).
-		Context(ctx).
-		Do()
-	if err != nil {
-		if isDocsNotFound(err) {
-			return fmt.Errorf("doc not found or not a Google Doc (id=%s)", id)
-		}
-		return err
-	}
-	if doc == nil {
-		return errors.New("doc not found")
-	}
-
-	text := docsPlainText(doc, c.MaxBytes)
-
-	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{"text": text})
-	}
-	_, err = io.WriteString(os.Stdout, text)
-	return err
-}
-
-func docsWebViewLink(id string) string {
-	id = strings.TrimSpace(id)
-	if id == "" {
-		return ""
-	}
-	return "https://docs.google.com/document/d/" + id + "/edit"
-}
-
-func docsPlainText(doc *docs.Document, maxBytes int64) string {
-	if doc == nil || doc.Body == nil {
-		return ""
-	}
-
-	var buf bytes.Buffer
-	for _, el := range doc.Body.Content {
-		if !appendDocsElementText(&buf, maxBytes, el) {
-			break
-		}
-	}
-
-	return buf.String()
-}
-
-func appendDocsElementText(buf *bytes.Buffer, maxBytes int64, el *docs.StructuralElement) bool {
-	if el == nil {
-		return true
-	}
-
-	switch {
-	case el.Paragraph != nil:
-		for _, p := range el.Paragraph.Elements {
-			if p.TextRun == nil {
-				continue
-			}
-			if !appendLimited(buf, maxBytes, p.TextRun.Content) {
-				return false
-			}
-		}
-	case el.Table != nil:
-		for rowIdx, row := range el.Table.TableRows {
-			if rowIdx > 0 {
-				if !appendLimited(buf, maxBytes, "\n") {
-					return false
-				}
-			}
-			for cellIdx, cell := range row.TableCells {
-				if cellIdx > 0 {
-					if !appendLimited(buf, maxBytes, "\t") {
-						return false
-					}
-				}
-				for _, content := range cell.Content {
-					if !appendDocsElementText(buf, maxBytes, content) {
-						return false
-					}
-				}
-			}
-		}
-	case el.TableOfContents != nil:
-		for _, content := range el.TableOfContents.Content {
-			if !appendDocsElementText(buf, maxBytes, content) {
-				return false
-			}
-		}
-	}
-
-	return true
-}
-
-func appendLimited(buf *bytes.Buffer, maxBytes int64, s string) bool {
-	if maxBytes <= 0 {
-		_, _ = buf.WriteString(s)
-		return true
-	}
-
-	remaining := int(maxBytes) - buf.Len()
-	if remaining <= 0 {
-		return false
-	}
-	if len(s) > remaining {
-		_, _ = buf.WriteString(s[:remaining])
-		return false
-	}
-	_, _ = buf.WriteString(s)
-	return true
-}
-
-func isDocsNotFound(err error) bool {
-	var apiErr *gapi.Error
-	if !errors.As(err, &apiErr) {
-		return false
-	}
-	return apiErr.Code == http.StatusNotFound
 }

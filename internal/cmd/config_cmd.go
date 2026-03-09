@@ -10,12 +10,12 @@ import (
 )
 
 type ConfigCmd struct {
-	Get   ConfigGetCmd   `cmd:"" help:"Get a config value"`
-	Keys  ConfigKeysCmd  `cmd:"" help:"List available config keys"`
-	Set   ConfigSetCmd   `cmd:"" help:"Set a config value"`
-	Unset ConfigUnsetCmd `cmd:"" help:"Unset a config value"`
-	List  ConfigListCmd  `cmd:"" help:"List all config values"`
-	Path  ConfigPathCmd  `cmd:"" help:"Print config file path"`
+	Get   ConfigGetCmd   `cmd:"" aliases:"show" help:"Get a config value"`
+	Keys  ConfigKeysCmd  `cmd:"" aliases:"list-keys,names" help:"List available config keys"`
+	Set   ConfigSetCmd   `cmd:"" aliases:"add,update" help:"Set a config value"`
+	Unset ConfigUnsetCmd `cmd:"" aliases:"rm,del,remove" help:"Unset a config value"`
+	List  ConfigListCmd  `cmd:"" aliases:"ls,all" help:"List all config values"`
+	Path  ConfigPathCmd  `cmd:"" aliases:"where" help:"Print config file path"`
 }
 
 type ConfigGetCmd struct {
@@ -39,7 +39,7 @@ func (c *ConfigGetCmd) Run(ctx context.Context) error {
 	value := config.GetValue(cfg, key)
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, outfmt.KeyValuePayload(key.String(), value))
+		return outfmt.WriteJSON(ctx, os.Stdout, outfmt.KeyValuePayload(key.String(), value))
 	}
 	fmt.Fprintln(os.Stdout, formatConfigValue(value, spec.EmptyHint))
 	return nil
@@ -50,7 +50,7 @@ type ConfigKeysCmd struct{}
 func (c *ConfigKeysCmd) Run(ctx context.Context) error {
 	keys := config.KeyNames()
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, outfmt.KeysPayload(keys))
+		return outfmt.WriteJSON(ctx, os.Stdout, outfmt.KeysPayload(keys))
 	}
 	for _, key := range keys {
 		fmt.Fprintln(os.Stdout, key)
@@ -63,7 +63,7 @@ type ConfigSetCmd struct {
 	Value string `arg:"" help:"Value to set"`
 }
 
-func (c *ConfigSetCmd) Run(ctx context.Context) error {
+func (c *ConfigSetCmd) Run(ctx context.Context, flags *RootFlags) error {
 	cfg, err := loadConfig()
 	if err != nil {
 		return err
@@ -78,6 +78,13 @@ func (c *ConfigSetCmd) Run(ctx context.Context) error {
 		return err
 	}
 
+	if err := dryRunExit(ctx, flags, "config.set", map[string]any{
+		"key":   key.String(),
+		"value": c.Value,
+	}); err != nil {
+		return err
+	}
+
 	if err := config.WriteConfig(cfg); err != nil {
 		return err
 	}
@@ -85,7 +92,7 @@ func (c *ConfigSetCmd) Run(ctx context.Context) error {
 	if outfmt.IsJSON(ctx) {
 		payload := outfmt.KeyValuePayload(key.String(), c.Value)
 		payload["saved"] = true
-		return outfmt.WriteJSON(os.Stdout, payload)
+		return outfmt.WriteJSON(ctx, os.Stdout, payload)
 	}
 	fmt.Fprintf(os.Stdout, "Set %s = %s\n", c.Key, c.Value)
 	return nil
@@ -95,7 +102,7 @@ type ConfigUnsetCmd struct {
 	Key string `arg:"" help:"Config key to unset (timezone)"`
 }
 
-func (c *ConfigUnsetCmd) Run(ctx context.Context) error {
+func (c *ConfigUnsetCmd) Run(ctx context.Context, flags *RootFlags) error {
 	cfg, err := loadConfig()
 	if err != nil {
 		return err
@@ -110,6 +117,12 @@ func (c *ConfigUnsetCmd) Run(ctx context.Context) error {
 		return err
 	}
 
+	if err := dryRunExit(ctx, flags, "config.unset", map[string]any{
+		"key": key.String(),
+	}); err != nil {
+		return err
+	}
+
 	if err := config.WriteConfig(cfg); err != nil {
 		return err
 	}
@@ -117,7 +130,7 @@ func (c *ConfigUnsetCmd) Run(ctx context.Context) error {
 	if outfmt.IsJSON(ctx) {
 		payload := outfmt.KeyValuePayload(key.String(), "")
 		payload["removed"] = true
-		return outfmt.WriteJSON(os.Stdout, payload)
+		return outfmt.WriteJSON(ctx, os.Stdout, payload)
 	}
 	fmt.Fprintf(os.Stdout, "Unset %s\n", c.Key)
 	return nil
@@ -139,7 +152,7 @@ func (c *ConfigListCmd) Run(ctx context.Context) error {
 		for _, key := range keys {
 			payload[key.String()] = config.GetValue(cfg, key)
 		}
-		return outfmt.WriteJSON(os.Stdout, payload)
+		return outfmt.WriteJSON(ctx, os.Stdout, payload)
 	}
 
 	fmt.Fprintf(os.Stdout, "Config file: %s\n", path)
@@ -159,7 +172,7 @@ func (c *ConfigPathCmd) Run(ctx context.Context) error {
 	}
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, outfmt.PathPayload(path))
+		return outfmt.WriteJSON(ctx, os.Stdout, outfmt.PathPayload(path))
 	}
 	fmt.Fprintln(os.Stdout, path)
 	return nil

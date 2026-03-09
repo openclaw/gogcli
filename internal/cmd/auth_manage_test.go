@@ -18,7 +18,7 @@ func TestAuthManageCmd_ServicesAndOptions(t *testing.T) {
 		return nil
 	}
 
-	if err := runKong(t, &AuthManageCmd{}, []string{"--services", "gmail,drive,gmail", "--force-consent", "--timeout", "2m"}, context.Background(), nil); err != nil {
+	if err := runKong(t, &AuthManageCmd{}, []string{"--services", "gmail,drive,gmail", "--force-consent", "--timeout", "2m", "--listen-addr", "0.0.0.0:8080", "--redirect-host", "gog.example.com"}, context.Background(), nil); err != nil {
 		t.Fatalf("execute: %v", err)
 	}
 
@@ -27,6 +27,12 @@ func TestAuthManageCmd_ServicesAndOptions(t *testing.T) {
 	}
 	if got.Timeout != 2*time.Minute {
 		t.Fatalf("unexpected timeout: %v", got.Timeout)
+	}
+	if got.ListenAddr != "0.0.0.0:8080" {
+		t.Fatalf("unexpected listen addr: %q", got.ListenAddr)
+	}
+	if got.RedirectURI != "https://gog.example.com/oauth2/callback" {
+		t.Fatalf("unexpected redirect uri: %q", got.RedirectURI)
 	}
 	if len(got.Services) != 2 {
 		t.Fatalf("expected de-duped services, got %#v", got.Services)

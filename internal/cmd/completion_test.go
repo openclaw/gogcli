@@ -32,3 +32,13 @@ func TestCompletionCmd(t *testing.T) {
 		})
 	}
 }
+
+func TestFishCompletionScript_IncludesCurrentToken(t *testing.T) {
+	out := fishCompletionScript()
+	if !strings.Contains(out, "set words $words $cur") {
+		t.Fatalf("expected fish script to append current token, got %q", out)
+	}
+	if !strings.Contains(out, "set -l cword (math (count $words) - 1)") {
+		t.Fatalf("expected fish script to compute cword from appended token, got %q", out)
+	}
+}

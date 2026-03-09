@@ -7,8 +7,10 @@ import (
 	"testing"
 	"time"
 
+	"google.golang.org/api/gmail/v1"
 	"google.golang.org/api/idtoken"
 
+	"github.com/steipete/gogcli/internal/authclient"
 	"github.com/steipete/gogcli/internal/ui"
 )
 
@@ -16,8 +18,7 @@ func TestGmailWatchServeCmd_UsesStoredHook(t *testing.T) {
 	origListen := listenAndServe
 	t.Cleanup(func() { listenAndServe = origListen })
 
-	home := t.TempDir()
-	t.Setenv("HOME", home)
+	setWatchTestConfigHome(t)
 
 	store, err := newGmailWatchStore("a@b.com")
 	if err != nil {
@@ -72,8 +73,7 @@ func TestGmailWatchServeCmd_DefaultMaxBytes(t *testing.T) {
 	origListen := listenAndServe
 	t.Cleanup(func() { listenAndServe = origListen })
 
-	home := t.TempDir()
-	t.Setenv("HOME", home)
+	setWatchTestConfigHome(t)
 
 	store, err := newGmailWatchStore("a@b.com")
 	if err != nil {
@@ -112,8 +112,95 @@ func TestGmailWatchServeCmd_DefaultMaxBytes(t *testing.T) {
 	if got.cfg.MaxBodyBytes != defaultHookMaxBytes {
 		t.Fatalf("expected default max bytes, got %d", got.cfg.MaxBodyBytes)
 	}
+	if got.cfg.FetchDelay != defaultHistoryFetchDelay {
+		t.Fatalf("expected default fetch delay %v, got %v", defaultHistoryFetchDelay, got.cfg.FetchDelay)
+	}
 	if len(got.cfg.ExcludeLabels) != 2 || got.cfg.ExcludeLabels[0] != "SPAM" || got.cfg.ExcludeLabels[1] != "TRASH" {
 		t.Fatalf("unexpected exclude labels: %#v", got.cfg.ExcludeLabels)
+	}
+}
+
+func TestGmailWatchServeCmd_FetchDelaySeconds(t *testing.T) {
+	origListen := listenAndServe
+	t.Cleanup(func() { listenAndServe = origListen })
+
+	setWatchTestConfigHome(t)
+
+	store, err := newGmailWatchStore("a@b.com")
+	if err != nil {
+		t.Fatalf("store: %v", err)
+	}
+	updateErr := store.Update(func(s *gmailWatchState) error {
+		s.Account = "a@b.com"
+		return nil
+	})
+	if updateErr != nil {
+		t.Fatalf("seed: %v", updateErr)
+	}
+
+	flags := &RootFlags{Account: "a@b.com"}
+	var got *gmailWatchServer
+	listenAndServe = func(srv *http.Server) error {
+		if gs, ok := srv.Handler.(*gmailWatchServer); ok {
+			got = gs
+		}
+		return nil
+	}
+
+	u, err := ui.New(ui.Options{Stdout: io.Discard, Stderr: io.Discard, Color: "never"})
+	if err != nil {
+		t.Fatalf("ui.New: %v", err)
+	}
+	if execErr := runKong(t, &GmailWatchServeCmd{}, []string{"--port", "9999", "--path", "/hook", "--fetch-delay", "5"}, ui.WithUI(context.Background(), u), flags); execErr != nil {
+		t.Fatalf("execute: %v", execErr)
+	}
+	if got == nil {
+		t.Fatalf("expected server")
+	}
+	if got.cfg.FetchDelay != 5*time.Second {
+		t.Fatalf("expected fetch delay 5s, got %v", got.cfg.FetchDelay)
+	}
+}
+
+func TestGmailWatchServeCmd_FetchDelayDuration(t *testing.T) {
+	origListen := listenAndServe
+	t.Cleanup(func() { listenAndServe = origListen })
+
+	setWatchTestConfigHome(t)
+
+	store, err := newGmailWatchStore("a@b.com")
+	if err != nil {
+		t.Fatalf("store: %v", err)
+	}
+	updateErr := store.Update(func(s *gmailWatchState) error {
+		s.Account = "a@b.com"
+		return nil
+	})
+	if updateErr != nil {
+		t.Fatalf("seed: %v", updateErr)
+	}
+
+	flags := &RootFlags{Account: "a@b.com"}
+	var got *gmailWatchServer
+	listenAndServe = func(srv *http.Server) error {
+		if gs, ok := srv.Handler.(*gmailWatchServer); ok {
+			got = gs
+		}
+		return nil
+	}
+
+	u, err := ui.New(ui.Options{Stdout: io.Discard, Stderr: io.Discard, Color: "never"})
+	if err != nil {
+		t.Fatalf("ui.New: %v", err)
+	}
+	if execErr := runKong(t, &GmailWatchServeCmd{}, []string{"--port", "9999", "--path", "/hook", "--fetch-delay", "750ms"}, ui.WithUI(context.Background(), u), flags); execErr != nil {
+		t.Fatalf("execute: %v", execErr)
+	}
+	if got == nil {
+		t.Fatalf("expected server")
+	}
+	if got.cfg.FetchDelay != 750*time.Millisecond {
+		t.Fatalf("expected fetch delay 750ms, got %v", got.cfg.FetchDelay)
 	}
 }
 
@@ -121,8 +208,7 @@ func TestGmailWatchServeCmd_ExcludeLabels_Disable(t *testing.T) {
 	origListen := listenAndServe
 	t.Cleanup(func() { listenAndServe = origListen })
 
-	home := t.TempDir()
-	t.Setenv("HOME", home)
+	setWatchTestConfigHome(t)
 
 	store, err := newGmailWatchStore("a@b.com")
 	if err != nil {
@@ -168,8 +254,7 @@ func TestGmailWatchServeCmd_SaveHookAndOIDC(t *testing.T) {
 		newOIDCValidator = origOIDC
 	})
 
-	home := t.TempDir()
-	t.Setenv("HOME", home)
+	setWatchTestConfigHome(t)
 
 	store, err := newGmailWatchStore("a@b.com")
 	if err != nil {
@@ -221,5 +306,58 @@ func TestGmailWatchServeCmd_SaveHookAndOIDC(t *testing.T) {
 	}
 	if loaded.Get().Hook == nil || loaded.Get().Hook.URL != "http://example.com/hook" {
 		t.Fatalf("expected hook saved, got %#v", loaded.Get().Hook)
+	}
+}
+
+func TestGmailWatchServeCmd_PreservesClientOverrideForRequestContexts(t *testing.T) {
+	origListen := listenAndServe
+	origNew := newGmailService
+	t.Cleanup(func() {
+		listenAndServe = origListen
+		newGmailService = origNew
+	})
+
+	setWatchTestConfigHome(t)
+
+	store, err := newGmailWatchStore("a@b.com")
+	if err != nil {
+		t.Fatalf("store: %v", err)
+	}
+	updateErr := store.Update(func(s *gmailWatchState) error {
+		s.Account = "a@b.com"
+		return nil
+	})
+	if updateErr != nil {
+		t.Fatalf("seed: %v", updateErr)
+	}
+
+	flags := &RootFlags{Account: "a@b.com", Client: "personal"}
+	var got *gmailWatchServer
+	listenAndServe = func(srv *http.Server) error {
+		if gs, ok := srv.Handler.(*gmailWatchServer); ok {
+			got = gs
+		}
+		return nil
+	}
+
+	newGmailService = func(ctx context.Context, _ string) (*gmail.Service, error) {
+		if client := authclient.ClientOverrideFromContext(ctx); client != "personal" {
+			t.Fatalf("expected client override personal, got %q", client)
+		}
+		return &gmail.Service{}, nil
+	}
+
+	u, err := ui.New(ui.Options{Stdout: io.Discard, Stderr: io.Discard, Color: "never"})
+	if err != nil {
+		t.Fatalf("ui.New: %v", err)
+	}
+	if execErr := runKong(t, &GmailWatchServeCmd{}, []string{"--port", "9999", "--path", "/hook"}, ui.WithUI(context.Background(), u), flags); execErr != nil {
+		t.Fatalf("execute: %v", execErr)
+	}
+	if got == nil {
+		t.Fatalf("expected server")
+	}
+	if _, callErr := got.newService(context.Background(), "a@b.com"); callErr != nil {
+		t.Fatalf("newService: %v", callErr)
 	}
 }

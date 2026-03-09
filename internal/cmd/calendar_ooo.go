@@ -2,13 +2,9 @@ package cmd
 
 import (
 	"context"
-	"os"
 	"strings"
 
 	"google.golang.org/api/calendar/v3"
-
-	"github.com/steipete/gogcli/internal/outfmt"
-	"github.com/steipete/gogcli/internal/ui"
 )
 
 type CalendarOOOCmd struct {
@@ -22,18 +18,11 @@ type CalendarOOOCmd struct {
 }
 
 func (c *CalendarOOOCmd) Run(ctx context.Context, flags *RootFlags) error {
-	u := ui.FromContext(ctx)
-	account, err := requireAccount(flags)
+	calendarID, err := prepareCalendarID(c.CalendarID, true)
 	if err != nil {
 		return err
 	}
-
 	autoDeclineMode, err := validateAutoDeclineMode(c.AutoDecline)
-	if err != nil {
-		return err
-	}
-
-	svc, err := newCalendarService(ctx, account)
 	if err != nil {
 		return err
 	}
@@ -50,15 +39,21 @@ func (c *CalendarOOOCmd) Run(ctx context.Context, flags *RootFlags) error {
 		},
 	}
 
-	created, err := svc.Events.Insert(c.CalendarID, event).Do()
+	if dryRunErr := dryRunExit(ctx, flags, "calendar.out_of_office", map[string]any{
+		"calendar_id": calendarID,
+		"event":       event,
+	}); dryRunErr != nil {
+		return dryRunErr
+	}
+
+	mutation, err := newCalendarMutationContext(ctx, flags, calendarID)
 	if err != nil {
 		return err
 	}
 
-	tz, loc, _ := getCalendarLocation(ctx, svc, c.CalendarID)
-	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{"event": wrapEventWithDaysWithTimezone(created, tz, loc)})
+	created, err := mutation.insertEvent(ctx, event, calendarInsertOptions{})
+	if err != nil {
+		return err
 	}
-	printCalendarEventWithTimezone(u, created, tz, loc)
-	return nil
+	return mutation.writeEvent(ctx, created)
 }

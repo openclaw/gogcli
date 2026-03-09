@@ -21,6 +21,11 @@ func (c *CalendarTimeCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
+	calendarID, err := prepareCalendarID(c.CalendarID, true)
+	if err != nil {
+		return err
+	}
+
 	var tz string
 	var loc *time.Location
 
@@ -40,7 +45,11 @@ func (c *CalendarTimeCmd) Run(ctx context.Context, flags *RootFlags) error {
 			return err
 		}
 
-		tz, loc, err = getCalendarLocation(ctx, svc, c.CalendarID)
+		calendarID, err = resolveCalendarSelector(ctx, svc, calendarID, true)
+		if err != nil {
+			return err
+		}
+		tz, loc, err = getCalendarLocation(ctx, svc, calendarID)
 		if err != nil {
 			return err
 		}
@@ -50,7 +59,7 @@ func (c *CalendarTimeCmd) Run(ctx context.Context, flags *RootFlags) error {
 	formatted := now.Format("Monday, January 02, 2006 03:04 PM")
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
 			"timezone":     tz,
 			"current_time": now.Format(time.RFC3339),
 			"formatted":    formatted,

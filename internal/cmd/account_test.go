@@ -184,3 +184,51 @@ func TestRequireAccount_MissingWhenMultipleTokensAndNoDefault(t *testing.T) {
 		t.Fatalf("expected error")
 	}
 }
+
+func TestRequireAccount_AccessTokenNoAccount(t *testing.T) {
+	t.Setenv("GOG_ACCOUNT", "")
+	flags := &RootFlags{AccessToken: "ya29.some-token"}
+
+	var warned bool
+	prevWarn := warnDirectAccessToken
+	t.Cleanup(func() { warnDirectAccessToken = prevWarn })
+	warnDirectAccessToken = func() { warned = true }
+
+	prev := openSecretsStoreForAccount
+	t.Cleanup(func() { openSecretsStoreForAccount = prev })
+	openSecretsStoreForAccount = func() (secrets.Store, error) {
+		t.Fatal("openSecretsStoreForAccount should not be called when access token is provided")
+		return nil, errors.New("unreachable")
+	}
+
+	got, err := requireAccount(flags)
+	if err != nil {
+		t.Fatalf("err: %v", err)
+	}
+	if got != accessTokenPlaceholderAccount {
+		t.Fatalf("got %q", got)
+	}
+	if !warned {
+		t.Fatalf("expected warning")
+	}
+}
+
+func TestRequireAccount_AccessTokenWithExplicitAccount(t *testing.T) {
+	flags := &RootFlags{AccessToken: "ya29.some-token", Account: "explicit@example.com"}
+
+	var warned bool
+	prevWarn := warnDirectAccessToken
+	t.Cleanup(func() { warnDirectAccessToken = prevWarn })
+	warnDirectAccessToken = func() { warned = true }
+
+	got, err := requireAccount(flags)
+	if err != nil {
+		t.Fatalf("err: %v", err)
+	}
+	if got != "explicit@example.com" {
+		t.Fatalf("got %q", got)
+	}
+	if !warned {
+		t.Fatalf("expected warning")
+	}
+}

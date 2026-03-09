@@ -120,15 +120,7 @@ func parseEventDate(value string, tz string) (time.Time, bool) {
 }
 
 func loadEventLocation(tz string) (*time.Location, bool) {
-	tz = strings.TrimSpace(tz)
-	if tz == "" {
-		return nil, false
-	}
-	loc, err := time.LoadLocation(tz)
-	if err != nil {
-		return nil, false
-	}
-	return loc, true
+	return tryLoadTimezoneLocation(tz)
 }
 
 // resolveEventTimezone resolves the timezone and location for an event.
@@ -140,7 +132,7 @@ func resolveEventTimezone(event *calendar.Event, calendarTimezone string, loc *t
 	evTimezone := eventTimezone(event)
 
 	if loc == nil && calendarTimezone != "" {
-		if loaded, err := time.LoadLocation(calendarTimezone); err == nil {
+		if loaded, ok := tryLoadTimezoneLocation(calendarTimezone); ok {
 			loc = loaded
 		} else {
 			calendarTimezone = ""
@@ -149,7 +141,7 @@ func resolveEventTimezone(event *calendar.Event, calendarTimezone string, loc *t
 	if calendarTimezone == "" {
 		calendarTimezone = evTimezone
 		if loc == nil && calendarTimezone != "" {
-			if loaded, err := time.LoadLocation(calendarTimezone); err == nil {
+			if loaded, ok := tryLoadTimezoneLocation(calendarTimezone); ok {
 				loc = loaded
 			} else {
 				calendarTimezone = ""

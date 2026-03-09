@@ -36,6 +36,8 @@ type ManageServerOptions struct {
 	Services     []Service
 	ForceConsent bool
 	Client       string
+	ListenAddr   string
+	RedirectURI  string
 }
 
 // ManageServer handles the accounts management UI
@@ -87,7 +89,16 @@ func StartManageServer(ctx context.Context, opts ManageServerOptions) error {
 	if err != nil {
 		return fmt.Errorf("resolve client: %w", err)
 	}
+
 	opts.Client = client
+
+	if strings.TrimSpace(opts.RedirectURI) != "" {
+		resolvedRedirectURI, normalizeErr := normalizeRedirectURI(opts.RedirectURI)
+		if normalizeErr != nil {
+			return normalizeErr
+		}
+		opts.RedirectURI = resolvedRedirectURI
+	}
 
 	store, err := openDefaultStore()
 	if err != nil {
@@ -99,7 +110,12 @@ func StartManageServer(ctx context.Context, opts ManageServerOptions) error {
 		return fmt.Errorf("failed to generate CSRF token: %w", err)
 	}
 
-	ln, err := (&net.ListenConfig{}).Listen(ctx, "tcp", "127.0.0.1:0")
+	listenAddr, err := normalizeListenAddr(opts.ListenAddr)
+	if err != nil {
+		return err
+	}
+
+	ln, err := (&net.ListenConfig{}).Listen(ctx, "tcp", listenAddr)
 	if err != nil {
 		return fmt.Errorf("failed to start listener: %w", err)
 	}
@@ -151,6 +167,10 @@ func StartManageServer(ctx context.Context, opts ManageServerOptions) error {
 
 	fmt.Fprintln(os.Stderr, "Opening accounts manager in browser...")
 	fmt.Fprintln(os.Stderr, "If the browser doesn't open, visit:", url)
+
+	if strings.TrimSpace(opts.ListenAddr) != "" {
+		fmt.Fprintf(os.Stderr, "Server listening on %s\n", ln.Addr().String())
+	}
 	_ = openBrowserFn(url)
 
 	select {
@@ -245,8 +265,7 @@ func (ms *ManageServer) handleAuthStart(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	port := ms.listener.Addr().(*net.TCPAddr).Port
-	redirectURI := fmt.Sprintf("http://127.0.0.1:%d/oauth2/callback", port)
+	redirectURI := resolveServerRedirectURI(ms.listener, ms.opts.RedirectURI)
 
 	cfg := oauth2.Config{
 		ClientID:     creds.ClientID,
@@ -256,7 +275,7 @@ func (ms *ManageServer) handleAuthStart(w http.ResponseWriter, r *http.Request) 
 		Scopes:       scopes,
 	}
 
-	authURL := cfg.AuthCodeURL(state, authURLParams(ms.opts.ForceConsent)...)
+	authURL := cfg.AuthCodeURL(state, authURLParams(ms.opts.ForceConsent, true)...)
 	http.Redirect(w, r, authURL, http.StatusFound)
 }
 
@@ -290,8 +309,7 @@ func (ms *ManageServer) handleAuthUpgrade(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	port := ms.listener.Addr().(*net.TCPAddr).Port
-	redirectURI := fmt.Sprintf("http://127.0.0.1:%d/oauth2/callback", port)
+	redirectURI := resolveServerRedirectURI(ms.listener, ms.opts.RedirectURI)
 
 	cfg := oauth2.Config{
 		ClientID:     creds.ClientID,
@@ -304,7 +322,7 @@ func (ms *ManageServer) handleAuthUpgrade(w http.ResponseWriter, r *http.Request
 	// Always force consent for upgrades to ensure user sees all scopes
 	// Add login_hint to pre-select the account
 	authURL := cfg.AuthCodeURL(state,
-		append(authURLParams(true),
+		append(authURLParams(true, true),
 			oauth2.SetAuthURLParam("login_hint", email))...)
 
 	http.Redirect(w, r, authURL, http.StatusFound)
@@ -355,8 +373,7 @@ func (ms *ManageServer) handleOAuthCallback(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	port := ms.listener.Addr().(*net.TCPAddr).Port
-	redirectURI := fmt.Sprintf("http://127.0.0.1:%d/oauth2/callback", port)
+	redirectURI := resolveServerRedirectURI(ms.listener, ms.opts.RedirectURI)
 
 	cfg := oauth2.Config{
 		ClientID:     creds.ClientID,
@@ -525,7 +542,7 @@ func fetchUserEmailWithURL(ctx context.Context, accessToken string, url string) 
 
 	client := &http.Client{Timeout: 10 * time.Second}
 
-	resp, err := client.Do(req)
+	resp, err := client.Do(req) //nolint:gosec // URL is controlled by internal constant or test override
 	if err != nil {
 		return "", fmt.Errorf("fetch userinfo: %w", err)
 	}

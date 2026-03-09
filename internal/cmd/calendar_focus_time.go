@@ -3,13 +3,9 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"os"
 	"strings"
 
 	"google.golang.org/api/calendar/v3"
-
-	"github.com/steipete/gogcli/internal/outfmt"
-	"github.com/steipete/gogcli/internal/ui"
 )
 
 type CalendarFocusTimeCmd struct {
@@ -20,27 +16,20 @@ type CalendarFocusTimeCmd struct {
 	AutoDecline    string   `name:"auto-decline" help:"Auto-decline mode: none, all, new" default:"all"`
 	DeclineMessage string   `name:"decline-message" help:"Message for declined invitations"`
 	ChatStatus     string   `name:"chat-status" help:"Chat status: available, doNotDisturb" default:"doNotDisturb"`
-	Recurrence     []string `name:"rrule" help:"Recurrence rules. Can be repeated."`
+	Recurrence     []string `name:"rrule" help:"Recurrence rules. Can be repeated." sep:"none"`
 }
 
 func (c *CalendarFocusTimeCmd) Run(ctx context.Context, flags *RootFlags) error {
-	u := ui.FromContext(ctx)
-	account, err := requireAccount(flags)
+	calendarID, err := prepareCalendarID(c.CalendarID, true)
 	if err != nil {
 		return err
 	}
-
 	autoDeclineMode, err := validateAutoDeclineMode(c.AutoDecline)
 	if err != nil {
 		return err
 	}
 
 	chatStatus, err := validateChatStatus(c.ChatStatus)
-	if err != nil {
-		return err
-	}
-
-	svc, err := newCalendarService(ctx, account)
 	if err != nil {
 		return err
 	}
@@ -59,17 +48,23 @@ func (c *CalendarFocusTimeCmd) Run(ctx context.Context, flags *RootFlags) error 
 		Recurrence: buildRecurrence(c.Recurrence),
 	}
 
-	created, err := svc.Events.Insert(c.CalendarID, event).Do()
+	if dryRunErr := dryRunExit(ctx, flags, "calendar.focus_time", map[string]any{
+		"calendar_id": calendarID,
+		"event":       event,
+	}); dryRunErr != nil {
+		return dryRunErr
+	}
+
+	mutation, err := newCalendarMutationContext(ctx, flags, calendarID)
 	if err != nil {
 		return err
 	}
 
-	tz, loc, _ := getCalendarLocation(ctx, svc, c.CalendarID)
-	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{"event": wrapEventWithDaysWithTimezone(created, tz, loc)})
+	created, err := mutation.insertEvent(ctx, event, calendarInsertOptions{})
+	if err != nil {
+		return err
 	}
-	printCalendarEventWithTimezone(u, created, tz, loc)
-	return nil
+	return mutation.writeEvent(ctx, created)
 }
 
 func validateAutoDeclineMode(s string) (string, error) {
@@ -77,7 +72,7 @@ func validateAutoDeclineMode(s string) (string, error) {
 	switch s {
 	case "", "none":
 		return "declineNone", nil
-	case "all":
+	case defaultFocusAutoDecline:
 		return "declineAllConflictingInvitations", nil
 	case "new":
 		return "declineOnlyNewConflictingInvitations", nil

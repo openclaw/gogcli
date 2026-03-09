@@ -48,7 +48,9 @@ gog gmail watch serve \
   [--verify-oidc] [--oidc-email <svc@...>] [--oidc-audience <aud>] \
   [--token <shared>] \
   [--hook-url <url>] [--hook-token <token>] \
-  [--include-body] [--max-bytes <n>] [--save-hook]
+  [--fetch-delay <sec|duration>] \
+  [--include-body] [--max-bytes <n>] [--exclude-labels <id,id,...>] \
+  [--history-types <type>...] [--save-hook]
 
 gog gmail history --since <historyId> [--max <n>] [--page <token>]
 ```
@@ -58,6 +60,11 @@ Notes:
 - `watch renew` reuses stored topic/labels.
 - `watch stop` calls Gmail stop + clears state.
 - `watch serve` uses stored hook if `--hook-url` not provided.
+- `watch serve --exclude-labels` defaults to `SPAM,TRASH`; set to an empty string to disable.
+- Exclude label IDs are matched exactly (case-sensitive opaque IDs).
+- `watch serve --fetch-delay` delays Gmail history fetch after each push (default `3s`) to avoid indexing races; accepts seconds (`5`) or Go durations (`5s`).
+- `watch serve --history-types` accepts `messageAdded`, `messageDeleted`, `labelAdded`, `labelRemoved` (repeatable or comma-separated). Default: `messageAdded` (for backward compatibility).
+- `watch serve --history-types` must include at least one non-empty type.
 
 ## State
 
@@ -95,6 +102,7 @@ Schema (v1):
   "source": "gmail",
   "account": "you@gmail.com",
   "historyId": "...",
+  "deletedMessageIds": ["..."],
   "messages": [
     {
       "id": "...",

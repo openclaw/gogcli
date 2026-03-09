@@ -8,7 +8,10 @@ import (
 	"github.com/steipete/gogcli/internal/config"
 )
 
-type contextKey struct{}
+type (
+	contextKey     struct{}
+	accessTokenKey struct{}
+)
 
 func WithClient(ctx context.Context, client string) context.Context {
 	client = strings.TrimSpace(client)
@@ -25,6 +28,29 @@ func ClientOverrideFromContext(ctx context.Context) string {
 	}
 
 	if v := ctx.Value(contextKey{}); v != nil {
+		if s, ok := v.(string); ok {
+			return s
+		}
+	}
+
+	return ""
+}
+
+func WithAccessToken(ctx context.Context, token string) context.Context {
+	token = strings.TrimSpace(token)
+	if token == "" {
+		return ctx
+	}
+
+	return context.WithValue(ctx, accessTokenKey{}, token)
+}
+
+func AccessTokenFromContext(ctx context.Context) string {
+	if ctx == nil {
+		return ""
+	}
+
+	if v := ctx.Value(accessTokenKey{}); v != nil {
 		if s, ok := v.(string); ok {
 			return s
 		}

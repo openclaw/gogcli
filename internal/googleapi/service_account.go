@@ -12,20 +12,31 @@ import (
 	"github.com/steipete/gogcli/internal/config"
 )
 
+func serviceAccountSubject(subject string, serviceAccountEmail string) string {
+	if subject == "" || subject == serviceAccountEmail {
+		return ""
+	}
+
+	return subject
+}
+
 var newServiceAccountTokenSource = func(ctx context.Context, keyJSON []byte, subject string, scopes []string) (oauth2.TokenSource, error) {
 	cfg, err := google.JWTConfigFromJSON(keyJSON, scopes...)
 	if err != nil {
 		return nil, fmt.Errorf("parse service account: %w", err)
 	}
-	cfg.Subject = subject
+	// Only set Subject (impersonation) when the caller requests a different
+	// identity than the service account itself. When subject matches the
+	// SA's client_email we run in pure SA mode: no Domain-Wide Delegation.
+	cfg.Subject = serviceAccountSubject(subject, cfg.Email)
 
 	// Ensure token exchanges don't hang forever.
-	ctx = context.WithValue(ctx, oauth2.HTTPClient, &http.Client{Timeout: defaultHTTPTimeout})
+	ctx = context.WithValue(ctx, oauth2.HTTPClient, &http.Client{Timeout: tokenExchangeTimeout})
 
 	return cfg.TokenSource(ctx), nil
 }
 
-func tokenSourceForServiceAccountScopes(ctx context.Context, email string, scopes []string) (oauth2.TokenSource, string, bool, error) {
+func tokenSourceForServiceAccountScopes(ctx context.Context, serviceLabel string, email string, scopes []string) (oauth2.TokenSource, string, bool, error) {
 	saPath, err := config.ServiceAccountPath(email)
 	if err != nil {
 		return nil, "", false, fmt.Errorf("service account path: %w", err)
@@ -43,6 +54,11 @@ func tokenSourceForServiceAccountScopes(ctx context.Context, email string, scope
 
 	if !os.IsNotExist(readErr) {
 		return nil, "", false, fmt.Errorf("read service account key: %w", readErr)
+	}
+
+	// Keep-specific service account files should only be used for Keep.
+	if serviceLabel != "keep" {
+		return nil, "", false, nil
 	}
 
 	// Backwards compatibility: Keep used a dedicated stored service account file.

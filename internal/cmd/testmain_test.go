@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	_ "github.com/steipete/gogcli/internal/tzembed" // Embed IANA timezone database for Windows test support
 )
 
 func TestMain(m *testing.M) {

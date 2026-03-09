@@ -18,7 +18,7 @@ func TestExecute_CalendarEvents_Text_WithPaging(t *testing.T) {
 
 	srv := httptest.NewServer(withPrimaryCalendar(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
-		case strings.Contains(r.URL.Path, "/calendars/c1/events"):
+		case strings.Contains(r.URL.Path, "/calendars/c1@example.com/events"):
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"items": []map[string]any{
@@ -46,7 +46,7 @@ func TestExecute_CalendarEvents_Text_WithPaging(t *testing.T) {
 
 	out := captureStdout(t, func() {
 		errOut := captureStderr(t, func() {
-			if err := Execute([]string{"--account", "a@b.com", "calendar", "events", "c1", "--from", "2025-12-17T00:00:00Z", "--to", "2025-12-18T00:00:00Z"}); err != nil {
+			if err := Execute([]string{"--account", "a@b.com", "calendar", "events", "c1@example.com", "--from", "2025-12-17T00:00:00Z", "--to", "2025-12-18T00:00:00Z"}); err != nil {
 				t.Fatalf("Execute: %v", err)
 			}
 		})

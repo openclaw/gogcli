@@ -6,12 +6,21 @@ import (
 	"errors"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/steipete/gogcli/internal/outfmt"
 	"github.com/steipete/gogcli/internal/ui"
 )
+
+func setWatchTestConfigHome(t *testing.T) {
+	t.Helper()
+
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, "xdg-config"))
+}
 
 func TestWriteWatchState_TextAndJSON(t *testing.T) {
 	state := gmailWatchState{
@@ -40,7 +49,7 @@ func TestWriteWatchState_TextAndJSON(t *testing.T) {
 			t.Fatalf("ui.New: %v", uiErr)
 		}
 		ctx := ui.WithUI(context.Background(), u)
-		if err := writeWatchState(ctx, state); err != nil {
+		if err := writeWatchState(ctx, state, false); err != nil {
 			t.Fatalf("writeWatchState: %v", err)
 		}
 	})
@@ -58,7 +67,7 @@ func TestWriteWatchState_TextAndJSON(t *testing.T) {
 		}
 		ctx := ui.WithUI(context.Background(), u)
 		ctx = outfmt.WithMode(ctx, outfmt.Mode{JSON: true})
-		if err := writeWatchState(ctx, state); err != nil {
+		if err := writeWatchState(ctx, state, false); err != nil {
 			t.Fatalf("writeWatchState json: %v", err)
 		}
 	})
@@ -129,8 +138,7 @@ func TestIsLoopbackHost(t *testing.T) {
 }
 
 func TestGmailWatchStore_StateHelpers(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv("HOME", home)
+	setWatchTestConfigHome(t)
 
 	store, err := newGmailWatchStore("User+X@Example.COM")
 	if err != nil {

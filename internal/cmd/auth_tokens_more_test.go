@@ -11,9 +11,7 @@ import (
 	"time"
 
 	"github.com/steipete/gogcli/internal/config"
-	"github.com/steipete/gogcli/internal/outfmt"
 	"github.com/steipete/gogcli/internal/secrets"
-	"github.com/steipete/gogcli/internal/ui"
 )
 
 func TestAuthTokensExportImport_JSON(t *testing.T) {
@@ -40,11 +38,7 @@ func TestAuthTokensExportImport_JSON(t *testing.T) {
 	}
 
 	outPath := filepath.Join(t.TempDir(), "token.json")
-	u, uiErr := ui.New(ui.Options{Stdout: os.Stdout, Stderr: os.Stderr, Color: "never"})
-	if uiErr != nil {
-		t.Fatalf("ui.New: %v", uiErr)
-	}
-	ctx := outfmt.WithMode(ui.WithUI(context.Background(), u), outfmt.Mode{JSON: true})
+	ctx := newCmdJSONOutputContext(t, os.Stdout, os.Stderr)
 	var err error
 
 	exportCmd := AuthTokensExportCmd{
@@ -52,7 +46,7 @@ func TestAuthTokensExportImport_JSON(t *testing.T) {
 		Output:    OutputPathRequiredFlag{Path: outPath},
 		Overwrite: true,
 	}
-	err = exportCmd.Run(ctx)
+	err = exportCmd.Run(ctx, &RootFlags{})
 	if err != nil {
 		t.Fatalf("export: %v", err)
 	}
@@ -75,7 +69,7 @@ func TestAuthTokensExportImport_JSON(t *testing.T) {
 	openSecretsStore = func() (secrets.Store, error) { return newStore, nil }
 
 	importCmd := AuthTokensImportCmd{InPath: outPath}
-	err = importCmd.Run(ctx)
+	err = importCmd.Run(ctx, &RootFlags{})
 	if err != nil {
 		t.Fatalf("import: %v", err)
 	}
@@ -106,16 +100,12 @@ func TestAuthList_CheckJSON(t *testing.T) {
 		t.Fatalf("SetToken: %v", err)
 	}
 
-	u, uiErr := ui.New(ui.Options{Stdout: os.Stdout, Stderr: os.Stderr, Color: "never"})
-	if uiErr != nil {
-		t.Fatalf("ui.New: %v", uiErr)
-	}
-	ctx := outfmt.WithMode(ui.WithUI(context.Background(), u), outfmt.Mode{JSON: true})
+	ctx := newCmdJSONOutputContext(t, os.Stdout, os.Stderr)
 	var err error
 
 	listCmd := AuthListCmd{Check: true}
 	out := captureStdout(t, func() {
-		runErr := listCmd.Run(ctx)
+		runErr := listCmd.Run(ctx, &RootFlags{})
 		if runErr != nil {
 			t.Fatalf("list: %v", runErr)
 		}

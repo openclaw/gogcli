@@ -10,7 +10,10 @@ import (
 	"google.golang.org/api/calendar/v3"
 )
 
-const tzUTC = "UTC"
+const (
+	tzUTC               = "UTC"
+	reminderMethodPopup = "popup"
+)
 
 func buildEventDateTime(value string, allDay bool) *calendar.EventDateTime {
 	value = strings.TrimSpace(value)
@@ -23,6 +26,41 @@ func buildEventDateTime(value string, allDay bool) *calendar.EventDateTime {
 		edt.TimeZone = tz
 	}
 	return edt
+}
+
+func etcGMTForOffsetSeconds(offset int) (string, bool) {
+	if offset == 0 || offset%3600 != 0 {
+		return "", false
+	}
+	hours := offset / 3600
+	if hours > 0 {
+		// NOTE: IANA "Etc/GMT" names use reversed signs (e.g. +02:00 => Etc/GMT-2).
+		return fmt.Sprintf("Etc/GMT-%d", hours), true
+	}
+	return fmt.Sprintf("Etc/GMT+%d", -hours), true
+}
+
+func usIANAForOffsetAt(t time.Time, offset int) string {
+	switch offset {
+	case -4 * 3600, -5 * 3600, -6 * 3600, -7 * 3600, -8 * 3600:
+		for _, candidate := range []string{
+			"America/New_York",
+			"America/Chicago",
+			"America/Denver",
+			"America/Phoenix",
+			"America/Los_Angeles",
+		} {
+			loc, err := time.LoadLocation(candidate)
+			if err != nil {
+				continue
+			}
+			_, candidateOffset := t.In(loc).Zone()
+			if candidateOffset == offset {
+				return candidate
+			}
+		}
+	}
+	return ""
 }
 
 // extractTimezone attempts to determine a timezone from an RFC3339 datetime string.
@@ -41,21 +79,13 @@ func extractTimezone(value string) string {
 	// RFC3339 values have a fixed offset, but Google Calendar requires an IANA timezone
 	// name for recurring events. We guess by checking which common zones match the
 	// offset at this instant.
-	for _, candidate := range []string{
-		"America/New_York",
-		"America/Chicago",
-		"America/Denver",
-		"America/Phoenix",
-		"America/Los_Angeles",
-	} {
-		loc, err := time.LoadLocation(candidate)
-		if err != nil {
-			continue
-		}
-		_, candidateOffset := t.In(loc).Zone()
-		if candidateOffset == offset {
-			return candidate
-		}
+	if tz := usIANAForOffsetAt(t, offset); tz != "" {
+		return tz
+	}
+
+	// Fallback for fixed whole-hour offsets when no regional timezone match is found.
+	if tz, ok := etcGMTForOffsetSeconds(offset); ok {
+		return tz
 	}
 	return ""
 }
@@ -139,7 +169,7 @@ func parseReminder(s string) (string, int64, error) {
 	}
 
 	method := strings.TrimSpace(strings.ToLower(parts[0]))
-	if method != "email" && method != "popup" {
+	if method != "email" && method != reminderMethodPopup {
 		return "", 0, fmt.Errorf("invalid reminder method: %q (expected 'email' or 'popup')", method)
 	}
 
@@ -178,10 +208,15 @@ func buildReminders(reminders []string) (*calendar.EventReminders, error) {
 		if err != nil {
 			return nil, err
 		}
-		overrides = append(overrides, &calendar.EventReminder{
+		reminder := &calendar.EventReminder{
 			Method:  method,
 			Minutes: minutes,
-		})
+		}
+		if minutes == 0 {
+			// Minutes is an omitempty zero value; force-send 0 so Calendar API doesn't reject it.
+			reminder.ForceSendFields = []string{"Minutes"}
+		}
+		overrides = append(overrides, reminder)
 	}
 
 	// ForceSendFields ensures UseDefault=false is sent (not omitted as zero value)

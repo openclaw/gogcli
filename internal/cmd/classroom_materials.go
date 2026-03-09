@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 
@@ -13,11 +14,11 @@ import (
 )
 
 type ClassroomMaterialsCmd struct {
-	List   ClassroomMaterialsListCmd   `cmd:"" default:"withargs" help:"List coursework materials"`
-	Get    ClassroomMaterialsGetCmd    `cmd:"" help:"Get coursework material"`
-	Create ClassroomMaterialsCreateCmd `cmd:"" help:"Create coursework material"`
-	Update ClassroomMaterialsUpdateCmd `cmd:"" help:"Update coursework material"`
-	Delete ClassroomMaterialsDeleteCmd `cmd:"" help:"Delete coursework material" aliases:"rm"`
+	List   ClassroomMaterialsListCmd   `cmd:"" default:"withargs" aliases:"ls" help:"List coursework materials"`
+	Get    ClassroomMaterialsGetCmd    `cmd:"" aliases:"info,show" help:"Get coursework material"`
+	Create ClassroomMaterialsCreateCmd `cmd:"" aliases:"add,new" help:"Create coursework material"`
+	Update ClassroomMaterialsUpdateCmd `cmd:"" aliases:"edit,set" help:"Update coursework material"`
+	Delete ClassroomMaterialsDeleteCmd `cmd:"" aliases:"rm,del,remove" help:"Delete coursework material"`
 }
 
 type ClassroomMaterialsListCmd struct {
@@ -26,22 +27,19 @@ type ClassroomMaterialsListCmd struct {
 	Topic     string `name:"topic" help:"Filter by topic ID"`
 	OrderBy   string `name:"order-by" help:"Order by (e.g., updateTime desc)"`
 	Max       int64  `name:"max" aliases:"limit" help:"Max results" default:"100"`
-	Page      string `name:"page" help:"Page token"`
+	Page      string `name:"page" aliases:"cursor" help:"Page token"`
+	All       bool   `name:"all" aliases:"all-pages,allpages" help:"Fetch all pages"`
+	FailEmpty bool   `name:"fail-empty" aliases:"non-empty,require-results" help:"Exit with code 3 if no results"`
 	ScanPages int    `name:"scan-pages" help:"Pages to scan when filtering by topic" default:"3"`
 }
 
 func (c *ClassroomMaterialsListCmd) Run(ctx context.Context, flags *RootFlags) error {
-	u := ui.FromContext(ctx)
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
 	courseID := strings.TrimSpace(c.CourseID)
 	if courseID == "" {
 		return usage("empty courseId")
 	}
 
-	svc, err := newClassroomService(ctx, account)
+	_, svc, err := requireClassroomService(ctx, flags)
 	if err != nil {
 		return wrapClassroomError(err)
 	}
@@ -61,57 +59,67 @@ func (c *ClassroomMaterialsListCmd) Run(ctx context.Context, flags *RootFlags) e
 		return call.Do()
 	}
 
-	materials, nextPageToken, err := scanClassroomTopicPages(
-		c.Topic,
-		c.Page,
-		c.ScanPages,
-		func(page string) ([]*classroom.CourseWorkMaterial, string, error) {
-			resp, callErr := makeCall(page)
-			if callErr != nil {
-				return nil, "", callErr
-			}
-			return resp.CourseWorkMaterial, resp.NextPageToken, nil
-		},
-		func(material *classroom.CourseWorkMaterial) string {
-			if material == nil {
-				return ""
-			}
-			return material.TopicId
-		},
-	)
-	if err != nil {
-		return wrapClassroomError(err)
-	}
-
-	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{
-			"materials":     materials,
-			"nextPageToken": nextPageToken,
-		})
-	}
-
-	if len(materials) == 0 {
-		u.Err().Println("No materials")
-		printNextPageHint(u, nextPageToken)
-		return nil
-	}
-
-	w, flush := tableWriter(ctx)
-	defer flush()
-	fmt.Fprintln(w, "ID\tTITLE\tSTATE\tUPDATED")
-	for _, material := range materials {
-		if material == nil {
-			continue
+	fetch := func(page string) ([]*classroom.CourseWorkMaterial, string, error) {
+		resp, callErr := makeCall(page)
+		if callErr != nil {
+			return nil, "", callErr
 		}
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\n",
-			sanitizeTab(material.Id),
-			sanitizeTab(material.Title),
-			sanitizeTab(material.State),
-			sanitizeTab(material.UpdateTime),
-		)
+		return resp.CourseWorkMaterial, resp.NextPageToken, nil
 	}
-	printNextPageHint(u, nextPageToken)
-	return nil
+
+	var materials []*classroom.CourseWorkMaterial
+	var nextPageToken string
+	if c.All {
+		all, err := collectAllPages(c.Page, fetch)
+		if err != nil {
+			return wrapClassroomError(err)
+		}
+		materials = all
+		if topic := strings.TrimSpace(c.Topic); topic != "" {
+			filtered := materials[:0]
+			for _, material := range materials {
+				if material == nil {
+					continue
+				}
+				if material.TopicId == topic {
+					filtered = append(filtered, material)
+				}
+			}
+			materials = filtered
+		}
+	} else {
+		var err error
+		materials, nextPageToken, err = scanClassroomTopicPages(
+			c.Topic,
+			c.Page,
+			c.ScanPages,
+			fetch,
+			func(material *classroom.CourseWorkMaterial) string {
+				if material == nil {
+					return ""
+				}
+				return material.TopicId
+			},
+		)
+		if err != nil {
+			return wrapClassroomError(err)
+		}
+	}
+
+	return writeClassroomPagedList(ctx, "materials", materials, nextPageToken, "No materials", c.FailEmpty, true, func(w io.Writer) {
+		fmt.Fprintln(w, "ID\tTITLE\tSTATE\tUPDATED")
+		for _, material := range materials {
+			if material == nil {
+				continue
+			}
+			fmt.Fprintf(w, "%s\t%s\t%s\t%s\n",
+				sanitizeTab(material.Id),
+				sanitizeTab(material.Title),
+				sanitizeTab(material.State),
+				sanitizeTab(material.UpdateTime),
+			)
+		}
+	})
 }
 
 type ClassroomMaterialsGetCmd struct {
@@ -121,10 +129,6 @@ type ClassroomMaterialsGetCmd struct {
 
 func (c *ClassroomMaterialsGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
 	courseID := strings.TrimSpace(c.CourseID)
 	materialID := strings.TrimSpace(c.MaterialID)
 	if courseID == "" {
@@ -134,7 +138,7 @@ func (c *ClassroomMaterialsGetCmd) Run(ctx context.Context, flags *RootFlags) er
 		return usage("empty materialId")
 	}
 
-	svc, err := newClassroomService(ctx, account)
+	_, svc, err := requireClassroomService(ctx, flags)
 	if err != nil {
 		return wrapClassroomError(err)
 	}
@@ -145,7 +149,7 @@ func (c *ClassroomMaterialsGetCmd) Run(ctx context.Context, flags *RootFlags) er
 	}
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{"material": material})
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{"material": material})
 	}
 
 	u.Out().Printf("id\t%s", material.Id)
@@ -174,21 +178,12 @@ type ClassroomMaterialsCreateCmd struct {
 
 func (c *ClassroomMaterialsCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
 	courseID := strings.TrimSpace(c.CourseID)
 	if courseID == "" {
 		return usage("empty courseId")
 	}
 	if strings.TrimSpace(c.Title) == "" {
 		return usage("empty title")
-	}
-
-	svc, err := newClassroomService(ctx, account)
-	if err != nil {
-		return wrapClassroomError(err)
 	}
 
 	material := &classroom.CourseWorkMaterial{Title: strings.TrimSpace(c.Title)}
@@ -205,13 +200,25 @@ func (c *ClassroomMaterialsCreateCmd) Run(ctx context.Context, flags *RootFlags)
 		material.TopicId = v
 	}
 
+	if err := dryRunExit(ctx, flags, "classroom.materials.create", map[string]any{
+		"course_id": courseID,
+		"material":  material,
+	}); err != nil {
+		return err
+	}
+
+	_, svc, err := requireClassroomService(ctx, flags)
+	if err != nil {
+		return wrapClassroomError(err)
+	}
+
 	created, err := svc.Courses.CourseWorkMaterials.Create(courseID, material).Context(ctx).Do()
 	if err != nil {
 		return wrapClassroomError(err)
 	}
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{"material": created})
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{"material": created})
 	}
 	u.Out().Printf("id\t%s", created.Id)
 	u.Out().Printf("title\t%s", created.Title)
@@ -231,10 +238,6 @@ type ClassroomMaterialsUpdateCmd struct {
 
 func (c *ClassroomMaterialsUpdateCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
 	courseID := strings.TrimSpace(c.CourseID)
 	materialID := strings.TrimSpace(c.MaterialID)
 	if courseID == "" {
@@ -270,7 +273,17 @@ func (c *ClassroomMaterialsUpdateCmd) Run(ctx context.Context, flags *RootFlags)
 		return usage("no updates specified")
 	}
 
-	svc, err := newClassroomService(ctx, account)
+	if err := dryRunExit(ctx, flags, "classroom.materials.update", map[string]any{
+		"course_id":     courseID,
+		"material_id":   materialID,
+		"update_mask":   updateMask(fields),
+		"update_fields": fields,
+		"material":      material,
+	}); err != nil {
+		return err
+	}
+
+	_, svc, err := requireClassroomService(ctx, flags)
 	if err != nil {
 		return wrapClassroomError(err)
 	}
@@ -281,7 +294,7 @@ func (c *ClassroomMaterialsUpdateCmd) Run(ctx context.Context, flags *RootFlags)
 	}
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{"material": updated})
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{"material": updated})
 	}
 	u.Out().Printf("id\t%s", updated.Id)
 	u.Out().Printf("title\t%s", updated.Title)
@@ -296,10 +309,6 @@ type ClassroomMaterialsDeleteCmd struct {
 
 func (c *ClassroomMaterialsDeleteCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
 	courseID := strings.TrimSpace(c.CourseID)
 	materialID := strings.TrimSpace(c.MaterialID)
 	if courseID == "" {
@@ -309,12 +318,11 @@ func (c *ClassroomMaterialsDeleteCmd) Run(ctx context.Context, flags *RootFlags)
 		return usage("empty materialId")
 	}
 
-	err = confirmDestructive(ctx, flags, fmt.Sprintf("delete material %s from %s", materialID, courseID))
-	if err != nil {
+	if err := confirmDestructive(ctx, flags, fmt.Sprintf("delete material %s from %s", materialID, courseID)); err != nil {
 		return err
 	}
 
-	svc, err := newClassroomService(ctx, account)
+	_, svc, err := requireClassroomService(ctx, flags)
 	if err != nil {
 		return wrapClassroomError(err)
 	}
@@ -323,15 +331,9 @@ func (c *ClassroomMaterialsDeleteCmd) Run(ctx context.Context, flags *RootFlags)
 		return wrapClassroomError(err)
 	}
 
-	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{
-			"deleted":    true,
-			"courseId":   courseID,
-			"materialId": materialID,
-		})
-	}
-	u.Out().Printf("deleted\ttrue")
-	u.Out().Printf("course_id\t%s", courseID)
-	u.Out().Printf("material_id\t%s", materialID)
-	return nil
+	return writeResult(ctx, u,
+		kv("deleted", true),
+		kv("courseId", courseID),
+		kv("materialId", materialID),
+	)
 }

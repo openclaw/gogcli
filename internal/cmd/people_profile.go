@@ -42,7 +42,7 @@ func (c *PeopleGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return wrapPeopleAPIError(err)
 	}
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{"person": person})
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{"person": person})
 	}
 
 	name := primaryName(person)
@@ -66,9 +66,11 @@ func (c *PeopleGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 }
 
 type PeopleSearchCmd struct {
-	Query []string `arg:"" name:"query" help:"Search query"`
-	Max   int64    `name:"max" aliases:"limit" help:"Max results" default:"50"`
-	Page  string   `name:"page" help:"Page token"`
+	Query     []string `arg:"" name:"query" help:"Search query"`
+	Max       int64    `name:"max" aliases:"limit" help:"Max results" default:"50"`
+	Page      string   `name:"page" aliases:"cursor" help:"Page token"`
+	All       bool     `name:"all" aliases:"all-pages,allpages" help:"Fetch all pages"`
+	FailEmpty bool     `name:"fail-empty" aliases:"non-empty,require-results" help:"Exit with code 3 if no results"`
 }
 
 func (c *PeopleSearchCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -87,19 +89,40 @@ func (c *PeopleSearchCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return wrapPeopleAPIError(err)
 	}
 
-	ctxTimeout, cancel := context.WithTimeout(ctx, directoryRequestTimeout)
-	defer cancel()
+	fetch := func(pageToken string) ([]*people.Person, string, error) {
+		ctxTimeout, cancel := context.WithTimeout(ctx, directoryRequestTimeout)
+		defer cancel()
 
-	resp, err := svc.People.SearchDirectoryPeople().
-		Query(query).
-		Sources("DIRECTORY_SOURCE_TYPE_DOMAIN_CONTACT", "DIRECTORY_SOURCE_TYPE_DOMAIN_PROFILE").
-		ReadMask(directoryReadMask).
-		PageSize(c.Max).
-		PageToken(c.Page).
-		Context(ctxTimeout).
-		Do()
-	if err != nil {
-		return wrapPeopleAPIError(err)
+		call := svc.People.SearchDirectoryPeople().
+			Query(query).
+			Sources("DIRECTORY_SOURCE_TYPE_DOMAIN_CONTACT", "DIRECTORY_SOURCE_TYPE_DOMAIN_PROFILE").
+			ReadMask(directoryReadMask).
+			PageSize(c.Max).
+			Context(ctxTimeout)
+		if strings.TrimSpace(pageToken) != "" {
+			call = call.PageToken(pageToken)
+		}
+		resp, err := call.Do()
+		if err != nil {
+			return nil, "", wrapPeopleAPIError(err)
+		}
+		return resp.People, resp.NextPageToken, nil
+	}
+
+	var peopleList []*people.Person
+	nextPageToken := ""
+	if c.All {
+		all, err := collectAllPages(c.Page, fetch)
+		if err != nil {
+			return err
+		}
+		peopleList = all
+	} else {
+		var err error
+		peopleList, nextPageToken, err = fetch(c.Page)
+		if err != nil {
+			return err
+		}
 	}
 
 	if outfmt.IsJSON(ctx) {
@@ -108,8 +131,8 @@ func (c *PeopleSearchCmd) Run(ctx context.Context, flags *RootFlags) error {
 			Name     string `json:"name,omitempty"`
 			Email    string `json:"email,omitempty"`
 		}
-		items := make([]item, 0, len(resp.People))
-		for _, p := range resp.People {
+		items := make([]item, 0, len(peopleList))
+		for _, p := range peopleList {
 			if p == nil {
 				continue
 			}
@@ -119,21 +142,27 @@ func (c *PeopleSearchCmd) Run(ctx context.Context, flags *RootFlags) error {
 				Email:    primaryEmail(p),
 			})
 		}
-		return outfmt.WriteJSON(os.Stdout, map[string]any{
+		if err := outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
 			"people":        items,
-			"nextPageToken": resp.NextPageToken,
-		})
+			"nextPageToken": nextPageToken,
+		}); err != nil {
+			return err
+		}
+		if len(items) == 0 {
+			return failEmptyExit(c.FailEmpty)
+		}
+		return nil
 	}
 
-	if len(resp.People) == 0 {
+	if len(peopleList) == 0 {
 		u.Err().Println("No results")
-		return nil
+		return failEmptyExit(c.FailEmpty)
 	}
 
 	w, flush := tableWriter(ctx)
 	defer flush()
 	fmt.Fprintln(w, "RESOURCE\tNAME\tEMAIL")
-	for _, p := range resp.People {
+	for _, p := range peopleList {
 		if p == nil {
 			continue
 		}
@@ -143,7 +172,7 @@ func (c *PeopleSearchCmd) Run(ctx context.Context, flags *RootFlags) error {
 			sanitizeTab(primaryEmail(p)),
 		)
 	}
-	printNextPageHint(u, resp.NextPageToken)
+	printNextPageHint(u, nextPageToken)
 	return nil
 }
 
@@ -201,7 +230,7 @@ func (c *PeopleRelationsCmd) Run(ctx context.Context, flags *RootFlags) error {
 		if relationType != "" {
 			resp["relationType"] = relationType
 		}
-		return outfmt.WriteJSON(os.Stdout, resp)
+		return outfmt.WriteJSON(ctx, os.Stdout, resp)
 	}
 
 	if len(relations) == 0 {

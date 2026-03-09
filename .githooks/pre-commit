@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+echo "🔍 Running fmt check..."
+make fmt-check 2>&1 || {
+    echo "❌ Format check failed. Run 'make fmt' and re-commit."
+    exit 1
+}
+
+echo "🔍 Running lint..."
+if ! make lint 2>&1; then
+    echo "⚠️  Lint warnings found. Review above before pushing."
+    echo "   To skip: git commit --no-verify"
+fi
+
+echo "✅ Pre-commit checks passed."

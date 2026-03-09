@@ -4,8 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"strings"
+
+	"google.golang.org/api/calendar/v3"
 
 	"github.com/steipete/gogcli/internal/outfmt"
 	"github.com/steipete/gogcli/internal/ui"
@@ -20,15 +21,11 @@ type CalendarRespondCmd struct {
 
 func (c *CalendarRespondCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
-	account, err := requireAccount(flags)
+	calendarID, err := prepareCalendarID(c.CalendarID, false)
 	if err != nil {
 		return err
 	}
-	calendarID := strings.TrimSpace(c.CalendarID)
-	eventID := strings.TrimSpace(c.EventID)
-	if calendarID == "" {
-		return usage("empty calendarId")
-	}
+	eventID := normalizeCalendarEventID(c.EventID)
 	if eventID == "" {
 		return usage("empty eventId")
 	}
@@ -49,12 +46,21 @@ func (c *CalendarRespondCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return fmt.Errorf("invalid status %q; must be one of: %s", status, strings.Join(validStatuses, ", "))
 	}
 
-	svc, err := newCalendarService(ctx, account)
+	if dryRunErr := dryRunExit(ctx, flags, "calendar.respond", map[string]any{
+		"calendar_id": calendarID,
+		"event_id":    eventID,
+		"status":      status,
+		"comment":     strings.TrimSpace(c.Comment),
+	}); dryRunErr != nil {
+		return dryRunErr
+	}
+
+	mutation, err := newCalendarMutationContext(ctx, flags, calendarID)
 	if err != nil {
 		return err
 	}
 
-	event, err := svc.Events.Get(calendarID, eventID).Do()
+	event, err := mutation.svc.Events.Get(mutation.calendarID, eventID).Do()
 	if err != nil {
 		return err
 	}
@@ -84,14 +90,17 @@ func (c *CalendarRespondCmd) Run(ctx context.Context, flags *RootFlags) error {
 		event.Attendees[*selfAttendee].Comment = strings.TrimSpace(c.Comment)
 	}
 
-	updated, err := svc.Events.Patch(calendarID, eventID, event).Do()
+	// Only patch the Attendees field to avoid issues with reminders validation
+	patch := &calendar.Event{
+		Attendees: event.Attendees,
+	}
+	updated, err := mutation.patchEvent(ctx, eventID, patch, "")
 	if err != nil {
 		return err
 	}
 
 	if outfmt.IsJSON(ctx) {
-		tz, loc, _ := getCalendarLocation(ctx, svc, calendarID)
-		return outfmt.WriteJSON(os.Stdout, map[string]any{"event": wrapEventWithDaysWithTimezone(updated, tz, loc)})
+		return mutation.writeEvent(ctx, updated)
 	}
 
 	u.Out().Printf("id\t%s", updated.Id)

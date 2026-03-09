@@ -75,11 +75,23 @@ func parseTimezoneValue(label, value string, allowLocal bool) (*time.Location, b
 	if allowLocal && strings.EqualFold(trimmed, "local") {
 		return time.Local, true, nil
 	}
-	loc, err := time.LoadLocation(trimmed)
+	loc, err := loadTimezoneLocation(trimmed)
 	if err != nil {
 		return nil, true, fmt.Errorf("invalid %s %q: %w", label, trimmed, err)
 	}
 	return loc, true, nil
+}
+
+func loadTimezoneLocation(timezone string) (*time.Location, error) {
+	return time.LoadLocation(strings.TrimSpace(timezone))
+}
+
+func tryLoadTimezoneLocation(timezone string) (*time.Location, bool) {
+	loc, err := loadTimezoneLocation(timezone)
+	if err != nil {
+		return nil, false
+	}
+	return loc, true
 }
 
 func readConfigOptional() (config.File, bool) {

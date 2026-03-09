@@ -5,7 +5,7 @@ import "github.com/steipete/gogcli/internal/googleapi"
 var newCalendarService = googleapi.NewCalendar
 
 const (
-	scopeAll    = "all"
+	scopeAll    = literalAll
 	scopeSingle = "single"
 	scopeFuture = "future"
 )

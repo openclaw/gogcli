@@ -62,6 +62,28 @@ func normalizeThread(space, resource string) (string, error) {
 	return fmt.Sprintf("%s/threads/%s", space, thread), nil
 }
 
+func normalizeMessage(space, resource string) (string, error) {
+	msg := strings.TrimSpace(resource)
+	if msg == "" {
+		return "", fmt.Errorf("empty message")
+	}
+	if strings.HasPrefix(msg, "spaces/") {
+		if !strings.Contains(msg, "/messages/") {
+			return "", fmt.Errorf("invalid message resource %q", msg)
+		}
+		return msg, nil
+	}
+	msg = strings.TrimPrefix(msg, "messages/")
+	if strings.Contains(msg, "/") {
+		return "", fmt.Errorf("invalid message id %q", msg)
+	}
+	space, err := normalizeSpace(space)
+	if err != nil {
+		return "", fmt.Errorf("--space required when message is a bare ID")
+	}
+	return fmt.Sprintf("%s/messages/%s", space, msg), nil
+}
+
 func parseCommaArgs(values []string) []string {
 	out := make([]string, 0, len(values))
 	for _, raw := range values {

@@ -253,6 +253,8 @@ func TestAuthStatus_Text_ConfigFile(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, "xdg-config"))
+	os.Unsetenv("GOG_KEYRING_BACKEND")
+	t.Cleanup(func() { os.Setenv("GOG_KEYRING_BACKEND", "file") })
 
 	cfgPath, err := config.ConfigPath()
 	if err != nil {

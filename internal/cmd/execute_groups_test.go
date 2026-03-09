@@ -18,6 +18,13 @@ func TestExecute_GroupsList_JSON(t *testing.T) {
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.Contains(r.URL.Path, "groups/-/memberships:searchTransitiveGroups") && r.Method == http.MethodGet {
+			query := r.URL.Query().Get("query")
+			if !strings.Contains(query, "'"+groupLabelDiscussionForum+"' in labels") {
+				t.Fatalf("missing discussion label filter in query: %q", query)
+			}
+			if !strings.Contains(query, "member_key_id == 'a@b.com'") {
+				t.Fatalf("missing member_key_id filter in query: %q", query)
+			}
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"memberships": []map[string]any{
@@ -159,6 +166,13 @@ func TestExecute_GroupsList_Text(t *testing.T) {
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.Contains(r.URL.Path, "groups/-/memberships:searchTransitiveGroups") && r.Method == http.MethodGet {
+			query := r.URL.Query().Get("query")
+			if !strings.Contains(query, "'"+groupLabelDiscussionForum+"' in labels") {
+				t.Fatalf("missing discussion label filter in query: %q", query)
+			}
+			if !strings.Contains(query, "member_key_id == 'a@b.com'") {
+				t.Fatalf("missing member_key_id filter in query: %q", query)
+			}
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"memberships": []map[string]any{

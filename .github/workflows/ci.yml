@@ -4,35 +4,43 @@ on:
   push:
   pull_request:
 
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
           cache: true
+      - uses: actions/cache@v5
+        with:
+          path: .tools
+          key: ${{ runner.os }}-tools-${{ hashFiles('Makefile') }}
       - name: Install tools
         run: make tools
       - name: Format check
         run: make fmt-check
       - name: Test
-        run: go test ./...
+        run: make test
       - name: Lint
         run: make lint
 
   worker:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with:
-          node-version: "20"
+          node-version: "24"
       - name: Enable Corepack (pnpm)
         run: |
           corepack enable
-          corepack prepare pnpm@10.27.0 --activate
+          corepack prepare pnpm@10.30.3 --activate
       - name: Install dependencies
         run: pnpm -C internal/tracking/worker install --frozen-lockfile
       - name: Lint
@@ -42,15 +50,48 @@ jobs:
       - name: Test
         run: pnpm -C internal/tracking/worker test
 
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+      - uses: actions/cache@v5
+        with:
+          path: .tools
+          key: ${{ runner.os }}-tools-${{ hashFiles('Makefile') }}
+      - name: Install tools
+        run: make tools
+        shell: bash
+      - name: Format check
+        run: make fmt-check
+        shell: bash
+      - name: Test
+        # Skip tests that depend on macOS Keychain / Linux keyring or Unix path semantics.
+        # These are covered by ubuntu-latest and macos-latest jobs.
+        # See https://github.com/steipete/gogcli/issues/395
+        run: make test
+        shell: bash
+        env:
+          TEST_FLAGS: >-
+            -skip 'TestAuth|TestListClientCredentials|TestReadClientCredentials|TestConfigExists|TestExpandPath|TestResolveKeyringBackendInfo|TestLoadSecrets_LegacyFallback'
+      - name: Lint
+        run: make lint
+        shell: bash
+      - name: Build
+        run: go build ./cmd/gog
+
   darwin-cgo-build:
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
           cache: true
       - name: Test
-        run: go test ./...
+        run: make test
       - name: Build (Keychain / cgo)
         run: CGO_ENABLED=1 go build ./cmd/gog

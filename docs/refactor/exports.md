@@ -16,7 +16,7 @@ Goal: one implementation for “export Google *Thing* via Drive”.
 
 Each service command is a thin wrapper:
 
-- `gog docs export <docId> --format pdf|docx|txt`
+- `gog docs export <docId> --format pdf|docx|txt|md|html`
 - `gog slides export <presentationId> --format pdf|pptx`
 - `gog sheets export <spreadsheetId> --format pdf|xlsx|csv`
 

@@ -1,9 +1,11 @@
 package cmd
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 
@@ -15,19 +17,14 @@ import (
 
 type SheetsFormatCmd struct {
 	SpreadsheetID string `arg:"" name:"spreadsheetId" help:"Spreadsheet ID"`
-	Range         string `arg:"" name:"range" help:"Range (eg. Sheet1!A1:B2)"`
+	Range         string `arg:"" name:"range" help:"Range (A1 notation with sheet name, or named range name; e.g. Sheet1!A1:B2 or MyNamedRange)"`
 	FormatJSON    string `name:"format-json" help:"Cell format as JSON (Sheets API CellFormat)"`
 	FormatFields  string `name:"format-fields" help:"Format field mask (eg. userEnteredFormat.textFormat.bold or textFormat.bold)"`
 }
 
 func (c *SheetsFormatCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
-
-	spreadsheetID := strings.TrimSpace(c.SpreadsheetID)
+	spreadsheetID := normalizeGoogleID(strings.TrimSpace(c.SpreadsheetID))
 	rangeSpec := cleanRange(c.Range)
 	if spreadsheetID == "" {
 		return usage("empty spreadsheetId")
@@ -43,8 +40,17 @@ func (c *SheetsFormatCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return fmt.Errorf("provide format fields via --format-fields")
 	}
 
+	if hasBoardersTypo(formatFields) {
+		return fmt.Errorf(`invalid --format-fields: found "boarders"; use "borders"`)
+	}
+
+	var err error
 	var format sheets.CellFormat
-	if err = json.Unmarshal([]byte(c.FormatJSON), &format); err != nil {
+	b, err := resolveInlineOrFileBytes(c.FormatJSON)
+	if err != nil {
+		return fmt.Errorf("read --format-json: %w", err)
+	}
+	if err = decodeCellFormatJSON(b, &format); err != nil {
 		return fmt.Errorf("invalid format JSON: %w", err)
 	}
 
@@ -56,7 +62,16 @@ func (c *SheetsFormatCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
-	rangeInfo, err := parseSheetRange(rangeSpec, "format")
+	if dryRunErr := dryRunExit(ctx, flags, "sheets.format", map[string]any{
+		"spreadsheet_id": spreadsheetID,
+		"range":          rangeSpec,
+		"fields":         formatFields,
+		"format":         format,
+	}); dryRunErr != nil {
+		return dryRunErr
+	}
+
+	account, err := requireAccount(flags)
 	if err != nil {
 		return err
 	}
@@ -66,11 +81,11 @@ func (c *SheetsFormatCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
-	sheetIDs, err := fetchSheetIDMap(ctx, svc, spreadsheetID)
+	catalog, err := fetchSpreadsheetRangeCatalog(ctx, svc, spreadsheetID)
 	if err != nil {
 		return err
 	}
-	gridRange, err := gridRangeFromMap(rangeInfo, sheetIDs, "format")
+	gridRange, err := resolveGridRangeWithCatalog(rangeSpec, catalog, "format")
 	if err != nil {
 		return err
 	}
@@ -94,7 +109,7 @@ func (c *SheetsFormatCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
 			"range":  rangeSpec,
 			"fields": formatFields,
 		})
@@ -102,4 +117,36 @@ func (c *SheetsFormatCmd) Run(ctx context.Context, flags *RootFlags) error {
 
 	u.Out().Printf("Formatted %s", rangeSpec)
 	return nil
+}
+
+func decodeCellFormatJSON(data []byte, dst *sheets.CellFormat) error {
+	if dst == nil {
+		return fmt.Errorf("format is required")
+	}
+
+	dec := json.NewDecoder(bytes.NewReader(data))
+	dec.DisallowUnknownFields()
+
+	if err := dec.Decode(dst); err != nil {
+		return err
+	}
+	var extra any
+	if err := dec.Decode(&extra); err != io.EOF {
+		if err == nil {
+			return fmt.Errorf("multiple JSON values")
+		}
+		return err
+	}
+	return nil
+}
+
+func hasBoardersTypo(mask string) bool {
+	for _, part := range splitFieldMask(mask) {
+		for _, token := range strings.Split(part, ".") {
+			if strings.EqualFold(strings.TrimSpace(token), "boarders") {
+				return true
+			}
+		}
+	}
+	return false
 }

@@ -57,6 +57,36 @@ func TestDownloadDriveFile_NonGoogleDoc(t *testing.T) {
 	}
 }
 
+func TestDownloadDriveFile_NonGoogleDocFormatRejected(t *testing.T) {
+	origDownload := driveDownload
+	t.Cleanup(func() { driveDownload = origDownload })
+
+	called := false
+	driveDownload = func(context.Context, *drive.Service, string) (*http.Response, error) {
+		called = true
+		return &http.Response{
+			Status:     "200 OK",
+			StatusCode: http.StatusOK,
+			Body:       io.NopCloser(strings.NewReader("ok")),
+		}, nil
+	}
+
+	dest := filepath.Join(t.TempDir(), "file.html")
+	_, _, err := downloadDriveFile(context.Background(), &drive.Service{}, &drive.File{Id: "id1", MimeType: "application/pdf"}, dest, "html")
+	if err == nil {
+		t.Fatalf("expected error")
+	}
+	if !strings.Contains(err.Error(), "non-Google Workspace") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if called {
+		t.Fatalf("download should not be called on format error")
+	}
+	if _, statErr := os.Stat(dest); !os.IsNotExist(statErr) {
+		t.Fatalf("expected no file written, stat=%v", statErr)
+	}
+}
+
 func TestDownloadDriveFile_GoogleDocExport(t *testing.T) {
 	body := "exported"
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -122,7 +152,7 @@ func TestDownloadDriveFile_HTTPError(t *testing.T) {
 	}
 }
 
-func TestDownloadDriveFile_CreateError(t *testing.T) {
+func TestDownloadDriveFile_CreatesMissingParentDirs(t *testing.T) {
 	orig := driveDownload
 	t.Cleanup(func() { driveDownload = orig })
 	driveDownload = func(context.Context, *drive.Service, string) (*http.Response, error) {
@@ -135,8 +165,21 @@ func TestDownloadDriveFile_CreateError(t *testing.T) {
 
 	tmp := t.TempDir()
 	dest := filepath.Join(tmp, "no-such-dir", "file.bin")
-	_, _, err := downloadDriveFile(context.Background(), &drive.Service{}, &drive.File{Id: "id1", MimeType: "application/pdf"}, dest, "")
-	if err == nil {
-		t.Fatalf("expected error")
+	outPath, size, err := downloadDriveFile(context.Background(), &drive.Service{}, &drive.File{Id: "id1", MimeType: "application/pdf"}, dest, "")
+	if err != nil {
+		t.Fatalf("downloadDriveFile: %v", err)
+	}
+	if outPath != dest {
+		t.Fatalf("outPath=%q, want %q", outPath, dest)
+	}
+	if size != 1 {
+		t.Fatalf("size=%d, want 1", size)
+	}
+	data, readErr := os.ReadFile(dest)
+	if readErr != nil {
+		t.Fatalf("read: %v", readErr)
+	}
+	if string(data) != "x" {
+		t.Fatalf("data=%q, want %q", string(data), "x")
 	}
 }
