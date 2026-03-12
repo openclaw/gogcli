@@ -53,6 +53,7 @@ type GmailScopeMode string
 const (
 	GmailScopeFull     GmailScopeMode = "full"
 	GmailScopeReadonly GmailScopeMode = "readonly"
+	GmailScopeCompose  GmailScopeMode = "compose"
 )
 
 type ScopeOptions struct {
@@ -429,9 +430,9 @@ func scopesForServiceWithOptions(service Service, opts ScopeOptions) ([]string, 
 
 	gmailScope := strings.TrimSpace(string(opts.GmailScope))
 	switch gmailScope {
-	case "", string(GmailScopeFull), string(GmailScopeReadonly):
+	case "", string(GmailScopeFull), string(GmailScopeReadonly), string(GmailScopeCompose):
 	default:
-		return nil, fmt.Errorf("%w %q (expected full|readonly)", errInvalidGmailScope, opts.GmailScope)
+		return nil, fmt.Errorf("%w %q (expected full|readonly|compose)", errInvalidGmailScope, opts.GmailScope)
 	}
 
 	driveScopeValue := func() string {
@@ -453,6 +454,14 @@ func scopesForServiceWithOptions(service Service, opts ScopeOptions) ([]string, 
 	case ServiceGmail:
 		if opts.Readonly || opts.GmailScope == GmailScopeReadonly {
 			return []string{"https://www.googleapis.com/auth/gmail.readonly"}, nil
+		}
+
+		if opts.GmailScope == GmailScopeCompose {
+			return []string{
+				"https://www.googleapis.com/auth/gmail.readonly",
+				"https://www.googleapis.com/auth/gmail.compose",
+				"https://www.googleapis.com/auth/gmail.modify",
+			}, nil
 		}
 
 		return Scopes(service)
