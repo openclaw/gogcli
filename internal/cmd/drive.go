@@ -56,8 +56,11 @@ const (
 	driveShareToUser       = "user"
 	driveShareToDomain     = "domain"
 
-	drivePermRoleReader = "reader"
-	drivePermRoleWriter = "writer"
+	// Drive sharing permission roles matching the Google Drive API roles.
+	// "commenter" allows view + comment access without edit rights.
+	drivePermRoleReader    = "reader"
+	drivePermRoleWriter    = "writer"
+	drivePermRoleCommenter = "commenter"
 )
 
 type DriveCmd struct {
@@ -719,7 +722,7 @@ type DriveShareCmd struct {
 	Anyone       bool   `name:"anyone" hidden:"" help:"(deprecated) Use --to=anyone"`
 	Email        string `name:"email" help:"User email (for --to=user)"`
 	Domain       string `name:"domain" help:"Domain (for --to=domain; e.g. example.com)"`
-	Role         string `name:"role" help:"Permission: reader|writer" default:"reader"`
+	Role         string `name:"role" help:"Permission: reader|writer|commenter" default:"reader"`
 	Discoverable bool   `name:"discoverable" help:"Allow file discovery in search (anyone/domain only)"`
 }
 
@@ -785,8 +788,8 @@ func (c *DriveShareCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if role == "" {
 		role = drivePermRoleReader
 	}
-	if role != drivePermRoleReader && role != drivePermRoleWriter {
-		return usage("invalid --role (expected reader|writer)")
+	if role != drivePermRoleReader && role != drivePermRoleWriter && role != drivePermRoleCommenter {
+		return usage("invalid --role (expected reader|writer|commenter)")
 	}
 
 	svc, err := newDriveService(ctx, account)
