@@ -15,7 +15,7 @@ import (
 
 func TestSanitizeMessageBody_TruncateUTF8(t *testing.T) {
 	long := strings.Repeat("€", 210)
-	got := sanitizeMessageBody(long)
+	got := sanitizeMessageBody(long, false)
 	if !strings.HasSuffix(got, "...") {
 		t.Fatalf("expected truncation suffix, got %q", got)
 	}
@@ -24,8 +24,19 @@ func TestSanitizeMessageBody_TruncateUTF8(t *testing.T) {
 	}
 }
 
+func TestSanitizeMessageBody_FullSkipsTruncation(t *testing.T) {
+	long := strings.Repeat("€", 210)
+	got := sanitizeMessageBody(long, true)
+	if strings.HasSuffix(got, "...") {
+		t.Fatalf("expected no truncation with full=true, got %q", got)
+	}
+	if len([]rune(got)) != 210 {
+		t.Fatalf("expected 210 runes, got %d", len([]rune(got)))
+	}
+}
+
 func TestSanitizeMessageBody_StripsHTML(t *testing.T) {
-	got := sanitizeMessageBody("<html><body>Hi</body></html>")
+	got := sanitizeMessageBody("<html><body>Hi</body></html>", false)
 	if got != "Hi" {
 		t.Fatalf("unexpected sanitized body: %q", got)
 	}
