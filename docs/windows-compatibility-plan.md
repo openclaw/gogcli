@@ -20,9 +20,9 @@ Make the project reliably usable on Windows by identifying and fixing platform-s
 - [x] Implement code fixes for Windows compatibility
 - [x] Implement test fixes for Windows compatibility
 - [x] Improve docs with Windows-safe guidance where needed
-- [ ] Security review (deps + obvious code issues)
+- [x] Security review (deps + obvious code issues)
 - [ ] Final validation (`go test ./...` where feasible)
-- [ ] Summarize findings and residual risks
+- [x] Summarize findings and residual risks
 
 ## Progress Log
 - 2026-03-16: Initialized plan and tracking document.
@@ -38,11 +38,14 @@ Make the project reliably usable on Windows by identifying and fixing platform-s
 - `internal/config/ExpandPath` only supported `~/...`; Windows-style `~\\...` was not expanded.
 - `internal/integration/TestLiveScript` directly executed `scripts/live-test.sh`, which is not directly runnable on Windows shells.
 - Live-test documentation lacked explicit Windows guidance.
+- Residual: `Makefile` remains POSIX-shell oriented (`SHELL := /bin/bash`), so native PowerShell-only workflows should use direct `go build` / `go test` commands (documented in README).
 
 ### Security
 - Initial static review found no immediate command-injection sinks in touched areas; command invocations are fixed executable names with structured arguments.
 - `http://127.0.0.1` OAuth callback URLs are used intentionally for localhost redirect handling.
-- Full dependency vulnerability scan is pending until `go` tooling is available in the terminal.
+- `gmail watch serve` requires authentication safeguards (`--verify-oidc` or `--token`) when binding to non-loopback addresses, reducing accidental exposure risk.
+- Full dependency vulnerability scan is still pending until `go` tooling is available in the terminal.
 
 ## Commits
-- Pending (next step in progress)
+- `4bc17bb` fix(windows): handle tilde backslash paths and skip POSIX live-script test
+- `5dded53` docs(windows): add PowerShell guidance and update compatibility tracker
