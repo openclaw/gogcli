@@ -21,7 +21,7 @@ Make the project reliably usable on Windows by identifying and fixing platform-s
 - [x] Implement test fixes for Windows compatibility
 - [x] Improve docs with Windows-safe guidance where needed
 - [x] Security review (deps + obvious code issues)
-- [ ] Final validation (`go test ./...` where feasible)
+- [x] Final validation (`go test ./...` where feasible)
 - [x] Summarize findings and residual risks
 
 ## Progress Log
@@ -35,6 +35,10 @@ Make the project reliably usable on Windows by identifying and fixing platform-s
 - 2026-03-16: Updated integration `TestLiveScript` to use the PowerShell wrapper on Windows when available.
 - 2026-03-16: Attempted `go test ./...` but `go` command is not available in current terminal PATH.
 - 2026-03-16: Confirmed terminal PATH is missing Go bin directories (`C:\\Program Files\\Go\\bin` or equivalent), so test/CVE tooling remains blocked in this environment.
+- 2026-03-16: User provided Go path (`C:\\Program Files (x86)\\Go\\bin`), enabling final validation.
+- 2026-03-16: Full test suite passed on Windows via explicit go executable path.
+- 2026-03-16: `govulncheck` (run via `go run golang.org/x/vuln/cmd/govulncheck@latest ./...`) reported no known vulnerabilities.
+- 2026-03-16: Fixed a Windows-only test setup issue by setting `USERPROFILE`/`HOMEDRIVE`/`HOMEPATH` in `TestExpandPath`.
 
 ## Findings
 ### Windows Compatibility
@@ -49,10 +53,12 @@ Make the project reliably usable on Windows by identifying and fixing platform-s
 - Initial static review found no immediate command-injection sinks in touched areas; command invocations are fixed executable names with structured arguments.
 - `http://127.0.0.1` OAuth callback URLs are used intentionally for localhost redirect handling.
 - `gmail watch serve` requires authentication safeguards (`--verify-oidc` or `--token`) when binding to non-loopback addresses, reducing accidental exposure risk.
-- Full dependency vulnerability scan is still pending until `go` tooling is available in the terminal.
+- `govulncheck` returned: no known vulnerabilities found.
 
 ## Commits
 - `4bc17bb` fix(windows): handle tilde backslash paths and skip POSIX live-script test
 - `5dded53` docs(windows): add PowerShell guidance and update compatibility tracker
 - `4503c79` docs(plan): record security review and residual windows risks
 - `aa2b075` feat(windows): add PowerShell live-test wrapper and use it in integration
+- `65d0203` docs(plan): update latest windows progress and PATH blocker
+- `9632c2c` test(windows): stabilize ExpandPath home env on Windows
