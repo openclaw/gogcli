@@ -262,13 +262,19 @@ func ExpandPath(path string) (string, error) {
 		return home, nil
 	}
 
-	if strings.HasPrefix(path, "~/") {
+	if strings.HasPrefix(path, "~/") || strings.HasPrefix(path, "~\\") {
 		home, err := os.UserHomeDir()
 		if err != nil {
 			return "", fmt.Errorf("expand home dir: %w", err)
 		}
 
-		return filepath.Join(home, path[2:]), nil
+		rel := strings.TrimPrefix(path[2:], string(os.PathSeparator))
+		rel = strings.TrimLeft(rel, `/\\`)
+		if rel == "" {
+			return home, nil
+		}
+
+		return filepath.Join(home, rel), nil
 	}
 
 	return path, nil

@@ -97,6 +97,11 @@ func TestExpandPath(t *testing.T) {
 			want:  filepath.Join(home, "Downloads/file.txt"),
 		},
 		{
+			name:  "tilde with windows-style subpath",
+			input: "~\\Downloads\\file.txt",
+			want:  filepath.Join(home, "Downloads", "file.txt"),
+		},
+		{
 			name:  "absolute path unchanged",
 			input: "/usr/local/bin",
 			want:  "/usr/local/bin",

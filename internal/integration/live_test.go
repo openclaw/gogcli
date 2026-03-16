@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 )
@@ -14,6 +15,9 @@ import (
 func TestLiveScript(t *testing.T) {
 	if os.Getenv("GOG_LIVE") == "" {
 		t.Skip("set GOG_LIVE=1 to run live tests")
+	}
+	if runtime.GOOS == "windows" {
+		t.Skip("scripts/live-test.sh requires a POSIX shell; run from Git Bash/WSL or use non-script integration tests")
 	}
 
 	root := findRepoRoot(t)
