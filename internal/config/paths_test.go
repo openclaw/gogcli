@@ -74,6 +74,11 @@ func TestPaths_CreateDirs(t *testing.T) {
 func TestExpandPath(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	if vol := filepath.VolumeName(home); vol != "" {
+		t.Setenv("HOMEDRIVE", vol)
+		t.Setenv("HOMEPATH", strings.TrimPrefix(home, vol))
+	}
 
 	tests := []struct {
 		name    string
