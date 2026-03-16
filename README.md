@@ -1614,6 +1614,13 @@ After cloning, install tools:
 make tools
 ```
 
+Windows (PowerShell) note: the `Makefile` uses POSIX shell commands. If you are not running Git Bash/WSL, use direct Go commands instead:
+
+```powershell
+go build -o .\bin\gog.exe .\cmd\gog
+go test ./...
+```
+
 Pinned tools (installed into `.tools/`):
 
 - Format: `make fmt` (goimports + gofumpt)

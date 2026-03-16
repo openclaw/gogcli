@@ -30,6 +30,7 @@ Make the project reliably usable on Windows by identifying and fixing platform-s
 - 2026-03-16: Added test coverage for Windows-style home expansion.
 - 2026-03-16: Updated integration live-script test to skip on Windows (POSIX-shell dependency).
 - 2026-03-16: Added Windows guidance for live script execution in `README.md`.
+- 2026-03-16: Added Windows PowerShell development fallback commands in `README.md` for environments without POSIX shell tooling.
 - 2026-03-16: Attempted `go test ./...` but `go` command is not available in current terminal PATH.
 
 ## Findings
@@ -40,6 +41,7 @@ Make the project reliably usable on Windows by identifying and fixing platform-s
 
 ### Security
 - Initial static review found no immediate command-injection sinks in touched areas; command invocations are fixed executable names with structured arguments.
+- `http://127.0.0.1` OAuth callback URLs are used intentionally for localhost redirect handling.
 - Full dependency vulnerability scan is pending until `go` tooling is available in the terminal.
 
 ## Commits
