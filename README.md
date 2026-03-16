@@ -1652,7 +1652,13 @@ scripts/live-test.sh --account you@gmail.com --skip groups,keep,calendar-enterpr
 scripts/live-test.sh --client work --account you@company.com
 ```
 
-Windows note: `scripts/live-test.sh` is a POSIX shell script. Run it from Git Bash or WSL.
+Windows note: use the PowerShell wrapper (it invokes Git Bash when available):
+
+```powershell
+.\scripts\live-test.ps1 --fast
+```
+
+If you prefer WSL directly:
 
 ```powershell
 wsl bash scripts/live-test.sh --fast

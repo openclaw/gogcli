@@ -16,12 +16,19 @@ func TestLiveScript(t *testing.T) {
 	if os.Getenv("GOG_LIVE") == "" {
 		t.Skip("set GOG_LIVE=1 to run live tests")
 	}
-	if runtime.GOOS == "windows" {
-		t.Skip("scripts/live-test.sh requires a POSIX shell; run from Git Bash/WSL or use non-script integration tests")
-	}
 
 	root := findRepoRoot(t)
 	script := filepath.Join(root, "scripts", "live-test.sh")
+	cmdName := script
+	cmdArgs := []string{}
+	if runtime.GOOS == "windows" {
+		script = filepath.Join(root, "scripts", "live-test.ps1")
+		if _, err := os.Stat(script); err != nil {
+			t.Skipf("windows live test wrapper not found at %s", script)
+		}
+		cmdName = "powershell"
+		cmdArgs = []string{"-NoProfile", "-ExecutionPolicy", "Bypass", "-File", script}
+	}
 
 	args := []string{}
 	if os.Getenv("GOG_LIVE_FAST") != "" {
@@ -46,7 +53,7 @@ func TestLiveScript(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Minute)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, script, args...)
+	cmd := exec.CommandContext(ctx, cmdName, append(cmdArgs, args...)...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	cmd.Env = os.Environ()

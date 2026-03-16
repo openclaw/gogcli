@@ -31,6 +31,8 @@ Make the project reliably usable on Windows by identifying and fixing platform-s
 - 2026-03-16: Updated integration live-script test to skip on Windows (POSIX-shell dependency).
 - 2026-03-16: Added Windows guidance for live script execution in `README.md`.
 - 2026-03-16: Added Windows PowerShell development fallback commands in `README.md` for environments without POSIX shell tooling.
+- 2026-03-16: Added `scripts/live-test.ps1` wrapper so live CLI smoke tests can be launched from PowerShell.
+- 2026-03-16: Updated integration `TestLiveScript` to use the PowerShell wrapper on Windows when available.
 - 2026-03-16: Attempted `go test ./...` but `go` command is not available in current terminal PATH.
 
 ## Findings
@@ -38,6 +40,8 @@ Make the project reliably usable on Windows by identifying and fixing platform-s
 - `internal/config/ExpandPath` only supported `~/...`; Windows-style `~\\...` was not expanded.
 - `internal/integration/TestLiveScript` directly executed `scripts/live-test.sh`, which is not directly runnable on Windows shells.
 - Live-test documentation lacked explicit Windows guidance.
+- Added PowerShell wrapper for live test script execution from Windows shells.
+- Residual: live tests still require a POSIX shell runtime (Git Bash/WSL) under the hood.
 - Residual: `Makefile` remains POSIX-shell oriented (`SHELL := /bin/bash`), so native PowerShell-only workflows should use direct `go build` / `go test` commands (documented in README).
 
 ### Security
