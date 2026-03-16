@@ -54,6 +54,12 @@ cd gogcli
 make
 ```
 
+Windows (PowerShell, no Make/bash required):
+
+```powershell
+go build -o .\bin\gog.exe .\cmd\gog
+```
+
 Run:
 
 ```bash
@@ -107,6 +113,12 @@ Before adding an account, create OAuth2 credentials from Google Cloud Console:
 gog auth credentials ~/Downloads/client_secret_....json
 ```
 
+Windows PowerShell:
+
+```powershell
+.\bin\gog.exe auth credentials "C:\path\to\client_secret_....json"
+```
+
 For multiple OAuth clients/projects:
 
 ```bash
@@ -118,6 +130,12 @@ gog auth credentials list
 
 ```bash
 gog auth add you@gmail.com
+```
+
+Windows PowerShell:
+
+```powershell
+.\bin\gog.exe auth add you@gmail.com
 ```
 
 This will open a browser window for OAuth authorization. The refresh token is stored securely in your system keychain.
@@ -173,6 +191,13 @@ gog --access-token "$(gcloud auth print-access-token)" gmail labels list
 ```bash
 export GOG_ACCOUNT=you@gmail.com
 gog gmail labels list
+```
+
+Windows PowerShell:
+
+```powershell
+$env:GOG_ACCOUNT = "you@gmail.com"
+.\bin\gog.exe gmail labels list
 ```
 
 ## Authentication & Secrets
@@ -557,6 +582,7 @@ Options:
 - **Never commit OAuth client credentials** to version control
 - Store client credentials outside your project directory
 - Use different OAuth clients for development and production
+- Rotate the OAuth client secret immediately if it is ever shared or exposed
 - Re-authorize with `--force-consent` if you suspect token compromise
 - Remove unused accounts with `gog auth remove <email>`
 
@@ -1675,6 +1701,13 @@ Go test wrapper (opt-in):
 
 ```bash
 GOG_LIVE=1 go test -tags=integration ./internal/integration -run Live
+```
+
+Windows PowerShell:
+
+```powershell
+$env:GOG_LIVE = "1"
+go test -tags=integration ./internal/integration -run Live
 ```
 
 Optional env:
