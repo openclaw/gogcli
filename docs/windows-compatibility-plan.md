@@ -34,11 +34,12 @@ Make the project reliably usable on Windows by identifying and fixing platform-s
 - 2026-03-16: Added `scripts/live-test.ps1` wrapper so live CLI smoke tests can be launched from PowerShell.
 - 2026-03-16: Updated integration `TestLiveScript` to use the PowerShell wrapper on Windows when available.
 - 2026-03-16: Attempted `go test ./...` but `go` command is not available in current terminal PATH.
+- 2026-03-16: Confirmed terminal PATH is missing Go bin directories (`C:\\Program Files\\Go\\bin` or equivalent), so test/CVE tooling remains blocked in this environment.
 
 ## Findings
 ### Windows Compatibility
 - `internal/config/ExpandPath` only supported `~/...`; Windows-style `~\\...` was not expanded.
-- `internal/integration/TestLiveScript` directly executed `scripts/live-test.sh`, which is not directly runnable on Windows shells.
+- `internal/integration/TestLiveScript` originally executed `scripts/live-test.sh` directly; updated to use `scripts/live-test.ps1` via PowerShell on Windows.
 - Live-test documentation lacked explicit Windows guidance.
 - Added PowerShell wrapper for live test script execution from Windows shells.
 - Residual: live tests still require a POSIX shell runtime (Git Bash/WSL) under the hood.
@@ -53,3 +54,5 @@ Make the project reliably usable on Windows by identifying and fixing platform-s
 ## Commits
 - `4bc17bb` fix(windows): handle tilde backslash paths and skip POSIX live-script test
 - `5dded53` docs(windows): add PowerShell guidance and update compatibility tracker
+- `4503c79` docs(plan): record security review and residual windows risks
+- `aa2b075` feat(windows): add PowerShell live-test wrapper and use it in integration
