@@ -39,6 +39,7 @@ type RootFlags struct {
 	Select         string `name:"select" aliases:"pick,project" help:"In JSON mode, select comma-separated fields (best-effort; supports dot paths). Desire path: use --fields for most commands."`
 	DryRun         bool   `help:"Do not make changes; print intended actions and exit successfully" aliases:"noop,preview,dryrun" short:"n"`
 	Force          bool   `help:"Skip confirmations for destructive commands" aliases:"yes,assume-yes" short:"y"`
+	GmailNoSend    bool   `help:"Block all Gmail send operations (agent safety)" env:"GOG_GMAIL_NO_SEND"`
 	NoInput        bool   `help:"Never prompt; fail instead (useful for CI)" aliases:"non-interactive,noninteractive"`
 	Verbose        bool   `help:"Enable verbose logging" short:"v"`
 }
@@ -123,6 +124,11 @@ func Execute(args []string) (err error) {
 	}
 
 	if err = enforceEnabledCommands(kctx, cli.EnableCommands); err != nil {
+		_, _ = fmt.Fprintln(os.Stderr, errfmt.Format(err))
+		return err
+	}
+
+	if err = enforceGmailNoSend(kctx, cli.GmailNoSend); err != nil {
 		_, _ = fmt.Fprintln(os.Stderr, errfmt.Format(err))
 		return err
 	}
