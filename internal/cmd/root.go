@@ -39,7 +39,7 @@ type RootFlags struct {
 	Select         string `name:"select" aliases:"pick,project" help:"In JSON mode, select comma-separated fields (best-effort; supports dot paths). Desire path: use --fields for most commands."`
 	DryRun         bool   `help:"Do not make changes; print intended actions and exit successfully" aliases:"noop,preview,dryrun" short:"n"`
 	Force          bool   `help:"Skip confirmations for destructive commands" aliases:"yes,assume-yes" short:"y"`
-	GmailNoSend    bool   `help:"Block all Gmail send operations (agent safety)" env:"GOG_GMAIL_NO_SEND"`
+	GmailNoSend    bool   `help:"Block all Gmail send operations (agent safety) ($GOG_GMAIL_NO_SEND)" default:"${gmail_no_send}"`
 	NoInput        bool   `help:"Never prompt; fail instead (useful for CI)" aliases:"non-interactive,noninteractive"`
 	Verbose        bool   `help:"Enable verbose logging" short:"v"`
 }
@@ -316,6 +316,7 @@ func newParser(description string) (*kong.Kong, *CLI, error) {
 		"calendar_weekday": envOr("GOG_CALENDAR_WEEKDAY", "false"),
 		"client":           envOr("GOG_CLIENT", ""),
 		"enabled_commands": envOr("GOG_ENABLE_COMMANDS", ""),
+		"gmail_no_send":    boolString(envBool("GOG_GMAIL_NO_SEND")),
 		"json":             boolString(envMode.JSON),
 		"plain":            boolString(envMode.Plain),
 		"version":          VersionString(),

@@ -18,6 +18,8 @@ type File struct {
 	AccountClients  map[string]string `json:"account_clients,omitempty"`
 	ClientDomains   map[string]string `json:"client_domains,omitempty"`
 	CalendarAliases map[string]string `json:"calendar_aliases,omitempty"`
+	GmailNoSend     bool              `json:"gmail_no_send,omitempty"`
+	NoSendAccounts  map[string]bool   `json:"no_send_accounts,omitempty"`
 }
 
 var errConfigLockTimeout = errors.New("acquire config lock timeout")

@@ -12,6 +12,7 @@ type Key string
 const (
 	KeyTimezone       Key = "timezone"
 	KeyKeyringBackend Key = "keyring_backend"
+	KeyGmailNoSend    Key = "gmail_no_send"
 )
 
 type KeySpec struct {
@@ -25,6 +26,7 @@ type KeySpec struct {
 var keyOrder = []Key{
 	KeyTimezone,
 	KeyKeyringBackend,
+	KeyGmailNoSend,
 }
 
 var keySpecs = map[Key]KeySpec{
@@ -65,13 +67,51 @@ var keySpecs = map[Key]KeySpec{
 			return "(not set, using auto)"
 		},
 	},
+	KeyGmailNoSend: {
+		Key: KeyGmailNoSend,
+		Get: func(cfg File) string {
+			if cfg.GmailNoSend {
+				return "true"
+			}
+
+			return "false"
+		},
+		Set: func(cfg *File, value string) error {
+			b, err := parseBoolValue(value)
+			if err != nil {
+				return fmt.Errorf("invalid gmail_no_send value %q: %w (use true/false)", value, err)
+			}
+
+			cfg.GmailNoSend = b
+
+			return nil
+		},
+		Unset: func(cfg *File) {
+			cfg.GmailNoSend = false
+		},
+		EmptyHint: func() string {
+			return "(not set, send allowed)"
+		},
+	},
 }
 
 var (
 	errUnknownConfigKey     = errors.New("unknown config key")
 	errConfigKeyCannotSet   = errors.New("config key cannot be set")
 	errConfigKeyCannotUnset = errors.New("config key cannot be unset")
+	errInvalidBoolValue     = errors.New("invalid boolean value")
 )
+
+func parseBoolValue(s string) (bool, error) {
+	switch strings.ToLower(strings.TrimSpace(s)) {
+	case "true", "1", "yes", "on":
+		return true, nil
+	case "false", "0", "no", "off", "":
+		return false, nil
+	default:
+		return false, fmt.Errorf("%w: %q", errInvalidBoolValue, s)
+	}
+}
 
 func (k Key) String() string {
 	return string(k)
