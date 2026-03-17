@@ -7,7 +7,7 @@ Fast, script-friendly CLI for Gmail, Calendar, Chat, Classroom, Drive, Docs, Sli
 
 ## Features
 
-- **Gmail** - search threads/messages, send mail, view attachments, manage labels/drafts/filters/delegation/vacation settings, modify single messages, export filters, inspect history, and run Pub/Sub watch webhooks
+- **Gmail** - search threads/messages, send mail, view attachments, manage labels (create/rename/style/delete)/drafts/filters/delegation/vacation settings, modify single messages, export filters, inspect history, and run Pub/Sub watch webhooks
 - **Email tracking** - track opens for `gog gmail send --track` with a small Cloudflare Worker backend
 - **Calendar** - list/create/update/delete events, manage invitations, aliases, subscriptions, team calendars, free/busy/conflicts, propose new times, focus/OOO/working-location events, recurrence, and reminders
 - **Classroom** - manage courses, roster, coursework/materials, submissions, announcements, topics, invitations, guardians, profiles
@@ -652,6 +652,7 @@ gog gmail labels create "My Label"
 gog gmail labels rename "Old Label" "New Label"
 gog gmail labels modify <threadId> --add STARRED --remove INBOX
 gog gmail labels delete <labelIdOrName>  # Deletes user label (guards system labels; confirm)
+gog gmail labels style <labelIdOrName> --background-color "#16a765" --text-color "#ffffff"  # Change label color
 
 # Batch operations
 gog gmail batch delete <messageId> <messageId>

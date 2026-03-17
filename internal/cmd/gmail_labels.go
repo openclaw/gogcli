@@ -19,6 +19,7 @@ type GmailLabelsCmd struct {
 	Rename GmailLabelsRenameCmd `cmd:"" name:"rename" aliases:"mv" help:"Rename a label"`
 	Modify GmailLabelsModifyCmd `cmd:"" name:"modify" aliases:"update,edit,set" help:"Modify labels on threads"`
 	Delete GmailLabelsDeleteCmd `cmd:"" name:"delete" aliases:"rm,del" help:"Delete a label"`
+	Style  GmailLabelsStyleCmd  `cmd:"" name:"style" aliases:"color" help:"Change label styles"`
 }
 
 type GmailLabelsGetCmd struct {
@@ -382,6 +383,93 @@ func (c *GmailLabelsDeleteCmd) Run(ctx context.Context, flags *RootFlags) error 
 		kv("id", label.Id),
 		kv("name", label.Name),
 	)
+}
+
+type GmailLabelsStyleCmd struct {
+	Label           string `arg:"" name:"labelIdOrName" help:"Label ID or name"`
+	BackgroundColor string `name:"background-color" help:"Background color (hex, e.g. #16a765)"`
+	TextColor       string `name:"text-color" help:"Text color (hex, e.g. #ffffff)"`
+}
+
+func (c *GmailLabelsStyleCmd) Run(ctx context.Context, flags *RootFlags) error {
+	u := ui.FromContext(ctx)
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
+	}
+
+	backgroundColor := strings.TrimSpace(c.BackgroundColor)
+	textColor := strings.TrimSpace(c.TextColor)
+
+	if backgroundColor == "" || textColor == "" {
+		return usage("both --background-color and --text-color are required")
+	}
+
+	raw := strings.TrimSpace(c.Label)
+	if raw == "" {
+		return usage("label is required")
+	}
+
+	svc, err := newGmailService(ctx, account)
+	if err != nil {
+		return err
+	}
+
+	label, err := svc.Users.Labels.Get("me", raw).Context(ctx).Do()
+	if err != nil {
+		if !isNotFoundAPIError(err) {
+			return err
+		}
+		if looksLikeCustomLabelID(raw) {
+			return fmt.Errorf("label not found: %s", raw)
+		}
+		idMap, mapErr := fetchLabelNameOnlyToID(svc)
+		if mapErr != nil {
+			return mapErr
+		}
+		id, ok := idMap[strings.ToLower(raw)]
+		if !ok {
+			return fmt.Errorf("label not found: %s", raw)
+		}
+		label, err = svc.Users.Labels.Get("me", id).Context(ctx).Do()
+		if err != nil {
+			return err
+		}
+	}
+
+	if label.Type == "system" {
+		return fmt.Errorf("cannot style system label %q", label.Name)
+	}
+
+	if exit := dryRunExit(ctx, flags, "gmail.labels.style", map[string]string{
+		"id":              label.Id,
+		"name":            label.Name,
+		"backgroundColor": backgroundColor,
+		"textColor":       textColor,
+	}); exit != nil {
+		return exit
+	}
+
+	updated, err := svc.Users.Labels.Patch("me", label.Id, &gmail.Label{
+		Color: &gmail.LabelColor{
+			BackgroundColor: backgroundColor,
+			TextColor:       textColor,
+		},
+	}).Context(ctx).Do()
+	if err != nil {
+		return err
+	}
+
+	if outfmt.IsJSON(ctx) {
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{"label": updated})
+	}
+	if updated.Color != nil {
+		u.Out().Printf("Styled label %q (id: %s): background=%s text=%s",
+			updated.Name, updated.Id, updated.Color.BackgroundColor, updated.Color.TextColor)
+	} else {
+		u.Out().Printf("Styled label %q (id: %s)", updated.Name, updated.Id)
+	}
+	return nil
 }
 
 func fetchLabelIDToName(svc *gmail.Service) (map[string]string, error) {
