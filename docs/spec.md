@@ -160,8 +160,9 @@ Flag aliases:
 - `gog auth credentials <credentials.json|->`
 - `gog auth credentials list`
 - `gog --client <name> auth credentials <credentials.json|->`
-- `gog auth add <email> [--services user|all|gmail,calendar,classroom,drive,docs,contacts,tasks,sheets,people,groups] [--readonly] [--drive-scope full|readonly|file] [--gmail-scope full|readonly] [--manual] [--remote] [--step 1|2] [--auth-url URL] [--timeout DURATION] [--force-consent]`
+- `gog auth add <email> [--services user|all|gmail,calendar,classroom,drive,docs,contacts,tasks,sheets,people,groups] [--readonly] [--drive-scope full|readonly|file] [--gmail-scope full|readonly] [--extra-scopes CSV] [--manual] [--remote] [--step 1|2] [--auth-url URL] [--listen-addr HOST[:PORT]] [--redirect-host HOST] [--timeout DURATION] [--force-consent]`
 - `gog auth services [--markdown]`
+- `gog auth manage [--services ...] [--listen-addr HOST[:PORT]] [--redirect-host HOST]`
 - `gog auth keep <email> --key <service-account.json>` (Google Keep; Workspace only)
 - `gog auth list`
 - `gog auth alias list`
@@ -200,7 +201,8 @@ Flag aliases:
 - `gog calendar create <calendarId> --summary S --from DT --to DT [--description D] [--location L] [--attendees a@b.com,c@d.com] [--all-day] [--event-type TYPE]`
 - `gog calendar update <calendarId> <eventId> [--summary S] [--from DT] [--to DT] [--description D] [--location L] [--attendees ...] [--add-attendee ...] [--all-day] [--event-type TYPE]`
 - `gog calendar delete <calendarId> <eventId>`
-- `gog calendar freebusy <calendarIds> --from RFC3339 --to RFC3339`
+- `gog calendar freebusy [calendarIds] [--cal ID_OR_NAME] [--calendars CSV] [--all] --from RFC3339 --to RFC3339`
+- `gog calendar conflicts [--cal ID_OR_NAME] [--calendars CSV] [--all] [--from RFC3339|date|relative] [--to RFC3339|date|relative] [--today|--week|--days N]`
 - `gog calendar respond <calendarId> <eventId> --status accepted|declined|tentative [--send-updates all|none|externalOnly]`
 - `gog time now [--timezone TZ]`
 - `gog classroom courses [--state ...] [--max N] [--page TOKEN]`
@@ -272,6 +274,7 @@ Flag aliases:
 - `gog gmail labels list`
 - `gog gmail labels get <labelIdOrName>`
 - `gog gmail labels create <name>`
+- `gog gmail labels rename <labelIdOrName> <newName>`
 - `gog gmail labels modify <threadIds...> [--add ...] [--remove ...]`
 - `gog gmail send --to a@b.com --subject S [--body B] [--body-html H] [--cc ...] [--bcc ...] [--reply-to-message-id <messageId>] [--reply-to addr] [--attach <file>...]`
 - `gog gmail drafts list [--max N] [--page TOKEN]`
@@ -303,8 +306,8 @@ Flag aliases:
 - `gog contacts search <query> [--max N]`
 - `gog contacts list [--max N] [--page TOKEN]`
 - `gog contacts get <people/...|email>`
-- `gog contacts create --given NAME [--family NAME] [--email addr] [--phone num]`
-- `gog contacts update <people/...> [--given NAME] [--family NAME] [--email addr] [--phone num] [--birthday YYYY-MM-DD] [--notes TEXT] [--from-file PATH|-] [--ignore-etag]`
+- `gog contacts create --given NAME [--family NAME] [--email addr] [--phone num] [--relation type=person]`
+- `gog contacts update <people/...> [--given NAME] [--family NAME] [--email addr] [--phone num] [--birthday YYYY-MM-DD] [--notes TEXT] [--relation type=person] [--from-file PATH|-] [--ignore-etag]`
 - `gog contacts delete <people/...>`
 - `gog contacts directory list [--max N] [--page TOKEN]`
 - `gog contacts directory search <query> [--max N] [--page TOKEN]`

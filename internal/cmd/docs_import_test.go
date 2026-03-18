@@ -6,11 +6,24 @@ import (
 	"google.golang.org/api/docs/v1"
 )
 
+// testImages creates []markdownImage with the fixed "test" token for use in tests.
+func testImages(count int) []markdownImage {
+	imgs := make([]markdownImage, count)
+	for i := range imgs {
+		imgs[i] = markdownImage{index: i, token: "test"}
+	}
+	return imgs
+}
+
 // ---------------------------------------------------------------------------
 // extractMarkdownImages
 // ---------------------------------------------------------------------------
 
 func TestExtractMarkdownImages_NoImages(t *testing.T) {
+	origToken := imgPlaceholderToken
+	t.Cleanup(func() { imgPlaceholderToken = origToken })
+	imgPlaceholderToken = func() string { return "test" }
+
 	content := "Hello world, no images here."
 	cleaned, images := extractMarkdownImages(content)
 	if cleaned != content {
@@ -22,10 +35,14 @@ func TestExtractMarkdownImages_NoImages(t *testing.T) {
 }
 
 func TestExtractMarkdownImages_SingleImage(t *testing.T) {
+	origToken := imgPlaceholderToken
+	t.Cleanup(func() { imgPlaceholderToken = origToken })
+	imgPlaceholderToken = func() string { return "test" }
+
 	content := "![alt text](image.png)"
 	cleaned, images := extractMarkdownImages(content)
-	if cleaned != "<<IMG_0>>" {
-		t.Fatalf("expected <<IMG_0>>, got %q", cleaned)
+	if cleaned != "<<IMG_test_0>>" {
+		t.Fatalf("expected <<IMG_test_0>>, got %q", cleaned)
 	}
 	if len(images) != 1 {
 		t.Fatalf("expected 1 image, got %d", len(images))
@@ -42,12 +59,16 @@ func TestExtractMarkdownImages_SingleImage(t *testing.T) {
 }
 
 func TestExtractMarkdownImages_MultipleImages(t *testing.T) {
+	origToken := imgPlaceholderToken
+	t.Cleanup(func() { imgPlaceholderToken = origToken })
+	imgPlaceholderToken = func() string { return "test" }
+
 	content := "![a](one.png) text ![b](two.jpg) more ![c](three.gif)"
 	cleaned, images := extractMarkdownImages(content)
 	if len(images) != 3 {
 		t.Fatalf("expected 3 images, got %d", len(images))
 	}
-	want := "<<IMG_0>> text <<IMG_1>> more <<IMG_2>>"
+	want := "<<IMG_test_0>> text <<IMG_test_1>> more <<IMG_test_2>>"
 	if cleaned != want {
 		t.Fatalf("expected %q, got %q", want, cleaned)
 	}
@@ -74,10 +95,14 @@ func TestExtractMarkdownImages_RemoteURL(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			origToken := imgPlaceholderToken
+			t.Cleanup(func() { imgPlaceholderToken = origToken })
+			imgPlaceholderToken = func() string { return "test" }
+
 			content := "![photo](" + tc.url + ")"
 			cleaned, images := extractMarkdownImages(content)
-			if cleaned != "<<IMG_0>>" {
-				t.Fatalf("expected <<IMG_0>>, got %q", cleaned)
+			if cleaned != "<<IMG_test_0>>" {
+				t.Fatalf("expected <<IMG_test_0>>, got %q", cleaned)
 			}
 			if len(images) != 1 {
 				t.Fatalf("expected 1 image, got %d", len(images))
@@ -101,6 +126,10 @@ func TestExtractMarkdownImages_LocalFilePath(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			origToken := imgPlaceholderToken
+			t.Cleanup(func() { imgPlaceholderToken = origToken })
+			imgPlaceholderToken = func() string { return "test" }
+
 			content := "![img](" + tc.path + ")"
 			_, images := extractMarkdownImages(content)
 			if len(images) != 1 {
@@ -114,10 +143,14 @@ func TestExtractMarkdownImages_LocalFilePath(t *testing.T) {
 }
 
 func TestExtractMarkdownImages_WithTitleText(t *testing.T) {
+	origToken := imgPlaceholderToken
+	t.Cleanup(func() { imgPlaceholderToken = origToken })
+	imgPlaceholderToken = func() string { return "test" }
+
 	content := `![alt](image.png "My Title")`
 	cleaned, images := extractMarkdownImages(content)
-	if cleaned != "<<IMG_0>>" {
-		t.Fatalf("expected <<IMG_0>>, got %q", cleaned)
+	if cleaned != "<<IMG_test_0>>" {
+		t.Fatalf("expected <<IMG_test_0>>, got %q", cleaned)
 	}
 	if len(images) != 1 {
 		t.Fatalf("expected 1 image, got %d", len(images))
@@ -131,22 +164,30 @@ func TestExtractMarkdownImages_WithTitleText(t *testing.T) {
 }
 
 func TestExtractMarkdownImages_MixedContent(t *testing.T) {
+	origToken := imgPlaceholderToken
+	t.Cleanup(func() { imgPlaceholderToken = origToken })
+	imgPlaceholderToken = func() string { return "test" }
+
 	content := "# Heading\n\nSome text before.\n\n![first](a.png)\n\nMiddle paragraph.\n\n![second](b.jpg)\n\nText after images."
 	cleaned, images := extractMarkdownImages(content)
 	if len(images) != 2 {
 		t.Fatalf("expected 2 images, got %d", len(images))
 	}
-	want := "# Heading\n\nSome text before.\n\n<<IMG_0>>\n\nMiddle paragraph.\n\n<<IMG_1>>\n\nText after images."
+	want := "# Heading\n\nSome text before.\n\n<<IMG_test_0>>\n\nMiddle paragraph.\n\n<<IMG_test_1>>\n\nText after images."
 	if cleaned != want {
 		t.Fatalf("expected:\n%s\ngot:\n%s", want, cleaned)
 	}
 }
 
 func TestExtractMarkdownImages_EmptyAltText(t *testing.T) {
+	origToken := imgPlaceholderToken
+	t.Cleanup(func() { imgPlaceholderToken = origToken })
+	imgPlaceholderToken = func() string { return "test" }
+
 	content := "![](image.png)"
 	cleaned, images := extractMarkdownImages(content)
-	if cleaned != "<<IMG_0>>" {
-		t.Fatalf("expected <<IMG_0>>, got %q", cleaned)
+	if cleaned != "<<IMG_test_0>>" {
+		t.Fatalf("expected <<IMG_test_0>>, got %q", cleaned)
 	}
 	if len(images) != 1 {
 		t.Fatalf("expected 1 image, got %d", len(images))
@@ -157,10 +198,14 @@ func TestExtractMarkdownImages_EmptyAltText(t *testing.T) {
 }
 
 func TestExtractMarkdownImages_SpecialCharsInURL(t *testing.T) {
+	origToken := imgPlaceholderToken
+	t.Cleanup(func() { imgPlaceholderToken = origToken })
+	imgPlaceholderToken = func() string { return "test" }
+
 	content := "![pic](https://example.com/path/to/image%20name.png?v=2&size=large)"
 	cleaned, images := extractMarkdownImages(content)
-	if cleaned != "<<IMG_0>>" {
-		t.Fatalf("expected <<IMG_0>>, got %q", cleaned)
+	if cleaned != "<<IMG_test_0>>" {
+		t.Fatalf("expected <<IMG_test_0>>, got %q", cleaned)
 	}
 	if len(images) != 1 {
 		t.Fatalf("expected 1 image, got %d", len(images))
@@ -171,15 +216,23 @@ func TestExtractMarkdownImages_SpecialCharsInURL(t *testing.T) {
 }
 
 func TestExtractMarkdownImages_PlaceholderFormat(t *testing.T) {
+	origToken := imgPlaceholderToken
+	t.Cleanup(func() { imgPlaceholderToken = origToken })
+	imgPlaceholderToken = func() string { return "test" }
+
 	content := "![a](one.png) ![b](two.png) ![c](three.png)"
 	cleaned, images := extractMarkdownImages(content)
 	_ = images
-	if cleaned != "<<IMG_0>> <<IMG_1>> <<IMG_2>>" {
+	if cleaned != "<<IMG_test_0>> <<IMG_test_1>> <<IMG_test_2>>" {
 		t.Fatalf("unexpected placeholder format: %q", cleaned)
 	}
 }
 
 func TestExtractMarkdownImages_EmptyContent(t *testing.T) {
+	origToken := imgPlaceholderToken
+	t.Cleanup(func() { imgPlaceholderToken = origToken })
+	imgPlaceholderToken = func() string { return "test" }
+
 	cleaned, images := extractMarkdownImages("")
 	if cleaned != "" {
 		t.Fatalf("expected empty string, got %q", cleaned)
@@ -198,13 +251,13 @@ func TestMarkdownImage_Placeholder(t *testing.T) {
 		index int
 		want  string
 	}{
-		{0, "<<IMG_0>>"},
-		{1, "<<IMG_1>>"},
-		{5, "<<IMG_5>>"},
-		{42, "<<IMG_42>>"},
+		{0, "<<IMG_test_0>>"},
+		{1, "<<IMG_test_1>>"},
+		{5, "<<IMG_test_5>>"},
+		{42, "<<IMG_test_42>>"},
 	}
 	for _, tc := range tests {
-		img := markdownImage{index: tc.index}
+		img := markdownImage{index: tc.index, token: "test"}
 		got := img.placeholder()
 		if got != tc.want {
 			t.Errorf("index %d: placeholder() = %q, want %q", tc.index, got, tc.want)
@@ -243,7 +296,7 @@ func TestMarkdownImage_IsRemote(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestFindPlaceholderIndices_NilDocument(t *testing.T) {
-	result := findPlaceholderIndices(nil, 1)
+	result := findPlaceholderIndices(nil, testImages(1))
 	if len(result) != 0 {
 		t.Fatalf("expected empty map for nil doc, got %d entries", len(result))
 	}
@@ -251,7 +304,7 @@ func TestFindPlaceholderIndices_NilDocument(t *testing.T) {
 
 func TestFindPlaceholderIndices_NilBody(t *testing.T) {
 	doc := &docs.Document{}
-	result := findPlaceholderIndices(doc, 1)
+	result := findPlaceholderIndices(doc, testImages(1))
 	if len(result) != 0 {
 		t.Fatalf("expected empty map for nil body, got %d entries", len(result))
 	}
@@ -263,7 +316,7 @@ func TestFindPlaceholderIndices_EmptyDocument(t *testing.T) {
 			Content: []*docs.StructuralElement{},
 		},
 	}
-	result := findPlaceholderIndices(doc, 1)
+	result := findPlaceholderIndices(doc, testImages(1))
 	if len(result) != 0 {
 		t.Fatalf("expected empty map for empty doc, got %d entries", len(result))
 	}
@@ -278,7 +331,7 @@ func TestFindPlaceholderIndices_CountZero(t *testing.T) {
 						Elements: []*docs.ParagraphElement{
 							{
 								StartIndex: 0,
-								TextRun:    &docs.TextRun{Content: "<<IMG_0>>"},
+								TextRun:    &docs.TextRun{Content: "<<IMG_test_0>>"},
 							},
 						},
 					},
@@ -286,7 +339,7 @@ func TestFindPlaceholderIndices_CountZero(t *testing.T) {
 			},
 		},
 	}
-	result := findPlaceholderIndices(doc, 0)
+	result := findPlaceholderIndices(doc, testImages(0))
 	if len(result) != 0 {
 		t.Fatalf("expected empty map for count=0, got %d entries", len(result))
 	}
@@ -309,7 +362,7 @@ func TestFindPlaceholderIndices_NoPlaceholders(t *testing.T) {
 			},
 		},
 	}
-	result := findPlaceholderIndices(doc, 2)
+	result := findPlaceholderIndices(doc, testImages(2))
 	if len(result) != 0 {
 		t.Fatalf("expected empty map for doc with no placeholders, got %d entries", len(result))
 	}
@@ -324,7 +377,7 @@ func TestFindPlaceholderIndices_SinglePlaceholder(t *testing.T) {
 						Elements: []*docs.ParagraphElement{
 							{
 								StartIndex: 1,
-								TextRun:    &docs.TextRun{Content: "<<IMG_0>>"},
+								TextRun:    &docs.TextRun{Content: "<<IMG_test_0>>"},
 							},
 						},
 					},
@@ -332,19 +385,19 @@ func TestFindPlaceholderIndices_SinglePlaceholder(t *testing.T) {
 			},
 		},
 	}
-	result := findPlaceholderIndices(doc, 1)
+	result := findPlaceholderIndices(doc, testImages(1))
 	if len(result) != 1 {
 		t.Fatalf("expected 1 placeholder, got %d", len(result))
 	}
-	dr, ok := result["<<IMG_0>>"]
+	dr, ok := result["<<IMG_test_0>>"]
 	if !ok {
-		t.Fatalf("<<IMG_0>> not found in result")
+		t.Fatalf("<<IMG_test_0>> not found in result")
 	}
 	if dr.startIndex != 1 {
 		t.Fatalf("expected startIndex 1, got %d", dr.startIndex)
 	}
-	if dr.endIndex != 1+int64(len("<<IMG_0>>")) {
-		t.Fatalf("expected endIndex %d, got %d", 1+len("<<IMG_0>>"), dr.endIndex)
+	if dr.endIndex != 1+int64(len("<<IMG_test_0>>")) {
+		t.Fatalf("expected endIndex %d, got %d", 1+len("<<IMG_test_0>>"), dr.endIndex)
 	}
 }
 
@@ -357,7 +410,7 @@ func TestFindPlaceholderIndices_MultiplePlaceholders(t *testing.T) {
 						Elements: []*docs.ParagraphElement{
 							{
 								StartIndex: 1,
-								TextRun:    &docs.TextRun{Content: "Hello <<IMG_0>> world"},
+								TextRun:    &docs.TextRun{Content: "Hello <<IMG_test_0>> world"},
 							},
 						},
 					},
@@ -367,7 +420,7 @@ func TestFindPlaceholderIndices_MultiplePlaceholders(t *testing.T) {
 						Elements: []*docs.ParagraphElement{
 							{
 								StartIndex: 50,
-								TextRun:    &docs.TextRun{Content: "More text <<IMG_1>> end"},
+								TextRun:    &docs.TextRun{Content: "More text <<IMG_test_1>> end"},
 							},
 						},
 					},
@@ -375,33 +428,33 @@ func TestFindPlaceholderIndices_MultiplePlaceholders(t *testing.T) {
 			},
 		},
 	}
-	result := findPlaceholderIndices(doc, 2)
+	result := findPlaceholderIndices(doc, testImages(2))
 	if len(result) != 2 {
 		t.Fatalf("expected 2 placeholders, got %d", len(result))
 	}
 
-	dr0 := result["<<IMG_0>>"]
+	dr0 := result["<<IMG_test_0>>"]
 	// "Hello " is 6 chars, so placeholder starts at startIndex + 6
 	if dr0.startIndex != 1+6 {
-		t.Fatalf("<<IMG_0>>: expected startIndex %d, got %d", 1+6, dr0.startIndex)
+		t.Fatalf("<<IMG_test_0>>: expected startIndex %d, got %d", 1+6, dr0.startIndex)
 	}
-	phLen := int64(len("<<IMG_0>>"))
+	phLen := int64(len("<<IMG_test_0>>"))
 	if dr0.endIndex != 1+6+phLen {
-		t.Fatalf("<<IMG_0>>: expected endIndex %d, got %d", 1+6+phLen, dr0.endIndex)
+		t.Fatalf("<<IMG_test_0>>: expected endIndex %d, got %d", 1+6+phLen, dr0.endIndex)
 	}
 
-	dr1 := result["<<IMG_1>>"]
+	dr1 := result["<<IMG_test_1>>"]
 	// "More text " is 10 chars
 	if dr1.startIndex != 50+10 {
-		t.Fatalf("<<IMG_1>>: expected startIndex %d, got %d", 50+10, dr1.startIndex)
+		t.Fatalf("<<IMG_test_1>>: expected startIndex %d, got %d", 50+10, dr1.startIndex)
 	}
 	if dr1.endIndex != 50+10+phLen {
-		t.Fatalf("<<IMG_1>>: expected endIndex %d, got %d", 50+10+phLen, dr1.endIndex)
+		t.Fatalf("<<IMG_test_1>>: expected endIndex %d, got %d", 50+10+phLen, dr1.endIndex)
 	}
 }
 
 func TestFindPlaceholderIndices_PlaceholderWithSurroundingText(t *testing.T) {
-	// Placeholder embedded within text: "prefix<<IMG_0>>suffix"
+	// Placeholder embedded within text: "prefix<<IMG_test_0>>suffix"
 	doc := &docs.Document{
 		Body: &docs.Body{
 			Content: []*docs.StructuralElement{
@@ -410,7 +463,7 @@ func TestFindPlaceholderIndices_PlaceholderWithSurroundingText(t *testing.T) {
 						Elements: []*docs.ParagraphElement{
 							{
 								StartIndex: 10,
-								TextRun:    &docs.TextRun{Content: "prefix<<IMG_0>>suffix"},
+								TextRun:    &docs.TextRun{Content: "prefix<<IMG_test_0>>suffix"},
 							},
 						},
 					},
@@ -418,14 +471,14 @@ func TestFindPlaceholderIndices_PlaceholderWithSurroundingText(t *testing.T) {
 			},
 		},
 	}
-	result := findPlaceholderIndices(doc, 1)
+	result := findPlaceholderIndices(doc, testImages(1))
 	if len(result) != 1 {
 		t.Fatalf("expected 1 placeholder, got %d", len(result))
 	}
-	dr := result["<<IMG_0>>"]
+	dr := result["<<IMG_test_0>>"]
 	// "prefix" is 6 chars
 	wantStart := int64(10 + 6)
-	wantEnd := wantStart + int64(len("<<IMG_0>>"))
+	wantEnd := wantStart + int64(len("<<IMG_test_0>>"))
 	if dr.startIndex != wantStart {
 		t.Fatalf("expected startIndex %d, got %d", wantStart, dr.startIndex)
 	}
@@ -447,7 +500,7 @@ func TestFindPlaceholderIndices_SkipsNonParagraphElements(t *testing.T) {
 						Elements: []*docs.ParagraphElement{
 							{
 								StartIndex: 5,
-								TextRun:    &docs.TextRun{Content: "<<IMG_0>>"},
+								TextRun:    &docs.TextRun{Content: "<<IMG_test_0>>"},
 							},
 						},
 					},
@@ -455,7 +508,7 @@ func TestFindPlaceholderIndices_SkipsNonParagraphElements(t *testing.T) {
 			},
 		},
 	}
-	result := findPlaceholderIndices(doc, 1)
+	result := findPlaceholderIndices(doc, testImages(1))
 	if len(result) != 1 {
 		t.Fatalf("expected 1 placeholder, got %d", len(result))
 	}
@@ -474,7 +527,7 @@ func TestFindPlaceholderIndices_SkipsNilTextRun(t *testing.T) {
 							},
 							{
 								StartIndex: 10,
-								TextRun:    &docs.TextRun{Content: "<<IMG_0>>"},
+								TextRun:    &docs.TextRun{Content: "<<IMG_test_0>>"},
 							},
 						},
 					},
@@ -482,7 +535,7 @@ func TestFindPlaceholderIndices_SkipsNilTextRun(t *testing.T) {
 			},
 		},
 	}
-	result := findPlaceholderIndices(doc, 1)
+	result := findPlaceholderIndices(doc, testImages(1))
 	if len(result) != 1 {
 		t.Fatalf("expected 1 placeholder, got %d", len(result))
 	}
@@ -511,9 +564,9 @@ func TestBuildImageInsertRequests_EmptyInputs(t *testing.T) {
 }
 
 func TestBuildImageInsertRequests_SingleImage(t *testing.T) {
-	img := markdownImage{index: 0, alt: "photo", originalRef: "https://example.com/img.png"}
+	img := markdownImage{index: 0, alt: "photo", originalRef: "https://example.com/img.png", token: "test"}
 	placeholders := map[string]docRange{
-		"<<IMG_0>>": {startIndex: 10, endIndex: 19},
+		"<<IMG_test_0>>": {startIndex: 10, endIndex: 19},
 	}
 	imageURLs := map[int]string{
 		0: "https://example.com/img.png",
@@ -551,14 +604,14 @@ func TestBuildImageInsertRequests_SingleImage(t *testing.T) {
 
 func TestBuildImageInsertRequests_MultipleImages_ReverseOrder(t *testing.T) {
 	images := []markdownImage{
-		{index: 0, alt: "first", originalRef: "a.png"},
-		{index: 1, alt: "second", originalRef: "b.png"},
-		{index: 2, alt: "third", originalRef: "c.png"},
+		{index: 0, alt: "first", originalRef: "a.png", token: "test"},
+		{index: 1, alt: "second", originalRef: "b.png", token: "test"},
+		{index: 2, alt: "third", originalRef: "c.png", token: "test"},
 	}
 	placeholders := map[string]docRange{
-		"<<IMG_0>>": {startIndex: 10, endIndex: 19},
-		"<<IMG_1>>": {startIndex: 50, endIndex: 59},
-		"<<IMG_2>>": {startIndex: 100, endIndex: 109},
+		"<<IMG_test_0>>": {startIndex: 10, endIndex: 19},
+		"<<IMG_test_1>>": {startIndex: 50, endIndex: 59},
+		"<<IMG_test_2>>": {startIndex: 100, endIndex: 109},
 	}
 	imageURLs := map[int]string{
 		0: "https://example.com/a.png",
@@ -598,7 +651,7 @@ func TestBuildImageInsertRequests_MultipleImages_ReverseOrder(t *testing.T) {
 
 func TestBuildImageInsertRequests_MissingPlaceholder(t *testing.T) {
 	// Image exists but its placeholder was not found in the document
-	img := markdownImage{index: 0, alt: "photo", originalRef: "https://example.com/img.png"}
+	img := markdownImage{index: 0, alt: "photo", originalRef: "https://example.com/img.png", token: "test"}
 	placeholders := map[string]docRange{} // empty — placeholder not found
 	imageURLs := map[int]string{
 		0: "https://example.com/img.png",
@@ -612,9 +665,9 @@ func TestBuildImageInsertRequests_MissingPlaceholder(t *testing.T) {
 
 func TestBuildImageInsertRequests_MissingURL(t *testing.T) {
 	// Placeholder found but image URL was not resolved
-	img := markdownImage{index: 0, alt: "photo", originalRef: "local.png"}
+	img := markdownImage{index: 0, alt: "photo", originalRef: "local.png", token: "test"}
 	placeholders := map[string]docRange{
-		"<<IMG_0>>": {startIndex: 10, endIndex: 19},
+		"<<IMG_test_0>>": {startIndex: 10, endIndex: 19},
 	}
 	imageURLs := map[int]string{} // empty — URL not resolved
 
@@ -627,12 +680,12 @@ func TestBuildImageInsertRequests_MissingURL(t *testing.T) {
 func TestBuildImageInsertRequests_PartialMissing(t *testing.T) {
 	// Two images: one has both placeholder and URL, other is missing URL
 	images := []markdownImage{
-		{index: 0, alt: "good", originalRef: "https://example.com/ok.png"},
-		{index: 1, alt: "missing", originalRef: "missing.png"},
+		{index: 0, alt: "good", originalRef: "https://example.com/ok.png", token: "test"},
+		{index: 1, alt: "missing", originalRef: "missing.png", token: "test"},
 	}
 	placeholders := map[string]docRange{
-		"<<IMG_0>>": {startIndex: 10, endIndex: 19},
-		"<<IMG_1>>": {startIndex: 50, endIndex: 59},
+		"<<IMG_test_0>>": {startIndex: 10, endIndex: 19},
+		"<<IMG_test_1>>": {startIndex: 50, endIndex: 59},
 	}
 	imageURLs := map[int]string{
 		0: "https://example.com/ok.png",
@@ -650,11 +703,11 @@ func TestBuildImageInsertRequests_PartialMissing(t *testing.T) {
 }
 
 func TestBuildImageInsertRequests_DeleteRangeMatchesPlaceholder(t *testing.T) {
-	img := markdownImage{index: 0, originalRef: "https://x.com/a.png"}
+	img := markdownImage{index: 0, originalRef: "https://x.com/a.png", token: "test"}
 	phStart := int64(25)
 	phEnd := int64(34)
 	placeholders := map[string]docRange{
-		"<<IMG_0>>": {startIndex: phStart, endIndex: phEnd},
+		"<<IMG_test_0>>": {startIndex: phStart, endIndex: phEnd},
 	}
 	imageURLs := map[int]string{0: "https://x.com/a.png"}
 
@@ -669,10 +722,10 @@ func TestBuildImageInsertRequests_DeleteRangeMatchesPlaceholder(t *testing.T) {
 }
 
 func TestBuildImageInsertRequests_InsertLocationMatchesStart(t *testing.T) {
-	img := markdownImage{index: 0, originalRef: "https://x.com/a.png"}
+	img := markdownImage{index: 0, originalRef: "https://x.com/a.png", token: "test"}
 	phStart := int64(42)
 	placeholders := map[string]docRange{
-		"<<IMG_0>>": {startIndex: phStart, endIndex: phStart + 9},
+		"<<IMG_test_0>>": {startIndex: phStart, endIndex: phStart + 9},
 	}
 	imageURLs := map[int]string{0: "https://x.com/a.png"}
 
@@ -691,6 +744,10 @@ func TestBuildImageInsertRequests_InsertLocationMatchesStart(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestExtractAndFindPlaceholders_RoundTrip(t *testing.T) {
+	origToken := imgPlaceholderToken
+	t.Cleanup(func() { imgPlaceholderToken = origToken })
+	imgPlaceholderToken = func() string { return "test" }
+
 	content := "Before ![a](a.png) middle ![b](b.jpg) after"
 	cleaned, images := extractMarkdownImages(content)
 
@@ -712,7 +769,7 @@ func TestExtractAndFindPlaceholders_RoundTrip(t *testing.T) {
 		},
 	}
 
-	placeholders := findPlaceholderIndices(doc, len(images))
+	placeholders := findPlaceholderIndices(doc, images)
 	if len(placeholders) != 2 {
 		t.Fatalf("expected 2 placeholders, got %d", len(placeholders))
 	}
@@ -746,5 +803,439 @@ func TestExtractAndFindPlaceholders_RoundTrip(t *testing.T) {
 	secondDelStart := reqs[2].DeleteContentRange.Range.StartIndex
 	if firstDelStart <= secondDelStart {
 		t.Fatalf("expected reverse order: first delete start (%d) should be > second (%d)", firstDelStart, secondDelStart)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// findPlaceholderIndices: UTF-16 correctness
+// ---------------------------------------------------------------------------
+
+func TestFindPlaceholderIndices_NonASCIIPrefix(t *testing.T) {
+	// The bullet character "•" is 3 bytes in UTF-8 but 1 UTF-16 code unit.
+	// This test verifies that findPlaceholderIndices uses UTF-16 offsets
+	// (matching the Google Docs API) rather than byte offsets.
+	//
+	// Text: "• <<IMG_test_0>> after"
+	//   UTF-16: • (1) + space (1) + <<IMG_test_0>> (14) + ...
+	//   Bytes:  • (3) + space (1) + <<IMG_test_0>> (14) + ...
+	//
+	// With startIndex=10, the placeholder should be at UTF-16 position 10+2=12,
+	// NOT at byte position 10+4=14.
+	doc := &docs.Document{
+		Body: &docs.Body{
+			Content: []*docs.StructuralElement{
+				{
+					Paragraph: &docs.Paragraph{
+						Elements: []*docs.ParagraphElement{
+							{
+								StartIndex: 10,
+								TextRun:    &docs.TextRun{Content: "• <<IMG_test_0>> after"},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	result := findPlaceholderIndices(doc, testImages(1))
+	if len(result) != 1 {
+		t.Fatalf("expected 1 placeholder, got %d", len(result))
+	}
+	dr := result["<<IMG_test_0>>"]
+	// "• " is 2 UTF-16 code units (not 4 bytes), so placeholder starts at 10+2=12.
+	wantStart := int64(10 + 2)
+	if dr.startIndex != wantStart {
+		t.Fatalf("startIndex = %d, want %d (UTF-16 offset, not byte offset)", dr.startIndex, wantStart)
+	}
+	wantEnd := wantStart + utf16Len("<<IMG_test_0>>")
+	if dr.endIndex != wantEnd {
+		t.Fatalf("endIndex = %d, want %d", dr.endIndex, wantEnd)
+	}
+}
+
+func TestFindPlaceholderIndices_EmojiPrefix(t *testing.T) {
+	// Emoji "🎉" is 4 bytes in UTF-8 and 2 UTF-16 code units (surrogate pair).
+	// Text: "🎉 <<IMG_test_0>>"
+	//   UTF-16: 🎉 (2) + space (1) = 3 units before placeholder
+	//   Bytes:  🎉 (4) + space (1) = 5 bytes before placeholder
+	doc := &docs.Document{
+		Body: &docs.Body{
+			Content: []*docs.StructuralElement{
+				{
+					Paragraph: &docs.Paragraph{
+						Elements: []*docs.ParagraphElement{
+							{
+								StartIndex: 1,
+								TextRun:    &docs.TextRun{Content: "🎉 <<IMG_test_0>>"},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	result := findPlaceholderIndices(doc, testImages(1))
+	if len(result) != 1 {
+		t.Fatalf("expected 1 placeholder, got %d", len(result))
+	}
+	dr := result["<<IMG_test_0>>"]
+	// "🎉 " = 2+1 = 3 UTF-16 code units, so placeholder starts at 1+3=4.
+	wantStart := int64(1 + 3)
+	if dr.startIndex != wantStart {
+		t.Fatalf("startIndex = %d, want %d (emoji is 2 UTF-16 units, not 4 bytes)", dr.startIndex, wantStart)
+	}
+}
+
+func TestFindPlaceholderIndices_InsideTableCell(t *testing.T) {
+	// Drive's markdown converter puts table cell content inside Table > TableRow
+	// > TableCell > Content > Paragraph structures. Placeholders in table cells
+	// must be found by recursing into table elements.
+	doc := &docs.Document{
+		Body: &docs.Body{
+			Content: []*docs.StructuralElement{
+				{
+					Table: &docs.Table{
+						TableRows: []*docs.TableRow{
+							{
+								TableCells: []*docs.TableCell{
+									{
+										Content: []*docs.StructuralElement{
+											{
+												Paragraph: &docs.Paragraph{
+													Elements: []*docs.ParagraphElement{
+														{
+															StartIndex: 50,
+															TextRun:    &docs.TextRun{Content: "<<IMG_test_0>>\n"},
+														},
+													},
+												},
+											},
+										},
+									},
+									{
+										Content: []*docs.StructuralElement{
+											{
+												Paragraph: &docs.Paragraph{
+													Elements: []*docs.ParagraphElement{
+														{
+															StartIndex: 100,
+															TextRun:    &docs.TextRun{Content: "<<IMG_test_1>>\n"},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	result := findPlaceholderIndices(doc, testImages(2))
+	if len(result) != 2 {
+		t.Fatalf("expected 2 placeholders inside table cells, got %d", len(result))
+	}
+	dr0 := result["<<IMG_test_0>>"]
+	if dr0.startIndex != 50 {
+		t.Fatalf("IMG_0 startIndex = %d, want 50", dr0.startIndex)
+	}
+	dr1 := result["<<IMG_test_1>>"]
+	if dr1.startIndex != 100 {
+		t.Fatalf("IMG_1 startIndex = %d, want 100", dr1.startIndex)
+	}
+}
+
+func TestFindPlaceholderIndices_SplitAcrossTextRuns(t *testing.T) {
+	// Simulates the real-world scenario where Drive's markdown converter splits
+	// a placeholder across two text runs within the same paragraph.
+	// <<IMG_test_0>> is split as "text <<IMG_" in run1 and "test_0>> more" in run2.
+	doc := &docs.Document{
+		Body: &docs.Body{
+			Content: []*docs.StructuralElement{
+				{
+					Paragraph: &docs.Paragraph{
+						Elements: []*docs.ParagraphElement{
+							{
+								StartIndex: 1,
+								TextRun:    &docs.TextRun{Content: "text <<IMG_"},
+							},
+							{
+								StartIndex: 12,
+								TextRun:    &docs.TextRun{Content: "test_0>> more"},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	result := findPlaceholderIndices(doc, testImages(1))
+	if len(result) != 1 {
+		t.Fatalf("expected 1 placeholder across split runs, got %d", len(result))
+	}
+	dr := result["<<IMG_test_0>>"]
+	// "text " is 5 chars, so placeholder starts at 1+5=6
+	wantStart := int64(6)
+	if dr.startIndex != wantStart {
+		t.Fatalf("startIndex = %d, want %d", dr.startIndex, wantStart)
+	}
+	wantEnd := wantStart + int64(len("<<IMG_test_0>>"))
+	if dr.endIndex != wantEnd {
+		t.Fatalf("endIndex = %d, want %d", dr.endIndex, wantEnd)
+	}
+}
+
+func TestFindPlaceholderIndices_SplitAtAngleBrackets(t *testing.T) {
+	// Split right at the << boundary — most likely point Drive would split.
+	doc := &docs.Document{
+		Body: &docs.Body{
+			Content: []*docs.StructuralElement{
+				{
+					Paragraph: &docs.Paragraph{
+						Elements: []*docs.ParagraphElement{
+							{
+								StartIndex: 1,
+								TextRun:    &docs.TextRun{Content: "before <<"},
+							},
+							{
+								StartIndex: 10,
+								TextRun:    &docs.TextRun{Content: "IMG_test_0>> after"},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	result := findPlaceholderIndices(doc, testImages(1))
+	if len(result) != 1 {
+		t.Fatalf("expected 1 placeholder across angle-bracket split, got %d", len(result))
+	}
+	dr := result["<<IMG_test_0>>"]
+	// "before " is 7 chars
+	wantStart := int64(8)
+	if dr.startIndex != wantStart {
+		t.Fatalf("startIndex = %d, want %d", dr.startIndex, wantStart)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// extractMarkdownImages: dimension parsing
+// ---------------------------------------------------------------------------
+
+func TestExtractMarkdownImages_WithDimensions(t *testing.T) {
+	origToken := imgPlaceholderToken
+	t.Cleanup(func() { imgPlaceholderToken = origToken })
+	imgPlaceholderToken = func() string { return "test" }
+
+	content := "![alt](url){width=200}"
+	cleaned, images := extractMarkdownImages(content)
+	if cleaned != "<<IMG_test_0>>" {
+		t.Fatalf("expected <<IMG_test_0>>, got %q", cleaned)
+	}
+	if len(images) != 1 {
+		t.Fatalf("expected 1 image, got %d", len(images))
+	}
+	if images[0].widthPt != 200 {
+		t.Fatalf("expected widthPt=200, got %v", images[0].widthPt)
+	}
+	if images[0].heightPt != 0 {
+		t.Fatalf("expected heightPt=0, got %v", images[0].heightPt)
+	}
+}
+
+func TestExtractMarkdownImages_WithBothDimensions(t *testing.T) {
+	origToken := imgPlaceholderToken
+	t.Cleanup(func() { imgPlaceholderToken = origToken })
+	imgPlaceholderToken = func() string { return "test" }
+
+	content := "![alt](url){width=200 height=150}"
+	cleaned, images := extractMarkdownImages(content)
+	if cleaned != "<<IMG_test_0>>" {
+		t.Fatalf("expected <<IMG_test_0>>, got %q", cleaned)
+	}
+	if len(images) != 1 {
+		t.Fatalf("expected 1 image, got %d", len(images))
+	}
+	if images[0].widthPt != 200 {
+		t.Fatalf("expected widthPt=200, got %v", images[0].widthPt)
+	}
+	if images[0].heightPt != 150 {
+		t.Fatalf("expected heightPt=150, got %v", images[0].heightPt)
+	}
+}
+
+func TestExtractMarkdownImages_WithShorthandDimensions(t *testing.T) {
+	origToken := imgPlaceholderToken
+	t.Cleanup(func() { imgPlaceholderToken = origToken })
+	imgPlaceholderToken = func() string { return "test" }
+
+	content := "![alt](url){w=200 h=150}"
+	cleaned, images := extractMarkdownImages(content)
+	if cleaned != "<<IMG_test_0>>" {
+		t.Fatalf("expected <<IMG_test_0>>, got %q", cleaned)
+	}
+	if len(images) != 1 {
+		t.Fatalf("expected 1 image, got %d", len(images))
+	}
+	if images[0].widthPt != 200 {
+		t.Fatalf("expected widthPt=200, got %v", images[0].widthPt)
+	}
+	if images[0].heightPt != 150 {
+		t.Fatalf("expected heightPt=150, got %v", images[0].heightPt)
+	}
+}
+
+func TestExtractMarkdownImages_NoDimensionsFallback(t *testing.T) {
+	origToken := imgPlaceholderToken
+	t.Cleanup(func() { imgPlaceholderToken = origToken })
+	imgPlaceholderToken = func() string { return "test" }
+
+	content := "![alt](url)"
+	_, images := extractMarkdownImages(content)
+	if len(images) != 1 {
+		t.Fatalf("expected 1 image, got %d", len(images))
+	}
+	if images[0].widthPt != 0 {
+		t.Fatalf("expected widthPt=0, got %v", images[0].widthPt)
+	}
+	if images[0].heightPt != 0 {
+		t.Fatalf("expected heightPt=0, got %v", images[0].heightPt)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// buildImageInsertRequests: dimension handling
+// ---------------------------------------------------------------------------
+
+func TestBuildImageInsertRequests_CustomWidth(t *testing.T) {
+	img := markdownImage{index: 0, originalRef: "https://x.com/a.png", token: "test", widthPt: 200}
+	placeholders := map[string]docRange{
+		"<<IMG_test_0>>": {startIndex: 10, endIndex: 24},
+	}
+	imageURLs := map[int]string{0: "https://x.com/a.png"}
+
+	reqs := buildImageInsertRequests(placeholders, []markdownImage{img}, imageURLs)
+	if len(reqs) != 2 {
+		t.Fatalf("expected 2 requests, got %d", len(reqs))
+	}
+	ins := reqs[1].InsertInlineImage
+	if ins.ObjectSize.Width == nil || ins.ObjectSize.Width.Magnitude != 200 {
+		t.Fatalf("expected width=200pt, got %+v", ins.ObjectSize.Width)
+	}
+	if ins.ObjectSize.Height != nil {
+		t.Fatalf("expected nil height for width-only, got %+v", ins.ObjectSize.Height)
+	}
+}
+
+func TestBuildImageInsertRequests_CustomBothDimensions(t *testing.T) {
+	img := markdownImage{index: 0, originalRef: "https://x.com/a.png", token: "test", widthPt: 200, heightPt: 150}
+	placeholders := map[string]docRange{
+		"<<IMG_test_0>>": {startIndex: 10, endIndex: 24},
+	}
+	imageURLs := map[int]string{0: "https://x.com/a.png"}
+
+	reqs := buildImageInsertRequests(placeholders, []markdownImage{img}, imageURLs)
+	if len(reqs) != 2 {
+		t.Fatalf("expected 2 requests, got %d", len(reqs))
+	}
+	ins := reqs[1].InsertInlineImage
+	if ins.ObjectSize.Width == nil || ins.ObjectSize.Width.Magnitude != 200 {
+		t.Fatalf("expected width=200pt, got %+v", ins.ObjectSize.Width)
+	}
+	if ins.ObjectSize.Height == nil || ins.ObjectSize.Height.Magnitude != 150 {
+		t.Fatalf("expected height=150pt, got %+v", ins.ObjectSize.Height)
+	}
+}
+
+func TestBuildImageInsertRequests_CustomHeightOnly(t *testing.T) {
+	img := markdownImage{index: 0, originalRef: "https://x.com/a.png", token: "test", heightPt: 150}
+	placeholders := map[string]docRange{
+		"<<IMG_test_0>>": {startIndex: 10, endIndex: 24},
+	}
+	imageURLs := map[int]string{0: "https://x.com/a.png"}
+
+	reqs := buildImageInsertRequests(placeholders, []markdownImage{img}, imageURLs)
+	if len(reqs) != 2 {
+		t.Fatalf("expected 2 requests, got %d", len(reqs))
+	}
+	ins := reqs[1].InsertInlineImage
+	if ins.ObjectSize.Width != nil {
+		t.Fatalf("expected nil width for height-only, got %+v", ins.ObjectSize.Width)
+	}
+	if ins.ObjectSize.Height == nil || ins.ObjectSize.Height.Magnitude != 150 {
+		t.Fatalf("expected height=150pt, got %+v", ins.ObjectSize.Height)
+	}
+}
+
+func TestBuildImageInsertRequests_DefaultWidth(t *testing.T) {
+	img := markdownImage{index: 0, originalRef: "https://x.com/a.png", token: "test"}
+	placeholders := map[string]docRange{
+		"<<IMG_test_0>>": {startIndex: 10, endIndex: 24},
+	}
+	imageURLs := map[int]string{0: "https://x.com/a.png"}
+
+	reqs := buildImageInsertRequests(placeholders, []markdownImage{img}, imageURLs)
+	if len(reqs) != 2 {
+		t.Fatalf("expected 2 requests, got %d", len(reqs))
+	}
+	ins := reqs[1].InsertInlineImage
+	if ins.ObjectSize.Width == nil || ins.ObjectSize.Width.Magnitude != defaultImageMaxWidthPt {
+		t.Fatalf("expected default width=%vpt, got %+v", defaultImageMaxWidthPt, ins.ObjectSize.Width)
+	}
+	if ins.ObjectSize.Height != nil {
+		t.Fatalf("expected nil height for default, got %+v", ins.ObjectSize.Height)
+	}
+}
+
+func TestFindPlaceholderIndices_MultipleBullets(t *testing.T) {
+	// Simulates the real-world scenario: markdown formatter inserts "• " prefixed
+	// list items containing image placeholders.
+	doc := &docs.Document{
+		Body: &docs.Body{
+			Content: []*docs.StructuralElement{
+				{
+					Paragraph: &docs.Paragraph{
+						Elements: []*docs.ParagraphElement{
+							{
+								StartIndex: 1,
+								TextRun:    &docs.TextRun{Content: "• First <<IMG_test_0>> item\n"},
+							},
+						},
+					},
+				},
+				{
+					Paragraph: &docs.Paragraph{
+						Elements: []*docs.ParagraphElement{
+							{
+								StartIndex: 29,
+								TextRun:    &docs.TextRun{Content: "• Second <<IMG_test_1>> item\n"},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	result := findPlaceholderIndices(doc, testImages(2))
+	if len(result) != 2 {
+		t.Fatalf("expected 2 placeholders, got %d", len(result))
+	}
+
+	// "• First " = "• " (2 UTF-16) + "First " (6 UTF-16) = 8 UTF-16 units.
+	dr0 := result["<<IMG_test_0>>"]
+	wantStart0 := int64(1 + 8)
+	if dr0.startIndex != wantStart0 {
+		t.Fatalf("IMG_0 startIndex = %d, want %d", dr0.startIndex, wantStart0)
+	}
+
+	// "• Second " = "• " (2 UTF-16) + "Second " (7 UTF-16) = 9 UTF-16 units.
+	dr1 := result["<<IMG_test_1>>"]
+	wantStart1 := int64(29 + 9)
+	if dr1.startIndex != wantStart1 {
+		t.Fatalf("IMG_1 startIndex = %d, want %d", dr1.startIndex, wantStart1)
 	}
 }

@@ -22,8 +22,7 @@ import (
 )
 
 func TestGmailWatchServer_ServeHTTP_AllowNoHook(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv("HOME", home)
+	setWatchTestConfigHome(t)
 
 	store, err := newGmailWatchStore("a@b.com")
 	if err != nil {
@@ -142,8 +141,7 @@ func TestGmailWatchServer_ServeHTTP_AllowNoHook(t *testing.T) {
 }
 
 func TestGmailWatchServer_ServeHTTP_HistoryTypes_NoMatch(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv("HOME", home)
+	setWatchTestConfigHome(t)
 
 	store, err := newGmailWatchStore("a@b.com")
 	if err != nil {
@@ -229,8 +227,7 @@ func TestGmailWatchServer_ServeHTTP_HistoryTypes_NoMatch(t *testing.T) {
 }
 
 func TestGmailWatchServer_ServeHTTP_HistoryTypes_DeletedOnly(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv("HOME", home)
+	setWatchTestConfigHome(t)
 
 	store, err := newGmailWatchStore("a@b.com")
 	if err != nil {
@@ -363,8 +360,7 @@ func TestGmailWatchHelpers(t *testing.T) {
 }
 
 func TestGmailWatchServer_HandlePush_AppliesFetchDelay(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv("HOME", home)
+	setWatchTestConfigHome(t)
 
 	store, err := newGmailWatchStore("a@b.com")
 	if err != nil {
@@ -492,8 +488,7 @@ func TestGmailWatchServer_OIDCAudience(t *testing.T) {
 }
 
 func TestGmailWatchServer_ResyncHistory_OnStaleError(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv("HOME", home)
+	setWatchTestConfigHome(t)
 
 	store, err := newGmailWatchStore("a@b.com")
 	if err != nil {
@@ -577,8 +572,7 @@ func TestGmailWatchServer_ResyncHistory_OnStaleError(t *testing.T) {
 }
 
 func TestGmailWatchServer_HandlePush_DuplicateMessageID(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv("HOME", home)
+	setWatchTestConfigHome(t)
 
 	store, err := newGmailWatchStore("a@b.com")
 	if err != nil {
@@ -618,8 +612,7 @@ func TestGmailWatchServer_HandlePush_DuplicateMessageID(t *testing.T) {
 }
 
 func TestGmailWatchServer_HandlePush_SkipsMissingMessages(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv("HOME", home)
+	setWatchTestConfigHome(t)
 
 	store, err := newGmailWatchStore("a@b.com")
 	if err != nil {
@@ -707,8 +700,7 @@ func TestGmailWatchServer_HandlePush_SkipsMissingMessages(t *testing.T) {
 }
 
 func TestGmailWatchServer_SendHook_UpdatesState(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv("HOME", home)
+	setWatchTestConfigHome(t)
 
 	store, err := newGmailWatchStore("a@b.com")
 	if err != nil {
@@ -756,8 +748,7 @@ func TestGmailWatchServer_SendHook_UpdatesState(t *testing.T) {
 }
 
 func TestGmailWatchServer_ServeHTTP_HookError(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv("HOME", home)
+	setWatchTestConfigHome(t)
 
 	store, err := newGmailWatchStore("a@b.com")
 	if err != nil {

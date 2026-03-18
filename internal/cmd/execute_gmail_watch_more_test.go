@@ -18,8 +18,7 @@ func TestExecute_GmailWatch_MoreCommands(t *testing.T) {
 	origNew := newGmailService
 	t.Cleanup(func() { newGmailService = origNew })
 
-	home := t.TempDir()
-	t.Setenv("HOME", home)
+	setWatchTestConfigHome(t)
 	t.Setenv("GOG_ACCOUNT", "a@b.com")
 
 	var stopCalled bool

@@ -147,6 +147,90 @@ func TestDocsCreateCopyCat_JSON(t *testing.T) {
 	}
 }
 
+func TestDocsCreate_Pageless(t *testing.T) {
+	origNew := newDriveService
+	origDocs := newDocsService
+	t.Cleanup(func() {
+		newDriveService = origNew
+		newDocsService = origDocs
+	})
+
+	var batchRequests [][]*docs.Request
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := r.URL.Path
+		drivePath := strings.TrimPrefix(path, "/drive/v3")
+		switch {
+		case drivePath == "/files" && r.Method == http.MethodPost:
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"id":          "doc1",
+				"name":        "Doc",
+				"mimeType":    "application/vnd.google-apps.document",
+				"webViewLink": "http://example.com/doc1",
+			})
+			return
+		case r.Method == http.MethodPost && strings.Contains(path, ":batchUpdate"):
+			var req docs.BatchUpdateDocumentRequest
+			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+				t.Fatalf("decode request: %v", err)
+			}
+			batchRequests = append(batchRequests, req.Requests)
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{"documentId": "doc1"})
+			return
+		default:
+			http.NotFound(w, r)
+			return
+		}
+	}))
+	defer srv.Close()
+
+	driveSvc, err := drive.NewService(context.Background(),
+		option.WithoutAuthentication(),
+		option.WithHTTPClient(srv.Client()),
+		option.WithEndpoint(srv.URL+"/"),
+	)
+	if err != nil {
+		t.Fatalf("NewService: %v", err)
+	}
+	newDriveService = func(context.Context, string) (*drive.Service, error) { return driveSvc, nil }
+
+	docSvc, err := docs.NewService(context.Background(),
+		option.WithoutAuthentication(),
+		option.WithHTTPClient(srv.Client()),
+		option.WithEndpoint(srv.URL+"/"),
+	)
+	if err != nil {
+		t.Fatalf("NewDocsService: %v", err)
+	}
+	newDocsService = func(context.Context, string) (*docs.Service, error) { return docSvc, nil }
+
+	flags := &RootFlags{Account: "a@b.com"}
+	u, uiErr := ui.New(ui.Options{Stdout: io.Discard, Stderr: io.Discard, Color: "never"})
+	if uiErr != nil {
+		t.Fatalf("ui.New: %v", uiErr)
+	}
+	ctx := outfmt.WithMode(ui.WithUI(context.Background(), u), outfmt.Mode{JSON: true})
+
+	_ = captureStdout(t, func() {
+		cmd := &DocsCreateCmd{}
+		if err := runKong(t, cmd, []string{"Doc", "--pageless"}, ctx, flags); err != nil {
+			t.Fatalf("create pageless: %v", err)
+		}
+	})
+
+	if len(batchRequests) != 1 {
+		t.Fatalf("expected 1 pageless batch request, got %d", len(batchRequests))
+	}
+	if got := batchRequests[0]; len(got) != 1 || got[0].UpdateDocumentStyle == nil {
+		t.Fatalf("unexpected pageless create request: %#v", got)
+	}
+	if got := batchRequests[0][0].UpdateDocumentStyle; got.Fields != "documentFormat" || got.DocumentStyle.DocumentFormat.DocumentMode != "PAGELESS" {
+		t.Fatalf("unexpected pageless create style request: %#v", got)
+	}
+}
+
 // tabsDocResponse returns a JSON response for a document with multiple tabs
 // (using includeTabsContent=true). The body/content fields are empty because
 // the Docs API populates doc.Tabs instead when that flag is set.

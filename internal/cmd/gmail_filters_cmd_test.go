@@ -6,12 +6,16 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"google.golang.org/api/gmail/v1"
 	"google.golang.org/api/option"
 
+	"github.com/steipete/gogcli/internal/outfmt"
 	"github.com/steipete/gogcli/internal/ui"
 )
 
@@ -202,4 +206,237 @@ func TestGmailFiltersList_NoFilters(t *testing.T) {
 			t.Fatalf("list: %v", err)
 		}
 	})
+}
+
+func TestGmailFiltersExport(t *testing.T) {
+	origNew := newGmailService
+	t.Cleanup(func() { newGmailService = origNew })
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.Contains(r.URL.Path, "/gmail/v1/users/me/settings/filters") && r.Method == http.MethodGet {
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"filter": []map[string]any{
+					{"id": "f1", "criteria": map[string]any{"from": "a@example.com"}},
+				},
+			})
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer srv.Close()
+
+	svc, err := gmail.NewService(context.Background(),
+		option.WithoutAuthentication(),
+		option.WithHTTPClient(srv.Client()),
+		option.WithEndpoint(srv.URL+"/"),
+	)
+	if err != nil {
+		t.Fatalf("NewService: %v", err)
+	}
+	newGmailService = func(context.Context, string) (*gmail.Service, error) { return svc, nil }
+
+	flags := &RootFlags{Account: "a@b.com"}
+	u, uiErr := ui.New(ui.Options{Stdout: io.Discard, Stderr: io.Discard, Color: "never"})
+	if uiErr != nil {
+		t.Fatalf("ui.New: %v", uiErr)
+	}
+	ctx := ui.WithUI(context.Background(), u)
+
+	t.Run("stdout json", func(t *testing.T) {
+		out := captureStdout(t, func() {
+			if err := runKong(t, &GmailFiltersExportCmd{}, []string{}, ctx, flags); err != nil {
+				t.Fatalf("export stdout: %v", err)
+			}
+		})
+		var payload map[string]any
+		if err := json.Unmarshal([]byte(out), &payload); err != nil {
+			t.Fatalf("json parse: %v", err)
+		}
+		filters, ok := payload["filters"].([]any)
+		if !ok || len(filters) != 1 {
+			t.Fatalf("unexpected payload: %#v", payload)
+		}
+	})
+
+	t.Run("file export", func(t *testing.T) {
+		path := t.TempDir() + "/filters.json"
+		if err := runKong(t, &GmailFiltersExportCmd{}, []string{"--out", path}, ctx, flags); err != nil {
+			t.Fatalf("export file: %v", err)
+		}
+		b, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("read export: %v", err)
+		}
+		var payload map[string]any
+		if err := json.Unmarshal(b, &payload); err != nil {
+			t.Fatalf("json parse: %v", err)
+		}
+		filters, ok := payload["filters"].([]any)
+		if !ok || len(filters) != 1 {
+			t.Fatalf("unexpected payload: %#v", payload)
+		}
+	})
+}
+
+func TestGmailFiltersCreate_RetriesFailedPrecondition(t *testing.T) {
+	origNew := newGmailService
+	origSleep := sleepBeforeGmailFilterRetry
+	t.Cleanup(func() {
+		newGmailService = origNew
+		sleepBeforeGmailFilterRetry = origSleep
+	})
+
+	sleepBeforeGmailFilterRetry = func(context.Context, time.Duration) error { return nil }
+
+	var posts atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case strings.Contains(r.URL.Path, "/gmail/v1/users/me/settings/filters") && r.Method == http.MethodPost:
+			n := posts.Add(1)
+			w.Header().Set("Content-Type", "application/json")
+			if n < 3 {
+				w.WriteHeader(http.StatusBadRequest)
+				_ = json.NewEncoder(w).Encode(map[string]any{
+					"error": map[string]any{
+						"code":    400,
+						"message": "Precondition check failed.",
+						"errors": []map[string]any{{
+							"message": "Precondition check failed.",
+							"reason":  "failedPrecondition",
+						}},
+					},
+				})
+				return
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"id": "f-retried",
+				"criteria": map[string]any{
+					"query": "subject:\"retry-me\"",
+				},
+				"action": map[string]any{
+					"removeLabelIds": []string{"INBOX"},
+				},
+			})
+			return
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+
+	svc, err := gmail.NewService(context.Background(),
+		option.WithoutAuthentication(),
+		option.WithHTTPClient(srv.Client()),
+		option.WithEndpoint(srv.URL+"/"),
+	)
+	if err != nil {
+		t.Fatalf("NewService: %v", err)
+	}
+	newGmailService = func(context.Context, string) (*gmail.Service, error) { return svc, nil }
+
+	flags := &RootFlags{Account: "a@b.com", Force: true}
+	captureStdout(t, func() {
+		u, uiErr := ui.New(ui.Options{Stdout: io.Discard, Stderr: io.Discard, Color: "never"})
+		if uiErr != nil {
+			t.Fatalf("ui.New: %v", uiErr)
+		}
+		ctx := ui.WithUI(context.Background(), u)
+
+		if err := runKong(t, &GmailFiltersCreateCmd{}, []string{
+			"--query", "subject:\"retry-me\"",
+			"--archive",
+		}, ctx, flags); err != nil {
+			t.Fatalf("create with retry: %v", err)
+		}
+	})
+
+	if posts.Load() != 3 {
+		t.Fatalf("expected 3 create attempts, got %d", posts.Load())
+	}
+}
+
+func TestGmailFiltersCreate_DuplicateReturnsExistingFilter(t *testing.T) {
+	origNew := newGmailService
+	t.Cleanup(func() { newGmailService = origNew })
+
+	var (
+		posts int
+		lists int
+	)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case strings.Contains(r.URL.Path, "/gmail/v1/users/me/settings/filters") && r.Method == http.MethodPost:
+			posts++
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"error": map[string]any{
+					"code":    400,
+					"message": "Filter already exists",
+					"errors": []map[string]any{{
+						"message": "Filter already exists",
+						"reason":  "failedPrecondition",
+					}},
+				},
+			})
+			return
+		case strings.Contains(r.URL.Path, "/gmail/v1/users/me/settings/filters") && r.Method == http.MethodGet:
+			lists++
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"filter": []map[string]any{
+					{
+						"id": "f-existing",
+						"criteria": map[string]any{
+							"query": "subject:\"duplicate-me\"",
+						},
+						"action": map[string]any{
+							"removeLabelIds": []string{"INBOX"},
+						},
+					},
+				},
+			})
+			return
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+
+	svc, err := gmail.NewService(context.Background(),
+		option.WithoutAuthentication(),
+		option.WithHTTPClient(srv.Client()),
+		option.WithEndpoint(srv.URL+"/"),
+	)
+	if err != nil {
+		t.Fatalf("NewService: %v", err)
+	}
+	newGmailService = func(context.Context, string) (*gmail.Service, error) { return svc, nil }
+
+	flags := &RootFlags{Account: "a@b.com", Force: true, JSON: true}
+	out := captureStdout(t, func() {
+		u, uiErr := ui.New(ui.Options{Stdout: io.Discard, Stderr: io.Discard, Color: "never"})
+		if uiErr != nil {
+			t.Fatalf("ui.New: %v", uiErr)
+		}
+		ctx := ui.WithUI(outfmt.WithMode(context.Background(), outfmt.Mode{JSON: true}), u)
+
+		if err := runKong(t, &GmailFiltersCreateCmd{}, []string{
+			"--query", "subject:\"duplicate-me\"",
+			"--archive",
+		}, ctx, flags); err != nil {
+			t.Fatalf("create duplicate: %v", err)
+		}
+	})
+
+	if posts != 1 {
+		t.Fatalf("expected 1 create attempt, got %d", posts)
+	}
+	if lists != 1 {
+		t.Fatalf("expected 1 filters list lookup, got %d", lists)
+	}
+	if !strings.Contains(out, "\"f-existing\"") {
+		t.Fatalf("expected existing filter output, got %q", out)
+	}
 }

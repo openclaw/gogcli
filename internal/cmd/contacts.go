@@ -197,6 +197,52 @@ func primaryBio(p *people.Person) string {
 	return p.Biographies[0].Value
 }
 
+func formatAddress(a *people.Address) string {
+	if a == nil {
+		return ""
+	}
+	if a.FormattedValue != "" {
+		return a.FormattedValue
+	}
+	// Build a readable string from structured fields.
+	parts := make([]string, 0, 6)
+	if a.StreetAddress != "" {
+		parts = append(parts, a.StreetAddress)
+	}
+	if a.ExtendedAddress != "" {
+		parts = append(parts, a.ExtendedAddress)
+	}
+	if a.City != "" {
+		parts = append(parts, a.City)
+	}
+	if a.Region != "" {
+		parts = append(parts, a.Region)
+	}
+	if a.PostalCode != "" {
+		parts = append(parts, a.PostalCode)
+	}
+	if a.Country != "" {
+		parts = append(parts, a.Country)
+	}
+	return strings.Join(parts, ", ")
+}
+
+func allAddresses(p *people.Person) []string {
+	if p == nil || len(p.Addresses) == 0 {
+		return nil
+	}
+	addrs := make([]string, 0, len(p.Addresses))
+	for _, a := range p.Addresses {
+		if a == nil {
+			continue
+		}
+		if formatted := formatAddress(a); formatted != "" {
+			addrs = append(addrs, formatted)
+		}
+	}
+	return addrs
+}
+
 func userDefinedFields(p *people.Person) map[string]string {
 	if p == nil || len(p.UserDefined) == 0 {
 		return nil

@@ -32,12 +32,7 @@ type GmailDraftsListCmd struct {
 
 func (c *GmailDraftsListCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
-
-	svc, err := newGmailService(ctx, account)
+	_, svc, err := requireGmailService(ctx, flags)
 	if err != nil {
 		return err
 	}
@@ -47,27 +42,16 @@ func (c *GmailDraftsListCmd) Run(ctx context.Context, flags *RootFlags) error {
 		if strings.TrimSpace(pageToken) != "" {
 			call = call.PageToken(pageToken)
 		}
-		resp, err := call.Do()
-		if err != nil {
-			return nil, "", err
+		resp, callErr := call.Do()
+		if callErr != nil {
+			return nil, "", callErr
 		}
 		return resp.Drafts, resp.NextPageToken, nil
 	}
 
-	var drafts []*gmail.Draft
-	nextPageToken := ""
-	if c.All {
-		all, err := collectAllPages(c.Page, fetch)
-		if err != nil {
-			return err
-		}
-		drafts = all
-	} else {
-		var err error
-		drafts, nextPageToken, err = fetch(c.Page)
-		if err != nil {
-			return err
-		}
+	drafts, nextPageToken, err := loadPagedItems(c.Page, c.All, fetch)
+	if err != nil {
+		return err
 	}
 	if outfmt.IsJSON(ctx) {
 		type item struct {
@@ -87,16 +71,10 @@ func (c *GmailDraftsListCmd) Run(ctx context.Context, flags *RootFlags) error {
 			}
 			items = append(items, item{ID: d.Id, MessageID: msgID, ThreadID: threadID})
 		}
-		if err := outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
+		return writePagedJSONResult(ctx, map[string]any{
 			"drafts":        items,
 			"nextPageToken": nextPageToken,
-		}); err != nil {
-			return err
-		}
-		if len(items) == 0 {
-			return failEmptyExit(c.FailEmpty)
-		}
-		return nil
+		}, len(items), c.FailEmpty)
 	}
 	if len(drafts) == 0 {
 		u.Err().Println("No drafts")
@@ -124,16 +102,12 @@ type GmailDraftsGetCmd struct {
 
 func (c *GmailDraftsGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
 	draftID := strings.TrimSpace(c.DraftID)
 	if draftID == "" {
 		return usage("empty draftId")
 	}
 
-	svc, err := newGmailService(ctx, account)
+	_, svc, err := requireGmailService(ctx, flags)
 	if err != nil {
 		return err
 	}
@@ -220,12 +194,7 @@ func (c *GmailDraftsDeleteCmd) Run(ctx context.Context, flags *RootFlags) error 
 		return confirmErr
 	}
 
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
-
-	svc, err := newGmailService(ctx, account)
+	_, svc, err := requireGmailService(ctx, flags)
 	if err != nil {
 		return err
 	}
@@ -256,12 +225,7 @@ func (c *GmailDraftsSendCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
-
-	svc, err := newGmailService(ctx, account)
+	_, svc, err := requireGmailService(ctx, flags)
 	if err != nil {
 		return err
 	}
@@ -324,41 +288,23 @@ func (c draftComposeInput) validate() error {
 }
 
 func buildDraftMessage(ctx context.Context, svc *gmail.Service, account string, input draftComposeInput) (*gmail.Message, string, error) {
-	fromAddr := account
-	if strings.TrimSpace(input.From) != "" {
-		sa, err := svc.Users.Settings.SendAs.Get("me", input.From).Context(ctx).Do()
-		if err != nil {
-			return nil, "", fmt.Errorf("invalid --from address %q: %w", input.From, err)
-		}
-		if !sendAsAllowedForFrom(sa) {
-			return nil, "", fmt.Errorf("--from address %q is not verified (status: %s)", input.From, sa.VerificationStatus)
-		}
-		fromAddr = input.From
-		if sa.DisplayName != "" {
-			fromAddr = sa.DisplayName + " <" + input.From + ">"
-		}
+	sendAsList, sendAsListErr := listSendAs(ctx, svc)
+	from, err := resolveComposeFrom(ctx, svc, account, input.From, sendAsList, sendAsListErr)
+	if err != nil {
+		return nil, "", err
 	}
 
-	info, err := fetchReplyInfo(ctx, svc, input.ReplyToMessageID, input.ReplyToThreadID, input.Quote)
+	info, body, htmlBody, err := prepareComposeReply(ctx, svc, input.ReplyToMessageID, input.ReplyToThreadID, input.Quote, input.Body, input.BodyHTML)
 	if err != nil {
 		return nil, "", err
 	}
 	inReplyTo := info.InReplyTo
 	references := info.References
 	threadID := info.ThreadID
-	body, htmlBody := applyQuoteToBodies(input.Body, input.BodyHTML, input.Quote, info)
-
-	atts := make([]mailAttachment, 0, len(input.Attach))
-	for _, p := range input.Attach {
-		expanded, expandErr := config.ExpandPath(p)
-		if expandErr != nil {
-			return nil, "", expandErr
-		}
-		atts = append(atts, mailAttachment{Path: expanded})
-	}
+	atts := attachmentsFromPaths(input.Attach)
 
 	raw, err := buildRFC822(mailOptions{
-		From:        fromAddr,
+		From:        from.header,
 		To:          splitCSV(input.To),
 		Cc:          splitCSV(input.Cc),
 		Bcc:         splitCSV(input.Bcc),
@@ -504,13 +450,9 @@ func (c *GmailDraftsCreateCmd) Run(ctx context.Context, flags *RootFlags) error 
 		return usage("--quote requires --reply-to-message-id")
 	}
 
-	attachPaths := make([]string, 0, len(c.Attach))
-	for _, p := range c.Attach {
-		expanded, expandErr := config.ExpandPath(p)
-		if expandErr != nil {
-			return expandErr
-		}
-		attachPaths = append(attachPaths, expanded)
+	attachPaths, err := expandComposeAttachmentPaths(c.Attach)
+	if err != nil {
+		return err
 	}
 
 	input := draftComposeInput{
@@ -547,12 +489,7 @@ func (c *GmailDraftsCreateCmd) Run(ctx context.Context, flags *RootFlags) error 
 		return dryRunErr
 	}
 
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
-
-	svc, err := newGmailService(ctx, account)
+	account, svc, err := requireGmailService(ctx, flags)
 	if err != nil {
 		return err
 	}
@@ -605,13 +542,9 @@ func (c *GmailDraftsUpdateCmd) Run(ctx context.Context, flags *RootFlags) error 
 	}
 	replyToMessageID := normalizeGmailMessageID(c.ReplyToMessageID)
 
-	attachPaths := make([]string, 0, len(c.Attach))
-	for _, p := range c.Attach {
-		expanded, expandErr := config.ExpandPath(p)
-		if expandErr != nil {
-			return expandErr
-		}
-		attachPaths = append(attachPaths, expanded)
+	attachPaths, err := expandComposeAttachmentPaths(c.Attach)
+	if err != nil {
+		return err
 	}
 
 	input := draftComposeInput{
@@ -650,12 +583,7 @@ func (c *GmailDraftsUpdateCmd) Run(ctx context.Context, flags *RootFlags) error 
 		return dryRunErr
 	}
 
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
-
-	svc, err := newGmailService(ctx, account)
+	account, svc, err := requireGmailService(ctx, flags)
 	if err != nil {
 		return err
 	}

@@ -43,7 +43,9 @@ PY
 
   run_required "calendar" "calendar delete event" gog calendar delete primary "$ev_id" --force >/dev/null
 
-  if ! skip "calendar-enterprise"; then
+  if is_consumer_account "$ACCOUNT"; then
+    echo "==> calendar enterprise event types (skipped; Workspace/enterprise only)"
+  elif ! skip "calendar-enterprise"; then
     local focus_json focus_id ooo_json ooo_id wl_json wl_id
     focus_json=$(gog calendar create primary --event-type focus-time --from "$START" --to "$END" --json 2>/dev/null || true)
     if [ -n "$focus_json" ]; then

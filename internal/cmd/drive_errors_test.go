@@ -2,8 +2,13 @@ package cmd
 
 import (
 	"context"
+	"encoding/json"
+	"io"
 	"strings"
 	"testing"
+
+	"github.com/steipete/gogcli/internal/outfmt"
+	"github.com/steipete/gogcli/internal/ui"
 )
 
 func TestDriveCommand_ValidationErrors(t *testing.T) {
@@ -71,5 +76,34 @@ func TestDriveDeleteUnshare_NoInput(t *testing.T) {
 	shareCmd := &DriveShareCmd{}
 	if err := runKong(t, shareCmd, []string{"file1", "--to", "anyone"}, context.Background(), flags); err == nil || !strings.Contains(err.Error(), "refusing to share drive file file1 with anyone (public)") {
 		t.Fatalf("expected refusing error, got %v", err)
+	}
+}
+
+func TestDriveDelete_DryRunJSON(t *testing.T) {
+	u, uiErr := ui.New(ui.Options{Stdout: io.Discard, Stderr: io.Discard, Color: "never"})
+	if uiErr != nil {
+		t.Fatalf("ui.New: %v", uiErr)
+	}
+	ctx := outfmt.WithMode(ui.WithUI(context.Background(), u), outfmt.Mode{JSON: true})
+
+	out := captureStdout(t, func() {
+		err := (&DriveDeleteCmd{FileID: "file1", Permanent: true}).Run(ctx, &RootFlags{Account: "a@b.com", DryRun: true, NoInput: true})
+		if ExitCode(err) != 0 {
+			t.Fatalf("expected dry-run exit, got %v", err)
+		}
+	})
+
+	var payload struct {
+		Op      string         `json:"op"`
+		Request map[string]any `json:"request"`
+	}
+	if err := json.Unmarshal([]byte(out), &payload); err != nil {
+		t.Fatalf("decode output: %v", err)
+	}
+	if payload.Op != "drive.delete" {
+		t.Fatalf("unexpected op: %#v", payload)
+	}
+	if payload.Request["file_id"] != "file1" || payload.Request["permanent"] != true {
+		t.Fatalf("unexpected request: %#v", payload.Request)
 	}
 }

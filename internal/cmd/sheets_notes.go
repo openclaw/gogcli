@@ -13,15 +13,11 @@ import (
 
 type SheetsNotesCmd struct {
 	SpreadsheetID string `arg:"" name:"spreadsheetId" help:"Spreadsheet ID"`
-	Range         string `arg:"" name:"range" help:"Range (eg. Sheet1!A1:B10)"`
+	Range         string `arg:"" name:"range" help:"Range (A1 notation or named range name; e.g. Sheet1!A1:B10 or MyNamedRange)"`
 }
 
 func (c *SheetsNotesCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
 
 	spreadsheetID := normalizeGoogleID(strings.TrimSpace(c.SpreadsheetID))
 	rangeSpec := cleanRange(c.Range)
@@ -32,7 +28,7 @@ func (c *SheetsNotesCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return usage("empty range")
 	}
 
-	svc, err := newSheetsService(ctx, account)
+	_, svc, err := requireSheetsService(ctx, flags)
 	if err != nil {
 		return err
 	}

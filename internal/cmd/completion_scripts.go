@@ -46,10 +46,12 @@ func fishCompletionScript() string {
 	return `function __gog_complete
   set -l words (commandline -opc)
   set -l cur (commandline -ct)
-  set -l cword (count $words)
-  if test -n "$cur"
-    set cword (math $cword - 1)
-  end
+
+  # Include the current token (partial word being typed) to match bash behavior.
+  set words $words $cur
+
+  # cword points to the last word (the one being completed).
+  set -l cword (math (count $words) - 1)
   gog __complete --cword $cword -- $words
 end
 

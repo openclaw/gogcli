@@ -133,3 +133,102 @@ func TestParseCustomUserDefined_ClearAll(t *testing.T) {
 		t.Fatalf("expected empty fields, got %v", len(fields))
 	}
 }
+
+func TestParseRelations_InvalidInput(t *testing.T) {
+	if _, _, err := parseRelations([]string{"bad"}, true); err == nil {
+		t.Fatalf("expected error for missing '='")
+	}
+	if _, _, err := parseRelations([]string{"=Jane"}, true); err == nil {
+		t.Fatalf("expected error for empty type")
+	}
+	if _, _, err := parseRelations([]string{""}, false); err == nil {
+		t.Fatalf("expected error for empty relation value")
+	}
+}
+
+func TestParseRelations_ValidInput(t *testing.T) {
+	rels, clearAll, err := parseRelations([]string{"spouse=Jane", " friend = Bob "}, false)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if clearAll {
+		t.Fatalf("did not expect clear")
+	}
+	if len(rels) != 2 || rels[0].Type != "spouse" || rels[0].Person != "Jane" || rels[1].Type != "friend" || rels[1].Person != "Bob" {
+		t.Fatalf("unexpected relations: %#v", rels)
+	}
+}
+
+func TestParseRelations_ClearAll(t *testing.T) {
+	rels, clearAll, err := parseRelations([]string{""}, true)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !clearAll {
+		t.Fatalf("expected clear")
+	}
+	if len(rels) != 0 {
+		t.Fatalf("expected empty relations, got %v", len(rels))
+	}
+}
+
+func TestParseRelations_EmptySlice(t *testing.T) {
+	rels, clearAll, err := parseRelations(nil, false)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if clearAll {
+		t.Fatalf("did not expect clear")
+	}
+	if len(rels) != 0 {
+		t.Fatalf("expected empty, got %v", rels)
+	}
+}
+
+func TestFormatAddressAndAllAddresses(t *testing.T) {
+	if got := formatAddress(nil); got != "" {
+		t.Fatalf("expected empty, got %q", got)
+	}
+
+	addr := &people.Address{FormattedValue: "1 Infinite Loop, Cupertino, CA"}
+	if got := formatAddress(addr); got != "1 Infinite Loop, Cupertino, CA" {
+		t.Fatalf("unexpected formatted address: %q", got)
+	}
+
+	structured := &people.Address{
+		StreetAddress:   "123 Main St",
+		ExtendedAddress: "Apt 4",
+		City:            "London",
+		Region:          "Greater London",
+		PostalCode:      "SW1A 1AA",
+		Country:         "UK",
+	}
+	if got := formatAddress(structured); got != "123 Main St, Apt 4, London, Greater London, SW1A 1AA, UK" {
+		t.Fatalf("unexpected structured address: %q", got)
+	}
+
+	person := &people.Person{
+		Addresses: []*people.Address{
+			nil,
+			{FormattedValue: "One"},
+			{StreetAddress: "Two"},
+		},
+	}
+	got := allAddresses(person)
+	if len(got) != 2 || got[0] != "One" || got[1] != "Two" {
+		t.Fatalf("unexpected addresses: %#v", got)
+	}
+}
+
+func TestContactsAddresses(t *testing.T) {
+	addrs := contactsAddresses([]string{" 123 Main St ", "", "456 Side St"})
+	if len(addrs) != 2 {
+		t.Fatalf("expected 2 addresses, got %d", len(addrs))
+	}
+	if addrs[0].StreetAddress != "123 Main St" {
+		t.Fatalf("unexpected first address: %#v", addrs[0])
+	}
+	if addrs[1].StreetAddress != "456 Side St" {
+		t.Fatalf("unexpected second address: %#v", addrs[1])
+	}
+}

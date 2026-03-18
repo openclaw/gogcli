@@ -7,6 +7,8 @@ import (
 	"google.golang.org/api/slides/v1"
 )
 
+const slideElementTitle = "title"
+
 // SlidesToAPIRequests converts slide structures to Google Slides API batch update requests
 func SlidesToAPIRequests(slideData []Slide) ([]*slides.Request, map[int]string) {
 	var requests []*slides.Request
@@ -51,7 +53,7 @@ func SlidesToAPIRequests(slideData []Slide) ([]*slides.Request, map[int]string) 
 
 		// Add title text
 		for _, elem := range slide.Elements {
-			if elem.Type == "title" {
+			if elem.Type == slideElementTitle {
 				requests = append(requests, &slides.Request{
 					InsertText: &slides.InsertTextRequest{
 						ObjectId:       titleID,
@@ -106,7 +108,7 @@ func SlidesToAPIRequests(slideData []Slide) ([]*slides.Request, map[int]string) 
 		// Build body content
 		var bodyContent strings.Builder
 		for _, elem := range slide.Elements {
-			if elem.Type != "title" {
+			if elem.Type != slideElementTitle {
 				switch elem.Type {
 				case "body":
 					bodyContent.WriteString(elem.Content)

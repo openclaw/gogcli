@@ -77,6 +77,7 @@ func TestExecute_DriveDownload_JSON(t *testing.T) {
 
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, "xdg-config"))
 
 	svc, closeSrv := newDriveTestService(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Metadata fetch (Do()).

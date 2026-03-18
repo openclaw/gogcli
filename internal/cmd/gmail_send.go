@@ -11,7 +11,6 @@ import (
 
 	"google.golang.org/api/gmail/v1"
 
-	"github.com/steipete/gogcli/internal/config"
 	"github.com/steipete/gogcli/internal/outfmt"
 	"github.com/steipete/gogcli/internal/tracking"
 	"github.com/steipete/gogcli/internal/ui"
@@ -57,6 +56,7 @@ type sendMessageOptions struct {
 	Body        string
 	BodyHTML    string
 	ReplyInfo   *replyInfo
+	Headers     map[string]string
 	Attachments []mailAttachment
 	Track       bool
 	TrackingCfg *tracking.Config
@@ -104,13 +104,9 @@ func (c *GmailSendCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return fmt.Errorf("--track requires --body-html (pixel must be in HTML)")
 	}
 
-	attachPaths := make([]string, 0, len(c.Attach))
-	for _, p := range c.Attach {
-		expanded, expandErr := config.ExpandPath(p)
-		if expandErr != nil {
-			return expandErr
-		}
-		attachPaths = append(attachPaths, expanded)
+	attachPaths, err := expandComposeAttachmentPaths(c.Attach)
+	if err != nil {
+		return err
 	}
 
 	if dryRunErr := dryRunExit(ctx, flags, "gmail.send", map[string]any{
@@ -132,73 +128,26 @@ func (c *GmailSendCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return dryRunErr
 	}
 
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
-
-	svc, err := newGmailService(ctx, account)
+	account, svc, err := requireGmailService(ctx, flags)
 	if err != nil {
 		return err
 	}
 
 	sendAsList, sendAsListErr := listSendAs(ctx, svc)
-
-	// Determine the From address
-	fromAddr := account
-	sendingEmail := account // The email we're sending from (without display name)
-	if fromEmail := strings.TrimSpace(c.From); fromEmail != "" {
-		// Validate that this is a configured and verified send-as alias.
-		var sa *gmail.SendAs
-		if sendAsListErr == nil {
-			sa = findSendAsByEmail(sendAsList, fromEmail)
-			if sa == nil {
-				return fmt.Errorf("invalid --from address %q: not found in send-as settings", fromEmail)
-			}
-		} else {
-			// Fallback: preserve legacy behavior if we cannot list settings.
-			var getErr error
-			sa, getErr = svc.Users.Settings.SendAs.Get("me", fromEmail).Context(ctx).Do()
-			if getErr != nil {
-				return fmt.Errorf("invalid --from address %q: %w", fromEmail, getErr)
-			}
-		}
-
-		if !sendAsAllowedForFrom(sa) {
-			return fmt.Errorf("--from address %q is not verified (status: %s)", fromEmail, sa.VerificationStatus)
-		}
-
-		sendingEmail = fromEmail
-		fromAddr = fromEmail
-
-		if displayName := strings.TrimSpace(sa.DisplayName); displayName != "" {
-			fromAddr = displayName + " <" + fromEmail + ">"
-		}
-	} else {
-		// No --from specified: best-effort look up the primary account's display name.
-		displayName := ""
-		if sendAsListErr == nil {
-			displayName = primaryDisplayNameFromSendAsList(sendAsList, account)
-		}
-		if displayName != "" {
-			fromAddr = displayName + " <" + account + ">"
-		}
-		// If lookup fails, we just use the plain email address (no error)
-	}
-
-	// Fetch reply info (includes recipient headers for reply-all, and body for quoting)
-	replyInfo, err := fetchReplyInfo(ctx, svc, replyToMessageID, threadID, c.Quote)
+	from, err := resolveComposeFrom(ctx, svc, account, c.From, sendAsList, sendAsListErr)
 	if err != nil {
 		return err
 	}
-
-	body, htmlBody := applyQuoteToBodies(body, c.BodyHTML, c.Quote, replyInfo)
+	replyInfo, body, htmlBody, err := prepareComposeReply(ctx, svc, replyToMessageID, threadID, c.Quote, body, c.BodyHTML)
+	if err != nil {
+		return err
+	}
 
 	// Determine recipients
 	var toRecipients, ccRecipients []string
 	if c.ReplyAll {
 		// Auto-populate recipients from original message
-		toRecipients, ccRecipients = buildReplyAllRecipients(replyInfo, sendingEmail)
+		toRecipients, ccRecipients = buildReplyAllRecipients(replyInfo, from.sendingEmail)
 	}
 
 	// Explicit --to and --cc override (not merge with) auto-populated recipients
@@ -216,10 +165,7 @@ func (c *GmailSendCmd) Run(ctx context.Context, flags *RootFlags) error {
 
 	bccRecipients := splitCSV(c.Bcc)
 
-	atts := make([]mailAttachment, 0, len(attachPaths))
-	for _, p := range attachPaths {
-		atts = append(atts, mailAttachment{Path: p})
-	}
+	atts := attachmentsFromPaths(attachPaths)
 
 	var trackingCfg *tracking.Config
 	if c.Track {
@@ -231,7 +177,7 @@ func (c *GmailSendCmd) Run(ctx context.Context, flags *RootFlags) error {
 
 	batches := buildSendBatches(toRecipients, ccRecipients, bccRecipients, c.Track, c.TrackSplit)
 	results, err := sendGmailBatches(ctx, svc, sendMessageOptions{
-		FromAddr:    fromAddr,
+		FromAddr:    from.header,
 		ReplyTo:     c.ReplyTo,
 		Subject:     c.Subject,
 		Body:        body,
@@ -245,7 +191,7 @@ func (c *GmailSendCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
-	return writeSendResults(ctx, u, fromAddr, results)
+	return writeSendResults(ctx, u, from.header, results)
 }
 
 func (c *GmailSendCmd) resolveTrackingConfig(account string, toRecipients, ccRecipients, bccRecipients []string, htmlBody string) (*tracking.Config, error) {
@@ -373,17 +319,18 @@ func sendGmailBatches(ctx context.Context, svc *gmail.Service, opts sendMessageO
 		}
 
 		raw, err := buildRFC822(mailOptions{
-			From:        opts.FromAddr,
-			To:          batch.To,
-			Cc:          batch.Cc,
-			Bcc:         batch.Bcc,
-			ReplyTo:     opts.ReplyTo,
-			Subject:     opts.Subject,
-			Body:        opts.Body,
-			BodyHTML:    htmlBody,
-			InReplyTo:   reply.InReplyTo,
-			References:  reply.References,
-			Attachments: opts.Attachments,
+			From:              opts.FromAddr,
+			To:                batch.To,
+			Cc:                batch.Cc,
+			Bcc:               batch.Bcc,
+			ReplyTo:           opts.ReplyTo,
+			Subject:           opts.Subject,
+			Body:              opts.Body,
+			BodyHTML:          htmlBody,
+			InReplyTo:         reply.InReplyTo,
+			References:        reply.References,
+			AdditionalHeaders: opts.Headers,
+			Attachments:       opts.Attachments,
 		}, nil)
 		if err != nil {
 			return nil, err

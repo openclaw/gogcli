@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 
@@ -29,17 +30,12 @@ type ClassroomTopicsListCmd struct {
 }
 
 func (c *ClassroomTopicsListCmd) Run(ctx context.Context, flags *RootFlags) error {
-	u := ui.FromContext(ctx)
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
 	courseID := strings.TrimSpace(c.CourseID)
 	if courseID == "" {
 		return usage("empty courseId")
 	}
 
-	svc, err := newClassroomService(ctx, account)
+	_, svc, err := requireClassroomService(ctx, flags)
 	if err != nil {
 		return wrapClassroomError(err)
 	}
@@ -49,62 +45,31 @@ func (c *ClassroomTopicsListCmd) Run(ctx context.Context, flags *RootFlags) erro
 		if strings.TrimSpace(pageToken) != "" {
 			call = call.PageToken(pageToken)
 		}
-		resp, err := call.Do()
-		if err != nil {
-			return nil, "", wrapClassroomError(err)
+		resp, callErr := call.Do()
+		if callErr != nil {
+			return nil, "", wrapClassroomError(callErr)
 		}
 		return resp.Topic, resp.NextPageToken, nil
 	}
 
-	var topics []*classroom.Topic
-	nextPageToken := ""
-	if c.All {
-		all, err := collectAllPages(c.Page, fetch)
-		if err != nil {
-			return err
-		}
-		topics = all
-	} else {
-		var err error
-		topics, nextPageToken, err = fetch(c.Page)
-		if err != nil {
-			return err
-		}
+	topics, nextPageToken, err := fetchClassroomPagedList(c.All, c.Page, fetch)
+	if err != nil {
+		return err
 	}
 
-	if outfmt.IsJSON(ctx) {
-		if err := outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
-			"topics":        topics,
-			"nextPageToken": nextPageToken,
-		}); err != nil {
-			return err
+	return writeClassroomPagedList(ctx, "topics", topics, nextPageToken, "No topics", c.FailEmpty, false, func(w io.Writer) {
+		fmt.Fprintln(w, "TOPIC_ID\tNAME\tUPDATED")
+		for _, topic := range topics {
+			if topic == nil {
+				continue
+			}
+			fmt.Fprintf(w, "%s\t%s\t%s\n",
+				sanitizeTab(topic.TopicId),
+				sanitizeTab(topic.Name),
+				sanitizeTab(topic.UpdateTime),
+			)
 		}
-		if len(topics) == 0 {
-			return failEmptyExit(c.FailEmpty)
-		}
-		return nil
-	}
-
-	if len(topics) == 0 {
-		u.Err().Println("No topics")
-		return failEmptyExit(c.FailEmpty)
-	}
-
-	w, flush := tableWriter(ctx)
-	defer flush()
-	fmt.Fprintln(w, "TOPIC_ID\tNAME\tUPDATED")
-	for _, topic := range topics {
-		if topic == nil {
-			continue
-		}
-		fmt.Fprintf(w, "%s\t%s\t%s\n",
-			sanitizeTab(topic.TopicId),
-			sanitizeTab(topic.Name),
-			sanitizeTab(topic.UpdateTime),
-		)
-	}
-	printNextPageHint(u, nextPageToken)
-	return nil
+	})
 }
 
 type ClassroomTopicsGetCmd struct {
@@ -114,10 +79,6 @@ type ClassroomTopicsGetCmd struct {
 
 func (c *ClassroomTopicsGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
 	courseID := strings.TrimSpace(c.CourseID)
 	topicID := strings.TrimSpace(c.TopicID)
 	if courseID == "" {
@@ -127,7 +88,7 @@ func (c *ClassroomTopicsGetCmd) Run(ctx context.Context, flags *RootFlags) error
 		return usage("empty topicId")
 	}
 
-	svc, err := newClassroomService(ctx, account)
+	_, svc, err := requireClassroomService(ctx, flags)
 	if err != nil {
 		return wrapClassroomError(err)
 	}
@@ -173,12 +134,7 @@ func (c *ClassroomTopicsCreateCmd) Run(ctx context.Context, flags *RootFlags) er
 		return err
 	}
 
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
-
-	svc, err := newClassroomService(ctx, account)
+	_, svc, err := requireClassroomService(ctx, flags)
 	if err != nil {
 		return wrapClassroomError(err)
 	}
@@ -227,12 +183,7 @@ func (c *ClassroomTopicsUpdateCmd) Run(ctx context.Context, flags *RootFlags) er
 		return err
 	}
 
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
-
-	svc, err := newClassroomService(ctx, account)
+	_, svc, err := requireClassroomService(ctx, flags)
 	if err != nil {
 		return wrapClassroomError(err)
 	}
@@ -270,12 +221,7 @@ func (c *ClassroomTopicsDeleteCmd) Run(ctx context.Context, flags *RootFlags) er
 		return err
 	}
 
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
-
-	svc, err := newClassroomService(ctx, account)
+	_, svc, err := requireClassroomService(ctx, flags)
 	if err != nil {
 		return wrapClassroomError(err)
 	}

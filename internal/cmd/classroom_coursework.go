@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 
@@ -34,17 +35,12 @@ type ClassroomCourseworkListCmd struct {
 }
 
 func (c *ClassroomCourseworkListCmd) Run(ctx context.Context, flags *RootFlags) error {
-	u := ui.FromContext(ctx)
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
 	courseID := strings.TrimSpace(c.CourseID)
 	if courseID == "" {
 		return usage("empty courseId")
 	}
 
-	svc, err := newClassroomService(ctx, account)
+	_, svc, err := requireClassroomService(ctx, flags)
 	if err != nil {
 		return wrapClassroomError(err)
 	}
@@ -111,43 +107,22 @@ func (c *ClassroomCourseworkListCmd) Run(ctx context.Context, flags *RootFlags) 
 		}
 	}
 
-	if outfmt.IsJSON(ctx) {
-		if err := outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
-			"coursework":    coursework,
-			"nextPageToken": nextPageToken,
-		}); err != nil {
-			return err
+	return writeClassroomPagedList(ctx, "coursework", coursework, nextPageToken, "No coursework", c.FailEmpty, true, func(w io.Writer) {
+		fmt.Fprintln(w, "ID\tTITLE\tSTATE\tDUE\tTYPE\tMAX_POINTS")
+		for _, work := range coursework {
+			if work == nil {
+				continue
+			}
+			fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\n",
+				sanitizeTab(work.Id),
+				sanitizeTab(work.Title),
+				sanitizeTab(work.State),
+				sanitizeTab(formatClassroomDue(work.DueDate, work.DueTime)),
+				sanitizeTab(work.WorkType),
+				formatFloatValue(work.MaxPoints),
+			)
 		}
-		if len(coursework) == 0 {
-			return failEmptyExit(c.FailEmpty)
-		}
-		return nil
-	}
-
-	if len(coursework) == 0 {
-		u.Err().Println("No coursework")
-		printNextPageHint(u, nextPageToken)
-		return failEmptyExit(c.FailEmpty)
-	}
-
-	w, flush := tableWriter(ctx)
-	defer flush()
-	fmt.Fprintln(w, "ID\tTITLE\tSTATE\tDUE\tTYPE\tMAX_POINTS")
-	for _, work := range coursework {
-		if work == nil {
-			continue
-		}
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\n",
-			sanitizeTab(work.Id),
-			sanitizeTab(work.Title),
-			sanitizeTab(work.State),
-			sanitizeTab(formatClassroomDue(work.DueDate, work.DueTime)),
-			sanitizeTab(work.WorkType),
-			formatFloatValue(work.MaxPoints),
-		)
-	}
-	printNextPageHint(u, nextPageToken)
-	return nil
+	})
 }
 
 type ClassroomCourseworkGetCmd struct {
@@ -157,10 +132,6 @@ type ClassroomCourseworkGetCmd struct {
 
 func (c *ClassroomCourseworkGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
 	courseID := strings.TrimSpace(c.CourseID)
 	courseworkID := strings.TrimSpace(c.CourseworkID)
 	if courseID == "" {
@@ -170,7 +141,7 @@ func (c *ClassroomCourseworkGetCmd) Run(ctx context.Context, flags *RootFlags) e
 		return usage("empty courseworkId")
 	}
 
-	svc, err := newClassroomService(ctx, account)
+	_, svc, err := requireClassroomService(ctx, flags)
 	if err != nil {
 		return wrapClassroomError(err)
 	}
@@ -290,12 +261,7 @@ func (c *ClassroomCourseworkCreateCmd) Run(ctx context.Context, flags *RootFlags
 		return dryRunErr
 	}
 
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
-
-	svc, err := newClassroomService(ctx, account)
+	_, svc, err := requireClassroomService(ctx, flags)
 	if err != nil {
 		return wrapClassroomError(err)
 	}
@@ -415,12 +381,7 @@ func (c *ClassroomCourseworkUpdateCmd) Run(ctx context.Context, flags *RootFlags
 		return dryRunErr
 	}
 
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
-
-	svc, err := newClassroomService(ctx, account)
+	_, svc, err := requireClassroomService(ctx, flags)
 	if err != nil {
 		return wrapClassroomError(err)
 	}
@@ -459,12 +420,7 @@ func (c *ClassroomCourseworkDeleteCmd) Run(ctx context.Context, flags *RootFlags
 		return err
 	}
 
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
-
-	svc, err := newClassroomService(ctx, account)
+	_, svc, err := requireClassroomService(ctx, flags)
 	if err != nil {
 		return wrapClassroomError(err)
 	}
@@ -519,12 +475,7 @@ func (c *ClassroomCourseworkAssigneesCmd) Run(ctx context.Context, flags *RootFl
 		return dryRunErr
 	}
 
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
-
-	svc, err := newClassroomService(ctx, account)
+	_, svc, err := requireClassroomService(ctx, flags)
 	if err != nil {
 		return wrapClassroomError(err)
 	}

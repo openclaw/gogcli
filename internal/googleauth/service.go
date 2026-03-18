@@ -25,6 +25,7 @@ const (
 	ServiceAppScript Service = "appscript"
 	ServiceGroups    Service = "groups"
 	ServiceKeep      Service = "keep"
+	ServiceAdmin     Service = "admin"
 )
 
 const (
@@ -55,9 +56,10 @@ const (
 )
 
 type ScopeOptions struct {
-	Readonly   bool
-	DriveScope DriveScopeMode
-	GmailScope GmailScopeMode
+	Readonly    bool
+	DriveScope  DriveScopeMode
+	GmailScope  GmailScopeMode
+	ExtraScopes []string
 }
 
 type serviceInfo struct {
@@ -83,6 +85,7 @@ var serviceOrder = []Service{
 	ServiceAppScript,
 	ServiceGroups,
 	ServiceKeep,
+	ServiceAdmin,
 }
 
 var serviceInfoByService = map[Service]serviceInfo{
@@ -207,10 +210,20 @@ var serviceInfoByService = map[Service]serviceInfo{
 		note:   "Workspace only",
 	},
 	ServiceKeep: {
-		scopes: []string{"https://www.googleapis.com/auth/keep.readonly"},
+		scopes: []string{"https://www.googleapis.com/auth/keep"},
 		user:   false,
 		apis:   []string{"Keep API"},
 		note:   "Workspace only; service account (domain-wide delegation)",
+	},
+	ServiceAdmin: {
+		scopes: []string{
+			"https://www.googleapis.com/auth/admin.directory.user",
+			"https://www.googleapis.com/auth/admin.directory.group",
+			"https://www.googleapis.com/auth/admin.directory.group.member",
+		},
+		user: false,
+		apis: []string{"Admin SDK Directory API"},
+		note: "Workspace only; service account with domain-wide delegation required",
 	},
 }
 
@@ -374,7 +387,12 @@ func ScopesForManageWithOptions(services []Service, opts ScopeOptions) ([]string
 		return nil, err
 	}
 
-	return mergeScopes(scopes, []string{scopeOpenID, scopeEmail, scopeUserinfoEmail}), nil
+	merged := mergeScopes(scopes, []string{scopeOpenID, scopeEmail, scopeUserinfoEmail})
+	if len(opts.ExtraScopes) > 0 {
+		merged = mergeScopes(merged, opts.ExtraScopes)
+	}
+
+	return merged, nil
 }
 
 func scopesForServicesWithOptions(services []Service, opts ScopeOptions) ([]string, error) {

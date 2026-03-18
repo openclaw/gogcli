@@ -3,23 +3,17 @@ package googleapi
 import (
 	"context"
 	"crypto/tls"
-	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
-	"strings"
-	"sync"
+	"os"
 	"time"
 
-	"github.com/99designs/keyring"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 	"google.golang.org/api/option"
 
-	"github.com/steipete/gogcli/internal/authclient"
-	"github.com/steipete/gogcli/internal/config"
 	"github.com/steipete/gogcli/internal/googleauth"
-	"github.com/steipete/gogcli/internal/secrets"
 )
 
 const (
@@ -36,120 +30,7 @@ const (
 	tokenExchangeTimeout = 30 * time.Second
 )
 
-var (
-	readClientCredentials = config.ReadClientCredentialsFor
-	openSecretsStore      = secrets.OpenDefault
-)
-
-type persistingTokenSource struct {
-	base   oauth2.TokenSource
-	store  secrets.Store
-	client string
-	email  string
-
-	mu  sync.Mutex
-	tok secrets.Token
-}
-
-func newPersistingTokenSource(base oauth2.TokenSource, store secrets.Store, client string, email string, tok secrets.Token) oauth2.TokenSource {
-	return &persistingTokenSource{
-		base:   base,
-		store:  store,
-		client: client,
-		email:  email,
-		tok:    tok,
-	}
-}
-
-func (p *persistingTokenSource) Token() (*oauth2.Token, error) {
-	t, err := p.base.Token()
-	if err != nil {
-		return nil, fmt.Errorf("base token source: %w", err)
-	}
-
-	refreshToken := strings.TrimSpace(t.RefreshToken)
-	if refreshToken == "" {
-		return t, nil
-	}
-
-	p.mu.Lock()
-	defer p.mu.Unlock()
-
-	if refreshToken == p.tok.RefreshToken {
-		return t, nil
-	}
-
-	updated := p.tok
-	updated.RefreshToken = refreshToken
-
-	if err := p.store.SetToken(p.client, p.email, updated); err != nil {
-		slog.Warn("persist rotated refresh token failed", "email", p.email, "client", p.client, "err", err)
-		return t, nil
-	}
-
-	p.tok = updated
-	slog.Debug("persisted rotated refresh token", "email", p.email, "client", p.client)
-
-	return t, nil
-}
-
-func tokenSourceForAccount(ctx context.Context, service googleauth.Service, email string) (oauth2.TokenSource, error) {
-	client, err := authclient.ResolveClient(ctx, email)
-	if err != nil {
-		return nil, fmt.Errorf("resolve client: %w", err)
-	}
-
-	creds, err := readClientCredentials(client)
-	if err != nil {
-		return nil, fmt.Errorf("read credentials: %w", err)
-	}
-
-	var requiredScopes []string
-
-	if scopes, err := googleauth.Scopes(service); err != nil {
-		return nil, fmt.Errorf("resolve scopes: %w", err)
-	} else {
-		requiredScopes = scopes
-	}
-
-	return tokenSourceForAccountScopes(ctx, string(service), email, client, creds.ClientID, creds.ClientSecret, requiredScopes)
-}
-
-func tokenSourceForAccountScopes(ctx context.Context, serviceLabel string, email string, client string, clientID string, clientSecret string, requiredScopes []string) (oauth2.TokenSource, error) {
-	var store secrets.Store
-
-	if s, err := openSecretsStore(); err != nil {
-		return nil, fmt.Errorf("open secrets store: %w", err)
-	} else {
-		store = s
-	}
-
-	var tok secrets.Token
-
-	if t, err := store.GetToken(client, email); err != nil {
-		if errors.Is(err, keyring.ErrKeyNotFound) {
-			return nil, &AuthRequiredError{Service: serviceLabel, Email: email, Client: client, Cause: err}
-		}
-
-		return nil, fmt.Errorf("get token for %s: %w", email, err)
-	} else {
-		tok = t
-	}
-
-	cfg := oauth2.Config{
-		ClientID:     clientID,
-		ClientSecret: clientSecret,
-		Endpoint:     google.Endpoint,
-		Scopes:       requiredScopes,
-	}
-
-	// Ensure refresh-token exchanges don't hang forever.
-	ctx = context.WithValue(ctx, oauth2.HTTPClient, &http.Client{Timeout: tokenExchangeTimeout})
-
-	baseSource := cfg.TokenSource(ctx, &oauth2.Token{RefreshToken: tok.RefreshToken})
-
-	return newPersistingTokenSource(baseSource, store, client, email, tok), nil
-}
+var newADCTokenSource = google.DefaultTokenSource
 
 func optionsForAccount(ctx context.Context, service googleauth.Service, email string) ([]option.ClientOption, error) {
 	scopes, err := googleauth.Scopes(service)
@@ -160,38 +41,39 @@ func optionsForAccount(ctx context.Context, service googleauth.Service, email st
 	return optionsForAccountScopes(ctx, string(service), email, scopes)
 }
 
+// IsADCMode reports whether Application Default Credentials mode is active.
+// When GOG_AUTH_MODE=adc, the CLI authenticates using the ambient credentials
+// (e.g. GKE Workload Identity, GOOGLE_APPLICATION_CREDENTIALS, or gcloud ADC)
+// instead of the keyring-based OAuth flow. The service account accesses only
+// resources explicitly shared with it — no domain-wide delegation needed.
+func IsADCMode() bool {
+	return os.Getenv("GOG_AUTH_MODE") == "adc"
+}
+
 func optionsForAccountScopes(ctx context.Context, serviceLabel string, email string, scopes []string) ([]option.ClientOption, error) {
 	slog.Debug("creating client options with custom scopes", "serviceLabel", serviceLabel, "email", email)
 
-	var creds config.ClientCredentials
-
 	var ts oauth2.TokenSource
 
-	if serviceAccountTS, saPath, ok, err := tokenSourceForServiceAccountScopes(ctx, serviceLabel, email, scopes); err != nil {
-		return nil, fmt.Errorf("service account token source: %w", err)
-	} else if ok {
-		slog.Debug("using service account credentials", "email", email, "path", saPath)
-		ts = serviceAccountTS
-	} else {
-		client, err := authclient.ResolveClient(ctx, email)
+	if IsADCMode() {
+		slog.Debug("using Application Default Credentials (GOG_AUTH_MODE=adc)", "serviceLabel", serviceLabel)
+
+		adcTS, err := newADCTokenSource(ctx, scopes...)
 		if err != nil {
-			return nil, fmt.Errorf("resolve client: %w", err)
+			return nil, fmt.Errorf("ADC token source: %w", err)
 		}
 
-		if c, err := readClientCredentials(client); err != nil {
-			return nil, fmt.Errorf("read credentials: %w", err)
-		} else {
-			creds = c
-		}
+		ts = adcTS
+	} else {
+		var err error
 
-		if tokenSource, err := tokenSourceForAccountScopes(ctx, serviceLabel, email, client, creds.ClientID, creds.ClientSecret, scopes); err != nil {
-			return nil, fmt.Errorf("token source: %w", err)
-		} else {
-			ts = tokenSource
+		ts, err = tokenSourceForAvailableAccountAuth(ctx, serviceLabel, email, scopes)
+		if err != nil {
+			return nil, err
 		}
 	}
+
 	baseTransport := newBaseTransport()
-	// Wrap with retry logic for 429 and 5xx errors
 	retryTransport := NewRetryTransport(&oauth2.Transport{
 		Source: ts,
 		Base:   baseTransport,

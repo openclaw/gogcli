@@ -10,8 +10,6 @@ import (
 
 	"github.com/steipete/gogcli/internal/config"
 	"github.com/steipete/gogcli/internal/googleauth"
-	"github.com/steipete/gogcli/internal/outfmt"
-	"github.com/steipete/gogcli/internal/ui"
 )
 
 func TestAuthKeepCmd_JSON(t *testing.T) {
@@ -24,11 +22,7 @@ func TestAuthKeepCmd_JSON(t *testing.T) {
 		t.Fatalf("write key: %v", err)
 	}
 
-	u, err := ui.New(ui.Options{Stdout: os.Stdout, Stderr: os.Stderr, Color: "never"})
-	if err != nil {
-		t.Fatalf("ui.New: %v", err)
-	}
-	ctx := outfmt.WithMode(ui.WithUI(context.Background(), u), outfmt.Mode{JSON: true})
+	ctx := newCmdJSONOutputContext(t, os.Stdout, os.Stderr)
 
 	cmd := AuthKeepCmd{Email: "a@b.com", Key: keyPath}
 	out := captureStdout(t, func() {
@@ -72,11 +66,7 @@ func TestAuthManageCmd(t *testing.T) {
 }
 
 func TestAuthServicesCmd_Markdown(t *testing.T) {
-	u, err := ui.New(ui.Options{Stdout: os.Stdout, Stderr: os.Stderr, Color: "never"})
-	if err != nil {
-		t.Fatalf("ui.New: %v", err)
-	}
-	ctx := ui.WithUI(context.Background(), u)
+	ctx := newCmdOutputContext(t, os.Stdout, os.Stderr)
 
 	cmd := AuthServicesCmd{Markdown: true}
 	out := captureStdout(t, func() {
@@ -90,11 +80,7 @@ func TestAuthServicesCmd_Markdown(t *testing.T) {
 }
 
 func TestAuthServicesCmd_JSON(t *testing.T) {
-	u, err := ui.New(ui.Options{Stdout: os.Stdout, Stderr: os.Stderr, Color: "never"})
-	if err != nil {
-		t.Fatalf("ui.New: %v", err)
-	}
-	ctx := outfmt.WithMode(ui.WithUI(context.Background(), u), outfmt.Mode{JSON: true})
+	ctx := newCmdJSONOutputContext(t, os.Stdout, os.Stderr)
 
 	cmd := AuthServicesCmd{}
 	out := captureStdout(t, func() {
@@ -108,11 +94,7 @@ func TestAuthServicesCmd_JSON(t *testing.T) {
 }
 
 func TestAuthServicesCmd_Table(t *testing.T) {
-	u, err := ui.New(ui.Options{Stdout: os.Stdout, Stderr: os.Stderr, Color: "never"})
-	if err != nil {
-		t.Fatalf("ui.New: %v", err)
-	}
-	ctx := ui.WithUI(context.Background(), u)
+	ctx := newCmdOutputContext(t, os.Stdout, os.Stderr)
 
 	cmd := AuthServicesCmd{}
 	out := captureStdout(t, func() {
@@ -136,11 +118,7 @@ func TestAuthKeepCmd_Text(t *testing.T) {
 	}
 
 	out := captureStdout(t, func() {
-		u, err := ui.New(ui.Options{Stdout: os.Stdout, Stderr: os.Stderr, Color: "never"})
-		if err != nil {
-			t.Fatalf("ui.New: %v", err)
-		}
-		ctx := ui.WithUI(context.Background(), u)
+		ctx := newCmdOutputContext(t, os.Stdout, os.Stderr)
 
 		cmd := AuthKeepCmd{Email: "a@b.com", Key: keyPath}
 		if err := cmd.Run(ctx, &RootFlags{}); err != nil {
@@ -157,11 +135,7 @@ func TestAuthStatusCmd_JSON(t *testing.T) {
 	t.Setenv("HOME", home)
 	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, "xdg"))
 
-	u, err := ui.New(ui.Options{Stdout: os.Stdout, Stderr: os.Stderr, Color: "never"})
-	if err != nil {
-		t.Fatalf("ui.New: %v", err)
-	}
-	ctx := outfmt.WithMode(ui.WithUI(context.Background(), u), outfmt.Mode{JSON: true})
+	ctx := newCmdJSONOutputContext(t, os.Stdout, os.Stderr)
 
 	if _, err := config.ConfigPath(); err != nil {
 		t.Fatalf("ConfigPath: %v", err)

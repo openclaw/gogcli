@@ -9,6 +9,7 @@ import (
 const (
 	transparencyOpaque      = "opaque"
 	transparencyTransparent = "transparent"
+	visibilityPublic        = "public"
 	sendUpdatesNone         = "none"
 )
 

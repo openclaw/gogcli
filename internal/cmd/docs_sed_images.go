@@ -389,36 +389,7 @@ func parseImageSyntax(text string) *ImageSpec {
 	if strings.HasPrefix(rest, "{") {
 		attrEnd := strings.Index(rest, "}")
 		if attrEnd != -1 {
-			attrs := rest[1:attrEnd]
-			// Parse width=N and height=N
-			for _, part := range strings.Fields(attrs) {
-				switch {
-				case strings.HasPrefix(part, "width="):
-					val := strings.TrimPrefix(part, "width=")
-					val = strings.TrimSuffix(val, "px")
-					val = strings.TrimSuffix(val, "%") // percentage values treated as absolute px for now
-					if n, err := strconv.Atoi(val); err == nil {
-						spec.Width = n
-					}
-				case strings.HasPrefix(part, "height="):
-					val := strings.TrimPrefix(part, "height=")
-					val = strings.TrimSuffix(val, "px")
-					val = strings.TrimSuffix(val, "%")
-					if n, err := strconv.Atoi(val); err == nil {
-						spec.Height = n
-					}
-				case strings.HasPrefix(part, "w="):
-					val := strings.TrimPrefix(part, "w=")
-					if n, err := strconv.Atoi(val); err == nil {
-						spec.Width = n
-					}
-				case strings.HasPrefix(part, "h="):
-					val := strings.TrimPrefix(part, "h=")
-					if n, err := strconv.Atoi(val); err == nil {
-						spec.Height = n
-					}
-				}
-			}
+			spec.Width, spec.Height = parseImageDimAttrs(rest[1:attrEnd])
 		}
 	}
 

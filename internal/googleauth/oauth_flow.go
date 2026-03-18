@@ -29,6 +29,8 @@ type AuthorizeOptions struct {
 	Client                      string
 	AuthCode                    string
 	AuthURL                     string
+	ListenAddr                  string
+	RedirectURI                 string
 	RequireState                bool
 }
 
@@ -79,6 +81,15 @@ func Authorize(ctx context.Context, opts AuthorizeOptions) (string, error) {
 		opts.Timeout = 2 * time.Minute
 	}
 
+	if strings.TrimSpace(opts.RedirectURI) != "" {
+		redirectURI, err := normalizeRedirectURI(opts.RedirectURI)
+		if err != nil {
+			return "", err
+		}
+
+		opts.RedirectURI = redirectURI
+	}
+
 	if strings.TrimSpace(opts.AuthURL) != "" && strings.TrimSpace(opts.AuthCode) != "" {
 		return "", errInvalidAuthorizeOptionsAuthURLAndCode
 	}
@@ -112,15 +123,19 @@ func authorizeServer(ctx context.Context, opts AuthorizeOptions, creds config.Cl
 		return "", err
 	}
 
-	ln, err := (&net.ListenConfig{}).Listen(ctx, "tcp", "127.0.0.1:0")
+	listenAddr, err := normalizeListenAddr(opts.ListenAddr)
+	if err != nil {
+		return "", err
+	}
+
+	ln, err := (&net.ListenConfig{}).Listen(ctx, "tcp", listenAddr)
 	if err != nil {
 		return "", fmt.Errorf("listen for callback: %w", err)
 	}
 
 	defer func() { _ = ln.Close() }()
 
-	port := ln.Addr().(*net.TCPAddr).Port
-	redirectURI := fmt.Sprintf("http://127.0.0.1:%d/oauth2/callback", port)
+	redirectURI := resolveServerRedirectURI(ln, opts.RedirectURI)
 
 	cfg := oauth2.Config{
 		ClientID:     creds.ClientID,
@@ -210,6 +225,10 @@ func authorizeServer(ctx context.Context, opts AuthorizeOptions, creds config.Cl
 	fmt.Fprintln(os.Stderr, "Opening browser for authorization…")
 	fmt.Fprintln(os.Stderr, "If the browser doesn't open, visit this URL:")
 	fmt.Fprintln(os.Stderr, authURL)
+
+	if strings.TrimSpace(opts.ListenAddr) != "" {
+		fmt.Fprintf(os.Stderr, "Server listening on %s\n", ln.Addr().String())
+	}
 	_ = openBrowserFn(authURL)
 
 	select {

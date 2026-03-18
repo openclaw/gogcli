@@ -113,3 +113,64 @@ func TestApplyUpdateScopeFuture_NonRecurring(t *testing.T) {
 		t.Fatalf("expected error for non-recurring event")
 	}
 }
+
+func TestApplyUpdateScopeFuture_RecurringInstanceID(t *testing.T) {
+	originalStart := "2025-01-02T10:00:00Z"
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := strings.TrimPrefix(r.URL.Path, "/calendar/v3")
+		switch {
+		case r.Method == http.MethodGet && path == "/calendars/cal/events/ev_instance":
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"id":               "ev_instance",
+				"recurringEventId": "ev_master",
+			})
+		case r.Method == http.MethodGet && path == "/calendars/cal/events/ev_master":
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"id":         "ev_master",
+				"recurrence": []string{"RRULE:FREQ=DAILY"},
+			})
+		case r.Method == http.MethodGet && strings.HasPrefix(path, "/calendars/cal/events/ev_master/instances"):
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"items": []map[string]any{
+					{
+						"id": "ev_1",
+						"originalStartTime": map[string]any{
+							"dateTime": originalStart,
+						},
+					},
+				},
+			})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+
+	svc, err := calendar.NewService(context.Background(),
+		option.WithoutAuthentication(),
+		option.WithHTTPClient(srv.Client()),
+		option.WithEndpoint(srv.URL+"/"),
+	)
+	if err != nil {
+		t.Fatalf("NewService: %v", err)
+	}
+
+	patch := &calendar.Event{Summary: "updated"}
+	targetID, parentRecurrence, err := applyUpdateScope(context.Background(), svc, "cal", "ev_instance", scopeFuture, originalStart, patch)
+	if err != nil {
+		t.Fatalf("applyUpdateScope: %v", err)
+	}
+	if targetID != "ev_1" {
+		t.Fatalf("unexpected target id: %q", targetID)
+	}
+	if len(parentRecurrence) != 1 || parentRecurrence[0] != "RRULE:FREQ=DAILY" {
+		t.Fatalf("unexpected parent recurrence: %#v", parentRecurrence)
+	}
+	if len(patch.Recurrence) != 1 || patch.Recurrence[0] != "RRULE:FREQ=DAILY" {
+		t.Fatalf("patch did not inherit recurrence: %#v", patch.Recurrence)
+	}
+}

@@ -74,12 +74,7 @@ func (c *SheetsInsertCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return dryRunErr
 	}
 
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
-
-	svc, err := newSheetsService(ctx, account)
+	_, svc, err := requireSheetsService(ctx, flags)
 	if err != nil {
 		return err
 	}

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	"text/tabwriter"
 
 	"google.golang.org/api/gmail/v1"
 
@@ -23,13 +22,7 @@ type GmailDelegatesCmd struct {
 type GmailDelegatesListCmd struct{}
 
 func (c *GmailDelegatesListCmd) Run(ctx context.Context, flags *RootFlags) error {
-	u := ui.FromContext(ctx)
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
-
-	svc, err := newGmailService(ctx, account)
+	svc, err := loadGmailSettingsService(ctx, flags)
 	if err != nil {
 		return err
 	}
@@ -38,25 +31,17 @@ func (c *GmailDelegatesListCmd) Run(ctx context.Context, flags *RootFlags) error
 	if err != nil {
 		return err
 	}
-
-	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{"delegates": resp.Delegates})
-	}
-
-	if len(resp.Delegates) == 0 {
-		u.Err().Println("No delegates")
-		return nil
-	}
-
-	tw := tabwriter.NewWriter(os.Stdout, 0, 4, 2, ' ', 0)
-	fmt.Fprintln(tw, "EMAIL\tSTATUS")
+	rows := make([]gmailEmailStatusRow, 0, len(resp.Delegates))
 	for _, d := range resp.Delegates {
-		fmt.Fprintf(tw, "%s\t%s\n",
-			d.DelegateEmail,
-			d.VerificationStatus)
+		if d == nil {
+			continue
+		}
+		rows = append(rows, gmailEmailStatusRow{
+			Email:  d.DelegateEmail,
+			Status: d.VerificationStatus,
+		})
 	}
-	_ = tw.Flush()
-	return nil
+	return writeGmailEmailStatusList(ctx, "delegates", resp.Delegates, "No delegates", rows)
 }
 
 type GmailDelegatesGetCmd struct {
@@ -64,13 +49,7 @@ type GmailDelegatesGetCmd struct {
 }
 
 func (c *GmailDelegatesGetCmd) Run(ctx context.Context, flags *RootFlags) error {
-	u := ui.FromContext(ctx)
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
-
-	svc, err := newGmailService(ctx, account)
+	svc, err := loadGmailSettingsService(ctx, flags)
 	if err != nil {
 		return err
 	}
@@ -83,14 +62,10 @@ func (c *GmailDelegatesGetCmd) Run(ctx context.Context, flags *RootFlags) error 
 	if err != nil {
 		return err
 	}
-
-	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{"delegate": delegate})
-	}
-
-	u.Out().Printf("delegate_email\t%s", delegate.DelegateEmail)
-	u.Out().Printf("verification_status\t%s", delegate.VerificationStatus)
-	return nil
+	return writeGmailEmailStatusItem(ctx, "delegate", delegate, "delegate_email", gmailEmailStatusRow{
+		Email:  delegate.DelegateEmail,
+		Status: delegate.VerificationStatus,
+	})
 }
 
 type GmailDelegatesAddCmd struct {
@@ -98,7 +73,6 @@ type GmailDelegatesAddCmd struct {
 }
 
 func (c *GmailDelegatesAddCmd) Run(ctx context.Context, flags *RootFlags) error {
-	u := ui.FromContext(ctx)
 	delegateEmail := strings.TrimSpace(c.DelegateEmail)
 	if delegateEmail == "" {
 		return usage("empty delegateEmail")
@@ -113,12 +87,7 @@ func (c *GmailDelegatesAddCmd) Run(ctx context.Context, flags *RootFlags) error 
 		return confirmErr
 	}
 
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
-
-	svc, err := newGmailService(ctx, account)
+	svc, err := loadGmailSettingsService(ctx, flags)
 	if err != nil {
 		return err
 	}
@@ -131,16 +100,16 @@ func (c *GmailDelegatesAddCmd) Run(ctx context.Context, flags *RootFlags) error 
 	if err != nil {
 		return err
 	}
-
-	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{"delegate": created})
-	}
-
-	u.Out().Println("Delegate added successfully")
-	u.Out().Printf("delegate_email\t%s", created.DelegateEmail)
-	u.Out().Printf("verification_status\t%s", created.VerificationStatus)
-	u.Out().Println("\nThe delegate will receive an invitation email that they must accept.")
-	return nil
+	return writeGmailEmailStatusCreateResult(
+		ctx,
+		"delegate",
+		created,
+		"delegate_email",
+		gmailEmailStatusRow{Email: created.DelegateEmail, Status: created.VerificationStatus},
+		"Delegate added successfully",
+		"",
+		"The delegate will receive an invitation email that they must accept.",
+	)
 }
 
 type GmailDelegatesRemoveCmd struct {
@@ -148,7 +117,6 @@ type GmailDelegatesRemoveCmd struct {
 }
 
 func (c *GmailDelegatesRemoveCmd) Run(ctx context.Context, flags *RootFlags) error {
-	u := ui.FromContext(ctx)
 	delegateEmail := strings.TrimSpace(c.DelegateEmail)
 	if delegateEmail == "" {
 		return usage("empty delegateEmail")
@@ -158,12 +126,7 @@ func (c *GmailDelegatesRemoveCmd) Run(ctx context.Context, flags *RootFlags) err
 		return confirmErr
 	}
 
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
-
-	svc, err := newGmailService(ctx, account)
+	svc, err := loadGmailSettingsService(ctx, flags)
 	if err != nil {
 		return err
 	}
@@ -180,6 +143,6 @@ func (c *GmailDelegatesRemoveCmd) Run(ctx context.Context, flags *RootFlags) err
 		})
 	}
 
-	u.Out().Printf("Delegate %s removed successfully", delegateEmail)
+	ui.FromContext(ctx).Out().Printf("Delegate %s removed successfully", delegateEmail)
 	return nil
 }

@@ -3,6 +3,7 @@ package cmd
 import (
 	"errors"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"google.golang.org/api/gmail/v1"
@@ -28,6 +29,25 @@ func resolveLabelIDs(labels []string, nameToID map[string]string) []string {
 		out = append(out, trimmed)
 	}
 	return out
+}
+
+func resolveModifyLabelIDs(svc *gmail.Service, addLabels, removeLabels []string) ([]string, []string, error) {
+	idMap, err := fetchLabelNameToID(svc)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return resolveLabelIDs(addLabels, idMap), resolveLabelIDs(removeLabels, idMap), nil
+}
+
+func looksLikeCustomLabelID(raw string) bool {
+	trimmed := strings.TrimSpace(raw)
+	if !strings.HasPrefix(strings.ToLower(trimmed), "label_") {
+		return false
+	}
+
+	_, err := strconv.ParseInt(trimmed[len("Label_"):], 10, 64)
+	return err == nil
 }
 
 func ensureLabelNameAvailable(svc *gmail.Service, name string) error {

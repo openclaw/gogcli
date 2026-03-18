@@ -13,27 +13,25 @@ import (
 )
 
 type CalendarFreeBusyCmd struct {
-	CalendarIDs string `arg:"" name:"calendarIds" help:"Comma-separated calendar IDs"`
-	From        string `name:"from" help:"Start time (RFC3339, required)"`
-	To          string `name:"to" help:"End time (RFC3339, required)"`
+	CalendarIDs string   `arg:"" optional:"" name:"calendarIds" help:"Comma-separated calendar IDs, names, or indices from 'calendar calendars'"`
+	Cal         []string `name:"cal" help:"Calendar ID, name, or index (can be repeated)"`
+	All         bool     `name:"all" help:"Query all calendars"`
+	From        string   `name:"from" help:"Start time (RFC3339, required)"`
+	To          string   `name:"to" help:"End time (RFC3339, required)"`
 }
 
 func (c *CalendarFreeBusyCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
-
-	calendarIDs := splitCSV(c.CalendarIDs)
-	if len(calendarIDs) == 0 {
-		return usage("no calendar IDs provided")
-	}
 	if strings.TrimSpace(c.From) == "" || strings.TrimSpace(c.To) == "" {
 		return usage("required: --from and --to")
 	}
 
-	svc, err := newCalendarService(ctx, account)
+	_, svc, err := requireCalendarService(ctx, flags)
+	if err != nil {
+		return err
+	}
+
+	calendarIDs, err := resolveSelectedCalendarIDs(ctx, svc, c.Cal, c.CalendarIDs, c.All, true)
 	if err != nil {
 		return err
 	}

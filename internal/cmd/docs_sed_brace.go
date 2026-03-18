@@ -284,7 +284,7 @@ func parseBraceKeyValue(key, val string, expr *braceExpr) error {
 		}
 	case "check":
 		switch strings.ToLower(val) {
-		case "y", "yes", boolTrue, "1":
+		case "y", sendAsYes, boolTrue, "1":
 			t := true
 			expr.Check = &t
 		case "n", "no", boolFalse, "0":

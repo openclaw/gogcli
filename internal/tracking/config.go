@@ -45,6 +45,10 @@ func ConfigPath() (string, error) {
 }
 
 func legacyConfigPath() (string, error) {
+	if xdg := strings.TrimSpace(os.Getenv("XDG_CONFIG_HOME")); xdg != "" {
+		return filepath.Join(xdg, "gog", "tracking.json"), nil
+	}
+
 	configDir, err := os.UserConfigDir()
 	if err != nil {
 		return "", fmt.Errorf("user config dir: %w", err)

@@ -3,30 +3,32 @@
 ![GitHub Repo Banner](https://ghrb.waren.build/banner?header=gogcli%F0%9F%A7%AD&subheader=Google+in+your+terminal&bg=f3f4f6&color=1f2937&support=true)
 <!-- Created with GitHub Repo Banner by Waren Gonzaga: https://ghrb.waren.build -->
 
-Fast, script-friendly CLI for Gmail, Calendar, Chat, Classroom, Drive, Docs, Slides, Sheets, Forms, Apps Script, Contacts, Tasks, People, Groups (Workspace), and Keep (Workspace-only). JSON-first output, multiple accounts, and least-privilege auth built in.
+Fast, script-friendly CLI for Gmail, Calendar, Chat, Classroom, Drive, Docs, Slides, Sheets, Forms, Apps Script, Contacts, Tasks, People, Admin, Groups (Workspace), and Keep (Workspace-only). JSON-first output, multiple accounts, and flexible auth built in.
 
 ## Features
 
-- **Gmail** - search threads and messages, send emails, view attachments, manage labels/drafts/filters/delegation/vacation settings, history, and watch (Pub/Sub push)
+- **Gmail** - search threads/messages, send mail, view attachments, manage labels/drafts/filters/delegation/vacation settings, modify single messages, export filters, inspect history, and run Pub/Sub watch webhooks
 - **Email tracking** - track opens for `gog gmail send --track` with a small Cloudflare Worker backend
-- **Calendar** - list/create/update events, detect conflicts, manage invitations, check free/busy status, team calendars, propose new times, focus/OOO/working-location events, recurrence + reminders
+- **Calendar** - list/create/update/delete events, manage invitations, aliases, subscriptions, team calendars, free/busy/conflicts, propose new times, focus/OOO/working-location events, recurrence, and reminders
 - **Classroom** - manage courses, roster, coursework/materials, submissions, announcements, topics, invitations, guardians, profiles
-- **Chat** - list/find/create spaces, list messages/threads (filter by thread/unread), send messages and DMs (Workspace-only)
-- **Drive** - list/search/upload/download files, manage permissions/comments, organize folders, list shared drives
-- **Contacts** - search/create/update contacts, access Workspace directory/other contacts
-- **Tasks** - manage tasklists and tasks: get/create/add/update/done/undo/delete/clear, repeat schedules
-- **Sheets** - read/write/update spreadsheets, insert rows/cols, format cells, read notes, create new sheets (and export via Drive)
-- **Forms** - create/get forms and inspect responses
-- **Apps Script** - create/get projects, inspect content, and run functions
-- **Docs/Slides** - export to PDF/DOCX/PPTX via Drive (plus create/copy, docs-to-text, and **sedmat** sed-style document editing with Markdown formatting, images, and tables)
-- **People** - access profile information
-- **Keep (Workspace only)** - list/get/search notes and download attachments (service account + domain-wide delegation)
+- **Chat** - list/find/create spaces, list messages/threads, send messages and DMs, and manage emoji reactions (Workspace-only)
+- **Drive** - list/search/upload/download files, replace uploads in-place, convert uploads, manage permissions/comments, organize folders, and list shared drives
+- **Contacts** - search/create/update contacts, including addresses, relations, org/title metadata, custom fields, Workspace directory, and other contacts
+- **Tasks** - manage tasklists and tasks: get/create/add/update/done/undo/delete/clear, plus repeat schedule materialization with RRULE aliases
+- **Sheets** - read/write/update spreadsheets, insert rows/cols, manage tabs and named ranges, format/merge/freeze/resize cells, read/write notes, inspect formats, find/replace text, list links, and create/export sheets
+- **Forms** - create/update forms, manage questions, inspect responses, and manage watches
+- **Apps Script** - create/get/bind projects, inspect content, and run functions
+- **Docs/Slides** - create/copy/export docs/slides, edit Docs by tab, import Markdown, do richer find-replace, export Docs as Markdown/HTML, and generate Slides from Markdown or templates
+- **People** - profile lookup and directory search helpers
+- **Keep (Workspace only)** - list/get/search/create/delete notes and download attachments (service account + domain-wide delegation)
+- **Admin (Workspace only)** - Workspace Admin users/groups commands for common directory operations
 - **Groups** - list groups you belong to, view group members (Google Workspace)
 - **Local time** - quick local/UTC time display for scripts and agents
-- **Multiple accounts** - manage multiple Google accounts simultaneously (with aliases)
+- **Multiple accounts** - manage multiple Google accounts simultaneously, with account aliases and per-client OAuth buckets
 - **Command allowlist** - restrict top-level commands for sandboxed/agent runs
 - **Secure credential storage** using OS keyring or encrypted on-disk keyring (configurable)
 - **Auto-refreshing tokens** - authenticate once, use indefinitely
+- **Flexible auth** - OAuth refresh tokens, ADC, direct access tokens, service accounts, manual/remote flows, `--extra-scopes`, and proxy-safe callbacks
 - **Least-privilege auth** - `--readonly`, `--drive-scope`, and `--gmail-scope` to request fewer scopes
 - **Workspace service accounts** - domain-wide delegation auth (preferred when configured)
 - **Parseable output** - JSON mode for scripting and automation (Calendar adds day-of-week fields)
@@ -36,7 +38,7 @@ Fast, script-friendly CLI for Gmail, Calendar, Chat, Classroom, Drive, Docs, Sli
 ### Homebrew
 
 ```bash
-brew install steipete/tap/gogcli
+brew install gogcli
 ```
 ### Arch User Repository
 
@@ -76,17 +78,21 @@ Before adding an account, create OAuth2 credentials from Google Cloud Console:
 1. Open the Google Cloud Console credentials page: https://console.cloud.google.com/apis/credentials
 1. Create a project: https://console.cloud.google.com/projectcreate
 2. Enable the APIs you need:
+   - Admin SDK API: https://console.cloud.google.com/apis/api/admin.googleapis.com
+   - Apps Script API: https://console.cloud.google.com/apis/api/script.googleapis.com
+   - Cloud Identity API (Groups): https://console.cloud.google.com/apis/api/cloudidentity.googleapis.com
    - Gmail API: https://console.cloud.google.com/apis/api/gmail.googleapis.com
    - Google Calendar API: https://console.cloud.google.com/apis/api/calendar-json.googleapis.com
    - Google Chat API: https://console.cloud.google.com/apis/api/chat.googleapis.com
+   - Google Docs API: https://console.cloud.google.com/apis/api/docs.googleapis.com
    - Google Drive API: https://console.cloud.google.com/apis/api/drive.googleapis.com
    - Google Classroom API: https://console.cloud.google.com/apis/api/classroom.googleapis.com
+   - Google Keep API: https://console.cloud.google.com/apis/api/keep.googleapis.com
    - People API (Contacts): https://console.cloud.google.com/apis/api/people.googleapis.com
    - Google Tasks API: https://console.cloud.google.com/apis/api/tasks.googleapis.com
    - Google Sheets API: https://console.cloud.google.com/apis/api/sheets.googleapis.com
    - Google Forms API: https://console.cloud.google.com/apis/api/forms.googleapis.com
-   - Apps Script API: https://console.cloud.google.com/apis/api/script.googleapis.com
-   - Cloud Identity API (Groups): https://console.cloud.google.com/apis/api/cloudidentity.googleapis.com
+   - Google Slides API: https://console.cloud.google.com/apis/api/slides.googleapis.com
 3. Configure OAuth consent screen: https://console.cloud.google.com/auth/branding
 4. If your app is in "Testing", add test users: https://console.cloud.google.com/auth/audience
 5. Create OAuth client:
@@ -140,6 +146,27 @@ gog auth add you@gmail.com --services user --remote --step 2 --auth-url 'http://
 
 - The `state` is cached on disk for a short time (about 10 minutes). If it expires, rerun step 1.
 - Remote step 2 requires a redirect URL that includes `state` (state check mandatory).
+
+Browser OAuth behind proxies / remote tunnels:
+
+```bash
+gog auth add you@gmail.com --listen-addr 0.0.0.0:8080 --redirect-host gog.example.com
+gog auth manage --listen-addr 0.0.0.0:8080 --redirect-host gog.example.com
+```
+
+- `--listen-addr` changes where the local callback server binds.
+- `--redirect-host` builds `https://<host>/oauth2/callback` for the OAuth redirect URI.
+- The redirect URI must also be registered in your OAuth client settings.
+
+Direct access token flow (headless/CI, no stored refresh token):
+
+```bash
+gog --access-token "$(gcloud auth print-access-token)" gmail labels list
+```
+
+- Also available as `GOG_ACCESS_TOKEN`
+- Bypasses stored refresh tokens and keyring lookup
+- Token expires in about 1 hour; no auto-refresh
 
 ### 4. Test Authentication
 
@@ -326,6 +353,8 @@ gog auth add you@gmail.com --services gmail --gmail-scope full
 gog auth add you@gmail.com --services gmail --gmail-scope readonly
 # Example: readonly on both Gmail and Drive
 gog auth add you@gmail.com --services gmail,drive --gmail-scope readonly --drive-scope readonly
+# Example: append one custom scope beyond the built-in Gmail scope set
+gog auth add you@gmail.com --services gmail --extra-scopes https://www.googleapis.com/auth/gmail.labels
 ```
 
 Notes:
@@ -333,6 +362,7 @@ Notes:
 - `--drive-scope readonly` is enough for listing/downloading/exporting via Drive (write operations will 403).
 - `--drive-scope file` is write-capable (limited to files created/opened by this app) and can’t be combined with `--readonly`.
 - `--gmail-scope readonly` requests `gmail.readonly` (no modify/settings write scopes).
+- `--extra-scopes` appends additional OAuth scope URIs after the built-in service scope set; remote step-1 guidance replays it so step 2 requests the same token.
 - For `--readonly`, `--drive-scope readonly|file`, or `--gmail-scope readonly`, auth disables Google `include_granted_scopes` to prevent old broader grants from silently accumulating.
 
 If you need to add services later and Google doesn't return a refresh token, re-run with `--force-consent`:
@@ -366,7 +396,7 @@ Service scope matrix (auto-generated; run `go run scripts/gen-auth-services-md.g
 | forms | yes | Forms API | `https://www.googleapis.com/auth/forms.body`<br>`https://www.googleapis.com/auth/forms.responses.readonly` |  |
 | appscript | yes | Apps Script API | `https://www.googleapis.com/auth/script.projects`<br>`https://www.googleapis.com/auth/script.deployments`<br>`https://www.googleapis.com/auth/script.processes` |  |
 | groups | no | Cloud Identity API | `https://www.googleapis.com/auth/cloud-identity.groups.readonly` | Workspace only |
-| keep | no | Keep API | `https://www.googleapis.com/auth/keep.readonly` | Workspace only; service account (domain-wide delegation) |
+| keep | no | Keep API | `https://www.googleapis.com/auth/keep` | Workspace only; service account (domain-wide delegation) |
 <!-- auth-services:end -->
 
 ### Service Accounts (Workspace only)
@@ -417,11 +447,14 @@ Keep requires Workspace + domain-wide delegation. You can configure it via the g
 gog auth service-account set you@yourdomain.com --key ~/Downloads/service-account.json
 gog keep list --account you@yourdomain.com
 gog keep get <noteId> --account you@yourdomain.com
+gog keep create --title "Todo" --item "Milk" --item "Eggs" --account you@yourdomain.com
+gog keep delete <noteId> --account you@yourdomain.com --force
 ```
 
 ### Environment Variables
 
 - `GOG_ACCOUNT` - Default account email or alias to use (avoids repeating `--account`; otherwise uses keyring default or a single stored token)
+- `GOG_ACCESS_TOKEN` - Use a provided access token directly (headless/CI; no auto-refresh)
 - `GOG_CLIENT` - OAuth client name (selects stored credentials + token bucket)
 - `GOG_JSON` - Default JSON output
 - `GOG_PLAIN` - Default plain output
@@ -550,6 +583,7 @@ gog auth credentials list             # List stored OAuth client credentials
 gog --client work auth credentials <path>  # Store named OAuth client credentials
 gog auth add <email>                  # Authorize and store refresh token
 gog auth add <email> --services gmail --gmail-scope readonly  # Gmail read-only token
+gog auth add <email> --listen-addr 0.0.0.0:8080 --redirect-host gog.example.com
 gog auth service-account set <email> --key <path>  # Configure service account impersonation (Workspace only)
 gog auth service-account status <email>            # Show service account status
 gog auth service-account unset <email>             # Remove service account
@@ -561,6 +595,7 @@ gog auth list                         # List stored accounts
 gog auth list --check                 # Validate stored refresh tokens
 gog auth remove <email>               # Remove a stored refresh token
 gog auth manage                       # Open accounts manager in browser
+gog auth manage --listen-addr 0.0.0.0:8080 --redirect-host gog.example.com
 gog auth tokens                       # Manage stored refresh tokens
 ```
 
@@ -570,6 +605,9 @@ gog auth tokens                       # Manage stored refresh tokens
 gog keep list --account you@yourdomain.com
 gog keep get <noteId> --account you@yourdomain.com
 gog keep search <query> --account you@yourdomain.com
+gog keep create --title "Todo" --item "Milk" --item "Eggs" --account you@yourdomain.com
+gog keep create --title "Note" --text "Remember this" --account you@yourdomain.com
+gog keep delete <noteId> --account you@yourdomain.com --force
 gog keep attachment <attachmentName> --account you@yourdomain.com --out ./attachment.bin
 ```
 
@@ -611,6 +649,7 @@ gog gmail drafts send <draftId>
 gog gmail labels list
 gog gmail labels get INBOX --json  # Includes message counts
 gog gmail labels create "My Label"
+gog gmail labels rename "Old Label" "New Label"
 gog gmail labels modify <threadId> --add STARRED --remove INBOX
 gog gmail labels delete <labelIdOrName>  # Deletes user label (guards system labels; confirm)
 
@@ -622,6 +661,7 @@ gog gmail batch modify <messageId> <messageId> --add STARRED --remove INBOX
 gog gmail filters list
 gog gmail filters create --from 'noreply@example.com' --add-label 'Notifications'
 gog gmail filters delete <filterId>
+gog gmail filters export --out ./filters.json
 
 # Settings
 gog gmail autoforward get
@@ -817,9 +857,11 @@ gog calendar propose-time <calendarId> <eventId> --decline --comment "Can we do 
 gog calendar freebusy --calendars "primary,work@example.com" \
   --from 2025-01-15T00:00:00Z \
   --to 2025-01-16T00:00:00Z
+gog calendar freebusy --cal Work --from 2025-01-15T00:00:00Z --to 2025-01-16T00:00:00Z
 
 gog calendar conflicts --calendars "primary,work@example.com" \
   --today                             # Today's conflicts
+gog calendar conflicts --all --today # Check conflicts across all calendars
 ```
 
 ### Time
@@ -882,19 +924,26 @@ gog docs info <docId>
 gog docs cat <docId> --max-bytes 10000
 gog docs create "My Doc"
 gog docs create "My Doc" --file ./doc.md            # Import markdown
+gog docs create "My Doc" --pageless
 gog docs copy <docId> "My Doc Copy"
 gog docs export <docId> --format pdf --out ./doc.pdf
 gog docs list-tabs <docId>
 gog docs cat <docId> --tab "Notes"
 gog docs cat <docId> --all-tabs
-gog docs update <docId> --format markdown --content-file ./doc.md
-gog docs write <docId> --replace --markdown --file ./doc.md
+gog docs update <docId> --text "Append this later"
+gog docs update <docId> --text "Only in this tab" --tab-id t.notes
+gog docs update <docId> --file ./insert.txt --index 25 --pageless
+gog docs write <docId> --text "Fresh content"
+gog docs write <docId> --text "Rewrite one tab" --tab-id t.notes
+gog docs write <docId> --file ./body.txt --append --pageless
 gog docs find-replace <docId> "old" "new"
+gog docs find-replace <docId> "old" "new" --tab-id t.notes
 
 # Slides
 gog slides info <presentationId>
 gog slides create "My Deck"
 gog slides create-from-markdown "My Deck" --content-file ./slides.md
+gog slides create-from-template <templateId> "My Deck" --replace "name=John" --replace "date=2026-02-15"
 gog slides copy <presentationId> "My Deck Copy"
 gog slides export <presentationId> --format pdf --out ./deck.pdf
 gog slides list-slides <presentationId>
@@ -906,9 +955,20 @@ gog slides replace-slide <presentationId> <slideId> ./new-slide.png --notes "New
 gog sheets copy <spreadsheetId> "My Sheet Copy"
 gog sheets export <spreadsheetId> --format pdf --out ./sheet.pdf
 gog sheets format <spreadsheetId> 'Sheet1!A1:B2' --format-json '{"textFormat":{"bold":true}}' --format-fields 'userEnteredFormat.textFormat.bold'
+gog sheets format <spreadsheetId> 'Sheet1!A1:B2' --format-json '{"borders":{"top":{"style":"SOLID"}}}' --format-fields 'userEnteredFormat.borders.top.style'
+gog sheets merge <spreadsheetId> 'Sheet1!A1:B2'
+gog sheets number-format <spreadsheetId> 'Sheet1!C:C' --type CURRENCY --pattern '$#,##0.00'
+gog sheets freeze <spreadsheetId> --rows 1 --cols 1
+gog sheets resize-columns <spreadsheetId> 'Sheet1!A:C' --auto
+gog sheets read-format <spreadsheetId> 'Sheet1!A1:B2'
 gog sheets insert <spreadsheetId> "Sheet1" rows 2 --count 3
 gog sheets notes <spreadsheetId> 'Sheet1!A1:B10'
+gog sheets find-replace <spreadsheetId> "old" "new"
+gog sheets find-replace <spreadsheetId> "old" "new" --sheet Sheet1 --match-entire
 gog sheets links <spreadsheetId> 'Sheet1!A1:B10'
+gog sheets add-tab <spreadsheetId> <tabName>
+gog sheets rename-tab <spreadsheetId> <oldName> <newName>
+gog sheets delete-tab <spreadsheetId> <tabName> --force
 ```
 
 ### Contacts
@@ -929,13 +989,17 @@ gog contacts create \
   --given "John" \
   --family "Doe" \
   --email "john@example.com" \
-  --phone "+1234567890"
+  --phone "+1234567890" \
+  --address "12 St James's Square, London" \
+  --relation "spouse=Jane Doe"
 
 gog contacts update people/<resourceName> \
   --given "Jane" \
   --email "jane@example.com" \
+  --address "1 Infinite Loop, Cupertino" \
   --birthday "1990-05-12" \
-  --notes "Met at WWDC"
+  --notes "Met at WWDC" \
+  --relation "friend=Bob"
 
 # Update via JSON (see docs/contacts-json-update.md)
 gog contacts get people/<resourceName> --json | \
@@ -962,6 +1026,7 @@ gog tasks get <tasklistId> <taskId>
 gog tasks add <tasklistId> --title "Task title"
 gog tasks add <tasklistId> --title "Weekly sync" --due 2025-02-01 --repeat weekly --repeat-count 4
 gog tasks add <tasklistId> --title "Daily standup" --due 2025-02-01 --repeat daily --repeat-until 2025-02-05
+gog tasks add <tasklistId> --title "Bi-weekly review" --due 2025-02-01 --recur-rrule "FREQ=WEEKLY;INTERVAL=2" --repeat-count 3
 gog tasks update <tasklistId> <taskId> --title "New title"
 gog tasks done <tasklistId> <taskId>
 gog tasks undo <tasklistId> <taskId>
@@ -969,6 +1034,7 @@ gog tasks delete <tasklistId> <taskId>
 gog tasks clear <tasklistId>
 
 # Note: Google Tasks treats due dates as date-only; time components may be ignored.
+# Note: Public Google Tasks API does not expose true recurring-task metadata; `--repeat*`/`--recur*` materialize concrete tasks.
 # See docs/dates.md for all supported date/time input formats across commands.
 ```
 
@@ -978,6 +1044,7 @@ gog tasks clear <tasklistId>
 # Read
 gog sheets metadata <spreadsheetId>
 gog sheets get <spreadsheetId> 'Sheet1!A1:B10'
+gog sheets get <spreadsheetId> MyNamedRange
 
 # Export (via Drive)
 gog sheets export <spreadsheetId> --format pdf --out ./sheet.pdf
@@ -987,12 +1054,37 @@ gog sheets export <spreadsheetId> --format xlsx --out ./sheet.xlsx
 gog sheets update <spreadsheetId> 'A1' 'val1|val2,val3|val4'
 gog sheets update <spreadsheetId> 'A1' --values-json '[["a","b"],["c","d"]]'
 gog sheets update <spreadsheetId> 'Sheet1!A1:C1' 'new|row|data' --copy-validation-from 'Sheet1!A2:C2'
+gog sheets update <spreadsheetId> MyNamedRange 'new|row|data'
+gog sheets update <spreadsheetId> 'Sheet1!A1:C1' 'new|row|data' --copy-validation-from MyValidationNamedRange
 gog sheets append <spreadsheetId> 'Sheet1!A:C' 'new|row|data'
 gog sheets append <spreadsheetId> 'Sheet1!A:C' 'new|row|data' --copy-validation-from 'Sheet1!A2:C2'
+gog sheets find-replace <spreadsheetId> "old" "new"
+gog sheets find-replace <spreadsheetId> "old" "new" --sheet Sheet1 --regex
+gog sheets update-note <spreadsheetId> 'Sheet1!A1' --note ''
+gog sheets append <spreadsheetId> MyNamedRange 'new|row|data'
 gog sheets clear <spreadsheetId> 'Sheet1!A1:B10'
+gog sheets clear <spreadsheetId> MyNamedRange
 
 # Format
 gog sheets format <spreadsheetId> 'Sheet1!A1:B2' --format-json '{"textFormat":{"bold":true}}' --format-fields 'userEnteredFormat.textFormat.bold'
+gog sheets format <spreadsheetId> MyNamedRange --format-json '{"textFormat":{"bold":true}}' --format-fields 'userEnteredFormat.textFormat.bold'
+gog sheets format <spreadsheetId> 'Sheet1!A1:B2' --format-json '{"borders":{"top":{"style":"SOLID"}}}' --format-fields 'userEnteredFormat.borders.top.style'
+gog sheets merge <spreadsheetId> 'Sheet1!A1:B2'
+gog sheets unmerge <spreadsheetId> 'Sheet1!A1:B2'
+gog sheets number-format <spreadsheetId> 'Sheet1!C:C' --type CURRENCY --pattern '$#,##0.00'
+gog sheets freeze <spreadsheetId> --rows 1 --cols 1
+gog sheets resize-columns <spreadsheetId> 'Sheet1!A:C' --auto
+gog sheets resize-rows <spreadsheetId> 'Sheet1!1:10' --height 36
+gog sheets read-format <spreadsheetId> 'Sheet1!A1:B2'
+gog sheets read-format <spreadsheetId> 'Sheet1!A1:B2' --effective
+
+# Named ranges
+gog sheets named-ranges <spreadsheetId>
+gog sheets named-ranges get <spreadsheetId> MyNamedRange
+gog sheets named-ranges add <spreadsheetId> MyNamedRange 'Sheet1!A1:B2'
+gog sheets named-ranges add <spreadsheetId> MyCols 'Sheet1!A:C'
+gog sheets named-ranges update <spreadsheetId> MyNamedRange --name MyNamedRange2
+gog sheets named-ranges delete <spreadsheetId> MyNamedRange2
 
 # Insert rows/cols
 gog sheets insert <spreadsheetId> "Sheet1" rows 2 --count 3
@@ -1004,6 +1096,11 @@ gog sheets links <spreadsheetId> 'Sheet1!A1:B10'   # Includes rich-text links
 
 # Create
 gog sheets create "My New Spreadsheet" --sheets "Sheet1,Sheet2"
+
+# Tab management
+gog sheets add-tab <spreadsheetId> <tabName>
+gog sheets rename-tab <spreadsheetId> <oldName> <newName>
+gog sheets delete-tab <spreadsheetId> <tabName>          # use --force to skip confirmation
 ```
 
 ### Forms
@@ -1012,10 +1109,20 @@ gog sheets create "My New Spreadsheet" --sheets "Sheet1,Sheet2"
 # Forms
 gog forms get <formId>
 gog forms create --title "Weekly Check-in" --description "Friday async update"
+gog forms update <formId> --title "Weekly Sync" --quiz true
+gog forms add-question <formId> --title "What shipped?" --type paragraph --required
+gog forms move-question <formId> 3 1
+gog forms delete-question <formId> 2 --force
 
 # Responses
 gog forms responses list <formId> --max 20
 gog forms responses get <formId> <responseId>
+
+# Watches
+gog forms watch create <formId> --topic projects/<project>/topics/<topic>
+gog forms watch list <formId>
+gog forms watch renew <formId> <watchId>
+gog forms watch delete <formId> <watchId>
 ```
 
 ### Apps Script
@@ -1060,6 +1167,9 @@ gog chat messages list spaces/<spaceId> --max 5
 gog chat messages list spaces/<spaceId> --thread <threadId>
 gog chat messages list spaces/<spaceId> --unread
 gog chat messages send spaces/<spaceId> --text "Build complete!" --thread spaces/<spaceId>/threads/<threadId>
+gog chat messages reactions list spaces/<spaceId>/messages/<messageId>
+gog chat messages react spaces/<spaceId>/messages/<messageId> "👍"  # shorthand for reactions create
+gog chat messages reactions delete spaces/<spaceId>/messages/<messageId>/reactions/<reactionId>
 
 # Threads
 gog chat threads list spaces/<spaceId>
@@ -1070,6 +1180,21 @@ gog chat dm send user@company.com --text "ping"
 ```
 
 Note: Chat commands require a Google Workspace account (consumer @gmail.com accounts are not supported).
+
+### Admin
+
+```bash
+# Requires a Workspace service account with domain-wide delegation.
+gog admin users list --domain example.com
+gog admin users get user@example.com
+gog admin users create user@example.com --given Ada --family Lovelace --password 'TempPass123!'
+gog admin users suspend user@example.com --force
+
+gog admin groups list --domain example.com
+gog admin groups members list engineering@example.com
+gog admin groups members add engineering@example.com user@example.com --role MEMBER
+gog admin groups members remove engineering@example.com user@example.com --force
+```
 
 ### Groups (Google Workspace)
 
@@ -1164,6 +1289,8 @@ Note: Classroom commands require a Google Workspace for Education account. Perso
 gog docs export <docId> --format pdf --out ./doc.pdf
 gog docs export <docId> --format docx --out ./doc.docx
 gog docs export <docId> --format txt --out ./doc.txt
+gog docs export <docId> --format md --out ./doc.md
+gog docs export <docId> --format html --out ./doc.html
 
 # Sed-style regex editing with Markdown formatting (sedmat)
 gog docs sed <docId> 's/pattern/replacement/g'
@@ -1196,6 +1323,26 @@ gog docs sed <docId> 's/|1|[col:$+]//'               # append column at end
 # Export (via Drive)
 gog slides export <presentationId> --format pptx --out ./deck.pptx
 gog slides export <presentationId> --format pdf --out ./deck.pdf
+
+# Create from template with text replacements
+gog slides create-from-template <templateId> "Q1 Report" \
+  --replace "quarter=Q1 2026" \
+  --replace "revenue=$1.2M" \
+  --replace "growth=15%"
+
+# Use JSON file for many replacements
+cat > replacements.json <<EOF
+{
+  "name": "John Doe",
+  "title": "Sales Manager",
+  "date": "2026-02-15",
+  "sales": "125",
+  "target": "100"
+}
+EOF
+
+gog slides create-from-template <templateId> "Monthly Report" \
+  --replacements replacements.json
 ```
 
 ## Output Formats

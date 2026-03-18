@@ -11,6 +11,47 @@ import (
 	"github.com/steipete/gogcli/internal/config"
 )
 
+func TestServiceAccountSubject(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name                string
+		subject             string
+		serviceAccountEmail string
+		want                string
+	}{
+		{
+			name:                "empty subject stays empty",
+			subject:             "",
+			serviceAccountEmail: "sa@test-project.iam.gserviceaccount.com",
+			want:                "",
+		},
+		{
+			name:                "same subject becomes pure service account mode",
+			subject:             "sa@test-project.iam.gserviceaccount.com",
+			serviceAccountEmail: "sa@test-project.iam.gserviceaccount.com",
+			want:                "",
+		},
+		{
+			name:                "different subject keeps impersonation target",
+			subject:             "user@example.com",
+			serviceAccountEmail: "sa@test-project.iam.gserviceaccount.com",
+			want:                "user@example.com",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := serviceAccountSubject(tt.subject, tt.serviceAccountEmail)
+			if got != tt.want {
+				t.Fatalf("serviceAccountSubject(%q, %q) = %q, want %q", tt.subject, tt.serviceAccountEmail, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestTokenSourceForServiceAccountScopes_NonKeepIgnoresKeepFallback(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)

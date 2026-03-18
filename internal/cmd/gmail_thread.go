@@ -212,14 +212,10 @@ func (c *GmailThreadModifyCmd) Run(ctx context.Context, flags *RootFlags) error 
 		return err
 	}
 
-	// Resolve label names to IDs
-	idMap, err := fetchLabelNameToID(svc)
+	addIDs, removeIDs, err := resolveModifyLabelIDs(svc, addLabels, removeLabels)
 	if err != nil {
 		return err
 	}
-
-	addIDs := resolveLabelIDs(addLabels, idMap)
-	removeIDs := resolveLabelIDs(removeLabels, idMap)
 
 	// Use Gmail's Threads.Modify API
 	_, err = svc.Users.Threads.Modify("me", threadID, &gmail.ModifyThreadRequest{

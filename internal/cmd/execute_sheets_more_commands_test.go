@@ -58,7 +58,27 @@ func TestExecute_SheetsMoreCommands(t *testing.T) {
 				"spreadsheetId": "id1",
 				"properties":    map[string]any{"title": "T"},
 				"sheets": []map[string]any{
-					{"properties": map[string]any{"sheetId": 0, "title": "Sheet1"}},
+					{
+						"properties": map[string]any{"sheetId": 0, "title": "Sheet1"},
+						"data": []map[string]any{
+							{
+								"startRow":    0,
+								"startColumn": 0,
+								"rowData": []map[string]any{
+									{
+										"values": []map[string]any{
+											{
+												"formattedValue": "a",
+												"userEnteredFormat": map[string]any{
+													"textFormat": map[string]any{"bold": true},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
 				},
 			})
 			return
@@ -136,6 +156,11 @@ func TestExecute_SheetsMoreCommands(t *testing.T) {
 		_ = captureStdout(t, func() {
 			if err := Execute([]string{"--json", "sheets", "metadata", "id1"}); err != nil {
 				t.Fatalf("metadata: %v", err)
+			}
+		})
+		_ = captureStdout(t, func() {
+			if err := Execute([]string{"--json", "sheets", "read-format", "id1", "Sheet1!A1:A1"}); err != nil {
+				t.Fatalf("read-format: %v", err)
 			}
 		})
 		_ = captureStdout(t, func() {

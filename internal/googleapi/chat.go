@@ -8,14 +8,16 @@ import (
 )
 
 const (
-	scopeChatSpaces      = "https://www.googleapis.com/auth/chat.spaces"
-	scopeChatMessages    = "https://www.googleapis.com/auth/chat.messages"
-	scopeChatMemberships = "https://www.googleapis.com/auth/chat.memberships"
-	scopeChatReadStateRO = "https://www.googleapis.com/auth/chat.users.readstate.readonly"
+	scopeChatSpaces          = "https://www.googleapis.com/auth/chat.spaces"
+	scopeChatMessages        = "https://www.googleapis.com/auth/chat.messages"
+	scopeChatMemberships     = "https://www.googleapis.com/auth/chat.memberships"
+	scopeChatReadStateRO     = "https://www.googleapis.com/auth/chat.users.readstate.readonly"
+	scopeChatReactionsCreate = "https://www.googleapis.com/auth/chat.messages.reactions.create"
+	scopeChatReactionsRO     = "https://www.googleapis.com/auth/chat.messages.reactions.readonly"
 )
 
 func NewChat(ctx context.Context, email string) (*chat.Service, error) {
-	if opts, err := optionsForAccountScopes(ctx, "chat", email, []string{scopeChatSpaces, scopeChatMessages, scopeChatMemberships, scopeChatReadStateRO}); err != nil {
+	if opts, err := optionsForAccountScopes(ctx, "chat", email, []string{scopeChatSpaces, scopeChatMessages, scopeChatMemberships, scopeChatReadStateRO, scopeChatReactionsCreate, scopeChatReactionsRO}); err != nil {
 		return nil, fmt.Errorf("chat options: %w", err)
 	} else if svc, err := chat.NewService(ctx, opts...); err != nil {
 		return nil, fmt.Errorf("create chat service: %w", err)

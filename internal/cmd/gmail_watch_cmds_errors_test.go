@@ -73,8 +73,7 @@ func TestGmailWatchStartCmd_NewServiceError(t *testing.T) {
 		return nil, errors.New("boom")
 	}
 
-	home := t.TempDir()
-	t.Setenv("HOME", home)
+	setWatchTestConfigHome(t)
 
 	u, uiErr := ui.New(ui.Options{Stdout: io.Discard, Stderr: io.Discard, Color: "never"})
 	if uiErr != nil {
@@ -91,8 +90,7 @@ func TestGmailWatchStartCmd_LabelResolveError(t *testing.T) {
 	origNew := newGmailService
 	t.Cleanup(func() { newGmailService = origNew })
 
-	home := t.TempDir()
-	t.Setenv("HOME", home)
+	setWatchTestConfigHome(t)
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.Contains(r.URL.Path, "/gmail/v1/users/me/labels") {
@@ -128,8 +126,7 @@ func TestGmailWatchStartCmd_RequestError(t *testing.T) {
 	origNew := newGmailService
 	t.Cleanup(func() { newGmailService = origNew })
 
-	home := t.TempDir()
-	t.Setenv("HOME", home)
+	setWatchTestConfigHome(t)
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.Contains(r.URL.Path, "/gmail/v1/users/me/watch") {
@@ -165,8 +162,7 @@ func TestGmailWatchStartCmd_BuildStateError(t *testing.T) {
 	origNew := newGmailService
 	t.Cleanup(func() { newGmailService = origNew })
 
-	home := t.TempDir()
-	t.Setenv("HOME", home)
+	setWatchTestConfigHome(t)
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.Contains(r.URL.Path, "/gmail/v1/users/me/watch") {
@@ -214,8 +210,7 @@ func TestGmailWatchStatusCmd_MissingAccount(t *testing.T) {
 }
 
 func TestGmailWatchStatusCmd_LoadError(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv("HOME", home)
+	setWatchTestConfigHome(t)
 
 	u, uiErr := ui.New(ui.Options{Stdout: io.Discard, Stderr: io.Discard, Color: "never"})
 	if uiErr != nil {
@@ -229,8 +224,7 @@ func TestGmailWatchStatusCmd_LoadError(t *testing.T) {
 }
 
 func TestGmailWatchRenewCmd_MissingTopic(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv("HOME", home)
+	setWatchTestConfigHome(t)
 
 	store, err := newGmailWatchStore("a@b.com")
 	if err != nil {
@@ -262,8 +256,7 @@ func TestGmailWatchRenewCmd_MissingAccount(t *testing.T) {
 }
 
 func TestGmailWatchRenewCmd_LoadError(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv("HOME", home)
+	setWatchTestConfigHome(t)
 
 	u, uiErr := ui.New(ui.Options{Stdout: io.Discard, Stderr: io.Discard, Color: "never"})
 	if uiErr != nil {
@@ -277,8 +270,7 @@ func TestGmailWatchRenewCmd_LoadError(t *testing.T) {
 }
 
 func TestGmailWatchRenewCmd_InvalidTTL(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv("HOME", home)
+	setWatchTestConfigHome(t)
 
 	store, err := newGmailWatchStore("a@b.com")
 	if err != nil {
@@ -309,8 +301,7 @@ func TestGmailWatchRenewCmd_NewServiceError(t *testing.T) {
 		return nil, errors.New("down")
 	}
 
-	home := t.TempDir()
-	t.Setenv("HOME", home)
+	setWatchTestConfigHome(t)
 
 	store, err := newGmailWatchStore("a@b.com")
 	if err != nil {
@@ -383,7 +374,7 @@ func TestGmailWatchServeCmd_LoadStoreError(t *testing.T) {
 	// Guard against hangs if a watch state file exists in the runner's home.
 	listenAndServe = func(*http.Server) error { return errors.New("unexpected listen") }
 
-	t.Setenv("HOME", t.TempDir())
+	setWatchTestConfigHome(t)
 
 	u, uiErr := ui.New(ui.Options{Stdout: io.Discard, Stderr: io.Discard, Color: "never"})
 	if uiErr != nil {
@@ -412,8 +403,7 @@ func TestGmailWatchServeCmd_HookFlagsError(t *testing.T) {
 	origListen := listenAndServe
 	t.Cleanup(func() { listenAndServe = origListen })
 
-	home := t.TempDir()
-	t.Setenv("HOME", home)
+	setWatchTestConfigHome(t)
 
 	store, err := newGmailWatchStore("a@b.com")
 	if err != nil {
@@ -442,8 +432,7 @@ func TestGmailWatchServeCmd_OIDCValidatorError(t *testing.T) {
 		newOIDCValidator = origOIDC
 	})
 
-	home := t.TempDir()
-	t.Setenv("HOME", home)
+	setWatchTestConfigHome(t)
 
 	store, err := newGmailWatchStore("a@b.com")
 	if err != nil {
@@ -484,7 +473,7 @@ func TestWriteWatchState_LastPushMessageID(t *testing.T) {
 		LastDeliveryStatusNote: "note",
 		LastPushMessageID:      "msg1",
 	}
-	if err := writeWatchState(ctx, state); err != nil {
+	if err := writeWatchState(ctx, state, false); err != nil {
 		t.Fatalf("writeWatchState: %v", err)
 	}
 	if !strings.Contains(out.String(), "last_push_message_id") {

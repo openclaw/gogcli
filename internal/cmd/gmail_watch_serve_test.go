@@ -18,8 +18,7 @@ func TestGmailWatchServeCmd_UsesStoredHook(t *testing.T) {
 	origListen := listenAndServe
 	t.Cleanup(func() { listenAndServe = origListen })
 
-	home := t.TempDir()
-	t.Setenv("HOME", home)
+	setWatchTestConfigHome(t)
 
 	store, err := newGmailWatchStore("a@b.com")
 	if err != nil {
@@ -74,8 +73,7 @@ func TestGmailWatchServeCmd_DefaultMaxBytes(t *testing.T) {
 	origListen := listenAndServe
 	t.Cleanup(func() { listenAndServe = origListen })
 
-	home := t.TempDir()
-	t.Setenv("HOME", home)
+	setWatchTestConfigHome(t)
 
 	store, err := newGmailWatchStore("a@b.com")
 	if err != nil {
@@ -126,8 +124,7 @@ func TestGmailWatchServeCmd_FetchDelaySeconds(t *testing.T) {
 	origListen := listenAndServe
 	t.Cleanup(func() { listenAndServe = origListen })
 
-	home := t.TempDir()
-	t.Setenv("HOME", home)
+	setWatchTestConfigHome(t)
 
 	store, err := newGmailWatchStore("a@b.com")
 	if err != nil {
@@ -169,8 +166,7 @@ func TestGmailWatchServeCmd_FetchDelayDuration(t *testing.T) {
 	origListen := listenAndServe
 	t.Cleanup(func() { listenAndServe = origListen })
 
-	home := t.TempDir()
-	t.Setenv("HOME", home)
+	setWatchTestConfigHome(t)
 
 	store, err := newGmailWatchStore("a@b.com")
 	if err != nil {
@@ -212,8 +208,7 @@ func TestGmailWatchServeCmd_ExcludeLabels_Disable(t *testing.T) {
 	origListen := listenAndServe
 	t.Cleanup(func() { listenAndServe = origListen })
 
-	home := t.TempDir()
-	t.Setenv("HOME", home)
+	setWatchTestConfigHome(t)
 
 	store, err := newGmailWatchStore("a@b.com")
 	if err != nil {
@@ -259,8 +254,7 @@ func TestGmailWatchServeCmd_SaveHookAndOIDC(t *testing.T) {
 		newOIDCValidator = origOIDC
 	})
 
-	home := t.TempDir()
-	t.Setenv("HOME", home)
+	setWatchTestConfigHome(t)
 
 	store, err := newGmailWatchStore("a@b.com")
 	if err != nil {
@@ -323,8 +317,7 @@ func TestGmailWatchServeCmd_PreservesClientOverrideForRequestContexts(t *testing
 		newGmailService = origNew
 	})
 
-	home := t.TempDir()
-	t.Setenv("HOME", home)
+	setWatchTestConfigHome(t)
 
 	store, err := newGmailWatchStore("a@b.com")
 	if err != nil {

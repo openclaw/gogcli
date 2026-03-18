@@ -3,7 +3,6 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"os"
 	"strings"
 
 	"google.golang.org/api/drive/v3"
@@ -23,12 +22,7 @@ type DriveDrivesCmd struct {
 
 func (c *DriveDrivesCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
-
-	svc, err := newDriveService(ctx, account)
+	_, svc, err := requireDriveService(ctx, flags)
 	if err != nil {
 		return err
 	}
@@ -44,40 +38,23 @@ func (c *DriveDrivesCmd) Run(ctx context.Context, flags *RootFlags) error {
 		if q := strings.TrimSpace(c.Query); q != "" {
 			call = call.Q(q)
 		}
-		resp, err := call.Do()
-		if err != nil {
-			return nil, "", err
+		resp, callErr := call.Do()
+		if callErr != nil {
+			return nil, "", callErr
 		}
 		return resp.Drives, resp.NextPageToken, nil
 	}
 
-	var drives []*drive.Drive
-	nextPageToken := ""
-	if c.All {
-		all, err := collectAllPages(c.Page, fetch)
-		if err != nil {
-			return err
-		}
-		drives = all
-	} else {
-		var err error
-		drives, nextPageToken, err = fetch(c.Page)
-		if err != nil {
-			return err
-		}
+	drives, nextPageToken, err := loadPagedItems(c.Page, c.All, fetch)
+	if err != nil {
+		return err
 	}
 
 	if outfmt.IsJSON(ctx) {
-		if err := outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
+		return writePagedJSONResult(ctx, map[string]any{
 			"drives":        drives,
 			"nextPageToken": nextPageToken,
-		}); err != nil {
-			return err
-		}
-		if len(drives) == 0 {
-			return failEmptyExit(c.FailEmpty)
-		}
-		return nil
+		}, len(drives), c.FailEmpty)
 	}
 
 	if len(drives) == 0 {

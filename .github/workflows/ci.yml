@@ -10,7 +10,7 @@ concurrency:
 
 jobs:
   test:
-    runs-on: blacksmith-16vcpu-ubuntu-2404
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-go@v6
@@ -31,14 +31,12 @@ jobs:
         run: make lint
 
   worker:
-    runs-on: blacksmith-16vcpu-ubuntu-2404
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v6
         with:
           node-version: "24"
-          cache: "pnpm"
-          cache-dependency-path: internal/tracking/worker/pnpm-lock.yaml
       - name: Enable Corepack (pnpm)
         run: |
           corepack enable

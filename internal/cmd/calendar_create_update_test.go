@@ -3,7 +3,6 @@ package cmd
 import (
 	"context"
 	"encoding/json"
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -12,9 +11,6 @@ import (
 
 	"google.golang.org/api/calendar/v3"
 	"google.golang.org/api/option"
-
-	"github.com/steipete/gogcli/internal/outfmt"
-	"github.com/steipete/gogcli/internal/ui"
 )
 
 func newCalendarServiceFromServer(t *testing.T, srv *httptest.Server) *calendar.Service {
@@ -29,16 +25,6 @@ func newCalendarServiceFromServer(t *testing.T, srv *httptest.Server) *calendar.
 		t.Fatalf("NewService: %v", err)
 	}
 	return svc
-}
-
-func newCalendarJSONContext(t *testing.T) context.Context {
-	t.Helper()
-
-	u, err := ui.New(ui.Options{Stdout: io.Discard, Stderr: io.Discard, Color: "never"})
-	if err != nil {
-		t.Fatalf("ui.New: %v", err)
-	}
-	return outfmt.WithMode(ui.WithUI(context.Background(), u), outfmt.Mode{JSON: true})
 }
 
 func TestCalendarCreateCmd_RunJSON(t *testing.T) {
@@ -69,11 +55,7 @@ func TestCalendarCreateCmd_RunJSON(t *testing.T) {
 	}
 	newCalendarService = func(context.Context, string) (*calendar.Service, error) { return svc, nil }
 
-	u, err := ui.New(ui.Options{Stdout: io.Discard, Stderr: io.Discard, Color: "never"})
-	if err != nil {
-		t.Fatalf("ui.New: %v", err)
-	}
-	ctx := outfmt.WithMode(ui.WithUI(context.Background(), u), outfmt.Mode{JSON: true})
+	ctx := newCalendarJSONContext(t)
 
 	cmd := &CalendarCreateCmd{}
 	out := captureStdout(t, func() {
@@ -123,11 +105,7 @@ func TestCalendarCreateCmd_WithMeetAndAttachments(t *testing.T) {
 	}
 	newCalendarService = func(context.Context, string) (*calendar.Service, error) { return svc, nil }
 
-	u, err := ui.New(ui.Options{Stdout: os.Stdout, Stderr: os.Stderr, Color: "never"})
-	if err != nil {
-		t.Fatalf("ui.New: %v", err)
-	}
-	ctx := outfmt.WithMode(ui.WithUI(context.Background(), u), outfmt.Mode{JSON: true})
+	ctx := newCalendarJSONOutputContext(t, os.Stdout, os.Stderr)
 
 	cmd := &CalendarCreateCmd{}
 	if err := runKong(t, cmd, []string{
@@ -181,11 +159,7 @@ func TestCalendarCreateCmd_RecurringOffsetTimezoneFallback(t *testing.T) {
 	}
 	newCalendarService = func(context.Context, string) (*calendar.Service, error) { return svc, nil }
 
-	u, err := ui.New(ui.Options{Stdout: os.Stdout, Stderr: os.Stderr, Color: "never"})
-	if err != nil {
-		t.Fatalf("ui.New: %v", err)
-	}
-	ctx := outfmt.WithMode(ui.WithUI(context.Background(), u), outfmt.Mode{JSON: true})
+	ctx := newCalendarJSONOutputContext(t, os.Stdout, os.Stderr)
 
 	cmd := &CalendarCreateCmd{}
 	if err := runKong(t, cmd, []string{
@@ -320,11 +294,7 @@ func TestCalendarUpdateCmd_RunJSON(t *testing.T) {
 	}
 	newCalendarService = func(context.Context, string) (*calendar.Service, error) { return svc, nil }
 
-	u, err := ui.New(ui.Options{Stdout: os.Stdout, Stderr: os.Stderr, Color: "never"})
-	if err != nil {
-		t.Fatalf("ui.New: %v", err)
-	}
-	ctx := outfmt.WithMode(ui.WithUI(context.Background(), u), outfmt.Mode{JSON: true})
+	ctx := newCalendarJSONOutputContext(t, os.Stdout, os.Stderr)
 
 	cmd := &CalendarUpdateCmd{}
 	out := captureStdout(t, func() {
@@ -385,11 +355,7 @@ func TestCalendarUpdateCmd_AddAttendee(t *testing.T) {
 	}
 	newCalendarService = func(context.Context, string) (*calendar.Service, error) { return svc, nil }
 
-	u, err := ui.New(ui.Options{Stdout: os.Stdout, Stderr: os.Stderr, Color: "never"})
-	if err != nil {
-		t.Fatalf("ui.New: %v", err)
-	}
-	ctx := outfmt.WithMode(ui.WithUI(context.Background(), u), outfmt.Mode{JSON: true})
+	ctx := newCalendarJSONOutputContext(t, os.Stdout, os.Stderr)
 
 	cmd := &CalendarUpdateCmd{}
 	if err := runKong(t, cmd, []string{
@@ -434,11 +400,7 @@ func TestCalendarCreateCmd_EventTypeFocusTimeDefaults(t *testing.T) {
 	}
 	newCalendarService = func(context.Context, string) (*calendar.Service, error) { return svc, nil }
 
-	u, err := ui.New(ui.Options{Stdout: os.Stdout, Stderr: os.Stderr, Color: "never"})
-	if err != nil {
-		t.Fatalf("ui.New: %v", err)
-	}
-	ctx := outfmt.WithMode(ui.WithUI(context.Background(), u), outfmt.Mode{JSON: true})
+	ctx := newCalendarJSONOutputContext(t, os.Stdout, os.Stderr)
 
 	cmd := &CalendarCreateCmd{}
 	if err := runKong(t, cmd, []string{
@@ -499,11 +461,7 @@ func TestCalendarCreateCmd_EventTypeWorkingLocation(t *testing.T) {
 	}
 	newCalendarService = func(context.Context, string) (*calendar.Service, error) { return svc, nil }
 
-	u, err := ui.New(ui.Options{Stdout: os.Stdout, Stderr: os.Stderr, Color: "never"})
-	if err != nil {
-		t.Fatalf("ui.New: %v", err)
-	}
-	ctx := outfmt.WithMode(ui.WithUI(context.Background(), u), outfmt.Mode{JSON: true})
+	ctx := newCalendarJSONOutputContext(t, os.Stdout, os.Stderr)
 
 	cmd := &CalendarCreateCmd{}
 	if err := runKong(t, cmd, []string{
@@ -531,6 +489,12 @@ func TestCalendarCreateCmd_EventTypeWorkingLocation(t *testing.T) {
 	}
 	if gotEvent.WorkingLocationProperties == nil || gotEvent.WorkingLocationProperties.Type != "officeLocation" {
 		t.Fatalf("unexpected working location props: %#v", gotEvent.WorkingLocationProperties)
+	}
+	if gotEvent.Transparency != transparencyTransparent {
+		t.Fatalf("expected transparent working location, got %q", gotEvent.Transparency)
+	}
+	if gotEvent.Visibility != "public" {
+		t.Fatalf("expected public working location visibility, got %q", gotEvent.Visibility)
 	}
 }
 
@@ -563,11 +527,7 @@ func TestCalendarUpdateCmd_EventTypeOOO(t *testing.T) {
 	}
 	newCalendarService = func(context.Context, string) (*calendar.Service, error) { return svc, nil }
 
-	u, err := ui.New(ui.Options{Stdout: os.Stdout, Stderr: os.Stderr, Color: "never"})
-	if err != nil {
-		t.Fatalf("ui.New: %v", err)
-	}
-	ctx := outfmt.WithMode(ui.WithUI(context.Background(), u), outfmt.Mode{JSON: true})
+	ctx := newCalendarJSONOutputContext(t, os.Stdout, os.Stderr)
 
 	cmd := &CalendarUpdateCmd{}
 	if err := runKong(t, cmd, []string{
@@ -592,6 +552,59 @@ func TestCalendarUpdateCmd_EventTypeOOO(t *testing.T) {
 	}
 	if gotEvent.OutOfOfficeProperties.DeclineMessage != defaultOOODeclineMsg {
 		t.Fatalf("unexpected decline message: %q", gotEvent.OutOfOfficeProperties.DeclineMessage)
+	}
+}
+
+func TestCalendarUpdateCmd_EventTypeWorkingLocationDefaults(t *testing.T) {
+	origNew := newCalendarService
+	t.Cleanup(func() { newCalendarService = origNew })
+
+	var gotEvent calendar.Event
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := strings.TrimPrefix(r.URL.Path, "/calendar/v3")
+		if r.Method == http.MethodPatch && path == "/calendars/cal@example.com/events/ev" {
+			_ = json.NewDecoder(r.Body).Decode(&gotEvent)
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"id": "ev",
+			})
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer srv.Close()
+
+	svc, err := calendar.NewService(context.Background(),
+		option.WithoutAuthentication(),
+		option.WithHTTPClient(srv.Client()),
+		option.WithEndpoint(srv.URL+"/"),
+	)
+	if err != nil {
+		t.Fatalf("NewService: %v", err)
+	}
+	newCalendarService = func(context.Context, string) (*calendar.Service, error) { return svc, nil }
+
+	ctx := newCalendarJSONOutputContext(t, os.Stdout, os.Stderr)
+
+	cmd := &CalendarUpdateCmd{}
+	if err := runKong(t, cmd, []string{
+		"cal@example.com",
+		"ev",
+		"--event-type", "working-location",
+		"--working-location-type", "office",
+		"--working-office-label", "HQ",
+	}, ctx, &RootFlags{Account: "a@b.com"}); err != nil {
+		t.Fatalf("runKong: %v", err)
+	}
+
+	if gotEvent.EventType != eventTypeWorkingLocation {
+		t.Fatalf("expected workingLocation event type, got %q", gotEvent.EventType)
+	}
+	if gotEvent.Transparency != transparencyTransparent {
+		t.Fatalf("expected transparent working location, got %q", gotEvent.Transparency)
+	}
+	if gotEvent.Visibility != "public" {
+		t.Fatalf("expected public working location visibility, got %q", gotEvent.Visibility)
 	}
 }
 
@@ -653,6 +666,77 @@ func TestCalendarUpdateCmd_SendUpdates(t *testing.T) {
 	}
 	if gotSendUpdates != "all" {
 		t.Fatalf("expected sendUpdates=all, got %q", gotSendUpdates)
+	}
+}
+
+func TestCalendarCreateCmd_ReminderPopupZeroForceSendsMinutes(t *testing.T) {
+	origNew := newCalendarService
+	t.Cleanup(func() { newCalendarService = origNew })
+
+	var gotEvent map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := strings.TrimPrefix(r.URL.Path, "/calendar/v3")
+		switch {
+		case r.Method == http.MethodGet && path == "/users/me/calendarList":
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"items": []map[string]any{
+					{
+						"id":       "cal",
+						"summary":  "cal",
+						"timeZone": "UTC",
+					},
+				},
+			})
+			return
+		case r.Method == http.MethodPost && path == "/calendars/cal/events":
+			if err := json.NewDecoder(r.Body).Decode(&gotEvent); err != nil {
+				t.Fatalf("decode event: %v", err)
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"id":      "ev",
+				"summary": "Zero Reminder",
+			})
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer srv.Close()
+
+	svc := newCalendarServiceFromServer(t, srv)
+	newCalendarService = func(context.Context, string) (*calendar.Service, error) { return svc, nil }
+
+	ctx := newCalendarJSONContext(t)
+	cmd := &CalendarCreateCmd{}
+	if err := runKong(t, cmd, []string{
+		"cal",
+		"--summary", "Zero Reminder",
+		"--from", "2025-01-01T10:00:00Z",
+		"--to", "2025-01-01T11:00:00Z",
+		"--reminder", "popup:0m",
+	}, ctx, &RootFlags{Account: "a@b.com"}); err != nil {
+		t.Fatalf("runKong: %v", err)
+	}
+
+	reminders, ok := gotEvent["reminders"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected reminders payload, got %#v", gotEvent["reminders"])
+	}
+	overrides, ok := reminders["overrides"].([]any)
+	if !ok || len(overrides) != 1 {
+		t.Fatalf("expected one override, got %#v", reminders["overrides"])
+	}
+	override, ok := overrides[0].(map[string]any)
+	if !ok {
+		t.Fatalf("expected override object, got %#v", overrides[0])
+	}
+	if method, _ := override["method"].(string); method != "popup" {
+		t.Fatalf("expected popup reminder, got %#v", override)
+	}
+	minutes, ok := override["minutes"].(float64)
+	if !ok || minutes != 0 {
+		t.Fatalf("expected force-sent minutes=0, got %#v", override["minutes"])
 	}
 }
 

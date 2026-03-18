@@ -1,45 +1,102 @@
 # Changelog
 
-## 0.12.0 - Unreleased
+## Unreleased
 
 ### Added
+- Gmail: add `gmail autoreply` to reply once to matching messages, label the thread for dedupe, and optionally archive/mark read. Includes docs and regression coverage for skip/reply flows.
+
+## 0.12.0 - 2026-03-09
+
+### Highlights
+- Admin: full Workspace Admin users/groups coverage for common directory operations. (#403) — thanks @dl-alexandre.
+- Auth: new headless/cloud auth paths with ADC, direct access tokens, custom callbacks, proxy-safe loopback settings, and extra-scope controls. (#357, #419, #227, #398, #421) — thanks @tengis617, @mmkal, @cyberfox, @salmonumbrella, and @peteradams2026.
+- Docs: much stronger document editing and export flow with tab targeting, richer find-replace, pageless mode, and native Markdown/HTML export. (#330, #305, #300, #282, #141) — thanks @ignacioreyna, @chparsons, @shohei-majima, @fprochazka, and @in-liberty420.
+- Sheets: spreadsheet editing/formatting expands significantly with named ranges, tab management, notes, find-replace, formatting controls, inserts, links, and format inspection. (#278, #309, #430, #341, #320, #203, #374, #284) — thanks @TheCrazyLex, @JulienMalige, @andybergon, @Shehryar, @omothm, and @nilzzzzzz.
+- Calendar: aliases, subscribe, and selector parity make multi-calendar workflows much easier. (#393, #327, #319) — thanks @salmonumbrella and @cdthompson.
+- Forms/Slides/Keep: forms management + watches, slides from templates, and first write/delete coverage for Keep. (#274, #273, #413) — thanks @alexknowshtml, @penguinco, and @jgwesterlund.
+
+### Added
+- Admin: add Workspace Admin Directory commands for users and groups, including user list/get/create/suspend and group membership list/add/remove. (#403) — thanks @dl-alexandre.
+- Auth: add Application Default Credentials mode via `GOG_AUTH_MODE=adc` for Workload Identity, Cloud Run, and local `gcloud` ADC flows without stored OAuth refresh tokens. (#357) — thanks @tengis617.
+- Auth: add `--access-token` / `GOG_ACCESS_TOKEN` for direct access-token auth in headless or CI flows, bypassing stored refresh tokens. (#419) — thanks @mmkal.
+- Auth: add `auth add|manage --listen-addr` plus `--redirect-host` for browser OAuth behind proxies or remote loopback forwarding. (#227) — thanks @cyberfox.
+- Auth: add `auth add --redirect-uri` for manual/remote OAuth flows, so custom callback hosts can be reused across the printed auth URL, state cache, and code exchange. (#398) — thanks @salmonumbrella.
+- Auth: add `--extra-scopes` to `auth add` for appending custom OAuth scope URIs beyond the built-in service scopes. (#421) — thanks @peteradams2026.
+- Docs: add `--tab-id` to editing commands so write/update/insert/delete/find-replace can target a specific Google Docs tab. (#330) — thanks @ignacioreyna.
+- Docs: extend `docs find-replace` with `--first`, `--content-file`, Markdown replacement, inline image insertion, and image sizing syntax. (#305) — thanks @chparsons.
+- Docs: add `--pageless` to `docs create`, `docs write`, and `docs update` to switch documents into pageless mode after writes. (#300) — thanks @shohei-majima.
+- Docs: add native Google Docs Markdown export via `docs export --format md`. (#282) — thanks @fprochazka.
+- Docs: add native Google Docs HTML export via `docs export --format html`. (#141) — thanks @in-liberty420.
+- Sheets: add named range management (`sheets named-ranges`) and let range-based Sheets commands accept named range names where GridRange-backed operations are needed. (#278) — thanks @TheCrazyLex.
+- Sheets: add `add-tab`, `rename-tab`, and `delete-tab` commands for managing spreadsheet tabs, with delete dry-run/confirmation guardrails. (#309) — thanks @JulienMalige.
+- Sheets: add `merge`, `unmerge`, `number-format`, `freeze`, `resize-columns`, and `resize-rows` commands for spreadsheet layout/format control. (#320) — thanks @Shehryar.
+- Sheets: add `sheets update-note` / `set-note` to write or clear cell notes across a range. (#430) — thanks @andybergon.
+- Sheets: add `sheets find-replace` to replace text across a spreadsheet or a specific tab, with exact-match, regex, and formula search options. (#341) — thanks @Shehryar.
 - Sheets: add `sheets insert` to insert rows/columns into a sheet. (#203) — thanks @andybergon.
-- Sheets: add `sheets links` (alias `hyperlinks`) to list cell links from ranges, including rich-text links. (#374) — thanks @omothm.
 - Sheets: add `sheets create --parent` to place new spreadsheets in a Drive folder. (#424) — thanks @ManManavadaria.
+- Sheets: add `sheets read-format` to inspect `userEnteredFormat` / `effectiveFormat` per cell. (#284) — thanks @nilzzzzzz.
+- Sheets: add `sheets links` (alias `hyperlinks`) to list cell links from ranges, including rich-text links. (#374) — thanks @omothm.
+- Forms: add form update/question-management commands plus response watch create/list/delete/renew, with delete-question validation and confirmation guardrails. (#274) — thanks @alexknowshtml.
+- Slides: add `create-from-template` with `--replace` / `--replacements`, dry-run support, and template placeholder replacement stats. (#273) — thanks @penguinco.
+- Calendar: add `calendar alias list|set|unset`, and let calendar commands resolve configured aliases before API/name lookup. (#393) — thanks @salmonumbrella.
+- Calendar: let `calendar freebusy` / `calendar conflicts` accept `--cal`, names, indices, and `--all` like `calendar events`. (#319) — thanks @salmonumbrella.
 - Calendar: add `calendar subscribe` (aliases `sub`, `add-calendar`) to add a shared calendar to the current account’s calendar list. (#327) — thanks @cdthompson.
 - Gmail: add `watch serve --history-types` filtering (`messageAdded|messageDeleted|labelAdded|labelRemoved`) and include `deletedMessageIds` in webhook payloads. (#168) — thanks @salmonumbrella.
+- Gmail: add `gmail labels rename` to rename user labels by ID or exact name, with system-label guards and wrong-case ID safety. (#391) — thanks @adam-zethraeus.
+- Gmail: add `gmail messages modify` for single-message label changes, complementing thread- and batch-level modify flows. (#281) — thanks @zerone0x.
+- Gmail: add `gmail filters export` to dump filter definitions as JSON to stdout or a file for backup/script workflows. (#119) — thanks @Jeswang.
+- Keep: add `keep create` for text/checklist notes and `keep delete` for note removal. (#413) — thanks @jgwesterlund.
 - Contacts: support `--org`, `--title`, `--url`, `--note`, and `--custom` on create/update; include custom fields in get output with deterministic ordering. (#199) — thanks @phuctm97.
+- Contacts: add `--relation type=person` to contact create/update, include relations in text `contacts get`, and cover relation payload updates. (#351) — thanks @karbassi.
+- Contacts: add `--address` to contact create/update and include addresses in text `contacts get`. (#148) — thanks @beezly.
 - Drive: add `drive ls --all` (alias `--global`) to list across all accessible files; make `--all` and `--parent` mutually exclusive. (#107) — thanks @struong.
+- Chat: add `chat messages reactions create|list|delete` to manage emoji reactions on messages; `chat messages react <message> <emoji>` as a shorthand for creating reactions; `reaction` is an alias for `reactions`. (#426) — thanks @fernandopps.
+- Tasks: add `--recur` / `--recur-rrule` aliases for repeat materialization, including RRULE `INTERVAL` support for generated occurrences. (#408) — thanks @salmonumbrella.
 
 ### Fixed
-- Build: refresh the dependency stack to Go 1.26.1, current Go indirects, GitHub Actions v6/v7 pins, and current Cloudflare worker dependencies.
-- Calendar: respond patches only attendees to avoid custom reminders validation errors. (#265) — thanks @sebasrodriguez.
-- Contacts: fix grouped parameter types in CRUD helpers to restore builds on newer Go toolchains. (#355) — thanks @laihenyi.
-- Timezone: embed the IANA timezone database so Windows builds can resolve calendar timezones correctly. (#388) — thanks @visionik.
 - Google API: use transport-level response-header timeouts for API clients while keeping token exchanges bounded, so large downloads are not cut short by `http.Client.Timeout`. (#425) — thanks @laihenyi.
-- Sheets: make `sheets metadata --plain` emit real TSV tab delimiters, with regression coverage for plain tabular sheet output. (#298) — thanks @mahsumaktas.
-- Security: require confirmation before public Drive shares, Gmail forwarding filters, and Gmail delegate grants in no-input/agent flows. (#317) — thanks @salmonumbrella.
-- CLI: show root help instead of a parse error when `gog` is run with no arguments. (#342) — thanks @cstenglein.
-- Gmail: preserve `Cc` metadata output in plain `gmail get --format metadata` even when Gmail returns uppercase `CC` headers. (#343) — thanks @salmonumbrella.
-- Auth: keep Keep-only service-account fallback isolated to Keep commands so other Google services do not accidentally pick it up. (#414) — thanks @jgwesterlund.
-- Contacts: send the required `copyMask` when deleting "other contacts", avoiding People API 400 errors. (#384) — thanks @rbansal42.
-- Calendar: hide cancelled/deleted events from `calendar events` list output by explicitly setting `showDeleted=false`. (#362) — thanks @sharukh010.
-- Calendar: use `Calendars.Get` for timezone lookups so service-account flows don’t 404 on `calendarList/primary`. (#325) — thanks @markwatson.
+- Timezone: embed the IANA timezone database so Windows builds can resolve calendar timezones correctly. (#388) — thanks @visionik.
 - Auth: persist rotated OAuth refresh tokens returned during API calls so later commands keep working without re-auth. (#373) — thanks @joshp123.
-- Groups: include required label filters in transitive group searches so `groups list` doesn’t 400 on Cloud Identity. (#315) — thanks @salmonumbrella.
-- Gmail: fall back to `MimeType` charset hints when `Content-Type` headers are missing so GBK/GB2312 message bodies decode correctly. (#428) — thanks @WinnCook.
+- Auth: allow pure service-account mode when the configured subject matches the service account itself, instead of forcing domain-wide delegation impersonation. (#399) — thanks @carrotRakko.
+- Auth: keep Keep-only service-account fallback isolated to Keep commands so other Google services do not accidentally pick it up. (#414) — thanks @jgwesterlund.
+- Auth: add `--gmail-scope full|readonly`, and disable `include_granted_scopes` for readonly/limited auth requests to avoid Drive/Gmail scope accumulation. (#113) — thanks @salmonumbrella.
 - Auth: preserve scope-shaping flags in the remote step-2 replay guidance for `auth add --remote`. (#427) — thanks @doodaaatimmy-creator.
 - Calendar: preserve full RRULE values and recurring-event timezones during updates so recurrence edits don’t lose BYDAY lists or hit missing-timezone API errors. (#392) — thanks @salmonumbrella.
+- Calendar: let recurring `calendar update --scope=future` and `calendar delete --scope=future` start from an instance event ID by resolving the parent series first. (#319) — thanks @salmonumbrella.
+- Calendar: use `Calendars.Get` for timezone lookups so service-account flows don’t 404 on `calendarList/primary`. (#325) — thanks @markwatson.
+- Calendar: hide cancelled/deleted events from `calendar events` list output by explicitly setting `showDeleted=false`. (#362) — thanks @sharukh010.
+- Calendar: reject ambiguous calendar-name selectors for `calendar events` instead of guessing. (#131) — thanks @salmonumbrella.
+- Calendar: respond patches only attendees to avoid custom reminders validation errors. (#265) — thanks @sebasrodriguez.
+- Calendar: force-send `minutes=0` for `--reminder popup:0m` so zero-minute popup reminders survive Google Calendar API JSON omission rules. (#316) — thanks @salmonumbrella.
+- Calendar: clarify that RFC3339 `--from/--to` timestamps must include a timezone while keeping date and relative-time help intact. (#409) — thanks @dbhurley.
 - Gmail: add a fetch delay in `watch serve` so History API reads don't race message indexing. (#397) — thanks @salmonumbrella.
-- Gmail: allow Workspace-managed send-as aliases with empty verification status in `send` and `drafts create`. (#407) — thanks @salmonumbrella.
 - Gmail: preserve the selected `--client` during `watch serve` push handling instead of falling back to the default client. (#411) — thanks @chrysb.
-- CI: validate release tags and quote the checkout ref in the release workflow to block tag-script injection on manual releases. (#299) — thanks @salmonumbrella.
+- Gmail: allow Workspace-managed send-as aliases with empty verification status in `send` and `drafts create`. (#407) — thanks @salmonumbrella.
+- Gmail: fall back to `MimeType` charset hints when `Content-Type` headers are missing so GBK/GB2312 message bodies decode correctly. (#428) — thanks @WinnCook.
+- Gmail: `drafts update --quote` now picks a non-draft, non-self message from thread fallback (or errors clearly), avoiding self-quote loops and wrong reply headers. (#394) — thanks @salmonumbrella.
+- Gmail: preserve `Cc` metadata output in plain `gmail get --format metadata` even when Gmail returns uppercase `CC` headers. (#343) — thanks @salmonumbrella.
+- Gmail: `gmail archive|read|unread|trash` convenience commands now honor `--dry-run` and emit action-specific dry-run ops. (#385) — thanks @yeager.
+- Gmail: retry transient `failedPrecondition` errors during `gmail filters create` and return the existing matching filter on duplicate creates, so reruns stay idempotent.
+- Sheets: harden `sheets format` against `boarders` typo (JSON and field mask), with clearer error messages. (#284) — thanks @nilzzzzzz.
+- Sheets: force-send empty note values so `sheets update-note --note ''` reliably clears notes via the API. (#341) — thanks @Shehryar.
+- Contacts: send the required `copyMask` when deleting "other contacts", avoiding People API 400 errors. (#384) — thanks @rbansal42.
+- Groups: include required label filters in transitive group searches so `groups list` doesn’t 400 on Cloud Identity. (#315) — thanks @salmonumbrella.
+- Sheets: make `sheets metadata --plain` emit real TSV tab delimiters, with regression coverage for plain tabular sheet output. (#298) — thanks @mahsumaktas.
+- CLI: show root help instead of a parse error when `gog` is run with no arguments. (#342) — thanks @cstenglein.
+- CLI: include the current partial token in fish shell completion so `gog __complete` sees the active word under the cursor. (#123) — thanks @GiGurra.
+
+### Security & Reliability
 - Secrets: verify keyring token writes by reading them back, so macOS headless Keychain failures return an actionable error instead of silently storing 0 bytes. (#270) — thanks @zerone0x.
 - Secrets: respect empty `GOG_KEYRING_PASSWORD` (treat set-to-empty as intentional; avoids headless prompts). (#269) — thanks @zerone0x.
-- Calendar: reject ambiguous calendar-name selectors for `calendar events` instead of guessing. (#131) — thanks @salmonumbrella.
-- Gmail: `drafts update --quote` now picks a non-draft, non-self message from thread fallback (or errors clearly), avoiding self-quote loops and wrong reply headers. (#394) — thanks @salmonumbrella.
-- Auth: add `--gmail-scope full|readonly`, and disable `include_granted_scopes` for readonly/limited auth requests to avoid Drive/Gmail scope accumulation. (#113) — thanks @salmonumbrella.
-- Gmail: `gmail archive|read|unread|trash` convenience commands now honor `--dry-run` and emit action-specific dry-run ops. (#385) — thanks @yeager.
+- Security: require confirmation before public Drive shares, Gmail forwarding filters, and Gmail delegate grants in no-input/agent flows. (#317) — thanks @salmonumbrella.
+- Security: redact stored Gmail watch webhook bearer tokens in `gmail watch status` text and JSON output unless `--show-secrets` is set. (#136) — thanks @paveg.
+
+### Tooling & Docs
+- Docs: update install docs to use the official Homebrew core formula (`brew install gogcli`). (#361) — thanks @zeldrisho.
+- Contacts: fix grouped parameter types in CRUD helpers to restore builds on newer Go toolchains. (#355) — thanks @laihenyi.
+- CI: validate release tags and quote the checkout ref in the release workflow to block tag-script injection on manual releases. (#299) — thanks @salmonumbrella.
+- Build: refresh the dependency stack to Go 1.26.1, current Go indirects, GitHub Actions v6/v7 pins, and current Cloudflare worker dependencies.
+- Keep: request the writable Keep service-account scope now that note create/delete is supported. (#413) — thanks @jgwesterlund.
 
 ## 0.11.0 - 2026-02-15
 

@@ -480,6 +480,50 @@ func TestManageServer_HandleAuthStart(t *testing.T) {
 	}
 }
 
+func TestManageServer_HandleAuthStart_RedirectURIOverride(t *testing.T) {
+	origRead := readClientCredentials
+	origState := randomStateFn
+	origEndpoint := oauthEndpoint
+
+	t.Cleanup(func() {
+		readClientCredentials = origRead
+		randomStateFn = origState
+		oauthEndpoint = origEndpoint
+	})
+
+	readClientCredentials = func(string) (config.ClientCredentials, error) {
+		return config.ClientCredentials{ClientID: "id", ClientSecret: "secret"}, nil
+	}
+	randomStateFn = func() (string, error) { return "state123", nil }
+	oauthEndpoint = oauth2.Endpoint{AuthURL: "http://example.com/auth", TokenURL: "http://example.com/token"}
+
+	ln, err := (&net.ListenConfig{}).Listen(context.Background(), "tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+
+	t.Cleanup(func() { _ = ln.Close() })
+
+	ms := &ManageServer{
+		listener: ln,
+		opts:     ManageServerOptions{RedirectURI: "https://gog.example.com/oauth2/callback"},
+	}
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/auth/start", nil)
+	ms.handleAuthStart(rr, req)
+
+	loc := rr.Header().Get("Location")
+
+	parsed, parseErr := url.Parse(loc)
+	if parseErr != nil {
+		t.Fatalf("parse location: %v", parseErr)
+	}
+
+	if got := parsed.Query().Get("redirect_uri"); got != "https://gog.example.com/oauth2/callback" {
+		t.Fatalf("unexpected redirect uri: %q", got)
+	}
+}
+
 func TestManageServer_HandleAuthStart_CredentialsError(t *testing.T) {
 	origRead := readClientCredentials
 

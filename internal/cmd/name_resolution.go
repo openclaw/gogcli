@@ -9,6 +9,8 @@ import (
 
 	"google.golang.org/api/calendar/v3"
 	"google.golang.org/api/tasks/v1"
+
+	"github.com/steipete/gogcli/internal/selectorutil"
 )
 
 const (
@@ -66,12 +68,7 @@ func resolveTasklistID(ctx context.Context, svc *tasks.Service, input string) (s
 		return in, nil
 	}
 
-	type match struct {
-		ID    string
-		Title string
-	}
-
-	var titleMatches []match
+	var options []selectorutil.Match
 	seenTokens := map[string]bool{}
 	pageToken := ""
 	for {
@@ -92,13 +89,10 @@ func resolveTasklistID(ctx context.Context, svc *tasks.Service, input string) (s
 			if tl == nil {
 				continue
 			}
-			id := strings.TrimSpace(tl.Id)
-			if id != "" && id == in {
-				return in, nil
-			}
-			if id != "" && strings.EqualFold(strings.TrimSpace(tl.Title), in) {
-				titleMatches = append(titleMatches, match{ID: id, Title: strings.TrimSpace(tl.Title)})
-			}
+			options = append(options, selectorutil.Match{
+				ID:   strings.TrimSpace(tl.Id),
+				Name: strings.TrimSpace(tl.Title),
+			})
 		}
 		next := strings.TrimSpace(resp.NextPageToken)
 		if next == "" {
@@ -107,18 +101,18 @@ func resolveTasklistID(ctx context.Context, svc *tasks.Service, input string) (s
 		pageToken = next
 	}
 
-	if len(titleMatches) == 1 {
-		return titleMatches[0].ID, nil
+	match, found, ambiguous := selectorutil.FindByIDOrCaseFoldName(in, options)
+	if found {
+		return match.ID, nil
 	}
-	if len(titleMatches) > 1 {
-		sort.Slice(titleMatches, func(i, j int) bool { return titleMatches[i].ID < titleMatches[j].ID })
-		parts := make([]string, 0, len(titleMatches))
-		for _, m := range titleMatches {
-			label := m.Title
+	if len(ambiguous) > 0 {
+		parts := make([]string, 0, len(ambiguous))
+		for _, match := range ambiguous {
+			label := match.Name
 			if label == "" {
-				label = "(untitled)"
+				label = "(unnamed)"
 			}
-			parts = append(parts, fmt.Sprintf("%s (%s)", label, m.ID))
+			parts = append(parts, fmt.Sprintf("%s (%s)", label, match.ID))
 		}
 		return "", usagef("ambiguous tasklist %q; matches: %s", in, strings.Join(parts, ", "))
 	}

@@ -100,6 +100,19 @@ func TestExecute_UnknownFlag(t *testing.T) {
 	}
 }
 
+func TestExecute_AccessTokenDoesNotWarnForVersion(t *testing.T) {
+	errText := captureStderr(t, func() {
+		_ = captureStdout(t, func() {
+			if err := Execute([]string{"--access-token", "ya29.test-token", "version"}); err != nil {
+				t.Fatalf("Execute: %v", err)
+			}
+		})
+	})
+	if strings.Contains(errText, directAccessTokenWarning) {
+		t.Fatalf("unexpected access-token warning for version command: %q", errText)
+	}
+}
+
 func TestNewUsageError(t *testing.T) {
 	if newUsageError(nil) != nil {
 		t.Fatalf("expected nil for nil error")

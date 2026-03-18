@@ -21,6 +21,11 @@ func (c *CalendarTimeCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
+	calendarID, err := prepareCalendarID(c.CalendarID, true)
+	if err != nil {
+		return err
+	}
+
 	var tz string
 	var loc *time.Location
 
@@ -40,9 +45,9 @@ func (c *CalendarTimeCmd) Run(ctx context.Context, flags *RootFlags) error {
 			return err
 		}
 
-		calendarID, resolveErr := resolveCalendarID(ctx, svc, c.CalendarID)
-		if resolveErr != nil {
-			return resolveErr
+		calendarID, err = resolveCalendarSelector(ctx, svc, calendarID, true)
+		if err != nil {
+			return err
 		}
 		tz, loc, err = getCalendarLocation(ctx, svc, calendarID)
 		if err != nil {

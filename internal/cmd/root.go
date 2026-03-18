@@ -31,6 +31,7 @@ type RootFlags struct {
 	Color          string `help:"Color output: auto|always|never" default:"${color}"`
 	Account        string `help:"Account email for API commands (gmail/calendar/chat/classroom/drive/docs/slides/contacts/tasks/people/sheets/forms/appscript)" aliases:"acct" short:"a"`
 	Client         string `help:"OAuth client name (selects stored credentials + token bucket)" default:"${client}"`
+	AccessToken    string `help:"Use provided access token directly (bypasses stored refresh tokens; token expires in ~1h)" env:"GOG_ACCESS_TOKEN"` //nolint:gosec // CLI/env input, not an embedded secret
 	EnableCommands string `help:"Comma-separated list of enabled top-level commands (restricts CLI)" default:"${enabled_commands}"`
 	JSON           bool   `help:"Output JSON to stdout (best for scripting)" default:"${json}" aliases:"machine" short:"j"`
 	Plain          bool   `help:"Output stable, parseable text to stdout (TSV; no colors)" default:"${plain}" aliases:"tsv" short:"p"`
@@ -62,6 +63,7 @@ type CLI struct {
 
 	Auth       AuthCmd               `cmd:"" help:"Auth and credentials"`
 	Groups     GroupsCmd             `cmd:"" aliases:"group" help:"Google Groups"`
+	Admin      AdminCmd              `cmd:"" help:"Google Workspace Admin (Directory API) - requires domain-wide delegation"`
 	Drive      DriveCmd              `cmd:"" aliases:"drv" help:"Google Drive"`
 	Docs       DocsCmd               `cmd:"" aliases:"doc" help:"Google Docs (export via Drive)"`
 	Slides     SlidesCmd             `cmd:"" aliases:"slide" help:"Google Slides"`
@@ -151,6 +153,7 @@ func Execute(args []string) (err error) {
 		Select:      splitCommaList(cli.Select),
 	})
 	ctx = authclient.WithClient(ctx, cli.Client)
+	ctx = authclient.WithAccessToken(ctx, directAccessToken(&cli.RootFlags))
 
 	uiColor := cli.Color
 	if outfmt.IsJSON(ctx) || outfmt.IsPlain(ctx) {

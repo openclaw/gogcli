@@ -3,13 +3,11 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/alecthomas/kong"
 	"google.golang.org/api/calendar/v3"
 
-	"github.com/steipete/gogcli/internal/outfmt"
 	"github.com/steipete/gogcli/internal/ui"
 )
 
@@ -52,132 +50,40 @@ type CalendarCreateCmd struct {
 }
 
 func (c *CalendarCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
-	u := ui.FromContext(ctx)
-	calendarID := strings.TrimSpace(c.CalendarID)
-	if calendarID == "" {
-		return usage("empty calendarId")
-	}
-
-	eventType, err := c.resolveCreateEventType()
+	plan, err := buildCalendarCreatePlan(c)
 	if err != nil {
 		return err
 	}
 
-	summary := strings.TrimSpace(c.Summary)
-	if summary == "" {
-		summary = c.defaultSummaryForEventType(eventType)
-	}
-	if summary == "" || strings.TrimSpace(c.From) == "" || strings.TrimSpace(c.To) == "" {
-		return usage("required: --summary, --from, --to")
-	}
-
-	colorId, err := validateColorId(c.ColorId)
+	calendarID, err := prepareCalendarID(plan.CalendarID, false)
 	if err != nil {
-		return err
-	}
-	visibility, err := validateVisibility(c.Visibility)
-	if err != nil {
-		return err
-	}
-	transparency, err := validateTransparency(c.Transparency)
-	if err != nil {
-		return err
-	}
-	sendUpdates, err := validateSendUpdates(c.SendUpdates)
-	if err != nil {
-		return err
-	}
-	reminders, err := buildReminders(c.Reminders)
-	if err != nil {
-		return err
-	}
-
-	allDay, err := resolveCreateAllDay(c.From, c.To, c.AllDay, eventType)
-	if err != nil {
-		return err
-	}
-	transparency = applyEventTypeTransparencyDefault(transparency, eventType)
-
-	event := &calendar.Event{
-		Summary:            summary,
-		Description:        strings.TrimSpace(c.Description),
-		Location:           strings.TrimSpace(c.Location),
-		Start:              buildEventDateTime(c.From, allDay),
-		End:                buildEventDateTime(c.To, allDay),
-		Attendees:          buildAttendees(c.Attendees),
-		Recurrence:         buildRecurrence(c.Recurrence),
-		Reminders:          reminders,
-		ColorId:            colorId,
-		Visibility:         visibility,
-		Transparency:       transparency,
-		ConferenceData:     buildConferenceData(c.WithMeet),
-		Attachments:        buildAttachments(c.Attachments),
-		ExtendedProperties: buildExtendedProperties(c.PrivateProps, c.SharedProps),
-	}
-	if c.GuestsCanInviteOthers != nil {
-		event.GuestsCanInviteOthers = c.GuestsCanInviteOthers
-	}
-	if c.GuestsCanModify != nil {
-		event.GuestsCanModify = *c.GuestsCanModify
-	}
-	if c.GuestsCanSeeOthers != nil {
-		event.GuestsCanSeeOtherGuests = c.GuestsCanSeeOthers
-	}
-	if strings.TrimSpace(c.SourceUrl) != "" {
-		event.Source = &calendar.EventSource{
-			Url:   strings.TrimSpace(c.SourceUrl),
-			Title: strings.TrimSpace(c.SourceTitle),
-		}
-	}
-
-	if err = c.applyCreateEventType(event, eventType); err != nil {
 		return err
 	}
 
 	if dryRunErr := dryRunExit(ctx, flags, "calendar.create", map[string]any{
 		"calendar_id":          calendarID,
-		"send_updates":         sendUpdates,
-		"conference_version_1": c.WithMeet,
-		"supports_attachments": len(event.Attachments) > 0,
-		"event":                event,
+		"send_updates":         plan.SendUpdates,
+		"conference_version_1": plan.WithMeet,
+		"supports_attachments": len(plan.Event.Attachments) > 0,
+		"event":                plan.Event,
 	}); dryRunErr != nil {
 		return dryRunErr
 	}
 
-	account, err := requireAccount(flags)
+	mutation, err := newCalendarMutationContext(ctx, flags, calendarID)
 	if err != nil {
 		return err
 	}
 
-	svc, err := newCalendarService(ctx, account)
+	created, err := mutation.insertEvent(ctx, plan.Event, calendarInsertOptions{
+		sendUpdates:         plan.SendUpdates,
+		conferenceVersion1:  plan.WithMeet,
+		supportsAttachments: len(plan.Event.Attachments) > 0,
+	})
 	if err != nil {
 		return err
 	}
-	calendarID, err = resolveCalendarID(ctx, svc, calendarID)
-	if err != nil {
-		return err
-	}
-
-	call := svc.Events.Insert(calendarID, event)
-	if sendUpdates != "" {
-		call = call.SendUpdates(sendUpdates)
-	}
-	if c.WithMeet {
-		call = call.ConferenceDataVersion(1)
-	}
-	if len(event.Attachments) > 0 {
-		call = call.SupportsAttachments(true)
-	}
-	created, err := call.Do()
-	if err != nil {
-		return err
-	}
-	tz, loc, _ := getCalendarLocation(ctx, svc, calendarID)
-	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{"event": wrapEventWithDaysWithTimezone(created, tz, loc)})
-	}
-	printCalendarEventWithTimezone(u, created, tz, loc)
-	return nil
+	return mutation.writeEvent(ctx, created)
 }
 
 func (c *CalendarCreateCmd) resolveCreateEventType() (string, error) {
@@ -227,7 +133,17 @@ func applyEventTypeTransparencyDefault(transparency, eventType string) string {
 	if transparency == "" && (eventType == eventTypeFocusTime || eventType == eventTypeOutOfOffice) {
 		return transparencyOpaque
 	}
+	if transparency == "" && eventType == eventTypeWorkingLocation {
+		return transparencyTransparent
+	}
 	return transparency
+}
+
+func applyEventTypeVisibilityDefault(visibility, eventType string) string {
+	if visibility == "" && eventType == eventTypeWorkingLocation {
+		return visibilityPublic
+	}
+	return visibility
 }
 
 func (c *CalendarCreateCmd) applyCreateEventType(event *calendar.Event, eventType string) error {
@@ -267,46 +183,19 @@ func (c *CalendarCreateCmd) applyCreateEventType(event *calendar.Event, eventTyp
 }
 
 func (c *CalendarCreateCmd) buildFocusTimeProperties() (*calendar.EventFocusTimeProperties, error) {
-	autoDecline := strings.TrimSpace(c.FocusAutoDecline)
-	if autoDecline == "" {
-		autoDecline = defaultFocusAutoDecline
-	}
-	autoDeclineMode, err := validateAutoDeclineMode(autoDecline)
-	if err != nil {
-		return nil, err
-	}
-	chatStatus := strings.TrimSpace(c.FocusChatStatus)
-	if chatStatus == "" {
-		chatStatus = defaultFocusChatStatus
-	}
-	chatStatusValue, err := validateChatStatus(chatStatus)
-	if err != nil {
-		return nil, err
-	}
-	return &calendar.EventFocusTimeProperties{
-		AutoDeclineMode: autoDeclineMode,
-		DeclineMessage:  strings.TrimSpace(c.FocusDeclineMessage),
-		ChatStatus:      chatStatusValue,
-	}, nil
+	return buildFocusTimeProperties(focusTimeInput{
+		AutoDecline:    c.FocusAutoDecline,
+		DeclineMessage: c.FocusDeclineMessage,
+		ChatStatus:     c.FocusChatStatus,
+	})
 }
 
 func (c *CalendarCreateCmd) buildOutOfOfficeProperties() (*calendar.EventOutOfOfficeProperties, error) {
-	autoDecline := strings.TrimSpace(c.OOOAutoDecline)
-	if autoDecline == "" {
-		autoDecline = defaultOOOAutoDecline
-	}
-	autoDeclineMode, err := validateAutoDeclineMode(autoDecline)
-	if err != nil {
-		return nil, err
-	}
-	declineMessage := strings.TrimSpace(c.OOODeclineMessage)
-	if declineMessage == "" {
-		declineMessage = defaultOOODeclineMsg
-	}
-	return &calendar.EventOutOfOfficeProperties{
-		AutoDeclineMode: autoDeclineMode,
-		DeclineMessage:  declineMessage,
-	}, nil
+	return buildOutOfOfficeProperties(outOfOfficeInput{
+		AutoDecline:            c.OOOAutoDecline,
+		DeclineMessage:         c.OOODeclineMessage,
+		DeclineMessageProvided: false,
+	})
 }
 
 type CalendarUpdateCmd struct {
@@ -348,12 +237,11 @@ type CalendarUpdateCmd struct {
 }
 
 func (c *CalendarUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *RootFlags) error {
-	u := ui.FromContext(ctx)
-	calendarID := strings.TrimSpace(c.CalendarID)
-	eventID := normalizeCalendarEventID(c.EventID)
-	if calendarID == "" {
-		return usage("empty calendarId")
+	calendarID, err := prepareCalendarID(c.CalendarID, false)
+	if err != nil {
+		return err
 	}
+	eventID := normalizeCalendarEventID(c.EventID)
 	if eventID == "" {
 		return usage("empty eventId")
 	}
@@ -409,23 +297,14 @@ func (c *CalendarUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *
 		return dryRunErr
 	}
 
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
-
-	svc, err := newCalendarService(ctx, account)
-	if err != nil {
-		return err
-	}
-	calendarID, err = resolveCalendarID(ctx, svc, calendarID)
+	mutation, err := newCalendarMutationContext(ctx, flags, calendarID)
 	if err != nil {
 		return err
 	}
 
 	// For --add-attendee, fetch current event to preserve existing attendees with metadata.
 	if wantsAddAttendee {
-		existing, getErr := svc.Events.Get(calendarID, eventID).Context(ctx).Do()
+		existing, getErr := mutation.svc.Events.Get(mutation.calendarID, eventID).Context(ctx).Do()
 		if getErr != nil {
 			return fmt.Errorf("failed to fetch current event: %w", getErr)
 		}
@@ -439,35 +318,26 @@ func (c *CalendarUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *
 		}
 	}
 
-	targetEventID, parentRecurrence, err := applyUpdateScope(ctx, svc, calendarID, eventID, scope, c.OriginalStartTime, patch)
+	targetEventID, parentRecurrence, err := applyUpdateScope(ctx, mutation.svc, mutation.calendarID, eventID, scope, c.OriginalStartTime, patch)
 	if err != nil {
 		return err
 	}
 	if recurrenceProvided {
-		if enrichErr := ensureRecurringPatchDateTimes(ctx, svc, calendarID, targetEventID, patch); enrichErr != nil {
+		if enrichErr := ensureRecurringPatchDateTimes(ctx, mutation.svc, mutation.calendarID, targetEventID, patch); enrichErr != nil {
 			return enrichErr
 		}
 	}
 
-	call := svc.Events.Patch(calendarID, targetEventID, patch).Context(ctx)
-	if sendUpdates != "" {
-		call = call.SendUpdates(sendUpdates)
-	}
-	updated, err := call.Do()
+	updated, err := mutation.patchEvent(ctx, targetEventID, patch, sendUpdates)
 	if err != nil {
 		return err
 	}
 	if scope == scopeFuture {
-		if err := truncateParentRecurrence(ctx, svc, calendarID, eventID, parentRecurrence, c.OriginalStartTime, sendUpdates); err != nil {
+		if err := truncateParentRecurrence(ctx, mutation.svc, mutation.calendarID, eventID, parentRecurrence, c.OriginalStartTime, sendUpdates); err != nil {
 			return err
 		}
 	}
-	tz, loc, _ := getCalendarLocation(ctx, svc, calendarID)
-	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{"event": wrapEventWithDaysWithTimezone(updated, tz, loc)})
-	}
-	printCalendarEventWithTimezone(u, updated, tz, loc)
-	return nil
+	return mutation.writeEvent(ctx, updated)
 }
 
 func (c *CalendarUpdateCmd) buildUpdatePatch(kctx *kong.Context) (*calendar.Event, bool, error) {
@@ -786,6 +656,14 @@ func (c *CalendarUpdateCmd) applyEventTypeProperties(kctx *kong.Context, patch *
 		patch.Transparency = transparencyOpaque
 		changed = true
 	}
+	if eventTypeRequested && !flagProvided(kctx, "transparency") && eventType == eventTypeWorkingLocation {
+		patch.Transparency = transparencyTransparent
+		changed = true
+	}
+	if eventTypeRequested && !flagProvided(kctx, "visibility") && eventType == eventTypeWorkingLocation {
+		patch.Visibility = visibilityPublic
+		changed = true
+	}
 
 	switch eventType {
 	case eventTypeFocusTime:
@@ -827,61 +705,29 @@ func (c *CalendarUpdateCmd) applyEventTypeProperties(kctx *kong.Context, patch *
 }
 
 func (c *CalendarUpdateCmd) buildUpdateFocusTimeProperties() (*calendar.EventFocusTimeProperties, error) {
-	autoDecline := strings.TrimSpace(c.FocusAutoDecline)
-	if autoDecline == "" {
-		autoDecline = defaultFocusAutoDecline
-	}
-	autoDeclineMode, err := validateAutoDeclineMode(autoDecline)
-	if err != nil {
-		return nil, err
-	}
-	chatStatus := strings.TrimSpace(c.FocusChatStatus)
-	if chatStatus == "" {
-		chatStatus = defaultFocusChatStatus
-	}
-	chatStatusValue, err := validateChatStatus(chatStatus)
-	if err != nil {
-		return nil, err
-	}
-	return &calendar.EventFocusTimeProperties{
-		AutoDeclineMode: autoDeclineMode,
-		DeclineMessage:  strings.TrimSpace(c.FocusDeclineMessage),
-		ChatStatus:      chatStatusValue,
-	}, nil
+	return buildFocusTimeProperties(focusTimeInput{
+		AutoDecline:    c.FocusAutoDecline,
+		DeclineMessage: c.FocusDeclineMessage,
+		ChatStatus:     c.FocusChatStatus,
+	})
 }
 
 func (c *CalendarUpdateCmd) buildUpdateOutOfOfficeProperties(declineProvided bool) (*calendar.EventOutOfOfficeProperties, error) {
-	autoDecline := strings.TrimSpace(c.OOOAutoDecline)
-	if autoDecline == "" {
-		autoDecline = defaultOOOAutoDecline
-	}
-	autoDeclineMode, err := validateAutoDeclineMode(autoDecline)
-	if err != nil {
-		return nil, err
-	}
-	declineMessage := strings.TrimSpace(c.OOODeclineMessage)
-	if declineMessage == "" && !declineProvided {
-		declineMessage = defaultOOODeclineMsg
-	}
-	return &calendar.EventOutOfOfficeProperties{
-		AutoDeclineMode: autoDeclineMode,
-		DeclineMessage:  declineMessage,
-	}, nil
+	return buildOutOfOfficeProperties(outOfOfficeInput{
+		AutoDecline:            c.OOOAutoDecline,
+		DeclineMessage:         c.OOODeclineMessage,
+		DeclineMessageProvided: declineProvided,
+	})
 }
 
 func applyUpdateScope(ctx context.Context, svc *calendar.Service, calendarID, eventID, scope, originalStartTime string, patch *calendar.Event) (string, []string, error) {
-	targetEventID := eventID
-	var parentRecurrence []string
+	resolution, err := resolveRecurringScopeResolution(ctx, svc, calendarID, eventID, scope, originalStartTime)
+	if err != nil {
+		return "", nil, err
+	}
 
 	if scope == scopeFuture {
-		parent, err := svc.Events.Get(calendarID, eventID).Context(ctx).Do()
-		if err != nil {
-			return "", nil, err
-		}
-		if len(parent.Recurrence) == 0 {
-			return "", nil, fmt.Errorf("event %s is not a recurring event", eventID)
-		}
-		parentRecurrence = parent.Recurrence
+		parentRecurrence := resolution.ParentRecurrence
 		recurrenceOverride := len(patch.Recurrence) > 0
 		if !recurrenceOverride {
 			for _, field := range patch.ForceSendFields {
@@ -896,15 +742,7 @@ func applyUpdateScope(ctx context.Context, svc *calendar.Service, calendarID, ev
 		}
 	}
 
-	if scope == scopeSingle || scope == scopeFuture {
-		instanceID, err := resolveRecurringInstanceID(ctx, svc, calendarID, eventID, originalStartTime)
-		if err != nil {
-			return "", nil, err
-		}
-		targetEventID = instanceID
-	}
-
-	return targetEventID, parentRecurrence, nil
+	return resolution.TargetEventID, resolution.ParentRecurrence, nil
 }
 
 func truncateParentRecurrence(ctx context.Context, svc *calendar.Service, calendarID, eventID string, parentRecurrence []string, originalStartTime, sendUpdates string) error {
@@ -947,11 +785,11 @@ type CalendarDeleteCmd struct {
 
 func (c *CalendarDeleteCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
-	calendarID := strings.TrimSpace(c.CalendarID)
-	eventID := normalizeCalendarEventID(c.EventID)
-	if calendarID == "" {
-		return usage("empty calendarId")
+	calendarID, err := prepareCalendarID(c.CalendarID, false)
+	if err != nil {
+		return err
 	}
+	eventID := normalizeCalendarEventID(c.EventID)
 	if eventID == "" {
 		return usage("empty eventId")
 	}
@@ -973,68 +811,42 @@ func (c *CalendarDeleteCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if scope == scopeFuture {
 		confirmMessage = fmt.Sprintf("delete event %s (instance start %s) and all following from calendar %s", eventID, c.OriginalStartTime, calendarID)
 	}
-	if confirmErr := confirmDestructive(ctx, flags, confirmMessage); confirmErr != nil {
+	if confirmErr := dryRunAndConfirmDestructive(ctx, flags, "calendar.delete", map[string]any{
+		"calendar_id":    calendarID,
+		"event_id":       eventID,
+		"scope":          scope,
+		"original_start": c.OriginalStartTime,
+		"send_updates":   sendUpdates,
+	}, confirmMessage); confirmErr != nil {
 		return confirmErr
 	}
 
-	account, err := requireAccount(flags)
+	mutation, err := newCalendarMutationContext(ctx, flags, calendarID)
 	if err != nil {
 		return err
 	}
 
-	svc, err := newCalendarService(ctx, account)
-	if err != nil {
-		return err
-	}
-	calendarID, err = resolveCalendarID(ctx, svc, calendarID)
+	resolution, err := resolveRecurringScopeResolution(ctx, mutation.svc, mutation.calendarID, eventID, scope, c.OriginalStartTime)
 	if err != nil {
 		return err
 	}
 
-	targetEventID := eventID
-	var parentRecurrence []string
-	if scope == scopeFuture {
-		parent, getErr := svc.Events.Get(calendarID, eventID).Context(ctx).Do()
-		if getErr != nil {
-			return getErr
-		}
-		if len(parent.Recurrence) == 0 {
-			return fmt.Errorf("event %s is not a recurring event", eventID)
-		}
-		parentRecurrence = parent.Recurrence
-	}
-	if scope == scopeSingle || scope == scopeFuture {
-		instanceID, resolveErr := resolveRecurringInstanceID(ctx, svc, calendarID, eventID, c.OriginalStartTime)
-		if resolveErr != nil {
-			return resolveErr
-		}
-		targetEventID = instanceID
-	}
-
-	deleteCall := svc.Events.Delete(calendarID, targetEventID).Context(ctx)
-	if sendUpdates != "" {
-		deleteCall = deleteCall.SendUpdates(sendUpdates)
-	}
-	if err := deleteCall.Do(); err != nil {
+	if err := mutation.deleteEvent(ctx, resolution.TargetEventID, sendUpdates); err != nil {
 		return err
 	}
 	if scope == scopeFuture {
-		truncated, truncateErr := truncateRecurrence(parentRecurrence, c.OriginalStartTime)
+		truncated, truncateErr := truncateRecurrence(resolution.ParentRecurrence, c.OriginalStartTime)
 		if truncateErr != nil {
 			return truncateErr
 		}
-		patchCall := svc.Events.Patch(calendarID, eventID, &calendar.Event{Recurrence: truncated}).Context(ctx)
-		if sendUpdates != "" {
-			patchCall = patchCall.SendUpdates(sendUpdates)
-		}
-		_, patchErr := patchCall.Do()
+		_, patchErr := mutation.patchEvent(ctx, resolution.ParentEventID, &calendar.Event{Recurrence: truncated}, sendUpdates)
 		if patchErr != nil {
 			return patchErr
 		}
 	}
 	return writeResult(ctx, u,
 		kv("deleted", true),
-		kv("calendarId", calendarID),
-		kv("eventId", targetEventID),
+		kv("calendarId", mutation.calendarID),
+		kv("eventId", resolution.TargetEventID),
 	)
 }

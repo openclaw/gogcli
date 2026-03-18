@@ -10,7 +10,10 @@ import (
 	"google.golang.org/api/calendar/v3"
 )
 
-const tzUTC = "UTC"
+const (
+	tzUTC               = "UTC"
+	reminderMethodPopup = "popup"
+)
 
 func buildEventDateTime(value string, allDay bool) *calendar.EventDateTime {
 	value = strings.TrimSpace(value)
@@ -166,7 +169,7 @@ func parseReminder(s string) (string, int64, error) {
 	}
 
 	method := strings.TrimSpace(strings.ToLower(parts[0]))
-	if method != "email" && method != "popup" {
+	if method != "email" && method != reminderMethodPopup {
 		return "", 0, fmt.Errorf("invalid reminder method: %q (expected 'email' or 'popup')", method)
 	}
 
@@ -205,10 +208,15 @@ func buildReminders(reminders []string) (*calendar.EventReminders, error) {
 		if err != nil {
 			return nil, err
 		}
-		overrides = append(overrides, &calendar.EventReminder{
+		reminder := &calendar.EventReminder{
 			Method:  method,
 			Minutes: minutes,
-		})
+		}
+		if minutes == 0 {
+			// Minutes is an omitempty zero value; force-send 0 so Calendar API doesn't reject it.
+			reminder.ForceSendFields = []string{"Minutes"}
+		}
+		overrides = append(overrides, reminder)
 	}
 
 	// ForceSendFields ensures UseDefault=false is sent (not omitted as zero value)

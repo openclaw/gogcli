@@ -11,9 +11,7 @@ import (
 	"time"
 
 	"github.com/steipete/gogcli/internal/config"
-	"github.com/steipete/gogcli/internal/outfmt"
 	"github.com/steipete/gogcli/internal/secrets"
-	"github.com/steipete/gogcli/internal/ui"
 )
 
 func TestAuthTokensExportImport_JSON(t *testing.T) {
@@ -40,11 +38,7 @@ func TestAuthTokensExportImport_JSON(t *testing.T) {
 	}
 
 	outPath := filepath.Join(t.TempDir(), "token.json")
-	u, uiErr := ui.New(ui.Options{Stdout: os.Stdout, Stderr: os.Stderr, Color: "never"})
-	if uiErr != nil {
-		t.Fatalf("ui.New: %v", uiErr)
-	}
-	ctx := outfmt.WithMode(ui.WithUI(context.Background(), u), outfmt.Mode{JSON: true})
+	ctx := newCmdJSONOutputContext(t, os.Stdout, os.Stderr)
 	var err error
 
 	exportCmd := AuthTokensExportCmd{
@@ -106,11 +100,7 @@ func TestAuthList_CheckJSON(t *testing.T) {
 		t.Fatalf("SetToken: %v", err)
 	}
 
-	u, uiErr := ui.New(ui.Options{Stdout: os.Stdout, Stderr: os.Stderr, Color: "never"})
-	if uiErr != nil {
-		t.Fatalf("ui.New: %v", uiErr)
-	}
-	ctx := outfmt.WithMode(ui.WithUI(context.Background(), u), outfmt.Mode{JSON: true})
+	ctx := newCmdJSONOutputContext(t, os.Stdout, os.Stderr)
 	var err error
 
 	listCmd := AuthListCmd{Check: true}

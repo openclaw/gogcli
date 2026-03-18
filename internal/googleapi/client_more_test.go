@@ -15,6 +15,7 @@ import (
 	"github.com/99designs/keyring"
 	"golang.org/x/oauth2"
 
+	"github.com/steipete/gogcli/internal/authclient"
 	"github.com/steipete/gogcli/internal/config"
 	"github.com/steipete/gogcli/internal/googleauth"
 	"github.com/steipete/gogcli/internal/secrets"
@@ -298,6 +299,36 @@ func TestOptionsForAccount_HappyPath(t *testing.T) {
 	}
 }
 
+func TestOptionsForAccountScopes_AccessTokenBypassesStoredAuth(t *testing.T) {
+	origRead := readClientCredentials
+	origOpen := openSecretsStore
+
+	t.Cleanup(func() {
+		readClientCredentials = origRead
+		openSecretsStore = origOpen
+	})
+
+	readClientCredentials = func(string) (config.ClientCredentials, error) {
+		t.Fatal("readClientCredentials should not be called when access token is provided")
+		return config.ClientCredentials{}, nil
+	}
+	openSecretsStore = func() (secrets.Store, error) {
+		t.Fatal("openSecretsStore should not be called when access token is provided")
+		return nil, errBoom
+	}
+
+	ctx := authclient.WithAccessToken(context.Background(), "ya29.test-access-token")
+
+	opts, err := optionsForAccountScopes(ctx, "svc", "a@b.com", []string{"s1"})
+	if err != nil {
+		t.Fatalf("unexpected err: %v", err)
+	}
+
+	if len(opts) == 0 {
+		t.Fatalf("expected client options")
+	}
+}
+
 func TestOptionsForAccountScopes_ServiceAccountPreferred(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
@@ -361,6 +392,76 @@ func TestOptionsForAccountScopes_ServiceAccountPreferred(t *testing.T) {
 
 	if !called {
 		t.Fatalf("expected service account token source used")
+	}
+
+	if len(opts) == 0 {
+		t.Fatalf("expected client options")
+	}
+}
+
+func TestIsADCMode(t *testing.T) {
+	t.Setenv("GOG_AUTH_MODE", "")
+
+	if IsADCMode() {
+		t.Fatalf("expected false when GOG_AUTH_MODE is empty")
+	}
+
+	t.Setenv("GOG_AUTH_MODE", "adc")
+
+	if !IsADCMode() {
+		t.Fatalf("expected true when GOG_AUTH_MODE=adc")
+	}
+
+	t.Setenv("GOG_AUTH_MODE", "oauth")
+
+	if IsADCMode() {
+		t.Fatalf("expected false when GOG_AUTH_MODE=oauth")
+	}
+}
+
+func TestOptionsForAccountScopes_ADCMode(t *testing.T) {
+	t.Setenv("GOG_AUTH_MODE", "adc")
+
+	origADC := newADCTokenSource
+	origRead := readClientCredentials
+	origOpen := openSecretsStore
+
+	t.Cleanup(func() {
+		newADCTokenSource = origADC
+		readClientCredentials = origRead
+		openSecretsStore = origOpen
+	})
+
+	called := false
+	newADCTokenSource = func(_ context.Context, scopes ...string) (oauth2.TokenSource, error) {
+		called = true
+
+		if len(scopes) != 1 || scopes[0] != "https://www.googleapis.com/auth/spreadsheets.readonly" {
+			t.Fatalf("unexpected scopes: %v", scopes)
+		}
+
+		return oauth2.StaticTokenSource(&oauth2.Token{AccessToken: "adc-token"}), nil
+	}
+
+	// Should NOT call keyring or readClientCredentials.
+	readClientCredentials = func(string) (config.ClientCredentials, error) {
+		t.Fatalf("readClientCredentials should not be called in ADC mode")
+		return config.ClientCredentials{}, nil
+	}
+	openSecretsStore = func() (secrets.Store, error) {
+		t.Fatalf("openSecretsStore should not be called in ADC mode")
+		return nil, errBoom
+	}
+
+	opts, err := optionsForAccountScopes(context.Background(), "sheets", "adc", []string{
+		"https://www.googleapis.com/auth/spreadsheets.readonly",
+	})
+	if err != nil {
+		t.Fatalf("unexpected err: %v", err)
+	}
+
+	if !called {
+		t.Fatalf("expected ADC token source to be called")
 	}
 
 	if len(opts) == 0 {

@@ -22,30 +22,30 @@ type conflict struct {
 }
 
 type CalendarConflictsCmd struct {
-	From      string `name:"from" help:"Start time (RFC3339, date, or relative: today, tomorrow, monday)"`
-	To        string `name:"to" help:"End time (RFC3339, date, or relative)"`
-	Today     bool   `name:"today" help:"Today only (timezone-aware)"`
-	Week      bool   `name:"week" help:"This week (uses --week-start, default Mon)"`
-	Days      int    `name:"days" help:"Next N days (timezone-aware)" default:"0"`
-	WeekStart string `name:"week-start" help:"Week start day for --week (sun, mon, ...)" default:""`
-	Calendars string `name:"calendars" help:"Comma-separated calendar IDs" default:"primary"`
+	From      string   `name:"from" help:"Start time (RFC3339, date, or relative: today, tomorrow, monday)"`
+	To        string   `name:"to" help:"End time (RFC3339, date, or relative)"`
+	Today     bool     `name:"today" help:"Today only (timezone-aware)"`
+	Week      bool     `name:"week" help:"This week (uses --week-start, default Mon)"`
+	Days      int      `name:"days" help:"Next N days (timezone-aware)" default:"0"`
+	WeekStart string   `name:"week-start" help:"Week start day for --week (sun, mon, ...)" default:""`
+	Cal       []string `name:"cal" help:"Calendar ID, name, or index (can be repeated)"`
+	Calendars string   `name:"calendars" help:"Comma-separated calendar IDs, names, or indices from 'calendar calendars'"`
+	All       bool     `name:"all" help:"Query all calendars"`
 }
 
 func (c *CalendarConflictsCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
-	account, err := requireAccount(flags)
+	_, svc, err := requireCalendarService(ctx, flags)
 	if err != nil {
 		return err
 	}
 
-	calendarIDs := splitCSV(c.Calendars)
+	calendarIDs, err := resolveSelectedCalendarIDs(ctx, svc, c.Cal, c.Calendars, c.All, true)
+	if err != nil {
+		return err
+	}
 	if len(calendarIDs) == 0 {
 		return errors.New("no calendar IDs provided")
-	}
-
-	svc, err := newCalendarService(ctx, account)
-	if err != nil {
-		return err
 	}
 
 	// Use timezone-aware time resolution

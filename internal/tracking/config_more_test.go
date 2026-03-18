@@ -109,6 +109,19 @@ func TestLoadConfigLegacyFallback(t *testing.T) {
 	}
 }
 
+func TestLegacyConfigPathUsesXDGConfigHome(t *testing.T) {
+	setupTrackingConfigEnv(t)
+
+	path, err := legacyConfigPath()
+	if err != nil {
+		t.Fatalf("legacyConfigPath: %v", err)
+	}
+
+	if !strings.Contains(path, filepath.Join("xdg", "gog", "tracking.json")) {
+		t.Fatalf("expected XDG-based legacy path, got %q", path)
+	}
+}
+
 func TestSaveConfigMissingAccount(t *testing.T) {
 	setupTrackingConfigEnv(t)
 

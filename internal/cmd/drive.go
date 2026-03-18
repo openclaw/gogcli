@@ -12,9 +12,7 @@ import (
 	"strings"
 
 	"google.golang.org/api/drive/v3"
-	gapi "google.golang.org/api/googleapi"
 
-	"github.com/steipete/gogcli/internal/config"
 	"github.com/steipete/gogcli/internal/googleapi"
 	"github.com/steipete/gogcli/internal/outfmt"
 	"github.com/steipete/gogcli/internal/ui"
@@ -44,6 +42,8 @@ const (
 	mimePptx               = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
 	mimePNG                = "image/png"
 	mimeTextPlain          = "text/plain"
+	mimeTextMarkdown       = "text/markdown"
+	mimeHTML               = "text/html"
 	extPDF                 = ".pdf"
 	extCSV                 = ".csv"
 	extXlsx                = ".xlsx"
@@ -51,6 +51,8 @@ const (
 	extPptx                = ".pptx"
 	extPNG                 = ".png"
 	extTXT                 = ".txt"
+	extMD                  = ".md"
+	extHTML                = ".html"
 	formatAuto             = "auto"
 	driveShareToAnyone     = "anyone"
 	driveShareToUser       = "user"
@@ -88,145 +90,12 @@ type DriveLsCmd struct {
 	AllDrives bool   `name:"all-drives" help:"Include shared drives (default: true; use --no-all-drives for My Drive only)" default:"true" negatable:"_"`
 }
 
-func (c *DriveLsCmd) Run(ctx context.Context, flags *RootFlags) error {
-	if c.All && strings.TrimSpace(c.Parent) != "" {
-		return usage("--all cannot be combined with --parent")
-	}
-
-	u := ui.FromContext(ctx)
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
-
-	folderID := strings.TrimSpace(c.Parent)
-	if folderID == "" {
-		folderID = "root"
-	}
-
-	svc, err := newDriveService(ctx, account)
-	if err != nil {
-		return err
-	}
-
-	var q string
-	if c.All {
-		q = buildDriveAllListQuery(c.Query)
-	} else {
-		q = buildDriveListQuery(folderID, c.Query)
-	}
-
-	// Include files from shared drives, not just personal "My Drive"
-	call := svc.Files.List().
-		Q(q).
-		PageSize(c.Max).
-		PageToken(c.Page).
-		OrderBy("modifiedTime desc")
-	call = driveFilesListCallWithDriveSupport(call, c.AllDrives)
-	resp, err := call.
-		Fields("nextPageToken, files(id, name, mimeType, size, modifiedTime, parents, webViewLink)").
-		Context(ctx).
-		Do()
-	if err != nil {
-		return err
-	}
-
-	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
-			"files":         resp.Files,
-			"nextPageToken": resp.NextPageToken,
-		})
-	}
-
-	if len(resp.Files) == 0 {
-		u.Err().Println("No files")
-		return nil
-	}
-
-	w, flush := tableWriter(ctx)
-	defer flush()
-	fmt.Fprintln(w, "ID\tNAME\tTYPE\tSIZE\tMODIFIED")
-	for _, f := range resp.Files {
-		fmt.Fprintf(
-			w,
-			"%s\t%s\t%s\t%s\t%s\n",
-			f.Id,
-			f.Name,
-			driveType(f.MimeType),
-			formatDriveSize(f.Size),
-			formatDateTime(f.ModifiedTime),
-		)
-	}
-	printNextPageHint(u, resp.NextPageToken)
-	return nil
-}
-
 type DriveSearchCmd struct {
 	Query     []string `arg:"" name:"query" help:"Search query"`
 	RawQuery  bool     `name:"raw-query" aliases:"raw" help:"Treat query as Drive query language (pass through; may error if invalid)"`
 	Max       int64    `name:"max" aliases:"limit" help:"Max results" default:"20"`
 	Page      string   `name:"page" aliases:"cursor" help:"Page token"`
 	AllDrives bool     `name:"all-drives" help:"Include shared drives (default: true; use --no-all-drives for My Drive only)" default:"true" negatable:"_"`
-}
-
-func (c *DriveSearchCmd) Run(ctx context.Context, flags *RootFlags) error {
-	u := ui.FromContext(ctx)
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
-	query := strings.TrimSpace(strings.Join(c.Query, " "))
-	if query == "" {
-		return usage("missing query")
-	}
-
-	svc, err := newDriveService(ctx, account)
-	if err != nil {
-		return err
-	}
-
-	call := svc.Files.List().
-		Q(buildDriveSearchQuery(query, c.RawQuery)).
-		PageSize(c.Max).
-		PageToken(c.Page).
-		OrderBy("modifiedTime desc")
-	call = driveFilesListCallWithDriveSupport(call, c.AllDrives)
-	resp, err := call.
-		Fields("nextPageToken, files(id, name, mimeType, size, modifiedTime, parents, webViewLink)").
-		Context(ctx).
-		Do()
-	if err != nil {
-		return err
-	}
-
-	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
-			"files":         resp.Files,
-			"nextPageToken": resp.NextPageToken,
-		})
-	}
-
-	if len(resp.Files) == 0 {
-		u.Err().Println("No results")
-		return nil
-	}
-
-	w, flush := tableWriter(ctx)
-	defer flush()
-	fmt.Fprintln(w, "ID\tNAME\tTYPE\tSIZE\tMODIFIED")
-	for _, f := range resp.Files {
-		fmt.Fprintf(
-			w,
-			"%s\t%s\t%s\t%s\t%s\n",
-			f.Id,
-			f.Name,
-			driveType(f.MimeType),
-			formatDriveSize(f.Size),
-			formatDateTime(f.ModifiedTime),
-		)
-	}
-	printNextPageHint(u, resp.NextPageToken)
-	return nil
 }
 
 type DriveGetCmd struct {
@@ -281,7 +150,7 @@ func (c *DriveGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 type DriveDownloadCmd struct {
 	FileID string         `arg:"" name:"fileId" help:"File ID"`
 	Output OutputPathFlag `embed:""`
-	Format string         `name:"format" help:"Export format for Google Docs files: pdf|csv|xlsx|pptx|txt|png|docx (default: inferred)"`
+	Format string         `name:"format" help:"Export format for Google Docs files: pdf|csv|xlsx|pptx|txt|png|docx|md (default: inferred)"`
 }
 
 func (c *DriveDownloadCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -364,152 +233,6 @@ type DriveUploadCmd struct {
 	ConvertTo           string `name:"convert-to" help:"Convert to a specific Google format: doc|sheet|slides (create only)"`
 }
 
-func (c *DriveUploadCmd) Run(ctx context.Context, flags *RootFlags) error {
-	u := ui.FromContext(ctx)
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
-
-	localPath := strings.TrimSpace(c.LocalPath)
-	if localPath == "" {
-		return usage("empty localPath")
-	}
-	localPath, err = config.ExpandPath(localPath)
-	if err != nil {
-		return err
-	}
-
-	f, err := os.Open(localPath) //nolint:gosec // user-provided path
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-
-	replaceFileID := strings.TrimSpace(c.ReplaceFileID)
-	parent := strings.TrimSpace(c.Parent)
-	if replaceFileID != "" && parent != "" {
-		return usage("--parent cannot be combined with --replace (use drive move)")
-	}
-	if replaceFileID != "" && (c.Convert || strings.TrimSpace(c.ConvertTo) != "") {
-		return usage("--convert/--convert-to cannot be combined with --replace")
-	}
-
-	mimeType := strings.TrimSpace(c.MimeType)
-	if mimeType == "" {
-		mimeType = guessMimeType(localPath)
-	}
-
-	fileName := strings.TrimSpace(c.Name)
-	isExplicitName := fileName != ""
-
-	var (
-		convertMimeType string
-		convert         bool
-	)
-	if replaceFileID == "" {
-		convertMimeType, convert, err = driveUploadConvertMimeType(localPath, c.Convert, c.ConvertTo)
-		if err != nil {
-			return err
-		}
-	}
-
-	svc, err := newDriveService(ctx, account)
-	if err != nil {
-		return err
-	}
-
-	if replaceFileID == "" {
-		if fileName == "" {
-			fileName = filepath.Base(localPath)
-		}
-
-		meta := &drive.File{Name: fileName}
-		if parent != "" {
-			meta.Parents = []string{parent}
-		}
-		if convert {
-			meta.MimeType = convertMimeType
-			if !isExplicitName {
-				meta.Name = stripOfficeExt(meta.Name)
-			}
-		}
-
-		createCall := svc.Files.Create(meta).
-			SupportsAllDrives(true).
-			Media(f, gapi.ContentType(mimeType)).
-			Fields("id, name, mimeType, size, webViewLink").
-			Context(ctx)
-		if c.KeepRevisionForever {
-			createCall = createCall.KeepRevisionForever(true)
-		}
-
-		created, createErr := createCall.Do()
-		if createErr != nil {
-			return createErr
-		}
-
-		if outfmt.IsJSON(ctx) {
-			return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{strFile: created})
-		}
-
-		u.Out().Printf("id\t%s", created.Id)
-		u.Out().Printf("name\t%s", created.Name)
-		if created.WebViewLink != "" {
-			u.Out().Printf("link\t%s", created.WebViewLink)
-		}
-		return nil
-	}
-
-	// Replace content in-place while preserving file ID (and thus shared links/permissions).
-	// Drive supports this only for files with binary content (not Google Workspace files).
-	existing, err := svc.Files.Get(replaceFileID).
-		SupportsAllDrives(true).
-		Fields("id, mimeType").
-		Context(ctx).
-		Do()
-	if err != nil {
-		return err
-	}
-	if strings.HasPrefix(existing.MimeType, "application/vnd.google-apps.") {
-		return fmt.Errorf("cannot replace content for Google Workspace files (mimeType=%s)", existing.MimeType)
-	}
-
-	meta := &drive.File{}
-	if fileName != "" {
-		meta.Name = fileName
-	}
-
-	call := svc.Files.Update(replaceFileID, meta).
-		SupportsAllDrives(true).
-		Media(f, gapi.ContentType(mimeType)).
-		Fields("id, name, mimeType, size, webViewLink").
-		Context(ctx)
-	if c.KeepRevisionForever {
-		call = call.KeepRevisionForever(true)
-	}
-	updated, err := call.Do()
-	if err != nil {
-		return err
-	}
-
-	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
-			strFile:           updated,
-			"replaced":        true,
-			"preservedFileId": updated.Id == replaceFileID,
-		})
-	}
-
-	u.Out().Printf("id\t%s", updated.Id)
-	u.Out().Printf("name\t%s", updated.Name)
-	u.Out().Printf("replaced\t%t", true)
-	if updated.WebViewLink != "" {
-		u.Out().Printf("link\t%s", updated.WebViewLink)
-	}
-	return nil
-}
-
 type DriveMkdirCmd struct {
 	Name   string `arg:"" name:"name" help:"Folder name"`
 	Parent string `name:"parent" help:"Parent folder ID"`
@@ -581,7 +304,10 @@ func (c *DriveDeleteCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if c.Permanent {
 		action = "permanently delete drive file"
 	}
-	if confirmErr := confirmDestructive(ctx, flags, fmt.Sprintf("%s %s", action, fileID)); confirmErr != nil {
+	if confirmErr := dryRunAndConfirmDestructive(ctx, flags, "drive.delete", map[string]any{
+		"file_id":   fileID,
+		"permanent": c.Permanent,
+	}, fmt.Sprintf("%s %s", action, fileID)); confirmErr != nil {
 		return confirmErr
 	}
 
@@ -1190,7 +916,7 @@ func downloadDriveFile(ctx context.Context, svc *drive.Service, meta *drive.File
 		return "", 0, fmt.Errorf("download failed: %s: %s", resp.Status, strings.TrimSpace(string(body)))
 	}
 
-	f, err := os.Create(outPath) //nolint:gosec // user-provided path
+	f, outPath, err := createUserOutputFile(outPath)
 	if err != nil {
 		return "", 0, err
 	}
@@ -1218,10 +944,10 @@ func validateDriveDownloadFormatFlag(format string) error {
 		return nil
 	}
 	switch format {
-	case "pdf", "csv", "xlsx", "pptx", "txt", "png", "docx":
+	case "pdf", "csv", "xlsx", "pptx", "txt", "png", "docx", "md", "html":
 		return nil
 	default:
-		return usagef("invalid --format %q (use pdf|csv|xlsx|pptx|txt|png|docx)", format)
+		return usagef("invalid --format %q (use pdf|csv|xlsx|pptx|txt|png|docx|md|html)", format)
 	}
 }
 
@@ -1282,8 +1008,12 @@ func driveExportMimeTypeForFormat(googleMimeType string, format string) (string,
 			return mimeDocx, nil
 		case "txt":
 			return mimeTextPlain, nil
+		case "md":
+			return mimeTextMarkdown, nil
+		case "html":
+			return mimeHTML, nil
 		default:
-			return "", fmt.Errorf("invalid --format %q for Google Doc (use pdf|docx|txt)", format)
+			return "", fmt.Errorf("invalid --format %q for Google Doc (use pdf|docx|txt|md|html)", format)
 		}
 	case driveMimeGoogleSheet:
 		switch format {
@@ -1338,6 +1068,10 @@ func driveExportExtension(mimeType string) string {
 		return extPNG
 	case mimeTextPlain:
 		return extTXT
+	case mimeTextMarkdown:
+		return extMD
+	case mimeHTML:
+		return extHTML
 	default:
 		return extPDF
 	}

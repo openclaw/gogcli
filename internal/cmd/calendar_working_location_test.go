@@ -125,6 +125,12 @@ func TestCalendarWorkingLocation_RunJSON(t *testing.T) {
 	if gotEvent.EventType != "workingLocation" {
 		t.Fatalf("unexpected event type: %q", gotEvent.EventType)
 	}
+	if gotEvent.Transparency != transparencyTransparent {
+		t.Fatalf("unexpected transparency: %q", gotEvent.Transparency)
+	}
+	if gotEvent.Visibility != "public" {
+		t.Fatalf("unexpected visibility: %q", gotEvent.Visibility)
+	}
 	if gotEvent.Summary != "Working from HQ" {
 		t.Fatalf("unexpected summary: %q", gotEvent.Summary)
 	}

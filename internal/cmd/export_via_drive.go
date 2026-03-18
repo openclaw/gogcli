@@ -74,12 +74,7 @@ func exportViaDrive(ctx context.Context, flags *RootFlags, opts exportViaDriveOp
 		return err
 	}
 
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
-
-	svc, err := newDriveService(ctx, account)
+	_, svc, err := requireDriveService(ctx, flags)
 	if err != nil {
 		return err
 	}

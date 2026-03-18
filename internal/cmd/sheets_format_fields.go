@@ -8,6 +8,8 @@ import (
 	"google.golang.org/api/sheets/v4"
 )
 
+const sheetsUserEnteredFormatPrefix = "userEnteredFormat"
+
 func normalizeFormatMask(mask string) (string, []string) {
 	parts := splitFieldMask(mask)
 	if len(parts) == 0 {
@@ -22,17 +24,17 @@ func normalizeFormatMask(mask string) (string, []string) {
 		}
 
 		switch {
-		case part == "userEnteredFormat":
+		case part == sheetsUserEnteredFormatPrefix:
 			normalized = append(normalized, part)
-		case strings.HasPrefix(part, "userEnteredFormat."):
-			formatPath := strings.TrimPrefix(part, "userEnteredFormat.")
+		case strings.HasPrefix(part, sheetsUserEnteredFormatPrefix+"."):
+			formatPath := strings.TrimPrefix(part, sheetsUserEnteredFormatPrefix+".")
 			normalized = append(normalized, part)
 			if formatPath != "" {
 				formatJSONPaths = append(formatJSONPaths, formatPath)
 			}
 		default:
 			if isFormatJSONPath(part) {
-				normalized = append(normalized, "userEnteredFormat."+part)
+				normalized = append(normalized, sheetsUserEnteredFormatPrefix+"."+part)
 				formatJSONPaths = append(formatJSONPaths, part)
 			} else {
 				normalized = append(normalized, part)

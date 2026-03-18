@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 
@@ -33,17 +34,12 @@ type ClassroomMaterialsListCmd struct {
 }
 
 func (c *ClassroomMaterialsListCmd) Run(ctx context.Context, flags *RootFlags) error {
-	u := ui.FromContext(ctx)
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
 	courseID := strings.TrimSpace(c.CourseID)
 	if courseID == "" {
 		return usage("empty courseId")
 	}
 
-	svc, err := newClassroomService(ctx, account)
+	_, svc, err := requireClassroomService(ctx, flags)
 	if err != nil {
 		return wrapClassroomError(err)
 	}
@@ -110,41 +106,20 @@ func (c *ClassroomMaterialsListCmd) Run(ctx context.Context, flags *RootFlags) e
 		}
 	}
 
-	if outfmt.IsJSON(ctx) {
-		if err := outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
-			"materials":     materials,
-			"nextPageToken": nextPageToken,
-		}); err != nil {
-			return err
+	return writeClassroomPagedList(ctx, "materials", materials, nextPageToken, "No materials", c.FailEmpty, true, func(w io.Writer) {
+		fmt.Fprintln(w, "ID\tTITLE\tSTATE\tUPDATED")
+		for _, material := range materials {
+			if material == nil {
+				continue
+			}
+			fmt.Fprintf(w, "%s\t%s\t%s\t%s\n",
+				sanitizeTab(material.Id),
+				sanitizeTab(material.Title),
+				sanitizeTab(material.State),
+				sanitizeTab(material.UpdateTime),
+			)
 		}
-		if len(materials) == 0 {
-			return failEmptyExit(c.FailEmpty)
-		}
-		return nil
-	}
-
-	if len(materials) == 0 {
-		u.Err().Println("No materials")
-		printNextPageHint(u, nextPageToken)
-		return failEmptyExit(c.FailEmpty)
-	}
-
-	w, flush := tableWriter(ctx)
-	defer flush()
-	fmt.Fprintln(w, "ID\tTITLE\tSTATE\tUPDATED")
-	for _, material := range materials {
-		if material == nil {
-			continue
-		}
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\n",
-			sanitizeTab(material.Id),
-			sanitizeTab(material.Title),
-			sanitizeTab(material.State),
-			sanitizeTab(material.UpdateTime),
-		)
-	}
-	printNextPageHint(u, nextPageToken)
-	return nil
+	})
 }
 
 type ClassroomMaterialsGetCmd struct {
@@ -154,10 +129,6 @@ type ClassroomMaterialsGetCmd struct {
 
 func (c *ClassroomMaterialsGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
 	courseID := strings.TrimSpace(c.CourseID)
 	materialID := strings.TrimSpace(c.MaterialID)
 	if courseID == "" {
@@ -167,7 +138,7 @@ func (c *ClassroomMaterialsGetCmd) Run(ctx context.Context, flags *RootFlags) er
 		return usage("empty materialId")
 	}
 
-	svc, err := newClassroomService(ctx, account)
+	_, svc, err := requireClassroomService(ctx, flags)
 	if err != nil {
 		return wrapClassroomError(err)
 	}
@@ -236,12 +207,7 @@ func (c *ClassroomMaterialsCreateCmd) Run(ctx context.Context, flags *RootFlags)
 		return err
 	}
 
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
-
-	svc, err := newClassroomService(ctx, account)
+	_, svc, err := requireClassroomService(ctx, flags)
 	if err != nil {
 		return wrapClassroomError(err)
 	}
@@ -317,12 +283,7 @@ func (c *ClassroomMaterialsUpdateCmd) Run(ctx context.Context, flags *RootFlags)
 		return err
 	}
 
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
-
-	svc, err := newClassroomService(ctx, account)
+	_, svc, err := requireClassroomService(ctx, flags)
 	if err != nil {
 		return wrapClassroomError(err)
 	}
@@ -361,12 +322,7 @@ func (c *ClassroomMaterialsDeleteCmd) Run(ctx context.Context, flags *RootFlags)
 		return err
 	}
 
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
-
-	svc, err := newClassroomService(ctx, account)
+	_, svc, err := requireClassroomService(ctx, flags)
 	if err != nil {
 		return wrapClassroomError(err)
 	}

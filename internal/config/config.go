@@ -2,9 +2,11 @@ package config
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/yosuke-furukawa/json5/encoding/json5"
 )
@@ -15,7 +17,10 @@ type File struct {
 	AccountAliases  map[string]string `json:"account_aliases,omitempty"`
 	AccountClients  map[string]string `json:"account_clients,omitempty"`
 	ClientDomains   map[string]string `json:"client_domains,omitempty"`
+	CalendarAliases map[string]string `json:"calendar_aliases,omitempty"`
 }
+
+var errConfigLockTimeout = errors.New("acquire config lock timeout")
 
 func ConfigPath() (string, error) {
 	dir, err := Dir()
@@ -24,6 +29,44 @@ func ConfigPath() (string, error) {
 	}
 
 	return filepath.Join(dir, "config.json"), nil
+}
+
+func configLockPath() (string, error) {
+	dir, err := EnsureDir()
+	if err != nil {
+		return "", fmt.Errorf("ensure config dir: %w", err)
+	}
+
+	return filepath.Join(dir, "config.lock"), nil
+}
+
+func acquireConfigLock() (func(), error) {
+	path, err := configLockPath()
+	if err != nil {
+		return nil, err
+	}
+
+	deadline := time.Now().Add(2 * time.Second)
+
+	for {
+		f, openErr := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600) //nolint:gosec // lock path is computed inside the config dir
+		if openErr == nil {
+			_, _ = fmt.Fprintf(f, "%d\n", os.Getpid())
+			_ = f.Close()
+
+			return func() { _ = os.Remove(path) }, nil
+		}
+
+		if !os.IsExist(openErr) {
+			return nil, fmt.Errorf("acquire config lock: %w", openErr)
+		}
+
+		if time.Now().After(deadline) {
+			return nil, fmt.Errorf("%w: %s", errConfigLockTimeout, path)
+		}
+
+		time.Sleep(10 * time.Millisecond)
+	}
 }
 
 func WriteConfig(cfg File) error {
@@ -55,6 +98,25 @@ func WriteConfig(cfg File) error {
 	}
 
 	return nil
+}
+
+func UpdateConfig(update func(*File) error) error {
+	unlock, err := acquireConfigLock()
+	if err != nil {
+		return err
+	}
+	defer unlock()
+
+	cfg, err := ReadConfig()
+	if err != nil {
+		return err
+	}
+
+	if err := update(&cfg); err != nil {
+		return err
+	}
+
+	return WriteConfig(cfg)
 }
 
 func ConfigExists() (bool, error) {

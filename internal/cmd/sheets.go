@@ -24,18 +24,31 @@ func cleanRange(r string) string {
 }
 
 type SheetsCmd struct {
-	Get      SheetsGetCmd      `cmd:"" name:"get" aliases:"read,show" help:"Get values from a range"`
-	Update   SheetsUpdateCmd   `cmd:"" name:"update" aliases:"edit,set" help:"Update values in a range"`
-	Append   SheetsAppendCmd   `cmd:"" name:"append" aliases:"add" help:"Append values to a range"`
-	Insert   SheetsInsertCmd   `cmd:"" name:"insert" help:"Insert empty rows or columns into a sheet"`
-	Clear    SheetsClearCmd    `cmd:"" name:"clear" help:"Clear values in a range"`
-	Format   SheetsFormatCmd   `cmd:"" name:"format" help:"Apply cell formatting to a range"`
-	Notes    SheetsNotesCmd    `cmd:"" name:"notes" help:"Get cell notes from a range"`
-	Links    SheetsLinksCmd    `cmd:"" name:"links" aliases:"hyperlinks" help:"Get cell hyperlinks from a range"`
-	Metadata SheetsMetadataCmd `cmd:"" name:"metadata" aliases:"info" help:"Get spreadsheet metadata"`
-	Create   SheetsCreateCmd   `cmd:"" name:"create" aliases:"new" help:"Create a new spreadsheet"`
-	Copy     SheetsCopyCmd     `cmd:"" name:"copy" aliases:"cp,duplicate" help:"Copy a Google Sheet"`
-	Export   SheetsExportCmd   `cmd:"" name:"export" aliases:"download,dl" help:"Export a Google Sheet (pdf|xlsx|csv) via Drive"`
+	Get           SheetsGetCmd           `cmd:"" name:"get" aliases:"read,show" help:"Get values from a range"`
+	Update        SheetsUpdateCmd        `cmd:"" name:"update" aliases:"edit,set" help:"Update values in a range"`
+	Append        SheetsAppendCmd        `cmd:"" name:"append" aliases:"add" help:"Append values to a range"`
+	Insert        SheetsInsertCmd        `cmd:"" name:"insert" help:"Insert empty rows or columns into a sheet"`
+	Clear         SheetsClearCmd         `cmd:"" name:"clear" help:"Clear values in a range"`
+	Format        SheetsFormatCmd        `cmd:"" name:"format" help:"Apply cell formatting to a range"`
+	Merge         SheetsMergeCmd         `cmd:"" name:"merge" help:"Merge cells in a range"`
+	Unmerge       SheetsUnmergeCmd       `cmd:"" name:"unmerge" help:"Unmerge cells in a range"`
+	NumberFormat  SheetsNumberFormatCmd  `cmd:"" name:"number-format" help:"Apply number format to a range"`
+	Freeze        SheetsFreezeCmd        `cmd:"" name:"freeze" help:"Freeze rows and columns on a sheet"`
+	ResizeColumns SheetsResizeColumnsCmd `cmd:"" name:"resize-columns" help:"Resize sheet columns"`
+	ResizeRows    SheetsResizeRowsCmd    `cmd:"" name:"resize-rows" help:"Resize sheet rows"`
+	ReadFormat    SheetsReadFormatCmd    `cmd:"" name:"read-format" aliases:"get-format,format-read" help:"Read cell formatting from a range"`
+	Notes         SheetsNotesCmd         `cmd:"" name:"notes" help:"Get cell notes from a range"`
+	UpdateNote    SheetsUpdateNoteCmd    `cmd:"" name:"update-note" aliases:"set-note" help:"Set or clear a cell note"`
+	FindReplace   SheetsFindReplaceCmd   `cmd:"" name:"find-replace" help:"Find and replace text across a spreadsheet"`
+	Links         SheetsLinksCmd         `cmd:"" name:"links" aliases:"hyperlinks" help:"Get cell hyperlinks from a range"`
+	Named         SheetsNamedRangesCmd   `cmd:"" name:"named-ranges" aliases:"namedranges,nr" help:"Manage named ranges"`
+	Metadata      SheetsMetadataCmd      `cmd:"" name:"metadata" aliases:"info" help:"Get spreadsheet metadata"`
+	Create        SheetsCreateCmd        `cmd:"" name:"create" aliases:"new" help:"Create a new spreadsheet"`
+	Copy          SheetsCopyCmd          `cmd:"" name:"copy" aliases:"cp,duplicate" help:"Copy a Google Sheet"`
+	Export        SheetsExportCmd        `cmd:"" name:"export" aliases:"download,dl" help:"Export a Google Sheet (pdf|xlsx|csv) via Drive"`
+	AddTab        SheetsAddTabCmd        `cmd:"" name:"add-tab" help:"Add a new tab/sheet to a spreadsheet"`
+	RenameTab     SheetsRenameTabCmd     `cmd:"" name:"rename-tab" help:"Rename a tab/sheet in a spreadsheet"`
+	DeleteTab     SheetsDeleteTabCmd     `cmd:"" name:"delete-tab" help:"Delete a tab/sheet from a spreadsheet (use --force to skip confirmation)"`
 }
 
 type SheetsExportCmd struct {
@@ -71,7 +84,7 @@ func (c *SheetsCopyCmd) Run(ctx context.Context, flags *RootFlags) error {
 
 type SheetsGetCmd struct {
 	SpreadsheetID     string `arg:"" name:"spreadsheetId" help:"Spreadsheet ID"`
-	Range             string `arg:"" name:"range" help:"Range (eg. Sheet1!A1:B10)"`
+	Range             string `arg:"" name:"range" help:"Range (A1 notation or named range name; e.g. Sheet1!A1:B10 or MyNamedRange)"`
 	MajorDimension    string `name:"dimension" help:"Major dimension: ROWS or COLUMNS"`
 	ValueRenderOption string `name:"render" help:"Value render option: FORMATTED_VALUE, UNFORMATTED_VALUE, or FORMULA"`
 }
@@ -136,11 +149,11 @@ func (c *SheetsGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 
 type SheetsUpdateCmd struct {
 	SpreadsheetID      string   `arg:"" name:"spreadsheetId" help:"Spreadsheet ID"`
-	Range              string   `arg:"" name:"range" help:"Range (eg. Sheet1!A1:B2)"`
+	Range              string   `arg:"" name:"range" help:"Range (A1 notation or named range name; e.g. Sheet1!A1:B2 or MyNamedRange)"`
 	Values             []string `arg:"" optional:"" name:"values" help:"Values (comma-separated rows, pipe-separated cells)"`
 	ValueInput         string   `name:"input" help:"Value input option: RAW or USER_ENTERED" default:"USER_ENTERED"`
 	ValuesJSON         string   `name:"values-json" help:"Values as JSON 2D array"`
-	CopyValidationFrom string   `name:"copy-validation-from" help:"Copy data validation from an A1 range (eg. 'Sheet1!A2:D2') to the updated cells"`
+	CopyValidationFrom string   `name:"copy-validation-from" help:"Copy data validation from an A1 range or named range (e.g. 'Sheet1!A2:D2' or MyNamedRange) to the updated cells"`
 }
 
 func (c *SheetsUpdateCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -244,12 +257,12 @@ func (c *SheetsUpdateCmd) Run(ctx context.Context, flags *RootFlags) error {
 
 type SheetsAppendCmd struct {
 	SpreadsheetID      string   `arg:"" name:"spreadsheetId" help:"Spreadsheet ID"`
-	Range              string   `arg:"" name:"range" help:"Range (eg. Sheet1!A:C)"`
+	Range              string   `arg:"" name:"range" help:"Range (A1 notation or named range name; e.g. Sheet1!A:C or MyNamedRange)"`
 	Values             []string `arg:"" optional:"" name:"values" help:"Values (comma-separated rows, pipe-separated cells)"`
 	ValueInput         string   `name:"input" help:"Value input option: RAW or USER_ENTERED" default:"USER_ENTERED"`
 	Insert             string   `name:"insert" help:"Insert data option: OVERWRITE or INSERT_ROWS"`
 	ValuesJSON         string   `name:"values-json" help:"Values as JSON 2D array"`
-	CopyValidationFrom string   `name:"copy-validation-from" help:"Copy data validation from an A1 range (eg. 'Sheet1!A2:D2') to the appended cells"`
+	CopyValidationFrom string   `name:"copy-validation-from" help:"Copy data validation from an A1 range or named range (e.g. 'Sheet1!A2:D2' or MyNamedRange) to the appended cells"`
 }
 
 func (c *SheetsAppendCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -356,7 +369,7 @@ func (c *SheetsAppendCmd) Run(ctx context.Context, flags *RootFlags) error {
 
 type SheetsClearCmd struct {
 	SpreadsheetID string `arg:"" name:"spreadsheetId" help:"Spreadsheet ID"`
-	Range         string `arg:"" name:"range" help:"Range (eg. Sheet1!A1:B2)"`
+	Range         string `arg:"" name:"range" help:"Range (A1 notation or named range name; e.g. Sheet1!A1:B2 or MyNamedRange)"`
 }
 
 func (c *SheetsClearCmd) Run(ctx context.Context, flags *RootFlags) error {

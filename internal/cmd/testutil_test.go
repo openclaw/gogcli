@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -80,13 +81,20 @@ func captureStdout(t *testing.T, fn func()) string {
 	}
 	os.Stdout = w
 
+	var buf bytes.Buffer
+	done := make(chan struct{})
+	go func() {
+		_, _ = io.Copy(&buf, r)
+		close(done)
+	}()
+
 	fn()
 
 	_ = w.Close()
 	os.Stdout = orig
-	b, _ := io.ReadAll(r)
+	<-done
 	_ = r.Close()
-	return string(b)
+	return buf.String()
 }
 
 func captureStderr(t *testing.T, fn func()) string {
@@ -99,13 +107,20 @@ func captureStderr(t *testing.T, fn func()) string {
 	}
 	os.Stderr = w
 
+	var buf bytes.Buffer
+	done := make(chan struct{})
+	go func() {
+		_, _ = io.Copy(&buf, r)
+		close(done)
+	}()
+
 	fn()
 
 	_ = w.Close()
 	os.Stderr = orig
-	b, _ := io.ReadAll(r)
+	<-done
 	_ = r.Close()
-	return string(b)
+	return buf.String()
 }
 
 func withStdin(t *testing.T, input string, fn func()) {

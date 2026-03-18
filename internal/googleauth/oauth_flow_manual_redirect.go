@@ -30,6 +30,19 @@ func redirectURIFromParsedURL(u *url.URL) string {
 	return fmt.Sprintf("%s://%s%s", u.Scheme, u.Host, path)
 }
 
+func normalizeRedirectURI(rawURI string) (string, error) {
+	parsed, err := url.Parse(strings.TrimSpace(rawURI))
+	if err != nil {
+		return "", fmt.Errorf("parse redirect uri: %w", err)
+	}
+
+	if parsed.Scheme == "" || parsed.Host == "" || parsed.RawQuery != "" || parsed.Fragment != "" {
+		return "", fmt.Errorf("parse redirect uri: %w", errInvalidRedirectURL)
+	}
+
+	return redirectURIFromParsedURL(parsed), nil
+}
+
 func parseRedirectURL(rawURL string) (code string, state string, redirectURI string, err error) {
 	parsed, err := url.Parse(strings.TrimSpace(rawURL))
 	if err != nil {

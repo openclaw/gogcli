@@ -635,3 +635,297 @@ func TestGetKeepService_UsesLegacyPath(t *testing.T) {
 		t.Fatalf("unexpected path: %q", gotPath)
 	}
 }
+
+// ---- keep create ----
+
+func TestKeepCreate_TextPlain(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, "xdg-config"))
+
+	account := "a@b.com"
+	_ = writeKeepSA(t, account)
+
+	var gotBody []byte
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost && r.URL.Path == "/v1/notes" {
+			gotBody, _ = io.ReadAll(r.Body)
+			_, _ = io.WriteString(w, `{"name":"notes/new1","title":"My note","createTime":"2026-01-01T00:00:00Z","updateTime":"2026-01-01T00:00:00Z"}`)
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	t.Cleanup(srv.Close)
+
+	orig := newKeepServiceWithSA
+	t.Cleanup(func() { newKeepServiceWithSA = orig })
+	newKeepServiceWithSA = func(ctx context.Context, _, _ string) (*keepapi.Service, error) {
+		return keepapi.NewService(ctx,
+			option.WithEndpoint(srv.URL+"/"),
+			option.WithHTTPClient(srv.Client()),
+			option.WithoutAuthentication(),
+		)
+	}
+
+	out := captureStdout(t, func() {
+		_ = captureStderr(t, func() {
+			if err := Execute([]string{"keep", "create", "--title", "My note", "--text", "Hello world", "--plain", "--account", account}); err != nil {
+				t.Fatalf("Execute: %v", err)
+			}
+		})
+	})
+
+	if !strings.Contains(out, "notes/new1") {
+		t.Fatalf("unexpected output: %q", out)
+	}
+	if !strings.Contains(string(gotBody), "Hello world") {
+		t.Fatalf("expected body text in request, got: %q", string(gotBody))
+	}
+}
+
+func TestKeepCreate_ListItems(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, "xdg-config"))
+
+	account := "a@b.com"
+	_ = writeKeepSA(t, account)
+
+	var gotBody []byte
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost && r.URL.Path == "/v1/notes" {
+			gotBody, _ = io.ReadAll(r.Body)
+			_, _ = io.WriteString(w, `{"name":"notes/new2","title":"Checklist","createTime":"2026-01-01T00:00:00Z","updateTime":"2026-01-01T00:00:00Z"}`)
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	t.Cleanup(srv.Close)
+
+	orig := newKeepServiceWithSA
+	t.Cleanup(func() { newKeepServiceWithSA = orig })
+	newKeepServiceWithSA = func(ctx context.Context, _, _ string) (*keepapi.Service, error) {
+		return keepapi.NewService(ctx,
+			option.WithEndpoint(srv.URL+"/"),
+			option.WithHTTPClient(srv.Client()),
+			option.WithoutAuthentication(),
+		)
+	}
+
+	out := captureStdout(t, func() {
+		_ = captureStderr(t, func() {
+			if err := Execute([]string{"keep", "create", "--title", "Checklist", "--item", "Milk", "--item", "Eggs", "--plain", "--account", account}); err != nil {
+				t.Fatalf("Execute: %v", err)
+			}
+		})
+	})
+
+	if !strings.Contains(out, "notes/new2") {
+		t.Fatalf("unexpected output: %q", out)
+	}
+	body := string(gotBody)
+	if !strings.Contains(body, "Milk") || !strings.Contains(body, "Eggs") {
+		t.Fatalf("expected list items in request, got: %q", body)
+	}
+}
+
+func TestKeepCreate_JSON(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, "xdg-config"))
+
+	account := "a@b.com"
+	_ = writeKeepSA(t, account)
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost && r.URL.Path == "/v1/notes" {
+			_, _ = io.WriteString(w, `{"name":"notes/new3","title":"T","createTime":"2026-01-01T00:00:00Z","updateTime":"2026-01-01T00:00:00Z"}`)
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	t.Cleanup(srv.Close)
+
+	orig := newKeepServiceWithSA
+	t.Cleanup(func() { newKeepServiceWithSA = orig })
+	newKeepServiceWithSA = func(ctx context.Context, _, _ string) (*keepapi.Service, error) {
+		return keepapi.NewService(ctx,
+			option.WithEndpoint(srv.URL+"/"),
+			option.WithHTTPClient(srv.Client()),
+			option.WithoutAuthentication(),
+		)
+	}
+
+	out := captureStdout(t, func() {
+		_ = captureStderr(t, func() {
+			if err := Execute([]string{"--json", "keep", "create", "--text", "body", "--account", account}); err != nil {
+				t.Fatalf("Execute: %v", err)
+			}
+		})
+	})
+
+	var payload struct {
+		Note map[string]any `json:"note"`
+	}
+	if err := json.Unmarshal([]byte(out), &payload); err != nil {
+		t.Fatalf("json parse: %v\nout=%q", err, out)
+	}
+	if payload.Note["name"] != "notes/new3" {
+		t.Fatalf("unexpected note: %#v", payload.Note)
+	}
+}
+
+func TestKeepCreate_MissingBody(t *testing.T) {
+	err := (&KeepCreateCmd{}).Run(context.Background(), nil, nil)
+	if err == nil {
+		t.Fatalf("expected error for missing body")
+	}
+}
+
+func TestKeepCreate_TextAndItemMutuallyExclusive(t *testing.T) {
+	err := (&KeepCreateCmd{Text: "hi", Item: []string{"x"}}).Run(context.Background(), nil, nil)
+	if err == nil {
+		t.Fatalf("expected error for conflicting flags")
+	}
+}
+
+func TestKeepCreate_RejectsEmptyItem(t *testing.T) {
+	err := (&KeepCreateCmd{Item: []string{"  "}}).Run(context.Background(), nil, nil)
+	if err == nil {
+		t.Fatalf("expected error for empty item")
+	}
+}
+
+// ---- keep delete ----
+
+func TestKeepDelete_Plain(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, "xdg-config"))
+
+	account := "a@b.com"
+	_ = writeKeepSA(t, account)
+
+	deleted := false
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodDelete && r.URL.Path == "/v1/notes/abc" {
+			deleted = true
+			_, _ = io.WriteString(w, `{}`)
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	t.Cleanup(srv.Close)
+
+	orig := newKeepServiceWithSA
+	t.Cleanup(func() { newKeepServiceWithSA = orig })
+	newKeepServiceWithSA = func(ctx context.Context, _, _ string) (*keepapi.Service, error) {
+		return keepapi.NewService(ctx,
+			option.WithEndpoint(srv.URL+"/"),
+			option.WithHTTPClient(srv.Client()),
+			option.WithoutAuthentication(),
+		)
+	}
+
+	out := captureStdout(t, func() {
+		_ = captureStderr(t, func() {
+			if err := Execute([]string{"keep", "delete", "abc", "--plain", "--account", account, "--force"}); err != nil {
+				t.Fatalf("Execute: %v", err)
+			}
+		})
+	})
+
+	if !deleted {
+		t.Fatalf("expected DELETE request to be made")
+	}
+	if !strings.Contains(out, "deleted") {
+		t.Fatalf("unexpected output: %q", out)
+	}
+}
+
+func TestKeepDelete_WithNotesPrefix(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, "xdg-config"))
+
+	account := "a@b.com"
+	_ = writeKeepSA(t, account)
+
+	deleted := false
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodDelete && r.URL.Path == "/v1/notes/xyz" {
+			deleted = true
+			_, _ = io.WriteString(w, `{}`)
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	t.Cleanup(srv.Close)
+
+	orig := newKeepServiceWithSA
+	t.Cleanup(func() { newKeepServiceWithSA = orig })
+	newKeepServiceWithSA = func(ctx context.Context, _, _ string) (*keepapi.Service, error) {
+		return keepapi.NewService(ctx,
+			option.WithEndpoint(srv.URL+"/"),
+			option.WithHTTPClient(srv.Client()),
+			option.WithoutAuthentication(),
+		)
+	}
+
+	_ = captureStdout(t, func() {
+		_ = captureStderr(t, func() {
+			// pass full "notes/xyz" prefix — should not double-prefix
+			if err := Execute([]string{"keep", "delete", "notes/xyz", "--plain", "--account", account, "--force"}); err != nil {
+				t.Fatalf("Execute: %v", err)
+			}
+		})
+	})
+
+	if !deleted {
+		t.Fatalf("expected DELETE request for notes/xyz")
+	}
+}
+
+func TestKeepDelete_JSON(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, "xdg-config"))
+
+	account := "a@b.com"
+	_ = writeKeepSA(t, account)
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodDelete {
+			_, _ = io.WriteString(w, `{}`)
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	t.Cleanup(srv.Close)
+
+	orig := newKeepServiceWithSA
+	t.Cleanup(func() { newKeepServiceWithSA = orig })
+	newKeepServiceWithSA = func(ctx context.Context, _, _ string) (*keepapi.Service, error) {
+		return keepapi.NewService(ctx,
+			option.WithEndpoint(srv.URL+"/"),
+			option.WithHTTPClient(srv.Client()),
+			option.WithoutAuthentication(),
+		)
+	}
+
+	out := captureStdout(t, func() {
+		_ = captureStderr(t, func() {
+			if err := Execute([]string{"--json", "keep", "delete", "abc", "--account", account, "--force"}); err != nil {
+				t.Fatalf("Execute: %v", err)
+			}
+		})
+	})
+
+	var payload map[string]any
+	if err := json.Unmarshal([]byte(out), &payload); err != nil {
+		t.Fatalf("json parse: %v\nout=%q", err, out)
+	}
+	if payload["deleted"] != true {
+		t.Fatalf("expected deleted=true, got: %#v", payload)
+	}
+}
