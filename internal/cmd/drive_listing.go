@@ -12,7 +12,7 @@ import (
 	"github.com/steipete/gogcli/internal/ui"
 )
 
-const driveFileListFields = "nextPageToken, files(id, name, mimeType, size, modifiedTime, parents, webViewLink)"
+const driveFileListFields = "nextPageToken, files(id, name, mimeType, size, modifiedTime, parents, webViewLink, owners)"
 
 type driveFileListOptions struct {
 	query     string
@@ -104,18 +104,26 @@ func writeDriveFileList(ctx context.Context, resp *drive.FileList, emptyMessage 
 
 	w, flush := tableWriter(ctx)
 	defer flush()
-	fmt.Fprintln(w, "ID\tNAME\tTYPE\tSIZE\tMODIFIED")
+	fmt.Fprintln(w, "ID\tNAME\tTYPE\tSIZE\tMODIFIED\tOWNER")
 	for _, f := range resp.Files {
 		fmt.Fprintf(
 			w,
-			"%s\t%s\t%s\t%s\t%s\n",
+			"%s\t%s\t%s\t%s\t%s\t%s\n",
 			f.Id,
 			f.Name,
 			driveType(f.MimeType),
 			formatDriveSize(f.Size),
 			formatDateTime(f.ModifiedTime),
+			driveOwnerEmail(f.Owners),
 		)
 	}
 	printNextPageHint(u, resp.NextPageToken)
 	return nil
+}
+
+func driveOwnerEmail(owners []*drive.User) string {
+	if len(owners) == 0 {
+		return ""
+	}
+	return owners[0].EmailAddress
 }
