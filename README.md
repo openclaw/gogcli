@@ -286,6 +286,14 @@ export GOG_KEYRING_BACKEND=file
 
 Precedence: `GOG_KEYRING_BACKEND` env var overrides `config.json`.
 
+Override the OS keyring service/collection/wallet name via env:
+
+```bash
+export GOG_KEYRING_SERVICE_NAME=kdewallet
+```
+
+This changes the keyring service name passed to the OS backend. On KDE/KWallet this controls the wallet name used by the native KWallet backend.
+
 ## Configuration
 
 ### Account Selection

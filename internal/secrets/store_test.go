@@ -20,11 +20,27 @@ var errKeyringOpenBlocked = errors.New("keyring open blocked")
 // KeychainTrustApplication is false to match production config (see store.go).
 func keyringConfig(keyringDir string) keyring.Config {
 	return keyring.Config{
-		ServiceName:              config.AppName,
+		ServiceName:              keyringServiceName(),
 		KeychainTrustApplication: false,
 		AllowedBackends:          []keyring.BackendType{keyring.FileBackend},
 		FileDir:                  keyringDir,
 		FilePasswordFunc:         fileKeyringPasswordFunc(),
+	}
+}
+
+func TestKeyringServiceName_Default(t *testing.T) {
+	t.Setenv(keyringServiceEnv, "")
+
+	if got := keyringServiceName(); got != config.AppName {
+		t.Fatalf("expected default service name %q, got %q", config.AppName, got)
+	}
+}
+
+func TestKeyringServiceName_Env(t *testing.T) {
+	t.Setenv(keyringServiceEnv, "kdewallet")
+
+	if got := keyringServiceName(); got != "kdewallet" {
+		t.Fatalf("expected env service name %q, got %q", "kdewallet", got)
 	}
 }
 
@@ -286,5 +302,36 @@ func TestOpenKeyring_ExplicitBackend_IgnoresDBusDetection(t *testing.T) {
 
 	if store == nil {
 		t.Fatal("expected non-nil store")
+	}
+}
+
+func TestOpenKeyring_UsesEnvServiceName(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, "xdg-config"))
+	t.Setenv("GOG_KEYRING_BACKEND", "file")
+	t.Setenv("GOG_KEYRING_PASSWORD", "testpw")
+	t.Setenv(keyringServiceEnv, "kdewallet")
+
+	originalOpen := keyringOpenFunc
+	t.Cleanup(func() { keyringOpenFunc = originalOpen })
+
+	var got keyring.Config
+	keyringOpenFunc = func(cfg keyring.Config) (keyring.Keyring, error) {
+		got = cfg
+		return keyring.NewArrayKeyring(nil), nil
+	}
+
+	ring, err := openKeyring()
+	if err != nil {
+		t.Fatalf("openKeyring: %v", err)
+	}
+
+	if ring == nil {
+		t.Fatal("expected non-nil keyring")
+	}
+
+	if got.ServiceName != "kdewallet" {
+		t.Fatalf("expected service name %q, got %q", "kdewallet", got.ServiceName)
 	}
 }
