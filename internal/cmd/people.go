@@ -2,10 +2,13 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"os"
+	"strings"
 
 	"github.com/steipete/gogcli/internal/outfmt"
 	"github.com/steipete/gogcli/internal/ui"
+	gapi "google.golang.org/api/googleapi"
 )
 
 type PeopleCmd struct {
@@ -33,7 +36,12 @@ func (c *PeopleMeCmd) Run(ctx context.Context, flags *RootFlags) error {
 		PersonFields("names,emailAddresses,photos").
 		Do()
 	if err != nil {
-		return err
+		if isPeopleAccessNotConfigured(err) {
+			person, err = fallbackPeopleMeProfile(ctx, account)
+		}
+		if err != nil {
+			return wrapPeopleAPIError(err)
+		}
 	}
 
 	if outfmt.IsJSON(ctx) {
@@ -63,4 +71,20 @@ func (c *PeopleMeCmd) Run(ctx context.Context, flags *RootFlags) error {
 		u.Out().Printf("photo\t%s", photo)
 	}
 	return nil
+}
+
+func isPeopleAccessNotConfigured(err error) bool {
+	var apiErr *gapi.Error
+	if errors.As(err, &apiErr) {
+		if apiErr.Code == 403 {
+			for _, item := range apiErr.Errors {
+				if item.Reason == "accessNotConfigured" {
+					return true
+				}
+			}
+		}
+	}
+	errText := err.Error()
+	return strings.Contains(errText, "accessNotConfigured") ||
+		strings.Contains(errText, "People API has not been used")
 }
