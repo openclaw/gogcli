@@ -3,7 +3,7 @@
 ![GitHub Repo Banner](https://ghrb.waren.build/banner?header=gogcli%F0%9F%A7%AD&subheader=Google+in+your+terminal&bg=f3f4f6&color=1f2937&support=true)
 <!-- Created with GitHub Repo Banner by Waren Gonzaga: https://ghrb.waren.build -->
 
-Fast, script-friendly CLI for Gmail, Calendar, Chat, Classroom, Drive, Docs, Slides, Sheets, Forms, Apps Script, Contacts, Tasks, People, Admin, Groups (Workspace), and Keep (Workspace-only). JSON-first output, multiple accounts, and flexible auth built in.
+Fast, script-friendly CLI for Gmail, Calendar, Chat, Classroom, Drive, Docs, Slides, Sheets, Forms, Meet, Apps Script, Contacts, Tasks, People, Admin, Groups (Workspace), and Keep (Workspace-only). JSON-first output, multiple accounts, and flexible auth built in.
 
 ## Features
 
@@ -17,6 +17,7 @@ Fast, script-friendly CLI for Gmail, Calendar, Chat, Classroom, Drive, Docs, Sli
 - **Tasks** - manage tasklists and tasks: get/create/add/update/done/undo/delete/clear, plus repeat schedule materialization with RRULE aliases
 - **Sheets** - read/write/update spreadsheets, insert rows/cols, manage tabs and named ranges, format/merge/freeze/resize cells, read/write notes, inspect formats, find/replace text, list links, and create/export sheets
 - **Forms** - create/update forms, manage questions, inspect responses, and manage watches
+- **Meet** - create/get/update meeting spaces, end active calls, view call history and participants
 - **Apps Script** - create/get/bind projects, inspect content, and run functions
 - **Docs/Slides** - create/copy/export docs/slides, edit Docs by tab, import Markdown, do richer find-replace, export Docs as Markdown/HTML, and generate Slides from Markdown or templates
 - **People** - profile lookup and directory search helpers
@@ -88,6 +89,7 @@ Before adding an account, create OAuth2 credentials from Google Cloud Console:
    - Google Drive API: https://console.cloud.google.com/apis/api/drive.googleapis.com
    - Google Classroom API: https://console.cloud.google.com/apis/api/classroom.googleapis.com
    - Google Keep API: https://console.cloud.google.com/apis/api/keep.googleapis.com
+   - Google Meet API: https://console.cloud.google.com/apis/api/meet.googleapis.com
    - People API (Contacts): https://console.cloud.google.com/apis/api/people.googleapis.com
    - Google Tasks API: https://console.cloud.google.com/apis/api/tasks.googleapis.com
    - Google Sheets API: https://console.cloud.google.com/apis/api/sheets.googleapis.com
@@ -394,9 +396,11 @@ Service scope matrix (auto-generated; run `go run scripts/gen-auth-services-md.g
 | sheets | yes | Sheets API, Drive API | `https://www.googleapis.com/auth/drive`<br>`https://www.googleapis.com/auth/spreadsheets` | Export via Drive |
 | people | yes | People API | `profile` | OIDC profile scope |
 | forms | yes | Forms API | `https://www.googleapis.com/auth/forms.body`<br>`https://www.googleapis.com/auth/forms.responses.readonly` |  |
+| meet | yes | Meet REST API | `https://www.googleapis.com/auth/meetings.space.created`<br>`https://www.googleapis.com/auth/meetings.space.readonly`<br>`https://www.googleapis.com/auth/meetings.space.settings` |  |
 | appscript | yes | Apps Script API | `https://www.googleapis.com/auth/script.projects`<br>`https://www.googleapis.com/auth/script.deployments`<br>`https://www.googleapis.com/auth/script.processes` |  |
 | groups | no | Cloud Identity API | `https://www.googleapis.com/auth/cloud-identity.groups.readonly` | Workspace only |
 | keep | no | Keep API | `https://www.googleapis.com/auth/keep` | Workspace only; service account (domain-wide delegation) |
+| admin | no | Admin SDK Directory API | `https://www.googleapis.com/auth/admin.directory.user`<br>`https://www.googleapis.com/auth/admin.directory.group`<br>`https://www.googleapis.com/auth/admin.directory.group.member` | Workspace only; service account with domain-wide delegation required |
 <!-- auth-services:end -->
 
 ### Service Accounts (Workspace only)
@@ -408,7 +412,7 @@ In `gog`, service accounts are an **optional auth method** that can be configure
 #### 1) Create a Service Account (Google Cloud)
 
 1. Create (or pick) a Google Cloud project.
-2. Enable the APIs you’ll use (e.g. Gmail, Calendar, Drive, Sheets, Docs, People, Tasks, Cloud Identity).
+2. Enable the APIs you’ll use (e.g. Gmail, Calendar, Drive, Sheets, Docs, People, Tasks, Meet, Cloud Identity).
 3. Go to **IAM & Admin → Service Accounts** and create a service account.
 4. In the service account details, enable **Domain-wide delegation**.
 5. Create a key (**Keys → Add key → Create new key → JSON**) and download the JSON key file.
@@ -1123,6 +1127,34 @@ gog forms watch create <formId> --topic projects/<project>/topics/<topic>
 gog forms watch list <formId>
 gog forms watch renew <formId> <watchId>
 gog forms watch delete <formId> <watchId>
+```
+
+### Meet
+
+```bash
+# Create a meeting space (default: trusted access)
+gog meet create
+gog meet create --open                    # create and open in browser
+gog meet create --access open             # anyone can join
+gog meet create --access restricted       # invite-only
+gog meet create --json                    # JSON output with full config
+
+# Get meeting details
+gog meet get <meeting-code>
+
+# Update meeting settings
+gog meet update <meeting-code> --access open
+gog meet update <meeting-code> --access restricted
+
+# End an active call
+gog meet end <meeting-code>
+
+# List past calls in a meeting
+gog meet history <meeting-code>
+
+# Show who was in the most recent call
+gog meet participants <meeting-code>
+gog meet participants <meeting-code> --conference <id>  # specific past call
 ```
 
 ### Apps Script

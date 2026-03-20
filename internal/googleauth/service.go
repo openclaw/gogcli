@@ -22,6 +22,7 @@ const (
 	ServicePeople    Service = "people"
 	ServiceSheets    Service = "sheets"
 	ServiceForms     Service = "forms"
+	ServiceMeet      Service = "meet"
 	ServiceAppScript Service = "appscript"
 	ServiceGroups    Service = "groups"
 	ServiceKeep      Service = "keep"
@@ -82,6 +83,7 @@ var serviceOrder = []Service{
 	ServiceSheets,
 	ServicePeople,
 	ServiceForms,
+	ServiceMeet,
 	ServiceAppScript,
 	ServiceGroups,
 	ServiceKeep,
@@ -193,6 +195,15 @@ var serviceInfoByService = map[Service]serviceInfo{
 		},
 		user: true,
 		apis: []string{"Forms API"},
+	},
+	ServiceMeet: {
+		scopes: []string{
+			"https://www.googleapis.com/auth/meetings.space.created",
+			"https://www.googleapis.com/auth/meetings.space.readonly",
+			"https://www.googleapis.com/auth/meetings.space.settings",
+		},
+		user: true,
+		apis: []string{"Meet REST API"},
 	},
 	ServiceAppScript: {
 		scopes: []string{
@@ -543,6 +554,12 @@ func scopesForServiceWithOptions(service Service, opts ScopeOptions) ([]string, 
 			formBodyScope,
 			"https://www.googleapis.com/auth/forms.responses.readonly",
 		}, nil
+	case ServiceMeet:
+		if opts.Readonly {
+			return []string{"https://www.googleapis.com/auth/meetings.space.readonly"}, nil
+		}
+
+		return Scopes(service)
 	case ServiceAppScript:
 		if opts.Readonly {
 			return []string{
