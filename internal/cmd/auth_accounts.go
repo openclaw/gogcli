@@ -381,6 +381,22 @@ func (c *AuthRemoveCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if err := store.DeleteToken(client, email); err != nil {
 		return err
 	}
+
+	// Clean up config.json: remove aliases pointing to this email and the
+	// account-client entry for this email.
+	if updateErr := config.UpdateConfig(func(cfg *config.File) error {
+		for alias, target := range cfg.AccountAliases {
+			if strings.EqualFold(target, email) {
+				delete(cfg.AccountAliases, alias)
+			}
+		}
+		delete(cfg.AccountClients, email)
+		delete(cfg.AccountClients, strings.ToLower(email))
+		return nil
+	}); updateErr != nil {
+		return updateErr
+	}
+
 	return writeResult(ctx, u,
 		kv("deleted", true),
 		kv("email", email),
