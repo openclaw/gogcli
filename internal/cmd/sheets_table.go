@@ -59,7 +59,7 @@ func (c *SheetsTableListCmd) Run(ctx context.Context, flags *RootFlags) error {
 				"tableName":   table.Name,
 				"sheetId":     table.Range.SheetId,
 				"sheetName":   sheet.Properties.Title,
-				"range":       formatGridRange(table.Range),
+				"range":       formatGridRange(table.Range, sheet.Properties.Title),
 				"columnCount": len(table.ColumnProperties),
 				"hasFooter":   hasFooter,
 			})
@@ -164,7 +164,7 @@ func (c *SheetsTableGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 			"tableId":       foundTable.TableId,
 			"tableName":     foundTable.Name,
 			"sheetName":     sheetName,
-			"range":         formatGridRange(foundTable.Range),
+			"range":         formatGridRange(foundTable.Range, sheetName),
 			"hasFooter":     hasFooter,
 			"columns":       columns,
 		})
@@ -173,7 +173,7 @@ func (c *SheetsTableGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u.Out().Printf("Table ID: %s", foundTable.TableId)
 	u.Out().Printf("Name: %s", foundTable.Name)
 	u.Out().Printf("Sheet: %s", sheetName)
-	u.Out().Printf("Range: %s", formatGridRange(foundTable.Range))
+	u.Out().Printf("Range: %s", formatGridRange(foundTable.Range, sheetName))
 	u.Out().Printf("Has Footer: %v", foundTable.RowsProperties != nil && foundTable.RowsProperties.FooterColorStyle != nil)
 	u.Out().Println("")
 	u.Out().Println("Columns:")
@@ -586,16 +586,21 @@ func (c *SheetsTableClearCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
-	resp, err := svc.Spreadsheets.Get(spreadsheetID).Fields("sheets.tables").Do()
+	resp, err := svc.Spreadsheets.Get(spreadsheetID).Fields("sheets.properties.title,sheets.tables").Do()
 	if err != nil {
 		return err
 	}
 
 	var table *sheets.Table
+	var sheetName string
 	for _, sheet := range resp.Sheets {
+		if sheet == nil || sheet.Properties == nil {
+			continue
+		}
 		for _, t := range sheet.Tables {
-			if t.TableId == c.TableID {
+			if t != nil && t.TableId == c.TableID {
 				table = t
+				sheetName = sheet.Properties.Title
 				break
 			}
 		}
@@ -612,7 +617,7 @@ func (c *SheetsTableClearCmd) Run(ctx context.Context, flags *RootFlags) error {
 		"spreadsheet_id": spreadsheetID,
 		"table_id":       c.TableID,
 		"table_name":     table.Name,
-		"range":          formatGridRange(table.Range),
+		"range":          formatGridRange(table.Range, sheetName),
 	}); err != nil {
 		return err
 	}
@@ -621,7 +626,7 @@ func (c *SheetsTableClearCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
-	clearResp, err := svc.Spreadsheets.Values.Clear(spreadsheetID, formatGridRange(table.Range), &sheets.ClearValuesRequest{}).Do()
+	clearResp, err := svc.Spreadsheets.Values.Clear(spreadsheetID, formatGridRange(table.Range, sheetName), &sheets.ClearValuesRequest{}).Do()
 	if err != nil {
 		return err
 	}
@@ -776,14 +781,17 @@ func (c *SheetsTableDeleteCmd) Run(ctx context.Context, flags *RootFlags) error 
 
 // Helper functions
 
-func formatGridRange(r *sheets.GridRange) string {
+func formatGridRange(r *sheets.GridRange, sheetName string) string {
 	if r == nil {
 		return ""
 	}
-	// Convert to A1 notation (simplified)
+	// Convert to A1 notation
 	startCol := columnIndexToLetter(int(r.StartColumnIndex))
 	endCol := columnIndexToLetter(int(r.EndColumnIndex - 1))
-	return fmt.Sprintf("Sheet%d!%s%d:%s%d", r.SheetId, startCol, r.StartRowIndex+1, endCol, r.EndRowIndex)
+	if sheetName == "" {
+		sheetName = "Sheet1" // Default fallback
+	}
+	return fmt.Sprintf("%s!%s%d:%s%d", sheetName, startCol, r.StartRowIndex+1, endCol, r.EndRowIndex)
 }
 
 func columnIndexToLetter(index int) string {
