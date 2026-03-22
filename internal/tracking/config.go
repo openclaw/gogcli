@@ -181,17 +181,18 @@ func (c *Config) IsConfigured() bool {
 }
 
 func hydrateConfig(account string, cfg *Config) (*Config, error) {
-	if strings.TrimSpace(cfg.TrackingKey) == "" || strings.TrimSpace(cfg.AdminKey) == "" || cfg.SecretsInKeyring {
+	// Only load from keyring if explicitly configured to do so
+	if cfg.SecretsInKeyring {
 		trackingKey, adminKey, secretErr := LoadSecrets(account)
 		if secretErr != nil {
 			return nil, secretErr
 		}
 
-		if strings.TrimSpace(cfg.TrackingKey) == "" {
+		if strings.TrimSpace(trackingKey) != "" {
 			cfg.TrackingKey = trackingKey
 		}
 
-		if strings.TrimSpace(cfg.AdminKey) == "" {
+		if strings.TrimSpace(adminKey) != "" {
 			cfg.AdminKey = adminKey
 		}
 	}
