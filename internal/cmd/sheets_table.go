@@ -371,7 +371,7 @@ func (c *SheetsTableUpdateCmd) Run(ctx context.Context, flags *RootFlags) error 
 		Table: &sheets.Table{TableId: c.TableID},
 	}
 
-	fields := []string{"tableId"}
+	fields := []string{}
 
 	if strings.TrimSpace(c.Name) != "" {
 		updateReq.Table.Name = strings.TrimSpace(c.Name)
