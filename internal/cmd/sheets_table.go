@@ -513,16 +513,19 @@ func (c *SheetsTableAppendCmd) Run(ctx context.Context, flags *RootFlags) error 
 		return err
 	}
 
-	cellData := make([]*sheets.CellData, len(values)*len(values[0]))
-	idx := 0
-	for _, row := range values {
-		for _, cell := range row {
-			cellData[idx] = &sheets.CellData{
+	rows := make([]*sheets.RowData, len(values))
+	for i, rowValues := range values {
+		cellData := make([]*sheets.CellData, len(rowValues))
+		for j, cell := range rowValues {
+			cellStr := fmt.Sprintf("%v", cell)
+			cellData[j] = &sheets.CellData{
 				UserEnteredValue: &sheets.ExtendedValue{
-					StringValue: func(s string) *string { return &s }(fmt.Sprintf("%v", cell)),
+					StringValue: &cellStr,
 				},
 			}
-			idx++
+		}
+		rows[i] = &sheets.RowData{
+			Values: cellData,
 		}
 	}
 
@@ -531,12 +534,8 @@ func (c *SheetsTableAppendCmd) Run(ctx context.Context, flags *RootFlags) error 
 			{
 				AppendCells: &sheets.AppendCellsRequest{
 					TableId: c.TableID,
-					Rows: []*sheets.RowData{
-						{
-							Values: cellData,
-						},
-					},
-					Fields: "*",
+					Rows:    rows,
+					Fields:  "*",
 				},
 			},
 		},
