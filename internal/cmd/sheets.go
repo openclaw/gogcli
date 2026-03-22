@@ -49,6 +49,7 @@ type SheetsCmd struct {
 	AddTab        SheetsAddTabCmd        `cmd:"" name:"add-tab" help:"Add a new tab/sheet to a spreadsheet"`
 	RenameTab     SheetsRenameTabCmd     `cmd:"" name:"rename-tab" help:"Rename a tab/sheet in a spreadsheet"`
 	DeleteTab     SheetsDeleteTabCmd     `cmd:"" name:"delete-tab" help:"Delete a tab/sheet from a spreadsheet (use --force to skip confirmation)"`
+	Table         SheetsTableCmd         `cmd:"" name:"table" help:"Manage structured tables"`
 }
 
 type SheetsExportCmd struct {
