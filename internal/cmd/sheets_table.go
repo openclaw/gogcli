@@ -569,37 +569,23 @@ func (c *SheetsTableAppendCmd) Run(ctx context.Context, flags *RootFlags) error 
 		}
 	}
 
-	rows := make([]*sheets.RowData, len(values))
-	for i, rowValues := range values {
-		cellData := make([]*sheets.CellData, len(rowValues))
-		for j, cell := range rowValues {
-			cellStr := fmt.Sprintf("%v", cell)
-			cellData[j] = &sheets.CellData{
-				UserEnteredValue: &sheets.ExtendedValue{
-					StringValue: &cellStr,
-				},
-			}
-		}
-		rows[i] = &sheets.RowData{
-			Values: cellData,
-		}
+	// Use Values.Append with the table's actual range (respects sheet location)
+	// Build range from table: SheetName!StartCol:EndCol (append will find first empty row)
+	appendRange := fmt.Sprintf("%s!%s:%s",
+		sheetName,
+		columnIndexToLetter(int(table.Range.StartColumnIndex)),
+		columnIndexToLetter(int(table.Range.EndColumnIndex-1)))
+	
+	vr := &sheets.ValueRange{
+		Values: values,
 	}
-
-	req := &sheets.BatchUpdateSpreadsheetRequest{
-		Requests: []*sheets.Request{
-			{
-				AppendCells: &sheets.AppendCellsRequest{
-					TableId: c.TableID,
-					Rows:    rows,
-					Fields:  "*",
-				},
-			},
-		},
-	}
-
-	batchResp, err := svc.Spreadsheets.BatchUpdate(spreadsheetID, req).Do()
+	
+	appendResp, err := svc.Spreadsheets.Values.Append(spreadsheetID, appendRange, vr).
+		ValueInputOption(valueInputOption).
+		InsertDataOption("INSERT_ROWS").
+		Do()
 	if err != nil {
-		return err
+		return fmt.Errorf("append to table: %w", err)
 	}
 
 	// Check if table expanded and restore footer formulas if needed
@@ -660,7 +646,7 @@ func (c *SheetsTableAppendCmd) Run(ctx context.Context, flags *RootFlags) error 
 			"spreadsheetId": spreadsheetID,
 			"tableId":       c.TableID,
 			"appendedRows":  len(values),
-			"replies":       len(batchResp.Replies),
+			"updatedRange":  appendResp.Updates.UpdatedRange,
 		})
 	}
 
