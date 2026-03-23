@@ -232,7 +232,17 @@ func (c *SheetsTableCreateCmd) Run(ctx context.Context, flags *RootFlags) error 
 		return fmt.Errorf("at least one column required")
 	}
 
-	gridRange, err := parseA1ToGridRange(rangeSpec)
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
+	}
+
+	svc, err := newSheetsService(ctx, account)
+	if err != nil {
+		return err
+	}
+
+	gridRange, sheetName, err := parseA1ToGridRangeWithLookup(ctx, svc, spreadsheetID, rangeSpec)
 	if err != nil {
 		return fmt.Errorf("invalid range: %w", err)
 	}
@@ -265,19 +275,10 @@ func (c *SheetsTableCreateCmd) Run(ctx context.Context, flags *RootFlags) error 
 		"spreadsheet_id": spreadsheetID,
 		"table_name":     name,
 		"range":          rangeSpec,
+		"sheet":          sheetName,
 		"has_footer":     c.HasFooter,
 		"columns":        columnDefs,
 	}); err != nil {
-		return err
-	}
-
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
-
-	svc, err := newSheetsService(ctx, account)
-	if err != nil {
 		return err
 	}
 
@@ -379,7 +380,7 @@ func (c *SheetsTableUpdateCmd) Run(ctx context.Context, flags *RootFlags) error 
 	}
 
 	if strings.TrimSpace(c.Range) != "" {
-		gridRange, err := parseA1ToGridRange(cleanRange(c.Range))
+		gridRange, _, err := parseA1ToGridRangeWithLookup(ctx, svc, spreadsheetID, cleanRange(c.Range))
 		if err != nil {
 			return fmt.Errorf("invalid range: %w", err)
 		}
@@ -513,6 +514,61 @@ func (c *SheetsTableAppendCmd) Run(ctx context.Context, flags *RootFlags) error 
 		return err
 	}
 
+	// Fetch table metadata before append to check for footer
+	resp, err := svc.Spreadsheets.Get(spreadsheetID).Fields("sheets.properties.title,sheets.tables").Do()
+	if err != nil {
+		return fmt.Errorf("fetch table metadata: %w", err)
+	}
+
+	var table *sheets.Table
+	var sheetName string
+	var originalRange string
+	for _, sheet := range resp.Sheets {
+		if sheet == nil || sheet.Properties == nil {
+			continue
+		}
+		for _, t := range sheet.Tables {
+			if t != nil && t.TableId == c.TableID {
+				table = t
+				sheetName = sheet.Properties.Title
+				originalRange = formatGridRange(t.Range, sheetName)
+				break
+			}
+		}
+		if table != nil {
+			break
+		}
+	}
+
+	if table == nil {
+		return fmt.Errorf("table %s not found in spreadsheet %s", c.TableID, spreadsheetID)
+	}
+
+	// Check if table has footer and capture footer formulas
+	hasFooter := table.RowsProperties != nil && table.RowsProperties.FooterColorStyle != nil
+	var footerFormulas []string
+	if hasFooter && table.Range != nil {
+		// Calculate footer row (last row of table range)
+		footerRow := table.Range.EndRowIndex - 1 // 0-indexed, so -1 gives last row index
+		// Fetch footer row values/formulas
+		footerRange := fmt.Sprintf("%s!%s%d:%s%d", 
+			sheetName,
+			columnIndexToLetter(int(table.Range.StartColumnIndex)),
+			footerRow+1,
+			columnIndexToLetter(int(table.Range.EndColumnIndex-1)),
+			footerRow+1)
+		valResp, _ := svc.Spreadsheets.Values.Get(spreadsheetID, footerRange).ValueRenderOption("FORMULA").Do()
+		if valResp != nil && len(valResp.Values) > 0 {
+			for _, cell := range valResp.Values[0] {
+				if str, ok := cell.(string); ok && strings.HasPrefix(str, "=") {
+					footerFormulas = append(footerFormulas, str)
+				} else {
+					footerFormulas = append(footerFormulas, "") // No formula in this cell
+				}
+			}
+		}
+	}
+
 	rows := make([]*sheets.RowData, len(values))
 	for i, rowValues := range values {
 		cellData := make([]*sheets.CellData, len(rowValues))
@@ -541,9 +597,62 @@ func (c *SheetsTableAppendCmd) Run(ctx context.Context, flags *RootFlags) error 
 		},
 	}
 
-	resp, err := svc.Spreadsheets.BatchUpdate(spreadsheetID, req).Do()
+	batchResp, err := svc.Spreadsheets.BatchUpdate(spreadsheetID, req).Do()
 	if err != nil {
 		return err
+	}
+
+	// Check if table expanded and restore footer formulas if needed
+	if hasFooter && len(footerFormulas) > 0 {
+		// Fetch updated table to check if range changed
+		updatedResp, fetchErr := svc.Spreadsheets.Get(spreadsheetID).Fields("sheets.properties.title,sheets.tables").Do()
+		if fetchErr == nil {
+			var updatedTable *sheets.Table
+			var updatedSheetName string
+			for _, sheet := range updatedResp.Sheets {
+				if sheet == nil || sheet.Properties == nil {
+					continue
+				}
+				for _, t := range sheet.Tables {
+					if t != nil && t.TableId == c.TableID {
+						updatedTable = t
+						updatedSheetName = sheet.Properties.Title
+						break
+					}
+				}
+				if updatedTable != nil {
+					break
+				}
+			}
+			
+			if updatedTable != nil && updatedTable.Range != nil {
+				newRange := formatGridRange(updatedTable.Range, updatedSheetName)
+				if newRange != originalRange {
+					// Table expanded - re-apply footer formulas
+					newFooterRow := updatedTable.Range.EndRowIndex - 1
+					newFooterRange := fmt.Sprintf("%s!%s%d:%s%d",
+						updatedSheetName,
+						columnIndexToLetter(int(updatedTable.Range.StartColumnIndex)),
+						newFooterRow+1,
+						columnIndexToLetter(int(updatedTable.Range.EndColumnIndex-1)),
+						newFooterRow+1)
+					
+					// Re-apply formulas using sheets.Values.Update
+					formulaValues := make([][]interface{}, 1)
+					formulaValues[0] = make([]interface{}, len(footerFormulas))
+					for i, formula := range footerFormulas {
+						if formula != "" {
+							formulaValues[0][i] = formula
+						}
+					}
+					
+					_, _ = svc.Spreadsheets.Values.Update(spreadsheetID, newFooterRange, 
+						&sheets.ValueRange{Values: formulaValues}).
+						ValueInputOption("USER_ENTERED").
+						Do()
+				}
+			}
+		}
 	}
 
 	if outfmt.IsJSON(ctx) {
@@ -551,7 +660,7 @@ func (c *SheetsTableAppendCmd) Run(ctx context.Context, flags *RootFlags) error 
 			"spreadsheetId": spreadsheetID,
 			"tableId":       c.TableID,
 			"appendedRows":  len(values),
-			"replies":       len(resp.Replies),
+			"replies":       len(batchResp.Replies),
 		})
 	}
 
@@ -806,9 +915,23 @@ func columnIndexToLetter(index int) string {
 	return result
 }
 
-func parseA1ToGridRange(a1 string) (*sheets.GridRange, error) {
-	// This is a simplified parser - in production would need full A1 notation support
-	// Expected format: Sheet1!A1:D10 or A1:D10
+func resolveSheetID(ctx context.Context, svc *sheets.Service, spreadsheetID string, sheetName string) (int64, error) {
+	resp, err := svc.Spreadsheets.Get(spreadsheetID).Fields("sheets.properties").Context(ctx).Do()
+	if err != nil {
+		return 0, fmt.Errorf("fetch spreadsheet metadata: %w", err)
+	}
+
+	for _, sheet := range resp.Sheets {
+		if sheet != nil && sheet.Properties != nil && sheet.Properties.Title == sheetName {
+			return sheet.Properties.SheetId, nil
+		}
+	}
+
+	return 0, fmt.Errorf("sheet %q not found in spreadsheet", sheetName)
+}
+
+func parseA1ToGridRangeWithLookup(ctx context.Context, svc *sheets.Service, spreadsheetID string, a1 string) (*sheets.GridRange, string, error) {
+	// Parse the A1 notation
 	parts := strings.Split(a1, "!")
 	var sheetName, rangePart string
 	if len(parts) == 2 {
@@ -816,29 +939,27 @@ func parseA1ToGridRange(a1 string) (*sheets.GridRange, error) {
 		rangePart = parts[1]
 	} else {
 		rangePart = parts[0]
+		sheetName = "Sheet1" // Default
 	}
 
 	rangeParts := strings.Split(rangePart, ":")
 	if len(rangeParts) != 2 {
-		return nil, fmt.Errorf("invalid range format, expected A1:D10")
+		return nil, "", fmt.Errorf("invalid range format, expected Sheet1!A1:D10 or A1:D10")
 	}
 
 	startCol, startRow, err := parseCellRef(rangeParts[0])
 	if err != nil {
-		return nil, fmt.Errorf("invalid start cell: %w", err)
+		return nil, "", fmt.Errorf("invalid start cell: %w", err)
 	}
 	endCol, endRow, err := parseCellRef(rangeParts[1])
 	if err != nil {
-		return nil, fmt.Errorf("invalid end cell: %w", err)
+		return nil, "", fmt.Errorf("invalid end cell: %w", err)
 	}
 
-	// For simplicity, assume sheet ID 0 if not specified
-	// In real implementation, would lookup sheet ID from name
-	var sheetID int64 = 0
-	if sheetName != "" {
-		// Would need to fetch sheet ID from spreadsheet metadata
-		// For now, default to 0
-		_ = sheetName
+	// Look up sheet ID from name
+	sheetID, err := resolveSheetID(ctx, svc, spreadsheetID, sheetName)
+	if err != nil {
+		return nil, "", err
 	}
 
 	return &sheets.GridRange{
@@ -847,7 +968,7 @@ func parseA1ToGridRange(a1 string) (*sheets.GridRange, error) {
 		EndRowIndex:      int64(endRow),
 		StartColumnIndex: int64(startCol),
 		EndColumnIndex:   int64(endCol + 1),
-	}, nil
+	}, sheetName, nil
 }
 
 func parseCellRef(ref string) (col, row int, err error) {
