@@ -128,7 +128,8 @@ func (c *GmailForwardCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 
 	sent, err := svc.Users.Messages.Send("me", &gmail.Message{
-		Raw: base64.RawURLEncoding.EncodeToString(raw),
+		Raw:      base64.RawURLEncoding.EncodeToString(raw),
+		ThreadId: msg.ThreadId,
 	}).Context(ctx).Do()
 	if err != nil {
 		return err
