@@ -15,8 +15,9 @@ import (
 )
 
 type AuthCredentialsCmd struct {
-	Set  AuthCredentialsSetCmd  `cmd:"" default:"withargs" help:"Store OAuth client credentials"`
-	List AuthCredentialsListCmd `cmd:"" name:"list" help:"List stored OAuth client credentials"`
+	Set    AuthCredentialsSetCmd    `cmd:"" default:"withargs" help:"Store OAuth client credentials"`
+	List   AuthCredentialsListCmd   `cmd:"" name:"list" help:"List stored OAuth client credentials"`
+	Delete AuthCredentialsDeleteCmd `cmd:"" name:"delete" help:"Delete stored OAuth client credentials"`
 }
 
 type AuthCredentialsSetCmd struct {
@@ -159,4 +160,50 @@ func (c *AuthCredentialsListCmd) Run(ctx context.Context, _ *RootFlags) error {
 		_, _ = fmt.Fprintf(w, "%s\t%s\t%s\n", e.Client, e.Path, strings.Join(e.Domains, ","))
 	}
 	return nil
+}
+
+type AuthCredentialsDeleteCmd struct{}
+
+func (c *AuthCredentialsDeleteCmd) Run(ctx context.Context, flags *RootFlags) error {
+	u := ui.FromContext(ctx)
+	client, err := normalizeClientForFlag(authclient.ClientOverrideFromContext(ctx))
+	if err != nil {
+		return err
+	}
+
+	if err := confirmDestructive(ctx, flags, fmt.Sprintf("delete OAuth credentials for client %q", client)); err != nil {
+		return err
+	}
+
+	if err := config.DeleteClientCredentialsFor(client); err != nil {
+		return err
+	}
+
+	// Remove domain mappings that reference this client.
+	cfg, err := config.ReadConfig()
+	if err != nil {
+		return err
+	}
+	var removed []string
+	for domain, mapped := range cfg.ClientDomains {
+		normalized, nerr := config.NormalizeClientNameOrDefault(mapped)
+		if nerr != nil {
+			continue
+		}
+		if normalized == client {
+			removed = append(removed, domain)
+			delete(cfg.ClientDomains, domain)
+		}
+	}
+	if len(removed) > 0 {
+		if err := config.WriteConfig(cfg); err != nil {
+			return err
+		}
+	}
+
+	return writeResult(ctx, u,
+		kv("deleted", true),
+		kv("client", client),
+		kv("domains_removed", removed),
+	)
 }

@@ -114,6 +114,23 @@ func ReadClientCredentialsFor(client string) (ClientCredentials, error) {
 	return c, nil
 }
 
+func DeleteClientCredentialsFor(client string) error {
+	path, err := ClientCredentialsPathFor(client)
+	if err != nil {
+		return fmt.Errorf("resolve credentials path: %w", err)
+	}
+
+	if err := os.Remove(path); err != nil {
+		if os.IsNotExist(err) {
+			return &CredentialsMissingError{Path: path, Cause: err}
+		}
+
+		return fmt.Errorf("delete credentials: %w", err)
+	}
+
+	return nil
+}
+
 func ClientCredentialsExists(client string) (bool, error) {
 	path, err := ClientCredentialsPathFor(client)
 	if err != nil {
