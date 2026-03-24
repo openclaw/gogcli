@@ -188,7 +188,13 @@ func (c *AuthCredentialsRemoveCmd) Run(ctx context.Context, flags *RootFlags) er
 		return err
 	}
 
-	if err := confirmDestructive(ctx, flags, fmt.Sprintf("remove OAuth credentials for client %q", client)); err != nil {
+	accounts := findAccountsForClient(client)
+
+	action := fmt.Sprintf("remove OAuth credentials for client %q", client)
+	if len(accounts) > 0 {
+		action += fmt.Sprintf(" and %d associated token(s) (%s)", len(accounts), strings.Join(accounts, ", "))
+	}
+	if err := confirmDestructive(ctx, flags, action); err != nil {
 		return err
 	}
 
@@ -196,12 +202,14 @@ func (c *AuthCredentialsRemoveCmd) Run(ctx context.Context, flags *RootFlags) er
 		return err
 	}
 
-	removed := removeDomainMappings(client)
+	tokensRemoved := removeTokensForClient(client, accounts)
+	domainsRemoved := removeDomainMappings(client)
 
 	return writeResult(ctx, u,
 		kv("removed", true),
 		kv("client", client),
-		kv("domains_removed", removed),
+		kv("tokens_removed", tokensRemoved),
+		kv("domains_removed", domainsRemoved),
 	)
 }
 
@@ -222,17 +230,59 @@ func (c *AuthCredentialsRemoveCmd) removeAll(ctx context.Context, flags *RootFla
 		return err
 	}
 
+	var allTokens []string
 	for _, info := range creds {
+		accounts := findAccountsForClient(info.Client)
 		if err := config.DeleteClientCredentialsFor(info.Client); err != nil {
 			return err
 		}
+		allTokens = append(allTokens, removeTokensForClient(info.Client, accounts)...)
 		removeDomainMappings(info.Client)
 	}
 
 	return writeResult(ctx, u,
 		kv("removed", len(creds)),
 		kv("clients", names),
+		kv("tokens_removed", allTokens),
 	)
+}
+
+// findAccountsForClient returns emails that have tokens stored under the given client.
+func findAccountsForClient(client string) []string {
+	store, err := openSecretsStore()
+	if err != nil {
+		return nil
+	}
+	tokens, err := store.ListTokens()
+	if err != nil {
+		return nil
+	}
+	var emails []string
+	for _, tok := range tokens {
+		tokClient, _ := config.NormalizeClientNameOrDefault(tok.Client)
+		if tokClient == client {
+			emails = append(emails, tok.Email)
+		}
+	}
+	return emails
+}
+
+// removeTokensForClient deletes tokens for the given accounts under the specified client.
+func removeTokensForClient(client string, emails []string) []string {
+	if len(emails) == 0 {
+		return nil
+	}
+	store, err := openSecretsStore()
+	if err != nil {
+		return nil
+	}
+	var removed []string
+	for _, email := range emails {
+		if err := store.DeleteToken(client, email); err == nil {
+			removed = append(removed, email)
+		}
+	}
+	return removed
 }
 
 // removeDomainMappings deletes config domain entries that point to the given client.
