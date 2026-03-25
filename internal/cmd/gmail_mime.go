@@ -136,13 +136,13 @@ func buildRFC822(opts mailOptions, cfg *rfc822Config) ([]byte, error) {
 			return b.Bytes(), nil
 		case hasHTML && !hasPlain:
 			writeHeader(&b, "Content-Type", "text/html; charset=\"utf-8\"")
-			writeHeader(&b, "Content-Transfer-Encoding", "7bit")
+			writeHeader(&b, "Content-Transfer-Encoding", transferEncodingForText(htmlBody))
 			b.WriteString("\r\n")
 			writeBodyWithTrailingCRLF(&b, htmlBody)
 			return b.Bytes(), nil
 		default:
 			writeHeader(&b, "Content-Type", "text/plain; charset=\"utf-8\"")
-			writeHeader(&b, "Content-Transfer-Encoding", "7bit")
+			writeHeader(&b, "Content-Transfer-Encoding", transferEncodingForText(plainBody))
 			b.WriteString("\r\n")
 			writeBodyWithTrailingCRLF(&b, plainBody)
 			return b.Bytes(), nil
@@ -171,11 +171,11 @@ func buildRFC822(opts mailOptions, cfg *rfc822Config) ([]byte, error) {
 		fmt.Fprintf(&b, "--%s--\r\n", altBoundary)
 	case hasHTML && !hasPlain:
 		b.WriteString("Content-Type: text/html; charset=\"utf-8\"\r\n")
-		b.WriteString("Content-Transfer-Encoding: 7bit\r\n\r\n")
+		fmt.Fprintf(&b, "Content-Transfer-Encoding: %s\r\n\r\n", transferEncodingForText(htmlBody))
 		writeBodyWithTrailingCRLF(&b, htmlBody)
 	default:
 		b.WriteString("Content-Type: text/plain; charset=\"utf-8\"\r\n")
-		b.WriteString("Content-Transfer-Encoding: 7bit\r\n\r\n")
+		fmt.Fprintf(&b, "Content-Transfer-Encoding: %s\r\n\r\n", transferEncodingForText(plainBody))
 		writeBodyWithTrailingCRLF(&b, plainBody)
 	}
 
@@ -292,8 +292,19 @@ func writeBodyWithTrailingCRLF(b *bytes.Buffer, body string) {
 func writeTextPart(b *bytes.Buffer, boundary string, contentType string, body string) {
 	_, _ = fmt.Fprintf(b, "--%s\r\n", boundary)
 	_, _ = fmt.Fprintf(b, "Content-Type: %s\r\n", contentType)
-	b.WriteString("Content-Transfer-Encoding: 7bit\r\n\r\n")
+	_, _ = fmt.Fprintf(b, "Content-Transfer-Encoding: %s\r\n\r\n", transferEncodingForText(body))
 	writeBodyWithTrailingCRLF(b, body)
+}
+
+// transferEncodingForText returns "7bit" for pure ASCII text and "8bit" for
+// text containing non-ASCII bytes (e.g. UTF-8). Using "7bit" for UTF-8 content
+// violates RFC 2045 §2.7 and can cause mail servers to mangle the message or
+// strip attachments.
+func transferEncodingForText(s string) string {
+	if isASCII(s) {
+		return "7bit"
+	}
+	return "8bit"
 }
 
 func randomBoundary() (string, error) {
