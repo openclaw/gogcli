@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"mime"
+	"mime/quotedprintable"
 	"net/mail"
 	"net/url"
 	"os"
@@ -142,9 +143,9 @@ func buildRFC822(opts mailOptions, cfg *rfc822Config) ([]byte, error) {
 			return b.Bytes(), nil
 		default:
 			writeHeader(&b, "Content-Type", "text/plain; charset=\"utf-8\"")
-			writeHeader(&b, "Content-Transfer-Encoding", "7bit")
+			writeHeader(&b, "Content-Transfer-Encoding", "quoted-printable")
 			b.WriteString("\r\n")
-			writeBodyWithTrailingCRLF(&b, plainBody)
+			writeQuotedPrintableBody(&b, plainBody)
 			return b.Bytes(), nil
 		}
 	}
@@ -175,8 +176,8 @@ func buildRFC822(opts mailOptions, cfg *rfc822Config) ([]byte, error) {
 		writeBodyWithTrailingCRLF(&b, htmlBody)
 	default:
 		b.WriteString("Content-Type: text/plain; charset=\"utf-8\"\r\n")
-		b.WriteString("Content-Transfer-Encoding: 7bit\r\n\r\n")
-		writeBodyWithTrailingCRLF(&b, plainBody)
+		b.WriteString("Content-Transfer-Encoding: quoted-printable\r\n\r\n")
+		writeQuotedPrintableBody(&b, plainBody)
 	}
 
 	// Attachments
@@ -282,6 +283,16 @@ func wrapBase64(b []byte) string {
 	return out.String()
 }
 
+func writeQuotedPrintableBody(b *bytes.Buffer, body string) {
+	qpw := quotedprintable.NewWriter(b)
+	_, _ = qpw.Write([]byte(body))
+	_ = qpw.Close()
+	// Ensure trailing CRLF after the encoded body.
+	if !bytes.HasSuffix(b.Bytes(), []byte("\r\n")) {
+		b.WriteString("\r\n")
+	}
+}
+
 func writeBodyWithTrailingCRLF(b *bytes.Buffer, body string) {
 	b.WriteString(body)
 	if !strings.HasSuffix(body, "\r\n") {
@@ -292,8 +303,13 @@ func writeBodyWithTrailingCRLF(b *bytes.Buffer, body string) {
 func writeTextPart(b *bytes.Buffer, boundary string, contentType string, body string) {
 	_, _ = fmt.Fprintf(b, "--%s\r\n", boundary)
 	_, _ = fmt.Fprintf(b, "Content-Type: %s\r\n", contentType)
-	b.WriteString("Content-Transfer-Encoding: 7bit\r\n\r\n")
-	writeBodyWithTrailingCRLF(b, body)
+	if strings.HasPrefix(contentType, "text/plain") {
+		b.WriteString("Content-Transfer-Encoding: quoted-printable\r\n\r\n")
+		writeQuotedPrintableBody(b, body)
+	} else {
+		b.WriteString("Content-Transfer-Encoding: 7bit\r\n\r\n")
+		writeBodyWithTrailingCRLF(b, body)
+	}
 }
 
 func randomBoundary() (string, error) {
