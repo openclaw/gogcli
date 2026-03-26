@@ -20,6 +20,16 @@ type DocsWriteCmd struct {
 	Append   bool   `name:"append" help:"Append instead of replacing the document body"`
 	Pageless bool   `name:"pageless" help:"Set document to pageless mode"`
 	TabID    string `name:"tab-id" help:"Target a specific tab by ID (see docs list-tabs)"`
+
+	// Formatting flags (applied after content write)
+	FontFamily    string  `name:"font-family" help:"Font family (e.g. Arial, Georgia, Times New Roman)"`
+	FontSize      float64 `name:"font-size" help:"Font size in points (e.g. 12, 14, 16)"`
+	TextColor     string  `name:"text-color" help:"Text color as hex (#RRGGBB)"`
+	BgColor       string  `name:"bg-color" help:"Background highlight color as hex (#RRGGBB)"`
+	Alignment     string  `name:"alignment" help:"Paragraph alignment: left|center|right|justified"`
+	Underline     bool    `name:"underline" help:"Apply underline to written text"`
+	Strikethrough bool    `name:"strikethrough" help:"Apply strikethrough to written text"`
+	LineSpacing   float64 `name:"line-spacing" help:"Line spacing percentage (e.g. 150 = 1.5x)"`
 }
 
 func (c *DocsWriteCmd) Run(ctx context.Context, kctx *kong.Context, flags *RootFlags) error {
@@ -85,6 +95,25 @@ func (c *DocsWriteCmd) Run(ctx context.Context, kctx *kong.Context, flags *RootF
 		}
 	}
 
+	// Apply formatting if any flags set
+	fmtOpts := c.formattingOpts()
+	if fmtOpts.hasAny() {
+		docEnd, endErr := docsTargetEndIndex(ctx, svc, id, c.TabID)
+		if endErr != nil {
+			return fmt.Errorf("re-fetch document for formatting: %w", endErr)
+		}
+		fmtEnd := docEnd - 1
+		if fmtEnd > 1 {
+			fmtReqs := buildFormattingRequests(1, fmtEnd, fmtOpts)
+			if len(fmtReqs) > 0 {
+				_, err = svc.Documents.BatchUpdate(id, &docs.BatchUpdateDocumentRequest{Requests: fmtReqs}).Context(ctx).Do()
+				if err != nil {
+					return fmt.Errorf("apply formatting: %w", err)
+				}
+			}
+		}
+	}
+
 	if outfmt.IsJSON(ctx) {
 		payload := map[string]any{
 			"documentId": resp.DocumentId,
@@ -112,6 +141,23 @@ func (c *DocsWriteCmd) Run(ctx context.Context, kctx *kong.Context, flags *RootF
 		u.Out().Printf("revision\t%s", resp.WriteControl.RequiredRevisionId)
 	}
 	return nil
+}
+
+func (c *DocsWriteCmd) formattingOpts() FormattingOpts {
+	opts := FormattingOpts{
+		FontFamily: c.FontFamily, FontSize: c.FontSize,
+		TextColor: c.TextColor, BgColor: c.BgColor,
+		Alignment: c.Alignment, LineSpacing: c.LineSpacing,
+	}
+	if c.Underline {
+		v := true
+		opts.Underline = &v
+	}
+	if c.Strikethrough {
+		v := true
+		opts.Strikethrough = &v
+	}
+	return opts
 }
 
 type DocsUpdateCmd struct {
@@ -542,4 +588,126 @@ func (c *DocsFindReplaceCmd) resolveReplaceText() (string, error) {
 		return "", fmt.Errorf("read content file: %w", err)
 	}
 	return string(data), nil
+}
+
+// DocsFormatCmd applies formatting to existing text in a Google Doc.
+type DocsFormatCmd struct {
+	DocID string `arg:"" name:"docId" help:"Doc ID"`
+	Match string `name:"match" help:"Text to find and format (first occurrence unless --match-all)"`
+	All   bool   `name:"match-all" help:"Format all occurrences of --match text"`
+
+	FontFamily    string  `name:"font-family" help:"Font family (e.g. Arial, Georgia)"`
+	FontSize      float64 `name:"font-size" help:"Font size in points"`
+	TextColor     string  `name:"text-color" help:"Text color as hex (#RRGGBB)"`
+	BgColor       string  `name:"bg-color" help:"Background highlight color as hex (#RRGGBB)"`
+	Bold          bool    `name:"bold" help:"Apply bold"`
+	Italic        bool    `name:"italic" help:"Apply italic"`
+	Underline     bool    `name:"underline" help:"Apply underline"`
+	Strikethrough bool    `name:"strikethrough" help:"Apply strikethrough"`
+	Alignment     string  `name:"alignment" help:"Paragraph alignment: left|center|right|justified"`
+	LineSpacing   float64 `name:"line-spacing" help:"Line spacing percentage (e.g. 150 = 1.5x)"`
+}
+
+func (c *DocsFormatCmd) Run(ctx context.Context, flags *RootFlags) error {
+	u := ui.FromContext(ctx)
+	id := strings.TrimSpace(c.DocID)
+	if id == "" {
+		return usage("empty docId")
+	}
+
+	opts := c.formattingOpts()
+	if !opts.hasAny() {
+		return usage("at least one formatting flag is required")
+	}
+
+	svc, err := requireDocsService(ctx, flags)
+	if err != nil {
+		return err
+	}
+
+	doc, err := svc.Documents.Get(id).Context(ctx).Do()
+	if err != nil {
+		if isDocsNotFound(err) {
+			return fmt.Errorf("doc not found or not a Google Doc (id=%s)", id)
+		}
+		return err
+	}
+
+	type fmtRange struct{ start, end int64 }
+	var ranges []fmtRange
+
+	if c.Match != "" {
+		if c.All {
+			matches := findTextMatches(doc, c.Match, true)
+			for _, m := range matches {
+				ranges = append(ranges, fmtRange{m.startIndex, m.endIndex})
+			}
+		} else {
+			start, end, total := findTextInDoc(doc, c.Match, true)
+			if total == 0 {
+				return fmt.Errorf("text %q not found in document", c.Match)
+			}
+			ranges = append(ranges, fmtRange{start, end})
+		}
+		if len(ranges) == 0 {
+			return fmt.Errorf("text %q not found in document", c.Match)
+		}
+	} else {
+		// Apply to entire document
+		if doc.Body != nil && len(doc.Body.Content) > 0 {
+			last := doc.Body.Content[len(doc.Body.Content)-1]
+			if last != nil && last.EndIndex > 2 {
+				ranges = append(ranges, fmtRange{1, last.EndIndex - 1})
+			}
+		}
+		if len(ranges) == 0 {
+			return fmt.Errorf("document is empty")
+		}
+	}
+
+	var allReqs []*docs.Request
+	for _, r := range ranges {
+		allReqs = append(allReqs, buildFormattingRequests(r.start, r.end, opts)...)
+	}
+
+	_, err = svc.Documents.BatchUpdate(id, &docs.BatchUpdateDocumentRequest{Requests: allReqs}).Context(ctx).Do()
+	if err != nil {
+		return fmt.Errorf("apply formatting: %w", err)
+	}
+
+	if outfmt.IsJSON(ctx) {
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
+			"success":    true,
+			"documentId": id,
+			"ranges":     len(ranges),
+		})
+	}
+
+	u.Out().Printf("Formatted %d range(s) in document %s", len(ranges), id)
+	return nil
+}
+
+func (c *DocsFormatCmd) formattingOpts() FormattingOpts {
+	opts := FormattingOpts{
+		FontFamily: c.FontFamily, FontSize: c.FontSize,
+		TextColor: c.TextColor, BgColor: c.BgColor,
+		Alignment: c.Alignment, LineSpacing: c.LineSpacing,
+	}
+	if c.Bold {
+		v := true
+		opts.Bold = &v
+	}
+	if c.Italic {
+		v := true
+		opts.Italic = &v
+	}
+	if c.Underline {
+		v := true
+		opts.Underline = &v
+	}
+	if c.Strikethrough {
+		v := true
+		opts.Strikethrough = &v
+	}
+	return opts
 }
