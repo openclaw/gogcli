@@ -53,6 +53,13 @@ func TestDocsSedCmd_RegexMatching(t *testing.T) {
 			want:  "dog catalog bobcat dog",
 			wantN: 2,
 		},
+		{
+			name:  "whole match backreference ampersand",
+			expr:  `s/foo/&/`,
+			input: "foo",
+			want:  "foo",
+			wantN: 1,
+		},
 	}
 
 	for _, tt := range tests {

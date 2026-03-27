@@ -119,7 +119,7 @@ func buildCellReplaceRequests(startIdx, deleteEnd int64, plainText string, forma
 			},
 		})
 		if len(formats) > 0 {
-			end := startIdx + int64(len(plainText))
+			end := startIdx + utf16Len(plainText)
 			requests = append(requests, buildTextStyleRequests(formats, startIdx, end)...)
 		}
 	}

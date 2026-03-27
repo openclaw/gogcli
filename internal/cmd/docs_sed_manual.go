@@ -281,7 +281,7 @@ func (c *DocsSedCmd) runManualInner(ctx context.Context, docsSvc *docs.Service, 
 				}
 				formatRanges = append(formatRanges, formatRange{
 					start:      m.start,
-					end:        m.start + int64(len(m.newText)),
+					end:        m.start + utf16Len(m.newText),
 					formats:    fmts,
 					hasTab:     strings.HasPrefix(m.newText, "\t"),
 					braceExpr:  m.braceExpr,

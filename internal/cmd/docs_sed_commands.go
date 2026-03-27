@@ -443,8 +443,9 @@ func (c *DocsSedCmd) runAddressedSubstitute(ctx context.Context, u *ui.UI, accou
 			m := matches[j]
 			matchText := text[m[0]:m[1]]
 			replText := re.ReplaceAllString(matchText, expr.replacement)
-			// Unescape Go regex $$ to literal $
-			replText = literalReplacement(replText)
+			// Unescape Go regex $$ to literal $ after regex expansion.
+			// Keep expanded whole-match/capture substitutions intact.
+			replText = strings.ReplaceAll(replText, "$$", "$")
 
 			absStart := para.StartIndex + int64(m[0])
 			absEnd := para.StartIndex + int64(m[1])

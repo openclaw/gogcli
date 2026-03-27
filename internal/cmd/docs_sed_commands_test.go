@@ -381,6 +381,13 @@ func TestBuildCellReplaceRequests(t *testing.T) {
 	reqs = buildCellReplaceRequests(10, 15, "hello", []string{"bold"})
 	assert.Equal(t, 3, len(reqs)) // delete + insert + format
 
+	// Formatting ranges must use UTF-16 code units, not UTF-8 byte length.
+	reqs = buildCellReplaceRequests(10, 10, "A🐢", []string{"bold"})
+	require.Len(t, reqs, 2)
+	require.NotNil(t, reqs[1].UpdateTextStyle)
+	assert.Equal(t, int64(10), reqs[1].UpdateTextStyle.Range.StartIndex)
+	assert.Equal(t, int64(13), reqs[1].UpdateTextStyle.Range.EndIndex)
+
 	// Empty text
 	reqs = buildCellReplaceRequests(10, 15, "", nil)
 	assert.Equal(t, 1, len(reqs)) // delete only
