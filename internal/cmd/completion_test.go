@@ -9,7 +9,7 @@ import (
 func TestCompletionCmd(t *testing.T) {
 	cases := map[string]string{
 		"bash":       "complete -F _gog_complete gog",
-		"zsh":        "bashcompinit",
+		"zsh":        "compdef _gog gog",
 		"fish":       "complete -c gog",
 		"powershell": "Register-ArgumentCompleter",
 	}
