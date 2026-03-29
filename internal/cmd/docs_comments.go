@@ -26,6 +26,7 @@ type DocsCommentsListCmd struct {
 	Page            string `name:"page" aliases:"cursor" help:"Page token for pagination"`
 	All             bool   `name:"all" aliases:"all-pages" help:"Fetch all pages"`
 	FailEmpty       bool   `name:"fail-empty" aliases:"non-empty,require-results" help:"Exit with code 3 if no results"`
+	ShowAnchors     bool   `name:"show-anchors" aliases:"anchors" help:"Include anchor data (kix IDs) in output for discovering anchor positions from UI-created comments"`
 }
 
 func (c *DocsCommentsListCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -53,6 +54,7 @@ func (c *DocsCommentsListCmd) Run(ctx context.Context, flags *RootFlags) error {
 		max:             c.Max,
 		emptyMessage:    "No comments",
 		mode:            driveCommentListModeExpanded,
+		showAnchors:     c.ShowAnchors,
 	})
 	if err != nil {
 		return err
@@ -63,6 +65,7 @@ func (c *DocsCommentsListCmd) Run(ctx context.Context, flags *RootFlags) error {
 		failEmpty:    c.FailEmpty,
 		emptyMessage: "No comments",
 		mode:         driveCommentListModeExpanded,
+		showAnchors:  c.ShowAnchors,
 	}, comments, nextPageToken)
 }
 
@@ -99,8 +102,8 @@ func (c *DocsCommentsGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 type DocsCommentsAddCmd struct {
 	DocID   string `arg:"" name:"docId" help:"Google Doc ID or URL"`
 	Content string `arg:"" name:"content" help:"Comment text"`
-	Quoted  string `name:"quoted" help:"Quoted text to attach to the comment (shown in UIs when available)"`
-	Anchor  string `name:"anchor" help:"Anchor JSON string (advanced; editor UIs may still treat as unanchored)"`
+	Quoted  string `name:"quoted" help:"Quoted text metadata (note: does NOT anchor the comment to specific text due to a Google API limitation — appears as a doc-level comment)"`
+	Anchor  string `name:"anchor" help:"Anchor JSON using kix IDs (only working format for inline anchoring). kix IDs are internal to Google and not exposed by any API — use 'docs comments list --show-anchors' on UI-created comments to discover reusable IDs. Text-offset anchors are accepted but silently ignored."`
 }
 
 func (c *DocsCommentsAddCmd) Run(ctx context.Context, flags *RootFlags) error {

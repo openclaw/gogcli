@@ -17,7 +17,8 @@ const (
 	driveCommentListFields        = "nextPageToken"
 	driveCommentListCoreFields    = "comments(id,author,content,createdTime,modifiedTime,resolved,replies)"
 	driveCommentListQuotedFields  = "comments(id,author,content,createdTime,modifiedTime,resolved,quotedFileContent,replies)"
-	docsCommentListFields         = "comments(id,author,content,createdTime,modifiedTime,resolved,quotedFileContent,replies(id,author,content,createdTime,modifiedTime,action,deleted))"
+	docsCommentListFields             = "comments(id,author,content,createdTime,modifiedTime,resolved,quotedFileContent,replies(id,author,content,createdTime,modifiedTime,action,deleted))"
+	docsCommentListFieldsWithAnchors  = "comments(id,author,content,createdTime,modifiedTime,resolved,quotedFileContent,anchor,replies(id,author,content,createdTime,modifiedTime,action,deleted))"
 	driveCommentDetailFields      = "id, author, content, createdTime, modifiedTime, resolved, quotedFileContent, anchor, replies"
 	driveCommentCreateFields      = "id, author, content, createdTime, quotedFileContent, anchor"
 	driveCommentUpdateFields      = "id, author, content, modifiedTime"
@@ -44,6 +45,7 @@ type driveCommentListOptions struct {
 	max             int64
 	emptyMessage    string
 	mode            driveCommentListMode
+	showAnchors     bool
 }
 
 func listDriveComments(ctx context.Context, svc *drive.Service, fileID string, opts driveCommentListOptions) ([]*drive.Comment, string, error) {
@@ -102,6 +104,9 @@ func fetchDriveCommentsPage(ctx context.Context, svc *drive.Service, fileID stri
 
 func driveCommentFieldsForList(opts driveCommentListOptions) string {
 	if opts.mode == driveCommentListModeExpanded {
+		if opts.showAnchors {
+			return docsCommentListFieldsWithAnchors
+		}
 		return docsCommentListFields
 	}
 	if opts.includeQuoted {
@@ -125,7 +130,7 @@ func writeDriveCommentList(ctx context.Context, u *ui.UI, opts driveCommentListO
 	}
 
 	if opts.mode == driveCommentListModeExpanded {
-		printExpandedCommentTable(ctx, comments)
+		printExpandedCommentTable(ctx, comments, opts.showAnchors)
 	} else {
 		printCompactCommentTable(ctx, comments, opts.includeQuoted)
 	}
@@ -133,10 +138,14 @@ func writeDriveCommentList(ctx context.Context, u *ui.UI, opts driveCommentListO
 	return nil
 }
 
-func printExpandedCommentTable(ctx context.Context, comments []*drive.Comment) {
+func printExpandedCommentTable(ctx context.Context, comments []*drive.Comment, showAnchors bool) {
 	w, flush := tableWriter(ctx)
 	defer flush()
-	fmt.Fprintln(w, "TYPE\tID\tAUTHOR\tQUOTED\tCONTENT\tCREATED\tRESOLVED\tACTION")
+	if showAnchors {
+		fmt.Fprintln(w, "TYPE\tID\tAUTHOR\tQUOTED\tCONTENT\tCREATED\tRESOLVED\tACTION\tANCHOR")
+	} else {
+		fmt.Fprintln(w, "TYPE\tID\tAUTHOR\tQUOTED\tCONTENT\tCREATED\tRESOLVED\tACTION")
+	}
 	for _, comment := range comments {
 		if comment == nil {
 			continue
@@ -149,16 +158,30 @@ func printExpandedCommentTable(ctx context.Context, comments []*drive.Comment) {
 		if comment.QuotedFileContent != nil {
 			quoted = truncateString(oneLineTSV(comment.QuotedFileContent.Value), 30)
 		}
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%t\t%s\n",
-			"comment",
-			comment.Id,
-			oneLineTSV(author),
-			quoted,
-			truncateString(oneLineTSV(comment.Content), 50),
-			formatDateTime(comment.CreatedTime),
-			comment.Resolved,
-			"",
-		)
+		if showAnchors {
+			fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%t\t%s\t%s\n",
+				"comment",
+				comment.Id,
+				oneLineTSV(author),
+				quoted,
+				truncateString(oneLineTSV(comment.Content), 50),
+				formatDateTime(comment.CreatedTime),
+				comment.Resolved,
+				"",
+				truncateString(oneLineTSV(comment.Anchor), 60),
+			)
+		} else {
+			fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%t\t%s\n",
+				"comment",
+				comment.Id,
+				oneLineTSV(author),
+				quoted,
+				truncateString(oneLineTSV(comment.Content), 50),
+				formatDateTime(comment.CreatedTime),
+				comment.Resolved,
+				"",
+			)
+		}
 		for _, reply := range comment.Replies {
 			if reply == nil {
 				continue
@@ -167,16 +190,30 @@ func printExpandedCommentTable(ctx context.Context, comments []*drive.Comment) {
 			if reply.Author != nil {
 				author = reply.Author.DisplayName
 			}
-			fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
-				"reply",
-				reply.Id,
-				oneLineTSV(author),
-				"",
-				truncateString(oneLineTSV(reply.Content), 50),
-				formatDateTime(reply.CreatedTime),
-				"",
-				oneLineTSV(reply.Action),
-			)
+			if showAnchors {
+				fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
+					"reply",
+					reply.Id,
+					oneLineTSV(author),
+					"",
+					truncateString(oneLineTSV(reply.Content), 50),
+					formatDateTime(reply.CreatedTime),
+					"",
+					oneLineTSV(reply.Action),
+					"",
+				)
+			} else {
+				fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
+					"reply",
+					reply.Id,
+					oneLineTSV(author),
+					"",
+					truncateString(oneLineTSV(reply.Content), 50),
+					formatDateTime(reply.CreatedTime),
+					"",
+					oneLineTSV(reply.Action),
+				)
+			}
 		}
 	}
 }
