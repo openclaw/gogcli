@@ -514,15 +514,15 @@ func (c *SheetsTableAppendCmd) Run(ctx context.Context, flags *RootFlags) error 
 		return err
 	}
 
-	// Fetch table metadata before append to check for footer
-	resp, err := svc.Spreadsheets.Get(spreadsheetID).Fields("sheets.properties.title,sheets.tables").Do()
+	// Fetch table metadata to get sheet info and verify table exists
+	resp, err := svc.Spreadsheets.Get(spreadsheetID).Fields("sheets.properties.title,sheets.properties.sheetId,sheets.tables").Do()
 	if err != nil {
 		return fmt.Errorf("fetch table metadata: %w", err)
 	}
 
 	var table *sheets.Table
 	var sheetName string
-	var originalRange string
+	var sheetID int64
 	for _, sheet := range resp.Sheets {
 		if sheet == nil || sheet.Properties == nil {
 			continue
@@ -531,7 +531,7 @@ func (c *SheetsTableAppendCmd) Run(ctx context.Context, flags *RootFlags) error 
 			if t != nil && t.TableId == c.TableID {
 				table = t
 				sheetName = sheet.Properties.Title
-				originalRange = formatGridRange(t.Range, sheetName)
+				sheetID = sheet.Properties.SheetId
 				break
 			}
 		}
@@ -544,101 +544,66 @@ func (c *SheetsTableAppendCmd) Run(ctx context.Context, flags *RootFlags) error 
 		return fmt.Errorf("table %s not found in spreadsheet %s", c.TableID, spreadsheetID)
 	}
 
-	// Check if table has footer and capture footer formulas
 	hasFooter := table.RowsProperties != nil && table.RowsProperties.FooterColorStyle != nil
-	var footerFormulas []string
+
+	var updatedRange string
+
 	if hasFooter && table.Range != nil {
-		// Calculate footer row (last row of table range)
-		footerRow := table.Range.EndRowIndex - 1 // 0-indexed, so -1 gives last row index
-		// Fetch footer row values/formulas
-		footerRange := fmt.Sprintf("%s!%s%d:%s%d", 
+		numRows := len(values)
+		footerRowIndex := int(table.Range.EndRowIndex - 1)
+
+		insertReq := &sheets.BatchUpdateSpreadsheetRequest{
+			Requests: []*sheets.Request{
+				{
+					InsertDimension: &sheets.InsertDimensionRequest{
+						Range: &sheets.DimensionRange{
+							SheetId:   sheetID,
+							Dimension: "ROWS",
+						StartIndex: int64(footerRowIndex),
+						EndIndex:   int64(footerRowIndex + numRows),
+						},
+					},
+				},
+			},
+		}
+
+		if _, err := svc.Spreadsheets.BatchUpdate(spreadsheetID, insertReq).Do(); err != nil {
+			return fmt.Errorf("insert rows for footer table: %w", err)
+		}
+
+		startCol := columnIndexToLetter(int(table.Range.StartColumnIndex))
+		endCol := columnIndexToLetter(int(table.Range.EndColumnIndex - 1))
+		writeRange := fmt.Sprintf("%s!%s%d:%s%d",
+			sheetName, startCol, footerRowIndex+1, endCol, footerRowIndex+numRows)
+
+		vr := &sheets.ValueRange{Values: values}
+		_, err = svc.Spreadsheets.Values.Update(spreadsheetID, writeRange, vr).
+			ValueInputOption(valueInputOption).
+			Do()
+		if err != nil {
+			return fmt.Errorf("write values to footer table: %w", err)
+		}
+
+		updatedRange = writeRange
+	} else {
+		appendRange := fmt.Sprintf("%s!%s:%s",
 			sheetName,
 			columnIndexToLetter(int(table.Range.StartColumnIndex)),
-			footerRow+1,
-			columnIndexToLetter(int(table.Range.EndColumnIndex-1)),
-			footerRow+1)
-		valResp, _ := svc.Spreadsheets.Values.Get(spreadsheetID, footerRange).ValueRenderOption("FORMULA").Do()
-		if valResp != nil && len(valResp.Values) > 0 {
-			for _, cell := range valResp.Values[0] {
-				if str, ok := cell.(string); ok && strings.HasPrefix(str, "=") {
-					footerFormulas = append(footerFormulas, str)
-				} else {
-					footerFormulas = append(footerFormulas, "") // No formula in this cell
-				}
-			}
-		}
-	}
+			columnIndexToLetter(int(table.Range.EndColumnIndex-1)))
 
-	// Use Values.Append with the table's actual range (respects sheet location)
-	// Build range from table: SheetName!StartCol:EndCol (append will find first empty row)
-	appendRange := fmt.Sprintf("%s!%s:%s",
-		sheetName,
-		columnIndexToLetter(int(table.Range.StartColumnIndex)),
-		columnIndexToLetter(int(table.Range.EndColumnIndex-1)))
-	
-	vr := &sheets.ValueRange{
-		Values: values,
-	}
-	
-	appendResp, err := svc.Spreadsheets.Values.Append(spreadsheetID, appendRange, vr).
-		ValueInputOption(valueInputOption).
-		InsertDataOption("INSERT_ROWS").
-		Do()
-	if err != nil {
-		return fmt.Errorf("append to table: %w", err)
-	}
-
-	// Check if table expanded and restore footer formulas if needed
-	if hasFooter && len(footerFormulas) > 0 {
-		// Fetch updated table to check if range changed
-		updatedResp, fetchErr := svc.Spreadsheets.Get(spreadsheetID).Fields("sheets.properties.title,sheets.tables").Do()
-		if fetchErr == nil {
-			var updatedTable *sheets.Table
-			var updatedSheetName string
-			for _, sheet := range updatedResp.Sheets {
-				if sheet == nil || sheet.Properties == nil {
-					continue
-				}
-				for _, t := range sheet.Tables {
-					if t != nil && t.TableId == c.TableID {
-						updatedTable = t
-						updatedSheetName = sheet.Properties.Title
-						break
-					}
-				}
-				if updatedTable != nil {
-					break
-				}
-			}
-			
-			if updatedTable != nil && updatedTable.Range != nil {
-				newRange := formatGridRange(updatedTable.Range, updatedSheetName)
-				if newRange != originalRange {
-					// Table expanded - re-apply footer formulas
-					newFooterRow := updatedTable.Range.EndRowIndex - 1
-					newFooterRange := fmt.Sprintf("%s!%s%d:%s%d",
-						updatedSheetName,
-						columnIndexToLetter(int(updatedTable.Range.StartColumnIndex)),
-						newFooterRow+1,
-						columnIndexToLetter(int(updatedTable.Range.EndColumnIndex-1)),
-						newFooterRow+1)
-					
-					// Re-apply formulas using sheets.Values.Update
-					formulaValues := make([][]interface{}, 1)
-					formulaValues[0] = make([]interface{}, len(footerFormulas))
-					for i, formula := range footerFormulas {
-						if formula != "" {
-							formulaValues[0][i] = formula
-						}
-					}
-					
-					_, _ = svc.Spreadsheets.Values.Update(spreadsheetID, newFooterRange, 
-						&sheets.ValueRange{Values: formulaValues}).
-						ValueInputOption("USER_ENTERED").
-						Do()
-				}
-			}
+		vr := &sheets.ValueRange{
+			Values: values,
 		}
+
+		appendResp, err := svc.Spreadsheets.Values.Append(spreadsheetID, appendRange, vr).
+			ValueInputOption(valueInputOption).
+			InsertDataOption("INSERT_ROWS").
+			Do()
+		if err != nil {
+			return fmt.Errorf("append to table: %w", err)
+		}
+
+		updatedRange = appendResp.Updates.UpdatedRange
 	}
 
 	if outfmt.IsJSON(ctx) {
@@ -646,7 +611,7 @@ func (c *SheetsTableAppendCmd) Run(ctx context.Context, flags *RootFlags) error 
 			"spreadsheetId": spreadsheetID,
 			"tableId":       c.TableID,
 			"appendedRows":  len(values),
-			"updatedRange":  appendResp.Updates.UpdatedRange,
+			"updatedRange":  updatedRange,
 		})
 	}
 
