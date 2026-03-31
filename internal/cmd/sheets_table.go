@@ -215,9 +215,9 @@ func (c *SheetsTableCreateCmd) Run(ctx context.Context, flags *RootFlags) error 
 	}
 
 	var columnDefs []struct {
-		ColumnName     string                                 `json:"columnName"`
-		ColumnType     string                                 `json:"columnType"`
-		DataValidation *sheets.TableColumnDataValidationRule  `json:"dataValidation,omitempty"`
+		ColumnName     string                                `json:"columnName"`
+		ColumnType     string                                `json:"columnType"`
+		DataValidation *sheets.TableColumnDataValidationRule `json:"dataValidation,omitempty"`
 	}
 
 	columnsData, err := resolveInlineOrFileBytes(c.ColumnsJSON)
@@ -581,13 +581,15 @@ func (c *SheetsTableAppendCmd) Run(ctx context.Context, flags *RootFlags) error 
 		insertReq := &sheets.BatchUpdateSpreadsheetRequest{
 			Requests: []*sheets.Request{
 				{
-					InsertDimension: &sheets.InsertDimensionRequest{
-						Range: &sheets.DimensionRange{
-							SheetId:   sheetID,
-							Dimension: "ROWS",
-						StartIndex: int64(footerRowIndex),
-						EndIndex:   int64(footerRowIndex + numRows),
+					InsertRange: &sheets.InsertRangeRequest{
+						Range: &sheets.GridRange{
+							SheetId:          sheetID,
+							StartRowIndex:    int64(footerRowIndex),
+							EndRowIndex:      int64(footerRowIndex + numRows),
+							StartColumnIndex: table.Range.StartColumnIndex,
+							EndColumnIndex:   table.Range.EndColumnIndex,
 						},
+						ShiftDimension: "ROWS",
 					},
 				},
 			},
