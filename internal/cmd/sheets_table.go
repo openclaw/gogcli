@@ -250,14 +250,21 @@ func (c *SheetsTableCreateCmd) Run(ctx context.Context, flags *RootFlags) error 
 	columnProperties := make([]*sheets.TableColumnProperties, len(columnDefs))
 	for i, def := range columnDefs {
 		colProp := &sheets.TableColumnProperties{
-			ColumnIndex: int64(i),
-			ColumnName:  def.ColumnName,
-			ColumnType:  def.ColumnType,
+			ColumnIndex:     int64(i),
+			ColumnName:      def.ColumnName,
+			ColumnType:      def.ColumnType,
+			ForceSendFields: []string{"ColumnIndex"},
 		}
 		if def.DataValidation != nil {
 			colProp.DataValidationRule = def.DataValidation
 		}
 		columnProperties[i] = colProp
+	}
+
+	if gridRange.StartColumnIndex > 0 {
+		for _, colProp := range columnProperties {
+			colProp.ColumnName = ""
+		}
 	}
 
 	table := &sheets.Table{
@@ -300,6 +307,25 @@ func (c *SheetsTableCreateCmd) Run(ctx context.Context, flags *RootFlags) error 
 	var tableID string
 	if len(resp.Replies) > 0 && resp.Replies[0].AddTable != nil {
 		tableID = resp.Replies[0].AddTable.Table.TableId
+	}
+
+	if gridRange.StartColumnIndex > 0 && len(columnDefs) > 0 {
+		headerRow := make([]interface{}, len(columnDefs))
+		for i, def := range columnDefs {
+			headerRow[i] = def.ColumnName
+		}
+		startColLetter := columnIndexToLetter(int(gridRange.StartColumnIndex))
+		endColLetter := columnIndexToLetter(int(gridRange.StartColumnIndex) + len(columnDefs) - 1)
+		headerRange := fmt.Sprintf("%s!%s%d:%s%d",
+			sheetName,
+			startColLetter,
+			int(gridRange.StartRowIndex)+1,
+			endColLetter,
+			int(gridRange.StartRowIndex)+1)
+		_, _ = svc.Spreadsheets.Values.Update(spreadsheetID, headerRange,
+			&sheets.ValueRange{Values: [][]interface{}{headerRow}}).
+			ValueInputOption("USER_ENTERED").
+			Do()
 	}
 
 	if outfmt.IsJSON(ctx) {
