@@ -32,6 +32,45 @@ type SlidesCmd struct {
 	ReadSlide          SlidesReadSlideCmd          `cmd:"" name:"read-slide" help:"Read slide content: speaker notes, text elements, and images"`
 	UpdateNotes        SlidesUpdateNotesCmd        `cmd:"" name:"update-notes" help:"Update speaker notes on an existing slide"`
 	ReplaceSlide       SlidesReplaceSlideCmd       `cmd:"" name:"replace-slide" help:"Replace the image on an existing slide in-place"`
+	Raw                SlidesRawCmd                `cmd:"" name:"raw" help:"Dump raw Google Slides API response as JSON (Presentations.Get; lossless; for scripting and LLM consumption)"`
+}
+
+// SlidesRawCmd dumps the full Presentations.Get response as JSON. The
+// Slides API has no field mask, so output is unconditionally lossless.
+// Note: response may contain short-lived authenticated image/video URLs
+// (see docs/raw-audit.md for the risk assessment).
+//
+// REST reference: https://developers.google.com/slides/api/reference/rest/v1/presentations/get
+// Go type: https://pkg.go.dev/google.golang.org/api/slides/v1#Presentation
+type SlidesRawCmd struct {
+	PresentationID string `arg:"" name:"presentationId" help:"Presentation ID"`
+	Pretty         bool   `name:"pretty" help:"Pretty-print JSON (default: compact single-line)"`
+}
+
+func (c *SlidesRawCmd) Run(ctx context.Context, flags *RootFlags) error {
+	id := strings.TrimSpace(c.PresentationID)
+	if id == "" {
+		return usage("empty presentationId")
+	}
+
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
+	}
+	svc, err := newSlidesService(ctx, account)
+	if err != nil {
+		return err
+	}
+
+	pres, err := svc.Presentations.Get(id).Context(ctx).Do()
+	if err != nil {
+		return err
+	}
+	if pres == nil {
+		return errors.New("presentation not found")
+	}
+
+	return outfmt.WriteRaw(ctx, os.Stdout, pres, outfmt.RawOptions{Pretty: c.Pretty})
 }
 
 type SlidesExportCmd struct {

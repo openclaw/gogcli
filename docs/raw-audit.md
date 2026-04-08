@@ -28,12 +28,16 @@ Go type: <https://pkg.go.dev/google.golang.org/api/docs/v1#Document>
 
 | Field | Risk | Default handling |
 |---|---|---|
-| `inlineObjects.*.embeddedObject.imageProperties.contentUri` | Short-lived (~30 min) bearer-style authenticated image URL | Redact |
-| `inlineObjects.*.embeddedObject.imageProperties.sourceUri` | May reference private source URLs | Redact |
+| `inlineObjects.*.embeddedObject.imageProperties.contentUri` | Short-lived (~30 min) bearer-style authenticated image URL | **Ship as-is** |
+| `inlineObjects.*.embeddedObject.imageProperties.sourceUri` | May reference private source URLs | **Ship as-is** |
 
-No credentials, tokens, or OAuth metadata in the response. Document body,
-named ranges, suggestions, headers/footers are user content the caller
-already has read access to — ship as-is.
+**Why not redact:** the Docs API has no field mask, so the principled
+"redact only what the user didn't name" rule has no escape hatch.
+These image URIs are short-lived (~30 min) and require the caller's
+auth anyway — substantially lower risk than Drive's `thumbnailLink`.
+The lossless guarantee is valued more than the marginal hardening.
+
+No credentials, tokens, or OAuth metadata in the response.
 
 ### 2. `sheets.Spreadsheets.Get` — `gog sheets raw`
 
@@ -58,9 +62,12 @@ Go type: <https://pkg.go.dev/google.golang.org/api/slides/v1#Presentation>
 
 | Field | Risk | Default handling |
 |---|---|---|
-| `slides[].pageElements[].image.contentUrl` | Short-lived authenticated image URL (same class as Docs `contentUri`) | Redact |
-| `slides[].pageElements[].image.sourceUrl` | Possibly private origin URL | Redact |
-| `slides[].pageElements[].video.url` | Drive video refs may carry signed access | Redact |
+| `slides[].pageElements[].image.contentUrl` | Short-lived authenticated image URL (same class as Docs `contentUri`) | **Ship as-is** |
+| `slides[].pageElements[].image.sourceUrl` | Possibly private origin URL | **Ship as-is** |
+| `slides[].pageElements[].video.url` | Drive video refs may carry signed access | **Ship as-is** |
+
+Same rationale as Docs: no field mask, short-lived URLs, auth-gated,
+lower risk than Drive. Lossless guarantee preferred.
 
 ### 4. `drive.Files.Get` with `fields=*` — `gog drive raw` *(highest risk)*
 
