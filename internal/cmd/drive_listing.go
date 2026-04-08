@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"google.golang.org/api/drive/v3"
+	gapi "google.golang.org/api/googleapi"
 
 	"github.com/steipete/gogcli/internal/outfmt"
 	"github.com/steipete/gogcli/internal/ui"
@@ -19,6 +20,7 @@ type driveFileListOptions struct {
 	max       int64
 	page      string
 	allDrives bool
+	fields    string // optional field mask override
 }
 
 func (c *DriveLsCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -46,6 +48,7 @@ func (c *DriveLsCmd) Run(ctx context.Context, flags *RootFlags) error {
 		max:       c.Max,
 		page:      c.Page,
 		allDrives: c.AllDrives,
+		fields:    c.Fields,
 	})
 	if err != nil {
 		return err
@@ -85,7 +88,11 @@ func listDriveFiles(ctx context.Context, svc *drive.Service, opts driveFileListO
 		PageToken(opts.page).
 		OrderBy("modifiedTime desc")
 	call = driveFilesListCallWithDriveSupport(call, opts.allDrives)
-	return call.Fields(driveFileListFields).Context(ctx).Do()
+	mask := driveFileListFields
+	if strings.TrimSpace(opts.fields) != "" {
+		mask = opts.fields
+	}
+	return call.Fields(gapi.Field(mask)).Context(ctx).Do()
 }
 
 func writeDriveFileList(ctx context.Context, resp *drive.FileList, emptyMessage string) error {

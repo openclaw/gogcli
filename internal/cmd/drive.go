@@ -178,6 +178,7 @@ type DriveLsCmd struct {
 	Parent    string `name:"parent" help:"Folder ID to list (default: root)"`
 	All       bool   `name:"all" aliases:"global" help:"List all accessible files (mutually exclusive with --parent)"`
 	AllDrives bool   `name:"all-drives" help:"Include shared drives (default: true; use --no-all-drives for My Drive only)" default:"true" negatable:"_"`
+	Fields    string `name:"fields" help:"Drive API field mask (overrides the default set; e.g. 'files(id,name,thumbnailLink),nextPageToken')"`
 }
 
 type DriveSearchCmd struct {
@@ -190,6 +191,7 @@ type DriveSearchCmd struct {
 
 type DriveGetCmd struct {
 	FileID string `arg:"" name:"fileId" help:"File ID"`
+	Fields string `name:"fields" help:"Drive API field mask (overrides the default set; e.g. 'id,name,thumbnailLink')"`
 }
 
 func (c *DriveGetCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -208,9 +210,13 @@ func (c *DriveGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
+	mask := "id, name, mimeType, size, modifiedTime, createdTime, parents, webViewLink, description, starred"
+	if strings.TrimSpace(c.Fields) != "" {
+		mask = c.Fields
+	}
 	f, err := svc.Files.Get(fileID).
 		SupportsAllDrives(true).
-		Fields("id, name, mimeType, size, modifiedTime, createdTime, parents, webViewLink, description, starred").
+		Fields(gapi.Field(mask)).
 		Context(ctx).
 		Do()
 	if err != nil {
