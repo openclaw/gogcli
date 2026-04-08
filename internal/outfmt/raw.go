@@ -23,11 +23,14 @@ type RawOptions struct {
 func WriteRaw(_ context.Context, w io.Writer, v any, opts RawOptions) error {
 	enc := json.NewEncoder(w)
 	enc.SetEscapeHTML(false)
+
 	if opts.Pretty {
 		enc.SetIndent("", "  ")
 	}
+
 	if err := enc.Encode(v); err != nil {
 		return fmt.Errorf("encode raw json: %w", err)
 	}
+
 	return nil
 }
