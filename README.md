@@ -983,6 +983,15 @@ gog sheets rename-tab <spreadsheetId> <oldName> <newName>
 gog sheets delete-tab <spreadsheetId> <tabName> --force
 gog sheets raw <spreadsheetId>                       # Lossless JSON dump of Spreadsheets.Get
 gog sheets raw <spreadsheetId> --include-grid-data   # Include cell-level data (off by default)
+
+# Other raw dumps (gmail, calendar, people, contacts, tasks, forms)
+gog gmail raw <messageId>                            # Lossless JSON dump of Users.Messages.Get (default format=full)
+gog gmail raw <messageId> --format raw               # Gmail's native format=raw (base64url RFC822)
+gog calendar raw <calendarId> <eventId>              # Lossless JSON dump of Events.Get
+gog people raw people/<resourceName>                 # Lossless JSON dump of People.Get
+gog contacts raw people/<resourceName>               # Same endpoint, exposed under the contacts group
+gog tasks raw <tasklistId> <taskId>                  # Lossless JSON dump of Tasks.Get
+gog forms raw <formId>                               # Lossless JSON dump of Forms.Get
 ```
 
 **Raw vs other read subcommands.** Use `raw` when you need the full
