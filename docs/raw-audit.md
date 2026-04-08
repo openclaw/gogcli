@@ -89,6 +89,80 @@ Go type: <https://pkg.go.dev/google.golang.org/api/drive/v3#File>
 set**. Passing `--fields "id,name,thumbnailLink"` returns `thumbnailLink`
 verbatim — the user named it.
 
+## Per-endpoint findings (PR #2 scope)
+
+### 5. `gmail.Users.Messages.Get` — `gog gmail raw`
+
+REST ref: <https://developers.google.com/gmail/api/reference/rest/v1/users.messages/get>
+Go type: <https://pkg.go.dev/google.golang.org/api/gmail/v1#Message>
+
+The subcommand name "raw" collides with Gmail's native `format=raw`
+(base64url-encoded RFC822 blob). `gog gmail raw` defaults to
+`format=FULL` (full parsed Message struct) and exposes `--format
+full|metadata|minimal|raw` for users who want Gmail's RAW. Help text
+documents both senses.
+
+| Field | Risk | Default handling |
+|---|---|---|
+| `payload.body.data` (base64url) | Email body; user already has read access | Ship as-is |
+| `payload.headers` | May contain `Received-SPF`, `DKIM-Signature`, routing metadata | Ship as-is |
+| `raw` (when `--format=raw`) | Full RFC822 source including original attachments | Ship as-is — user asked for it |
+
+No credential leakage risk. Caller already holds the Gmail scope.
+
+### 6. `calendar.Events.Get` — `gog calendar raw`
+
+REST ref: <https://developers.google.com/calendar/api/v3/reference/events/get>
+Go type: <https://pkg.go.dev/google.golang.org/api/calendar/v3#Event>
+
+| Field | Risk | Default handling |
+|---|---|---|
+| `attendees[].email` | Attendee emails (PII) | Ship as-is — caller already on the event ACL |
+| `conferenceData.entryPoints[].uri` | Meeting URLs (Meet/Zoom) including passwords in params | Ship as-is — user asked for the event |
+| `extendedProperties.private` / `extendedProperties.shared` | App-stashed KV; third-party apps may use for secrets | Ship as-is (same rationale as Sheets `developerMetadata`) |
+
+No redaction. The risk surface here is fundamentally the same as
+simply reading the event in the Calendar UI.
+
+### 7. `people.People.Get` — `gog people raw` / `gog contacts raw`
+
+REST ref: <https://developers.google.com/people/api/rest/v1/people/get>
+Go type: <https://pkg.go.dev/google.golang.org/api/people/v1#Person>
+
+Both `gog people raw` and `gog contacts raw` call the same underlying
+`people.Get` endpoint. Requires `--person-fields` (Google's field mask
+for the People API, required on every request).
+
+| Field | Risk | Default handling |
+|---|---|---|
+| `emailAddresses`, `phoneNumbers`, `addresses`, `biographies` | PII; user's own contacts | Ship as-is |
+| `userDefined[]` | Arbitrary KV custom fields; may store secrets | Ship as-is |
+| `metadata.sources[].profileMetadata.userTypes` | Account type disclosure | Ship as-is |
+
+### 8. `tasks.Tasks.Get` — `gog tasks raw`
+
+REST ref: <https://developers.google.com/tasks/reference/rest/v1/tasks/get>
+Go type: <https://pkg.go.dev/google.golang.org/api/tasks/v1#Task>
+
+| Field | Risk | Default handling |
+|---|---|---|
+| `notes` | User-entered free text | Ship as-is |
+| `links[].link` | External URLs attached to a task | Ship as-is |
+
+No sensitivity concerns beyond the caller's own task data.
+
+### 9. `forms.Forms.Get` — `gog forms raw`
+
+REST ref: <https://developers.google.com/forms/api/reference/rest/v1/forms/get>
+Go type: <https://pkg.go.dev/google.golang.org/api/forms/v1#Form>
+
+| Field | Risk | Default handling |
+|---|---|---|
+| `items[].questionItem.question.grading` | Correct answers for graded forms | Ship as-is — caller is the form owner |
+| `linkedSheetId` | ID of the responses spreadsheet | Ship as-is |
+
+No redaction. The form owner already has access to everything here.
+
 ## Cross-cutting observations
 
 - Google APIs never return OAuth access tokens, refresh tokens, or client
