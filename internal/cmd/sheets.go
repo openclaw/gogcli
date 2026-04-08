@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -43,6 +44,7 @@ type SheetsCmd struct {
 	Links         SheetsLinksCmd         `cmd:"" name:"links" aliases:"hyperlinks" help:"Get cell hyperlinks from a range"`
 	Named         SheetsNamedRangesCmd   `cmd:"" name:"named-ranges" aliases:"namedranges,nr" help:"Manage named ranges"`
 	Metadata      SheetsMetadataCmd      `cmd:"" name:"metadata" aliases:"info" help:"Get spreadsheet metadata"`
+	Raw           SheetsRawCmd           `cmd:"" name:"raw" help:"Dump raw Google Sheets API response as JSON (Spreadsheets.Get; lossless; for scripting and LLM consumption)"`
 	Create        SheetsCreateCmd        `cmd:"" name:"create" aliases:"new" help:"Create a new spreadsheet"`
 	Copy          SheetsCopyCmd          `cmd:"" name:"copy" aliases:"cp,duplicate" help:"Copy a Google Sheet"`
 	Export        SheetsExportCmd        `cmd:"" name:"export" aliases:"download,dl" help:"Export a Google Sheet (pdf|xlsx|csv) via Drive"`
@@ -413,6 +415,52 @@ func (c *SheetsClearCmd) Run(ctx context.Context, flags *RootFlags) error {
 
 	u.Out().Printf("Cleared %s", resp.ClearedRange)
 	return nil
+}
+
+// SheetsRawCmd dumps the full Spreadsheets.Get response as JSON, with no
+// Fields restriction. `--include-grid-data` opts into returning cell-level
+// data; it is off by default because grid payloads can be multi-MB and are
+// the primary leakage vector (formulas may embed API keys or tokens).
+//
+// REST reference: https://developers.google.com/sheets/api/reference/rest/v4/spreadsheets/get
+// Go type: https://pkg.go.dev/google.golang.org/api/sheets/v4#Spreadsheet
+type SheetsRawCmd struct {
+	SpreadsheetID   string `arg:"" name:"spreadsheetId" help:"Spreadsheet ID"`
+	IncludeGridData bool   `name:"include-grid-data" help:"Include cell-level grid data in the response (off by default; payloads can be large and may contain secrets in formulas)"`
+	Pretty          bool   `name:"pretty" help:"Pretty-print JSON (default: compact single-line)"`
+}
+
+func (c *SheetsRawCmd) Run(ctx context.Context, flags *RootFlags) error {
+	u := ui.FromContext(ctx)
+	spreadsheetID := normalizeGoogleID(strings.TrimSpace(c.SpreadsheetID))
+	if spreadsheetID == "" {
+		return usage("empty spreadsheetId")
+	}
+
+	_, svc, err := requireSheetsService(ctx, flags)
+	if err != nil {
+		return err
+	}
+
+	call := svc.Spreadsheets.Get(spreadsheetID).Context(ctx)
+	if c.IncludeGridData {
+		call = call.IncludeGridData(true)
+		u.Err().Println("warning: --include-grid-data may expose cell-level formulas that contain API keys or hardcoded secrets")
+	}
+
+	resp, err := call.Do()
+	if err != nil {
+		return err
+	}
+	if resp == nil {
+		return errors.New("spreadsheet not found")
+	}
+
+	if len(resp.DeveloperMetadata) > 0 {
+		u.Err().Println("warning: response contains developerMetadata which may hold third-party app secrets")
+	}
+
+	return outfmt.WriteRaw(ctx, os.Stdout, resp, outfmt.RawOptions{Pretty: c.Pretty})
 }
 
 type SheetsMetadataCmd struct {
