@@ -24,6 +24,7 @@ type FormsCmd struct {
 	MoveQuestion   FormsMoveQuestionCmd   `cmd:"" name:"move-question" aliases:"move-q,mq" help:"Move a question to a new position"`
 	Responses      FormsResponsesCmd      `cmd:"" name:"responses" help:"Form responses"`
 	Watch          FormsWatchCmd          `cmd:"" name:"watch" aliases:"watches" help:"Response watches (push notifications)"`
+	Raw            FormsRawCmd            `cmd:"" name:"raw" help:"Dump raw Google Forms API response as JSON (Forms.Get; lossless; for scripting and LLM consumption)"`
 }
 
 type FormsResponsesCmd struct {
