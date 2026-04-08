@@ -34,6 +34,44 @@ type DocsCmd struct {
 	Sed         DocsSedCmd         `cmd:"" name:"sed" help:"Regex find/replace (sed-style: s/pattern/replacement/g)"`
 	Clear       DocsClearCmd       `cmd:"" name:"clear" help:"Clear all content from a Google Doc"`
 	Structure   DocsStructureCmd   `cmd:"" name:"structure" aliases:"struct" help:"Show document structure with numbered paragraphs"`
+	Raw         DocsRawCmd         `cmd:"" name:"raw" help:"Dump raw Google Docs API response as JSON (Documents.Get; lossless; for scripting and LLM consumption)"`
+}
+
+// DocsRawCmd dumps the full Documents.Get response as JSON, with no Fields
+// restriction. Intended for programmatic / LLM consumption where the caller
+// wants the canonical Google Docs API tree (tables, suggestions, per-run
+// styling, list nesting, named ranges, inline objects) that `info` drops.
+//
+// REST reference: https://developers.google.com/docs/api/reference/rest/v1/documents/get
+// Go type: https://pkg.go.dev/google.golang.org/api/docs/v1#Document
+type DocsRawCmd struct {
+	DocID  string `arg:"" name:"docId" help:"Doc ID"`
+	Pretty bool   `name:"pretty" help:"Pretty-print JSON (default: compact single-line)"`
+}
+
+func (c *DocsRawCmd) Run(ctx context.Context, flags *RootFlags) error {
+	id := strings.TrimSpace(c.DocID)
+	if id == "" {
+		return usage("empty docId")
+	}
+
+	svc, err := requireDocsService(ctx, flags)
+	if err != nil {
+		return err
+	}
+
+	doc, err := svc.Documents.Get(id).Context(ctx).Do()
+	if err != nil {
+		if isDocsNotFound(err) {
+			return fmt.Errorf("doc not found or not a Google Doc (id=%s)", id)
+		}
+		return err
+	}
+	if doc == nil {
+		return errors.New("doc not found")
+	}
+
+	return outfmt.WriteRaw(ctx, os.Stdout, doc, outfmt.RawOptions{Pretty: c.Pretty})
 }
 
 type DocsExportCmd struct {
