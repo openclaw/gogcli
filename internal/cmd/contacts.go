@@ -21,6 +21,7 @@ type ContactsCmd struct {
 	Delete    ContactsDeleteCmd    `cmd:"" name:"delete" aliases:"rm,del,remove" help:"Delete a contact"`
 	Directory ContactsDirectoryCmd `cmd:"" name:"directory" help:"Directory contacts"`
 	Other     ContactsOtherCmd     `cmd:"" name:"other" help:"Other contacts"`
+	Raw       ContactsRawCmd       `cmd:"" name:"raw" help:"Dump raw People API response as JSON (People.Get; lossless; for scripting and LLM consumption)"`
 }
 
 type ContactsSearchCmd struct {
