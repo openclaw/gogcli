@@ -16,4 +16,5 @@ type TasksCmd struct {
 	Undo   TasksUndoCmd   `cmd:"" name:"undo" help:"Mark task needs action" aliases:"uncomplete,undone"`
 	Delete TasksDeleteCmd `cmd:"" name:"delete" aliases:"rm,del,remove" help:"Delete a task"`
 	Clear  TasksClearCmd  `cmd:"" name:"clear" help:"Clear completed tasks"`
+	Raw    TasksRawCmd    `cmd:"" name:"raw" help:"Dump raw Google Tasks API response as JSON (Tasks.Get; lossless; for scripting and LLM consumption)"`
 }
