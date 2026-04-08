@@ -34,10 +34,11 @@ func (c *GmailRawCmd) Run(ctx context.Context, flags *RootFlags) error {
 
 	format := strings.TrimSpace(c.Format)
 	if format == "" {
-		format = "full"
+		format = gmailFormatFull
 	}
+
 	switch format {
-	case "full", "metadata", "minimal", "raw":
+	case gmailFormatFull, gmailFormatMetadata, gmailFormatMinimal, gmailFormatRaw:
 	default:
 		return fmt.Errorf("invalid --format: %q (expected full|metadata|minimal|raw)", format)
 	}
