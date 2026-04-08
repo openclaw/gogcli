@@ -4,6 +4,8 @@
 
 ### Added
 - Gmail: add `gmail autoreply` to reply once to matching messages, label the thread for dedupe, and optionally archive/mark read. Includes docs and regression coverage for skip/reply flows.
+- Raw API dumps: new `gog docs raw`, `gog sheets raw`, `gog slides raw`, and `gog drive raw` subcommands emit the canonical Google API response as JSON for lossless scripting and LLM consumption. Compact by default; `--pretty` for indented output. `sheets raw` gates cell-level data behind `--include-grid-data` (off by default) and warns on stderr when grid data or `developerMetadata` is present. `drive raw` defaults to `fields=*` and redacts a small set of capability/token-shaped fields (thumbnailLink, webContentLink, exportLinks, resourceKey, appProperties, properties, contentHints.thumbnail.image); passing `--fields` honors the request verbatim so users who name a field get it. See `docs/raw-audit.md` for the redaction rationale.
+- Drive: `drive ls` and `drive get` now accept a `--fields` flag mapping directly to the Drive API field mask, so callers can request fields beyond the hard-coded default set (thumbnailLink, imageMediaMetadata, etc.). Closes #486.
 
 ## 0.12.0 - 2026-03-09
 

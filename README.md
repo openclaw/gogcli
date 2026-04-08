@@ -914,6 +914,15 @@ gog drive unshare <fileId> --permission-id <permissionId>
 
 # Shared drives (Team Drives)
 gog drive drives --max 100
+
+# Request extra fields from the Drive API (closes #486)
+gog drive ls --fields "files(id,name,thumbnailLink),nextPageToken"
+gog drive get <fileId> --fields "id,name,thumbnailLink,imageMediaMetadata"
+
+# Raw API dump (lossless JSON for scripting/LLMs)
+gog drive raw <fileId>                            # fields=*, sensitive fields redacted by default
+gog drive raw <fileId> --fields "id,name,thumbnailLink"  # honors user-named fields verbatim
+gog drive raw <fileId> --pretty
 ```
 
 ### Docs / Slides / Sheets
@@ -938,6 +947,8 @@ gog docs write <docId> --text "Rewrite one tab" --tab-id t.notes
 gog docs write <docId> --file ./body.txt --append --pageless
 gog docs find-replace <docId> "old" "new"
 gog docs find-replace <docId> "old" "new" --tab-id t.notes
+gog docs raw <docId>                                # Lossless JSON dump of Documents.Get (LLM/scripting)
+gog docs raw <docId> --pretty
 
 # Slides
 gog slides info <presentationId>
@@ -950,6 +961,7 @@ gog slides list-slides <presentationId>
 gog slides add-slide <presentationId> ./slide.png --notes "Speaker notes"
 gog slides update-notes <presentationId> <slideId> --notes "Updated notes"
 gog slides replace-slide <presentationId> <slideId> ./new-slide.png --notes "New notes"
+gog slides raw <presentationId>                     # Lossless JSON dump of Presentations.Get
 
 # Sheets
 gog sheets copy <spreadsheetId> "My Sheet Copy"
@@ -969,7 +981,26 @@ gog sheets links <spreadsheetId> 'Sheet1!A1:B10'
 gog sheets add-tab <spreadsheetId> <tabName>
 gog sheets rename-tab <spreadsheetId> <oldName> <newName>
 gog sheets delete-tab <spreadsheetId> <tabName> --force
+gog sheets raw <spreadsheetId>                       # Lossless JSON dump of Spreadsheets.Get
+gog sheets raw <spreadsheetId> --include-grid-data   # Include cell-level data (off by default)
 ```
+
+**Raw vs other read subcommands.** Use `raw` when you need the full
+canonical Google API response as JSON (e.g. feeding a doc into an LLM,
+or scripting against structural fields `cat`/`structure` drop). Other
+read commands are lossier on purpose:
+
+- `docs info`, `sheets metadata`, `slides info`, `drive get` → metadata only (cheap)
+- `docs cat`, `docs structure` → plain text / simplified structure
+- `docs export`, `sheets export`, `slides export`, `drive download` → converted file formats (pdf/docx/xlsx/pptx/md)
+- `<group> raw` → full API response as JSON (verbose, lossless)
+
+`drive raw` defaults to `fields=*` and redacts a small set of
+capability/token-shaped fields (thumbnailLink, webContentLink,
+exportLinks, resourceKey, appProperties, properties,
+contentHints.thumbnail.image). When `--fields` is supplied the response
+is returned verbatim — the user named the field, they get it. See
+[`docs/raw-audit.md`](docs/raw-audit.md) for the redaction rationale.
 
 ### Contacts
 
