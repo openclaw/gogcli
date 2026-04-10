@@ -30,6 +30,7 @@ type SlidesCmd struct {
 	ListSlides         SlidesListSlidesCmd         `cmd:"" name:"list-slides" help:"List all slides with their object IDs"`
 	DeleteSlide        SlidesDeleteSlideCmd        `cmd:"" name:"delete-slide" help:"Delete a slide by object ID"`
 	ReadSlide          SlidesReadSlideCmd          `cmd:"" name:"read-slide" help:"Read slide content: speaker notes, text elements, and images"`
+	Thumbnail          SlidesThumbnailCmd          `cmd:"" name:"thumbnail" aliases:"thumb" help:"Get or download a rendered thumbnail for a slide"`
 	UpdateNotes        SlidesUpdateNotesCmd        `cmd:"" name:"update-notes" help:"Update speaker notes on an existing slide"`
 	ReplaceSlide       SlidesReplaceSlideCmd       `cmd:"" name:"replace-slide" help:"Replace the image on an existing slide in-place"`
 }

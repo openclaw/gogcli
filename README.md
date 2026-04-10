@@ -1372,6 +1372,21 @@ EOF
 
 gog slides create-from-template <templateId> "Monthly Report" \
   --replacements replacements.json
+
+# Read slide content (text, notes, images)
+gog slides read-slide <presentationId> <slideId>
+
+# Include grouped elements, word art, and tables
+gog slides read-slide <presentationId> <slideId> --recursive --json
+
+# Get a rendered slide thumbnail URL
+gog slides thumbnail <presentationId> <slideId>
+
+# Download a rendered slide thumbnail
+gog slides thumbnail <presentationId> <slideId> --output ./slide.png
+
+# Control thumbnail size and format
+gog slides thumbnail <presentationId> <slideId> --size medium --format jpeg --output ./slide.jpg
 ```
 
 ## Output Formats
