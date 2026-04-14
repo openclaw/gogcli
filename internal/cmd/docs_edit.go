@@ -8,6 +8,8 @@ import (
 
 	"github.com/alecthomas/kong"
 	"google.golang.org/api/docs/v1"
+	"google.golang.org/api/drive/v3"
+	gapi "google.golang.org/api/googleapi"
 
 	"github.com/steipete/gogcli/internal/outfmt"
 	"github.com/steipete/gogcli/internal/ui"
@@ -17,6 +19,8 @@ type DocsWriteCmd struct {
 	DocID    string `arg:"" name:"docId" help:"Doc ID"`
 	Text     string `name:"text" help:"Text to write"`
 	File     string `name:"file" help:"Text file path ('-' for stdin)"`
+	Replace  bool   `name:"replace" help:"Replace all content explicitly (required with --markdown)"`
+	Markdown bool   `name:"markdown" help:"Convert markdown to Google Docs formatting (requires --replace)"`
 	Append   bool   `name:"append" help:"Append instead of replacing the document body"`
 	Pageless bool   `name:"pageless" help:"Set document to pageless mode"`
 	TabID    string `name:"tab-id" help:"Target a specific tab by ID (see docs list-tabs)"`
@@ -38,6 +42,12 @@ func (c *DocsWriteCmd) Run(ctx context.Context, kctx *kong.Context, flags *RootF
 	}
 	if text == "" {
 		return usage("empty text")
+	}
+	if c.Append && c.Replace {
+		return usage("--append cannot be combined with --replace")
+	}
+	if c.Markdown {
+		return c.writeMarkdown(ctx, flags, id, text)
 	}
 
 	svc, err := requireDocsService(ctx, flags)
@@ -110,6 +120,69 @@ func (c *DocsWriteCmd) Run(ctx context.Context, kctx *kong.Context, flags *RootF
 	}
 	if resp.WriteControl != nil && resp.WriteControl.RequiredRevisionId != "" {
 		u.Out().Printf("revision\t%s", resp.WriteControl.RequiredRevisionId)
+	}
+	return nil
+}
+
+func (c *DocsWriteCmd) writeMarkdown(ctx context.Context, flags *RootFlags, docID, content string) error {
+	u := ui.FromContext(ctx)
+
+	if !c.Replace {
+		return usage("--markdown requires --replace")
+	}
+	if c.Append {
+		return usage("--markdown cannot be combined with --append")
+	}
+	if c.TabID != "" {
+		return usage("--markdown cannot be combined with --tab-id")
+	}
+
+	_, driveSvc, err := requireDriveService(ctx, flags)
+	if err != nil {
+		return err
+	}
+
+	updated, err := driveSvc.Files.Update(docID, &drive.File{}).
+		Media(strings.NewReader(content), gapi.ContentType(mimeTextMarkdown)).
+		SupportsAllDrives(true).
+		Fields("id,name,webViewLink").
+		Context(ctx).
+		Do()
+	if err != nil {
+		return fmt.Errorf("writing markdown to document: %w", err)
+	}
+
+	if c.Pageless {
+		docsSvc, svcErr := requireDocsService(ctx, flags)
+		if svcErr != nil {
+			return svcErr
+		}
+		if err := setDocumentPageless(ctx, docsSvc, docID); err != nil {
+			return fmt.Errorf("set pageless mode: %w", err)
+		}
+	}
+
+	if outfmt.IsJSON(ctx) {
+		payload := map[string]any{
+			"documentId": updated.Id,
+			"written":    len(content),
+			"replaced":   true,
+			"markdown":   true,
+		}
+		if c.Pageless {
+			payload["pageless"] = true
+		}
+		return outfmt.WriteJSON(ctx, os.Stdout, payload)
+	}
+
+	u.Out().Printf("documentId\t%s", updated.Id)
+	u.Out().Printf("written\t%d", len(content))
+	u.Out().Printf("mode\treplaced (markdown converted)")
+	if c.Pageless {
+		u.Out().Printf("pageless\ttrue")
+	}
+	if updated.WebViewLink != "" {
+		u.Out().Printf("link\t%s", updated.WebViewLink)
 	}
 	return nil
 }
