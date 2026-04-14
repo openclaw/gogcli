@@ -373,8 +373,8 @@ func TestDocsWrite_MarkdownReplaceUsesDriveUpdate(t *testing.T) {
 		switch {
 		case strings.HasPrefix(r.URL.Path, "/upload/drive/v3/files/doc1"):
 			sawDriveUpdate = true
-			if qerr := driveAllDrivesQueryError(r, false); qerr != "" {
-				t.Fatalf("drive update query: %s", qerr)
+			if got := r.URL.Query().Get("supportsAllDrives"); got != "true" {
+				t.Fatalf("drive update query: missing supportsAllDrives=true, got %q", got)
 			}
 			if got := r.Header.Get("Content-Type"); !strings.Contains(got, "text/markdown") && !strings.Contains(got, "multipart/related") {
 				t.Fatalf("unexpected content type: %s", got)
