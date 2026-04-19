@@ -138,6 +138,122 @@ func TestExecute_ChatSpacesFind_JSON(t *testing.T) {
 	}
 }
 
+func TestExecute_ChatSpacesFind_Substring(t *testing.T) {
+	origNew := newChatService
+	t.Cleanup(func() { newChatService = origNew })
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !(r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/spaces")) {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"spaces": []map[string]any{
+				{"name": "spaces/aaa", "displayName": "My Project Team", "spaceType": "SPACE"},
+				{"name": "spaces/bbb", "displayName": "Project Alpha", "spaceType": "SPACE"},
+				{"name": "spaces/ccc", "displayName": "Random Channel", "spaceType": "SPACE"},
+				{"name": "spaces/ddd", "displayName": "Old Project Archive", "spaceType": "SPACE"},
+			},
+		})
+	}))
+	defer srv.Close()
+
+	svc, err := chat.NewService(context.Background(),
+		option.WithoutAuthentication(),
+		option.WithHTTPClient(srv.Client()),
+		option.WithEndpoint(srv.URL+"/"),
+	)
+	if err != nil {
+		t.Fatalf("NewService: %v", err)
+	}
+	newChatService = func(context.Context, string) (*chat.Service, error) { return svc, nil }
+
+	// Default behavior: substring, case-insensitive. "project" must match all
+	// three entries whose DisplayName contains "Project", and must exclude the
+	// unrelated "Random Channel".
+	out := captureStdout(t, func() {
+		_ = captureStderr(t, func() {
+			if err := Execute([]string{"--json", "--account", "a@b.com", "chat", "spaces", "find", "project"}); err != nil {
+				t.Fatalf("Execute: %v", err)
+			}
+		})
+	})
+
+	var parsed struct {
+		Spaces []struct {
+			Resource string `json:"resource"`
+			Name     string `json:"name"`
+		} `json:"spaces"`
+	}
+	if err := json.Unmarshal([]byte(out), &parsed); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	got := make(map[string]bool, len(parsed.Spaces))
+	for _, s := range parsed.Spaces {
+		got[s.Resource] = true
+	}
+	if len(got) != 3 || !got["spaces/aaa"] || !got["spaces/bbb"] || !got["spaces/ddd"] {
+		t.Fatalf("substring search must match all three 'Project' spaces, got %#v", parsed.Spaces)
+	}
+	if got["spaces/ccc"] {
+		t.Fatalf("substring search must not match 'Random Channel', got %#v", parsed.Spaces)
+	}
+}
+
+func TestExecute_ChatSpacesFind_Exact(t *testing.T) {
+	origNew := newChatService
+	t.Cleanup(func() { newChatService = origNew })
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !(r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/spaces")) {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"spaces": []map[string]any{
+				{"name": "spaces/aaa", "displayName": "My Project Team", "spaceType": "SPACE"},
+				{"name": "spaces/bbb", "displayName": "Project Alpha", "spaceType": "SPACE"},
+			},
+		})
+	}))
+	defer srv.Close()
+
+	svc, err := chat.NewService(context.Background(),
+		option.WithoutAuthentication(),
+		option.WithHTTPClient(srv.Client()),
+		option.WithEndpoint(srv.URL+"/"),
+	)
+	if err != nil {
+		t.Fatalf("NewService: %v", err)
+	}
+	newChatService = func(context.Context, string) (*chat.Service, error) { return svc, nil }
+
+	// --exact must restore the legacy case-insensitive equality behavior: only
+	// the space whose DisplayName equals "project alpha" (ignoring case)
+	// is returned.
+	out := captureStdout(t, func() {
+		_ = captureStderr(t, func() {
+			if err := Execute([]string{"--json", "--account", "a@b.com", "chat", "spaces", "find", "--exact", "project alpha"}); err != nil {
+				t.Fatalf("Execute: %v", err)
+			}
+		})
+	})
+
+	var parsed struct {
+		Spaces []struct {
+			Resource string `json:"resource"`
+		} `json:"spaces"`
+	}
+	if err := json.Unmarshal([]byte(out), &parsed); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if len(parsed.Spaces) != 1 || parsed.Spaces[0].Resource != "spaces/bbb" {
+		t.Fatalf("--exact must return only 'Project Alpha', got %#v", parsed.Spaces)
+	}
+}
+
 func TestExecute_ChatSpacesCreate_JSON(t *testing.T) {
 	origNew := newChatService
 	t.Cleanup(func() { newChatService = origNew })
