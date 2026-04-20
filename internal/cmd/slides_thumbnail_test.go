@@ -295,6 +295,23 @@ func TestSlidesThumbnail_MissingSlideID(t *testing.T) {
 	}
 }
 
+func TestSlidesThumbnail_MissingPresentationID(t *testing.T) {
+	flags := &RootFlags{Account: "a@b.com"}
+	u, uiErr := ui.New(ui.Options{Stdout: io.Discard, Stderr: io.Discard, Color: "never"})
+	if uiErr != nil {
+		t.Fatalf("ui.New: %v", uiErr)
+	}
+	ctx := ui.WithUI(context.Background(), u)
+
+	cmd := &SlidesThumbnailCmd{
+		SlideID: "slide_1",
+	}
+	err := cmd.Run(ctx, flags)
+	if err == nil || !strings.Contains(err.Error(), "empty presentationId") {
+		t.Fatalf("expected empty presentationId error, got: %v", err)
+	}
+}
+
 func TestSlidesThumbnail_APIFailure(t *testing.T) {
 	origSlides := newSlidesService
 	t.Cleanup(func() { newSlidesService = origSlides })

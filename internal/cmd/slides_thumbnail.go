@@ -8,8 +8,6 @@ import (
 	"os"
 	"strings"
 
-	"google.golang.org/api/slides/v1"
-
 	"github.com/steipete/gogcli/internal/outfmt"
 	"github.com/steipete/gogcli/internal/ui"
 )
@@ -21,7 +19,7 @@ type SlidesThumbnailCmd struct {
 	SlideID        string `arg:"" name:"slideId" help:"Slide object ID (use 'slides list-slides' to find IDs)"`
 	Size           string `name:"size" help:"Thumbnail size: small|medium|large" default:"large"`
 	Format         string `name:"format" help:"Thumbnail format: png|jpeg" default:"png"`
-	Output         string `name:"output" help:"Write the thumbnail image to a local file"`
+	Output         string `name:"out" aliases:"output" help:"Write the thumbnail image to a local file"`
 }
 
 func (c *SlidesThumbnailCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -77,12 +75,14 @@ func (c *SlidesThumbnailCmd) Run(ctx context.Context, flags *RootFlags) error {
 		"format":         strings.ToLower(format),
 	}
 
-	if c.Output != "" {
-		written, err := downloadSlidesThumbnail(ctx, thumb.ContentUrl, c.Output)
+	outputPath := strings.TrimSpace(c.Output)
+	if outputPath != "" {
+		written, writtenPath, err := downloadSlidesThumbnail(ctx, thumb.ContentUrl, outputPath)
 		if err != nil {
 			return err
 		}
-		result["output"] = c.Output
+		outputPath = writtenPath
+		result["output"] = writtenPath
 		result["bytes"] = written
 	}
 
@@ -101,8 +101,8 @@ func (c *SlidesThumbnailCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 	u.Out().Printf("size\t%s", strings.ToLower(size))
 	u.Out().Printf("format\t%s", strings.ToLower(format))
-	if c.Output != "" {
-		u.Out().Printf("output\t%s", c.Output)
+	if outputPath != "" {
+		u.Out().Printf("output\t%s", outputPath)
 		if bytes, ok := result["bytes"].(int64); ok {
 			u.Out().Printf("bytes\t%d", bytes)
 		}
@@ -135,34 +135,35 @@ func normalizeSlidesThumbnailFormat(v string) (string, error) {
 	}
 }
 
-func downloadSlidesThumbnail(ctx context.Context, url, outputPath string) (int64, error) {
+func downloadSlidesThumbnail(ctx context.Context, url, outputPath string) (int64, string, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		return 0, fmt.Errorf("build thumbnail download request: %w", err)
+		return 0, "", fmt.Errorf("build thumbnail download request: %w", err)
 	}
 
 	resp, err := slidesThumbnailHTTPClient.Do(req)
 	if err != nil {
-		return 0, fmt.Errorf("download thumbnail: %w", err)
+		return 0, "", fmt.Errorf("download thumbnail: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return 0, fmt.Errorf("download thumbnail: unexpected status %s", resp.Status)
+		return 0, "", fmt.Errorf("download thumbnail: unexpected status %s", resp.Status)
 	}
 
-	f, err := os.Create(outputPath)
+	f, expandedPath, err := createUserOutputFile(outputPath)
 	if err != nil {
-		return 0, fmt.Errorf("create output file: %w", err)
+		return 0, "", fmt.Errorf("create output file: %w", err)
 	}
-	defer f.Close()
 
 	n, err := io.Copy(f, resp.Body)
 	if err != nil {
-		return 0, fmt.Errorf("write output file: %w", err)
+		_ = f.Close()
+		return 0, "", fmt.Errorf("write output file: %w", err)
+	}
+	if err := f.Close(); err != nil {
+		return 0, "", fmt.Errorf("close output file: %w", err)
 	}
 
-	return n, nil
+	return n, expandedPath, nil
 }
-
-var _ = slides.Thumbnail{}
