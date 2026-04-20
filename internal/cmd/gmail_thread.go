@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"unicode/utf8"
 
 	"golang.org/x/net/html/charset"
 	"golang.org/x/text/encoding/ianaindex"
@@ -493,6 +494,15 @@ func decodeBodyCharset(data []byte, contentType string) []byte {
 	charsetLabel := charsetLabelFromContentType(contentType)
 	normalized := strings.ToLower(strings.ReplaceAll(strings.TrimSpace(charsetLabel), "_", "-"))
 	if charsetLabel == "" || normalized == "utf-8" || normalized == "utf8" {
+		return data
+	}
+	// The Gmail API normalizes body.data to UTF-8 before base64url-encoding,
+	// but preserves the original MIME Content-Type headers verbatim. If the
+	// data is already valid UTF-8, skip charset re-decoding to avoid garbling
+	// content (e.g., ISO-2022-JP or Shift-JIS messages already converted by
+	// the API). Genuine non-UTF-8 raw bytes are almost never valid UTF-8, so
+	// this guard is safe.
+	if utf8.Valid(data) {
 		return data
 	}
 	if decoded, ok := decodeWithCharsetLabel(data, charsetLabel); ok {
