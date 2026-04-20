@@ -7,6 +7,7 @@
 - Drive: convert Markdown uploads to Google Docs and strip leading YAML frontmatter by default, with `--keep-frontmatter` to opt out. (#487) — thanks @johnbenjaminlewis.
 - Slides: add `slides thumbnail` / `slides thumb` to fetch rendered slide thumbnail URLs or download PNG/JPEG images. (#498) — thanks @gianpaj.
 - Calendar: add `calendar create-calendar` / `new-calendar` to create secondary calendars with description, timezone, and location. (#455) — thanks @alexknowshtml.
+- Gmail: add `gmail forward` / `gmail fwd` to forward a message with optional note, verified send-as alias, and original attachments. (#482) — thanks @spencer-c-reed.
 - Gmail: add `gmail autoreply` to reply once to matching messages, label the thread for dedupe, and optionally archive/mark read. Includes docs and regression coverage for skip/reply flows.
 - Gmail: add `gmail messages search --full` to print complete message bodies instead of truncating text output. (#447) — thanks @GodsBoy.
 - Drive: allow `drive share --role commenter` for comment-only sharing. (#443) — thanks @pavelzak.

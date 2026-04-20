@@ -60,6 +60,9 @@ func (c *GmailForwardCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if err != nil {
 		return err
 	}
+	if err = checkAccountNoSend(account); err != nil {
+		return err
+	}
 
 	sendAsList, sendAsListErr := listSendAs(ctx, svc)
 	from, err := resolveComposeFrom(ctx, svc, account, c.From, sendAsList, sendAsListErr)
@@ -162,6 +165,21 @@ func writeForwardResult(ctx context.Context, u *ui.UI, fromAddr string, sent *gm
 	return nil
 }
 
+type forwardedHeader struct {
+	label string
+	value string
+}
+
+func forwardedMessageHeaders(from, date, subject, to, cc string) []forwardedHeader {
+	return []forwardedHeader{
+		{"From", from},
+		{"Date", date},
+		{"Subject", subject},
+		{"To", to},
+		{"Cc", cc},
+	}
+}
+
 // buildForwardSubject prepends "Fwd: " to the subject, avoiding duplication.
 func buildForwardSubject(subject string) string {
 	subject = strings.TrimSpace(subject)
@@ -201,20 +219,10 @@ func formatForwardedMessage(note, from, date, subject, to, cc, body string) stri
 	}
 
 	sb.WriteString("---------- Forwarded message ---------\n")
-	if from != "" {
-		fmt.Fprintf(&sb, "From: %s\n", from)
-	}
-	if date != "" {
-		fmt.Fprintf(&sb, "Date: %s\n", date)
-	}
-	if subject != "" {
-		fmt.Fprintf(&sb, "Subject: %s\n", subject)
-	}
-	if to != "" {
-		fmt.Fprintf(&sb, "To: %s\n", to)
-	}
-	if cc != "" {
-		fmt.Fprintf(&sb, "Cc: %s\n", cc)
+	for _, h := range forwardedMessageHeaders(from, date, subject, to, cc) {
+		if h.value != "" {
+			fmt.Fprintf(&sb, "%s: %s\n", h.label, h.value)
+		}
 	}
 	sb.WriteString("\n")
 
@@ -242,16 +250,7 @@ func formatForwardedMessageHTML(note, from, date, subject, to, cc, htmlContent s
 	sb.WriteString(`<div style="margin:0 0 10px 0;color:#777">---------- Forwarded message ---------</div>`)
 	sb.WriteString(`<div style="margin:0 0 10px 0;color:#777">`)
 
-	headerLines := []struct {
-		label, value string
-	}{
-		{"From", from},
-		{"Date", date},
-		{"Subject", subject},
-		{"To", to},
-		{"Cc", cc},
-	}
-	for _, h := range headerLines {
+	for _, h := range forwardedMessageHeaders(from, date, subject, to, cc) {
 		if h.value != "" {
 			displayName := html.EscapeString(h.value)
 			// Format the From address more nicely if it has a name part.

@@ -49,7 +49,7 @@ func isGmailSendPath(path []string) bool {
 		return false
 	}
 	switch path[1] {
-	case gmailSendCommand, "autoreply":
+	case gmailSendCommand, "autoreply", "forward":
 		return true
 	case "drafts":
 		return len(path) >= 3 && path[2] == gmailSendCommand

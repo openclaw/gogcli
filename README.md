@@ -652,6 +652,8 @@ gog gmail send --to a@b.com --subject "Hi" --body "Plain fallback"
 gog gmail send --to a@b.com --subject "Hi" --body-file ./message.txt
 gog gmail send --to a@b.com --subject "Hi" --body-file -   # Read body from stdin
 gog gmail send --to a@b.com --subject "Hi" --body "Plain fallback" --body-html "<p>Hello</p>"
+gog gmail forward <messageId> --to a@b.com --note "FYI"
+gog gmail forward <messageId> --to a@b.com --skip-attachments
 # Reply + include quoted original message (auto-generates HTML quote unless you pass --body-html)
 gog gmail send --reply-to-message-id <messageId> --quote --to a@b.com --subject "Re: Hi" --body "My reply"
 # Draft reply + quote (create requires explicit reply target)

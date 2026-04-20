@@ -280,6 +280,7 @@ Flag aliases:
 - `gog gmail get <messageId> [--format full|metadata|raw] [--headers ...]`
 - `gog gmail attachment <messageId> <attachmentId> [--out PATH] [--name NAME]`
 - `gog gmail url <threadIds...>`
+- `gog gmail forward <messageId> --to a@b.com [--cc ...] [--bcc ...] [--note TEXT|--note-file PATH] [--from addr] [--skip-attachments]`
 - `gog gmail labels list`
 - `gog gmail labels get <labelIdOrName>`
 - `gog gmail labels create <name>`
