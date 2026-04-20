@@ -305,9 +305,12 @@ func startOfDay(t time.Time) time.Time {
 	return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, t.Location())
 }
 
-// endOfDay returns the end of the day (23:59:59.999) in the given time's location.
+// endOfDay returns the start of the next day so that when formatted as
+// RFC3339 (second precision) and used as an exclusive timeMax, the entire
+// target day is included. Previously, 23:59:59.999999999 was truncated to
+// 23:59:59 by time.RFC3339, which excluded events starting at that second.
 func endOfDay(t time.Time) time.Time {
-	return time.Date(t.Year(), t.Month(), t.Day(), 23, 59, 59, 999999999, t.Location())
+	return startOfDay(t.AddDate(0, 0, 1))
 }
 
 // startOfWeek returns the start of the week for the given time.
