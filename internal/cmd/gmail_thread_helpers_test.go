@@ -267,6 +267,14 @@ func TestDecodeBodyCharset_ISO2022JP_MixedASCIIAndJapanese(t *testing.T) {
 	}
 }
 
+func TestDecodeBodyCharset_AlreadyUTF8WithStaleISO2022JPHeader(t *testing.T) {
+	source := "Hello \u3053\u3093\u306b\u3061\u306f World"
+	got := decodeBodyCharset([]byte(source), "text/plain; charset=iso-2022-jp")
+	if string(got) != source {
+		t.Fatalf("unexpected decoded charset: expected %q, got %q", source, string(got))
+	}
+}
+
 func TestDecodeBodyCharset_ISO2022JP_EmptyContent(t *testing.T) {
 	// Test empty content with ISO-2022-JP charset header
 	got := decodeBodyCharset([]byte{}, "text/plain; charset=iso-2022-jp")

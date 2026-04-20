@@ -47,8 +47,9 @@ func keyringItem(key string, data []byte) keyring.Item {
 }
 
 const (
-	keyringPasswordEnv = "GOG_KEYRING_PASSWORD" //nolint:gosec // env var name, not a credential
-	keyringBackendEnv  = "GOG_KEYRING_BACKEND"  //nolint:gosec // env var name, not a credential
+	keyringPasswordEnv    = "GOG_KEYRING_PASSWORD" //nolint:gosec // env var name, not a credential
+	keyringBackendEnv     = "GOG_KEYRING_BACKEND"  //nolint:gosec // env var name, not a credential
+	keyringServiceNameEnv = "GOG_KEYRING_SERVICE_NAME"
 )
 
 var (
@@ -144,6 +145,14 @@ func normalizeKeyringBackend(value string) string {
 	return strings.ToLower(strings.TrimSpace(value))
 }
 
+func keyringServiceName() string {
+	if serviceName := strings.TrimSpace(os.Getenv(keyringServiceNameEnv)); serviceName != "" {
+		return serviceName
+	}
+
+	return config.AppName
+}
+
 // keyringOpenTimeout is the maximum time to wait for keyring.Open() to complete.
 // On headless Linux, D-Bus SecretService can hang indefinitely if gnome-keyring
 // is installed but not running.
@@ -185,7 +194,7 @@ func openKeyring() (keyring.Keyring, error) {
 	}
 
 	cfg := keyring.Config{
-		ServiceName: config.AppName,
+		ServiceName: keyringServiceName(),
 		// KeychainTrustApplication is intentionally false to support Homebrew upgrades.
 		// When true, macOS Keychain ties access control to the specific binary hash.
 		// Homebrew upgrades install a new binary with a different hash, causing the
@@ -303,7 +312,7 @@ func (s *KeyringStore) Keys() ([]string, error) {
 }
 
 type storedToken struct {
-	RefreshToken string    `json:"refresh_token"` //nolint:gosec // persisted token schema intentionally uses refresh_token
+	RefreshToken string    `json:"refresh_token"`
 	Services     []string  `json:"services,omitempty"`
 	Scopes       []string  `json:"scopes,omitempty"`
 	CreatedAt    time.Time `json:"created_at,omitempty"`
@@ -328,7 +337,7 @@ func (s *KeyringStore) SetToken(client string, email string, tok Token) error {
 		tok.CreatedAt = time.Now().UTC()
 	}
 
-	payload, err := json.Marshal(storedToken{
+	payload, err := json.Marshal(storedToken{ //nolint:gosec // persisted token schema intentionally includes refresh_token
 		RefreshToken: tok.RefreshToken,
 		Services:     tok.Services,
 		Scopes:       tok.Scopes,

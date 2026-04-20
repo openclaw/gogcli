@@ -44,6 +44,9 @@ func TestDriveSearchCmd_TextAndJSON(t *testing.T) {
 					"mimeType":     "application/pdf",
 					"size":         "1024",
 					"modifiedTime": "2025-12-12T14:37:47Z",
+					"owners": []map[string]any{
+						{"emailAddress": "owner@example.com"},
+					},
 				},
 			},
 			"nextPageToken": "npt",
@@ -76,7 +79,7 @@ func TestDriveSearchCmd_TextAndJSON(t *testing.T) {
 			t.Fatalf("execute: %v", execErr)
 		}
 	})
-	if !strings.Contains(textOut, "Report") {
+	if !strings.Contains(textOut, "Report") || !strings.Contains(textOut, "OWNER") || !strings.Contains(textOut, "owner@example.com") {
 		t.Fatalf("unexpected output: %q", textOut)
 	}
 	if !strings.Contains(errBuf.String(), "--page npt") {

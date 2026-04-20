@@ -37,6 +37,9 @@ func TestDriveLsCmd_TextAndJSON(t *testing.T) {
 						"mimeType":     "application/pdf",
 						"size":         "1024",
 						"modifiedTime": "2025-12-12T14:37:47Z",
+						"owners": []map[string]any{
+							{"emailAddress": "owner@example.com"},
+						},
 					},
 					{
 						"id":           "d1",
@@ -84,10 +87,10 @@ func TestDriveLsCmd_TextAndJSON(t *testing.T) {
 		}
 	})
 
-	if !strings.Contains(textOut, "ID") || !strings.Contains(textOut, "NAME") {
+	if !strings.Contains(textOut, "ID") || !strings.Contains(textOut, "NAME") || !strings.Contains(textOut, "OWNER") {
 		t.Fatalf("unexpected table header: %q", textOut)
 	}
-	if !strings.Contains(textOut, "f1") || !strings.Contains(textOut, "Doc") || !strings.Contains(textOut, "1.0 KB") {
+	if !strings.Contains(textOut, "f1") || !strings.Contains(textOut, "Doc") || !strings.Contains(textOut, "1.0 KB") || !strings.Contains(textOut, "owner@example.com") {
 		t.Fatalf("missing file row: %q", textOut)
 	}
 	if !strings.Contains(textOut, "d1") || !strings.Contains(textOut, "Folder") || !strings.Contains(textOut, "folder") {
@@ -142,7 +145,7 @@ func TestDriveLsCmd_TextAndJSON(t *testing.T) {
 			t.Fatalf("execute: %v", execErr)
 		}
 	})
-	if !strings.Contains(plainOut, "ID\tNAME\tTYPE\tSIZE\tMODIFIED") {
+	if !strings.Contains(plainOut, "ID\tNAME\tTYPE\tSIZE\tMODIFIED\tOWNER") {
 		t.Fatalf("expected TSV header, got: %q", plainOut)
 	}
 }

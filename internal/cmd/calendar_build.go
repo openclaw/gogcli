@@ -40,31 +40,8 @@ func etcGMTForOffsetSeconds(offset int) (string, bool) {
 	return fmt.Sprintf("Etc/GMT+%d", -hours), true
 }
 
-func usIANAForOffsetAt(t time.Time, offset int) string {
-	switch offset {
-	case -4 * 3600, -5 * 3600, -6 * 3600, -7 * 3600, -8 * 3600:
-		for _, candidate := range []string{
-			"America/New_York",
-			"America/Chicago",
-			"America/Denver",
-			"America/Phoenix",
-			"America/Los_Angeles",
-		} {
-			loc, err := time.LoadLocation(candidate)
-			if err != nil {
-				continue
-			}
-			_, candidateOffset := t.In(loc).Zone()
-			if candidateOffset == offset {
-				return candidate
-			}
-		}
-	}
-	return ""
-}
-
 // extractTimezone attempts to determine a timezone from an RFC3339 datetime string.
-// Returns an IANA timezone name if determinable, empty string otherwise.
+// Returns a timezone identifier safe to send to Google Calendar.
 func extractTimezone(value string) string {
 	t, err := time.Parse(time.RFC3339, value)
 	if err != nil {
@@ -76,14 +53,10 @@ func extractTimezone(value string) string {
 		return tzUTC
 	}
 
-	// RFC3339 values have a fixed offset, but Google Calendar requires an IANA timezone
-	// name for recurring events. We guess by checking which common zones match the
-	// offset at this instant.
-	if tz := usIANAForOffsetAt(t, offset); tz != "" {
-		return tz
-	}
-
-	// Fallback for fixed whole-hour offsets when no regional timezone match is found.
+	// Offset-only RFC3339 values do not carry enough information to distinguish
+	// between regional IANA zones that may share the same offset at a given instant
+	// (for example America/Phoenix vs America/Los_Angeles during DST). Use a fixed
+	// offset timezone instead of guessing an ambiguous named region.
 	if tz, ok := etcGMTForOffsetSeconds(offset); ok {
 		return tz
 	}

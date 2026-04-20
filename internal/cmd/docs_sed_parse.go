@@ -179,7 +179,7 @@ func parseMarkdownReplacement(repl string) (text string, formats []string) {
 	// Horizontal rule (---, ***, ___) — must be exactly 3 of the same char
 	// (not 4+ which could be bold/italic markers)
 	trimmed := strings.TrimSpace(text)
-	if trimmed == "---" || trimmed == "***" || trimmed == "___" {
+	if trimmed == literalMarkdownTripleDash || trimmed == "***" || trimmed == "___" {
 		return "\n", []string{"hrule"}
 	}
 

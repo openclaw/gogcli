@@ -92,7 +92,7 @@ func (c *AuthServiceAccountSetCmd) Run(ctx context.Context, flags *RootFlags) er
 	if _, err := config.EnsureDir(); err != nil {
 		return err
 	}
-	if err := os.WriteFile(destPath, data, 0o600); err != nil {
+	if err := os.WriteFile(destPath, data, 0o600); err != nil { //nolint:gosec // destination is resolved inside config dir
 		return fmt.Errorf("write service account: %w", err)
 	}
 

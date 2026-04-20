@@ -259,45 +259,7 @@ func parseTimeExpr(expr string, now time.Time, loc *time.Location) (time.Time, e
 
 // parseWeekday parses weekday expressions like "monday", "next tuesday"
 func parseWeekday(expr string, now time.Time) (time.Time, bool) {
-	expr = strings.TrimSpace(expr)
-	next := false
-	if strings.HasPrefix(expr, "next ") {
-		next = true
-		expr = strings.TrimPrefix(expr, "next ")
-	}
-
-	weekdays := map[string]time.Weekday{
-		"sunday":    time.Sunday,
-		"sun":       time.Sunday,
-		"monday":    time.Monday,
-		"mon":       time.Monday,
-		"tuesday":   time.Tuesday,
-		"tue":       time.Tuesday,
-		"wednesday": time.Wednesday,
-		"wed":       time.Wednesday,
-		"thursday":  time.Thursday,
-		"thu":       time.Thursday,
-		"friday":    time.Friday,
-		"fri":       time.Friday,
-		"saturday":  time.Saturday,
-		"sat":       time.Saturday,
-	}
-
-	targetDay, ok := weekdays[expr]
-	if !ok {
-		return time.Time{}, false
-	}
-
-	currentDay := now.Weekday()
-	daysUntil := int(targetDay) - int(currentDay)
-	if daysUntil < 0 || (daysUntil == 0 && next) {
-		daysUntil += 7 // Next week
-	}
-
-	if daysUntil == 0 {
-		return startOfDay(now), true
-	}
-	return startOfDay(now.AddDate(0, 0, daysUntil)), true
+	return timeparse.ParseWeekdayExpr(expr, now)
 }
 
 // startOfDay returns the start of the day (00:00:00) in the given time's location.
@@ -305,9 +267,12 @@ func startOfDay(t time.Time) time.Time {
 	return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, t.Location())
 }
 
-// endOfDay returns the end of the day (23:59:59.999) in the given time's location.
+// endOfDay returns the start of the next day so that when formatted as
+// RFC3339 (second precision) and used as an exclusive timeMax, the entire
+// target day is included. Previously, 23:59:59.999999999 was truncated to
+// 23:59:59 by time.RFC3339, which excluded events starting at that second.
 func endOfDay(t time.Time) time.Time {
-	return time.Date(t.Year(), t.Month(), t.Day(), 23, 59, 59, 999999999, t.Location())
+	return startOfDay(t.AddDate(0, 0, 1))
 }
 
 // startOfWeek returns the start of the week for the given time.
@@ -354,22 +319,5 @@ func resolveWeekStart(value string) (time.Weekday, error) {
 }
 
 func parseWeekStart(value string) (time.Weekday, bool) {
-	switch strings.ToLower(strings.TrimSpace(value)) {
-	case "sun", "sunday":
-		return time.Sunday, true
-	case "mon", "monday":
-		return time.Monday, true
-	case "tue", "tues", "tuesday":
-		return time.Tuesday, true
-	case "wed", "wednesday":
-		return time.Wednesday, true
-	case "thu", "thur", "thurs", "thursday":
-		return time.Thursday, true
-	case "fri", "friday":
-		return time.Friday, true
-	case "sat", "saturday":
-		return time.Saturday, true
-	default:
-		return time.Monday, false
-	}
+	return timeparse.ParseWeekdayName(value)
 }

@@ -140,7 +140,7 @@ func (c *AuthTokensExportCmd) Run(ctx context.Context, _ *RootFlags) error {
 		Services     []string `json:"services,omitempty"`
 		Scopes       []string `json:"scopes,omitempty"`
 		CreatedAt    string   `json:"created_at,omitempty"`
-		RefreshToken string   `json:"refresh_token"` //nolint:gosec
+		RefreshToken string   `json:"refresh_token"`
 	}
 	created := ""
 	if !tok.CreatedAt.IsZero() {
@@ -150,7 +150,7 @@ func (c *AuthTokensExportCmd) Run(ctx context.Context, _ *RootFlags) error {
 	enc := json.NewEncoder(f)
 	enc.SetEscapeHTML(false)
 	enc.SetIndent("", "  ")
-	if encErr := enc.Encode(export{
+	if encErr := enc.Encode(export{ //nolint:gosec // explicit token export writes the requested refresh token payload
 		Email:        tok.Email,
 		Client:       client,
 		Services:     tok.Services,
@@ -205,7 +205,7 @@ func (c *AuthTokensImportCmd) Run(ctx context.Context, _ *RootFlags) error {
 		Services     []string `json:"services,omitempty"`
 		Scopes       []string `json:"scopes,omitempty"`
 		CreatedAt    string   `json:"created_at,omitempty"`
-		RefreshToken string   `json:"refresh_token"` //nolint:gosec
+		RefreshToken string   `json:"refresh_token"`
 	}
 	var ex export
 	if unmarshalErr := json.Unmarshal(b, &ex); unmarshalErr != nil {

@@ -73,6 +73,82 @@ func TestSaveConfigSecretsInKeyring(t *testing.T) {
 	}
 }
 
+func TestShouldLoadTrackingSecrets(t *testing.T) {
+	tests := []struct {
+		name string
+		cfg  *Config
+		want bool
+	}{
+		{name: "nil", cfg: nil, want: false},
+		{name: "explicit keyring", cfg: &Config{SecretsInKeyring: true, TrackingKey: "file", AdminKey: "file"}, want: true},
+		{name: "legacy empty file secrets", cfg: &Config{}, want: true},
+		{name: "legacy whitespace secrets", cfg: &Config{TrackingKey: " ", AdminKey: "\t"}, want: true},
+		{name: "file tracking key", cfg: &Config{TrackingKey: "file"}, want: false},
+		{name: "file admin key", cfg: &Config{AdminKey: "file"}, want: false},
+		{name: "file both keys", cfg: &Config{TrackingKey: "file", AdminKey: "admin"}, want: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := shouldLoadTrackingSecrets(tt.cfg); got != tt.want {
+				t.Fatalf("shouldLoadTrackingSecrets = %t, want %t", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestLoadConfigPrefersFileSecretsWhenKeyringHasStaleValues(t *testing.T) {
+	setupTrackingConfigEnv(t)
+
+	if err := SaveSecrets("a@b.com", "stale-track", "stale-admin"); err != nil {
+		t.Fatalf("SaveSecrets: %v", err)
+	}
+
+	cfg := &Config{
+		Enabled:     true,
+		WorkerURL:   "https://example.com",
+		TrackingKey: "file-track",
+		AdminKey:    "file-admin",
+	}
+	if err := SaveConfig("a@b.com", cfg); err != nil {
+		t.Fatalf("SaveConfig: %v", err)
+	}
+
+	loaded, err := LoadConfig("a@b.com")
+	if err != nil {
+		t.Fatalf("LoadConfig: %v", err)
+	}
+
+	if loaded.TrackingKey != "file-track" || loaded.AdminKey != "file-admin" {
+		t.Fatalf("expected file secrets, got %#v", loaded)
+	}
+}
+
+func TestLoadConfigFallsBackToKeyringWhenLegacySecretsAreEmpty(t *testing.T) {
+	setupTrackingConfigEnv(t)
+
+	if err := SaveSecrets("a@b.com", "track", "admin"); err != nil {
+		t.Fatalf("SaveSecrets: %v", err)
+	}
+
+	cfg := &Config{
+		Enabled:   true,
+		WorkerURL: "https://example.com",
+	}
+	if err := SaveConfig("a@b.com", cfg); err != nil {
+		t.Fatalf("SaveConfig: %v", err)
+	}
+
+	loaded, err := LoadConfig("a@b.com")
+	if err != nil {
+		t.Fatalf("LoadConfig: %v", err)
+	}
+
+	if loaded.TrackingKey != "track" || loaded.AdminKey != "admin" {
+		t.Fatalf("expected keyring fallback, got %#v", loaded)
+	}
+}
+
 func TestLoadConfigLegacyFallback(t *testing.T) {
 	setupTrackingConfigEnv(t)
 

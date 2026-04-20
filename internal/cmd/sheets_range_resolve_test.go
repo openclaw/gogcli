@@ -33,6 +33,7 @@ func TestResolveGridRangeWithCatalog_DoesNotMutateNamedRangeForceSendFields(t *t
 	}
 	if gr == nil {
 		t.Fatalf("expected non-nil grid range")
+		return
 	}
 
 	// Returned range includes SheetId force-send.
@@ -66,6 +67,7 @@ func TestResolveGridRangeWithCatalog_DedupsSheetIDForceSendField(t *testing.T) {
 	}
 	if gr == nil {
 		t.Fatalf("expected non-nil grid range")
+		return
 	}
 	if countStringValue(gr.ForceSendFields, "SheetId") != 1 {
 		t.Fatalf("expected SheetId once, got %#v", gr.ForceSendFields)
@@ -99,6 +101,7 @@ func TestFetchSpreadsheetRangeCatalog_PreservesSpacedSheetTitle(t *testing.T) {
 	}
 	if catalog == nil {
 		t.Fatalf("expected catalog")
+		return
 	}
 
 	title := "  Sheet With Spaces  "

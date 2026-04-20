@@ -58,8 +58,11 @@ const (
 	driveShareToUser       = "user"
 	driveShareToDomain     = "domain"
 
-	drivePermRoleReader = "reader"
-	drivePermRoleWriter = "writer"
+	// Drive sharing permission roles matching the Google Drive API roles.
+	// "commenter" allows view + comment access without edit rights.
+	drivePermRoleReader    = "reader"
+	drivePermRoleWriter    = "writer"
+	drivePermRoleCommenter = "commenter"
 )
 
 type DriveCmd struct {
@@ -231,6 +234,7 @@ type DriveUploadCmd struct {
 	KeepRevisionForever bool   `name:"keep-revision-forever" help:"Keep the new head revision forever (binary files only)"`
 	Convert             bool   `name:"convert" help:"Auto-convert to native Google format based on file extension (create only)"`
 	ConvertTo           string `name:"convert-to" help:"Convert to a specific Google format: doc|sheet|slides (create only)"`
+	KeepFrontmatter     bool   `name:"keep-frontmatter" help:"Keep YAML frontmatter (---) in Markdown when converting to a Google Doc (--convert or --convert-to doc; default: strip)"`
 }
 
 type DriveMkdirCmd struct {
@@ -445,8 +449,14 @@ type DriveShareCmd struct {
 	Anyone       bool   `name:"anyone" hidden:"" help:"(deprecated) Use --to=anyone"`
 	Email        string `name:"email" help:"User email (for --to=user)"`
 	Domain       string `name:"domain" help:"Domain (for --to=domain; e.g. example.com)"`
-	Role         string `name:"role" help:"Permission: reader|writer" default:"reader"`
+	Role         string `name:"role" help:"Permission: reader|writer|commenter" default:"reader"`
 	Discoverable bool   `name:"discoverable" help:"Allow file discovery in search (anyone/domain only)"`
+}
+
+type driveShareTarget struct {
+	to     string
+	email  string
+	domain string
 }
 
 func (c *DriveShareCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -460,61 +470,15 @@ func (c *DriveShareCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return usage("empty fileId")
 	}
 
-	to := strings.TrimSpace(c.To)
-	email := strings.TrimSpace(c.Email)
-	domain := strings.TrimSpace(c.Domain)
-
-	// Back-compat: allow legacy target flags without --to, but keep it unambiguous.
-	// New UX: prefer explicit --to + matching parameter.
-	if to == "" {
-		switch {
-		case c.Anyone && email == "" && domain == "":
-			to = driveShareToAnyone
-		case !c.Anyone && email != "" && domain == "":
-			to = driveShareToUser
-		case !c.Anyone && email == "" && domain != "":
-			to = driveShareToDomain
-		case !c.Anyone && email == "" && domain == "":
-			return usage("must specify --to (anyone|user|domain)")
-		default:
-			return usage("ambiguous share target (use --to=anyone|user|domain)")
-		}
+	target, err := c.normalizeTarget()
+	if err != nil {
+		return err
 	}
-
-	switch to {
-	case driveShareToAnyone:
-		if email != "" || domain != "" {
-			return usage("--to=anyone cannot be combined with --email or --domain")
-		}
-	case driveShareToUser:
-		if email == "" {
-			return usage("missing --email for --to=user")
-		}
-		if domain != "" || c.Anyone {
-			return usage("--to=user cannot be combined with --anyone or --domain")
-		}
-		if c.Discoverable {
-			return usage("--discoverable is only valid for --to=anyone or --to=domain")
-		}
-	case driveShareToDomain:
-		if domain == "" {
-			return usage("missing --domain for --to=domain")
-		}
-		if email != "" || c.Anyone {
-			return usage("--to=domain cannot be combined with --anyone or --email")
-		}
-	default:
-		// Should be guarded by enum, but keep a friendly message for future changes.
-		return usage("invalid --to (expected anyone|user|domain)")
+	role, err := normalizeDrivePermissionRole(c.Role)
+	if err != nil {
+		return err
 	}
-	role := strings.TrimSpace(c.Role)
-	if role == "" {
-		role = drivePermRoleReader
-	}
-	if role != drivePermRoleReader && role != drivePermRoleWriter {
-		return usage("invalid --role (expected reader|writer)")
-	}
-	if to == driveShareToAnyone {
+	if target.to == driveShareToAnyone {
 		if confirmErr := confirmDestructive(ctx, flags, fmt.Sprintf("share drive file %s with anyone (public)", fileID)); confirmErr != nil {
 			return confirmErr
 		}
@@ -525,19 +489,7 @@ func (c *DriveShareCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
-	perm := &drive.Permission{Role: role}
-	switch to {
-	case driveShareToAnyone:
-		perm.Type = "anyone"
-		perm.AllowFileDiscovery = c.Discoverable
-	case driveShareToDomain:
-		perm.Type = "domain"
-		perm.Domain = domain
-		perm.AllowFileDiscovery = c.Discoverable
-	default:
-		perm.Type = "user"
-		perm.EmailAddress = email
-	}
+	perm := target.permission(role, c.Discoverable)
 
 	created, err := svc.Permissions.Create(fileID, perm).
 		SupportsAllDrives(true).
@@ -565,6 +517,88 @@ func (c *DriveShareCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u.Out().Printf("link\t%s", link)
 	u.Out().Printf("permission_id\t%s", created.Id)
 	return nil
+}
+
+func (c *DriveShareCmd) normalizeTarget() (driveShareTarget, error) {
+	to := strings.TrimSpace(c.To)
+	email := strings.TrimSpace(c.Email)
+	domain := strings.TrimSpace(c.Domain)
+
+	// Back-compat: allow legacy target flags without --to, but keep it unambiguous.
+	// New UX: prefer explicit --to + matching parameter.
+	if to == "" {
+		switch {
+		case c.Anyone && email == "" && domain == "":
+			to = driveShareToAnyone
+		case !c.Anyone && email != "" && domain == "":
+			to = driveShareToUser
+		case !c.Anyone && email == "" && domain != "":
+			to = driveShareToDomain
+		case !c.Anyone && email == "" && domain == "":
+			return driveShareTarget{}, usage("must specify --to (anyone|user|domain)")
+		default:
+			return driveShareTarget{}, usage("ambiguous share target (use --to=anyone|user|domain)")
+		}
+	}
+
+	switch to {
+	case driveShareToAnyone:
+		if email != "" || domain != "" {
+			return driveShareTarget{}, usage("--to=anyone cannot be combined with --email or --domain")
+		}
+	case driveShareToUser:
+		if email == "" {
+			return driveShareTarget{}, usage("missing --email for --to=user")
+		}
+		if domain != "" || c.Anyone {
+			return driveShareTarget{}, usage("--to=user cannot be combined with --anyone or --domain")
+		}
+		if c.Discoverable {
+			return driveShareTarget{}, usage("--discoverable is only valid for --to=anyone or --to=domain")
+		}
+	case driveShareToDomain:
+		if domain == "" {
+			return driveShareTarget{}, usage("missing --domain for --to=domain")
+		}
+		if email != "" || c.Anyone {
+			return driveShareTarget{}, usage("--to=domain cannot be combined with --anyone or --email")
+		}
+	default:
+		// Should be guarded by enum, but keep a friendly message for future changes.
+		return driveShareTarget{}, usage("invalid --to (expected anyone|user|domain)")
+	}
+
+	return driveShareTarget{to: to, email: email, domain: domain}, nil
+}
+
+func (target driveShareTarget) permission(role string, discoverable bool) *drive.Permission {
+	perm := &drive.Permission{Role: role}
+	switch target.to {
+	case driveShareToAnyone:
+		perm.Type = "anyone"
+		perm.AllowFileDiscovery = discoverable
+	case driveShareToDomain:
+		perm.Type = "domain"
+		perm.Domain = target.domain
+		perm.AllowFileDiscovery = discoverable
+	default:
+		perm.Type = "user"
+		perm.EmailAddress = target.email
+	}
+	return perm
+}
+
+func normalizeDrivePermissionRole(role string) (string, error) {
+	role = strings.TrimSpace(role)
+	if role == "" {
+		return drivePermRoleReader, nil
+	}
+	switch role {
+	case drivePermRoleReader, drivePermRoleWriter, drivePermRoleCommenter:
+		return role, nil
+	default:
+		return "", usage("invalid --role (expected reader|writer|commenter)")
+	}
 }
 
 type DriveUnshareCmd struct {
@@ -1088,7 +1122,7 @@ func googleConvertMimeType(path string) (string, bool) {
 		return driveMimeGoogleSheet, true
 	case extPptx, ".ppt":
 		return driveMimeGoogleSlides, true
-	case extTXT, ".html":
+	case extTXT, ".html", extMD:
 		return driveMimeGoogleDoc, true
 	default:
 		return "", false
@@ -1123,7 +1157,7 @@ func driveUploadConvertMimeType(path string, auto bool, target string) (string, 
 
 	mimeType, ok := googleConvertMimeType(path)
 	if !ok {
-		return "", false, fmt.Errorf("--convert: unsupported file type %q (supported: docx, xlsx, pptx, doc, xls, ppt, csv, txt, html)", filepath.Ext(path))
+		return "", false, fmt.Errorf("--convert: unsupported file type %q (supported: docx, xlsx, pptx, doc, xls, ppt, csv, txt, html, md)", filepath.Ext(path))
 	}
 	return mimeType, true, nil
 }
@@ -1133,7 +1167,7 @@ func driveUploadConvertMimeType(path string, auto bool, target string) (string, 
 func stripOfficeExt(name string) string {
 	ext := strings.ToLower(filepath.Ext(name))
 	switch ext {
-	case extDocx, ".doc", extXlsx, ".xls", extPptx, ".ppt":
+	case extDocx, ".doc", extXlsx, ".xls", extPptx, ".ppt", extMD:
 		return strings.TrimSuffix(name, filepath.Ext(name))
 	default:
 		return name

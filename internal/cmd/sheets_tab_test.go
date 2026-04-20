@@ -20,6 +20,7 @@ func TestSheetsTabCommands(t *testing.T) {
 	t.Cleanup(func() { newSheetsService = origNew })
 
 	var gotRequests []*sheets.Request
+	var gotRequestBody string
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := strings.TrimPrefix(r.URL.Path, "/sheets/v4")
@@ -37,14 +38,19 @@ func TestSheetsTabCommands(t *testing.T) {
 			return
 		case strings.Contains(path, "/spreadsheets/s1:batchUpdate") && r.Method == http.MethodPost:
 			var req sheets.BatchUpdateSpreadsheetRequest
-			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			body, err := io.ReadAll(r.Body)
+			if err != nil {
+				t.Fatalf("read batchUpdate body: %v", err)
+			}
+			gotRequestBody = string(body)
+			if err := json.Unmarshal(body, &req); err != nil {
 				t.Fatalf("decode batchUpdate: %v", err)
 			}
 			gotRequests = req.Requests
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"replies": []map[string]any{
-					{"addSheet": map[string]any{"properties": map[string]any{"sheetId": 99, "title": "NewTab"}}},
+					{"addSheet": map[string]any{"properties": map[string]any{"sheetId": 99, "title": "NewTab", "index": 0}}},
 				},
 			})
 			return
@@ -74,15 +80,23 @@ func TestSheetsTabCommands(t *testing.T) {
 
 	t.Run("add-tab", func(t *testing.T) {
 		gotRequests = nil
+		gotRequestBody = ""
 		cmd := &SheetsAddTabCmd{}
-		if err := runKong(t, cmd, []string{"s1", "NewTab"}, ctx, flags); err != nil {
+		if err := runKong(t, cmd, []string{"s1", "NewTab", "--index", "0"}, ctx, flags); err != nil {
 			t.Fatalf("add-tab: %v", err)
 		}
 		if len(gotRequests) != 1 || gotRequests[0].AddSheet == nil {
 			t.Fatalf("expected addSheet request, got %+v", gotRequests)
 		}
-		if gotRequests[0].AddSheet.Properties.Title != "NewTab" {
-			t.Fatalf("unexpected title: %s", gotRequests[0].AddSheet.Properties.Title)
+		props := gotRequests[0].AddSheet.Properties
+		if props.Title != "NewTab" {
+			t.Fatalf("unexpected title: %s", props.Title)
+		}
+		if props.Index != 0 {
+			t.Fatalf("unexpected index: %d", props.Index)
+		}
+		if !strings.Contains(gotRequestBody, `"index":0`) {
+			t.Fatalf("expected index 0 in request body, got %s", gotRequestBody)
 		}
 	})
 

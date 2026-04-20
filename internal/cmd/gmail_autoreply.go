@@ -128,6 +128,9 @@ func (c *GmailAutoReplyCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if err != nil {
 		return err
 	}
+	if err = checkAccountNoSend(account); err != nil {
+		return err
+	}
 	summary, err := runGmailAutoReply(ctx, svc, account, input)
 	if err != nil {
 		return err

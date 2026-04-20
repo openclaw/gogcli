@@ -3,7 +3,35 @@
 ## Unreleased
 
 ### Added
+- Auth: add `auth credentials remove` to delete stored OAuth client credentials and associated refresh tokens. (#473) — thanks @yamagucci.
+- Drive: convert Markdown uploads to Google Docs and strip leading YAML frontmatter by default, with `--keep-frontmatter` to opt out. (#487) — thanks @johnbenjaminlewis.
+- Slides: add `slides thumbnail` / `slides thumb` to fetch rendered slide thumbnail URLs or download PNG/JPEG images. (#498) — thanks @gianpaj.
+- Calendar: add `calendar create-calendar` / `new-calendar` to create secondary calendars with description, timezone, and location. (#455) — thanks @alexknowshtml.
 - Gmail: add `gmail autoreply` to reply once to matching messages, label the thread for dedupe, and optionally archive/mark read. Includes docs and regression coverage for skip/reply flows.
+- Gmail: add `gmail messages search --full` to print complete message bodies instead of truncating text output. (#447) — thanks @GodsBoy.
+- Drive: allow `drive share --role commenter` for comment-only sharing. (#443) — thanks @pavelzak.
+- Drive: show owner email in `drive ls` and `drive search` table output. (#458) — thanks @laihenyi.
+- Auth: add `ads` as an auth service for Google Ads API tokens. (#264) — thanks @ufkhan97.
+- Secrets: allow `GOG_KEYRING_SERVICE_NAME` to override the keyring namespace. (#463) — thanks @mkurz.
+- Sheets: add `add-sheet`, `rename-sheet`, and `delete-sheet` tab aliases plus `sheets add-tab --index`. (#442) — thanks @alexknowshtml.
+- Chat: make `chat spaces find` use case-insensitive substring matching by default, with `--exact` for legacy exact lookup. (#506) — thanks @mvanhorn.
+- Agent safety: allow dotted command paths in `--enable-commands` and add `--disable-commands` / `GOG_DISABLE_COMMANDS` denylist support. (#218, #173) — thanks @EricYangTL and @spookyuser.
+- Gmail: add `--gmail-no-send`, `GOG_GMAIL_NO_SEND`, `gmail_no_send`, and per-account `config no-send` guards for blocking send operations. (#454) — thanks @veteranbv.
+
+### Fixed
+- Gmail: avoid declaring non-ASCII HTML send bodies as `7bit` MIME content. (#477) — thanks @yeager.
+- CLI: generate native zsh completions without relying on `bashcompinit`. (#481) — thanks @piiq.
+- Windows: expand `~\...` paths and run the integration live-test wrapper through PowerShell. (#452) — thanks @gagradebnath.
+- Tracking: prefer file-stored tracking secrets over stale keyring values unless keyring storage is configured. (#469) — thanks @alexuser.
+- Docs: restore `docs write --replace --markdown` by uploading Markdown through Drive so Google Docs converts formatting. (#501) — thanks @twilsher.
+- Calendar: avoid ambiguous timezone guessing from offset-only event times, preserve timezones for focus-time events, and use exclusive next-midnight bounds for full-day ranges. (#492, #509, #510) — thanks @RaphaelRUzan and @dinakars777.
+- Gmail: avoid re-decoding Gmail-normalized UTF-8 bodies through stale MIME charset headers while preserving ISO-2022-JP decoding. (#511) — thanks @dinakars777.
+- Tasks: clear task due dates when `tasks update --due=` is provided. (#507) — thanks @dinakars777.
+- Docs: use UTF-16 offsets for sed formatting ranges and preserve `&` whole-match replacements. (#483) — thanks @bill492.
+- Gmail: encode plain-text send bodies as quoted-printable so long lines are not hard-wrapped in transit. (#476) — thanks @shashankkr9.
+- Contacts: reject all individual update flags when `contacts update --from-file` is used. (#439) — thanks @klodr.
+- Auth: remove stale aliases and account-client mappings from config when `auth remove` deletes an account. (#467) — thanks @mvanhorn.
+- Time parsing: accept `tues`, `thur`, and `thurs` as weekday expressions. (#440) — thanks @sjhddh.
 
 ## 0.12.0 - 2026-03-09
 

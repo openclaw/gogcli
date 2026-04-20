@@ -28,9 +28,13 @@ type GmailMessagesSearchCmd struct {
 	Timezone    string   `name:"timezone" short:"z" help:"Output timezone (IANA name, e.g. America/New_York, UTC). Default: local"`
 	Local       bool     `name:"local" help:"Use local timezone (default behavior, useful to override --timezone)"`
 	IncludeBody bool     `name:"include-body" help:"Include decoded message body (JSON is full; text output is truncated)"`
+	Full        bool     `name:"full" help:"Show full message bodies without truncation (implies --include-body)"`
 }
 
 func (c *GmailMessagesSearchCmd) Run(ctx context.Context, flags *RootFlags) error {
+	if c.Full {
+		c.IncludeBody = true
+	}
 	u := ui.FromContext(ctx)
 	account, err := requireAccount(flags)
 	if err != nil {
@@ -137,7 +141,7 @@ func (c *GmailMessagesSearchCmd) Run(ctx context.Context, flags *RootFlags) erro
 	for _, it := range items {
 		body := ""
 		if c.IncludeBody {
-			body = sanitizeMessageBody(it.Body)
+			body = sanitizeMessageBody(it.Body, c.Full)
 		}
 		if c.IncludeBody {
 			fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\n", it.ID, it.ThreadID, it.Date, it.From, it.Subject, strings.Join(it.Labels, ","), body)
@@ -327,7 +331,7 @@ func fetchMessageDetails(ctx context.Context, svc *gmail.Service, messages []*gm
 	return items, nil
 }
 
-func sanitizeMessageBody(body string) string {
+func sanitizeMessageBody(body string, full bool) string {
 	if body == "" {
 		return ""
 	}
@@ -338,6 +342,9 @@ func sanitizeMessageBody(body string) string {
 	body = strings.ReplaceAll(body, "\n", " ")
 	body = strings.ReplaceAll(body, "\r", " ")
 	body = strings.TrimSpace(body)
+	if full {
+		return body
+	}
 	return truncateRunes(body, 200)
 }
 

@@ -41,7 +41,7 @@ func main() {
 		return
 	}
 
-	if err := os.WriteFile(readmePath, []byte(updated), 0o600); err != nil {
+	if err := os.WriteFile(readmePath, []byte(updated), 0o600); err != nil { //nolint:gosec // path is a repo-local generated docs target
 		fatalf("write README: %v", err)
 	}
 }

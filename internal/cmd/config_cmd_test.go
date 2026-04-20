@@ -3,6 +3,7 @@ package cmd
 import (
 	"encoding/json"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/steipete/gogcli/internal/config"
@@ -101,5 +102,43 @@ func TestConfigCmd_JSONEmptyValues(t *testing.T) {
 	}
 	if get.Value != "" {
 		t.Fatalf("expected empty value, got %q", get.Value)
+	}
+}
+
+func TestConfigNoSendRoundTrip(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(t.TempDir(), "config-home"))
+
+	if err := Execute([]string{"config", "no-send", "set", "User@Example.com"}); err != nil {
+		t.Fatalf("set: %v", err)
+	}
+	cfg, err := config.ReadConfig()
+	if err != nil {
+		t.Fatalf("ReadConfig: %v", err)
+	}
+	if !cfg.NoSendAccounts["user@example.com"] {
+		t.Fatalf("expected normalized no-send account, got %#v", cfg.NoSendAccounts)
+	}
+
+	out := captureStdout(t, func() {
+		_ = captureStderr(t, func() {
+			if execErr := Execute([]string{"config", "no-send", "list"}); execErr != nil {
+				t.Fatalf("list: %v", execErr)
+			}
+		})
+	})
+	if !strings.Contains(out, "user@example.com") {
+		t.Fatalf("expected listed account, got %q", out)
+	}
+
+	if execErr := Execute([]string{"config", "no-send", "remove", "user@example.com"}); execErr != nil {
+		t.Fatalf("remove: %v", execErr)
+	}
+	cfg, err = config.ReadConfig()
+	if err != nil {
+		t.Fatalf("ReadConfig: %v", err)
+	}
+	if len(cfg.NoSendAccounts) != 0 {
+		t.Fatalf("expected no no-send accounts, got %#v", cfg.NoSendAccounts)
 	}
 }

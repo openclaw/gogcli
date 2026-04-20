@@ -132,6 +132,9 @@ func (c *GmailSendCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if err != nil {
 		return err
 	}
+	if err = checkAccountNoSend(account); err != nil {
+		return err
+	}
 
 	sendAsList, sendAsListErr := listSendAs(ctx, svc)
 	from, err := resolveComposeFrom(ctx, svc, account, c.From, sendAsList, sendAsListErr)

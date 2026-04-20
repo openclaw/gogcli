@@ -828,7 +828,7 @@ func TestClassifyMatch_BraceImage(t *testing.T) {
 	expr := sedExpr{
 		brace: &braceExpr{ImgRef: "https://example.com/img.png", Width: 100, Height: 50, Indent: indentNotSet},
 	}
-	m := classifyMatch(10, []int{0, 5}, "hello", "world", expr)
+	m := classifyMatch(10, "hello", []int{0, 5}, "hello", "world", expr)
 	assert.NotNil(t, m.image)
 	assert.Equal(t, "https://example.com/img.png", m.image.URL)
 	assert.Equal(t, 100, m.image.Width)
@@ -839,7 +839,7 @@ func TestClassifyMatch_BraceImage(t *testing.T) {
 
 func TestClassifyMatch_PlainText(t *testing.T) {
 	expr := sedExpr{}
-	m := classifyMatch(0, []int{0, 3}, "foo", "bar", expr)
+	m := classifyMatch(0, "foo", []int{0, 3}, "foo", "bar", expr)
 	assert.Nil(t, m.image)
 	assert.Equal(t, "bar", m.newText)
 }

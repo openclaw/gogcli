@@ -102,14 +102,11 @@ type indexedExpr struct {
 	expr  sedExpr
 }
 
-// literalReplacement returns the replacement string with Go regex escaping undone,
+// literalReplacement returns the replacement string with Go regex dollar escaping undone,
 // suitable for direct text insertion (not through regexp.ReplaceAllString).
 func literalReplacement(repl string) string {
 	// $$ → $ (Go regex literal dollar)
-	result := strings.ReplaceAll(repl, "$$", "$")
-	// Remove ${0} (whole match backref has no meaning in direct insertion without context)
-	// Table wildcard code handles & expansion separately before calling this.
-	return result
+	return strings.ReplaceAll(repl, "$$", "$")
 }
 
 func (c *DocsSedCmd) Run(ctx context.Context, flags *RootFlags) error {

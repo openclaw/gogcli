@@ -181,22 +181,36 @@ func (c *Config) IsConfigured() bool {
 }
 
 func hydrateConfig(account string, cfg *Config) (*Config, error) {
-	if strings.TrimSpace(cfg.TrackingKey) == "" || strings.TrimSpace(cfg.AdminKey) == "" || cfg.SecretsInKeyring {
+	if shouldLoadTrackingSecrets(cfg) {
 		trackingKey, adminKey, secretErr := LoadSecrets(account)
 		if secretErr != nil {
 			return nil, secretErr
 		}
 
-		if strings.TrimSpace(cfg.TrackingKey) == "" {
+		if strings.TrimSpace(trackingKey) != "" {
 			cfg.TrackingKey = trackingKey
 		}
 
-		if strings.TrimSpace(cfg.AdminKey) == "" {
+		if strings.TrimSpace(adminKey) != "" {
 			cfg.AdminKey = adminKey
 		}
 	}
 
 	return cfg, nil
+}
+
+func shouldLoadTrackingSecrets(cfg *Config) bool {
+	if cfg == nil {
+		return false
+	}
+
+	if cfg.SecretsInKeyring {
+		return true
+	}
+
+	// Backward compat: if no SecretsInKeyring flag but keys are empty,
+	// try keyring as fallback (legacy behavior).
+	return strings.TrimSpace(cfg.TrackingKey) == "" && strings.TrimSpace(cfg.AdminKey) == ""
 }
 
 func normalizeAccount(account string) string {

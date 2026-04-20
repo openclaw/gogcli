@@ -225,8 +225,11 @@ func (c *GmailDraftsSendCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
-	_, svc, err := requireGmailService(ctx, flags)
+	account, svc, err := requireGmailService(ctx, flags)
 	if err != nil {
+		return err
+	}
+	if err = checkAccountNoSend(account); err != nil {
 		return err
 	}
 

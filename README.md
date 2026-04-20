@@ -7,12 +7,12 @@ Fast, script-friendly CLI for Gmail, Calendar, Chat, Classroom, Drive, Docs, Sli
 
 ## Features
 
-- **Gmail** - search threads/messages, send mail, view attachments, manage labels/drafts/filters/delegation/vacation settings, modify single messages, export filters, inspect history, and run Pub/Sub watch webhooks
+- **Gmail** - search threads/messages, send mail, view attachments, manage labels/drafts/filters/delegation/vacation settings, auto-reply once to matching mail, modify single messages, export filters, inspect history, and run Pub/Sub watch webhooks
 - **Email tracking** - track opens for `gog gmail send --track` with a small Cloudflare Worker backend
 - **Calendar** - list/create/update/delete events, manage invitations, aliases, subscriptions, team calendars, free/busy/conflicts, propose new times, focus/OOO/working-location events, recurrence, and reminders
 - **Classroom** - manage courses, roster, coursework/materials, submissions, announcements, topics, invitations, guardians, profiles
 - **Chat** - list/find/create spaces, list messages/threads, send messages and DMs, and manage emoji reactions (Workspace-only)
-- **Drive** - list/search/upload/download files, replace uploads in-place, convert uploads, manage permissions/comments, organize folders, and list shared drives
+- **Drive** - list/search/upload/download files, replace uploads in-place, convert uploads (including Markdown to Google Doc), manage permissions/comments, organize folders, and list shared drives
 - **Contacts** - search/create/update contacts, including addresses, relations, org/title metadata, custom fields, Workspace directory, and other contacts
 - **Tasks** - manage tasklists and tasks: get/create/add/update/done/undo/delete/clear, plus repeat schedule materialization with RRULE aliases
 - **Sheets** - read/write/update spreadsheets, insert rows/cols, manage tabs and named ranges, format/merge/freeze/resize cells, read/write notes, inspect formats, find/replace text, list links, and create/export sheets
@@ -395,8 +395,10 @@ Service scope matrix (auto-generated; run `go run scripts/gen-auth-services-md.g
 | people | yes | People API | `profile` | OIDC profile scope |
 | forms | yes | Forms API | `https://www.googleapis.com/auth/forms.body`<br>`https://www.googleapis.com/auth/forms.responses.readonly` |  |
 | appscript | yes | Apps Script API | `https://www.googleapis.com/auth/script.projects`<br>`https://www.googleapis.com/auth/script.deployments`<br>`https://www.googleapis.com/auth/script.processes` |  |
+| ads | yes | Google Ads API | `https://www.googleapis.com/auth/adwords` | OAuth scope only |
 | groups | no | Cloud Identity API | `https://www.googleapis.com/auth/cloud-identity.groups.readonly` | Workspace only |
 | keep | no | Keep API | `https://www.googleapis.com/auth/keep` | Workspace only; service account (domain-wide delegation) |
+| admin | no | Admin SDK Directory API | `https://www.googleapis.com/auth/admin.directory.user`<br>`https://www.googleapis.com/auth/admin.directory.group`<br>`https://www.googleapis.com/auth/admin.directory.group.member` | Workspace only; service account with domain-wide delegation required |
 <!-- auth-services:end -->
 
 ### Service Accounts (Workspace only)
@@ -460,7 +462,10 @@ gog keep delete <noteId> --account you@yourdomain.com --force
 - `GOG_PLAIN` - Default plain output
 - `GOG_COLOR` - Color mode: `auto` (default), `always`, or `never`
 - `GOG_TIMEZONE` - Default output timezone for Calendar/Gmail (IANA name, `UTC`, or `local`)
-- `GOG_ENABLE_COMMANDS` - Comma-separated allowlist of top-level commands (e.g., `calendar,tasks`)
+- `GOG_ENABLE_COMMANDS` - Comma-separated allowlist of commands; dot paths allowed (e.g., `calendar,tasks,gmail.search`)
+- `GOG_DISABLE_COMMANDS` - Comma-separated denylist of commands; dot paths allowed (e.g., `gmail.send,gmail.drafts.send`)
+- `GOG_GMAIL_NO_SEND` - Block Gmail send operations
+- `GOG_KEYRING_SERVICE_NAME` - Override the keyring namespace/service name (default: `gogcli`)
 
 ### Config File (JSON5)
 
@@ -493,6 +498,11 @@ Example (JSON5 supports comments and trailing commas):
   client_domains: {
     "example.com": "work",
   },
+  // Optional safety guard: block Gmail send operations
+  gmail_no_send: true,
+  no_send_accounts: {
+    "agent@example.com": true,
+  },
 }
 ```
 
@@ -502,9 +512,9 @@ Example (JSON5 supports comments and trailing commas):
 gog config path
 gog config list
 gog config keys
-gog config get default_timezone
-gog config set default_timezone UTC
-gog config unset default_timezone
+gog config get timezone
+gog config set timezone UTC
+gog config unset timezone
 ```
 
 ### Account Aliases
@@ -517,15 +527,23 @@ gog auth alias unset work
 
 Aliases work anywhere you pass `--account` or `GOG_ACCOUNT` (reserved: `auto`, `default`).
 
-### Command Allowlist (Sandboxing)
+### Command Guards (Sandboxing)
 
 ```bash
 # Only allow calendar + tasks commands for an agent
 gog --enable-commands calendar,tasks calendar events --today
 
+# Allow one Gmail read path, but block Gmail writes
+gog --enable-commands gmail.search --disable-commands gmail.send gmail search from:me
+
 # Same via env
 export GOG_ENABLE_COMMANDS=calendar,tasks
+export GOG_DISABLE_COMMANDS=gmail.send,gmail.drafts.send
 gog tasks list <tasklistId>
+
+# Extra Gmail send guard
+gog --gmail-no-send gmail send --to someone@example.com --subject Test --body Test
+gog config no-send set agent@example.com
 ```
  
 ## Security
@@ -551,6 +569,7 @@ Options:
 - **Force Keychain:** `GOG_KEYRING_BACKEND=keychain` (disables any file-backend fallback).
 - **Avoid Keychain prompts entirely:** `GOG_KEYRING_BACKEND=file` (stores encrypted entries on disk under your config dir).
   - To avoid password prompts too (CI/non-interactive): set `GOG_KEYRING_PASSWORD=...` (tradeoff: secret in env).
+- **Use a separate keyring namespace:** `GOG_KEYRING_SERVICE_NAME=custom-gog` (default: `gogcli`).
 
 ### Best Practices
 
@@ -580,6 +599,8 @@ Flag aliases:
 ```bash
 gog auth credentials <path>           # Store OAuth client credentials
 gog auth credentials list             # List stored OAuth client credentials
+gog auth credentials remove work      # Remove one OAuth client plus its tokens/domain mappings
+gog auth credentials remove all       # Remove all stored OAuth clients plus their tokens/domain mappings
 gog --client work auth credentials <path>  # Store named OAuth client credentials
 gog auth add <email>                  # Authorize and store refresh token
 gog auth add <email> --services gmail --gmail-scope readonly  # Gmail read-only token
@@ -644,6 +665,7 @@ gog gmail drafts create --to a@b.com --subject "Draft" --body "Body"
 gog gmail drafts update <draftId> --subject "Draft" --body "Body"
 gog gmail drafts update <draftId> --to a@b.com --subject "Draft" --body "Body"
 gog gmail drafts send <draftId>
+gog gmail autoreply 'from:alerts@example.com newer_than:7d' --body-file ./reply.txt --label AutoReplied --dry-run
 
 # Labels
 gog gmail labels list
@@ -723,6 +745,7 @@ Docs: `docs/email-tracking.md` (setup/deploy) + `docs/email-tracking-worker.md` 
 ```bash
 # Calendars
 gog calendar calendars
+gog calendar create-calendar "Team Calendar" --timezone Europe/London
 gog calendar acl <calendarId>         # List access control rules
 gog calendar colors                   # List available event/calendar colors
 gog calendar time --timezone America/New_York
@@ -873,6 +896,8 @@ gog time now --timezone UTC
 
 ### Drive
 
+When you turn a Markdown file into a Google Doc, use **`--convert`** (extension-based) or **`--convert-to doc`**. Leading YAML frontmatter between **`---`** lines is **removed before upload** unless you pass **`--keep-frontmatter`**. That step only looks for opening and closing delimiter lines—it is **not** a full YAML parse, so odd edge cases may need **`--keep-frontmatter`** or editing the file first.
+
 ```bash
 # List and search
 gog drive ls --max 20
@@ -892,9 +917,11 @@ gog drive upload ./path/to/file --replace <fileId>  # Replace file content in-pl
 gog drive upload ./report.docx --convert
 gog drive upload ./chart.png --convert-to sheet
 gog drive upload ./report.docx --convert --name report.docx
+gog drive upload ./notes.md --convert                              # Markdown → Google Doc (or use --convert-to doc)
 gog drive download <fileId> --out ./downloaded.bin
 gog drive download <fileId> --format pdf --out ./exported.pdf     # Google Workspace files only
 gog drive download <fileId> --format docx --out ./doc.docx
+gog drive download <fileId> --format md --out ./note.md            # Google Doc → Markdown
 gog drive download <fileId> --format pptx --out ./slides.pptx
 
 # Organize
@@ -909,6 +936,7 @@ gog drive delete <fileId> --permanent # Permanently delete
 gog drive permissions <fileId>
 gog drive share <fileId> --to user --email user@example.com --role reader
 gog drive share <fileId> --to user --email user@example.com --role writer
+gog drive share <fileId> --to user --email reviewer@example.com --role commenter
 gog drive share <fileId> --to domain --domain example.com --role reader
 gog drive unshare <fileId> --permission-id <permissionId>
 
@@ -936,6 +964,7 @@ gog docs update <docId> --file ./insert.txt --index 25 --pageless
 gog docs write <docId> --text "Fresh content"
 gog docs write <docId> --text "Rewrite one tab" --tab-id t.notes
 gog docs write <docId> --file ./body.txt --append --pageless
+gog docs write <docId> --file ./body.md --replace --markdown
 gog docs find-replace <docId> "old" "new"
 gog docs find-replace <docId> "old" "new" --tab-id t.notes
 
@@ -966,7 +995,7 @@ gog sheets notes <spreadsheetId> 'Sheet1!A1:B10'
 gog sheets find-replace <spreadsheetId> "old" "new"
 gog sheets find-replace <spreadsheetId> "old" "new" --sheet Sheet1 --match-entire
 gog sheets links <spreadsheetId> 'Sheet1!A1:B10'
-gog sheets add-tab <spreadsheetId> <tabName>
+gog sheets add-tab <spreadsheetId> <tabName> --index 0
 gog sheets rename-tab <spreadsheetId> <oldName> <newName>
 gog sheets delete-tab <spreadsheetId> <tabName> --force
 ```
@@ -1098,7 +1127,7 @@ gog sheets links <spreadsheetId> 'Sheet1!A1:B10'   # Includes rich-text links
 gog sheets create "My New Spreadsheet" --sheets "Sheet1,Sheet2"
 
 # Tab management
-gog sheets add-tab <spreadsheetId> <tabName>
+gog sheets add-tab <spreadsheetId> <tabName> --index 0
 gog sheets rename-tab <spreadsheetId> <oldName> <newName>
 gog sheets delete-tab <spreadsheetId> <tabName>          # use --force to skip confirmation
 ```
@@ -1160,6 +1189,7 @@ gog people relations people/<userId> --type manager
 # Spaces
 gog chat spaces list
 gog chat spaces find "Engineering"
+gog chat spaces find "Engineering" --exact
 gog chat spaces create "Engineering" --member alice@company.com --member bob@company.com
 
 # Messages
@@ -1343,6 +1373,21 @@ EOF
 
 gog slides create-from-template <templateId> "Monthly Report" \
   --replacements replacements.json
+
+# Read slide content (text, notes, images)
+gog slides read-slide <presentationId> <slideId>
+
+# Include grouped elements, word art, and tables
+gog slides read-slide <presentationId> <slideId> --recursive --json
+
+# Get a rendered slide thumbnail URL
+gog slides thumbnail <presentationId> <slideId>
+
+# Download a rendered slide thumbnail
+gog slides thumbnail <presentationId> <slideId> --output ./slide.png
+
+# Control thumbnail size and format
+gog slides thumbnail <presentationId> <slideId> --size medium --format jpeg --output ./slide.jpg
 ```
 
 ## Output Formats
@@ -1359,7 +1404,7 @@ THREAD_ID           SUBJECT                           FROM                  DATE
 16d1c2b3a4e5f6d7    Project update                    bob@example.com       2025-01-08
 ```
 
-Message-level search (one row per email; add `--include-body` to fetch/decode bodies):
+Message-level search (one row per email; add `--include-body` to fetch/decode bodies, or `--full` for untruncated text bodies):
 
 ```bash
 $ gog gmail messages search 'newer_than:7d' --max 3
@@ -1404,7 +1449,7 @@ $ gog gmail messages search 'newer_than:7d' --max 3 --json
 ```
 
 ```bash
-$ gog gmail messages search 'newer_than:7d' --max 1 --include-body --json
+$ gog gmail messages search 'newer_than:7d' --max 1 --full --json
 {
   "messages": [
     {
@@ -1549,7 +1594,9 @@ gog --verbose gmail search 'newer_than:7d'
 All commands support these flags:
 
 - `--account <email|alias|auto>` - Account to use (overrides GOG_ACCOUNT)
-- `--enable-commands <csv>` - Allowlist top-level commands (e.g., `calendar,tasks`)
+- `--enable-commands <csv>` - Allowlist commands; dot paths allowed (e.g., `calendar,tasks,gmail.search`)
+- `--disable-commands <csv>` - Denylist commands; dot paths allowed (e.g., `gmail.send,gmail.drafts.send`)
+- `--gmail-no-send` - Block Gmail send operations
 - `--json` - Output JSON to stdout (best for scripting)
 - `--plain` - Output stable, parseable text to stdout (TSV; no colors)
 - `--color <mode>` - Color mode: `auto`, `always`, or `never` (default: auto)

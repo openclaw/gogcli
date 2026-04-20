@@ -232,7 +232,7 @@ type AdminUsersCreateCmd struct {
 	Email      string `arg:"" name:"email" help:"User email (e.g., user@example.com)"`
 	GivenName  string `name:"given" help:"Given (first) name"`
 	FamilyName string `name:"family" help:"Family (last) name"`
-	Password   string `name:"password" help:"Initial password"` //nolint:gosec // CLI input for initial admin-provisioned passwords.
+	Password   string `name:"password" help:"Initial password"`
 	ChangePwd  bool   `name:"change-password" help:"Require password change on first login"`
 	OrgUnit    string `name:"org-unit" help:"Organization unit path"`
 	Admin      bool   `name:"admin" help:"Not supported; assign admin roles separately after user creation"`

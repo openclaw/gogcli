@@ -491,14 +491,18 @@ func (c *TasksUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *Roo
 		changed = true
 	}
 	if flagProvided(kctx, "due") {
-		if !outfmt.IsJSON(ctx) {
-			warnTasksDueTime(u, c.Due)
-		}
 		dueValue, dueErr := normalizeTaskDue(c.Due)
 		if dueErr != nil {
 			return dueErr
 		}
-		patch.Due = dueValue
+		if dueValue == "" {
+			patch.NullFields = append(patch.NullFields, "Due")
+		} else {
+			if !outfmt.IsJSON(ctx) {
+				warnTasksDueTime(u, c.Due)
+			}
+			patch.Due = dueValue
+		}
 		changed = true
 	}
 	if flagProvided(kctx, "status") {

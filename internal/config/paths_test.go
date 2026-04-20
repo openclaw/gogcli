@@ -10,6 +10,7 @@ import (
 func TestPaths_CreateDirs(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
 	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, "xdg-config"))
 
 	dir, err := EnsureDir()
@@ -95,6 +96,11 @@ func TestExpandPath(t *testing.T) {
 			name:  "tilde with subpath",
 			input: "~/Downloads/file.txt",
 			want:  filepath.Join(home, "Downloads/file.txt"),
+		},
+		{
+			name:  "tilde with backslash subpath",
+			input: `~\Downloads\file.txt`,
+			want:  filepath.Join(home, `Downloads\file.txt`),
 		},
 		{
 			name:  "absolute path unchanged",

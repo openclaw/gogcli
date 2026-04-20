@@ -53,14 +53,14 @@ func (c *DocsSedCmd) doPositionalInsert(ctx context.Context, docsSvc *docs.Servi
 
 		// Apply text formatting if any
 		if len(formats) > 0 {
-			end := idx + int64(len(plainText))
+			end := idx + utf16Len(plainText)
 			requests = append(requests, buildTextStyleRequests(formats, idx, end)...)
 		}
 	}
 
 	// After inserting text, reset paragraph styles and apply heading/bullet if requested
 	if tableSpec == nil && imgSpec == nil && plainText != "" {
-		end := idx + int64(len(plainText))
+		end := idx + utf16Len(plainText)
 
 		// Reset paragraph to NORMAL_TEXT (removes inherited heading styles)
 		requests = append(requests, &docs.Request{

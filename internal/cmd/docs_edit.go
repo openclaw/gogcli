@@ -8,6 +8,8 @@ import (
 
 	"github.com/alecthomas/kong"
 	"google.golang.org/api/docs/v1"
+	"google.golang.org/api/drive/v3"
+	gapi "google.golang.org/api/googleapi"
 
 	"github.com/steipete/gogcli/internal/outfmt"
 	"github.com/steipete/gogcli/internal/ui"
@@ -17,35 +19,54 @@ type DocsWriteCmd struct {
 	DocID    string `arg:"" name:"docId" help:"Doc ID"`
 	Text     string `name:"text" help:"Text to write"`
 	File     string `name:"file" help:"Text file path ('-' for stdin)"`
+	Replace  bool   `name:"replace" help:"Replace all content explicitly (required with --markdown)"`
+	Markdown bool   `name:"markdown" help:"Convert markdown to Google Docs formatting (requires --replace)"`
 	Append   bool   `name:"append" help:"Append instead of replacing the document body"`
 	Pageless bool   `name:"pageless" help:"Set document to pageless mode"`
 	TabID    string `name:"tab-id" help:"Target a specific tab by ID (see docs list-tabs)"`
 }
 
 func (c *DocsWriteCmd) Run(ctx context.Context, kctx *kong.Context, flags *RootFlags) error {
-	u := ui.FromContext(ctx)
 	id := strings.TrimSpace(c.DocID)
 	if id == "" {
 		return usage("empty docId")
 	}
 
-	text, provided, err := resolveTextInput(c.Text, c.File, kctx, "text", "file")
+	text, err := c.resolveWriteText(kctx)
 	if err != nil {
 		return err
 	}
-	if !provided {
-		return usage("required: --text or --file")
+	if c.Append && c.Replace {
+		return usage("--append cannot be combined with --replace")
 	}
-	if text == "" {
-		return usage("empty text")
+	if c.Markdown {
+		return c.writeMarkdown(ctx, flags, id, text)
 	}
 
+	return c.writePlainText(ctx, flags, id, text)
+}
+
+func (c *DocsWriteCmd) resolveWriteText(kctx *kong.Context) (string, error) {
+	text, provided, err := resolveTextInput(c.Text, c.File, kctx, "text", "file")
+	if err != nil {
+		return "", err
+	}
+	if !provided {
+		return "", usage("required: --text or --file")
+	}
+	if text == "" {
+		return "", usage("empty text")
+	}
+	return text, nil
+}
+
+func (c *DocsWriteCmd) writePlainText(ctx context.Context, flags *RootFlags, docID, text string) error {
 	svc, err := requireDocsService(ctx, flags)
 	if err != nil {
 		return err
 	}
 
-	endIndex, err := docsTargetEndIndex(ctx, svc, id, c.TabID)
+	endIndex, err := docsTargetEndIndex(ctx, svc, docID, c.TabID)
 	if err != nil {
 		return err
 	}
@@ -54,7 +75,23 @@ func (c *DocsWriteCmd) Run(ctx context.Context, kctx *kong.Context, flags *RootF
 		insertIndex = docsAppendIndex(endIndex)
 	}
 
-	var reqs []*docs.Request
+	reqs := c.buildPlainWriteRequests(endIndex, insertIndex, text)
+	resp, err := svc.Documents.BatchUpdate(docID, &docs.BatchUpdateDocumentRequest{Requests: reqs}).Context(ctx).Do()
+	if err != nil {
+		if isDocsNotFound(err) {
+			return fmt.Errorf("doc not found or not a Google Doc (id=%s)", docID)
+		}
+		return err
+	}
+	if err := c.applyPageless(ctx, svc, docID); err != nil {
+		return err
+	}
+
+	return c.writePlainTextResult(ctx, resp, len(reqs), insertIndex)
+}
+
+func (c *DocsWriteCmd) buildPlainWriteRequests(endIndex, insertIndex int64, text string) []*docs.Request {
+	reqs := make([]*docs.Request, 0, 2)
 	if !c.Append {
 		deleteEnd := endIndex - 1
 		if deleteEnd > 1 {
@@ -71,24 +108,25 @@ func (c *DocsWriteCmd) Run(ctx context.Context, kctx *kong.Context, flags *RootF
 			Text:     text,
 		},
 	})
+	return reqs
+}
 
-	resp, err := svc.Documents.BatchUpdate(id, &docs.BatchUpdateDocumentRequest{Requests: reqs}).Context(ctx).Do()
-	if err != nil {
-		if isDocsNotFound(err) {
-			return fmt.Errorf("doc not found or not a Google Doc (id=%s)", id)
-		}
-		return err
+func (c *DocsWriteCmd) applyPageless(ctx context.Context, svc *docs.Service, docID string) error {
+	if !c.Pageless {
+		return nil
 	}
-	if c.Pageless {
-		if err := setDocumentPageless(ctx, svc, id); err != nil {
-			return fmt.Errorf("set pageless mode: %w", err)
-		}
+	if err := setDocumentPageless(ctx, svc, docID); err != nil {
+		return fmt.Errorf("set pageless mode: %w", err)
 	}
+	return nil
+}
 
+func (c *DocsWriteCmd) writePlainTextResult(ctx context.Context, resp *docs.BatchUpdateDocumentResponse, requestCount int, insertIndex int64) error {
+	u := ui.FromContext(ctx)
 	if outfmt.IsJSON(ctx) {
 		payload := map[string]any{
 			"documentId": resp.DocumentId,
-			"requests":   len(reqs),
+			"requests":   requestCount,
 			"append":     c.Append,
 			"index":      insertIndex,
 		}
@@ -102,7 +140,7 @@ func (c *DocsWriteCmd) Run(ctx context.Context, kctx *kong.Context, flags *RootF
 	}
 
 	u.Out().Printf("id\t%s", resp.DocumentId)
-	u.Out().Printf("requests\t%d", len(reqs))
+	u.Out().Printf("requests\t%d", requestCount)
 	u.Out().Printf("append\t%t", c.Append)
 	u.Out().Printf("index\t%d", insertIndex)
 	if c.TabID != "" {
@@ -110,6 +148,69 @@ func (c *DocsWriteCmd) Run(ctx context.Context, kctx *kong.Context, flags *RootF
 	}
 	if resp.WriteControl != nil && resp.WriteControl.RequiredRevisionId != "" {
 		u.Out().Printf("revision\t%s", resp.WriteControl.RequiredRevisionId)
+	}
+	return nil
+}
+
+func (c *DocsWriteCmd) writeMarkdown(ctx context.Context, flags *RootFlags, docID, content string) error {
+	u := ui.FromContext(ctx)
+
+	if !c.Replace {
+		return usage("--markdown requires --replace")
+	}
+	if c.Append {
+		return usage("--markdown cannot be combined with --append")
+	}
+	if c.TabID != "" {
+		return usage("--markdown cannot be combined with --tab-id")
+	}
+
+	_, driveSvc, err := requireDriveService(ctx, flags)
+	if err != nil {
+		return err
+	}
+
+	updated, err := driveSvc.Files.Update(docID, &drive.File{}).
+		Media(strings.NewReader(content), gapi.ContentType(mimeTextMarkdown)).
+		SupportsAllDrives(true).
+		Fields("id,name,webViewLink").
+		Context(ctx).
+		Do()
+	if err != nil {
+		return fmt.Errorf("writing markdown to document: %w", err)
+	}
+
+	if c.Pageless {
+		docsSvc, svcErr := requireDocsService(ctx, flags)
+		if svcErr != nil {
+			return svcErr
+		}
+		if err := c.applyPageless(ctx, docsSvc, docID); err != nil {
+			return err
+		}
+	}
+
+	if outfmt.IsJSON(ctx) {
+		payload := map[string]any{
+			"documentId": updated.Id,
+			"written":    len(content),
+			"replaced":   true,
+			"markdown":   true,
+		}
+		if c.Pageless {
+			payload["pageless"] = true
+		}
+		return outfmt.WriteJSON(ctx, os.Stdout, payload)
+	}
+
+	u.Out().Printf("documentId\t%s", updated.Id)
+	u.Out().Printf("written\t%d", len(content))
+	u.Out().Printf("mode\treplaced (markdown converted)")
+	if c.Pageless {
+		u.Out().Printf("pageless\ttrue")
+	}
+	if updated.WebViewLink != "" {
+		u.Out().Printf("link\t%s", updated.WebViewLink)
 	}
 	return nil
 }

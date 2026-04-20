@@ -46,9 +46,9 @@ type SheetsCmd struct {
 	Create        SheetsCreateCmd        `cmd:"" name:"create" aliases:"new" help:"Create a new spreadsheet"`
 	Copy          SheetsCopyCmd          `cmd:"" name:"copy" aliases:"cp,duplicate" help:"Copy a Google Sheet"`
 	Export        SheetsExportCmd        `cmd:"" name:"export" aliases:"download,dl" help:"Export a Google Sheet (pdf|xlsx|csv) via Drive"`
-	AddTab        SheetsAddTabCmd        `cmd:"" name:"add-tab" help:"Add a new tab/sheet to a spreadsheet"`
-	RenameTab     SheetsRenameTabCmd     `cmd:"" name:"rename-tab" help:"Rename a tab/sheet in a spreadsheet"`
-	DeleteTab     SheetsDeleteTabCmd     `cmd:"" name:"delete-tab" help:"Delete a tab/sheet from a spreadsheet (use --force to skip confirmation)"`
+	AddTab        SheetsAddTabCmd        `cmd:"" name:"add-tab" aliases:"add-sheet" help:"Add a new tab/sheet to a spreadsheet"`
+	RenameTab     SheetsRenameTabCmd     `cmd:"" name:"rename-tab" aliases:"rename-sheet" help:"Rename a tab/sheet in a spreadsheet"`
+	DeleteTab     SheetsDeleteTabCmd     `cmd:"" name:"delete-tab" aliases:"delete-sheet" help:"Delete a tab/sheet from a spreadsheet (use --force to skip confirmation)"`
 }
 
 type SheetsExportCmd struct {

@@ -70,7 +70,7 @@ func findDocMatches(doc *docs.Document, re *regexp.Regexp, expr sedExpr) []sedMa
 					for _, loc := range results {
 						oldText := text[loc[0]:loc[1]]
 						expanded := re.ReplaceAllString(oldText, expr.replacement)
-						matches = append(matches, classifyMatch(baseIdx, loc, oldText, expanded, expr))
+						matches = append(matches, classifyMatch(baseIdx, text, loc, oldText, expanded, expr))
 					}
 				}
 			}
@@ -101,7 +101,9 @@ func findDocMatches(doc *docs.Document, re *regexp.Regexp, expr sedExpr) []sedMa
 
 // classifyMatch creates a sedMatch from a regex match, determining if it's an image,
 // brace expression, or plain text replacement.
-func classifyMatch(baseIdx int64, loc []int, oldText, expanded string, expr sedExpr) sedMatch {
+func classifyMatch(baseIdx int64, text string, loc []int, oldText, expanded string, expr sedExpr) sedMatch {
+	start, end := matchDocsRange(baseIdx, text, loc)
+
 	// Fast path: only attempt image parsing if replacement starts with ![
 	var imgSpec *ImageSpec
 	if strings.HasPrefix(expanded, "![") {
@@ -109,7 +111,7 @@ func classifyMatch(baseIdx int64, loc []int, oldText, expanded string, expr sedE
 	}
 	switch {
 	case imgSpec != nil:
-		return sedMatch{start: baseIdx + int64(loc[0]), end: baseIdx + int64(loc[1]), oldText: oldText, image: imgSpec}
+		return sedMatch{start: start, end: end, oldText: oldText, image: imgSpec}
 	case expr.brace != nil && expr.brace.ImgRef != "":
 		// Brace image: {img=url x=W y=H}
 		spec := &ImageSpec{URL: expr.brace.ImgRef}
@@ -119,11 +121,11 @@ func classifyMatch(baseIdx int64, loc []int, oldText, expanded string, expr sedE
 		if expr.brace.Height > 0 {
 			spec.Height = expr.brace.Height
 		}
-		return sedMatch{start: baseIdx + int64(loc[0]), end: baseIdx + int64(loc[1]), oldText: oldText, image: spec}
+		return sedMatch{start: start, end: end, oldText: oldText, image: spec}
 	case expr.brace != nil:
 		return sedMatch{
-			start:      baseIdx + int64(loc[0]),
-			end:        baseIdx + int64(loc[1]),
+			start:      start,
+			end:        end,
 			oldText:    oldText,
 			newText:    expanded,
 			formats:    braceExprToFormats(expr.brace),
@@ -132,8 +134,14 @@ func classifyMatch(baseIdx int64, loc []int, oldText, expanded string, expr sedE
 		}
 	default:
 		plainText, formats := parseMarkdownReplacement(expanded)
-		return sedMatch{start: baseIdx + int64(loc[0]), end: baseIdx + int64(loc[1]), oldText: oldText, newText: plainText, formats: formats}
+		return sedMatch{start: start, end: end, oldText: oldText, newText: plainText, formats: formats}
 	}
+}
+
+func matchDocsRange(baseIdx int64, text string, loc []int) (int64, int64) {
+	start := baseIdx + utf16Len(text[:loc[0]])
+	end := start + utf16Len(text[loc[0]:loc[1]])
+	return start, end
 }
 
 // processFootnotes handles footnote matches, each needing a two-phase create+populate approach.
@@ -281,7 +289,7 @@ func (c *DocsSedCmd) runManualInner(ctx context.Context, docsSvc *docs.Service, 
 				}
 				formatRanges = append(formatRanges, formatRange{
 					start:      m.start,
-					end:        m.start + int64(len(m.newText)),
+					end:        m.start + utf16Len(m.newText),
 					formats:    fmts,
 					hasTab:     strings.HasPrefix(m.newText, "\t"),
 					braceExpr:  m.braceExpr,

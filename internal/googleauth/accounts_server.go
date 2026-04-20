@@ -542,7 +542,7 @@ func fetchUserEmailWithURL(ctx context.Context, accessToken string, url string) 
 
 	client := &http.Client{Timeout: 10 * time.Second}
 
-	resp, err := client.Do(req) //nolint:gosec // URL is controlled by internal constant or test override
+	resp, err := client.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("fetch userinfo: %w", err)
 	}

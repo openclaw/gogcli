@@ -33,5 +33,17 @@ run_core_tests() {
     else
       echo "enable-commands block OK"
     fi
+    if $BIN --disable-commands gmail.labels gmail labels list >/dev/null 2>&1; then
+      echo "Expected disable-commands to block gmail labels, but it succeeded" >&2
+      exit 1
+    else
+      echo "disable-commands block OK"
+    fi
+    if $BIN --gmail-no-send gmail send --to nobody@example.com --subject Test --body Test >/dev/null 2>&1; then
+      echo "Expected gmail-no-send to block send, but it succeeded" >&2
+      exit 1
+    else
+      echo "gmail-no-send block OK"
+    fi
   fi
 }

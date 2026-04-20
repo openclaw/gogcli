@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"io"
+	"regexp"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -196,6 +197,25 @@ func TestRunManualInner_SimpleReplace(t *testing.T) {
 	count, _, err := cmd.runManualInner(context.Background(), svc, "test-doc", expr)
 	assert.NoError(t, err)
 	assert.Equal(t, 1, count)
+}
+
+func TestFindDocMatches_UTF16Offsets(t *testing.T) {
+	doc := &docs.Document{
+		DocumentId: "test-doc",
+		Body: &docs.Body{Content: []*docs.StructuralElement{
+			{Paragraph: &docs.Paragraph{
+				Elements: []*docs.ParagraphElement{
+					{TextRun: &docs.TextRun{Content: "A🐢 foo\n"}, StartIndex: 1, EndIndex: 9},
+				},
+			}, StartIndex: 1, EndIndex: 9},
+		}},
+	}
+
+	matches := findDocMatches(doc, regexp.MustCompile("foo"), sedExpr{pattern: "foo", replacement: "${0}"})
+	require.Len(t, matches, 1)
+	assert.Equal(t, int64(5), matches[0].start)
+	assert.Equal(t, int64(8), matches[0].end)
+	assert.Equal(t, "foo", matches[0].newText)
 }
 
 func TestRunManualInner_WithFormatting(t *testing.T) {

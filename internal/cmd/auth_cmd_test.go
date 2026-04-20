@@ -490,3 +490,60 @@ func TestAuthListRemoveTokensListDelete_JSON(t *testing.T) {
 		t.Fatalf("expected empty keys, got: %#v", emptyKeysResp.Keys)
 	}
 }
+
+func TestAuthRemove_CleansUpConfig(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, "xdg-config"))
+	t.Setenv("GOG_KEYRING_BACKEND", "file")
+
+	origOpen := openSecretsStore
+	t.Cleanup(func() { openSecretsStore = origOpen })
+
+	store := newMemSecretsStore()
+	_ = store.SetToken("custom-client", "remove@example.com", secrets.Token{RefreshToken: "rt-remove"})
+	openSecretsStore = func() (secrets.Store, error) { return store, nil }
+
+	// Write config with alias and client entries for the email we will remove.
+	cfg := config.File{
+		AccountAliases: map[string]string{
+			"work": "remove@example.com",
+			"keep": "other@example.com",
+		},
+		AccountClients: map[string]string{
+			"remove@example.com": "custom-client",
+			"other@example.com":  "default",
+		},
+	}
+	if err := config.WriteConfig(cfg); err != nil {
+		t.Fatalf("WriteConfig: %v", err)
+	}
+
+	// Run auth remove.
+	_ = captureStdout(t, func() {
+		_ = captureStderr(t, func() {
+			if err := Execute([]string{"--json", "--force", "auth", "remove", "remove@example.com"}); err != nil {
+				t.Fatalf("Execute remove: %v", err)
+			}
+		})
+	})
+
+	// Verify config was cleaned up.
+	updated, err := config.ReadConfig()
+	if err != nil {
+		t.Fatalf("ReadConfig: %v", err)
+	}
+
+	if _, ok := updated.AccountAliases["work"]; ok {
+		t.Fatalf("expected alias 'work' to be removed, but it still exists")
+	}
+	if v, ok := updated.AccountAliases["keep"]; !ok || v != "other@example.com" {
+		t.Fatalf("expected alias 'keep' to be preserved, got: %v", updated.AccountAliases)
+	}
+	if _, ok := updated.AccountClients["remove@example.com"]; ok {
+		t.Fatalf("expected account_clients entry for remove@example.com to be removed")
+	}
+	if v, ok := updated.AccountClients["other@example.com"]; !ok || v != "default" {
+		t.Fatalf("expected account_clients entry for other@example.com to be preserved, got: %v", updated.AccountClients)
+	}
+}

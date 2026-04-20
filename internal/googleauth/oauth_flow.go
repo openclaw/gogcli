@@ -304,7 +304,7 @@ func renderSuccessPage(w http.ResponseWriter) {
 func renderErrorPage(w http.ResponseWriter, errorMsg string) {
 	tmpl, err := template.New("error").Parse(errorTemplate)
 	if err != nil {
-		_, _ = w.Write([]byte("Error: " + template.HTMLEscapeString(errorMsg))) //nolint:gosec // string is escaped before fallback render
+		_, _ = w.Write([]byte("Error: " + template.HTMLEscapeString(errorMsg)))
 		return
 	}
 	_ = tmpl.Execute(w, struct{ Error string }{Error: errorMsg})

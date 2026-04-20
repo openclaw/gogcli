@@ -193,7 +193,7 @@ func (c *DocsSedCmd) fillTableCells(ctx context.Context, docsSvc *docs.Service, 
 				},
 			})
 
-			fillRequests = append(fillRequests, buildTextStyleRequests(formats, insertIdx, insertIdx+int64(len(plainText)))...)
+			fillRequests = append(fillRequests, buildTextStyleRequests(formats, insertIdx, insertIdx+utf16Len(plainText))...)
 		}
 	}
 

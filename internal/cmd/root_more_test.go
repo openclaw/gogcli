@@ -8,7 +8,16 @@ import (
 	"testing"
 
 	"github.com/alecthomas/kong"
+
+	"github.com/steipete/gogcli/internal/config"
 )
+
+func setTestConfigHome(t *testing.T) {
+	t.Helper()
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, "xdg-config"))
+}
 
 func TestWrapParseError(t *testing.T) {
 	if wrapParseError(nil) != nil {
@@ -56,9 +65,7 @@ func TestBoolString(t *testing.T) {
 }
 
 func TestHelpDescription(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv("HOME", home)
-	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, "xdg-config"))
+	setTestConfigHome(t)
 	t.Setenv("GOG_KEYRING_BACKEND", "auto")
 
 	out := helpDescription()
@@ -76,6 +83,50 @@ func TestEnableCommandsBlocks(t *testing.T) {
 		t.Fatalf("expected error")
 	}
 	if !strings.Contains(err.Error(), "not enabled") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestEnableCommandsAllowsDottedSubcommand(t *testing.T) {
+	setTestConfigHome(t)
+	err := Execute([]string{"--enable-commands", "config.no-send", "config", "no-send", "list"})
+	if err != nil {
+		t.Fatalf("expected dotted allowlist to permit command, got %v", err)
+	}
+}
+
+func TestDisableCommandsBlocksDottedSubcommand(t *testing.T) {
+	setTestConfigHome(t)
+	err := Execute([]string{"--disable-commands", "config.no-send", "config", "no-send", "list"})
+	if err == nil {
+		t.Fatalf("expected error")
+	}
+	if !strings.Contains(err.Error(), "disabled") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestGmailNoSendBlocksBeforeAuth(t *testing.T) {
+	setTestConfigHome(t)
+	err := Execute([]string{"--gmail-no-send", "gmail", "send", "--to", "a@example.com", "--subject", "S", "--body", "B"})
+	if err == nil {
+		t.Fatalf("expected error")
+	}
+	if !strings.Contains(err.Error(), "no-send") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestConfigGmailNoSendBlocksBeforeAuth(t *testing.T) {
+	setTestConfigHome(t)
+	if err := config.WriteConfig(config.File{GmailNoSend: true}); err != nil {
+		t.Fatalf("WriteConfig: %v", err)
+	}
+	err := Execute([]string{"gmail", "send", "--to", "a@example.com", "--subject", "S", "--body", "B"})
+	if err == nil {
+		t.Fatalf("expected error")
+	}
+	if !strings.Contains(err.Error(), "gmail_no_send") {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }

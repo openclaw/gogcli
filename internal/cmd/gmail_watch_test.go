@@ -213,7 +213,7 @@ func TestGmailWatchServerServeHTTP_TruncateBody(t *testing.T) {
 	env.Message.Data = base64.StdEncoding.EncodeToString(payload)
 
 	data, _ := json.Marshal(env)
-	req := httptest.NewRequest(http.MethodPost, "http://example.com/gmail-pubsub", bytes.NewReader(data))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "http://example.com/gmail-pubsub", bytes.NewReader(data))
 	req.Header.Set("x-gog-token", "token")
 	rec := httptest.NewRecorder()
 
