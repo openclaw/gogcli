@@ -599,6 +599,8 @@ Flag aliases:
 ```bash
 gog auth credentials <path>           # Store OAuth client credentials
 gog auth credentials list             # List stored OAuth client credentials
+gog auth credentials remove work      # Remove one OAuth client plus its tokens/domain mappings
+gog auth credentials remove all       # Remove all stored OAuth clients plus their tokens/domain mappings
 gog --client work auth credentials <path>  # Store named OAuth client credentials
 gog auth add <email>                  # Authorize and store refresh token
 gog auth add <email> --services gmail --gmail-scope readonly  # Gmail read-only token

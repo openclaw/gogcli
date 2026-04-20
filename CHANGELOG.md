@@ -3,6 +3,7 @@
 ## Unreleased
 
 ### Added
+- Auth: add `auth credentials remove` to delete stored OAuth client credentials and associated refresh tokens. (#473) — thanks @yamagucci.
 - Gmail: add `gmail autoreply` to reply once to matching messages, label the thread for dedupe, and optionally archive/mark read. Includes docs and regression coverage for skip/reply flows.
 - Gmail: add `gmail messages search --full` to print complete message bodies instead of truncating text output. (#447) — thanks @GodsBoy.
 - Drive: allow `drive share --role commenter` for comment-only sharing. (#443) — thanks @pavelzak.

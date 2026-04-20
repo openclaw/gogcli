@@ -80,6 +80,7 @@ Implementation: `internal/ui/ui.go`.
   - `gog auth credentials <credentials.json>`
   - `gog --client <name> auth credentials <credentials.json>`
   - `gog auth credentials list`
+  - `gog auth credentials remove [<client>|all]`
 - Supports Google’s downloaded JSON format:
   - `installed.client_id/client_secret` or `web.client_id/client_secret`
 
@@ -163,6 +164,7 @@ Flag aliases:
 
 - `gog auth credentials <credentials.json|->`
 - `gog auth credentials list`
+- `gog auth credentials remove [<client>|all]`
 - `gog --client <name> auth credentials <credentials.json|->`
 - `gog auth add <email> [--services user|all|gmail,calendar,chat,classroom,drive,docs,slides,contacts,tasks,sheets,people,forms,appscript,ads,groups,keep,admin] [--readonly] [--drive-scope full|readonly|file] [--gmail-scope full|readonly] [--extra-scopes CSV] [--manual] [--remote] [--step 1|2] [--auth-url URL] [--listen-addr HOST[:PORT]] [--redirect-host HOST] [--timeout DURATION] [--force-consent]`
 - `gog auth services [--markdown]`
