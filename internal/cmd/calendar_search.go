@@ -50,7 +50,9 @@ func (c *CalendarSearchCmd) Run(ctx context.Context, flags *RootFlags) error {
 		TimeMax(to).
 		MaxResults(c.Max).
 		SingleEvents(true).
-		OrderBy("startTime")
+		OrderBy("startTime").
+		ShowDeleted(false).
+		Context(ctx)
 
 	resp, err := call.Do()
 	if err != nil {
@@ -75,5 +77,7 @@ func (c *CalendarSearchCmd) Run(ctx context.Context, flags *RootFlags) error {
 		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\n", e.Id, eventStart(e), eventEnd(e), e.Summary)
 	}
 	_ = tw.Flush()
+	return nil
+}
 	return nil
 }
