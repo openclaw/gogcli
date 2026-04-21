@@ -103,7 +103,7 @@ func replaceDocsTextRange(ctx context.Context, svc *docs.Service, doc *docs.Docu
 	return nil
 }
 
-func replaceDocsMarkdownRange(ctx context.Context, svc *docs.Service, account string, doc *docs.Document, startIdx, endIdx int64, replaceText, basePath string) error {
+func replaceDocsMarkdownRange(ctx context.Context, svc *docs.Service, account string, doc *docs.Document, startIdx, endIdx int64, replaceText, basePath, tabID string) error {
 	cleaned, images := extractMarkdownImages(replaceText)
 	elements := ParseMarkdown(cleaned)
 	formattingRequests, textToInsert, tables := MarkdownToDocsRequests(elements, startIdx)
@@ -117,7 +117,7 @@ func replaceDocsMarkdownRange(ctx context.Context, svc *docs.Service, account st
 		},
 		&docs.Request{
 			InsertText: &docs.InsertTextRequest{
-				Location: &docs.Location{Index: startIdx},
+				Location: &docs.Location{Index: startIdx, TabId: tabID},
 				Text:     textToInsert,
 			},
 		},
@@ -149,7 +149,7 @@ func replaceDocsMarkdownRange(ctx context.Context, svc *docs.Service, account st
 
 	if len(images) > 0 {
 		imgErr := insertImagesIntoDocs(ctx, account, svc, doc.DocumentId, images, basePath)
-		cleanupDocsImagePlaceholders(ctx, svc, doc.DocumentId, images)
+		cleanupDocsImagePlaceholders(ctx, svc, doc.DocumentId, images, tabID)
 		if imgErr != nil {
 			return fmt.Errorf("insert images: %w", imgErr)
 		}
@@ -158,17 +158,21 @@ func replaceDocsMarkdownRange(ctx context.Context, svc *docs.Service, account st
 	return nil
 }
 
-func cleanupDocsImagePlaceholders(ctx context.Context, svc *docs.Service, docID string, images []markdownImage) {
+func cleanupDocsImagePlaceholders(ctx context.Context, svc *docs.Service, docID string, images []markdownImage, tabID string) {
 	reqs := make([]*docs.Request, 0, len(images))
 	for _, img := range images {
-		reqs = append(reqs, &docs.Request{
-			ReplaceAllText: &docs.ReplaceAllTextRequest{
-				ContainsText: &docs.SubstringMatchCriteria{
-					Text:      img.placeholder(),
-					MatchCase: true,
-				},
-				ReplaceText: "",
+		req := &docs.ReplaceAllTextRequest{
+			ContainsText: &docs.SubstringMatchCriteria{
+				Text:      img.placeholder(),
+				MatchCase: true,
 			},
+			ReplaceText: "",
+		}
+		if tabID != "" {
+			req.TabsCriteria = &docs.TabsCriteria{TabIds: []string{tabID}}
+		}
+		reqs = append(reqs, &docs.Request{
+			ReplaceAllText: req,
 		})
 	}
 	_, _ = svc.Documents.BatchUpdate(docID, &docs.BatchUpdateDocumentRequest{

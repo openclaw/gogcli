@@ -526,9 +526,28 @@ func (c *DocsFindReplaceCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 
 	matches := findTextMatches(targetDoc, c.Find, c.MatchCase)
+	if len(matches) == 0 {
+		fmt.Fprintf(os.Stderr, "warning: no matches found for %q in locally parsed document (--format markdown uses local parsing); the text may be in a nested structure or have encoding differences\n", c.Find)
+		if outfmt.IsJSON(ctx) {
+			return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
+				"documentId":   docID,
+				"find":         c.Find,
+				"replace":      replaceText,
+				"replacements": 0,
+			})
+		}
+		u.Out().Printf("documentId\t%s", docID)
+		u.Out().Printf("find\t%s", c.Find)
+		u.Out().Printf("replace\t%s", replaceText)
+		u.Out().Printf("replacements\t0")
+		return nil
+	}
+	if c.TabID != "" && format == docsContentFormatMarkdown {
+		fmt.Fprintf(os.Stderr, "warning: --format markdown with --tab-id uses local parsing; DeleteContentRange does not support tab targeting, replacements may not apply to the correct tab\n")
+	}
 	for i := len(matches) - 1; i >= 0; i-- {
 		if err = c.runMarkdown(ctx, svc, account, doc, matches[i].startIndex, matches[i].endIndex, replaceText); err != nil {
-			return err
+			return fmt.Errorf("replacing match at index %d: %w", matches[i].startIndex, err)
 		}
 		if i == 0 {
 			continue
@@ -601,7 +620,7 @@ func (c *DocsFindReplaceCmd) runMarkdown(ctx context.Context, svc *docs.Service,
 	if basePath == "" {
 		basePath = "."
 	}
-	return replaceDocsMarkdownRange(ctx, svc, account, doc, startIdx, endIdx, replaceText, basePath)
+	return replaceDocsMarkdownRange(ctx, svc, account, doc, startIdx, endIdx, replaceText, basePath, c.TabID)
 }
 
 func (c *DocsFindReplaceCmd) printFirstResult(ctx context.Context, u *ui.UI, docID, replaceText string, replacements, total int) error {
