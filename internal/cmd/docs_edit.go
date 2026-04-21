@@ -11,6 +11,7 @@ import (
 	"google.golang.org/api/drive/v3"
 	gapi "google.golang.org/api/googleapi"
 
+	"github.com/steipete/gogcli/internal/config"
 	"github.com/steipete/gogcli/internal/outfmt"
 	"github.com/steipete/gogcli/internal/ui"
 )
@@ -40,7 +41,11 @@ func (c *DocsWriteCmd) Run(ctx context.Context, kctx *kong.Context, flags *RootF
 		return usage("--append cannot be combined with --replace")
 	}
 	if c.Markdown {
-		return c.writeMarkdown(ctx, flags, id, text)
+		basePath, baseErr := c.markdownBasePath()
+		if baseErr != nil {
+			return baseErr
+		}
+		return c.writeMarkdown(ctx, flags, id, text, basePath)
 	}
 
 	return c.writePlainText(ctx, flags, id, text)
@@ -58,6 +63,18 @@ func (c *DocsWriteCmd) resolveWriteText(kctx *kong.Context) (string, error) {
 		return "", usage("empty text")
 	}
 	return text, nil
+}
+
+func (c *DocsWriteCmd) markdownBasePath() (string, error) {
+	file := strings.TrimSpace(c.File)
+	if file == "" || file == "-" {
+		return ".", nil
+	}
+	expanded, err := config.ExpandPath(file)
+	if err != nil {
+		return "", err
+	}
+	return expanded, nil
 }
 
 func (c *DocsWriteCmd) writePlainText(ctx context.Context, flags *RootFlags, docID, text string) error {
@@ -152,7 +169,7 @@ func (c *DocsWriteCmd) writePlainTextResult(ctx context.Context, resp *docs.Batc
 	return nil
 }
 
-func (c *DocsWriteCmd) writeMarkdown(ctx context.Context, flags *RootFlags, docID, content string) error {
+func (c *DocsWriteCmd) writeMarkdown(ctx context.Context, flags *RootFlags, docID, content string, basePath string) error {
 	u := ui.FromContext(ctx)
 
 	if !c.Replace {
@@ -165,13 +182,15 @@ func (c *DocsWriteCmd) writeMarkdown(ctx context.Context, flags *RootFlags, docI
 		return usage("--markdown cannot be combined with --tab-id")
 	}
 
-	_, driveSvc, err := requireDriveService(ctx, flags)
+	cleaned, images := extractMarkdownImages(content)
+
+	account, driveSvc, err := requireDriveService(ctx, flags)
 	if err != nil {
 		return err
 	}
 
 	updated, err := driveSvc.Files.Update(docID, &drive.File{}).
-		Media(strings.NewReader(content), gapi.ContentType(mimeTextMarkdown)).
+		Media(strings.NewReader(cleaned), gapi.ContentType(mimeTextMarkdown)).
 		SupportsAllDrives(true).
 		Fields("id,name,webViewLink").
 		Context(ctx).
@@ -180,11 +199,21 @@ func (c *DocsWriteCmd) writeMarkdown(ctx context.Context, flags *RootFlags, docI
 		return fmt.Errorf("writing markdown to document: %w", err)
 	}
 
-	if c.Pageless {
-		docsSvc, svcErr := requireDocsService(ctx, flags)
+	var docsSvc *docs.Service
+	if len(images) > 0 || c.Pageless {
+		var svcErr error
+		docsSvc, svcErr = newDocsService(ctx, account)
 		if svcErr != nil {
 			return svcErr
 		}
+	}
+	if len(images) > 0 {
+		if err := insertImagesIntoDocs(ctx, account, docsSvc, docID, images, basePath); err != nil {
+			cleanupDocsImagePlaceholders(ctx, docsSvc, docID, images)
+			return fmt.Errorf("insert images: %w", err)
+		}
+	}
+	if c.Pageless {
 		if err := c.applyPageless(ctx, docsSvc, docID); err != nil {
 			return err
 		}
