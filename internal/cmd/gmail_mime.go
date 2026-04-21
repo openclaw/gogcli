@@ -86,7 +86,16 @@ func buildRFC822(opts mailOptions, cfg *rfc822Config) ([]byte, error) {
 		return nil, fmt.Errorf("invalid Subject: %w", err)
 	}
 	writeHeader(&b, "Subject", encodeHeaderIfNeeded(opts.Subject))
-	writeHeader(&b, "Date", time.Now().Format(time.RFC1123Z))
+
+	loc, err := getConfiguredTimezone("")
+	if err != nil {
+		return nil, err
+	}
+	if loc == nil {
+		loc = time.Local
+	}
+	writeHeader(&b, "Date", time.Now().In(loc).Format(time.RFC1123Z))
+
 	if !hasHeader(opts.AdditionalHeaders, "Message-ID") && !hasHeader(opts.AdditionalHeaders, "Message-Id") {
 		messageID, err := randomMessageID(opts.From)
 		if err != nil {
