@@ -156,14 +156,33 @@ func keyringServiceName() string {
 // keyringOpenTimeout is the maximum time to wait for keyring.Open() to complete.
 // On headless Linux, D-Bus SecretService can hang indefinitely if gnome-keyring
 // is installed but not running.
-const keyringOpenTimeout = 5 * time.Second
+//
+// On macOS, keyring.Open() can hang when the Security framework waits for a GUI
+// permission prompt that cannot surface (e.g., non-interactive runs after a
+// Homebrew upgrade installs a new binary hash, breaking the previous
+// "Always Allow" grant).
+const keyringOpenTimeout = 10 * time.Second
 
 func shouldForceFileBackend(goos string, backendInfo KeyringBackendInfo, dbusAddr string) bool {
 	return goos == "linux" && backendInfo.Value == keyringBackendAuto && dbusAddr == ""
 }
 
+// shouldUseKeyringTimeout returns true when keyring.Open() should be wrapped
+// in a timeout to prevent indefinite hangs.
+//
+//   - Linux with "auto" backend and a D-Bus session: SecretService may be
+//     installed but unresponsive (e.g., gnome-keyring not running).
+//   - macOS with "auto" or "keychain" backend: Security framework may block
+//     on a GUI permission prompt that cannot surface in non-interactive
+//     contexts or after a Homebrew upgrade.
 func shouldUseKeyringTimeout(goos string, backendInfo KeyringBackendInfo, dbusAddr string) bool {
-	return goos == "linux" && backendInfo.Value == "auto" && dbusAddr != ""
+	if goos == "linux" && backendInfo.Value == "auto" && dbusAddr != "" {
+		return true
+	}
+	if goos == "darwin" && (backendInfo.Value == keyringBackendAuto || backendInfo.Value == "keychain") {
+		return true
+	}
+	return false
 }
 
 func openKeyring() (keyring.Keyring, error) {
@@ -228,8 +247,13 @@ type keyringResult struct {
 }
 
 // openKeyringWithTimeout wraps keyring.Open with a timeout to prevent indefinite
-// hangs when D-Bus SecretService is unresponsive (e.g., gnome-keyring installed
-// but not running on headless Linux).
+// hangs when the platform keyring is unresponsive:
+//
+//   - Linux: D-Bus SecretService may hang (e.g., gnome-keyring installed but
+//     not running on headless systems).
+//   - macOS: Security framework may block on a GUI permission prompt that
+//     cannot surface (e.g., non-interactive contexts, post-Homebrew-upgrade
+//     prompts that don't reach the user).
 //
 // Note: If timeout occurs, the spawned goroutine continues blocking on keyring.Open()
 // and will leak. This is acceptable for a CLI tool since the process exits on this
@@ -250,9 +274,24 @@ func openKeyringWithTimeout(cfg keyring.Config, timeout time.Duration) (keyring.
 
 		return res.ring, nil
 	case <-time.After(timeout):
-		return nil, fmt.Errorf("%w after %v (D-Bus SecretService may be unresponsive); "+
+		return nil, fmt.Errorf("%w after %v (%s); "+
 			"set GOG_KEYRING_BACKEND=file and GOG_KEYRING_PASSWORD=<password> to use encrypted file storage instead",
-			errKeyringTimeout, timeout)
+			errKeyringTimeout, timeout, keyringTimeoutHint(runtime.GOOS))
+	}
+}
+
+// keyringTimeoutHint returns a platform-specific hint for the likely cause
+// of a keyring open timeout.
+func keyringTimeoutHint(goos string) string {
+	switch goos {
+	case "darwin":
+		return "macOS Keychain may be waiting for a permission prompt — " +
+			"run `gog auth list` from a terminal and click \"Always Allow\" when prompted " +
+			"(common after Homebrew upgrades; see https://github.com/steipete/gogcli/issues/86)"
+	case "linux":
+		return "D-Bus SecretService may be unresponsive"
+	default:
+		return "keyring backend may be unresponsive"
 	}
 }
 

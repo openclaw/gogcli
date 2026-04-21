@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+- Secrets: extend the `keyring.Open()` timeout safety net to macOS when the backend is `auto` or `keychain`. Previously only Linux used a timeout, so a macOS Security framework prompt that couldn't surface (e.g., non-interactive runs, post-Homebrew-upgrade re-authorization) would hang every auth-requiring command indefinitely until the process was killed. The timeout now also covers macOS and returns a clear error with guidance to run from a terminal and click "Always Allow", or switch to `GOG_KEYRING_BACKEND=file`. Bumps the timeout from 5s to 10s to tolerate slower macOS Keychain responses. Fixes #513.
+
 ## 0.13.0 - 2026-04-20
 
 ### Highlights

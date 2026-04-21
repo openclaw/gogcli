@@ -180,6 +180,30 @@ func TestKeyringDbusGuards(t *testing.T) {
 			wantForce:   false,
 			wantTimeout: false,
 		},
+		{
+			name:        "darwin auto uses timeout",
+			goos:        "darwin",
+			backend:     "auto",
+			dbusAddr:    "",
+			wantForce:   false,
+			wantTimeout: true,
+		},
+		{
+			name:        "darwin keychain uses timeout",
+			goos:        "darwin",
+			backend:     "keychain",
+			dbusAddr:    "",
+			wantForce:   false,
+			wantTimeout: true,
+		},
+		{
+			name:        "darwin explicit file no timeout",
+			goos:        "darwin",
+			backend:     "file",
+			dbusAddr:    "",
+			wantForce:   false,
+			wantTimeout: false,
+		},
 	}
 
 	for _, tt := range tests {
@@ -191,6 +215,26 @@ func TestKeyringDbusGuards(t *testing.T) {
 
 			if got := shouldUseKeyringTimeout(tt.goos, info, tt.dbusAddr); got != tt.wantTimeout {
 				t.Fatalf("shouldUseKeyringTimeout=%v, want %v", got, tt.wantTimeout)
+			}
+		})
+	}
+}
+
+func TestKeyringTimeoutHint(t *testing.T) {
+	tests := []struct {
+		goos        string
+		wantSubstr  string
+	}{
+		{"darwin", "Always Allow"},
+		{"linux", "D-Bus SecretService"},
+		{"windows", "keyring backend"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.goos, func(t *testing.T) {
+			hint := keyringTimeoutHint(tt.goos)
+			if !strings.Contains(hint, tt.wantSubstr) {
+				t.Fatalf("keyringTimeoutHint(%q) = %q; want substring %q", tt.goos, hint, tt.wantSubstr)
 			}
 		})
 	}
