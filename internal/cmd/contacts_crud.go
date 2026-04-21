@@ -672,3 +672,67 @@ func (c *ContactsDeleteCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 	return writeDeleteResult(ctx, u, resourceName)
 }
+
+type ContactsExportCmd struct {
+	Max   int64  `name:"max" aliases:"limit" help:"Max results" default:"100"`
+	Page  string `name:"page" help:"Page token"`
+	Out   string `name:"out" help:"Output file (default stdout)"`
+	Match string `name:"match" help:"Only export contacts matching query"`
+}
+
+func (c *ContactsExportCmd) Run(ctx context.Context, flags *RootFlags) error {
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
+	}
+
+	svc, err := newPeopleContactsService(ctx, account)
+	if err != nil {
+		return err
+	}
+
+	resp, err := svc.People.Connections.List(peopleMeResource).
+		PersonFields(contactsGetReadMask).
+		PageSize(c.Max).
+		PageToken(c.Page).
+		Do()
+	if err != nil {
+		return err
+	}
+
+	var result []string
+	for _, p := range resp.Connections {
+		if p == nil {
+			continue
+		}
+		if c.Match != "" && !contactMatchesQuery(p, c.Match) {
+			continue
+		}
+		result = append(result, exportToVcf(p))
+	}
+
+	if len(result) == 0 {
+		return nil
+	}
+
+	output := strings.Join(result, "\r\n")
+	if c.Out != "" {
+		return os.WriteFile(c.Out, []byte(output), 0o600)
+	}
+	fmt.Print(output)
+	return nil
+}
+
+func contactMatchesQuery(p *people.Person, query string) bool {
+	q := strings.ToLower(query)
+	if primaryName(p) != "" && strings.Contains(strings.ToLower(primaryName(p)), q) {
+		return true
+	}
+	if primaryEmail(p) != "" && strings.Contains(strings.ToLower(primaryEmail(p)), q) {
+		return true
+	}
+	if primaryPhone(p) != "" && strings.Contains(strings.ToLower(primaryPhone(p)), q) {
+		return true
+	}
+	return false
+}

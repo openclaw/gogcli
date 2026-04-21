@@ -21,6 +21,7 @@ type ContactsCmd struct {
 	Delete    ContactsDeleteCmd    `cmd:"" name:"delete" aliases:"rm,del,remove" help:"Delete a contact"`
 	Directory ContactsDirectoryCmd `cmd:"" name:"directory" help:"Directory contacts"`
 	Other     ContactsOtherCmd     `cmd:"" name:"other" help:"Other contacts"`
+	Export    ContactsExportCmd    `cmd:"" name:"export" help:"Export contacts to .vcf (vCard) format"`
 }
 
 type ContactsSearchCmd struct {
