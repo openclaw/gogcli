@@ -601,6 +601,9 @@ func (c *GmailDraftsUpdateCmd) Run(ctx context.Context, flags *RootFlags) error 
 	if strings.TrimSpace(replyToMessageID) == "" {
 		replyToThreadID = existingThreadID
 	}
+	if strings.TrimSpace(replyToMessageID) == "" && strings.TrimSpace(existingMessageID) != "" {
+		replyToMessageID = existingMessageID
+	}
 	if c.Quote && strings.TrimSpace(replyToMessageID) == "" && strings.TrimSpace(replyToThreadID) == "" {
 		return usage("--quote requires --reply-to-message-id or existing draft thread")
 	}
