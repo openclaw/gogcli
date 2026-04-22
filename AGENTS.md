@@ -1,3 +1,18 @@
+<!-- fork-notice:begin (managed by setup-downstream-fork; do not edit) -->
+# Fork notice
+
+This repository is a **downstream fork** of [`steipete/gogcli`](https://github.com/steipete/gogcli.git).
+It auto-tracks upstream via a daily GitHub Actions workflow and carries our patches on top of `main`; an LLM resolves drift, humans only get paged for real design conflicts.
+
+- Full fork contract: [`.fork/AGENTS.md`](.fork/AGENTS.md) (read this first before editing)
+- Current upstream SHA: see [`.fork/revision.txt`](.fork/revision.txt)
+- Inventory of our patches: [`.fork/patches/`](.fork/patches/)
+- Sync + build + conflict-resolve workflows: [`.github/workflows/fork-*.yml`](.github/workflows/)
+- Repo-local agent skills: [`.fork/skills/`](.fork/skills/) (auto-discovered via `.claude/skills` and `.agents/skills`)
+
+Convention: source edits go at the repo root (same paths upstream uses); commits carry `Fork-Patch: <slug>` + `Reason: <why>` trailers.
+<!-- fork-notice:end -->
+
 # Repository Guidelines
 
 ## Project Structure

@@ -1,3 +1,46 @@
+<!-- fork-notice:begin (managed by setup-downstream-fork; do not edit) -->
+# prateek/gogcli — auto-synced downstream fork of [steipete/gogcli](https://github.com/steipete/gogcli.git)
+
+This is a downstream fork that **auto-tracks upstream** daily and layers our patches on top. A GitHub Actions workflow fetches upstream every morning, rebases our patches, hands off to an LLM to resolve drift, and auto-merges on green CI. Humans only get paged when the LLM can't safely decide.
+
+## What you're looking at
+
+- **`main` branch**: upstream's current HEAD with our patches applied on top. What you clone, what you build.
+- **`upstream` branch**: pristine mirror of [upstream](https://github.com/steipete/gogcli.git); force-updated on every sync.
+- **`.fork/`**: fork-authored scaffolding — patch inventory, sync tooling, agent skills, snapshot audit log.
+- **`.github/workflows/fork-*.yml`**: the three-workflow cruise-control pipeline (sync, build + smoke test, conflict resolver).
+
+## Quick links
+
+- What patches does this fork carry? → [`.fork/patches/`](.fork/patches/)
+- What upstream version are we pinned to? → [`.fork/revision.txt`](.fork/revision.txt)
+- Fork contract + conventions (for humans and agents) → [`.fork/AGENTS.md`](.fork/AGENTS.md)
+- Per-sync audit log → [`.fork/snapshots/`](.fork/snapshots/)
+
+## Build
+
+```
+go build ./...
+```
+
+Smoke test:
+
+```
+go test ./...
+```
+
+## Contributing upstream
+
+Patches live as regular commits with `Fork-Patch: <slug>` trailers. To send one back to upstream, run:
+
+```
+.fork/tools/upstream-patch.sh <slug>
+```
+
+---
+
+<!-- fork-notice:end -->
+
 # 🧭 gogcli — Google in your terminal.
 
 ![GitHub Repo Banner](https://ghrb.waren.build/banner?header=gogcli%F0%9F%A7%AD&subheader=Google+in+your+terminal&bg=f3f4f6&color=1f2937&support=true)

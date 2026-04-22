@@ -1,0 +1,156 @@
+# fork-build-release: build actor. Runs build + smoke-test on PRs and main pushes,
+# plus drift-recheck for sync/* PRs and post-merge tagging for release snapshots.
+
+name: fork-build-release
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_call:
+
+permissions:
+  contents: write
+  pull-requests: read
+  issues: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    # NOTE: single ubuntu-latest runner is the default. When we need cross-platform
+    # coverage, convert to `strategy.matrix.os` with [ubuntu-latest, macos-latest, ...]
+    # and hoist the setup steps into matrix-aware forms.
+    env:
+      LANGUAGE: "go"
+    steps:
+      - name: Checkout ref under test
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Run build
+        run: |
+          go build ./...
+
+  smoke-test:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout ref under test
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run smoke test
+        run: |
+          go test ./...
+
+  drift-recheck:
+    if: ${{ github.event_name == 'pull_request' && startsWith(github.head_ref, 'sync/') }}
+    runs-on: ubuntu-latest
+    env:
+      UPSTREAM_URL: "https://github.com/steipete/gogcli.git"
+      UPSTREAM_BRANCH: "main"
+    steps:
+      - name: Checkout PR head
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Fetch upstream
+        run: |
+          git remote add upstream "$UPSTREAM_URL" || git remote set-url upstream "$UPSTREAM_URL"
+          git fetch upstream "$UPSTREAM_BRANCH"
+
+      - name: Verify upstream has not advanced past snapshot
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+        run: |
+          snapshot_name="${HEAD_REF#sync/}"
+          snapshot=".fork/snapshots/${snapshot_name}.json"
+          if [ ! -f "$snapshot" ]; then
+            echo "Missing snapshot $snapshot — cannot verify drift." >&2
+            exit 1
+          fi
+          snapshot_sha=$(python3 -c "import json,sys; print(json.load(open(sys.argv[1]))['upstream_sha'])" "$snapshot")
+          current_sha=$(git rev-parse "upstream/$UPSTREAM_BRANCH")
+          echo "snapshot upstream_sha: $snapshot_sha"
+          echo "current upstream HEAD: $current_sha"
+          if [ "$snapshot_sha" = "$current_sha" ]; then
+            echo "No drift; HEAD matches snapshot."
+            exit 0
+          fi
+          if git merge-base --is-ancestor "$current_sha" "$snapshot_sha"; then
+            echo "Upstream has NOT advanced past snapshot; recheck OK."
+            exit 0
+          fi
+          echo "Upstream advanced past snapshot SHA — resync required." >&2
+          exit 1
+
+  post-merge:
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+    needs: [build, smoke-test]
+    runs-on: ubuntu-latest
+    env:
+      UPSTREAM_URL: "https://github.com/steipete/gogcli.git"
+      UPSTREAM_BRANCH: "main"
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Configure git bot identity
+        run: |
+          git config user.name "fork-sync-bot"
+          git config user.email "fork-sync-bot@users.noreply.github.com"
+
+      - name: Tag sync/<date>-<sha>-merged if commit carries a sync signature
+        id: sync_tag
+        run: |
+          msg=$(git log -1 --format=%B)
+          snap=$(echo "$msg" | grep -oE 'sync/[0-9]{4}-[0-9]{2}-[0-9]{2}-[0-9a-f]+' | head -n1 || true)
+          if [ -n "$snap" ]; then
+            tag="${snap}-merged"
+            git tag -f "$tag" HEAD
+            git push origin "$tag"
+            echo "tagged=$tag" >> "$GITHUB_OUTPUT"
+          else
+            echo "No sync signature in commit message; skipping sync/*-merged tag."
+          fi
+
+      - name: Fetch upstream tags
+        run: |
+          git remote add upstream "$UPSTREAM_URL" || git remote set-url upstream "$UPSTREAM_URL"
+          git fetch upstream --tags
+
+      - name: Tag release/<upstream-tag> when merge advances to a tagged upstream commit
+        run: |
+          if [ ! -f .fork/revision.txt ]; then
+            echo "No .fork/revision.txt; skipping release tag."
+            exit 0
+          fi
+          upstream_sha=$(grep -E '^upstream' .fork/revision.txt | head -n1 | awk '{print $3}' || true)
+          if [ -z "$upstream_sha" ]; then
+            echo "Could not read upstream SHA from revision.txt; skipping."
+            exit 0
+          fi
+          upstream_tag=$(git tag --points-at "$upstream_sha" | head -n1 || true)
+          if [ -z "$upstream_tag" ]; then
+            echo "Upstream SHA $upstream_sha has no tag; skipping release tag."
+            exit 0
+          fi
+          release_tag="release/$upstream_tag"
+          if git rev-parse -q --verify "refs/tags/$release_tag" >/dev/null; then
+            echo "release_tag $release_tag already exists; skipping."
+            exit 0
+          fi
+          git tag "$release_tag" HEAD
+          git push origin "$release_tag"

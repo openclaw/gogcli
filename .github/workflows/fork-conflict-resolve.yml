@@ -1,0 +1,105 @@
+# fork-conflict-resolve: LLM actor, reusable via workflow_call.
+# Runs .fork/tools/llm_resolve.py on a supplied list of conflicted files, commits results.
+
+name: fork-conflict-resolve
+
+on:
+  workflow_call:
+    inputs:
+      sync_branch:
+        description: "Sync branch to check out (e.g. sync/2026-04-18-adc616e)"
+        required: true
+        type: string
+      conflicted_files:
+        description: "JSON array of conflicted file paths"
+        required: true
+        type: string
+    outputs:
+      resolver_output:
+        description: "Raw JSON aggregated from llm_resolve.py invocations"
+        value: ${{ jobs.resolve.outputs.resolver_output }}
+
+permissions:
+  contents: write
+
+jobs:
+  resolve:
+    runs-on: ubuntu-latest
+    env:
+      LLM_PROVIDER: "claude"
+      LLM_MODEL: ""
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+    outputs:
+      resolver_output: ${{ steps.resolve.outputs.resolver_output }}
+    steps:
+      - name: Checkout sync branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.sync_branch }}
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Configure git bot identity
+        run: |
+          git config user.name "fork-sync-bot"
+          git config user.email "fork-sync-bot@users.noreply.github.com"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install resolver dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if [ "$LLM_PROVIDER" = "claude" ]; then
+            pip install anthropic
+          elif [ "$LLM_PROVIDER" = "openai" ]; then
+            pip install openai
+          else
+            echo "Unknown LLM_PROVIDER=$LLM_PROVIDER" >&2
+            exit 1
+          fi
+
+      - name: Run llm_resolve.py on each conflicted file
+        id: resolve
+        env:
+          CONFLICTED_FILES: ${{ inputs.conflicted_files }}
+        run: |
+          set -euo pipefail
+          aggregated='[]'
+          count=0
+          files=$(python3 -c "import json,os; print('\n'.join(json.loads(os.environ['CONFLICTED_FILES'])))")
+          while IFS= read -r f; do
+            [ -z "$f" ] && continue
+            python3 .fork/tools/llm_resolve.py --file "$f" --provider "$LLM_PROVIDER" --model "$LLM_MODEL" \
+              > /tmp/llm-out.json
+            aggregated=$(python3 -c "import json,sys; arr=json.loads(sys.argv[1]); arr.append(json.load(open(sys.argv[2]))); print(json.dumps(arr))" "$aggregated" /tmp/llm-out.json)
+            git add "$f"
+            count=$((count+1))
+          done <<< "$files"
+          {
+            echo "resolver_output<<RESOLVER_EOF"
+            echo "$aggregated"
+            echo "RESOLVER_EOF"
+          } >> "$GITHUB_OUTPUT"
+          echo "count=$count" >> "$GITHUB_OUTPUT"
+
+      - name: Commit resolved files
+        if: steps.resolve.outputs.count != '0'
+        run: |
+          git commit -m "sync: llm-resolve ${{ steps.resolve.outputs.count }} files"
+          git push origin HEAD:${{ inputs.sync_branch }}
+
+# Alternative path: use anthropics/claude-code-action@v1 in place of llm_resolve.py.
+# Tradeoff: claude-code-action needs less custom glue but is opaque about what it did;
+# llm_resolve.py is provider-agnostic and produces a structured JSON outcome we can snapshot.
+# Keep the block below commented by default.
+#
+#      - name: Resolve via claude-code-action (alternative)
+#        uses: anthropics/claude-code-action@v1
+#        with:
+#          claude_args: |
+#            --model 
+#            --prompt-file .fork/references/resolver-prompt.md

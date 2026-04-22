@@ -40,3 +40,62 @@ bin/
 
 # Node (optional dev scripts)
 node_modules/
+
+# ----- fork additions (managed by setup-downstream-fork) -----
+# --- fork scaffolding ---
+.fork/.llm-cache/
+
+# --- language build artifacts (go) ---
+# The setup script uncomments the blocks that match the detected language.
+# Leave commented placeholders for others so the fork owner can toggle them on later.
+
+# Go
+# /vendor/
+# *.exe
+# *.test
+# *.out
+
+# Rust
+# /target/
+# **/*.rs.bk
+# Cargo.lock
+
+# Node / JS / TS
+# node_modules/
+# dist/
+# .next/
+# .turbo/
+# *.tsbuildinfo
+
+# Python
+# __pycache__/
+# *.py[cod]
+# .venv/
+# .pytest_cache/
+# .mypy_cache/
+# *.egg-info/
+
+# Swift / Xcode
+# .build/
+# DerivedData/
+# *.xcuserstate
+# Pods/
+
+# C / C++
+# *.o
+# *.obj
+# *.a
+# *.so
+# *.dylib
+# build/
+
+# Java / JVM
+# target/
+# build/
+# *.class
+# .gradle/
+
+# macOS / editor noise
+.DS_Store
+*.swp
+.fork/.llm-cache/**

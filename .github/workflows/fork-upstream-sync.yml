@@ -1,0 +1,244 @@
+# fork-upstream-sync: cron actor. Detects upstream drift, tags the imported SHA,
+# rebases patches onto upstream on a sync/* branch, delegates conflicts to the LLM, opens a PR.
+
+name: fork-upstream-sync
+
+on:
+  schedule:
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+    inputs:
+      force_sync:
+        description: "Run sync even when upstream HEAD matches .fork/revision.txt"
+        required: false
+        default: "false"
+
+concurrency:
+  group: fork-upstream-sync
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    env:
+      UPSTREAM_URL: "https://github.com/steipete/gogcli.git"
+      UPSTREAM_BRANCH: "main"
+      LLM_PROVIDER: "claude"
+      LLM_MODEL: ""
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+    steps:
+      - name: Checkout main at full depth
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          fetch-tags: true
+          persist-credentials: true
+
+      - name: Configure git bot identity
+        run: |
+          git config user.name "fork-sync-bot"
+          git config user.email "fork-sync-bot@users.noreply.github.com"
+
+      - name: Add upstream remote and fetch
+        run: |
+          git remote add upstream "$UPSTREAM_URL" || git remote set-url upstream "$UPSTREAM_URL"
+          git fetch upstream "$UPSTREAM_BRANCH" --tags
+
+      - name: Compare upstream HEAD with .fork/revision.txt
+        id: drift
+        run: |
+          upstream_sha=$(git rev-parse "upstream/$UPSTREAM_BRANCH")
+          upstream_short=$(git rev-parse --short "upstream/$UPSTREAM_BRANCH")
+          echo "upstream_sha=$upstream_sha" >> "$GITHUB_OUTPUT"
+          echo "upstream_short=$upstream_short" >> "$GITHUB_OUTPUT"
+          pinned=""
+          if [ -f .fork/revision.txt ]; then
+            pinned=$(grep -E '^upstream' .fork/revision.txt | head -n1 | awk '{print $3}' || true)
+          fi
+          echo "pinned_sha=$pinned" >> "$GITHUB_OUTPUT"
+          force="${{ github.event.inputs.force_sync }}"
+          if [ "$upstream_sha" = "$pinned" ] && [ "$force" != "true" ]; then
+            echo "no_drift=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "no_drift=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Exit clean when no drift
+        if: steps.drift.outputs.no_drift == 'true'
+        run: |
+          echo "Upstream HEAD matches .fork/revision.txt; nothing to sync."
+          exit 0
+
+      - name: Compute sync identifiers
+        if: steps.drift.outputs.no_drift != 'true'
+        id: ids
+        run: |
+          date_utc=$(date -u +%Y-%m-%d)
+          upstream_short="${{ steps.drift.outputs.upstream_short }}"
+          sync_tag="upstream-sync/${date_utc}-${upstream_short}"
+          sync_branch="sync/${date_utc}-${upstream_short}"
+          snapshot_name="${date_utc}-${upstream_short}"
+          echo "date_utc=$date_utc" >> "$GITHUB_OUTPUT"
+          echo "sync_tag=$sync_tag" >> "$GITHUB_OUTPUT"
+          echo "sync_branch=$sync_branch" >> "$GITHUB_OUTPUT"
+          echo "snapshot_name=$snapshot_name" >> "$GITHUB_OUTPUT"
+
+      - name: Tag upstream-sync/<date>-<sha> at upstream HEAD
+        if: steps.drift.outputs.no_drift != 'true'
+        run: |
+          git tag -f "${{ steps.ids.outputs.sync_tag }}" "${{ steps.drift.outputs.upstream_sha }}"
+          git push origin "${{ steps.ids.outputs.sync_tag }}"
+
+      - name: Fast-forward or reset upstream mirror branch
+        if: steps.drift.outputs.no_drift != 'true'
+        run: |
+          git branch -f upstream "${{ steps.drift.outputs.upstream_sha }}"
+          # upstream branch is a pristine mirror; force-push is by design.
+          git push origin upstream --force
+
+      - name: Record pre-sync main SHA
+        if: steps.drift.outputs.no_drift != 'true'
+        id: premain
+        run: |
+          echo "pre_sync_main_sha=$(git rev-parse main)" >> "$GITHUB_OUTPUT"
+
+      - name: Create sync branch from main
+        if: steps.drift.outputs.no_drift != 'true'
+        run: |
+          git checkout -b "${{ steps.ids.outputs.sync_branch }}" main
+
+      - name: Rebase sync branch onto upstream with LLM conflict resolution
+        if: steps.drift.outputs.no_drift != 'true'
+        id: rebase
+        run: |
+          set +e
+          resolutions_json='[]'
+          git rebase upstream
+          rc=$?
+          while [ $rc -ne 0 ]; do
+            conflicted=$(git diff --name-only --diff-filter=U)
+            if [ -z "$conflicted" ]; then
+              echo "Rebase failed with no conflicted files; bailing." >&2
+              exit 1
+            fi
+            echo "Conflicted files:"
+            echo "$conflicted"
+            while IFS= read -r f; do
+              [ -z "$f" ] && continue
+              python3 .fork/tools/llm_resolve.py --file "$f" --provider "$LLM_PROVIDER" --model "$LLM_MODEL" \
+                > /tmp/llm-out.json
+              outcome=$(python3 -c "import json,sys; print(json.load(open('/tmp/llm-out.json')).get('outcome','unknown'))")
+              patch_slug=$(python3 -c "import json,sys; print(json.load(open('/tmp/llm-out.json')).get('patch',''))")
+              resolutions_json=$(python3 -c "import json,sys; arr=json.loads(sys.argv[1]); arr.append({'file': sys.argv[2], 'patch': sys.argv[3], 'outcome': sys.argv[4]}); print(json.dumps(arr))" "$resolutions_json" "$f" "$patch_slug" "$outcome")
+              git add "$f"
+            done <<< "$conflicted"
+            git -c core.editor=true rebase --continue
+            rc=$?
+          done
+          set -e
+          echo "$resolutions_json" > /tmp/llm-resolutions.json
+          echo "resolutions_file=/tmp/llm-resolutions.json" >> "$GITHUB_OUTPUT"
+
+      - name: Regenerate .fork/patches via export-patches.sh
+        if: steps.drift.outputs.no_drift != 'true'
+        run: |
+          bash .fork/tools/export-patches.sh
+          if ! git diff --quiet -- .fork/patches || [ -n "$(git status --porcelain .fork/patches)" ]; then
+            git add .fork/patches
+            git commit -m "sync: regenerate .fork/patches for ${{ steps.ids.outputs.snapshot_name }}"
+          fi
+
+      - name: Write .fork/snapshots/<date>-<sha>.json
+        if: steps.drift.outputs.no_drift != 'true'
+        run: |
+          mkdir -p .fork/snapshots
+          snap=".fork/snapshots/${{ steps.ids.outputs.snapshot_name }}.json"
+          python3 - "$snap" \
+            "${{ steps.drift.outputs.upstream_sha }}" \
+            "${{ steps.premain.outputs.pre_sync_main_sha }}" \
+            "$(git rev-parse HEAD)" \
+            "${{ steps.rebase.outputs.resolutions_file }}" <<'PY'
+          import json, sys, pathlib
+          out, upstream_sha, pre_main, head, res_path = sys.argv[1:6]
+          try:
+              resolutions = json.loads(pathlib.Path(res_path).read_text())
+          except Exception:
+              resolutions = []
+          payload = {
+              "upstream_sha": upstream_sha,
+              "pre_sync_main_sha": pre_main,
+              "sync_branch_head_sha": head,
+              "ci_result": None,
+              "llm_resolutions": resolutions,
+          }
+          pathlib.Path(out).write_text(json.dumps(payload, indent=2) + "\n")
+          PY
+          git add "$snap"
+          git commit -m "sync: snapshot ${{ steps.ids.outputs.snapshot_name }}"
+
+      - name: Scan for DESIGN_CONFLICT markers
+        if: steps.drift.outputs.no_drift != 'true'
+        id: design
+        run: |
+          markers=$(git diff "${{ steps.premain.outputs.pre_sync_main_sha }}"..HEAD | grep -E '^\+.*DESIGN_CONFLICT:' | sed 's/^+//' || true)
+          if [ -n "$markers" ]; then
+            {
+              echo "has_markers=true"
+              echo "markers<<EOF"
+              echo "$markers"
+              echo "EOF"
+            } >> "$GITHUB_OUTPUT"
+          else
+            echo "has_markers=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: File tracking issue for DESIGN_CONFLICT
+        if: steps.drift.outputs.no_drift != 'true' && steps.design.outputs.has_markers == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          title="DESIGN_CONFLICT during sync ${{ steps.ids.outputs.snapshot_name }}"
+          body=$(printf 'The LLM resolver left DESIGN_CONFLICT markers during sync %s.\n\n```\n%s\n```\n' \
+            "${{ steps.ids.outputs.snapshot_name }}" \
+            "${{ steps.design.outputs.markers }}")
+          gh issue create --title "$title" --body "$body" --label needs-human
+
+      - name: Compose PR body
+        if: steps.drift.outputs.no_drift != 'true'
+        id: body
+        run: |
+          {
+            echo "body<<PR_BODY_EOF"
+            echo "Automated sync for upstream ${{ steps.drift.outputs.upstream_sha }}."
+            echo
+            echo "- Upstream tag: \`${{ steps.ids.outputs.sync_tag }}\`"
+            echo "- Pre-sync main: \`${{ steps.premain.outputs.pre_sync_main_sha }}\`"
+            echo "- Snapshot: \`.fork/snapshots/${{ steps.ids.outputs.snapshot_name }}.json\`"
+            if [ "${{ steps.design.outputs.has_markers }}" = "true" ]; then
+              echo
+              echo "### DESIGN_CONFLICT:"
+              echo '```'
+              echo "${{ steps.design.outputs.markers }}"
+              echo '```'
+            fi
+            echo "PR_BODY_EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Open sync PR
+        if: steps.drift.outputs.no_drift != 'true'
+        uses: peter-evans/create-pull-request@v7
+        with:
+          branch: ${{ steps.ids.outputs.sync_branch }}
+          base: main
+          title: "sync: upstream ${{ steps.ids.outputs.snapshot_name }}"
+          body: ${{ steps.body.outputs.body }}
+          labels: ${{ steps.design.outputs.has_markers == 'true' && 'needs-human' || 'automerge' }}
+          push-to-fork: ""
+          delete-branch: false

@@ -1,0 +1,41 @@
+# .mergify.yml: queue + auto-merge policy for the fork.
+# Gates sync PRs on build + smoke-test + drift-recheck, flags DESIGN_CONFLICT for humans.
+
+queue_rules:
+  - name: fork-sync
+    conditions:
+      - check-success=build
+      - check-success=smoke-test
+      - check-success=drift-recheck
+
+pull_request_rules:
+  - name: auto-label sync PRs
+    conditions:
+      - author=github-actions[bot]
+      - head~=^sync/
+    actions:
+      label:
+        add: [automerge]
+
+  - name: auto-merge sync PRs on green (no design conflicts)
+    conditions:
+      - label=automerge
+      - check-success=build
+      - check-success=smoke-test
+      - check-success=drift-recheck
+      - "-body~=DESIGN_CONFLICT:"
+    actions:
+      queue:
+        name: fork-sync
+        method: squash
+
+  - name: flag design-conflict PRs for human review
+    conditions:
+      - head~=^sync/
+      - "body~=DESIGN_CONFLICT:"
+    actions:
+      label:
+        add: [needs-human]
+        remove: [automerge]
+      comment:
+        message: "One or more patches surfaced `DESIGN_CONFLICT:` markers. Human review required before merge."

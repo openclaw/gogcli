@@ -1,0 +1,4 @@
+upstream = $upstream_default_sha
+branch   = main
+synced   = $setup_iso_date
+tag      = upstream-sync/<date>-<sha>  (will be set by sync workflow)
