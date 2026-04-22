@@ -982,6 +982,11 @@ gog slides list-slides <presentationId>
 gog slides add-slide <presentationId> ./slide.png --notes "Speaker notes"
 gog slides update-notes <presentationId> <slideId> --notes "Updated notes"
 gog slides replace-slide <presentationId> <slideId> ./new-slide.png --notes "New notes"
+gog slides insert-text <presentationId> <objectId> "Text to insert"
+gog slides insert-text <presentationId> <objectId> - < long-content.md
+gog slides insert-text <presentationId> <objectId> "New body" --replace
+gog slides replace-text <presentationId> "{{name}}" "Acme Corp"
+gog slides replace-text <presentationId> "TODO" "DONE" --match-case --page <slideId1> --page <slideId2>
 
 # Sheets
 gog sheets copy <spreadsheetId> "My Sheet Copy"
@@ -1401,6 +1406,32 @@ gog slides thumbnail <presentationId> <slideId> --output ./slide.png
 
 # Control thumbnail size and format
 gog slides thumbnail <presentationId> <slideId> --size medium --format jpeg --output ./slide.jpg
+
+# Insert text into an existing text-capable element (shape or table cell)
+gog slides insert-text <presentationId> <objectId> "Hello, world"
+
+# Insert at a specific position in the element's existing text
+gog slides insert-text <presentationId> <objectId> " (inserted)" --insertion-index 12
+
+# Replace the element's existing text wholesale (DeleteText + InsertText in one batch)
+gog slides insert-text <presentationId> <objectId> "Brand-new body copy" --replace
+
+# Read long content from stdin
+cat long-content.md | gog slides insert-text <presentationId> <objectId> -
+
+# Preview the batchUpdate request body without executing it
+gog slides insert-text <presentationId> <objectId> "demo" --replace --dry-run
+
+# Find-and-replace across the whole deck
+gog slides replace-text <presentationId> "{{customer_name}}" "Acme Corp"
+
+# Case-sensitive match, restricted to specific slides
+gog slides replace-text <presentationId> "TODO" "DONE" \
+  --match-case \
+  --page <slideId1> --page <slideId2>
+
+# Preview the replace request without executing it
+gog slides replace-text <presentationId> "old" "new" --dry-run
 ```
 
 ## Output Formats
