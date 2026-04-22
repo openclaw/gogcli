@@ -1,0 +1,164 @@
+From c44917e2fa0a2e894eea74810c1c47563c6991fe Mon Sep 17 00:00:00 2001
+From: Prateek Rungta <prungta2@gmail.com>
+Date: Wed, 22 Apr 2026 19:12:37 -0400
+Subject: [PATCH] feat(cmd/version): tag fork builds in VersionString and JSON
+Reason: so a downstream binary tells the user it's a fork and which one,
+ output
+
+Add an `ldflags`-populated `fork` var. When non-empty, VersionString
+appends `[fork: <slug>]` and the JSON payload includes a `fork` field.
+Empty default keeps upstream builds byte-for-byte identical.
+
+Fork-Patch: version-fork-tag
+Reason: so a downstream binary tells the user it's a fork and which one,
+  without waiting on upstream to add first-class fork awareness
+---
+ internal/cmd/version.go           | 29 ++++++++----
+ internal/cmd/version_fork_test.go | 77 +++++++++++++++++++++++++++++++
+ 2 files changed, 96 insertions(+), 10 deletions(-)
+ create mode 100644 internal/cmd/version_fork_test.go
+
+diff --git a/internal/cmd/version.go b/internal/cmd/version.go
+index d1fc68e..f48457c 100644
+--- a/internal/cmd/version.go
++++ b/internal/cmd/version.go
+@@ -13,6 +13,9 @@ var (
+ 	version = "0.13.0-dev"
+ 	commit  = ""
+ 	date    = ""
++	// fork identifies the downstream fork this binary was built from, if any.
++	// Populated via ldflags at build time; empty for upstream builds.
++	fork = ""
+ )
+ 
+ func VersionString() string {
+@@ -20,27 +23,33 @@ func VersionString() string {
+ 	if v == "" {
+ 		v = "dev"
+ 	}
+-	if strings.TrimSpace(commit) == "" && strings.TrimSpace(date) == "" {
+-		return v
++	base := v
++	if strings.TrimSpace(commit) != "" && strings.TrimSpace(date) != "" {
++		base = fmt.Sprintf("%s (%s %s)", v, strings.TrimSpace(commit), strings.TrimSpace(date))
++	} else if strings.TrimSpace(commit) != "" {
++		base = fmt.Sprintf("%s (%s)", v, strings.TrimSpace(commit))
++	} else if strings.TrimSpace(date) != "" {
++		base = fmt.Sprintf("%s (%s)", v, strings.TrimSpace(date))
+ 	}
+-	if strings.TrimSpace(commit) == "" {
+-		return fmt.Sprintf("%s (%s)", v, strings.TrimSpace(date))
++	if f := strings.TrimSpace(fork); f != "" {
++		return fmt.Sprintf("%s [fork: %s]", base, f)
+ 	}
+-	if strings.TrimSpace(date) == "" {
+-		return fmt.Sprintf("%s (%s)", v, strings.TrimSpace(commit))
+-	}
+-	return fmt.Sprintf("%s (%s %s)", v, strings.TrimSpace(commit), strings.TrimSpace(date))
++	return base
+ }
+ 
+ type VersionCmd struct{}
+ 
+ func (c *VersionCmd) Run(ctx context.Context) error {
+ 	if outfmt.IsJSON(ctx) {
+-		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
++		payload := map[string]any{
+ 			"version": strings.TrimSpace(version),
+ 			"commit":  strings.TrimSpace(commit),
+ 			"date":    strings.TrimSpace(date),
+-		})
++		}
++		if f := strings.TrimSpace(fork); f != "" {
++			payload["fork"] = f
++		}
++		return outfmt.WriteJSON(ctx, os.Stdout, payload)
+ 	}
+ 	fmt.Fprintln(os.Stdout, VersionString())
+ 	return nil
+diff --git a/internal/cmd/version_fork_test.go b/internal/cmd/version_fork_test.go
+new file mode 100644
+index 0000000..daf6738
+--- /dev/null
++++ b/internal/cmd/version_fork_test.go
+@@ -0,0 +1,77 @@
++package cmd
++
++import (
++	"encoding/json"
++	"strings"
++	"testing"
++)
++
++// TestVersionString_WithFork asserts VersionString includes a `[fork: ...]`
++// suffix when the `fork` ldflag variable is populated. This is the downstream
++// fork-maintainer scaffold's hook for tagging patched binaries.
++func TestVersionString_WithFork(t *testing.T) {
++	origFork := fork
++	t.Cleanup(func() { fork = origFork })
++
++	fork = "prateek/gogcli@abc123"
++	got := VersionString()
++	if !strings.Contains(got, "[fork: prateek/gogcli@abc123]") {
++		t.Fatalf("expected fork suffix in %q", got)
++	}
++}
++
++// TestVersionString_NoForkMatchesUpstream asserts an empty `fork` produces
++// output identical to upstream's VersionString (no `[fork: ...]` suffix).
++func TestVersionString_NoFork(t *testing.T) {
++	origFork := fork
++	t.Cleanup(func() { fork = origFork })
++
++	fork = ""
++	got := VersionString()
++	if strings.Contains(got, "[fork:") {
++		t.Fatalf("unexpected fork suffix in %q", got)
++	}
++}
++
++// TestVersionJSONField asserts the JSON payload exposes `fork` only when set,
++// matching upstream's schema when absent.
++func TestVersionJSONField(t *testing.T) {
++	origFork := fork
++	t.Cleanup(func() { fork = origFork })
++
++	// With fork set, the JSON path in VersionCmd.Run should emit a "fork" key.
++	fork = "prateek/gogcli@abc123"
++	payload := map[string]any{
++		"version": strings.TrimSpace(version),
++		"commit":  strings.TrimSpace(commit),
++		"date":    strings.TrimSpace(date),
++	}
++	if f := strings.TrimSpace(fork); f != "" {
++		payload["fork"] = f
++	}
++	b, err := json.Marshal(payload)
++	if err != nil {
++		t.Fatalf("json marshal: %v", err)
++	}
++	if !strings.Contains(string(b), `"fork":"prateek/gogcli@abc123"`) {
++		t.Fatalf("expected fork field in %s", string(b))
++	}
++
++	// Without fork set, no "fork" key.
++	fork = ""
++	payload = map[string]any{
++		"version": strings.TrimSpace(version),
++		"commit":  strings.TrimSpace(commit),
++		"date":    strings.TrimSpace(date),
++	}
++	if f := strings.TrimSpace(fork); f != "" {
++		payload["fork"] = f
++	}
++	b, err = json.Marshal(payload)
++	if err != nil {
++		t.Fatalf("json marshal: %v", err)
++	}
++	if strings.Contains(string(b), `"fork"`) {
++		t.Fatalf("unexpected fork field in %s", string(b))
++	}
++}
+-- 
+2.53.0
+
