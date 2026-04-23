@@ -248,8 +248,12 @@ func (c *AuthAddCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if err != nil {
 		return fmt.Errorf("fetch authorized email: %w", err)
 	}
-	if normalizeEmail(authorizedEmail) != normalizeEmail(c.Email) {
-		return fmt.Errorf("authorized as %s, expected %s", authorizedEmail, c.Email)
+	// If c.Email looks like a client name (no "@"), skip the email match check —
+	// the user intentionally authorized with a client alias.
+	if strings.Contains(normalizeEmail(c.Email), "@") {
+		if normalizeEmail(authorizedEmail) != normalizeEmail(c.Email) {
+			return fmt.Errorf("authorized as %s, expected %s", authorizedEmail, c.Email)
+		}
 	}
 
 	store, err := openSecretsStore()

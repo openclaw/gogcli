@@ -83,6 +83,12 @@ func ResolveClientForAccount(cfg File, email string, override string) (string, e
 	}
 
 	email = strings.ToLower(strings.TrimSpace(email))
+
+	// If input has no "@", treat it as a direct client name (e.g. "baher.ai")
+	if email != "" && !strings.Contains(email, "@") {
+		return NormalizeClientNameOrDefault(email)
+	}
+
 	if email != "" {
 		if client, ok := cfg.AccountClients[email]; ok && strings.TrimSpace(client) != "" {
 			return NormalizeClientNameOrDefault(client)

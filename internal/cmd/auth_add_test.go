@@ -200,6 +200,38 @@ func TestAuthAddCmd_KeepRejected(t *testing.T) {
 	}
 }
 
+func TestAuthAddCmd_ClientAliasSkipsEmailCheck(t *testing.T) {
+	// When a bare client name (no "@") is passed, the authorized email check
+	// should be skipped — the user is intentionally using a client alias.
+	origAuth := authorizeGoogle
+	origOpen := openSecretsStore
+	origKeychain := ensureKeychainAccess
+	origFetch := fetchAuthorizedEmail
+	t.Cleanup(func() {
+		authorizeGoogle = origAuth
+		openSecretsStore = origOpen
+		ensureKeychainAccess = origKeychain
+		fetchAuthorizedEmail = origFetch
+	})
+
+	ensureKeychainAccess = func() error { return nil }
+	store := newMemSecretsStore()
+	openSecretsStore = func() (secrets.Store, error) { return store, nil }
+	authorizeGoogle = func(context.Context, googleauth.AuthorizeOptions) (string, error) {
+		return "rt", nil
+	}
+	fetchAuthorizedEmail = func(context.Context, string, string, []string, time.Duration) (string, error) {
+		// Authorized email has a different domain than the client alias
+		return "user@sub.company.ai", nil
+	}
+
+	// "company.ai" has no "@" so it's a client alias — should succeed without mismatch error
+	err := Execute([]string{"auth", "add", "company.ai", "--services", "gmail"})
+	if err != nil {
+		t.Fatalf("expected success with client alias, got: %v", err)
+	}
+}
+
 func TestAuthAddCmd_EmailMismatch(t *testing.T) {
 	origAuth := authorizeGoogle
 	origOpen := openSecretsStore

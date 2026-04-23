@@ -226,6 +226,36 @@ func TestResolveClientForAccount(t *testing.T) {
 			t.Fatalf("got %q, want %q", got, DefaultClientName)
 		}
 	})
+
+	t.Run("client name without @ is used as-is", func(t *testing.T) {
+		// When a bare client name like "company.ai" is passed (no @),
+		// it should be returned directly as the client name.
+		cfg := File{}
+		got, err := ResolveClientForAccount(cfg, "company.ai", "")
+		if err != nil {
+			t.Fatalf("ResolveClientForAccount: %v", err)
+		}
+		if got != "company.ai" {
+			t.Fatalf("got %q, want %q", got, "company.ai")
+		}
+	})
+
+	t.Run("subdomain email routes via account_clients mapping", func(t *testing.T) {
+		// Emails with subdomain domains (e.g. user@sub.company.ai) should be
+		// routable via account_clients config to the correct client.
+		cfg := File{
+			AccountClients: map[string]string{
+				"user@sub.company.ai": "company.ai",
+			},
+		}
+		got, err := ResolveClientForAccount(cfg, "user@sub.company.ai", "")
+		if err != nil {
+			t.Fatalf("ResolveClientForAccount: %v", err)
+		}
+		if got != "company.ai" {
+			t.Fatalf("got %q, want %q", got, "company.ai")
+		}
+	})
 }
 
 func TestListClientCredentials(t *testing.T) {
