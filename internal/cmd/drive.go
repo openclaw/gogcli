@@ -99,6 +99,8 @@ type DriveSearchCmd struct {
 	Max       int64    `name:"max" aliases:"limit" help:"Max results" default:"20"`
 	Page      string   `name:"page" aliases:"cursor" help:"Page token"`
 	AllDrives bool     `name:"all-drives" help:"Include shared drives (default: true; use --no-all-drives for My Drive only)" default:"true" negatable:"_"`
+	Drive     string   `name:"drive" aliases:"drive-id" help:"Scope search to a specific shared drive (uses corpora=drive with driveId). Mutually exclusive with --no-all-drives. Pass the driveId from 'gog drive drives'."`
+	Parent    string   `name:"parent" help:"Scope search to direct children of a specific folder or shared drive. Wraps the query with \"'<parentId>' in parents\"."`
 }
 
 type DriveGetCmd struct {
@@ -963,10 +965,15 @@ func downloadDriveFile(ctx context.Context, svc *drive.Service, meta *drive.File
 	return outPath, n, nil
 }
 
-func driveFilesListCallWithDriveSupport(call *drive.FilesListCall, allDrives bool) *drive.FilesListCall {
+func driveFilesListCallWithDriveSupport(call *drive.FilesListCall, allDrives bool, driveID string) *drive.FilesListCall {
 	// SupportsAllDrives must be set for shared drive file IDs to behave correctly.
 	call = call.SupportsAllDrives(true).IncludeItemsFromAllDrives(allDrives)
-	if allDrives {
+	if driveID != "" {
+		// Scoped search within a specific shared drive. The Drive API requires
+		// corpora=drive + driveId together, and includeItemsFromAllDrives=true —
+		// which is why callers must guard against driveID!="" with allDrives=false.
+		call = call.Corpora("drive").DriveId(driveID)
+	} else if allDrives {
 		call = call.Corpora("allDrives")
 	}
 	return call

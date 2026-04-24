@@ -314,3 +314,230 @@ func TestDriveSearchCmd_RawQueryBypassesFullTextWrapping(t *testing.T) {
 		t.Fatalf("execute: %v", execErr)
 	}
 }
+
+func TestDriveSearchCmd_WithDrive(t *testing.T) {
+	origNew := newDriveService
+	t.Cleanup(func() { newDriveService = origNew })
+
+	const wantDriveID = "0AFakeSharedDriveID"
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.NotFound(w, r)
+			return
+		}
+		path := strings.TrimPrefix(r.URL.Path, "/drive/v3")
+		if path != "/files" {
+			http.NotFound(w, r)
+			return
+		}
+		q := r.URL.Query()
+		if q.Get("supportsAllDrives") != "true" {
+			http.Error(w, "missing supportsAllDrives=true", http.StatusBadRequest)
+			return
+		}
+		if q.Get("includeItemsFromAllDrives") != "true" {
+			http.Error(w, "missing includeItemsFromAllDrives=true", http.StatusBadRequest)
+			return
+		}
+		if got := q.Get("corpora"); got != "drive" {
+			http.Error(w, "want corpora=drive, got "+got, http.StatusBadRequest)
+			return
+		}
+		if got := q.Get("driveId"); got != wantDriveID {
+			http.Error(w, "want driveId="+wantDriveID+", got "+got, http.StatusBadRequest)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{"files": []map[string]any{}})
+	}))
+	t.Cleanup(srv.Close)
+
+	svc, err := drive.NewService(context.Background(),
+		option.WithoutAuthentication(),
+		option.WithHTTPClient(srv.Client()),
+		option.WithEndpoint(srv.URL+"/"),
+	)
+	if err != nil {
+		t.Fatalf("NewService: %v", err)
+	}
+	newDriveService = func(context.Context, string) (*drive.Service, error) { return svc, nil }
+
+	flags := &RootFlags{Account: "a@b.com"}
+	u, uiErr := ui.New(ui.Options{Stdout: io.Discard, Stderr: io.Discard, Color: "never"})
+	if uiErr != nil {
+		t.Fatalf("ui.New: %v", uiErr)
+	}
+	ctx := ui.WithUI(context.Background(), u)
+
+	cmd := &DriveSearchCmd{}
+	if execErr := runKong(t, cmd, []string{"hello", "--drive", wantDriveID}, ctx, flags); execErr != nil {
+		t.Fatalf("execute: %v", execErr)
+	}
+}
+
+func TestDriveSearchCmd_WithParent(t *testing.T) {
+	origNew := newDriveService
+	t.Cleanup(func() { newDriveService = origNew })
+
+	const parentID = "1FakeFolderID"
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.NotFound(w, r)
+			return
+		}
+		path := strings.TrimPrefix(r.URL.Path, "/drive/v3")
+		if path != "/files" {
+			http.NotFound(w, r)
+			return
+		}
+		if errMsg := driveAllDrivesQueryError(r, true); errMsg != "" {
+			http.Error(w, errMsg, http.StatusBadRequest)
+			return
+		}
+		got := r.URL.Query().Get("q")
+		if !strings.Contains(got, "'"+parentID+"' in parents") {
+			http.Error(w, "missing parent clause in q: "+got, http.StatusBadRequest)
+			return
+		}
+		if !strings.Contains(got, "fullText contains 'hello'") {
+			http.Error(w, "missing fullText clause in q: "+got, http.StatusBadRequest)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{"files": []map[string]any{}})
+	}))
+	t.Cleanup(srv.Close)
+
+	svc, err := drive.NewService(context.Background(),
+		option.WithoutAuthentication(),
+		option.WithHTTPClient(srv.Client()),
+		option.WithEndpoint(srv.URL+"/"),
+	)
+	if err != nil {
+		t.Fatalf("NewService: %v", err)
+	}
+	newDriveService = func(context.Context, string) (*drive.Service, error) { return svc, nil }
+
+	flags := &RootFlags{Account: "a@b.com"}
+	u, uiErr := ui.New(ui.Options{Stdout: io.Discard, Stderr: io.Discard, Color: "never"})
+	if uiErr != nil {
+		t.Fatalf("ui.New: %v", uiErr)
+	}
+	ctx := ui.WithUI(context.Background(), u)
+
+	cmd := &DriveSearchCmd{}
+	if execErr := runKong(t, cmd, []string{"hello", "--parent", parentID}, ctx, flags); execErr != nil {
+		t.Fatalf("execute: %v", execErr)
+	}
+}
+
+func TestDriveSearchCmd_DriveAndParent_Combine(t *testing.T) {
+	origNew := newDriveService
+	t.Cleanup(func() { newDriveService = origNew })
+
+	const driveID = "0AFakeSharedDriveID"
+	const parentID = "1FakeFolderID"
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.NotFound(w, r)
+			return
+		}
+		path := strings.TrimPrefix(r.URL.Path, "/drive/v3")
+		if path != "/files" {
+			http.NotFound(w, r)
+			return
+		}
+		q := r.URL.Query()
+		if got := q.Get("corpora"); got != "drive" {
+			http.Error(w, "want corpora=drive, got "+got, http.StatusBadRequest)
+			return
+		}
+		if got := q.Get("driveId"); got != driveID {
+			http.Error(w, "want driveId="+driveID+", got "+got, http.StatusBadRequest)
+			return
+		}
+		got := q.Get("q")
+		if !strings.Contains(got, "'"+parentID+"' in parents") {
+			http.Error(w, "missing parent clause in q: "+got, http.StatusBadRequest)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{"files": []map[string]any{}})
+	}))
+	t.Cleanup(srv.Close)
+
+	svc, err := drive.NewService(context.Background(),
+		option.WithoutAuthentication(),
+		option.WithHTTPClient(srv.Client()),
+		option.WithEndpoint(srv.URL+"/"),
+	)
+	if err != nil {
+		t.Fatalf("NewService: %v", err)
+	}
+	newDriveService = func(context.Context, string) (*drive.Service, error) { return svc, nil }
+
+	flags := &RootFlags{Account: "a@b.com"}
+	u, uiErr := ui.New(ui.Options{Stdout: io.Discard, Stderr: io.Discard, Color: "never"})
+	if uiErr != nil {
+		t.Fatalf("ui.New: %v", uiErr)
+	}
+	ctx := ui.WithUI(context.Background(), u)
+
+	cmd := &DriveSearchCmd{}
+	if execErr := runKong(t, cmd, []string{"hello", "--drive", driveID, "--parent", parentID}, ctx, flags); execErr != nil {
+		t.Fatalf("execute: %v", execErr)
+	}
+}
+
+func TestDriveSearchCmd_DriveAndNoAllDrives_Conflicts(t *testing.T) {
+	origNew := newDriveService
+	t.Cleanup(func() { newDriveService = origNew })
+	newDriveService = func(context.Context, string) (*drive.Service, error) {
+		t.Fatal("newDriveService should not be called when flags conflict")
+		return nil, nil
+	}
+
+	flags := &RootFlags{Account: "a@b.com"}
+	u, uiErr := ui.New(ui.Options{Stdout: io.Discard, Stderr: io.Discard, Color: "never"})
+	if uiErr != nil {
+		t.Fatalf("ui.New: %v", uiErr)
+	}
+	ctx := ui.WithUI(context.Background(), u)
+
+	cmd := &DriveSearchCmd{}
+	err := runKong(t, cmd, []string{"hello", "--drive", "0AFake", "--no-all-drives"}, ctx, flags)
+	if err == nil {
+		t.Fatalf("expected error for --drive with --no-all-drives, got nil")
+	}
+	if !strings.Contains(err.Error(), "--drive") || !strings.Contains(err.Error(), "--no-all-drives") {
+		t.Fatalf("error should mention conflicting flags, got: %v", err)
+	}
+}
+
+func TestDriveSearchCmd_ParentAndRawQuery_Conflicts(t *testing.T) {
+	origNew := newDriveService
+	t.Cleanup(func() { newDriveService = origNew })
+	newDriveService = func(context.Context, string) (*drive.Service, error) {
+		t.Fatal("newDriveService should not be called when flags conflict")
+		return nil, nil
+	}
+
+	flags := &RootFlags{Account: "a@b.com"}
+	u, uiErr := ui.New(ui.Options{Stdout: io.Discard, Stderr: io.Discard, Color: "never"})
+	if uiErr != nil {
+		t.Fatalf("ui.New: %v", uiErr)
+	}
+	ctx := ui.WithUI(context.Background(), u)
+
+	cmd := &DriveSearchCmd{}
+	err := runKong(t, cmd, []string{"someQuery", "--parent", "1FakeFolder", "--raw-query"}, ctx, flags)
+	if err == nil {
+		t.Fatalf("expected error for --parent with --raw-query, got nil")
+	}
+	if !strings.Contains(err.Error(), "--parent") || !strings.Contains(err.Error(), "--raw-query") {
+		t.Fatalf("error should mention conflicting flags, got: %v", err)
+	}
+}

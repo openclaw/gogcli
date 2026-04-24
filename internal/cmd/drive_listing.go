@@ -19,6 +19,7 @@ type driveFileListOptions struct {
 	max       int64
 	page      string
 	allDrives bool
+	driveID   string
 }
 
 func (c *DriveLsCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -60,16 +61,29 @@ func (c *DriveSearchCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return usage("missing query")
 	}
 
+	if c.Drive != "" && !c.AllDrives {
+		return usage("--drive cannot be combined with --no-all-drives")
+	}
+	if c.Parent != "" && c.RawQuery {
+		return usage("--parent cannot be combined with --raw-query; include the \"'<parentId>' in parents\" clause in your raw query instead")
+	}
+
 	_, svc, err := requireDriveService(ctx, flags)
 	if err != nil {
 		return err
 	}
 
+	finalQuery := buildDriveSearchQuery(query, c.RawQuery)
+	if c.Parent != "" {
+		finalQuery = fmt.Sprintf("'%s' in parents and %s", c.Parent, finalQuery)
+	}
+
 	resp, err := listDriveFiles(ctx, svc, driveFileListOptions{
-		query:     buildDriveSearchQuery(query, c.RawQuery),
+		query:     finalQuery,
 		max:       c.Max,
 		page:      c.Page,
 		allDrives: c.AllDrives,
+		driveID:   c.Drive,
 	})
 	if err != nil {
 		return err
@@ -84,7 +98,7 @@ func listDriveFiles(ctx context.Context, svc *drive.Service, opts driveFileListO
 		PageSize(opts.max).
 		PageToken(opts.page).
 		OrderBy("modifiedTime desc")
-	call = driveFilesListCallWithDriveSupport(call, opts.allDrives)
+	call = driveFilesListCallWithDriveSupport(call, opts.allDrives, opts.driveID)
 	return call.Fields(driveFileListFields).Context(ctx).Do()
 }
 
