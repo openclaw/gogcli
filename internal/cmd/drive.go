@@ -123,7 +123,7 @@ func (c *DriveGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 
 	f, err := svc.Files.Get(fileID).
 		SupportsAllDrives(true).
-		Fields("id, name, mimeType, size, modifiedTime, createdTime, parents, webViewLink, description, starred").
+		Fields("id, name, mimeType, size, modifiedTime, createdTime, parents, webViewLink, description, starred, driveId").
 		Context(ctx).
 		Do()
 	if err != nil {
