@@ -87,6 +87,63 @@ func TestExecute_GmailGet_Metadata_JSON(t *testing.T) {
 	}
 }
 
+func TestExecute_GmailGet_Metadata_DefaultHeadersIncludeThreading(t *testing.T) {
+	origNew := newGmailService
+	t.Cleanup(func() { newGmailService = origNew })
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !strings.Contains(r.URL.Path, "/gmail/v1/users/me/messages/m1") {
+			http.NotFound(w, r)
+			return
+		}
+		if got := r.URL.Query().Get("format"); got != "metadata" {
+			t.Errorf("format=%q", got)
+			http.Error(w, "bad format", http.StatusBadRequest)
+			return
+		}
+		gotHeaders := r.URL.Query()["metadataHeaders"]
+		want := []string{
+			"From", "To", "Cc", "Bcc", "Subject", "Date",
+			"Message-ID", "In-Reply-To", "References", "List-Unsubscribe",
+		}
+		if !containsAll(gotHeaders, want) {
+			t.Errorf("metadataHeaders=%#v missing one of %v", gotHeaders, want)
+			http.Error(w, "bad metadataHeaders", http.StatusBadRequest)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"id":       "m1",
+			"threadId": "t1",
+			"payload":  map[string]any{"headers": []map[string]any{}},
+		})
+	}))
+	defer srv.Close()
+
+	svc, err := gmail.NewService(context.Background(),
+		option.WithoutAuthentication(),
+		option.WithHTTPClient(srv.Client()),
+		option.WithEndpoint(srv.URL+"/"),
+	)
+	if err != nil {
+		t.Fatalf("NewService: %v", err)
+	}
+	newGmailService = func(context.Context, string) (*gmail.Service, error) { return svc, nil }
+
+	_ = captureStdout(t, func() {
+		_ = captureStderr(t, func() {
+			if err := Execute([]string{
+				"--json",
+				"--account", "a@b.com",
+				"gmail", "get", "m1",
+				"--format", "metadata",
+			}); err != nil {
+				t.Fatalf("Execute: %v", err)
+			}
+		})
+	})
+}
+
 func containsAll(got []string, want []string) bool {
 	set := map[string]bool{}
 	for _, g := range got {

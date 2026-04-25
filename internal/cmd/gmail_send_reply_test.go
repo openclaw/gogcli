@@ -101,6 +101,102 @@ func TestFetchReplyInfoFromThread(t *testing.T) {
 	}
 }
 
+func TestFetchReplyInfo_NoMessageIDFails(t *testing.T) {
+	svc, cleanup := newGmailServiceForTest(t, func(w http.ResponseWriter, r *http.Request) {
+		path := strings.TrimPrefix(r.URL.Path, "/gmail/v1")
+		if r.Method != http.MethodGet || path != "/users/me/messages/m0" {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"id":       "m0",
+			"threadId": "t0",
+			"payload": map[string]any{
+				"headers": []map[string]any{
+					{"name": "From", "value": "a@example.com"},
+					{"name": "Subject", "value": "no message id here"},
+				},
+			},
+		})
+	})
+	defer cleanup()
+
+	_, err := fetchReplyInfo(context.Background(), svc, "m0", "", false)
+	if err == nil {
+		t.Fatalf("expected error when reply target lacks Message-ID, got nil")
+	}
+	if !strings.Contains(err.Error(), "Message-ID") {
+		t.Fatalf("expected error to mention Message-ID, got: %v", err)
+	}
+}
+
+func TestFetchReplyInfo_ParentWithoutReferences(t *testing.T) {
+	svc, cleanup := newGmailServiceForTest(t, func(w http.ResponseWriter, r *http.Request) {
+		path := strings.TrimPrefix(r.URL.Path, "/gmail/v1")
+		if r.Method != http.MethodGet || path != "/users/me/messages/m0" {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"id":       "m0",
+			"threadId": "t0",
+			"payload": map[string]any{
+				"headers": []map[string]any{
+					{"name": "Message-ID", "value": "<orig@id>"},
+				},
+			},
+		})
+	})
+	defer cleanup()
+
+	info, err := fetchReplyInfo(context.Background(), svc, "m0", "", false)
+	if err != nil {
+		t.Fatalf("fetchReplyInfo: %v", err)
+	}
+	if info.InReplyTo != "<orig@id>" {
+		t.Fatalf("unexpected InReplyTo: %q", info.InReplyTo)
+	}
+	if info.References != "<orig@id>" {
+		t.Fatalf("expected References to equal parent Message-ID, got %q", info.References)
+	}
+}
+
+func TestFetchReplyInfo_ParentWithReferences(t *testing.T) {
+	svc, cleanup := newGmailServiceForTest(t, func(w http.ResponseWriter, r *http.Request) {
+		path := strings.TrimPrefix(r.URL.Path, "/gmail/v1")
+		if r.Method != http.MethodGet || path != "/users/me/messages/m0" {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"id":       "m0",
+			"threadId": "t0",
+			"payload": map[string]any{
+				"headers": []map[string]any{
+					{"name": "Message-ID", "value": "<orig@id>"},
+					{"name": "References", "value": "<grandparent@id> <parent@id>"},
+				},
+			},
+		})
+	})
+	defer cleanup()
+
+	info, err := fetchReplyInfo(context.Background(), svc, "m0", "", false)
+	if err != nil {
+		t.Fatalf("fetchReplyInfo: %v", err)
+	}
+	if info.InReplyTo != "<orig@id>" {
+		t.Fatalf("unexpected InReplyTo: %q", info.InReplyTo)
+	}
+	expected := "<grandparent@id> <parent@id> <orig@id>"
+	if info.References != expected {
+		t.Fatalf("expected References %q, got %q", expected, info.References)
+	}
+}
+
 func TestWriteSendResults_JSON(t *testing.T) {
 	u, err := ui.New(ui.Options{Stdout: io.Discard, Stderr: io.Discard, Color: "never"})
 	if err != nil {
