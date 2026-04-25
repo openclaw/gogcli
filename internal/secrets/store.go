@@ -211,7 +211,12 @@ func openKeyring() (keyring.Keyring, error) {
 	// is unresponsive (e.g., gnome-keyring installed but not running).
 	// Use a timeout as a safety net.
 	if shouldUseKeyringTimeout(runtime.GOOS, backendInfo, dbusAddr) {
-		return openKeyringWithTimeout(cfg, keyringOpenTimeout)
+		ring, openErr := openKeyringWithTimeout(cfg, keyringOpenTimeout)
+		if openErr != nil {
+			return nil, openErr
+		}
+
+		return newFileSafeKeyring(ring), nil
 	}
 
 	ring, err := keyringOpenFunc(cfg)
@@ -219,7 +224,14 @@ func openKeyring() (keyring.Keyring, error) {
 		return nil, fmt.Errorf("open keyring: %w", err)
 	}
 
-	return ring, nil
+	// Wrap unconditionally so we cover the auto-fallback case where the
+	// 99designs/keyring opener tries native backends in priority order and
+	// silently lands on the file backend (e.g. Windows + WinCred broken,
+	// Linux + secret-service+kwallet broken). For non-file backends the shim
+	// is effectively a no-op for keys without Windows-illegal characters and
+	// transparently migrates legacy raw-form items on first read/write. See
+	// issue #502.
+	return newFileSafeKeyring(ring), nil
 }
 
 type keyringResult struct {
