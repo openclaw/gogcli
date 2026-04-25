@@ -158,6 +158,56 @@ func replaceDocsMarkdownRange(ctx context.Context, svc *docs.Service, account st
 	return nil
 }
 
+func insertDocsMarkdownAt(ctx context.Context, svc *docs.Service, account, docID string, insertIdx int64, content, basePath string) (requestCount int, inserted int, err error) {
+	cleaned, images := extractMarkdownImages(content)
+	elements := ParseMarkdown(cleaned)
+	formattingRequests, textToInsert, tables := MarkdownToDocsRequests(elements, insertIdx)
+	if textToInsert == "" {
+		return 0, 0, nil
+	}
+
+	requests := make([]*docs.Request, 0, 1+len(formattingRequests))
+	requests = append(requests, &docs.Request{
+		InsertText: &docs.InsertTextRequest{
+			Location: &docs.Location{Index: insertIdx},
+			Text:     textToInsert,
+		},
+	})
+	requests = append(requests, formattingRequests...)
+
+	_, err = svc.Documents.BatchUpdate(docID, &docs.BatchUpdateDocumentRequest{
+		Requests: requests,
+	}).Context(ctx).Do()
+	if err != nil {
+		return 0, 0, fmt.Errorf("append (markdown): %w", err)
+	}
+
+	if len(tables) > 0 {
+		tableInserter := NewTableInserter(svc, docID)
+		tableOffset := int64(0)
+		for _, table := range tables {
+			tableIndex := table.StartIndex + tableOffset
+			tableEnd, tableErr := tableInserter.InsertNativeTable(ctx, tableIndex, table.Cells)
+			if tableErr != nil {
+				return len(requests), len(textToInsert), fmt.Errorf("insert native table: %w", tableErr)
+			}
+			if tableEnd > tableIndex {
+				tableOffset += (tableEnd - tableIndex) - 1
+			}
+		}
+	}
+
+	if len(images) > 0 {
+		imgErr := insertImagesIntoDocs(ctx, account, svc, docID, images, basePath)
+		cleanupDocsImagePlaceholders(ctx, svc, docID, images)
+		if imgErr != nil {
+			return len(requests), len(textToInsert), fmt.Errorf("insert images: %w", imgErr)
+		}
+	}
+
+	return len(requests), len(textToInsert), nil
+}
+
 func cleanupDocsImagePlaceholders(ctx context.Context, svc *docs.Service, docID string, images []markdownImage) {
 	reqs := make([]*docs.Request, 0, len(images))
 	for _, img := range images {
