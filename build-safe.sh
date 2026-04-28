@@ -70,6 +70,10 @@ LDFLAGS="-X github.com/steipete/gogcli/internal/cmd.version=${VERSION}-safe -X g
 
 mkdir -p "$(dirname "$OUTPUT")"
 go build -tags safety_profile -ldflags "$LDFLAGS" -o "$OUTPUT" ./cmd/gog
-"$OUTPUT" --version
+RUN_OUTPUT="$OUTPUT"
+if [[ "$RUN_OUTPUT" != */* ]]; then
+  RUN_OUTPUT="./$RUN_OUTPUT"
+fi
+"$RUN_OUTPUT" --version
 
 echo "built $OUTPUT with baked safety profile $PROFILE"
