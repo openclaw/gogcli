@@ -125,6 +125,10 @@ func Execute(args []string) (err error) {
 		return parsedErr
 	}
 
+	if err = enforceBakedSafetyProfile(kctx); err != nil {
+		_, _ = fmt.Fprintln(os.Stderr, errfmt.Format(err))
+		return err
+	}
 	if err = enforceEnabledCommands(kctx, cli.EnableCommands); err != nil {
 		_, _ = fmt.Fprintln(os.Stderr, errfmt.Format(err))
 		return err

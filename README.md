@@ -26,7 +26,7 @@ Fast, script-friendly CLI for Gmail, Calendar, Chat, Classroom, Drive, Docs, Sli
 - **Groups** - list groups you belong to, view group members (Google Workspace)
 - **Local time** - quick local/UTC time display for scripts and agents
 - **Multiple accounts** - manage multiple Google accounts simultaneously, with account aliases and per-client OAuth buckets
-- **Command allowlist** - restrict top-level commands for sandboxed/agent runs
+- **Command allowlist + baked safety profiles** - restrict commands at runtime or build a fail-closed agent binary
 - **Secure credential storage** using OS keyring or encrypted on-disk keyring (configurable)
 - **Auto-refreshing tokens** - authenticate once, use indefinitely
 - **Flexible auth** - OAuth refresh tokens, ADC, direct access tokens, service accounts, manual/remote flows, `--extra-scopes`, and proxy-safe callbacks
@@ -584,6 +584,17 @@ gog tasks list <tasklistId>
 gog --gmail-no-send gmail send --to someone@example.com --subject Test --body Test
 gog config no-send set agent@example.com
 ```
+
+For stronger isolation, build a dedicated binary with an embedded safety profile:
+
+```bash
+./build-safe.sh safety-profiles/agent-safe.yaml -o bin/gog-agent-safe
+./build-safe.sh safety-profiles/readonly.yaml -o bin/gog-readonly
+```
+
+Baked profiles are checked after CLI parsing and before any command runs. They are
+fail-closed and cannot be changed by config, environment variables, or runtime
+allowlist flags. See `docs/safety-profiles.md`.
  
 ## Security
 

@@ -2,6 +2,9 @@
 
 ## 0.15.0 - Unreleased
 
+### Added
+- Agent safety: add baked safety-profile builds for fail-closed agent binaries, with `agent-safe`, `readonly`, and `full` profiles plus docs and build tooling. (#366, #239) — thanks @drewburchfield.
+
 ## 0.14.0 - 2026-04-28
 
 ### Added

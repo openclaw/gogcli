@@ -1,0 +1,4 @@
+name: full
+description: Stock gog behavior. Every command is allowed.
+allow:
+  - all

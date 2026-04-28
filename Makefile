@@ -3,7 +3,7 @@ SHELL := /bin/bash
 # `make` should build the binary by default.
 .DEFAULT_GOAL := build
 
-.PHONY: build gog gogcli gog-help gogcli-help help fmt fmt-check lint test ci tools docs-commands
+.PHONY: build build-safe gog gogcli gog-help gogcli-help help fmt fmt-check lint test ci tools docs-commands
 .PHONY: worker-ci
 
 BIN_DIR := $(CURDIR)/bin
@@ -37,6 +37,9 @@ endif
 build:
 	@mkdir -p $(BIN_DIR)
 	@go build -ldflags "$(LDFLAGS)" -o $(BIN) $(CMD)
+
+build-safe:
+	@./build-safe.sh $${PROFILE:-safety-profiles/agent-safe.yaml} -o $${OUTPUT:-$(BIN_DIR)/gog-safe}
 
 gog: build
 	@if [ -n "$(RUN_ARGS)" ]; then \

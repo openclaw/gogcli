@@ -1,0 +1,322 @@
+name: agent-safe
+description: Agent workflow profile. Allows reading, drafting, organizing, and recoverable local work; blocks sends, deletes, sharing, admin, and auth writes.
+
+version: true
+schema: true
+exit-codes: true
+agent:
+  exit-codes: true
+
+gmail:
+  search: true
+  get: true
+  messages: true
+  attachment: true
+  url: true
+  history: true
+  thread:
+    get: true
+    modify: true
+    attachments: true
+  labels:
+    list: true
+    get: true
+    create: true
+    rename: true
+    modify: true
+    delete: false
+    style: true
+  batch:
+    modify: true
+    delete: false
+  archive: true
+  mark-read: true
+  unread: true
+  trash: false
+  send: false
+  autoreply: false
+  track: false
+  drafts:
+    list: true
+    get: true
+    create: true
+    update: true
+    delete: false
+    send: false
+  settings: false
+  watch: false
+  autoforward: false
+  delegates: false
+  filters: false
+  forwarding: false
+  sendas: false
+  vacation: false
+  forward: false
+
+calendar:
+  calendars: true
+  subscribe: false
+  acl: true
+  alias: true
+  events: true
+  event: true
+  create: true
+  update: true
+  delete: false
+  freebusy: true
+  respond: false
+  propose-time: true
+  colors: true
+  conflicts: true
+  search: true
+  time: true
+  users: true
+  team: true
+  focus-time: true
+  out-of-office: false
+  working-location: false
+  create-calendar: true
+
+drive:
+  ls: true
+  search: true
+  get: true
+  download: true
+  upload: true
+  mkdir: true
+  copy: true
+  delete: false
+  move: true
+  rename: true
+  share: false
+  unshare: false
+  permissions: true
+  url: true
+  drives: true
+  comments:
+    list: true
+    get: true
+    create: true
+    update: true
+    delete: false
+    reply: true
+
+contacts:
+  search: true
+  list: true
+  get: true
+  export: true
+  create: false
+  update: false
+  delete: false
+  directory:
+    list: true
+    search: true
+  other:
+    list: true
+    search: true
+    delete: false
+
+tasks:
+  lists:
+    list: true
+    create: true
+  list: true
+  get: true
+  add: true
+  update: true
+  done: true
+  undo: true
+  delete: false
+  clear: false
+
+docs:
+  export: true
+  info: true
+  cat: true
+  list-tabs: true
+  create: false
+  copy: false
+  write: false
+  insert: false
+  delete: false
+  find-replace: false
+  update: false
+  edit: false
+  sed: false
+  clear: false
+  structure: true
+  comments:
+    list: true
+    get: true
+    add: true
+    reply: true
+    resolve: false
+    delete: false
+
+sheets:
+  get: true
+  metadata: true
+  notes: true
+  update-note: false
+  links: true
+  named-ranges:
+    list: true
+    get: true
+    add: false
+    update: false
+    delete: false
+  read-format: true
+  export: true
+  update: false
+  append: false
+  insert: false
+  clear: false
+  format: false
+  merge: false
+  unmerge: false
+  number-format: false
+  freeze: false
+  resize-columns: false
+  resize-rows: false
+  find-replace: false
+  create: false
+  copy: false
+  add-tab: true
+  rename-tab: true
+  delete-tab: false
+  chart:
+    list: true
+    get: true
+    create: true
+    update: true
+    delete: false
+
+slides:
+  export: true
+  info: true
+  list-slides: true
+  read-slide: true
+  thumbnail: true
+  create: false
+  create-from-markdown: false
+  create-from-template: false
+  copy: false
+  add-slide: false
+  delete-slide: false
+  update-notes: false
+  replace-slide: false
+  insert-text: false
+  replace-text: false
+
+chat:
+  spaces:
+    list: true
+    find: true
+    create: false
+  messages:
+    list: true
+    send: false
+    react: true
+    reactions: false
+  threads:
+    list: true
+  dm:
+    send: false
+    space: false
+
+forms:
+  get: true
+  create: false
+  update: false
+  add-question: false
+  delete-question: false
+  move-question: true
+  responses:
+    list: true
+    get: true
+  watch: false
+
+appscript:
+  get: true
+  content: true
+  run: false
+  create: false
+
+people:
+  me: true
+  get: true
+  search: true
+  relations: true
+
+groups:
+  list: true
+  members: true
+
+keep:
+  list: true
+  get: true
+  search: true
+  create: true
+  delete: false
+  attachment: true
+
+auth:
+  credentials:
+    list: true
+    set: false
+    remove: false
+  services: true
+  list: true
+  doctor: true
+  alias:
+    list: true
+    set: false
+    unset: false
+  status: true
+  keyring: false
+  add: false
+  remove: false
+  tokens:
+    list: true
+    delete: false
+    export: false
+    import: false
+  manage: false
+  service-account:
+    status: true
+    set: false
+    unset: false
+  keep: false
+
+config:
+  get: true
+  keys: true
+  list: true
+  path: true
+  set: false
+  unset: false
+  no-send:
+    list: true
+    set: false
+    remove: false
+
+time: true
+classroom: false
+admin: false
+backup: false
+completion: false
+__complete: false
+
+aliases:
+  send: false
+  ls: true
+  search: true
+  open: true
+  download: true
+  upload: true
+  login: false
+  logout: false
+  status: true
+  me: true
+  whoami: true
