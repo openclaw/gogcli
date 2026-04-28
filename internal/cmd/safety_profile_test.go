@@ -1,6 +1,8 @@
 package cmd
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -87,5 +89,29 @@ allow:
 
 	if err := Execute([]string{"version"}); err != nil {
 		t.Fatalf("expected allowed command, got %v", err)
+	}
+}
+
+func TestReadonlySafetyProfileBlocksNestedMutations(t *testing.T) {
+	setTestConfigHome(t)
+	raw, err := os.ReadFile(filepath.Join("..", "..", "safety-profiles", "readonly.yaml"))
+	if err != nil {
+		t.Fatalf("read readonly profile: %v", err)
+	}
+	withBakedSafetyProfile(t, string(raw))
+
+	tests := [][]string{
+		{"gmail", "messages", "modify", "msg-1", "--add", "Label_1"},
+		{"calendar", "alias", "set", "work", "abc123@group.calendar.google.com"},
+		{"calendar", "alias", "unset", "work"},
+	}
+	for _, args := range tests {
+		err := Execute(args)
+		if err == nil {
+			t.Fatalf("expected readonly profile block for %v", args)
+		}
+		if got := err.Error(); !strings.Contains(got, "baked safety profile") {
+			t.Fatalf("unexpected error for %v: %v", args, err)
+		}
 	}
 }

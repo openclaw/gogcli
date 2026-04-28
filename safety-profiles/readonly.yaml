@@ -10,7 +10,9 @@ agent:
 gmail:
   search: true
   get: true
-  messages: true
+  messages:
+    search: true
+    modify: false
   attachment: true
   url: true
   history: true
@@ -57,7 +59,10 @@ calendar:
   calendars: true
   subscribe: false
   acl: true
-  alias: true
+  alias:
+    list: true
+    set: false
+    unset: false
   events: true
   event: true
   create: false
