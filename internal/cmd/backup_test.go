@@ -90,6 +90,32 @@ func TestBuildGmailMessageShardsBucketsSortsAndChunks(t *testing.T) {
 	}
 }
 
+func TestBuildGmailMessageShardsSplitsByPlaintextSize(t *testing.T) {
+	accountHash := "accthash"
+	messages := []gmailBackupMessage{
+		{ID: "m1", InternalDate: mustUnixMilli(t, "2026-04-01T10:00:00Z"), Raw: strings.Repeat("raw-1", 8)},
+		{ID: "m2", InternalDate: mustUnixMilli(t, "2026-04-02T10:00:00Z"), Raw: strings.Repeat("raw-2", 8)},
+		{ID: "m3", InternalDate: mustUnixMilli(t, "2026-04-03T10:00:00Z"), Raw: strings.Repeat("raw-3", 8)},
+	}
+
+	shards, err := buildGmailMessageShardsWithLimit(accountHash, messages, 100, 1)
+	if err != nil {
+		t.Fatalf("buildGmailMessageShardsWithLimit: %v", err)
+	}
+	if len(shards) != 3 {
+		t.Fatalf("len(shards) = %d, want 3", len(shards))
+	}
+	for i, shard := range shards {
+		if shard.Rows != 1 {
+			t.Fatalf("shards[%d].Rows = %d, want 1", i, shard.Rows)
+		}
+		want := fmt.Sprintf("part-%04d.jsonl.gz.age", i+1)
+		if !strings.HasSuffix(shard.Path, want) {
+			t.Fatalf("shards[%d].Path = %q, want suffix %q", i, shard.Path, want)
+		}
+	}
+}
+
 func TestMergeBackupSnapshotsKeepsCountsAndShardOrder(t *testing.T) {
 	left := backup.Snapshot{
 		Services: []string{"gmail"},
@@ -404,6 +430,94 @@ func TestEnsureGmailBackupMessageCacheWritesEncryptedCheckpoints(t *testing.T) {
 	}
 }
 
+func TestBuildGmailMessageShardsFromCheckpointPromotesCompleteRun(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	ctx := context.Background()
+	repo, config, recipients := newBackupConfigForCmdTest(t)
+	checkpointShard, err := backup.NewJSONLShard(backupServiceGmail, "messages", "accthash", "checkpoints/gmail/accthash/run-test/messages/part-000001.jsonl.gz.age", []gmailBackupMessage{
+		{ID: "m1", Raw: "raw-1"},
+		{ID: "m2", Raw: "raw-2"},
+	})
+	if err != nil {
+		t.Fatalf("NewJSONLShard: %v", err)
+	}
+	if _, pushErr := backup.PushCheckpoint(ctx, backup.Snapshot{
+		Services: []string{backupServiceGmail},
+		Accounts: []string{"accthash"},
+		Counts:   map[string]int{"gmail.messages": 2},
+		Shards:   []backup.PlainShard{checkpointShard},
+	}, backup.Checkpoint{
+		RunID:   "run-test",
+		Service: backupServiceGmail,
+		Account: "accthash",
+		Done:    2,
+		Total:   2,
+	}, backup.Options{ConfigPath: config, Push: false}); pushErr != nil {
+		t.Fatalf("PushCheckpoint: %v", pushErr)
+	}
+
+	shards, promoted, err := buildGmailMessageShardsFromCheckpoint(ctx, gmailBackupOptions{
+		AccountHash:     "accthash",
+		CacheMessages:   true,
+		Checkpoints:     true,
+		CheckpointRunID: "run-test",
+		BackupOptions:   backup.Options{ConfigPath: config},
+	}, []string{"m1", "m2"})
+	if err != nil {
+		t.Fatalf("buildGmailMessageShardsFromCheckpoint: %v", err)
+	}
+	if !promoted || len(shards) != 1 || shards[0].Existing == nil {
+		t.Fatalf("expected promoted existing shard, promoted=%t shards=%+v", promoted, shards)
+	}
+	if shards[0].Path != "checkpoints/gmail/accthash/run-test/messages/part-000001.jsonl.gz.age" {
+		t.Fatalf("promoted path = %q", shards[0].Path)
+	}
+	if !sameBackupRecipients(shards[0].ExistingRecipients, recipients) {
+		t.Fatalf("promoted recipients = %v, want %v", shards[0].ExistingRecipients, recipients)
+	}
+	if _, err := os.Stat(filepath.Join(repo, filepath.FromSlash(shards[0].Path))); err != nil {
+		t.Fatalf("checkpoint shard missing: %v", err)
+	}
+}
+
+func TestGmailBackupResolvedCheckpointRunIDReusesSelectionRun(t *testing.T) {
+	ctx := context.Background()
+	_, config, _ := newBackupConfigForCmdTest(t)
+	ids := []string{"m1"}
+	opts := gmailBackupOptions{
+		AccountHash:      "accthash",
+		CacheMessages:    true,
+		Checkpoints:      true,
+		IncludeSpamTrash: true,
+		BackupOptions:    backup.Options{ConfigPath: config},
+	}
+	runID := "20260428T010203Z-" + gmailBackupCheckpointRunIDSuffix(opts, ids)
+	checkpointShard, err := backup.NewJSONLShard(backupServiceGmail, "messages", "accthash", fmt.Sprintf("checkpoints/gmail/accthash/%s/messages/part-000001.jsonl.gz.age", runID), []gmailBackupMessage{
+		{ID: "m1", Raw: "raw-1"},
+	})
+	if err != nil {
+		t.Fatalf("NewJSONLShard: %v", err)
+	}
+	if _, err := backup.PushCheckpoint(ctx, backup.Snapshot{
+		Services: []string{backupServiceGmail},
+		Accounts: []string{"accthash"},
+		Counts:   map[string]int{"gmail.messages": 1},
+		Shards:   []backup.PlainShard{checkpointShard},
+	}, backup.Checkpoint{
+		RunID:   runID,
+		Service: backupServiceGmail,
+		Account: "accthash",
+		Done:    1,
+		Total:   1,
+	}, backup.Options{ConfigPath: config, Push: false}); err != nil {
+		t.Fatalf("PushCheckpoint: %v", err)
+	}
+
+	if got := gmailBackupResolvedCheckpointRunID(ctx, opts, ids); got != runID {
+		t.Fatalf("resolved run ID = %q, want %q", got, runID)
+	}
+}
+
 func TestBuildGmailCheckpointShardFromCacheWritesPlaintextPath(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	accountHash := "accthash"
@@ -488,6 +602,40 @@ func TestBuildGmailCheckpointShardsFromCacheSplitsByPlaintextSize(t *testing.T) 
 			t.Fatalf("shards[%d].Rows = %d, want 1", i, shard.Rows)
 		}
 		want := fmt.Sprintf("part-%06d.jsonl.gz.age", 11+i)
+		if !strings.HasSuffix(shard.Path, want) {
+			t.Fatalf("shards[%d].Path = %q, want suffix %q", i, shard.Path, want)
+		}
+	}
+}
+
+func TestBuildGmailMessageShardsFromCacheSplitsByPlaintextSize(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	accountHash := "accthash"
+	ids := []string{"m1", "m2", "m3"}
+	for _, id := range ids {
+		if err := writeGmailBackupMessageCache(accountHash, gmailBackupMessage{
+			ID:           id,
+			InternalDate: mustUnixMilli(t, "2026-04-02T10:00:00Z"),
+			Raw:          strings.Repeat("raw-"+id, 8),
+		}); err != nil {
+			t.Fatalf("writeGmailBackupMessageCache: %v", err)
+		}
+	}
+	shards, err := buildGmailMessageShardsFromCacheWithLimit(context.Background(), gmailBackupOptions{
+		AccountHash:  accountHash,
+		ShardMaxRows: 100,
+	}, ids, 1)
+	if err != nil {
+		t.Fatalf("buildGmailMessageShardsFromCacheWithLimit: %v", err)
+	}
+	if len(shards) != 3 {
+		t.Fatalf("len(shards) = %d, want 3", len(shards))
+	}
+	for i, shard := range shards {
+		if shard.Rows != 1 {
+			t.Fatalf("shards[%d].Rows = %d, want 1", i, shard.Rows)
+		}
+		want := fmt.Sprintf("part-%04d.jsonl.gz.age", i+1)
 		if !strings.HasSuffix(shard.Path, want) {
 			t.Fatalf("shards[%d].Path = %q, want suffix %q", i, shard.Path, want)
 		}
@@ -687,6 +835,23 @@ func TestEnsureExportOutsideRepoRejectsNestedPlaintext(t *testing.T) {
 	if err := ensureExportOutsideRepo(filepath.Join(filepath.Dir(repo), "export"), repo); err != nil {
 		t.Fatalf("outside export rejected: %v", err)
 	}
+}
+
+func newBackupConfigForCmdTest(t *testing.T) (string, string, []string) {
+	t.Helper()
+	dir := t.TempDir()
+	repo := filepath.Join(dir, "repo")
+	identity := filepath.Join(dir, "age.key")
+	config := filepath.Join(dir, "backup.json")
+	recipient, err := backup.EnsureIdentity(identity)
+	if err != nil {
+		t.Fatalf("EnsureIdentity: %v", err)
+	}
+	recipients := []string{recipient}
+	if err := backup.SaveConfig(config, backup.Config{Repo: repo, Identity: identity, Recipients: recipients}); err != nil {
+		t.Fatalf("SaveConfig: %v", err)
+	}
+	return repo, config, recipients
 }
 
 func mustUnixMilli(t *testing.T, value string) int64 {

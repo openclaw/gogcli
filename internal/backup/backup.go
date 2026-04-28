@@ -71,13 +71,15 @@ type ShardEntry struct {
 }
 
 type PlainShard struct {
-	Service       string
-	Kind          string
-	Account       string
-	Path          string
-	Rows          int
-	Plaintext     []byte
-	PlaintextPath string
+	Service            string
+	Kind               string
+	Account            string
+	Path               string
+	Rows               int
+	Plaintext          []byte
+	PlaintextPath      string
+	Existing           *ShardEntry
+	ExistingRecipients []string
 }
 
 type Snapshot struct {
@@ -286,6 +288,22 @@ func NewJSONLShard(service, kind, account, rel string, rows any) (PlainShard, er
 	}, nil
 }
 
+func ExistingShard(entry ShardEntry, recipients []string) PlainShard {
+	return PlainShard{
+		Service:            strings.TrimSpace(entry.Service),
+		Kind:               strings.TrimSpace(entry.Kind),
+		Account:            strings.TrimSpace(entry.Account),
+		Path:               filepath.ToSlash(entry.Path),
+		Rows:               entry.Rows,
+		Existing:           &entry,
+		ExistingRecipients: append([]string(nil), recipients...),
+	}
+}
+
+func ReadCheckpointManifest(repo, rel string) (CheckpointManifest, error) {
+	return readCheckpointManifest(repo, rel)
+}
+
 func writeCheckpoint(ctx context.Context, cfg Config, snapshot Snapshot, checkpoint Checkpoint) (CheckpointManifest, error) {
 	checkpoint.Service = safePathPart(checkpoint.Service)
 	checkpoint.Account = safePathPart(checkpoint.Account)
@@ -455,6 +473,40 @@ func mergedManifestCounts(old, next map[string]int, updatedServices map[string]s
 func writeShard(cfg Config, old Manifest, shard PlainShard, reuseEncrypted bool) (ShardEntry, error) {
 	if strings.TrimSpace(shard.Service) == "" {
 		return ShardEntry{}, fmt.Errorf("backup shard service is required")
+	}
+	if shard.Existing != nil {
+		if len(shard.ExistingRecipients) > 0 && !sameStrings(shard.ExistingRecipients, cfg.Recipients) {
+			return ShardEntry{}, fmt.Errorf("backup shard %s was encrypted for different recipients", shard.Existing.Path)
+		}
+		entry := *shard.Existing
+		if strings.TrimSpace(entry.Service) == "" {
+			entry.Service = shard.Service
+		}
+		if strings.TrimSpace(entry.Kind) == "" {
+			entry.Kind = shard.Kind
+		}
+		if strings.TrimSpace(entry.Account) == "" {
+			entry.Account = shard.Account
+		}
+		if strings.TrimSpace(entry.Path) == "" {
+			entry.Path = shard.Path
+		}
+		if entry.Rows == 0 {
+			entry.Rows = shard.Rows
+		}
+		path, err := resolveShardPath(cfg.Repo, entry.Path)
+		if err != nil {
+			return ShardEntry{}, err
+		}
+		info, err := os.Stat(path)
+		if err != nil {
+			return ShardEntry{}, fmt.Errorf("reuse encrypted backup shard %s: %w", entry.Path, err)
+		}
+		if entry.Bytes > 0 && info.Size() != entry.Bytes {
+			return ShardEntry{}, fmt.Errorf("reuse encrypted backup shard %s: size changed from %d to %d", entry.Path, entry.Bytes, info.Size())
+		}
+		entry.Bytes = info.Size()
+		return entry, nil
 	}
 	hash, err := shardPlaintextHash(shard)
 	if err != nil {

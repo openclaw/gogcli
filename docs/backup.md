@@ -295,8 +295,12 @@ single ordered background queue: `gog` records the exact commit SHA, continues
 cached Gmail fetching, and pushes queued SHAs to the current branch one at a
 time. Transient push failures are retried; GitHub hard rejections stop later
 checkpoints because descendants would inherit the rejected object. The final
-completed backup waits for the queue to drain before writing and pushing the
-root manifest. Tune the commit cadence with `--gmail-checkpoint-rows` /
+completed backup waits for the queue to drain, then promotes the completed
+checkpoint message shards into the root manifest instead of re-encrypting the
+same mailbox into a second multi-GB final push. If no complete matching
+checkpoint exists, final Gmail message shards still split by row count and the
+same conservative plaintext byte ceiling. Tune the commit cadence with
+`--gmail-checkpoint-rows` /
 `--gmail-checkpoint-interval` on `gog backup push`, or `--checkpoint-rows` /
 `--checkpoint-interval` on `gog backup gmail push`; set the interval or rows to
 `0` to disable that trigger, or use `--no-gmail-checkpoints` /

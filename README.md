@@ -799,9 +799,10 @@ For a bounded first run:
 gog backup push --services gmail --account you@gmail.com --query 'newer_than:7d' --max 25
 ```
 
-Backups use age-encrypted JSONL gzip shards under `data/`. `gog` stores the
-private age identity locally at `~/.gog/age.key`; GitHub only receives public
-`age1...` recipients, `manifest.json`, and encrypted `*.jsonl.gz.age` payloads.
+Backups use age-encrypted JSONL gzip shards under `data/` and completed Gmail
+checkpoint shards under `checkpoints/`. `gog` stores the private age identity
+locally at `~/.gog/age.key`; GitHub only receives public `age1...` recipients,
+`manifest.json`, and encrypted `*.jsonl.gz.age` payloads.
 The private `AGE-SECRET-KEY-...` value must stay local or in a password manager.
 
 Supported backup services are `gmail`, `gmail-settings`, `calendar`,
@@ -821,9 +822,12 @@ by default (`--gmail-checkpoint-rows`, `--gmail-checkpoint-interval`,
 conservative plaintext byte ceiling to avoid GitHub blob rejections. Checkpoint
 commits push through a single ordered background queue so cached Gmail fetching
 can continue while GitHub uploads run; the final completed backup waits for the
-queue to drain before updating the authoritative manifest. Checkpoints live
-under `checkpoints/` and do not replace the authoritative `manifest.json` until
-the final backup completes. Use `--gmail-refresh-cache` to force a refetch.
+queue to drain before updating the authoritative manifest. When a cached Gmail
+run completes, the final manifest promotes the completed checkpoint message
+shards instead of re-encrypting the mailbox into a second giant Git push.
+Checkpoints live under `checkpoints/` and do not become authoritative until the
+final `manifest.json` references them. Use `--gmail-refresh-cache` to force a
+refetch.
 Workspace inventories
 Docs/Sheets/Slides and backs up Forms/responses discovered through Drive; add
 `--workspace-native` for full native Docs/Sheets/Slides API JSON.

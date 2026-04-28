@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -105,13 +106,19 @@ func buildGmailBackupSnapshot(ctx context.Context, flags *RootFlags, opts gmailB
 		if listErr != nil {
 			return backup.Snapshot{}, listErr
 		}
-		opts.CheckpointRunID = gmailBackupCheckpointRunID(opts, ids)
+		opts.CheckpointRunID = gmailBackupResolvedCheckpointRunID(ctx, opts, ids)
 		if cacheErr := ensureGmailBackupMessageCache(ctx, svc, opts, ids); cacheErr != nil {
 			return backup.Snapshot{}, cacheErr
 		}
-		messageShards, shardErr := buildGmailMessageShardsFromCache(ctx, opts, ids)
+		messageShards, promoted, shardErr := buildGmailMessageShardsFromCheckpoint(ctx, opts, ids)
 		if shardErr != nil {
 			return backup.Snapshot{}, shardErr
+		}
+		if !promoted {
+			messageShards, shardErr = buildGmailMessageShardsFromCache(ctx, opts, ids)
+			if shardErr != nil {
+				return backup.Snapshot{}, shardErr
+			}
 		}
 		shards = append(shards, messageShards...)
 		messageCount = len(ids)
@@ -353,7 +360,10 @@ type gmailBackupCheckpointer struct {
 
 const gmailCheckpointShardMaxRows = 250
 
-var gmailCheckpointShardMaxPlaintextBytes int64 = 32 * 1024 * 1024
+var (
+	gmailCheckpointShardMaxPlaintextBytes int64 = 32 * 1024 * 1024
+	gmailMessageShardMaxPlaintextBytes    int64 = 32 * 1024 * 1024
+)
 
 func newGmailBackupCheckpointer(ctx context.Context, opts gmailBackupOptions, total int) *gmailBackupCheckpointer {
 	enabled := opts.Checkpoints &&
@@ -683,9 +693,14 @@ func gmailBackupProgressf(ctx context.Context, format string, args ...any) {
 type gmailBackupMessageRef struct {
 	ID           string
 	InternalDate int64
+	LineBytes    int64
 }
 
 func buildGmailMessageShardsFromCache(ctx context.Context, opts gmailBackupOptions, ids []string) ([]backup.PlainShard, error) {
+	return buildGmailMessageShardsFromCacheWithLimit(ctx, opts, ids, gmailMessageShardMaxPlaintextBytes)
+}
+
+func buildGmailMessageShardsFromCacheWithLimit(ctx context.Context, opts gmailBackupOptions, ids []string, maxPlaintextBytes int64) ([]backup.PlainShard, error) {
 	if opts.ShardMaxRows <= 0 {
 		opts.ShardMaxRows = 1000
 	}
@@ -708,8 +723,12 @@ func buildGmailMessageShardsFromCache(ctx context.Context, opts gmailBackupOptio
 		if !ok {
 			return nil, fmt.Errorf("gmail message %s missing from backup cache", id)
 		}
+		lineBytes, err := gmailBackupMessageJSONLSize(msg)
+		if err != nil {
+			return nil, err
+		}
 		key := gmailBackupMessageMonthKey(msg.InternalDate)
-		buckets[key] = append(buckets[key], gmailBackupMessageRef{ID: msg.ID, InternalDate: msg.InternalDate})
+		buckets[key] = append(buckets[key], gmailBackupMessageRef{ID: msg.ID, InternalDate: msg.InternalDate, LineBytes: lineBytes})
 		done := i + 1
 		if done == len(ids) || done%5000 == 0 {
 			gmailBackupProgressf(ctx, "backup gmail shard-index\t%d/%d", done, len(ids))
@@ -730,19 +749,27 @@ func buildGmailMessageShardsFromCache(ctx context.Context, opts gmailBackupOptio
 			}
 			return refs[i].InternalDate < refs[j].InternalDate
 		})
-		for part, start := 1, 0; start < len(refs); part, start = part+1, start+opts.ShardMaxRows {
-			end := start + opts.ShardMaxRows
-			if end > len(refs) {
-				end = len(refs)
+		for part, start := 1, 0; start < len(refs); part++ {
+			chunkStart := start
+			var chunkBytes int64
+			for start < len(refs) {
+				lineBytes := refs[start].LineBytes
+				overRows := start-chunkStart >= opts.ShardMaxRows
+				overBytes := maxPlaintextBytes > 0 && start > chunkStart && chunkBytes+lineBytes > maxPlaintextBytes
+				if overRows || overBytes {
+					break
+				}
+				chunkBytes += lineBytes
+				start++
 			}
 			rel := fmt.Sprintf("data/gmail/%s/messages/%s/part-%04d.jsonl.gz.age", opts.AccountHash, key, part)
-			shard, err := buildGmailMessageShardFromCache(opts.AccountHash, rel, tempDir, refs[start:end])
+			shard, err := buildGmailMessageShardFromCache(opts.AccountHash, rel, tempDir, refs[chunkStart:start])
 			if err != nil {
 				return nil, err
 			}
 			shards = append(shards, shard)
 			shardCount++
-			if shardCount%25 == 0 || end == len(refs) {
+			if shardCount%25 == 0 || start == len(refs) {
 				gmailBackupProgressf(ctx, "backup gmail shard-build\tshards=%d\tmessages=%d/%d", shardCount, countGmailShardRows(shards), len(ids))
 			}
 		}
@@ -911,12 +938,11 @@ func buildGmailCheckpointShardsFromCache(accountHash, runID string, firstPart in
 			cleanup()
 			return nil, fmt.Errorf("gmail message %s missing from backup cache", id)
 		}
-		line, err := json.Marshal(msg)
+		lineBytes, err := gmailBackupMessageJSONLSize(msg)
 		if err != nil {
 			cleanup()
-			return nil, fmt.Errorf("encode gmail backup checkpoint shard estimate: %w", err)
+			return nil, err
 		}
-		lineBytes := int64(len(line) + 1)
 		overRows := len(chunk) >= gmailCheckpointShardMaxRows
 		overBytes := gmailCheckpointShardMaxPlaintextBytes > 0 && len(chunk) > 0 && chunkBytes+lineBytes > gmailCheckpointShardMaxPlaintextBytes
 		if overRows || overBytes {
@@ -933,6 +959,51 @@ func buildGmailCheckpointShardsFromCache(accountHash, runID string, firstPart in
 	return shards, nil
 }
 
+func buildGmailMessageShardsFromCheckpoint(ctx context.Context, opts gmailBackupOptions, ids []string) ([]backup.PlainShard, bool, error) {
+	if !opts.CacheMessages || !opts.Checkpoints || strings.TrimSpace(opts.AccountHash) == "" || strings.TrimSpace(opts.CheckpointRunID) == "" {
+		return nil, false, nil
+	}
+	cfg, err := backup.ResolveOptions(opts.BackupOptions)
+	if err != nil {
+		return nil, false, err
+	}
+	if len(cfg.Recipients) == 0 {
+		recipient, recipientErr := backup.RecipientFromIdentity(cfg.Identity)
+		if recipientErr != nil {
+			return nil, false, recipientErr
+		}
+		cfg.Recipients = []string{recipient}
+	}
+	manifest, err := backup.ReadCheckpointManifest(cfg.Repo, gmailBackupCheckpointManifestRel(opts.AccountHash, opts.CheckpointRunID))
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, false, nil
+		}
+		return nil, false, err
+	}
+	if !gmailBackupCheckpointCompleteForSelection(manifest, opts, ids) {
+		return nil, false, nil
+	}
+	if !sameBackupRecipients(manifest.Recipients, cfg.Recipients) {
+		gmailBackupProgressf(ctx, "backup gmail checkpoint-promote\tskip=recipients-changed\trun=%s", opts.CheckpointRunID)
+		return nil, false, nil
+	}
+	shards := make([]backup.PlainShard, 0, len(manifest.Shards))
+	rows := 0
+	for _, entry := range manifest.Shards {
+		if entry.Service != backupServiceGmail || entry.Kind != "messages" || entry.Account != opts.AccountHash {
+			return nil, false, fmt.Errorf("gmail checkpoint %s contains unexpected shard %s/%s/%s", opts.CheckpointRunID, entry.Service, entry.Kind, entry.Account)
+		}
+		shards = append(shards, backup.ExistingShard(entry, manifest.Recipients))
+		rows += entry.Rows
+	}
+	if rows != len(ids) {
+		return nil, false, fmt.Errorf("gmail checkpoint %s row count = %d, want %d", opts.CheckpointRunID, rows, len(ids))
+	}
+	gmailBackupProgressf(ctx, "backup gmail checkpoint-promote\trun=%s\tshards=%d\tmessages=%d", opts.CheckpointRunID, len(shards), rows)
+	return shards, true, nil
+}
+
 func gmailBackupCheckpointTempShardDir(accountHash, runID string) (string, bool) {
 	accountHash = strings.TrimSpace(accountHash)
 	runID = strings.TrimSpace(runID)
@@ -947,6 +1018,10 @@ func gmailBackupCheckpointTempShardDir(accountHash, runID string) (string, bool)
 }
 
 func gmailBackupCheckpointRunID(opts gmailBackupOptions, ids []string) string {
+	return time.Now().UTC().Format("20060102T150405Z") + "-" + gmailBackupCheckpointRunIDSuffix(opts, ids)
+}
+
+func gmailBackupCheckpointRunIDSuffix(opts gmailBackupOptions, ids []string) string {
 	key := struct {
 		AccountHash      string `json:"accountHash"`
 		Query            string `json:"query,omitempty"`
@@ -962,7 +1037,92 @@ func gmailBackupCheckpointRunID(opts gmailBackupOptions, ids []string) string {
 	}
 	data, _ := json.Marshal(key)
 	sum := sha256.Sum256(data)
-	return time.Now().UTC().Format("20060102T150405Z") + "-" + hex.EncodeToString(sum[:6])
+	return hex.EncodeToString(sum[:6])
+}
+
+func gmailBackupResolvedCheckpointRunID(ctx context.Context, opts gmailBackupOptions, ids []string) string {
+	generated := gmailBackupCheckpointRunID(opts, ids)
+	if !opts.Checkpoints || !opts.CacheMessages || strings.TrimSpace(opts.AccountHash) == "" {
+		return generated
+	}
+	suffix := gmailBackupCheckpointRunIDSuffix(opts, ids)
+	cfg, err := backup.ResolveOptions(opts.BackupOptions)
+	if err != nil {
+		return generated
+	}
+	root := filepath.Join(cfg.Repo, "checkpoints", "gmail", opts.AccountHash)
+	entries, err := os.ReadDir(root)
+	if err != nil {
+		return generated
+	}
+	runIDs := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		if entry.IsDir() && strings.HasSuffix(entry.Name(), "-"+suffix) {
+			runIDs = append(runIDs, entry.Name())
+		}
+	}
+	sort.Sort(sort.Reverse(sort.StringSlice(runIDs)))
+	for _, runID := range runIDs {
+		manifest, err := backup.ReadCheckpointManifest(cfg.Repo, gmailBackupCheckpointManifestRel(opts.AccountHash, runID))
+		if err != nil {
+			continue
+		}
+		if !gmailBackupCheckpointMatchesSelection(manifest, opts, ids) {
+			continue
+		}
+		gmailBackupProgressf(ctx, "backup gmail checkpoint\treuse=%s\tdone=%d/%d", runID, manifest.Done, manifest.Total)
+		return runID
+	}
+	return generated
+}
+
+func gmailBackupCheckpointManifestRel(accountHash, runID string) string {
+	return fmt.Sprintf("checkpoints/gmail/%s/%s/manifest.json", accountHash, runID)
+}
+
+func gmailBackupCheckpointMatchesSelection(manifest backup.CheckpointManifest, opts gmailBackupOptions, ids []string) bool {
+	return manifest.Service == backupServiceGmail &&
+		manifest.Account == opts.AccountHash &&
+		manifest.Total == len(ids) &&
+		strings.TrimSpace(manifest.RunID) != ""
+}
+
+func gmailBackupCheckpointCompleteForSelection(manifest backup.CheckpointManifest, opts gmailBackupOptions, ids []string) bool {
+	return gmailBackupCheckpointMatchesSelection(manifest, opts, ids) &&
+		manifest.Done == len(ids) &&
+		manifest.Total == len(ids)
+}
+
+func sameBackupRecipients(a, b []string) bool {
+	a = normalizedBackupStrings(a)
+	b = normalizedBackupStrings(b)
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
+func normalizedBackupStrings(values []string) []string {
+	seen := map[string]struct{}{}
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			continue
+		}
+		if _, ok := seen[value]; ok {
+			continue
+		}
+		seen[value] = struct{}{}
+		out = append(out, value)
+	}
+	sort.Strings(out)
+	return out
 }
 
 func gmailBackupMessageMonthKey(internalDate int64) string {
@@ -974,6 +1134,10 @@ func gmailBackupMessageMonthKey(internalDate int64) string {
 }
 
 func buildGmailMessageShards(accountHash string, messages []gmailBackupMessage, shardMaxRows int) ([]backup.PlainShard, error) {
+	return buildGmailMessageShardsWithLimit(accountHash, messages, shardMaxRows, gmailMessageShardMaxPlaintextBytes)
+}
+
+func buildGmailMessageShardsWithLimit(accountHash string, messages []gmailBackupMessage, shardMaxRows int, maxPlaintextBytes int64) ([]backup.PlainShard, error) {
 	if shardMaxRows <= 0 {
 		shardMaxRows = 1000
 	}
@@ -996,13 +1160,24 @@ func buildGmailMessageShards(accountHash string, messages []gmailBackupMessage, 
 			}
 			return values[i].InternalDate < values[j].InternalDate
 		})
-		for part, start := 1, 0; start < len(values); part, start = part+1, start+shardMaxRows {
-			end := start + shardMaxRows
-			if end > len(values) {
-				end = len(values)
+		for part, start := 1, 0; start < len(values); part++ {
+			chunkStart := start
+			var chunkBytes int64
+			for start < len(values) {
+				lineBytes, err := gmailBackupMessageJSONLSize(values[start])
+				if err != nil {
+					return nil, err
+				}
+				overRows := start-chunkStart >= shardMaxRows
+				overBytes := maxPlaintextBytes > 0 && start > chunkStart && chunkBytes+lineBytes > maxPlaintextBytes
+				if overRows || overBytes {
+					break
+				}
+				chunkBytes += lineBytes
+				start++
 			}
 			rel := fmt.Sprintf("data/gmail/%s/messages/%s/part-%04d.jsonl.gz.age", accountHash, key, part)
-			shard, err := backup.NewJSONLShard(backupServiceGmail, "messages", accountHash, rel, values[start:end])
+			shard, err := backup.NewJSONLShard(backupServiceGmail, "messages", accountHash, rel, values[chunkStart:start])
 			if err != nil {
 				return nil, err
 			}
@@ -1010,4 +1185,12 @@ func buildGmailMessageShards(accountHash string, messages []gmailBackupMessage, 
 		}
 	}
 	return shards, nil
+}
+
+func gmailBackupMessageJSONLSize(message gmailBackupMessage) (int64, error) {
+	line, err := json.Marshal(message)
+	if err != nil {
+		return 0, fmt.Errorf("encode gmail backup shard estimate: %w", err)
+	}
+	return int64(len(line) + 1), nil
 }

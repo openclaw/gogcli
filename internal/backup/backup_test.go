@@ -142,6 +142,44 @@ func TestPushCheckpointWritesIncompleteManifestOutsideMainSnapshot(t *testing.T)
 	}
 }
 
+func TestPushSnapshotCanReferenceExistingCheckpointShard(t *testing.T) {
+	ctx, repo, config, _ := initTestBackup(t)
+	checkpointShard := mustGmailMessageShard(t, "checkpoints/gmail/acct/run-one/messages/part-000001.jsonl.gz.age", []map[string]string{
+		{"id": "m1", "raw": "checkpoint final"},
+	})
+	if _, err := PushCheckpoint(ctx, Snapshot{
+		Services: []string{"gmail"},
+		Accounts: []string{"acct"},
+		Counts:   map[string]int{"gmail.messages": 1},
+		Shards:   []PlainShard{checkpointShard},
+	}, Checkpoint{RunID: "run-one", Service: "gmail", Account: "acct", Done: 1, Total: 1}, Options{ConfigPath: config, Push: false}); err != nil {
+		t.Fatalf("PushCheckpoint: %v", err)
+	}
+	checkpointManifest, err := readCheckpointManifest(repo, "checkpoints/gmail/acct/run-one/manifest.json")
+	if err != nil {
+		t.Fatalf("readCheckpointManifest: %v", err)
+	}
+	if _, err := PushSnapshot(ctx, Snapshot{
+		Services: []string{"gmail"},
+		Accounts: []string{"acct"},
+		Counts:   map[string]int{"gmail.messages": 1},
+		Shards:   []PlainShard{ExistingShard(checkpointManifest.Shards[0], checkpointManifest.Recipients)},
+	}, Options{ConfigPath: config, Push: false}); err != nil {
+		t.Fatalf("PushSnapshot existing checkpoint shard: %v", err)
+	}
+
+	manifest := readTestManifest(t, repo)
+	if len(manifest.Shards) != 1 || manifest.Shards[0].Path != checkpointManifest.Shards[0].Path {
+		t.Fatalf("root manifest did not reference checkpoint shard: %+v", manifest.Shards)
+	}
+	if _, err := Verify(ctx, Options{ConfigPath: config}); err != nil {
+		t.Fatalf("Verify: %v", err)
+	}
+	if _, err := Cat(ctx, Options{ConfigPath: config}, checkpointManifest.Shards[0].Path); err != nil {
+		t.Fatalf("Cat checkpoint shard from root manifest: %v", err)
+	}
+}
+
 func TestAsyncCheckpointPushDrainsBeforeFinalSnapshot(t *testing.T) {
 	ctx := context.Background()
 	dir := t.TempDir()
