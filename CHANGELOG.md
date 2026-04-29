@@ -3,7 +3,7 @@
 ## 0.15.0 - Unreleased
 
 ### Added
-- Agent safety: add baked safety-profile builds for fail-closed agent binaries, with `agent-safe`, `readonly`, and `full` profiles plus docs and build tooling. (#366, #239) — thanks @drewburchfield.
+- Agent safety: add baked safety-profile builds for fail-closed agent binaries, with `agent-safe`, `readonly`, and `full` profiles, filtered help/schema output, docs, and build tooling. (#366, #239) — thanks @drewburchfield.
 
 ### Fixed
 - Backup: promote completed Gmail checkpoint shards into the final manifest and byte-split fallback Gmail message shards so full-mailbox runs do not create GitHub-rejected blobs or giant final pushes.
