@@ -1,30 +1,195 @@
 # Safety Profiles
 
-Safety profiles bake a command policy into a dedicated `gog` binary at build time.
-They are for agent or sandbox use where runtime flags and config are too easy to change.
+Safety profiles build a dedicated `gog` binary with an embedded command policy.
+Use them when `gog` is available to an agent, CI job, sandbox, or other caller
+that should not be able to change its own command permissions at runtime.
+
+Runtime guards such as `--enable-commands`, `--disable-commands`, and
+`--gmail-no-send` are still useful for normal scripting. A baked safety profile is
+stronger: the policy is compiled into the binary and cannot be changed with
+flags, environment variables, config files, or shell arguments.
+
+## Quick Start
+
+Build an agent-safe binary:
 
 ```bash
 ./build-safe.sh safety-profiles/agent-safe.yaml -o bin/gog-agent-safe
+```
+
+Build a read-only binary:
+
+```bash
 ./build-safe.sh safety-profiles/readonly.yaml -o bin/gog-readonly
 ```
 
-The generated binary still parses the normal CLI, but every command run is checked
-against the baked profile before command execution. The profile cannot be changed
-with environment variables, config files, or `--enable-commands`.
+Use the built binary exactly like `gog`:
 
-Profiles are fail-closed:
+```bash
+bin/gog-agent-safe gmail search 'from:me newer_than:7d'
+bin/gog-agent-safe gmail drafts create --to you@example.com --subject "Review" --body "Draft only"
+bin/gog-agent-safe gmail drafts send draft-id
+```
 
-- commands set to `true` are allowed
-- commands set to `false` are blocked and override broader allow rules
-- commands not listed are blocked when the profile has any allow entries
-- `aliases:` entries apply to root shortcuts like `send`, `ls`, and `upload`
+The final command fails before the Gmail send handler runs:
 
-Preset profiles:
+```text
+command "gmail drafts send" is blocked by baked safety profile "agent-safe"
+```
 
-- `safety-profiles/full.yaml` allows everything and is mostly a smoke-test profile
-- `safety-profiles/readonly.yaml` allows read/list/search/get style commands only
-- `safety-profiles/agent-safe.yaml` allows reading, drafting, organizing, and low-risk recoverable work while blocking sends, deletes, sharing, admin, and auth writes
+## How It Works
 
-Help and schema output remain available from the stock command tree. The security
-boundary is execution: blocked commands fail before any Google API call or command
-handler runs.
+`build-safe.sh` performs a normal Go build with one extra generated file:
+
+1. Validates the YAML profile.
+2. Generates `internal/cmd/safety_profile_baked_gen.go` with the profile content.
+3. Builds with `-tags safety_profile`.
+4. Runs the built binary with `--version` as a smoke test.
+5. Deletes the generated file on exit.
+
+Normal `go build` does not include a profile, so the stock `gog` binary is
+unchanged.
+
+At runtime, `gog` parses the command with Kong first. After parsing and before
+any command handler or Google API call, it checks the baked profile:
+
+1. Explicit deny rules win.
+2. Allow rules permit matching commands.
+3. If the profile has allow rules, everything not allowed is blocked.
+
+That means a caller cannot re-enable a blocked baked command:
+
+```bash
+bin/gog-readonly --enable-commands gmail.send gmail send \
+  --to a@example.com --subject Test --body Test
+```
+
+The command still fails because the baked policy is checked before runtime
+allowlists.
+
+## Preset Profiles
+
+`safety-profiles/agent-safe.yaml`
+
+Allows reading, searching, drafting, labeling, archiving, organizing files, and
+other low-risk recoverable actions. Blocks sends, deletes, sharing changes, admin
+operations, and auth writes.
+
+Good for:
+
+- inbox triage agents
+- draft reply generation
+- summarization/reporting jobs that may organize labels or files
+- workflows where a human should review before anything is sent
+
+`safety-profiles/readonly.yaml`
+
+Allows read/list/search/get style commands only. Blocks mutations, sends, deletes,
+sharing changes, auth writes, and local config writes.
+
+Good for:
+
+- reporting
+- audits
+- monitoring
+- read-only agent context gathering
+
+`safety-profiles/full.yaml`
+
+Allows everything. This is mostly useful for smoke testing the build path or for
+creating a `-safe` binary with the same command surface as stock `gog`.
+
+## Profile Syntax
+
+Profiles are YAML maps that mirror command paths:
+
+```yaml
+name: agent-safe
+
+gmail:
+  search: true
+  send: false
+  drafts:
+    create: true
+    send: false
+
+aliases:
+  send: false
+```
+
+Rules:
+
+- `true` allows a command path.
+- `false` blocks a command path.
+- blocked rules override allowed parent rules.
+- unlisted commands are blocked when the profile has any allow rules.
+- command names are written as dot paths internally, such as `gmail.drafts.create`.
+- `aliases:` controls root shortcuts such as `send`, `ls`, `search`, and `upload`.
+
+Parent rules are prefix matches. For example, `drive: true` allows every `drive`
+subcommand unless a child is explicitly blocked. For restrictive profiles, prefer
+listing leaf commands so a parent allow does not accidentally include future
+mutating subcommands:
+
+```yaml
+gmail:
+  messages:
+    search: true
+    modify: false
+```
+
+## Choosing A Profile
+
+Use `readonly` when the caller should never change Google or local `gog` state.
+
+Use `agent-safe` when the caller may prepare work but should not perform
+externally visible or hard-to-reverse actions. For example, it may create a Gmail
+draft but cannot send it.
+
+Use a custom profile when the preset is too broad or too narrow:
+
+```bash
+cp safety-profiles/readonly.yaml /tmp/my-agent.yaml
+editor /tmp/my-agent.yaml
+./build-safe.sh /tmp/my-agent.yaml -o bin/gog-my-agent
+```
+
+## Verifying A Safe Binary
+
+Build and smoke test:
+
+```bash
+./build-safe.sh safety-profiles/readonly.yaml -o gog-readonly
+./gog-readonly version
+```
+
+Check blocked commands:
+
+```bash
+./gog-readonly gmail messages modify msg-1 --add Label_1
+./gog-readonly calendar alias set work abc123@group.calendar.google.com
+./gog-readonly --enable-commands gmail.send gmail send \
+  --to a@example.com --subject Test --body Test
+```
+
+Each should fail with exit code 2 before any handler or Google API call runs.
+
+Check allowed commands:
+
+```bash
+./gog-readonly gmail search 'newer_than:1d'
+./gog-readonly auth services
+```
+
+## Security Boundary
+
+Safety profiles protect command execution. They do not hide commands from help or
+schema output: `--help` and `schema` still describe the stock command tree.
+
+This is intentional. The security boundary is the pre-execution profile check,
+not the help UI. Filtering help output can be added later as a usability layer,
+but it is not required to block command execution.
+
+Safety profiles also do not replace OAuth scopes, account separation, or Google
+Workspace policy. Use the narrowest practical OAuth scopes and account access,
+then use a baked profile as an additional local execution guard.
