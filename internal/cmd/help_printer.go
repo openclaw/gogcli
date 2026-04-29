@@ -31,8 +31,8 @@ func helpPrinter(options kong.HelpOptions, ctx *kong.Context) error {
 	}
 	if profile.commandNodeBlockedForHelp(ctx.Selected()) {
 		path := commandNodePath(ctx.Selected())
-		if err := profile.commandPathError(path); err != nil {
-			_, _ = fmt.Fprintln(origStdout, err)
+		if blockErr := profile.commandPathError(path); blockErr != nil {
+			_, _ = fmt.Fprintln(origStdout, blockErr)
 		}
 		return nil
 	}
@@ -56,8 +56,8 @@ func helpPrinter(options kong.HelpOptions, ctx *kong.Context) error {
 	ctx.Stderr = origStderr
 	defer func() { ctx.Stdout = origStdout }()
 
-	if err := kong.DefaultHelpPrinter(options, ctx); err != nil {
-		return err
+	if helpErr := kong.DefaultHelpPrinter(options, ctx); helpErr != nil {
+		return helpErr
 	}
 
 	out := rewriteCommandSummaries(buf.String(), ctx.Selected())
