@@ -837,6 +837,36 @@ func TestEnsureExportOutsideRepoRejectsNestedPlaintext(t *testing.T) {
 	}
 }
 
+func TestResetExportTargetsKeepsGmailMessageFiles(t *testing.T) {
+	outDir := t.TempDir()
+	messagePath := filepath.Join(outDir, "gmail", "acct_hash", "messages", "2026", "04", "message.md")
+	indexPath := filepath.Join(outDir, "gmail", "acct_hash", "messages", "index.jsonl")
+	if err := os.MkdirAll(filepath.Dir(messagePath), 0o700); err != nil {
+		t.Fatalf("mkdir message dir: %v", err)
+	}
+	if err := os.WriteFile(messagePath, []byte("keep"), 0o600); err != nil {
+		t.Fatalf("write message: %v", err)
+	}
+	if err := os.WriteFile(indexPath, []byte("reset"), 0o600); err != nil {
+		t.Fatalf("write index: %v", err)
+	}
+
+	err := resetExportTargets(outDir, []backup.ShardEntry{{
+		Service: backupServiceGmail,
+		Kind:    "messages",
+		Account: "acct/hash",
+	}})
+	if err != nil {
+		t.Fatalf("resetExportTargets: %v", err)
+	}
+	if got := readText(t, messagePath); got != "keep" {
+		t.Fatalf("message file = %q, want keep", got)
+	}
+	if _, err := os.Stat(indexPath); !os.IsNotExist(err) {
+		t.Fatalf("index still exists or stat failed: %v", err)
+	}
+}
+
 func newBackupConfigForCmdTest(t *testing.T) (string, string, []string) {
 	t.Helper()
 	dir := t.TempDir()

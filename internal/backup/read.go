@@ -37,39 +37,51 @@ func Cat(ctx context.Context, opts Options, shardPath string) (PlainShard, error
 }
 
 func DecryptSnapshot(ctx context.Context, opts Options) (Manifest, string, []PlainShard, error) {
+	shards := []PlainShard{}
+	manifest, repo, err := WalkSnapshot(ctx, opts, func(_ Manifest, _ string, shard PlainShard) error {
+		shards = append(shards, shard)
+		return nil
+	})
+	return manifest, repo, shards, err
+}
+
+func WalkSnapshot(ctx context.Context, opts Options, visit func(Manifest, string, PlainShard) error) (Manifest, string, error) {
 	cfg, err := ResolveOptions(opts)
 	if err != nil {
-		return Manifest{}, "", nil, err
+		return Manifest{}, "", err
 	}
 	if !opts.SkipPull {
 		repoErr := ensureRepo(ctx, cfg)
 		if repoErr != nil {
-			return Manifest{}, "", nil, repoErr
+			return Manifest{}, "", repoErr
 		}
 	} else if strings.TrimSpace(cfg.Repo) == "" {
-		return Manifest{}, "", nil, fmt.Errorf("backup repo path is required")
+		return Manifest{}, "", fmt.Errorf("backup repo path is required")
 	}
 	manifest, err := readManifest(cfg.Repo)
 	if err != nil {
-		return Manifest{}, "", nil, err
+		return Manifest{}, "", err
 	}
 	if manifest.Format != formatVersion {
-		return Manifest{}, "", nil, fmt.Errorf("unsupported backup format %d", manifest.Format)
+		return Manifest{}, "", fmt.Errorf("unsupported backup format %d", manifest.Format)
 	}
-	shards := make([]PlainShard, 0, len(manifest.Shards))
 	for _, shard := range manifest.Shards {
 		select {
 		case <-ctx.Done():
-			return Manifest{}, "", nil, ctx.Err()
+			return Manifest{}, "", ctx.Err()
 		default:
 		}
 		plain, err := decryptManifestShard(cfg, shard)
 		if err != nil {
-			return Manifest{}, "", nil, err
+			return Manifest{}, "", err
 		}
-		shards = append(shards, plain)
+		if visit != nil {
+			if err := visit(manifest, cfg.Repo, plain); err != nil {
+				return Manifest{}, "", err
+			}
+		}
 	}
-	return manifest, cfg.Repo, shards, nil
+	return manifest, cfg.Repo, nil
 }
 
 func decryptManifestShard(cfg Config, shard ShardEntry) (PlainShard, error) {

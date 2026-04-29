@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"encoding/base64"
@@ -76,36 +75,55 @@ func (c *BackupExportCmd) Run(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	manifest, repo, shards, err := backup.DecryptSnapshot(ctx, c.options())
-	if err != nil {
-		return err
-	}
-	if exportErr := ensureExportOutsideRepo(outDir, repo); exportErr != nil {
-		return exportErr
-	}
-	result := backupExportResult{
-		Out:            outDir,
-		Repo:           repo,
-		ManifestExport: manifest.Exported,
-		Counts:         map[string]int{},
-	}
-	if mkdirErr := os.MkdirAll(outDir, 0o700); mkdirErr != nil {
-		return mkdirErr
-	}
-	if readmeErr := writeBackupExportReadme(outDir); readmeErr != nil {
-		return readmeErr
-	}
-	if manifestErr := writeJSONFile(filepath.Join(outDir, "manifest.json"), manifest); manifestErr != nil {
-		return manifestErr
-	}
 	exportOpts := backupExportOptions{
 		GmailFormat:      c.GmailFormat,
 		GmailAttachments: c.GmailAttachments,
 	}
-	if resetErr := resetExportTargets(outDir, shards); resetErr != nil {
-		return resetErr
+	result := backupExportResult{
+		Out:    outDir,
+		Counts: map[string]int{},
 	}
-	for _, shard := range shards {
+	initialized := false
+	shardIndex := 0
+	u := ui.FromContext(ctx)
+	initExport := func(manifest backup.Manifest, repo string) error {
+		if initialized {
+			return nil
+		}
+		if exportErr := ensureExportOutsideRepo(outDir, repo); exportErr != nil {
+			return exportErr
+		}
+		result.Repo = repo
+		result.ManifestExport = manifest.Exported
+		if mkdirErr := os.MkdirAll(outDir, 0o700); mkdirErr != nil {
+			return mkdirErr
+		}
+		if readmeErr := writeBackupExportReadme(outDir); readmeErr != nil {
+			return readmeErr
+		}
+		if manifestErr := writeJSONFile(filepath.Join(outDir, "manifest.json"), manifest); manifestErr != nil {
+			return manifestErr
+		}
+		if resetErr := resetExportTargets(outDir, manifest.Shards); resetErr != nil {
+			return resetErr
+		}
+		initialized = true
+		return nil
+	}
+	var manifest backup.Manifest
+	var repo string
+	manifest, repo, err = backup.WalkSnapshot(ctx, c.options(), func(snapshot backup.Manifest, snapshotRepo string, shard backup.PlainShard) error {
+		if err := initExport(snapshot, snapshotRepo); err != nil {
+			return err
+		}
+		shardIndex++
+		if u != nil {
+			key := shard.Service
+			if strings.TrimSpace(shard.Kind) != "" {
+				key += "." + shard.Kind
+			}
+			u.Err().Printf("export\t%d/%d\t%s\trows=%d", shardIndex, len(snapshot.Shards), key, shard.Rows)
+		}
 		_, count, shardErr := exportPlainShard(outDir, shard, exportOpts)
 		if shardErr != nil {
 			return shardErr
@@ -115,6 +133,15 @@ func (c *BackupExportCmd) Run(ctx context.Context) error {
 			key += "." + shard.Kind
 		}
 		result.Counts[key] += count
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	if !initialized {
+		if err := initExport(manifest, repo); err != nil {
+			return err
+		}
 	}
 	files, err := countExportFiles(outDir)
 	if err != nil {
@@ -124,7 +151,6 @@ func (c *BackupExportCmd) Run(ctx context.Context) error {
 	if outfmt.IsJSON(ctx) {
 		return outfmt.WriteJSON(ctx, os.Stdout, result)
 	}
-	u := ui.FromContext(ctx)
 	u.Out().Printf("out\t%s", result.Out)
 	u.Out().Printf("repo\t%s", result.Repo)
 	u.Out().Printf("files\t%d", result.Files)
@@ -140,11 +166,9 @@ func (c *BackupExportCmd) Run(ctx context.Context) error {
 }
 
 func prettyJSONL(data []byte) ([]byte, error) {
-	scanner := bufio.NewScanner(bytes.NewReader(data))
-	scanner.Buffer(make([]byte, 0, 64*1024), 16*1024*1024)
 	var out bytes.Buffer
-	for scanner.Scan() {
-		line := bytes.TrimSpace(scanner.Bytes())
+	for _, line := range bytes.Split(data, []byte{'\n'}) {
+		line := bytes.TrimSpace(line)
 		if len(line) == 0 {
 			continue
 		}
@@ -159,7 +183,7 @@ func prettyJSONL(data []byte) ([]byte, error) {
 			return nil, err
 		}
 	}
-	return out.Bytes(), scanner.Err()
+	return out.Bytes(), nil
 }
 
 func expandUserPath(path string) (string, error) {
@@ -206,13 +230,13 @@ func ensureExportOutsideRepo(outDir, repo string) error {
 	return nil
 }
 
-func resetExportTargets(outDir string, shards []backup.PlainShard) error {
+func resetExportTargets(outDir string, shards []backup.ShardEntry) error {
 	seen := map[string]struct{}{}
 	for _, shard := range shards {
 		target := ""
 		switch {
 		case shard.Service == backupServiceGmail && shard.Kind == "messages":
-			target = filepath.Join(outDir, backupServiceGmail, sanitizeFilePart(shard.Account), "messages")
+			target = filepath.Join(outDir, backupServiceGmail, sanitizeFilePart(shard.Account), "messages", "index.jsonl")
 		case shard.Service == backupServiceDrive && shard.Kind == "contents":
 			target = filepath.Join(outDir, backupServiceDrive, sanitizeFilePart(shard.Account), "files", "index.jsonl")
 		}

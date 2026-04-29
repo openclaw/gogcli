@@ -135,6 +135,53 @@ func TestExportGmailMessagesWritesMarkdownAndAttachments(t *testing.T) {
 	}
 }
 
+func TestExportGmailMessagesWritesMarkdownFallbackForMalformedMIME(t *testing.T) {
+	outDir := t.TempDir()
+	payload := strings.Join([]string{
+		"Subject: Broken",
+		"From: Alice <alice@example.com>",
+		"MIME-Version: 1.0",
+		`Content-Type: multipart/mixed; boundary="b1"`,
+		"",
+		"--b1",
+		"Content-Type: text/plain; charset=utf-8",
+		"",
+		"incomplete body",
+	}, "\r\n")
+	message := gmailBackupMessage{
+		ID:           "broken",
+		InternalDate: mustUnixMilli(t, "2026-04-02T10:00:00Z"),
+		Raw:          base64.RawURLEncoding.EncodeToString([]byte(payload)),
+	}
+	shard, err := backup.NewJSONLShard("gmail", "messages", "acct/hash", "data/gmail/acct/messages/2026/04/part-0001.jsonl.gz.age", []gmailBackupMessage{message})
+	if err != nil {
+		t.Fatalf("NewJSONLShard: %v", err)
+	}
+
+	files, count, err := exportGmailMessages(outDir, shard, backupExportOptions{GmailFormat: "markdown", GmailAttachments: "extract"})
+	if err != nil {
+		t.Fatalf("exportGmailMessages: %v", err)
+	}
+	if files != 2 || count != 1 {
+		t.Fatalf("files,count = %d,%d want 2,1", files, count)
+	}
+	mdRel := filepath.ToSlash(filepath.Join(backupExportMessageDir("acct_hash", message, "Broken"), "message.md"))
+	md := readText(t, filepath.Join(outDir, filepath.FromSlash(mdRel)))
+	for _, want := range []string{
+		`subject: "Broken"`,
+		"parse_error:",
+		"MIME parse failed",
+	} {
+		if !strings.Contains(md, want) {
+			t.Fatalf("markdown missing %q:\n%s", want, md)
+		}
+	}
+	index := readText(t, filepath.Join(outDir, "gmail", "acct_hash", "messages", "index.jsonl"))
+	if !strings.Contains(index, `"markdown":"`+mdRel+`"`) {
+		t.Fatalf("index missing markdown fallback: %s", index)
+	}
+}
+
 func TestBackupEmailMarkdownBodyCleansHTMLFragments(t *testing.T) {
 	got := backupEmailMarkdownBody(backupEmail{TextBody: "<p>Hello&nbsp;<b>Peter</b></p>"})
 	if got != "Hello Peter" {

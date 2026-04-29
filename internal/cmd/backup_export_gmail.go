@@ -43,6 +43,7 @@ type backupEmail struct {
 	Date        string
 	TextBody    string
 	HTMLBody    string
+	ParseError  string
 	Attachments []backupEmailAttachment
 }
 
@@ -96,7 +97,7 @@ func exportGmailMessages(outDir string, shard backup.PlainShard, opts backupExpo
 		}
 		parsed, parseErr := parseBackupEmail(rawMIME)
 		if parseErr != nil && gmailFormat != "eml" {
-			return files, 0, fmt.Errorf("parse Gmail MIME %s: %w", message.ID, parseErr)
+			parsed.ParseError = parseErr.Error()
 		}
 		entry := gmailExportIndexEntry{
 			ID:           message.ID,
@@ -272,6 +273,7 @@ func renderGmailMessageMarkdown(message gmailBackupMessage, parsed backupEmail, 
 	writeYAMLList(&b, "cc", parsed.Cc)
 	writeYAMLScalar(&b, "subject", parsed.Subject)
 	writeYAMLList(&b, "labels", message.LabelIDs)
+	writeYAMLScalar(&b, "parse_error", parsed.ParseError)
 	if message.SizeEstimate > 0 {
 		fmt.Fprintf(&b, "size_estimate: %d\n", message.SizeEstimate)
 	}
@@ -285,6 +287,11 @@ func renderGmailMessageMarkdown(message gmailBackupMessage, parsed backupEmail, 
 	if strings.TrimSpace(body) != "" {
 		b.WriteString(strings.TrimSpace(body))
 		b.WriteString("\n")
+	} else if strings.TrimSpace(parsed.ParseError) != "" {
+		b.WriteString("_MIME parse failed: ")
+		b.WriteString(markdownHeadingText(parsed.ParseError))
+		b.WriteString("._\n\n")
+		b.WriteString("_Raw MIME remains available in the encrypted backup._\n")
 	} else {
 		b.WriteString("_No text body found._\n")
 	}
@@ -317,10 +324,10 @@ func parseBackupEmail(rawMIME []byte) (backupEmail, error) {
 	}
 	body, err := io.ReadAll(msg.Body)
 	if err != nil {
-		return backupEmail{}, err
+		return out, err
 	}
 	if err := parseBackupEmailEntity(body, string(msg.Header.Get("Content-Type")), string(msg.Header.Get("Content-Transfer-Encoding")), &out); err != nil {
-		return backupEmail{}, err
+		return out, err
 	}
 	return out, nil
 }

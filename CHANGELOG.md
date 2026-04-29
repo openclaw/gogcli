@@ -7,6 +7,7 @@
 
 ### Fixed
 - Backup: promote completed Gmail checkpoint shards into the final manifest and byte-split fallback Gmail message shards so full-mailbox runs do not create GitHub-rejected blobs or giant final pushes.
+- Backup export: stream decrypted shards one at a time, preserve resumable Gmail Markdown mirrors, handle very large JSONL rows, and write Markdown fallbacks for malformed MIME messages instead of aborting full-mailbox exports.
 
 ## 0.14.0 - 2026-04-28
 

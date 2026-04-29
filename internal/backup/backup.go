@@ -2,7 +2,6 @@
 package backup
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"crypto/sha256"
@@ -624,28 +623,32 @@ func encodeJSONL(rows any) ([]byte, int, error) {
 }
 
 func DecodeJSONL[T any](plaintext []byte, out *[]T) error {
-	scanner := bufio.NewScanner(bytes.NewReader(plaintext))
-	scanner.Buffer(make([]byte, 0, 64*1024), 16*1024*1024)
-	for scanner.Scan() {
+	for _, line := range jsonlLines(plaintext) {
+		line = bytes.TrimSpace(line)
+		if len(line) == 0 {
+			continue
+		}
 		var value T
-		if err := json.Unmarshal(scanner.Bytes(), &value); err != nil {
+		if err := json.Unmarshal(line, &value); err != nil {
 			return err
 		}
 		*out = append(*out, value)
 	}
-	return scanner.Err()
+	return nil
 }
 
 func countJSONLLines(plaintext []byte) (int, error) {
-	scanner := bufio.NewScanner(bytes.NewReader(plaintext))
-	scanner.Buffer(make([]byte, 0, 64*1024), 16*1024*1024)
 	count := 0
-	for scanner.Scan() {
-		if len(bytes.TrimSpace(scanner.Bytes())) > 0 {
+	for _, line := range jsonlLines(plaintext) {
+		if len(bytes.TrimSpace(line)) > 0 {
 			count++
 		}
 	}
-	return count, scanner.Err()
+	return count, nil
+}
+
+func jsonlLines(plaintext []byte) [][]byte {
+	return bytes.Split(plaintext, []byte{'\n'})
 }
 
 func readManifest(repo string) (Manifest, error) {

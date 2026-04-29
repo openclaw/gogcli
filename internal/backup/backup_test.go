@@ -411,6 +411,25 @@ func TestVerifyDetectsManifestRowCountMismatch(t *testing.T) {
 	}
 }
 
+func TestJSONLHelpersHandleLargeRows(t *testing.T) {
+	large := strings.Repeat("x", 17*1024*1024)
+	plaintext := []byte(`{"id":"large","raw":"` + large + "\"}\n")
+	rows, err := countJSONLLines(plaintext)
+	if err != nil {
+		t.Fatalf("countJSONLLines: %v", err)
+	}
+	if rows != 1 {
+		t.Fatalf("rows = %d, want 1", rows)
+	}
+	var decoded []map[string]string
+	if err := DecodeJSONL(plaintext, &decoded); err != nil {
+		t.Fatalf("DecodeJSONL: %v", err)
+	}
+	if len(decoded) != 1 || decoded[0]["raw"] != large {
+		t.Fatalf("decoded large row mismatch: len=%d", len(decoded))
+	}
+}
+
 func TestPushReusesEncryptedShardWhenPlaintextAndRecipientsMatch(t *testing.T) {
 	ctx, repo, config, _ := initTestBackup(t)
 	shardPath := "data/gmail/acct/messages/2026/04/part-0001.jsonl.gz.age"
