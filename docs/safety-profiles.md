@@ -181,14 +181,20 @@ Check allowed commands:
 ./gog-readonly auth services
 ```
 
+## Help And Schema Output
+
+Safety-profiled binaries filter help and schema output to the baked profile.
+Blocked commands are not listed in parent help menus or `gog schema` output.
+
+For example, `agent-safe` shows `gmail drafts create` but not `gmail drafts send`.
+If you ask for help for a blocked leaf command directly, the binary prints the
+same baked-profile block message instead of the command documentation.
+
 ## Security Boundary
 
-Safety profiles protect command execution. They do not hide commands from help or
-schema output: `--help` and `schema` still describe the stock command tree.
-
-This is intentional. The security boundary is the pre-execution profile check,
-not the help UI. Filtering help output can be added later as a usability layer,
-but it is not required to block command execution.
+Help and schema filtering are usability layers for humans and tool-discovering
+agents. The security boundary remains the pre-execution profile check: blocked
+commands fail before any command handler or Google API call runs.
 
 Safety profiles also do not replace OAuth scopes, account separation, or Google
 Workspace policy. Use the narrowest practical OAuth scopes and account access,

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"io"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/alecthomas/kong"
@@ -132,5 +133,16 @@ func TestColorizeHelp(t *testing.T) {
 	out := colorizeHelp(in, termenv.TrueColor)
 	if out == in {
 		t.Fatalf("expected colorized output")
+	}
+}
+
+func TestRemoveEmptyCommandGroups(t *testing.T) {
+	in := "Read\n  search [flags]\n    Search\n\nOrganize\n"
+	out := removeEmptyCommandGroups(in)
+	if strings.Contains(out, "Organize") {
+		t.Fatalf("expected empty group removed, got: %q", out)
+	}
+	if !strings.Contains(out, "Read") || !strings.Contains(out, "search") {
+		t.Fatalf("expected non-empty group retained, got: %q", out)
 	}
 }

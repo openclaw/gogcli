@@ -28,14 +28,18 @@ func enforceBakedSafetyProfile(kctx *kong.Context) error {
 	if len(path) == 0 {
 		return nil
 	}
-	command := strings.Join(path, " ")
-	if commandPathMatches(profile.deny, path) {
-		return usagef("command %q is blocked by baked safety profile %q", command, profile.name)
-	}
-	if len(profile.allow) > 0 && !commandPathMatches(profile.allow, path) {
-		return usagef("command %q is not included in baked safety profile %q", command, profile.name)
+	if !profile.allowsCommandPath(path) {
+		return profile.commandPathError(path)
 	}
 	return nil
+}
+
+func bakedSafetyProfileError(path []string, profileName string, included bool) error {
+	command := strings.Join(path, " ")
+	if included {
+		return usagef("command %q is blocked by baked safety profile %q", command, profileName)
+	}
+	return usagef("command %q is not included in baked safety profile %q", command, profileName)
 }
 
 func loadBakedSafetyProfile() (bakedSafetyProfile, error) {
@@ -53,6 +57,110 @@ func loadBakedSafetyProfile() (bakedSafetyProfile, error) {
 func ValidateSafetyProfile(raw string) error {
 	_, err := parseSafetyProfile(raw)
 	return err
+}
+
+func (p bakedSafetyProfile) allowsCommandPath(path []string) bool {
+	if !p.enabled || len(path) == 0 {
+		return true
+	}
+	if commandPathMatches(p.deny, path) {
+		return false
+	}
+	if len(p.allow) == 0 {
+		return true
+	}
+	return commandPathMatches(p.allow, path)
+}
+
+func (p bakedSafetyProfile) commandPathError(path []string) error {
+	if commandPathMatches(p.deny, path) {
+		return bakedSafetyProfileError(path, p.name, true)
+	}
+	return bakedSafetyProfileError(path, p.name, false)
+}
+
+func (p bakedSafetyProfile) commandNodeVisible(node *kong.Node) bool {
+	if !p.enabled || node == nil {
+		return true
+	}
+	if node.Type == kong.ApplicationNode {
+		return true
+	}
+	path := commandNodePath(node)
+	if len(path) > 0 && p.allowsCommandPath(path) {
+		return true
+	}
+	return p.commandNodeHasVisibleChildren(node)
+}
+
+func (p bakedSafetyProfile) commandNodeBlockedForHelp(node *kong.Node) bool {
+	if !p.enabled || node == nil || node.Type != kong.CommandNode {
+		return false
+	}
+	path := commandNodePath(node)
+	if len(path) == 0 || p.allowsCommandPath(path) {
+		return false
+	}
+	return !p.commandNodeHasVisibleChildren(node)
+}
+
+func (p bakedSafetyProfile) commandNodeHasVisibleChildren(node *kong.Node) bool {
+	for _, child := range node.Children {
+		if child == nil || child.Type != kong.CommandNode {
+			continue
+		}
+		if p.commandNodeVisible(child) {
+			return true
+		}
+	}
+	return false
+}
+
+func commandNodePath(node *kong.Node) []string {
+	if node == nil {
+		return nil
+	}
+	var rev []string
+	for cur := node; cur != nil && cur.Type != kong.ApplicationNode; cur = cur.Parent {
+		if cur.Type == kong.CommandNode && strings.TrimSpace(cur.Name) != "" {
+			rev = append(rev, strings.ToLower(strings.TrimSpace(cur.Name)))
+		}
+	}
+	path := make([]string, 0, len(rev))
+	for i := len(rev) - 1; i >= 0; i-- {
+		path = append(path, rev[i])
+	}
+	return path
+}
+
+func applySafetyProfileVisibility(root *kong.Node, profile bakedSafetyProfile) func() {
+	if !profile.enabled || root == nil {
+		return func() {}
+	}
+	type hiddenState struct {
+		node   *kong.Node
+		hidden bool
+	}
+	restore := []hiddenState{}
+	var walk func(*kong.Node)
+	walk = func(node *kong.Node) {
+		for _, child := range node.Children {
+			if child == nil || child.Type != kong.CommandNode {
+				continue
+			}
+			restore = append(restore, hiddenState{node: child, hidden: child.Hidden})
+			if !profile.commandNodeVisible(child) {
+				child.Hidden = true
+			}
+			walk(child)
+		}
+	}
+	walk(root)
+	return func() {
+		for i := len(restore) - 1; i >= 0; i-- {
+			restore[i].node.Hidden = restore[i].hidden
+		}
+	}
 }
 
 func parseSafetyProfile(raw string) (*bakedSafetyProfile, error) {
