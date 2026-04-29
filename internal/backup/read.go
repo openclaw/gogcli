@@ -106,10 +106,7 @@ func verifyPlainShard(shard ShardEntry, plaintext []byte) error {
 	if got := sha256Hex(plaintext); got != shard.SHA256 {
 		return fmt.Errorf("backup shard hash mismatch for %s", shard.Path)
 	}
-	rows, err := countJSONLLines(plaintext)
-	if err != nil {
-		return fmt.Errorf("count rows in %s: %w", shard.Path, err)
-	}
+	rows := countJSONLLines(plaintext)
 	if rows != shard.Rows {
 		return fmt.Errorf("backup shard row count mismatch for %s: got %d, want %d", shard.Path, rows, shard.Rows)
 	}

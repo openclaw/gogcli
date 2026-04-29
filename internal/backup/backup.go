@@ -241,10 +241,7 @@ func Verify(ctx context.Context, opts Options) (Result, error) {
 		if got := sha256Hex(plaintext); got != shard.SHA256 {
 			return Result{}, fmt.Errorf("backup shard hash mismatch for %s", shard.Path)
 		}
-		rows, err := countJSONLLines(plaintext)
-		if err != nil {
-			return Result{}, fmt.Errorf("count rows in %s: %w", shard.Path, err)
-		}
+		rows := countJSONLLines(plaintext)
 		if rows != shard.Rows {
 			return Result{}, fmt.Errorf("backup shard row count mismatch for %s: got %d, want %d", shard.Path, rows, shard.Rows)
 		}
@@ -637,14 +634,14 @@ func DecodeJSONL[T any](plaintext []byte, out *[]T) error {
 	return nil
 }
 
-func countJSONLLines(plaintext []byte) (int, error) {
+func countJSONLLines(plaintext []byte) int {
 	count := 0
 	for _, line := range jsonlLines(plaintext) {
 		if len(bytes.TrimSpace(line)) > 0 {
 			count++
 		}
 	}
-	return count, nil
+	return count
 }
 
 func jsonlLines(plaintext []byte) [][]byte {

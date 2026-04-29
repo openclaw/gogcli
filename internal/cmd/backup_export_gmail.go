@@ -284,15 +284,18 @@ func renderGmailMessageMarkdown(message gmailBackupMessage, parsed backupEmail, 
 		b.WriteString(markdownHeadingText(parsed.Subject))
 		b.WriteString("\n\n")
 	}
-	if strings.TrimSpace(body) != "" {
-		b.WriteString(strings.TrimSpace(body))
+	trimmedBody := strings.TrimSpace(body)
+	parseError := strings.TrimSpace(parsed.ParseError)
+	switch {
+	case trimmedBody != "":
+		b.WriteString(trimmedBody)
 		b.WriteString("\n")
-	} else if strings.TrimSpace(parsed.ParseError) != "" {
+	case parseError != "":
 		b.WriteString("_MIME parse failed: ")
-		b.WriteString(markdownHeadingText(parsed.ParseError))
+		b.WriteString(markdownHeadingText(parseError))
 		b.WriteString("._\n\n")
 		b.WriteString("_Raw MIME remains available in the encrypted backup._\n")
-	} else {
+	default:
 		b.WriteString("_No text body found._\n")
 	}
 	if len(attachmentRels) > 0 {

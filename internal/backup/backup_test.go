@@ -414,10 +414,7 @@ func TestVerifyDetectsManifestRowCountMismatch(t *testing.T) {
 func TestJSONLHelpersHandleLargeRows(t *testing.T) {
 	large := strings.Repeat("x", 17*1024*1024)
 	plaintext := []byte(`{"id":"large","raw":"` + large + "\"}\n")
-	rows, err := countJSONLLines(plaintext)
-	if err != nil {
-		t.Fatalf("countJSONLLines: %v", err)
-	}
+	rows := countJSONLLines(plaintext)
 	if rows != 1 {
 		t.Fatalf("rows = %d, want 1", rows)
 	}

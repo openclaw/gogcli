@@ -113,8 +113,8 @@ func (c *BackupExportCmd) Run(ctx context.Context) error {
 	var manifest backup.Manifest
 	var repo string
 	manifest, repo, err = backup.WalkSnapshot(ctx, c.options(), func(snapshot backup.Manifest, snapshotRepo string, shard backup.PlainShard) error {
-		if err := initExport(snapshot, snapshotRepo); err != nil {
-			return err
+		if initErr := initExport(snapshot, snapshotRepo); initErr != nil {
+			return initErr
 		}
 		shardIndex++
 		if u != nil {
@@ -139,8 +139,8 @@ func (c *BackupExportCmd) Run(ctx context.Context) error {
 		return err
 	}
 	if !initialized {
-		if err := initExport(manifest, repo); err != nil {
-			return err
+		if initErr := initExport(manifest, repo); initErr != nil {
+			return initErr
 		}
 	}
 	files, err := countExportFiles(outDir)
@@ -167,13 +167,13 @@ func (c *BackupExportCmd) Run(ctx context.Context) error {
 
 func prettyJSONL(data []byte) ([]byte, error) {
 	var out bytes.Buffer
-	for _, line := range bytes.Split(data, []byte{'\n'}) {
-		line := bytes.TrimSpace(line)
-		if len(line) == 0 {
+	for _, rawLine := range bytes.Split(data, []byte{'\n'}) {
+		trimmedLine := bytes.TrimSpace(rawLine)
+		if len(trimmedLine) == 0 {
 			continue
 		}
 		var pretty bytes.Buffer
-		if err := json.Indent(&pretty, line, "", "  "); err != nil {
+		if err := json.Indent(&pretty, trimmedLine, "", "  "); err != nil {
 			return nil, err
 		}
 		if _, err := pretty.WriteTo(&out); err != nil {
