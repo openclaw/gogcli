@@ -4,22 +4,39 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"runtime/debug"
 	"strings"
 
 	"github.com/steipete/gogcli/internal/outfmt"
 )
 
 var (
-	version = "0.13.0-dev"
-	commit  = ""
-	date    = ""
+	version       = "dev"
+	commit        = ""
+	date          = ""
+	readBuildInfo = debug.ReadBuildInfo
 )
 
-func VersionString() string {
+func resolvedVersion() string {
 	v := strings.TrimSpace(version)
-	if v == "" {
-		v = "dev"
+	if v != "" && v != "dev" && !strings.HasSuffix(v, "-dev") {
+		return v
 	}
+	info, ok := readBuildInfo()
+	if ok {
+		moduleVersion := strings.TrimSpace(info.Main.Version)
+		if moduleVersion != "" && moduleVersion != "(devel)" {
+			return moduleVersion
+		}
+	}
+	if v == "" {
+		return "dev"
+	}
+	return v
+}
+
+func VersionString() string {
+	v := resolvedVersion()
 	if strings.TrimSpace(commit) == "" && strings.TrimSpace(date) == "" {
 		return v
 	}
@@ -37,7 +54,7 @@ type VersionCmd struct{}
 func (c *VersionCmd) Run(ctx context.Context) error {
 	if outfmt.IsJSON(ctx) {
 		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
-			"version": strings.TrimSpace(version),
+			"version": resolvedVersion(),
 			"commit":  strings.TrimSpace(commit),
 			"date":    strings.TrimSpace(date),
 		})
