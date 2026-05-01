@@ -19,7 +19,7 @@ type TableData struct {
 // MarkdownToDocsRequests converts parsed markdown elements to Google Docs batch
 // update requests. baseIndex is the insertion location in the document.
 // Returns: requests, plainText, tableData (for native table insertion)
-func MarkdownToDocsRequests(elements []MarkdownElement, baseIndex int64) ([]*docs.Request, string, []TableData) {
+func MarkdownToDocsRequests(elements []MarkdownElement, baseIndex int64, tabID string) ([]*docs.Request, string, []TableData) {
 	var requests []*docs.Request
 	var plainText strings.Builder
 	var tables []TableData
@@ -59,6 +59,7 @@ func MarkdownToDocsRequests(elements []MarkdownElement, baseIndex int64) ([]*doc
 					Range: &docs.Range{
 						StartIndex: startOffset,
 						EndIndex:   charOffset,
+						TabId:      tabID,
 					},
 					ParagraphStyle: &docs.ParagraphStyle{
 						NamedStyleType: headingStyle,
@@ -69,7 +70,7 @@ func MarkdownToDocsRequests(elements []MarkdownElement, baseIndex int64) ([]*doc
 
 			// Apply inline text styles
 			for _, style := range styles {
-				textStyleReq := buildTextStyleRequest(style, startOffset)
+				textStyleReq := buildTextStyleRequest(style, startOffset, tabID)
 				if textStyleReq != nil {
 					if debugMarkdown {
 						fmt.Printf("  Style request: [%d, %d]\n",
@@ -92,6 +93,7 @@ func MarkdownToDocsRequests(elements []MarkdownElement, baseIndex int64) ([]*doc
 					Range: &docs.Range{
 						StartIndex: startOffset,
 						EndIndex:   charOffset,
+						TabId:      tabID,
 					},
 					TextStyle: &docs.TextStyle{
 						WeightedFontFamily: &docs.WeightedFontFamily{
@@ -131,6 +133,7 @@ func MarkdownToDocsRequests(elements []MarkdownElement, baseIndex int64) ([]*doc
 					Range: &docs.Range{
 						StartIndex: startOffset,
 						EndIndex:   charOffset,
+						TabId:      tabID,
 					},
 					ParagraphStyle: &docs.ParagraphStyle{
 						IndentStart: &docs.Dimension{
@@ -144,7 +147,7 @@ func MarkdownToDocsRequests(elements []MarkdownElement, baseIndex int64) ([]*doc
 
 			// Apply inline text styles
 			for _, style := range styles {
-				textStyleReq := buildTextStyleRequest(style, startOffset)
+				textStyleReq := buildTextStyleRequest(style, startOffset, tabID)
 				if textStyleReq != nil {
 					if debugMarkdown {
 						fmt.Printf("  Style request: [%d, %d] (base=%d, style=[%d,%d])\n",
@@ -177,7 +180,7 @@ func MarkdownToDocsRequests(elements []MarkdownElement, baseIndex int64) ([]*doc
 
 			// Apply inline text styles (offset by prefix length)
 			for _, style := range styles {
-				textStyleReq := buildTextStyleRequest(style, startOffset+prefixLen)
+				textStyleReq := buildTextStyleRequest(style, startOffset+prefixLen, tabID)
 				if textStyleReq != nil {
 					requests = append(requests, textStyleReq)
 				}
@@ -212,7 +215,7 @@ func MarkdownToDocsRequests(elements []MarkdownElement, baseIndex int64) ([]*doc
 
 			// Apply inline text styles
 			for _, style := range styles {
-				textStyleReq := buildTextStyleRequest(style, startOffset)
+				textStyleReq := buildTextStyleRequest(style, startOffset, tabID)
 				if textStyleReq != nil {
 					if debugMarkdown {
 						fmt.Printf("  Style request: [%d, %d]\n",
@@ -268,7 +271,7 @@ func MarkdownToDocsRequests(elements []MarkdownElement, baseIndex int64) ([]*doc
 }
 
 // buildTextStyleRequest creates a text style update request from a TextStyle
-func buildTextStyleRequest(style TextStyle, baseOffset int64) *docs.Request {
+func buildTextStyleRequest(style TextStyle, baseOffset int64, tabID string) *docs.Request {
 	// Validate indices
 	if style.Start < 0 || style.End < 0 || style.End <= style.Start {
 		return nil
@@ -308,6 +311,7 @@ func buildTextStyleRequest(style TextStyle, baseOffset int64) *docs.Request {
 			Range: &docs.Range{
 				StartIndex: baseOffset + int64(style.Start),
 				EndIndex:   baseOffset + int64(style.End),
+				TabId:      tabID,
 			},
 			TextStyle: textStyle,
 			Fields:    strings.Join(fields, ","),

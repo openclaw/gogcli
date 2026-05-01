@@ -4,7 +4,7 @@ import "testing"
 
 func TestMarkdownToDocsRequests_BaseIndex(t *testing.T) {
 	elements := []MarkdownElement{{Type: MDParagraph, Content: "**bold**"}}
-	requests, text, tables := MarkdownToDocsRequests(elements, 42)
+	requests, text, tables := MarkdownToDocsRequests(elements, 42, "")
 
 	if text != "bold\n" {
 		t.Fatalf("unexpected text: %q", text)
@@ -27,7 +27,7 @@ func TestMarkdownToDocsRequests_TableStartIndexUsesBase(t *testing.T) {
 		{Type: MDParagraph, Content: "A"},
 		{Type: MDTable, TableCells: [][]string{{"h1", "h2"}, {"v1", "v2"}}},
 	}
-	_, text, tables := MarkdownToDocsRequests(elements, 10)
+	_, text, tables := MarkdownToDocsRequests(elements, 10, "")
 
 	if text != "A\n\n" {
 		t.Fatalf("unexpected text: %q", text)

@@ -221,7 +221,7 @@ func (c *DocsCreateCmd) insertImages(ctx context.Context, account string, docID 
 	if err != nil {
 		return err
 	}
-	return insertImagesIntoDocs(ctx, svc, docID, images)
+	return insertImagesIntoDocs(ctx, svc, docID, images, "")
 }
 
 type DocsCopyCmd struct {

@@ -199,6 +199,10 @@ func TestDocsEditingCommands_WithTab(t *testing.T) {
 	if req == nil || req.TabsCriteria == nil || len(req.TabsCriteria.TabIds) != 1 || req.TabsCriteria.TabIds[0] != "t.second" {
 		t.Fatalf("unexpected tabs criteria: %#v", req)
 	}
+
+	if err := runKong(t, &DocsFindReplaceCmd{}, []string{"doc1", "old", "**new**", "--format", "markdown", "--tab", "Second"}, ctx, flags); err != nil {
+		t.Fatalf("find-replace markdown tab: %v", err)
+	}
 }
 
 func TestDocsWriteCmd_DeprecatedTabIDFlag(t *testing.T) {

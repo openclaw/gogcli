@@ -217,7 +217,7 @@ func searchParagraph(para *docs.Paragraph, placeholders []string, result map[str
 // insertImagesIntoDocs reads back a Google Doc to find <<IMG_token_N>> placeholders,
 // resolves image URLs (remote URLs used directly; local files are rejected),
 // and replaces the placeholders with inline images via BatchUpdate.
-func insertImagesIntoDocs(ctx context.Context, svc *docs.Service, docID string, images []markdownImage) error {
+func insertImagesIntoDocs(ctx context.Context, svc *docs.Service, docID string, images []markdownImage, tabID string) error {
 	// Read back the document to find placeholder positions.
 	doc, err := svc.Documents.Get(docID).Context(ctx).Do()
 	if err != nil {
@@ -244,7 +244,7 @@ func insertImagesIntoDocs(ctx context.Context, svc *docs.Service, docID string, 
 		return fmt.Errorf("local markdown image %q cannot be inserted automatically; Google Docs image insertion requires a public HTTPS image URL, so upload the image to a public host and use that URL", img.originalRef)
 	}
 
-	reqs := buildImageInsertRequests(placeholders, images, imageURLs)
+	reqs := buildImageInsertRequests(placeholders, images, imageURLs, tabID)
 	if len(reqs) == 0 {
 		return nil
 	}
@@ -315,7 +315,7 @@ const defaultImageMaxWidthPt = 468.0
 // buildImageInsertRequests creates the Docs API batch update requests to replace
 // placeholder text with inline images. Requests are ordered in reverse index order
 // so earlier positions are not invalidated as the document is modified.
-func buildImageInsertRequests(placeholders map[string]docRange, images []markdownImage, imageURLs map[int]string) []*docs.Request {
+func buildImageInsertRequests(placeholders map[string]docRange, images []markdownImage, imageURLs map[int]string, tabID string) []*docs.Request {
 	// Collect entries sorted by start index descending.
 	type entry struct {
 		image markdownImage
@@ -349,6 +349,7 @@ func buildImageInsertRequests(placeholders map[string]docRange, images []markdow
 				Range: &docs.Range{
 					StartIndex: e.dr.startIndex,
 					EndIndex:   e.dr.endIndex,
+					TabId:      tabID,
 				},
 			},
 		})
@@ -370,6 +371,7 @@ func buildImageInsertRequests(placeholders map[string]docRange, images []markdow
 				Uri: e.url,
 				Location: &docs.Location{
 					Index: e.dr.startIndex,
+					TabId: tabID,
 				},
 				ObjectSize: objSize,
 			},
