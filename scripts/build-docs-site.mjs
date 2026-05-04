@@ -11,7 +11,7 @@ const sections = [
   ["Start", ["README.md", "auth-clients.md", "spec.md", "dates.md"]],
   ["Commands", rels("commands")],
   ["Gmail", ["gmail-autoreply.md", "watch.md", "email-tracking.md", "email-tracking-worker.md"]],
-  ["Workspace", ["backup.md", "contacts-json-update.md", "slides-markdown.md", "slides-template-replacement.md", "sedmat.md"]],
+  ["Workspace", ["backup.md", "sheets-tables.md", "contacts-json-update.md", "slides-markdown.md", "slides-template-replacement.md", "sedmat.md"]],
   ["Safety", ["safety-profiles.md", "RELEASING.md"]],
 ];
 

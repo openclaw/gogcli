@@ -1393,6 +1393,7 @@ gog sheets table list <spreadsheetId>
 gog sheets table create <spreadsheetId> 'Sheet1!A1:C4' --name Tasks --columns-json '[{"columnName":"Task","columnType":"TEXT"},{"columnName":"Amount","columnType":"DOUBLE"},{"columnName":"Done","columnType":"BOOLEAN"}]'
 gog sheets table get <spreadsheetId> <tableId>
 gog sheets table delete <spreadsheetId> <tableId> --force
+# See docs/sheets-tables.md for valid column types and current command scope.
 
 # Charts
 gog sheets chart list <spreadsheetId>
