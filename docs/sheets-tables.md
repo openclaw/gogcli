@@ -101,6 +101,25 @@ new rows after the current table data and expand the table, without targeting
 the header row directly. Rows wider than the table's column count are rejected
 before the mutation is sent.
 
+## Clear Data Rows
+
+Clear table data by table ID or name:
+
+```bash
+gog sheets table clear "$spreadsheet_id" "$table_id" --force
+```
+
+This clears only the table data body. It never includes the header row in the
+clear range. If Sheets reports a footer row, `gog` skips the footer row too and
+clears only the rows between header and footer.
+
+Header-only tables fail with a clear message instead of sending an empty or
+header-touching mutation. Use `--dry-run --json` to preview the exact data range:
+
+```bash
+gog sheets table clear "$spreadsheet_id" Tasks --dry-run --json
+```
+
 ## Delete A Table
 
 Deleting removes the table object. Use `--force` for non-interactive runs:
@@ -117,10 +136,10 @@ gog sheets table delete "$spreadsheet_id" "$table_id" --dry-run --json
 
 ## Current Scope
 
-This table command set intentionally covers list, get, create, append, and
-delete. Table update, footer editing, and table-aware clear behavior need
-separate semantics because the plain Sheets range APIs can touch table headers
-or footer rows if used blindly.
+This table command set intentionally covers list, get, create, append, clear
+data rows, and delete. Table update and footer editing need separate semantics
+because the plain Sheets range APIs can touch table headers or footer rows if
+used blindly.
 
 ## Command Pages
 
@@ -129,4 +148,5 @@ or footer rows if used blindly.
 - [`gog sheets table get`](commands/gog-sheets-table-get.md)
 - [`gog sheets table create`](commands/gog-sheets-table-create.md)
 - [`gog sheets table append`](commands/gog-sheets-table-append.md)
+- [`gog sheets table clear`](commands/gog-sheets-table-clear.md)
 - [`gog sheets table delete`](commands/gog-sheets-table-delete.md)

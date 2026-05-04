@@ -1392,6 +1392,7 @@ gog sheets named-ranges delete <spreadsheetId> MyNamedRange2
 gog sheets table list <spreadsheetId>
 gog sheets table create <spreadsheetId> 'Sheet1!A1:C4' --name Tasks --columns-json '[{"columnName":"Task","columnType":"TEXT"},{"columnName":"Amount","columnType":"DOUBLE"},{"columnName":"Done","columnType":"BOOLEAN"}]'
 gog sheets table append <spreadsheetId> <tableId> --values-json '[["Write docs",2,true]]'
+gog sheets table clear <spreadsheetId> <tableId> --force
 gog sheets table get <spreadsheetId> <tableId>
 gog sheets table delete <spreadsheetId> <tableId> --force
 # See docs/sheets-tables.md for valid column types and current command scope.

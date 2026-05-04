@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 
@@ -323,6 +324,117 @@ func TestSheetsTableAppendRejectsTooWideRows(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "has 3 cells") {
 		t.Fatalf("error = %q", err.Error())
+	}
+}
+
+func TestSheetsTableClearCmdClearsDataRowsOnly(t *testing.T) {
+	origNew := newSheetsService
+	t.Cleanup(func() { newSheetsService = origNew })
+
+	var gotClearRange string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := strings.TrimPrefix(r.URL.Path, "/sheets/v4")
+		path = strings.TrimPrefix(path, "/v4")
+		switch {
+		case strings.HasPrefix(path, "/spreadsheets/s1") && r.Method == http.MethodGet:
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"spreadsheetId": "s1",
+				"sheets": []map[string]any{
+					{
+						"properties": map[string]any{"sheetId": 42, "title": "Sheet1"},
+						"tables": []map[string]any{
+							{
+								"tableId": "tbl1",
+								"name":    "Tasks",
+								"range": map[string]any{
+									"sheetId":          42,
+									"startRowIndex":    0,
+									"endRowIndex":      4,
+									"startColumnIndex": 0,
+									"endColumnIndex":   3,
+								},
+							},
+						},
+					},
+				},
+			})
+		case strings.Contains(path, "/spreadsheets/s1/values/") && strings.Contains(path, ":clear") && r.Method == http.MethodPost:
+			encodedRange := strings.TrimSuffix(strings.TrimPrefix(path, "/spreadsheets/s1/values/"), ":clear")
+			decodedRange, err := url.PathUnescape(encodedRange)
+			if err != nil {
+				t.Fatalf("decode clear range: %v", err)
+			}
+			gotClearRange = decodedRange
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{"clearedRange": decodedRange})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+	installSheetsTestService(t, srv)
+
+	if err := (&SheetsTableClearCmd{SpreadsheetID: "s1", TableID: "tbl1"}).Run(newCmdJSONContext(t), &RootFlags{Account: "a@b.com"}); err == nil {
+		t.Fatal("expected --force error")
+	} else if !strings.Contains(err.Error(), "requires --force") {
+		t.Fatalf("error = %q", err.Error())
+	}
+	if gotClearRange != "" {
+		t.Fatalf("clear ran without --force: %q", gotClearRange)
+	}
+
+	out := captureStdout(t, func() {
+		cmd := &SheetsTableClearCmd{}
+		if err := runKong(t, cmd, []string{"s1", "tbl1"}, newCmdJSONContext(t), &RootFlags{Account: "a@b.com", Force: true}); err != nil {
+			t.Fatalf("clear table: %v", err)
+		}
+	})
+
+	if gotClearRange != "Sheet1!A2:C4" {
+		t.Fatalf("clear range = %q", gotClearRange)
+	}
+	if !strings.Contains(out, `"clearedRange": "Sheet1!A2:C4"`) || !strings.Contains(out, `"tableId": "tbl1"`) {
+		t.Fatalf("missing clear output: %s", out)
+	}
+}
+
+func TestSheetsTableDataRangeSkipsFooter(t *testing.T) {
+	table := &sheets.Table{
+		Range: &sheets.GridRange{
+			SheetId:          42,
+			StartRowIndex:    0,
+			EndRowIndex:      5,
+			StartColumnIndex: 0,
+			EndColumnIndex:   3,
+		},
+		RowsProperties: &sheets.TableRowsProperties{
+			FooterColorStyle: &sheets.ColorStyle{
+				RgbColor: &sheets.Color{Red: 1},
+			},
+		},
+	}
+	got, ok := sheetsTableDataRangeA1("Sheet1", table)
+	if !ok {
+		t.Fatal("expected data range")
+	}
+	if got != "Sheet1!A2:C4" {
+		t.Fatalf("data range = %q", got)
+	}
+}
+
+func TestSheetsTableDataRangeRejectsHeaderOnly(t *testing.T) {
+	table := &sheets.Table{
+		Range: &sheets.GridRange{
+			SheetId:          42,
+			StartRowIndex:    0,
+			EndRowIndex:      1,
+			StartColumnIndex: 0,
+			EndColumnIndex:   3,
+		},
+	}
+	if got, ok := sheetsTableDataRangeA1("Sheet1", table); ok || got != "" {
+		t.Fatalf("data range = %q, %v; want empty false", got, ok)
 	}
 }
 

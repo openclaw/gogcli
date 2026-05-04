@@ -1,27 +1,18 @@
-# `gog sheets table`
+# `gog sheets table clear`
 
 > Generated from `gog schema --json`. Do not edit this page by hand; run `make docs-commands`.
 
-Manage Google Sheets tables
+Clear table data rows
 
 ## Usage
 
 ```bash
-gog sheets (sheet) table (tables) <command>
+gog sheets (sheet) table (tables) clear (clear-rows) <spreadsheetId> <tableId>
 ```
 
 ## Parent
 
-- [gog sheets](gog-sheets.md)
-
-## Subcommands
-
-- [gog sheets table append](gog-sheets-table-append.md) - Append rows to a table
-- [gog sheets table clear](gog-sheets-table-clear.md) - Clear table data rows
-- [gog sheets table create](gog-sheets-table-create.md) - Create a table
-- [gog sheets table delete](gog-sheets-table-delete.md) - Delete a table
-- [gog sheets table get](gog-sheets-table-get.md) - Get a table
-- [gog sheets table list](gog-sheets-table-list.md) - List tables in a spreadsheet
+- [gog sheets table](gog-sheets-table.md)
 
 ## Flags
 
@@ -47,5 +38,5 @@ gog sheets (sheet) table (tables) <command>
 
 ## See Also
 
-- [gog sheets](gog-sheets.md)
+- [gog sheets table](gog-sheets-table.md)
 - [Command index](README.md)

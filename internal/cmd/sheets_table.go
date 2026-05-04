@@ -18,6 +18,7 @@ type SheetsTableCmd struct {
 	Get    SheetsTableGetCmd    `cmd:"" name:"get" aliases:"show,info" help:"Get a table"`
 	Create SheetsTableCreateCmd `cmd:"" name:"create" aliases:"add,new" help:"Create a table"`
 	Append SheetsTableAppendCmd `cmd:"" name:"append" aliases:"add-row,add-rows" help:"Append rows to a table"`
+	Clear  SheetsTableClearCmd  `cmd:"" name:"clear" aliases:"clear-rows" help:"Clear table data rows"`
 	Delete SheetsTableDeleteCmd `cmd:"" name:"delete" aliases:"rm,remove,del" help:"Delete a table"`
 }
 
@@ -298,7 +299,9 @@ type sheetsTableItem struct {
 	SheetID    int64                   `json:"sheetId"`
 	SheetTitle string                  `json:"sheetTitle"`
 	A1         string                  `json:"a1"`
+	DataA1     string                  `json:"dataA1,omitempty"`
 	Range      *sheets.GridRange       `json:"range,omitempty"`
+	HasFooter  bool                    `json:"hasFooter,omitempty"`
 	Columns    []sheetsTableColumnItem `json:"columns,omitempty"`
 }
 
@@ -310,7 +313,7 @@ type sheetsTableColumnItem struct {
 
 func fetchSpreadsheetTables(ctx context.Context, svc *sheets.Service, spreadsheetID string) ([]sheetsTableItem, error) {
 	call := svc.Spreadsheets.Get(spreadsheetID).
-		Fields("sheets(properties(sheetId,title),tables(tableId,name,range,columnProperties(columnIndex,columnName,columnType,dataValidationRule)))")
+		Fields("sheets(properties(sheetId,title),tables(tableId,name,range,rowsProperties(footerColorStyle),columnProperties(columnIndex,columnName,columnType,dataValidationRule)))")
 	if ctx != nil {
 		call = call.Context(ctx)
 	}
@@ -358,8 +361,12 @@ func sheetsTableToItem(table *sheets.Table, catalog *spreadsheetRangeCatalog) sh
 		}
 		if item.SheetTitle != "" {
 			item.A1 = gridRangeToA1(item.SheetTitle, table.Range)
+			if dataA1, ok := sheetsTableDataRangeA1(item.SheetTitle, table); ok {
+				item.DataA1 = dataA1
+			}
 		}
 	}
+	item.HasFooter = sheetsTableHasFooter(table)
 	for _, col := range table.ColumnProperties {
 		if col == nil {
 			continue
