@@ -217,6 +217,115 @@ func TestSheetsTableListGetDelete(t *testing.T) {
 	}
 }
 
+func TestSheetsTableAppendCmd(t *testing.T) {
+	origNew := newSheetsService
+	t.Cleanup(func() { newSheetsService = origNew })
+
+	var gotRange string
+	var gotInsert string
+	var gotInput string
+	var gotValues sheets.ValueRange
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := strings.TrimPrefix(r.URL.Path, "/sheets/v4")
+		path = strings.TrimPrefix(path, "/v4")
+		switch {
+		case strings.HasPrefix(path, "/spreadsheets/s1") && r.Method == http.MethodGet:
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"spreadsheetId": "s1",
+				"sheets": []map[string]any{
+					{
+						"properties": map[string]any{"sheetId": 42, "title": "Sheet1"},
+						"tables": []map[string]any{
+							{
+								"tableId": "tbl1",
+								"name":    "Tasks",
+								"range": map[string]any{
+									"sheetId":          42,
+									"startRowIndex":    0,
+									"endRowIndex":      4,
+									"startColumnIndex": 0,
+									"endColumnIndex":   3,
+								},
+								"columnProperties": []map[string]any{
+									{"columnIndex": 0, "columnName": "Task", "columnType": "TEXT"},
+									{"columnIndex": 1, "columnName": "Amount", "columnType": "DOUBLE"},
+									{"columnIndex": 2, "columnName": "Done", "columnType": "BOOLEAN"},
+								},
+							},
+						},
+					},
+				},
+			})
+		case strings.Contains(path, "/spreadsheets/s1/values/") && strings.Contains(path, ":append") && r.Method == http.MethodPost:
+			gotRange = strings.TrimSuffix(strings.TrimPrefix(path, "/spreadsheets/s1/values/"), ":append")
+			gotInsert = r.URL.Query().Get("insertDataOption")
+			gotInput = r.URL.Query().Get("valueInputOption")
+			if err := json.NewDecoder(r.Body).Decode(&gotValues); err != nil {
+				t.Fatalf("decode append: %v", err)
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"updates": map[string]any{
+					"updatedRange":   "Sheet1!A4:C4",
+					"updatedRows":    1,
+					"updatedColumns": 3,
+					"updatedCells":   3,
+				},
+			})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+	installSheetsTestService(t, srv)
+
+	out := captureStdout(t, func() {
+		cmd := &SheetsTableAppendCmd{}
+		if err := runKong(t, cmd, []string{
+			"s1",
+			"Tasks",
+			"--values-json", `[["Write docs",2,true]]`,
+		}, newCmdJSONContext(t), &RootFlags{Account: "a@b.com"}); err != nil {
+			t.Fatalf("append table: %v", err)
+		}
+	})
+
+	if gotRange != "Sheet1!A1:C4" {
+		t.Fatalf("append range = %q", gotRange)
+	}
+	if gotInsert != "INSERT_ROWS" {
+		t.Fatalf("insertDataOption = %q", gotInsert)
+	}
+	if gotInput != sheetsDefaultValueInputOption {
+		t.Fatalf("valueInputOption = %q", gotInput)
+	}
+	if len(gotValues.Values) != 1 || len(gotValues.Values[0]) != 3 {
+		t.Fatalf("values = %#v", gotValues.Values)
+	}
+	if !strings.Contains(out, `"tableId": "tbl1"`) || !strings.Contains(out, `"updatedRange": "Sheet1!A4:C4"`) {
+		t.Fatalf("missing append output: %s", out)
+	}
+}
+
+func TestSheetsTableAppendRejectsTooWideRows(t *testing.T) {
+	table := sheetsTableItem{
+		Name: "Tasks",
+		Columns: []sheetsTableColumnItem{
+			{ColumnIndex: 0, ColumnName: "Task"},
+			{ColumnIndex: 1, ColumnName: "Done"},
+		},
+	}
+	err := validateSheetsTableAppendWidth(table, [][]interface{}{{"a", "b", "c"}})
+	if err == nil {
+		t.Fatal("expected width error")
+	}
+	if !strings.Contains(err.Error(), "has 3 cells") {
+		t.Fatalf("error = %q", err.Error())
+	}
+}
+
 func installSheetsTestService(t *testing.T, srv *httptest.Server) {
 	t.Helper()
 

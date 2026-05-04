@@ -14,6 +14,7 @@
 - Calendar: add `calendar move` / `calendar transfer` to move an event to another calendar and change its organizer. (#448) — thanks @markusbkoch.
 - Docs: add `docs add-tab`, `docs rename-tab`, and `docs delete-tab` for managing Google Docs tabs. (#547) — thanks @chopenhauer.
 - Docs: support tab-scoped Markdown append and find-replace flows. (#541) — thanks @donbowman.
+- Sheets: add `sheets table append` for appending rows to structured Sheets tables without targeting headers directly.
 
 ### Fixed
 - Agent safety: compile baked safety profile policies into generated hash switches so raw allow/deny rule strings are not embedded as patchable YAML. (#540) — thanks @drewburchfield.

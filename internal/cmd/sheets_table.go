@@ -17,6 +17,7 @@ type SheetsTableCmd struct {
 	List   SheetsTableListCmd   `cmd:"" default:"withargs" help:"List tables in a spreadsheet"`
 	Get    SheetsTableGetCmd    `cmd:"" name:"get" aliases:"show,info" help:"Get a table"`
 	Create SheetsTableCreateCmd `cmd:"" name:"create" aliases:"add,new" help:"Create a table"`
+	Append SheetsTableAppendCmd `cmd:"" name:"append" aliases:"add-row,add-rows" help:"Append rows to a table"`
 	Delete SheetsTableDeleteCmd `cmd:"" name:"delete" aliases:"rm,remove,del" help:"Delete a table"`
 }
 

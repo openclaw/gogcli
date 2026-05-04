@@ -2,7 +2,7 @@
 
 Every `gog` command has a generated docs page. The source of truth is the live CLI schema; run `make docs-commands` after changing command names, flags, help text, aliases, or arguments.
 
-Generated pages: 456.
+Generated pages: 457.
 
 ## Top-level Commands
 
@@ -458,6 +458,7 @@ Generated pages: 456.
     - [gog sheets resize-columns](gog-sheets-resize-columns.md) - Resize sheet columns
     - [gog sheets resize-rows](gog-sheets-resize-rows.md) - Resize sheet rows
     - [gog sheets table](gog-sheets-table.md) - Manage Google Sheets tables
+      - [gog sheets table append](gog-sheets-table-append.md) - Append rows to a table
       - [gog sheets table create](gog-sheets-table-create.md) - Create a table
       - [gog sheets table delete](gog-sheets-table-delete.md) - Delete a table
       - [gog sheets table get](gog-sheets-table-get.md) - Get a table

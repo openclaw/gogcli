@@ -1,26 +1,18 @@
-# `gog sheets table`
+# `gog sheets table append`
 
 > Generated from `gog schema --json`. Do not edit this page by hand; run `make docs-commands`.
 
-Manage Google Sheets tables
+Append rows to a table
 
 ## Usage
 
 ```bash
-gog sheets (sheet) table (tables) <command>
+gog sheets (sheet) table (tables) append (add-row,add-rows) <spreadsheetId> <tableId> [<values> ...] [flags]
 ```
 
 ## Parent
 
-- [gog sheets](gog-sheets.md)
-
-## Subcommands
-
-- [gog sheets table append](gog-sheets-table-append.md) - Append rows to a table
-- [gog sheets table create](gog-sheets-table-create.md) - Create a table
-- [gog sheets table delete](gog-sheets-table-delete.md) - Delete a table
-- [gog sheets table get](gog-sheets-table-get.md) - Get a table
-- [gog sheets table list](gog-sheets-table-list.md) - List tables in a spreadsheet
+- [gog sheets table](gog-sheets-table.md)
 
 ## Flags
 
@@ -36,15 +28,17 @@ gog sheets (sheet) table (tables) <command>
 | `-y`<br>`--force`<br>`--assume-yes`<br>`--yes` | `bool` |  | Skip confirmations for destructive commands |
 | `--gmail-no-send` | `bool` | false | Block Gmail send operations (agent safety) |
 | `-h`<br>`--help` | `kong.helpFlag` |  | Show context-sensitive help. |
+| `--input` | `string` | USER_ENTERED | Value input option: RAW or USER_ENTERED |
 | `-j`<br>`--json`<br>`--machine` | `bool` | false | Output JSON to stdout (best for scripting) |
 | `--no-input`<br>`--non-interactive`<br>`--noninteractive` | `bool` |  | Never prompt; fail instead (useful for CI) |
 | `-p`<br>`--plain`<br>`--tsv` | `bool` | false | Output stable, parseable text to stdout (TSV; no colors) |
 | `--results-only` | `bool` |  | In JSON mode, emit only the primary result (drops envelope fields like nextPageToken) |
 | `--select`<br>`--pick`<br>`--project` | `string` |  | In JSON mode, select comma-separated fields (best-effort; supports dot paths). Desire path: use --fields for most commands. |
+| `--values-json` | `string` |  | Values as JSON 2D array |
 | `-v`<br>`--verbose` | `bool` |  | Enable verbose logging |
 | `--version` | `kong.VersionFlag` |  | Print version and exit |
 
 ## See Also
 
-- [gog sheets](gog-sheets.md)
+- [gog sheets table](gog-sheets-table.md)
 - [Command index](README.md)
