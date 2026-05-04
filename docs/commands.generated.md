@@ -414,6 +414,11 @@ Generated from `gog schema --json`.
     - [`gog sheets (sheet) rename-tab (rename-sheet) <spreadsheetId> <oldName> <newName>`](commands/gog-sheets-rename-tab.md) - Rename a tab/sheet in a spreadsheet
     - [`gog sheets (sheet) resize-columns <spreadsheetId> <columns> [flags]`](commands/gog-sheets-resize-columns.md) - Resize sheet columns
     - [`gog sheets (sheet) resize-rows <spreadsheetId> <rows> [flags]`](commands/gog-sheets-resize-rows.md) - Resize sheet rows
+    - [`gog sheets (sheet) table (tables) <command>`](commands/gog-sheets-table.md) - Manage Google Sheets tables
+      - [`gog sheets (sheet) table (tables) create (add,new) --name=STRING --columns-json=STRING <spreadsheetId> <range>`](commands/gog-sheets-table-create.md) - Create a table
+      - [`gog sheets (sheet) table (tables) delete (rm,remove,del) <spreadsheetId> <tableId>`](commands/gog-sheets-table-delete.md) - Delete a table
+      - [`gog sheets (sheet) table (tables) get (show,info) <spreadsheetId> <tableId>`](commands/gog-sheets-table-get.md) - Get a table
+      - [`gog sheets (sheet) table (tables) list <spreadsheetId>`](commands/gog-sheets-table-list.md) - List tables in a spreadsheet
     - [`gog sheets (sheet) unmerge <spreadsheetId> <range>`](commands/gog-sheets-unmerge.md) - Unmerge cells in a range
     - [`gog sheets (sheet) update (edit,set) <spreadsheetId> <range> [<values> ...] [flags]`](commands/gog-sheets-update.md) - Update values in a range
     - [`gog sheets (sheet) update-note (set-note) <spreadsheetId> <range> [flags]`](commands/gog-sheets-update-note.md) - Set or clear a cell note

@@ -16,7 +16,7 @@ Fast, script-friendly CLI for Gmail, Calendar, Chat, Classroom, Drive, Docs, Sli
 - **Drive** - list/search/upload/download files, scope search to folders or shared drives, replace uploads in-place, convert uploads (including Markdown to Google Doc), manage permissions/comments, organize folders, and list shared drives
 - **Contacts** - search/create/update contacts, including addresses, relations, org/title metadata, custom fields, Workspace directory, and other contacts
 - **Tasks** - manage tasklists and tasks: get/create/add/update/done/undo/delete/clear, plus repeat schedule materialization with RRULE aliases
-- **Sheets** - read/write/update spreadsheets, insert rows/cols, manage tabs and named ranges, format/merge/freeze/resize cells, read/write notes, inspect formats, find/replace text, list links, and create/export sheets
+- **Sheets** - read/write/update spreadsheets, insert rows/cols, manage tabs, named ranges, and Sheets tables, format/merge/freeze/resize cells, read/write notes, inspect formats, find/replace text, list links, and create/export sheets
 - **Forms** - create/update forms, manage questions, inspect responses, and manage watches
 - **Apps Script** - create/get/bind projects, inspect content, and run functions
 - **Docs/Slides** - create/copy/export docs/slides, edit Docs by tab title or ID, import Markdown, do richer find-replace, export whole Docs or a single Docs tab, and generate Slides from Markdown or templates
@@ -1387,6 +1387,12 @@ gog sheets named-ranges add <spreadsheetId> MyNamedRange 'Sheet1!A1:B2'
 gog sheets named-ranges add <spreadsheetId> MyCols 'Sheet1!A:C'
 gog sheets named-ranges update <spreadsheetId> MyNamedRange --name MyNamedRange2
 gog sheets named-ranges delete <spreadsheetId> MyNamedRange2
+
+# Tables
+gog sheets table list <spreadsheetId>
+gog sheets table create <spreadsheetId> 'Sheet1!A1:C4' --name Tasks --columns-json '[{"columnName":"Task","columnType":"TEXT"},{"columnName":"Amount","columnType":"DOUBLE"},{"columnName":"Done","columnType":"BOOLEAN"}]'
+gog sheets table get <spreadsheetId> <tableId>
+gog sheets table delete <spreadsheetId> <tableId> --force
 
 # Charts
 gog sheets chart list <spreadsheetId>

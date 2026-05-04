@@ -40,6 +40,7 @@ gog sheets (sheet) <command> [flags]
 - [gog sheets rename-tab](gog-sheets-rename-tab.md) - Rename a tab/sheet in a spreadsheet
 - [gog sheets resize-columns](gog-sheets-resize-columns.md) - Resize sheet columns
 - [gog sheets resize-rows](gog-sheets-resize-rows.md) - Resize sheet rows
+- [gog sheets table](gog-sheets-table.md) - Manage Google Sheets tables
 - [gog sheets unmerge](gog-sheets-unmerge.md) - Unmerge cells in a range
 - [gog sheets update](gog-sheets-update.md) - Update values in a range
 - [gog sheets update-note](gog-sheets-update-note.md) - Set or clear a cell note

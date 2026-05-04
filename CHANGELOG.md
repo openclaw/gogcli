@@ -8,6 +8,7 @@
 - Raw API dumps: add `docs raw`, `sheets raw`, `slides raw`, `drive raw`, `gmail raw`, `calendar raw`, `people raw`, `contacts raw`, `tasks raw`, and `forms raw` subcommands for lossless Google API JSON output, with `--pretty`, Drive raw redaction defaults, Sheets grid-data warnings, and a raw-output security audit. (#495, #496) — thanks @karbassi.
 - Docs: add `docs format` and plain-text `docs write` formatting flags for fonts, colors, bold/italic/underline/strikethrough, alignment, and line spacing. (#479) — thanks @mmaghsoodnia.
 - Drive: add `--fields` to `drive ls` and `drive get` so callers can pass Drive API field masks for fields beyond the default JSON set. (#495) — thanks @karbassi.
+- Sheets: add `sheets table` list/get/create/delete commands for Google Sheets structured tables. (#470) — thanks @Pedrohgv.
 - Agent safety: add baked safety-profile builds for fail-closed agent binaries, with `agent-safe`, `readonly`, and `full` profiles, filtered help/schema output, docs, and build tooling. (#366, #239) — thanks @drewburchfield.
 - Calendar: add `--with-meet` to `calendar update` for adding Google Meet conferencing to existing events. (#538) — thanks @alexisperumal.
 - Calendar: add `calendar move` / `calendar transfer` to move an event to another calendar and change its organizer. (#448) — thanks @markusbkoch.

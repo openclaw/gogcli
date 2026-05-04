@@ -2,7 +2,7 @@
 
 Every `gog` command has a generated docs page. The source of truth is the live CLI schema; run `make docs-commands` after changing command names, flags, help text, aliases, or arguments.
 
-Generated pages: 451.
+Generated pages: 456.
 
 ## Top-level Commands
 
@@ -457,6 +457,11 @@ Generated pages: 451.
     - [gog sheets rename-tab](gog-sheets-rename-tab.md) - Rename a tab/sheet in a spreadsheet
     - [gog sheets resize-columns](gog-sheets-resize-columns.md) - Resize sheet columns
     - [gog sheets resize-rows](gog-sheets-resize-rows.md) - Resize sheet rows
+    - [gog sheets table](gog-sheets-table.md) - Manage Google Sheets tables
+      - [gog sheets table create](gog-sheets-table-create.md) - Create a table
+      - [gog sheets table delete](gog-sheets-table-delete.md) - Delete a table
+      - [gog sheets table get](gog-sheets-table-get.md) - Get a table
+      - [gog sheets table list](gog-sheets-table-list.md) - List tables in a spreadsheet
     - [gog sheets unmerge](gog-sheets-unmerge.md) - Unmerge cells in a range
     - [gog sheets update](gog-sheets-update.md) - Update values in a range
     - [gog sheets update-note](gog-sheets-update-note.md) - Set or clear a cell note
