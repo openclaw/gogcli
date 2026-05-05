@@ -16,7 +16,7 @@ const (
 	gmailFiltersAppsNamespace = "http://schemas.google.com/apps/2006"
 )
 
-var nowGmailFiltersExport = func() time.Time { return time.Now() }
+var nowGmailFiltersExport = time.Now
 
 type gmailFiltersXMLFeed struct {
 	XMLName   xml.Name               `xml:"feed"`
@@ -137,11 +137,11 @@ func gmailFilterActionXMLProperties(action *gmail.FilterAction, labelNames map[s
 		switch strings.ToUpper(strings.TrimSpace(id)) {
 		case "":
 			continue
-		case "STARRED":
+		case gmailSystemLabelStarred:
 			props = appendXMLProperty(props, "shouldStar", "true")
-		case "IMPORTANT":
+		case gmailSystemLabelImportant:
 			props = appendXMLProperty(props, "shouldAlwaysMarkAsImportant", "true")
-		case "TRASH":
+		case gmailSystemLabelTrash:
 			props = appendXMLProperty(props, "shouldTrash", "true")
 		default:
 			if smartLabel := gmailFilterSmartLabelXMLValue(id); smartLabel != "" {
@@ -155,13 +155,13 @@ func gmailFilterActionXMLProperties(action *gmail.FilterAction, labelNames map[s
 		switch strings.ToUpper(strings.TrimSpace(id)) {
 		case "":
 			continue
-		case "INBOX":
+		case gmailSystemLabelInbox:
 			props = appendXMLProperty(props, "shouldArchive", "true")
-		case "UNREAD":
+		case gmailSystemLabelUnread:
 			props = appendXMLProperty(props, "shouldMarkAsRead", "true")
-		case "SPAM":
+		case gmailSystemLabelSpam:
 			props = appendXMLProperty(props, "shouldNeverSpam", "true")
-		case "IMPORTANT":
+		case gmailSystemLabelImportant:
 			props = appendXMLProperty(props, "shouldNeverMarkAsImportant", "true")
 		}
 	}
