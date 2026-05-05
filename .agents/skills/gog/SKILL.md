@@ -112,14 +112,13 @@ gog schema <service> <command> --json
 
 Docs:
 
-- `docs/README.md`
+- `docs/index.md`
 - `docs/commands/README.md`
 - `docs/safety-profiles.md`
-- `README.md#security`
 
 Repo paths:
 
 - CLI entrypoint: `cmd/gog/`
 - Command implementations: `internal/cmd/`
-- OAuth/keyring: `internal/auth/`, `internal/secrets/`
+- OAuth/keyring: `internal/googleauth/`, `internal/authclient/`, `internal/secrets/`
 - Generated command docs: `docs/commands/`
