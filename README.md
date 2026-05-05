@@ -79,17 +79,19 @@ For authenticated automation in a container, mount a persistent config directory
 docker volume create gogcli-config
 docker run --rm -it \
   -e GOG_KEYRING_BACKEND=file \
-  -e GOG_KEYRING_PASSWORD='change-me' \
+  -e GOG_KEYRING_PASSWORD \
   -v gogcli-config:/home/gog/.config/gogcli \
   ghcr.io/steipete/gogcli:latest auth add you@gmail.com --services gmail,calendar,drive
 ```
 
-Subsequent runs can reuse the same volume and password:
+Subsequent runs can reuse the same volume and password. Set
+`GOG_KEYRING_PASSWORD` in the shell session or CI secret store before running
+the container; do not bake it into scripts or profiles.
 
 ```bash
 docker run --rm \
   -e GOG_KEYRING_BACKEND=file \
-  -e GOG_KEYRING_PASSWORD='change-me' \
+  -e GOG_KEYRING_PASSWORD \
   -v gogcli-config:/home/gog/.config/gogcli \
   ghcr.io/steipete/gogcli:latest gmail labels list --account you@gmail.com
 ```
@@ -361,10 +363,8 @@ Non-interactive runs (CI/ssh): file backend requires `GOG_KEYRING_PASSWORD`.
 The file backend uses portable encoded filenames for stored keys, so account tokens work on Windows even when key names contain colons.
 If you see `aes.KeyUnwrap(): integrity check failed`, first run `gog auth doctor`; the usual cause is that different shells/services/agents are using different `GOG_KEYRING_PASSWORD` values for the same encrypted token files.
 
-```bash
-export GOG_KEYRING_PASSWORD='...'
-gog --no-input auth status
-```
+Inject the password from a secret manager or the current shell session only; do
+not save it in shell profiles, docs, or project files.
 
 Force backend via env (overrides config):
 
@@ -644,6 +644,10 @@ For stronger isolation, build a dedicated binary with an embedded safety profile
 Baked profiles are checked after CLI parsing and before any command runs. They are
 fail-closed and cannot be changed by config, environment variables, or runtime
 allowlist flags. See `docs/safety-profiles.md`.
+
+Agents can also use the bundled `gog` skill at `.agents/skills/gog/SKILL.md`
+for auth preflight, JSON-first command patterns, and safe Google Workspace
+automation defaults.
  
 ## Security
 
@@ -657,6 +661,9 @@ OAuth credentials are stored securely in your system's keychain:
 The CLI uses [github.com/99designs/keyring](https://github.com/99designs/keyring) for secure storage.
 
 If no OS keychain backend is available (e.g., Linux/WSL/container), keyring can fall back to an encrypted on-disk store and may prompt for a password; for non-interactive runs set `GOG_KEYRING_PASSWORD`.
+Treat `GOG_KEYRING_PASSWORD` as a secret: inject it from your CI secret store or
+session environment, and do not put it in `.zshrc`, shell profiles, docs, or
+project files.
 
 ### Keychain Prompts (macOS)
 
@@ -2050,7 +2057,9 @@ export GOG_CLIENT=work
 go test -tags=integration ./...
 ```
 
-Tip: if you want to avoid macOS Keychain prompts during these runs, set `GOG_KEYRING_BACKEND=file` and `GOG_KEYRING_PASSWORD=...` (uses encrypted on-disk keyring).
+Tip: if you want to avoid macOS Keychain prompts during these runs, set
+`GOG_KEYRING_BACKEND=file` and inject `GOG_KEYRING_PASSWORD` from a secret store
+or temporary shell session (uses encrypted on-disk keyring).
 
 ### Live Test Script (CLI)
 

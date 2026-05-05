@@ -17,6 +17,7 @@
 - Sheets: add `sheets table append` for appending rows to structured Sheets tables without targeting headers directly.
 - Sheets: add header-safe `sheets table clear` for clearing table data rows without touching headers or footers.
 - Sheets: add `sheets conditional-format` and `sheets banding` commands for rule-based formatting and alternating color banded ranges. (#378) — thanks @codBang.
+- Agent docs: add a bundled `gog` skill for safe JSON-first Google Workspace automation from coding agents. (#353, #451) — thanks @TimPietrusky and @sluramod.
 
 ### Fixed
 - Agent safety: compile baked safety profile policies into generated hash switches so raw allow/deny rule strings are not embedded as patchable YAML. (#540) — thanks @drewburchfield.

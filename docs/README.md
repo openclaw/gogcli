@@ -12,6 +12,9 @@ Keep, and related agent workflows.
   accounts, or Workspace domain-wide delegation.
 - Read [Command Guards and Baked Safety Profiles](safety-profiles.md) when
   running `gog` from agents or automation.
+- Read the bundled [`gog` agent skill](../.agents/skills/gog/SKILL.md) when an
+  agent needs safe auth preflight, JSON-first output, or guarded Workspace
+  automation patterns.
 - Read [Sheets Tables](sheets-tables.md) when creating or inspecting Google
   Sheets structured tables.
 - Open the [Command Index](commands/README.md) for generated docs for every CLI
