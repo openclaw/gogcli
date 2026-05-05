@@ -33,6 +33,8 @@ var (
 )
 
 const (
+	driveRootID            = "root"
+	driveMimeFolder        = "application/vnd.google-apps.folder"
 	driveMimeGoogleDoc     = "application/vnd.google-apps.document"
 	driveMimeGoogleSheet   = "application/vnd.google-apps.spreadsheet"
 	driveMimeGoogleSlides  = "application/vnd.google-apps.presentation"
@@ -70,6 +72,9 @@ const (
 type DriveCmd struct {
 	Ls          DriveLsCmd          `cmd:"" name:"ls" help:"List files in a folder (default: root)"`
 	Search      DriveSearchCmd      `cmd:"" name:"search" help:"Full-text search across Drive"`
+	Tree        DriveTreeCmd        `cmd:"" name:"tree" help:"Print a read-only folder tree"`
+	Du          DriveDuCmd          `cmd:"" name:"du" help:"Summarize Drive folder sizes"`
+	Inventory   DriveInventoryCmd   `cmd:"" name:"inventory" help:"Export a read-only Drive inventory"`
 	Get         DriveGetCmd         `cmd:"" name:"get" help:"Get file metadata"`
 	Download    DriveDownloadCmd    `cmd:"" name:"download" help:"Download a file (exports Google Docs formats)"`
 	Copy        DriveCopyCmd        `cmd:"" name:"copy" help:"Copy a file"`
@@ -945,7 +950,7 @@ func escapeDriveQueryString(s string) string {
 }
 
 func driveType(mimeType string) string {
-	if mimeType == "application/vnd.google-apps.folder" {
+	if mimeType == driveMimeFolder {
 		return "folder"
 	}
 	return strFile

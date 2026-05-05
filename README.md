@@ -13,7 +13,7 @@ Fast, script-friendly CLI for Gmail, Calendar, Chat, Classroom, Drive, Docs, Sli
 - **Calendar** - list/create/update/delete events, manage invitations, aliases, subscriptions, team calendars, free/busy/conflicts, propose new times, focus/OOO/working-location events, recurrence, and reminders
 - **Classroom** - manage courses, roster, coursework/materials, submissions, announcements, topics, invitations, guardians, profiles
 - **Chat** - list/find/create spaces, list messages/threads, send messages and DMs, and manage emoji reactions (Workspace-only)
-- **Drive** - list/search/upload/download files, scope search to folders or shared drives, replace uploads in-place, convert uploads (including Markdown to Google Doc), manage permissions/comments, organize folders, and list shared drives
+- **Drive** - list/search/upload/download files, inspect folders with tree/du/inventory reports, scope search to folders or shared drives, replace uploads in-place, convert uploads (including Markdown to Google Doc), manage permissions/comments, organize folders, and list shared drives
 - **Contacts** - search/create/update contacts, including addresses, relations, org/title metadata, custom fields, Workspace directory, and other contacts
 - **Tasks** - manage tasklists and tasks: get/create/add/update/done/undo/delete/clear, plus repeat schedule materialization with RRULE aliases
 - **Sheets** - read/write/update spreadsheets, insert rows/cols, manage tabs, named ranges, and Sheets tables, format/merge/freeze/resize cells, manage conditional formatting and banding, read/write notes, inspect formats, find/replace text, list links, and create/export sheets
@@ -1131,6 +1131,12 @@ gog drive search "mimeType = 'application/pdf'" --raw-query
 gog drive get <fileId>                # Get file metadata
 gog drive url <fileId>                # Print Drive web URL
 gog drive copy <fileId> "Copy Name"
+
+# Read-only reports
+gog drive tree --parent <folderId> --depth 2
+gog drive inventory --parent <folderId> --max 500 --sort modified --order desc
+gog drive du --parent <folderId> --depth 1 --max 50
+gog --json drive inventory --parent <folderId> --max 100 | jq '.items[] | {path,size,modifiedTime}'
 
 # Upload and download
 gog drive upload ./path/to/file --parent <folderId>

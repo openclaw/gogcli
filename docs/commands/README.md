@@ -2,7 +2,7 @@
 
 Every `gog` command has a generated docs page. The source of truth is the live CLI schema; run `make docs-commands` after changing command names, flags, help text, aliases, or arguments.
 
-Generated pages: 466.
+Generated pages: 469.
 
 ## Top-level Commands
 
@@ -288,7 +288,9 @@ Generated pages: 466.
     - [gog drive delete](gog-drive-delete.md) - Move a file to trash (use --permanent to delete forever)
     - [gog drive download](gog-drive-download.md) - Download a file (exports Google Docs formats)
     - [gog drive drives](gog-drive-drives.md) - List shared drives (Team Drives)
+    - [gog drive du](gog-drive-du.md) - Summarize Drive folder sizes
     - [gog drive get](gog-drive-get.md) - Get file metadata
+    - [gog drive inventory](gog-drive-inventory.md) - Export a read-only Drive inventory
     - [gog drive ls](gog-drive-ls.md) - List files in a folder (default: root)
     - [gog drive mkdir](gog-drive-mkdir.md) - Create a folder
     - [gog drive move](gog-drive-move.md) - Move a file to a different folder
@@ -297,6 +299,7 @@ Generated pages: 466.
     - [gog drive rename](gog-drive-rename.md) - Rename a file or folder
     - [gog drive search](gog-drive-search.md) - Full-text search across Drive
     - [gog drive share](gog-drive-share.md) - Share a file or folder
+    - [gog drive tree](gog-drive-tree.md) - Print a read-only folder tree
     - [gog drive unshare](gog-drive-unshare.md) - Remove a permission from a file
     - [gog drive upload](gog-drive-upload.md) - Upload a file
     - [gog drive url](gog-drive-url.md) - Print web URLs for files

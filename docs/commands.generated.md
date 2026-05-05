@@ -245,7 +245,9 @@ Generated from `gog schema --json`.
     - [`gog drive (drv) delete (rm,del) <fileId> [flags]`](commands/gog-drive-delete.md) - Move a file to trash (use --permanent to delete forever)
     - [`gog drive (drv) download <fileId> [flags]`](commands/gog-drive-download.md) - Download a file (exports Google Docs formats)
     - [`gog drive (drv) drives [flags]`](commands/gog-drive-drives.md) - List shared drives (Team Drives)
+    - [`gog drive (drv) du [flags]`](commands/gog-drive-du.md) - Summarize Drive folder sizes
     - [`gog drive (drv) get <fileId> [flags]`](commands/gog-drive-get.md) - Get file metadata
+    - [`gog drive (drv) inventory [flags]`](commands/gog-drive-inventory.md) - Export a read-only Drive inventory
     - [`gog drive (drv) ls [flags]`](commands/gog-drive-ls.md) - List files in a folder (default: root)
     - [`gog drive (drv) mkdir <name> [flags]`](commands/gog-drive-mkdir.md) - Create a folder
     - [`gog drive (drv) move <fileId> [flags]`](commands/gog-drive-move.md) - Move a file to a different folder
@@ -254,6 +256,7 @@ Generated from `gog schema --json`.
     - [`gog drive (drv) rename <fileId> <newName>`](commands/gog-drive-rename.md) - Rename a file or folder
     - [`gog drive (drv) search <query> ... [flags]`](commands/gog-drive-search.md) - Full-text search across Drive
     - [`gog drive (drv) share <fileId> [flags]`](commands/gog-drive-share.md) - Share a file or folder
+    - [`gog drive (drv) tree [flags]`](commands/gog-drive-tree.md) - Print a read-only folder tree
     - [`gog drive (drv) unshare <fileId> <permissionId>`](commands/gog-drive-unshare.md) - Remove a permission from a file
     - [`gog drive (drv) upload <localPath> [flags]`](commands/gog-drive-upload.md) - Upload a file
     - [`gog drive (drv) url <fileId> ...`](commands/gog-drive-url.md) - Print web URLs for files
