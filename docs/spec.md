@@ -278,6 +278,7 @@ Flag aliases:
 - `gog classroom guardian-invitations get <studentId> <invitationId>`
 - `gog classroom guardian-invitations create <studentId> --email EMAIL`
 - `gog classroom profile [userId]`
+- `gog contacts dedupe [--match email,phone,name] [--max N]`
 - `gog gmail search <query> [--max N] [--page TOKEN]`
 - `gog gmail messages search <query> [--max N] [--page TOKEN] [--include-body] [--body-format text|html] [--full]`
 - `gog gmail autoreply <query> [--max N] [--subject S] [--body B|--body-file PATH|--body-html HTML] [--from addr] [--reply-to addr] [--label L] [--archive] [--mark-read] [--skip-bulk] [--allow-self]`

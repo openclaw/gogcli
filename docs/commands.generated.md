@@ -190,6 +190,7 @@ Generated from `gog schema --json`.
     - [`gog config unset (rm,del,remove) <key>`](commands/gog-config-unset.md) - Unset a config value
   - [`gog contacts (contact) <command> [flags]`](commands/gog-contacts.md) - Google Contacts
     - [`gog contacts (contact) create (add,new) [flags]`](commands/gog-contacts-create.md) - Create a contact
+    - [`gog contacts (contact) dedupe [flags]`](commands/gog-contacts-dedupe.md) - Find likely duplicate contacts (preview only)
     - [`gog contacts (contact) delete (rm,del,remove) <resourceName>`](commands/gog-contacts-delete.md) - Delete a contact
     - [`gog contacts (contact) directory <command>`](commands/gog-contacts-directory.md) - Directory contacts
       - [`gog contacts (contact) directory list [flags]`](commands/gog-contacts-directory-list.md) - List people from the Workspace directory

@@ -2,7 +2,7 @@
 
 Every `gog` command has a generated docs page. The source of truth is the live CLI schema; run `make docs-commands` after changing command names, flags, help text, aliases, or arguments.
 
-Generated pages: 469.
+Generated pages: 470.
 
 ## Top-level Commands
 
@@ -233,6 +233,7 @@ Generated pages: 469.
     - [gog config unset](gog-config-unset.md) - Unset a config value
   - [gog contacts](gog-contacts.md) - Google Contacts
     - [gog contacts create](gog-contacts-create.md) - Create a contact
+    - [gog contacts dedupe](gog-contacts-dedupe.md) - Find likely duplicate contacts (preview only)
     - [gog contacts delete](gog-contacts-delete.md) - Delete a contact
     - [gog contacts directory](gog-contacts-directory.md) - Directory contacts
       - [gog contacts directory list](gog-contacts-directory-list.md) - List people from the Workspace directory

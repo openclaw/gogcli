@@ -9,6 +9,7 @@
 - Docs: add `docs format` and plain-text `docs write` formatting flags for fonts, colors, bold/italic/underline/strikethrough, alignment, and line spacing. (#479) — thanks @mmaghsoodnia.
 - Drive: add `--fields` to `drive ls` and `drive get` so callers can pass Drive API field masks for fields beyond the default JSON set. (#495) — thanks @karbassi.
 - Drive: add read-only `drive tree`, `drive du`, and `drive inventory` reports for auditing folder contents and sizes. (#116) — thanks @rohan-patnaik.
+- Contacts: add preview-only `contacts dedupe` to find likely duplicate contacts by email/phone, with opt-in name matching and JSON/table merge plans. (#116) — thanks @rohan-patnaik.
 - Sheets: add `sheets table` list/get/create/delete commands for Google Sheets structured tables. (#470) — thanks @Pedrohgv.
 - Agent safety: add baked safety-profile builds for fail-closed agent binaries, with `agent-safe`, `readonly`, and `full` profiles, filtered help/schema output, docs, and build tooling. (#366, #239) — thanks @drewburchfield.
 - Calendar: add `--with-meet` to `calendar update` for adding Google Meet conferencing to existing events. (#538) — thanks @alexisperumal.

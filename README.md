@@ -1324,6 +1324,10 @@ gog contacts get people/<resourceName> --json | \
 
 gog contacts delete people/<resourceName>
 
+# Dedupe preview (read-only)
+gog contacts dedupe
+gog contacts dedupe --match email,phone,name --json
+
 # Workspace directory (requires Google Workspace)
 gog contacts directory list --max 50
 gog contacts directory search "Jane" --max 50
