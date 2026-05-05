@@ -318,7 +318,7 @@ Generated from `gog schema --json`.
       - [`gog gmail (mail,email) settings filters <command>`](commands/gog-gmail-settings-filters.md) - Filter operations
         - [`gog gmail (mail,email) settings filters create (add,new) [flags]`](commands/gog-gmail-settings-filters-create.md) - Create a new email filter
         - [`gog gmail (mail,email) settings filters delete (rm,del,remove) <filterId>`](commands/gog-gmail-settings-filters-delete.md) - Delete a filter
-        - [`gog gmail (mail,email) settings filters export [flags]`](commands/gog-gmail-settings-filters-export.md) - Export filters as JSON
+        - [`gog gmail (mail,email) settings filters export [flags]`](commands/gog-gmail-settings-filters-export.md) - Export filters as Gmail WebUI-compatible XML
         - [`gog gmail (mail,email) settings filters get (info,show) <filterId>`](commands/gog-gmail-settings-filters-get.md) - Get a specific filter
         - [`gog gmail (mail,email) settings filters list (ls)`](commands/gog-gmail-settings-filters-list.md) - List all email filters
       - [`gog gmail (mail,email) settings forwarding <command>`](commands/gog-gmail-settings-forwarding.md) - Forwarding addresses

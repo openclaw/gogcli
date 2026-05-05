@@ -18,7 +18,7 @@ gog gmail (mail,email) settings filters <command>
 
 - [gog gmail settings filters create](gog-gmail-settings-filters-create.md) - Create a new email filter
 - [gog gmail settings filters delete](gog-gmail-settings-filters-delete.md) - Delete a filter
-- [gog gmail settings filters export](gog-gmail-settings-filters-export.md) - Export filters as JSON
+- [gog gmail settings filters export](gog-gmail-settings-filters-export.md) - Export filters as Gmail WebUI-compatible XML
 - [gog gmail settings filters get](gog-gmail-settings-filters-get.md) - Get a specific filter
 - [gog gmail settings filters list](gog-gmail-settings-filters-list.md) - List all email filters
 

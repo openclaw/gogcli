@@ -805,7 +805,8 @@ gog gmail batch modify <messageId> <messageId> --add STARRED --remove INBOX
 gog gmail filters list
 gog gmail filters create --from 'noreply@example.com' --add-label 'Notifications'
 gog gmail filters delete <filterId>
-gog gmail filters export --out ./filters.json
+gog gmail filters export --out ./mailFilters.xml       # Gmail WebUI importable XML
+gog gmail filters export --format json --out ./filters.json
 
 # Settings
 gog gmail autoforward get
