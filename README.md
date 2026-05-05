@@ -16,7 +16,7 @@ Fast, script-friendly CLI for Gmail, Calendar, Chat, Classroom, Drive, Docs, Sli
 - **Drive** - list/search/upload/download files, scope search to folders or shared drives, replace uploads in-place, convert uploads (including Markdown to Google Doc), manage permissions/comments, organize folders, and list shared drives
 - **Contacts** - search/create/update contacts, including addresses, relations, org/title metadata, custom fields, Workspace directory, and other contacts
 - **Tasks** - manage tasklists and tasks: get/create/add/update/done/undo/delete/clear, plus repeat schedule materialization with RRULE aliases
-- **Sheets** - read/write/update spreadsheets, insert rows/cols, manage tabs, named ranges, and Sheets tables, format/merge/freeze/resize cells, read/write notes, inspect formats, find/replace text, list links, and create/export sheets
+- **Sheets** - read/write/update spreadsheets, insert rows/cols, manage tabs, named ranges, and Sheets tables, format/merge/freeze/resize cells, manage conditional formatting and banding, read/write notes, inspect formats, find/replace text, list links, and create/export sheets
 - **Forms** - create/update forms, manage questions, inspect responses, and manage watches
 - **Apps Script** - create/get/bind projects, inspect content, and run functions
 - **Docs/Slides** - create/copy/export docs/slides, edit Docs by tab title or ID, import Markdown, do richer find-replace, export whole Docs or a single Docs tab, and generate Slides from Markdown or templates
@@ -1379,6 +1379,13 @@ gog sheets resize-columns <spreadsheetId> 'Sheet1!A:C' --auto
 gog sheets resize-rows <spreadsheetId> 'Sheet1!1:10' --height 36
 gog sheets read-format <spreadsheetId> 'Sheet1!A1:B2'
 gog sheets read-format <spreadsheetId> 'Sheet1!A1:B2' --effective
+gog sheets conditional-format add <spreadsheetId> 'Sheet1!A2:C' --type text-eq --expr done --format-json '{"backgroundColor":{"red":0.85,"green":0.94,"blue":0.82}}'
+gog sheets conditional-format list <spreadsheetId>
+gog sheets conditional-format clear <spreadsheetId> --sheet Sheet1 --all --force
+gog sheets banding set <spreadsheetId> 'Sheet1!A1:C20'
+gog sheets banding list <spreadsheetId>
+gog sheets banding clear <spreadsheetId> --sheet Sheet1 --all --force
+# See docs/sheets-formatting.md for conditional format and banding details.
 
 # Named ranges
 gog sheets named-ranges <spreadsheetId>

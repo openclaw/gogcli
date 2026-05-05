@@ -382,6 +382,10 @@ Generated from `gog schema --json`.
   - [`gog sheets (sheet) <command> [flags]`](commands/gog-sheets.md) - Google Sheets
     - [`gog sheets (sheet) add-tab (add-sheet) <spreadsheetId> <tabName> [flags]`](commands/gog-sheets-add-tab.md) - Add a new tab/sheet to a spreadsheet
     - [`gog sheets (sheet) append (add) <spreadsheetId> <range> [<values> ...] [flags]`](commands/gog-sheets-append.md) - Append values to a range
+    - [`gog sheets (sheet) banding (banded-ranges) <command>`](commands/gog-sheets-banding.md) - Manage alternating color banding
+      - [`gog sheets (sheet) banding (banded-ranges) clear (delete,rm,remove) <spreadsheetId> [flags]`](commands/gog-sheets-banding-clear.md) - Remove alternating color banding
+      - [`gog sheets (sheet) banding (banded-ranges) list <spreadsheetId> [flags]`](commands/gog-sheets-banding-list.md) - List alternating color banded ranges
+      - [`gog sheets (sheet) banding (banded-ranges) set (add,create) <spreadsheetId> <range> [flags]`](commands/gog-sheets-banding-set.md) - Apply alternating colors to a range
     - [`gog sheets (sheet) chart (charts) <command>`](commands/gog-sheets-chart.md) - Manage spreadsheet charts
       - [`gog sheets (sheet) chart (charts) create (add,new) --spec-json=STRING <spreadsheetId> [flags]`](commands/gog-sheets-chart-create.md) - Create a chart from a JSON spec
       - [`gog sheets (sheet) chart (charts) delete (rm,remove,del) <spreadsheetId> <chartId>`](commands/gog-sheets-chart-delete.md) - Delete a chart
@@ -389,6 +393,10 @@ Generated from `gog schema --json`.
       - [`gog sheets (sheet) chart (charts) list <spreadsheetId>`](commands/gog-sheets-chart-list.md) - List charts in a spreadsheet
       - [`gog sheets (sheet) chart (charts) update (edit,set) --spec-json=STRING <spreadsheetId> <chartId>`](commands/gog-sheets-chart-update.md) - Update a chart spec
     - [`gog sheets (sheet) clear <spreadsheetId> <range>`](commands/gog-sheets-clear.md) - Clear values in a range
+    - [`gog sheets (sheet) conditional-format (cf,conditional-formats) <command>`](commands/gog-sheets-conditional-format.md) - Manage conditional formatting rules
+      - [`gog sheets (sheet) conditional-format (cf,conditional-formats) add (create,new) --type=STRING --format-json=STRING <spreadsheetId> <range> [flags]`](commands/gog-sheets-conditional-format-add.md) - Add a conditional formatting rule
+      - [`gog sheets (sheet) conditional-format (cf,conditional-formats) clear (delete,rm,remove) --sheet=STRING <spreadsheetId> [flags]`](commands/gog-sheets-conditional-format-clear.md) - Remove conditional formatting rules
+      - [`gog sheets (sheet) conditional-format (cf,conditional-formats) list <spreadsheetId> [flags]`](commands/gog-sheets-conditional-format-list.md) - List conditional formatting rules
     - [`gog sheets (sheet) copy (cp,duplicate) <spreadsheetId> <title> [flags]`](commands/gog-sheets-copy.md) - Copy a Google Sheet
     - [`gog sheets (sheet) create (new) <title> [flags]`](commands/gog-sheets-create.md) - Create a new spreadsheet
     - [`gog sheets (sheet) delete-tab (delete-sheet) <spreadsheetId> <tabName>`](commands/gog-sheets-delete-tab.md) - Delete a tab/sheet from a spreadsheet (use --force to skip confirmation)

@@ -2,7 +2,7 @@
 
 Every `gog` command has a generated docs page. The source of truth is the live CLI schema; run `make docs-commands` after changing command names, flags, help text, aliases, or arguments.
 
-Generated pages: 458.
+Generated pages: 466.
 
 ## Top-level Commands
 
@@ -425,6 +425,10 @@ Generated pages: 458.
   - [gog sheets](gog-sheets.md) - Google Sheets
     - [gog sheets add-tab](gog-sheets-add-tab.md) - Add a new tab/sheet to a spreadsheet
     - [gog sheets append](gog-sheets-append.md) - Append values to a range
+    - [gog sheets banding](gog-sheets-banding.md) - Manage alternating color banding
+      - [gog sheets banding clear](gog-sheets-banding-clear.md) - Remove alternating color banding
+      - [gog sheets banding list](gog-sheets-banding-list.md) - List alternating color banded ranges
+      - [gog sheets banding set](gog-sheets-banding-set.md) - Apply alternating colors to a range
     - [gog sheets chart](gog-sheets-chart.md) - Manage spreadsheet charts
       - [gog sheets chart create](gog-sheets-chart-create.md) - Create a chart from a JSON spec
       - [gog sheets chart delete](gog-sheets-chart-delete.md) - Delete a chart
@@ -432,6 +436,10 @@ Generated pages: 458.
       - [gog sheets chart list](gog-sheets-chart-list.md) - List charts in a spreadsheet
       - [gog sheets chart update](gog-sheets-chart-update.md) - Update a chart spec
     - [gog sheets clear](gog-sheets-clear.md) - Clear values in a range
+    - [gog sheets conditional-format](gog-sheets-conditional-format.md) - Manage conditional formatting rules
+      - [gog sheets conditional-format add](gog-sheets-conditional-format-add.md) - Add a conditional formatting rule
+      - [gog sheets conditional-format clear](gog-sheets-conditional-format-clear.md) - Remove conditional formatting rules
+      - [gog sheets conditional-format list](gog-sheets-conditional-format-list.md) - List conditional formatting rules
     - [gog sheets copy](gog-sheets-copy.md) - Copy a Google Sheet
     - [gog sheets create](gog-sheets-create.md) - Create a new spreadsheet
     - [gog sheets delete-tab](gog-sheets-delete-tab.md) - Delete a tab/sheet from a spreadsheet (use --force to skip confirmation)

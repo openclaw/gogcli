@@ -33,6 +33,8 @@ type SheetsCmd struct {
 	Insert        SheetsInsertCmd        `cmd:"" name:"insert" help:"Insert empty rows or columns into a sheet"`
 	Clear         SheetsClearCmd         `cmd:"" name:"clear" help:"Clear values in a range"`
 	Format        SheetsFormatCmd        `cmd:"" name:"format" help:"Apply cell formatting to a range"`
+	Conditional   SheetsConditionalCmd   `cmd:"" name:"conditional-format" aliases:"cf,conditional-formats" help:"Manage conditional formatting rules"`
+	Banding       SheetsBandingCmd       `cmd:"" name:"banding" aliases:"banded-ranges" help:"Manage alternating color banding"`
 	Merge         SheetsMergeCmd         `cmd:"" name:"merge" help:"Merge cells in a range"`
 	Unmerge       SheetsUnmergeCmd       `cmd:"" name:"unmerge" help:"Unmerge cells in a range"`
 	NumberFormat  SheetsNumberFormatCmd  `cmd:"" name:"number-format" help:"Apply number format to a range"`
