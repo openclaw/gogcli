@@ -235,6 +235,7 @@ forms:
   get: true
   create: false
   update: false
+  publish: false
   add-question: false
   delete-question: false
   move-question: false

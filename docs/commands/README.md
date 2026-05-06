@@ -2,7 +2,7 @@
 
 Every `gog` command has a generated docs page. The source of truth is the live CLI schema; run `make docs-commands` after changing command names, flags, help text, aliases, or arguments.
 
-Generated pages: 470.
+Generated pages: 471.
 
 ## Top-level Commands
 
@@ -311,6 +311,7 @@ Generated pages: 470.
     - [gog forms delete-question](gog-forms-delete-question.md) - Delete a question by index
     - [gog forms get](gog-forms-get.md) - Get a form
     - [gog forms move-question](gog-forms-move-question.md) - Move a question to a new position
+    - [gog forms publish](gog-forms-publish.md) - Publish or unpublish a form
     - [gog forms raw](gog-forms-raw.md) - Dump raw Google Forms API response as JSON (Forms.Get; lossless; for scripting and LLM consumption)
     - [gog forms responses](gog-forms-responses.md) - Form responses
       - [gog forms responses get](gog-forms-responses-get.md) - Get a form response

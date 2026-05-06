@@ -268,6 +268,7 @@ Generated from `gog schema --json`.
     - [`gog forms (form) delete-question (delete-q,dq,rm-q) <formId> <index>`](commands/gog-forms-delete-question.md) - Delete a question by index
     - [`gog forms (form) get (info,show) <formId>`](commands/gog-forms-get.md) - Get a form
     - [`gog forms (form) move-question (move-q,mq) <formId> <oldIndex> <newIndex>`](commands/gog-forms-move-question.md) - Move a question to a new position
+    - [`gog forms (form) publish <formId> [flags]`](commands/gog-forms-publish.md) - Publish or unpublish a form
     - [`gog forms (form) raw <formId> [flags]`](commands/gog-forms-raw.md) - Dump raw Google Forms API response as JSON (Forms.Get; lossless; for scripting and LLM consumption)
     - [`gog forms (form) responses <command>`](commands/gog-forms-responses.md) - Form responses
       - [`gog forms (form) responses get (info,show) <formId> <responseId>`](commands/gog-forms-responses-get.md) - Get a form response
