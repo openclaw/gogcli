@@ -39,6 +39,7 @@ gog <command> [flags]
 - [gog logout](gog-logout.md) - Remove a stored refresh token (alias for 'auth remove')
 - [gog ls](gog-ls.md) - List Drive files (alias for 'drive ls')
 - [gog me](gog-me.md) - Show your profile (alias for 'people me')
+- [gog meet](gog-meet.md) - Google Meet
 - [gog open](gog-open.md) - Print a best-effort web URL for a Google URL/ID (offline)
 - [gog people](gog-people.md) - Google People
 - [gog schema](gog-schema.md) - Machine-readable command/flag schema

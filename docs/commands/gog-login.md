@@ -44,7 +44,7 @@ gog login <email> [flags]
 | `--remote` | `bool` |  | Remote/server-friendly manual flow (print URL, then exchange code) |
 | `--results-only` | `bool` |  | In JSON mode, emit only the primary result (drops envelope fields like nextPageToken) |
 | `--select`<br>`--pick`<br>`--project` | `string` |  | In JSON mode, select comma-separated fields (best-effort; supports dot paths). Desire path: use --fields for most commands. |
-| `--services` | `string` | user | Services to authorize: user\|all or comma-separated gmail,calendar,chat,classroom,drive,docs,slides,contacts,tasks,sheets,people,forms,appscript,ads (Keep uses service account: gog auth service-account set) |
+| `--services` | `string` | user | Services to authorize: user\|all or comma-separated gmail,calendar,chat,classroom,drive,docs,slides,contacts,tasks,sheets,people,forms,meet,appscript,ads (Keep uses service account: gog auth service-account set) |
 | `--step` | `int` |  | Remote auth step: 1=print URL, 2=exchange code |
 | `--timeout` | `time.Duration` |  | Authorization timeout (manual flows default to 5m) |
 | `-v`<br>`--verbose` | `bool` |  | Enable verbose logging |

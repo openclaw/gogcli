@@ -36,7 +36,7 @@ gog auth manage (login) [flags]
 | `--redirect-host` | `string` |  | Hostname for OAuth callback; builds https://{host}/oauth2/callback |
 | `--results-only` | `bool` |  | In JSON mode, emit only the primary result (drops envelope fields like nextPageToken) |
 | `--select`<br>`--pick`<br>`--project` | `string` |  | In JSON mode, select comma-separated fields (best-effort; supports dot paths). Desire path: use --fields for most commands. |
-| `--services` | `string` | user | Services to authorize: user\|all or comma-separated gmail,calendar,chat,classroom,drive,docs,slides,contacts,tasks,sheets,people,forms,appscript,ads (Keep uses service account: gog auth service-account set) |
+| `--services` | `string` | user | Services to authorize: user\|all or comma-separated gmail,calendar,chat,classroom,drive,docs,slides,contacts,tasks,sheets,people,forms,meet,appscript,ads (Keep uses service account: gog auth service-account set) |
 | `--timeout` | `time.Duration` | 10m | Server timeout duration |
 | `-v`<br>`--verbose` | `bool` |  | Enable verbose logging |
 | `--version` | `kong.VersionFlag` |  | Print version and exit |
