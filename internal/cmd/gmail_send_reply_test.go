@@ -101,6 +101,40 @@ func TestFetchReplyInfoFromThread(t *testing.T) {
 	}
 }
 
+func TestFetchReplyInfoNoMessageIDFails(t *testing.T) {
+	origNew := newGmailService
+	t.Cleanup(func() { newGmailService = origNew })
+
+	svc, cleanup := newGmailServiceForTest(t, func(w http.ResponseWriter, r *http.Request) {
+		path := strings.TrimPrefix(r.URL.Path, "/gmail/v1")
+		if r.Method != http.MethodGet || path != "/users/me/messages/m0" {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"id":       "m0",
+			"threadId": "t0",
+			"payload": map[string]any{
+				"headers": []map[string]any{
+					{"name": "From", "value": "a@example.com"},
+					{"name": "Subject", "value": "no message id here"},
+				},
+			},
+		})
+	})
+	defer cleanup()
+	newGmailService = func(context.Context, string) (*gmail.Service, error) { return svc, nil }
+
+	_, err := fetchReplyInfo(context.Background(), svc, "m0", "", false)
+	if err == nil {
+		t.Fatal("expected error when reply target lacks Message-ID")
+	}
+	if !strings.Contains(err.Error(), "Message-ID") {
+		t.Fatalf("expected error to mention Message-ID, got: %v", err)
+	}
+}
+
 func TestWriteSendResults_JSON(t *testing.T) {
 	u, err := ui.New(ui.Options{Stdout: io.Discard, Stderr: io.Discard, Color: "never"})
 	if err != nil {

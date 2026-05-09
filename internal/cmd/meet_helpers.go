@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"fmt"
 	"strings"
 
 	"google.golang.org/api/meet/v2"
@@ -33,6 +34,10 @@ func wrapMeetError(err error) error {
 	}
 
 	return err
+}
+
+func meetSpaceNameFilter(spaceName string) string {
+	return fmt.Sprintf("space.name = %q", spaceName)
 }
 
 // participantDisplayName extracts a human-readable name from a participant.

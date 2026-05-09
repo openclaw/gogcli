@@ -103,9 +103,9 @@ func (c *DocsCatCmd) runWithTabs(ctx context.Context, svc *docs.Service, id stri
 
 	tabs := flattenTabs(doc.Tabs)
 	if c.Tab != "" {
-		tab := findTab(tabs, c.Tab)
-		if tab == nil {
-			return fmt.Errorf("tab not found: %s", c.Tab)
+		tab, tabErr := findTab(tabs, c.Tab)
+		if tabErr != nil {
+			return tabErr
 		}
 		if c.Numbered {
 			return c.printNumbered(ctx, doc, c.Tab)
@@ -347,43 +347,6 @@ func appendLimited(buf *bytes.Buffer, maxBytes int64, s string) bool {
 	}
 	_, _ = buf.WriteString(s)
 	return true
-}
-
-func flattenTabs(tabs []*docs.Tab) []*docs.Tab {
-	var result []*docs.Tab
-	for _, tab := range tabs {
-		if tab == nil {
-			continue
-		}
-		result = append(result, tab)
-		if len(tab.ChildTabs) > 0 {
-			result = append(result, flattenTabs(tab.ChildTabs)...)
-		}
-	}
-	return result
-}
-
-func findTab(tabs []*docs.Tab, query string) *docs.Tab {
-	query = strings.TrimSpace(query)
-	for _, tab := range tabs {
-		if tab.TabProperties != nil && tab.TabProperties.TabId == query {
-			return tab
-		}
-	}
-	lower := strings.ToLower(query)
-	for _, tab := range tabs {
-		if tab.TabProperties != nil && strings.ToLower(tab.TabProperties.Title) == lower {
-			return tab
-		}
-	}
-	return nil
-}
-
-func tabTitle(tab *docs.Tab) string {
-	if tab.TabProperties != nil && tab.TabProperties.Title != "" {
-		return tab.TabProperties.Title
-	}
-	return "(untitled)"
 }
 
 func tabPlainText(tab *docs.Tab, maxBytes int64) string {

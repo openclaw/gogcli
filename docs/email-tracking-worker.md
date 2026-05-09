@@ -15,9 +15,11 @@ Location:
 
 Expected bindings:
 - D1 database binding: `DB`
-- Secrets: `TRACKING_KEY`, `ADMIN_KEY`
+- Secrets: `TRACKING_KEY`, `TRACKING_KEY_V<N>`, `TRACKING_CURRENT_KEY_VERSION`, `ADMIN_KEY`
 
 `wrangler.toml` is the local template; deployments set the real D1 database id.
+
+`TRACKING_KEY` remains as the current-key fallback for legacy deployments and legacy unversioned tracking ids. New rotated deployments also set `TRACKING_KEY_V1`, `TRACKING_KEY_V2`, etc. The Worker reads the one-byte version prefix from new tracking ids, uses the matching `TRACKING_KEY_V<N>` when present, and falls back through active keys for older unversioned ids.
 
 ## Routes (high-level)
 

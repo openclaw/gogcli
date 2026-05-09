@@ -233,18 +233,20 @@ func TestAuthAdd_TextOutput(t *testing.T) {
 	origOpen := openSecretsStore
 	origAuth := authorizeGoogle
 	origKeychain := ensureKeychainAccess
-	origFetch := fetchAuthorizedEmail
+	origFetch := fetchAuthorizedIdentity
 	t.Cleanup(func() {
 		openSecretsStore = origOpen
 		authorizeGoogle = origAuth
 		ensureKeychainAccess = origKeychain
-		fetchAuthorizedEmail = origFetch
+		fetchAuthorizedIdentity = origFetch
 	})
 
 	store := newMemStore()
 	openSecretsStore = func() (secrets.Store, error) { return store, nil }
 	authorizeGoogle = func(context.Context, googleauth.AuthorizeOptions) (string, error) { return "rt", nil }
-	fetchAuthorizedEmail = func(context.Context, string, string, []string, time.Duration) (string, error) { return "a@b.com", nil }
+	fetchAuthorizedIdentity = func(context.Context, string, string, []string, time.Duration) (googleauth.Identity, error) {
+		return googleauth.Identity{Email: "a@b.com"}, nil
+	}
 	ensureKeychainAccess = func() error { return nil }
 
 	var outBuf strings.Builder

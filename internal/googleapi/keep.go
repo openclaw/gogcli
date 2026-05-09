@@ -13,13 +13,7 @@ import (
 )
 
 func NewKeep(ctx context.Context, email string) (*keep.Service, error) {
-	if opts, err := optionsForAccount(ctx, googleauth.ServiceKeep, email); err != nil {
-		return nil, fmt.Errorf("keep options: %w", err)
-	} else if svc, err := keep.NewService(ctx, opts...); err != nil {
-		return nil, fmt.Errorf("create keep service: %w", err)
-	} else {
-		return svc, nil
-	}
+	return newGoogleServiceForAccount(ctx, email, googleauth.ServiceKeep, "keep", keep.NewService)
 }
 
 func NewKeepWithServiceAccount(ctx context.Context, serviceAccountPath, impersonateEmail string) (*keep.Service, error) {

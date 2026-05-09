@@ -23,7 +23,7 @@ var errTestStoreBoom = errors.New("boom")
 func TestHandleAccountsPage(t *testing.T) {
 	ms := &ManageServer{csrfToken: "csrf123"}
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/", nil)
 	ms.handleAccountsPage(rec, req)
 
 	if rec.Code != http.StatusOK {
@@ -35,7 +35,7 @@ func TestHandleAccountsPage(t *testing.T) {
 	}
 
 	rec = httptest.NewRecorder()
-	req = httptest.NewRequest(http.MethodGet, "/nope", nil)
+	req = httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/nope", nil)
 	ms.handleAccountsPage(rec, req)
 
 	if rec.Code != http.StatusNotFound {
@@ -111,7 +111,7 @@ func TestManageServerHandleOAuthCallback_ReadCredsError(t *testing.T) {
 	}
 
 	rr := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/oauth2/callback?state=state1&code=abc", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/oauth2/callback?state=state1&code=abc", nil)
 	ms.handleOAuthCallback(rr, req)
 
 	if rr.Code != http.StatusInternalServerError {
@@ -143,7 +143,7 @@ func TestManageServerHandleOAuthCallback_ScopesError(t *testing.T) {
 	}
 
 	rr := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/oauth2/callback?state=state1&code=abc", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/oauth2/callback?state=state1&code=abc", nil)
 	ms.handleOAuthCallback(rr, req)
 
 	if rr.Code != http.StatusInternalServerError {
@@ -187,7 +187,7 @@ func TestManageServerHandleOAuthCallback_ExchangeError(t *testing.T) {
 	}
 
 	rr := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/oauth2/callback?state=state1&code=abc", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/oauth2/callback?state=state1&code=abc", nil)
 	ms.handleOAuthCallback(rr, req)
 
 	if rr.Code != http.StatusInternalServerError {
@@ -236,7 +236,7 @@ func TestManageServerHandleOAuthCallback_MissingRefreshToken(t *testing.T) {
 	}
 
 	rr := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/oauth2/callback?state=state1&code=abc", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/oauth2/callback?state=state1&code=abc", nil)
 	ms.handleOAuthCallback(rr, req)
 
 	if rr.Code != http.StatusBadRequest {
@@ -282,14 +282,14 @@ func TestManageServerHandleOAuthCallback_FetchEmailError(t *testing.T) {
 		oauthState: "state1",
 		listener:   ln,
 		store:      &fakeStore{},
-		fetchEmail: func(context.Context, *oauth2.Token) (string, error) {
-			return "", errTestStoreBoom
+		fetchIdentity: func(context.Context, *oauth2.Token) (Identity, error) {
+			return Identity{}, errTestStoreBoom
 		},
 		opts: ManageServerOptions{Services: []Service{ServiceGmail}},
 	}
 
 	rr := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/oauth2/callback?state=state1&code=abc", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/oauth2/callback?state=state1&code=abc", nil)
 	ms.handleOAuthCallback(rr, req)
 
 	if rr.Code != http.StatusInternalServerError {

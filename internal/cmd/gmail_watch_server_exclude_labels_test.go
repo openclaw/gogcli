@@ -99,7 +99,7 @@ func TestGmailWatchServer_ServeHTTP_ExcludeLabels_SkipsHook(t *testing.T) {
 	push.Message.Data = base64.StdEncoding.EncodeToString([]byte(`{"emailAddress":"a@b.com","historyId":"200"}`))
 	body, _ := json.Marshal(push)
 
-	req := httptest.NewRequest(http.MethodPost, "/gmail-pubsub?token=tok", bytes.NewReader(body))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/gmail-pubsub?token=tok", bytes.NewReader(body))
 	rr := httptest.NewRecorder()
 	s.ServeHTTP(rr, req)
 

@@ -53,6 +53,13 @@ func TestDocsSedCmd_RegexMatching(t *testing.T) {
 			want:  "dog catalog bobcat dog",
 			wantN: 2,
 		},
+		{
+			name:  "whole match backreference ampersand",
+			expr:  `s/foo/&/`,
+			input: "foo",
+			want:  "foo",
+			wantN: 1,
+		},
 	}
 
 	for _, tt := range tests {
@@ -88,6 +95,35 @@ func TestDocsSedCmd_RegexMatching(t *testing.T) {
 			}
 			if count != tt.wantN {
 				t.Errorf("match count = %d, want %d", count, tt.wantN)
+			}
+		})
+	}
+}
+
+func TestParseFullExpr_BackrefsSkipBraceFormatting(t *testing.T) {
+	testCases := []struct {
+		name string
+		expr string
+		want string
+	}{
+		{name: "whole match ampersand", expr: `s/foo/&/`, want: "${0}"},
+		{name: "capture backref", expr: `s/(foo)/\1/`, want: "${1}"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			expr, err := parseFullExpr(tc.expr)
+			if err != nil {
+				t.Fatalf("parseFullExpr: %v", err)
+			}
+			if expr.replacement != tc.want {
+				t.Fatalf("replacement = %q, want %q", expr.replacement, tc.want)
+			}
+			if expr.brace != nil || len(expr.braceSpans) != 0 {
+				t.Fatalf("backreference parsed as brace formatting: %#v %#v", expr.brace, expr.braceSpans)
+			}
+			if canUseNativeReplace(expr.replacement) {
+				t.Fatalf("backreference replacement should use manual path")
 			}
 		})
 	}

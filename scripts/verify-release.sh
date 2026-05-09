@@ -44,13 +44,13 @@ if [[ "$assets_count" -eq 0 ]]; then
   exit 2
 fi
 
-release_run_id="$(gh run list -L 20 --workflow release.yml --json databaseId,conclusion,headBranch -q ".[] | select(.headBranch==\"v$version\") | select(.conclusion==\"success\") | .databaseId" | head -n1)"
+release_run_id="$(gh api repos/steipete/gogcli/actions/runs --jq ".workflow_runs[] | select(.name==\"release\") | select(.head_branch==\"v$version\") | select(.conclusion==\"success\") | .id" | head -n1)"
 if [[ -z "$release_run_id" ]]; then
   echo "release workflow not green for v$version" >&2
   exit 2
 fi
 
-ci_ok="$(gh run list -L 1 --workflow ci --branch main --json conclusion -q '.[0].conclusion')"
+ci_ok="$(gh api repos/steipete/gogcli/actions/runs --jq '.workflow_runs[] | select(.name=="ci") | select(.head_branch=="main") | .conclusion // ""' | head -n1)"
 if [[ "$ci_ok" != "success" ]]; then
   echo "CI not green for main" >&2
   exit 2
@@ -97,6 +97,42 @@ darwin_arm64_formula="$(formula_sha_for_url "gogcli_#{version}_darwin_arm64.tar.
 linux_amd64_formula="$(formula_sha_for_url "gogcli_#{version}_linux_amd64.tar.gz")"
 linux_arm64_formula="$(formula_sha_for_url "gogcli_#{version}_linux_arm64.tar.gz")"
 
+verify_darwin_asset_signature() {
+  local asset="$1"
+  if [[ "$(uname -s)" != "Darwin" ]]; then
+    echo "skipping macOS signature verification for $asset (not running on Darwin)" >&2
+    return 0
+  fi
+
+  local work
+  work="$(mktemp -d -t gogcli-signature-check)"
+  tar -xzf "$tmp_assets_dir/$asset" -C "$work"
+
+  local bin="$work/gog"
+  if [[ ! -x "$bin" ]]; then
+    echo "missing gog binary in $asset" >&2
+    rm -rf "$work"
+    exit 2
+  fi
+
+  codesign --verify --deep --strict --verbose=2 "$bin"
+
+  local details
+  details="$(codesign -dv --verbose=4 "$bin" 2>&1)"
+  if grep -q "Signature=adhoc" <<<"$details"; then
+    echo "darwin asset is ad-hoc signed: $asset" >&2
+    rm -rf "$work"
+    exit 2
+  fi
+  if grep -q "TeamIdentifier=not set" <<<"$details"; then
+    echo "darwin asset has no TeamIdentifier: $asset" >&2
+    rm -rf "$work"
+    exit 2
+  fi
+
+  rm -rf "$work"
+}
+
 if [[ "$darwin_amd64_formula" != "$darwin_amd64_expected" ]]; then
   echo "formula sha mismatch (darwin_amd64): $darwin_amd64_formula (expected $darwin_amd64_expected)" >&2
   exit 2
@@ -113,6 +149,14 @@ if [[ "$linux_arm64_formula" != "$linux_arm64_expected" ]]; then
   echo "formula sha mismatch (linux_arm64): $linux_arm64_formula (expected $linux_arm64_expected)" >&2
   exit 2
 fi
+
+gh release download "v$version" \
+  -p "gogcli_${version}_darwin_amd64.tar.gz" \
+  -p "gogcli_${version}_darwin_arm64.tar.gz" \
+  -D "$tmp_assets_dir" >/dev/null
+
+verify_darwin_asset_signature "gogcli_${version}_darwin_amd64.tar.gz"
+verify_darwin_asset_signature "gogcli_${version}_darwin_arm64.tar.gz"
 
 brew update >/dev/null
 brew upgrade gogcli || brew install steipete/tap/gogcli

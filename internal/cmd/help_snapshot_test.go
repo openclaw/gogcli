@@ -38,7 +38,7 @@ func TestHelpSnapshot_Auth(t *testing.T) {
 func TestHelpSnapshot_DocsUpdate(t *testing.T) {
 	out := captureHelpOutput(t, "docs", "update", "--help")
 	requireHelpContains(t, out,
-		"--tab-id",
+		"--tab",
 		"--text",
 		"--file",
 		"--index",

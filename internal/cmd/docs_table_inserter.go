@@ -22,7 +22,7 @@ func NewTableInserter(svc *docs.Service, docID string) *TableInserter {
 
 // InsertNativeTable inserts a native Google Docs table and populates it with content
 // Returns the end index of the table after insertion
-func (ti *TableInserter) InsertNativeTable(ctx context.Context, tableIndex int64, cells [][]string) (int64, error) {
+func (ti *TableInserter) InsertNativeTable(ctx context.Context, tableIndex int64, cells [][]string, tabID string) (int64, error) {
 	if len(cells) == 0 || len(cells[0]) == 0 {
 		return tableIndex, nil
 	}
@@ -37,6 +37,7 @@ func (ti *TableInserter) InsertNativeTable(ctx context.Context, tableIndex int64
 			Columns: cols,
 			Location: &docs.Location{
 				Index: tableIndex,
+				TabId: tabID,
 			},
 		},
 	}

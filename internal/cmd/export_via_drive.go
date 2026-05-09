@@ -102,6 +102,9 @@ func exportViaDrive(ctx context.Context, flags *RootFlags, opts exportViaDriveOp
 	if err != nil {
 		return err
 	}
+	if outfmt.IsJSON(ctx) && isStdoutPath(destPath) {
+		return usage("can't combine --json with --out -")
+	}
 
 	downloadedPath, size, err := downloadDriveFile(ctx, svc, meta, destPath, format)
 	if err != nil {
@@ -110,6 +113,9 @@ func exportViaDrive(ctx context.Context, flags *RootFlags, opts exportViaDriveOp
 
 	if outfmt.IsJSON(ctx) {
 		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{"path": downloadedPath, "size": size})
+	}
+	if isStdoutPath(downloadedPath) {
+		return nil
 	}
 	u.Out().Printf("path\t%s", downloadedPath)
 	u.Out().Printf("size\t%s", formatDriveSize(size))

@@ -109,6 +109,152 @@ func TestDriveShare_DefaultRole(t *testing.T) {
 	}
 }
 
+func TestNormalizeDrivePermissionRole(t *testing.T) {
+	tests := []struct {
+		name    string
+		role    string
+		want    string
+		wantErr bool
+	}{
+		{name: "default", role: "", want: drivePermRoleReader},
+		{name: "trimmed", role: " writer ", want: drivePermRoleWriter},
+		{name: "commenter", role: drivePermRoleCommenter, want: drivePermRoleCommenter},
+		{name: "invalid", role: "owner", wantErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := normalizeDrivePermissionRole(tt.role)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatalf("expected error")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("normalizeDrivePermissionRole: %v", err)
+			}
+			if got != tt.want {
+				t.Fatalf("role = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestDriveShareNormalizeTarget(t *testing.T) {
+	tests := []struct {
+		name    string
+		cmd     DriveShareCmd
+		want    driveShareTarget
+		wantErr string
+	}{
+		{name: "legacy anyone", cmd: DriveShareCmd{Anyone: true}, want: driveShareTarget{to: driveShareToAnyone}},
+		{name: "legacy user", cmd: DriveShareCmd{Email: " x@example.com "}, want: driveShareTarget{to: driveShareToUser, email: "x@example.com"}},
+		{name: "legacy domain", cmd: DriveShareCmd{Domain: " example.com "}, want: driveShareTarget{to: driveShareToDomain, domain: "example.com"}},
+		{name: "explicit anyone", cmd: DriveShareCmd{To: " anyone "}, want: driveShareTarget{to: driveShareToAnyone}},
+		{name: "explicit user", cmd: DriveShareCmd{To: driveShareToUser, Email: "x@example.com"}, want: driveShareTarget{to: driveShareToUser, email: "x@example.com"}},
+		{name: "explicit domain", cmd: DriveShareCmd{To: driveShareToDomain, Domain: "example.com", Discoverable: true}, want: driveShareTarget{to: driveShareToDomain, domain: "example.com"}},
+		{name: "missing target", cmd: DriveShareCmd{}, wantErr: "must specify --to"},
+		{name: "ambiguous target", cmd: DriveShareCmd{Anyone: true, Email: "x@example.com"}, wantErr: "ambiguous share target"},
+		{name: "anyone with email", cmd: DriveShareCmd{To: driveShareToAnyone, Email: "x@example.com"}, wantErr: "--to=anyone cannot be combined"},
+		{name: "user without email", cmd: DriveShareCmd{To: driveShareToUser}, wantErr: "missing --email"},
+		{name: "user with domain", cmd: DriveShareCmd{To: driveShareToUser, Email: "x@example.com", Domain: "example.com"}, wantErr: "--to=user cannot be combined"},
+		{name: "user discoverable", cmd: DriveShareCmd{To: driveShareToUser, Email: "x@example.com", Discoverable: true}, wantErr: "--discoverable is only valid"},
+		{name: "domain without domain", cmd: DriveShareCmd{To: driveShareToDomain}, wantErr: "missing --domain"},
+		{name: "domain with email", cmd: DriveShareCmd{To: driveShareToDomain, Domain: "example.com", Email: "x@example.com"}, wantErr: "--to=domain cannot be combined"},
+		{name: "invalid target", cmd: DriveShareCmd{To: "group"}, wantErr: "invalid --to"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := tt.cmd.normalizeTarget()
+			if tt.wantErr != "" {
+				if err == nil {
+					t.Fatalf("expected error containing %q", tt.wantErr)
+				}
+				if !strings.Contains(err.Error(), tt.wantErr) {
+					t.Fatalf("error = %q, want contains %q", err.Error(), tt.wantErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("normalizeTarget: %v", err)
+			}
+			if got != tt.want {
+				t.Fatalf("target = %#v, want %#v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestDriveShare_CommenterRole(t *testing.T) {
+	origNew := newDriveService
+	t.Cleanup(func() { newDriveService = origNew })
+
+	var sawCommenterRole bool
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := strings.TrimPrefix(r.URL.Path, "/drive/v3")
+		switch {
+		case r.Method == http.MethodPost && strings.HasSuffix(path, "/permissions"):
+			var req map[string]any
+			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+				t.Fatalf("decode permission request: %v", err)
+			}
+			if req["role"] == drivePermRoleCommenter {
+				sawCommenterRole = true
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"id":           "perm1",
+				"type":         "user",
+				"role":         req["role"],
+				"emailAddress": req["emailAddress"],
+			})
+			return
+		case r.Method == http.MethodGet && strings.HasPrefix(path, "/files/"):
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"id":          "f1",
+				"name":        "File",
+				"webViewLink": "https://drive.example/f1",
+			})
+			return
+		default:
+			http.NotFound(w, r)
+			return
+		}
+	}))
+	defer srv.Close()
+
+	svc, err := drive.NewService(context.Background(),
+		option.WithoutAuthentication(),
+		option.WithHTTPClient(srv.Client()),
+		option.WithEndpoint(srv.URL+"/"),
+	)
+	if err != nil {
+		t.Fatalf("NewDriveService: %v", err)
+	}
+	newDriveService = func(context.Context, string) (*drive.Service, error) { return svc, nil }
+
+	u, uiErr := ui.New(ui.Options{Stdout: io.Discard, Stderr: io.Discard, Color: "never"})
+	if uiErr != nil {
+		t.Fatalf("ui.New: %v", uiErr)
+	}
+	ctx := ui.WithUI(context.Background(), u)
+	flags := &RootFlags{Account: "a@b.com"}
+
+	err = (&DriveShareCmd{
+		FileID: "f1",
+		To:     driveShareToUser,
+		Email:  "x@y.com",
+		Role:   drivePermRoleCommenter,
+	}).Run(ctx, flags)
+	if err != nil {
+		t.Fatalf("DriveShareCmd.Run: %v", err)
+	}
+	if !sawCommenterRole {
+		t.Fatalf("expected commenter role in permission create request")
+	}
+}
+
 func TestDriveDownload_TextOutput(t *testing.T) {
 	origNew := newDriveService
 	origDownload := driveDownload
@@ -206,6 +352,7 @@ func TestGoogleConvertMimeType(t *testing.T) {
 		{"deck.pptx", driveMimeGoogleSlides, true},
 		{"deck.ppt", driveMimeGoogleSlides, true},
 		{"notes.txt", driveMimeGoogleDoc, true},
+		{"notes.md", driveMimeGoogleDoc, true},
 		{"page.html", driveMimeGoogleDoc, true},
 		{"photo.png", "", false},
 		{"archive.zip", "", false},
@@ -248,6 +395,14 @@ func TestDriveUploadConvertMimeType(t *testing.T) {
 		t.Fatalf("auto convert = (%q, %v), want (%q, true)", mimeType, convert, driveMimeGoogleDoc)
 	}
 
+	mimeType, convert, err = driveUploadConvertMimeType("notes.md", true, "")
+	if err != nil {
+		t.Fatalf("auto convert md: %v", err)
+	}
+	if !convert || mimeType != driveMimeGoogleDoc {
+		t.Fatalf("auto convert md = (%q, %v), want (%q, true)", mimeType, convert, driveMimeGoogleDoc)
+	}
+
 	mimeType, convert, err = driveUploadConvertMimeType("photo.png", false, "sheet")
 	if err != nil {
 		t.Fatalf("explicit convert: %v", err)
@@ -280,6 +435,7 @@ func TestStripOfficeExt(t *testing.T) {
 		{"budget.xls", "budget"},
 		{"deck.pptx", "deck"},
 		{"deck.ppt", "deck"},
+		{"notes.md", "notes"},
 		{"notes.txt", "notes.txt"},
 		{"photo.png", "photo.png"},
 		{"no-ext", "no-ext"},

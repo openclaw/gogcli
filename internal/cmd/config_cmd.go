@@ -10,12 +10,13 @@ import (
 )
 
 type ConfigCmd struct {
-	Get   ConfigGetCmd   `cmd:"" aliases:"show" help:"Get a config value"`
-	Keys  ConfigKeysCmd  `cmd:"" aliases:"list-keys,names" help:"List available config keys"`
-	Set   ConfigSetCmd   `cmd:"" aliases:"add,update" help:"Set a config value"`
-	Unset ConfigUnsetCmd `cmd:"" aliases:"rm,del,remove" help:"Unset a config value"`
-	List  ConfigListCmd  `cmd:"" aliases:"ls,all" help:"List all config values"`
-	Path  ConfigPathCmd  `cmd:"" aliases:"where" help:"Print config file path"`
+	Get    ConfigGetCmd    `cmd:"" aliases:"show" help:"Get a config value"`
+	Keys   ConfigKeysCmd   `cmd:"" aliases:"list-keys,names" help:"List available config keys"`
+	Set    ConfigSetCmd    `cmd:"" aliases:"add,update" help:"Set a config value"`
+	Unset  ConfigUnsetCmd  `cmd:"" aliases:"rm,del,remove" help:"Unset a config value"`
+	List   ConfigListCmd   `cmd:"" aliases:"ls,all" help:"List all config values"`
+	Path   ConfigPathCmd   `cmd:"" aliases:"where" help:"Print config file path"`
+	NoSend ConfigNoSendCmd `cmd:"" name:"no-send" aliases:"nosend" help:"Manage per-account Gmail no-send guards"`
 }
 
 type ConfigGetCmd struct {

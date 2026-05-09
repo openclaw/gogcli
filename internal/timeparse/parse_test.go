@@ -110,6 +110,9 @@ func TestParseRangeExpr(t *testing.T) {
 		{name: "today", value: "today", wantDay: 13, wantMonth: time.February, wantHour: 0, wantWeek: time.Friday},
 		{name: "tomorrow", value: "tomorrow", wantDay: 14, wantMonth: time.February, wantHour: 0, wantWeek: time.Saturday},
 		{name: "weekday", value: "monday", wantDay: 16, wantMonth: time.February, wantHour: 0, wantWeek: time.Monday},
+		{name: "tuesday alias", value: "tues", wantDay: 17, wantMonth: time.February, wantHour: 0, wantWeek: time.Tuesday},
+		{name: "thursday alias short", value: "thur", wantDay: 19, wantMonth: time.February, wantHour: 0, wantWeek: time.Thursday},
+		{name: "thursday alias common", value: "thurs", wantDay: 19, wantMonth: time.February, wantHour: 0, wantWeek: time.Thursday},
 		{name: "next weekday", value: "next friday", wantDay: 20, wantMonth: time.February, wantHour: 0, wantWeek: time.Friday},
 		{name: "date", value: "2026-02-01", wantDay: 1, wantMonth: time.February, wantHour: 0, wantWeek: time.Sunday},
 		{name: "datetime", value: "2026-02-01T10:30:00", wantDay: 1, wantMonth: time.February, wantHour: 10, wantWeek: time.Sunday},
@@ -131,6 +134,31 @@ func TestParseRangeExpr(t *testing.T) {
 			}
 			if got.Day() != tc.wantDay || got.Month() != tc.wantMonth || got.Hour() != tc.wantHour || got.Weekday() != tc.wantWeek {
 				t.Fatalf("unexpected parsed range: %v", got)
+			}
+		})
+	}
+}
+
+func TestParseWeekdayName(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		value string
+		want  time.Weekday
+	}{
+		{value: "tue", want: time.Tuesday},
+		{value: "tues", want: time.Tuesday},
+		{value: "thurs", want: time.Thursday},
+		{value: " Thursday ", want: time.Thursday},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.value, func(t *testing.T) {
+			t.Parallel()
+			got, ok := ParseWeekdayName(tc.value)
+
+			if !ok || got != tc.want {
+				t.Fatalf("ParseWeekdayName(%q) = %v ok=%v, want %v true", tc.value, got, ok, tc.want)
 			}
 		})
 	}

@@ -19,11 +19,13 @@ type FormsCmd struct {
 	Get            FormsGetCmd            `cmd:"" name:"get" aliases:"info,show" help:"Get a form"`
 	Create         FormsCreateCmd         `cmd:"" name:"create" aliases:"new" help:"Create a form"`
 	Update         FormsUpdateCmd         `cmd:"" name:"update" aliases:"edit" help:"Update form title, description, or settings"`
+	Publish        FormsPublishCmd        `cmd:"" name:"publish" help:"Publish or unpublish a form"`
 	AddQuestion    FormsAddQuestionCmd    `cmd:"" name:"add-question" aliases:"add-q,aq" help:"Add a question to a form"`
 	DeleteQuestion FormsDeleteQuestionCmd `cmd:"" name:"delete-question" aliases:"delete-q,dq,rm-q" help:"Delete a question by index"`
 	MoveQuestion   FormsMoveQuestionCmd   `cmd:"" name:"move-question" aliases:"move-q,mq" help:"Move a question to a new position"`
 	Responses      FormsResponsesCmd      `cmd:"" name:"responses" help:"Form responses"`
 	Watch          FormsWatchCmd          `cmd:"" name:"watch" aliases:"watches" help:"Response watches (push notifications)"`
+	Raw            FormsRawCmd            `cmd:"" name:"raw" help:"Dump raw Google Forms API response as JSON (Forms.Get; lossless; for scripting and LLM consumption)"`
 }
 
 type FormsResponsesCmd struct {

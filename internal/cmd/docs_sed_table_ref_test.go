@@ -33,6 +33,7 @@ func TestParseTableCellRef(t *testing.T) {
 			}
 			if ref == nil {
 				t.Fatal("expected non-nil ref")
+				return
 			}
 			if ref.tableIndex != tt.wantTable {
 				t.Errorf("tableIndex = %d, want %d", ref.tableIndex, tt.wantTable)

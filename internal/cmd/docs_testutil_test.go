@@ -19,16 +19,16 @@ func newDocsServiceForTest(t *testing.T, h http.HandlerFunc) (*docs.Service, fun
 	t.Helper()
 
 	srv := httptest.NewServer(h)
+	t.Cleanup(srv.Close)
 	docSvc, err := docs.NewService(context.Background(),
 		option.WithoutAuthentication(),
 		option.WithHTTPClient(srv.Client()),
 		option.WithEndpoint(srv.URL+"/"),
 	)
 	if err != nil {
-		srv.Close()
 		t.Fatalf("NewDocsService: %v", err)
 	}
-	return docSvc, srv.Close
+	return docSvc, func() {} // retained for call-site compat; cleanup is via t.Cleanup
 }
 
 func newDocsCmdContext(t *testing.T) context.Context {

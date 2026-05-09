@@ -1,6 +1,7 @@
 package tracking
 
 import (
+	"encoding/base64"
 	"strings"
 	"testing"
 )
@@ -28,6 +29,30 @@ func TestGeneratePixelURL(t *testing.T) {
 
 	if blob == "" {
 		t.Error("Blob should not be empty")
+	}
+}
+
+func TestGeneratePixelURLUsesCurrentKeyVersion(t *testing.T) {
+	key, _ := GenerateKey()
+	cfg := &Config{
+		Enabled:                   true,
+		WorkerURL:                 "https://test.workers.dev",
+		TrackingKey:               key,
+		TrackingCurrentKeyVersion: 2,
+	}
+
+	_, blob, err := GeneratePixelURL(cfg, "test@example.com", "Hello World")
+	if err != nil {
+		t.Fatalf("GeneratePixelURL failed: %v", err)
+	}
+
+	raw, err := base64.RawURLEncoding.DecodeString(blob)
+	if err != nil {
+		t.Fatalf("decode blob: %v", err)
+	}
+
+	if got := int(raw[0]); got != 2 {
+		t.Fatalf("version prefix = %d, want 2", got)
 	}
 }
 

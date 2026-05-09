@@ -127,3 +127,49 @@ func TestExecute_GmailSearch_Text_NoResults(t *testing.T) {
 		t.Fatalf("unexpected stderr: %q", errOut)
 	}
 }
+
+func TestExecute_GmailSearch_AppliesSystemLabelFilters(t *testing.T) {
+	origNew := newGmailService
+	t.Cleanup(func() { newGmailService = origNew })
+
+	var gotQuery string
+	var gotLabels []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := r.URL.Path
+		switch {
+		case strings.Contains(path, "/users/me/threads") && !strings.Contains(path, "/users/me/threads/"):
+			gotQuery = r.URL.Query().Get("q")
+			gotLabels = r.URL.Query()["labelIds"]
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"threads": []map[string]any{},
+			})
+			return
+		default:
+			http.NotFound(w, r)
+			return
+		}
+	}))
+	defer srv.Close()
+
+	svc, err := gmail.NewService(context.Background(),
+		option.WithoutAuthentication(),
+		option.WithHTTPClient(srv.Client()),
+		option.WithEndpoint(srv.URL+"/"),
+	)
+	if err != nil {
+		t.Fatalf("NewService: %v", err)
+	}
+	newGmailService = func(context.Context, string) (*gmail.Service, error) { return svc, nil }
+
+	_ = captureStderr(t, func() {
+		if err := Execute([]string{"--account", "a@b.com", "gmail", "search", "in:spam is:unread", "--max", "1000"}); err != nil {
+			t.Fatalf("Execute: %v", err)
+		}
+	})
+
+	if gotQuery != "in:spam is:unread" {
+		t.Fatalf("unexpected query: %q", gotQuery)
+	}
+	assertSameStrings(t, gotLabels, []string{"SPAM", "UNREAD"})
+}

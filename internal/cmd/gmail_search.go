@@ -3,7 +3,6 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"os"
 	"strings"
 
 	"google.golang.org/api/gmail/v1"
@@ -40,13 +39,8 @@ func (c *GmailSearchCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 
 	fetch := func(pageToken string) ([]*gmail.Thread, string, error) {
-		call := svc.Users.Threads.List("me").
-			Q(query).
-			MaxResults(c.Max).
-			Context(ctx)
-		if strings.TrimSpace(pageToken) != "" {
-			call = call.PageToken(pageToken)
-		}
+		opts := newGmailSearchRequestOptions(query, c.Max, pageToken)
+		call := applyGmailThreadListOptions(svc.Users.Threads.List("me"), opts).Context(ctx)
 		resp, callErr := call.Do()
 		if callErr != nil {
 			return nil, "", callErr
@@ -54,32 +48,17 @@ func (c *GmailSearchCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return resp.Threads, resp.NextPageToken, nil
 	}
 
-	var threads []*gmail.Thread
-	nextPageToken := ""
-	if c.All {
-		all, collectErr := collectAllPages(c.Page, fetch)
-		if collectErr != nil {
-			return collectErr
-		}
-		threads = all
-	} else {
-		threadsPage, pageToken, fetchErr := fetch(c.Page)
-		if fetchErr != nil {
-			return fetchErr
-		}
-		threads = threadsPage
-		nextPageToken = pageToken
+	threads, nextPageToken, err := loadPagedItems(c.Page, c.All, fetch)
+	if err != nil {
+		return err
 	}
 
 	if len(threads) == 0 {
 		if outfmt.IsJSON(ctx) {
-			if writeErr := outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
+			return writePagedJSONResult(ctx, map[string]any{
 				"threads":       []threadItem{},
 				"nextPageToken": nextPageToken,
-			}); writeErr != nil {
-				return writeErr
-			}
-			return failEmptyExit(c.FailEmpty)
+			}, 0, c.FailEmpty)
 		}
 		u.Err().Println("No results")
 		return failEmptyExit(c.FailEmpty)
@@ -101,16 +80,10 @@ func (c *GmailSearchCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 
 	if outfmt.IsJSON(ctx) {
-		if writeErr := outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
+		return writePagedJSONResult(ctx, map[string]any{
 			"threads":       items,
 			"nextPageToken": nextPageToken,
-		}); writeErr != nil {
-			return writeErr
-		}
-		if len(items) == 0 {
-			return failEmptyExit(c.FailEmpty)
-		}
-		return nil
+		}, len(items), c.FailEmpty)
 	}
 
 	if len(items) == 0 {

@@ -3,7 +3,6 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"os"
 	"strings"
 
 	"google.golang.org/api/slides/v1"
@@ -21,21 +20,10 @@ type SlidesUpdateNotesCmd struct {
 func (c *SlidesUpdateNotesCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
 
-	// Resolve notes: --notes-file takes precedence over --notes.
-	var notes string
-	updateNotes := false
-	if c.NotesFile != "" {
-		data, err := os.ReadFile(c.NotesFile)
-		if err != nil {
-			return fmt.Errorf("read notes file: %w", err)
-		}
-		notes = string(data)
-		updateNotes = true
-	} else if c.Notes != nil {
-		notes = *c.Notes
-		updateNotes = true
+	notes, updateNotes, err := resolveSlidesNotesInput(c.Notes, c.NotesFile)
+	if err != nil {
+		return err
 	}
-
 	if !updateNotes {
 		return usage("provide --notes or --notes-file")
 	}
@@ -64,57 +52,16 @@ func (c *SlidesUpdateNotesCmd) Run(ctx context.Context, flags *RootFlags) error 
 		return fmt.Errorf("get presentation: %w", err)
 	}
 
-	// Find the target slide.
-	var found bool
-	var notesObjectID string
-	for _, s := range pres.Slides {
-		if s.ObjectId != slideID {
-			continue
-		}
-		found = true
-		if np := s.SlideProperties.NotesPage; np != nil {
-			if np.NotesProperties != nil {
-				notesObjectID = np.NotesProperties.SpeakerNotesObjectId
-			}
-			if notesObjectID == "" {
-				for _, el := range np.PageElements {
-					if el.Shape != nil && el.Shape.Placeholder != nil &&
-						el.Shape.Placeholder.Type == placeholderTypeBody {
-						notesObjectID = el.ObjectId
-						break
-					}
-				}
-			}
-		}
-		break
-	}
-
-	if !found {
+	slide, _ := findSlidesPageByID(pres, slideID)
+	if slide == nil {
 		return fmt.Errorf("slide %q not found in presentation", slideID)
 	}
+	notesObjectID := findSpeakerNotesObjectID(slide)
 	if notesObjectID == "" {
 		return fmt.Errorf("could not find speaker notes placeholder on slide %s", slideID)
 	}
 
-	requests := []*slides.Request{
-		{
-			DeleteText: &slides.DeleteTextRequest{
-				ObjectId: notesObjectID,
-				TextRange: &slides.Range{
-					Type: "ALL",
-				},
-			},
-		},
-	}
-	if notes != "" {
-		requests = append(requests, &slides.Request{
-			InsertText: &slides.InsertTextRequest{
-				ObjectId: notesObjectID,
-				Text:     notes,
-			},
-		})
-	}
-
+	requests := buildSlidesClearAndInsertTextRequests(notesObjectID, notes)
 	_, err = slidesSvc.Presentations.BatchUpdate(presentationID, &slides.BatchUpdatePresentationRequest{
 		Requests: requests,
 	}).Context(ctx).Do()

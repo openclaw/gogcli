@@ -114,16 +114,6 @@ func docsDocumentEndIndex(doc *docs.Document) int64 {
 	return end
 }
 
-func findTabByID(tabs []*docs.Tab, tabID string) *docs.Tab {
-	tabID = strings.TrimSpace(tabID)
-	for _, tab := range tabs {
-		if tab != nil && tab.TabProperties != nil && tab.TabProperties.TabId == tabID {
-			return tab
-		}
-	}
-	return nil
-}
-
 func docsTabEndIndex(tab *docs.Tab) int64 {
 	if tab == nil || tab.DocumentTab == nil || tab.DocumentTab.Body == nil {
 		return 1
@@ -140,9 +130,9 @@ func docsTabEndIndex(tab *docs.Tab) int64 {
 	return end
 }
 
-func docsTargetEndIndex(ctx context.Context, svc *docs.Service, docID, tabID string) (int64, error) {
+func docsTargetEndIndexAndTabID(ctx context.Context, svc *docs.Service, docID, tabQuery string) (int64, string, error) {
 	getCall := svc.Documents.Get(docID).Context(ctx)
-	if tabID != "" {
+	if tabQuery != "" {
 		getCall = getCall.IncludeTabsContent(true)
 	} else {
 		getCall = getCall.Fields("documentId,body/content(startIndex,endIndex)")
@@ -151,22 +141,30 @@ func docsTargetEndIndex(ctx context.Context, svc *docs.Service, docID, tabID str
 	doc, err := getCall.Do()
 	if err != nil {
 		if isDocsNotFound(err) {
-			return 0, fmt.Errorf("doc not found or not a Google Doc (id=%s)", docID)
+			return 0, "", fmt.Errorf("doc not found or not a Google Doc (id=%s)", docID)
 		}
-		return 0, err
+		return 0, "", err
 	}
 	if doc == nil {
-		return 0, errors.New("doc not found")
+		return 0, "", errors.New("doc not found")
 	}
-	if tabID == "" {
-		return docsDocumentEndIndex(doc), nil
+	if tabQuery == "" {
+		return docsDocumentEndIndex(doc), "", nil
 	}
 
-	tab := findTabByID(flattenTabs(doc.Tabs), tabID)
-	if tab == nil {
-		return 0, fmt.Errorf("tab not found: %s", tabID)
+	tab, tabErr := findTab(flattenTabs(doc.Tabs), tabQuery)
+	if tabErr != nil {
+		return 0, "", tabErr
 	}
-	return docsTabEndIndex(tab), nil
+	if tab.TabProperties == nil || strings.TrimSpace(tab.TabProperties.TabId) == "" {
+		return 0, "", fmt.Errorf("tab has no ID: %s", tabQuery)
+	}
+	return docsTabEndIndex(tab), tab.TabProperties.TabId, nil
+}
+
+func resolveDocsTabID(ctx context.Context, svc *docs.Service, docID, tabQuery string) (string, error) {
+	_, tabID, err := docsTargetEndIndexAndTabID(ctx, svc, docID, tabQuery)
+	return tabID, err
 }
 
 func docsAppendIndex(endIndex int64) int64 {

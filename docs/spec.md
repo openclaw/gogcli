@@ -31,7 +31,7 @@ This replaces the existing separate CLIs (`gmcli`, `gccli`, `gdcli`) and the Pyt
 
 ## Language/runtime
 
-- Go `1.25` (see `go.mod`)
+- Go `1.26` (see `go.mod`)
 
 ## CLI framework
 
@@ -80,6 +80,7 @@ Implementation: `internal/ui/ui.go`.
   - `gog auth credentials <credentials.json>`
   - `gog --client <name> auth credentials <credentials.json>`
   - `gog auth credentials list`
+  - `gog auth credentials remove [<client>|all]`
 - Supports Google’s downloaded JSON format:
   - `installed.client_id/client_secret` or `web.client_id/client_secret`
 
@@ -88,18 +89,22 @@ Implementation: `internal/config/*`.
 ### Refresh tokens (secrets)
 
 - Stored in OS credential store via `github.com/99designs/keyring`.
-- Key namespace is `gogcli` (keyring `ServiceName`).
+- Key namespace is `gogcli` by default (keyring `ServiceName`); override with `GOG_KEYRING_SERVICE_NAME`.
 - Key format: `token:<client>:<email>` (default client uses `token:default:<email>`)
+- Canonical identity key format for new tokens with an OIDC subject: `token-sub:<client>:<sub>`. Email-keyed entries remain as compatibility lookup keys.
 - Legacy key format: `token:<email>` (migrated on first read)
-- Stored payload is JSON (refresh token + metadata like selected services/scopes).
+- Stored payload is JSON (refresh token + metadata like OIDC subject, current email, selected services/scopes).
+- Email is treated as display/contact state; Google's OIDC `sub` is used to detect the same account after an email rename and migrate aliases/defaults/client mappings on reauthorization.
+- macOS Keychain operations are bounded by a timeout so non-surfacing permission prompts return actionable guidance instead of hanging indefinitely.
 - Fallback: if no OS credential store is available, keyring may use its encrypted "file" backend:
-  - Directory: `$(os.UserConfigDir())/gogcli/keyring/` (one file per key)
+  - Directory: `$(os.UserConfigDir())/gogcli/keyring/` (one file per key; gog-managed key names are encoded for portable filenames)
   - Password: prompts on TTY; for non-interactive runs set `GOG_KEYRING_PASSWORD`
 
 Current minimal management commands (implemented):
 
-- `gog auth tokens list` (keys only)
+- `gog auth tokens list` (keys only; does not decrypt token payloads)
 - `gog auth tokens delete <email>`
+- `gog auth list` reports unreadable token entries instead of failing the whole listing, so one bad file-keyring entry does not hide other accounts.
 
 Implementation: `internal/secrets/store.go`.
 
@@ -142,16 +147,21 @@ Environment:
 - `GOG_CLIENT=work` (select OAuth client bucket; see `--client`)
 - `GOG_KEYRING_PASSWORD=...` (used when keyring falls back to encrypted file backend in non-interactive environments)
 - `GOG_KEYRING_BACKEND={auto|keychain|file}` (force backend; use `file` to avoid Keychain prompts and pair with `GOG_KEYRING_PASSWORD` for non-interactive)
+- `GOG_KEYRING_SERVICE_NAME=...` (override keyring namespace/service name; default `gogcli`)
 - `GOG_TIMEZONE=America/New_York` (default output timezone; IANA name or `UTC`; `local` forces local timezone)
-- `GOG_ENABLE_COMMANDS=calendar,tasks` (optional allowlist of top-level commands)
+- `GOG_ENABLE_COMMANDS=calendar,tasks,gmail.search` (optional allowlist; dot paths allowed)
+- `GOG_DISABLE_COMMANDS=gmail.send,gmail.drafts.send` (optional denylist; dot paths allowed)
+- `GOG_GMAIL_NO_SEND=1` (block Gmail send operations)
 - `config.json` can also set `keyring_backend` (JSON5; env vars take precedence)
 - `config.json` can also set `default_timezone` (IANA name or `UTC`)
 - `config.json` can also set `account_aliases` for `gog auth alias` (JSON5)
 - `config.json` can also set `account_clients` (email -> client) and `client_domains` (domain -> client)
+- `config.json` can also set `gmail_no_send` and `no_send_accounts` for send guards
 
 Flag aliases:
 - `--out` also accepts `--output`.
 - `--out-dir` also accepts `--output-dir` (Gmail thread attachment downloads).
+- Drive download/export commands accept `--out -` to write file bytes to stdout; `--json --out -` is rejected.
 
 ## Commands (current + planned)
 
@@ -159,12 +169,14 @@ Flag aliases:
 
 - `gog auth credentials <credentials.json|->`
 - `gog auth credentials list`
+- `gog auth credentials remove [<client>|all]`
 - `gog --client <name> auth credentials <credentials.json|->`
-- `gog auth add <email> [--services user|all|gmail,calendar,classroom,drive,docs,contacts,tasks,sheets,people,groups] [--readonly] [--drive-scope full|readonly|file] [--gmail-scope full|readonly] [--extra-scopes CSV] [--manual] [--remote] [--step 1|2] [--auth-url URL] [--listen-addr HOST[:PORT]] [--redirect-host HOST] [--timeout DURATION] [--force-consent]`
+- `gog auth add <email> [--services user|all|gmail,calendar,chat,classroom,drive,docs,slides,contacts,tasks,sheets,people,forms,appscript,ads,groups,keep,admin] [--readonly] [--drive-scope full|readonly|file] [--gmail-scope full|readonly] [--extra-scopes CSV] [--manual] [--remote] [--step 1|2] [--auth-url URL] [--listen-addr HOST[:PORT]] [--redirect-host HOST] [--timeout DURATION] [--force-consent]`
 - `gog auth services [--markdown]`
 - `gog auth manage [--services ...] [--listen-addr HOST[:PORT]] [--redirect-host HOST]`
 - `gog auth keep <email> --key <service-account.json>` (Google Keep; Workspace only)
 - `gog auth list`
+- `gog auth doctor [--check]` (diagnose keyring/password drift and refresh-token failures)
 - `gog auth alias list`
 - `gog auth alias set <alias> <email>`
 - `gog auth alias unset <alias>`
@@ -182,24 +194,26 @@ Flag aliases:
 - `gog drive ls [--all] [--parent ID] [--max N] [--page TOKEN] [--query Q] [--[no-]all-drives]` (`--all` and `--parent` are mutually exclusive)
 - `gog drive search <text> [--raw-query] [--max N] [--page TOKEN] [--[no-]all-drives]`
 - `gog drive get <fileId>`
-- `gog drive download <fileId> [--out PATH] [--format F]` (`--format` only applies to Google Workspace files)
-- `gog drive upload <localPath> [--name N] [--parent ID] [--convert] [--convert-to doc|sheet|slides]`
+- `gog drive download <fileId> [--out PATH|-] [--format F]` (`--format` only applies to Google Workspace files; `--format md` exports a Google Doc as Markdown)
+- `gog drive upload <localPath> [--name N] [--parent ID] [--convert] [--convert-to doc|sheet|slides] [--keep-frontmatter]` (Markdown → Google Doc with `--convert` or `--convert-to doc`: leading `---`/`---` frontmatter is stripped before upload unless `--keep-frontmatter`; delimiter-based, not a full YAML parse; large non-JSON uploads print progress to stderr)
 - `gog drive mkdir <name> [--parent ID]`
 - `gog drive delete <fileId> [--permanent]`
 - `gog drive move <fileId> --parent ID`
 - `gog drive rename <fileId> <newName>`
-- `gog drive share <fileId> --to anyone|user|domain [--email addr] [--domain example.com] [--role reader|writer] [--discoverable]`
+- `gog drive share <fileId> --to anyone|user|domain [--email addr] [--domain example.com] [--role reader|writer|commenter] [--discoverable]`
 - `gog drive permissions <fileId> [--max N] [--page TOKEN]`
 - `gog drive unshare <fileId> <permissionId>`
 - `gog drive url <fileIds...>`
 - `gog drive drives [--max N] [--page TOKEN] [--query Q]`
+- `gog slides thumbnail <presentationId> <slideId> [--size small|medium|large] [--format png|jpeg] [--out PATH]`
 - `gog calendar calendars`
+- `gog calendar create-calendar <summary> [--description D] [--timezone TZ] [--location L]`
 - `gog calendar acl <calendarId>`
 - `gog calendar events <calendarId> [--cal ID_OR_NAME] [--calendars CSV] [--all] [--from RFC3339] [--to RFC3339] [--max N] [--page TOKEN] [--query Q] [--weekday]`
 - `gog calendar event|get <calendarId> <eventId>`
 - `GOG_CALENDAR_WEEKDAY=1` defaults `--weekday` for `gog calendar events`
-- `gog calendar create <calendarId> --summary S --from DT --to DT [--description D] [--location L] [--attendees a@b.com,c@d.com] [--all-day] [--event-type TYPE]`
-- `gog calendar update <calendarId> <eventId> [--summary S] [--from DT] [--to DT] [--description D] [--location L] [--attendees ...] [--add-attendee ...] [--all-day] [--event-type TYPE]`
+- `gog calendar create <calendarId> --summary S --from DT --to DT [--start-timezone TZ] [--end-timezone TZ] [--description D] [--location L] [--attendees a@b.com,c@d.com] [--all-day] [--event-type TYPE]`
+- `gog calendar update <calendarId> <eventId> [--summary S] [--from DT] [--to DT] [--start-timezone TZ] [--end-timezone TZ] [--description D] [--location L] [--attendees ...] [--add-attendee ...] [--all-day] [--event-type TYPE]`
 - `gog calendar delete <calendarId> <eventId>`
 - `gog calendar freebusy [calendarIds] [--cal ID_OR_NAME] [--calendars CSV] [--all] --from RFC3339 --to RFC3339`
 - `gog calendar conflicts [--cal ID_OR_NAME] [--calendars CSV] [--all] [--from RFC3339|date|relative] [--to RFC3339|date|relative] [--today|--week|--days N]`
@@ -264,19 +278,22 @@ Flag aliases:
 - `gog classroom guardian-invitations get <studentId> <invitationId>`
 - `gog classroom guardian-invitations create <studentId> --email EMAIL`
 - `gog classroom profile [userId]`
+- `gog contacts dedupe [--match email,phone,name] [--max N]`
 - `gog gmail search <query> [--max N] [--page TOKEN]`
-- `gog gmail messages search <query> [--max N] [--page TOKEN] [--include-body]`
+- `gog gmail messages search <query> [--max N] [--page TOKEN] [--include-body] [--body-format text|html] [--full]`
+- `gog gmail autoreply <query> [--max N] [--subject S] [--body B|--body-file PATH|--body-html HTML] [--from addr] [--reply-to addr] [--label L] [--archive] [--mark-read] [--skip-bulk] [--allow-self]`
 - `gog gmail thread get <threadId> [--download]`
 - `gog gmail thread modify <threadId> [--add ...] [--remove ...]`
 - `gog gmail get <messageId> [--format full|metadata|raw] [--headers ...]`
 - `gog gmail attachment <messageId> <attachmentId> [--out PATH] [--name NAME]`
 - `gog gmail url <threadIds...>`
+- `gog gmail forward <messageId> --to a@b.com [--cc ...] [--bcc ...] [--note TEXT|--note-file PATH] [--from addr] [--skip-attachments]`
 - `gog gmail labels list`
 - `gog gmail labels get <labelIdOrName>`
 - `gog gmail labels create <name>`
 - `gog gmail labels rename <labelIdOrName> <newName>`
 - `gog gmail labels modify <threadIds...> [--add ...] [--remove ...]`
-- `gog gmail send --to a@b.com --subject S [--body B] [--body-html H] [--cc ...] [--bcc ...] [--reply-to-message-id <messageId>] [--reply-to addr] [--attach <file>...]`
+- `gog gmail send --to a@b.com --subject S [--body B] [--body-html H] [--cc ...] [--bcc ...] [--reply-to-message-id <messageId>] [--reply-to addr] [--from addr] [--signature|--signature-from addr|--signature-file path] [--attach <file>...]`
 - `gog gmail drafts list [--max N] [--page TOKEN]`
 - `gog gmail drafts get <draftId> [--download]`
 - `gog gmail drafts create --subject S [--to a@b.com] [--body B] [--body-html H] [--cc ...] [--bcc ...] [--reply-to-message-id <messageId>] [--reply-to addr] [--attach <file>...]`
@@ -286,7 +303,7 @@ Flag aliases:
 - `gog gmail watch start|status|renew|stop|serve`
 - `gog gmail history --since <historyId>`
 - `gog chat spaces list [--max N] [--page TOKEN]`
-- `gog chat spaces find <displayName> [--max N]`
+- `gog chat spaces find <displayName> [--max N] [--exact]`
 - `gog chat spaces create <displayName> [--member email,...]`
 - `gog chat messages list <space> [--max N] [--page TOKEN] [--order ORDER] [--thread THREAD] [--unread]`
 - `gog chat messages send <space> --text TEXT [--thread THREAD]`
@@ -306,6 +323,9 @@ Flag aliases:
 - `gog contacts search <query> [--max N]`
 - `gog contacts list [--max N] [--page TOKEN]`
 - `gog contacts get <people/...|email>`
+- `gog contacts export <people/...|email|name> [--out PATH|-]`
+- `gog contacts export --query <query> [--max N] [--out PATH|-]`
+- `gog contacts export --all [--page-size N] [--page TOKEN] [--out PATH|-]`
 - `gog contacts create --given NAME [--family NAME] [--email addr] [--phone num] [--relation type=person]`
 - `gog contacts update <people/...> [--given NAME] [--family NAME] [--email addr] [--phone num] [--birthday YYYY-MM-DD] [--notes TEXT] [--relation type=person] [--from-file PATH|-] [--ignore-etag]`
 - `gog contacts delete <people/...>`

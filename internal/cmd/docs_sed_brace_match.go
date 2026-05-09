@@ -48,6 +48,13 @@ func findBraceExprs(replacement string) (string, []*braceSpan) {
 
 		// Look for opening brace
 		if replacement[i] == '{' {
+			if i > 0 && replacement[i-1] == '$' {
+				cleaned.WriteByte('{')
+				cleanedPos++
+				i++
+				continue
+			}
+
 			// Find matching closing brace (handle nesting for error detection)
 			closeIdx := findMatchingBrace(replacement, i)
 			if closeIdx < 0 {
@@ -193,7 +200,7 @@ func hasBraceFormatting(replacement string) bool {
 	// Look for { not preceded by \
 	for i := 0; i < len(replacement); i++ {
 		if replacement[i] == '{' {
-			if i == 0 || replacement[i-1] != '\\' {
+			if i == 0 || (replacement[i-1] != '\\' && replacement[i-1] != '$') {
 				// Check if there's content and a closing brace
 				closeIdx := findMatchingBrace(replacement, i)
 				if closeIdx > i+1 {

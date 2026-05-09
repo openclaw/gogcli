@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"sort"
 	"strings"
 	"time"
 
@@ -121,7 +120,7 @@ func (c *AuthListCmd) Run(ctx context.Context, _ *RootFlags) error {
 	if err != nil {
 		return err
 	}
-	tokens, err := store.ListTokens()
+	tokens, tokenReadErrors, err := listAuthTokensWithFallback(store)
 	if err != nil {
 		return err
 	}
@@ -130,179 +129,28 @@ func (c *AuthListCmd) Run(ctx context.Context, _ *RootFlags) error {
 	if err != nil {
 		return err
 	}
-
-	sort.Slice(tokens, func(i, j int) bool { return tokens[i].Email < tokens[j].Email })
-
-	type tokenByEmail struct {
-		tok secrets.Token
-		ok  bool
-	}
-	tokMap := make(map[string]tokenByEmail, len(tokens))
-	for _, t := range tokens {
-		email := normalizeEmail(t.Email)
-		if email == "" {
-			continue
+	if clientOverride := authclient.ClientOverrideFromContext(ctx); strings.TrimSpace(clientOverride) != "" {
+		client, normalizeErr := config.NormalizeClientNameOrDefault(clientOverride)
+		if normalizeErr != nil {
+			return normalizeErr
 		}
-		tokMap[email] = tokenByEmail{tok: t, ok: true}
+		tokens = filterAuthListTokensByClient(tokens, client)
+		tokenReadErrors = filterAuthListReadErrorsByClient(tokenReadErrors, client)
+		serviceAccountEmails = nil
 	}
 
-	type entry struct {
-		Email string
-		Token *secrets.Token
-		SA    bool
-	}
-	entries := make([]entry, 0, len(tokens)+len(serviceAccountEmails))
-	seen := make(map[string]struct{})
-	for _, email := range serviceAccountEmails {
-		email = normalizeEmail(email)
-		if email == "" {
-			continue
-		}
-		if _, ok := seen[email]; ok {
-			continue
-		}
-		seen[email] = struct{}{}
-		te := tokMap[email]
-		var tok *secrets.Token
-		if te.ok {
-			t := te.tok
-			tok = &t
-		}
-		entries = append(entries, entry{Email: email, Token: tok, SA: true})
-	}
-	for _, t := range tokens {
-		email := normalizeEmail(t.Email)
-		if email == "" {
-			continue
-		}
-		if _, ok := seen[email]; ok {
-			continue
-		}
-		seen[email] = struct{}{}
-		t2 := t
-		entries = append(entries, entry{Email: email, Token: &t2, SA: false})
-	}
-	sort.Slice(entries, func(i, j int) bool { return entries[i].Email < entries[j].Email })
+	entries := buildAuthListEntries(tokens, tokenReadErrors, serviceAccountEmails)
 
 	if outfmt.IsJSON(ctx) {
-		type item struct {
-			Email     string   `json:"email"`
-			Client    string   `json:"client,omitempty"`
-			Services  []string `json:"services,omitempty"`
-			Scopes    []string `json:"scopes,omitempty"`
-			CreatedAt string   `json:"created_at,omitempty"`
-			Auth      string   `json:"auth"`
-			Valid     *bool    `json:"valid,omitempty"`
-			Error     string   `json:"error,omitempty"`
-		}
-		out := make([]item, 0, len(entries))
-		for _, e := range entries {
-			auth := authTypeOAuth
-			if e.SA {
-				auth = authTypeServiceAccount
-			}
-			if e.Token != nil && e.SA {
-				auth = authTypeOAuthServiceAccount
-			}
-
-			created := ""
-			services := []string(nil)
-			scopes := []string(nil)
-
-			if e.Token != nil {
-				if !e.Token.CreatedAt.IsZero() {
-					created = e.Token.CreatedAt.UTC().Format("2006-01-02T15:04:05Z07:00")
-				}
-				services = e.Token.Services
-				scopes = e.Token.Scopes
-			} else if e.SA {
-				if _, mtime, ok := bestServiceAccountPathAndMtime(e.Email); ok {
-					created = mtime.UTC().Format("2006-01-02T15:04:05Z07:00")
-				}
-				services = []string{"service-account"}
-			}
-
-			it := item{
-				Email:     e.Email,
-				Client:    "",
-				Services:  services,
-				Scopes:    scopes,
-				CreatedAt: created,
-				Auth:      auth,
-			}
-			if e.Token != nil {
-				it.Client = e.Token.Client
-			}
-			if c.Check {
-				if e.Token == nil {
-					valid := true
-					it.Valid = &valid
-					it.Error = "service account (not checked)"
-				} else {
-					err := checkRefreshToken(ctx, e.Token.Client, e.Token.RefreshToken, e.Token.Scopes, c.Timeout)
-					valid := err == nil
-					it.Valid = &valid
-					if err != nil {
-						it.Error = err.Error()
-					}
-				}
-			}
-			out = append(out, it)
-		}
-		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{"accounts": out})
+		return c.writeAuthListJSON(ctx, entries)
 	}
+
 	if len(entries) == 0 {
 		u.Err().Println("No tokens stored")
 		return nil
 	}
 
-	for _, e := range entries {
-		auth := authTypeOAuth
-		if e.SA {
-			auth = authTypeServiceAccount
-		}
-		if e.Token != nil && e.SA {
-			auth = authTypeOAuthServiceAccount
-		}
-
-		client := ""
-		if e.Token != nil {
-			client = e.Token.Client
-		}
-		created := ""
-		servicesCSV := ""
-
-		if e.Token != nil {
-			if !e.Token.CreatedAt.IsZero() {
-				created = e.Token.CreatedAt.UTC().Format("2006-01-02T15:04:05Z07:00")
-			}
-			servicesCSV = strings.Join(e.Token.Services, ",")
-		} else if e.SA {
-			if _, mtime, ok := bestServiceAccountPathAndMtime(e.Email); ok {
-				created = mtime.UTC().Format("2006-01-02T15:04:05Z07:00")
-			}
-			servicesCSV = "service-account"
-		}
-
-		if c.Check {
-			if e.Token == nil {
-				u.Out().Printf("%s\t%s\t%s\t%s\t%t\t%s\t%s", e.Email, client, servicesCSV, created, true, "service account (not checked)", auth)
-				continue
-			}
-
-			err := checkRefreshToken(ctx, e.Token.Client, e.Token.RefreshToken, e.Token.Scopes, c.Timeout)
-			valid := err == nil
-			msg := ""
-			if err != nil {
-				msg = err.Error()
-			}
-			u.Out().Printf("%s\t%s\t%s\t%s\t%t\t%s\t%s", e.Email, client, servicesCSV, created, valid, msg, auth)
-			continue
-		}
-
-		u.Out().Printf("%s\t%s\t%s\t%s\t%s", e.Email, client, servicesCSV, created, auth)
-	}
-	return nil
+	return c.writeAuthListText(ctx, u, entries)
 }
 
 func bestServiceAccountPathAndMtime(email string) (string, time.Time, bool) {
@@ -381,6 +229,22 @@ func (c *AuthRemoveCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if err := store.DeleteToken(client, email); err != nil {
 		return err
 	}
+
+	// Clean up config.json: remove aliases pointing to this email and the
+	// account-client entry for this email.
+	if updateErr := config.UpdateConfig(func(cfg *config.File) error {
+		for alias, target := range cfg.AccountAliases {
+			if strings.EqualFold(target, email) {
+				delete(cfg.AccountAliases, alias)
+			}
+		}
+		delete(cfg.AccountClients, email)
+		delete(cfg.AccountClients, strings.ToLower(email))
+		return nil
+	}); updateErr != nil {
+		return updateErr
+	}
+
 	return writeResult(ctx, u,
 		kv("deleted", true),
 		kv("email", email),

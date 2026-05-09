@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 )
@@ -43,6 +44,11 @@ func TestLiveScript(t *testing.T) {
 	defer cancel()
 
 	cmd := exec.CommandContext(ctx, script, args...)
+	if runtime.GOOS == "windows" {
+		script = filepath.Join(root, "scripts", "live-test.ps1")
+		psArgs := append([]string{"-NoProfile", "-ExecutionPolicy", "Bypass", "-File", script}, args...)
+		cmd = exec.CommandContext(ctx, "powershell.exe", psArgs...)
+	}
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	cmd.Env = os.Environ()

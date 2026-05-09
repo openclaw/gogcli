@@ -183,6 +183,29 @@ func TestCalendarCreateCmd_RecurringOffsetTimezoneFallback(t *testing.T) {
 	}
 }
 
+func TestCalendarCreateCmd_ExplicitTimezones(t *testing.T) {
+	plan, err := buildCalendarCreatePlan(&CalendarCreateCmd{
+		CalendarID:    "primary",
+		Summary:       "Flight",
+		From:          "2026-08-13T13:40:00+02:00",
+		To:            "2026-08-13T17:00:00-04:00",
+		StartTimezone: "Europe/Rome",
+		EndTimezone:   "America/New_York",
+		SendUpdates:   "none",
+		Transparency:  "opaque",
+		Visibility:    "default",
+	})
+	if err != nil {
+		t.Fatalf("buildCalendarCreatePlan: %v", err)
+	}
+	if plan.Event.Start == nil || plan.Event.Start.TimeZone != "Europe/Rome" {
+		t.Fatalf("expected start timezone Europe/Rome, got %#v", plan.Event.Start)
+	}
+	if plan.Event.End == nil || plan.Event.End.TimeZone != "America/New_York" {
+		t.Fatalf("expected end timezone America/New_York, got %#v", plan.Event.End)
+	}
+}
+
 func TestCalendarUpdateCmd_RecurrenceFillsMissingTimezone(t *testing.T) {
 	origNew := newCalendarService
 	t.Cleanup(func() { newCalendarService = origNew })
@@ -309,6 +332,56 @@ func TestCalendarUpdateCmd_RunJSON(t *testing.T) {
 	})
 	if !strings.Contains(out, "\"event\"") {
 		t.Fatalf("unexpected output: %q", out)
+	}
+}
+
+func TestCalendarUpdateCmd_WithMeet(t *testing.T) {
+	origNew := newCalendarService
+	t.Cleanup(func() { newCalendarService = origNew })
+
+	var (
+		sawConferenceData bool
+		sawVersion        bool
+	)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := strings.TrimPrefix(r.URL.Path, "/calendar/v3")
+		if r.Method == http.MethodPatch && path == "/calendars/cal@example.com/events/ev" {
+			sawVersion = r.URL.Query().Get("conferenceDataVersion") == "1"
+			var body calendar.Event
+			_ = json.NewDecoder(r.Body).Decode(&body)
+			sawConferenceData = body.ConferenceData != nil &&
+				body.ConferenceData.CreateRequest != nil &&
+				body.ConferenceData.CreateRequest.ConferenceSolutionKey != nil &&
+				body.ConferenceData.CreateRequest.ConferenceSolutionKey.Type == "hangoutsMeet"
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"id":          "ev",
+				"hangoutLink": "https://meet.google.com/aaa-bbbb-ccc",
+			})
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer srv.Close()
+
+	svc := newCalendarServiceFromServer(t, srv)
+	newCalendarService = func(context.Context, string) (*calendar.Service, error) { return svc, nil }
+
+	ctx := newCalendarJSONOutputContext(t, os.Stdout, os.Stderr)
+
+	cmd := &CalendarUpdateCmd{}
+	if err := runKong(t, cmd, []string{
+		"cal@example.com",
+		"ev",
+		"--with-meet",
+	}, ctx, &RootFlags{Account: "a@b.com"}); err != nil {
+		t.Fatalf("runKong: %v", err)
+	}
+	if !sawConferenceData {
+		t.Fatalf("expected conferenceData create request in patch body")
+	}
+	if !sawVersion {
+		t.Fatalf("expected conferenceDataVersion=1 on patch request")
 	}
 }
 

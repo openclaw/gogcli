@@ -47,7 +47,7 @@ func (cb *CircuitBreaker) RecordFailure() bool {
 
 	if cb.failures >= CircuitBreakerThreshold {
 		cb.open = true
-		slog.Warn("circuit breaker opened", "failures", cb.failures)
+		slog.Warn("circuit breaker opened", "failures", cb.failures) //nolint:gosec // structured numeric retry metadata
 
 		return true // circuit just opened
 	}

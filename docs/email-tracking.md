@@ -14,9 +14,15 @@ High-level:
 - The Worker receives the request, stores an “open” row in D1, and returns a transparent pixel.
 - `gog gmail track opens …` queries the Worker and prints opens.
 
+Abuse controls:
+- Repeated opens for the same tracking id, IP, and user-agent are deduplicated within a one-hour window.
+- Each IP can record at most 100 opens per hour; excess requests still receive the transparent pixel but are not inserted into D1.
+
 Privacy note:
 - Tracking is inherently sensitive. Treat this as *instrumentation you opt into per email*.
-- The Worker stores IP + user-agent and can derive coarse geo (depending on CF headers/config).
+- The Worker stores recipient email, subject hash, sent/open timestamps, IP, user-agent, bot classification, and coarse geo from Cloudflare request metadata when available.
+- The deployed Worker includes a daily cron trigger that deletes open rows older than 90 days.
+- Admin `/opens` queries default to 100 rows and are capped at 500 rows per request.
 
 ## Setup (local)
 
@@ -28,7 +34,8 @@ gog gmail track setup --worker-url https://gog-email-tracker.<acct>.workers.dev
 
 This writes a local config file containing:
 - `worker_url` (base URL)
-- per-account tracking keys are stored in your keychain/keyring (not in the JSON file)
+- the active tracking key version
+- per-account tracking/admin keys are stored in your keychain/keyring (not in the JSON file)
 
 Optional: auto-provision + deploy with wrangler:
 
@@ -56,21 +63,43 @@ Provision secrets (use values printed by `gog gmail track setup`):
 
 ```sh
 pnpm exec wrangler secret put TRACKING_KEY
+pnpm exec wrangler secret put TRACKING_KEY_V1
+pnpm exec wrangler secret put TRACKING_CURRENT_KEY_VERSION
 pnpm exec wrangler secret put ADMIN_KEY
 ```
 
-Create and migrate D1:
+Create D1:
 
 ```sh
 pnpm exec wrangler d1 create gog-email-tracker
-pnpm exec wrangler d1 execute <db> --file schema.sql
 ```
 
-Update `wrangler.toml` to reference the D1 `database_id`, then deploy:
+Update `wrangler.toml` to reference the D1 `database_id`, then migrate and deploy:
 
 ```sh
+pnpm exec wrangler d1 execute gog-email-tracker --file schema.sql --remote
 pnpm exec wrangler deploy
 ```
+
+`wrangler.toml` includes a daily cron trigger for retention cleanup. After deploy, Cloudflare calls the Worker once per day and the Worker deletes open rows older than 90 days.
+
+## Rotate tracking keys
+
+Rotate the pixel encryption key without invalidating old tracking ids:
+
+```sh
+gog gmail track key rotate
+```
+
+The command generates the next key version, deploys all active `TRACKING_KEY_V<N>` secrets plus `TRACKING_CURRENT_KEY_VERSION`, then stores the new current version in local config. Legacy unversioned tracking ids still decrypt through the stored `TRACKING_KEY` fallback.
+
+For local-only testing:
+
+```sh
+gog gmail track key rotate --no-deploy
+```
+
+Do not send newly tracked mail after `--no-deploy` until the Worker has the matching versioned secret, or new pixels will not decrypt.
 
 ## Send tracked mail
 
@@ -125,6 +154,7 @@ gog gmail track status
 
 - `required: --worker-url`: run `gog gmail track setup --worker-url …` first (or pass `--worker-url` again).
 - `401`/`403` on `/opens`: admin key mismatch; redeploy secrets and re-run `track setup` if needed.
+- New tracked messages do not show opens after key rotation: verify the Worker has `TRACKING_KEY_V<N>` for the current local `gmail track status` version and `TRACKING_CURRENT_KEY_VERSION` matches it.
 - No opens recorded:
   - ensure the HTML body contains the injected pixel (view “original” in your mail client).
   - some clients block images by default; “open” only happens after images load.

@@ -8,7 +8,16 @@ import (
 	"testing"
 
 	"github.com/alecthomas/kong"
+
+	"github.com/steipete/gogcli/internal/config"
 )
+
+func setTestConfigHome(t *testing.T) {
+	t.Helper()
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, "xdg-config"))
+}
 
 func TestWrapParseError(t *testing.T) {
 	if wrapParseError(nil) != nil {
@@ -56,9 +65,7 @@ func TestBoolString(t *testing.T) {
 }
 
 func TestHelpDescription(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv("HOME", home)
-	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, "xdg-config"))
+	setTestConfigHome(t)
 	t.Setenv("GOG_KEYRING_BACKEND", "auto")
 
 	out := helpDescription()
@@ -77,5 +84,66 @@ func TestEnableCommandsBlocks(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "not enabled") {
 		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestEnableCommandsAllowsDottedSubcommand(t *testing.T) {
+	setTestConfigHome(t)
+	err := Execute([]string{"--enable-commands", "config.no-send", "config", "no-send", "list"})
+	if err != nil {
+		t.Fatalf("expected dotted allowlist to permit command, got %v", err)
+	}
+}
+
+func TestDisableCommandsBlocksDottedSubcommand(t *testing.T) {
+	setTestConfigHome(t)
+	err := Execute([]string{"--disable-commands", "config.no-send", "config", "no-send", "list"})
+	if err == nil {
+		t.Fatalf("expected error")
+	}
+	if !strings.Contains(err.Error(), "disabled") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestGmailNoSendBlocksBeforeAuth(t *testing.T) {
+	setTestConfigHome(t)
+	tests := [][]string{
+		{"--gmail-no-send", "gmail", "send", "--to", "a@example.com", "--subject", "S", "--body", "B"},
+		{"--gmail-no-send", "gmail", "autoreply", "from:a@example.com", "--subject", "S", "--body", "B"},
+		{"--gmail-no-send", "gmail", "forward", "msg-1", "--to", "a@example.com"},
+		{"--gmail-no-send", "gmail", "fwd", "msg-1", "--to", "a@example.com"},
+		{"--gmail-no-send", "gmail", "drafts", "send", "draft-1"},
+	}
+	for _, args := range tests {
+		err := Execute(args)
+		if err == nil {
+			t.Fatalf("expected error for %v", args)
+		}
+		if !strings.Contains(err.Error(), "no-send") {
+			t.Fatalf("unexpected error for %v: %v", args, err)
+		}
+	}
+}
+
+func TestConfigGmailNoSendBlocksBeforeAuth(t *testing.T) {
+	setTestConfigHome(t)
+	if err := config.WriteConfig(config.File{GmailNoSend: true}); err != nil {
+		t.Fatalf("WriteConfig: %v", err)
+	}
+	tests := [][]string{
+		{"gmail", "send", "--to", "a@example.com", "--subject", "S", "--body", "B"},
+		{"gmail", "autoreply", "from:a@example.com", "--subject", "S", "--body", "B"},
+		{"gmail", "forward", "msg-1", "--to", "a@example.com"},
+		{"gmail", "drafts", "send", "draft-1"},
+	}
+	for _, args := range tests {
+		err := Execute(args)
+		if err == nil {
+			t.Fatalf("expected error for %v", args)
+		}
+		if !strings.Contains(err.Error(), "gmail_no_send") {
+			t.Fatalf("unexpected error for %v: %v", args, err)
+		}
 	}
 }

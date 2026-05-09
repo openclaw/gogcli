@@ -57,11 +57,22 @@ func (m *calendarMutationContext) patchEvent(ctx context.Context, eventID string
 	if sendUpdates != "" {
 		call = call.SendUpdates(sendUpdates)
 	}
+	if patch.ConferenceData != nil {
+		call = call.ConferenceDataVersion(1)
+	}
 	return call.Do()
 }
 
 func (m *calendarMutationContext) deleteEvent(ctx context.Context, eventID, sendUpdates string) error {
 	call := m.svc.Events.Delete(m.calendarID, eventID).Context(ctx)
+	if sendUpdates != "" {
+		call = call.SendUpdates(sendUpdates)
+	}
+	return call.Do()
+}
+
+func (m *calendarMutationContext) moveEvent(ctx context.Context, eventID, destinationCalendarID, sendUpdates string) (*calendar.Event, error) {
+	call := m.svc.Events.Move(m.calendarID, eventID, destinationCalendarID).Context(ctx)
 	if sendUpdates != "" {
 		call = call.SendUpdates(sendUpdates)
 	}

@@ -34,15 +34,17 @@ func TestDriveGetCmd_TextWithDetailsAndJSON(t *testing.T) {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]any{
-			"id":           "file1",
-			"name":         "File",
-			"mimeType":     "text/plain",
-			"size":         "5",
-			"modifiedTime": "2025-12-12T14:37:47Z",
-			"createdTime":  "2025-12-11T00:00:00Z",
-			"description":  "desc",
-			"starred":      true,
-			"webViewLink":  "http://example.com/file",
+			"id":            "file1",
+			"name":          "File",
+			"mimeType":      "text/plain",
+			"size":          "5",
+			"modifiedTime":  "2025-12-12T14:37:47Z",
+			"createdTime":   "2025-12-11T00:00:00Z",
+			"description":   "desc",
+			"starred":       true,
+			"webViewLink":   "http://example.com/file",
+			"hasThumbnail":  true,
+			"thumbnailLink": "https://thumb.example/file",
 		})
 	}))
 	t.Cleanup(srv.Close)
@@ -84,6 +86,15 @@ func TestDriveGetCmd_TextWithDetailsAndJSON(t *testing.T) {
 	})
 	if !strings.Contains(jsonOut, "\"file\"") {
 		t.Fatalf("unexpected json: %q", jsonOut)
+	}
+	var parsed struct {
+		File *drive.File `json:"file"`
+	}
+	if err := json.Unmarshal([]byte(jsonOut), &parsed); err != nil {
+		t.Fatalf("unmarshal json: %v\n%s", err, jsonOut)
+	}
+	if parsed.File == nil || !parsed.File.HasThumbnail || parsed.File.ThumbnailLink != "https://thumb.example/file" {
+		t.Fatalf("missing thumbnail fields in json: %#v", parsed.File)
 	}
 }
 

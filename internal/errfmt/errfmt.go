@@ -60,16 +60,7 @@ func Format(err error) string {
 
 	var gerr *ggoogleapi.Error
 	if errors.As(err, &gerr) {
-		reason := ""
-		if len(gerr.Errors) > 0 && gerr.Errors[0].Reason != "" {
-			reason = gerr.Errors[0].Reason
-		}
-
-		if reason != "" {
-			return fmt.Sprintf("Google API error (%d %s): %s", gerr.Code, reason, gerr.Message)
-		}
-
-		return fmt.Sprintf("Google API error (%d): %s", gerr.Code, gerr.Message)
+		return formatGoogleAPIError(gerr)
 	}
 
 	return err.Error()

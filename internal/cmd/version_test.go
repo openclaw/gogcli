@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"runtime/debug"
 	"testing"
 
 	"github.com/steipete/gogcli/internal/outfmt"
@@ -11,8 +12,9 @@ import (
 )
 
 func TestVersionStringVariants(t *testing.T) {
-	origVersion, origCommit, origDate := version, commit, date
-	t.Cleanup(func() { version, commit, date = origVersion, origCommit, origDate })
+	origVersion, origCommit, origDate, origReadBuildInfo := version, commit, date, readBuildInfo
+	t.Cleanup(func() { version, commit, date, readBuildInfo = origVersion, origCommit, origDate, origReadBuildInfo })
+	readBuildInfo = func() (*debug.BuildInfo, bool) { return nil, false }
 
 	version, commit, date = "v1", "", ""
 	if got := VersionString(); got != "v1" {
@@ -32,9 +34,38 @@ func TestVersionStringVariants(t *testing.T) {
 	}
 }
 
+func TestVersionStringUsesModuleVersionFallback(t *testing.T) {
+	origVersion, origCommit, origDate, origReadBuildInfo := version, commit, date, readBuildInfo
+	t.Cleanup(func() { version, commit, date, readBuildInfo = origVersion, origCommit, origDate, origReadBuildInfo })
+
+	version, commit, date = "dev", "", ""
+	readBuildInfo = func() (*debug.BuildInfo, bool) {
+		return &debug.BuildInfo{Main: debug.Module{Version: "v1.2.3"}}, true
+	}
+
+	if got := VersionString(); got != "v1.2.3" {
+		t.Fatalf("unexpected: %q", got)
+	}
+}
+
+func TestVersionStringPrefersInjectedVersion(t *testing.T) {
+	origVersion, origCommit, origDate, origReadBuildInfo := version, commit, date, readBuildInfo
+	t.Cleanup(func() { version, commit, date, readBuildInfo = origVersion, origCommit, origDate, origReadBuildInfo })
+
+	version, commit, date = "v9.9.9", "", ""
+	readBuildInfo = func() (*debug.BuildInfo, bool) {
+		return &debug.BuildInfo{Main: debug.Module{Version: "v1.2.3"}}, true
+	}
+
+	if got := VersionString(); got != "v9.9.9" {
+		t.Fatalf("unexpected: %q", got)
+	}
+}
+
 func TestVersionCmd_JSON(t *testing.T) {
-	origVersion, origCommit, origDate := version, commit, date
-	t.Cleanup(func() { version, commit, date = origVersion, origCommit, origDate })
+	origVersion, origCommit, origDate, origReadBuildInfo := version, commit, date, readBuildInfo
+	t.Cleanup(func() { version, commit, date, readBuildInfo = origVersion, origCommit, origDate, origReadBuildInfo })
+	readBuildInfo = func() (*debug.BuildInfo, bool) { return nil, false }
 	version, commit, date = "v2", "c1", "d1"
 
 	u, err := ui.New(ui.Options{Stdout: io.Discard, Stderr: io.Discard, Color: "never"})

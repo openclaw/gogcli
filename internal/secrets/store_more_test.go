@@ -177,6 +177,110 @@ func TestKeyringStoreDeleteAndDefaultErrors(t *testing.T) {
 	}
 }
 
+func TestKeyringStoreSubjectKeyRoundTripAndDelete(t *testing.T) {
+	ring := keyring.NewArrayKeyring(nil)
+	store := &KeyringStore{ring: ring}
+	client := config.DefaultClientName
+
+	tok := Token{
+		Subject:      "google-sub-123",
+		Email:        "User@Example.com",
+		RefreshToken: "rt",
+		CreatedAt:    time.Now().UTC(),
+	}
+	if err := store.SetToken(client, tok.Email, tok); err != nil {
+		t.Fatalf("SetToken: %v", err)
+	}
+
+	if _, err := ring.Get(subjectTokenKey(client, tok.Subject)); err != nil {
+		t.Fatalf("expected subject key: %v", err)
+	}
+
+	got, err := store.GetToken(client, "user@example.com")
+	if err != nil {
+		t.Fatalf("GetToken: %v", err)
+	}
+
+	if got.Subject != tok.Subject || got.Email != "user@example.com" {
+		t.Fatalf("unexpected token identity: %#v", got)
+	}
+
+	listed, err := store.ListTokens()
+	if err != nil {
+		t.Fatalf("ListTokens: %v", err)
+	}
+
+	if len(listed) != 1 || listed[0].Subject != tok.Subject || listed[0].Email != "user@example.com" {
+		t.Fatalf("expected one subject-deduped token, got %#v", listed)
+	}
+
+	if err := store.DeleteToken(client, "user@example.com"); err != nil {
+		t.Fatalf("DeleteToken: %v", err)
+	}
+
+	if _, err := ring.Get(subjectTokenKey(client, tok.Subject)); !errors.Is(err, keyring.ErrKeyNotFound) {
+		t.Fatalf("expected subject key deleted, got %v", err)
+	}
+}
+
+func TestKeyringStoreDeleteTokenAliasPreservesSubjectKey(t *testing.T) {
+	ring := keyring.NewArrayKeyring(nil)
+	store := &KeyringStore{ring: ring}
+	client := config.DefaultClientName
+
+	tok := Token{
+		Subject:      "google-sub-123",
+		Email:        "old@example.com",
+		RefreshToken: "rt",
+	}
+	if err := store.SetToken(client, tok.Email, tok); err != nil {
+		t.Fatalf("SetToken: %v", err)
+	}
+
+	if err := store.DeleteTokenAlias(client, "old@example.com"); err != nil {
+		t.Fatalf("DeleteTokenAlias: %v", err)
+	}
+
+	if _, err := ring.Get(tokenKey(client, "old@example.com")); !errors.Is(err, keyring.ErrKeyNotFound) {
+		t.Fatalf("expected email token removed, got %v", err)
+	}
+
+	if _, err := ring.Get(subjectTokenKey(client, tok.Subject)); err != nil {
+		t.Fatalf("expected subject key preserved, got %v", err)
+	}
+}
+
+func TestKeyringStoreSetTokenRemovesStaleSubjectKey(t *testing.T) {
+	ring := keyring.NewArrayKeyring(nil)
+	store := &KeyringStore{ring: ring}
+	client := config.DefaultClientName
+	email := "user@example.com"
+
+	if err := store.SetToken(client, email, Token{
+		Subject:      "old-sub",
+		Email:        email,
+		RefreshToken: "rt1",
+	}); err != nil {
+		t.Fatalf("SetToken old: %v", err)
+	}
+
+	if err := store.SetToken(client, email, Token{
+		Subject:      "new-sub",
+		Email:        email,
+		RefreshToken: "rt2",
+	}); err != nil {
+		t.Fatalf("SetToken new: %v", err)
+	}
+
+	if _, err := ring.Get(subjectTokenKey(client, "old-sub")); !errors.Is(err, keyring.ErrKeyNotFound) {
+		t.Fatalf("expected old subject key removed, got %v", err)
+	}
+
+	if got, err := store.GetToken(client, email); err != nil || got.Subject != "new-sub" || got.RefreshToken != "rt2" {
+		t.Fatalf("unexpected token after subject rotation: %#v err=%v", got, err)
+	}
+}
+
 func TestKeyringStoreWritePathsSetLabel(t *testing.T) {
 	ring := keyring.NewArrayKeyring(nil)
 	store := &KeyringStore{ring: ring}

@@ -43,19 +43,9 @@ func (c *CalendarCalendarsCmd) Run(ctx context.Context, flags *RootFlags) error 
 		return r.Items, r.NextPageToken, nil
 	}
 
-	var items []*calendar.CalendarListEntry
-	nextPageToken := ""
-	if c.All {
-		all, collectErr := collectAllPages(c.Page, fetch)
-		if collectErr != nil {
-			return collectErr
-		}
-		items = all
-	} else {
-		items, nextPageToken, err = fetch(c.Page)
-		if err != nil {
-			return err
-		}
+	items, nextPageToken, err := loadPagedItems(c.Page, c.All, fetch)
+	if err != nil {
+		return err
 	}
 	if outfmt.IsJSON(ctx) {
 		if err := outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
@@ -173,19 +163,9 @@ func (c *CalendarAclCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return r.Items, r.NextPageToken, nil
 	}
 
-	var items []*calendar.AclRule
-	nextPageToken := ""
-	if c.All {
-		all, collectErr := collectAllPages(c.Page, fetch)
-		if collectErr != nil {
-			return collectErr
-		}
-		items = all
-	} else {
-		items, nextPageToken, err = fetch(c.Page)
-		if err != nil {
-			return err
-		}
+	items, nextPageToken, err := loadPagedItems(c.Page, c.All, fetch)
+	if err != nil {
+		return err
 	}
 	if outfmt.IsJSON(ctx) {
 		if err := outfmt.WriteJSON(ctx, os.Stdout, map[string]any{

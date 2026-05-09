@@ -10,14 +10,7 @@ import (
 )
 
 func fetchClassroomPagedList[T any](all bool, page string, fetch func(string) ([]*T, string, error)) ([]*T, string, error) {
-	if all {
-		items, err := collectAllPages(page, fetch)
-		if err != nil {
-			return nil, "", err
-		}
-		return items, "", nil
-	}
-	return fetch(page)
+	return loadPagedItems(page, all, fetch)
 }
 
 func writeClassroomPagedList[T any](

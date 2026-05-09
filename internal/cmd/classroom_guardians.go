@@ -51,27 +51,16 @@ func (c *ClassroomGuardiansListCmd) Run(ctx context.Context, flags *RootFlags) e
 		if v := strings.TrimSpace(c.Email); v != "" {
 			call.InvitedEmailAddress(v)
 		}
-		resp, err := call.Do()
-		if err != nil {
-			return nil, "", wrapClassroomError(err)
+		resp, callErr := call.Do()
+		if callErr != nil {
+			return nil, "", wrapClassroomError(callErr)
 		}
 		return resp.Guardians, resp.NextPageToken, nil
 	}
 
-	var guardians []*classroom.Guardian
-	nextPageToken := ""
-	if c.All {
-		all, err := collectAllPages(c.Page, fetch)
-		if err != nil {
-			return err
-		}
-		guardians = all
-	} else {
-		var err error
-		guardians, nextPageToken, err = fetch(c.Page)
-		if err != nil {
-			return err
-		}
+	guardians, nextPageToken, err := loadPagedItems(c.Page, c.All, fetch)
+	if err != nil {
+		return err
 	}
 
 	if outfmt.IsJSON(ctx) {
@@ -238,27 +227,16 @@ func (c *ClassroomGuardianInvitesListCmd) Run(ctx context.Context, flags *RootFl
 			}
 			call.States(upper...)
 		}
-		resp, err := call.Do()
-		if err != nil {
-			return nil, "", wrapClassroomError(err)
+		resp, callErr := call.Do()
+		if callErr != nil {
+			return nil, "", wrapClassroomError(callErr)
 		}
 		return resp.GuardianInvitations, resp.NextPageToken, nil
 	}
 
-	var invitations []*classroom.GuardianInvitation
-	nextPageToken := ""
-	if c.All {
-		all, err := collectAllPages(c.Page, fetch)
-		if err != nil {
-			return err
-		}
-		invitations = all
-	} else {
-		var err error
-		invitations, nextPageToken, err = fetch(c.Page)
-		if err != nil {
-			return err
-		}
+	invitations, nextPageToken, err := loadPagedItems(c.Page, c.All, fetch)
+	if err != nil {
+		return err
 	}
 
 	if outfmt.IsJSON(ctx) {

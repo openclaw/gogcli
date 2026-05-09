@@ -24,6 +24,7 @@ const (
 	ServiceForms     Service = "forms"
 	ServiceMeet      Service = "meet"
 	ServiceAppScript Service = "appscript"
+	ServiceAds       Service = "ads"
 	ServiceGroups    Service = "groups"
 	ServiceKeep      Service = "keep"
 	ServiceAdmin     Service = "admin"
@@ -85,6 +86,7 @@ var serviceOrder = []Service{
 	ServiceForms,
 	ServiceMeet,
 	ServiceAppScript,
+	ServiceAds,
 	ServiceGroups,
 	ServiceKeep,
 	ServiceAdmin,
@@ -213,6 +215,12 @@ var serviceInfoByService = map[Service]serviceInfo{
 		},
 		user: true,
 		apis: []string{"Apps Script API"},
+	},
+	ServiceAds: {
+		scopes: []string{"https://www.googleapis.com/auth/adwords"},
+		user:   true,
+		apis:   []string{"Google Ads API"},
+		note:   "OAuth scope only",
 	},
 	ServiceGroups: {
 		scopes: []string{"https://www.googleapis.com/auth/cloud-identity.groups.readonly"},
@@ -568,6 +576,8 @@ func scopesForServiceWithOptions(service Service, opts ScopeOptions) ([]string, 
 			}, nil
 		}
 
+		return Scopes(service)
+	case ServiceAds:
 		return Scopes(service)
 	case ServiceGroups:
 		return Scopes(service)

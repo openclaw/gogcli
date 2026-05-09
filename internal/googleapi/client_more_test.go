@@ -3,6 +3,8 @@ package googleapi
 import (
 	"context"
 	"crypto/tls"
+	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"os"
@@ -38,6 +40,11 @@ type stubStore struct {
 	lastSet   secrets.Token
 	setCalls  int
 	setErr    error
+
+	deleteClient string
+	deleteEmail  string
+	deleteCalls  int
+	deleteErr    error
 }
 
 func (s *stubStore) Keys() ([]string, error) { return nil, nil }
@@ -55,7 +62,23 @@ func (s *stubStore) SetToken(client string, email string, tok secrets.Token) err
 
 	return nil
 }
-func (s *stubStore) DeleteToken(string, string) error         { return nil }
+
+func (s *stubStore) DeleteToken(client string, email string) error {
+	s.deleteClient = client
+	s.deleteEmail = email
+	s.deleteCalls++
+
+	if s.deleteErr != nil {
+		return s.deleteErr
+	}
+
+	return nil
+}
+
+func (s *stubStore) DeleteTokenAlias(client string, email string) error {
+	return s.DeleteToken(client, email)
+}
+
 func (s *stubStore) ListTokens() ([]secrets.Token, error)     { return nil, nil }
 func (s *stubStore) GetDefaultAccount(string) (string, error) { return "", nil }
 func (s *stubStore) SetDefaultAccount(string, string) error   { return nil }
@@ -208,6 +231,79 @@ func TestPersistingTokenSource_NoRotationDoesNotPersist(t *testing.T) {
 	}
 }
 
+func TestPersistingTokenSource_BackfillsSubjectFromIDToken(t *testing.T) {
+	stored := secrets.Token{Email: "a@b.com", RefreshToken: "same-token"}
+	store := &stubStore{tok: stored}
+	base := oauth2.StaticTokenSource((&oauth2.Token{
+		AccessToken:  "access",
+		RefreshToken: "same-token",
+	}).WithExtra(map[string]any{
+		"id_token": unsignedIDTokenForTest(t, "sub-123", "a@b.com"),
+	}))
+	ts := newPersistingTokenSource(base, store, config.DefaultClientName, "a@b.com", stored)
+
+	if _, err := ts.Token(); err != nil {
+		t.Fatalf("Token: %v", err)
+	}
+
+	if store.setCalls != 1 {
+		t.Fatalf("expected 1 SetToken call, got %d", store.setCalls)
+	}
+
+	if store.setEmail != "a@b.com" {
+		t.Fatalf("unexpected email: %q", store.setEmail)
+	}
+
+	if store.lastSet.Subject != "sub-123" {
+		t.Fatalf("expected subject to persist, got %q", store.lastSet.Subject)
+	}
+
+	if store.lastSet.RefreshToken != "same-token" {
+		t.Fatalf("refresh token changed unexpectedly: %q", store.lastSet.RefreshToken)
+	}
+}
+
+func TestPersistingTokenSource_MigratesRenamedEmailFromIDToken(t *testing.T) {
+	stored := secrets.Token{Email: "old@example.com", RefreshToken: "same-token", Subject: "sub-123"}
+	store := &stubStore{tok: stored}
+	base := oauth2.StaticTokenSource((&oauth2.Token{
+		AccessToken:  "access",
+		RefreshToken: "same-token",
+	}).WithExtra(map[string]any{
+		"id_token": unsignedIDTokenForTest(t, "sub-123", "new@example.com"),
+	}))
+	ts := newPersistingTokenSource(base, store, config.DefaultClientName, "old@example.com", stored)
+
+	if _, err := ts.Token(); err != nil {
+		t.Fatalf("Token: %v", err)
+	}
+
+	if store.setCalls != 1 {
+		t.Fatalf("expected 1 SetToken call, got %d", store.setCalls)
+	}
+
+	if store.setEmail != "new@example.com" {
+		t.Fatalf("expected new email to persist, got %q", store.setEmail)
+	}
+
+	if store.lastSet.Email != "new@example.com" || store.lastSet.Subject != "sub-123" {
+		t.Fatalf("unexpected stored token: %#v", store.lastSet)
+	}
+
+	if store.deleteCalls != 1 || store.deleteClient != config.DefaultClientName || store.deleteEmail != "old@example.com" {
+		t.Fatalf("expected old alias delete, got calls=%d client=%q email=%q", store.deleteCalls, store.deleteClient, store.deleteEmail)
+	}
+
+	pts, ok := ts.(*persistingTokenSource)
+	if !ok {
+		t.Fatalf("expected persistingTokenSource")
+	}
+
+	if pts.email != "new@example.com" {
+		t.Fatalf("expected source email updated, got %q", pts.email)
+	}
+}
+
 func TestPersistingTokenSource_PersistFailureIsNonFatal(t *testing.T) {
 	stored := secrets.Token{Email: "a@b.com", RefreshToken: "old-token"}
 	store := &stubStore{tok: stored, setErr: errBoom}
@@ -230,6 +326,22 @@ func TestPersistingTokenSource_PersistFailureIsNonFatal(t *testing.T) {
 	if store.tok.RefreshToken != "old-token" {
 		t.Fatalf("store should keep old token on persist error, got %q", store.tok.RefreshToken)
 	}
+}
+
+func unsignedIDTokenForTest(t *testing.T, subject string, email string) string {
+	t.Helper()
+
+	header, err := json.Marshal(map[string]string{"alg": "none"})
+	if err != nil {
+		t.Fatalf("marshal header: %v", err)
+	}
+
+	payload, err := json.Marshal(map[string]string{"sub": subject, "email": email})
+	if err != nil {
+		t.Fatalf("marshal payload: %v", err)
+	}
+
+	return base64.RawURLEncoding.EncodeToString(header) + "." + base64.RawURLEncoding.EncodeToString(payload) + "."
 }
 
 func TestTokenSourceForAccount_ReadCredsError(t *testing.T) {
@@ -547,5 +659,35 @@ func TestOptionsForAccountScopes_NoClientTimeout(t *testing.T) {
 	transport := newBaseTransport()
 	if transport.ResponseHeaderTimeout == 0 {
 		t.Fatalf("expected ResponseHeaderTimeout to be set on transport")
+	}
+}
+
+func TestNewHTTPClient_NoRedirectPolicy(t *testing.T) {
+	origRead := readClientCredentials
+	origOpen := openSecretsStore
+
+	t.Cleanup(func() {
+		readClientCredentials = origRead
+		openSecretsStore = origOpen
+	})
+
+	readClientCredentials = func(string) (config.ClientCredentials, error) {
+		return config.ClientCredentials{ClientID: "id", ClientSecret: "secret"}, nil
+	}
+	openSecretsStore = func() (secrets.Store, error) {
+		return &stubStore{tok: secrets.Token{Email: "a@b.com", RefreshToken: "rt"}}, nil
+	}
+
+	client, err := NewHTTPClient(context.Background(), googleauth.ServiceDocs, "a@b.com")
+	if err != nil {
+		t.Fatalf("NewHTTPClient: %v", err)
+	}
+
+	if client.Transport == nil {
+		t.Fatal("expected Transport to be set on client")
+	}
+
+	if client.CheckRedirect != nil {
+		t.Fatal("expected no CheckRedirect on bare client")
 	}
 }

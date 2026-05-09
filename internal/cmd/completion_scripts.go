@@ -37,9 +37,14 @@ complete -F _gog_complete gog
 func zshCompletionScript() string {
 	return `#compdef gog
 
-autoload -Uz bashcompinit
-bashcompinit
-` + bashCompletionScript()
+_gog() {
+  local -a completions
+  completions=("${(@f)$(gog __complete --cword "$((CURRENT - 1))" -- "${words[@]}")}")
+  _describe 'values' completions
+}
+
+compdef _gog gog
+`
 }
 
 func fishCompletionScript() string {

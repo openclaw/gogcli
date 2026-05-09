@@ -2,18 +2,12 @@ package tracking
 
 import (
 	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 )
 
 func TestConfigRoundTrip(t *testing.T) {
-	// Use temp dir
-	tmpDir := t.TempDir()
-	t.Setenv("HOME", tmpDir)
-	t.Setenv("XDG_CONFIG_HOME", filepath.Join(tmpDir, "xdg-config"))
-	t.Setenv("GOG_KEYRING_BACKEND", "file")
-	t.Setenv("GOG_KEYRING_PASSWORD", "test-password")
+	setupTrackingConfigEnv(t)
 
 	account := "test@example.com"
 
@@ -84,9 +78,7 @@ func TestConfigRoundTrip(t *testing.T) {
 }
 
 func TestLoadConfigMissing(t *testing.T) {
-	tmpDir := t.TempDir()
-	t.Setenv("HOME", tmpDir)
-	t.Setenv("XDG_CONFIG_HOME", filepath.Join(tmpDir, "xdg-config"))
+	setupTrackingConfigEnv(t)
 
 	cfg, err := LoadConfig("missing@example.com")
 	if err != nil {
@@ -103,9 +95,7 @@ func TestLoadConfigMissing(t *testing.T) {
 }
 
 func TestLoadConfigDifferentAccount(t *testing.T) {
-	tmpDir := t.TempDir()
-	t.Setenv("HOME", tmpDir)
-	t.Setenv("XDG_CONFIG_HOME", filepath.Join(tmpDir, "xdg-config"))
+	setupTrackingConfigEnv(t)
 
 	cfg := &Config{Enabled: true, WorkerURL: "https://test.workers.dev"}
 	if err := SaveConfig("a@example.com", cfg); err != nil {

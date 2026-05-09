@@ -1,9 +1,144 @@
 # Changelog
 
-## Unreleased
+## 0.16.0 - Unreleased
 
 ### Added
-- Gmail: add `gmail autoreply` to reply once to matching messages, label the thread for dedupe, and optionally archive/mark read. Includes docs and regression coverage for skip/reply flows.
+
+- Meet: add `meet create/get/update/end/history/participants` commands for Google Meet meeting spaces and conference records. (#468) — thanks @regaw-leinad.
+- Forms: add `forms publish` to publish/unpublish existing forms and return the responder URL for automated form creation flows. (#565 / #564) — thanks @bogdanovich.
+
+### Fixed
+
+- Release: fail closed when macOS signing secrets are missing and verify Darwin release assets are not ad-hoc signed, so Homebrew upgrades keep stable Keychain trust. (#569) — thanks @aaroneden.
+- Auth: list one row per OAuth client when the same account is authorized under multiple clients, and let `auth list --client` filter that token bucket. (#563) — thanks @UnPractical91.
+- Docs: clarify how to pass file-keyring environment into headless OpenClaw/systemd agent processes. (#566) — thanks @chsbusch-dot.
+- Docs: avoid infinite loops when local Markdown parsing ends on Thai, CJK, emoji, or other multi-byte runes. (#560 / #559) — thanks @ninyawee.
+- Agent skill: replace stale bundled `gog` skill paths with the current docs and auth package locations. (#558 / #557) — thanks @WadydX.
+- CI: run the docs validation gate in GitHub Actions and the local `make ci` target. (#562 / #561) — thanks @WadydX.
+
+## 0.15.0 - 2026-05-05
+
+### Added
+- Export exact Google API JSON when the normal CLI view is too lossy: `docs raw`, `sheets raw`, `slides raw`, `drive raw`, `gmail raw`, `calendar raw`, `people raw`, `contacts raw`, `tasks raw`, and `forms raw`, with `--pretty`, safer Drive defaults, Sheets grid-data warnings, and a raw-output security audit. (#495, #496) — thanks @karbassi.
+- Audit Drive storage without changing files: `drive tree`, `drive du`, and `drive inventory` now report folder contents, sizes, and inventory data for cleanup/review workflows. (#116) — thanks @rohan-patnaik.
+- Find duplicate contacts safely: `contacts dedupe` is preview-only, matches by email/phone by default, supports opt-in name matching, and emits JSON/table merge plans without applying changes. (#116) — thanks @rohan-patnaik.
+- Read Gmail messages in agent-safe form: `gmail get --sanitize-content` / `--safe` and `gmail thread get --sanitize-content` return sanitized content without exposing raw Gmail payloads in JSON. (#238, #220) — thanks @urasmutlu.
+- Ship official container images: release tags now publish a non-root GHCR Docker image, with file-keyring docs for container automation. (#539, #444) — thanks @HuckOps and @rdehuyss.
+- Request custom Drive fields: `drive ls --fields` and `drive get --fields` pass Drive API field masks for data beyond the default JSON set. (#495) — thanks @karbassi.
+- Format Google Docs from the CLI: `docs format` and plain-text `docs write` formatting flags cover fonts, colors, bold/italic/underline/strikethrough, alignment, and line spacing. (#479) — thanks @mmaghsoodnia.
+- Manage Google Docs tabs: `docs add-tab`, `docs rename-tab`, `docs delete-tab`, plus tab-scoped Markdown append and find-replace flows. (#547, #541) — thanks @chopenhauer and @donbowman.
+- Work with structured Google Sheets tables: `sheets table` list/get/create/delete, `sheets table append`, and header-safe `sheets table clear`. (#470) — thanks @Pedrohgv.
+- Format Sheets visually: `sheets conditional-format` and `sheets banding` add rule-based formatting and alternating color banded ranges. (#378) — thanks @codBang.
+- Add Meet links to existing calendar events with `calendar update --with-meet`. (#538) — thanks @alexisperumal.
+- Move calendar events between calendars with `calendar move` / `calendar transfer`, including organizer changes. (#448) — thanks @markusbkoch.
+- Export Gmail filters as Gmail WebUI-importable Atom XML, while keeping API JSON export via `--format json`. (#174) — thanks @gwpl.
+- Build safer agent binaries with baked `agent-safe`, `readonly`, and `full` safety profiles, fail-closed command filtering, filtered help/schema output, docs, and build tooling. (#366, #239) — thanks @drewburchfield.
+- Use gog from coding agents more safely with the bundled `gog` skill for JSON-first Google Workspace automation. (#353, #451) — thanks @TimPietrusky and @sluramod.
+
+### Fixed
+- Make full-mailbox backups survive large Gmail exports by promoting completed checkpoint shards into the final manifest and byte-splitting fallback message shards before GitHub rejects oversized blobs.
+- Make backup exports more resumable and fault-tolerant by streaming decrypted shards, preserving Gmail Markdown mirrors, handling very large JSONL rows, and writing Markdown fallbacks for malformed MIME messages instead of aborting.
+- Keep agent safety profiles harder to patch by compiling baked policies into generated hash switches instead of embedding raw allow/deny YAML strings. (#540) — thanks @drewburchfield.
+- Show correct versions for `go install ...@tag` binaries by inferring module versions from Go build info when linker metadata is absent. (#545, #544) — thanks @joshavant.
+- Accept the documented `calendar events list` / `ls` selector forms, including positional calendar IDs, `--cal`, `--calendars`, and `--all`. (#546) — thanks @BCudeOpenClaw.
+- Keep `docs find-replace --dry-run` read-only while still reporting match counts, and allow empty replacement strings to delete matches safely. (#542) — thanks @chrismdp.
+
+## 0.14.0 - 2026-04-28
+
+### Added
+- Backup: add `gog backup` with age-encrypted Git shards, Gmail labels/raw message export, Calendar/Contacts/Tasks/Drive metadata adapters, manifest status, full decrypt-and-verify, shard `cat`, local plaintext export, docs, and security-focused regression coverage.
+- Backup: expand `gog backup push --services all` with Drive content export/download, Gmail settings, native Workspace Docs/Sheets/Slides/Form data, Apps Script projects, Chat, Classroom, best-effort optional service error shards, and plaintext Drive file export.
+- Backup: extend `--services all` with Drive permissions/comments/revisions, Calendar ACL/settings/colors, contact groups, Cloud Identity groups, Workspace Admin Directory users/groups/members, Keep notes, and local Gmail message caching for resumable full-mailbox fetches.
+- Backup: add `gog backup export --gmail-format markdown` for local readable Gmail mirrors with Markdown notes and extracted attachment files.
+- Gmail: add `gmail messages search --body-format html` for returning HTML message bodies when `--include-body` is used. (#520) — thanks @alexknowshtml.
+- Contacts: add `contacts export` for vCard 4.0 `.vcf` exports by resource, email/name search, or all contacts, including best-effort label categories. (#519, #500) — thanks @dinakars777.
+- Docs: add experimental `docs export --tab` / `drive download --tab` to export a single Google Docs tab as PDF, DOCX, text, Markdown, or HTML. (#535) — thanks @johnbenjaminlewis.
+- Slides: add `slides insert-text` and `slides replace-text` for editing existing slide text elements and replacing template tokens. (#521) — thanks @chrissanchez-iops.
+- Drive: add `drive search --drive` and `--parent` for scoping search to a shared drive or folder. (#525) — thanks @LeanSheng.
+- Calendar: add `--start-timezone` / `--end-timezone` to `calendar create` and `calendar update` for preserving named IANA event timezones when RFC3339 inputs only carry numeric offsets. (#422)
+- Contacts: include birthdays in `contacts list` and `contacts search` text and JSON output. (#441)
+- Auth: add `gog auth doctor` to diagnose keyring backend/password drift, unreadable file-keyring tokens, and refresh-token failures such as Workspace `invalid_rapt`. (#377, #338)
+- Backup: bound individual Drive content exports with `--drive-content-timeout` so one stuck Google export records an encrypted error row instead of blocking the full backup.
+- Backup: add Gmail message-list checkpoints, streaming shard construction, and stderr progress counters so full-mailbox backups can resume cleanly after interruption without keeping every raw message in RAM.
+- Backup: push encrypted incomplete Gmail checkpoint commits during long cached fetches so day-scale mailbox backups have offsite progress before the final manifest is committed.
+- Backup: push Gmail checkpoint commits through a single ordered background queue so cached fetches continue while GitHub uploads run.
+- Slides docs: document the Markdown structure accepted by `slides create-from-markdown`. (#497)
+- Google API: expose a reusable authenticated HTTP client for commands that need custom HTTP policies. (#534) — thanks @johnbenjaminlewis.
+
+### Fixed
+- Auth: keep `gog auth list` and `gog auth tokens list` useful when one file-keyring token cannot be decrypted; unreadable entries are now reported instead of aborting the whole listing. (#377)
+- Auth: time out Linux D-Bus keyring write operations and report when OAuth completed but saving the refresh token failed, so manual auth no longer looks like a stuck paste when token persistence is blocked. (#130)
+- Auth: store Google OIDC `sub` claims with OAuth tokens and migrate matching subject-keyed accounts when a Google email rename is reauthorized. (#504)
+- Gmail: build outbound `Date` headers with the configured timezone so replies do not inherit a wrong host-local offset. (#514, #472) — thanks @dinakars777.
+- Gmail: auto-fill draft reply subjects from the original message when `gmail drafts create --reply-to-message-id` omits `--subject`. (#488) — thanks @jbowerbir.
+- Gmail: fall back to the People profile name for primary-account `From` headers when Gmail send-as settings omit a display name. (#431) — thanks @moeedahmed.
+- Gmail: expose reply threading headers in default `gmail get --format metadata` output and fail explicit reply targets that cannot provide a `Message-ID`. (#528, #512) — thanks @solomonneas.
+- Gmail: apply Gmail system-label filters for searches like `in:spam is:unread` so thread, message, and batch message searches do not return read spam. (#449)
+- Gmail: preserve renewed watch expiration fields when a long-running `gmail watch serve` process records push delivery state after `gmail watch renew` runs separately. (#526)
+- Gmail: reuse the shared paginated list runner for thread and message search so `--all`, `--page`, text, and JSON output stay consistent.
+- Gmail: clarify that `gmail batch delete` is permanent and point default-scope workflows at `gmail trash`. (#151)
+- Drive/Docs/Sheets/Slides: treat `--out -` as stdout for downloads and exports instead of creating `-`/`-.ext` files; reject `--json --out -` to keep byte streams parseable. (#286)
+- Docs: deprecate editing-command `--tab-id` in favor of `--tab`, and resolve tab titles to canonical tab IDs before mutations. (#533) — thanks @johnbenjaminlewis.
+- Docs: convert Markdown formatting for `docs write --append --markdown` instead of appending raw Markdown syntax. (#530, #272) — thanks @eric-x-liu.
+- Docs: include available tab names when `docs cat --tab` / structure lookup cannot find the requested tab. (#532) — thanks @johnbenjaminlewis.
+- Docs: size remote Markdown images consistently for `docs write --replace --markdown` by reusing the Docs image insertion path after Drive conversion, and return a clear error for local image paths that the Docs API cannot fetch directly. (#518) — thanks @vinothd-oai.
+- Drive: print large upload progress to stderr while keeping JSON output parseable. (#529)
+- Drive: include `hasThumbnail` and `thumbnailLink` in `drive ls`, `drive search`, and `drive get` JSON responses. (#486) — thanks @gtapps.
+- Drive: include `driveId` in `drive ls`, `drive search`, and `drive get` field masks so Shared Drive files can be identified in JSON output. (#524) — thanks @LeanSheng.
+- Calendar: display `calendar events` times and JSON local fields in the calendar timezone instead of preserving arbitrary event offsets. (#493)
+- Email tracking: add versioned tracking-key rotation so new pixels use the current key while old tracking ids keep decrypting through prior keys. (#293)
+- Email tracking: deduplicate repeated pixel opens and cap recorded opens per IP per hour to reduce D1 abuse from replay or high-volume requests. (#294)
+- Email tracking: add daily Worker retention cleanup for open rows older than 90 days and cap admin `/opens` responses at 500 rows. (#292)
+- Email tracking: make `gmail track setup --deploy` reusable with existing D1 databases and valid temporary Wrangler configs.
+- Backup: split Gmail checkpoint commits by row count and plaintext byte size so large messages stay below GitHub's blob limit.
+- Secrets: time out macOS Keychain read/write/list operations with a clear recovery hint instead of hanging indefinitely when a permission prompt cannot surface. (#515, #513) — thanks @sardoru.
+- Secrets: encode file-backend key names so stored tokens work on Windows, while still reading/removing legacy raw entries. (#527, #502) — thanks @solomonneas.
+- CLI: show direct Google Cloud API enablement links and matching `auth add --services ...` hints when Google returns API-not-enabled errors.
+- Install docs: document Windows release ZIP/PATH setup and clarify that source builds require the Go version declared in `go.mod`, not Ubuntu 24.04's Go 1.22 package. (#157, #135)
+- Auth docs: clarify that consumer Gmail refresh tokens expire after 7 days when the OAuth app remains External + Testing, and that publishing the personal OAuth app is the long-lived-token path. (#121)
+- CI: pin GitHub Actions workflow dependencies to immutable commit SHAs. (#288)
+
+## 0.13.0 - 2026-04-20
+
+### Highlights
+- Gmail: safer sending and richer message workflows, with no-send guardrails, forwarding, autoreplies, full-body search output, label styling, and better MIME/body handling. (#454, #482, #447, #457, #476, #477, #511) — thanks @veteranbv, @spencer-c-reed, @GodsBoy, @iskw9973, @shashankkr9, @yeager, and @dinakars777.
+- Drive/Docs/Slides: smoother content round-trips with Markdown-to-Docs upload conversion, restored Markdown replace writes, rendered slide thumbnails, commenter sharing, and better Docs sed formatting. (#487, #501, #498, #443, #483) — thanks @johnbenjaminlewis, @twilsher, @gianpaj, @pavelzak, and @bill492.
+- Sheets: chart management lands, including list/inspect/create/update/delete and a chart-range fix for sheet ID 0. (#434) — thanks @andybergon.
+- Calendar: create secondary calendars and get more predictable timezone/day-bound behavior. (#455, #492, #509, #510) — thanks @alexknowshtml, @RaphaelRUzan, and @dinakars777.
+- Auth and agent safety: credential cleanup, Google Ads auth, keyring namespace overrides, command denylists, and safer send-operation controls. (#473, #264, #463, #218, #173, #454) — thanks @yamagucci, @ufkhan97, @mkurz, @EricYangTL, @spookyuser, and @veteranbv.
+
+### Added
+- Gmail: add `--gmail-no-send`, `GOG_GMAIL_NO_SEND`, `gmail_no_send`, and per-account `config no-send` guards for blocking send operations. (#454) — thanks @veteranbv.
+- Gmail: add `gmail forward` / `gmail fwd` to forward a message with optional note, verified send-as alias, and original attachments. (#482) — thanks @spencer-c-reed.
+- Gmail: add `gmail autoreply` to reply once to matching messages, label the thread for dedupe, and optionally archive/mark read.
+- Gmail: add `gmail messages search --full` to print complete message bodies instead of truncating text output. (#447) — thanks @GodsBoy.
+- Gmail: add `gmail labels style` to update user label colors and list/message visibility. (#457) — thanks @iskw9973.
+- Drive: convert Markdown uploads to Google Docs and strip leading YAML frontmatter by default, with `--keep-frontmatter` to opt out. (#487) — thanks @johnbenjaminlewis.
+- Drive: allow `drive share --role commenter` for comment-only sharing. (#443) — thanks @pavelzak.
+- Drive: show owner email in `drive ls` and `drive search` table output. (#458) — thanks @laihenyi.
+- Slides: add `slides thumbnail` / `slides thumb` to fetch rendered slide thumbnail URLs or download PNG/JPEG images. (#498) — thanks @gianpaj.
+- Sheets: add `sheets chart` to list, inspect, create, update, and delete embedded charts. (#434) — thanks @andybergon.
+- Sheets: add `add-sheet`, `rename-sheet`, and `delete-sheet` tab aliases plus `sheets add-tab --index`. (#442) — thanks @alexknowshtml.
+- Calendar: add `calendar create-calendar` / `new-calendar` to create secondary calendars with description, timezone, and location. (#455) — thanks @alexknowshtml.
+- Auth: add `auth credentials remove` to delete stored OAuth client credentials and associated refresh tokens. (#473) — thanks @yamagucci.
+- Auth: add `ads` as an auth service for Google Ads API tokens. (#264) — thanks @ufkhan97.
+- Secrets: allow `GOG_KEYRING_SERVICE_NAME` to override the keyring namespace. (#463) — thanks @mkurz.
+- Agent safety: allow dotted command paths in `--enable-commands` and add `--disable-commands` / `GOG_DISABLE_COMMANDS` denylist support. (#218, #173) — thanks @EricYangTL and @spookyuser.
+- Contacts: add `--gender` to `contacts create` and `contacts update`, and include gender in `contacts get` text output. (#438) — thanks @klodr.
+- Chat: make `chat spaces find` use case-insensitive substring matching by default, with `--exact` for legacy exact lookup. (#506) — thanks @mvanhorn.
+
+### Fixed
+- Calendar: avoid ambiguous timezone guessing from offset-only event times, preserve timezones for focus-time events, and use exclusive next-midnight bounds for full-day ranges. (#492, #509, #510) — thanks @RaphaelRUzan and @dinakars777.
+- Gmail: preserve sent and received body content by using quoted-printable plain text, non-`7bit` non-ASCII HTML, and safer UTF-8 charset handling. (#476, #477, #511) — thanks @shashankkr9, @yeager, and @dinakars777.
+- Docs: restore `docs write --replace --markdown` conversion and preserve sed formatting ranges, UTF-16 offsets, and `&` whole-match replacements. (#501, #483) — thanks @twilsher and @bill492.
+- Sheets: preserve valid chart ranges that target sheet ID 0 while still remapping sample-style zero IDs when the spreadsheet has no zero-ID sheet. (#434) — thanks @andybergon.
+- Auth: remove stale aliases and account-client mappings from config when `auth remove` deletes an account. (#467) — thanks @mvanhorn.
+- Contacts: reject all individual update flags when `contacts update --from-file` is used. (#439) — thanks @klodr.
+- Tasks: clear task due dates when `tasks update --due=` is provided. (#507) — thanks @dinakars777.
+- CLI: generate native zsh completions without relying on `bashcompinit`. (#481) — thanks @piiq.
+- Windows: expand `~\...` paths and run the integration live-test wrapper through PowerShell. (#452) — thanks @gagradebnath.
+- Tracking: prefer file-stored tracking secrets over stale keyring values unless keyring storage is configured. (#469) — thanks @alexuser.
+- Time parsing: accept `tues`, `thur`, and `thurs` as weekday expressions. (#440) — thanks @sjhddh.
 
 ## 0.12.0 - 2026-03-09
 
@@ -41,6 +176,7 @@
 - Calendar: add `calendar alias list|set|unset`, and let calendar commands resolve configured aliases before API/name lookup. (#393) — thanks @salmonumbrella.
 - Calendar: let `calendar freebusy` / `calendar conflicts` accept `--cal`, names, indices, and `--all` like `calendar events`. (#319) — thanks @salmonumbrella.
 - Calendar: add `calendar subscribe` (aliases `sub`, `add-calendar`) to add a shared calendar to the current account’s calendar list. (#327) — thanks @cdthompson.
+- Gmail: add `gmail send --signature`, `--signature-from`, and `--signature-file` to append Gmail send-as or local signatures before sending. (#180, #183) — thanks @kesslerio and @salmonumbrella.
 - Gmail: add `watch serve --history-types` filtering (`messageAdded|messageDeleted|labelAdded|labelRemoved`) and include `deletedMessageIds` in webhook payloads. (#168) — thanks @salmonumbrella.
 - Gmail: add `gmail labels rename` to rename user labels by ID or exact name, with system-label guards and wrong-case ID safety. (#391) — thanks @adam-zethraeus.
 - Gmail: add `gmail messages modify` for single-message label changes, complementing thread- and batch-level modify flows. (#281) — thanks @zerone0x.

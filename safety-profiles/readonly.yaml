@@ -1,0 +1,329 @@
+name: readonly
+description: Read/list/search/get commands only. Mutations, sends, deletes, sharing, and auth writes are blocked.
+
+version: true
+schema: true
+exit-codes: true
+agent:
+  exit-codes: true
+
+gmail:
+  search: true
+  get: true
+  messages:
+    search: true
+    modify: false
+  attachment: true
+  url: true
+  history: true
+  thread:
+    get: true
+    modify: false
+    attachments: true
+  labels:
+    list: true
+    get: true
+    create: false
+    rename: false
+    modify: false
+    delete: false
+    style: false
+  batch:
+    modify: false
+    delete: false
+  archive: false
+  mark-read: false
+  unread: false
+  trash: false
+  send: false
+  autoreply: false
+  track: false
+  drafts:
+    list: true
+    get: true
+    create: false
+    update: false
+    delete: false
+    send: false
+  settings: false
+  watch: false
+  autoforward: false
+  delegates: false
+  filters: false
+  forwarding: false
+  sendas: false
+  vacation: false
+  forward: false
+
+calendar:
+  calendars: true
+  subscribe: false
+  acl: true
+  alias:
+    list: true
+    set: false
+    unset: false
+  events: true
+  event: true
+  create: false
+  update: false
+  move: false
+  delete: false
+  freebusy: true
+  respond: false
+  propose-time: false
+  colors: true
+  conflicts: true
+  search: true
+  time: true
+  users: true
+  team: true
+  focus-time: false
+  out-of-office: false
+  working-location: false
+  create-calendar: false
+
+drive:
+  ls: true
+  search: true
+  get: true
+  download: true
+  upload: false
+  mkdir: false
+  copy: false
+  delete: false
+  move: false
+  rename: false
+  share: false
+  unshare: false
+  permissions: true
+  url: true
+  drives: true
+  comments:
+    list: true
+    get: true
+    create: false
+    update: false
+    delete: false
+    reply: false
+
+contacts:
+  search: true
+  list: true
+  get: true
+  export: true
+  create: false
+  update: false
+  delete: false
+  directory:
+    list: true
+    search: true
+  other:
+    list: true
+    search: true
+    delete: false
+
+tasks:
+  lists:
+    list: true
+    create: false
+  list: true
+  get: true
+  add: false
+  update: false
+  done: false
+  undo: false
+  delete: false
+  clear: false
+
+docs:
+  export: true
+  info: true
+  cat: true
+  list-tabs: true
+  create: false
+  copy: false
+  write: false
+  insert: false
+  delete: false
+  find-replace: false
+  update: false
+  edit: false
+  sed: false
+  clear: false
+  structure: true
+  comments:
+    list: true
+    get: true
+    add: false
+    reply: false
+    resolve: false
+    delete: false
+
+sheets:
+  get: true
+  metadata: true
+  notes: true
+  update-note: false
+  links: true
+  named-ranges:
+    list: true
+    get: true
+    add: false
+    update: false
+    delete: false
+  read-format: true
+  export: true
+  update: false
+  append: false
+  insert: false
+  clear: false
+  format: false
+  merge: false
+  unmerge: false
+  number-format: false
+  freeze: false
+  resize-columns: false
+  resize-rows: false
+  find-replace: false
+  create: false
+  copy: false
+  add-tab: false
+  rename-tab: false
+  delete-tab: false
+  chart:
+    list: true
+    get: true
+    create: false
+    update: false
+    delete: false
+
+slides:
+  export: true
+  info: true
+  list-slides: true
+  read-slide: true
+  thumbnail: true
+  create: false
+  create-from-markdown: false
+  create-from-template: false
+  copy: false
+  add-slide: false
+  delete-slide: false
+  update-notes: false
+  replace-slide: false
+  insert-text: false
+  replace-text: false
+
+chat:
+  spaces:
+    list: true
+    find: true
+    create: false
+  messages:
+    list: true
+    send: false
+    react: false
+    reactions: false
+  threads:
+    list: true
+  dm:
+    send: false
+    space: false
+
+forms:
+  get: true
+  create: false
+  update: false
+  publish: false
+  add-question: false
+  delete-question: false
+  move-question: false
+  responses:
+    list: true
+    get: true
+  watch: false
+
+appscript:
+  get: true
+  content: true
+  run: false
+  create: false
+
+people:
+  me: true
+  get: true
+  search: true
+  relations: true
+
+groups:
+  list: true
+  members: true
+
+keep:
+  list: true
+  get: true
+  search: true
+  create: false
+  delete: false
+  attachment: true
+
+auth:
+  credentials:
+    list: true
+    set: false
+    remove: false
+  services: true
+  list: true
+  doctor: true
+  alias:
+    list: true
+    set: false
+    unset: false
+  status: true
+  keyring: false
+  add: false
+  remove: false
+  tokens:
+    list: true
+    delete: false
+    export: false
+    import: false
+  manage: false
+  service-account:
+    status: true
+    set: false
+    unset: false
+  keep: false
+
+config:
+  get: true
+  keys: true
+  list: true
+  path: true
+  set: false
+  unset: false
+  no-send:
+    list: true
+    set: false
+    remove: false
+
+time: true
+classroom: false
+admin: false
+backup: false
+completion: false
+__complete: false
+
+aliases:
+  send: false
+  ls: true
+  search: true
+  open: true
+  download: true
+  upload: false
+  login: false
+  logout: false
+  status: true
+  me: true
+  whoami: true

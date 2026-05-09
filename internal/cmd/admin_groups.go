@@ -58,19 +58,9 @@ func (c *AdminGroupsListCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return resp.Groups, resp.NextPageToken, nil
 	}
 
-	var groups []*admin.Group
-	nextPageToken := ""
-	if c.All {
-		all, collectErr := collectAllPages(c.Page, fetch)
-		if collectErr != nil {
-			return collectErr
-		}
-		groups = all
-	} else {
-		groups, nextPageToken, err = fetch(c.Page)
-		if err != nil {
-			return err
-		}
+	groups, nextPageToken, err := loadPagedItems(c.Page, c.All, fetch)
+	if err != nil {
+		return err
 	}
 
 	if outfmt.IsJSON(ctx) {
@@ -176,19 +166,9 @@ func (c *AdminGroupsMembersListCmd) Run(ctx context.Context, flags *RootFlags) e
 		return resp.Members, resp.NextPageToken, nil
 	}
 
-	var members []*admin.Member
-	nextPageToken := ""
-	if c.All {
-		all, collectErr := collectAllPages(c.Page, fetch)
-		if collectErr != nil {
-			return collectErr
-		}
-		members = all
-	} else {
-		members, nextPageToken, err = fetch(c.Page)
-		if err != nil {
-			return err
-		}
+	members, nextPageToken, err := loadPagedItems(c.Page, c.All, fetch)
+	if err != nil {
+		return err
 	}
 
 	if outfmt.IsJSON(ctx) {

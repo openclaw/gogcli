@@ -34,6 +34,10 @@ type persistingTokenSource struct {
 	tok secrets.Token
 }
 
+type tokenAliasDeleter interface {
+	DeleteTokenAlias(client string, email string) error
+}
+
 func newPersistingTokenSource(base oauth2.TokenSource, store secrets.Store, client string, email string, tok secrets.Token) oauth2.TokenSource {
 	return &persistingTokenSource{
 		base:   base,
@@ -51,27 +55,64 @@ func (p *persistingTokenSource) Token() (*oauth2.Token, error) {
 	}
 
 	refreshToken := strings.TrimSpace(t.RefreshToken)
-	if refreshToken == "" {
-		return t, nil
-	}
 
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	if refreshToken == p.tok.RefreshToken {
+	updated := p.tok
+	changed := false
+	emailChangedFromIdentity := false
+
+	if refreshToken != "" && refreshToken != p.tok.RefreshToken {
+		updated.RefreshToken = refreshToken
+		changed = true
+	}
+
+	if rawIDToken, ok := t.Extra("id_token").(string); ok && strings.TrimSpace(rawIDToken) != "" {
+		if identity, identityErr := googleauth.IdentityFromIDToken(rawIDToken); identityErr == nil {
+			if strings.TrimSpace(identity.Subject) != "" && strings.TrimSpace(identity.Subject) != strings.TrimSpace(updated.Subject) {
+				updated.Subject = strings.TrimSpace(identity.Subject)
+				changed = true
+			}
+
+			if email := strings.TrimSpace(identity.Email); email != "" && !strings.EqualFold(email, updated.Email) {
+				updated.Email = email
+				changed = true
+				emailChangedFromIdentity = true
+			}
+		}
+	}
+
+	if !changed {
 		return t, nil
 	}
 
-	updated := p.tok
-	updated.RefreshToken = refreshToken
+	persistEmail := strings.TrimSpace(p.email)
+	if emailChangedFromIdentity || persistEmail == "" {
+		persistEmail = strings.TrimSpace(updated.Email)
+	}
 
-	if err := p.store.SetToken(p.client, p.email, updated); err != nil {
-		slog.Warn("persist rotated refresh token failed", "email", p.email, "client", p.client, "err", err)
+	if persistEmail == "" {
+		persistEmail = p.email
+	}
+
+	if err := p.store.SetToken(p.client, persistEmail, updated); err != nil {
+		slog.Warn("persist refreshed token metadata failed", "email", persistEmail, "client", p.client, "err", err)
 		return t, nil
+	}
+
+	if !strings.EqualFold(p.email, persistEmail) {
+		aliasDeleter, ok := p.store.(tokenAliasDeleter)
+		if !ok {
+			slog.Debug("token store cannot delete renamed email alias", "old_email", p.email, "new_email", persistEmail, "client", p.client)
+		} else if err := aliasDeleter.DeleteTokenAlias(p.client, p.email); err != nil {
+			slog.Warn("delete renamed token alias failed", "old_email", p.email, "new_email", persistEmail, "client", p.client, "err", err)
+		}
 	}
 
 	p.tok = updated
-	slog.Debug("persisted rotated refresh token", "email", p.email, "client", p.client)
+	p.email = persistEmail
+	slog.Debug("persisted refreshed token metadata", "email", persistEmail, "client", p.client)
 
 	return t, nil
 }

@@ -74,6 +74,26 @@ func TestFormat_GoogleAPIError(t *testing.T) {
 	}
 }
 
+func TestFormat_GoogleAPIError_AccessNotConfiguredHint(t *testing.T) {
+	err := &ggoogleapi.Error{
+		Code: 403,
+		Message: "Google Drive API has not been used in project 123 before or it is disabled. " +
+			"Enable it by visiting https://console.developers.google.com/apis/api/drive.googleapis.com/overview?project=123",
+		Errors: []ggoogleapi.ErrorItem{
+			{Reason: "accessNotConfigured"},
+		},
+	}
+	got := Format(err)
+
+	if !containsAll(got, "Drive API is not enabled", "drive.googleapis.com", "--services drive") {
+		t.Fatalf("unexpected: %q", got)
+	}
+
+	if strings.Contains(got, "Google API error") {
+		t.Fatalf("expected user-facing enablement hint, got: %q", got)
+	}
+}
+
 func TestFormat_KongParseError_UnknownFlag(t *testing.T) {
 	// Use real Kong parser to generate a parse error
 	type TestCmd struct {

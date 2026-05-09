@@ -65,27 +65,16 @@ func (c *ClassroomCoursesListCmd) Run(ctx context.Context, flags *RootFlags) err
 		if v := strings.TrimSpace(c.StudentID); v != "" {
 			call.StudentId(v)
 		}
-		resp, err := call.Do()
-		if err != nil {
-			return nil, "", wrapClassroomError(err)
+		resp, callErr := call.Do()
+		if callErr != nil {
+			return nil, "", wrapClassroomError(callErr)
 		}
 		return resp.Courses, resp.NextPageToken, nil
 	}
 
-	var courses []*classroom.Course
-	nextPageToken := ""
-	if c.All {
-		all, err := collectAllPages(c.Page, fetch)
-		if err != nil {
-			return err
-		}
-		courses = all
-	} else {
-		var err error
-		courses, nextPageToken, err = fetch(c.Page)
-		if err != nil {
-			return err
-		}
+	courses, nextPageToken, err := loadPagedItems(c.Page, c.All, fetch)
+	if err != nil {
+		return err
 	}
 
 	if outfmt.IsJSON(ctx) {

@@ -48,8 +48,11 @@ func TestResolveTimeRangeWithDefaultsToday(t *testing.T) {
 		t.Fatalf("expected start of day, got %v", tr.From)
 	}
 
-	if tr.To.Hour() != 23 || tr.To.Minute() != 59 || tr.To.Second() != 59 {
-		t.Fatalf("expected end of day, got %v", tr.To)
+	// endOfDay now returns start of next day (midnight) so that RFC3339
+	// second-precision formatting doesn't truncate 23:59:59.999999999 to
+	// 23:59:59, which would exclude events at that second via exclusive timeMax.
+	if tr.To.Hour() != 0 || tr.To.Minute() != 0 || tr.To.Second() != 0 {
+		t.Fatalf("expected start of next day (end-of-day), got %v", tr.To)
 	}
 
 	if !tr.From.Before(tr.To) {
@@ -87,7 +90,7 @@ func TestResolveTimeRangeWithDefaultsToDateOnlyEndOfDay(t *testing.T) {
 	}
 
 	expectedFrom := time.Date(2025, 1, 5, 10, 0, 0, 0, time.UTC)
-	expectedTo := time.Date(2025, 1, 5, 23, 59, 59, 999999999, time.UTC)
+	expectedTo := time.Date(2025, 1, 6, 0, 0, 0, 0, time.UTC)
 	if !tr.From.Equal(expectedFrom) {
 		t.Fatalf("unexpected from: %v", tr.From)
 	}
@@ -230,7 +233,8 @@ func TestResolveTimeRangeWithDefaultsToTomorrowEndOfDay(t *testing.T) {
 
 	// "tomorrow" is relative to now, so we calculate expected tomorrow
 	expectedTomorrow := now.AddDate(0, 0, 1)
-	expectedTo := time.Date(expectedTomorrow.Year(), expectedTomorrow.Month(), expectedTomorrow.Day(), 23, 59, 59, 999999999, time.UTC)
+	// endOfDay returns start of next day, so for tomorrow that's day after tomorrow
+	expectedTo := time.Date(expectedTomorrow.Year(), expectedTomorrow.Month(), expectedTomorrow.Day()+1, 0, 0, 0, 0, time.UTC)
 
 	if !tr.To.Equal(expectedTo) {
 		t.Fatalf("expected --to tomorrow to expand to end-of-day %v, got %v", expectedTo, tr.To)
@@ -261,8 +265,8 @@ func TestResolveTimeRangeWithDefaultsToNowNoExpansion(t *testing.T) {
 		t.Fatalf("expected --to now to be current time (between %v and %v), got %v", before, after, tr.To)
 	}
 
-	// Verify it's NOT end-of-day (23:59:59.999999999)
-	if tr.To.Hour() == 23 && tr.To.Minute() == 59 && tr.To.Second() == 59 && tr.To.Nanosecond() == 999999999 {
+	// Verify it's NOT midnight of next day (the new endOfDay)
+	if tr.To.Hour() == 0 && tr.To.Minute() == 0 && tr.To.Second() == 0 && tr.To.Nanosecond() == 0 {
 		t.Fatalf("expected --to now NOT to expand to end-of-day, but got %v", tr.To)
 	}
 }
@@ -295,7 +299,8 @@ func TestResolveTimeRangeWithDefaultsToMondayEndOfDay(t *testing.T) {
 		daysUntil += 7
 	}
 	expectedMonday := now.AddDate(0, 0, daysUntil)
-	expectedTo := time.Date(expectedMonday.Year(), expectedMonday.Month(), expectedMonday.Day(), 23, 59, 59, 999999999, time.UTC)
+	// endOfDay returns start of next day
+	expectedTo := time.Date(expectedMonday.Year(), expectedMonday.Month(), expectedMonday.Day()+1, 0, 0, 0, 0, time.UTC)
 
 	if !tr.To.Equal(expectedTo) {
 		t.Fatalf("expected --to monday to expand to end-of-day %v, got %v", expectedTo, tr.To)

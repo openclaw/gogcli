@@ -32,11 +32,16 @@ func TestDriveLsCmd_TextAndJSON(t *testing.T) {
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"files": []map[string]any{
 					{
-						"id":           "f1",
-						"name":         "Doc",
-						"mimeType":     "application/pdf",
-						"size":         "1024",
-						"modifiedTime": "2025-12-12T14:37:47Z",
+						"id":            "f1",
+						"name":          "Doc",
+						"mimeType":      "application/pdf",
+						"size":          "1024",
+						"modifiedTime":  "2025-12-12T14:37:47Z",
+						"hasThumbnail":  true,
+						"thumbnailLink": "https://thumb.example/f1",
+						"owners": []map[string]any{
+							{"emailAddress": "owner@example.com"},
+						},
 					},
 					{
 						"id":           "d1",
@@ -84,10 +89,10 @@ func TestDriveLsCmd_TextAndJSON(t *testing.T) {
 		}
 	})
 
-	if !strings.Contains(textOut, "ID") || !strings.Contains(textOut, "NAME") {
+	if !strings.Contains(textOut, "ID") || !strings.Contains(textOut, "NAME") || !strings.Contains(textOut, "OWNER") {
 		t.Fatalf("unexpected table header: %q", textOut)
 	}
-	if !strings.Contains(textOut, "f1") || !strings.Contains(textOut, "Doc") || !strings.Contains(textOut, "1.0 KB") {
+	if !strings.Contains(textOut, "f1") || !strings.Contains(textOut, "Doc") || !strings.Contains(textOut, "1.0 KB") || !strings.Contains(textOut, "owner@example.com") {
 		t.Fatalf("missing file row: %q", textOut)
 	}
 	if !strings.Contains(textOut, "d1") || !strings.Contains(textOut, "Folder") || !strings.Contains(textOut, "folder") {
@@ -126,6 +131,9 @@ func TestDriveLsCmd_TextAndJSON(t *testing.T) {
 	if parsed.NextPageToken != "npt" || len(parsed.Files) != 2 {
 		t.Fatalf("unexpected json: %#v", parsed)
 	}
+	if !parsed.Files[0].HasThumbnail || parsed.Files[0].ThumbnailLink != "https://thumb.example/f1" {
+		t.Fatalf("expected thumbnail fields in json, got %#v", parsed.Files[0])
+	}
 
 	// Plain mode: stable TSV (tabs preserved).
 	var errBuf3 bytes.Buffer
@@ -142,7 +150,7 @@ func TestDriveLsCmd_TextAndJSON(t *testing.T) {
 			t.Fatalf("execute: %v", execErr)
 		}
 	})
-	if !strings.Contains(plainOut, "ID\tNAME\tTYPE\tSIZE\tMODIFIED") {
+	if !strings.Contains(plainOut, "ID\tNAME\tTYPE\tSIZE\tMODIFIED\tOWNER") {
 		t.Fatalf("expected TSV header, got: %q", plainOut)
 	}
 }

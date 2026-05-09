@@ -62,14 +62,14 @@ func (c *AuthKeyringCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return usagef("too many args: %q %q", c.Backend, c.Backend2)
 	}
 
-	if backend == "default" {
-		backend = "auto"
+	if backend == literalDefault {
+		backend = literalAuto
 	}
 
 	allowed := map[string]struct{}{
-		"auto":     {},
-		"keychain": {},
-		strFile:    {},
+		literalAuto: {},
+		"keychain":  {},
+		strFile:     {},
 	}
 	if _, ok := allowed[backend]; !ok {
 		return usagef("invalid backend: %q (expected auto, keychain, or file)", c.Backend)

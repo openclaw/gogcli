@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"reflect"
 	"runtime"
 	"strings"
 	"time"
@@ -31,6 +32,7 @@ type KeyringStore struct {
 
 type Token struct {
 	Client       string    `json:"client,omitempty"`
+	Subject      string    `json:"subject,omitempty"`
 	Email        string    `json:"email"`
 	Services     []string  `json:"services,omitempty"`
 	Scopes       []string  `json:"scopes,omitempty"`
@@ -47,8 +49,9 @@ func keyringItem(key string, data []byte) keyring.Item {
 }
 
 const (
-	keyringPasswordEnv = "GOG_KEYRING_PASSWORD" //nolint:gosec // env var name, not a credential
-	keyringBackendEnv  = "GOG_KEYRING_BACKEND"  //nolint:gosec // env var name, not a credential
+	keyringPasswordEnv    = "GOG_KEYRING_PASSWORD" //nolint:gosec // env var name, not a credential
+	keyringBackendEnv     = "GOG_KEYRING_BACKEND"  //nolint:gosec // env var name, not a credential
+	keyringServiceNameEnv = "GOG_KEYRING_SERVICE_NAME"
 )
 
 var (
@@ -144,17 +147,56 @@ func normalizeKeyringBackend(value string) string {
 	return strings.ToLower(strings.TrimSpace(value))
 }
 
+func keyringServiceName() string {
+	if serviceName := strings.TrimSpace(os.Getenv(keyringServiceNameEnv)); serviceName != "" {
+		return serviceName
+	}
+
+	return config.AppName
+}
+
 // keyringOpenTimeout is the maximum time to wait for keyring.Open() to complete.
 // On headless Linux, D-Bus SecretService can hang indefinitely if gnome-keyring
 // is installed but not running.
-const keyringOpenTimeout = 5 * time.Second
+const (
+	keyringOpenTimeout = 10 * time.Second
+	goosDarwin         = "darwin"
+	goosLinux          = "linux"
+)
 
 func shouldForceFileBackend(goos string, backendInfo KeyringBackendInfo, dbusAddr string) bool {
-	return goos == "linux" && backendInfo.Value == keyringBackendAuto && dbusAddr == ""
+	return goos == goosLinux && backendInfo.Value == keyringBackendAuto && dbusAddr == ""
 }
 
 func shouldUseKeyringTimeout(goos string, backendInfo KeyringBackendInfo, dbusAddr string) bool {
-	return goos == "linux" && backendInfo.Value == "auto" && dbusAddr != ""
+	return goos == goosLinux && backendInfo.Value == "auto" && dbusAddr != ""
+}
+
+func shouldUseKeyringOperationTimeout(goos string, backendInfo KeyringBackendInfo, dbusAddr string) bool {
+	if goos == goosDarwin {
+		return backendInfo.Value == keyringBackendAuto || backendInfo.Value == "keychain"
+	}
+
+	return goos == goosLinux && backendInfo.Value == keyringBackendAuto && dbusAddr != ""
+}
+
+func keyringTimeoutHint(goos string) string {
+	switch goos {
+	case goosDarwin:
+		return "macOS Keychain may be waiting for a permission prompt; run `gog auth list` from a terminal and click \"Always Allow\" when prompted"
+	case goosLinux:
+		return "D-Bus SecretService may be unresponsive"
+	default:
+		return "keyring backend may be unresponsive"
+	}
+}
+
+func isFileKeyring(ring keyring.Keyring) bool {
+	if ring == nil {
+		return false
+	}
+
+	return reflect.TypeOf(ring).String() == "*keyring.fileKeyring"
 }
 
 func openKeyring() (keyring.Keyring, error) {
@@ -175,6 +217,7 @@ func openKeyring() (keyring.Keyring, error) {
 	if err != nil {
 		return nil, err
 	}
+	wrapFileKeys := fileKeyringBackendOnly(backends)
 
 	dbusAddr := os.Getenv("DBUS_SESSION_BUS_ADDRESS")
 	// On Linux with "auto" backend and no D-Bus session, force file backend.
@@ -182,10 +225,11 @@ func openKeyring() (keyring.Keyring, error) {
 	// trying to connect (common on headless systems like Raspberry Pi).
 	if shouldForceFileBackend(runtime.GOOS, backendInfo, dbusAddr) {
 		backends = []keyring.BackendType{keyring.FileBackend}
+		wrapFileKeys = true
 	}
 
 	cfg := keyring.Config{
-		ServiceName: config.AppName,
+		ServiceName: keyringServiceName(),
 		// KeychainTrustApplication is intentionally false to support Homebrew upgrades.
 		// When true, macOS Keychain ties access control to the specific binary hash.
 		// Homebrew upgrades install a new binary with a different hash, causing the
@@ -202,7 +246,12 @@ func openKeyring() (keyring.Keyring, error) {
 	// is unresponsive (e.g., gnome-keyring installed but not running).
 	// Use a timeout as a safety net.
 	if shouldUseKeyringTimeout(runtime.GOOS, backendInfo, dbusAddr) {
-		return openKeyringWithTimeout(cfg, keyringOpenTimeout)
+		timeoutRing, timeoutErr := openKeyringWithTimeout(cfg, keyringOpenTimeout)
+		if timeoutErr != nil {
+			return nil, timeoutErr
+		}
+
+		return prepareKeyring(timeoutRing, backendInfo, wrapFileKeys, dbusAddr), nil
 	}
 
 	ring, err := keyringOpenFunc(cfg)
@@ -210,7 +259,19 @@ func openKeyring() (keyring.Keyring, error) {
 		return nil, fmt.Errorf("open keyring: %w", err)
 	}
 
-	return ring, nil
+	return prepareKeyring(ring, backendInfo, wrapFileKeys, dbusAddr), nil
+}
+
+func prepareKeyring(ring keyring.Keyring, backendInfo KeyringBackendInfo, wrapFileKeys bool, dbusAddr string) keyring.Keyring {
+	if wrapFileKeys || isFileKeyring(ring) {
+		ring = newFileSafeKeyring(ring)
+	}
+
+	if shouldUseKeyringOperationTimeout(runtime.GOOS, backendInfo, dbusAddr) {
+		ring = newTimeoutKeyring(ring, keyringOpenTimeout, keyringTimeoutHint(runtime.GOOS))
+	}
+
+	return ring
 }
 
 type keyringResult struct {
@@ -241,9 +302,7 @@ func openKeyringWithTimeout(cfg keyring.Config, timeout time.Duration) (keyring.
 
 		return res.ring, nil
 	case <-time.After(timeout):
-		return nil, fmt.Errorf("%w after %v (D-Bus SecretService may be unresponsive); "+
-			"set GOG_KEYRING_BACKEND=file and GOG_KEYRING_PASSWORD=<password> to use encrypted file storage instead",
-			errKeyringTimeout, timeout)
+		return nil, keyringTimeoutError("opening keyring", timeout, keyringTimeoutHint(runtime.GOOS))
 	}
 }
 
@@ -303,7 +362,9 @@ func (s *KeyringStore) Keys() ([]string, error) {
 }
 
 type storedToken struct {
-	RefreshToken string    `json:"refresh_token"` //nolint:gosec // persisted token schema intentionally uses refresh_token
+	RefreshToken string    `json:"refresh_token"`
+	Subject      string    `json:"subject,omitempty"`
+	Email        string    `json:"email,omitempty"`
 	Services     []string  `json:"services,omitempty"`
 	Scopes       []string  `json:"scopes,omitempty"`
 	CreatedAt    time.Time `json:"created_at,omitempty"`
@@ -327,9 +388,18 @@ func (s *KeyringStore) SetToken(client string, email string, tok Token) error {
 	if tok.CreatedAt.IsZero() {
 		tok.CreatedAt = time.Now().UTC()
 	}
+	tok.Subject = strings.TrimSpace(tok.Subject)
+	tok.Email = email
 
-	payload, err := json.Marshal(storedToken{
+	oldSubject := ""
+	if existing, getErr := s.GetToken(normalizedClient, email); getErr == nil {
+		oldSubject = strings.TrimSpace(existing.Subject)
+	}
+
+	payload, err := json.Marshal(storedToken{ //nolint:gosec // persisted token schema intentionally includes refresh_token
 		RefreshToken: tok.RefreshToken,
+		Subject:      tok.Subject,
+		Email:        tok.Email,
 		Services:     tok.Services,
 		Scopes:       tok.Scopes,
 		CreatedAt:    tok.CreatedAt,
@@ -358,6 +428,18 @@ func (s *KeyringStore) SetToken(client string, email string, tok Token) error {
 	if normalizedClient == config.DefaultClientName {
 		if err := s.ring.Set(keyringItem(legacyTokenKey(email), payload)); err != nil {
 			return wrapKeychainError(fmt.Errorf("store legacy token: %w", err))
+		}
+	}
+
+	if tok.Subject != "" {
+		if err := s.ring.Set(keyringItem(subjectTokenKey(normalizedClient, tok.Subject), payload)); err != nil {
+			return wrapKeychainError(fmt.Errorf("store subject token: %w", err))
+		}
+	}
+
+	if oldSubject != "" && oldSubject != tok.Subject {
+		if err := s.ring.Remove(subjectTokenKey(normalizedClient, oldSubject)); err != nil && !errors.Is(err, keyring.ErrKeyNotFound) {
+			return fmt.Errorf("delete stale subject token: %w", err)
 		}
 	}
 
@@ -398,7 +480,8 @@ func (s *KeyringStore) GetToken(client string, email string) (Token, error) {
 
 	return Token{
 		Client:       normalizedClient,
-		Email:        email,
+		Subject:      strings.TrimSpace(st.Subject),
+		Email:        storedEmailOrFallback(st.Email, email),
 		Services:     st.Services,
 		Scopes:       st.Scopes,
 		CreatedAt:    st.CreatedAt,
@@ -417,6 +500,11 @@ func (s *KeyringStore) DeleteToken(client string, email string) error {
 		return err
 	}
 
+	var subject string
+	if tok, getErr := s.GetToken(normalizedClient, email); getErr == nil {
+		subject = strings.TrimSpace(tok.Subject)
+	}
+
 	if err := s.ring.Remove(tokenKey(normalizedClient, email)); err != nil && !errors.Is(err, keyring.ErrKeyNotFound) {
 		return fmt.Errorf("delete token: %w", err)
 	}
@@ -424,6 +512,38 @@ func (s *KeyringStore) DeleteToken(client string, email string) error {
 	if normalizedClient == config.DefaultClientName {
 		if err := s.ring.Remove(legacyTokenKey(email)); err != nil && !errors.Is(err, keyring.ErrKeyNotFound) {
 			return fmt.Errorf("delete legacy token: %w", err)
+		}
+	}
+
+	if subject != "" {
+		if err := s.ring.Remove(subjectTokenKey(normalizedClient, subject)); err != nil && !errors.Is(err, keyring.ErrKeyNotFound) {
+			return fmt.Errorf("delete subject token: %w", err)
+		}
+	}
+
+	return nil
+}
+
+// DeleteTokenAlias removes only the email-address key for a token, preserving
+// the subject-keyed canonical copy.
+func (s *KeyringStore) DeleteTokenAlias(client string, email string) error {
+	email = normalize(email)
+	if email == "" {
+		return errMissingEmail
+	}
+
+	normalizedClient, err := normalizeClient(client)
+	if err != nil {
+		return err
+	}
+
+	if err := s.ring.Remove(tokenKey(normalizedClient, email)); err != nil && !errors.Is(err, keyring.ErrKeyNotFound) {
+		return fmt.Errorf("delete token alias: %w", err)
+	}
+
+	if normalizedClient == config.DefaultClientName {
+		if err := s.ring.Remove(legacyTokenKey(email)); err != nil && !errors.Is(err, keyring.ErrKeyNotFound) {
+			return fmt.Errorf("delete legacy token alias: %w", err)
 		}
 	}
 
@@ -440,23 +560,46 @@ func (s *KeyringStore) ListTokens() ([]Token, error) {
 
 	for _, k := range keys {
 		client, email, ok := ParseTokenKey(k)
+		var subject string
+
 		if !ok {
-			continue
+			if parsedClient, parsedSubject, subjectOK := parseSubjectTokenKey(k); subjectOK {
+				client = parsedClient
+				subject = parsedSubject
+			} else {
+				continue
+			}
 		}
 
 		key := client + "\n" + email
+		if subject != "" {
+			key = client + "\nsub:" + subject
+		}
+
 		if _, ok := seen[key]; ok {
 			continue
 		}
 
 		var tok Token
 
-		if t, err := s.GetToken(client, email); err != nil {
+		if subject != "" {
+			t, err := s.getTokenBySubject(client, subject)
+			if err != nil {
+				return nil, fmt.Errorf("read token for subject %s: %w", subject, err)
+			}
+			tok = t
+		} else if t, err := s.GetToken(client, email); err != nil {
 			return nil, fmt.Errorf("read token for %s: %w", email, err)
 		} else {
 			tok = t
 		}
 
+		if tok.Subject != "" {
+			key = tok.Client + "\nsub:" + tok.Subject
+			if _, ok := seen[key]; ok {
+				continue
+			}
+		}
 		seen[key] = struct{}{}
 
 		out = append(out, tok)
@@ -496,12 +639,76 @@ func tokenKey(client string, email string) string {
 	return fmt.Sprintf("token:%s:%s", client, email)
 }
 
+func subjectTokenKey(client string, subject string) string {
+	return fmt.Sprintf("token-sub:%s:%s", client, strings.TrimSpace(subject))
+}
+
 func legacyTokenKey(email string) string {
 	return fmt.Sprintf("token:%s", email)
 }
 
 func TokenKey(client string, email string) string {
 	return tokenKey(client, normalize(email))
+}
+
+func parseSubjectTokenKey(k string) (client string, subject string, ok bool) {
+	const prefix = "token-sub:"
+	if !strings.HasPrefix(k, prefix) {
+		return "", "", false
+	}
+
+	rest := strings.TrimPrefix(k, prefix)
+	parts := strings.SplitN(rest, ":", 2)
+
+	if len(parts) != 2 {
+		return "", "", false
+	}
+
+	if strings.TrimSpace(parts[0]) == "" || strings.TrimSpace(parts[1]) == "" {
+		return "", "", false
+	}
+
+	return parts[0], parts[1], true
+}
+
+func (s *KeyringStore) getTokenBySubject(client string, subject string) (Token, error) {
+	normalizedClient, err := normalizeClient(client)
+	if err != nil {
+		return Token{}, err
+	}
+
+	subject = strings.TrimSpace(subject)
+	if subject == "" {
+		return Token{}, errMissingEmail
+	}
+
+	item, err := s.ring.Get(subjectTokenKey(normalizedClient, subject))
+	if err != nil {
+		return Token{}, fmt.Errorf("read token: %w", err)
+	}
+
+	var st storedToken
+	if err := json.Unmarshal(item.Data, &st); err != nil {
+		return Token{}, fmt.Errorf("decode token: %w", err)
+	}
+
+	return Token{
+		Client:       normalizedClient,
+		Subject:      strings.TrimSpace(st.Subject),
+		Email:        storedEmailOrFallback(st.Email, ""),
+		Services:     st.Services,
+		Scopes:       st.Scopes,
+		CreatedAt:    st.CreatedAt,
+		RefreshToken: st.RefreshToken,
+	}, nil
+}
+
+func storedEmailOrFallback(stored string, fallback string) string {
+	if email := normalize(stored); email != "" {
+		return email
+	}
+
+	return normalize(fallback)
 }
 
 func normalize(s string) string {

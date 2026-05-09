@@ -32,3 +32,5 @@ CREATE INDEX IF NOT EXISTS idx_opens_recipient ON opens(recipient);
 CREATE INDEX IF NOT EXISTS idx_opens_sent_at ON opens(sent_at);
 CREATE INDEX IF NOT EXISTS idx_opens_opened_at ON opens(opened_at);
 CREATE INDEX IF NOT EXISTS idx_opens_recipient_subject ON opens(recipient, subject_hash, sent_at);
+CREATE INDEX IF NOT EXISTS idx_opens_tracking_ip_ua_opened ON opens(tracking_id, ip, user_agent, opened_at);
+CREATE INDEX IF NOT EXISTS idx_opens_ip_opened_at ON opens(ip, opened_at);

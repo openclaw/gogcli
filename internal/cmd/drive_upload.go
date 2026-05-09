@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -16,6 +17,18 @@ import (
 	"github.com/steipete/gogcli/internal/ui"
 )
 
+type DriveUploadCmd struct {
+	LocalPath           string `arg:"" name:"localPath" help:"Path to local file"`
+	Name                string `name:"name" help:"Override filename (create) or rename target (replace)"`
+	Parent              string `name:"parent" help:"Destination folder ID (create only)"`
+	ReplaceFileID       string `name:"replace" help:"Replace the content of an existing Drive file ID (preserves shared link/permissions)"`
+	MimeType            string `name:"mime-type" help:"Override MIME type inference"`
+	KeepRevisionForever bool   `name:"keep-revision-forever" help:"Keep the new head revision forever (binary files only)"`
+	Convert             bool   `name:"convert" help:"Auto-convert to native Google format based on file extension (create only)"`
+	ConvertTo           string `name:"convert-to" help:"Convert to a specific Google format: doc|sheet|slides (create only)"`
+	KeepFrontmatter     bool   `name:"keep-frontmatter" help:"Keep YAML frontmatter (---) in Markdown when converting to a Google Doc (--convert or --convert-to doc; default: strip)"`
+}
+
 type driveUploadOptions struct {
 	localPath           string
 	fileName            string
@@ -26,6 +39,114 @@ type driveUploadOptions struct {
 	isExplicitName      bool
 	keepRevisionForever bool
 	convert             bool
+	size                int64
+}
+
+func guessMimeType(path string) string {
+	ext := strings.ToLower(filepath.Ext(path))
+	switch ext {
+	case extPDF:
+		return mimePDF
+	case ".doc":
+		return "application/msword"
+	case extDocx:
+		return mimeDocx
+	case ".xls":
+		return "application/vnd.ms-excel"
+	case extXlsx:
+		return mimeXlsx
+	case ".ppt":
+		return "application/vnd.ms-powerpoint"
+	case extPptx:
+		return mimePptx
+	case extPNG:
+		return mimePNG
+	case ".jpg", ".jpeg":
+		return "image/jpeg"
+	case ".gif":
+		return "image/gif"
+	case extTXT:
+		return mimeTextPlain
+	case ".html":
+		return "text/html"
+	case ".css":
+		return "text/css"
+	case ".js":
+		return "application/javascript"
+	case ".json":
+		return "application/json"
+	case ".zip":
+		return "application/zip"
+	case ".csv":
+		return "text/csv"
+	case ".md":
+		return "text/markdown"
+	default:
+		return "application/octet-stream"
+	}
+}
+
+// googleConvertMimeType returns the Google-native MIME type for convertible
+// Office/text formats. The boolean indicates whether the extension is supported.
+func googleConvertMimeType(path string) (string, bool) {
+	ext := strings.ToLower(filepath.Ext(path))
+	switch ext {
+	case extDocx, ".doc":
+		return driveMimeGoogleDoc, true
+	case extXlsx, ".xls", extCSV:
+		return driveMimeGoogleSheet, true
+	case extPptx, ".ppt":
+		return driveMimeGoogleSlides, true
+	case extTXT, ".html", extMD:
+		return driveMimeGoogleDoc, true
+	default:
+		return "", false
+	}
+}
+
+func googleConvertTargetMimeType(target string) (string, bool) {
+	switch strings.ToLower(strings.TrimSpace(target)) {
+	case "doc":
+		return driveMimeGoogleDoc, true
+	case "sheet":
+		return driveMimeGoogleSheet, true
+	case "slides":
+		return driveMimeGoogleSlides, true
+	default:
+		return "", false
+	}
+}
+
+func driveUploadConvertMimeType(path string, auto bool, target string) (string, bool, error) {
+	target = strings.TrimSpace(target)
+	if target != "" {
+		mimeType, ok := googleConvertTargetMimeType(target)
+		if !ok {
+			return "", false, fmt.Errorf("--convert-to: invalid value %q (use doc|sheet|slides)", target)
+		}
+		return mimeType, true, nil
+	}
+	if !auto {
+		return "", false, nil
+	}
+
+	mimeType, ok := googleConvertMimeType(path)
+	if !ok {
+		return "", false, fmt.Errorf("--convert: unsupported file type %q (supported: docx, xlsx, pptx, doc, xls, ppt, csv, txt, html, md)", filepath.Ext(path))
+	}
+	return mimeType, true, nil
+}
+
+// stripOfficeExt removes common Office extensions from a filename so
+// the resulting Google Doc/Sheet/Slides has a clean name.
+func stripOfficeExt(name string) string {
+	ext := strings.ToLower(filepath.Ext(name))
+	switch ext {
+	case extDocx, ".doc", extXlsx, ".xls", extPptx, ".ppt", extMD:
+		return strings.TrimSuffix(name, filepath.Ext(name))
+	default:
+		return name
+	}
 }
 
 func (c *DriveUploadCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -34,11 +155,13 @@ func (c *DriveUploadCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
-	file, err := os.Open(opts.localPath)
+	media, size, err := openDriveUploadMedia(opts, c.KeepFrontmatter)
 	if err != nil {
 		return err
 	}
-	defer file.Close()
+	defer media.Close()
+	opts.size = size
+	uploadReader := driveUploadReader(ctx, media, opts)
 
 	_, svc, err := requireDriveService(ctx, flags)
 	if err != nil {
@@ -46,9 +169,9 @@ func (c *DriveUploadCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 
 	if opts.replaceFileID == "" {
-		return runDriveCreateUpload(ctx, svc, file, opts)
+		return runDriveCreateUpload(ctx, svc, uploadReader, opts)
 	}
-	return runDriveReplaceUpload(ctx, svc, file, opts)
+	return runDriveReplaceUpload(ctx, svc, uploadReader, opts)
 }
 
 func prepareDriveUpload(c *DriveUploadCmd) (driveUploadOptions, error) {
@@ -92,6 +215,36 @@ func prepareDriveUpload(c *DriveUploadCmd) (driveUploadOptions, error) {
 	}
 
 	return opts, nil
+}
+
+func driveUploadShouldStripMarkdownFrontmatter(opts driveUploadOptions, keepFrontmatter bool) bool {
+	return !keepFrontmatter && opts.convert && opts.mimeType == mimeTextMarkdown
+}
+
+func openDriveUploadMedia(opts driveUploadOptions, keepFrontmatter bool) (io.ReadCloser, int64, error) {
+	file, err := os.Open(opts.localPath)
+	if err != nil {
+		return nil, 0, err
+	}
+	if !driveUploadShouldStripMarkdownFrontmatter(opts, keepFrontmatter) {
+		info, statErr := file.Stat()
+		if statErr != nil {
+			_ = file.Close()
+			return nil, 0, statErr
+		}
+		return file, info.Size(), nil
+	}
+
+	data, readErr := io.ReadAll(file)
+	closeErr := file.Close()
+	if readErr != nil {
+		return nil, 0, readErr
+	}
+	if closeErr != nil {
+		return nil, 0, closeErr
+	}
+	stripped := stripYAMLFrontmatter(data)
+	return io.NopCloser(bytes.NewReader(stripped)), int64(len(stripped)), nil
 }
 
 func runDriveCreateUpload(ctx context.Context, svc *drive.Service, file io.Reader, opts driveUploadOptions) error {

@@ -121,6 +121,7 @@ func TestParseImageSyntax(t *testing.T) {
 			}
 			if got == nil {
 				t.Fatalf("parseImageSyntax(%q) = nil, want non-nil", tt.input)
+				return
 			}
 			if got.URL != tt.wantURL {
 				t.Errorf("URL = %q, want %q", got.URL, tt.wantURL)
@@ -181,6 +182,7 @@ func TestParseImageRefPattern(t *testing.T) {
 			}
 			if got == nil {
 				t.Fatalf("parseImageRefPattern(%q) = nil, want non-nil", tt.input)
+				return
 			}
 			if got.ByPosition != tt.wantPosition {
 				t.Errorf("ByPosition = %v, want %v", got.ByPosition, tt.wantPosition)

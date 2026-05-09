@@ -55,27 +55,16 @@ func (c *ContactsDirectoryListCmd) Run(ctx context.Context, flags *RootFlags) er
 			call = call.PageToken(pageToken)
 		}
 
-		resp, err := call.Do()
-		if err != nil {
-			return nil, "", err
+		resp, callErr := call.Do()
+		if callErr != nil {
+			return nil, "", callErr
 		}
 		return resp.People, resp.NextPageToken, nil
 	}
 
-	var peopleList []*people.Person
-	nextPageToken := ""
-	if c.All {
-		all, err := collectAllPages(c.Page, fetch)
-		if err != nil {
-			return err
-		}
-		peopleList = all
-	} else {
-		var err error
-		peopleList, nextPageToken, err = fetch(c.Page)
-		if err != nil {
-			return err
-		}
+	peopleList, nextPageToken, err := loadPagedItems(c.Page, c.All, fetch)
+	if err != nil {
+		return err
 	}
 	if outfmt.IsJSON(ctx) {
 		type item struct {
@@ -162,27 +151,16 @@ func (c *ContactsDirectorySearchCmd) Run(ctx context.Context, flags *RootFlags) 
 		if strings.TrimSpace(pageToken) != "" {
 			call = call.PageToken(pageToken)
 		}
-		resp, err := call.Do()
-		if err != nil {
-			return nil, "", err
+		resp, callErr := call.Do()
+		if callErr != nil {
+			return nil, "", callErr
 		}
 		return resp.People, resp.NextPageToken, nil
 	}
 
-	var peopleList []*people.Person
-	nextPageToken := ""
-	if c.All {
-		all, err := collectAllPages(c.Page, fetch)
-		if err != nil {
-			return err
-		}
-		peopleList = all
-	} else {
-		var err error
-		peopleList, nextPageToken, err = fetch(c.Page)
-		if err != nil {
-			return err
-		}
+	peopleList, nextPageToken, err := loadPagedItems(c.Page, c.All, fetch)
+	if err != nil {
+		return err
 	}
 	if outfmt.IsJSON(ctx) {
 		type item struct {
@@ -268,27 +246,16 @@ func (c *ContactsOtherListCmd) Run(ctx context.Context, flags *RootFlags) error 
 		if strings.TrimSpace(pageToken) != "" {
 			call = call.PageToken(pageToken)
 		}
-		resp, err := call.Do()
-		if err != nil {
-			return nil, "", err
+		resp, callErr := call.Do()
+		if callErr != nil {
+			return nil, "", callErr
 		}
 		return resp.OtherContacts, resp.NextPageToken, nil
 	}
 
-	var contacts []*people.Person
-	nextPageToken := ""
-	if c.All {
-		all, err := collectAllPages(c.Page, fetch)
-		if err != nil {
-			return err
-		}
-		contacts = all
-	} else {
-		var err error
-		contacts, nextPageToken, err = fetch(c.Page)
-		if err != nil {
-			return err
-		}
+	contacts, nextPageToken, err := loadPagedItems(c.Page, c.All, fetch)
+	if err != nil {
+		return err
 	}
 	if outfmt.IsJSON(ctx) {
 		type item struct {

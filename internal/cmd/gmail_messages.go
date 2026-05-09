@@ -14,6 +14,11 @@ import (
 	"github.com/steipete/gogcli/internal/ui"
 )
 
+const (
+	gmailMessageBodyFormatText = "text"
+	gmailMessageBodyFormatHTML = "html"
+)
+
 type GmailMessagesCmd struct {
 	Search GmailMessagesSearchCmd `cmd:"" name:"search" aliases:"find,query,ls,list" group:"Read" help:"Search messages using Gmail query syntax"`
 	Modify GmailMessagesModifyCmd `cmd:"" name:"modify" aliases:"update,edit,set" group:"Organize" help:"Modify labels on a single message"`
@@ -28,9 +33,14 @@ type GmailMessagesSearchCmd struct {
 	Timezone    string   `name:"timezone" short:"z" help:"Output timezone (IANA name, e.g. America/New_York, UTC). Default: local"`
 	Local       bool     `name:"local" help:"Use local timezone (default behavior, useful to override --timezone)"`
 	IncludeBody bool     `name:"include-body" help:"Include decoded message body (JSON is full; text output is truncated)"`
+	BodyFormat  string   `name:"body-format" help:"Body format preference when --include-body is set: text or html" default:"text" enum:"text,html"`
+	Full        bool     `name:"full" help:"Show full message bodies without truncation (implies --include-body)"`
 }
 
 func (c *GmailMessagesSearchCmd) Run(ctx context.Context, flags *RootFlags) error {
+	if c.Full {
+		c.IncludeBody = true
+	}
 	u := ui.FromContext(ctx)
 	account, err := requireAccount(flags)
 	if err != nil {
@@ -47,14 +57,10 @@ func (c *GmailMessagesSearchCmd) Run(ctx context.Context, flags *RootFlags) erro
 	}
 
 	fetch := func(pageToken string) ([]*gmail.Message, string, error) {
-		call := svc.Users.Messages.List("me").
-			Q(query).
-			MaxResults(c.Max).
+		opts := newGmailSearchRequestOptions(query, c.Max, pageToken)
+		call := applyGmailMessageListOptions(svc.Users.Messages.List("me"), opts).
 			Fields("messages(id,threadId),nextPageToken").
 			Context(ctx)
-		if strings.TrimSpace(pageToken) != "" {
-			call = call.PageToken(pageToken)
-		}
 		resp, callErr := call.Do()
 		if callErr != nil {
 			return nil, "", callErr
@@ -62,32 +68,17 @@ func (c *GmailMessagesSearchCmd) Run(ctx context.Context, flags *RootFlags) erro
 		return resp.Messages, resp.NextPageToken, nil
 	}
 
-	var messages []*gmail.Message
-	nextPageToken := ""
-	if c.All {
-		all, collectErr := collectAllPages(c.Page, fetch)
-		if collectErr != nil {
-			return collectErr
-		}
-		messages = all
-	} else {
-		messagesPage, pageToken, fetchErr := fetch(c.Page)
-		if fetchErr != nil {
-			return fetchErr
-		}
-		messages = messagesPage
-		nextPageToken = pageToken
+	messages, nextPageToken, err := loadPagedItems(c.Page, c.All, fetch)
+	if err != nil {
+		return err
 	}
 
 	if len(messages) == 0 {
 		if outfmt.IsJSON(ctx) {
-			if writeErr := outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
+			return writePagedJSONResult(ctx, map[string]any{
 				"messages":      []messageItem{},
 				"nextPageToken": nextPageToken,
-			}); writeErr != nil {
-				return writeErr
-			}
-			return failEmptyExit(c.FailEmpty)
+			}, 0, c.FailEmpty)
 		}
 		u.Err().Println("No results")
 		return failEmptyExit(c.FailEmpty)
@@ -103,22 +94,16 @@ func (c *GmailMessagesSearchCmd) Run(ctx context.Context, flags *RootFlags) erro
 		return err
 	}
 
-	items, err := fetchMessageDetails(ctx, svc, messages, idToName, loc, c.IncludeBody)
+	items, err := fetchMessageDetails(ctx, svc, messages, idToName, loc, c.IncludeBody, c.BodyFormat)
 	if err != nil {
 		return err
 	}
 
 	if outfmt.IsJSON(ctx) {
-		if writeErr := outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
+		return writePagedJSONResult(ctx, map[string]any{
 			"messages":      items,
 			"nextPageToken": nextPageToken,
-		}); writeErr != nil {
-			return writeErr
-		}
-		if len(items) == 0 {
-			return failEmptyExit(c.FailEmpty)
-		}
-		return nil
+		}, len(items), c.FailEmpty)
 	}
 
 	if len(items) == 0 {
@@ -137,7 +122,7 @@ func (c *GmailMessagesSearchCmd) Run(ctx context.Context, flags *RootFlags) erro
 	for _, it := range items {
 		body := ""
 		if c.IncludeBody {
-			body = sanitizeMessageBody(it.Body)
+			body = sanitizeMessageBody(it.Body, c.Full)
 		}
 		if c.IncludeBody {
 			fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\n", it.ID, it.ThreadID, it.Date, it.From, it.Subject, strings.Join(it.Labels, ","), body)
@@ -221,7 +206,8 @@ type messageItem struct {
 	Body     string   `json:"body,omitempty"`
 }
 
-func fetchMessageDetails(ctx context.Context, svc *gmail.Service, messages []*gmail.Message, idToName map[string]string, loc *time.Location, includeBody bool) ([]messageItem, error) {
+func fetchMessageDetails(ctx context.Context, svc *gmail.Service, messages []*gmail.Message, idToName map[string]string, loc *time.Location, includeBody bool, bodyFormat string) ([]messageItem, error) {
+	preferHTML := bodyFormat == gmailMessageBodyFormatHTML
 	if len(messages) == 0 {
 		return nil, nil
 	}
@@ -260,7 +246,7 @@ func fetchMessageDetails(ctx context.Context, svc *gmail.Service, messages []*gm
 				call = call.Format("full")
 			} else {
 				call = call.Format("metadata").
-					MetadataHeaders("From", "Subject", "Date").
+					MetadataHeaders(gmailMessageSummaryMetadataHeaders...).
 					Fields("id,threadId,labelIds,payload(headers)")
 			}
 			msg, err := call.Context(ctx).Do()
@@ -278,7 +264,11 @@ func fetchMessageDetails(ctx context.Context, svc *gmail.Service, messages []*gm
 			item.Subject = sanitizeTab(headerValue(msg.Payload, "Subject"))
 			item.Date = formatGmailDateInLocation(headerValue(msg.Payload, "Date"), loc)
 			if includeBody {
-				item.Body = bestBodyText(msg.Payload)
+				if preferHTML {
+					item.Body = bestBodyHTML(msg.Payload)
+				} else {
+					item.Body = bestBodyText(msg.Payload)
+				}
 			}
 
 			if len(msg.LabelIds) > 0 {
@@ -327,7 +317,7 @@ func fetchMessageDetails(ctx context.Context, svc *gmail.Service, messages []*gm
 	return items, nil
 }
 
-func sanitizeMessageBody(body string) string {
+func sanitizeMessageBody(body string, full bool) string {
 	if body == "" {
 		return ""
 	}
@@ -338,6 +328,9 @@ func sanitizeMessageBody(body string) string {
 	body = strings.ReplaceAll(body, "\n", " ")
 	body = strings.ReplaceAll(body, "\r", " ")
 	body = strings.TrimSpace(body)
+	if full {
+		return body
+	}
 	return truncateRunes(body, 200)
 }
 

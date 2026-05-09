@@ -16,11 +16,14 @@ type ContactsCmd struct {
 	Search    ContactsSearchCmd    `cmd:"" name:"search" help:"Search contacts by name/email/phone"`
 	List      ContactsListCmd      `cmd:"" name:"list" aliases:"ls" help:"List contacts"`
 	Get       ContactsGetCmd       `cmd:"" name:"get" aliases:"info,show" help:"Get a contact"`
+	Export    ContactsExportCmd    `cmd:"" name:"export" help:"Export contacts as vCard (.vcf)"`
+	Dedupe    ContactsDedupeCmd    `cmd:"" name:"dedupe" help:"Find likely duplicate contacts (preview only)"`
 	Create    ContactsCreateCmd    `cmd:"" name:"create" aliases:"add,new" help:"Create a contact"`
 	Update    ContactsUpdateCmd    `cmd:"" name:"update" aliases:"edit,set" help:"Update a contact"`
 	Delete    ContactsDeleteCmd    `cmd:"" name:"delete" aliases:"rm,del,remove" help:"Delete a contact"`
 	Directory ContactsDirectoryCmd `cmd:"" name:"directory" help:"Directory contacts"`
 	Other     ContactsOtherCmd     `cmd:"" name:"other" help:"Other contacts"`
+	Raw       ContactsRawCmd       `cmd:"" name:"raw" help:"Dump raw People API response as JSON (People.Get; lossless; for scripting and LLM consumption)"`
 }
 
 type ContactsSearchCmd struct {
@@ -55,6 +58,7 @@ func (c *ContactsSearchCmd) Run(ctx context.Context, flags *RootFlags) error {
 			Name     string `json:"name,omitempty"`
 			Email    string `json:"email,omitempty"`
 			Phone    string `json:"phone,omitempty"`
+			Birthday string `json:"birthday,omitempty"`
 		}
 		items := make([]item, 0, len(resp.Results))
 		for _, r := range resp.Results {
@@ -67,6 +71,7 @@ func (c *ContactsSearchCmd) Run(ctx context.Context, flags *RootFlags) error {
 				Name:     primaryName(p),
 				Email:    primaryEmail(p),
 				Phone:    primaryPhone(p),
+				Birthday: primaryBirthday(p),
 			})
 		}
 		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{"contacts": items})
@@ -78,7 +83,7 @@ func (c *ContactsSearchCmd) Run(ctx context.Context, flags *RootFlags) error {
 
 	w, flush := tableWriter(ctx)
 	defer flush()
-	fmt.Fprintln(w, "RESOURCE\tNAME\tEMAIL\tPHONE")
+	fmt.Fprintln(w, "RESOURCE\tNAME\tEMAIL\tPHONE\tBIRTHDAY")
 	for _, r := range resp.Results {
 		p := r.Person
 		if p == nil {
@@ -86,11 +91,12 @@ func (c *ContactsSearchCmd) Run(ctx context.Context, flags *RootFlags) error {
 		}
 		fmt.Fprintf(
 			w,
-			"%s\t%s\t%s\t%s\n",
+			"%s\t%s\t%s\t%s\t%s\n",
 			p.ResourceName,
 			sanitizeTab(primaryName(p)),
 			sanitizeTab(primaryEmail(p)),
 			sanitizeTab(primaryPhone(p)),
+			sanitizeTab(primaryBirthday(p)),
 		)
 	}
 	return nil
@@ -164,6 +170,26 @@ func formatPartialDate(d *people.Date) string {
 		return ""
 	}
 	return strings.Join(parts, "-")
+}
+
+func primaryGender(p *people.Person) string {
+	if p == nil || len(p.Genders) == 0 {
+		return ""
+	}
+	for _, g := range p.Genders {
+		if g == nil {
+			continue
+		}
+		if g.Metadata != nil && g.Metadata.Primary {
+			return firstNonEmpty(g.FormattedValue, g.Value)
+		}
+	}
+	for _, g := range p.Genders {
+		if g != nil {
+			return firstNonEmpty(g.FormattedValue, g.Value)
+		}
+	}
+	return ""
 }
 
 func sanitizeTab(s string) string {

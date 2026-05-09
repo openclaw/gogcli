@@ -89,10 +89,32 @@ func (s *gmailWatchStore) Get() gmailWatchState {
 func (s *gmailWatchStore) Update(fn func(*gmailWatchState) error) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if err := s.reloadLocked(); err != nil {
+		return err
+	}
 	if err := fn(&s.state); err != nil {
 		return err
 	}
 	return s.Save()
+}
+
+func (s *gmailWatchStore) reloadLocked() error {
+	if s.path == "" {
+		return nil
+	}
+	data, err := os.ReadFile(s.path)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil
+		}
+		return fmt.Errorf("reload watch state: %w", err)
+	}
+	var state gmailWatchState
+	if err := json.Unmarshal(data, &state); err != nil {
+		return fmt.Errorf("reload watch state: %w", err)
+	}
+	s.state = state
+	return nil
 }
 
 func (s *gmailWatchStore) Save() error {

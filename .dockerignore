@@ -1,0 +1,11 @@
+.git
+.github
+.tools
+**/node_modules
+bin
+dist
+gog
+gog.exe
+*.test
+coverage*
+.DS_Store

@@ -60,27 +60,16 @@ func (c *GroupsListCmd) Run(ctx context.Context, flags *RootFlags) error {
 		if strings.TrimSpace(pageToken) != "" {
 			call = call.PageToken(pageToken)
 		}
-		resp, err := call.Do()
-		if err != nil {
-			return nil, "", wrapCloudIdentityError(err, account)
+		resp, callErr := call.Do()
+		if callErr != nil {
+			return nil, "", wrapCloudIdentityError(callErr, account)
 		}
 		return resp.Memberships, resp.NextPageToken, nil
 	}
 
-	var memberships []*cloudidentity.GroupRelation
-	nextPageToken := ""
-	if c.All {
-		all, err := collectAllPages(c.Page, fetch)
-		if err != nil {
-			return err
-		}
-		memberships = all
-	} else {
-		var err error
-		memberships, nextPageToken, err = fetch(c.Page)
-		if err != nil {
-			return err
-		}
+	memberships, nextPageToken, err := loadPagedItems(c.Page, c.All, fetch)
+	if err != nil {
+		return err
 	}
 
 	if outfmt.IsJSON(ctx) {
@@ -212,27 +201,16 @@ func (c *GroupsMembersCmd) Run(ctx context.Context, flags *RootFlags) error {
 		if strings.TrimSpace(pageToken) != "" {
 			call = call.PageToken(pageToken)
 		}
-		resp, err := call.Do()
-		if err != nil {
-			return nil, "", fmt.Errorf("failed to list members: %w", err)
+		resp, callErr := call.Do()
+		if callErr != nil {
+			return nil, "", fmt.Errorf("failed to list members: %w", callErr)
 		}
 		return resp.Memberships, resp.NextPageToken, nil
 	}
 
-	var memberships []*cloudidentity.Membership
-	nextPageToken := ""
-	if c.All {
-		all, err := collectAllPages(c.Page, fetch)
-		if err != nil {
-			return err
-		}
-		memberships = all
-	} else {
-		var err error
-		memberships, nextPageToken, err = fetch(c.Page)
-		if err != nil {
-			return err
-		}
+	memberships, nextPageToken, err := loadPagedItems(c.Page, c.All, fetch)
+	if err != nil {
+		return err
 	}
 
 	if outfmt.IsJSON(ctx) {

@@ -302,7 +302,7 @@ func (s *gmailWatchServer) fetchMessages(ctx context.Context, svc *gmail.Service
 		}
 		msg, err := svc.Users.Messages.Get("me", id).
 			Format(format).
-			MetadataHeaders("From", "To", "Subject", "Date").
+			MetadataHeaders(gmailBasicMetadataHeaders...).
 			Context(ctx).
 			Do()
 		if err != nil {
@@ -369,10 +369,10 @@ func (s *gmailWatchServer) sendHook(ctx context.Context, payload *gmailHookPaylo
 	if s.cfg.HookToken != "" {
 		req.Header.Set("Authorization", "Bearer "+s.cfg.HookToken)
 	}
-	resp, err := s.hookClient.Do(req) //nolint:gosec // hook URL is explicit user configuration
+	resp, err := s.hookClient.Do(req)
 	if err != nil {
 		_ = s.store.Update(func(state *gmailWatchState) error {
-			state.LastDeliveryStatus = "error"
+			state.LastDeliveryStatus = literalError
 			state.LastDeliveryAtMs = time.Now().UnixMilli()
 			state.LastDeliveryStatusNote = err.Error()
 			return nil

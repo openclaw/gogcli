@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"unicode/utf8"
 
 	"golang.org/x/net/html/charset"
 	"golang.org/x/text/encoding/ianaindex"
@@ -54,10 +55,11 @@ type GmailThreadCmd struct {
 }
 
 type GmailThreadGetCmd struct {
-	ThreadID  string        `arg:"" name:"threadId" help:"Thread ID"`
-	Download  bool          `name:"download" help:"Download attachments"`
-	Full      bool          `name:"full" help:"Show full message bodies"`
-	OutputDir OutputDirFlag `embed:""`
+	ThreadID        string        `arg:"" name:"threadId" help:"Thread ID"`
+	Download        bool          `name:"download" help:"Download attachments"`
+	Full            bool          `name:"full" help:"Show full message bodies"`
+	SanitizeContent bool          `name:"sanitize-content" aliases:"sanitize,safe" help:"Emit agent-oriented sanitized content: strip HTML, remove HTTP(S) URLs, and omit raw Gmail payloads from JSON"`
+	OutputDir       OutputDirFlag `embed:""`
 }
 
 func (c *GmailThreadGetCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -110,6 +112,12 @@ func (c *GmailThreadGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 				downloadedFiles = append(downloadedFiles, attachmentDownloadSummaries(downloads)...)
 			}
 		}
+		if c.SanitizeContent {
+			return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
+				"thread":     sanitizedGmailThread(thread, true),
+				"downloaded": downloadedFiles,
+			})
+		}
 		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
 			"thread":     thread,
 			"downloaded": downloadedFiles,
@@ -129,16 +137,25 @@ func (c *GmailThreadGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 			continue
 		}
 		u.Out().Printf("=== Message %d/%d: %s ===", i+1, len(thread.Messages), msg.Id)
-		u.Out().Printf("From: %s", headerValue(msg.Payload, "From"))
-		u.Out().Printf("To: %s", headerValue(msg.Payload, "To"))
-		u.Out().Printf("Subject: %s", headerValue(msg.Payload, "Subject"))
-		u.Out().Printf("Date: %s", headerValue(msg.Payload, "Date"))
+		header := func(name string) string {
+			value := headerValue(msg.Payload, name)
+			if c.SanitizeContent {
+				return sanitizeGmailText(value)
+			}
+			return value
+		}
+		u.Out().Printf("From: %s", header("From"))
+		u.Out().Printf("To: %s", header("To"))
+		u.Out().Printf("Subject: %s", header("Subject"))
+		u.Out().Printf("Date: %s", header("Date"))
 		u.Out().Println("")
 
 		body, isHTML := bestBodyForDisplay(msg.Payload)
 		if body != "" {
 			cleanBody := body
-			if isHTML {
+			if c.SanitizeContent {
+				cleanBody = sanitizeGmailBody(body, isHTML)
+			} else if isHTML {
 				// Strip HTML tags for cleaner text output
 				cleanBody = stripHTMLTags(body)
 			}
@@ -376,6 +393,18 @@ func bestBodyText(p *gmail.MessagePart) string {
 	return html
 }
 
+func bestBodyHTML(p *gmail.MessagePart) string {
+	if p == nil {
+		return ""
+	}
+	html := findPartBody(p, "text/html")
+	if html != "" {
+		return html
+	}
+	plain := findPartBody(p, "text/plain")
+	return plain
+}
+
 func bestBodyForDisplay(p *gmail.MessagePart) (string, bool) {
 	if p == nil {
 		return "", false
@@ -493,6 +522,14 @@ func decodeBodyCharset(data []byte, contentType string) []byte {
 	charsetLabel := charsetLabelFromContentType(contentType)
 	normalized := strings.ToLower(strings.ReplaceAll(strings.TrimSpace(charsetLabel), "_", "-"))
 	if charsetLabel == "" || normalized == "utf-8" || normalized == "utf8" {
+		return data
+	}
+	// The Gmail API may normalize body.data to UTF-8 before base64url-encoding,
+	// while preserving the original MIME charset header. If bytes are already
+	// valid UTF-8, avoid re-decoding them as the stale charset. ISO-2022 payloads
+	// are the main exception: encoded Japanese text is ASCII-valid but contains
+	// ESC shift sequences that still need charset decoding.
+	if utf8.Valid(data) && (!strings.HasPrefix(normalized, "iso-2022-") || !bytes.ContainsRune(data, '\x1b')) {
 		return data
 	}
 	if decoded, ok := decodeWithCharsetLabel(data, charsetLabel); ok {

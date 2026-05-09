@@ -270,5 +270,5 @@ func writeFileAtomic(outPath string, data []byte) error {
 	if err := f.Close(); err != nil {
 		return err
 	}
-	return os.Rename(tmp, outPath) //nolint:gosec // destination path is explicitly selected by caller
+	return os.Rename(tmp, outPath)
 }

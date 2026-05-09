@@ -52,20 +52,9 @@ func (c *ChatSpacesListCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return resp.Spaces, resp.NextPageToken, nil
 	}
 
-	var spaces []*chat.Space
-	nextPageToken := ""
-	if c.All {
-		all, err := collectAllPages(c.Page, fetch)
-		if err != nil {
-			return err
-		}
-		spaces = all
-	} else {
-		var err error
-		spaces, nextPageToken, err = fetch(c.Page)
-		if err != nil {
-			return err
-		}
+	spaces, nextPageToken, err := loadPagedItems(c.Page, c.All, fetch)
+	if err != nil {
+		return err
 	}
 
 	if outfmt.IsJSON(ctx) {
@@ -124,8 +113,9 @@ func (c *ChatSpacesListCmd) Run(ctx context.Context, flags *RootFlags) error {
 }
 
 type ChatSpacesFindCmd struct {
-	DisplayName string `arg:"" name:"displayName" help:"Space display name"`
+	DisplayName string `arg:"" name:"displayName" help:"Space display name (substring match, case-insensitive)"`
 	Max         int64  `name:"max" aliases:"limit" help:"Max results per page" default:"100"`
+	Exact       bool   `name:"exact" help:"Require an exact, case-insensitive match on displayName instead of substring match"`
 }
 
 func (c *ChatSpacesFindCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -162,7 +152,7 @@ func (c *ChatSpacesFindCmd) Run(ctx context.Context, flags *RootFlags) error {
 			if space == nil {
 				continue
 			}
-			if strings.EqualFold(space.DisplayName, displayName) {
+			if chatSpaceDisplayNameMatches(space.DisplayName, displayName, c.Exact) {
 				matches = append(matches, space)
 			}
 		}
@@ -215,6 +205,13 @@ func (c *ChatSpacesFindCmd) Run(ctx context.Context, flags *RootFlags) error {
 		)
 	}
 	return nil
+}
+
+func chatSpaceDisplayNameMatches(displayName, query string, exact bool) bool {
+	if exact {
+		return strings.EqualFold(displayName, query)
+	}
+	return strings.Contains(strings.ToLower(displayName), strings.ToLower(query))
 }
 
 type ChatSpacesCreateCmd struct {

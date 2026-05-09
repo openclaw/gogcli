@@ -138,10 +138,29 @@ run_gmail_tests() {
   send_thread_id=$(extract_field "$send_json" threadId)
   [ -n "$send_msg_id" ] || { echo "Failed to parse send message id" >&2; exit 1; }
 
+  if skip "gmail-send-safety"; then
+    echo "==> gmail send no-send block (skipped)"
+  elif gog --gmail-no-send gmail send --to "$EMAIL_TEST" --subject "blocked $TS" --body "blocked" --json >/dev/null 2>&1; then
+    echo "Expected gmail-no-send to block gmail send, but it succeeded" >&2
+    exit 1
+  else
+    echo "gmail send no-send block OK"
+  fi
+
   local message_json history_id
   echo "==> gmail get message"
   message_json=$(gog gmail get "$send_msg_id" --json)
   history_id=$(extract_history_id "$message_json")
+
+  run_required "gmail-forward" "gmail forward dry-run" gog --dry-run gmail forward "$send_msg_id" --to "$EMAIL_TEST" --note "dry-run smoke $TS" --json >/dev/null
+  if skip "gmail-forward"; then
+    echo "==> gmail forward no-send block (skipped)"
+  elif gog --gmail-no-send gmail forward "$send_msg_id" --to "$EMAIL_TEST" --note "blocked $TS" --json >/dev/null 2>&1; then
+    echo "Expected gmail-no-send to block gmail forward, but it succeeded" >&2
+    exit 1
+  else
+    echo "gmail forward no-send block OK"
+  fi
 
   if [ -n "$history_id" ]; then
     run_optional "gmail-history" "gmail history" gog gmail history --since "$history_id" --json --max 5 >/dev/null

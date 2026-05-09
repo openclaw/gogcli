@@ -43,7 +43,7 @@ func (c *MeetHistoryCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return wrapMeetError(err)
 	}
 
-	filter := fmt.Sprintf("space.name=%s", space.Name)
+	filter := meetSpaceNameFilter(space.Name)
 
 	fetch := func(pageToken string) ([]*meet.ConferenceRecord, string, error) {
 		call := svc.ConferenceRecords.List().

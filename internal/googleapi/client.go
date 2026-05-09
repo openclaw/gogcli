@@ -41,6 +41,53 @@ func optionsForAccount(ctx context.Context, service googleauth.Service, email st
 	return optionsForAccountScopes(ctx, string(service), email, scopes)
 }
 
+type googleServiceFactory[T any] func(context.Context, ...option.ClientOption) (*T, error)
+
+func newGoogleServiceForAccount[T any](
+	ctx context.Context,
+	email string,
+	service googleauth.Service,
+	label string,
+	factory googleServiceFactory[T],
+) (*T, error) {
+	opts, err := optionsForAccount(ctx, service, email)
+	if err != nil {
+		return nil, fmt.Errorf("%s options: %w", label, err)
+	}
+
+	return newGoogleService(ctx, label, opts, factory)
+}
+
+func newGoogleServiceForScopes[T any](
+	ctx context.Context,
+	email string,
+	serviceLabel string,
+	errorLabel string,
+	scopes []string,
+	factory googleServiceFactory[T],
+) (*T, error) {
+	opts, err := optionsForAccountScopes(ctx, serviceLabel, email, scopes)
+	if err != nil {
+		return nil, fmt.Errorf("%s options: %w", errorLabel, err)
+	}
+
+	return newGoogleService(ctx, errorLabel, opts, factory)
+}
+
+func newGoogleService[T any](
+	ctx context.Context,
+	label string,
+	opts []option.ClientOption,
+	factory googleServiceFactory[T],
+) (*T, error) {
+	svc, err := factory(ctx, opts...)
+	if err != nil {
+		return nil, fmt.Errorf("create %s service: %w", label, err)
+	}
+
+	return svc, nil
+}
+
 // IsADCMode reports whether Application Default Credentials mode is active.
 // When GOG_AUTH_MODE=adc, the CLI authenticates using the ambient credentials
 // (e.g. GKE Workload Identity, GOOGLE_APPLICATION_CREDENTIALS, or gcloud ADC)
@@ -50,9 +97,7 @@ func IsADCMode() bool {
 	return os.Getenv("GOG_AUTH_MODE") == "adc"
 }
 
-func optionsForAccountScopes(ctx context.Context, serviceLabel string, email string, scopes []string) ([]option.ClientOption, error) {
-	slog.Debug("creating client options with custom scopes", "serviceLabel", serviceLabel, "email", email)
-
+func authenticatedTransport(ctx context.Context, serviceLabel string, email string, scopes []string) (http.RoundTripper, error) {
 	var ts oauth2.TokenSource
 
 	if IsADCMode() {
@@ -73,13 +118,22 @@ func optionsForAccountScopes(ctx context.Context, serviceLabel string, email str
 		}
 	}
 
-	baseTransport := newBaseTransport()
-	retryTransport := NewRetryTransport(&oauth2.Transport{
+	return NewRetryTransport(&oauth2.Transport{
 		Source: ts,
-		Base:   baseTransport,
-	})
+		Base:   newBaseTransport(),
+	}), nil
+}
+
+func optionsForAccountScopes(ctx context.Context, serviceLabel string, email string, scopes []string) ([]option.ClientOption, error) {
+	slog.Debug("creating client options with custom scopes", "serviceLabel", serviceLabel, "email", email)
+
+	transport, err := authenticatedTransport(ctx, serviceLabel, email, scopes)
+	if err != nil {
+		return nil, err
+	}
+
 	c := &http.Client{
-		Transport: retryTransport,
+		Transport: transport,
 		// No Timeout set: large file downloads (Drive videos, etc.) must not
 		// be cut short. Server responsiveness is guarded by the transport's
 		// ResponseHeaderTimeout instead.
@@ -88,6 +142,23 @@ func optionsForAccountScopes(ctx context.Context, serviceLabel string, email str
 	slog.Debug("client options with custom scopes created successfully", "serviceLabel", serviceLabel, "email", email)
 
 	return []option.ClientOption{option.WithHTTPClient(c)}, nil
+}
+
+// NewHTTPClient returns a raw *http.Client authenticated for the given service
+// and account. The caller may set CheckRedirect or other policies on the
+// returned client.
+func NewHTTPClient(ctx context.Context, service googleauth.Service, email string) (*http.Client, error) {
+	scopes, err := googleauth.Scopes(service)
+	if err != nil {
+		return nil, fmt.Errorf("resolve scopes: %w", err)
+	}
+
+	transport, err := authenticatedTransport(ctx, string(service), email, scopes)
+	if err != nil {
+		return nil, err
+	}
+
+	return &http.Client{Transport: transport}, nil
 }
 
 func newBaseTransport() *http.Transport {

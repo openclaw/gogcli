@@ -17,6 +17,11 @@ type attachmentInfo struct {
 	AttachmentID string
 }
 
+const (
+	defaultAttachmentFilename = "attachment"
+	mimeDispositionAttachment = defaultAttachmentFilename
+)
+
 type attachmentOutput struct {
 	Filename     string `json:"filename"`
 	Size         int64  `json:"size"`
@@ -181,7 +186,7 @@ func collectAttachments(p *gmail.MessagePart) []attachmentInfo {
 	if p.Body != nil && p.Body.AttachmentId != "" {
 		filename := p.Filename
 		if strings.TrimSpace(filename) == "" {
-			filename = "attachment"
+			filename = defaultAttachmentFilename
 		}
 		out = append(out, attachmentInfo{
 			Filename:     filename,

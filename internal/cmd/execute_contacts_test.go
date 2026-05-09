@@ -30,6 +30,9 @@ func TestExecute_ContactsList_JSON(t *testing.T) {
 					"emailAddresses": []map[string]any{
 						{"value": "ada@example.com"},
 					},
+					"birthdays": []map[string]any{
+						{"date": map[string]any{"year": 1815, "month": 12, "day": 10}},
+					},
 				},
 			},
 			"nextPageToken": "npt",
@@ -60,6 +63,7 @@ func TestExecute_ContactsList_JSON(t *testing.T) {
 			Resource string `json:"resource"`
 			Name     string `json:"name"`
 			Email    string `json:"email"`
+			Birthday string `json:"birthday"`
 		} `json:"contacts"`
 		NextPageToken string `json:"nextPageToken"`
 	}
@@ -71,6 +75,9 @@ func TestExecute_ContactsList_JSON(t *testing.T) {
 	}
 	if parsed.Contacts[0].Resource != "people/c1" || parsed.Contacts[0].Name != "Ada Lovelace" || parsed.Contacts[0].Email != "ada@example.com" {
 		t.Fatalf("unexpected contact: %#v", parsed.Contacts[0])
+	}
+	if parsed.Contacts[0].Birthday != "1815-12-10" {
+		t.Fatalf("unexpected birthday: %#v", parsed.Contacts[0])
 	}
 }
 

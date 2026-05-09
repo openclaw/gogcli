@@ -63,13 +63,21 @@ func buildCalendarCreatePlan(c *CalendarCreateCmd) (*calendarCreatePlan, error) 
 	if err != nil {
 		return nil, err
 	}
+	start, err := buildEventDateTimeWithTimezone(c.From, allDay, c.StartTimezone, "--start-timezone")
+	if err != nil {
+		return nil, err
+	}
+	end, err := buildEventDateTimeWithTimezone(c.To, allDay, c.EndTimezone, "--end-timezone")
+	if err != nil {
+		return nil, err
+	}
 
 	event := &calendar.Event{
 		Summary:            summary,
 		Description:        strings.TrimSpace(c.Description),
 		Location:           strings.TrimSpace(c.Location),
-		Start:              buildEventDateTime(c.From, allDay),
-		End:                buildEventDateTime(c.To, allDay),
+		Start:              start,
+		End:                end,
 		Attendees:          buildAttendees(c.Attendees),
 		Recurrence:         buildRecurrence(c.Recurrence),
 		Reminders:          reminders,

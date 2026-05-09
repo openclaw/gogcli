@@ -28,6 +28,7 @@ Options:
 Skip keys (base):
   time, version, completion, auth, auth-alias, config, enable-commands,
   gmail, gmail-settings, gmail-delegates, gmail-batch-delete, gmail-history, gmail-url, gmail-labels,
+  gmail-send-safety, gmail-forward,
   gmail-attachments, gmail-track, gmail-watch, drive, docs, sheets, slides,
   calendar, calendar-enterprise, calendar-respond, calendar-team, calendar-users,
   tasks, contacts, people, groups, keep, classroom

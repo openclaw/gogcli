@@ -15,12 +15,12 @@ func TestExecute_AuthAdd_JSON(t *testing.T) {
 	origOpen := openSecretsStore
 	origAuth := authorizeGoogle
 	origKeychain := ensureKeychainAccess
-	origFetch := fetchAuthorizedEmail
+	origFetch := fetchAuthorizedIdentity
 	t.Cleanup(func() {
 		openSecretsStore = origOpen
 		authorizeGoogle = origAuth
 		ensureKeychainAccess = origKeychain
-		fetchAuthorizedEmail = origFetch
+		fetchAuthorizedIdentity = origFetch
 	})
 
 	ensureKeychainAccess = func() error { return nil }
@@ -35,8 +35,8 @@ func TestExecute_AuthAdd_JSON(t *testing.T) {
 		gotOpts.Scopes = append([]string{}, opts.Scopes...)
 		return "rt", nil
 	}
-	fetchAuthorizedEmail = func(context.Context, string, string, []string, time.Duration) (string, error) {
-		return "a@b.com", nil
+	fetchAuthorizedIdentity = func(context.Context, string, string, []string, time.Duration) (googleauth.Identity, error) {
+		return googleauth.Identity{Email: "a@b.com"}, nil
 	}
 
 	out := captureStdout(t, func() {

@@ -41,7 +41,7 @@ func ParseMarkdownToSlides(markdown string) []Slide {
 	inSlide := false
 
 	for _, line := range lines {
-		if strings.TrimSpace(line) == "---" {
+		if strings.TrimSpace(line) == literalMarkdownTripleDash {
 			if currentSlide.Len() > 0 {
 				slide := parseSlide(currentSlide.String())
 				if slide.Title != "" {

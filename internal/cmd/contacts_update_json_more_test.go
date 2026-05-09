@@ -189,8 +189,29 @@ func TestContactsUpdate_FromFile_CantCombineWithFlags(t *testing.T) {
 	}
 	_ = tmp.Close()
 
+	// Previously covered: --email
 	err = runKong(t, &ContactsUpdateCmd{}, []string{"people/c1", "--from-file", tmp.Name(), "--email", "x@example.com"}, context.Background(), &RootFlags{Account: "a@b.com"})
 	if err == nil || !strings.Contains(err.Error(), "can't combine --from-file") {
-		t.Fatalf("expected combine error, got %v", err)
+		t.Fatalf("expected combine error for --email, got %v", err)
+	}
+
+	// Flags that were previously missing from the conflict guard: org, title, url, note, address, custom
+	conflictCases := []struct {
+		name  string
+		extra []string
+	}{
+		{"org", []string{"--org", "Acme"}},
+		{"title", []string{"--title", "CEO"}},
+		{"url", []string{"--url", "https://example.com"}},
+		{"note", []string{"--note", "some note"}},
+		{"address", []string{"--address", "123 Main St"}},
+		{"custom", []string{"--custom", "key=value"}},
+	}
+	for _, tc := range conflictCases {
+		args := append([]string{"people/c1", "--from-file", tmp.Name()}, tc.extra...)
+		runErr := runKong(t, &ContactsUpdateCmd{}, args, context.Background(), &RootFlags{Account: "a@b.com"})
+		if runErr == nil || !strings.Contains(runErr.Error(), "can't combine --from-file") {
+			t.Fatalf("expected combine error for --%s, got %v", tc.name, runErr)
+		}
 	}
 }

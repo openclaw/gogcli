@@ -20,8 +20,8 @@ func TestParseService(t *testing.T) {
 		{"people", ServicePeople},
 		{"sheets", ServiceSheets},
 		{"forms", ServiceForms},
-		{"meet", ServiceMeet},
 		{"appscript", ServiceAppScript},
+		{"ads", ServiceAds},
 		{"groups", ServiceGroups},
 		{"keep", ServiceKeep},
 	}
@@ -66,7 +66,7 @@ func TestExtractCodeAndState_Errors(t *testing.T) {
 
 func TestAllServices(t *testing.T) {
 	svcs := AllServices()
-	if len(svcs) != 17 {
+	if len(svcs) != 18 {
 		t.Fatalf("unexpected: %v", svcs)
 	}
 	seen := make(map[Service]bool)
@@ -75,7 +75,7 @@ func TestAllServices(t *testing.T) {
 		seen[s] = true
 	}
 
-	for _, want := range []Service{ServiceGmail, ServiceCalendar, ServiceChat, ServiceClassroom, ServiceDrive, ServiceDocs, ServiceSlides, ServiceContacts, ServiceTasks, ServicePeople, ServiceSheets, ServiceForms, ServiceMeet, ServiceAppScript, ServiceGroups, ServiceKeep, ServiceAdmin} {
+	for _, want := range []Service{ServiceGmail, ServiceCalendar, ServiceChat, ServiceClassroom, ServiceDrive, ServiceDocs, ServiceSlides, ServiceContacts, ServiceTasks, ServicePeople, ServiceSheets, ServiceForms, ServiceMeet, ServiceAppScript, ServiceAds, ServiceGroups, ServiceKeep, ServiceAdmin} {
 		if !seen[want] {
 			t.Fatalf("missing %q", want)
 		}
@@ -84,7 +84,7 @@ func TestAllServices(t *testing.T) {
 
 func TestUserServices(t *testing.T) {
 	svcs := UserServices()
-	if len(svcs) != 14 {
+	if len(svcs) != 15 {
 		t.Fatalf("unexpected: %v", svcs)
 	}
 
@@ -97,7 +97,7 @@ func TestUserServices(t *testing.T) {
 			seenDocs = true
 		case ServiceSlides:
 			seenSlides = true
-		case ServiceForms, ServiceAppScript:
+		case ServiceForms, ServiceMeet, ServiceAppScript, ServiceAds:
 			// expected user services
 		case ServiceKeep:
 			t.Fatalf("unexpected keep in user services")
@@ -114,7 +114,7 @@ func TestUserServices(t *testing.T) {
 }
 
 func TestUserServiceCSV(t *testing.T) {
-	want := "gmail,calendar,chat,classroom,drive,docs,slides,contacts,tasks,sheets,people,forms,meet,appscript"
+	want := "gmail,calendar,chat,classroom,drive,docs,slides,contacts,tasks,sheets,people,forms,meet,appscript,ads"
 	if got := UserServiceCSV(); got != want {
 		t.Fatalf("unexpected user services csv: %q", got)
 	}

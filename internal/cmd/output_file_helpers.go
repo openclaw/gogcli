@@ -9,10 +9,16 @@ import (
 	"github.com/steipete/gogcli/internal/config"
 )
 
+const stdoutPath = "-"
+
 type outputFileOptions struct {
 	Overwrite bool
 	FileMode  os.FileMode
 	DirMode   os.FileMode
+}
+
+func isStdoutPath(path string) bool {
+	return strings.TrimSpace(path) == stdoutPath
 }
 
 func openUserOutputFile(path string, opts outputFileOptions) (*os.File, string, error) {

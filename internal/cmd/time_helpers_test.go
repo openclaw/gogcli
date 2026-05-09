@@ -137,13 +137,13 @@ func TestWeekBounds(t *testing.T) {
 	now := time.Date(2025, 1, 8, 12, 0, 0, 0, time.UTC) // Wednesday
 	start := startOfWeek(now, time.Monday)
 	end := endOfWeek(now, time.Monday)
-	if start.Weekday() != time.Monday || end.Weekday() != time.Sunday {
+	if start.Weekday() != time.Monday || !end.Equal(start.AddDate(0, 0, 7)) {
 		t.Fatalf("unexpected week bounds: %v to %v", start.Weekday(), end.Weekday())
 	}
 
 	startSun := startOfWeek(now, time.Sunday)
 	endSun := endOfWeek(now, time.Sunday)
-	if startSun.Weekday() != time.Sunday || endSun.Weekday() != time.Saturday {
+	if startSun.Weekday() != time.Sunday || !endSun.Equal(startSun.AddDate(0, 0, 7)) {
 		t.Fatalf("unexpected week bounds (sun): %v to %v", startSun.Weekday(), endSun.Weekday())
 	}
 }
@@ -156,7 +156,7 @@ func TestDayBounds(t *testing.T) {
 		t.Fatalf("unexpected startOfDay: %v", start)
 	}
 
-	if end.Hour() != 23 || end.Minute() != 59 || end.Second() != 59 {
+	if !end.Equal(start.AddDate(0, 0, 1)) {
 		t.Fatalf("unexpected endOfDay: %v", end)
 	}
 }
@@ -165,24 +165,24 @@ func TestParseTimeExprEndOfDay(t *testing.T) {
 	now := time.Date(2025, 1, 10, 12, 0, 0, 0, time.UTC)
 	loc := time.FixedZone("IST", 5*3600+30*60)
 
-	// Date-only should resolve to end of day
+	// Date-only should resolve to the exclusive upper bound: next midnight.
 	parsed, err := parseTimeExprEndOfDay("2025-01-05", now, loc)
 	if err != nil {
 		t.Fatalf("parseTimeExprEndOfDay date: %v", err)
 	}
-	if parsed.Hour() != 23 || parsed.Minute() != 59 || parsed.Second() != 59 {
+	if !parsed.Equal(time.Date(2025, 1, 6, 0, 0, 0, 0, loc)) {
 		t.Fatalf("expected end of day, got %v", parsed)
 	}
 	if parsed.Location() != loc {
 		t.Fatalf("expected loc %v, got %v", loc, parsed.Location())
 	}
 
-	// Relative "today" should resolve to end of day
+	// Relative "today" should resolve to the exclusive upper bound: next midnight.
 	parsed, err = parseTimeExprEndOfDay("today", now, time.UTC)
 	if err != nil {
 		t.Fatalf("parseTimeExprEndOfDay today: %v", err)
 	}
-	if parsed.Hour() != 23 || parsed.Minute() != 59 || parsed.Second() != 59 {
+	if !parsed.Equal(time.Date(2025, 1, 11, 0, 0, 0, 0, time.UTC)) {
 		t.Fatalf("expected end of day for today, got %v", parsed)
 	}
 
@@ -222,21 +222,21 @@ func TestParseTimeExprEndOfDay(t *testing.T) {
 		t.Fatalf("local datetime should be preserved, got %v", parsed)
 	}
 
-	// Weekday expression should resolve to end of day
+	// Weekday expression should resolve to the exclusive upper bound: next midnight.
 	parsed, err = parseTimeExprEndOfDay("monday", now, time.UTC)
 	if err != nil {
 		t.Fatalf("parseTimeExprEndOfDay monday: %v", err)
 	}
-	if parsed.Hour() != 23 || parsed.Minute() != 59 || parsed.Second() != 59 {
+	if !parsed.Equal(time.Date(2025, 1, 14, 0, 0, 0, 0, time.UTC)) {
 		t.Fatalf("expected end of day for monday, got %v", parsed)
 	}
 
-	// "tomorrow" should resolve to end of day
+	// "tomorrow" should resolve to the exclusive upper bound: next midnight.
 	parsed, err = parseTimeExprEndOfDay("tomorrow", now, time.UTC)
 	if err != nil {
 		t.Fatalf("parseTimeExprEndOfDay tomorrow: %v", err)
 	}
-	if parsed.Hour() != 23 || parsed.Minute() != 59 || parsed.Second() != 59 {
+	if !parsed.Equal(time.Date(2025, 1, 12, 0, 0, 0, 0, time.UTC)) {
 		t.Fatalf("expected end of day for tomorrow, got %v", parsed)
 	}
 

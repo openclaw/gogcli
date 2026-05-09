@@ -41,27 +41,16 @@ func (c *TasksListsListCmd) Run(ctx context.Context, flags *RootFlags) error {
 		if strings.TrimSpace(pageToken) != "" {
 			call = call.PageToken(pageToken)
 		}
-		resp, err := call.Do()
-		if err != nil {
-			return nil, "", err
+		resp, callErr := call.Do()
+		if callErr != nil {
+			return nil, "", callErr
 		}
 		return resp.Items, resp.NextPageToken, nil
 	}
 
-	var items []*tasks.TaskList
-	nextPageToken := ""
-	if c.All {
-		all, err := collectAllPages(c.Page, fetch)
-		if err != nil {
-			return err
-		}
-		items = all
-	} else {
-		var err error
-		items, nextPageToken, err = fetch(c.Page)
-		if err != nil {
-			return err
-		}
+	items, nextPageToken, err := loadPagedItems(c.Page, c.All, fetch)
+	if err != nil {
+		return err
 	}
 
 	if outfmt.IsJSON(ctx) {

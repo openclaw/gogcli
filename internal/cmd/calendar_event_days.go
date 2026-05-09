@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"encoding/json"
 	"strings"
 	"time"
 
@@ -15,6 +16,20 @@ type eventWithDays struct {
 	EventTimezone  string `json:"eventTimezone,omitempty"`
 	StartLocal     string `json:"startLocal,omitempty"`
 	EndLocal       string `json:"endLocal,omitempty"`
+}
+
+func (e *eventWithDays) MarshalJSON() ([]byte, error) {
+	if e == nil {
+		return []byte("null"), nil
+	}
+	return marshalCalendarEventWithFields(e.Event, map[string]string{
+		"startDayOfWeek": e.StartDayOfWeek,
+		"endDayOfWeek":   e.EndDayOfWeek,
+		"timezone":       e.Timezone,
+		"eventTimezone":  e.EventTimezone,
+		"startLocal":     e.StartLocal,
+		"endLocal":       e.EndLocal,
+	})
 }
 
 func wrapEventsWithDays(events []*calendar.Event) []*eventWithDays {
@@ -32,9 +47,9 @@ func wrapEventWithDaysWithTimezone(event *calendar.Event, calendarTimezone strin
 	if event == nil {
 		return nil
 	}
-	startDay, endDay := eventDaysOfWeek(event)
 	evTimezone := eventTimezone(event)
 	calendarTimezone, loc = resolveEventTimezone(event, calendarTimezone, loc)
+	startDay, endDay := eventDaysOfWeekInLocation(event, loc)
 
 	startLocal := formatEventLocal(event.Start, loc)
 	endLocal := formatEventLocal(event.End, loc)
@@ -54,20 +69,27 @@ func wrapEventWithDaysWithTimezone(event *calendar.Event, calendarTimezone strin
 }
 
 func eventDaysOfWeek(event *calendar.Event) (string, string) {
+	return eventDaysOfWeekInLocation(event, nil)
+}
+
+func eventDaysOfWeekInLocation(event *calendar.Event, loc *time.Location) (string, string) {
 	if event == nil {
 		return "", ""
 	}
-	startDay := dayOfWeekFromEventDateTime(event.Start)
-	endDay := dayOfWeekFromEventDateTime(event.End)
+	startDay := dayOfWeekFromEventDateTime(event.Start, loc)
+	endDay := dayOfWeekFromEventDateTime(event.End, loc)
 	return startDay, endDay
 }
 
-func dayOfWeekFromEventDateTime(dt *calendar.EventDateTime) string {
+func dayOfWeekFromEventDateTime(dt *calendar.EventDateTime, loc *time.Location) string {
 	if dt == nil {
 		return ""
 	}
 	if dt.DateTime != "" {
 		if t, ok := parseEventTime(dt.DateTime, dt.TimeZone); ok {
+			if loc != nil {
+				t = t.In(loc)
+			}
 			return t.Weekday().String()
 		}
 	}
@@ -149,4 +171,25 @@ func resolveEventTimezone(event *calendar.Event, calendarTimezone string, loc *t
 		}
 	}
 	return calendarTimezone, loc
+}
+
+func marshalCalendarEventWithFields(event *calendar.Event, fields map[string]string) ([]byte, error) {
+	raw := map[string]any{}
+	if event != nil {
+		data, err := json.Marshal(event)
+		if err != nil {
+			return nil, err
+		}
+		if string(data) != "null" {
+			if err := json.Unmarshal(data, &raw); err != nil {
+				return nil, err
+			}
+		}
+	}
+	for key, value := range fields {
+		if value != "" {
+			raw[key] = value
+		}
+	}
+	return json.Marshal(raw)
 }

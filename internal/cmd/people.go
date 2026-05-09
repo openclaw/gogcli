@@ -13,6 +13,7 @@ type PeopleCmd struct {
 	Get       PeopleGetCmd       `cmd:"" name:"get" aliases:"info,show" help:"Get a user profile by ID"`
 	Search    PeopleSearchCmd    `cmd:"" name:"search" aliases:"find,query" help:"Search the Workspace directory"`
 	Relations PeopleRelationsCmd `cmd:"" name:"relations" help:"Get user relations"`
+	Raw       PeopleRawCmd       `cmd:"" name:"raw" help:"Dump raw People API response as JSON (People.Get; lossless; for scripting and LLM consumption)"`
 }
 
 type PeopleMeCmd struct{}

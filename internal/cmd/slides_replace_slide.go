@@ -25,19 +25,9 @@ type SlidesReplaceSlideCmd struct {
 func (c *SlidesReplaceSlideCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
 
-	// Resolve notes: --notes-file takes precedence over --notes.
-	var notes string
-	updateNotes := false
-	if c.NotesFile != "" {
-		data, err := os.ReadFile(c.NotesFile)
-		if err != nil {
-			return fmt.Errorf("read notes file: %w", err)
-		}
-		notes = string(data)
-		updateNotes = true
-	} else if c.Notes != nil {
-		notes = *c.Notes
-		updateNotes = true
+	notes, updateNotes, err := resolveSlidesNotesInput(c.Notes, c.NotesFile)
+	if err != nil {
+		return err
 	}
 
 	account, err := requireAccount(flags)
@@ -83,19 +73,14 @@ func (c *SlidesReplaceSlideCmd) Run(ctx context.Context, flags *RootFlags) error
 		return fmt.Errorf("get presentation: %w", err)
 	}
 
-	slideIndex := -1
 	var imageObjectID string
-	for i, s := range pres.Slides {
-		if s.ObjectId == slideID {
-			slideIndex = i
-			// Find the first image element on the slide.
-			for _, el := range s.PageElements {
-				if el.Image != nil {
-					imageObjectID = el.ObjectId
-					break
-				}
+	slide, slideIndex := findSlidesPageByID(pres, slideID)
+	if slide != nil {
+		for _, el := range slide.PageElements {
+			if el != nil && el.Image != nil {
+				imageObjectID = el.ObjectId
+				break
 			}
-			break
 		}
 	}
 	if slideIndex == -1 {
@@ -160,42 +145,11 @@ func (c *SlidesReplaceSlideCmd) Run(ctx context.Context, flags *RootFlags) error
 
 	// Optionally update notes in the same batch.
 	if updateNotes {
-		var notesObjectID string
-		slide := pres.Slides[slideIndex]
-		if np := slide.SlideProperties.NotesPage; np != nil {
-			if np.NotesProperties != nil {
-				notesObjectID = np.NotesProperties.SpeakerNotesObjectId
-			}
-			if notesObjectID == "" {
-				for _, el := range np.PageElements {
-					if el.Shape != nil && el.Shape.Placeholder != nil &&
-						el.Shape.Placeholder.Type == placeholderTypeBody {
-						notesObjectID = el.ObjectId
-						break
-					}
-				}
-			}
-		}
+		notesObjectID := findSpeakerNotesObjectID(slide)
 		if notesObjectID == "" {
 			return fmt.Errorf("could not find speaker notes placeholder on slide %s", slideID)
 		}
-
-		requests = append(requests, &slides.Request{
-			DeleteText: &slides.DeleteTextRequest{
-				ObjectId: notesObjectID,
-				TextRange: &slides.Range{
-					Type: "ALL",
-				},
-			},
-		})
-		if notes != "" {
-			requests = append(requests, &slides.Request{
-				InsertText: &slides.InsertTextRequest{
-					ObjectId: notesObjectID,
-					Text:     notes,
-				},
-			})
-		}
+		requests = append(requests, buildSlidesClearAndInsertTextRequests(notesObjectID, notes)...)
 	}
 
 	_, err = slidesSvc.Presentations.BatchUpdate(presentationID, &slides.BatchUpdatePresentationRequest{

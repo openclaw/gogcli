@@ -119,7 +119,7 @@ func buildCellReplaceRequests(startIdx, deleteEnd int64, plainText string, forma
 			},
 		})
 		if len(formats) > 0 {
-			end := startIdx + int64(len(plainText))
+			end := startIdx + utf16Len(plainText)
 			requests = append(requests, buildTextStyleRequests(formats, startIdx, end)...)
 		}
 	}
@@ -441,7 +441,7 @@ func canUseNativeReplace(replacement string) bool {
 	}
 	// Horizontal rule
 	trimmedRepl := strings.TrimSpace(replacement)
-	if trimmedRepl == "---" || trimmedRepl == "***" || trimmedRepl == "___" {
+	if trimmedRepl == literalMarkdownTripleDash || trimmedRepl == "***" || trimmedRepl == "___" {
 		return false
 	}
 	// Numbered list pattern
@@ -453,11 +453,11 @@ func canUseNativeReplace(replacement string) bool {
 	if strings.Contains(replacement, "\\n") {
 		return false
 	}
-	// Backreferences ($1, ${1}, etc.)
+	// Backreferences ($0, $1, ${1}, etc.)
 	for i := 0; i < len(replacement)-1; i++ {
 		if replacement[i] == '$' {
 			next := replacement[i+1]
-			if (next >= '1' && next <= '9') || next == '{' {
+			if (next >= '0' && next <= '9') || next == '{' {
 				return false
 			}
 		}

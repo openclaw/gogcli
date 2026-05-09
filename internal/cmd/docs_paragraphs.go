@@ -44,9 +44,9 @@ func buildParagraphMap(doc *docs.Document, tabID string) (*paragraphMap, error) 
 
 	if tabID != "" && len(doc.Tabs) > 0 {
 		tabs := flattenTabs(doc.Tabs)
-		tab := findTab(tabs, tabID)
-		if tab == nil {
-			return nil, fmt.Errorf("tab not found: %s", tabID)
+		tab, tabErr := findTab(tabs, tabID)
+		if tabErr != nil {
+			return nil, tabErr
 		}
 		if tab.DocumentTab == nil || tab.DocumentTab.Body == nil {
 			return nil, fmt.Errorf("tab has no content: %s", tabID)

@@ -71,7 +71,7 @@ func TestGmailWatchServer_ServeHTTP_HandlePushError(t *testing.T) {
 	body, _ := json.Marshal(push)
 
 	rr := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/hook?token=tok", bytes.NewReader(body))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/hook?token=tok", bytes.NewReader(body))
 	server.ServeHTTP(rr, req)
 	if rr.Code != http.StatusInternalServerError {
 		t.Fatalf("status: %d", rr.Code)
@@ -144,7 +144,7 @@ func TestGmailWatchServer_ServeHTTP_NoHook_Accepted(t *testing.T) {
 	body, _ := json.Marshal(push)
 
 	rr := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/hook?token=tok", bytes.NewReader(body))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/hook?token=tok", bytes.NewReader(body))
 	server.ServeHTTP(rr, req)
 	if rr.Code != http.StatusAccepted {
 		t.Fatalf("status: %d", rr.Code)
@@ -223,7 +223,7 @@ func TestGmailWatchServer_ServeHTTP_HookSuccess(t *testing.T) {
 	body, _ := json.Marshal(push)
 
 	rr := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/hook?token=tok", bytes.NewReader(body))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/hook?token=tok", bytes.NewReader(body))
 	server.ServeHTTP(rr, req)
 	if rr.Code != http.StatusOK {
 		t.Fatalf("status: %d", rr.Code)
@@ -561,7 +561,7 @@ func (errReadCloser) Read([]byte) (int, error) { return 0, errors.New("read erro
 func (errReadCloser) Close() error             { return nil }
 
 func TestParsePubSubPush_ReadError(t *testing.T) {
-	req := httptest.NewRequest(http.MethodPost, "/", errReadCloser{})
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/", errReadCloser{})
 	if _, err := parsePubSubPush(req); err == nil {
 		t.Fatalf("expected error")
 	}
@@ -569,7 +569,7 @@ func TestParsePubSubPush_ReadError(t *testing.T) {
 
 func TestGmailWatchServer_OIDCAudience_Explicit(t *testing.T) {
 	s := &gmailWatchServer{cfg: gmailWatchServeConfig{OIDCAudience: "https://example.com/hook"}}
-	r := httptest.NewRequest(http.MethodPost, "http://ignored/hook", nil)
+	r := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "http://ignored/hook", nil)
 	if got := s.oidcAudience(r); got != "https://example.com/hook" {
 		t.Fatalf("unexpected audience: %q", got)
 	}

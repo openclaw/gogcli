@@ -1,0 +1,114 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-labelledby="title desc">
+  <title id="title">gog social card</title>
+  <desc id="desc">gog: Google Workspace in your terminal. One Go CLI for Gmail, Calendar, Drive, Docs, Sheets, Slides, Forms, Apps Script, Contacts, Tasks, and Workspace admin.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fbfcff"/>
+      <stop offset="0.55" stop-color="#f3f7fd"/>
+      <stop offset="1" stop-color="#eef3fa"/>
+    </linearGradient>
+    <linearGradient id="panel" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#0a0f1f"/>
+    </linearGradient>
+    <linearGradient id="panelBar" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1b2438"/>
+      <stop offset="1" stop-color="#141c2e"/>
+    </linearGradient>
+    <linearGradient id="googleSweep" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#4285f4"/>
+      <stop offset="0.34" stop-color="#ea4335"/>
+      <stop offset="0.67" stop-color="#fbbc04"/>
+      <stop offset="1" stop-color="#34a853"/>
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="130%">
+      <feDropShadow dx="0" dy="24" stdDeviation="28" flood-color="#0b1430" flood-opacity="0.18"/>
+    </filter>
+  </defs>
+
+  <rect width="1200" height="630" fill="url(#bg)"/>
+
+  <!-- Brand mark (top-left): big rounded 2x2 inside a tile -->
+  <g transform="translate(76 76)">
+    <rect x="0" y="0" width="118" height="118" rx="26" fill="#0f1115"/>
+    <rect x="22" y="22" width="32" height="32" rx="6" fill="#4285f4"/>
+    <rect x="64" y="22" width="32" height="32" rx="6" fill="#ea4335"/>
+    <rect x="22" y="64" width="32" height="32" rx="6" fill="#fbbc04"/>
+    <rect x="64" y="64" width="32" height="32" rx="6" fill="#34a853"/>
+  </g>
+
+  <!-- Title -->
+  <text x="76" y="270" fill="#0f1115" font-family="Inter, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="92" font-weight="800" letter-spacing="0">gog</text>
+
+  <!-- Tagline (one strong line) -->
+  <text x="80" y="332" fill="#0f1115" font-family="Inter, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="34" font-weight="700" letter-spacing="0">Google in your terminal.</text>
+
+  <!-- Description (two lines) -->
+  <text x="80" y="382" fill="#475569" font-family="Inter, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="22" font-weight="500" letter-spacing="0">One Go CLI for Gmail, Calendar, Drive, Docs,</text>
+  <text x="80" y="412" fill="#475569" font-family="Inter, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="22" font-weight="500" letter-spacing="0">Sheets, Slides, Contacts, Tasks, and admin.</text>
+
+  <!-- Multi-color accent bar -->
+  <rect x="80" y="438" width="280" height="4" rx="2" fill="url(#googleSweep)"/>
+
+  <!-- Bottom row: install pill + URL pill -->
+  <g transform="translate(80 478)">
+    <!-- install pill -->
+    <rect x="0" y="0" width="320" height="48" rx="11" fill="#0f172a"/>
+    <text x="20" y="32" fill="#64748b" font-family="JetBrains Mono, SFMono-Regular, Menlo, monospace" font-size="18" font-weight="500">$</text>
+    <text x="42" y="32" fill="#e6edf3" font-family="JetBrains Mono, SFMono-Regular, Menlo, monospace" font-size="18" font-weight="600">brew install gogcli</text>
+
+    <!-- URL pill -->
+    <rect x="340" y="0" width="180" height="48" rx="11" fill="#ffffff" stroke="#cbd5e1"/>
+    <text x="362" y="32" fill="#0f1115" font-family="JetBrains Mono, SFMono-Regular, Menlo, monospace" font-size="18" font-weight="600">gogcli.sh</text>
+  </g>
+
+  <!-- Right-side terminal mockup -->
+  <g transform="translate(670 142)" filter="url(#shadow)">
+    <rect x="0" y="0" width="464" height="346" rx="20" fill="url(#panel)"/>
+    <rect x="0" y="0" width="464" height="42" rx="20" fill="url(#panelBar)"/>
+    <rect x="0" y="22" width="464" height="20" fill="url(#panelBar)"/>
+    <circle cx="24" cy="21" r="6" fill="#ea4335"/>
+    <circle cx="46" cy="21" r="6" fill="#fbbc04"/>
+    <circle cx="68" cy="21" r="6" fill="#34a853"/>
+    <text x="232" y="27" fill="#94a3b8" font-family="JetBrains Mono, SFMono-Regular, Menlo, monospace" font-size="13" font-weight="500" text-anchor="middle">gog — you@gmail.com</text>
+
+    <!-- Terminal content -->
+    <text x="22" y="80" fill="#93c5fd" font-family="JetBrains Mono, SFMono-Regular, Menlo, monospace" font-size="15" font-weight="600">$ gog gmail search 'newer_than:7d' --max 3</text>
+    <text x="22" y="110" fill="#cbd5e1" font-family="JetBrains Mono, SFMono-Regular, Menlo, monospace" font-size="13">Mary Lou      Re: review notes      2h</text>
+    <text x="22" y="132" fill="#cbd5e1" font-family="JetBrains Mono, SFMono-Regular, Menlo, monospace" font-size="13">GitHub        PR #547 ready          5h</text>
+    <text x="22" y="154" fill="#cbd5e1" font-family="JetBrains Mono, SFMono-Regular, Menlo, monospace" font-size="13">Calendar      Standup at 10:00       1d</text>
+
+    <text x="22" y="194" fill="#93c5fd" font-family="JetBrains Mono, SFMono-Regular, Menlo, monospace" font-size="15" font-weight="600">$ gog calendar events --today --json</text>
+
+    <rect x="22" y="212" width="420" height="118" rx="10" fill="#0a1024" stroke="#1f2937"/>
+    <text x="38" y="238" fill="#fbbf24" font-family="JetBrains Mono, SFMono-Regular, Menlo, monospace" font-size="13">{</text>
+    <text x="54" y="258" fill="#a5b4fc" font-family="JetBrains Mono, SFMono-Regular, Menlo, monospace" font-size="13">"events": [</text>
+    <text x="74" y="278" fill="#a7f3d0" font-family="JetBrains Mono, SFMono-Regular, Menlo, monospace" font-size="13">{ "summary": "Standup", "start": "10:00" },</text>
+    <text x="74" y="298" fill="#a7f3d0" font-family="JetBrains Mono, SFMono-Regular, Menlo, monospace" font-size="13">{ "summary": "Review",  "start": "14:30" }</text>
+    <text x="54" y="318" fill="#a5b4fc" font-family="JetBrains Mono, SFMono-Regular, Menlo, monospace" font-size="13">]</text>
+  </g>
+
+  <!-- Service pills below terminal -->
+  <g transform="translate(670 514)" font-family="Inter, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="14" font-weight="600">
+    <g>
+      <rect x="0" y="0" width="74" height="30" rx="15" fill="#ffffff" stroke="#dbe2eb"/>
+      <text x="37" y="20" fill="#4285f4" text-anchor="middle">Gmail</text>
+    </g>
+    <g transform="translate(86 0)">
+      <rect x="0" y="0" width="92" height="30" rx="15" fill="#ffffff" stroke="#dbe2eb"/>
+      <text x="46" y="20" fill="#34a853" text-anchor="middle">Calendar</text>
+    </g>
+    <g transform="translate(190 0)">
+      <rect x="0" y="0" width="64" height="30" rx="15" fill="#ffffff" stroke="#dbe2eb"/>
+      <text x="32" y="20" fill="#ea4335" text-anchor="middle">Drive</text>
+    </g>
+    <g transform="translate(266 0)">
+      <rect x="0" y="0" width="74" height="30" rx="15" fill="#ffffff" stroke="#dbe2eb"/>
+      <text x="37" y="20" fill="#fbbc04" text-anchor="middle">Sheets</text>
+    </g>
+    <g transform="translate(352 0)">
+      <rect x="0" y="0" width="60" height="30" rx="15" fill="#ffffff" stroke="#dbe2eb"/>
+      <text x="30" y="20" fill="#4285f4" text-anchor="middle">Docs</text>
+    </g>
+  </g>
+</svg>

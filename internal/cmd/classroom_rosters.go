@@ -48,27 +48,16 @@ func (c *ClassroomStudentsListCmd) Run(ctx context.Context, flags *RootFlags) er
 		if strings.TrimSpace(pageToken) != "" {
 			call = call.PageToken(pageToken)
 		}
-		resp, err := call.Do()
-		if err != nil {
-			return nil, "", wrapClassroomError(err)
+		resp, callErr := call.Do()
+		if callErr != nil {
+			return nil, "", wrapClassroomError(callErr)
 		}
 		return resp.Students, resp.NextPageToken, nil
 	}
 
-	var students []*classroom.Student
-	nextPageToken := ""
-	if c.All {
-		all, err := collectAllPages(c.Page, fetch)
-		if err != nil {
-			return err
-		}
-		students = all
-	} else {
-		var err error
-		students, nextPageToken, err = fetch(c.Page)
-		if err != nil {
-			return err
-		}
+	students, nextPageToken, err := loadPagedItems(c.Page, c.All, fetch)
+	if err != nil {
+		return err
 	}
 
 	if outfmt.IsJSON(ctx) {
@@ -280,27 +269,16 @@ func (c *ClassroomTeachersListCmd) Run(ctx context.Context, flags *RootFlags) er
 		if strings.TrimSpace(pageToken) != "" {
 			call = call.PageToken(pageToken)
 		}
-		resp, err := call.Do()
-		if err != nil {
-			return nil, "", wrapClassroomError(err)
+		resp, callErr := call.Do()
+		if callErr != nil {
+			return nil, "", wrapClassroomError(callErr)
 		}
 		return resp.Teachers, resp.NextPageToken, nil
 	}
 
-	var teachers []*classroom.Teacher
-	nextPageToken := ""
-	if c.All {
-		all, err := collectAllPages(c.Page, fetch)
-		if err != nil {
-			return err
-		}
-		teachers = all
-	} else {
-		var err error
-		teachers, nextPageToken, err = fetch(c.Page)
-		if err != nil {
-			return err
-		}
+	teachers, nextPageToken, err := loadPagedItems(c.Page, c.All, fetch)
+	if err != nil {
+		return err
 	}
 
 	if outfmt.IsJSON(ctx) {
@@ -477,7 +455,6 @@ type ClassroomRosterCmd struct {
 	FailEmpty bool   `name:"fail-empty" aliases:"non-empty,require-results" help:"Exit with code 3 if no results"`
 }
 
-//nolint:gocyclo,cyclop // command orchestration across two role paths
 func (c *ClassroomRosterCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
 	account, err := requireAccount(flags)
@@ -514,17 +491,9 @@ func (c *ClassroomRosterCmd) Run(ctx context.Context, flags *RootFlags) error {
 			}
 			return resp.Students, resp.NextPageToken, nil
 		}
-		if c.All {
-			all, collectErr := collectAllPages(c.Page, fetch)
-			if collectErr != nil {
-				return collectErr
-			}
-			students = all
-		} else {
-			students, studentsNextPageToken, err = fetch(c.Page)
-			if err != nil {
-				return err
-			}
+		students, studentsNextPageToken, err = loadPagedItems(c.Page, c.All, fetch)
+		if err != nil {
+			return err
 		}
 	}
 	if includeTeachers {
@@ -539,17 +508,9 @@ func (c *ClassroomRosterCmd) Run(ctx context.Context, flags *RootFlags) error {
 			}
 			return resp.Teachers, resp.NextPageToken, nil
 		}
-		if c.All {
-			all, collectErr := collectAllPages(c.Page, fetch)
-			if collectErr != nil {
-				return collectErr
-			}
-			teachers = all
-		} else {
-			teachers, teachersNextPageToken, err = fetch(c.Page)
-			if err != nil {
-				return err
-			}
+		teachers, teachersNextPageToken, err = loadPagedItems(c.Page, c.All, fetch)
+		if err != nil {
+			return err
 		}
 	}
 

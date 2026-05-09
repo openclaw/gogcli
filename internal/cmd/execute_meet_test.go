@@ -191,6 +191,10 @@ func TestExecute_MeetHistory_JSON(t *testing.T) {
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(meetSpaceResponse())
 		case r.URL.Path == "/v2/conferenceRecords" && r.Method == http.MethodGet:
+			if got, want := r.URL.Query().Get("filter"), `space.name = "spaces/abc123"`; got != want {
+				t.Fatalf("unexpected filter: %q, want %q", got, want)
+			}
+
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"conferenceRecords": []map[string]any{
@@ -242,6 +246,10 @@ func TestExecute_MeetParticipants_JSON(t *testing.T) {
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(meetSpaceResponse())
 		case r.URL.Path == "/v2/conferenceRecords" && r.Method == http.MethodGet:
+			if got, want := r.URL.Query().Get("filter"), `space.name = "spaces/abc123"`; got != want {
+				t.Fatalf("unexpected filter: %q, want %q", got, want)
+			}
+
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"conferenceRecords": []map[string]any{

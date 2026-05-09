@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
@@ -15,7 +16,7 @@ type GmailFiltersCmd struct {
 	Get    GmailFiltersGetCmd    `cmd:"" name:"get" aliases:"info,show" help:"Get a specific filter"`
 	Create GmailFiltersCreateCmd `cmd:"" name:"create" aliases:"add,new" help:"Create a new email filter"`
 	Delete GmailFiltersDeleteCmd `cmd:"" name:"delete" aliases:"rm,del,remove" help:"Delete a filter"`
-	Export GmailFiltersExportCmd `cmd:"" name:"export" help:"Export filters as JSON"`
+	Export GmailFiltersExportCmd `cmd:"" name:"export" help:"Export filters as Gmail WebUI-compatible XML"`
 }
 
 type GmailFiltersListCmd struct{}
@@ -139,11 +140,12 @@ func (c *GmailFiltersDeleteCmd) Run(ctx context.Context, flags *RootFlags) error
 }
 
 type GmailFiltersExportCmd struct {
-	Out string `name:"out" short:"o" help:"Write JSON export to this file (defaults to stdout)"`
+	Out    string `name:"out" short:"o" help:"Write export to this file (defaults to stdout)"`
+	Format string `name:"format" help:"Export format: xml or json (default: xml; --json without --out uses json for compatibility)"`
 }
 
 func (c *GmailFiltersExportCmd) Run(ctx context.Context, flags *RootFlags) error {
-	svc, err := loadGmailSettingsService(ctx, flags)
+	account, svc, err := requireGmailService(ctx, flags)
 	if err != nil {
 		return err
 	}
@@ -153,10 +155,46 @@ func (c *GmailFiltersExportCmd) Run(ctx context.Context, flags *RootFlags) error
 		return err
 	}
 
-	payload := map[string]any{"filters": resp.Filter}
+	format := strings.ToLower(strings.TrimSpace(c.Format))
 	outPath := strings.TrimSpace(c.Out)
+	if format == "" {
+		format = "xml"
+		if outPath == "" && outfmt.IsJSON(ctx) {
+			format = "json"
+		}
+	}
+
+	payload := map[string]any{"filters": resp.Filter}
+	var data []byte
+	switch format {
+	case "json":
+		if outPath == "" {
+			return outfmt.WriteJSON(ctx, os.Stdout, payload)
+		}
+		data, err = json.MarshalIndent(payload, "", "  ")
+		if err != nil {
+			return err
+		}
+		data = append(data, '\n')
+	case "xml":
+		labelNames, labelErr := fetchLabelIDToName(svc)
+		if labelErr != nil {
+			return labelErr
+		}
+		data, err = marshalGmailFiltersXML(account, resp.Filter, labelNames)
+		if err != nil {
+			return err
+		}
+		if outPath == "" {
+			_, err = os.Stdout.Write(data)
+			return err
+		}
+	default:
+		return usage("--format must be xml or json")
+	}
+
 	if outPath == "" {
-		return outfmt.WriteJSON(ctx, os.Stdout, payload)
+		return nil
 	}
 
 	f, outPath, err := createUserOutputFile(outPath)
@@ -165,7 +203,7 @@ func (c *GmailFiltersExportCmd) Run(ctx context.Context, flags *RootFlags) error
 	}
 	defer func() { _ = f.Close() }()
 
-	if err := outfmt.WriteJSON(ctx, f, payload); err != nil {
+	if _, err := f.Write(data); err != nil {
 		return err
 	}
 
@@ -174,6 +212,7 @@ func (c *GmailFiltersExportCmd) Run(ctx context.Context, flags *RootFlags) error
 			"exported": true,
 			"path":     outPath,
 			"count":    len(resp.Filter),
+			"format":   format,
 		})
 	}
 

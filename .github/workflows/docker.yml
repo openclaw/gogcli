@@ -1,0 +1,96 @@
+name: docker
+
+on:
+  pull_request:
+    paths:
+      - ".dockerignore"
+      - ".github/workflows/docker.yml"
+      - "Dockerfile"
+      - "cmd/**"
+      - "go.mod"
+      - "go.sum"
+      - "internal/**"
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Optional release tag to publish (e.g. v0.14.0)"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  image:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate manual tag
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.tag != '' }}
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          if ! echo "$RELEASE_TAG" | grep -qE '^v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$'; then
+            echo "::error::Invalid tag format: $RELEASE_TAG"
+            exit 1
+          fi
+
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+
+      - name: Docker metadata
+        id: meta
+        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5.10.0
+        with:
+          images: ghcr.io/steipete/gogcli
+          tags: |
+            type=ref,event=pr
+            type=ref,event=tag
+            type=raw,value=${{ inputs.tag }},enable=${{ github.event_name == 'workflow_dispatch' && inputs.tag != '' }}
+            type=raw,value=latest,enable=${{ (startsWith(github.ref, 'refs/tags/v') && !contains(github.ref_name, '-')) || (github.event_name == 'workflow_dispatch' && inputs.tag != '' && !contains(inputs.tag, '-')) }}
+
+      - name: Build metadata
+        id: build-meta
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          version="dev"
+          if [[ -n "$RELEASE_TAG" ]]; then
+            version="$RELEASE_TAG"
+          elif [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
+            version="$GITHUB_REF_NAME"
+          fi
+          {
+            echo "version=$version"
+            echo "commit=${GITHUB_SHA::12}"
+            echo "date=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
+
+      - name: Login to GHCR
+        if: ${{ startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.tag != '') }}
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build image
+        uses: docker/build-push-action@ee4ca427a2f43b6a16632044ca514c076267da23 # v6.19.0
+        with:
+          context: .
+          push: ${{ startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.tag != '') }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            VERSION=${{ steps.build-meta.outputs.version }}
+            COMMIT=${{ steps.build-meta.outputs.commit }}
+            DATE=${{ steps.build-meta.outputs.date }}

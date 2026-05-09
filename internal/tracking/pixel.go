@@ -23,7 +23,7 @@ func GeneratePixelURL(cfg *Config, recipient, subject string) (string, string, e
 		SentAt:      time.Now().Unix(),
 	}
 
-	blob, err := Encrypt(payload, cfg.TrackingKey)
+	blob, err := encryptTrackingPayload(payload, cfg)
 	if err != nil {
 		return "", "", fmt.Errorf("encrypt payload: %w", err)
 	}
@@ -31,6 +31,14 @@ func GeneratePixelURL(cfg *Config, recipient, subject string) (string, string, e
 	pixelURL := fmt.Sprintf("%s/p/%s.gif", cfg.WorkerURL, blob)
 
 	return pixelURL, blob, nil
+}
+
+func encryptTrackingPayload(payload *PixelPayload, cfg *Config) (string, error) {
+	if cfg.TrackingCurrentKeyVersion > 0 {
+		return EncryptWithVersion(payload, cfg.TrackingKey, cfg.TrackingCurrentKeyVersion)
+	}
+
+	return Encrypt(payload, cfg.TrackingKey)
 }
 
 // GeneratePixelHTML returns HTML img tag for the tracking pixel

@@ -9,18 +9,20 @@ type GmailCmd struct {
 	Messages   GmailMessagesCmd   `cmd:"" name:"messages" aliases:"message,msg,msgs" group:"Read" help:"Message operations"`
 	Thread     GmailThreadCmd     `cmd:"" name:"thread" aliases:"threads,read" group:"Organize" help:"Thread operations (get, modify)"`
 	Get        GmailGetCmd        `cmd:"" name:"get" aliases:"info,show" group:"Read" help:"Get a message (full|metadata|raw)"`
+	Raw        GmailRawCmd        `cmd:"" name:"raw" group:"Read" help:"Dump raw Gmail API response as JSON (Users.Messages.Get; lossless; for scripting and LLM consumption)"`
 	Attachment GmailAttachmentCmd `cmd:"" name:"attachment" group:"Read" help:"Download a single attachment"`
 	URL        GmailURLCmd        `cmd:"" name:"url" group:"Read" help:"Print Gmail web URLs for threads"`
 	History    GmailHistoryCmd    `cmd:"" name:"history" group:"Read" help:"Gmail history"`
 
 	Labels  GmailLabelsCmd   `cmd:"" name:"labels" aliases:"label" group:"Organize" help:"Label operations"`
-	Batch   GmailBatchCmd    `cmd:"" name:"batch" group:"Organize" help:"Batch operations"`
+	Batch   GmailBatchCmd    `cmd:"" name:"batch" group:"Organize" help:"Batch operations (permanent delete requires broader Gmail scope; use gmail trash for normal trashing)"`
 	Archive GmailArchiveCmd  `cmd:"" name:"archive" group:"Organize" help:"Archive messages (remove from inbox)"`
 	Read    GmailReadCmd     `cmd:"" name:"mark-read" aliases:"read-messages" group:"Organize" help:"Mark messages as read"`
 	Unread  GmailUnreadCmd   `cmd:"" name:"unread" aliases:"mark-unread" group:"Organize" help:"Mark messages as unread"`
 	Trash   GmailTrashMsgCmd `cmd:"" name:"trash" group:"Organize" help:"Move messages to trash"`
 
 	Send      GmailSendCmd      `cmd:"" name:"send" group:"Write" help:"Send an email"`
+	Forward   GmailForwardCmd   `cmd:"" name:"forward" aliases:"fwd" group:"Write" help:"Forward a message to new recipients"`
 	AutoReply GmailAutoReplyCmd `cmd:"" name:"autoreply" group:"Write" help:"Reply once to matching messages"`
 	Track     GmailTrackCmd     `cmd:"" name:"track" group:"Write" help:"Email open tracking"`
 	Drafts    GmailDraftsCmd    `cmd:"" name:"drafts" aliases:"draft" group:"Write" help:"Draft operations"`

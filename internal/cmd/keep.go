@@ -60,20 +60,9 @@ func (c *KeepListCmd) Run(ctx context.Context, flags *RootFlags, keep *KeepCmd) 
 		return resp.Notes, resp.NextPageToken, nil
 	}
 
-	var notes []*keepapi.Note
-	nextPageToken := ""
-	if c.All {
-		all, err := collectAllPages(c.Page, fetch)
-		if err != nil {
-			return err
-		}
-		notes = all
-	} else {
-		var err error
-		notes, nextPageToken, err = fetch(c.Page)
-		if err != nil {
-			return err
-		}
+	notes, nextPageToken, err := loadPagedItems(c.Page, c.All, fetch)
+	if err != nil {
+		return err
 	}
 
 	if outfmt.IsJSON(ctx) {

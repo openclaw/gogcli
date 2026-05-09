@@ -17,6 +17,7 @@ type GmailLabelsCmd struct {
 	Get    GmailLabelsGetCmd    `cmd:"" name:"get" aliases:"info,show" help:"Get label details (including counts)"`
 	Create GmailLabelsCreateCmd `cmd:"" name:"create" aliases:"add,new" help:"Create a new label"`
 	Rename GmailLabelsRenameCmd `cmd:"" name:"rename" aliases:"mv" help:"Rename a label"`
+	Style  GmailLabelsStyleCmd  `cmd:"" name:"style" aliases:"color,colour" help:"Change a user label color or visibility"`
 	Modify GmailLabelsModifyCmd `cmd:"" name:"modify" aliases:"update,edit,set" help:"Modify labels on threads"`
 	Delete GmailLabelsDeleteCmd `cmd:"" name:"delete" aliases:"rm,del" help:"Delete a label"`
 }
@@ -139,27 +140,9 @@ func (c *GmailLabelsRenameCmd) Run(ctx context.Context, flags *RootFlags) error 
 		return err
 	}
 
-	// For destructive-ish rename operations, try exact ID first before name lookup.
-	label, err := svc.Users.Labels.Get("me", oldRaw).Context(ctx).Do()
+	label, err := resolveMutableGmailLabel(ctx, svc, oldRaw)
 	if err != nil {
-		if !isNotFoundAPIError(err) {
-			return err
-		}
-		if looksLikeCustomLabelID(oldRaw) {
-			return fmt.Errorf("label not found: %s", oldRaw)
-		}
-		idMap, mapErr := fetchLabelNameOnlyToID(svc)
-		if mapErr != nil {
-			return mapErr
-		}
-		id, ok := idMap[strings.ToLower(oldRaw)]
-		if !ok {
-			return fmt.Errorf("label not found: %s", oldRaw)
-		}
-		label, err = svc.Users.Labels.Get("me", id).Context(ctx).Do()
-		if err != nil {
-			return err
-		}
+		return err
 	}
 
 	if label.Type == "system" {
@@ -190,6 +173,106 @@ func (c *GmailLabelsRenameCmd) Run(ctx context.Context, flags *RootFlags) error 
 	}
 	u.Out().Printf("Renamed label: %s → %s (id: %s)", label.Name, updated.Name, updated.Id)
 	return nil
+}
+
+type GmailLabelsStyleCmd struct {
+	Label                 string `arg:"" name:"labelIdOrName" help:"User label ID or name"`
+	TextColor             string `name:"text-color" help:"Text color as #RRGGBB"`
+	BackgroundColor       string `name:"background-color" help:"Background color as #RRGGBB"`
+	LabelListVisibility   string `name:"label-list-visibility" help:"Label-list visibility: labelShow|labelShowIfUnread|labelHide"`
+	MessageListVisibility string `name:"message-list-visibility" help:"Message-list visibility: show|hide"`
+}
+
+func (c *GmailLabelsStyleCmd) Run(ctx context.Context, flags *RootFlags) error {
+	u := ui.FromContext(ctx)
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
+	}
+
+	svc, err := newGmailService(ctx, account)
+	if err != nil {
+		return err
+	}
+
+	label, err := resolveMutableGmailLabel(ctx, svc, c.Label)
+	if err != nil {
+		return err
+	}
+	if label.Type == "system" {
+		return fmt.Errorf("cannot style system label %q", label.Name)
+	}
+
+	textColor, err := normalizeGmailLabelHexColor(c.TextColor, "--text-color")
+	if err != nil {
+		return err
+	}
+	backgroundColor, err := normalizeGmailLabelHexColor(c.BackgroundColor, "--background-color")
+	if err != nil {
+		return err
+	}
+	if textColor == "" && backgroundColor == "" && c.LabelListVisibility == "" && c.MessageListVisibility == "" {
+		return usage("specify at least one style field")
+	}
+	if validateErr := validateGmailLabelVisibility(c.LabelListVisibility, "--label-list-visibility", "labelShow", "labelShowIfUnread", "labelHide"); validateErr != nil {
+		return validateErr
+	}
+	if validateErr := validateGmailLabelVisibility(c.MessageListVisibility, "--message-list-visibility", "show", "hide"); validateErr != nil {
+		return validateErr
+	}
+
+	patch := &gmail.Label{
+		LabelListVisibility:   strings.TrimSpace(c.LabelListVisibility),
+		MessageListVisibility: strings.TrimSpace(c.MessageListVisibility),
+	}
+	if textColor != "" || backgroundColor != "" {
+		color := &gmail.LabelColor{}
+		if label.Color != nil {
+			color.TextColor = label.Color.TextColor
+			color.BackgroundColor = label.Color.BackgroundColor
+		}
+		if textColor != "" {
+			color.TextColor = textColor
+		}
+		if backgroundColor != "" {
+			color.BackgroundColor = backgroundColor
+		}
+		patch.Color = color
+	}
+
+	if exit := dryRunExit(ctx, flags, "gmail.labels.style", map[string]any{
+		"id":                    label.Id,
+		"name":                  label.Name,
+		"textColor":             textColor,
+		"backgroundColor":       backgroundColor,
+		"labelListVisibility":   c.LabelListVisibility,
+		"messageListVisibility": c.MessageListVisibility,
+	}); exit != nil {
+		return exit
+	}
+
+	updated, err := svc.Users.Labels.Patch("me", label.Id, patch).Context(ctx).Do()
+	if err != nil {
+		return err
+	}
+	if outfmt.IsJSON(ctx) {
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{"label": updated})
+	}
+	u.Out().Printf("Styled label: %s (id: %s)", updated.Name, updated.Id)
+	return nil
+}
+
+func validateGmailLabelVisibility(value, field string, allowed ...string) error {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return nil
+	}
+	for _, candidate := range allowed {
+		if value == candidate {
+			return nil
+		}
+	}
+	return usagef("%s must be one of: %s", field, strings.Join(allowed, ", "))
 }
 
 type GmailLabelsListCmd struct{}
@@ -338,30 +421,9 @@ func (c *GmailLabelsDeleteCmd) Run(ctx context.Context, flags *RootFlags) error 
 		return err
 	}
 
-	raw := strings.TrimSpace(c.Label)
-	if raw == "" {
-		return usage("empty label")
-	}
-
-	// For destructive operations, try exact ID match first before name lookup.
-	label, err := svc.Users.Labels.Get("me", raw).Context(ctx).Do()
+	label, err := resolveMutableGmailLabel(ctx, svc, c.Label)
 	if err != nil {
-		if !isNotFoundAPIError(err) {
-			return err
-		}
-		// Exact ID not found; resolve by label name only.
-		idMap, mapErr := fetchLabelNameOnlyToID(svc)
-		if mapErr != nil {
-			return mapErr
-		}
-		id, ok := idMap[strings.ToLower(raw)]
-		if !ok {
-			return fmt.Errorf("label not found: %s", raw)
-		}
-		label, err = svc.Users.Labels.Get("me", id).Context(ctx).Do()
-		if err != nil {
-			return err
-		}
+		return err
 	}
 
 	// System labels cannot be deleted

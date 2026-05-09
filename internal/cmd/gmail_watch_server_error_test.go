@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"bytes"
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"net/http"
@@ -18,7 +19,7 @@ func TestGmailWatchServer_ServeHTTP_Errors(t *testing.T) {
 
 	t.Run("not found", func(t *testing.T) {
 		rr := httptest.NewRecorder()
-		req := httptest.NewRequest(http.MethodPost, "/other", nil)
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/other", nil)
 		s.ServeHTTP(rr, req)
 		if rr.Code != http.StatusNotFound {
 			t.Fatalf("status: %d", rr.Code)
@@ -27,7 +28,7 @@ func TestGmailWatchServer_ServeHTTP_Errors(t *testing.T) {
 
 	t.Run("method not allowed", func(t *testing.T) {
 		rr := httptest.NewRecorder()
-		req := httptest.NewRequest(http.MethodGet, "/hook", nil)
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/hook", nil)
 		s.ServeHTTP(rr, req)
 		if rr.Code != http.StatusMethodNotAllowed {
 			t.Fatalf("status: %d", rr.Code)
@@ -36,7 +37,7 @@ func TestGmailWatchServer_ServeHTTP_Errors(t *testing.T) {
 
 	t.Run("unauthorized", func(t *testing.T) {
 		rr := httptest.NewRecorder()
-		req := httptest.NewRequest(http.MethodPost, "/hook", nil)
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/hook", nil)
 		s.ServeHTTP(rr, req)
 		if rr.Code != http.StatusUnauthorized {
 			t.Fatalf("status: %d", rr.Code)
@@ -52,7 +53,7 @@ func TestGmailWatchServer_ServeHTTP_InvalidPayload(t *testing.T) {
 	}
 
 	rr := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/hook", bytes.NewReader([]byte("nope")))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/hook", bytes.NewReader([]byte("nope")))
 	s.ServeHTTP(rr, req)
 	if rr.Code != http.StatusBadRequest {
 		t.Fatalf("status: %d", rr.Code)
@@ -72,7 +73,7 @@ func TestGmailWatchServer_ServeHTTP_EmptyHistoryID(t *testing.T) {
 	body, _ := json.Marshal(push)
 
 	rr := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/hook", bytes.NewReader(body))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/hook", bytes.NewReader(body))
 	s.ServeHTTP(rr, req)
 	if rr.Code != http.StatusAccepted {
 		t.Fatalf("status: %d", rr.Code)
@@ -92,7 +93,7 @@ func TestGmailWatchServer_ServeHTTP_EmailMismatch(t *testing.T) {
 	body, _ := json.Marshal(push)
 
 	rr := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/hook", bytes.NewReader(body))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/hook", bytes.NewReader(body))
 	s.ServeHTTP(rr, req)
 	if rr.Code != http.StatusAccepted {
 		t.Fatalf("status: %d", rr.Code)
@@ -111,7 +112,7 @@ func TestGmailWatchServer_ServeHTTP_InvalidBase64(t *testing.T) {
 	body, _ := json.Marshal(push)
 
 	rr := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/hook", bytes.NewReader(body))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/hook", bytes.NewReader(body))
 	s.ServeHTTP(rr, req)
 	if rr.Code != http.StatusBadRequest {
 		t.Fatalf("status: %d", rr.Code)

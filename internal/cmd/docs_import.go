@@ -4,9 +4,8 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
 	"regexp"
 	"sort"
 	"strconv"
@@ -14,7 +13,7 @@ import (
 	"time"
 
 	"google.golang.org/api/docs/v1"
-	"google.golang.org/api/drive/v3"
+	gapi "google.golang.org/api/googleapi"
 )
 
 // markdownImage holds a parsed image reference from a markdown file.
@@ -215,131 +214,10 @@ func searchParagraph(para *docs.Paragraph, placeholders []string, result map[str
 	}
 }
 
-// uploadLocalImage uploads a local image to Google Drive with public read access,
-// returning the public URL and the Drive file ID (for cleanup).
-func uploadLocalImage(ctx context.Context, driveSvc *drive.Service, path string) (url string, fileID string, err error) {
-	ext := strings.ToLower(filepath.Ext(path))
-	var mimeType string
-	switch ext {
-	case extPNG:
-		mimeType = mimePNG
-	case imageExtJPG, imageExtJPEG:
-		mimeType = imageMimeJPEG
-	case imageExtGIF:
-		mimeType = imageMimeGIF
-	default:
-		return "", "", fmt.Errorf("unsupported image format %q (use PNG, JPG, or GIF)", ext)
-	}
-
-	// #nosec G304 -- path is validated by resolveMarkdownImagePath before upload.
-	f, err := os.Open(path)
-	if err != nil {
-		return "", "", fmt.Errorf("open image %q: %w", path, err)
-	}
-	defer f.Close()
-
-	driveFile, err := driveSvc.Files.Create(&drive.File{
-		Name:     filepath.Base(path),
-		MimeType: mimeType,
-	}).Media(f).Fields("id, webContentLink").Context(ctx).Do()
-	if err != nil {
-		return "", "", fmt.Errorf("upload image to Drive: %w", err)
-	}
-
-	// Make publicly readable so the Docs API can fetch it.
-	_, err = driveSvc.Permissions.Create(driveFile.Id, &drive.Permission{
-		Type: "anyone",
-		Role: "reader",
-	}).Context(ctx).Do()
-	if err != nil {
-		deleteDriveFileBestEffort(ctx, driveSvc, driveFile.Id)
-		return "", "", fmt.Errorf("set image permissions: %w", err)
-	}
-
-	imageURL := driveFile.WebContentLink
-	if imageURL == "" {
-		got, err := driveSvc.Files.Get(driveFile.Id).Fields("webContentLink").Context(ctx).Do()
-		if err != nil {
-			deleteDriveFileBestEffort(ctx, driveSvc, driveFile.Id)
-			return "", "", fmt.Errorf("get image URL: %w", err)
-		}
-		imageURL = got.WebContentLink
-	}
-	if imageURL == "" {
-		deleteDriveFileBestEffort(ctx, driveSvc, driveFile.Id)
-		return "", "", fmt.Errorf("could not obtain public URL for uploaded image %q", path)
-	}
-
-	return imageURL, driveFile.Id, nil
-}
-
-func cleanupDriveFileIDsBestEffort(ctx context.Context, driveSvc *drive.Service, fileIDs []string) {
-	if len(fileIDs) == 0 {
-		return
-	}
-	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 15*time.Second)
-	defer cancel()
-
-	for _, id := range fileIDs {
-		if strings.TrimSpace(id) == "" {
-			continue
-		}
-		_ = driveSvc.Files.Delete(id).Context(cleanupCtx).Do()
-	}
-}
-
-func deleteDriveFileBestEffort(ctx context.Context, driveSvc *drive.Service, fileID string) {
-	if strings.TrimSpace(fileID) == "" {
-		return
-	}
-	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
-	defer cancel()
-	_ = driveSvc.Files.Delete(fileID).Context(cleanupCtx).Do()
-}
-
-func resolveMarkdownImagePath(markdownFilePath string, imageRef string) (string, error) {
-	mdDir, err := filepath.Abs(filepath.Dir(markdownFilePath))
-	if err != nil {
-		return "", fmt.Errorf("resolve markdown directory: %w", err)
-	}
-
-	realDir, err := filepath.EvalSymlinks(mdDir)
-	if err != nil {
-		return "", fmt.Errorf("resolve markdown directory: %w", err)
-	}
-
-	imgPath := imageRef
-	if !filepath.IsAbs(imgPath) {
-		imgPath = filepath.Join(mdDir, imgPath)
-	}
-	imgPath = filepath.Clean(imgPath)
-
-	realPath, err := filepath.EvalSymlinks(imgPath)
-	if err != nil {
-		return "", fmt.Errorf("resolve image path %q: %w", imageRef, err)
-	}
-
-	if !pathWithinDir(realPath, realDir) {
-		return "", fmt.Errorf("image %q is outside the markdown file directory (%s); local images must be in the same directory as the markdown file or a subdirectory — use relative paths or copy images alongside the .md file", imageRef, realDir)
-	}
-	return realPath, nil
-}
-
-func pathWithinDir(path string, dir string) bool {
-	rel, err := filepath.Rel(dir, path)
-	if err != nil {
-		return false
-	}
-	if rel == ".." {
-		return false
-	}
-	return !strings.HasPrefix(rel, ".."+string(filepath.Separator))
-}
-
 // insertImagesIntoDocs reads back a Google Doc to find <<IMG_token_N>> placeholders,
-// resolves image URLs (remote URLs used directly, local files uploaded to Drive),
+// resolves image URLs (remote URLs used directly; local files are rejected),
 // and replaces the placeholders with inline images via BatchUpdate.
-func insertImagesIntoDocs(ctx context.Context, account string, svc *docs.Service, docID string, images []markdownImage, basePath string) error {
+func insertImagesIntoDocs(ctx context.Context, svc *docs.Service, docID string, images []markdownImage, tabID string) error {
 	// Read back the document to find placeholder positions.
 	doc, err := svc.Documents.Get(docID).Context(ctx).Do()
 	if err != nil {
@@ -351,10 +229,9 @@ func insertImagesIntoDocs(ctx context.Context, account string, svc *docs.Service
 		return nil
 	}
 
-	// Resolve image URLs — remote URLs used directly, local files uploaded.
+	// Resolve image URLs. The Docs API fetches InsertInlineImage URIs itself, so
+	// local files need to be hosted at a normal public HTTPS URL first.
 	imageURLs := make(map[int]string)
-	var driveSvc *drive.Service
-	var tempFileIDs []string
 
 	for _, img := range images {
 		if _, ok := placeholders[img.placeholder()]; !ok {
@@ -364,38 +241,70 @@ func insertImagesIntoDocs(ctx context.Context, account string, svc *docs.Service
 			imageURLs[img.index] = img.originalRef
 			continue
 		}
-		// Local file — need Drive service to upload.
-		if driveSvc == nil {
-			driveSvc, err = newDriveService(ctx, account)
-			if err != nil {
-				return err
-			}
-		}
-		realPath, resolveErr := resolveMarkdownImagePath(basePath, img.originalRef)
-		if resolveErr != nil {
-			return resolveErr
-		}
-		url, fileID, uploadErr := uploadLocalImage(ctx, driveSvc, realPath)
-		if uploadErr != nil {
-			return uploadErr
-		}
-		tempFileIDs = append(tempFileIDs, fileID)
-		imageURLs[img.index] = url
+		return fmt.Errorf("local markdown image %q cannot be inserted automatically; Google Docs image insertion requires a public HTTPS image URL, so upload the image to a public host and use that URL", img.originalRef)
 	}
 
-	if driveSvc != nil {
-		defer cleanupDriveFileIDsBestEffort(ctx, driveSvc, tempFileIDs)
-	}
-
-	reqs := buildImageInsertRequests(placeholders, images, imageURLs)
+	reqs := buildImageInsertRequests(placeholders, images, imageURLs, tabID)
 	if len(reqs) == 0 {
 		return nil
 	}
 
-	_, err = svc.Documents.BatchUpdate(docID, &docs.BatchUpdateDocumentRequest{
-		Requests: reqs,
-	}).Context(ctx).Do()
-	return err
+	return batchUpdateImageInsertRequests(ctx, svc, docID, reqs)
+}
+
+var docsImageInsertRetryDelays = []time.Duration{
+	2 * time.Second,
+	5 * time.Second,
+	10 * time.Second,
+	20 * time.Second,
+}
+
+func batchUpdateImageInsertRequests(ctx context.Context, svc *docs.Service, docID string, reqs []*docs.Request) error {
+	var lastErr error
+	for attempt := 0; ; attempt++ {
+		_, err := svc.Documents.BatchUpdate(docID, &docs.BatchUpdateDocumentRequest{
+			Requests: reqs,
+		}).Context(ctx).Do()
+		if err == nil {
+			return nil
+		}
+		lastErr = err
+		if attempt >= len(docsImageInsertRetryDelays) || !isRetryableDocsImageInsertError(err) {
+			return lastErr
+		}
+		if err := waitDocsImageInsertRetry(ctx, docsImageInsertRetryDelays[attempt]); err != nil {
+			return err
+		}
+	}
+}
+
+func waitDocsImageInsertRetry(ctx context.Context, delay time.Duration) error {
+	if delay <= 0 {
+		return nil
+	}
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
+}
+
+func isRetryableDocsImageInsertError(err error) bool {
+	var apiErr *gapi.Error
+	if errors.As(err, &apiErr) {
+		if apiErr.Code >= 500 {
+			return true
+		}
+		if apiErr.Code == 400 && strings.Contains(apiErr.Message, "retrieving the image") {
+			return true
+		}
+	}
+	errStr := err.Error()
+	return strings.Contains(errStr, "retrieving the image") ||
+		strings.Contains(errStr, "provided image should be publicly accessible")
 }
 
 // defaultImageMaxWidthPt is the maximum width for inserted inline images in points.
@@ -406,7 +315,7 @@ const defaultImageMaxWidthPt = 468.0
 // buildImageInsertRequests creates the Docs API batch update requests to replace
 // placeholder text with inline images. Requests are ordered in reverse index order
 // so earlier positions are not invalidated as the document is modified.
-func buildImageInsertRequests(placeholders map[string]docRange, images []markdownImage, imageURLs map[int]string) []*docs.Request {
+func buildImageInsertRequests(placeholders map[string]docRange, images []markdownImage, imageURLs map[int]string, tabID string) []*docs.Request {
 	// Collect entries sorted by start index descending.
 	type entry struct {
 		image markdownImage
@@ -440,6 +349,7 @@ func buildImageInsertRequests(placeholders map[string]docRange, images []markdow
 				Range: &docs.Range{
 					StartIndex: e.dr.startIndex,
 					EndIndex:   e.dr.endIndex,
+					TabId:      tabID,
 				},
 			},
 		})
@@ -461,6 +371,7 @@ func buildImageInsertRequests(placeholders map[string]docRange, images []markdow
 				Uri: e.url,
 				Location: &docs.Location{
 					Index: e.dr.startIndex,
+					TabId: tabID,
 				},
 				ObjectSize: objSize,
 			},

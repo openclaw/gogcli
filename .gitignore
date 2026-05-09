@@ -37,6 +37,8 @@ go.work.sum
 # Local build output
 bin/
 /gog
+internal/cmd/safety_profile_baked_gen.go
 
 # Node (optional dev scripts)
 node_modules/
+dist/

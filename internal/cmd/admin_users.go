@@ -60,19 +60,9 @@ func (c *AdminUsersListCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return resp.Users, resp.NextPageToken, nil
 	}
 
-	var users []*admin.User
-	nextPageToken := ""
-	if c.All {
-		all, collectErr := collectAllPages(c.Page, fetch)
-		if collectErr != nil {
-			return collectErr
-		}
-		users = all
-	} else {
-		users, nextPageToken, err = fetch(c.Page)
-		if err != nil {
-			return err
-		}
+	users, nextPageToken, err := loadPagedItems(c.Page, c.All, fetch)
+	if err != nil {
+		return err
 	}
 
 	if outfmt.IsJSON(ctx) {
@@ -232,7 +222,7 @@ type AdminUsersCreateCmd struct {
 	Email      string `arg:"" name:"email" help:"User email (e.g., user@example.com)"`
 	GivenName  string `name:"given" help:"Given (first) name"`
 	FamilyName string `name:"family" help:"Family (last) name"`
-	Password   string `name:"password" help:"Initial password"` //nolint:gosec // CLI input for initial admin-provisioned passwords.
+	Password   string `name:"password" help:"Initial password"`
 	ChangePwd  bool   `name:"change-password" help:"Require password change on first login"`
 	OrgUnit    string `name:"org-unit" help:"Organization unit path"`
 	Admin      bool   `name:"admin" help:"Not supported; assign admin roles separately after user creation"`

@@ -10,7 +10,7 @@ import (
 )
 
 type CalendarEventsCmd struct {
-	CalendarID        string   `arg:"" name:"calendarId" optional:"" help:"Calendar ID (default: primary)"`
+	CalendarID        []string `arg:"" name:"calendarId" optional:"" help:"Calendar ID (default: primary); optional leading list/ls selector is accepted for compatibility"`
 	Cal               []string `name:"cal" help:"Calendar ID or name (can be repeated)"`
 	Calendars         string   `name:"calendars" help:"Comma-separated calendar IDs, names, or indices from 'calendar calendars'"`
 	From              string   `name:"from" help:"Start time (RFC3339 with timezone, date, or relative: today, tomorrow, monday)"`
@@ -38,7 +38,10 @@ func (c *CalendarEventsCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
-	calendarID := strings.TrimSpace(c.CalendarID)
+	calendarID, err := normalizeCalendarEventsArgs(c.CalendarID)
+	if err != nil {
+		return err
+	}
 	calInputs := append([]string{}, c.Cal...)
 	if strings.TrimSpace(c.Calendars) != "" {
 		calInputs = append(calInputs, splitCSV(c.Calendars)...)
@@ -90,6 +93,26 @@ func (c *CalendarEventsCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return listSelectedCalendarsEvents(ctx, svc, ids, from, to, c.Max, c.Page, c.AllPages, c.FailEmpty, c.Query, c.PrivatePropFilter, c.SharedPropFilter, c.Fields, c.Weekday)
 	}
 	return listCalendarEvents(ctx, svc, calendarID, from, to, c.Max, c.Page, c.AllPages, c.FailEmpty, c.Query, c.PrivatePropFilter, c.SharedPropFilter, c.Fields, c.Weekday)
+}
+
+func normalizeCalendarEventsArgs(args []string) (string, error) {
+	trimmed := make([]string, 0, len(args))
+	for _, arg := range args {
+		arg = strings.TrimSpace(arg)
+		if arg != "" {
+			trimmed = append(trimmed, arg)
+		}
+	}
+	if len(trimmed) > 0 && (trimmed[0] == "list" || trimmed[0] == "ls") {
+		trimmed = trimmed[1:]
+	}
+	if len(trimmed) > 1 {
+		return "", usage("calendar events accepts at most one calendarId")
+	}
+	if len(trimmed) == 0 {
+		return "", nil
+	}
+	return trimmed[0], nil
 }
 
 type CalendarEventCmd struct {

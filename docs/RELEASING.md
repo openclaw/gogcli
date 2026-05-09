@@ -24,6 +24,12 @@ Assumptions:
 - Go toolchain installed (Go version comes from `go.mod`).
 - `make` works locally.
 - Access to the tap repo (e.g. `steipete/homebrew-tap`).
+- For signed macOS release binaries (required):
+  GitHub Actions secrets must be set, or the release workflow fails before
+  producing Darwin artifacts:
+  - `MACOS_SIGNING_CERT_BASE64` (base64-encoded `.p12`)
+  - `MACOS_SIGNING_CERT_PASSWORD`
+  - `MACOS_CODESIGN_IDENTITY` (e.g. `Developer ID Application: …`)
 
 ## 1) Verify build is green
 ```sh
@@ -62,6 +68,8 @@ gh release view vX.Y.Z
 ```
 
 Ensure GitHub release notes are not empty (mirror the changelog section).
+The release workflow fails closed if macOS signing secrets are missing; Darwin
+artifacts must be signed with a stable identity, not ad-hoc/linker signatures.
 
 If the workflow needs a rerun:
 ```sh
@@ -71,7 +79,14 @@ gh workflow run release.yml -f tag=vX.Y.Z
 ## 5) Update (or add) the Homebrew formula
 In the tap repo (assumed sibling at `../homebrew-tap`), create/update `Formula/gogcli.rb`.
 
-Recommended formula shape (build-from-source, no binary assets needed):
+Recommended formula shape (download GitHub release assets; preserves macOS code signature):
+- `version "X.Y.Z"`
+- `url "https://github.com/steipete/gogcli/releases/download/vX.Y.Z/gogcli_X.Y.Z_darwin_arm64.tar.gz"` (or `darwin_amd64`)
+- `sha256 "<sha256>"`
+- Install:
+  - `bin.install "gog"`
+
+Alternative (build-from-source; macOS binary will be ad-hoc signed, which can trigger repeated Keychain prompts with `KeychainTrustApplication`):
 - `version "X.Y.Z"`
 - `url "https://github.com/steipete/gogcli/archive/refs/tags/vX.Y.Z.tar.gz"`
 - `sha256 "<sha256>"`
@@ -107,3 +122,5 @@ gog --help
 
 ## Notes
 - `gog --version` / `gog version` should report the release version post-install.
+- `scripts/verify-release.sh` checks Darwin release assets with `codesign` on
+  macOS and rejects ad-hoc signatures or missing TeamIdentifier values.

@@ -18,12 +18,15 @@ import (
 var newDocsService = googleapi.NewDocs
 
 type DocsCmd struct {
-	Export      DocsExportCmd      `cmd:"" name:"export" aliases:"download,dl" help:"Export a Google Doc (pdf|docx|txt|md)"`
+	Export      DocsExportCmd      `cmd:"" name:"export" aliases:"download,dl" help:"Export a Google Doc (pdf|docx|txt|md|html)"`
 	Info        DocsInfoCmd        `cmd:"" name:"info" aliases:"get,show" help:"Get Google Doc metadata"`
 	Create      DocsCreateCmd      `cmd:"" name:"create" aliases:"add,new" help:"Create a Google Doc"`
 	Copy        DocsCopyCmd        `cmd:"" name:"copy" aliases:"cp,duplicate" help:"Copy a Google Doc"`
 	Cat         DocsCatCmd         `cmd:"" name:"cat" aliases:"text,read" help:"Print a Google Doc as plain text"`
 	Comments    DocsCommentsCmd    `cmd:"" name:"comments" help:"Manage comments on files"`
+	AddTab      DocsAddTabCmd      `cmd:"" name:"add-tab" help:"Add a tab to a Google Doc"`
+	RenameTab   DocsRenameTabCmd   `cmd:"" name:"rename-tab" help:"Rename a tab in a Google Doc"`
+	DeleteTab   DocsDeleteTabCmd   `cmd:"" name:"delete-tab" help:"Delete a tab from a Google Doc"`
 	ListTabs    DocsListTabsCmd    `cmd:"" name:"list-tabs" help:"List all tabs in a Google Doc"`
 	Write       DocsWriteCmd       `cmd:"" name:"write" help:"Write content to a Google Doc"`
 	Insert      DocsInsertCmd      `cmd:"" name:"insert" help:"Insert text at a specific position"`
@@ -31,18 +34,67 @@ type DocsCmd struct {
 	FindReplace DocsFindReplaceCmd `cmd:"" name:"find-replace" help:"Find and replace text. Supports plain text or markdown with images; use --first for a single occurrence."`
 	Update      DocsUpdateCmd      `cmd:"" name:"update" help:"Insert text at a specific index in a Google Doc"`
 	Edit        DocsEditCmd        `cmd:"" name:"edit" help:"Find and replace text in a Google Doc"`
+	Format      DocsFormatCmd      `cmd:"" name:"format" help:"Apply text or paragraph formatting to a Google Doc"`
 	Sed         DocsSedCmd         `cmd:"" name:"sed" help:"Regex find/replace (sed-style: s/pattern/replacement/g)"`
 	Clear       DocsClearCmd       `cmd:"" name:"clear" help:"Clear all content from a Google Doc"`
 	Structure   DocsStructureCmd   `cmd:"" name:"structure" aliases:"struct" help:"Show document structure with numbered paragraphs"`
+	Raw         DocsRawCmd         `cmd:"" name:"raw" help:"Dump raw Google Docs API response as JSON (Documents.Get; lossless; for scripting and LLM consumption)"`
+}
+
+// DocsRawCmd dumps the full Documents.Get response as JSON, with no Fields
+// restriction. Intended for programmatic / LLM consumption where the caller
+// wants the canonical Google Docs API tree (tables, suggestions, per-run
+// styling, list nesting, named ranges, inline objects) that `info` drops.
+//
+// REST reference: https://developers.google.com/docs/api/reference/rest/v1/documents/get
+// Go type: https://pkg.go.dev/google.golang.org/api/docs/v1#Document
+type DocsRawCmd struct {
+	DocID  string `arg:"" name:"docId" help:"Doc ID"`
+	Pretty bool   `name:"pretty" help:"Pretty-print JSON (default: compact single-line)"`
+}
+
+func (c *DocsRawCmd) Run(ctx context.Context, flags *RootFlags) error {
+	id := strings.TrimSpace(c.DocID)
+	if id == "" {
+		return usage("empty docId")
+	}
+
+	svc, err := requireDocsService(ctx, flags)
+	if err != nil {
+		return err
+	}
+
+	doc, err := svc.Documents.Get(id).Context(ctx).Do()
+	if err != nil {
+		if isDocsNotFound(err) {
+			return fmt.Errorf("doc not found or not a Google Doc (id=%s)", id)
+		}
+		return err
+	}
+	doc, err = requireRawResponse(doc, "doc not found")
+	if err != nil {
+		return err
+	}
+
+	return writeRawJSON(ctx, doc, c.Pretty)
 }
 
 type DocsExportCmd struct {
 	DocID  string         `arg:"" name:"docId" help:"Doc ID"`
 	Output OutputPathFlag `embed:""`
 	Format string         `name:"format" help:"Export format: pdf|docx|txt|md|html" default:"pdf"`
+	Tab    string         `name:"tab" help:"(experimental) Export a specific tab by title or ID (see 'gog docs list-tabs')"`
 }
 
 func (c *DocsExportCmd) Run(ctx context.Context, flags *RootFlags) error {
+	if tab := strings.TrimSpace(c.Tab); tab != "" {
+		return runDocsTabExport(ctx, flags, tabExportParams{
+			DocID:    c.DocID,
+			OutFlag:  c.Output.Path,
+			Format:   c.Format,
+			TabQuery: tab,
+		})
+	}
 	return exportViaDrive(ctx, flags, exportViaDriveOptions{
 		ArgName:       "docId",
 		ExpectedMime:  "application/vnd.google-apps.document",
@@ -112,7 +164,7 @@ func (c *DocsInfoCmd) Run(ctx context.Context, flags *RootFlags) error {
 type DocsCreateCmd struct {
 	Title    string `arg:"" name:"title" help:"Doc title"`
 	Parent   string `name:"parent" help:"Destination folder ID"`
-	File     string `name:"file" help:"Markdown file to import. Supports inline images via ![alt](url); append {width=N height=N} to control size in points. Local images must be in the same directory as the markdown file or a subdirectory (use relative paths). Remote URLs (https://...) are used directly." type:"existingfile"`
+	File     string `name:"file" help:"Markdown file to import. Supports inline images from public HTTPS URLs via ![alt](url); append {width=N height=N} to control size in points." type:"existingfile"`
 	Pageless bool   `name:"pageless" help:"Set document to pageless mode"`
 }
 
@@ -123,11 +175,6 @@ func (c *DocsCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return usage("empty title")
 	}
 
-	account, driveSvc, err := requireDriveService(ctx, flags)
-	if err != nil {
-		return err
-	}
-
 	f := &drive.File{
 		Name:     title,
 		MimeType: "application/vnd.google-apps.document",
@@ -135,6 +182,20 @@ func (c *DocsCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
 	parent := strings.TrimSpace(c.Parent)
 	if parent != "" {
 		f.Parents = []string{parent}
+	}
+
+	if err := dryRunExit(ctx, flags, "docs.create", map[string]any{
+		strFile:      f,
+		"sourceFile": c.File,
+		"parent":     parent,
+		"pageless":   c.Pageless,
+	}); err != nil {
+		return err
+	}
+
+	account, driveSvc, err := requireDriveService(ctx, flags)
+	if err != nil {
+		return err
 	}
 
 	createCall := driveSvc.Files.Create(f).
@@ -203,7 +264,7 @@ func (c *DocsCreateCmd) insertImages(ctx context.Context, account string, docID 
 	if err != nil {
 		return err
 	}
-	return insertImagesIntoDocs(ctx, account, svc, docID, images, c.File)
+	return insertImagesIntoDocs(ctx, svc, docID, images, "")
 }
 
 type DocsCopyCmd struct {

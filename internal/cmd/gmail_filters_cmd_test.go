@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"encoding/json"
+	"encoding/xml"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -210,19 +211,52 @@ func TestGmailFiltersList_NoFilters(t *testing.T) {
 
 func TestGmailFiltersExport(t *testing.T) {
 	origNew := newGmailService
-	t.Cleanup(func() { newGmailService = origNew })
+	origNow := nowGmailFiltersExport
+	t.Cleanup(func() {
+		newGmailService = origNew
+		nowGmailFiltersExport = origNow
+	})
+	nowGmailFiltersExport = func() time.Time { return time.Date(2026, 5, 5, 1, 2, 3, 0, time.UTC) }
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if strings.Contains(r.URL.Path, "/gmail/v1/users/me/settings/filters") && r.Method == http.MethodGet {
+		switch {
+		case strings.Contains(r.URL.Path, "/gmail/v1/users/me/labels") && r.Method == http.MethodGet:
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(map[string]any{
-				"filter": []map[string]any{
-					{"id": "f1", "criteria": map[string]any{"from": "a@example.com"}},
+				"labels": []map[string]any{
+					{"id": "Label_1", "name": "Notifications & Alerts"},
 				},
 			})
 			return
+		case strings.Contains(r.URL.Path, "/gmail/v1/users/me/settings/filters") && r.Method == http.MethodGet:
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"filter": []map[string]any{
+					{
+						"id": "f1",
+						"criteria": map[string]any{
+							"from":           "a@example.com",
+							"to":             "b@example.com",
+							"subject":        "A&B",
+							"query":          `from:alerts has:attachment`,
+							"negatedQuery":   "category:promotions",
+							"hasAttachment":  true,
+							"excludeChats":   true,
+							"size":           1024,
+							"sizeComparison": "larger",
+						},
+						"action": map[string]any{
+							"addLabelIds":    []string{"Label_1", "STARRED", "IMPORTANT", "CATEGORY_SOCIAL"},
+							"removeLabelIds": []string{"INBOX", "UNREAD", "SPAM"},
+							"forward":        "f@example.com",
+						},
+					},
+				},
+			})
+			return
+		default:
+			http.NotFound(w, r)
 		}
-		http.NotFound(w, r)
 	}))
 	defer srv.Close()
 
@@ -243,9 +277,55 @@ func TestGmailFiltersExport(t *testing.T) {
 	}
 	ctx := ui.WithUI(context.Background(), u)
 
-	t.Run("stdout json", func(t *testing.T) {
+	t.Run("stdout xml", func(t *testing.T) {
 		out := captureStdout(t, func() {
 			if err := runKong(t, &GmailFiltersExportCmd{}, []string{}, ctx, flags); err != nil {
+				t.Fatalf("export stdout: %v", err)
+			}
+		})
+		if !strings.HasPrefix(out, xml.Header) {
+			t.Fatalf("missing XML header: %q", out)
+		}
+		if !strings.Contains(out, `xmlns:apps="http://schemas.google.com/apps/2006"`) {
+			t.Fatalf("missing apps namespace: %q", out)
+		}
+		if !strings.Contains(out, `name="label" value="Notifications &amp; Alerts"`) {
+			t.Fatalf("missing escaped label name: %q", out)
+		}
+		for _, want := range []string{
+			`name="from" value="a@example.com"`,
+			`name="subject" value="A&amp;B"`,
+			`name="hasTheWord" value="from:alerts has:attachment"`,
+			`name="doesNotHaveTheWord" value="category:promotions"`,
+			`name="hasAttachment" value="true"`,
+			`name="excludeChats" value="true"`,
+			`name="size" value="1024"`,
+			`name="sizeUnit" value="s_sb"`,
+			`name="sizeOperator" value="s_sl"`,
+			`name="shouldStar" value="true"`,
+			`name="shouldAlwaysMarkAsImportant" value="true"`,
+			`name="smartLabelToApply" value="^smartlabel_social"`,
+			`name="shouldArchive" value="true"`,
+			`name="shouldMarkAsRead" value="true"`,
+			`name="shouldNeverSpam" value="true"`,
+			`name="forwardTo" value="f@example.com"`,
+		} {
+			if !strings.Contains(out, want) {
+				t.Fatalf("missing %s in XML:\n%s", want, out)
+			}
+		}
+		var parsed gmailFiltersXMLFeed
+		if err := xml.Unmarshal([]byte(out), &parsed); err != nil {
+			t.Fatalf("xml parse: %v", err)
+		}
+		if parsed.Author.Email != "a@b.com" || len(parsed.Entries) != 1 {
+			t.Fatalf("unexpected parsed feed: %#v", parsed)
+		}
+	})
+
+	t.Run("stdout json compatibility", func(t *testing.T) {
+		out := captureStdout(t, func() {
+			if err := runKong(t, &GmailFiltersExportCmd{}, []string{"--format", "json"}, ctx, flags); err != nil {
 				t.Fatalf("export stdout: %v", err)
 			}
 		})
@@ -259,9 +339,42 @@ func TestGmailFiltersExport(t *testing.T) {
 		}
 	})
 
-	t.Run("file export", func(t *testing.T) {
-		path := t.TempDir() + "/filters.json"
+	t.Run("global json keeps old stdout json", func(t *testing.T) {
+		jsonCtx := outfmt.WithMode(ctx, outfmt.Mode{JSON: true})
+		jsonFlags := *flags
+		jsonFlags.JSON = true
+		out := captureStdout(t, func() {
+			if err := runKong(t, &GmailFiltersExportCmd{}, []string{}, jsonCtx, &jsonFlags); err != nil {
+				t.Fatalf("export stdout: %v", err)
+			}
+		})
+		var payload map[string]any
+		if err := json.Unmarshal([]byte(out), &payload); err != nil {
+			t.Fatalf("json parse: %v", err)
+		}
+		filters, ok := payload["filters"].([]any)
+		if !ok || len(filters) != 1 {
+			t.Fatalf("unexpected payload: %#v", payload)
+		}
+	})
+
+	t.Run("file xml export", func(t *testing.T) {
+		path := t.TempDir() + "/mailFilters.xml"
 		if err := runKong(t, &GmailFiltersExportCmd{}, []string{"--out", path}, ctx, flags); err != nil {
+			t.Fatalf("export file: %v", err)
+		}
+		b, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("read export: %v", err)
+		}
+		if !strings.Contains(string(b), "<feed") || !strings.Contains(string(b), "Mail Filters") {
+			t.Fatalf("unexpected XML export: %s", b)
+		}
+	})
+
+	t.Run("file json export", func(t *testing.T) {
+		path := t.TempDir() + "/filters.json"
+		if err := runKong(t, &GmailFiltersExportCmd{}, []string{"--format", "json", "--out", path}, ctx, flags); err != nil {
 			t.Fatalf("export file: %v", err)
 		}
 		b, err := os.ReadFile(path)
@@ -271,10 +384,6 @@ func TestGmailFiltersExport(t *testing.T) {
 		var payload map[string]any
 		if err := json.Unmarshal(b, &payload); err != nil {
 			t.Fatalf("json parse: %v", err)
-		}
-		filters, ok := payload["filters"].([]any)
-		if !ok || len(filters) != 1 {
-			t.Fatalf("unexpected payload: %#v", payload)
 		}
 	})
 }

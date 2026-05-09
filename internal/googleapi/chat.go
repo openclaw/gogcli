@@ -2,7 +2,6 @@ package googleapi
 
 import (
 	"context"
-	"fmt"
 
 	"google.golang.org/api/chat/v1"
 )
@@ -17,11 +16,5 @@ const (
 )
 
 func NewChat(ctx context.Context, email string) (*chat.Service, error) {
-	if opts, err := optionsForAccountScopes(ctx, "chat", email, []string{scopeChatSpaces, scopeChatMessages, scopeChatMemberships, scopeChatReadStateRO, scopeChatReactionsCreate, scopeChatReactionsRO}); err != nil {
-		return nil, fmt.Errorf("chat options: %w", err)
-	} else if svc, err := chat.NewService(ctx, opts...); err != nil {
-		return nil, fmt.Errorf("create chat service: %w", err)
-	} else {
-		return svc, nil
-	}
+	return newGoogleServiceForScopes(ctx, email, "chat", "chat", []string{scopeChatSpaces, scopeChatMessages, scopeChatMemberships, scopeChatReadStateRO, scopeChatReactionsCreate, scopeChatReactionsRO}, chat.NewService)
 }

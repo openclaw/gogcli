@@ -19,12 +19,12 @@ jobs:
     runs-on: macos-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
 
       - name: Setup Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
         with:
           go-version-file: go.mod
           cache: true
@@ -48,11 +48,97 @@ jobs:
           RELEASE_TAG: ${{ inputs.tag }}
         run: git checkout "$RELEASE_TAG"
 
+      - name: Import macOS signing certificate
+        env:
+          MACOS_SIGNING_CERT_BASE64: ${{ secrets.MACOS_SIGNING_CERT_BASE64 }}
+          MACOS_SIGNING_CERT_PASSWORD: ${{ secrets.MACOS_SIGNING_CERT_PASSWORD }}
+          MACOS_CODESIGN_IDENTITY: ${{ secrets.MACOS_CODESIGN_IDENTITY }}
+        run: |
+          set -euo pipefail
+          if [ -z "$MACOS_SIGNING_CERT_BASE64" ] || [ -z "$MACOS_SIGNING_CERT_PASSWORD" ] || [ -z "$MACOS_CODESIGN_IDENTITY" ]; then
+            echo "::error::Set MACOS_SIGNING_CERT_BASE64, MACOS_SIGNING_CERT_PASSWORD, and MACOS_CODESIGN_IDENTITY before releasing signed macOS artifacts."
+            exit 1
+          fi
+
+          KEYCHAIN="build.keychain"
+          KEYCHAIN_PASSWORD="$(uuidgen)"
+
+          echo "$MACOS_SIGNING_CERT_BASE64" | base64 --decode > /tmp/codesign.p12
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security default-keychain -s "$KEYCHAIN"
+          security list-keychains -d user -s "$KEYCHAIN"
+
+          security import /tmp/codesign.p12 -k "$KEYCHAIN" -P "$MACOS_SIGNING_CERT_PASSWORD" -T /usr/bin/codesign -T /usr/bin/security
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+
       - name: GoReleaser
-        uses: goreleaser/goreleaser-action@v7
+        uses: goreleaser/goreleaser-action@1a80836c5c9d9e5755a25cb59ec6f45a3b5f41a8 # v7.2.1
         with:
           distribution: goreleaser
           version: latest
           args: release --clean --config /tmp/.goreleaser.yaml
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GOG_CODESIGN_IDENTITY: ${{ secrets.MACOS_CODESIGN_IDENTITY }}
+
+  update-homebrew-tap:
+    runs-on: ubuntu-latest
+    needs: goreleaser
+    steps:
+      - name: Resolve release tag
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "RELEASE_TAG=${{ inputs.tag }}" >> "$GITHUB_ENV"
+          else
+            echo "RELEASE_TAG=${{ github.ref_name }}" >> "$GITHUB_ENV"
+          fi
+
+      - name: Dispatch tap formula update
+        env:
+          GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::error::Set HOMEBREW_TAP_TOKEN with workflow access to steipete/homebrew-tap"
+            exit 1
+          fi
+
+          request_id="gogcli-${RELEASE_TAG}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          expected_title="Update gogcli for ${RELEASE_TAG} (${request_id})"
+
+          gh workflow run update-formula.yml \
+            --repo steipete/homebrew-tap \
+            --ref main \
+            -f formula=gogcli \
+            -f tag="$RELEASE_TAG" \
+            -f repository=steipete/gogcli \
+            -f artifact_template="{formula}_{version}_{target}.tar.gz" \
+            -f request_id="$request_id"
+
+          run_id=""
+          for _ in {1..30}; do
+            run_id=$(gh run list \
+              --repo steipete/homebrew-tap \
+              --workflow update-formula.yml \
+              --branch main \
+              --event workflow_dispatch \
+              --limit 20 \
+              --json databaseId,displayTitle \
+              --jq ".[] | select(.displayTitle == \"$expected_title\") | .databaseId" | head -n1)
+            if [ -n "$run_id" ]; then
+              break
+            fi
+            sleep 5
+          done
+
+          if [ -z "$run_id" ]; then
+            echo "::error::Could not find tap workflow run with title: $expected_title"
+            exit 1
+          fi
+
+          gh run watch "$run_id" \
+            --repo steipete/homebrew-tap \
+            --exit-status \
+            --interval 10

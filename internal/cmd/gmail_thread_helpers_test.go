@@ -100,9 +100,27 @@ func TestBestBodySelection(t *testing.T) {
 	if got := bestBodyText(part); got != "plain" {
 		t.Fatalf("unexpected best body text: %q", got)
 	}
+	if got := bestBodyHTML(part); got != "<b>html</b>" {
+		t.Fatalf("unexpected best body html: %q", got)
+	}
 	body, isHTML := bestBodyForDisplay(part)
 	if body != "plain" || isHTML {
 		t.Fatalf("unexpected body display: %q html=%v", body, isHTML)
+	}
+}
+
+func TestBestBodyHTML_FallsBackToPlain(t *testing.T) {
+	plain := base64.RawURLEncoding.EncodeToString([]byte("plain fallback"))
+	part := &gmail.MessagePart{
+		Parts: []*gmail.MessagePart{
+			{
+				MimeType: "text/plain",
+				Body:     &gmail.MessagePartBody{Data: plain},
+			},
+		},
+	}
+	if got := bestBodyHTML(part); got != "plain fallback" {
+		t.Fatalf("unexpected html fallback body: %q", got)
 	}
 }
 
@@ -262,6 +280,14 @@ func TestDecodeBodyCharset_ISO2022JP_MixedASCIIAndJapanese(t *testing.T) {
 		t.Fatalf("encode iso-2022-jp: %v", err)
 	}
 	got := decodeBodyCharset(encoded, "text/plain; charset=iso-2022-jp")
+	if string(got) != source {
+		t.Fatalf("unexpected decoded charset: expected %q, got %q", source, string(got))
+	}
+}
+
+func TestDecodeBodyCharset_AlreadyUTF8WithStaleISO2022JPHeader(t *testing.T) {
+	source := "Hello \u3053\u3093\u306b\u3061\u306f World"
+	got := decodeBodyCharset([]byte(source), "text/plain; charset=iso-2022-jp")
 	if string(got) != source {
 		t.Fatalf("unexpected decoded charset: expected %q, got %q", source, string(got))
 	}

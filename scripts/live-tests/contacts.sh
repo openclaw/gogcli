@@ -16,8 +16,12 @@ run_contacts_tests() {
   [ -n "$contact_id" ] || { echo "Failed to parse contact resourceName" >&2; exit 1; }
 
   run_required "contacts" "contacts get" gog contacts get "$contact_id" --json >/dev/null
-  run_required "contacts" "contacts update" gog contacts update "$contact_id" --given "gogcli" --family "smoke-updated-$TS" --email "gogcli-smoke-$TS@example.com" --json >/dev/null
+  run_required "contacts" "contacts update" gog contacts update "$contact_id" --given "gogcli" --family "smoke-updated-$TS" --email "gogcli-smoke-$TS@example.com" --birthday "1990-05-12" --notes "gogcli smoke $TS" --json >/dev/null
   run_required "contacts" "contacts search" gog contacts search "gogcli-smoke-$TS@example.com" --json --max 1 >/dev/null
+  local export_path="$LIVE_TMP/contacts-export-$TS.vcf"
+  run_required "contacts" "contacts export" gog contacts export "$contact_id" --out "$export_path" >/dev/null
+  grep -q "EMAIL:gogcli-smoke-$TS@example.com" "$export_path" || { echo "contacts export missing email" >&2; exit 1; }
+  grep -q "BDAY:19900512" "$export_path" || { echo "contacts export missing birthday" >&2; exit 1; }
   run_required "contacts" "contacts delete" gog contacts delete "$contact_id" --force >/dev/null
 
   if is_consumer_account "$ACCOUNT"; then

@@ -25,6 +25,19 @@ func helpOptions() kong.HelpOptions {
 func helpPrinter(options kong.HelpOptions, ctx *kong.Context) error {
 	origStdout := ctx.Stdout
 	origStderr := ctx.Stderr
+	profile, err := loadBakedSafetyProfile()
+	if err != nil {
+		return usagef("invalid baked safety profile: %v", err)
+	}
+	if profile.commandNodeBlockedForHelp(ctx.Selected()) {
+		path := commandNodePath(ctx.Selected())
+		if blockErr := profile.commandPathError(path); blockErr != nil {
+			_, _ = fmt.Fprintln(origStdout, blockErr)
+		}
+		return nil
+	}
+	restoreVisibility := applySafetyProfileVisibility(ctx.Model.Node, profile)
+	defer restoreVisibility()
 
 	width := guessColumns(origStdout)
 
@@ -43,22 +56,20 @@ func helpPrinter(options kong.HelpOptions, ctx *kong.Context) error {
 	ctx.Stderr = origStderr
 	defer func() { ctx.Stdout = origStdout }()
 
-	if err := kong.DefaultHelpPrinter(options, ctx); err != nil {
-		return err
+	if helpErr := kong.DefaultHelpPrinter(options, ctx); helpErr != nil {
+		return helpErr
 	}
 
 	out := rewriteCommandSummaries(buf.String(), ctx.Selected())
+	out = removeEmptyCommandGroups(out)
 	out = injectBuildLine(out)
 	out = colorizeHelp(out, helpProfile(origStdout, helpColorMode(ctx.Args)))
-	_, err := io.WriteString(origStdout, out)
+	_, err = io.WriteString(origStdout, out)
 	return err
 }
 
 func injectBuildLine(out string) string {
-	v := strings.TrimSpace(version)
-	if v == "" {
-		v = "dev"
-	}
+	v := resolvedVersion()
 	c := strings.TrimSpace(commit)
 	line := fmt.Sprintf("Build: %s", v)
 	if c != "" {
@@ -165,6 +176,60 @@ func colorizeHelp(out string, profile termenv.Profile) string {
 		}
 	}
 	return strings.Join(lines, "\n")
+}
+
+func removeEmptyCommandGroups(out string) string {
+	lines := strings.Split(out, "\n")
+	skip := map[int]bool{}
+	for i, line := range lines {
+		if !isHelpCommandGroup(line) {
+			continue
+		}
+		if !helpGroupHasCommand(lines, i+1) {
+			skip[i] = true
+		}
+	}
+	if len(skip) == 0 {
+		return out
+	}
+	kept := make([]string, 0, len(lines)-len(skip))
+	for i, line := range lines {
+		if skip[i] {
+			continue
+		}
+		kept = append(kept, line)
+	}
+	return strings.Join(kept, "\n")
+}
+
+func helpGroupHasCommand(lines []string, start int) bool {
+	for i := start; i < len(lines); i++ {
+		line := lines[i]
+		if isHelpCommandGroup(line) || isHelpSection(line) {
+			return false
+		}
+		if isHelpCommandSummaryLine(line) {
+			return true
+		}
+	}
+	return false
+}
+
+func isHelpCommandGroup(line string) bool {
+	switch line {
+	case "Read", "Write", "Organize", "Admin":
+		return true
+	default:
+		return false
+	}
+}
+
+func isHelpSection(line string) bool {
+	return line == "Usage:" || strings.HasPrefix(line, "Usage:") || line == "Flags:" || line == "Commands:" || line == "Arguments:" || strings.HasPrefix(line, "Build:") || line == "Config:"
+}
+
+func isHelpCommandSummaryLine(line string) bool {
+	return strings.HasPrefix(line, "  ") && (len(line) < 3 || line[2] != ' ') && strings.TrimSpace(line) != ""
 }
 
 func colorizeCommandSummaryLine(line string, cmdName func(string) string, dim func(string) string) string {

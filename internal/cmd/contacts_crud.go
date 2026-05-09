@@ -16,9 +16,9 @@ import (
 )
 
 const (
-	contactsReadMask       = "names,emailAddresses,phoneNumbers,organizations,urls"
-	contactsGetReadMask    = contactsReadMask + ",birthdays,biographies,addresses,userDefined,relations,metadata"
-	contactsUpdateReadMask = contactsReadMask + ",birthdays,biographies,addresses,userDefined,relations,metadata"
+	contactsReadMask       = "names,emailAddresses,phoneNumbers,birthdays,organizations,urls"
+	contactsGetReadMask    = contactsReadMask + ",biographies,addresses,genders,userDefined,relations,metadata"
+	contactsUpdateReadMask = contactsReadMask + ",biographies,addresses,genders,userDefined,relations,metadata"
 )
 
 type ContactsListCmd struct {
@@ -52,6 +52,7 @@ func (c *ContactsListCmd) Run(ctx context.Context, flags *RootFlags) error {
 			Name     string `json:"name,omitempty"`
 			Email    string `json:"email,omitempty"`
 			Phone    string `json:"phone,omitempty"`
+			Birthday string `json:"birthday,omitempty"`
 		}
 		items := make([]item, 0, len(resp.Connections))
 		for _, p := range resp.Connections {
@@ -63,6 +64,7 @@ func (c *ContactsListCmd) Run(ctx context.Context, flags *RootFlags) error {
 				Name:     primaryName(p),
 				Email:    primaryEmail(p),
 				Phone:    primaryPhone(p),
+				Birthday: primaryBirthday(p),
 			})
 		}
 		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
@@ -77,16 +79,17 @@ func (c *ContactsListCmd) Run(ctx context.Context, flags *RootFlags) error {
 
 	w, flush := tableWriter(ctx)
 	defer flush()
-	fmt.Fprintln(w, "RESOURCE\tNAME\tEMAIL\tPHONE")
+	fmt.Fprintln(w, "RESOURCE\tNAME\tEMAIL\tPHONE\tBIRTHDAY")
 	for _, p := range resp.Connections {
 		if p == nil {
 			continue
 		}
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\n",
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n",
 			p.ResourceName,
 			sanitizeTab(primaryName(p)),
 			sanitizeTab(primaryEmail(p)),
 			sanitizeTab(primaryPhone(p)),
+			sanitizeTab(primaryBirthday(p)),
 		)
 	}
 
@@ -165,6 +168,9 @@ func (c *ContactsGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if bd := primaryBirthday(p); bd != "" {
 		u.Out().Printf("birthday\t%s", bd)
 	}
+	if gender := primaryGender(p); gender != "" {
+		u.Out().Printf("gender\t%s", gender)
+	}
 	if org, title := primaryOrganization(p); org != "" || title != "" {
 		switch {
 		case org != "" && title != "":
@@ -214,6 +220,7 @@ type ContactsCreateCmd struct {
 	URL          []string `name:"url" help:"URL (can be repeated for multiple URLs)"`
 	Note         string   `name:"note" help:"Note/biography"`
 	Address      []string `name:"address" sep:";" help:"Postal address (can be repeated for multiple addresses)"`
+	Gender       string   `name:"gender" help:"Gender value"`
 	Custom       []string `name:"custom" help:"Custom field as key=value (can be repeated)"`
 	Relation     []string `name:"relation" help:"Relation as type=person (can be repeated)"`
 }
@@ -290,6 +297,17 @@ func contactsAddresses(values []string) []*people.Address {
 	return out
 }
 
+func contactsGenders(value string) []*people.Gender {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return nil
+	}
+	return []*people.Gender{{
+		Value:    value,
+		Metadata: &people.FieldMetadata{Primary: true},
+	}}
+}
+
 func contactsApplyPersonName(person *people.Person, givenSet bool, given string, familySet bool, family string) {
 	curGiven := ""
 	curFamily := ""
@@ -324,6 +342,15 @@ func contactsApplyPersonOrganization(person *people.Person, orgSet bool, org str
 		return
 	}
 	person.Organizations = []*people.Organization{{Name: curOrg, Title: curTitle}}
+}
+
+func anyFlagProvided(kctx *kong.Context, names ...string) bool {
+	for _, name := range names {
+		if flagProvided(kctx, name) {
+			return true
+		}
+	}
+	return false
 }
 
 func (c *ContactsCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -372,6 +399,9 @@ func (c *ContactsCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
 			p.Addresses = addrs
 		}
 	}
+	if genders := contactsGenders(c.Gender); len(genders) > 0 {
+		p.Genders = genders
+	}
 	if len(c.Custom) > 0 {
 		userDefined, _, parseErr := parseCustomUserDefined(c.Custom, false)
 		if parseErr != nil {
@@ -413,6 +443,7 @@ type ContactsUpdateCmd struct {
 	URL          []string `name:"url" help:"URL (can be repeated; empty clears all)"`
 	Note         string   `name:"note" help:"Note/biography (empty clears)"`
 	Address      []string `name:"address" sep:";" help:"Postal address (can be repeated; empty clears all)"`
+	Gender       string   `name:"gender" help:"Gender value (empty clears)"`
 	Custom       []string `name:"custom" help:"Custom field as key=value (can be repeated; empty clears all)"`
 	Relation     []string `name:"relation" help:"Relation as type=person (can be repeated; empty clears all)"`
 	FromFile     string   `name:"from-file" help:"Update from contact JSON file (use - for stdin)"`
@@ -440,7 +471,12 @@ func (c *ContactsUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *
 	}
 
 	if strings.TrimSpace(c.FromFile) != "" {
-		if flagProvided(kctx, "given") || flagProvided(kctx, "family") || flagProvided(kctx, "email") || flagProvided(kctx, "phone") || flagProvided(kctx, "birthday") || flagProvided(kctx, "notes") || flagProvided(kctx, "relation") {
+		if anyFlagProvided(kctx,
+			"given", "family", "email", "phone",
+			"org", "title", "url", "note",
+			"address", "gender", "custom", "birthday",
+			"notes", "relation",
+		) {
 			return usage("can't combine --from-file with other update flags")
 		}
 		return c.updateFromJSON(ctx, svc, resourceName, u)
@@ -462,6 +498,7 @@ func (c *ContactsUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *
 	wantURL := flagProvided(kctx, "url")
 	wantNote := flagProvided(kctx, "note")
 	wantAddress := flagProvided(kctx, "address")
+	wantGender := flagProvided(kctx, "gender")
 	wantBirthday := flagProvided(kctx, "birthday")
 	wantNotes := flagProvided(kctx, "notes")
 	wantCustom := flagProvided(kctx, "custom")
@@ -516,6 +553,15 @@ func (c *ContactsUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *
 			existing.Addresses = addrs
 		}
 		updateFields = append(updateFields, "addresses")
+	}
+	if wantGender {
+		genders := contactsGenders(c.Gender)
+		if len(genders) == 0 {
+			existing.Genders = nil // will be forced to [] for patch
+		} else {
+			existing.Genders = genders
+		}
+		updateFields = append(updateFields, "genders")
 	}
 	if wantCustom {
 		userDefined, clearAll, parseErr := parseCustomUserDefined(c.Custom, true)

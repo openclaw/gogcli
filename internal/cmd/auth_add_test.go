@@ -17,12 +17,12 @@ func TestAuthAddCmd_JSON(t *testing.T) {
 	origAuth := authorizeGoogle
 	origOpen := openSecretsStore
 	origKeychain := ensureKeychainAccess
-	origFetch := fetchAuthorizedEmail
+	origFetch := fetchAuthorizedIdentity
 	t.Cleanup(func() {
 		authorizeGoogle = origAuth
 		openSecretsStore = origOpen
 		ensureKeychainAccess = origKeychain
-		fetchAuthorizedEmail = origFetch
+		fetchAuthorizedIdentity = origFetch
 	})
 
 	ensureKeychainAccess = func() error { return nil }
@@ -35,8 +35,8 @@ func TestAuthAddCmd_JSON(t *testing.T) {
 		gotOpts = opts
 		return "rt", nil
 	}
-	fetchAuthorizedEmail = func(context.Context, string, string, []string, time.Duration) (string, error) {
-		return "user@example.com", nil
+	fetchAuthorizedIdentity = func(context.Context, string, string, []string, time.Duration) (googleauth.Identity, error) {
+		return googleauth.Identity{Email: "user@example.com"}, nil
 	}
 
 	out := captureStdout(t, func() {
@@ -89,12 +89,12 @@ func TestAuthAddCmd_KeychainError(t *testing.T) {
 	origAuth := authorizeGoogle
 	origOpen := openSecretsStore
 	origKeychain := ensureKeychainAccess
-	origFetch := fetchAuthorizedEmail
+	origFetch := fetchAuthorizedIdentity
 	t.Cleanup(func() {
 		authorizeGoogle = origAuth
 		openSecretsStore = origOpen
 		ensureKeychainAccess = origKeychain
-		fetchAuthorizedEmail = origFetch
+		fetchAuthorizedIdentity = origFetch
 	})
 
 	// Simulate keychain locked error
@@ -107,9 +107,9 @@ func TestAuthAddCmd_KeychainError(t *testing.T) {
 		authCalled = true
 		return "rt", nil
 	}
-	fetchAuthorizedEmail = func(context.Context, string, string, []string, time.Duration) (string, error) {
-		t.Fatal("fetchAuthorizedEmail should not be called when keychain check fails")
-		return "", nil
+	fetchAuthorizedIdentity = func(context.Context, string, string, []string, time.Duration) (googleauth.Identity, error) {
+		t.Fatal("fetchAuthorizedIdentity should not be called when keychain check fails")
+		return googleauth.Identity{}, nil
 	}
 
 	store := newMemSecretsStore()
@@ -129,16 +129,64 @@ func TestAuthAddCmd_KeychainError(t *testing.T) {
 	}
 }
 
-func TestAuthAddCmd_DefaultServices_UserPreset(t *testing.T) {
+type setTokenErrorStore struct {
+	*memSecretsStore
+	err error
+}
+
+func (s *setTokenErrorStore) SetToken(string, string, secrets.Token) error {
+	return s.err
+}
+
+func TestAuthAddCmd_StoreFailureReportsOAuthCompleted(t *testing.T) {
 	origAuth := authorizeGoogle
 	origOpen := openSecretsStore
 	origKeychain := ensureKeychainAccess
-	origFetch := fetchAuthorizedEmail
+	origFetch := fetchAuthorizedIdentity
 	t.Cleanup(func() {
 		authorizeGoogle = origAuth
 		openSecretsStore = origOpen
 		ensureKeychainAccess = origKeychain
-		fetchAuthorizedEmail = origFetch
+		fetchAuthorizedIdentity = origFetch
+	})
+
+	ensureKeychainAccess = func() error { return nil }
+	authorizeGoogle = func(context.Context, googleauth.AuthorizeOptions) (string, error) {
+		return "rt", nil
+	}
+	fetchAuthorizedIdentity = func(context.Context, string, string, []string, time.Duration) (googleauth.Identity, error) {
+		return googleauth.Identity{Email: "user@example.com"}, nil
+	}
+
+	openSecretsStore = func() (secrets.Store, error) {
+		return &setTokenErrorStore{
+			memSecretsStore: newMemSecretsStore(),
+			err:             errors.New("keyring connection timed out after 10s while storing keyring item"),
+		}, nil
+	}
+
+	err := Execute([]string{"auth", "add", "user@example.com", "--services", "gmail", "--manual"})
+	if err == nil {
+		t.Fatal("expected store failure")
+	}
+	if !strings.Contains(err.Error(), "OAuth completed, but saving the refresh token failed") {
+		t.Fatalf("expected post-OAuth store failure context, got: %v", err)
+	}
+	if !strings.Contains(err.Error(), "storing keyring item") {
+		t.Fatalf("expected keyring operation detail, got: %v", err)
+	}
+}
+
+func TestAuthAddCmd_DefaultServices_UserPreset(t *testing.T) {
+	origAuth := authorizeGoogle
+	origOpen := openSecretsStore
+	origKeychain := ensureKeychainAccess
+	origFetch := fetchAuthorizedIdentity
+	t.Cleanup(func() {
+		authorizeGoogle = origAuth
+		openSecretsStore = origOpen
+		ensureKeychainAccess = origKeychain
+		fetchAuthorizedIdentity = origFetch
 	})
 
 	ensureKeychainAccess = func() error { return nil }
@@ -151,8 +199,8 @@ func TestAuthAddCmd_DefaultServices_UserPreset(t *testing.T) {
 		gotOpts = opts
 		return "rt", nil
 	}
-	fetchAuthorizedEmail = func(context.Context, string, string, []string, time.Duration) (string, error) {
-		return "user@example.com", nil
+	fetchAuthorizedIdentity = func(context.Context, string, string, []string, time.Duration) (googleauth.Identity, error) {
+		return googleauth.Identity{Email: "user@example.com"}, nil
 	}
 
 	_ = captureStdout(t, func() {
@@ -204,12 +252,12 @@ func TestAuthAddCmd_EmailMismatch(t *testing.T) {
 	origAuth := authorizeGoogle
 	origOpen := openSecretsStore
 	origKeychain := ensureKeychainAccess
-	origFetch := fetchAuthorizedEmail
+	origFetch := fetchAuthorizedIdentity
 	t.Cleanup(func() {
 		authorizeGoogle = origAuth
 		openSecretsStore = origOpen
 		ensureKeychainAccess = origKeychain
-		fetchAuthorizedEmail = origFetch
+		fetchAuthorizedIdentity = origFetch
 	})
 
 	ensureKeychainAccess = func() error { return nil }
@@ -217,8 +265,8 @@ func TestAuthAddCmd_EmailMismatch(t *testing.T) {
 	authorizeGoogle = func(context.Context, googleauth.AuthorizeOptions) (string, error) {
 		return "rt", nil
 	}
-	fetchAuthorizedEmail = func(context.Context, string, string, []string, time.Duration) (string, error) {
-		return "actual@example.com", nil
+	fetchAuthorizedIdentity = func(context.Context, string, string, []string, time.Duration) (googleauth.Identity, error) {
+		return googleauth.Identity{Email: "actual@example.com"}, nil
 	}
 
 	err := Execute([]string{"auth", "add", "expected@example.com"})
@@ -234,12 +282,12 @@ func TestAuthAddCmd_ReadonlyScopes(t *testing.T) {
 	origAuth := authorizeGoogle
 	origOpen := openSecretsStore
 	origKeychain := ensureKeychainAccess
-	origFetch := fetchAuthorizedEmail
+	origFetch := fetchAuthorizedIdentity
 	t.Cleanup(func() {
 		authorizeGoogle = origAuth
 		openSecretsStore = origOpen
 		ensureKeychainAccess = origKeychain
-		fetchAuthorizedEmail = origFetch
+		fetchAuthorizedIdentity = origFetch
 	})
 
 	ensureKeychainAccess = func() error { return nil }
@@ -254,8 +302,8 @@ func TestAuthAddCmd_ReadonlyScopes(t *testing.T) {
 		gotOpts.Scopes = append([]string(nil), opts.Scopes...)
 		return "rt", nil
 	}
-	fetchAuthorizedEmail = func(context.Context, string, string, []string, time.Duration) (string, error) {
-		return "user@example.com", nil
+	fetchAuthorizedIdentity = func(context.Context, string, string, []string, time.Duration) (googleauth.Identity, error) {
+		return googleauth.Identity{Email: "user@example.com"}, nil
 	}
 
 	_ = captureStdout(t, func() {
@@ -304,12 +352,12 @@ func TestAuthAddCmd_GmailScopeReadonly(t *testing.T) {
 	origAuth := authorizeGoogle
 	origOpen := openSecretsStore
 	origKeychain := ensureKeychainAccess
-	origFetch := fetchAuthorizedEmail
+	origFetch := fetchAuthorizedIdentity
 	t.Cleanup(func() {
 		authorizeGoogle = origAuth
 		openSecretsStore = origOpen
 		ensureKeychainAccess = origKeychain
-		fetchAuthorizedEmail = origFetch
+		fetchAuthorizedIdentity = origFetch
 	})
 
 	ensureKeychainAccess = func() error { return nil }
@@ -324,8 +372,8 @@ func TestAuthAddCmd_GmailScopeReadonly(t *testing.T) {
 		gotOpts.Scopes = append([]string(nil), opts.Scopes...)
 		return "rt", nil
 	}
-	fetchAuthorizedEmail = func(context.Context, string, string, []string, time.Duration) (string, error) {
-		return "user@example.com", nil
+	fetchAuthorizedIdentity = func(context.Context, string, string, []string, time.Duration) (googleauth.Identity, error) {
+		return googleauth.Identity{Email: "user@example.com"}, nil
 	}
 
 	_ = captureStdout(t, func() {
@@ -372,12 +420,12 @@ func TestAuthAddCmd_DriveScopeReadonly(t *testing.T) {
 	origAuth := authorizeGoogle
 	origOpen := openSecretsStore
 	origKeychain := ensureKeychainAccess
-	origFetch := fetchAuthorizedEmail
+	origFetch := fetchAuthorizedIdentity
 	t.Cleanup(func() {
 		authorizeGoogle = origAuth
 		openSecretsStore = origOpen
 		ensureKeychainAccess = origKeychain
-		fetchAuthorizedEmail = origFetch
+		fetchAuthorizedIdentity = origFetch
 	})
 
 	ensureKeychainAccess = func() error { return nil }
@@ -392,8 +440,8 @@ func TestAuthAddCmd_DriveScopeReadonly(t *testing.T) {
 		gotOpts.Scopes = append([]string(nil), opts.Scopes...)
 		return "rt", nil
 	}
-	fetchAuthorizedEmail = func(context.Context, string, string, []string, time.Duration) (string, error) {
-		return "user@example.com", nil
+	fetchAuthorizedIdentity = func(context.Context, string, string, []string, time.Duration) (googleauth.Identity, error) {
+		return googleauth.Identity{Email: "user@example.com"}, nil
 	}
 
 	_ = captureStdout(t, func() {
@@ -428,12 +476,12 @@ func TestAuthAddCmd_DriveScopeFile(t *testing.T) {
 	origAuth := authorizeGoogle
 	origOpen := openSecretsStore
 	origKeychain := ensureKeychainAccess
-	origFetch := fetchAuthorizedEmail
+	origFetch := fetchAuthorizedIdentity
 	t.Cleanup(func() {
 		authorizeGoogle = origAuth
 		openSecretsStore = origOpen
 		ensureKeychainAccess = origKeychain
-		fetchAuthorizedEmail = origFetch
+		fetchAuthorizedIdentity = origFetch
 	})
 
 	ensureKeychainAccess = func() error { return nil }
@@ -448,8 +496,8 @@ func TestAuthAddCmd_DriveScopeFile(t *testing.T) {
 		gotOpts.Scopes = append([]string(nil), opts.Scopes...)
 		return "rt", nil
 	}
-	fetchAuthorizedEmail = func(context.Context, string, string, []string, time.Duration) (string, error) {
-		return "user@example.com", nil
+	fetchAuthorizedIdentity = func(context.Context, string, string, []string, time.Duration) (googleauth.Identity, error) {
+		return googleauth.Identity{Email: "user@example.com"}, nil
 	}
 
 	_ = captureStdout(t, func() {
@@ -495,12 +543,12 @@ func TestAuthAddCmd_SheetsReadonlyIncludesDriveReadonly(t *testing.T) {
 	origAuth := authorizeGoogle
 	origOpen := openSecretsStore
 	origKeychain := ensureKeychainAccess
-	origFetch := fetchAuthorizedEmail
+	origFetch := fetchAuthorizedIdentity
 	t.Cleanup(func() {
 		authorizeGoogle = origAuth
 		openSecretsStore = origOpen
 		ensureKeychainAccess = origKeychain
-		fetchAuthorizedEmail = origFetch
+		fetchAuthorizedIdentity = origFetch
 	})
 
 	ensureKeychainAccess = func() error { return nil }
@@ -515,8 +563,8 @@ func TestAuthAddCmd_SheetsReadonlyIncludesDriveReadonly(t *testing.T) {
 		gotOpts.Scopes = append([]string(nil), opts.Scopes...)
 		return "rt", nil
 	}
-	fetchAuthorizedEmail = func(context.Context, string, string, []string, time.Duration) (string, error) {
-		return "user@example.com", nil
+	fetchAuthorizedIdentity = func(context.Context, string, string, []string, time.Duration) (googleauth.Identity, error) {
+		return googleauth.Identity{Email: "user@example.com"}, nil
 	}
 
 	_ = captureStdout(t, func() {
@@ -547,12 +595,12 @@ func TestAuthAddCmd_SheetsDriveScopeFile(t *testing.T) {
 	origAuth := authorizeGoogle
 	origOpen := openSecretsStore
 	origKeychain := ensureKeychainAccess
-	origFetch := fetchAuthorizedEmail
+	origFetch := fetchAuthorizedIdentity
 	t.Cleanup(func() {
 		authorizeGoogle = origAuth
 		openSecretsStore = origOpen
 		ensureKeychainAccess = origKeychain
-		fetchAuthorizedEmail = origFetch
+		fetchAuthorizedIdentity = origFetch
 	})
 
 	ensureKeychainAccess = func() error { return nil }
@@ -567,8 +615,8 @@ func TestAuthAddCmd_SheetsDriveScopeFile(t *testing.T) {
 		gotOpts.Scopes = append([]string(nil), opts.Scopes...)
 		return "rt", nil
 	}
-	fetchAuthorizedEmail = func(context.Context, string, string, []string, time.Duration) (string, error) {
-		return "user@example.com", nil
+	fetchAuthorizedIdentity = func(context.Context, string, string, []string, time.Duration) (googleauth.Identity, error) {
+		return googleauth.Identity{Email: "user@example.com"}, nil
 	}
 
 	_ = captureStdout(t, func() {
@@ -890,12 +938,12 @@ func TestAuthAddCmd_RemoteStep1_PassesRedirectHostAsRedirectURI(t *testing.T) {
 func TestAuthAddCmd_BrowserFlow_PassesListenAddrAndRedirectHost(t *testing.T) {
 	origAuth := authorizeGoogle
 	origKeychain := ensureKeychainAccess
-	origFetch := fetchAuthorizedEmail
+	origFetch := fetchAuthorizedIdentity
 	origStore := openSecretsStore
 	t.Cleanup(func() {
 		authorizeGoogle = origAuth
 		ensureKeychainAccess = origKeychain
-		fetchAuthorizedEmail = origFetch
+		fetchAuthorizedIdentity = origFetch
 		openSecretsStore = origStore
 	})
 
@@ -905,8 +953,8 @@ func TestAuthAddCmd_BrowserFlow_PassesListenAddrAndRedirectHost(t *testing.T) {
 		return "refresh", nil
 	}
 	ensureKeychainAccess = func() error { return nil }
-	fetchAuthorizedEmail = func(context.Context, string, string, []string, time.Duration) (string, error) {
-		return "user@example.com", nil
+	fetchAuthorizedIdentity = func(context.Context, string, string, []string, time.Duration) (googleauth.Identity, error) {
+		return googleauth.Identity{Email: "user@example.com"}, nil
 	}
 	store := newMemSecretsStore()
 	openSecretsStore = func() (secrets.Store, error) { return store, nil }
@@ -1007,12 +1055,12 @@ func TestAuthAddCmd_RemoteStep2_PassesAuthURL(t *testing.T) {
 	origAuth := authorizeGoogle
 	origOpen := openSecretsStore
 	origKeychain := ensureKeychainAccess
-	origFetch := fetchAuthorizedEmail
+	origFetch := fetchAuthorizedIdentity
 	t.Cleanup(func() {
 		authorizeGoogle = origAuth
 		openSecretsStore = origOpen
 		ensureKeychainAccess = origKeychain
-		fetchAuthorizedEmail = origFetch
+		fetchAuthorizedIdentity = origFetch
 	})
 
 	ensureKeychainAccess = func() error { return nil }
@@ -1023,8 +1071,8 @@ func TestAuthAddCmd_RemoteStep2_PassesAuthURL(t *testing.T) {
 		gotOpts = opts
 		return "rt", nil
 	}
-	fetchAuthorizedEmail = func(context.Context, string, string, []string, time.Duration) (string, error) {
-		return "user@example.com", nil
+	fetchAuthorizedIdentity = func(context.Context, string, string, []string, time.Duration) (googleauth.Identity, error) {
+		return googleauth.Identity{Email: "user@example.com"}, nil
 	}
 
 	if err := Execute([]string{
@@ -1057,12 +1105,12 @@ func TestAuthAddCmd_RemoteStep2_PassesRedirectURI(t *testing.T) {
 	origAuth := authorizeGoogle
 	origOpen := openSecretsStore
 	origKeychain := ensureKeychainAccess
-	origFetch := fetchAuthorizedEmail
+	origFetch := fetchAuthorizedIdentity
 	t.Cleanup(func() {
 		authorizeGoogle = origAuth
 		openSecretsStore = origOpen
 		ensureKeychainAccess = origKeychain
-		fetchAuthorizedEmail = origFetch
+		fetchAuthorizedIdentity = origFetch
 	})
 
 	ensureKeychainAccess = func() error { return nil }
@@ -1073,8 +1121,8 @@ func TestAuthAddCmd_RemoteStep2_PassesRedirectURI(t *testing.T) {
 		gotOpts = opts
 		return "rt", nil
 	}
-	fetchAuthorizedEmail = func(context.Context, string, string, []string, time.Duration) (string, error) {
-		return "user@example.com", nil
+	fetchAuthorizedIdentity = func(context.Context, string, string, []string, time.Duration) (googleauth.Identity, error) {
+		return googleauth.Identity{Email: "user@example.com"}, nil
 	}
 
 	if err := Execute([]string{
@@ -1103,12 +1151,12 @@ func TestAuthAddCmd_AuthCode_PassesThrough(t *testing.T) {
 	origAuth := authorizeGoogle
 	origOpen := openSecretsStore
 	origKeychain := ensureKeychainAccess
-	origFetch := fetchAuthorizedEmail
+	origFetch := fetchAuthorizedIdentity
 	t.Cleanup(func() {
 		authorizeGoogle = origAuth
 		openSecretsStore = origOpen
 		ensureKeychainAccess = origKeychain
-		fetchAuthorizedEmail = origFetch
+		fetchAuthorizedIdentity = origFetch
 	})
 
 	ensureKeychainAccess = func() error { return nil }
@@ -1119,8 +1167,8 @@ func TestAuthAddCmd_AuthCode_PassesThrough(t *testing.T) {
 		gotOpts = opts
 		return "rt", nil
 	}
-	fetchAuthorizedEmail = func(context.Context, string, string, []string, time.Duration) (string, error) {
-		return "user@example.com", nil
+	fetchAuthorizedIdentity = func(context.Context, string, string, []string, time.Duration) (googleauth.Identity, error) {
+		return googleauth.Identity{Email: "user@example.com"}, nil
 	}
 
 	if err := Execute([]string{
@@ -1147,12 +1195,12 @@ func TestAuthAddCmd_ExtraScopes(t *testing.T) {
 	origAuth := authorizeGoogle
 	origOpen := openSecretsStore
 	origKeychain := ensureKeychainAccess
-	origFetch := fetchAuthorizedEmail
+	origFetch := fetchAuthorizedIdentity
 	t.Cleanup(func() {
 		authorizeGoogle = origAuth
 		openSecretsStore = origOpen
 		ensureKeychainAccess = origKeychain
-		fetchAuthorizedEmail = origFetch
+		fetchAuthorizedIdentity = origFetch
 	})
 
 	ensureKeychainAccess = func() error { return nil }
@@ -1167,8 +1215,8 @@ func TestAuthAddCmd_ExtraScopes(t *testing.T) {
 		gotOpts.Scopes = append([]string(nil), opts.Scopes...)
 		return "rt", nil
 	}
-	fetchAuthorizedEmail = func(context.Context, string, string, []string, time.Duration) (string, error) {
-		return "user@example.com", nil
+	fetchAuthorizedIdentity = func(context.Context, string, string, []string, time.Duration) (googleauth.Identity, error) {
+		return googleauth.Identity{Email: "user@example.com"}, nil
 	}
 
 	_ = captureStdout(t, func() {

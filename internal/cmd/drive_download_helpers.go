@@ -24,6 +24,9 @@ func resolveDriveDownloadDestPath(meta *drive.File, outPathFlag string) (string,
 	}
 
 	destPath := strings.TrimSpace(outPathFlag)
+	if isStdoutPath(destPath) {
+		return stdoutPath, nil
+	}
 	// Expand ~ to home directory (shell doesn't expand when path is quoted).
 	if destPath != "" {
 		expanded, err := config.ExpandPath(destPath)

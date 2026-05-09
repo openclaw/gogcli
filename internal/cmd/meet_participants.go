@@ -145,7 +145,7 @@ func resolveConference(ctx context.Context, svc *meet.Service, meetingCode, conf
 		return "", wrapMeetError(err)
 	}
 
-	filter := fmt.Sprintf("space.name=%s", space.Name)
+	filter := meetSpaceNameFilter(space.Name)
 
 	resp, err := svc.ConferenceRecords.List().
 		Filter(filter).

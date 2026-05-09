@@ -17,6 +17,8 @@ import (
 
 var newSheetsService = googleapi.NewSheets
 
+const sheetsDefaultValueInputOption = "USER_ENTERED"
+
 // cleanRange removes shell escape sequences from range arguments.
 // Some shells escape ! to \! (bash history expansion), which breaks Google Sheets API calls.
 func cleanRange(r string) string {
@@ -30,6 +32,8 @@ type SheetsCmd struct {
 	Insert        SheetsInsertCmd        `cmd:"" name:"insert" help:"Insert empty rows or columns into a sheet"`
 	Clear         SheetsClearCmd         `cmd:"" name:"clear" help:"Clear values in a range"`
 	Format        SheetsFormatCmd        `cmd:"" name:"format" help:"Apply cell formatting to a range"`
+	Conditional   SheetsConditionalCmd   `cmd:"" name:"conditional-format" aliases:"cf,conditional-formats" help:"Manage conditional formatting rules"`
+	Banding       SheetsBandingCmd       `cmd:"" name:"banding" aliases:"banded-ranges" help:"Manage alternating color banding"`
 	Merge         SheetsMergeCmd         `cmd:"" name:"merge" help:"Merge cells in a range"`
 	Unmerge       SheetsUnmergeCmd       `cmd:"" name:"unmerge" help:"Unmerge cells in a range"`
 	NumberFormat  SheetsNumberFormatCmd  `cmd:"" name:"number-format" help:"Apply number format to a range"`
@@ -42,13 +46,16 @@ type SheetsCmd struct {
 	FindReplace   SheetsFindReplaceCmd   `cmd:"" name:"find-replace" help:"Find and replace text across a spreadsheet"`
 	Links         SheetsLinksCmd         `cmd:"" name:"links" aliases:"hyperlinks" help:"Get cell hyperlinks from a range"`
 	Named         SheetsNamedRangesCmd   `cmd:"" name:"named-ranges" aliases:"namedranges,nr" help:"Manage named ranges"`
+	Table         SheetsTableCmd         `cmd:"" name:"table" aliases:"tables" help:"Manage Google Sheets tables"`
 	Metadata      SheetsMetadataCmd      `cmd:"" name:"metadata" aliases:"info" help:"Get spreadsheet metadata"`
+	Raw           SheetsRawCmd           `cmd:"" name:"raw" help:"Dump raw Google Sheets API response as JSON (Spreadsheets.Get; lossless; for scripting and LLM consumption)"`
 	Create        SheetsCreateCmd        `cmd:"" name:"create" aliases:"new" help:"Create a new spreadsheet"`
 	Copy          SheetsCopyCmd          `cmd:"" name:"copy" aliases:"cp,duplicate" help:"Copy a Google Sheet"`
 	Export        SheetsExportCmd        `cmd:"" name:"export" aliases:"download,dl" help:"Export a Google Sheet (pdf|xlsx|csv) via Drive"`
-	AddTab        SheetsAddTabCmd        `cmd:"" name:"add-tab" help:"Add a new tab/sheet to a spreadsheet"`
-	RenameTab     SheetsRenameTabCmd     `cmd:"" name:"rename-tab" help:"Rename a tab/sheet in a spreadsheet"`
-	DeleteTab     SheetsDeleteTabCmd     `cmd:"" name:"delete-tab" help:"Delete a tab/sheet from a spreadsheet (use --force to skip confirmation)"`
+	Chart         SheetsChartCmd         `cmd:"" name:"chart" aliases:"charts" help:"Manage spreadsheet charts"`
+	AddTab        SheetsAddTabCmd        `cmd:"" name:"add-tab" aliases:"add-sheet" help:"Add a new tab/sheet to a spreadsheet"`
+	RenameTab     SheetsRenameTabCmd     `cmd:"" name:"rename-tab" aliases:"rename-sheet" help:"Rename a tab/sheet in a spreadsheet"`
+	DeleteTab     SheetsDeleteTabCmd     `cmd:"" name:"delete-tab" aliases:"delete-sheet" help:"Delete a tab/sheet from a spreadsheet (use --force to skip confirmation)"`
 }
 
 type SheetsExportCmd struct {
@@ -197,7 +204,7 @@ func (c *SheetsUpdateCmd) Run(ctx context.Context, flags *RootFlags) error {
 
 	valueInputOption := strings.TrimSpace(c.ValueInput)
 	if valueInputOption == "" {
-		valueInputOption = "USER_ENTERED"
+		valueInputOption = sheetsDefaultValueInputOption
 	}
 
 	if err := dryRunExit(ctx, flags, "sheets.update", map[string]any{
@@ -305,7 +312,7 @@ func (c *SheetsAppendCmd) Run(ctx context.Context, flags *RootFlags) error {
 
 	valueInputOption := strings.TrimSpace(c.ValueInput)
 	if valueInputOption == "" {
-		valueInputOption = "USER_ENTERED"
+		valueInputOption = sheetsDefaultValueInputOption
 	}
 	insertDataOption := strings.TrimSpace(c.Insert)
 
@@ -413,6 +420,53 @@ func (c *SheetsClearCmd) Run(ctx context.Context, flags *RootFlags) error {
 
 	u.Out().Printf("Cleared %s", resp.ClearedRange)
 	return nil
+}
+
+// SheetsRawCmd dumps the full Spreadsheets.Get response as JSON, with no
+// Fields restriction. `--include-grid-data` opts into returning cell-level
+// data; it is off by default because grid payloads can be multi-MB and are
+// the primary leakage vector (formulas may embed API keys or tokens).
+//
+// REST reference: https://developers.google.com/sheets/api/reference/rest/v4/spreadsheets/get
+// Go type: https://pkg.go.dev/google.golang.org/api/sheets/v4#Spreadsheet
+type SheetsRawCmd struct {
+	SpreadsheetID   string `arg:"" name:"spreadsheetId" help:"Spreadsheet ID"`
+	IncludeGridData bool   `name:"include-grid-data" help:"Include cell-level grid data in the response (off by default; payloads can be large and may contain secrets in formulas)"`
+	Pretty          bool   `name:"pretty" help:"Pretty-print JSON (default: compact single-line)"`
+}
+
+func (c *SheetsRawCmd) Run(ctx context.Context, flags *RootFlags) error {
+	u := ui.FromContext(ctx)
+	spreadsheetID := normalizeGoogleID(strings.TrimSpace(c.SpreadsheetID))
+	if spreadsheetID == "" {
+		return usage("empty spreadsheetId")
+	}
+
+	_, svc, err := requireSheetsService(ctx, flags)
+	if err != nil {
+		return err
+	}
+
+	call := svc.Spreadsheets.Get(spreadsheetID).Context(ctx)
+	if c.IncludeGridData {
+		call = call.IncludeGridData(true)
+		u.Err().Println("warning: --include-grid-data may expose cell-level formulas that contain API keys or hardcoded secrets")
+	}
+
+	resp, err := call.Do()
+	if err != nil {
+		return err
+	}
+	resp, err = requireRawResponse(resp, "spreadsheet not found")
+	if err != nil {
+		return err
+	}
+
+	if len(resp.DeveloperMetadata) > 0 {
+		u.Err().Println("warning: response contains developerMetadata which may hold third-party app secrets")
+	}
+
+	return writeRawJSON(ctx, resp, c.Pretty)
 }
 
 type SheetsMetadataCmd struct {

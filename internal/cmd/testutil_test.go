@@ -123,6 +123,24 @@ func captureStderr(t *testing.T, fn func()) string {
 	return buf.String()
 }
 
+func assertSameStrings(t *testing.T, got, want []string) {
+	t.Helper()
+
+	if len(got) != len(want) {
+		t.Fatalf("got %v, want %v", got, want)
+	}
+	seen := make(map[string]int, len(got))
+	for _, v := range got {
+		seen[v]++
+	}
+	for _, v := range want {
+		seen[v]--
+		if seen[v] < 0 {
+			t.Fatalf("got %v, want %v", got, want)
+		}
+	}
+}
+
 func withStdin(t *testing.T, input string, fn func()) {
 	t.Helper()
 
@@ -148,7 +166,8 @@ func runKong(t *testing.T, cmd any, args []string, ctx context.Context, flags *R
 	parser, err := kong.New(
 		cmd,
 		kong.Vars(kong.Vars{
-			"auth_services": googleauth.UserServiceCSV(),
+			"auth_services":    googleauth.UserServiceCSV(),
+			"calendar_weekday": "false",
 		}),
 		kong.Writers(io.Discard, io.Discard),
 		kong.Exit(func(code int) { panic(exitPanic{code: code}) }),

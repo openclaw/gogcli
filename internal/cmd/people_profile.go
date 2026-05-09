@@ -102,27 +102,16 @@ func (c *PeopleSearchCmd) Run(ctx context.Context, flags *RootFlags) error {
 		if strings.TrimSpace(pageToken) != "" {
 			call = call.PageToken(pageToken)
 		}
-		resp, err := call.Do()
-		if err != nil {
-			return nil, "", wrapPeopleAPIError(err)
+		resp, callErr := call.Do()
+		if callErr != nil {
+			return nil, "", wrapPeopleAPIError(callErr)
 		}
 		return resp.People, resp.NextPageToken, nil
 	}
 
-	var peopleList []*people.Person
-	nextPageToken := ""
-	if c.All {
-		all, err := collectAllPages(c.Page, fetch)
-		if err != nil {
-			return err
-		}
-		peopleList = all
-	} else {
-		var err error
-		peopleList, nextPageToken, err = fetch(c.Page)
-		if err != nil {
-			return err
-		}
+	peopleList, nextPageToken, err := loadPagedItems(c.Page, c.All, fetch)
+	if err != nil {
+		return err
 	}
 
 	if outfmt.IsJSON(ctx) {

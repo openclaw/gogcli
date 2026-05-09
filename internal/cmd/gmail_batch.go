@@ -12,7 +12,7 @@ import (
 )
 
 type GmailBatchCmd struct {
-	Delete GmailBatchDeleteCmd `cmd:"" name:"delete" aliases:"rm,del,remove" help:"Permanently delete multiple messages"`
+	Delete GmailBatchDeleteCmd `cmd:"" name:"delete" aliases:"rm,del,remove" help:"Permanently delete multiple messages; use 'gmail trash' to move messages to trash with the default gmail.modify scope"`
 	Modify GmailBatchModifyCmd `cmd:"" name:"modify" aliases:"update,edit,set" help:"Modify labels on multiple messages"`
 }
 

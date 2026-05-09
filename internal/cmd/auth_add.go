@@ -244,17 +244,18 @@ func (c *AuthAddCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
-	authorizedEmail, err := fetchAuthorizedEmail(ctx, client, refreshToken, scopes, 15*time.Second)
+	identity, err := fetchAuthorizedIdentity(ctx, client, refreshToken, scopes, 15*time.Second)
 	if err != nil {
 		return fmt.Errorf("fetch authorized email: %w", err)
 	}
+	authorizedEmail := identity.Email
 	if normalizeEmail(authorizedEmail) != normalizeEmail(c.Email) {
 		return fmt.Errorf("authorized as %s, expected %s", authorizedEmail, c.Email)
 	}
 
 	store, err := openSecretsStore()
 	if err != nil {
-		return err
+		return wrapAuthAddStoreError(err)
 	}
 	serviceNames := make([]string, 0, len(services))
 	for _, svc := range services {
@@ -262,14 +263,23 @@ func (c *AuthAddCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 	sort.Strings(serviceNames)
 
+	migratedEmail, err := googleauth.MigrateStoredSubjectIdentity(store, client, identity)
+	if err != nil {
+		return wrapAuthAddStoreError(err)
+	}
+	if migratedEmail != "" {
+		u.Err().Printf("Migrated auth account from %s to %s", migratedEmail, authorizedEmail)
+	}
+
 	if err := store.SetToken(client, authorizedEmail, secrets.Token{
 		Client:       client,
+		Subject:      identity.Subject,
 		Email:        authorizedEmail,
 		Services:     serviceNames,
 		Scopes:       scopes,
 		RefreshToken: refreshToken,
 	}); err != nil {
-		return err
+		return wrapAuthAddStoreError(err)
 	}
 	if override != "" {
 		cfg, err := config.ReadConfig()
@@ -295,4 +305,12 @@ func (c *AuthAddCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u.Out().Printf("services\t%s", strings.Join(serviceNames, ","))
 	u.Out().Printf("client\t%s", client)
 	return nil
+}
+
+func wrapAuthAddStoreError(err error) error {
+	if err == nil {
+		return nil
+	}
+
+	return fmt.Errorf("OAuth completed, but saving the refresh token failed: %w", err)
 }

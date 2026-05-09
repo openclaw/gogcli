@@ -78,11 +78,11 @@ func TestReplaceTomlString(t *testing.T) {
 	content = replaceTomlString(content, "name", "new")
 	content = replaceTomlString(content, "database_id", "new-id")
 
-	if !strings.Contains(content, `name = \"new\"`) {
+	if !strings.Contains(content, `name = "new"`) {
 		t.Fatalf("expected name replacement, got %q", content)
 	}
 
-	if !strings.Contains(content, `database_id = \"new-id\"`) {
+	if !strings.Contains(content, `database_id = "new-id"`) {
 		t.Fatalf("expected id replacement, got %q", content)
 	}
 
@@ -162,6 +162,27 @@ func TestDeployWorker_Success(t *testing.T) {
 	}
 }
 
+func TestEnsureD1Database_ListFallback(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("wrangler stub uses shell script")
+	}
+
+	dir := t.TempDir()
+	writeWranglerFiles(t, dir)
+	wranglerPath := writeWranglerStub(t, dir)
+	t.Setenv("PATH", filepath.Dir(wranglerPath))
+	t.Setenv("WRANGLER_CREATE_FAIL", "1")
+
+	dbID, err := ensureD1Database(context.Background(), dir, "db")
+	if err != nil {
+		t.Fatalf("ensureD1Database: %v", err)
+	}
+
+	if dbID != "db-list" {
+		t.Fatalf("unexpected db id: %q", dbID)
+	}
+}
+
 func TestEnsureD1Database_InfoFallback(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("wrangler stub uses shell script")
@@ -172,6 +193,7 @@ func TestEnsureD1Database_InfoFallback(t *testing.T) {
 	wranglerPath := writeWranglerStub(t, dir)
 	t.Setenv("PATH", filepath.Dir(wranglerPath))
 	t.Setenv("WRANGLER_CREATE_FAIL", "1")
+	t.Setenv("WRANGLER_LIST_FAIL", "1")
 
 	dbID, err := ensureD1Database(context.Background(), dir, "db")
 	if err != nil {
@@ -190,6 +212,10 @@ func TestWriteWranglerConfig(t *testing.T) {
 	path, err := writeWranglerConfig(dir, "worker-name", "db-name", "db-id")
 	if err != nil {
 		t.Fatalf("writeWranglerConfig: %v", err)
+	}
+
+	if filepath.Dir(path) != dir {
+		t.Fatalf("expected config in worker dir %q, got %q", dir, path)
 	}
 
 	data, err := os.ReadFile(path)
@@ -251,6 +277,14 @@ case "$cmd" in
         ;;
       info)
         echo 'database_id = "db-info"'
+        exit 0
+        ;;
+      list)
+        if [ "${WRANGLER_LIST_FAIL:-}" = "1" ]; then
+          echo "list failed" >&2
+          exit 1
+        fi
+        echo '[{"uuid":"db-list","name":"db"}]'
         exit 0
         ;;
       execute)

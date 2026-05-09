@@ -1,10 +1,12 @@
 package cmd
 
 import (
+	"net/mail"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestBuildRFC822_MissingFields(t *testing.T) {
@@ -30,6 +32,32 @@ func TestBuildRFC822_AllowMissingTo(t *testing.T) {
 	}
 	if strings.Contains(string(raw), "\r\nTo:") {
 		t.Fatalf("expected no To header")
+	}
+}
+
+func TestBuildRFC822_DateHeaderUsesConfiguredTimezone(t *testing.T) {
+	oldLocal := time.Local
+	time.Local = time.FixedZone("JST", 9*60*60)
+	t.Cleanup(func() { time.Local = oldLocal })
+	t.Setenv("GOG_TIMEZONE", "UTC")
+
+	raw, err := buildRFC822(mailOptions{
+		From:    "a@b.com",
+		To:      []string{"c@d.com"},
+		Subject: "Hi",
+		Body:    "Hello",
+	}, nil)
+	if err != nil {
+		t.Fatalf("buildRFC822: %v", err)
+	}
+
+	msg, err := mail.ReadMessage(strings.NewReader(string(raw)))
+	if err != nil {
+		t.Fatalf("ReadMessage: %v", err)
+	}
+	dateHeader := msg.Header.Get("Date")
+	if !strings.HasSuffix(dateHeader, "+0000") {
+		t.Fatalf("expected UTC Date header, got %q", dateHeader)
 	}
 }
 

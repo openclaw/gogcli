@@ -12,12 +12,6 @@ import (
 	"github.com/steipete/gogcli/internal/ui"
 )
 
-var autoReplyMetadataHeaders = []string{
-	"Message-ID", "Message-Id", "References", "In-Reply-To",
-	"From", "Reply-To", "To", "Cc", "Date", "Subject",
-	"Auto-Submitted", "Precedence", "List-Id", "List-Unsubscribe",
-}
-
 const autoReplyActionSkipped = "skipped"
 
 type GmailAutoReplyCmd struct {
@@ -124,7 +118,7 @@ func (c *GmailAutoReplyCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return dryRunErr
 	}
 
-	account, svc, err := requireGmailService(ctx, flags)
+	account, svc, err := requireGmailSendService(ctx, flags)
 	if err != nil {
 		return err
 	}
@@ -169,8 +163,7 @@ func runGmailAutoReply(ctx context.Context, svc *gmail.Service, account string, 
 		Label: input.Label,
 	}
 
-	sendAsList, sendAsListErr := listSendAs(ctx, svc)
-	from, err := resolveComposeFrom(ctx, svc, account, input.From, sendAsList, sendAsListErr)
+	from, err := resolveComposeSender(ctx, svc, account, input.From)
 	if err != nil {
 		return summary, err
 	}
@@ -278,7 +271,7 @@ func runGmailAutoReply(ctx context.Context, svc *gmail.Service, account string, 
 func fetchMessageForAutoReply(ctx context.Context, svc *gmail.Service, messageID string) (*gmail.Message, error) {
 	return svc.Users.Messages.Get("me", messageID).
 		Format(gmailFormatMetadata).
-		MetadataHeaders(autoReplyMetadataHeaders...).
+		MetadataHeaders(gmailAutoReplyMetadataHeaders...).
 		Context(ctx).
 		Do()
 }

@@ -240,7 +240,7 @@ func fetchThreadDetails(ctx context.Context, svc *gmail.Service, threads []*gmai
 
 			fullThread, err := svc.Users.Threads.Get("me", threadID).
 				Format("metadata").
-				MetadataHeaders("From", "Subject", "Date").
+				MetadataHeaders(gmailMessageSummaryMetadataHeaders...).
 				Context(ctx).
 				Do()
 			if err != nil {
@@ -299,7 +299,7 @@ func fetchThreadDetails(ctx context.Context, svc *gmail.Service, threads []*gmai
 			}
 			_, err := svc.Users.Threads.Get("me", thread.Id).
 				Format("metadata").
-				MetadataHeaders("From", "Subject", "Date").
+				MetadataHeaders(gmailMessageSummaryMetadataHeaders...).
 				Context(ctx).
 				Do()
 			if err != nil {

@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -228,6 +229,44 @@ func TestDocsCreate_Pageless(t *testing.T) {
 	}
 	if got := batchRequests[0][0].UpdateDocumentStyle; got.Fields != "documentFormat" || got.DocumentStyle.DocumentFormat.DocumentMode != "PAGELESS" {
 		t.Fatalf("unexpected pageless create style request: %#v", got)
+	}
+}
+
+func TestDocsCreate_DryRunDoesNotOpenService(t *testing.T) {
+	origNew := newDriveService
+	t.Cleanup(func() { newDriveService = origNew })
+
+	newDriveService = func(context.Context, string) (*drive.Service, error) {
+		t.Fatal("newDriveService should not be called during dry-run")
+		return nil, errors.New("unexpected drive service call")
+	}
+
+	out := captureStdout(t, func() {
+		err := (&DocsCreateCmd{
+			Title:    "Dry Run",
+			Parent:   "folder1",
+			Pageless: true,
+		}).Run(newDocsJSONContext(t), &RootFlags{Account: "a@b.com", DryRun: true})
+		var exitErr *ExitError
+		if !errors.As(err, &exitErr) || exitErr.Code != 0 {
+			t.Fatalf("expected dry-run exit 0, got %v", err)
+		}
+	})
+
+	var payload struct {
+		DryRun  bool   `json:"dry_run"`
+		Op      string `json:"op"`
+		Request struct {
+			File     drive.File `json:"file"`
+			Parent   string     `json:"parent"`
+			Pageless bool       `json:"pageless"`
+		} `json:"request"`
+	}
+	if err := json.Unmarshal([]byte(out), &payload); err != nil {
+		t.Fatalf("decode dry-run: %v\nout=%q", err, out)
+	}
+	if !payload.DryRun || payload.Op != "docs.create" || payload.Request.File.Name != "Dry Run" || payload.Request.Parent != "folder1" || !payload.Request.Pageless {
+		t.Fatalf("unexpected dry-run output: %#v", payload)
 	}
 }
 
@@ -568,6 +607,9 @@ func TestDocsCat_TabNotFound(t *testing.T) {
 	err := runKong(t, cmd, []string{"doc1", "--tab", "Nonexistent"}, ctx, flags)
 	if err == nil || !strings.Contains(err.Error(), "tab not found") {
 		t.Fatalf("expected tab not found error, got: %v", err)
+	}
+	if !strings.Contains(err.Error(), "Overview") || !strings.Contains(err.Error(), "Details") {
+		t.Fatalf("expected available tab names in error, got: %v", err)
 	}
 }
 

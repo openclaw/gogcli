@@ -172,14 +172,10 @@ func searchMessageIDs(ctx context.Context, svc *gmail.Service, query string, lim
 			batchSize = 500
 		}
 
-		call := svc.Users.Messages.List("me").
-			Q(query).
-			MaxResults(batchSize).
+		opts := newGmailSearchRequestOptions(query, batchSize, pageToken)
+		call := applyGmailMessageListOptions(svc.Users.Messages.List("me"), opts).
 			Fields("messages(id),nextPageToken").
 			Context(ctx)
-		if pageToken != "" {
-			call = call.PageToken(pageToken)
-		}
 
 		resp, err := call.Do()
 		if err != nil {

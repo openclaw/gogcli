@@ -30,6 +30,11 @@ type AccountInfo struct {
 	IsDefault bool     `json:"isDefault"`
 }
 
+type Identity struct {
+	Subject string `json:"subject,omitempty"`
+	Email   string `json:"email"`
+}
+
 // ManageServerOptions configures the accounts management server
 type ManageServerOptions struct {
 	Timeout      time.Duration
@@ -42,15 +47,15 @@ type ManageServerOptions struct {
 
 // ManageServer handles the accounts management UI
 type ManageServer struct {
-	opts       ManageServerOptions
-	client     string
-	csrfToken  string
-	listener   net.Listener
-	server     *http.Server
-	store      secrets.Store
-	fetchEmail func(ctx context.Context, tok *oauth2.Token) (string, error)
-	oauthState string
-	resultCh   chan error
+	opts          ManageServerOptions
+	client        string
+	csrfToken     string
+	listener      net.Listener
+	server        *http.Server
+	store         secrets.Store
+	fetchIdentity func(ctx context.Context, tok *oauth2.Token) (Identity, error)
+	oauthState    string
+	resultCh      chan error
 }
 
 var (
@@ -121,13 +126,13 @@ func StartManageServer(ctx context.Context, opts ManageServerOptions) error {
 	}
 
 	ms := &ManageServer{
-		opts:       opts,
-		client:     opts.Client,
-		csrfToken:  csrfToken,
-		listener:   ln,
-		store:      store,
-		fetchEmail: fetchUserEmailDefault,
-		resultCh:   make(chan error, 1),
+		opts:          opts,
+		client:        opts.Client,
+		csrfToken:     csrfToken,
+		listener:      ln,
+		store:         store,
+		fetchIdentity: fetchUserIdentityDefault,
+		resultCh:      make(chan error, 1),
 	}
 
 	mux := http.NewServeMux()
@@ -401,19 +406,19 @@ func (ms *ManageServer) handleOAuthCallback(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	fetchEmail := ms.fetchEmail
-	if fetchEmail == nil {
-		fetchEmail = fetchUserEmailDefault
+	fetchIdentity := ms.fetchIdentity
+	if fetchIdentity == nil {
+		fetchIdentity = fetchUserIdentityDefault
 	}
 
-	// Fetch user email from Google's userinfo API
-	email, err := fetchEmail(ctx, tok)
+	identity, err := fetchIdentity(ctx, tok)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		renderErrorPage(w, "Failed to fetch user email: "+err.Error())
 
 		return
 	}
+	email := identity.Email
 
 	// Pre-flight: ensure keychain is accessible before storing token
 	needKeychain, err := shouldEnsureKeychainAccess()
@@ -439,7 +444,15 @@ func (ms *ManageServer) handleOAuthCallback(w http.ResponseWriter, r *http.Reque
 		serviceNames = append(serviceNames, string(svc))
 	}
 
+	if _, err := MigrateStoredSubjectIdentity(ms.store, ms.client, identity); err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		renderErrorPage(w, "Failed to migrate stored token: "+err.Error())
+
+		return
+	}
+
 	if err := ms.store.SetToken(ms.client, email, secrets.Token{
+		Subject:      identity.Subject,
 		Email:        email,
 		Services:     serviceNames,
 		Scopes:       scopes,
@@ -512,91 +525,129 @@ func (ms *ManageServer) handleRemoveAccount(w http.ResponseWriter, r *http.Reque
 	writeJSON(w, map[string]any{"success": true})
 }
 
-func fetchUserEmailDefault(ctx context.Context, tok *oauth2.Token) (string, error) {
+func fetchUserIdentityDefault(ctx context.Context, tok *oauth2.Token) (Identity, error) {
 	if tok == nil {
-		return "", errMissingToken
+		return Identity{}, errMissingToken
 	}
 
 	if raw, ok := tok.Extra("id_token").(string); ok && raw != "" {
-		if email, err := emailFromIDToken(raw); err == nil {
-			return email, nil
+		if identity, err := IdentityFromIDToken(raw); err == nil {
+			return identity, nil
 		}
 	}
 
 	if tok.AccessToken == "" {
-		return "", errMissingAccessToken
+		return Identity{}, errMissingAccessToken
 	}
 
-	return fetchUserEmailWithURL(ctx, tok.AccessToken, userinfoURL)
+	return fetchUserIdentityWithURL(ctx, tok.AccessToken, userinfoURL)
+}
+
+func fetchUserEmailDefault(ctx context.Context, tok *oauth2.Token) (string, error) {
+	identity, err := fetchUserIdentityDefault(ctx, tok)
+	if err != nil {
+		return "", err
+	}
+
+	return identity.Email, nil
 }
 
 // fetchUserEmailWithURL retrieves the user's email from the specified userinfo URL.
 // This is separated for testability.
+//
+//nolint:unparam // retained for email-only tests and package callers.
 func fetchUserEmailWithURL(ctx context.Context, accessToken string, url string) (string, error) {
+	identity, err := fetchUserIdentityWithURL(ctx, accessToken, url)
+	if err != nil {
+		return "", err
+	}
+
+	return identity.Email, nil
+}
+
+func fetchUserIdentityWithURL(ctx context.Context, accessToken string, url string) (Identity, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		return "", fmt.Errorf("create userinfo request: %w", err)
+		return Identity{}, fmt.Errorf("create userinfo request: %w", err)
 	}
 
 	req.Header.Set("Authorization", "Bearer "+accessToken)
 
 	client := &http.Client{Timeout: 10 * time.Second}
 
-	resp, err := client.Do(req) //nolint:gosec // URL is controlled by internal constant or test override
+	resp, err := client.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("fetch userinfo: %w", err)
+		return Identity{}, fmt.Errorf("fetch userinfo: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		msg := readHTTPBodySnippet(resp.Body, 512)
 		if msg != "" {
-			return "", fmt.Errorf("%w: status %d: %s", errUserinfoRequestFailed, resp.StatusCode, msg)
+			return Identity{}, fmt.Errorf("%w: status %d: %s", errUserinfoRequestFailed, resp.StatusCode, msg)
 		}
 
-		return "", fmt.Errorf("%w: status %d", errUserinfoRequestFailed, resp.StatusCode)
+		return Identity{}, fmt.Errorf("%w: status %d", errUserinfoRequestFailed, resp.StatusCode)
 	}
 
 	var userInfo struct {
 		Email string `json:"email"`
+		Sub   string `json:"sub"`
+		ID    string `json:"id"`
 	}
 
 	if err := json.NewDecoder(resp.Body).Decode(&userInfo); err != nil {
-		return "", fmt.Errorf("decode userinfo response: %w", err)
+		return Identity{}, fmt.Errorf("decode userinfo response: %w", err)
 	}
 
-	if userInfo.Email == "" {
-		return "", errNoEmailInResponse
+	email := strings.TrimSpace(userInfo.Email)
+	if email == "" {
+		return Identity{}, errNoEmailInResponse
 	}
 
-	return userInfo.Email, nil
+	subject := strings.TrimSpace(userInfo.Sub)
+	if subject == "" {
+		subject = strings.TrimSpace(userInfo.ID)
+	}
+
+	return Identity{Subject: subject, Email: email}, nil
 }
 
 func emailFromIDToken(idToken string) (string, error) {
+	identity, err := IdentityFromIDToken(idToken)
+	if err != nil {
+		return "", err
+	}
+
+	return identity.Email, nil
+}
+
+func IdentityFromIDToken(idToken string) (Identity, error) {
 	parts := strings.Split(idToken, ".")
 	if len(parts) < 2 {
-		return "", errInvalidIDToken
+		return Identity{}, errInvalidIDToken
 	}
 
 	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
 	if err != nil {
-		return "", fmt.Errorf("%w: decode payload: %w", errInvalidIDToken, err)
+		return Identity{}, fmt.Errorf("%w: decode payload: %w", errInvalidIDToken, err)
 	}
 
 	var claims struct {
+		Sub   string `json:"sub"`
 		Email string `json:"email"`
 	}
 
 	if err := json.Unmarshal(payload, &claims); err != nil {
-		return "", fmt.Errorf("%w: parse payload: %w", errInvalidIDToken, err)
+		return Identity{}, fmt.Errorf("%w: parse payload: %w", errInvalidIDToken, err)
 	}
 
 	email := strings.TrimSpace(claims.Email)
 	if email == "" {
-		return "", errNoEmailInIDToken
+		return Identity{}, errNoEmailInIDToken
 	}
 
-	return email, nil
+	return Identity{Subject: strings.TrimSpace(claims.Sub), Email: email}, nil
 }
 
 func readHTTPBodySnippet(r io.Reader, limit int64) string {

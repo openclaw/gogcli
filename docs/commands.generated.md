@@ -1,0 +1,482 @@
+# Command Reference
+
+Generated from `gog schema --json`.
+
+- [`gog <command> [flags]`](commands/gog.md) - Google CLI for Gmail/Calendar/Chat/Classroom/Drive/Contacts/Tasks/Sheets/Docs/Slides/People/Forms/App Script/Ads/Groups/Admin/Keep
+  - [`gog admin <command> [flags]`](commands/gog-admin.md) - Google Workspace Admin (Directory API) - requires domain-wide delegation
+    - [`gog admin groups <command>`](commands/gog-admin-groups.md) - Manage Workspace groups
+      - [`gog admin groups list (ls) [flags]`](commands/gog-admin-groups-list.md) - List groups in a domain
+      - [`gog admin groups members <command>`](commands/gog-admin-groups-members.md) - Manage group members
+        - [`gog admin groups members add (invite) <groupEmail> <memberEmail> [flags]`](commands/gog-admin-groups-members-add.md) - Add a member to a group
+        - [`gog admin groups members list (ls) <groupEmail> [flags]`](commands/gog-admin-groups-members-list.md) - List group members
+        - [`gog admin groups members remove (rm,del,delete) <groupEmail> <memberEmail>`](commands/gog-admin-groups-members-remove.md) - Remove a member from a group
+    - [`gog admin users <command>`](commands/gog-admin-users.md) - Manage Workspace users
+      - [`gog admin users create (add,new) <email> [flags]`](commands/gog-admin-users-create.md) - Create a new user
+      - [`gog admin users get (info,show) <userEmail>`](commands/gog-admin-users-get.md) - Get user details
+      - [`gog admin users list (ls) [flags]`](commands/gog-admin-users-list.md) - List users in a domain
+      - [`gog admin users suspend <userEmail>`](commands/gog-admin-users-suspend.md) - Suspend a user account
+  - [`gog agent <command> [flags]`](commands/gog-agent.md) - Agent-friendly helpers
+    - [`gog agent exit-codes (exitcodes,exit-code)`](commands/gog-agent-exit-codes.md) - Print stable exit codes for automation
+  - [`gog appscript (script,apps-script) <command> [flags]`](commands/gog-appscript.md) - Google Apps Script
+    - [`gog appscript (script,apps-script) content (cat) <scriptId>`](commands/gog-appscript-content.md) - Get Apps Script project content
+    - [`gog appscript (script,apps-script) create (new) --title=STRING [flags]`](commands/gog-appscript-create.md) - Create an Apps Script project
+    - [`gog appscript (script,apps-script) get (info,show) <scriptId>`](commands/gog-appscript-get.md) - Get Apps Script project metadata
+    - [`gog appscript (script,apps-script) run <scriptId> <function> [flags]`](commands/gog-appscript-run.md) - Run a deployed Apps Script function
+  - [`gog auth <command> [flags]`](commands/gog-auth.md) - Auth and credentials
+    - [`gog auth add <email> [flags]`](commands/gog-auth-add.md) - Authorize and store a refresh token
+    - [`gog auth alias <command>`](commands/gog-auth-alias.md) - Manage account aliases
+      - [`gog auth alias list`](commands/gog-auth-alias-list.md) - List account aliases
+      - [`gog auth alias set <alias> <email>`](commands/gog-auth-alias-set.md) - Set an account alias
+      - [`gog auth alias unset <alias>`](commands/gog-auth-alias-unset.md) - Remove an account alias
+    - [`gog auth credentials <command>`](commands/gog-auth-credentials.md) - Manage OAuth client credentials
+      - [`gog auth credentials list`](commands/gog-auth-credentials-list.md) - List stored OAuth client credentials
+      - [`gog auth credentials remove [<client>]`](commands/gog-auth-credentials-remove.md) - Remove stored OAuth client credentials
+      - [`gog auth credentials set <credentials> [flags]`](commands/gog-auth-credentials-set.md) - Store OAuth client credentials
+    - [`gog auth doctor [flags]`](commands/gog-auth-doctor.md) - Diagnose auth, keyring, and refresh-token issues
+    - [`gog auth keep --key=STRING <email>`](commands/gog-auth-keep.md) - Configure service account for Google Keep (Workspace only)
+    - [`gog auth keyring [<backend> [<backend2>]]`](commands/gog-auth-keyring.md) - Configure keyring backend
+    - [`gog auth list [flags]`](commands/gog-auth-list.md) - List stored accounts
+    - [`gog auth manage (login) [flags]`](commands/gog-auth-manage.md) - Open accounts manager in browser
+    - [`gog auth remove <email>`](commands/gog-auth-remove.md) - Remove a stored refresh token
+    - [`gog auth service-account <command>`](commands/gog-auth-service-account.md) - Configure service account (Workspace only; domain-wide delegation)
+      - [`gog auth service-account set --key=STRING <email>`](commands/gog-auth-service-account-set.md) - Store a service account key for impersonation
+      - [`gog auth service-account status <email>`](commands/gog-auth-service-account-status.md) - Show stored service account key status
+      - [`gog auth service-account unset <email>`](commands/gog-auth-service-account-unset.md) - Remove stored service account key
+    - [`gog auth services [flags]`](commands/gog-auth-services.md) - List supported auth services and scopes
+    - [`gog auth status`](commands/gog-auth-status.md) - Show auth configuration and keyring backend
+    - [`gog auth tokens <command>`](commands/gog-auth-tokens.md) - Manage stored refresh tokens
+      - [`gog auth tokens delete <email>`](commands/gog-auth-tokens-delete.md) - Delete a stored refresh token
+      - [`gog auth tokens export <email> [flags]`](commands/gog-auth-tokens-export.md) - Export a refresh token to a file (contains secrets)
+      - [`gog auth tokens import <inPath>`](commands/gog-auth-tokens-import.md) - Import a refresh token file into keyring (contains secrets)
+      - [`gog auth tokens list`](commands/gog-auth-tokens-list.md) - List stored tokens (by key only)
+  - [`gog backup <command> [flags]`](commands/gog-backup.md) - Encrypted Google account backups
+    - [`gog backup cat <shard> [flags]`](commands/gog-backup-cat.md) - Decrypt one backup shard to stdout
+    - [`gog backup export [flags]`](commands/gog-backup-export.md) - Write a local plaintext export
+    - [`gog backup gmail <command>`](commands/gog-backup-gmail.md) - Gmail backup operations
+      - [`gog backup gmail push [flags]`](commands/gog-backup-gmail-push.md) - Export Gmail into encrypted backup shards
+    - [`gog backup init [flags]`](commands/gog-backup-init.md) - Initialize encrypted backup config and repository
+    - [`gog backup push [flags]`](commands/gog-backup-push.md) - Export services into encrypted backup shards
+    - [`gog backup status [flags]`](commands/gog-backup-status.md) - Inspect backup manifest without decrypting shards
+    - [`gog backup verify [flags]`](commands/gog-backup-verify.md) - Decrypt and verify all backup shards
+  - [`gog calendar (cal) <command> [flags]`](commands/gog-calendar.md) - Google Calendar
+    - [`gog calendar (cal) acl (permissions,perms) <calendarId> [flags]`](commands/gog-calendar-acl.md) - List calendar ACL
+    - [`gog calendar (cal) alias <command>`](commands/gog-calendar-alias.md) - Manage calendar aliases
+      - [`gog calendar (cal) alias list`](commands/gog-calendar-alias-list.md) - List calendar aliases
+      - [`gog calendar (cal) alias set <alias> <calendarId>`](commands/gog-calendar-alias-set.md) - Set a calendar alias
+      - [`gog calendar (cal) alias unset <alias>`](commands/gog-calendar-alias-unset.md) - Remove a calendar alias
+    - [`gog calendar (cal) calendars [flags]`](commands/gog-calendar-calendars.md) - List calendars
+    - [`gog calendar (cal) colors`](commands/gog-calendar-colors.md) - Show calendar colors
+    - [`gog calendar (cal) conflicts [flags]`](commands/gog-calendar-conflicts.md) - Find conflicts
+    - [`gog calendar (cal) create (add,new) <calendarId> [flags]`](commands/gog-calendar-create.md) - Create an event
+    - [`gog calendar (cal) create-calendar (new-calendar) <summary> [flags]`](commands/gog-calendar-create-calendar.md) - Create a new secondary calendar
+    - [`gog calendar (cal) delete (rm,del,remove) <calendarId> <eventId> [flags]`](commands/gog-calendar-delete.md) - Delete an event
+    - [`gog calendar (cal) event (get,info,show) <calendarId> <eventId>`](commands/gog-calendar-event.md) - Get event
+    - [`gog calendar (cal) events (list,ls) [<calendarId> ...] [flags]`](commands/gog-calendar-events.md) - List events from a calendar or all calendars
+    - [`gog calendar (cal) focus-time (focus) --from=STRING --to=STRING [<calendarId>] [flags]`](commands/gog-calendar-focus-time.md) - Create a Focus Time block
+    - [`gog calendar (cal) freebusy [<calendarIds>] [flags]`](commands/gog-calendar-freebusy.md) - Get free/busy
+    - [`gog calendar (cal) move (transfer) <calendarId> <eventId> <destinationCalendarId> [flags]`](commands/gog-calendar-move.md) - Move an event to another calendar
+    - [`gog calendar (cal) out-of-office (ooo) --from=STRING --to=STRING [<calendarId>] [flags]`](commands/gog-calendar-out-of-office.md) - Create an Out of Office event
+    - [`gog calendar (cal) propose-time <calendarId> <eventId> [flags]`](commands/gog-calendar-propose-time.md) - Generate URL to propose a new meeting time (browser-only feature)
+    - [`gog calendar (cal) raw <calendarId> <eventId> [flags]`](commands/gog-calendar-raw.md) - Dump raw Google Calendar API response as JSON (Events.Get; lossless; for scripting and LLM consumption)
+    - [`gog calendar (cal) respond (rsvp,reply) <calendarId> <eventId> [flags]`](commands/gog-calendar-respond.md) - Respond to an event invitation
+    - [`gog calendar (cal) search (find,query) <query> [flags]`](commands/gog-calendar-search.md) - Search events
+    - [`gog calendar (cal) subscribe (sub,add-calendar) <calendarId> [flags]`](commands/gog-calendar-subscribe.md) - Add a calendar to your calendar list
+    - [`gog calendar (cal) team <group-email> [flags]`](commands/gog-calendar-team.md) - Show events for all members of a Google Group
+    - [`gog calendar (cal) time [flags]`](commands/gog-calendar-time.md) - Show server time
+    - [`gog calendar (cal) update (edit,set) <calendarId> <eventId> [flags]`](commands/gog-calendar-update.md) - Update an event
+    - [`gog calendar (cal) users [flags]`](commands/gog-calendar-users.md) - List workspace users (use their email as calendar ID)
+    - [`gog calendar (cal) working-location (wl) --from=STRING --to=STRING --type=STRING [<calendarId>] [flags]`](commands/gog-calendar-working-location.md) - Set working location (home/office/custom)
+  - [`gog chat <command> [flags]`](commands/gog-chat.md) - Google Chat
+    - [`gog chat dm <command>`](commands/gog-chat-dm.md) - Direct messages
+      - [`gog chat dm send (create,post) <email> [flags]`](commands/gog-chat-dm-send.md) - Send a direct message
+      - [`gog chat dm space (find,setup) <email>`](commands/gog-chat-dm-space.md) - Find or create a DM space
+    - [`gog chat messages <command>`](commands/gog-chat-messages.md) - Chat messages
+      - [`gog chat messages list (ls) <space> [flags]`](commands/gog-chat-messages-list.md) - List messages
+      - [`gog chat messages react <message> <emoji> [flags]`](commands/gog-chat-messages-react.md) - Add an emoji reaction to a message
+      - [`gog chat messages reactions (reaction) <command>`](commands/gog-chat-messages-reactions.md) - Manage emoji reactions on a message
+        - [`gog chat messages reactions (reaction) create (add) <message> <emoji> [flags]`](commands/gog-chat-messages-reactions-create.md) - Add an emoji reaction to a message
+        - [`gog chat messages reactions (reaction) delete (remove,rm) <reaction>`](commands/gog-chat-messages-reactions-delete.md) - Delete a reaction
+        - [`gog chat messages reactions (reaction) list (ls) <message> [flags]`](commands/gog-chat-messages-reactions-list.md) - List reactions on a message
+      - [`gog chat messages send (create,post) <space> [flags]`](commands/gog-chat-messages-send.md) - Send a message
+    - [`gog chat spaces <command>`](commands/gog-chat-spaces.md) - Chat spaces
+      - [`gog chat spaces create (add,new) <displayName> [flags]`](commands/gog-chat-spaces-create.md) - Create a space
+      - [`gog chat spaces find (search,query) <displayName> [flags]`](commands/gog-chat-spaces-find.md) - Find spaces by display name
+      - [`gog chat spaces list (ls) [flags]`](commands/gog-chat-spaces-list.md) - List spaces
+    - [`gog chat threads <command>`](commands/gog-chat-threads.md) - Chat threads
+      - [`gog chat threads list <space> [flags]`](commands/gog-chat-threads-list.md) - List threads in a space
+  - [`gog classroom (class) <command> [flags]`](commands/gog-classroom.md) - Google Classroom
+    - [`gog classroom (class) announcements (announcement,ann) <command>`](commands/gog-classroom-announcements.md) - Announcements
+      - [`gog classroom (class) announcements (announcement,ann) assignees (assign) <courseId> <announcementId> [flags]`](commands/gog-classroom-announcements-assignees.md) - Modify announcement assignees
+      - [`gog classroom (class) announcements (announcement,ann) create (add,new) --text=STRING <courseId> [flags]`](commands/gog-classroom-announcements-create.md) - Create an announcement
+      - [`gog classroom (class) announcements (announcement,ann) delete (rm,del,remove) <courseId> <announcementId>`](commands/gog-classroom-announcements-delete.md) - Delete an announcement
+      - [`gog classroom (class) announcements (announcement,ann) get (info,show) <courseId> <announcementId>`](commands/gog-classroom-announcements-get.md) - Get an announcement
+      - [`gog classroom (class) announcements (announcement,ann) list (ls) <courseId> [flags]`](commands/gog-classroom-announcements-list.md) - List announcements
+      - [`gog classroom (class) announcements (announcement,ann) update (edit,set) <courseId> <announcementId> [flags]`](commands/gog-classroom-announcements-update.md) - Update an announcement
+    - [`gog classroom (class) courses (course) <command>`](commands/gog-classroom-courses.md) - Courses
+      - [`gog classroom (class) courses (course) archive (arch) <courseId>`](commands/gog-classroom-courses-archive.md) - Archive a course
+      - [`gog classroom (class) courses (course) create (add,new) --name=STRING [flags]`](commands/gog-classroom-courses-create.md) - Create a course
+      - [`gog classroom (class) courses (course) delete (rm,del,remove) <courseId>`](commands/gog-classroom-courses-delete.md) - Delete a course
+      - [`gog classroom (class) courses (course) get (info,show) <courseId>`](commands/gog-classroom-courses-get.md) - Get a course
+      - [`gog classroom (class) courses (course) join (enroll) <courseId> [flags]`](commands/gog-classroom-courses-join.md) - Join a course
+      - [`gog classroom (class) courses (course) leave (unenroll) <courseId> [flags]`](commands/gog-classroom-courses-leave.md) - Leave a course
+      - [`gog classroom (class) courses (course) list (ls) [flags]`](commands/gog-classroom-courses-list.md) - List courses
+      - [`gog classroom (class) courses (course) unarchive (unarch,restore) <courseId>`](commands/gog-classroom-courses-unarchive.md) - Unarchive a course
+      - [`gog classroom (class) courses (course) update (edit,set) <courseId> [flags]`](commands/gog-classroom-courses-update.md) - Update a course
+      - [`gog classroom (class) courses (course) url (link) <courseId> ...`](commands/gog-classroom-courses-url.md) - Print Classroom web URLs for courses
+    - [`gog classroom (class) coursework (work) <command>`](commands/gog-classroom-coursework.md) - Coursework
+      - [`gog classroom (class) coursework (work) assignees (assign) <courseId> <courseworkId> [flags]`](commands/gog-classroom-coursework-assignees.md) - Modify coursework assignees
+      - [`gog classroom (class) coursework (work) create (add,new) --title=STRING <courseId> [flags]`](commands/gog-classroom-coursework-create.md) - Create coursework
+      - [`gog classroom (class) coursework (work) delete (rm,del,remove) <courseId> <courseworkId>`](commands/gog-classroom-coursework-delete.md) - Delete coursework
+      - [`gog classroom (class) coursework (work) get (info,show) <courseId> <courseworkId>`](commands/gog-classroom-coursework-get.md) - Get coursework
+      - [`gog classroom (class) coursework (work) list (ls) <courseId> [flags]`](commands/gog-classroom-coursework-list.md) - List coursework
+      - [`gog classroom (class) coursework (work) update (edit,set) <courseId> <courseworkId> [flags]`](commands/gog-classroom-coursework-update.md) - Update coursework
+    - [`gog classroom (class) guardian-invitations (guardian-invites) <command>`](commands/gog-classroom-guardian-invitations.md) - Guardian invitations
+      - [`gog classroom (class) guardian-invitations (guardian-invites) create (add,new) --email=STRING <studentId>`](commands/gog-classroom-guardian-invitations-create.md) - Create a guardian invitation
+      - [`gog classroom (class) guardian-invitations (guardian-invites) get (info,show) <studentId> <invitationId>`](commands/gog-classroom-guardian-invitations-get.md) - Get a guardian invitation
+      - [`gog classroom (class) guardian-invitations (guardian-invites) list (ls) <studentId> [flags]`](commands/gog-classroom-guardian-invitations-list.md) - List guardian invitations
+    - [`gog classroom (class) guardians (guardian) <command>`](commands/gog-classroom-guardians.md) - Guardians
+      - [`gog classroom (class) guardians (guardian) delete (rm,del,remove) <studentId> <guardianId>`](commands/gog-classroom-guardians-delete.md) - Delete a guardian
+      - [`gog classroom (class) guardians (guardian) get (info,show) <studentId> <guardianId>`](commands/gog-classroom-guardians-get.md) - Get a guardian
+      - [`gog classroom (class) guardians (guardian) list (ls) <studentId> [flags]`](commands/gog-classroom-guardians-list.md) - List guardians
+    - [`gog classroom (class) invitations (invitation,invites) <command>`](commands/gog-classroom-invitations.md) - Invitations
+      - [`gog classroom (class) invitations (invitation,invites) accept (join) <invitationId>`](commands/gog-classroom-invitations-accept.md) - Accept an invitation
+      - [`gog classroom (class) invitations (invitation,invites) create (add,new) --role=STRING <courseId> <userId>`](commands/gog-classroom-invitations-create.md) - Create an invitation
+      - [`gog classroom (class) invitations (invitation,invites) delete (rm,del,remove) <invitationId>`](commands/gog-classroom-invitations-delete.md) - Delete an invitation
+      - [`gog classroom (class) invitations (invitation,invites) get (info,show) <invitationId>`](commands/gog-classroom-invitations-get.md) - Get an invitation
+      - [`gog classroom (class) invitations (invitation,invites) list (ls) [flags]`](commands/gog-classroom-invitations-list.md) - List invitations
+    - [`gog classroom (class) materials (material) <command>`](commands/gog-classroom-materials.md) - Coursework materials
+      - [`gog classroom (class) materials (material) create (add,new) --title=STRING <courseId> [flags]`](commands/gog-classroom-materials-create.md) - Create coursework material
+      - [`gog classroom (class) materials (material) delete (rm,del,remove) <courseId> <materialId>`](commands/gog-classroom-materials-delete.md) - Delete coursework material
+      - [`gog classroom (class) materials (material) get (info,show) <courseId> <materialId>`](commands/gog-classroom-materials-get.md) - Get coursework material
+      - [`gog classroom (class) materials (material) list (ls) <courseId> [flags]`](commands/gog-classroom-materials-list.md) - List coursework materials
+      - [`gog classroom (class) materials (material) update (edit,set) <courseId> <materialId> [flags]`](commands/gog-classroom-materials-update.md) - Update coursework material
+    - [`gog classroom (class) profile (me) <command>`](commands/gog-classroom-profile.md) - User profiles
+      - [`gog classroom (class) profile (me) get [<userId>]`](commands/gog-classroom-profile-get.md) - Get a user profile
+    - [`gog classroom (class) roster (members) <courseId> [flags]`](commands/gog-classroom-roster.md) - Course roster (students + teachers)
+    - [`gog classroom (class) students (student) <command>`](commands/gog-classroom-students.md) - Course students
+      - [`gog classroom (class) students (student) add (create,new) <courseId> <userId> [flags]`](commands/gog-classroom-students-add.md) - Add a student
+      - [`gog classroom (class) students (student) get (info,show) <courseId> <userId>`](commands/gog-classroom-students-get.md) - Get a student
+      - [`gog classroom (class) students (student) list (ls) <courseId> [flags]`](commands/gog-classroom-students-list.md) - List students
+      - [`gog classroom (class) students (student) remove (delete,rm,del,remove) <courseId> <userId>`](commands/gog-classroom-students-remove.md) - Remove a student
+    - [`gog classroom (class) submissions (submission) <command>`](commands/gog-classroom-submissions.md) - Student submissions
+      - [`gog classroom (class) submissions (submission) get (info,show) <courseId> <courseworkId> <submissionId>`](commands/gog-classroom-submissions-get.md) - Get a student submission
+      - [`gog classroom (class) submissions (submission) grade (set,edit) <courseId> <courseworkId> <submissionId> [flags]`](commands/gog-classroom-submissions-grade.md) - Set draft/assigned grades
+      - [`gog classroom (class) submissions (submission) list (ls) <courseId> <courseworkId> [flags]`](commands/gog-classroom-submissions-list.md) - List student submissions
+      - [`gog classroom (class) submissions (submission) reclaim (undo) <courseId> <courseworkId> <submissionId>`](commands/gog-classroom-submissions-reclaim.md) - Reclaim a submission
+      - [`gog classroom (class) submissions (submission) return (send) <courseId> <courseworkId> <submissionId>`](commands/gog-classroom-submissions-return.md) - Return a submission
+      - [`gog classroom (class) submissions (submission) turn-in (turnin) <courseId> <courseworkId> <submissionId>`](commands/gog-classroom-submissions-turn-in.md) - Turn in a submission
+    - [`gog classroom (class) teachers (teacher) <command>`](commands/gog-classroom-teachers.md) - Course teachers
+      - [`gog classroom (class) teachers (teacher) add (create,new) <courseId> <userId>`](commands/gog-classroom-teachers-add.md) - Add a teacher
+      - [`gog classroom (class) teachers (teacher) get (info,show) <courseId> <userId>`](commands/gog-classroom-teachers-get.md) - Get a teacher
+      - [`gog classroom (class) teachers (teacher) list (ls) <courseId> [flags]`](commands/gog-classroom-teachers-list.md) - List teachers
+      - [`gog classroom (class) teachers (teacher) remove (delete,rm,del,remove) <courseId> <userId>`](commands/gog-classroom-teachers-remove.md) - Remove a teacher
+    - [`gog classroom (class) topics (topic) <command>`](commands/gog-classroom-topics.md) - Topics
+      - [`gog classroom (class) topics (topic) create (add,new) --name=STRING <courseId>`](commands/gog-classroom-topics-create.md) - Create a topic
+      - [`gog classroom (class) topics (topic) delete (rm,del,remove) <courseId> <topicId>`](commands/gog-classroom-topics-delete.md) - Delete a topic
+      - [`gog classroom (class) topics (topic) get (info,show) <courseId> <topicId>`](commands/gog-classroom-topics-get.md) - Get a topic
+      - [`gog classroom (class) topics (topic) list (ls) <courseId> [flags]`](commands/gog-classroom-topics-list.md) - List topics
+      - [`gog classroom (class) topics (topic) update (edit,set) --name=STRING <courseId> <topicId>`](commands/gog-classroom-topics-update.md) - Update a topic
+  - [`gog completion <shell> [flags]`](commands/gog-completion.md) - Generate shell completion scripts
+  - [`gog config <command> [flags]`](commands/gog-config.md) - Manage configuration
+    - [`gog config get (show) <key>`](commands/gog-config-get.md) - Get a config value
+    - [`gog config keys (list-keys,names)`](commands/gog-config-keys.md) - List available config keys
+    - [`gog config list (ls,all)`](commands/gog-config-list.md) - List all config values
+    - [`gog config no-send (nosend) <command>`](commands/gog-config-no-send.md) - Manage per-account Gmail no-send guards
+      - [`gog config no-send (nosend) list (ls)`](commands/gog-config-no-send-list.md) - List accounts with no-send guards
+      - [`gog config no-send (nosend) remove (rm,del,delete,unset,disable) <account>`](commands/gog-config-no-send-remove.md) - Remove an account no-send guard
+      - [`gog config no-send (nosend) set (add,enable) <account>`](commands/gog-config-no-send-set.md) - Block Gmail send operations for an account
+    - [`gog config path (where)`](commands/gog-config-path.md) - Print config file path
+    - [`gog config set (add,update) <key> <value>`](commands/gog-config-set.md) - Set a config value
+    - [`gog config unset (rm,del,remove) <key>`](commands/gog-config-unset.md) - Unset a config value
+  - [`gog contacts (contact) <command> [flags]`](commands/gog-contacts.md) - Google Contacts
+    - [`gog contacts (contact) create (add,new) [flags]`](commands/gog-contacts-create.md) - Create a contact
+    - [`gog contacts (contact) dedupe [flags]`](commands/gog-contacts-dedupe.md) - Find likely duplicate contacts (preview only)
+    - [`gog contacts (contact) delete (rm,del,remove) <resourceName>`](commands/gog-contacts-delete.md) - Delete a contact
+    - [`gog contacts (contact) directory <command>`](commands/gog-contacts-directory.md) - Directory contacts
+      - [`gog contacts (contact) directory list [flags]`](commands/gog-contacts-directory-list.md) - List people from the Workspace directory
+      - [`gog contacts (contact) directory search <query> ... [flags]`](commands/gog-contacts-directory-search.md) - Search people in the Workspace directory
+    - [`gog contacts (contact) export [<selector>] [flags]`](commands/gog-contacts-export.md) - Export contacts as vCard (.vcf)
+    - [`gog contacts (contact) get (info,show) <resourceName>`](commands/gog-contacts-get.md) - Get a contact
+    - [`gog contacts (contact) list (ls) [flags]`](commands/gog-contacts-list.md) - List contacts
+    - [`gog contacts (contact) other <command>`](commands/gog-contacts-other.md) - Other contacts
+      - [`gog contacts (contact) other delete <resourceName>`](commands/gog-contacts-other-delete.md) - Delete an other contact
+      - [`gog contacts (contact) other list [flags]`](commands/gog-contacts-other-list.md) - List other contacts
+      - [`gog contacts (contact) other search <query> ... [flags]`](commands/gog-contacts-other-search.md) - Search other contacts
+    - [`gog contacts (contact) raw <identifier> [flags]`](commands/gog-contacts-raw.md) - Dump raw People API response as JSON (People.Get; lossless; for scripting and LLM consumption)
+    - [`gog contacts (contact) search <query> ... [flags]`](commands/gog-contacts-search.md) - Search contacts by name/email/phone
+    - [`gog contacts (contact) update (edit,set) <resourceName> [flags]`](commands/gog-contacts-update.md) - Update a contact
+  - [`gog docs (doc) <command> [flags]`](commands/gog-docs.md) - Google Docs (export via Drive)
+    - [`gog docs (doc) add-tab <docId> [flags]`](commands/gog-docs-add-tab.md) - Add a tab to a Google Doc
+    - [`gog docs (doc) cat (text,read) <docId> [flags]`](commands/gog-docs-cat.md) - Print a Google Doc as plain text
+    - [`gog docs (doc) clear <docId>`](commands/gog-docs-clear.md) - Clear all content from a Google Doc
+    - [`gog docs (doc) comments <command>`](commands/gog-docs-comments.md) - Manage comments on files
+      - [`gog docs (doc) comments add (create,new) <docId> <content> [flags]`](commands/gog-docs-comments-add.md) - Add a comment to a Google Doc
+      - [`gog docs (doc) comments delete (rm,del,remove) <docId> <commentId>`](commands/gog-docs-comments-delete.md) - Delete a comment
+      - [`gog docs (doc) comments get (info,show) <docId> <commentId>`](commands/gog-docs-comments-get.md) - Get a comment by ID
+      - [`gog docs (doc) comments list (ls) <docId> [flags]`](commands/gog-docs-comments-list.md) - List comments on a Google Doc
+      - [`gog docs (doc) comments reply (respond) <docId> <commentId> <content>`](commands/gog-docs-comments-reply.md) - Reply to a comment
+      - [`gog docs (doc) comments resolve <docId> <commentId> [flags]`](commands/gog-docs-comments-resolve.md) - Resolve a comment (mark as done)
+    - [`gog docs (doc) copy (cp,duplicate) <docId> <title> [flags]`](commands/gog-docs-copy.md) - Copy a Google Doc
+    - [`gog docs (doc) create (add,new) <title> [flags]`](commands/gog-docs-create.md) - Create a Google Doc
+    - [`gog docs (doc) delete --start=INT-64 --end=INT-64 <docId> [flags]`](commands/gog-docs-delete.md) - Delete text range from document
+    - [`gog docs (doc) delete-tab <docId> [flags]`](commands/gog-docs-delete-tab.md) - Delete a tab from a Google Doc
+    - [`gog docs (doc) edit <docId> <find> <replace> [flags]`](commands/gog-docs-edit.md) - Find and replace text in a Google Doc
+    - [`gog docs (doc) export (download,dl) <docId> [flags]`](commands/gog-docs-export.md) - Export a Google Doc (pdf|docx|txt|md|html)
+    - [`gog docs (doc) find-replace <docId> <find> [<replace>] [flags]`](commands/gog-docs-find-replace.md) - Find and replace text. Supports plain text or markdown with images; use --first for a single occurrence.
+    - [`gog docs (doc) format <docId> [flags]`](commands/gog-docs-format.md) - Apply text or paragraph formatting to a Google Doc
+    - [`gog docs (doc) info (get,show) <docId>`](commands/gog-docs-info.md) - Get Google Doc metadata
+    - [`gog docs (doc) insert <docId> [<content>] [flags]`](commands/gog-docs-insert.md) - Insert text at a specific position
+    - [`gog docs (doc) list-tabs <docId>`](commands/gog-docs-list-tabs.md) - List all tabs in a Google Doc
+    - [`gog docs (doc) raw <docId> [flags]`](commands/gog-docs-raw.md) - Dump raw Google Docs API response as JSON (Documents.Get; lossless; for scripting and LLM consumption)
+    - [`gog docs (doc) rename-tab <docId> [flags]`](commands/gog-docs-rename-tab.md) - Rename a tab in a Google Doc
+    - [`gog docs (doc) sed <docId> [<expression>] [flags]`](commands/gog-docs-sed.md) - Regex find/replace (sed-style: s/pattern/replacement/g)
+    - [`gog docs (doc) structure (struct) <docId> [flags]`](commands/gog-docs-structure.md) - Show document structure with numbered paragraphs
+    - [`gog docs (doc) update <docId> [flags]`](commands/gog-docs-update.md) - Insert text at a specific index in a Google Doc
+    - [`gog docs (doc) write <docId> [flags]`](commands/gog-docs-write.md) - Write content to a Google Doc
+  - [`gog download (dl) <fileId> [flags]`](commands/gog-download.md) - Download a Drive file (alias for 'drive download')
+  - [`gog drive (drv) <command> [flags]`](commands/gog-drive.md) - Google Drive
+    - [`gog drive (drv) comments <command>`](commands/gog-drive-comments.md) - Manage comments on files
+      - [`gog drive (drv) comments create (add,new) <fileId> <content> [flags]`](commands/gog-drive-comments-create.md) - Create a comment on a file
+      - [`gog drive (drv) comments delete (rm,del,remove) <fileId> <commentId>`](commands/gog-drive-comments-delete.md) - Delete a comment
+      - [`gog drive (drv) comments get (info,show) <fileId> <commentId>`](commands/gog-drive-comments-get.md) - Get a comment by ID
+      - [`gog drive (drv) comments list (ls) <fileId> [flags]`](commands/gog-drive-comments-list.md) - List comments on a file
+      - [`gog drive (drv) comments reply (respond) <fileId> <commentId> <content>`](commands/gog-drive-comments-reply.md) - Reply to a comment
+      - [`gog drive (drv) comments update (edit,set) <fileId> <commentId> <content>`](commands/gog-drive-comments-update.md) - Update a comment
+    - [`gog drive (drv) copy <fileId> <name> [flags]`](commands/gog-drive-copy.md) - Copy a file
+    - [`gog drive (drv) delete (rm,del) <fileId> [flags]`](commands/gog-drive-delete.md) - Move a file to trash (use --permanent to delete forever)
+    - [`gog drive (drv) download <fileId> [flags]`](commands/gog-drive-download.md) - Download a file (exports Google Docs formats)
+    - [`gog drive (drv) drives [flags]`](commands/gog-drive-drives.md) - List shared drives (Team Drives)
+    - [`gog drive (drv) du [flags]`](commands/gog-drive-du.md) - Summarize Drive folder sizes
+    - [`gog drive (drv) get <fileId> [flags]`](commands/gog-drive-get.md) - Get file metadata
+    - [`gog drive (drv) inventory [flags]`](commands/gog-drive-inventory.md) - Export a read-only Drive inventory
+    - [`gog drive (drv) ls [flags]`](commands/gog-drive-ls.md) - List files in a folder (default: root)
+    - [`gog drive (drv) mkdir <name> [flags]`](commands/gog-drive-mkdir.md) - Create a folder
+    - [`gog drive (drv) move <fileId> [flags]`](commands/gog-drive-move.md) - Move a file to a different folder
+    - [`gog drive (drv) permissions <fileId> [flags]`](commands/gog-drive-permissions.md) - List permissions on a file
+    - [`gog drive (drv) raw <fileId> [flags]`](commands/gog-drive-raw.md) - Dump raw Google Drive API response as JSON (Files.Get; lossless; for scripting and LLM consumption)
+    - [`gog drive (drv) rename <fileId> <newName>`](commands/gog-drive-rename.md) - Rename a file or folder
+    - [`gog drive (drv) search <query> ... [flags]`](commands/gog-drive-search.md) - Full-text search across Drive
+    - [`gog drive (drv) share <fileId> [flags]`](commands/gog-drive-share.md) - Share a file or folder
+    - [`gog drive (drv) tree [flags]`](commands/gog-drive-tree.md) - Print a read-only folder tree
+    - [`gog drive (drv) unshare <fileId> <permissionId>`](commands/gog-drive-unshare.md) - Remove a permission from a file
+    - [`gog drive (drv) upload <localPath> [flags]`](commands/gog-drive-upload.md) - Upload a file
+    - [`gog drive (drv) url <fileId> ...`](commands/gog-drive-url.md) - Print web URLs for files
+  - [`gog exit-codes (exitcodes) [flags]`](commands/gog-exit-codes.md) - Print stable exit codes (alias for 'agent exit-codes')
+  - [`gog forms (form) <command> [flags]`](commands/gog-forms.md) - Google Forms
+    - [`gog forms (form) add-question (add-q,aq) --title=STRING <formId> [flags]`](commands/gog-forms-add-question.md) - Add a question to a form
+    - [`gog forms (form) create (new) --title=STRING [flags]`](commands/gog-forms-create.md) - Create a form
+    - [`gog forms (form) delete-question (delete-q,dq,rm-q) <formId> <index>`](commands/gog-forms-delete-question.md) - Delete a question by index
+    - [`gog forms (form) get (info,show) <formId>`](commands/gog-forms-get.md) - Get a form
+    - [`gog forms (form) move-question (move-q,mq) <formId> <oldIndex> <newIndex>`](commands/gog-forms-move-question.md) - Move a question to a new position
+    - [`gog forms (form) publish <formId> [flags]`](commands/gog-forms-publish.md) - Publish or unpublish a form
+    - [`gog forms (form) raw <formId> [flags]`](commands/gog-forms-raw.md) - Dump raw Google Forms API response as JSON (Forms.Get; lossless; for scripting and LLM consumption)
+    - [`gog forms (form) responses <command>`](commands/gog-forms-responses.md) - Form responses
+      - [`gog forms (form) responses get (info,show) <formId> <responseId>`](commands/gog-forms-responses-get.md) - Get a form response
+      - [`gog forms (form) responses list (ls) <formId> [flags]`](commands/gog-forms-responses-list.md) - List form responses
+    - [`gog forms (form) update (edit) <formId> [flags]`](commands/gog-forms-update.md) - Update form title, description, or settings
+    - [`gog forms (form) watch (watches) <command>`](commands/gog-forms-watch.md) - Response watches (push notifications)
+      - [`gog forms (form) watch (watches) create (new,add) --topic=STRING <formId> [flags]`](commands/gog-forms-watch-create.md) - Create a watch for new responses
+      - [`gog forms (form) watch (watches) delete (rm,remove) <formId> <watchId>`](commands/gog-forms-watch-delete.md) - Delete a watch
+      - [`gog forms (form) watch (watches) list (ls) <formId>`](commands/gog-forms-watch-list.md) - List active watches
+      - [`gog forms (form) watch (watches) renew (refresh) <formId> <watchId>`](commands/gog-forms-watch-renew.md) - Renew a watch (extends 7 days)
+  - [`gog gmail (mail,email) <command> [flags]`](commands/gog-gmail.md) - Gmail
+    - [`gog gmail (mail,email) archive [<messageId> ...] [flags]`](commands/gog-gmail-archive.md) - Archive messages (remove from inbox)
+    - [`gog gmail (mail,email) attachment <messageId> <attachmentId> [flags]`](commands/gog-gmail-attachment.md) - Download a single attachment
+    - [`gog gmail (mail,email) autoreply <query> ... [flags]`](commands/gog-gmail-autoreply.md) - Reply once to matching messages
+    - [`gog gmail (mail,email) batch <command>`](commands/gog-gmail-batch.md) - Batch operations (permanent delete requires broader Gmail scope; use gmail trash for normal trashing)
+      - [`gog gmail (mail,email) batch delete (rm,del,remove) <messageId> ...`](commands/gog-gmail-batch-delete.md) - Permanently delete multiple messages; use 'gmail trash' to move messages to trash with the default gmail.modify scope
+      - [`gog gmail (mail,email) batch modify (update,edit,set) <messageId> ... [flags]`](commands/gog-gmail-batch-modify.md) - Modify labels on multiple messages
+    - [`gog gmail (mail,email) drafts (draft) <command>`](commands/gog-gmail-drafts.md) - Draft operations
+      - [`gog gmail (mail,email) drafts (draft) create (add,new) [flags]`](commands/gog-gmail-drafts-create.md) - Create a draft
+      - [`gog gmail (mail,email) drafts (draft) delete (rm,del,remove) <draftId>`](commands/gog-gmail-drafts-delete.md) - Delete a draft
+      - [`gog gmail (mail,email) drafts (draft) get (info,show) <draftId> [flags]`](commands/gog-gmail-drafts-get.md) - Get draft details
+      - [`gog gmail (mail,email) drafts (draft) list (ls) [flags]`](commands/gog-gmail-drafts-list.md) - List drafts
+      - [`gog gmail (mail,email) drafts (draft) send (post) <draftId>`](commands/gog-gmail-drafts-send.md) - Send a draft
+      - [`gog gmail (mail,email) drafts (draft) update (edit,set) <draftId> [flags]`](commands/gog-gmail-drafts-update.md) - Update a draft
+    - [`gog gmail (mail,email) forward (fwd) --to=STRING <messageId> [flags]`](commands/gog-gmail-forward.md) - Forward a message to new recipients
+    - [`gog gmail (mail,email) get (info,show) <messageId> [flags]`](commands/gog-gmail-get.md) - Get a message (full|metadata|raw)
+    - [`gog gmail (mail,email) history [flags]`](commands/gog-gmail-history.md) - Gmail history
+    - [`gog gmail (mail,email) labels (label) <command>`](commands/gog-gmail-labels.md) - Label operations
+      - [`gog gmail (mail,email) labels (label) create (add,new) <name>`](commands/gog-gmail-labels-create.md) - Create a new label
+      - [`gog gmail (mail,email) labels (label) delete (rm,del) <labelIdOrName>`](commands/gog-gmail-labels-delete.md) - Delete a label
+      - [`gog gmail (mail,email) labels (label) get (info,show) <labelIdOrName>`](commands/gog-gmail-labels-get.md) - Get label details (including counts)
+      - [`gog gmail (mail,email) labels (label) list (ls)`](commands/gog-gmail-labels-list.md) - List labels
+      - [`gog gmail (mail,email) labels (label) modify (update,edit,set) <threadId> ... [flags]`](commands/gog-gmail-labels-modify.md) - Modify labels on threads
+      - [`gog gmail (mail,email) labels (label) rename (mv) <labelIdOrName> <newName>`](commands/gog-gmail-labels-rename.md) - Rename a label
+      - [`gog gmail (mail,email) labels (label) style (color,colour) <labelIdOrName> [flags]`](commands/gog-gmail-labels-style.md) - Change a user label color or visibility
+    - [`gog gmail (mail,email) mark-read (read-messages) [<messageId> ...] [flags]`](commands/gog-gmail-mark-read.md) - Mark messages as read
+    - [`gog gmail (mail,email) messages (message,msg,msgs) <command>`](commands/gog-gmail-messages.md) - Message operations
+      - [`gog gmail (mail,email) messages (message,msg,msgs) modify (update,edit,set) <messageId> [flags]`](commands/gog-gmail-messages-modify.md) - Modify labels on a single message
+      - [`gog gmail (mail,email) messages (message,msg,msgs) search (find,query,ls,list) <query> ... [flags]`](commands/gog-gmail-messages-search.md) - Search messages using Gmail query syntax
+    - [`gog gmail (mail,email) raw <messageId> [flags]`](commands/gog-gmail-raw.md) - Dump raw Gmail API response as JSON (Users.Messages.Get; lossless; for scripting and LLM consumption)
+    - [`gog gmail (mail,email) search (find,query,ls,list) <query> ... [flags]`](commands/gog-gmail-search.md) - Search threads using Gmail query syntax
+    - [`gog gmail (mail,email) send [flags]`](commands/gog-gmail-send.md) - Send an email
+    - [`gog gmail (mail,email) settings <command>`](commands/gog-gmail-settings.md) - Settings and admin
+      - [`gog gmail (mail,email) settings autoforward <command>`](commands/gog-gmail-settings-autoforward.md) - Auto-forwarding settings
+        - [`gog gmail (mail,email) settings autoforward get (info,show)`](commands/gog-gmail-settings-autoforward-get.md) - Get current auto-forwarding settings
+        - [`gog gmail (mail,email) settings autoforward update (edit,set) [flags]`](commands/gog-gmail-settings-autoforward-update.md) - Update auto-forwarding settings
+      - [`gog gmail (mail,email) settings delegates <command>`](commands/gog-gmail-settings-delegates.md) - Delegate operations
+        - [`gog gmail (mail,email) settings delegates add (create,new) <delegateEmail>`](commands/gog-gmail-settings-delegates-add.md) - Add a delegate
+        - [`gog gmail (mail,email) settings delegates get (info,show) <delegateEmail>`](commands/gog-gmail-settings-delegates-get.md) - Get a specific delegate's information
+        - [`gog gmail (mail,email) settings delegates list (ls)`](commands/gog-gmail-settings-delegates-list.md) - List all delegates
+        - [`gog gmail (mail,email) settings delegates remove (delete,rm,del) <delegateEmail>`](commands/gog-gmail-settings-delegates-remove.md) - Remove a delegate
+      - [`gog gmail (mail,email) settings filters <command>`](commands/gog-gmail-settings-filters.md) - Filter operations
+        - [`gog gmail (mail,email) settings filters create (add,new) [flags]`](commands/gog-gmail-settings-filters-create.md) - Create a new email filter
+        - [`gog gmail (mail,email) settings filters delete (rm,del,remove) <filterId>`](commands/gog-gmail-settings-filters-delete.md) - Delete a filter
+        - [`gog gmail (mail,email) settings filters export [flags]`](commands/gog-gmail-settings-filters-export.md) - Export filters as Gmail WebUI-compatible XML
+        - [`gog gmail (mail,email) settings filters get (info,show) <filterId>`](commands/gog-gmail-settings-filters-get.md) - Get a specific filter
+        - [`gog gmail (mail,email) settings filters list (ls)`](commands/gog-gmail-settings-filters-list.md) - List all email filters
+      - [`gog gmail (mail,email) settings forwarding <command>`](commands/gog-gmail-settings-forwarding.md) - Forwarding addresses
+        - [`gog gmail (mail,email) settings forwarding create (add,new) <forwardingEmail>`](commands/gog-gmail-settings-forwarding-create.md) - Create/add a forwarding address
+        - [`gog gmail (mail,email) settings forwarding delete (rm,del,remove) <forwardingEmail>`](commands/gog-gmail-settings-forwarding-delete.md) - Delete a forwarding address
+        - [`gog gmail (mail,email) settings forwarding get (info,show) <forwardingEmail>`](commands/gog-gmail-settings-forwarding-get.md) - Get a specific forwarding address
+        - [`gog gmail (mail,email) settings forwarding list (ls)`](commands/gog-gmail-settings-forwarding-list.md) - List all forwarding addresses
+      - [`gog gmail (mail,email) settings sendas <command>`](commands/gog-gmail-settings-sendas.md) - Send-as settings
+        - [`gog gmail (mail,email) settings sendas create (add,new) <email> [flags]`](commands/gog-gmail-settings-sendas-create.md) - Create a new send-as alias
+        - [`gog gmail (mail,email) settings sendas delete (rm,del,remove) <email>`](commands/gog-gmail-settings-sendas-delete.md) - Delete a send-as alias
+        - [`gog gmail (mail,email) settings sendas get (info,show) <email>`](commands/gog-gmail-settings-sendas-get.md) - Get details of a send-as alias
+        - [`gog gmail (mail,email) settings sendas list (ls)`](commands/gog-gmail-settings-sendas-list.md) - List send-as aliases
+        - [`gog gmail (mail,email) settings sendas update (edit,set) <email> [flags]`](commands/gog-gmail-settings-sendas-update.md) - Update a send-as alias
+        - [`gog gmail (mail,email) settings sendas verify (resend) <email>`](commands/gog-gmail-settings-sendas-verify.md) - Resend verification email for a send-as alias
+      - [`gog gmail (mail,email) settings vacation <command>`](commands/gog-gmail-settings-vacation.md) - Vacation responder
+        - [`gog gmail (mail,email) settings vacation get (info,show)`](commands/gog-gmail-settings-vacation-get.md) - Get current vacation responder settings
+        - [`gog gmail (mail,email) settings vacation update (edit,set) [flags]`](commands/gog-gmail-settings-vacation-update.md) - Update vacation responder settings
+      - [`gog gmail (mail,email) settings watch <command>`](commands/gog-gmail-settings-watch.md) - Manage Gmail watch
+        - [`gog gmail (mail,email) settings watch renew (update) [flags]`](commands/gog-gmail-settings-watch-renew.md) - Renew Gmail watch using stored config
+        - [`gog gmail (mail,email) settings watch serve [flags]`](commands/gog-gmail-settings-watch-serve.md) - Run Pub/Sub push handler
+        - [`gog gmail (mail,email) settings watch start (begin) [flags]`](commands/gog-gmail-settings-watch-start.md) - Start Gmail watch for Pub/Sub
+        - [`gog gmail (mail,email) settings watch status (ls) [flags]`](commands/gog-gmail-settings-watch-status.md) - Show stored watch state
+        - [`gog gmail (mail,email) settings watch stop (rm,delete)`](commands/gog-gmail-settings-watch-stop.md) - Stop Gmail watch and clear stored state
+    - [`gog gmail (mail,email) thread (threads,read) <command>`](commands/gog-gmail-thread.md) - Thread operations (get, modify)
+      - [`gog gmail (mail,email) thread (threads,read) attachments (files) <threadId> [flags]`](commands/gog-gmail-thread-attachments.md) - List all attachments in a thread
+      - [`gog gmail (mail,email) thread (threads,read) get (info,show) <threadId> [flags]`](commands/gog-gmail-thread-get.md) - Get a thread with all messages (optionally download attachments)
+      - [`gog gmail (mail,email) thread (threads,read) modify (update,edit,set) <threadId> [flags]`](commands/gog-gmail-thread-modify.md) - Modify labels on all messages in a thread
+    - [`gog gmail (mail,email) track <command>`](commands/gog-gmail-track.md) - Email open tracking
+      - [`gog gmail (mail,email) track key <command>`](commands/gog-gmail-track-key.md) - Manage tracking encryption keys
+        - [`gog gmail (mail,email) track key rotate [flags]`](commands/gog-gmail-track-key-rotate.md) - Rotate tracking encryption key
+      - [`gog gmail (mail,email) track opens [<tracking-id>] [flags]`](commands/gog-gmail-track-opens.md) - Query email opens
+      - [`gog gmail (mail,email) track setup [flags]`](commands/gog-gmail-track-setup.md) - Set up email tracking (deploy Cloudflare Worker)
+      - [`gog gmail (mail,email) track status`](commands/gog-gmail-track-status.md) - Show tracking configuration status
+    - [`gog gmail (mail,email) trash [<messageId> ...] [flags]`](commands/gog-gmail-trash.md) - Move messages to trash
+    - [`gog gmail (mail,email) unread (mark-unread) [<messageId> ...] [flags]`](commands/gog-gmail-unread.md) - Mark messages as unread
+    - [`gog gmail (mail,email) url <threadId> ...`](commands/gog-gmail-url.md) - Print Gmail web URLs for threads
+  - [`gog groups (group) <command> [flags]`](commands/gog-groups.md) - Google Groups
+    - [`gog groups (group) list (ls) [flags]`](commands/gog-groups-list.md) - List groups you belong to
+    - [`gog groups (group) members <groupEmail> [flags]`](commands/gog-groups-members.md) - List members of a group
+  - [`gog keep <command> [flags]`](commands/gog-keep.md) - Google Keep (Workspace only)
+    - [`gog keep attachment <attachmentName> [flags]`](commands/gog-keep-attachment.md) - Download an attachment
+    - [`gog keep create [flags]`](commands/gog-keep-create.md) - Create a new note
+    - [`gog keep delete <noteId> [flags]`](commands/gog-keep-delete.md) - Delete a note
+    - [`gog keep get <noteId> [flags]`](commands/gog-keep-get.md) - Get a note
+    - [`gog keep list [flags]`](commands/gog-keep-list.md) - List notes
+    - [`gog keep search <query> [flags]`](commands/gog-keep-search.md) - Search notes by text (client-side)
+  - [`gog login <email> [flags]`](commands/gog-login.md) - Authorize and store a refresh token (alias for 'auth add')
+  - [`gog logout <email> [flags]`](commands/gog-logout.md) - Remove a stored refresh token (alias for 'auth remove')
+  - [`gog ls (list) [flags]`](commands/gog-ls.md) - List Drive files (alias for 'drive ls')
+  - [`gog me [flags]`](commands/gog-me.md) - Show your profile (alias for 'people me')
+  - [`gog meet (meeting) <command> [flags]`](commands/gog-meet.md) - Google Meet
+    - [`gog meet (meeting) create (new) [flags]`](commands/gog-meet-create.md) - Create a meeting space
+    - [`gog meet (meeting) end (stop) <meeting-code>`](commands/gog-meet-end.md) - End active conference
+    - [`gog meet (meeting) get (info,show) <meeting-code>`](commands/gog-meet-get.md) - Get a meeting space
+    - [`gog meet (meeting) history (calls,past) <meeting-code> [flags]`](commands/gog-meet-history.md) - List past calls in a meeting
+    - [`gog meet (meeting) participants (people,attendees,who) <meeting-code> [flags]`](commands/gog-meet-participants.md) - List participants from the latest call
+    - [`gog meet (meeting) update (edit,set) <meeting-code> [flags]`](commands/gog-meet-update.md) - Update space config
+  - [`gog open (browse) <target> [flags]`](commands/gog-open.md) - Print a best-effort web URL for a Google URL/ID (offline)
+  - [`gog people (person) <command> [flags]`](commands/gog-people.md) - Google People
+    - [`gog people (person) get (info,show) <userId>`](commands/gog-people-get.md) - Get a user profile by ID
+    - [`gog people (person) me`](commands/gog-people-me.md) - Show your profile (people/me)
+    - [`gog people (person) raw <userId> [flags]`](commands/gog-people-raw.md) - Dump raw People API response as JSON (People.Get; lossless; for scripting and LLM consumption)
+    - [`gog people (person) relations [<userId>] [flags]`](commands/gog-people-relations.md) - Get user relations
+    - [`gog people (person) search (find,query) <query> ... [flags]`](commands/gog-people-search.md) - Search the Workspace directory
+  - [`gog schema (help-json,helpjson) [<command> ...] [flags]`](commands/gog-schema.md) - Machine-readable command/flag schema
+  - [`gog search (find) <query> ... [flags]`](commands/gog-search.md) - Search Drive files (alias for 'drive search')
+  - [`gog send [flags]`](commands/gog-send.md) - Send an email (alias for 'gmail send')
+  - [`gog sheets (sheet) <command> [flags]`](commands/gog-sheets.md) - Google Sheets
+    - [`gog sheets (sheet) add-tab (add-sheet) <spreadsheetId> <tabName> [flags]`](commands/gog-sheets-add-tab.md) - Add a new tab/sheet to a spreadsheet
+    - [`gog sheets (sheet) append (add) <spreadsheetId> <range> [<values> ...] [flags]`](commands/gog-sheets-append.md) - Append values to a range
+    - [`gog sheets (sheet) banding (banded-ranges) <command>`](commands/gog-sheets-banding.md) - Manage alternating color banding
+      - [`gog sheets (sheet) banding (banded-ranges) clear (delete,rm,remove) <spreadsheetId> [flags]`](commands/gog-sheets-banding-clear.md) - Remove alternating color banding
+      - [`gog sheets (sheet) banding (banded-ranges) list <spreadsheetId> [flags]`](commands/gog-sheets-banding-list.md) - List alternating color banded ranges
+      - [`gog sheets (sheet) banding (banded-ranges) set (add,create) <spreadsheetId> <range> [flags]`](commands/gog-sheets-banding-set.md) - Apply alternating colors to a range
+    - [`gog sheets (sheet) chart (charts) <command>`](commands/gog-sheets-chart.md) - Manage spreadsheet charts
+      - [`gog sheets (sheet) chart (charts) create (add,new) --spec-json=STRING <spreadsheetId> [flags]`](commands/gog-sheets-chart-create.md) - Create a chart from a JSON spec
+      - [`gog sheets (sheet) chart (charts) delete (rm,remove,del) <spreadsheetId> <chartId>`](commands/gog-sheets-chart-delete.md) - Delete a chart
+      - [`gog sheets (sheet) chart (charts) get (show,info) <spreadsheetId> <chartId>`](commands/gog-sheets-chart-get.md) - Get full chart definition (spec + position)
+      - [`gog sheets (sheet) chart (charts) list <spreadsheetId>`](commands/gog-sheets-chart-list.md) - List charts in a spreadsheet
+      - [`gog sheets (sheet) chart (charts) update (edit,set) --spec-json=STRING <spreadsheetId> <chartId>`](commands/gog-sheets-chart-update.md) - Update a chart spec
+    - [`gog sheets (sheet) clear <spreadsheetId> <range>`](commands/gog-sheets-clear.md) - Clear values in a range
+    - [`gog sheets (sheet) conditional-format (cf,conditional-formats) <command>`](commands/gog-sheets-conditional-format.md) - Manage conditional formatting rules
+      - [`gog sheets (sheet) conditional-format (cf,conditional-formats) add (create,new) --type=STRING --format-json=STRING <spreadsheetId> <range> [flags]`](commands/gog-sheets-conditional-format-add.md) - Add a conditional formatting rule
+      - [`gog sheets (sheet) conditional-format (cf,conditional-formats) clear (delete,rm,remove) --sheet=STRING <spreadsheetId> [flags]`](commands/gog-sheets-conditional-format-clear.md) - Remove conditional formatting rules
+      - [`gog sheets (sheet) conditional-format (cf,conditional-formats) list <spreadsheetId> [flags]`](commands/gog-sheets-conditional-format-list.md) - List conditional formatting rules
+    - [`gog sheets (sheet) copy (cp,duplicate) <spreadsheetId> <title> [flags]`](commands/gog-sheets-copy.md) - Copy a Google Sheet
+    - [`gog sheets (sheet) create (new) <title> [flags]`](commands/gog-sheets-create.md) - Create a new spreadsheet
+    - [`gog sheets (sheet) delete-tab (delete-sheet) <spreadsheetId> <tabName>`](commands/gog-sheets-delete-tab.md) - Delete a tab/sheet from a spreadsheet (use --force to skip confirmation)
+    - [`gog sheets (sheet) export (download,dl) <spreadsheetId> [flags]`](commands/gog-sheets-export.md) - Export a Google Sheet (pdf|xlsx|csv) via Drive
+    - [`gog sheets (sheet) find-replace <spreadsheetId> <find> <replace> [flags]`](commands/gog-sheets-find-replace.md) - Find and replace text across a spreadsheet
+    - [`gog sheets (sheet) format <spreadsheetId> <range> [flags]`](commands/gog-sheets-format.md) - Apply cell formatting to a range
+    - [`gog sheets (sheet) freeze <spreadsheetId> [flags]`](commands/gog-sheets-freeze.md) - Freeze rows and columns on a sheet
+    - [`gog sheets (sheet) get (read,show) <spreadsheetId> <range> [flags]`](commands/gog-sheets-get.md) - Get values from a range
+    - [`gog sheets (sheet) insert <spreadsheetId> <sheet> <dimension> <start> [flags]`](commands/gog-sheets-insert.md) - Insert empty rows or columns into a sheet
+    - [`gog sheets (sheet) links (hyperlinks) <spreadsheetId> <range>`](commands/gog-sheets-links.md) - Get cell hyperlinks from a range
+    - [`gog sheets (sheet) merge <spreadsheetId> <range> [flags]`](commands/gog-sheets-merge.md) - Merge cells in a range
+    - [`gog sheets (sheet) metadata (info) <spreadsheetId>`](commands/gog-sheets-metadata.md) - Get spreadsheet metadata
+    - [`gog sheets (sheet) named-ranges (namedranges,nr) <command>`](commands/gog-sheets-named-ranges.md) - Manage named ranges
+      - [`gog sheets (sheet) named-ranges (namedranges,nr) add (create,new) <spreadsheetId> <name> <range>`](commands/gog-sheets-named-ranges-add.md) - Add a named range
+      - [`gog sheets (sheet) named-ranges (namedranges,nr) delete (rm,remove,del) <spreadsheetId> <nameOrId>`](commands/gog-sheets-named-ranges-delete.md) - Delete a named range
+      - [`gog sheets (sheet) named-ranges (namedranges,nr) get (show,info) <spreadsheetId> <nameOrId>`](commands/gog-sheets-named-ranges-get.md) - Get a named range
+      - [`gog sheets (sheet) named-ranges (namedranges,nr) list <spreadsheetId>`](commands/gog-sheets-named-ranges-list.md) - List named ranges
+      - [`gog sheets (sheet) named-ranges (namedranges,nr) update (edit,set) <spreadsheetId> <nameOrId> [flags]`](commands/gog-sheets-named-ranges-update.md) - Update a named range
+    - [`gog sheets (sheet) notes <spreadsheetId> <range>`](commands/gog-sheets-notes.md) - Get cell notes from a range
+    - [`gog sheets (sheet) number-format <spreadsheetId> <range> [flags]`](commands/gog-sheets-number-format.md) - Apply number format to a range
+    - [`gog sheets (sheet) raw <spreadsheetId> [flags]`](commands/gog-sheets-raw.md) - Dump raw Google Sheets API response as JSON (Spreadsheets.Get; lossless; for scripting and LLM consumption)
+    - [`gog sheets (sheet) read-format (get-format,format-read) <spreadsheetId> <range> [flags]`](commands/gog-sheets-read-format.md) - Read cell formatting from a range
+    - [`gog sheets (sheet) rename-tab (rename-sheet) <spreadsheetId> <oldName> <newName>`](commands/gog-sheets-rename-tab.md) - Rename a tab/sheet in a spreadsheet
+    - [`gog sheets (sheet) resize-columns <spreadsheetId> <columns> [flags]`](commands/gog-sheets-resize-columns.md) - Resize sheet columns
+    - [`gog sheets (sheet) resize-rows <spreadsheetId> <rows> [flags]`](commands/gog-sheets-resize-rows.md) - Resize sheet rows
+    - [`gog sheets (sheet) table (tables) <command>`](commands/gog-sheets-table.md) - Manage Google Sheets tables
+      - [`gog sheets (sheet) table (tables) append (add-row,add-rows) <spreadsheetId> <tableId> [<values> ...] [flags]`](commands/gog-sheets-table-append.md) - Append rows to a table
+      - [`gog sheets (sheet) table (tables) clear (clear-rows) <spreadsheetId> <tableId>`](commands/gog-sheets-table-clear.md) - Clear table data rows
+      - [`gog sheets (sheet) table (tables) create (add,new) --name=STRING --columns-json=STRING <spreadsheetId> <range>`](commands/gog-sheets-table-create.md) - Create a table
+      - [`gog sheets (sheet) table (tables) delete (rm,remove,del) <spreadsheetId> <tableId>`](commands/gog-sheets-table-delete.md) - Delete a table
+      - [`gog sheets (sheet) table (tables) get (show,info) <spreadsheetId> <tableId>`](commands/gog-sheets-table-get.md) - Get a table
+      - [`gog sheets (sheet) table (tables) list <spreadsheetId>`](commands/gog-sheets-table-list.md) - List tables in a spreadsheet
+    - [`gog sheets (sheet) unmerge <spreadsheetId> <range>`](commands/gog-sheets-unmerge.md) - Unmerge cells in a range
+    - [`gog sheets (sheet) update (edit,set) <spreadsheetId> <range> [<values> ...] [flags]`](commands/gog-sheets-update.md) - Update values in a range
+    - [`gog sheets (sheet) update-note (set-note) <spreadsheetId> <range> [flags]`](commands/gog-sheets-update-note.md) - Set or clear a cell note
+  - [`gog slides (slide) <command> [flags]`](commands/gog-slides.md) - Google Slides
+    - [`gog slides (slide) add-slide <presentationId> <image> [flags]`](commands/gog-slides-add-slide.md) - Add a slide with a full-bleed image and optional speaker notes
+    - [`gog slides (slide) copy (cp,duplicate) <presentationId> <title> [flags]`](commands/gog-slides-copy.md) - Copy a Google Slides presentation
+    - [`gog slides (slide) create (add,new) <title> [flags]`](commands/gog-slides-create.md) - Create a Google Slides presentation
+    - [`gog slides (slide) create-from-markdown <title> [flags]`](commands/gog-slides-create-from-markdown.md) - Create a Google Slides presentation from markdown
+    - [`gog slides (slide) create-from-template <templateId> <title> [flags]`](commands/gog-slides-create-from-template.md) - Create a presentation from template with text replacements
+    - [`gog slides (slide) delete-slide <presentationId> <slideId>`](commands/gog-slides-delete-slide.md) - Delete a slide by object ID
+    - [`gog slides (slide) export (download,dl) <presentationId> [flags]`](commands/gog-slides-export.md) - Export a Google Slides deck (pdf|pptx)
+    - [`gog slides (slide) info (get,show) <presentationId>`](commands/gog-slides-info.md) - Get Google Slides presentation metadata
+    - [`gog slides (slide) insert-text <presentationId> <objectId> <text> [flags]`](commands/gog-slides-insert-text.md) - Insert text into an existing page element (shape or table) by objectId
+    - [`gog slides (slide) list-slides <presentationId>`](commands/gog-slides-list-slides.md) - List all slides with their object IDs
+    - [`gog slides (slide) raw <presentationId> [flags]`](commands/gog-slides-raw.md) - Dump raw Google Slides API response as JSON (Presentations.Get; lossless; for scripting and LLM consumption)
+    - [`gog slides (slide) read-slide <presentationId> <slideId>`](commands/gog-slides-read-slide.md) - Read slide content: speaker notes, text elements, and images
+    - [`gog slides (slide) replace-slide <presentationId> <slideId> <image> [flags]`](commands/gog-slides-replace-slide.md) - Replace the image on an existing slide in-place
+    - [`gog slides (slide) replace-text <presentationId> <find> <replacement> [flags]`](commands/gog-slides-replace-text.md) - Find-and-replace text across a presentation
+    - [`gog slides (slide) thumbnail (thumb) <presentationId> <slideId> [flags]`](commands/gog-slides-thumbnail.md) - Get or download a rendered thumbnail for a slide
+    - [`gog slides (slide) update-notes <presentationId> <slideId> [flags]`](commands/gog-slides-update-notes.md) - Update speaker notes on an existing slide
+  - [`gog status (st) [flags]`](commands/gog-status.md) - Show auth/config status (alias for 'auth status')
+  - [`gog tasks (task) <command> [flags]`](commands/gog-tasks.md) - Google Tasks
+    - [`gog tasks (task) add (create) <tasklistId> [flags]`](commands/gog-tasks-add.md) - Add a task
+    - [`gog tasks (task) clear <tasklistId>`](commands/gog-tasks-clear.md) - Clear completed tasks
+    - [`gog tasks (task) delete (rm,del,remove) <tasklistId> <taskId>`](commands/gog-tasks-delete.md) - Delete a task
+    - [`gog tasks (task) done (complete) <tasklistId> <taskId>`](commands/gog-tasks-done.md) - Mark task completed
+    - [`gog tasks (task) get (info,show) <tasklistId> <taskId>`](commands/gog-tasks-get.md) - Get a task
+    - [`gog tasks (task) list (ls) <tasklistId> [flags]`](commands/gog-tasks-list.md) - List tasks
+    - [`gog tasks (task) lists <command>`](commands/gog-tasks-lists.md) - List task lists
+      - [`gog tasks (task) lists create (add,new) <title> ...`](commands/gog-tasks-lists-create.md) - Create a task list
+      - [`gog tasks (task) lists list [flags]`](commands/gog-tasks-lists-list.md) - List task lists
+    - [`gog tasks (task) raw <tasklistId> <taskId> [flags]`](commands/gog-tasks-raw.md) - Dump raw Google Tasks API response as JSON (Tasks.Get; lossless; for scripting and LLM consumption)
+    - [`gog tasks (task) undo (uncomplete,undone) <tasklistId> <taskId>`](commands/gog-tasks-undo.md) - Mark task needs action
+    - [`gog tasks (task) update (edit,set) <tasklistId> <taskId> [flags]`](commands/gog-tasks-update.md) - Update a task
+  - [`gog time <command> [flags]`](commands/gog-time.md) - Local time utilities
+    - [`gog time now [flags]`](commands/gog-time-now.md) - Show current time
+  - [`gog upload (up,put) <localPath> [flags]`](commands/gog-upload.md) - Upload a file to Drive (alias for 'drive upload')
+  - [`gog version [flags]`](commands/gog-version.md) - Print version
+  - [`gog whoami (who-am-i) [flags]`](commands/gog-whoami.md) - Show your profile (alias for 'people me')

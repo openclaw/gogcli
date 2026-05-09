@@ -82,27 +82,16 @@ func (c *TasksListCmd) Run(ctx context.Context, flags *RootFlags) error {
 			call = call.UpdatedMin(strings.TrimSpace(c.UpdatedMin))
 		}
 
-		resp, err := call.Context(ctx).Do()
-		if err != nil {
-			return nil, "", err
+		resp, callErr := call.Context(ctx).Do()
+		if callErr != nil {
+			return nil, "", callErr
 		}
 		return resp.Items, resp.NextPageToken, nil
 	}
 
-	var items []*tasks.Task
-	nextPageToken := ""
-	if c.All {
-		all, err := collectAllPages(c.Page, fetch)
-		if err != nil {
-			return err
-		}
-		items = all
-	} else {
-		var err error
-		items, nextPageToken, err = fetch(c.Page)
-		if err != nil {
-			return err
-		}
+	items, nextPageToken, err := loadPagedItems(c.Page, c.All, fetch)
+	if err != nil {
+		return err
 	}
 
 	if outfmt.IsJSON(ctx) {
@@ -491,14 +480,18 @@ func (c *TasksUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *Roo
 		changed = true
 	}
 	if flagProvided(kctx, "due") {
-		if !outfmt.IsJSON(ctx) {
-			warnTasksDueTime(u, c.Due)
-		}
 		dueValue, dueErr := normalizeTaskDue(c.Due)
 		if dueErr != nil {
 			return dueErr
 		}
-		patch.Due = dueValue
+		if dueValue == "" {
+			patch.NullFields = append(patch.NullFields, "Due")
+		} else {
+			if !outfmt.IsJSON(ctx) {
+				warnTasksDueTime(u, c.Due)
+			}
+			patch.Due = dueValue
+		}
 		changed = true
 	}
 	if flagProvided(kctx, "status") {

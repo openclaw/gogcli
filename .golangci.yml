@@ -120,6 +120,11 @@ linters:
           - dupl
           - wsl_v5
           - tagliatelle
+      - path: internal/safetyprofile/.*\.go
+        linters:
+          - err113
+          - wrapcheck
+          - wsl_v5
       - path: internal/googleauth/.*\.go
         linters:
           - tagliatelle

@@ -30,8 +30,51 @@ type SlidesCmd struct {
 	ListSlides         SlidesListSlidesCmd         `cmd:"" name:"list-slides" help:"List all slides with their object IDs"`
 	DeleteSlide        SlidesDeleteSlideCmd        `cmd:"" name:"delete-slide" help:"Delete a slide by object ID"`
 	ReadSlide          SlidesReadSlideCmd          `cmd:"" name:"read-slide" help:"Read slide content: speaker notes, text elements, and images"`
+	Thumbnail          SlidesThumbnailCmd          `cmd:"" name:"thumbnail" aliases:"thumb" help:"Get or download a rendered thumbnail for a slide"`
 	UpdateNotes        SlidesUpdateNotesCmd        `cmd:"" name:"update-notes" help:"Update speaker notes on an existing slide"`
 	ReplaceSlide       SlidesReplaceSlideCmd       `cmd:"" name:"replace-slide" help:"Replace the image on an existing slide in-place"`
+	InsertText         SlidesInsertTextCmd         `cmd:"" name:"insert-text" help:"Insert text into an existing page element (shape or table) by objectId"`
+	ReplaceText        SlidesReplaceTextCmd        `cmd:"" name:"replace-text" help:"Find-and-replace text across a presentation"`
+	Raw                SlidesRawCmd                `cmd:"" name:"raw" help:"Dump raw Google Slides API response as JSON (Presentations.Get; lossless; for scripting and LLM consumption)"`
+}
+
+// SlidesRawCmd dumps the full Presentations.Get response as JSON. The
+// Slides API has no field mask, so output is unconditionally lossless.
+// Note: response may contain short-lived authenticated image/video URLs
+// (see docs/raw-audit.md for the risk assessment).
+//
+// REST reference: https://developers.google.com/slides/api/reference/rest/v1/presentations/get
+// Go type: https://pkg.go.dev/google.golang.org/api/slides/v1#Presentation
+type SlidesRawCmd struct {
+	PresentationID string `arg:"" name:"presentationId" help:"Presentation ID"`
+	Pretty         bool   `name:"pretty" help:"Pretty-print JSON (default: compact single-line)"`
+}
+
+func (c *SlidesRawCmd) Run(ctx context.Context, flags *RootFlags) error {
+	id := strings.TrimSpace(c.PresentationID)
+	if id == "" {
+		return usage("empty presentationId")
+	}
+
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
+	}
+	svc, err := newSlidesService(ctx, account)
+	if err != nil {
+		return err
+	}
+
+	pres, err := svc.Presentations.Get(id).Context(ctx).Do()
+	if err != nil {
+		return err
+	}
+	pres, err = requireRawResponse(pres, "presentation not found")
+	if err != nil {
+		return err
+	}
+
+	return writeRawJSON(ctx, pres, c.Pretty)
 }
 
 type SlidesExportCmd struct {

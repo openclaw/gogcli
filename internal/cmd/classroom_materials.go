@@ -70,7 +70,7 @@ func (c *ClassroomMaterialsListCmd) Run(ctx context.Context, flags *RootFlags) e
 	var materials []*classroom.CourseWorkMaterial
 	var nextPageToken string
 	if c.All {
-		all, err := collectAllPages(c.Page, fetch)
+		all, _, err := loadPagedItems(c.Page, true, fetch)
 		if err != nil {
 			return wrapClassroomError(err)
 		}

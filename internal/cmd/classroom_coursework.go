@@ -71,7 +71,7 @@ func (c *ClassroomCourseworkListCmd) Run(ctx context.Context, flags *RootFlags) 
 	var coursework []*classroom.CourseWork
 	var nextPageToken string
 	if c.All {
-		all, err := collectAllPages(c.Page, fetch)
+		all, _, err := loadPagedItems(c.Page, true, fetch)
 		if err != nil {
 			return wrapClassroomError(err)
 		}

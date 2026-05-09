@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"os"
 	"strings"
@@ -51,6 +52,42 @@ func TestDocsFindReplace_PlainText(t *testing.T) {
 	}
 	if got.Requests[1].InsertText.Text != "Final v2" {
 		t.Fatalf("expected insert text 'Final v2', got %q", got.Requests[1].InsertText.Text)
+	}
+}
+
+func TestDocsFindReplace_FirstEmptyReplacementDeletesOnly(t *testing.T) {
+	origDocs := newDocsService
+	t.Cleanup(func() { newDocsService = origDocs })
+
+	var got docs.BatchUpdateDocumentRequest
+	docSvc, cleanup := newDocsServiceForTest(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, "/v1/documents/"):
+			_ = json.NewEncoder(w).Encode(docBodyWithText("delete-me stays"))
+		case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, ":batchUpdate"):
+			if err := json.NewDecoder(r.Body).Decode(&got); err != nil {
+				t.Fatalf("decode batchUpdate: %v", err)
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{"documentId": "doc1"})
+		default:
+			http.NotFound(w, r)
+		}
+	})
+	defer cleanup()
+	newDocsService = func(context.Context, string) (*docs.Service, error) { return docSvc, nil }
+
+	flags := &RootFlags{Account: "a@b.com"}
+	cmd := &DocsFindReplaceCmd{}
+	if err := runKong(t, cmd, []string{"doc1", "delete-me", "", "--first"}, newDocsCmdContext(t), flags); err != nil {
+		t.Fatalf("docs find-replace empty replacement: %v", err)
+	}
+
+	if len(got.Requests) != 1 {
+		t.Fatalf("expected delete-only request, got %d requests", len(got.Requests))
+	}
+	if got.Requests[0].DeleteContentRange == nil {
+		t.Fatal("expected DeleteContentRange")
 	}
 }
 
@@ -114,6 +151,93 @@ func TestDocsFindReplace_ZeroOccurrences(t *testing.T) {
 	// Zero occurrences is not an error — no batchUpdate should be sent.
 	if err := runKong(t, cmd, []string{"doc1", "nonexistent", "whatever", "--first"}, newDocsCmdContext(t), flags); err != nil {
 		t.Fatalf("docs find-replace --first zero occurrences: %v", err)
+	}
+}
+
+func TestDocsFindReplace_DryRunCountsMatchesWithoutMutation(t *testing.T) {
+	origDocs := newDocsService
+	t.Cleanup(func() { newDocsService = origDocs })
+
+	docSvc, cleanup := newDocsServiceForTest(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, "/v1/documents/"):
+			_ = json.NewEncoder(w).Encode(docBodyWithText("Draft and draft and Draft"))
+		case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, ":batchUpdate"):
+			t.Fatalf("dry-run must not call batchUpdate")
+		default:
+			http.NotFound(w, r)
+		}
+	})
+	defer cleanup()
+	newDocsService = func(context.Context, string) (*docs.Service, error) { return docSvc, nil }
+
+	ctx := newDocsJSONContext(t)
+	flags := &RootFlags{Account: "a@b.com", DryRun: true}
+	cmd := &DocsFindReplaceCmd{}
+	out := captureStdout(t, func() {
+		err := runKong(t, cmd, []string{"doc1", "draft", "final"}, ctx, flags)
+		var exitErr *ExitError
+		if !errors.As(err, &exitErr) || exitErr.Code != 0 {
+			t.Fatalf("expected dry-run exit 0, got: %v", err)
+		}
+	})
+
+	var got struct {
+		DryRun  bool `json:"dry_run"`
+		Request struct {
+			Replacements int `json:"replacements"`
+			Remaining    int `json:"remaining"`
+		} `json:"request"`
+	}
+	if err := json.Unmarshal([]byte(out), &got); err != nil {
+		t.Fatalf("unmarshal: %v\noutput=%q", err, out)
+	}
+	if !got.DryRun || got.Request.Replacements != 3 || got.Request.Remaining != 0 {
+		t.Fatalf("unexpected dry-run payload: %#v", got)
+	}
+}
+
+func TestDocsFindReplace_DryRunFirstCountsOnlyOneReplacement(t *testing.T) {
+	origDocs := newDocsService
+	t.Cleanup(func() { newDocsService = origDocs })
+
+	docSvc, cleanup := newDocsServiceForTest(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, "/v1/documents/"):
+			_ = json.NewEncoder(w).Encode(docBodyWithText("needle and needle"))
+		case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, ":batchUpdate"):
+			t.Fatalf("dry-run must not call batchUpdate")
+		default:
+			http.NotFound(w, r)
+		}
+	})
+	defer cleanup()
+	newDocsService = func(context.Context, string) (*docs.Service, error) { return docSvc, nil }
+
+	ctx := newDocsJSONContext(t)
+	flags := &RootFlags{Account: "a@b.com", DryRun: true}
+	cmd := &DocsFindReplaceCmd{}
+	out := captureStdout(t, func() {
+		err := runKong(t, cmd, []string{"doc1", "needle", "thread", "--first"}, ctx, flags)
+		var exitErr *ExitError
+		if !errors.As(err, &exitErr) || exitErr.Code != 0 {
+			t.Fatalf("expected dry-run exit 0, got: %v", err)
+		}
+	})
+
+	var got struct {
+		Request struct {
+			Replacements int `json:"replacements"`
+			Remaining    int `json:"remaining"`
+		} `json:"request"`
+	}
+	if err := json.Unmarshal([]byte(out), &got); err != nil {
+		t.Fatalf("unmarshal: %v\noutput=%q", err, out)
+	}
+	if got.Request.Replacements != 1 || got.Request.Remaining != 1 {
+		t.Fatalf("unexpected dry-run counts: %#v", got.Request)
 	}
 }
 
@@ -517,14 +641,14 @@ func TestDocsFindReplace_MarkdownImageFailure_CleansUpPlaceholders(t *testing.T)
 			}
 			batchCalls = append(batchCalls, req)
 
-			// Fail the second batchUpdate (the image insertion) with a 500.
+			// Fail the second batchUpdate (the image insertion) with a non-retryable 400.
 			if len(batchCalls) == 2 {
-				w.WriteHeader(http.StatusInternalServerError)
+				w.WriteHeader(http.StatusBadRequest)
 				_ = json.NewEncoder(w).Encode(map[string]any{
 					"error": map[string]any{
-						"code":    500,
-						"message": "simulated backend error",
-						"status":  "INTERNAL",
+						"code":    400,
+						"message": "simulated invalid image",
+						"status":  "INVALID_ARGUMENT",
 					},
 				})
 				return

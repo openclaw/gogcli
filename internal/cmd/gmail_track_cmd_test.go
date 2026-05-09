@@ -36,6 +36,9 @@ func TestGmailTrackSetupAndStatus(t *testing.T) {
 	if !strings.Contains(out, "configured\ttrue") {
 		t.Fatalf("unexpected setup output: %q", out)
 	}
+	if !strings.Contains(out, "tracking_key_version\t1") {
+		t.Fatalf("missing setup key version: %q", out)
+	}
 
 	statusOut := captureStdout(t, func() {
 		_ = captureStderr(t, func() {
@@ -46,6 +49,68 @@ func TestGmailTrackSetupAndStatus(t *testing.T) {
 	})
 	if !strings.Contains(statusOut, "configured\ttrue") {
 		t.Fatalf("unexpected status output: %q", statusOut)
+	}
+	if !strings.Contains(statusOut, "tracking_key_version\t1") {
+		t.Fatalf("missing status key version: %q", statusOut)
+	}
+}
+
+func TestGmailTrackKeyRotateNoDeploy(t *testing.T) {
+	setupTrackingEnv(t)
+
+	_ = captureStdout(t, func() {
+		_ = captureStderr(t, func() {
+			if err := Execute([]string{"--account", "a@b.com", "--no-input", "gmail", "track", "setup", "--worker-url", "https://example.com"}); err != nil {
+				t.Fatalf("setup: %v", err)
+			}
+		})
+	})
+
+	rotateOut := captureStdout(t, func() {
+		_ = captureStderr(t, func() {
+			if err := Execute([]string{"--account", "a@b.com", "--no-input", "gmail", "track", "key", "rotate", "--no-deploy"}); err != nil {
+				t.Fatalf("rotate: %v", err)
+			}
+		})
+	})
+	if !strings.Contains(rotateOut, "tracking_key_version\t2") {
+		t.Fatalf("unexpected rotate output: %q", rotateOut)
+	}
+	if !strings.Contains(rotateOut, "tracking_key_versions\t1,2") {
+		t.Fatalf("unexpected rotate versions: %q", rotateOut)
+	}
+	if !strings.Contains(rotateOut, "deployed\tfalse") {
+		t.Fatalf("unexpected rotate deployed output: %q", rotateOut)
+	}
+
+	statusOut := captureStdout(t, func() {
+		_ = captureStderr(t, func() {
+			if err := Execute([]string{"--account", "a@b.com", "gmail", "track", "status"}); err != nil {
+				t.Fatalf("status: %v", err)
+			}
+		})
+	})
+	if !strings.Contains(statusOut, "tracking_key_version\t2") {
+		t.Fatalf("missing rotated status key version: %q", statusOut)
+	}
+
+	_ = captureStdout(t, func() {
+		_ = captureStderr(t, func() {
+			if err := Execute([]string{"--account", "a@b.com", "--no-input", "gmail", "track", "setup", "--worker-url", "https://example.com"}); err != nil {
+				t.Fatalf("rerun setup: %v", err)
+			}
+		})
+	})
+
+	statusOut = captureStdout(t, func() {
+		_ = captureStderr(t, func() {
+			if err := Execute([]string{"--account", "a@b.com", "gmail", "track", "status"}); err != nil {
+				t.Fatalf("status after setup rerun: %v", err)
+			}
+		})
+	})
+	if !strings.Contains(statusOut, "tracking_key_version\t2") {
+		t.Fatalf("setup rerun lost rotated key version: %q", statusOut)
 	}
 }
 

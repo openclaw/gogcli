@@ -1,6 +1,7 @@
 package tracking
 
 import (
+	"encoding/base64"
 	"testing"
 	"time"
 )
@@ -76,5 +77,68 @@ func TestDecryptWithWrongKeyFails(t *testing.T) {
 	_, err := Decrypt(encrypted, key2)
 	if err == nil {
 		t.Error("Expected error when decrypting with wrong key")
+	}
+}
+
+func TestEncryptWithVersionDecryptsWithActiveKeys(t *testing.T) {
+	oldKey, _ := GenerateKey()
+	newKey, _ := GenerateKey()
+	payload := &PixelPayload{
+		Recipient:   "test@example.com",
+		SubjectHash: "abc123",
+		SentAt:      time.Now().Unix(),
+	}
+
+	encrypted, err := EncryptWithVersion(payload, newKey, 2)
+	if err != nil {
+		t.Fatalf("EncryptWithVersion failed: %v", err)
+	}
+
+	raw, err := base64.RawURLEncoding.DecodeString(encrypted)
+	if err != nil {
+		t.Fatalf("decode encrypted blob: %v", err)
+	}
+
+	if got := int(raw[0]); got != 2 {
+		t.Fatalf("version prefix = %d, want 2", got)
+	}
+
+	decrypted, err := DecryptWithKeys(encrypted, map[int]string{
+		1: oldKey,
+		2: newKey,
+	})
+	if err != nil {
+		t.Fatalf("DecryptWithKeys failed: %v", err)
+	}
+
+	if *decrypted != *payload {
+		t.Fatalf("decrypted payload = %#v, want %#v", decrypted, payload)
+	}
+}
+
+func TestDecryptWithKeysAcceptsLegacyBlobs(t *testing.T) {
+	oldKey, _ := GenerateKey()
+	newKey, _ := GenerateKey()
+	payload := &PixelPayload{
+		Recipient:   "test@example.com",
+		SubjectHash: "abc123",
+		SentAt:      time.Now().Unix(),
+	}
+
+	encrypted, err := Encrypt(payload, oldKey)
+	if err != nil {
+		t.Fatalf("Encrypt failed: %v", err)
+	}
+
+	decrypted, err := DecryptWithKeys(encrypted, map[int]string{
+		1: oldKey,
+		2: newKey,
+	})
+	if err != nil {
+		t.Fatalf("DecryptWithKeys legacy failed: %v", err)
+	}
+
+	if *decrypted != *payload {
+		t.Fatalf("decrypted payload = %#v, want %#v", decrypted, payload)
 	}
 }

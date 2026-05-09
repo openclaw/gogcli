@@ -520,6 +520,128 @@ func TestGmailLabelsCreateCmd_DuplicateName_APIError(t *testing.T) {
 	}
 }
 
+func TestGmailLabelsStyleCmd_PatchColorAndVisibility(t *testing.T) {
+	var gotPatch bool
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && (strings.HasSuffix(r.URL.Path, "/users/me/labels") || strings.HasSuffix(r.URL.Path, "/gmail/v1/users/me/labels")):
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"labels": []map[string]any{{"id": "Label_1", "name": "Custom", "type": "user"}},
+			})
+			return
+		case r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/labels/Custom"):
+			http.NotFound(w, r)
+			return
+		case r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/labels/Label_1"):
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"id":   "Label_1",
+				"name": "Custom",
+				"type": "user",
+				"color": map[string]any{
+					"textColor":       "#000000",
+					"backgroundColor": "#ffffff",
+				},
+			})
+			return
+		case r.Method == http.MethodPatch && strings.HasSuffix(r.URL.Path, "/labels/Label_1"):
+			gotPatch = true
+			var body struct {
+				Color struct {
+					TextColor       string `json:"textColor"`
+					BackgroundColor string `json:"backgroundColor"`
+				} `json:"color"`
+				LabelListVisibility   string `json:"labelListVisibility"`
+				MessageListVisibility string `json:"messageListVisibility"`
+			}
+			if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+				t.Fatalf("decode patch: %v", err)
+			}
+			if body.Color.TextColor != "#112233" || body.Color.BackgroundColor != "#ffffff" {
+				t.Fatalf("unexpected color patch: %#v", body.Color)
+			}
+			if body.LabelListVisibility != "labelShowIfUnread" || body.MessageListVisibility != "hide" {
+				t.Fatalf("unexpected visibility patch: %#v", body)
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"id":                    "Label_1",
+				"name":                  "Custom",
+				"type":                  "user",
+				"labelListVisibility":   body.LabelListVisibility,
+				"messageListVisibility": body.MessageListVisibility,
+				"color": map[string]any{
+					"textColor":       body.Color.TextColor,
+					"backgroundColor": body.Color.BackgroundColor,
+				},
+			})
+			return
+		default:
+			http.NotFound(w, r)
+			return
+		}
+	}))
+	defer srv.Close()
+	stubGmailService(t, srv)
+
+	out := captureStdout(t, func() {
+		u, uiErr := ui.New(ui.Options{Stdout: io.Discard, Stderr: io.Discard, Color: "never"})
+		if uiErr != nil {
+			t.Fatalf("ui.New: %v", uiErr)
+		}
+		ctx := ui.WithUI(context.Background(), u)
+		ctx = outfmt.WithMode(ctx, outfmt.Mode{JSON: true})
+
+		cmd := &GmailLabelsStyleCmd{}
+		err := runKong(t, cmd, []string{
+			"Custom",
+			"--text-color", "#112233",
+			"--label-list-visibility", "labelShowIfUnread",
+			"--message-list-visibility", "hide",
+		}, ctx, &RootFlags{Account: "a@b.com"})
+		if err != nil {
+			t.Fatalf("execute: %v", err)
+		}
+	})
+	if !gotPatch {
+		t.Fatal("expected patch call")
+	}
+	if !strings.Contains(out, `"textColor": "#112233"`) {
+		t.Fatalf("missing color in output: %q", out)
+	}
+}
+
+func TestGmailLabelsStyleCmd_RejectsSystemLabel(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet || !strings.HasSuffix(r.URL.Path, "/labels/INBOX") {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"id":   "INBOX",
+			"name": "INBOX",
+			"type": "system",
+		})
+	}))
+	defer srv.Close()
+	stubGmailService(t, srv)
+
+	u, uiErr := ui.New(ui.Options{Stdout: io.Discard, Stderr: io.Discard, Color: "never"})
+	if uiErr != nil {
+		t.Fatalf("ui.New: %v", uiErr)
+	}
+	ctx := ui.WithUI(context.Background(), u)
+
+	cmd := &GmailLabelsStyleCmd{}
+	err := runKong(t, cmd, []string{"INBOX", "--background-color", "#112233"}, ctx, &RootFlags{Account: "a@b.com"})
+	if err == nil || !strings.Contains(err.Error(), "cannot style system label") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
 func TestFetchLabelIDToName(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !(strings.HasSuffix(r.URL.Path, "/users/me/labels") || strings.HasSuffix(r.URL.Path, "/gmail/v1/users/me/labels")) {

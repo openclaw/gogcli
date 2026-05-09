@@ -19,9 +19,6 @@ import (
 )
 
 func TestExecute_DriveGet_JSON(t *testing.T) {
-	origNew := newDriveService
-	t.Cleanup(func() { newDriveService = origNew })
-
 	svc, closeSrv := newDriveTestService(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// google.golang.org/api/drive sometimes uses basepaths with or without /drive/v3.
 		// For this test we accept any GET and return the metadata payload.
@@ -41,8 +38,7 @@ func TestExecute_DriveGet_JSON(t *testing.T) {
 		})
 	}))
 	defer closeSrv()
-
-	newDriveService = stubDriveService(svc)
+	stubDriveServiceForTest(t, svc)
 
 	out := captureStdout(t, func() {
 		_ = captureStderr(t, func() {

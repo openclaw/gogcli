@@ -36,8 +36,8 @@ func (c *CalendarFocusTimeCmd) Run(ctx context.Context, flags *RootFlags) error 
 
 	event := &calendar.Event{
 		Summary:      strings.TrimSpace(c.Summary),
-		Start:        &calendar.EventDateTime{DateTime: strings.TrimSpace(c.From)},
-		End:          &calendar.EventDateTime{DateTime: strings.TrimSpace(c.To)},
+		Start:        buildEventDateTime(c.From, false),
+		End:          buildEventDateTime(c.To, false),
 		EventType:    eventTypeFocusTime,
 		Transparency: "opaque",
 		FocusTimeProperties: &calendar.EventFocusTimeProperties{

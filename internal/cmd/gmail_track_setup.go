@@ -83,7 +83,29 @@ func (c *GmailTrackSetupCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return usage("required: --worker-url")
 	}
 
+	explicitTrackingKey := strings.TrimSpace(c.TrackingKey) != ""
 	key := strings.TrimSpace(c.TrackingKey)
+	currentVersion := cfg.TrackingCurrentKeyVersion
+	if currentVersion <= 0 {
+		currentVersion = 1
+	}
+
+	trackingKeys := map[int]string{}
+	if !explicitTrackingKey {
+		versions := tracking.NormalizeTrackingKeyVersions(cfg.TrackingKeyVersions, currentVersion)
+		if len(versions) > 0 {
+			loadedKeys, loadedCurrentVersion, loadErr := tracking.LoadTrackingKeys(account, versions, currentVersion)
+			if loadErr != nil {
+				return fmt.Errorf("load tracking keys: %w", loadErr)
+			}
+
+			if len(loadedKeys) > 0 {
+				trackingKeys = loadedKeys
+				currentVersion = loadedCurrentVersion
+			}
+		}
+	}
+
 	if key == "" {
 		key = strings.TrimSpace(cfg.TrackingKey)
 	}
@@ -93,6 +115,15 @@ func (c *GmailTrackSetupCmd) Run(ctx context.Context, flags *RootFlags) error {
 			return fmt.Errorf("generate tracking key: %w", err)
 		}
 	}
+	if len(trackingKeys) == 0 || explicitTrackingKey {
+		currentVersion = 1
+		trackingKeys = map[int]string{currentVersion: key}
+	}
+	if strings.TrimSpace(trackingKeys[currentVersion]) == "" {
+		trackingKeys[currentVersion] = key
+	}
+	key = trackingKeys[currentVersion]
+	versions := tracking.NormalizeTrackingKeyVersions(mapKeys(trackingKeys), currentVersion)
 
 	adminKey := strings.TrimSpace(c.AdminKey)
 	if adminKey == "" {
@@ -111,19 +142,21 @@ func (c *GmailTrackSetupCmd) Run(ctx context.Context, flags *RootFlags) error {
 
 	// Avoid touching keyring and avoid provisioning/deploying in dry-run mode.
 	if err := dryRunExit(ctx, flags, "gmail.track.setup", map[string]any{
-		"account":          account,
-		"worker_url":       c.WorkerURL,
-		"worker_name":      workerName,
-		"database_name":    c.DatabaseName,
-		"deploy":           c.Deploy,
-		"worker_dir":       c.WorkerDir,
-		"tracking_key_set": strings.TrimSpace(key) != "",
-		"admin_key_set":    strings.TrimSpace(adminKey) != "",
+		"account":               account,
+		"worker_url":            c.WorkerURL,
+		"worker_name":           workerName,
+		"database_name":         c.DatabaseName,
+		"deploy":                c.Deploy,
+		"worker_dir":            c.WorkerDir,
+		"tracking_key_set":      strings.TrimSpace(key) != "",
+		"tracking_key_version":  currentVersion,
+		"tracking_key_versions": versions,
+		"admin_key_set":         strings.TrimSpace(adminKey) != "",
 	}); err != nil {
 		return err
 	}
 
-	if err := tracking.SaveSecrets(account, key, adminKey); err != nil {
+	if err := tracking.SaveTrackingKeys(account, trackingKeys, currentVersion, adminKey); err != nil {
 		return fmt.Errorf("save tracking secrets: %w", err)
 	}
 
@@ -133,15 +166,19 @@ func (c *GmailTrackSetupCmd) Run(ctx context.Context, flags *RootFlags) error {
 	cfg.DatabaseName = c.DatabaseName
 	cfg.SecretsInKeyring = true
 	cfg.TrackingKey = ""
+	cfg.TrackingKeyVersions = versions
+	cfg.TrackingCurrentKeyVersion = currentVersion
 	cfg.AdminKey = ""
 
 	if c.Deploy {
 		dbID, deployErr := tracking.DeployWorker(ctx, u.Err(), tracking.DeployOptions{
-			WorkerDir:    c.WorkerDir,
-			WorkerName:   workerName,
-			DatabaseName: c.DatabaseName,
-			TrackingKey:  key,
-			AdminKey:     adminKey,
+			WorkerDir:              c.WorkerDir,
+			WorkerName:             workerName,
+			DatabaseName:           c.DatabaseName,
+			TrackingKey:            key,
+			TrackingKeys:           trackingKeys,
+			TrackingCurrentVersion: currentVersion,
+			AdminKey:               adminKey,
 		})
 		if deployErr != nil {
 			return deployErr
@@ -162,6 +199,7 @@ func (c *GmailTrackSetupCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u.Out().Printf("worker_url\t%s", cfg.WorkerURL)
 	u.Out().Printf("worker_name\t%s", cfg.WorkerName)
 	u.Out().Printf("database_name\t%s", cfg.DatabaseName)
+	u.Out().Printf("tracking_key_version\t%d", cfg.TrackingCurrentKeyVersion)
 	if cfg.DatabaseID != "" {
 		u.Out().Printf("database_id\t%s", cfg.DatabaseID)
 	}
@@ -172,11 +210,19 @@ func (c *GmailTrackSetupCmd) Run(ctx context.Context, flags *RootFlags) error {
 		u.Err().Printf("  - cd %s", c.WorkerDir)
 		u.Err().Println("  - use these values when prompted:")
 		u.Err().Printf("    TRACKING_KEY=%s", key)
+		for _, version := range versions {
+			u.Err().Printf("    TRACKING_KEY_V%d=%s", version, trackingKeys[version])
+		}
+		u.Err().Printf("    TRACKING_CURRENT_KEY_VERSION=%d", currentVersion)
 		u.Err().Printf("    ADMIN_KEY=%s", adminKey)
 		u.Err().Printf("  - wrangler d1 create %s", c.DatabaseName)
-		u.Err().Println("  - wrangler d1 execute <db> --file schema.sql --remote")
 		u.Err().Printf("  - set wrangler.toml name=%s + database_id", cfg.WorkerName)
+		u.Err().Println("  - wrangler d1 execute <db> --file schema.sql --remote")
 		u.Err().Println("  - wrangler secret put TRACKING_KEY")
+		for _, version := range versions {
+			u.Err().Printf("  - wrangler secret put TRACKING_KEY_V%d", version)
+		}
+		u.Err().Println("  - wrangler secret put TRACKING_CURRENT_KEY_VERSION")
 		u.Err().Println("  - wrangler secret put ADMIN_KEY")
 		u.Err().Println("  - wrangler deploy")
 	}

@@ -84,11 +84,18 @@ func (c *SchemaCmd) Run(ctx context.Context, kctx *kong.Context) error {
 	}
 
 	hide := !c.IncludeHidden
+	profile, err := loadBakedSafetyProfile()
+	if err != nil {
+		return usagef("invalid baked safety profile: %v", err)
+	}
+	if profile.commandNodeBlockedForHelp(node) {
+		return profile.commandPathError(commandNodePath(node))
+	}
 
 	doc := schemaDoc{
 		SchemaVersion: 1,
 		Build:         VersionString(),
-		Command:       buildSchemaNode(node, hide),
+		Command:       buildSchemaNode(node, hide, profile),
 	}
 
 	return outfmt.WriteJSON(ctx, os.Stdout, doc)
@@ -145,7 +152,7 @@ func findChildCommand(parent *kong.Node, token string) *kong.Node {
 	return nil
 }
 
-func buildSchemaNode(node *kong.Node, hide bool) *schemaNode {
+func buildSchemaNode(node *kong.Node, hide bool, profile bakedSafetyProfile) *schemaNode {
 	if node == nil {
 		return nil
 	}
@@ -177,12 +184,17 @@ func buildSchemaNode(node *kong.Node, hide bool) *schemaNode {
 		if hide && child.Hidden {
 			continue
 		}
+		if !profile.commandNodeVisible(child) {
+			continue
+		}
 		children = append(children, child)
 	}
 	sort.Slice(children, func(i, j int) bool { return children[i].Name < children[j].Name })
 
 	for _, child := range children {
-		out.Subcommands = append(out.Subcommands, buildSchemaNode(child, hide))
+		if childNode := buildSchemaNode(child, hide, profile); childNode != nil {
+			out.Subcommands = append(out.Subcommands, childNode)
+		}
 	}
 
 	return out
