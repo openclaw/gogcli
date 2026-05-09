@@ -277,6 +277,11 @@ gog auth keyring file
 GOG_KEYRING_BACKEND=file GOG_KEYRING_PASSWORD=... gog auth list --check
 ```
 
+For systemd services, gateways, and coding agents, set the same variables on
+the service or agent process itself. A successful shell check does not mean the
+agent subprocess inherited `GOG_KEYRING_PASSWORD`; verify through the actual
+agent entrypoint with `gog auth doctor --check --no-input`.
+
 Never commit OAuth client JSON files, refresh tokens, service-account keys, or
 file-keyring passwords.
 

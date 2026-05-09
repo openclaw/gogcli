@@ -129,6 +129,15 @@ func (c *AuthListCmd) Run(ctx context.Context, _ *RootFlags) error {
 	if err != nil {
 		return err
 	}
+	if clientOverride := authclient.ClientOverrideFromContext(ctx); strings.TrimSpace(clientOverride) != "" {
+		client, normalizeErr := config.NormalizeClientNameOrDefault(clientOverride)
+		if normalizeErr != nil {
+			return normalizeErr
+		}
+		tokens = filterAuthListTokensByClient(tokens, client)
+		tokenReadErrors = filterAuthListReadErrorsByClient(tokenReadErrors, client)
+		serviceAccountEmails = nil
+	}
 
 	entries := buildAuthListEntries(tokens, tokenReadErrors, serviceAccountEmails)
 

@@ -125,6 +125,75 @@ func TestAuthList_CheckJSON(t *testing.T) {
 	}
 }
 
+func TestAuthList_JSON_DoesNotCollapseSameEmailAcrossClients(t *testing.T) {
+	origOpen := openSecretsStore
+	t.Cleanup(func() { openSecretsStore = origOpen })
+
+	store := newMemStore()
+	openSecretsStore = func() (secrets.Store, error) { return store, nil }
+
+	for _, client := range []string{"compose", "inbox", "ro", "rw"} {
+		if err := store.SetToken(client, "user@example.com", secrets.Token{
+			Email:        "user@example.com",
+			RefreshToken: "rt-" + client,
+			Services:     []string{client},
+		}); err != nil {
+			t.Fatalf("SetToken(%s): %v", client, err)
+		}
+	}
+
+	ctx := newCmdJSONOutputContext(t, os.Stdout, os.Stderr)
+	listCmd := AuthListCmd{}
+	out := captureStdout(t, func() {
+		runErr := listCmd.Run(ctx, &RootFlags{})
+		if runErr != nil {
+			t.Fatalf("list: %v", runErr)
+		}
+	})
+
+	var payload struct {
+		Accounts []struct {
+			Email  string   `json:"email"`
+			Client string   `json:"client"`
+			Auth   string   `json:"auth"`
+			Scopes []string `json:"scopes"`
+		} `json:"accounts"`
+	}
+	if err := json.Unmarshal([]byte(out), &payload); err != nil {
+		t.Fatalf("decode list output: %v\n%s", err, out)
+	}
+	if len(payload.Accounts) != 4 {
+		t.Fatalf("accounts=%#v, want one row per client", payload.Accounts)
+	}
+
+	gotClients := make([]string, 0, len(payload.Accounts))
+	for _, account := range payload.Accounts {
+		if account.Email != "user@example.com" || account.Auth != authTypeOAuth {
+			t.Fatalf("unexpected account row: %#v", account)
+		}
+		gotClients = append(gotClients, account.Client)
+	}
+	wantClients := []string{"compose", "inbox", "ro", "rw"}
+	if strings.Join(gotClients, ",") != strings.Join(wantClients, ",") {
+		t.Fatalf("clients=%v, want %v", gotClients, wantClients)
+	}
+
+	filteredOut := captureStdout(t, func() {
+		_ = captureStderr(t, func() {
+			if err := Execute([]string{"--json", "--client", "ro", "auth", "list"}); err != nil {
+				t.Fatalf("Execute filtered list: %v", err)
+			}
+		})
+	})
+	payload.Accounts = nil
+	if err := json.Unmarshal([]byte(filteredOut), &payload); err != nil {
+		t.Fatalf("decode filtered list output: %v\n%s", err, filteredOut)
+	}
+	if len(payload.Accounts) != 1 || payload.Accounts[0].Client != "ro" || payload.Accounts[0].Email != "user@example.com" {
+		t.Fatalf("filtered accounts=%#v, want only ro", payload.Accounts)
+	}
+}
+
 type memStore struct {
 	tokens       map[string]secrets.Token
 	defaultEmail string

@@ -2,6 +2,14 @@
 
 ## 0.16.0 - Unreleased
 
+### Fixed
+
+- Auth: list one row per OAuth client when the same account is authorized under multiple clients, and let `auth list --client` filter that token bucket. (#563) — thanks @UnPractical91.
+- Docs: clarify how to pass file-keyring environment into headless OpenClaw/systemd agent processes. (#566) — thanks @chsbusch-dot.
+- Docs: avoid infinite loops when local Markdown parsing ends on Thai, CJK, emoji, or other multi-byte runes. (#560 / #559) — thanks @ninyawee.
+- Agent skill: replace stale bundled `gog` skill paths with the current docs and auth package locations. (#558 / #557) — thanks @WadydX.
+- CI: run the docs validation gate in GitHub Actions and the local `make ci` target. (#562 / #561) — thanks @WadydX.
+
 ## 0.15.0 - 2026-05-05
 
 ### Added

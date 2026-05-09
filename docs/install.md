@@ -44,6 +44,39 @@ docker run --rm -it \
 Keep `GOG_KEYRING_PASSWORD` in the shell session or your CI secret store. Do
 not bake it into images, scripts, or checked-in profiles.
 
+## Headless agents and systemd
+
+For headless agents, configure `gog` with the encrypted file keyring and pass
+the same environment to the process that will actually invoke `gog`. A command
+working in your login shell only proves that shell has the password; it does
+not prove a systemd service, gateway, or agent subprocess inherited it.
+
+Use this as the minimum runtime environment:
+
+```ini
+Environment=GOG_KEYRING_BACKEND=file
+Environment=GOG_KEYRING_PASSWORD=replace-with-secret-manager-injection
+Environment=HOME=/home/openclaw
+```
+
+Then reload and restart the service before testing from the same entrypoint the
+agent uses:
+
+```bash
+systemctl --user daemon-reload
+systemctl --user restart openclaw-gateway.service
+
+systemctl --user show openclaw-gateway.service \
+  --property=Environment
+
+openclaw agent --agent main --message \
+  'Run: gog auth doctor --check --no-input && gog gmail search "newer_than:1d" --max 1 --json'
+```
+
+If the shell command succeeds but the agent still reports `keyring.password`,
+fix the agent or service environment first. Re-authenticating usually does not
+help when `gog auth doctor --check` already shows readable tokens in the shell.
+
 ## Windows
 
 Download the matching ZIP from the

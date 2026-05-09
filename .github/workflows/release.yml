@@ -49,12 +49,16 @@ jobs:
         run: git checkout "$RELEASE_TAG"
 
       - name: Import macOS signing certificate
-        if: ${{ secrets.MACOS_SIGNING_CERT_BASE64 != '' }}
         env:
           MACOS_SIGNING_CERT_BASE64: ${{ secrets.MACOS_SIGNING_CERT_BASE64 }}
           MACOS_SIGNING_CERT_PASSWORD: ${{ secrets.MACOS_SIGNING_CERT_PASSWORD }}
         run: |
           set -euo pipefail
+          if [ -z "$MACOS_SIGNING_CERT_BASE64" ]; then
+            echo "No macOS signing certificate configured; skipping import."
+            exit 0
+          fi
+
           KEYCHAIN="build.keychain"
           KEYCHAIN_PASSWORD="$(uuidgen)"
 
@@ -78,3 +82,62 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GOG_CODESIGN_IDENTITY: ${{ secrets.MACOS_CODESIGN_IDENTITY }}
+
+  update-homebrew-tap:
+    runs-on: ubuntu-latest
+    needs: goreleaser
+    steps:
+      - name: Resolve release tag
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "RELEASE_TAG=${{ inputs.tag }}" >> "$GITHUB_ENV"
+          else
+            echo "RELEASE_TAG=${{ github.ref_name }}" >> "$GITHUB_ENV"
+          fi
+
+      - name: Dispatch tap formula update
+        env:
+          GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::error::Set HOMEBREW_TAP_TOKEN with workflow access to steipete/homebrew-tap"
+            exit 1
+          fi
+
+          request_id="gogcli-${RELEASE_TAG}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          expected_title="Update gogcli for ${RELEASE_TAG} (${request_id})"
+
+          gh workflow run update-formula.yml \
+            --repo steipete/homebrew-tap \
+            --ref main \
+            -f formula=gogcli \
+            -f tag="$RELEASE_TAG" \
+            -f repository=steipete/gogcli \
+            -f artifact_template="{formula}_{version}_{target}.tar.gz" \
+            -f request_id="$request_id"
+
+          run_id=""
+          for _ in {1..30}; do
+            run_id=$(gh run list \
+              --repo steipete/homebrew-tap \
+              --workflow update-formula.yml \
+              --branch main \
+              --event workflow_dispatch \
+              --limit 20 \
+              --json databaseId,displayTitle \
+              --jq ".[] | select(.displayTitle == \"$expected_title\") | .databaseId" | head -n1)
+            if [ -n "$run_id" ]; then
+              break
+            fi
+            sleep 5
+          done
+
+          if [ -z "$run_id" ]; then
+            echo "::error::Could not find tap workflow run with title: $expected_title"
+            exit 1
+          fi
+
+          gh run watch "$run_id" \
+            --repo steipete/homebrew-tap \
+            --exit-status \
+            --interval 10

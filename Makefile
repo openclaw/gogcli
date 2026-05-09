@@ -109,7 +109,7 @@ pnpm-gate:
 test:
 	@go test $(GO_TEST_FLAGS) $(TEST_FLAGS) $(TEST_PKGS)
 
-ci: pnpm-gate fmt-check lint test
+ci: pnpm-gate fmt-check lint test docs-check
 
 worker-ci:
 	@pnpm -C internal/tracking/worker lint

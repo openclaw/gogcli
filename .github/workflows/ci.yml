@@ -29,6 +29,8 @@ jobs:
         run: make test
       - name: Lint
         run: make lint
+      - name: Docs check
+        run: make docs-check
 
   worker:
     runs-on: ubuntu-latest

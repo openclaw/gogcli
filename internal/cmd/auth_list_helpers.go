@@ -49,31 +49,32 @@ func listAuthTokensWithFallback(store secrets.Store) ([]secrets.Token, []authTok
 	return readableTokens(store)
 }
 
-type tokenByEmail struct {
-	tok secrets.Token
-	ok  bool
+func filterAuthListTokensByClient(tokens []secrets.Token, client string) []secrets.Token {
+	filtered := make([]secrets.Token, 0, len(tokens))
+	for _, tok := range tokens {
+		if authListCanonicalClient(tok.Client) == client {
+			filtered = append(filtered, tok)
+		}
+	}
+	return filtered
+}
+
+func filterAuthListReadErrorsByClient(readErrors []authTokenReadError, client string) []authTokenReadError {
+	filtered := make([]authTokenReadError, 0, len(readErrors))
+	for _, readErr := range readErrors {
+		if authListCanonicalClient(readErr.Client) == client {
+			filtered = append(filtered, readErr)
+		}
+	}
+	return filtered
 }
 
 func buildAuthListEntries(tokens []secrets.Token, tokenReadErrors []authTokenReadError, serviceAccountEmails []string) []authListEntry {
-	sort.Slice(tokens, func(i, j int) bool { return tokens[i].Email < tokens[j].Email })
-
-	tokMap := make(map[string]tokenByEmail, len(tokens))
-	for _, t := range tokens {
-		email := normalizeEmail(t.Email)
-		if email == "" {
-			continue
-		}
-		tokMap[email] = tokenByEmail{tok: t, ok: true}
-	}
-
-	readErrMap := make(map[string]authTokenReadError, len(tokenReadErrors))
-	for _, readErr := range tokenReadErrors {
-		email := normalizeEmail(readErr.Email)
-		if email == "" {
-			continue
-		}
-		readErrMap[email] = readErr
-	}
+	sort.Slice(tokens, func(i, j int) bool {
+		left := authListTokenKey(tokens[i].Client, tokens[i].Email)
+		right := authListTokenKey(tokens[j].Client, tokens[j].Email)
+		return left < right
+	})
 
 	entries := make([]authListEntry, 0, len(tokens)+len(serviceAccountEmails)+len(tokenReadErrors))
 	seen := make(map[string]struct{})
@@ -82,21 +83,23 @@ func buildAuthListEntries(tokens []secrets.Token, tokenReadErrors []authTokenRea
 		if email == "" {
 			continue
 		}
-		if _, ok := seen[email]; ok {
+		key := authListServiceAccountKey(email)
+		if _, ok := seen[key]; ok {
 			continue
 		}
-		seen[email] = struct{}{}
-		entries = append(entries, authListEntryForServiceAccount(email, tokMap[email], readErrMap[email]))
+		seen[key] = struct{}{}
+		entries = append(entries, authListEntryForServiceAccount(email))
 	}
 	for _, t := range tokens {
 		email := normalizeEmail(t.Email)
 		if email == "" {
 			continue
 		}
-		if _, ok := seen[email]; ok {
+		key := authListTokenKey(t.Client, email)
+		if _, ok := seen[key]; ok {
 			continue
 		}
-		seen[email] = struct{}{}
+		seen[key] = struct{}{}
 		tok := t
 		entries = append(entries, authListEntry{Email: email, Token: &tok})
 	}
@@ -105,31 +108,47 @@ func buildAuthListEntries(tokens []secrets.Token, tokenReadErrors []authTokenRea
 		if email == "" {
 			continue
 		}
-		if _, ok := seen[email]; ok {
+		key := authListTokenKey(readErr.Client, email)
+		if _, ok := seen[key]; ok {
 			continue
 		}
-		seen[email] = struct{}{}
+		seen[key] = struct{}{}
 		entries = append(entries, authListEntryForReadError(email, readErr))
 	}
 
-	sort.Slice(entries, func(i, j int) bool { return entries[i].Email < entries[j].Email })
+	sort.Slice(entries, func(i, j int) bool {
+		if entries[i].Email != entries[j].Email {
+			return entries[i].Email < entries[j].Email
+		}
+		clientI, _, _, _ := entries[i].details()
+		clientJ, _, _, _ := entries[j].details()
+		if clientI != clientJ {
+			return clientI < clientJ
+		}
+		return entries[i].authType() < entries[j].authType()
+	})
 
 	return entries
 }
 
-func authListEntryForServiceAccount(email string, te tokenByEmail, readErr authTokenReadError) authListEntry {
-	var tok *secrets.Token
-	if te.ok {
-		t := te.tok
-		tok = &t
-	}
-	entry := authListEntry{Email: email, Client: readErr.Client, Token: tok, SA: true}
-	if readErr.Err != nil {
-		entry.ReadErr = readErr.Err
-		_, entry.ReadHint = classifyAuthDoctorError(readErr.Err)
-	}
+func authListTokenKey(client string, email string) string {
+	return "oauth\t" + authListCanonicalClient(client) + "\t" + normalizeEmail(email)
+}
 
-	return entry
+func authListServiceAccountKey(email string) string {
+	return "service-account\t" + normalizeEmail(email)
+}
+
+func authListCanonicalClient(client string) string {
+	client = strings.TrimSpace(client)
+	if client == "" {
+		return "default"
+	}
+	return client
+}
+
+func authListEntryForServiceAccount(email string) authListEntry {
+	return authListEntry{Email: email, SA: true}
 }
 
 func authListEntryForReadError(email string, readErr authTokenReadError) authListEntry {
