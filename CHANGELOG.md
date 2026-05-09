@@ -2,6 +2,10 @@
 
 ## 0.16.0 - Unreleased
 
+### Added
+
+- Forms: add `forms publish` to publish/unpublish existing forms and return the responder URL for automated form creation flows. (#565 / #564) — thanks @bogdanovich.
+
 ### Fixed
 
 - Auth: list one row per OAuth client when the same account is authorized under multiple clients, and let `auth list --client` filter that token bucket. (#563) — thanks @UnPractical91.

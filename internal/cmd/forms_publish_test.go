@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -233,7 +234,7 @@ func TestFormsPublishCmdDryRun(t *testing.T) {
 	t.Cleanup(func() { newFormsService = origNew })
 	newFormsService = func(context.Context, string) (*formsapi.Service, error) {
 		t.Fatalf("dry-run should not create forms service")
-		return nil, nil
+		return nil, errors.New("unexpected forms service call")
 	}
 
 	out := captureStdout(t, func() {

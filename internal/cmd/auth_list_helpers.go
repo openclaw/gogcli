@@ -142,7 +142,7 @@ func authListServiceAccountKey(email string) string {
 func authListCanonicalClient(client string) string {
 	client = strings.TrimSpace(client)
 	if client == "" {
-		return "default"
+		return literalDefault
 	}
 	return client
 }
