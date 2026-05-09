@@ -1,6 +1,6 @@
 ---
 name: gog
-description: Use when working with the gog CLI for Google Workspace automation, especially when an agent needs JSON output, auth preflight, command guards, scoped accounts, or safe Google API reads/writes across Gmail, Calendar, Drive, Docs, Sheets, Slides, Forms, Apps Script, Contacts, Tasks, People, Groups, Keep, or Admin.
+description: "gog CLI: safe Google Workspace automation, JSON, auth, scoped reads/writes."
 ---
 
 # gog

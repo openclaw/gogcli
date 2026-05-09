@@ -2,6 +2,10 @@
 
 ## 0.16.0 - Unreleased
 
+### Fixed
+
+- Docs: avoid infinite loops when local Markdown parsing ends on Thai, CJK, emoji, or other multi-byte runes. (#560 / #559) — thanks @ninyawee.
+
 ## 0.15.0 - 2026-05-05
 
 ### Added

@@ -5,6 +5,7 @@ import (
 	"regexp"
 	"strings"
 	"unicode/utf16"
+	"unicode/utf8"
 )
 
 const (
@@ -455,18 +456,16 @@ func ParseInlineFormatting(text string) ([]TextStyle, string) {
 	return styles, strippedText
 }
 
-// nextRune returns the first rune and its byte size from a string
+// nextRune returns the first rune and its byte size from a string.
+// For a string consisting of a single multi-byte rune (e.g. Thai or other
+// non-ASCII text), the previous range-based implementation returned size 0,
+// which caused callers like ParseInlineFormatting to spin in an infinite loop.
 func nextRune(s string) (string, int) {
-	for i, r := range s {
-		if i > 0 {
-			return s[:i], i
-		}
-		if len(s) == 1 {
-			return s, 1
-		}
-		_ = r
+	if s == "" {
+		return "", 0
 	}
-	return "", 0
+	_, size := utf8.DecodeRuneInString(s)
+	return s[:size], size
 }
 
 func parseHeading(line string) (int, string) {
