@@ -1,7 +1,7 @@
 # gogcli
 
 `gog` is a script-friendly Google CLI for Gmail, Calendar, Drive, Docs, Sheets,
-Slides, Forms, Meet, Apps Script, Contacts, Tasks, People, Classroom, Chat,
+Sites, Slides, Forms, Meet, Apps Script, Contacts, Tasks, People, Classroom, Chat,
 YouTube, and Workspace admin flows.
 
 It is built for terminals, shell scripts, CI, and coding agents:
@@ -354,6 +354,7 @@ Generated service scope table:
 | sheets | yes | Sheets API, Drive API | `https://www.googleapis.com/auth/drive`<br>`https://www.googleapis.com/auth/spreadsheets` | Export via Drive |
 | people | yes | People API | `profile` | OIDC profile scope |
 | forms | yes | Forms API | `https://www.googleapis.com/auth/forms.body`<br>`https://www.googleapis.com/auth/forms.responses.readonly` |  |
+| sites | yes | Drive API | `https://www.googleapis.com/auth/drive` | New Google Sites are exposed as Drive files |
 | meet | yes | Meet REST API | `https://www.googleapis.com/auth/meetings.space.created`<br>`https://www.googleapis.com/auth/meetings.space.readonly`<br>`https://www.googleapis.com/auth/meetings.space.settings` |  |
 | appscript | yes | Apps Script API | `https://www.googleapis.com/auth/script.projects`<br>`https://www.googleapis.com/auth/script.deployments`<br>`https://www.googleapis.com/auth/script.processes` |  |
 | ads | yes | Google Ads API | `https://www.googleapis.com/auth/adwords` | OAuth scope only |

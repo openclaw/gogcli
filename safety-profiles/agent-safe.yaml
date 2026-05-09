@@ -102,6 +102,12 @@ drive:
     delete: false
     reply: true
 
+sites:
+  list: true
+  search: true
+  get: true
+  url: true
+
 contacts:
   search: true
   list: true

@@ -19,7 +19,7 @@ gog docs (doc) write <docId> [flags]
 | Flag | Type | Default | Help |
 | --- | --- | --- | --- |
 | `--access-token` | `string` |  | Use provided access token directly (bypasses stored refresh tokens; token expires in ~1h) |
-| `-a`<br>`--account`<br>`--acct` | `string` |  | Account email for API commands (gmail/calendar/chat/classroom/drive/docs/slides/contacts/tasks/people/sheets/forms/appscript/ads) |
+| `-a`<br>`--account`<br>`--acct` | `string` |  | Account email for API commands (gmail/calendar/chat/classroom/drive/docs/slides/contacts/tasks/people/sheets/forms/sites/appscript/ads) |
 | `--alignment` | `string` |  | Paragraph alignment: left, center, right, justify, start, end, justified |
 | `--append` | `bool` |  | Append instead of replacing the document body |
 | `--bg-color` | `string` |  | Text background color as #RRGGBB or #RGB |

@@ -66,6 +66,18 @@ func normalizeGoogleID(input string) string {
 				}
 			}
 		}
+	case "sites.google.com":
+		// Examples:
+		// /d/<id>/edit
+		// /site/<name>/<page>
+		// New Sites editor URLs expose a Drive file ID after /d/.
+		for i := 0; i+1 < len(parts); i++ {
+			if parts[i] == "d" {
+				if id := strings.TrimSpace(parts[i+1]); id != "" {
+					return id
+				}
+			}
+		}
 	}
 
 	return s
@@ -82,6 +94,8 @@ func parseMaybeURL(s string) *url.URL {
 		strings.HasPrefix(s, "www.drive.google.com/") ||
 		strings.HasPrefix(s, "docs.google.com/") ||
 		strings.HasPrefix(s, "www.docs.google.com/") ||
+		strings.HasPrefix(s, "sites.google.com/") ||
+		strings.HasPrefix(s, "www.sites.google.com/") ||
 		strings.HasPrefix(s, "mail.google.com/") ||
 		strings.HasPrefix(s, "www.mail.google.com/") ||
 		strings.HasPrefix(s, "gmail.google.com/") ||

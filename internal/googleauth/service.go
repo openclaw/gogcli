@@ -23,6 +23,7 @@ const (
 	ServicePeople        Service = "people"
 	ServiceSheets        Service = "sheets"
 	ServiceForms         Service = "forms"
+	ServiceSites         Service = "sites"
 	ServiceMeet          Service = "meet"
 	ServiceAppScript     Service = "appscript"
 	ServiceAds           Service = "ads"
@@ -87,6 +88,7 @@ var serviceOrder = []Service{
 	ServiceSheets,
 	ServicePeople,
 	ServiceForms,
+	ServiceSites,
 	ServiceMeet,
 	ServiceAppScript,
 	ServiceAds,
@@ -207,6 +209,12 @@ var serviceInfoByService = map[Service]serviceInfo{
 		},
 		user: true,
 		apis: []string{"Forms API"},
+	},
+	ServiceSites: {
+		scopes: []string{"https://www.googleapis.com/auth/drive"},
+		user:   true,
+		apis:   []string{"Drive API"},
+		note:   "New Google Sites are exposed as Drive files",
 	},
 	ServiceMeet: {
 		scopes: []string{
@@ -580,6 +588,8 @@ func scopesForServiceWithOptions(service Service, opts ScopeOptions) ([]string, 
 			formBodyScope,
 			"https://www.googleapis.com/auth/forms.responses.readonly",
 		}, nil
+	case ServiceSites:
+		return []string{driveScopeValue()}, nil
 	case ServiceMeet:
 		if opts.Readonly {
 			return []string{"https://www.googleapis.com/auth/meetings.space.readonly"}, nil

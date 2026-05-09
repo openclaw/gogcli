@@ -19,7 +19,7 @@ gog backup gmail push [flags]
 | Flag | Type | Default | Help |
 | --- | --- | --- | --- |
 | `--access-token` | `string` |  | Use provided access token directly (bypasses stored refresh tokens; token expires in ~1h) |
-| `-a`<br>`--account`<br>`--acct` | `string` |  | Account email for API commands (gmail/calendar/chat/classroom/drive/docs/slides/contacts/tasks/people/sheets/forms/appscript/ads) |
+| `-a`<br>`--account`<br>`--acct` | `string` |  | Account email for API commands (gmail/calendar/chat/classroom/drive/docs/slides/contacts/tasks/people/sheets/forms/sites/appscript/ads) |
 | `--checkpoint-interval` | `time.Duration` | 30m | Max time between checkpoint pushes during fetch; 0 disables time-triggered checkpoints |
 | `--checkpoint-rows` | `int` | 10000 | Gmail messages per encrypted checkpoint chunk; 0 disables row-triggered checkpoints |
 | `--checkpoints` | `bool` | true | Commit and push incomplete encrypted checkpoints during long cached fetches |

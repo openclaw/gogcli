@@ -19,7 +19,7 @@ gog gmail (mail,email) messages (message,msg,msgs) search (find,query,ls,list) <
 | Flag | Type | Default | Help |
 | --- | --- | --- | --- |
 | `--access-token` | `string` |  | Use provided access token directly (bypasses stored refresh tokens; token expires in ~1h) |
-| `-a`<br>`--account`<br>`--acct` | `string` |  | Account email for API commands (gmail/calendar/chat/classroom/drive/docs/slides/contacts/tasks/people/sheets/forms/appscript/ads) |
+| `-a`<br>`--account`<br>`--acct` | `string` |  | Account email for API commands (gmail/calendar/chat/classroom/drive/docs/slides/contacts/tasks/people/sheets/forms/sites/appscript/ads) |
 | `--all`<br>`--all-pages`<br>`--allpages` | `bool` |  | Fetch all pages |
 | `--body-format` | `string` | text | Body format preference when --include-body is set: text or html |
 | `--client` | `string` |  | OAuth client name (selects stored credentials + token bucket) |

@@ -220,6 +220,8 @@ func driveExportMimeType(googleMimeType string) string {
 		return mimePDF
 	case driveMimeGoogleDrawing:
 		return mimePNG
+	case driveMimeGoogleSite:
+		return mimeHTML
 	default:
 		return mimePDF
 	}
@@ -276,6 +278,8 @@ func driveExportMimeTypeForFormat(googleMimeType string, format string) (string,
 		default:
 			return "", fmt.Errorf("invalid --format %q for Google Drawing (use png|pdf)", format)
 		}
+	case driveMimeGoogleSite:
+		return "", errors.New("Google Sites cannot be exported through Drive; use 'gog sites url <siteId>' to open the site")
 	default:
 		if format == defaultExportFormat {
 			return mimePDF, nil

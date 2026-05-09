@@ -29,7 +29,7 @@ const (
 
 type RootFlags struct {
 	Color           string `help:"Color output: auto|always|never" default:"${color}"`
-	Account         string `help:"Account email for API commands (gmail/calendar/chat/classroom/drive/docs/slides/contacts/tasks/people/sheets/forms/appscript/ads)" aliases:"acct" short:"a"`
+	Account         string `help:"Account email for API commands (gmail/calendar/chat/classroom/drive/docs/slides/contacts/tasks/people/sheets/forms/sites/appscript/ads)" aliases:"acct" short:"a"`
 	Client          string `help:"OAuth client name (selects stored credentials + token bucket)" default:"${client}"`
 	AccessToken     string `help:"Use provided access token directly (bypasses stored refresh tokens; token expires in ~1h)" env:"GOG_ACCESS_TOKEN"`
 	EnableCommands  string `help:"Comma-separated list of enabled commands; dot paths allowed (restricts CLI)" default:"${enabled_commands}"`
@@ -81,6 +81,7 @@ type CLI struct {
 	Keep       KeepCmd               `cmd:"" help:"Google Keep (Workspace only)"`
 	Sheets     SheetsCmd             `cmd:"" aliases:"sheet" help:"Google Sheets"`
 	Forms      FormsCmd              `cmd:"" aliases:"form" help:"Google Forms"`
+	Sites      SitesCmd              `cmd:"" aliases:"site" help:"Google Sites (Drive-backed)"`
 	Meet       MeetCmd               `cmd:"" aliases:"meeting" help:"Google Meet"`
 	AppScript  AppScriptCmd          `cmd:"" name:"appscript" aliases:"script,apps-script" help:"Google Apps Script"`
 	YouTube    YouTubeCmd            `cmd:"" name:"youtube" aliases:"yt" help:"YouTube Data API (activities, videos, playlists, comments, channels)"`

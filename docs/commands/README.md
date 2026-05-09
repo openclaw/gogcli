@@ -2,7 +2,7 @@
 
 Every `gog` command has a generated docs page. The source of truth is the live CLI schema; run `make docs-commands` after changing command names, flags, help text, aliases, or arguments.
 
-Generated pages: 496.
+Generated pages: 501.
 
 ## Top-level Commands
 
@@ -36,6 +36,7 @@ Generated pages: 496.
 - [gog search](gog-search.md) - Search Drive files (alias for 'drive search')
 - [gog send](gog-send.md) - Send an email (alias for 'gmail send')
 - [gog sheets](gog-sheets.md) - Google Sheets
+- [gog sites](gog-sites.md) - Google Sites (Drive-backed)
 - [gog slides](gog-slides.md) - Google Slides
 - [gog status](gog-status.md) - Show auth/config status (alias for 'auth status')
 - [gog tasks](gog-tasks.md) - Google Tasks
@@ -496,6 +497,11 @@ Generated pages: 496.
     - [gog sheets unmerge](gog-sheets-unmerge.md) - Unmerge cells in a range
     - [gog sheets update](gog-sheets-update.md) - Update values in a range
     - [gog sheets update-note](gog-sheets-update-note.md) - Set or clear a cell note
+  - [gog sites](gog-sites.md) - Google Sites (Drive-backed)
+    - [gog sites get](gog-sites-get.md) - Get Google Site metadata
+    - [gog sites list](gog-sites-list.md) - List Google Sites visible in Drive
+    - [gog sites search](gog-sites-search.md) - Search Google Sites by text or Drive query
+    - [gog sites url](gog-sites-url.md) - Print Google Site editor URLs
   - [gog slides](gog-slides.md) - Google Slides
     - [gog slides add-slide](gog-slides-add-slide.md) - Add a slide with a full-bleed image and optional speaker notes
     - [gog slides copy](gog-slides-copy.md) - Copy a Google Slides presentation

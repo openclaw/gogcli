@@ -5,8 +5,8 @@
 Google CLI for Gmail/Calendar/Chat/Classroom/Drive/Contacts/Tasks/Sheets/Docs/Slides/People/Forms/Meet/App Script/Ads/Groups/Admin/Keep/YouTube
 
 Config:
-  file: /Users/steipete/Library/Application Support/gogcli/config.json
-  keyring backend: file (source: config)
+  file: /Users/shadow/Library/Application Support/gogcli/config.json
+  keyring backend: auto (source: default)
 
 ## Usage
 
@@ -46,6 +46,7 @@ gog <command> [flags]
 - [gog search](gog-search.md) - Search Drive files (alias for 'drive search')
 - [gog send](gog-send.md) - Send an email (alias for 'gmail send')
 - [gog sheets](gog-sheets.md) - Google Sheets
+- [gog sites](gog-sites.md) - Google Sites (Drive-backed)
 - [gog slides](gog-slides.md) - Google Slides
 - [gog status](gog-status.md) - Show auth/config status (alias for 'auth status')
 - [gog tasks](gog-tasks.md) - Google Tasks
@@ -60,7 +61,7 @@ gog <command> [flags]
 | Flag | Type | Default | Help |
 | --- | --- | --- | --- |
 | `--access-token` | `string` |  | Use provided access token directly (bypasses stored refresh tokens; token expires in ~1h) |
-| `-a`<br>`--account`<br>`--acct` | `string` |  | Account email for API commands (gmail/calendar/chat/classroom/drive/docs/slides/contacts/tasks/people/sheets/forms/appscript/ads) |
+| `-a`<br>`--account`<br>`--acct` | `string` |  | Account email for API commands (gmail/calendar/chat/classroom/drive/docs/slides/contacts/tasks/people/sheets/forms/sites/appscript/ads) |
 | `--client` | `string` |  | OAuth client name (selects stored credentials + token bucket) |
 | `--color` | `string` | auto | Color output: auto\|always\|never |
 | `--disable-commands` | `string` |  | Comma-separated list of disabled commands; dot paths allowed |

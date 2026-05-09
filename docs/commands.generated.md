@@ -451,6 +451,11 @@ Generated from `gog schema --json`.
     - [`gog sheets (sheet) unmerge <spreadsheetId> <range>`](commands/gog-sheets-unmerge.md) - Unmerge cells in a range
     - [`gog sheets (sheet) update (edit,set) <spreadsheetId> <range> [<values> ...] [flags]`](commands/gog-sheets-update.md) - Update values in a range
     - [`gog sheets (sheet) update-note (set-note) <spreadsheetId> <range> [flags]`](commands/gog-sheets-update-note.md) - Set or clear a cell note
+  - [`gog sites (site) <command> [flags]`](commands/gog-sites.md) - Google Sites (Drive-backed)
+    - [`gog sites (site) get (info,show) <siteId> [flags]`](commands/gog-sites-get.md) - Get Google Site metadata
+    - [`gog sites (site) list (ls) [flags]`](commands/gog-sites-list.md) - List Google Sites visible in Drive
+    - [`gog sites (site) search (find) <query> ... [flags]`](commands/gog-sites-search.md) - Search Google Sites by text or Drive query
+    - [`gog sites (site) url (open) <siteId> ...`](commands/gog-sites-url.md) - Print Google Site editor URLs
   - [`gog slides (slide) <command> [flags]`](commands/gog-slides.md) - Google Slides
     - [`gog slides (slide) add-slide <presentationId> <image> [flags]`](commands/gog-slides-add-slide.md) - Add a slide with a full-bleed image and optional speaker notes
     - [`gog slides (slide) copy (cp,duplicate) <presentationId> <title> [flags]`](commands/gog-slides-copy.md) - Copy a Google Slides presentation

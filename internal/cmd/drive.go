@@ -34,6 +34,7 @@ const (
 	driveMimeGoogleSheet   = "application/vnd.google-apps.spreadsheet"
 	driveMimeGoogleSlides  = "application/vnd.google-apps.presentation"
 	driveMimeGoogleDrawing = "application/vnd.google-apps.drawing"
+	driveMimeGoogleSite    = "application/vnd.google-apps.site"
 	mimePDF                = "application/pdf"
 	mimeCSV                = "text/csv"
 	mimeDocx               = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
@@ -448,8 +449,19 @@ func escapeDriveQueryString(s string) string {
 }
 
 func driveType(mimeType string) string {
-	if mimeType == driveMimeFolder {
+	switch mimeType {
+	case driveMimeFolder:
 		return "folder"
+	case driveMimeGoogleDoc:
+		return "doc"
+	case driveMimeGoogleSheet:
+		return "sheet"
+	case driveMimeGoogleSlides:
+		return "slide"
+	case driveMimeGoogleDrawing:
+		return "drawing"
+	case driveMimeGoogleSite:
+		return "site"
 	}
 	return strFile
 }

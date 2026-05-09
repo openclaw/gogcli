@@ -19,7 +19,7 @@ gog calendar (cal) update (edit,set) <calendarId> <eventId> [flags]
 | Flag | Type | Default | Help |
 | --- | --- | --- | --- |
 | `--access-token` | `string` |  | Use provided access token directly (bypasses stored refresh tokens; token expires in ~1h) |
-| `-a`<br>`--account`<br>`--acct` | `string` |  | Account email for API commands (gmail/calendar/chat/classroom/drive/docs/slides/contacts/tasks/people/sheets/forms/appscript/ads) |
+| `-a`<br>`--account`<br>`--acct` | `string` |  | Account email for API commands (gmail/calendar/chat/classroom/drive/docs/slides/contacts/tasks/people/sheets/forms/sites/appscript/ads) |
 | `--add-attendee` | `string` |  | Comma-separated attendee emails to add (preserves existing attendees) |
 | `--all-day` | `bool` |  | All-day event (use date-only in --from/--to) |
 | `--attendees` | `string` |  | Comma-separated attendee emails (replaces all; set empty to clear) |

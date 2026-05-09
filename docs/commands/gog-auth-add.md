@@ -19,7 +19,7 @@ gog auth add <email> [flags]
 | Flag | Type | Default | Help |
 | --- | --- | --- | --- |
 | `--access-token` | `string` |  | Use provided access token directly (bypasses stored refresh tokens; token expires in ~1h) |
-| `-a`<br>`--account`<br>`--acct` | `string` |  | Account email for API commands (gmail/calendar/chat/classroom/drive/docs/slides/contacts/tasks/people/sheets/forms/appscript/ads) |
+| `-a`<br>`--account`<br>`--acct` | `string` |  | Account email for API commands (gmail/calendar/chat/classroom/drive/docs/slides/contacts/tasks/people/sheets/forms/sites/appscript/ads) |
 | `--auth-url` | `string` |  | Redirect URL from browser (manual flow; required for --remote --step 2) |
 | `--client` | `string` |  | OAuth client name (selects stored credentials + token bucket) |
 | `--color` | `string` | auto | Color output: auto\|always\|never |
@@ -44,7 +44,7 @@ gog auth add <email> [flags]
 | `--remote` | `bool` |  | Remote/server-friendly manual flow (print URL, then exchange code) |
 | `--results-only` | `bool` |  | In JSON mode, emit only the primary result (drops envelope fields like nextPageToken) |
 | `--select`<br>`--pick`<br>`--project` | `string` |  | In JSON mode, select comma-separated fields (best-effort; supports dot paths). Desire path: use --fields for most commands. |
-| `--services` | `string` | user | Services to authorize: user\|all or comma-separated gmail,calendar,chat,classroom,drive,driveactivity,docs,slides,contacts,tasks,sheets,people,forms,meet,appscript,ads,youtube (Keep uses service account: gog auth service-account set) |
+| `--services` | `string` | user | Services to authorize: user\|all or comma-separated gmail,calendar,chat,classroom,drive,driveactivity,docs,slides,contacts,tasks,sheets,people,forms,sites,meet,appscript,ads,youtube (Keep uses service account: gog auth service-account set) |
 | `--step` | `int` |  | Remote auth step: 1=print URL, 2=exchange code |
 | `--timeout` | `time.Duration` |  | Authorization timeout (manual flows default to 5m) |
 | `-v`<br>`--verbose` | `bool` |  | Enable verbose logging |
