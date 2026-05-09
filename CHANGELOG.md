@@ -5,6 +5,7 @@
 ### Fixed
 
 - Docs: avoid infinite loops when local Markdown parsing ends on Thai, CJK, emoji, or other multi-byte runes. (#560 / #559) — thanks @ninyawee.
+- Agent skill: replace stale bundled `gog` skill paths with the current docs and auth package locations. (#558 / #557) — thanks @WadydX.
 
 ## 0.15.0 - 2026-05-05
 
