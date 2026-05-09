@@ -16,9 +16,17 @@ export function css() {
   --code-bg:#0f172a;
   --code-fg:#e6edf3;
   --code-inline-fg:#1c2128;
+  --code-border:#1f2937;
   --pill-border:#dbe2eb;
   --shadow-card:0 4px 14px rgba(15,17,21,.08);
   --scrollbar:#cbd5e1;
+  --hl-keyword:#7aa2ff;
+  --hl-string:#9ece6a;
+  --hl-number:#e0a96d;
+  --hl-comment:#7c8597;
+  --hl-flag:#c4a4ff;
+  --hl-meta:#f08aa0;
+  --hl-prompt:#64748b;
 }
 :root[data-theme="dark"]{
   --ink:#f3f5f9;
@@ -35,9 +43,17 @@ export function css() {
   --code-bg:#06080d;
   --code-fg:#e6edf3;
   --code-inline-fg:#e6edf3;
+  --code-border:#1c2030;
   --pill-border:#2a2f3c;
   --shadow-card:0 4px 18px rgba(0,0,0,.45);
   --scrollbar:#3a4154;
+  --hl-keyword:#7aa2ff;
+  --hl-string:#a6e3a1;
+  --hl-number:#f0a868;
+  --hl-comment:#6b7388;
+  --hl-flag:#c4a4ff;
+  --hl-meta:#ff8aa0;
+  --hl-prompt:#7e8ba3;
 }
 :root{color-scheme:light}
 :root[data-theme="dark"]{color-scheme:dark}
@@ -124,7 +140,7 @@ body:not(.home) .doc>h1:first-child{display:none}
 .doc strong{font-weight:600;color:var(--ink)}
 .doc em{font-style:italic}
 .doc code{font-family:"JetBrains Mono","SF Mono",ui-monospace,monospace;font-size:.84em;background:var(--line-soft);border:1px solid var(--line);border-radius:5px;padding:.08em .35em;color:var(--code-inline-fg)}
-.doc pre{position:relative;overflow:auto;background:var(--code-bg);color:var(--code-fg);border-radius:8px;padding:14px 18px;margin:1.3em 0;font-size:.85em;line-height:1.6;scrollbar-width:thin;scrollbar-color:#334155 transparent;border:1px solid #1f2937}
+.doc pre{position:relative;overflow:auto;background:var(--code-bg);color:var(--code-fg);border-radius:8px;padding:14px 18px;margin:1.3em 0;font-size:.85em;line-height:1.6;scrollbar-width:thin;scrollbar-color:#334155 transparent;border:1px solid var(--code-border)}
 .doc pre::-webkit-scrollbar{height:8px;width:8px}
 .doc pre::-webkit-scrollbar-thumb{background:#334155;border-radius:8px}
 .doc pre code{display:block;background:transparent;border:0;color:inherit;padding:0;font-size:1em;white-space:pre}
@@ -132,6 +148,14 @@ body:not(.home) .doc>h1:first-child{display:none}
 .doc pre:hover .copy,.doc pre .copy:focus{opacity:1}
 .doc pre .copy:hover{background:rgba(255,255,255,.12)}
 .doc pre .copy.copied{background:var(--accent);border-color:var(--accent);opacity:1}
+.doc pre .hl-c{color:var(--hl-comment);font-style:italic}
+.doc pre .hl-s{color:var(--hl-string)}
+.doc pre .hl-n{color:var(--hl-number)}
+.doc pre .hl-k{color:var(--hl-keyword);font-weight:600}
+.doc pre .hl-f{color:var(--hl-flag)}
+.doc pre .hl-m{color:var(--hl-meta);font-weight:600}
+.doc pre .hl-p{color:var(--hl-prompt);user-select:none}
+.doc pre .hl-cmd{color:var(--hl-keyword);font-weight:600}
 .doc blockquote{margin:1.4em 0;padding:10px 16px;border-left:3px solid var(--accent);background:var(--accent-soft);border-radius:0 8px 8px 0;color:var(--text)}
 .doc blockquote p:last-child{margin-bottom:0}
 .doc table{width:100%;border-collapse:collapse;margin:1.2em 0;font-size:.92em}
