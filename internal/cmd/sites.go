@@ -61,7 +61,7 @@ func (c *SitesListCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 
 	resp, err := listDriveFiles(ctx, svc, driveFileListOptions{
-		query:     buildSitesQuery(c.Query, true),
+		query:     buildSitesQuery(c.Query),
 		max:       c.Max,
 		page:      c.Page,
 		allDrives: c.AllDrives,
@@ -173,23 +173,23 @@ func (c *SitesURLCmd) Run(ctx context.Context, flags *RootFlags) error {
 
 func buildSitesSearchQuery(query string, rawQuery bool) string {
 	if rawQuery {
-		return buildSitesQuery(query, true)
+		return buildSitesQuery(query)
 	}
 	if looksLikeDriveQueryLanguage(query) {
-		return buildSitesQuery(query, true)
+		return buildSitesQuery(query)
 	}
-	return buildSitesQuery(fmt.Sprintf("fullText contains '%s'", escapeDriveQueryString(query)), true)
+	return buildSitesQuery(fmt.Sprintf("fullText contains '%s'", escapeDriveQueryString(query)))
 }
 
-func buildSitesQuery(query string, appendTrashed bool) string {
+func buildSitesQuery(query string) string {
 	q := strings.TrimSpace(query)
 	if q == "" {
 		q = googleSitesQuery
 	} else {
 		q = fmt.Sprintf("(%s) and %s", q, googleSitesQuery)
 	}
-	if appendTrashed && !hasDriveTrashedPredicate(q) {
-		q += " and trashed = false"
+	if !hasDriveTrashedPredicate(q) {
+		q += " and " + driveQueryNotTrashed
 	}
 	return q
 }

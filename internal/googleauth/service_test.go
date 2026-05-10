@@ -513,6 +513,7 @@ func TestScopes_SitesUsesDriveScope(t *testing.T) {
 	if err != nil {
 		t.Fatalf("readonly scopes: %v", err)
 	}
+
 	if len(readonly) != 1 || readonly[0] != "https://www.googleapis.com/auth/drive.readonly" {
 		t.Fatalf("unexpected readonly sites scopes: %#v", readonly)
 	}
