@@ -87,6 +87,7 @@ func WriteJSON(ctx context.Context, w io.Writer, v any) error {
 		}
 		v = transformed
 	}
+
 	if opts, ok := UntrustedWrapperFromContext(ctx); ok {
 		wrapped, err := wrapUntrustedJSONValue(v, opts)
 		if err != nil {

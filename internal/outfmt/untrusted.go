@@ -69,10 +69,12 @@ func UntrustedWrapperFromContext(ctx context.Context) (UntrustedWrapOptions, boo
 	if v == nil {
 		return UntrustedWrapOptions{}, false
 	}
+
 	opts, ok := v.(UntrustedWrapOptions)
 	if !ok || !opts.Enabled {
 		return UntrustedWrapOptions{}, false
 	}
+
 	return opts.normalized(), true
 }
 
@@ -80,6 +82,7 @@ func (o UntrustedWrapOptions) normalized() UntrustedWrapOptions {
 	if strings.TrimSpace(o.Source) == "" {
 		o.Source = defaultUntrustedSource
 	}
+
 	return o
 }
 
@@ -87,10 +90,12 @@ func WrapUntrustedContent(content string, opts UntrustedWrapOptions) string {
 	opts = opts.normalized()
 	markerID := randomMarkerID()
 	metadata := fmt.Sprintf("Source: %s", opts.Source)
+
 	warning := ""
 	if opts.IncludeWarning {
 		warning = untrustedContentWarning + "\n\n"
 	}
+
 	return warning +
 		fmt.Sprintf("<<<%s id=\"%s\">>>\n%s\n---\n%s\n<<<%s id=\"%s\">>>",
 			untrustedContentStartName,
@@ -107,9 +112,12 @@ func sanitizeUntrustedContentText(content string) string {
 		if strings.Contains(strings.ToUpper(match), "END") {
 			return "[[END_MARKER_SANITIZED]]"
 		}
+
 		return "[[MARKER_SANITIZED]]"
 	})
+
 	content = untrustedSpecialTokenReplacer.Replace(content)
+
 	return untrustedReservedSpecialTokenPattern.ReplaceAllString(content, "[REMOVED_SPECIAL_TOKEN]")
 }
 
@@ -118,6 +126,7 @@ func randomMarkerID() string {
 	if _, err := rand.Read(b[:]); err != nil {
 		return "0000000000000000"
 	}
+
 	return hex.EncodeToString(b[:])
 }
 
@@ -126,7 +135,9 @@ func wrapUntrustedJSONValue(v any, opts UntrustedWrapOptions) (any, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	wrapped, _ := wrapUntrustedGenericValue(anyV, opts, nil, "")
+
 	return wrapped, nil
 }
 
@@ -137,10 +148,12 @@ func genericJSONValue(v any) (any, error) {
 	}
 	dec := json.NewDecoder(bytes.NewReader(b))
 	dec.UseNumber()
+
 	var anyV any
 	if err := dec.Decode(&anyV); err != nil {
 		return nil, fmt.Errorf("unmarshal: %w", err)
 	}
+
 	return anyV, nil
 }
 
@@ -149,6 +162,7 @@ func wrapUntrustedGenericValue(v any, opts UntrustedWrapOptions, path []string, 
 	case map[string]any:
 		out := make(map[string]any, len(vv)+1)
 		wrappedAny := false
+
 		for k, value := range vv {
 			if k == "externalContent" {
 				out[k] = value
@@ -158,6 +172,7 @@ func wrapUntrustedGenericValue(v any, opts UntrustedWrapOptions, path []string, 
 			out[k] = wrapped
 			wrappedAny = wrappedAny || wrappedChild
 		}
+
 		if len(path) == 0 && wrappedAny {
 			if _, ok := out["externalContent"]; !ok {
 				out["externalContent"] = map[string]any{
@@ -167,23 +182,28 @@ func wrapUntrustedGenericValue(v any, opts UntrustedWrapOptions, path []string, 
 				}
 			}
 		}
+
 		return out, wrappedAny
 	case []any:
 		out := make([]any, len(vv))
 		wrappedAny := false
+
 		for i, value := range vv {
 			wrapped, wrappedChild := wrapUntrustedGenericValue(value, opts, path, key)
 			out[i] = wrapped
 			wrappedAny = wrappedAny || wrappedChild
 		}
+
 		return out, wrappedAny
 	case string:
 		if len(path) == 0 && key == "" && vv != "" {
 			return WrapUntrustedContent(vv, opts), true
 		}
+
 		if shouldWrapUntrustedString(path, key, vv) {
 			return WrapUntrustedContent(vv, opts), true
 		}
+
 		return vv, false
 	default:
 		return vv, false
@@ -194,24 +214,29 @@ func shouldWrapUntrustedString(path []string, key string, value string) bool {
 	if value == "" {
 		return false
 	}
+
 	normalizedKey := normalizeJSONKey(key)
 	if untrustedMetadataStringKeys[normalizedKey] {
 		return false
 	}
+
 	if untrustedContentStringKeys[normalizedKey] {
 		return true
 	}
+
 	for _, part := range path {
 		if untrustedContentArrayKeys[normalizeJSONKey(part)] {
 			return true
 		}
 	}
+
 	return false
 }
 
 func normalizeJSONKey(key string) string {
 	key = strings.ReplaceAll(key, "_", "")
 	key = strings.ReplaceAll(key, "-", "")
+
 	return strings.ToLower(strings.TrimSpace(key))
 }
 
