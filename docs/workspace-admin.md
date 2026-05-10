@@ -1,13 +1,13 @@
 ---
 title: Workspace Admin
-description: "Create, inspect, suspend, delete, and list Google Workspace users and groups from the CLI."
+description: "Create, inspect, suspend, delete, and list Google Workspace users, organizational units, and groups from the CLI."
 ---
 
 # Workspace Admin
 
-`gog admin` uses the Admin SDK Directory API for Workspace user and group
-automation. It is Workspace-only: personal `gmail.com` accounts cannot use
-these commands.
+`gog admin` uses the Admin SDK Directory API for Workspace user, organizational
+unit, and group automation. It is Workspace-only: personal `gmail.com` accounts
+cannot use these commands.
 
 Admin commands require an account with Admin SDK access. For unattended use,
 configure a service-account key with domain-wide delegation and impersonate a
@@ -23,6 +23,10 @@ The service account must be delegated the Admin SDK scopes listed by:
 ```bash
 gog auth services --json
 ```
+
+Organizational-unit commands additionally require the
+`https://www.googleapis.com/auth/admin.directory.orgunit` scope in domain-wide
+delegation.
 
 ## Create Users
 
@@ -105,6 +109,43 @@ gog --account admin@example.com admin users create dryrun@example.com \
   --family Run \
   --dry-run \
   --json
+```
+
+## Organizational Units
+
+List organizational units:
+
+```bash
+gog --account admin@example.com admin orgunits list --type all --json
+```
+
+Copy-pasted paths from Google or `list` output can include a leading slash;
+`get`, `update`, and `delete` accept either form:
+
+```bash
+gog --account admin@example.com admin orgunits get /Engineering --json
+```
+
+Create a child organizational unit:
+
+```bash
+gog --account admin@example.com admin orgunits create Engineering \
+  --parent / \
+  --description "Engineering users"
+```
+
+Rename or update metadata:
+
+```bash
+gog --account admin@example.com admin orgunits update /Engineering \
+  --name Eng \
+  --description ""
+```
+
+Delete an empty organizational unit:
+
+```bash
+gog --account admin@example.com admin orgunits delete Eng --force
 ```
 
 ## Groups

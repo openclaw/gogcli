@@ -1,24 +1,26 @@
-# `gog admin`
+# `gog admin orgunits`
 
 > Generated from `gog schema --json`. Do not edit this page by hand; run `make docs-commands`.
 
-Google Workspace Admin (Directory API) - requires domain-wide delegation
+Manage Workspace organizational units
 
 ## Usage
 
 ```bash
-gog admin <command> [flags]
+gog admin orgunits (org-units,ou) <command>
 ```
 
 ## Parent
 
-- [gog](gog.md)
+- [gog admin](gog-admin.md)
 
 ## Subcommands
 
-- [gog admin groups](gog-admin-groups.md) - Manage Workspace groups
-- [gog admin orgunits](gog-admin-orgunits.md) - Manage Workspace organizational units
-- [gog admin users](gog-admin-users.md) - Manage Workspace users
+- [gog admin orgunits create](gog-admin-orgunits-create.md) - Create an organizational unit
+- [gog admin orgunits delete](gog-admin-orgunits-delete.md) - Delete an organizational unit
+- [gog admin orgunits get](gog-admin-orgunits-get.md) - Get organizational unit details
+- [gog admin orgunits list](gog-admin-orgunits-list.md) - List organizational units
+- [gog admin orgunits update](gog-admin-orgunits-update.md) - Update an organizational unit
 
 ## Flags
 
@@ -41,9 +43,8 @@ gog admin <command> [flags]
 | `--select`<br>`--pick`<br>`--project` | `string` |  | In JSON mode, select comma-separated fields (best-effort; supports dot paths). Desire path: use --fields for most commands. |
 | `-v`<br>`--verbose` | `bool` |  | Enable verbose logging |
 | `--version` | `kong.VersionFlag` |  | Print version and exit |
-| `--wrap-untrusted` | `bool` | false | In JSON/raw output, wrap fetched text fields in external untrusted-content markers |
 
 ## See Also
 
-- [gog](gog.md)
+- [gog admin](gog-admin.md)
 - [Command index](README.md)

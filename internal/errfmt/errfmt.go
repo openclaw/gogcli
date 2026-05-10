@@ -27,6 +27,15 @@ func Format(err error) string {
 
 	var authErr *gogapi.AuthRequiredError
 	if errors.As(err, &authErr) {
+		if isServiceAccountOnlyAuthService(authErr.Service) {
+			return fmt.Sprintf(
+				"No auth for %s %s.\n\nWorkspace service account (domain-wide delegation):\n  gog auth service-account set %s --key <service-account.json>",
+				authErr.Service,
+				authErr.Email,
+				authErr.Email,
+			)
+		}
+
 		return fmt.Sprintf(
 			"No auth for %s %s.\n\nOAuth (browser flow):\n  gog auth add %s --services %s\n\nWorkspace service account (domain-wide delegation):\n  gog auth service-account set %s --key <service-account.json>",
 			authErr.Service,
@@ -64,6 +73,15 @@ func Format(err error) string {
 	}
 
 	return err.Error()
+}
+
+func isServiceAccountOnlyAuthService(service string) bool {
+	switch strings.ToLower(strings.TrimSpace(service)) {
+	case "admin", "admin directory", "admin orgunits", "groups", "keep":
+		return true
+	default:
+		return false
+	}
 }
 
 // UserFacingError forces a specific message, while preserving the underlying cause.

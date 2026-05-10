@@ -34,6 +34,23 @@ func TestFormat_AuthRequired(t *testing.T) {
 	}
 }
 
+func TestFormat_AuthRequired_ServiceAccountOnly(t *testing.T) {
+	for _, service := range []string{"admin", "admin directory", "admin orgunits"} {
+		t.Run(service, func(t *testing.T) {
+			err := &gogapi.AuthRequiredError{Service: service, Email: "a@b.com", Cause: keyring.ErrKeyNotFound}
+			got := Format(err)
+
+			if !containsAll(got, "No auth for "+service+" a@b.com", "gog auth service-account set a@b.com") {
+				t.Fatalf("unexpected: %q", got)
+			}
+
+			if strings.Contains(got, "--services "+service) {
+				t.Fatalf("must not suggest unsupported admin service flag: %q", got)
+			}
+		})
+	}
+}
+
 func TestFormat_CredentialsMissing(t *testing.T) {
 	err := &config.CredentialsMissingError{Path: "/tmp/creds.json", Cause: errNope}
 	got := Format(err)

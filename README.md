@@ -367,7 +367,14 @@ gog --account admin@example.com admin users create ada@example.com \
 
 Omit `--password` to generate a temporary password. See
 [docs/workspace-admin.md](docs/workspace-admin.md) for service-account setup,
-user cleanup, recovery fields, and group examples.
+user cleanup, recovery fields, organizational units, and group examples.
+
+Workspace organizational units are covered too:
+
+```bash
+gog --account admin@example.com admin orgunits list --type all
+gog --account admin@example.com admin orgunits create Engineering --parent /
+```
 
 Generated service scope table:
 
@@ -412,7 +419,7 @@ go run scripts/gen-auth-services-md.go
 - [docs/commands/README.md](docs/commands/README.md): generated command index
 - [docs/safety-profiles.md](docs/safety-profiles.md): command guards and baked safe binaries
 - [docs/auth-clients.md](docs/auth-clients.md): OAuth clients, account mapping, and service accounts
-- [docs/workspace-admin.md](docs/workspace-admin.md): Workspace user and group administration
+- [docs/workspace-admin.md](docs/workspace-admin.md): Workspace user, org unit, and group administration
 - [docs/sheets-tables.md](docs/sheets-tables.md): structured Sheets tables
 - [docs/backup.md](docs/backup.md): encrypted Google account backups
 - [CHANGELOG.md](CHANGELOG.md): release notes

@@ -16,9 +16,10 @@ gog gmail get <messageId> --sanitize-content --json
 # Today's calendar.
 gog calendar events --today
 
-# Workspace user creation with Admin SDK / domain-wide delegation.
+# Workspace user and org-unit management with Admin SDK / domain-wide delegation.
 gog --account admin@example.com admin users create ada@example.com \
   --first-name Ada --last-name Lovelace --change-password
+gog --account admin@example.com admin orgunits list --type all
 
 # Audit a Drive folder without changing anything.
 gog drive tree --parent <folderId> --depth 2
@@ -46,7 +47,7 @@ gog slides create-from-markdown "Weekly update" --content-file slides.md
 - **Trying it.** [Install](install.md) → [Quickstart](quickstart.md). Five minutes from `brew install` to your first authenticated query.
 - **Wiring up an agent.** [Safety Profiles](safety-profiles.md) and the bundled [`gog` agent skill](https://github.com/steipete/gogcli/blob/main/.agents/skills/gog/SKILL.md). Lock the binary down before handing it to a model.
 - **Running Workspace at scale.** [Auth Clients](auth-clients.md) for service accounts, named OAuth clients, and domain-wide delegation.
-- **Managing Workspace users.** [Workspace Admin](workspace-admin.md) covers user creation, cleanup, and group administration.
+- **Managing Workspace.** [Workspace Admin](workspace-admin.md) covers user creation, cleanup, organizational units, and group administration.
 - **Backing up an account.** [Backup](backup.md) before pointing `gog backup push` at a busy mailbox.
 - **Looking up a flag.** The [Command Index](commands/) has a generated page for every subcommand.
 

@@ -67,7 +67,7 @@ Shows stored credential files plus any configured domain mappings.
 
 ## Workspace service accounts
 
-Workspace Admin, group, and Keep automation commonly run through a
+Workspace Admin, group, org-unit, and Keep automation commonly run through a
 service-account key with domain-wide delegation. Store the key for the
 Workspace admin identity you want to impersonate:
 
@@ -85,5 +85,5 @@ gog --account admin@example.com admin users create ada@example.com \
   --change-password
 ```
 
-See [Workspace Admin](workspace-admin.md) for user creation, cleanup, and group
-examples.
+See [Workspace Admin](workspace-admin.md) for user creation, organizational
+units, cleanup, and group examples.

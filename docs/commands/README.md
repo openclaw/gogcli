@@ -2,7 +2,7 @@
 
 Every `gog` command has a generated docs page. The source of truth is the live CLI schema; run `make docs-commands` after changing command names, flags, help text, aliases, or arguments.
 
-Generated pages: 517.
+Generated pages: 523.
 
 ## Top-level Commands
 
@@ -58,6 +58,12 @@ Generated pages: 517.
         - [gog admin groups members add](gog-admin-groups-members-add.md) - Add a member to a group
         - [gog admin groups members list](gog-admin-groups-members-list.md) - List group members
         - [gog admin groups members remove](gog-admin-groups-members-remove.md) - Remove a member from a group
+    - [gog admin orgunits](gog-admin-orgunits.md) - Manage Workspace organizational units
+      - [gog admin orgunits create](gog-admin-orgunits-create.md) - Create an organizational unit
+      - [gog admin orgunits delete](gog-admin-orgunits-delete.md) - Delete an organizational unit
+      - [gog admin orgunits get](gog-admin-orgunits-get.md) - Get organizational unit details
+      - [gog admin orgunits list](gog-admin-orgunits-list.md) - List organizational units
+      - [gog admin orgunits update](gog-admin-orgunits-update.md) - Update an organizational unit
     - [gog admin users](gog-admin-users.md) - Manage Workspace users
       - [gog admin users create](gog-admin-users-create.md) - Create a new user
       - [gog admin users delete](gog-admin-users-delete.md) - Delete a user account

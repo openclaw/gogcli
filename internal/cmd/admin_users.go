@@ -2,11 +2,14 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	admin "google.golang.org/api/admin/directory/v1"
+	ggoogleapi "google.golang.org/api/googleapi"
 
 	"github.com/steipete/gogcli/internal/outfmt"
 	"github.com/steipete/gogcli/internal/ui"
@@ -309,11 +312,28 @@ func (c *AdminUsersCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if err != nil {
 		return wrapAdminDirectoryError(err, account)
 	}
+	if c.Suspended || c.Archived {
+		userKey := created.PrimaryEmail
+		if strings.TrimSpace(userKey) == "" {
+			userKey = email
+		}
+		statePatch := &admin.User{
+			Suspended: c.Suspended,
+			Archived:  c.Archived,
+		}
+		updated, patchErr := patchAdminUserState(ctx, svc, userKey, statePatch)
+		if patchErr != nil {
+			return wrapAdminDirectoryError(patchErr, account)
+		}
+		created = updated
+	}
 
 	if outfmt.IsJSON(ctx) {
 		result := map[string]any{
-			"email": created.PrimaryEmail,
-			"id":    created.Id,
+			"email":     created.PrimaryEmail,
+			"id":        created.Id,
+			"suspended": created.Suspended,
+			"archived":  created.Archived,
 		}
 		if generatedPassword {
 			result["generatedPassword"] = password
@@ -327,6 +347,28 @@ func (c *AdminUsersCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
 		u.Out().Printf("Generated password: %s\n", password)
 	}
 	return nil
+}
+
+func patchAdminUserState(ctx context.Context, svc *admin.Service, userKey string, patch *admin.User) (*admin.User, error) {
+	const attempts = 6
+	var lastErr error
+	for attempt := range attempts {
+		updated, err := svc.Users.Patch(userKey, patch).Context(ctx).Do()
+		if err == nil {
+			return updated, nil
+		}
+		lastErr = err
+		var googleErr *ggoogleapi.Error
+		if !errors.As(err, &googleErr) || googleErr.Code != 404 || attempt == attempts-1 {
+			return nil, err
+		}
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(500 * time.Millisecond):
+		}
+	}
+	return nil, lastErr
 }
 
 type AdminUsersDeleteCmd struct {

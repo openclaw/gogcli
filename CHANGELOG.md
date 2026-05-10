@@ -5,6 +5,7 @@
 ### Added
 
 - Admin: expand `admin users create` with GAM-style aliases, generated passwords, suspended/archived creation, recovery contact fields, and password hash metadata; add `admin users delete` for cleanup.
+- Admin: add `admin orgunits` commands to list, inspect, create, update, and delete Workspace organizational units.
 - Sites: add Drive-backed `sites` commands to list, search, inspect, and open New Google Sites. (#574) — thanks @thewilloftheshadow.
 - Analytics/Search Console: add GA4 `analytics accounts|report` plus Search Console site, search analytics, and sitemap commands. (#402) — thanks @haresh-seenivasagan.
 - Gmail: add `gmail send --body-html-file` for sending HTML email bodies from files without shell command substitution. (#575) — thanks @toruvieI.
@@ -21,6 +22,7 @@
 ### Fixed
 
 - Auth: make `auth service-account status` show `stored`, a clear missing-key message, and the exact setup hint when no service-account key is configured.
+- Admin: retry the post-create state update so `admin users create --suspended` and `--archived` remain reliable while the Admin SDK finishes provisioning the new user.
 - Calendar: make `calendar update --with-meet` idempotent when an event already has conference data, add explicit `--regenerate-meet`, and show `recurringEventId` in plain event output. (#576 / #573) — thanks @alexisperumal and @NodeJSmith.
 - Release: fail closed when macOS signing secrets are missing and verify Darwin release assets are not ad-hoc signed, so Homebrew upgrades keep stable Keychain trust. (#569) — thanks @aaroneden.
 - Auth: list one row per OAuth client when the same account is authorized under multiple clients, and let `auth list --client` filter that token bucket. (#563) — thanks @UnPractical91.

@@ -10,9 +10,13 @@ import (
 	"github.com/steipete/gogcli/internal/googleapi"
 )
 
-var newAdminDirectoryService = googleapi.NewAdminDirectory
+var (
+	newAdminDirectoryService        = googleapi.NewAdminDirectory
+	newAdminOrgUnitDirectoryService = googleapi.NewAdminDirectoryOrgUnit
+)
 
 const (
+	adminCustomerID  = "my_customer"
 	adminRoleMember  = "MEMBER"
 	adminRoleOwner   = "OWNER"
 	adminRoleManager = "MANAGER"
@@ -107,6 +111,14 @@ func requireAdminAccount(flags *RootFlags) (string, error) {
 
 // wrapAdminDirectoryError provides helpful error messages for common Admin SDK issues.
 func wrapAdminDirectoryError(err error, account string) error {
+	return wrapAdminDirectoryErrorWithScopes(err, account, "admin.directory.user, admin.directory.group, and admin.directory.group.member scopes")
+}
+
+func wrapAdminOrgUnitDirectoryError(err error, account string) error {
+	return wrapAdminDirectoryErrorWithScopes(err, account, "admin.directory.orgunit scope")
+}
+
+func wrapAdminDirectoryErrorWithScopes(err error, account, scopes string) error {
 	errStr := err.Error()
 	if strings.Contains(errStr, "accessNotConfigured") ||
 		strings.Contains(errStr, "Admin SDK API has not been used") {
@@ -115,7 +127,7 @@ func wrapAdminDirectoryError(err error, account string) error {
 	if strings.Contains(errStr, "insufficientPermissions") ||
 		strings.Contains(errStr, "insufficient authentication scopes") ||
 		strings.Contains(errStr, "Not Authorized") {
-		return errfmt.NewUserFacingError("Insufficient permissions for Admin SDK API; ensure your service account has domain-wide delegation enabled with admin.directory.user, admin.directory.group, and admin.directory.group.member scopes", err)
+		return errfmt.NewUserFacingError("Insufficient permissions for Admin SDK API; ensure your service account has domain-wide delegation enabled with "+scopes, err)
 	}
 	if strings.Contains(errStr, "domain_wide_delegation") ||
 		strings.Contains(errStr, "invalid_grant") {

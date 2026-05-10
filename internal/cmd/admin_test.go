@@ -1,9 +1,11 @@
 package cmd
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -30,6 +32,16 @@ func TestWrapAdminDirectoryError_MapsPermissions(t *testing.T) {
 	err := wrapAdminDirectoryError(errors.New("insufficient authentication scopes"), "svc@example.com")
 	if err == nil || !strings.Contains(err.Error(), "admin.directory.group.member") {
 		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestWrapAdminOrgUnitDirectoryError_MapsPermissions(t *testing.T) {
+	err := wrapAdminOrgUnitDirectoryError(errors.New("insufficient authentication scopes"), "svc@example.com")
+	if err == nil || !strings.Contains(err.Error(), "admin.directory.orgunit scope") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if strings.Contains(err.Error(), "admin.directory.group.member") {
+		t.Fatalf("unexpected group scope in error: %v", err)
 	}
 }
 
@@ -63,20 +75,41 @@ func TestAdminUsersCreate_JSONSendsWorkspaceUser(t *testing.T) {
 	origNew := newAdminDirectoryService
 	t.Cleanup(func() { newAdminDirectoryService = origNew })
 
-	var got admin.User
+	var gotInsert admin.User
+	var gotPatch admin.User
+	patchCalls := 0
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !(r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/users")) {
-			http.NotFound(w, r)
+		switch {
+		case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/users"):
+			if err := json.NewDecoder(r.Body).Decode(&gotInsert); err != nil {
+				t.Fatalf("decode insert body: %v", err)
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"primaryEmail": gotInsert.PrimaryEmail,
+				"id":           "user-123",
+			})
 			return
+		case r.Method == http.MethodPatch && strings.Contains(r.URL.Path, "/users/ada@example.com"):
+			patchCalls++
+			if patchCalls == 1 {
+				http.Error(w, `{"error":{"code":404,"message":"Resource Not Found: userKey"}}`, http.StatusNotFound)
+				return
+			}
+			if err := json.NewDecoder(r.Body).Decode(&gotPatch); err != nil {
+				t.Fatalf("decode patch body: %v", err)
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"primaryEmail": "ada@example.com",
+				"id":           "user-123",
+				"suspended":    gotPatch.Suspended,
+				"archived":     gotPatch.Archived,
+			})
+			return
+		default:
+			http.NotFound(w, r)
 		}
-		if err := json.NewDecoder(r.Body).Decode(&got); err != nil {
-			t.Fatalf("decode body: %v", err)
-		}
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]any{
-			"primaryEmail": got.PrimaryEmail,
-			"id":           "user-123",
-		})
 	}))
 	defer srv.Close()
 
@@ -110,27 +143,35 @@ func TestAdminUsersCreate_JSONSendsWorkspaceUser(t *testing.T) {
 		}
 	})
 
-	if got.PrimaryEmail != "ada@example.com" || got.Name == nil || got.Name.GivenName != "Ada" || got.Name.FamilyName != "Lovelace" {
-		t.Fatalf("unexpected user identity: %#v", got)
+	if gotInsert.PrimaryEmail != "ada@example.com" || gotInsert.Name == nil || gotInsert.Name.GivenName != "Ada" || gotInsert.Name.FamilyName != "Lovelace" {
+		t.Fatalf("unexpected user identity: %#v", gotInsert)
 	}
-	if got.Password != "hashed-pw" || got.HashFunction != "SHA-1" {
-		t.Fatalf("unexpected password fields: password=%q hash=%q", got.Password, got.HashFunction)
+	if gotInsert.Password != "hashed-pw" || gotInsert.HashFunction != "SHA-1" {
+		t.Fatalf("unexpected password fields: password=%q hash=%q", gotInsert.Password, gotInsert.HashFunction)
 	}
-	if !got.ChangePasswordAtNextLogin || !got.Suspended || !got.Archived {
-		t.Fatalf("expected create flags in request: %#v", got)
+	if !gotInsert.ChangePasswordAtNextLogin {
+		t.Fatalf("expected change password in insert request: %#v", gotInsert)
 	}
-	if got.OrgUnitPath != "/Engineering" || got.RecoveryEmail != "ada.recovery@example.net" || got.RecoveryPhone != "+15551234567" {
-		t.Fatalf("unexpected profile fields: %#v", got)
+	if !gotPatch.Suspended || !gotPatch.Archived {
+		t.Fatalf("expected post-create state patch: %#v", gotPatch)
+	}
+	if patchCalls != 2 {
+		t.Fatalf("expected retry after transient patch 404, got %d calls", patchCalls)
+	}
+	if gotInsert.OrgUnitPath != "/Engineering" || gotInsert.RecoveryEmail != "ada.recovery@example.net" || gotInsert.RecoveryPhone != "+15551234567" {
+		t.Fatalf("unexpected profile fields: %#v", gotInsert)
 	}
 
 	var parsed struct {
-		Email string `json:"email"`
-		ID    string `json:"id"`
+		Email     string `json:"email"`
+		ID        string `json:"id"`
+		Suspended bool   `json:"suspended"`
+		Archived  bool   `json:"archived"`
 	}
 	if err := json.Unmarshal([]byte(out), &parsed); err != nil {
 		t.Fatalf("unmarshal: %v", err)
 	}
-	if parsed.Email != "ada@example.com" || parsed.ID != "user-123" {
+	if parsed.Email != "ada@example.com" || parsed.ID != "user-123" || !parsed.Suspended || !parsed.Archived {
 		t.Fatalf("unexpected response: %#v", parsed)
 	}
 }
@@ -246,6 +287,180 @@ func TestAdminUsersDelete_JSONRequiresForceAndDeletes(t *testing.T) {
 	}
 	if parsed.Email != "temp@example.com" || !parsed.Deleted {
 		t.Fatalf("unexpected response: %#v", parsed)
+	}
+}
+
+func TestAdminOrgunitsCreateUpdateDelete_JSON(t *testing.T) {
+	origNew := newAdminOrgUnitDirectoryService
+	t.Cleanup(func() { newAdminOrgUnitDirectoryService = origNew })
+
+	var inserted admin.OrgUnit
+	var patched admin.OrgUnit
+	var patchBody string
+	deleted := false
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/orgunits"):
+			if err := json.NewDecoder(r.Body).Decode(&inserted); err != nil {
+				t.Fatalf("decode insert body: %v", err)
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"name":              inserted.Name,
+				"orgUnitPath":       "/Engineering",
+				"orgUnitId":         "ou-123",
+				"parentOrgUnitPath": inserted.ParentOrgUnitPath,
+				"description":       inserted.Description,
+			})
+			return
+		case r.Method == http.MethodPatch && strings.Contains(r.URL.Path, "/orgunits/Engineering"):
+			body, err := io.ReadAll(r.Body)
+			if err != nil {
+				t.Fatalf("read patch body: %v", err)
+			}
+			patchBody = string(body)
+			if err := json.NewDecoder(bytes.NewReader(body)).Decode(&patched); err != nil {
+				t.Fatalf("decode patch body: %v", err)
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"name":        patched.Name,
+				"orgUnitPath": "/Engineering",
+				"orgUnitId":   "ou-123",
+				"description": patched.Description,
+			})
+			return
+		case r.Method == http.MethodDelete && strings.Contains(r.URL.Path, "/orgunits/Engineering"):
+			deleted = true
+			w.WriteHeader(http.StatusNoContent)
+			return
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+
+	svc, err := admin.NewService(context.Background(),
+		option.WithoutAuthentication(),
+		option.WithHTTPClient(srv.Client()),
+		option.WithEndpoint(srv.URL+"/"),
+	)
+	if err != nil {
+		t.Fatalf("NewService: %v", err)
+	}
+	newAdminOrgUnitDirectoryService = func(context.Context, string) (*admin.Service, error) { return svc, nil }
+
+	ctx := newCmdJSONContext(t)
+	createOut := captureStdout(t, func() {
+		err := (&AdminOrgunitsCreateCmd{
+			Name:        "Engineering",
+			Parent:      "/",
+			Description: "Builders",
+		}).Run(ctx, &RootFlags{Account: "svc@example.com"})
+		if err != nil {
+			t.Fatalf("create Run: %v", err)
+		}
+	})
+	if inserted.Name != "Engineering" || inserted.ParentOrgUnitPath != "/" || inserted.Description != "Builders" {
+		t.Fatalf("unexpected insert body: %#v", inserted)
+	}
+	var created admin.OrgUnit
+	if err := json.Unmarshal([]byte(createOut), &created); err != nil {
+		t.Fatalf("unmarshal create: %v", err)
+	}
+	if created.OrgUnitPath != "/Engineering" || created.OrgUnitId != "ou-123" {
+		t.Fatalf("unexpected create response: %#v", created)
+	}
+
+	rename := "Eng"
+	description := ""
+	updateOut := captureStdout(t, func() {
+		err := (&AdminOrgunitsUpdateCmd{
+			Path:        "/Engineering",
+			Name:        &rename,
+			Description: &description,
+		}).Run(ctx, &RootFlags{Account: "svc@example.com"})
+		if err != nil {
+			t.Fatalf("update Run: %v", err)
+		}
+	})
+	if patched.Name != "Eng" || patched.Description != "" || !strings.Contains(patchBody, `"description":""`) {
+		t.Fatalf("unexpected patch body: %#v", patched)
+	}
+	var updated admin.OrgUnit
+	if err := json.Unmarshal([]byte(updateOut), &updated); err != nil {
+		t.Fatalf("unmarshal update: %v", err)
+	}
+	if updated.Name != "Eng" || updated.OrgUnitPath != "/Engineering" {
+		t.Fatalf("unexpected update response: %#v", updated)
+	}
+
+	deleteOut := captureStdout(t, func() {
+		err := (&AdminOrgunitsDeleteCmd{Path: "/Engineering"}).Run(ctx, &RootFlags{
+			Account: "svc@example.com",
+			Force:   true,
+		})
+		if err != nil {
+			t.Fatalf("delete Run: %v", err)
+		}
+	})
+	if !deleted {
+		t.Fatalf("expected delete request")
+	}
+	var deleteResult struct {
+		Path    string `json:"path"`
+		Deleted bool   `json:"deleted"`
+	}
+	if err := json.Unmarshal([]byte(deleteOut), &deleteResult); err != nil {
+		t.Fatalf("unmarshal delete: %v", err)
+	}
+	if deleteResult.Path != "Engineering" || !deleteResult.Deleted {
+		t.Fatalf("unexpected delete output: %#v", deleteResult)
+	}
+}
+
+func TestAdminOrgunitsList_JSON(t *testing.T) {
+	origNew := newAdminOrgUnitDirectoryService
+	t.Cleanup(func() { newAdminOrgUnitDirectoryService = origNew })
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !(r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/orgunits")) {
+			http.NotFound(w, r)
+			return
+		}
+		if got := r.URL.Query().Get("orgUnitPath"); got != "/" {
+			t.Fatalf("orgUnitPath query = %q, want /", got)
+		}
+		if got := r.URL.Query().Get("type"); got != "all" {
+			t.Fatalf("type query = %q, want all", got)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"organizationUnits": []map[string]any{
+				{"name": "Engineering", "orgUnitPath": "/Engineering", "orgUnitId": "ou-123"},
+			},
+		})
+	}))
+	defer srv.Close()
+
+	svc, err := admin.NewService(context.Background(),
+		option.WithoutAuthentication(),
+		option.WithHTTPClient(srv.Client()),
+		option.WithEndpoint(srv.URL+"/"),
+	)
+	if err != nil {
+		t.Fatalf("NewService: %v", err)
+	}
+	newAdminOrgUnitDirectoryService = func(context.Context, string) (*admin.Service, error) { return svc, nil }
+
+	ctx := newCmdJSONContext(t)
+	out := captureStdout(t, func() {
+		if err := (&AdminOrgunitsListCmd{Parent: "/", Type: "all"}).Run(ctx, &RootFlags{Account: "svc@example.com"}); err != nil {
+			t.Fatalf("Run: %v", err)
+		}
+	})
+	if !strings.Contains(out, "Engineering") || !strings.Contains(out, "/Engineering") {
+		t.Fatalf("unexpected output: %q", out)
 	}
 }
 

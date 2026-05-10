@@ -10,6 +10,12 @@ Generated from `gog schema --json`.
         - [`gog admin groups members add (invite) <groupEmail> <memberEmail> [flags]`](commands/gog-admin-groups-members-add.md) - Add a member to a group
         - [`gog admin groups members list (ls) <groupEmail> [flags]`](commands/gog-admin-groups-members-list.md) - List group members
         - [`gog admin groups members remove (rm,del,delete) <groupEmail> <memberEmail>`](commands/gog-admin-groups-members-remove.md) - Remove a member from a group
+    - [`gog admin orgunits (org-units,ou) <command>`](commands/gog-admin-orgunits.md) - Manage Workspace organizational units
+      - [`gog admin orgunits (org-units,ou) create (add,new) <name> [flags]`](commands/gog-admin-orgunits-create.md) - Create an organizational unit
+      - [`gog admin orgunits (org-units,ou) delete (rm,del,remove) <path>`](commands/gog-admin-orgunits-delete.md) - Delete an organizational unit
+      - [`gog admin orgunits (org-units,ou) get (info,show) <path>`](commands/gog-admin-orgunits-get.md) - Get organizational unit details
+      - [`gog admin orgunits (org-units,ou) list (ls) [flags]`](commands/gog-admin-orgunits-list.md) - List organizational units
+      - [`gog admin orgunits (org-units,ou) update (edit,set) <path> [flags]`](commands/gog-admin-orgunits-update.md) - Update an organizational unit
     - [`gog admin users <command>`](commands/gog-admin-users.md) - Manage Workspace users
       - [`gog admin users create (add,new) <email> [flags]`](commands/gog-admin-users-create.md) - Create a new user
       - [`gog admin users delete (rm,del,remove) <userEmail>`](commands/gog-admin-users-delete.md) - Delete a user account
