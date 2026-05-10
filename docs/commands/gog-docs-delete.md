@@ -38,6 +38,7 @@ gog docs (doc) delete --start=INT-64 --end=INT-64 <docId> [flags]
 | `--tab` | `string` |  | Target a specific tab by title or ID (see docs list-tabs) |
 | `-v`<br>`--verbose` | `bool` |  | Enable verbose logging |
 | `--version` | `kong.VersionFlag` |  | Print version and exit |
+| `--wrap-untrusted` | `bool` | false | In JSON/raw output, wrap fetched text fields in external untrusted-content markers |
 
 ## See Also
 

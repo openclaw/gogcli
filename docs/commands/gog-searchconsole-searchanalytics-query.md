@@ -46,6 +46,7 @@ gog searchconsole (gsc,search-console,webmasters) searchanalytics (analytics) qu
 | `--type` | `string` | WEB | Search type (WEB,IMAGE,VIDEO,NEWS,DISCOVER,GOOGLE_NEWS) |
 | `-v`<br>`--verbose` | `bool` |  | Enable verbose logging |
 | `--version` | `kong.VersionFlag` |  | Print version and exit |
+| `--wrap-untrusted` | `bool` | false | In JSON/raw output, wrap fetched text fields in external untrusted-content markers |
 
 ## See Also
 

@@ -36,6 +36,7 @@ gog sheets (sheet) merge <spreadsheetId> <range> [flags]
 | `--type` | `string` | MERGE_ALL | Merge type: MERGE_ALL, MERGE_COLUMNS, MERGE_ROWS |
 | `-v`<br>`--verbose` | `bool` |  | Enable verbose logging |
 | `--version` | `kong.VersionFlag` |  | Print version and exit |
+| `--wrap-untrusted` | `bool` | false | In JSON/raw output, wrap fetched text fields in external untrusted-content markers |
 
 ## See Also
 

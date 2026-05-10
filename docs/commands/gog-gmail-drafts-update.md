@@ -47,6 +47,7 @@ gog gmail (mail,email) drafts (draft) update (edit,set) <draftId> [flags]
 | `--to` | `*string` |  | Recipients (comma-separated; omit to keep existing) |
 | `-v`<br>`--verbose` | `bool` |  | Enable verbose logging |
 | `--version` | `kong.VersionFlag` |  | Print version and exit |
+| `--wrap-untrusted` | `bool` | false | In JSON/raw output, wrap fetched text fields in external untrusted-content markers |
 
 ## See Also
 

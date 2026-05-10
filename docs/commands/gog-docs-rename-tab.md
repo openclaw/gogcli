@@ -37,6 +37,7 @@ gog docs (doc) rename-tab <docId> [flags]
 | `--title` | `string` |  | New user-visible tab title |
 | `-v`<br>`--verbose` | `bool` |  | Enable verbose logging |
 | `--version` | `kong.VersionFlag` |  | Print version and exit |
+| `--wrap-untrusted` | `bool` | false | In JSON/raw output, wrap fetched text fields in external untrusted-content markers |
 
 ## See Also
 

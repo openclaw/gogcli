@@ -48,6 +48,7 @@ gog tasks (task) list (ls) <tasklistId> [flags]
 | `--updated-min` | `string` |  | Lower bound for updated time filter (RFC3339) |
 | `-v`<br>`--verbose` | `bool` |  | Enable verbose logging |
 | `--version` | `kong.VersionFlag` |  | Print version and exit |
+| `--wrap-untrusted` | `bool` | false | In JSON/raw output, wrap fetched text fields in external untrusted-content markers |
 
 ## See Also
 

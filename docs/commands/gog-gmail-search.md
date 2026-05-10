@@ -42,6 +42,7 @@ gog gmail (mail,email) search (find,query,ls,list) <query> ... [flags]
 | `-z`<br>`--timezone` | `string` |  | Output timezone (IANA name, e.g. America/New_York, UTC). Default: local |
 | `-v`<br>`--verbose` | `bool` |  | Enable verbose logging |
 | `--version` | `kong.VersionFlag` |  | Print version and exit |
+| `--wrap-untrusted` | `bool` | false | In JSON/raw output, wrap fetched text fields in external untrusted-content markers |
 
 ## See Also
 

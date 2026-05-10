@@ -40,6 +40,7 @@ gog gmail (mail,email) settings sendas update (edit,set) <email> [flags]
 | `--treat-as-alias` | `bool` | true | Treat as alias |
 | `-v`<br>`--verbose` | `bool` |  | Enable verbose logging |
 | `--version` | `kong.VersionFlag` |  | Print version and exit |
+| `--wrap-untrusted` | `bool` | false | In JSON/raw output, wrap fetched text fields in external untrusted-content markers |
 
 ## See Also
 

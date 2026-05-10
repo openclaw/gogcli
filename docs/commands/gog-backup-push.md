@@ -59,6 +59,7 @@ gog backup push [flags]
 | `--version` | `kong.VersionFlag` |  | Print version and exit |
 | `--workspace-max-files` | `int` | 0 | Max Docs/Sheets/Slides files per type for native Workspace metadata; 0 means all |
 | `--workspace-native` | `bool` |  | Fetch full native Docs/Sheets/Slides API JSON in addition to Drive exports |
+| `--wrap-untrusted` | `bool` | false | In JSON/raw output, wrap fetched text fields in external untrusted-content markers |
 
 ## See Also
 

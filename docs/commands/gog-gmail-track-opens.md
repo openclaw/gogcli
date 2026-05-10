@@ -37,6 +37,7 @@ gog gmail (mail,email) track opens [<tracking-id>] [flags]
 | `--to` | `string` |  | Filter by recipient email |
 | `-v`<br>`--verbose` | `bool` |  | Enable verbose logging |
 | `--version` | `kong.VersionFlag` |  | Print version and exit |
+| `--wrap-untrusted` | `bool` | false | In JSON/raw output, wrap fetched text fields in external untrusted-content markers |
 
 ## See Also
 

@@ -40,6 +40,7 @@ gog docs (doc) cat (text,read) <docId> [flags]
 | `--tab` | `string` |  | Tab title or ID to read (omit for default behavior) |
 | `-v`<br>`--verbose` | `bool` |  | Enable verbose logging |
 | `--version` | `kong.VersionFlag` |  | Print version and exit |
+| `--wrap-untrusted` | `bool` | false | In JSON/raw output, wrap fetched text fields in external untrusted-content markers |
 
 ## See Also
 

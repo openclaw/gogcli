@@ -50,6 +50,7 @@ gog backup gmail push [flags]
 | `--shard-max-rows` | `int` | 1000 | Max messages per encrypted shard |
 | `-v`<br>`--verbose` | `bool` |  | Enable verbose logging |
 | `--version` | `kong.VersionFlag` |  | Print version and exit |
+| `--wrap-untrusted` | `bool` | false | In JSON/raw output, wrap fetched text fields in external untrusted-content markers |
 
 ## See Also
 

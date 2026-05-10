@@ -37,6 +37,7 @@ gog forms (form) watch (watches) create (new,add) --topic=STRING <formId> [flags
 | `--topic` | `string` |  | Cloud Pub/Sub topic name (projects/{project}/topics/{topic}) |
 | `-v`<br>`--verbose` | `bool` |  | Enable verbose logging |
 | `--version` | `kong.VersionFlag` |  | Print version and exit |
+| `--wrap-untrusted` | `bool` | false | In JSON/raw output, wrap fetched text fields in external untrusted-content markers |
 
 ## See Also
 

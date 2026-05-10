@@ -38,6 +38,7 @@ gog calendar (cal) subscribe (sub,add-calendar) <calendarId> [flags]
 | `--selected` | `bool` | true | Show events in the calendar UI |
 | `-v`<br>`--verbose` | `bool` |  | Enable verbose logging |
 | `--version` | `kong.VersionFlag` |  | Print version and exit |
+| `--wrap-untrusted` | `bool` | false | In JSON/raw output, wrap fetched text fields in external untrusted-content markers |
 
 ## See Also
 

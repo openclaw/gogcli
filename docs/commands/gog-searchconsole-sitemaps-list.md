@@ -37,6 +37,7 @@ gog searchconsole (gsc,search-console,webmasters) sitemaps list (ls) <siteUrl> [
 | `--sitemap-index` | `string` |  | Filter to a sitemap index URL |
 | `-v`<br>`--verbose` | `bool` |  | Enable verbose logging |
 | `--version` | `kong.VersionFlag` |  | Print version and exit |
+| `--wrap-untrusted` | `bool` | false | In JSON/raw output, wrap fetched text fields in external untrusted-content markers |
 
 ## See Also
 

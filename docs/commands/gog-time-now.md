@@ -36,6 +36,7 @@ gog time now [flags]
 | `--timezone` | `string` |  | Timezone (e.g., America/New_York, UTC) |
 | `-v`<br>`--verbose` | `bool` |  | Enable verbose logging |
 | `--version` | `kong.VersionFlag` |  | Print version and exit |
+| `--wrap-untrusted` | `bool` | false | In JSON/raw output, wrap fetched text fields in external untrusted-content markers |
 
 ## See Also
 

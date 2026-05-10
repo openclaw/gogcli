@@ -40,6 +40,7 @@ gog sheets (sheet) chart (charts) create (add,new) --spec-json=STRING <spreadshe
 | `-v`<br>`--verbose` | `bool` |  | Enable verbose logging |
 | `--version` | `kong.VersionFlag` |  | Print version and exit |
 | `--width` | `int64` | 600 | Chart width in pixels |
+| `--wrap-untrusted` | `bool` | false | In JSON/raw output, wrap fetched text fields in external untrusted-content markers |
 
 ## See Also
 

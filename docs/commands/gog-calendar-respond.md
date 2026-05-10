@@ -37,6 +37,7 @@ gog calendar (cal) respond (rsvp,reply) <calendarId> <eventId> [flags]
 | `--status` | `string` |  | Response status (accepted, declined, tentative, needsAction) |
 | `-v`<br>`--verbose` | `bool` |  | Enable verbose logging |
 | `--version` | `kong.VersionFlag` |  | Print version and exit |
+| `--wrap-untrusted` | `bool` | false | In JSON/raw output, wrap fetched text fields in external untrusted-content markers |
 
 ## See Also
 

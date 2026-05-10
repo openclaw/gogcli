@@ -39,6 +39,7 @@ gog calendar (cal) freebusy [<calendarIds>] [flags]
 | `--to` | `string` |  | End time (RFC3339, required) |
 | `-v`<br>`--verbose` | `bool` |  | Enable verbose logging |
 | `--version` | `kong.VersionFlag` |  | Print version and exit |
+| `--wrap-untrusted` | `bool` | false | In JSON/raw output, wrap fetched text fields in external untrusted-content markers |
 
 ## See Also
 

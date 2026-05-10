@@ -76,6 +76,7 @@ gog calendar (cal) update (edit,set) <calendarId> <eventId> [flags]
 | `--working-floor-id` | `string` |  | Working location floor ID |
 | `--working-location-type` | `string` |  | Working location type: home, office, custom |
 | `--working-office-label` | `string` |  | Working location office name/label |
+| `--wrap-untrusted` | `bool` | false | In JSON/raw output, wrap fetched text fields in external untrusted-content markers |
 
 ## See Also
 

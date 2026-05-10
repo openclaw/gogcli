@@ -41,6 +41,7 @@ gog calendar (cal) out-of-office (ooo) --from=STRING --to=STRING [<calendarId>] 
 | `--to` | `string` |  | End date or datetime (RFC3339 or YYYY-MM-DD) |
 | `-v`<br>`--verbose` | `bool` |  | Enable verbose logging |
 | `--version` | `kong.VersionFlag` |  | Print version and exit |
+| `--wrap-untrusted` | `bool` | false | In JSON/raw output, wrap fetched text fields in external untrusted-content markers |
 
 ## See Also
 

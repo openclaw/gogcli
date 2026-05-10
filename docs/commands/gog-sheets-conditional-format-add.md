@@ -40,6 +40,7 @@ gog sheets (sheet) conditional-format (cf,conditional-formats) add (create,new) 
 | `--type` | `string` |  | Rule type: text-eq\|text-contains\|text-starts-with\|text-ends-with\|number-eq\|number-gt\|number-gte\|number-lt\|number-lte\|blank\|not-blank\|custom-formula |
 | `-v`<br>`--verbose` | `bool` |  | Enable verbose logging |
 | `--version` | `kong.VersionFlag` |  | Print version and exit |
+| `--wrap-untrusted` | `bool` | false | In JSON/raw output, wrap fetched text fields in external untrusted-content markers |
 
 ## See Also
 

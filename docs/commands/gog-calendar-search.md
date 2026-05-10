@@ -44,6 +44,7 @@ gog calendar (cal) search (find,query) <query> [flags]
 | `--version` | `kong.VersionFlag` |  | Print version and exit |
 | `--week` | `bool` |  | This week (uses --week-start, default Mon) |
 | `--week-start` | `string` |  | Week start day for --week (sun, mon, ...) |
+| `--wrap-untrusted` | `bool` | false | In JSON/raw output, wrap fetched text fields in external untrusted-content markers |
 
 ## See Also
 

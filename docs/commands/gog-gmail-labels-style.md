@@ -39,6 +39,7 @@ gog gmail (mail,email) labels (label) style (color,colour) <labelIdOrName> [flag
 | `--text-color` | `string` |  | Text color as #RRGGBB |
 | `-v`<br>`--verbose` | `bool` |  | Enable verbose logging |
 | `--version` | `kong.VersionFlag` |  | Print version and exit |
+| `--wrap-untrusted` | `bool` | false | In JSON/raw output, wrap fetched text fields in external untrusted-content markers |
 
 ## See Also
 

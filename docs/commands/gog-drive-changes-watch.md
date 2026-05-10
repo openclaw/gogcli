@@ -41,6 +41,7 @@ gog drive (drv) changes watch --token=STRING --webhook-url=STRING [flags]
 | `-v`<br>`--verbose` | `bool` |  | Enable verbose logging |
 | `--version` | `kong.VersionFlag` |  | Print version and exit |
 | `--webhook-url` | `string` |  | HTTPS webhook URL for Drive change notifications |
+| `--wrap-untrusted` | `bool` | false | In JSON/raw output, wrap fetched text fields in external untrusted-content markers |
 
 ## See Also
 

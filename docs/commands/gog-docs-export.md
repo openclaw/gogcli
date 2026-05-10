@@ -38,6 +38,7 @@ gog docs (doc) export (download,dl) <docId> [flags]
 | `--tab` | `string` |  | (experimental) Export a specific tab by title or ID (see 'gog docs list-tabs') |
 | `-v`<br>`--verbose` | `bool` |  | Enable verbose logging |
 | `--version` | `kong.VersionFlag` |  | Print version and exit |
+| `--wrap-untrusted` | `bool` | false | In JSON/raw output, wrap fetched text fields in external untrusted-content markers |
 
 ## See Also
 

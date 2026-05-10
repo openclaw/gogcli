@@ -46,6 +46,7 @@ gog admin users create (add,new) <email> [flags]
 | `--suspended` | `bool` |  | Create user in suspended state |
 | `-v`<br>`--verbose` | `bool` |  | Enable verbose logging |
 | `--version` | `kong.VersionFlag` |  | Print version and exit |
+| `--wrap-untrusted` | `bool` | false | In JSON/raw output, wrap fetched text fields in external untrusted-content markers |
 
 ## See Also
 

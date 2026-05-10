@@ -41,6 +41,7 @@ gog classroom (class) guardian-invitations (guardian-invites) list (ls) <student
 | `--state` | `string` |  | Invitation states filter (comma-separated: PENDING,COMPLETE) |
 | `-v`<br>`--verbose` | `bool` |  | Enable verbose logging |
 | `--version` | `kong.VersionFlag` |  | Print version and exit |
+| `--wrap-untrusted` | `bool` | false | In JSON/raw output, wrap fetched text fields in external untrusted-content markers |
 
 ## See Also
 

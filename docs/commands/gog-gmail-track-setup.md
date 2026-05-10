@@ -42,6 +42,7 @@ gog gmail (mail,email) track setup [flags]
 | `--worker-dir` | `string` |  | Worker directory (default: internal/tracking/worker) |
 | `--worker-name` | `string` |  | Cloudflare Worker name (defaults to gog-email-tracker-<account>) |
 | `--worker-url`<br>`--domain` | `string` |  | Tracking worker base URL (e.g. https://gog-email-tracker.<acct>.workers.dev) |
+| `--wrap-untrusted` | `bool` | false | In JSON/raw output, wrap fetched text fields in external untrusted-content markers |
 
 ## See Also
 

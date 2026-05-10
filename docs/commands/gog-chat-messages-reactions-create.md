@@ -36,6 +36,7 @@ gog chat messages reactions (reaction) create (add) <message> <emoji> [flags]
 | `--space` | `string` |  | Space name (required when message is a bare ID) |
 | `-v`<br>`--verbose` | `bool` |  | Enable verbose logging |
 | `--version` | `kong.VersionFlag` |  | Print version and exit |
+| `--wrap-untrusted` | `bool` | false | In JSON/raw output, wrap fetched text fields in external untrusted-content markers |
 
 ## See Also
 

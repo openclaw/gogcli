@@ -54,6 +54,7 @@ gog calendar (cal) events (list,ls) [<calendarId> ...] [flags]
 | `--week` | `bool` |  | This week (uses --week-start, default Mon) |
 | `--week-start` | `string` |  | Week start day for --week (sun, mon, ...) |
 | `--weekday` | `bool` | false | Include start/end day-of-week columns |
+| `--wrap-untrusted` | `bool` | false | In JSON/raw output, wrap fetched text fields in external untrusted-content markers |
 
 ## See Also
 

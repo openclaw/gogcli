@@ -50,6 +50,7 @@ gog forms (form) add-question (add-q,aq) --title=STRING <formId> [flags]
 | `--type` | `string` | text | Question type: text\|paragraph\|radio\|checkbox\|dropdown\|scale\|date\|time |
 | `-v`<br>`--verbose` | `bool` |  | Enable verbose logging |
 | `--version` | `kong.VersionFlag` |  | Print version and exit |
+| `--wrap-untrusted` | `bool` | false | In JSON/raw output, wrap fetched text fields in external untrusted-content markers |
 
 ## See Also
 

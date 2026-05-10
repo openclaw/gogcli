@@ -38,6 +38,7 @@ gog sheets (sheet) banding (banded-ranges) clear (delete,rm,remove) <spreadsheet
 | `--sheet` | `string` |  | Sheet name for --all |
 | `-v`<br>`--verbose` | `bool` |  | Enable verbose logging |
 | `--version` | `kong.VersionFlag` |  | Print version and exit |
+| `--wrap-untrusted` | `bool` | false | In JSON/raw output, wrap fetched text fields in external untrusted-content markers |
 
 ## See Also
 

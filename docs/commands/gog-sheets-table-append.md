@@ -37,6 +37,7 @@ gog sheets (sheet) table (tables) append (add-row,add-rows) <spreadsheetId> <tab
 | `--values-json` | `string` |  | Values as JSON 2D array |
 | `-v`<br>`--verbose` | `bool` |  | Enable verbose logging |
 | `--version` | `kong.VersionFlag` |  | Print version and exit |
+| `--wrap-untrusted` | `bool` | false | In JSON/raw output, wrap fetched text fields in external untrusted-content markers |
 
 ## See Also
 
