@@ -37,6 +37,7 @@ type RootFlags struct {
 	GmailNoSend     bool   `help:"Block Gmail send operations (agent safety)" default:"${gmail_no_send}"`
 	JSON            bool   `help:"Output JSON to stdout (best for scripting)" default:"${json}" aliases:"machine" short:"j"`
 	Plain           bool   `help:"Output stable, parseable text to stdout (TSV; no colors)" default:"${plain}" aliases:"tsv" short:"p"`
+	WrapUntrusted   bool   `name:"wrap-untrusted" help:"In JSON/raw output, wrap fetched text fields in external untrusted-content markers" default:"${wrap_untrusted}"`
 	ResultsOnly     bool   `name:"results-only" help:"In JSON mode, emit only the primary result (drops envelope fields like nextPageToken)"`
 	Select          string `name:"select" aliases:"pick,project" help:"In JSON mode, select comma-separated fields (best-effort; supports dot paths). Desire path: use --fields for most commands."`
 	DryRun          bool   `help:"Do not make changes; print intended actions and exit successfully" aliases:"noop,preview,dryrun" short:"n"`
@@ -172,6 +173,12 @@ func Execute(args []string) (err error) {
 		ResultsOnly: cli.ResultsOnly,
 		Select:      splitCommaList(cli.Select),
 	})
+	if cli.WrapUntrusted {
+		ctx = outfmt.WithUntrustedWrapper(ctx, outfmt.UntrustedWrapOptions{
+			Enabled: true,
+			Source:  "google_api",
+		})
+	}
 	ctx = authclient.WithClient(ctx, cli.Client)
 	ctx = authclient.WithAccessToken(ctx, directAccessToken(&cli.RootFlags))
 
@@ -334,6 +341,7 @@ func newParser(description string) (*kong.Kong, *CLI, error) {
 		"gmail_no_send":     boolString(envBool("GOG_GMAIL_NO_SEND")),
 		"json":              boolString(envMode.JSON),
 		"plain":             boolString(envMode.Plain),
+		"wrap_untrusted":    boolString(envBool("GOG_WRAP_UNTRUSTED")),
 		"version":           VersionString(),
 	}
 

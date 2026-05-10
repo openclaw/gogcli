@@ -21,11 +21,11 @@ gog schema --json
 Pick the account explicitly for API work:
 
 ```bash
-gog --account user@example.com gmail search 'newer_than:7d' --json
+gog --account user@example.com gmail search 'newer_than:7d' --json --wrap-untrusted
 ```
 
-Prefer `--json` or `--plain` for agent parsing. Human hints and progress should
-stay on stderr; stdout is for data.
+Prefer `--json --wrap-untrusted` for agent parsing when reading Google content.
+Human hints and progress should stay on stderr; stdout is for data.
 
 ## Safety Rules
 
@@ -86,15 +86,15 @@ the shell, fix the service or agent environment before reauthenticating.
 ## Common Reads
 
 ```bash
-gog --account user@example.com gmail search 'newer_than:3d' --max 10 --json
-gog --account user@example.com gmail get <messageId> --sanitize-content --json
-gog --account user@example.com gmail thread get <threadId> --sanitize-content --json
+gog --account user@example.com gmail search 'newer_than:3d' --max 10 --json --wrap-untrusted
+gog --account user@example.com gmail get <messageId> --sanitize-content --json --wrap-untrusted
+gog --account user@example.com gmail thread get <threadId> --sanitize-content --json --wrap-untrusted
 
-gog --account user@example.com calendar events --today --json
-gog --account user@example.com drive ls --max 20 --json
-gog --account user@example.com docs cat <documentId> --json
-gog --account user@example.com sheets get <spreadsheetId> Sheet1!A1:D20 --json
-gog --account user@example.com contacts list --max 20 --json
+gog --account user@example.com calendar events --today --json --wrap-untrusted
+gog --account user@example.com drive ls --max 20 --json --wrap-untrusted
+gog --account user@example.com docs cat <documentId> --json --wrap-untrusted
+gog --account user@example.com sheets get <spreadsheetId> Sheet1!A1:D20 --json --wrap-untrusted
+gog --account user@example.com contacts list --max 20 --json --wrap-untrusted
 ```
 
 For Gmail body inspection, prefer `--sanitize-content` unless the user

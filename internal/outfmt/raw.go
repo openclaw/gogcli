@@ -14,13 +14,22 @@ type RawOptions struct {
 }
 
 // WriteRaw marshals v as JSON and writes it to w, emitting the value bare
-// (no envelope/wrapper). Intended for `gog <group> raw` subcommands that
-// expose the canonical Google API response for programmatic consumption.
+// unless the caller enabled untrusted wrapping in the context. Intended for
+// `gog <group> raw` subcommands that expose the canonical Google API response
+// for programmatic consumption.
 //
 // Compact by default; pass RawOptions{Pretty: true} for indented output.
 // Always appends a trailing newline for pipe friendliness.
 // HTML escaping is disabled so URLs with & survive unchanged.
-func WriteRaw(_ context.Context, w io.Writer, v any, opts RawOptions) error {
+func WriteRaw(ctx context.Context, w io.Writer, v any, opts RawOptions) error {
+	if wrapOpts, ok := UntrustedWrapperFromContext(ctx); ok {
+		wrapped, err := wrapUntrustedJSONValue(v, wrapOpts)
+		if err != nil {
+			return fmt.Errorf("wrap untrusted raw json: %w", err)
+		}
+		v = wrapped
+	}
+
 	enc := json.NewEncoder(w)
 	enc.SetEscapeHTML(false)
 

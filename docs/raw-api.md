@@ -59,6 +59,9 @@ For the full sensitive-field review, read [Raw API Sensitive Field Audit](raw-au
 
 - Prefer `--json` for scripts.
 - Prefer `--pretty` for humans.
+- Use `--wrap-untrusted` when raw/fetched output will be pasted into an LLM or
+  agent context. It preserves IDs and URLs while marking fetched free-text
+  fields as external untrusted content.
 - Use narrow `--fields` or service-specific field masks whenever possible.
 - Do not pipe raw output into logs or LLMs unless you are comfortable with the
   object's full Google API payload.
