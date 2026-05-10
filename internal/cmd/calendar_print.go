@@ -18,6 +18,9 @@ func printCalendarEventWithTimezone(u *ui.UI, event *calendar.Event, calendarTim
 	calendarTimezone, loc = resolveEventTimezone(event, calendarTimezone, loc)
 
 	u.Out().Printf("id\t%s", event.Id)
+	if event.RecurringEventId != "" {
+		u.Out().Printf("recurringEventId\t%s", event.RecurringEventId)
+	}
 	u.Out().Printf("summary\t%s", orEmpty(event.Summary, "(no title)"))
 	if event.EventType != "" && event.EventType != eventTypeDefault {
 		u.Out().Printf("type\t%s", event.EventType)

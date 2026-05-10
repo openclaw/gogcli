@@ -345,7 +345,14 @@ func TestCalendarUpdateCmd_WithMeet(t *testing.T) {
 	)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := strings.TrimPrefix(r.URL.Path, "/calendar/v3")
-		if r.Method == http.MethodPatch && path == "/calendars/cal@example.com/events/ev" {
+		switch {
+		case r.Method == http.MethodGet && path == "/calendars/cal@example.com/events/ev":
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"id": "ev",
+			})
+			return
+		case r.Method == http.MethodPatch && path == "/calendars/cal@example.com/events/ev":
 			sawVersion = r.URL.Query().Get("conferenceDataVersion") == "1"
 			var body calendar.Event
 			_ = json.NewDecoder(r.Body).Decode(&body)
@@ -382,6 +389,167 @@ func TestCalendarUpdateCmd_WithMeet(t *testing.T) {
 	}
 	if !sawVersion {
 		t.Fatalf("expected conferenceDataVersion=1 on patch request")
+	}
+}
+
+func TestCalendarUpdateCmd_WithMeetExistingConferenceIsIdempotent(t *testing.T) {
+	origNew := newCalendarService
+	t.Cleanup(func() { newCalendarService = origNew })
+
+	var sawPatch bool
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := strings.TrimPrefix(r.URL.Path, "/calendar/v3")
+		switch {
+		case r.Method == http.MethodGet && path == "/calendars/cal@example.com/events/ev":
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"id":          "ev",
+				"hangoutLink": "https://meet.google.com/existing",
+				"conferenceData": map[string]any{
+					"entryPoints": []map[string]any{
+						{"entryPointType": "video", "uri": "https://meet.google.com/existing"},
+					},
+				},
+			})
+			return
+		case r.Method == http.MethodPatch && path == "/calendars/cal@example.com/events/ev":
+			sawPatch = true
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{"id": "ev"})
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer srv.Close()
+
+	svc := newCalendarServiceFromServer(t, srv)
+	newCalendarService = func(context.Context, string) (*calendar.Service, error) { return svc, nil }
+
+	ctx := newCalendarJSONOutputContext(t, os.Stdout, os.Stderr)
+
+	cmd := &CalendarUpdateCmd{}
+	if err := runKong(t, cmd, []string{
+		"cal@example.com",
+		"ev",
+		"--with-meet",
+	}, ctx, &RootFlags{Account: "a@b.com"}); err != nil {
+		t.Fatalf("runKong: %v", err)
+	}
+	if sawPatch {
+		t.Fatalf("expected existing Meet link to skip patch")
+	}
+}
+
+func TestCalendarUpdateCmd_RegenerateMeetReplacesConference(t *testing.T) {
+	origNew := newCalendarService
+	t.Cleanup(func() { newCalendarService = origNew })
+
+	var sawPatch bool
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := strings.TrimPrefix(r.URL.Path, "/calendar/v3")
+		if r.Method == http.MethodPatch && path == "/calendars/cal@example.com/events/ev" {
+			sawPatch = true
+			if r.URL.Query().Get("conferenceDataVersion") != "1" {
+				t.Fatalf("expected conferenceDataVersion=1")
+			}
+			var body calendar.Event
+			_ = json.NewDecoder(r.Body).Decode(&body)
+			if body.ConferenceData == nil || body.ConferenceData.CreateRequest == nil {
+				t.Fatalf("expected conferenceData create request")
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"id":          "ev",
+				"hangoutLink": "https://meet.google.com/replaced",
+			})
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer srv.Close()
+
+	svc := newCalendarServiceFromServer(t, srv)
+	newCalendarService = func(context.Context, string) (*calendar.Service, error) { return svc, nil }
+
+	ctx := newCalendarJSONOutputContext(t, os.Stdout, os.Stderr)
+
+	cmd := &CalendarUpdateCmd{}
+	if err := runKong(t, cmd, []string{
+		"cal@example.com",
+		"ev",
+		"--regenerate-meet",
+	}, ctx, &RootFlags{Account: "a@b.com"}); err != nil {
+		t.Fatalf("runKong: %v", err)
+	}
+	if !sawPatch {
+		t.Fatalf("expected patch")
+	}
+}
+
+func TestCalendarUpdateCmd_WithMeetScopeFutureExistingConferenceIsIdempotent(t *testing.T) {
+	origNew := newCalendarService
+	t.Cleanup(func() { newCalendarService = origNew })
+
+	var patchCalled bool
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := strings.TrimPrefix(r.URL.Path, "/calendar/v3")
+		switch {
+		case r.Method == http.MethodGet && path == "/calendars/cal@example.com/events/ev_instance":
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"id":               "ev_instance",
+				"recurringEventId": "ev",
+				"hangoutLink":      "https://meet.google.com/existing",
+			})
+			return
+		case r.Method == http.MethodGet && path == "/calendars/cal@example.com/events/ev":
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"id":         "ev",
+				"recurrence": []string{"RRULE:FREQ=DAILY"},
+			})
+			return
+		case r.Method == http.MethodGet && strings.HasPrefix(path, "/calendars/cal@example.com/events/ev/instances"):
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"items": []map[string]any{
+					{
+						"id":          "ev_instance",
+						"hangoutLink": "https://meet.google.com/existing",
+						"originalStartTime": map[string]any{
+							"dateTime": "2025-01-02T10:00:00Z",
+						},
+					},
+				},
+			})
+			return
+		case r.Method == http.MethodPatch:
+			patchCalled = true
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{"id": "patched"})
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer srv.Close()
+
+	svc := newCalendarServiceFromServer(t, srv)
+	newCalendarService = func(context.Context, string) (*calendar.Service, error) { return svc, nil }
+
+	ctx := newCalendarJSONOutputContext(t, os.Stdout, os.Stderr)
+
+	cmd := &CalendarUpdateCmd{}
+	if err := runKong(t, cmd, []string{
+		"cal@example.com",
+		"ev_instance",
+		"--with-meet",
+		"--scope", "future",
+		"--original-start", "2025-01-02T10:00:00Z",
+	}, ctx, &RootFlags{Account: "a@b.com"}); err != nil {
+		t.Fatalf("runKong: %v", err)
+	}
+	if patchCalled {
+		t.Fatalf("expected existing Meet link to skip future-scope patch/truncation")
 	}
 }
 

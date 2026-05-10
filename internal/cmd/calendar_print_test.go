@@ -46,16 +46,17 @@ func TestPrintCalendarEvent_AllFields(t *testing.T) {
 	guestsCanInvite := false
 	guestsCanSee := false
 	event := &calendar.Event{
-		Id:           "ev1",
-		Summary:      "",
-		EventType:    "focusTime",
-		Description:  "desc",
-		Location:     "office",
-		ColorId:      "1",
-		Visibility:   "private",
-		Transparency: "transparent",
-		Start:        &calendar.EventDateTime{DateTime: "2025-01-01T10:00:00Z"},
-		End:          &calendar.EventDateTime{DateTime: "2025-01-01T11:00:00Z"},
+		Id:               "ev1",
+		RecurringEventId: "ev_master",
+		Summary:          "",
+		EventType:        "focusTime",
+		Description:      "desc",
+		Location:         "office",
+		ColorId:          "1",
+		Visibility:       "private",
+		Transparency:     "transparent",
+		Start:            &calendar.EventDateTime{DateTime: "2025-01-01T10:00:00Z"},
+		End:              &calendar.EventDateTime{DateTime: "2025-01-01T11:00:00Z"},
 		Attendees: []*calendar.EventAttendee{
 			{Email: "a@example.com", ResponseStatus: "accepted"},
 			{Email: "b@example.com", ResponseStatus: "declined", Optional: true},
@@ -101,6 +102,7 @@ func TestPrintCalendarEvent_AllFields(t *testing.T) {
 
 	for _, want := range []string{
 		"id\tev1",
+		"recurringEventId\tev_master",
 		"summary\t(no title)",
 		"type\tfocusTime",
 		"timezone\tUTC",

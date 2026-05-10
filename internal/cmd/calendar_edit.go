@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"strings"
 
 	"github.com/alecthomas/kong"
@@ -235,6 +236,7 @@ type CalendarUpdateCmd struct {
 	GuestsCanModify       *bool    `name:"guests-can-modify" help:"Allow guests to modify event"`
 	GuestsCanSeeOthers    *bool    `name:"guests-can-see-others" help:"Allow guests to see other guests"`
 	WithMeet              bool     `name:"with-meet" help:"Create a Google Meet video conference for this event"`
+	RegenerateMeet        bool     `name:"regenerate-meet" help:"Replace the event's Google Meet video conference"`
 	Scope                 string   `name:"scope" help:"For recurring events: single, future, all" default:"all"`
 	OriginalStartTime     string   `name:"original-start" help:"Original start time of instance (required for scope=single,future)"`
 	PrivateProps          []string `name:"private-prop" help:"Private extended property (key=value, can be repeated)"`
@@ -280,6 +282,9 @@ func (c *CalendarUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *
 	// Cannot use both --attendees and --add-attendee at the same time.
 	if flagProvided(kctx, "attendees") && flagProvided(kctx, "add-attendee") {
 		return usage("cannot use both --attendees and --add-attendee; use --attendees to replace all, or --add-attendee to add")
+	}
+	if flagProvided(kctx, "with-meet") && flagProvided(kctx, "regenerate-meet") {
+		return usage("use only one of --with-meet or --regenerate-meet")
 	}
 	if placeErr := c.resolvePlace(ctx, kctx); placeErr != nil {
 		return placeErr
@@ -341,9 +346,36 @@ func (c *CalendarUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *
 		}
 	}
 
+	if patch.ConferenceData != nil && !flagProvided(kctx, "regenerate-meet") && patchOnlyConferenceData(patch) {
+		resolution, resolveErr := resolveRecurringScopeResolution(ctx, mutation.svc, mutation.calendarID, eventID, scope, c.OriginalStartTime)
+		if resolveErr != nil {
+			return resolveErr
+		}
+		existing, getErr := mutation.svc.Events.Get(mutation.calendarID, resolution.TargetEventID).Context(ctx).Do()
+		if getErr != nil {
+			return fmt.Errorf("failed to fetch current event for conference data: %w", getErr)
+		}
+		if eventHasConferenceLink(existing) {
+			return mutation.writeEvent(ctx, existing)
+		}
+	}
+
 	targetEventID, parentRecurrence, err := applyUpdateScope(ctx, mutation.svc, mutation.calendarID, eventID, scope, c.OriginalStartTime, patch)
 	if err != nil {
 		return err
+	}
+	if patch.ConferenceData != nil && !flagProvided(kctx, "regenerate-meet") {
+		existing, getErr := mutation.svc.Events.Get(mutation.calendarID, targetEventID).Context(ctx).Do()
+		if getErr != nil {
+			return fmt.Errorf("failed to fetch current event for conference data: %w", getErr)
+		}
+		if eventHasConferenceLink(existing) {
+			onlyConferenceData := patchOnlyConferenceData(patch)
+			patch.ConferenceData = nil
+			if onlyConferenceData {
+				return mutation.writeEvent(ctx, existing)
+			}
+		}
 	}
 	if recurrenceProvided {
 		if enrichErr := ensureRecurringPatchDateTimes(ctx, mutation.svc, mutation.calendarID, targetEventID, patch); enrichErr != nil {
@@ -682,11 +714,38 @@ func (c *CalendarUpdateCmd) applyGuestOptions(kctx *kong.Context, patch *calenda
 }
 
 func (c *CalendarUpdateCmd) applyConferenceData(kctx *kong.Context, patch *calendar.Event) bool {
-	if !flagProvided(kctx, "with-meet") {
+	if !flagProvided(kctx, "with-meet") && !flagProvided(kctx, "regenerate-meet") {
 		return false
 	}
 	patch.ConferenceData = buildConferenceData(true)
 	return true
+}
+
+func eventHasConferenceLink(event *calendar.Event) bool {
+	if event == nil {
+		return false
+	}
+	if strings.TrimSpace(event.HangoutLink) != "" {
+		return true
+	}
+	if event.ConferenceData == nil {
+		return false
+	}
+	for _, ep := range event.ConferenceData.EntryPoints {
+		if ep != nil && strings.TrimSpace(ep.Uri) != "" {
+			return true
+		}
+	}
+	return false
+}
+
+func patchOnlyConferenceData(event *calendar.Event) bool {
+	if event == nil || event.ConferenceData == nil {
+		return false
+	}
+	clone := *event
+	clone.ConferenceData = nil
+	return reflect.DeepEqual(clone, calendar.Event{})
 }
 
 func (c *CalendarUpdateCmd) applyExtendedProperties(kctx *kong.Context, patch *calendar.Event) bool {

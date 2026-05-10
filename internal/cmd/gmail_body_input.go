@@ -9,12 +9,16 @@ import (
 )
 
 func resolveBodyInput(body, bodyFile string) (string, error) {
+	return resolveBodyFileInput(body, bodyFile, "--body", "--body-file")
+}
+
+func resolveBodyFileInput(body, bodyFile, bodyFlag, bodyFileFlag string) (string, error) {
 	bodyFile = strings.TrimSpace(bodyFile)
 	if bodyFile == "" {
 		return body, nil
 	}
 	if strings.TrimSpace(body) != "" {
-		return "", usage("use only one of --body or --body-file")
+		return "", usage("use only one of " + bodyFlag + " or " + bodyFileFlag)
 	}
 
 	var (

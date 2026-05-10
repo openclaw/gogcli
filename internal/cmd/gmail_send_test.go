@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"reflect"
 	"sort"
 	"strings"
@@ -364,6 +365,78 @@ func TestGmailSendCmd_RunJSON(t *testing.T) {
 	})
 	if !strings.Contains(out, "\"messageId\"") || !strings.Contains(out, "\"threadId\"") {
 		t.Fatalf("unexpected output: %q", out)
+	}
+}
+
+func TestGmailSendCmd_BodyHTMLFile(t *testing.T) {
+	origNew := newGmailService
+	t.Cleanup(func() { newGmailService = origNew })
+
+	dir := t.TempDir()
+	htmlPath := filepath.Join(dir, "body.html")
+	if err := os.WriteFile(htmlPath, []byte("<h1>Hello</h1>\n<p>from file</p>"), 0o600); err != nil {
+		t.Fatalf("write html: %v", err)
+	}
+
+	var rawSent string
+	svc, cleanup := newGmailServiceForTest(t, func(w http.ResponseWriter, r *http.Request) {
+		path := strings.TrimPrefix(r.URL.Path, "/gmail/v1")
+		if r.Method == http.MethodPost && path == "/users/me/messages/send" {
+			var msg gmail.Message
+			if err := json.NewDecoder(r.Body).Decode(&msg); err != nil {
+				t.Fatalf("decode sent message: %v", err)
+			}
+			raw, err := base64.RawURLEncoding.DecodeString(msg.Raw)
+			if err != nil {
+				t.Fatalf("decode raw message: %v", err)
+			}
+			rawSent = string(raw)
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"id":       "m-html",
+				"threadId": "t-html",
+			})
+			return
+		}
+		http.NotFound(w, r)
+	})
+	defer cleanup()
+	newGmailService = func(context.Context, string) (*gmail.Service, error) { return svc, nil }
+
+	u, err := ui.New(ui.Options{Stdout: os.Stdout, Stderr: os.Stderr, Color: "never"})
+	if err != nil {
+		t.Fatalf("ui.New: %v", err)
+	}
+	ctx := outfmt.WithMode(ui.WithUI(context.Background(), u), outfmt.Mode{JSON: true})
+
+	cmd := &GmailSendCmd{
+		To:           "a@example.com",
+		Subject:      "Hello",
+		BodyHTMLFile: htmlPath,
+	}
+
+	if err := cmd.Run(ctx, &RootFlags{Account: "a@b.com"}); err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if !strings.Contains(rawSent, "Content-Type: text/html") || !strings.Contains(rawSent, "<h1>Hello</h1>") {
+		t.Fatalf("expected HTML file body in sent message, got: %q", rawSent)
+	}
+}
+
+func TestGmailSendCmd_BodyHTMLFileConflict(t *testing.T) {
+	cmd := &GmailSendCmd{
+		To:           "a@example.com",
+		Subject:      "Hello",
+		BodyHTML:     "<p>inline</p>",
+		BodyHTMLFile: "/tmp/body.html",
+	}
+
+	err := cmd.Run(context.Background(), &RootFlags{Account: "a@b.com"})
+	if err == nil {
+		t.Fatalf("expected conflict error")
+	}
+	if !strings.Contains(err.Error(), "--body-html") || !strings.Contains(err.Error(), "--body-html-file") {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
 

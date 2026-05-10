@@ -19,6 +19,7 @@ type GmailSendCmd struct {
 	Body             string   `name:"body" help:"Body (plain text; required unless --body-html is set)"`
 	BodyFile         string   `name:"body-file" help:"Body file path (plain text; '-' for stdin)"`
 	BodyHTML         string   `name:"body-html" help:"Body (HTML; optional)"`
+	BodyHTMLFile     string   `name:"body-html-file" help:"HTML body file path ('-' for stdin)"`
 	ReplyToMessageID string   `name:"reply-to-message-id" aliases:"in-reply-to" help:"Reply to Gmail message ID (sets In-Reply-To/References and thread)"`
 	ThreadID         string   `name:"thread-id" help:"Reply within a Gmail thread (uses latest message for headers)"`
 	ReplyAll         bool     `name:"reply-all" help:"Auto-populate recipients from original message (requires --reply-to-message-id or --thread-id)"`
@@ -70,6 +71,10 @@ func (c *GmailSendCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if err != nil {
 		return err
 	}
+	htmlBodyInput, err := resolveBodyFileInput(c.BodyHTML, c.BodyHTMLFile, "--body-html", "--body-html-file")
+	if err != nil {
+		return err
+	}
 
 	if replyToMessageID != "" && threadID != "" {
 		return usage("use only one of --reply-to-message-id or --thread-id")
@@ -92,14 +97,14 @@ func (c *GmailSendCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if strings.TrimSpace(c.Subject) == "" {
 		return usage("required: --subject")
 	}
-	if strings.TrimSpace(body) == "" && strings.TrimSpace(c.BodyHTML) == "" {
-		return usage("required: --body, --body-file, or --body-html")
+	if strings.TrimSpace(body) == "" && strings.TrimSpace(htmlBodyInput) == "" {
+		return usage("required: --body, --body-file, --body-html, or --body-html-file")
 	}
 	if c.TrackSplit && !c.Track {
 		return usage("--track-split requires --track")
 	}
-	if c.Track && strings.TrimSpace(c.BodyHTML) == "" {
-		return fmt.Errorf("--track requires --body-html (pixel must be in HTML)")
+	if c.Track && strings.TrimSpace(htmlBodyInput) == "" {
+		return fmt.Errorf("--track requires --body-html or --body-html-file (pixel must be in HTML)")
 	}
 	if sigErr := c.validateSignatureOptions(); sigErr != nil {
 		return sigErr
@@ -121,7 +126,7 @@ func (c *GmailSendCmd) Run(ctx context.Context, flags *RootFlags) error {
 		"reply_to":            strings.TrimSpace(c.ReplyTo),
 		"from":                strings.TrimSpace(c.From),
 		"body_len":            len(strings.TrimSpace(body)),
-		"body_html_len":       len(strings.TrimSpace(c.BodyHTML)),
+		"body_html_len":       len(strings.TrimSpace(htmlBodyInput)),
 		"attachments":         attachPaths,
 		"signature":           c.Signature,
 		"signature_from":      strings.TrimSpace(c.SignatureFrom),
@@ -141,7 +146,6 @@ func (c *GmailSendCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if err != nil {
 		return err
 	}
-	htmlBodyInput := c.BodyHTML
 	if c.signatureRequested() {
 		signature, source, sigErr := c.resolveComposeSignature(ctx, svc, from.sendingEmail)
 		if sigErr != nil {
