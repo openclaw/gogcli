@@ -156,7 +156,7 @@ func (c *SitesURLCmd) Run(ctx context.Context, flags *RootFlags) error {
 		if siteID == "" {
 			return usage("empty siteId")
 		}
-		link, linkErr := driveWebLink(ctx, svc, siteID)
+		link, linkErr := siteWebLink(ctx, svc, siteID)
 		if linkErr != nil {
 			return linkErr
 		}
@@ -200,4 +200,22 @@ func requireSitesDriveService(ctx context.Context, flags *RootFlags) (*drive.Ser
 		return nil, err
 	}
 	return newSitesDriveService(ctx, account)
+}
+
+func siteWebLink(ctx context.Context, svc *drive.Service, siteID string) (string, error) {
+	f, err := svc.Files.Get(siteID).
+		SupportsAllDrives(true).
+		Fields("mimeType, webViewLink").
+		Context(ctx).
+		Do()
+	if err != nil {
+		return "", err
+	}
+	if f.MimeType != "" && f.MimeType != driveMimeGoogleSite {
+		return "", fmt.Errorf("file %s is not a Google Site (mimeType=%q)", siteID, f.MimeType)
+	}
+	if f.WebViewLink != "" {
+		return f.WebViewLink, nil
+	}
+	return fmt.Sprintf("https://sites.google.com/d/%s/edit", siteID), nil
 }

@@ -130,4 +130,9 @@ func TestSitesGetRejectsNonSite(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "not a Google Site") {
 		t.Fatalf("expected not-site error, got %v", err)
 	}
+
+	err = (&SitesURLCmd{SiteIDs: []string{"doc1"}}).Run(ctx, &RootFlags{Account: "a@b.com"})
+	if err == nil || !strings.Contains(err.Error(), "not a Google Site") {
+		t.Fatalf("expected url not-site error, got %v", err)
+	}
 }
