@@ -19,7 +19,7 @@ const (
 )
 
 var (
-	untrustedMarkerPattern = regexp.MustCompile(`(?is)<<<\s*(?:END[\s_]+)?EXTERNAL[\s_]+UNTRUSTED[\s_]+CONTENT(?:\s+id="[^"]{1,128}")?\s*>>>`)
+	untrustedMarkerPattern = regexp.MustCompile(`(?is)<<<\s*(?:END[\s_]+)?EXTERNAL[\s_]+UNTRUSTED[\s_]+CONTENT(?:\s+[^>]*)?\s*>>>`)
 
 	untrustedSpecialTokenReplacer = strings.NewReplacer(
 		"<|im_start|>", "[REMOVED_SPECIAL_TOKEN]",
@@ -109,7 +109,7 @@ func WrapUntrustedContent(content string, opts UntrustedWrapOptions) string {
 
 func sanitizeUntrustedContentText(content string) string {
 	content = untrustedMarkerPattern.ReplaceAllStringFunc(content, func(match string) string {
-		if strings.Contains(strings.ToUpper(match), "END") {
+		if isUntrustedEndMarker(match) {
 			return "[[END_MARKER_SANITIZED]]"
 		}
 
@@ -119,6 +119,14 @@ func sanitizeUntrustedContentText(content string) string {
 	content = untrustedSpecialTokenReplacer.Replace(content)
 
 	return untrustedReservedSpecialTokenPattern.ReplaceAllString(content, "[REMOVED_SPECIAL_TOKEN]")
+}
+
+func isUntrustedEndMarker(match string) bool {
+	marker := strings.TrimSpace(match)
+	marker = strings.TrimPrefix(marker, "<<<")
+	marker = strings.TrimSpace(marker)
+
+	return strings.HasPrefix(strings.ToUpper(marker), "END")
 }
 
 func randomMarkerID() string {
