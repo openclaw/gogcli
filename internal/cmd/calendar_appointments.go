@@ -2,13 +2,18 @@ package cmd
 
 import (
 	"context"
-	"fmt"
 )
 
-type CalendarAppointmentsCmd struct{}
+const calendarAppointmentScheduleEventType = "appointmentSchedule"
 
-func (c *CalendarAppointmentsCmd) Run(ctx context.Context, flags *RootFlags) error {
-	return errCalendarAppointmentSchedulesUnsupported
+type CalendarAppointmentsCmd struct {
+	List CalendarAppointmentSchedulesListCmd `cmd:"" name:"list" aliases:"ls" help:"List appointment schedules"`
 }
 
-var errCalendarAppointmentSchedulesUnsupported = fmt.Errorf("calendar appointment schedules are not exposed by the Google Calendar API; Events.list currently accepts eventTypes birthday, default, focusTime, fromGmail, outOfOffice, and workingLocation only")
+type CalendarAppointmentSchedulesListCmd struct {
+	CalendarEventsCmd `embed:""`
+}
+
+func (c *CalendarAppointmentSchedulesListCmd) Run(ctx context.Context, flags *RootFlags) error {
+	return c.CalendarEventsCmd.run(ctx, flags, []string{calendarAppointmentScheduleEventType})
+}

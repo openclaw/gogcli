@@ -7,7 +7,7 @@ type CalendarCmd struct {
 	ACL             CalendarAclCmd             `cmd:"" name:"acl" aliases:"permissions,perms" help:"List calendar ACL"`
 	Alias           CalendarAliasCmd           `cmd:"" name:"alias" help:"Manage calendar aliases"`
 	Events          CalendarEventsCmd          `cmd:"" name:"events" aliases:"list,ls" help:"List events from a calendar or all calendars"`
-	Appointments    CalendarAppointmentsCmd    `cmd:"" name:"appointments" aliases:"appointment-schedules,appt" help:"Report Calendar appointment schedule API limitation"`
+	Appointments    CalendarAppointmentsCmd    `cmd:"" name:"appointments" aliases:"appointment-schedules,appt" help:"Manage appointment schedules"`
 	Event           CalendarEventCmd           `cmd:"" name:"event" aliases:"get,info,show" help:"Get event"`
 	Raw             CalendarRawCmd             `cmd:"" name:"raw" help:"Dump raw Google Calendar API response as JSON (Events.Get; lossless; for scripting and LLM consumption)"`
 	Create          CalendarCreateCmd          `cmd:"" name:"create" aliases:"add,new" help:"Create an event"`

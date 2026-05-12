@@ -33,6 +33,10 @@ type CalendarEventsCmd struct {
 }
 
 func (c *CalendarEventsCmd) Run(ctx context.Context, flags *RootFlags) error {
+	return c.run(ctx, flags, nil)
+}
+
+func (c *CalendarEventsCmd) run(ctx context.Context, flags *RootFlags, eventTypes []string) error {
 	account, err := requireAccount(flags)
 	if err != nil {
 		return err
@@ -80,7 +84,7 @@ func (c *CalendarEventsCmd) Run(ctx context.Context, flags *RootFlags) error {
 	from, to := timeRange.FormatRFC3339()
 
 	if c.All {
-		return listAllCalendarsEvents(ctx, svc, from, to, c.Max, c.Page, c.AllPages, c.FailEmpty, c.Query, c.PrivatePropFilter, c.SharedPropFilter, c.Fields, c.Weekday)
+		return listAllCalendarsEventsWithEventTypes(ctx, svc, from, to, c.Max, c.Page, c.AllPages, c.FailEmpty, c.Query, c.PrivatePropFilter, c.SharedPropFilter, c.Fields, c.Weekday, eventTypes)
 	}
 	if len(calInputs) > 0 {
 		ids, err := resolveCalendarIDs(ctx, svc, calInputs)
@@ -90,9 +94,9 @@ func (c *CalendarEventsCmd) Run(ctx context.Context, flags *RootFlags) error {
 		if len(ids) == 0 {
 			return usage("no calendars specified")
 		}
-		return listSelectedCalendarsEvents(ctx, svc, ids, from, to, c.Max, c.Page, c.AllPages, c.FailEmpty, c.Query, c.PrivatePropFilter, c.SharedPropFilter, c.Fields, c.Weekday)
+		return listSelectedCalendarsEventsWithEventTypes(ctx, svc, ids, from, to, c.Max, c.Page, c.AllPages, c.FailEmpty, c.Query, c.PrivatePropFilter, c.SharedPropFilter, c.Fields, c.Weekday, eventTypes)
 	}
-	return listCalendarEvents(ctx, svc, calendarID, from, to, c.Max, c.Page, c.AllPages, c.FailEmpty, c.Query, c.PrivatePropFilter, c.SharedPropFilter, c.Fields, c.Weekday)
+	return listCalendarEventsWithEventTypes(ctx, svc, calendarID, from, to, c.Max, c.Page, c.AllPages, c.FailEmpty, c.Query, c.PrivatePropFilter, c.SharedPropFilter, c.Fields, c.Weekday, eventTypes)
 }
 
 func normalizeCalendarEventsArgs(args []string) (string, error) {

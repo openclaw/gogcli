@@ -15,6 +15,10 @@ import (
 )
 
 func calendarEventsListCall(ctx context.Context, svc *calendar.Service, calendarID, from, to string, maxResults int64, query, privatePropFilter, sharedPropFilter, fields, pageToken string) *calendar.EventsListCall {
+	return calendarEventsListCallWithEventTypes(ctx, svc, calendarID, from, to, maxResults, query, privatePropFilter, sharedPropFilter, fields, nil, pageToken)
+}
+
+func calendarEventsListCallWithEventTypes(ctx context.Context, svc *calendar.Service, calendarID, from, to string, maxResults int64, query, privatePropFilter, sharedPropFilter, fields string, eventTypes []string, pageToken string) *calendar.EventsListCall {
 	call := svc.Events.List(calendarID).
 		TimeMin(from).
 		TimeMax(to).
@@ -38,13 +42,20 @@ func calendarEventsListCall(ctx context.Context, svc *calendar.Service, calendar
 	if strings.TrimSpace(fields) != "" {
 		call = call.Fields(gapi.Field(fields))
 	}
+	if len(eventTypes) > 0 {
+		call = call.EventTypes(eventTypes...)
+	}
 	return call
 }
 
 func listCalendarEvents(ctx context.Context, svc *calendar.Service, calendarID, from, to string, maxResults int64, page string, allPages bool, failEmpty bool, query, privatePropFilter, sharedPropFilter, fields string, showWeekday bool) error {
+	return listCalendarEventsWithEventTypes(ctx, svc, calendarID, from, to, maxResults, page, allPages, failEmpty, query, privatePropFilter, sharedPropFilter, fields, showWeekday, nil)
+}
+
+func listCalendarEventsWithEventTypes(ctx context.Context, svc *calendar.Service, calendarID, from, to string, maxResults int64, page string, allPages bool, failEmpty bool, query, privatePropFilter, sharedPropFilter, fields string, showWeekday bool, eventTypes []string) error {
 	calendarTimezone, loc := calendarDisplayTimezone(ctx, svc, calendarID, nil)
 	fetch := func(pageToken string) ([]*calendar.Event, string, error) {
-		resp, err := calendarEventsListCall(ctx, svc, calendarID, from, to, maxResults, query, privatePropFilter, sharedPropFilter, fields, pageToken).Do()
+		resp, err := calendarEventsListCallWithEventTypes(ctx, svc, calendarID, from, to, maxResults, query, privatePropFilter, sharedPropFilter, fields, eventTypes, pageToken).Do()
 		if err != nil {
 			return nil, "", err
 		}
@@ -106,6 +117,10 @@ type calendarTimezoneHint struct {
 }
 
 func listAllCalendarsEvents(ctx context.Context, svc *calendar.Service, from, to string, maxResults int64, page string, allPages bool, failEmpty bool, query, privatePropFilter, sharedPropFilter, fields string, showWeekday bool) error {
+	return listAllCalendarsEventsWithEventTypes(ctx, svc, from, to, maxResults, page, allPages, failEmpty, query, privatePropFilter, sharedPropFilter, fields, showWeekday, nil)
+}
+
+func listAllCalendarsEventsWithEventTypes(ctx context.Context, svc *calendar.Service, from, to string, maxResults int64, page string, allPages bool, failEmpty bool, query, privatePropFilter, sharedPropFilter, fields string, showWeekday bool, eventTypes []string) error {
 	u := ui.FromContext(ctx)
 
 	calendars, err := listCalendarList(ctx, svc)
@@ -129,14 +144,22 @@ func listAllCalendarsEvents(ctx context.Context, svc *calendar.Service, from, to
 		u.Err().Println("No calendars")
 		return nil
 	}
-	return listCalendarIDsEvents(ctx, svc, ids, from, to, maxResults, page, allPages, failEmpty, query, privatePropFilter, sharedPropFilter, fields, showWeekday, calendarTimezoneHints(calendars))
+	return listCalendarIDsEventsWithEventTypes(ctx, svc, ids, from, to, maxResults, page, allPages, failEmpty, query, privatePropFilter, sharedPropFilter, fields, showWeekday, calendarTimezoneHints(calendars), eventTypes)
 }
 
 func listSelectedCalendarsEvents(ctx context.Context, svc *calendar.Service, calendarIDs []string, from, to string, maxResults int64, page string, allPages bool, failEmpty bool, query, privatePropFilter, sharedPropFilter, fields string, showWeekday bool) error {
-	return listCalendarIDsEvents(ctx, svc, calendarIDs, from, to, maxResults, page, allPages, failEmpty, query, privatePropFilter, sharedPropFilter, fields, showWeekday, nil)
+	return listSelectedCalendarsEventsWithEventTypes(ctx, svc, calendarIDs, from, to, maxResults, page, allPages, failEmpty, query, privatePropFilter, sharedPropFilter, fields, showWeekday, nil)
+}
+
+func listSelectedCalendarsEventsWithEventTypes(ctx context.Context, svc *calendar.Service, calendarIDs []string, from, to string, maxResults int64, page string, allPages bool, failEmpty bool, query, privatePropFilter, sharedPropFilter, fields string, showWeekday bool, eventTypes []string) error {
+	return listCalendarIDsEventsWithEventTypes(ctx, svc, calendarIDs, from, to, maxResults, page, allPages, failEmpty, query, privatePropFilter, sharedPropFilter, fields, showWeekday, nil, eventTypes)
 }
 
 func listCalendarIDsEvents(ctx context.Context, svc *calendar.Service, calendarIDs []string, from, to string, maxResults int64, page string, allPages bool, failEmpty bool, query, privatePropFilter, sharedPropFilter, fields string, showWeekday bool, timezoneHints map[string]calendarTimezoneHint) error {
+	return listCalendarIDsEventsWithEventTypes(ctx, svc, calendarIDs, from, to, maxResults, page, allPages, failEmpty, query, privatePropFilter, sharedPropFilter, fields, showWeekday, timezoneHints, nil)
+}
+
+func listCalendarIDsEventsWithEventTypes(ctx context.Context, svc *calendar.Service, calendarIDs []string, from, to string, maxResults int64, page string, allPages bool, failEmpty bool, query, privatePropFilter, sharedPropFilter, fields string, showWeekday bool, timezoneHints map[string]calendarTimezoneHint, eventTypes []string) error {
 	u := ui.FromContext(ctx)
 	all := []*eventWithCalendar{}
 	for _, calID := range calendarIDs {
@@ -146,7 +169,7 @@ func listCalendarIDsEvents(ctx context.Context, svc *calendar.Service, calendarI
 		}
 		calendarTimezone, loc := calendarDisplayTimezone(ctx, svc, calID, timezoneHints)
 		fetch := func(pageToken string) ([]*calendar.Event, string, error) {
-			resp, err := calendarEventsListCall(ctx, svc, calID, from, to, maxResults, query, privatePropFilter, sharedPropFilter, fields, pageToken).Do()
+			resp, err := calendarEventsListCallWithEventTypes(ctx, svc, calID, from, to, maxResults, query, privatePropFilter, sharedPropFilter, fields, eventTypes, pageToken).Do()
 			if err != nil {
 				return nil, "", err
 			}
