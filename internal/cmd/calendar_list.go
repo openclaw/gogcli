@@ -117,7 +117,30 @@ type calendarTimezoneHint struct {
 }
 
 func listAllCalendarsEvents(ctx context.Context, svc *calendar.Service, from, to string, maxResults int64, page string, allPages bool, failEmpty bool, query, privatePropFilter, sharedPropFilter, fields string, showWeekday bool) error {
-	return listAllCalendarsEventsWithEventTypes(ctx, svc, from, to, maxResults, page, allPages, failEmpty, query, privatePropFilter, sharedPropFilter, fields, showWeekday, nil)
+	u := ui.FromContext(ctx)
+
+	calendars, err := listCalendarList(ctx, svc)
+	if err != nil {
+		return err
+	}
+
+	if len(calendars) == 0 {
+		u.Err().Println("No calendars")
+		return failEmptyExit(failEmpty)
+	}
+
+	ids := make([]string, 0, len(calendars))
+	for _, cal := range calendars {
+		if cal == nil || strings.TrimSpace(cal.Id) == "" {
+			continue
+		}
+		ids = append(ids, cal.Id)
+	}
+	if len(ids) == 0 {
+		u.Err().Println("No calendars")
+		return nil
+	}
+	return listCalendarIDsEvents(ctx, svc, ids, from, to, maxResults, page, allPages, failEmpty, query, privatePropFilter, sharedPropFilter, fields, showWeekday, calendarTimezoneHints(calendars))
 }
 
 func listAllCalendarsEventsWithEventTypes(ctx context.Context, svc *calendar.Service, from, to string, maxResults int64, page string, allPages bool, failEmpty bool, query, privatePropFilter, sharedPropFilter, fields string, showWeekday bool, eventTypes []string) error {
@@ -148,7 +171,7 @@ func listAllCalendarsEventsWithEventTypes(ctx context.Context, svc *calendar.Ser
 }
 
 func listSelectedCalendarsEvents(ctx context.Context, svc *calendar.Service, calendarIDs []string, from, to string, maxResults int64, page string, allPages bool, failEmpty bool, query, privatePropFilter, sharedPropFilter, fields string, showWeekday bool) error {
-	return listSelectedCalendarsEventsWithEventTypes(ctx, svc, calendarIDs, from, to, maxResults, page, allPages, failEmpty, query, privatePropFilter, sharedPropFilter, fields, showWeekday, nil)
+	return listCalendarIDsEvents(ctx, svc, calendarIDs, from, to, maxResults, page, allPages, failEmpty, query, privatePropFilter, sharedPropFilter, fields, showWeekday, nil)
 }
 
 func listSelectedCalendarsEventsWithEventTypes(ctx context.Context, svc *calendar.Service, calendarIDs []string, from, to string, maxResults int64, page string, allPages bool, failEmpty bool, query, privatePropFilter, sharedPropFilter, fields string, showWeekday bool, eventTypes []string) error {

@@ -84,6 +84,9 @@ func (c *CalendarEventsCmd) run(ctx context.Context, flags *RootFlags, eventType
 	from, to := timeRange.FormatRFC3339()
 
 	if c.All {
+		if len(eventTypes) == 0 {
+			return listAllCalendarsEvents(ctx, svc, from, to, c.Max, c.Page, c.AllPages, c.FailEmpty, c.Query, c.PrivatePropFilter, c.SharedPropFilter, c.Fields, c.Weekday)
+		}
 		return listAllCalendarsEventsWithEventTypes(ctx, svc, from, to, c.Max, c.Page, c.AllPages, c.FailEmpty, c.Query, c.PrivatePropFilter, c.SharedPropFilter, c.Fields, c.Weekday, eventTypes)
 	}
 	if len(calInputs) > 0 {
@@ -94,7 +97,13 @@ func (c *CalendarEventsCmd) run(ctx context.Context, flags *RootFlags, eventType
 		if len(ids) == 0 {
 			return usage("no calendars specified")
 		}
+		if len(eventTypes) == 0 {
+			return listSelectedCalendarsEvents(ctx, svc, ids, from, to, c.Max, c.Page, c.AllPages, c.FailEmpty, c.Query, c.PrivatePropFilter, c.SharedPropFilter, c.Fields, c.Weekday)
+		}
 		return listSelectedCalendarsEventsWithEventTypes(ctx, svc, ids, from, to, c.Max, c.Page, c.AllPages, c.FailEmpty, c.Query, c.PrivatePropFilter, c.SharedPropFilter, c.Fields, c.Weekday, eventTypes)
+	}
+	if len(eventTypes) == 0 {
+		return listCalendarEvents(ctx, svc, calendarID, from, to, c.Max, c.Page, c.AllPages, c.FailEmpty, c.Query, c.PrivatePropFilter, c.SharedPropFilter, c.Fields, c.Weekday)
 	}
 	return listCalendarEventsWithEventTypes(ctx, svc, calendarID, from, to, c.Max, c.Page, c.AllPages, c.FailEmpty, c.Query, c.PrivatePropFilter, c.SharedPropFilter, c.Fields, c.Weekday, eventTypes)
 }

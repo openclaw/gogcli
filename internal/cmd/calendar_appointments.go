@@ -15,5 +15,5 @@ type CalendarAppointmentSchedulesListCmd struct {
 }
 
 func (c *CalendarAppointmentSchedulesListCmd) Run(ctx context.Context, flags *RootFlags) error {
-	return c.CalendarEventsCmd.run(ctx, flags, []string{calendarAppointmentScheduleEventType})
+	return c.run(ctx, flags, []string{calendarAppointmentScheduleEventType})
 }
