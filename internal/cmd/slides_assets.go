@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"google.golang.org/api/drive/v3"
@@ -77,7 +78,15 @@ func renderMermaidWithBinary(ctx context.Context, mmdcPath, source string) ([]by
 	}
 	args := mmdcCommandArgs(mmdcPath, in, out)
 	cmd := exec.CommandContext(ctx, args[0], args[1:]...) // #nosec G204 — args constructed from validated config
-	if err := cmd.Run(); err != nil {
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		// Surface stderr so the user can see WHY mmdc failed (puppeteer
+		// chromium download, mermaid syntax error, etc.) — bare exit codes
+		// are useless on their own.
+		trimmed := strings.TrimSpace(string(output))
+		if trimmed != "" {
+			return nil, fmt.Errorf("mmdc failed: %w: %s", err, trimmed)
+		}
 		return nil, fmt.Errorf("mmdc failed: %w", err)
 	}
 	return os.ReadFile(out)
@@ -129,8 +138,7 @@ func (p *AssetPipeline) Resolve(ctx context.Context, slides []Slide) (AssetMap, 
 	diagrams := collectDiagrams(slides)
 
 	for ref := range icons {
-		url := faSVGURL(ref.Style, ref.Name)
-		body, err := fetchFAIconFromURL(ctx, p.Config.HTTPClient, url)
+		body, resolvedStyle, err := fetchFAIconWithStyleFallback(ctx, p.Config.HTTPClient, ref)
 		if err != nil {
 			if p.Config.Strict {
 				return am, err
@@ -138,7 +146,7 @@ func (p *AssetPipeline) Resolve(ctx context.Context, slides []Slide) (AssetMap, 
 			fmt.Fprintf(os.Stderr, "warning: skipping FA icon :%s-%s: %v\n", ref.Style, ref.Name, err)
 			continue
 		}
-		ir, err := p.Uploader.UploadAsset(ctx, fmt.Sprintf("fa-%s-%s.svg", ref.Style, ref.Name), "image/svg+xml", body)
+		ir, err := p.Uploader.UploadAsset(ctx, fmt.Sprintf("fa-%s-%s.svg", resolvedStyle, ref.Name), "image/svg+xml", body)
 		if err != nil {
 			if p.Config.Strict {
 				return am, err
@@ -259,6 +267,34 @@ func collectDiagrams(slides []Slide) map[string]string {
 		walkBlocks(s.Body)
 	}
 	return out
+}
+
+// fetchFAIconWithStyleFallback fetches the SVG for ref. If the requested
+// style returns 404 (common for users who write `:fa-dev:` when "dev" is
+// only published under brands/), it tries the other free-tier styles in a
+// fixed order: brands, regular, solid. Returns the body, the style that
+// actually served, and the final error.
+func fetchFAIconWithStyleFallback(ctx context.Context, client *http.Client, ref IconRef) ([]byte, string, error) {
+	tried := map[string]bool{}
+	order := []string{ref.Style, "brands", "regular", "solid"}
+	var lastErr error
+	for _, style := range order {
+		if style == "" || tried[style] {
+			continue
+		}
+		tried[style] = true
+		body, err := fetchFAIconFromURL(ctx, client, faSVGURL(style, ref.Name))
+		if err == nil {
+			return body, style, nil
+		}
+		lastErr = err
+		// Only fall through on 404; other errors (network, 5xx) shouldn't
+		// trigger style guessing.
+		if !strings.Contains(err.Error(), "HTTP 404") {
+			return nil, ref.Style, err
+		}
+	}
+	return nil, ref.Style, lastErr
 }
 
 // DriveUploader implements Uploader by writing temporary files to Drive,

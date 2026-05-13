@@ -389,7 +389,15 @@ func buildNotesRequests(p *slides.Presentation, plan []SlideNotesPlan) []*slides
 		if notesID == "" {
 			continue
 		}
-		reqs = append(reqs, buildSlidesClearAndInsertTextRequests(notesID, np.Text)...)
+		// Freshly-created slides have empty notes boxes; a DeleteText{ALL}
+		// against an empty box errors out with "startIndex 0 must be less
+		// than endIndex 0", so just InsertText.
+		if np.Text == "" {
+			continue
+		}
+		reqs = append(reqs, &slides.Request{
+			InsertText: &slides.InsertTextRequest{ObjectId: notesID, Text: np.Text},
+		})
 	}
 	return reqs
 }
