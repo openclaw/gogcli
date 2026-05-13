@@ -28,6 +28,9 @@ var yamlKeyLineRE = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_-]*:\s`)
 //  3. Scan forward; the first line that trims to "---" closes the frontmatter.
 //     No closing → fatal error.
 func splitMarkdownIntoSlideBlocks(markdown string) ([]slideBlock, error) {
+	// Normalize CRLF so downstream regex matches and body strings stay clean
+	// regardless of authoring platform.
+	markdown = strings.ReplaceAll(markdown, "\r\n", "\n")
 	lines := strings.Split(markdown, "\n")
 	var blocks []slideBlock
 
