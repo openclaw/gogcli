@@ -110,3 +110,7 @@ func TestAssetPipeline_Cleanup(t *testing.T) {
 	assert.Equal(t, []string{"file-1", "file-2"}, uploader.deleted)
 }
 
+func TestDriveUploaderSatisfiesUploader(t *testing.T) {
+	var _ Uploader = (*DriveUploader)(nil)
+}
+

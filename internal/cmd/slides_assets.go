@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -9,6 +10,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"time"
+
+	"google.golang.org/api/drive/v3"
 )
 
 // AssetMap pairs parsed AST references with uploaded Drive ImageRefs.
@@ -256,4 +259,40 @@ func collectDiagrams(slides []Slide) map[string]string {
 		walkBlocks(s.Body)
 	}
 	return out
+}
+
+// DriveUploader implements Uploader by writing temporary files to Drive,
+// granting public read access, and reading the WebContentLink. Mirrors
+// the pattern in slides_add_slide.go.
+type DriveUploader struct {
+	Svc *drive.Service
+}
+
+func (d *DriveUploader) UploadAsset(ctx context.Context, name, mime string, body []byte) (ImageRef, error) {
+	created, err := d.Svc.Files.Create(&drive.File{
+		Name:     name,
+		MimeType: mime,
+	}).Media(bytes.NewReader(body)).Fields("id, webContentLink").Context(ctx).Do()
+	if err != nil {
+		return ImageRef{}, fmt.Errorf("upload %s: %w", name, err)
+	}
+	if _, err := d.Svc.Permissions.Create(created.Id, &drive.Permission{
+		Type: "anyone",
+		Role: "reader",
+	}).Context(ctx).Do(); err != nil {
+		return ImageRef{}, fmt.Errorf("permission %s: %w", created.Id, err)
+	}
+	url := created.WebContentLink
+	if url == "" {
+		got, err := d.Svc.Files.Get(created.Id).Fields("webContentLink").Context(ctx).Do()
+		if err != nil {
+			return ImageRef{}, fmt.Errorf("get url for %s: %w", created.Id, err)
+		}
+		url = got.WebContentLink
+	}
+	return ImageRef{DriveFileID: created.Id, PublicURL: url}, nil
+}
+
+func (d *DriveUploader) DeleteAsset(ctx context.Context, fileID string) error {
+	return d.Svc.Files.Delete(fileID).Context(ctx).Do()
 }
