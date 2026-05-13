@@ -120,6 +120,66 @@ func RenderSlides(in []Slide, assets AssetMap, g LayoutGeometry) ([]*slides.Requ
 			}
 		}
 
+		// Emit CreateImage for any diagram blocks on this slide.
+		for _, b := range slide.Body {
+			if d, ok := b.(DiagramBlock); ok {
+				if ir, ok := assets.Diagrams[d.ID]; ok {
+					reqs = append(reqs, &slides.Request{
+						CreateImage: &slides.CreateImageRequest{
+							Url: ir.PublicURL,
+							ElementProperties: &slides.PageElementProperties{
+								PageObjectId: slideID,
+								Transform: &slides.AffineTransform{
+									ScaleX: 1, ScaleY: 1,
+									TranslateX: g.MarginPT, TranslateY: g.BodyTopPT,
+									Unit: "PT",
+								},
+								Size: &slides.Size{
+									Width:  &slides.Dimension{Magnitude: g.PageWidthPT - 2*g.MarginPT, Unit: "PT"},
+									Height: &slides.Dimension{Magnitude: g.PageHeightPT - g.BodyTopPT - g.MarginPT, Unit: "PT"},
+								},
+							},
+						},
+					})
+				}
+			}
+			// Inline icons that lead bullet items: emit a small CreateImage
+			// at the left margin of the body area.
+			if bb, ok := b.(BulletsBlock); ok {
+				for j, item := range bb.Items {
+					if len(item.Inlines) == 0 {
+						continue
+					}
+					ir, isIcon := item.Inlines[0].(IconRef)
+					if !isIcon {
+						continue
+					}
+					img, ok := assets.Icons[ir]
+					if !ok {
+						continue
+					}
+					top := g.BodyTopPT + float64(j)*22.0 // approx 22pt per bullet line
+					reqs = append(reqs, &slides.Request{
+						CreateImage: &slides.CreateImageRequest{
+							Url: img.PublicURL,
+							ElementProperties: &slides.PageElementProperties{
+								PageObjectId: slideID,
+								Transform: &slides.AffineTransform{
+									ScaleX: 1, ScaleY: 1,
+									TranslateX: g.MarginPT, TranslateY: top,
+									Unit: "PT",
+								},
+								Size: &slides.Size{
+									Width:  &slides.Dimension{Magnitude: 18, Unit: "PT"},
+									Height: &slides.Dimension{Magnitude: 18, Unit: "PT"},
+								},
+							},
+						},
+					})
+				}
+			}
+		}
+
 		if slide.Notes != "" {
 			notes = append(notes, SlideNotesPlan{SlideIndex: i, SlideID: slideID, Text: slide.Notes})
 		}

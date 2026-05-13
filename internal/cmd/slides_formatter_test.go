@@ -115,3 +115,45 @@ func TestRenderSlide_ThreeColumnsCreateThreeBodyBoxes(t *testing.T) {
 	}
 	assert.GreaterOrEqual(t, shapeCount, 4, "title + 3 column body boxes")
 }
+
+func TestRenderSlide_DiagramEmitsCreateImage(t *testing.T) {
+	bid := "block-test-1"
+	s := Slide{
+		Title: "T",
+		Body:  []Block{DiagramBlock{Kind: "mermaid", Source: "graph TD\nA-->B", ID: bid}},
+	}
+	am := NewAssetMap()
+	am.Diagrams[bid] = ImageRef{DriveFileID: "f1", PublicURL: "https://drive.example/f1"}
+
+	reqs, _ := RenderSlides([]Slide{s}, am, defaultGeometry())
+	var sawImage bool
+	for _, r := range reqs {
+		if r.CreateImage != nil && r.CreateImage.Url == "https://drive.example/f1" {
+			sawImage = true
+		}
+	}
+	assert.True(t, sawImage)
+}
+
+func TestRenderSlide_BulletWithLeadingIconEmitsImage(t *testing.T) {
+	icon := IconRef{Style: "solid", Name: "truck-fast"}
+	s := Slide{
+		Title: "T",
+		Body: []Block{
+			BulletsBlock{Items: []BulletItem{
+				{Inlines: []Inline{icon, TextRun{Text: " Fulfilment"}}},
+			}},
+		},
+	}
+	am := NewAssetMap()
+	am.Icons[icon] = ImageRef{DriveFileID: "f2", PublicURL: "https://drive.example/f2"}
+
+	reqs, _ := RenderSlides([]Slide{s}, am, defaultGeometry())
+	var sawIcon bool
+	for _, r := range reqs {
+		if r.CreateImage != nil && r.CreateImage.Url == "https://drive.example/f2" {
+			sawIcon = true
+		}
+	}
+	assert.True(t, sawIcon)
+}
