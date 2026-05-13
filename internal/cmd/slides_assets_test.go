@@ -46,3 +46,13 @@ func TestFASVGURL(t *testing.T) {
 		assert.Equal(t, tc.expected, faSVGURL(tc.style, tc.name))
 	}
 }
+
+func TestMMDCCommandArgs(t *testing.T) {
+	args := mmdcCommandArgs("/usr/bin/mmdc", "/tmp/in.mmd", "/tmp/out.png")
+	assert.Equal(t, []string{"/usr/bin/mmdc", "-i", "/tmp/in.mmd", "-o", "/tmp/out.png", "-b", "transparent", "--scale", "2"}, args)
+}
+
+func TestRenderMermaid_BinaryMissing(t *testing.T) {
+	_, err := renderMermaidWithBinary(context.Background(), "/nonexistent/mmdc-binary", "graph TD\nA-->B")
+	require.Error(t, err)
+}

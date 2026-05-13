@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"time"
 )
 
@@ -50,6 +53,31 @@ func faSVGURL(style, name string) string {
 		"https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6/svgs/%s/%s.svg",
 		style, name,
 	)
+}
+
+func mmdcCommandArgs(mmdcPath, in, out string) []string {
+	return []string{mmdcPath, "-i", in, "-o", out, "-b", "transparent", "--scale", "2"}
+}
+
+// renderMermaidWithBinary writes source to a temp .mmd, runs mmdc, and
+// returns the rendered PNG bytes. The temp files are cleaned up.
+func renderMermaidWithBinary(ctx context.Context, mmdcPath, source string) ([]byte, error) {
+	dir, err := os.MkdirTemp("", "gogcli-mermaid-*")
+	if err != nil {
+		return nil, err
+	}
+	defer os.RemoveAll(dir)
+	in := filepath.Join(dir, "in.mmd")
+	out := filepath.Join(dir, "out.png")
+	if err := os.WriteFile(in, []byte(source), 0o600); err != nil {
+		return nil, err
+	}
+	args := mmdcCommandArgs(mmdcPath, in, out)
+	cmd := exec.CommandContext(ctx, args[0], args[1:]...) // #nosec G204 — args constructed from validated config
+	if err := cmd.Run(); err != nil {
+		return nil, fmt.Errorf("mmdc failed: %w", err)
+	}
+	return os.ReadFile(out)
 }
 
 func fetchFAIconFromURL(ctx context.Context, client *http.Client, url string) ([]byte, error) {
