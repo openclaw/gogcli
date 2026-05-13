@@ -33,7 +33,7 @@ func TestListCalendarEvents_JSON(t *testing.T) {
 	ctx := newCalendarJSONContext(t)
 
 	jsonOut := captureStdout(t, func() {
-		if err := listCalendarEvents(ctx, svc, "cal1", "2025-01-01T00:00:00Z", "2025-01-02T00:00:00Z", 10, "", false, false, "", "", "", "", false); err != nil {
+		if err := listCalendarEvents(ctx, svc, "cal1", "2025-01-01T00:00:00Z", "2025-01-02T00:00:00Z", 10, "", false, false, "", "", "", "", false, "", ""); err != nil {
 			t.Fatalf("listCalendarEvents: %v", err)
 		}
 	})
@@ -82,7 +82,7 @@ func TestListCalendarEvents_TableUsesCalendarTimezone(t *testing.T) {
 
 	text := captureStdout(t, func() {
 		ctx := newCalendarOutputContext(t, os.Stdout, io.Discard)
-		if err := listCalendarEvents(ctx, svc, "cal1", "2026-04-08T00:00:00Z", "2026-04-09T00:00:00Z", 10, "", false, false, "", "", "", "", false); err != nil {
+		if err := listCalendarEvents(ctx, svc, "cal1", "2026-04-08T00:00:00Z", "2026-04-09T00:00:00Z", 10, "", false, false, "", "", "", "", false, "", ""); err != nil {
 			t.Fatalf("listCalendarEvents: %v", err)
 		}
 	})
@@ -127,7 +127,7 @@ func TestListCalendarEvents_JSONUsesCalendarTimezoneForLocalFields(t *testing.T)
 
 	ctx := newCalendarJSONContext(t)
 	jsonOut := captureStdout(t, func() {
-		if err := listCalendarEvents(ctx, svc, "cal1", "2026-04-08T00:00:00Z", "2026-04-09T00:00:00Z", 10, "", false, false, "", "", "", "", false); err != nil {
+		if err := listCalendarEvents(ctx, svc, "cal1", "2026-04-08T00:00:00Z", "2026-04-09T00:00:00Z", 10, "", false, false, "", "", "", "", false, "", ""); err != nil {
 			t.Fatalf("listCalendarEvents: %v", err)
 		}
 	})

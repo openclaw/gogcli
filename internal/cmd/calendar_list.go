@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"sort"
 	"strings"
 	"time"
 
@@ -41,7 +42,7 @@ func calendarEventsListCall(ctx context.Context, svc *calendar.Service, calendar
 	return call
 }
 
-func listCalendarEvents(ctx context.Context, svc *calendar.Service, calendarID, from, to string, maxResults int64, page string, allPages bool, failEmpty bool, query, privatePropFilter, sharedPropFilter, fields string, showWeekday bool) error {
+func listCalendarEvents(ctx context.Context, svc *calendar.Service, calendarID, from, to string, maxResults int64, page string, allPages bool, failEmpty bool, query, privatePropFilter, sharedPropFilter, fields string, showWeekday bool, sortKey, sortOrder string) error {
 	calendarTimezone, loc := calendarDisplayTimezone(ctx, svc, calendarID, nil)
 	fetch := func(pageToken string) ([]*calendar.Event, string, error) {
 		resp, err := calendarEventsListCall(ctx, svc, calendarID, from, to, maxResults, query, privatePropFilter, sharedPropFilter, fields, pageToken).Do()
@@ -55,21 +56,26 @@ func listCalendarEvents(ctx context.Context, svc *calendar.Service, calendarID, 
 	if err != nil {
 		return err
 	}
+	events := make([]*eventWithCalendar, 0, len(items))
+	for _, item := range items {
+		events = append(events, wrapEventWithCalendar(item, "", calendarTimezone, loc))
+	}
+	sortEventsBy(events, sortKey, sortOrder)
 	if outfmt.IsJSON(ctx) {
+		jsonItems := make([]*eventWithDays, 0, len(events))
+		for _, e := range events {
+			jsonItems = append(jsonItems, wrapEventWithDaysWithTimezone(e.Event, calendarTimezone, loc))
+		}
 		if err := outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
-			"events":        wrapEventsWithTimezone(items, calendarTimezone, loc),
+			"events":        jsonItems,
 			"nextPageToken": nextPageToken,
 		}); err != nil {
 			return err
 		}
-		if len(items) == 0 {
+		if len(events) == 0 {
 			return failEmptyExit(failEmpty)
 		}
 		return nil
-	}
-	events := make([]*eventWithCalendar, 0, len(items))
-	for _, item := range items {
-		events = append(events, wrapEventWithCalendar(item, "", calendarTimezone, loc))
 	}
 	return renderCalendarEventsTable(ctx, events, nextPageToken, false, showWeekday, failEmpty, true)
 }
@@ -105,7 +111,7 @@ type calendarTimezoneHint struct {
 	loc      *time.Location
 }
 
-func listAllCalendarsEvents(ctx context.Context, svc *calendar.Service, from, to string, maxResults int64, page string, allPages bool, failEmpty bool, query, privatePropFilter, sharedPropFilter, fields string, showWeekday bool) error {
+func listAllCalendarsEvents(ctx context.Context, svc *calendar.Service, from, to string, maxResults int64, page string, allPages bool, failEmpty bool, query, privatePropFilter, sharedPropFilter, fields string, showWeekday bool, sortKey, sortOrder string) error {
 	u := ui.FromContext(ctx)
 
 	calendars, err := listCalendarList(ctx, svc)
@@ -129,14 +135,14 @@ func listAllCalendarsEvents(ctx context.Context, svc *calendar.Service, from, to
 		u.Err().Println("No calendars")
 		return nil
 	}
-	return listCalendarIDsEvents(ctx, svc, ids, from, to, maxResults, page, allPages, failEmpty, query, privatePropFilter, sharedPropFilter, fields, showWeekday, calendarTimezoneHints(calendars))
+	return listCalendarIDsEvents(ctx, svc, ids, from, to, maxResults, page, allPages, failEmpty, query, privatePropFilter, sharedPropFilter, fields, showWeekday, calendarTimezoneHints(calendars), sortKey, sortOrder)
 }
 
-func listSelectedCalendarsEvents(ctx context.Context, svc *calendar.Service, calendarIDs []string, from, to string, maxResults int64, page string, allPages bool, failEmpty bool, query, privatePropFilter, sharedPropFilter, fields string, showWeekday bool) error {
-	return listCalendarIDsEvents(ctx, svc, calendarIDs, from, to, maxResults, page, allPages, failEmpty, query, privatePropFilter, sharedPropFilter, fields, showWeekday, nil)
+func listSelectedCalendarsEvents(ctx context.Context, svc *calendar.Service, calendarIDs []string, from, to string, maxResults int64, page string, allPages bool, failEmpty bool, query, privatePropFilter, sharedPropFilter, fields string, showWeekday bool, sortKey, sortOrder string) error {
+	return listCalendarIDsEvents(ctx, svc, calendarIDs, from, to, maxResults, page, allPages, failEmpty, query, privatePropFilter, sharedPropFilter, fields, showWeekday, nil, sortKey, sortOrder)
 }
 
-func listCalendarIDsEvents(ctx context.Context, svc *calendar.Service, calendarIDs []string, from, to string, maxResults int64, page string, allPages bool, failEmpty bool, query, privatePropFilter, sharedPropFilter, fields string, showWeekday bool, timezoneHints map[string]calendarTimezoneHint) error {
+func listCalendarIDsEvents(ctx context.Context, svc *calendar.Service, calendarIDs []string, from, to string, maxResults int64, page string, allPages bool, failEmpty bool, query, privatePropFilter, sharedPropFilter, fields string, showWeekday bool, timezoneHints map[string]calendarTimezoneHint, sortKey, sortOrder string) error {
 	u := ui.FromContext(ctx)
 	all := []*eventWithCalendar{}
 	for _, calID := range calendarIDs {
@@ -163,6 +169,8 @@ func listCalendarIDsEvents(ctx context.Context, svc *calendar.Service, calendarI
 			all = append(all, wrapEventWithCalendar(e, calID, calendarTimezone, loc))
 		}
 	}
+
+	sortEventsBy(all, sortKey, sortOrder)
 
 	if outfmt.IsJSON(ctx) {
 		if err := outfmt.WriteJSON(ctx, os.Stdout, map[string]any{"events": all}); err != nil {
@@ -219,17 +227,6 @@ func renderCalendarEventsTable(ctx context.Context, events []*eventWithCalendar,
 		printNextPageHint(u, nextPageToken)
 	}
 	return nil
-}
-
-func wrapEventsWithTimezone(events []*calendar.Event, calendarTimezone string, loc *time.Location) []*eventWithDays {
-	if len(events) == 0 {
-		return []*eventWithDays{}
-	}
-	out := make([]*eventWithDays, 0, len(events))
-	for _, ev := range events {
-		out = append(out, wrapEventWithDaysWithTimezone(ev, calendarTimezone, loc))
-	}
-	return out
 }
 
 func wrapEventWithCalendar(event *calendar.Event, calendarID string, calendarTimezone string, loc *time.Location) *eventWithCalendar {
@@ -330,4 +327,99 @@ func listCalendarList(ctx context.Context, svc *calendar.Service) ([]*calendar.C
 		pageToken = resp.NextPageToken
 	}
 	return items, nil
+}
+
+// sortEventsBy sorts events in place by the given key (start|end|summary|calendar).
+// An empty key leaves the slice untouched. The Google Calendar API already
+// returns per-calendar events ordered by startTime; this helper is mainly useful
+// when aggregating events across multiple calendars (e.g. --all) or when callers
+// want a non-default ordering. Sort is stable to preserve API tie-breaks.
+//
+// Time keys (start, end) compare as instants (parsed time.Time), so events
+// crossing timezones interleave correctly. String keys (summary, calendar)
+// compare case-insensitive for summary, exact for calendar id.
+func sortEventsBy(events []*eventWithCalendar, key, order string) {
+	key = strings.ToLower(strings.TrimSpace(key))
+	if key == "" || len(events) < 2 {
+		return
+	}
+	desc := strings.ToLower(strings.TrimSpace(order)) == "desc"
+
+	switch key {
+	case "start", "end":
+		instantFn := eventStartInstant
+		if key == "end" {
+			instantFn = eventEndInstant
+		}
+		sort.SliceStable(events, func(i, j int) bool {
+			a, b := instantFn(events[i]), instantFn(events[j])
+			if a.Equal(b) {
+				return false
+			}
+			if desc {
+				return a.After(b)
+			}
+			return a.Before(b)
+		})
+	case "summary":
+		sort.SliceStable(events, func(i, j int) bool {
+			a, b := strings.ToLower(eventSummary(events[i])), strings.ToLower(eventSummary(events[j]))
+			if desc {
+				return a > b
+			}
+			return a < b
+		})
+	case "calendar":
+		sort.SliceStable(events, func(i, j int) bool {
+			a, b := eventCalendarID(events[i]), eventCalendarID(events[j])
+			if desc {
+				return a > b
+			}
+			return a < b
+		})
+	}
+}
+
+func eventSummary(e *eventWithCalendar) string {
+	if e == nil || e.Event == nil {
+		return ""
+	}
+	return e.Summary
+}
+
+func eventCalendarID(e *eventWithCalendar) string {
+	if e == nil {
+		return ""
+	}
+	return e.CalendarID
+}
+
+// eventStartInstant returns the start time as an absolute instant.
+// All-day events fall back to midnight UTC, which is consistent enough for
+// ordering within a single result set.
+func eventStartInstant(e *eventWithCalendar) time.Time {
+	if e == nil || e.Event == nil || e.Start == nil {
+		return time.Time{}
+	}
+	return eventDatePointInstant(e.Start)
+}
+
+func eventEndInstant(e *eventWithCalendar) time.Time {
+	if e == nil || e.Event == nil || e.End == nil {
+		return time.Time{}
+	}
+	return eventDatePointInstant(e.End)
+}
+
+func eventDatePointInstant(dt *calendar.EventDateTime) time.Time {
+	if dt == nil {
+		return time.Time{}
+	}
+	if t, ok := parseEventTime(dt.DateTime, dt.TimeZone); ok {
+		return t
+	}
+	if t, ok := parseEventDate(dt.Date, dt.TimeZone); ok {
+		return t
+	}
+	return time.Time{}
 }
