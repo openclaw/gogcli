@@ -280,12 +280,15 @@ func (d *DriveUploader) UploadAsset(ctx context.Context, name, mime string, body
 		Type: "anyone",
 		Role: "reader",
 	}).Context(ctx).Do(); err != nil {
+		// Best-effort cleanup so a permission failure doesn't orphan the upload.
+		_ = d.Svc.Files.Delete(created.Id).Context(ctx).Do()
 		return ImageRef{}, fmt.Errorf("permission %s: %w", created.Id, err)
 	}
 	url := created.WebContentLink
 	if url == "" {
 		got, err := d.Svc.Files.Get(created.Id).Fields("webContentLink").Context(ctx).Do()
 		if err != nil {
+			_ = d.Svc.Files.Delete(created.Id).Context(ctx).Do()
 			return ImageRef{}, fmt.Errorf("get url for %s: %w", created.Id, err)
 		}
 		url = got.WebContentLink

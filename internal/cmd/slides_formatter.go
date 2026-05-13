@@ -10,8 +10,6 @@ import (
 	"google.golang.org/api/slides/v1"
 )
 
-const slideElementTitle = "title" // legacy const kept for any external callers
-
 // SlideNotesPlan tells the second BatchUpdate which slide gets which
 // speaker-notes text. SlideIndex maps to the i-th slide created.
 type SlideNotesPlan struct {
@@ -279,11 +277,6 @@ func blocksToPlainText(blocks []Block) string {
 		}
 	}
 	return b.String()
-}
-
-// CreatePresentationFromMarkdown is the legacy stub. Use CreatePresentationFromMarkdownV2.
-func CreatePresentationFromMarkdown(title string, markdown string, service *slides.Service) (*slides.Presentation, error) {
-	return nil, fmt.Errorf("use CreatePresentationFromMarkdownV2")
 }
 
 // CreatePresentationFromMarkdownOptions controls the slidey-aware
