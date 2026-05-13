@@ -87,6 +87,17 @@ func TestParseBlocks_ThreeColumns(t *testing.T) {
 	}, got)
 }
 
+func TestParseBlocks_MermaidBlock(t *testing.T) {
+	input := "```mermaid\nflowchart LR\n  A --> B\n```\n"
+	got := parseBlocks(input, "solid")
+	require.Equal(t, 1, len(got))
+	d, ok := got[0].(DiagramBlock)
+	require.True(t, ok)
+	assert.Equal(t, "mermaid", d.Kind)
+	assert.Equal(t, "flowchart LR\n  A --> B", d.Source)
+	assert.NotEmpty(t, d.ID)
+}
+
 func TestParseBlocks_RightSynonymForCol2(t *testing.T) {
 	input := "::cols::\n\nA\n\n::right::\n\nB\n\n::/cols::\n"
 	got := parseBlocks(input, "solid")
@@ -94,27 +105,4 @@ func TestParseBlocks_RightSynonymForCol2(t *testing.T) {
 	col, ok := got[0].(ColumnsBlock)
 	assert.True(t, ok)
 	assert.Equal(t, 2, len(col.Columns))
-}
-
-func TestParseBlocks_BoxesBlock(t *testing.T) {
-	input := "::boxes::\n:fa-rectangle-ad: Campaigns\n:fa-headset: Support Tickets\nNo Icon Row\n::/boxes::\n"
-	got := parseBlocks(input, "solid")
-	assert.Equal(t, []Block{
-		IconRowsBlock{Kind: "boxes", Rows: []IconRow{
-			{Icon: &IconRef{Style: "solid", Name: "rectangle-ad"}, Text: "Campaigns"},
-			{Icon: &IconRef{Style: "solid", Name: "headset"}, Text: "Support Tickets"},
-			{Icon: nil, Text: "No Icon Row"},
-		}},
-	}, got)
-}
-
-func TestParseBlocks_ArrowsBlock(t *testing.T) {
-	input := "::arrows::\n\n### Step One\n\n### Step Two\n\n::/arrows::\n"
-	got := parseBlocks(input, "solid")
-	assert.Equal(t, []Block{
-		IconRowsBlock{Kind: "arrows", Rows: []IconRow{
-			{Icon: nil, Text: "Step One"},
-			{Icon: nil, Text: "Step Two"},
-		}},
-	}, got)
 }

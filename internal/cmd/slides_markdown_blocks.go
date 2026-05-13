@@ -1,8 +1,10 @@
 package cmd
 
 import (
+	"fmt"
 	"regexp"
 	"strings"
+	"sync/atomic"
 )
 
 var (
@@ -11,17 +13,18 @@ var (
 	headingRE = regexp.MustCompile(`^(#{1,6})\s+(.*)$`)
 )
 
+var blockIDCounter atomic.Uint64
+
+func nextBlockID() string {
+	return fmt.Sprintf("block-%d", blockIDCounter.Add(1))
+}
+
 const (
 	colsOpen     = "::cols::"
 	colsClose    = "::/cols::"
 	colMarker2   = "::col2::"
 	colMarker3   = "::col3::"
 	colMarkerAlt = "::right::" // synonym for col2
-
-	boxesOpen   = "::boxes::"
-	boxesClose  = "::/boxes::"
-	arrowsOpen  = "::arrows::"
-	arrowsClose = "::/arrows::"
 )
 
 // parseBlocks turns body markdown into top-level blocks. It handles
@@ -59,7 +62,15 @@ func parseBlocks(body string, defaultFAStyle string) []Block {
 			if i < len(lines) {
 				i++ // consume closing ```
 			}
-			out = append(out, CodeBlock{Lang: lang, Source: src.String()})
+			if lang == "mermaid" {
+				out = append(out, DiagramBlock{
+					Kind:   "mermaid",
+					Source: src.String(),
+					ID:     nextBlockID(),
+				})
+			} else {
+				out = append(out, CodeBlock{Lang: lang, Source: src.String()})
+			}
 			continue
 		}
 
@@ -69,24 +80,6 @@ func parseBlocks(body string, defaultFAStyle string) []Block {
 			cols, consumed := consumeColumnsBlock(lines[i:], defaultFAStyle)
 			i += consumed
 			out = append(out, cols)
-			continue
-		}
-
-		// Boxes block.
-		if trimmed == boxesOpen {
-			i++
-			block, consumed := consumeIconRowsBlock(lines[i:], "boxes", boxesClose, defaultFAStyle)
-			i += consumed
-			out = append(out, block)
-			continue
-		}
-
-		// Arrows block.
-		if trimmed == arrowsOpen {
-			i++
-			block, consumed := consumeIconRowsBlock(lines[i:], "arrows", arrowsClose, defaultFAStyle)
-			i += consumed
-			out = append(out, block)
 			continue
 		}
 
@@ -195,40 +188,4 @@ func columnsBlockFromRaw(raw [][]string, defaultFAStyle string) ColumnsBlock {
 		cb.Columns = append(cb.Columns, parseBlocks(body, defaultFAStyle))
 	}
 	return cb
-}
-
-func consumeIconRowsBlock(lines []string, kind, closeMarker, defaultFAStyle string) (IconRowsBlock, int) {
-	block := IconRowsBlock{Kind: kind}
-	consumed := 0
-	for consumed < len(lines) {
-		line := lines[consumed]
-		trimmed := strings.TrimSpace(line)
-		consumed++
-		if trimmed == closeMarker {
-			return block, consumed
-		}
-		if trimmed == "" {
-			continue
-		}
-		// Strip leading heading marks (### Step) for arrows-style content.
-		if m := headingRE.FindStringSubmatch(trimmed); m != nil {
-			trimmed = strings.TrimSpace(m[2])
-		}
-		row := IconRow{}
-		// Try to extract a leading FA shortcode.
-		if m := faShortcodeRE.FindStringSubmatchIndex(trimmed); m != nil && m[0] == 0 {
-			stylePrefix := ""
-			if m[2] != -1 {
-				stylePrefix = trimmed[m[2]:m[3]]
-			}
-			name := trimmed[m[4]:m[5]]
-			ref := IconRef{Style: faStyleFromPrefix(stylePrefix, defaultFAStyle), Name: name}
-			row.Icon = &ref
-			row.Text = strings.TrimSpace(trimmed[m[1]:])
-		} else {
-			row.Text = trimmed
-		}
-		block.Rows = append(block.Rows, row)
-	}
-	return block, consumed
 }
