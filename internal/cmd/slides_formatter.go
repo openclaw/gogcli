@@ -3,8 +3,10 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 
+	"google.golang.org/api/drive/v3"
 	"google.golang.org/api/slides/v1"
 )
 
@@ -279,12 +281,148 @@ func blocksToPlainText(blocks []Block) string {
 	return b.String()
 }
 
-// CreatePresentationFromMarkdown is the full orchestrator the CLI calls.
-// Replaced in Task 18; kept as a stub-with-real-signature here so the
-// package still compiles for Tasks 15–17.
+// CreatePresentationFromMarkdown is the legacy stub. Use CreatePresentationFromMarkdownV2.
 func CreatePresentationFromMarkdown(title string, markdown string, service *slides.Service) (*slides.Presentation, error) {
-	_ = context.Background // reserved for Task 18
-	return nil, fmt.Errorf("not yet wired; see Task 18")
+	return nil, fmt.Errorf("use CreatePresentationFromMarkdownV2")
+}
+
+// CreatePresentationFromMarkdownOptions controls the slidey-aware
+// orchestrator. Wired from SlidesCreateFromMarkdownCmd in slides.go.
+type CreatePresentationFromMarkdownOptions struct {
+	Title         string
+	Parent        string
+	Slides        []Slide
+	SlidesService *slides.Service
+	DriveService  *drive.Service
+	Pipeline      AssetPipelineConfig
+	NoNotes       bool
+	DryRun        bool
+}
+
+// CreatePresentationFromMarkdownV2 is the slidey orchestrator. It:
+//
+//  1. Creates the presentation,
+//  2. Reads its page size to derive LayoutGeometry,
+//  3. Runs the asset pipeline (uploads icons + diagrams to Drive),
+//  4. Renders the first BatchUpdate (slides + content + image refs),
+//  5. Re-fetches the presentation, finds notes object IDs,
+//  6. Renders the second BatchUpdate (speaker notes),
+//  7. Cleans up the temp Drive files.
+func CreatePresentationFromMarkdownV2(ctx context.Context, opts CreatePresentationFromMarkdownOptions) (*slides.Presentation, error) {
+	if opts.DryRun {
+		return dryRunPresentation(ctx, opts)
+	}
+
+	created, err := opts.SlidesService.Presentations.Create(&slides.Presentation{Title: opts.Title}).Context(ctx).Do()
+	if err != nil {
+		return nil, fmt.Errorf("create presentation: %w", err)
+	}
+
+	if opts.Parent != "" && opts.DriveService != nil {
+		if _, err := opts.DriveService.Files.Update(created.PresentationId, &drive.File{}).
+			AddParents(opts.Parent).Context(ctx).Do(); err != nil {
+			return nil, fmt.Errorf("move to parent: %w", err)
+		}
+	}
+
+	g := geometryFromPresentation(created)
+
+	pipeline := &AssetPipeline{
+		Config:   opts.Pipeline,
+		Uploader: &DriveUploader{Svc: opts.DriveService},
+	}
+	defer func() {
+		if err := pipeline.Cleanup(ctx); err != nil {
+			fmt.Fprintf(os.Stderr, "warning: asset cleanup: %v\n", err)
+		}
+	}()
+
+	assets, err := pipeline.Resolve(ctx, opts.Slides)
+	if err != nil {
+		return nil, fmt.Errorf("resolve assets: %w", err)
+	}
+
+	mainReqs, notesPlan := RenderSlides(opts.Slides, assets, g)
+	if len(mainReqs) > 0 {
+		if _, err := opts.SlidesService.Presentations.BatchUpdate(
+			created.PresentationId,
+			&slides.BatchUpdatePresentationRequest{Requests: mainReqs},
+		).Context(ctx).Do(); err != nil {
+			return nil, fmt.Errorf("populate slides: %w", err)
+		}
+	}
+
+	if !opts.NoNotes && len(notesPlan) > 0 {
+		populated, err := opts.SlidesService.Presentations.Get(created.PresentationId).Context(ctx).Do()
+		if err != nil {
+			return nil, fmt.Errorf("re-fetch presentation: %w", err)
+		}
+		notesReqs := buildNotesRequests(populated, notesPlan)
+		if len(notesReqs) > 0 {
+			if _, err := opts.SlidesService.Presentations.BatchUpdate(
+				created.PresentationId,
+				&slides.BatchUpdatePresentationRequest{Requests: notesReqs},
+			).Context(ctx).Do(); err != nil {
+				return nil, fmt.Errorf("apply notes: %w", err)
+			}
+		}
+	}
+
+	return created, nil
+}
+
+func geometryFromPresentation(p *slides.Presentation) LayoutGeometry {
+	if p == nil || p.PageSize == nil {
+		return defaultPageGeometry()
+	}
+	// Slides PageSize is in EMU; 1pt = 12700 EMU.
+	w := float64(p.PageSize.Width.Magnitude) / 12700.0
+	h := float64(p.PageSize.Height.Magnitude) / 12700.0
+	if p.PageSize.Width.Unit == "PT" {
+		w = float64(p.PageSize.Width.Magnitude)
+		h = float64(p.PageSize.Height.Magnitude)
+	}
+	return LayoutGeometry{PageWidthPT: w, PageHeightPT: h, MarginPT: 36, GutterPT: 24, BodyTopPT: 108}
+}
+
+func buildNotesRequests(p *slides.Presentation, plan []SlideNotesPlan) []*slides.Request {
+	var reqs []*slides.Request
+	for _, np := range plan {
+		page, _ := findSlidesPageByID(p, np.SlideID)
+		if page == nil {
+			continue
+		}
+		notesID := findSpeakerNotesObjectID(page)
+		if notesID == "" {
+			continue
+		}
+		reqs = append(reqs, buildSlidesClearAndInsertTextRequests(notesID, np.Text)...)
+	}
+	return reqs
+}
+
+func dryRunPresentation(ctx context.Context, opts CreatePresentationFromMarkdownOptions) (*slides.Presentation, error) {
+	g := defaultPageGeometry()
+	assets := NewAssetMap()
+	// Stub asset map: every IconRef gets a placeholder URL; same for diagrams.
+	for ref := range collectIconRefs(opts.Slides) {
+		assets.Icons[ref] = ImageRef{
+			DriveFileID: "dryrun",
+			PublicURL:   fmt.Sprintf("gogcli://pending/fa-%s-%s", ref.Style, ref.Name),
+		}
+	}
+	for id := range collectDiagrams(opts.Slides) {
+		assets.Diagrams[id] = ImageRef{
+			DriveFileID: "dryrun",
+			PublicURL:   fmt.Sprintf("gogcli://pending/diagram-%s", id),
+		}
+	}
+	mainReqs, _ := RenderSlides(opts.Slides, assets, g)
+	body := &slides.BatchUpdatePresentationRequest{Requests: mainReqs}
+	if err := writeSlidesBatchUpdateDryRun(ctx, body); err != nil {
+		return nil, err
+	}
+	return nil, nil
 }
 
 // SlidesToAPIRequests is retained as a thin wrapper for any legacy caller.
