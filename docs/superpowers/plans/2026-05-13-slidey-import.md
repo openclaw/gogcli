@@ -161,7 +161,7 @@ type IconRowsBlock struct {
 type DiagramBlock struct {
 	Kind   string // "mermaid" only for now
 	Source string
-	BlockID string // stable ID assigned by the parser; used as AssetMap key
+	ID string // stable ID assigned by the parser; used as AssetMap key
 }
 
 func (ParagraphBlock) isBlock()  {}
@@ -201,7 +201,53 @@ type ImageRef struct {
 }
 ```
 
-**Note:** the existing `SlideElement`, `SlideLayout`, and constants `LayoutTitleOnly`/etc. in `slides_markdown.go` will be replaced in Task 3. For now they coexist; this file only adds new types.
+**Note:** the legacy `Slide` type in `slides_markdown.go` conflicts with the new one — Go forbids redeclaration in the same package. So Task 1 ALSO gutts the legacy parser and renderer to a compilable stub state. Tasks 8/15/18 fill those stubs.
+
+**Step 3b: Replace `internal/cmd/slides_markdown.go` with a stub.**
+
+```go
+package cmd
+
+// literalMarkdownTripleDash is the slide separator and frontmatter delimiter.
+const literalMarkdownTripleDash = "---"
+
+// ParseOptions configures the markdown parser. Filled in Task 8.
+type ParseOptions struct {
+	DefaultFAStyle string // "solid"|"regular"|"brands"; empty → "solid"
+}
+
+// ParseMarkdownToSlides is implemented in Task 8.
+func ParseMarkdownToSlides(_ string, _ ParseOptions) ([]Slide, error) {
+	return nil, nil
+}
+```
+
+**Step 3c: Replace `internal/cmd/slides_formatter.go` with a stub** that preserves the exported function signatures so the CLI still compiles.
+
+Before writing the stub, inspect the current `internal/cmd/slides_formatter.go` to copy each exported function signature **verbatim**. The legacy file likely exports `SlidesToAPIRequests(slideData []Slide) ([]*slides.Request, map[int]string)` and `CreatePresentationFromMarkdown(service *slides.Service, title string, slidesData []Slide) (*slides.Presentation, error)` (verify the exact second-arg/third-arg shape — the helper may take `ctx context.Context` as its first parameter; copy what you see). Replace the body of each with a stub that returns zero values plus a `not yet implemented` error.
+
+```go
+package cmd
+
+import (
+	"errors"
+	// keep whichever imports the verbatim signatures require
+	"google.golang.org/api/slides/v1"
+)
+
+// Stubbed in Task 1; filled in Task 15.
+func SlidesToAPIRequests(_ []Slide) ([]*slides.Request, map[int]string) {
+	return nil, map[int]string{}
+}
+
+// Stubbed in Task 1; filled in Task 18.
+// (Adjust the signature to match the EXISTING signature in slides_formatter.go before replacement.)
+func CreatePresentationFromMarkdown( /* exact existing params */ ) (*slides.Presentation, error) {
+	return nil, errors.New("slidey renderer not yet wired (Task 15/18)")
+}
+```
+
+After both stubs are in place, `go build ./...` should succeed and the marker-method test should pass.
 
 - [ ] **Step 4: Run test to verify it compiles and passes**
 
@@ -1234,7 +1280,7 @@ func TestParseBlocks_MermaidBlock(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, "mermaid", d.Kind)
 	assert.Equal(t, "flowchart LR\n  A --> B", d.Source)
-	assert.NotEmpty(t, d.BlockID)
+	assert.NotEmpty(t, d.ID)
 }
 ```
 
@@ -1254,7 +1300,7 @@ In the existing fenced-code-block branch, replace the final `out = append(...)` 
 				out = append(out, DiagramBlock{
 					Kind:    "mermaid",
 					Source:  src.String(),
-					BlockID: nextBlockID(),
+					ID:     nextBlockID(),
 				})
 			} else {
 				out = append(out, CodeBlock{Lang: lang, Source: src.String()})
@@ -1288,7 +1334,7 @@ git add internal/cmd/slides_markdown_blocks.go internal/cmd/slides_markdown_bloc
 git commit -m "$(cat <<'EOF'
 feat(slides): emit DiagramBlock for ```mermaid fenced code
 
-Other languages remain CodeBlock. Each diagram gets a stable BlockID so
+Other languages remain CodeBlock. Each diagram gets a stable ID so
 the asset pipeline (Task 11) can pair it with an uploaded image.
 
 Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
@@ -1800,7 +1846,7 @@ import (
 
 // AssetMap pairs parsed AST references with uploaded Drive ImageRefs.
 // Icons is keyed by IconRef value (Style+Name); Diagrams is keyed by
-// DiagramBlock.BlockID.
+// DiagramBlock.ID.
 type AssetMap struct {
 	Icons    map[IconRef]ImageRef
 	Diagrams map[string]ImageRef
@@ -2280,7 +2326,7 @@ func collectIconRefs(slides []Slide) map[IconRef]struct{} {
 	return out
 }
 
-// collectDiagrams walks all slides for DiagramBlocks, returning {BlockID: source}.
+// collectDiagrams walks all slides for DiagramBlocks, returning {ID: source}.
 func collectDiagrams(slides []Slide) map[string]string {
 	out := map[string]string{}
 	var walkBlocks func([]Block)
@@ -2288,7 +2334,7 @@ func collectDiagrams(slides []Slide) map[string]string {
 		for _, b := range blocks {
 			switch v := b.(type) {
 			case DiagramBlock:
-				out[v.BlockID] = v.Source
+				out[v.ID] = v.Source
 			case ColumnsBlock:
 				for _, col := range v.Columns {
 					walkBlocks(col)
@@ -2949,7 +2995,7 @@ func TestRenderSlide_DiagramEmitsCreateImage(t *testing.T) {
 	bid := "block-test-1"
 	s := Slide{
 		Title: "T",
-		Body:  []Block{DiagramBlock{Kind: "mermaid", Source: "graph TD\nA-->B", BlockID: bid}},
+		Body:  []Block{DiagramBlock{Kind: "mermaid", Source: "graph TD\nA-->B", ID: bid}},
 	}
 	am := NewAssetMap()
 	am.Diagrams[bid] = ImageRef{DriveFileID: "f1", PublicURL: "https://drive.example/f1"}
@@ -3003,7 +3049,7 @@ In `RenderSlides`, change the loop body so each slide's branch can also emit ima
 		// Emit CreateImage for any diagram blocks on this slide.
 		for _, b := range slide.Body {
 			if d, ok := b.(DiagramBlock); ok {
-				if ir, ok := assets.Diagrams[d.BlockID]; ok {
+				if ir, ok := assets.Diagrams[d.ID]; ok {
 					reqs = append(reqs, &slides.Request{
 						CreateImage: &slides.CreateImageRequest{
 							Url: ir.PublicURL,

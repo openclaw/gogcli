@@ -58,9 +58,9 @@ type IconRowsBlock struct {
 }
 
 type DiagramBlock struct {
-	Kind    string // "mermaid" only for now
-	Source  string
-	BlockID string // stable ID assigned by the parser; used as AssetMap key
+	Kind   string // "mermaid" only for now
+	Source string
+	ID     string // stable ID assigned by the parser; used as AssetMap.Diagrams key
 }
 
 func (ParagraphBlock) isBlock()  {}
