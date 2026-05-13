@@ -4,6 +4,12 @@
 
 ### Added
 
+- `slides create-from-markdown`: import slidey-flavored decks — per-slide
+  YAML frontmatter (`layout:`, `content:`), `## Notes` speaker notes,
+  Font Awesome icon shortcodes (jsDelivr CDN), mermaid diagrams (local
+  `mmdc`), `::cols::`/`::col2::`/`::col3::`/`::right::` columns, and
+  `::boxes::`/`::arrows::` icon-row blocks. New flags: `--fa-style`,
+  `--mmdc`, `--strict`, `--keep-temp-images`, `--no-notes`.
 - Drive: add `drive share --notify` for invite targets that require a Drive notification email.
 - Calendar: keep `calendar appointments` as an explicit diagnostic because the Calendar API still rejects `eventTypes=appointmentSchedule`. (#329)
 - CLI: add nested `docs tabs ...` and `forms questions ...` aliases for consistent sub-item command patterns while preserving existing flat commands. (#433)
