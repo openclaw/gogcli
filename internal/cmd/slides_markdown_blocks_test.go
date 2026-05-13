@@ -95,3 +95,26 @@ func TestParseBlocks_RightSynonymForCol2(t *testing.T) {
 	assert.True(t, ok)
 	assert.Equal(t, 2, len(col.Columns))
 }
+
+func TestParseBlocks_BoxesBlock(t *testing.T) {
+	input := "::boxes::\n:fa-rectangle-ad: Campaigns\n:fa-headset: Support Tickets\nNo Icon Row\n::/boxes::\n"
+	got := parseBlocks(input, "solid")
+	assert.Equal(t, []Block{
+		IconRowsBlock{Kind: "boxes", Rows: []IconRow{
+			{Icon: &IconRef{Style: "solid", Name: "rectangle-ad"}, Text: "Campaigns"},
+			{Icon: &IconRef{Style: "solid", Name: "headset"}, Text: "Support Tickets"},
+			{Icon: nil, Text: "No Icon Row"},
+		}},
+	}, got)
+}
+
+func TestParseBlocks_ArrowsBlock(t *testing.T) {
+	input := "::arrows::\n\n### Step One\n\n### Step Two\n\n::/arrows::\n"
+	got := parseBlocks(input, "solid")
+	assert.Equal(t, []Block{
+		IconRowsBlock{Kind: "arrows", Rows: []IconRow{
+			{Icon: nil, Text: "Step One"},
+			{Icon: nil, Text: "Step Two"},
+		}},
+	}, got)
+}
