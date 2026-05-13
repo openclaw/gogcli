@@ -42,7 +42,7 @@ func calendarEventsListCall(ctx context.Context, svc *calendar.Service, calendar
 	return call
 }
 
-func listCalendarEvents(ctx context.Context, svc *calendar.Service, calendarID, from, to string, maxResults int64, page string, allPages bool, failEmpty bool, query, privatePropFilter, sharedPropFilter, fields string, showWeekday bool, sortKey, sortOrder string) error {
+func listCalendarEvents(ctx context.Context, svc *calendar.Service, calendarID, from, to string, maxResults int64, page string, allPages bool, failEmpty bool, query, privatePropFilter, sharedPropFilter, fields string, showWeekday bool, showLocation bool, sortKey, sortOrder string) error {
 	calendarTimezone, loc := calendarDisplayTimezone(ctx, svc, calendarID, nil)
 	fetch := func(pageToken string) ([]*calendar.Event, string, error) {
 		resp, err := calendarEventsListCall(ctx, svc, calendarID, from, to, maxResults, query, privatePropFilter, sharedPropFilter, fields, pageToken).Do()
@@ -77,7 +77,7 @@ func listCalendarEvents(ctx context.Context, svc *calendar.Service, calendarID, 
 		}
 		return nil
 	}
-	return renderCalendarEventsTable(ctx, events, nextPageToken, false, showWeekday, failEmpty, true)
+	return renderCalendarEventsTable(ctx, events, nextPageToken, false, showWeekday, showLocation, failEmpty, true)
 }
 
 type eventWithCalendar struct {
@@ -111,7 +111,7 @@ type calendarTimezoneHint struct {
 	loc      *time.Location
 }
 
-func listAllCalendarsEvents(ctx context.Context, svc *calendar.Service, from, to string, maxResults int64, page string, allPages bool, failEmpty bool, query, privatePropFilter, sharedPropFilter, fields string, showWeekday bool, sortKey, sortOrder string) error {
+func listAllCalendarsEvents(ctx context.Context, svc *calendar.Service, from, to string, maxResults int64, page string, allPages bool, failEmpty bool, query, privatePropFilter, sharedPropFilter, fields string, showWeekday bool, showLocation bool, sortKey, sortOrder string) error {
 	u := ui.FromContext(ctx)
 
 	calendars, err := listCalendarList(ctx, svc)
@@ -135,14 +135,14 @@ func listAllCalendarsEvents(ctx context.Context, svc *calendar.Service, from, to
 		u.Err().Println("No calendars")
 		return nil
 	}
-	return listCalendarIDsEvents(ctx, svc, ids, from, to, maxResults, page, allPages, failEmpty, query, privatePropFilter, sharedPropFilter, fields, showWeekday, calendarTimezoneHints(calendars), sortKey, sortOrder)
+	return listCalendarIDsEvents(ctx, svc, ids, from, to, maxResults, page, allPages, failEmpty, query, privatePropFilter, sharedPropFilter, fields, showWeekday, showLocation, calendarTimezoneHints(calendars), sortKey, sortOrder)
 }
 
-func listSelectedCalendarsEvents(ctx context.Context, svc *calendar.Service, calendarIDs []string, from, to string, maxResults int64, page string, allPages bool, failEmpty bool, query, privatePropFilter, sharedPropFilter, fields string, showWeekday bool, sortKey, sortOrder string) error {
-	return listCalendarIDsEvents(ctx, svc, calendarIDs, from, to, maxResults, page, allPages, failEmpty, query, privatePropFilter, sharedPropFilter, fields, showWeekday, nil, sortKey, sortOrder)
+func listSelectedCalendarsEvents(ctx context.Context, svc *calendar.Service, calendarIDs []string, from, to string, maxResults int64, page string, allPages bool, failEmpty bool, query, privatePropFilter, sharedPropFilter, fields string, showWeekday bool, showLocation bool, sortKey, sortOrder string) error {
+	return listCalendarIDsEvents(ctx, svc, calendarIDs, from, to, maxResults, page, allPages, failEmpty, query, privatePropFilter, sharedPropFilter, fields, showWeekday, showLocation, nil, sortKey, sortOrder)
 }
 
-func listCalendarIDsEvents(ctx context.Context, svc *calendar.Service, calendarIDs []string, from, to string, maxResults int64, page string, allPages bool, failEmpty bool, query, privatePropFilter, sharedPropFilter, fields string, showWeekday bool, timezoneHints map[string]calendarTimezoneHint, sortKey, sortOrder string) error {
+func listCalendarIDsEvents(ctx context.Context, svc *calendar.Service, calendarIDs []string, from, to string, maxResults int64, page string, allPages bool, failEmpty bool, query, privatePropFilter, sharedPropFilter, fields string, showWeekday bool, showLocation bool, timezoneHints map[string]calendarTimezoneHint, sortKey, sortOrder string) error {
 	u := ui.FromContext(ctx)
 	all := []*eventWithCalendar{}
 	for _, calID := range calendarIDs {
@@ -181,10 +181,10 @@ func listCalendarIDsEvents(ctx context.Context, svc *calendar.Service, calendarI
 		}
 		return nil
 	}
-	return renderCalendarEventsTable(ctx, all, "", true, showWeekday, failEmpty, false)
+	return renderCalendarEventsTable(ctx, all, "", true, showWeekday, showLocation, failEmpty, false)
 }
 
-func renderCalendarEventsTable(ctx context.Context, events []*eventWithCalendar, nextPageToken string, includeCalendar, showWeekday, failEmpty bool, printPageHint bool) error {
+func renderCalendarEventsTable(ctx context.Context, events []*eventWithCalendar, nextPageToken string, includeCalendar, showWeekday, showLocation, failEmpty bool, printPageHint bool) error {
 	u := ui.FromContext(ctx)
 	if len(events) == 0 {
 		u.Err().Println("No events")
@@ -196,30 +196,46 @@ func renderCalendarEventsTable(ctx context.Context, events []*eventWithCalendar,
 
 	if showWeekday {
 		if includeCalendar {
-			fmt.Fprintln(w, "CALENDAR\tID\tSTART\tSTART_DOW\tEND\tEND_DOW\tSUMMARY")
+			header := "CALENDAR\tID\tSTART\tSTART_DOW\tEND\tEND_DOW\tSUMMARY"
+			if showLocation {
+				header += "\tLOCATION"
+			}
+			fmt.Fprintln(w, header)
 			for _, e := range events {
-				fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\n", e.CalendarID, e.Id, eventDisplayStart(e), e.StartDayOfWeek, eventDisplayEnd(e), e.EndDayOfWeek, e.Summary)
+				fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s%s\n", e.CalendarID, e.Id, eventDisplayStart(e), e.StartDayOfWeek, eventDisplayEnd(e), e.EndDayOfWeek, e.Summary, eventLocationCell(e, showLocation))
 			}
 		} else {
-			fmt.Fprintln(w, "ID\tSTART\tSTART_DOW\tEND\tEND_DOW\tSUMMARY")
+			header := "ID\tSTART\tSTART_DOW\tEND\tEND_DOW\tSUMMARY"
+			if showLocation {
+				header += "\tLOCATION"
+			}
+			fmt.Fprintln(w, header)
 			for _, e := range events {
 				startDay, endDay := e.StartDayOfWeek, e.EndDayOfWeek
 				if startDay == "" && endDay == "" {
 					startDay, endDay = eventDaysOfWeek(e.Event)
 				}
-				fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\n", e.Id, eventDisplayStart(e), startDay, eventDisplayEnd(e), endDay, e.Summary)
+				fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s%s\n", e.Id, eventDisplayStart(e), startDay, eventDisplayEnd(e), endDay, e.Summary, eventLocationCell(e, showLocation))
 			}
 		}
 	} else {
 		if includeCalendar {
-			fmt.Fprintln(w, "CALENDAR\tID\tSTART\tEND\tSUMMARY")
+			header := "CALENDAR\tID\tSTART\tEND\tSUMMARY"
+			if showLocation {
+				header += "\tLOCATION"
+			}
+			fmt.Fprintln(w, header)
 			for _, e := range events {
-				fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", e.CalendarID, e.Id, eventDisplayStart(e), eventDisplayEnd(e), e.Summary)
+				fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s%s\n", e.CalendarID, e.Id, eventDisplayStart(e), eventDisplayEnd(e), e.Summary, eventLocationCell(e, showLocation))
 			}
 		} else {
-			fmt.Fprintln(w, "ID\tSTART\tEND\tSUMMARY")
+			header := "ID\tSTART\tEND\tSUMMARY"
+			if showLocation {
+				header += "\tLOCATION"
+			}
+			fmt.Fprintln(w, header)
 			for _, e := range events {
-				fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", e.Id, eventDisplayStart(e), eventDisplayEnd(e), e.Summary)
+				fmt.Fprintf(w, "%s\t%s\t%s\t%s%s\n", e.Id, eventDisplayStart(e), eventDisplayEnd(e), e.Summary, eventLocationCell(e, showLocation))
 			}
 		}
 	}
@@ -264,6 +280,32 @@ func eventDisplayEnd(e *eventWithCalendar) string {
 		return ""
 	}
 	return eventEnd(e.Event)
+}
+
+func eventLocationCell(e *eventWithCalendar, showLocation bool) string {
+	if !showLocation {
+		return ""
+	}
+	return "\t" + eventDisplayLocation(e)
+}
+
+// eventDisplayLocation returns the event location formatted for a single
+// table cell. Newlines are collapsed and the value is trimmed so a multi-line
+// address from the Calendar API does not break the row layout.
+func eventDisplayLocation(e *eventWithCalendar) string {
+	if e == nil || e.Event == nil {
+		return ""
+	}
+	loc := strings.TrimSpace(e.Location)
+	if loc == "" {
+		return ""
+	}
+	// Calendar locations occasionally arrive with embedded newlines (pasted
+	// multi-line addresses); collapse them so the row stays on one line.
+	loc = strings.ReplaceAll(loc, "\r\n", " ")
+	loc = strings.ReplaceAll(loc, "\n", " ")
+	loc = strings.ReplaceAll(loc, "\t", " ")
+	return loc
 }
 
 func calendarDisplayTimezone(ctx context.Context, svc *calendar.Service, calendarID string, hints map[string]calendarTimezoneHint) (string, *time.Location) {

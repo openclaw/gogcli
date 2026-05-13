@@ -33,7 +33,7 @@ func TestListCalendarEvents_JSON(t *testing.T) {
 	ctx := newCalendarJSONContext(t)
 
 	jsonOut := captureStdout(t, func() {
-		if err := listCalendarEvents(ctx, svc, "cal1", "2025-01-01T00:00:00Z", "2025-01-02T00:00:00Z", 10, "", false, false, "", "", "", "", false, "", ""); err != nil {
+		if err := listCalendarEvents(ctx, svc, "cal1", "2025-01-01T00:00:00Z", "2025-01-02T00:00:00Z", 10, "", false, false, "", "", "", "", false, false, "", ""); err != nil {
 			t.Fatalf("listCalendarEvents: %v", err)
 		}
 	})
@@ -82,7 +82,7 @@ func TestListCalendarEvents_TableUsesCalendarTimezone(t *testing.T) {
 
 	text := captureStdout(t, func() {
 		ctx := newCalendarOutputContext(t, os.Stdout, io.Discard)
-		if err := listCalendarEvents(ctx, svc, "cal1", "2026-04-08T00:00:00Z", "2026-04-09T00:00:00Z", 10, "", false, false, "", "", "", "", false, "", ""); err != nil {
+		if err := listCalendarEvents(ctx, svc, "cal1", "2026-04-08T00:00:00Z", "2026-04-09T00:00:00Z", 10, "", false, false, "", "", "", "", false, false, "", ""); err != nil {
 			t.Fatalf("listCalendarEvents: %v", err)
 		}
 	})
@@ -92,6 +92,66 @@ func TestListCalendarEvents_TableUsesCalendarTimezone(t *testing.T) {
 	}
 	if strings.Contains(text, "2026-04-08T20:00:00+13:00") {
 		t.Fatalf("expected raw +13:00 time to be localized, got: %q", text)
+	}
+}
+
+// TestListCalendarEvents_TableIncludesLocation asserts that the events list
+// table renders the LOCATION column when requested and that embedded newlines in
+// the location string are collapsed so the row stays on one line.
+func TestListCalendarEvents_TableIncludesLocation(t *testing.T) {
+	svc, closeServer := newCalendarServiceForTest(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.Contains(r.URL.Path, "/calendars/cal1/events") && r.Method == http.MethodGet {
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"items": []map[string]any{
+					{
+						"id":       "e1",
+						"summary":  "Standup",
+						"location": "Bahnhofstrasse 1\n8001 Zürich",
+						"start":    map[string]any{"dateTime": "2026-04-08T09:00:00Z"},
+						"end":      map[string]any{"dateTime": "2026-04-08T09:15:00Z"},
+					},
+					{
+						"id":      "e2",
+						"summary": "No-location event",
+						"start":   map[string]any{"dateTime": "2026-04-08T10:00:00Z"},
+						"end":     map[string]any{"dateTime": "2026-04-08T10:15:00Z"},
+					},
+				},
+			})
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer closeServer()
+
+	text := captureStdout(t, func() {
+		ctx := newCalendarOutputContext(t, os.Stdout, io.Discard)
+		if err := listCalendarEvents(ctx, svc, "cal1", "2026-04-08T00:00:00Z", "2026-04-09T00:00:00Z", 10, "", false, false, "", "", "", "", false, false, "", ""); err != nil {
+			t.Fatalf("listCalendarEvents: %v", err)
+		}
+	})
+
+	if strings.Contains(text, "LOCATION") {
+		t.Fatalf("did not expect LOCATION header without --location, got: %q", text)
+	}
+
+	text = captureStdout(t, func() {
+		ctx := newCalendarOutputContext(t, os.Stdout, io.Discard)
+		if err := listCalendarEvents(ctx, svc, "cal1", "2026-04-08T00:00:00Z", "2026-04-09T00:00:00Z", 10, "", false, false, "", "", "", "", false, true, "", ""); err != nil {
+			t.Fatalf("listCalendarEvents with location: %v", err)
+		}
+	})
+
+	if !strings.Contains(text, "LOCATION") {
+		t.Fatalf("expected LOCATION header with --location, got: %q", text)
+	}
+	if !strings.Contains(text, "Bahnhofstrasse 1 8001 Zürich") {
+		t.Fatalf("expected collapsed multi-line location, got: %q", text)
+	}
+	// Original newline must not leak into the rendered row.
+	if strings.Contains(text, "Bahnhofstrasse 1\n8001 Zürich") {
+		t.Fatalf("expected newline in location to be collapsed, got: %q", text)
 	}
 }
 
@@ -127,7 +187,7 @@ func TestListCalendarEvents_JSONUsesCalendarTimezoneForLocalFields(t *testing.T)
 
 	ctx := newCalendarJSONContext(t)
 	jsonOut := captureStdout(t, func() {
-		if err := listCalendarEvents(ctx, svc, "cal1", "2026-04-08T00:00:00Z", "2026-04-09T00:00:00Z", 10, "", false, false, "", "", "", "", false, "", ""); err != nil {
+		if err := listCalendarEvents(ctx, svc, "cal1", "2026-04-08T00:00:00Z", "2026-04-09T00:00:00Z", 10, "", false, false, "", "", "", "", false, false, "", ""); err != nil {
 			t.Fatalf("listCalendarEvents: %v", err)
 		}
 	})
