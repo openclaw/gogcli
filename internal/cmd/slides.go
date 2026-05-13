@@ -278,7 +278,9 @@ func (c *SlidesCreateFromMarkdownCmd) Run(ctx context.Context, flags *RootFlags)
 		})
 	}
 
-	u.Out().Printf("Created presentation with %d slides", len(ParseMarkdownToSlides(markdown)))
+	if parsedSlides, parseErr := ParseMarkdownToSlides(markdown, ParseOptions{}); parseErr == nil {
+		u.Out().Printf("Created presentation with %d slides", len(parsedSlides))
+	}
 	u.Out().Printf("id\t%s", presentation.PresentationId)
 	u.Out().Printf("name\t%s", file.Name)
 	if file.WebViewLink != "" {
