@@ -310,15 +310,19 @@ func TestKeyringStoreSetToken_RoundtripPreservesServices(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetToken: %v", err)
 	}
+
 	if got.Email != tok.Email {
 		t.Fatalf("email mismatch: got %q want %q", got.Email, tok.Email)
 	}
+
 	if got.RefreshToken != tok.RefreshToken {
 		t.Fatalf("refresh token mismatch: got %q want %q", got.RefreshToken, tok.RefreshToken)
 	}
+
 	if strings.Join(got.Services, ",") != "gmail,drive" {
 		t.Fatalf("services mismatch: got %v", got.Services)
 	}
+
 	if got.CreatedAt.IsZero() {
 		t.Fatalf("expected CreatedAt to be auto-populated")
 	}
@@ -333,6 +337,7 @@ func TestKeyringStoreSetToken_OverwritesExistingEntry(t *testing.T) {
 	if err := store.SetToken(client, email, Token{RefreshToken: "rt-old"}); err != nil {
 		t.Fatalf("SetToken old: %v", err)
 	}
+
 	if err := store.SetToken(client, email, Token{RefreshToken: "rt-new"}); err != nil {
 		t.Fatalf("SetToken new: %v", err)
 	}
@@ -341,6 +346,7 @@ func TestKeyringStoreSetToken_OverwritesExistingEntry(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetToken: %v", err)
 	}
+
 	if got.RefreshToken != "rt-new" {
 		t.Fatalf("expected overwritten token, got %q", got.RefreshToken)
 	}

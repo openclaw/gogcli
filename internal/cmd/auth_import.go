@@ -38,9 +38,9 @@ func (c *AuthImportCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return usage("--email is required")
 	}
 
-	refreshToken, err := c.resolveRefreshToken()
-	if err != nil {
-		return err
+	refreshToken, tokenErr := c.resolveRefreshToken()
+	if tokenErr != nil {
+		return tokenErr
 	}
 
 	client := strings.TrimSpace(c.Client)
@@ -124,7 +124,7 @@ func (c *AuthImportCmd) resolveRefreshToken() (string, error) {
 			return "", fmt.Errorf("read --refresh-token-stdin: %w", err)
 		}
 	case strings.TrimSpace(c.RefreshTokenFile) != "":
-		raw, err = os.ReadFile(strings.TrimSpace(c.RefreshTokenFile)) //nolint:gosec // user-provided token file path
+		raw, err = os.ReadFile(strings.TrimSpace(c.RefreshTokenFile))
 		if err != nil {
 			return "", fmt.Errorf("read --refresh-token-file: %w", err)
 		}
