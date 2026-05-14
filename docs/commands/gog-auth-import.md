@@ -1,35 +1,18 @@
-# `gog auth`
+# `gog auth import`
 
 > Generated from `gog schema --json`. Do not edit this page by hand; run `make docs-commands`.
 
-Auth and credentials
+Import a refresh token non-interactively from stdin, file, or env
 
 ## Usage
 
 ```bash
-gog auth <command> [flags]
+gog auth import --email=STRING [flags]
 ```
 
 ## Parent
 
-- [gog](gog.md)
-
-## Subcommands
-
-- [gog auth add](gog-auth-add.md) - Authorize and store a refresh token
-- [gog auth alias](gog-auth-alias.md) - Manage account aliases
-- [gog auth credentials](gog-auth-credentials.md) - Manage OAuth client credentials
-- [gog auth doctor](gog-auth-doctor.md) - Diagnose auth, keyring, and refresh-token issues
-- [gog auth import](gog-auth-import.md) - Import a refresh token non-interactively from stdin, file, or env
-- [gog auth keep](gog-auth-keep.md) - Configure service account for Google Keep (Workspace only)
-- [gog auth keyring](gog-auth-keyring.md) - Configure keyring backend
-- [gog auth list](gog-auth-list.md) - List stored accounts
-- [gog auth manage](gog-auth-manage.md) - Open accounts manager in browser
-- [gog auth remove](gog-auth-remove.md) - Remove a stored refresh token
-- [gog auth service-account](gog-auth-service-account.md) - Configure service account (Workspace only; domain-wide delegation)
-- [gog auth services](gog-auth-services.md) - List supported auth services and scopes
-- [gog auth status](gog-auth-status.md) - Show auth configuration and keyring backend
-- [gog auth tokens](gog-auth-tokens.md) - Manage stored refresh tokens
+- [gog auth](gog-auth.md)
 
 ## Flags
 
@@ -41,6 +24,7 @@ gog auth <command> [flags]
 | `--color` | `string` | auto | Color output: auto\|always\|never |
 | `--disable-commands` | `string` |  | Comma-separated list of disabled commands; dot paths allowed |
 | `-n`<br>`--dry-run`<br>`--dryrun`<br>`--noop`<br>`--preview` | `bool` |  | Do not make changes; print intended actions and exit successfully |
+| `--email` | `string` |  | Account email |
 | `--enable-commands` | `string` |  | Comma-separated list of enabled commands; dot paths allowed (restricts CLI) |
 | `-y`<br>`--force`<br>`--assume-yes`<br>`--yes` | `bool` |  | Skip confirmations for destructive commands |
 | `--gmail-no-send` | `bool` | false | Block Gmail send operations (agent safety) |
@@ -48,13 +32,17 @@ gog auth <command> [flags]
 | `-j`<br>`--json`<br>`--machine` | `bool` | false | Output JSON to stdout (best for scripting) |
 | `--no-input`<br>`--non-interactive`<br>`--noninteractive` | `bool` |  | Never prompt; fail instead (useful for CI) |
 | `-p`<br>`--plain`<br>`--tsv` | `bool` | false | Output stable, parseable text to stdout (TSV; no colors) |
+| `--refresh-token-env` | `string` |  | Read OAuth refresh token from the named environment variable |
+| `--refresh-token-file` | `string` |  | Read OAuth refresh token from file |
+| `--refresh-token-stdin` | `bool` |  | Read OAuth refresh token from stdin |
 | `--results-only` | `bool` |  | In JSON mode, emit only the primary result (drops envelope fields like nextPageToken) |
 | `--select`<br>`--pick`<br>`--project` | `string` |  | In JSON mode, select comma-separated fields (best-effort; supports dot paths). Desire path: use --fields for most commands. |
+| `--services` | `string` |  | Comma-separated services to record on the token (informational; does not affect scopes) |
 | `-v`<br>`--verbose` | `bool` |  | Enable verbose logging |
 | `--version` | `kong.VersionFlag` |  | Print version and exit |
 | `--wrap-untrusted` | `bool` | false | In JSON/raw output, wrap fetched text fields in external untrusted-content markers |
 
 ## See Also
 
-- [gog](gog.md)
+- [gog auth](gog-auth.md)
 - [Command index](README.md)

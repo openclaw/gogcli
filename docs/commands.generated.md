@@ -43,6 +43,7 @@ Generated from `gog schema --json`.
       - [`gog auth credentials remove [<client>]`](commands/gog-auth-credentials-remove.md) - Remove stored OAuth client credentials
       - [`gog auth credentials set <credentials> [flags]`](commands/gog-auth-credentials-set.md) - Store OAuth client credentials
     - [`gog auth doctor [flags]`](commands/gog-auth-doctor.md) - Diagnose auth, keyring, and refresh-token issues
+    - [`gog auth import --email=STRING [flags]`](commands/gog-auth-import.md) - Import a refresh token non-interactively from stdin, file, or env
     - [`gog auth keep --key=STRING <email>`](commands/gog-auth-keep.md) - Configure service account for Google Keep (Workspace only)
     - [`gog auth keyring [<backend> [<backend2>]]`](commands/gog-auth-keyring.md) - Configure keyring backend
     - [`gog auth list [flags]`](commands/gog-auth-list.md) - List stored accounts
