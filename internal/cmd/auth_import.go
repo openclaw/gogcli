@@ -70,12 +70,12 @@ func (c *AuthImportCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
-	if _, getErr := store.GetToken(client, email); getErr == nil {
-		if !force {
+	if !force {
+		if _, getErr := store.GetToken(client, email); getErr == nil {
 			return usagef("entry already exists for client=%q email=%q (use --force to overwrite)", client, email)
+		} else if !errors.Is(getErr, keyring.ErrKeyNotFound) {
+			return getErr
 		}
-	} else if !errors.Is(getErr, keyring.ErrKeyNotFound) {
-		return getErr
 	}
 
 	if err := store.SetToken(client, email, secrets.Token{

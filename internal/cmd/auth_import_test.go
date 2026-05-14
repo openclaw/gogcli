@@ -272,6 +272,16 @@ func TestAuthImportCmd_ForceOverwritesExistingEntry(t *testing.T) {
 	}
 }
 
+func TestAuthImportCmd_ForceOverwritesUnreadableEntry(t *testing.T) {
+	store := &errorTokenStore{err: errors.New("decode token")}
+	withImportOverrides(t, store)
+
+	cmd := authImportCmdWithEnvToken(t, "a@b.com", "rt-new")
+	if err := cmd.Run(newImportTestContext(t), &RootFlags{Force: true}); err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+}
+
 func TestAuthImportCmd_CustomClientNamespace(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
