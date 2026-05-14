@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -251,6 +252,10 @@ func TestAuthImportCmd_ForceOverwritesExistingEntry(t *testing.T) {
 }
 
 func TestAuthImportCmd_CustomClientNamespace(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, "xdg-config"))
+
 	store := newMemSecretsStore()
 	withImportOverrides(t, store)
 
@@ -266,6 +271,42 @@ func TestAuthImportCmd_CustomClientNamespace(t *testing.T) {
 		t.Fatalf("expected token under custom client: %v", err)
 	}
 	if _, err := store.GetToken("default", "a@b.com"); err == nil {
+		t.Fatalf("expected no token under default client")
+	}
+	cfg, err := config.ReadConfig()
+	if err != nil {
+		t.Fatalf("ReadConfig: %v", err)
+	}
+	if got := cfg.AccountClients["a@b.com"]; got != "org" {
+		t.Fatalf("expected account client mapping org, got %q", got)
+	}
+}
+
+func TestAuthImportCmd_UsesConfiguredClientMapping(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, "xdg-config"))
+	if err := config.WriteConfig(config.File{ClientDomains: map[string]string{
+		"example.com": "work",
+	}}); err != nil {
+		t.Fatalf("WriteConfig: %v", err)
+	}
+
+	store := newMemSecretsStore()
+	withImportOverrides(t, store)
+
+	cmd := &AuthImportCmd{
+		Email:        "user@example.com",
+		RefreshToken: "rt",
+	}
+	if err := cmd.Run(newImportTestContext(t), &RootFlags{}); err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+
+	if _, err := store.GetToken("work", "user@example.com"); err != nil {
+		t.Fatalf("expected token under mapped client: %v", err)
+	}
+	if _, err := store.GetToken("default", "user@example.com"); err == nil {
 		t.Fatalf("expected no token under default client")
 	}
 }

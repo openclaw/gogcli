@@ -41,13 +41,13 @@ func (c *AuthImportCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return tokenErr
 	}
 
-	client := config.DefaultClientName
+	override := ""
 	if flags != nil {
-		resolvedClient, err := config.NormalizeClientNameOrDefault(flags.Client)
-		if err != nil {
-			return err
-		}
-		client = resolvedClient
+		override = flags.Client
+	}
+	client, err := resolveClientForEmail(email, flags, "")
+	if err != nil {
+		return err
 	}
 
 	services := splitCommaList(c.ServicesCSV)
@@ -86,6 +86,18 @@ func (c *AuthImportCmd) Run(ctx context.Context, flags *RootFlags) error {
 		RefreshToken: refreshToken,
 	}); err != nil {
 		return err
+	}
+	if strings.TrimSpace(override) != "" {
+		cfg, err := config.ReadConfig()
+		if err != nil {
+			return err
+		}
+		if err := config.SetAccountClient(&cfg, email, client); err != nil {
+			return err
+		}
+		if err := config.WriteConfig(cfg); err != nil {
+			return err
+		}
 	}
 
 	return writeResult(ctx, u,
