@@ -39,15 +39,21 @@ func withImportOverrides(t *testing.T, store secrets.Store) {
 	ensureKeychainAccess = func() error { return nil }
 }
 
+func authImportCmdWithEnvToken(t *testing.T, email string, token string) *AuthImportCmd {
+	t.Helper()
+	t.Setenv("GOG_TEST_REFRESH_TOKEN", token)
+	return &AuthImportCmd{
+		Email:           email,
+		RefreshTokenEnv: "GOG_TEST_REFRESH_TOKEN",
+	}
+}
+
 func TestAuthImportCmd_RejectsEmptyRefreshToken(t *testing.T) {
 	store := newMemSecretsStore()
 	withImportOverrides(t, store)
 
-	cmd := &AuthImportCmd{
-		Email:        "a@b.com",
-		RefreshToken: "   ",
-		ServicesCSV:  "gmail",
-	}
+	cmd := authImportCmdWithEnvToken(t, "a@b.com", "   ")
+	cmd.ServicesCSV = "gmail"
 	err := cmd.Run(newImportTestContext(t), &RootFlags{})
 	if err == nil {
 		t.Fatal("expected error for empty refresh token")
@@ -56,8 +62,8 @@ func TestAuthImportCmd_RejectsEmptyRefreshToken(t *testing.T) {
 	if !errors.As(err, &ee) || ee.Code != 2 {
 		t.Fatalf("expected ExitError code=2, got %#v", err)
 	}
-	if !strings.Contains(err.Error(), "refresh-token") {
-		t.Fatalf("expected refresh-token in error, got %q", err.Error())
+	if !strings.Contains(err.Error(), "refresh token") {
+		t.Fatalf("expected refresh token in error, got %q", err.Error())
 	}
 }
 
@@ -85,11 +91,8 @@ func TestAuthImportCmd_RejectsMultipleRefreshTokenSources(t *testing.T) {
 	store := newMemSecretsStore()
 	withImportOverrides(t, store)
 
-	cmd := &AuthImportCmd{
-		Email:             "a@b.com",
-		RefreshToken:      "rt",
-		RefreshTokenStdin: true,
-	}
+	cmd := authImportCmdWithEnvToken(t, "a@b.com", "rt")
+	cmd.RefreshTokenStdin = true
 	err := cmd.Run(newImportTestContext(t), &RootFlags{})
 	if err == nil {
 		t.Fatal("expected error for multiple refresh token sources")
@@ -107,10 +110,7 @@ func TestAuthImportCmd_RejectsEmptyEmail(t *testing.T) {
 	store := newMemSecretsStore()
 	withImportOverrides(t, store)
 
-	cmd := &AuthImportCmd{
-		Email:        "   ",
-		RefreshToken: "rt",
-	}
+	cmd := authImportCmdWithEnvToken(t, "   ", "rt")
 	err := cmd.Run(newImportTestContext(t), &RootFlags{})
 	if err == nil {
 		t.Fatal("expected error for empty email")
@@ -175,6 +175,33 @@ func TestAuthImportCmd_ReadsRefreshTokenFromFile(t *testing.T) {
 	}
 }
 
+func TestAuthImportCmd_ExpandsRefreshTokenFilePath(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	store := newMemSecretsStore()
+	withImportOverrides(t, store)
+	path := filepath.Join(home, "token.txt")
+	if err := os.WriteFile(path, []byte("rt-home\n"), 0o600); err != nil {
+		t.Fatalf("write token file: %v", err)
+	}
+
+	cmd := &AuthImportCmd{
+		Email:            "a@b.com",
+		RefreshTokenFile: "~/token.txt",
+	}
+	if err := cmd.Run(newImportTestContext(t), &RootFlags{}); err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+
+	tok, err := store.GetToken("default", "a@b.com")
+	if err != nil {
+		t.Fatalf("GetToken: %v", err)
+	}
+	if tok.RefreshToken != "rt-home" {
+		t.Fatalf("expected expanded file token, got %q", tok.RefreshToken)
+	}
+}
+
 func TestAuthImportCmd_ReadsRefreshTokenFromStdin(t *testing.T) {
 	store := newMemSecretsStore()
 	withImportOverrides(t, store)
@@ -206,10 +233,7 @@ func TestAuthImportCmd_RejectsExistingEntryWithoutForce(t *testing.T) {
 		t.Fatalf("seed SetToken: %v", err)
 	}
 
-	cmd := &AuthImportCmd{
-		Email:        "a@b.com",
-		RefreshToken: "rt-new",
-	}
+	cmd := authImportCmdWithEnvToken(t, "a@b.com", "rt-new")
 	err := cmd.Run(newImportTestContext(t), &RootFlags{})
 	if err == nil {
 		t.Fatal("expected error when entry exists without --force")
@@ -234,10 +258,7 @@ func TestAuthImportCmd_ForceOverwritesExistingEntry(t *testing.T) {
 		t.Fatalf("seed SetToken: %v", err)
 	}
 
-	cmd := &AuthImportCmd{
-		Email:        "a@b.com",
-		RefreshToken: "rt-new",
-	}
+	cmd := authImportCmdWithEnvToken(t, "a@b.com", "rt-new")
 	if err := cmd.Run(newImportTestContext(t), &RootFlags{Force: true}); err != nil {
 		t.Fatalf("Run: %v", err)
 	}
@@ -259,10 +280,7 @@ func TestAuthImportCmd_CustomClientNamespace(t *testing.T) {
 	store := newMemSecretsStore()
 	withImportOverrides(t, store)
 
-	cmd := &AuthImportCmd{
-		Email:        "a@b.com",
-		RefreshToken: "rt",
-	}
+	cmd := authImportCmdWithEnvToken(t, "a@b.com", "rt")
 	if err := cmd.Run(newImportTestContext(t), &RootFlags{Client: "org"}); err != nil {
 		t.Fatalf("Run: %v", err)
 	}
@@ -295,10 +313,7 @@ func TestAuthImportCmd_UsesConfiguredClientMapping(t *testing.T) {
 	store := newMemSecretsStore()
 	withImportOverrides(t, store)
 
-	cmd := &AuthImportCmd{
-		Email:        "user@example.com",
-		RefreshToken: "rt",
-	}
+	cmd := authImportCmdWithEnvToken(t, "user@example.com", "rt")
 	if err := cmd.Run(newImportTestContext(t), &RootFlags{}); err != nil {
 		t.Fatalf("Run: %v", err)
 	}
@@ -315,10 +330,7 @@ func TestAuthImportCmd_DryRunDoesNotWrite(t *testing.T) {
 	store := newMemSecretsStore()
 	withImportOverrides(t, store)
 
-	cmd := &AuthImportCmd{
-		Email:        "a@b.com",
-		RefreshToken: "rt",
-	}
+	cmd := authImportCmdWithEnvToken(t, "a@b.com", "rt")
 	err := cmd.Run(newImportTestContext(t), &RootFlags{DryRun: true})
 	var ee *ExitError
 	if !errors.As(err, &ee) || ee.Code != 0 {

@@ -21,7 +21,6 @@ var readAuthImportStdin = func() ([]byte, error) {
 
 type AuthImportCmd struct {
 	Email             string `name:"email" required:"" help:"Account email"`
-	RefreshToken      string `name:"refresh-token" hidden:"" help:"OAuth refresh token to store (prefer --refresh-token-stdin, --refresh-token-file, or --refresh-token-env)"`
 	RefreshTokenStdin bool   `name:"refresh-token-stdin" help:"Read OAuth refresh token from stdin"`
 	RefreshTokenFile  string `name:"refresh-token-file" type:"path" help:"Read OAuth refresh token from file"`
 	RefreshTokenEnv   string `name:"refresh-token-env" help:"Read OAuth refresh token from the named environment variable"`
@@ -109,9 +108,6 @@ func (c *AuthImportCmd) Run(ctx context.Context, flags *RootFlags) error {
 
 func (c *AuthImportCmd) resolveRefreshToken() (string, error) {
 	sources := 0
-	if strings.TrimSpace(c.RefreshToken) != "" {
-		sources++
-	}
 	if c.RefreshTokenStdin {
 		sources++
 	}
@@ -139,7 +135,11 @@ func (c *AuthImportCmd) resolveRefreshToken() (string, error) {
 			return "", fmt.Errorf("read --refresh-token-stdin: %w", err)
 		}
 	case strings.TrimSpace(c.RefreshTokenFile) != "":
-		raw, err = os.ReadFile(strings.TrimSpace(c.RefreshTokenFile))
+		path, expandErr := config.ExpandPath(strings.TrimSpace(c.RefreshTokenFile))
+		if expandErr != nil {
+			return "", fmt.Errorf("expand --refresh-token-file: %w", expandErr)
+		}
+		raw, err = os.ReadFile(path) //nolint:gosec // user-provided token file path
 		if err != nil {
 			return "", fmt.Errorf("read --refresh-token-file: %w", err)
 		}
@@ -150,8 +150,6 @@ func (c *AuthImportCmd) resolveRefreshToken() (string, error) {
 			return "", usagef("environment variable %s is not set", envName)
 		}
 		raw = []byte(value)
-	default:
-		raw = []byte(c.RefreshToken)
 	}
 
 	token := strings.TrimSpace(string(raw))
