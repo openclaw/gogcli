@@ -42,6 +42,7 @@ const (
 type AuthCmd struct {
 	Credentials AuthCredentialsCmd    `cmd:"" name:"credentials" help:"Manage OAuth client credentials"`
 	Add         AuthAddCmd            `cmd:"" name:"add" help:"Authorize and store a refresh token"`
+	Import      AuthImportCmd         `cmd:"" name:"import" help:"Import a refresh token non-interactively from flags"`
 	Services    AuthServicesCmd       `cmd:"" name:"services" help:"List supported auth services and scopes"`
 	List        AuthListCmd           `cmd:"" name:"list" help:"List stored accounts"`
 	Doctor      AuthDoctorCmd         `cmd:"" name:"doctor" help:"Diagnose auth, keyring, and refresh-token issues"`

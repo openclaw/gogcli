@@ -6,6 +6,7 @@
 
 - Calendar: add `calendar events --sort=start|end|summary|calendar` and `--order=asc|desc` so `--all` output can be returned chronologically across calendars instead of per-calendar API iteration order. Also documents `now` in the `--from`/`--to` help strings (already accepted by `timeparse`) — the relative form agents need when planning "from now on" — thanks @gado-ships-it.
 - Calendar: add `calendar events --location` to include event locations in table output. Embedded newlines in the location string are collapsed so multi-line addresses still render on one row — thanks @gado-ships-it.
+- Auth: add `gog auth import --client --email` with `--refresh-token-stdin`, `--refresh-token-file`, or `--refresh-token-env` for non-interactive token import without exposing secrets in argv — thanks @jcarnegie.
 - Drive: add `drive share --notify` for invite targets that require a Drive notification email.
 - Calendar: keep `calendar appointments` as an explicit diagnostic because the Calendar API still rejects `eventTypes=appointmentSchedule`. (#329)
 - CLI: add nested `docs tabs ...` and `forms questions ...` aliases for consistent sub-item command patterns while preserving existing flat commands. (#433)

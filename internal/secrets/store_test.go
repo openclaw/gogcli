@@ -292,6 +292,60 @@ func TestOpenKeyring_NoDBus_ForcesFileBackend(t *testing.T) {
 	}
 }
 
+func TestKeyringStoreSetToken_RoundtripPreservesServices(t *testing.T) {
+	ring := keyring.NewArrayKeyring(nil)
+	store := &KeyringStore{ring: ring}
+	client := config.DefaultClientName
+
+	tok := Token{
+		Email:        "import@example.com",
+		Services:     []string{"gmail", "drive"},
+		RefreshToken: "imported-rt",
+	}
+	if err := store.SetToken(client, tok.Email, tok); err != nil {
+		t.Fatalf("SetToken: %v", err)
+	}
+
+	got, err := store.GetToken(client, tok.Email)
+	if err != nil {
+		t.Fatalf("GetToken: %v", err)
+	}
+	if got.Email != tok.Email {
+		t.Fatalf("email mismatch: got %q want %q", got.Email, tok.Email)
+	}
+	if got.RefreshToken != tok.RefreshToken {
+		t.Fatalf("refresh token mismatch: got %q want %q", got.RefreshToken, tok.RefreshToken)
+	}
+	if strings.Join(got.Services, ",") != "gmail,drive" {
+		t.Fatalf("services mismatch: got %v", got.Services)
+	}
+	if got.CreatedAt.IsZero() {
+		t.Fatalf("expected CreatedAt to be auto-populated")
+	}
+}
+
+func TestKeyringStoreSetToken_OverwritesExistingEntry(t *testing.T) {
+	ring := keyring.NewArrayKeyring(nil)
+	store := &KeyringStore{ring: ring}
+	client := config.DefaultClientName
+	email := "overwrite@example.com"
+
+	if err := store.SetToken(client, email, Token{RefreshToken: "rt-old"}); err != nil {
+		t.Fatalf("SetToken old: %v", err)
+	}
+	if err := store.SetToken(client, email, Token{RefreshToken: "rt-new"}); err != nil {
+		t.Fatalf("SetToken new: %v", err)
+	}
+
+	got, err := store.GetToken(client, email)
+	if err != nil {
+		t.Fatalf("GetToken: %v", err)
+	}
+	if got.RefreshToken != "rt-new" {
+		t.Fatalf("expected overwritten token, got %q", got.RefreshToken)
+	}
+}
+
 func TestOpenKeyring_ExplicitBackend_IgnoresDBusDetection(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
