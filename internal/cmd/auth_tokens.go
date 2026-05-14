@@ -97,7 +97,7 @@ func (c *AuthTokensDeleteCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if err != nil {
 		return err
 	}
-	client, err := resolveClientForEmail(email, flags, "")
+	client, err := resolveClientForEmail(email, flags)
 	if err != nil {
 		return err
 	}

@@ -45,9 +45,9 @@ func (c *AuthImportCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if flags != nil {
 		override = flags.Client
 	}
-	client, err := resolveClientForEmail(email, flags, "")
-	if err != nil {
-		return err
+	client, clientErr := resolveClientForEmail(email, flags)
+	if clientErr != nil {
+		return clientErr
 	}
 
 	services := splitCommaList(c.ServicesCSV)
