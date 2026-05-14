@@ -13,7 +13,7 @@ func MigrateStoredSubjectIdentity(store secrets.Store, client string, identity I
 	newEmail := normalizeEmail(identity.Email)
 
 	if subject == "" || newEmail == "" {
-		return "", nil
+		return "", nil //nolint:nilerr // best-effort cleanup must not block saving the new token
 	}
 
 	tokens, err := store.ListTokens()

@@ -111,6 +111,8 @@ type calendarTimezoneHint struct {
 	loc      *time.Location
 }
 
+const calendarLocationColumnSuffix = "\tLOCATION"
+
 func listAllCalendarsEvents(ctx context.Context, svc *calendar.Service, from, to string, maxResults int64, page string, allPages bool, failEmpty bool, query, privatePropFilter, sharedPropFilter, fields string, showWeekday bool, showLocation bool, sortKey, sortOrder string) error {
 	u := ui.FromContext(ctx)
 
@@ -198,7 +200,7 @@ func renderCalendarEventsTable(ctx context.Context, events []*eventWithCalendar,
 		if includeCalendar {
 			header := "CALENDAR\tID\tSTART\tSTART_DOW\tEND\tEND_DOW\tSUMMARY"
 			if showLocation {
-				header += "\tLOCATION"
+				header += calendarLocationColumnSuffix
 			}
 			fmt.Fprintln(w, header)
 			for _, e := range events {
@@ -207,7 +209,7 @@ func renderCalendarEventsTable(ctx context.Context, events []*eventWithCalendar,
 		} else {
 			header := "ID\tSTART\tSTART_DOW\tEND\tEND_DOW\tSUMMARY"
 			if showLocation {
-				header += "\tLOCATION"
+				header += calendarLocationColumnSuffix
 			}
 			fmt.Fprintln(w, header)
 			for _, e := range events {
@@ -222,7 +224,7 @@ func renderCalendarEventsTable(ctx context.Context, events []*eventWithCalendar,
 		if includeCalendar {
 			header := "CALENDAR\tID\tSTART\tEND\tSUMMARY"
 			if showLocation {
-				header += "\tLOCATION"
+				header += calendarLocationColumnSuffix
 			}
 			fmt.Fprintln(w, header)
 			for _, e := range events {
@@ -231,7 +233,7 @@ func renderCalendarEventsTable(ctx context.Context, events []*eventWithCalendar,
 		} else {
 			header := "ID\tSTART\tEND\tSUMMARY"
 			if showLocation {
-				header += "\tLOCATION"
+				header += calendarLocationColumnSuffix
 			}
 			fmt.Fprintln(w, header)
 			for _, e := range events {
