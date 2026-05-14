@@ -28,7 +28,7 @@ gog calendar (cal) search (find,query) <query> [flags]
 | `-n`<br>`--dry-run`<br>`--dryrun`<br>`--noop`<br>`--preview` | `bool` |  | Do not make changes; print intended actions and exit successfully |
 | `--enable-commands` | `string` |  | Comma-separated list of enabled commands; dot paths allowed (restricts CLI) |
 | `-y`<br>`--force`<br>`--assume-yes`<br>`--yes` | `bool` |  | Skip confirmations for destructive commands |
-| `--from` | `string` |  | Start time (RFC3339, date, or relative: today, tomorrow, monday) |
+| `--from` | `string` |  | Start time (RFC3339, date, or relative: now, today, tomorrow, monday) |
 | `--gmail-no-send` | `bool` | false | Block Gmail send operations (agent safety) |
 | `-h`<br>`--help` | `kong.helpFlag` |  | Show context-sensitive help. |
 | `-j`<br>`--json`<br>`--machine` | `bool` | false | Output JSON to stdout (best for scripting) |
@@ -37,7 +37,7 @@ gog calendar (cal) search (find,query) <query> [flags]
 | `-p`<br>`--plain`<br>`--tsv` | `bool` | false | Output stable, parseable text to stdout (TSV; no colors) |
 | `--results-only` | `bool` |  | In JSON mode, emit only the primary result (drops envelope fields like nextPageToken) |
 | `--select`<br>`--pick`<br>`--project` | `string` |  | In JSON mode, select comma-separated fields (best-effort; supports dot paths). Desire path: use --fields for most commands. |
-| `--to` | `string` |  | End time (RFC3339, date, or relative) |
+| `--to` | `string` |  | End time (RFC3339, date, or relative: now, today, tomorrow, monday) |
 | `--today` | `bool` |  | Today only |
 | `--tomorrow` | `bool` |  | Tomorrow only |
 | `-v`<br>`--verbose` | `bool` |  | Enable verbose logging |

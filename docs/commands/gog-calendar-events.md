@@ -33,12 +33,13 @@ gog calendar (cal) events (list,ls) [<calendarId> ...] [flags]
 | `--fail-empty`<br>`--non-empty`<br>`--require-results` | `bool` |  | Exit with code 3 if no results |
 | `--fields` | `string` |  | Comma-separated fields to return |
 | `-y`<br>`--force`<br>`--assume-yes`<br>`--yes` | `bool` |  | Skip confirmations for destructive commands |
-| `--from` | `string` |  | Start time (RFC3339 with timezone, date, or relative: today, tomorrow, monday) |
+| `--from` | `string` |  | Start time (RFC3339 with timezone, date, or relative: now, today, tomorrow, monday) |
 | `--gmail-no-send` | `bool` | false | Block Gmail send operations (agent safety) |
 | `-h`<br>`--help` | `kong.helpFlag` |  | Show context-sensitive help. |
 | `-j`<br>`--json`<br>`--machine` | `bool` | false | Output JSON to stdout (best for scripting) |
 | `--max`<br>`--limit` | `int64` | 10 | Max results |
 | `--no-input`<br>`--non-interactive`<br>`--noninteractive` | `bool` |  | Never prompt; fail instead (useful for CI) |
+| `--order` | `string` | asc | Sort order |
 | `--page`<br>`--cursor` | `string` |  | Page token |
 | `-p`<br>`--plain`<br>`--tsv` | `bool` | false | Output stable, parseable text to stdout (TSV; no colors) |
 | `--private-prop-filter` | `string` |  | Filter by private extended property (key=value) |
@@ -46,7 +47,8 @@ gog calendar (cal) events (list,ls) [<calendarId> ...] [flags]
 | `--results-only` | `bool` |  | In JSON mode, emit only the primary result (drops envelope fields like nextPageToken) |
 | `--select`<br>`--pick`<br>`--project` | `string` |  | In JSON mode, select comma-separated fields (best-effort; supports dot paths). Desire path: use --fields for most commands. |
 | `--shared-prop-filter` | `string` |  | Filter by shared extended property (key=value) |
-| `--to` | `string` |  | End time (RFC3339 with timezone, date, or relative) |
+| `--sort` | `string` |  | Sort events by start\|end\|summary\|calendar (default: keep API order; with --all, start is recommended for chronological output) |
+| `--to` | `string` |  | End time (RFC3339 with timezone, date, or relative: now, today, tomorrow, monday) |
 | `--today` | `bool` |  | Today only (timezone-aware) |
 | `--tomorrow` | `bool` |  | Tomorrow only (timezone-aware) |
 | `-v`<br>`--verbose` | `bool` |  | Enable verbose logging |

@@ -28,7 +28,7 @@ gog calendar (cal) team <group-email> [flags]
 | `--enable-commands` | `string` |  | Comma-separated list of enabled commands; dot paths allowed (restricts CLI) |
 | `-y`<br>`--force`<br>`--assume-yes`<br>`--yes` | `bool` |  | Skip confirmations for destructive commands |
 | `--freebusy` | `bool` |  | Show only busy/free blocks (faster, single API call) |
-| `--from` | `string` |  | Start time (RFC3339, date, or relative: today, tomorrow, monday) |
+| `--from` | `string` |  | Start time (RFC3339, date, or relative: now, today, tomorrow, monday) |
 | `--gmail-no-send` | `bool` | false | Block Gmail send operations (agent safety) |
 | `-h`<br>`--help` | `kong.helpFlag` |  | Show context-sensitive help. |
 | `-j`<br>`--json`<br>`--machine` | `bool` | false | Output JSON to stdout (best for scripting) |
@@ -39,7 +39,7 @@ gog calendar (cal) team <group-email> [flags]
 | `-q`<br>`--query` | `string` |  | Filter events by title (case-insensitive) |
 | `--results-only` | `bool` |  | In JSON mode, emit only the primary result (drops envelope fields like nextPageToken) |
 | `--select`<br>`--pick`<br>`--project` | `string` |  | In JSON mode, select comma-separated fields (best-effort; supports dot paths). Desire path: use --fields for most commands. |
-| `--to` | `string` |  | End time (RFC3339, date, or relative) |
+| `--to` | `string` |  | End time (RFC3339, date, or relative: now, today, tomorrow, monday) |
 | `--today` | `bool` |  | Today only |
 | `--tomorrow` | `bool` |  | Tomorrow only |
 | `-v`<br>`--verbose` | `bool` |  | Enable verbose logging |
