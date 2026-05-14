@@ -13,7 +13,7 @@ func MigrateStoredSubjectIdentity(store secrets.Store, client string, identity I
 	newEmail := normalizeEmail(identity.Email)
 
 	if subject == "" || newEmail == "" {
-		return "", nil //nolint:nilerr // best-effort cleanup must not block saving the new token
+		return "", nil
 	}
 
 	tokens, err := store.ListTokens()
@@ -21,7 +21,7 @@ func MigrateStoredSubjectIdentity(store secrets.Store, client string, identity I
 		// Subject migration is best-effort compatibility cleanup. A stale or
 		// corrupted token must not make a freshly completed OAuth flow fail
 		// before the new refresh token is saved.
-		return "", nil
+		return "", nil //nolint:nilerr // best-effort cleanup must not block saving the new token
 	}
 
 	for _, tok := range tokens {
