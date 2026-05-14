@@ -20,14 +20,12 @@ var readAuthImportStdin = func() ([]byte, error) {
 }
 
 type AuthImportCmd struct {
-	Client            string `name:"client" help:"OAuth client name to namespace the entry" default:"default"`
 	Email             string `name:"email" required:"" help:"Account email"`
 	RefreshToken      string `name:"refresh-token" hidden:"" help:"OAuth refresh token to store (prefer --refresh-token-stdin, --refresh-token-file, or --refresh-token-env)"`
 	RefreshTokenStdin bool   `name:"refresh-token-stdin" help:"Read OAuth refresh token from stdin"`
 	RefreshTokenFile  string `name:"refresh-token-file" type:"path" help:"Read OAuth refresh token from file"`
 	RefreshTokenEnv   string `name:"refresh-token-env" help:"Read OAuth refresh token from the named environment variable"`
 	ServicesCSV       string `name:"services" help:"Comma-separated services to record on the token (informational; does not affect scopes)"`
-	Force             bool   `name:"force" help:"Overwrite an existing entry without prompting"`
 }
 
 func (c *AuthImportCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -43,18 +41,23 @@ func (c *AuthImportCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return tokenErr
 	}
 
-	client := strings.TrimSpace(c.Client)
-	if client == "" {
-		client = config.DefaultClientName
+	client := config.DefaultClientName
+	if flags != nil {
+		resolvedClient, err := config.NormalizeClientNameOrDefault(flags.Client)
+		if err != nil {
+			return err
+		}
+		client = resolvedClient
 	}
 
 	services := splitCommaList(c.ServicesCSV)
+	force := flags != nil && flags.Force
 
 	if err := dryRunExit(ctx, flags, "auth.import", map[string]any{
 		"client":   client,
 		"email":    email,
 		"services": services,
-		"force":    c.Force,
+		"force":    force,
 	}); err != nil {
 		return err
 	}
@@ -69,7 +72,7 @@ func (c *AuthImportCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 
 	if _, getErr := store.GetToken(client, email); getErr == nil {
-		if !c.Force {
+		if !force {
 			return usagef("entry already exists for client=%q email=%q (use --force to overwrite)", client, email)
 		}
 	} else if !errors.Is(getErr, keyring.ErrKeyNotFound) {

@@ -43,7 +43,6 @@ func TestAuthImportCmd_RejectsEmptyRefreshToken(t *testing.T) {
 	withImportOverrides(t, store)
 
 	cmd := &AuthImportCmd{
-		Client:       "default",
 		Email:        "a@b.com",
 		RefreshToken: "   ",
 		ServicesCSV:  "gmail",
@@ -66,8 +65,7 @@ func TestAuthImportCmd_RejectsMissingRefreshTokenSource(t *testing.T) {
 	withImportOverrides(t, store)
 
 	cmd := &AuthImportCmd{
-		Client: "default",
-		Email:  "a@b.com",
+		Email: "a@b.com",
 	}
 	err := cmd.Run(newImportTestContext(t), &RootFlags{})
 	if err == nil {
@@ -87,7 +85,6 @@ func TestAuthImportCmd_RejectsMultipleRefreshTokenSources(t *testing.T) {
 	withImportOverrides(t, store)
 
 	cmd := &AuthImportCmd{
-		Client:            "default",
 		Email:             "a@b.com",
 		RefreshToken:      "rt",
 		RefreshTokenStdin: true,
@@ -110,7 +107,6 @@ func TestAuthImportCmd_RejectsEmptyEmail(t *testing.T) {
 	withImportOverrides(t, store)
 
 	cmd := &AuthImportCmd{
-		Client:       "default",
 		Email:        "   ",
 		RefreshToken: "rt",
 	}
@@ -130,7 +126,6 @@ func TestAuthImportCmd_DefaultsClientToDefault(t *testing.T) {
 	t.Setenv("GOG_TEST_REFRESH_TOKEN", "rt-1\n")
 
 	cmd := &AuthImportCmd{
-		Client:          "", // unset; must default to "default"
 		Email:           "A@B.com",
 		RefreshTokenEnv: "GOG_TEST_REFRESH_TOKEN",
 		ServicesCSV:     "gmail, drive",
@@ -163,7 +158,6 @@ func TestAuthImportCmd_ReadsRefreshTokenFromFile(t *testing.T) {
 	}
 
 	cmd := &AuthImportCmd{
-		Client:           "default",
 		Email:            "a@b.com",
 		RefreshTokenFile: path,
 	}
@@ -188,7 +182,6 @@ func TestAuthImportCmd_ReadsRefreshTokenFromStdin(t *testing.T) {
 	}
 
 	cmd := &AuthImportCmd{
-		Client:            "default",
 		Email:             "a@b.com",
 		RefreshTokenStdin: true,
 	}
@@ -213,7 +206,6 @@ func TestAuthImportCmd_RejectsExistingEntryWithoutForce(t *testing.T) {
 	}
 
 	cmd := &AuthImportCmd{
-		Client:       "default",
 		Email:        "a@b.com",
 		RefreshToken: "rt-new",
 	}
@@ -242,12 +234,10 @@ func TestAuthImportCmd_ForceOverwritesExistingEntry(t *testing.T) {
 	}
 
 	cmd := &AuthImportCmd{
-		Client:       "default",
 		Email:        "a@b.com",
 		RefreshToken: "rt-new",
-		Force:        true,
 	}
-	if err := cmd.Run(newImportTestContext(t), &RootFlags{}); err != nil {
+	if err := cmd.Run(newImportTestContext(t), &RootFlags{Force: true}); err != nil {
 		t.Fatalf("Run: %v", err)
 	}
 
@@ -265,11 +255,10 @@ func TestAuthImportCmd_CustomClientNamespace(t *testing.T) {
 	withImportOverrides(t, store)
 
 	cmd := &AuthImportCmd{
-		Client:       "org",
 		Email:        "a@b.com",
 		RefreshToken: "rt",
 	}
-	if err := cmd.Run(newImportTestContext(t), &RootFlags{}); err != nil {
+	if err := cmd.Run(newImportTestContext(t), &RootFlags{Client: "org"}); err != nil {
 		t.Fatalf("Run: %v", err)
 	}
 
@@ -286,7 +275,6 @@ func TestAuthImportCmd_DryRunDoesNotWrite(t *testing.T) {
 	withImportOverrides(t, store)
 
 	cmd := &AuthImportCmd{
-		Client:       "default",
 		Email:        "a@b.com",
 		RefreshToken: "rt",
 	}
