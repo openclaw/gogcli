@@ -14,9 +14,6 @@ import (
 	"github.com/steipete/gogcli/internal/ui"
 )
 
-// Debug flag for slides creation
-var debugSlides = false
-
 var newSlidesService = googleapi.NewSlides
 
 type SlidesCmd struct {
@@ -192,11 +189,16 @@ func (c *SlidesCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
 }
 
 type SlidesCreateFromMarkdownCmd struct {
-	Title       string `arg:"" name:"title" help:"Presentation title"`
-	Content     string `name:"content" help:"Markdown content (inline)"`
-	ContentFile string `name:"content-file" help:"Read markdown content from file"`
-	Parent      string `name:"parent" help:"Destination folder ID"`
-	Debug       bool   `name:"debug" help:"Show debug output"`
+	Title          string `arg:"" name:"title" help:"Presentation title"`
+	Content        string `name:"content" help:"Markdown content (inline)"`
+	ContentFile    string `name:"content-file" help:"Read markdown content from file"`
+	Parent         string `name:"parent" help:"Destination folder ID"`
+	Debug          bool   `name:"debug" help:"Show debug output"`
+	FAStyle        string `name:"fa-style" help:"Default Font Awesome style when shortcode has no prefix" default:"solid"`
+	MMDC           string `name:"mmdc" help:"Path to mermaid CLI (mmdc); empty disables diagram rendering" default:"mmdc"`
+	Strict         bool   `name:"strict" help:"Treat skipped FA/diagram assets as fatal"`
+	KeepTempImages bool   `name:"keep-temp-images" help:"Don't delete temporary Drive uploads after import"`
+	NoNotes        bool   `name:"no-notes" help:"Discard ## Notes sections instead of inserting as speaker notes"`
 }
 
 func (c *SlidesCreateFromMarkdownCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -206,7 +208,6 @@ func (c *SlidesCreateFromMarkdownCmd) Run(ctx context.Context, flags *RootFlags)
 		return usage("empty title")
 	}
 
-	// Get markdown content
 	var markdown string
 	var err error
 	switch {
@@ -214,7 +215,7 @@ func (c *SlidesCreateFromMarkdownCmd) Run(ctx context.Context, flags *RootFlags)
 		var data []byte
 		data, err = os.ReadFile(c.ContentFile)
 		if err != nil {
-			return fmt.Errorf("failed to read content file: %w", err)
+			return fmt.Errorf("read content file: %w", err)
 		}
 		markdown = string(data)
 	case c.Content != "":
@@ -223,21 +224,39 @@ func (c *SlidesCreateFromMarkdownCmd) Run(ctx context.Context, flags *RootFlags)
 		return usage("either --content or --content-file is required")
 	}
 
-	if c.Debug {
-		debugSlides = true
+	parsed, err := ParseMarkdownToSlides(markdown, ParseOptions{DefaultFAStyle: c.FAStyle})
+	if err != nil {
+		return fmt.Errorf("parse markdown: %w", err)
 	}
-
-	parsedSlides := ParseMarkdownToSlides(markdown)
-	if len(parsedSlides) == 0 {
+	if len(parsed) == 0 {
 		return fmt.Errorf("no slides found in markdown")
 	}
-	if dryRunErr := dryRunExit(ctx, flags, "slides.create-from-markdown", map[string]any{
-		"title":        title,
-		"slides":       len(parsedSlides),
-		"parent":       strings.TrimSpace(c.Parent),
-		"content_file": strings.TrimSpace(c.ContentFile),
-	}); dryRunErr != nil {
-		return dryRunErr
+	if c.Debug {
+		fmt.Fprintf(os.Stderr, "parsed %d slides\n", len(parsed))
+	}
+
+	pipelineCfg := DefaultAssetPipelineConfig()
+	pipelineCfg.MMDCPath = c.MMDC
+	pipelineCfg.Strict = c.Strict
+	pipelineCfg.KeepTempImages = c.KeepTempImages
+	pipelineCfg.DefaultFAStyle = c.FAStyle
+
+	opts := CreatePresentationFromMarkdownOptions{
+		Title:    title,
+		Parent:   c.Parent,
+		Slides:   parsed,
+		Pipeline: pipelineCfg,
+		NoNotes:  c.NoNotes,
+	}
+	if flags.DryRun {
+		return dryRunExit(ctx, flags, "slides.create-from-markdown", map[string]any{
+			"title":        title,
+			"slides":       len(parsed),
+			"parent":       strings.TrimSpace(c.Parent),
+			"content_file": strings.TrimSpace(c.ContentFile),
+			"no_notes":     c.NoNotes,
+			"batch_update": buildSlideyDryRunBatchUpdate(parsed),
+		})
 	}
 
 	account, err := requireAccount(flags)
@@ -245,44 +264,24 @@ func (c *SlidesCreateFromMarkdownCmd) Run(ctx context.Context, flags *RootFlags)
 		return err
 	}
 
-	// Create Slides service
 	slidesSvc, err := newSlidesService(ctx, account)
 	if err != nil {
 		return err
 	}
-
-	// Create presentation from markdown
-	presentation, err := CreatePresentationFromMarkdown(title, markdown, slidesSvc)
+	driveSvc, err := newDriveService(ctx, account)
 	if err != nil {
 		return err
 	}
 
-	// Move to parent folder if specified
-	if c.Parent != "" {
-		var parentDriveSvc *drive.Service
-		parentDriveSvc, err = newDriveService(ctx, account)
-		if err != nil {
-			return err
-		}
+	opts.SlidesService = slidesSvc
+	opts.DriveService = driveSvc
 
-		_, err = parentDriveSvc.Files.Update(presentation.PresentationId, &drive.File{}).
-			AddParents(c.Parent).
-			SupportsAllDrives(true).
-			Context(ctx).
-			Do()
-		if err != nil {
-			return fmt.Errorf("failed to move presentation to folder: %w", err)
-		}
-	}
-
-	// Get presentation link
-	var driveSvc *drive.Service
-	driveSvc, err = newDriveService(ctx, account)
+	created, err := CreatePresentationFromMarkdownV2(ctx, opts)
 	if err != nil {
 		return err
 	}
 
-	file, err := driveSvc.Files.Get(presentation.PresentationId).
+	file, err := driveSvc.Files.Get(created.PresentationId).
 		Fields("id, name, webViewLink").
 		SupportsAllDrives(true).
 		Context(ctx).
@@ -292,17 +291,23 @@ func (c *SlidesCreateFromMarkdownCmd) Run(ctx context.Context, flags *RootFlags)
 	}
 
 	if outfmt.IsJSON(ctx) {
+		presentation, err := slidesSvc.Presentations.Get(created.PresentationId).Context(ctx).Do()
+		if err != nil {
+			return err
+		}
 		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
 			"presentation": presentation,
 			"file":         file,
 		})
 	}
 
-	u.Out().Printf("Created presentation with %d slides", len(ParseMarkdownToSlides(markdown)))
-	u.Out().Printf("id\t%s", presentation.PresentationId)
-	u.Out().Printf("name\t%s", file.Name)
-	if file.WebViewLink != "" {
-		u.Out().Printf("link\t%s", file.WebViewLink)
+	if created != nil {
+		u.Out().Printf("Created presentation with %d slides", len(parsed))
+		u.Out().Printf("id\t%s", created.PresentationId)
+		u.Out().Printf("name\t%s", file.Name)
+		if file.WebViewLink != "" {
+			u.Out().Printf("link\t%s", file.WebViewLink)
+		}
 	}
 	return nil
 }

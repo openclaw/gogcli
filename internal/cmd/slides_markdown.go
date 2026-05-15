@@ -4,224 +4,186 @@ import (
 	"strings"
 )
 
-// SlideLayout represents the layout type for a slide
-type SlideLayout string
-
-const (
-	LayoutTitleOnly          SlideLayout = "TITLE"
-	LayoutTitleAndBody       SlideLayout = "TITLE_AND_BODY"
-	LayoutTitleAndTwoColumns SlideLayout = "TITLE_AND_TWO_COLUMNS"
-	LayoutSectionHeader      SlideLayout = "SECTION_HEADER"
-	LayoutBlank              SlideLayout = "BLANK"
-)
-
-// SlideElement represents an element on a slide
-type SlideElement struct {
-	Type     string // "title", "body", "bullets", "code"
-	Content  string
-	Items    []string // for bullet lists
-	IsBold   bool
-	IsItalic bool
+// ParseOptions configures the markdown parser.
+type ParseOptions struct {
+	DefaultFAStyle string // "solid"|"regular"|"brands"; empty → "solid"
 }
 
-// Slide represents a single slide
-type Slide struct {
-	Title    string
-	Layout   SlideLayout
-	Elements []SlideElement
-}
-
-// ParseMarkdownToSlides parses markdown into slide structures
-func ParseMarkdownToSlides(markdown string) []Slide {
-	var slides []Slide
-
-	// Split by slide separators (--- on its own line)
-	lines := strings.Split(markdown, "\n")
-	var currentSlide strings.Builder
-	inSlide := false
-
-	for _, line := range lines {
-		if strings.TrimSpace(line) == literalMarkdownTripleDash {
-			if currentSlide.Len() > 0 {
-				slide := parseSlide(currentSlide.String())
-				if slide.Title != "" {
-					slides = append(slides, slide)
-				}
-				currentSlide.Reset()
-			}
-			inSlide = false
-		} else {
-			if !inSlide {
-				inSlide = true
-			}
-			if currentSlide.Len() > 0 {
-				currentSlide.WriteString("\n")
-			}
-			currentSlide.WriteString(line)
-		}
+// ParseMarkdownToSlides parses a slidey-flavored markdown deck into a
+// slice of Slide AST nodes. Returns an error if frontmatter is malformed.
+func ParseMarkdownToSlides(markdown string, opts ParseOptions) ([]Slide, error) {
+	if opts.DefaultFAStyle == "" {
+		opts.DefaultFAStyle = "solid"
 	}
-
-	// Handle the last slide
-	if currentSlide.Len() > 0 {
-		slide := parseSlide(currentSlide.String())
-		if slide.Title != "" {
-			slides = append(slides, slide)
-		}
+	blocks, err := splitMarkdownIntoSlideBlocks(markdown)
+	if err != nil {
+		return nil, err
 	}
-
-	return slides
+	out := make([]Slide, 0, len(blocks))
+	ids := &blockIDGenerator{}
+	for _, b := range blocks {
+		out = append(out, parseSlideFromBlock(b, opts, ids))
+	}
+	return out, nil
 }
 
-// parseSlide parses a single slide's markdown
-func parseSlide(text string) Slide {
+func parseSlideFromBlock(b slideBlock, opts ParseOptions, ids *blockIDGenerator) Slide {
+	body, notesText := splitOutNotes(b.Body)
+	body = normalizeShorthandColumns(body, b.Frontmatter.Layout)
+	parsed := parseBlocksWithIDs(body, opts.DefaultFAStyle, ids)
+
 	slide := Slide{
-		Layout: LayoutTitleAndBody,
+		Frontmatter: b.Frontmatter,
+		Body:        parsed,
+		Notes:       stripFAShortcodes(notesText),
 	}
 
-	lines := strings.Split(text, "\n")
-	var currentElement *SlideElement
-	var inCodeBlock bool
-	var codeContent strings.Builder
-
-	for _, line := range lines {
-		// Handle code blocks
-		if strings.HasPrefix(line, "```") {
-			if inCodeBlock {
-				// End code block
-				if currentElement != nil {
-					currentElement.Content = codeContent.String()
-					slide.Elements = append(slide.Elements, *currentElement)
-				}
-				inCodeBlock = false
-				currentElement = nil
-				codeContent.Reset()
-			} else {
-				// Start code block
-				inCodeBlock = true
-				currentElement = &SlideElement{
-					Type: "code",
-				}
-			}
-			continue
-		}
-
-		if inCodeBlock {
-			if codeContent.Len() > 0 {
-				codeContent.WriteString("\n")
-			}
-			codeContent.WriteString(line)
-			continue
-		}
-
-		// Skip empty lines
-		if strings.TrimSpace(line) == "" {
-			continue
-		}
-
-		// Title (## heading for slides)
-		if strings.HasPrefix(line, "## ") {
-			title := strings.TrimPrefix(line, "## ")
-			// Remove formatting markers
-			title = stripInlineFormatting(title)
-			slide.Title = title
-			slide.Elements = append(slide.Elements, SlideElement{
-				Type:    "title",
-				Content: title,
-			})
-			continue
-		}
-
-		// Bullet points
-		if strings.HasPrefix(line, "- ") || strings.HasPrefix(line, "* ") {
-			item := strings.TrimPrefix(strings.TrimPrefix(line, "- "), "* ")
-			item = stripInlineFormatting(item)
-
-			// Find or create bullets element
-			var bulletsElement *SlideElement
-			for i := range slide.Elements {
-				if slide.Elements[i].Type == "bullets" {
-					bulletsElement = &slide.Elements[i]
-					break
-				}
-			}
-
-			if bulletsElement == nil {
-				slide.Elements = append(slide.Elements, SlideElement{
-					Type:  "bullets",
-					Items: []string{item},
-				})
-			} else {
-				bulletsElement.Items = append(bulletsElement.Items, item)
-			}
-			continue
-		}
-
-		// Regular paragraph
-		content := stripInlineFormatting(line)
-		slide.Elements = append(slide.Elements, SlideElement{
-			Type:    "body",
-			Content: content,
-		})
+	if !layoutSkipsTitleHoist(b.Frontmatter.Layout) {
+		title, remaining := hoistTitle(parsed)
+		slide.Title = title
+		slide.Body = remaining
 	}
-
-	// Determine layout based on content
-	slide.Layout = determineLayout(slide)
-
 	return slide
 }
 
-// stripInlineFormatting removes markdown formatting from text
-func stripInlineFormatting(text string) string {
-	// Remove bold/italic markers
-	text = strings.ReplaceAll(text, "**", "")
-	text = strings.ReplaceAll(text, "__", "")
-	text = strings.ReplaceAll(text, "*", "")
-	text = strings.ReplaceAll(text, "_", "")
-
-	// Remove code markers
-	text = strings.ReplaceAll(text, "`", "")
-
-	// Remove links but keep text [text](url) -> text
-	// Simple approach: just remove brackets and parens for now
-
-	return text
+// splitOutNotes scans body lines for an exact "## Notes" or "### Notes"
+// heading (case-sensitive). Everything from that heading to the end is
+// returned as raw notes text (without the heading itself); the body
+// returned is everything before.
+func splitOutNotes(body string) (newBody string, notes string) {
+	lines := strings.Split(body, "\n")
+	var fenceChar byte
+	fenceLen := 0
+	for i, line := range lines {
+		if isFenceDelimiter(line) {
+			fenceChar, fenceLen = updateMarkdownFenceState(line, fenceChar, fenceLen)
+			continue
+		}
+		if fenceLen > 0 {
+			continue
+		}
+		t := strings.TrimSpace(line)
+		if t == "## Notes" || t == "### Notes" {
+			b := strings.Join(lines[:i], "\n")
+			n := strings.TrimSpace(strings.Join(lines[i+1:], "\n"))
+			return b, n
+		}
+	}
+	return body, ""
 }
 
-// determineLayout chooses the best layout for a slide
-func determineLayout(slide Slide) SlideLayout {
-	hasTitle := false
-	hasBullets := false
-	hasBody := false
-	hasCode := false
+// hoistTitle returns the first h1 (or h2 fallback) inline text and the
+// blocks with that heading removed.
+func hoistTitle(blocks []Block) (string, []Block) {
+	// First pass: look for h1.
+	for i, b := range blocks {
+		if h, ok := b.(HeadingBlock); ok && h.Level == 1 {
+			return inlinesToText(h.Inlines), removeIndex(blocks, i)
+		}
+	}
+	// Fallback: first h2.
+	for i, b := range blocks {
+		if h, ok := b.(HeadingBlock); ok && h.Level == 2 {
+			return inlinesToText(h.Inlines), removeIndex(blocks, i)
+		}
+	}
+	return "", blocks
+}
 
-	for _, elem := range slide.Elements {
-		switch elem.Type {
-		case slideElementTitle:
-			hasTitle = true
-		case "bullets":
-			hasBullets = true
-		case "body":
-			hasBody = true
-		case "code":
-			hasCode = true
+func removeIndex(s []Block, i int) []Block {
+	out := make([]Block, 0, len(s)-1)
+	out = append(out, s[:i]...)
+	out = append(out, s[i+1:]...)
+	return out
+}
+
+func inlinesToText(inlines []Inline) string {
+	var b strings.Builder
+	for _, in := range inlines {
+		if tr, ok := in.(TextRun); ok {
+			b.WriteString(tr.Text)
+		}
+	}
+	return b.String()
+}
+
+func layoutSkipsTitleHoist(layout string) bool {
+	switch layout {
+	case slideyLayoutTitle, "hero", "statement":
+		return true
+	}
+	return false
+}
+
+func normalizeShorthandColumns(body, layout string) string {
+	if layout != "two-cols" && layout != "three-cols" {
+		return body
+	}
+	if hasExplicitColumnsBlock(body) || !hasShorthandColumnMarker(body) {
+		return body
+	}
+
+	lines := strings.Split(body, "\n")
+	columnStart := 0
+	for columnStart < len(lines) && strings.TrimSpace(lines[columnStart]) == "" {
+		columnStart++
+	}
+	if columnStart < len(lines) && headingRE.MatchString(lines[columnStart]) {
+		columnStart++
+		for columnStart < len(lines) && strings.TrimSpace(lines[columnStart]) == "" {
+			columnStart++
 		}
 	}
 
-	// No title = blank layout
-	if !hasTitle {
-		return LayoutBlank
+	var out []string
+	out = append(out, lines[:columnStart]...)
+	out = append(out, colsOpen)
+	out = append(out, lines[columnStart:]...)
+	if len(out) == 0 || strings.TrimSpace(out[len(out)-1]) != "" {
+		out = append(out, "")
 	}
+	out = append(out, colsClose)
+	return strings.Join(out, "\n")
+}
 
-	// Code slides often need more space
-	if hasCode {
-		return LayoutTitleAndBody
+func hasExplicitColumnsBlock(body string) bool {
+	var fenceChar byte
+	fenceLen := 0
+	for _, line := range strings.Split(body, "\n") {
+		if isFenceDelimiter(line) {
+			fenceChar, fenceLen = updateMarkdownFenceState(line, fenceChar, fenceLen)
+			continue
+		}
+		if fenceLen > 0 {
+			continue
+		}
+		if strings.TrimSpace(line) == colsOpen {
+			return true
+		}
 	}
+	return false
+}
 
-	// Bullets or body = title + body
-	if hasBullets || hasBody {
-		return LayoutTitleAndBody
+func hasShorthandColumnMarker(body string) bool {
+	var fenceChar byte
+	fenceLen := 0
+	for _, line := range strings.Split(body, "\n") {
+		if isFenceDelimiter(line) {
+			fenceChar, fenceLen = updateMarkdownFenceState(line, fenceChar, fenceLen)
+			continue
+		}
+		if fenceLen > 0 {
+			continue
+		}
+		switch strings.TrimSpace(line) {
+		case colMarker2, colMarker3, colMarkerAlt:
+			return true
+		}
 	}
+	return false
+}
 
-	// Just a title = title only
-	return LayoutTitleOnly
+func isFenceDelimiter(line string) bool {
+	_, _, ok := markdownFenceMarker(line)
+	return ok
 }
