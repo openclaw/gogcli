@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -97,37 +98,44 @@ func (f *fakeDriveUploader) DeleteAsset(ctx context.Context, id string) error {
 
 func fakeSVGRasterizer(t *testing.T) string {
 	t.Helper()
+	dir := t.TempDir()
 	name := "rsvg-convert"
-	script := `#!/bin/sh
-out=""
-while [ "$#" -gt 0 ]; do
-  if [ "$1" = "-o" ]; then
-    out="$2"
-    shift 2
-    continue
-  fi
-  shift
-done
-printf 'PNG' > "$out"
-`
 	if runtime.GOOS == "windows" {
-		name += ".cmd"
-		script = `@echo off
-set "out="
-:loop
-if "%~1"=="" goto done
-if "%~1"=="-o" (
-  set "out=%~2"
-  goto done
-)
-shift
-goto loop
-:done
-<nul set /p "=PNG" > "%out%"
-`
+		name += ".exe"
 	}
-	path := filepath.Join(t.TempDir(), name)
-	require.NoError(t, os.WriteFile(path, []byte(script), 0o700))
+
+	src := filepath.Join(dir, "main.go")
+	code := `package main
+
+import (
+	"fmt"
+	"os"
+)
+
+func main() {
+	out := ""
+	for i := 1; i < len(os.Args); i++ {
+		if os.Args[i] == "-o" && i+1 < len(os.Args) {
+			out = os.Args[i+1]
+			break
+		}
+	}
+	if out == "" {
+		_, _ = fmt.Fprintln(os.Stderr, "missing -o")
+		os.Exit(2)
+	}
+	if err := os.WriteFile(out, []byte("PNG"), 0o600); err != nil {
+		_, _ = fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+}
+`
+	require.NoError(t, os.WriteFile(src, []byte(code), 0o600))
+
+	path := filepath.Join(dir, name)
+	cmd := exec.CommandContext(t.Context(), "go", "build", "-o", path, src)
+	out, err := cmd.CombinedOutput()
+	require.NoError(t, err, string(out))
 	return path
 }
 
