@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -96,7 +97,7 @@ func (f *fakeDriveUploader) DeleteAsset(ctx context.Context, id string) error {
 
 func fakeSVGRasterizer(t *testing.T) string {
 	t.Helper()
-	path := filepath.Join(t.TempDir(), "rsvg-convert")
+	name := "rsvg-convert"
 	script := `#!/bin/sh
 out=""
 while [ "$#" -gt 0 ]; do
@@ -109,6 +110,23 @@ while [ "$#" -gt 0 ]; do
 done
 printf 'PNG' > "$out"
 `
+	if runtime.GOOS == "windows" {
+		name += ".cmd"
+		script = `@echo off
+set "out="
+:loop
+if "%~1"=="" goto done
+if "%~1"=="-o" (
+  set "out=%~2"
+  goto done
+)
+shift
+goto loop
+:done
+<nul set /p "=PNG" > "%out%"
+`
+	}
+	path := filepath.Join(t.TempDir(), name)
 	require.NoError(t, os.WriteFile(path, []byte(script), 0o700))
 	return path
 }
