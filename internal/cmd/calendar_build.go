@@ -2,12 +2,15 @@ package cmd
 
 import (
 	"fmt"
+	"net/url"
 	"regexp"
 	"strconv"
 	"strings"
 	"time"
 
 	"google.golang.org/api/calendar/v3"
+
+	"github.com/steipete/gogcli/internal/zoom"
 )
 
 const (
@@ -79,18 +82,74 @@ func extractTimezone(value string) string {
 	return ""
 }
 
-func buildConferenceData(withMeet bool) *calendar.ConferenceData {
-	if !withMeet {
+type conferenceChoice struct {
+	provider    string
+	zoomMeeting *zoom.Meeting
+}
+
+const (
+	conferenceProviderMeet = "meet"
+	conferenceProviderZoom = "zoom"
+	zoomConferenceIconURI  = "https://st1.zoom.us/static/6.3.34716/image/new/ZoomLogo.png"
+)
+
+func buildConferenceData(c conferenceChoice) *calendar.ConferenceData {
+	switch c.provider {
+	case conferenceProviderMeet:
+		return &calendar.ConferenceData{
+			CreateRequest: &calendar.CreateConferenceRequest{
+				RequestId: fmt.Sprintf("gogcli-%d", time.Now().UnixNano()),
+				ConferenceSolutionKey: &calendar.ConferenceSolutionKey{
+					Type: "hangoutsMeet",
+				},
+			},
+		}
+	case conferenceProviderZoom:
+		if c.zoomMeeting == nil || strings.TrimSpace(c.zoomMeeting.JoinURL) == "" {
+			return nil
+		}
+		meetingID := fmt.Sprintf("%d", c.zoomMeeting.ID)
+		if c.zoomMeeting.ID == 0 {
+			meetingID = strings.TrimSpace(c.zoomMeeting.UUID)
+		}
+		iconURI := strings.TrimSpace(c.zoomMeeting.IconURI)
+		if iconURI == "" {
+			iconURI = zoomConferenceIconURI
+		}
+		entry := &calendar.EntryPoint{
+			EntryPointType: "video",
+			Uri:            strings.TrimSpace(c.zoomMeeting.JoinURL),
+			Label:          zoomLabel(c.zoomMeeting.JoinURL),
+			MeetingCode:    meetingID,
+		}
+		return &calendar.ConferenceData{
+			ConferenceId: meetingID,
+			ConferenceSolution: &calendar.ConferenceSolution{
+				Key:     &calendar.ConferenceSolutionKey{Type: "addOn"},
+				Name:    "Zoom Meeting",
+				IconUri: iconURI,
+			},
+			EntryPoints: []*calendar.EntryPoint{entry},
+		}
+	default:
 		return nil
 	}
-	return &calendar.ConferenceData{
-		CreateRequest: &calendar.CreateConferenceRequest{
-			RequestId: fmt.Sprintf("gogcli-%d", time.Now().UnixNano()),
-			ConferenceSolutionKey: &calendar.ConferenceSolutionKey{
-				Type: "hangoutsMeet",
-			},
-		},
+}
+
+func zoomLabel(raw string) string {
+	u, err := url.Parse(raw)
+	if err != nil || strings.TrimSpace(u.Host) == "" {
+		return raw
 	}
+	return strings.TrimPrefix(u.Host+u.EscapedPath(), "www.")
+}
+
+func buildMeetConferenceData() *calendar.ConferenceData {
+	return buildConferenceData(conferenceChoice{provider: conferenceProviderMeet})
+}
+
+func buildZoomConferenceData(meeting *zoom.Meeting) *calendar.ConferenceData {
+	return buildConferenceData(conferenceChoice{provider: conferenceProviderZoom, zoomMeeting: meeting})
 }
 
 func buildRecurrence(rules []string) []string {

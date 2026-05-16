@@ -2,6 +2,11 @@
 
 ## 0.17.1 - Unreleased
 
+### Added
+
+- Calendar: add --with-zoom / --regenerate-zoom / --remove-zoom and Zoom Server-to-Server OAuth credential storage for third-party Zoom conferencing on Calendar events. (#589) — thanks @alexisperumal.
+- Auth: add gog zoom auth setup / doctor for Zoom S2S OAuth credential storage. (#589)
+
 ### Fixed
 
 - CLI: harden backup writes, config/credentials atomic saves, keyring write verification, line input buffering, disabled-API hints, JSON transform number handling, and untrusted-content wrapping after ClawPatch review.

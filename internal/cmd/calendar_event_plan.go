@@ -22,6 +22,7 @@ type calendarCreatePlan struct {
 	CalendarID  string
 	SendUpdates string
 	WithMeet    bool
+	WithZoom    bool
 	Event       *calendar.Event
 }
 
@@ -84,7 +85,7 @@ func buildCalendarCreatePlan(c *CalendarCreateCmd) (*calendarCreatePlan, error) 
 		ColorId:            colorID,
 		Visibility:         applyEventTypeVisibilityDefault(visibility, eventType),
 		Transparency:       applyEventTypeTransparencyDefault(transparency, eventType),
-		ConferenceData:     buildConferenceData(c.WithMeet),
+		ConferenceData:     buildConferenceData(conferenceChoice{provider: conferenceProvider(c.WithMeet, c.WithZoom)}),
 		Attachments:        buildAttachments(c.Attachments),
 		ExtendedProperties: buildExtendedProperties(c.PrivateProps, c.SharedProps),
 	}
@@ -116,8 +117,20 @@ func buildCalendarCreatePlan(c *CalendarCreateCmd) (*calendarCreatePlan, error) 
 		CalendarID:  strings.TrimSpace(c.CalendarID),
 		SendUpdates: sendUpdates,
 		WithMeet:    c.WithMeet,
+		WithZoom:    c.WithZoom,
 		Event:       event,
 	}, nil
+}
+
+func conferenceProvider(withMeet, withZoom bool) string {
+	switch {
+	case withMeet:
+		return conferenceProviderMeet
+	case withZoom:
+		return conferenceProviderZoom
+	default:
+		return ""
+	}
 }
 
 func buildFocusTimeProperties(input focusTimeInput) (*calendar.EventFocusTimeProperties, error) {

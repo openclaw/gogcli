@@ -6,7 +6,7 @@ Google CLI for Gmail/Calendar/Chat/Classroom/Drive/Contacts/Tasks/Sheets/Docs/Sl
 
 Config:
   file: <config-dir>/gogcli/config.json
-  keyring backend: file (source: config)
+  keyring backend: auto (source: default)
 
 ## Usage
 
@@ -59,6 +59,7 @@ gog <command> [flags]
 - [gog version](gog-version.md) - Print version
 - [gog whoami](gog-whoami.md) - Show your profile (alias for 'people me')
 - [gog youtube](gog-youtube.md) - YouTube Data API (activities, videos, playlists, comments, channels)
+- [gog zoom](gog-zoom.md) - Zoom
 
 ## Flags
 

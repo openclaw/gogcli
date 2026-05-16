@@ -2,7 +2,7 @@
 
 Every `gog` command has a generated docs page. The source of truth is the live CLI schema; run `make docs-commands` after changing command names, flags, help text, aliases, or arguments.
 
-Generated pages: 560.
+Generated pages: 564.
 
 ## Top-level Commands
 
@@ -49,6 +49,7 @@ Generated pages: 560.
 - [gog version](gog-version.md) - Print version
 - [gog whoami](gog-whoami.md) - Show your profile (alias for 'people me')
 - [gog youtube](gog-youtube.md) - YouTube Data API (activities, videos, playlists, comments, channels)
+- [gog zoom](gog-zoom.md) - Zoom
 
 ## All Commands
 
@@ -612,3 +613,7 @@ Generated pages: 560.
       - [gog youtube playlists list](gog-youtube-playlists-list.md) - List playlists by channel or authenticated user
     - [gog youtube videos](gog-youtube-videos.md) - List or get videos
       - [gog youtube videos list](gog-youtube-videos-list.md) - List videos by ID or chart
+  - [gog zoom](gog-zoom.md) - Zoom
+    - [gog zoom auth](gog-zoom-auth.md) - Manage Zoom Server-to-Server OAuth credentials
+      - [gog zoom auth doctor](gog-zoom-auth-doctor.md) - Validate Zoom credentials
+      - [gog zoom auth setup](gog-zoom-auth-setup.md) - Store Zoom Server-to-Server OAuth credentials

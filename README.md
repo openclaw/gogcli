@@ -149,7 +149,8 @@ gog --gmail-no-send gmail drafts create --to you@example.com --subject test
 Docs: [`gog calendar`](docs/commands/gog-calendar.md),
 [`calendar create`](docs/commands/gog-calendar-create.md),
 [`calendar update`](docs/commands/gog-calendar-update.md),
-[`calendar move`](docs/commands/gog-calendar-move.md).
+[`calendar move`](docs/commands/gog-calendar-move.md),
+[Zoom setup](docs/zoom-auth-setup.md).
 
 ```bash
 gog calendar events --today
@@ -161,6 +162,11 @@ gog calendar create primary --summary "Coffee" \
   --to "2026-05-06T10:30:00+02:00" \
   --location-search "Elysian Coffee Vancouver"
 gog calendar update primary <eventId> --with-meet
+gog zoom auth setup
+gog calendar create primary --summary "Client sync" \
+  --from "2026-05-06T11:00:00+02:00" \
+  --to "2026-05-06T11:30:00+02:00" \
+  --with-zoom
 gog calendar move primary <eventId> team-calendar@example.com
 gog calendar appointments
 ```
@@ -469,7 +475,7 @@ Docs: [Command index](docs/commands/README.md),
 
 Common user services:
 
-- Gmail, Calendar, Drive, Docs, Sheets, Slides, Forms, Meet, Apps Script
+- Gmail, Calendar, Drive, Docs, Sheets, Slides, Forms, Meet, Zoom, Apps Script
 - Analytics and Search Console
 - Contacts, People, Tasks, Classroom
 - Chat for Workspace accounts

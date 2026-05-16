@@ -42,6 +42,7 @@ gog calendar (cal) update (edit,set) <calendarId> <eventId> [flags]
 | `--guests-can-modify` | `*bool` |  | Allow guests to modify event |
 | `--guests-can-see-others` | `*bool` |  | Allow guests to see other guests |
 | `-h`<br>`--help` | `kong.helpFlag` |  | Show context-sensitive help. |
+| `--include-passwords` | `bool` |  | Do not redact Zoom meeting passwords in output |
 | `-j`<br>`--json`<br>`--machine` | `bool` | false | Output JSON to stdout (best for scripting) |
 | `--location` | `string` |  | New location (set empty to clear) |
 | `--location-search` | `string` |  | Resolve a Google Places text search and use the best match as event location |
@@ -55,7 +56,9 @@ gog calendar (cal) update (edit,set) <calendarId> <eventId> [flags]
 | `-p`<br>`--plain`<br>`--tsv` | `bool` | false | Output stable, parseable text to stdout (TSV; no colors) |
 | `--private-prop` | `[]string` |  | Private extended property (key=value, can be repeated) |
 | `--regenerate-meet` | `bool` |  | Replace the event's Google Meet video conference |
+| `--regenerate-zoom` | `bool` |  | Replace the event's Zoom video conference |
 | `--reminder` | `[]string` |  | Custom reminders as method:duration (e.g., popup:30m, email:1d). Can be repeated (max 5). Set empty to clear. |
+| `--remove-zoom` | `bool` |  | Remove the event's Zoom video conference |
 | `--results-only` | `bool` |  | In JSON mode, emit only the primary result (drops envelope fields like nextPageToken) |
 | `--rrule` | `[]string` |  | Recurrence rules (e.g., 'RRULE:FREQ=MONTHLY;BYMONTHDAY=11'). Can be repeated. Set empty to clear. |
 | `--scope` | `string` | all | For recurring events: single, future, all |
@@ -70,6 +73,7 @@ gog calendar (cal) update (edit,set) <calendarId> <eventId> [flags]
 | `--version` | `kong.VersionFlag` |  | Print version and exit |
 | `--visibility` | `string` |  | Event visibility: default, public, private, confidential |
 | `--with-meet` | `bool` |  | Create a Google Meet video conference for this event |
+| `--with-zoom` | `bool` |  | Create a Zoom video conference for this event |
 | `--working-building-id` | `string` |  | Working location building ID |
 | `--working-custom-label` | `string` |  | Working location custom label |
 | `--working-desk-id` | `string` |  | Working location desk ID |

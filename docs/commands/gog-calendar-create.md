@@ -42,6 +42,7 @@ gog calendar (cal) create (add,new) <calendarId> [flags]
 | `--guests-can-modify` | `*bool` |  | Allow guests to modify event |
 | `--guests-can-see-others` | `*bool` |  | Allow guests to see other guests |
 | `-h`<br>`--help` | `kong.helpFlag` |  | Show context-sensitive help. |
+| `--include-passwords` | `bool` |  | Do not redact Zoom meeting passwords in output |
 | `-j`<br>`--json`<br>`--machine` | `bool` | false | Output JSON to stdout (best for scripting) |
 | `--location` | `string` |  | Location |
 | `--location-search` | `string` |  | Resolve a Google Places text search and use the best match as event location |
@@ -69,6 +70,7 @@ gog calendar (cal) create (add,new) <calendarId> [flags]
 | `--version` | `kong.VersionFlag` |  | Print version and exit |
 | `--visibility` | `string` |  | Event visibility: default, public, private, confidential |
 | `--with-meet` | `bool` |  | Create a Google Meet video conference for this event |
+| `--with-zoom` | `bool` |  | Create a Zoom video conference for this event |
 | `--working-building-id` | `string` |  | Working location building ID |
 | `--working-custom-label` | `string` |  | Working location custom label |
 | `--working-desk-id` | `string` |  | Working location desk ID |

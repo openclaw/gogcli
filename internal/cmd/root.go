@@ -85,6 +85,7 @@ type CLI struct {
 	Forms         FormsCmd              `cmd:"" aliases:"form" help:"Google Forms"`
 	Sites         SitesCmd              `cmd:"" aliases:"site" help:"Google Sites (Drive-backed)"`
 	Meet          MeetCmd               `cmd:"" aliases:"meeting" help:"Google Meet"`
+	Zoom          ZoomCmd               `cmd:"" help:"Zoom"`
 	AppScript     AppScriptCmd          `cmd:"" name:"appscript" aliases:"script,apps-script" help:"Google Apps Script"`
 	Analytics     AnalyticsCmd          `cmd:"" aliases:"ga" help:"Google Analytics"`
 	SearchConsole SearchConsoleCmd      `cmd:"" name:"searchconsole" aliases:"gsc,search-console,webmasters" help:"Google Search Console"`

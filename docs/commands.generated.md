@@ -562,3 +562,7 @@ Generated from `gog schema --json`.
       - [`gog youtube (yt) playlists (playlist) list (ls) [flags]`](commands/gog-youtube-playlists-list.md) - List playlists by channel or authenticated user
     - [`gog youtube (yt) videos (video) <command>`](commands/gog-youtube-videos.md) - List or get videos
       - [`gog youtube (yt) videos (video) list (ls) [flags]`](commands/gog-youtube-videos-list.md) - List videos by ID or chart
+  - [`gog zoom <command> [flags]`](commands/gog-zoom.md) - Zoom
+    - [`gog zoom auth <command>`](commands/gog-zoom-auth.md) - Manage Zoom Server-to-Server OAuth credentials
+      - [`gog zoom auth doctor [flags]`](commands/gog-zoom-auth-doctor.md) - Validate Zoom credentials
+      - [`gog zoom auth setup [flags]`](commands/gog-zoom-auth-setup.md) - Store Zoom Server-to-Server OAuth credentials

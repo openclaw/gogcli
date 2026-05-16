@@ -57,7 +57,7 @@ func (m *calendarMutationContext) patchEvent(ctx context.Context, eventID string
 	if sendUpdates != "" {
 		call = call.SendUpdates(sendUpdates)
 	}
-	if patch.ConferenceData != nil {
+	if patchHasConferenceDataMutation(patch) {
 		call = call.ConferenceDataVersion(1)
 	}
 	return call.Do()
@@ -80,6 +80,7 @@ func (m *calendarMutationContext) moveEvent(ctx context.Context, eventID, destin
 }
 
 func (m *calendarMutationContext) writeEvent(ctx context.Context, event *calendar.Event) error {
+	redactEventZoomURLs(event, zoomIncludePasswordsFromContext(ctx))
 	tz, loc, _ := getCalendarLocation(ctx, m.svc, m.calendarID)
 	if outfmt.IsJSON(ctx) {
 		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{"event": wrapEventWithDaysWithTimezone(event, tz, loc)})

@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"reflect"
 	"strings"
@@ -10,7 +11,10 @@ import (
 	"google.golang.org/api/calendar/v3"
 
 	"github.com/steipete/gogcli/internal/ui"
+	"github.com/steipete/gogcli/internal/zoom"
 )
+
+var errZoomConferenceAlreadyHandled = errors.New("zoom conference already handled")
 
 type CalendarCreateCmd struct {
 	CalendarID            string   `arg:"" name:"calendarId" help:"Calendar ID"`
@@ -37,6 +41,8 @@ type CalendarCreateCmd struct {
 	GuestsCanModify       *bool    `name:"guests-can-modify" help:"Allow guests to modify event"`
 	GuestsCanSeeOthers    *bool    `name:"guests-can-see-others" help:"Allow guests to see other guests"`
 	WithMeet              bool     `name:"with-meet" help:"Create a Google Meet video conference for this event"`
+	WithZoom              bool     `name:"with-zoom" help:"Create a Zoom video conference for this event"`
+	IncludePasswords      bool     `name:"include-passwords" help:"Do not redact Zoom meeting passwords in output" env:"GOG_ZOOM_INCLUDE_PASSWORDS"`
 	SourceUrl             string   `name:"source-url" help:"URL where event was created/imported from"`
 	SourceTitle           string   `name:"source-title" help:"Title of the source"`
 	Attachments           []string `name:"attachment" help:"File attachment URL (can be repeated)"`
@@ -58,6 +64,10 @@ type CalendarCreateCmd struct {
 }
 
 func (c *CalendarCreateCmd) Run(ctx context.Context, flags *RootFlags, kctx *kong.Context) error {
+	ctx = withZoomIncludePasswords(ctx, c.IncludePasswords)
+	if kctx != nil && flagProvided(kctx, "with-meet") && flagProvided(kctx, "with-zoom") {
+		return usage("use only one of --with-zoom or --with-meet")
+	}
 	if flags != nil && flags.DryRun {
 		placeLookup, err := validateCalendarPlaceLookup(calendarPlaceLookup{
 			LocationSet:       flagProvided(kctx, "location") || strings.TrimSpace(c.Location) != "",
@@ -82,7 +92,7 @@ func (c *CalendarCreateCmd) Run(ctx context.Context, flags *RootFlags, kctx *kon
 		request := map[string]any{
 			"calendar_id":          calendarID,
 			"send_updates":         plan.SendUpdates,
-			"conference_version_1": plan.WithMeet,
+			"conference_version_1": plan.WithMeet || plan.WithZoom,
 			"supports_attachments": len(plan.Event.Attachments) > 0,
 			"event":                plan.Event,
 		}
@@ -109,7 +119,7 @@ func (c *CalendarCreateCmd) Run(ctx context.Context, flags *RootFlags, kctx *kon
 	if dryRunErr := dryRunExit(ctx, flags, "calendar.create", map[string]any{
 		"calendar_id":          calendarID,
 		"send_updates":         plan.SendUpdates,
-		"conference_version_1": plan.WithMeet,
+		"conference_version_1": plan.WithMeet || plan.WithZoom,
 		"supports_attachments": len(plan.Event.Attachments) > 0,
 		"event":                plan.Event,
 	}); dryRunErr != nil {
@@ -121,12 +131,24 @@ func (c *CalendarCreateCmd) Run(ctx context.Context, flags *RootFlags, kctx *kon
 		return err
 	}
 
+	var zoomMeeting *zoom.Meeting
+	if plan.WithZoom {
+		zoomMeeting, err = createZoomMeetingForEvent(ctx, plan.Event)
+		if err != nil {
+			return err
+		}
+		plan.Event.ConferenceData = buildZoomConferenceData(zoomMeeting)
+	}
+
 	created, err := mutation.insertEvent(ctx, plan.Event, calendarInsertOptions{
 		sendUpdates:         plan.SendUpdates,
-		conferenceVersion1:  plan.WithMeet,
+		conferenceVersion1:  plan.WithMeet || plan.WithZoom,
 		supportsAttachments: len(plan.Event.Attachments) > 0,
 	})
 	if err != nil {
+		if zoomMeeting != nil {
+			_ = cancelZoomMeeting(ctx, zoomMeetingID(zoomMeeting), "delete")
+		}
 		return err
 	}
 	return mutation.writeEvent(ctx, created)
@@ -271,6 +293,10 @@ type CalendarUpdateCmd struct {
 	GuestsCanSeeOthers    *bool    `name:"guests-can-see-others" help:"Allow guests to see other guests"`
 	WithMeet              bool     `name:"with-meet" help:"Create a Google Meet video conference for this event"`
 	RegenerateMeet        bool     `name:"regenerate-meet" help:"Replace the event's Google Meet video conference"`
+	WithZoom              bool     `name:"with-zoom" help:"Create a Zoom video conference for this event"`
+	RegenerateZoom        bool     `name:"regenerate-zoom" help:"Replace the event's Zoom video conference"`
+	RemoveZoom            bool     `name:"remove-zoom" help:"Remove the event's Zoom video conference"`
+	IncludePasswords      bool     `name:"include-passwords" help:"Do not redact Zoom meeting passwords in output" env:"GOG_ZOOM_INCLUDE_PASSWORDS"`
 	Scope                 string   `name:"scope" help:"For recurring events: single, future, all" default:"all"`
 	OriginalStartTime     string   `name:"original-start" help:"Original start time of instance (required for scope=single,future)"`
 	PrivateProps          []string `name:"private-prop" help:"Private extended property (key=value, can be repeated)"`
@@ -289,9 +315,12 @@ type CalendarUpdateCmd struct {
 	WorkingCustomLabel    string   `name:"working-custom-label" help:"Working location custom label"`
 	SendUpdates           string   `name:"send-updates" help:"Notification mode: all, externalOnly, none (default: none)"`
 	resolvedPlace         *calendarPlace
+	createdZoomMeetingID  string
 }
 
+//nolint:gocyclo,cyclop // Calendar update already handles many flag families; Zoom adds one narrow branch.
 func (c *CalendarUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *RootFlags) error {
+	ctx = withZoomIncludePasswords(ctx, c.IncludePasswords)
 	calendarID, err := prepareCalendarID(c.CalendarID, false)
 	if err != nil {
 		return err
@@ -319,6 +348,9 @@ func (c *CalendarUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *
 	}
 	if flagProvided(kctx, "with-meet") && flagProvided(kctx, "regenerate-meet") {
 		return usage("use only one of --with-meet or --regenerate-meet")
+	}
+	if mutexErr := validateZoomConferenceFlagMutex(kctx); mutexErr != nil {
+		return mutexErr
 	}
 	placeLookup, err := validateCalendarPlaceLookup(calendarPlaceLookup{
 		LocationSet:       flagProvided(kctx, "location"),
@@ -367,7 +399,7 @@ func (c *CalendarUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *
 		"add_attendee":         strings.TrimSpace(c.AddAttendee),
 		"patch":                patch,
 		"wants_add_attendee":   wantsAddAttendee,
-		"conference_version_1": patch.ConferenceData != nil,
+		"conference_version_1": patchHasConferenceDataMutation(patch),
 		"supports_attachments": len(patch.Attachments) > 0,
 	}
 	if placeLookup != nil {
@@ -398,7 +430,18 @@ func (c *CalendarUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *
 		}
 	}
 
-	if patch.ConferenceData != nil && !flagProvided(kctx, "regenerate-meet") && patchOnlyConferenceData(patch) {
+	if flagProvidedAny(kctx, "with-zoom", "regenerate-zoom", "remove-zoom") {
+		var zoomErr error
+		patch, _, zoomErr = c.prepareZoomConferencePatch(ctx, mutation, eventID, scope, c.OriginalStartTime, patch, changed, kctx)
+		if errors.Is(zoomErr, errZoomConferenceAlreadyHandled) {
+			return nil
+		}
+		if zoomErr != nil {
+			return zoomErr
+		}
+	}
+
+	if patch.ConferenceData != nil && !flagProvided(kctx, "regenerate-meet") && !flagProvidedAny(kctx, "with-zoom", "regenerate-zoom", "remove-zoom") && patchOnlyConferenceData(patch) {
 		resolution, resolveErr := resolveRecurringScopeResolution(ctx, mutation.svc, mutation.calendarID, eventID, scope, c.OriginalStartTime)
 		if resolveErr != nil {
 			return resolveErr
@@ -416,7 +459,7 @@ func (c *CalendarUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *
 	if err != nil {
 		return err
 	}
-	if patch.ConferenceData != nil && !flagProvided(kctx, "regenerate-meet") {
+	if patch.ConferenceData != nil && !flagProvided(kctx, "regenerate-meet") && !flagProvidedAny(kctx, "with-zoom", "regenerate-zoom", "remove-zoom") {
 		existing, getErr := mutation.svc.Events.Get(mutation.calendarID, targetEventID).Context(ctx).Do()
 		if getErr != nil {
 			return fmt.Errorf("failed to fetch current event for conference data: %w", getErr)
@@ -437,6 +480,9 @@ func (c *CalendarUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *
 
 	updated, err := mutation.patchEvent(ctx, targetEventID, patch, sendUpdates)
 	if err != nil {
+		if c.createdZoomMeetingID != "" {
+			_ = cancelZoomMeeting(ctx, c.createdZoomMeetingID, "delete")
+		}
 		return err
 	}
 	if scope == scopeFuture {
@@ -766,10 +812,17 @@ func (c *CalendarUpdateCmd) applyGuestOptions(kctx *kong.Context, patch *calenda
 }
 
 func (c *CalendarUpdateCmd) applyConferenceData(kctx *kong.Context, patch *calendar.Event) bool {
+	if flagProvided(kctx, "remove-zoom") {
+		patch.NullFields = append(patch.NullFields, "ConferenceData")
+		return true
+	}
+	if flagProvided(kctx, "with-zoom") || flagProvided(kctx, "regenerate-zoom") {
+		return true
+	}
 	if !flagProvided(kctx, "with-meet") && !flagProvided(kctx, "regenerate-meet") {
 		return false
 	}
-	patch.ConferenceData = buildConferenceData(true)
+	patch.ConferenceData = buildMeetConferenceData()
 	return true
 }
 
@@ -792,12 +845,158 @@ func eventHasConferenceLink(event *calendar.Event) bool {
 }
 
 func patchOnlyConferenceData(event *calendar.Event) bool {
-	if event == nil || event.ConferenceData == nil {
+	if event == nil || !patchHasConferenceDataMutation(event) {
 		return false
 	}
 	clone := *event
 	clone.ConferenceData = nil
+	clone.NullFields = removeStringField(clone.NullFields, "ConferenceData")
 	return reflect.DeepEqual(clone, calendar.Event{})
+}
+
+func validateZoomConferenceFlagMutex(kctx *kong.Context) error {
+	pairs := [][2]string{
+		{"with-zoom", "regenerate-zoom"},
+		{"with-zoom", "remove-zoom"},
+		{"regenerate-zoom", "remove-zoom"},
+		{"with-zoom", "with-meet"},
+		{"with-zoom", "regenerate-meet"},
+		{"regenerate-zoom", "with-meet"},
+		{"regenerate-zoom", "regenerate-meet"},
+	}
+	for _, pair := range pairs {
+		if flagProvided(kctx, pair[0]) && flagProvided(kctx, pair[1]) {
+			return usage(fmt.Sprintf("use only one of --%s or --%s", pair[0], pair[1]))
+		}
+	}
+	return nil
+}
+
+func (c *CalendarUpdateCmd) prepareZoomConferencePatch(
+	ctx context.Context,
+	mutation *calendarMutationContext,
+	eventID, scope, originalStartTime string,
+	patch *calendar.Event,
+	changed bool,
+	kctx *kong.Context,
+) (*calendar.Event, bool, error) {
+	resolution, err := resolveRecurringScopeResolution(ctx, mutation.svc, mutation.calendarID, eventID, scope, originalStartTime)
+	if err != nil {
+		return patch, changed, err
+	}
+	existing, err := mutation.svc.Events.Get(mutation.calendarID, resolution.TargetEventID).Context(ctx).Do()
+	if err != nil {
+		return patch, changed, fmt.Errorf("failed to fetch current event for conference data: %w", err)
+	}
+
+	switch {
+	case flagProvided(kctx, "with-zoom"):
+		provider := eventConferenceProvider(existing)
+		switch provider {
+		case conferenceProviderZoom:
+			if patchOnlyConferenceData(patch) || patchEffectivelyEmpty(patch) {
+				if err := mutation.writeEvent(ctx, existing); err != nil {
+					return patch, false, err
+				}
+				return patch, false, errZoomConferenceAlreadyHandled
+			}
+			return patch, changed, nil
+		case conferenceProviderMeet:
+			return patch, changed, usage("event already has a Meet conference; use --remove-meet first, then --with-zoom")
+		case "other":
+			return patch, changed, usage("event already has a conference; remove it before using --with-zoom")
+		}
+		meeting, createErr := createZoomMeetingForEvent(ctx, mergeEventPatch(existing, patch))
+		if createErr != nil {
+			return patch, changed, createErr
+		}
+		c.createdZoomMeetingID = zoomMeetingID(meeting)
+		patch.ConferenceData = buildZoomConferenceData(meeting)
+		return patch, true, nil
+
+	case flagProvided(kctx, "regenerate-zoom"):
+		if meetingID, ok := extractZoomMeetingID(existing); ok {
+			if err := cancelZoomMeeting(ctx, meetingID, "regenerate"); err != nil && !errors.Is(err, zoom.ErrMeetingNotFound) {
+				return patch, changed, err
+			}
+		} else {
+			warnUnparseableZoomMeeting(mutation.u)
+		}
+		meeting, createErr := createZoomMeetingForEvent(ctx, mergeEventPatch(existing, patch))
+		if createErr != nil {
+			return patch, changed, createErr
+		}
+		c.createdZoomMeetingID = zoomMeetingID(meeting)
+		patch.ConferenceData = buildZoomConferenceData(meeting)
+		return patch, true, nil
+
+	case flagProvided(kctx, "remove-zoom"):
+		if meetingID, ok := extractZoomMeetingID(existing); ok {
+			if err := cancelZoomMeeting(ctx, meetingID, "delete"); err != nil && !errors.Is(err, zoom.ErrMeetingNotFound) {
+				if mutation.u != nil {
+					mutation.u.Err().Linef("warning\tfailed to delete Zoom meeting %s: %v", meetingID, err)
+				}
+			}
+		} else {
+			warnUnparseableZoomMeeting(mutation.u)
+		}
+		patch.ConferenceData = nil
+		patch.NullFields = append(patch.NullFields, "ConferenceData")
+		return patch, true, nil
+	}
+	return patch, changed, nil
+}
+
+func mergeEventPatch(existing, patch *calendar.Event) *calendar.Event {
+	if existing == nil {
+		return patch
+	}
+	merged := *existing
+	if patch == nil {
+		return &merged
+	}
+	if strings.TrimSpace(patch.Summary) != "" {
+		merged.Summary = patch.Summary
+	}
+	if strings.TrimSpace(patch.Description) != "" {
+		merged.Description = patch.Description
+	}
+	if patch.Start != nil {
+		merged.Start = patch.Start
+	}
+	if patch.End != nil {
+		merged.End = patch.End
+	}
+	return &merged
+}
+
+func patchHasConferenceDataMutation(event *calendar.Event) bool {
+	if event == nil {
+		return false
+	}
+	if event.ConferenceData != nil {
+		return true
+	}
+	for _, field := range event.NullFields {
+		if field == "ConferenceData" {
+			return true
+		}
+	}
+	return false
+}
+
+func patchEffectivelyEmpty(event *calendar.Event) bool {
+	return event == nil || reflect.DeepEqual(*event, calendar.Event{})
+}
+
+func removeStringField(fields []string, value string) []string {
+	out := fields[:0]
+	for _, field := range fields {
+		if field != value {
+			out = append(out, field)
+		}
+	}
+	return out
 }
 
 func (c *CalendarUpdateCmd) applyExtendedProperties(kctx *kong.Context, patch *calendar.Event) bool {
