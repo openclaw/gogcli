@@ -96,6 +96,9 @@ func (c *CalendarCreateCmd) Run(ctx context.Context, flags *RootFlags, kctx *kon
 			"supports_attachments": len(plan.Event.Attachments) > 0,
 			"event":                plan.Event,
 		}
+		if plan.WithZoom {
+			request["zoom"] = zoomDryRunPayload("create")
+		}
 		if placeLookup != nil {
 			request["place_lookup"] = placeLookup.dryRunPayload()
 		}
@@ -404,6 +407,9 @@ func (c *CalendarUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *
 	}
 	if placeLookup != nil {
 		request["place_lookup"] = placeLookup.dryRunPayload()
+	}
+	if zoomPayload := zoomUpdateDryRunPayload(kctx); zoomPayload != nil {
+		request["zoom"] = zoomPayload
 	}
 	if dryRunErr := dryRunExit(ctx, flags, "calendar.update", request); dryRunErr != nil {
 		return dryRunErr
@@ -870,6 +876,26 @@ func validateZoomConferenceFlagMutex(kctx *kong.Context) error {
 		}
 	}
 	return nil
+}
+
+func zoomUpdateDryRunPayload(kctx *kong.Context) map[string]any {
+	switch {
+	case flagProvided(kctx, "with-zoom"):
+		return zoomDryRunPayload("create")
+	case flagProvided(kctx, "regenerate-zoom"):
+		return zoomDryRunPayload("regenerate")
+	case flagProvided(kctx, "remove-zoom"):
+		return zoomDryRunPayload("remove")
+	default:
+		return nil
+	}
+}
+
+func zoomDryRunPayload(action string) map[string]any {
+	return map[string]any{
+		"action":           action,
+		"description_mode": true,
+	}
 }
 
 func (c *CalendarUpdateCmd) prepareZoomConferencePatch(

@@ -58,6 +58,7 @@ func listCalendarEvents(ctx context.Context, svc *calendar.Service, calendarID, 
 	}
 	events := make([]*eventWithCalendar, 0, len(items))
 	for _, item := range items {
+		redactCalendarEventForOutput(ctx, item)
 		events = append(events, wrapEventWithCalendar(item, "", calendarTimezone, loc))
 	}
 	sortEventsBy(events, sortKey, sortOrder)
@@ -168,6 +169,7 @@ func listCalendarIDsEvents(ctx context.Context, svc *calendar.Service, calendarI
 		}
 
 		for _, e := range events {
+			redactCalendarEventForOutput(ctx, e)
 			all = append(all, wrapEventWithCalendar(e, calID, calendarTimezone, loc))
 		}
 	}

@@ -136,7 +136,7 @@ func WriteMetadata(alias string, metadata Metadata) error {
 	if err != nil {
 		return err
 	}
-	if err := os.WriteFile(path, append(b, '\n'), metadataFileMode); err != nil {
+	if err := config.WriteFileAtomic(path, append(b, '\n'), metadataFileMode); err != nil {
 		return fmt.Errorf("write zoom metadata: %w", err)
 	}
 	return nil

@@ -147,6 +147,7 @@ func (c *CalendarEventCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if err != nil {
 		return err
 	}
+	redactCalendarEventForOutput(ctx, event)
 	tz, loc, _ := getCalendarLocation(ctx, svc, calendarID)
 	if outfmt.IsJSON(ctx) {
 		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{"event": wrapEventWithDaysWithTimezone(event, tz, loc)})

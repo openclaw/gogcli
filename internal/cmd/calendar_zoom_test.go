@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -104,6 +105,212 @@ func TestCalendarCreateCmd_WithZoomAndAttachments(t *testing.T) {
 	if !sawZoomDescription || !sawNoConferenceData || !sawAttachments || zoomClient.created != 1 {
 		t.Fatalf("expected zoom description+attachments, sawZoomDescription=%v sawNoConferenceData=%v sawAttachments=%v created=%d",
 			sawZoomDescription, sawNoConferenceData, sawAttachments, zoomClient.created)
+	}
+}
+
+func TestCalendarCreateCmd_DryRunWithZoomReportsZoomIntent(t *testing.T) {
+	origNewZoom := newZoomMeetingClient
+	newZoomMeetingClient = func(string) (zoomMeetingClient, error) {
+		t.Fatal("dry-run must not create Zoom client")
+		return nil, errors.New("unexpected Zoom client")
+	}
+	t.Cleanup(func() { newZoomMeetingClient = origNewZoom })
+
+	out := captureStdout(t, func() {
+		_ = captureStderr(t, func() {
+			if err := Execute([]string{
+				"--json",
+				"--dry-run",
+				"--no-input",
+				"calendar", "create", "primary",
+				"--summary", "Zoom",
+				"--from", "2026-05-18T10:00:00Z",
+				"--to", "2026-05-18T10:30:00Z",
+				"--with-zoom",
+			}); err != nil {
+				t.Fatalf("Execute: %v", err)
+			}
+		})
+	})
+
+	var got struct {
+		DryRun  bool `json:"dry_run"`
+		Request struct {
+			Zoom map[string]any `json:"zoom"`
+		} `json:"request"`
+	}
+	if err := json.Unmarshal([]byte(out), &got); err != nil {
+		t.Fatalf("json parse: %v\nout=%s", err, out)
+	}
+	if !got.DryRun || got.Request.Zoom["action"] != "create" || got.Request.Zoom["description_mode"] != true {
+		t.Fatalf("unexpected dry-run zoom payload: %#v", got)
+	}
+}
+
+func TestCalendarUpdateCmd_DryRunWithZoomReportsZoomIntent(t *testing.T) {
+	origNewZoom := newZoomMeetingClient
+	origNewCalendar := newCalendarService
+	newZoomMeetingClient = func(string) (zoomMeetingClient, error) {
+		t.Fatal("dry-run must not create Zoom client")
+		return nil, errors.New("unexpected Zoom client")
+	}
+	newCalendarService = func(context.Context, string) (*calendar.Service, error) {
+		t.Fatal("dry-run must not create Calendar service")
+		return nil, errors.New("unexpected Calendar service")
+	}
+	t.Cleanup(func() {
+		newZoomMeetingClient = origNewZoom
+		newCalendarService = origNewCalendar
+	})
+
+	out := captureStdout(t, func() {
+		_ = captureStderr(t, func() {
+			if err := Execute([]string{
+				"--json",
+				"--dry-run",
+				"--no-input",
+				"calendar", "update", "primary", "event-id",
+				"--regenerate-zoom",
+			}); err != nil {
+				t.Fatalf("Execute: %v", err)
+			}
+		})
+	})
+
+	var got struct {
+		DryRun  bool `json:"dry_run"`
+		Request struct {
+			Zoom map[string]any `json:"zoom"`
+		} `json:"request"`
+	}
+	if err := json.Unmarshal([]byte(out), &got); err != nil {
+		t.Fatalf("json parse: %v\nout=%s", err, out)
+	}
+	if !got.DryRun || got.Request.Zoom["action"] != "regenerate" || got.Request.Zoom["description_mode"] != true {
+		t.Fatalf("unexpected dry-run zoom payload: %#v", got)
+	}
+}
+
+func TestRedactEventZoomURLsRedactsDescriptionModePasswords(t *testing.T) {
+	event := &calendar.Event{
+		Description: buildZoomDescriptionBlock(&zoom.Meeting{
+			ID:      1001,
+			JoinURL: "https://example.zoom.us/j/1001?pwd=secret&from=addon",
+		}),
+	}
+
+	redactEventZoomURLs(event, false)
+
+	if strings.Contains(event.Description, "secret") {
+		t.Fatalf("description leaked password: %s", event.Description)
+	}
+	if !strings.Contains(event.Description, "pwd=REDACTED") {
+		t.Fatalf("description did not redact join URL password: %s", event.Description)
+	}
+	if !strings.Contains(event.Description, "Passcode: REDACTED") {
+		t.Fatalf("description did not redact passcode line: %s", event.Description)
+	}
+}
+
+func TestRedactEventZoomURLsIncludePasswordsPreservesDescriptionModePasswords(t *testing.T) {
+	event := &calendar.Event{
+		Description: buildZoomDescriptionBlock(&zoom.Meeting{
+			ID:      1001,
+			JoinURL: "https://example.zoom.us/j/1001?pwd=secret&from=addon",
+		}),
+	}
+
+	redactEventZoomURLs(event, true)
+
+	if !strings.Contains(event.Description, "secret") {
+		t.Fatalf("description should preserve password with includePasswords: %s", event.Description)
+	}
+}
+
+func TestRedactEventZoomURLsLeavesUnmanagedDescriptionText(t *testing.T) {
+	event := &calendar.Event{
+		Description: "Agenda\nPasscode: keep-me\nhttps://example.com/path?pwd=not-zoom",
+	}
+
+	redactEventZoomURLs(event, false)
+
+	if !strings.Contains(event.Description, "keep-me") || !strings.Contains(event.Description, "not-zoom") {
+		t.Fatalf("unmanaged description text should be preserved: %s", event.Description)
+	}
+}
+
+func TestCalendarEventCmd_RedactsZoomDescriptionInJSON(t *testing.T) {
+	origNew := newCalendarService
+	t.Cleanup(func() { newCalendarService = origNew })
+
+	desc := buildZoomDescriptionBlock(&zoom.Meeting{
+		ID:      1001,
+		JoinURL: "https://example.zoom.us/j/1001?pwd=secret",
+	})
+	srv := httptest.NewServer(withPrimaryCalendar(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := strings.TrimPrefix(r.URL.Path, "/calendar/v3")
+		switch {
+		case r.Method == http.MethodGet && path == "/calendars/cal@example.com/events/ev":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"id":          "ev",
+				"summary":     "Zoom",
+				"description": desc,
+				"start":       map[string]any{"dateTime": "2026-05-18T10:00:00Z"},
+				"end":         map[string]any{"dateTime": "2026-05-18T10:30:00Z"},
+			})
+		case r.Method == http.MethodGet && path == "/calendars/cal@example.com":
+			_ = json.NewEncoder(w).Encode(map[string]any{"id": "cal@example.com", "timeZone": "UTC"})
+		default:
+			http.NotFound(w, r)
+		}
+	})))
+	defer srv.Close()
+	newCalendarService = func(ctx context.Context, _ string) (*calendar.Service, error) {
+		return newCalendarServiceFromZoomTestServer(t, ctx, srv), nil
+	}
+
+	out := captureStdout(t, func() {
+		ctx := newCalendarJSONOutputContext(t, os.Stdout, os.Stderr)
+		if err := runKong(t, &CalendarEventCmd{}, []string{"cal@example.com", "ev"}, ctx, &RootFlags{Account: "a@b.com"}); err != nil {
+			t.Fatalf("runKong: %v", err)
+		}
+	})
+
+	if strings.Contains(out, "secret") {
+		t.Fatalf("event output leaked zoom password: %s", out)
+	}
+	if !strings.Contains(out, "pwd=REDACTED") || !strings.Contains(out, "Passcode: REDACTED") {
+		t.Fatalf("event output did not redact zoom password: %s", out)
+	}
+}
+
+func TestListCalendarEventsJSONRedactsZoomDescription(t *testing.T) {
+	desc := buildZoomDescriptionBlock(&zoom.Meeting{
+		ID:      1001,
+		JoinURL: "https://example.zoom.us/j/1001?pwd=secret",
+	})
+	svc, closeServer := newCalendarServiceForTest(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.Contains(r.URL.Path, "/calendars/cal1/events") && r.Method == http.MethodGet {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = fmt.Fprintf(w, `{"items":[{"id":"e1","summary":"Zoom","description":%q,"start":{"dateTime":"2026-05-18T10:00:00Z"},"end":{"dateTime":"2026-05-18T10:30:00Z"}}]}`, desc)
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer closeServer()
+
+	out := captureStdout(t, func() {
+		ctx := newCalendarJSONContext(t)
+		if err := listCalendarEvents(ctx, svc, "cal1", "2026-05-18T00:00:00Z", "2026-05-19T00:00:00Z", 10, "", false, false, "", "", "", "", false, false, "", ""); err != nil {
+			t.Fatalf("listCalendarEvents: %v", err)
+		}
+	})
+
+	if strings.Contains(out, "secret") {
+		t.Fatalf("events output leaked zoom password: %s", out)
+	}
+	if !strings.Contains(out, "pwd=REDACTED") || !strings.Contains(out, "Passcode: REDACTED") {
+		t.Fatalf("events output did not redact zoom password: %s", out)
 	}
 }
 

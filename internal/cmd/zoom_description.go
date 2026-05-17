@@ -29,7 +29,12 @@ const (
 	zoomBlockEnd      = "<!-- /gog-zoom-meeting -->"
 )
 
-var zoomDescriptionBlockRE = regexp.MustCompile(`(?s)<!-- gog-zoom-meeting:([^\s>]+) -->.*?<!-- /gog-zoom-meeting -->`)
+var (
+	zoomDescriptionBlockRE      = regexp.MustCompile(`(?s)<!-- gog-zoom-meeting:([^\s>]+) -->.*?<!-- /gog-zoom-meeting -->`)
+	zoomDescriptionURLRE        = regexp.MustCompile(`https?://[^\s<>"']+`)
+	zoomDescriptionPasscodeRE   = regexp.MustCompile(`(?m)^(Passcode:\s*)\S+`)
+	zoomDescriptionBlankLinesRE = regexp.MustCompile(`\n{3,}`)
+)
 
 // buildZoomDescriptionBlock formats a Zoom meeting into a description block
 // with stable start/end markers. Returns the empty string when meeting is nil
@@ -89,8 +94,18 @@ func removeZoomDescriptionBlock(desc string) string {
 	}
 	out := zoomDescriptionBlockRE.ReplaceAllString(desc, "")
 	// Collapse runs of blank lines that may be left behind.
-	out = regexp.MustCompile(`\n{3,}`).ReplaceAllString(out, "\n\n")
+	out = zoomDescriptionBlankLinesRE.ReplaceAllString(out, "\n\n")
 	return strings.Trim(out, "\n ")
+}
+
+func redactZoomDescription(desc string) string {
+	if desc == "" {
+		return ""
+	}
+	return zoomDescriptionBlockRE.ReplaceAllStringFunc(desc, func(block string) string {
+		out := zoomDescriptionURLRE.ReplaceAllStringFunc(block, zoom.RedactZoomURL)
+		return zoomDescriptionPasscodeRE.ReplaceAllString(out, "${1}REDACTED")
+	})
 }
 
 // extractZoomMeetingIDFromDescription returns the meeting ID embedded in the

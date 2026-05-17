@@ -211,13 +211,27 @@ func isZoomConferenceData(data *calendar.ConferenceData) bool {
 }
 
 func redactEventZoomURLs(event *calendar.Event, includePasswords bool) {
-	if includePasswords || event == nil || event.ConferenceData == nil {
+	if includePasswords || event == nil {
+		return
+	}
+	event.Description = redactZoomDescription(event.Description)
+	if event.ConferenceData == nil {
 		return
 	}
 	for _, ep := range event.ConferenceData.EntryPoints {
 		if ep != nil {
 			ep.Uri = zoom.RedactZoomURL(ep.Uri)
 		}
+	}
+}
+
+func redactCalendarEventForOutput(ctx context.Context, event *calendar.Event) {
+	redactEventZoomURLs(event, zoomIncludePasswordsFromContext(ctx))
+}
+
+func redactCalendarEventsForOutput(ctx context.Context, events []*calendar.Event) {
+	for _, event := range events {
+		redactCalendarEventForOutput(ctx, event)
 	}
 }
 

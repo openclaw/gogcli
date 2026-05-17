@@ -80,7 +80,7 @@ func (m *calendarMutationContext) moveEvent(ctx context.Context, eventID, destin
 }
 
 func (m *calendarMutationContext) writeEvent(ctx context.Context, event *calendar.Event) error {
-	redactEventZoomURLs(event, zoomIncludePasswordsFromContext(ctx))
+	redactCalendarEventForOutput(ctx, event)
 	tz, loc, _ := getCalendarLocation(ctx, m.svc, m.calendarID)
 	if outfmt.IsJSON(ctx) {
 		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{"event": wrapEventWithDaysWithTimezone(event, tz, loc)})

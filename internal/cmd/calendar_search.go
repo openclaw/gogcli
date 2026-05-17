@@ -56,6 +56,7 @@ func (c *CalendarSearchCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if err != nil {
 		return err
 	}
+	redactCalendarEventsForOutput(ctx, resp.Items)
 
 	if outfmt.IsJSON(ctx) {
 		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{

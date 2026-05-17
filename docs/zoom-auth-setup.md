@@ -114,6 +114,11 @@ Passcode: <passcode>
 The HTML comment markers let `--regenerate-zoom` replace the block in place and
 `--remove-zoom` strip it out without disturbing surrounding description content.
 
+Command output redacts the managed block's `pwd=` value and `Passcode:` line by
+default. Use `--include-passwords` on create/update output only when you really
+need to print the password; `gog calendar raw` stays lossless for raw API
+inspection.
+
 Use `--regenerate-zoom` on `gog calendar update` to replace the Zoom meeting, or
 `--remove-zoom` to delete the Zoom meeting and strip the Zoom block from the
 Calendar event description.
