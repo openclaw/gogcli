@@ -71,15 +71,17 @@ func TestCalendarCreateCmd_WithZoomAndAttachments(t *testing.T) {
 	zoomClient := &fakeZoomCalendarClient{}
 	withFakeZoomClient(t, zoomClient)
 
-	var sawConference, sawAttachments bool
+	var sawZoomDescription, sawNoConferenceData, sawAttachments bool
 	srv := httptest.NewServer(withPrimaryCalendar(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := strings.TrimPrefix(r.URL.Path, "/calendar/v3")
 		if r.Method == http.MethodPost && path == "/calendars/cal@example.com/events" {
 			var body calendar.Event
 			_ = json.NewDecoder(r.Body).Decode(&body)
-			sawConference = body.ConferenceData != nil &&
-				body.ConferenceData.ConferenceSolution != nil &&
-				body.ConferenceData.ConferenceSolution.Key.Type == "addOn"
+			// Zoom info lives in the event description, not conferenceData.
+			// Google rejects conferenceData writes asserting key.type="addOn"
+			// from non-Workspace-Marketplace OAuth clients.
+			sawZoomDescription = descriptionHasZoomBlock(body.Description)
+			sawNoConferenceData = body.ConferenceData == nil
 			sawAttachments = len(body.Attachments) > 0
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(body)
@@ -99,8 +101,9 @@ func TestCalendarCreateCmd_WithZoomAndAttachments(t *testing.T) {
 	}, ctx, &RootFlags{Account: "a@b.com"}); err != nil {
 		t.Fatalf("runKong: %v", err)
 	}
-	if !sawConference || !sawAttachments || zoomClient.created != 1 {
-		t.Fatalf("expected zoom conference+attachments, sawConference=%v sawAttachments=%v created=%d", sawConference, sawAttachments, zoomClient.created)
+	if !sawZoomDescription || !sawNoConferenceData || !sawAttachments || zoomClient.created != 1 {
+		t.Fatalf("expected zoom description+attachments, sawZoomDescription=%v sawNoConferenceData=%v sawAttachments=%v created=%d",
+			sawZoomDescription, sawNoConferenceData, sawAttachments, zoomClient.created)
 	}
 }
 
@@ -110,17 +113,20 @@ func TestCalendarUpdateCmd_WithZoom(t *testing.T) {
 	zoomClient := &fakeZoomCalendarClient{}
 	withFakeZoomClient(t, zoomClient)
 
-	var sawZoomPatch, sawVersion bool
+	var sawZoomPatch, sawNoConferenceData bool
 	srv := httptest.NewServer(withPrimaryCalendar(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := strings.TrimPrefix(r.URL.Path, "/calendar/v3")
 		switch {
 		case r.Method == http.MethodGet && path == "/calendars/cal@example.com/events/ev":
 			_ = json.NewEncoder(w).Encode(map[string]any{"id": "ev", "summary": "Existing"})
 		case r.Method == http.MethodPatch && path == "/calendars/cal@example.com/events/ev":
-			sawVersion = r.URL.Query().Get("conferenceDataVersion") == "1"
 			var body calendar.Event
 			_ = json.NewDecoder(r.Body).Decode(&body)
-			sawZoomPatch = body.ConferenceData != nil && body.ConferenceData.ConferenceSolution.Name == "Zoom Meeting"
+			// Description-mode: patch carries the Zoom block in the
+			// description, not conferenceData. conferenceDataVersion is not
+			// required because we are not mutating conferenceData.
+			sawZoomPatch = descriptionHasZoomBlock(body.Description)
+			sawNoConferenceData = body.ConferenceData == nil
 			_ = json.NewEncoder(w).Encode(body)
 		default:
 			http.NotFound(w, r)
@@ -134,8 +140,9 @@ func TestCalendarUpdateCmd_WithZoom(t *testing.T) {
 	if err := runKong(t, &CalendarUpdateCmd{}, []string{"cal@example.com", "ev", "--with-zoom"}, ctx, &RootFlags{Account: "a@b.com"}); err != nil {
 		t.Fatalf("runKong: %v", err)
 	}
-	if !sawZoomPatch || !sawVersion || zoomClient.created != 1 {
-		t.Fatalf("expected zoom patch/version/create, sawZoomPatch=%v sawVersion=%v created=%d", sawZoomPatch, sawVersion, zoomClient.created)
+	if !sawZoomPatch || !sawNoConferenceData || zoomClient.created != 1 {
+		t.Fatalf("expected zoom patch/no-conference-data/create, sawZoomPatch=%v sawNoConferenceData=%v created=%d",
+			sawZoomPatch, sawNoConferenceData, zoomClient.created)
 	}
 }
 

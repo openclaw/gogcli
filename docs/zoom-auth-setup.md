@@ -1,8 +1,23 @@
 # Zoom S2S OAuth Setup
 
-`gog calendar create --with-zoom` and `gog calendar update --with-zoom`
-create Zoom meetings through Zoom's Server-to-Server OAuth app type, then attach
-the join link to Google Calendar conference data.
+`gog calendar create --with-zoom` and `gog calendar update --with-zoom` create
+Zoom meetings through Zoom's Server-to-Server OAuth app type, then attach the
+join URL, meeting ID, and passcode to the Calendar event description.
+
+> **Note on rendering.** The Zoom info is written into the event description,
+> not Calendar's native `conferenceData` surface. Google's Calendar API rejects
+> `conferenceData` writes that assert `conferenceSolution.key.type="addOn"` from
+> non-Workspace-Marketplace OAuth clients (400 "Invalid conference data") and
+> silently drops the field entirely when `key.type` is omitted. Description
+> mode renders as a clickable Zoom link in every Calendar UI; the trade-off is
+> no native "Join with Zoom" conference card. Becoming a registered
+> Workspace Marketplace Conference Add-on is the only path to the native card.
+
+## Prerequisites
+
+`gog` must already be set up against your Google account (`gog auth login`).
+See the gogcli quickstart for how to provision a Google OAuth client and seed
+`credentials.json` before running `gog auth login`.
 
 ## Create the Zoom App
 
@@ -11,15 +26,17 @@ the join link to Google Calendar conference data.
 3. Select **Server-to-Server OAuth**.
 4. Name the app for your automation or organization.
 5. Copy the app's **Account ID**, **Client ID**, and **Client Secret**.
-6. Add the required user-level scopes:
-   - `meeting:write`
-   - `meeting:read`
-   - `user:read`
+6. Add the required scopes. User-level scopes (`meeting:write`, `meeting:read`,
+   `user:read`) are sufficient on accounts where they are exposed; on accounts
+   where the Marketplace UI exposes only granular admin variants, use:
+   - `meeting:write:meeting:admin`
+   - `meeting:read:meeting:admin`
+   - `user:read:user:admin`
 7. Activate the app after Zoom shows the credentials and scopes are complete.
 
-Do not request `*:admin` scopes for this workflow. Tier 1 Zoom calendar support
-creates meetings as the authenticated app account user and does not implement
-delegated host selection.
+Do not request `*:admin` scopes for delegated host selection on this workflow.
+Tier 1 Zoom calendar support creates meetings as the authenticated app account
+user and does not implement `--zoom-host` delegation.
 
 ## Store Credentials
 
@@ -83,5 +100,20 @@ gog calendar create primary \
   --with-zoom
 ```
 
+This creates a Zoom meeting via the Zoom API and appends a block like the
+following to the event description:
+
+```text
+<!-- gog-zoom-meeting:86823956608 -->
+Join Zoom Meeting: https://us06web.zoom.us/j/86823956608?pwd=...
+Meeting ID: 86823956608
+Passcode: <passcode>
+<!-- /gog-zoom-meeting -->
+```
+
+The HTML comment markers let `--regenerate-zoom` replace the block in place and
+`--remove-zoom` strip it out without disturbing surrounding description content.
+
 Use `--regenerate-zoom` on `gog calendar update` to replace the Zoom meeting, or
-`--remove-zoom` to delete the Zoom meeting and clear Calendar conference data.
+`--remove-zoom` to delete the Zoom meeting and strip the Zoom block from the
+Calendar event description.

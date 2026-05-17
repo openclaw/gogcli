@@ -4,7 +4,7 @@
 
 ### Added
 
-- Calendar: add --with-zoom / --regenerate-zoom / --remove-zoom and Zoom Server-to-Server OAuth credential storage for third-party Zoom conferencing on Calendar events. (#589) — thanks @alexisperumal.
+- Calendar: add --with-zoom / --regenerate-zoom / --remove-zoom that create, regenerate, and remove Zoom meetings and attach the join URL + meeting ID + passcode to the Calendar event description. Google's Calendar API rejects conferenceData writes asserting `conferenceSolution.key.type="addOn"` from non-Workspace-Marketplace OAuth clients, so the description-mode integration is the path that round-trips through Google's storage; trade-off is no native "Join with Zoom" conference card. (#589) — thanks @alexisperumal.
 - Auth: add gog zoom auth setup / doctor for Zoom S2S OAuth credential storage. (#589)
 
 ### Fixed

@@ -92,7 +92,7 @@ func (c *CalendarCreateCmd) Run(ctx context.Context, flags *RootFlags, kctx *kon
 		request := map[string]any{
 			"calendar_id":          calendarID,
 			"send_updates":         plan.SendUpdates,
-			"conference_version_1": plan.WithMeet || plan.WithZoom,
+			"conference_version_1": plan.WithMeet,
 			"supports_attachments": len(plan.Event.Attachments) > 0,
 			"event":                plan.Event,
 		}
@@ -137,12 +137,12 @@ func (c *CalendarCreateCmd) Run(ctx context.Context, flags *RootFlags, kctx *kon
 		if err != nil {
 			return err
 		}
-		plan.Event.ConferenceData = buildZoomConferenceData(zoomMeeting)
+		plan.Event.Description = applyZoomDescriptionBlock(plan.Event.Description, buildZoomDescriptionBlock(zoomMeeting))
 	}
 
 	created, err := mutation.insertEvent(ctx, plan.Event, calendarInsertOptions{
 		sendUpdates:         plan.SendUpdates,
-		conferenceVersion1:  plan.WithMeet || plan.WithZoom,
+		conferenceVersion1:  plan.WithMeet,
 		supportsAttachments: len(plan.Event.Attachments) > 0,
 	})
 	if err != nil {
@@ -911,7 +911,7 @@ func (c *CalendarUpdateCmd) prepareZoomConferencePatch(
 			return patch, changed, createErr
 		}
 		c.createdZoomMeetingID = zoomMeetingID(meeting)
-		patch.ConferenceData = buildZoomConferenceData(meeting)
+		patch.Description = applyZoomDescriptionBlock(descriptionForPatch(existing, patch), buildZoomDescriptionBlock(meeting))
 		return patch, true, nil
 
 	case flagProvided(kctx, "regenerate-zoom"):
@@ -927,7 +927,7 @@ func (c *CalendarUpdateCmd) prepareZoomConferencePatch(
 			return patch, changed, createErr
 		}
 		c.createdZoomMeetingID = zoomMeetingID(meeting)
-		patch.ConferenceData = buildZoomConferenceData(meeting)
+		patch.Description = applyZoomDescriptionBlock(descriptionForPatch(existing, patch), buildZoomDescriptionBlock(meeting))
 		return patch, true, nil
 
 	case flagProvided(kctx, "remove-zoom"):
@@ -940,8 +940,15 @@ func (c *CalendarUpdateCmd) prepareZoomConferencePatch(
 		} else {
 			warnUnparseableZoomMeeting(mutation.u)
 		}
-		patch.ConferenceData = nil
-		patch.NullFields = append(patch.NullFields, "ConferenceData")
+		// Strip the gog-managed Zoom block from the description. Also clear
+		// any legacy ConferenceData (events created by the Zoom for Google
+		// Workspace add-on, or future re-introduction of the Marketplace
+		// add-on path) so --remove-zoom is idempotent across both shapes.
+		patch.Description = applyZoomDescriptionBlock(descriptionForPatch(existing, patch), "")
+		if existing != nil && existing.ConferenceData != nil && isZoomConferenceData(existing.ConferenceData) {
+			patch.ConferenceData = nil
+			patch.NullFields = append(patch.NullFields, "ConferenceData")
+		}
 		return patch, true, nil
 	}
 	return patch, changed, nil

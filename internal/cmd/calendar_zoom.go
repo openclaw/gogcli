@@ -101,7 +101,18 @@ func logZoomAudit(meetingID, action string) {
 var zoomMeetingIDPath = regexp.MustCompile(`/j/(\d+)`)
 
 func extractZoomMeetingID(event *calendar.Event) (id string, ok bool) {
-	if event == nil || event.ConferenceData == nil {
+	if event == nil {
+		return "", false
+	}
+	// Primary path: gog-managed Zoom block in the event description carries
+	// the meeting ID in its start marker. This is the shape gog itself writes.
+	if id, ok = extractZoomMeetingIDFromDescription(event.Description); ok {
+		return id, true
+	}
+	// Legacy / interoperability path: events created by the Zoom for Google
+	// Workspace add-on (or any tool that populated conferenceData directly)
+	// expose the meeting ID via the join URL or addOn parameters.
+	if event.ConferenceData == nil {
 		return "", false
 	}
 	for _, ep := range event.ConferenceData.EntryPoints {
@@ -130,7 +141,15 @@ func extractZoomMeetingID(event *calendar.Event) (id string, ok bool) {
 }
 
 func eventConferenceProvider(event *calendar.Event) string {
-	if event == nil || event.ConferenceData == nil {
+	if event == nil {
+		return ""
+	}
+	// Description-mode Zoom block takes precedence: gog writes its Zoom info
+	// here and never sets conferenceData on the Zoom path.
+	if descriptionHasZoomBlock(event.Description) {
+		return conferenceProviderZoom
+	}
+	if event.ConferenceData == nil {
 		if strings.TrimSpace(eventHangoutLink(event)) != "" {
 			return conferenceProviderMeet
 		}
