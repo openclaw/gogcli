@@ -19,6 +19,7 @@ gog sheets (sheet) <command> [flags]
 - [gog sheets add-tab](gog-sheets-add-tab.md) - Add a new tab/sheet to a spreadsheet
 - [gog sheets append](gog-sheets-append.md) - Append values to a range
 - [gog sheets banding](gog-sheets-banding.md) - Manage alternating color banding
+- [gog sheets batch-update](gog-sheets-batch-update.md) - Update values in multiple ranges with one API request
 - [gog sheets chart](gog-sheets-chart.md) - Manage spreadsheet charts
 - [gog sheets clear](gog-sheets-clear.md) - Clear values in a range
 - [gog sheets conditional-format](gog-sheets-conditional-format.md) - Manage conditional formatting rules

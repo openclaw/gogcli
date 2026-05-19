@@ -28,6 +28,7 @@ func cleanRange(r string) string {
 type SheetsCmd struct {
 	Get           SheetsGetCmd           `cmd:"" name:"get" aliases:"read,show" help:"Get values from a range"`
 	Update        SheetsUpdateCmd        `cmd:"" name:"update" aliases:"edit,set" help:"Update values in a range"`
+	BatchUpdate   SheetsBatchUpdateCmd   `cmd:"" name:"batch-update" aliases:"batch" help:"Update values in multiple ranges with one API request"`
 	Append        SheetsAppendCmd        `cmd:"" name:"append" aliases:"add" help:"Append values to a range"`
 	Insert        SheetsInsertCmd        `cmd:"" name:"insert" help:"Insert empty rows or columns into a sheet"`
 	Clear         SheetsClearCmd         `cmd:"" name:"clear" help:"Clear values in a range"`
@@ -261,6 +262,115 @@ func (c *SheetsUpdateCmd) Run(ctx context.Context, flags *RootFlags) error {
 
 	u.Out().Linef("Updated %d cells in %s", resp.UpdatedCells, resp.UpdatedRange)
 	return nil
+}
+
+type SheetsBatchUpdateCmd struct {
+	SpreadsheetID                string `arg:"" name:"spreadsheetId" help:"Spreadsheet ID"`
+	DataJSON                     string `name:"data-json" required:"" help:"Value ranges as JSON array, or @file (e.g. [{\"range\":\"Sheet1!A1:B2\",\"values\":[[\"a\",\"b\"]]}])"`
+	ValueInput                   string `name:"input" help:"Value input option: RAW or USER_ENTERED" default:"USER_ENTERED"`
+	IncludeValuesInResponse      bool   `name:"include-values-in-response" help:"Include updated values in the response"`
+	ResponseValueRenderOption    string `name:"response-render" help:"Response value render option: FORMATTED_VALUE, UNFORMATTED_VALUE, or FORMULA"`
+	ResponseDateTimeRenderOption string `name:"response-date-time-render" help:"Response date/time render option: SERIAL_NUMBER or FORMATTED_STRING"`
+}
+
+func (c *SheetsBatchUpdateCmd) Run(ctx context.Context, flags *RootFlags) error {
+	u := ui.FromContext(ctx)
+
+	spreadsheetID := normalizeGoogleID(strings.TrimSpace(c.SpreadsheetID))
+	if spreadsheetID == "" {
+		return usage("empty spreadsheetId")
+	}
+
+	data, err := parseSheetsBatchUpdateData(c.DataJSON)
+	if err != nil {
+		return err
+	}
+
+	valueInputOption := strings.TrimSpace(c.ValueInput)
+	if valueInputOption == "" {
+		valueInputOption = sheetsDefaultValueInputOption
+	}
+	req := &sheets.BatchUpdateValuesRequest{
+		Data:                    data,
+		ValueInputOption:        valueInputOption,
+		IncludeValuesInResponse: c.IncludeValuesInResponse,
+	}
+	if strings.TrimSpace(c.ResponseValueRenderOption) != "" {
+		req.ResponseValueRenderOption = strings.TrimSpace(c.ResponseValueRenderOption)
+	}
+	if strings.TrimSpace(c.ResponseDateTimeRenderOption) != "" {
+		req.ResponseDateTimeRenderOption = strings.TrimSpace(c.ResponseDateTimeRenderOption)
+	}
+
+	if dryRunErr := dryRunExit(ctx, flags, "sheets.batch-update", map[string]any{
+		"spreadsheet_id":                   spreadsheetID,
+		"value_input_option":               req.ValueInputOption,
+		"include_values_in_response":       req.IncludeValuesInResponse,
+		"response_value_render_option":     req.ResponseValueRenderOption,
+		"response_date_time_render_option": req.ResponseDateTimeRenderOption,
+		"data":                             req.Data,
+	}); dryRunErr != nil {
+		return dryRunErr
+	}
+
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
+	}
+
+	svc, err := newSheetsService(ctx, account)
+	if err != nil {
+		return err
+	}
+
+	resp, err := svc.Spreadsheets.Values.BatchUpdate(spreadsheetID, req).Do()
+	if err != nil {
+		return err
+	}
+
+	if outfmt.IsJSON(ctx) {
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
+			"spreadsheetId":       resp.SpreadsheetId,
+			"totalUpdatedRows":    resp.TotalUpdatedRows,
+			"totalUpdatedColumns": resp.TotalUpdatedColumns,
+			"totalUpdatedCells":   resp.TotalUpdatedCells,
+			"totalUpdatedSheets":  resp.TotalUpdatedSheets,
+			"responses":           resp.Responses,
+		})
+	}
+
+	u.Out().Linef("Updated %d cells across %d ranges in %s", resp.TotalUpdatedCells, len(resp.Responses), spreadsheetID)
+	return nil
+}
+
+func parseSheetsBatchUpdateData(dataJSON string) ([]*sheets.ValueRange, error) {
+	if strings.TrimSpace(dataJSON) == "" {
+		return nil, usage("empty data-json")
+	}
+	b, err := resolveInlineOrFileBytes(dataJSON)
+	if err != nil {
+		return nil, fmt.Errorf("read --data-json: %w", err)
+	}
+	var data []*sheets.ValueRange
+	if unmarshalErr := json.Unmarshal(b, &data); unmarshalErr != nil {
+		return nil, fmt.Errorf("invalid JSON data: %w", unmarshalErr)
+	}
+	if len(data) == 0 {
+		return nil, usage("--data-json must contain at least one value range")
+	}
+	for i, vr := range data {
+		if vr == nil {
+			return nil, usagef("--data-json range %d is null", i)
+		}
+		vr.Range = cleanRange(vr.Range)
+		if strings.TrimSpace(vr.Range) == "" {
+			return nil, usagef("--data-json range %d has empty range", i)
+		}
+		if vr.Values == nil {
+			return nil, usagef("--data-json range %d has empty values", i)
+		}
+	}
+	return data, nil
 }
 
 type SheetsAppendCmd struct {

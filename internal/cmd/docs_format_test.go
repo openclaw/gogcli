@@ -31,6 +31,7 @@ func TestDocsFormatFlagsBuildRequests(t *testing.T) {
 	textReq := reqs[0].UpdateTextStyle
 	if textReq == nil {
 		t.Fatalf("missing text request: %#v", reqs[0])
+		return
 	}
 	if got := textReq.Range; got.StartIndex != 3 || got.EndIndex != 9 || got.TabId != "t.second" {
 		t.Fatalf("unexpected text range: %#v", got)
@@ -56,6 +57,7 @@ func TestDocsFormatFlagsBuildRequests(t *testing.T) {
 	paraReq := reqs[1].UpdateParagraphStyle
 	if paraReq == nil {
 		t.Fatalf("missing paragraph request: %#v", reqs[1])
+		return
 	}
 	if paraReq.ParagraphStyle.Alignment != "CENTER" || paraReq.ParagraphStyle.LineSpacing != 150 {
 		t.Fatalf("unexpected paragraph style: %#v", paraReq.ParagraphStyle)

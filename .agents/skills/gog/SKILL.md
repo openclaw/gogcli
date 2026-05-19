@@ -106,6 +106,7 @@ gog --account user@example.com calendar events --today --json --wrap-untrusted
 gog --account user@example.com drive ls --max 20 --json --wrap-untrusted
 gog --account user@example.com docs cat <documentId> --json --wrap-untrusted
 gog --account user@example.com sheets get <spreadsheetId> Sheet1!A1:D20 --json --wrap-untrusted
+gog --account user@example.com sheets batch-update <spreadsheetId> --data-json @updates.json --json
 gog --account user@example.com contacts list --max 20 --json --wrap-untrusted
 ```
 
@@ -120,11 +121,16 @@ commands that support `--dry-run`, and clean up disposable live-test objects.
 ```bash
 gog --account user@example.com docs write <documentId> --append --text '...'
 gog --account user@example.com sheets update <spreadsheetId> Sheet1!A1 --values-json '[["hello"]]'
+gog --account user@example.com sheets batch-update <spreadsheetId> --data-json @updates.json
 gog --account user@example.com drive upload ./file.txt --parent <folderId> --json
 ```
 
 When testing creation commands, name artifacts with a clear temporary prefix and
 delete or trash them after verification.
+
+For larger Sheets writes, prefer `sheets batch-update` over loops of
+`sheets update`; it sends multiple value ranges in one Sheets API request and
+accepts inline JSON or `@file` input.
 
 ## Discovery
 

@@ -176,6 +176,7 @@ sheets:
   read-format: true
   export: true
   update: false
+  batch-update: false
   append: false
   insert: false
   clear: false

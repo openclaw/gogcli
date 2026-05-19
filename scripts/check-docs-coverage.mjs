@@ -23,6 +23,7 @@ const requiredFeatureDocs = [
   "contacts-dedupe.md",
   "contacts-json-update.md",
   "docs-editing.md",
+  "sheets-batch-update.md",
   "sheets-tables.md",
   "sheets-formatting.md",
   "slides-markdown.md",

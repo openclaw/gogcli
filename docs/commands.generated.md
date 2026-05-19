@@ -470,6 +470,7 @@ Generated from `gog schema --json`.
       - [`gog sheets (sheet) banding (banded-ranges) clear (delete,rm,remove) <spreadsheetId> [flags]`](commands/gog-sheets-banding-clear.md) - Remove alternating color banding
       - [`gog sheets (sheet) banding (banded-ranges) list <spreadsheetId> [flags]`](commands/gog-sheets-banding-list.md) - List alternating color banded ranges
       - [`gog sheets (sheet) banding (banded-ranges) set (add,create) <spreadsheetId> <range> [flags]`](commands/gog-sheets-banding-set.md) - Apply alternating colors to a range
+    - [`gog sheets (sheet) batch-update (batch) --data-json=STRING <spreadsheetId> [flags]`](commands/gog-sheets-batch-update.md) - Update values in multiple ranges with one API request
     - [`gog sheets (sheet) chart (charts) <command>`](commands/gog-sheets-chart.md) - Manage spreadsheet charts
       - [`gog sheets (sheet) chart (charts) create (add,new) --spec-json=STRING <spreadsheetId> [flags]`](commands/gog-sheets-chart-create.md) - Create a chart from a JSON spec
       - [`gog sheets (sheet) chart (charts) delete (rm,remove,del) <spreadsheetId> <chartId>`](commands/gog-sheets-chart-delete.md) - Delete a chart

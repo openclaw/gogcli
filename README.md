@@ -270,12 +270,14 @@ gog docs raw <docId> --pretty
 
 ### Sheets
 
-Docs: [Sheets tables](docs/sheets-tables.md),
+Docs: [Sheets batch updates](docs/sheets-batch-update.md),
+[Sheets tables](docs/sheets-tables.md),
 [Sheets formatting](docs/sheets-formatting.md),
 [`gog sheets`](docs/commands/gog-sheets.md).
 
 ```bash
 gog sheets get <spreadsheetId> 'Sheet1!A1:D20' --json
+gog sheets batch-update <spreadsheetId> --data-json @updates.json --json
 gog sheets table list <spreadsheetId>
 gog sheets table append <spreadsheetId> Tasks 'Ship README|done'
 gog sheets table clear <spreadsheetId> Tasks

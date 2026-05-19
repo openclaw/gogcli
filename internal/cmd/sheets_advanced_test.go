@@ -84,6 +84,7 @@ func TestSheetsConditionalClearAllDeletesReverseAndRequiresForce(t *testing.T) {
 	second := (*requests)[0].Requests[1].DeleteConditionalFormatRule
 	if first == nil || second == nil {
 		t.Fatalf("missing deleteConditionalFormatRule: %#v", (*requests)[0].Requests)
+		return
 	}
 	if first.Index != 1 || second.Index != 0 {
 		t.Fatalf("delete indexes = %d,%d; want 1,0", first.Index, second.Index)
