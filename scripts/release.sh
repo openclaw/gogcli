@@ -30,6 +30,14 @@ if rg -q "^## ${version} - Unreleased" "$changelog"; then
   exit 2
 fi
 
+version_file="internal/cmd/VERSION"
+expected_version="v$version"
+if [[ "$(tr -d '[:space:]' < "$version_file")" != "$expected_version" ]]; then
+  echo "$version_file must contain $expected_version before tagging" >&2
+  echo "This keeps source archives built from the release tag from embedding a stale dev fallback." >&2
+  exit 2
+fi
+
 notes_file="$(mktemp -t gogcli-release-notes)"
 awk -v ver="$version" '
   $0 ~ "^## "ver" " {print "## "ver; in_section=1; next}

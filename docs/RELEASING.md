@@ -43,6 +43,8 @@ gh run list -L 5 --branch main
 
 ## 2) Update changelog
 - Update `CHANGELOG.md` for the version you’re releasing.
+- Update `internal/cmd/VERSION` to `vX.Y.Z` before tagging. The post-release
+  bump workflow rewrites it to `vX.Y.Z-dev` on `main` after the tag is pushed.
 
 Example heading:
 - `## 0.1.0 - 2025-12-12`
@@ -52,7 +54,7 @@ Example heading:
 git checkout main
 git pull
 
-# commit changelog + any release tweaks
+# commit changelog, internal/cmd/VERSION, and any release tweaks
 git commit -am "release: vX.Y.Z"
 
 git tag -a vX.Y.Z -m "Release X.Y.Z"
