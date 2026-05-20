@@ -1,0 +1,44 @@
+name: post-release-bump
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  bump-version-file:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          ref: main
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Compute next dev version
+        id: nextver
+        run: |
+          # Policy: VERSION = "<just-pushed-tag>-dev". The just-pushed tag is
+          # the latest released version; -dev marks the period afterwards.
+          next="${GITHUB_REF_NAME}-dev"
+          echo "next=$next" >> "$GITHUB_OUTPUT"
+
+      - name: Write VERSION
+        run: echo "${{ steps.nextver.outputs.next }}" > internal/cmd/VERSION
+
+      - name: Commit & push
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git diff --quiet -- internal/cmd/VERSION; then
+            echo "VERSION unchanged, nothing to commit"
+            exit 0
+          fi
+          git add internal/cmd/VERSION
+          git commit -m "chore(release): bump VERSION to ${{ steps.nextver.outputs.next }}
+
+          [skip ci]"
+          git push origin main

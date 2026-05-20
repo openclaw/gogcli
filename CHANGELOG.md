@@ -13,6 +13,7 @@
 - CLI: harden backup writes, config/credentials atomic saves, keyring write verification, line input buffering, disabled-API hints, JSON transform number handling, and untrusted-content wrapping after ClawPatch review.
 - CLI: bound retry request replay buffering, recover failed async backup pushes, ignore global git commit signing in backup snapshots, and protect account manager OAuth redirects with CSRF checks.
 - Release: update the Homebrew handoff to publish through `openclaw/tap`.
+- Version: `gog --version` now reports an informative fallback (for example, `v0.17.0-dev`) when built from source with plain `go build` instead of returning `dev`.
 
 ## 0.17.0 - 2026-05-15
 
