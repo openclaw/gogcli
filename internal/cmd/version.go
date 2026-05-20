@@ -25,7 +25,7 @@ var (
 
 func resolvedVersion() string {
 	v := strings.TrimSpace(version)
-	if v != "" && v != sentinelDev && !strings.HasSuffix(v, "-dev") {
+	if v != "" && v != sentinelDev {
 		return v
 	}
 	info, ok := readBuildInfo()
@@ -38,10 +38,7 @@ func resolvedVersion() string {
 	if baked := strings.TrimSpace(embeddedVersion); baked != "" {
 		return baked
 	}
-	if v == "" || v == sentinelDev {
-		return sentinelDev
-	}
-	return v
+	return sentinelDev
 }
 
 func VersionString() string {

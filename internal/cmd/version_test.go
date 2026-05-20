@@ -79,6 +79,23 @@ func TestResolvedVersionUsesEmbeddedVersionWhenBuildInfoIsDevel(t *testing.T) {
 	}
 }
 
+func TestResolvedVersionPrefersInjectedDevVersionOverEmbedded(t *testing.T) {
+	origVersion, origReadBuildInfo, origEmbedded := version, readBuildInfo, embeddedVersion
+	t.Cleanup(func() {
+		version, readBuildInfo, embeddedVersion = origVersion, origReadBuildInfo, origEmbedded
+	})
+
+	version = "v0.18.0-dev"
+	embeddedVersion = "v0.17.0-dev\n"
+	readBuildInfo = func() (*debug.BuildInfo, bool) {
+		return &debug.BuildInfo{Main: debug.Module{Version: "(devel)"}}, true
+	}
+
+	if got := resolvedVersion(); got != "v0.18.0-dev" {
+		t.Fatalf("expected injected dev version, got %q", got)
+	}
+}
+
 func TestResolvedVersionFallsBackToSentinelWhenEverythingEmpty(t *testing.T) {
 	origVersion, origReadBuildInfo, origEmbedded := version, readBuildInfo, embeddedVersion
 	t.Cleanup(func() {
