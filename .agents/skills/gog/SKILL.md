@@ -1,6 +1,79 @@
 ---
 name: gog
 description: "gog CLI: safe Google Workspace automation, JSON, auth, scoped reads/writes."
+metadata:
+  openclaw:
+    requires:
+      bins:
+        - gog
+    install:
+      - id: darwin-arm64
+        kind: binary
+        os:
+          - darwin
+        arch:
+          - arm64
+        url: https://github.com/openclaw/gogcli/releases/download/{{version}}/gogcli_{{version}}_darwin_arm64.tar.gz
+        bins:
+          - gog
+        label: Install gog (macOS arm64)
+      - id: darwin-amd64
+        kind: binary
+        os:
+          - darwin
+        arch:
+          - amd64
+        url: https://github.com/openclaw/gogcli/releases/download/{{version}}/gogcli_{{version}}_darwin_amd64.tar.gz
+        bins:
+          - gog
+        label: Install gog (macOS amd64)
+      - id: linux-arm64
+        kind: binary
+        os:
+          - linux
+        arch:
+          - arm64
+        url: https://github.com/openclaw/gogcli/releases/download/{{version}}/gogcli_{{version}}_linux_arm64.tar.gz
+        bins:
+          - gog
+        label: Install gog (Linux arm64)
+      - id: linux-amd64
+        kind: binary
+        os:
+          - linux
+        arch:
+          - amd64
+        url: https://github.com/openclaw/gogcli/releases/download/{{version}}/gogcli_{{version}}_linux_amd64.tar.gz
+        bins:
+          - gog
+        label: Install gog (Linux amd64)
+      - id: windows-arm64
+        kind: binary
+        os:
+          - windows
+        arch:
+          - arm64
+        url: https://github.com/openclaw/gogcli/releases/download/{{version}}/gogcli_{{version}}_windows_arm64.zip
+        bins:
+          - gog.exe
+        label: Install gog (Windows arm64)
+      - id: windows-amd64
+        kind: binary
+        os:
+          - windows
+        arch:
+          - amd64
+        url: https://github.com/openclaw/gogcli/releases/download/{{version}}/gogcli_{{version}}_windows_amd64.zip
+        bins:
+          - gog.exe
+        label: Install gog (Windows amd64)
+      - id: brew
+        kind: brew
+        os:
+          - darwin
+          - linux
+        formula: steipete/tap/gogcli
+        label: Install gog (brew)
 ---
 
 # gog
