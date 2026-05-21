@@ -336,7 +336,7 @@ func TestDocsWrite_MarkdownAppendUsesDocsFormatting(t *testing.T) {
 	ctx := newDocsJSONContext(t)
 
 	markdown := "# Title\n\n**bold**\n"
-	if err := runKong(t, &DocsWriteCmd{}, []string{"doc1", "--text", markdown, "--append", "--markdown"}, ctx, flags); err != nil {
+	if err := runKong(t, &DocsWriteCmd{}, []string{"doc1", "--text=" + markdown, "--append", "--markdown"}, ctx, flags); err != nil {
 		t.Fatalf("markdown append write: %v", err)
 	}
 	if len(batchRequests) != 1 {
@@ -349,20 +349,83 @@ func TestDocsWrite_MarkdownAppendUsesDocsFormatting(t *testing.T) {
 	if reqs[0].InsertText == nil {
 		t.Fatalf("expected first request to insert text, got %#v", reqs[0])
 	}
-	if got := reqs[0].InsertText; got.Location.Index != 9 || got.Text != "Title\nbold\n" {
+	if got := reqs[0].InsertText; got.Location.Index != 9 || got.Text != "\nTitle\nbold\n" {
 		t.Fatalf("unexpected markdown insert: %#v", got)
 	}
 	if reqs[1].UpdateParagraphStyle == nil {
 		t.Fatalf("expected heading paragraph style request, got %#v", reqs[1])
 	}
-	if got := reqs[1].UpdateParagraphStyle.Range; got.StartIndex != 9 || got.EndIndex != 15 {
+	if got := reqs[1].UpdateParagraphStyle.Range; got.StartIndex != 10 || got.EndIndex != 16 {
 		t.Fatalf("unexpected heading range: %#v", got)
 	}
 	if reqs[2].UpdateTextStyle == nil {
 		t.Fatalf("expected bold text style request, got %#v", reqs[2])
 	}
-	if got := reqs[2].UpdateTextStyle.Range; got.StartIndex != 15 || got.EndIndex != 19 {
+	if got := reqs[2].UpdateTextStyle.Range; got.StartIndex != 16 || got.EndIndex != 20 {
 		t.Fatalf("unexpected bold range: %#v", got)
+	}
+}
+
+func TestDocsWrite_MarkdownAppendStartsStyledBlocksOnFreshParagraph(t *testing.T) {
+	origDocs := newDocsService
+	origDrive := newDriveService
+	t.Cleanup(func() {
+		newDocsService = origDocs
+		newDriveService = origDrive
+	})
+
+	var batchRequests [][]*docs.Request
+
+	docSvc, cleanup := newDocsServiceForTest(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, "/v1/documents/"):
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(docBodyWithText("Existing\n"))
+			return
+		case r.Method == http.MethodPost && strings.Contains(r.URL.Path, ":batchUpdate"):
+			var req docs.BatchUpdateDocumentRequest
+			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+				t.Fatalf("decode batch request: %v", err)
+			}
+			batchRequests = append(batchRequests, req.Requests)
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{"documentId": "doc1"})
+			return
+		default:
+			http.NotFound(w, r)
+			return
+		}
+	}))
+	defer cleanup()
+
+	newDocsService = func(context.Context, string) (*docs.Service, error) { return docSvc, nil }
+	newDriveService = func(context.Context, string) (*drive.Service, error) {
+		t.Fatal("markdown append should not use Drive update")
+		return nil, errors.New("unexpected Drive service call")
+	}
+
+	flags := &RootFlags{Account: "a@b.com"}
+	ctx := newDocsJSONContext(t)
+
+	markdown := "- Item\n\n```\nline 1\nline 2\n```\n"
+	if err := runKong(t, &DocsWriteCmd{}, []string{"doc1", "--text=" + markdown, "--append", "--markdown"}, ctx, flags); err != nil {
+		t.Fatalf("markdown append write: %v", err)
+	}
+	if len(batchRequests) != 1 {
+		t.Fatalf("expected 1 batch request, got %d", len(batchRequests))
+	}
+	reqs := batchRequests[0]
+	if len(reqs) != 4 {
+		t.Fatalf("expected insert, bullet, code font, and code shading requests, got %#v", reqs)
+	}
+	if got := reqs[0].InsertText; got == nil || got.Location.Index != 9 || got.Text != "\nItem\nline 1"+docsSoftLineBreak+"line 2\n" {
+		t.Fatalf("unexpected markdown insert: %#v", got)
+	}
+	if got := reqs[1].CreateParagraphBullets; got == nil || got.Range.StartIndex != 10 || got.Range.EndIndex != 15 {
+		t.Fatalf("unexpected bullet request: %#v", got)
+	}
+	if got := reqs[3].UpdateParagraphStyle; got == nil || got.Range.StartIndex != 15 || got.Range.EndIndex != 29 {
+		t.Fatalf("unexpected code shading request: %#v", got)
 	}
 }
 

@@ -187,7 +187,13 @@ func replaceDocsMarkdownRange(ctx context.Context, svc *docs.Service, doc *docs.
 func insertDocsMarkdownAt(ctx context.Context, svc *docs.Service, docID string, insertIdx int64, content string, tabID string) (requestCount int, inserted int, err error) {
 	cleaned, images := extractMarkdownImages(content)
 	elements := ParseMarkdown(cleaned)
-	formattingRequests, textToInsert, tables := MarkdownToDocsRequests(elements, insertIdx, tabID)
+	prefix := ""
+	baseIndex := insertIdx
+	if insertIdx > 1 && markdownAppendNeedsParagraphBoundary(elements) {
+		prefix = "\n"
+		baseIndex++
+	}
+	formattingRequests, textToInsert, tables := MarkdownToDocsRequests(elements, baseIndex, tabID)
 	if textToInsert == "" {
 		return 0, 0, nil
 	}
@@ -211,7 +217,7 @@ func insertDocsMarkdownAt(ctx context.Context, svc *docs.Service, docID string, 
 	requests = append(requests, &docs.Request{
 		InsertText: &docs.InsertTextRequest{
 			Location: &docs.Location{Index: insertIdx, TabId: tabID},
-			Text:     textToInsert,
+			Text:     prefix + textToInsert,
 		},
 	})
 	requests = append(requests, formattingRequests...)
@@ -244,7 +250,19 @@ func insertDocsMarkdownAt(ctx context.Context, svc *docs.Service, docID string, 
 		}
 	}
 
-	return len(requests), len(textToInsert), nil
+	return len(requests), len(prefix) + len(textToInsert), nil
+}
+
+func markdownAppendNeedsParagraphBoundary(elements []MarkdownElement) bool {
+	if len(elements) == 0 {
+		return false
+	}
+	switch elements[0].Type {
+	case MDEmptyLine, MDParagraph:
+		return false
+	default:
+		return true
+	}
 }
 
 func cleanupDocsImagePlaceholders(ctx context.Context, svc *docs.Service, docID string, images []markdownImage, tabID string) {
