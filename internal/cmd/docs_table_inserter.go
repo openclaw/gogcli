@@ -153,7 +153,24 @@ func buildTableCellRequests(cellContent string, cellIdx int64, isHeaderRow bool,
 	return requests, insertedLen
 }
 
-// getTableCellIndices extracts the start index for each cell in a table
+// getTableCellIndices extracts the start index for each cell in the table that
+// was just inserted near tableStartIndex.
+//
+// Locating the freshly-inserted table is harder than it looks. The Docs API
+// guarantees that InsertTableRequest inserts a newline before the table, and
+// our markdown-append path additionally pre-inserts a placeholder "\n" at
+// tableStartIndex so the table lands cleanly between structural elements.
+// Depending on the surrounding doc state the table's reported StartIndex can
+// therefore be tableStartIndex, tableStartIndex+1, or a few code units beyond
+// — observed real-world drift exceeds the ±2 window the original
+// implementation used, producing
+// `insert native table: table not found near index N` on append (#592).
+//
+// Strategy: find the Table element whose StartIndex is closest to
+// tableStartIndex among all tables in the body, with a small tolerance for
+// any backward shift. InsertTable can only push existing content forward, so
+// the freshly-inserted table's StartIndex is always >= tableStartIndex minus
+// at most a small constant; we prefer the nearest match.
 func (ti *TableInserter) getTableCellIndices(doc *docs.Document, tableStartIndex int64, rows, cols int64) ([][]int64, int64, error) {
 	cellIndices := make([][]int64, rows)
 	for i := range cellIndices {
@@ -162,43 +179,65 @@ func (ti *TableInserter) getTableCellIndices(doc *docs.Document, tableStartIndex
 
 	var tableEndIndex int64
 
-	// Find the table in the document
 	if doc.Body == nil {
 		return cellIndices, tableEndIndex, fmt.Errorf("document body is nil")
 	}
 
-	// Look for table element starting near tableStartIndex
-	for _, element := range doc.Body.Content {
-		if element.Table != nil {
-			// Check if this is our table (starts near the expected index)
-			if element.StartIndex >= tableStartIndex-2 && element.StartIndex <= tableStartIndex+2 {
-				tableEndIndex = element.EndIndex
+	matched := pickTableNear(doc.Body.Content, tableStartIndex)
+	if matched == nil {
+		return cellIndices, tableEndIndex, fmt.Errorf("table not found near index %d", tableStartIndex)
+	}
 
-				// Extract cell indices from table
-				for rowIdx, row := range element.Table.TableRows {
-					if rowIdx >= int(rows) {
-						break
-					}
-					for colIdx, cell := range row.TableCells {
-						if colIdx >= int(cols) {
-							break
-						}
-						// Cell content starts at StartIndex + 1 (after the cell start marker)
-						if len(cell.Content) > 0 {
-							cellIndices[rowIdx][colIdx] = cell.Content[0].StartIndex
-						}
-					}
-				}
+	tableEndIndex = matched.EndIndex
+	for rowIdx, row := range matched.Table.TableRows {
+		if rowIdx >= int(rows) {
+			break
+		}
+		for colIdx, cell := range row.TableCells {
+			if colIdx >= int(cols) {
 				break
+			}
+			// Cell content starts at the cell's first paragraph StartIndex.
+			if len(cell.Content) > 0 {
+				cellIndices[rowIdx][colIdx] = cell.Content[0].StartIndex
 			}
 		}
 	}
 
-	if tableEndIndex == 0 {
-		return cellIndices, tableEndIndex, fmt.Errorf("table not found near index %d", tableStartIndex)
-	}
-
 	return cellIndices, tableEndIndex, nil
+}
+
+// pickTableNear returns the structural element in content that is most likely
+// the table we just asked the Docs API to insert near tableStartIndex. It
+// prefers Table elements at or after tableStartIndex (since InsertTable can
+// only shift existing content forward), but allows a small backward tolerance
+// to absorb any minor index quirks. Among candidates it picks the closest
+// StartIndex, which uniquely identifies the freshly-inserted table even if
+// the document already contains other tables.
+func pickTableNear(content []*docs.StructuralElement, tableStartIndex int64) *docs.StructuralElement {
+	// Backward tolerance: 2 keeps us robust against the original ±2 search
+	// while still ruling out tables that live far above the insertion point.
+	const backwardTolerance int64 = 2
+
+	var best *docs.StructuralElement
+	var bestDist int64
+	for _, element := range content {
+		if element == nil || element.Table == nil {
+			continue
+		}
+		if element.StartIndex < tableStartIndex-backwardTolerance {
+			continue
+		}
+		dist := element.StartIndex - tableStartIndex
+		if dist < 0 {
+			dist = -dist
+		}
+		if best == nil || dist < bestDist {
+			best = element
+			bestDist = dist
+		}
+	}
+	return best
 }
 
 // updateIndicesAfter updates cell indices after text insertion
