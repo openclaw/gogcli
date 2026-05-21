@@ -112,7 +112,7 @@ func TestMarkdownToDocsRequests_AppendBulletsAndCode(t *testing.T) {
 			switch r.CreateParagraphBullets.BulletPreset {
 			case "BULLET_DISC_CIRCLE_SQUARE":
 				bulletDisc++
-			case "NUMBERED_DECIMAL_NESTED":
+			case bulletPresetNumbered:
 				bulletNumbered++
 			}
 		}
@@ -137,7 +137,7 @@ func TestMarkdownToDocsRequests_AppendBulletsAndCode(t *testing.T) {
 		t.Errorf("expected at least 2 BULLET_DISC_CIRCLE_SQUARE CreateParagraphBullets, got %d", bulletDisc)
 	}
 	if bulletNumbered < 1 {
-		t.Errorf("expected at least 1 NUMBERED_DECIMAL_NESTED CreateParagraphBullets, got %d", bulletNumbered)
+		t.Errorf("expected at least 1 %s CreateParagraphBullets, got %d", bulletPresetNumbered, bulletNumbered)
 	}
 	if codeShading != 1 {
 		t.Errorf("expected exactly 1 paragraph shading request for the code block, got %d", codeShading)

@@ -234,7 +234,7 @@ func inferBulletPreset(doc *docs.Document, listID string) string {
 		switch levels[0].GlyphType {
 		case "DECIMAL", "ZERO_DECIMAL", "UPPER_ALPHA", "ALPHA",
 			"UPPER_ROMAN", "ROMAN":
-			return "NUMBERED_DECIMAL_NESTED"
+			return bulletPresetNumbered
 		}
 	}
 

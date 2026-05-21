@@ -204,7 +204,7 @@ func MarkdownToDocsRequests(elements []MarkdownElement, baseIndex int64, tabID s
 
 			bulletPreset := bulletPresetDisc
 			if el.Type == MDNumberedList {
-				bulletPreset = "NUMBERED_DECIMAL_NESTED"
+				bulletPreset = bulletPresetNumbered
 			}
 			requests = append(requests, &docs.Request{
 				CreateParagraphBullets: &docs.CreateParagraphBulletsRequest{

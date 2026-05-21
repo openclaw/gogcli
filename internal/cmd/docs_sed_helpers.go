@@ -71,6 +71,9 @@ const blockquotePaddingPt = 12.0
 // bulletPresetDisc is the default unordered bullet preset.
 const bulletPresetDisc = "BULLET_DISC_CIRCLE_SQUARE"
 
+// bulletPresetNumbered is the default numbered-list preset.
+const bulletPresetNumbered = "NUMBERED_DECIMAL_NESTED"
+
 // Table cell operation constants.
 const (
 	opAppend = "append"
@@ -263,7 +266,7 @@ func buildParagraphStyleRequests(formats []string, start, end int64) []*docs.Req
 		case "checkbox":
 			bulletPreset = "BULLET_CHECKBOX"
 		case "numbered":
-			bulletPreset = "NUMBERED_DECIMAL_NESTED"
+			bulletPreset = bulletPresetNumbered
 		case "blockquote":
 			isBlockquote = true
 		}

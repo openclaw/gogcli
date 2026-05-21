@@ -240,7 +240,7 @@ func TestInferBulletPreset(t *testing.T) {
 			},
 		},
 	}
-	assert.Equal(t, "NUMBERED_DECIMAL_NESTED", inferBulletPreset(doc, "list2"))
+	assert.Equal(t, bulletPresetNumbered, inferBulletPreset(doc, "list2"))
 
 	// Ordered list (UPPER_ALPHA)
 	doc.Lists["list3"] = docs.List{
@@ -250,7 +250,7 @@ func TestInferBulletPreset(t *testing.T) {
 			},
 		},
 	}
-	assert.Equal(t, "NUMBERED_DECIMAL_NESTED", inferBulletPreset(doc, "list3"))
+	assert.Equal(t, bulletPresetNumbered, inferBulletPreset(doc, "list3"))
 }
 
 func TestBuildTextStyleRequests_Superscript(t *testing.T) {
