@@ -183,7 +183,7 @@ func (ti *TableInserter) getTableCellIndices(doc *docs.Document, tableStartIndex
 		return cellIndices, tableEndIndex, fmt.Errorf("document body is nil")
 	}
 
-	matched := pickTableNear(doc.Body.Content, tableStartIndex)
+	matched := pickTableNear(doc.Body.Content, tableStartIndex, rows, cols)
 	if matched == nil {
 		return cellIndices, tableEndIndex, fmt.Errorf("table not found near index %d", tableStartIndex)
 	}
@@ -214,7 +214,7 @@ func (ti *TableInserter) getTableCellIndices(doc *docs.Document, tableStartIndex
 // to absorb any minor index quirks. Among candidates it picks the closest
 // StartIndex, which uniquely identifies the freshly-inserted table even if
 // the document already contains other tables.
-func pickTableNear(content []*docs.StructuralElement, tableStartIndex int64) *docs.StructuralElement {
+func pickTableNear(content []*docs.StructuralElement, tableStartIndex, rows, cols int64) *docs.StructuralElement {
 	// Backward tolerance: 2 keeps us robust against the original ±2 search
 	// while still ruling out tables that live far above the insertion point.
 	const backwardTolerance int64 = 2
@@ -223,6 +223,9 @@ func pickTableNear(content []*docs.StructuralElement, tableStartIndex int64) *do
 	var bestDist int64
 	for _, element := range content {
 		if element == nil || element.Table == nil {
+			continue
+		}
+		if element.Table.Rows != rows || element.Table.Columns != cols {
 			continue
 		}
 		if element.StartIndex < tableStartIndex-backwardTolerance {

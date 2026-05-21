@@ -329,7 +329,7 @@ func TestPickTableNear_PrefersClosestForwardMatch(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := pickTableNear(tt.content, tt.target)
+			got := pickTableNear(tt.content, tt.target, 1, 1)
 			if tt.wantNilHit {
 				if got != nil {
 					t.Fatalf("expected nil, got element at %d", got.StartIndex)
@@ -343,6 +343,27 @@ func TestPickTableNear_PrefersClosestForwardMatch(t *testing.T) {
 				t.Fatalf("matched StartIndex = %d, want %d", got.StartIndex, tt.wantStart)
 			}
 		})
+	}
+}
+
+func TestPickTableNear_IgnoresWrongDimensions(t *testing.T) {
+	mkTable := func(start, end, rows, cols int64) *docs.StructuralElement {
+		return &docs.StructuralElement{
+			StartIndex: start,
+			EndIndex:   end,
+			Table:      &docs.Table{Rows: rows, Columns: cols, TableRows: []*docs.TableRow{}},
+		}
+	}
+
+	got := pickTableNear([]*docs.StructuralElement{
+		mkTable(101, 121, 1, 1),
+		mkTable(105, 145, 2, 3),
+	}, 100, 2, 3)
+	if got == nil {
+		t.Fatal("expected matching table")
+	}
+	if got.StartIndex != 105 {
+		t.Fatalf("matched StartIndex = %d, want 105", got.StartIndex)
 	}
 }
 
