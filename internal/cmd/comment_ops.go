@@ -25,6 +25,28 @@ const (
 	driveResolveReplyCreateFields = "id, author, content, createdTime, action"
 )
 
+// driveReplyActions are the values the Drive Reply.action field accepts.
+// See https://developers.google.com/drive/api/reference/rest/v3/replies.
+const (
+	driveReplyActionResolve = "resolve"
+	driveReplyActionReopen  = "reopen"
+)
+
+// validateDriveReplyAction returns the canonical (lower-case) form of action
+// or an error if it is not one of "", "resolve", or "reopen".
+func validateDriveReplyAction(action string) (string, error) {
+	switch strings.ToLower(strings.TrimSpace(action)) {
+	case "":
+		return "", nil
+	case driveReplyActionResolve:
+		return driveReplyActionResolve, nil
+	case driveReplyActionReopen:
+		return driveReplyActionReopen, nil
+	default:
+		return "", fmt.Errorf("invalid --action %q: expected \"resolve\" or \"reopen\"", action)
+	}
+}
+
 type driveCommentListMode int
 
 const (
@@ -320,32 +342,67 @@ func createDriveReply(ctx context.Context, svc *drive.Service, fileID, commentID
 		Do()
 }
 
-func resolveDriveComment(ctx context.Context, svc *drive.Service, fileID, commentID, message string) (*drive.Reply, error) {
-	reply := &drive.Reply{Action: "resolve"}
-	if msg := strings.TrimSpace(message); msg != "" {
+// createDriveReplyWithAction posts a reply that also flips the parent comment's
+// resolved state when action is "resolve" or "reopen". An empty action behaves
+// like createDriveReply. Content may be empty when action is set — the API
+// accepts an action-only reply.
+func createDriveReplyWithAction(ctx context.Context, svc *drive.Service, fileID, commentID, content, action string) (*drive.Reply, error) {
+	reply := &drive.Reply{}
+	if msg := strings.TrimSpace(content); msg != "" {
 		reply.Content = msg
 	}
+	fields := gapi.Field(driveReplyCreateFields)
+	if action != "" {
+		reply.Action = action
+		fields = gapi.Field(driveResolveReplyCreateFields)
+	}
 	return svc.Replies.Create(fileID, commentID, reply).
-		Fields(driveResolveReplyCreateFields).
+		Fields(fields).
 		Context(ctx).
 		Do()
 }
 
+func resolveDriveComment(ctx context.Context, svc *drive.Service, fileID, commentID, message string) (*drive.Reply, error) {
+	return createDriveReplyWithAction(ctx, svc, fileID, commentID, message, driveReplyActionResolve)
+}
+
+func reopenDriveComment(ctx context.Context, svc *drive.Service, fileID, commentID, message string) (*drive.Reply, error) {
+	return createDriveReplyWithAction(ctx, svc, fileID, commentID, message, driveReplyActionReopen)
+}
+
 func writeDriveReplyMutation(ctx context.Context, u *ui.UI, reply *drive.Reply, resolved bool, resourceKey, resourceID, commentID string) error {
+	return writeDriveReplyMutationWithAction(ctx, u, reply, resolved, "", resourceKey, resourceID, commentID)
+}
+
+// writeDriveReplyMutationWithAction renders a reply creation result. When
+// resolved is true and action is set, the envelope reflects the action
+// ("resolved" or "reopened") instead of always saying "resolved". For backward
+// compatibility, action="" with resolved=true falls back to "resolved".
+func writeDriveReplyMutationWithAction(ctx context.Context, u *ui.UI, reply *drive.Reply, resolved bool, action, resourceKey, resourceID, commentID string) error {
 	if outfmt.IsJSON(ctx) {
 		if resolved {
-			return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
-				"resolved":  true,
+			envelope := map[string]any{
 				resourceKey: resourceID,
 				"commentId": commentID,
 				"reply":     reply,
-			})
+			}
+			switch action {
+			case driveReplyActionReopen:
+				envelope["reopened"] = true
+			case driveReplyActionResolve, "":
+				envelope["resolved"] = true
+			}
+			return outfmt.WriteJSON(ctx, os.Stdout, envelope)
 		}
 		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{"reply": reply})
 	}
 
 	if resolved {
-		u.Out().Linef("resolved\ttrue")
+		label := "resolved"
+		if action == driveReplyActionReopen {
+			label = "reopened"
+		}
+		u.Out().Linef("%s\ttrue", label)
 		u.Out().Linef("%s\t%s", resourceKey, resourceID)
 		u.Out().Linef("commentId\t%s", commentID)
 		return nil

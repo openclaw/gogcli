@@ -10,12 +10,14 @@ import (
 
 // DriveCommentsCmd is the parent command for comments subcommands
 type DriveCommentsCmd struct {
-	List   DriveCommentsListCmd   `cmd:"" name:"list" aliases:"ls" help:"List comments on a file"`
-	Get    DriveCommentsGetCmd    `cmd:"" name:"get" aliases:"info,show" help:"Get a comment by ID"`
-	Create DriveCommentsCreateCmd `cmd:"" name:"create" aliases:"add,new" help:"Create a comment on a file"`
-	Update DriveCommentsUpdateCmd `cmd:"" name:"update" aliases:"edit,set" help:"Update a comment"`
-	Delete DriveCommentsDeleteCmd `cmd:"" name:"delete" aliases:"rm,del,remove" help:"Delete a comment"`
-	Reply  DriveCommentReplyCmd   `cmd:"" name:"reply" aliases:"respond" help:"Reply to a comment"`
+	List    DriveCommentsListCmd    `cmd:"" name:"list" aliases:"ls" help:"List comments on a file"`
+	Get     DriveCommentsGetCmd     `cmd:"" name:"get" aliases:"info,show" help:"Get a comment by ID"`
+	Create  DriveCommentsCreateCmd  `cmd:"" name:"create" aliases:"add,new" help:"Create a comment on a file"`
+	Update  DriveCommentsUpdateCmd  `cmd:"" name:"update" aliases:"edit,set" help:"Update a comment"`
+	Delete  DriveCommentsDeleteCmd  `cmd:"" name:"delete" aliases:"rm,del,remove" help:"Delete a comment"`
+	Reply   DriveCommentReplyCmd    `cmd:"" name:"reply" aliases:"respond" help:"Reply to a comment"`
+	Resolve DriveCommentsResolveCmd `cmd:"" name:"resolve" help:"Resolve a comment (mark as done)"`
+	Reopen  DriveCommentsReopenCmd  `cmd:"" name:"reopen" help:"Reopen a previously resolved comment"`
 }
 
 type DriveCommentsListCmd struct {
@@ -210,6 +212,7 @@ type DriveCommentReplyCmd struct {
 	FileID    string `arg:"" name:"fileId" help:"File ID"`
 	CommentID string `arg:"" name:"commentId" help:"Comment ID"`
 	Content   string `arg:"" name:"content" help:"Reply text"`
+	Action    string `name:"action" enum:"resolve,reopen," default:"" help:"Optional action to take on the parent comment alongside the reply: resolve|reopen"`
 }
 
 func (c *DriveCommentReplyCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -226,11 +229,16 @@ func (c *DriveCommentReplyCmd) Run(ctx context.Context, flags *RootFlags) error 
 	if content == "" {
 		return usage("empty content")
 	}
+	action, err := validateDriveReplyAction(c.Action)
+	if err != nil {
+		return usage(err.Error())
+	}
 
 	if err := dryRunExit(ctx, flags, "drive.comments.reply", map[string]any{
 		"file_id":    fileID,
 		"comment_id": commentID,
 		"content":    content,
+		"action":     action,
 	}); err != nil {
 		return err
 	}
@@ -239,9 +247,85 @@ func (c *DriveCommentReplyCmd) Run(ctx context.Context, flags *RootFlags) error 
 	if err != nil {
 		return err
 	}
-	created, err := createDriveReply(ctx, svc, fileID, commentID, content)
+	created, err := createDriveReplyWithAction(ctx, svc, fileID, commentID, content, action)
 	if err != nil {
 		return err
 	}
-	return writeDriveReplyMutation(ctx, u, created, false, "", "", "")
+	resolved := action == driveReplyActionResolve || action == driveReplyActionReopen
+	return writeDriveReplyMutationWithAction(ctx, u, created, resolved, action, "fileId", fileID, commentID)
+}
+
+// DriveCommentsResolveCmd resolves a comment by posting an action="resolve" reply.
+type DriveCommentsResolveCmd struct {
+	FileID    string `arg:"" name:"fileId" help:"File ID"`
+	CommentID string `arg:"" name:"commentId" help:"Comment ID"`
+	Message   string `name:"message" short:"m" help:"Optional message to include when resolving"`
+}
+
+func (c *DriveCommentsResolveCmd) Run(ctx context.Context, flags *RootFlags) error {
+	u := ui.FromContext(ctx)
+	fileID := normalizeGoogleID(strings.TrimSpace(c.FileID))
+	commentID := strings.TrimSpace(c.CommentID)
+	if fileID == "" {
+		return usage("empty fileId")
+	}
+	if commentID == "" {
+		return usage("empty commentId")
+	}
+
+	if err := dryRunExit(ctx, flags, "drive.comments.resolve", map[string]any{
+		"file_id":    fileID,
+		"comment_id": commentID,
+		"message":    strings.TrimSpace(c.Message),
+	}); err != nil {
+		return err
+	}
+
+	_, svc, err := requireDriveService(ctx, flags)
+	if err != nil {
+		return err
+	}
+	created, err := resolveDriveComment(ctx, svc, fileID, commentID, c.Message)
+	if err != nil {
+		return err
+	}
+	return writeDriveReplyMutationWithAction(ctx, u, created, true, driveReplyActionResolve, "fileId", fileID, commentID)
+}
+
+// DriveCommentsReopenCmd reopens a previously resolved comment by posting an
+// action="reopen" reply.
+type DriveCommentsReopenCmd struct {
+	FileID    string `arg:"" name:"fileId" help:"File ID"`
+	CommentID string `arg:"" name:"commentId" help:"Comment ID"`
+	Message   string `name:"message" short:"m" help:"Optional message to include when reopening"`
+}
+
+func (c *DriveCommentsReopenCmd) Run(ctx context.Context, flags *RootFlags) error {
+	u := ui.FromContext(ctx)
+	fileID := normalizeGoogleID(strings.TrimSpace(c.FileID))
+	commentID := strings.TrimSpace(c.CommentID)
+	if fileID == "" {
+		return usage("empty fileId")
+	}
+	if commentID == "" {
+		return usage("empty commentId")
+	}
+
+	if err := dryRunExit(ctx, flags, "drive.comments.reopen", map[string]any{
+		"file_id":    fileID,
+		"comment_id": commentID,
+		"message":    strings.TrimSpace(c.Message),
+	}); err != nil {
+		return err
+	}
+
+	_, svc, err := requireDriveService(ctx, flags)
+	if err != nil {
+		return err
+	}
+	created, err := reopenDriveComment(ctx, svc, fileID, commentID, c.Message)
+	if err != nil {
+		return err
+	}
+	return writeDriveReplyMutationWithAction(ctx, u, created, true, driveReplyActionReopen, "fileId", fileID, commentID)
 }
