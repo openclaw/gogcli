@@ -112,6 +112,17 @@ gog docs write <docId> --append --tab "Notes" --text "Follow-up"
 gog docs find-replace <docId> old new --tab "Notes" --dry-run
 ```
 
+Re-render an entire tab from a markdown source-of-truth file with
+`--replace --markdown --tab`:
+
+```bash
+gog docs write <docId> --replace --markdown --tab "Gold list" --file gold.md
+```
+
+Drive's markdown converter is whole-document-only, so this path wipes the
+targeted tab's content via `DeleteContentRange` and re-renders the markdown
+locally through the Docs API. Other tabs are untouched.
+
 Command pages:
 
 - [`gog docs list-tabs`](commands/gog-docs-list-tabs.md)

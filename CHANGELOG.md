@@ -12,6 +12,7 @@
 - Docs: add `--heading-level N` (1..6 shortcut) and `--named-style NAME` (full enum) to `gog docs format` so existing paragraphs can be promoted to `HEADING_1`..`HEADING_6`, `TITLE`, `SUBTITLE`, or `NORMAL_TEXT`. Both set `paragraphStyle.namedStyleType` on the existing UpdateParagraphStyle request and compose cleanly with `--alignment` / `--line-spacing`. (#605)
 - Sheets: add `gog sheets reorder-tab <spreadsheetId> --tab=<name|sheetId> --to=N` to move a tab to a specific 0-based position via `updateSheetProperties` with field mask `index`. `--tab` accepts a title or a numeric sheet ID; `--to=0` is force-sent so the leftmost target reaches the wire as `"index":0`. Aliases: `move-tab`, `reorder-sheet`, `move-sheet`. (#603)
 - Docs: add `gog docs insert-table <docId> --rows N --cols M [--index N | --at-end] [--values-json [[...]]] [--tab=STRING]` to insert a native Google Docs table directly via `InsertTableRequest`, bypassing the markdown writer. `--values-json` takes a JSON 2D string array whose dimensions must match `--rows`x`--cols`. Empty `--values-json` produces an empty table structure. (#602)
+- Docs: `gog docs write --replace --markdown --tab=<tab>` now performs a whole-tab re-render — the targeted tab's existing body is wiped via `DeleteContentRange` and the markdown is re-rendered locally via the same Docs `batchUpdate` path used by `--append --markdown`, so other tabs are untouched. Previously this combination errored because Drive's markdown converter operates on entire documents only. (#595)
 
 ### Fixed
 

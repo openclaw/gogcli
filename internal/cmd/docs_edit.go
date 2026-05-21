@@ -219,10 +219,11 @@ func (c *DocsWriteCmd) writeMarkdown(ctx context.Context, flags *RootFlags, docI
 	if !c.Replace {
 		return usage("--markdown requires --replace or --append")
 	}
-	// Tab support for markdown replace is limited because Drive's markdown
-	// converter doesn't support tab-specific updates, so we skip tab support here.
+	// Drive's markdown converter operates on entire documents, so we cannot use
+	// the Drive Files.Update path when --tab is set. Instead, render markdown
+	// locally and apply it to the specified tab via Docs batchUpdate.
 	if c.Tab != "" {
-		return usage("--markdown with --replace does not support --tab (Drive's markdown converter operates on entire documents)")
+		return c.replaceMarkdownInTab(ctx, flags, docID, content)
 	}
 
 	cleaned, images := extractMarkdownImages(content)
@@ -357,6 +358,94 @@ func (c *DocsWriteCmd) appendMarkdown(ctx context.Context, flags *RootFlags, doc
 	u.Out().Linef("requests\t%d", requestCount)
 	u.Out().Linef("mode\tappended (markdown converted)")
 	u.Out().Linef("index\t%d", insertIndex)
+	if c.Pageless {
+		u.Out().Linef("pageless\ttrue")
+	}
+	return nil
+}
+
+// replaceMarkdownInTab implements --replace --markdown --tab=<tab>. Drive's
+// markdown converter is whole-document-only, so per-tab whole-tab re-render
+// is achieved at the gogcli layer: render markdown locally with the same
+// Docs API path used by --append --markdown, after wiping the tab's existing
+// body content via DeleteContentRange. Other tabs are untouched.
+func (c *DocsWriteCmd) replaceMarkdownInTab(ctx context.Context, flags *RootFlags, docID, content string) error {
+	cleaned, images := extractMarkdownImages(content)
+	if err := dryRunExit(ctx, flags, "docs.write", map[string]any{
+		"document_id": docID,
+		"written":     len(cleaned),
+		"append":      false,
+		"replace":     true,
+		"markdown":    true,
+		"pageless":    c.Pageless,
+		"tab":         c.Tab,
+		"images":      len(images),
+	}); err != nil {
+		return err
+	}
+
+	svc, err := requireDocsService(ctx, flags)
+	if err != nil {
+		return err
+	}
+
+	endIndex, tabID, err := docsTargetEndIndexAndTabID(ctx, svc, docID, c.Tab)
+	if err != nil {
+		return err
+	}
+	c.Tab = tabID
+
+	// Wipe existing tab body (everything between the implicit start index 1
+	// and the last segment endIndex - 1). Skipped when the tab is already
+	// empty (endIndex <= 2 means a single newline segment).
+	deleteEnd := endIndex - 1
+	if deleteEnd > 1 {
+		if _, derr := svc.Documents.BatchUpdate(docID, &docs.BatchUpdateDocumentRequest{
+			Requests: []*docs.Request{{
+				DeleteContentRange: &docs.DeleteContentRangeRequest{
+					Range: &docs.Range{StartIndex: 1, EndIndex: deleteEnd, TabId: tabID},
+				},
+			}},
+		}).Context(ctx).Do(); derr != nil {
+			if isDocsNotFound(derr) {
+				return fmt.Errorf("doc not found or not a Google Doc (id=%s)", docID)
+			}
+			return fmt.Errorf("clear tab content: %w", derr)
+		}
+	}
+
+	requestCount, inserted, err := insertDocsMarkdownAt(ctx, svc, docID, 1, content, tabID)
+	if err != nil {
+		if isDocsNotFound(err) {
+			return fmt.Errorf("doc not found or not a Google Doc (id=%s)", docID)
+		}
+		return err
+	}
+	if err := c.applyPageless(ctx, svc, docID); err != nil {
+		return err
+	}
+
+	if outfmt.IsJSON(ctx) {
+		payload := map[string]any{
+			"documentId": docID,
+			"written":    inserted,
+			"requests":   requestCount,
+			"replaced":   true,
+			"markdown":   true,
+			"tabId":      tabID,
+		}
+		if c.Pageless {
+			payload["pageless"] = true
+		}
+		return outfmt.WriteJSON(ctx, os.Stdout, payload)
+	}
+
+	u := ui.FromContext(ctx)
+	u.Out().Linef("documentId\t%s", docID)
+	u.Out().Linef("written\t%d", inserted)
+	u.Out().Linef("requests\t%d", requestCount)
+	u.Out().Linef("mode\treplaced tab (markdown converted)")
+	u.Out().Linef("tabId\t%s", tabID)
 	if c.Pageless {
 		u.Out().Linef("pageless\ttrue")
 	}
