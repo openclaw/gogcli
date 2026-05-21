@@ -408,6 +408,57 @@ func TestDocsFindReplace_MarkdownMode(t *testing.T) {
 	}
 }
 
+func TestDocsFindReplace_MarkdownCodeBlockStartsFreshParagraphWhenInline(t *testing.T) {
+	origDocs := newDocsService
+	t.Cleanup(func() { newDocsService = origDocs })
+
+	var batchCalls []docs.BatchUpdateDocumentRequest
+	docSvc, cleanup := newDocsServiceForTest(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, "/v1/documents/"):
+			_ = json.NewEncoder(w).Encode(docBodyWithText("Hello {{x}} world\n"))
+		case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, ":batchUpdate"):
+			var req docs.BatchUpdateDocumentRequest
+			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+				t.Fatalf("decode batchUpdate: %v", err)
+			}
+			batchCalls = append(batchCalls, req)
+			_ = json.NewEncoder(w).Encode(map[string]any{"documentId": "doc1"})
+		default:
+			http.NotFound(w, r)
+		}
+	})
+	defer cleanup()
+	newDocsService = func(context.Context, string) (*docs.Service, error) { return docSvc, nil }
+
+	contentFile := t.TempDir() + "/replacement.md"
+	if err := os.WriteFile(contentFile, []byte("```\nline1\nline2\n```"), 0o600); err != nil {
+		t.Fatalf("write replacement: %v", err)
+	}
+
+	flags := &RootFlags{Account: "a@b.com"}
+	cmd := &DocsFindReplaceCmd{}
+	err := runKong(t, cmd, []string{"doc1", "{{x}}", "--content-file", contentFile, "--format", "markdown", "--first"}, newDocsCmdContext(t), flags)
+	if err != nil {
+		t.Fatalf("docs find-replace --format markdown --first: %v", err)
+	}
+
+	if len(batchCalls) != 1 {
+		t.Fatalf("expected 1 batchUpdate call, got %d", len(batchCalls))
+	}
+	reqs := batchCalls[0].Requests
+	if len(reqs) != 4 {
+		t.Fatalf("expected delete, insert, code font, and code shading requests, got %#v", reqs)
+	}
+	if got := reqs[1].InsertText; got == nil || got.Location.Index != 7 || got.Text != "\nline1"+docsSoftLineBreak+"line2\n" {
+		t.Fatalf("unexpected insert request: %#v", got)
+	}
+	if got := reqs[3].UpdateParagraphStyle; got == nil || got.Range.StartIndex != 8 || got.Range.EndIndex != 20 {
+		t.Fatalf("unexpected code shading request: %#v", got)
+	}
+}
+
 func hasTextStyleRequest(reqs []*docs.Request, pred func(*docs.TextStyle) bool) bool {
 	for _, req := range reqs {
 		if req.UpdateTextStyle != nil && req.UpdateTextStyle.TextStyle != nil && pred(req.UpdateTextStyle.TextStyle) {

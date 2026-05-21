@@ -119,7 +119,13 @@ func replaceDocsTextRange(ctx context.Context, svc *docs.Service, doc *docs.Docu
 func replaceDocsMarkdownRange(ctx context.Context, svc *docs.Service, doc *docs.Document, startIdx, endIdx int64, replaceText string, tabID string) error {
 	cleaned, images := extractMarkdownImages(replaceText)
 	elements := ParseMarkdown(cleaned)
-	formattingRequests, textToInsert, tables := MarkdownToDocsRequests(elements, startIdx, tabID)
+	prefix := ""
+	baseIndex := startIdx
+	if markdownReplaceNeedsParagraphBoundary(doc, startIdx, tabID, elements) {
+		prefix = "\n"
+		baseIndex++
+	}
+	formattingRequests, textToInsert, tables := MarkdownToDocsRequests(elements, baseIndex, tabID)
 
 	for _, req := range formattingRequests {
 		if req.UpdateTextStyle != nil && req.UpdateTextStyle.Range != nil {
@@ -146,7 +152,7 @@ func replaceDocsMarkdownRange(ctx context.Context, svc *docs.Service, doc *docs.
 		requests = append(requests, &docs.Request{
 			InsertText: &docs.InsertTextRequest{
 				Location: &docs.Location{Index: startIdx, TabId: tabID},
-				Text:     textToInsert,
+				Text:     prefix + textToInsert,
 			},
 		})
 		requests = append(requests, formattingRequests...)
@@ -182,6 +188,10 @@ func replaceDocsMarkdownRange(ctx context.Context, svc *docs.Service, doc *docs.
 	}
 
 	return nil
+}
+
+func markdownReplaceNeedsParagraphBoundary(doc *docs.Document, startIdx int64, tabID string, elements []MarkdownElement) bool {
+	return markdownAppendNeedsParagraphBoundary(elements) && !docRangeStartsParagraph(doc, startIdx, tabID)
 }
 
 func insertDocsMarkdownAt(ctx context.Context, svc *docs.Service, docID string, insertIdx int64, content string, tabID string) (requestCount int, inserted int, err error) {
@@ -263,6 +273,57 @@ func markdownAppendNeedsParagraphBoundary(elements []MarkdownElement) bool {
 	default:
 		return true
 	}
+}
+
+func docRangeStartsParagraph(doc *docs.Document, startIdx int64, tabID string) bool {
+	if doc == nil {
+		return false
+	}
+	if tabID != "" {
+		tab, err := findTab(flattenTabs(doc.Tabs), tabID)
+		if err != nil || tab.DocumentTab == nil {
+			return false
+		}
+		return bodyHasParagraphStart(tab.DocumentTab.Body, startIdx)
+	}
+	return bodyHasParagraphStart(doc.Body, startIdx)
+}
+
+func bodyHasParagraphStart(body *docs.Body, startIdx int64) bool {
+	if body == nil {
+		return false
+	}
+	return elementsHaveParagraphStart(body.Content, startIdx)
+}
+
+func elementsHaveParagraphStart(elements []*docs.StructuralElement, startIdx int64) bool {
+	for _, el := range elements {
+		if el == nil {
+			continue
+		}
+		if el.Paragraph != nil && paragraphTextStart(el) == startIdx {
+			return true
+		}
+		if el.Table != nil {
+			for _, row := range el.Table.TableRows {
+				for _, cell := range row.TableCells {
+					if elementsHaveParagraphStart(cell.Content, startIdx) {
+						return true
+					}
+				}
+			}
+		}
+	}
+	return false
+}
+
+func paragraphTextStart(el *docs.StructuralElement) int64 {
+	for _, pe := range el.Paragraph.Elements {
+		if pe != nil && pe.TextRun != nil {
+			return pe.StartIndex
+		}
+	}
+	return el.StartIndex
 }
 
 func cleanupDocsImagePlaceholders(ctx context.Context, svc *docs.Service, docID string, images []markdownImage, tabID string) {
