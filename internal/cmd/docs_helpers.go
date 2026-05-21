@@ -56,11 +56,17 @@ func docsWebViewLink(id string) string {
 }
 
 func setDocumentPageless(ctx context.Context, svc *docs.Service, docID string) error {
+	return setDocumentMode(ctx, svc, docID, "PAGELESS")
+}
+
+// setDocumentMode toggles documentStyle.documentFormat.documentMode between
+// "PAGES" and "PAGELESS" via a single batchUpdate call.
+func setDocumentMode(ctx context.Context, svc *docs.Service, docID, mode string) error {
 	_, err := svc.Documents.BatchUpdate(docID, &docs.BatchUpdateDocumentRequest{
 		Requests: []*docs.Request{{
 			UpdateDocumentStyle: &docs.UpdateDocumentStyleRequest{
 				DocumentStyle: &docs.DocumentStyle{
-					DocumentFormat: &docs.DocumentFormat{DocumentMode: "PAGELESS"},
+					DocumentFormat: &docs.DocumentFormat{DocumentMode: mode},
 				},
 				Fields: "documentFormat",
 			},
