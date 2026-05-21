@@ -1,6 +1,9 @@
 package cmd
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestMarkdownToDocsRequests_BaseIndex(t *testing.T) {
 	elements := []MarkdownElement{{Type: MDParagraph, Content: "**bold**"}}
@@ -37,5 +40,112 @@ func TestMarkdownToDocsRequests_TableStartIndexUsesBase(t *testing.T) {
 	}
 	if tables[0].StartIndex != 12 {
 		t.Fatalf("unexpected table start index: %d", tables[0].StartIndex)
+	}
+}
+
+// TestMarkdownToDocsRequests_AppendBulletsAndCode is a regression test for
+// #594. The append path used to inline literal "• " glyphs for bullet lists
+// (leaving paragraphs as NORMAL_TEXT) and split fenced code blocks into one
+// Courier-styled NORMAL_TEXT paragraph per source line with no contiguous
+// shading. The fix routes bullets through CreateParagraphBullets and joins
+// code-block lines with vertical-tab soft breaks so the whole block is one
+// shaded paragraph.
+func TestMarkdownToDocsRequests_AppendBulletsAndCode(t *testing.T) {
+	input := strings.Join([]string{
+		"- **First** — bullet one.",
+		"- Second item.",
+		"1. step one",
+		"```",
+		"line 1",
+		"line 2",
+		"line 3",
+		"```",
+	}, "\n")
+
+	elements := ParseMarkdown(input)
+	requests, text, _ := MarkdownToDocsRequests(elements, 1, "")
+
+	// The plain text fed to InsertText must NOT contain the literal "• "
+	// glyph or the "1. " numeric prefix — those have to come from the
+	// paragraph style, not the text run, otherwise the resulting paragraph
+	// is NORMAL_TEXT with a glyph baked in (the #594 symptom).
+	if strings.Contains(text, "• ") {
+		t.Fatalf("text run still contains literal bullet glyph: %q", text)
+	}
+	if strings.Contains(text, "1. step one") {
+		t.Fatalf("text run still contains literal numbered prefix: %q", text)
+	}
+	if !strings.Contains(text, "First — bullet one.\n") {
+		t.Fatalf("expected bullet text content stripped of glyph, got %q", text)
+	}
+	if !strings.Contains(text, "step one\n") {
+		t.Fatalf("expected numbered list content stripped of prefix, got %q", text)
+	}
+
+	// The fenced code block lines must end up inside a SINGLE paragraph,
+	// joined by vertical-tab soft line breaks (Docs treats \v as a
+	// line-break-within-paragraph), so a single paragraph-level shading
+	// covers the whole block.
+	if !strings.Contains(text, "line 1\vline 2\vline 3\n") {
+		t.Fatalf("expected code block lines joined by \\v soft breaks, got %q", text)
+	}
+	if strings.Contains(text, "line 1\nline 2") {
+		t.Fatalf("code block was split into separate paragraphs: %q", text)
+	}
+
+	// We expect at least:
+	//   - 2 CreateParagraphBullets requests for the two bullet items
+	//     (NB: they may be one per item; we count >= 2)
+	//   - 1 CreateParagraphBullets for the numbered item
+	//   - 1 UpdateParagraphStyle with paragraph-level shading covering the
+	//     code block
+	//   - 1 UpdateTextStyle for Courier on the code block range
+	var (
+		bulletDisc       int
+		bulletNumbered   int
+		codeShading      int
+		codeMonospace    int
+		bulletPrefixText bool
+	)
+	for _, r := range requests {
+		if r.CreateParagraphBullets != nil {
+			switch r.CreateParagraphBullets.BulletPreset {
+			case "BULLET_DISC_CIRCLE_SQUARE":
+				bulletDisc++
+			case "NUMBERED_DECIMAL_NESTED":
+				bulletNumbered++
+			}
+		}
+		if r.UpdateParagraphStyle != nil &&
+			r.UpdateParagraphStyle.ParagraphStyle != nil &&
+			r.UpdateParagraphStyle.ParagraphStyle.Shading != nil &&
+			r.UpdateParagraphStyle.ParagraphStyle.Shading.BackgroundColor != nil {
+			codeShading++
+		}
+		if r.UpdateTextStyle != nil &&
+			r.UpdateTextStyle.TextStyle != nil &&
+			r.UpdateTextStyle.TextStyle.WeightedFontFamily != nil &&
+			r.UpdateTextStyle.TextStyle.WeightedFontFamily.FontFamily == "Courier New" {
+			codeMonospace++
+		}
+		if r.InsertText != nil && strings.Contains(r.InsertText.Text, "• ") {
+			bulletPrefixText = true
+		}
+	}
+
+	if bulletDisc < 2 {
+		t.Errorf("expected at least 2 BULLET_DISC_CIRCLE_SQUARE CreateParagraphBullets, got %d", bulletDisc)
+	}
+	if bulletNumbered < 1 {
+		t.Errorf("expected at least 1 NUMBERED_DECIMAL_NESTED CreateParagraphBullets, got %d", bulletNumbered)
+	}
+	if codeShading != 1 {
+		t.Errorf("expected exactly 1 paragraph shading request for the code block, got %d", codeShading)
+	}
+	if codeMonospace < 1 {
+		t.Errorf("expected at least 1 Courier New text style request for the code block, got %d", codeMonospace)
+	}
+	if bulletPrefixText {
+		t.Errorf("unexpected literal bullet glyph inside an InsertText request")
 	}
 }

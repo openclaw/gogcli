@@ -82,12 +82,18 @@ func MarkdownToDocsRequests(elements []MarkdownElement, baseIndex int64, tabID s
 			}
 
 		case MDCodeBlock:
-			// Add code block text (no inline formatting in code blocks)
-			codeContent := el.Content + "\n"
+			// Render the fenced code block as a single contiguous paragraph.
+			// Embedded line breaks become soft line breaks (vertical tab) so
+			// Docs keeps them inside one paragraph, which lets us apply a
+			// single paragraph-level background shading across the whole block
+			// instead of emitting one Courier-styled paragraph per source line.
+			// See #594.
+			codeBody := strings.ReplaceAll(el.Content, "\n", "\v")
+			codeContent := codeBody + "\n"
 			plainText.WriteString(codeContent)
 			charOffset += utf16Len(codeContent)
 
-			// Apply monospace font to entire code block
+			// Apply monospace font to entire code block text run.
 			requests = append(requests, &docs.Request{
 				UpdateTextStyle: &docs.UpdateTextStyleRequest{
 					Range: &docs.Range{
@@ -100,17 +106,36 @@ func MarkdownToDocsRequests(elements []MarkdownElement, baseIndex int64, tabID s
 							FontFamily: "Courier New",
 							Weight:     400,
 						},
-						BackgroundColor: &docs.OptionalColor{
-							Color: &docs.Color{
-								RgbColor: &docs.RgbColor{
-									Red:   0.95,
-									Green: 0.95,
-									Blue:  0.95,
+					},
+					Fields: "weightedFontFamily",
+				},
+			})
+
+			// Apply a paragraph-level light-grey background so the whole
+			// fenced block renders as one shaded code block, matching the
+			// output of `docs create --file --markdown`. Without this the
+			// block looks like plain Courier text on the default background.
+			requests = append(requests, &docs.Request{
+				UpdateParagraphStyle: &docs.UpdateParagraphStyleRequest{
+					Range: &docs.Range{
+						StartIndex: startOffset,
+						EndIndex:   charOffset,
+						TabId:      tabID,
+					},
+					ParagraphStyle: &docs.ParagraphStyle{
+						Shading: &docs.Shading{
+							BackgroundColor: &docs.OptionalColor{
+								Color: &docs.Color{
+									RgbColor: &docs.RgbColor{
+										Red:   0.95,
+										Green: 0.95,
+										Blue:  0.95,
+									},
 								},
 							},
 						},
 					},
-					Fields: "weightedFontFamily,backgroundColor",
+					Fields: "shading.backgroundColor",
 				},
 			})
 
@@ -167,20 +192,35 @@ func MarkdownToDocsRequests(elements []MarkdownElement, baseIndex int64, tabID s
 				fmt.Printf("[LIST] Content: %q -> stripped=%q styles=%d\n", el.Content, strippedContent, len(styles))
 			}
 
-			// Add list item with prefix
-			prefix := "• "
-			if el.Type == MDNumberedList {
-				prefix = "1. "
-			}
-			prefixLen := utf16Len(prefix)
-			plainText.WriteString(prefix)
+			// Emit the list item as a bare paragraph and then promote it to a
+			// native Google Docs bullet/numbered list via CreateParagraphBullets.
+			// Previously we inlined a literal "• " or "1. " prefix as text,
+			// which left the paragraph with NORMAL_TEXT style and a glyph in
+			// the text run instead of a proper BULLET paragraph style — see
+			// #594.
 			plainText.WriteString(strippedContent)
 			plainText.WriteString("\n")
-			charOffset += prefixLen + utf16Len(strippedContent+"\n")
+			charOffset += utf16Len(strippedContent + "\n")
 
-			// Apply inline text styles (offset by prefix length)
+			bulletPreset := bulletPresetDisc
+			if el.Type == MDNumberedList {
+				bulletPreset = "NUMBERED_DECIMAL_NESTED"
+			}
+			requests = append(requests, &docs.Request{
+				CreateParagraphBullets: &docs.CreateParagraphBulletsRequest{
+					Range: &docs.Range{
+						StartIndex: startOffset,
+						EndIndex:   charOffset,
+						TabId:      tabID,
+					},
+					BulletPreset: bulletPreset,
+				},
+			})
+
+			// Apply inline text styles (no prefix offset now that the bullet
+			// glyph comes from the paragraph style rather than the text run).
 			for _, style := range styles {
-				textStyleReq := buildTextStyleRequest(style, startOffset+prefixLen, tabID)
+				textStyleReq := buildTextStyleRequest(style, startOffset, tabID)
 				if textStyleReq != nil {
 					requests = append(requests, textStyleReq)
 				}
