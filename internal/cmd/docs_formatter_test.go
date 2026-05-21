@@ -86,8 +86,8 @@ func TestMarkdownToDocsRequests_AppendBulletsAndCode(t *testing.T) {
 	// joined by vertical-tab soft line breaks (Docs treats \v as a
 	// line-break-within-paragraph), so a single paragraph-level shading
 	// covers the whole block.
-	if !strings.Contains(text, "line 1\vline 2\vline 3\n") {
-		t.Fatalf("expected code block lines joined by \\v soft breaks, got %q", text)
+	if !strings.Contains(text, "line 1"+docsSoftLineBreak+"line 2"+docsSoftLineBreak+"line 3\n") {
+		t.Fatalf("expected code block lines joined by Docs soft breaks, got %q", text)
 	}
 	if strings.Contains(text, "line 1\nline 2") {
 		t.Fatalf("code block was split into separate paragraphs: %q", text)

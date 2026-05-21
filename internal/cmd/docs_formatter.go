@@ -7,6 +7,11 @@ import (
 	"google.golang.org/api/docs/v1"
 )
 
+// docsSoftLineBreak is the Google Docs InsertText character for a line break
+// inside the current paragraph. Live Docs API readback returns it inside the
+// same textRun, which lets fenced code blocks keep one shaded paragraph.
+const docsSoftLineBreak = "\v"
+
 // Debug flag for markdown formatter
 var debugMarkdown = false
 
@@ -88,7 +93,7 @@ func MarkdownToDocsRequests(elements []MarkdownElement, baseIndex int64, tabID s
 			// single paragraph-level background shading across the whole block
 			// instead of emitting one Courier-styled paragraph per source line.
 			// See #594.
-			codeBody := strings.ReplaceAll(el.Content, "\n", "\v")
+			codeBody := strings.ReplaceAll(el.Content, "\n", docsSoftLineBreak)
 			codeContent := codeBody + "\n"
 			plainText.WriteString(codeContent)
 			charOffset += utf16Len(codeContent)
