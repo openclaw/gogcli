@@ -119,8 +119,10 @@ func TestExecute_GmailWatch_MoreCommands(t *testing.T) {
 		t.Fatalf("expected watch state removed: %s", p)
 	}
 
-	// Ensure dir exists but file doesn't.
-	if !strings.Contains(p, filepath.Join("gogcli", "state", "gmail-watch")) {
+	// Ensure the account-scoped file is under the watch state directory shape.
+	newWatchDir := filepath.Join("gogcli", "gmail-watch")
+	legacyWatchDir := filepath.Join("gogcli", "state", "gmail-watch")
+	if !strings.Contains(p, newWatchDir) && !strings.Contains(p, legacyWatchDir) {
 		t.Fatalf("unexpected state path: %s", p)
 	}
 }

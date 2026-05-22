@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"encoding/json"
 	"errors"
 	"io"
 	"path/filepath"
@@ -86,9 +87,13 @@ func TestRootHomeFlagOverridesPathRoot(t *testing.T) {
 			t.Fatalf("Execute: %v", err)
 		}
 	})
-	if !strings.Contains(out, filepath.Join(home, "config", "config.json")) {
-		t.Fatalf("expected config path under --home, got %s", out)
+	var payload struct {
+		Path string `json:"path"`
 	}
+	if err := json.Unmarshal([]byte(out), &payload); err != nil {
+		t.Fatalf("unmarshal config path: %v\n%s", err, out)
+	}
+	assertPathUnderRoot(t, payload.Path, home, "config", "config.json")
 }
 
 func TestRootHomeFlagOverridesHelpDescription(t *testing.T) {
@@ -100,9 +105,51 @@ func TestRootHomeFlagOverridesHelpDescription(t *testing.T) {
 			t.Fatalf("Execute: %v", err)
 		}
 	})
-	if !strings.Contains(out, filepath.Join(home, "config", "config.json")) {
-		t.Fatalf("expected help config path under --home, got %s", out)
+	path := helpConfigPath(out)
+	if path == "" {
+		t.Fatalf("expected help config path, got %s", out)
 	}
+	assertPathUnderRoot(t, path, home, "config", "config.json")
+}
+
+func helpConfigPath(out string) string {
+	for _, line := range strings.Split(out, "\n") {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "file: ") {
+			return strings.TrimSpace(strings.TrimPrefix(line, "file: "))
+		}
+	}
+	return ""
+}
+
+func assertPathUnderRoot(t *testing.T, got, root string, elems ...string) {
+	t.Helper()
+
+	cleanGot := filepath.Clean(got)
+	if !strings.HasSuffix(cleanGot, filepath.Join(elems...)) {
+		t.Fatalf("expected path with suffix %q, got %q", filepath.Join(elems...), got)
+	}
+
+	gotRoot := cleanGot
+	for range elems {
+		gotRoot = filepath.Dir(gotRoot)
+	}
+	if samePath(gotRoot, root) {
+		return
+	}
+	t.Fatalf("expected path root %q, got %q from path %q", root, gotRoot, got)
+}
+
+func samePath(a, b string) bool {
+	a = filepath.Clean(a)
+	b = filepath.Clean(b)
+	if aEval, err := filepath.EvalSymlinks(a); err == nil {
+		a = filepath.Clean(aEval)
+	}
+	if bEval, err := filepath.EvalSymlinks(b); err == nil {
+		b = filepath.Clean(bEval)
+	}
+	return strings.EqualFold(a, b)
 }
 
 func TestRootHomePreScanSkipsGlobalFlagValues(t *testing.T) {
