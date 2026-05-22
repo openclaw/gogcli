@@ -327,11 +327,10 @@ func KeyringDir() (string, error) {
 	if legacyErr != nil {
 		return "", legacyErr
 	}
-	if _, primaryErr := os.Stat(primary); os.IsNotExist(primaryErr) {
-		if st, legacyErr := os.Stat(legacy); legacyErr == nil && st.IsDir() {
-			return legacy, nil
-		}
+	if st, legacyErr := os.Stat(legacy); legacyErr == nil && st.IsDir() {
+		return legacy, nil
 	}
+
 	return primary, nil
 }
 

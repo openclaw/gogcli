@@ -48,8 +48,8 @@ Existing installs are read-compatible:
 
 - OAuth credentials are read from the old config directory when the new data
   path does not contain them.
-- File-keyring users keep using the old keyring directory when it is the only
-  existing keyring and no explicit data override is set.
+- File-keyring users keep using the old keyring directory when it exists and no
+  explicit data override is set.
 - Service-account keys are looked up in both the new data path and the old
   config path.
 - Tracking and Gmail watch state read legacy locations when new state files are

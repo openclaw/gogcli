@@ -145,6 +145,29 @@ func TestXDGDataKeepsLegacyKeyringFallback(t *testing.T) {
 	}
 }
 
+func TestXDGDataPrefersLegacyKeyringWhenBothExist(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, "xdg-config"))
+	t.Setenv("XDG_DATA_HOME", filepath.Join(home, "xdg-data"))
+
+	legacyDir := filepath.Join(home, "xdg-config", AppName, "keyring")
+	primaryDir := filepath.Join(home, "xdg-data", AppName, "keyring")
+	for _, dir := range []string{legacyDir, primaryDir} {
+		if err := os.MkdirAll(dir, 0o700); err != nil {
+			t.Fatalf("mkdir keyring dir: %v", err)
+		}
+	}
+
+	keyringDir, err := KeyringDir()
+	if err != nil {
+		t.Fatalf("KeyringDir: %v", err)
+	}
+	if keyringDir != legacyDir {
+		t.Fatalf("got %q, want legacy keyring %q", keyringDir, legacyDir)
+	}
+}
+
 func TestXDGStateKeepsLegacyGmailWatchFallback(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
