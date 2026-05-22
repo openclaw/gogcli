@@ -1,0 +1,8 @@
+# Protect ownership and automation rules.
+/.github/CODEOWNERS @openclaw/openclaw-secops
+/.github/workflows/ @openclaw/openclaw-secops
+/go.mod @openclaw/openclaw-secops
+/go.sum @openclaw/openclaw-secops
+/.github/actionlint.yaml @openclaw/openclaw-secops
+/.agents/skills/ @openclaw/openclaw-secops
+/.crabbox.yaml @openclaw/openclaw-secops
