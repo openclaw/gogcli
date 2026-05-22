@@ -236,3 +236,80 @@ func TestDocsWrite_MarkdownReplaceWithTab_TabNotFound(t *testing.T) {
 		t.Fatalf("expected no batchUpdate calls, got %d", batchUpdates)
 	}
 }
+
+func TestInsertImagesIntoDocs_TabReadback(t *testing.T) {
+	placeholder := markdownImage{index: 0, token: "test"}.placeholder()
+	images := []markdownImage{{
+		index:       0,
+		token:       "test",
+		originalRef: "https://example.com/image.png",
+	}}
+
+	var sawIncludeTabs bool
+	var batchRequests []*docs.Request
+	docSvc, cleanup := newDocsServiceForTest(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, "/v1/documents/"):
+			sawIncludeTabs = strings.Contains(r.URL.RawQuery, "includeTabsContent=true")
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"documentId": "doc1",
+				"tabs": []any{
+					map[string]any{
+						"tabProperties": map[string]any{"tabId": "t.second", "title": "Second", "index": 0},
+						"documentTab": map[string]any{
+							"body": map[string]any{
+								"content": []any{
+									map[string]any{
+										"startIndex": 1,
+										"endIndex":   1 + len(placeholder) + 1,
+										"paragraph": map[string]any{
+											"elements": []any{
+												map[string]any{
+													"startIndex": 1,
+													"endIndex":   1 + len(placeholder) + 1,
+													"textRun": map[string]any{
+														"content": placeholder + "\n",
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			})
+		case r.Method == http.MethodPost && strings.Contains(r.URL.Path, ":batchUpdate"):
+			var req docs.BatchUpdateDocumentRequest
+			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+				t.Fatalf("decode batch request: %v", err)
+			}
+			batchRequests = append(batchRequests, req.Requests...)
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{"documentId": "doc1"})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer cleanup()
+
+	if err := insertImagesIntoDocs(context.Background(), docSvc, "doc1", images, "t.second"); err != nil {
+		t.Fatalf("insertImagesIntoDocs: %v", err)
+	}
+	if !sawIncludeTabs {
+		t.Fatalf("expected image placeholder readback to request includeTabsContent=true")
+	}
+	if len(batchRequests) != 2 {
+		t.Fatalf("expected delete + image insert requests, got %#v", batchRequests)
+	}
+	del := batchRequests[0].DeleteContentRange
+	if del == nil || del.Range == nil || del.Range.TabId != "t.second" {
+		t.Fatalf("delete request missing target tab: %#v", batchRequests[0])
+	}
+	img := batchRequests[1].InsertInlineImage
+	if img == nil || img.Location == nil || img.Location.TabId != "t.second" {
+		t.Fatalf("image insert request missing target tab: %#v", batchRequests[1])
+	}
+}

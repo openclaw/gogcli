@@ -219,9 +219,23 @@ func searchParagraph(para *docs.Paragraph, placeholders []string, result map[str
 // and replaces the placeholders with inline images via BatchUpdate.
 func insertImagesIntoDocs(ctx context.Context, svc *docs.Service, docID string, images []markdownImage, tabID string) error {
 	// Read back the document to find placeholder positions.
-	doc, err := svc.Documents.Get(docID).Context(ctx).Do()
+	getCall := svc.Documents.Get(docID).Context(ctx)
+	if tabID != "" {
+		getCall = getCall.IncludeTabsContent(true)
+	}
+	doc, err := getCall.Do()
 	if err != nil {
 		return fmt.Errorf("read back document: %w", err)
+	}
+	if tabID != "" {
+		tab, tabErr := findTab(flattenTabs(doc.Tabs), tabID)
+		if tabErr != nil {
+			return tabErr
+		}
+		if tab.DocumentTab == nil || tab.DocumentTab.Body == nil {
+			return fmt.Errorf("tab has no document body: %s", tabID)
+		}
+		doc = &docs.Document{Body: tab.DocumentTab.Body}
 	}
 
 	placeholders := findPlaceholderIndices(doc, images)
