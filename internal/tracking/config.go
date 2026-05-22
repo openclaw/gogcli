@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"time"
@@ -64,6 +65,15 @@ func legacyConfigPath() (string, error) {
 		if filepath.IsAbs(xdg) {
 			return filepath.Join(xdg, "gog", "tracking.json"), nil
 		}
+
+		if usesXDGConfigDefault() {
+			configDir, err := homeConfigDir()
+			if err != nil {
+				return "", err
+			}
+
+			return filepath.Join(configDir, "gog", "tracking.json"), nil
+		}
 	}
 
 	configDir, err := os.UserConfigDir()
@@ -72,14 +82,33 @@ func legacyConfigPath() (string, error) {
 	}
 
 	if !filepath.IsAbs(configDir) {
-		home, homeErr := os.UserHomeDir()
+		var homeErr error
+
+		configDir, homeErr = homeConfigDir()
 		if homeErr != nil {
-			return "", fmt.Errorf("resolve home config dir: %w", homeErr)
+			return "", homeErr
 		}
-		configDir = filepath.Join(home, ".config")
 	}
 
 	return filepath.Join(configDir, "gog", "tracking.json"), nil
+}
+
+func usesXDGConfigDefault() bool {
+	switch runtime.GOOS {
+	case "linux", "freebsd", "openbsd", "netbsd", "dragonfly":
+		return true
+	default:
+		return false
+	}
+}
+
+func homeConfigDir() (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("resolve home config dir: %w", err)
+	}
+
+	return filepath.Join(home, ".config"), nil
 }
 
 func readConfigBytes(path string) ([]byte, bool, error) {
