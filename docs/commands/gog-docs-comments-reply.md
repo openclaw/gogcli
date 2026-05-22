@@ -7,7 +7,7 @@ Reply to a comment
 ## Usage
 
 ```bash
-gog docs (doc) comments reply (respond) <docId> <commentId> <content>
+gog docs (doc) comments reply (respond) <docId> <commentId> <content> [flags]
 ```
 
 ## Parent
@@ -20,6 +20,7 @@ gog docs (doc) comments reply (respond) <docId> <commentId> <content>
 | --- | --- | --- | --- |
 | `--access-token` | `string` |  | Use provided access token directly (bypasses stored refresh tokens; token expires in ~1h) |
 | `-a`<br>`--account`<br>`--acct` | `string` |  | Account email for API commands (gmail/calendar/chat/classroom/drive/drivelabels/docs/slides/contacts/tasks/people/sheets/forms/sites/appscript/analytics/searchconsole/ads/photos) |
+| `--action` | `string` |  | Optional action to take on the parent comment alongside the reply: resolve\|reopen |
 | `--client` | `string` |  | OAuth client name (selects stored credentials + token bucket) |
 | `--color` | `string` | auto | Color output: auto\|always\|never |
 | `--disable-commands` | `string` |  | Comma-separated list of disabled commands; dot paths allowed |

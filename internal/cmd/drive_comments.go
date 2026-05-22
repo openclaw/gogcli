@@ -234,13 +234,13 @@ func (c *DriveCommentReplyCmd) Run(ctx context.Context, flags *RootFlags) error 
 		return usage(err.Error())
 	}
 
-	if err := dryRunExit(ctx, flags, "drive.comments.reply", map[string]any{
+	if dryRunErr := dryRunExit(ctx, flags, "drive.comments.reply", map[string]any{
 		"file_id":    fileID,
 		"comment_id": commentID,
 		"content":    content,
 		"action":     action,
-	}); err != nil {
-		return err
+	}); dryRunErr != nil {
+		return dryRunErr
 	}
 
 	_, svc, err := requireDriveService(ctx, flags)

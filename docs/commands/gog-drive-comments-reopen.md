@@ -1,28 +1,18 @@
-# `gog docs comments`
+# `gog drive comments reopen`
 
 > Generated from `gog schema --json`. Do not edit this page by hand; run `make docs-commands`.
 
-Manage comments on files
+Reopen a previously resolved comment
 
 ## Usage
 
 ```bash
-gog docs (doc) comments <command>
+gog drive (drv) comments reopen <fileId> <commentId> [flags]
 ```
 
 ## Parent
 
-- [gog docs](gog-docs.md)
-
-## Subcommands
-
-- [gog docs comments add](gog-docs-comments-add.md) - Add a comment to a Google Doc
-- [gog docs comments delete](gog-docs-comments-delete.md) - Delete a comment
-- [gog docs comments get](gog-docs-comments-get.md) - Get a comment by ID
-- [gog docs comments list](gog-docs-comments-list.md) - List comments on a Google Doc
-- [gog docs comments reopen](gog-docs-comments-reopen.md) - Reopen a previously resolved comment
-- [gog docs comments reply](gog-docs-comments-reply.md) - Reply to a comment
-- [gog docs comments resolve](gog-docs-comments-resolve.md) - Resolve a comment (mark as done)
+- [gog drive comments](gog-drive-comments.md)
 
 ## Flags
 
@@ -39,6 +29,7 @@ gog docs (doc) comments <command>
 | `--gmail-no-send` | `bool` | false | Block Gmail send operations (agent safety) |
 | `-h`<br>`--help` | `kong.helpFlag` |  | Show context-sensitive help. |
 | `-j`<br>`--json`<br>`--machine` | `bool` | false | Output JSON to stdout (best for scripting) |
+| `-m`<br>`--message` | `string` |  | Optional message to include when reopening |
 | `--no-input`<br>`--non-interactive`<br>`--noninteractive` | `bool` |  | Never prompt; fail instead (useful for CI) |
 | `-p`<br>`--plain`<br>`--tsv` | `bool` | false | Output stable, parseable text to stdout (TSV; no colors) |
 | `--results-only` | `bool` |  | In JSON mode, emit only the primary result (drops envelope fields like nextPageToken) |
@@ -49,5 +40,5 @@ gog docs (doc) comments <command>
 
 ## See Also
 
-- [gog docs](gog-docs.md)
+- [gog drive comments](gog-drive-comments.md)
 - [Command index](README.md)

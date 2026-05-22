@@ -226,7 +226,8 @@ Generated from `gog schema --json`.
       - [`gog docs (doc) comments delete (rm,del,remove) <docId> <commentId>`](commands/gog-docs-comments-delete.md) - Delete a comment
       - [`gog docs (doc) comments get (info,show) <docId> <commentId>`](commands/gog-docs-comments-get.md) - Get a comment by ID
       - [`gog docs (doc) comments list (ls) <docId> [flags]`](commands/gog-docs-comments-list.md) - List comments on a Google Doc
-      - [`gog docs (doc) comments reply (respond) <docId> <commentId> <content>`](commands/gog-docs-comments-reply.md) - Reply to a comment
+      - [`gog docs (doc) comments reopen <docId> <commentId> [flags]`](commands/gog-docs-comments-reopen.md) - Reopen a previously resolved comment
+      - [`gog docs (doc) comments reply (respond) <docId> <commentId> <content> [flags]`](commands/gog-docs-comments-reply.md) - Reply to a comment
       - [`gog docs (doc) comments resolve <docId> <commentId> [flags]`](commands/gog-docs-comments-resolve.md) - Resolve a comment (mark as done)
     - [`gog docs (doc) copy (cp,duplicate) <docId> <title> [flags]`](commands/gog-docs-copy.md) - Copy a Google Doc
     - [`gog docs (doc) create (add,new) <title> [flags]`](commands/gog-docs-create.md) - Create a Google Doc
@@ -273,7 +274,9 @@ Generated from `gog schema --json`.
       - [`gog drive (drv) comments delete (rm,del,remove) <fileId> <commentId>`](commands/gog-drive-comments-delete.md) - Delete a comment
       - [`gog drive (drv) comments get (info,show) <fileId> <commentId>`](commands/gog-drive-comments-get.md) - Get a comment by ID
       - [`gog drive (drv) comments list (ls) <fileId> [flags]`](commands/gog-drive-comments-list.md) - List comments on a file
-      - [`gog drive (drv) comments reply (respond) <fileId> <commentId> <content>`](commands/gog-drive-comments-reply.md) - Reply to a comment
+      - [`gog drive (drv) comments reopen <fileId> <commentId> [flags]`](commands/gog-drive-comments-reopen.md) - Reopen a previously resolved comment
+      - [`gog drive (drv) comments reply (respond) <fileId> <commentId> <content> [flags]`](commands/gog-drive-comments-reply.md) - Reply to a comment
+      - [`gog drive (drv) comments resolve <fileId> <commentId> [flags]`](commands/gog-drive-comments-resolve.md) - Resolve a comment (mark as done)
       - [`gog drive (drv) comments update (edit,set) <fileId> <commentId> <content>`](commands/gog-drive-comments-update.md) - Update a comment
     - [`gog drive (drv) copy <fileId> <name> [flags]`](commands/gog-drive-copy.md) - Copy a file
     - [`gog drive (drv) delete (rm,del) <fileId> [flags]`](commands/gog-drive-delete.md) - Move a file to trash (use --permanent to delete forever)

@@ -2,7 +2,7 @@
 
 Every `gog` command has a generated docs page. The source of truth is the live CLI schema; run `make docs-commands` after changing command names, flags, help text, aliases, or arguments.
 
-Generated pages: 568.
+Generated pages: 571.
 
 ## Top-level Commands
 
@@ -277,6 +277,7 @@ Generated pages: 568.
       - [gog docs comments delete](gog-docs-comments-delete.md) - Delete a comment
       - [gog docs comments get](gog-docs-comments-get.md) - Get a comment by ID
       - [gog docs comments list](gog-docs-comments-list.md) - List comments on a Google Doc
+      - [gog docs comments reopen](gog-docs-comments-reopen.md) - Reopen a previously resolved comment
       - [gog docs comments reply](gog-docs-comments-reply.md) - Reply to a comment
       - [gog docs comments resolve](gog-docs-comments-resolve.md) - Resolve a comment (mark as done)
     - [gog docs copy](gog-docs-copy.md) - Copy a Google Doc
@@ -324,7 +325,9 @@ Generated pages: 568.
       - [gog drive comments delete](gog-drive-comments-delete.md) - Delete a comment
       - [gog drive comments get](gog-drive-comments-get.md) - Get a comment by ID
       - [gog drive comments list](gog-drive-comments-list.md) - List comments on a file
+      - [gog drive comments reopen](gog-drive-comments-reopen.md) - Reopen a previously resolved comment
       - [gog drive comments reply](gog-drive-comments-reply.md) - Reply to a comment
+      - [gog drive comments resolve](gog-drive-comments-resolve.md) - Resolve a comment (mark as done)
       - [gog drive comments update](gog-drive-comments-update.md) - Update a comment
     - [gog drive copy](gog-drive-copy.md) - Copy a file
     - [gog drive delete](gog-drive-delete.md) - Move a file to trash (use --permanent to delete forever)

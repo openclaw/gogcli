@@ -20,7 +20,9 @@ gog drive (drv) comments <command>
 - [gog drive comments delete](gog-drive-comments-delete.md) - Delete a comment
 - [gog drive comments get](gog-drive-comments-get.md) - Get a comment by ID
 - [gog drive comments list](gog-drive-comments-list.md) - List comments on a file
+- [gog drive comments reopen](gog-drive-comments-reopen.md) - Reopen a previously resolved comment
 - [gog drive comments reply](gog-drive-comments-reply.md) - Reply to a comment
+- [gog drive comments resolve](gog-drive-comments-resolve.md) - Resolve a comment (mark as done)
 - [gog drive comments update](gog-drive-comments-update.md) - Update a comment
 
 ## Flags

@@ -335,16 +335,9 @@ func writeDriveCommentMutation(ctx context.Context, u *ui.UI, comment *drive.Com
 	return nil
 }
 
-func createDriveReply(ctx context.Context, svc *drive.Service, fileID, commentID, content string) (*drive.Reply, error) {
-	return svc.Replies.Create(fileID, commentID, &drive.Reply{Content: content}).
-		Fields(driveReplyCreateFields).
-		Context(ctx).
-		Do()
-}
-
 // createDriveReplyWithAction posts a reply that also flips the parent comment's
 // resolved state when action is "resolve" or "reopen". An empty action behaves
-// like createDriveReply. Content may be empty when action is set — the API
+// like createDriveReply. Content may be empty when action is set; the API
 // accepts an action-only reply.
 func createDriveReplyWithAction(ctx context.Context, svc *drive.Service, fileID, commentID, content, action string) (*drive.Reply, error) {
 	reply := &drive.Reply{}
@@ -368,10 +361,6 @@ func resolveDriveComment(ctx context.Context, svc *drive.Service, fileID, commen
 
 func reopenDriveComment(ctx context.Context, svc *drive.Service, fileID, commentID, message string) (*drive.Reply, error) {
 	return createDriveReplyWithAction(ctx, svc, fileID, commentID, message, driveReplyActionReopen)
-}
-
-func writeDriveReplyMutation(ctx context.Context, u *ui.UI, reply *drive.Reply, resolved bool, resourceKey, resourceID, commentID string) error {
-	return writeDriveReplyMutationWithAction(ctx, u, reply, resolved, "", resourceKey, resourceID, commentID)
 }
 
 // writeDriveReplyMutationWithAction renders a reply creation result. When

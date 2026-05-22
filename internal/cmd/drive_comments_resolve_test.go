@@ -133,7 +133,7 @@ func TestDriveCommentsReply_WithActionReopen(t *testing.T) {
 
 	out := captureStdout(t, func() {
 		_ = captureStderr(t, func() {
-			if err := Execute([]string{"--json", "--account", "a@b.com", "drive", "comments", "reply", "file1", "c1", "Reopening — needs more discussion", "--action", "reopen"}); err != nil {
+			if err := Execute([]string{"--json", "--account", "a@b.com", "drive", "comments", "reply", "file1", "c1", "Reopening - needs more discussion", "--action", "reopen"}); err != nil {
 				t.Fatalf("Execute: %v", err)
 			}
 		})
@@ -154,7 +154,7 @@ func TestDriveCommentsReply_WithActionReopen(t *testing.T) {
 }
 
 // TestDriveCommentsReply_NoActionUnchanged confirms a plain reply with no
-// --action flag still posts neither action nor a "resolved" envelope — i.e.
+// --action flag still posts neither action nor a "resolved" envelope, i.e.
 // the existing behaviour is preserved.
 func TestDriveCommentsReply_NoActionUnchanged(t *testing.T) {
 	srv, rc := newResolveTestServer(t)
@@ -222,7 +222,7 @@ func TestDriveCommentsResolveCmd_PostsResolveAction(t *testing.T) {
 }
 
 // TestDriveCommentsResolveCmd_NoMessage covers the action-only path (message
-// optional — the API accepts a reply with action and no content).
+// optional; the API accepts a reply with action and no content).
 func TestDriveCommentsResolveCmd_NoMessage(t *testing.T) {
 	srv, rc := newResolveTestServer(t)
 	defer srv.Close()
@@ -276,7 +276,7 @@ func TestDriveCommentsReopenCmd_PostsReopenAction(t *testing.T) {
 // TestDriveCommentsReply_InvalidAction confirms the kong enum constraint
 // rejects values outside the supported set without making any network call.
 func TestDriveCommentsReply_InvalidAction(t *testing.T) {
-	// No HTTP server needed — we expect parsing to fail before any API call.
+	// No HTTP server needed; we expect parsing to fail before any API call.
 	err := Execute([]string{"--account", "a@b.com", "drive", "comments", "reply", "file1", "c1", "msg", "--action", "ignore"})
 	if err == nil {
 		t.Fatal("expected error for invalid --action value, got nil")
@@ -312,7 +312,7 @@ func TestValidateDriveReplyAction(t *testing.T) {
 }
 
 // TestDocsCommentsReopenCmd_PostsReopenAction adds parity coverage for the
-// docs surface — the new docs sibling reopen verb posts action="reopen".
+// docs surface: the new docs sibling reopen verb posts action="reopen".
 func TestDocsCommentsReopenCmd_PostsReopenAction(t *testing.T) {
 	rc := &replyCapture{}
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -393,7 +393,7 @@ func TestDriveCommentsReplyAction_ValidationErrors(t *testing.T) {
 		t.Fatal("expected reopen missing commentId error")
 	}
 	// Reply with invalid action should fail validation at Run time too
-	// (kong enum catches CLI parsing — but constructing the struct directly
+	// (kong enum catches CLI parsing, but constructing the struct directly
 	// goes through validateDriveReplyAction).
 	if err := (&DriveCommentReplyCmd{FileID: "f1", CommentID: "c1", Content: "x", Action: "ignore"}).Run(ctx, flags); err == nil {
 		t.Fatal("expected reply with invalid --action to error")

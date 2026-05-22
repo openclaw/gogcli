@@ -165,13 +165,13 @@ func (c *DocsCommentsReplyCmd) Run(ctx context.Context, flags *RootFlags) error 
 		return usage(err.Error())
 	}
 
-	if err := dryRunExit(ctx, flags, "docs.comments.reply", map[string]any{
+	if dryRunErr := dryRunExit(ctx, flags, "docs.comments.reply", map[string]any{
 		"doc_id":     docID,
 		"comment_id": commentID,
 		"content":    content,
 		"action":     action,
-	}); err != nil {
-		return err
+	}); dryRunErr != nil {
+		return dryRunErr
 	}
 
 	_, svc, err := requireDriveService(ctx, flags)
@@ -209,6 +209,7 @@ func (c *DocsCommentsResolveCmd) Run(ctx context.Context, flags *RootFlags) erro
 	if err := dryRunExit(ctx, flags, "docs.comments.resolve", map[string]any{
 		"doc_id":     docID,
 		"comment_id": commentID,
+		"message":    strings.TrimSpace(c.Message),
 	}); err != nil {
 		return err
 	}
