@@ -11,7 +11,7 @@ import (
 	"google.golang.org/api/docs/v1"
 )
 
-func TestDocsSetPageLayoutCmd_PagelessDefault(t *testing.T) {
+func TestDocsPageLayoutCmd_PagelessDefault(t *testing.T) {
 	origDocs := newDocsService
 	t.Cleanup(func() { newDocsService = origDocs })
 
@@ -41,8 +41,8 @@ func TestDocsSetPageLayoutCmd_PagelessDefault(t *testing.T) {
 	flags := &RootFlags{Account: "a@b.com"}
 	ctx := newDocsCmdContext(t)
 
-	if err := runKong(t, &DocsSetPageLayoutCmd{}, []string{"doc1"}, ctx, flags); err != nil {
-		t.Fatalf("set-page-layout: %v", err)
+	if err := runKong(t, &DocsPageLayoutCmd{}, []string{"doc1"}, ctx, flags); err != nil {
+		t.Fatalf("page-layout: %v", err)
 	}
 
 	if targetDocID != "doc1" {
@@ -61,12 +61,12 @@ func TestDocsSetPageLayoutCmd_PagelessDefault(t *testing.T) {
 	if upd.DocumentStyle == nil || upd.DocumentStyle.DocumentFormat == nil {
 		t.Fatalf("expected DocumentStyle.DocumentFormat, got %#v", upd.DocumentStyle)
 	}
-	if upd.DocumentStyle.DocumentFormat.DocumentMode != "PAGELESS" {
+	if upd.DocumentStyle.DocumentFormat.DocumentMode != docsDocumentModePageless {
 		t.Fatalf("expected documentMode=PAGELESS, got %q", upd.DocumentStyle.DocumentFormat.DocumentMode)
 	}
 }
 
-func TestDocsSetPageLayoutCmd_Paged(t *testing.T) {
+func TestDocsPageLayoutCmd_Pages(t *testing.T) {
 	origDocs := newDocsService
 	t.Cleanup(func() { newDocsService = origDocs })
 
@@ -92,8 +92,8 @@ func TestDocsSetPageLayoutCmd_Paged(t *testing.T) {
 	flags := &RootFlags{Account: "a@b.com"}
 	ctx := newDocsCmdContext(t)
 
-	if err := runKong(t, &DocsSetPageLayoutCmd{}, []string{"doc1", "--layout=paged"}, ctx, flags); err != nil {
-		t.Fatalf("set-page-layout paged: %v", err)
+	if err := runKong(t, &DocsPageLayoutCmd{}, []string{"doc1", "--layout=pages"}, ctx, flags); err != nil {
+		t.Fatalf("page-layout pages: %v", err)
 	}
 
 	if len(batchRequests) != 1 {
@@ -103,24 +103,24 @@ func TestDocsSetPageLayoutCmd_Paged(t *testing.T) {
 	if upd == nil || upd.DocumentStyle == nil || upd.DocumentStyle.DocumentFormat == nil {
 		t.Fatalf("unexpected request shape: %#v", batchRequests[0][0])
 	}
-	if upd.DocumentStyle.DocumentFormat.DocumentMode != "PAGES" {
+	if upd.DocumentStyle.DocumentFormat.DocumentMode != docsDocumentModePages {
 		t.Fatalf("expected documentMode=PAGES, got %q", upd.DocumentStyle.DocumentFormat.DocumentMode)
 	}
 }
 
-func TestDocsSetPageLayoutCmd_EmptyDocID(t *testing.T) {
+func TestDocsPageLayoutCmd_EmptyDocID(t *testing.T) {
 	flags := &RootFlags{Account: "a@b.com"}
 	ctx := newDocsCmdContext(t)
-	err := runKong(t, &DocsSetPageLayoutCmd{}, []string{""}, ctx, flags)
+	err := runKong(t, &DocsPageLayoutCmd{}, []string{""}, ctx, flags)
 	if err == nil || !strings.Contains(err.Error(), "empty docId") {
 		t.Fatalf("expected empty docId error, got %v", err)
 	}
 }
 
-func TestDocsSetPageLayoutCmd_InvalidLayoutRejected(t *testing.T) {
+func TestDocsPageLayoutCmd_InvalidLayoutRejected(t *testing.T) {
 	flags := &RootFlags{Account: "a@b.com"}
 	ctx := newDocsCmdContext(t)
-	err := runKong(t, &DocsSetPageLayoutCmd{}, []string{"doc1", "--layout=portrait"}, ctx, flags)
+	err := runKong(t, &DocsPageLayoutCmd{}, []string{"doc1", "--layout=portrait"}, ctx, flags)
 	if err == nil {
 		t.Fatalf("expected enum validation error, got nil")
 	}
@@ -132,11 +132,11 @@ func TestNormalizePageLayout(t *testing.T) {
 		want    string
 		wantErr bool
 	}{
-		{"pageless", "PAGELESS", false},
-		{"PAGELESS", "PAGELESS", false},
-		{"paged", "PAGES", false},
-		{"pages", "PAGES", false},
-		{"  Paged  ", "PAGES", false},
+		{"pageless", docsDocumentModePageless, false},
+		{"PAGELESS", docsDocumentModePageless, false},
+		{"paged", docsDocumentModePages, false},
+		{"pages", docsDocumentModePages, false},
+		{"  Paged  ", docsDocumentModePages, false},
 		{"", "", true},
 		{"weird", "", true},
 	}
@@ -158,19 +158,19 @@ func TestNormalizePageLayout(t *testing.T) {
 	}
 }
 
-func TestDocsSetPageLayoutCmd_DryRun(t *testing.T) {
+func TestDocsPageLayoutCmd_DryRun(t *testing.T) {
 	origDocs := newDocsService
 	t.Cleanup(func() { newDocsService = origDocs })
 
 	newDocsService = func(context.Context, string) (*docs.Service, error) {
 		t.Fatal("docs service should not be created on dry-run")
-		return nil, nil
+		return nil, errors.New("unexpected docs service creation")
 	}
 
 	flags := &RootFlags{Account: "a@b.com", DryRun: true}
 	ctx := newDocsJSONContext(t)
 
-	err := (&DocsSetPageLayoutCmd{DocID: "doc1", Layout: "pageless"}).Run(ctx, flags)
+	err := (&DocsPageLayoutCmd{DocID: "doc1", Layout: "pageless"}).Run(ctx, flags)
 	var exitErr *ExitError
 	if err == nil {
 		t.Fatalf("expected dry-run ExitError, got nil")

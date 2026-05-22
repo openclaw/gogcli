@@ -106,6 +106,21 @@ func TestDisableCommandsBlocksDottedSubcommand(t *testing.T) {
 	}
 }
 
+func TestCommandFiltersHonorCanonicalAlias(t *testing.T) {
+	setTestConfigHome(t)
+	if err := Execute([]string{"--enable-commands", "docs.set-page-layout", "docs", "page-layout", "doc1", "--dry-run"}); err != nil {
+		t.Fatalf("expected alias allowlist to permit canonical command, got %v", err)
+	}
+
+	err := Execute([]string{"--disable-commands", "docs.set-page-layout", "docs", "page-layout", "doc1", "--dry-run"})
+	if err == nil {
+		t.Fatalf("expected alias denylist to block canonical command")
+	}
+	if !strings.Contains(err.Error(), "disabled") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
 func TestGmailNoSendBlocksBeforeAuth(t *testing.T) {
 	setTestConfigHome(t)
 	tests := [][]string{

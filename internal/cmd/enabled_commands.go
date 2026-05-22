@@ -80,5 +80,21 @@ func commandPathMatches(rules map[string]bool, path []string) bool {
 			return true
 		}
 	}
+	if len(path) == 2 {
+		for _, alias := range commandPathAliases(strings.Join(path, ".")) {
+			if rules[alias] {
+				return true
+			}
+		}
+	}
 	return false
+}
+
+func commandPathAliases(path string) []string {
+	switch path {
+	case "docs.page-layout":
+		return []string{"docs.set-page-layout", "docs.page-setup"}
+	default:
+		return nil
+	}
 }

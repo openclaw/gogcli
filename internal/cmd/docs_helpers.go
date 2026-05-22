@@ -55,12 +55,17 @@ func docsWebViewLink(id string) string {
 	return "https://docs.google.com/document/d/" + id + "/edit"
 }
 
+const (
+	docsDocumentModePages    = "PAGES"
+	docsDocumentModePageless = "PAGELESS"
+)
+
 func setDocumentPageless(ctx context.Context, svc *docs.Service, docID string) error {
-	return setDocumentMode(ctx, svc, docID, "PAGELESS")
+	return setDocumentMode(ctx, svc, docID, docsDocumentModePageless)
 }
 
-// setDocumentMode toggles documentStyle.documentFormat.documentMode between
-// "PAGES" and "PAGELESS" via a single batchUpdate call.
+// setDocumentMode toggles documentStyle.documentFormat.documentMode via a
+// single batchUpdate call.
 func setDocumentMode(ctx context.Context, svc *docs.Service, docID, mode string) error {
 	_, err := svc.Documents.BatchUpdate(docID, &docs.BatchUpdateDocumentRequest{
 		Requests: []*docs.Request{{

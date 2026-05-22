@@ -10,7 +10,7 @@ import (
 	"github.com/steipete/gogcli/internal/ui"
 )
 
-// DocsSetPageLayoutCmd toggles the page layout on an existing Google Doc.
+// DocsPageLayoutCmd toggles the page layout on an existing Google Doc.
 // The Docs UI exposes this via File → Page setup → Pageless/Pages. The Docs
 // API exposes it via documents.batchUpdate with updateDocumentStyle on the
 // documentFormat.documentMode field. See setDocumentMode in docs_helpers.go.
@@ -18,12 +18,12 @@ import (
 // Sibling to the --pageless flag on `docs create` / `docs write` for the case
 // where the doc already exists (e.g. created by Drive markdown conversion in
 // an upstream step that didn't set the layout).
-type DocsSetPageLayoutCmd struct {
+type DocsPageLayoutCmd struct {
 	DocID  string `arg:"" name:"docId" help:"Doc ID"`
-	Layout string `name:"layout" enum:"pageless,paged" default:"pageless" help:"Page layout: pageless or paged"`
+	Layout string `name:"layout" enum:"pageless,pages,paged" default:"pageless" help:"Page layout: pageless or pages"`
 }
 
-func (c *DocsSetPageLayoutCmd) Run(ctx context.Context, flags *RootFlags) error {
+func (c *DocsPageLayoutCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
 	docID := strings.TrimSpace(c.DocID)
 	if docID == "" {
@@ -35,7 +35,7 @@ func (c *DocsSetPageLayoutCmd) Run(ctx context.Context, flags *RootFlags) error 
 		return err
 	}
 
-	if dryRunErr := dryRunExit(ctx, flags, "docs.set-page-layout", map[string]any{
+	if dryRunErr := dryRunExit(ctx, flags, "docs.page-layout", map[string]any{
 		"documentId": docID,
 		"layout":     c.Layout,
 		"mode":       mode,
@@ -71,12 +71,12 @@ func (c *DocsSetPageLayoutCmd) Run(ctx context.Context, flags *RootFlags) error 
 func normalizePageLayout(layout string) (string, error) {
 	switch strings.ToLower(strings.TrimSpace(layout)) {
 	case "pageless":
-		return "PAGELESS", nil
+		return docsDocumentModePageless, nil
 	case "paged", "pages":
-		return "PAGES", nil
+		return docsDocumentModePages, nil
 	case "":
-		return "", usage("empty --layout (expected pageless or paged)")
+		return "", usage("empty --layout (expected pageless or pages)")
 	default:
-		return "", usage(fmt.Sprintf("invalid --layout %q (expected pageless or paged)", layout))
+		return "", usage(fmt.Sprintf("invalid --layout %q (expected pageless or pages)", layout))
 	}
 }
