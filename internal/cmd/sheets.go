@@ -366,7 +366,7 @@ func parseSheetsBatchUpdateData(dataJSON string) ([]*sheets.ValueRange, error) {
 		if strings.TrimSpace(vr.Range) == "" {
 			return nil, usagef("--data-json range %d has empty range", i)
 		}
-		if vr.Values == nil {
+		if len(vr.Values) == 0 {
 			return nil, usagef("--data-json range %d has empty values", i)
 		}
 	}
