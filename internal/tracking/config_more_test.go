@@ -235,6 +235,24 @@ func TestLegacyConfigPathUsesXDGConfigHome(t *testing.T) {
 	}
 }
 
+func TestLegacyConfigPathIgnoresRelativeXDGConfigHome(t *testing.T) {
+	setupTrackingConfigEnv(t)
+	t.Setenv("XDG_CONFIG_HOME", "relative-xdg")
+
+	path, err := legacyConfigPath()
+	if err != nil {
+		t.Fatalf("legacyConfigPath: %v", err)
+	}
+
+	if !filepath.IsAbs(path) {
+		t.Fatalf("expected absolute legacy path, got %q", path)
+	}
+
+	if strings.Contains(path, "relative-xdg") {
+		t.Fatalf("expected relative XDG_CONFIG_HOME to be ignored, got %q", path)
+	}
+}
+
 func TestSaveConfigMissingAccount(t *testing.T) {
 	setupTrackingConfigEnv(t)
 

@@ -61,12 +61,22 @@ func previousConfigPath() (string, error) {
 
 func legacyConfigPath() (string, error) {
 	if xdg := strings.TrimSpace(os.Getenv("XDG_CONFIG_HOME")); xdg != "" {
-		return filepath.Join(xdg, "gog", "tracking.json"), nil
+		if filepath.IsAbs(xdg) {
+			return filepath.Join(xdg, "gog", "tracking.json"), nil
+		}
 	}
 
 	configDir, err := os.UserConfigDir()
 	if err != nil {
 		return "", fmt.Errorf("user config dir: %w", err)
+	}
+
+	if !filepath.IsAbs(configDir) {
+		home, homeErr := os.UserHomeDir()
+		if homeErr != nil {
+			return "", fmt.Errorf("resolve home config dir: %w", homeErr)
+		}
+		configDir = filepath.Join(home, ".config")
 	}
 
 	return filepath.Join(configDir, "gog", "tracking.json"), nil
