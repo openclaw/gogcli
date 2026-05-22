@@ -72,6 +72,34 @@ Command page:
 
 - [`gog docs insert-page-break`](commands/gog-docs-insert-page-break.md)
 
+## Page Layout
+
+Set an existing document to pageless or paged mode:
+
+```bash
+gog docs page-layout <docId> --layout pageless
+gog docs page-layout <docId> --layout pages
+```
+
+Use explicit page size and margin flags when the output width matters:
+
+```bash
+gog docs page-layout <docId> --page-width 960
+gog docs page-layout <docId> --layout pages --page-width 8.5in --page-height 11in \
+  --margin-left 0.5in --margin-right 0.5in
+gog docs write <docId> --replace --markdown --file report.md --pageless --page-width 960
+```
+
+Lengths default to points and also accept `pt`, `in`, `cm`, or `mm`.
+`docs page-layout` preserves the current page mode when only size or margin
+flags are supplied; pass `--layout` when you also want to toggle pageless/pages.
+`--pageless` preserves Google Docs' existing width unless `--page-width` is set
+explicitly.
+
+Command page:
+
+- [`gog docs page-layout`](commands/gog-docs-page-layout.md)
+
 ## Tables
 
 Insert a native Google Docs table directly via the Docs API, bypassing the

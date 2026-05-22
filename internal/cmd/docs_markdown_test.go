@@ -364,10 +364,11 @@ func TestIsTableSeparator_EmptyPipeRowRejected(t *testing.T) {
 	}
 }
 
-func TestParseMarkdown_EmptyHeaderTableKeepsAllDataRows(t *testing.T) {
+func TestParseMarkdown_EmptyHeaderTableDropsBlankHeaderAndKeepsDataRows(t *testing.T) {
 	// Regression for #609: an empty-header table previously had its last data
 	// row re-parsed as a literal pipe paragraph (because the empty pipe row
-	// matched isTableSeparator and the outer loop advanced too far).
+	// matched isTableSeparator and the outer loop advanced too far). Regression
+	// for #632: the blank header itself should not render as a visible row.
 	input := "|     |     |\n|-----|-----|\n| Label A | Value A |\n| Label B | Value B |"
 	got := ParseMarkdown(input)
 	if len(got) != 1 {
@@ -376,11 +377,40 @@ func TestParseMarkdown_EmptyHeaderTableKeepsAllDataRows(t *testing.T) {
 	if got[0].Type != MDTable {
 		t.Fatalf("element type = %v, want MDTable", got[0].Type)
 	}
-	if len(got[0].TableCells) != 3 {
-		t.Fatalf("expected 3 rows (empty header + 2 data), got %d: %#v", len(got[0].TableCells), got[0].TableCells)
+	if len(got[0].TableCells) != 2 {
+		t.Fatalf("expected 2 data rows, got %d: %#v", len(got[0].TableCells), got[0].TableCells)
 	}
-	last := got[0].TableCells[2]
+	first := got[0].TableCells[0]
+	if len(first) != 2 || first[0] != "Label A" || first[1] != "Value A" {
+		t.Fatalf("first row = %#v, want [Label A, Value A]", first)
+	}
+	last := got[0].TableCells[1]
 	if len(last) != 2 || last[0] != "Label B" || last[1] != "Value B" {
 		t.Fatalf("last row = %#v, want [Label B, Value B]", last)
+	}
+}
+
+func TestNormalizeMarkdownTablesForDriveImport_PromotesFirstDataRow(t *testing.T) {
+	input := "|     |     |\n|-----|-----|\n| Label A | Value A |\n| Label B | Value B |\n\nAfter"
+	got := normalizeMarkdownTablesForDriveImport(input)
+	want := "| Label A | Value A |\n|-----|-----|\n| Label B | Value B |\n\nAfter"
+	if got != want {
+		t.Fatalf("normalized markdown = %q, want %q", got, want)
+	}
+}
+
+func TestNormalizeMarkdownTablesForDriveImport_SkipsCodeBlocks(t *testing.T) {
+	input := "```\n|     |     |\n|-----|-----|\n| A | B |\n```\n\n    |     |     |\n    |-----|-----|\n    | A | B |\n"
+	got := normalizeMarkdownTablesForDriveImport(input)
+	if got != input {
+		t.Fatalf("code block markdown changed:\n got %q\nwant %q", got, input)
+	}
+}
+
+func TestNormalizeMarkdownTablesForDriveImport_TracksFenceMarker(t *testing.T) {
+	input := "```\n~~~\n|     |     |\n|-----|-----|\n| A | B |\n```\n"
+	got := normalizeMarkdownTablesForDriveImport(input)
+	if got != input {
+		t.Fatalf("mixed-fence code block changed:\n got %q\nwant %q", got, input)
 	}
 }

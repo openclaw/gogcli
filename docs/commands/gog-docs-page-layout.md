@@ -31,7 +31,13 @@ gog docs (doc) page-layout (set-page-layout,page-setup) <docId> [flags]
 | `--home` | `string` |  | Override gogcli config/data/state/cache root (equivalent to GOG_HOME) |
 | `-j`<br>`--json`<br>`--machine` | `bool` | false | Output JSON to stdout (best for scripting) |
 | `--layout` | `string` | pageless | Page layout: pageless or pages |
+| `--margin-bottom` | `string` |  | Set bottom page margin (points by default; supports pt, in, cm, mm) |
+| `--margin-left` | `string` |  | Set left page margin (points by default; supports pt, in, cm, mm) |
+| `--margin-right` | `string` |  | Set right page margin (points by default; supports pt, in, cm, mm) |
+| `--margin-top` | `string` |  | Set top page margin (points by default; supports pt, in, cm, mm) |
 | `--no-input`<br>`--non-interactive`<br>`--noninteractive` | `bool` |  | Never prompt; fail instead (useful for CI) |
+| `--page-height` | `string` |  | Set page height (points by default; supports pt, in, cm, mm) |
+| `--page-width` | `string` |  | Set page width (points by default; supports pt, in, cm, mm) |
 | `-p`<br>`--plain`<br>`--tsv` | `bool` | false | Output stable, parseable text to stdout (TSV; no colors) |
 | `--results-only` | `bool` |  | In JSON mode, emit only the primary result (drops envelope fields like nextPageToken) |
 | `--select`<br>`--pick`<br>`--project` | `string` |  | In JSON mode, select comma-separated fields (best-effort; supports dot paths). Desire path: use --fields for most commands. |

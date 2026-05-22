@@ -93,6 +93,157 @@ func TestDocsWrite_MarkdownReplaceUsesDriveUpdate(t *testing.T) {
 	}
 }
 
+func TestDocsWrite_MarkdownReplaceNormalizesEmptyTableHeaderForDrive(t *testing.T) {
+	origDocs := newDocsService
+	origDrive := newDriveService
+	t.Cleanup(func() {
+		newDocsService = origDocs
+		newDriveService = origDrive
+	})
+
+	var uploadBody string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case strings.HasPrefix(r.URL.Path, "/upload/drive/v3/files/doc1"):
+			body, err := io.ReadAll(r.Body)
+			if err != nil {
+				t.Fatalf("read body: %v", err)
+			}
+			uploadBody = string(body)
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{"id": "doc1", "name": "Doc"})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+
+	driveSvc, err := drive.NewService(context.Background(),
+		option.WithoutAuthentication(),
+		option.WithHTTPClient(srv.Client()),
+		option.WithEndpoint(srv.URL+"/drive/v3/"),
+	)
+	if err != nil {
+		t.Fatalf("NewDriveService: %v", err)
+	}
+	newDriveService = func(context.Context, string) (*drive.Service, error) { return driveSvc, nil }
+	newDocsService = func(context.Context, string) (*docs.Service, error) {
+		t.Fatal("empty-header normalization should not require Docs service")
+		return nil, errors.New("unexpected Docs service call")
+	}
+
+	markdown := "|     |     |\n|-----|-----|\n| Label A | Value A |\n| Label B | Value B |\n"
+	flags := &RootFlags{Account: "a@b.com"}
+	ctx := newDocsJSONContext(t)
+	if err := runKong(t, &DocsWriteCmd{}, []string{"doc1", "--text", markdown, "--replace", "--markdown"}, ctx, flags); err != nil {
+		t.Fatalf("markdown replace write: %v", err)
+	}
+	if strings.Contains(uploadBody, "|     |     |") {
+		t.Fatalf("expected blank header row to be removed, got: %q", uploadBody)
+	}
+	if !strings.Contains(uploadBody, "| Label A | Value A |\n|-----|-----|") {
+		t.Fatalf("expected first data row promoted to markdown header, got: %q", uploadBody)
+	}
+}
+
+func TestDocsWrite_MarkdownReplaceRewritesHeadingSlugLinks(t *testing.T) {
+	origDocs := newDocsService
+	origDrive := newDriveService
+	t.Cleanup(func() {
+		newDocsService = origDocs
+		newDriveService = origDrive
+	})
+
+	var sawDocsGet bool
+	var batchReq docs.BatchUpdateDocumentRequest
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case strings.HasPrefix(r.URL.Path, "/upload/drive/v3/files/doc1"):
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{"id": "doc1", "name": "Doc"})
+		case r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/documents/doc1"):
+			sawDocsGet = true
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(&docs.Document{
+				DocumentId: "doc1",
+				Body: &docs.Body{Content: []*docs.StructuralElement{
+					{
+						StartIndex: 1,
+						EndIndex:   20,
+						Paragraph: &docs.Paragraph{
+							ParagraphStyle: &docs.ParagraphStyle{NamedStyleType: "HEADING_1", HeadingId: "h.heading1"},
+							Elements: []*docs.ParagraphElement{{
+								StartIndex: 1,
+								EndIndex:   19,
+								TextRun:    &docs.TextRun{Content: "Executive Summary\n"},
+							}},
+						},
+					},
+					{
+						StartIndex: 20,
+						EndIndex:   25,
+						Paragraph: &docs.Paragraph{
+							Elements: []*docs.ParagraphElement{{
+								StartIndex: 20,
+								EndIndex:   24,
+								TextRun: &docs.TextRun{
+									Content:   "Jump",
+									TextStyle: &docs.TextStyle{Link: &docs.Link{Url: "#executive-summary"}},
+								},
+							}},
+						},
+					},
+				}},
+			})
+		case r.Method == http.MethodPost && strings.Contains(r.URL.Path, "/documents/doc1:batchUpdate"):
+			if err := json.NewDecoder(r.Body).Decode(&batchReq); err != nil {
+				t.Fatalf("decode batch update: %v", err)
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{"documentId": "doc1"})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+
+	driveSvc, err := drive.NewService(context.Background(),
+		option.WithoutAuthentication(),
+		option.WithHTTPClient(srv.Client()),
+		option.WithEndpoint(srv.URL+"/drive/v3/"),
+	)
+	if err != nil {
+		t.Fatalf("NewDriveService: %v", err)
+	}
+	docsSvc, err := docs.NewService(context.Background(),
+		option.WithoutAuthentication(),
+		option.WithHTTPClient(srv.Client()),
+		option.WithEndpoint(srv.URL+"/"),
+	)
+	if err != nil {
+		t.Fatalf("NewDocsService: %v", err)
+	}
+	newDriveService = func(context.Context, string) (*drive.Service, error) { return driveSvc, nil }
+	newDocsService = func(context.Context, string) (*docs.Service, error) { return docsSvc, nil }
+
+	markdown := "# Executive Summary\n\n[Jump](#executive-summary)\n"
+	flags := &RootFlags{Account: "a@b.com"}
+	ctx := newDocsJSONContext(t)
+	if err := runKong(t, &DocsWriteCmd{}, []string{"doc1", "--text", markdown, "--replace", "--markdown"}, ctx, flags); err != nil {
+		t.Fatalf("markdown replace write: %v", err)
+	}
+	if !sawDocsGet {
+		t.Fatal("expected Docs get after Drive markdown import")
+	}
+	if len(batchReq.Requests) != 1 || batchReq.Requests[0].UpdateTextStyle == nil {
+		t.Fatalf("expected one UpdateTextStyle request, got %#v", batchReq.Requests)
+	}
+	styleReq := batchReq.Requests[0].UpdateTextStyle
+	if styleReq.Fields != "link" || styleReq.TextStyle.Link == nil || styleReq.TextStyle.Link.HeadingId != "h.heading1" {
+		t.Fatalf("unexpected link rewrite request: %#v", styleReq)
+	}
+}
+
 func TestDocsWrite_MarkdownImagesInsertedAfterDriveUpdate(t *testing.T) {
 	origDocs := newDocsService
 	origDrive := newDriveService

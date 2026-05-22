@@ -193,7 +193,7 @@ func ParseMarkdown(text string) []MarkdownElement {
 					TableCells: tableCells,
 				})
 				// Skip all table lines
-				i += len(tableCells) // loop increment handles separator line offset
+				i += countMarkdownTableLines(lines[i:]) - 1
 				continue
 			}
 		}
@@ -272,7 +272,22 @@ func parseMarkdownTable(lines []string) [][]string {
 		}
 	}
 
+	if len(rows) > 1 && isEmptyMarkdownTableRow(rows[0]) {
+		rows = rows[1:]
+	}
 	return rows
+}
+
+func countMarkdownTableLines(lines []string) int {
+	count := 0
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" || !strings.HasPrefix(line, "|") {
+			break
+		}
+		count++
+	}
+	return count
 }
 
 // parseTableRow parses a single table row into cells
@@ -290,6 +305,79 @@ func parseTableRow(line string) []string {
 	}
 
 	return cells
+}
+
+func isEmptyMarkdownTableRow(cells []string) bool {
+	if len(cells) == 0 {
+		return false
+	}
+	for _, cell := range cells {
+		if strings.TrimSpace(cell) != "" {
+			return false
+		}
+	}
+	return true
+}
+
+func normalizeMarkdownTablesForDriveImport(markdown string) string {
+	lines := strings.Split(markdown, "\n")
+	out := make([]string, 0, len(lines))
+	inFence := false
+	fenceMarker := ""
+	for i := 0; i < len(lines); i++ {
+		line := lines[i]
+		if marker := docsMarkdownFenceMarker(line); marker != "" {
+			if !inFence {
+				inFence = true
+				fenceMarker = marker
+			} else if marker == fenceMarker {
+				inFence = false
+				fenceMarker = ""
+			}
+			out = append(out, line)
+			continue
+		}
+		if inFence || !isMarkdownTableCandidateLine(line) || i+2 >= len(lines) || !isTableSeparator(lines[i+1]) || isIndentedMarkdownCodeLine(lines[i+1]) {
+			out = append(out, line)
+			continue
+		}
+		header := parseTableRow(strings.TrimSpace(line))
+		if !isEmptyMarkdownTableRow(header) || !isMarkdownTableCandidateLine(lines[i+2]) {
+			out = append(out, line)
+			continue
+		}
+		out = append(out, lines[i+2], lines[i+1])
+		i += 2
+		for i+1 < len(lines) {
+			next := lines[i+1]
+			if strings.TrimSpace(next) == "" || !strings.HasPrefix(strings.TrimSpace(next), "|") {
+				break
+			}
+			out = append(out, next)
+			i++
+		}
+	}
+	return strings.Join(out, "\n")
+}
+
+func docsMarkdownFenceMarker(line string) string {
+	trimmed := strings.TrimSpace(line)
+	switch {
+	case strings.HasPrefix(trimmed, "```"):
+		return "```"
+	case strings.HasPrefix(trimmed, "~~~"):
+		return "~~~"
+	default:
+		return ""
+	}
+}
+
+func isMarkdownTableCandidateLine(line string) bool {
+	return !isIndentedMarkdownCodeLine(line) && strings.HasPrefix(strings.TrimSpace(line), "|")
+}
+
+func isIndentedMarkdownCodeLine(line string) bool {
+	return strings.HasPrefix(line, "\t") || strings.HasPrefix(line, "    ")
 }
 
 const inlineTypeCode = "code"

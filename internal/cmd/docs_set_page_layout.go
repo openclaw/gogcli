@@ -6,40 +6,52 @@ import (
 	"os"
 	"strings"
 
+	"github.com/alecthomas/kong"
+
 	"github.com/steipete/gogcli/internal/outfmt"
 	"github.com/steipete/gogcli/internal/ui"
 )
 
 // DocsPageLayoutCmd toggles the page layout on an existing Google Doc.
 // The Docs UI exposes this via File → Page setup → Pageless/Pages. The Docs
-// API exposes it via documents.batchUpdate with updateDocumentStyle on the
-// documentFormat.documentMode field. See setDocumentMode in docs_helpers.go.
+// API exposes it via documents.batchUpdate with updateDocumentStyle.
 //
 // Sibling to the --pageless flag on `docs create` / `docs write` for the case
 // where the doc already exists (e.g. created by Drive markdown conversion in
 // an upstream step that didn't set the layout).
 type DocsPageLayoutCmd struct {
-	DocID  string `arg:"" name:"docId" help:"Doc ID"`
-	Layout string `name:"layout" enum:"pageless,pages,paged" default:"pageless" help:"Page layout: pageless or pages"`
+	DocID       string          `arg:"" name:"docId" help:"Doc ID"`
+	Layout      string          `name:"layout" enum:"pageless,pages,paged" default:"pageless" help:"Page layout: pageless or pages"`
+	LayoutFlags DocsLayoutFlags `embed:""`
 }
 
-func (c *DocsPageLayoutCmd) Run(ctx context.Context, flags *RootFlags) error {
+func (c *DocsPageLayoutCmd) Run(ctx context.Context, kctx *kong.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
 	docID := strings.TrimSpace(c.DocID)
 	if docID == "" {
 		return usage("empty docId")
 	}
 
-	mode, err := normalizePageLayout(c.Layout)
-	if err != nil {
-		return err
+	mode := ""
+	if flagProvided(kctx, "layout") || !c.LayoutFlags.any() {
+		var err error
+		mode, err = normalizePageLayout(c.Layout)
+		if err != nil {
+			return err
+		}
 	}
 
-	if dryRunErr := dryRunExit(ctx, flags, "docs.page-layout", map[string]any{
+	dryRunPayload := map[string]any{
 		"documentId": docID,
-		"layout":     c.Layout,
-		"mode":       mode,
-	}); dryRunErr != nil {
+	}
+	if mode != "" {
+		dryRunPayload["layout"] = c.Layout
+		dryRunPayload["mode"] = mode
+	}
+	for k, v := range c.LayoutFlags.dryRunPayload() {
+		dryRunPayload[k] = v
+	}
+	if dryRunErr := dryRunExit(ctx, flags, "docs.page-layout", dryRunPayload); dryRunErr != nil {
 		return dryRunErr
 	}
 
@@ -48,7 +60,10 @@ func (c *DocsPageLayoutCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
-	if err := setDocumentMode(ctx, svc, docID, mode); err != nil {
+	if err := setDocumentStyle(ctx, svc, docID, docsDocumentStyleOptions{
+		Mode:            mode,
+		DocsLayoutFlags: c.LayoutFlags,
+	}); err != nil {
 		if isDocsNotFound(err) {
 			return fmt.Errorf("doc not found or not a Google Doc (id=%s)", docID)
 		}
@@ -56,15 +71,26 @@ func (c *DocsPageLayoutCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
+		payload := map[string]any{
 			"documentId": docID,
-			"layout":     c.Layout,
-			"mode":       mode,
-		})
+		}
+		if mode != "" {
+			payload["layout"] = c.Layout
+			payload["mode"] = mode
+		}
+		for k, v := range c.LayoutFlags.dryRunPayload() {
+			payload[k] = v
+		}
+		return outfmt.WriteJSON(ctx, os.Stdout, payload)
 	}
 
 	u.Out().Linef("documentId\t%s", docID)
-	u.Out().Linef("layout\t%s", c.Layout)
+	if mode != "" {
+		u.Out().Linef("layout\t%s", c.Layout)
+	}
+	for k, v := range c.LayoutFlags.dryRunPayload() {
+		u.Out().Linef("%s\t%s", k, v)
+	}
 	return nil
 }
 

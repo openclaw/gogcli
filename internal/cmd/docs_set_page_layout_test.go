@@ -170,12 +170,122 @@ func TestDocsPageLayoutCmd_DryRun(t *testing.T) {
 	flags := &RootFlags{Account: "a@b.com", DryRun: true}
 	ctx := newDocsJSONContext(t)
 
-	err := (&DocsPageLayoutCmd{DocID: "doc1", Layout: "pageless"}).Run(ctx, flags)
+	err := (&DocsPageLayoutCmd{DocID: "doc1", Layout: "pageless"}).Run(ctx, nil, flags)
 	var exitErr *ExitError
 	if err == nil {
 		t.Fatalf("expected dry-run ExitError, got nil")
 	}
 	if !errors.As(err, &exitErr) || exitErr.Code != 0 {
 		t.Fatalf("expected dry-run exit 0, got %v", err)
+	}
+}
+
+func TestDocsPageLayoutCmd_PageSizeAndMargins(t *testing.T) {
+	origDocs := newDocsService
+	t.Cleanup(func() { newDocsService = origDocs })
+
+	var batchRequests [][]*docs.Request
+
+	docSvc, cleanup := newDocsServiceForTest(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodPost && strings.Contains(r.URL.Path, ":batchUpdate"):
+			var req docs.BatchUpdateDocumentRequest
+			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+				t.Fatalf("decode: %v", err)
+			}
+			batchRequests = append(batchRequests, req.Requests)
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{"documentId": "doc1"})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer cleanup()
+	newDocsService = func(context.Context, string) (*docs.Service, error) { return docSvc, nil }
+
+	flags := &RootFlags{Account: "a@b.com"}
+	ctx := newDocsCmdContext(t)
+
+	args := []string{"doc1", "--layout=pages", "--page-width=8.5in", "--page-height=11in", "--margin-left=0.5in", "--margin-right=36"}
+	if err := runKong(t, &DocsPageLayoutCmd{}, args, ctx, flags); err != nil {
+		t.Fatalf("page-layout margins: %v", err)
+	}
+
+	if len(batchRequests) != 1 || len(batchRequests[0]) != 1 {
+		t.Fatalf("expected 1 batch request with 1 op, got %#v", batchRequests)
+	}
+	upd := batchRequests[0][0].UpdateDocumentStyle
+	if upd == nil || upd.DocumentStyle == nil {
+		t.Fatalf("expected UpdateDocumentStyle, got %#v", batchRequests[0][0])
+	}
+	if upd.Fields != "documentFormat,pageSize.width,pageSize.height,marginLeft,marginRight" {
+		t.Fatalf("fields = %q", upd.Fields)
+	}
+	style := upd.DocumentStyle
+	if style.PageSize.Width.Magnitude != 612 || style.PageSize.Height.Magnitude != 792 {
+		t.Fatalf("unexpected page size: %#v", style.PageSize)
+	}
+	if style.MarginLeft.Magnitude != 36 || style.MarginRight.Magnitude != 36 {
+		t.Fatalf("unexpected margins: left=%#v right=%#v", style.MarginLeft, style.MarginRight)
+	}
+}
+
+func TestDocsPageLayoutCmd_PageSizeWithoutLayoutPreservesMode(t *testing.T) {
+	origDocs := newDocsService
+	t.Cleanup(func() { newDocsService = origDocs })
+
+	var batchRequests [][]*docs.Request
+
+	docSvc, cleanup := newDocsServiceForTest(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodPost && strings.Contains(r.URL.Path, ":batchUpdate"):
+			var req docs.BatchUpdateDocumentRequest
+			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+				t.Fatalf("decode: %v", err)
+			}
+			batchRequests = append(batchRequests, req.Requests)
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{"documentId": "doc1"})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer cleanup()
+	newDocsService = func(context.Context, string) (*docs.Service, error) { return docSvc, nil }
+
+	flags := &RootFlags{Account: "a@b.com"}
+	ctx := newDocsCmdContext(t)
+
+	if err := runKong(t, &DocsPageLayoutCmd{}, []string{"doc1", "--page-width=960"}, ctx, flags); err != nil {
+		t.Fatalf("page-layout width: %v", err)
+	}
+
+	upd := batchRequests[0][0].UpdateDocumentStyle
+	if upd.Fields != "pageSize.width" {
+		t.Fatalf("fields = %q", upd.Fields)
+	}
+	if upd.DocumentStyle.DocumentFormat != nil {
+		t.Fatalf("unexpected document mode update: %#v", upd.DocumentStyle.DocumentFormat)
+	}
+	if upd.DocumentStyle.PageSize.Width.Magnitude != 960 {
+		t.Fatalf("page width = %#v", upd.DocumentStyle.PageSize.Width)
+	}
+}
+
+func TestBuildUpdateDocumentStyleRequest_ZeroMarginAllowed(t *testing.T) {
+	req, err := buildUpdateDocumentStyleRequest(docsDocumentStyleOptions{
+		DocsLayoutFlags: DocsLayoutFlags{MarginLeft: "0", MarginRight: "0pt"},
+	})
+	if err != nil {
+		t.Fatalf("build request: %v", err)
+	}
+	if req.Fields != "marginLeft,marginRight" {
+		t.Fatalf("fields = %q", req.Fields)
+	}
+	if req.DocumentStyle.MarginLeft.Magnitude != 0 || req.DocumentStyle.MarginRight.Magnitude != 0 {
+		t.Fatalf("margins = left %#v right %#v", req.DocumentStyle.MarginLeft, req.DocumentStyle.MarginRight)
+	}
+	if len(req.DocumentStyle.MarginLeft.ForceSendFields) == 0 || req.DocumentStyle.MarginLeft.ForceSendFields[0] != "Magnitude" {
+		t.Fatalf("left margin should force-send zero magnitude: %#v", req.DocumentStyle.MarginLeft)
 	}
 }

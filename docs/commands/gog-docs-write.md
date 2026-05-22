@@ -40,6 +40,10 @@ gog docs (doc) write <docId> [flags]
 | `--italic` | `bool` |  | Set italic |
 | `-j`<br>`--json`<br>`--machine` | `bool` | false | Output JSON to stdout (best for scripting) |
 | `--line-spacing` | `float64` |  | Paragraph line spacing percentage, for example 100 or 150 |
+| `--margin-bottom` | `string` |  | Set bottom page margin (points by default; supports pt, in, cm, mm) |
+| `--margin-left` | `string` |  | Set left page margin (points by default; supports pt, in, cm, mm) |
+| `--margin-right` | `string` |  | Set right page margin (points by default; supports pt, in, cm, mm) |
+| `--margin-top` | `string` |  | Set top page margin (points by default; supports pt, in, cm, mm) |
 | `--markdown` | `bool` |  | Convert markdown to Google Docs formatting (requires --replace or --append) |
 | `--named-style` | `string` |  | Set paragraph named style: NORMAL_TEXT, TITLE, SUBTITLE, HEADING_1..HEADING_6 |
 | `--no-bold` | `bool` |  | Clear bold |
@@ -47,6 +51,8 @@ gog docs (doc) write <docId> [flags]
 | `--no-italic` | `bool` |  | Clear italic |
 | `--no-strikethrough`<br>`--no-strike` | `bool` |  | Clear strikethrough |
 | `--no-underline` | `bool` |  | Clear underline |
+| `--page-height` | `string` |  | Set page height (points by default; supports pt, in, cm, mm) |
+| `--page-width` | `string` |  | Set page width (points by default; supports pt, in, cm, mm) |
 | `--pageless` | `bool` |  | Set document to pageless mode |
 | `-p`<br>`--plain`<br>`--tsv` | `bool` | false | Output stable, parseable text to stdout (TSV; no colors) |
 | `--replace` | `bool` |  | Replace all content explicitly (required with --markdown unless --append is set) |

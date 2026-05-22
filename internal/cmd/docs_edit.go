@@ -40,6 +40,7 @@ type DocsWriteCmd struct {
 	Markdown bool            `name:"markdown" help:"Convert markdown to Google Docs formatting (requires --replace or --append)"`
 	Append   bool            `name:"append" help:"Append instead of replacing the document body"`
 	Pageless bool            `name:"pageless" help:"Set document to pageless mode"`
+	Layout   DocsLayoutFlags `embed:""`
 	Tab      string          `name:"tab" help:"Target a specific tab by title or ID (see docs list-tabs)"`
 	TabID    string          `name:"tab-id" hidden:"" help:"(deprecated) Use --tab"`
 	Format   DocsFormatFlags `embed:""`
@@ -65,6 +66,10 @@ func (c *DocsWriteCmd) Run(ctx context.Context, kctx *kong.Context, flags *RootF
 	}
 	c.Tab = tab
 
+	if err := c.validateDocumentStyle(); err != nil {
+		return err
+	}
+
 	if c.Markdown {
 		if c.Format.any() {
 			return usage("formatting flags are only supported for plain-text docs write; use markdown syntax or run docs format after writing")
@@ -73,6 +78,21 @@ func (c *DocsWriteCmd) Run(ctx context.Context, kctx *kong.Context, flags *RootF
 	}
 
 	return c.writePlainText(ctx, flags, id, text)
+}
+
+func (c *DocsWriteCmd) validateDocumentStyle() error {
+	if !c.Pageless && !c.Layout.any() {
+		return nil
+	}
+	mode := ""
+	if c.Pageless {
+		mode = docsDocumentModePageless
+	}
+	_, err := buildUpdateDocumentStyleRequest(docsDocumentStyleOptions{
+		Mode:            mode,
+		DocsLayoutFlags: c.Layout,
+	})
+	return err
 }
 
 func (c *DocsWriteCmd) resolveWriteText(kctx *kong.Context) (string, error) {
@@ -96,7 +116,7 @@ func (c *DocsWriteCmd) writePlainText(ctx context.Context, flags *RootFlags, doc
 		}
 	}
 
-	if err := dryRunExit(ctx, flags, "docs.write", map[string]any{
+	dryRunPayload := map[string]any{
 		"document_id": docID,
 		"written":     len(text),
 		"append":      c.Append,
@@ -104,7 +124,11 @@ func (c *DocsWriteCmd) writePlainText(ctx context.Context, flags *RootFlags, doc
 		"markdown":    false,
 		"pageless":    c.Pageless,
 		"tab":         c.Tab,
-	}); err != nil {
+	}
+	for k, v := range c.Layout.dryRunPayload() {
+		dryRunPayload[k] = v
+	}
+	if err := dryRunExit(ctx, flags, "docs.write", dryRunPayload); err != nil {
 		return err
 	}
 
@@ -134,7 +158,7 @@ func (c *DocsWriteCmd) writePlainText(ctx context.Context, flags *RootFlags, doc
 		}
 		return err
 	}
-	if err := c.applyPageless(ctx, svc, docID); err != nil {
+	if err := c.applyDocumentStyle(ctx, svc, docID); err != nil {
 		return err
 	}
 
@@ -169,12 +193,19 @@ func (c *DocsWriteCmd) buildPlainWriteRequests(endIndex, insertIndex int64, text
 	return reqs, nil
 }
 
-func (c *DocsWriteCmd) applyPageless(ctx context.Context, svc *docs.Service, docID string) error {
-	if !c.Pageless {
+func (c *DocsWriteCmd) applyDocumentStyle(ctx context.Context, svc *docs.Service, docID string) error {
+	if !c.Pageless && !c.Layout.any() {
 		return nil
 	}
-	if err := setDocumentPageless(ctx, svc, docID); err != nil {
-		return fmt.Errorf("set pageless mode: %w", err)
+	mode := ""
+	if c.Pageless {
+		mode = docsDocumentModePageless
+	}
+	if err := setDocumentStyle(ctx, svc, docID, docsDocumentStyleOptions{
+		Mode:            mode,
+		DocsLayoutFlags: c.Layout,
+	}); err != nil {
+		return fmt.Errorf("set document style: %w", err)
 	}
 	return nil
 }
@@ -190,6 +221,9 @@ func (c *DocsWriteCmd) writePlainTextResult(ctx context.Context, resp *docs.Batc
 		}
 		if c.Tab != "" {
 			payload["tabId"] = c.Tab
+		}
+		for k, v := range c.Layout.dryRunPayload() {
+			payload[k] = v
 		}
 		if resp.WriteControl != nil {
 			payload["writeControl"] = resp.WriteControl
@@ -227,7 +261,8 @@ func (c *DocsWriteCmd) writeMarkdown(ctx context.Context, flags *RootFlags, docI
 	}
 
 	cleaned, images := extractMarkdownImages(content)
-	if err := dryRunExit(ctx, flags, "docs.write", map[string]any{
+	cleaned = normalizeMarkdownTablesForDriveImport(cleaned)
+	dryRunPayload := map[string]any{
 		"document_id": docID,
 		"written":     len(content),
 		"append":      false,
@@ -235,7 +270,11 @@ func (c *DocsWriteCmd) writeMarkdown(ctx context.Context, flags *RootFlags, docI
 		"markdown":    true,
 		"pageless":    c.Pageless,
 		"images":      len(images),
-	}); err != nil {
+	}
+	for k, v := range c.Layout.dryRunPayload() {
+		dryRunPayload[k] = v
+	}
+	if err := dryRunExit(ctx, flags, "docs.write", dryRunPayload); err != nil {
 		return err
 	}
 
@@ -255,12 +294,21 @@ func (c *DocsWriteCmd) writeMarkdown(ctx context.Context, flags *RootFlags, docI
 	}
 
 	var docsSvc *docs.Service
-	if len(images) > 0 || c.Pageless {
+	needsDocsSvc := len(images) > 0 || c.Pageless || c.Layout.any() || markdownMayContainHeadingLinks(cleaned)
+	if needsDocsSvc {
 		var svcErr error
 		docsSvc, svcErr = newDocsService(ctx, account)
 		if svcErr != nil {
 			return svcErr
 		}
+	}
+	rewrittenHeadingLinks := 0
+	if markdownMayContainHeadingLinks(cleaned) {
+		count, rewriteErr := rewriteMarkdownHeadingLinks(ctx, docsSvc, docID)
+		if rewriteErr != nil {
+			return fmt.Errorf("rewrite heading links: %w", rewriteErr)
+		}
+		rewrittenHeadingLinks = count
 	}
 	if len(images) > 0 {
 		if err := insertImagesIntoDocs(ctx, docsSvc, docID, images, ""); err != nil {
@@ -268,8 +316,8 @@ func (c *DocsWriteCmd) writeMarkdown(ctx context.Context, flags *RootFlags, docI
 			return fmt.Errorf("insert images: %w", err)
 		}
 	}
-	if c.Pageless {
-		if err := c.applyPageless(ctx, docsSvc, docID); err != nil {
+	if c.Pageless || c.Layout.any() {
+		if err := c.applyDocumentStyle(ctx, docsSvc, docID); err != nil {
 			return err
 		}
 	}
@@ -284,6 +332,9 @@ func (c *DocsWriteCmd) writeMarkdown(ctx context.Context, flags *RootFlags, docI
 		if c.Pageless {
 			payload["pageless"] = true
 		}
+		if rewrittenHeadingLinks > 0 {
+			payload["headingLinks"] = rewrittenHeadingLinks
+		}
 		return outfmt.WriteJSON(ctx, os.Stdout, payload)
 	}
 
@@ -293,6 +344,9 @@ func (c *DocsWriteCmd) writeMarkdown(ctx context.Context, flags *RootFlags, docI
 	if c.Pageless {
 		u.Out().Linef("pageless\ttrue")
 	}
+	if rewrittenHeadingLinks > 0 {
+		u.Out().Linef("headingLinks\t%d", rewrittenHeadingLinks)
+	}
 	if updated.WebViewLink != "" {
 		u.Out().Linef("link\t%s", updated.WebViewLink)
 	}
@@ -301,7 +355,7 @@ func (c *DocsWriteCmd) writeMarkdown(ctx context.Context, flags *RootFlags, docI
 
 func (c *DocsWriteCmd) appendMarkdown(ctx context.Context, flags *RootFlags, docID, content string) error {
 	cleaned, images := extractMarkdownImages(content)
-	if err := dryRunExit(ctx, flags, "docs.write", map[string]any{
+	dryRunPayload := map[string]any{
 		"document_id": docID,
 		"written":     len(cleaned),
 		"append":      true,
@@ -310,7 +364,11 @@ func (c *DocsWriteCmd) appendMarkdown(ctx context.Context, flags *RootFlags, doc
 		"pageless":    c.Pageless,
 		"tab":         c.Tab,
 		"images":      len(images),
-	}); err != nil {
+	}
+	for k, v := range c.Layout.dryRunPayload() {
+		dryRunPayload[k] = v
+	}
+	if err := dryRunExit(ctx, flags, "docs.write", dryRunPayload); err != nil {
 		return err
 	}
 
@@ -333,7 +391,7 @@ func (c *DocsWriteCmd) appendMarkdown(ctx context.Context, flags *RootFlags, doc
 		}
 		return err
 	}
-	if err := c.applyPageless(ctx, svc, docID); err != nil {
+	if err := c.applyDocumentStyle(ctx, svc, docID); err != nil {
 		return err
 	}
 
@@ -348,6 +406,9 @@ func (c *DocsWriteCmd) appendMarkdown(ctx context.Context, flags *RootFlags, doc
 		}
 		if c.Pageless {
 			payload["pageless"] = true
+		}
+		for k, v := range c.Layout.dryRunPayload() {
+			payload[k] = v
 		}
 		return outfmt.WriteJSON(ctx, os.Stdout, payload)
 	}
@@ -371,7 +432,7 @@ func (c *DocsWriteCmd) appendMarkdown(ctx context.Context, flags *RootFlags, doc
 // body content via DeleteContentRange. Other tabs are untouched.
 func (c *DocsWriteCmd) replaceMarkdownInTab(ctx context.Context, flags *RootFlags, docID, content string) error {
 	cleaned, images := extractMarkdownImages(content)
-	if err := dryRunExit(ctx, flags, "docs.write", map[string]any{
+	dryRunPayload := map[string]any{
 		"document_id": docID,
 		"written":     len(cleaned),
 		"append":      false,
@@ -380,7 +441,11 @@ func (c *DocsWriteCmd) replaceMarkdownInTab(ctx context.Context, flags *RootFlag
 		"pageless":    c.Pageless,
 		"tab":         c.Tab,
 		"images":      len(images),
-	}); err != nil {
+	}
+	for k, v := range c.Layout.dryRunPayload() {
+		dryRunPayload[k] = v
+	}
+	if err := dryRunExit(ctx, flags, "docs.write", dryRunPayload); err != nil {
 		return err
 	}
 
@@ -421,7 +486,7 @@ func (c *DocsWriteCmd) replaceMarkdownInTab(ctx context.Context, flags *RootFlag
 		}
 		return err
 	}
-	if err := c.applyPageless(ctx, svc, docID); err != nil {
+	if err := c.applyDocumentStyle(ctx, svc, docID); err != nil {
 		return err
 	}
 
@@ -436,6 +501,9 @@ func (c *DocsWriteCmd) replaceMarkdownInTab(ctx context.Context, flags *RootFlag
 		}
 		if c.Pageless {
 			payload["pageless"] = true
+		}
+		for k, v := range c.Layout.dryRunPayload() {
+			payload[k] = v
 		}
 		return outfmt.WriteJSON(ctx, os.Stdout, payload)
 	}

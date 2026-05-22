@@ -60,26 +60,6 @@ const (
 	docsDocumentModePageless = "PAGELESS"
 )
 
-func setDocumentPageless(ctx context.Context, svc *docs.Service, docID string) error {
-	return setDocumentMode(ctx, svc, docID, docsDocumentModePageless)
-}
-
-// setDocumentMode toggles documentStyle.documentFormat.documentMode via a
-// single batchUpdate call.
-func setDocumentMode(ctx context.Context, svc *docs.Service, docID, mode string) error {
-	_, err := svc.Documents.BatchUpdate(docID, &docs.BatchUpdateDocumentRequest{
-		Requests: []*docs.Request{{
-			UpdateDocumentStyle: &docs.UpdateDocumentStyleRequest{
-				DocumentStyle: &docs.DocumentStyle{
-					DocumentFormat: &docs.DocumentFormat{DocumentMode: mode},
-				},
-				Fields: "documentFormat",
-			},
-		}},
-	}).Context(ctx).Do()
-	return err
-}
-
 func resolveTextInput(text, file string, kctx *kong.Context, textFlag, fileFlag string) (string, bool, error) {
 	file = strings.TrimSpace(file)
 	textProvided := text != "" || flagProvided(kctx, textFlag)
