@@ -42,6 +42,7 @@ gog calendar (cal) create (add,new) <calendarId> [flags]
 | `--guests-can-modify` | `*bool` |  | Allow guests to modify event |
 | `--guests-can-see-others` | `*bool` |  | Allow guests to see other guests |
 | `-h`<br>`--help` | `kong.helpFlag` |  | Show context-sensitive help. |
+| `--home` | `string` |  | Override gogcli config/data/state/cache root (equivalent to GOG_HOME) |
 | `--include-passwords` | `bool` |  | Do not redact Zoom meeting passwords in output |
 | `-j`<br>`--json`<br>`--machine` | `bool` | false | Output JSON to stdout (best for scripting) |
 | `--location` | `string` |  | Location |

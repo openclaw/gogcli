@@ -77,6 +77,53 @@ func TestHelpDescription(t *testing.T) {
 	}
 }
 
+func TestRootHomeFlagOverridesPathRoot(t *testing.T) {
+	setTestConfigHome(t)
+	home := t.TempDir()
+
+	out := captureStdout(t, func() {
+		if err := Execute([]string{"--json", "--home", home, "config", "path"}); err != nil {
+			t.Fatalf("Execute: %v", err)
+		}
+	})
+	if !strings.Contains(out, filepath.Join(home, "config", "config.json")) {
+		t.Fatalf("expected config path under --home, got %s", out)
+	}
+}
+
+func TestRootHomeFlagOverridesHelpDescription(t *testing.T) {
+	setTestConfigHome(t)
+	home := t.TempDir()
+
+	out := captureStdout(t, func() {
+		if err := Execute([]string{"--home", home, "--help"}); err != nil {
+			t.Fatalf("Execute: %v", err)
+		}
+	})
+	if !strings.Contains(out, filepath.Join(home, "config", "config.json")) {
+		t.Fatalf("expected help config path under --home, got %s", out)
+	}
+}
+
+func TestRootHomePreScanSkipsGlobalFlagValues(t *testing.T) {
+	if home, ok := preScanHomeArg([]string{"--account", "--home", "config", "path"}); ok {
+		t.Fatalf("unexpected home override %q", home)
+	}
+
+	home, ok := preScanHomeArg([]string{"--account", "user@example.com", "--home=/tmp/gog", "config", "path"})
+	if !ok || home != "/tmp/gog" {
+		t.Fatalf("home=%q ok=%t, want /tmp/gog true", home, ok)
+	}
+}
+
+func TestRootHomeFlagRejectsRelativePath(t *testing.T) {
+	setTestConfigHome(t)
+	err := Execute([]string{"--home", "relative", "config", "path"})
+	if err == nil || !strings.Contains(err.Error(), "--home") {
+		t.Fatalf("expected --home error, got %v", err)
+	}
+}
+
 func TestEnableCommandsBlocks(t *testing.T) {
 	err := Execute([]string{"--enable-commands", "calendar", "tasks", "list", "l1"})
 	if err == nil {

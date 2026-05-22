@@ -31,6 +31,7 @@ gog docs (doc) find-replace <docId> <find> [<replace>] [flags]
 | `--format` | `string` | plain | Replacement format: plain\|markdown. Markdown converts formatting, tables, and inline images from public HTTPS URLs. |
 | `--gmail-no-send` | `bool` | false | Block Gmail send operations (agent safety) |
 | `-h`<br>`--help` | `kong.helpFlag` |  | Show context-sensitive help. |
+| `--home` | `string` |  | Override gogcli config/data/state/cache root (equivalent to GOG_HOME) |
 | `-j`<br>`--json`<br>`--machine` | `bool` | false | Output JSON to stdout (best for scripting) |
 | `--match-case` | `bool` |  | Case-sensitive matching |
 | `--no-input`<br>`--non-interactive`<br>`--noninteractive` | `bool` |  | Never prompt; fail instead (useful for CI) |

@@ -31,6 +31,7 @@ gog calendar (cal) team <group-email> [flags]
 | `--from` | `string` |  | Start time (RFC3339, date, or relative: now, today, tomorrow, monday) |
 | `--gmail-no-send` | `bool` | false | Block Gmail send operations (agent safety) |
 | `-h`<br>`--help` | `kong.helpFlag` |  | Show context-sensitive help. |
+| `--home` | `string` |  | Override gogcli config/data/state/cache root (equivalent to GOG_HOME) |
 | `-j`<br>`--json`<br>`--machine` | `bool` | false | Output JSON to stdout (best for scripting) |
 | `--max`<br>`--limit` | `int64` | 100 | Max events per calendar |
 | `--no-dedup` | `bool` |  | Show each person's view without deduplication |

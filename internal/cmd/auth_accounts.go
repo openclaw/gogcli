@@ -56,12 +56,10 @@ func (c *AuthStatusCmd) Run(ctx context.Context, flags *RootFlags) error {
 				return resolveErr
 			}
 			client = resolvedClient
-			path, pathErr := config.ClientCredentialsPathFor(client)
+			path, exists, pathErr := config.ExistingClientCredentialsPathFor(client)
 			if pathErr == nil {
 				credentialsPath = path
-				if st, statErr := os.Stat(path); statErr == nil && !st.IsDir() {
-					credentialsExists = true
-				}
+				credentialsExists = exists
 			}
 			clientSecretInKeyring = oauthclient.ClientSecretInKeyring(client)
 			if p, _, ok := bestServiceAccountPathAndMtime(normalizeEmail(account)); ok {
@@ -159,17 +157,12 @@ func (c *AuthListCmd) Run(ctx context.Context, _ *RootFlags) error {
 }
 
 func bestServiceAccountPathAndMtime(email string) (string, time.Time, bool) {
-	if p, err := config.ServiceAccountPath(email); err == nil {
+	if p, err := config.ExistingServiceAccountPath(email); err == nil {
 		if st, err := os.Stat(p); err == nil {
 			return p, st.ModTime(), true
 		}
 	}
-	if p, err := config.KeepServiceAccountPath(email); err == nil {
-		if st, err := os.Stat(p); err == nil {
-			return p, st.ModTime(), true
-		}
-	}
-	if p, err := config.KeepServiceAccountLegacyPath(email); err == nil {
+	if p, err := config.ExistingKeepServiceAccountPath(email); err == nil {
 		if st, err := os.Stat(p); err == nil {
 			return p, st.ModTime(), true
 		}
@@ -330,7 +323,7 @@ func (c *AuthKeepCmd) Run(ctx context.Context, _ *RootFlags) error {
 		return err
 	}
 
-	if _, err := config.EnsureDir(); err != nil {
+	if _, err := config.EnsureDataDir(); err != nil {
 		return err
 	}
 

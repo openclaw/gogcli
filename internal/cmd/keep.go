@@ -427,7 +427,7 @@ func getKeepService(ctx context.Context, flags *RootFlags, keepCmd *KeepCmd) (*k
 		return nil, err
 	}
 
-	genericSAPath, err := config.ServiceAccountPath(account)
+	genericSAPath, err := config.ExistingServiceAccountPath(account)
 	if err != nil {
 		return nil, err
 	}
@@ -435,20 +435,13 @@ func getKeepService(ctx context.Context, flags *RootFlags, keepCmd *KeepCmd) (*k
 		return newKeepServiceWithSA(ctx, genericSAPath, account)
 	}
 
-	saPath, err := config.KeepServiceAccountPath(account)
+	saPath, err := config.ExistingKeepServiceAccountPath(account)
 	if err != nil {
 		return nil, err
 	}
 
 	if _, statErr := os.Stat(saPath); statErr == nil {
 		return newKeepServiceWithSA(ctx, saPath, account)
-	}
-
-	legacyPath, legacyErr := config.KeepServiceAccountLegacyPath(account)
-	if legacyErr == nil {
-		if _, statErr := os.Stat(legacyPath); statErr == nil {
-			return newKeepServiceWithSA(ctx, legacyPath, account)
-		}
 	}
 
 	return nil, usage("Keep is Workspace-only and requires a service account. Configure it with: gog auth service-account set <email> --key <service-account.json> (or legacy: gog auth keep <email> --key <service-account.json>)")

@@ -32,6 +32,7 @@ gog gmail (mail,email) messages (message,msg,msgs) search (find,query,ls,list) <
 | `--full` | `bool` |  | Show full message bodies without truncation (implies --include-body) |
 | `--gmail-no-send` | `bool` | false | Block Gmail send operations (agent safety) |
 | `-h`<br>`--help` | `kong.helpFlag` |  | Show context-sensitive help. |
+| `--home` | `string` |  | Override gogcli config/data/state/cache root (equivalent to GOG_HOME) |
 | `--include-body` | `bool` |  | Include decoded message body (JSON is full; text output is truncated) |
 | `-j`<br>`--json`<br>`--machine` | `bool` | false | Output JSON to stdout (best for scripting) |
 | `--local` | `bool` |  | Use local timezone (default behavior, useful to override --timezone) |

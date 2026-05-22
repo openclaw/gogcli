@@ -3,7 +3,10 @@ package cmd
 import (
 	"encoding/json"
 	"os"
+	"path/filepath"
 	"testing"
+
+	"github.com/steipete/gogcli/internal/config"
 )
 
 func TestIsStaleHistoryID(t *testing.T) {
@@ -77,6 +80,55 @@ func TestGmailWatchStoreUpdateReloadsDiskState(t *testing.T) {
 	}
 	if got.LastDeliveryStatus != "ok" || got.LastDeliveryAtMs != 1234 {
 		t.Fatalf("delivery fields not updated: %#v", got)
+	}
+}
+
+func TestGmailWatchStatePathFallsBackToLegacyAccountFile(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, "xdg-config"))
+	t.Setenv("XDG_STATE_HOME", filepath.Join(home, "xdg-state"))
+
+	stateDir := filepath.Join(home, "xdg-state", config.AppName, "gmail-watch")
+	if err := os.MkdirAll(stateDir, 0o700); err != nil {
+		t.Fatalf("mkdir state dir: %v", err)
+	}
+
+	legacyDir := filepath.Join(home, "xdg-config", config.AppName, "state", "gmail-watch")
+	if err := os.MkdirAll(legacyDir, 0o700); err != nil {
+		t.Fatalf("mkdir legacy state dir: %v", err)
+	}
+	legacyPath := filepath.Join(legacyDir, sanitizeAccountForPath("me@example.com")+".json")
+	writeGmailWatchStateFile(t, legacyPath, gmailWatchState{Account: "me@example.com", HistoryID: "1"})
+
+	got, err := gmailWatchStatePath("me@example.com")
+	if err != nil {
+		t.Fatalf("gmailWatchStatePath: %v", err)
+	}
+	if got != legacyPath {
+		t.Fatalf("got %q, want legacy path %q", got, legacyPath)
+	}
+}
+
+func TestGmailWatchStatePathExplicitStateSkipsLegacyAccountFile(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, "xdg-config"))
+	t.Setenv("GOG_STATE_DIR", filepath.Join(home, "isolated-state"))
+
+	legacyDir := filepath.Join(home, "xdg-config", config.AppName, "state", "gmail-watch")
+	if err := os.MkdirAll(legacyDir, 0o700); err != nil {
+		t.Fatalf("mkdir legacy state dir: %v", err)
+	}
+	legacyPath := filepath.Join(legacyDir, sanitizeAccountForPath("me@example.com")+".json")
+	writeGmailWatchStateFile(t, legacyPath, gmailWatchState{Account: "me@example.com", HistoryID: "1"})
+
+	got, err := gmailWatchStatePath("me@example.com")
+	if err != nil {
+		t.Fatalf("gmailWatchStatePath: %v", err)
+	}
+	if got == legacyPath {
+		t.Fatalf("expected explicit state dir to skip legacy path %q", legacyPath)
 	}
 }
 

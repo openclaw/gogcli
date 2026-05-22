@@ -160,8 +160,8 @@ func TestReadClientCredentials_Errors(t *testing.T) {
 		t.Fatalf("ClientCredentialsPath: %v", pathErr)
 	}
 
-	if _, dirErr := EnsureDir(); dirErr != nil {
-		t.Fatalf("EnsureDir: %v", dirErr)
+	if _, dirErr := EnsureDataDir(); dirErr != nil {
+		t.Fatalf("EnsureDataDir: %v", dirErr)
 	}
 
 	if writeErr := os.WriteFile(path, []byte(`{"client_id":""}`), 0o600); writeErr != nil {
@@ -170,5 +170,125 @@ func TestReadClientCredentials_Errors(t *testing.T) {
 
 	if _, err := ReadClientCredentials(); err == nil {
 		t.Fatalf("expected missing field error")
+	}
+}
+
+func TestReadClientCredentials_LegacyConfigFallback(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, "xdg-config"))
+	t.Setenv("XDG_DATA_HOME", filepath.Join(home, "xdg-data"))
+
+	legacyPath, err := LegacyClientCredentialsPathFor("work")
+	if err != nil {
+		t.Fatalf("LegacyClientCredentialsPathFor: %v", err)
+	}
+	if mkdirErr := os.MkdirAll(filepath.Dir(legacyPath), 0o700); mkdirErr != nil {
+		t.Fatalf("mkdir legacy: %v", mkdirErr)
+	}
+	if writeErr := os.WriteFile(legacyPath, []byte(`{"client_id":"legacy","client_secret":"secret"}`), 0o600); writeErr != nil {
+		t.Fatalf("write legacy: %v", writeErr)
+	}
+
+	creds, err := ReadClientCredentialsFor("work")
+	if err != nil {
+		t.Fatalf("ReadClientCredentialsFor: %v", err)
+	}
+	if creds.ClientID != "legacy" || creds.ClientSecret != "secret" {
+		t.Fatalf("unexpected credentials: %#v", creds)
+	}
+
+	primaryPath, err := ClientCredentialsPathFor("work")
+	if err != nil {
+		t.Fatalf("ClientCredentialsPathFor: %v", err)
+	}
+	if _, err := os.Stat(primaryPath); !os.IsNotExist(err) {
+		t.Fatalf("expected primary missing, stat err: %v", err)
+	}
+}
+
+func TestExistingClientCredentialsPathFor_LegacyConfigFallback(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, "xdg-config"))
+	t.Setenv("XDG_DATA_HOME", filepath.Join(home, "xdg-data"))
+
+	dir, err := EnsureDir()
+	if err != nil {
+		t.Fatalf("EnsureDir: %v", err)
+	}
+
+	legacyPath := filepath.Join(dir, "credentials-work.json")
+	if writeErr := os.WriteFile(legacyPath, []byte(`{"installed":{"client_id":"legacy","client_secret":"legacy-secret"}}`), 0o600); writeErr != nil {
+		t.Fatalf("write legacy credentials: %v", writeErr)
+	}
+
+	got, exists, err := ExistingClientCredentialsPathFor("work")
+	if err != nil {
+		t.Fatalf("ExistingClientCredentialsPathFor: %v", err)
+	}
+	if !exists {
+		t.Fatalf("expected credentials to exist")
+	}
+	if got != legacyPath {
+		t.Fatalf("got %q, want %q", got, legacyPath)
+	}
+}
+
+func TestClientCredentialsExplicitDataSkipsLegacyFallback(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, "xdg-config"))
+	t.Setenv("GOG_DATA_DIR", filepath.Join(home, "isolated-data"))
+
+	legacyPath, err := LegacyClientCredentialsPathFor("work")
+	if err != nil {
+		t.Fatalf("LegacyClientCredentialsPathFor: %v", err)
+	}
+	if mkdirErr := os.MkdirAll(filepath.Dir(legacyPath), 0o700); mkdirErr != nil {
+		t.Fatalf("mkdir legacy: %v", mkdirErr)
+	}
+	if writeErr := os.WriteFile(legacyPath, []byte(`{"client_id":"legacy","client_secret":"secret"}`), 0o600); writeErr != nil {
+		t.Fatalf("write legacy: %v", writeErr)
+	}
+
+	if _, readErr := ReadClientCredentialsFor("work"); readErr == nil {
+		t.Fatalf("expected missing credentials with explicit data dir")
+	}
+
+	got, exists, err := ExistingClientCredentialsPathFor("work")
+	if err != nil {
+		t.Fatalf("ExistingClientCredentialsPathFor: %v", err)
+	}
+	if exists {
+		t.Fatalf("expected credentials to be isolated from legacy path")
+	}
+	if got == legacyPath {
+		t.Fatalf("expected primary path, got legacy %q", got)
+	}
+}
+
+func TestDeleteClientCredentialsExplicitDataKeepsLegacyFile(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, "xdg-config"))
+	t.Setenv("GOG_DATA_DIR", filepath.Join(home, "isolated-data"))
+
+	legacyPath, err := LegacyClientCredentialsPathFor("work")
+	if err != nil {
+		t.Fatalf("LegacyClientCredentialsPathFor: %v", err)
+	}
+	if mkdirErr := os.MkdirAll(filepath.Dir(legacyPath), 0o700); mkdirErr != nil {
+		t.Fatalf("mkdir legacy: %v", mkdirErr)
+	}
+	if writeErr := os.WriteFile(legacyPath, []byte(`{"client_id":"legacy","client_secret":"secret"}`), 0o600); writeErr != nil {
+		t.Fatalf("write legacy: %v", writeErr)
+	}
+
+	if err := DeleteClientCredentialsFor("work"); err == nil {
+		t.Fatalf("expected missing credentials with explicit data dir")
+	}
+	if _, statErr := os.Stat(legacyPath); statErr != nil {
+		t.Fatalf("expected legacy file to remain, stat err: %v", statErr)
 	}
 }

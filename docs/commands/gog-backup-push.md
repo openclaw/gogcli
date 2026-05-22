@@ -40,6 +40,7 @@ gog backup push [flags]
 | `--gmail-no-send` | `bool` | false | Block Gmail send operations (agent safety) |
 | `--gmail-refresh-cache` | `bool` |  | Refetch Gmail messages even when a local backup cache entry exists |
 | `-h`<br>`--help` | `kong.helpFlag` |  | Show context-sensitive help. |
+| `--home` | `string` |  | Override gogcli config/data/state/cache root (equivalent to GOG_HOME) |
 | `--identity` | `string` |  | Local age identity path |
 | `--include-spam-trash` | `bool` | true | Include Gmail spam and trash |
 | `-j`<br>`--json`<br>`--machine` | `bool` | false | Output JSON to stdout (best for scripting) |

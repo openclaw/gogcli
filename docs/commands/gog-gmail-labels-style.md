@@ -29,6 +29,7 @@ gog gmail (mail,email) labels (label) style (color,colour) <labelIdOrName> [flag
 | `-y`<br>`--force`<br>`--assume-yes`<br>`--yes` | `bool` |  | Skip confirmations for destructive commands |
 | `--gmail-no-send` | `bool` | false | Block Gmail send operations (agent safety) |
 | `-h`<br>`--help` | `kong.helpFlag` |  | Show context-sensitive help. |
+| `--home` | `string` |  | Override gogcli config/data/state/cache root (equivalent to GOG_HOME) |
 | `-j`<br>`--json`<br>`--machine` | `bool` | false | Output JSON to stdout (best for scripting) |
 | `--label-list-visibility` | `string` |  | Label-list visibility: labelShow\|labelShowIfUnread\|labelHide |
 | `--message-list-visibility` | `string` |  | Message-list visibility: show\|hide |

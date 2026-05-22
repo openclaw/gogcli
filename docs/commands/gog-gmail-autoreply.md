@@ -34,6 +34,7 @@ gog gmail (mail,email) autoreply <query> ... [flags]
 | `--from` | `string` |  | Send from this email address (must be a verified send-as alias) |
 | `--gmail-no-send` | `bool` | false | Block Gmail send operations (agent safety) |
 | `-h`<br>`--help` | `kong.helpFlag` |  | Show context-sensitive help. |
+| `--home` | `string` |  | Override gogcli config/data/state/cache root (equivalent to GOG_HOME) |
 | `-j`<br>`--json`<br>`--machine` | `bool` | false | Output JSON to stdout (best for scripting) |
 | `--label` | `string` | AutoReplied | Label to add after replying (used for dedupe) |
 | `--mark-read` | `bool` |  | Mark threads as read after auto-replying |

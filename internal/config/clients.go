@@ -1,3 +1,4 @@
+//nolint:wsl_v5
 package config
 
 import (
@@ -188,47 +189,66 @@ type ClientCredentialsInfo struct {
 }
 
 func ListClientCredentials() ([]ClientCredentialsInfo, error) {
-	dir, err := Dir()
+	dataDir, err := DataDir()
 	if err != nil {
 		return nil, err
 	}
 
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return nil, nil
+	out := make([]ClientCredentialsInfo, 0)
+	seen := make(map[string]struct{})
+	dirs := []string{dataDir}
+	if !HasExplicitDataOverride() {
+		configDir, err := Dir()
+		if err != nil {
+			return nil, err
 		}
-
-		return nil, fmt.Errorf("read config dir: %w", err)
+		dirs = append(dirs, configDir)
 	}
-
-	out := make([]ClientCredentialsInfo, 0, len(entries))
-	for _, e := range entries {
-		if e.IsDir() {
-			continue
-		}
-
-		name := e.Name()
-		switch {
-		case name == "credentials.json":
-			out = append(out, ClientCredentialsInfo{
-				Client:  DefaultClientName,
-				Path:    filepath.Join(dir, name),
-				Default: true,
-			})
-		case strings.HasPrefix(name, "credentials-") && strings.HasSuffix(name, ".json"):
-			raw := strings.TrimSuffix(strings.TrimPrefix(name, "credentials-"), ".json")
-
-			client, err := NormalizeClientName(raw)
-			if err != nil {
+	for _, dir := range uniquePaths(dirs...) {
+		entries, err := os.ReadDir(dir)
+		if err != nil {
+			if os.IsNotExist(err) {
 				continue
 			}
 
-			out = append(out, ClientCredentialsInfo{
-				Client:  client,
-				Path:    filepath.Join(dir, name),
-				Default: false,
-			})
+			return nil, fmt.Errorf("read credentials dir: %w", err)
+		}
+
+		for _, e := range entries {
+			if e.IsDir() {
+				continue
+			}
+
+			name := e.Name()
+			switch {
+			case name == "credentials.json":
+				if _, ok := seen[DefaultClientName]; ok {
+					continue
+				}
+				seen[DefaultClientName] = struct{}{}
+				out = append(out, ClientCredentialsInfo{
+					Client:  DefaultClientName,
+					Path:    filepath.Join(dir, name),
+					Default: true,
+				})
+			case strings.HasPrefix(name, "credentials-") && strings.HasSuffix(name, ".json"):
+				raw := strings.TrimSuffix(strings.TrimPrefix(name, "credentials-"), ".json")
+
+				client, err := NormalizeClientName(raw)
+				if err != nil {
+					continue
+				}
+				if _, ok := seen[client]; ok {
+					continue
+				}
+				seen[client] = struct{}{}
+
+				out = append(out, ClientCredentialsInfo{
+					Client:  client,
+					Path:    filepath.Join(dir, name),
+					Default: false,
+				})
+			}
 		}
 	}
 

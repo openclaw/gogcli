@@ -30,6 +30,7 @@ gog photos (photo) search (find) [flags]
 | `--from` | `string` |  | Start date YYYY-MM-DD |
 | `--gmail-no-send` | `bool` | false | Block Gmail send operations (agent safety) |
 | `-h`<br>`--help` | `kong.helpFlag` |  | Show context-sensitive help. |
+| `--home` | `string` |  | Override gogcli config/data/state/cache root (equivalent to GOG_HOME) |
 | `--include-archived` | `bool` |  | Include archived media |
 | `-j`<br>`--json`<br>`--machine` | `bool` | false | Output JSON to stdout (best for scripting) |
 | `--max`<br>`--limit` | `int64` | 25 | Max results (max 100) |

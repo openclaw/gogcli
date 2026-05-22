@@ -37,7 +37,7 @@ var newServiceAccountTokenSource = func(ctx context.Context, keyJSON []byte, sub
 }
 
 func tokenSourceForServiceAccountScopes(ctx context.Context, serviceLabel string, email string, scopes []string) (oauth2.TokenSource, string, bool, error) {
-	saPath, err := config.ServiceAccountPath(email)
+	saPath, err := config.ExistingServiceAccountPath(email)
 	if err != nil {
 		return nil, "", false, fmt.Errorf("service account path: %w", err)
 	}
@@ -62,7 +62,7 @@ func tokenSourceForServiceAccountScopes(ctx context.Context, serviceLabel string
 	}
 
 	// Backwards compatibility: Keep used a dedicated stored service account file.
-	keepSAPath, keepErr := config.KeepServiceAccountPath(email)
+	keepSAPath, keepErr := config.ExistingKeepServiceAccountPath(email)
 	if keepErr == nil {
 		data, readErr := os.ReadFile(keepSAPath) //nolint:gosec // stored in user config dir
 		if readErr == nil {
@@ -79,20 +79,22 @@ func tokenSourceForServiceAccountScopes(ctx context.Context, serviceLabel string
 		}
 	}
 
-	legacyPath, legacyErr := config.KeepServiceAccountLegacyPath(email)
-	if legacyErr == nil {
-		data, readErr := os.ReadFile(legacyPath) //nolint:gosec // stored in user config dir
-		if readErr == nil {
-			ts, tokenErr := newServiceAccountTokenSource(ctx, data, email, scopes)
-			if tokenErr != nil {
-				return nil, "", false, tokenErr
+	if !config.HasExplicitDataOverride() {
+		legacyPath, legacyErr := config.KeepServiceAccountLegacyPath(email)
+		if legacyErr == nil {
+			data, readErr := os.ReadFile(legacyPath) //nolint:gosec // stored in user config dir
+			if readErr == nil {
+				ts, tokenErr := newServiceAccountTokenSource(ctx, data, email, scopes)
+				if tokenErr != nil {
+					return nil, "", false, tokenErr
+				}
+
+				return ts, legacyPath, true, nil
 			}
 
-			return ts, legacyPath, true, nil
-		}
-
-		if !os.IsNotExist(readErr) {
-			return nil, "", false, fmt.Errorf("read service account key: %w", readErr)
+			if !os.IsNotExist(readErr) {
+				return nil, "", false, fmt.Errorf("read service account key: %w", readErr)
+			}
 		}
 	}
 

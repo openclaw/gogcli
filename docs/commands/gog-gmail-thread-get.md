@@ -30,6 +30,7 @@ gog gmail (mail,email) thread (threads,read) get (info,show) <threadId> [flags]
 | `--full` | `bool` |  | Show full message bodies |
 | `--gmail-no-send` | `bool` | false | Block Gmail send operations (agent safety) |
 | `-h`<br>`--help` | `kong.helpFlag` |  | Show context-sensitive help. |
+| `--home` | `string` |  | Override gogcli config/data/state/cache root (equivalent to GOG_HOME) |
 | `-j`<br>`--json`<br>`--machine` | `bool` | false | Output JSON to stdout (best for scripting) |
 | `--no-input`<br>`--non-interactive`<br>`--noninteractive` | `bool` |  | Never prompt; fail instead (useful for CI) |
 | `--out-dir`<br>`--output-dir` | `string` |  | Directory to write attachments to (default: current directory) |

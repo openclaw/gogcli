@@ -29,6 +29,7 @@ const (
 
 type RootFlags struct {
 	Color           string `help:"Color output: auto|always|never" default:"${color}"`
+	Home            string `name:"home" help:"Override gogcli config/data/state/cache root (equivalent to GOG_HOME)"`
 	Account         string `help:"Account email for API commands (gmail/calendar/chat/classroom/drive/drivelabels/docs/slides/contacts/tasks/people/sheets/forms/sites/appscript/analytics/searchconsole/ads/photos)" aliases:"acct" short:"a"`
 	Client          string `help:"OAuth client name (selects stored credentials + token bucket)" default:"${client}"`
 	AccessToken     string `help:"Use provided access token directly (bypasses stored refresh tokens; token expires in ~1h)" env:"GOG_ACCESS_TOKEN"`
@@ -108,6 +109,16 @@ func Execute(args []string) (err error) {
 	}
 	args = rewriteDesirePathArgs(args)
 
+	preHomeApplied := false
+	if home, ok := preScanHomeArg(args); ok {
+		restoreHome, homeErr := config.SetHomeOverride(home)
+		if homeErr != nil {
+			return newUsageError(homeErr)
+		}
+		preHomeApplied = true
+		defer restoreHome()
+	}
+
 	parser, cli, err := newParser(helpDescription())
 	if err != nil {
 		return err
@@ -132,6 +143,13 @@ func Execute(args []string) (err error) {
 		parsedErr := wrapParseError(err)
 		_, _ = fmt.Fprintln(os.Stderr, errfmt.Format(parsedErr))
 		return parsedErr
+	}
+	if !preHomeApplied && strings.TrimSpace(cli.Home) != "" {
+		restoreHome, homeErr := config.SetHomeOverride(cli.Home)
+		if homeErr != nil {
+			return newUsageError(homeErr)
+		}
+		defer restoreHome()
 	}
 
 	if err = enforceBakedSafetyProfile(kctx); err != nil {
@@ -258,6 +276,32 @@ func rewriteDesirePathArgs(args []string) []string {
 	return out
 }
 
+func preScanHomeArg(args []string) (string, bool) {
+	for i := 0; i < len(args); i++ {
+		arg := args[i]
+		if arg == "--" {
+			return "", false
+		}
+		if arg == "--home" {
+			if i+1 < len(args) {
+				return args[i+1], true
+			}
+			return "", false
+		}
+		if strings.HasPrefix(arg, "--home=") {
+			return strings.TrimPrefix(arg, "--home="), true
+		}
+		if strings.HasPrefix(arg, "-") {
+			if globalFlagTakesValue(arg) && i+1 < len(args) {
+				i++
+			}
+			continue
+		}
+		return "", false
+	}
+	return "", false
+}
+
 func isCalendarEventsCommand(args []string) bool {
 	cmdTokens := make([]string, 0, 2)
 	for i := 0; i < len(args); i++ {
@@ -290,7 +334,7 @@ func isCalendarEventsCommand(args []string) bool {
 
 func globalFlagTakesValue(flag string) bool {
 	switch flag {
-	case "--color", "--account", "--acct", "--client", "--enable-commands", "--disable-commands", "--select", "--pick", "--project", "-a":
+	case "--color", "--account", "--acct", "--client", "--enable-commands", "--disable-commands", "--select", "--pick", "--project", "--home", "-a":
 		return true
 	default:
 		return false

@@ -33,6 +33,7 @@ gog auth add <email> [flags]
 | `--gmail-no-send` | `bool` | false | Block Gmail send operations (agent safety) |
 | `--gmail-scope` | `string` | full | Gmail scope mode: full\|readonly |
 | `-h`<br>`--help` | `kong.helpFlag` |  | Show context-sensitive help. |
+| `--home` | `string` |  | Override gogcli config/data/state/cache root (equivalent to GOG_HOME) |
 | `-j`<br>`--json`<br>`--machine` | `bool` | false | Output JSON to stdout (best for scripting) |
 | `--listen-addr` | `string` |  | Address to listen on for OAuth callback (for example 0.0.0.0 or 0.0.0.0:8080) |
 | `--manual` | `bool` |  | Browserless auth flow (paste redirect URL) |

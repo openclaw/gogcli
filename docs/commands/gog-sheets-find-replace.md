@@ -29,6 +29,7 @@ gog sheets (sheet) find-replace <spreadsheetId> <find> <replace> [flags]
 | `--formulas` | `bool` |  | Include formula cells in search |
 | `--gmail-no-send` | `bool` | false | Block Gmail send operations (agent safety) |
 | `-h`<br>`--help` | `kong.helpFlag` |  | Show context-sensitive help. |
+| `--home` | `string` |  | Override gogcli config/data/state/cache root (equivalent to GOG_HOME) |
 | `-j`<br>`--json`<br>`--machine` | `bool` | false | Output JSON to stdout (best for scripting) |
 | `--match-case` | `bool` |  | Case-sensitive matching |
 | `--match-entire`<br>`--exact` | `bool` |  | Match entire cell value |

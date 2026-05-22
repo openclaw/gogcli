@@ -136,9 +136,9 @@ func WriteClientCredentials(c ClientCredentials) error {
 }
 
 func WriteClientCredentialsFor(client string, c ClientCredentials) error {
-	_, err := EnsureDir()
+	_, err := EnsureDataDir()
 	if err != nil {
-		return fmt.Errorf("ensure config dir: %w", err)
+		return fmt.Errorf("ensure data dir: %w", err)
 	}
 
 	path, err := ClientCredentialsPathFor(client)
@@ -161,9 +161,9 @@ func WriteClientCredentialsFor(client string, c ClientCredentials) error {
 }
 
 func WriteClientCredentialsMetadataFor(client string, c ClientCredentials) error {
-	_, err := EnsureDir()
+	_, err := EnsureDataDir()
 	if err != nil {
-		return fmt.Errorf("ensure config dir: %w", err)
+		return fmt.Errorf("ensure data dir: %w", err)
 	}
 
 	path, err := ClientCredentialsPathFor(client)
@@ -213,10 +213,23 @@ func ReadClientCredentialsMetadataFor(client string) (ClientCredentials, error) 
 
 	if b, err = os.ReadFile(path); err != nil { //nolint:gosec // user-provided path
 		if os.IsNotExist(err) {
-			return ClientCredentials{}, &CredentialsMissingError{Path: path, Cause: err}
+			if !HasExplicitDataOverride() {
+				legacyPath, legacyErr := LegacyClientCredentialsPathFor(client)
+				if legacyErr != nil {
+					return ClientCredentials{}, fmt.Errorf("resolve legacy credentials path: %w", legacyErr)
+				}
+				if b, err = os.ReadFile(legacyPath); err == nil { //nolint:gosec // legacy path derived from user config dir
+					// Continue with the legacy bytes; next write goes to the primary data path.
+				} else if os.IsNotExist(err) {
+					return ClientCredentials{}, &CredentialsMissingError{Path: path, Cause: err}
+				}
+			} else {
+				return ClientCredentials{}, &CredentialsMissingError{Path: path, Cause: err}
+			}
 		}
-
-		return ClientCredentials{}, fmt.Errorf("read credentials: %w", err)
+		if err != nil {
+			return ClientCredentials{}, fmt.Errorf("read credentials: %w", err)
+		}
 	}
 
 	var c ClientCredentials
@@ -237,32 +250,67 @@ func DeleteClientCredentialsFor(client string) error {
 		return fmt.Errorf("resolve credentials path: %w", err)
 	}
 
-	if err := os.Remove(path); err != nil {
-		if os.IsNotExist(err) {
-			return &CredentialsMissingError{Path: path, Cause: err}
+	removed := false
+	candidates := []string{path}
+	if !HasExplicitDataOverride() {
+		legacyPath, legacyErr := LegacyClientCredentialsPathFor(client)
+		if legacyErr != nil {
+			return fmt.Errorf("resolve legacy credentials path: %w", legacyErr)
 		}
-
-		return fmt.Errorf("delete credentials: %w", err)
+		candidates = append(candidates, legacyPath)
 	}
+	for _, candidate := range uniquePaths(candidates...) {
+		if err := os.Remove(candidate); err != nil {
+			if os.IsNotExist(err) {
+				continue
+			}
 
+			return fmt.Errorf("delete credentials: %w", err)
+		}
+		removed = true
+	}
+	if !removed {
+		return &CredentialsMissingError{Path: path, Cause: os.ErrNotExist}
+	}
 	return nil
 }
 
 func ClientCredentialsExists(client string) (bool, error) {
+	_, ok, err := ExistingClientCredentialsPathFor(client)
+	return ok, err
+}
+
+func ExistingClientCredentialsPathFor(client string) (string, bool, error) {
 	path, err := ClientCredentialsPathFor(client)
 	if err != nil {
-		return false, err
+		return "", false, err
 	}
 
 	if _, err := os.Stat(path); err != nil {
 		if os.IsNotExist(err) {
-			return false, nil
+			if HasExplicitDataOverride() {
+				return path, false, nil
+			}
+			legacyPath, legacyErr := LegacyClientCredentialsPathFor(client)
+			if legacyErr != nil {
+				return "", false, legacyErr
+			}
+			if legacyPath == path {
+				return path, false, nil
+			}
+			if _, legacyStatErr := os.Stat(legacyPath); legacyStatErr != nil {
+				if os.IsNotExist(legacyStatErr) {
+					return path, false, nil
+				}
+				return "", false, fmt.Errorf("stat legacy credentials: %w", legacyStatErr)
+			}
+			return legacyPath, true, nil
 		}
 
-		return false, fmt.Errorf("stat credentials: %w", err)
+		return "", false, fmt.Errorf("stat credentials: %w", err)
 	}
 
-	return true, nil
+	return path, true, nil
 }
 
 type CredentialsMissingError struct {

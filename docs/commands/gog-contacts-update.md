@@ -36,6 +36,7 @@ gog contacts (contact) update (edit,set) <resourceName> [flags]
 | `--given` | `string` |  | Given name |
 | `--gmail-no-send` | `bool` | false | Block Gmail send operations (agent safety) |
 | `-h`<br>`--help` | `kong.helpFlag` |  | Show context-sensitive help. |
+| `--home` | `string` |  | Override gogcli config/data/state/cache root (equivalent to GOG_HOME) |
 | `--ignore-etag` | `bool` |  | Allow updating even if the JSON etag is stale (may overwrite concurrent changes) |
 | `-j`<br>`--json`<br>`--machine` | `bool` | false | Output JSON to stdout (best for scripting) |
 | `--no-input`<br>`--non-interactive`<br>`--noninteractive` | `bool` |  | Never prompt; fail instead (useful for CI) |

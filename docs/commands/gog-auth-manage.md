@@ -29,6 +29,7 @@ gog auth manage (login) [flags]
 | `--force-consent` | `bool` |  | Force consent screen when adding accounts |
 | `--gmail-no-send` | `bool` | false | Block Gmail send operations (agent safety) |
 | `-h`<br>`--help` | `kong.helpFlag` |  | Show context-sensitive help. |
+| `--home` | `string` |  | Override gogcli config/data/state/cache root (equivalent to GOG_HOME) |
 | `-j`<br>`--json`<br>`--machine` | `bool` | false | Output JSON to stdout (best for scripting) |
 | `--listen-addr` | `string` |  | Loopback address to listen on for the accounts manager (for example 127.0.0.1:8080 or [::1]:8080) |
 | `--no-input`<br>`--non-interactive`<br>`--noninteractive` | `bool` |  | Never prompt; fail instead (useful for CI) |

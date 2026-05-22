@@ -29,6 +29,7 @@ gog sheets (sheet) batch-update (batch) --data-json=STRING <spreadsheetId> [flag
 | `-y`<br>`--force`<br>`--assume-yes`<br>`--yes` | `bool` |  | Skip confirmations for destructive commands |
 | `--gmail-no-send` | `bool` | false | Block Gmail send operations (agent safety) |
 | `-h`<br>`--help` | `kong.helpFlag` |  | Show context-sensitive help. |
+| `--home` | `string` |  | Override gogcli config/data/state/cache root (equivalent to GOG_HOME) |
 | `--include-values-in-response` | `bool` |  | Include updated values in the response |
 | `--input` | `string` | USER_ENTERED | Value input option: RAW or USER_ENTERED |
 | `-j`<br>`--json`<br>`--machine` | `bool` | false | Output JSON to stdout (best for scripting) |

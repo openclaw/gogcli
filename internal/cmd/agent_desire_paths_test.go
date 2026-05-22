@@ -92,11 +92,18 @@ func TestDesirePaths_CursorAlias_Parses(t *testing.T) {
 }
 
 func TestDesirePaths_RewriteFields_KeepsCalendarEventsWithGlobalFlagValue(t *testing.T) {
-	in := []string{"--account", "foo@example.com", "calendar", "events", "--fields", "items(id)"}
-	got := rewriteDesirePathArgs(in)
-	want := []string{"--account", "foo@example.com", "calendar", "events", "--fields", "items(id)"}
-	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("unexpected rewrite: got=%v want=%v", got, want)
+	cases := [][]string{
+		{"--account", "foo@example.com", "calendar", "events", "--fields", "items(id)"},
+		{"--home", "/tmp/gog-home", "calendar", "events", "--fields", "items(id)"},
+	}
+	for _, in := range cases {
+		in := in
+		t.Run(strings.Join(in, " "), func(t *testing.T) {
+			got := rewriteDesirePathArgs(in)
+			if !reflect.DeepEqual(got, in) {
+				t.Fatalf("unexpected rewrite: got=%v want=%v", got, in)
+			}
+		})
 	}
 }
 

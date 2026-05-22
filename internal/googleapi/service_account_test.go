@@ -62,8 +62,8 @@ func TestTokenSourceForServiceAccountScopes_NonKeepIgnoresKeepFallback(t *testin
 		t.Fatalf("KeepServiceAccountPath: %v", err)
 	}
 
-	if _, ensureErr := config.EnsureDir(); ensureErr != nil {
-		t.Fatalf("EnsureDir: %v", ensureErr)
+	if _, ensureErr := config.EnsureDataDir(); ensureErr != nil {
+		t.Fatalf("EnsureDataDir: %v", ensureErr)
 	}
 
 	if writeErr := os.WriteFile(keepSAPath, []byte(`{"type":"service_account"}`), 0o600); writeErr != nil {
@@ -104,8 +104,8 @@ func TestTokenSourceForServiceAccountScopes_KeepUsesKeepFallback(t *testing.T) {
 		t.Fatalf("KeepServiceAccountPath: %v", err)
 	}
 
-	if _, ensureErr := config.EnsureDir(); ensureErr != nil {
-		t.Fatalf("EnsureDir: %v", ensureErr)
+	if _, ensureErr := config.EnsureDataDir(); ensureErr != nil {
+		t.Fatalf("EnsureDataDir: %v", ensureErr)
 	}
 
 	if writeErr := os.WriteFile(keepSAPath, []byte(`{"type":"service_account"}`), 0o600); writeErr != nil {
@@ -150,5 +150,43 @@ func TestTokenSourceForServiceAccountScopes_KeepUsesKeepFallback(t *testing.T) {
 
 	if !called {
 		t.Fatalf("expected keep fallback token source initialization")
+	}
+}
+
+func TestTokenSourceForServiceAccountScopes_ExplicitDataSkipsRawKeepLegacyFallback(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, "xdg-config"))
+	t.Setenv("GOG_DATA_DIR", filepath.Join(home, "isolated-data"))
+
+	legacyPath, err := config.KeepServiceAccountLegacyPath("a@b.com")
+	if err != nil {
+		t.Fatalf("KeepServiceAccountLegacyPath: %v", err)
+	}
+
+	if mkdirErr := os.MkdirAll(filepath.Dir(legacyPath), 0o700); mkdirErr != nil {
+		t.Fatalf("mkdir legacy keep sa: %v", mkdirErr)
+	}
+
+	if writeErr := os.WriteFile(legacyPath, []byte(`{"type":"service_account"}`), 0o600); writeErr != nil {
+		t.Fatalf("write legacy keep sa: %v", writeErr)
+	}
+
+	origSA := newServiceAccountTokenSource
+
+	t.Cleanup(func() { newServiceAccountTokenSource = origSA })
+
+	newServiceAccountTokenSource = func(context.Context, []byte, string, []string) (oauth2.TokenSource, error) {
+		t.Fatal("legacy keep service account should not initialize with explicit data dir")
+		return oauth2.StaticTokenSource(&oauth2.Token{AccessToken: "unexpected"}), nil
+	}
+
+	ts, path, ok, err := tokenSourceForServiceAccountScopes(context.Background(), "keep", "a@b.com", []string{"s1"})
+	if err != nil {
+		t.Fatalf("unexpected err: %v", err)
+	}
+
+	if ok || ts != nil || path != "" {
+		t.Fatalf("expected no token source, got ok=%v ts=%v path=%q", ok, ts, path)
 	}
 }

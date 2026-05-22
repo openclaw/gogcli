@@ -18,6 +18,7 @@ import (
 	"google.golang.org/api/gmail/v1"
 
 	"github.com/steipete/gogcli/internal/backup"
+	"github.com/steipete/gogcli/internal/config"
 	"github.com/steipete/gogcli/internal/ui"
 )
 
@@ -513,13 +514,13 @@ func gmailBackupMessageCachePath(accountHash, messageID string) (string, bool) {
 	if accountHash == "" || messageID == "" {
 		return "", false
 	}
-	dir, err := os.UserCacheDir()
+	dir, err := config.CacheDir()
 	if err != nil || strings.TrimSpace(dir) == "" {
 		return "", false
 	}
 	sum := sha256.Sum256([]byte(messageID))
 	name := hex.EncodeToString(sum[:]) + ".json"
-	return filepath.Join(dir, "gogcli", "backup", "gmail", accountHash, "raw-v1", name), true
+	return filepath.Join(dir, "backup", "gmail", accountHash, "raw-v1", name), true
 }
 
 func listGmailBackupMessageIDs(ctx context.Context, svc *gmail.Service, opts gmailBackupOptions) ([]string, error) {
@@ -660,7 +661,7 @@ func gmailBackupListStatePath(opts gmailBackupOptions) (string, bool) {
 	if accountHash == "" {
 		return "", false
 	}
-	dir, err := os.UserCacheDir()
+	dir, err := config.CacheDir()
 	if err != nil || strings.TrimSpace(dir) == "" {
 		return "", false
 	}
@@ -679,7 +680,7 @@ func gmailBackupListStatePath(opts gmailBackupOptions) (string, bool) {
 	}
 	sum := sha256.Sum256(data)
 	name := hex.EncodeToString(sum[:]) + ".json"
-	return filepath.Join(dir, "gogcli", "backup", "gmail", accountHash, "list-v1", name), true
+	return filepath.Join(dir, "backup", "gmail", accountHash, "list-v1", name), true
 }
 
 func gmailBackupProgressf(ctx context.Context, format string, args ...any) {
@@ -836,11 +837,11 @@ func gmailBackupTempShardDir(accountHash string) (string, bool) {
 	if accountHash == "" {
 		return "", false
 	}
-	dir, err := os.UserCacheDir()
+	dir, err := config.CacheDir()
 	if err != nil || strings.TrimSpace(dir) == "" {
 		return "", false
 	}
-	return filepath.Join(dir, "gogcli", "backup", "gmail", accountHash, "tmp-shards"), true
+	return filepath.Join(dir, "backup", "gmail", accountHash, "tmp-shards"), true
 }
 
 func buildGmailCheckpointShardFromCache(accountHash, runID string, part int, ids []string) (backup.PlainShard, error) {
@@ -1010,11 +1011,11 @@ func gmailBackupCheckpointTempShardDir(accountHash, runID string) (string, bool)
 	if accountHash == "" || runID == "" {
 		return "", false
 	}
-	dir, err := os.UserCacheDir()
+	dir, err := config.CacheDir()
 	if err != nil || strings.TrimSpace(dir) == "" {
 		return "", false
 	}
-	return filepath.Join(dir, "gogcli", "backup", "gmail", accountHash, "checkpoint-shards", runID), true
+	return filepath.Join(dir, "backup", "gmail", accountHash, "checkpoint-shards", runID), true
 }
 
 func gmailBackupCheckpointRunID(opts gmailBackupOptions, ids []string) string {

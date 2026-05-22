@@ -168,8 +168,8 @@ func TestAuthServiceAccountStatus_ConfiguredTextShowsStored(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ServiceAccountPath: %v", err)
 	}
-	if _, err := config.EnsureDir(); err != nil {
-		t.Fatalf("EnsureDir: %v", err)
+	if _, err := config.EnsureDataDir(); err != nil {
+		t.Fatalf("EnsureDataDir: %v", err)
 	}
 	if err := os.WriteFile(path, []byte(`{"type":"service_account","client_email":"svc@example.com","client_id":"123"}`), 0o600); err != nil {
 		t.Fatalf("write key: %v", err)

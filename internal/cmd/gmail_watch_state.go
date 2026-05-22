@@ -27,7 +27,29 @@ func gmailWatchStatePath(account string) (string, error) {
 		return "", err
 	}
 	name := sanitizeAccountForPath(account)
-	return filepath.Join(dir, name+".json"), nil
+	path := filepath.Join(dir, name+".json")
+	if _, statErr := os.Stat(path); statErr == nil {
+		return path, nil
+	} else if !errors.Is(statErr, os.ErrNotExist) {
+		return "", statErr
+	}
+
+	if !config.HasExplicitStateOverride() {
+		legacyDir, err := config.LegacyGmailWatchDir()
+		if err != nil {
+			return "", err
+		}
+		legacyPath := filepath.Join(legacyDir, name+".json")
+		if legacyPath != path {
+			if _, statErr := os.Stat(legacyPath); statErr == nil {
+				return legacyPath, nil
+			} else if !errors.Is(statErr, os.ErrNotExist) {
+				return "", statErr
+			}
+		}
+	}
+
+	return path, nil
 }
 
 func sanitizeAccountForPath(account string) string {

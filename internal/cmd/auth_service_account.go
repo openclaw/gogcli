@@ -83,7 +83,7 @@ func (c *AuthServiceAccountSetCmd) Run(ctx context.Context, flags *RootFlags) er
 		return err
 	}
 
-	if _, err := config.EnsureDir(); err != nil {
+	if _, err := config.EnsureDataDir(); err != nil {
 		return err
 	}
 	if err := config.WriteFileAtomic(destPath, data, 0o600); err != nil {
@@ -185,19 +185,13 @@ func (c *AuthServiceAccountUnsetCmd) Run(ctx context.Context, flags *RootFlags) 
 		return err
 	}
 
-	if err := os.Remove(path); err != nil {
-		if os.IsNotExist(err) {
-			return writeResult(ctx, u,
-				kv("deleted", false),
-				kv("email", email),
-				kv("path", path),
-			)
-		}
+	removed, err := config.RemoveServiceAccountFiles(email)
+	if err != nil {
 		return fmt.Errorf("remove service account: %w", err)
 	}
 
 	return writeResult(ctx, u,
-		kv("deleted", true),
+		kv("deleted", removed),
 		kv("email", email),
 		kv("path", path),
 	)
@@ -215,7 +209,7 @@ func (c *AuthServiceAccountStatusCmd) Run(ctx context.Context) error {
 		return usage("empty email")
 	}
 
-	path, err := config.ServiceAccountPath(email)
+	path, err := config.ExistingServiceAccountPath(email)
 	if err != nil {
 		return err
 	}

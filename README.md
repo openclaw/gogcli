@@ -454,6 +454,11 @@ the service or agent process itself. A successful shell check does not mean the
 agent subprocess inherited `GOG_KEYRING_PASSWORD`; verify through the actual
 agent entrypoint with `gog auth doctor --check --no-input`.
 
+Use `GOG_HOME=/persist/gogcli` to keep config, data, state, and cache under one
+portable root, or set `GOG_CONFIG_DIR`, `GOG_DATA_DIR`, `GOG_STATE_DIR`, and
+`GOG_CACHE_DIR` individually for split lifetimes. These overrides are above XDG
+paths and are useful in containers, CI, and agent sandboxes.
+
 Never commit OAuth client JSON files, refresh tokens, service-account keys, or
 file-keyring passwords.
 

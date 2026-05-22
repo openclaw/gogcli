@@ -44,7 +44,15 @@ func DefaultConfig() Config {
 	}
 }
 
-func DefaultConfigPath() string {
+func DefaultConfigPath() (string, error) {
+	dir, err := appconfig.Dir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(dir, "backup.json"), nil
+}
+
+func legacyDefaultConfigPath() string {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return "backup.json"
@@ -53,13 +61,28 @@ func DefaultConfigPath() string {
 }
 
 func LoadConfig(path string) (Config, error) {
+	useDefault := strings.TrimSpace(path) == ""
 	if strings.TrimSpace(path) == "" {
-		path = DefaultConfigPath()
+		defaultPath, pathErr := DefaultConfigPath()
+		if pathErr != nil {
+			return Config{}, fmt.Errorf("resolve backup config path: %w", pathErr)
+		}
+		path = defaultPath
 	}
 	cfg := DefaultConfig()
 	data, err := os.ReadFile(expandHome(path))
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
+			if useDefault && !appconfig.HasExplicitConfigOverride() {
+				if legacyData, legacyErr := os.ReadFile(expandHome(legacyDefaultConfigPath())); legacyErr == nil {
+					if unmarshalErr := json.Unmarshal(legacyData, &cfg); unmarshalErr != nil {
+						return Config{}, fmt.Errorf("read backup config: %w", unmarshalErr)
+					}
+					return cfg, nil
+				} else if !errors.Is(legacyErr, os.ErrNotExist) {
+					return Config{}, legacyErr
+				}
+			}
 			return cfg, nil
 		}
 		return Config{}, err
@@ -72,7 +95,11 @@ func LoadConfig(path string) (Config, error) {
 
 func SaveConfig(path string, cfg Config) error {
 	if strings.TrimSpace(path) == "" {
-		path = DefaultConfigPath()
+		defaultPath, pathErr := DefaultConfigPath()
+		if pathErr != nil {
+			return fmt.Errorf("resolve backup config path: %w", pathErr)
+		}
+		path = defaultPath
 	}
 	path = expandHome(path)
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {

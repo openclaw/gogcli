@@ -33,6 +33,7 @@ gog gmail (mail,email) settings filters create (add,new) [flags]
 | `--gmail-no-send` | `bool` | false | Block Gmail send operations (agent safety) |
 | `--has-attachment` | `bool` |  | Match messages with attachments |
 | `-h`<br>`--help` | `kong.helpFlag` |  | Show context-sensitive help. |
+| `--home` | `string` |  | Override gogcli config/data/state/cache root (equivalent to GOG_HOME) |
 | `--important` | `bool` |  | Mark as important |
 | `-j`<br>`--json`<br>`--machine` | `bool` | false | Output JSON to stdout (best for scripting) |
 | `--mark-read` | `bool` |  | Mark matching messages as read |

@@ -139,9 +139,9 @@ func TestKeepServiceAccountPath_SafeFilename(t *testing.T) {
 	t.Setenv("HOME", home)
 	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, "xdg-config"))
 
-	dir, err := Dir()
+	dir, err := DataDir()
 	if err != nil {
-		t.Fatalf("Dir: %v", err)
+		t.Fatalf("DataDir: %v", err)
 	}
 
 	p, err := KeepServiceAccountPath("a/b@EXAMPLE.com")

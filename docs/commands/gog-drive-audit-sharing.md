@@ -33,6 +33,7 @@ gog drive (drv) audit sharing (permissions,perms,public,external) [flags]
 | `-y`<br>`--force`<br>`--assume-yes`<br>`--yes` | `bool` |  | Skip confirmations for destructive commands |
 | `--gmail-no-send` | `bool` | false | Block Gmail send operations (agent safety) |
 | `-h`<br>`--help` | `kong.helpFlag` |  | Show context-sensitive help. |
+| `--home` | `string` |  | Override gogcli config/data/state/cache root (equivalent to GOG_HOME) |
 | `--internal-domain` | `[]string` |  | Domain treated as internal (can be repeated; defaults to account email domain) |
 | `-j`<br>`--json`<br>`--machine` | `bool` | false | Output JSON to stdout (best for scripting) |
 | `--max` | `int` | 500 | Max files/folders to scan (0 = unlimited) |

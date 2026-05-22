@@ -151,3 +151,44 @@ func TestAuthStatusCmd_JSON(t *testing.T) {
 		t.Fatalf("unexpected status output: %q", out)
 	}
 }
+
+func TestAuthStatusCmd_JSONReportsLegacyCredentialsPath(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, "xdg"))
+	t.Setenv("XDG_DATA_HOME", filepath.Join(home, "xdg-data"))
+
+	legacyPath, err := config.LegacyClientCredentialsPathFor(config.DefaultClientName)
+	if err != nil {
+		t.Fatalf("LegacyClientCredentialsPathFor: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Dir(legacyPath), 0o700); err != nil {
+		t.Fatalf("mkdir legacy: %v", err)
+	}
+	if err := os.WriteFile(legacyPath, []byte(`{"client_id":"legacy","client_secret":"secret"}`), 0o600); err != nil {
+		t.Fatalf("write legacy credentials: %v", err)
+	}
+
+	cmd := AuthStatusCmd{}
+	out := captureStdout(t, func() {
+		if err := cmd.Run(newCmdJSONOutputContext(t, os.Stdout, os.Stderr), &RootFlags{Account: "user@example.com"}); err != nil {
+			t.Fatalf("AuthStatusCmd: %v", err)
+		}
+	})
+
+	var payload struct {
+		Account struct {
+			CredentialsPath   string `json:"credentials_path"`
+			CredentialsExists bool   `json:"credentials_exists"`
+		} `json:"account"`
+	}
+	if err := json.Unmarshal([]byte(out), &payload); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if !payload.Account.CredentialsExists {
+		t.Fatalf("expected credentials_exists=true, payload=%s", out)
+	}
+	if payload.Account.CredentialsPath != legacyPath {
+		t.Fatalf("credentials_path=%q, want %q", payload.Account.CredentialsPath, legacyPath)
+	}
+}

@@ -28,6 +28,7 @@ gog gmail (mail,email) settings watch start (begin) [flags]
 | `-y`<br>`--force`<br>`--assume-yes`<br>`--yes` | `bool` |  | Skip confirmations for destructive commands |
 | `--gmail-no-send` | `bool` | false | Block Gmail send operations (agent safety) |
 | `-h`<br>`--help` | `kong.helpFlag` |  | Show context-sensitive help. |
+| `--home` | `string` |  | Override gogcli config/data/state/cache root (equivalent to GOG_HOME) |
 | `--hook-token` | `string` |  | Webhook bearer token |
 | `--hook-url` | `string` |  | Webhook URL to forward messages |
 | `--include-body` | `bool` |  | Include text/plain body in hook payload |

@@ -7,6 +7,7 @@
 - Auth: store Google OAuth `client_secret` values in the keyring by default while leaving only client metadata on disk; legacy plaintext credentials still read and `auth credentials set --insecure` preserves the old write shape. (#596)
 - Auth: add `auth credentials set --expand-env` for strict environment placeholder expansion in OAuth client JSON. (#599)
 - Auth: let `auth import` seed an initial access token and expiry, and round-trip cached access tokens through token export/import. (#598)
+- CLI: add XDG kind-aware config/data/state/cache paths with `GOG_HOME`, per-kind `GOG_*_DIR` overrides, and `--home` while preserving legacy auth/keyring/service-account reads. (#621, #622) — thanks @alexminza.
 
 ### Fixed
 

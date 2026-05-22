@@ -31,6 +31,7 @@ gog forms (form) add-question (add-q,aq) --title=STRING <formId> [flags]
 | `-y`<br>`--force`<br>`--assume-yes`<br>`--yes` | `bool` |  | Skip confirmations for destructive commands |
 | `--gmail-no-send` | `bool` | false | Block Gmail send operations (agent safety) |
 | `-h`<br>`--help` | `kong.helpFlag` |  | Show context-sensitive help. |
+| `--home` | `string` |  | Override gogcli config/data/state/cache root (equivalent to GOG_HOME) |
 | `--include-time` | `bool` |  | Include time picker (for date type) |
 | `--include-year` | `bool` |  | Include year field (for date type) |
 | `--index` | `int` | -1 | Position to insert (0-based, default append) |

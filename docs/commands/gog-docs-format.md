@@ -34,6 +34,7 @@ gog docs (doc) format <docId> [flags]
 | `--gmail-no-send` | `bool` | false | Block Gmail send operations (agent safety) |
 | `--heading-level` | `*int` |  | Set paragraph named style to HEADING_1..HEADING_6 (shortcut for --named-style=HEADING_N) |
 | `-h`<br>`--help` | `kong.helpFlag` |  | Show context-sensitive help. |
+| `--home` | `string` |  | Override gogcli config/data/state/cache root (equivalent to GOG_HOME) |
 | `--italic` | `bool` |  | Set italic |
 | `-j`<br>`--json`<br>`--machine` | `bool` | false | Output JSON to stdout (best for scripting) |
 | `--line-spacing` | `float64` |  | Paragraph line spacing percentage, for example 100 or 150 |

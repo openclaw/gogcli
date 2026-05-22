@@ -31,6 +31,7 @@ gog analytics (ga) report <property> [flags]
 | `--from` | `string` | 7daysAgo | Start date (YYYY-MM-DD or GA relative date like 7daysAgo) |
 | `--gmail-no-send` | `bool` | false | Block Gmail send operations (agent safety) |
 | `-h`<br>`--help` | `kong.helpFlag` |  | Show context-sensitive help. |
+| `--home` | `string` |  | Override gogcli config/data/state/cache root (equivalent to GOG_HOME) |
 | `-j`<br>`--json`<br>`--machine` | `bool` | false | Output JSON to stdout (best for scripting) |
 | `--max`<br>`--limit` | `int64` | 100 | Max rows to return (1-250000) |
 | `--metrics` | `string` | activeUsers | Comma-separated metrics (e.g. activeUsers,sessions) |

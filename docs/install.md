@@ -27,22 +27,25 @@ docker run --rm ghcr.io/openclaw/gogcli:latest version
 docker run --rm ghcr.io/openclaw/gogcli:v0.15.0 version
 ```
 
-Authenticated container runs should mount a persistent config directory and
+Authenticated container runs should mount a persistent `GOG_HOME` directory and
 use the encrypted file keyring:
 
 ```bash
-docker volume create gogcli-config
+docker volume create gogcli-state
 
 docker run --rm -it \
+  -e GOG_HOME=/persist/gogcli \
   -e GOG_KEYRING_BACKEND=file \
   -e GOG_KEYRING_PASSWORD \
-  -v gogcli-config:/home/gog/.config/gogcli \
+  -v gogcli-state:/persist/gogcli \
   ghcr.io/openclaw/gogcli:latest \
   auth add you@gmail.com --services gmail,calendar,drive
 ```
 
 Keep `GOG_KEYRING_PASSWORD` in the shell session or your CI secret store. Do
 not bake it into images, scripts, or checked-in profiles.
+See [Paths and State](paths.md) for `GOG_HOME`, per-kind `GOG_*_DIR`
+overrides, and legacy path compatibility.
 
 ## Headless agents and systemd
 
@@ -56,6 +59,7 @@ Use this as the minimum runtime environment:
 ```ini
 Environment=GOG_KEYRING_BACKEND=file
 Environment=GOG_KEYRING_PASSWORD=replace-with-secret-manager-injection
+Environment=GOG_HOME=/var/lib/gogcli
 Environment=HOME=/home/openclaw
 ```
 

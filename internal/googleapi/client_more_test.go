@@ -543,8 +543,8 @@ func TestOptionsForAccountScopes_ServiceAccountPreferred(t *testing.T) {
 		t.Fatalf("ServiceAccountPath: %v", err)
 	}
 
-	if _, ensureErr := config.EnsureDir(); ensureErr != nil {
-		t.Fatalf("EnsureDir: %v", ensureErr)
+	if _, ensureErr := config.EnsureDataDir(); ensureErr != nil {
+		t.Fatalf("EnsureDataDir: %v", ensureErr)
 	}
 
 	if writeErr := os.WriteFile(saPath, []byte(`{"type":"service_account"}`), 0o600); writeErr != nil {
