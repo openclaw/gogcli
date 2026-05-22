@@ -297,7 +297,6 @@ func preScanHomeArg(args []string) (string, bool) {
 			}
 			continue
 		}
-		return "", false
 	}
 	return "", false
 }

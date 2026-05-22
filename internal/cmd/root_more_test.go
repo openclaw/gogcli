@@ -112,6 +112,15 @@ func TestRootHomeFlagOverridesHelpDescription(t *testing.T) {
 	assertPathUnderRoot(t, path, home, "config", "config.json")
 }
 
+func TestRootHomeFlagAppliesBeforeSubcommandHelp(t *testing.T) {
+	setTestConfigHome(t)
+
+	err := Execute([]string{"config", "--home", "relative", "--help"})
+	if err == nil || !strings.Contains(err.Error(), "--home") {
+		t.Fatalf("expected --home error, got %v", err)
+	}
+}
+
 func helpConfigPath(out string) string {
 	for _, line := range strings.Split(out, "\n") {
 		line = strings.TrimSpace(line)
@@ -158,6 +167,11 @@ func TestRootHomePreScanSkipsGlobalFlagValues(t *testing.T) {
 	}
 
 	home, ok := preScanHomeArg([]string{"--account", "user@example.com", "--home=/tmp/gog", "config", "path"})
+	if !ok || home != "/tmp/gog" {
+		t.Fatalf("home=%q ok=%t, want /tmp/gog true", home, ok)
+	}
+
+	home, ok = preScanHomeArg([]string{"config", "--home", "/tmp/gog", "--help"})
 	if !ok || home != "/tmp/gog" {
 		t.Fatalf("home=%q ok=%t, want /tmp/gog true", home, ok)
 	}
