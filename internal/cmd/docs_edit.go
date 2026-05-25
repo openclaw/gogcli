@@ -525,6 +525,7 @@ type DocsUpdateCmd struct {
 	Text     string `name:"text" help:"Text to insert"`
 	File     string `name:"file" help:"Text file path ('-' for stdin)"`
 	Index    int64  `name:"index" help:"Insert index (default: end of document)"`
+	Markdown bool   `name:"markdown" help:"Convert markdown to Google Docs formatting"`
 	Pageless bool   `name:"pageless" help:"Set document to pageless mode"`
 	Tab      string `name:"tab" help:"Target a specific tab by title or ID (see docs list-tabs)"`
 	TabID    string `name:"tab-id" hidden:"" help:"(deprecated) Use --tab"`
@@ -565,6 +566,7 @@ func (c *DocsUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *Root
 		"document_id": id,
 		"written":     len(text),
 		"index":       index,
+		"markdown":    c.Markdown,
 		"pageless":    c.Pageless,
 		"tab":         c.Tab,
 	}); dryRunErr != nil {
@@ -592,19 +594,37 @@ func (c *DocsUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *Root
 		c.Tab = tabID
 	}
 
-	reqs := []*docs.Request{{
-		InsertText: &docs.InsertTextRequest{
-			Location: &docs.Location{Index: insertIndex, TabId: c.Tab},
-			Text:     text,
-		},
-	}}
+	requestCount := 0
+	written := len(text)
+	var resp *docs.BatchUpdateDocumentResponse
 
-	resp, err := svc.Documents.BatchUpdate(id, &docs.BatchUpdateDocumentRequest{Requests: reqs}).Context(ctx).Do()
-	if err != nil {
-		if isDocsNotFound(err) {
-			return fmt.Errorf("doc not found or not a Google Doc (id=%s)", id)
+	if c.Markdown {
+		var inserted int
+		requestCount, inserted, err = insertDocsMarkdownAt(ctx, svc, id, insertIndex, text, c.Tab)
+		if err != nil {
+			if isDocsNotFound(err) {
+				return fmt.Errorf("doc not found or not a Google Doc (id=%s)", id)
+			}
+			return err
 		}
-		return err
+		written = inserted
+		resp = &docs.BatchUpdateDocumentResponse{DocumentId: id}
+	} else {
+		reqs := []*docs.Request{{
+			InsertText: &docs.InsertTextRequest{
+				Location: &docs.Location{Index: insertIndex, TabId: c.Tab},
+				Text:     text,
+			},
+		}}
+		requestCount = len(reqs)
+
+		resp, err = svc.Documents.BatchUpdate(id, &docs.BatchUpdateDocumentRequest{Requests: reqs}).Context(ctx).Do()
+		if err != nil {
+			if isDocsNotFound(err) {
+				return fmt.Errorf("doc not found or not a Google Doc (id=%s)", id)
+			}
+			return err
+		}
 	}
 	if c.Pageless {
 		if err := setDocumentPageless(ctx, svc, id); err != nil {
@@ -615,8 +635,12 @@ func (c *DocsUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *Root
 	if outfmt.IsJSON(ctx) {
 		payload := map[string]any{
 			"documentId": resp.DocumentId,
-			"requests":   len(reqs),
+			"requests":   requestCount,
 			"index":      insertIndex,
+		}
+		if c.Markdown {
+			payload["written"] = written
+			payload["markdown"] = true
 		}
 		if c.Tab != "" {
 			payload["tabId"] = c.Tab
@@ -628,8 +652,12 @@ func (c *DocsUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *Root
 	}
 
 	u.Out().Linef("id\t%s", resp.DocumentId)
-	u.Out().Linef("requests\t%d", len(reqs))
+	u.Out().Linef("requests\t%d", requestCount)
 	u.Out().Linef("index\t%d", insertIndex)
+	if c.Markdown {
+		u.Out().Linef("written\t%d", written)
+		u.Out().Linef("markdown\ttrue")
+	}
 	if c.Tab != "" {
 		u.Out().Linef("tabId\t%s", c.Tab)
 	}

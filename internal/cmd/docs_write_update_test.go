@@ -109,6 +109,88 @@ func TestDocsWriteUpdate_JSON(t *testing.T) {
 	}
 }
 
+func TestDocsUpdate_MarkdownWithTab(t *testing.T) {
+	origDocs := newDocsService
+	t.Cleanup(func() { newDocsService = origDocs })
+
+	var batchRequests [][]*docs.Request
+	var includeTabsCalls int
+
+	docSvc, cleanup := newDocsServiceForTest(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := r.URL.Path
+		switch {
+		case r.Method == http.MethodGet && strings.HasPrefix(path, "/v1/documents/"):
+			if strings.Contains(r.URL.RawQuery, "includeTabsContent=true") {
+				includeTabsCalls++
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(tabsDocWithEndIndex())
+			return
+		case r.Method == http.MethodPost && strings.Contains(path, ":batchUpdate"):
+			var req docs.BatchUpdateDocumentRequest
+			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+				t.Fatalf("decode request: %v", err)
+			}
+			batchRequests = append(batchRequests, req.Requests)
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{"documentId": "doc1"})
+			return
+		default:
+			http.NotFound(w, r)
+			return
+		}
+	}))
+	defer cleanup()
+	newDocsService = func(context.Context, string) (*docs.Service, error) { return docSvc, nil }
+
+	flags := &RootFlags{Account: "a@b.com"}
+	ctx := newDocsJSONContext(t)
+
+	markdown := "## Heading\n\n**bold** and [link](https://example.com)\n"
+	if err := runKong(t, &DocsUpdateCmd{}, []string{
+		"doc1", "--text", markdown, "--markdown", "--tab", "Second",
+	}, ctx, flags); err != nil {
+		t.Fatalf("update markdown with tab: %v", err)
+	}
+
+	if includeTabsCalls != 1 {
+		t.Fatalf("expected 1 tab-aware GET, got %d", includeTabsCalls)
+	}
+	if len(batchRequests) != 1 {
+		t.Fatalf("expected 1 batch request, got %d", len(batchRequests))
+	}
+	reqs := batchRequests[0]
+	if len(reqs) < 2 || reqs[0].InsertText == nil {
+		t.Fatalf("expected markdown insert + formatting requests, got %#v", reqs)
+	}
+	insert := reqs[0].InsertText
+	if insert.Location.TabId != "t.second" || insert.Location.Index != 19 {
+		t.Fatalf("insert location = %+v, want tab t.second index 19", insert.Location)
+	}
+	if got := insert.Text; got != "\nHeading\nbold and link\n" {
+		t.Fatalf("inserted text = %q, want markdown-rendered text", got)
+	}
+	for i, req := range reqs[1:] {
+		var r *docs.Range
+		switch {
+		case req.UpdateTextStyle != nil:
+			r = req.UpdateTextStyle.Range
+		case req.UpdateParagraphStyle != nil:
+			r = req.UpdateParagraphStyle.Range
+		case req.CreateParagraphBullets != nil:
+			r = req.CreateParagraphBullets.Range
+		case req.DeleteParagraphBullets != nil:
+			r = req.DeleteParagraphBullets.Range
+		}
+		if r == nil {
+			continue
+		}
+		if r.TabId != "t.second" {
+			t.Fatalf("formatting request %d range tab = %q, want t.second", i+1, r.TabId)
+		}
+	}
+}
+
 func TestDocsWriteUpdate_Pageless(t *testing.T) {
 	origDocs := newDocsService
 	t.Cleanup(func() { newDocsService = origDocs })

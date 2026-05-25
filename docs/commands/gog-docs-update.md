@@ -32,6 +32,7 @@ gog docs (doc) update <docId> [flags]
 | `--home` | `string` |  | Override gogcli config/data/state/cache root (equivalent to GOG_HOME) |
 | `--index` | `int64` |  | Insert index (default: end of document) |
 | `-j`<br>`--json`<br>`--machine` | `bool` | false | Output JSON to stdout (best for scripting) |
+| `--markdown` | `bool` |  | Convert markdown to Google Docs formatting |
 | `--no-input`<br>`--non-interactive`<br>`--noninteractive` | `bool` |  | Never prompt; fail instead (useful for CI) |
 | `--pageless` | `bool` |  | Set document to pageless mode |
 | `-p`<br>`--plain`<br>`--tsv` | `bool` | false | Output stable, parseable text to stdout (TSV; no colors) |
