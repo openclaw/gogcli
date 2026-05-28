@@ -2,7 +2,7 @@
 
 > Generated from `gog schema --json`. Do not edit this page by hand; run `make docs-commands`.
 
-YouTube Data API (activities, videos, playlists, comments, channels)
+YouTube Data API (search, activities, videos, playlists, comments, channels)
 
 ## Usage
 

@@ -48,7 +48,7 @@ Generated pages: 574.
 - [gog upload](gog-upload.md) - Upload a file to Drive (alias for 'drive upload')
 - [gog version](gog-version.md) - Print version
 - [gog whoami](gog-whoami.md) - Show your profile (alias for 'people me')
-- [gog youtube](gog-youtube.md) - YouTube Data API (activities, videos, playlists, comments, channels)
+- [gog youtube](gog-youtube.md) - YouTube Data API (search, activities, videos, playlists, comments, channels)
 - [gog zoom](gog-zoom.md) - Zoom
 
 ## All Commands
@@ -610,7 +610,7 @@ Generated pages: 574.
   - [gog upload](gog-upload.md) - Upload a file to Drive (alias for 'drive upload')
   - [gog version](gog-version.md) - Print version
   - [gog whoami](gog-whoami.md) - Show your profile (alias for 'people me')
-  - [gog youtube](gog-youtube.md) - YouTube Data API (activities, videos, playlists, comments, channels)
+  - [gog youtube](gog-youtube.md) - YouTube Data API (search, activities, videos, playlists, comments, channels)
     - [gog youtube activities](gog-youtube-activities.md) - List channel activities
       - [gog youtube activities list](gog-youtube-activities-list.md) - List activities for a channel (or authenticated user)
     - [gog youtube channels](gog-youtube-channels.md) - List channels

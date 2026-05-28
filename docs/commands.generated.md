@@ -559,7 +559,7 @@ Generated from `gog schema --json`.
   - [`gog upload (up,put) <localPath> [flags]`](commands/gog-upload.md) - Upload a file to Drive (alias for 'drive upload')
   - [`gog version [flags]`](commands/gog-version.md) - Print version
   - [`gog whoami (who-am-i) [flags]`](commands/gog-whoami.md) - Show your profile (alias for 'people me')
-  - [`gog youtube (yt) <command> [flags]`](commands/gog-youtube.md) - YouTube Data API (activities, videos, playlists, comments, channels)
+  - [`gog youtube (yt) <command> [flags]`](commands/gog-youtube.md) - YouTube Data API (search, activities, videos, playlists, comments, channels)
     - [`gog youtube (yt) activities (activity) <command>`](commands/gog-youtube-activities.md) - List channel activities
       - [`gog youtube (yt) activities (activity) list (ls) [flags]`](commands/gog-youtube-activities-list.md) - List activities for a channel (or authenticated user)
     - [`gog youtube (yt) channels (channel) <command>`](commands/gog-youtube-channels.md) - List channels
