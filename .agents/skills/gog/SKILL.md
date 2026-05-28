@@ -130,10 +130,23 @@ commands that support `--dry-run`, and clean up disposable live-test objects.
 
 ```bash
 gog --account user@example.com docs write <documentId> --append --text '...'
+gog --account user@example.com docs write <documentId> --tab "Data" --markdown --replace --file data.md
+gog --account user@example.com docs update <documentId> --tab "Data" --markdown --file block.md
+gog --account user@example.com docs update <documentId> --tab "Data" --replace-range START:END --text 'replacement'
+gog --account user@example.com docs update <documentId> --tab "Data" --markdown --replace-range START:END --file block.md
 gog --account user@example.com sheets update <spreadsheetId> Sheet1!A1 --values-json '[["hello"]]'
 gog --account user@example.com sheets batch-update <spreadsheetId> --data-json @updates.json
 gog --account user@example.com drive upload ./file.txt --parent <folderId> --json
 ```
+
+For Google Docs tab work:
+
+- Use `docs list-tabs <documentId> --json` to discover tab titles/IDs before targeting a tab.
+- Use `docs write --markdown --replace --tab <tab>` for whole-tab formatted replacement.
+- Use `docs update --markdown --tab <tab>` for formatted insertion/append without replacing the whole tab.
+- Use `docs update --replace-range START:END` for precise plain-text replacement; add `--markdown` to replace that exact range with formatted markdown.
+- `START:END` is a Google Docs UTF-16 API range. Resolve it from `docs cat --raw`, `docs raw`, or another `documents.get` readback; do not guess indexes.
+- `--replace-range` and `--index` are mutually exclusive.
 
 When testing creation commands, name artifacts with a clear temporary prefix and
 delete or trash them after verification.
