@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/alecthomas/kong"
@@ -521,14 +522,15 @@ func (c *DocsWriteCmd) replaceMarkdownInTab(ctx context.Context, flags *RootFlag
 }
 
 type DocsUpdateCmd struct {
-	DocID    string `arg:"" name:"docId" help:"Doc ID"`
-	Text     string `name:"text" help:"Text to insert"`
-	File     string `name:"file" help:"Text file path ('-' for stdin)"`
-	Index    int64  `name:"index" help:"Insert index (default: end of document)"`
-	Markdown bool   `name:"markdown" help:"Convert markdown to Google Docs formatting"`
-	Pageless bool   `name:"pageless" help:"Set document to pageless mode"`
-	Tab      string `name:"tab" help:"Target a specific tab by title or ID (see docs list-tabs)"`
-	TabID    string `name:"tab-id" hidden:"" help:"(deprecated) Use --tab"`
+	DocID        string `arg:"" name:"docId" help:"Doc ID"`
+	Text         string `name:"text" help:"Text to insert"`
+	File         string `name:"file" help:"Text file path ('-' for stdin)"`
+	Index        int64  `name:"index" help:"Insert index (default: end of document)"`
+	ReplaceRange string `name:"replace-range" help:"Replace UTF-16 Docs API range START:END instead of inserting"`
+	Markdown     bool   `name:"markdown" help:"Convert markdown to Google Docs formatting"`
+	Pageless     bool   `name:"pageless" help:"Set document to pageless mode"`
+	Tab          string `name:"tab" help:"Target a specific tab by title or ID (see docs list-tabs)"`
+	TabID        string `name:"tab-id" hidden:"" help:"(deprecated) Use --tab"`
 }
 
 func (c *DocsUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *RootFlags) error {
@@ -551,6 +553,14 @@ func (c *DocsUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *Root
 	if flagProvided(kctx, "index") && c.Index <= 0 {
 		return usage("invalid --index (must be >= 1)")
 	}
+	if flagProvided(kctx, "index") && strings.TrimSpace(c.ReplaceRange) != "" {
+		return usage("--index cannot be combined with --replace-range")
+	}
+
+	replaceStart, replaceEnd, replacing, err := parseDocsReplaceRange(c.ReplaceRange)
+	if err != nil {
+		return err
+	}
 
 	tab, tabErr := resolveTabArg(ctx, c.Tab, c.TabID)
 	if tabErr != nil {
@@ -559,17 +569,23 @@ func (c *DocsUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *Root
 	c.Tab = tab
 
 	var index any = docsAtIndexEnd
-	if c.Index > 0 {
+	if replacing {
+		index = replaceStart
+	} else if c.Index > 0 {
 		index = c.Index
 	}
-	if dryRunErr := dryRunExit(ctx, flags, "docs.update", map[string]any{
+	dryRunPayload := map[string]any{
 		"document_id": id,
 		"written":     len(text),
 		"index":       index,
 		"markdown":    c.Markdown,
 		"pageless":    c.Pageless,
 		"tab":         c.Tab,
-	}); dryRunErr != nil {
+	}
+	if replacing {
+		dryRunPayload["replaceRange"] = map[string]int64{"start": replaceStart, "end": replaceEnd}
+	}
+	if dryRunErr := dryRunExit(ctx, flags, "docs.update", dryRunPayload); dryRunErr != nil {
 		return dryRunErr
 	}
 
@@ -579,7 +595,16 @@ func (c *DocsUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *Root
 	}
 
 	insertIndex := c.Index
-	if insertIndex <= 0 {
+	if replacing {
+		insertIndex = replaceStart
+		if c.Tab != "" {
+			tabID, tabErr := resolveDocsTabID(ctx, svc, id, c.Tab)
+			if tabErr != nil {
+				return tabErr
+			}
+			c.Tab = tabID
+		}
+	} else if insertIndex <= 0 {
 		endIndex, tabID, endErr := docsTargetEndIndexAndTabID(ctx, svc, id, c.Tab)
 		if endErr != nil {
 			return endErr
@@ -600,7 +625,22 @@ func (c *DocsUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *Root
 
 	if c.Markdown {
 		var inserted int
-		requestCount, inserted, err = insertDocsMarkdownAt(ctx, svc, id, insertIndex, text, c.Tab)
+		if replacing {
+			loaded, loadErr := loadDocsTargetDocument(ctx, svc, id, c.Tab)
+			if loadErr != nil {
+				return loadErr
+			}
+			c.Tab = loaded.tabID
+			replacedText, replaceErr := replaceDocsMarkdownRange(ctx, svc, loaded.full, replaceStart, replaceEnd, text, c.Tab)
+			if replaceErr != nil {
+				err = replaceErr
+			} else {
+				inserted = replacedText
+				requestCount = 2
+			}
+		} else {
+			requestCount, inserted, err = insertDocsMarkdownAt(ctx, svc, id, insertIndex, text, c.Tab)
+		}
 		if err != nil {
 			if isDocsNotFound(err) {
 				return fmt.Errorf("doc not found or not a Google Doc (id=%s)", id)
@@ -610,14 +650,21 @@ func (c *DocsUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *Root
 		written = inserted
 		resp = &docs.BatchUpdateDocumentResponse{DocumentId: id}
 	} else {
-		reqs := []*docs.Request{{
+		reqs := make([]*docs.Request, 0, 2)
+		if replacing {
+			reqs = append(reqs, &docs.Request{
+				DeleteContentRange: &docs.DeleteContentRangeRequest{
+					Range: &docs.Range{StartIndex: replaceStart, EndIndex: replaceEnd, TabId: c.Tab},
+				},
+			})
+		}
+		reqs = append(reqs, &docs.Request{
 			InsertText: &docs.InsertTextRequest{
 				Location: &docs.Location{Index: insertIndex, TabId: c.Tab},
 				Text:     text,
 			},
-		}}
+		})
 		requestCount = len(reqs)
-
 		resp, err = svc.Documents.BatchUpdate(id, &docs.BatchUpdateDocumentRequest{Requests: reqs}).Context(ctx).Do()
 		if err != nil {
 			if isDocsNotFound(err) {
@@ -638,6 +685,10 @@ func (c *DocsUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *Root
 			"requests":   requestCount,
 			"index":      insertIndex,
 		}
+		if replacing {
+			payload["replaced"] = true
+			payload["replaceRange"] = map[string]int64{"start": replaceStart, "end": replaceEnd}
+		}
 		if c.Markdown {
 			payload["written"] = written
 			payload["markdown"] = true
@@ -654,6 +705,10 @@ func (c *DocsUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *Root
 	u.Out().Linef("id\t%s", resp.DocumentId)
 	u.Out().Linef("requests\t%d", requestCount)
 	u.Out().Linef("index\t%d", insertIndex)
+	if replacing {
+		u.Out().Linef("replaced\ttrue")
+		u.Out().Linef("range\t%d:%d", replaceStart, replaceEnd)
+	}
 	if c.Markdown {
 		u.Out().Linef("written\t%d", written)
 		u.Out().Linef("markdown\ttrue")
@@ -665,6 +720,26 @@ func (c *DocsUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *Root
 		u.Out().Linef("revision\t%s", resp.WriteControl.RequiredRevisionId)
 	}
 	return nil
+}
+
+func parseDocsReplaceRange(value string) (start int64, end int64, ok bool, err error) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return 0, 0, false, nil
+	}
+	parts := strings.Split(value, ":")
+	if len(parts) != 2 || strings.TrimSpace(parts[0]) == "" || strings.TrimSpace(parts[1]) == "" {
+		return 0, 0, false, usage("invalid --replace-range (expected START:END)")
+	}
+	start, parseErr := strconv.ParseInt(strings.TrimSpace(parts[0]), 10, 64)
+	if parseErr != nil || start < 1 {
+		return 0, 0, false, usage("invalid --replace-range start (must be >= 1)")
+	}
+	end, parseErr = strconv.ParseInt(strings.TrimSpace(parts[1]), 10, 64)
+	if parseErr != nil || end <= start {
+		return 0, 0, false, usage("invalid --replace-range end (must be greater than start)")
+	}
+	return start, end, true, nil
 }
 
 type DocsInsertCmd struct {
@@ -1086,7 +1161,8 @@ func (c *DocsFindReplaceCmd) runPlain(ctx context.Context, svc *docs.Service, do
 }
 
 func (c *DocsFindReplaceCmd) runMarkdown(ctx context.Context, svc *docs.Service, doc *docs.Document, startIdx, endIdx int64, replaceText string) error {
-	return replaceDocsMarkdownRange(ctx, svc, doc, startIdx, endIdx, replaceText, c.Tab)
+	_, err := replaceDocsMarkdownRange(ctx, svc, doc, startIdx, endIdx, replaceText, c.Tab)
+	return err
 }
 
 func (c *DocsFindReplaceCmd) printFirstResult(ctx context.Context, u *ui.UI, docID, replaceText string, replacements, total int) error {

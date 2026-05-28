@@ -303,7 +303,7 @@ Generated pages: 572.
       - [gog docs tabs delete](gog-docs-tabs-delete.md) - Delete a tab from a Google Doc
       - [gog docs tabs list](gog-docs-tabs-list.md) - List all tabs in a Google Doc
       - [gog docs tabs rename](gog-docs-tabs-rename.md) - Rename a tab in a Google Doc
-    - [gog docs update](gog-docs-update.md) - Insert text at a specific index in a Google Doc
+    - [gog docs update](gog-docs-update.md) - Insert or replace text at a specific index or range in a Google Doc
     - [gog docs write](gog-docs-write.md) - Write content to a Google Doc
   - [gog download](gog-download.md) - Download a Drive file (alias for 'drive download')
   - [gog drive](gog-drive.md) - Google Drive

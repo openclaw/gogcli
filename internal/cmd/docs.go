@@ -35,7 +35,7 @@ type DocsCmd struct {
 	InsertPageBreak DocsInsertPageBreakCmd `cmd:"" name:"insert-page-break" aliases:"page-break,pb" help:"Insert a page break at a specific position (or end-of-doc with --at-end)"`
 	Delete          DocsDeleteCmd          `cmd:"" name:"delete" help:"Delete text range from document"`
 	FindReplace     DocsFindReplaceCmd     `cmd:"" name:"find-replace" help:"Find and replace text. Supports plain text or markdown with images; use --first for a single occurrence."`
-	Update          DocsUpdateCmd          `cmd:"" name:"update" help:"Insert text at a specific index in a Google Doc"`
+	Update          DocsUpdateCmd          `cmd:"" name:"update" help:"Insert or replace text at a specific index or range in a Google Doc"`
 	Edit            DocsEditCmd            `cmd:"" name:"edit" help:"Find and replace text in a Google Doc"`
 	Format          DocsFormatCmd          `cmd:"" name:"format" help:"Apply text or paragraph formatting to a Google Doc"`
 	Sed             DocsSedCmd             `cmd:"" name:"sed" help:"Regex find/replace (sed-style: s/pattern/replacement/g)"`

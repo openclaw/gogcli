@@ -252,7 +252,7 @@ Generated from `gog schema --json`.
       - [`gog docs (doc) tabs delete (rm,remove,del) <docId> [flags]`](commands/gog-docs-tabs-delete.md) - Delete a tab from a Google Doc
       - [`gog docs (doc) tabs list (ls) <docId>`](commands/gog-docs-tabs-list.md) - List all tabs in a Google Doc
       - [`gog docs (doc) tabs rename (move) <docId> [flags]`](commands/gog-docs-tabs-rename.md) - Rename a tab in a Google Doc
-    - [`gog docs (doc) update <docId> [flags]`](commands/gog-docs-update.md) - Insert text at a specific index in a Google Doc
+    - [`gog docs (doc) update <docId> [flags]`](commands/gog-docs-update.md) - Insert or replace text at a specific index or range in a Google Doc
     - [`gog docs (doc) write <docId> [flags]`](commands/gog-docs-write.md) - Write content to a Google Doc
   - [`gog download (dl) <fileId> [flags]`](commands/gog-download.md) - Download a Drive file (alias for 'drive download')
   - [`gog drive (drv) <command> [flags]`](commands/gog-drive.md) - Google Drive

@@ -39,7 +39,7 @@ gog docs (doc) <command> [flags]
 - [gog docs sed](gog-docs-sed.md) - Regex find/replace (sed-style: s/pattern/replacement/g)
 - [gog docs structure](gog-docs-structure.md) - Show document structure with numbered paragraphs
 - [gog docs tabs](gog-docs-tabs.md) - Manage Google Doc tabs
-- [gog docs update](gog-docs-update.md) - Insert text at a specific index in a Google Doc
+- [gog docs update](gog-docs-update.md) - Insert or replace text at a specific index or range in a Google Doc
 - [gog docs write](gog-docs-write.md) - Write content to a Google Doc
 
 ## Flags

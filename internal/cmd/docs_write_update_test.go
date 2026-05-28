@@ -191,6 +191,141 @@ func TestDocsUpdate_MarkdownWithTab(t *testing.T) {
 	}
 }
 
+func TestDocsUpdate_ReplaceRangePlainWithTab(t *testing.T) {
+	origDocs := newDocsService
+	t.Cleanup(func() { newDocsService = origDocs })
+
+	var batchRequests [][]*docs.Request
+
+	docSvc, cleanup := newDocsServiceForTest(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := r.URL.Path
+		switch {
+		case r.Method == http.MethodGet && strings.HasPrefix(path, "/v1/documents/"):
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(tabsDocWithEndIndex())
+			return
+		case r.Method == http.MethodPost && strings.Contains(path, ":batchUpdate"):
+			var req docs.BatchUpdateDocumentRequest
+			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+				t.Fatalf("decode request: %v", err)
+			}
+			batchRequests = append(batchRequests, req.Requests)
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{"documentId": "doc1"})
+			return
+		default:
+			http.NotFound(w, r)
+			return
+		}
+	}))
+	defer cleanup()
+	newDocsService = func(context.Context, string) (*docs.Service, error) { return docSvc, nil }
+
+	flags := &RootFlags{Account: "a@b.com"}
+	ctx := newDocsJSONContext(t)
+
+	if err := runKong(t, &DocsUpdateCmd{}, []string{
+		"doc1", "--text", "replacement", "--replace-range", "7:12", "--tab", "Second",
+	}, ctx, flags); err != nil {
+		t.Fatalf("update replace-range plain with tab: %v", err)
+	}
+
+	if len(batchRequests) != 1 {
+		t.Fatalf("expected 1 batch request, got %d", len(batchRequests))
+	}
+	reqs := batchRequests[0]
+	if len(reqs) != 2 || reqs[0].DeleteContentRange == nil || reqs[1].InsertText == nil {
+		t.Fatalf("unexpected replace requests: %#v", reqs)
+	}
+	if got := reqs[0].DeleteContentRange.Range; got.StartIndex != 7 || got.EndIndex != 12 || got.TabId != "t.second" {
+		t.Fatalf("delete range = %+v, want 7:12 in t.second", got)
+	}
+	if got := reqs[1].InsertText; got.Location.Index != 7 || got.Location.TabId != "t.second" || got.Text != "replacement" {
+		t.Fatalf("insert text = %+v, want replacement at 7 in t.second", got)
+	}
+}
+
+func TestDocsUpdate_ReplaceRangeMarkdownWithTab(t *testing.T) {
+	origDocs := newDocsService
+	t.Cleanup(func() { newDocsService = origDocs })
+
+	var batchRequests [][]*docs.Request
+	var includeTabsCalls int
+
+	docSvc, cleanup := newDocsServiceForTest(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := r.URL.Path
+		switch {
+		case r.Method == http.MethodGet && strings.HasPrefix(path, "/v1/documents/"):
+			if strings.Contains(r.URL.RawQuery, "includeTabsContent=true") {
+				includeTabsCalls++
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(tabsDocWithEndIndex())
+			return
+		case r.Method == http.MethodPost && strings.Contains(path, ":batchUpdate"):
+			var req docs.BatchUpdateDocumentRequest
+			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+				t.Fatalf("decode request: %v", err)
+			}
+			batchRequests = append(batchRequests, req.Requests)
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{"documentId": "doc1"})
+			return
+		default:
+			http.NotFound(w, r)
+			return
+		}
+	}))
+	defer cleanup()
+	newDocsService = func(context.Context, string) (*docs.Service, error) { return docSvc, nil }
+
+	flags := &RootFlags{Account: "a@b.com"}
+	ctx := newDocsJSONContext(t)
+
+	markdown := "## New Heading\n\n**bold** and [link](https://example.com)\n"
+	if err := runKong(t, &DocsUpdateCmd{}, []string{
+		"doc1", "--text", markdown, "--markdown", "--replace-range", "7:12", "--tab", "Second",
+	}, ctx, flags); err != nil {
+		t.Fatalf("update replace-range markdown with tab: %v", err)
+	}
+
+	if includeTabsCalls == 0 {
+		t.Fatalf("expected tab-aware GET")
+	}
+	if len(batchRequests) != 1 {
+		t.Fatalf("expected 1 batch request, got %d", len(batchRequests))
+	}
+	reqs := batchRequests[0]
+	if len(reqs) < 3 || reqs[0].DeleteContentRange == nil || reqs[1].InsertText == nil {
+		t.Fatalf("expected delete + markdown insert + formatting, got %#v", reqs)
+	}
+	if got := reqs[0].DeleteContentRange.Range; got.StartIndex != 7 || got.EndIndex != 12 || got.TabId != "t.second" {
+		t.Fatalf("delete range = %+v, want 7:12 in t.second", got)
+	}
+	if got := reqs[1].InsertText; got.Location.Index != 7 || got.Location.TabId != "t.second" || got.Text != "\nNew Heading\nbold and link\n" {
+		t.Fatalf("insert text = %+v, want rendered markdown at 7 in t.second", got)
+	}
+	for i, req := range reqs[2:] {
+		var r *docs.Range
+		switch {
+		case req.UpdateTextStyle != nil:
+			r = req.UpdateTextStyle.Range
+		case req.UpdateParagraphStyle != nil:
+			r = req.UpdateParagraphStyle.Range
+		case req.CreateParagraphBullets != nil:
+			r = req.CreateParagraphBullets.Range
+		case req.DeleteParagraphBullets != nil:
+			r = req.DeleteParagraphBullets.Range
+		}
+		if r == nil {
+			continue
+		}
+		if r.TabId != "t.second" {
+			t.Fatalf("formatting request %d range tab = %q, want t.second", i+2, r.TabId)
+		}
+	}
+}
+
 func TestDocsWriteUpdate_Pageless(t *testing.T) {
 	origDocs := newDocsService
 	t.Cleanup(func() { newDocsService = origDocs })

@@ -2,7 +2,7 @@
 
 > Generated from `gog schema --json`. Do not edit this page by hand; run `make docs-commands`.
 
-Insert text at a specific index in a Google Doc
+Insert or replace text at a specific index or range in a Google Doc
 
 ## Usage
 
@@ -36,6 +36,7 @@ gog docs (doc) update <docId> [flags]
 | `--no-input`<br>`--non-interactive`<br>`--noninteractive` | `bool` |  | Never prompt; fail instead (useful for CI) |
 | `--pageless` | `bool` |  | Set document to pageless mode |
 | `-p`<br>`--plain`<br>`--tsv` | `bool` | false | Output stable, parseable text to stdout (TSV; no colors) |
+| `--replace-range` | `string` |  | Replace UTF-16 Docs API range START:END instead of inserting |
 | `--results-only` | `bool` |  | In JSON mode, emit only the primary result (drops envelope fields like nextPageToken) |
 | `--select`<br>`--pick`<br>`--project` | `string` |  | In JSON mode, select comma-separated fields (best-effort; supports dot paths). Desire path: use --fields for most commands. |
 | `--tab` | `string` |  | Target a specific tab by title or ID (see docs list-tabs) |
