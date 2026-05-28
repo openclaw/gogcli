@@ -1,27 +1,18 @@
-# `gog youtube`
+# `gog youtube search list`
 
 > Generated from `gog schema --json`. Do not edit this page by hand; run `make docs-commands`.
 
-YouTube Data API (activities, videos, playlists, comments, channels)
+Search for videos, channels, or playlists
 
 ## Usage
 
 ```bash
-gog youtube (yt) <command> [flags]
+gog youtube (yt) search (find) list (ls) <query> [flags]
 ```
 
 ## Parent
 
-- [gog](gog.md)
-
-## Subcommands
-
-- [gog youtube activities](gog-youtube-activities.md) - List channel activities
-- [gog youtube channels](gog-youtube-channels.md) - List channels
-- [gog youtube comments](gog-youtube-comments.md) - List comment threads
-- [gog youtube playlists](gog-youtube-playlists.md) - List playlists
-- [gog youtube search](gog-youtube-search.md) - Search YouTube for videos, channels, or playlists
-- [gog youtube videos](gog-youtube-videos.md) - List or get videos
+- [gog youtube search](gog-youtube-search.md)
 
 ## Flags
 
@@ -29,6 +20,7 @@ gog youtube (yt) <command> [flags]
 | --- | --- | --- | --- |
 | `--access-token` | `string` |  | Use provided access token directly (bypasses stored refresh tokens; token expires in ~1h) |
 | `-a`<br>`--account`<br>`--acct` | `string` |  | Account email for API commands (gmail/calendar/chat/classroom/drive/drivelabels/docs/slides/contacts/tasks/people/sheets/forms/sites/appscript/analytics/searchconsole/ads/photos) |
+| `--channel-id` | `string` |  | Restrict results to a specific channel |
 | `--client` | `string` |  | OAuth client name (selects stored credentials + token bucket) |
 | `--color` | `string` | auto | Color output: auto\|always\|never |
 | `--disable-commands` | `string` |  | Comma-separated list of disabled commands; dot paths allowed |
@@ -39,15 +31,19 @@ gog youtube (yt) <command> [flags]
 | `-h`<br>`--help` | `kong.helpFlag` |  | Show context-sensitive help. |
 | `--home` | `string` |  | Override gogcli config/data/state/cache root (equivalent to GOG_HOME) |
 | `-j`<br>`--json`<br>`--machine` | `bool` | false | Output JSON to stdout (best for scripting) |
+| `--max`<br>`--limit` | `int64` | 25 | Max results |
 | `--no-input`<br>`--non-interactive`<br>`--noninteractive` | `bool` |  | Never prompt; fail instead (useful for CI) |
+| `--order` | `string` | relevance | Sort order: relevance, date, rating, title, viewCount |
+| `--page` | `string` |  | Page token |
 | `-p`<br>`--plain`<br>`--tsv` | `bool` | false | Output stable, parseable text to stdout (TSV; no colors) |
 | `--results-only` | `bool` |  | In JSON mode, emit only the primary result (drops envelope fields like nextPageToken) |
 | `--select`<br>`--pick`<br>`--project` | `string` |  | In JSON mode, select comma-separated fields (best-effort; supports dot paths). Desire path: use --fields for most commands. |
+| `--type` | `string` | video | Resource type: video, channel, playlist (comma-separated) |
 | `-v`<br>`--verbose` | `bool` |  | Enable verbose logging |
 | `--version` | `kong.VersionFlag` |  | Print version and exit |
 | `--wrap-untrusted` | `bool` | false | In JSON/raw output, wrap fetched text fields in external untrusted-content markers |
 
 ## See Also
 
-- [gog](gog.md)
+- [gog youtube search](gog-youtube-search.md)
 - [Command index](README.md)

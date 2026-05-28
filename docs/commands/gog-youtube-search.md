@@ -1,27 +1,22 @@
-# `gog youtube`
+# `gog youtube search`
 
 > Generated from `gog schema --json`. Do not edit this page by hand; run `make docs-commands`.
 
-YouTube Data API (activities, videos, playlists, comments, channels)
+Search YouTube for videos, channels, or playlists
 
 ## Usage
 
 ```bash
-gog youtube (yt) <command> [flags]
+gog youtube (yt) search (find) <command>
 ```
 
 ## Parent
 
-- [gog](gog.md)
+- [gog youtube](gog-youtube.md)
 
 ## Subcommands
 
-- [gog youtube activities](gog-youtube-activities.md) - List channel activities
-- [gog youtube channels](gog-youtube-channels.md) - List channels
-- [gog youtube comments](gog-youtube-comments.md) - List comment threads
-- [gog youtube playlists](gog-youtube-playlists.md) - List playlists
-- [gog youtube search](gog-youtube-search.md) - Search YouTube for videos, channels, or playlists
-- [gog youtube videos](gog-youtube-videos.md) - List or get videos
+- [gog youtube search list](gog-youtube-search-list.md) - Search for videos, channels, or playlists
 
 ## Flags
 
@@ -49,5 +44,5 @@ gog youtube (yt) <command> [flags]
 
 ## See Also
 
-- [gog](gog.md)
+- [gog youtube](gog-youtube.md)
 - [Command index](README.md)

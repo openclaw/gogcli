@@ -2,7 +2,7 @@
 
 Every `gog` command has a generated docs page. The source of truth is the live CLI schema; run `make docs-commands` after changing command names, flags, help text, aliases, or arguments.
 
-Generated pages: 572.
+Generated pages: 574.
 
 ## Top-level Commands
 
@@ -619,6 +619,8 @@ Generated pages: 572.
       - [gog youtube comments list](gog-youtube-comments-list.md) - List comment threads for a video or channel
     - [gog youtube playlists](gog-youtube-playlists.md) - List playlists
       - [gog youtube playlists list](gog-youtube-playlists-list.md) - List playlists by channel or authenticated user
+    - [gog youtube search](gog-youtube-search.md) - Search YouTube for videos, channels, or playlists
+      - [gog youtube search list](gog-youtube-search-list.md) - Search for videos, channels, or playlists
     - [gog youtube videos](gog-youtube-videos.md) - List or get videos
       - [gog youtube videos list](gog-youtube-videos-list.md) - List videos by ID or chart
   - [gog zoom](gog-zoom.md) - Zoom
