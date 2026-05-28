@@ -18,6 +18,7 @@ type YouTubeCmd struct {
 	Playlists  YouTubePlaylistsCmd  `cmd:"" name:"playlists" aliases:"playlist" help:"List playlists"`
 	Comments   YouTubeCommentsCmd   `cmd:"" name:"comments" aliases:"comment" help:"List comment threads"`
 	Channels   YouTubeChannelsCmd   `cmd:"" name:"channels" aliases:"channel" help:"List channels"`
+	Search     YouTubeSearchCmd     `cmd:"" name:"search" aliases:"find" help:"Search YouTube for videos, channels, or playlists"`
 }
 
 type YouTubeActivitiesCmd struct {
@@ -423,6 +424,105 @@ func (c *YouTubeChannelsListCmd) Run(ctx context.Context, flags *RootFlags) erro
 			views = fmt.Sprintf("%d", ch.Statistics.ViewCount)
 		}
 		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\n", ch.Id, sanitizeTab(title), subs, videos, views, sanitizeTab(pubAt))
+	}
+	printNextPageHint(u, resp.NextPageToken)
+	return nil
+}
+
+type YouTubeSearchCmd struct {
+	List YouTubeSearchListCmd `cmd:"" name:"list" aliases:"ls" help:"Search for videos, channels, or playlists"`
+}
+
+type YouTubeSearchListCmd struct {
+	Query     string `arg:"" help:"Search query"`
+	Type      string `name:"type" help:"Resource type: video, channel, playlist (comma-separated)" default:"video"`
+	Order     string `name:"order" help:"Sort order: relevance, date, rating, title, viewCount" default:"relevance" enum:"relevance,date,rating,title,viewCount"`
+	ChannelID string `name:"channel-id" help:"Restrict results to a specific channel"`
+	Max       int64  `name:"max" aliases:"limit" help:"Max results" default:"25"`
+	Page      string `name:"page" help:"Page token"`
+}
+
+func (c *YouTubeSearchListCmd) Run(ctx context.Context, flags *RootFlags) error {
+	u := ui.FromContext(ctx)
+	if err := validateYouTubeMax(c.Max); err != nil {
+		return err
+	}
+	if c.Query == "" {
+		return usage("search query is required")
+	}
+
+	types := splitCSV(c.Type)
+	for _, t := range types {
+		switch t {
+		case "video", "channel", "playlist":
+		default:
+			return usage("--type must be video, channel, or playlist (comma-separated)")
+		}
+	}
+
+	var svc *youtube.Service
+	var err error
+	if flags.Account != "" {
+		svc, err = getYouTubeServiceForAccount(ctx, flags.Account)
+	} else {
+		svc, err = getYouTubeServiceWithAPIKey(ctx)
+	}
+	if err != nil {
+		return err
+	}
+
+	call := svc.Search.List([]string{"snippet"}).
+		Q(c.Query).
+		Type(types...).
+		Order(c.Order).
+		MaxResults(c.Max).
+		PageToken(c.Page)
+	if c.ChannelID != "" {
+		call = call.ChannelId(c.ChannelID)
+	}
+	resp, err := call.Do()
+	if err != nil {
+		return err
+	}
+
+	if outfmt.IsJSON(ctx) {
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
+			"items":         resp.Items,
+			"nextPageToken": resp.NextPageToken,
+		})
+	}
+	if len(resp.Items) == 0 {
+		u.Err().Println("No results")
+		return nil
+	}
+	w, flush := tableWriter(ctx)
+	defer flush()
+	fmt.Fprintln(w, "KIND\tID\tTITLE\tCHANNEL\tPUBLISHED_AT")
+	for _, item := range resp.Items {
+		id := ""
+		kind := ""
+		if item.Id != nil {
+			switch {
+			case item.Id.VideoId != "":
+				id = item.Id.VideoId
+				kind = "video"
+			case item.Id.ChannelId != "":
+				id = item.Id.ChannelId
+				kind = "channel"
+			case item.Id.PlaylistId != "":
+				id = item.Id.PlaylistId
+				kind = "playlist"
+			}
+		}
+		title := ""
+		ch := ""
+		pubAt := ""
+		if item.Snippet != nil {
+			title = item.Snippet.Title
+			ch = item.Snippet.ChannelTitle
+			pubAt = item.Snippet.PublishedAt
+		}
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", kind, id, sanitizeTab(title), sanitizeTab(ch), sanitizeTab(pubAt))
 	}
 	printNextPageHint(u, resp.NextPageToken)
 	return nil
