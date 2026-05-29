@@ -34,7 +34,7 @@ type RootFlags struct {
 	Client              string `help:"OAuth client name (selects stored credentials + token bucket)" default:"${client}"`
 	AccessToken         string `help:"Use provided access token directly (bypasses stored refresh tokens; token expires in ~1h)" env:"GOG_ACCESS_TOKEN"`
 	EnableCommands      string `help:"Comma-separated list of enabled command prefixes; dot paths allowed (restricts CLI)" default:"${enabled_commands}"`
-	EnableCommandsExact string `name:"enable-commands-exact" help:"Comma-separated list of exact enabled commands; dot paths allowed and parent commands do not enable children"`
+	EnableCommandsExact string `name:"enable-commands-exact" help:"Comma-separated list of exact enabled commands; dot paths allowed and parent commands do not enable children" default:"${enabled_commands_exact}"`
 	DisableCommands     string `help:"Comma-separated list of disabled commands; dot paths allowed" default:"${disabled_commands}"`
 	GmailNoSend         bool   `help:"Block Gmail send operations (agent safety)" default:"${gmail_no_send}"`
 	JSON                bool   `help:"Output JSON to stdout (best for scripting)" default:"${json}" aliases:"machine" short:"j"`
@@ -379,17 +379,18 @@ func boolString(v bool) string {
 func newParser(description string) (*kong.Kong, *CLI, error) {
 	envMode := outfmt.FromEnv()
 	vars := kong.Vars{
-		"auth_services":     googleauth.UserServiceCSV(),
-		"color":             envOr("GOG_COLOR", "auto"),
-		"calendar_weekday":  envOr("GOG_CALENDAR_WEEKDAY", "false"),
-		"client":            envOr("GOG_CLIENT", ""),
-		"disabled_commands": envOr("GOG_DISABLE_COMMANDS", ""),
-		"enabled_commands":  envOr("GOG_ENABLE_COMMANDS", ""),
-		"gmail_no_send":     boolString(envBool("GOG_GMAIL_NO_SEND")),
-		"json":              boolString(envMode.JSON),
-		"plain":             boolString(envMode.Plain),
-		"wrap_untrusted":    boolString(envBool("GOG_WRAP_UNTRUSTED")),
-		"version":           VersionString(),
+		"auth_services":          googleauth.UserServiceCSV(),
+		"color":                  envOr("GOG_COLOR", "auto"),
+		"calendar_weekday":       envOr("GOG_CALENDAR_WEEKDAY", "false"),
+		"client":                 envOr("GOG_CLIENT", ""),
+		"disabled_commands":      envOr("GOG_DISABLE_COMMANDS", ""),
+		"enabled_commands":       envOr("GOG_ENABLE_COMMANDS", ""),
+		"enabled_commands_exact": envOr("GOG_ENABLE_COMMANDS_EXACT", ""),
+		"gmail_no_send":          boolString(envBool("GOG_GMAIL_NO_SEND")),
+		"json":                   boolString(envMode.JSON),
+		"plain":                  boolString(envMode.Plain),
+		"wrap_untrusted":         boolString(envBool("GOG_WRAP_UNTRUSTED")),
+		"version":                VersionString(),
 	}
 
 	cli := &CLI{}
