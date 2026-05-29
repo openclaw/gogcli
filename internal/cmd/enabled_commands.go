@@ -6,26 +6,31 @@ import (
 	"github.com/alecthomas/kong"
 )
 
-func enforceEnabledCommands(kctx *kong.Context, enabled string) error {
+func enforceEnabledCommands(kctx *kong.Context, enabled string, enabledExact string) error {
 	enabled = strings.TrimSpace(enabled)
-	if enabled == "" {
+	enabledExact = strings.TrimSpace(enabledExact)
+	if enabled == "" && enabledExact == "" {
 		return nil
 	}
+
 	allow := parseEnabledCommands(enabled)
-	if len(allow) == 0 {
+	exactAllow := parseEnabledCommands(enabledExact)
+	if len(allow) == 0 && len(exactAllow) == 0 {
 		return nil
 	}
-	if allow["*"] || allow["all"] {
+	if allow["*"] || allow["all"] || exactAllow["*"] || exactAllow["all"] {
 		return nil
 	}
+
 	path := commandPath(kctx.Command())
 	if len(path) == 0 {
 		return nil
 	}
-	if !commandPathMatches(allow, path) {
-		return usagef("command %q is not enabled (set --enable-commands to allow it)", strings.Join(path, " "))
+	if commandPathMatches(allow, path) || commandPathMatchesExact(exactAllow, path) {
+		return nil
 	}
-	return nil
+
+	return usagef("command %q is not enabled (set --enable-commands or --enable-commands-exact to allow it)", strings.Join(path, " "))
 }
 
 func enforceDisabledCommands(kctx *kong.Context, disabled string) error {
@@ -87,6 +92,27 @@ func commandPathMatches(rules map[string]bool, path []string) bool {
 			}
 		}
 	}
+	return false
+}
+
+func commandPathMatchesExact(rules map[string]bool, path []string) bool {
+	if rules["*"] || rules["all"] {
+		return true
+	}
+
+	joined := strings.Join(path, ".")
+	if rules[joined] {
+		return true
+	}
+
+	if len(path) == 2 {
+		for _, alias := range commandPathAliases(joined) {
+			if rules[alias] {
+				return true
+			}
+		}
+	}
+
 	return false
 }
 
