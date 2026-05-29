@@ -28,23 +28,24 @@ const (
 )
 
 type RootFlags struct {
-	Color           string `help:"Color output: auto|always|never" default:"${color}"`
-	Home            string `name:"home" help:"Override gogcli config/data/state/cache root (equivalent to GOG_HOME)"`
-	Account         string `help:"Account email for API commands (gmail/calendar/chat/classroom/drive/drivelabels/docs/slides/contacts/tasks/people/sheets/forms/sites/appscript/analytics/searchconsole/ads/photos)" aliases:"acct" short:"a"`
-	Client          string `help:"OAuth client name (selects stored credentials + token bucket)" default:"${client}"`
-	AccessToken     string `help:"Use provided access token directly (bypasses stored refresh tokens; token expires in ~1h)" env:"GOG_ACCESS_TOKEN"`
-	EnableCommands  string `help:"Comma-separated list of enabled commands; dot paths allowed (restricts CLI)" default:"${enabled_commands}"`
-	DisableCommands string `help:"Comma-separated list of disabled commands; dot paths allowed" default:"${disabled_commands}"`
-	GmailNoSend     bool   `help:"Block Gmail send operations (agent safety)" default:"${gmail_no_send}"`
-	JSON            bool   `help:"Output JSON to stdout (best for scripting)" default:"${json}" aliases:"machine" short:"j"`
-	Plain           bool   `help:"Output stable, parseable text to stdout (TSV; no colors)" default:"${plain}" aliases:"tsv" short:"p"`
-	WrapUntrusted   bool   `name:"wrap-untrusted" help:"In JSON/raw output, wrap fetched text fields in external untrusted-content markers" default:"${wrap_untrusted}"`
-	ResultsOnly     bool   `name:"results-only" help:"In JSON mode, emit only the primary result (drops envelope fields like nextPageToken)"`
-	Select          string `name:"select" aliases:"pick,project" help:"In JSON mode, select comma-separated fields (best-effort; supports dot paths). Desire path: use --fields for most commands."`
-	DryRun          bool   `help:"Do not make changes; print intended actions and exit successfully" aliases:"noop,preview,dryrun" short:"n"`
-	Force           bool   `help:"Skip confirmations for destructive commands" aliases:"yes,assume-yes" short:"y"`
-	NoInput         bool   `help:"Never prompt; fail instead (useful for CI)" aliases:"non-interactive,noninteractive"`
-	Verbose         bool   `help:"Enable verbose logging" short:"v"`
+	Color               string `help:"Color output: auto|always|never" default:"${color}"`
+	Home                string `name:"home" help:"Override gogcli config/data/state/cache root (equivalent to GOG_HOME)"`
+	Account             string `help:"Account email for API commands (gmail/calendar/chat/classroom/drive/drivelabels/docs/slides/contacts/tasks/people/sheets/forms/sites/appscript/analytics/searchconsole/ads/photos)" aliases:"acct" short:"a"`
+	Client              string `help:"OAuth client name (selects stored credentials + token bucket)" default:"${client}"`
+	AccessToken         string `help:"Use provided access token directly (bypasses stored refresh tokens; token expires in ~1h)" env:"GOG_ACCESS_TOKEN"`
+	EnableCommands      string `help:"Comma-separated list of enabled command prefixes; dot paths allowed (restricts CLI)" default:"${enabled_commands}"`
+	EnableCommandsExact string `name:"enable-commands-exact" help:"Comma-separated list of exact enabled commands; dot paths allowed and parent commands do not enable children"`
+	DisableCommands     string `help:"Comma-separated list of disabled commands; dot paths allowed" default:"${disabled_commands}"`
+	GmailNoSend         bool   `help:"Block Gmail send operations (agent safety)" default:"${gmail_no_send}"`
+	JSON                bool   `help:"Output JSON to stdout (best for scripting)" default:"${json}" aliases:"machine" short:"j"`
+	Plain               bool   `help:"Output stable, parseable text to stdout (TSV; no colors)" default:"${plain}" aliases:"tsv" short:"p"`
+	WrapUntrusted       bool   `name:"wrap-untrusted" help:"In JSON/raw output, wrap fetched text fields in external untrusted-content markers" default:"${wrap_untrusted}"`
+	ResultsOnly         bool   `name:"results-only" help:"In JSON mode, emit only the primary result (drops envelope fields like nextPageToken)"`
+	Select              string `name:"select" aliases:"pick,project" help:"In JSON mode, select comma-separated fields (best-effort; supports dot paths). Desire path: use --fields for most commands."`
+	DryRun              bool   `help:"Do not make changes; print intended actions and exit successfully" aliases:"noop,preview,dryrun" short:"n"`
+	Force               bool   `help:"Skip confirmations for destructive commands" aliases:"yes,assume-yes" short:"y"`
+	NoInput             bool   `help:"Never prompt; fail instead (useful for CI)" aliases:"non-interactive,noninteractive"`
+	Verbose             bool   `help:"Enable verbose logging" short:"v"`
 }
 
 type CLI struct {
@@ -156,7 +157,7 @@ func Execute(args []string) (err error) {
 		_, _ = fmt.Fprintln(os.Stderr, errfmt.Format(err))
 		return err
 	}
-	if err = enforceEnabledCommands(kctx, cli.EnableCommands); err != nil {
+	if err = enforceEnabledCommands(kctx, cli.EnableCommands, cli.EnableCommandsExact); err != nil {
 		_, _ = fmt.Fprintln(os.Stderr, errfmt.Format(err))
 		return err
 	}
@@ -238,169 +239,36 @@ func Execute(args []string) (err error) {
 		}
 		return err
 	}
-	msg := strings.TrimSpace(errfmt.Format(err))
-	if msg != "" {
-		_, _ = fmt.Fprintln(os.Stderr, msg)
-	}
 	return err
 }
 
-func rewriteDesirePathArgs(args []string) []string {
-	// `--fields` is already used by `calendar events` for the Calendar API `fields` parameter.
-	// Agents frequently guess `--fields` to mean "select output fields", so we squat it
-	// everywhere else by rewriting to the global `--select` flag.
-	//
-	// We avoid adding `--fields` as a real alias because Kong would treat it as a duplicate flag.
-	keepFields := isCalendarEventsCommand(args)
-
-	out := make([]string, 0, len(args))
-	for i, a := range args {
-		if a == "--" {
-			out = append(out, args[i:]...)
-			break
-		}
-		if keepFields {
-			out = append(out, a)
-			continue
-		}
-		if a == "--fields" {
-			out = append(out, "--select")
-			continue
-		}
-		if strings.HasPrefix(a, "--fields=") {
-			out = append(out, "--select="+strings.TrimPrefix(a, "--fields="))
-			continue
-		}
-		out = append(out, a)
-	}
-	return out
-}
-
-func preScanHomeArg(args []string) (string, bool) {
-	for i := 0; i < len(args); i++ {
-		arg := args[i]
-		if arg == "--" {
-			return "", false
-		}
-		if arg == "--home" {
-			if i+1 < len(args) {
-				return args[i+1], true
-			}
-			return "", false
-		}
-		if strings.HasPrefix(arg, "--home=") {
-			return strings.TrimPrefix(arg, "--home="), true
-		}
-		if strings.HasPrefix(arg, "-") {
-			if globalFlagTakesValue(arg) && i+1 < len(args) {
-				i++
-			}
-			continue
-		}
-	}
-	return "", false
-}
-
-func isCalendarEventsCommand(args []string) bool {
-	cmdTokens := make([]string, 0, 2)
-	for i := 0; i < len(args); i++ {
-		a := args[i]
-		if a == "--" {
-			break
-		}
-		if strings.HasPrefix(a, "-") {
-			if globalFlagTakesValue(a) && i+1 < len(args) {
-				i++
-			}
-			continue
-		}
-		cmdTokens = append(cmdTokens, a)
-		if len(cmdTokens) >= 2 {
-			break
-		}
-	}
-
-	if len(cmdTokens) < 2 {
-		return false
-	}
-	cmd0 := strings.TrimSpace(strings.ToLower(cmdTokens[0]))
-	cmd1 := strings.TrimSpace(strings.ToLower(cmdTokens[1]))
-	if cmd0 != "calendar" && cmd0 != "cal" {
-		return false
-	}
-	return cmd1 == "events" || cmd1 == "ls" || cmd1 == "list"
-}
-
-func globalFlagTakesValue(flag string) bool {
-	switch flag {
-	case "--color", "--account", "--acct", "--client", "--enable-commands", "--disable-commands", "--select", "--pick", "--project", "--home", "-a":
-		return true
-	default:
-		return false
+func Main() {
+	args := os.Args[1:]
+	if err := Execute(args); err != nil {
+		os.Exit(ExitCode(err))
 	}
 }
 
-func wrapParseError(err error) error {
-	if err == nil {
-		return nil
-	}
-	var parseErr *kong.ParseError
-	if errors.As(err, &parseErr) {
-		return &ExitError{Code: 2, Err: parseErr}
-	}
-	return err
-}
-
-func envOr(key, fallback string) string {
-	if v := os.Getenv(key); v != "" {
-		return v
-	}
-	return fallback
-}
-
-func envBool(key string) bool {
-	v := strings.TrimSpace(strings.ToLower(os.Getenv(key)))
-	switch v {
-	case "1", boolTrue, "yes", "y", "on":
-		return true
-	default:
-		return false
-	}
-}
-
-func boolString(v bool) string {
-	if v {
-		return boolTrue
-	}
-	return boolFalse
-}
-
-func newParser(description string) (*kong.Kong, *CLI, error) {
-	envMode := outfmt.FromEnv()
-	vars := kong.Vars{
-		"auth_services":     googleauth.UserServiceCSV(),
-		"color":             envOr("GOG_COLOR", "auto"),
-		"calendar_weekday":  envOr("GOG_CALENDAR_WEEKDAY", "false"),
-		"client":            envOr("GOG_CLIENT", ""),
-		"disabled_commands": envOr("GOG_DISABLE_COMMANDS", ""),
-		"enabled_commands":  envOr("GOG_ENABLE_COMMANDS", ""),
-		"gmail_no_send":     boolString(envBool("GOG_GMAIL_NO_SEND")),
-		"json":              boolString(envMode.JSON),
-		"plain":             boolString(envMode.Plain),
-		"wrap_untrusted":    boolString(envBool("GOG_WRAP_UNTRUSTED")),
-		"version":           VersionString(),
-	}
-
+func newParser(desc string) (*kong.Kong, *CLI, error) {
 	cli := &CLI{}
-	parser, err := kong.New(
-		cli,
+	parser, err := kong.New(cli,
 		kong.Name("gog"),
-		kong.Description(description),
-		kong.ConfigureHelp(helpOptions()),
-		kong.Help(helpPrinter),
-		kong.Vars(vars),
-		kong.Writers(os.Stdout, os.Stderr),
-		kong.Exit(func(code int) { panic(exitPanic{code: code}) }),
+		kong.Description(desc),
+		kong.UsageOnError(),
+		kong.Vars{
+			"color":             envOrDefault("GOG_COLOR", colorAuto),
+			"client":            envOrDefault("GOG_CLIENT", googleauth.DefaultClientName),
+			"json":              envOrDefault("GOG_JSON", boolFalse),
+			"plain":             envOrDefault("GOG_PLAIN", boolFalse),
+			"wrap_untrusted":    envOrDefault("GOG_WRAP_UNTRUSTED", boolFalse),
+			"gmail_no_send":     envOrDefault("GOG_GMAIL_NO_SEND", boolFalse),
+			"enabled_commands":  envOrDefault("GOG_ENABLE_COMMANDS", ""),
+			"disabled_commands": envOrDefault("GOG_DISABLE_COMMANDS", ""),
+		},
+		kong.ConfigureHelp(kong.HelpOptions{
+			Compact: true,
+			Summary: true,
+		}),
 	)
 	if err != nil {
 		return nil, nil, err
@@ -408,36 +276,29 @@ func newParser(description string) (*kong.Kong, *CLI, error) {
 	return parser, cli, nil
 }
 
-func baseDescription() string {
-	return "Google CLI for Gmail/Calendar/Chat/Classroom/Drive/Contacts/Tasks/Sheets/Docs/Slides/People/Forms/Meet/App Script/Analytics/Search Console/Ads/Groups/Admin/Keep/YouTube/Maps/Photos"
-}
-
 func helpDescription() string {
-	desc := baseDescription()
-
-	configPath, err := config.ConfigPath()
-	configLine := "unknown"
-	if err != nil {
-		configLine = fmt.Sprintf("error: %v", err)
-	} else if configPath != "" {
-		configLine = configPath
-	}
-
-	backendInfo, err := secrets.ResolveKeyringBackendInfo()
-	var backendLine string
-	if err != nil {
-		backendLine = fmt.Sprintf("error: %v", err)
-	} else if backendInfo.Value != "" {
-		backendLine = fmt.Sprintf("%s (source: %s)", backendInfo.Value, backendInfo.Source)
-	}
-
-	return fmt.Sprintf("%s\n\nConfig:\n  file: %s\n  keyring backend: %s", desc, configLine, backendLine)
+	return "Google services CLI for terminal automation"
 }
 
-// newUsageError wraps errors in a way main() can map to exit code 2.
-func newUsageError(err error) error {
-	if err == nil {
-		return nil
+func directAccessToken(flags *RootFlags) string {
+	if flags == nil {
+		return ""
 	}
-	return &ExitError{Code: 2, Err: err}
+	return strings.TrimSpace(flags.AccessToken)
+}
+
+func envOrDefault(name string, fallback string) string {
+	if v := os.Getenv(name); v != "" {
+		return v
+	}
+	return fallback
+}
+
+func envBool(name string) bool {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv(name))) {
+	case "1", "true", "yes", "on":
+		return true
+	default:
+		return false
+	}
 }
