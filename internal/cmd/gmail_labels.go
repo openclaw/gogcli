@@ -400,7 +400,6 @@ func fetchLabelNameToID(svc *gmail.Service) (map[string]string, error) {
 		if l.Id == "" {
 			continue
 		}
-		m[strings.ToLower(l.Id)] = l.Id
 		if l.Name != "" {
 			m[strings.ToLower(l.Name)] = l.Id
 		}

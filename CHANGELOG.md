@@ -4,6 +4,7 @@
 
 ### Fixed
 
+- Gmail: keep label IDs case-sensitive during label resolution and duplicate-name checks while still matching label names case-insensitively.
 - Docs: update the bundled `gog` agent skill to preserve broad user OAuth scopes during reauth and rely on command guards for scoped execution.
 
 ## 0.19.0 - 2026-05-22

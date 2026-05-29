@@ -487,6 +487,26 @@ func TestGmailLabelsCreateCmd_DuplicateName_Preflight(t *testing.T) {
 	}
 }
 
+func TestEnsureLabelNameAvailable_DoesNotCaseFoldIDs(t *testing.T) {
+	srv := newLabelsServer(t, []map[string]any{
+		{"id": "Label_9", "name": "Different Name", "type": "user"},
+	}, nil)
+	defer srv.Close()
+
+	svc, err := gmail.NewService(context.Background(),
+		option.WithoutAuthentication(),
+		option.WithHTTPClient(srv.Client()),
+		option.WithEndpoint(srv.URL+"/"),
+	)
+	if err != nil {
+		t.Fatalf("NewService: %v", err)
+	}
+
+	if err := ensureLabelNameAvailable(svc, "label_9"); err != nil {
+		t.Fatalf("label ID should not collide with name: %v", err)
+	}
+}
+
 func TestGmailLabelsCreateCmd_DuplicateName_APIError(t *testing.T) {
 	srv := newLabelsServer(t, []map[string]any{}, func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -695,5 +715,41 @@ func TestFetchLabelIDToName(t *testing.T) {
 	// If name is missing, fall back to ID.
 	if m["Label_2"] != "Label_2" {
 		t.Fatalf("unexpected label2: %q", m["Label_2"])
+	}
+}
+
+func TestFetchLabelNameToID_DoesNotCaseFoldIDs(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !(strings.HasSuffix(r.URL.Path, "/users/me/labels") || strings.HasSuffix(r.URL.Path, "/gmail/v1/users/me/labels")) {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"labels": []map[string]any{
+				{"id": "Label_1", "name": "Custom", "type": "user"},
+			},
+		})
+	}))
+	defer srv.Close()
+
+	svc, err := gmail.NewService(context.Background(),
+		option.WithoutAuthentication(),
+		option.WithHTTPClient(srv.Client()),
+		option.WithEndpoint(srv.URL+"/"),
+	)
+	if err != nil {
+		t.Fatalf("NewService: %v", err)
+	}
+
+	m, err := fetchLabelNameToID(svc)
+	if err != nil {
+		t.Fatalf("fetchLabelNameToID: %v", err)
+	}
+	if m["custom"] != "Label_1" {
+		t.Fatalf("missing case-folded name lookup: %#v", m)
+	}
+	if _, ok := m["label_1"]; ok {
+		t.Fatalf("case-folded label ID should not resolve: %#v", m)
 	}
 }
