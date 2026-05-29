@@ -239,36 +239,169 @@ func Execute(args []string) (err error) {
 		}
 		return err
 	}
+	msg := strings.TrimSpace(errfmt.Format(err))
+	if msg != "" {
+		_, _ = fmt.Fprintln(os.Stderr, msg)
+	}
 	return err
 }
 
-func Main() {
-	args := os.Args[1:]
-	if err := Execute(args); err != nil {
-		os.Exit(ExitCode(err))
+func rewriteDesirePathArgs(args []string) []string {
+	// `--fields` is already used by `calendar events` for the Calendar API `fields` parameter.
+	// Agents frequently guess `--fields` to mean "select output fields", so we squat it
+	// everywhere else by rewriting to the global `--select` flag.
+	//
+	// We avoid adding `--fields` as a real alias because Kong would treat it as a duplicate flag.
+	keepFields := isCalendarEventsCommand(args)
+
+	out := make([]string, 0, len(args))
+	for i, a := range args {
+		if a == "--" {
+			out = append(out, args[i:]...)
+			break
+		}
+		if keepFields {
+			out = append(out, a)
+			continue
+		}
+		if a == "--fields" {
+			out = append(out, "--select")
+			continue
+		}
+		if strings.HasPrefix(a, "--fields=") {
+			out = append(out, "--select="+strings.TrimPrefix(a, "--fields="))
+			continue
+		}
+		out = append(out, a)
+	}
+	return out
+}
+
+func preScanHomeArg(args []string) (string, bool) {
+	for i := 0; i < len(args); i++ {
+		arg := args[i]
+		if arg == "--" {
+			return "", false
+		}
+		if arg == "--home" {
+			if i+1 < len(args) {
+				return args[i+1], true
+			}
+			return "", false
+		}
+		if strings.HasPrefix(arg, "--home=") {
+			return strings.TrimPrefix(arg, "--home="), true
+		}
+		if strings.HasPrefix(arg, "-") {
+			if globalFlagTakesValue(arg) && i+1 < len(args) {
+				i++
+			}
+			continue
+		}
+	}
+	return "", false
+}
+
+func isCalendarEventsCommand(args []string) bool {
+	cmdTokens := make([]string, 0, 2)
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		if a == "--" {
+			break
+		}
+		if strings.HasPrefix(a, "-") {
+			if globalFlagTakesValue(a) && i+1 < len(args) {
+				i++
+			}
+			continue
+		}
+		cmdTokens = append(cmdTokens, a)
+		if len(cmdTokens) >= 2 {
+			break
+		}
+	}
+
+	if len(cmdTokens) < 2 {
+		return false
+	}
+	cmd0 := strings.TrimSpace(strings.ToLower(cmdTokens[0]))
+	cmd1 := strings.TrimSpace(strings.ToLower(cmdTokens[1]))
+	if cmd0 != "calendar" && cmd0 != "cal" {
+		return false
+	}
+	return cmd1 == "events" || cmd1 == "ls" || cmd1 == "list"
+}
+
+func globalFlagTakesValue(flag string) bool {
+	switch flag {
+	case "--color", "--account", "--acct", "--client", "--enable-commands", "--enable-commands-exact", "--disable-commands", "--select", "--pick", "--project", "--home", "-a":
+		return true
+	default:
+		return false
 	}
 }
 
-func newParser(desc string) (*kong.Kong, *CLI, error) {
+func wrapParseError(err error) error {
+	if err == nil {
+		return nil
+	}
+	var parseErr *kong.ParseError
+	if errors.As(err, &parseErr) {
+		return &ExitError{Code: 2, Err: parseErr}
+	}
+	return err
+}
+
+func envOr(key, fallback string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return fallback
+}
+
+func envBool(key string) bool {
+	v := strings.TrimSpace(strings.ToLower(os.Getenv(key)))
+	switch v {
+	case "1", boolTrue, "yes", "y", "on":
+		return true
+	default:
+		return false
+	}
+}
+
+func boolString(v bool) string {
+	if v {
+		return boolTrue
+	}
+	return boolFalse
+}
+
+func newParser(description string) (*kong.Kong, *CLI, error) {
+	envMode := outfmt.FromEnv()
+	vars := kong.Vars{
+		"auth_services":     googleauth.UserServiceCSV(),
+		"color":             envOr("GOG_COLOR", "auto"),
+		"calendar_weekday":  envOr("GOG_CALENDAR_WEEKDAY", "false"),
+		"client":            envOr("GOG_CLIENT", ""),
+		"disabled_commands": envOr("GOG_DISABLE_COMMANDS", ""),
+		"enabled_commands":  envOr("GOG_ENABLE_COMMANDS", ""),
+		"gmail_no_send":     boolString(envBool("GOG_GMAIL_NO_SEND")),
+		"json":              boolString(envMode.JSON),
+		"plain":             boolString(envMode.Plain),
+		"wrap_untrusted":    boolString(envBool("GOG_WRAP_UNTRUSTED")),
+		"version":           VersionString(),
+	}
+
 	cli := &CLI{}
-	parser, err := kong.New(cli,
+	parser, err := kong.New(
+		cli,
 		kong.Name("gog"),
-		kong.Description(desc),
-		kong.UsageOnError(),
-		kong.Vars{
-			"color":             envOrDefault("GOG_COLOR", colorAuto),
-			"client":            envOrDefault("GOG_CLIENT", googleauth.DefaultClientName),
-			"json":              envOrDefault("GOG_JSON", boolFalse),
-			"plain":             envOrDefault("GOG_PLAIN", boolFalse),
-			"wrap_untrusted":    envOrDefault("GOG_WRAP_UNTRUSTED", boolFalse),
-			"gmail_no_send":     envOrDefault("GOG_GMAIL_NO_SEND", boolFalse),
-			"enabled_commands":  envOrDefault("GOG_ENABLE_COMMANDS", ""),
-			"disabled_commands": envOrDefault("GOG_DISABLE_COMMANDS", ""),
-		},
-		kong.ConfigureHelp(kong.HelpOptions{
-			Compact: true,
-			Summary: true,
-		}),
+		kong.Description(description),
+		kong.ConfigureHelp(helpOptions()),
+		kong.Help(helpPrinter),
+		kong.Vars(vars),
+		kong.Writers(os.Stdout, os.Stderr),
+		kong.Exit(func(code int) { panic(exitPanic{code: code}) }),
 	)
 	if err != nil {
 		return nil, nil, err
@@ -276,29 +409,36 @@ func newParser(desc string) (*kong.Kong, *CLI, error) {
 	return parser, cli, nil
 }
 
+func baseDescription() string {
+	return "Google CLI for Gmail/Calendar/Chat/Classroom/Drive/Contacts/Tasks/Sheets/Docs/Slides/People/Forms/Meet/App Script/Analytics/Search Console/Ads/Groups/Admin/Keep/YouTube/Maps/Photos"
+}
+
 func helpDescription() string {
-	return "Google services CLI for terminal automation"
+	desc := baseDescription()
+
+	configPath, err := config.ConfigPath()
+	configLine := "unknown"
+	if err != nil {
+		configLine = fmt.Sprintf("error: %v", err)
+	} else if configPath != "" {
+		configLine = configPath
+	}
+
+	backendInfo, err := secrets.ResolveKeyringBackendInfo()
+	var backendLine string
+	if err != nil {
+		backendLine = fmt.Sprintf("error: %v", err)
+	} else if backendInfo.Value != "" {
+		backendLine = fmt.Sprintf("%s (source: %s)", backendInfo.Value, backendInfo.Source)
+	}
+
+	return fmt.Sprintf("%s\n\nConfig:\n  file: %s\n  keyring backend: %s", desc, configLine, backendLine)
 }
 
-func directAccessToken(flags *RootFlags) string {
-	if flags == nil {
-		return ""
+// newUsageError wraps errors in a way main() can map to exit code 2.
+func newUsageError(err error) error {
+	if err == nil {
+		return nil
 	}
-	return strings.TrimSpace(flags.AccessToken)
-}
-
-func envOrDefault(name string, fallback string) string {
-	if v := os.Getenv(name); v != "" {
-		return v
-	}
-	return fallback
-}
-
-func envBool(name string) bool {
-	switch strings.ToLower(strings.TrimSpace(os.Getenv(name))) {
-	case "1", "true", "yes", "on":
-		return true
-	default:
-		return false
-	}
+	return &ExitError{Code: 2, Err: err}
 }
