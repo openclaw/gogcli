@@ -382,7 +382,8 @@ Useful global flags:
 - `--dry-run`: print intended actions where a command supports planning
 - `--no-input`: fail instead of prompting
 - `--force`: confirm destructive operations
-- `--enable-commands <csv>`: allow only selected command paths
+- `--enable-commands <csv>`: allow selected command prefixes. Parent paths allow children, so `gmail` allows the Gmail command family.
+- `--enable-commands-exact <csv>`: allow only exact command paths. Parent paths do not allow children, so `gmail.search` allows `gog gmail search` without allowing sibling commands like `gog gmail send`.
 - `--disable-commands <csv>`: block selected command paths
 - `--gmail-no-send`: block Gmail send operations
 
@@ -390,11 +391,21 @@ For coding agents or CI, prefer:
 
 ```bash
 gog --account you@gmail.com \
-  --enable-commands gmail.search,gmail.get,drive.ls,docs.cat \
+  --enable-commands-exact gmail.search,gmail.get,drive.ls,docs.cat \
   --gmail-no-send \
   --wrap-untrusted \
   --json \
   gmail search 'newer_than:7d'
+```
+
+For environment-configured agents or CI, set `GOG_ENABLE_COMMANDS_EXACT` to the
+same comma-separated exact command paths:
+
+```bash
+GOG_ENABLE_COMMANDS_EXACT=gmail.search,gmail.get,drive.ls,docs.cat \
+GOG_GMAIL_NO_SEND=1 \
+GOG_WRAP_UNTRUSTED=1 \
+gog --json gmail search 'newer_than:7d'
 ```
 
 For stricter agent deployments, build or download a baked safety-profile binary.
