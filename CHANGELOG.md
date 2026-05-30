@@ -11,6 +11,7 @@
 - Docs: preserve paragraph-separating blank lines when replacing a single tab from Markdown. (#644)
 - Docs: add `docs cell-update` for non-destructive table-cell content replacement by table, row, and column. (#646)
 - Gmail: pause watch push Gmail API fetches per account while a 429 Retry-After circuit is open. (#643)
+- YouTube: let `videos list` and `comments list` use OAuth when `--account` is supplied, preserving the API-key fallback for unauthenticated public reads. (#664)
 - Docs: update the bundled `gog` agent skill to preserve broad user OAuth scopes during reauth and rely on command guards for scoped execution.
 
 ## 0.19.0 - 2026-05-22
