@@ -46,7 +46,9 @@ func (c *GmailLabelsGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return usage("empty label")
 	}
 	id := raw
-	if v, ok := idMap[strings.ToLower(raw)]; ok {
+	if v, ok := idMap[raw]; ok {
+		id = v
+	} else if v, ok := idMap[strings.ToLower(raw)]; ok {
 		id = v
 	}
 
@@ -400,7 +402,7 @@ func fetchLabelNameToID(svc *gmail.Service) (map[string]string, error) {
 		if l.Id == "" {
 			continue
 		}
-		m[strings.ToLower(l.Id)] = l.Id
+		m[l.Id] = l.Id
 		if l.Name != "" {
 			m[strings.ToLower(l.Name)] = l.Id
 		}

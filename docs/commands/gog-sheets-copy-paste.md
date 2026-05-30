@@ -1,18 +1,18 @@
-# `gog gmail drafts delete`
+# `gog sheets copy-paste`
 
 > Generated from `gog schema --json`. Do not edit this page by hand; run `make docs-commands`.
 
-Permanently delete a draft (not recoverable; drafts are not moved to Trash)
+Copy a range's values/formulas/format to another range (tiles to fill down/across)
 
 ## Usage
 
 ```bash
-gog gmail (mail,email) drafts (draft) delete (rm,del,remove) <draftId>
+gog sheets (sheet) copy-paste (fill,copy-range) <spreadsheetId> <source> <dest> [flags]
 ```
 
 ## Parent
 
-- [gog gmail drafts](gog-gmail-drafts.md)
+- [gog sheets](gog-sheets.md)
 
 ## Flags
 
@@ -34,11 +34,13 @@ gog gmail (mail,email) drafts (draft) delete (rm,del,remove) <draftId>
 | `-p`<br>`--plain`<br>`--tsv` | `bool` | false | Output stable, parseable text to stdout (TSV; no colors) |
 | `--results-only` | `bool` |  | In JSON mode, emit only the primary result (drops envelope fields like nextPageToken) |
 | `--select`<br>`--pick`<br>`--project` | `string` |  | In JSON mode, select comma-separated fields (best-effort; supports dot paths). Desire path: use --fields for most commands. |
+| `--transpose` | `bool` |  | Paste transposed (swap rows and columns) |
+| `--type` | `string` | NORMAL | Paste type: NORMAL, VALUES, FORMAT, FORMULA, NO_BORDERS, DATA_VALIDATION, CONDITIONAL_FORMATTING |
 | `-v`<br>`--verbose` | `bool` |  | Enable verbose logging |
 | `--version` | `kong.VersionFlag` |  | Print version and exit |
 | `--wrap-untrusted` | `bool` | false | In JSON/raw output, wrap fetched text fields in external untrusted-content markers |
 
 ## See Also
 
-- [gog gmail drafts](gog-gmail-drafts.md)
+- [gog sheets](gog-sheets.md)
 - [Command index](README.md)

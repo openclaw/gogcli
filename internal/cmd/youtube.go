@@ -8,9 +8,12 @@ import (
 
 	youtube "google.golang.org/api/youtube/v3"
 
+	"github.com/steipete/gogcli/internal/errfmt"
 	"github.com/steipete/gogcli/internal/outfmt"
 	"github.com/steipete/gogcli/internal/ui"
 )
+
+const youtubeCommentsOAuthScope = "https://www.googleapis.com/auth/youtube.force-ssl"
 
 type YouTubeCmd struct {
 	Activities YouTubeActivitiesCmd `cmd:"" name:"activities" aliases:"activity" help:"List channel activities"`
@@ -133,7 +136,7 @@ func (c *YouTubeVideosListCmd) Run(ctx context.Context, flags *RootFlags) error 
 		return usage("--chart mostPopular requires --region (e.g. US)")
 	}
 
-	svc, err := getYouTubeServiceWithAPIKey(ctx)
+	svc, err := getYouTubeReadService(ctx, flags)
 	if err != nil {
 		return err
 	}
@@ -289,7 +292,7 @@ func (c *YouTubeCommentsListCmd) Run(ctx context.Context, flags *RootFlags) erro
 		return usage("use either --video-id or --channel-id, not both")
 	}
 
-	svc, err := getYouTubeServiceWithAPIKey(ctx)
+	svc, err := getYouTubeCommentsService(ctx, flags)
 	if err != nil {
 		return err
 	}
@@ -304,7 +307,7 @@ func (c *YouTubeCommentsListCmd) Run(ctx context.Context, flags *RootFlags) erro
 	}
 	resp, err := call.Do()
 	if err != nil {
-		return err
+		return wrapYouTubeCommentsError(err, flags)
 	}
 
 	if outfmt.IsJSON(ctx) {
@@ -433,4 +436,53 @@ func validateYouTubeMax(limit int64) error {
 		return usage("--max must be between 1 and 50")
 	}
 	return nil
+}
+
+func getYouTubeReadService(ctx context.Context, flags *RootFlags) (*youtube.Service, error) {
+	if youtubeAccountSelectorPresent(flags) {
+		account, err := requireAccount(flags)
+		if err != nil {
+			return nil, err
+		}
+		return getYouTubeServiceForAccount(ctx, account)
+	}
+	return getYouTubeServiceWithAPIKey(ctx)
+}
+
+func getYouTubeCommentsService(ctx context.Context, flags *RootFlags) (*youtube.Service, error) {
+	if youtubeAccountSelectorPresent(flags) {
+		account, err := requireAccount(flags)
+		if err != nil {
+			return nil, err
+		}
+		return getYouTubeCommentsServiceForAccount(ctx, account)
+	}
+	return getYouTubeServiceWithAPIKey(ctx)
+}
+
+func youtubeAccountSelectorPresent(flags *RootFlags) bool {
+	return flagAccount(flags) != "" || strings.TrimSpace(os.Getenv("GOG_ACCOUNT")) != "" || hasDirectAccessToken(flags)
+}
+
+func wrapYouTubeCommentsError(err error, flags *RootFlags) error {
+	if err == nil {
+		return nil
+	}
+	errText := err.Error()
+	if !strings.Contains(errText, "insufficientPermissions") &&
+		!strings.Contains(errText, "insufficient authentication scopes") &&
+		!strings.Contains(errText, "ACCESS_TOKEN_SCOPE_INSUFFICIENT") {
+		return err
+	}
+	if !youtubeAccountSelectorPresent(flags) {
+		return err
+	}
+	account, accountErr := requireAccount(flags)
+	if accountErr != nil {
+		return err
+	}
+	return errfmt.NewUserFacingError(
+		fmt.Sprintf("youtube comments OAuth requires %s; re-authenticate with: gog auth add %s --services youtube --extra-scopes %s --force-consent", youtubeCommentsOAuthScope, account, youtubeCommentsOAuthScope),
+		err,
+	)
 }

@@ -23,6 +23,10 @@ func resolveLabelIDs(labels []string, nameToID map[string]string) []string {
 			continue
 		}
 		if nameToID != nil {
+			if id, ok := nameToID[trimmed]; ok {
+				out = append(out, id)
+				continue
+			}
 			if id, ok := nameToID[strings.ToLower(trimmed)]; ok {
 				out = append(out, id)
 				continue
@@ -128,7 +132,7 @@ func ensureLabelNameAvailable(svc *gmail.Service, name string) error {
 		if label == nil {
 			continue
 		}
-		if strings.ToLower(strings.TrimSpace(label.Id)) == want {
+		if strings.TrimSpace(label.Id) == strings.TrimSpace(name) {
 			return usagef("label already exists: %s", name)
 		}
 		labelName := strings.TrimSpace(label.Name)

@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -23,7 +24,24 @@ var errNoNewMessages = errors.New("no new messages")
 const (
 	gmailWatchFormatMetadata  = "metadata"
 	gmailWatchStatusHTTPError = "http_error"
+	gmailWatchStatusRateLimit = "rate_limited"
 )
+
+type gmailWatchRateLimitError struct {
+	Until time.Time
+	Cause error
+}
+
+func (e *gmailWatchRateLimitError) Error() string {
+	if e.Until.IsZero() {
+		return "gmail watch rate limited"
+	}
+	return fmt.Sprintf("gmail watch rate limited until %s", e.Until.Format(time.RFC3339))
+}
+
+func (e *gmailWatchRateLimitError) Unwrap() error {
+	return e.Cause
+}
 
 type gmailWatchServer struct {
 	cfg             gmailWatchServeConfig
@@ -74,6 +92,15 @@ func (s *gmailWatchServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		if errors.Is(err, errNoNewMessages) {
 			w.WriteHeader(http.StatusAccepted)
+			return
+		}
+		var rateErr *gmailWatchRateLimitError
+		if errors.As(err, &rateErr) {
+			if !rateErr.Until.IsZero() {
+				w.Header().Set("Retry-After", retryAfterSeconds(time.Now(), rateErr.Until))
+			}
+			s.warnf("watch: Gmail rate limit circuit open: %v", err)
+			w.WriteHeader(http.StatusServiceUnavailable)
 			return
 		}
 		s.warnf("watch: handle push failed: %v", err)
@@ -156,6 +183,9 @@ func (s *gmailWatchServer) handlePush(ctx context.Context, payload gmailPushPayl
 			return nil, errNoNewMessages
 		}
 	}
+	if err := s.checkRateLimitCircuit(time.Now()); err != nil {
+		return nil, err
+	}
 	startID, err := store.StartHistoryID(payload.HistoryID)
 	if err != nil {
 		return nil, err
@@ -192,7 +222,7 @@ func (s *gmailWatchServer) handlePush(ctx context.Context, payload gmailPushPayl
 		if isStaleHistoryError(err) {
 			return s.resyncHistory(ctx, svc, payload.HistoryID, payload.MessageID)
 		}
-		return nil, err
+		return nil, s.openRateLimitCircuitIfNeeded(err)
 	}
 
 	nextHistoryID := payload.HistoryID
@@ -211,7 +241,7 @@ func (s *gmailWatchServer) handlePush(ctx context.Context, payload gmailPushPayl
 	historyIDs := collectHistoryMessageIDs(historyResp)
 	msgs, excluded, err := s.fetchMessages(ctx, svc, historyIDs.FetchIDs)
 	if err != nil {
-		return nil, err
+		return nil, s.openRateLimitCircuitIfNeeded(err)
 	}
 	if err := store.Update(func(state *gmailWatchState) error {
 		return updateStateAfterHistory(state, nextHistoryID, payload.MessageID)
@@ -238,7 +268,7 @@ func (s *gmailWatchServer) handlePush(ctx context.Context, payload gmailPushPayl
 func (s *gmailWatchServer) resyncHistory(ctx context.Context, svc *gmail.Service, historyID string, messageID string) (*gmailHookPayload, error) {
 	list, err := svc.Users.Messages.List("me").MaxResults(s.cfg.ResyncMax).Do()
 	if err != nil {
-		return nil, err
+		return nil, s.openRateLimitCircuitIfNeeded(err)
 	}
 	ids := make([]string, 0, len(list.Messages))
 	for _, m := range list.Messages {
@@ -248,7 +278,7 @@ func (s *gmailWatchServer) resyncHistory(ctx context.Context, svc *gmail.Service
 	}
 	msgs, excluded, err := s.fetchMessages(ctx, svc, ids)
 	if err != nil {
-		return nil, err
+		return nil, s.openRateLimitCircuitIfNeeded(err)
 	}
 
 	if err := s.store.Update(func(state *gmailWatchState) error {
@@ -338,6 +368,53 @@ func (s *gmailWatchServer) fetchMessages(ctx context.Context, svc *gmail.Service
 		messages = append(messages, item)
 	}
 	return messages, excluded, nil
+}
+
+func (s *gmailWatchServer) checkRateLimitCircuit(now time.Time) error {
+	if s.store == nil {
+		return nil
+	}
+	state := s.store.Get()
+	if state.RateLimitedUntilMs <= 0 {
+		return nil
+	}
+	if state.RateLimitedUntilMs > now.UnixMilli() {
+		return &gmailWatchRateLimitError{Until: time.UnixMilli(state.RateLimitedUntilMs)}
+	}
+	if err := s.store.Update(func(state *gmailWatchState) error {
+		if state.RateLimitedUntilMs > 0 && state.RateLimitedUntilMs <= now.UnixMilli() {
+			state.RateLimitedUntilMs = 0
+			if state.LastDeliveryStatus == gmailWatchStatusRateLimit {
+				state.LastDeliveryStatusNote = ""
+			}
+		}
+		return nil
+	}); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *gmailWatchServer) openRateLimitCircuitIfNeeded(err error) error {
+	until, ok := gmailWatchRateLimitUntil(err, time.Now())
+	if !ok {
+		return err
+	}
+	if s.store != nil {
+		if updateErr := s.store.Update(func(state *gmailWatchState) error {
+			untilMs := until.UnixMilli()
+			if untilMs > state.RateLimitedUntilMs {
+				state.RateLimitedUntilMs = untilMs
+			}
+			state.LastDeliveryStatus = gmailWatchStatusRateLimit
+			state.LastDeliveryAtMs = time.Now().UnixMilli()
+			state.LastDeliveryStatusNote = err.Error()
+			return nil
+		}); updateErr != nil {
+			s.warnf("watch: failed to update rate limit state: %v", updateErr)
+		}
+	}
+	return &gmailWatchRateLimitError{Until: until, Cause: err}
 }
 
 func (s *gmailWatchServer) isExcludedLabel(labelIDs []string) bool {
@@ -538,6 +615,48 @@ func isNotFoundAPIError(err error) bool {
 		return gerr.Code == http.StatusNotFound
 	}
 	return false
+}
+
+func gmailWatchRateLimitUntil(err error, now time.Time) (time.Time, bool) {
+	var gerr *googleapi.Error
+	if !errors.As(err, &gerr) || gerr.Code != http.StatusTooManyRequests {
+		return time.Time{}, false
+	}
+	if until, ok := parseRetryAfterUntil(gerr.Header.Get("Retry-After"), now); ok {
+		return until, true
+	}
+	return now.Add(time.Minute), true
+}
+
+func parseRetryAfterUntil(raw string, now time.Time) (time.Time, bool) {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return time.Time{}, false
+	}
+	if seconds, err := strconv.ParseInt(trimmed, 10, 64); err == nil {
+		if seconds < 0 {
+			seconds = 0
+		}
+		return now.Add(time.Duration(seconds) * time.Second), true
+	}
+	if parsed, err := http.ParseTime(trimmed); err == nil {
+		return parsed, true
+	}
+	if parsed, err := time.Parse(time.RFC3339, trimmed); err == nil {
+		return parsed, true
+	}
+	return time.Time{}, false
+}
+
+func retryAfterSeconds(now, until time.Time) string {
+	if now.IsZero() {
+		now = time.Now()
+	}
+	seconds := int64(until.Sub(now).Seconds())
+	if seconds < 1 {
+		seconds = 1
+	}
+	return strconv.FormatInt(seconds, 10)
 }
 
 // historyMessageIDs holds the result of collecting message IDs from history.

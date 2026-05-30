@@ -18,6 +18,7 @@ gog docs (doc) <command> [flags]
 
 - [gog docs add-tab](gog-docs-add-tab.md) - Add a tab to a Google Doc
 - [gog docs cat](gog-docs-cat.md) - Print a Google Doc as plain text
+- [gog docs cell-update](gog-docs-cell-update.md) - Replace or append content inside a specific table cell
 - [gog docs clear](gog-docs-clear.md) - Clear all content from a Google Doc
 - [gog docs comments](gog-docs-comments.md) - Manage comments on files
 - [gog docs copy](gog-docs-copy.md) - Copy a Google Doc

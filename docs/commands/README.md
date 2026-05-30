@@ -2,7 +2,7 @@
 
 Every `gog` command has a generated docs page. The source of truth is the live CLI schema; run `make docs-commands` after changing command names, flags, help text, aliases, or arguments.
 
-Generated pages: 572.
+Generated pages: 574.
 
 ## Top-level Commands
 
@@ -271,6 +271,7 @@ Generated pages: 572.
   - [gog docs](gog-docs.md) - Google Docs (export via Drive)
     - [gog docs add-tab](gog-docs-add-tab.md) - Add a tab to a Google Doc
     - [gog docs cat](gog-docs-cat.md) - Print a Google Doc as plain text
+    - [gog docs cell-update](gog-docs-cell-update.md) - Replace or append content inside a specific table cell
     - [gog docs clear](gog-docs-clear.md) - Clear all content from a Google Doc
     - [gog docs comments](gog-docs-comments.md) - Manage comments on files
       - [gog docs comments add](gog-docs-comments-add.md) - Add a comment to a Google Doc
@@ -386,7 +387,7 @@ Generated pages: 572.
       - [gog gmail batch modify](gog-gmail-batch-modify.md) - Modify labels on multiple messages
     - [gog gmail drafts](gog-gmail-drafts.md) - Draft operations
       - [gog gmail drafts create](gog-gmail-drafts-create.md) - Create a draft
-      - [gog gmail drafts delete](gog-gmail-drafts-delete.md) - Delete a draft
+      - [gog gmail drafts delete](gog-gmail-drafts-delete.md) - Permanently delete a draft (not recoverable; drafts are not moved to Trash)
       - [gog gmail drafts get](gog-gmail-drafts-get.md) - Get draft details
       - [gog gmail drafts list](gog-gmail-drafts-list.md) - List drafts
       - [gog gmail drafts send](gog-gmail-drafts-send.md) - Send a draft
@@ -534,6 +535,7 @@ Generated pages: 572.
       - [gog sheets conditional-format clear](gog-sheets-conditional-format-clear.md) - Remove conditional formatting rules
       - [gog sheets conditional-format list](gog-sheets-conditional-format-list.md) - List conditional formatting rules
     - [gog sheets copy](gog-sheets-copy.md) - Copy a Google Sheet
+    - [gog sheets copy-paste](gog-sheets-copy-paste.md) - Copy a range's values/formulas/format to another range (tiles to fill down/across)
     - [gog sheets create](gog-sheets-create.md) - Create a new spreadsheet
     - [gog sheets delete-tab](gog-sheets-delete-tab.md) - Delete a tab/sheet from a spreadsheet (use --force to skip confirmation)
     - [gog sheets export](gog-sheets-export.md) - Export a Google Sheet (pdf|xlsx|csv) via Drive

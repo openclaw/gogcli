@@ -17,7 +17,7 @@ gog gmail (mail,email) drafts (draft) <command>
 ## Subcommands
 
 - [gog gmail drafts create](gog-gmail-drafts-create.md) - Create a draft
-- [gog gmail drafts delete](gog-gmail-drafts-delete.md) - Delete a draft
+- [gog gmail drafts delete](gog-gmail-drafts-delete.md) - Permanently delete a draft (not recoverable; drafts are not moved to Trash)
 - [gog gmail drafts get](gog-gmail-drafts-get.md) - Get draft details
 - [gog gmail drafts list](gog-gmail-drafts-list.md) - List drafts
 - [gog gmail drafts send](gog-gmail-drafts-send.md) - Send a draft
