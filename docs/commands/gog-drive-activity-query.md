@@ -27,7 +27,8 @@ gog drive (drv) activity query (list,ls) [flags]
 | `--consolidate` | `bool` |  | Use Drive Activity legacy consolidation strategy |
 | `--disable-commands` | `string` |  | Comma-separated list of disabled commands; dot paths allowed |
 | `-n`<br>`--dry-run`<br>`--dryrun`<br>`--noop`<br>`--preview` | `bool` |  | Do not make changes; print intended actions and exit successfully |
-| `--enable-commands` | `string` |  | Comma-separated list of enabled commands; dot paths allowed (restricts CLI) |
+| `--enable-commands` | `string` |  | Comma-separated list of enabled command prefixes; dot paths allowed (restricts CLI) |
+| `--enable-commands-exact` | `string` |  | Comma-separated list of exact enabled commands; dot paths allowed and parent commands do not enable children |
 | `--fail-empty`<br>`--non-empty`<br>`--require-results` | `bool` |  | Exit with code 3 if no activities |
 | `--file`<br>`--file-id` | `string` |  | Drive file ID to query |
 | `--filter` | `string` |  | Raw Drive Activity filter expression appended with AND |

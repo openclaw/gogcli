@@ -25,7 +25,8 @@ gog docs (doc) find-replace <docId> <find> [<replace>] [flags]
 | `--content-file` | `string` |  | Read replacement from a file instead of the positional argument. |
 | `--disable-commands` | `string` |  | Comma-separated list of disabled commands; dot paths allowed |
 | `-n`<br>`--dry-run`<br>`--dryrun`<br>`--noop`<br>`--preview` | `bool` |  | Do not make changes; print intended actions and exit successfully |
-| `--enable-commands` | `string` |  | Comma-separated list of enabled commands; dot paths allowed (restricts CLI) |
+| `--enable-commands` | `string` |  | Comma-separated list of enabled command prefixes; dot paths allowed (restricts CLI) |
+| `--enable-commands-exact` | `string` |  | Comma-separated list of exact enabled commands; dot paths allowed and parent commands do not enable children |
 | `--first` | `bool` |  | Replace only the first occurrence instead of all. |
 | `-y`<br>`--force`<br>`--assume-yes`<br>`--yes` | `bool` |  | Skip confirmations for destructive commands |
 | `--format` | `string` | plain | Replacement format: plain\|markdown. Markdown converts formatting, tables, and inline images from public HTTPS URLs. |

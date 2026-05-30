@@ -28,7 +28,8 @@ gog calendar (cal) update (edit,set) <calendarId> <eventId> [flags]
 | `--description` | `string` |  | New description (set empty to clear) |
 | `--disable-commands` | `string` |  | Comma-separated list of disabled commands; dot paths allowed |
 | `-n`<br>`--dry-run`<br>`--dryrun`<br>`--noop`<br>`--preview` | `bool` |  | Do not make changes; print intended actions and exit successfully |
-| `--enable-commands` | `string` |  | Comma-separated list of enabled commands; dot paths allowed (restricts CLI) |
+| `--enable-commands` | `string` |  | Comma-separated list of enabled command prefixes; dot paths allowed (restricts CLI) |
+| `--enable-commands-exact` | `string` |  | Comma-separated list of exact enabled commands; dot paths allowed and parent commands do not enable children |
 | `--end-timezone`<br>`--to-timezone` | `string` |  | IANA timezone metadata for --to (e.g., America/New_York) |
 | `--event-color` | `string` |  | Event color ID (1-11, or empty to clear) |
 | `--event-type` | `string` |  | Event type: default, focus-time, out-of-office, working-location |

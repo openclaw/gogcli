@@ -8,6 +8,7 @@
 - Gmail: clarify that `gmail drafts delete` permanently deletes drafts and cannot be recovered. (#656, #659) — thanks @chrischall.
 - Sheets: add `--inherit-from-before` to `sheets insert` so callers can choose whether inserted rows/columns inherit formatting from the preceding or following neighbor. (#655, #658) — thanks @chrischall.
 - Sheets: add `sheets copy-paste` / `fill` for range-level CopyPasteRequest fills of values, formulas, formatting, and related paste types. (#661, #663) — thanks @chrischall.
+- CLI: add `--enable-commands-exact` / `GOG_ENABLE_COMMANDS_EXACT` for strict command allowlists without prefix expansion. (#652) — thanks @jason-allen-oneal.
 - Auth: update stored OAuth scope metadata from observed granted scopes during refresh so `auth list` reflects newly usable services. (#649)
 - Docs: preserve paragraph-separating blank lines when replacing a single tab from Markdown. (#644)
 - Docs: add `docs cell-update` for non-destructive table-cell content replacement by table, row, and column. (#646)
