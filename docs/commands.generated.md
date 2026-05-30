@@ -220,6 +220,7 @@ Generated from `gog schema --json`.
   - [`gog docs (doc) <command> [flags]`](commands/gog-docs.md) - Google Docs (export via Drive)
     - [`gog docs (doc) add-tab <docId> [flags]`](commands/gog-docs-add-tab.md) - Add a tab to a Google Doc
     - [`gog docs (doc) cat (text,read) <docId> [flags]`](commands/gog-docs-cat.md) - Print a Google Doc as plain text
+    - [`gog docs (doc) cell-update (update-cell) --row=INT --col=INT <docId> [flags]`](commands/gog-docs-cell-update.md) - Replace or append content inside a specific table cell
     - [`gog docs (doc) clear <docId>`](commands/gog-docs-clear.md) - Clear all content from a Google Doc
     - [`gog docs (doc) comments <command>`](commands/gog-docs-comments.md) - Manage comments on files
       - [`gog docs (doc) comments add (create,new) <docId> <content> [flags]`](commands/gog-docs-comments-add.md) - Add a comment to a Google Doc
@@ -335,7 +336,7 @@ Generated from `gog schema --json`.
       - [`gog gmail (mail,email) batch modify (update,edit,set) <messageId> ... [flags]`](commands/gog-gmail-batch-modify.md) - Modify labels on multiple messages
     - [`gog gmail (mail,email) drafts (draft) <command>`](commands/gog-gmail-drafts.md) - Draft operations
       - [`gog gmail (mail,email) drafts (draft) create (add,new) [flags]`](commands/gog-gmail-drafts-create.md) - Create a draft
-      - [`gog gmail (mail,email) drafts (draft) delete (rm,del,remove) <draftId>`](commands/gog-gmail-drafts-delete.md) - Delete a draft
+      - [`gog gmail (mail,email) drafts (draft) delete (rm,del,remove) <draftId>`](commands/gog-gmail-drafts-delete.md) - Permanently delete a draft (not recoverable; drafts are not moved to Trash)
       - [`gog gmail (mail,email) drafts (draft) get (info,show) <draftId> [flags]`](commands/gog-gmail-drafts-get.md) - Get draft details
       - [`gog gmail (mail,email) drafts (draft) list (ls) [flags]`](commands/gog-gmail-drafts-list.md) - List drafts
       - [`gog gmail (mail,email) drafts (draft) send (post) <draftId>`](commands/gog-gmail-drafts-send.md) - Send a draft
@@ -483,6 +484,7 @@ Generated from `gog schema --json`.
       - [`gog sheets (sheet) conditional-format (cf,conditional-formats) clear (delete,rm,remove) --sheet=STRING <spreadsheetId> [flags]`](commands/gog-sheets-conditional-format-clear.md) - Remove conditional formatting rules
       - [`gog sheets (sheet) conditional-format (cf,conditional-formats) list <spreadsheetId> [flags]`](commands/gog-sheets-conditional-format-list.md) - List conditional formatting rules
     - [`gog sheets (sheet) copy (cp,duplicate) <spreadsheetId> <title> [flags]`](commands/gog-sheets-copy.md) - Copy a Google Sheet
+    - [`gog sheets (sheet) copy-paste (fill,copy-range) <spreadsheetId> <source> <dest> [flags]`](commands/gog-sheets-copy-paste.md) - Copy a range's values/formulas/format to another range (tiles to fill down/across)
     - [`gog sheets (sheet) create (new) <title> [flags]`](commands/gog-sheets-create.md) - Create a new spreadsheet
     - [`gog sheets (sheet) delete-tab (delete-sheet) <spreadsheetId> <tabName>`](commands/gog-sheets-delete-tab.md) - Delete a tab/sheet from a spreadsheet (use --force to skip confirmation)
     - [`gog sheets (sheet) export (download,dl) <spreadsheetId> [flags]`](commands/gog-sheets-export.md) - Export a Google Sheet (pdf|xlsx|csv) via Drive

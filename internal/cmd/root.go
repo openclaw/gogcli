@@ -28,23 +28,24 @@ const (
 )
 
 type RootFlags struct {
-	Color           string `help:"Color output: auto|always|never" default:"${color}"`
-	Home            string `name:"home" help:"Override gogcli config/data/state/cache root (equivalent to GOG_HOME)"`
-	Account         string `help:"Account email for API commands (gmail/calendar/chat/classroom/drive/drivelabels/docs/slides/contacts/tasks/people/sheets/forms/sites/appscript/analytics/searchconsole/ads/photos)" aliases:"acct" short:"a"`
-	Client          string `help:"OAuth client name (selects stored credentials + token bucket)" default:"${client}"`
-	AccessToken     string `help:"Use provided access token directly (bypasses stored refresh tokens; token expires in ~1h)" env:"GOG_ACCESS_TOKEN"`
-	EnableCommands  string `help:"Comma-separated list of enabled commands; dot paths allowed (restricts CLI)" default:"${enabled_commands}"`
-	DisableCommands string `help:"Comma-separated list of disabled commands; dot paths allowed" default:"${disabled_commands}"`
-	GmailNoSend     bool   `help:"Block Gmail send operations (agent safety)" default:"${gmail_no_send}"`
-	JSON            bool   `help:"Output JSON to stdout (best for scripting)" default:"${json}" aliases:"machine" short:"j"`
-	Plain           bool   `help:"Output stable, parseable text to stdout (TSV; no colors)" default:"${plain}" aliases:"tsv" short:"p"`
-	WrapUntrusted   bool   `name:"wrap-untrusted" help:"In JSON/raw output, wrap fetched text fields in external untrusted-content markers" default:"${wrap_untrusted}"`
-	ResultsOnly     bool   `name:"results-only" help:"In JSON mode, emit only the primary result (drops envelope fields like nextPageToken)"`
-	Select          string `name:"select" aliases:"pick,project" help:"In JSON mode, select comma-separated fields (best-effort; supports dot paths). Desire path: use --fields for most commands."`
-	DryRun          bool   `help:"Do not make changes; print intended actions and exit successfully" aliases:"noop,preview,dryrun" short:"n"`
-	Force           bool   `help:"Skip confirmations for destructive commands" aliases:"yes,assume-yes" short:"y"`
-	NoInput         bool   `help:"Never prompt; fail instead (useful for CI)" aliases:"non-interactive,noninteractive"`
-	Verbose         bool   `help:"Enable verbose logging" short:"v"`
+	Color               string `help:"Color output: auto|always|never" default:"${color}"`
+	Home                string `name:"home" help:"Override gogcli config/data/state/cache root (equivalent to GOG_HOME)"`
+	Account             string `help:"Account email for API commands (gmail/calendar/chat/classroom/drive/drivelabels/docs/slides/contacts/tasks/people/sheets/forms/sites/appscript/analytics/searchconsole/ads/photos)" aliases:"acct" short:"a"`
+	Client              string `help:"OAuth client name (selects stored credentials + token bucket)" default:"${client}"`
+	AccessToken         string `help:"Use provided access token directly (bypasses stored refresh tokens; token expires in ~1h)" env:"GOG_ACCESS_TOKEN"`
+	EnableCommands      string `help:"Comma-separated list of enabled command prefixes; dot paths allowed (restricts CLI)" default:"${enabled_commands}"`
+	EnableCommandsExact string `name:"enable-commands-exact" help:"Comma-separated list of exact enabled commands; dot paths allowed and parent commands do not enable children" default:"${enabled_commands_exact}"`
+	DisableCommands     string `help:"Comma-separated list of disabled commands; dot paths allowed" default:"${disabled_commands}"`
+	GmailNoSend         bool   `help:"Block Gmail send operations (agent safety)" default:"${gmail_no_send}"`
+	JSON                bool   `help:"Output JSON to stdout (best for scripting)" default:"${json}" aliases:"machine" short:"j"`
+	Plain               bool   `help:"Output stable, parseable text to stdout (TSV; no colors)" default:"${plain}" aliases:"tsv" short:"p"`
+	WrapUntrusted       bool   `name:"wrap-untrusted" help:"In JSON/raw output, wrap fetched text fields in external untrusted-content markers" default:"${wrap_untrusted}"`
+	ResultsOnly         bool   `name:"results-only" help:"In JSON mode, emit only the primary result (drops envelope fields like nextPageToken)"`
+	Select              string `name:"select" aliases:"pick,project" help:"In JSON mode, select comma-separated fields (best-effort; supports dot paths). Desire path: use --fields for most commands."`
+	DryRun              bool   `help:"Do not make changes; print intended actions and exit successfully" aliases:"noop,preview,dryrun" short:"n"`
+	Force               bool   `help:"Skip confirmations for destructive commands" aliases:"yes,assume-yes" short:"y"`
+	NoInput             bool   `help:"Never prompt; fail instead (useful for CI)" aliases:"non-interactive,noninteractive"`
+	Verbose             bool   `help:"Enable verbose logging" short:"v"`
 }
 
 type CLI struct {
@@ -156,7 +157,7 @@ func Execute(args []string) (err error) {
 		_, _ = fmt.Fprintln(os.Stderr, errfmt.Format(err))
 		return err
 	}
-	if err = enforceEnabledCommands(kctx, cli.EnableCommands); err != nil {
+	if err = enforceEnabledCommands(kctx, cli.EnableCommands, cli.EnableCommandsExact); err != nil {
 		_, _ = fmt.Fprintln(os.Stderr, errfmt.Format(err))
 		return err
 	}
@@ -333,7 +334,7 @@ func isCalendarEventsCommand(args []string) bool {
 
 func globalFlagTakesValue(flag string) bool {
 	switch flag {
-	case "--color", "--account", "--acct", "--client", "--enable-commands", "--disable-commands", "--select", "--pick", "--project", "--home", "-a":
+	case "--color", "--account", "--acct", "--client", "--enable-commands", "--enable-commands-exact", "--disable-commands", "--select", "--pick", "--project", "--home", "-a":
 		return true
 	default:
 		return false
@@ -378,17 +379,18 @@ func boolString(v bool) string {
 func newParser(description string) (*kong.Kong, *CLI, error) {
 	envMode := outfmt.FromEnv()
 	vars := kong.Vars{
-		"auth_services":     googleauth.UserServiceCSV(),
-		"color":             envOr("GOG_COLOR", "auto"),
-		"calendar_weekday":  envOr("GOG_CALENDAR_WEEKDAY", "false"),
-		"client":            envOr("GOG_CLIENT", ""),
-		"disabled_commands": envOr("GOG_DISABLE_COMMANDS", ""),
-		"enabled_commands":  envOr("GOG_ENABLE_COMMANDS", ""),
-		"gmail_no_send":     boolString(envBool("GOG_GMAIL_NO_SEND")),
-		"json":              boolString(envMode.JSON),
-		"plain":             boolString(envMode.Plain),
-		"wrap_untrusted":    boolString(envBool("GOG_WRAP_UNTRUSTED")),
-		"version":           VersionString(),
+		"auth_services":          googleauth.UserServiceCSV(),
+		"color":                  envOr("GOG_COLOR", "auto"),
+		"calendar_weekday":       envOr("GOG_CALENDAR_WEEKDAY", "false"),
+		"client":                 envOr("GOG_CLIENT", ""),
+		"disabled_commands":      envOr("GOG_DISABLE_COMMANDS", ""),
+		"enabled_commands":       envOr("GOG_ENABLE_COMMANDS", ""),
+		"enabled_commands_exact": envOr("GOG_ENABLE_COMMANDS_EXACT", ""),
+		"gmail_no_send":          boolString(envBool("GOG_GMAIL_NO_SEND")),
+		"json":                   boolString(envMode.JSON),
+		"plain":                  boolString(envMode.Plain),
+		"wrap_untrusted":         boolString(envBool("GOG_WRAP_UNTRUSTED")),
+		"version":                VersionString(),
 	}
 
 	cli := &CLI{}

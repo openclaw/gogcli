@@ -197,7 +197,7 @@ func TestPersistingTokenSource_PersistsRotatedRefreshToken(t *testing.T) {
 
 	store := &stubStore{tok: stored}
 	base := oauth2.StaticTokenSource(&oauth2.Token{AccessToken: "access", RefreshToken: "new-refresh-token"})
-	ts := newPersistingTokenSource(base, store, config.DefaultClientName, "A@B.COM", stored)
+	ts := newPersistingTokenSource(base, store, config.DefaultClientName, "A@B.COM", stored, "")
 
 	if _, err := ts.Token(); err != nil {
 		t.Fatalf("Token: %v", err)
@@ -246,7 +246,7 @@ func TestPersistingTokenSource_PersistsAccessToken(t *testing.T) {
 		RefreshToken: "refresh-token",
 		Expiry:       expires,
 	})
-	ts := newPersistingTokenSource(base, store, config.DefaultClientName, "a@b.com", stored)
+	ts := newPersistingTokenSource(base, store, config.DefaultClientName, "a@b.com", stored, "")
 
 	if _, err := ts.Token(); err != nil {
 		t.Fatalf("Token: %v", err)
@@ -279,7 +279,118 @@ func TestPersistingTokenSource_NoRotationDoesNotPersist(t *testing.T) {
 	}
 	store := &stubStore{tok: stored}
 	base := oauth2.StaticTokenSource(&oauth2.Token{AccessToken: "access", RefreshToken: "same-token", Expiry: expires})
-	ts := newPersistingTokenSource(base, store, config.DefaultClientName, "a@b.com", stored)
+	ts := newPersistingTokenSource(base, store, config.DefaultClientName, "a@b.com", stored, "")
+
+	if _, err := ts.Token(); err != nil {
+		t.Fatalf("Token: %v", err)
+	}
+
+	if store.setCalls != 0 {
+		t.Fatalf("expected no SetToken calls, got %d", store.setCalls)
+	}
+}
+
+func TestPersistingTokenSource_PersistsObservedGrantedScopeUpgrade(t *testing.T) {
+	gmailScopes, err := googleauth.Scopes(googleauth.ServiceGmail)
+	if err != nil {
+		t.Fatalf("gmail scopes: %v", err)
+	}
+	grantedScopes := normalizeScopeList(append([]string{
+		"https://www.googleapis.com/auth/calendar",
+		"openid",
+	}, gmailScopes...))
+	stored := secrets.Token{
+		Email:        "a@b.com",
+		RefreshToken: "same-token",
+		Services:     []string{"calendar"},
+		Scopes: []string{
+			"https://www.googleapis.com/auth/calendar",
+			"openid",
+		},
+	}
+	store := &stubStore{tok: stored}
+	base := oauth2.StaticTokenSource((&oauth2.Token{
+		AccessToken:  "access",
+		RefreshToken: "same-token",
+	}).WithExtra(map[string]any{
+		"scope": strings.Join(grantedScopes, " "),
+	}))
+	ts := newPersistingTokenSource(base, store, config.DefaultClientName, "a@b.com", stored, "gmail")
+
+	if _, err := ts.Token(); err != nil {
+		t.Fatalf("Token: %v", err)
+	}
+
+	if store.setCalls != 1 {
+		t.Fatalf("expected 1 SetToken call, got %d", store.setCalls)
+	}
+
+	wantServices := []string{"calendar", "gmail"}
+	if !reflect.DeepEqual(store.lastSet.Services, wantServices) {
+		t.Fatalf("services=%#v want %#v", store.lastSet.Services, wantServices)
+	}
+
+	wantScopes := grantedScopes
+	if !reflect.DeepEqual(store.lastSet.Scopes, wantScopes) {
+		t.Fatalf("scopes=%#v want %#v", store.lastSet.Scopes, wantScopes)
+	}
+}
+
+func TestPersistingTokenSource_DoesNotAddServiceForPartialObservedGrant(t *testing.T) {
+	stored := secrets.Token{
+		Email:        "a@b.com",
+		RefreshToken: "same-token",
+		AccessToken:  "access",
+		Services:     []string{"calendar"},
+		Scopes:       []string{"https://www.googleapis.com/auth/calendar"},
+	}
+	store := &stubStore{tok: stored}
+	base := oauth2.StaticTokenSource((&oauth2.Token{
+		AccessToken:  "access",
+		RefreshToken: "same-token",
+	}).WithExtra(map[string]any{
+		"scope": "https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/directory.readonly",
+	}))
+	ts := newPersistingTokenSource(base, store, config.DefaultClientName, "a@b.com", stored, "contacts")
+
+	if _, err := ts.Token(); err != nil {
+		t.Fatalf("Token: %v", err)
+	}
+
+	if store.setCalls != 1 {
+		t.Fatalf("expected 1 SetToken call, got %d", store.setCalls)
+	}
+
+	wantServices := []string{"calendar"}
+	if !reflect.DeepEqual(store.lastSet.Services, wantServices) {
+		t.Fatalf("services=%#v want %#v", store.lastSet.Services, wantServices)
+	}
+
+	wantScopes := []string{
+		"https://www.googleapis.com/auth/calendar",
+		"https://www.googleapis.com/auth/directory.readonly",
+	}
+	if !reflect.DeepEqual(store.lastSet.Scopes, wantScopes) {
+		t.Fatalf("scopes=%#v want %#v", store.lastSet.Scopes, wantScopes)
+	}
+}
+
+func TestPersistingTokenSource_DoesNotPersistRequestedScopeWithoutObservedGrant(t *testing.T) {
+	stored := secrets.Token{
+		Email:        "a@b.com",
+		RefreshToken: "same-token",
+		AccessToken:  "access",
+		Services:     []string{"calendar"},
+		Scopes:       []string{"https://www.googleapis.com/auth/calendar"},
+	}
+	store := &stubStore{tok: stored}
+	base := oauth2.StaticTokenSource((&oauth2.Token{
+		AccessToken:  "access",
+		RefreshToken: "same-token",
+	}).WithExtra(map[string]any{
+		"scope": "https://www.googleapis.com/auth/calendar",
+	}))
+	ts := newPersistingTokenSource(base, store, config.DefaultClientName, "a@b.com", stored, "gmail")
 
 	if _, err := ts.Token(); err != nil {
 		t.Fatalf("Token: %v", err)
@@ -299,7 +410,7 @@ func TestPersistingTokenSource_BackfillsSubjectFromIDToken(t *testing.T) {
 	}).WithExtra(map[string]any{
 		"id_token": unsignedIDTokenForTest(t, "sub-123", "a@b.com"),
 	}))
-	ts := newPersistingTokenSource(base, store, config.DefaultClientName, "a@b.com", stored)
+	ts := newPersistingTokenSource(base, store, config.DefaultClientName, "a@b.com", stored, "")
 
 	if _, err := ts.Token(); err != nil {
 		t.Fatalf("Token: %v", err)
@@ -343,7 +454,7 @@ func TestPersistingTokenSource_MigratesRenamedEmailFromIDToken(t *testing.T) {
 	}).WithExtra(map[string]any{
 		"id_token": unsignedIDTokenForTest(t, "sub-123", "new@example.com"),
 	}))
-	ts := newPersistingTokenSource(base, store, config.DefaultClientName, "old@example.com", stored)
+	ts := newPersistingTokenSource(base, store, config.DefaultClientName, "old@example.com", stored, "")
 
 	if _, err := ts.Token(); err != nil {
 		t.Fatalf("Token: %v", err)
@@ -400,7 +511,7 @@ func TestPersistingTokenSource_PersistFailureIsNonFatal(t *testing.T) {
 	stored := secrets.Token{Email: "a@b.com", RefreshToken: "old-token"}
 	store := &stubStore{tok: stored, setErr: errBoom}
 	base := oauth2.StaticTokenSource(&oauth2.Token{AccessToken: "access", RefreshToken: "new-token"})
-	ts := newPersistingTokenSource(base, store, config.DefaultClientName, "a@b.com", stored)
+	ts := newPersistingTokenSource(base, store, config.DefaultClientName, "a@b.com", stored, "")
 
 	tok, err := ts.Token()
 	if err != nil {

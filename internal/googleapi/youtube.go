@@ -15,6 +15,8 @@ import (
 
 var errYouTubeAPIKeyRequired = errors.New("youtube: API key required (config set youtube_api_key KEY or GOG_YOUTUBE_API_KEY)")
 
+const scopeYouTubeForceSSL = "https://www.googleapis.com/auth/youtube.force-ssl"
+
 // NewYouTubeWithAPIKey creates a YouTube Data API v3 service client using an API key.
 // Use for public data: list by channelId, videoId, playlistId, etc.
 // API key can be set via config (youtube_api_key) or GOG_YOUTUBE_API_KEY.
@@ -56,6 +58,22 @@ func NewYouTubeForAccount(ctx context.Context, email string) (*youtube.Service, 
 	svc, err := youtube.NewService(ctx, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("youtube service for account: %w", err)
+	}
+
+	return svc, nil
+}
+
+// NewYouTubeCommentsForAccount creates a YouTube Data API v3 client for comment reads.
+// Google requires youtube.force-ssl for commentThreads.list; youtube.readonly is insufficient.
+func NewYouTubeCommentsForAccount(ctx context.Context, email string) (*youtube.Service, error) {
+	opts, err := optionsForAccountScopes(ctx, string(googleauth.ServiceYouTube), email, []string{scopeYouTubeForceSSL})
+	if err != nil {
+		return nil, fmt.Errorf("youtube comments OAuth options: %w", err)
+	}
+
+	svc, err := youtube.NewService(ctx, opts...)
+	if err != nil {
+		return nil, fmt.Errorf("youtube comments service for account: %w", err)
 	}
 
 	return svc, nil

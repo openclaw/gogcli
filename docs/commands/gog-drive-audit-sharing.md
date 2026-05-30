@@ -26,7 +26,8 @@ gog drive (drv) audit sharing (permissions,perms,public,external) [flags]
 | `--depth` | `int` | 2 | Max folder depth (0 = unlimited) |
 | `--disable-commands` | `string` |  | Comma-separated list of disabled commands; dot paths allowed |
 | `-n`<br>`--dry-run`<br>`--dryrun`<br>`--noop`<br>`--preview` | `bool` |  | Do not make changes; print intended actions and exit successfully |
-| `--enable-commands` | `string` |  | Comma-separated list of enabled commands; dot paths allowed (restricts CLI) |
+| `--enable-commands` | `string` |  | Comma-separated list of enabled command prefixes; dot paths allowed (restricts CLI) |
+| `--enable-commands-exact` | `string` |  | Comma-separated list of exact enabled commands; dot paths allowed and parent commands do not enable children |
 | `--external-only` | `bool` |  | Only report external user/group/domain permissions |
 | `--fail-found` | `bool` |  | Exit with code 3 when findings are present |
 | `--file`<br>`--file-id` | `string` |  | Audit one file ID instead of a folder tree |

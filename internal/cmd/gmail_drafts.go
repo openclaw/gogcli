@@ -16,7 +16,7 @@ import (
 type GmailDraftsCmd struct {
 	List   GmailDraftsListCmd   `cmd:"" name:"list" aliases:"ls" help:"List drafts"`
 	Get    GmailDraftsGetCmd    `cmd:"" name:"get" aliases:"info,show" help:"Get draft details"`
-	Delete GmailDraftsDeleteCmd `cmd:"" name:"delete" aliases:"rm,del,remove" help:"Delete a draft"`
+	Delete GmailDraftsDeleteCmd `cmd:"" name:"delete" aliases:"rm,del,remove" help:"Permanently delete a draft (not recoverable; drafts are not moved to Trash)"`
 	Send   GmailDraftsSendCmd   `cmd:"" name:"send" aliases:"post" help:"Send a draft"`
 	Create GmailDraftsCreateCmd `cmd:"" name:"create" aliases:"add,new" help:"Create a draft"`
 	Update GmailDraftsUpdateCmd `cmd:"" name:"update" aliases:"edit,set" help:"Update a draft"`
@@ -178,6 +178,9 @@ func (c *GmailDraftsGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 	return nil
 }
 
+// GmailDraftsDeleteCmd permanently deletes a draft. The Gmail API's
+// users.drafts.delete is irreversible — drafts are not moved to Trash and have
+// no untrash path — so this cannot be undone.
 type GmailDraftsDeleteCmd struct {
 	DraftID string `arg:"" name:"draftId" help:"Draft ID"`
 }
@@ -191,7 +194,7 @@ func (c *GmailDraftsDeleteCmd) Run(ctx context.Context, flags *RootFlags) error 
 
 	if confirmErr := dryRunAndConfirmDestructive(ctx, flags, "gmail.drafts.delete", map[string]any{
 		"draft_id": draftID,
-	}, fmt.Sprintf("delete gmail draft %s", draftID)); confirmErr != nil {
+	}, fmt.Sprintf("permanently delete gmail draft %s (not recoverable; drafts are not moved to Trash)", draftID)); confirmErr != nil {
 		return confirmErr
 	}
 

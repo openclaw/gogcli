@@ -124,6 +124,58 @@ func TestSheetsInsertCmd(t *testing.T) {
 		}
 	})
 
+	t.Run("insert after inheriting from following dimension", func(t *testing.T) {
+		gotInsert = nil
+		cmd := &SheetsInsertCmd{}
+		if err := runKong(t, cmd, []string{
+			"s1", "Data", "rows", "2", "--count", "1", "--after", "--inherit-from-before=false",
+		}, ctx, flags); err != nil {
+			t.Fatalf("insert rows: %v", err)
+		}
+		if gotInsert == nil {
+			t.Fatal("expected insertDimension request")
+		}
+		// --after would default inheritFromBefore=true; the explicit flag overrides it
+		// so the API inherits from the following adjacent row/column instead.
+		if gotInsert.InheritFromBefore {
+			t.Fatal("expected inheritFromBefore=false when --inherit-from-before=false overrides --after")
+		}
+	})
+
+	t.Run("insert before with explicit inherit", func(t *testing.T) {
+		gotInsert = nil
+		cmd := &SheetsInsertCmd{}
+		if err := runKong(t, cmd, []string{
+			"s1", "Data", "rows", "2", "--count", "1", "--inherit-from-before",
+		}, ctx, flags); err != nil {
+			t.Fatalf("insert rows: %v", err)
+		}
+		if gotInsert == nil {
+			t.Fatal("expected insertDimension request")
+		}
+		// before-insert defaults inheritFromBefore=false; the explicit flag overrides it.
+		if !gotInsert.InheritFromBefore {
+			t.Fatal("expected inheritFromBefore=true when --inherit-from-before is set")
+		}
+	})
+
+	t.Run("reject inherit from before at first row", func(t *testing.T) {
+		gotInsert = nil
+		cmd := &SheetsInsertCmd{}
+		err := runKong(t, cmd, []string{
+			"s1", "Data", "rows", "1", "--inherit-from-before",
+		}, ctx, flags)
+		if err == nil {
+			t.Fatal("expected error")
+		}
+		if !strings.Contains(err.Error(), "cannot inherit from the previous row") {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if gotInsert != nil {
+			t.Fatal("did not expect API request")
+		}
+	})
+
 	t.Run("insert cols before", func(t *testing.T) {
 		gotInsert = nil
 		cmd := &SheetsInsertCmd{}

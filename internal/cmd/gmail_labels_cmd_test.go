@@ -143,6 +143,66 @@ func TestGmailLabelsGetCmd_JSON(t *testing.T) {
 	}
 }
 
+func TestGmailLabelsGetCmd_ExactIDBeatsCaseFoldedName(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case strings.HasSuffix(r.URL.Path, "/users/me/labels") || strings.HasSuffix(r.URL.Path, "/gmail/v1/users/me/labels"):
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"labels": []map[string]any{
+					{"id": "Label_9", "name": "Original", "type": "user"},
+					{"id": "Label_10", "name": "label_9", "type": "user"},
+				},
+			})
+			return
+		case strings.Contains(r.URL.Path, "/users/me/labels/") || strings.Contains(r.URL.Path, "/gmail/v1/users/me/labels/"):
+			id := r.URL.Path[strings.LastIndex(r.URL.Path, "/")+1:]
+			if id != "Label_9" {
+				http.NotFound(w, r)
+				return
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"id":   "Label_9",
+				"name": "Original",
+				"type": "user",
+			})
+			return
+		default:
+			http.NotFound(w, r)
+			return
+		}
+	}))
+	defer srv.Close()
+	stubGmailService(t, srv)
+
+	out := captureStdout(t, func() {
+		u, uiErr := ui.New(ui.Options{Stdout: io.Discard, Stderr: io.Discard, Color: "never"})
+		if uiErr != nil {
+			t.Fatalf("ui.New: %v", uiErr)
+		}
+		ctx := ui.WithUI(context.Background(), u)
+		ctx = outfmt.WithMode(ctx, outfmt.Mode{JSON: true})
+
+		cmd := &GmailLabelsGetCmd{}
+		if err := runKong(t, cmd, []string{"Label_9"}, ctx, &RootFlags{Account: "a@b.com"}); err != nil {
+			t.Fatalf("execute: %v", err)
+		}
+	})
+
+	var parsed struct {
+		Label struct {
+			ID string `json:"id"`
+		} `json:"label"`
+	}
+	if err := json.Unmarshal([]byte(out), &parsed); err != nil {
+		t.Fatalf("json parse: %v\nout=%q", err, out)
+	}
+	if parsed.Label.ID != "Label_9" {
+		t.Fatalf("exact ID was shadowed: %#v", parsed.Label)
+	}
+}
+
 func TestGmailLabelsListCmd_TextAndJSON(t *testing.T) {
 	origNew := newGmailService
 	t.Cleanup(func() { newGmailService = origNew })
@@ -487,6 +547,47 @@ func TestGmailLabelsCreateCmd_DuplicateName_Preflight(t *testing.T) {
 	}
 }
 
+func TestEnsureLabelNameAvailable_DoesNotCaseFoldIDs(t *testing.T) {
+	srv := newLabelsServer(t, []map[string]any{
+		{"id": "Label_9", "name": "Different Name", "type": "user"},
+	}, nil)
+	defer srv.Close()
+
+	svc, err := gmail.NewService(context.Background(),
+		option.WithoutAuthentication(),
+		option.WithHTTPClient(srv.Client()),
+		option.WithEndpoint(srv.URL+"/"),
+	)
+	if err != nil {
+		t.Fatalf("NewService: %v", err)
+	}
+
+	if err := ensureLabelNameAvailable(svc, "label_9"); err != nil {
+		t.Fatalf("label ID should not collide with name: %v", err)
+	}
+}
+
+func TestEnsureLabelNameAvailable_BlocksExactIDCollision(t *testing.T) {
+	srv := newLabelsServer(t, []map[string]any{
+		{"id": "Label_9", "name": "Different Name", "type": "user"},
+	}, nil)
+	defer srv.Close()
+
+	svc, err := gmail.NewService(context.Background(),
+		option.WithoutAuthentication(),
+		option.WithHTTPClient(srv.Client()),
+		option.WithEndpoint(srv.URL+"/"),
+	)
+	if err != nil {
+		t.Fatalf("NewService: %v", err)
+	}
+
+	err = ensureLabelNameAvailable(svc, "Label_9")
+	if err == nil || !strings.Contains(err.Error(), "label already exists") {
+		t.Fatalf("expected exact ID collision error, got: %v", err)
+	}
+}
+
 func TestGmailLabelsCreateCmd_DuplicateName_APIError(t *testing.T) {
 	srv := newLabelsServer(t, []map[string]any{}, func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -695,5 +796,44 @@ func TestFetchLabelIDToName(t *testing.T) {
 	// If name is missing, fall back to ID.
 	if m["Label_2"] != "Label_2" {
 		t.Fatalf("unexpected label2: %q", m["Label_2"])
+	}
+}
+
+func TestFetchLabelNameToID_DoesNotCaseFoldIDs(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !(strings.HasSuffix(r.URL.Path, "/users/me/labels") || strings.HasSuffix(r.URL.Path, "/gmail/v1/users/me/labels")) {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"labels": []map[string]any{
+				{"id": "Label_1", "name": "Custom", "type": "user"},
+			},
+		})
+	}))
+	defer srv.Close()
+
+	svc, err := gmail.NewService(context.Background(),
+		option.WithoutAuthentication(),
+		option.WithHTTPClient(srv.Client()),
+		option.WithEndpoint(srv.URL+"/"),
+	)
+	if err != nil {
+		t.Fatalf("NewService: %v", err)
+	}
+
+	m, err := fetchLabelNameToID(svc)
+	if err != nil {
+		t.Fatalf("fetchLabelNameToID: %v", err)
+	}
+	if m["custom"] != "Label_1" {
+		t.Fatalf("missing case-folded name lookup: %#v", m)
+	}
+	if m["Label_1"] != "Label_1" {
+		t.Fatalf("missing exact ID lookup: %#v", m)
+	}
+	if _, ok := m["label_1"]; ok {
+		t.Fatalf("case-folded label ID should not resolve: %#v", m)
 	}
 }

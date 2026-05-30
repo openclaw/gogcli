@@ -37,6 +37,7 @@ type SheetsCmd struct {
 	Banding       SheetsBandingCmd       `cmd:"" name:"banding" aliases:"banded-ranges" help:"Manage alternating color banding"`
 	Merge         SheetsMergeCmd         `cmd:"" name:"merge" help:"Merge cells in a range"`
 	Unmerge       SheetsUnmergeCmd       `cmd:"" name:"unmerge" help:"Unmerge cells in a range"`
+	CopyPaste     SheetsCopyPasteCmd     `cmd:"" name:"copy-paste" aliases:"fill,copy-range" help:"Copy a range's values/formulas/format to another range (tiles to fill down/across)"`
 	NumberFormat  SheetsNumberFormatCmd  `cmd:"" name:"number-format" help:"Apply number format to a range"`
 	Freeze        SheetsFreezeCmd        `cmd:"" name:"freeze" help:"Freeze rows and columns on a sheet"`
 	ResizeColumns SheetsResizeColumnsCmd `cmd:"" name:"resize-columns" help:"Resize sheet columns"`

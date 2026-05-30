@@ -25,7 +25,8 @@ gog auth credentials set <credentials> [flags]
 | `--disable-commands` | `string` |  | Comma-separated list of disabled commands; dot paths allowed |
 | `--domain` | `string` |  | Comma-separated domains to map to this client (e.g. example.com) |
 | `-n`<br>`--dry-run`<br>`--dryrun`<br>`--noop`<br>`--preview` | `bool` |  | Do not make changes; print intended actions and exit successfully |
-| `--enable-commands` | `string` |  | Comma-separated list of enabled commands; dot paths allowed (restricts CLI) |
+| `--enable-commands` | `string` |  | Comma-separated list of enabled command prefixes; dot paths allowed (restricts CLI) |
+| `--enable-commands-exact` | `string` |  | Comma-separated list of exact enabled commands; dot paths allowed and parent commands do not enable children |
 | `--expand-env` | `bool` |  | Expand environment placeholders in client_id/client_secret values |
 | `-y`<br>`--force`<br>`--assume-yes`<br>`--yes` | `bool` |  | Skip confirmations for destructive commands |
 | `--gmail-no-send` | `bool` | false | Block Gmail send operations (agent safety) |

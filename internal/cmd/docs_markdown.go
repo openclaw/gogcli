@@ -106,6 +106,9 @@ func ParseMarkdown(text string) []MarkdownElement {
 
 		// Empty line
 		if strings.TrimSpace(line) == "" {
+			if len(elements) > 0 && elements[len(elements)-1].Type != MDEmptyLine {
+				elements = append(elements, MarkdownElement{Type: MDEmptyLine})
+			}
 			continue
 		}
 
@@ -203,6 +206,10 @@ func ParseMarkdown(text string) []MarkdownElement {
 			Type:    MDParagraph,
 			Content: line,
 		})
+	}
+
+	if len(elements) > 0 && elements[len(elements)-1].Type == MDEmptyLine {
+		elements = elements[:len(elements)-1]
 	}
 
 	return elements
