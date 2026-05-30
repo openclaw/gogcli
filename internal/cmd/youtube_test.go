@@ -253,7 +253,7 @@ func TestYouTubeSearchTypeValidation(t *testing.T) {
 	t.Cleanup(func() { newYouTubeWithAPIKey = origNew })
 	newYouTubeWithAPIKey = func(_ context.Context, key string) (*youtube.Service, error) {
 		t.Fatal("should not reach API call with invalid type")
-		return nil, nil
+		return nil, errors.New("unexpected API key service")
 	}
 
 	err := runKong(t, &YouTubeSearchListCmd{}, []string{"query", "--type", "invalid"}, newQuietUIContext(t), &RootFlags{})
