@@ -16,6 +16,11 @@
 - Gmail: pause watch push Gmail API fetches per account while a 429 Retry-After circuit is open. (#643)
 - YouTube: let `videos list` and `comments list` use OAuth when `--account` is supplied, preserving the API-key fallback for unauthenticated public reads. (#664)
 - YouTube: add `youtube search list` / `yt search ls` for YouTube Data API search across videos, channels, and playlists. (#650, #651) — thanks @BRO3886.
+- Gmail: add `gmail search --from-contact` to resolve a contact's email addresses into a `from:(...)` OR query. (#657) — thanks @chrischall.
+- Docs: add named `--page-size` presets for `docs write` and `docs page-layout`. (#640) — thanks @sebsnyk.
+- Docs: add smart-chip insertion commands for person, Drive file, and date chips. (#638) — thanks @sebsnyk.
+- Docs: add `docs cell-style` for table-cell background color and inline cell text styling. (#645) — thanks @sebsnyk.
+- Docs: add `docs insert-image` to upload a local image, temporarily share it for Docs insertion, and revoke the public permission afterward. (#648) — thanks @sebsnyk.
 - Docs: update the bundled `gog` agent skill to preserve broad user OAuth scopes during reauth and rely on command guards for scoped execution.
 
 ## 0.19.0 - 2026-05-22

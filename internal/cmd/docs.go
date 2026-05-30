@@ -33,6 +33,11 @@ type DocsCmd struct {
 	Insert          DocsInsertCmd          `cmd:"" name:"insert" help:"Insert text at a specific position"`
 	InsertTable     DocsInsertTableCmd     `cmd:"" name:"insert-table" help:"Insert a native table at a specific position (or end-of-doc with --at-end), optionally populated via --values-json"`
 	CellUpdate      DocsCellUpdateCmd      `cmd:"" name:"cell-update" aliases:"update-cell" help:"Replace or append content inside a specific table cell"`
+	CellStyle       DocsCellStyleCmd       `cmd:"" name:"cell-style" help:"Apply table cell background and text styling"`
+	InsertImage     DocsInsertImageCmd     `cmd:"" name:"insert-image" help:"Upload a local image and insert it into a Google Doc"`
+	InsertPerson    DocsInsertPersonCmd    `cmd:"" name:"insert-person" help:"Insert a native person smart chip"`
+	InsertFileChip  DocsInsertFileChipCmd  `cmd:"" name:"insert-file-chip" aliases:"insert-rich-link" help:"Insert a native Drive file smart chip"`
+	InsertDateChip  DocsInsertDateChipCmd  `cmd:"" name:"insert-date-chip" help:"Insert a native date smart chip"`
 	InsertPageBreak DocsInsertPageBreakCmd `cmd:"" name:"insert-page-break" aliases:"page-break,pb" help:"Insert a page break at a specific position (or end-of-doc with --at-end)"`
 	Delete          DocsDeleteCmd          `cmd:"" name:"delete" help:"Delete text range from document"`
 	FindReplace     DocsFindReplaceCmd     `cmd:"" name:"find-replace" help:"Find and replace text. Supports plain text or markdown with images; use --first for a single occurrence."`

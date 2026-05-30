@@ -2,7 +2,7 @@
 
 Every `gog` command has a generated docs page. The source of truth is the live CLI schema; run `make docs-commands` after changing command names, flags, help text, aliases, or arguments.
 
-Generated pages: 576.
+Generated pages: 581.
 
 ## Top-level Commands
 
@@ -271,6 +271,7 @@ Generated pages: 576.
   - [gog docs](gog-docs.md) - Google Docs (export via Drive)
     - [gog docs add-tab](gog-docs-add-tab.md) - Add a tab to a Google Doc
     - [gog docs cat](gog-docs-cat.md) - Print a Google Doc as plain text
+    - [gog docs cell-style](gog-docs-cell-style.md) - Apply table cell background and text styling
     - [gog docs cell-update](gog-docs-cell-update.md) - Replace or append content inside a specific table cell
     - [gog docs clear](gog-docs-clear.md) - Clear all content from a Google Doc
     - [gog docs comments](gog-docs-comments.md) - Manage comments on files
@@ -291,7 +292,11 @@ Generated pages: 576.
     - [gog docs format](gog-docs-format.md) - Apply text or paragraph formatting to a Google Doc
     - [gog docs info](gog-docs-info.md) - Get Google Doc metadata
     - [gog docs insert](gog-docs-insert.md) - Insert text at a specific position
+    - [gog docs insert-date-chip](gog-docs-insert-date-chip.md) - Insert a native date smart chip
+    - [gog docs insert-file-chip](gog-docs-insert-file-chip.md) - Insert a native Drive file smart chip
+    - [gog docs insert-image](gog-docs-insert-image.md) - Upload a local image and insert it into a Google Doc
     - [gog docs insert-page-break](gog-docs-insert-page-break.md) - Insert a page break at a specific position (or end-of-doc with --at-end)
+    - [gog docs insert-person](gog-docs-insert-person.md) - Insert a native person smart chip
     - [gog docs insert-table](gog-docs-insert-table.md) - Insert a native table at a specific position (or end-of-doc with --at-end), optionally populated via --values-json
     - [gog docs list-tabs](gog-docs-list-tabs.md) - List all tabs in a Google Doc
     - [gog docs page-layout](gog-docs-page-layout.md) - Set page layout (pageless|pages) on an existing Google Doc

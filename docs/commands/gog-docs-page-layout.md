@@ -38,6 +38,7 @@ gog docs (doc) page-layout (set-page-layout,page-setup) <docId> [flags]
 | `--margin-top` | `string` |  | Set top page margin (points by default; supports pt, in, cm, mm) |
 | `--no-input`<br>`--non-interactive`<br>`--noninteractive` | `bool` |  | Never prompt; fail instead (useful for CI) |
 | `--page-height` | `string` |  | Set page height (points by default; supports pt, in, cm, mm) |
+| `--page-size` | `string` |  | Named page size: A4, A5, Letter, Legal, Tabloid |
 | `--page-width` | `string` |  | Set page width (points by default; supports pt, in, cm, mm) |
 | `-p`<br>`--plain`<br>`--tsv` | `bool` | false | Output stable, parseable text to stdout (TSV; no colors) |
 | `--results-only` | `bool` |  | In JSON mode, emit only the primary result (drops envelope fields like nextPageToken) |

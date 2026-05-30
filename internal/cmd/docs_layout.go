@@ -11,6 +11,7 @@ import (
 )
 
 type DocsLayoutFlags struct {
+	PageSize     string `name:"page-size" help:"Named page size: A4, A5, Letter, Legal, Tabloid"`
 	PageWidth    string `name:"page-width" help:"Set page width (points by default; supports pt, in, cm, mm)"`
 	PageHeight   string `name:"page-height" help:"Set page height (points by default; supports pt, in, cm, mm)"`
 	MarginLeft   string `name:"margin-left" help:"Set left page margin (points by default; supports pt, in, cm, mm)"`
@@ -20,7 +21,8 @@ type DocsLayoutFlags struct {
 }
 
 func (f DocsLayoutFlags) any() bool {
-	return strings.TrimSpace(f.PageWidth) != "" ||
+	return strings.TrimSpace(f.PageSize) != "" ||
+		strings.TrimSpace(f.PageWidth) != "" ||
 		strings.TrimSpace(f.PageHeight) != "" ||
 		strings.TrimSpace(f.MarginLeft) != "" ||
 		strings.TrimSpace(f.MarginRight) != "" ||
@@ -30,6 +32,9 @@ func (f DocsLayoutFlags) any() bool {
 
 func (f DocsLayoutFlags) dryRunPayload() map[string]any {
 	payload := map[string]any{}
+	if strings.TrimSpace(f.PageSize) != "" {
+		payload["pageSize"] = f.PageSize
+	}
 	if strings.TrimSpace(f.PageWidth) != "" {
 		payload["pageWidth"] = f.PageWidth
 	}
@@ -88,7 +93,12 @@ func buildUpdateDocumentStyleRequest(opts docsDocumentStyleOptions) (*docs.Updat
 	// but live Docs readback shows pageless table/content width still follows
 	// documentStyle.pageSize minus margins. Keep these flags explicit, not
 	// automatic, so --pageless never widens existing docs unless requested.
-	pageWidth, ok, err := parseDocsDimension("page-width", opts.PageWidth, false)
+	pageWidthRaw, pageHeightRaw, err := resolveDocsPageSize(opts.PageSize, opts.PageWidth, opts.PageHeight)
+	if err != nil {
+		return nil, err
+	}
+
+	pageWidth, ok, err := parseDocsDimension("page-width", pageWidthRaw, false)
 	if err != nil {
 		return nil, err
 	}
@@ -100,7 +110,7 @@ func buildUpdateDocumentStyleRequest(opts docsDocumentStyleOptions) (*docs.Updat
 		fields = append(fields, "pageSize.width")
 	}
 
-	pageHeight, ok, err := parseDocsDimension("page-height", opts.PageHeight, false)
+	pageHeight, ok, err := parseDocsDimension("page-height", pageHeightRaw, false)
 	if err != nil {
 		return nil, err
 	}
@@ -132,6 +142,34 @@ func buildUpdateDocumentStyleRequest(opts docsDocumentStyleOptions) (*docs.Updat
 		DocumentStyle: style,
 		Fields:        strings.Join(fields, ","),
 	}, nil
+}
+
+type docsPageSizePreset struct {
+	widthPt  float64
+	heightPt float64
+}
+
+var docsPageSizePresets = map[string]docsPageSizePreset{
+	"a4":      {widthPt: 595.275, heightPt: 841.890},
+	"a5":      {widthPt: 419.528, heightPt: 595.275},
+	"letter":  {widthPt: 612, heightPt: 792},
+	"legal":   {widthPt: 612, heightPt: 1008},
+	"tabloid": {widthPt: 792, heightPt: 1224},
+}
+
+func resolveDocsPageSize(pageSize, pageWidth, pageHeight string) (string, string, error) {
+	pageSize = strings.TrimSpace(pageSize)
+	if pageSize == "" {
+		return pageWidth, pageHeight, nil
+	}
+	if strings.TrimSpace(pageWidth) != "" || strings.TrimSpace(pageHeight) != "" {
+		return "", "", usage("--page-size cannot be combined with --page-width or --page-height")
+	}
+	preset, ok := docsPageSizePresets[strings.ToLower(pageSize)]
+	if !ok {
+		return "", "", usage("--page-size must be one of A4, A5, Letter, Legal, Tabloid")
+	}
+	return fmt.Sprintf("%.3fpt", preset.widthPt), fmt.Sprintf("%.3fpt", preset.heightPt), nil
 }
 
 func setMarginDimension(fields *[]string, flagName, fieldName, raw string, target **docs.Dimension) error {

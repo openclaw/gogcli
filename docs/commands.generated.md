@@ -220,6 +220,7 @@ Generated from `gog schema --json`.
   - [`gog docs (doc) <command> [flags]`](commands/gog-docs.md) - Google Docs (export via Drive)
     - [`gog docs (doc) add-tab <docId> [flags]`](commands/gog-docs-add-tab.md) - Add a tab to a Google Doc
     - [`gog docs (doc) cat (text,read) <docId> [flags]`](commands/gog-docs-cat.md) - Print a Google Doc as plain text
+    - [`gog docs (doc) cell-style --row=INT --col=INT <docId> [flags]`](commands/gog-docs-cell-style.md) - Apply table cell background and text styling
     - [`gog docs (doc) cell-update (update-cell) --row=INT --col=INT <docId> [flags]`](commands/gog-docs-cell-update.md) - Replace or append content inside a specific table cell
     - [`gog docs (doc) clear <docId>`](commands/gog-docs-clear.md) - Clear all content from a Google Doc
     - [`gog docs (doc) comments <command>`](commands/gog-docs-comments.md) - Manage comments on files
@@ -240,7 +241,11 @@ Generated from `gog schema --json`.
     - [`gog docs (doc) format <docId> [flags]`](commands/gog-docs-format.md) - Apply text or paragraph formatting to a Google Doc
     - [`gog docs (doc) info (get,show) <docId>`](commands/gog-docs-info.md) - Get Google Doc metadata
     - [`gog docs (doc) insert <docId> [<content>] [flags]`](commands/gog-docs-insert.md) - Insert text at a specific position
+    - [`gog docs (doc) insert-date-chip --date=STRING <docId> [flags]`](commands/gog-docs-insert-date-chip.md) - Insert a native date smart chip
+    - [`gog docs (doc) insert-file-chip (insert-rich-link) --file-id=STRING <docId> [flags]`](commands/gog-docs-insert-file-chip.md) - Insert a native Drive file smart chip
+    - [`gog docs (doc) insert-image --file=STRING <docId> [flags]`](commands/gog-docs-insert-image.md) - Upload a local image and insert it into a Google Doc
     - [`gog docs (doc) insert-page-break (page-break,pb) <docId> [flags]`](commands/gog-docs-insert-page-break.md) - Insert a page break at a specific position (or end-of-doc with --at-end)
+    - [`gog docs (doc) insert-person --email=STRING <docId> [flags]`](commands/gog-docs-insert-person.md) - Insert a native person smart chip
     - [`gog docs (doc) insert-table --rows=INT --cols=INT <docId> [flags]`](commands/gog-docs-insert-table.md) - Insert a native table at a specific position (or end-of-doc with --at-end), optionally populated via --values-json
     - [`gog docs (doc) list-tabs <docId>`](commands/gog-docs-list-tabs.md) - List all tabs in a Google Doc
     - [`gog docs (doc) page-layout (set-page-layout,page-setup) <docId> [flags]`](commands/gog-docs-page-layout.md) - Set page layout (pageless|pages) on an existing Google Doc
