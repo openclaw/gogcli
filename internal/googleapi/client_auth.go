@@ -265,6 +265,7 @@ func tokenGrantedScopes(t *oauth2.Token) []string {
 				scopes = append(scopes, s)
 			}
 		}
+
 		return normalizeScopeList(scopes)
 	default:
 		return nil
@@ -285,7 +286,9 @@ func normalizeScopeList(scopes []string) []string {
 	for scope := range set {
 		out = append(out, scope)
 	}
+
 	sort.Strings(out)
+
 	return out
 }
 
@@ -308,6 +311,7 @@ func scopesContainAll(haystack []string, needles []string) bool {
 			return false
 		}
 	}
+
 	return true
 }
 
@@ -315,10 +319,12 @@ func stringSlicesEqual(a []string, b []string) bool {
 	if len(a) != len(b) {
 		return false
 	}
+
 	for i := range a {
 		if a[i] != b[i] {
 			return false
 		}
 	}
+
 	return true
 }
