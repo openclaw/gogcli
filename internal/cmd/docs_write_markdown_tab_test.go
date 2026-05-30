@@ -101,8 +101,8 @@ func TestDocsWrite_MarkdownReplaceWithTab(t *testing.T) {
 	if loc.TabId != "t.second" || loc.Index != 1 {
 		t.Fatalf("insert location = %+v, want {TabId:t.second Index:1}", loc)
 	}
-	if got := insertReqs[0].InsertText.Text; got != "Title\nbold\n" {
-		t.Fatalf("inserted text = %q, want %q", got, "Title\nbold\n")
+	if got := insertReqs[0].InsertText.Text; got != "Title\n\nbold\n" {
+		t.Fatalf("inserted text = %q, want %q", got, "Title\n\nbold\n")
 	}
 	for i, req := range insertReqs[1:] {
 		var r *docs.Range

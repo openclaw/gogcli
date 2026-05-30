@@ -24,6 +24,7 @@ gog sheets (sheet) <command> [flags]
 - [gog sheets clear](gog-sheets-clear.md) - Clear values in a range
 - [gog sheets conditional-format](gog-sheets-conditional-format.md) - Manage conditional formatting rules
 - [gog sheets copy](gog-sheets-copy.md) - Copy a Google Sheet
+- [gog sheets copy-paste](gog-sheets-copy-paste.md) - Copy a range's values/formulas/format to another range (tiles to fill down/across)
 - [gog sheets create](gog-sheets-create.md) - Create a new spreadsheet
 - [gog sheets delete-tab](gog-sheets-delete-tab.md) - Delete a tab/sheet from a spreadsheet (use --force to skip confirmation)
 - [gog sheets export](gog-sheets-export.md) - Export a Google Sheet (pdf|xlsx|csv) via Drive
@@ -59,7 +60,8 @@ gog sheets (sheet) <command> [flags]
 | `--color` | `string` | auto | Color output: auto\|always\|never |
 | `--disable-commands` | `string` |  | Comma-separated list of disabled commands; dot paths allowed |
 | `-n`<br>`--dry-run`<br>`--dryrun`<br>`--noop`<br>`--preview` | `bool` |  | Do not make changes; print intended actions and exit successfully |
-| `--enable-commands` | `string` |  | Comma-separated list of enabled commands; dot paths allowed (restricts CLI) |
+| `--enable-commands` | `string` |  | Comma-separated list of enabled command prefixes; dot paths allowed (restricts CLI) |
+| `--enable-commands-exact` | `string` |  | Comma-separated list of exact enabled commands; dot paths allowed and parent commands do not enable children |
 | `-y`<br>`--force`<br>`--assume-yes`<br>`--yes` | `bool` |  | Skip confirmations for destructive commands |
 | `--gmail-no-send` | `bool` | false | Block Gmail send operations (agent safety) |
 | `-h`<br>`--help` | `kong.helpFlag` |  | Show context-sensitive help. |

@@ -10,8 +10,9 @@ import (
 )
 
 var (
-	newYouTubeWithAPIKey = googleapi.NewYouTubeWithAPIKey
-	newYouTubeForAccount = googleapi.NewYouTubeForAccount
+	newYouTubeWithAPIKey         = googleapi.NewYouTubeWithAPIKey
+	newYouTubeForAccount         = googleapi.NewYouTubeForAccount
+	newYouTubeCommentsForAccount = googleapi.NewYouTubeCommentsForAccount
 )
 
 func getYouTubeAPIKey() (string, error) {
@@ -36,4 +37,8 @@ func getYouTubeServiceWithAPIKey(ctx context.Context) (*youtube.Service, error) 
 
 func getYouTubeServiceForAccount(ctx context.Context, account string) (*youtube.Service, error) {
 	return newYouTubeForAccount(ctx, account)
+}
+
+func getYouTubeCommentsServiceForAccount(ctx context.Context, account string) (*youtube.Service, error) {
+	return newYouTubeCommentsForAccount(ctx, account)
 }

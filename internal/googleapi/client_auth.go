@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"sort"
 	"strings"
 	"sync"
 
@@ -30,6 +31,10 @@ type persistingTokenSource struct {
 	store  secrets.Store
 	client string
 	email  string
+	// Metadata repair uses only scopes returned by the OAuth server, not the
+	// requested set. serviceLabel is added only when the observed grant covers
+	// the canonical scope set for that service.
+	serviceLabel string
 
 	mu  sync.Mutex
 	tok secrets.Token
@@ -39,13 +44,14 @@ type tokenAliasDeleter interface {
 	DeleteTokenAlias(client string, email string) error
 }
 
-func newPersistingTokenSource(base oauth2.TokenSource, store secrets.Store, client string, email string, tok secrets.Token) oauth2.TokenSource {
+func newPersistingTokenSource(base oauth2.TokenSource, store secrets.Store, client string, email string, tok secrets.Token, serviceLabel string) oauth2.TokenSource {
 	return &persistingTokenSource{
-		base:   base,
-		store:  store,
-		client: client,
-		email:  email,
-		tok:    tok,
+		base:         base,
+		store:        store,
+		client:       client,
+		email:        email,
+		serviceLabel: strings.TrimSpace(serviceLabel),
+		tok:          tok,
 	}
 }
 
@@ -77,6 +83,22 @@ func (p *persistingTokenSource) Token() (*oauth2.Token, error) {
 	if !t.Expiry.IsZero() && !t.Expiry.Equal(p.tok.AccessTokenExpiresAt) {
 		updated.AccessTokenExpiresAt = t.Expiry
 		changed = true
+	}
+
+	if grantedScopes := tokenGrantedScopes(t); len(grantedScopes) > 0 {
+		if mergedScopes := mergeStringSet(updated.Scopes, grantedScopes); !stringSlicesEqual(updated.Scopes, mergedScopes) {
+			updated.Scopes = mergedScopes
+			changed = true
+		}
+
+		if p.serviceLabel != "" {
+			if canonicalScopes, serviceErr := googleauth.Scopes(googleauth.Service(p.serviceLabel)); serviceErr == nil && scopesContainAll(grantedScopes, canonicalScopes) {
+				if mergedServices := mergeStringSet(updated.Services, []string{p.serviceLabel}); !stringSlicesEqual(updated.Services, mergedServices) {
+					updated.Services = mergedServices
+					changed = true
+				}
+			}
+		}
 	}
 
 	if rawIDToken, ok := t.Extra("id_token").(string); ok && strings.TrimSpace(rawIDToken) != "" {
@@ -223,5 +245,86 @@ func tokenSourceForAccountScopes(ctx context.Context, serviceLabel string, email
 		Expiry:       tok.AccessTokenExpiresAt,
 	})
 
-	return newPersistingTokenSource(baseSource, store, client, email, tok), nil
+	return newPersistingTokenSource(baseSource, store, client, email, tok, serviceLabel), nil
+}
+
+func tokenGrantedScopes(t *oauth2.Token) []string {
+	if t == nil {
+		return nil
+	}
+
+	switch raw := t.Extra("scope").(type) {
+	case string:
+		return normalizeScopeList(strings.Fields(raw))
+	case []string:
+		return normalizeScopeList(raw)
+	case []any:
+		scopes := make([]string, 0, len(raw))
+		for _, item := range raw {
+			if s, ok := item.(string); ok {
+				scopes = append(scopes, s)
+			}
+		}
+
+		return normalizeScopeList(scopes)
+	default:
+		return nil
+	}
+}
+
+func normalizeScopeList(scopes []string) []string {
+	set := make(map[string]struct{}, len(scopes))
+	for _, scope := range scopes {
+		scope = strings.TrimSpace(scope)
+		if scope == "" {
+			continue
+		}
+		set[scope] = struct{}{}
+	}
+
+	out := make([]string, 0, len(set))
+	for scope := range set {
+		out = append(out, scope)
+	}
+
+	sort.Strings(out)
+
+	return out
+}
+
+func mergeStringSet(a []string, b []string) []string {
+	return normalizeScopeList(append(append([]string(nil), a...), b...))
+}
+
+func scopesContainAll(haystack []string, needles []string) bool {
+	if len(needles) == 0 {
+		return false
+	}
+
+	set := make(map[string]struct{}, len(haystack))
+	for _, scope := range normalizeScopeList(haystack) {
+		set[scope] = struct{}{}
+	}
+
+	for _, scope := range normalizeScopeList(needles) {
+		if _, ok := set[scope]; !ok {
+			return false
+		}
+	}
+
+	return true
+}
+
+func stringSlicesEqual(a []string, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+
+	return true
 }

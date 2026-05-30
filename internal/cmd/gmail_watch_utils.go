@@ -61,6 +61,10 @@ func resolveLabelIDsWithService(svc *gmail.Service, labels []string) ([]string, 
 		if trimmed == "" {
 			continue
 		}
+		if id, ok := nameToID[trimmed]; ok {
+			out = append(out, id)
+			continue
+		}
 		if id, ok := nameToID[strings.ToLower(trimmed)]; ok {
 			out = append(out, id)
 			continue

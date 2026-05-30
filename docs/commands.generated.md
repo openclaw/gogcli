@@ -220,6 +220,7 @@ Generated from `gog schema --json`.
   - [`gog docs (doc) <command> [flags]`](commands/gog-docs.md) - Google Docs (export via Drive)
     - [`gog docs (doc) add-tab <docId> [flags]`](commands/gog-docs-add-tab.md) - Add a tab to a Google Doc
     - [`gog docs (doc) cat (text,read) <docId> [flags]`](commands/gog-docs-cat.md) - Print a Google Doc as plain text
+    - [`gog docs (doc) cell-update (update-cell) --row=INT --col=INT <docId> [flags]`](commands/gog-docs-cell-update.md) - Replace or append content inside a specific table cell
     - [`gog docs (doc) clear <docId>`](commands/gog-docs-clear.md) - Clear all content from a Google Doc
     - [`gog docs (doc) comments <command>`](commands/gog-docs-comments.md) - Manage comments on files
       - [`gog docs (doc) comments add (create,new) <docId> <content> [flags]`](commands/gog-docs-comments-add.md) - Add a comment to a Google Doc
@@ -335,7 +336,7 @@ Generated from `gog schema --json`.
       - [`gog gmail (mail,email) batch modify (update,edit,set) <messageId> ... [flags]`](commands/gog-gmail-batch-modify.md) - Modify labels on multiple messages
     - [`gog gmail (mail,email) drafts (draft) <command>`](commands/gog-gmail-drafts.md) - Draft operations
       - [`gog gmail (mail,email) drafts (draft) create (add,new) [flags]`](commands/gog-gmail-drafts-create.md) - Create a draft
-      - [`gog gmail (mail,email) drafts (draft) delete (rm,del,remove) <draftId>`](commands/gog-gmail-drafts-delete.md) - Delete a draft
+      - [`gog gmail (mail,email) drafts (draft) delete (rm,del,remove) <draftId>`](commands/gog-gmail-drafts-delete.md) - Permanently delete a draft (not recoverable; drafts are not moved to Trash)
       - [`gog gmail (mail,email) drafts (draft) get (info,show) <draftId> [flags]`](commands/gog-gmail-drafts-get.md) - Get draft details
       - [`gog gmail (mail,email) drafts (draft) list (ls) [flags]`](commands/gog-gmail-drafts-list.md) - List drafts
       - [`gog gmail (mail,email) drafts (draft) send (post) <draftId>`](commands/gog-gmail-drafts-send.md) - Send a draft
@@ -483,6 +484,7 @@ Generated from `gog schema --json`.
       - [`gog sheets (sheet) conditional-format (cf,conditional-formats) clear (delete,rm,remove) --sheet=STRING <spreadsheetId> [flags]`](commands/gog-sheets-conditional-format-clear.md) - Remove conditional formatting rules
       - [`gog sheets (sheet) conditional-format (cf,conditional-formats) list <spreadsheetId> [flags]`](commands/gog-sheets-conditional-format-list.md) - List conditional formatting rules
     - [`gog sheets (sheet) copy (cp,duplicate) <spreadsheetId> <title> [flags]`](commands/gog-sheets-copy.md) - Copy a Google Sheet
+    - [`gog sheets (sheet) copy-paste (fill,copy-range) <spreadsheetId> <source> <dest> [flags]`](commands/gog-sheets-copy-paste.md) - Copy a range's values/formulas/format to another range (tiles to fill down/across)
     - [`gog sheets (sheet) create (new) <title> [flags]`](commands/gog-sheets-create.md) - Create a new spreadsheet
     - [`gog sheets (sheet) delete-tab (delete-sheet) <spreadsheetId> <tabName>`](commands/gog-sheets-delete-tab.md) - Delete a tab/sheet from a spreadsheet (use --force to skip confirmation)
     - [`gog sheets (sheet) export (download,dl) <spreadsheetId> [flags]`](commands/gog-sheets-export.md) - Export a Google Sheet (pdf|xlsx|csv) via Drive
@@ -559,7 +561,7 @@ Generated from `gog schema --json`.
   - [`gog upload (up,put) <localPath> [flags]`](commands/gog-upload.md) - Upload a file to Drive (alias for 'drive upload')
   - [`gog version [flags]`](commands/gog-version.md) - Print version
   - [`gog whoami (who-am-i) [flags]`](commands/gog-whoami.md) - Show your profile (alias for 'people me')
-  - [`gog youtube (yt) <command> [flags]`](commands/gog-youtube.md) - YouTube Data API (activities, videos, playlists, comments, channels)
+  - [`gog youtube (yt) <command> [flags]`](commands/gog-youtube.md) - YouTube Data API (search, activities, videos, playlists, comments, channels)
     - [`gog youtube (yt) activities (activity) <command>`](commands/gog-youtube-activities.md) - List channel activities
       - [`gog youtube (yt) activities (activity) list (ls) [flags]`](commands/gog-youtube-activities-list.md) - List activities for a channel (or authenticated user)
     - [`gog youtube (yt) channels (channel) <command>`](commands/gog-youtube-channels.md) - List channels
@@ -568,6 +570,8 @@ Generated from `gog schema --json`.
       - [`gog youtube (yt) comments (comment) list (ls) [flags]`](commands/gog-youtube-comments-list.md) - List comment threads for a video or channel
     - [`gog youtube (yt) playlists (playlist) <command>`](commands/gog-youtube-playlists.md) - List playlists
       - [`gog youtube (yt) playlists (playlist) list (ls) [flags]`](commands/gog-youtube-playlists-list.md) - List playlists by channel or authenticated user
+    - [`gog youtube (yt) search (find) <command>`](commands/gog-youtube-search.md) - Search YouTube for videos, channels, or playlists
+      - [`gog youtube (yt) search (find) list (ls) <query> [flags]`](commands/gog-youtube-search-list.md) - Search for videos, channels, or playlists
     - [`gog youtube (yt) videos (video) <command>`](commands/gog-youtube-videos.md) - List or get videos
       - [`gog youtube (yt) videos (video) list (ls) [flags]`](commands/gog-youtube-videos-list.md) - List videos by ID or chart
   - [`gog zoom <command> [flags]`](commands/gog-zoom.md) - Zoom

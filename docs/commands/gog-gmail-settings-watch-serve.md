@@ -25,7 +25,8 @@ gog gmail (mail,email) settings watch serve [flags]
 | `--color` | `string` | auto | Color output: auto\|always\|never |
 | `--disable-commands` | `string` |  | Comma-separated list of disabled commands; dot paths allowed |
 | `-n`<br>`--dry-run`<br>`--dryrun`<br>`--noop`<br>`--preview` | `bool` |  | Do not make changes; print intended actions and exit successfully |
-| `--enable-commands` | `string` |  | Comma-separated list of enabled commands; dot paths allowed (restricts CLI) |
+| `--enable-commands` | `string` |  | Comma-separated list of enabled command prefixes; dot paths allowed (restricts CLI) |
+| `--enable-commands-exact` | `string` |  | Comma-separated list of exact enabled commands; dot paths allowed and parent commands do not enable children |
 | `--exclude-labels` | `string` | SPAM,TRASH | List of Gmail label IDs to exclude from hook payload (e.g. SPAM,TRASH,Label_123). Set to empty string to disable. |
 | `--fetch-delay` | `string` | 3s | Delay before fetching Gmail history (seconds or duration) |
 | `-y`<br>`--force`<br>`--assume-yes`<br>`--yes` | `bool` |  | Skip confirmations for destructive commands |

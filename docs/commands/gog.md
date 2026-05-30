@@ -58,7 +58,7 @@ gog <command> [flags]
 - [gog upload](gog-upload.md) - Upload a file to Drive (alias for 'drive upload')
 - [gog version](gog-version.md) - Print version
 - [gog whoami](gog-whoami.md) - Show your profile (alias for 'people me')
-- [gog youtube](gog-youtube.md) - YouTube Data API (activities, videos, playlists, comments, channels)
+- [gog youtube](gog-youtube.md) - YouTube Data API (search, activities, videos, playlists, comments, channels)
 - [gog zoom](gog-zoom.md) - Zoom
 
 ## Flags
@@ -71,7 +71,8 @@ gog <command> [flags]
 | `--color` | `string` | auto | Color output: auto\|always\|never |
 | `--disable-commands` | `string` |  | Comma-separated list of disabled commands; dot paths allowed |
 | `-n`<br>`--dry-run`<br>`--dryrun`<br>`--noop`<br>`--preview` | `bool` |  | Do not make changes; print intended actions and exit successfully |
-| `--enable-commands` | `string` |  | Comma-separated list of enabled commands; dot paths allowed (restricts CLI) |
+| `--enable-commands` | `string` |  | Comma-separated list of enabled command prefixes; dot paths allowed (restricts CLI) |
+| `--enable-commands-exact` | `string` |  | Comma-separated list of exact enabled commands; dot paths allowed and parent commands do not enable children |
 | `-y`<br>`--force`<br>`--assume-yes`<br>`--yes` | `bool` |  | Skip confirmations for destructive commands |
 | `--gmail-no-send` | `bool` | false | Block Gmail send operations (agent safety) |
 | `-h`<br>`--help` | `kong.helpFlag` |  | Show context-sensitive help. |

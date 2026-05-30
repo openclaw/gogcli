@@ -8,9 +8,12 @@ import (
 
 	youtube "google.golang.org/api/youtube/v3"
 
+	"github.com/steipete/gogcli/internal/errfmt"
 	"github.com/steipete/gogcli/internal/outfmt"
 	"github.com/steipete/gogcli/internal/ui"
 )
+
+const youtubeCommentsOAuthScope = "https://www.googleapis.com/auth/youtube.force-ssl"
 
 type YouTubeCmd struct {
 	Activities YouTubeActivitiesCmd `cmd:"" name:"activities" aliases:"activity" help:"List channel activities"`
@@ -18,6 +21,7 @@ type YouTubeCmd struct {
 	Playlists  YouTubePlaylistsCmd  `cmd:"" name:"playlists" aliases:"playlist" help:"List playlists"`
 	Comments   YouTubeCommentsCmd   `cmd:"" name:"comments" aliases:"comment" help:"List comment threads"`
 	Channels   YouTubeChannelsCmd   `cmd:"" name:"channels" aliases:"channel" help:"List channels"`
+	Search     YouTubeSearchCmd     `cmd:"" name:"search" aliases:"find" help:"Search YouTube for videos, channels, or playlists"`
 }
 
 type YouTubeActivitiesCmd struct {
@@ -133,7 +137,7 @@ func (c *YouTubeVideosListCmd) Run(ctx context.Context, flags *RootFlags) error 
 		return usage("--chart mostPopular requires --region (e.g. US)")
 	}
 
-	svc, err := getYouTubeServiceWithAPIKey(ctx)
+	svc, err := getYouTubeReadService(ctx, flags)
 	if err != nil {
 		return err
 	}
@@ -289,7 +293,7 @@ func (c *YouTubeCommentsListCmd) Run(ctx context.Context, flags *RootFlags) erro
 		return usage("use either --video-id or --channel-id, not both")
 	}
 
-	svc, err := getYouTubeServiceWithAPIKey(ctx)
+	svc, err := getYouTubeCommentsService(ctx, flags)
 	if err != nil {
 		return err
 	}
@@ -304,7 +308,7 @@ func (c *YouTubeCommentsListCmd) Run(ctx context.Context, flags *RootFlags) erro
 	}
 	resp, err := call.Do()
 	if err != nil {
-		return err
+		return wrapYouTubeCommentsError(err, flags)
 	}
 
 	if outfmt.IsJSON(ctx) {
@@ -428,9 +432,151 @@ func (c *YouTubeChannelsListCmd) Run(ctx context.Context, flags *RootFlags) erro
 	return nil
 }
 
+type YouTubeSearchCmd struct {
+	List YouTubeSearchListCmd `cmd:"" name:"list" aliases:"ls" help:"Search for videos, channels, or playlists"`
+}
+
+type YouTubeSearchListCmd struct {
+	Query     string `arg:"" help:"Search query"`
+	Type      string `name:"type" help:"Resource type: video, channel, playlist (comma-separated)" default:"video"`
+	Order     string `name:"order" help:"Sort order: relevance, date, rating, title, videoCount, viewCount" default:"relevance" enum:"relevance,date,rating,title,videoCount,viewCount"`
+	ChannelID string `name:"channel-id" help:"Restrict results to a specific channel"`
+	Max       int64  `name:"max" aliases:"limit" help:"Max results" default:"25"`
+	Page      string `name:"page" help:"Page token"`
+}
+
+func (c *YouTubeSearchListCmd) Run(ctx context.Context, flags *RootFlags) error {
+	u := ui.FromContext(ctx)
+	if err := validateYouTubeMax(c.Max); err != nil {
+		return err
+	}
+	if c.Query == "" {
+		return usage("search query is required")
+	}
+
+	types := splitCSV(c.Type)
+	for _, t := range types {
+		switch t {
+		case "video", "channel", "playlist":
+		default:
+			return usage("--type must be video, channel, or playlist (comma-separated)")
+		}
+	}
+
+	svc, err := getYouTubeReadService(ctx, flags)
+	if err != nil {
+		return err
+	}
+
+	call := svc.Search.List([]string{"snippet"}).
+		Q(c.Query).
+		Type(types...).
+		Order(c.Order).
+		MaxResults(c.Max).
+		PageToken(c.Page)
+	if c.ChannelID != "" {
+		call = call.ChannelId(c.ChannelID)
+	}
+	resp, err := call.Do()
+	if err != nil {
+		return err
+	}
+
+	if outfmt.IsJSON(ctx) {
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
+			"items":         resp.Items,
+			"nextPageToken": resp.NextPageToken,
+		})
+	}
+	if len(resp.Items) == 0 {
+		u.Err().Println("No results")
+		return nil
+	}
+	w, flush := tableWriter(ctx)
+	defer flush()
+	fmt.Fprintln(w, "KIND\tID\tTITLE\tCHANNEL\tPUBLISHED_AT")
+	for _, item := range resp.Items {
+		id := ""
+		kind := ""
+		if item.Id != nil {
+			switch {
+			case item.Id.VideoId != "":
+				id = item.Id.VideoId
+				kind = "video"
+			case item.Id.ChannelId != "":
+				id = item.Id.ChannelId
+				kind = "channel"
+			case item.Id.PlaylistId != "":
+				id = item.Id.PlaylistId
+				kind = "playlist"
+			}
+		}
+		title := ""
+		ch := ""
+		pubAt := ""
+		if item.Snippet != nil {
+			title = item.Snippet.Title
+			ch = item.Snippet.ChannelTitle
+			pubAt = item.Snippet.PublishedAt
+		}
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", kind, id, sanitizeTab(title), sanitizeTab(ch), sanitizeTab(pubAt))
+	}
+	printNextPageHint(u, resp.NextPageToken)
+	return nil
+}
+
 func validateYouTubeMax(limit int64) error {
 	if limit < 1 || limit > 50 {
 		return usage("--max must be between 1 and 50")
 	}
 	return nil
+}
+
+func getYouTubeReadService(ctx context.Context, flags *RootFlags) (*youtube.Service, error) {
+	if youtubeAccountSelectorPresent(flags) {
+		account, err := requireAccount(flags)
+		if err != nil {
+			return nil, err
+		}
+		return getYouTubeServiceForAccount(ctx, account)
+	}
+	return getYouTubeServiceWithAPIKey(ctx)
+}
+
+func getYouTubeCommentsService(ctx context.Context, flags *RootFlags) (*youtube.Service, error) {
+	if youtubeAccountSelectorPresent(flags) {
+		account, err := requireAccount(flags)
+		if err != nil {
+			return nil, err
+		}
+		return getYouTubeCommentsServiceForAccount(ctx, account)
+	}
+	return getYouTubeServiceWithAPIKey(ctx)
+}
+
+func youtubeAccountSelectorPresent(flags *RootFlags) bool {
+	return flagAccount(flags) != "" || strings.TrimSpace(os.Getenv("GOG_ACCOUNT")) != "" || hasDirectAccessToken(flags)
+}
+
+func wrapYouTubeCommentsError(err error, flags *RootFlags) error {
+	if err == nil {
+		return nil
+	}
+	errText := err.Error()
+	if !strings.Contains(errText, "insufficientPermissions") &&
+		!strings.Contains(errText, "insufficient authentication scopes") &&
+		!strings.Contains(errText, "ACCESS_TOKEN_SCOPE_INSUFFICIENT") {
+		return err
+	}
+	if !youtubeAccountSelectorPresent(flags) {
+		return err
+	}
+	account, accountErr := requireAccount(flags)
+	if accountErr != nil {
+		return err
+	}
+	return errfmt.NewUserFacingError(
+		fmt.Sprintf("youtube comments OAuth requires %s; re-authenticate with: gog auth add %s --services youtube --extra-scopes %s --force-consent", youtubeCommentsOAuthScope, account, youtubeCommentsOAuthScope),
+		err,
+	)
 }

@@ -26,7 +26,8 @@ gog auth add <email> [flags]
 | `--disable-commands` | `string` |  | Comma-separated list of disabled commands; dot paths allowed |
 | `--drive-scope` | `string` | full | Drive scope mode: full\|readonly\|file |
 | `-n`<br>`--dry-run`<br>`--dryrun`<br>`--noop`<br>`--preview` | `bool` |  | Do not make changes; print intended actions and exit successfully |
-| `--enable-commands` | `string` |  | Comma-separated list of enabled commands; dot paths allowed (restricts CLI) |
+| `--enable-commands` | `string` |  | Comma-separated list of enabled command prefixes; dot paths allowed (restricts CLI) |
+| `--enable-commands-exact` | `string` |  | Comma-separated list of exact enabled commands; dot paths allowed and parent commands do not enable children |
 | `--extra-scopes` | `string` |  | Comma-separated list of additional OAuth scope URIs to request (appended after service scopes) |
 | `-y`<br>`--force`<br>`--assume-yes`<br>`--yes` | `bool` |  | Skip confirmations for destructive commands |
 | `--force-consent` | `bool` |  | Force consent screen to obtain a refresh token |

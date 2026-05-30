@@ -38,6 +38,7 @@ type gmailWatchState struct {
 	LastDeliveryAtMs       int64           `json:"lastDeliveryAtMs,omitempty"`
 	LastDeliveryStatusNote string          `json:"lastDeliveryStatusNote,omitempty"`
 	LastPushMessageID      string          `json:"lastPushMessageId,omitempty"`
+	RateLimitedUntilMs     int64           `json:"rateLimitedUntilMs,omitempty"`
 }
 
 type gmailWatchServeConfig struct {

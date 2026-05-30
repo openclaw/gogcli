@@ -32,6 +32,7 @@ type DocsCmd struct {
 	Write           DocsWriteCmd           `cmd:"" name:"write" help:"Write content to a Google Doc"`
 	Insert          DocsInsertCmd          `cmd:"" name:"insert" help:"Insert text at a specific position"`
 	InsertTable     DocsInsertTableCmd     `cmd:"" name:"insert-table" help:"Insert a native table at a specific position (or end-of-doc with --at-end), optionally populated via --values-json"`
+	CellUpdate      DocsCellUpdateCmd      `cmd:"" name:"cell-update" aliases:"update-cell" help:"Replace or append content inside a specific table cell"`
 	InsertPageBreak DocsInsertPageBreakCmd `cmd:"" name:"insert-page-break" aliases:"page-break,pb" help:"Insert a page break at a specific position (or end-of-doc with --at-end)"`
 	Delete          DocsDeleteCmd          `cmd:"" name:"delete" help:"Delete text range from document"`
 	FindReplace     DocsFindReplaceCmd     `cmd:"" name:"find-replace" help:"Find and replace text. Supports plain text or markdown with images; use --first for a single occurrence."`
