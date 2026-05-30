@@ -118,9 +118,20 @@ to insert at a specific document index. Prefer this primitive when you want a
 guaranteed native table rather than relying on the Markdown writer's table
 rendering (see `gog docs write --markdown`).
 
+Update one existing table cell without round-tripping the surrounding document:
+
+```bash
+gog docs cell-update <docId> --table-index 1 --row 2 --col 3 \
+  --content "**Ready**" --format markdown
+```
+
+Coordinates are 1-based. `--tab` targets a specific tab, and `--append` inserts
+at the end of the cell instead of replacing its current content.
+
 Command page:
 
 - [`gog docs insert-table`](commands/gog-docs-insert-table.md)
+- [`gog docs cell-update`](commands/gog-docs-cell-update.md)
 
 ## Tabs
 

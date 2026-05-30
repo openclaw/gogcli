@@ -2,7 +2,7 @@
 
 Every `gog` command has a generated docs page. The source of truth is the live CLI schema; run `make docs-commands` after changing command names, flags, help text, aliases, or arguments.
 
-Generated pages: 572.
+Generated pages: 573.
 
 ## Top-level Commands
 
@@ -271,6 +271,7 @@ Generated pages: 572.
   - [gog docs](gog-docs.md) - Google Docs (export via Drive)
     - [gog docs add-tab](gog-docs-add-tab.md) - Add a tab to a Google Doc
     - [gog docs cat](gog-docs-cat.md) - Print a Google Doc as plain text
+    - [gog docs cell-update](gog-docs-cell-update.md) - Replace or append content inside a specific table cell
     - [gog docs clear](gog-docs-clear.md) - Clear all content from a Google Doc
     - [gog docs comments](gog-docs-comments.md) - Manage comments on files
       - [gog docs comments add](gog-docs-comments-add.md) - Add a comment to a Google Doc

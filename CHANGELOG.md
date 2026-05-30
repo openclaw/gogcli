@@ -9,6 +9,7 @@
 - Sheets: add `--inherit-from-before` to `sheets insert` so callers can choose whether inserted rows/columns inherit formatting from the preceding or following neighbor. (#655, #658) — thanks @chrischall.
 - Auth: update stored OAuth scope metadata from observed granted scopes during refresh so `auth list` reflects newly usable services. (#649)
 - Docs: preserve paragraph-separating blank lines when replacing a single tab from Markdown. (#644)
+- Docs: add `docs cell-update` for non-destructive table-cell content replacement by table, row, and column. (#646)
 - Gmail: pause watch push Gmail API fetches per account while a 429 Retry-After circuit is open. (#643)
 - Docs: update the bundled `gog` agent skill to preserve broad user OAuth scopes during reauth and rely on command guards for scoped execution.
 
