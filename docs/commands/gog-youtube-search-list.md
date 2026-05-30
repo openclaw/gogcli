@@ -34,7 +34,7 @@ gog youtube (yt) search (find) list (ls) <query> [flags]
 | `-j`<br>`--json`<br>`--machine` | `bool` | false | Output JSON to stdout (best for scripting) |
 | `--max`<br>`--limit` | `int64` | 25 | Max results |
 | `--no-input`<br>`--non-interactive`<br>`--noninteractive` | `bool` |  | Never prompt; fail instead (useful for CI) |
-| `--order` | `string` | relevance | Sort order: relevance, date, rating, title, viewCount |
+| `--order` | `string` | relevance | Sort order: relevance, date, rating, title, videoCount, viewCount |
 | `--page` | `string` |  | Page token |
 | `-p`<br>`--plain`<br>`--tsv` | `bool` | false | Output stable, parseable text to stdout (TSV; no colors) |
 | `--results-only` | `bool` |  | In JSON mode, emit only the primary result (drops envelope fields like nextPageToken) |

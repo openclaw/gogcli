@@ -439,7 +439,7 @@ type YouTubeSearchCmd struct {
 type YouTubeSearchListCmd struct {
 	Query     string `arg:"" help:"Search query"`
 	Type      string `name:"type" help:"Resource type: video, channel, playlist (comma-separated)" default:"video"`
-	Order     string `name:"order" help:"Sort order: relevance, date, rating, title, viewCount" default:"relevance" enum:"relevance,date,rating,title,viewCount"`
+	Order     string `name:"order" help:"Sort order: relevance, date, rating, title, videoCount, viewCount" default:"relevance" enum:"relevance,date,rating,title,videoCount,viewCount"`
 	ChannelID string `name:"channel-id" help:"Restrict results to a specific channel"`
 	Max       int64  `name:"max" aliases:"limit" help:"Max results" default:"25"`
 	Page      string `name:"page" help:"Page token"`

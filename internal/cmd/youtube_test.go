@@ -122,11 +122,11 @@ func TestYouTubeSearchWithAPIKey(t *testing.T) {
 			"items": []map[string]any{
 				{
 					"id": map[string]any{
-						"kind":    "youtube#video",
-						"videoId": "abc123",
+						"kind":      "youtube#channel",
+						"channelId": "UC123",
 					},
 					"snippet": map[string]any{
-						"title":        "Test Video",
+						"title":        "Test Channel",
 						"channelTitle": "Test Channel",
 						"publishedAt":  "2026-01-02T03:04:05Z",
 					},
@@ -145,7 +145,7 @@ func TestYouTubeSearchWithAPIKey(t *testing.T) {
 	var err error
 	out := captureStdout(t, func() {
 		ctx := newCmdOutputContext(t, &bytes.Buffer{}, &bytes.Buffer{})
-		err = runKong(t, &YouTubeSearchListCmd{}, []string{"golang tutorials", "--max", "5"}, ctx, &RootFlags{})
+		err = runKong(t, &YouTubeSearchListCmd{}, []string{"golang tutorials", "--type", "channel", "--order", "videoCount", "--max", "5"}, ctx, &RootFlags{})
 	})
 	if err != nil {
 		t.Fatalf("runKong: %v", err)
@@ -156,7 +156,10 @@ func TestYouTubeSearchWithAPIKey(t *testing.T) {
 	if !strings.Contains(gotQuery, "q=golang+tutorials") {
 		t.Fatalf("query = %s", gotQuery)
 	}
-	if !strings.Contains(out, "abc123") || !strings.Contains(out, "Test Video") {
+	if !strings.Contains(gotQuery, "type=channel") || !strings.Contains(gotQuery, "order=videoCount") {
+		t.Fatalf("query = %s", gotQuery)
+	}
+	if !strings.Contains(out, "UC123") || !strings.Contains(out, "Test Channel") {
 		t.Fatalf("stdout = %q", out)
 	}
 }
