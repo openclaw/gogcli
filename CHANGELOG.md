@@ -8,6 +8,7 @@
 - Gmail: clarify that `gmail drafts delete` permanently deletes drafts and cannot be recovered. (#656, #659) — thanks @chrischall.
 - Sheets: add `--inherit-from-before` to `sheets insert` so callers can choose whether inserted rows/columns inherit formatting from the preceding or following neighbor. (#655, #658) — thanks @chrischall.
 - Auth: update stored OAuth scope metadata from observed granted scopes during refresh so `auth list` reflects newly usable services. (#649)
+- Docs: preserve paragraph-separating blank lines when replacing a single tab from Markdown. (#644)
 - Docs: update the bundled `gog` agent skill to preserve broad user OAuth scopes during reauth and rely on command guards for scoped execution.
 
 ## 0.19.0 - 2026-05-22
