@@ -23,6 +23,10 @@ func resolveLabelIDs(labels []string, nameToID map[string]string) []string {
 			continue
 		}
 		if nameToID != nil {
+			if id, ok := nameToID[trimmed]; ok {
+				out = append(out, id)
+				continue
+			}
 			if id, ok := nameToID[strings.ToLower(trimmed)]; ok {
 				out = append(out, id)
 				continue
