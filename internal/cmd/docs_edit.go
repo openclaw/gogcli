@@ -595,7 +595,8 @@ func (c *DocsUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *Root
 	}
 
 	insertIndex := c.Index
-	if replacing {
+	switch {
+	case replacing:
 		insertIndex = replaceStart
 		if c.Tab != "" {
 			tabID, tabErr := resolveDocsTabID(ctx, svc, id, c.Tab)
@@ -604,14 +605,14 @@ func (c *DocsUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *Root
 			}
 			c.Tab = tabID
 		}
-	} else if insertIndex <= 0 {
+	case insertIndex <= 0:
 		endIndex, tabID, endErr := docsTargetEndIndexAndTabID(ctx, svc, id, c.Tab)
 		if endErr != nil {
 			return endErr
 		}
 		c.Tab = tabID
 		insertIndex = docsAppendIndex(endIndex)
-	} else if c.Tab != "" {
+	case c.Tab != "":
 		tabID, tabErr := resolveDocsTabID(ctx, svc, id, c.Tab)
 		if tabErr != nil {
 			return tabErr
