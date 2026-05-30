@@ -631,12 +631,12 @@ func (c *DocsUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *Root
 				return loadErr
 			}
 			c.Tab = loaded.tabID
-			replacedText, replaceErr := replaceDocsMarkdownRange(ctx, svc, loaded.full, replaceStart, replaceEnd, text, c.Tab)
+			replacedRequests, replacedText, replaceErr := replaceDocsMarkdownRange(ctx, svc, loaded.full, replaceStart, replaceEnd, text, c.Tab)
 			if replaceErr != nil {
 				err = replaceErr
 			} else {
 				inserted = replacedText
-				requestCount = 2
+				requestCount = replacedRequests
 			}
 		} else {
 			requestCount, inserted, err = insertDocsMarkdownAt(ctx, svc, id, insertIndex, text, c.Tab)
@@ -1161,7 +1161,7 @@ func (c *DocsFindReplaceCmd) runPlain(ctx context.Context, svc *docs.Service, do
 }
 
 func (c *DocsFindReplaceCmd) runMarkdown(ctx context.Context, svc *docs.Service, doc *docs.Document, startIdx, endIdx int64, replaceText string) error {
-	_, err := replaceDocsMarkdownRange(ctx, svc, doc, startIdx, endIdx, replaceText, c.Tab)
+	_, _, err := replaceDocsMarkdownRange(ctx, svc, doc, startIdx, endIdx, replaceText, c.Tab)
 	return err
 }
 

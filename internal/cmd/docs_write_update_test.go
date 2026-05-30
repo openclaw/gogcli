@@ -167,7 +167,7 @@ func TestDocsUpdate_MarkdownWithTab(t *testing.T) {
 	if insert.Location.TabId != "t.second" || insert.Location.Index != 19 {
 		t.Fatalf("insert location = %+v, want tab t.second index 19", insert.Location)
 	}
-	if got := insert.Text; got != "\nHeading\nbold and link\n" {
+	if got := insert.Text; got != "\nHeading\n\nbold and link\n" {
 		t.Fatalf("inserted text = %q, want markdown-rendered text", got)
 	}
 	for i, req := range reqs[1:] {
@@ -283,10 +283,14 @@ func TestDocsUpdate_ReplaceRangeMarkdownWithTab(t *testing.T) {
 	ctx := newDocsJSONContext(t)
 
 	markdown := "## New Heading\n\n**bold** and [link](https://example.com)\n"
-	if err := runKong(t, &DocsUpdateCmd{}, []string{
-		"doc1", "--text", markdown, "--markdown", "--replace-range", "7:12", "--tab", "Second",
-	}, ctx, flags); err != nil {
-		t.Fatalf("update replace-range markdown with tab: %v", err)
+	var runErr error
+	out := captureStdout(t, func() {
+		runErr = runKong(t, &DocsUpdateCmd{}, []string{
+			"doc1", "--text", markdown, "--markdown", "--replace-range", "7:12", "--tab", "Second",
+		}, ctx, flags)
+	})
+	if runErr != nil {
+		t.Fatalf("update replace-range markdown with tab: %v", runErr)
 	}
 
 	if includeTabsCalls == 0 {
@@ -302,8 +306,17 @@ func TestDocsUpdate_ReplaceRangeMarkdownWithTab(t *testing.T) {
 	if got := reqs[0].DeleteContentRange.Range; got.StartIndex != 7 || got.EndIndex != 12 || got.TabId != "t.second" {
 		t.Fatalf("delete range = %+v, want 7:12 in t.second", got)
 	}
-	if got := reqs[1].InsertText; got.Location.Index != 7 || got.Location.TabId != "t.second" || got.Text != "\nNew Heading\nbold and link\n" {
+	if got := reqs[1].InsertText; got.Location.Index != 7 || got.Location.TabId != "t.second" || got.Text != "\nNew Heading\n\nbold and link\n" {
 		t.Fatalf("insert text = %+v, want rendered markdown at 7 in t.second", got)
+	}
+	var payload struct {
+		Requests int `json:"requests"`
+	}
+	if err := json.Unmarshal([]byte(out), &payload); err != nil {
+		t.Fatalf("unmarshal output: %v\noutput=%q", err, out)
+	}
+	if payload.Requests != len(reqs) {
+		t.Fatalf("reported requests = %d, want actual batch request count %d", payload.Requests, len(reqs))
 	}
 	for i, req := range reqs[2:] {
 		var r *docs.Range

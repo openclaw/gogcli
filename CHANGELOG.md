@@ -12,6 +12,7 @@
 - Auth: update stored OAuth scope metadata from observed granted scopes during refresh so `auth list` reflects newly usable services. (#649)
 - Docs: preserve paragraph-separating blank lines when replacing a single tab from Markdown. (#644)
 - Docs: add `docs cell-update` for non-destructive table-cell content replacement by table, row, and column. (#646)
+- Docs: add `docs update --markdown` and `--replace-range` for formatted insertion and range replacement. (#642) — thanks @rel.
 - Gmail: pause watch push Gmail API fetches per account while a 429 Retry-After circuit is open. (#643)
 - YouTube: let `videos list` and `comments list` use OAuth when `--account` is supplied, preserving the API-key fallback for unauthenticated public reads. (#664)
 - YouTube: add `youtube search list` / `yt search ls` for YouTube Data API search across videos, channels, and playlists. (#650, #651) — thanks @BRO3886.
