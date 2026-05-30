@@ -132,6 +132,9 @@ func ensureLabelNameAvailable(svc *gmail.Service, name string) error {
 		if label == nil {
 			continue
 		}
+		if strings.TrimSpace(label.Id) == strings.TrimSpace(name) {
+			return usagef("label already exists: %s", name)
+		}
 		labelName := strings.TrimSpace(label.Name)
 		if strings.ToLower(labelName) == want || gmailLabelNameCollisionKey(labelName) == wantCollision {
 			return usagef("label already exists: %s", name)

@@ -567,6 +567,27 @@ func TestEnsureLabelNameAvailable_DoesNotCaseFoldIDs(t *testing.T) {
 	}
 }
 
+func TestEnsureLabelNameAvailable_BlocksExactIDCollision(t *testing.T) {
+	srv := newLabelsServer(t, []map[string]any{
+		{"id": "Label_9", "name": "Different Name", "type": "user"},
+	}, nil)
+	defer srv.Close()
+
+	svc, err := gmail.NewService(context.Background(),
+		option.WithoutAuthentication(),
+		option.WithHTTPClient(srv.Client()),
+		option.WithEndpoint(srv.URL+"/"),
+	)
+	if err != nil {
+		t.Fatalf("NewService: %v", err)
+	}
+
+	err = ensureLabelNameAvailable(svc, "Label_9")
+	if err == nil || !strings.Contains(err.Error(), "label already exists") {
+		t.Fatalf("expected exact ID collision error, got: %v", err)
+	}
+}
+
 func TestGmailLabelsCreateCmd_DuplicateName_APIError(t *testing.T) {
 	srv := newLabelsServer(t, []map[string]any{}, func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
