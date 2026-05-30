@@ -448,6 +448,9 @@ func writeWatchState(ctx context.Context, state gmailWatchState, showSecrets boo
 	if state.LastPushMessageID != "" {
 		u.Out().Linef("last_push_message_id\t%s", state.LastPushMessageID)
 	}
+	if state.RateLimitedUntilMs > 0 {
+		u.Out().Linef("rate_limited_until\t%s", formatUnixMillis(state.RateLimitedUntilMs))
+	}
 	return nil
 }
 
