@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 
@@ -186,8 +187,14 @@ func (c *SheetsUpdateCmd) Run(ctx context.Context, flags *RootFlags) error {
 		if err != nil {
 			return fmt.Errorf("read --values-json: %w", err)
 		}
-		if unmarshalErr := json.Unmarshal(b, &values); unmarshalErr != nil {
+		dec := json.NewDecoder(strings.NewReader(string(b)))
+		dec.UseNumber()
+		if unmarshalErr := dec.Decode(&values); unmarshalErr != nil {
 			return fmt.Errorf("invalid JSON values: %w", unmarshalErr)
+		}
+		var extra any
+		if extraErr := dec.Decode(&extra); extraErr != io.EOF {
+			return fmt.Errorf("invalid JSON values: trailing content")
 		}
 	case len(c.Values) > 0:
 		// Parse comma-separated rows, pipe-separated cells

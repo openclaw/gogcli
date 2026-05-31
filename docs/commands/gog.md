@@ -40,6 +40,7 @@ gog <command> [flags]
 - [gog logout](gog-logout.md) - Remove a stored refresh token (alias for 'auth remove')
 - [gog ls](gog-ls.md) - List Drive files (alias for 'drive ls')
 - [gog maps](gog-maps.md) - Google Maps
+- [gog mcp](gog-mcp.md) - Run a typed, allowlisted MCP server over stdio
 - [gog me](gog-me.md) - Show your profile (alias for 'people me')
 - [gog meet](gog-meet.md) - Google Meet
 - [gog open](gog-open.md) - Print a best-effort web URL for a Google URL/ID (offline)

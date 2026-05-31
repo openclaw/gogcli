@@ -435,6 +435,7 @@ Generated from `gog schema --json`.
       - [`gog maps (map) places (place) details (get,info,show) <placeId> [flags]`](commands/gog-maps-places-details.md) - Get Place details
       - [`gog maps (map) places (place) search (find) <query> ... [flags]`](commands/gog-maps-places-search.md) - Search Places by text
     - [`gog maps (map) reverse-geocode (reverse) --lat=STRING --lng=STRING [flags]`](commands/gog-maps-reverse-geocode.md) - Convert coordinates to an address
+  - [`gog mcp [flags]`](commands/gog-mcp.md) - Run a typed, allowlisted MCP server over stdio
   - [`gog me [flags]`](commands/gog-me.md) - Show your profile (alias for 'people me')
   - [`gog meet (meeting) <command> [flags]`](commands/gog-meet.md) - Google Meet
     - [`gog meet (meeting) create (new) [flags]`](commands/gog-meet-create.md) - Create a meeting space

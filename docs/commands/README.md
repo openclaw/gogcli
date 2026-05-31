@@ -2,7 +2,7 @@
 
 Every `gog` command has a generated docs page. The source of truth is the live CLI schema; run `make docs-commands` after changing command names, flags, help text, aliases, or arguments.
 
-Generated pages: 582.
+Generated pages: 583.
 
 ## Top-level Commands
 
@@ -30,6 +30,7 @@ Generated pages: 582.
 - [gog logout](gog-logout.md) - Remove a stored refresh token (alias for 'auth remove')
 - [gog ls](gog-ls.md) - List Drive files (alias for 'drive ls')
 - [gog maps](gog-maps.md) - Google Maps
+- [gog mcp](gog-mcp.md) - Run a typed, allowlisted MCP server over stdio
 - [gog me](gog-me.md) - Show your profile (alias for 'people me')
 - [gog meet](gog-meet.md) - Google Meet
 - [gog open](gog-open.md) - Print a best-effort web URL for a Google URL/ID (offline)
@@ -486,6 +487,7 @@ Generated pages: 582.
       - [gog maps places details](gog-maps-places-details.md) - Get Place details
       - [gog maps places search](gog-maps-places-search.md) - Search Places by text
     - [gog maps reverse-geocode](gog-maps-reverse-geocode.md) - Convert coordinates to an address
+  - [gog mcp](gog-mcp.md) - Run a typed, allowlisted MCP server over stdio
   - [gog me](gog-me.md) - Show your profile (alias for 'people me')
   - [gog meet](gog-meet.md) - Google Meet
     - [gog meet create](gog-meet-create.md) - Create a meeting space

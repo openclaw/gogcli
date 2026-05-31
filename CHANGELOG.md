@@ -4,6 +4,7 @@
 
 ### Added
 
+- MCP: add a typed, allowlisted `gog mcp` stdio server with read-only defaults and explicit write-tool opt-in. (#637) — thanks @auroracapital.
 - Docs: add `docs table-column-width` to set fixed native table column widths or reset columns to evenly distributed sizing. (#631) — thanks @sebsnyk.
 
 ### Fixed

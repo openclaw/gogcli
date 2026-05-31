@@ -30,7 +30,20 @@ This replaces the existing separate CLIs (`gmcli`, `gccli`, `gdcli`) and the Pyt
 
 - Preserving legacy command names/flags/output formats
 - Importing existing `~/.gmcli`, `~/.gccli`, `~/.gdcli` state
-- Running an MCP server (this is a CLI)
+- Exposing the whole CLI through a generic MCP command-execution bridge
+
+## MCP server
+
+`gog mcp` runs a typed MCP server over stdio for agent clients that need a
+permissioned Google Workspace tool surface. It intentionally does not expose a
+generic shell/argv bridge. Each MCP tool has a fixed schema and maps to a
+specific `gog` operation.
+
+MCP defaults are read-only. Write tools are hidden unless the server is started
+with `--allow-write`, and `--allow-tool` can further narrow the registered tool
+set by tool name or service prefix. Parent root context such as `--account`,
+`--home`, output mode, `--no-input`, untrusted wrapping, and command safety
+flags is preserved for subprocess calls.
 
 ## Language/runtime
 
