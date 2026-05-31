@@ -13,6 +13,8 @@ It is built for terminals, shell scripts, CI, and coding agents:
 - multiple Google accounts and OAuth clients
 - OAuth, direct access tokens, ADC, and Workspace service accounts
 - runtime command allowlists/denylists and baked safety-profile binaries
+- typed [MCP server](docs/mcp.md) for agent clients, read-only by default and
+  without a generic command runner
 - read-only audit/reporting commands for risky surfaces like Drive and Contacts
 - [generated docs](docs/commands/README.md) for every command
 
@@ -23,6 +25,7 @@ Start here:
 - [Install](docs/install.md)
 - [Quickstart](docs/quickstart.md)
 - [Auth clients and service accounts](docs/auth-clients.md)
+- [MCP server](docs/mcp.md)
 - [Command index](docs/commands/README.md)
 - [Gmail watch / Pub/Sub push](docs/watch.md) (<https://gogcli.sh/watch.html>)
 
@@ -410,6 +413,28 @@ gog --json gmail search 'newer_than:7d'
 
 For stricter agent deployments, build or download a baked safety-profile binary.
 See [docs/safety-profiles.md](docs/safety-profiles.md).
+
+### MCP server
+
+`gog mcp` exposes a typed MCP stdio server for agent clients. It registers
+specific Google tools such as `gmail_search`, `docs_get`, and
+`sheets_read_range`; it does not expose a generic `gog_exec` or arbitrary
+command bridge.
+
+```bash
+# Read-only server.
+gog --account you@gmail.com mcp
+
+# Docs tools only; writes require explicit opt-in.
+gog --account you@gmail.com \
+  --enable-commands-exact docs.cat,docs.write \
+  mcp \
+  --allow-write \
+  --allow-tool docs.*
+```
+
+See [docs/mcp.md](docs/mcp.md) for client config, tool selection, safety
+behavior, mcporter examples, and troubleshooting.
 
 ## Auth and Accounts
 
