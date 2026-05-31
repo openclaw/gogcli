@@ -18,37 +18,38 @@ import (
 var newDocsService = googleapi.NewDocs
 
 type DocsCmd struct {
-	Export          DocsExportCmd          `cmd:"" name:"export" aliases:"download,dl" help:"Export a Google Doc (pdf|docx|txt|md|html)"`
-	Info            DocsInfoCmd            `cmd:"" name:"info" aliases:"get,show" help:"Get Google Doc metadata"`
-	Create          DocsCreateCmd          `cmd:"" name:"create" aliases:"add,new" help:"Create a Google Doc"`
-	Copy            DocsCopyCmd            `cmd:"" name:"copy" aliases:"cp,duplicate" help:"Copy a Google Doc"`
-	Cat             DocsCatCmd             `cmd:"" name:"cat" aliases:"text,read" help:"Print a Google Doc as plain text"`
-	Comments        DocsCommentsCmd        `cmd:"" name:"comments" help:"Manage comments on files"`
-	Tabs            DocsTabsCmd            `cmd:"" name:"tabs" help:"Manage Google Doc tabs"`
-	AddTab          DocsAddTabCmd          `cmd:"" name:"add-tab" help:"Add a tab to a Google Doc"`
-	RenameTab       DocsRenameTabCmd       `cmd:"" name:"rename-tab" help:"Rename a tab in a Google Doc"`
-	DeleteTab       DocsDeleteTabCmd       `cmd:"" name:"delete-tab" help:"Delete a tab from a Google Doc"`
-	ListTabs        DocsListTabsCmd        `cmd:"" name:"list-tabs" help:"List all tabs in a Google Doc"`
-	Write           DocsWriteCmd           `cmd:"" name:"write" help:"Write content to a Google Doc"`
-	Insert          DocsInsertCmd          `cmd:"" name:"insert" help:"Insert text at a specific position"`
-	InsertTable     DocsInsertTableCmd     `cmd:"" name:"insert-table" help:"Insert a native table at a specific position (or end-of-doc with --at-end), optionally populated via --values-json"`
-	CellUpdate      DocsCellUpdateCmd      `cmd:"" name:"cell-update" aliases:"update-cell" help:"Replace or append content inside a specific table cell"`
-	CellStyle       DocsCellStyleCmd       `cmd:"" name:"cell-style" help:"Apply table cell background and text styling"`
-	InsertImage     DocsInsertImageCmd     `cmd:"" name:"insert-image" help:"Upload a local image and insert it into a Google Doc"`
-	InsertPerson    DocsInsertPersonCmd    `cmd:"" name:"insert-person" help:"Insert a native person smart chip"`
-	InsertFileChip  DocsInsertFileChipCmd  `cmd:"" name:"insert-file-chip" aliases:"insert-rich-link" help:"Insert a native Drive file smart chip"`
-	InsertDateChip  DocsInsertDateChipCmd  `cmd:"" name:"insert-date-chip" help:"Insert a native date smart chip"`
-	InsertPageBreak DocsInsertPageBreakCmd `cmd:"" name:"insert-page-break" aliases:"page-break,pb" help:"Insert a page break at a specific position (or end-of-doc with --at-end)"`
-	Delete          DocsDeleteCmd          `cmd:"" name:"delete" help:"Delete text range from document"`
-	FindReplace     DocsFindReplaceCmd     `cmd:"" name:"find-replace" help:"Find and replace text. Supports plain text or markdown with images; use --first for a single occurrence."`
-	Update          DocsUpdateCmd          `cmd:"" name:"update" help:"Insert or replace text at a specific index or range in a Google Doc"`
-	Edit            DocsEditCmd            `cmd:"" name:"edit" help:"Find and replace text in a Google Doc"`
-	Format          DocsFormatCmd          `cmd:"" name:"format" help:"Apply text or paragraph formatting to a Google Doc"`
-	Sed             DocsSedCmd             `cmd:"" name:"sed" help:"Regex find/replace (sed-style: s/pattern/replacement/g)"`
-	Clear           DocsClearCmd           `cmd:"" name:"clear" help:"Clear all content from a Google Doc"`
-	Structure       DocsStructureCmd       `cmd:"" name:"structure" aliases:"struct" help:"Show document structure with numbered paragraphs"`
-	Raw             DocsRawCmd             `cmd:"" name:"raw" help:"Dump raw Google Docs API response as JSON (Documents.Get; lossless; for scripting and LLM consumption)"`
-	PageLayout      DocsPageLayoutCmd      `cmd:"" name:"page-layout" aliases:"set-page-layout,page-setup" help:"Set page layout (pageless|pages) on an existing Google Doc"`
+	Export           DocsExportCmd           `cmd:"" name:"export" aliases:"download,dl" help:"Export a Google Doc (pdf|docx|txt|md|html)"`
+	Info             DocsInfoCmd             `cmd:"" name:"info" aliases:"get,show" help:"Get Google Doc metadata"`
+	Create           DocsCreateCmd           `cmd:"" name:"create" aliases:"add,new" help:"Create a Google Doc"`
+	Copy             DocsCopyCmd             `cmd:"" name:"copy" aliases:"cp,duplicate" help:"Copy a Google Doc"`
+	Cat              DocsCatCmd              `cmd:"" name:"cat" aliases:"text,read" help:"Print a Google Doc as plain text"`
+	Comments         DocsCommentsCmd         `cmd:"" name:"comments" help:"Manage comments on files"`
+	Tabs             DocsTabsCmd             `cmd:"" name:"tabs" help:"Manage Google Doc tabs"`
+	AddTab           DocsAddTabCmd           `cmd:"" name:"add-tab" help:"Add a tab to a Google Doc"`
+	RenameTab        DocsRenameTabCmd        `cmd:"" name:"rename-tab" help:"Rename a tab in a Google Doc"`
+	DeleteTab        DocsDeleteTabCmd        `cmd:"" name:"delete-tab" help:"Delete a tab from a Google Doc"`
+	ListTabs         DocsListTabsCmd         `cmd:"" name:"list-tabs" help:"List all tabs in a Google Doc"`
+	Write            DocsWriteCmd            `cmd:"" name:"write" help:"Write content to a Google Doc"`
+	Insert           DocsInsertCmd           `cmd:"" name:"insert" help:"Insert text at a specific position"`
+	InsertTable      DocsInsertTableCmd      `cmd:"" name:"insert-table" help:"Insert a native table at a specific position (or end-of-doc with --at-end), optionally populated via --values-json"`
+	CellUpdate       DocsCellUpdateCmd       `cmd:"" name:"cell-update" aliases:"update-cell" help:"Replace or append content inside a specific table cell"`
+	CellStyle        DocsCellStyleCmd        `cmd:"" name:"cell-style" help:"Apply table cell background and text styling"`
+	TableColumnWidth DocsTableColumnWidthCmd `cmd:"" name:"table-column-width" aliases:"table-width,column-width" help:"Set or reset native table column widths"`
+	InsertImage      DocsInsertImageCmd      `cmd:"" name:"insert-image" help:"Upload a local image and insert it into a Google Doc"`
+	InsertPerson     DocsInsertPersonCmd     `cmd:"" name:"insert-person" help:"Insert a native person smart chip"`
+	InsertFileChip   DocsInsertFileChipCmd   `cmd:"" name:"insert-file-chip" aliases:"insert-rich-link" help:"Insert a native Drive file smart chip"`
+	InsertDateChip   DocsInsertDateChipCmd   `cmd:"" name:"insert-date-chip" help:"Insert a native date smart chip"`
+	InsertPageBreak  DocsInsertPageBreakCmd  `cmd:"" name:"insert-page-break" aliases:"page-break,pb" help:"Insert a page break at a specific position (or end-of-doc with --at-end)"`
+	Delete           DocsDeleteCmd           `cmd:"" name:"delete" help:"Delete text range from document"`
+	FindReplace      DocsFindReplaceCmd      `cmd:"" name:"find-replace" help:"Find and replace text. Supports plain text or markdown with images; use --first for a single occurrence."`
+	Update           DocsUpdateCmd           `cmd:"" name:"update" help:"Insert or replace text at a specific index or range in a Google Doc"`
+	Edit             DocsEditCmd             `cmd:"" name:"edit" help:"Find and replace text in a Google Doc"`
+	Format           DocsFormatCmd           `cmd:"" name:"format" help:"Apply text or paragraph formatting to a Google Doc"`
+	Sed              DocsSedCmd              `cmd:"" name:"sed" help:"Regex find/replace (sed-style: s/pattern/replacement/g)"`
+	Clear            DocsClearCmd            `cmd:"" name:"clear" help:"Clear all content from a Google Doc"`
+	Structure        DocsStructureCmd        `cmd:"" name:"structure" aliases:"struct" help:"Show document structure with numbered paragraphs"`
+	Raw              DocsRawCmd              `cmd:"" name:"raw" help:"Dump raw Google Docs API response as JSON (Documents.Get; lossless; for scripting and LLM consumption)"`
+	PageLayout       DocsPageLayoutCmd       `cmd:"" name:"page-layout" aliases:"set-page-layout,page-setup" help:"Set page layout (pageless|pages) on an existing Google Doc"`
 }
 
 type DocsTabsCmd struct {

@@ -78,6 +78,86 @@ func TestDocsCellStyleBuildsTableAndTextRequests(t *testing.T) {
 	}
 }
 
+func TestDocsTableColumnWidthBuildsFixedRequest(t *testing.T) {
+	cmd := &DocsTableColumnWidthCmd{Col: 2, Width: 120}
+	req, err := cmd.buildRequest(5, 3, "tab-1")
+	if err != nil {
+		t.Fatalf("buildRequest: %v", err)
+	}
+	got := req.UpdateTableColumnProperties
+	if got == nil {
+		t.Fatalf("missing update request: %#v", req)
+	}
+	if got.TableStartLocation.Index != 5 || got.TableStartLocation.TabId != "tab-1" {
+		t.Fatalf("table start = %#v", got.TableStartLocation)
+	}
+	if len(got.ColumnIndices) != 1 || got.ColumnIndices[0] != 1 {
+		t.Fatalf("column indices = %#v", got.ColumnIndices)
+	}
+	if got.Fields != "width,widthType" {
+		t.Fatalf("fields = %q", got.Fields)
+	}
+	props := got.TableColumnProperties
+	if props.WidthType != "FIXED_WIDTH" || props.Width == nil || props.Width.Magnitude != 120 || props.Width.Unit != "PT" {
+		t.Fatalf("properties = %#v", props)
+	}
+}
+
+func TestDocsTableColumnWidthBuildsEvenAllColumnsRequest(t *testing.T) {
+	cmd := &DocsTableColumnWidthCmd{EvenlyDistributed: true}
+	req, err := cmd.buildRequest(7, 2, "")
+	if err != nil {
+		t.Fatalf("buildRequest: %v", err)
+	}
+	got := req.UpdateTableColumnProperties
+	if got == nil {
+		t.Fatalf("missing update request: %#v", req)
+	}
+	if len(got.ColumnIndices) != 0 {
+		t.Fatalf("column indices = %#v", got.ColumnIndices)
+	}
+	if got.Fields != "widthType" || got.TableColumnProperties.WidthType != "EVENLY_DISTRIBUTED" {
+		t.Fatalf("unexpected request: %#v", got)
+	}
+}
+
+func TestDocsTableColumnWidthValidation(t *testing.T) {
+	tests := []struct {
+		name string
+		cmd  DocsTableColumnWidthCmd
+		want string
+	}{
+		{
+			name: "missing mode",
+			cmd:  DocsTableColumnWidthCmd{TableIndex: 1, Col: 1},
+			want: "set --width or --evenly-distributed",
+		},
+		{
+			name: "conflicting mode",
+			cmd:  DocsTableColumnWidthCmd{TableIndex: 1, Col: 1, Width: 120, EvenlyDistributed: true},
+			want: "mutually exclusive",
+		},
+		{
+			name: "fixed requires column",
+			cmd:  DocsTableColumnWidthCmd{TableIndex: 1, Width: 120},
+			want: "--col is required",
+		},
+		{
+			name: "minimum width",
+			cmd:  DocsTableColumnWidthCmd{TableIndex: 1, Col: 1, Width: 4.9},
+			want: "--width must be >= 5pt",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.cmd.validate()
+			if err == nil || !strings.Contains(err.Error(), tt.want) {
+				t.Fatalf("expected %q error, got %v", tt.want, err)
+			}
+		})
+	}
+}
+
 func TestDocsSmartChipCommandsBuildRequests(t *testing.T) {
 	person := &docs.Request{InsertPerson: &docs.InsertPersonRequest{PersonProperties: &docs.PersonProperties{Email: "a@example.com"}}}
 	setDocsInsertRequestLocation(person, 7, "tab-1")

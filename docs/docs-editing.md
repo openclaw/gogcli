@@ -128,10 +128,21 @@ gog docs cell-update <docId> --table-index 1 --row 2 --col 3 \
 Coordinates are 1-based. `--tab` targets a specific tab, and `--append` inserts
 at the end of the cell instead of replacing its current content.
 
+Set or reset native table column widths after inserting or importing tables:
+
+```bash
+gog docs table-column-width <docId> --table-index 1 --col 1 --width 120
+gog docs table-column-width <docId> --table-index 1 --evenly-distributed
+```
+
+`--width` uses points and requires `--col`. `--evenly-distributed` resets one
+column when `--col` is supplied, or all columns when it is omitted.
+
 Command page:
 
 - [`gog docs insert-table`](commands/gog-docs-insert-table.md)
 - [`gog docs cell-update`](commands/gog-docs-cell-update.md)
+- [`gog docs table-column-width`](commands/gog-docs-table-column-width.md)
 
 ## Tabs
 

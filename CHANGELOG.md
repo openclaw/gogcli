@@ -2,6 +2,10 @@
 
 ## 0.20.1 - Unreleased
 
+### Added
+
+- Docs: add `docs table-column-width` to set fixed native table column widths or reset columns to evenly distributed sizing. (#631) — thanks @sebsnyk.
+
 ### Fixed
 
 ## 0.20.0 - 2026-05-30
