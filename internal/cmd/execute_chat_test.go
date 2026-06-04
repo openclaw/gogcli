@@ -6,6 +6,8 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -441,6 +443,120 @@ func TestExecute_ChatMessagesSend_JSON(t *testing.T) {
 	if !strings.Contains(out, "spaces/aaa/messages/msg2") {
 		t.Fatalf("unexpected out=%q", out)
 	}
+}
+
+func TestExecute_ChatMessagesSend_WithAttachment(t *testing.T) {
+	dir := t.TempDir()
+	imgPath := filepath.Join(dir, "pic.png")
+	if err := os.WriteFile(imgPath, []byte("\x89PNG\r\n\x1a\nfake"), 0o600); err != nil {
+		t.Fatalf("write temp image: %v", err)
+	}
+
+	var uploadHits int
+	var gotUploadParent string
+	var gotAttachmentToken string
+
+	useFakeChatService(t, func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodPost && strings.Contains(r.URL.Path, "attachments:upload"):
+			uploadHits++
+			gotUploadParent = strings.TrimPrefix(r.URL.Path, "/upload/v1/")
+			gotUploadParent = strings.TrimPrefix(gotUploadParent, "v1/")
+			gotUploadParent = strings.TrimSuffix(gotUploadParent, "/attachments:upload")
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"attachmentDataRef": map[string]any{"attachmentUploadToken": "tok-123"},
+			})
+		case r.Method == http.MethodPost && strings.Contains(r.URL.Path, "/messages"):
+			var body map[string]any
+			_ = json.NewDecoder(r.Body).Decode(&body)
+			if atts, ok := body["attachment"].([]any); ok && len(atts) == 1 {
+				if att, ok := atts[0].(map[string]any); ok {
+					if ref, ok := att["attachmentDataRef"].(map[string]any); ok {
+						gotAttachmentToken, _ = ref["attachmentUploadToken"].(string)
+					}
+				}
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{"name": "spaces/aaa/messages/msg3"})
+		default:
+			http.NotFound(w, r)
+		}
+	})
+
+	out := captureStdout(t, func() {
+		_ = captureStderr(t, func() {
+			if err := Execute([]string{"--json", "--account", "a@b.com", "chat", "messages", "send", "spaces/aaa", "--text", "look", "--attach", imgPath}); err != nil {
+				t.Fatalf("Execute: %v", err)
+			}
+		})
+	})
+
+	if uploadHits != 1 {
+		t.Fatalf("expected exactly 1 upload, got %d", uploadHits)
+	}
+	if gotUploadParent != "spaces/aaa" {
+		t.Fatalf("unexpected upload parent: %q", gotUploadParent)
+	}
+	if gotAttachmentToken != "tok-123" {
+		t.Fatalf("attachment token not forwarded to message, got %q", gotAttachmentToken)
+	}
+	if !strings.Contains(out, "spaces/aaa/messages/msg3") {
+		t.Fatalf("unexpected out=%q", out)
+	}
+}
+
+func TestExecute_ChatMessagesSend_AttachmentOnlyNoText(t *testing.T) {
+	dir := t.TempDir()
+	imgPath := filepath.Join(dir, "pic.png")
+	if err := os.WriteFile(imgPath, []byte("fake-bytes"), 0o600); err != nil {
+		t.Fatalf("write temp image: %v", err)
+	}
+
+	var messageSent bool
+	useFakeChatService(t, func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodPost && strings.Contains(r.URL.Path, "attachments:upload"):
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"attachmentDataRef": map[string]any{"attachmentUploadToken": "tok-xyz"},
+			})
+		case r.Method == http.MethodPost && strings.Contains(r.URL.Path, "/messages"):
+			messageSent = true
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{"name": "spaces/aaa/messages/msg4"})
+		default:
+			http.NotFound(w, r)
+		}
+	})
+
+	_ = captureStdout(t, func() {
+		_ = captureStderr(t, func() {
+			if err := Execute([]string{"--account", "a@b.com", "chat", "messages", "send", "spaces/aaa", "--attach", imgPath}); err != nil {
+				t.Fatalf("Execute: %v", err)
+			}
+		})
+	})
+	if !messageSent {
+		t.Fatalf("expected message to be sent with attachment-only payload")
+	}
+}
+
+func TestExecute_ChatMessagesSend_NoTextNoAttachFails(t *testing.T) {
+	origNew := newChatService
+	t.Cleanup(func() { newChatService = origNew })
+	newChatService = func(context.Context, string) (*chat.Service, error) {
+		t.Fatalf("expected validation to fail before creating chat service")
+		return nil, errUnexpectedChatServiceCall
+	}
+
+	_ = captureStderr(t, func() {
+		err := Execute([]string{"--account", "a@b.com", "chat", "messages", "send", "spaces/aaa"})
+		var exitErr *ExitError
+		if !errors.As(err, &exitErr) || exitErr.Code != 2 {
+			t.Fatalf("unexpected err: %v", err)
+		}
+	})
 }
 
 func TestExecute_ChatMessagesSend_InvalidResourceFailsBeforeDryRun(t *testing.T) {

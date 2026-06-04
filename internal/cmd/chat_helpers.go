@@ -1,10 +1,15 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"google.golang.org/api/chat/v1"
+
+	"github.com/steipete/gogcli/internal/config"
 )
 
 func normalizeSpace(resource string) (string, error) {
@@ -182,4 +187,52 @@ func chatMessageThread(msg *chat.Message) string {
 func sanitizeChatText(s string) string {
 	replacer := strings.NewReplacer("\t", " ", "\n", " ", "\r", " ")
 	return replacer.Replace(s)
+}
+
+// expandChatAttachmentPaths resolves user-supplied attachment paths (~, env vars)
+// to absolute paths without reading the files. Used for validation and dry-run.
+func expandChatAttachmentPaths(paths []string) ([]string, error) {
+	expanded := make([]string, 0, len(paths))
+	for _, path := range paths {
+		trimmed := strings.TrimSpace(path)
+		if trimmed == "" {
+			return nil, usage("attachment path must not be empty")
+		}
+		resolved, err := config.ExpandPath(trimmed)
+		if err != nil {
+			return nil, err
+		}
+		expanded = append(expanded, resolved)
+	}
+	return expanded, nil
+}
+
+// uploadChatAttachments uploads each file to the given space and returns the
+// attachment refs to embed in a message. Uploads happen in order; the first
+// failure aborts and is returned to the caller.
+func uploadChatAttachments(ctx context.Context, svc *chat.Service, space string, paths []string) ([]*chat.Attachment, error) {
+	if len(paths) == 0 {
+		return nil, nil
+	}
+	attachments := make([]*chat.Attachment, 0, len(paths))
+	for _, path := range paths {
+		f, err := os.Open(path) //nolint:gosec // path is user-supplied by design (local CLI)
+		if err != nil {
+			return nil, fmt.Errorf("open attachment %q: %w", path, err)
+		}
+		req := &chat.UploadAttachmentRequest{Filename: filepath.Base(path)}
+		resp, err := svc.Media.Upload(space, req).Media(f).Context(ctx).Do()
+		closeErr := f.Close()
+		if err != nil {
+			return nil, fmt.Errorf("upload attachment %q: %w", path, err)
+		}
+		if closeErr != nil {
+			return nil, fmt.Errorf("close attachment %q: %w", path, closeErr)
+		}
+		if resp == nil || resp.AttachmentDataRef == nil {
+			return nil, fmt.Errorf("upload attachment %q: empty data ref in response", path)
+		}
+		attachments = append(attachments, &chat.Attachment{AttachmentDataRef: resp.AttachmentDataRef})
+	}
+	return attachments, nil
 }

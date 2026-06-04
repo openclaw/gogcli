@@ -154,9 +154,10 @@ func (c *ChatMessagesListCmd) Run(ctx context.Context, flags *RootFlags) error {
 }
 
 type ChatMessagesSendCmd struct {
-	Space  string `arg:"" name:"space" help:"Space name (spaces/...)"`
-	Text   string `name:"text" help:"Message text (required)"`
-	Thread string `name:"thread" help:"Reply to thread (spaces/.../threads/...)"`
+	Space  string   `arg:"" name:"space" help:"Space name (spaces/...)"`
+	Text   string   `name:"text" help:"Message text (required unless --attach is provided)"`
+	Thread string   `name:"thread" help:"Reply to thread (spaces/.../threads/...)"`
+	Attach []string `name:"attach" help:"Attachment file path, e.g. an image (repeatable)"`
 }
 
 func (c *ChatMessagesSendCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -167,8 +168,12 @@ func (c *ChatMessagesSendCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 
 	text := strings.TrimSpace(c.Text)
-	if text == "" {
-		return usage("required: --text")
+	attachPaths, err := expandChatAttachmentPaths(c.Attach)
+	if err != nil {
+		return err
+	}
+	if text == "" && len(attachPaths) == 0 {
+		return usage("required: --text or --attach")
 	}
 
 	message := &chat.Message{Text: text}
@@ -189,6 +194,7 @@ func (c *ChatMessagesSendCmd) Run(ctx context.Context, flags *RootFlags) error {
 		"thread":                       threadName,
 		"thread_raw":                   thread,
 		"reply_fallback_to_new_thread": thread != "",
+		"attachments":                  attachPaths,
 	}); dryRunErr != nil {
 		return dryRunErr
 	}
@@ -204,6 +210,14 @@ func (c *ChatMessagesSendCmd) Run(ctx context.Context, flags *RootFlags) error {
 	svc, err := newChatService(ctx, account)
 	if err != nil {
 		return err
+	}
+
+	if len(attachPaths) > 0 {
+		attachments, uploadErr := uploadChatAttachments(ctx, svc, space, attachPaths)
+		if uploadErr != nil {
+			return uploadErr
+		}
+		message.Attachment = attachments
 	}
 
 	call := svc.Spaces.Messages.Create(space, message)
