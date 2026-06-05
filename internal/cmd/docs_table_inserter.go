@@ -283,4 +283,3 @@ func nextTableInsertOffset(currentOffset, tableIndex, tableEnd int64) int64 {
 	}
 	return currentOffset + (tableEnd - tableIndex)
 }
-
