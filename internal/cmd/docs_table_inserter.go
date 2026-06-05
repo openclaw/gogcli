@@ -271,3 +271,95 @@ func nextTableInsertOffset(currentOffset, tableIndex, tableEnd int64) int64 {
 	}
 	return currentOffset + (tableEnd - tableIndex)
 }
+
+// predictedTableLen returns the UTF-16 index span an empty Docs table with
+// the given rows × cols geometry occupies after an InsertTableRequest lands
+// at a known location. It mirrors the structural element layout the Docs API
+// produces for a freshly-inserted empty table:
+//
+//   - One leading char before the first row
+//   - For each cell: 2 chars (cell separator + the cell's empty paragraph "\n")
+//
+// Total span = 1 + 2 * rows * cols. This matches the indices returned by the
+// existing `getTableCellIndices` server-readback path for the supported
+// markdown-table sizes; see #699 for the wire-call collapse that depends on
+// this prediction. If Docs ever changes its empty-table layout, this constant
+// is the load-bearing piece that will need to follow.
+func predictedTableLen(rows, cols int64) int64 {
+	return 1 + 2*rows*cols
+}
+
+// predictedTableCellIndex returns the StartIndex of cell (r, c)'s first
+// paragraph for an empty Docs table whose Table.StartIndex == tableStart.
+// Derivation matches predictedTableLen — for each row we step over 2*cols
+// chars (cell separator + cell-paragraph) and each cell within a row is 2
+// chars; the leading +1 accounts for the row marker that sits before cell
+// (r, 0).
+func predictedTableCellIndex(tableStart, r, c, cols int64) int64 {
+	return tableStart + 1 + r*(2*cols) + 2*c
+}
+
+// BuildNativeTableRequests gathers the Docs API requests needed to insert a
+// populated table at tableStartIndex without performing any network round
+// trips. Returns:
+//
+//   - requests: the InsertTableRequest followed by per-cell InsertText +
+//     formatting requests, in the order they must land in a single
+//     batchUpdate. The Docs API applies requests sequentially and shifts
+//     subsequent indices automatically, so the per-cell index values are
+//     computed against the empty-table layout (predictedTableCellIndex) and
+//     remain valid for the whole batch.
+//   - tableEndIndex: the predicted end of the table after both the structure
+//     and the cell text have been inserted; callers chain this through
+//     nextTableInsertOffset for downstream placeholder shifts.
+//
+// This is the batchable analogue of InsertNativeTable: it replaces the
+// historical 1 InsertTable + 1 Documents.Get + N cell-text batchUpdate calls
+// per table (see #699) with a single contribution to the caller's combined
+// batchUpdate.
+func BuildNativeTableRequests(tableStartIndex int64, cells [][]string, tabID string) ([]*docs.Request, int64) {
+	if len(cells) == 0 || len(cells[0]) == 0 {
+		return nil, tableStartIndex
+	}
+	rows := int64(len(cells))
+	cols := int64(len(cells[0]))
+
+	requests := make([]*docs.Request, 0, 1+int(rows*cols))
+	requests = append(requests, &docs.Request{
+		InsertTable: &docs.InsertTableRequest{
+			Rows:    rows,
+			Columns: cols,
+			Location: &docs.Location{
+				Index: tableStartIndex,
+				TabId: tabID,
+			},
+		},
+	})
+
+	// Cells in the same row share an index basis (predicted from the empty
+	// table layout). The Docs API automatically shifts subsequent indices
+	// within the same batch, so we emit cells in row-major order and let the
+	// API renumber.
+	//
+	// Iterate up to the row's own length rather than cols — the markdown
+	// converter can produce ragged rows (row n has fewer cells than the
+	// header), and the resulting Docs table has empty cells for the missing
+	// columns. The predicted index still uses cols (the table is structurally
+	// uniform on the Docs side); we just skip emitting InsertText for the
+	// missing cells.
+	for r := int64(0); r < rows; r++ {
+		rowLen := int64(len(cells[r]))
+		for c := int64(0); c < rowLen; c++ {
+			content := cells[r][c]
+			if content == "" {
+				continue
+			}
+			cellIdx := predictedTableCellIndex(tableStartIndex, r, c, cols)
+			cellReqs, _ := buildTableCellRequests(content, cellIdx, r == 0, tabID)
+			requests = append(requests, cellReqs...)
+		}
+	}
+
+	tableEndIndex := tableStartIndex + predictedTableLen(rows, cols)
+	return requests, tableEndIndex
+}
