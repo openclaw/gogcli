@@ -137,12 +137,12 @@ func replaceDocsMarkdownRange(ctx context.Context, svc *docs.Service, doc *docs.
 
 	applyTabIDToFormattingRequests(formattingRequests, tabID)
 
-	// Start with the structural DeleteContentRange + the body InsertText. We
-	// fold table-structure (InsertTable) + cell-content + per-cell formatting
-	// into the same request list so the entire markdown body (including
-	// tables) lands in a single batchUpdate, only chunking when we exceed the
-	// Docs API per-batch hard cap. See #699.
-	requests := make([]*docs.Request, 0, 2+len(formattingRequests)+8*len(tables))
+	// Structural DeleteContentRange + body InsertText + per-element formatting
+	// go in one batchUpdate. Tables are inserted afterwards via InsertNativeTable
+	// (which does its own InsertTable + Get + batched cell-content per table —
+	// see #699 follow-up: cross-table prediction was unreliable, server-readback
+	// per table is correct).
+	requests := make([]*docs.Request, 0, 2+len(formattingRequests))
 	requests = append(requests, &docs.Request{
 		DeleteContentRange: &docs.DeleteContentRangeRequest{
 			Range: &docs.Range{StartIndex: startIdx, EndIndex: endIdx, TabId: tabID},
@@ -158,11 +158,22 @@ func replaceDocsMarkdownRange(ctx context.Context, svc *docs.Service, doc *docs.
 		requests = append(requests, formattingRequests...)
 	}
 
-	requests = appendTableRequests(requests, tables, tabID)
-
 	requestCount, err = submitBatchedDocsRequests(ctx, svc, doc.DocumentId, requests, &docs.WriteControl{RequiredRevisionId: doc.RevisionId})
 	if err != nil {
 		return 0, 0, fmt.Errorf("replace (markdown): %w", err)
+	}
+
+	if len(tables) > 0 {
+		tableInserter := NewTableInserter(svc, doc.DocumentId)
+		tableOffset := int64(0)
+		for _, table := range tables {
+			tableIndex := table.StartIndex + tableOffset
+			tableEnd, tableErr := tableInserter.InsertNativeTable(ctx, tableIndex, table.Cells, tabID)
+			if tableErr != nil {
+				return requestCount, len(textToInsert), fmt.Errorf("insert native table: %w", tableErr)
+			}
+			tableOffset = nextTableInsertOffset(tableOffset, tableIndex, tableEnd)
+		}
 	}
 
 	if len(images) > 0 {
@@ -196,13 +207,10 @@ func insertDocsMarkdownAt(ctx context.Context, svc *docs.Service, docID string, 
 
 	applyTabIDToFormattingRequests(formattingRequests, tabID)
 
-	// Body InsertText + per-element formatting + each table's
-	// InsertTableRequest + cell text + cell formatting all share a single
-	// batchUpdate. The Docs API applies the requests in order and shifts
-	// indices automatically, so the per-cell index values predicted by
-	// BuildNativeTableRequests remain valid even though earlier requests in
-	// the same batch insert characters before them. See #699.
-	requests := make([]*docs.Request, 0, 1+len(formattingRequests)+8*len(tables))
+	// Body InsertText + per-element formatting in one batchUpdate. Tables
+	// follow via InsertNativeTable (one InsertTable + one cell batch per
+	// table — see #699 follow-up).
+	requests := make([]*docs.Request, 0, 1+len(formattingRequests))
 	requests = append(requests, &docs.Request{
 		InsertText: &docs.InsertTextRequest{
 			Location: &docs.Location{Index: insertIdx, TabId: tabID},
@@ -211,11 +219,22 @@ func insertDocsMarkdownAt(ctx context.Context, svc *docs.Service, docID string, 
 	})
 	requests = append(requests, formattingRequests...)
 
-	requests = appendTableRequests(requests, tables, tabID)
-
 	requestCount, err = submitBatchedDocsRequests(ctx, svc, docID, requests, nil)
 	if err != nil {
 		return 0, 0, fmt.Errorf("append (markdown): %w", err)
+	}
+
+	if len(tables) > 0 {
+		tableInserter := NewTableInserter(svc, docID)
+		tableOffset := int64(0)
+		for _, table := range tables {
+			tableIndex := table.StartIndex + tableOffset
+			tableEnd, tableErr := tableInserter.InsertNativeTable(ctx, tableIndex, table.Cells, tabID)
+			if tableErr != nil {
+				return requestCount, len(textToInsert), fmt.Errorf("insert native table: %w", tableErr)
+			}
+			tableOffset = nextTableInsertOffset(tableOffset, tableIndex, tableEnd)
+		}
 	}
 
 	if len(images) > 0 {

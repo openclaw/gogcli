@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"sort"
 
 	"google.golang.org/api/docs/v1"
 )
@@ -76,33 +77,58 @@ func (ti *TableInserter) InsertNativeTable(ctx context.Context, tableIndex int64
 		return tableEndIndex, err
 	}
 
-	// Step 4: Insert text into each cell
+	// Step 4: Collect all per-cell requests grouped by cell, sort descending by
+	// cellIdx, submit as ONE batchUpdate. Reverse-document-order processing
+	// inside a single batchUpdate is the canonical pattern for "insert at many
+	// positions without manual offset bookkeeping" — earlier (lower-index)
+	// cell positions remain valid even as the API processes later (higher-
+	// index) inserts first. See #699 for the wire-call collapse this enables
+	// (was: 1 batchUpdate per cell; now: 1 batchUpdate for the whole table).
+	//
+	// Each cell's request group keeps its InsertText-then-style ordering so
+	// the style ranges resolve against the just-inserted text.
+	type cellGroup struct {
+		cellIdx     int64
+		insertedLen int64
+		requests    []*docs.Request
+	}
+	groups := make([]cellGroup, 0, int(rows*cols))
 	for rowIdx := 0; rowIdx < len(cells); rowIdx++ {
 		for colIdx := 0; colIdx < len(cells[rowIdx]); colIdx++ {
 			cellContent := cells[rowIdx][colIdx]
 			if cellContent == "" {
 				continue
 			}
-
 			cellIdx := cellIndices[rowIdx][colIdx]
 			if cellIdx == 0 {
 				continue
 			}
-
 			requests, insertedLen := buildTableCellRequests(cellContent, cellIdx, rowIdx == 0, tabID)
 			if len(requests) == 0 {
 				continue
 			}
-
-			_, err := ti.svc.Documents.BatchUpdate(ti.docID, &docs.BatchUpdateDocumentRequest{
-				Requests: requests,
-			}).Context(ctx).Do()
-			if err != nil {
-				return tableEndIndex, fmt.Errorf("insert cell text: %w", err)
-			}
-
-			// Update indices for subsequent cells (they shift by the content length)
-			ti.updateIndicesAfter(cellIdx, insertedLen, cellIndices, &tableEndIndex)
+			groups = append(groups, cellGroup{cellIdx: cellIdx, insertedLen: insertedLen, requests: requests})
+		}
+	}
+	if len(groups) > 0 {
+		// Sort descending so higher-index cells are processed first; lower-
+		// index cells remain at their original positions.
+		sort.Slice(groups, func(i, j int) bool {
+			return groups[i].cellIdx > groups[j].cellIdx
+		})
+		allReqs := make([]*docs.Request, 0, len(groups)*3)
+		for _, g := range groups {
+			allReqs = append(allReqs, g.requests...)
+		}
+		_, err := ti.svc.Documents.BatchUpdate(ti.docID, &docs.BatchUpdateDocumentRequest{
+			Requests: allReqs,
+		}).Context(ctx).Do()
+		if err != nil {
+			return tableEndIndex, fmt.Errorf("insert cell content: %w", err)
+		}
+		// tableEndIndex grows by the total content inserted across all cells.
+		for _, g := range groups {
+			tableEndIndex += g.insertedLen
 		}
 	}
 

@@ -169,10 +169,13 @@ func newFakeDocsTableSvc(t *testing.T, body string, drift int64) (*docs.Service,
 }
 
 // TestInsertDocsMarkdownAt_AppendsTable_IssueRepro replays the original #592
-// repro — a table-only markdown file appended to a doc via the same code path
-// `gog docs write --markdown --append` exercises. After the #699 collapse the
-// body + InsertTableRequest + per-cell text all land in ONE batchUpdate, so
-// the assertion now pins exactly that wire profile.
+// repro — a table-only markdown file appended to a doc via the same code
+// path `gog docs write --markdown --append` exercises. After the #699
+// collapse the table's per-cell inserts are folded into ONE batchUpdate
+// (was: one per cell), so a single-table append produces three batchUpdates:
+// the body InsertText, the InsertTable structure, and the consolidated
+// per-cell content. Multi-table bodies scale at 1 + 2 * tables instead of
+// O(cell-count).
 func TestInsertDocsMarkdownAt_AppendsTable_IssueRepro(t *testing.T) {
 	svc, fake := newFakeDocsTableSvc(t, "Existing\n", 5)
 
@@ -199,28 +202,46 @@ func TestInsertDocsMarkdownAt_AppendsTable_IssueRepro(t *testing.T) {
 		t.Fatalf("expected 3x3 table, got rows=%d cols=%d", fake.tableRows, fake.tableCols)
 	}
 
-	if len(fake.batchCalls) != 1 {
-		t.Fatalf("expected exactly 1 batchUpdate call (body + table folded), got %d", len(fake.batchCalls))
+	// Wire profile: body + InsertTable + consolidated cell content = 3 calls.
+	// Was O(cell-count) per cell pre-#699; the per-cell loop was the quota
+	// burn that this PR collapses. Three calls is the floor while we still
+	// need a Get-round-trip to discover actual cell indices after InsertTable.
+	if len(fake.batchCalls) != 3 {
+		t.Fatalf("expected exactly 3 batchUpdate calls (body, InsertTable, cells), got %d", len(fake.batchCalls))
 	}
 
-	only := fake.batchCalls[0]
-	var sawInsertText, sawInsertTable bool
-	for _, rq := range only {
-		if rq.InsertText != nil && !sawInsertText {
-			sawInsertText = true
-			if rq.InsertText.Location.Index != insertIdx {
-				t.Fatalf("first InsertText at %d, want %d", rq.InsertText.Location.Index, insertIdx)
-			}
-		}
+	body := fake.batchCalls[0]
+	if len(body) == 0 || body[0].InsertText == nil {
+		t.Fatalf("first batch should start with InsertText, got %#v", body)
+	}
+	if body[0].InsertText.Location.Index != insertIdx {
+		t.Fatalf("body InsertText at %d, want %d", body[0].InsertText.Location.Index, insertIdx)
+	}
+
+	tableBatch := fake.batchCalls[1]
+	var sawInsertTable bool
+	for _, rq := range tableBatch {
 		if rq.InsertTable != nil {
 			sawInsertTable = true
+			break
 		}
 	}
-	if !sawInsertText {
-		t.Fatalf("expected an InsertText in the single batch, got %#v", only)
-	}
 	if !sawInsertTable {
-		t.Fatalf("expected an InsertTable in the single batch, got %#v", only)
+		t.Fatalf("second batch should carry InsertTable, got %#v", tableBatch)
+	}
+
+	// Third batch carries all the per-cell content as one batch (the #699
+	// collapse). Expect at least one InsertText for the cells.
+	cellBatch := fake.batchCalls[2]
+	var sawCellInsertText bool
+	for _, rq := range cellBatch {
+		if rq.InsertText != nil {
+			sawCellInsertText = true
+			break
+		}
+	}
+	if !sawCellInsertText {
+		t.Fatalf("third batch should carry the cell InsertText content, got %#v", cellBatch)
 	}
 }
 
