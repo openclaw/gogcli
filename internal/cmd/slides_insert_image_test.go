@@ -161,6 +161,75 @@ func TestSlidesInsertImage_RejectsMissingSlide(t *testing.T) {
 	}
 }
 
+func TestSlidesInsertImage_WarnsWhenCleanupFails(t *testing.T) {
+	origSlides := newSlidesService
+	origDrive := newDriveService
+	t.Cleanup(func() {
+		newSlidesService = origSlides
+		newDriveService = origDrive
+	})
+
+	slidesSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case strings.HasSuffix(r.URL.Path, ":batchUpdate") && r.Method == http.MethodPost:
+			_ = json.NewEncoder(w).Encode(map[string]any{"presentationId": "pres1", "replies": []any{map[string]any{}}})
+		case strings.Contains(r.URL.Path, "/presentations/pres1") && r.Method == http.MethodGet:
+			_ = json.NewEncoder(w).Encode(slidesPresGetResponse("", false))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer slidesSrv.Close()
+
+	driveSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case strings.Contains(r.URL.Path, "/upload/") && r.Method == http.MethodPost:
+			_ = json.NewEncoder(w).Encode(map[string]any{"id": "img_123"})
+		case strings.Contains(r.URL.Path, "/files/img_123/permissions") && r.Method == http.MethodPost:
+			_ = json.NewEncoder(w).Encode(map[string]any{"id": "perm1"})
+		case strings.Contains(r.URL.Path, "/files/img_123") && r.Method == http.MethodDelete:
+			// Simulate a cleanup failure.
+			w.WriteHeader(http.StatusInternalServerError)
+			_ = json.NewEncoder(w).Encode(map[string]any{"error": map[string]any{"code": 500, "message": "boom"}})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer driveSrv.Close()
+
+	slidesSvc, err := slides.NewService(context.Background(),
+		option.WithoutAuthentication(), option.WithHTTPClient(slidesSrv.Client()), option.WithEndpoint(slidesSrv.URL+"/"))
+	if err != nil {
+		t.Fatalf("slides.NewService: %v", err)
+	}
+	newSlidesService = func(context.Context, string) (*slides.Service, error) { return slidesSvc, nil }
+	driveSvc, err := drive.NewService(context.Background(),
+		option.WithoutAuthentication(), option.WithHTTPClient(driveSrv.Client()), option.WithEndpoint(driveSrv.URL+"/"))
+	if err != nil {
+		t.Fatalf("drive.NewService: %v", err)
+	}
+	newDriveService = func(context.Context, string) (*drive.Service, error) { return driveSvc, nil }
+
+	imgPath := newTestImage(t, "logo.png")
+	flags := &RootFlags{Account: "a@b.com"}
+
+	var stderr strings.Builder
+	u, uiErr := ui.New(ui.Options{Stdout: io.Discard, Stderr: &stderr, Color: "never"})
+	if uiErr != nil {
+		t.Fatalf("ui.New: %v", uiErr)
+	}
+	ctx := ui.WithUI(context.Background(), u)
+	cmd := &SlidesInsertImageCmd{PresentationID: "pres1", SlideID: "existing_slide_1", Image: imgPath, Width: 100, Height: 100, Unit: "PT"}
+	if err := cmd.Run(ctx, flags); err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if !strings.Contains(stderr.String(), "failed to delete temporary Drive image") {
+		t.Errorf("expected a cleanup-failure warning on stderr, got: %q", stderr.String())
+	}
+}
+
 func TestImageAspectRatio(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "wide.png")

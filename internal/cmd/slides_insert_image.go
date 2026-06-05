@@ -102,18 +102,20 @@ func (c *SlidesInsertImageCmd) Run(ctx context.Context, flags *RootFlags) error 
 	if err != nil {
 		return err
 	}
-	driveSvc, err := newDriveService(ctx, account)
-	if err != nil {
-		return err
-	}
 
-	// Confirm the target slide exists before uploading anything.
+	// Confirm the target slide exists before creating the Drive service or
+	// uploading anything, so a bad slide id never touches Drive.
 	pres, err := slidesSvc.Presentations.Get(presentationID).Context(ctx).Do()
 	if err != nil {
 		return fmt.Errorf("get presentation: %w", err)
 	}
 	if _, idx := findSlidesPageByID(pres, slideID); idx == -1 {
 		return fmt.Errorf("slide %q not found in presentation", slideID)
+	}
+
+	driveSvc, err := newDriveService(ctx, account)
+	if err != nil {
+		return err
 	}
 
 	// Upload the image to Drive as a temporary file.
@@ -131,9 +133,14 @@ func (c *SlidesInsertImageCmd) Run(ctx context.Context, flags *RootFlags) error 
 		return fmt.Errorf("upload image to Drive: %w", err)
 	}
 
-	// Clean up the temporary Drive file when done.
+	// Clean up the temporary Drive file when done. Use a cancellation-immune
+	// context so the public temp file is still removed if the request context
+	// was canceled, and surface a loud warning if deletion fails (otherwise the
+	// uploaded image stays world-readable until someone removes it by hand).
 	defer func() {
-		_ = driveSvc.Files.Delete(driveFile.Id).Context(ctx).Do()
+		if delErr := driveSvc.Files.Delete(driveFile.Id).Context(context.WithoutCancel(ctx)).Do(); delErr != nil {
+			u.Err().Linef("Warning: failed to delete temporary Drive image %s; it may remain publicly readable until removed: %v", driveFile.Id, delErr)
+		}
 	}()
 
 	// Make publicly readable so the Slides API can fetch it.
