@@ -133,7 +133,11 @@ func TestSlidesInsertImage_PlacesSizedImageOnExistingSlide(t *testing.T) {
 
 func TestSlidesInsertImage_RejectsMissingSlide(t *testing.T) {
 	origSlides := newSlidesService
-	t.Cleanup(func() { newSlidesService = origSlides })
+	origDrive := newDriveService
+	t.Cleanup(func() {
+		newSlidesService = origSlides
+		newDriveService = origDrive
+	})
 
 	slidesSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
