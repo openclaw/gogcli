@@ -15,6 +15,7 @@ import (
 	"google.golang.org/api/gmail/v1"
 	"google.golang.org/api/option"
 
+	"github.com/steipete/gogcli/internal/outfmt"
 	"github.com/steipete/gogcli/internal/ui"
 )
 
@@ -96,7 +97,7 @@ func TestGmailWatchPullCmd_RequiresFullSubscriptionAndHook(t *testing.T) {
 	t.Cleanup(func() { newGmailPubSubReceiver = origReceiver })
 	newGmailPubSubReceiver = func(context.Context, string, gmailPubSubReceiveSettings) (gmailPubSubReceiver, error) {
 		t.Fatal("receiver should not be created")
-		return nil, nil
+		return &fakeGmailPubSubReceiver{}, nil
 	}
 
 	setWatchTestConfigHome(t)
@@ -123,6 +124,72 @@ func TestGmailWatchPullCmd_RequiresFullSubscriptionAndHook(t *testing.T) {
 	}
 	if err := runKong(t, &GmailWatchPullCmd{}, []string{"--subscription", "projects/p/subscriptions/s"}, ctx, flags); err == nil {
 		t.Fatalf("expected missing hook error")
+	}
+}
+
+func TestGmailWatchPullCmd_DryRunDoesNotCreateReceiverOrState(t *testing.T) {
+	origReceiver := newGmailPubSubReceiver
+	t.Cleanup(func() { newGmailPubSubReceiver = origReceiver })
+	newGmailPubSubReceiver = func(context.Context, string, gmailPubSubReceiveSettings) (gmailPubSubReceiver, error) {
+		t.Fatal("receiver should not be created during dry-run")
+		return &fakeGmailPubSubReceiver{}, nil
+	}
+
+	setWatchTestConfigHome(t)
+	u, err := ui.New(ui.Options{Stdout: io.Discard, Stderr: io.Discard, Color: "never"})
+	if err != nil {
+		t.Fatalf("ui.New: %v", err)
+	}
+	ctx := outfmt.WithMode(ui.WithUI(context.Background(), u), outfmt.Mode{JSON: true})
+	args := []string{
+		"--subscription", "projects/p/subscriptions/s",
+		"--fetch-delay", "0",
+		"--history-types", "messageAdded",
+		"--hook-url", "http://127.0.0.1:18789/hooks/gmail",
+		"--hook-token", "secret",
+		"--save-hook",
+	}
+
+	out := captureStdout(t, func() {
+		err = runKong(t, &GmailWatchPullCmd{}, args, ctx, &RootFlags{
+			Account: "a@b.com",
+			DryRun:  true,
+		})
+	})
+	if ExitCode(err) != 0 {
+		t.Fatalf("expected dry-run exit 0, got %v", err)
+	}
+
+	var got struct {
+		DryRun  bool `json:"dry_run"`
+		Request struct {
+			Account      string `json:"account"`
+			Subscription string `json:"subscription"`
+			HookURLSet   bool   `json:"hook_url_set"`
+			HookTokenSet bool   `json:"hook_token_set"`
+			SaveHook     bool   `json:"save_hook"`
+		} `json:"request"`
+	}
+	if err := json.Unmarshal([]byte(out), &got); err != nil {
+		t.Fatalf("parse dry-run JSON: %v\n%s", err, out)
+	}
+	if !got.DryRun ||
+		got.Request.Account != "a@b.com" ||
+		got.Request.Subscription != "projects/p/subscriptions/s" ||
+		!got.Request.HookURLSet ||
+		!got.Request.HookTokenSet ||
+		!got.Request.SaveHook {
+		t.Fatalf("unexpected dry-run payload: %#v", got)
+	}
+	if strings.Contains(out, "secret") {
+		t.Fatalf("dry-run output leaked hook token: %s", out)
+	}
+
+	watchDir := os.Getenv("XDG_CONFIG_HOME")
+	if _, err := os.Stat(watchDir); err == nil {
+		t.Fatalf("dry-run created config directory %s", watchDir)
+	} else if !os.IsNotExist(err) {
+		t.Fatalf("stat config directory: %v", err)
 	}
 }
 

@@ -287,7 +287,10 @@ func (c *GmailWatchServeCmd) Run(ctx context.Context, kctx *kong.Context, flags 
 		MaxBytes:    c.MaxBytes,
 	}, true)
 	if err != nil {
-		return err
+		if !errors.Is(err, errNoHookConfigured) {
+			return err
+		}
+		hook = nil
 	}
 	if c.SaveHook && hook != nil {
 		if updateErr := store.Update(func(s *gmailWatchState) error {
@@ -524,9 +527,6 @@ func resolveWatchHookFromFlags(kctx *kong.Context, state gmailWatchState, values
 	hook, err := hookFromFlags(hookURL, hookToken, includeBody, maxBytes, flagProvided(kctx, "max-bytes"), allowNoHook)
 	if err == nil {
 		return hook, nil
-	}
-	if errors.Is(err, errNoHookConfigured) && allowNoHook {
-		return nil, nil
 	}
 	return nil, err
 }

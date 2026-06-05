@@ -40,8 +40,8 @@ func (c *GmailWatchPullCmd) Run(ctx context.Context, kctx *kong.Context, flags *
 	if subscription == "" {
 		return usage("--subscription is required")
 	}
-	if _, err := projectIDFromPubSubSubscription(subscription); err != nil {
-		return err
+	if _, subscriptionErr := projectIDFromPubSubSubscription(subscription); subscriptionErr != nil {
+		return subscriptionErr
 	}
 
 	loc, err := resolveOutputLocation(c.Timezone, c.Local)
@@ -58,6 +58,20 @@ func (c *GmailWatchPullCmd) Run(ctx context.Context, kctx *kong.Context, flags *
 	}
 	if fetchDelay < 0 {
 		return usage("--fetch-delay must be >= 0")
+	}
+	if dryRunErr := dryRunExit(ctx, flags, "gmail.watch.pull", map[string]any{
+		"account":             account,
+		"subscription":        subscription,
+		"fetch_delay_seconds": fetchDelay.Seconds(),
+		"history_types":       historyTypes,
+		"exclude_labels":      splitCommaList(c.ExcludeLabels),
+		"include_body":        c.IncludeBody,
+		"max_bytes":           c.MaxBytes,
+		"hook_url_set":        strings.TrimSpace(c.HookURL) != "",
+		"hook_token_set":      c.HookToken != "",
+		"save_hook":           c.SaveHook,
+	}); dryRunErr != nil {
+		return dryRunErr
 	}
 
 	store, err := loadGmailWatchStore(account)
@@ -271,7 +285,7 @@ func (s *gmailWatchServer) processGmailWatchPayload(ctx context.Context, payload
 		return nil, err
 	}
 	if result == nil {
-		return nil, nil
+		return nil, errNoNewMessages
 	}
 	processed := &gmailWatchProcessedPayload{Payload: result}
 	if s.cfg.HookURL == "" {
