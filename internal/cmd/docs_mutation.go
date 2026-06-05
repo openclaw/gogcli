@@ -275,27 +275,6 @@ func applyTabIDToFormattingRequests(requests []*docs.Request, tabID string) {
 	}
 }
 
-// appendTableRequests folds each markdown table's structure + cell text +
-// formatting requests into the running request list. Tables are emitted in
-// the order MarkdownToDocsRequests produced them, with each table's start
-// position shifted by the cumulative span of earlier tables in the same
-// batch — the Docs API auto-renumbers within a single batchUpdate, but the
-// caller-side tableOffset bookkeeping mirrors what nextTableInsertOffset
-// computed in the historical multi-batch flow (#607 / #699).
-func appendTableRequests(requests []*docs.Request, tables []TableData, tabID string) []*docs.Request {
-	if len(tables) == 0 {
-		return requests
-	}
-	tableOffset := int64(0)
-	for _, table := range tables {
-		tableIndex := table.StartIndex + tableOffset
-		tableReqs, tableEnd := BuildNativeTableRequests(tableIndex, table.Cells, tabID)
-		requests = append(requests, tableReqs...)
-		tableOffset = nextTableInsertOffset(tableOffset, tableIndex, tableEnd)
-	}
-	return requests
-}
-
 // submitBatchedDocsRequests sends the supplied request list as one or more
 // documents.batchUpdate calls, splitting at docsBatchUpdateRequestCap-sized
 // chunks when the consolidated request count exceeds the Docs API per-batch
