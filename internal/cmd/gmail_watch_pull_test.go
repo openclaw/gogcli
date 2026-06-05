@@ -1,0 +1,286 @@
+package cmd
+
+import (
+	"context"
+	"encoding/base64"
+	"encoding/json"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"strings"
+	"testing"
+	"time"
+
+	"google.golang.org/api/gmail/v1"
+	"google.golang.org/api/option"
+
+	"github.com/steipete/gogcli/internal/ui"
+)
+
+type fakeGmailPubSubReceiver struct {
+	received bool
+	closed   bool
+	err      error
+}
+
+func (r *fakeGmailPubSubReceiver) Receive(context.Context, func(context.Context, *gmailPubSubMessage)) error {
+	r.received = true
+	return r.err
+}
+
+func (r *fakeGmailPubSubReceiver) Close() error {
+	r.closed = true
+	return nil
+}
+
+func TestGmailWatchPullCmd_UsesStoredHookAndReceiver(t *testing.T) {
+	origReceiver := newGmailPubSubReceiver
+	t.Cleanup(func() { newGmailPubSubReceiver = origReceiver })
+
+	setWatchTestConfigHome(t)
+	store, err := newGmailWatchStore("a@b.com")
+	if err != nil {
+		t.Fatalf("store: %v", err)
+	}
+	if updateErr := store.Update(func(s *gmailWatchState) error {
+		*s = gmailWatchState{
+			Account:   "a@b.com",
+			Topic:     "projects/p/topics/t",
+			HistoryID: "100",
+			Hook: &gmailWatchHook{
+				URL:         "http://example.com/hook",
+				Token:       "tok",
+				IncludeBody: true,
+				MaxBytes:    123,
+			},
+		}
+		return nil
+	}); updateErr != nil {
+		t.Fatalf("seed: %v", updateErr)
+	}
+
+	fakeReceiver := &fakeGmailPubSubReceiver{}
+	var gotSubscription string
+	var gotSettings gmailPubSubReceiveSettings
+	newGmailPubSubReceiver = func(_ context.Context, subscription string, settings gmailPubSubReceiveSettings) (gmailPubSubReceiver, error) {
+		gotSubscription = subscription
+		gotSettings = settings
+		return fakeReceiver, nil
+	}
+
+	u, err := ui.New(ui.Options{Stdout: io.Discard, Stderr: io.Discard, Color: "never"})
+	if err != nil {
+		t.Fatalf("ui.New: %v", err)
+	}
+	args := []string{
+		"--subscription", "projects/p/subscriptions/s",
+		"--fetch-delay", "0",
+	}
+	if execErr := runKong(t, &GmailWatchPullCmd{}, args, ui.WithUI(context.Background(), u), &RootFlags{Account: "a@b.com"}); execErr != nil {
+		t.Fatalf("execute: %v", execErr)
+	}
+	if gotSubscription != "projects/p/subscriptions/s" {
+		t.Fatalf("subscription = %q", gotSubscription)
+	}
+	if gotSettings.MaxOutstandingMessages != 1 {
+		t.Fatalf("max outstanding = %d", gotSettings.MaxOutstandingMessages)
+	}
+	if !fakeReceiver.received || !fakeReceiver.closed {
+		t.Fatalf("expected receiver used and closed: %#v", fakeReceiver)
+	}
+}
+
+func TestGmailWatchPullCmd_RequiresFullSubscriptionAndHook(t *testing.T) {
+	origReceiver := newGmailPubSubReceiver
+	t.Cleanup(func() { newGmailPubSubReceiver = origReceiver })
+	newGmailPubSubReceiver = func(context.Context, string, gmailPubSubReceiveSettings) (gmailPubSubReceiver, error) {
+		t.Fatal("receiver should not be created")
+		return nil, nil
+	}
+
+	setWatchTestConfigHome(t)
+	store, err := newGmailWatchStore("a@b.com")
+	if err != nil {
+		t.Fatalf("store: %v", err)
+	}
+	if updateErr := store.Update(func(s *gmailWatchState) error {
+		*s = gmailWatchState{Account: "a@b.com", HistoryID: "100"}
+		return nil
+	}); updateErr != nil {
+		t.Fatalf("seed: %v", updateErr)
+	}
+
+	u, err := ui.New(ui.Options{Stdout: io.Discard, Stderr: io.Discard, Color: "never"})
+	if err != nil {
+		t.Fatalf("ui.New: %v", err)
+	}
+	ctx := ui.WithUI(context.Background(), u)
+	flags := &RootFlags{Account: "a@b.com"}
+
+	if err := runKong(t, &GmailWatchPullCmd{}, []string{"--subscription", "plain-sub"}, ctx, flags); err == nil {
+		t.Fatalf("expected subscription validation error")
+	}
+	if err := runKong(t, &GmailWatchPullCmd{}, []string{"--subscription", "projects/p/subscriptions/s"}, ctx, flags); err == nil {
+		t.Fatalf("expected missing hook error")
+	}
+}
+
+func TestGmailWatchPullMessage_AcksInvalidAndWrongAccount(t *testing.T) {
+	server := &gmailWatchServer{
+		cfg:   gmailWatchServeConfig{Account: "a@b.com"},
+		logf:  func(string, ...any) {},
+		warnf: func(string, ...any) {},
+	}
+
+	invalid, invalidState := trackedPullMessage("m1", []byte("{"))
+	server.handlePullMessage(context.Background(), invalid)
+	if !invalidState.acked || invalidState.nacked {
+		t.Fatalf("invalid payload ack=%v nack=%v", invalidState.acked, invalidState.nacked)
+	}
+
+	wrong, wrongState := trackedPullMessage("m2", []byte(`{"emailAddress":"other@example.com","historyId":"200"}`))
+	server.handlePullMessage(context.Background(), wrong)
+	if !wrongState.acked || wrongState.nacked {
+		t.Fatalf("wrong account ack=%v nack=%v", wrongState.acked, wrongState.nacked)
+	}
+}
+
+func TestGmailWatchPullMessage_AcksHookFailure(t *testing.T) {
+	server, hook, cleanup := newPullProcessorTestServer(t, http.StatusOK)
+	defer cleanup()
+	hook.Config.Handler = http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	})
+
+	msg, state := trackedPullMessage("m1", []byte(`{"emailAddress":"a@b.com","historyId":"200"}`))
+	server.handlePullMessage(context.Background(), msg)
+	if !state.acked || state.nacked {
+		t.Fatalf("hook failure ack=%v nack=%v", state.acked, state.nacked)
+	}
+	if status := server.store.Get().LastDeliveryStatus; status != gmailWatchStatusHTTPError {
+		t.Fatalf("delivery status = %q", status)
+	}
+}
+
+func TestGmailWatchPullMessage_NacksGmailFailure(t *testing.T) {
+	server, _, cleanup := newPullProcessorTestServer(t, http.StatusInternalServerError)
+	defer cleanup()
+
+	msg, state := trackedPullMessage("m1", []byte(`{"emailAddress":"a@b.com","historyId":"200"}`))
+	server.handlePullMessage(context.Background(), msg)
+	if state.acked || !state.nacked {
+		t.Fatalf("gmail failure ack=%v nack=%v", state.acked, state.nacked)
+	}
+}
+
+type trackedPullMessageState struct {
+	acked  bool
+	nacked bool
+}
+
+func trackedPullMessage(id string, data []byte) (*gmailPubSubMessage, *trackedPullMessageState) {
+	state := &trackedPullMessageState{}
+	msg := &gmailPubSubMessage{
+		ID:   id,
+		Data: data,
+		ack: func() {
+			state.acked = true
+		},
+		nack: func() {
+			state.nacked = true
+		},
+	}
+	return msg, state
+}
+
+func newPullProcessorTestServer(t *testing.T, historyStatus int) (*gmailWatchServer, *httptest.Server, func()) {
+	t.Helper()
+	setWatchTestConfigHome(t)
+
+	store, err := newGmailWatchStore("a@b.com")
+	if err != nil {
+		t.Fatalf("store: %v", err)
+	}
+	if updateErr := store.Update(func(s *gmailWatchState) error {
+		*s = gmailWatchState{
+			Account:   "a@b.com",
+			HistoryID: "100",
+		}
+		return nil
+	}); updateErr != nil {
+		t.Fatalf("seed: %v", updateErr)
+	}
+
+	gmailServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case strings.Contains(r.URL.Path, "/gmail/v1/users/me/history"):
+			if historyStatus != http.StatusOK {
+				w.WriteHeader(historyStatus)
+				return
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"historyId": "200",
+				"history": []map[string]any{
+					{"messagesAdded": []map[string]any{{"message": map[string]any{"id": "m1"}}}},
+				},
+			})
+			return
+		case strings.Contains(r.URL.Path, "/gmail/v1/users/me/messages/m1"):
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"id":       "m1",
+				"threadId": "t1",
+				"snippet":  "hi",
+				"labelIds": []string{"INBOX"},
+				"payload": map[string]any{
+					"headers":  []map[string]any{{"name": "Subject", "value": "S"}},
+					"mimeType": "text/plain",
+					"body": map[string]any{
+						"data": base64.RawURLEncoding.EncodeToString([]byte("body")),
+					},
+				},
+			})
+			return
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+
+	gsvc, err := gmail.NewService(context.Background(),
+		option.WithoutAuthentication(),
+		option.WithHTTPClient(gmailServer.Client()),
+		option.WithEndpoint(gmailServer.URL+"/"),
+	)
+	if err != nil {
+		t.Fatalf("NewService: %v", err)
+	}
+
+	hookServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	processor := &gmailWatchServer{
+		cfg: gmailWatchServeConfig{
+			Account:      "a@b.com",
+			HookURL:      hookServer.URL,
+			HookTimeout:  defaultHookRequestTimeoutSec * time.Second,
+			HistoryMax:   100,
+			ResyncMax:    10,
+			FetchDelay:   0,
+			MaxBodyBytes: defaultHookMaxBytes,
+		},
+		store:           store,
+		newService:      func(context.Context, string) (*gmail.Service, error) { return gsvc, nil },
+		hookClient:      hookServer.Client(),
+		excludeLabelIDs: map[string]struct{}{},
+		logf:            func(string, ...any) {},
+		warnf:           func(string, ...any) {},
+	}
+	cleanup := func() {
+		gmailServer.Close()
+		hookServer.Close()
+		_ = os.Remove(store.path)
+	}
+	return processor, hookServer, cleanup
+}

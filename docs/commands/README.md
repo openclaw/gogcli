@@ -450,6 +450,7 @@ Generated pages: 588.
         - [gog gmail settings vacation get](gog-gmail-settings-vacation-get.md) - Get current vacation responder settings
         - [gog gmail settings vacation update](gog-gmail-settings-vacation-update.md) - Update vacation responder settings
       - [gog gmail settings watch](gog-gmail-settings-watch.md) - Manage Gmail watch
+        - [gog gmail settings watch pull](gog-gmail-settings-watch-pull.md) - Run Pub/Sub pull consumer
         - [gog gmail settings watch renew](gog-gmail-settings-watch-renew.md) - Renew Gmail watch using stored config
         - [gog gmail settings watch serve](gog-gmail-settings-watch-serve.md) - Run Pub/Sub push handler
         - [gog gmail settings watch start](gog-gmail-settings-watch-start.md) - Start Gmail watch for Pub/Sub

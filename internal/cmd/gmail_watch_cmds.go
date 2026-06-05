@@ -31,6 +31,7 @@ type GmailWatchCmd struct {
 	Renew  GmailWatchRenewCmd  `cmd:"" name:"renew" aliases:"update" help:"Renew Gmail watch using stored config"`
 	Stop   GmailWatchStopCmd   `cmd:"" name:"stop" aliases:"rm,delete" help:"Stop Gmail watch and clear stored state"`
 	Serve  GmailWatchServeCmd  `cmd:"" name:"serve" help:"Run Pub/Sub push handler"`
+	Pull   GmailWatchPullCmd   `cmd:"" name:"pull" help:"Run Pub/Sub pull consumer"`
 }
 
 type GmailWatchStartCmd struct {
@@ -279,32 +280,14 @@ func (c *GmailWatchServeCmd) Run(ctx context.Context, kctx *kong.Context, flags 
 	}
 	state := store.Get()
 
-	hookURL := c.HookURL
-	hookToken := c.HookToken
-	includeBody := c.IncludeBody
-	maxBytes := c.MaxBytes
-
-	if hookURL == "" && state.Hook != nil {
-		hookURL = state.Hook.URL
-		if !flagProvided(kctx, "hook-token") {
-			hookToken = state.Hook.Token
-		}
-		if !flagProvided(kctx, "include-body") {
-			includeBody = state.Hook.IncludeBody
-		}
-		if !flagProvided(kctx, "max-bytes") && state.Hook.MaxBytes > 0 {
-			maxBytes = state.Hook.MaxBytes
-		}
-	}
-
-	maxChanged := flagProvided(kctx, "max-bytes")
-	hook, err := hookFromFlags(hookURL, hookToken, includeBody, maxBytes, maxChanged, true)
+	hook, err := resolveWatchHookFromFlags(kctx, state, watchHookFlagValues{
+		URL:         c.HookURL,
+		Token:       c.HookToken,
+		IncludeBody: c.IncludeBody,
+		MaxBytes:    c.MaxBytes,
+	}, true)
 	if err != nil {
-		if errors.Is(err, errNoHookConfigured) {
-			hook = nil
-		} else {
-			return err
-		}
+		return err
 	}
 	if c.SaveHook && hook != nil {
 		if updateErr := store.Update(func(s *gmailWatchState) error {
@@ -339,8 +322,8 @@ func (c *GmailWatchServeCmd) Run(ctx context.Context, kctx *kong.Context, flags 
 		FetchDelay:    fetchDelay,
 		HistoryTypes:  historyTypes,
 		AllowNoHook:   hook == nil,
-		IncludeBody:   includeBody,
-		MaxBodyBytes:  maxBytes,
+		IncludeBody:   c.IncludeBody,
+		MaxBodyBytes:  c.MaxBytes,
 		DateLocation:  loc,
 		ExcludeLabels: splitCommaList(c.ExcludeLabels),
 		VerboseOutput: flags.Verbose,
@@ -510,6 +493,42 @@ func hookFromFlags(url, token string, includeBody bool, maxBytes int, maxBytesCh
 		IncludeBody: includeBody,
 		MaxBytes:    maxBytes,
 	}, nil
+}
+
+type watchHookFlagValues struct {
+	URL         string
+	Token       string
+	IncludeBody bool
+	MaxBytes    int
+}
+
+func resolveWatchHookFromFlags(kctx *kong.Context, state gmailWatchState, values watchHookFlagValues, allowNoHook bool) (*gmailWatchHook, error) {
+	hookURL := values.URL
+	hookToken := values.Token
+	includeBody := values.IncludeBody
+	maxBytes := values.MaxBytes
+
+	if hookURL == "" && state.Hook != nil {
+		hookURL = state.Hook.URL
+		if !flagProvided(kctx, "hook-token") {
+			hookToken = state.Hook.Token
+		}
+		if !flagProvided(kctx, "include-body") {
+			includeBody = state.Hook.IncludeBody
+		}
+		if !flagProvided(kctx, "max-bytes") && state.Hook.MaxBytes > 0 {
+			maxBytes = state.Hook.MaxBytes
+		}
+	}
+
+	hook, err := hookFromFlags(hookURL, hookToken, includeBody, maxBytes, flagProvided(kctx, "max-bytes"), allowNoHook)
+	if err == nil {
+		return hook, nil
+	}
+	if errors.Is(err, errNoHookConfigured) && allowNoHook {
+		return nil, nil
+	}
+	return nil, err
 }
 
 func isLoopbackHost(host string) bool {

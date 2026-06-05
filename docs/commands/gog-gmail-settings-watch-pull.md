@@ -1,27 +1,18 @@
-# `gog gmail settings watch`
+# `gog gmail settings watch pull`
 
 > Generated from `gog schema --json`. Do not edit this page by hand; run `make docs-commands`.
 
-Manage Gmail watch
+Run Pub/Sub pull consumer
 
 ## Usage
 
 ```bash
-gog gmail (mail,email) settings watch <command>
+gog gmail (mail,email) settings watch pull [flags]
 ```
 
 ## Parent
 
-- [gog gmail settings](gog-gmail-settings.md)
-
-## Subcommands
-
-- [gog gmail settings watch pull](gog-gmail-settings-watch-pull.md) - Run Pub/Sub pull consumer
-- [gog gmail settings watch renew](gog-gmail-settings-watch-renew.md) - Renew Gmail watch using stored config
-- [gog gmail settings watch serve](gog-gmail-settings-watch-serve.md) - Run Pub/Sub push handler
-- [gog gmail settings watch start](gog-gmail-settings-watch-start.md) - Start Gmail watch for Pub/Sub
-- [gog gmail settings watch status](gog-gmail-settings-watch-status.md) - Show stored watch state
-- [gog gmail settings watch stop](gog-gmail-settings-watch-stop.md) - Stop Gmail watch and clear stored state
+- [gog gmail settings watch](gog-gmail-settings-watch.md)
 
 ## Flags
 
@@ -35,20 +26,31 @@ gog gmail (mail,email) settings watch <command>
 | `-n`<br>`--dry-run`<br>`--dryrun`<br>`--noop`<br>`--preview` | `bool` |  | Do not make changes; print intended actions and exit successfully |
 | `--enable-commands` | `string` |  | Comma-separated list of enabled command prefixes; dot paths allowed (restricts CLI) |
 | `--enable-commands-exact` | `string` |  | Comma-separated list of exact enabled commands; dot paths allowed and parent commands do not enable children |
+| `--exclude-labels` | `string` | SPAM,TRASH | List of Gmail label IDs to exclude from hook payload (e.g. SPAM,TRASH,Label_123). Set to empty string to disable. |
+| `--fetch-delay` | `string` | 3s | Delay before fetching Gmail history (seconds or duration) |
 | `-y`<br>`--force`<br>`--assume-yes`<br>`--yes` | `bool` |  | Skip confirmations for destructive commands |
 | `--gmail-no-send` | `bool` | false | Block Gmail send operations (agent safety) |
 | `-h`<br>`--help` | `kong.helpFlag` |  | Show context-sensitive help. |
+| `--history-types` | `[]string` |  | History types to include (repeatable, comma-separated: messageAdded,messageDeleted,labelAdded,labelRemoved). Default: messageAdded |
 | `--home` | `string` |  | Override gogcli config/data/state/cache root (equivalent to GOG_HOME) |
+| `--hook-token` | `string` |  | Webhook bearer token |
+| `--hook-url` | `string` |  | Webhook URL to forward messages |
+| `--include-body` | `bool` |  | Include text/plain body in hook payload |
 | `-j`<br>`--json`<br>`--machine` | `bool` | false | Output JSON to stdout (best for scripting) |
+| `--local` | `bool` |  | Use local timezone (default behavior, useful to override --timezone) |
+| `--max-bytes` | `int` | 20000 | Max bytes of body to include |
 | `--no-input`<br>`--non-interactive`<br>`--noninteractive` | `bool` |  | Never prompt; fail instead (useful for CI) |
 | `-p`<br>`--plain`<br>`--tsv` | `bool` | false | Output stable, parseable text to stdout (TSV; no colors) |
 | `--results-only` | `bool` |  | In JSON mode, emit only the primary result (drops envelope fields like nextPageToken) |
+| `--save-hook` | `bool` |  | Persist hook settings to watch state |
 | `--select`<br>`--pick`<br>`--project` | `string` |  | In JSON mode, select comma-separated fields (best-effort; supports dot paths). Desire path: use --fields for most commands. |
+| `--subscription` | `string` |  | Pub/Sub pull subscription (projects/.../subscriptions/...) |
+| `-z`<br>`--timezone` | `string` |  | Output timezone (IANA name, e.g. America/New_York, UTC). Default: local |
 | `-v`<br>`--verbose` | `bool` |  | Enable verbose logging |
 | `--version` | `kong.VersionFlag` |  | Print version and exit |
 | `--wrap-untrusted` | `bool` | false | In JSON/raw output, wrap fetched text fields in external untrusted-content markers |
 
 ## See Also
 
-- [gog gmail settings](gog-gmail-settings.md)
+- [gog gmail settings watch](gog-gmail-settings-watch.md)
 - [Command index](README.md)

@@ -88,7 +88,7 @@ func (s *gmailWatchServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	result, err := s.handlePush(r.Context(), payload)
+	processed, err := s.processGmailWatchPayload(r.Context(), payload)
 	if err != nil {
 		if errors.Is(err, errNoNewMessages) {
 			w.WriteHeader(http.StatusAccepted)
@@ -107,25 +107,20 @@ func (s *gmailWatchServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	if result == nil {
+	if processed == nil || processed.Payload == nil {
 		w.WriteHeader(http.StatusAccepted)
 		return
 	}
 
 	if s.cfg.HookURL == "" {
 		if s.cfg.AllowNoHook {
-			_ = json.NewEncoder(w).Encode(result)
+			_ = json.NewEncoder(w).Encode(processed.Payload)
 			return
 		}
 		w.WriteHeader(http.StatusAccepted)
 		return
 	}
 
-	if err := s.sendHook(r.Context(), result); err != nil {
-		s.warnf("watch: hook failed: %v", err)
-		w.WriteHeader(http.StatusOK)
-		return
-	}
 	w.WriteHeader(http.StatusOK)
 }
 

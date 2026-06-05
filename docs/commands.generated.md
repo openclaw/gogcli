@@ -398,6 +398,7 @@ Generated from `gog schema --json`.
         - [`gog gmail (mail,email) settings vacation get (info,show)`](commands/gog-gmail-settings-vacation-get.md) - Get current vacation responder settings
         - [`gog gmail (mail,email) settings vacation update (edit,set) [flags]`](commands/gog-gmail-settings-vacation-update.md) - Update vacation responder settings
       - [`gog gmail (mail,email) settings watch <command>`](commands/gog-gmail-settings-watch.md) - Manage Gmail watch
+        - [`gog gmail (mail,email) settings watch pull [flags]`](commands/gog-gmail-settings-watch-pull.md) - Run Pub/Sub pull consumer
         - [`gog gmail (mail,email) settings watch renew (update) [flags]`](commands/gog-gmail-settings-watch-renew.md) - Renew Gmail watch using stored config
         - [`gog gmail (mail,email) settings watch serve [flags]`](commands/gog-gmail-settings-watch-serve.md) - Run Pub/Sub push handler
         - [`gog gmail (mail,email) settings watch start (begin) [flags]`](commands/gog-gmail-settings-watch-start.md) - Start Gmail watch for Pub/Sub
