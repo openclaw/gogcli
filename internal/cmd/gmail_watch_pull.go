@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -280,6 +281,10 @@ func (s *gmailWatchServer) handlePullMessage(ctx context.Context, msg *gmailPubS
 }
 
 func (s *gmailWatchServer) processGmailWatchPayload(ctx context.Context, payload gmailPushPayload) (*gmailWatchProcessedPayload, error) {
+	var progressBefore gmailWatchState
+	if s.store != nil {
+		progressBefore = s.store.Get()
+	}
 	result, err := s.handlePush(ctx, payload)
 	if err != nil {
 		return nil, err
@@ -294,6 +299,10 @@ func (s *gmailWatchServer) processGmailWatchPayload(ctx context.Context, payload
 	if err := s.sendHook(ctx, result); err != nil {
 		s.warnf("watch: hook failed: %v", err)
 		processed.HookFailed = true
+		if restoreErr := s.restoreWatchProgressForRetry(progressBefore); restoreErr != nil {
+			s.warnf("watch: failed to preserve retry state after hook failure: %v", restoreErr)
+		}
+		return processed, &gmailWatchHookDeliveryError{Err: err}
 	}
 	return processed, nil
 }
@@ -301,4 +310,27 @@ func (s *gmailWatchServer) processGmailWatchPayload(ctx context.Context, payload
 type gmailWatchProcessedPayload struct {
 	Payload    *gmailHookPayload
 	HookFailed bool
+}
+
+type gmailWatchHookDeliveryError struct {
+	Err error
+}
+
+func (e *gmailWatchHookDeliveryError) Error() string {
+	return fmt.Sprintf("hook delivery failed: %v", e.Err)
+}
+
+func (e *gmailWatchHookDeliveryError) Unwrap() error {
+	return e.Err
+}
+
+func (s *gmailWatchServer) restoreWatchProgressForRetry(before gmailWatchState) error {
+	if s.store == nil {
+		return nil
+	}
+	return s.store.Update(func(state *gmailWatchState) error {
+		state.HistoryID = before.HistoryID
+		state.LastPushMessageID = before.LastPushMessageID
+		return nil
+	})
 }

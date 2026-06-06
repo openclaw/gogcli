@@ -824,11 +824,14 @@ func TestGmailWatchServer_ServeHTTP_HookError(t *testing.T) {
 	rr := httptest.NewRecorder()
 	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/hook", bytes.NewReader(body))
 	server.ServeHTTP(rr, req)
-	if rr.Code != http.StatusOK {
+	if rr.Code != http.StatusInternalServerError {
 		t.Fatalf("status: %d", rr.Code)
 	}
 	if store.Get().LastDeliveryStatus != "http_error" {
 		t.Fatalf("unexpected state: %#v", store.Get())
+	}
+	if store.Get().HistoryID != "100" {
+		t.Fatalf("history id: %q", store.Get().HistoryID)
 	}
 }
 

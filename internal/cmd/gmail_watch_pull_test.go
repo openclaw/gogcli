@@ -213,7 +213,7 @@ func TestGmailWatchPullMessage_AcksInvalidAndWrongAccount(t *testing.T) {
 	}
 }
 
-func TestGmailWatchPullMessage_AcksHookFailure(t *testing.T) {
+func TestGmailWatchPullMessage_NacksHookFailureAndPreservesProgress(t *testing.T) {
 	server, hook, cleanup := newPullProcessorTestServer(t, http.StatusOK)
 	defer cleanup()
 	hook.Config.Handler = http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -222,11 +222,14 @@ func TestGmailWatchPullMessage_AcksHookFailure(t *testing.T) {
 
 	msg, state := trackedPullMessage("m1", []byte(`{"emailAddress":"a@b.com","historyId":"200"}`))
 	server.handlePullMessage(context.Background(), msg)
-	if !state.acked || state.nacked {
+	if state.acked || !state.nacked {
 		t.Fatalf("hook failure ack=%v nack=%v", state.acked, state.nacked)
 	}
 	if status := server.store.Get().LastDeliveryStatus; status != gmailWatchStatusHTTPError {
 		t.Fatalf("delivery status = %q", status)
+	}
+	if historyID := server.store.Get().HistoryID; historyID != "100" {
+		t.Fatalf("history id = %q", historyID)
 	}
 }
 
