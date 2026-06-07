@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"image"
 	"image/color"
 	"image/png"
@@ -152,7 +153,7 @@ func TestSlidesInsertImage_RejectsMissingSlide(t *testing.T) {
 	newSlidesService = func(context.Context, string) (*slides.Service, error) { return slidesSvc, nil }
 	newDriveService = func(context.Context, string) (*drive.Service, error) {
 		t.Fatal("Drive should not be called when the slide is missing")
-		return nil, nil
+		return nil, errors.New("unexpected Drive service call")
 	}
 
 	imgPath := newTestImage(t, "logo.png")
@@ -243,8 +244,8 @@ func TestImageAspectRatio(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
-	if err := png.Encode(f, img); err != nil {
-		t.Fatalf("encode: %v", err)
+	if encodeErr := png.Encode(f, img); encodeErr != nil {
+		t.Fatalf("encode: %v", encodeErr)
 	}
 	_ = f.Close()
 

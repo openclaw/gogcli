@@ -201,7 +201,7 @@ func (c *SlidesInsertImageCmd) Run(ctx context.Context, flags *RootFlags) error 
 
 // imageAspectRatio returns height/width for the given image file.
 func imageAspectRatio(path string) (float64, error) {
-	f, err := os.Open(path)
+	f, err := os.Open(path) //nolint:gosec // user-provided local image path is the command input.
 	if err != nil {
 		return 0, fmt.Errorf("open image: %w", err)
 	}
