@@ -170,6 +170,12 @@ func TestSanitizeFilenameComponent(t *testing.T) {
 
 func TestResolveTabID(t *testing.T) {
 	docSvc, cleanup := newDocsServiceForTest(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if got := r.URL.Query().Get("includeTabsContent"); got != "true" {
+			t.Fatalf("includeTabsContent = %q, want true", got)
+		}
+		if got := r.URL.Query().Get("fields"); got != docsTabExportTabFields {
+			t.Fatalf("fields = %q, want %q", got, docsTabExportTabFields)
+		}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(tabExportDocResponse())
 	}))

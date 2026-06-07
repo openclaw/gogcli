@@ -25,7 +25,12 @@ import (
 // UNSTABLE: docsTabExportBaseURL is the base for the undocumented per-tab
 // export endpoint. If Google changes or removes it, callers will see an HTTP
 // 302 redirect to a login page or an HTTP 404.
-const docsTabExportBaseURL = "https://docs.google.com/document/d"
+const (
+	docsTabExportBaseURL   = "https://docs.google.com/document/d"
+	docsTabExportTabFields = "tabs(tabProperties(tabId,title,index)," +
+		"childTabs(tabProperties(tabId,title,index)," +
+		"childTabs(tabProperties(tabId,title,index))))"
+)
 
 // maxRedirects matches net/http.defaultCheckRedirect (10 hops).
 const maxRedirects = 10
@@ -106,7 +111,8 @@ func docsTabExportURL(docID, format, tabID string) string {
 
 func resolveTabID(ctx context.Context, docsSvc *docs.Service, docID, tabQuery string) (string, error) {
 	doc, err := docsSvc.Documents.Get(docID).
-		Fields("tabs(tabProperties(tabId,title,index),childTabs)").
+		IncludeTabsContent(true).
+		Fields(docsTabExportTabFields).
 		Context(ctx).
 		Do()
 	if err != nil {

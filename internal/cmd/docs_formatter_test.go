@@ -3,6 +3,8 @@ package cmd
 import (
 	"strings"
 	"testing"
+
+	"google.golang.org/api/docs/v1"
 )
 
 func TestMarkdownToDocsRequests_BaseIndex(t *testing.T) {
@@ -75,6 +77,103 @@ func TestMarkdownToDocsRequests_Strikethrough(t *testing.T) {
 	}
 }
 
+func TestMarkdownToDocsRequests_NestedLists(t *testing.T) {
+	elements := ParseMarkdown("- Parent\n  - **Child**\n    - Grandchild\n\n1. One\n  1. Nested one")
+	requests, text, tables := MarkdownToDocsRequests(elements, 10, "t.second")
+
+	wantText := "Parent\n\tChild\n\t\tGrandchild\n\nOne\n\tNested one\n"
+	if text != wantText {
+		t.Fatalf("text = %q, want %q", text, wantText)
+	}
+	if len(tables) != 0 {
+		t.Fatalf("unexpected tables: %d", len(tables))
+	}
+
+	wantBullets := []struct {
+		start  int64
+		end    int64
+		preset string
+	}{
+		{10, 37, bulletPresetDisc},
+		{35, 51, bulletPresetNumbered},
+	}
+	var gotBullets []struct {
+		start  int64
+		end    int64
+		preset string
+	}
+	var boldRange *docs.Range
+	for _, req := range requests {
+		if req.CreateParagraphBullets != nil {
+			got := req.CreateParagraphBullets
+			gotBullets = append(gotBullets, struct {
+				start  int64
+				end    int64
+				preset string
+			}{got.Range.StartIndex, got.Range.EndIndex, got.BulletPreset})
+		}
+		if req.UpdateTextStyle != nil && req.UpdateTextStyle.TextStyle != nil && req.UpdateTextStyle.TextStyle.Bold {
+			boldRange = req.UpdateTextStyle.Range
+		}
+	}
+	if len(gotBullets) != len(wantBullets) {
+		t.Fatalf("bullet requests = %#v, want %#v", gotBullets, wantBullets)
+	}
+	for i, want := range wantBullets {
+		if got := gotBullets[i]; got != want {
+			t.Fatalf("bullet %d = %#v, want %#v", i, got, want)
+		}
+	}
+	if boldRange == nil || boldRange.StartIndex != 17 || boldRange.EndIndex != 22 || boldRange.TabId != "t.second" {
+		t.Fatalf("unexpected bold range after nested bullet tab removal: %#v", boldRange)
+	}
+}
+
+func TestMarkdownToDocsRequests_MixedListChildrenStayNested(t *testing.T) {
+	elements := ParseMarkdown("1. Parent\n  - Bullet child\n  1. Number child\n2. Sibling")
+	requests, text, tables := MarkdownToDocsRequests(elements, 1, "t.second")
+
+	wantText := "Parent\n\tBullet child\n\tNumber child\nSibling\n"
+	if text != wantText {
+		t.Fatalf("text = %q, want %q", text, wantText)
+	}
+	if len(tables) != 0 {
+		t.Fatalf("unexpected tables: %d", len(tables))
+	}
+
+	wantBullets := []struct {
+		start  int64
+		end    int64
+		preset string
+	}{
+		{1, 44, bulletPresetNumbered},
+		{8, 21, bulletPresetDisc},
+	}
+	var gotBullets []struct {
+		start  int64
+		end    int64
+		preset string
+	}
+	for _, req := range requests {
+		if req.CreateParagraphBullets != nil {
+			got := req.CreateParagraphBullets
+			gotBullets = append(gotBullets, struct {
+				start  int64
+				end    int64
+				preset string
+			}{got.Range.StartIndex, got.Range.EndIndex, got.BulletPreset})
+		}
+	}
+	if len(gotBullets) != len(wantBullets) {
+		t.Fatalf("bullet requests = %#v, want %#v", gotBullets, wantBullets)
+	}
+	for i, want := range wantBullets {
+		if got := gotBullets[i]; got != want {
+			t.Fatalf("bullet %d = %#v, want %#v", i, got, want)
+		}
+	}
+}
+
 // TestMarkdownToDocsRequests_AppendBulletsAndCode is a regression test for
 // #594. The append path used to inline literal "• " glyphs for bullet lists
 // (leaving paragraphs as NORMAL_TEXT) and split fenced code blocks into one
@@ -126,8 +225,7 @@ func TestMarkdownToDocsRequests_AppendBulletsAndCode(t *testing.T) {
 	}
 
 	// We expect at least:
-	//   - 2 CreateParagraphBullets requests for the two bullet items
-	//     (NB: they may be one per item; we count >= 2)
+	//   - 1 CreateParagraphBullets request for the contiguous bullet block
 	//   - 1 CreateParagraphBullets for the numbered item
 	//   - 1 UpdateParagraphStyle with paragraph-level shading covering the
 	//     code block
@@ -165,8 +263,8 @@ func TestMarkdownToDocsRequests_AppendBulletsAndCode(t *testing.T) {
 		}
 	}
 
-	if bulletDisc < 2 {
-		t.Errorf("expected at least 2 BULLET_DISC_CIRCLE_SQUARE CreateParagraphBullets, got %d", bulletDisc)
+	if bulletDisc < 1 {
+		t.Errorf("expected at least 1 BULLET_DISC_CIRCLE_SQUARE CreateParagraphBullets, got %d", bulletDisc)
 	}
 	if bulletNumbered < 1 {
 		t.Errorf("expected at least 1 %s CreateParagraphBullets, got %d", bulletPresetNumbered, bulletNumbered)

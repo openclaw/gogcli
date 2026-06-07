@@ -125,6 +125,74 @@ func TestDocsWrite_MarkdownReplaceWithTab(t *testing.T) {
 	}
 }
 
+func TestDocsWrite_MarkdownReplaceWithTab_NestedLists(t *testing.T) {
+	origDocs := newDocsService
+	origDrive := newDriveService
+	t.Cleanup(func() {
+		newDocsService = origDocs
+		newDriveService = origDrive
+	})
+
+	var batchRequests [][]*docs.Request
+
+	docSvc, cleanup := newDocsServiceForTest(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := r.URL.Path
+		switch {
+		case r.Method == http.MethodGet && strings.HasPrefix(path, "/v1/documents/"):
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(tabsDocWithEndIndex())
+			return
+		case r.Method == http.MethodPost && strings.Contains(path, ":batchUpdate"):
+			var req docs.BatchUpdateDocumentRequest
+			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+				t.Fatalf("decode batch request: %v", err)
+			}
+			batchRequests = append(batchRequests, req.Requests)
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{"documentId": "doc1"})
+			return
+		default:
+			http.NotFound(w, r)
+			return
+		}
+	}))
+	defer cleanup()
+
+	newDocsService = func(context.Context, string) (*docs.Service, error) { return docSvc, nil }
+	newDriveService = func(context.Context, string) (*drive.Service, error) {
+		t.Fatal("markdown replace with --tab must not use the Drive converter")
+		return nil, errors.New("unexpected Drive service call")
+	}
+
+	flags := &RootFlags{Account: "a@b.com"}
+	ctx := newDocsJSONContext(t)
+
+	markdown := "- Parent\n  - Child\n    - Grandchild\n"
+	if err := runKong(t, &DocsWriteCmd{}, []string{
+		"doc1", "--text=" + markdown, "--replace", "--markdown", "--tab", "Second",
+	}, ctx, flags); err != nil {
+		t.Fatalf("markdown replace with nested tab list: %v", err)
+	}
+	if len(batchRequests) != 2 {
+		t.Fatalf("expected 2 batch requests (delete + insert), got %d", len(batchRequests))
+	}
+
+	insertReqs := batchRequests[1]
+	if len(insertReqs) != 2 {
+		t.Fatalf("expected insert plus 1 list-block bullet request, got %#v", insertReqs)
+	}
+	if got := insertReqs[0].InsertText; got == nil || got.Text != "Parent\n\tChild\n\t\tGrandchild\n" {
+		t.Fatalf("unexpected inserted text: %#v", got)
+	}
+	got := insertReqs[1].CreateParagraphBullets
+	if got == nil {
+		t.Fatalf("request 1 missing CreateParagraphBullets: %#v", insertReqs[1])
+	}
+	if got.Range.TabId != "t.second" || got.Range.StartIndex != 1 || got.Range.EndIndex != 28 {
+		t.Fatalf("bullet range = %#v, want tab t.second [1,28)", got.Range)
+	}
+}
+
 // TestDocsWrite_MarkdownReplaceWithTab_EmptyTab verifies that when the
 // targeted tab is already empty (endIndex == 1) the DeleteContentRange step
 // is skipped — the Docs API rejects a delete range where end <= start.

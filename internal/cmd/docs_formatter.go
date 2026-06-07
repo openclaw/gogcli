@@ -34,7 +34,8 @@ func MarkdownToDocsRequests(elements []MarkdownElement, baseIndex int64, tabID s
 		fmt.Printf("[DEBUG] Starting MarkdownToDocsRequests with %d elements\n", len(elements))
 	}
 
-	for _, el := range elements {
+	for i := 0; i < len(elements); i++ {
+		el := elements[i]
 		startOffset := charOffset
 
 		switch el.Type {
@@ -190,46 +191,84 @@ func MarkdownToDocsRequests(elements []MarkdownElement, baseIndex int64, tabID s
 			}
 
 		case MDListItem, MDNumberedList:
-			// Parse inline formatting for list item content
-			styles, strippedContent := ParseInlineFormatting(el.Content)
-
-			if debugMarkdown {
-				fmt.Printf("[LIST] Content: %q -> stripped=%q styles=%d\n", el.Content, strippedContent, len(styles))
-			}
-
-			// Emit the list item as a bare paragraph and then promote it to a
-			// native Google Docs bullet/numbered list via CreateParagraphBullets.
-			// Previously we inlined a literal "• " or "1. " prefix as text,
-			// which left the paragraph with NORMAL_TEXT style and a glyph in
-			// the text run instead of a proper BULLET paragraph style — see
-			// #594.
-			plainText.WriteString(strippedContent)
-			plainText.WriteString("\n")
-			charOffset += utf16Len(strippedContent + "\n")
-
+			blockEnd := startOffset
 			bulletPreset := bulletPresetDisc
 			if el.Type == MDNumberedList {
 				bulletPreset = bulletPresetNumbered
 			}
+			blockType := el.Type
+			var listPresetRequests []*docs.Request
+			var listStyleRequests []*docs.Request
+
+			for ; i < len(elements); i++ {
+				el = elements[i]
+				if el.Type != MDListItem && el.Type != MDNumberedList {
+					i--
+					break
+				}
+				if el.Type != blockType && el.Level == 0 {
+					i--
+					break
+				}
+
+				styles, strippedContent := ParseInlineFormatting(el.Content)
+				leadingTabs := strings.Repeat("\t", el.Level)
+				itemStart := charOffset
+				itemEnd := itemStart + utf16Len(strippedContent+"\n")
+
+				if debugMarkdown {
+					fmt.Printf("[LIST] Content: %q -> stripped=%q styles=%d\n", el.Content, strippedContent, len(styles))
+				}
+
+				// Emit list items as bare paragraphs with leading tabs for
+				// nesting, then promote the whole contiguous list block to a
+				// native Google Docs list. Keeping the range whole is what
+				// preserves Docs nesting levels; mixed child marker kinds get a
+				// later preset override using post-tab-removal item ranges.
+				// CreateParagraphBullets consumes those tabs, so inline styles
+				// below use post-consumption itemStart offsets.
+				listText := leadingTabs + strippedContent + "\n"
+				plainText.WriteString(listText)
+				blockEnd += utf16Len(listText)
+
+				if el.Type != blockType {
+					itemPreset := bulletPresetDisc
+					if el.Type == MDNumberedList {
+						itemPreset = bulletPresetNumbered
+					}
+					listPresetRequests = append(listPresetRequests, &docs.Request{
+						CreateParagraphBullets: &docs.CreateParagraphBulletsRequest{
+							Range: &docs.Range{
+								StartIndex: itemStart,
+								EndIndex:   itemEnd,
+								TabId:      tabID,
+							},
+							BulletPreset: itemPreset,
+						},
+					})
+				}
+
+				for _, style := range styles {
+					textStyleReq := buildTextStyleRequest(style, itemStart, tabID)
+					if textStyleReq != nil {
+						listStyleRequests = append(listStyleRequests, textStyleReq)
+					}
+				}
+				charOffset = itemEnd
+			}
+
 			requests = append(requests, &docs.Request{
 				CreateParagraphBullets: &docs.CreateParagraphBulletsRequest{
 					Range: &docs.Range{
 						StartIndex: startOffset,
-						EndIndex:   charOffset,
+						EndIndex:   blockEnd,
 						TabId:      tabID,
 					},
 					BulletPreset: bulletPreset,
 				},
 			})
-
-			// Apply inline text styles (no prefix offset now that the bullet
-			// glyph comes from the paragraph style rather than the text run).
-			for _, style := range styles {
-				textStyleReq := buildTextStyleRequest(style, startOffset, tabID)
-				if textStyleReq != nil {
-					requests = append(requests, textStyleReq)
-				}
-			}
+			requests = append(requests, listPresetRequests...)
+			requests = append(requests, listStyleRequests...)
 
 		case MDHorizontalRule:
 			// Add horizontal rule as a separator line using ASCII dashes

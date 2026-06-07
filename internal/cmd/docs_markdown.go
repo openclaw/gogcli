@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"regexp"
+	"sort"
 	"strings"
 	"unicode"
 	"unicode/utf16"
@@ -76,12 +77,16 @@ func ParseMarkdown(text string) []MarkdownElement {
 
 	inCodeBlock := false
 	var codeBlockContent strings.Builder
+	var listIndents []int
+	listActive := false
 
 	for i := 0; i < len(lines); i++ {
 		line := lines[i]
 
 		// Handle code blocks
 		if strings.HasPrefix(line, "```") {
+			listIndents = nil
+			listActive = false
 			if inCodeBlock {
 				// End code block
 				elements = append(elements, MarkdownElement{
@@ -107,6 +112,8 @@ func ParseMarkdown(text string) []MarkdownElement {
 
 		// Empty line
 		if strings.TrimSpace(line) == "" {
+			listIndents = nil
+			listActive = false
 			if len(elements) > 0 && elements[len(elements)-1].Type != MDEmptyLine {
 				elements = append(elements, MarkdownElement{Type: MDEmptyLine})
 			}
@@ -115,6 +122,8 @@ func ParseMarkdown(text string) []MarkdownElement {
 
 		// Horizontal rule
 		if isHorizontalRule(line) {
+			listIndents = nil
+			listActive = false
 			elements = append(elements, MarkdownElement{
 				Type: MDHorizontalRule,
 			})
@@ -123,6 +132,8 @@ func ParseMarkdown(text string) []MarkdownElement {
 
 		// Headings
 		if headingLevel, content := parseHeading(line); headingLevel > 0 {
+			listIndents = nil
+			listActive = false
 			headingType := MDHeading1
 			switch headingLevel {
 			case 1:
@@ -147,6 +158,8 @@ func ParseMarkdown(text string) []MarkdownElement {
 
 		// Blockquote
 		if strings.HasPrefix(line, "> ") {
+			listIndents = nil
+			listActive = false
 			content := strings.TrimPrefix(line, "> ")
 			if debugMarkdown {
 				fmt.Printf("[PARSE] Blockquote detected: %q -> %q\n", line, content)
@@ -158,22 +171,18 @@ func ParseMarkdown(text string) []MarkdownElement {
 			continue
 		}
 
-		// Numbered list
-		if match := regexp.MustCompile(`^(\d+)\.\s+(.+)`).FindStringSubmatch(line); match != nil {
+		// Lists, including tab-scoped markdown nesting. The Docs API derives
+		// nesting from leading tabs after CreateParagraphBullets is applied.
+		if listType, content, indent, ok := parseMarkdownListItem(line); ok && (indent == 0 || listActive) {
+			if indent == 0 {
+				listIndents = nil
+			}
 			elements = append(elements, MarkdownElement{
-				Type:    MDNumberedList,
-				Content: match[2],
-			})
-			continue
-		}
-
-		// Bullet list
-		if strings.HasPrefix(line, "- ") || strings.HasPrefix(line, "* ") {
-			content := strings.TrimPrefix(strings.TrimPrefix(line, "- "), "* ")
-			elements = append(elements, MarkdownElement{
-				Type:    MDListItem,
+				Type:    listType,
 				Content: content,
+				Level:   markdownListLevel(indent, &listIndents),
 			})
+			listActive = true
 			continue
 		}
 
@@ -196,6 +205,8 @@ func ParseMarkdown(text string) []MarkdownElement {
 					Type:       MDTable,
 					TableCells: tableCells,
 				})
+				listIndents = nil
+				listActive = false
 				// Skip all table lines
 				i += countMarkdownTableLines(lines[i:]) - 1
 				continue
@@ -203,6 +214,8 @@ func ParseMarkdown(text string) []MarkdownElement {
 		}
 
 		// Regular paragraph
+		listIndents = nil
+		listActive = false
 		elements = append(elements, MarkdownElement{
 			Type:    MDParagraph,
 			Content: line,
@@ -214,6 +227,56 @@ func ParseMarkdown(text string) []MarkdownElement {
 	}
 
 	return elements
+}
+
+var markdownNumberedListRE = regexp.MustCompile(`^(\d+)\.\s+(.+)`)
+
+func parseMarkdownListItem(line string) (MarkdownElementType, string, int, bool) {
+	indent, rest := markdownListIndentColumns(line)
+	if match := markdownNumberedListRE.FindStringSubmatch(rest); match != nil {
+		return MDNumberedList, match[2], indent, true
+	}
+	if strings.HasPrefix(rest, "- ") || strings.HasPrefix(rest, "* ") {
+		return MDListItem, rest[2:], indent, true
+	}
+	return MDText, "", 0, false
+}
+
+func markdownListIndentColumns(line string) (int, string) {
+	column := 0
+	i := 0
+	for i < len(line) {
+		switch line[i] {
+		case ' ':
+			column++
+			i++
+		case '\t':
+			column += 4 - column%4
+			i++
+		default:
+			return column, line[i:]
+		}
+	}
+	return column, ""
+}
+
+func markdownListLevel(indent int, indents *[]int) int {
+	if indent <= 0 {
+		return 0
+	}
+	for i, seen := range *indents {
+		if seen == indent {
+			return i + 1
+		}
+	}
+	*indents = append(*indents, indent)
+	sort.Ints(*indents)
+	for i, seen := range *indents {
+		if seen == indent {
+			return i + 1
+		}
+	}
+	return len(*indents)
 }
 
 // isTableSeparator checks if a line is a markdown table separator (|---|---|)
