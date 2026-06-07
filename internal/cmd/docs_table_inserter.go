@@ -78,12 +78,12 @@ func (ti *TableInserter) InsertNativeTable(ctx context.Context, tableIndex int64
 	}
 
 	// Step 4: Collect all per-cell requests grouped by cell, sort descending by
-	// cellIdx, submit as ONE batchUpdate. Reverse-document-order processing
-	// inside a single batchUpdate is the canonical pattern for "insert at many
-	// positions without manual offset bookkeeping" — earlier (lower-index)
-	// cell positions remain valid even as the API processes later (higher-
-	// index) inserts first. See #699 for the wire-call collapse this enables
-	// (was: 1 batchUpdate per cell; now: 1 batchUpdate for the whole table).
+	// cellIdx, submit as capped batchUpdate chunks. Reverse-document-order
+	// processing is the canonical pattern for "insert at many positions without
+	// manual offset bookkeeping" — earlier (lower-index) cell positions remain
+	// valid even as the API processes later (higher-index) inserts first. See
+	// #699 for the wire-call collapse this enables (was: 1 batchUpdate per cell;
+	// now: usually 1 capped cell-content batch for the whole table).
 	//
 	// Each cell's request group keeps its InsertText-then-style ordering so
 	// the style ranges resolve against the just-inserted text.
@@ -120,9 +120,7 @@ func (ti *TableInserter) InsertNativeTable(ctx context.Context, tableIndex int64
 		for _, g := range groups {
 			allReqs = append(allReqs, g.requests...)
 		}
-		_, err := ti.svc.Documents.BatchUpdate(ti.docID, &docs.BatchUpdateDocumentRequest{
-			Requests: allReqs,
-		}).Context(ctx).Do()
+		_, err := submitBatchedDocsRequests(ctx, ti.svc, ti.docID, allReqs, nil)
 		if err != nil {
 			return tableEndIndex, fmt.Errorf("insert cell content: %w", err)
 		}

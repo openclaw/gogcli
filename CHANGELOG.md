@@ -10,6 +10,7 @@
 
 ### Fixed
 
+- Docs: batch table-cell writes for `docs write --tab --markdown` to avoid per-cell Docs API quota bursts on table-heavy documents. (#699) — thanks @sebsnyk.
 - Gmail: preserve existing `gmail drafts update` attachments when `--attach` is omitted, add `--clear-attachments` for intentional removal, and keep `--attach` as explicit replacement. (#680, #681) — thanks @chrischall.
 
 ## 0.21.0 - 2026-06-01

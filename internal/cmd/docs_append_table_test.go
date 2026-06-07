@@ -245,6 +245,39 @@ func TestInsertDocsMarkdownAt_AppendsTable_IssueRepro(t *testing.T) {
 	}
 }
 
+func TestInsertNativeTableChunksLargeCellBatch(t *testing.T) {
+	svc, fake := newFakeDocsTableSvc(t, "Existing\n", 0)
+
+	cols := docsBatchUpdateRequestCap/2 + 1
+	cells := make([][]string, 1)
+	cells[0] = make([]string, cols)
+	for i := range cells[0] {
+		cells[0][i] = "header"
+	}
+
+	tableEnd, err := NewTableInserter(svc, "doc1").InsertNativeTable(context.Background(), 9, cells, "")
+	if err != nil {
+		t.Fatalf("InsertNativeTable: %v", err)
+	}
+	if tableEnd <= 9 {
+		t.Fatalf("expected table end to advance, got %d", tableEnd)
+	}
+	if len(fake.batchCalls) != 3 {
+		t.Fatalf("expected table insert plus two cell-content chunks, got %d", len(fake.batchCalls))
+	}
+	if len(fake.batchCalls[1]) != docsBatchUpdateRequestCap {
+		t.Fatalf("first cell chunk has %d requests, want %d", len(fake.batchCalls[1]), docsBatchUpdateRequestCap)
+	}
+	if len(fake.batchCalls[2]) != 2 {
+		t.Fatalf("second cell chunk has %d requests, want 2", len(fake.batchCalls[2]))
+	}
+	for i, batch := range fake.batchCalls {
+		if len(batch) > docsBatchUpdateRequestCap {
+			t.Fatalf("batch %d exceeded cap: %d", i, len(batch))
+		}
+	}
+}
+
 // TestInsertDocsMarkdownAt_AppendsTableWithLeadingParagraph covers the mixed
 // case from the issue: prose followed by a trailing table. Prior to the fix
 // the table was silently dropped while the prose appended successfully.
