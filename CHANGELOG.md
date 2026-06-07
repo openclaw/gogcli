@@ -27,6 +27,7 @@
 - Docs: add `--code` to `docs format` and plain-text `docs write` for the existing monospace grey code style. (#685) — thanks @sebsnyk.
 - Drive/Docs: add `--since` to `drive comments list` and `docs comments list` for server-side comment modified-time filtering. (#688) — thanks @sebsnyk.
 - Gmail: add `--thread-id` to `gmail drafts create` and `gmail drafts update` so drafts can reply within a thread using the latest message headers. (#673, #674) — thanks @chrischall.
+- Gmail watch: add Pub/Sub pull delivery through `gog gmail watch pull` / `gog gmail settings watch pull`, so local agents can consume Gmail notifications without public HTTP ingress. (#700)
 
 ### Fixed
 
@@ -36,6 +37,7 @@
 - Docs: render GFM `~~strikethrough~~` spans in the local markdown writer used by `docs write --tab --markdown`. (#702)
 - Docs: batch table-cell writes for `docs write --tab --markdown` to avoid per-cell Docs API quota bursts on table-heavy documents. (#699) — thanks @sebsnyk.
 - Gmail: preserve existing `gmail drafts update` attachments when `--attach` is omitted, add `--clear-attachments` for intentional removal, and keep `--attach` as explicit replacement. (#680, #681) — thanks @chrischall.
+- Gmail watch: make downstream hook failures retryable for push and pull by preserving the pre-hook watch cursor and returning a Pub/Sub delivery failure instead of acknowledging a notification that the downstream agent never received. (#700)
 
 ## 0.21.0 - 2026-06-01
 

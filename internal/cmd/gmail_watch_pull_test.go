@@ -233,6 +233,43 @@ func TestGmailWatchPullMessage_NacksHookFailureAndPreservesProgress(t *testing.T
 	}
 }
 
+func TestGmailWatchPullMessage_RetriesHookFailureThenAcksSuccess(t *testing.T) {
+	server, hook, cleanup := newPullProcessorTestServer(t, http.StatusOK)
+	defer cleanup()
+
+	hookStatus := http.StatusInternalServerError
+	hookRequests := 0
+	hook.Config.Handler = http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		hookRequests++
+		w.WriteHeader(hookStatus)
+	})
+
+	first, firstState := trackedPullMessage("m1", []byte(`{"emailAddress":"a@b.com","historyId":"200"}`))
+	server.handlePullMessage(context.Background(), first)
+	if firstState.acked || !firstState.nacked {
+		t.Fatalf("first delivery ack=%v nack=%v", firstState.acked, firstState.nacked)
+	}
+	if historyID := server.store.Get().HistoryID; historyID != "100" {
+		t.Fatalf("history id after failure = %q", historyID)
+	}
+
+	hookStatus = http.StatusNoContent
+	second, secondState := trackedPullMessage("m1", []byte(`{"emailAddress":"a@b.com","historyId":"200"}`))
+	server.handlePullMessage(context.Background(), second)
+	if !secondState.acked || secondState.nacked {
+		t.Fatalf("second delivery ack=%v nack=%v", secondState.acked, secondState.nacked)
+	}
+	if status := server.store.Get().LastDeliveryStatus; status != "ok" {
+		t.Fatalf("delivery status after retry = %q", status)
+	}
+	if historyID := server.store.Get().HistoryID; historyID != "200" {
+		t.Fatalf("history id after retry = %q", historyID)
+	}
+	if hookRequests != 2 {
+		t.Fatalf("hook requests = %d", hookRequests)
+	}
+}
+
 func TestGmailWatchPullMessage_NacksGmailFailure(t *testing.T) {
 	server, _, cleanup := newPullProcessorTestServer(t, http.StatusInternalServerError)
 	defer cleanup()

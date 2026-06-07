@@ -16,7 +16,8 @@ Two delivery modes are supported:
   machine. This is the preferred local-agent shape because Google does not need
   an inbound HTTP route to the machine running `gog`.
 - Push: `gog gmail watch serve` exposes an HTTP handler for Pub/Sub push. Use it
-  when you intentionally operate a reachable HTTPS endpoint.
+  when you intentionally operate a reachable HTTPS endpoint. Push and pull share
+  the same downstream hook delivery policy.
 
 ## Quick start
 
@@ -185,8 +186,14 @@ Fallback (dev only):
 Pull delivery does not expose a public HTTP receiver. The local `gog` process
 must have Google credentials for:
 
-- Gmail history reads for the watched account.
-- Pub/Sub subscriber access on the configured subscription.
+- Gmail history reads for the watched account. These use the normal stored
+  `gog` Gmail OAuth account selected by `--account` / `--client`.
+- Pub/Sub subscriber access on the configured subscription. These use the
+  Google Cloud client library credential chain, for example Application Default
+  Credentials or `GOOGLE_APPLICATION_CREDENTIALS`, not the stored Gmail OAuth
+  token. The credential must be able to consume the subscription; granting
+  `roles/pubsub.subscriber` on the subscription is the usual least-privilege
+  shape.
 
 The downstream hook token is still local to the hook call from `gog` to the
 configured `--hook-url`.
@@ -202,6 +209,15 @@ configured `--hook-url`.
   the pre-hook watch cursor, and returns a delivery failure to Pub/Sub. This
   lets Pub/Sub redeliver the notification after the downstream agent or gateway
   comes back.
+- This is an intentional reliability change for existing push deployments.
+  Older `watch serve` behavior acknowledged hook failures to avoid replay
+  storms, but that could silently lose Gmail wakeups when the downstream
+  OpenClaw gateway or agent was temporarily down. The supported behavior is now
+  delivery-before-cursor-advance for both push and pull: push returns non-2xx on
+  hook failure and pull nacks the message.
+- Pub/Sub may retry the same notification until the hook succeeds or until the
+  subscription's retry/dead-letter policy takes over. Hook receivers should be
+  safe to call more than once for the same Gmail history notification.
 - This retry policy is intended for normal Gmail notification volumes. If you
   are processing very high mail rates, for example 1000 messages per minute, run
   your own monitoring, alerting, backlog policy, and dead-letter/backpressure
