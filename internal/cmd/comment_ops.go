@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"google.golang.org/api/drive/v3"
 	gapi "google.golang.org/api/googleapi"
@@ -61,6 +62,7 @@ type driveCommentListOptions struct {
 	includeQuoted   bool
 	scanForOpen     bool
 	page            string
+	since           string
 	all             bool
 	failEmpty       bool
 	max             int64
@@ -70,7 +72,7 @@ type driveCommentListOptions struct {
 
 func listDriveComments(ctx context.Context, svc *drive.Service, fileID string, opts driveCommentListOptions) ([]*drive.Comment, string, error) {
 	fetch := func(pageToken string) ([]*drive.Comment, string, error) {
-		return fetchDriveCommentsPage(ctx, svc, fileID, opts.max, pageToken, driveCommentFieldsForList(opts))
+		return fetchDriveCommentsPage(ctx, svc, fileID, opts.max, pageToken, opts.since, driveCommentFieldsForList(opts))
 	}
 
 	if opts.all {
@@ -106,7 +108,7 @@ func listDriveComments(ctx context.Context, svc *drive.Service, fileID string, o
 	}
 }
 
-func fetchDriveCommentsPage(ctx context.Context, svc *drive.Service, fileID string, pageSize int64, pageToken string, commentFields string) ([]*drive.Comment, string, error) {
+func fetchDriveCommentsPage(ctx context.Context, svc *drive.Service, fileID string, pageSize int64, pageToken string, since string, commentFields string) ([]*drive.Comment, string, error) {
 	call := svc.Comments.List(fileID).
 		IncludeDeleted(false).
 		PageSize(pageSize).
@@ -115,11 +117,26 @@ func fetchDriveCommentsPage(ctx context.Context, svc *drive.Service, fileID stri
 	if strings.TrimSpace(pageToken) != "" {
 		call = call.PageToken(pageToken)
 	}
+	if strings.TrimSpace(since) != "" {
+		call = call.StartModifiedTime(since)
+	}
 	resp, err := call.Do()
 	if err != nil {
 		return nil, "", err
 	}
 	return resp.Comments, resp.NextPageToken, nil
+}
+
+func normalizeDriveCommentSince(raw string) (string, error) {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return "", nil
+	}
+	parsed, err := time.Parse(time.RFC3339Nano, trimmed)
+	if err != nil {
+		return "", usagef("invalid --since %q (expected RFC3339 timestamp with timezone)", raw)
+	}
+	return parsed.Format(time.RFC3339Nano), nil
 }
 
 func driveCommentFieldsForList(opts driveCommentListOptions) string {

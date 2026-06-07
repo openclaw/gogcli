@@ -28,6 +28,7 @@ type DocsCommentsListCmd struct {
 	Page            string `name:"page" aliases:"cursor" help:"Page token for pagination"`
 	All             bool   `name:"all" aliases:"all-pages" help:"Fetch all pages"`
 	FailEmpty       bool   `name:"fail-empty" aliases:"non-empty,require-results" help:"Exit with code 3 if no results"`
+	Since           string `name:"since" help:"Only return comments modified at or after this RFC3339 timestamp"`
 }
 
 func (c *DocsCommentsListCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -38,6 +39,10 @@ func (c *DocsCommentsListCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 	if c.Max <= 0 {
 		return usage("max must be > 0")
+	}
+	since, err := normalizeDriveCommentSince(c.Since)
+	if err != nil {
+		return err
 	}
 
 	_, svc, err := requireDriveService(ctx, flags)
@@ -50,6 +55,7 @@ func (c *DocsCommentsListCmd) Run(ctx context.Context, flags *RootFlags) error {
 		includeResolved: c.IncludeResolved,
 		scanForOpen:     true,
 		page:            c.Page,
+		since:           since,
 		all:             c.All,
 		failEmpty:       c.FailEmpty,
 		max:             c.Max,

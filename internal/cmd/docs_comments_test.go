@@ -57,6 +57,26 @@ func newCommentsTestServer(t *testing.T) *httptest.Server {
 			})
 			return
 
+		// List comments with modified-time filter.
+		case r.Method == http.MethodGet && path == "/files/doc-since/comments":
+			if r.URL.Query().Get("startModifiedTime") != "2026-06-04T10:00:00Z" {
+				t.Fatalf("expected startModifiedTime, got: %q", r.URL.RawQuery)
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"comments": []map[string]any{
+					{
+						"id":           "c-since",
+						"author":       map[string]any{"displayName": "Alice"},
+						"content":      "Fresh",
+						"createdTime":  "2026-06-04T10:00:01Z",
+						"modifiedTime": "2026-06-04T10:00:01Z",
+						"resolved":     false,
+					},
+				},
+			})
+			return
+
 		// List comments: first page has only resolved, second page has open.
 		case r.Method == http.MethodGet && path == "/files/scan/comments":
 			w.Header().Set("Content-Type", "application/json")
@@ -241,6 +261,30 @@ func TestDocsCommentsList_IncludeResolved(t *testing.T) {
 	}
 	if len(parsed.Comments) != 2 {
 		t.Fatalf("expected 2 comments with --include-resolved, got %d", len(parsed.Comments))
+	}
+}
+
+func TestDocsCommentsList_Since(t *testing.T) {
+	srv := newCommentsTestServer(t)
+	defer srv.Close()
+	setupDriveServiceFromServer(t, srv)
+
+	jsonOut := captureStdout(t, func() {
+		_ = captureStderr(t, func() {
+			if err := Execute([]string{"--json", "--account", "a@b.com", "docs", "comments", "list", "--since", "2026-06-04T10:00:00Z", "doc-since"}); err != nil {
+				t.Fatalf("Execute: %v", err)
+			}
+		})
+	})
+
+	var parsed struct {
+		Comments []*drive.Comment `json:"comments"`
+	}
+	if err := json.Unmarshal([]byte(jsonOut), &parsed); err != nil {
+		t.Fatalf("json parse: %v\nout=%q", err, jsonOut)
+	}
+	if len(parsed.Comments) != 1 || parsed.Comments[0].Id != "c-since" {
+		t.Fatalf("unexpected comments: %#v", parsed.Comments)
 	}
 }
 
@@ -524,6 +568,9 @@ func TestDocsComments_ValidationErrors(t *testing.T) {
 
 	if err := (&DocsCommentsListCmd{}).Run(ctx, flags); err == nil {
 		t.Fatal("expected list missing docId error")
+	}
+	if err := (&DocsCommentsListCmd{DocID: "d1", Max: 1, Since: "2026-06-04T10:00:00"}).Run(ctx, flags); err == nil {
+		t.Fatal("expected list invalid since error")
 	}
 	if err := (&DocsCommentsGetCmd{}).Run(ctx, flags); err == nil {
 		t.Fatal("expected get missing docId error")

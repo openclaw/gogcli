@@ -27,6 +27,7 @@ type DocsFormatFlags struct {
 	FontSize      float64 `name:"font-size" help:"Font size in points"`
 	TextColor     string  `name:"text-color" help:"Text color as #RRGGBB or #RGB"`
 	BgColor       string  `name:"bg-color" help:"Text background color as #RRGGBB or #RGB"`
+	Code          bool    `name:"code" help:"Apply code style (Courier New + grey background)"`
 	Bold          bool    `name:"bold" help:"Set bold"`
 	NoBold        bool    `name:"no-bold" help:"Clear bold"`
 	Italic        bool    `name:"italic" help:"Set italic"`
@@ -86,6 +87,7 @@ func (c *DocsFormatCmd) Run(ctx context.Context, flags *RootFlags) error {
 			"font_size":     c.Format.FontSize,
 			"text_color":    c.Format.TextColor,
 			"bg_color":      c.Format.BgColor,
+			"code":          c.Format.Code,
 			"bold":          c.Format.Bold,
 			"no_bold":       c.Format.NoBold,
 			"italic":        c.Format.Italic,
@@ -218,6 +220,7 @@ func (f DocsFormatFlags) any() bool {
 		f.FontSize != 0 ||
 		strings.TrimSpace(f.TextColor) != "" ||
 		strings.TrimSpace(f.BgColor) != "" ||
+		f.Code ||
 		f.Bold || f.NoBold ||
 		f.Italic || f.NoItalic ||
 		f.Underline || f.NoUnderline ||
@@ -257,6 +260,17 @@ func (f DocsFormatFlags) buildTextStyleRequest(start, end int64, tabID string) (
 	style := &docs.TextStyle{}
 	var fields []string
 
+	if f.Code {
+		if strings.TrimSpace(f.FontFamily) != "" {
+			return nil, false, usage("--code cannot be combined with --font-family")
+		}
+		if strings.TrimSpace(f.BgColor) != "" {
+			return nil, false, usage("--code cannot be combined with --bg-color")
+		}
+		style.WeightedFontFamily = &docs.WeightedFontFamily{FontFamily: "Courier New"}
+		style.BackgroundColor = greyColor(codeBackgroundGrey)
+		fields = append(fields, "weightedFontFamily", "backgroundColor")
+	}
 	if font := strings.TrimSpace(f.FontFamily); font != "" {
 		style.WeightedFontFamily = &docs.WeightedFontFamily{FontFamily: font}
 		fields = append(fields, "weightedFontFamily")
