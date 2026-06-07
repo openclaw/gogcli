@@ -2,6 +2,10 @@
 
 ## 0.22.1 - Unreleased
 
+### Added
+
+- Chat: add repeatable `--attach` to `chat messages send` for sending local files with Google Chat messages. (#694) — thanks @omothm.
+
 ## 0.22.0 - 2026-06-07
 
 ### Added
