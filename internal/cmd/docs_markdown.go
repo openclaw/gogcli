@@ -48,12 +48,13 @@ type MarkdownElement struct {
 
 // TextStyle represents text formatting
 type TextStyle struct {
-	Bold   bool
-	Italic bool
-	Code   bool
-	Link   string
-	Start  int64
-	End    int64
+	Bold          bool
+	Italic        bool
+	Strikethrough bool
+	Code          bool
+	Link          string
+	Start         int64
+	End           int64
 }
 
 // ParagraphStyle represents paragraph-level formatting
@@ -423,17 +424,18 @@ func parseInlineSegment(text string) (string, []TextStyle) {
 			}
 		}
 
-		if marker, bold, italic, ok := inlineMarkerAt(text, i); ok {
+		if marker, bold, italic, strikethrough, ok := inlineMarkerAt(text, i); ok {
 			searchFrom := i + len(marker)
 			if end := findClosingInlineMarker(text, searchFrom, marker); end >= 0 && end > searchFrom {
 				content, nestedStyles := parseInlineSegment(text[searchFrom:end])
 				start := utf16Len(stripped.String())
 				stripped.WriteString(content)
 				styles = append(styles, TextStyle{
-					Start:  start,
-					End:    start + utf16Len(content),
-					Bold:   bold,
-					Italic: italic,
+					Start:         start,
+					End:           start + utf16Len(content),
+					Bold:          bold,
+					Italic:        italic,
+					Strikethrough: strikethrough,
 				})
 				styles = appendShiftedStyles(styles, nestedStyles, start)
 				i = end + len(marker)
@@ -501,24 +503,41 @@ func appendShiftedStyles(styles []TextStyle, nested []TextStyle, offset int64) [
 	return styles
 }
 
-func inlineMarkerAt(text string, i int) (marker string, bold bool, italic bool, ok bool) {
-	for _, candidate := range []string{"***", "___", "**", "__", "*", "_"} {
+func inlineMarkerAt(text string, i int) (marker string, bold bool, italic bool, strikethrough bool, ok bool) {
+	for _, candidate := range []string{"***", "___", "**", "__", "~~", "*", "_"} {
 		if !strings.HasPrefix(text[i:], candidate) {
 			continue
 		}
 		if candidate[0] == '_' && !isUnderscoreOpeningDelimiter(text, i, len(candidate)) {
-			return "", false, false, false
+			return "", false, false, false, false
+		}
+		if candidate == "~~" {
+			if i > 0 && text[i-1] == '~' {
+				return "", false, false, false, false
+			}
+			if tildeRunLenAt(text, i) != len(candidate) {
+				return "", false, false, false, false
+			}
+			return candidate, false, false, true, true
 		}
 		switch len(candidate) {
 		case 3:
-			return candidate, true, true, true
+			return candidate, true, true, false, true
 		case 2:
-			return candidate, true, false, true
+			return candidate, true, false, false, true
 		default:
-			return candidate, false, true, true
+			return candidate, false, true, false, true
 		}
 	}
-	return "", false, false, false
+	return "", false, false, false, false
+}
+
+func tildeRunLenAt(text string, i int) int {
+	runEnd := i
+	for runEnd < len(text) && text[runEnd] == '~' {
+		runEnd++
+	}
+	return runEnd - i
 }
 
 func findClosingInlineMarker(text string, searchFrom int, marker string) int {
@@ -552,6 +571,9 @@ func closingInlineMarkerInRun(text string, searchFrom int, i int, marker string)
 	markerLen := len(marker)
 	if runLen < markerLen {
 		return 0, runEnd, false
+	}
+	if marker == "~~" {
+		return i, runEnd, runLen == markerLen
 	}
 
 	if markerLen == 1 {

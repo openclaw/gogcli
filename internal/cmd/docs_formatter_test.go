@@ -43,6 +43,38 @@ func TestMarkdownToDocsRequests_TableStartIndexUsesBase(t *testing.T) {
 	}
 }
 
+func TestMarkdownToDocsRequests_Strikethrough(t *testing.T) {
+	elements := []MarkdownElement{{Type: MDParagraph, Content: "~~struck out~~ vs **bold**"}}
+	requests, text, tables := MarkdownToDocsRequests(elements, 10, "t.second")
+
+	if text != "struck out vs bold\n" {
+		t.Fatalf("unexpected text: %q", text)
+	}
+	if len(tables) != 0 {
+		t.Fatalf("unexpected tables: %d", len(tables))
+	}
+
+	var sawStrike bool
+	for _, req := range requests {
+		if req.UpdateTextStyle == nil || req.UpdateTextStyle.TextStyle == nil {
+			continue
+		}
+		if !req.UpdateTextStyle.TextStyle.Strikethrough {
+			continue
+		}
+		sawStrike = true
+		if req.UpdateTextStyle.Fields != "strikethrough" {
+			t.Fatalf("unexpected strikethrough fields: %q", req.UpdateTextStyle.Fields)
+		}
+		if got := req.UpdateTextStyle.Range; got.StartIndex != 10 || got.EndIndex != 20 || got.TabId != "t.second" {
+			t.Fatalf("unexpected strikethrough range: %#v", got)
+		}
+	}
+	if !sawStrike {
+		t.Fatalf("missing strikethrough request: %#v", requests)
+	}
+}
+
 // TestMarkdownToDocsRequests_AppendBulletsAndCode is a regression test for
 // #594. The append path used to inline literal "• " glyphs for bullet lists
 // (leaving paragraphs as NORMAL_TEXT) and split fenced code blocks into one

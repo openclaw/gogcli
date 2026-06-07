@@ -333,6 +333,10 @@ func buildTextStyleRequest(style TextStyle, baseOffset int64, tabID string) *doc
 		textStyle.Italic = true
 		fields = append(fields, "italic")
 	}
+	if style.Strikethrough {
+		textStyle.Strikethrough = true
+		fields = append(fields, "strikethrough")
+	}
 	if style.Code {
 		textStyle.WeightedFontFamily = &docs.WeightedFontFamily{
 			FontFamily: "Courier New",

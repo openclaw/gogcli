@@ -10,6 +10,7 @@
 
 ### Fixed
 
+- Docs: render GFM `~~strikethrough~~` spans in the local markdown writer used by `docs write --tab --markdown`. (#702)
 - Docs: batch table-cell writes for `docs write --tab --markdown` to avoid per-cell Docs API quota bursts on table-heavy documents. (#699) — thanks @sebsnyk.
 - Gmail: preserve existing `gmail drafts update` attachments when `--attach` is omitted, add `--clear-attachments` for intentional removal, and keep `--attach` as explicit replacement. (#680, #681) — thanks @chrischall.
 

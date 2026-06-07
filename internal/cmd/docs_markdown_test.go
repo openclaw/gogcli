@@ -146,6 +146,27 @@ func TestParseInlineFormatting_NestedAndUnderscoreStyles(t *testing.T) {
 	assertInlineStyle(t, text, styles, "both", true, true, false)
 }
 
+func TestParseInlineFormatting_Strikethrough(t *testing.T) {
+	styles, text := ParseInlineFormatting("~~struck out~~ vs **bold**")
+	if text != "struck out vs bold" {
+		t.Fatalf("text = %q", text)
+	}
+
+	assertInlineStrikethrough(t, text, styles, "struck out")
+	assertInlineStyle(t, text, styles, "bold", true, false, false)
+}
+
+func TestParseInlineFormatting_LongTildeRunsAreLiteral(t *testing.T) {
+	styles, text := ParseInlineFormatting("~~ok~~ and ~~~not~~~ and ~~~~also not~~~~")
+	if text != "ok and ~~~not~~~ and ~~~~also not~~~~" {
+		t.Fatalf("text = %q", text)
+	}
+	if len(styles) != 1 {
+		t.Fatalf("expected only the exact two-tilde span to format, got %#v", styles)
+	}
+	assertInlineStrikethrough(t, text, styles, "ok")
+}
+
 func TestParseInlineFormatting_ClosingMarkerIgnoresCodeSpan(t *testing.T) {
 	styles, text := ParseInlineFormatting("**Use `**` marker** and _keep `_` literal_")
 	if text != "Use ** marker and keep _ literal" {
@@ -259,11 +280,24 @@ func assertInlineStyle(t *testing.T, text string, styles []TextStyle, wantText s
 		if int(style.End) > len(text) {
 			continue
 		}
-		if text[style.Start:style.End] == wantText && style.Bold == bold && style.Italic == italic && style.Code == code {
+		if text[style.Start:style.End] == wantText && style.Bold == bold && style.Italic == italic && style.Code == code && !style.Strikethrough {
 			return
 		}
 	}
 	t.Fatalf("missing style text=%q bold=%v italic=%v code=%v in %#v", wantText, bold, italic, code, styles)
+}
+
+func assertInlineStrikethrough(t *testing.T, text string, styles []TextStyle, wantText string) {
+	t.Helper()
+	for _, style := range styles {
+		if int(style.End) > len(text) {
+			continue
+		}
+		if text[style.Start:style.End] == wantText && style.Strikethrough {
+			return
+		}
+	}
+	t.Fatalf("missing strikethrough text=%q in %#v", wantText, styles)
 }
 
 func assertInlineLink(t *testing.T, text string, styles []TextStyle, wantText string, wantURL string) {
