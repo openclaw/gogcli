@@ -4,6 +4,7 @@
 
 ### Added
 
+- Drive/Docs: add `--since` to `drive comments list` and `docs comments list` for server-side comment modified-time filtering. (#688) — thanks @sebsnyk.
 - Gmail: add `--thread-id` to `gmail drafts create` and `gmail drafts update` so drafts can reply within a thread using the latest message headers. (#673, #674) — thanks @chrischall.
 
 ### Fixed

@@ -31,6 +31,9 @@ func TestDriveCommentsListCmd_TextAndJSON(t *testing.T) {
 			if r.URL.Query().Get("pageToken") != "p1" {
 				t.Fatalf("expected pageToken=p1, got: %q", r.URL.RawQuery)
 			}
+			if r.URL.Query().Get("startModifiedTime") != "2026-06-04T10:00:00Z" {
+				t.Fatalf("expected startModifiedTime, got: %q", r.URL.RawQuery)
+			}
 			fields := r.URL.Query().Get("fields")
 			if !strings.Contains(fields, "quotedFileContent") {
 				t.Fatalf("expected quotedFileContent in fields, got: %q", fields)
@@ -82,7 +85,7 @@ func TestDriveCommentsListCmd_TextAndJSON(t *testing.T) {
 
 	textOut := captureStdout(t, func() {
 		cmd := &DriveCommentsListCmd{}
-		if execErr := runKong(t, cmd, []string{"--max", "1", "--page", "p1", "--include-quoted", "id1"}, ctx, flags); execErr != nil {
+		if execErr := runKong(t, cmd, []string{"--max", "1", "--page", "p1", "--since", "2026-06-04T10:00:00Z", "--include-quoted", "id1"}, ctx, flags); execErr != nil {
 			t.Fatalf("execute: %v", execErr)
 		}
 	})
@@ -103,7 +106,7 @@ func TestDriveCommentsListCmd_TextAndJSON(t *testing.T) {
 
 	jsonOut := captureStdout(t, func() {
 		cmd := &DriveCommentsListCmd{}
-		if execErr := runKong(t, cmd, []string{"--max", "1", "--page", "p1", "--include-quoted", "id1"}, ctx2, flags); execErr != nil {
+		if execErr := runKong(t, cmd, []string{"--max", "1", "--page", "p1", "--since", "2026-06-04T10:00:00Z", "--include-quoted", "id1"}, ctx2, flags); execErr != nil {
 			t.Fatalf("execute: %v", execErr)
 		}
 	})
