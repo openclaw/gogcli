@@ -25,6 +25,7 @@ gog docs (doc) write <docId> [flags]
 | `--bg-color` | `string` |  | Text background color as #RRGGBB or #RGB |
 | `--bold` | `bool` |  | Set bold |
 | `--client` | `string` |  | OAuth client name (selects stored credentials + token bucket) |
+| `--code` | `bool` |  | Apply code style (Courier New + grey background) |
 | `--color` | `string` | auto | Color output: auto\|always\|never |
 | `--disable-commands` | `string` |  | Comma-separated list of disabled commands; dot paths allowed |
 | `-n`<br>`--dry-run`<br>`--dryrun`<br>`--noop`<br>`--preview` | `bool` |  | Do not make changes; print intended actions and exit successfully |

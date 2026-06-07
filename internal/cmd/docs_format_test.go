@@ -67,6 +67,34 @@ func TestDocsFormatFlagsBuildRequests(t *testing.T) {
 	}
 }
 
+func TestDocsFormatFlagsBuildRequestsCode(t *testing.T) {
+	reqs, err := (DocsFormatFlags{Code: true}).buildRequests(3, 9, "t.second")
+	if err != nil {
+		t.Fatalf("buildRequests: %v", err)
+	}
+	if len(reqs) != 1 {
+		t.Fatalf("expected text request, got %d", len(reqs))
+	}
+	textReq := reqs[0].UpdateTextStyle
+	if textReq == nil {
+		t.Fatalf("missing text request: %#v", reqs[0])
+	}
+	if textReq.Fields != "weightedFontFamily,backgroundColor" {
+		t.Fatalf("unexpected text fields: %q", textReq.Fields)
+	}
+	style := textReq.TextStyle
+	if style.WeightedFontFamily == nil || style.WeightedFontFamily.FontFamily != "Courier New" {
+		t.Fatalf("unexpected code font: %#v", style.WeightedFontFamily)
+	}
+	rgb := style.BackgroundColor.Color.RgbColor
+	if rgb.Red != codeBackgroundGrey || rgb.Green != codeBackgroundGrey || rgb.Blue != codeBackgroundGrey {
+		t.Fatalf("unexpected code background: %#v", rgb)
+	}
+	if got := textReq.Range; got.StartIndex != 3 || got.EndIndex != 9 || got.TabId != "t.second" {
+		t.Fatalf("unexpected text range: %#v", got)
+	}
+}
+
 func TestDocsFormatFlagsValidation(t *testing.T) {
 	if _, err := (DocsFormatFlags{TextColor: "oops"}).buildRequests(1, 2, ""); err == nil {
 		t.Fatalf("expected invalid color error")
@@ -76,6 +104,12 @@ func TestDocsFormatFlagsValidation(t *testing.T) {
 	}
 	if _, err := (DocsFormatFlags{Alignment: "sideways"}).buildRequests(1, 2, ""); err == nil {
 		t.Fatalf("expected invalid alignment error")
+	}
+	if _, err := (DocsFormatFlags{Code: true, FontFamily: "Arial"}).buildRequests(1, 2, ""); err == nil {
+		t.Fatalf("expected conflicting code/font-family flags error")
+	}
+	if _, err := (DocsFormatFlags{Code: true, BgColor: "#fff"}).buildRequests(1, 2, ""); err == nil {
+		t.Fatalf("expected conflicting code/bg-color flags error")
 	}
 }
 
