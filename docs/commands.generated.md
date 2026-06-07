@@ -541,6 +541,7 @@ Generated from `gog schema --json`.
     - [`gog slides (slide) delete-slide <presentationId> <slideId>`](commands/gog-slides-delete-slide.md) - Delete a slide by object ID
     - [`gog slides (slide) export (download,dl) <presentationId> [flags]`](commands/gog-slides-export.md) - Export a Google Slides deck (pdf|pptx)
     - [`gog slides (slide) info (get,show) <presentationId>`](commands/gog-slides-info.md) - Get Google Slides presentation metadata
+    - [`gog slides (slide) insert-image --width=FLOAT-64 <presentationId> <slideId> <image> [flags]`](commands/gog-slides-insert-image.md) - Insert an image at a position and size on an existing slide
     - [`gog slides (slide) insert-text <presentationId> <objectId> <text> [flags]`](commands/gog-slides-insert-text.md) - Insert text into an existing page element (shape or table) by objectId
     - [`gog slides (slide) list-slides <presentationId>`](commands/gog-slides-list-slides.md) - List all slides with their object IDs
     - [`gog slides (slide) raw <presentationId> [flags]`](commands/gog-slides-raw.md) - Dump raw Google Slides API response as JSON (Presentations.Get; lossless; for scripting and LLM consumption)
