@@ -2,6 +2,10 @@
 
 ## 0.23.1 - Unreleased
 
+### Added
+
+- Gmail: add `gmail watch pull` for Pub/Sub pull subscription consumers with hook retry support. (#700) — thanks @joshp123.
+
 ## 0.23.0 - 2026-06-09
 
 ### Added

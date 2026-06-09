@@ -299,7 +299,7 @@ func (s *gmailWatchServer) processGmailWatchPayload(ctx context.Context, payload
 	if err := s.sendHook(ctx, result); err != nil {
 		s.warnf("watch: hook failed: %v", err)
 		processed.HookFailed = true
-		if restoreErr := s.restoreWatchProgressForRetry(progressBefore); restoreErr != nil {
+		if restoreErr := s.restoreWatchProgressForRetry(progressBefore, result.HistoryID, payload.MessageID); restoreErr != nil {
 			s.warnf("watch: failed to preserve retry state after hook failure: %v", restoreErr)
 		}
 		return processed, &gmailWatchHookDeliveryError{Err: err}
@@ -324,11 +324,17 @@ func (e *gmailWatchHookDeliveryError) Unwrap() error {
 	return e.Err
 }
 
-func (s *gmailWatchServer) restoreWatchProgressForRetry(before gmailWatchState) error {
+func (s *gmailWatchServer) restoreWatchProgressForRetry(before gmailWatchState, historyID, pushMessageID string) error {
 	if s.store == nil {
 		return nil
 	}
 	return s.store.Update(func(state *gmailWatchState) error {
+		if state.HistoryID != historyID {
+			return nil
+		}
+		if pushMessageID != "" && state.LastPushMessageID != pushMessageID {
+			return nil
+		}
 		state.HistoryID = before.HistoryID
 		state.LastPushMessageID = before.LastPushMessageID
 		return nil
