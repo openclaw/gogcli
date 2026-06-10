@@ -12,6 +12,7 @@ import (
 	"google.golang.org/api/docs/v1"
 
 	"github.com/steipete/gogcli/internal/outfmt"
+	"github.com/steipete/gogcli/internal/ui"
 )
 
 type docsNamedRangeRecorder struct {
@@ -260,6 +261,33 @@ func TestDocsNamedRangeTSVPreservesUnicodeAndLiteralCharacters(t *testing.T) {
 	want := `Résumé "quoted" C:\path\tline\nnext`
 	if got != want {
 		t.Fatalf("TSV value = %q, want %q", got, want)
+	}
+}
+
+func TestWriteDocsNamedRangeTextResultIsStableTSV(t *testing.T) {
+	ctx, out := newDocsCmdOutputContext(t)
+	ctx = outfmt.WithMode(ctx, outfmt.Mode{Plain: true})
+	writeDocsNamedRangeTextResult(ui.FromContext(ctx), "doc1", docsNamedRangeItem{
+		Name:         "Résumé\tline\nnext",
+		NamedRangeID: "nr1",
+		Ranges: []docsNamedRangeSpan{{
+			StartIndex: 2,
+			EndIndex:   5,
+			TabID:      "tab\t1",
+			SegmentID:  "header\n1",
+		}},
+	})
+	want := "" +
+		"documentId\tdoc1\n" +
+		"name\tRésumé\\tline\\nnext\n" +
+		"namedRangeId\tnr1\n" +
+		"rangeCount\t1\n" +
+		"range1StartIndex\t2\n" +
+		"range1EndIndex\t5\n" +
+		"range1TabId\ttab\\t1\n" +
+		"range1SegmentId\theader\\n1\n"
+	if got := out.String(); got != want {
+		t.Fatalf("output = %q, want %q", got, want)
 	}
 }
 

@@ -227,10 +227,15 @@ func (c *DocsNamedRangesCreateCmd) Run(ctx context.Context, kctx *kong.Context, 
 	if createdID == "" {
 		return fmt.Errorf("create named range: response missing namedRangeId")
 	}
-	return writeResult(ctx, ui.FromContext(ctx),
-		kv("documentId", docID),
-		kv("namedRange", docsNamedRangeItem{Name: name, NamedRangeID: createdID, Ranges: []docsNamedRangeSpan{span}}),
-	)
+	created := docsNamedRangeItem{Name: name, NamedRangeID: createdID, Ranges: []docsNamedRangeSpan{span}}
+	if outfmt.IsJSON(ctx) {
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
+			"documentId": docID,
+			"namedRange": created,
+		})
+	}
+	writeDocsNamedRangeTextResult(ui.FromContext(ctx), docID, created)
+	return nil
 }
 
 type DocsNamedRangesDeleteCmd struct {
@@ -280,10 +285,15 @@ func (c *DocsNamedRangesDeleteCmd) Run(ctx context.Context, flags *RootFlags) er
 	if err != nil {
 		return fmt.Errorf("delete named range: %w", err)
 	}
-	return writeResult(ctx, ui.FromContext(ctx),
-		kv("documentId", docID),
-		kv("deleted", map[string]any{"name": item.Name, "namedRangeId": item.NamedRangeID}),
-	)
+	if outfmt.IsJSON(ctx) {
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
+			"documentId": docID,
+			"deleted":    map[string]any{"name": item.Name, "namedRangeId": item.NamedRangeID},
+		})
+	}
+	writeDocsNamedRangeTextResult(ui.FromContext(ctx), docID, item)
+	ui.FromContext(ctx).Out().Linef("deleted\ttrue")
+	return nil
 }
 
 type DocsNamedRangesReplaceCmd struct {
@@ -364,12 +374,19 @@ func (c *DocsNamedRangesReplaceCmd) Run(ctx context.Context, kctx *kong.Context,
 	if !found {
 		return fmt.Errorf("replaced named range not found (id=%q)", item.NamedRangeID)
 	}
-	return writeResult(ctx, ui.FromContext(ctx),
-		kv("documentId", docID),
-		kv("namedRange", updatedItem),
-		kv("replaced", true),
-		kv("textLength", utf16Len(text)),
-	)
+	if outfmt.IsJSON(ctx) {
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
+			"documentId": docID,
+			"namedRange": updatedItem,
+			"replaced":   true,
+			"textLength": utf16Len(text),
+		})
+	}
+	u := ui.FromContext(ctx)
+	writeDocsNamedRangeTextResult(u, docID, updatedItem)
+	u.Out().Linef("replaced\ttrue")
+	u.Out().Linef("textLength\t%d", utf16Len(text))
+	return nil
 }
 
 type docsNamedRangeSpan struct {
@@ -515,4 +532,18 @@ func docsNamedRangeTSV(value string) string {
 		"\r", `\r`,
 		"\n", `\n`,
 	).Replace(value)
+}
+
+func writeDocsNamedRangeTextResult(u *ui.UI, docID string, item docsNamedRangeItem) {
+	u.Out().Linef("documentId\t%s", docsNamedRangeTSV(docID))
+	u.Out().Linef("name\t%s", docsNamedRangeTSV(item.Name))
+	u.Out().Linef("namedRangeId\t%s", docsNamedRangeTSV(item.NamedRangeID))
+	u.Out().Linef("rangeCount\t%d", len(item.Ranges))
+	for i, span := range item.Ranges {
+		prefix := fmt.Sprintf("range%d", i+1)
+		u.Out().Linef("%sStartIndex\t%d", prefix, span.StartIndex)
+		u.Out().Linef("%sEndIndex\t%d", prefix, span.EndIndex)
+		u.Out().Linef("%sTabId\t%s", prefix, docsNamedRangeTSV(span.TabID))
+		u.Out().Linef("%sSegmentId\t%s", prefix, docsNamedRangeTSV(span.SegmentID))
+	}
 }
