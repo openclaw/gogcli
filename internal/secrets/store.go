@@ -505,13 +505,13 @@ func (s *KeyringStore) setTokenNoLock(client string, email string, tok Token) er
 	}
 
 	if normalizedClient == config.DefaultClientName {
-		if err := verifiedSet(s.ring, legacyTokenKey(email), payload, "legacy token"); err != nil {
+		if err := verifiedSetAlias(s.ring, legacyTokenKey(email), payload, "legacy token"); err != nil {
 			return wrapKeychainError(fmt.Errorf("store legacy token: %w", err))
 		}
 	}
 
 	if tok.Subject != "" {
-		if err := verifiedSet(s.ring, subjectTokenKey(normalizedClient, tok.Subject), payload, "subject token"); err != nil {
+		if err := verifiedSetAlias(s.ring, subjectTokenKey(normalizedClient, tok.Subject), payload, "subject token"); err != nil {
 			return wrapKeychainError(fmt.Errorf("store subject token: %w", err))
 		}
 	}
@@ -1016,4 +1016,34 @@ func verifiedSet(ring keyring.Keyring, key string, data []byte, label string) er
 	}
 
 	return nil
+}
+
+func verifiedSetAlias(ring keyring.Keyring, key string, data []byte, label string) error {
+	if err := verifiedSet(ring, key, data, label); err != nil {
+		if !isDuplicateKeyringItemError(err) {
+			return err
+		}
+
+		if removeErr := ring.Remove(key); removeErr != nil && !errors.Is(removeErr, keyring.ErrKeyNotFound) {
+			return fmt.Errorf("replace duplicate %s: remove stale item: %w", label, removeErr)
+		}
+
+		if retryErr := verifiedSet(ring, key, data, label); retryErr != nil {
+			return fmt.Errorf("replace duplicate %s: %w", label, retryErr)
+		}
+	}
+
+	return nil
+}
+
+func isDuplicateKeyringItemError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	msg := strings.ToLower(err.Error())
+
+	return strings.Contains(msg, "-25299") ||
+		strings.Contains(msg, "errsecduplicateitem") ||
+		strings.Contains(msg, "specified item already exists")
 }

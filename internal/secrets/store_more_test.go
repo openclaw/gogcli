@@ -15,8 +15,9 @@ import (
 )
 
 var (
-	errTestKeychain = errors.New("test -25308 error")
-	errTestReadBack = errors.New("test read-back failure")
+	errTestDuplicateKeychain = errors.New("failed to update item in keychain: the specified item already exists in the keychain. (-25299)")
+	errTestKeychain          = errors.New("test -25308 error")
+	errTestReadBack          = errors.New("test read-back failure")
 )
 
 func TestKeyringStore_ListDeleteDefault(t *testing.T) {
@@ -321,6 +322,49 @@ func TestKeyringStoreTokenAccessTokenRoundTrip(t *testing.T) {
 	}
 }
 
+func TestKeyringStoreSetTokenRepairsDuplicateAliasWrites(t *testing.T) {
+	email := "a@b.com"
+	subject := "google-sub-123"
+	expires := time.Date(2026, 6, 9, 16, 0, 42, 0, time.UTC)
+	ring := &duplicateOnceKeyring{
+		ArrayKeyring: keyring.NewArrayKeyring(nil),
+		duplicateKeys: map[string]int{
+			legacyTokenKey(email):                              1,
+			subjectTokenKey(config.DefaultClientName, subject): 1,
+		},
+	}
+	store := &KeyringStore{ring: ring}
+
+	err := store.SetToken(config.DefaultClientName, email, Token{
+		Subject:              subject,
+		RefreshToken:         "rt",
+		AccessToken:          "at",
+		AccessTokenExpiresAt: expires,
+	})
+	if err != nil {
+		t.Fatalf("SetToken: %v", err)
+	}
+
+	for _, key := range []string{
+		tokenKey(config.DefaultClientName, email),
+		legacyTokenKey(email),
+		subjectTokenKey(config.DefaultClientName, subject),
+	} {
+		if _, getErr := ring.Get(key); getErr != nil {
+			t.Fatalf("expected key %q persisted after duplicate repair: %v", key, getErr)
+		}
+	}
+
+	got, err := store.GetToken(config.DefaultClientName, email)
+	if err != nil {
+		t.Fatalf("GetToken: %v", err)
+	}
+
+	if got.AccessToken != "at" || !got.AccessTokenExpiresAt.Equal(expires) {
+		t.Fatalf("refreshed access metadata was not preserved: %#v", got)
+	}
+}
+
 func TestKeyringStoreDeleteTokenAliasPreservesSubjectKey(t *testing.T) {
 	ring := keyring.NewArrayKeyring(nil)
 	store := &KeyringStore{ring: ring}
@@ -493,6 +537,24 @@ func (r *readBackErrorKeyring) Get(_ string) (keyring.Item, error) {
 	return keyring.Item{}, errTestReadBack
 }
 func (r *readBackErrorKeyring) Keys() ([]string, error) { return nil, nil }
+
+type duplicateOnceKeyring struct {
+	*keyring.ArrayKeyring
+	duplicateKeys map[string]int
+}
+
+func (d *duplicateOnceKeyring) Set(item keyring.Item) error {
+	if remaining := d.duplicateKeys[item.Key]; remaining > 0 {
+		d.duplicateKeys[item.Key] = remaining - 1
+		return errTestDuplicateKeychain
+	}
+
+	if err := d.ArrayKeyring.Set(item); err != nil {
+		return fmt.Errorf("set array keyring item: %w", err)
+	}
+
+	return nil
+}
 
 func TestSetTokenVerifyCatchesReadBackError(t *testing.T) {
 	store := &KeyringStore{ring: &readBackErrorKeyring{}}
