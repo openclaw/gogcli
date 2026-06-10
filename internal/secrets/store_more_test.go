@@ -1,6 +1,7 @@
 package secrets
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -326,13 +327,25 @@ func TestKeyringStoreSetTokenRepairsDuplicateAliasWrites(t *testing.T) {
 	email := "a@b.com"
 	subject := "google-sub-123"
 	expires := time.Date(2026, 6, 9, 16, 0, 42, 0, time.UTC)
+
 	ring := &duplicateOnceKeyring{
 		ArrayKeyring: keyring.NewArrayKeyring(nil),
 		duplicateKeys: map[string]int{
 			legacyTokenKey(email):                              1,
 			subjectTokenKey(config.DefaultClientName, subject): 1,
 		},
+		removedKeys: map[string]int{},
 	}
+
+	for _, key := range []string{
+		legacyTokenKey(email),
+		subjectTokenKey(config.DefaultClientName, subject),
+	} {
+		if err := ring.ArrayKeyring.Set(keyringItem(key, []byte("stale"))); err != nil {
+			t.Fatalf("seed stale alias %q: %v", key, err)
+		}
+	}
+
 	store := &KeyringStore{ring: ring}
 
 	err := store.SetToken(config.DefaultClientName, email, Token{
@@ -345,13 +358,26 @@ func TestKeyringStoreSetTokenRepairsDuplicateAliasWrites(t *testing.T) {
 		t.Fatalf("SetToken: %v", err)
 	}
 
+	primary, err := ring.Get(tokenKey(config.DefaultClientName, email))
+	if err != nil {
+		t.Fatalf("read primary token: %v", err)
+	}
+
 	for _, key := range []string{
-		tokenKey(config.DefaultClientName, email),
 		legacyTokenKey(email),
 		subjectTokenKey(config.DefaultClientName, subject),
 	} {
-		if _, getErr := ring.Get(key); getErr != nil {
+		item, getErr := ring.Get(key)
+		if getErr != nil {
 			t.Fatalf("expected key %q persisted after duplicate repair: %v", key, getErr)
+		}
+
+		if !bytes.Equal(item.Data, primary.Data) {
+			t.Fatalf("alias %q was not replaced with primary payload", key)
+		}
+
+		if ring.removedKeys[key] != 1 {
+			t.Fatalf("alias %q remove count = %d, want 1", key, ring.removedKeys[key])
 		}
 	}
 
@@ -362,6 +388,43 @@ func TestKeyringStoreSetTokenRepairsDuplicateAliasWrites(t *testing.T) {
 
 	if got.AccessToken != "at" || !got.AccessTokenExpiresAt.Equal(expires) {
 		t.Fatalf("refreshed access metadata was not preserved: %#v", got)
+	}
+}
+
+func TestKeyringStoreSetTokenKeepsPrimaryDuplicateStrict(t *testing.T) {
+	email := "a@b.com"
+	primaryKey := tokenKey(config.DefaultClientName, email)
+
+	ring := &duplicateOnceKeyring{
+		ArrayKeyring: keyring.NewArrayKeyring(nil),
+		duplicateKeys: map[string]int{
+			primaryKey: 1,
+		},
+		removedKeys: map[string]int{},
+	}
+
+	if err := ring.ArrayKeyring.Set(keyringItem(primaryKey, []byte("stale-primary"))); err != nil {
+		t.Fatalf("seed stale primary: %v", err)
+	}
+
+	store := &KeyringStore{ring: ring}
+
+	err := store.SetToken(config.DefaultClientName, email, Token{RefreshToken: "rt"})
+	if err == nil || !isDuplicateKeyringItemError(err) {
+		t.Fatalf("expected primary duplicate error, got %v", err)
+	}
+
+	if ring.removedKeys[primaryKey] != 0 {
+		t.Fatalf("primary token was removed during strict write")
+	}
+
+	item, getErr := ring.Get(primaryKey)
+	if getErr != nil {
+		t.Fatalf("read primary token: %v", getErr)
+	}
+
+	if string(item.Data) != "stale-primary" {
+		t.Fatalf("primary token changed after failed strict write: %q", item.Data)
 	}
 }
 
@@ -541,6 +604,7 @@ func (r *readBackErrorKeyring) Keys() ([]string, error) { return nil, nil }
 type duplicateOnceKeyring struct {
 	*keyring.ArrayKeyring
 	duplicateKeys map[string]int
+	removedKeys   map[string]int
 }
 
 func (d *duplicateOnceKeyring) Set(item keyring.Item) error {
@@ -551,6 +615,16 @@ func (d *duplicateOnceKeyring) Set(item keyring.Item) error {
 
 	if err := d.ArrayKeyring.Set(item); err != nil {
 		return fmt.Errorf("set array keyring item: %w", err)
+	}
+
+	return nil
+}
+
+func (d *duplicateOnceKeyring) Remove(key string) error {
+	d.removedKeys[key]++
+
+	if err := d.ArrayKeyring.Remove(key); err != nil {
+		return fmt.Errorf("remove array keyring item: %w", err)
 	}
 
 	return nil

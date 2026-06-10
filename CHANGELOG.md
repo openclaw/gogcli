@@ -10,6 +10,7 @@
 ### Fixed
 
 - Docs: avoid duplicate empty paragraphs adjacent to Markdown headings while preserving body paragraph spacing. (#717, #720) — thanks @TurboTheTurtle.
+- Auth: repair duplicate macOS Keychain writes for legacy and subject token aliases without weakening primary token persistence. (#718, #721) — thanks @TurboTheTurtle.
 
 ## 0.23.0 - 2026-06-09
 
