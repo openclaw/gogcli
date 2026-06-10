@@ -201,6 +201,11 @@ Use raw output when a script needs the Google Docs API object:
 
 ```bash
 gog docs raw <docId> --pretty
+gog docs raw <docId> --tab "Notes" --pretty
+gog docs raw <docId> --all-tabs --json
 ```
+
+`--tab` returns one tab in the same top-level Document shape used by the
+default response. `--all-tabs` returns the canonical recursive `tabs` tree.
 
 See [Raw API Dumps](raw-api.md) for lossless-output safety notes.

@@ -28,9 +28,17 @@ returns it.
 ```bash
 gog drive raw <fileId> --pretty
 gog docs raw <docId> --json > doc-api.json
+gog docs raw <docId> --tab "Notes" --pretty
+gog docs raw <docId> --all-tabs --json > doc-tabs-api.json
 gog gmail raw <messageId> --format metadata --json
 gog sheets raw <spreadsheetId> --include-grid-data --json
 ```
+
+`gog docs raw --tab` resolves a tab title or ID and projects that tab into the
+legacy top-level `Document` fields such as `body`, `lists`, and
+`inlineObjects`. `--all-tabs` keeps the canonical `Documents.Get` response and
+populates its recursive `tabs` tree. Without either flag, the command keeps the
+existing first-tab response.
 
 Use service-native field masks when available:
 

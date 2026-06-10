@@ -7,6 +7,7 @@ import (
 	"os"
 	"strings"
 
+	"google.golang.org/api/docs/v1"
 	"google.golang.org/api/drive/v3"
 	gapi "google.golang.org/api/googleapi"
 
@@ -68,8 +69,10 @@ type DocsTabsCmd struct {
 // REST reference: https://developers.google.com/docs/api/reference/rest/v1/documents/get
 // Go type: https://pkg.go.dev/google.golang.org/api/docs/v1#Document
 type DocsRawCmd struct {
-	DocID  string `arg:"" name:"docId" help:"Doc ID"`
-	Pretty bool   `name:"pretty" help:"Pretty-print JSON (default: compact single-line)"`
+	DocID   string `arg:"" name:"docId" help:"Doc ID"`
+	Pretty  bool   `name:"pretty" help:"Pretty-print JSON (default: compact single-line)"`
+	Tab     string `name:"tab" help:"Return one tab by title or ID in the legacy top-level Document shape"`
+	AllTabs bool   `name:"all-tabs" help:"Return the canonical Document response with all tab content populated"`
 }
 
 func (c *DocsRawCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -77,13 +80,20 @@ func (c *DocsRawCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if id == "" {
 		return usage("empty docId")
 	}
+	if strings.TrimSpace(c.Tab) != "" && c.AllTabs {
+		return usage("--tab and --all-tabs cannot be used together")
+	}
 
 	svc, err := requireDocsService(ctx, flags)
 	if err != nil {
 		return err
 	}
 
-	doc, err := svc.Documents.Get(id).Context(ctx).Do()
+	getCall := svc.Documents.Get(id).Context(ctx)
+	if strings.TrimSpace(c.Tab) != "" || c.AllTabs {
+		getCall = getCall.IncludeTabsContent(true)
+	}
+	doc, err := getCall.Do()
 	if err != nil {
 		if isDocsNotFound(err) {
 			return fmt.Errorf("doc not found or not a Google Doc (id=%s)", id)
@@ -95,7 +105,44 @@ func (c *DocsRawCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
+	if strings.TrimSpace(c.Tab) != "" {
+		tab, tabErr := findTab(flattenTabs(doc.Tabs), c.Tab)
+		if tabErr != nil {
+			return tabErr
+		}
+		doc, err = projectRawDocumentTab(doc, tab)
+		if err != nil {
+			return err
+		}
+	}
+
 	return writeRawJSON(ctx, doc, c.Pretty)
+}
+
+func projectRawDocumentTab(doc *docs.Document, tab *docs.Tab) (*docs.Document, error) {
+	if tab == nil || tab.DocumentTab == nil {
+		return nil, errors.New("selected tab has no document content")
+	}
+
+	content := tab.DocumentTab
+	return &docs.Document{
+		Body:                          content.Body,
+		DocumentId:                    doc.DocumentId,
+		DocumentStyle:                 content.DocumentStyle,
+		Footers:                       content.Footers,
+		Footnotes:                     content.Footnotes,
+		Headers:                       content.Headers,
+		InlineObjects:                 content.InlineObjects,
+		Lists:                         content.Lists,
+		NamedRanges:                   content.NamedRanges,
+		NamedStyles:                   content.NamedStyles,
+		PositionedObjects:             content.PositionedObjects,
+		RevisionId:                    doc.RevisionId,
+		SuggestedDocumentStyleChanges: content.SuggestedDocumentStyleChanges,
+		SuggestedNamedStylesChanges:   content.SuggestedNamedStylesChanges,
+		SuggestionsViewMode:           doc.SuggestionsViewMode,
+		Title:                         doc.Title,
+	}, nil
 }
 
 type DocsExportCmd struct {
