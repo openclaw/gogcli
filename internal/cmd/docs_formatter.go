@@ -311,9 +311,8 @@ func MarkdownToDocsRequests(elements []MarkdownElement, baseIndex int64, tabID s
 			}
 
 		case MDEmptyLine:
-			// InsertTable supplies the paragraph before a native table, while
-			// the table placeholder supplies the paragraph after it. Emitting
-			// the source blank line too would double both gaps.
+			// Native tables and heading styles already supply visual spacing.
+			// Emitting an adjacent source blank line would double those gaps.
 			if (i > 0 && (elements[i-1].Type == MDTable || isMarkdownHeadingElement(elements[i-1].Type))) ||
 				(i+1 < len(elements) && (elements[i+1].Type == MDTable || isMarkdownHeadingElement(elements[i+1].Type))) {
 				continue

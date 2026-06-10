@@ -7,6 +7,10 @@
 - Gmail: report attached filenames and byte sizes in JSON results for send and draft create/update. (#716) — thanks @chrischall.
 - Gmail: add `gmail watch pull` for Pub/Sub pull subscription consumers with hook retry support. (#700) — thanks @joshp123.
 
+### Fixed
+
+- Docs: avoid duplicate empty paragraphs adjacent to Markdown headings while preserving body paragraph spacing. (#717, #720) — thanks @TurboTheTurtle.
+
 ## 0.23.0 - 2026-06-09
 
 ### Added
