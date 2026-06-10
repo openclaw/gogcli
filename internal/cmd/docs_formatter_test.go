@@ -60,7 +60,7 @@ func TestMarkdownToDocsRequests_TableConsumesAdjacentBlankLines(t *testing.T) {
 
 	_, text, tables := MarkdownToDocsRequests(elements, 1, "t.0")
 
-	wantText := "Title\n\nNext section\n\nParagraph after the table.\n"
+	wantText := "Title\n\nNext section\nParagraph after the table.\n"
 	if text != wantText {
 		t.Fatalf("text = %q, want %q", text, wantText)
 	}
@@ -76,6 +76,30 @@ func TestMarkdownToDocsRequests_PreservesNonTableBlankLines(t *testing.T) {
 	_, text, tables := MarkdownToDocsRequests(ParseMarkdown("First\n\nSecond"), 1, "")
 	if text != "First\n\nSecond\n" {
 		t.Fatalf("text = %q, want preserved body paragraph gap", text)
+	}
+	if len(tables) != 0 {
+		t.Fatalf("unexpected tables: %d", len(tables))
+	}
+}
+
+func TestMarkdownToDocsRequests_ConsumesHeadingAdjacentBlankLines(t *testing.T) {
+	markdown := strings.Join([]string{
+		"## Section A",
+		"",
+		"Paragraph one.",
+		"",
+		"Paragraph two.",
+		"",
+		"## Section B",
+		"",
+		"Paragraph three.",
+	}, "\n")
+
+	_, text, tables := MarkdownToDocsRequests(ParseMarkdown(markdown), 1, "")
+
+	wantText := "Section A\nParagraph one.\n\nParagraph two.\nSection B\nParagraph three.\n"
+	if text != wantText {
+		t.Fatalf("text = %q, want %q", text, wantText)
 	}
 	if len(tables) != 0 {
 		t.Fatalf("unexpected tables: %d", len(tables))

@@ -101,8 +101,8 @@ func TestDocsWrite_MarkdownReplaceWithTab(t *testing.T) {
 	if loc.TabId != "t.second" || loc.Index != 1 {
 		t.Fatalf("insert location = %+v, want {TabId:t.second Index:1}", loc)
 	}
-	if got := insertReqs[0].InsertText.Text; got != "Title\n\nbold\n" {
-		t.Fatalf("inserted text = %q, want %q", got, "Title\n\nbold\n")
+	if got := insertReqs[0].InsertText.Text; got != "Title\nbold\n" {
+		t.Fatalf("inserted text = %q, want %q", got, "Title\nbold\n")
 	}
 	for i, req := range insertReqs[1:] {
 		var r *docs.Range
@@ -168,12 +168,12 @@ func TestDocsWrite_MarkdownReplaceWithTabRewritesExplicitHeadingAnchorLinks(t *t
 							},
 						},
 						{
-							StartIndex: 8,
-							EndIndex:   13,
+							StartIndex: 7,
+							EndIndex:   12,
 							Paragraph: &docs.Paragraph{
 								Elements: []*docs.ParagraphElement{{
-									StartIndex: 8,
-									EndIndex:   12,
+									StartIndex: 7,
+									EndIndex:   11,
 									TextRun: &docs.TextRun{
 										Content:   "Jump",
 										TextStyle: &docs.TextStyle{Link: &docs.Link{Url: "#attachments"}},
@@ -227,7 +227,7 @@ func TestDocsWrite_MarkdownReplaceWithTabRewritesExplicitHeadingAnchorLinks(t *t
 	if len(insertReqs) == 0 || insertReqs[0].InsertText == nil {
 		t.Fatalf("expected insert batch, got %#v", insertReqs)
 	}
-	if got := insertReqs[0].InsertText.Text; got != "Files\n\nJump\n" {
+	if got := insertReqs[0].InsertText.Text; got != "Files\nJump\n" {
 		t.Fatalf("inserted text = %q, want explicit anchor stripped", got)
 	}
 	rewriteReqs := batchRequests[2]
@@ -235,7 +235,7 @@ func TestDocsWrite_MarkdownReplaceWithTabRewritesExplicitHeadingAnchorLinks(t *t
 		t.Fatalf("expected one link rewrite request, got %#v", rewriteReqs)
 	}
 	styleReq := rewriteReqs[0].UpdateTextStyle
-	if styleReq.Range.TabId != "t.second" || styleReq.Range.StartIndex != 8 || styleReq.Range.EndIndex != 12 {
+	if styleReq.Range.TabId != "t.second" || styleReq.Range.StartIndex != 7 || styleReq.Range.EndIndex != 11 {
 		t.Fatalf("unexpected rewrite range: %#v", styleReq.Range)
 	}
 	if styleReq.TextStyle == nil || styleReq.TextStyle.Link == nil ||

@@ -610,7 +610,7 @@ func TestDocsWrite_MarkdownAppendUsesDocsFormatting(t *testing.T) {
 	if reqs[0].InsertText == nil {
 		t.Fatalf("expected first request to insert text, got %#v", reqs[0])
 	}
-	if got := reqs[0].InsertText; got.Location.Index != 9 || got.Text != "\nTitle\n\nbold\n" {
+	if got := reqs[0].InsertText; got.Location.Index != 9 || got.Text != "\nTitle\nbold\n" {
 		t.Fatalf("unexpected markdown insert: %#v", got)
 	}
 	if reqs[1].UpdateParagraphStyle == nil {
@@ -622,7 +622,7 @@ func TestDocsWrite_MarkdownAppendUsesDocsFormatting(t *testing.T) {
 	if reqs[2].UpdateTextStyle == nil {
 		t.Fatalf("expected bold text style request, got %#v", reqs[2])
 	}
-	if got := reqs[2].UpdateTextStyle.Range; got.StartIndex != 17 || got.EndIndex != 21 {
+	if got := reqs[2].UpdateTextStyle.Range; got.StartIndex != 16 || got.EndIndex != 20 {
 		t.Fatalf("unexpected bold range: %#v", got)
 	}
 }
@@ -676,11 +676,11 @@ func TestDocsWrite_MarkdownAppendRewritesExplicitHeadingAnchorLinks(t *testing.T
 						},
 					},
 					{
-						StartIndex: 17,
-						EndIndex:   22,
+						StartIndex: 16,
+						EndIndex:   21,
 						Paragraph: &docs.Paragraph{Elements: []*docs.ParagraphElement{{
-							StartIndex: 17,
-							EndIndex:   21,
+							StartIndex: 16,
+							EndIndex:   20,
 							TextRun: &docs.TextRun{
 								Content:   "Jump",
 								TextStyle: &docs.TextStyle{Link: &docs.Link{Url: "#attachments"}},
@@ -726,7 +726,7 @@ func TestDocsWrite_MarkdownAppendRewritesExplicitHeadingAnchorLinks(t *testing.T
 	if len(insertReqs) == 0 || insertReqs[0].InsertText == nil {
 		t.Fatalf("expected first batch to insert text, got %#v", insertReqs)
 	}
-	if got := insertReqs[0].InsertText; got.Location.Index != 9 || got.Text != "\nFiles\n\nJump\n" {
+	if got := insertReqs[0].InsertText; got.Location.Index != 9 || got.Text != "\nFiles\nJump\n" {
 		t.Fatalf("unexpected append insert: %#v", got)
 	}
 	rewriteReqs := batchRequests[1]
@@ -734,7 +734,7 @@ func TestDocsWrite_MarkdownAppendRewritesExplicitHeadingAnchorLinks(t *testing.T
 		t.Fatalf("expected one link rewrite request, got %#v", rewriteReqs)
 	}
 	styleReq := rewriteReqs[0].UpdateTextStyle
-	if styleReq.Range.StartIndex != 17 || styleReq.Range.EndIndex != 21 {
+	if styleReq.Range.StartIndex != 16 || styleReq.Range.EndIndex != 20 {
 		t.Fatalf("unexpected rewrite range: %#v", styleReq.Range)
 	}
 	if styleReq.TextStyle == nil || styleReq.TextStyle.Link == nil || styleReq.TextStyle.Link.HeadingId != "h.files" {
