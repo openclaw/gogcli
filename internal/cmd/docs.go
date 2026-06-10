@@ -24,6 +24,10 @@ type DocsCmd struct {
 	Copy             DocsCopyCmd             `cmd:"" name:"copy" aliases:"cp,duplicate" help:"Copy a Google Doc"`
 	Cat              DocsCatCmd              `cmd:"" name:"cat" aliases:"text,read" help:"Print a Google Doc as plain text"`
 	Comments         DocsCommentsCmd         `cmd:"" name:"comments" help:"Manage comments on files"`
+	Tables           DocsTablesCmd           `cmd:"" name:"tables" help:"List Google Doc tables"`
+	Images           DocsImagesCmd           `cmd:"" name:"images" help:"List Google Doc images"`
+	Headings         DocsHeadingsCmd         `cmd:"" name:"headings" help:"List Google Doc headings"`
+	Paragraphs       DocsParagraphsCmd       `cmd:"" name:"paragraphs" help:"List Google Doc paragraphs"`
 	Tabs             DocsTabsCmd             `cmd:"" name:"tabs" help:"Manage Google Doc tabs"`
 	AddTab           DocsAddTabCmd           `cmd:"" name:"add-tab" help:"Add a tab to a Google Doc"`
 	RenameTab        DocsRenameTabCmd        `cmd:"" name:"rename-tab" help:"Rename a tab in a Google Doc"`
