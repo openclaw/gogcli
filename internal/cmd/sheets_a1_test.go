@@ -78,4 +78,10 @@ func TestParseA1Range(t *testing.T) {
 			t.Fatalf("unexpected range: %#v", r)
 		}
 	})
+
+	t.Run("column overflow", func(t *testing.T) {
+		if _, err := parseA1Range("Sheet1!GKGWBYLWRXTLPQ1"); err == nil {
+			t.Fatal("expected oversized column error")
+		}
+	})
 }

@@ -189,12 +189,17 @@ func colLettersToIndex(letters string) (int, error) {
 	}
 
 	col := 0
+	maxInt := int(^uint(0) >> 1)
 	for i := 0; i < len(letters); i++ {
 		ch := letters[i]
 		if ch < 'A' || ch > 'Z' {
 			return 0, fmt.Errorf("invalid column %q", letters)
 		}
-		col = col*26 + int(ch-'A'+1)
+		digit := int(ch - 'A' + 1)
+		if col > (maxInt-digit)/26 {
+			return 0, fmt.Errorf("column %q is too large", letters)
+		}
+		col = col*26 + digit
 	}
 	return col, nil
 }

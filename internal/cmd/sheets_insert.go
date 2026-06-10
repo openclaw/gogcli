@@ -39,10 +39,10 @@ func (c *SheetsInsertCmd) Run(ctx context.Context, flags *RootFlags) error {
 	var apiDimension, dimLabel string
 	switch dim {
 	case "rows", "row":
-		apiDimension = "ROWS"
+		apiDimension = sheetsDimensionRows
 		dimLabel = "row"
 	case "cols", "col", "columns", "column":
-		apiDimension = "COLUMNS"
+		apiDimension = sheetsDimensionColumns
 		dimLabel = "column"
 	default:
 		return usagef("dimension must be rows or cols, got %q", c.Dimension)

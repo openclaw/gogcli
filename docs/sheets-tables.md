@@ -121,6 +121,24 @@ clear without touching auth or the Sheets API:
 gog sheets table clear "$spreadsheet_id" Tasks --dry-run --json
 ```
 
+## Delete Rows Or Columns
+
+Use `sheets delete-dimension` to remove rows or columns without deleting an
+intersecting structured table:
+
+```bash
+gog sheets delete-dimension "$spreadsheet_id" Sheet1 \
+  --dimension ROWS --start 2 --end 4 --force
+gog sheets delete-dimension "$spreadsheet_id" 'Sheet1!B:C' \
+  --dimension COLUMNS --force
+```
+
+Indexes are 1-based and inclusive. A sheet target requires both `--start` and
+`--end`; an explicitly sheet-qualified row or column range supplies them
+directly. Intersecting table ranges are resized in the same atomic Sheets batch,
+preserving the table object and remaining data. The command refuses a deletion
+that would remove a table's entire row or column extent.
+
 ## Delete A Table
 
 The Sheets API deletes both the table object and every cell in its range. There
@@ -157,3 +175,4 @@ used blindly.
 - [`gog sheets table append`](commands/gog-sheets-table-append.md)
 - [`gog sheets table clear`](commands/gog-sheets-table-clear.md)
 - [`gog sheets table delete`](commands/gog-sheets-table-delete.md)
+- [`gog sheets delete-dimension`](commands/gog-sheets-delete-dimension.md)

@@ -23,6 +23,8 @@ const (
 	sheetsConditionOneOfList      = "ONE_OF_LIST"
 	sheetsTypeDropdown            = "DROPDOWN"
 	sheetsTypeText                = "TEXT"
+	sheetsDimensionRows           = "ROWS"
+	sheetsDimensionColumns        = "COLUMNS"
 )
 
 // cleanRange removes shell escape sequences from range arguments.
@@ -32,40 +34,41 @@ func cleanRange(r string) string {
 }
 
 type SheetsCmd struct {
-	Get           SheetsGetCmd           `cmd:"" name:"get" aliases:"read,show" help:"Get values from a range"`
-	Update        SheetsUpdateCmd        `cmd:"" name:"update" aliases:"edit,set" help:"Update values in a range"`
-	BatchUpdate   SheetsBatchUpdateCmd   `cmd:"" name:"batch-update" aliases:"batch" help:"Update values in multiple ranges with one API request"`
-	Append        SheetsAppendCmd        `cmd:"" name:"append" aliases:"add" help:"Append values to a range"`
-	Insert        SheetsInsertCmd        `cmd:"" name:"insert" help:"Insert empty rows or columns into a sheet"`
-	Clear         SheetsClearCmd         `cmd:"" name:"clear" help:"Clear values in a range"`
-	Format        SheetsFormatCmd        `cmd:"" name:"format" help:"Apply cell formatting to a range"`
-	Conditional   SheetsConditionalCmd   `cmd:"" name:"conditional-format" aliases:"cf,conditional-formats" help:"Manage conditional formatting rules"`
-	Validation    SheetsValidationCmd    `cmd:"" name:"validation" aliases:"data-validation,validations" help:"Manage cell data validation rules"`
-	Banding       SheetsBandingCmd       `cmd:"" name:"banding" aliases:"banded-ranges" help:"Manage alternating color banding"`
-	Merge         SheetsMergeCmd         `cmd:"" name:"merge" help:"Merge cells in a range"`
-	Unmerge       SheetsUnmergeCmd       `cmd:"" name:"unmerge" help:"Unmerge cells in a range"`
-	CopyPaste     SheetsCopyPasteCmd     `cmd:"" name:"copy-paste" aliases:"fill,copy-range" help:"Copy a range's values/formulas/format to another range (tiles to fill down/across)"`
-	NumberFormat  SheetsNumberFormatCmd  `cmd:"" name:"number-format" help:"Apply number format to a range"`
-	Freeze        SheetsFreezeCmd        `cmd:"" name:"freeze" help:"Freeze rows and columns on a sheet"`
-	ResizeColumns SheetsResizeColumnsCmd `cmd:"" name:"resize-columns" help:"Resize sheet columns"`
-	ResizeRows    SheetsResizeRowsCmd    `cmd:"" name:"resize-rows" help:"Resize sheet rows"`
-	ReadFormat    SheetsReadFormatCmd    `cmd:"" name:"read-format" aliases:"get-format,format-read" help:"Read cell formatting from a range"`
-	Notes         SheetsNotesCmd         `cmd:"" name:"notes" help:"Get cell notes from a range"`
-	UpdateNote    SheetsUpdateNoteCmd    `cmd:"" name:"update-note" aliases:"set-note" help:"Set or clear a cell note"`
-	FindReplace   SheetsFindReplaceCmd   `cmd:"" name:"find-replace" help:"Find and replace text across a spreadsheet"`
-	Links         SheetsLinksCmd         `cmd:"" name:"links" aliases:"hyperlinks" help:"Get or set cell hyperlinks"`
-	Named         SheetsNamedRangesCmd   `cmd:"" name:"named-ranges" aliases:"namedranges,nr" help:"Manage named ranges"`
-	Table         SheetsTableCmd         `cmd:"" name:"table" aliases:"tables" help:"Manage Google Sheets tables"`
-	Metadata      SheetsMetadataCmd      `cmd:"" name:"metadata" aliases:"info" help:"Get spreadsheet metadata"`
-	Raw           SheetsRawCmd           `cmd:"" name:"raw" help:"Dump raw Google Sheets API response as JSON (Spreadsheets.Get; lossless; for scripting and LLM consumption)"`
-	Create        SheetsCreateCmd        `cmd:"" name:"create" aliases:"new" help:"Create a new spreadsheet"`
-	Copy          SheetsCopyCmd          `cmd:"" name:"copy" aliases:"cp,duplicate" help:"Copy a Google Sheet"`
-	Export        SheetsExportCmd        `cmd:"" name:"export" aliases:"download,dl" help:"Export a Google Sheet (pdf|xlsx|csv) via Drive"`
-	Chart         SheetsChartCmd         `cmd:"" name:"chart" aliases:"charts" help:"Manage spreadsheet charts"`
-	AddTab        SheetsAddTabCmd        `cmd:"" name:"add-tab" aliases:"add-sheet" help:"Add a new tab/sheet to a spreadsheet"`
-	RenameTab     SheetsRenameTabCmd     `cmd:"" name:"rename-tab" aliases:"rename-sheet" help:"Rename a tab/sheet in a spreadsheet"`
-	DeleteTab     SheetsDeleteTabCmd     `cmd:"" name:"delete-tab" aliases:"delete-sheet" help:"Delete a tab/sheet from a spreadsheet (use --force to skip confirmation)"`
-	ReorderTab    SheetsReorderTabCmd    `cmd:"" name:"reorder-tab" aliases:"move-tab,reorder-sheet,move-sheet" help:"Move a tab/sheet to a specific 0-based position in the spreadsheet"`
+	Get           SheetsGetCmd             `cmd:"" name:"get" aliases:"read,show" help:"Get values from a range"`
+	Update        SheetsUpdateCmd          `cmd:"" name:"update" aliases:"edit,set" help:"Update values in a range"`
+	BatchUpdate   SheetsBatchUpdateCmd     `cmd:"" name:"batch-update" aliases:"batch" help:"Update values in multiple ranges with one API request"`
+	Append        SheetsAppendCmd          `cmd:"" name:"append" aliases:"add" help:"Append values to a range"`
+	Insert        SheetsInsertCmd          `cmd:"" name:"insert" help:"Insert empty rows or columns into a sheet"`
+	DeleteDim     SheetsDeleteDimensionCmd `cmd:"" name:"delete-dimension" aliases:"delete-dim" help:"Delete rows or columns while preserving intersecting tables"`
+	Clear         SheetsClearCmd           `cmd:"" name:"clear" help:"Clear values in a range"`
+	Format        SheetsFormatCmd          `cmd:"" name:"format" help:"Apply cell formatting to a range"`
+	Conditional   SheetsConditionalCmd     `cmd:"" name:"conditional-format" aliases:"cf,conditional-formats" help:"Manage conditional formatting rules"`
+	Validation    SheetsValidationCmd      `cmd:"" name:"validation" aliases:"data-validation,validations" help:"Manage cell data validation rules"`
+	Banding       SheetsBandingCmd         `cmd:"" name:"banding" aliases:"banded-ranges" help:"Manage alternating color banding"`
+	Merge         SheetsMergeCmd           `cmd:"" name:"merge" help:"Merge cells in a range"`
+	Unmerge       SheetsUnmergeCmd         `cmd:"" name:"unmerge" help:"Unmerge cells in a range"`
+	CopyPaste     SheetsCopyPasteCmd       `cmd:"" name:"copy-paste" aliases:"fill,copy-range" help:"Copy a range's values/formulas/format to another range (tiles to fill down/across)"`
+	NumberFormat  SheetsNumberFormatCmd    `cmd:"" name:"number-format" help:"Apply number format to a range"`
+	Freeze        SheetsFreezeCmd          `cmd:"" name:"freeze" help:"Freeze rows and columns on a sheet"`
+	ResizeColumns SheetsResizeColumnsCmd   `cmd:"" name:"resize-columns" help:"Resize sheet columns"`
+	ResizeRows    SheetsResizeRowsCmd      `cmd:"" name:"resize-rows" help:"Resize sheet rows"`
+	ReadFormat    SheetsReadFormatCmd      `cmd:"" name:"read-format" aliases:"get-format,format-read" help:"Read cell formatting from a range"`
+	Notes         SheetsNotesCmd           `cmd:"" name:"notes" help:"Get cell notes from a range"`
+	UpdateNote    SheetsUpdateNoteCmd      `cmd:"" name:"update-note" aliases:"set-note" help:"Set or clear a cell note"`
+	FindReplace   SheetsFindReplaceCmd     `cmd:"" name:"find-replace" help:"Find and replace text across a spreadsheet"`
+	Links         SheetsLinksCmd           `cmd:"" name:"links" aliases:"hyperlinks" help:"Get or set cell hyperlinks"`
+	Named         SheetsNamedRangesCmd     `cmd:"" name:"named-ranges" aliases:"namedranges,nr" help:"Manage named ranges"`
+	Table         SheetsTableCmd           `cmd:"" name:"table" aliases:"tables" help:"Manage Google Sheets tables"`
+	Metadata      SheetsMetadataCmd        `cmd:"" name:"metadata" aliases:"info" help:"Get spreadsheet metadata"`
+	Raw           SheetsRawCmd             `cmd:"" name:"raw" help:"Dump raw Google Sheets API response as JSON (Spreadsheets.Get; lossless; for scripting and LLM consumption)"`
+	Create        SheetsCreateCmd          `cmd:"" name:"create" aliases:"new" help:"Create a new spreadsheet"`
+	Copy          SheetsCopyCmd            `cmd:"" name:"copy" aliases:"cp,duplicate" help:"Copy a Google Sheet"`
+	Export        SheetsExportCmd          `cmd:"" name:"export" aliases:"download,dl" help:"Export a Google Sheet (pdf|xlsx|csv) via Drive"`
+	Chart         SheetsChartCmd           `cmd:"" name:"chart" aliases:"charts" help:"Manage spreadsheet charts"`
+	AddTab        SheetsAddTabCmd          `cmd:"" name:"add-tab" aliases:"add-sheet" help:"Add a new tab/sheet to a spreadsheet"`
+	RenameTab     SheetsRenameTabCmd       `cmd:"" name:"rename-tab" aliases:"rename-sheet" help:"Rename a tab/sheet in a spreadsheet"`
+	DeleteTab     SheetsDeleteTabCmd       `cmd:"" name:"delete-tab" aliases:"delete-sheet" help:"Delete a tab/sheet from a spreadsheet (use --force to skip confirmation)"`
+	ReorderTab    SheetsReorderTabCmd      `cmd:"" name:"reorder-tab" aliases:"move-tab,reorder-sheet,move-sheet" help:"Move a tab/sheet to a specific 0-based position in the spreadsheet"`
 }
 
 type SheetsExportCmd struct {

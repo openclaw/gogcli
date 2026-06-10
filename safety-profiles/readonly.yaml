@@ -201,6 +201,7 @@ sheets:
   batch-update: false
   append: false
   insert: false
+  delete-dimension: false
   clear: false
   format: false
   merge: false
