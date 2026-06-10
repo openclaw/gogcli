@@ -246,26 +246,31 @@ func TestManageServer_HandleListAccounts_StaleDefaultFallsBackToFirst(t *testing
 
 func TestManageServer_OAuthStatesAreIndependent(t *testing.T) {
 	ms := &ManageServer{}
-	ms.addOAuthState("state1")
-	ms.addOAuthState("state2")
+	ms.addOAuthState("state1", "verifier1")
+	ms.addOAuthState("state2", "verifier2")
 
-	if !ms.consumeOAuthState("state1") {
+	if verifier, ok := ms.consumeOAuthState("state1"); !ok || verifier != "verifier1" {
 		t.Fatalf("expected first state accepted")
 	}
 
-	if ms.consumeOAuthState("state1") {
+	if _, ok := ms.consumeOAuthState("state1"); ok {
 		t.Fatalf("expected consumed state rejected")
 	}
 
-	if !ms.consumeOAuthState("state2") {
+	if verifier, ok := ms.consumeOAuthState("state2"); !ok || verifier != "verifier2" {
 		t.Fatalf("expected second state accepted")
+	}
+
+	if ms.oauthState != "" || ms.oauthVerifier != "" {
+		t.Fatalf("expected consumed current verifier to be cleared, got state=%q verifier=%q", ms.oauthState, ms.oauthVerifier)
 	}
 }
 
 func TestManageServer_HandleOAuthCallback_ErrorAndValidation(t *testing.T) {
 	ms := &ManageServer{
-		csrfToken:  "csrf",
-		oauthState: "state1",
+		csrfToken:     "csrf",
+		oauthState:    "state1",
+		oauthVerifier: testCodeVerifier,
 	}
 	// Need a listener for redirectURI generation even though we don't reach exchange.
 	ln, err := (&net.ListenConfig{}).Listen(context.Background(), "tcp", "127.0.0.1:0")
@@ -534,17 +539,20 @@ func TestManageServer_HandleAuthStart(t *testing.T) {
 	origRead := readClientCredentials
 	origState := randomStateFn
 	origEndpoint := oauthEndpoint
+	origVerifier := generateVerifierFn
 
 	t.Cleanup(func() {
 		readClientCredentials = origRead
 		randomStateFn = origState
 		oauthEndpoint = origEndpoint
+		generateVerifierFn = origVerifier
 	})
 
 	readClientCredentials = func(string) (config.ClientCredentials, error) {
 		return config.ClientCredentials{ClientID: "id", ClientSecret: "secret"}, nil
 	}
 	randomStateFn = func() (string, error) { return "state123", nil }
+	generateVerifierFn = func() string { return testCodeVerifier }
 	oauthEndpoint = oauth2.Endpoint{AuthURL: "http://example.com/auth", TokenURL: "http://example.com/token"}
 
 	ln, err := (&net.ListenConfig{}).Listen(context.Background(), "tcp", "127.0.0.1:0")
@@ -579,6 +587,22 @@ func TestManageServer_HandleAuthStart(t *testing.T) {
 
 	if ms.oauthState != "state123" {
 		t.Fatalf("expected oauthState set")
+	}
+
+	if ms.oauthVerifier != testCodeVerifier {
+		t.Fatalf("expected oauthVerifier set")
+	}
+
+	if got := parsed.Query().Get("code_challenge_method"); got != "S256" {
+		t.Fatalf("expected S256 challenge method, got %q", got)
+	}
+
+	if got, want := parsed.Query().Get("code_challenge"), pkceChallengeForTest(); got != want {
+		t.Fatalf("unexpected code_challenge: got %q want %q", got, want)
+	}
+
+	if got := parsed.Query().Get("code_verifier"); got != "" {
+		t.Fatalf("code_verifier must not be exposed in auth URL, got %q", got)
 	}
 
 	if redirectURI := parsed.Query().Get("redirect_uri"); !strings.Contains(redirectURI, "127.0.0.1:") {
@@ -743,6 +767,10 @@ func TestManageServer_HandleOAuthCallback_Success(t *testing.T) {
 			t.Fatalf("expected code=abc, got %q", r.Form.Get("code"))
 		}
 
+		if got := r.Form.Get("code_verifier"); got != testCodeVerifier {
+			t.Fatalf("expected code_verifier, got %q", got)
+		}
+
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"access_token":  "token",
@@ -764,9 +792,10 @@ func TestManageServer_HandleOAuthCallback_Success(t *testing.T) {
 
 	store := &fakeStore{}
 	ms := &ManageServer{
-		oauthState: "state1",
-		listener:   ln,
-		store:      store,
+		oauthState:    "state1",
+		oauthVerifier: testCodeVerifier,
+		listener:      ln,
+		store:         store,
 		fetchIdentity: func(ctx context.Context, tok *oauth2.Token) (Identity, error) {
 			return fetchUserIdentityWithURL(ctx, tok.AccessToken, userinfoSrv.URL+"/oauth2/v2/userinfo")
 		},
@@ -849,9 +878,10 @@ func TestManageServer_HandleOAuthCallback_MigratesAndDeletesAliasAfterSetToken(t
 		}},
 	}
 	ms := &ManageServer{
-		oauthState: "state1",
-		listener:   ln,
-		store:      store,
+		oauthState:    "state1",
+		oauthVerifier: testCodeVerifier,
+		listener:      ln,
+		store:         store,
 		fetchIdentity: func(context.Context, *oauth2.Token) (Identity, error) {
 			return Identity{Subject: "sub-123", Email: "new@example.com"}, nil
 		},
@@ -933,9 +963,10 @@ func TestManageServer_HandleOAuthCallback_FileBackendSkipsKeychain(t *testing.T)
 
 	store := &fakeStore{}
 	ms := &ManageServer{
-		oauthState: "state1",
-		listener:   ln,
-		store:      store,
+		oauthState:    "state1",
+		oauthVerifier: testCodeVerifier,
+		listener:      ln,
+		store:         store,
 		fetchIdentity: func(ctx context.Context, tok *oauth2.Token) (Identity, error) {
 			return Identity{Email: "me@example.com"}, nil
 		},
@@ -997,10 +1028,11 @@ func TestManageServer_HandleOAuthCallback_Success_IDTokenEmail(t *testing.T) {
 
 	store := &fakeStore{}
 	ms := &ManageServer{
-		oauthState: "state1",
-		listener:   ln,
-		store:      store,
-		opts:       ManageServerOptions{Services: []Service{ServiceGmail}},
+		oauthState:    "state1",
+		oauthVerifier: testCodeVerifier,
+		listener:      ln,
+		store:         store,
+		opts:          ManageServerOptions{Services: []Service{ServiceGmail}},
 	}
 
 	rr := httptest.NewRecorder()
@@ -1171,17 +1203,20 @@ func TestManageServer_HandleAuthUpgrade(t *testing.T) {
 	origRead := readClientCredentials
 	origState := randomStateFn
 	origEndpoint := oauthEndpoint
+	origVerifier := generateVerifierFn
 
 	t.Cleanup(func() {
 		readClientCredentials = origRead
 		randomStateFn = origState
 		oauthEndpoint = origEndpoint
+		generateVerifierFn = origVerifier
 	})
 
 	readClientCredentials = func(string) (config.ClientCredentials, error) {
 		return config.ClientCredentials{ClientID: "id", ClientSecret: "secret"}, nil
 	}
 	randomStateFn = func() (string, error) { return "state456", nil }
+	generateVerifierFn = func() string { return testCodeVerifier }
 	oauthEndpoint = oauth2.Endpoint{AuthURL: "http://example.com/auth", TokenURL: "http://example.com/token"}
 
 	ln, err := (&net.ListenConfig{}).Listen(context.Background(), "tcp", "127.0.0.1:0")
@@ -1221,6 +1256,18 @@ func TestManageServer_HandleAuthUpgrade(t *testing.T) {
 
 	if ms.oauthState != "state456" {
 		t.Fatalf("expected oauthState set")
+	}
+
+	if ms.oauthVerifier != testCodeVerifier {
+		t.Fatalf("expected oauthVerifier set")
+	}
+
+	if got := parsed.Query().Get("code_challenge_method"); got != "S256" {
+		t.Fatalf("expected S256 challenge method, got %q", got)
+	}
+
+	if got, want := parsed.Query().Get("code_challenge"), pkceChallengeForTest(); got != want {
+		t.Fatalf("unexpected code_challenge: got %q want %q", got, want)
 	}
 
 	scope := parsed.Query().Get("scope")

@@ -58,7 +58,8 @@ type ManageServer struct {
 	fetchIdentity func(ctx context.Context, tok *oauth2.Token) (Identity, error)
 	oauthMu       sync.Mutex
 	oauthState    string
-	oauthStates   map[string]struct{}
+	oauthVerifier string
+	oauthStates   map[string]string
 	resultCh      chan error
 }
 
@@ -286,7 +287,8 @@ func (ms *ManageServer) handleAuthStart(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	ms.addOAuthState(state)
+	codeVerifier := generateVerifierFn()
+	ms.addOAuthState(state, codeVerifier)
 
 	services := manageServices(ms.opts.Services)
 
@@ -306,7 +308,7 @@ func (ms *ManageServer) handleAuthStart(w http.ResponseWriter, r *http.Request) 
 		Scopes:       scopes,
 	}
 
-	authURL := cfg.AuthCodeURL(state, authURLParams(ms.opts.ForceConsent, true)...)
+	authURL := cfg.AuthCodeURL(state, pkceAuthURLParams(ms.opts.ForceConsent, true, codeVerifier)...)
 	http.Redirect(w, r, authURL, http.StatusFound)
 }
 
@@ -340,7 +342,8 @@ func (ms *ManageServer) handleAuthUpgrade(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	ms.addOAuthState(state)
+	codeVerifier := generateVerifierFn()
+	ms.addOAuthState(state, codeVerifier)
 
 	// Use requested manage services (exclude Keep)
 	services := manageServices(ms.opts.Services)
@@ -364,7 +367,7 @@ func (ms *ManageServer) handleAuthUpgrade(w http.ResponseWriter, r *http.Request
 	// Always force consent for upgrades to ensure user sees all scopes
 	// Add login_hint to pre-select the account
 	authURL := cfg.AuthCodeURL(state,
-		append(authURLParams(true, true),
+		append(pkceAuthURLParams(true, true, codeVerifier),
 			oauth2.SetAuthURLParam("login_hint", email))...)
 
 	http.Redirect(w, r, authURL, http.StatusFound)
@@ -382,9 +385,17 @@ func (ms *ManageServer) handleOAuthCallback(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	if !ms.consumeOAuthState(q.Get("state")) {
+	codeVerifier, ok := ms.consumeOAuthState(q.Get("state"))
+	if !ok {
 		w.WriteHeader(http.StatusBadRequest)
 		renderErrorPage(w, "State mismatch - possible CSRF attack. Please try again.")
+
+		return
+	}
+
+	if codeVerifier == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		renderErrorPage(w, "Missing PKCE verifier. Please try again.")
 
 		return
 	}
@@ -428,7 +439,7 @@ func (ms *ManageServer) handleOAuthCallback(w http.ResponseWriter, r *http.Reque
 	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 	defer cancel()
 
-	tok, err := cfg.Exchange(ctx, code)
+	tok, err := cfg.Exchange(ctx, code, oauth2.VerifierOption(codeVerifier))
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		renderErrorPage(w, "Failed to exchange code for token: "+err.Error())
@@ -597,38 +608,48 @@ type defaultAccountDeleter interface {
 	DeleteDefaultAccount(client string) error
 }
 
-func (ms *ManageServer) addOAuthState(state string) {
+func (ms *ManageServer) addOAuthState(state string, codeVerifier string) {
 	ms.oauthMu.Lock()
 	defer ms.oauthMu.Unlock()
 
 	ms.oauthState = state
+	ms.oauthVerifier = codeVerifier
+
 	if ms.oauthStates == nil {
-		ms.oauthStates = make(map[string]struct{})
+		ms.oauthStates = make(map[string]string)
 	}
 
-	ms.oauthStates[state] = struct{}{}
+	ms.oauthStates[state] = codeVerifier
 }
 
-func (ms *ManageServer) consumeOAuthState(state string) bool {
+func (ms *ManageServer) consumeOAuthState(state string) (string, bool) {
 	ms.oauthMu.Lock()
 	defer ms.oauthMu.Unlock()
 
 	if ms.oauthStates != nil {
-		if _, ok := ms.oauthStates[state]; ok {
+		if codeVerifier, ok := ms.oauthStates[state]; ok {
 			delete(ms.oauthStates, state)
-			return true
+
+			if state == ms.oauthState {
+				ms.oauthState = ""
+				ms.oauthVerifier = ""
+			}
+
+			return codeVerifier, true
 		}
 
-		return false
+		return "", false
 	}
 
 	if state == "" || state != ms.oauthState {
-		return false
+		return "", false
 	}
 
 	ms.oauthState = ""
+	codeVerifier := ms.oauthVerifier
+	ms.oauthVerifier = ""
 
-	return true
+	return codeVerifier, true
 }
 
 func (ms *ManageServer) accountExists(email string) bool {

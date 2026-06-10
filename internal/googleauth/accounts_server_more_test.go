@@ -113,9 +113,10 @@ func TestManageServerHandleOAuthCallback_ReadCredsError(t *testing.T) {
 	t.Cleanup(func() { _ = ln.Close() })
 
 	ms := &ManageServer{
-		oauthState: "state1",
-		listener:   ln,
-		store:      &fakeStore{},
+		oauthState:    "state1",
+		oauthVerifier: testCodeVerifier,
+		listener:      ln,
+		store:         &fakeStore{},
 	}
 
 	rr := httptest.NewRecorder()
@@ -144,10 +145,11 @@ func TestManageServerHandleOAuthCallback_ScopesError(t *testing.T) {
 	t.Cleanup(func() { _ = ln.Close() })
 
 	ms := &ManageServer{
-		oauthState: "state1",
-		listener:   ln,
-		store:      &fakeStore{},
-		opts:       ManageServerOptions{Services: []Service{Service("nope")}},
+		oauthState:    "state1",
+		oauthVerifier: testCodeVerifier,
+		listener:      ln,
+		store:         &fakeStore{},
+		opts:          ManageServerOptions{Services: []Service{Service("nope")}},
 	}
 
 	rr := httptest.NewRecorder()
@@ -188,10 +190,11 @@ func TestManageServerHandleOAuthCallback_ExchangeError(t *testing.T) {
 	t.Cleanup(func() { _ = ln.Close() })
 
 	ms := &ManageServer{
-		oauthState: "state1",
-		listener:   ln,
-		store:      &fakeStore{},
-		opts:       ManageServerOptions{Services: []Service{ServiceGmail}},
+		oauthState:    "state1",
+		oauthVerifier: testCodeVerifier,
+		listener:      ln,
+		store:         &fakeStore{},
+		opts:          ManageServerOptions{Services: []Service{ServiceGmail}},
 	}
 
 	rr := httptest.NewRecorder()
@@ -237,10 +240,11 @@ func TestManageServerHandleOAuthCallback_MissingRefreshToken(t *testing.T) {
 	t.Cleanup(func() { _ = ln.Close() })
 
 	ms := &ManageServer{
-		oauthState: "state1",
-		listener:   ln,
-		store:      &fakeStore{},
-		opts:       ManageServerOptions{Services: []Service{ServiceGmail}},
+		oauthState:    "state1",
+		oauthVerifier: testCodeVerifier,
+		listener:      ln,
+		store:         &fakeStore{},
+		opts:          ManageServerOptions{Services: []Service{ServiceGmail}},
 	}
 
 	rr := httptest.NewRecorder()
@@ -287,9 +291,10 @@ func TestManageServerHandleOAuthCallback_FetchEmailError(t *testing.T) {
 	t.Cleanup(func() { _ = ln.Close() })
 
 	ms := &ManageServer{
-		oauthState: "state1",
-		listener:   ln,
-		store:      &fakeStore{},
+		oauthState:    "state1",
+		oauthVerifier: testCodeVerifier,
+		listener:      ln,
+		store:         &fakeStore{},
 		fetchIdentity: func(context.Context, *oauth2.Token) (Identity, error) {
 			return Identity{}, errTestStoreBoom
 		},

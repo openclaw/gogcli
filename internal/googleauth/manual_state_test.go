@@ -67,6 +67,67 @@ func TestManualAuthURL_ReusesState(t *testing.T) {
 	}
 }
 
+func TestManualAuthURL_UsesPKCEAndPersistsVerifier(t *testing.T) {
+	origRead := readClientCredentials
+	origEndpoint := oauthEndpoint
+	origState := randomStateFn
+	origVerifier := generateVerifierFn
+
+	t.Cleanup(func() {
+		readClientCredentials = origRead
+		oauthEndpoint = origEndpoint
+		randomStateFn = origState
+		generateVerifierFn = origVerifier
+	})
+
+	useTempManualStatePath(t)
+
+	readClientCredentials = func(string) (config.ClientCredentials, error) {
+		return config.ClientCredentials{ClientID: "id", ClientSecret: "secret"}, nil
+	}
+	oauthEndpoint = oauth2EndpointForTest("http://example.com")
+	randomStateFn = func() (string, error) { return "state1", nil }
+	generateVerifierFn = func() string { return testCodeVerifier }
+
+	res, err := ManualAuthURL(context.Background(), AuthorizeOptions{
+		Scopes: []string{"s1"},
+		Manual: true,
+	})
+	if err != nil {
+		t.Fatalf("ManualAuthURL: %v", err)
+	}
+
+	parsed, err := url.Parse(res.URL)
+	if err != nil {
+		t.Fatalf("parse auth URL: %v", err)
+	}
+
+	if got := parsed.Query().Get("code_challenge_method"); got != "S256" {
+		t.Fatalf("expected S256 challenge method, got %q", got)
+	}
+
+	if got, want := parsed.Query().Get("code_challenge"), pkceChallengeForTest(); got != want {
+		t.Fatalf("unexpected code challenge: got %q want %q", got, want)
+	}
+
+	if got := parsed.Query().Get("code_verifier"); got != "" {
+		t.Fatalf("code_verifier must not be exposed in auth URL, got %q", got)
+	}
+
+	st, ok, err := loadManualState("", []string{"s1"}, false)
+	if err != nil {
+		t.Fatalf("load manual state: %v", err)
+	}
+
+	if !ok {
+		t.Fatalf("expected manual state")
+	}
+
+	if st.CodeVerifier != testCodeVerifier {
+		t.Fatalf("expected persisted verifier")
+	}
+}
+
 func TestManualAuthURL_UsesRedirectURIOverride(t *testing.T) {
 	origRead := readClientCredentials
 	origEndpoint := oauthEndpoint

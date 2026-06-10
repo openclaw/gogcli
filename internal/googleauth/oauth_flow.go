@@ -58,6 +58,7 @@ var (
 	openBrowserFn         = openBrowser
 	oauthEndpoint         = google.Endpoint
 	randomStateFn         = randomState
+	generateVerifierFn    = oauth2.GenerateVerifier
 	manualRedirectURIFn   = randomManualRedirectURI
 )
 
@@ -222,7 +223,8 @@ func authorizeServer(ctx context.Context, opts AuthorizeOptions, creds config.Cl
 		}
 	}()
 
-	authURL := cfg.AuthCodeURL(state, authURLParams(opts.ForceConsent, !opts.DisableIncludeGrantedScopes)...)
+	codeVerifier := generateVerifierFn()
+	authURL := cfg.AuthCodeURL(state, pkceAuthURLParams(opts.ForceConsent, !opts.DisableIncludeGrantedScopes, codeVerifier)...)
 
 	fmt.Fprintln(os.Stderr, "Opening browser for authorization…")
 	fmt.Fprintln(os.Stderr, "If the browser doesn't open, visit this URL:")
@@ -238,7 +240,7 @@ func authorizeServer(ctx context.Context, opts AuthorizeOptions, creds config.Cl
 		fmt.Fprintln(os.Stderr, "Authorization received. Finishing…")
 		var tok *oauth2.Token
 
-		if t, exchangeErr := cfg.Exchange(ctx, code); exchangeErr != nil {
+		if t, exchangeErr := cfg.Exchange(ctx, code, oauth2.VerifierOption(codeVerifier)); exchangeErr != nil {
 			_ = srv.Close()
 
 			return "", fmt.Errorf("exchange code: %w", exchangeErr)
@@ -278,6 +280,10 @@ func authURLParams(forceConsent bool, includeGrantedScopes bool) []oauth2.AuthCo
 	}
 
 	return opts
+}
+
+func pkceAuthURLParams(forceConsent bool, includeGrantedScopes bool, codeVerifier string) []oauth2.AuthCodeOption {
+	return append(authURLParams(forceConsent, includeGrantedScopes), oauth2.S256ChallengeOption(codeVerifier))
 }
 
 func randomState() (string, error) {

@@ -2,6 +2,8 @@ package googleauth
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -18,9 +20,22 @@ import (
 	"github.com/steipete/gogcli/internal/config"
 )
 
-var errMissingRedirectState = errors.New("missing redirect/state")
+var (
+	errMissingRedirectState          = errors.New("missing redirect/state")
+	errUnexpectedCodeChallengeMethod = errors.New("unexpected code_challenge_method")
+	errUnexpectedCodeChallenge       = errors.New("unexpected code_challenge")
+	errExposedCodeVerifier           = errors.New("auth URL exposed code_verifier")
+)
 
-const testRedirectURI = "http://127.0.0.1:55555/oauth2/callback"
+const (
+	testRedirectURI  = "http://127.0.0.1:55555/oauth2/callback"
+	testCodeVerifier = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._~"
+)
+
+func pkceChallengeForTest() string {
+	sum := sha256.Sum256([]byte(testCodeVerifier))
+	return base64.RawURLEncoding.EncodeToString(sum[:])
+}
 
 func useManualRedirectURI(t *testing.T) {
 	t.Helper()
@@ -280,7 +295,7 @@ func TestAuthorize_Manual_AuthCode(t *testing.T) {
 		return config.ClientCredentials{ClientID: "id", ClientSecret: "secret"}, nil
 	}
 
-	if err := saveManualState("", []string{"s1"}, false, "state123", testRedirectURI); err != nil {
+	if err := saveManualState("", []string{"s1"}, false, "state123", testRedirectURI, testCodeVerifier); err != nil {
 		t.Fatalf("save manual state: %v", err)
 	}
 
@@ -328,6 +343,9 @@ func TestAuthorize_Manual_AuthCode_WithRedirectURI(t *testing.T) {
 	}
 
 	wantRedirectURI := "https://host.example/oauth2/callback"
+	if err := saveManualState("", []string{"s1"}, false, "state123", wantRedirectURI, testCodeVerifier); err != nil {
+		t.Fatalf("save manual state: %v", err)
+	}
 
 	tokenSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/token" {
@@ -387,6 +405,9 @@ func TestAuthorize_Manual_AuthURL_PrefersAuthURLRedirectOverOverride(t *testing.
 	}
 
 	redirectFromAuthURL := "https://from-auth-url.example/oauth2/callback"
+	if err := saveManualState("", []string{"s1"}, false, "state123", redirectFromAuthURL, testCodeVerifier); err != nil {
+		t.Fatalf("save manual state: %v", err)
+	}
 
 	tokenSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/token" {
@@ -510,7 +531,7 @@ func TestAuthorize_Manual_AuthURL_RequireStateMissingForDifferentState(t *testin
 	}
 	oauthEndpoint = oauth2EndpointForTest("http://example.com")
 
-	if err := saveManualState("default", []string{"s1"}, false, "state123", "http://127.0.0.1:55555/oauth2/callback"); err != nil {
+	if err := saveManualState("default", []string{"s1"}, false, "state123", "http://127.0.0.1:55555/oauth2/callback", testCodeVerifier); err != nil {
 		t.Fatalf("save manual state: %v", err)
 	}
 
@@ -535,18 +556,45 @@ func TestAuthorize_ServerFlow_Success(t *testing.T) {
 	origRead := readClientCredentials
 	origEndpoint := oauthEndpoint
 	origOpen := openBrowserFn
+	origVerifier := generateVerifierFn
 
 	t.Cleanup(func() {
 		readClientCredentials = origRead
 		oauthEndpoint = origEndpoint
 		openBrowserFn = origOpen
+		generateVerifierFn = origVerifier
 	})
 
 	readClientCredentials = func(string) (config.ClientCredentials, error) {
 		return config.ClientCredentials{ClientID: "id", ClientSecret: "secret"}, nil
 	}
 
-	tokenSrv := newTokenServer(t)
+	generateVerifierFn = func() string { return testCodeVerifier }
+
+	tokenSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/token" {
+			http.NotFound(w, r)
+			return
+		}
+
+		if err := r.ParseForm(); err != nil {
+			http.Error(w, "bad form", http.StatusBadRequest)
+			return
+		}
+
+		if got := r.Form.Get("code_verifier"); got != testCodeVerifier {
+			http.Error(w, "bad code_verifier", http.StatusBadRequest)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"access_token":  "at",
+			"refresh_token": "rt",
+			"token_type":    "Bearer",
+			"expires_in":    3600,
+		})
+	}))
 	defer tokenSrv.Close()
 	oauthEndpoint = oauth2EndpointForTest(tokenSrv.URL)
 
@@ -559,6 +607,18 @@ func TestAuthorize_ServerFlow_Success(t *testing.T) {
 		redirect := q.Get("redirect_uri")
 
 		var state string
+
+		if got := q.Get("code_challenge_method"); got != "S256" {
+			return fmt.Errorf("%w: got %q", errUnexpectedCodeChallengeMethod, got)
+		}
+
+		if got, want := q.Get("code_challenge"), pkceChallengeForTest(); got != want {
+			return fmt.Errorf("%w: got %q want %q", errUnexpectedCodeChallenge, got, want)
+		}
+
+		if got := q.Get("code_verifier"); got != "" {
+			return fmt.Errorf("%w: got %q", errExposedCodeVerifier, got)
+		}
 
 		if s := q.Get("state"); redirect == "" || s == "" {
 			return errMissingRedirectState
@@ -588,6 +648,94 @@ func TestAuthorize_ServerFlow_Success(t *testing.T) {
 
 	rt, err := Authorize(context.Background(), AuthorizeOptions{
 		Scopes:  []string{"s1"},
+		Timeout: 2 * time.Second,
+	})
+	if err != nil {
+		t.Fatalf("Authorize: %v", err)
+	}
+
+	if rt != "rt" {
+		t.Fatalf("unexpected refresh token: %q", rt)
+	}
+}
+
+func TestAuthorize_Manual_AuthURL_UsesStoredPKCEVerifier(t *testing.T) {
+	origRead := readClientCredentials
+	origEndpoint := oauthEndpoint
+	origState := randomStateFn
+	origVerifier := generateVerifierFn
+
+	t.Cleanup(func() {
+		readClientCredentials = origRead
+		oauthEndpoint = origEndpoint
+		randomStateFn = origState
+		generateVerifierFn = origVerifier
+	})
+
+	useTempManualStatePath(t)
+
+	readClientCredentials = func(string) (config.ClientCredentials, error) {
+		return config.ClientCredentials{ClientID: "id", ClientSecret: "secret"}, nil
+	}
+	randomStateFn = func() (string, error) { return "state123", nil }
+	generateVerifierFn = func() string { return testCodeVerifier }
+
+	tokenSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/token" {
+			http.NotFound(w, r)
+			return
+		}
+
+		if err := r.ParseForm(); err != nil {
+			http.Error(w, "bad form", http.StatusBadRequest)
+			return
+		}
+
+		if got := r.Form.Get("code_verifier"); got != testCodeVerifier {
+			http.Error(w, "bad code_verifier", http.StatusBadRequest)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"access_token":  "at",
+			"refresh_token": "rt",
+			"token_type":    "Bearer",
+			"expires_in":    3600,
+		})
+	}))
+	defer tokenSrv.Close()
+	oauthEndpoint = oauth2EndpointForTest(tokenSrv.URL)
+
+	res, err := ManualAuthURL(context.Background(), AuthorizeOptions{
+		Scopes:  []string{"s1"},
+		Manual:  true,
+		Timeout: 2 * time.Second,
+	})
+	if err != nil {
+		t.Fatalf("ManualAuthURL: %v", err)
+	}
+
+	parsed, err := url.Parse(res.URL)
+	if err != nil {
+		t.Fatalf("parse auth URL: %v", err)
+	}
+
+	if got := parsed.Query().Get("code_challenge_method"); got != "S256" {
+		t.Fatalf("expected S256 challenge method, got %q", got)
+	}
+
+	if got, want := parsed.Query().Get("code_challenge"), pkceChallengeForTest(); got != want {
+		t.Fatalf("unexpected code challenge: got %q want %q", got, want)
+	}
+
+	redirectURI := parsed.Query().Get("redirect_uri")
+	state := parsed.Query().Get("state")
+
+	rt, err := Authorize(context.Background(), AuthorizeOptions{
+		Scopes:  []string{"s1"},
+		Manual:  true,
+		AuthURL: redirectURI + "?code=abc&state=" + url.QueryEscape(state),
 		Timeout: 2 * time.Second,
 	})
 	if err != nil {

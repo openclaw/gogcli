@@ -98,7 +98,19 @@ func authorizeManualWithCode(
 		return "", errMissingRedirectURI
 	}
 
-	tok, exchangeErr := cfg.Exchange(ctx, code)
+	if st.CodeVerifier == "" && gotState == "" {
+		if cached, ok, err := loadManualState(opts.Client, opts.Scopes, opts.ForceConsent); err != nil {
+			return "", err
+		} else if ok && cfg.RedirectURL == cached.RedirectURI {
+			st = cached
+		}
+	}
+
+	if strings.TrimSpace(st.CodeVerifier) == "" {
+		return "", errManualStateMissing
+	}
+
+	tok, exchangeErr := cfg.Exchange(ctx, code, oauth2.VerifierOption(st.CodeVerifier))
 	if exchangeErr != nil {
 		return "", fmt.Errorf("exchange code: %w", exchangeErr)
 	}
@@ -107,8 +119,8 @@ func authorizeManualWithCode(
 		return "", errNoRefreshToken
 	}
 
-	if gotState != "" {
-		_ = clearManualState(gotState)
+	if st.State != "" {
+		_ = clearManualState(st.State)
 	}
 
 	return tok.RefreshToken, nil
@@ -121,7 +133,7 @@ func authorizeManualInteractive(ctx context.Context, opts AuthorizeOptions, cfg 
 	}
 
 	cfg.RedirectURL = setup.redirectURI
-	authURL := cfg.AuthCodeURL(setup.state, authURLParams(opts.ForceConsent, !opts.DisableIncludeGrantedScopes)...)
+	authURL := cfg.AuthCodeURL(setup.state, pkceAuthURLParams(opts.ForceConsent, !opts.DisableIncludeGrantedScopes, setup.codeVerifier)...)
 
 	fmt.Fprintln(os.Stderr, "Visit this URL to authorize:")
 	fmt.Fprintln(os.Stderr, authURL)
@@ -161,7 +173,7 @@ func authorizeManualInteractive(ctx context.Context, opts AuthorizeOptions, cfg 
 		}
 	}
 
-	tok, exchangeErr := cfg.Exchange(ctx, code)
+	tok, exchangeErr := cfg.Exchange(ctx, code, oauth2.VerifierOption(setup.codeVerifier))
 	if exchangeErr != nil {
 		return "", fmt.Errorf("exchange code: %w", exchangeErr)
 	}
@@ -251,15 +263,16 @@ func ManualAuthURL(ctx context.Context, opts AuthorizeOptions) (ManualAuthURLRes
 	}
 
 	return ManualAuthURLResult{
-		URL:         cfg.AuthCodeURL(setup.state, authURLParams(opts.ForceConsent, !opts.DisableIncludeGrantedScopes)...),
+		URL:         cfg.AuthCodeURL(setup.state, pkceAuthURLParams(opts.ForceConsent, !opts.DisableIncludeGrantedScopes, setup.codeVerifier)...),
 		StateReused: setup.reused,
 	}, nil
 }
 
 type manualAuthSetupResult struct {
-	state       string
-	redirectURI string
-	reused      bool
+	state        string
+	redirectURI  string
+	codeVerifier string
+	reused       bool
 }
 
 func manualAuthSetup(ctx context.Context, opts AuthorizeOptions) (manualAuthSetupResult, error) {
@@ -280,11 +293,13 @@ func manualAuthSetup(ctx context.Context, opts AuthorizeOptions) (manualAuthSetu
 
 	state := st.State
 	redirectURI := st.RedirectURI
+	codeVerifier := st.CodeVerifier
 
 	if redirectURIOverride != "" {
 		if !reused || st.RedirectURI != redirectURIOverride {
 			reused = false
 			redirectURI = redirectURIOverride
+			codeVerifier = ""
 		}
 	}
 
@@ -301,14 +316,17 @@ func manualAuthSetup(ctx context.Context, opts AuthorizeOptions) (manualAuthSetu
 			return manualAuthSetupResult{}, err
 		}
 
-		if err := saveManualState(opts.Client, opts.Scopes, opts.ForceConsent, state, redirectURI); err != nil {
+		codeVerifier = generateVerifierFn()
+
+		if err := saveManualState(opts.Client, opts.Scopes, opts.ForceConsent, state, redirectURI, codeVerifier); err != nil {
 			return manualAuthSetupResult{}, err
 		}
 	}
 
 	return manualAuthSetupResult{
-		state:       state,
-		redirectURI: redirectURI,
-		reused:      reused,
+		state:        state,
+		redirectURI:  redirectURI,
+		codeVerifier: codeVerifier,
+		reused:       reused,
 	}, nil
 }

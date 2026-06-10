@@ -30,6 +30,7 @@ type manualState struct {
 	Scopes       []string  `json:"scopes"`
 	ForceConsent bool      `json:"force_consent,omitempty"`
 	RedirectURI  string    `json:"redirect_uri,omitempty"`
+	CodeVerifier string    `json:"code_verifier,omitempty"`
 	CreatedAt    time.Time `json:"created_at"`
 }
 
@@ -121,6 +122,12 @@ func loadManualState(client string, scopes []string, forceConsent bool) (manualS
 			continue
 		}
 
+		// CodeVerifier is required for PKCE-bound step 2 exchanges.
+		// Older cache entries (pre-PKCE) should not be reused.
+		if strings.TrimSpace(st.CodeVerifier) == "" {
+			continue
+		}
+
 		if bestState.State == "" || st.CreatedAt.After(bestCreated) {
 			bestState = st
 			bestCreated = st.CreatedAt
@@ -163,7 +170,7 @@ func loadManualStateByPath(path string) (manualState, bool, error) {
 	return st, true, nil
 }
 
-func saveManualState(client string, scopes []string, forceConsent bool, state string, redirectURI string) error {
+func saveManualState(client string, scopes []string, forceConsent bool, state string, redirectURI string, codeVerifier string) error {
 	path, err := manualStatePathFor(state)
 	if err != nil {
 		return err
@@ -175,6 +182,7 @@ func saveManualState(client string, scopes []string, forceConsent bool, state st
 		Scopes:       normalizeScopes(scopes),
 		ForceConsent: forceConsent,
 		RedirectURI:  strings.TrimSpace(redirectURI),
+		CodeVerifier: strings.TrimSpace(codeVerifier),
 		CreatedAt:    manualStateNowFn().UTC(),
 	}
 
