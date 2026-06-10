@@ -35,6 +35,10 @@ type DocsCmd struct {
 	InsertTable      DocsInsertTableCmd      `cmd:"" name:"insert-table" help:"Insert a native table at a specific position (or end-of-doc with --at-end), optionally populated via --values-json"`
 	CellUpdate       DocsCellUpdateCmd       `cmd:"" name:"cell-update" aliases:"update-cell" help:"Replace or append content inside a specific table cell"`
 	CellStyle        DocsCellStyleCmd        `cmd:"" name:"cell-style" help:"Apply table cell background and text styling"`
+	TableRow         DocsTableRowCmd         `cmd:"" name:"table-row" help:"Insert or delete native table rows"`
+	TableColumn      DocsTableColumnCmd      `cmd:"" name:"table-column" help:"Insert or delete native table columns"`
+	TableMerge       DocsTableMergeCmd       `cmd:"" name:"table-merge" help:"Merge a native table cell range"`
+	TableUnmerge     DocsTableUnmergeCmd     `cmd:"" name:"table-unmerge" aliases:"table-split" help:"Unmerge the region containing a native table cell"`
 	TableColumnWidth DocsTableColumnWidthCmd `cmd:"" name:"table-column-width" aliases:"table-width,column-width" help:"Set or reset native table column widths"`
 	InsertImage      DocsInsertImageCmd      `cmd:"" name:"insert-image" help:"Upload a local image and insert it into a Google Doc"`
 	InsertPerson     DocsInsertPersonCmd     `cmd:"" name:"insert-person" help:"Insert a native person smart chip"`

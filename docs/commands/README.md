@@ -2,7 +2,7 @@
 
 Every `gog` command has a generated docs page. The source of truth is the live CLI schema; run `make docs-commands` after changing command names, flags, help text, aliases, or arguments.
 
-Generated pages: 606.
+Generated pages: 614.
 
 ## Top-level Commands
 
@@ -318,7 +318,15 @@ Generated pages: 606.
     - [gog docs rename-tab](gog-docs-rename-tab.md) - Rename a tab in a Google Doc
     - [gog docs sed](gog-docs-sed.md) - Regex find/replace (sed-style: s/pattern/replacement/g)
     - [gog docs structure](gog-docs-structure.md) - Show document structure with numbered paragraphs
+    - [gog docs table-column](gog-docs-table-column.md) - Insert or delete native table columns
+      - [gog docs table-column delete](gog-docs-table-column-delete.md) - Delete a native table column
+      - [gog docs table-column insert](gog-docs-table-column-insert.md) - Insert a native table column
     - [gog docs table-column-width](gog-docs-table-column-width.md) - Set or reset native table column widths
+    - [gog docs table-merge](gog-docs-table-merge.md) - Merge a native table cell range
+    - [gog docs table-row](gog-docs-table-row.md) - Insert or delete native table rows
+      - [gog docs table-row delete](gog-docs-table-row-delete.md) - Delete a native table row
+      - [gog docs table-row insert](gog-docs-table-row-insert.md) - Insert a native table row
+    - [gog docs table-unmerge](gog-docs-table-unmerge.md) - Unmerge the region containing a native table cell
     - [gog docs tables](gog-docs-tables.md) - List native tables
       - [gog docs tables list](gog-docs-tables-list.md) - List native tables in document order
     - [gog docs tabs](gog-docs-tabs.md) - Manage Google Doc tabs

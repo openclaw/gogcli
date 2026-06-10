@@ -49,7 +49,11 @@ gog docs (doc) <command> [flags]
 - [gog docs rename-tab](gog-docs-rename-tab.md) - Rename a tab in a Google Doc
 - [gog docs sed](gog-docs-sed.md) - Regex find/replace (sed-style: s/pattern/replacement/g)
 - [gog docs structure](gog-docs-structure.md) - Show document structure with numbered paragraphs
+- [gog docs table-column](gog-docs-table-column.md) - Insert or delete native table columns
 - [gog docs table-column-width](gog-docs-table-column-width.md) - Set or reset native table column widths
+- [gog docs table-merge](gog-docs-table-merge.md) - Merge a native table cell range
+- [gog docs table-row](gog-docs-table-row.md) - Insert or delete native table rows
+- [gog docs table-unmerge](gog-docs-table-unmerge.md) - Unmerge the region containing a native table cell
 - [gog docs tables](gog-docs-tables.md) - List native tables
 - [gog docs tabs](gog-docs-tabs.md) - Manage Google Doc tabs
 - [gog docs update](gog-docs-update.md) - Insert or replace text at a specific index or range in a Google Doc

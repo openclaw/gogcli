@@ -19,171 +19,46 @@ func (c *DocsSedCmd) runTableRowColOp(ctx context.Context, u *ui.UI, account, id
 		return err
 	}
 
-	tablesWithIdx := collectAllTablesWithIndex(doc)
-	if len(tablesWithIdx) == 0 {
-		return usage("document has no tables")
+	target, _, err := resolveDocsTableWithIndex(doc, ref.tableIndex)
+	if err != nil {
+		return err
 	}
-
-	// Resolve table index
-	ti := ref.tableIndex
-	if ti < 0 {
-		ti = len(tablesWithIdx) + ti + 1
-	}
-	if ti < 1 || ti > len(tablesWithIdx) {
-		return usagef("table %d out of range (document has %d tables)", ref.tableIndex, len(tablesWithIdx))
-	}
-	tw := tablesWithIdx[ti-1]
-	table := tw.table
-	tableStartLoc := &docs.Location{Index: tw.startIdx}
-
-	var requests []*docs.Request
-	opDesc := ""
-
-	if ref.rowOp != "" {
-		numRows := len(table.TableRows)
-		switch ref.rowOp {
-		case opDelete:
-			target := ref.opTarget
-			if target < 0 {
-				target = numRows + target + 1
-			}
-			if target < 1 || target > numRows {
-				return usagef("row %d out of range (table has %d rows)", ref.opTarget, numRows)
-			}
-			if numRows <= 1 {
-				return usage("cannot delete the only row in a table")
-			}
-			cellLoc := &docs.TableCellLocation{
-				TableStartLocation: tableStartLoc,
-				RowIndex:           int64(target - 1),
-				ColumnIndex:        0,
-			}
-			requests = append(requests, &docs.Request{
-				DeleteTableRow: &docs.DeleteTableRowRequest{
-					TableCellLocation: cellLoc,
-				},
-			})
-			opDesc = fmt.Sprintf("deleted row %d", target)
-
-		case opInsert:
-			target := ref.opTarget
-			if target < 0 {
-				target = numRows + target + 1
-			}
-			if target < 1 || target > numRows {
-				return usagef("row %d out of range for insert (table has %d rows)", ref.opTarget, numRows)
-			}
-			cellLoc := &docs.TableCellLocation{
-				TableStartLocation: tableStartLoc,
-				RowIndex:           int64(target - 1),
-				ColumnIndex:        0,
-			}
-			requests = append(requests, &docs.Request{
-				InsertTableRow: &docs.InsertTableRowRequest{
-					TableCellLocation: cellLoc,
-					InsertBelow:       false,
-				},
-			})
-			opDesc = fmt.Sprintf("inserted row before row %d", target)
-
-		case opAppend:
-			lastRow := numRows - 1
-			cellLoc := &docs.TableCellLocation{
-				TableStartLocation: tableStartLoc,
-				RowIndex:           int64(lastRow),
-				ColumnIndex:        0,
-			}
-			requests = append(requests, &docs.Request{
-				InsertTableRow: &docs.InsertTableRowRequest{
-					TableCellLocation: cellLoc,
-					InsertBelow:       true,
-				},
-			})
-			opDesc = "appended row at end"
-		}
-	}
-
-	if ref.colOp != "" {
-		numCols := 0
-		if len(table.TableRows) > 0 {
-			numCols = len(table.TableRows[0].TableCells)
-		}
-		switch ref.colOp {
-		case opDelete:
-			target := ref.opTarget
-			if target < 0 {
-				target = numCols + target + 1
-			}
-			if target < 1 || target > numCols {
-				return usagef("col %d out of range (table has %d columns)", ref.opTarget, numCols)
-			}
-			if numCols <= 1 {
-				return usage("cannot delete the only column in a table")
-			}
-			cellLoc := &docs.TableCellLocation{
-				TableStartLocation: tableStartLoc,
-				RowIndex:           0,
-				ColumnIndex:        int64(target - 1),
-			}
-			requests = append(requests, &docs.Request{
-				DeleteTableColumn: &docs.DeleteTableColumnRequest{
-					TableCellLocation: cellLoc,
-				},
-			})
-			opDesc = fmt.Sprintf("deleted column %d", target)
-
-		case opInsert:
-			target := ref.opTarget
-			if target < 0 {
-				target = numCols + target + 1
-			}
-			if target < 1 || target > numCols {
-				return usagef("col %d out of range for insert (table has %d columns)", ref.opTarget, numCols)
-			}
-			cellLoc := &docs.TableCellLocation{
-				TableStartLocation: tableStartLoc,
-				RowIndex:           0,
-				ColumnIndex:        int64(target - 1),
-			}
-			requests = append(requests, &docs.Request{
-				InsertTableColumn: &docs.InsertTableColumnRequest{
-					TableCellLocation: cellLoc,
-					InsertRight:       false,
-				},
-			})
-			opDesc = fmt.Sprintf("inserted column before column %d", target)
-
-		case opAppend:
-			lastCol := numCols - 1
-			cellLoc := &docs.TableCellLocation{
-				TableStartLocation: tableStartLoc,
-				RowIndex:           0,
-				ColumnIndex:        int64(lastCol),
-			}
-			requests = append(requests, &docs.Request{
-				InsertTableColumn: &docs.InsertTableColumnRequest{
-					TableCellLocation: cellLoc,
-					InsertRight:       true,
-				},
-			})
-			opDesc = "appended column at end"
-		}
-	}
-
-	if len(requests) == 0 {
+	var dimension docsTableDimension
+	var action string
+	switch {
+	case ref.rowOp != "":
+		dimension = docsTableDimensionRow
+		action = ref.rowOp
+	case ref.colOp != "":
+		dimension = docsTableDimensionColumn
+		action = ref.colOp
+	default:
 		return usage("no row/column operation to perform")
 	}
 
-	err = retryOnQuota(ctx, func() error {
-		_, e := docsSvc.Documents.BatchUpdate(id, &docs.BatchUpdateDocumentRequest{
-			Requests: requests,
-		}).Context(ctx).Do()
-		return e
-	})
+	builderAction := action
+	if builderAction == opAppend {
+		builderAction = opInsert
+	}
+	req, resolved, err := buildDocsTableDimensionRequest(
+		target, dimension, builderAction, ref.opTarget, action == opAppend, "",
+	)
 	if err != nil {
+		return err
+	}
+	if _, err := batchUpdate(ctx, docsSvc, id, []*docs.Request{req}); err != nil {
 		return fmt.Errorf("batch update (row/col op): %w", err)
 	}
 
+	var opDesc string
+	switch action {
+	case opDelete:
+		opDesc = fmt.Sprintf("deleted %s %d", dimension, resolved)
+	case opInsert:
+		opDesc = fmt.Sprintf("inserted %s before %s %d", dimension, dimension, resolved)
+	case opAppend:
+		opDesc = fmt.Sprintf("appended %s at end", dimension)
+	}
 	return sedOutputOK(ctx, u, id, sedOutputKV{"op", opDesc})
 }
 
@@ -198,22 +73,11 @@ func (c *DocsSedCmd) runTableMerge(ctx context.Context, u *ui.UI, account, id st
 		return err
 	}
 
-	tablesWithIdx := collectAllTablesWithIndex(doc)
-	tIdx := ref.tableIndex
-	if tIdx < 0 {
-		tIdx = len(tablesWithIdx) + tIdx + 1
+	target, _, err := resolveDocsTableWithIndex(doc, ref.tableIndex)
+	if err != nil {
+		return err
 	}
-	if tIdx < 1 || tIdx > len(tablesWithIdx) {
-		return usagef("table index %d out of range (have %d tables)", ref.tableIndex, len(tablesWithIdx))
-	}
-	table := tablesWithIdx[tIdx-1].table
-	if validationErr := validateMergeTableRef(table, ref); validationErr != nil {
-		return validationErr
-	}
-	tableStartLoc := &docs.Location{Index: tablesWithIdx[tIdx-1].startIdx}
-
 	repl := strings.TrimSpace(strings.ToLower(expr.replacement))
-	var requests []*docs.Request
 	var opDesc string
 
 	switch repl {
@@ -221,80 +85,24 @@ func (c *DocsSedCmd) runTableMerge(ctx context.Context, u *ui.UI, account, id st
 		if ref.endRow == 0 || ref.endCol == 0 {
 			return usage("merge requires a range: |N|[r1,c1:r2,c2]")
 		}
-		requests = append(requests, &docs.Request{
-			MergeTableCells: &docs.MergeTableCellsRequest{
-				TableRange: &docs.TableRange{
-					TableCellLocation: &docs.TableCellLocation{
-						TableStartLocation: tableStartLoc,
-						RowIndex:           int64(ref.row - 1),
-						ColumnIndex:        int64(ref.col - 1),
-					},
-					RowSpan:    int64(ref.endRow - ref.row + 1),
-					ColumnSpan: int64(ref.endCol - ref.col + 1),
-				},
-			},
-		})
 		opDesc = fmt.Sprintf("merged [%d,%d:%d,%d]", ref.row, ref.col, ref.endRow, ref.endCol)
 	case unmergeOp, splitOp:
-		requests = append(requests, &docs.Request{
-			UnmergeTableCells: &docs.UnmergeTableCellsRequest{
-				TableRange: &docs.TableRange{
-					TableCellLocation: &docs.TableCellLocation{
-						TableStartLocation: tableStartLoc,
-						RowIndex:           int64(ref.row - 1),
-						ColumnIndex:        int64(ref.col - 1),
-					},
-					// For unmerge, span the minimum (1x1) — Google will unmerge whatever
-					// merged region contains this cell
-					RowSpan:    1,
-					ColumnSpan: 1,
-				},
-			},
-		})
 		opDesc = fmt.Sprintf("unmerged [%d,%d]", ref.row, ref.col)
 	default:
 		return usagef("unknown merge operation %q (expected merge, unmerge, or split)", repl)
 	}
 
-	err = retryOnQuota(ctx, func() error {
-		_, e := docsSvc.Documents.BatchUpdate(id, &docs.BatchUpdateDocumentRequest{
-			Requests: requests,
-		}).Context(ctx).Do()
-		return e
-	})
+	endRow, endCol := ref.endRow, ref.endCol
+	if repl == unmergeOp || repl == splitOp {
+		endRow, endCol = ref.row, ref.col
+	}
+	req, err := buildDocsTableMergeRequest(target, repl, ref.row, ref.col, endRow, endCol, "")
 	if err != nil {
+		return err
+	}
+	if _, err := batchUpdate(ctx, docsSvc, id, []*docs.Request{req}); err != nil {
 		return fmt.Errorf("batch update (%s): %w", opDesc, err)
 	}
 
 	return sedOutputOK(ctx, u, id, sedOutputKV{"action", opDesc})
-}
-
-func validateMergeTableRef(table *docs.Table, ref *tableCellRef) error {
-	rows := len(table.TableRows)
-	if ref.row < 1 || ref.row > rows {
-		return usagef("row %d out of range (table has %d rows)", ref.row, rows)
-	}
-	cols := len(table.TableRows[ref.row-1].TableCells)
-	if ref.col < 1 || ref.col > cols {
-		return usagef("col %d out of range (row has %d columns)", ref.col, cols)
-	}
-	if ref.endRow != 0 {
-		if ref.endRow < ref.row || ref.endRow > rows {
-			return usagef("row %d out of range (table has %d rows)", ref.endRow, rows)
-		}
-	}
-	if ref.endCol != 0 {
-		maxCols := cols
-		if ref.endRow != 0 {
-			for i := ref.row - 1; i <= ref.endRow-1; i++ {
-				if len(table.TableRows[i].TableCells) > maxCols {
-					maxCols = len(table.TableRows[i].TableCells)
-				}
-			}
-		}
-		if ref.endCol < ref.col || ref.endCol > maxCols {
-			return usagef("col %d out of range (table has %d columns)", ref.endCol, maxCols)
-		}
-	}
-	return nil
 }

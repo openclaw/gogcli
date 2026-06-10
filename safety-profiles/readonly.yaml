@@ -157,6 +157,14 @@ docs:
   edit: false
   sed: false
   clear: false
+  table-row:
+    insert: false
+    delete: false
+  table-column:
+    insert: false
+    delete: false
+  table-merge: false
+  table-unmerge: false
   structure: true
   named-range:
     list: true

@@ -5,6 +5,7 @@
 ### Added
 
 - Sheets: add `sheets validation` get/set/clear commands for dropdown, checkbox, number, date, range, and custom-formula rules, and preserve table-managed dropdowns during validation-only copy/paste. (#710) — thanks @chrischall.
+- Docs: add direct `docs table-row`, `docs table-column`, `docs table-merge`, and `docs table-unmerge` commands with index, header-text, all-table, and tab-aware selection. (#686) — thanks @sebsnyk.
 - Docs: add `docs named-range` create/list/delete/replace commands for durable, tab-aware document anchors. (#692) — thanks @sebsnyk.
 - Gmail: report attached filenames and byte sizes in JSON results for send and draft create/update. (#716) — thanks @chrischall.
 - Gmail: add `gmail watch pull` for Pub/Sub pull subscription consumers with hook retry support. (#700) — thanks @joshp123.

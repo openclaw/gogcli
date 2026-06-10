@@ -153,10 +153,45 @@ gog docs table-column-width <docId> --table-index 1 --evenly-distributed
 `--width` uses points and requires `--col`. `--evenly-distributed` resets one
 column when `--col` is supplied, or all columns when it is omitted.
 
+Insert or delete rows and columns without using the `docs sed` table syntax:
+
+```bash
+gog docs table-row insert <docId> --table 2 --at end
+gog docs table-row insert <docId> --table "Status" --at 2 \
+  --values-json '["Ready","Owner"]'
+gog docs table-row delete <docId> --table -1 --row 3
+gog docs table-column insert <docId> --table 1 --at 2
+gog docs table-column delete <docId> --table '*' --col -1
+```
+
+`--table` accepts a 1-based index, a negative index counted from the end, exact
+first-cell text, or `*` for every table. Prefix numeric or syntax-looking header
+text with `text:`, for example `--table text:2026` or `--table 'text:*'`.
+Header-text matches must be unique. Row and column indexes are 1-based and may
+be negative; `--at end` appends. `--values-json` accepts one JSON string array
+and is limited to a single table.
+
+Merge a rectangular cell range or unmerge the region containing one cell:
+
+```bash
+gog docs table-merge <docId> --table 1 --range 1,1:1,3
+gog docs table-unmerge <docId> --table 1 --cell 1,1
+```
+
+All direct table mutation commands accept `--tab`, `--dry-run`, `--json`, and
+`--plain`. Multi-table mutations are preflighted and preserve descending
+document order across Docs API-capped batch updates. Row and column structural
+operations reject non-rectangular API table shapes rather than guessing a cell
+reference that could broaden a merged-cell mutation.
+
 Command page:
 
 - [`gog docs insert-table`](commands/gog-docs-insert-table.md)
 - [`gog docs cell-update`](commands/gog-docs-cell-update.md)
+- [`gog docs table-row`](commands/gog-docs-table-row.md)
+- [`gog docs table-column`](commands/gog-docs-table-column.md)
+- [`gog docs table-merge`](commands/gog-docs-table-merge.md)
+- [`gog docs table-unmerge`](commands/gog-docs-table-unmerge.md)
 - [`gog docs table-column-width`](commands/gog-docs-table-column-width.md)
 
 ## Tabs

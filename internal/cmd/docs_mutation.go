@@ -322,23 +322,37 @@ func applyTabIDToFormattingRequests(requests []*docs.Request, tabID string) {
 // hard limit. Each chunk preserves the source order so cell-index
 // arithmetic remains consistent across the split. Returns the total number
 // of requests submitted (matches len(requests) on success); chunk events are
-// announced on stderr so callers can correlate wire traffic with logs.
+// announced on stderr so callers can correlate wire traffic with logs. When
+// revision control is supplied, each response's updated control is chained
+// into the next chunk so stale structural indexes fail closed.
 func submitBatchedDocsRequests(ctx context.Context, svc *docs.Service, docID string, requests []*docs.Request, writeControl *docs.WriteControl) (int, error) {
+	count, _, err := submitBatchedDocsRequestsWithRevision(ctx, svc, docID, requests, writeControl)
+	return count, err
+}
+
+func submitBatchedDocsRequestsWithRevision(
+	ctx context.Context,
+	svc *docs.Service,
+	docID string,
+	requests []*docs.Request,
+	writeControl *docs.WriteControl,
+) (int, string, error) {
 	if len(requests) == 0 {
-		return 0, nil
+		return 0, docsRequiredRevisionID(writeControl), nil
 	}
 	if len(requests) <= docsBatchUpdateRequestCap {
-		_, err := svc.Documents.BatchUpdate(docID, &docs.BatchUpdateDocumentRequest{
+		resp, err := svc.Documents.BatchUpdate(docID, &docs.BatchUpdateDocumentRequest{
 			WriteControl: writeControl,
 			Requests:     requests,
 		}).Context(ctx).Do()
 		if err != nil {
-			return 0, err
+			return 0, "", err
 		}
-		return len(requests), nil
+		return len(requests), docsBatchResponseRevisionID(resp), nil
 	}
 
 	totalChunks := (len(requests) + docsBatchUpdateRequestCap - 1) / docsBatchUpdateRequestCap
+	revisionID := docsRequiredRevisionID(writeControl)
 	for i := 0; i < len(requests); i += docsBatchUpdateRequestCap {
 		end := i + docsBatchUpdateRequestCap
 		if end > len(requests) {
@@ -347,21 +361,38 @@ func submitBatchedDocsRequests(ctx context.Context, svc *docs.Service, docID str
 		chunkIdx := i/docsBatchUpdateRequestCap + 1
 		fmt.Fprintf(os.Stderr, "gog: docs batchUpdate split %d/%d (%d requests; Docs API per-call cap is %d)\n",
 			chunkIdx, totalChunks, end-i, docsBatchUpdateRequestCap)
-		// WriteControl is only meaningful on the first chunk — subsequent
-		// chunks operate on whatever revision the prior chunk produced.
-		var wc *docs.WriteControl
-		if i == 0 {
-			wc = writeControl
-		}
-		_, err := svc.Documents.BatchUpdate(docID, &docs.BatchUpdateDocumentRequest{
-			WriteControl: wc,
+		resp, err := svc.Documents.BatchUpdate(docID, &docs.BatchUpdateDocumentRequest{
+			WriteControl: writeControl,
 			Requests:     requests[i:end],
 		}).Context(ctx).Do()
 		if err != nil {
-			return i, err
+			return i, revisionID, err
+		}
+		if end < len(requests) && writeControl != nil {
+			if resp == nil || resp.WriteControl == nil || resp.WriteControl.RequiredRevisionId == "" {
+				return end, revisionID, fmt.Errorf("docs batchUpdate split %d/%d did not return required revision control", chunkIdx, totalChunks)
+			}
+			revisionID = resp.WriteControl.RequiredRevisionId
+			writeControl = &docs.WriteControl{RequiredRevisionId: revisionID}
+		} else if responseRevisionID := docsBatchResponseRevisionID(resp); responseRevisionID != "" {
+			revisionID = responseRevisionID
 		}
 	}
-	return len(requests), nil
+	return len(requests), revisionID, nil
+}
+
+func docsRequiredRevisionID(writeControl *docs.WriteControl) string {
+	if writeControl == nil {
+		return ""
+	}
+	return writeControl.RequiredRevisionId
+}
+
+func docsBatchResponseRevisionID(resp *docs.BatchUpdateDocumentResponse) string {
+	if resp == nil || resp.WriteControl == nil {
+		return ""
+	}
+	return resp.WriteControl.RequiredRevisionId
 }
 
 func markdownAppendNeedsParagraphBoundary(elements []MarkdownElement) bool {
