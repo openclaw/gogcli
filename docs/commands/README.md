@@ -2,7 +2,7 @@
 
 Every `gog` command has a generated docs page. The source of truth is the live CLI schema; run `make docs-commands` after changing command names, flags, help text, aliases, or arguments.
 
-Generated pages: 597.
+Generated pages: 602.
 
 ## Top-level Commands
 
@@ -306,6 +306,11 @@ Generated pages: 597.
     - [gog docs insert-person](gog-docs-insert-person.md) - Insert a native person smart chip
     - [gog docs insert-table](gog-docs-insert-table.md) - Insert a native table at a specific position (or end-of-doc with --at-end), optionally populated via --values-json
     - [gog docs list-tabs](gog-docs-list-tabs.md) - List all tabs in a Google Doc
+    - [gog docs named-range](gog-docs-named-range.md) - Manage named ranges
+      - [gog docs named-range create](gog-docs-named-range-create.md) - Create a named range
+      - [gog docs named-range delete](gog-docs-named-range-delete.md) - Delete a named range
+      - [gog docs named-range list](gog-docs-named-range-list.md) - List named ranges
+      - [gog docs named-range replace](gog-docs-named-range-replace.md) - Replace a named range with plain text
     - [gog docs page-layout](gog-docs-page-layout.md) - Set page layout (pageless|pages) on an existing Google Doc
     - [gog docs paragraphs](gog-docs-paragraphs.md) - List document paragraphs
       - [gog docs paragraphs list](gog-docs-paragraphs-list.md) - List paragraphs

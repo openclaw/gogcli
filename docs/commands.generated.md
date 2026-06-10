@@ -254,6 +254,11 @@ Generated from `gog schema --json`.
     - [`gog docs (doc) insert-person --email=STRING <docId> [flags]`](commands/gog-docs-insert-person.md) - Insert a native person smart chip
     - [`gog docs (doc) insert-table --rows=INT --cols=INT <docId> [flags]`](commands/gog-docs-insert-table.md) - Insert a native table at a specific position (or end-of-doc with --at-end), optionally populated via --values-json
     - [`gog docs (doc) list-tabs <docId>`](commands/gog-docs-list-tabs.md) - List all tabs in a Google Doc
+    - [`gog docs (doc) named-range (named-ranges,namedranges,nr) <command>`](commands/gog-docs-named-range.md) - Manage named ranges
+      - [`gog docs (doc) named-range (named-ranges,namedranges,nr) create (add,new) <docId> [flags]`](commands/gog-docs-named-range-create.md) - Create a named range
+      - [`gog docs (doc) named-range (named-ranges,namedranges,nr) delete (rm,remove,del) <docId> <nameOrId> [flags]`](commands/gog-docs-named-range-delete.md) - Delete a named range
+      - [`gog docs (doc) named-range (named-ranges,namedranges,nr) list <docId> [flags]`](commands/gog-docs-named-range-list.md) - List named ranges
+      - [`gog docs (doc) named-range (named-ranges,namedranges,nr) replace (set,update) <docId> <nameOrId> [flags]`](commands/gog-docs-named-range-replace.md) - Replace a named range with plain text
     - [`gog docs (doc) page-layout (set-page-layout,page-setup) <docId> [flags]`](commands/gog-docs-page-layout.md) - Set page layout (pageless|pages) on an existing Google Doc
     - [`gog docs (doc) paragraphs <command>`](commands/gog-docs-paragraphs.md) - List document paragraphs
       - [`gog docs (doc) paragraphs list (ls) <docId> [flags]`](commands/gog-docs-paragraphs-list.md) - List paragraphs

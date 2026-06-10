@@ -112,6 +112,21 @@ func TestDryRunE2E_MutatingCommandsSkipAuthAndAPI(t *testing.T) {
 			op:   "docs.delete-tab",
 		},
 		{
+			name: "docs named range create",
+			args: []string{"docs", "named-range", "create", "doc123", "--name", "Intro", "--start", "1", "--end", "5"},
+			op:   "docs.named-range.create",
+		},
+		{
+			name: "docs named range replace",
+			args: []string{"docs", "named-range", "replace", "doc123", "nr123", "--text", "hello"},
+			op:   "docs.named-range.replace",
+		},
+		{
+			name: "docs named range delete",
+			args: []string{"docs", "named-range", "delete", "doc123", "nr123"},
+			op:   "docs.named-range.delete",
+		},
+		{
 			name: "docs export tab",
 			args: []string{"docs", "export", "doc123", "--tab", "Tab 1", "--format", "pdf", "--out", "/tmp/gog-dryrun-tab.pdf"},
 			op:   "docs.tab-export",

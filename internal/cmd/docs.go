@@ -54,6 +54,7 @@ type DocsCmd struct {
 	Images           DocsImagesCmd           `cmd:"" name:"images" help:"List document images"`
 	Headings         DocsHeadingsCmd         `cmd:"" name:"headings" help:"List document headings"`
 	Paragraphs       DocsParagraphsCmd       `cmd:"" name:"paragraphs" help:"List document paragraphs"`
+	NamedRanges      DocsNamedRangesCmd      `cmd:"" name:"named-range" aliases:"named-ranges,namedranges,nr" help:"Manage named ranges"`
 	Raw              DocsRawCmd              `cmd:"" name:"raw" help:"Dump raw Google Docs API response as JSON (Documents.Get; lossless; for scripting and LLM consumption)"`
 	PageLayout       DocsPageLayoutCmd       `cmd:"" name:"page-layout" aliases:"set-page-layout,page-setup" help:"Set page layout (pageless|pages) on an existing Google Doc"`
 }

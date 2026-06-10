@@ -158,6 +158,11 @@ docs:
   sed: false
   clear: false
   structure: true
+  named-range:
+    list: true
+    create: false
+    delete: false
+    replace: false
   comments:
     list: true
     get: true

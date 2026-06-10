@@ -42,6 +42,7 @@ gog docs (doc) <command> [flags]
 - [gog docs insert-person](gog-docs-insert-person.md) - Insert a native person smart chip
 - [gog docs insert-table](gog-docs-insert-table.md) - Insert a native table at a specific position (or end-of-doc with --at-end), optionally populated via --values-json
 - [gog docs list-tabs](gog-docs-list-tabs.md) - List all tabs in a Google Doc
+- [gog docs named-range](gog-docs-named-range.md) - Manage named ranges
 - [gog docs page-layout](gog-docs-page-layout.md) - Set page layout (pageless|pages) on an existing Google Doc
 - [gog docs paragraphs](gog-docs-paragraphs.md) - List document paragraphs
 - [gog docs raw](gog-docs-raw.md) - Dump raw Google Docs API response as JSON (Documents.Get; lossless; for scripting and LLM consumption)
