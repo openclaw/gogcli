@@ -54,10 +54,11 @@ type DocsParagraphsListCmd struct {
 }
 
 type docsEnumeratorScope struct {
-	tabID    string
-	tabTitle string
-	content  []*docs.StructuralElement
-	doc      *docs.Document
+	tabID             string
+	tabTitle          string
+	content           []*docs.StructuralElement
+	inlineObjects     map[string]docs.InlineObject
+	positionedObjects map[string]docs.PositionedObject
 }
 
 type docsTableListItem struct {
@@ -231,7 +232,10 @@ func fetchDocsEnumeratorScope(ctx context.Context, flags *RootFlags, rawDocID, r
 		return nil, errors.New("doc not found")
 	}
 
-	scope := &docsEnumeratorScope{doc: doc}
+	scope := &docsEnumeratorScope{
+		inlineObjects:     doc.InlineObjects,
+		positionedObjects: doc.PositionedObjects,
+	}
 	if tabQuery != "" {
 		tabs := flattenTabs(doc.Tabs)
 		tab, tabErr := findTab(tabs, tabQuery)
@@ -242,6 +246,8 @@ func fetchDocsEnumeratorScope(ctx context.Context, flags *RootFlags, rawDocID, r
 			return nil, fmt.Errorf("tab has no content: %s", tabQuery)
 		}
 		scope.content = tab.DocumentTab.Body.Content
+		scope.inlineObjects = tab.DocumentTab.InlineObjects
+		scope.positionedObjects = tab.DocumentTab.PositionedObjects
 		if tab.TabProperties != nil {
 			scope.tabID = tab.TabProperties.TabId
 			scope.tabTitle = tab.TabProperties.Title
@@ -295,7 +301,7 @@ func enumerateDocsTables(scope *docsEnumeratorScope) []docsTableListItem {
 func enumerateDocsImages(scope *docsEnumeratorScope) []docsImageListItem {
 	var items []docsImageListItem
 	inlineProps := make(map[string]*docs.InlineObjectProperties)
-	for id, obj := range scope.doc.InlineObjects {
+	for id, obj := range scope.inlineObjects {
 		if obj.InlineObjectProperties != nil {
 			inlineProps[id] = obj.InlineObjectProperties
 		}
@@ -342,24 +348,24 @@ func enumerateDocsImages(scope *docsEnumeratorScope) []docsImageListItem {
 	}
 	walk(scope.content)
 
-	if scope.tabID == "" {
-		ids := make([]string, 0, len(scope.doc.PositionedObjects))
-		for id := range scope.doc.PositionedObjects {
-			ids = append(ids, id)
+	ids := make([]string, 0, len(scope.positionedObjects))
+	for id := range scope.positionedObjects {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+	for _, id := range ids {
+		obj := scope.positionedObjects[id]
+		item := docsImageListItem{
+			Index:      len(items) + 1,
+			ObjectID:   id,
+			Positioned: true,
+			TabID:      scope.tabID,
+			TabTitle:   scope.tabTitle,
 		}
-		sort.Strings(ids)
-		for _, id := range ids {
-			obj := scope.doc.PositionedObjects[id]
-			item := docsImageListItem{
-				Index:      len(items) + 1,
-				ObjectID:   id,
-				Positioned: true,
-			}
-			if obj.PositionedObjectProperties != nil && obj.PositionedObjectProperties.EmbeddedObject != nil {
-				fillDocsImageEmbeddedObject(&item, obj.PositionedObjectProperties.EmbeddedObject)
-			}
-			items = append(items, item)
+		if obj.PositionedObjectProperties != nil && obj.PositionedObjectProperties.EmbeddedObject != nil {
+			fillDocsImageEmbeddedObject(&item, obj.PositionedObjectProperties.EmbeddedObject)
 		}
+		items = append(items, item)
 	}
 	return items
 }

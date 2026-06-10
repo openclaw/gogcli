@@ -43,23 +43,21 @@ func TestDocsEnumerateTables(t *testing.T) {
 
 func TestDocsEnumerateImages(t *testing.T) {
 	scope := &docsEnumeratorScope{
-		doc: &docs.Document{
-			InlineObjects: map[string]docs.InlineObject{
-				"img.inline": {InlineObjectProperties: &docs.InlineObjectProperties{
-					EmbeddedObject: &docs.EmbeddedObject{
-						Description: "Architecture diagram",
-						Size: &docs.Size{
-							Width:  &docs.Dimension{Magnitude: 1008, Unit: "PT"},
-							Height: &docs.Dimension{Magnitude: 500, Unit: "PT"},
-						},
+		inlineObjects: map[string]docs.InlineObject{
+			"img.inline": {InlineObjectProperties: &docs.InlineObjectProperties{
+				EmbeddedObject: &docs.EmbeddedObject{
+					Description: "Architecture diagram",
+					Size: &docs.Size{
+						Width:  &docs.Dimension{Magnitude: 1008, Unit: "PT"},
+						Height: &docs.Dimension{Magnitude: 500, Unit: "PT"},
 					},
-				}},
-			},
-			PositionedObjects: map[string]docs.PositionedObject{
-				"img.positioned": {PositionedObjectProperties: &docs.PositionedObjectProperties{
-					EmbeddedObject: &docs.EmbeddedObject{Title: "Floating logo"},
-				}},
-			},
+				},
+			}},
+		},
+		positionedObjects: map[string]docs.PositionedObject{
+			"img.positioned": {PositionedObjectProperties: &docs.PositionedObjectProperties{
+				EmbeddedObject: &docs.EmbeddedObject{Title: "Floating logo"},
+			}},
 		},
 		content: []*docs.StructuralElement{
 			{Paragraph: &docs.Paragraph{Elements: []*docs.ParagraphElement{
@@ -80,6 +78,42 @@ func TestDocsEnumerateImages(t *testing.T) {
 	}
 	if got := items[1]; got.Index != 2 || got.ObjectID != "img.positioned" || !got.Positioned || got.Alt != "Floating logo" {
 		t.Fatalf("unexpected positioned image: %#v", got)
+	}
+}
+
+func TestDocsEnumerateImages_UsesTabObjectMaps(t *testing.T) {
+	scope := &docsEnumeratorScope{
+		tabID:    "t.second",
+		tabTitle: "Second",
+		inlineObjects: map[string]docs.InlineObject{
+			"tab.inline": {InlineObjectProperties: &docs.InlineObjectProperties{
+				EmbeddedObject: &docs.EmbeddedObject{
+					Title: "Tab image",
+					Size:  &docs.Size{Width: &docs.Dimension{Magnitude: 320, Unit: "PT"}},
+				},
+			}},
+		},
+		positionedObjects: map[string]docs.PositionedObject{
+			"tab.positioned": {PositionedObjectProperties: &docs.PositionedObjectProperties{
+				EmbeddedObject: &docs.EmbeddedObject{Description: "Tab positioned image"},
+			}},
+		},
+		content: []*docs.StructuralElement{
+			{Paragraph: &docs.Paragraph{Elements: []*docs.ParagraphElement{
+				{StartIndex: 9, InlineObjectElement: &docs.InlineObjectElement{InlineObjectId: "tab.inline"}},
+			}}},
+		},
+	}
+
+	items := enumerateDocsImages(scope)
+	if len(items) != 2 {
+		t.Fatalf("expected 2 tab images, got %d", len(items))
+	}
+	if got := items[0]; got.ObjectID != "tab.inline" || got.Alt != "Tab image" || got.WidthPt != 320 || got.TabID != "t.second" {
+		t.Fatalf("unexpected tab inline image: %#v", got)
+	}
+	if got := items[1]; got.ObjectID != "tab.positioned" || got.Alt != "Tab positioned image" || !got.Positioned || got.TabTitle != "Second" {
+		t.Fatalf("unexpected tab positioned image: %#v", got)
 	}
 }
 
