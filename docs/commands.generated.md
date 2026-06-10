@@ -241,6 +241,10 @@ Generated from `gog schema --json`.
     - [`gog docs (doc) find-range <docId> <text> [flags]`](commands/gog-docs-find-range.md) - Find text and print Docs API UTF-16 index ranges
     - [`gog docs (doc) find-replace <docId> <find> [<replace>] [flags]`](commands/gog-docs-find-replace.md) - Find and replace text. Supports plain text or markdown with images; use --first for a single occurrence.
     - [`gog docs (doc) format <docId> [flags]`](commands/gog-docs-format.md) - Apply text or paragraph formatting to a Google Doc
+    - [`gog docs (doc) headings <command>`](commands/gog-docs-headings.md) - List document headings
+      - [`gog docs (doc) headings list (ls) <docId> [flags]`](commands/gog-docs-headings-list.md) - List heading paragraphs
+    - [`gog docs (doc) images <command>`](commands/gog-docs-images.md) - List document images
+      - [`gog docs (doc) images list (ls) <docId> [flags]`](commands/gog-docs-images-list.md) - List inline and positioned images
     - [`gog docs (doc) info (get,show) <docId>`](commands/gog-docs-info.md) - Get Google Doc metadata
     - [`gog docs (doc) insert <docId> [<content>] [flags]`](commands/gog-docs-insert.md) - Insert text at a specific position
     - [`gog docs (doc) insert-date-chip --date=STRING <docId> [flags]`](commands/gog-docs-insert-date-chip.md) - Insert a native date smart chip
@@ -251,11 +255,15 @@ Generated from `gog schema --json`.
     - [`gog docs (doc) insert-table --rows=INT --cols=INT <docId> [flags]`](commands/gog-docs-insert-table.md) - Insert a native table at a specific position (or end-of-doc with --at-end), optionally populated via --values-json
     - [`gog docs (doc) list-tabs <docId>`](commands/gog-docs-list-tabs.md) - List all tabs in a Google Doc
     - [`gog docs (doc) page-layout (set-page-layout,page-setup) <docId> [flags]`](commands/gog-docs-page-layout.md) - Set page layout (pageless|pages) on an existing Google Doc
+    - [`gog docs (doc) paragraphs <command>`](commands/gog-docs-paragraphs.md) - List document paragraphs
+      - [`gog docs (doc) paragraphs list (ls) <docId> [flags]`](commands/gog-docs-paragraphs-list.md) - List paragraphs
     - [`gog docs (doc) raw <docId> [flags]`](commands/gog-docs-raw.md) - Dump raw Google Docs API response as JSON (Documents.Get; lossless; for scripting and LLM consumption)
     - [`gog docs (doc) rename-tab <docId> [flags]`](commands/gog-docs-rename-tab.md) - Rename a tab in a Google Doc
     - [`gog docs (doc) sed <docId> [<expression>] [flags]`](commands/gog-docs-sed.md) - Regex find/replace (sed-style: s/pattern/replacement/g)
     - [`gog docs (doc) structure (struct) <docId> [flags]`](commands/gog-docs-structure.md) - Show document structure with numbered paragraphs
     - [`gog docs (doc) table-column-width (table-width,column-width) <docId> [flags]`](commands/gog-docs-table-column-width.md) - Set or reset native table column widths
+    - [`gog docs (doc) tables <command>`](commands/gog-docs-tables.md) - List native tables
+      - [`gog docs (doc) tables list (ls) <docId> [flags]`](commands/gog-docs-tables-list.md) - List native tables in document order
     - [`gog docs (doc) tabs <command>`](commands/gog-docs-tabs.md) - Manage Google Doc tabs
       - [`gog docs (doc) tabs add (create,new) <docId> [flags]`](commands/gog-docs-tabs-add.md) - Add a tab to a Google Doc
       - [`gog docs (doc) tabs delete (rm,remove,del) <docId> [flags]`](commands/gog-docs-tabs-delete.md) - Delete a tab from a Google Doc

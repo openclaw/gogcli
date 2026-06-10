@@ -51,7 +51,7 @@ var headingMap = map[string]string{
 	"4": "HEADING_4",
 	"5": "HEADING_5",
 	"6": "HEADING_6",
-	"0": "NORMAL_TEXT",
+	"0": docsNamedStyleNormalText,
 }
 
 // resolveHeading converts SEDMAT heading shorthand to Google Docs named style.

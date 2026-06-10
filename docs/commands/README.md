@@ -2,7 +2,7 @@
 
 Every `gog` command has a generated docs page. The source of truth is the live CLI schema; run `make docs-commands` after changing command names, flags, help text, aliases, or arguments.
 
-Generated pages: 589.
+Generated pages: 597.
 
 ## Top-level Commands
 
@@ -293,6 +293,10 @@ Generated pages: 589.
     - [gog docs find-range](gog-docs-find-range.md) - Find text and print Docs API UTF-16 index ranges
     - [gog docs find-replace](gog-docs-find-replace.md) - Find and replace text. Supports plain text or markdown with images; use --first for a single occurrence.
     - [gog docs format](gog-docs-format.md) - Apply text or paragraph formatting to a Google Doc
+    - [gog docs headings](gog-docs-headings.md) - List document headings
+      - [gog docs headings list](gog-docs-headings-list.md) - List heading paragraphs
+    - [gog docs images](gog-docs-images.md) - List document images
+      - [gog docs images list](gog-docs-images-list.md) - List inline and positioned images
     - [gog docs info](gog-docs-info.md) - Get Google Doc metadata
     - [gog docs insert](gog-docs-insert.md) - Insert text at a specific position
     - [gog docs insert-date-chip](gog-docs-insert-date-chip.md) - Insert a native date smart chip
@@ -303,11 +307,15 @@ Generated pages: 589.
     - [gog docs insert-table](gog-docs-insert-table.md) - Insert a native table at a specific position (or end-of-doc with --at-end), optionally populated via --values-json
     - [gog docs list-tabs](gog-docs-list-tabs.md) - List all tabs in a Google Doc
     - [gog docs page-layout](gog-docs-page-layout.md) - Set page layout (pageless|pages) on an existing Google Doc
+    - [gog docs paragraphs](gog-docs-paragraphs.md) - List document paragraphs
+      - [gog docs paragraphs list](gog-docs-paragraphs-list.md) - List paragraphs
     - [gog docs raw](gog-docs-raw.md) - Dump raw Google Docs API response as JSON (Documents.Get; lossless; for scripting and LLM consumption)
     - [gog docs rename-tab](gog-docs-rename-tab.md) - Rename a tab in a Google Doc
     - [gog docs sed](gog-docs-sed.md) - Regex find/replace (sed-style: s/pattern/replacement/g)
     - [gog docs structure](gog-docs-structure.md) - Show document structure with numbered paragraphs
     - [gog docs table-column-width](gog-docs-table-column-width.md) - Set or reset native table column widths
+    - [gog docs tables](gog-docs-tables.md) - List native tables
+      - [gog docs tables list](gog-docs-tables-list.md) - List native tables in document order
     - [gog docs tabs](gog-docs-tabs.md) - Manage Google Doc tabs
       - [gog docs tabs add](gog-docs-tabs-add.md) - Add a tab to a Google Doc
       - [gog docs tabs delete](gog-docs-tabs-delete.md) - Delete a tab from a Google Doc

@@ -67,7 +67,7 @@ func (c *DocsSedCmd) doPositionalInsert(ctx context.Context, docsSvc *docs.Servi
 			UpdateParagraphStyle: &docs.UpdateParagraphStyleRequest{
 				Range: &docs.Range{StartIndex: idx, EndIndex: end},
 				ParagraphStyle: &docs.ParagraphStyle{
-					NamedStyleType: "NORMAL_TEXT",
+					NamedStyleType: docsNamedStyleNormalText,
 				},
 				Fields: "namedStyleType",
 			},

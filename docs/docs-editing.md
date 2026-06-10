@@ -54,6 +54,21 @@ Command page:
 
 - [`gog docs format`](commands/gog-docs-format.md)
 
+## Discover Content
+
+List document elements before using index- or object-ID-based edit commands:
+
+```bash
+gog docs tables list <docId> --json
+gog docs images list <docId> --plain
+gog docs headings list <docId> --level 2
+gog docs paragraphs list <docId> --style NORMAL_TEXT --tab "Notes"
+```
+
+All four commands accept `--tab` by title or ID. JSON output includes stable
+element indexes and Docs API positions; `--plain` emits headerless TSV for
+shell pipelines.
+
 ## Page Breaks
 
 Markdown has no native page-break construct, so multi-page deliverables need a

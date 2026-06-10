@@ -427,6 +427,6 @@ func getHeadingStyle(elType MarkdownElementType) string {
 	case MDHeading6:
 		return "HEADING_6"
 	default:
-		return "NORMAL_TEXT"
+		return docsNamedStyleNormalText
 	}
 }

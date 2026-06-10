@@ -95,7 +95,7 @@ func buildParagraphMap(doc *docs.Document, tabID string) (*paragraphMap, error) 
 				dp.Type = el.Paragraph.ParagraphStyle.NamedStyleType
 			}
 			if dp.Type == "" {
-				dp.Type = "NORMAL_TEXT"
+				dp.Type = docsNamedStyleNormalText
 			}
 
 			// Extract bullet info.

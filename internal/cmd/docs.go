@@ -50,6 +50,10 @@ type DocsCmd struct {
 	Sed              DocsSedCmd              `cmd:"" name:"sed" help:"Regex find/replace (sed-style: s/pattern/replacement/g)"`
 	Clear            DocsClearCmd            `cmd:"" name:"clear" help:"Clear all content from a Google Doc"`
 	Structure        DocsStructureCmd        `cmd:"" name:"structure" aliases:"struct" help:"Show document structure with numbered paragraphs"`
+	Tables           DocsTablesCmd           `cmd:"" name:"tables" help:"List native tables"`
+	Images           DocsImagesCmd           `cmd:"" name:"images" help:"List document images"`
+	Headings         DocsHeadingsCmd         `cmd:"" name:"headings" help:"List document headings"`
+	Paragraphs       DocsParagraphsCmd       `cmd:"" name:"paragraphs" help:"List document paragraphs"`
 	Raw              DocsRawCmd              `cmd:"" name:"raw" help:"Dump raw Google Docs API response as JSON (Documents.Get; lossless; for scripting and LLM consumption)"`
 	PageLayout       DocsPageLayoutCmd       `cmd:"" name:"page-layout" aliases:"set-page-layout,page-setup" help:"Set page layout (pageless|pages) on an existing Google Doc"`
 }
