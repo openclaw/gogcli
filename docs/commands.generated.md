@@ -545,6 +545,10 @@ Generated from `gog schema --json`.
     - [`gog sheets (sheet) unmerge <spreadsheetId> <range>`](commands/gog-sheets-unmerge.md) - Unmerge cells in a range
     - [`gog sheets (sheet) update (edit,set) <spreadsheetId> <range> [<values> ...] [flags]`](commands/gog-sheets-update.md) - Update values in a range
     - [`gog sheets (sheet) update-note (set-note) <spreadsheetId> <range> [flags]`](commands/gog-sheets-update-note.md) - Set or clear a cell note
+    - [`gog sheets (sheet) validation (data-validation,validations) <command>`](commands/gog-sheets-validation.md) - Manage cell data validation rules
+      - [`gog sheets (sheet) validation (data-validation,validations) clear (delete,remove,rm) <spreadsheetId> <range> [flags]`](commands/gog-sheets-validation-clear.md) - Clear data validation rules; fully selected table dropdown columns become text columns
+      - [`gog sheets (sheet) validation (data-validation,validations) get (list,show) <spreadsheetId> <range>`](commands/gog-sheets-validation-get.md) - Get data validation rules from a range
+      - [`gog sheets (sheet) validation (data-validation,validations) set (add,create) --type=STRING <spreadsheetId> <range> [flags]`](commands/gog-sheets-validation-set.md) - Set a data validation rule on a range
   - [`gog sites (site) <command> [flags]`](commands/gog-sites.md) - Google Sites (Drive-backed)
     - [`gog sites (site) get (info,show) <siteId> [flags]`](commands/gog-sites-get.md) - Get Google Site metadata
     - [`gog sites (site) list (ls) [flags]`](commands/gog-sites-list.md) - List Google Sites visible in Drive

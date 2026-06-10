@@ -18,7 +18,12 @@ import (
 
 var newSheetsService = googleapi.NewSheets
 
-const sheetsDefaultValueInputOption = "USER_ENTERED"
+const (
+	sheetsDefaultValueInputOption = "USER_ENTERED"
+	sheetsConditionOneOfList      = "ONE_OF_LIST"
+	sheetsTypeDropdown            = "DROPDOWN"
+	sheetsTypeText                = "TEXT"
+)
 
 // cleanRange removes shell escape sequences from range arguments.
 // Some shells escape ! to \! (bash history expansion), which breaks Google Sheets API calls.
@@ -35,6 +40,7 @@ type SheetsCmd struct {
 	Clear         SheetsClearCmd         `cmd:"" name:"clear" help:"Clear values in a range"`
 	Format        SheetsFormatCmd        `cmd:"" name:"format" help:"Apply cell formatting to a range"`
 	Conditional   SheetsConditionalCmd   `cmd:"" name:"conditional-format" aliases:"cf,conditional-formats" help:"Manage conditional formatting rules"`
+	Validation    SheetsValidationCmd    `cmd:"" name:"validation" aliases:"data-validation,validations" help:"Manage cell data validation rules"`
 	Banding       SheetsBandingCmd       `cmd:"" name:"banding" aliases:"banded-ranges" help:"Manage alternating color banding"`
 	Merge         SheetsMergeCmd         `cmd:"" name:"merge" help:"Merge cells in a range"`
 	Unmerge       SheetsUnmergeCmd       `cmd:"" name:"unmerge" help:"Unmerge cells in a range"`

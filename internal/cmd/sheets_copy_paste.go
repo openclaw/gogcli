@@ -59,38 +59,83 @@ func (c *SheetsCopyPasteCmd) Run(ctx context.Context, flags *RootFlags) error {
 		"type":           pasteType,
 		"orientation":    orientation,
 	}, func(ctx context.Context, svc *sheets.Service) (map[string]any, string, error) {
-		sheetIDs, err := fetchSheetIDMap(ctx, svc, spreadsheetID)
+		catalog, err := fetchSpreadsheetRangeCatalog(ctx, svc, spreadsheetID)
 		if err != nil {
 			return nil, "", err
 		}
-		srcGrid, err := gridRangeFromMap(srcInfo, sheetIDs, "copy-paste source")
+		srcGrid, err := gridRangeFromMap(srcInfo, catalog.SheetIDsByTitle, "copy-paste source")
 		if err != nil {
 			return nil, "", err
 		}
-		dstGrid, err := gridRangeFromMap(dstInfo, sheetIDs, "copy-paste dest")
+		dstGrid, err := gridRangeFromMap(dstInfo, catalog.SheetIDsByTitle, "copy-paste dest")
 		if err != nil {
 			return nil, "", err
+		}
+		srcGrid = boundGridRangeToSheet(srcGrid, catalog)
+		dstGrid = boundGridRangeToSheet(dstGrid, catalog)
+		requests := []*sheets.Request{{
+			CopyPaste: &sheets.CopyPasteRequest{
+				Source:           srcGrid,
+				Destination:      dstGrid,
+				PasteType:        pasteType,
+				PasteOrientation: orientation,
+			},
+		}}
+		tableManagedRules := 0
+		if pasteCarriesDataValidation(pasteType) {
+			spans, err := fetchTableValidationSpans(ctx, svc, spreadsheetID)
+			if err != nil {
+				return nil, "", err
+			}
+			copyOptions, err := resolveTableValidationCopyOptions(
+				ctx,
+				svc,
+				spreadsheetID,
+				srcGrid,
+				dstGrid,
+				spans,
+				catalog,
+				c.Transpose,
+			)
+			if err != nil {
+				return nil, "", err
+			}
+			supplemental, err := buildTableValidationCopyRequests(
+				srcGrid,
+				dstGrid,
+				c.Transpose,
+				spans,
+				copyOptions,
+			)
+			if err != nil {
+				return nil, "", err
+			}
+			requests = append(requests, supplemental...)
+			tableManagedRules = len(supplemental)
 		}
 		req := &sheets.BatchUpdateSpreadsheetRequest{
-			Requests: []*sheets.Request{{
-				CopyPaste: &sheets.CopyPasteRequest{
-					Source:           srcGrid,
-					Destination:      dstGrid,
-					PasteType:        pasteType,
-					PasteOrientation: orientation,
-				},
-			}},
+			Requests: requests,
 		}
 		if err := applySheetsBatchUpdate(ctx, svc, spreadsheetID, req); err != nil {
 			return nil, "", err
 		}
 		return map[string]any{
-			"source":      source,
-			"dest":        dest,
-			"type":        pasteType,
-			"orientation": orientation,
+			"source":                         source,
+			"dest":                           dest,
+			"type":                           pasteType,
+			"orientation":                    orientation,
+			"tableManagedValidationRequests": tableManagedRules,
 		}, fmt.Sprintf("Copied %s → %s (%s)", source, dest, pasteType), nil
 	})
+}
+
+func pasteCarriesDataValidation(pasteType string) bool {
+	switch pasteType {
+	case "PASTE_NORMAL", "PASTE_FORMAT", "PASTE_NO_BORDERS", "PASTE_DATA_VALIDATION":
+		return true
+	default:
+		return false
+	}
 }
 
 func normalizePasteType(raw string) (string, error) {

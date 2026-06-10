@@ -245,6 +245,7 @@ func normalizeJSONKey(key string) string {
 }
 
 var untrustedContentStringKeys = map[string]bool{
+	"a1":                 true,
 	"answer":             true,
 	"body":               true,
 	"comment":            true,
@@ -254,6 +255,7 @@ var untrustedContentStringKeys = map[string]bool{
 	"displayname":        true,
 	"formattedaddress":   true,
 	"formattedvalue":     true,
+	"inputmessage":       true,
 	"location":           true,
 	"message":            true,
 	"name":               true,
@@ -262,6 +264,7 @@ var untrustedContentStringKeys = map[string]bool{
 	"question":           true,
 	"quote":              true,
 	"raw":                true,
+	"sheet":              true,
 	"snippet":            true,
 	"subject":            true,
 	"summary":            true,

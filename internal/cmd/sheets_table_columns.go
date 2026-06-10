@@ -55,7 +55,7 @@ func parseSheetsTableColumnsJSON(input string) ([]*sheets.TableColumnProperties,
 		if validation == nil {
 			validation = in.DataValidation
 		}
-		if validation != nil && colType != "DROPDOWN" {
+		if validation != nil && colType != sheetsTypeDropdown {
 			return nil, usagef("columns[%d].dataValidationRule requires columnType DROPDOWN", i)
 		}
 		col := &sheets.TableColumnProperties{
@@ -73,7 +73,7 @@ func parseSheetsTableColumnsJSON(input string) ([]*sheets.TableColumnProperties,
 func normalizeSheetsTableColumnType(input string) (string, error) {
 	t := strings.ToUpper(strings.TrimSpace(input))
 	if t == "" {
-		return "TEXT", nil
+		return sheetsTypeText, nil
 	}
 	switch t {
 	case "NUMBER":
@@ -94,20 +94,20 @@ func normalizeSheetsTableColumnType(input string) (string, error) {
 }
 
 var validSheetsTableColumnTypes = map[string]bool{
-	"TEXT":         true,
-	"DOUBLE":       true,
-	"CURRENCY":     true,
-	"PERCENT":      true,
-	"DATE":         true,
-	"TIME":         true,
-	"DATE_TIME":    true,
-	"BOOLEAN":      true,
-	"DROPDOWN":     true,
-	"FILES_CHIP":   true,
-	"PEOPLE_CHIP":  true,
-	"FINANCE_CHIP": true,
-	"PLACE_CHIP":   true,
-	"RATINGS_CHIP": true,
+	sheetsTypeText:     true,
+	"DOUBLE":           true,
+	"CURRENCY":         true,
+	"PERCENT":          true,
+	"DATE":             true,
+	"TIME":             true,
+	"DATE_TIME":        true,
+	"BOOLEAN":          true,
+	sheetsTypeDropdown: true,
+	"FILES_CHIP":       true,
+	"PEOPLE_CHIP":      true,
+	"FINANCE_CHIP":     true,
+	"PLACE_CHIP":       true,
+	"RATINGS_CHIP":     true,
 }
 
 func validSheetsTableColumnTypeNames() []string {

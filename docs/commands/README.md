@@ -2,7 +2,7 @@
 
 Every `gog` command has a generated docs page. The source of truth is the live CLI schema; run `make docs-commands` after changing command names, flags, help text, aliases, or arguments.
 
-Generated pages: 602.
+Generated pages: 606.
 
 ## Top-level Commands
 
@@ -597,6 +597,10 @@ Generated pages: 602.
     - [gog sheets unmerge](gog-sheets-unmerge.md) - Unmerge cells in a range
     - [gog sheets update](gog-sheets-update.md) - Update values in a range
     - [gog sheets update-note](gog-sheets-update-note.md) - Set or clear a cell note
+    - [gog sheets validation](gog-sheets-validation.md) - Manage cell data validation rules
+      - [gog sheets validation clear](gog-sheets-validation-clear.md) - Clear data validation rules; fully selected table dropdown columns become text columns
+      - [gog sheets validation get](gog-sheets-validation-get.md) - Get data validation rules from a range
+      - [gog sheets validation set](gog-sheets-validation-set.md) - Set a data validation rule on a range
   - [gog sites](gog-sites.md) - Google Sites (Drive-backed)
     - [gog sites get](gog-sites-get.md) - Get Google Site metadata
     - [gog sites list](gog-sites-list.md) - List Google Sites visible in Drive

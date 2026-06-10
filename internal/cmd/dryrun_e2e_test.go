@@ -582,6 +582,16 @@ func TestDryRunE2E_MutatingCommandsSkipAuthAndAPI(t *testing.T) {
 			op:   "sheets.conditional-format.clear",
 		},
 		{
+			name: "sheets validation set",
+			args: []string{"sheets", "validation", "set", "sheet123", "Sheet1!A1:A10", "--type", "ONE_OF_LIST", "--value", "one", "--value", "two"},
+			op:   "sheets.validation.set",
+		},
+		{
+			name: "sheets validation clear",
+			args: []string{"sheets", "validation", "clear", "sheet123", "Sheet1!A1:A10"},
+			op:   "sheets.validation.clear",
+		},
+		{
 			name: "sheets copy",
 			args: []string{"sheets", "copy", "sheet123", "SmokeSheet"},
 			op:   "sheets.copy",

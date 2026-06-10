@@ -127,21 +127,20 @@ func formatA1Cell(sheetTitle string, row, col int) string {
 		return ""
 	}
 	cell := fmt.Sprintf("%s%d", colLetters, row)
-	if strings.TrimSpace(sheetTitle) == "" {
+	if sheetTitle == "" {
 		return cell
 	}
 	return formatSheetPrefix(sheetTitle) + cell
 }
 
 func formatSheetPrefix(sheetTitle string) string {
-	title := strings.TrimSpace(sheetTitle)
-	if title == "" {
+	if sheetTitle == "" {
 		return ""
 	}
-	if simpleSheetNameRe.MatchString(title) {
-		return title + "!"
+	if simpleSheetNameRe.MatchString(sheetTitle) {
+		return sheetTitle + "!"
 	}
-	escaped := strings.ReplaceAll(title, "'", "''")
+	escaped := strings.ReplaceAll(sheetTitle, "'", "''")
 	return "'" + escaped + "'!"
 }
 

@@ -177,6 +177,10 @@ sheets:
   notes: true
   update-note: false
   links: true
+  validation:
+    get: true
+    set: false
+    clear: false
   named-ranges:
     list: true
     get: true

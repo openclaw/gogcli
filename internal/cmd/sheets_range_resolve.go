@@ -19,7 +19,7 @@ type spreadsheetRangeCatalog struct {
 
 func fetchSpreadsheetRangeCatalog(ctx context.Context, svc *sheets.Service, spreadsheetID string) (*spreadsheetRangeCatalog, error) {
 	call := svc.Spreadsheets.Get(spreadsheetID).
-		Fields("sheets(properties(sheetId,title,index)),namedRanges(namedRangeId,name,range)")
+		Fields("sheets(properties(sheetId,title,index,gridProperties(rowCount,columnCount))),namedRanges(namedRangeId,name,range)")
 	if ctx != nil {
 		call = call.Context(ctx)
 	}
