@@ -1,0 +1,242 @@
+package cmd
+
+import (
+	"context"
+	"crypto/subtle"
+	"errors"
+	"net/http"
+	"strconv"
+	"strings"
+	"time"
+
+	"google.golang.org/api/drive/v3"
+)
+
+var (
+	errDriveChangesDuplicateNotification = errors.New("duplicate drive changes notification")
+	errDriveChangesIgnoredNotification   = errors.New("ignored drive changes notification")
+	errDriveChangesUntrackedNotification = errors.New("untracked drive changes notification channel")
+)
+
+type driveChangesNotification struct {
+	ChannelID         string
+	ResourceID        string
+	ResourceState     string
+	ResourceURI       string
+	Changed           string
+	ChannelExpiration string
+	MessageNumber     uint64
+}
+
+type driveChangesServeEvent struct {
+	Kind              string          `json:"kind"`
+	ChannelID         string          `json:"channelId"`
+	ResourceID        string          `json:"resourceId"`
+	ResourceState     string          `json:"resourceState"`
+	ResourceURI       string          `json:"resourceUri"`
+	Changed           string          `json:"changed,omitempty"`
+	ChannelExpiration string          `json:"channelExpiration,omitempty"`
+	MessageNumber     uint64          `json:"messageNumber"`
+	DriveID           string          `json:"driveId,omitempty"`
+	PageToken         string          `json:"pageToken"`
+	NextPageToken     string          `json:"nextPageToken"`
+	Changes           []*drive.Change `json:"changes"`
+}
+
+func (s *driveChangesServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path != s.path {
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+	if r.Method != http.MethodPost {
+		w.Header().Set("Allow", http.MethodPost)
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	if !driveChangesChannelTokenMatches(r.Header.Get("X-Goog-Channel-Token"), s.channelToken) {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+	notification, err := parseDriveChangesNotification(r)
+	if err != nil {
+		s.warnf("drive changes serve: invalid notification: %v", err)
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	if err := s.handleNotification(r.Context(), notification); err != nil {
+		if errors.Is(err, errDriveChangesUntrackedNotification) {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		if errors.Is(err, errDriveChangesDuplicateNotification) || errors.Is(err, errDriveChangesIgnoredNotification) {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		s.warnf("drive changes serve: notification failed: %v", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func driveChangesChannelTokenMatches(got string, expected string) bool {
+	got = strings.TrimSpace(got)
+	expected = strings.TrimSpace(expected)
+	return subtle.ConstantTimeCompare([]byte(got), []byte(expected)) == 1
+}
+
+func parseDriveChangesNotification(r *http.Request) (driveChangesNotification, error) {
+	channelID := strings.TrimSpace(r.Header.Get("X-Goog-Channel-ID"))
+	resourceID := strings.TrimSpace(r.Header.Get("X-Goog-Resource-ID"))
+	resourceState := strings.ToLower(strings.TrimSpace(r.Header.Get("X-Goog-Resource-State")))
+	resourceURI := strings.TrimSpace(r.Header.Get("X-Goog-Resource-URI"))
+	messageNumberRaw := strings.TrimSpace(r.Header.Get("X-Goog-Message-Number"))
+	switch {
+	case channelID == "":
+		return driveChangesNotification{}, errors.New("missing X-Goog-Channel-ID")
+	case len(channelID) > 128:
+		return driveChangesNotification{}, errors.New("x-goog-channel-id is too long")
+	case resourceID == "":
+		return driveChangesNotification{}, errors.New("missing X-Goog-Resource-ID")
+	case len(resourceID) > 512:
+		return driveChangesNotification{}, errors.New("x-goog-resource-id is too long")
+	case resourceState == "":
+		return driveChangesNotification{}, errors.New("missing X-Goog-Resource-State")
+	case len(resourceState) > 64:
+		return driveChangesNotification{}, errors.New("x-goog-resource-state is too long")
+	case resourceURI == "":
+		return driveChangesNotification{}, errors.New("missing X-Goog-Resource-URI")
+	case len(resourceURI) > 4096:
+		return driveChangesNotification{}, errors.New("x-goog-resource-uri is too long")
+	case messageNumberRaw == "":
+		return driveChangesNotification{}, errors.New("missing X-Goog-Message-Number")
+	}
+	messageNumber, err := strconv.ParseUint(messageNumberRaw, 10, 64)
+	if err != nil || messageNumber == 0 {
+		return driveChangesNotification{}, errors.New("invalid X-Goog-Message-Number")
+	}
+	return driveChangesNotification{
+		ChannelID:         channelID,
+		ResourceID:        resourceID,
+		ResourceState:     resourceState,
+		ResourceURI:       resourceURI,
+		Changed:           strings.TrimSpace(r.Header.Get("X-Goog-Changed")),
+		ChannelExpiration: strings.TrimSpace(r.Header.Get("X-Goog-Channel-Expiration")),
+		MessageNumber:     messageNumber,
+	}, nil
+}
+
+func (s *driveChangesServer) handleNotification(ctx context.Context, notification driveChangesNotification) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if !s.notificationChannelAllowedLocked(notification) {
+		s.warnf(
+			"drive changes serve: rejecting untracked channel=%s resource=%s",
+			notification.ChannelID,
+			notification.ResourceID,
+		)
+		return errDriveChangesUntrackedNotification
+	}
+	if last := s.state.LastMessageNumbers[notification.ChannelID]; last >= notification.MessageNumber {
+		s.logf(
+			"drive changes serve: ignoring duplicate channel=%s message=%d",
+			notification.ChannelID,
+			notification.MessageNumber,
+		)
+		return errDriveChangesDuplicateNotification
+	}
+	switch notification.ResourceState {
+	case "sync":
+		if err := s.acknowledgeNotificationLocked(notification); err != nil {
+			return err
+		}
+		return errDriveChangesIgnoredNotification
+	case "change", "changed":
+	default:
+		if err := s.acknowledgeNotificationLocked(notification); err != nil {
+			return err
+		}
+		s.logf("drive changes serve: ignoring resource state %q", notification.ResourceState)
+		return errDriveChangesIgnoredNotification
+	}
+
+	changes, nextPageToken, err := loadDriveChanges(ctx, s.service, s.state.PageToken, driveChangesLoadOptions{
+		max:            s.max,
+		includeRemoved: s.includeRemoved,
+		driveID:        s.state.DriveID,
+		all:            true,
+	})
+	if err != nil {
+		return err
+	}
+	filtered := filterDriveChangesByFile(changes, s.filterFile)
+	if len(filtered) > 0 && s.onChange != "" {
+		event := driveChangesServeEvent{
+			Kind:              "drive_changes_notification",
+			ChannelID:         notification.ChannelID,
+			ResourceID:        notification.ResourceID,
+			ResourceState:     notification.ResourceState,
+			ResourceURI:       notification.ResourceURI,
+			Changed:           notification.Changed,
+			ChannelExpiration: notification.ChannelExpiration,
+			MessageNumber:     notification.MessageNumber,
+			DriveID:           s.state.DriveID,
+			PageToken:         s.state.PageToken,
+			NextPageToken:     nextPageToken,
+			Changes:           filtered,
+		}
+		if err := s.runtime.runHook(ctx, s.onChange, event); err != nil {
+			return err
+		}
+	}
+
+	nextState := cloneDriveChangesServeState(s.state)
+	nextState.PageToken = nextPageToken
+	nextState.UpdatedAt = s.runtime.now().UTC().Format(time.RFC3339Nano)
+	setDriveChangesMessageNumber(&nextState, notification.ChannelID, notification.MessageNumber)
+	if err := writePollState(s.statePath, nextState); err != nil {
+		return err
+	}
+	s.state = nextState
+	return nil
+}
+
+func (s *driveChangesServer) notificationChannelAllowedLocked(notification driveChangesNotification) bool {
+	tracked := false
+	for _, channel := range []*driveChangesServeChannelState{s.state.Channel, s.state.PreviousChannel} {
+		if channel == nil {
+			continue
+		}
+		tracked = true
+		if channel.ID == notification.ChannelID && channel.ResourceID == notification.ResourceID {
+			return true
+		}
+	}
+	if s.pendingChannel != "" {
+		tracked = true
+		if s.pendingChannel == notification.ChannelID {
+			return true
+		}
+	}
+	return !tracked
+}
+
+func (s *driveChangesServer) acknowledgeNotificationLocked(notification driveChangesNotification) error {
+	nextState := cloneDriveChangesServeState(s.state)
+	nextState.UpdatedAt = s.runtime.now().UTC().Format(time.RFC3339Nano)
+	setDriveChangesMessageNumber(&nextState, notification.ChannelID, notification.MessageNumber)
+	if err := writePollState(s.statePath, nextState); err != nil {
+		return err
+	}
+	s.state = nextState
+	return nil
+}
+
+func setDriveChangesMessageNumber(state *driveChangesServeState, channelID string, messageNumber uint64) {
+	if state.LastMessageNumbers == nil {
+		state.LastMessageNumbers = make(map[string]uint64)
+	}
+	state.LastMessageNumbers[channelID] = messageNumber
+	trimDriveChangesMessageNumbers(state, channelIDFor(state.Channel), channelIDFor(state.PreviousChannel), channelID)
+}

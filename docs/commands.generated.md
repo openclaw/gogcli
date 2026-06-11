@@ -303,6 +303,7 @@ Generated from `gog schema --json`.
     - [`gog drive (drv) changes <command>`](commands/gog-drive-changes.md) - Track Drive changes for sync and automation
       - [`gog drive (drv) changes list (ls) --token=STRING [flags]`](commands/gog-drive-changes-list.md) - List Drive changes since a page token
       - [`gog drive (drv) changes poll --state-file=STRING [flags]`](commands/gog-drive-changes-poll.md) - Poll Drive changes with a persisted page token
+      - [`gog drive (drv) changes serve --channel-token=STRING --state-file=STRING [flags]`](commands/gog-drive-changes-serve.md) - Receive Drive change notifications and run a local hook
       - [`gog drive (drv) changes start-token (token) [flags]`](commands/gog-drive-changes-start-token.md) - Get a Drive changes start page token
       - [`gog drive (drv) changes stop <channelId> <resourceId>`](commands/gog-drive-changes-stop.md) - Stop a Drive changes webhook channel
       - [`gog drive (drv) changes watch --token=STRING --webhook-url=STRING [flags]`](commands/gog-drive-changes-watch.md) - Watch Drive changes with a webhook channel

@@ -29,7 +29,7 @@ type pollRuntime struct {
 func defaultPollRuntime() pollRuntime {
 	return pollRuntime{
 		now:     time.Now,
-		runHook: runPollHook,
+		runHook: runJSONShellHook,
 		wait:    waitForPollInterval,
 	}
 }
@@ -63,7 +63,7 @@ func waitForPollInterval(ctx context.Context, interval time.Duration) error {
 	}
 }
 
-func runPollHook(ctx context.Context, command string, payload any) error {
+func runJSONShellHook(ctx context.Context, command string, payload any) error {
 	command = strings.TrimSpace(command)
 	if command == "" {
 		return nil
@@ -87,7 +87,7 @@ func runPollHook(ctx context.Context, command string, payload any) error {
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-		return fmt.Errorf("poll hook failed: %w", err)
+		return fmt.Errorf("shell hook failed: %w", err)
 	}
 	return nil
 }
