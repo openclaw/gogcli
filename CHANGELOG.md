@@ -16,6 +16,7 @@
 - Docs: style locally rendered fenced Markdown blocks with Roboto Mono, dark-green text, and existing paragraph shading. (#676, #724) — thanks @TurboTheTurtle.
 - Docs: add `docs insert-image --url` for inserting public HTTPS images directly without Drive upload or temporary public sharing. (#675) — thanks @sebsnyk.
 - Docs: expose paragraph emptiness and text-run ranges, styles, and links in `docs paragraphs list --json`. (#734) — thanks @sebsnyk.
+- Docs: add opt-in `--check-orphans` to Markdown replacement writes so open comments whose quoted text would disappear block the mutation with orphaned exit code 11. (#691) — thanks @sebsnyk.
 
 ### Fixed
 

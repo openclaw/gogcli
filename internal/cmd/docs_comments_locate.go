@@ -94,10 +94,14 @@ func (c *DocsCommentsLocateCmd) findQuoteMatches(ctx context.Context, svc *docs.
 		return nil, err
 	}
 
+	return c.findQuoteMatchesAcrossDocument(doc, quote), nil
+}
+
+func (c *DocsCommentsLocateCmd) findQuoteMatchesAcrossDocument(doc *docs.Document, quote string) []docsTextRangeMatch {
 	var matches []docsTextRangeMatch
 	tabs := flattenTabs(doc.Tabs)
 	if len(tabs) == 0 {
-		return c.findQuoteMatchesInDoc(doc, quote, ""), nil
+		return c.findQuoteMatchesInDoc(doc, quote, "")
 	}
 	for _, tab := range tabs {
 		if tab == nil || tab.DocumentTab == nil {
@@ -110,7 +114,7 @@ func (c *DocsCommentsLocateCmd) findQuoteMatches(ctx context.Context, svc *docs.
 		tabDoc := &docs.Document{Body: tab.DocumentTab.Body}
 		matches = append(matches, c.findQuoteMatchesInDoc(tabDoc, quote, tabID)...)
 	}
-	return matches, nil
+	return matches
 }
 
 func (c *DocsCommentsLocateCmd) findQuoteMatchesInDoc(doc *docs.Document, quote string, tabID string) []docsTextRangeMatch {

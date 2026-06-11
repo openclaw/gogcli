@@ -24,6 +24,7 @@ gog docs (doc) write <docId> [flags]
 | `--append` | `bool` |  | Append instead of replacing the document body |
 | `--bg-color` | `string` |  | Text background color as #RRGGBB or #RGB |
 | `--bold` | `bool` |  | Set bold |
+| `--check-orphans` | `bool` |  | Block markdown replacement when open comment quotes would disappear |
 | `--client` | `string` |  | OAuth client name (selects stored credentials + token bucket) |
 | `--code` | `bool` |  | Apply code style (Courier New + grey background) |
 | `--color` | `string` | auto | Color output: auto\|always\|never |

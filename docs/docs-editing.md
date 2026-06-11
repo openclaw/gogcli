@@ -21,6 +21,19 @@ Replace the document body with Markdown from a file:
 gog docs write <docId> --replace --markdown --content-file README.md
 ```
 
+Add `--check-orphans` to block the replacement when an open, currently
+located comment quote would disappear:
+
+```bash
+gog docs write <docId> --replace --markdown --file README.md --check-orphans
+```
+
+The preflight uses the same entity and whitespace matching as
+`docs comments locate`, skips resolved, unquoted, and already-orphaned
+comments, and exits with code 11 before mutation. With `--tab`, only comments
+located in the replaced tab are checked. JSON output includes the comments in
+`wouldOrphan`; human output is written to stderr.
+
 Command pages:
 
 - [`gog docs write`](commands/gog-docs-write.md)

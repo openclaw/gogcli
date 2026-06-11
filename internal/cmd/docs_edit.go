@@ -34,17 +34,18 @@ func resolveTabArg(ctx context.Context, tab, tabID string) (string, error) {
 }
 
 type DocsWriteCmd struct {
-	DocID    string          `arg:"" name:"docId" help:"Doc ID"`
-	Text     string          `name:"text" help:"Text to write"`
-	File     string          `name:"file" help:"Text file path ('-' for stdin)"`
-	Replace  bool            `name:"replace" help:"Replace all content explicitly (required with --markdown unless --append is set)"`
-	Markdown bool            `name:"markdown" help:"Convert markdown to Google Docs formatting (requires --replace or --append)"`
-	Append   bool            `name:"append" help:"Append instead of replacing the document body"`
-	Pageless bool            `name:"pageless" help:"Set document to pageless mode"`
-	Layout   DocsLayoutFlags `embed:""`
-	Tab      string          `name:"tab" help:"Target a specific tab by title or ID (see docs list-tabs)"`
-	TabID    string          `name:"tab-id" hidden:"" help:"(deprecated) Use --tab"`
-	Format   DocsFormatFlags `embed:""`
+	DocID        string          `arg:"" name:"docId" help:"Doc ID"`
+	Text         string          `name:"text" help:"Text to write"`
+	File         string          `name:"file" help:"Text file path ('-' for stdin)"`
+	Replace      bool            `name:"replace" help:"Replace all content explicitly (required with --markdown unless --append is set)"`
+	Markdown     bool            `name:"markdown" help:"Convert markdown to Google Docs formatting (requires --replace or --append)"`
+	Append       bool            `name:"append" help:"Append instead of replacing the document body"`
+	CheckOrphans bool            `name:"check-orphans" help:"Block markdown replacement when open comment quotes would disappear"`
+	Pageless     bool            `name:"pageless" help:"Set document to pageless mode"`
+	Layout       DocsLayoutFlags `embed:""`
+	Tab          string          `name:"tab" help:"Target a specific tab by title or ID (see docs list-tabs)"`
+	TabID        string          `name:"tab-id" hidden:"" help:"(deprecated) Use --tab"`
+	Format       DocsFormatFlags `embed:""`
 }
 
 func (c *DocsWriteCmd) Run(ctx context.Context, kctx *kong.Context, flags *RootFlags) error {
@@ -59,6 +60,9 @@ func (c *DocsWriteCmd) Run(ctx context.Context, kctx *kong.Context, flags *RootF
 	}
 	if c.Append && c.Replace {
 		return usage("--append cannot be combined with --replace")
+	}
+	if c.CheckOrphans && (!c.Markdown || !c.Replace || c.Append) {
+		return usage("--check-orphans requires --replace --markdown")
 	}
 
 	tab, tabErr := resolveTabArg(ctx, c.Tab, c.TabID)
@@ -269,13 +273,14 @@ func (c *DocsWriteCmd) writeMarkdown(ctx context.Context, flags *RootFlags, docI
 	explicitHeadingAnchors := markdownImportExplicitHeadingAnchors(cleaned)
 	cleaned = stripMarkdownHeadingAnchors(cleaned)
 	dryRunPayload := map[string]any{
-		"document_id": docID,
-		"written":     len(content),
-		"append":      false,
-		"replace":     true,
-		"markdown":    true,
-		"pageless":    c.Pageless,
-		"images":      len(images),
+		"document_id":   docID,
+		"written":       len(content),
+		"append":        false,
+		"replace":       true,
+		"markdown":      true,
+		"pageless":      c.Pageless,
+		"images":        len(images),
+		"check_orphans": c.CheckOrphans,
 	}
 	for k, v := range c.Layout.dryRunPayload() {
 		dryRunPayload[k] = v
@@ -289,6 +294,21 @@ func (c *DocsWriteCmd) writeMarkdown(ctx context.Context, flags *RootFlags, docI
 		return err
 	}
 
+	var docsSvc *docs.Service
+	if c.CheckOrphans {
+		docsSvc, err = newDocsService(ctx, account)
+		if err != nil {
+			return err
+		}
+		orphans, tabID, orphanErr := findDocsWriteMarkdownOrphans(ctx, driveSvc, docsSvc, docID, content, "", true)
+		if orphanErr != nil {
+			return orphanErr
+		}
+		if resultErr := writeDocsWriteOrphanResult(ctx, docID, tabID, orphans); resultErr != nil {
+			return resultErr
+		}
+	}
+
 	updated, err := driveSvc.Files.Update(docID, &drive.File{}).
 		Media(strings.NewReader(cleaned), gapi.ContentType(mimeTextMarkdown)).
 		SupportsAllDrives(true).
@@ -299,9 +319,8 @@ func (c *DocsWriteCmd) writeMarkdown(ctx context.Context, flags *RootFlags, docI
 		return fmt.Errorf("writing markdown to document: %w", err)
 	}
 
-	var docsSvc *docs.Service
 	needsDocsSvc := len(images) > 0 || c.Pageless || c.Layout.any() || markdownMayContainHeadingLinks(cleaned)
-	if needsDocsSvc {
+	if needsDocsSvc && docsSvc == nil {
 		var svcErr error
 		docsSvc, svcErr = newDocsService(ctx, account)
 		if svcErr != nil {
@@ -461,14 +480,15 @@ func (c *DocsWriteCmd) replaceMarkdownInTab(ctx context.Context, flags *RootFlag
 	cleaned, images := extractMarkdownImages(content)
 	explicitHeadingAnchors := markdownExplicitHeadingAnchors(cleaned)
 	dryRunPayload := map[string]any{
-		"document_id": docID,
-		"written":     len(cleaned),
-		"append":      false,
-		"replace":     true,
-		"markdown":    true,
-		"pageless":    c.Pageless,
-		"tab":         c.Tab,
-		"images":      len(images),
+		"document_id":   docID,
+		"written":       len(cleaned),
+		"append":        false,
+		"replace":       true,
+		"markdown":      true,
+		"pageless":      c.Pageless,
+		"tab":           c.Tab,
+		"images":        len(images),
+		"check_orphans": c.CheckOrphans,
 	}
 	for k, v := range c.Layout.dryRunPayload() {
 		dryRunPayload[k] = v
@@ -477,7 +497,28 @@ func (c *DocsWriteCmd) replaceMarkdownInTab(ctx context.Context, flags *RootFlag
 		return err
 	}
 
-	svc, err := requireDocsService(ctx, flags)
+	var svc *docs.Service
+	var err error
+	if c.CheckOrphans {
+		account, driveSvc, driveErr := requireDriveService(ctx, flags)
+		if driveErr != nil {
+			return driveErr
+		}
+		svc, err = newDocsService(ctx, account)
+		if err != nil {
+			return err
+		}
+		orphans, resolvedTabID, orphanErr := findDocsWriteMarkdownOrphans(ctx, driveSvc, svc, docID, content, c.Tab, false)
+		if orphanErr != nil {
+			return orphanErr
+		}
+		if resultErr := writeDocsWriteOrphanResult(ctx, docID, resolvedTabID, orphans); resultErr != nil {
+			return resultErr
+		}
+		c.Tab = resolvedTabID
+	} else {
+		svc, err = requireDocsService(ctx, flags)
+	}
 	if err != nil {
 		return err
 	}
