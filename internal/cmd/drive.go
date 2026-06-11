@@ -80,6 +80,7 @@ type DriveCmd struct {
 	URL         DriveURLCmd         `cmd:"" name:"url" help:"Print web URLs for files"`
 	Comments    DriveCommentsCmd    `cmd:"" name:"comments" help:"Manage comments on files"`
 	Drives      DriveDrivesCmd      `cmd:"" name:"drives" help:"List shared drives (Team Drives)"`
+	Revisions   DriveRevisionsCmd   `cmd:"" name:"revisions" aliases:"revision" help:"List and inspect file revisions"`
 	Changes     DriveChangesCmd     `cmd:"" name:"changes" help:"Track Drive changes for sync and automation"`
 	Activity    DriveActivityCmd    `cmd:"" name:"activity" help:"Query Drive Activity audit events"`
 	Raw         DriveRawCmd         `cmd:"" name:"raw" help:"Dump raw Google Drive API response as JSON (Files.Get; lossless; for scripting and LLM consumption)"`

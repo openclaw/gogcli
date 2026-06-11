@@ -328,6 +328,9 @@ Generated from `gog schema --json`.
     - [`gog drive (drv) permissions <fileId> [flags]`](commands/gog-drive-permissions.md) - List permissions on a file
     - [`gog drive (drv) raw <fileId> [flags]`](commands/gog-drive-raw.md) - Dump raw Google Drive API response as JSON (Files.Get; lossless; for scripting and LLM consumption)
     - [`gog drive (drv) rename <fileId> <newName>`](commands/gog-drive-rename.md) - Rename a file or folder
+    - [`gog drive (drv) revisions (revision) <command>`](commands/gog-drive-revisions.md) - List and inspect file revisions
+      - [`gog drive (drv) revisions (revision) get <fileId> <revisionId>`](commands/gog-drive-revisions-get.md) - Get revision metadata
+      - [`gog drive (drv) revisions (revision) list (ls) <fileId> [flags]`](commands/gog-drive-revisions-list.md) - List revisions for a file
     - [`gog drive (drv) search <query> ... [flags]`](commands/gog-drive-search.md) - Full-text search across Drive
     - [`gog drive (drv) share <fileId> [flags]`](commands/gog-drive-share.md) - Share a file or folder
     - [`gog drive (drv) tree [flags]`](commands/gog-drive-tree.md) - Print a read-only folder tree

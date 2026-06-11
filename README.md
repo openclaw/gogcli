@@ -181,6 +181,7 @@ gog calendar appointments
 Docs: [Drive audits](docs/drive-audits.md), [raw API dumps](docs/raw-api.md),
 [`gog drive`](docs/commands/gog-drive.md),
 [`drive changes`](docs/commands/gog-drive-changes.md),
+[`drive revisions`](docs/commands/gog-drive-revisions.md),
 [`drive activity`](docs/commands/gog-drive-activity.md).
 
 ```bash
@@ -203,7 +204,12 @@ gog drive get <fileId> --fields 'id,name,mimeType,size,owners,emailAddress' --js
 # Track changes and audit activity.
 gog drive changes start-token
 gog drive changes list --token <token> --json
+gog drive revisions list <fileId> --all --json
+gog drive revisions get <fileId> <revisionId> --json
 gog drive activity query --file <fileId> --actions edit,share --from 2026-01-01T00:00:00Z --json
+
+# The Drive API exposes revision metadata and provider export links. For native
+# Docs Editors files, it does not expose complete editor history or historical bodies.
 
 # Lossless raw API JSON.
 gog drive raw <fileId> --pretty

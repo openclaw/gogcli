@@ -17,6 +17,7 @@
 - Docs: add `docs insert-image --url` for inserting public HTTPS images directly without Drive upload or temporary public sharing. (#675) — thanks @sebsnyk.
 - Docs: expose paragraph emptiness and text-run ranges, styles, and links in `docs paragraphs list --json`. (#734) — thanks @sebsnyk.
 - Docs: add opt-in `--check-orphans` to Markdown replacement writes so open comments whose quoted text would disappear block the mutation with orphaned exit code 11. (#691) — thanks @sebsnyk.
+- Drive: add `drive revisions list|get` for paged revision metadata and provider export links. (#672) — thanks @aaroneden.
 
 ### Fixed
 

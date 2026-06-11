@@ -1,47 +1,18 @@
-# `gog drive`
+# `gog drive revisions get`
 
 > Generated from `gog schema --json`. Do not edit this page by hand; run `make docs-commands`.
 
-Google Drive
+Get revision metadata
 
 ## Usage
 
 ```bash
-gog drive (drv) <command> [flags]
+gog drive (drv) revisions (revision) get <fileId> <revisionId>
 ```
 
 ## Parent
 
-- [gog](gog.md)
-
-## Subcommands
-
-- [gog drive activity](gog-drive-activity.md) - Query Drive Activity audit events
-- [gog drive audit](gog-drive-audit.md) - Audit Drive sharing without mutation
-- [gog drive bulk](gog-drive-bulk.md) - Bulk Drive permission operations
-- [gog drive changes](gog-drive-changes.md) - Track Drive changes for sync and automation
-- [gog drive comments](gog-drive-comments.md) - Manage comments on files
-- [gog drive copy](gog-drive-copy.md) - Copy a file
-- [gog drive delete](gog-drive-delete.md) - Move a file to trash (use --permanent to delete forever)
-- [gog drive download](gog-drive-download.md) - Download a file (exports Google Docs formats)
-- [gog drive drives](gog-drive-drives.md) - List shared drives (Team Drives)
-- [gog drive du](gog-drive-du.md) - Summarize Drive folder sizes
-- [gog drive get](gog-drive-get.md) - Get file metadata
-- [gog drive inventory](gog-drive-inventory.md) - Export a read-only Drive inventory
-- [gog drive labels](gog-drive-labels.md) - Read and modify Drive labels
-- [gog drive ls](gog-drive-ls.md) - List files in a folder (default: root)
-- [gog drive mkdir](gog-drive-mkdir.md) - Create a folder
-- [gog drive move](gog-drive-move.md) - Move a file to a different folder
-- [gog drive permissions](gog-drive-permissions.md) - List permissions on a file
-- [gog drive raw](gog-drive-raw.md) - Dump raw Google Drive API response as JSON (Files.Get; lossless; for scripting and LLM consumption)
-- [gog drive rename](gog-drive-rename.md) - Rename a file or folder
-- [gog drive revisions](gog-drive-revisions.md) - List and inspect file revisions
-- [gog drive search](gog-drive-search.md) - Full-text search across Drive
-- [gog drive share](gog-drive-share.md) - Share a file or folder
-- [gog drive tree](gog-drive-tree.md) - Print a read-only folder tree
-- [gog drive unshare](gog-drive-unshare.md) - Remove a permission from a file
-- [gog drive upload](gog-drive-upload.md) - Upload a file
-- [gog drive url](gog-drive-url.md) - Print web URLs for files
+- [gog drive revisions](gog-drive-revisions.md)
 
 ## Flags
 
@@ -70,5 +41,5 @@ gog drive (drv) <command> [flags]
 
 ## See Also
 
-- [gog](gog.md)
+- [gog drive revisions](gog-drive-revisions.md)
 - [Command index](README.md)

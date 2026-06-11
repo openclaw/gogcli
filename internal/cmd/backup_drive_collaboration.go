@@ -200,7 +200,7 @@ func fetchBackupDriveRevisions(ctx context.Context, svc *drive.Service, fileID s
 	for {
 		call := svc.Revisions.List(fileID).
 			PageSize(200).
-			Fields(gapi.Field("nextPageToken, revisions(id,mimeType,modifiedTime,keepForever,published,publishAuto,publishedOutsideDomain,publishedLink,lastModifyingUser,md5Checksum,size,originalFilename,exportLinks)")).
+			Fields(gapi.Field(driveRevisionListFields)).
 			Context(ctx)
 		if pageToken != "" {
 			call = call.PageToken(pageToken)
