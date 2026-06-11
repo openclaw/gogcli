@@ -1,18 +1,18 @@
-# `gog docs cell-style`
+# `gog batch show`
 
 > Generated from `gog schema --json`. Do not edit this page by hand; run `make docs-commands`.
 
-Apply table cell background and text styling
+Show a persisted request batch
 
 ## Usage
 
 ```bash
-gog docs (doc) cell-style --row=INT --col=INT <docId> [flags]
+gog batch show <batchId>
 ```
 
 ## Parent
 
-- [gog docs](gog-docs.md)
+- [gog batch](gog-batch.md)
 
 ## Flags
 
@@ -20,12 +20,7 @@ gog docs (doc) cell-style --row=INT --col=INT <docId> [flags]
 | --- | --- | --- | --- |
 | `--access-token` | `string` |  | Use provided access token directly (bypasses stored refresh tokens; token expires in ~1h) |
 | `-a`<br>`--account`<br>`--acct` | `string` |  | Account email for API commands (gmail/calendar/chat/classroom/drive/drivelabels/docs/slides/contacts/tasks/people/sheets/forms/sites/appscript/analytics/searchconsole/youtube/photos) |
-| `--background-color`<br>`--bg-color` | `string` |  | Cell background color as #RRGGBB or #RGB |
-| `--batch` | `string` |  | Append requests to a persisted Docs batch instead of submitting |
-| `--bold` | `bool` |  | Set cell text bold |
 | `--client` | `string` |  | OAuth client name (selects stored credentials + token bucket) |
-| `--col` | `int` |  | 0-based column number |
-| `--col-span` | `int64` | 1 | Number of columns to style |
 | `--color` | `string` | auto | Color output: auto\|always\|never |
 | `--disable-commands` | `string` |  | Comma-separated list of disabled commands; dot paths allowed |
 | `-n`<br>`--dry-run`<br>`--dryrun`<br>`--noop`<br>`--preview` | `bool` |  | Do not make changes; print intended actions and exit successfully |
@@ -35,23 +30,16 @@ gog docs (doc) cell-style --row=INT --col=INT <docId> [flags]
 | `--gmail-no-send` | `bool` | false | Block Gmail send operations (agent safety) |
 | `-h`<br>`--help` | `kong.helpFlag` |  | Show context-sensitive help. |
 | `--home` | `string` |  | Override gogcli config/data/state/cache root (equivalent to GOG_HOME) |
-| `--italic` | `bool` |  | Set cell text italic |
 | `-j`<br>`--json`<br>`--machine` | `bool` | false | Output JSON to stdout (best for scripting) |
 | `--no-input`<br>`--non-interactive`<br>`--noninteractive` | `bool` |  | Never prompt; fail instead (useful for CI) |
 | `-p`<br>`--plain`<br>`--tsv` | `bool` | false | Output stable, parseable text to stdout (TSV; no colors) |
 | `--results-only` | `bool` |  | In JSON mode, emit only the primary result (drops envelope fields like nextPageToken) |
-| `--row` | `int` |  | 0-based row number |
-| `--row-span` | `int64` | 1 | Number of rows to style |
 | `--select`<br>`--pick`<br>`--project` | `string` |  | In JSON mode, select comma-separated fields (best-effort; supports dot paths). Desire path: use --fields for most commands. |
-| `--tab` | `string` |  | Target a specific tab by title or ID (see docs list-tabs) |
-| `--table-index` | `int` | 0 | 0-based table index in document order |
-| `--text-color` | `string` |  | Text color as #RRGGBB or #RGB |
-| `--underline` | `bool` |  | Set cell text underline |
 | `-v`<br>`--verbose` | `bool` |  | Enable verbose logging |
 | `--version` | `kong.VersionFlag` |  | Print version and exit |
 | `--wrap-untrusted` | `bool` | false | In JSON/raw output, wrap fetched text fields in external untrusted-content markers |
 
 ## See Also
 
-- [gog docs](gog-docs.md)
+- [gog batch](gog-batch.md)
 - [Command index](README.md)

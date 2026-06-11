@@ -27,6 +27,7 @@ type DocsInsertPageBreakCmd struct {
 	AtEnd      bool   `name:"at-end" help:"Insert at end-of-doc/tab (mutually exclusive with --index)"`
 	Tab        string `name:"tab" help:"Target a specific tab by title or ID (see docs list-tabs)"`
 	TabID      string `name:"tab-id" hidden:"" help:"(deprecated) Use --tab"`
+	Batch      string `name:"batch" help:"Append requests to a persisted Docs batch instead of submitting"`
 }
 
 func (c *DocsInsertPageBreakCmd) Run(ctx context.Context, kctx *kong.Context, flags *RootFlags) error {
@@ -54,12 +55,12 @@ func (c *DocsInsertPageBreakCmd) Run(ctx context.Context, kctx *kong.Context, fl
 		return tabErr
 	}
 	c.Tab = tab
-
 	resolveEnd := at == "" && (c.AtEnd || c.Index == nil)
 
 	dryRunPayload := map[string]any{
 		"documentId": docID,
 		"tab":        c.Tab,
+		"batch":      c.Batch,
 	}
 	switch {
 	case at != "":
@@ -73,8 +74,15 @@ func (c *DocsInsertPageBreakCmd) Run(ctx context.Context, kctx *kong.Context, fl
 	if dryRunErr := dryRunExit(ctx, flags, "docs.insert-page-break", dryRunPayload); dryRunErr != nil {
 		return dryRunErr
 	}
+	if err := validateDocsBatchTarget(flags, c.Batch, docID); err != nil {
+		return err
+	}
 
 	svc, err := requireDocsService(ctx, flags)
+	if err != nil {
+		return err
+	}
+	batchRevision, err := captureDocsBatchRevision(ctx, svc, c.Batch, docID)
 	if err != nil {
 		return err
 	}
@@ -128,6 +136,9 @@ func (c *DocsInsertPageBreakCmd) Run(ctx context.Context, kctx *kong.Context, fl
 	}
 	if anchor != nil {
 		batchReq.WriteControl = docsRequiredRevisionWriteControl(anchor.RevisionID)
+	}
+	if queued, queueErr := queueDocsBatchRequests(ctx, flags, c.Batch, docID, "docs.insert-page-break", batchRevision, batchReq.Requests, false); queued || queueErr != nil {
+		return queueErr
 	}
 	result, err := svc.Documents.BatchUpdate(docID, batchReq).Context(ctx).Do()
 	if err != nil {

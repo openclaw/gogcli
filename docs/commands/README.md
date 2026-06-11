@@ -12,6 +12,7 @@ Generated pages: 625.
 - [gog appscript](gog-appscript.md) - Google Apps Script
 - [gog auth](gog-auth.md) - Auth and credentials
 - [gog backup](gog-backup.md) - Encrypted Google account backups
+- [gog batch](gog-batch.md) - Build and submit persisted Google Docs request batches
 - [gog calendar](gog-calendar.md) - Google Calendar
 - [gog chat](gog-chat.md) - Google Chat
 - [gog classroom](gog-classroom.md) - Google Classroom
@@ -121,6 +122,13 @@ Generated pages: 625.
     - [gog backup push](gog-backup-push.md) - Export services into encrypted backup shards
     - [gog backup status](gog-backup-status.md) - Inspect backup manifest without decrypting shards
     - [gog backup verify](gog-backup-verify.md) - Decrypt and verify all backup shards
+  - [gog batch](gog-batch.md) - Build and submit persisted Google Docs request batches
+    - [gog batch abort](gog-batch-abort.md) - Delete a request batch without submitting
+    - [gog batch begin](gog-batch-begin.md) - Begin a persisted request batch
+    - [gog batch end](gog-batch-end.md) - Submit and remove a request batch
+    - [gog batch list](gog-batch-list.md) - List persisted request batches
+    - [gog batch prune](gog-batch-prune.md) - Delete stale request batches
+    - [gog batch show](gog-batch-show.md) - Show a persisted request batch
   - [gog calendar](gog-calendar.md) - Google Calendar
     - [gog calendar acl](gog-calendar-acl.md) - List calendar ACL
     - [gog calendar alias](gog-calendar-alias.md) - Manage calendar aliases

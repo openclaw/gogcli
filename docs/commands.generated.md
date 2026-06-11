@@ -69,6 +69,13 @@ Generated from `gog schema --json`.
     - [`gog backup push [flags]`](commands/gog-backup-push.md) - Export services into encrypted backup shards
     - [`gog backup status [flags]`](commands/gog-backup-status.md) - Inspect backup manifest without decrypting shards
     - [`gog backup verify [flags]`](commands/gog-backup-verify.md) - Decrypt and verify all backup shards
+  - [`gog batch <command> [flags]`](commands/gog-batch.md) - Build and submit persisted Google Docs request batches
+    - [`gog batch abort (rm,delete) <batchId>`](commands/gog-batch-abort.md) - Delete a request batch without submitting
+    - [`gog batch begin --doc=STRING [flags]`](commands/gog-batch-begin.md) - Begin a persisted request batch
+    - [`gog batch end (submit) <batchId> [flags]`](commands/gog-batch-end.md) - Submit and remove a request batch
+    - [`gog batch list (ls)`](commands/gog-batch-list.md) - List persisted request batches
+    - [`gog batch prune [flags]`](commands/gog-batch-prune.md) - Delete stale request batches
+    - [`gog batch show <batchId>`](commands/gog-batch-show.md) - Show a persisted request batch
   - [`gog calendar (cal) <command> [flags]`](commands/gog-calendar.md) - Google Calendar
     - [`gog calendar (cal) acl (permissions,perms) <calendarId> [flags]`](commands/gog-calendar-acl.md) - List calendar ACL
     - [`gog calendar (cal) alias <command>`](commands/gog-calendar-alias.md) - Manage calendar aliases

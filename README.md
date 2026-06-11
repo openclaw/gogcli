@@ -284,6 +284,7 @@ gog contacts dedupe --match email,phone,name --dry-run
 ### Docs
 
 Docs: [Google Docs editing](docs/docs-editing.md),
+[atomic Docs request batches](docs/docs-batch.md),
 [sed-style document edits](docs/sedmat.md),
 [`gog docs`](docs/commands/gog-docs.md).
 

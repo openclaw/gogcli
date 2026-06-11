@@ -24,6 +24,7 @@ const requiredFeatureDocs = [
   "contacts-json-update.md",
   "photos-picker.md",
   "docs-editing.md",
+  "docs-batch.md",
   "sheets-batch-update.md",
   "sheets-tables.md",
   "sheets-formatting.md",

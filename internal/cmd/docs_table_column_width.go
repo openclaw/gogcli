@@ -19,6 +19,7 @@ type DocsTableColumnWidthCmd struct {
 	Width             float64 `name:"width" help:"Fixed column width in points (minimum 5pt)"`
 	EvenlyDistributed bool    `name:"evenly-distributed" aliases:"even" help:"Reset selected column, or all columns when --col is omitted, to Docs-managed equal width"`
 	Tab               string  `name:"tab" help:"Target a specific tab by title or ID (see docs list-tabs)"`
+	Batch             string  `name:"batch" help:"Append requests to a persisted Docs batch instead of submitting"`
 }
 
 func (c *DocsTableColumnWidthCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -35,6 +36,7 @@ func (c *DocsTableColumnWidthCmd) Run(ctx context.Context, flags *RootFlags) err
 		"tableIndex":        c.TableIndex,
 		"evenlyDistributed": c.EvenlyDistributed,
 		"tab":               c.Tab,
+		"batch":             c.Batch,
 	}
 	if c.Col > 0 {
 		dryRunPayload["col"] = c.Col
@@ -46,6 +48,9 @@ func (c *DocsTableColumnWidthCmd) Run(ctx context.Context, flags *RootFlags) err
 	}
 	if dryRunErr := dryRunExit(ctx, flags, "docs.table-column-width", dryRunPayload); dryRunErr != nil {
 		return dryRunErr
+	}
+	if err := validateDocsBatchTarget(flags, c.Batch, docID); err != nil {
+		return err
 	}
 
 	svc, err := requireDocsService(ctx, flags)
@@ -65,6 +70,9 @@ func (c *DocsTableColumnWidthCmd) Run(ctx context.Context, flags *RootFlags) err
 	req, err := c.buildRequest(table.startIdx, docsTableColumnCount(table.table), c.Tab)
 	if err != nil {
 		return err
+	}
+	if queued, queueErr := queueDocsBatchRequests(ctx, flags, c.Batch, docID, "docs.table-column-width", loaded.full.RevisionId, []*docs.Request{req}, false); queued || queueErr != nil {
+		return queueErr
 	}
 	resp, err := svc.Documents.BatchUpdate(docID, &docs.BatchUpdateDocumentRequest{
 		WriteControl: &docs.WriteControl{RequiredRevisionId: loaded.full.RevisionId},

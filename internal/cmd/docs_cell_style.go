@@ -25,6 +25,7 @@ type DocsCellStyleCmd struct {
 	Italic          bool   `name:"italic" help:"Set cell text italic"`
 	Underline       bool   `name:"underline" help:"Set cell text underline"`
 	Tab             string `name:"tab" help:"Target a specific tab by title or ID (see docs list-tabs)"`
+	Batch           string `name:"batch" help:"Append requests to a persisted Docs batch instead of submitting"`
 }
 
 func (c *DocsCellStyleCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -64,7 +65,11 @@ func (c *DocsCellStyleCmd) Run(ctx context.Context, flags *RootFlags) error {
 		"italic":          c.Italic,
 		"underline":       c.Underline,
 		"tab":             c.Tab,
+		"batch":           c.Batch,
 	}); err != nil {
+		return err
+	}
+	if err := validateDocsBatchTarget(flags, c.Batch, docID); err != nil {
 		return err
 	}
 
@@ -97,6 +102,9 @@ func (c *DocsCellStyleCmd) Run(ctx context.Context, flags *RootFlags) error {
 	reqs, err := c.buildRequests(table.startIdx, cell, c.Tab)
 	if err != nil {
 		return err
+	}
+	if queued, queueErr := queueDocsBatchRequests(ctx, flags, c.Batch, docID, "docs.cell-style", loaded.full.RevisionId, reqs, false); queued || queueErr != nil {
+		return queueErr
 	}
 	resp, err := svc.Documents.BatchUpdate(docID, &docs.BatchUpdateDocumentRequest{
 		WriteControl: &docs.WriteControl{RequiredRevisionId: loaded.full.RevisionId},

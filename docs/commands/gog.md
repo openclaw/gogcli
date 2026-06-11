@@ -22,6 +22,7 @@ gog <command> [flags]
 - [gog appscript](gog-appscript.md) - Google Apps Script
 - [gog auth](gog-auth.md) - Auth and credentials
 - [gog backup](gog-backup.md) - Encrypted Google account backups
+- [gog batch](gog-batch.md) - Build and submit persisted Google Docs request batches
 - [gog calendar](gog-calendar.md) - Google Calendar
 - [gog chat](gog-chat.md) - Google Chat
 - [gog classroom](gog-classroom.md) - Google Classroom

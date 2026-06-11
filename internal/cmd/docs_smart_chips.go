@@ -23,6 +23,7 @@ type DocsInsertPersonCmd struct {
 	MatchCase  bool   `name:"match-case" help:"Use case-sensitive --at matching"`
 	AtEnd      bool   `name:"at-end" help:"Insert at end-of-doc/tab (mutually exclusive with --index)"`
 	Tab        string `name:"tab" help:"Target a specific tab by title or ID (see docs list-tabs)"`
+	Batch      string `name:"batch" help:"Append requests to a persisted Docs batch instead of submitting"`
 }
 
 type DocsInsertFileChipCmd struct {
@@ -31,6 +32,7 @@ type DocsInsertFileChipCmd struct {
 	Index  *int64 `name:"index" help:"Character index to insert at. Omit or use --at-end for end-of-doc."`
 	AtEnd  bool   `name:"at-end" help:"Insert at end-of-doc/tab (mutually exclusive with --index)"`
 	Tab    string `name:"tab" help:"Target a specific tab by title or ID (see docs list-tabs)"`
+	Batch  string `name:"batch" help:"Append requests to a persisted Docs batch instead of submitting"`
 }
 
 type DocsInsertDateChipCmd struct {
@@ -40,6 +42,7 @@ type DocsInsertDateChipCmd struct {
 	Index  *int64 `name:"index" help:"Character index to insert at. Omit or use --at-end for end-of-doc."`
 	AtEnd  bool   `name:"at-end" help:"Insert at end-of-doc/tab (mutually exclusive with --index)"`
 	Tab    string `name:"tab" help:"Target a specific tab by title or ID (see docs list-tabs)"`
+	Batch  string `name:"batch" help:"Append requests to a persisted Docs batch instead of submitting"`
 }
 
 const docsDateChipFormatFull = "full"
@@ -54,6 +57,7 @@ type docsInsertLocationFlags struct {
 	replaceAt  bool
 	atEnd      bool
 	tab        string
+	batch      string
 }
 
 func (c *DocsInsertPersonCmd) Run(ctx context.Context, kctx *kong.Context, flags *RootFlags) error {
@@ -74,6 +78,7 @@ func (c *DocsInsertPersonCmd) Run(ctx context.Context, kctx *kong.Context, flags
 		replaceAt:  true,
 		atEnd:      c.AtEnd,
 		tab:        c.Tab,
+		batch:      c.Batch,
 	}, req, map[string]any{"email": email})
 }
 
@@ -87,9 +92,13 @@ func (c *DocsInsertFileChipCmd) Run(ctx context.Context, flags *RootFlags) error
 		index: c.Index,
 		atEnd: c.AtEnd,
 		tab:   c.Tab,
+		batch: c.Batch,
 	}
 	if dryRunErr := dryRunDocsSingleInsert(ctx, flags, "docs.insert-file-chip", loc, map[string]any{"fileId": fileID}); dryRunErr != nil {
 		return dryRunErr
+	}
+	if err := validateDocsBatchTarget(flags, c.Batch, c.DocID); err != nil {
+		return err
 	}
 
 	account, err := requireAccount(flags)
@@ -122,6 +131,7 @@ func (c *DocsInsertFileChipCmd) Run(ctx context.Context, flags *RootFlags) error
 		index: c.Index,
 		atEnd: c.AtEnd,
 		tab:   c.Tab,
+		batch: c.Batch,
 	}, req, map[string]any{"fileId": fileID, "title": file.Name})
 }
 
@@ -150,6 +160,7 @@ func (c *DocsInsertDateChipCmd) Run(ctx context.Context, flags *RootFlags) error
 		index: c.Index,
 		atEnd: c.AtEnd,
 		tab:   c.Tab,
+		batch: c.Batch,
 	}, req, map[string]any{"date": date, "format": c.Format})
 }
 
@@ -184,12 +195,18 @@ func runDocsSingleInsert(ctx context.Context, flags *RootFlags, action string, l
 	if loc.at != "" && (loc.atEnd || loc.index != nil) {
 		return usage("--at cannot be combined with --at-end or --index")
 	}
-
 	if err := dryRunDocsSingleInsert(ctx, flags, action, loc, payload); err != nil {
+		return err
+	}
+	if err := validateDocsBatchTarget(flags, loc.batch, docID); err != nil {
 		return err
 	}
 
 	svc, err := requireDocsService(ctx, flags)
+	if err != nil {
+		return err
+	}
+	batchRevision, err := captureDocsBatchRevision(ctx, svc, loc.batch, docID)
 	if err != nil {
 		return err
 	}
@@ -208,6 +225,9 @@ func runDocsSingleInsert(ctx context.Context, flags *RootFlags, action string, l
 	batchReq := &docs.BatchUpdateDocumentRequest{Requests: reqs}
 	if matched != nil {
 		batchReq.WriteControl = docsRequiredRevisionWriteControl(matched.RevisionID)
+	}
+	if queued, queueErr := queueDocsBatchRequests(ctx, flags, loc.batch, docID, action, batchRevision, reqs, false); queued || queueErr != nil {
+		return queueErr
 	}
 	resp, err := svc.Documents.BatchUpdate(docID, batchReq).Context(ctx).Do()
 	if err != nil {
@@ -261,7 +281,7 @@ func dryRunDocsSingleInsert(ctx context.Context, flags *RootFlags, action string
 	if at != "" && (loc.atEnd || loc.index != nil) {
 		return usage("--at cannot be combined with --at-end or --index")
 	}
-	dryRunPayload := map[string]any{"documentId": docID, "tab": loc.tab}
+	dryRunPayload := map[string]any{"documentId": docID, "tab": loc.tab, "batch": loc.batch}
 	for k, v := range payload {
 		dryRunPayload[k] = v
 	}

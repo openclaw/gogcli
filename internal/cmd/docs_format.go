@@ -21,6 +21,7 @@ type DocsFormatCmd struct {
 	TabID     string          `name:"tab-id" hidden:"" help:"(deprecated) Use --tab"`
 	Link      string          `name:"link" help:"Set hyperlink target (http://, https://, mailto:, #bookmarkId, or #heading-slug)"`
 	NoLink    bool            `name:"no-link" help:"Clear hyperlink"`
+	Batch     string          `name:"batch" help:"Append requests to a persisted Docs batch instead of submitting"`
 	Format    DocsFormatFlags `embed:""`
 }
 
@@ -78,7 +79,6 @@ func (c *DocsFormatCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return tabErr
 	}
 	c.Tab = tab
-
 	if _, err := format.buildRequests(1, 2, c.Tab); err != nil {
 		return err
 	}
@@ -89,6 +89,7 @@ func (c *DocsFormatCmd) Run(ctx context.Context, flags *RootFlags) error {
 		"match_all":   c.MatchAll,
 		"match_case":  c.MatchCase,
 		"tab":         c.Tab,
+		"batch":       c.Batch,
 		"format": map[string]any{
 			"font_family":   c.Format.FontFamily,
 			"font_size":     c.Format.FontSize,
@@ -113,8 +114,15 @@ func (c *DocsFormatCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}); err != nil {
 		return err
 	}
+	if err := validateDocsBatchTarget(flags, c.Batch, id); err != nil {
+		return err
+	}
 
 	svc, err := requireDocsService(ctx, flags)
+	if err != nil {
+		return err
+	}
+	batchRevision, err := captureDocsBatchRevision(ctx, svc, c.Batch, id)
 	if err != nil {
 		return err
 	}
@@ -139,6 +147,9 @@ func (c *DocsFormatCmd) Run(ctx context.Context, flags *RootFlags) error {
 			return buildErr
 		}
 		reqs = append(reqs, formatReqs...)
+	}
+	if queued, queueErr := queueDocsBatchRequests(ctx, flags, c.Batch, id, "docs.format", batchRevision, reqs, false); queued || queueErr != nil {
+		return queueErr
 	}
 
 	resp, err := svc.Documents.BatchUpdate(id, &docs.BatchUpdateDocumentRequest{Requests: reqs}).Context(ctx).Do()

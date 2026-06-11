@@ -296,6 +296,28 @@ func EnsureStateDir() (string, error) {
 	return dir, nil
 }
 
+func BatchDir() (string, error) {
+	dir, err := StateDir()
+	if err != nil {
+		return "", err
+	}
+
+	return filepath.Join(dir, "batches"), nil
+}
+
+func EnsureBatchDir() (string, error) {
+	dir, err := BatchDir()
+	if err != nil {
+		return "", err
+	}
+
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return "", fmt.Errorf("ensure batch dir: %w", err)
+	}
+
+	return dir, nil
+}
+
 // KeyringDir is where the keyring "file" backend stores encrypted entries.
 //
 // We keep this separate from the main config dir because the file backend creates

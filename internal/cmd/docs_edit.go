@@ -45,6 +45,7 @@ type DocsWriteCmd struct {
 	Layout       DocsLayoutFlags `embed:""`
 	Tab          string          `name:"tab" help:"Target a specific tab by title or ID (see docs list-tabs)"`
 	TabID        string          `name:"tab-id" hidden:"" help:"(deprecated) Use --tab"`
+	Batch        string          `name:"batch" help:"Append requests to a persisted Docs batch instead of submitting"`
 	Format       DocsFormatFlags `embed:""`
 }
 
@@ -73,6 +74,9 @@ func (c *DocsWriteCmd) Run(ctx context.Context, kctx *kong.Context, flags *RootF
 
 	if err := c.validateDocumentStyle(); err != nil {
 		return err
+	}
+	if c.Batch != "" && (c.Markdown || c.Pageless || c.Layout.any()) {
+		return usage("--batch supports plain text writes without --pageless or layout flags")
 	}
 
 	if c.Markdown {
@@ -129,6 +133,7 @@ func (c *DocsWriteCmd) writePlainText(ctx context.Context, flags *RootFlags, doc
 		"markdown":    false,
 		"pageless":    c.Pageless,
 		"tab":         c.Tab,
+		"batch":       c.Batch,
 	}
 	for k, v := range c.Layout.dryRunPayload() {
 		dryRunPayload[k] = v
@@ -136,8 +141,15 @@ func (c *DocsWriteCmd) writePlainText(ctx context.Context, flags *RootFlags, doc
 	if err := dryRunExit(ctx, flags, "docs.write", dryRunPayload); err != nil {
 		return err
 	}
+	if err := validateDocsBatchTarget(flags, c.Batch, docID); err != nil {
+		return err
+	}
 
 	svc, err := requireDocsService(ctx, flags)
+	if err != nil {
+		return err
+	}
+	batchRevision, err := captureDocsBatchRevision(ctx, svc, c.Batch, docID)
 	if err != nil {
 		return err
 	}
@@ -155,6 +167,9 @@ func (c *DocsWriteCmd) writePlainText(ctx context.Context, flags *RootFlags, doc
 	reqs, err := c.buildPlainWriteRequests(endIndex, insertIndex, text)
 	if err != nil {
 		return err
+	}
+	if queued, queueErr := queueDocsBatchRequests(ctx, flags, c.Batch, docID, "docs.write", batchRevision, reqs, !c.Append); queued || queueErr != nil {
+		return queueErr
 	}
 	resp, err := svc.Documents.BatchUpdate(docID, &docs.BatchUpdateDocumentRequest{Requests: reqs}).Context(ctx).Do()
 	if err != nil {
@@ -617,9 +632,10 @@ type DocsUpdateCmd struct {
 	Pageless     bool   `name:"pageless" help:"Set document to pageless mode"`
 	Tab          string `name:"tab" help:"Target a specific tab by title or ID (see docs list-tabs)"`
 	TabID        string `name:"tab-id" hidden:"" help:"(deprecated) Use --tab"`
+	Batch        string `name:"batch" help:"Append requests to a persisted Docs batch instead of submitting"`
 }
 
-func (c *DocsUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *RootFlags) error {
+func (c *DocsUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *RootFlags) error { //nolint:gocyclo,cyclop // Existing command supports several placement and content modes.
 	u := ui.FromContext(ctx)
 	id := strings.TrimSpace(c.DocID)
 	if id == "" {
@@ -651,12 +667,21 @@ func (c *DocsUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *Root
 		return tabErr
 	}
 	c.Tab = tab
-
+	if c.Batch != "" && (c.Markdown || c.Pageless) {
+		return usage("--batch supports plain text updates without --pageless")
+	}
 	if dryRunErr := dryRunExit(ctx, flags, "docs.update", c.dryRunPayload(id, len(text), replacing, replaceStart, replaceEnd, at)); dryRunErr != nil {
 		return dryRunErr
 	}
+	if batchErr := validateDocsBatchTarget(flags, c.Batch, id); batchErr != nil {
+		return batchErr
+	}
 
 	svc, err := requireDocsService(ctx, flags)
+	if err != nil {
+		return err
+	}
+	batchRevision, err := captureDocsBatchRevision(ctx, svc, c.Batch, id)
 	if err != nil {
 		return err
 	}
@@ -766,6 +791,9 @@ func (c *DocsUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *Root
 		if anchor != nil {
 			batchReq.WriteControl = docsRequiredRevisionWriteControl(anchor.RevisionID)
 		}
+		if queued, queueErr := queueDocsBatchRequests(ctx, flags, c.Batch, id, "docs.update", batchRevision, reqs, false); queued || queueErr != nil {
+			return queueErr
+		}
 		resp, err = svc.Documents.BatchUpdate(id, batchReq).Context(ctx).Do()
 		if err != nil {
 			if isDocsNotFound(err) {
@@ -857,6 +885,7 @@ func (c *DocsUpdateCmd) dryRunPayload(docID string, written int, replacing bool,
 		"markdown":    c.Markdown,
 		"pageless":    c.Pageless,
 		"tab":         c.Tab,
+		"batch":       c.Batch,
 	}
 	if replacing {
 		payload["replaceRange"] = map[string]int64{"start": replaceStart, "end": replaceEnd}
@@ -918,6 +947,7 @@ type DocsInsertCmd struct {
 	File       string `name:"file" short:"f" help:"Read content from file (use - for stdin)"`
 	Tab        string `name:"tab" help:"Target a specific tab by title or ID (see docs list-tabs)"`
 	TabID      string `name:"tab-id" hidden:"" help:"(deprecated) Use --tab"`
+	Batch      string `name:"batch" help:"Append requests to a persisted Docs batch instead of submitting"`
 }
 
 func (c *DocsInsertCmd) Run(ctx context.Context, kctx *kong.Context, flags *RootFlags) error {
@@ -949,11 +979,11 @@ func (c *DocsInsertCmd) Run(ctx context.Context, kctx *kong.Context, flags *Root
 		return tabErr
 	}
 	c.Tab = tab
-
 	dryRunPayload := map[string]any{
 		"documentId": docID,
 		"inserted":   len(content),
 		"tab":        c.Tab,
+		"batch":      c.Batch,
 	}
 	switch {
 	case c.Index != nil:
@@ -967,8 +997,15 @@ func (c *DocsInsertCmd) Run(ctx context.Context, kctx *kong.Context, flags *Root
 	if dryRunErr := dryRunExit(ctx, flags, "docs.insert", dryRunPayload); dryRunErr != nil {
 		return dryRunErr
 	}
+	if batchErr := validateDocsBatchTarget(flags, c.Batch, docID); batchErr != nil {
+		return batchErr
+	}
 
 	svc, err := requireDocsService(ctx, flags)
+	if err != nil {
+		return err
+	}
+	batchRevision, err := captureDocsBatchRevision(ctx, svc, c.Batch, docID)
 	if err != nil {
 		return err
 	}
@@ -1021,6 +1058,9 @@ func (c *DocsInsertCmd) Run(ctx context.Context, kctx *kong.Context, flags *Root
 	if anchor != nil {
 		batchReq.WriteControl = docsRequiredRevisionWriteControl(anchor.RevisionID)
 	}
+	if queued, queueErr := queueDocsBatchRequests(ctx, flags, c.Batch, docID, "docs.insert", batchRevision, batchReq.Requests, false); queued || queueErr != nil {
+		return queueErr
+	}
 	result, err := svc.Documents.BatchUpdate(docID, batchReq).Context(ctx).Do()
 	if err != nil {
 		return fmt.Errorf("inserting text: %w", err)
@@ -1052,6 +1092,7 @@ type DocsDeleteCmd struct {
 	MatchCase  bool   `name:"match-case" help:"Use case-sensitive --at matching"`
 	Tab        string `name:"tab" help:"Target a specific tab by title or ID (see docs list-tabs)"`
 	TabID      string `name:"tab-id" hidden:"" help:"(deprecated) Use --tab"`
+	Batch      string `name:"batch" help:"Append requests to a persisted Docs batch instead of submitting"`
 }
 
 func (c *DocsDeleteCmd) Run(ctx context.Context, kctx *kong.Context, flags *RootFlags) error {
@@ -1083,20 +1124,27 @@ func (c *DocsDeleteCmd) Run(ctx context.Context, kctx *kong.Context, flags *Root
 		return tabErr
 	}
 	c.Tab = tab
-
 	dryRunPayload := map[string]any{
 		"document_id": docID,
 		"start_index": docsDeleteDryRunStart(c.Start),
 		"end_index":   docsDeleteDryRunEnd(c.End),
 		"deleted":     docsDeleteDryRunDeleted(c.Start, c.End, at),
 		"tab":         c.Tab,
+		"batch":       c.Batch,
 	}
 	addDocsAtAnchorDryRunPayload(dryRunPayload, docsAtAnchorFlags{At: at, Occurrence: c.Occurrence, MatchCase: c.MatchCase})
 	if err := dryRunExit(ctx, flags, "docs.delete", dryRunPayload); err != nil {
 		return err
 	}
+	if err := validateDocsBatchTarget(flags, c.Batch, docID); err != nil {
+		return err
+	}
 
 	svc, err := requireDocsService(ctx, flags)
+	if err != nil {
+		return err
+	}
+	batchRevision, err := captureDocsBatchRevision(ctx, svc, c.Batch, docID)
 	if err != nil {
 		return err
 	}
@@ -1137,6 +1185,9 @@ func (c *DocsDeleteCmd) Run(ctx context.Context, kctx *kong.Context, flags *Root
 	}
 	if anchor != nil {
 		batchReq.WriteControl = docsRequiredRevisionWriteControl(anchor.RevisionID)
+	}
+	if queued, queueErr := queueDocsBatchRequests(ctx, flags, c.Batch, docID, "docs.delete", batchRevision, batchReq.Requests, false); queued || queueErr != nil {
+		return queueErr
 	}
 	result, err := svc.Documents.BatchUpdate(docID, batchReq).Context(ctx).Do()
 	if err != nil {
