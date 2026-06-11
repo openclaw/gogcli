@@ -2,12 +2,12 @@
 
 > Generated from `gog schema --json`. Do not edit this page by hand; run `make docs-commands`.
 
-Upload a local image and insert it into a Google Doc
+Insert a public image URL or upload a local image into a Google Doc
 
 ## Usage
 
 ```bash
-gog docs (doc) insert-image --file=STRING <docId> [flags]
+gog docs (doc) insert-image <docId> [flags]
 ```
 
 ## Parent
@@ -42,6 +42,7 @@ gog docs (doc) insert-image --file=STRING <docId> [flags]
 | `--results-only` | `bool` |  | In JSON mode, emit only the primary result (drops envelope fields like nextPageToken) |
 | `--select`<br>`--pick`<br>`--project` | `string` |  | In JSON mode, select comma-separated fields (best-effort; supports dot paths). Desire path: use --fields for most commands. |
 | `--tab` | `string` |  | Target a specific tab by title or ID (see docs list-tabs) |
+| `--url` | `string` |  | Public HTTPS image URL to insert directly |
 | `-v`<br>`--verbose` | `bool` |  | Enable verbose logging |
 | `--version` | `kong.VersionFlag` |  | Print version and exit |
 | `--width` | `float64` | 468 | Image width in points; default 468pt |

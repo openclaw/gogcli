@@ -37,7 +37,7 @@ gog docs (doc) <command> [flags]
 - [gog docs insert](gog-docs-insert.md) - Insert text at a specific position
 - [gog docs insert-date-chip](gog-docs-insert-date-chip.md) - Insert a native date smart chip
 - [gog docs insert-file-chip](gog-docs-insert-file-chip.md) - Insert a native Drive file smart chip
-- [gog docs insert-image](gog-docs-insert-image.md) - Upload a local image and insert it into a Google Doc
+- [gog docs insert-image](gog-docs-insert-image.md) - Insert a public image URL or upload a local image into a Google Doc
 - [gog docs insert-page-break](gog-docs-insert-page-break.md) - Insert a page break at a specific position (or end-of-doc with --at-end)
 - [gog docs insert-person](gog-docs-insert-person.md) - Insert a native person smart chip
 - [gog docs insert-table](gog-docs-insert-table.md) - Insert a native table at a specific position (or end-of-doc with --at-end), optionally populated via --values-json

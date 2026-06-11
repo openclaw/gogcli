@@ -21,7 +21,8 @@ import (
 
 type DocsInsertImageCmd struct {
 	DocID        string  `arg:"" name:"docId" help:"Doc ID"`
-	File         string  `name:"file" required:"" help:"Local PNG, JPEG, or GIF image to upload and insert" type:"existingfile"`
+	File         string  `name:"file" help:"Local PNG, JPEG, or GIF image to upload and insert" type:"existingfile"`
+	URL          string  `name:"url" help:"Public HTTPS image URL to insert directly"`
 	At           string  `name:"at" help:"Placeholder text to replace, or 'end' to append" default:"end"`
 	Width        float64 `name:"width" help:"Image width in points; default 468pt" default:"468"`
 	Height       float64 `name:"height" help:"Image height in points (optional; width-only preserves aspect ratio)"`
@@ -41,10 +42,17 @@ type docsInsertImageResult struct {
 	requests         int
 	revoked          bool
 	fallbackLink     bool
+	sourceURL        string
+}
+
+type docsInsertImageSource struct {
+	localPath string
+	name      string
+	mimeType  string
+	imageURL  string
 }
 
 func (c *DocsInsertImageCmd) Run(ctx context.Context, flags *RootFlags) error {
-	u := ui.FromContext(ctx)
 	docID := strings.TrimSpace(c.DocID)
 	if docID == "" {
 		return usage("empty docId")
@@ -52,38 +60,37 @@ func (c *DocsInsertImageCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if c.Width < 0 || c.Height < 0 {
 		return usage("--width and --height must be non-negative")
 	}
-	localPath, err := config.ExpandPath(c.File)
+	source, err := c.resolveSource()
 	if err != nil {
 		return err
-	}
-	mimeType := guessMimeType(localPath)
-	if !isDocsInsertImageMime(mimeType) {
-		return usage("--file must be a PNG, JPEG, or GIF image")
-	}
-	name := strings.TrimSpace(c.Name)
-	if name == "" {
-		name = filepath.Base(localPath)
 	}
 	at := strings.TrimSpace(c.At)
 	if at == "" {
 		return usage("empty --at")
 	}
-	if dryRunErr := dryRunExit(ctx, flags, "docs.insert-image", map[string]any{
-		"documentId":   docID,
-		"file":         localPath,
-		"name":         name,
-		"mimeType":     mimeType,
-		"at":           at,
-		"width":        c.Width,
-		"height":       c.Height,
-		"parent":       c.Parent,
-		"onRestricted": c.OnRestricted,
-		"tab":          c.Tab,
-	}); dryRunErr != nil {
+	dryRunPayload := map[string]any{
+		"documentId": docID,
+		"at":         at,
+		"width":      c.Width,
+		"height":     c.Height,
+		"tab":        c.Tab,
+	}
+	if source.imageURL != "" {
+		dryRunPayload["url"] = source.imageURL
+	} else {
+		dryRunPayload["file"] = source.localPath
+		dryRunPayload["name"] = source.name
+		dryRunPayload["mimeType"] = source.mimeType
+		dryRunPayload["parent"] = c.Parent
+		dryRunPayload["onRestricted"] = c.OnRestricted
+	}
+	if dryRunErr := dryRunExit(ctx, flags, "docs.insert-image", dryRunPayload); dryRunErr != nil {
 		return dryRunErr
 	}
-	if confirmErr := confirmDestructiveChecked(ctx, flagsWithoutDryRun(flags), fmt.Sprintf("temporarily share uploaded image %s with anyone (public) so Google Docs can fetch it", name)); confirmErr != nil {
-		return confirmErr
+	if source.imageURL == "" {
+		if confirmErr := confirmDestructiveChecked(ctx, flagsWithoutDryRun(flags), fmt.Sprintf("temporarily share uploaded image %s with anyone (public) so Google Docs can fetch it", source.name)); confirmErr != nil {
+			return confirmErr
+		}
 	}
 
 	account, err := requireAccount(flags)
@@ -94,25 +101,78 @@ func (c *DocsInsertImageCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if err != nil {
 		return err
 	}
-	driveSvc, err := newDriveService(ctx, account)
+
+	var result docsInsertImageResult
+	if source.imageURL != "" {
+		result, err = c.runURL(ctx, docsSvc, docID, source.imageURL, at)
+	} else {
+		driveSvc, driveErr := newDriveService(ctx, account)
+		if driveErr != nil {
+			return driveErr
+		}
+		result, err = c.runFile(ctx, docsSvc, driveSvc, docID, source.localPath, source.name, source.mimeType, at)
+	}
 	if err != nil {
 		return err
+	}
+	return writeDocsInsertImageResult(ctx, result)
+}
+
+func (c *DocsInsertImageCmd) resolveSource() (docsInsertImageSource, error) {
+	localFile := strings.TrimSpace(c.File)
+	imageURL := strings.TrimSpace(c.URL)
+	if localFile == "" && imageURL == "" {
+		return docsInsertImageSource{}, usage("required: --file or --url")
+	}
+	if localFile != "" && imageURL != "" {
+		return docsInsertImageSource{}, usage("--file and --url are mutually exclusive")
+	}
+	if imageURL != "" {
+		if strings.TrimSpace(c.Parent) != "" || strings.TrimSpace(c.Name) != "" || strings.EqualFold(c.OnRestricted, "link") {
+			return docsInsertImageSource{}, usage("--parent, --name, and --on-restricted=link require --file")
+		}
+		parsed, err := url.ParseRequestURI(imageURL)
+		if err != nil || !strings.EqualFold(parsed.Scheme, "https") || parsed.Host == "" || parsed.User != nil {
+			return docsInsertImageSource{}, usage("--url must be a public HTTPS image URL without embedded credentials")
+		}
+		return docsInsertImageSource{imageURL: parsed.String()}, nil
 	}
 
-	result, err := c.run(ctx, docsSvc, driveSvc, docID, localPath, name, mimeType, at)
+	localPath, err := config.ExpandPath(localFile)
 	if err != nil {
-		return err
+		return docsInsertImageSource{}, err
 	}
+	mimeType := guessMimeType(localPath)
+	if !isDocsInsertImageMime(mimeType) {
+		return docsInsertImageSource{}, usage("--file must be a PNG, JPEG, or GIF image")
+	}
+	name := strings.TrimSpace(c.Name)
+	if name == "" {
+		name = filepath.Base(localPath)
+	}
+	return docsInsertImageSource{
+		localPath: localPath,
+		name:      name,
+		mimeType:  mimeType,
+	}, nil
+}
+
+func writeDocsInsertImageResult(ctx context.Context, result docsInsertImageResult) error {
+	u := ui.FromContext(ctx)
 	if outfmt.IsJSON(ctx) {
 		payload := map[string]any{
-			"documentId":       result.documentID,
-			"uploadedFileId":   result.uploadedFileID,
-			"uploadedFileName": result.uploadedFileName,
-			"permissionId":     result.permissionID,
-			"atIndex":          result.atIndex,
-			"requests":         result.requests,
-			"revoked":          result.revoked,
-			"fallbackLink":     result.fallbackLink,
+			"documentId": result.documentID,
+			"atIndex":    result.atIndex,
+			"requests":   result.requests,
+		}
+		if result.sourceURL != "" {
+			payload["url"] = result.sourceURL
+		} else {
+			payload["uploadedFileId"] = result.uploadedFileID
+			payload["uploadedFileName"] = result.uploadedFileName
+			payload["permissionId"] = result.permissionID
+			payload["revoked"] = result.revoked
+			payload["fallbackLink"] = result.fallbackLink
 		}
 		if result.tabID != "" {
 			payload["tabId"] = result.tabID
@@ -120,20 +180,29 @@ func (c *DocsInsertImageCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return outfmt.WriteJSON(ctx, os.Stdout, payload)
 	}
 	u.Out().Linef("documentId\t%s", result.documentID)
-	u.Out().Linef("uploadedFileId\t%s", result.uploadedFileID)
+	if result.sourceURL != "" {
+		u.Out().Linef("url\t%s", result.sourceURL)
+	} else {
+		u.Out().Linef("uploadedFileId\t%s", result.uploadedFileID)
+		u.Out().Linef("revoked\t%t", result.revoked)
+		if result.fallbackLink {
+			u.Out().Linef("fallbackLink\ttrue")
+		}
+	}
 	u.Out().Linef("atIndex\t%d", result.atIndex)
 	u.Out().Linef("requests\t%d", result.requests)
-	u.Out().Linef("revoked\t%t", result.revoked)
-	if result.fallbackLink {
-		u.Out().Linef("fallbackLink\ttrue")
-	}
 	if result.tabID != "" {
 		u.Out().Linef("tabId\t%s", result.tabID)
 	}
 	return nil
 }
 
-func (c *DocsInsertImageCmd) run(ctx context.Context, docsSvc *docs.Service, driveSvc *drive.Service, docID, localPath, name, mimeType, at string) (result docsInsertImageResult, err error) {
+func (c *DocsInsertImageCmd) runURL(ctx context.Context, docsSvc *docs.Service, docID, imageURL, at string) (docsInsertImageResult, error) {
+	result := docsInsertImageResult{sourceURL: imageURL}
+	return c.insertImageURL(ctx, docsSvc, docID, imageURL, at, result)
+}
+
+func (c *DocsInsertImageCmd) runFile(ctx context.Context, docsSvc *docs.Service, driveSvc *drive.Service, docID, localPath, name, mimeType, at string) (result docsInsertImageResult, err error) {
 	uploaded, err := uploadDocsInlineImage(ctx, driveSvc, localPath, name, mimeType, strings.TrimSpace(c.Parent))
 	if err != nil {
 		return result, err
@@ -173,6 +242,10 @@ func (c *DocsInsertImageCmd) run(ctx context.Context, docsSvc *docs.Service, dri
 	}()
 
 	imageURL := driveImageDownloadURL(uploaded.Id)
+	return c.insertImageURL(ctx, docsSvc, docID, imageURL, at, result)
+}
+
+func (c *DocsInsertImageCmd) insertImageURL(ctx context.Context, docsSvc *docs.Service, docID, imageURL, at string, result docsInsertImageResult) (docsInsertImageResult, error) {
 	reqs, index, tabID, err := c.buildInsertRequests(ctx, docsSvc, docID, at, imageURL)
 	if err != nil {
 		return result, err

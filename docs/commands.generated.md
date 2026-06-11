@@ -249,7 +249,7 @@ Generated from `gog schema --json`.
     - [`gog docs (doc) insert <docId> [<content>] [flags]`](commands/gog-docs-insert.md) - Insert text at a specific position
     - [`gog docs (doc) insert-date-chip --date=STRING <docId> [flags]`](commands/gog-docs-insert-date-chip.md) - Insert a native date smart chip
     - [`gog docs (doc) insert-file-chip (insert-rich-link) --file-id=STRING <docId> [flags]`](commands/gog-docs-insert-file-chip.md) - Insert a native Drive file smart chip
-    - [`gog docs (doc) insert-image --file=STRING <docId> [flags]`](commands/gog-docs-insert-image.md) - Upload a local image and insert it into a Google Doc
+    - [`gog docs (doc) insert-image <docId> [flags]`](commands/gog-docs-insert-image.md) - Insert a public image URL or upload a local image into a Google Doc
     - [`gog docs (doc) insert-page-break (page-break,pb) <docId> [flags]`](commands/gog-docs-insert-page-break.md) - Insert a page break at a specific position (or end-of-doc with --at-end)
     - [`gog docs (doc) insert-person --email=STRING <docId> [flags]`](commands/gog-docs-insert-person.md) - Insert a native person smart chip
     - [`gog docs (doc) insert-table --rows=INT --cols=INT <docId> [flags]`](commands/gog-docs-insert-table.md) - Insert a native table at a specific position (or end-of-doc with --at-end), optionally populated via --values-json

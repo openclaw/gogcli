@@ -14,6 +14,7 @@
 - Docs: add `--tab` and `--all-tabs` to `docs raw` for inspecting specific or complete multi-tab document content. (#697) — thanks @sebsnyk.
 - Docs: add tab-aware table, image, heading, and paragraph enumerators with structured and plain output. (#719) — thanks @sebsnyk.
 - Docs: style locally rendered fenced Markdown blocks with Roboto Mono, dark-green text, and existing paragraph shading. (#676, #724) — thanks @TurboTheTurtle.
+- Docs: add `docs insert-image --url` for inserting public HTTPS images directly without Drive upload or temporary public sharing. (#675) — thanks @sebsnyk.
 
 ### Fixed
 

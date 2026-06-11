@@ -40,7 +40,7 @@ type DocsCmd struct {
 	TableMerge       DocsTableMergeCmd       `cmd:"" name:"table-merge" help:"Merge a native table cell range"`
 	TableUnmerge     DocsTableUnmergeCmd     `cmd:"" name:"table-unmerge" aliases:"table-split" help:"Unmerge the region containing a native table cell"`
 	TableColumnWidth DocsTableColumnWidthCmd `cmd:"" name:"table-column-width" aliases:"table-width,column-width" help:"Set or reset native table column widths"`
-	InsertImage      DocsInsertImageCmd      `cmd:"" name:"insert-image" help:"Upload a local image and insert it into a Google Doc"`
+	InsertImage      DocsInsertImageCmd      `cmd:"" name:"insert-image" help:"Insert a public image URL or upload a local image into a Google Doc"`
 	InsertPerson     DocsInsertPersonCmd     `cmd:"" name:"insert-person" help:"Insert a native person smart chip"`
 	InsertFileChip   DocsInsertFileChipCmd   `cmd:"" name:"insert-file-chip" aliases:"insert-rich-link" help:"Insert a native Drive file smart chip"`
 	InsertDateChip   DocsInsertDateChipCmd   `cmd:"" name:"insert-date-chip" help:"Insert a native date smart chip"`
