@@ -21,6 +21,7 @@ const driveChangesFields = "nextPageToken,newStartPageToken,changes(kind,type,re
 type DriveChangesCmd struct {
 	StartToken DriveChangesStartTokenCmd `cmd:"" name:"start-token" aliases:"token" help:"Get a Drive changes start page token"`
 	List       DriveChangesListCmd       `cmd:"" name:"list" aliases:"ls" help:"List Drive changes since a page token"`
+	Poll       DriveChangesPollCmd       `cmd:"" name:"poll" help:"Poll Drive changes with a persisted page token"`
 	Watch      DriveChangesWatchCmd      `cmd:"" name:"watch" help:"Watch Drive changes with a webhook channel"`
 	Stop       DriveChangesStopCmd       `cmd:"" name:"stop" help:"Stop a Drive changes webhook channel"`
 }
@@ -36,19 +37,15 @@ func (c *DriveChangesStartTokenCmd) Run(ctx context.Context, flags *RootFlags) e
 		return err
 	}
 
-	call := svc.Changes.GetStartPageToken().SupportsAllDrives(true).Context(ctx)
-	if driveID := strings.TrimSpace(c.DriveID); driveID != "" {
-		call = call.DriveId(driveID)
-	}
-	resp, err := call.Do()
+	startPageToken, err := getDriveChangesStartToken(ctx, svc, c.DriveID)
 	if err != nil {
 		return err
 	}
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{"startPageToken": resp.StartPageToken})
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{"startPageToken": startPageToken})
 	}
-	u.Out().Linef("startPageToken\t%s", resp.StartPageToken)
+	u.Out().Linef("startPageToken\t%s", startPageToken)
 	return nil
 }
 
@@ -80,29 +77,12 @@ func (c *DriveChangesListCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
-	fetch := func(pageToken string) ([]*drive.Change, string, error) {
-		call := svc.Changes.List(pageToken).
-			PageSize(c.Max).
-			IncludeItemsFromAllDrives(true).
-			SupportsAllDrives(true).
-			IncludeRemoved(c.IncludeRemoved).
-			Fields(gapi.Field(driveChangesFields)).
-			Context(ctx)
-		if driveID := strings.TrimSpace(c.DriveID); driveID != "" {
-			call = call.DriveId(driveID)
-		}
-		resp, callErr := call.Do()
-		if callErr != nil {
-			return nil, "", callErr
-		}
-		next := resp.NextPageToken
-		if next == "" {
-			next = resp.NewStartPageToken
-		}
-		return resp.Changes, next, nil
-	}
-
-	changes, nextPageToken, err := loadPagedItems(token, c.All, fetch)
+	changes, nextPageToken, err := loadDriveChanges(ctx, svc, token, driveChangesLoadOptions{
+		max:            c.Max,
+		includeRemoved: c.IncludeRemoved,
+		driveID:        c.DriveID,
+		all:            c.All,
+	})
 	if err != nil {
 		return err
 	}
@@ -130,6 +110,98 @@ func (c *DriveChangesListCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 	printNextPageHint(u, nextPageToken)
 	return nil
+}
+
+type driveChangesLoadOptions struct {
+	max            int64
+	includeRemoved bool
+	driveID        string
+	all            bool
+}
+
+type driveChangesPage struct {
+	changes           []*drive.Change
+	nextPageToken     string
+	newStartPageToken string
+}
+
+func getDriveChangesStartToken(ctx context.Context, svc *drive.Service, driveID string) (string, error) {
+	call := svc.Changes.GetStartPageToken().SupportsAllDrives(true).Context(ctx)
+	if driveID = strings.TrimSpace(driveID); driveID != "" {
+		call = call.DriveId(driveID)
+	}
+	resp, err := call.Do()
+	if err != nil {
+		return "", err
+	}
+	if strings.TrimSpace(resp.StartPageToken) == "" {
+		return "", fmt.Errorf("drive changes start-token response was empty")
+	}
+	return resp.StartPageToken, nil
+}
+
+func fetchDriveChangesPage(ctx context.Context, svc *drive.Service, pageToken string, opts driveChangesLoadOptions) (driveChangesPage, error) {
+	call := svc.Changes.List(pageToken).
+		PageSize(opts.max).
+		IncludeItemsFromAllDrives(true).
+		SupportsAllDrives(true).
+		IncludeRemoved(opts.includeRemoved).
+		Fields(gapi.Field(driveChangesFields)).
+		Context(ctx)
+	if driveID := strings.TrimSpace(opts.driveID); driveID != "" {
+		call = call.DriveId(driveID)
+	}
+	resp, err := call.Do()
+	if err != nil {
+		return driveChangesPage{}, err
+	}
+	return driveChangesPage{
+		changes:           resp.Changes,
+		nextPageToken:     strings.TrimSpace(resp.NextPageToken),
+		newStartPageToken: strings.TrimSpace(resp.NewStartPageToken),
+	}, nil
+}
+
+func loadDriveChanges(ctx context.Context, svc *drive.Service, pageToken string, opts driveChangesLoadOptions) ([]*drive.Change, string, error) {
+	pageToken = strings.TrimSpace(pageToken)
+	if pageToken == "" {
+		return nil, "", usage("missing --token")
+	}
+	if !opts.all {
+		page, err := fetchDriveChangesPage(ctx, svc, pageToken, opts)
+		if err != nil {
+			return nil, "", err
+		}
+		next := page.nextPageToken
+		if next == "" {
+			next = page.newStartPageToken
+		}
+		return page.changes, next, nil
+	}
+
+	seen := make(map[string]struct{})
+	var changes []*drive.Change
+	for range 10_000 {
+		if _, ok := seen[pageToken]; ok {
+			return nil, "", fmt.Errorf("pagination loop: repeated page token %q", pageToken)
+		}
+		seen[pageToken] = struct{}{}
+
+		page, err := fetchDriveChangesPage(ctx, svc, pageToken, opts)
+		if err != nil {
+			return nil, "", err
+		}
+		changes = append(changes, page.changes...)
+		if page.nextPageToken != "" {
+			pageToken = page.nextPageToken
+			continue
+		}
+		if page.newStartPageToken == "" {
+			return nil, "", fmt.Errorf("drive changes response ended without newStartPageToken")
+		}
+		return changes, page.newStartPageToken, nil
+	}
+	return nil, "", fmt.Errorf("pagination exceeded max pages")
 }
 
 type DriveChangesWatchCmd struct {
