@@ -20,7 +20,7 @@ gog --dry-run batch end "$BATCH_ID" --json
 gog batch end "$BATCH_ID"
 ```
 
-`batch begin` prints only the UUID in text and plain modes, making command substitution stable. The batch records the selected account, OAuth client, target document, and first observed document revision. Later appends fail if any of those values differ.
+`batch begin` prints only the UUID in text and plain modes, making command substitution stable. It records the selected account, OAuth client, and target document without reading the document or pinning a revision. The first queued mutation records the document revision because that is when request positions are first resolved. Later appends fail if the identity or revision differs.
 
 ## Supported mutations
 

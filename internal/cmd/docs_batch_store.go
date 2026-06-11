@@ -177,8 +177,10 @@ func (s *docsBatchStore) appendRequests(batchID, command, documentID, account, c
 		if revisionID == "" {
 			return errors.New("document revision is empty")
 		}
+		// An empty batch has no revision boundary because no request positions have
+		// been resolved yet. The first queued operation establishes the baseline.
 		if state.RequiredRevisionID != "" && state.RequiredRevisionID != revisionID {
-			return fmt.Errorf("document revision changed since batch began (batch=%s current=%s)", state.RequiredRevisionID, revisionID)
+			return fmt.Errorf("document revision changed since the first request was queued (batch=%s current=%s)", state.RequiredRevisionID, revisionID)
 		}
 		if requireEmpty && len(state.Requests) > 0 {
 			return errors.New("this operation must be the first request in a batch")
