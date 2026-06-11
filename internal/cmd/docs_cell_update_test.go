@@ -150,6 +150,52 @@ func TestDocsCellUpdate_ReplacesWithNativeMarkdownList(t *testing.T) {
 	}
 }
 
+func TestDocsCellUpdate_ReplacesPlainCellWithInlineCodeStyle(t *testing.T) {
+	origDocs := newDocsService
+	t.Cleanup(func() { newDocsService = origDocs })
+
+	var got docs.BatchUpdateDocumentRequest
+	docSvc, cleanup := newDocsServiceForTest(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, "/v1/documents/"):
+			_ = json.NewEncoder(w).Encode(cellUpdateTestDoc())
+		case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, ":batchUpdate"):
+			if err := json.NewDecoder(r.Body).Decode(&got); err != nil {
+				t.Fatalf("decode batchUpdate: %v", err)
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{"documentId": "doc1"})
+		default:
+			http.NotFound(w, r)
+		}
+	})
+	defer cleanup()
+	newDocsService = func(context.Context, string) (*docs.Service, error) { return docSvc, nil }
+
+	cmd := &DocsCellUpdateCmd{}
+	if err := runKong(t, cmd, []string{"doc1", "--row", "1", "--col", "2", "--content", "`doThing()`"}, newDocsCmdContext(t), &RootFlags{Account: "a@b.com"}); err != nil {
+		t.Fatalf("docs cell-update inline code: %v", err)
+	}
+	if len(got.Requests) != 3 {
+		t.Fatalf("expected delete+insert+code style, got %d requests", len(got.Requests))
+	}
+	ins := got.Requests[1].InsertText
+	if ins == nil || ins.Location.Index != 10 || ins.Text != "doThing()" {
+		t.Fatalf("unexpected inline-code insert: %#v", ins)
+	}
+	style := got.Requests[2].UpdateTextStyle
+	if style == nil || style.Range == nil || style.TextStyle == nil || style.TextStyle.WeightedFontFamily == nil {
+		t.Fatalf("missing inline-code style request: %#v", got.Requests[2])
+	}
+	if style.Range.StartIndex != 10 || style.Range.EndIndex != 19 {
+		t.Fatalf("inline-code style range = %#v, want [10,19)", style.Range)
+	}
+	font := style.TextStyle.WeightedFontFamily
+	if font.FontFamily != "Courier New" || font.Weight != 400 || style.Fields != "weightedFontFamily" {
+		t.Fatalf("inline-code style = %#v fields=%q", font, style.Fields)
+	}
+}
+
 func TestDocsCellUpdate_AppendMarkdownWithTab(t *testing.T) {
 	origDocs := newDocsService
 	t.Cleanup(func() { newDocsService = origDocs })

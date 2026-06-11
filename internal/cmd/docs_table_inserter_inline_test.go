@@ -70,8 +70,11 @@ func TestBuildTableCellRequests_AppliesInlineItalicAndCode(t *testing.T) {
 			if tt.wantItalic && !style.TextStyle.Italic {
 				t.Fatalf("expected Italic, got %#v", style.TextStyle)
 			}
-			if tt.wantCode && style.TextStyle.WeightedFontFamily == nil {
-				t.Fatalf("expected code styling (WeightedFontFamily), got %#v", style.TextStyle)
+			if tt.wantCode {
+				font := style.TextStyle.WeightedFontFamily
+				if font == nil || font.FontFamily != "Courier New" || font.Weight != 400 {
+					t.Fatalf("expected Courier New 400 code styling, got %#v", style.TextStyle)
+				}
 			}
 		})
 	}

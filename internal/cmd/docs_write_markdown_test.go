@@ -77,7 +77,7 @@ func TestDocsWrite_MarkdownReplaceUsesDriveUpdate(t *testing.T) {
 
 	tmpDir := t.TempDir()
 	mdFile := filepath.Join(tmpDir, "test.md")
-	markdown := "# Hello\n\n- item\n"
+	markdown := "# Hello\n\n- item\n\n| label | content |\n|---|---|\n| code | `doThing()` |\n"
 	if err := os.WriteFile(mdFile, []byte(markdown), 0o600); err != nil {
 		t.Fatalf("write markdown temp file: %v", err)
 	}
@@ -90,6 +90,9 @@ func TestDocsWrite_MarkdownReplaceUsesDriveUpdate(t *testing.T) {
 	}
 	if !strings.Contains(uploadBody, "# Hello") {
 		t.Fatalf("expected upload body to contain markdown content, got: %q", uploadBody)
+	}
+	if !strings.Contains(uploadBody, "| code | `doThing()` |") {
+		t.Fatalf("expected upload body to preserve table-cell inline code, got: %q", uploadBody)
 	}
 }
 
