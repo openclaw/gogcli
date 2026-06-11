@@ -160,6 +160,7 @@ func replaceDocsMarkdownRange(ctx context.Context, svc *docs.Service, doc *docs.
 				Text:     prefix + textToInsert,
 			},
 		})
+		requests = append(requests, resetDocsTextStyleRequest(baseIndex, baseIndex+utf16Len(textToInsert), tabID))
 		requests = append(requests, formattingRequests...)
 	}
 

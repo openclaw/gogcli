@@ -119,25 +119,11 @@ func buildBraceTextStyleRequests(be *braceExpr, start, end int64) []*docs.Reques
 	}
 }
 
-// resetFieldsStr is the pre-joined field mask for resetting all text formatting.
-// Package-level to avoid per-call allocation and string joining.
-var resetFieldsStr = strings.Join([]string{
-	"bold", "italic", "underline", "strikethrough", "smallCaps",
-	"baselineOffset", "foregroundColor", "backgroundColor",
-	"fontSize", "weightedFontFamily", "link",
-}, ",")
-
 // buildResetTextStyleRequests builds requests to clear all formatting, then apply any
 // additional flags specified after the reset (e.g., {0 b} = reset then bold).
 func buildResetTextStyleRequests(be *braceExpr, start, end int64) []*docs.Request {
 	requests := []*docs.Request{
-		{
-			UpdateTextStyle: &docs.UpdateTextStyleRequest{
-				Range:     &docs.Range{StartIndex: start, EndIndex: end},
-				TextStyle: &docs.TextStyle{}, // Empty style = reset
-				Fields:    resetFieldsStr,
-			},
-		},
+		resetDocsTextStyleRequest(start, end, ""),
 	}
 
 	// Now apply any flags that were set alongside the reset

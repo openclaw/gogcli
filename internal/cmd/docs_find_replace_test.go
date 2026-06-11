@@ -444,6 +444,57 @@ func TestDocsFindReplace_MarkdownExplicitTrailingNewlinePreserved(t *testing.T) 
 	}
 }
 
+func TestDocsFindReplace_MarkdownResetsInheritedStylesBeforeLeadingBold(t *testing.T) {
+	origDocs := newDocsService
+	t.Cleanup(func() { newDocsService = origDocs })
+
+	var got docs.BatchUpdateDocumentRequest
+	docSvc, cleanup := newDocsServiceForTest(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, "/v1/documents/"):
+			_ = json.NewEncoder(w).Encode(docBodyWithText("PLACEHOLDER\n"))
+		case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, ":batchUpdate"):
+			if err := json.NewDecoder(r.Body).Decode(&got); err != nil {
+				t.Fatalf("decode batchUpdate: %v", err)
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{"documentId": "doc1"})
+		default:
+			http.NotFound(w, r)
+		}
+	})
+	defer cleanup()
+	newDocsService = func(context.Context, string) (*docs.Service, error) { return docSvc, nil }
+
+	replacement := "**Alpha** keeps text. The **Bravo** keeps text."
+	err := runKong(t, &DocsFindReplaceCmd{}, []string{
+		"doc1", "PLACEHOLDER", replacement, "--format", "markdown", "--first",
+	}, newDocsCmdContext(t), &RootFlags{Account: "a@b.com"})
+	if err != nil {
+		t.Fatalf("docs find-replace leading bold: %v", err)
+	}
+	if len(got.Requests) != 5 {
+		t.Fatalf("expected delete, insert, reset, and two bold requests, got %#v", got.Requests)
+	}
+	inserted := "Alpha keeps text. The Bravo keeps text."
+	if got.Requests[1].InsertText == nil || got.Requests[1].InsertText.Text != inserted {
+		t.Fatalf("unexpected insert request: %#v", got.Requests[1])
+	}
+	reset := got.Requests[2].UpdateTextStyle
+	if reset == nil || reset.Range.StartIndex != 1 || reset.Range.EndIndex != 1+utf16Len(inserted) ||
+		reset.Fields != docsTextStyleResetFields || reset.TextStyle == nil {
+		t.Fatalf("unexpected reset request: %#v", reset)
+	}
+	alpha := got.Requests[3].UpdateTextStyle
+	if alpha == nil || alpha.Range.StartIndex != 1 || alpha.Range.EndIndex != 6 || !alpha.TextStyle.Bold {
+		t.Fatalf("unexpected Alpha bold request: %#v", alpha)
+	}
+	bravo := got.Requests[4].UpdateTextStyle
+	if bravo == nil || bravo.Range.StartIndex != 23 || bravo.Range.EndIndex != 28 || !bravo.TextStyle.Bold {
+		t.Fatalf("unexpected Bravo bold request: %#v", bravo)
+	}
+}
+
 func TestDocsFindReplace_MarkdownCodeBlockStartsFreshParagraphWhenInline(t *testing.T) {
 	origDocs := newDocsService
 	t.Cleanup(func() { newDocsService = origDocs })
@@ -484,13 +535,13 @@ func TestDocsFindReplace_MarkdownCodeBlockStartsFreshParagraphWhenInline(t *test
 		t.Fatalf("expected 1 batchUpdate call, got %d", len(batchCalls))
 	}
 	reqs := batchCalls[0].Requests
-	if len(reqs) != 4 {
-		t.Fatalf("expected delete, insert, code font, and code shading requests, got %#v", reqs)
+	if len(reqs) != 5 {
+		t.Fatalf("expected delete, insert, reset, code font, and code shading requests, got %#v", reqs)
 	}
 	if got := reqs[1].InsertText; got == nil || got.Location.Index != 7 || got.Text != "\nline1"+docsSoftLineBreak+"line2\n" {
 		t.Fatalf("unexpected insert request: %#v", got)
 	}
-	if got := reqs[3].UpdateParagraphStyle; got == nil || got.Range.StartIndex != 8 || got.Range.EndIndex != 20 {
+	if got := reqs[4].UpdateParagraphStyle; got == nil || got.Range.StartIndex != 8 || got.Range.EndIndex != 20 {
 		t.Fatalf("unexpected code shading request: %#v", got)
 	}
 }
