@@ -1,18 +1,18 @@
-# `gog auth manage`
+# `gog photos picker create`
 
 > Generated from `gog schema --json`. Do not edit this page by hand; run `make docs-commands`.
 
-Open accounts manager in browser
+Create a photo-picking session
 
 ## Usage
 
 ```bash
-gog auth manage (login) [flags]
+gog photos (photo) picker create (new,start) [flags]
 ```
 
 ## Parent
 
-- [gog auth](gog-auth.md)
+- [gog photos picker](gog-photos-picker.md)
 
 ## Flags
 
@@ -27,24 +27,21 @@ gog auth manage (login) [flags]
 | `--enable-commands` | `string` |  | Comma-separated list of enabled command prefixes; dot paths allowed (restricts CLI) |
 | `--enable-commands-exact` | `string` |  | Comma-separated list of exact enabled commands; dot paths allowed and parent commands do not enable children |
 | `-y`<br>`--force`<br>`--assume-yes`<br>`--yes` | `bool` |  | Skip confirmations for destructive commands |
-| `--force-consent` | `bool` |  | Force consent screen when adding accounts |
 | `--gmail-no-send` | `bool` | false | Block Gmail send operations (agent safety) |
 | `-h`<br>`--help` | `kong.helpFlag` |  | Show context-sensitive help. |
 | `--home` | `string` |  | Override gogcli config/data/state/cache root (equivalent to GOG_HOME) |
 | `-j`<br>`--json`<br>`--machine` | `bool` | false | Output JSON to stdout (best for scripting) |
-| `--listen-addr` | `string` |  | Loopback address to listen on for the accounts manager (for example 127.0.0.1:8080 or [::1]:8080) |
+| `--max-items` | `int64` | 0 | Maximum items the user may select (max 2000; 0 uses the API default) |
 | `--no-input`<br>`--non-interactive`<br>`--noninteractive` | `bool` |  | Never prompt; fail instead (useful for CI) |
+| `--open`<br>`--browser` | `bool` |  | Open the Picker URI in the default browser |
 | `-p`<br>`--plain`<br>`--tsv` | `bool` | false | Output stable, parseable text to stdout (TSV; no colors) |
-| `--redirect-host` | `string` |  | Hostname for OAuth callback; builds https://{host}/oauth2/callback |
 | `--results-only` | `bool` |  | In JSON mode, emit only the primary result (drops envelope fields like nextPageToken) |
 | `--select`<br>`--pick`<br>`--project` | `string` |  | In JSON mode, select comma-separated fields (best-effort; supports dot paths). Desire path: use --fields for most commands. |
-| `--services` | `string` | user | Services to authorize: user\|all-user or comma-separated gmail,calendar,chat,classroom,drive,driveactivity,drivelabels,docs,slides,contacts,tasks,sheets,people,forms,sites,meet,appscript,analytics,searchconsole,ads,youtube,photos; explicit opt-in: photospicker; all means all default user OAuth services. Workspace service-account-only services: admin, groups, keep |
-| `--timeout` | `time.Duration` | 10m | Server timeout duration |
 | `-v`<br>`--verbose` | `bool` |  | Enable verbose logging |
 | `--version` | `kong.VersionFlag` |  | Print version and exit |
 | `--wrap-untrusted` | `bool` | false | In JSON/raw output, wrap fetched text fields in external untrusted-content markers |
 
 ## See Also
 
-- [gog auth](gog-auth.md)
+- [gog photos picker](gog-photos-picker.md)
 - [Command index](README.md)

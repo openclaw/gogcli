@@ -212,7 +212,7 @@ var openProposeTimeBrowser = func(url string) error {
 	switch runtime.GOOS {
 	case "darwin":
 		cmd = exec.Command("open", url) //nolint:gosec // executable is fixed; arg is generated propose URL
-	case "windows":
+	case "windows": //nolint:goconst // runtime.GOOS value repeated across independent browser helpers
 		cmd = exec.Command("rundll32", "url.dll,FileProtocolHandler", url) //nolint:gosec // executable is fixed; arg is generated propose URL
 	default:
 		cmd = exec.Command("xdg-open", url) //nolint:gosec // executable is fixed; arg is generated propose URL

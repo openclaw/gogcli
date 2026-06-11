@@ -106,6 +106,7 @@ Useful Google setup links:
 - [Places API (New)](https://console.cloud.google.com/apis/api/places.googleapis.com)
 - [Drive Labels API](https://console.cloud.google.com/apis/api/drivelabels.googleapis.com)
 - [Photos Library API](https://console.cloud.google.com/apis/api/photoslibrary.googleapis.com)
+- [Photos Picker API](https://console.cloud.google.com/apis/library/photospicker.googleapis.com)
 - [Google Analytics Admin API](https://console.cloud.google.com/apis/api/analyticsadmin.googleapis.com)
 - [Google Analytics Data API](https://console.cloud.google.com/apis/api/analyticsdata.googleapis.com)
 - [Google Search Console API](https://console.cloud.google.com/apis/api/searchconsole.googleapis.com)
@@ -239,7 +240,8 @@ Place ID/lat,lng value to avoid splitting it.
 
 ### Photos
 
-Docs: [`gog photos`](docs/commands/gog-photos.md).
+Docs: [`gog photos`](docs/commands/gog-photos.md) and
+[Photos Picker workflows](docs/photos-picker.md).
 
 Google Photos Library API access is limited to app-created media through
 `photoslibrary.readonly.appcreateddata`, and the Photos Library API must be
@@ -249,6 +251,19 @@ enabled on the OAuth project used for `gog auth add`.
 gog photos list --json
 gog photos search --media-type PHOTO --from 2026-01-01 --to 2026-01-31 --json
 gog photos download <mediaItemId> --out photo.jpg
+```
+
+For user-selected private media, enable the Photos Picker API and authorize its
+separate explicit-opt-in service. It is not included in the default `user`
+service set.
+
+```bash
+gog auth add you@gmail.com --services photospicker
+gog photos picker create --max-items 20 --open --json
+gog photos picker wait <sessionId> --json
+gog photos picker list <sessionId> --all --json
+gog photos picker download <sessionId> <mediaItemId> --out photo.jpg
+gog photos picker delete <sessionId>
 ```
 
 ### Contacts
@@ -600,6 +615,7 @@ Generated service scope table:
 | admin | no | Admin SDK Directory API | `https://www.googleapis.com/auth/admin.directory.user`<br>`https://www.googleapis.com/auth/admin.directory.group`<br>`https://www.googleapis.com/auth/admin.directory.group.member` | Workspace only; service account with domain-wide delegation required |
 | youtube | yes | YouTube Data API v3 | `https://www.googleapis.com/auth/youtube.readonly` | Most read operations also work with API key only (config youtube_api_key or GOG_YOUTUBE_API_KEY) |
 | photos | yes | Photos Library API | `https://www.googleapis.com/auth/photoslibrary.readonly.appcreateddata` | Read-only app-created media only after Google Photos Library API scope changes |
+| photospicker | no | Photos Picker API | `https://www.googleapis.com/auth/photospicker.mediaitems.readonly` | Consumer OAuth; explicit opt-in with --services photospicker; selected media only |
 <!-- auth-services:end -->
 
 Regenerate the table with:
@@ -617,6 +633,7 @@ go run scripts/gen-auth-services-md.go
 - [Gmail workflows](docs/gmail-workflows.md) — <https://gogcli.sh/gmail-workflows.html>
 - [Gmail watch](docs/watch.md) — <https://gogcli.sh/watch.html>
 - [Drive audits](docs/drive-audits.md) — <https://gogcli.sh/drive-audits.html>
+- [Photos Picker](docs/photos-picker.md) — <https://gogcli.sh/photos-picker.html>
 - [Docs editing](docs/docs-editing.md) — <https://gogcli.sh/docs-editing.html>
 - [Sheets tables](docs/sheets-tables.md) and [Sheets formatting](docs/sheets-formatting.md)
 - [Safety profiles](docs/safety-profiles.md) — command guards and baked safe binaries

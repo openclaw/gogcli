@@ -51,6 +51,7 @@ gog slides create-from-markdown "Weekly update" --content-file slides.md
 - **Running Workspace at scale.** [Auth Clients](auth-clients.md) for service accounts, named OAuth clients, and domain-wide delegation.
 - **Managing Workspace.** [Workspace Admin](workspace-admin.md) covers user creation, cleanup, organizational units, and group administration.
 - **Backing up an account.** [Backup](backup.md) before pointing `gog backup push` at a busy mailbox.
+- **Selecting private Photos media.** [Photos Picker](photos-picker.md) keeps access limited to items the user explicitly chooses.
 - **Looking up a flag.** The [Command Index](commands/) has a generated page for every subcommand.
 
 ## Project

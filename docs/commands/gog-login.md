@@ -46,7 +46,7 @@ gog login <email> [flags]
 | `--remote` | `bool` |  | Remote/server-friendly manual flow (print URL, then exchange code) |
 | `--results-only` | `bool` |  | In JSON mode, emit only the primary result (drops envelope fields like nextPageToken) |
 | `--select`<br>`--pick`<br>`--project` | `string` |  | In JSON mode, select comma-separated fields (best-effort; supports dot paths). Desire path: use --fields for most commands. |
-| `--services` | `string` | user | Services to authorize: user\|all-user or comma-separated gmail,calendar,chat,classroom,drive,driveactivity,drivelabels,docs,slides,contacts,tasks,sheets,people,forms,sites,meet,appscript,analytics,searchconsole,ads,youtube,photos; all means all user OAuth services. Workspace service-account-only services: admin, groups, keep |
+| `--services` | `string` | user | Services to authorize: user\|all-user or comma-separated gmail,calendar,chat,classroom,drive,driveactivity,drivelabels,docs,slides,contacts,tasks,sheets,people,forms,sites,meet,appscript,analytics,searchconsole,ads,youtube,photos; explicit opt-in: photospicker; all means all default user OAuth services. Workspace service-account-only services: admin, groups, keep |
 | `--step` | `int` |  | Remote auth step: 1=print URL, 2=exchange code |
 | `--timeout` | `time.Duration` |  | Authorization timeout (manual flows default to 5m) |
 | `-v`<br>`--verbose` | `bool` |  | Enable verbose logging |

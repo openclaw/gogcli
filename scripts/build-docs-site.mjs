@@ -22,6 +22,7 @@ const sections = [
   ["Start", ["index.md", "install.md", "quickstart.md", "auth-clients.md", "workspace-admin.md", "safety-profiles.md"]],
   ["Gmail", ["gmail-workflows.md", "gmail-autoreply.md", "watch.md", "email-tracking.md", "email-tracking-worker.md"]],
   ["Drive & Files", ["drive-audits.md", "raw-api.md", "raw-audit.md"]],
+  ["Photos", ["photos-picker.md"]],
   ["Docs, Sheets, Slides", ["docs-editing.md", "sedmat.md", "sheets-batch-update.md", "sheets-tables.md", "sheets-formatting.md", "slides-markdown.md", "slides-template-replacement.md"]],
   ["Contacts", ["contacts-dedupe.md", "contacts-json-update.md"]],
   ["Backup", ["backup.md"]],

@@ -22,6 +22,7 @@ const requiredFeatureDocs = [
   "drive-audits.md",
   "contacts-dedupe.md",
   "contacts-json-update.md",
+  "photos-picker.md",
   "docs-editing.md",
   "sheets-batch-update.md",
   "sheets-tables.md",

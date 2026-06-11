@@ -25,6 +25,7 @@ type PhotosCmd struct {
 	Search   PhotosSearchCmd   `cmd:"" name:"search" aliases:"find" help:"Search app-created media items"`
 	Get      PhotosGetCmd      `cmd:"" name:"get" aliases:"info,show" help:"Get an app-created media item"`
 	Download PhotosDownloadCmd `cmd:"" name:"download" aliases:"dl" help:"Download an app-created media item"`
+	Picker   PhotosPickerCmd   `cmd:"" name:"picker" help:"Access user-selected media with the Photos Picker API"`
 }
 
 type PhotosListCmd struct {
@@ -301,9 +302,13 @@ func resolvePhotosDownloadDestPath(item *googleapi.PhotosMediaItem, outPathFlag 
 	if item == nil {
 		return "", fmt.Errorf("missing media item metadata")
 	}
-	filename := strings.TrimSpace(item.Filename)
+	return resolvePhotosDownloadDestPathParts(item.ID, item.Filename, outPathFlag)
+}
+
+func resolvePhotosDownloadDestPathParts(itemID string, itemFilename string, outPathFlag string) (string, error) {
+	filename := strings.TrimSpace(itemFilename)
 	if filename == "" {
-		filename = strings.TrimSpace(item.ID)
+		filename = strings.TrimSpace(itemID)
 	}
 	if filename == "" {
 		filename = "media-item"

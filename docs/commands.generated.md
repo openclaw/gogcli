@@ -478,10 +478,17 @@ Generated from `gog schema --json`.
     - [`gog people (person) raw <userId> [flags]`](commands/gog-people-raw.md) - Dump raw People API response as JSON (People.Get; lossless; for scripting and LLM consumption)
     - [`gog people (person) relations [<userId>] [flags]`](commands/gog-people-relations.md) - Get user relations
     - [`gog people (person) search (find,query) <query> ... [flags]`](commands/gog-people-search.md) - Search the Workspace directory
-  - [`gog photos (photo) <command> [flags]`](commands/gog-photos.md) - Google Photos Library API (app-created media)
+  - [`gog photos (photo) <command> [flags]`](commands/gog-photos.md) - Google Photos Library and Picker APIs
     - [`gog photos (photo) download (dl) <mediaItemId> [flags]`](commands/gog-photos-download.md) - Download an app-created media item
     - [`gog photos (photo) get (info,show) <mediaItemId>`](commands/gog-photos-get.md) - Get an app-created media item
     - [`gog photos (photo) list (ls) [flags]`](commands/gog-photos-list.md) - List app-created media items
+    - [`gog photos (photo) picker <command>`](commands/gog-photos-picker.md) - Access user-selected media with the Photos Picker API
+      - [`gog photos (photo) picker create (new,start) [flags]`](commands/gog-photos-picker-create.md) - Create a photo-picking session
+      - [`gog photos (photo) picker delete (rm,close) <sessionId>`](commands/gog-photos-picker-delete.md) - Delete a photo-picking session
+      - [`gog photos (photo) picker download (dl) <sessionId> <mediaItemId> [flags]`](commands/gog-photos-picker-download.md) - Download selected media bytes
+      - [`gog photos (photo) picker get (info,show) <sessionId>`](commands/gog-photos-picker-get.md) - Get a photo-picking session
+      - [`gog photos (photo) picker list (ls,items) <sessionId> [flags]`](commands/gog-photos-picker-list.md) - List media selected in a session
+      - [`gog photos (photo) picker wait (poll) <sessionId> [flags]`](commands/gog-photos-picker-wait.md) - Wait until the user finishes picking media
     - [`gog photos (photo) search (find) [flags]`](commands/gog-photos-search.md) - Search app-created media items
   - [`gog schema (help-json,helpjson) [<command> ...] [flags]`](commands/gog-schema.md) - Machine-readable command/flag schema
   - [`gog search (find) <query> ... [flags]`](commands/gog-search.md) - Search Drive files (alias for 'drive search')

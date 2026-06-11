@@ -2,7 +2,7 @@
 
 > Generated from `gog schema --json`. Do not edit this page by hand; run `make docs-commands`.
 
-Google Photos Library API (app-created media)
+Google Photos Library and Picker APIs
 
 ## Usage
 
@@ -19,6 +19,7 @@ gog photos (photo) <command> [flags]
 - [gog photos download](gog-photos-download.md) - Download an app-created media item
 - [gog photos get](gog-photos-get.md) - Get an app-created media item
 - [gog photos list](gog-photos-list.md) - List app-created media items
+- [gog photos picker](gog-photos-picker.md) - Access user-selected media with the Photos Picker API
 - [gog photos search](gog-photos-search.md) - Search app-created media items
 
 ## Flags

@@ -2,7 +2,7 @@
 
 Every `gog` command has a generated docs page. The source of truth is the live CLI schema; run `make docs-commands` after changing command names, flags, help text, aliases, or arguments.
 
-Generated pages: 618.
+Generated pages: 625.
 
 ## Top-level Commands
 
@@ -35,7 +35,7 @@ Generated pages: 618.
 - [gog meet](gog-meet.md) - Google Meet
 - [gog open](gog-open.md) - Print a best-effort web URL for a Google URL/ID (offline)
 - [gog people](gog-people.md) - Google People
-- [gog photos](gog-photos.md) - Google Photos Library API (app-created media)
+- [gog photos](gog-photos.md) - Google Photos Library and Picker APIs
 - [gog schema](gog-schema.md) - Machine-readable command/flag schema
 - [gog search](gog-search.md) - Search Drive files (alias for 'drive search')
 - [gog searchconsole](gog-searchconsole.md) - Google Search Console
@@ -530,10 +530,17 @@ Generated pages: 618.
     - [gog people raw](gog-people-raw.md) - Dump raw People API response as JSON (People.Get; lossless; for scripting and LLM consumption)
     - [gog people relations](gog-people-relations.md) - Get user relations
     - [gog people search](gog-people-search.md) - Search the Workspace directory
-  - [gog photos](gog-photos.md) - Google Photos Library API (app-created media)
+  - [gog photos](gog-photos.md) - Google Photos Library and Picker APIs
     - [gog photos download](gog-photos-download.md) - Download an app-created media item
     - [gog photos get](gog-photos-get.md) - Get an app-created media item
     - [gog photos list](gog-photos-list.md) - List app-created media items
+    - [gog photos picker](gog-photos-picker.md) - Access user-selected media with the Photos Picker API
+      - [gog photos picker create](gog-photos-picker-create.md) - Create a photo-picking session
+      - [gog photos picker delete](gog-photos-picker-delete.md) - Delete a photo-picking session
+      - [gog photos picker download](gog-photos-picker-download.md) - Download selected media bytes
+      - [gog photos picker get](gog-photos-picker-get.md) - Get a photo-picking session
+      - [gog photos picker list](gog-photos-picker-list.md) - List media selected in a session
+      - [gog photos picker wait](gog-photos-picker-wait.md) - Wait until the user finishes picking media
     - [gog photos search](gog-photos-search.md) - Search app-created media items
   - [gog schema](gog-schema.md) - Machine-readable command/flag schema
   - [gog search](gog-search.md) - Search Drive files (alias for 'drive search')

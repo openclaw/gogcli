@@ -28,7 +28,7 @@ type AuthAddCmd struct {
 	AuthCode     string        `name:"auth-code" hidden:"" help:"UNSAFE: Authorization code from browser (manual flow; skips state check; not valid with --remote)"`
 	Timeout      time.Duration `name:"timeout" help:"Authorization timeout (manual flows default to 5m)"`
 	ForceConsent bool          `name:"force-consent" help:"Force consent screen to obtain a refresh token"`
-	ServicesCSV  string        `name:"services" help:"Services to authorize: user|all-user or comma-separated ${auth_services}; all means all user OAuth services. Workspace service-account-only services: admin, groups, keep" default:"user"`
+	ServicesCSV  string        `name:"services" help:"Services to authorize: user|all-user or comma-separated ${auth_services}; explicit opt-in: photospicker; all means all default user OAuth services. Workspace service-account-only services: admin, groups, keep" default:"user"`
 	Readonly     bool          `name:"readonly" help:"Use read-only scopes where available (still includes OIDC identity scopes)"`
 	DriveScope   string        `name:"drive-scope" help:"Drive scope mode: full|readonly|file" enum:"full,readonly,file" default:"full"`
 	GmailScope   string        `name:"gmail-scope" help:"Gmail scope mode: full|readonly" enum:"full,readonly" default:"full"`

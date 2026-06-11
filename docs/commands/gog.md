@@ -45,7 +45,7 @@ gog <command> [flags]
 - [gog meet](gog-meet.md) - Google Meet
 - [gog open](gog-open.md) - Print a best-effort web URL for a Google URL/ID (offline)
 - [gog people](gog-people.md) - Google People
-- [gog photos](gog-photos.md) - Google Photos Library API (app-created media)
+- [gog photos](gog-photos.md) - Google Photos Library and Picker APIs
 - [gog schema](gog-schema.md) - Machine-readable command/flag schema
 - [gog search](gog-search.md) - Search Drive files (alias for 'drive search')
 - [gog searchconsole](gog-searchconsole.md) - Google Search Console

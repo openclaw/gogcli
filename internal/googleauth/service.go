@@ -35,6 +35,7 @@ const (
 	ServiceAdmin         Service = "admin"
 	ServiceYouTube       Service = "youtube"
 	ServicePhotos        Service = "photos"
+	ServicePhotosPicker  Service = "photospicker"
 )
 
 const (
@@ -104,6 +105,7 @@ var serviceOrder = []Service{
 	ServiceAdmin,
 	ServiceYouTube,
 	ServicePhotos,
+	ServicePhotosPicker,
 }
 
 var serviceInfoByService = map[Service]serviceInfo{
@@ -301,6 +303,12 @@ var serviceInfoByService = map[Service]serviceInfo{
 		user:   true,
 		apis:   []string{"Photos Library API"},
 		note:   "Read-only app-created media only after Google Photos Library API scope changes",
+	},
+	ServicePhotosPicker: {
+		scopes: []string{"https://www.googleapis.com/auth/photospicker.mediaitems.readonly"},
+		user:   false,
+		apis:   []string{"Photos Picker API"},
+		note:   "Consumer OAuth; explicit opt-in with --services photospicker; selected media only",
 	},
 }
 
@@ -662,6 +670,8 @@ func scopesForServiceWithOptions(service Service, opts ScopeOptions) ([]string, 
 	case ServiceYouTube:
 		return Scopes(service)
 	case ServicePhotos:
+		return Scopes(service)
+	case ServicePhotosPicker:
 		return Scopes(service)
 	default:
 		return nil, errUnknownService
