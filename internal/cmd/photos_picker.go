@@ -37,7 +37,7 @@ var (
 		switch runtime.GOOS {
 		case "darwin":
 			command = exec.Command("open", uri) //nolint:gosec // executable is fixed; arg is a Google-generated Picker URI
-		case "windows":
+		case literalWindows:
 			command = exec.Command("rundll32", "url.dll,FileProtocolHandler", uri) //nolint:gosec // executable is fixed
 		default:
 			command = exec.Command("xdg-open", uri) //nolint:gosec // executable is fixed; arg is a Google-generated Picker URI

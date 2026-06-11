@@ -100,7 +100,7 @@ func fakeSVGRasterizer(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()
 	name := "rsvg-convert"
-	if runtime.GOOS == "windows" {
+	if runtime.GOOS == literalWindows {
 		name += ".exe"
 	}
 

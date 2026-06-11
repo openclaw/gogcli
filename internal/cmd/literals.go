@@ -10,6 +10,7 @@ const (
 	literalAuto    = "auto"
 	literalDefault = "default"
 	literalError   = "error"
+	literalWindows = "windows"
 
 	// literalMarkdownTripleDash is the three-dash token used for YAML
 	// frontmatter delimiters, horizontal rules, and slide separators.

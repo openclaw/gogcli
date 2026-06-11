@@ -21,7 +21,7 @@ var openMeetBrowser = func(url string) error {
 	switch runtime.GOOS {
 	case "darwin":
 		cmd = exec.Command("open", url) //nolint:gosec // executable is fixed; arg is meeting URL
-	case "windows":
+	case literalWindows:
 		cmd = exec.Command("rundll32", "url.dll,FileProtocolHandler", url) //nolint:gosec // executable is fixed; arg is meeting URL
 	default:
 		cmd = exec.Command("xdg-open", url) //nolint:gosec // executable is fixed; arg is meeting URL
