@@ -64,6 +64,11 @@ Shows stored credential files plus any configured domain mappings.
 
 - Legacy `token:<email>` entries are copied to `token:default:<email>` the first time they are read.
 - Legacy `default_account` is still respected for the default client.
+- Browser, manual, remote, and account-manager authorization use S256 PKCE.
+  Manual state includes a short-lived verifier under the active `gog` config
+  directory. Keep the same `GOG_HOME` and `--client` between remote steps.
+- Manual or remote authorization started before v0.24.0 cannot be completed
+  after upgrading. Run step 1 again to generate a PKCE-bound URL.
 
 ## Workspace service accounts
 

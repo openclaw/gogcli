@@ -71,8 +71,8 @@ var (
 	errMissingScopes       = errors.New("missing scopes")
 	errNoCodeInURL         = errors.New("no code found in URL")
 	errNoRefreshToken      = errors.New("no refresh token received; try again with --force-consent")
-	errManualStateMissing  = errors.New("manual auth state missing; run remote step 1 again")
-	errManualStateMismatch = errors.New("manual auth state mismatch; run remote step 1 again")
+	errManualStateMissing  = errors.New("manual auth state missing; start a new manual flow or run remote step 1 again")
+	errManualStateMismatch = errors.New("manual auth state mismatch; start a new manual flow or run remote step 1 again")
 	errStateMismatch       = errors.New("state mismatch")
 
 	errInvalidAuthorizeOptionsAuthURLAndCode    = errors.New("cannot combine auth-url with auth-code")

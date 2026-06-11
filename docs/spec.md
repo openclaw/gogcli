@@ -131,6 +131,10 @@ Implementation: `internal/secrets/store.go`.
 - Supports a remote/server-friendly 2-step manual flow:
   - Step 1 prints an auth URL (`gog auth add ... --remote --step 1`)
   - Step 2 exchanges the pasted redirect URL and requires `state` validation (`--remote --step 2 --auth-url ...`)
+  - Browser, manual, remote, and account-manager flows bind authorization
+    requests and token exchanges with S256 PKCE.
+  - Remote steps must share the same config home and OAuth client. Unfinished
+    pre-v0.24.0 flows must restart at step 1.
 - Refresh token issuance:
   - requests `access_type=offline`
   - supports `--force-consent` to force the consent prompt when Google doesn't return a refresh token
@@ -151,7 +155,7 @@ Scope selection note:
   - `credentials-<client>.json` (OAuth client id/secret; named clients)
 - State:
   - `state/gmail-watch/<account>.json` (Gmail watch state)
-  - `oauth-manual-state-<state>.json` (temporary manual OAuth state cache; expires quickly; no tokens)
+  - `oauth-manual-state-<state>.json` (temporary manual OAuth state and PKCE verifier cache; expires quickly; no tokens)
 - Secrets:
   - refresh tokens in keyring
 

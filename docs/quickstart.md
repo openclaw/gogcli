@@ -64,6 +64,10 @@ refresh token in your OS keyring (Keychain on macOS, Secret Service on Linux,
 Credential Manager on Windows). Headless? Add `--manual` for a paste-the-URL
 flow, or `--remote --step 1`/`--step 2` for fully split server runs.
 
+Installed-app authorization uses S256 PKCE. Complete a manual or remote flow
+with the same `gog` home and client that generated its URL. After upgrading
+from a pre-PKCE release, restart any unfinished flow at step 1.
+
 Verify:
 
 ```bash
