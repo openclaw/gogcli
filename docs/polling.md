@@ -82,3 +82,73 @@ Command pages:
 
 - [`gog drive changes poll`](commands/gog-drive-changes-poll.md)
 - [`gog docs comments poll`](commands/gog-docs-comments-poll.md)
+
+## Drive push receiver
+
+`gog drive changes serve` receives Drive push notifications, lists the actual
+changes from the persisted page token, and optionally runs the same JSON-stdin
+hook shape as polling:
+
+```bash
+gog drive changes serve \
+  --listen 127.0.0.1:8443 \
+  --state-file ~/.local/state/gog/drive-serve.json \
+  --channel-token "$CHANNEL_TOKEN" \
+  --on-change './handle-drive-batch'
+```
+
+The default listener is loopback-only. Expose it through an HTTPS reverse proxy
+or tunnel whose public route ends at `/drive-changes`. Google requires a public
+HTTPS callback with a valid certificate. To terminate TLS in `gog` instead,
+provide both `--cert` and `--key`.
+
+The channel token is required and compared before notification headers are
+parsed or any Drive API request or hook runs. Use a random value; do not put
+OAuth credentials or other sensitive data in it.
+
+To let `gog` create and renew the channel after the listener is bound:
+
+```bash
+gog drive changes serve \
+  --listen 127.0.0.1:8443 \
+  --state-file ~/.local/state/gog/drive-serve.json \
+  --channel-token "$CHANNEL_TOKEN" \
+  --auto-renew \
+  --webhook-url https://example.com/drive-changes \
+  --channel-ttl 24h \
+  --renew-before 10m \
+  --on-change './handle-drive-batch'
+```
+
+Auto-renew creates a unique replacement channel before expiration, persists the
+new channel, then stops the previous channel. If cleanup fails, the state keeps
+the previous channel metadata and retries before creating another replacement.
+The maximum `--channel-ttl` is seven days, matching the Drive Changes API.
+
+Without `--auto-renew`, register the channel separately with `drive changes
+watch`. For a new receiver state file, pass the same initial page token to
+`serve --token` that was used by `watch --token`.
+
+Receiver behavior:
+
+- only `POST` requests to the configured path are accepted
+- mismatched or missing `X-Goog-Channel-Token` returns `401`
+- malformed required `X-Goog-*` headers return `400`
+- `sync`, duplicate, and unknown resource-state notifications are acknowledged
+  without running the hook
+- change notifications are serialized so concurrent deliveries cannot race the
+  page token
+- Drive/API, hook, or state-write failure returns `500`; Google retries these
+  statuses with backoff
+- the page token and message number advance only after the hook succeeds
+- `--filter-file` suppresses hooks for unrelated changes while still advancing
+  state
+
+The state file stores a SHA-256 digest of the channel token, not the token
+itself. Auto-renewed receivers also bind notifications to the persisted current
+or previous channel and resource IDs; manual receivers rely on the channel
+token. Do not run `poll` and `serve` concurrently against the same state file.
+
+Command page:
+
+- [`gog drive changes serve`](commands/gog-drive-changes-serve.md)

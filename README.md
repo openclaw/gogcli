@@ -210,6 +210,9 @@ gog drive get <fileId> --fields 'id,name,mimeType,size,owners,emailAddress' --js
 gog drive changes start-token
 gog drive changes list --token <token> --json
 gog drive changes poll --state-file ~/.local/state/gog/drive-changes.json --json
+gog drive changes serve --state-file ~/.local/state/gog/drive-serve.json \
+  --channel-token "$CHANNEL_TOKEN" --auto-renew \
+  --webhook-url https://example.com/drive-changes
 gog drive revisions list <fileId> --all --json
 gog drive revisions get <fileId> <revisionId> --json
 gog drive activity query --file <fileId> --actions edit,share --from 2026-01-01T00:00:00Z --json

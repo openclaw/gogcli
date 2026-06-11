@@ -2,7 +2,7 @@
 
 Every `gog` command has a generated docs page. The source of truth is the live CLI schema; run `make docs-commands` after changing command names, flags, help text, aliases, or arguments.
 
-Generated pages: 620.
+Generated pages: 621.
 
 ## Top-level Commands
 
@@ -350,6 +350,7 @@ Generated pages: 620.
     - [gog drive changes](gog-drive-changes.md) - Track Drive changes for sync and automation
       - [gog drive changes list](gog-drive-changes-list.md) - List Drive changes since a page token
       - [gog drive changes poll](gog-drive-changes-poll.md) - Poll Drive changes with a persisted page token
+      - [gog drive changes serve](gog-drive-changes-serve.md) - Receive Drive change notifications and run a local hook
       - [gog drive changes start-token](gog-drive-changes-start-token.md) - Get a Drive changes start page token
       - [gog drive changes stop](gog-drive-changes-stop.md) - Stop a Drive changes webhook channel
       - [gog drive changes watch](gog-drive-changes-watch.md) - Watch Drive changes with a webhook channel
