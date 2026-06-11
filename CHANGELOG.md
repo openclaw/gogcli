@@ -15,6 +15,7 @@
 
 ### Fixed
 
+- Docs: keep inline Markdown find-replace fragments inside their existing paragraph unless the replacement explicitly ends with a newline. (#736) — thanks @sebsnyk.
 - Docs: render HTML `<br>` variants as line breaks inside Markdown table cells while preserving protected literals. (#730) — thanks @sebsnyk.
 - Docs: avoid duplicate empty paragraphs adjacent to Markdown headings while preserving body paragraph spacing. (#717, #720) — thanks @TurboTheTurtle.
 - Auth: repair duplicate macOS Keychain writes for legacy and subject token aliases without weakening primary token persistence. (#718, #721) — thanks @TurboTheTurtle.

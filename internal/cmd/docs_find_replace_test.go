@@ -391,7 +391,7 @@ func TestDocsFindReplace_MarkdownMode(t *testing.T) {
 	if reqs[1].InsertText == nil {
 		t.Fatal("second request should be InsertText")
 	}
-	if got := reqs[1].InsertText.Text; got != "bold text and italic and code and bold and italic\n" {
+	if got := reqs[1].InsertText.Text; got != "bold text and italic and code and bold and italic" {
 		t.Fatalf("insert text = %q", got)
 	}
 	if strings.Contains(reqs[1].InsertText.Text, "**") || strings.Contains(reqs[1].InsertText.Text, "_italic_") || strings.Contains(reqs[1].InsertText.Text, "`") {
@@ -405,6 +405,42 @@ func TestDocsFindReplace_MarkdownMode(t *testing.T) {
 	}
 	if !hasTextStyleRequest(reqs, func(style *docs.TextStyle) bool { return style.WeightedFontFamily != nil }) {
 		t.Fatal("expected code text style request")
+	}
+}
+
+func TestDocsFindReplace_MarkdownExplicitTrailingNewlinePreserved(t *testing.T) {
+	origDocs := newDocsService
+	t.Cleanup(func() { newDocsService = origDocs })
+
+	var got docs.BatchUpdateDocumentRequest
+	docSvc, cleanup := newDocsServiceForTest(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, "/v1/documents/"):
+			_ = json.NewEncoder(w).Encode(docBodyWithText("Before PLACEHOLDER after\n"))
+		case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, ":batchUpdate"):
+			if err := json.NewDecoder(r.Body).Decode(&got); err != nil {
+				t.Fatalf("decode batchUpdate: %v", err)
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{"documentId": "doc1"})
+		default:
+			http.NotFound(w, r)
+		}
+	})
+	defer cleanup()
+	newDocsService = func(context.Context, string) (*docs.Service, error) { return docSvc, nil }
+
+	err := runKong(t, &DocsFindReplaceCmd{}, []string{
+		"doc1", "PLACEHOLDER", "**bold**\n", "--format", "markdown", "--first",
+	}, newDocsCmdContext(t), &RootFlags{Account: "a@b.com"})
+	if err != nil {
+		t.Fatalf("docs find-replace explicit newline: %v", err)
+	}
+	if len(got.Requests) < 2 || got.Requests[1].InsertText == nil {
+		t.Fatalf("expected delete and insert requests, got %#v", got.Requests)
+	}
+	if text := got.Requests[1].InsertText.Text; text != "bold\n" {
+		t.Fatalf("insert text = %q, want explicit terminal newline", text)
 	}
 }
 

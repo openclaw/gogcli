@@ -136,6 +136,9 @@ func replaceDocsMarkdownRange(ctx context.Context, svc *docs.Service, doc *docs.
 		baseIndex++
 	}
 	formattingRequests, textToInsert, tables := MarkdownToDocsRequests(elements, baseIndex, tabID)
+	if markdownRangeReplacementIsInline(cleaned, elements) {
+		textToInsert = strings.TrimSuffix(textToInsert, "\n")
+	}
 
 	applyTabIDToFormattingRequests(formattingRequests, tabID)
 
@@ -198,6 +201,12 @@ func replaceDocsMarkdownRange(ctx context.Context, svc *docs.Service, doc *docs.
 	}
 
 	return requestCount, len(prefix) + len(textToInsert), nil
+}
+
+func markdownRangeReplacementIsInline(markdown string, elements []MarkdownElement) bool {
+	return !strings.HasSuffix(markdown, "\n") &&
+		len(elements) == 1 &&
+		elements[0].Type == MDParagraph
 }
 
 func markdownReplaceNeedsParagraphBoundary(doc *docs.Document, startIdx int64, tabID string, elements []MarkdownElement) bool {
