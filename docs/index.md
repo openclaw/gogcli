@@ -37,7 +37,7 @@ gog slides create-from-markdown "Weekly update" --content-file slides.md
 
 - **One binary, every API.** Gmail, Calendar, Drive, Docs, Sheets, Slides, Forms, Apps Script, Contacts, People, Tasks, Classroom, Chat, Groups, Keep, and Workspace Admin.
 - **Stable output.** `--json` for scripts, `--plain` TSV for `awk`, human output on stderr.
-- **Runtime discovery.** `gog capabilities --json`, `gog schema --json`, and `gog exit-codes --json` expose process safety, command shape, and stable status contracts.
+- **Runtime discovery.** `gog schema --json` exposes command shape, stable exit codes, output modes, and effective safety state.
 - **Multi-account, multi-client.** Many Google accounts and OAuth client projects in one config; OAuth, direct access tokens, ADC, and Workspace service accounts all supported.
 - **One automation contract.** Humans, scripts, CI, and agents use the same commands, with JSON/TSV output, non-interactive operation, stable exit codes, untrusted-content wrapping, runtime command guards, and baked safety profiles.
 - **Read-only audits.** Drive `tree`, `du`, `inventory`; Contacts `dedupe` preview; raw API JSON dumps without ever mutating remote state.
@@ -46,9 +46,9 @@ gog slides create-from-markdown "Weekly update" --content-file slides.md
 ## Pick your path
 
 - **Trying it.** [Install](install.md) → [Quickstart](quickstart.md). Five minutes from `brew install` to your first authenticated query.
-- **Wiring up automation.** [Capabilities](capabilities.md), [Safety Profiles](safety-profiles.md), and the bundled [`gog` skill](https://github.com/openclaw/gogcli/blob/main/.agents/skills/gog/SKILL.md). Discover the active contract and lock the binary down before handing it to an untrusted caller.
+- **Wiring up automation.** [Automation](automation.md), [Safety Profiles](safety-profiles.md), and the bundled [`gog` skill](https://github.com/openclaw/gogcli/blob/main/.agents/skills/gog/SKILL.md). Discover the active contract and lock the binary down before handing it to an untrusted caller.
 - **Serving MCP tools.** [MCP server](mcp.md) exposes typed, allowlisted tools for agent clients without a generic command bridge.
-- **Discovering runtime contracts.** [Capabilities](capabilities.md) reports output modes, active safety controls, supported auth methods, and companion schema/exit-code commands.
+- **Discovering runtime contracts.** [Automation](automation.md) explains root help, schema metadata, safety controls, and stable exit codes.
 - **Persisting auth and state.** [Paths and State](paths.md) covers `GOG_HOME`, per-kind directories, XDG paths, and legacy compatibility.
 - **Running Workspace at scale.** [Auth Clients](auth-clients.md) for service accounts, named OAuth clients, and domain-wide delegation.
 - **Managing Workspace.** [Workspace Admin](workspace-admin.md) covers user creation, cleanup, organizational units, and group administration.

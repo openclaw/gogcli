@@ -38,10 +38,7 @@ type mcpToolSpec struct {
 	Description string
 	Options     []mcp.ToolOption
 	BuildArgs   func(mcp.CallToolRequest) ([]string, error)
-	Handle      mcpInProcessHandler
 }
-
-type mcpInProcessHandler func(context.Context, *RootFlags, []mcpToolSpec) *mcp.CallToolResult
 
 type mcpCommandResult struct {
 	Tool     string `json:"tool"`
@@ -89,9 +86,6 @@ func (c *McpCmd) Run(_ context.Context, flags *RootFlags) error {
 			mcp.WithSchemaAdditionalProperties(false),
 		}, tool.Options...)
 		s.AddTool(mcp.NewTool(tool.Name, opts...), func(reqCtx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			if tool.Handle != nil {
-				return tool.Handle(reqCtx, flags, tools), nil
-			}
 			childCommandArgs, buildErr := tool.BuildArgs(req)
 			if buildErr != nil {
 				result := mcp.NewToolResultError(buildErr.Error())
@@ -111,23 +105,6 @@ func (c *McpCmd) Run(_ context.Context, flags *RootFlags) error {
 		})
 	}
 	return server.ServeStdio(s)
-}
-
-func mcpRunCapabilitiesTool(_ context.Context, flags *RootFlags, tools []mcpToolSpec) *mcp.CallToolResult {
-	effectiveFlags := RootFlags{}
-	if flags != nil {
-		effectiveFlags = *flags
-	}
-	effectiveFlags.NoInput = true
-	effectiveFlags.WrapUntrusted = true
-
-	snapshot, err := buildCapabilities(&effectiveFlags, capabilitiesOptions{MCPTools: tools})
-	if err != nil {
-		result := mcp.NewToolResultError(err.Error())
-		result.IsError = true
-		return result
-	}
-	return mcp.NewToolResultStructuredOnly(snapshot)
 }
 
 type mcpRunOptions struct {

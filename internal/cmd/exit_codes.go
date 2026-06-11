@@ -31,6 +31,23 @@ const (
 	exitCodeCancelled = 130
 )
 
+func stableExitCodes() map[string]int {
+	return map[string]int{
+		"ok":                0,
+		"error":             1,
+		"usage":             2,
+		"empty_results":     emptyResultsExitCode,
+		"auth_required":     exitCodeAuthRequired,
+		"not_found":         exitCodeNotFound,
+		"permission_denied": exitCodePermissionDenied,
+		"rate_limited":      exitCodeRateLimited,
+		"retryable":         exitCodeRetryable,
+		"config":            exitCodeConfig,
+		"orphaned":          exitCodeOrphaned,
+		"cancelled":         exitCodeCancelled,
+	}
+}
+
 // stableExitCode wraps common/expected failure modes in ExitError so callers can
 // branch on exit status without needing to parse human-oriented stderr.
 func stableExitCode(err error) error {

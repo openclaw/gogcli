@@ -64,6 +64,7 @@ func helpPrinter(options kong.HelpOptions, ctx *kong.Context) error {
 	out := rewriteCommandSummaries(buf.String(), ctx.Selected())
 	out = removeEmptyCommandGroups(out)
 	out = injectBuildLine(out)
+	out = injectAutomationHelp(out, ctx.Selected())
 	out = colorizeHelp(out, helpProfile(origStdout, helpColorMode(ctx.Args)))
 	_, err = io.WriteString(origStdout, out)
 	return err
@@ -91,6 +92,37 @@ func injectBuildLine(out string) string {
 		}
 	}
 	return out
+}
+
+func injectAutomationHelp(out string, selected *kong.Node) string {
+	owner := helpOwnerNode(selected)
+	if selected != nil && (owner == nil || owner.Type != kong.ApplicationNode) {
+		return out
+	}
+	if strings.Contains(out, "\nAutomation:\n") {
+		return out
+	}
+
+	const section = `Automation:
+  Use --json or --plain for stable output; --no-input disables prompts.
+  Exit codes: 0 success, 1 error, 2 usage, 3 empty, 4 auth, 5 not found,
+    6 denied, 7 rate limited, 8 retryable, 10 config, 11 orphaned,
+    130 interrupted.
+  Run "gog schema --json" for the complete machine-readable contract.
+`
+	if marker := "\nCommands:\n"; strings.Contains(out, marker) {
+		return strings.Replace(out, marker, "\n"+section+marker, 1)
+	}
+	return out + "\n" + section
+}
+
+func helpOwnerNode(selected *kong.Node) *kong.Node {
+	for node := selected; node != nil; node = node.Parent {
+		if node.Type == kong.CommandNode || node.Type == kong.ApplicationNode {
+			return node
+		}
+	}
+	return nil
 }
 
 func helpColorMode(args []string) string {
@@ -166,6 +198,8 @@ func colorizeHelp(out string, profile termenv.Profile) string {
 			lines[i] = section(line)
 		case line == "Arguments:":
 			lines[i] = section(line)
+		case line == "Automation:":
+			lines[i] = section(line)
 		case strings.HasPrefix(line, "Build:") || line == "Config:":
 			lines[i] = section(line)
 		case line == "Read" || line == "Write" || line == "Organize" || line == "Admin":
@@ -226,7 +260,7 @@ func isHelpCommandGroup(line string) bool {
 }
 
 func isHelpSection(line string) bool {
-	return line == "Usage:" || strings.HasPrefix(line, "Usage:") || line == "Flags:" || line == "Commands:" || line == "Arguments:" || strings.HasPrefix(line, "Build:") || line == "Config:"
+	return line == "Usage:" || strings.HasPrefix(line, "Usage:") || line == "Flags:" || line == "Commands:" || line == "Arguments:" || line == "Automation:" || strings.HasPrefix(line, "Build:") || line == "Config:"
 }
 
 func isHelpCommandSummaryLine(line string) bool {

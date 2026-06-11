@@ -53,7 +53,7 @@ type CLI struct {
 
 	Version kong.VersionFlag `help:"Print version and exit"`
 
-	// Action-first desire paths (agent-friendly shortcuts).
+	// Action-first desire paths.
 	Send     GmailSendCmd     `cmd:"" name:"send" help:"Send an email (alias for 'gmail send')"`
 	Ls       DriveLsCmd       `cmd:"" name:"ls" aliases:"list" help:"List Drive files (alias for 'drive ls')"`
 	Search   DriveSearchCmd   `cmd:"" name:"search" aliases:"find" help:"Search Drive files (alias for 'drive search')"`
@@ -95,8 +95,6 @@ type CLI struct {
 	YouTube       YouTubeCmd            `cmd:"" name:"youtube" aliases:"yt" help:"YouTube Data API (search, activities, videos, playlists, comments, channels)"`
 	Photos        PhotosCmd             `cmd:"" name:"photos" aliases:"photo" help:"Google Photos Library and Picker APIs"`
 	Config        ConfigCmd             `cmd:"" help:"Manage configuration"`
-	Capabilities  CapabilitiesCmd       `cmd:"" help:"Print runtime capabilities and safety state"`
-	ExitCodes     ExitCodesCmd          `cmd:"" name:"exit-codes" aliases:"exitcodes" help:"Print stable exit codes for automation"`
 	Schema        SchemaCmd             `cmd:"" help:"Machine-readable command/flag schema" aliases:"help-json,helpjson"`
 	Mcp           McpCmd                `cmd:"" name:"mcp" help:"Run a typed, allowlisted MCP server over stdio"`
 	VersionCmd    VersionCmd            `cmd:"" name:"version" help:"Print version"`
@@ -181,7 +179,7 @@ func Execute(args []string) (err error) {
 		Level: logLevel,
 	})))
 
-	// Opt-in "agent mode": default to JSON when stdout is piped/non-TTY.
+	// Optional automatic JSON output when stdout is piped/non-TTY.
 	// We intentionally do this after parsing so `--plain` can override it.
 	if envBool("GOG_AUTO_JSON") && !cli.JSON && !cli.Plain && !termutil.IsTerminal(os.Stdout) {
 		cli.JSON = true

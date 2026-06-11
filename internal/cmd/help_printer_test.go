@@ -53,6 +53,25 @@ func TestInjectBuildLine(t *testing.T) {
 	}
 }
 
+func TestInjectAutomationHelp(t *testing.T) {
+	type rootCmd struct {
+		Foo struct{} `cmd:"" help:"foo"`
+	}
+	parser, err := kong.New(&rootCmd{}, kong.Writers(io.Discard, io.Discard))
+	if err != nil {
+		t.Fatalf("kong.New: %v", err)
+	}
+
+	in := "Usage: gog\nFlags:\n\nCommands:\n  foo\n"
+	out := injectAutomationHelp(in, parser.Model.Node)
+	if !strings.Contains(out, "\nAutomation:\n") || !strings.Contains(out, `gog schema --json`) {
+		t.Fatalf("automation help missing: %q", out)
+	}
+	if again := injectAutomationHelp(out, parser.Model.Node); again != out {
+		t.Fatalf("injectAutomationHelp should be idempotent")
+	}
+}
+
 func TestRewriteCommandSummaries(t *testing.T) {
 	type fooCmd struct {
 		Bar struct{} `cmd:"" help:"bar"`
@@ -129,7 +148,7 @@ func TestHelpOptionsEnv(t *testing.T) {
 }
 
 func TestColorizeHelp(t *testing.T) {
-	in := "Usage: gog\nCommands:\n  foo [flags]\n"
+	in := "Usage: gog\nAutomation:\nCommands:\n  foo [flags]\n"
 	out := colorizeHelp(in, termenv.TrueColor)
 	if out == in {
 		t.Fatalf("expected colorized output")

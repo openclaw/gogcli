@@ -103,7 +103,6 @@ Generated from `gog schema --json`.
     - [`gog calendar (cal) update (edit,set) <calendarId> <eventId> [flags]`](commands/gog-calendar-update.md) - Update an event
     - [`gog calendar (cal) users [flags]`](commands/gog-calendar-users.md) - List workspace users (use their email as calendar ID)
     - [`gog calendar (cal) working-location (wl) --from=STRING --to=STRING --type=STRING [<calendarId>] [flags]`](commands/gog-calendar-working-location.md) - Set working location (home/office/custom)
-  - [`gog capabilities [flags]`](commands/gog-capabilities.md) - Print runtime capabilities and safety state
   - [`gog chat <command> [flags]`](commands/gog-chat.md) - Google Chat
     - [`gog chat dm <command>`](commands/gog-chat-dm.md) - Direct messages
       - [`gog chat dm send (create,post) <email> [flags]`](commands/gog-chat-dm-send.md) - Send a direct message
@@ -343,7 +342,6 @@ Generated from `gog schema --json`.
     - [`gog drive (drv) unshare <fileId> <permissionId>`](commands/gog-drive-unshare.md) - Remove a permission from a file
     - [`gog drive (drv) upload <localPath> [flags]`](commands/gog-drive-upload.md) - Upload a file
     - [`gog drive (drv) url <fileId> ...`](commands/gog-drive-url.md) - Print web URLs for files
-  - [`gog exit-codes (exitcodes) [flags]`](commands/gog-exit-codes.md) - Print stable exit codes for automation
   - [`gog forms (form) <command> [flags]`](commands/gog-forms.md) - Google Forms
     - [`gog forms (form) add-question (add-q,aq) --title=STRING <formId> [flags]`](commands/gog-forms-add-question.md) - Add a question to a form
     - [`gog forms (form) create (new) --title=STRING [flags]`](commands/gog-forms-create.md) - Create a form

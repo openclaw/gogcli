@@ -6,7 +6,7 @@
 
 - Photos: add an explicit-opt-in Google Photos Picker workflow for creating selection sessions, waiting for completion, listing chosen media, and downloading selected files. (#754)
 - Docs: add persisted, revision-locked request batches for composing supported mutations locally and submitting them atomically, with explicit split and partial-recovery modes. (#755)
-- CLI/MCP: add top-level runtime capability discovery, keep exit-code discovery top-level, remove the redundant `gog agent` namespace, and expose only redacted server-controlled capability metadata through MCP. (#677)
+- CLI: remove the separate `gog agent` and `exit-codes` helpers; expose stable exit codes and effective automation safety state through `gog schema --json`, and summarize the contract in root help. (#677)
 
 ## 0.24.0 - 2026-06-11
 

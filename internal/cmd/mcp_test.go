@@ -23,9 +23,6 @@ func TestMCPEnabledToolsDefaultReadOnly(t *testing.T) {
 	if !hasMCPTool(tools, "gmail_search") {
 		t.Fatal("gmail_search should be enabled by default")
 	}
-	if !hasMCPTool(tools, "gog_capabilities") {
-		t.Fatal("gog_capabilities should be enabled by default")
-	}
 }
 
 func TestMCPEnabledToolsAllowWriteAndFilter(t *testing.T) {
@@ -86,37 +83,6 @@ func TestMCPToolBuildArgsTypedOnly(t *testing.T) {
 	want := []string{"sheets", "update", "--values-json", "[[1,2]]", "--input", "RAW", "--", "sheet1", "Sheet1!A1:B1"}
 	if strings.Join(args, "\x00") != strings.Join(want, "\x00") {
 		t.Fatalf("args = %#v, want %#v", args, want)
-	}
-}
-
-func TestMCPCapabilitiesToolHasNoDisclosureInputs(t *testing.T) {
-	tool := findMCPTool(t, "gog_capabilities")
-	if tool.Handle == nil {
-		t.Fatal("expected in-process handler")
-	}
-	if tool.BuildArgs != nil {
-		t.Fatal("capabilities must not invoke a subprocess")
-	}
-	if len(tool.Options) != 0 {
-		t.Fatalf("capabilities must not accept caller-controlled disclosure flags: %#v", tool.Options)
-	}
-
-	result := tool.Handle(t.Context(), &RootFlags{Account: "private@example.com"}, []mcpToolSpec{tool})
-	if result.IsError {
-		t.Fatalf("capabilities handler failed: %#v", result)
-	}
-	snapshot, ok := result.StructuredContent.(capabilitiesSnapshot)
-	if !ok {
-		t.Fatalf("structured content = %T", result.StructuredContent)
-	}
-	if snapshot.Auth.Account != "" || snapshot.Disclosure.AuthInspected || snapshot.Disclosure.AccountIncluded {
-		t.Fatalf("capabilities handler disclosed auth: %#v", snapshot)
-	}
-	if !snapshot.Safety.NoInput || !snapshot.Safety.WrapUntrusted {
-		t.Fatalf("capabilities handler missed enforced MCP safety: %#v", snapshot.Safety)
-	}
-	if snapshot.MCP == nil || len(snapshot.MCP.Tools) != 1 || snapshot.MCP.Tools[0].Name != "gog_capabilities" {
-		t.Fatalf("capabilities handler tool surface = %#v", snapshot.MCP)
 	}
 }
 

@@ -36,7 +36,7 @@ func TestColorizeHelpNoColor(t *testing.T) {
 }
 
 func TestColorizeHelpSections(t *testing.T) {
-	in := "Flags:\nArguments:\nBuild: dev\nConfig:\nRead\nCommands:\n  foo [flags]\n    does thing\n"
+	in := "Flags:\nArguments:\nAutomation:\nBuild: dev\nConfig:\nRead\nCommands:\n  foo [flags]\n    does thing\n"
 	out := colorizeHelp(in, termenv.TrueColor)
 	if out == in {
 		t.Fatalf("expected colorized output")

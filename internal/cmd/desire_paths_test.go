@@ -19,8 +19,6 @@ func TestRootDesirePathsHelpParses(t *testing.T) {
 		{"status", "--help"},
 		{"me", "--help"},
 		{"whoami", "--help"},
-		{"capabilities", "--help"},
-		{"exit-codes", "--help"},
 	}
 
 	for _, args := range tests {

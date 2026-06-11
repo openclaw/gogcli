@@ -9,6 +9,7 @@ import (
 
 	"github.com/alecthomas/kong"
 
+	"github.com/steipete/gogcli/internal/config"
 	"github.com/steipete/gogcli/internal/outfmt"
 )
 
@@ -18,9 +19,36 @@ type SchemaCmd struct {
 }
 
 type schemaDoc struct {
-	SchemaVersion int         `json:"schema_version"`
-	Build         string      `json:"build"`
-	Command       *schemaNode `json:"command"`
+	SchemaVersion int              `json:"schema_version"`
+	Build         string           `json:"build"`
+	Automation    schemaAutomation `json:"automation"`
+	Command       *schemaNode      `json:"command"`
+}
+
+type schemaAutomation struct {
+	OutputFormats []string          `json:"output_formats"`
+	ExitCodes     map[string]int    `json:"exit_codes"`
+	Safety        schemaSafetyState `json:"safety"`
+}
+
+type schemaSafetyState struct {
+	DryRun        bool               `json:"dry_run"`
+	NoInput       bool               `json:"no_input"`
+	WrapUntrusted bool               `json:"wrap_untrusted"`
+	GmailNoSend   bool               `json:"gmail_no_send"`
+	BakedProfile  schemaBakedProfile `json:"baked_profile"`
+	CommandRules  schemaCommandRules `json:"command_rules"`
+}
+
+type schemaBakedProfile struct {
+	Enabled bool   `json:"enabled"`
+	Name    string `json:"name,omitempty"`
+}
+
+type schemaCommandRules struct {
+	EnabledPrefixes []string `json:"enabled_prefixes"`
+	EnabledExact    []string `json:"enabled_exact"`
+	Disabled        []string `json:"disabled"`
 }
 
 type schemaNode struct {
@@ -67,9 +95,10 @@ type schemaArg struct {
 	Cumulative bool     `json:"cumulative,omitempty"`
 }
 
-func (c *SchemaCmd) Run(ctx context.Context, kctx *kong.Context) error {
-	// Always emit schema untransformed, even if the caller enabled global JSON transforms.
+func (c *SchemaCmd) Run(ctx context.Context, kctx *kong.Context, flags *RootFlags) error {
+	// Schema is trusted local metadata and must not inherit result transforms.
 	ctx = outfmt.WithJSONTransform(ctx, outfmt.JSONTransform{})
+	ctx = outfmt.WithUntrustedWrapper(ctx, outfmt.UntrustedWrapOptions{})
 
 	root := kctx.Model.Node
 	node := root
@@ -92,13 +121,74 @@ func (c *SchemaCmd) Run(ctx context.Context, kctx *kong.Context) error {
 		return profile.commandPathError(commandNodePath(node))
 	}
 
+	automation, err := buildSchemaAutomation(flags, profile)
+	if err != nil {
+		return err
+	}
 	doc := schemaDoc{
 		SchemaVersion: 1,
 		Build:         VersionString(),
+		Automation:    automation,
 		Command:       buildSchemaNode(node, hide, profile),
 	}
 
 	return outfmt.WriteJSON(ctx, os.Stdout, doc)
+}
+
+func buildSchemaAutomation(flags *RootFlags, profile bakedSafetyProfile) (schemaAutomation, error) {
+	safety := schemaSafetyState{
+		BakedProfile: schemaBakedProfile{
+			Enabled: profile.enabled,
+			Name:    profile.name,
+		},
+		CommandRules: schemaCommandRules{
+			EnabledPrefixes: []string{},
+			EnabledExact:    []string{},
+			Disabled:        []string{},
+		},
+	}
+	if flags != nil {
+		safety.DryRun = flags.DryRun
+		safety.NoInput = flags.NoInput
+		safety.WrapUntrusted = flags.WrapUntrusted
+		safety.GmailNoSend = flags.GmailNoSend
+		safety.CommandRules.EnabledPrefixes = sortedCommandRules(flags.EnableCommands)
+		safety.CommandRules.EnabledExact = sortedCommandRules(flags.EnableCommandsExact)
+		safety.CommandRules.Disabled = sortedCommandRules(flags.DisableCommands)
+	}
+
+	cfg, err := config.ReadConfig()
+	if err != nil {
+		return schemaAutomation{}, err
+	}
+	safety.GmailNoSend = safety.GmailNoSend || cfg.GmailNoSend
+	account, accountKnown, err := configuredAccount(flags)
+	if err != nil {
+		return schemaAutomation{}, err
+	}
+	if accountKnown {
+		accountNoSend, noSendErr := config.IsNoSendAccount(account)
+		if noSendErr != nil {
+			return schemaAutomation{}, noSendErr
+		}
+		safety.GmailNoSend = safety.GmailNoSend || accountNoSend
+	}
+
+	return schemaAutomation{
+		OutputFormats: []string{"json", "plain"},
+		ExitCodes:     stableExitCodes(),
+		Safety:        safety,
+	}, nil
+}
+
+func sortedCommandRules(value string) []string {
+	rules := parseEnabledCommands(value)
+	out := make([]string, 0, len(rules))
+	for rule := range rules {
+		out = append(out, rule)
+	}
+	sort.Strings(out)
+	return out
 }
 
 func splitCommandPath(parts []string) []string {
