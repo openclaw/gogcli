@@ -110,6 +110,7 @@ func Execute(args []string) (err error) {
 		args = []string{"--help"}
 	}
 	args = rewriteDesirePathArgs(args)
+	args = rewriteDocsCellUpdateContentArgs(args)
 
 	preHomeApplied := false
 	if home, ok := preScanHomeArg(args); ok {

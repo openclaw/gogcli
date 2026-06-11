@@ -138,10 +138,13 @@ Update one existing table cell without round-tripping the surrounding document:
 ```bash
 gog docs cell-update <docId> --table-index 1 --row 2 --col 3 \
   --content "**Ready**" --format markdown
+gog docs cell-update <docId> --table-index 1 --row 2 --col 3 \
+  --content $'- First\n- Second'
 ```
 
 Coordinates are 1-based. `--tab` targets a specific tab, and `--append` inserts
-at the end of the cell instead of replacing its current content.
+at the end of the cell instead of replacing its current content. Markdown list
+content creates native Google Docs bullets or numbering inside the cell.
 
 Set or reset native table column widths after inserting or importing tables:
 

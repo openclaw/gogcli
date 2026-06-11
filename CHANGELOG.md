@@ -15,6 +15,7 @@
 
 ### Fixed
 
+- Docs: accept leading-dash Markdown list values in `docs cell-update --content` and reject nonempty Markdown that produces no editable cell text. (#733) — thanks @sebsnyk.
 - Docs: keep inline Markdown find-replace fragments inside their existing paragraph unless the replacement explicitly ends with a newline. (#736) — thanks @sebsnyk.
 - Docs: render HTML `<br>` variants as line breaks inside Markdown table cells while preserving protected literals. (#730) — thanks @sebsnyk.
 - Docs: avoid duplicate empty paragraphs adjacent to Markdown headings while preserving body paragraph spacing. (#717, #720) — thanks @TurboTheTurtle.

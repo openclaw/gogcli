@@ -145,6 +145,26 @@ func (c *DocsCellUpdateCmd) resolveContent() (string, error) {
 	return string(data), nil
 }
 
+func rewriteDocsCellUpdateContentArgs(args []string) []string {
+	tokens := commandTokens(args, 2)
+	if len(tokens) < 2 ||
+		(tokens[0] != "docs" && tokens[0] != "doc") ||
+		(tokens[1] != "cell-update" && tokens[1] != "update-cell") {
+		return args
+	}
+
+	for i := 0; i+1 < len(args); i++ {
+		if args[i] != "--content" || !strings.HasPrefix(args[i+1], "- ") {
+			continue
+		}
+		out := append([]string(nil), args[:i]...)
+		out = append(out, "--content="+args[i+1])
+		out = append(out, args[i+2:]...)
+		return out
+	}
+	return args
+}
+
 func updateDocsCellContent(ctx context.Context, svc *docs.Service, doc *docs.Document, startIdx, endIdx int64, content, format string, appendOnly bool, prefixBoundary bool, tabID string) error {
 	var requests []*docs.Request
 	if !appendOnly && startIdx < endIdx {
@@ -167,16 +187,17 @@ func updateDocsCellContent(ctx context.Context, svc *docs.Service, doc *docs.Doc
 				return usage("markdown tables are not supported inside table cells")
 			}
 			textToInsert = strings.TrimSuffix(textToInsert, "\n")
-			formatReqs = clampDocsCellFormatRequests(formatReqs, baseIndex+utf16Len(textToInsert))
-			if textToInsert != "" {
-				requests = append(requests, &docs.Request{
-					InsertText: &docs.InsertTextRequest{
-						Location: &docs.Location{Index: startIdx, TabId: tabID},
-						Text:     prefix + textToInsert,
-					},
-				})
-				requests = append(requests, formatReqs...)
+			if textToInsert == "" {
+				return usage("markdown content produced no editable cell text")
 			}
+			formatReqs = clampDocsCellFormatRequests(formatReqs, baseIndex+utf16Len(textToInsert))
+			requests = append(requests, &docs.Request{
+				InsertText: &docs.InsertTextRequest{
+					Location: &docs.Location{Index: startIdx, TabId: tabID},
+					Text:     prefix + textToInsert,
+				},
+			})
+			requests = append(requests, formatReqs...)
 		} else {
 			requests = append(requests, &docs.Request{
 				InsertText: &docs.InsertTextRequest{

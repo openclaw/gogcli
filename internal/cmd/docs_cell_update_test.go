@@ -4,11 +4,70 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"reflect"
 	"strings"
 	"testing"
 
 	"google.golang.org/api/docs/v1"
 )
+
+func TestRewriteDocsCellUpdateContentArgs(t *testing.T) {
+	tests := []struct {
+		name string
+		args []string
+		want []string
+	}{
+		{
+			name: "bullet list",
+			args: []string{"docs", "cell-update", "doc1", "--content", "- one\n- two", "--row", "1", "--col", "1"},
+			want: []string{"docs", "cell-update", "doc1", "--content=- one\n- two", "--row", "1", "--col", "1"},
+		},
+		{
+			name: "aliases and global flag",
+			args: []string{"--account", "a@b.com", "doc", "update-cell", "doc1", "--content", "- one"},
+			want: []string{"--account", "a@b.com", "doc", "update-cell", "doc1", "--content=- one"},
+		},
+		{
+			name: "existing equals form",
+			args: []string{"docs", "cell-update", "doc1", "--content=- one"},
+			want: []string{"docs", "cell-update", "doc1", "--content=- one"},
+		},
+		{
+			name: "missing content value",
+			args: []string{"docs", "cell-update", "doc1", "--content", "--append"},
+			want: []string{"docs", "cell-update", "doc1", "--content", "--append"},
+		},
+		{
+			name: "other command",
+			args: []string{"docs", "write", "doc1", "--content", "- one"},
+			want: []string{"docs", "write", "doc1", "--content", "- one"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := rewriteDocsCellUpdateContentArgs(tt.args); !reflect.DeepEqual(got, tt.want) {
+				t.Fatalf("rewriteDocsCellUpdateContentArgs() = %#v, want %#v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestExecuteDocsCellUpdateLeadingDashContentDryRun(t *testing.T) {
+	out := captureStdout(t, func() {
+		err := Execute([]string{
+			"--json", "--dry-run", "--no-input",
+			"docs", "cell-update", "doc1",
+			"--row", "1", "--col", "1",
+			"--content", "- one\n- two",
+		})
+		if err != nil && ExitCode(err) != 0 {
+			t.Fatalf("Execute: %v", err)
+		}
+	})
+	if !strings.Contains(out, `"op": "docs.cell-update"`) {
+		t.Fatalf("unexpected dry-run output: %s", out)
+	}
+}
 
 func TestDocsCellUpdate_ReplacesTargetCellOnly(t *testing.T) {
 	origDocs := newDocsService
@@ -49,6 +108,45 @@ func TestDocsCellUpdate_ReplacesTargetCellOnly(t *testing.T) {
 	ins := got.Requests[1].InsertText
 	if ins == nil || ins.Location.Index != 10 || ins.Text != "New" {
 		t.Fatalf("unexpected insert: %#v", ins)
+	}
+}
+
+func TestDocsCellUpdate_ReplacesWithNativeMarkdownList(t *testing.T) {
+	origDocs := newDocsService
+	t.Cleanup(func() { newDocsService = origDocs })
+
+	var got docs.BatchUpdateDocumentRequest
+	docSvc, cleanup := newDocsServiceForTest(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, "/v1/documents/"):
+			_ = json.NewEncoder(w).Encode(cellUpdateTestDoc())
+		case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, ":batchUpdate"):
+			if err := json.NewDecoder(r.Body).Decode(&got); err != nil {
+				t.Fatalf("decode batchUpdate: %v", err)
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{"documentId": "doc1"})
+		default:
+			http.NotFound(w, r)
+		}
+	})
+	defer cleanup()
+	newDocsService = func(context.Context, string) (*docs.Service, error) { return docSvc, nil }
+
+	cmd := &DocsCellUpdateCmd{}
+	if err := runKong(t, cmd, []string{"doc1", "--row", "1", "--col", "2", "--content=- Alpha\n- Beta"}, newDocsCmdContext(t), &RootFlags{Account: "a@b.com"}); err != nil {
+		t.Fatalf("docs cell-update list: %v", err)
+	}
+	if len(got.Requests) != 3 {
+		t.Fatalf("expected delete+insert+bullets, got %d requests", len(got.Requests))
+	}
+	ins := got.Requests[1].InsertText
+	if ins == nil || ins.Location.Index != 10 || ins.Text != "Alpha\nBeta" {
+		t.Fatalf("unexpected list insert: %#v", ins)
+	}
+	bullets := got.Requests[2].CreateParagraphBullets
+	if bullets == nil || bullets.Range.StartIndex != 10 || bullets.Range.EndIndex != 20 || bullets.BulletPreset != bulletPresetDisc {
+		t.Fatalf("unexpected bullet request: %#v", bullets)
 	}
 }
 
@@ -132,6 +230,36 @@ func TestDocsCellUpdate_AppendBlockMarkdownStartsNewParagraph(t *testing.T) {
 	para := got.Requests[1].UpdateParagraphStyle
 	if para == nil || para.Range.StartIndex != 9 || para.Range.EndIndex != 14 {
 		t.Fatalf("heading style should start after inserted boundary: %#v", para)
+	}
+}
+
+func TestDocsCellUpdate_RejectsMarkdownWithoutEditableText(t *testing.T) {
+	origDocs := newDocsService
+	t.Cleanup(func() { newDocsService = origDocs })
+
+	var posted bool
+	docSvc, cleanup := newDocsServiceForTest(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, "/v1/documents/"):
+			_ = json.NewEncoder(w).Encode(cellUpdateTestDoc())
+		case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, ":batchUpdate"):
+			posted = true
+			_ = json.NewEncoder(w).Encode(map[string]any{"documentId": "doc1"})
+		default:
+			http.NotFound(w, r)
+		}
+	})
+	defer cleanup()
+	newDocsService = func(context.Context, string) (*docs.Service, error) { return docSvc, nil }
+
+	cmd := &DocsCellUpdateCmd{}
+	err := runKong(t, cmd, []string{"doc1", "--row", "1", "--col", "2", "--content", "```\n```"}, newDocsCmdContext(t), &RootFlags{Account: "a@b.com"})
+	if err == nil || !strings.Contains(err.Error(), "no editable cell text") {
+		t.Fatalf("expected no editable text error, got %v", err)
+	}
+	if posted {
+		t.Fatal("unexpected batch update for ineffective markdown")
 	}
 }
 
