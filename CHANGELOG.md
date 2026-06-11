@@ -4,6 +4,7 @@
 
 ### Added
 
+- Calendar: add repeatable `--attachment` to `calendar update` for replacing or clearing event attachments. (#738) — thanks @TreyLawrence.
 - Sheets: add `sheets validation` get/set/clear commands for dropdown, checkbox, number, date, range, and custom-formula rules, and preserve table-managed dropdowns during validation-only copy/paste. (#710) — thanks @chrischall.
 - Sheets: add table-aware `sheets delete-dimension` for deleting row or column spans while preserving intersecting table objects and remaining data. (#711) — thanks @chrischall.
 - Docs: add direct `docs table-row`, `docs table-column`, `docs table-merge`, and `docs table-unmerge` commands with index, header-text, all-table, and tab-aware selection. (#686) — thanks @sebsnyk.

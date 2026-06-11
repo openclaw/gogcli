@@ -22,6 +22,7 @@ gog calendar (cal) update (edit,set) <calendarId> <eventId> [flags]
 | `-a`<br>`--account`<br>`--acct` | `string` |  | Account email for API commands (gmail/calendar/chat/classroom/drive/drivelabels/docs/slides/contacts/tasks/people/sheets/forms/sites/appscript/analytics/searchconsole/youtube/photos) |
 | `--add-attendee` | `string` |  | Comma-separated attendee emails to add (preserves existing attendees) |
 | `--all-day` | `bool` |  | All-day event (use date-only in --from/--to) |
+| `--attachment` | `[]string` |  | File attachment URL (can be repeated; replaces all; set empty to clear) |
 | `--attendees` | `string` |  | Comma-separated attendee emails (replaces all; set empty to clear) |
 | `--client` | `string` |  | OAuth client name (selects stored credentials + token bucket) |
 | `--color` | `string` | auto | Color output: auto\|always\|never |

@@ -60,7 +60,25 @@ func (m *calendarMutationContext) patchEvent(ctx context.Context, eventID string
 	if patchHasConferenceDataMutation(patch) {
 		call = call.ConferenceDataVersion(1)
 	}
+	if patchHasAttachmentsMutation(patch) {
+		call = call.SupportsAttachments(true)
+	}
 	return call.Do()
+}
+
+func patchHasAttachmentsMutation(patch *calendar.Event) bool {
+	if patch == nil {
+		return false
+	}
+	if len(patch.Attachments) > 0 {
+		return true
+	}
+	for _, field := range patch.ForceSendFields {
+		if field == "Attachments" {
+			return true
+		}
+	}
+	return false
 }
 
 func (m *calendarMutationContext) deleteEvent(ctx context.Context, eventID, sendUpdates string) error {

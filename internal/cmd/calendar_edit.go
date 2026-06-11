@@ -294,6 +294,7 @@ type CalendarUpdateCmd struct {
 	PlaceRegion           string   `name:"place-region" help:"Places API region code for location lookup"`
 	Attendees             string   `name:"attendees" help:"Comma-separated attendee emails (replaces all; set empty to clear)"`
 	AddAttendee           string   `name:"add-attendee" help:"Comma-separated attendee emails to add (preserves existing attendees)"`
+	Attachments           []string `name:"attachment" help:"File attachment URL (can be repeated; replaces all; set empty to clear)"`
 	AllDay                bool     `name:"all-day" help:"All-day event (use date-only in --from/--to)"`
 	Recurrence            []string `name:"rrule" help:"Recurrence rules (e.g., 'RRULE:FREQ=MONTHLY;BYMONTHDAY=11'). Can be repeated. Set empty to clear." sep:"none"`
 	Reminders             []string `name:"reminder" help:"Custom reminders as method:duration (e.g., popup:30m, email:1d). Can be repeated (max 5). Set empty to clear."`
@@ -412,7 +413,7 @@ func (c *CalendarUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *
 		"patch":                patch,
 		"wants_add_attendee":   wantsAddAttendee,
 		"conference_version_1": patchHasConferenceDataMutation(patch),
-		"supports_attachments": len(patch.Attachments) > 0,
+		"supports_attachments": patchHasAttachmentsMutation(patch),
 	}
 	if placeLookup != nil {
 		request["place_lookup"] = placeLookup.dryRunPayload()
@@ -530,6 +531,10 @@ func (c *CalendarUpdateCmd) buildUpdatePatch(kctx *kong.Context) (*calendar.Even
 	}
 
 	if c.applyAttendees(kctx, patch) {
+		changed = true
+	}
+
+	if c.applyAttachments(kctx, patch) {
 		changed = true
 	}
 
@@ -672,6 +677,18 @@ func (c *CalendarUpdateCmd) applyAttendees(kctx *kong.Context, patch *calendar.E
 		return false
 	}
 	patch.Attendees = buildAttendees(c.Attendees)
+	return true
+}
+
+func (c *CalendarUpdateCmd) applyAttachments(kctx *kong.Context, patch *calendar.Event) bool {
+	if !flagProvided(kctx, "attachment") {
+		return false
+	}
+	patch.Attachments = buildAttachments(c.Attachments)
+	if len(patch.Attachments) == 0 {
+		patch.Attachments = []*calendar.EventAttachment{}
+		patch.ForceSendFields = appendForceSendField(patch.ForceSendFields, "Attachments")
+	}
 	return true
 }
 

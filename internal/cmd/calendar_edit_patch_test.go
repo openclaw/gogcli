@@ -82,3 +82,63 @@ func TestCalendarUpdateBuildPatch_ClearFields(t *testing.T) {
 		t.Fatalf("expected force send fields")
 	}
 }
+
+func TestCalendarUpdateBuildPatch_Attachments(t *testing.T) {
+	t.Run("replace", func(t *testing.T) {
+		cmd := &CalendarUpdateCmd{}
+		parser, err := kong.New(cmd, kong.Writers(io.Discard, io.Discard))
+		if err != nil {
+			t.Fatalf("kong.New: %v", err)
+		}
+		kctx, err := parser.Parse([]string{
+			"cal1",
+			"evt1",
+			"--attachment", " https://drive.google.com/file/d/one ",
+			"--attachment", "https://drive.google.com/file/d/two",
+		})
+		if err != nil {
+			t.Fatalf("parse: %v", err)
+		}
+
+		patch, changed, err := cmd.buildUpdatePatch(kctx)
+		if err != nil {
+			t.Fatalf("buildUpdatePatch: %v", err)
+		}
+		if !changed || len(patch.Attachments) != 2 {
+			t.Fatalf("unexpected attachment patch: %#v", patch)
+		}
+		if patch.Attachments[0].FileUrl != "https://drive.google.com/file/d/one" ||
+			patch.Attachments[1].FileUrl != "https://drive.google.com/file/d/two" {
+			t.Fatalf("unexpected attachments: %#v", patch.Attachments)
+		}
+		if !patchHasAttachmentsMutation(patch) {
+			t.Fatal("expected attachment mutation")
+		}
+	})
+
+	t.Run("clear", func(t *testing.T) {
+		cmd := &CalendarUpdateCmd{}
+		parser, err := kong.New(cmd, kong.Writers(io.Discard, io.Discard))
+		if err != nil {
+			t.Fatalf("kong.New: %v", err)
+		}
+		kctx, err := parser.Parse([]string{"cal1", "evt1", "--attachment="})
+		if err != nil {
+			t.Fatalf("parse: %v", err)
+		}
+
+		patch, changed, err := cmd.buildUpdatePatch(kctx)
+		if err != nil {
+			t.Fatalf("buildUpdatePatch: %v", err)
+		}
+		if !changed || patch.Attachments == nil || len(patch.Attachments) != 0 {
+			t.Fatalf("unexpected clear patch: %#v", patch)
+		}
+		if !hasForceSendField(patch.ForceSendFields, "Attachments") {
+			t.Fatalf("expected Attachments force-send field: %#v", patch.ForceSendFields)
+		}
+		if !patchHasAttachmentsMutation(patch) {
+			t.Fatal("expected clear attachment mutation")
+		}
+	})
+}

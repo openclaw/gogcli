@@ -335,6 +335,103 @@ func TestCalendarUpdateCmd_RunJSON(t *testing.T) {
 	}
 }
 
+func TestCalendarUpdateCmd_AttachmentsReplaceAndClear(t *testing.T) {
+	origNew := newCalendarService
+	t.Cleanup(func() { newCalendarService = origNew })
+
+	var patchCalls int
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := strings.TrimPrefix(r.URL.Path, "/calendar/v3")
+		if r.Method != http.MethodPatch || path != "/calendars/cal@example.com/events/ev" {
+			http.NotFound(w, r)
+			return
+		}
+		patchCalls++
+		if got := r.URL.Query().Get("supportsAttachments"); got != "true" {
+			t.Fatalf("supportsAttachments = %q, want true", got)
+		}
+		var body map[string]json.RawMessage
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatalf("decode patch body: %v", err)
+		}
+		raw, ok := body["attachments"]
+		if !ok {
+			t.Fatalf("patch %d missing attachments: %#v", patchCalls, body)
+		}
+		var attachments []*calendar.EventAttachment
+		if err := json.Unmarshal(raw, &attachments); err != nil {
+			t.Fatalf("decode attachments: %v", err)
+		}
+		switch patchCalls {
+		case 1:
+			if len(attachments) != 2 ||
+				attachments[0].FileUrl != "https://drive.google.com/file/d/one" ||
+				attachments[1].FileUrl != "https://drive.google.com/file/d/two" {
+				t.Fatalf("unexpected replacement attachments: %#v", attachments)
+			}
+		case 2:
+			if attachments == nil || len(attachments) != 0 {
+				t.Fatalf("expected explicit empty attachments array, got %#v", attachments)
+			}
+		default:
+			t.Fatalf("unexpected patch call %d", patchCalls)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{"id": "ev"})
+	}))
+	defer srv.Close()
+
+	svc := newCalendarServiceFromServer(t, srv)
+	newCalendarService = func(context.Context, string) (*calendar.Service, error) { return svc, nil }
+	ctx := newCalendarJSONOutputContext(t, os.Stdout, os.Stderr)
+
+	if err := runKong(t, &CalendarUpdateCmd{}, []string{
+		"cal@example.com", "ev",
+		"--attachment", "https://drive.google.com/file/d/one",
+		"--attachment", "https://drive.google.com/file/d/two",
+	}, ctx, &RootFlags{Account: "a@b.com"}); err != nil {
+		t.Fatalf("replace attachments: %v", err)
+	}
+	if err := runKong(t, &CalendarUpdateCmd{}, []string{
+		"cal@example.com", "ev", "--attachment=",
+	}, ctx, &RootFlags{Account: "a@b.com"}); err != nil {
+		t.Fatalf("clear attachments: %v", err)
+	}
+	if patchCalls != 2 {
+		t.Fatalf("patch calls = %d, want 2", patchCalls)
+	}
+}
+
+func TestCalendarUpdateCmd_AttachmentClearDryRunReportsSupport(t *testing.T) {
+	ctx := newCalendarJSONContext(t)
+	out := captureStdout(t, func() {
+		err := runKong(t, &CalendarUpdateCmd{}, []string{
+			"primary", "ev", "--attachment=",
+		}, ctx, &RootFlags{Account: "a@b.com", DryRun: true})
+		if err != nil && ExitCode(err) != 0 {
+			t.Fatalf("dry-run: %v", err)
+		}
+	})
+
+	var payload struct {
+		Request struct {
+			SupportsAttachments bool `json:"supports_attachments"`
+			Patch               struct {
+				Attachments []*calendar.EventAttachment `json:"attachments"`
+			} `json:"patch"`
+		} `json:"request"`
+	}
+	if err := json.Unmarshal([]byte(out), &payload); err != nil {
+		t.Fatalf("unmarshal dry-run: %v\n%s", err, out)
+	}
+	if !payload.Request.SupportsAttachments {
+		t.Fatal("expected supports_attachments for clear")
+	}
+	if payload.Request.Patch.Attachments == nil || len(payload.Request.Patch.Attachments) != 0 {
+		t.Fatalf("expected explicit empty attachment list: %#v", payload.Request.Patch.Attachments)
+	}
+}
+
 func TestCalendarUpdateCmd_WithMeet(t *testing.T) {
 	origNew := newCalendarService
 	t.Cleanup(func() { newCalendarService = origNew })
