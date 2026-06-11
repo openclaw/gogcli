@@ -5,6 +5,7 @@
 ### Added
 
 - Photos: add an explicit-opt-in Google Photos Picker workflow for creating selection sessions, waiting for completion, listing chosen media, and downloading selected files. (#754)
+- Docs: add persisted, revision-locked request batches for composing supported mutations locally and submitting them atomically, with explicit split and partial-recovery modes. (#755)
 
 ## 0.24.0 - 2026-06-11
 
