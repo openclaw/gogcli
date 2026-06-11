@@ -12,6 +12,13 @@ import (
 // same textRun, which lets fenced code blocks keep one shaded paragraph.
 const docsSoftLineBreak = "\v"
 
+const (
+	docsFencedCodeFontFamily = "Roboto Mono"
+	docsFencedCodeColorRed   = 0.09411764705882353
+	docsFencedCodeColorGreen = 0.5019607843137255
+	docsFencedCodeColorBlue  = 0.2196078431372549
+)
+
 // Debug flag for markdown formatter
 var debugMarkdown = false
 
@@ -92,14 +99,14 @@ func MarkdownToDocsRequests(elements []MarkdownElement, baseIndex int64, tabID s
 			// Embedded line breaks become soft line breaks (vertical tab) so
 			// Docs keeps them inside one paragraph, which lets us apply a
 			// single paragraph-level background shading across the whole block
-			// instead of emitting one Courier-styled paragraph per source line.
+			// instead of emitting one styled paragraph per source line.
 			// See #594.
 			codeBody := strings.ReplaceAll(el.Content, "\n", docsSoftLineBreak)
 			codeContent := codeBody + "\n"
 			plainText.WriteString(codeContent)
 			charOffset += utf16Len(codeContent)
 
-			// Apply monospace font to entire code block text run.
+			// Apply fenced code styling to the entire code block text run.
 			requests = append(requests, &docs.Request{
 				UpdateTextStyle: &docs.UpdateTextStyleRequest{
 					Range: &docs.Range{
@@ -109,11 +116,20 @@ func MarkdownToDocsRequests(elements []MarkdownElement, baseIndex int64, tabID s
 					},
 					TextStyle: &docs.TextStyle{
 						WeightedFontFamily: &docs.WeightedFontFamily{
-							FontFamily: "Courier New",
+							FontFamily: docsFencedCodeFontFamily,
 							Weight:     400,
 						},
+						ForegroundColor: &docs.OptionalColor{
+							Color: &docs.Color{
+								RgbColor: &docs.RgbColor{
+									Red:   docsFencedCodeColorRed,
+									Green: docsFencedCodeColorGreen,
+									Blue:  docsFencedCodeColorBlue,
+								},
+							},
+						},
 					},
-					Fields: "weightedFontFamily",
+					Fields: "weightedFontFamily,foregroundColor",
 				},
 			})
 

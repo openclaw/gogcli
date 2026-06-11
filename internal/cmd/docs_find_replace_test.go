@@ -536,10 +536,15 @@ func TestDocsFindReplace_MarkdownCodeBlockStartsFreshParagraphWhenInline(t *test
 	}
 	reqs := batchCalls[0].Requests
 	if len(reqs) != 5 {
-		t.Fatalf("expected delete, insert, reset, code font, and code shading requests, got %#v", reqs)
+		t.Fatalf("expected delete, insert, reset, code text style, and code shading requests, got %#v", reqs)
 	}
 	if got := reqs[1].InsertText; got == nil || got.Location.Index != 7 || got.Text != "\nline1"+docsSoftLineBreak+"line2\n" {
 		t.Fatalf("unexpected insert request: %#v", got)
+	}
+	if got := reqs[3].UpdateTextStyle; got == nil || got.Range.StartIndex != 8 || got.Range.EndIndex != 20 {
+		t.Fatalf("unexpected code text style request: %#v", got)
+	} else {
+		assertFencedCodeTextStyle(t, got)
 	}
 	if got := reqs[4].UpdateParagraphStyle; got == nil || got.Range.StartIndex != 8 || got.Range.EndIndex != 20 {
 		t.Fatalf("unexpected code shading request: %#v", got)

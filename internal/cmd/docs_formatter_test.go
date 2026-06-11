@@ -266,7 +266,7 @@ func TestMarkdownToDocsRequests_MixedListChildrenStayNested(t *testing.T) {
 // TestMarkdownToDocsRequests_AppendBulletsAndCode is a regression test for
 // #594. The append path used to inline literal "• " glyphs for bullet lists
 // (leaving paragraphs as NORMAL_TEXT) and split fenced code blocks into one
-// Courier-styled NORMAL_TEXT paragraph per source line with no contiguous
+// monospace-styled NORMAL_TEXT paragraph per source line with no contiguous
 // shading. The fix routes bullets through CreateParagraphBullets and joins
 // code-block lines with vertical-tab soft breaks so the whole block is one
 // shaded paragraph.
@@ -318,12 +318,18 @@ func TestMarkdownToDocsRequests_AppendBulletsAndCode(t *testing.T) {
 	//   - 1 CreateParagraphBullets for the numbered item
 	//   - 1 UpdateParagraphStyle with paragraph-level shading covering the
 	//     code block
-	//   - 1 UpdateTextStyle for Courier on the code block range
+	//   - 1 UpdateTextStyle for fenced code font/color on the code block range
+	codeOffset := strings.Index(text, "line 1")
+	if codeOffset < 0 {
+		t.Fatalf("test markdown output does not contain code block text: %q", text)
+	}
+	codeStart := int64(1 + utf16Len(text[:codeOffset]))
+	codeEnd := codeStart + int64(utf16Len("line 1"+docsSoftLineBreak+"line 2"+docsSoftLineBreak+"line 3\n"))
 	var (
 		bulletDisc       int
 		bulletNumbered   int
 		codeShading      int
-		codeMonospace    int
+		codeTextStyle    int
 		bulletPrefixText bool
 	)
 	for _, r := range requests {
@@ -344,8 +350,10 @@ func TestMarkdownToDocsRequests_AppendBulletsAndCode(t *testing.T) {
 		if r.UpdateTextStyle != nil &&
 			r.UpdateTextStyle.TextStyle != nil &&
 			r.UpdateTextStyle.TextStyle.WeightedFontFamily != nil &&
-			r.UpdateTextStyle.TextStyle.WeightedFontFamily.FontFamily == "Courier New" {
-			codeMonospace++
+			r.UpdateTextStyle.Range.StartIndex == codeStart &&
+			r.UpdateTextStyle.Range.EndIndex == codeEnd {
+			assertFencedCodeTextStyle(t, r.UpdateTextStyle)
+			codeTextStyle++
 		}
 		if r.InsertText != nil && strings.Contains(r.InsertText.Text, "• ") {
 			bulletPrefixText = true
@@ -361,10 +369,34 @@ func TestMarkdownToDocsRequests_AppendBulletsAndCode(t *testing.T) {
 	if codeShading != 1 {
 		t.Errorf("expected exactly 1 paragraph shading request for the code block, got %d", codeShading)
 	}
-	if codeMonospace < 1 {
-		t.Errorf("expected at least 1 Courier New text style request for the code block, got %d", codeMonospace)
+	if codeTextStyle != 1 {
+		t.Errorf("expected exactly 1 fenced code text style request, got %d", codeTextStyle)
 	}
 	if bulletPrefixText {
 		t.Errorf("unexpected literal bullet glyph inside an InsertText request")
+	}
+}
+
+func assertFencedCodeTextStyle(t *testing.T, got *docs.UpdateTextStyleRequest) {
+	t.Helper()
+	if got == nil {
+		t.Fatal("missing fenced code text style request")
+	}
+	if got.Fields != "weightedFontFamily,foregroundColor" {
+		t.Fatalf("fenced code fields = %q, want weightedFontFamily,foregroundColor", got.Fields)
+	}
+	style := got.TextStyle
+	if style == nil {
+		t.Fatal("missing fenced code text style")
+	}
+	if style.WeightedFontFamily == nil || style.WeightedFontFamily.FontFamily != docsFencedCodeFontFamily || style.WeightedFontFamily.Weight != 400 {
+		t.Fatalf("unexpected fenced code font: %#v", style.WeightedFontFamily)
+	}
+	if style.ForegroundColor == nil || style.ForegroundColor.Color == nil || style.ForegroundColor.Color.RgbColor == nil {
+		t.Fatalf("missing fenced code foreground color: %#v", style.ForegroundColor)
+	}
+	rgb := style.ForegroundColor.Color.RgbColor
+	if rgb.Red != docsFencedCodeColorRed || rgb.Green != docsFencedCodeColorGreen || rgb.Blue != docsFencedCodeColorBlue {
+		t.Fatalf("fenced code foreground = %#v, want #188038", rgb)
 	}
 }
