@@ -78,6 +78,34 @@ type docsParagraphListItem struct {
 	Text       string `json:"text"`
 }
 
+type docsParagraphInspectItem struct {
+	Index      int                `json:"index"`
+	StartIndex int64              `json:"startIndex"`
+	EndIndex   int64              `json:"endIndex"`
+	Style      string             `json:"style"`
+	Text       string             `json:"text"`
+	IsEmpty    bool               `json:"isEmpty"`
+	Runs       []docsParagraphRun `json:"runs"`
+}
+
+type docsParagraphRun struct {
+	StartIndex    int64                 `json:"startIndex"`
+	EndIndex      int64                 `json:"endIndex"`
+	Text          string                `json:"text"`
+	Bold          bool                  `json:"bold"`
+	Italic        bool                  `json:"italic"`
+	Underline     bool                  `json:"underline"`
+	Strikethrough bool                  `json:"strikethrough"`
+	Link          *docsParagraphRunLink `json:"link"`
+}
+
+type docsParagraphRunLink struct {
+	URL        string `json:"url,omitempty"`
+	BookmarkID string `json:"bookmarkId,omitempty"`
+	HeadingID  string `json:"headingId,omitempty"`
+	TabID      string `json:"tabId,omitempty"`
+}
+
 func (c *DocsTablesListCmd) Run(ctx context.Context, flags *RootFlags) error {
 	doc, tabID, err := loadDocsEnumeratorDocument(ctx, flags, c.DocID, c.Tab)
 	if err != nil {
@@ -188,7 +216,7 @@ func (c *DocsHeadingsListCmd) Run(ctx context.Context, flags *RootFlags) error {
 			Text:       paragraph.Text,
 		})
 	}
-	return writeDocsParagraphEnumerator(ctx, doc.DocumentId, tabID, "headings", items)
+	return writeDocsParagraphEnumerator(ctx, doc.DocumentId, tabID, "headings", items, nil)
 }
 
 func (c *DocsParagraphsListCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -199,19 +227,30 @@ func (c *DocsParagraphsListCmd) Run(ctx context.Context, flags *RootFlags) error
 	style := strings.ToUpper(strings.TrimSpace(c.Style))
 	paragraphs := enumerateDocsParagraphs(doc)
 	items := make([]docsParagraphListItem, 0)
+	inspectItems := make([]docsParagraphInspectItem, 0)
 	for i, paragraph := range paragraphs {
 		if style != "" && paragraph.Style != style {
 			continue
 		}
-		items = append(items, docsParagraphListItem{
+		item := docsParagraphListItem{
 			Index:      i + 1,
 			StartIndex: paragraph.StartIndex,
 			EndIndex:   paragraph.EndIndex,
 			Style:      paragraph.Style,
 			Text:       paragraph.Text,
+		}
+		items = append(items, item)
+		inspectItems = append(inspectItems, docsParagraphInspectItem{
+			Index:      item.Index,
+			StartIndex: item.StartIndex,
+			EndIndex:   item.EndIndex,
+			Style:      item.Style,
+			Text:       item.Text,
+			IsEmpty:    paragraph.IsEmpty,
+			Runs:       paragraph.Runs,
 		})
 	}
-	return writeDocsParagraphEnumerator(ctx, doc.DocumentId, tabID, "paragraphs", items)
+	return writeDocsParagraphEnumerator(ctx, doc.DocumentId, tabID, "paragraphs", items, inspectItems)
 }
 
 func loadDocsEnumeratorDocument(
@@ -267,12 +306,16 @@ func writeDocsParagraphEnumerator(
 	tabID string,
 	key string,
 	items []docsParagraphListItem,
+	jsonItems any,
 ) error {
 	if outfmt.IsJSON(ctx) {
+		if jsonItems == nil {
+			jsonItems = items
+		}
 		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
 			"documentId": documentID,
 			"tabId":      tabID,
-			key:          items,
+			key:          jsonItems,
 		})
 	}
 	w, flush := tableWriter(ctx)
@@ -447,6 +490,8 @@ type docsEnumeratedParagraph struct {
 	EndIndex   int64
 	Style      string
 	Text       string
+	IsEmpty    bool
+	Runs       []docsParagraphRun
 }
 
 func enumerateDocsParagraphs(doc *docs.Document) []docsEnumeratedParagraph {
@@ -466,11 +511,14 @@ func enumerateDocsParagraphs(doc *docs.Document) []docsEnumeratedParagraph {
 					element.Paragraph.ParagraphStyle.NamedStyleType != "" {
 					style = element.Paragraph.ParagraphStyle.NamedStyleType
 				}
+				isEmpty, runs := inspectDocsParagraph(element.Paragraph)
 				paragraphs = append(paragraphs, docsEnumeratedParagraph{
 					StartIndex: element.StartIndex,
 					EndIndex:   element.EndIndex,
 					Style:      style,
 					Text:       paragraphText(element.Paragraph),
+					IsEmpty:    isEmpty,
+					Runs:       runs,
 				})
 			}
 			if element.Table != nil {
@@ -487,6 +535,79 @@ func enumerateDocsParagraphs(doc *docs.Document) []docsEnumeratedParagraph {
 	}
 	walk(doc.Body.Content)
 	return paragraphs
+}
+
+func inspectDocsParagraph(paragraph *docs.Paragraph) (bool, []docsParagraphRun) {
+	if paragraph == nil {
+		return true, []docsParagraphRun{}
+	}
+	runs := make([]docsParagraphRun, 0, len(paragraph.Elements))
+	hasContent := len(paragraph.PositionedObjectIds) > 0
+	for _, element := range paragraph.Elements {
+		if element == nil {
+			continue
+		}
+		if element.TextRun == nil {
+			hasContent = hasContent || docsParagraphElementHasNonTextContent(element)
+			continue
+		}
+
+		textRun := element.TextRun
+		if strings.TrimSpace(textRun.Content) != "" {
+			hasContent = true
+		}
+		run := docsParagraphRun{
+			StartIndex: element.StartIndex,
+			EndIndex:   element.EndIndex,
+			Text:       textRun.Content,
+		}
+		if textRun.TextStyle != nil {
+			run.Bold = textRun.TextStyle.Bold
+			run.Italic = textRun.TextStyle.Italic
+			run.Underline = textRun.TextStyle.Underline
+			run.Strikethrough = textRun.TextStyle.Strikethrough
+			run.Link = docsParagraphRunLinkFrom(textRun.TextStyle.Link)
+		}
+		runs = append(runs, run)
+	}
+	return !hasContent, runs
+}
+
+func docsParagraphElementHasNonTextContent(element *docs.ParagraphElement) bool {
+	return element.AutoText != nil ||
+		element.ColumnBreak != nil ||
+		element.DateElement != nil ||
+		element.Equation != nil ||
+		element.FootnoteReference != nil ||
+		element.HorizontalRule != nil ||
+		element.InlineObjectElement != nil ||
+		element.PageBreak != nil ||
+		element.Person != nil ||
+		element.RichLink != nil
+}
+
+func docsParagraphRunLinkFrom(link *docs.Link) *docsParagraphRunLink {
+	if link == nil {
+		return nil
+	}
+	result := &docsParagraphRunLink{
+		URL:        link.Url,
+		BookmarkID: link.BookmarkId,
+		HeadingID:  link.HeadingId,
+		TabID:      link.TabId,
+	}
+	if link.Bookmark != nil {
+		result.BookmarkID = link.Bookmark.Id
+		result.TabID = link.Bookmark.TabId
+	}
+	if link.Heading != nil {
+		result.HeadingID = link.Heading.Id
+		result.TabID = link.Heading.TabId
+	}
+	if result.URL == "" && result.BookmarkID == "" && result.HeadingID == "" && result.TabID == "" {
+		return nil
+	}
+	return result
 }
 
 func docsTSVField(value string) string {

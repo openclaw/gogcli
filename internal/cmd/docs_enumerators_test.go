@@ -177,6 +177,8 @@ func TestDocsHeadingsAndParagraphsFilters(t *testing.T) {
 	})
 	if !strings.Contains(headingsOut, `"index": 2`) ||
 		!strings.Contains(headingsOut, `"text": "Section"`) ||
+		strings.Contains(headingsOut, `"isEmpty"`) ||
+		strings.Contains(headingsOut, `"runs"`) ||
 		strings.Contains(headingsOut, `"text": "Title"`) {
 		t.Fatalf("headings output: %s", headingsOut)
 	}
@@ -190,6 +192,157 @@ func TestDocsHeadingsAndParagraphsFilters(t *testing.T) {
 		!strings.Contains(paragraphsOut, `"text": "Body"`) ||
 		strings.Contains(paragraphsOut, `"text": "Section"`) {
 		t.Fatalf("paragraphs output: %s", paragraphsOut)
+	}
+}
+
+func TestDocsParagraphsJSONIncludesRunsAndEmptiness(t *testing.T) {
+	response := map[string]any{
+		"documentId": "doc1",
+		"body": map[string]any{"content": []any{
+			map[string]any{
+				"startIndex": 1,
+				"endIndex":   15,
+				"paragraph": map[string]any{
+					"paragraphStyle": map[string]any{"namedStyleType": "NORMAL_TEXT"},
+					"elements": []any{
+						map[string]any{
+							"startIndex": 1,
+							"endIndex":   7,
+							"textRun": map[string]any{
+								"content":   "Alpha ",
+								"textStyle": map[string]any{"bold": true},
+							},
+						},
+						map[string]any{
+							"startIndex": 7,
+							"endIndex":   11,
+							"textRun": map[string]any{
+								"content": "link",
+								"textStyle": map[string]any{
+									"italic":        true,
+									"underline":     true,
+									"strikethrough": true,
+									"link":          map[string]any{"url": "https://example.com"},
+								},
+							},
+						},
+						map[string]any{
+							"startIndex": 11,
+							"endIndex":   14,
+							"textRun":    map[string]any{"content": "🐢\n"},
+						},
+					},
+				},
+			},
+			map[string]any{
+				"startIndex": 15,
+				"endIndex":   16,
+				"paragraph": map[string]any{
+					"elements": []any{
+						map[string]any{
+							"startIndex": 15,
+							"endIndex":   16,
+							"textRun":    map[string]any{"content": "\n"},
+						},
+					},
+				},
+			},
+			map[string]any{
+				"startIndex": 16,
+				"endIndex":   17,
+				"paragraph": map[string]any{
+					"elements": []any{
+						map[string]any{
+							"startIndex":          16,
+							"endIndex":            17,
+							"inlineObjectElement": map[string]any{"inlineObjectId": "image1"},
+						},
+					},
+				},
+			},
+		}},
+	}
+	srv := newDocsRawTestServer(t, 0, response)
+	defer srv.Close()
+	installMockDocsService(t, srv)
+
+	ctx := outfmt.WithMode(rawTestContext(t), outfmt.Mode{JSON: true})
+	out := captureStdout(t, func() {
+		if err := runKong(t, &DocsParagraphsListCmd{}, []string{"doc1"}, ctx, &RootFlags{Account: "a@b.com"}); err != nil {
+			t.Fatalf("run: %v", err)
+		}
+	})
+
+	var got struct {
+		Paragraphs []docsParagraphInspectItem `json:"paragraphs"`
+	}
+	if err := json.Unmarshal([]byte(out), &got); err != nil {
+		t.Fatalf("unmarshal: %v\n%s", err, out)
+	}
+	if len(got.Paragraphs) != 3 {
+		t.Fatalf("paragraphs = %#v", got.Paragraphs)
+	}
+
+	first := got.Paragraphs[0]
+	if first.IsEmpty || first.Text != "Alpha link🐢" || len(first.Runs) != 3 {
+		t.Fatalf("first paragraph = %#v", first)
+	}
+	if !first.Runs[0].Bold || first.Runs[0].Italic || first.Runs[0].Link != nil {
+		t.Fatalf("bold run = %#v", first.Runs[0])
+	}
+	linkRun := first.Runs[1]
+	if linkRun.Bold || !linkRun.Italic || !linkRun.Underline || !linkRun.Strikethrough ||
+		linkRun.Link == nil || linkRun.Link.URL != "https://example.com" {
+		t.Fatalf("link run = %#v", linkRun)
+	}
+	if first.Runs[2].StartIndex != 11 || first.Runs[2].EndIndex != 14 || first.Runs[2].Text != "🐢\n" {
+		t.Fatalf("UTF-16 run = %#v", first.Runs[2])
+	}
+	if !got.Paragraphs[1].IsEmpty || len(got.Paragraphs[1].Runs) != 1 {
+		t.Fatalf("blank paragraph = %#v", got.Paragraphs[1])
+	}
+	if got.Paragraphs[2].IsEmpty || len(got.Paragraphs[2].Runs) != 0 {
+		t.Fatalf("inline-object paragraph = %#v", got.Paragraphs[2])
+	}
+}
+
+func TestDocsParagraphRunLinkFrom(t *testing.T) {
+	tests := []struct {
+		name string
+		link *docs.Link
+		want docsParagraphRunLink
+	}{
+		{
+			name: "legacy bookmark",
+			link: &docs.Link{BookmarkId: "bookmark1"},
+			want: docsParagraphRunLink{BookmarkID: "bookmark1"},
+		},
+		{
+			name: "tab-aware bookmark",
+			link: &docs.Link{Bookmark: &docs.BookmarkLink{Id: "bookmark2", TabId: "tab1"}},
+			want: docsParagraphRunLink{BookmarkID: "bookmark2", TabID: "tab1"},
+		},
+		{
+			name: "tab-aware heading",
+			link: &docs.Link{Heading: &docs.HeadingLink{Id: "heading1", TabId: "tab2"}},
+			want: docsParagraphRunLink{HeadingID: "heading1", TabID: "tab2"},
+		},
+		{
+			name: "tab",
+			link: &docs.Link{TabId: "tab3"},
+			want: docsParagraphRunLink{TabID: "tab3"},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got := docsParagraphRunLinkFrom(test.link)
+			if got == nil || *got != test.want {
+				t.Fatalf("link = %#v, want %#v", got, test.want)
+			}
+		})
+	}
+	if got := docsParagraphRunLinkFrom(&docs.Link{}); got != nil {
+		t.Fatalf("empty link = %#v, want nil", got)
 	}
 }
 
