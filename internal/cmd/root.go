@@ -95,8 +95,8 @@ type CLI struct {
 	YouTube       YouTubeCmd            `cmd:"" name:"youtube" aliases:"yt" help:"YouTube Data API (search, activities, videos, playlists, comments, channels)"`
 	Photos        PhotosCmd             `cmd:"" name:"photos" aliases:"photo" help:"Google Photos Library and Picker APIs"`
 	Config        ConfigCmd             `cmd:"" help:"Manage configuration"`
-	ExitCodes     AgentExitCodesCmd     `cmd:"" name:"exit-codes" aliases:"exitcodes" help:"Print stable exit codes (alias for 'agent exit-codes')"`
-	Agent         AgentCmd              `cmd:"" help:"Agent-friendly helpers"`
+	Capabilities  CapabilitiesCmd       `cmd:"" help:"Print runtime capabilities and safety state"`
+	ExitCodes     ExitCodesCmd          `cmd:"" name:"exit-codes" aliases:"exitcodes" help:"Print stable exit codes for automation"`
 	Schema        SchemaCmd             `cmd:"" help:"Machine-readable command/flag schema" aliases:"help-json,helpjson"`
 	Mcp           McpCmd                `cmd:"" name:"mcp" help:"Run a typed, allowlisted MCP server over stdio"`
 	VersionCmd    VersionCmd            `cmd:"" name:"version" help:"Print version"`

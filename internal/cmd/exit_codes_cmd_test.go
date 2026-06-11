@@ -8,11 +8,11 @@ import (
 	"github.com/steipete/gogcli/internal/outfmt"
 )
 
-func TestAgentExitCodes_JSON(t *testing.T) {
+func TestExitCodesJSON(t *testing.T) {
 	ctx := outfmt.WithMode(context.Background(), outfmt.Mode{JSON: true})
 
 	out := captureStdout(t, func() {
-		if err := (&AgentExitCodesCmd{}).Run(ctx); err != nil {
+		if err := (&ExitCodesCmd{}).Run(ctx); err != nil {
 			t.Fatalf("Run: %v", err)
 		}
 	})

@@ -88,7 +88,8 @@ error messages can reference it.
 
 Allows reading, searching, drafting, labeling, archiving, organizing files, and
 other low-risk recoverable actions. Blocks sends, deletes, sharing changes, admin
-operations, and auth writes.
+operations, and auth writes. Keeps `capabilities`, `schema`, and `exit-codes`
+available for runtime discovery.
 
 Good for:
 
@@ -100,7 +101,8 @@ Good for:
 `safety-profiles/readonly.yaml`
 
 Allows read/list/search/get style commands only. Blocks mutations, sends, deletes,
-sharing changes, auth writes, and local config writes.
+sharing changes, auth writes, and local config writes. Keeps `capabilities`,
+`schema`, and `exit-codes` available for runtime discovery.
 
 Good for:
 

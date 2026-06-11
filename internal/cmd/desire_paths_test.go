@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-func TestRootDesirePaths_HelpParses(t *testing.T) {
+func TestRootDesirePathsHelpParses(t *testing.T) {
 	tests := [][]string{
 		{"send", "--help"},
 		{"ls", "--help"},
@@ -19,8 +19,8 @@ func TestRootDesirePaths_HelpParses(t *testing.T) {
 		{"status", "--help"},
 		{"me", "--help"},
 		{"whoami", "--help"},
+		{"capabilities", "--help"},
 		{"exit-codes", "--help"},
-		{"agent", "--help"},
 	}
 
 	for _, args := range tests {

@@ -1,22 +1,18 @@
-# `gog agent`
+# `gog capabilities`
 
 > Generated from `gog schema --json`. Do not edit this page by hand; run `make docs-commands`.
 
-Agent-friendly helpers
+Print runtime capabilities and safety state
 
 ## Usage
 
 ```bash
-gog agent <command> [flags]
+gog capabilities [flags]
 ```
 
 ## Parent
 
 - [gog](gog.md)
-
-## Subcommands
-
-- [gog agent exit-codes](gog-agent-exit-codes.md) - Print stable exit codes for automation
 
 ## Flags
 
@@ -34,6 +30,8 @@ gog agent <command> [flags]
 | `--gmail-no-send` | `bool` | false | Block Gmail send operations (agent safety) |
 | `-h`<br>`--help` | `kong.helpFlag` |  | Show context-sensitive help. |
 | `--home` | `string` |  | Override gogcli config/data/state/cache root (equivalent to GOG_HOME) |
+| `--include-account` | `bool` |  | Include the selected account identity |
+| `--include-auth` | `bool` |  | Inspect the selected credential and include granted services, scopes, and token expiry |
 | `-j`<br>`--json`<br>`--machine` | `bool` | false | Output JSON to stdout (best for scripting) |
 | `--no-input`<br>`--non-interactive`<br>`--noninteractive` | `bool` |  | Never prompt; fail instead (useful for CI) |
 | `-p`<br>`--plain`<br>`--tsv` | `bool` | false | Output stable, parseable text to stdout (TSV; no colors) |

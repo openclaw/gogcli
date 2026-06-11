@@ -130,6 +130,38 @@ func TestReadonlySafetyProfileBlocksNestedMutations(t *testing.T) {
 	}
 }
 
+func TestBundledSafetyProfilesAllowDiscoveryCommands(t *testing.T) {
+	setTestConfigHome(t)
+
+	for _, profile := range []string{"agent-safe.yaml", "readonly.yaml"} {
+		profile := profile
+		t.Run(profile, func(t *testing.T) {
+			raw, err := os.ReadFile(filepath.Join("..", "..", "safety-profiles", profile))
+			if err != nil {
+				t.Fatalf("read %s: %v", profile, err)
+			}
+			withBakedSafetyProfile(t, string(raw))
+
+			for _, args := range [][]string{
+				{"capabilities"},
+				{"exit-codes"},
+				{"schema", "capabilities"},
+			} {
+				out := captureStdout(t, func() {
+					_ = captureStderr(t, func() {
+						if err := Execute(args); err != nil {
+							t.Fatalf("Execute(%v): %v", args, err)
+						}
+					})
+				})
+				if strings.TrimSpace(out) == "" {
+					t.Fatalf("Execute(%v) produced no output", args)
+				}
+			}
+		})
+	}
+}
+
 func TestReadonlySafetyProfileFiltersHelp(t *testing.T) {
 	setTestConfigHome(t)
 	raw, err := os.ReadFile(filepath.Join("..", "..", "safety-profiles", "readonly.yaml"))

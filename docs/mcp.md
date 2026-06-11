@@ -14,6 +14,10 @@ The server registers a small set of typed tools such as `gmail_search`,
 specific `gog` operation, and returns a structured result containing the tool
 name, service, risk level, exit code, parsed stdout, and stderr.
 
+The local `gog_capabilities` tool reports the server's enabled tool set and
+active safety controls. It accepts no disclosure arguments, does not inspect
+the keyring, and does not return account identity or credential metadata.
+
 ## Quick start
 
 Start a read-only server for one account:
@@ -110,6 +114,7 @@ Read tools:
 
 | Tool | Purpose |
 | --- | --- |
+| `gog_capabilities` | Inspect redacted server safety state and the enabled MCP tool surface. |
 | `gmail_search` | Search Gmail messages with Gmail query syntax. |
 | `gmail_get_message` | Read one Gmail message by ID. Sanitized content is on by default. |
 | `gmail_get_thread` | Read one Gmail thread by ID. Sanitized content is on by default. |
@@ -128,6 +133,13 @@ Write tools, hidden unless `--allow-write`:
 
 The generated command reference for the server itself is
 [`gog mcp`](commands/gog-mcp.md).
+
+When `--allow-tool` is present, include `gog_capabilities` or the `gog`
+service selector if the client needs runtime discovery:
+
+```bash
+gog mcp --allow-tool gog_capabilities,docs_get
+```
 
 ## Client configuration
 

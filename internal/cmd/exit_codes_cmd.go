@@ -9,9 +9,9 @@ import (
 	"github.com/steipete/gogcli/internal/outfmt"
 )
 
-type AgentExitCodesCmd struct{}
+type ExitCodesCmd struct{}
 
-func (c *AgentExitCodesCmd) Run(ctx context.Context) error {
+func (c *ExitCodesCmd) Run(ctx context.Context) error {
 	// Always emit untransformed JSON, even if the caller enabled global JSON transforms.
 	ctx = outfmt.WithJSONTransform(ctx, outfmt.JSONTransform{})
 
@@ -34,7 +34,6 @@ func (c *AgentExitCodesCmd) Run(ctx context.Context) error {
 		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{"exit_codes": codes})
 	}
 
-	// Plain output is TSV so it's easily machine-parsed.
 	if outfmt.IsPlain(ctx) {
 		keys := make([]string, 0, len(codes))
 		for k := range codes {
@@ -45,11 +44,9 @@ func (c *AgentExitCodesCmd) Run(ctx context.Context) error {
 		for _, k := range keys {
 			_, _ = os.Stdout.WriteString(k + "\t" + strconv.Itoa(codes[k]) + "\n")
 		}
-
 		return nil
 	}
 
-	// Human output.
 	keys := make([]string, 0, len(codes))
 	for k := range codes {
 		keys = append(keys, k)

@@ -17,13 +17,13 @@ gog <command> [flags]
 ## Subcommands
 
 - [gog admin](gog-admin.md) - Google Workspace Admin (Directory API) - requires domain-wide delegation
-- [gog agent](gog-agent.md) - Agent-friendly helpers
 - [gog analytics](gog-analytics.md) - Google Analytics
 - [gog appscript](gog-appscript.md) - Google Apps Script
 - [gog auth](gog-auth.md) - Auth and credentials
 - [gog backup](gog-backup.md) - Encrypted Google account backups
 - [gog batch](gog-batch.md) - Build and submit persisted Google Docs request batches
 - [gog calendar](gog-calendar.md) - Google Calendar
+- [gog capabilities](gog-capabilities.md) - Print runtime capabilities and safety state
 - [gog chat](gog-chat.md) - Google Chat
 - [gog classroom](gog-classroom.md) - Google Classroom
 - [gog completion](gog-completion.md) - Generate shell completion scripts
@@ -32,7 +32,7 @@ gog <command> [flags]
 - [gog docs](gog-docs.md) - Google Docs (export via Drive)
 - [gog download](gog-download.md) - Download a Drive file (alias for 'drive download')
 - [gog drive](gog-drive.md) - Google Drive
-- [gog exit-codes](gog-exit-codes.md) - Print stable exit codes (alias for 'agent exit-codes')
+- [gog exit-codes](gog-exit-codes.md) - Print stable exit codes for automation
 - [gog forms](gog-forms.md) - Google Forms
 - [gog gmail](gog-gmail.md) - Gmail
 - [gog groups](gog-groups.md) - Google Groups

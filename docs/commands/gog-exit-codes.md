@@ -2,7 +2,7 @@
 
 > Generated from `gog schema --json`. Do not edit this page by hand; run `make docs-commands`.
 
-Print stable exit codes (alias for 'agent exit-codes')
+Print stable exit codes for automation
 
 ## Usage
 

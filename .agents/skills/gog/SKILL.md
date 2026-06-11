@@ -15,6 +15,8 @@ state before acting.
 gog --version
 gog auth list --check --json --no-input
 gog auth doctor --check --json --no-input
+gog capabilities --json
+gog exit-codes --json
 gog schema --json
 ```
 

@@ -2,10 +2,9 @@ name: readonly
 description: Read/list/search/get commands only. Mutations, sends, deletes, sharing, and auth writes are blocked.
 
 version: true
+capabilities: true
 schema: true
 exit-codes: true
-agent:
-  exit-codes: true
 
 gmail:
   search: true

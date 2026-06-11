@@ -37,6 +37,7 @@ gog slides create-from-markdown "Weekly update" --content-file slides.md
 
 - **One binary, every API.** Gmail, Calendar, Drive, Docs, Sheets, Slides, Forms, Apps Script, Contacts, People, Tasks, Classroom, Chat, Groups, Keep, and Workspace Admin.
 - **Stable output.** `--json` for scripts, `--plain` TSV for `awk`, human output on stderr.
+- **Runtime discovery.** `gog capabilities --json`, `gog schema --json`, and `gog exit-codes --json` expose process safety, command shape, and stable status contracts.
 - **Multi-account, multi-client.** Many Google accounts and OAuth client projects in one config; OAuth, direct access tokens, ADC, and Workspace service accounts all supported.
 - **Built for agents.** Runtime allow/deny lists (`--enable-commands`, `--disable-commands`, `--gmail-no-send`) plus baked safety-profile binaries that cannot be reconfigured at runtime.
 - **Read-only audits.** Drive `tree`, `du`, `inventory`; Contacts `dedupe` preview; raw API JSON dumps without ever mutating remote state.
@@ -47,6 +48,7 @@ gog slides create-from-markdown "Weekly update" --content-file slides.md
 - **Trying it.** [Install](install.md) → [Quickstart](quickstart.md). Five minutes from `brew install` to your first authenticated query.
 - **Wiring up an agent.** [Safety Profiles](safety-profiles.md) and the bundled [`gog` agent skill](https://github.com/openclaw/gogcli/blob/main/.agents/skills/gog/SKILL.md). Lock the binary down before handing it to a model.
 - **Serving MCP tools.** [MCP server](mcp.md) exposes typed, allowlisted tools for agent clients without a generic command bridge.
+- **Discovering runtime contracts.** [Capabilities](capabilities.md) reports output modes, active safety controls, supported auth methods, and companion schema/exit-code commands.
 - **Persisting auth and state.** [Paths and State](paths.md) covers `GOG_HOME`, per-kind directories, XDG paths, and legacy compatibility.
 - **Running Workspace at scale.** [Auth Clients](auth-clients.md) for service accounts, named OAuth clients, and domain-wide delegation.
 - **Managing Workspace.** [Workspace Admin](workspace-admin.md) covers user creation, cleanup, organizational units, and group administration.

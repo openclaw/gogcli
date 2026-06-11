@@ -13,6 +13,7 @@ import (
 
 func mcpAllTools() []mcpToolSpec {
 	return []mcpToolSpec{
+		mcpCapabilitiesTool(),
 		mcpGmailSearchTool(),
 		mcpGmailGetMessageTool(),
 		mcpGmailGetThreadTool(),
@@ -23,6 +24,16 @@ func mcpAllTools() []mcpToolSpec {
 		mcpCalendarEventsTool(),
 		mcpDocsWriteTool(),
 		mcpSheetsUpdateRangeTool(),
+	}
+}
+
+func mcpCapabilitiesTool() mcpToolSpec {
+	return mcpToolSpec{
+		Name:        "gog_capabilities",
+		Service:     "gog",
+		Risk:        mcpRiskRead,
+		Description: "Inspect this gog server's redacted safety state and enabled MCP tool surface.",
+		Handle:      mcpRunCapabilitiesTool,
 	}
 }
 
