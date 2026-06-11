@@ -61,7 +61,7 @@ func bestEffortWebURL(kind string, input string) string {
 	id := openGoogleID(input)
 
 	switch kind {
-	case "drive", colorAuto:
+	case backupServiceDrive, colorAuto:
 		// If it's a known Google URL already, prefer canonicalized forms.
 		if u := parseMaybeURL(input); u != nil {
 			host := strings.ToLower(strings.TrimPrefix(strings.TrimSpace(u.Host), "www."))

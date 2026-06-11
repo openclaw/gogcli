@@ -46,6 +46,7 @@ gog slides create-from-markdown "Weekly update" --content-file slides.md
 
 - **Trying it.** [Install](install.md) → [Quickstart](quickstart.md). Five minutes from `brew install` to your first authenticated query.
 - **Wiring up an agent.** [Safety Profiles](safety-profiles.md) and the bundled [`gog` agent skill](https://github.com/openclaw/gogcli/blob/main/.agents/skills/gog/SKILL.md). Lock the binary down before handing it to a model.
+- **Discovering runtime access.** [Agent capabilities](agent-capabilities.md) reports auth disclosure, active safety rules, and the filtered MCP tool surface without opening the keyring by default.
 - **Serving MCP tools.** [MCP server](mcp.md) exposes typed, allowlisted tools for agent clients without a generic command bridge.
 - **Persisting auth and state.** [Paths and State](paths.md) covers `GOG_HOME`, per-kind directories, XDG paths, and legacy compatibility.
 - **Running Workspace at scale.** [Auth Clients](auth-clients.md) for service accounts, named OAuth clients, and domain-wide delegation.

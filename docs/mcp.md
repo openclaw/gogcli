@@ -14,6 +14,11 @@ The server registers a small set of typed tools such as `gmail_search`,
 specific `gog` operation, and returns a structured result containing the tool
 name, service, risk level, exit code, parsed stdout, and stderr.
 
+The read-only `gog_capabilities` tool is handled inside the server process. It
+reports runtime safety state and the tools actually enabled for that server.
+Credential metadata and account identity remain separate opt-ins. See
+[Agent capabilities](agent-capabilities.md).
+
 ## Quick start
 
 Start a read-only server for one account:
@@ -110,6 +115,7 @@ Read tools:
 
 | Tool | Purpose |
 | --- | --- |
+| `gog_capabilities` | Inspect runtime safety and the enabled MCP tool surface without opening the keyring by default. |
 | `gmail_search` | Search Gmail messages with Gmail query syntax. |
 | `gmail_get_message` | Read one Gmail message by ID. Sanitized content is on by default. |
 | `gmail_get_thread` | Read one Gmail thread by ID. Sanitized content is on by default. |

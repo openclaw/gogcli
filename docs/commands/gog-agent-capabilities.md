@@ -1,23 +1,18 @@
-# `gog agent`
+# `gog agent capabilities`
 
 > Generated from `gog schema --json`. Do not edit this page by hand; run `make docs-commands`.
 
-Agent-friendly helpers
+Print runtime auth and safety capabilities
 
 ## Usage
 
 ```bash
-gog agent <command> [flags]
+gog agent capabilities (auth-info) [flags]
 ```
 
 ## Parent
 
-- [gog](gog.md)
-
-## Subcommands
-
-- [gog agent capabilities](gog-agent-capabilities.md) - Print runtime auth and safety capabilities
-- [gog agent exit-codes](gog-agent-exit-codes.md) - Print stable exit codes for automation
+- [gog agent](gog-agent.md)
 
 ## Flags
 
@@ -35,6 +30,8 @@ gog agent <command> [flags]
 | `--gmail-no-send` | `bool` | false | Block Gmail send operations (agent safety) |
 | `-h`<br>`--help` | `kong.helpFlag` |  | Show context-sensitive help. |
 | `--home` | `string` |  | Override gogcli config/data/state/cache root (equivalent to GOG_HOME) |
+| `--include-account` | `bool` |  | Include the selected account identity in output |
+| `--include-auth` | `bool` |  | Inspect the selected credential and include granted services, scopes, and token expiry |
 | `-j`<br>`--json`<br>`--machine` | `bool` | false | Output JSON to stdout (best for scripting) |
 | `--no-input`<br>`--non-interactive`<br>`--noninteractive` | `bool` |  | Never prompt; fail instead (useful for CI) |
 | `-p`<br>`--plain`<br>`--tsv` | `bool` | false | Output stable, parseable text to stdout (TSV; no colors) |
@@ -46,5 +43,5 @@ gog agent <command> [flags]
 
 ## See Also
 
-- [gog](gog.md)
+- [gog agent](gog-agent.md)
 - [Command index](README.md)

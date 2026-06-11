@@ -15,6 +15,8 @@ It is built for terminals, shell scripts, CI, and coding agents:
 - runtime command allowlists/denylists and baked safety-profile binaries
 - typed [MCP server](docs/mcp.md) for agent clients, read-only by default and
   without a generic command runner
+- offline-by-default [agent capability discovery](docs/agent-capabilities.md)
+  for runtime safety and MCP tool exposure
 - read-only audit/reporting commands for risky surfaces like Drive and Contacts
 - [generated docs](docs/commands/README.md) for every command
 
@@ -25,6 +27,7 @@ Start here:
 - [Install](docs/install.md)
 - [Quickstart](docs/quickstart.md)
 - [Auth clients and service accounts](docs/auth-clients.md)
+- [Agent capabilities](docs/agent-capabilities.md)
 - [MCP server](docs/mcp.md)
 - [Command index](docs/commands/README.md)
 - [Gmail watch / Pub/Sub push](docs/watch.md) (<https://gogcli.sh/watch.html>)

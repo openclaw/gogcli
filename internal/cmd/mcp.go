@@ -38,7 +38,10 @@ type mcpToolSpec struct {
 	Description string
 	Options     []mcp.ToolOption
 	BuildArgs   func(mcp.CallToolRequest) ([]string, error)
+	Handle      mcpInProcessHandler
 }
+
+type mcpInProcessHandler func(context.Context, mcp.CallToolRequest, *RootFlags, []mcpToolSpec) *mcp.CallToolResult
 
 type mcpCommandResult struct {
 	Tool     string `json:"tool"`
@@ -86,6 +89,9 @@ func (c *McpCmd) Run(_ context.Context, flags *RootFlags) error {
 			mcp.WithSchemaAdditionalProperties(false),
 		}, tool.Options...)
 		s.AddTool(mcp.NewTool(tool.Name, opts...), func(reqCtx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			if tool.Handle != nil {
+				return tool.Handle(reqCtx, req, flags, tools), nil
+			}
 			childCommandArgs, buildErr := tool.BuildArgs(req)
 			if buildErr != nil {
 				result := mcp.NewToolResultError(buildErr.Error())
@@ -105,6 +111,20 @@ func (c *McpCmd) Run(_ context.Context, flags *RootFlags) error {
 		})
 	}
 	return server.ServeStdio(s)
+}
+
+func mcpRunCapabilitiesTool(_ context.Context, req mcp.CallToolRequest, flags *RootFlags, tools []mcpToolSpec) *mcp.CallToolResult {
+	snapshot, err := buildAgentCapabilities(flags, agentCapabilitiesOptions{
+		IncludeAuth:    req.GetBool("include_auth", false),
+		IncludeAccount: req.GetBool("include_account", false),
+		MCPTools:       tools,
+	})
+	if err != nil {
+		result := mcp.NewToolResultError(err.Error())
+		result.IsError = true
+		return result
+	}
+	return mcp.NewToolResultStructuredOnly(snapshot)
 }
 
 type mcpRunOptions struct {

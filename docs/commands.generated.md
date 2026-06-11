@@ -23,6 +23,7 @@ Generated from `gog schema --json`.
       - [`gog admin users list (ls) [flags]`](commands/gog-admin-users-list.md) - List users in a domain
       - [`gog admin users suspend <userEmail>`](commands/gog-admin-users-suspend.md) - Suspend a user account
   - [`gog agent <command> [flags]`](commands/gog-agent.md) - Agent-friendly helpers
+    - [`gog agent capabilities (auth-info) [flags]`](commands/gog-agent-capabilities.md) - Print runtime auth and safety capabilities
     - [`gog agent exit-codes (exitcodes,exit-code)`](commands/gog-agent-exit-codes.md) - Print stable exit codes for automation
   - [`gog analytics (ga) <command> [flags]`](commands/gog-analytics.md) - Google Analytics
     - [`gog analytics (ga) accounts (list,ls) [flags]`](commands/gog-analytics-accounts.md) - List GA4 account summaries

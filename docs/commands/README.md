@@ -2,7 +2,7 @@
 
 Every `gog` command has a generated docs page. The source of truth is the live CLI schema; run `make docs-commands` after changing command names, flags, help text, aliases, or arguments.
 
-Generated pages: 618.
+Generated pages: 619.
 
 ## Top-level Commands
 
@@ -75,6 +75,7 @@ Generated pages: 618.
       - [gog admin users list](gog-admin-users-list.md) - List users in a domain
       - [gog admin users suspend](gog-admin-users-suspend.md) - Suspend a user account
   - [gog agent](gog-agent.md) - Agent-friendly helpers
+    - [gog agent capabilities](gog-agent-capabilities.md) - Print runtime auth and safety capabilities
     - [gog agent exit-codes](gog-agent-exit-codes.md) - Print stable exit codes for automation
   - [gog analytics](gog-analytics.md) - Google Analytics
     - [gog analytics accounts](gog-analytics-accounts.md) - List GA4 account summaries

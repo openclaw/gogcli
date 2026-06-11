@@ -13,6 +13,7 @@ import (
 
 func mcpAllTools() []mcpToolSpec {
 	return []mcpToolSpec{
+		mcpCapabilitiesTool(),
 		mcpGmailSearchTool(),
 		mcpGmailGetMessageTool(),
 		mcpGmailGetThreadTool(),
@@ -23,6 +24,20 @@ func mcpAllTools() []mcpToolSpec {
 		mcpCalendarEventsTool(),
 		mcpDocsWriteTool(),
 		mcpSheetsUpdateRangeTool(),
+	}
+}
+
+func mcpCapabilitiesTool() mcpToolSpec {
+	return mcpToolSpec{
+		Name:        "gog_capabilities",
+		Service:     "agent",
+		Risk:        mcpRiskRead,
+		Description: "Inspect this gog process's auth disclosure, safety rules, and enabled MCP tool surface.",
+		Options: []mcp.ToolOption{
+			mcp.WithBoolean("include_auth", mcp.Description("Inspect selected credential metadata; may access the configured keyring"), mcp.DefaultBool(false)),
+			mcp.WithBoolean("include_account", mcp.Description("Include the selected account identity"), mcp.DefaultBool(false)),
+		},
+		Handle: mcpRunCapabilitiesTool,
 	}
 }
 
