@@ -2,6 +2,10 @@
 
 ## 0.24.1 - Unreleased
 
+### Added
+
+- Photos: add an explicit-opt-in Google Photos Picker workflow for creating selection sessions, waiting for completion, listing chosen media, and downloading selected files. (#754)
+
 ## 0.24.0 - 2026-06-11
 
 ### Added

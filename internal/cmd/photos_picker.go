@@ -313,7 +313,7 @@ func waitForPhotosPickerSession(
 		return nil, err
 	}
 	timeout := apiTimeout
-	if maxWait > 0 && (timeout == 0 || maxWait < timeout) {
+	if maxWait > 0 && timeout > 0 && maxWait < timeout {
 		timeout = maxWait
 	}
 	if timeout <= 0 {

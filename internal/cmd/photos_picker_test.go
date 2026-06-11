@@ -197,6 +197,39 @@ func TestPhotosPickerWaitUsesAPITiming(t *testing.T) {
 	}
 }
 
+func TestPhotosPickerWaitHonorsAPIStopSignalWithLocalTimeout(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{
+			"id":"session-1",
+			"pollingConfig":{"pollInterval":"1s","timeoutIn":"0s"}
+		}`)
+	}))
+	defer srv.Close()
+	client := googleapi.NewPhotosPickerClient(srv.Client(), googleapi.WithPhotosPickerBaseURL(srv.URL))
+
+	waitCalls := 0
+	_, err := waitForPhotosPickerSession(
+		context.Background(),
+		client,
+		"session-1",
+		time.Minute,
+		photosPickerWaitRuntime{
+			now: time.Now,
+			wait: func(context.Context, time.Duration) error {
+				waitCalls++
+				return nil
+			},
+		},
+	)
+	if !errors.Is(err, errPhotosPickerWaitTimeout) {
+		t.Fatalf("err = %v", err)
+	}
+	if waitCalls != 0 {
+		t.Fatalf("wait calls = %d, want 0", waitCalls)
+	}
+}
+
 func TestPhotosPickerListRejectsRepeatedPageToken(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
