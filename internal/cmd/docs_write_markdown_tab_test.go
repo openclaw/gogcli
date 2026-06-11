@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"slices"
 	"strings"
 	"testing"
 
@@ -122,6 +123,86 @@ func TestDocsWrite_MarkdownReplaceWithTab(t *testing.T) {
 		if r.TabId != "t.second" {
 			t.Fatalf("formatting request %d range tab = %q, want t.second", i+1, r.TabId)
 		}
+	}
+}
+
+func TestDocsWrite_MarkdownReplaceTableBreaksUsesLocalRenderer(t *testing.T) {
+	origDocs := newDocsService
+	origDrive := newDriveService
+	t.Cleanup(func() {
+		newDocsService = origDocs
+		newDriveService = origDrive
+	})
+
+	getCalls := 0
+	var batches []docs.BatchUpdateDocumentRequest
+	docSvc, cleanup := newDocsServiceForTest(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, "/v1/documents/"):
+			getCalls++
+			w.Header().Set("Content-Type", "application/json")
+			if getCalls == 1 {
+				_ = json.NewEncoder(w).Encode(&docs.Document{
+					DocumentId: "doc1",
+					RevisionId: "rev-1",
+					Body: &docs.Body{Content: []*docs.StructuralElement{{
+						StartIndex: 1,
+						EndIndex:   2,
+						Paragraph:  &docs.Paragraph{},
+					}}},
+				})
+			} else {
+				_ = json.NewEncoder(w).Encode(docsTableOpsTestDocument(docsTableOpsTestElement(1, "", 2, 2)))
+			}
+		case r.Method == http.MethodPost && strings.Contains(r.URL.Path, ":batchUpdate"):
+			var req docs.BatchUpdateDocumentRequest
+			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+				t.Fatalf("decode batch request: %v", err)
+			}
+			batches = append(batches, req)
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{"documentId": "doc1"})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer cleanup()
+
+	newDocsService = func(context.Context, string) (*docs.Service, error) { return docSvc, nil }
+	newDriveService = func(context.Context, string) (*drive.Service, error) {
+		t.Fatal("table-cell breaks must use the local Docs renderer")
+		return nil, errors.New("unexpected Drive service call")
+	}
+
+	markdown := "| Value | Literal |\n| --- | --- |\n| Alice<br>Bob | `<br>` |"
+	if err := runKong(t, &DocsWriteCmd{}, []string{
+		"doc1", "--text", markdown, "--replace", "--markdown",
+	}, newDocsJSONContext(t), &RootFlags{Account: "a@b.com"}); err != nil {
+		t.Fatalf("markdown replace with table breaks: %v", err)
+	}
+
+	if getCalls != 2 {
+		t.Fatalf("GET calls = %d, want 2", getCalls)
+	}
+	if len(batches) != 3 {
+		t.Fatalf("batch calls = %d, want placeholder, table, and cells", len(batches))
+	}
+	var inserted []string
+	var sawCodeStyle bool
+	for _, req := range batches[2].Requests {
+		if req.InsertText != nil {
+			inserted = append(inserted, req.InsertText.Text)
+		}
+		if req.UpdateTextStyle != nil && req.UpdateTextStyle.TextStyle != nil &&
+			req.UpdateTextStyle.TextStyle.WeightedFontFamily != nil {
+			sawCodeStyle = true
+		}
+	}
+	if !slices.Contains(inserted, "Alice\nBob") {
+		t.Fatalf("cell inserts = %#v, missing converted line break", inserted)
+	}
+	if !slices.Contains(inserted, "<br>") || !sawCodeStyle {
+		t.Fatalf("cell inserts = %#v, protected code literal/style missing", inserted)
 	}
 }
 

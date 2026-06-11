@@ -262,6 +262,9 @@ func (c *DocsWriteCmd) writeMarkdown(ctx context.Context, flags *RootFlags, docI
 	}
 
 	cleaned, images := extractMarkdownImages(content)
+	if markdownHasTableCellBreaks(cleaned) {
+		return c.replaceMarkdownInTab(ctx, flags, docID, content)
+	}
 	cleaned = normalizeMarkdownTablesForDriveImport(cleaned)
 	explicitHeadingAnchors := markdownImportExplicitHeadingAnchors(cleaned)
 	cleaned = stripMarkdownHeadingAnchors(cleaned)

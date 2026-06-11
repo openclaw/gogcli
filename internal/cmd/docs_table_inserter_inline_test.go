@@ -77,6 +77,38 @@ func TestBuildTableCellRequests_AppliesInlineItalicAndCode(t *testing.T) {
 	}
 }
 
+func TestBuildTableCellRequests_TableBreaksPreserveInlineStyleRanges(t *testing.T) {
+	rows := parseTableRow("| Alice<br>**Bob** and `<br>` |")
+	if len(rows) != 1 {
+		t.Fatalf("parseTableRow() = %#v, want one cell", rows)
+	}
+
+	reqs, inserted := buildTableCellRequests(rows[0], 100, false, "")
+	if inserted != utf16Len("Alice\nBob and <br>") {
+		t.Fatalf("inserted = %d, want %d", inserted, utf16Len("Alice\nBob and <br>"))
+	}
+	if len(reqs) != 3 {
+		t.Fatalf("expected insert, bold, and code requests, got %d: %#v", len(reqs), reqs)
+	}
+	if got := reqs[0].InsertText; got == nil || got.Text != "Alice\nBob and <br>" {
+		t.Fatalf("InsertText = %#v, want text %q", got, "Alice\nBob and <br>")
+	}
+	bold := reqs[1].UpdateTextStyle
+	if bold == nil || bold.TextStyle == nil || !bold.TextStyle.Bold {
+		t.Fatalf("expected bold UpdateTextStyle, got %#v", reqs[1])
+	}
+	if bold.Range == nil || bold.Range.StartIndex != 106 || bold.Range.EndIndex != 109 {
+		t.Fatalf("bold range = %#v, want [106,109]", bold.Range)
+	}
+	code := reqs[2].UpdateTextStyle
+	if code == nil || code.TextStyle == nil || code.TextStyle.WeightedFontFamily == nil {
+		t.Fatalf("expected code UpdateTextStyle, got %#v", reqs[2])
+	}
+	if code.Range == nil || code.Range.StartIndex != 114 || code.Range.EndIndex != 118 {
+		t.Fatalf("code range = %#v, want [114,118]", code.Range)
+	}
+}
+
 func TestBuildTableCellRequests_HeaderRowAppliesBoldOverWholeCell(t *testing.T) {
 	reqs, inserted := buildTableCellRequests("Field", 10, true, "")
 
