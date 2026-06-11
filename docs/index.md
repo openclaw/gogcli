@@ -49,6 +49,7 @@ gog slides create-from-markdown "Weekly update" --content-file slides.md
 - **Wiring up automation.** [Automation](automation.md), [Safety Profiles](safety-profiles.md), and the bundled [`gog` skill](https://github.com/openclaw/gogcli/blob/main/.agents/skills/gog/SKILL.md). Discover the active contract and lock the binary down before handing it to an untrusted caller.
 - **Serving MCP tools.** [MCP server](mcp.md) exposes typed, allowlisted tools for agent clients without a generic command bridge.
 - **Discovering runtime contracts.** [Automation](automation.md) explains root help, schema metadata, safety controls, and stable exit codes.
+- **Polling local events.** [Drive and Docs polling](polling.md) persists cursors and optionally invokes trusted shell hooks.
 - **Persisting auth and state.** [Paths and State](paths.md) covers `GOG_HOME`, per-kind directories, XDG paths, and legacy compatibility.
 - **Running Workspace at scale.** [Auth Clients](auth-clients.md) for service accounts, named OAuth clients, and domain-wide delegation.
 - **Managing Workspace.** [Workspace Admin](workspace-admin.md) covers user creation, cleanup, organizational units, and group administration.

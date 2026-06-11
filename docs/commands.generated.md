@@ -234,6 +234,7 @@ Generated from `gog schema --json`.
       - [`gog docs (doc) comments get (info,show) <docId> <commentId>`](commands/gog-docs-comments-get.md) - Get a comment by ID
       - [`gog docs (doc) comments list (ls) <docId> [flags]`](commands/gog-docs-comments-list.md) - List comments on a Google Doc
       - [`gog docs (doc) comments locate <docId> <commentId> [flags]`](commands/gog-docs-comments-locate.md) - Resolve a comment quote to Docs API index ranges
+      - [`gog docs (doc) comments poll --state-file=STRING <docId> [flags]`](commands/gog-docs-comments-poll.md) - Poll new and modified comments with persisted state
       - [`gog docs (doc) comments reopen <docId> <commentId> [flags]`](commands/gog-docs-comments-reopen.md) - Reopen a previously resolved comment
       - [`gog docs (doc) comments reply (respond) <docId> <commentId> <content> [flags]`](commands/gog-docs-comments-reply.md) - Reply to a comment
       - [`gog docs (doc) comments resolve <docId> <commentId> [flags]`](commands/gog-docs-comments-resolve.md) - Resolve a comment (mark as done)
@@ -301,6 +302,7 @@ Generated from `gog schema --json`.
       - [`gog drive (drv) bulk update-role [flags]`](commands/gog-drive-bulk-update-role.md) - Change matching Drive permission roles across files
     - [`gog drive (drv) changes <command>`](commands/gog-drive-changes.md) - Track Drive changes for sync and automation
       - [`gog drive (drv) changes list (ls) --token=STRING [flags]`](commands/gog-drive-changes-list.md) - List Drive changes since a page token
+      - [`gog drive (drv) changes poll --state-file=STRING [flags]`](commands/gog-drive-changes-poll.md) - Poll Drive changes with a persisted page token
       - [`gog drive (drv) changes start-token (token) [flags]`](commands/gog-drive-changes-start-token.md) - Get a Drive changes start page token
       - [`gog drive (drv) changes stop <channelId> <resourceId>`](commands/gog-drive-changes-stop.md) - Stop a Drive changes webhook channel
       - [`gog drive (drv) changes watch --token=STRING --webhook-url=STRING [flags]`](commands/gog-drive-changes-watch.md) - Watch Drive changes with a webhook channel

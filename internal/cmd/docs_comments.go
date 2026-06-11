@@ -12,6 +12,7 @@ import (
 // DocsCommentsCmd is the parent command for comment operations on a Google Doc.
 type DocsCommentsCmd struct {
 	List    DocsCommentsListCmd    `cmd:"" name:"list" aliases:"ls" help:"List comments on a Google Doc"`
+	Poll    DocsCommentsPollCmd    `cmd:"" name:"poll" help:"Poll new and modified comments with persisted state"`
 	Get     DocsCommentsGetCmd     `cmd:"" name:"get" aliases:"info,show" help:"Get a comment by ID"`
 	Add     DocsCommentsAddCmd     `cmd:"" name:"add" aliases:"create,new" help:"Add a comment to a Google Doc"`
 	Locate  DocsCommentsLocateCmd  `cmd:"" name:"locate" help:"Resolve a comment quote to Docs API index ranges"`

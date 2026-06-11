@@ -230,6 +230,7 @@ Flag aliases:
 - `gog drive drives [--max N] [--page TOKEN] [--query Q]`
 - `gog drive changes start-token [--drive DRIVE_ID]`
 - `gog drive changes list --token TOKEN [--max N] [--all] [--drive DRIVE_ID]`
+- `gog drive changes poll --state-file PATH [--interval DURATION] [--on-change COMMAND] [--filter-file FILE_ID] [--drive DRIVE_ID]`
 - `gog drive changes watch --token TOKEN --webhook-url URL [--channel-id ID] [--channel-token TOKEN]`
 - `gog drive changes stop <channelId> <resourceId>`
 - `gog drive activity query [--file FILE_ID|--folder FOLDER_ID] [--actions edit,share] [--from RFC3339] [--to RFC3339] [--filter FILTER]`
