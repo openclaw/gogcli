@@ -39,14 +39,14 @@ gog slides create-from-markdown "Weekly update" --content-file slides.md
 - **Stable output.** `--json` for scripts, `--plain` TSV for `awk`, human output on stderr.
 - **Runtime discovery.** `gog capabilities --json`, `gog schema --json`, and `gog exit-codes --json` expose process safety, command shape, and stable status contracts.
 - **Multi-account, multi-client.** Many Google accounts and OAuth client projects in one config; OAuth, direct access tokens, ADC, and Workspace service accounts all supported.
-- **Built for agents.** Runtime allow/deny lists (`--enable-commands`, `--disable-commands`, `--gmail-no-send`) plus baked safety-profile binaries that cannot be reconfigured at runtime.
+- **One automation contract.** Humans, scripts, CI, and agents use the same commands, with JSON/TSV output, non-interactive operation, stable exit codes, untrusted-content wrapping, runtime command guards, and baked safety profiles.
 - **Read-only audits.** Drive `tree`, `du`, `inventory`; Contacts `dedupe` preview; raw API JSON dumps without ever mutating remote state.
 - **Generated reference.** Every command has a docs page produced from `gog schema --json`.
 
 ## Pick your path
 
 - **Trying it.** [Install](install.md) → [Quickstart](quickstart.md). Five minutes from `brew install` to your first authenticated query.
-- **Wiring up an agent.** [Safety Profiles](safety-profiles.md) and the bundled [`gog` agent skill](https://github.com/openclaw/gogcli/blob/main/.agents/skills/gog/SKILL.md). Lock the binary down before handing it to a model.
+- **Wiring up automation.** [Capabilities](capabilities.md), [Safety Profiles](safety-profiles.md), and the bundled [`gog` skill](https://github.com/openclaw/gogcli/blob/main/.agents/skills/gog/SKILL.md). Discover the active contract and lock the binary down before handing it to an untrusted caller.
 - **Serving MCP tools.** [MCP server](mcp.md) exposes typed, allowlisted tools for agent clients without a generic command bridge.
 - **Discovering runtime contracts.** [Capabilities](capabilities.md) reports output modes, active safety controls, supported auth methods, and companion schema/exit-code commands.
 - **Persisting auth and state.** [Paths and State](paths.md) covers `GOG_HOME`, per-kind directories, XDG paths, and legacy compatibility.

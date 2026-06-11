@@ -20,6 +20,11 @@ gog exit-codes --json
 gog schema --json
 ```
 
+`gog` has no separate agent mode. Its machine output, non-interactive behavior,
+stable exit codes, command guards, and untrusted-content wrapping apply across
+the CLI. Use `capabilities` to inspect the effective invocation, `schema` to
+discover command syntax, and `exit-codes` to branch without parsing stderr.
+
 Pick the account explicitly for API work:
 
 ```bash

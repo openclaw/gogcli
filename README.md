@@ -413,6 +413,13 @@ supported auth methods, and discovery commands without opening the keyring by
 default. `--include-auth` explicitly inspects selected credential metadata;
 `--include-account` explicitly includes the account identity.
 
+There is no separate agent mode. The same CLI is designed for interactive use,
+scripts, CI, and agents: `--json`/`--plain` keep stdout parseable, `--no-input`
+prevents prompts, stable exit codes classify failures, `--wrap-untrusted`
+marks fetched free text, and runtime or baked command policies constrain
+available operations. See [Runtime capabilities](docs/capabilities.md) for the
+field contract, disclosure rules, exit-code map, and automation preflight.
+
 Useful global flags:
 
 - `--account <email|alias|auto>`: select an account
