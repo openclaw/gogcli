@@ -105,6 +105,7 @@ func injectAutomationHelp(out string, selected *kong.Node) string {
 
 	const section = `Automation:
   Use --json or --plain for stable output; --no-input disables prompts.
+  Use "gog help <command>" or "gog <command> --help" for command help.
   Exit codes: 0 success, 1 error, 2 usage, 3 empty, 4 auth, 5 not found,
     6 denied, 7 rate limited, 8 retryable, 10 config, 11 orphaned,
     130 interrupted.

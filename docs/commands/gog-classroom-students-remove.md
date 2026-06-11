@@ -7,7 +7,7 @@ Remove a student
 ## Usage
 
 ```bash
-gog classroom (class) students (student) remove (delete,rm,del,remove) <courseId> <userId>
+gog classroom (class) students (student) remove (delete,rm,del) <courseId> <userId>
 ```
 
 ## Parent

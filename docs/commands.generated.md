@@ -174,7 +174,7 @@ Generated from `gog schema --json`.
       - [`gog classroom (class) students (student) add (create,new) <courseId> <userId> [flags]`](commands/gog-classroom-students-add.md) - Add a student
       - [`gog classroom (class) students (student) get (info,show) <courseId> <userId>`](commands/gog-classroom-students-get.md) - Get a student
       - [`gog classroom (class) students (student) list (ls) <courseId> [flags]`](commands/gog-classroom-students-list.md) - List students
-      - [`gog classroom (class) students (student) remove (delete,rm,del,remove) <courseId> <userId>`](commands/gog-classroom-students-remove.md) - Remove a student
+      - [`gog classroom (class) students (student) remove (delete,rm,del) <courseId> <userId>`](commands/gog-classroom-students-remove.md) - Remove a student
     - [`gog classroom (class) submissions (submission) <command>`](commands/gog-classroom-submissions.md) - Student submissions
       - [`gog classroom (class) submissions (submission) get (info,show) <courseId> <courseworkId> <submissionId>`](commands/gog-classroom-submissions-get.md) - Get a student submission
       - [`gog classroom (class) submissions (submission) grade (set,edit) <courseId> <courseworkId> <submissionId> [flags]`](commands/gog-classroom-submissions-grade.md) - Set draft/assigned grades
@@ -186,7 +186,7 @@ Generated from `gog schema --json`.
       - [`gog classroom (class) teachers (teacher) add (create,new) <courseId> <userId>`](commands/gog-classroom-teachers-add.md) - Add a teacher
       - [`gog classroom (class) teachers (teacher) get (info,show) <courseId> <userId>`](commands/gog-classroom-teachers-get.md) - Get a teacher
       - [`gog classroom (class) teachers (teacher) list (ls) <courseId> [flags]`](commands/gog-classroom-teachers-list.md) - List teachers
-      - [`gog classroom (class) teachers (teacher) remove (delete,rm,del,remove) <courseId> <userId>`](commands/gog-classroom-teachers-remove.md) - Remove a teacher
+      - [`gog classroom (class) teachers (teacher) remove (delete,rm,del) <courseId> <userId>`](commands/gog-classroom-teachers-remove.md) - Remove a teacher
     - [`gog classroom (class) topics (topic) <command>`](commands/gog-classroom-topics.md) - Topics
       - [`gog classroom (class) topics (topic) create (add,new) --name=STRING <courseId>`](commands/gog-classroom-topics-create.md) - Create a topic
       - [`gog classroom (class) topics (topic) delete (rm,del,remove) <courseId> <topicId>`](commands/gog-classroom-topics-delete.md) - Delete a topic

@@ -52,6 +52,96 @@ func TestExecute_NoArgsShowsHelp(t *testing.T) {
 	}
 }
 
+func TestExecute_HelpCommand(t *testing.T) {
+	out := captureStdout(t, func() {
+		_ = captureStderr(t, func() {
+			if err := Execute([]string{"help", "drive", "ls"}); err != nil {
+				t.Fatalf("Execute: %v", err)
+			}
+		})
+	})
+	if !strings.Contains(out, "Usage: gog drive (drv) ls") {
+		t.Fatalf("unexpected command help: %q", out)
+	}
+}
+
+func TestExecute_HelpIgnoresTrailingArguments(t *testing.T) {
+	out := captureStdout(t, func() {
+		_ = captureStderr(t, func() {
+			if err := Execute([]string{"--help", "nonsense"}); err != nil {
+				t.Fatalf("Execute: %v", err)
+			}
+		})
+	})
+	if !strings.Contains(out, "Usage: gog <command>") {
+		t.Fatalf("unexpected root help: %q", out)
+	}
+}
+
+func TestExecute_EarlyUsageErrorsPrintToStderr(t *testing.T) {
+	tests := []struct {
+		name string
+		args []string
+		want string
+	}{
+		{name: "conflicting output modes", args: []string{"--json", "--plain", "version"}, want: "cannot combine --json and --plain"},
+		{name: "invalid color", args: []string{"--color", "bogus", "version"}, want: "expected auto|always|never"},
+		{name: "results only without json", args: []string{"--results-only", "version"}, want: "--results-only requires --json"},
+		{name: "select without json", args: []string{"--select", "version", "version"}, want: "--select requires --json"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var runErr error
+			errText := captureStderr(t, func() {
+				_ = captureStdout(t, func() {
+					runErr = Execute(tt.args)
+				})
+			})
+			if runErr == nil || ExitCode(runErr) != 2 {
+				t.Fatalf("expected usage error, got %v", runErr)
+			}
+			if !strings.Contains(errText, tt.want) {
+				t.Fatalf("stderr = %q, want %q", errText, tt.want)
+			}
+		})
+	}
+}
+
+func TestExecute_ExplicitOutputModeOverridesEnvironment(t *testing.T) {
+	tests := []struct {
+		name     string
+		envName  string
+		args     []string
+		wantJSON bool
+	}{
+		{name: "plain overrides json env", envName: "GOG_JSON", args: []string{"--plain", "version"}},
+		{name: "tsv alias overrides json env", envName: "GOG_JSON", args: []string{"--tsv", "version"}},
+		{name: "json overrides plain env", envName: "GOG_PLAIN", args: []string{"--json", "version"}, wantJSON: true},
+		{name: "machine alias overrides plain env", envName: "GOG_PLAIN", args: []string{"--machine", "version"}, wantJSON: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("GOG_JSON", "")
+			t.Setenv("GOG_PLAIN", "")
+			t.Setenv(tt.envName, "1")
+
+			var runErr error
+			out := captureStdout(t, func() {
+				_ = captureStderr(t, func() {
+					runErr = Execute(tt.args)
+				})
+			})
+			if runErr != nil {
+				t.Fatalf("Execute: %v", runErr)
+			}
+			gotJSON := strings.HasPrefix(strings.TrimSpace(out), "{")
+			if gotJSON != tt.wantJSON {
+				t.Fatalf("output = %q, JSON = %v, want %v", out, gotJSON, tt.wantJSON)
+			}
+		})
+	}
+}
+
 func TestExecute_Help_GmailHasGroupsAndRelativeCommands(t *testing.T) {
 	out := captureStdout(t, func() {
 		_ = captureStderr(t, func() {

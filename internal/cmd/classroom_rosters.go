@@ -16,7 +16,7 @@ type ClassroomStudentsCmd struct {
 	List   ClassroomStudentsListCmd   `cmd:"" default:"withargs" aliases:"ls" help:"List students"`
 	Get    ClassroomStudentsGetCmd    `cmd:"" aliases:"info,show" help:"Get a student"`
 	Add    ClassroomStudentsAddCmd    `cmd:"" aliases:"create,new" help:"Add a student"`
-	Remove ClassroomStudentsRemoveCmd `cmd:"" aliases:"delete,rm,del,remove" help:"Remove a student"`
+	Remove ClassroomStudentsRemoveCmd `cmd:"" aliases:"delete,rm,del" help:"Remove a student"`
 }
 
 type ClassroomStudentsListCmd struct {
@@ -244,7 +244,7 @@ type ClassroomTeachersCmd struct {
 	List   ClassroomTeachersListCmd   `cmd:"" default:"withargs" aliases:"ls" help:"List teachers"`
 	Get    ClassroomTeachersGetCmd    `cmd:"" aliases:"info,show" help:"Get a teacher"`
 	Add    ClassroomTeachersAddCmd    `cmd:"" aliases:"create,new" help:"Add a teacher"`
-	Remove ClassroomTeachersRemoveCmd `cmd:"" aliases:"delete,rm,del,remove" help:"Remove a teacher"`
+	Remove ClassroomTeachersRemoveCmd `cmd:"" aliases:"delete,rm,del" help:"Remove a teacher"`
 }
 
 type ClassroomTeachersListCmd struct {

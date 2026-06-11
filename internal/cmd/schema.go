@@ -96,6 +96,10 @@ type schemaArg struct {
 }
 
 func (c *SchemaCmd) Run(ctx context.Context, kctx *kong.Context, flags *RootFlags) error {
+	if outfmt.IsPlain(ctx) {
+		return usage("schema does not support --plain; omit it or use --json")
+	}
+
 	// Schema is trusted local metadata and must not inherit result transforms.
 	ctx = outfmt.WithJSONTransform(ctx, outfmt.JSONTransform{})
 	ctx = outfmt.WithUntrustedWrapper(ctx, outfmt.UntrustedWrapOptions{})

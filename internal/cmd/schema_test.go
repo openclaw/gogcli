@@ -77,6 +77,7 @@ func TestExecute_SchemaIncludesAutomationContract(t *testing.T) {
 	if doc.Command == nil || doc.Command.Name != "gog" {
 		t.Fatalf("schema command metadata was transformed: %#v", doc.Command)
 	}
+	assertSchemaAliases(t, doc.Command)
 	if !doc.Automation.Safety.DryRun || !doc.Automation.Safety.NoInput || !doc.Automation.Safety.WrapUntrusted || !doc.Automation.Safety.GmailNoSend {
 		t.Fatalf("safety = %#v", doc.Automation.Safety)
 	}
@@ -85,6 +86,38 @@ func TestExecute_SchemaIncludesAutomationContract(t *testing.T) {
 	}
 	if got := strings.Join(doc.Automation.Safety.CommandRules.Disabled, ","); got != "gmail.send" {
 		t.Fatalf("disabled = %q", got)
+	}
+}
+
+func TestExecute_SchemaRejectsPlainMode(t *testing.T) {
+	var runErr error
+	errText := captureStderr(t, func() {
+		_ = captureStdout(t, func() {
+			runErr = Execute([]string{"schema", "--plain"})
+		})
+	})
+	if runErr == nil || ExitCode(runErr) != 2 {
+		t.Fatalf("expected usage error, got %v", runErr)
+	}
+	if !strings.Contains(errText, "schema does not support --plain") {
+		t.Fatalf("unexpected stderr: %q", errText)
+	}
+}
+
+func assertSchemaAliases(t *testing.T, node *schemaNode) {
+	t.Helper()
+	seen := make(map[string]bool, len(node.Aliases))
+	for _, alias := range node.Aliases {
+		if alias == node.Name {
+			t.Fatalf("%s repeats canonical name %q as an alias", node.Path, alias)
+		}
+		if seen[alias] {
+			t.Fatalf("%s repeats alias %q", node.Path, alias)
+		}
+		seen[alias] = true
+	}
+	for _, child := range node.Subcommands {
+		assertSchemaAliases(t, child)
 	}
 }
 

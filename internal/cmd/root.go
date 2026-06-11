@@ -108,6 +108,7 @@ func Execute(args []string) (err error) {
 	if len(args) == 0 {
 		args = []string{"--help"}
 	}
+	args = rewriteHelpArgs(args)
 	args = rewriteDesirePathArgs(args)
 	args = rewriteDocsCellUpdateContentArgs(args)
 
@@ -115,7 +116,7 @@ func Execute(args []string) (err error) {
 	if home, ok := preScanHomeArg(args); ok {
 		restoreHome, homeErr := config.SetHomeOverride(home)
 		if homeErr != nil {
-			return newUsageError(homeErr)
+			return reportEarlyError(newUsageError(homeErr))
 		}
 		preHomeApplied = true
 		defer restoreHome()
@@ -123,7 +124,7 @@ func Execute(args []string) (err error) {
 
 	parser, cli, err := newParser(helpDescription())
 	if err != nil {
-		return err
+		return reportEarlyError(err)
 	}
 
 	defer func() {
@@ -142,33 +143,28 @@ func Execute(args []string) (err error) {
 
 	kctx, err := parser.Parse(args)
 	if err != nil {
-		parsedErr := wrapParseError(err)
-		_, _ = fmt.Fprintln(os.Stderr, errfmt.Format(parsedErr))
-		return parsedErr
+		return reportEarlyError(wrapParseError(err))
 	}
+	applyExplicitOutputModePrecedence(kctx, &cli.RootFlags)
 	if !preHomeApplied && strings.TrimSpace(cli.Home) != "" {
 		restoreHome, homeErr := config.SetHomeOverride(cli.Home)
 		if homeErr != nil {
-			return newUsageError(homeErr)
+			return reportEarlyError(newUsageError(homeErr))
 		}
 		defer restoreHome()
 	}
 
 	if err = enforceBakedSafetyProfile(kctx); err != nil {
-		_, _ = fmt.Fprintln(os.Stderr, errfmt.Format(err))
-		return err
+		return reportEarlyError(err)
 	}
 	if err = enforceEnabledCommands(kctx, cli.EnableCommands, cli.EnableCommandsExact); err != nil {
-		_, _ = fmt.Fprintln(os.Stderr, errfmt.Format(err))
-		return err
+		return reportEarlyError(err)
 	}
 	if err = enforceDisabledCommands(kctx, cli.DisableCommands); err != nil {
-		_, _ = fmt.Fprintln(os.Stderr, errfmt.Format(err))
-		return err
+		return reportEarlyError(err)
 	}
 	if err = enforceGmailNoSend(kctx, &cli.RootFlags); err != nil {
-		_, _ = fmt.Fprintln(os.Stderr, errfmt.Format(err))
-		return err
+		return reportEarlyError(err)
 	}
 
 	logLevel := slog.LevelWarn
@@ -187,7 +183,11 @@ func Execute(args []string) (err error) {
 
 	mode, err := outfmt.FromFlags(cli.JSON, cli.Plain)
 	if err != nil {
-		return newUsageError(err)
+		return reportEarlyError(newUsageError(err))
+	}
+	err = validateJSONTransformFlags(mode, &cli.RootFlags)
+	if err != nil {
+		return reportEarlyError(err)
 	}
 
 	ctx := context.Background()
@@ -216,7 +216,7 @@ func Execute(args []string) (err error) {
 		Color:  uiColor,
 	})
 	if err != nil {
-		return err
+		return reportEarlyError(newUsageError(err))
 	}
 	ctx = ui.WithUI(ctx, u)
 
@@ -239,6 +239,85 @@ func Execute(args []string) (err error) {
 			u.Err().Error(msg)
 		}
 		return err
+	}
+	msg := strings.TrimSpace(errfmt.Format(err))
+	if msg != "" {
+		_, _ = fmt.Fprintln(os.Stderr, msg)
+	}
+	return err
+}
+
+func rewriteHelpArgs(args []string) []string {
+	for i, arg := range args {
+		if arg == "--" {
+			break
+		}
+		if arg == "--help" || arg == "-h" {
+			return append([]string(nil), args[:i+1]...)
+		}
+	}
+
+	for i := 0; i < len(args); i++ {
+		arg := args[i]
+		if arg == "--" {
+			return args
+		}
+		if strings.HasPrefix(arg, "-") {
+			if globalFlagTakesValue(arg) && i+1 < len(args) {
+				i++
+			}
+			continue
+		}
+		if arg != "help" {
+			return args
+		}
+
+		out := make([]string, 0, len(args))
+		out = append(out, args[:i]...)
+		out = append(out, args[i+1:]...)
+		out = append(out, "--help")
+		return out
+	}
+	return args
+}
+
+func validateJSONTransformFlags(mode outfmt.Mode, flags *RootFlags) error {
+	if flags == nil || mode.JSON {
+		return nil
+	}
+
+	hasResultsOnly := flags.ResultsOnly
+	hasSelect := strings.TrimSpace(flags.Select) != ""
+	switch {
+	case hasResultsOnly && hasSelect:
+		return usage("--results-only and --select require --json")
+	case hasResultsOnly:
+		return usage("--results-only requires --json")
+	case hasSelect:
+		return usage("--select requires --json")
+	default:
+		return nil
+	}
+}
+
+func applyExplicitOutputModePrecedence(kctx *kong.Context, flags *RootFlags) {
+	if flags == nil {
+		return
+	}
+
+	jsonSet := flagProvided(kctx, "json")
+	plainSet := flagProvided(kctx, "plain")
+	switch {
+	case jsonSet && !plainSet:
+		flags.Plain = false
+	case plainSet && !jsonSet:
+		flags.JSON = false
+	}
+}
+
+func reportEarlyError(err error) error {
+	if err == nil {
+		return nil
 	}
 	msg := strings.TrimSpace(errfmt.Format(err))
 	if msg != "" {

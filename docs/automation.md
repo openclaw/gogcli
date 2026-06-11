@@ -12,7 +12,12 @@ Root help summarizes the human-facing contract:
 
 ```bash
 gog --help
+gog help drive ls
 ```
+
+`gog help <command>` and `gog <command> --help` are equivalent. Once a help
+flag is present, trailing arguments are ignored so recovery help remains
+available after a malformed command attempt.
 
 The machine-readable contract is:
 
@@ -33,6 +38,12 @@ stderr.
 gog --json gmail search 'newer_than:7d'
 gog --plain calendar events --today
 ```
+
+`--results-only` and `--select` transform JSON and therefore require
+`--json`. Contradictory output flags fail with usage exit code 2 instead of
+being silently ignored. Explicit output flags override `GOG_JSON` and
+`GOG_PLAIN` environment defaults. `gog schema` always emits JSON and rejects
+`--plain`.
 
 Use `--no-input` in CI and unattended processes. Use `--wrap-untrusted` when
 Google-hosted free text will be consumed by an LLM or another instruction-aware

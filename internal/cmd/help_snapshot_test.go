@@ -91,6 +91,7 @@ func TestHelpSnapshot_RootAutomationContract(t *testing.T) {
 	requireHelpContains(t, out,
 		"\nAutomation:\n",
 		"Use --json or --plain for stable output",
+		`Use "gog help <command>"`,
 		"Exit codes: 0 success",
 		`Run "gog schema --json"`,
 	)
