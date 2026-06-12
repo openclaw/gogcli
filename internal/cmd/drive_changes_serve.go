@@ -23,6 +23,7 @@ import (
 const (
 	defaultDriveChangesChannelTTL          = 24 * time.Hour
 	defaultDriveChangesNotificationTimeout = 5 * time.Minute
+	defaultDriveChangesReadTimeout         = 10 * time.Second
 	maxDriveChangesChannelTTL              = 7 * 24 * time.Hour
 	driveChangesRenewRetry                 = time.Minute
 )
@@ -234,6 +235,7 @@ func (c *DriveChangesServeCmd) run(ctx context.Context, flags *RootFlags, runtim
 	}
 	httpServer := &http.Server{
 		Handler:           server,
+		ReadTimeout:       defaultDriveChangesReadTimeout,
 		ReadHeaderTimeout: 5 * time.Second,
 		IdleTimeout:       30 * time.Second,
 		MaxHeaderBytes:    64 << 10,

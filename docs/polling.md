@@ -163,9 +163,9 @@ token, including when reusing state previously written by auto-renew mode.
 `poll` and `serve` require separate state files; each state file records its
 own command kind and rejects cross-use. Legacy state files without a kind remain
 readable and gain one on the next write. Message-number deduplication is scoped
-to both channel and resource ID. A `sync` notification resets that pair's
-sequence for a newly registered channel, though channel IDs should still be
-unique as required by the Drive API.
+to both channel and resource ID. Channel IDs must be unique for every
+registration as required by the Drive API; reusing an ID for the same resource
+can inherit its prior sequence watermark and suppress notifications.
 
 Command page:
 

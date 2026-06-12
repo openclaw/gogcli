@@ -140,7 +140,7 @@ func TestDriveChangesServeAcceptsPreviousAndPendingChannels(t *testing.T) {
 	}
 }
 
-func TestDriveChangesServeManualModeAcceptsNewChannelWithPersistedBindings(t *testing.T) {
+func TestDriveChangesServeSyncDoesNotLowerMessageNumber(t *testing.T) {
 	statePath := filepath.Join(t.TempDir(), "state.json")
 	state := driveChangesServeState{
 		Version:   pollStateVersion,
@@ -168,8 +168,8 @@ func TestDriveChangesServeManualModeAcceptsNewChannelWithPersistedBindings(t *te
 	if err != nil {
 		t.Fatalf("read state: %v", err)
 	}
-	if got := persisted.LastMessageNumbers[driveChangesMessageKey("channel-1", "resource-1")]; got != 1 {
-		t.Fatalf("message number = %d, want reset to 1", got)
+	if got := persisted.LastMessageNumbers[driveChangesMessageKey("channel-1", "resource-1")]; got != 99 {
+		t.Fatalf("message number = %d, want 99", got)
 	}
 }
 
