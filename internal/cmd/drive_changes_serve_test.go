@@ -945,6 +945,7 @@ func TestDriveChangesStateKindsRejectCrossUse(t *testing.T) {
 func TestExpandDriveChangesTLSPaths(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
 	certPath, keyPath, err := expandDriveChangesTLSPaths("~/tls/cert.pem", "~/tls/key.pem")
 	if err != nil {
 		t.Fatalf("expand TLS paths: %v", err)
