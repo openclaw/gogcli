@@ -26,6 +26,8 @@ const (
 	driveChangesRenewRetry        = time.Minute
 )
 
+var errDriveChangesPreviousCleanupPending = errors.New("previous Drive changes channel cleanup is pending")
+
 type DriveChangesServeCmd struct {
 	Listen           string        `name:"listen" help:"Listen address" default:"127.0.0.1:8443"`
 	Path             string        `name:"path" help:"Notification handler path" default:"/drive-changes"`
@@ -244,8 +246,12 @@ func (c *DriveChangesServeCmd) run(ctx context.Context, flags *RootFlags, runtim
 	if c.AutoRenew {
 		nextRenewal, renewErr := server.ensureChannel(ctx)
 		if renewErr != nil {
-			_ = shutdownHTTPServer(ctx, httpServer)
-			return renewErr
+			if !errors.Is(renewErr, errDriveChangesPreviousCleanupPending) {
+				_ = shutdownHTTPServer(ctx, httpServer)
+				return renewErr
+			}
+			server.warnf("drive changes serve: channel cleanup pending; retrying renewal in %s", driveChangesRenewRetry)
+			nextRenewal = driveChangesRenewRetry
 		}
 		go server.runRenewLoop(ctx, nextRenewal)
 	}
@@ -461,7 +467,7 @@ func (s *driveChangesServer) ensureChannel(ctx context.Context) (time.Duration, 
 	}
 	if s.state.PreviousChannel != nil {
 		s.mu.Unlock()
-		return 0, errors.New("cannot renew Drive changes channel while previous channel cleanup is pending")
+		return 0, errDriveChangesPreviousCleanupPending
 	}
 	pageToken := s.state.PageToken
 	driveID := s.state.DriveID

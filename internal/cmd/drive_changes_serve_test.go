@@ -76,6 +76,7 @@ func TestDriveChangesServeRejectsUntrackedChannel(t *testing.T) {
 		},
 	}
 	server := newDriveChangesTestReceiver(t, nil, state)
+	server.autoRenew = true
 	var hookCalls atomic.Int32
 	server.onChange = "./handle-change"
 	server.runtime.runHook = func(context.Context, string, any) error {
@@ -116,6 +117,7 @@ func TestDriveChangesServeAcceptsPreviousAndPendingChannels(t *testing.T) {
 		t.Fatalf("write state: %v", err)
 	}
 	server := newDriveChangesTestReceiver(t, nil, state)
+	server.autoRenew = true
 	server.statePath = statePath
 
 	previous := newDriveChangesNotificationRequest(t, driveChangesTestChannelToken, "sync", 1)
@@ -135,6 +137,29 @@ func TestDriveChangesServeAcceptsPreviousAndPendingChannels(t *testing.T) {
 	server.ServeHTTP(response, pending)
 	if response.Code != http.StatusNoContent {
 		t.Fatalf("pending channel status = %d, want 204", response.Code)
+	}
+}
+
+func TestDriveChangesServeManualModeAcceptsNewChannelWithPersistedBindings(t *testing.T) {
+	statePath := filepath.Join(t.TempDir(), "state.json")
+	state := driveChangesServeState{
+		Version:   pollStateVersion,
+		PageToken: pollTestStartToken,
+		Channel: &driveChangesServeChannelState{
+			ID:         "old-channel",
+			ResourceID: "old-resource",
+		},
+	}
+	if err := writePollState(statePath, state); err != nil {
+		t.Fatalf("write state: %v", err)
+	}
+	server := newDriveChangesTestReceiver(t, nil, state)
+	server.statePath = statePath
+
+	response := httptest.NewRecorder()
+	server.ServeHTTP(response, newDriveChangesNotificationRequest(t, driveChangesTestChannelToken, "sync", 1))
+	if response.Code != http.StatusNoContent {
+		t.Fatalf("status = %d, want 204", response.Code)
 	}
 }
 
@@ -666,6 +691,62 @@ func TestDriveChangesServeBacksOffWhenGrantedExpirationIsInsideRenewalWindow(t *
 	}
 	if delay != driveChangesRenewRetry {
 		t.Fatalf("delay = %v, want %v", delay, driveChangesRenewRetry)
+	}
+}
+
+func TestDriveChangesServeRunRetriesPendingCleanupAtStartup(t *testing.T) {
+	svc, closeDrive := newDriveTestService(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/channels/stop" {
+			t.Fatalf("path = %q", r.URL.Path)
+		}
+		http.Error(w, "temporary failure", http.StatusInternalServerError)
+	}))
+	defer closeDrive()
+	stubDriveServiceForTest(t, svc)
+
+	statePath := filepath.Join(t.TempDir(), "state.json")
+	if err := writePollState(statePath, driveChangesServeState{
+		Version:   pollStateVersion,
+		PageToken: pollTestStartToken,
+		PreviousChannel: &driveChangesServeChannelState{
+			ID:         "channel-old",
+			ResourceID: "resource-old",
+		},
+	}); err != nil {
+		t.Fatalf("write state: %v", err)
+	}
+
+	ctx, cancel := context.WithCancel(newCmdOutputContext(t, io.Discard, io.Discard))
+	retryScheduled := make(chan struct{})
+	cmd := DriveChangesServeCmd{
+		Listen:         "127.0.0.1:0",
+		Path:           driveChangesTestStatePath,
+		ChannelToken:   driveChangesTestChannelToken,
+		StateFile:      statePath,
+		Max:            100,
+		IncludeRemoved: true,
+		AutoRenew:      true,
+		WebhookURL:     "https://example.com/drive-changes",
+		ChannelTTL:     defaultDriveChangesChannelTTL,
+		RenewBefore:    10 * time.Minute,
+	}
+	runtime := defaultDriveChangesServeRuntime()
+	runtime.wait = func(ctx context.Context, delay time.Duration) error {
+		if delay != driveChangesRenewRetry {
+			t.Errorf("retry delay = %v, want %v", delay, driveChangesRenewRetry)
+		}
+		close(retryScheduled)
+		<-ctx.Done()
+		return ctx.Err()
+	}
+	done := make(chan error, 1)
+	go func() {
+		done <- cmd.run(ctx, &RootFlags{Account: "a@example.com"}, runtime)
+	}()
+	<-retryScheduled
+	cancel()
+	if err := <-done; !errors.Is(err, context.Canceled) {
+		t.Fatalf("run error = %v, want context canceled", err)
 	}
 }
 

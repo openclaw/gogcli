@@ -155,8 +155,9 @@ Receiver behavior:
 
 The state file stores a SHA-256 digest of the channel token, not the token
 itself. Auto-renewed receivers also bind notifications to the persisted current
-or previous channel and resource IDs; manual receivers rely on the channel
-token. Do not run `poll` and `serve` concurrently against the same state file.
+or previous channel and resource IDs; manual receivers rely only on the channel
+token, including when reusing state previously written by auto-renew mode. Do
+not run `poll` and `serve` concurrently against the same state file.
 
 Command page:
 

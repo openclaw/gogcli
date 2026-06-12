@@ -232,6 +232,9 @@ func (s *driveChangesServer) handleNotification(ctx context.Context, notificatio
 }
 
 func (s *driveChangesServer) notificationChannelAllowedLocked(notification driveChangesNotification) bool {
+	if !s.autoRenew {
+		return true
+	}
 	tracked := false
 	for _, channel := range []*driveChangesServeChannelState{s.state.Channel, s.state.PreviousChannel} {
 		if channel == nil {
