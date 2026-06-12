@@ -354,6 +354,60 @@ func TestDriveChangesServeHookFailureRetainsStateForRetry(t *testing.T) {
 	}
 }
 
+func TestDriveChangesServeHookDoesNotBlockStateMutex(t *testing.T) {
+	svc, closeDrive := newDriveTestService(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"newStartPageToken": "next-token",
+			"changes":           []map[string]any{{"fileId": "file-1"}},
+		})
+	}))
+	defer closeDrive()
+
+	statePath := filepath.Join(t.TempDir(), "state.json")
+	state := driveChangesServeState{
+		Version:   pollStateVersion,
+		PageToken: pollTestStartToken,
+	}
+	if err := writePollState(statePath, state); err != nil {
+		t.Fatalf("write state: %v", err)
+	}
+	server := newDriveChangesTestReceiver(t, svc, state)
+	server.statePath = statePath
+	server.onChange = "./handle-change"
+	hookStarted := make(chan struct{})
+	releaseHook := make(chan struct{})
+	server.runtime.runHook = func(context.Context, string, any) error {
+		close(hookStarted)
+		<-releaseHook
+		return nil
+	}
+
+	done := make(chan int, 1)
+	go func() {
+		response := httptest.NewRecorder()
+		server.ServeHTTP(response, newDriveChangesNotificationRequest(t, driveChangesTestChannelToken, "change", 5))
+		done <- response.Code
+	}()
+	<-hookStarted
+
+	stateLockAcquired := make(chan struct{})
+	go func() {
+		server.mu.Lock()
+		server.mu.Unlock()
+		close(stateLockAcquired)
+	}()
+	select {
+	case <-stateLockAcquired:
+	case <-time.After(time.Second):
+		t.Fatal("state mutex remained blocked while hook was running")
+	}
+
+	close(releaseHook)
+	if code := <-done; code != http.StatusNoContent {
+		t.Fatalf("status = %d, want 204", code)
+	}
+}
+
 func TestDriveChangesServeSerializesConcurrentNotifications(t *testing.T) {
 	firstAPIStarted := make(chan struct{})
 	releaseFirstAPI := make(chan struct{})
@@ -496,6 +550,51 @@ func TestDriveChangesServeRenewsAndStopsPreviousChannel(t *testing.T) {
 	}
 	if persisted.Channel.TokenHash == driveChangesTestChannelToken || persisted.Channel.TokenHash == "" {
 		t.Fatalf("channel token was not hashed")
+	}
+}
+
+func TestDriveChangesServeBacksOffWhenGrantedExpirationIsInsideRenewalWindow(t *testing.T) {
+	now := time.Date(2026, 6, 11, 10, 0, 0, 0, time.UTC)
+	svc, closeDrive := newDriveTestService(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/changes/watch":
+			var watched drive.Channel
+			if err := json.NewDecoder(r.Body).Decode(&watched); err != nil {
+				t.Fatalf("decode watch: %v", err)
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"id":         watched.Id,
+				"resourceId": "resource-new",
+				"expiration": strconv.FormatInt(now.Add(5*time.Minute).UnixMilli(), 10),
+			})
+		default:
+			t.Fatalf("path = %q", r.URL.Path)
+		}
+	}))
+	defer closeDrive()
+
+	statePath := filepath.Join(t.TempDir(), "state.json")
+	state := driveChangesServeState{
+		Version:   pollStateVersion,
+		PageToken: pollTestStartToken,
+	}
+	if err := writePollState(statePath, state); err != nil {
+		t.Fatalf("write state: %v", err)
+	}
+	server := newDriveChangesTestReceiver(t, svc, state)
+	server.statePath = statePath
+	server.autoRenew = true
+	server.webhookURL = "https://example.com/hook"
+	server.channelTTL = defaultDriveChangesChannelTTL
+	server.renewBefore = 10 * time.Minute
+	server.runtime.now = func() time.Time { return now }
+
+	delay, err := server.ensureChannel(context.Background())
+	if err != nil {
+		t.Fatalf("ensureChannel: %v", err)
+	}
+	if delay != driveChangesRenewRetry {
+		t.Fatalf("delay = %v, want %v", delay, driveChangesRenewRetry)
 	}
 }
 

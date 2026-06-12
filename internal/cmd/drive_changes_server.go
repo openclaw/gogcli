@@ -134,15 +134,17 @@ func parseDriveChangesNotification(r *http.Request) (driveChangesNotification, e
 }
 
 func (s *driveChangesServer) handleNotification(ctx context.Context, notification driveChangesNotification) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.notificationMu.Lock()
+	defer s.notificationMu.Unlock()
 
+	s.mu.Lock()
 	if !s.notificationChannelAllowedLocked(notification) {
 		s.warnf(
 			"drive changes serve: rejecting untracked channel=%s resource=%s",
 			notification.ChannelID,
 			notification.ResourceID,
 		)
+		s.mu.Unlock()
 		return errDriveChangesUntrackedNotification
 	}
 	if last := s.state.LastMessageNumbers[notification.ChannelID]; last >= notification.MessageNumber {
@@ -151,27 +153,36 @@ func (s *driveChangesServer) handleNotification(ctx context.Context, notificatio
 			notification.ChannelID,
 			notification.MessageNumber,
 		)
+		s.mu.Unlock()
 		return errDriveChangesDuplicateNotification
 	}
 	switch notification.ResourceState {
 	case "sync":
-		if err := s.acknowledgeNotificationLocked(notification); err != nil {
+		err := s.acknowledgeNotificationLocked(notification)
+		s.mu.Unlock()
+		if err != nil {
 			return err
 		}
 		return errDriveChangesIgnoredNotification
 	case "change", "changed":
 	default:
-		if err := s.acknowledgeNotificationLocked(notification); err != nil {
+		err := s.acknowledgeNotificationLocked(notification)
+		s.mu.Unlock()
+		if err != nil {
 			return err
 		}
 		s.logf("drive changes serve: ignoring resource state %q", notification.ResourceState)
 		return errDriveChangesIgnoredNotification
 	}
 
-	changes, nextPageToken, err := loadDriveChanges(ctx, s.service, s.state.PageToken, driveChangesLoadOptions{
+	pageToken := s.state.PageToken
+	driveID := s.state.DriveID
+	s.mu.Unlock()
+
+	changes, nextPageToken, err := loadDriveChanges(ctx, s.service, pageToken, driveChangesLoadOptions{
 		max:            s.max,
 		includeRemoved: s.includeRemoved,
-		driveID:        s.state.DriveID,
+		driveID:        driveID,
 		all:            true,
 	})
 	if err != nil {
@@ -188,8 +199,8 @@ func (s *driveChangesServer) handleNotification(ctx context.Context, notificatio
 			Changed:           notification.Changed,
 			ChannelExpiration: notification.ChannelExpiration,
 			MessageNumber:     notification.MessageNumber,
-			DriveID:           s.state.DriveID,
-			PageToken:         s.state.PageToken,
+			DriveID:           driveID,
+			PageToken:         pageToken,
 			NextPageToken:     nextPageToken,
 			Changes:           filtered,
 		}
@@ -198,6 +209,11 @@ func (s *driveChangesServer) handleNotification(ctx context.Context, notificatio
 		}
 	}
 
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.state.PageToken != pageToken {
+		return errors.New("drive changes serve state advanced during notification processing")
+	}
 	nextState := cloneDriveChangesServeState(s.state)
 	nextState.PageToken = nextPageToken
 	nextState.UpdatedAt = s.runtime.now().UTC().Format(time.RFC3339Nano)

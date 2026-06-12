@@ -101,6 +101,7 @@ func (r driveChangesServeRuntime) withDefaults() driveChangesServeRuntime {
 
 type driveChangesServer struct {
 	mu             sync.Mutex
+	notificationMu sync.Mutex
 	renewMu        sync.Mutex
 	runCtx         context.Context
 	pendingChannel string
@@ -536,6 +537,13 @@ func (s *driveChangesServer) ensureChannel(ctx context.Context) (time.Duration, 
 		}
 	}
 	delay := s.channelRenewalDelayLocked(now)
+	if delay <= 0 {
+		s.warnf(
+			"drive changes serve: channel expiration is inside the renewal window; retrying renewal in %s",
+			driveChangesRenewRetry,
+		)
+		delay = driveChangesRenewRetry
+	}
 	if s.state.PreviousChannel != nil && delay > driveChangesRenewRetry {
 		delay = driveChangesRenewRetry
 	}

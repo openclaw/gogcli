@@ -146,6 +146,7 @@ Receiver behavior:
   page token
 - request disconnects do not cancel an in-flight Drive read or hook; command
   shutdown still cancels them
+- hooks remain sequential, but an in-flight hook does not block channel renewal
 - Drive/API, hook, or state-write failure returns `500`; Google retries these
   statuses with backoff
 - the page token and message number advance only after the hook succeeds
