@@ -21,7 +21,8 @@ type YouTubeCmd struct {
 	Playlists  YouTubePlaylistsCmd  `cmd:"" name:"playlists" aliases:"playlist" help:"List playlists"`
 	Comments   YouTubeCommentsCmd   `cmd:"" name:"comments" aliases:"comment" help:"List comment threads"`
 	Channels   YouTubeChannelsCmd   `cmd:"" name:"channels" aliases:"channel" help:"List channels"`
-	Search     YouTubeSearchCmd     `cmd:"" name:"search" aliases:"find" help:"Search YouTube for videos, channels, or playlists"`
+	Search        YouTubeSearchCmd        `cmd:"" name:"search" aliases:"find" help:"Search YouTube for videos, channels, or playlists"`
+	Subscriptions YouTubeSubscriptionsCmd `cmd:"" name:"subscriptions" aliases:"subscription" help:"Manage channel subscriptions"`
 }
 
 type YouTubeActivitiesCmd struct {
@@ -536,6 +537,38 @@ func (c *YouTubeSearchListCmd) Run(ctx context.Context, flags *RootFlags) error 
 	}
 	printNextPageHint(u, resp.NextPageToken)
 	return nil
+}
+
+type YouTubeSubscriptionsCmd struct {
+	List        YouTubeSubscriptionsListCmd        `cmd:"" name:"list" aliases:"ls" help:"List subscriptions for authenticated user"`
+	Subscribe   YouTubeSubscriptionsSubscribeCmd   `cmd:"" name:"subscribe" help:"Subscribe to a channel"`
+	Unsubscribe YouTubeSubscriptionsUnsubscribeCmd `cmd:"" name:"unsubscribe" help:"Unsubscribe from a channel"`
+}
+
+type YouTubeSubscriptionsListCmd struct {
+	Max  int64  `name:"max" aliases:"limit" help:"Max results" default:"25"`
+	Page string `name:"page" help:"Page token"`
+}
+
+func (c *YouTubeSubscriptionsListCmd) Run(ctx context.Context, flags *RootFlags) error {
+	return fmt.Errorf("not implemented")
+}
+
+type YouTubeSubscriptionsSubscribeCmd struct {
+	ChannelID string `name:"channel-id" required:"" help:"Channel ID to subscribe to"`
+}
+
+func (c *YouTubeSubscriptionsSubscribeCmd) Run(ctx context.Context, flags *RootFlags) error {
+	return fmt.Errorf("not implemented")
+}
+
+type YouTubeSubscriptionsUnsubscribeCmd struct {
+	ID        string `name:"id" help:"Subscription ID (from subscriptions list)"`
+	ChannelID string `name:"channel-id" help:"Channel ID (looked up to find subscription ID)"`
+}
+
+func (c *YouTubeSubscriptionsUnsubscribeCmd) Run(ctx context.Context, flags *RootFlags) error {
+	return fmt.Errorf("not implemented")
 }
 
 func validateYouTubeMax(limit int64) error {
