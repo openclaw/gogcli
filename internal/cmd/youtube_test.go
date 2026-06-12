@@ -598,6 +598,116 @@ func TestYouTubeSubscriptionsSubscribe(t *testing.T) {
 	}
 }
 
+func TestYouTubeSubscriptionsUnsubscribeByID(t *testing.T) {
+	var deletedID string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/youtube/v3/subscriptions" && r.Method == http.MethodDelete {
+			deletedID = r.URL.Query().Get("id")
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		t.Fatalf("unexpected request: %s %s", r.Method, r.URL.Path)
+	}))
+	defer srv.Close()
+
+	svc := newGoogleTestServiceWithEndpoint(t, srv.Client(), srv.URL+"/", youtube.NewService)
+	ctx := withYouTubeTestServices(newCmdRuntimeOutputContext(t, io.Discard, io.Discard), youtubeTestServices{
+		Account: fixedYouTubeTestService(svc),
+	})
+	err := runKong(t, &YouTubeSubscriptionsUnsubscribeCmd{}, []string{"--id", "SUB123"}, ctx, &RootFlags{Account: "me@example.com", Force: true})
+	if err != nil {
+		t.Fatalf("runKong: %v", err)
+	}
+	if deletedID != "SUB123" {
+		t.Fatalf("deleted ID = %q", deletedID)
+	}
+}
+
+func TestYouTubeSubscriptionsUnsubscribeByChannelID(t *testing.T) {
+	var deletedID string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/youtube/v3/subscriptions" && r.Method == http.MethodGet {
+			if got := r.URL.Query().Get("forChannelId"); got != "UCcool" {
+				t.Fatalf("forChannelId = %q", got)
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"items": []map[string]any{{"id": "SUB999"}},
+			})
+			return
+		}
+		if r.URL.Path == "/youtube/v3/subscriptions" && r.Method == http.MethodDelete {
+			deletedID = r.URL.Query().Get("id")
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		t.Fatalf("unexpected request: %s %s", r.Method, r.URL.Path)
+	}))
+	defer srv.Close()
+
+	svc := newGoogleTestServiceWithEndpoint(t, srv.Client(), srv.URL+"/", youtube.NewService)
+	ctx := withYouTubeTestServices(newCmdRuntimeOutputContext(t, io.Discard, io.Discard), youtubeTestServices{
+		Account: fixedYouTubeTestService(svc),
+	})
+	err := runKong(t, &YouTubeSubscriptionsUnsubscribeCmd{}, []string{"--channel-id", "UCcool"}, ctx, &RootFlags{Account: "me@example.com", Force: true})
+	if err != nil {
+		t.Fatalf("runKong: %v", err)
+	}
+	if deletedID != "SUB999" {
+		t.Fatalf("deleted ID = %q", deletedID)
+	}
+}
+
+func TestYouTubeSubscriptionsUnsubscribeChannelNotFound(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/youtube/v3/subscriptions" && r.Method == http.MethodGet {
+			_ = json.NewEncoder(w).Encode(map[string]any{"items": []map[string]any{}})
+			return
+		}
+		t.Fatalf("unexpected request: %s %s", r.Method, r.URL.Path)
+	}))
+	defer srv.Close()
+
+	svc := newGoogleTestServiceWithEndpoint(t, srv.Client(), srv.URL+"/", youtube.NewService)
+	ctx := withYouTubeTestServices(newCmdRuntimeOutputContext(t, io.Discard, io.Discard), youtubeTestServices{
+		Account: fixedYouTubeTestService(svc),
+	})
+	err := runKong(t, &YouTubeSubscriptionsUnsubscribeCmd{}, []string{"--channel-id", "UCmissing"}, ctx, &RootFlags{Account: "me@example.com", Force: true})
+	if err == nil || !strings.Contains(err.Error(), "not subscribed") {
+		t.Fatalf("expected not-subscribed error, got %v", err)
+	}
+}
+
+func TestYouTubeSubscriptionsUnsubscribeValidation(t *testing.T) {
+	ctx := withYouTubeTestServices(newCmdRuntimeOutputContext(t, io.Discard, io.Discard), youtubeTestServices{
+		Account: unexpectedYouTubeTestService(t, "should not reach service with missing args"),
+	})
+	flags := &RootFlags{Account: "me@example.com", Force: true}
+	tests := []struct {
+		name string
+		args []string
+		want string
+	}{
+		{
+			name: "neither id nor channel-id",
+			args: []string{},
+			want: "set --id or --channel-id",
+		},
+		{
+			name: "both id and channel-id",
+			args: []string{"--id", "SUB1", "--channel-id", "UC1"},
+			want: "use either --id or --channel-id",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := runKong(t, &YouTubeSubscriptionsUnsubscribeCmd{}, tt.args, ctx, flags)
+			if err == nil || !strings.Contains(err.Error(), tt.want) {
+				t.Fatalf("expected error containing %q, got %v", tt.want, err)
+			}
+		})
+	}
+}
+
 func TestYouTubeValidationRejectsBlankSelectorsBeforeService(t *testing.T) {
 	ctx := withYouTubeTestServices(newCmdRuntimeOutputContext(t, io.Discard, io.Discard), youtubeTestServices{
 		Account:  unexpectedYouTubeTestService(t, "expected validation to fail before OAuth YouTube service creation"),

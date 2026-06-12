@@ -647,7 +647,50 @@ type YouTubeSubscriptionsUnsubscribeCmd struct {
 }
 
 func (c *YouTubeSubscriptionsUnsubscribeCmd) Run(ctx context.Context, flags *RootFlags) error {
-	return fmt.Errorf("not implemented")
+	u := ui.FromContext(ctx)
+	subID := strings.TrimSpace(c.ID)
+	channelID := strings.TrimSpace(c.ChannelID)
+	if subID == "" && channelID == "" {
+		return usage("set --id or --channel-id")
+	}
+	if subID != "" && channelID != "" {
+		return usage("use either --id or --channel-id, not both")
+	}
+
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
+	}
+	svc, err := getYouTubeServiceForAccount(ctx, account)
+	if err != nil {
+		return err
+	}
+
+	if channelID != "" {
+		resp, lookupErr := svc.Subscriptions.List([]string{"id"}).
+			Mine(true).
+			ForChannelId(channelID).
+			MaxResults(1).
+			Do()
+		if lookupErr != nil {
+			return lookupErr
+		}
+		if len(resp.Items) == 0 {
+			return fmt.Errorf("not subscribed to channel %s", channelID)
+		}
+		subID = resp.Items[0].Id
+	}
+
+	if confirmErr := dryRunAndConfirmDestructive(ctx, flags, "youtube.subscriptions.delete", map[string]any{"id": subID}, fmt.Sprintf("unsubscribe (subscription ID: %s)", subID)); confirmErr != nil {
+		return confirmErr
+	}
+
+	if err := svc.Subscriptions.Delete(subID).Do(); err != nil {
+		return err
+	}
+
+	u.Out().Printf("Unsubscribed (subscription ID: %s)\n", subID)
+	return nil
 }
 
 func validateYouTubeMax(limit int64) error {
