@@ -859,6 +859,38 @@ func TestExpandDriveChangesTLSPaths(t *testing.T) {
 	}
 }
 
+func TestDriveChangesServeRejectsInvalidTLSKeyPair(t *testing.T) {
+	dir := t.TempDir()
+	certPath := filepath.Join(dir, "cert.pem")
+	keyPath := filepath.Join(dir, "key.pem")
+	if err := os.WriteFile(certPath, []byte("not a certificate"), 0o600); err != nil {
+		t.Fatalf("write certificate: %v", err)
+	}
+	if err := os.WriteFile(keyPath, []byte("not a private key"), 0o600); err != nil {
+		t.Fatalf("write private key: %v", err)
+	}
+	cmd := DriveChangesServeCmd{
+		Listen:         "127.0.0.1:0",
+		Path:           driveChangesTestStatePath,
+		Cert:           certPath,
+		Key:            keyPath,
+		ChannelToken:   driveChangesTestChannelToken,
+		StateFile:      filepath.Join(dir, "state.json"),
+		Max:            100,
+		IncludeRemoved: true,
+		ChannelTTL:     defaultDriveChangesChannelTTL,
+		RenewBefore:    10 * time.Minute,
+	}
+	err := cmd.run(
+		newCmdOutputContext(t, io.Discard, io.Discard),
+		&RootFlags{Account: "a@example.com"},
+		defaultDriveChangesServeRuntime(),
+	)
+	if err == nil || !strings.Contains(err.Error(), "load TLS certificate") {
+		t.Fatalf("error = %v", err)
+	}
+}
+
 func TestDriveChangesServeRunShutsDownOnContextCancel(t *testing.T) {
 	svc, closeDrive := newDriveTestService(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		http.NotFound(w, nil)
