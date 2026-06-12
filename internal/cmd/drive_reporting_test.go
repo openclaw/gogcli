@@ -149,4 +149,37 @@ func TestExecuteDriveTreeJSON(t *testing.T) {
 	if parsed.Items[3].Path != "Reports/child.txt" {
 		t.Fatalf("nested path = %q, want Reports/child.txt", parsed.Items[3].Path)
 	}
+
+	for _, tc := range []struct {
+		name       string
+		args       []string
+		wantHeader string
+	}{
+		{
+			name:       "tree",
+			args:       []string{"--plain", "--account", "a@example.com", "drive", "tree", "--parent", "root", "--depth", "2"},
+			wantHeader: "PATH\tTYPE\tSIZE\tMODIFIED\tID\n",
+		},
+		{
+			name:       "inventory",
+			args:       []string{"--plain", "--account", "a@example.com", "drive", "inventory", "--parent", "root", "--depth", "2"},
+			wantHeader: "PATH\tTYPE\tSIZE\tMODIFIED\tOWNER\tID\n",
+		},
+	} {
+		t.Run(tc.name+" plain schema", func(t *testing.T) {
+			plainOut := captureStdout(t, func() {
+				_ = captureStderr(t, func() {
+					if err := Execute(tc.args); err != nil {
+						t.Fatalf("Execute: %v", err)
+					}
+				})
+			})
+			if !strings.HasPrefix(plainOut, tc.wantHeader) {
+				t.Fatalf("plain output header = %q, want prefix %q", plainOut, tc.wantHeader)
+			}
+			if strings.Contains(plainOut, "TARGET_ID") {
+				t.Fatalf("plain output schema changed unexpectedly: %q", plainOut)
+			}
+		})
+	}
 }

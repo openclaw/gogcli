@@ -166,8 +166,11 @@ func TestDriveLsCmd_TextAndJSON(t *testing.T) {
 			t.Fatalf("execute: %v", execErr)
 		}
 	})
-	if !strings.Contains(plainOut, "ID\tNAME\tTYPE\tSIZE\tMODIFIED\tOWNER\tTARGET_ID") {
+	if !strings.Contains(plainOut, "ID\tNAME\tTYPE\tSIZE\tMODIFIED\tOWNER\n") {
 		t.Fatalf("expected TSV header, got: %q", plainOut)
+	}
+	if strings.Contains(plainOut, "TARGET_ID") {
+		t.Fatalf("plain output schema changed unexpectedly: %q", plainOut)
 	}
 }
 
