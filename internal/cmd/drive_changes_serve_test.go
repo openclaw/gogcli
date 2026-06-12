@@ -788,7 +788,6 @@ func TestDriveChangesServeRunRetriesPendingCleanupAtStartup(t *testing.T) {
 		http.Error(w, "temporary failure", http.StatusInternalServerError)
 	}))
 	defer closeDrive()
-	stubDriveServiceForTest(t, svc)
 
 	statePath := filepath.Join(t.TempDir(), "state.json")
 	if err := writePollState(statePath, driveChangesServeState{
@@ -802,7 +801,8 @@ func TestDriveChangesServeRunRetriesPendingCleanupAtStartup(t *testing.T) {
 		t.Fatalf("write state: %v", err)
 	}
 
-	ctx, cancel := context.WithCancel(newCmdOutputContext(t, io.Discard, io.Discard))
+	ctx := withDriveTestService(newCmdOutputContext(t, io.Discard, io.Discard), svc)
+	ctx, cancel := context.WithCancel(ctx)
 	retryScheduled := make(chan struct{})
 	cmd := DriveChangesServeCmd{
 		Listen:              "127.0.0.1:0",
@@ -996,9 +996,9 @@ func TestDriveChangesServeRunShutsDownOnContextCancel(t *testing.T) {
 		http.NotFound(w, nil)
 	}))
 	defer closeDrive()
-	stubDriveServiceForTest(t, svc)
 
-	ctx, cancel := context.WithCancel(newCmdOutputContext(t, io.Discard, io.Discard))
+	ctx := withDriveTestService(newCmdOutputContext(t, io.Discard, io.Discard), svc)
+	ctx, cancel := context.WithCancel(ctx)
 	listening := make(chan struct{})
 	cmd := DriveChangesServeCmd{
 		Listen:              "127.0.0.1:0",
