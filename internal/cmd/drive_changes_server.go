@@ -194,6 +194,21 @@ func (s *driveChangesServer) handleNotification(ctx context.Context, notificatio
 		return errDriveChangesUntrackedNotification
 	}
 	messageKey := driveChangesMessageKey(notification.ChannelID, notification.ResourceID)
+	if notification.ResourceState == "sync" {
+		if last := s.state.LastMessageNumbers[messageKey]; last > notification.MessageNumber {
+			s.logf(
+				"drive changes serve: resetting reused channel=%s message=%d",
+				notification.ChannelID,
+				notification.MessageNumber,
+			)
+		}
+		err := s.acknowledgeNotificationLocked(notification)
+		s.mu.Unlock()
+		if err != nil {
+			return err
+		}
+		return errDriveChangesIgnoredNotification
+	}
 	if last := s.state.LastMessageNumbers[messageKey]; last >= notification.MessageNumber {
 		s.logf(
 			"drive changes serve: ignoring duplicate channel=%s message=%d",
@@ -202,24 +217,6 @@ func (s *driveChangesServer) handleNotification(ctx context.Context, notificatio
 		)
 		s.mu.Unlock()
 		return errDriveChangesDuplicateNotification
-	}
-	switch notification.ResourceState {
-	case "sync":
-		err := s.acknowledgeNotificationLocked(notification)
-		s.mu.Unlock()
-		if err != nil {
-			return err
-		}
-		return errDriveChangesIgnoredNotification
-	case "change", "changed":
-	default:
-		err := s.acknowledgeNotificationLocked(notification)
-		s.mu.Unlock()
-		if err != nil {
-			return err
-		}
-		s.logf("drive changes serve: ignoring resource state %q", notification.ResourceState)
-		return errDriveChangesIgnoredNotification
 	}
 
 	pageToken := s.state.PageToken

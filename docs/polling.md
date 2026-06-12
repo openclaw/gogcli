@@ -141,10 +141,10 @@ Receiver behavior:
 - only `POST` requests to the configured path are accepted
 - mismatched or missing `X-Goog-Channel-Token` returns `401`
 - malformed required `X-Goog-*` headers return `400`
-- `sync`, duplicate, and unknown resource-state notifications are acknowledged
-  without running the hook
-- change notifications are serialized so concurrent deliveries cannot race the
-  page token
+- `sync` and duplicate notifications are acknowledged without running the hook
+- every authenticated non-`sync` resource state is treated as a signal to read
+  the changes feed; notifications are serialized so concurrent deliveries
+  cannot race the page token
 - queued and in-flight callbacks are bounded by `--notification-timeout`
   (default `5m`)
 - request disconnects do not cancel an in-flight Drive read or hook; command
@@ -163,8 +163,9 @@ token, including when reusing state previously written by auto-renew mode.
 `poll` and `serve` require separate state files; each state file records its
 own command kind and rejects cross-use. Legacy state files without a kind remain
 readable and gain one on the next write. Message-number deduplication is scoped
-to both channel and resource ID, so a manually reused channel ID does not
-inherit the prior channel's sequence.
+to both channel and resource ID. A `sync` notification resets that pair's
+sequence for a newly registered channel, though channel IDs should still be
+unique as required by the Drive API.
 
 Command page:
 

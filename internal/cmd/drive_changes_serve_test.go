@@ -147,10 +147,10 @@ func TestDriveChangesServeManualModeAcceptsNewChannelWithPersistedBindings(t *te
 		PageToken: pollTestStartToken,
 		Channel: &driveChangesServeChannelState{
 			ID:         "channel-1",
-			ResourceID: "old-resource",
+			ResourceID: "resource-1",
 		},
 		LastMessageNumbers: map[string]uint64{
-			driveChangesMessageKey("channel-1", "old-resource"): 99,
+			driveChangesMessageKey("channel-1", "resource-1"): 99,
 		},
 	}
 	if err := writePollState(statePath, state); err != nil {
@@ -164,9 +164,16 @@ func TestDriveChangesServeManualModeAcceptsNewChannelWithPersistedBindings(t *te
 	if response.Code != http.StatusNoContent {
 		t.Fatalf("status = %d, want 204", response.Code)
 	}
+	persisted, _, err := readDriveChangesServeState(statePath)
+	if err != nil {
+		t.Fatalf("read state: %v", err)
+	}
+	if got := persisted.LastMessageNumbers[driveChangesMessageKey("channel-1", "resource-1")]; got != 1 {
+		t.Fatalf("message number = %d, want reset to 1", got)
+	}
 }
 
-func TestDriveChangesServeAcknowledgesSyncUnknownAndDuplicates(t *testing.T) {
+func TestDriveChangesServeAcknowledgesSyncAndDuplicates(t *testing.T) {
 	statePath := filepath.Join(t.TempDir(), "state.json")
 	state := driveChangesServeState{
 		Version:   pollStateVersion,
@@ -184,8 +191,7 @@ func TestDriveChangesServeAcknowledgesSyncUnknownAndDuplicates(t *testing.T) {
 		messageNumber uint64
 	}{
 		{resourceState: "sync", messageNumber: 1},
-		{resourceState: "future-state", messageNumber: 2},
-		{resourceState: "future-state", messageNumber: 2},
+		{resourceState: "sync", messageNumber: 1},
 	} {
 		request := newDriveChangesNotificationRequest(t, driveChangesTestChannelToken, tc.resourceState, tc.messageNumber)
 		response := httptest.NewRecorder()
@@ -203,8 +209,46 @@ func TestDriveChangesServeAcknowledgesSyncUnknownAndDuplicates(t *testing.T) {
 		t.Fatalf("page token = %q", persisted.PageToken)
 	}
 	messageKey := driveChangesMessageKey("channel-1", "resource-1")
-	if persisted.LastMessageNumbers[messageKey] != 2 {
-		t.Fatalf("message number = %d, want 2", persisted.LastMessageNumbers[messageKey])
+	if persisted.LastMessageNumbers[messageKey] != 1 {
+		t.Fatalf("message number = %d, want 1", persisted.LastMessageNumbers[messageKey])
+	}
+}
+
+func TestDriveChangesServeProcessesEveryNonSyncResourceState(t *testing.T) {
+	for _, resourceState := range []string{"add", "remove", "update", "trash", "untrash", "change", "future-state"} {
+		t.Run(resourceState, func(t *testing.T) {
+			svc, closeDrive := newDriveTestService(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				_ = json.NewEncoder(w).Encode(map[string]any{
+					"newStartPageToken": "next-token",
+					"changes":           []map[string]any{{"fileId": "file-1"}},
+				})
+			}))
+			defer closeDrive()
+
+			statePath := filepath.Join(t.TempDir(), "state.json")
+			state := driveChangesServeState{
+				Version:   pollStateVersion,
+				PageToken: pollTestStartToken,
+			}
+			if err := writePollState(statePath, state); err != nil {
+				t.Fatalf("write state: %v", err)
+			}
+			server := newDriveChangesTestReceiver(t, svc, state)
+			server.statePath = statePath
+
+			response := httptest.NewRecorder()
+			server.ServeHTTP(response, newDriveChangesNotificationRequest(t, driveChangesTestChannelToken, resourceState, 2))
+			if response.Code != http.StatusNoContent {
+				t.Fatalf("status = %d, want 204", response.Code)
+			}
+			persisted, _, err := readDriveChangesServeState(statePath)
+			if err != nil {
+				t.Fatalf("read state: %v", err)
+			}
+			if persisted.PageToken != "next-token" {
+				t.Fatalf("page token = %q, want next-token", persisted.PageToken)
+			}
+		})
 	}
 }
 
@@ -794,6 +838,7 @@ func TestDriveChangesServeRunRetriesPendingCleanupAtStartup(t *testing.T) {
 }
 
 func TestDriveChangesServeValidation(t *testing.T) {
+	t.Setenv("GOG_DRIVE_CHANNEL_TOKEN", "")
 	valid := DriveChangesServeCmd{
 		Listen:              "127.0.0.1:8443",
 		Path:                driveChangesTestStatePath,
