@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"crypto/subtle"
+	"encoding/base64"
 	"errors"
 	"net/http"
 	"strconv"
@@ -82,7 +83,11 @@ func (s *driveChangesServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *driveChangesServer) notificationContext(requestCtx context.Context) (context.Context, context.CancelFunc) {
-	ctx, cancel := context.WithCancel(context.WithoutCancel(requestCtx))
+	timeout := s.notificationTimeout
+	if timeout <= 0 {
+		timeout = defaultDriveChangesNotificationTimeout
+	}
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(requestCtx), timeout)
 	if s.runDone == nil {
 		return ctx, cancel
 	}
@@ -101,6 +106,22 @@ func (s *driveChangesServer) notificationContext(requestCtx context.Context) (co
 		}
 		cancel()
 	}
+}
+
+func (s *driveChangesServer) acquireNotification(ctx context.Context) error {
+	s.notificationOnce.Do(func() {
+		s.notificationGate = make(chan struct{}, 1)
+	})
+	select {
+	case s.notificationGate <- struct{}{}:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+func (s *driveChangesServer) releaseNotification() {
+	<-s.notificationGate
 }
 
 func driveChangesChannelTokenMatches(got string, expected string) bool {
@@ -157,8 +178,10 @@ func parseDriveChangesNotification(r *http.Request) (driveChangesNotification, e
 }
 
 func (s *driveChangesServer) handleNotification(ctx context.Context, notification driveChangesNotification) error {
-	s.notificationMu.Lock()
-	defer s.notificationMu.Unlock()
+	if err := s.acquireNotification(ctx); err != nil {
+		return err
+	}
+	defer s.releaseNotification()
 
 	s.mu.Lock()
 	if !s.notificationChannelAllowedLocked(notification) {
@@ -170,7 +193,8 @@ func (s *driveChangesServer) handleNotification(ctx context.Context, notificatio
 		s.mu.Unlock()
 		return errDriveChangesUntrackedNotification
 	}
-	if last := s.state.LastMessageNumbers[notification.ChannelID]; last >= notification.MessageNumber {
+	messageKey := driveChangesMessageKey(notification.ChannelID, notification.ResourceID)
+	if last := s.state.LastMessageNumbers[messageKey]; last >= notification.MessageNumber {
 		s.logf(
 			"drive changes serve: ignoring duplicate channel=%s message=%d",
 			notification.ChannelID,
@@ -240,7 +264,7 @@ func (s *driveChangesServer) handleNotification(ctx context.Context, notificatio
 	nextState := cloneDriveChangesServeState(s.state)
 	nextState.PageToken = nextPageToken
 	nextState.UpdatedAt = s.runtime.now().UTC().Format(time.RFC3339Nano)
-	setDriveChangesMessageNumber(&nextState, notification.ChannelID, notification.MessageNumber)
+	setDriveChangesMessageNumber(&nextState, notification, notification.MessageNumber)
 	if err := writePollState(s.statePath, nextState); err != nil {
 		return err
 	}
@@ -274,7 +298,7 @@ func (s *driveChangesServer) notificationChannelAllowedLocked(notification drive
 func (s *driveChangesServer) acknowledgeNotificationLocked(notification driveChangesNotification) error {
 	nextState := cloneDriveChangesServeState(s.state)
 	nextState.UpdatedAt = s.runtime.now().UTC().Format(time.RFC3339Nano)
-	setDriveChangesMessageNumber(&nextState, notification.ChannelID, notification.MessageNumber)
+	setDriveChangesMessageNumber(&nextState, notification, notification.MessageNumber)
 	if err := writePollState(s.statePath, nextState); err != nil {
 		return err
 	}
@@ -282,10 +306,21 @@ func (s *driveChangesServer) acknowledgeNotificationLocked(notification driveCha
 	return nil
 }
 
-func setDriveChangesMessageNumber(state *driveChangesServeState, channelID string, messageNumber uint64) {
+func setDriveChangesMessageNumber(state *driveChangesServeState, notification driveChangesNotification, messageNumber uint64) {
 	if state.LastMessageNumbers == nil {
 		state.LastMessageNumbers = make(map[string]uint64)
 	}
-	state.LastMessageNumbers[channelID] = messageNumber
-	trimDriveChangesMessageNumbers(state, channelIDFor(state.Channel), channelIDFor(state.PreviousChannel), channelID)
+	messageKey := driveChangesMessageKey(notification.ChannelID, notification.ResourceID)
+	state.LastMessageNumbers[messageKey] = messageNumber
+	trimDriveChangesMessageNumbers(
+		state,
+		driveChangesMessageKeyForChannel(state.Channel),
+		driveChangesMessageKeyForChannel(state.PreviousChannel),
+		messageKey,
+	)
+}
+
+func driveChangesMessageKey(channelID string, resourceID string) string {
+	return base64.RawURLEncoding.EncodeToString([]byte(channelID)) + "." +
+		base64.RawURLEncoding.EncodeToString([]byte(resourceID))
 }

@@ -21,31 +21,33 @@ import (
 )
 
 const (
-	defaultDriveChangesChannelTTL = 24 * time.Hour
-	maxDriveChangesChannelTTL     = 7 * 24 * time.Hour
-	driveChangesRenewRetry        = time.Minute
+	defaultDriveChangesChannelTTL          = 24 * time.Hour
+	defaultDriveChangesNotificationTimeout = 5 * time.Minute
+	maxDriveChangesChannelTTL              = 7 * 24 * time.Hour
+	driveChangesRenewRetry                 = time.Minute
 )
 
 var errDriveChangesPreviousCleanupPending = errors.New("previous Drive changes channel cleanup is pending")
 
 type DriveChangesServeCmd struct {
-	Listen           string        `name:"listen" help:"Listen address" default:"127.0.0.1:8443"`
-	Path             string        `name:"path" help:"Notification handler path" default:"/drive-changes"`
-	Cert             string        `name:"cert" help:"TLS certificate path; pair with --key (omit behind an HTTPS reverse proxy)"`
-	Key              string        `name:"key" help:"TLS private key path; pair with --cert"`
-	ChannelToken     string        `name:"channel-token" help:"Expected X-Goog-Channel-Token value" env:"GOG_DRIVE_CHANNEL_TOKEN"`
-	ChannelTokenFile string        `name:"channel-token-file" type:"path" help:"Read the expected channel token from a file"`
-	StateFile        string        `name:"state-file" required:"" help:"JSON file that stores the current Drive page token and channel state"`
-	Token            string        `name:"token" help:"Initial Drive page token when creating a new state file"`
-	OnChange         string        `name:"on-change" help:"Trusted local shell command run for each non-empty change batch; event JSON is provided on stdin"`
-	FilterFile       string        `name:"filter-file" help:"Only invoke the hook for changes to this file ID"`
-	DriveID          string        `name:"drive" aliases:"drive-id" help:"Shared drive ID for a shared-drive change log"`
-	Max              int64         `name:"max" aliases:"limit" help:"Max changes per API page" default:"100"`
-	IncludeRemoved   bool          `name:"include-removed" help:"Include removed changes" default:"true" negatable:"_"`
-	AutoRenew        bool          `name:"auto-renew" help:"Create and renew the Drive notification channel"`
-	WebhookURL       string        `name:"webhook-url" help:"Public HTTPS callback URL used by --auto-renew"`
-	ChannelTTL       time.Duration `name:"channel-ttl" help:"Requested channel lifetime" default:"24h"`
-	RenewBefore      time.Duration `name:"renew-before" help:"Renew this long before channel expiration" default:"10m"`
+	Listen              string        `name:"listen" help:"Listen address" default:"127.0.0.1:8443"`
+	Path                string        `name:"path" help:"Notification handler path" default:"/drive-changes"`
+	Cert                string        `name:"cert" help:"TLS certificate path; pair with --key (omit behind an HTTPS reverse proxy)"`
+	Key                 string        `name:"key" help:"TLS private key path; pair with --cert"`
+	ChannelToken        string        `name:"channel-token" help:"Expected X-Goog-Channel-Token value" env:"GOG_DRIVE_CHANNEL_TOKEN"`
+	ChannelTokenFile    string        `name:"channel-token-file" type:"path" help:"Read the expected channel token from a file"`
+	StateFile           string        `name:"state-file" required:"" help:"JSON file that stores the current Drive page token and channel state"`
+	Token               string        `name:"token" help:"Initial Drive page token when creating a new state file"`
+	OnChange            string        `name:"on-change" help:"Trusted local shell command run for each non-empty change batch; event JSON is provided on stdin"`
+	FilterFile          string        `name:"filter-file" help:"Only invoke the hook for changes to this file ID"`
+	DriveID             string        `name:"drive" aliases:"drive-id" help:"Shared drive ID for a shared-drive change log"`
+	Max                 int64         `name:"max" aliases:"limit" help:"Max changes per API page" default:"100"`
+	IncludeRemoved      bool          `name:"include-removed" help:"Include removed changes" default:"true" negatable:"_"`
+	AutoRenew           bool          `name:"auto-renew" help:"Create and renew the Drive notification channel"`
+	WebhookURL          string        `name:"webhook-url" help:"Public HTTPS callback URL used by --auto-renew"`
+	ChannelTTL          time.Duration `name:"channel-ttl" help:"Requested channel lifetime" default:"24h"`
+	RenewBefore         time.Duration `name:"renew-before" help:"Renew this long before channel expiration" default:"10m"`
+	NotificationTimeout time.Duration `name:"notification-timeout" help:"Maximum time for one callback, including Drive reads and the hook" default:"5m"`
 }
 
 type driveChangesServeChannelState struct {
@@ -102,27 +104,29 @@ func (r driveChangesServeRuntime) withDefaults() driveChangesServeRuntime {
 }
 
 type driveChangesServer struct {
-	mu             sync.Mutex
-	notificationMu sync.Mutex
-	renewMu        sync.Mutex
-	runDone        <-chan struct{}
-	pendingChannel string
-	statePath      string
-	state          driveChangesServeState
-	service        *drive.Service
-	path           string
-	channelToken   string
-	onChange       string
-	filterFile     string
-	max            int64
-	includeRemoved bool
-	autoRenew      bool
-	webhookURL     string
-	channelTTL     time.Duration
-	renewBefore    time.Duration
-	runtime        driveChangesServeRuntime
-	logf           func(string, ...any)
-	warnf          func(string, ...any)
+	mu                  sync.Mutex
+	notificationOnce    sync.Once
+	notificationGate    chan struct{}
+	renewMu             sync.Mutex
+	runDone             <-chan struct{}
+	pendingChannel      string
+	statePath           string
+	state               driveChangesServeState
+	service             *drive.Service
+	path                string
+	channelToken        string
+	onChange            string
+	filterFile          string
+	max                 int64
+	includeRemoved      bool
+	autoRenew           bool
+	webhookURL          string
+	channelTTL          time.Duration
+	renewBefore         time.Duration
+	notificationTimeout time.Duration
+	runtime             driveChangesServeRuntime
+	logf                func(string, ...any)
+	warnf               func(string, ...any)
 }
 
 func (c *DriveChangesServeCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -149,21 +153,21 @@ func (c *DriveChangesServeCmd) run(ctx context.Context, flags *RootFlags, runtim
 	driveID := strings.TrimSpace(c.DriveID)
 	filterFile := normalizeGoogleID(strings.TrimSpace(c.FilterFile))
 	if dryRunErr := dryRunExit(ctx, flags, "drive.changes.serve", map[string]any{
-		"listen":           strings.TrimSpace(c.Listen),
-		"path":             strings.TrimSpace(c.Path),
-		"tls":              strings.TrimSpace(c.Cert) != "",
-		"state_file":       statePath,
-		"initial_token":    strings.TrimSpace(c.Token) != "",
-		"drive_id":         driveID,
-		"filter_file":      filterFile,
-		"max":              c.Max,
-		"include_removed":  c.IncludeRemoved,
-		"hook_configured":  strings.TrimSpace(c.OnChange) != "",
-		"auto_renew":       c.AutoRenew,
-		"webhook_url":      strings.TrimSpace(c.WebhookURL),
-		"channel_ttl":      c.ChannelTTL.String(),
-		"renew_before":     c.RenewBefore.String(),
-		"token_configured": true,
+		"listen":               strings.TrimSpace(c.Listen),
+		"path":                 strings.TrimSpace(c.Path),
+		"tls":                  strings.TrimSpace(c.Cert) != "",
+		"state_file":           statePath,
+		"initial_token":        strings.TrimSpace(c.Token) != "",
+		"drive_id":             driveID,
+		"filter_file":          filterFile,
+		"max":                  c.Max,
+		"include_removed":      c.IncludeRemoved,
+		"hook_configured":      strings.TrimSpace(c.OnChange) != "",
+		"auto_renew":           c.AutoRenew,
+		"webhook_url":          strings.TrimSpace(c.WebhookURL),
+		"channel_ttl":          c.ChannelTTL.String(),
+		"renew_before":         c.RenewBefore.String(),
+		"notification_timeout": c.NotificationTimeout.String(),
 	}); dryRunErr != nil {
 		return dryRunErr
 	}
@@ -208,23 +212,24 @@ func (c *DriveChangesServeCmd) run(ctx context.Context, flags *RootFlags, runtim
 	}
 
 	server := &driveChangesServer{
-		runDone:        ctx.Done(),
-		statePath:      statePath,
-		state:          state,
-		service:        svc,
-		path:           strings.TrimSpace(c.Path),
-		channelToken:   channelToken,
-		onChange:       strings.TrimSpace(c.OnChange),
-		filterFile:     filterFile,
-		max:            c.Max,
-		includeRemoved: c.IncludeRemoved,
-		autoRenew:      c.AutoRenew,
-		webhookURL:     strings.TrimSpace(c.WebhookURL),
-		channelTTL:     c.ChannelTTL,
-		renewBefore:    c.RenewBefore,
-		runtime:        runtime,
-		logf:           u.Err().Linef,
-		warnf:          u.Err().Linef,
+		runDone:             ctx.Done(),
+		statePath:           statePath,
+		state:               state,
+		service:             svc,
+		path:                strings.TrimSpace(c.Path),
+		channelToken:        channelToken,
+		onChange:            strings.TrimSpace(c.OnChange),
+		filterFile:          filterFile,
+		max:                 c.Max,
+		includeRemoved:      c.IncludeRemoved,
+		autoRenew:           c.AutoRenew,
+		webhookURL:          strings.TrimSpace(c.WebhookURL),
+		channelTTL:          c.ChannelTTL,
+		renewBefore:         c.RenewBefore,
+		notificationTimeout: c.NotificationTimeout,
+		runtime:             runtime,
+		logf:                u.Err().Linef,
+		warnf:               u.Err().Linef,
 	}
 	httpServer := &http.Server{
 		Handler:           server,
@@ -320,6 +325,9 @@ func (c *DriveChangesServeCmd) validate(channelToken string) error {
 	}
 	if c.Max <= 0 {
 		return usage("--max must be greater than zero")
+	}
+	if c.NotificationTimeout <= 0 {
+		return usage("--notification-timeout must be greater than zero")
 	}
 	webhookURL := strings.TrimSpace(c.WebhookURL)
 	if c.AutoRenew {
@@ -523,7 +531,11 @@ func (s *driveChangesServer) ensureChannel(ctx context.Context) (time.Duration, 
 		TokenHash:   channelTokenHash(s.channelToken),
 	}
 	nextState.UpdatedAt = now.Format(time.RFC3339Nano)
-	trimDriveChangesMessageNumbers(&nextState, nextState.Channel.ID, channelIDFor(nextState.PreviousChannel))
+	trimDriveChangesMessageNumbers(
+		&nextState,
+		driveChangesMessageKeyForChannel(nextState.Channel),
+		driveChangesMessageKeyForChannel(nextState.PreviousChannel),
+	)
 	if err := writePollState(s.statePath, nextState); err != nil {
 		channelToStop := *nextState.Channel
 		s.mu.Unlock()
@@ -648,29 +660,29 @@ func (s *driveChangesServer) runRenewLoop(ctx context.Context, delay time.Durati
 	}
 }
 
-func channelIDFor(channel *driveChangesServeChannelState) string {
+func driveChangesMessageKeyForChannel(channel *driveChangesServeChannelState) string {
 	if channel == nil {
 		return ""
 	}
-	return channel.ID
+	return driveChangesMessageKey(channel.ID, channel.ResourceID)
 }
 
-func trimDriveChangesMessageNumbers(state *driveChangesServeState, keepChannelIDs ...string) {
+func trimDriveChangesMessageNumbers(state *driveChangesServeState, keepKeys ...string) {
 	if len(state.LastMessageNumbers) <= 32 {
 		return
 	}
-	keep := make(map[string]struct{}, len(keepChannelIDs))
-	for _, channelID := range keepChannelIDs {
-		if channelID != "" {
-			keep[channelID] = struct{}{}
+	keep := make(map[string]struct{}, len(keepKeys))
+	for _, key := range keepKeys {
+		if key != "" {
+			keep[key] = struct{}{}
 		}
 	}
-	for channelID := range state.LastMessageNumbers {
+	for key := range state.LastMessageNumbers {
 		if len(state.LastMessageNumbers) <= 32 {
 			break
 		}
-		if _, ok := keep[channelID]; !ok {
-			delete(state.LastMessageNumbers, channelID)
+		if _, ok := keep[key]; !ok {
+			delete(state.LastMessageNumbers, key)
 		}
 	}
 }

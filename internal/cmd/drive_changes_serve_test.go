@@ -146,8 +146,11 @@ func TestDriveChangesServeManualModeAcceptsNewChannelWithPersistedBindings(t *te
 		Version:   pollStateVersion,
 		PageToken: pollTestStartToken,
 		Channel: &driveChangesServeChannelState{
-			ID:         "old-channel",
+			ID:         "channel-1",
 			ResourceID: "old-resource",
+		},
+		LastMessageNumbers: map[string]uint64{
+			driveChangesMessageKey("channel-1", "old-resource"): 99,
 		},
 	}
 	if err := writePollState(statePath, state); err != nil {
@@ -199,8 +202,9 @@ func TestDriveChangesServeAcknowledgesSyncUnknownAndDuplicates(t *testing.T) {
 	if persisted.PageToken != pollTestStartToken {
 		t.Fatalf("page token = %q", persisted.PageToken)
 	}
-	if persisted.LastMessageNumbers["channel-1"] != 2 {
-		t.Fatalf("message number = %d, want 2", persisted.LastMessageNumbers["channel-1"])
+	messageKey := driveChangesMessageKey("channel-1", "resource-1")
+	if persisted.LastMessageNumbers[messageKey] != 2 {
+		t.Fatalf("message number = %d, want 2", persisted.LastMessageNumbers[messageKey])
 	}
 }
 
@@ -266,7 +270,8 @@ func TestDriveChangesServeProcessesNotificationOverHTTP(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read state: %v", err)
 	}
-	if persisted.PageToken != "next-token" || persisted.LastMessageNumbers["channel-1"] != 7 {
+	if persisted.PageToken != "next-token" ||
+		persisted.LastMessageNumbers[driveChangesMessageKey("channel-1", "resource-1")] != 7 {
 		t.Fatalf("unexpected state: %#v", persisted)
 	}
 }
@@ -311,7 +316,8 @@ func TestDriveChangesServeProcessingSurvivesRequestCancellation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read state: %v", err)
 	}
-	if persisted.PageToken != "next-token" || persisted.LastMessageNumbers["channel-1"] != 8 {
+	if persisted.PageToken != "next-token" ||
+		persisted.LastMessageNumbers[driveChangesMessageKey("channel-1", "resource-1")] != 8 {
 		t.Fatalf("unexpected state: %#v", persisted)
 	}
 }
@@ -331,6 +337,20 @@ func TestDriveChangesServeProcessingStopsOnCommandCancellation(t *testing.T) {
 		}
 	case <-time.After(time.Second):
 		t.Fatal("processing context did not stop with command context")
+	}
+}
+
+func TestDriveChangesServeNotificationGateHonorsTimeout(t *testing.T) {
+	server := newDriveChangesTestReceiver(t, nil, driveChangesServeState{})
+	if err := server.acquireNotification(context.Background()); err != nil {
+		t.Fatalf("acquire first notification: %v", err)
+	}
+	defer server.releaseNotification()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancel()
+	if err := server.acquireNotification(ctx); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("queued notification error = %v, want deadline exceeded", err)
 	}
 }
 
@@ -373,7 +393,8 @@ func TestDriveChangesServeFilterSkipsHookButAdvancesState(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read state: %v", err)
 	}
-	if persisted.PageToken != "next-token" || persisted.LastMessageNumbers["channel-1"] != 3 {
+	if persisted.PageToken != "next-token" ||
+		persisted.LastMessageNumbers[driveChangesMessageKey("channel-1", "resource-1")] != 3 {
 		t.Fatalf("unexpected state: %#v", persisted)
 	}
 }
@@ -410,7 +431,8 @@ func TestDriveChangesServeHookFailureRetainsStateForRetry(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read state: %v", err)
 	}
-	if persisted.PageToken != pollTestStartToken || persisted.LastMessageNumbers["channel-1"] != 0 {
+	if persisted.PageToken != pollTestStartToken ||
+		persisted.LastMessageNumbers[driveChangesMessageKey("channel-1", "resource-1")] != 0 {
 		t.Fatalf("unexpected state: %#v", persisted)
 	}
 }
@@ -584,7 +606,8 @@ func TestDriveChangesServeSerializesConcurrentNotifications(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read state: %v", err)
 	}
-	if persisted.PageToken != "next-2" || persisted.LastMessageNumbers["channel-1"] != 3 {
+	if persisted.PageToken != "next-2" ||
+		persisted.LastMessageNumbers[driveChangesMessageKey("channel-1", "resource-1")] != 3 {
 		t.Fatalf("unexpected state: %#v", persisted)
 	}
 }
@@ -738,16 +761,17 @@ func TestDriveChangesServeRunRetriesPendingCleanupAtStartup(t *testing.T) {
 	ctx, cancel := context.WithCancel(newCmdOutputContext(t, io.Discard, io.Discard))
 	retryScheduled := make(chan struct{})
 	cmd := DriveChangesServeCmd{
-		Listen:         "127.0.0.1:0",
-		Path:           driveChangesTestStatePath,
-		ChannelToken:   driveChangesTestChannelToken,
-		StateFile:      statePath,
-		Max:            100,
-		IncludeRemoved: true,
-		AutoRenew:      true,
-		WebhookURL:     "https://example.com/drive-changes",
-		ChannelTTL:     defaultDriveChangesChannelTTL,
-		RenewBefore:    10 * time.Minute,
+		Listen:              "127.0.0.1:0",
+		Path:                driveChangesTestStatePath,
+		ChannelToken:        driveChangesTestChannelToken,
+		StateFile:           statePath,
+		Max:                 100,
+		IncludeRemoved:      true,
+		AutoRenew:           true,
+		WebhookURL:          "https://example.com/drive-changes",
+		ChannelTTL:          defaultDriveChangesChannelTTL,
+		RenewBefore:         10 * time.Minute,
+		NotificationTimeout: defaultDriveChangesNotificationTimeout,
 	}
 	runtime := defaultDriveChangesServeRuntime()
 	runtime.wait = func(ctx context.Context, delay time.Duration) error {
@@ -771,14 +795,15 @@ func TestDriveChangesServeRunRetriesPendingCleanupAtStartup(t *testing.T) {
 
 func TestDriveChangesServeValidation(t *testing.T) {
 	valid := DriveChangesServeCmd{
-		Listen:         "127.0.0.1:8443",
-		Path:           driveChangesTestStatePath,
-		ChannelToken:   driveChangesTestChannelToken,
-		StateFile:      "state.json",
-		Max:            100,
-		IncludeRemoved: true,
-		ChannelTTL:     defaultDriveChangesChannelTTL,
-		RenewBefore:    10 * time.Minute,
+		Listen:              "127.0.0.1:8443",
+		Path:                driveChangesTestStatePath,
+		ChannelToken:        driveChangesTestChannelToken,
+		StateFile:           "state.json",
+		Max:                 100,
+		IncludeRemoved:      true,
+		ChannelTTL:          defaultDriveChangesChannelTTL,
+		RenewBefore:         10 * time.Minute,
+		NotificationTimeout: defaultDriveChangesNotificationTimeout,
 	}
 	cases := []struct {
 		name   string
@@ -870,16 +895,17 @@ func TestDriveChangesServeRejectsInvalidTLSKeyPair(t *testing.T) {
 		t.Fatalf("write private key: %v", err)
 	}
 	cmd := DriveChangesServeCmd{
-		Listen:         "127.0.0.1:0",
-		Path:           driveChangesTestStatePath,
-		Cert:           certPath,
-		Key:            keyPath,
-		ChannelToken:   driveChangesTestChannelToken,
-		StateFile:      filepath.Join(dir, "state.json"),
-		Max:            100,
-		IncludeRemoved: true,
-		ChannelTTL:     defaultDriveChangesChannelTTL,
-		RenewBefore:    10 * time.Minute,
+		Listen:              "127.0.0.1:0",
+		Path:                driveChangesTestStatePath,
+		Cert:                certPath,
+		Key:                 keyPath,
+		ChannelToken:        driveChangesTestChannelToken,
+		StateFile:           filepath.Join(dir, "state.json"),
+		Max:                 100,
+		IncludeRemoved:      true,
+		ChannelTTL:          defaultDriveChangesChannelTTL,
+		RenewBefore:         10 * time.Minute,
+		NotificationTimeout: defaultDriveChangesNotificationTimeout,
 	}
 	err := cmd.run(
 		newCmdOutputContext(t, io.Discard, io.Discard),
@@ -901,15 +927,16 @@ func TestDriveChangesServeRunShutsDownOnContextCancel(t *testing.T) {
 	ctx, cancel := context.WithCancel(newCmdOutputContext(t, io.Discard, io.Discard))
 	listening := make(chan struct{})
 	cmd := DriveChangesServeCmd{
-		Listen:         "127.0.0.1:0",
-		Path:           driveChangesTestStatePath,
-		ChannelToken:   driveChangesTestChannelToken,
-		StateFile:      filepath.Join(t.TempDir(), "state.json"),
-		Token:          pollTestStartToken,
-		Max:            100,
-		IncludeRemoved: true,
-		ChannelTTL:     defaultDriveChangesChannelTTL,
-		RenewBefore:    10 * time.Minute,
+		Listen:              "127.0.0.1:0",
+		Path:                driveChangesTestStatePath,
+		ChannelToken:        driveChangesTestChannelToken,
+		StateFile:           filepath.Join(t.TempDir(), "state.json"),
+		Token:               pollTestStartToken,
+		Max:                 100,
+		IncludeRemoved:      true,
+		ChannelTTL:          defaultDriveChangesChannelTTL,
+		RenewBefore:         10 * time.Minute,
+		NotificationTimeout: defaultDriveChangesNotificationTimeout,
 	}
 	runtime := defaultDriveChangesServeRuntime()
 	runtime.listen = func(ctx context.Context, network string, address string) (net.Listener, error) {
@@ -934,17 +961,18 @@ func TestDriveChangesServeRunShutsDownOnContextCancel(t *testing.T) {
 func newDriveChangesTestReceiver(t *testing.T, svc *drive.Service, state driveChangesServeState) *driveChangesServer {
 	t.Helper()
 	return &driveChangesServer{
-		state:          state,
-		service:        svc,
-		path:           driveChangesTestStatePath,
-		channelToken:   driveChangesTestChannelToken,
-		max:            100,
-		includeRemoved: true,
-		channelTTL:     defaultDriveChangesChannelTTL,
-		renewBefore:    10 * time.Minute,
-		runtime:        defaultDriveChangesServeRuntime(),
-		logf:           func(string, ...any) {},
-		warnf:          func(string, ...any) {},
+		state:               state,
+		service:             svc,
+		path:                driveChangesTestStatePath,
+		channelToken:        driveChangesTestChannelToken,
+		max:                 100,
+		includeRemoved:      true,
+		channelTTL:          defaultDriveChangesChannelTTL,
+		renewBefore:         10 * time.Minute,
+		notificationTimeout: defaultDriveChangesNotificationTimeout,
+		runtime:             defaultDriveChangesServeRuntime(),
+		logf:                func(string, ...any) {},
+		warnf:               func(string, ...any) {},
 	}
 }
 

@@ -43,6 +43,7 @@ gog drive (drv) changes serve --state-file=STRING [flags]
 | `--listen` | `string` | 127.0.0.1:8443 | Listen address |
 | `--max`<br>`--limit` | `int64` | 100 | Max changes per API page |
 | `--no-input`<br>`--non-interactive`<br>`--noninteractive` | `bool` |  | Never prompt; fail instead (useful for CI) |
+| `--notification-timeout` | `time.Duration` | 5m | Maximum time for one callback, including Drive reads and the hook |
 | `--on-change` | `string` |  | Trusted local shell command run for each non-empty change batch; event JSON is provided on stdin |
 | `--path` | `string` | /drive-changes | Notification handler path |
 | `-p`<br>`--plain`<br>`--tsv` | `bool` | false | Output stable, parseable text to stdout (TSV; no colors) |

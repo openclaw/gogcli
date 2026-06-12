@@ -144,6 +144,8 @@ Receiver behavior:
   without running the hook
 - change notifications are serialized so concurrent deliveries cannot race the
   page token
+- queued and in-flight callbacks are bounded by `--notification-timeout`
+  (default `5m`)
 - request disconnects do not cancel an in-flight Drive read or hook; command
   shutdown still cancels them
 - hooks remain sequential, but an in-flight hook does not block channel renewal
@@ -158,6 +160,8 @@ itself. Auto-renewed receivers also bind notifications to the persisted current
 or previous channel and resource IDs; manual receivers rely only on the channel
 token, including when reusing state previously written by auto-renew mode. Do
 not run `poll` and `serve` concurrently against the same state file.
+Message-number deduplication is scoped to both channel and resource ID, so a
+manually reused channel ID does not inherit the prior channel's sequence.
 
 Command page:
 
