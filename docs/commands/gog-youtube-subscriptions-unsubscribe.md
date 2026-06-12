@@ -1,28 +1,18 @@
-# `gog youtube`
+# `gog youtube subscriptions unsubscribe`
 
 > Generated from `gog schema --json`. Do not edit this page by hand; run `make docs-commands`.
 
-YouTube Data API (search, activities, videos, playlists, comments, channels)
+Unsubscribe from a channel
 
 ## Usage
 
 ```bash
-gog youtube (yt) <command> [flags]
+gog youtube (yt) subscriptions (subscription) unsubscribe [flags]
 ```
 
 ## Parent
 
-- [gog](gog.md)
-
-## Subcommands
-
-- [gog youtube activities](gog-youtube-activities.md) - List channel activities
-- [gog youtube channels](gog-youtube-channels.md) - List channels
-- [gog youtube comments](gog-youtube-comments.md) - List comment threads
-- [gog youtube playlists](gog-youtube-playlists.md) - Manage playlists
-- [gog youtube search](gog-youtube-search.md) - Search YouTube for videos, channels, or playlists
-- [gog youtube subscriptions](gog-youtube-subscriptions.md) - Manage channel subscriptions
-- [gog youtube videos](gog-youtube-videos.md) - List or get videos
+- [gog youtube subscriptions](gog-youtube-subscriptions.md)
 
 ## Flags
 
@@ -30,6 +20,7 @@ gog youtube (yt) <command> [flags]
 | --- | --- | --- | --- |
 | `--access-token` | `string` |  | Use provided access token directly (bypasses stored refresh tokens; token expires in ~1h) |
 | `-a`<br>`--account`<br>`--acct` | `string` |  | Account email for API commands (gmail/calendar/chat/classroom/drive/drivelabels/docs/slides/contacts/tasks/people/sheets/forms/sites/appscript/analytics/searchconsole/youtube/photos) |
+| `--channel-id` | `string` |  | Channel ID (looked up to find subscription ID) |
 | `--client` | `string` |  | OAuth client name (selects stored credentials + token bucket) |
 | `--color` | `string` | auto | Color output: auto\|always\|never |
 | `--disable-commands` | `string` |  | Comma-separated list of disabled commands; dot paths allowed |
@@ -40,6 +31,7 @@ gog youtube (yt) <command> [flags]
 | `--gmail-no-send` | `bool` | false | Block Gmail send operations (agent safety) |
 | `-h`<br>`--help` | `kong.helpFlag` |  | Show context-sensitive help. |
 | `--home` | `string` |  | Override gogcli config/data/state/cache root (equivalent to GOG_HOME) |
+| `--id` | `string` |  | Subscription ID (from subscriptions list) |
 | `-j`<br>`--json`<br>`--machine` | `bool` | false | Output JSON to stdout (best for scripting) |
 | `--no-input`<br>`--non-interactive`<br>`--noninteractive` | `bool` |  | Never prompt; fail instead (useful for CI) |
 | `-p`<br>`--plain`<br>`--tsv` | `bool` | false | Output stable, parseable text to stdout (TSV; no colors) |
@@ -51,5 +43,5 @@ gog youtube (yt) <command> [flags]
 
 ## See Also
 
-- [gog](gog.md)
+- [gog youtube subscriptions](gog-youtube-subscriptions.md)
 - [Command index](README.md)

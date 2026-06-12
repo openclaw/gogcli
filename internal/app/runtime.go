@@ -117,6 +117,7 @@ type Services struct {
 	YouTubeAPIKey   YouTubeServiceFactory
 	YouTubeAccount  YouTubeServiceFactory
 	YouTubeComments YouTubeServiceFactory
+	YouTubeWrite    YouTubeServiceFactory
 	Zoom            ZoomMeetingClientFactory
 	DriveDownload   DriveDownloadFunc
 	DriveExport     DriveExportFunc

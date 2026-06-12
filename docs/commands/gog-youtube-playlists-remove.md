@@ -1,28 +1,18 @@
-# `gog youtube`
+# `gog youtube playlists remove`
 
 > Generated from `gog schema --json`. Do not edit this page by hand; run `make docs-commands`.
 
-YouTube Data API (search, activities, videos, playlists, comments, channels)
+Remove a video from a playlist
 
 ## Usage
 
 ```bash
-gog youtube (yt) <command> [flags]
+gog youtube (yt) playlists (playlist) remove (rm) [flags]
 ```
 
 ## Parent
 
-- [gog](gog.md)
-
-## Subcommands
-
-- [gog youtube activities](gog-youtube-activities.md) - List channel activities
-- [gog youtube channels](gog-youtube-channels.md) - List channels
-- [gog youtube comments](gog-youtube-comments.md) - List comment threads
-- [gog youtube playlists](gog-youtube-playlists.md) - Manage playlists
-- [gog youtube search](gog-youtube-search.md) - Search YouTube for videos, channels, or playlists
-- [gog youtube subscriptions](gog-youtube-subscriptions.md) - Manage channel subscriptions
-- [gog youtube videos](gog-youtube-videos.md) - List or get videos
+- [gog youtube playlists](gog-youtube-playlists.md)
 
 ## Flags
 
@@ -40,16 +30,19 @@ gog youtube (yt) <command> [flags]
 | `--gmail-no-send` | `bool` | false | Block Gmail send operations (agent safety) |
 | `-h`<br>`--help` | `kong.helpFlag` |  | Show context-sensitive help. |
 | `--home` | `string` |  | Override gogcli config/data/state/cache root (equivalent to GOG_HOME) |
+| `--item-id` | `string` |  | Playlist item ID to remove directly |
 | `-j`<br>`--json`<br>`--machine` | `bool` | false | Output JSON to stdout (best for scripting) |
 | `--no-input`<br>`--non-interactive`<br>`--noninteractive` | `bool` |  | Never prompt; fail instead (useful for CI) |
 | `-p`<br>`--plain`<br>`--tsv` | `bool` | false | Output stable, parseable text to stdout (TSV; no colors) |
+| `--playlist-id` | `string` |  | Playlist ID (required with --video-id) |
 | `--results-only` | `bool` |  | In JSON mode, emit only the primary result (drops envelope fields like nextPageToken) |
 | `--select`<br>`--pick`<br>`--project` | `string` |  | In JSON mode, select comma-separated fields (best-effort; supports dot paths). Desire path: use --fields for most commands. |
 | `-v`<br>`--verbose` | `bool` |  | Enable verbose logging |
 | `--version` | `kong.VersionFlag` |  | Print version and exit |
+| `--video-id` | `string` |  | Video ID to remove |
 | `--wrap-untrusted` | `bool` | false | In JSON/raw output, wrap fetched text fields in external untrusted-content markers |
 
 ## See Also
 
-- [gog](gog.md)
+- [gog youtube playlists](gog-youtube-playlists.md)
 - [Command index](README.md)

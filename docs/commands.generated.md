@@ -626,10 +626,18 @@ Generated from `gog schema --json`.
       - [`gog youtube (yt) channels (channel) list (ls) [flags]`](commands/gog-youtube-channels-list.md) - List channels by ID or authenticated user
     - [`gog youtube (yt) comments (comment) <command>`](commands/gog-youtube-comments.md) - List comment threads
       - [`gog youtube (yt) comments (comment) list (ls) [flags]`](commands/gog-youtube-comments-list.md) - List comment threads for a video or channel
-    - [`gog youtube (yt) playlists (playlist) <command>`](commands/gog-youtube-playlists.md) - List playlists
+    - [`gog youtube (yt) playlists (playlist) <command>`](commands/gog-youtube-playlists.md) - Manage playlists
+      - [`gog youtube (yt) playlists (playlist) add --playlist-id=STRING --video-id=STRING [flags]`](commands/gog-youtube-playlists-add.md) - Add a video to a playlist
+      - [`gog youtube (yt) playlists (playlist) create --title=STRING [flags]`](commands/gog-youtube-playlists-create.md) - Create a new playlist
+      - [`gog youtube (yt) playlists (playlist) delete (del) <playlist-id>`](commands/gog-youtube-playlists-delete.md) - Delete a playlist
       - [`gog youtube (yt) playlists (playlist) list (ls) [flags]`](commands/gog-youtube-playlists-list.md) - List playlists by channel or authenticated user
+      - [`gog youtube (yt) playlists (playlist) remove (rm) [flags]`](commands/gog-youtube-playlists-remove.md) - Remove a video from a playlist
     - [`gog youtube (yt) search (find) <command>`](commands/gog-youtube-search.md) - Search YouTube for videos, channels, or playlists
       - [`gog youtube (yt) search (find) list (ls) <query> [flags]`](commands/gog-youtube-search-list.md) - Search for videos, channels, or playlists
+    - [`gog youtube (yt) subscriptions (subscription) <command>`](commands/gog-youtube-subscriptions.md) - Manage channel subscriptions
+      - [`gog youtube (yt) subscriptions (subscription) list (ls) [flags]`](commands/gog-youtube-subscriptions-list.md) - List subscriptions for authenticated user
+      - [`gog youtube (yt) subscriptions (subscription) subscribe [flags]`](commands/gog-youtube-subscriptions-subscribe.md) - Subscribe to a channel
+      - [`gog youtube (yt) subscriptions (subscription) unsubscribe [flags]`](commands/gog-youtube-subscriptions-unsubscribe.md) - Unsubscribe from a channel
     - [`gog youtube (yt) videos (video) <command>`](commands/gog-youtube-videos.md) - List or get videos
       - [`gog youtube (yt) videos (video) list (ls) [flags]`](commands/gog-youtube-videos-list.md) - List videos by ID or chart
   - [`gog zoom <command> [flags]`](commands/gog-zoom.md) - Zoom

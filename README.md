@@ -358,18 +358,37 @@ gog forms raw <formId> --pretty
 Docs: [`gog youtube`](docs/commands/gog-youtube.md),
 [`youtube channels`](docs/commands/gog-youtube-channels.md),
 [`youtube videos`](docs/commands/gog-youtube-videos.md),
-[`youtube activities`](docs/commands/gog-youtube-activities.md).
+[`youtube activities`](docs/commands/gog-youtube-activities.md),
+[`youtube subscriptions`](docs/commands/gog-youtube-subscriptions.md),
+[`youtube playlists`](docs/commands/gog-youtube-playlists.md).
 
 ```bash
 gog config set youtube_api_key YOUR_API_KEY
 gog yt channels list --id UC_x5XG1OV2P6uZZ5FSM9Ttw --json
 gog yt videos list --chart mostPopular --region US --max 5
 gog yt activities list --mine -a you@gmail.com
+gog yt subscriptions list --all -a you@gmail.com
+gog yt playlists create --title "Research" -a you@gmail.com
 ```
 
 For API-key reads, enable YouTube Data API v3 on the key's Google Cloud project
 and make sure API-key restrictions allow YouTube Data API calls. Authenticated
-`--mine` reads use OAuth instead.
+`--mine` reads use OAuth instead. Subscription and playlist mutations require
+the narrower `youtube.force-ssl` write scope; authorize it explicitly before
+the first write:
+
+```bash
+gog auth add you@gmail.com --services youtube \
+  --extra-scopes https://www.googleapis.com/auth/youtube.force-ssl \
+  --force-consent
+```
+
+All YouTube mutations support `--dry-run`. Unsubscribe, playlist-item removal,
+and playlist deletion also require confirmation or `--force`. New playlists
+default to private; pass `--privacy unlisted` or `--privacy public` explicitly
+to broaden visibility. The authenticated Google account must already have a
+YouTube channel; initialize it once at youtube.com if the API reports
+`youtubeSignupRequired`.
 
 ### Analytics and Search Console
 

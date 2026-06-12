@@ -1,28 +1,24 @@
-# `gog youtube`
+# `gog youtube subscriptions`
 
 > Generated from `gog schema --json`. Do not edit this page by hand; run `make docs-commands`.
 
-YouTube Data API (search, activities, videos, playlists, comments, channels)
+Manage channel subscriptions
 
 ## Usage
 
 ```bash
-gog youtube (yt) <command> [flags]
+gog youtube (yt) subscriptions (subscription) <command>
 ```
 
 ## Parent
 
-- [gog](gog.md)
+- [gog youtube](gog-youtube.md)
 
 ## Subcommands
 
-- [gog youtube activities](gog-youtube-activities.md) - List channel activities
-- [gog youtube channels](gog-youtube-channels.md) - List channels
-- [gog youtube comments](gog-youtube-comments.md) - List comment threads
-- [gog youtube playlists](gog-youtube-playlists.md) - Manage playlists
-- [gog youtube search](gog-youtube-search.md) - Search YouTube for videos, channels, or playlists
-- [gog youtube subscriptions](gog-youtube-subscriptions.md) - Manage channel subscriptions
-- [gog youtube videos](gog-youtube-videos.md) - List or get videos
+- [gog youtube subscriptions list](gog-youtube-subscriptions-list.md) - List subscriptions for authenticated user
+- [gog youtube subscriptions subscribe](gog-youtube-subscriptions-subscribe.md) - Subscribe to a channel
+- [gog youtube subscriptions unsubscribe](gog-youtube-subscriptions-unsubscribe.md) - Unsubscribe from a channel
 
 ## Flags
 
@@ -51,5 +47,5 @@ gog youtube (yt) <command> [flags]
 
 ## See Also
 
-- [gog](gog.md)
+- [gog youtube](gog-youtube.md)
 - [Command index](README.md)

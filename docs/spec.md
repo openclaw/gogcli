@@ -477,6 +477,9 @@ We store a single refresh token per Google account email.
   - `https://www.googleapis.com/auth/directory.readonly`
 - People:
   - `profile` (OIDC)
+- YouTube:
+  - `https://www.googleapis.com/auth/youtube.readonly` for normal account reads
+  - `https://www.googleapis.com/auth/youtube.force-ssl` as an explicit extra scope for comments and mutations
 - Photos: `https://www.googleapis.com/auth/photoslibrary.readonly.appcreateddata`
 - Photos Picker: `https://www.googleapis.com/auth/photospicker.mediaitems.readonly` (explicit opt-in)
 

@@ -2,6 +2,10 @@
 
 ## 0.25.1 - Unreleased
 
+### Added
+
+- YouTube: add subscription listing and management plus playlist create, add, remove, and delete commands with least-privilege OAuth, dry-run support, structured output, and destructive-operation confirmation. (#767) — thanks @beezly.
+
 ## 0.25.0 - 2026-06-12
 
 ### Added

@@ -584,7 +584,7 @@ func TestYouTubeSubscriptionsSubscribe(t *testing.T) {
 	svc := newGoogleTestServiceWithEndpoint(t, srv.Client(), srv.URL+"/", youtube.NewService)
 	var stdout bytes.Buffer
 	ctx := withYouTubeTestServices(newCmdRuntimeOutputContext(t, &stdout, io.Discard), youtubeTestServices{
-		Account: fixedYouTubeTestService(svc),
+		Write: fixedYouTubeTestService(svc),
 	})
 	err := runKong(t, &YouTubeSubscriptionsSubscribeCmd{}, []string{"--channel-id", "UCnew"}, ctx, &RootFlags{Account: "me@example.com"})
 	if err != nil {
@@ -612,7 +612,7 @@ func TestYouTubeSubscriptionsUnsubscribeByID(t *testing.T) {
 
 	svc := newGoogleTestServiceWithEndpoint(t, srv.Client(), srv.URL+"/", youtube.NewService)
 	ctx := withYouTubeTestServices(newCmdRuntimeOutputContext(t, io.Discard, io.Discard), youtubeTestServices{
-		Account: fixedYouTubeTestService(svc),
+		Write: fixedYouTubeTestService(svc),
 	})
 	err := runKong(t, &YouTubeSubscriptionsUnsubscribeCmd{}, []string{"--id", "SUB123"}, ctx, &RootFlags{Account: "me@example.com", Force: true})
 	if err != nil {
@@ -646,7 +646,7 @@ func TestYouTubeSubscriptionsUnsubscribeByChannelID(t *testing.T) {
 
 	svc := newGoogleTestServiceWithEndpoint(t, srv.Client(), srv.URL+"/", youtube.NewService)
 	ctx := withYouTubeTestServices(newCmdRuntimeOutputContext(t, io.Discard, io.Discard), youtubeTestServices{
-		Account: fixedYouTubeTestService(svc),
+		Write: fixedYouTubeTestService(svc),
 	})
 	err := runKong(t, &YouTubeSubscriptionsUnsubscribeCmd{}, []string{"--channel-id", "UCcool"}, ctx, &RootFlags{Account: "me@example.com", Force: true})
 	if err != nil {
@@ -669,7 +669,7 @@ func TestYouTubeSubscriptionsUnsubscribeChannelNotFound(t *testing.T) {
 
 	svc := newGoogleTestServiceWithEndpoint(t, srv.Client(), srv.URL+"/", youtube.NewService)
 	ctx := withYouTubeTestServices(newCmdRuntimeOutputContext(t, io.Discard, io.Discard), youtubeTestServices{
-		Account: fixedYouTubeTestService(svc),
+		Write: fixedYouTubeTestService(svc),
 	})
 	err := runKong(t, &YouTubeSubscriptionsUnsubscribeCmd{}, []string{"--channel-id", "UCmissing"}, ctx, &RootFlags{Account: "me@example.com", Force: true})
 	if err == nil || !strings.Contains(err.Error(), "not subscribed") {
@@ -679,7 +679,7 @@ func TestYouTubeSubscriptionsUnsubscribeChannelNotFound(t *testing.T) {
 
 func TestYouTubeSubscriptionsUnsubscribeValidation(t *testing.T) {
 	ctx := withYouTubeTestServices(newCmdRuntimeOutputContext(t, io.Discard, io.Discard), youtubeTestServices{
-		Account: unexpectedYouTubeTestService(t, "should not reach service with missing args"),
+		Write: unexpectedYouTubeTestService(t, "should not reach service with missing args"),
 	})
 	flags := &RootFlags{Account: "me@example.com", Force: true}
 	tests := []struct {
@@ -712,6 +712,7 @@ func TestYouTubeValidationRejectsBlankSelectorsBeforeService(t *testing.T) {
 	ctx := withYouTubeTestServices(newCmdRuntimeOutputContext(t, io.Discard, io.Discard), youtubeTestServices{
 		Account:  unexpectedYouTubeTestService(t, "expected validation to fail before OAuth YouTube service creation"),
 		Comments: unexpectedYouTubeTestService(t, "expected validation to fail before OAuth YouTube comments service creation"),
+		Write:    unexpectedYouTubeTestService(t, "expected validation to fail before OAuth YouTube write service creation"),
 		APIKey:   unexpectedYouTubeTestService(t, "expected validation to fail before API-key YouTube service creation"),
 	})
 	flags := &RootFlags{Account: "me@example.com"}

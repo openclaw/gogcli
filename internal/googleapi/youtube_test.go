@@ -5,7 +5,28 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/steipete/gogcli/internal/googleauth"
 )
+
+func TestYouTubeScopeContract(t *testing.T) {
+	readScopes, err := googleauth.Scopes(googleauth.ServiceYouTube)
+	if err != nil {
+		t.Fatalf("Scopes(ServiceYouTube): %v", err)
+	}
+
+	if len(readScopes) != 1 || readScopes[0] != "https://www.googleapis.com/auth/youtube.readonly" {
+		t.Fatalf("read scopes = %v", readScopes)
+	}
+
+	if scopeYouTubeForceSSL != "https://www.googleapis.com/auth/youtube.force-ssl" {
+		t.Fatalf("write scope = %q", scopeYouTubeForceSSL)
+	}
+
+	if scopeYouTubeForceSSL == readScopes[0] {
+		t.Fatal("write scope must remain separate from read scope")
+	}
+}
 
 func TestNewYouTubeAPIKeyHTTPClientAddsKeyWithRetryTransport(t *testing.T) {
 	client, err := newYouTubeAPIKeyHTTPClient(context.Background(), "test-key")

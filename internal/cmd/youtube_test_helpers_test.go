@@ -14,6 +14,7 @@ type youtubeTestServices struct {
 	APIKey   app.YouTubeServiceFactory
 	Account  app.YouTubeServiceFactory
 	Comments app.YouTubeServiceFactory
+	Write    app.YouTubeServiceFactory
 }
 
 func fixedYouTubeTestService(svc *youtube.Service) app.YouTubeServiceFactory {
@@ -35,5 +36,6 @@ func withYouTubeTestServices(ctx context.Context, services youtubeTestServices) 
 		runtime.Services.YouTubeAPIKey = services.APIKey
 		runtime.Services.YouTubeAccount = services.Account
 		runtime.Services.YouTubeComments = services.Comments
+		runtime.Services.YouTubeWrite = services.Write
 	})
 }

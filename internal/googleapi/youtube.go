@@ -78,3 +78,20 @@ func NewYouTubeCommentsForAccount(ctx context.Context, email string) (*youtube.S
 
 	return svc, nil
 }
+
+// NewYouTubeWriteForAccount creates a YouTube client for account mutations.
+// youtube.force-ssl covers subscription, playlist, and comment operations while
+// the general account client remains limited to youtube.readonly.
+func NewYouTubeWriteForAccount(ctx context.Context, email string) (*youtube.Service, error) {
+	opts, err := optionsForAccountScopes(ctx, string(googleauth.ServiceYouTube), email, []string{scopeYouTubeForceSSL})
+	if err != nil {
+		return nil, fmt.Errorf("youtube write OAuth options: %w", err)
+	}
+
+	svc, err := youtube.NewService(ctx, opts...)
+	if err != nil {
+		return nil, fmt.Errorf("youtube write service for account: %w", err)
+	}
+
+	return svc, nil
+}

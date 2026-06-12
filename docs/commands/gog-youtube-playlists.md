@@ -2,7 +2,7 @@
 
 > Generated from `gog schema --json`. Do not edit this page by hand; run `make docs-commands`.
 
-List playlists
+Manage playlists
 
 ## Usage
 
@@ -16,7 +16,11 @@ gog youtube (yt) playlists (playlist) <command>
 
 ## Subcommands
 
+- [gog youtube playlists add](gog-youtube-playlists-add.md) - Add a video to a playlist
+- [gog youtube playlists create](gog-youtube-playlists-create.md) - Create a new playlist
+- [gog youtube playlists delete](gog-youtube-playlists-delete.md) - Delete a playlist
 - [gog youtube playlists list](gog-youtube-playlists-list.md) - List playlists by channel or authenticated user
+- [gog youtube playlists remove](gog-youtube-playlists-remove.md) - Remove a video from a playlist
 
 ## Flags
 

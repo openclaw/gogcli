@@ -1,28 +1,18 @@
-# `gog youtube`
+# `gog youtube playlists delete`
 
 > Generated from `gog schema --json`. Do not edit this page by hand; run `make docs-commands`.
 
-YouTube Data API (search, activities, videos, playlists, comments, channels)
+Delete a playlist
 
 ## Usage
 
 ```bash
-gog youtube (yt) <command> [flags]
+gog youtube (yt) playlists (playlist) delete (del) <playlist-id>
 ```
 
 ## Parent
 
-- [gog](gog.md)
-
-## Subcommands
-
-- [gog youtube activities](gog-youtube-activities.md) - List channel activities
-- [gog youtube channels](gog-youtube-channels.md) - List channels
-- [gog youtube comments](gog-youtube-comments.md) - List comment threads
-- [gog youtube playlists](gog-youtube-playlists.md) - Manage playlists
-- [gog youtube search](gog-youtube-search.md) - Search YouTube for videos, channels, or playlists
-- [gog youtube subscriptions](gog-youtube-subscriptions.md) - Manage channel subscriptions
-- [gog youtube videos](gog-youtube-videos.md) - List or get videos
+- [gog youtube playlists](gog-youtube-playlists.md)
 
 ## Flags
 
@@ -51,5 +41,5 @@ gog youtube (yt) <command> [flags]
 
 ## See Also
 
-- [gog](gog.md)
+- [gog youtube playlists](gog-youtube-playlists.md)
 - [Command index](README.md)

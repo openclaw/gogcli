@@ -46,3 +46,10 @@ func getYouTubeCommentsServiceForAccount(ctx context.Context, account string) (*
 	}
 	return googleapi.NewYouTubeCommentsForAccount(ctx, account)
 }
+
+func getYouTubeWriteServiceForAccount(ctx context.Context, account string) (*youtube.Service, error) {
+	if runtime, ok := app.FromContext(ctx); ok && runtime.Services.YouTubeWrite != nil {
+		return runtime.Services.YouTubeWrite(ctx, account)
+	}
+	return googleapi.NewYouTubeWriteForAccount(ctx, account)
+}

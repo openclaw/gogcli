@@ -2,7 +2,7 @@
 
 Every `gog` command has a generated docs page. The source of truth is the live CLI schema; run `make docs-commands` after changing command names, flags, help text, aliases, or arguments.
 
-Generated pages: 634.
+Generated pages: 642.
 
 ## Top-level Commands
 
@@ -677,10 +677,18 @@ Generated pages: 634.
       - [gog youtube channels list](gog-youtube-channels-list.md) - List channels by ID or authenticated user
     - [gog youtube comments](gog-youtube-comments.md) - List comment threads
       - [gog youtube comments list](gog-youtube-comments-list.md) - List comment threads for a video or channel
-    - [gog youtube playlists](gog-youtube-playlists.md) - List playlists
+    - [gog youtube playlists](gog-youtube-playlists.md) - Manage playlists
+      - [gog youtube playlists add](gog-youtube-playlists-add.md) - Add a video to a playlist
+      - [gog youtube playlists create](gog-youtube-playlists-create.md) - Create a new playlist
+      - [gog youtube playlists delete](gog-youtube-playlists-delete.md) - Delete a playlist
       - [gog youtube playlists list](gog-youtube-playlists-list.md) - List playlists by channel or authenticated user
+      - [gog youtube playlists remove](gog-youtube-playlists-remove.md) - Remove a video from a playlist
     - [gog youtube search](gog-youtube-search.md) - Search YouTube for videos, channels, or playlists
       - [gog youtube search list](gog-youtube-search-list.md) - Search for videos, channels, or playlists
+    - [gog youtube subscriptions](gog-youtube-subscriptions.md) - Manage channel subscriptions
+      - [gog youtube subscriptions list](gog-youtube-subscriptions-list.md) - List subscriptions for authenticated user
+      - [gog youtube subscriptions subscribe](gog-youtube-subscriptions-subscribe.md) - Subscribe to a channel
+      - [gog youtube subscriptions unsubscribe](gog-youtube-subscriptions-unsubscribe.md) - Unsubscribe from a channel
     - [gog youtube videos](gog-youtube-videos.md) - List or get videos
       - [gog youtube videos list](gog-youtube-videos-list.md) - List videos by ID or chart
   - [gog zoom](gog-zoom.md) - Zoom
