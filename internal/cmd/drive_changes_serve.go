@@ -167,7 +167,11 @@ func (c *DriveChangesServeCmd) run(ctx context.Context, flags *RootFlags, runtim
 
 	var tlsConfig *tls.Config
 	if strings.TrimSpace(c.Cert) != "" {
-		certificate, certErr := tls.LoadX509KeyPair(c.Cert, c.Key)
+		certPath, keyPath, pathErr := expandDriveChangesTLSPaths(c.Cert, c.Key)
+		if pathErr != nil {
+			return pathErr
+		}
+		certificate, certErr := tls.LoadX509KeyPair(certPath, keyPath)
 		if certErr != nil {
 			return fmt.Errorf("load TLS certificate: %w", certErr)
 		}
@@ -280,6 +284,18 @@ func (c *DriveChangesServeCmd) resolveChannelToken() (string, error) {
 		return "", usage("provide --channel-token, --channel-token-file, or GOG_DRIVE_CHANNEL_TOKEN")
 	}
 	return direct, nil
+}
+
+func expandDriveChangesTLSPaths(cert string, key string) (string, string, error) {
+	certPath, err := config.ExpandPath(strings.TrimSpace(cert))
+	if err != nil {
+		return "", "", fmt.Errorf("expand --cert: %w", err)
+	}
+	keyPath, err := config.ExpandPath(strings.TrimSpace(key))
+	if err != nil {
+		return "", "", fmt.Errorf("expand --key: %w", err)
+	}
+	return certPath, keyPath, nil
 }
 
 func (c *DriveChangesServeCmd) validate(channelToken string) error {

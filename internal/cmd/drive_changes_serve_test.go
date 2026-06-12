@@ -574,6 +574,21 @@ func TestDriveChangesServeResolvesChannelTokenFile(t *testing.T) {
 	}
 }
 
+func TestExpandDriveChangesTLSPaths(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	certPath, keyPath, err := expandDriveChangesTLSPaths("~/tls/cert.pem", "~/tls/key.pem")
+	if err != nil {
+		t.Fatalf("expand TLS paths: %v", err)
+	}
+	if certPath != filepath.Join(home, "tls", "cert.pem") {
+		t.Fatalf("cert path = %q", certPath)
+	}
+	if keyPath != filepath.Join(home, "tls", "key.pem") {
+		t.Fatalf("key path = %q", keyPath)
+	}
+}
+
 func TestDriveChangesServeRunShutsDownOnContextCancel(t *testing.T) {
 	svc, closeDrive := newDriveTestService(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		http.NotFound(w, nil)
