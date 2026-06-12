@@ -73,6 +73,49 @@ Command page:
 
 - [`gog docs format`](commands/gog-docs-format.md)
 
+## Ranges, Links, And Anchors
+
+Resolve literal text to Docs API UTF-16 indexes before composing a lower-level
+edit:
+
+```bash
+gog docs find-range <docId> "Release status" --json
+gog docs find-range <docId> "Owner" --all --tab "Plan" --plain
+```
+
+Emoji and other non-BMP characters occupy two UTF-16 code units. The returned
+indexes are ready for Docs API ranges; do not recalculate them from byte or
+rune offsets.
+
+Set or clear a hyperlink on matched text:
+
+```bash
+gog docs format <docId> --match "Project site" --link https://example.com
+gog docs format <docId> --match "Project site" --no-link
+```
+
+`--link` accepts HTTP(S), `mailto:`, bookmark IDs, and same-document heading
+slugs. `--link` and `--no-link` are mutually exclusive.
+
+The direct mutators can resolve the same literal anchors:
+
+```bash
+gog docs insert <docId> "Prefix: " --at "Release status"
+gog docs update <docId> --at "Draft" --text "Ready"
+gog docs delete <docId> --at "Remove me"
+gog docs insert-person <docId> --email owner@example.com --at "@owner"
+gog docs insert-page-break <docId> --at "Appendix"
+```
+
+Use `--occurrence N` when an anchor is ambiguous and `--match-case` when case
+must be exact. `docs comments locate` applies the same matching rules to a
+comment's quoted text and reports its tab plus UTF-16 range.
+
+Command pages:
+
+- [`gog docs find-range`](commands/gog-docs-find-range.md)
+- [`gog docs comments locate`](commands/gog-docs-comments-locate.md)
+
 ## Discover Content
 
 List document elements before using index- or object-ID-based edit commands:
@@ -114,8 +157,10 @@ gog docs named-range replace <docId> ReleaseStatus --text "Released"
 gog docs named-range delete <docId> ReleaseStatus
 ```
 
-Commands are tab-aware. Use `--occurrence` when `--at` matches more than once,
-and `--match-case` when case matters.
+Commands are tab-aware. Without `--tab`, they target the default tab and scope
+named-range mutations correctly even when the document has additional tabs.
+Use `--occurrence` when `--at` matches more than once, and `--match-case` when
+case matters.
 
 Command page:
 
@@ -199,7 +244,8 @@ gog docs insert-table <docId> --rows 2 --cols 2 --index 1 \
 to append at the end of the document (or the selected `--tab`), or `--index N`
 to insert at a specific document index. Prefer this primitive when you want a
 guaranteed native table rather than relying on the Markdown writer's table
-rendering (see `gog docs write --markdown`).
+rendering (see `gog docs write --markdown`). Markdown rendering accepts
+one-column tables as well as wider tables.
 
 Update one existing table cell without round-tripping the surrounding document:
 

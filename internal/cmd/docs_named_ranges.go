@@ -359,7 +359,11 @@ func (c *DocsNamedRangesReplaceCmd) Run(ctx context.Context, kctx *kong.Context,
 	if err != nil {
 		return fmt.Errorf("replace named range: %w", err)
 	}
-	updated, err := loadDocsTargetDocument(ctx, svc, docID, tab)
+	updatedTab := tab
+	if tab == "" && loaded.tabID != "" {
+		updatedTab = loaded.tabID
+	}
+	updated, err := loadDocsTargetDocument(ctx, svc, docID, updatedTab)
 	if err != nil {
 		return fmt.Errorf("read replaced named range: %w", err)
 	}
@@ -421,7 +425,67 @@ func loadAndResolveDocsNamedRange(ctx context.Context, svc *docs.Service, docID,
 			Err:  fmt.Errorf("named range not found: %q", in),
 		}
 	}
+	if loaded.tabID == "" {
+		scopedLoaded, scopedItem, scoped, scopeErr := scopeDocsNamedRangeToOwningTab(ctx, svc, docID, item)
+		if scopeErr != nil {
+			return nil, docsNamedRangeItem{}, scopeErr
+		}
+		if scoped {
+			return scopedLoaded, scopedItem, nil
+		}
+	}
 	return loaded, item, nil
+}
+
+func scopeDocsNamedRangeToOwningTab(
+	ctx context.Context,
+	svc *docs.Service,
+	docID string,
+	item docsNamedRangeItem,
+) (*docsLoadedTarget, docsNamedRangeItem, bool, error) {
+	doc, err := svc.Documents.Get(docID).IncludeTabsContent(true).Context(ctx).Do()
+	if err != nil {
+		return nil, docsNamedRangeItem{}, false, err
+	}
+	if doc == nil || len(doc.Tabs) == 0 {
+		return nil, docsNamedRangeItem{}, false, nil
+	}
+
+	var matchedLoaded *docsLoadedTarget
+	var matchedItem docsNamedRangeItem
+	for _, tab := range flattenTabs(doc.Tabs) {
+		if tab == nil || tab.TabProperties == nil || tab.DocumentTab == nil {
+			continue
+		}
+		tabID := strings.TrimSpace(tab.TabProperties.TabId)
+		if tabID == "" {
+			continue
+		}
+		loaded := &docsLoadedTarget{full: doc, tabID: tabID}
+		items, itemsErr := docsNamedRangeItemsForLoaded(loaded)
+		if itemsErr != nil {
+			return nil, docsNamedRangeItem{}, false, itemsErr
+		}
+		candidate, found, resolveErr := resolveDocsNamedRange(item.NamedRangeID, items)
+		if resolveErr != nil {
+			return nil, docsNamedRangeItem{}, false, resolveErr
+		}
+		if !found {
+			continue
+		}
+		if matchedLoaded != nil {
+			return nil, docsNamedRangeItem{}, false, fmt.Errorf(
+				"named range ID %q exists in multiple tabs; pass --tab",
+				item.NamedRangeID,
+			)
+		}
+		matchedLoaded = loaded
+		matchedItem = candidate
+	}
+	if matchedLoaded == nil {
+		return nil, docsNamedRangeItem{}, false, nil
+	}
+	return matchedLoaded, matchedItem, true, nil
 }
 
 func docsNamedRangeItemsForLoaded(loaded *docsLoadedTarget) ([]docsNamedRangeItem, error) {

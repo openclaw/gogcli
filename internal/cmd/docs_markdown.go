@@ -340,7 +340,7 @@ func isTableSeparator(line string) bool {
 		}
 		sawDashSegment = true
 	}
-	return sawDashSegment && len(segments) > 1
+	return sawDashSegment
 }
 
 // parseMarkdownTable parses a markdown table into rows of cells

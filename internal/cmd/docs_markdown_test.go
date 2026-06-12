@@ -1,6 +1,9 @@
 package cmd
 
-import "testing"
+import (
+	"reflect"
+	"testing"
+)
 
 func TestParseMarkdown(t *testing.T) {
 	tests := []struct {
@@ -567,6 +570,7 @@ func TestIsTableSeparator_EmptyPipeRowRejected(t *testing.T) {
 		{"empty cells", "|     |     |", false},
 		{"empty cells tight", "||", false},
 		{"empty cells three cols", "|   |   |   |", false},
+		{"one column", "|---|", true},
 		{"normal separator", "|---|---|", true},
 		{"spaced separator", "| --- | --- |", true},
 		{"left align", "|:---|---|", true},
@@ -579,6 +583,18 @@ func TestIsTableSeparator_EmptyPipeRowRejected(t *testing.T) {
 				t.Errorf("isTableSeparator(%q) = %v, want %v", tt.line, got, tt.want)
 			}
 		})
+	}
+}
+
+func TestParseMarkdown_OneColumnTable(t *testing.T) {
+	input := "| Status |\n| --- |\n| Ready |"
+	got := ParseMarkdown(input)
+	if len(got) != 1 || got[0].Type != MDTable {
+		t.Fatalf("ParseMarkdown() = %#v, want one table", got)
+	}
+	want := [][]string{{"Status"}, {"Ready"}}
+	if !reflect.DeepEqual(got[0].TableCells, want) {
+		t.Fatalf("table rows = %#v, want %#v", got[0].TableCells, want)
 	}
 }
 

@@ -15,6 +15,11 @@
 - Drive: expose shortcut targets in JSON and human-readable folder reports without changing stable `--plain` columns, classify shortcuts distinctly, keep tree scans from following folder targets, and add `drive shortcut create`. (#763)
 - Drive: add a secure push-notification receiver with persisted cursors, authenticated callbacks, sequential hooks, and optional channel auto-renewal. (#689, #764)
 
+### Fixed
+
+- Docs: recognize valid one-column Markdown tables instead of rendering their pipe syntax as literal paragraphs.
+- Docs: scope default-tab named-range replace and delete requests correctly in multi-tab documents.
+
 ## 0.24.0 - 2026-06-11
 
 ### Added

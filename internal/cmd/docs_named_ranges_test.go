@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -252,6 +253,67 @@ func TestDocsNamedRangesDeleteAndReplaceByExactID(t *testing.T) {
 	}
 	if !bytes.Contains(rec.rawBatches[2], []byte(`"text":""`)) {
 		t.Fatalf("empty text omitted from wire body: %s", rec.rawBatches[2])
+	}
+}
+
+func TestDocsNamedRangesReplaceDefaultTabScopesMultiTabRequest(t *testing.T) {
+	origDocs := newDocsService
+	t.Cleanup(func() { newDocsService = origDocs })
+
+	mainRange := &docs.NamedRange{
+		Name:         "stable",
+		NamedRangeId: "nr-stable",
+		Ranges:       []*docs.Range{{StartIndex: 1, EndIndex: 7}},
+	}
+	doc := docsFindRangeDoc(docsFindRangeParagraph(1, "stable\n"))
+	doc.DocumentId = "doc1"
+	doc.RevisionId = "rev-tabs"
+	doc.NamedRanges = map[string]docs.NamedRanges{
+		"stable": {Name: "stable", NamedRanges: []*docs.NamedRange{mainRange}},
+	}
+	doc.Tabs = []*docs.Tab{
+		{
+			TabProperties: &docs.TabProperties{TabId: "t.main", Title: "Tab 1"},
+			DocumentTab: &docs.DocumentTab{
+				Body: docsFindRangeDoc(docsFindRangeParagraph(1, "stable\n")).Body,
+				NamedRanges: map[string]docs.NamedRanges{
+					"stable": {Name: "stable", NamedRanges: []*docs.NamedRange{mainRange}},
+				},
+			},
+		},
+		{
+			TabProperties: &docs.TabProperties{TabId: "t.other", Title: "Other"},
+			DocumentTab:   &docs.DocumentTab{Body: docsFindRangeDoc(docsFindRangeParagraph(1, "other\n")).Body},
+		},
+	}
+	rec := &docsNamedRangeRecorder{}
+	setupDocsNamedRangeTestService(t, doc, rec)
+
+	var err error
+	captureStdout(t, func() {
+		err = runKong(t, &DocsNamedRangesReplaceCmd{}, []string{
+			"doc1", "stable", "--text", "replacement",
+		}, newDocsJSONContext(t), &RootFlags{Account: "a@b.com"})
+	})
+	if err != nil {
+		t.Fatalf("replace: %v", err)
+	}
+	got := rec.batches[0].Requests[0].ReplaceNamedRangeContent
+	if got == nil || got.TabsCriteria == nil || !reflect.DeepEqual(got.TabsCriteria.TabIds, []string{"t.main"}) {
+		t.Fatalf("replace request tabs = %#v, want t.main", got)
+	}
+
+	captureStdout(t, func() {
+		err = runKong(t, &DocsNamedRangesDeleteCmd{}, []string{
+			"doc1", "stable",
+		}, newDocsJSONContext(t), &RootFlags{Account: "a@b.com"})
+	})
+	if err != nil {
+		t.Fatalf("delete: %v", err)
+	}
+	deleted := rec.batches[1].Requests[0].DeleteNamedRange
+	if deleted == nil || deleted.TabsCriteria == nil || !reflect.DeepEqual(deleted.TabsCriteria.TabIds, []string{"t.main"}) {
+		t.Fatalf("delete request tabs = %#v, want t.main", deleted)
 	}
 }
 
