@@ -500,6 +500,61 @@ func TestYouTubeValidation(t *testing.T) {
 	}
 }
 
+func TestYouTubeSubscriptionsListMine(t *testing.T) {
+	var gotAccount string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/youtube/v3/subscriptions" {
+			t.Fatalf("path = %s", r.URL.Path)
+		}
+		if got := r.URL.Query().Get("mine"); got != "true" {
+			t.Fatalf("mine = %q", got)
+		}
+		if got := r.URL.Query().Get("maxResults"); got != "2" {
+			t.Fatalf("maxResults = %q", got)
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"items": []map[string]any{
+				{
+					"id": "SUB123",
+					"snippet": map[string]any{
+						"title":       "Cool Channel",
+						"publishedAt": "2025-01-01T00:00:00Z",
+						"resourceId": map[string]any{
+							"kind":      "youtube#channel",
+							"channelId": "UCcool",
+						},
+					},
+				},
+			},
+			"nextPageToken": "tok1",
+		})
+	}))
+	defer srv.Close()
+
+	svc := newGoogleTestServiceWithEndpoint(t, srv.Client(), srv.URL+"/", youtube.NewService)
+	var stdout, stderr bytes.Buffer
+	ctx := withYouTubeTestServices(newCmdRuntimeOutputContext(t, &stdout, &stderr), youtubeTestServices{
+		Account: func(_ context.Context, account string) (*youtube.Service, error) {
+			gotAccount = account
+			return svc, nil
+		},
+	})
+	err := runKong(t, &YouTubeSubscriptionsListCmd{}, []string{"--max", "2"}, ctx, &RootFlags{Account: "me@example.com"})
+	if err != nil {
+		t.Fatalf("runKong: %v", err)
+	}
+	if gotAccount != "me@example.com" {
+		t.Fatalf("account = %q", gotAccount)
+	}
+	out := stdout.String()
+	if !strings.Contains(out, "SUB123") || !strings.Contains(out, "UCcool") || !strings.Contains(out, "Cool Channel") {
+		t.Fatalf("stdout = %q", out)
+	}
+	if !strings.Contains(stderr.String(), "tok1") {
+		t.Fatalf("expected page token hint in stderr: %q", stderr.String())
+	}
+}
+
 func TestYouTubeValidationRejectsBlankSelectorsBeforeService(t *testing.T) {
 	ctx := withYouTubeTestServices(newCmdRuntimeOutputContext(t, io.Discard, io.Discard), youtubeTestServices{
 		Account:  unexpectedYouTubeTestService(t, "expected validation to fail before OAuth YouTube service creation"),

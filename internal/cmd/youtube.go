@@ -551,7 +551,56 @@ type YouTubeSubscriptionsListCmd struct {
 }
 
 func (c *YouTubeSubscriptionsListCmd) Run(ctx context.Context, flags *RootFlags) error {
-	return fmt.Errorf("not implemented")
+	u := ui.FromContext(ctx)
+	if err := validateYouTubeMax(c.Max); err != nil {
+		return err
+	}
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
+	}
+	svc, err := getYouTubeServiceForAccount(ctx, account)
+	if err != nil {
+		return err
+	}
+
+	resp, err := svc.Subscriptions.List([]string{"snippet"}).
+		Mine(true).
+		MaxResults(c.Max).
+		PageToken(c.Page).
+		Do()
+	if err != nil {
+		return err
+	}
+
+	if outfmt.IsJSON(ctx) {
+		return outfmt.WriteJSON(ctx, stdoutWriter(ctx), map[string]any{
+			"items":         youtubeItemsOrEmpty(resp.Items),
+			"nextPageToken": resp.NextPageToken,
+		})
+	}
+	if len(resp.Items) == 0 {
+		u.Err().Println("No subscriptions")
+		return nil
+	}
+	w, flush := tableWriter(ctx)
+	defer flush()
+	fmt.Fprintln(w, "ID\tCHANNEL_ID\tTITLE\tSUBSCRIBED_AT")
+	for _, s := range resp.Items {
+		channelID := ""
+		title := ""
+		subscribedAt := ""
+		if s.Snippet != nil {
+			title = s.Snippet.Title
+			subscribedAt = s.Snippet.PublishedAt
+			if s.Snippet.ResourceId != nil {
+				channelID = s.Snippet.ResourceId.ChannelId
+			}
+		}
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", s.Id, sanitizeTab(channelID), sanitizeTab(title), sanitizeTab(subscribedAt))
+	}
+	printNextPageHint(u, resp.NextPageToken)
+	return nil
 }
 
 type YouTubeSubscriptionsSubscribeCmd struct {
