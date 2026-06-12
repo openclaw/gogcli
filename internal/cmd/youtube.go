@@ -657,6 +657,13 @@ func (c *YouTubeSubscriptionsUnsubscribeCmd) Run(ctx context.Context, flags *Roo
 		return usage("use either --id or --channel-id, not both")
 	}
 
+	// For --id we have everything needed to confirm/dry-run before any I/O.
+	if subID != "" {
+		if confirmErr := dryRunAndConfirmDestructive(ctx, flags, "youtube.subscriptions.delete", map[string]any{"id": subID}, fmt.Sprintf("unsubscribe (subscription ID: %s)", subID)); confirmErr != nil {
+			return confirmErr
+		}
+	}
+
 	account, err := requireAccount(flags)
 	if err != nil {
 		return err
@@ -667,6 +674,10 @@ func (c *YouTubeSubscriptionsUnsubscribeCmd) Run(ctx context.Context, flags *Roo
 	}
 
 	if channelID != "" {
+		if flags != nil && flags.DryRun {
+			// Skip live lookup in dry-run; we don't know the subscription ID yet.
+			return dryRunAndConfirmDestructive(ctx, flags, "youtube.subscriptions.delete", map[string]any{"channelId": channelID}, fmt.Sprintf("unsubscribe from channel %s", channelID))
+		}
 		resp, lookupErr := svc.Subscriptions.List([]string{"id"}).
 			Mine(true).
 			ForChannelId(channelID).
@@ -679,10 +690,9 @@ func (c *YouTubeSubscriptionsUnsubscribeCmd) Run(ctx context.Context, flags *Roo
 			return fmt.Errorf("not subscribed to channel %s", channelID)
 		}
 		subID = resp.Items[0].Id
-	}
-
-	if confirmErr := dryRunAndConfirmDestructive(ctx, flags, "youtube.subscriptions.delete", map[string]any{"id": subID}, fmt.Sprintf("unsubscribe (subscription ID: %s)", subID)); confirmErr != nil {
-		return confirmErr
+		if confirmErr := dryRunAndConfirmDestructive(ctx, flags, "youtube.subscriptions.delete", map[string]any{"id": subID}, fmt.Sprintf("unsubscribe (subscription ID: %s)", subID)); confirmErr != nil {
+			return confirmErr
+		}
 	}
 
 	if err := svc.Subscriptions.Delete(subID).Do(); err != nil {
