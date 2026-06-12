@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strings"
 
 	"google.golang.org/api/docs/v1"
 )
@@ -141,9 +142,19 @@ func (ti *TableInserter) InsertNativeTable(ctx context.Context, tableIndex int64
 // Header cells additionally receive a whole-cell bold style. insertedLen is
 // the final UTF-16 growth after CreateParagraphBullets consumes nesting tabs.
 func buildTableCellRequests(cellContent string, cellIdx int64, isHeaderRow bool, tabID string) ([]*docs.Request, int64, error) {
-	formatRequests, text, insertedLen, err := buildMarkdownCellContent(cellContent, cellIdx, tabID)
-	if err != nil {
-		return nil, 0, err
+	trimmed := strings.TrimSpace(cellContent)
+	var formatRequests []*docs.Request
+	var text string
+	var insertedLen int64
+	if isTableSeparator("|" + trimmed + "|") {
+		text = trimmed
+		insertedLen = utf16Len(trimmed)
+	} else {
+		var err error
+		formatRequests, text, insertedLen, err = buildMarkdownCellContent(cellContent, cellIdx, tabID)
+		if err != nil {
+			return nil, 0, err
+		}
 	}
 	if text == "" {
 		return nil, 0, nil

@@ -20,7 +20,7 @@ run_docs_tests() {
   tab_export_path="$LIVE_TMP/docs-tab-export-$TS.txt"
   printf '# Heading {#heading}\n\nAnchorTarget and LinkTarget.\n\nEmoji 😀 range.\n\nOrphanTarget remains quoted.\n\nInsertHere UpdateHere DeleteHere PersonHere BreakHere\n\nBatchAnchor.\n\n~~Strike~~ and `code`.\n\n- Parent\n  - Child\n' >"$markdown_path"
   printf '# Replacement\n\nNo quoted content remains.\n' >"$replacement_path"
-  printf '# Recent Tab {#recent-tab}\n\n```go\nfmt.Println("ok")\n```\n\n| Solo |\n| --- |\n| value |\n\n| Kind | Steps |\n| --- | --- |\n| nested | - parent<br>  - child |\n' >"$tab_markdown_path"
+  printf '# Recent Tab {#recent-tab}\n\n```go\nfmt.Println("ok")\n```\n\n| Solo |\n| --- |\n| value |\n| --- |\n\n| Kind | Steps |\n| --- | --- |\n| nested | - parent<br>  - child |\n' >"$tab_markdown_path"
 
   run_required "docs" "docs markdown write" gog docs write "$doc_id" \
     --file "$markdown_path" --replace --markdown --json >/dev/null
@@ -75,6 +75,7 @@ def walk(value):
             yield from walk(child)
 objects=list(walk(obj))
 assert sum("tableRows" in item for item in objects) == 2
+assert any(item.get("textRun", {}).get("content", "").strip() == "---" for item in objects)
 assert any(item.get("bullet", {}).get("nestingLevel") == 1 for item in objects)
 assert any(item.get("textStyle", {}).get("weightedFontFamily", {}).get("fontFamily") == "Roboto Mono" for item in objects)
 assert not any("{#recent-tab}" in value for item in objects for value in item.values() if isinstance(value, str))' <<<"$tab_raw_json"

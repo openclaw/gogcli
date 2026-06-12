@@ -349,6 +349,20 @@ func TestDocsCellUpdate_RejectsMarkdownWithoutEditableText(t *testing.T) {
 	}
 }
 
+func TestBuildMarkdownCellContent_PreservesHorizontalRuleSemantics(t *testing.T) {
+	_, text, inserted, err := buildMarkdownCellContent("---", 1, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := strings.Repeat("-", 40)
+	if text != want {
+		t.Fatalf("text = %q, want %q", text, want)
+	}
+	if inserted != utf16Len(want) {
+		t.Fatalf("inserted = %d, want %d", inserted, utf16Len(want))
+	}
+}
+
 func cellUpdateTestDoc() *docs.Document {
 	return &docs.Document{
 		DocumentId: "doc1",

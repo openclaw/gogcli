@@ -598,6 +598,30 @@ func TestParseMarkdown_OneColumnTable(t *testing.T) {
 	}
 }
 
+func TestParseMarkdown_OneColumnDashOnlyDataRow(t *testing.T) {
+	input := "| Status |\n| --- |\n| --- |"
+	got := ParseMarkdown(input)
+	if len(got) != 1 || got[0].Type != MDTable {
+		t.Fatalf("ParseMarkdown() = %#v, want one table", got)
+	}
+	want := [][]string{{"Status"}, {"---"}}
+	if !reflect.DeepEqual(got[0].TableCells, want) {
+		t.Fatalf("table rows = %#v, want %#v", got[0].TableCells, want)
+	}
+}
+
+func TestParseMarkdown_MultiColumnDashOnlyDataRow(t *testing.T) {
+	input := "| Left | Right |\n| --- | --- |\n| --- | :---: |"
+	got := ParseMarkdown(input)
+	if len(got) != 1 || got[0].Type != MDTable {
+		t.Fatalf("ParseMarkdown() = %#v, want one table", got)
+	}
+	want := [][]string{{"Left", "Right"}, {"---", ":---:"}}
+	if !reflect.DeepEqual(got[0].TableCells, want) {
+		t.Fatalf("table rows = %#v, want %#v", got[0].TableCells, want)
+	}
+}
+
 func TestParseMarkdown_EmptyHeaderTableDropsBlankHeaderAndKeepsDataRows(t *testing.T) {
 	// Regression for #609: an empty-header table previously had its last data
 	// row re-parsed as a literal pipe paragraph (because the empty pipe row

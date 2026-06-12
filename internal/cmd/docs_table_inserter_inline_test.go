@@ -182,6 +182,26 @@ func TestBuildTableCellRequests_PlainTextNoStyleRequest(t *testing.T) {
 	}
 }
 
+func TestBuildTableCellRequests_PreservesSeparatorShapedData(t *testing.T) {
+	for _, content := range []string{"---", ":---", "---:", ":---:"} {
+		t.Run(content, func(t *testing.T) {
+			reqs, inserted, err := buildTableCellRequests(content, 1, false, "")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if inserted != utf16Len(content) {
+				t.Fatalf("inserted = %d, want %d", inserted, utf16Len(content))
+			}
+			if len(reqs) != 1 {
+				t.Fatalf("expected just InsertText, got %d: %#v", len(reqs), reqs)
+			}
+			if got := reqs[0].InsertText; got == nil || got.Text != content {
+				t.Fatalf("InsertText.Text = %q, want %q", textOf(reqs[0]), content)
+			}
+		})
+	}
+}
+
 func TestBuildTableCellRequests_EmptyAfterStrippingReturnsNothing(t *testing.T) {
 	// A cell whose entire content is markers (e.g. "**") would strip to "".
 	reqs, inserted, err := buildTableCellRequests("", 1, false, "")
