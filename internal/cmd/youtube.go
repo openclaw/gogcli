@@ -194,7 +194,9 @@ func (c *YouTubeVideosListCmd) Run(ctx context.Context, flags *RootFlags) error 
 }
 
 type YouTubePlaylistsCmd struct {
-	List YouTubePlaylistsListCmd `cmd:"" name:"list" aliases:"ls" help:"List playlists by channel or authenticated user"`
+	List   YouTubePlaylistsListCmd   `cmd:"" name:"list" aliases:"ls" help:"List playlists by channel or authenticated user"`
+	Create YouTubePlaylistsCreateCmd `cmd:"" name:"create" help:"Create a new playlist"`
+	Add    YouTubePlaylistsAddCmd    `cmd:"" name:"add" help:"Add a video to a playlist"`
 }
 
 type YouTubePlaylistsListCmd struct {
@@ -274,6 +276,97 @@ func (c *YouTubePlaylistsListCmd) Run(ctx context.Context, flags *RootFlags) err
 		fmt.Fprintf(w, "%s\t%s\t%s\t%d\t%s\n", p.Id, sanitizeTab(title), sanitizeTab(ch), count, sanitizeTab(pubAt))
 	}
 	printNextPageHint(u, resp.NextPageToken)
+	return nil
+}
+
+type YouTubePlaylistsCreateCmd struct {
+	Title       string `name:"title" required:"" help:"Playlist title"`
+	Description string `name:"description" help:"Playlist description"`
+	Privacy     string `name:"privacy" help:"Privacy: public, unlisted, private" default:"public" enum:"public,unlisted,private"`
+}
+
+func (c *YouTubePlaylistsCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
+	u := ui.FromContext(ctx)
+	title := strings.TrimSpace(c.Title)
+	if title == "" {
+		return usage("--title is required")
+	}
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
+	}
+	svc, err := getYouTubeServiceForAccount(ctx, account)
+	if err != nil {
+		return err
+	}
+
+	pl, err := svc.Playlists.Insert([]string{"snippet", "status"}, &youtube.Playlist{
+		Snippet: &youtube.PlaylistSnippet{
+			Title:       title,
+			Description: strings.TrimSpace(c.Description),
+		},
+		Status: &youtube.PlaylistStatus{
+			PrivacyStatus: c.Privacy,
+		},
+	}).Do()
+	if err != nil {
+		return err
+	}
+
+	if outfmt.IsJSON(ctx) {
+		return outfmt.WriteJSON(ctx, stdoutWriter(ctx), pl)
+	}
+	u.Out().Printf("Created playlist: %s (ID: %s)\n", pl.Snippet.Title, pl.Id)
+	return nil
+}
+
+type YouTubePlaylistsAddCmd struct {
+	PlaylistID string `name:"playlist-id" required:"" help:"Playlist ID"`
+	VideoID    string `name:"video-id" required:"" help:"Video ID to add"`
+	Position   int64  `name:"position" help:"Position in playlist (0-based); appends if not set" default:"-1"`
+}
+
+func (c *YouTubePlaylistsAddCmd) Run(ctx context.Context, flags *RootFlags) error {
+	u := ui.FromContext(ctx)
+	playlistID := strings.TrimSpace(c.PlaylistID)
+	videoID := strings.TrimSpace(c.VideoID)
+	if playlistID == "" {
+		return usage("--playlist-id is required")
+	}
+	if videoID == "" {
+		return usage("--video-id is required")
+	}
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
+	}
+	svc, err := getYouTubeServiceForAccount(ctx, account)
+	if err != nil {
+		return err
+	}
+
+	item := &youtube.PlaylistItem{
+		Snippet: &youtube.PlaylistItemSnippet{
+			PlaylistId: playlistID,
+			ResourceId: &youtube.ResourceId{
+				Kind:    "youtube#video",
+				VideoId: videoID,
+			},
+		},
+	}
+	if c.Position >= 0 {
+		item.Snippet.Position = c.Position
+	}
+
+	result, err := svc.PlaylistItems.Insert([]string{"snippet"}, item).Do()
+	if err != nil {
+		return err
+	}
+
+	if outfmt.IsJSON(ctx) {
+		return outfmt.WriteJSON(ctx, stdoutWriter(ctx), result)
+	}
+	u.Out().Printf("Added video %s to playlist %s (item ID: %s)\n", videoID, playlistID, result.Id)
 	return nil
 }
 
