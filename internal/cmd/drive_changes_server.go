@@ -63,7 +63,7 @@ func (s *driveChangesServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
-	if err := s.handleNotification(r.Context(), notification); err != nil {
+	if err := s.handleNotification(s.notificationContext(), notification); err != nil {
 		if errors.Is(err, errDriveChangesUntrackedNotification) {
 			w.WriteHeader(http.StatusUnauthorized)
 			return
@@ -77,6 +77,13 @@ func (s *driveChangesServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *driveChangesServer) notificationContext() context.Context {
+	if s.runCtx != nil {
+		return s.runCtx
+	}
+	return context.Background()
 }
 
 func driveChangesChannelTokenMatches(got string, expected string) bool {

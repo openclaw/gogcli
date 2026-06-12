@@ -9,12 +9,14 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 	"time"
 
 	"google.golang.org/api/drive/v3"
 
+	"github.com/steipete/gogcli/internal/config"
 	"github.com/steipete/gogcli/internal/ui"
 )
 
@@ -25,22 +27,23 @@ const (
 )
 
 type DriveChangesServeCmd struct {
-	Listen         string        `name:"listen" help:"Listen address" default:"127.0.0.1:8443"`
-	Path           string        `name:"path" help:"Notification handler path" default:"/drive-changes"`
-	Cert           string        `name:"cert" help:"TLS certificate path; pair with --key (omit behind an HTTPS reverse proxy)"`
-	Key            string        `name:"key" help:"TLS private key path; pair with --cert"`
-	ChannelToken   string        `name:"channel-token" required:"" help:"Expected X-Goog-Channel-Token value"`
-	StateFile      string        `name:"state-file" required:"" help:"JSON file that stores the current Drive page token and channel state"`
-	Token          string        `name:"token" help:"Initial Drive page token when creating a new state file"`
-	OnChange       string        `name:"on-change" help:"Trusted local shell command run for each non-empty change batch; event JSON is provided on stdin"`
-	FilterFile     string        `name:"filter-file" help:"Only invoke the hook for changes to this file ID"`
-	DriveID        string        `name:"drive" aliases:"drive-id" help:"Shared drive ID for a shared-drive change log"`
-	Max            int64         `name:"max" aliases:"limit" help:"Max changes per API page" default:"100"`
-	IncludeRemoved bool          `name:"include-removed" help:"Include removed changes" default:"true" negatable:"_"`
-	AutoRenew      bool          `name:"auto-renew" help:"Create and renew the Drive notification channel"`
-	WebhookURL     string        `name:"webhook-url" help:"Public HTTPS callback URL used by --auto-renew"`
-	ChannelTTL     time.Duration `name:"channel-ttl" help:"Requested channel lifetime" default:"24h"`
-	RenewBefore    time.Duration `name:"renew-before" help:"Renew this long before channel expiration" default:"10m"`
+	Listen           string        `name:"listen" help:"Listen address" default:"127.0.0.1:8443"`
+	Path             string        `name:"path" help:"Notification handler path" default:"/drive-changes"`
+	Cert             string        `name:"cert" help:"TLS certificate path; pair with --key (omit behind an HTTPS reverse proxy)"`
+	Key              string        `name:"key" help:"TLS private key path; pair with --cert"`
+	ChannelToken     string        `name:"channel-token" help:"Expected X-Goog-Channel-Token value" env:"GOG_DRIVE_CHANNEL_TOKEN"`
+	ChannelTokenFile string        `name:"channel-token-file" type:"path" help:"Read the expected channel token from a file"`
+	StateFile        string        `name:"state-file" required:"" help:"JSON file that stores the current Drive page token and channel state"`
+	Token            string        `name:"token" help:"Initial Drive page token when creating a new state file"`
+	OnChange         string        `name:"on-change" help:"Trusted local shell command run for each non-empty change batch; event JSON is provided on stdin"`
+	FilterFile       string        `name:"filter-file" help:"Only invoke the hook for changes to this file ID"`
+	DriveID          string        `name:"drive" aliases:"drive-id" help:"Shared drive ID for a shared-drive change log"`
+	Max              int64         `name:"max" aliases:"limit" help:"Max changes per API page" default:"100"`
+	IncludeRemoved   bool          `name:"include-removed" help:"Include removed changes" default:"true" negatable:"_"`
+	AutoRenew        bool          `name:"auto-renew" help:"Create and renew the Drive notification channel"`
+	WebhookURL       string        `name:"webhook-url" help:"Public HTTPS callback URL used by --auto-renew"`
+	ChannelTTL       time.Duration `name:"channel-ttl" help:"Requested channel lifetime" default:"24h"`
+	RenewBefore      time.Duration `name:"renew-before" help:"Renew this long before channel expiration" default:"10m"`
 }
 
 type driveChangesServeChannelState struct {
@@ -99,6 +102,7 @@ func (r driveChangesServeRuntime) withDefaults() driveChangesServeRuntime {
 type driveChangesServer struct {
 	mu             sync.Mutex
 	renewMu        sync.Mutex
+	runCtx         context.Context
 	pendingChannel string
 	statePath      string
 	state          driveChangesServeState
@@ -131,7 +135,11 @@ func (c *DriveChangesServeCmd) run(ctx context.Context, flags *RootFlags, runtim
 	if err != nil {
 		return err
 	}
-	if validationErr := c.validate(); validationErr != nil {
+	channelToken, err := c.resolveChannelToken()
+	if err != nil {
+		return err
+	}
+	if validationErr := c.validate(channelToken); validationErr != nil {
 		return validationErr
 	}
 
@@ -193,11 +201,12 @@ func (c *DriveChangesServeCmd) run(ctx context.Context, flags *RootFlags, runtim
 	}
 
 	server := &driveChangesServer{
+		runCtx:         ctx,
 		statePath:      statePath,
 		state:          state,
 		service:        svc,
 		path:           strings.TrimSpace(c.Path),
-		channelToken:   strings.TrimSpace(c.ChannelToken),
+		channelToken:   channelToken,
 		onChange:       strings.TrimSpace(c.OnChange),
 		filterFile:     filterFile,
 		max:            c.Max,
@@ -250,7 +259,30 @@ func (c *DriveChangesServeCmd) run(ctx context.Context, flags *RootFlags, runtim
 	}
 }
 
-func (c *DriveChangesServeCmd) validate() error {
+func (c *DriveChangesServeCmd) resolveChannelToken() (string, error) {
+	direct := strings.TrimSpace(c.ChannelToken)
+	tokenFile := strings.TrimSpace(c.ChannelTokenFile)
+	if direct != "" && tokenFile != "" {
+		return "", usage("provide only one of --channel-token or --channel-token-file")
+	}
+	if tokenFile != "" {
+		path, err := config.ExpandPath(tokenFile)
+		if err != nil {
+			return "", fmt.Errorf("expand --channel-token-file: %w", err)
+		}
+		raw, err := os.ReadFile(path) //nolint:gosec // explicit operator-provided secret file.
+		if err != nil {
+			return "", fmt.Errorf("read --channel-token-file: %w", err)
+		}
+		direct = strings.TrimSpace(string(raw))
+	}
+	if direct == "" {
+		return "", usage("provide --channel-token, --channel-token-file, or GOG_DRIVE_CHANNEL_TOKEN")
+	}
+	return direct, nil
+}
+
+func (c *DriveChangesServeCmd) validate(channelToken string) error {
 	if strings.TrimSpace(c.Listen) == "" {
 		return usage("missing --listen")
 	}
@@ -259,10 +291,6 @@ func (c *DriveChangesServeCmd) validate() error {
 	}
 	if (strings.TrimSpace(c.Cert) == "") != (strings.TrimSpace(c.Key) == "") {
 		return usage("--cert and --key must be provided together")
-	}
-	channelToken := strings.TrimSpace(c.ChannelToken)
-	if channelToken == "" {
-		return usage("missing --channel-token")
 	}
 	if len(channelToken) > 256 {
 		return usage("--channel-token must be at most 256 bytes")

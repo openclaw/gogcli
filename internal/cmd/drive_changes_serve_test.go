@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -222,6 +223,52 @@ func TestDriveChangesServeProcessesNotificationOverHTTP(t *testing.T) {
 		t.Fatalf("read state: %v", err)
 	}
 	if persisted.PageToken != "next-token" || persisted.LastMessageNumbers["channel-1"] != 7 {
+		t.Fatalf("unexpected state: %#v", persisted)
+	}
+}
+
+func TestDriveChangesServeProcessingSurvivesRequestCancellation(t *testing.T) {
+	svc, closeDrive := newDriveTestService(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"newStartPageToken": "next-token",
+			"changes":           []map[string]any{{"fileId": "file-1"}},
+		})
+	}))
+	defer closeDrive()
+
+	statePath := filepath.Join(t.TempDir(), "state.json")
+	state := driveChangesServeState{
+		Version:   pollStateVersion,
+		PageToken: pollTestStartToken,
+	}
+	if err := writePollState(statePath, state); err != nil {
+		t.Fatalf("write state: %v", err)
+	}
+	server := newDriveChangesTestReceiver(t, svc, state)
+	server.runCtx = context.Background()
+	server.statePath = statePath
+	server.onChange = "./handle-change"
+	server.runtime.runHook = func(ctx context.Context, _ string, _ any) error {
+		if err := ctx.Err(); err != nil {
+			t.Fatalf("hook context canceled with request: %v", err)
+		}
+		return nil
+	}
+
+	requestCtx, cancel := context.WithCancel(context.Background())
+	cancel()
+	request := newDriveChangesNotificationRequest(t, driveChangesTestChannelToken, "change", 8).WithContext(requestCtx)
+	response := httptest.NewRecorder()
+	server.ServeHTTP(response, request)
+
+	if response.Code != http.StatusNoContent {
+		t.Fatalf("status = %d, want 204", response.Code)
+	}
+	persisted, _, err := readDriveChangesServeState(statePath)
+	if err != nil {
+		t.Fatalf("read state: %v", err)
+	}
+	if persisted.PageToken != "next-token" || persisted.LastMessageNumbers["channel-1"] != 8 {
 		t.Fatalf("unexpected state: %#v", persisted)
 	}
 }
@@ -496,11 +543,34 @@ func TestDriveChangesServeValidation(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			cmd := valid
 			tc.mutate(&cmd)
-			err := cmd.validate()
+			token, err := cmd.resolveChannelToken()
+			if err == nil {
+				err = cmd.validate(token)
+			}
 			if err == nil || !strings.Contains(err.Error(), tc.want) {
 				t.Fatalf("error = %v, want %q", err, tc.want)
 			}
 		})
+	}
+}
+
+func TestDriveChangesServeResolvesChannelTokenFile(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "channel-token")
+	if err := os.WriteFile(path, []byte(" file-secret \n"), 0o600); err != nil {
+		t.Fatalf("write token file: %v", err)
+	}
+	cmd := DriveChangesServeCmd{ChannelTokenFile: path}
+	token, err := cmd.resolveChannelToken()
+	if err != nil {
+		t.Fatalf("resolve channel token: %v", err)
+	}
+	if token != "file-secret" {
+		t.Fatalf("token = %q", token)
+	}
+
+	cmd.ChannelToken = "direct-secret"
+	if _, err := cmd.resolveChannelToken(); err == nil || !strings.Contains(err.Error(), "only one") {
+		t.Fatalf("combined source error = %v", err)
 	}
 }
 

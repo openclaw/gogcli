@@ -212,7 +212,7 @@ gog drive changes start-token
 gog drive changes list --token <token> --json
 gog drive changes poll --state-file ~/.local/state/gog/drive-changes.json --json
 gog drive changes serve --state-file ~/.local/state/gog/drive-serve.json \
-  --channel-token "$CHANNEL_TOKEN" --auto-renew \
+  --channel-token-file ~/.config/gog/drive-channel-token --auto-renew \
   --webhook-url https://example.com/drive-changes
 gog drive revisions list <fileId> --all --json
 gog drive revisions get <fileId> <revisionId> --json

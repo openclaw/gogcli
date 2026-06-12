@@ -7,7 +7,7 @@ Receive Drive change notifications and run a local hook
 ## Usage
 
 ```bash
-gog drive (drv) changes serve --channel-token=STRING --state-file=STRING [flags]
+gog drive (drv) changes serve --state-file=STRING [flags]
 ```
 
 ## Parent
@@ -23,6 +23,7 @@ gog drive (drv) changes serve --channel-token=STRING --state-file=STRING [flags]
 | `--auto-renew` | `bool` |  | Create and renew the Drive notification channel |
 | `--cert` | `string` |  | TLS certificate path; pair with --key (omit behind an HTTPS reverse proxy) |
 | `--channel-token` | `string` |  | Expected X-Goog-Channel-Token value |
+| `--channel-token-file` | `string` |  | Read the expected channel token from a file |
 | `--channel-ttl` | `time.Duration` | 24h | Requested channel lifetime |
 | `--client` | `string` |  | OAuth client name (selects stored credentials + token bucket) |
 | `--color` | `string` | auto | Color output: auto\|always\|never |

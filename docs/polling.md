@@ -97,7 +97,7 @@ hook shape as polling:
 gog drive changes serve \
   --listen 127.0.0.1:8443 \
   --state-file ~/.local/state/gog/drive-serve.json \
-  --channel-token "$CHANNEL_TOKEN" \
+  --channel-token-file ~/.config/gog/drive-channel-token \
   --on-change './handle-drive-batch'
 ```
 
@@ -107,8 +107,10 @@ HTTPS callback with a valid certificate. To terminate TLS in `gog` instead,
 provide both `--cert` and `--key`.
 
 The channel token is required and compared before notification headers are
-parsed or any Drive API request or hook runs. Use a random value; do not put
-OAuth credentials or other sensitive data in it.
+parsed or any Drive API request or hook runs. Prefer `--channel-token-file` or
+`GOG_DRIVE_CHANNEL_TOKEN` so a long-running secret is not exposed in the process
+argument list. Use a random value; do not reuse OAuth credentials or other
+sensitive data.
 
 To let `gog` create and renew the channel after the listener is bound:
 
@@ -116,7 +118,7 @@ To let `gog` create and renew the channel after the listener is bound:
 gog drive changes serve \
   --listen 127.0.0.1:8443 \
   --state-file ~/.local/state/gog/drive-serve.json \
-  --channel-token "$CHANNEL_TOKEN" \
+  --channel-token-file ~/.config/gog/drive-channel-token \
   --auto-renew \
   --webhook-url https://example.com/drive-changes \
   --channel-ttl 24h \
@@ -142,6 +144,8 @@ Receiver behavior:
   without running the hook
 - change notifications are serialized so concurrent deliveries cannot race the
   page token
+- request disconnects do not cancel an in-flight Drive read or hook; command
+  shutdown still cancels them
 - Drive/API, hook, or state-write failure returns `500`; Google retries these
   statuses with backoff
 - the page token and message number advance only after the hook succeeds
