@@ -103,7 +103,10 @@ func (ti *TableInserter) InsertNativeTable(ctx context.Context, tableIndex int64
 			if cellIdx == 0 {
 				continue
 			}
-			requests, insertedLen := buildTableCellRequests(cellContent, cellIdx, rowIdx == 0, tabID)
+			requests, insertedLen, buildErr := buildTableCellRequests(cellContent, cellIdx, rowIdx == 0, tabID)
+			if buildErr != nil {
+				return tableEndIndex, buildErr
+			}
 			if len(requests) == 0 {
 				continue
 			}
@@ -134,25 +137,25 @@ func (ti *TableInserter) InsertNativeTable(ctx context.Context, tableIndex int64
 }
 
 // buildTableCellRequests constructs the batch requests required to populate a
-// single table cell, expanding inline markdown (**bold**, *italic*, `code`,
-// [links]) into UpdateTextStyle requests on top of the inserted text. Header
-// cells additionally receive a whole-cell bold style. Returns the requests and
-// the UTF-16 length of the text that will be inserted so callers can keep
-// running cell indices in sync. If the cell content strips to an empty string
-// (e.g. content was only markers), returns (nil, 0).
-func buildTableCellRequests(cellContent string, cellIdx int64, isHeaderRow bool, tabID string) ([]*docs.Request, int64) {
-	styles, stripped := ParseInlineFormatting(cellContent)
-	if stripped == "" {
-		return nil, 0
+// single table cell, including block Markdown such as native nested lists.
+// Header cells additionally receive a whole-cell bold style. insertedLen is
+// the final UTF-16 growth after CreateParagraphBullets consumes nesting tabs.
+func buildTableCellRequests(cellContent string, cellIdx int64, isHeaderRow bool, tabID string) ([]*docs.Request, int64, error) {
+	formatRequests, text, insertedLen, err := buildMarkdownCellContent(cellContent, cellIdx, tabID)
+	if err != nil {
+		return nil, 0, err
+	}
+	if text == "" {
+		return nil, 0, nil
 	}
 
-	insertedLen := utf16Len(stripped)
 	requests := []*docs.Request{{
 		InsertText: &docs.InsertTextRequest{
 			Location: &docs.Location{Index: cellIdx, TabId: tabID},
-			Text:     stripped,
+			Text:     text,
 		},
 	}}
+	requests = append(requests, formatRequests...)
 
 	if isHeaderRow {
 		requests = append(requests, &docs.Request{
@@ -168,13 +171,7 @@ func buildTableCellRequests(cellContent string, cellIdx int64, isHeaderRow bool,
 		})
 	}
 
-	for _, style := range styles {
-		if req := buildTextStyleRequest(style, cellIdx, tabID); req != nil {
-			requests = append(requests, req)
-		}
-	}
-
-	return requests, insertedLen
+	return requests, insertedLen, nil
 }
 
 // getTableCellIndices extracts the start index for each cell in the table that

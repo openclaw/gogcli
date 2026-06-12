@@ -12,7 +12,10 @@ import (
 // pass used by paragraphs/headings.
 
 func TestBuildTableCellRequests_AppliesInlineBold(t *testing.T) {
-	reqs, inserted := buildTableCellRequests("**Alice**", 100, false, "")
+	reqs, inserted, err := buildTableCellRequests("**Alice**", 100, false, "")
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	if inserted != utf16Len("Alice") {
 		t.Fatalf("expected inserted len = utf16Len(\"Alice\") = %d, got %d", utf16Len("Alice"), inserted)
@@ -53,7 +56,10 @@ func TestBuildTableCellRequests_AppliesInlineItalicAndCode(t *testing.T) {
 	}
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
-			reqs, inserted := buildTableCellRequests(tt.cell, 50, false, "")
+			reqs, inserted, err := buildTableCellRequests(tt.cell, 50, false, "")
+			if err != nil {
+				t.Fatal(err)
+			}
 			if inserted != utf16Len(tt.wantText) {
 				t.Fatalf("inserted = %d, want %d", inserted, utf16Len(tt.wantText))
 			}
@@ -86,7 +92,10 @@ func TestBuildTableCellRequests_TableBreaksPreserveInlineStyleRanges(t *testing.
 		t.Fatalf("parseTableRow() = %#v, want one cell", rows)
 	}
 
-	reqs, inserted := buildTableCellRequests(rows[0], 100, false, "")
+	reqs, inserted, err := buildTableCellRequests(rows[0], 100, false, "")
+	if err != nil {
+		t.Fatal(err)
+	}
 	if inserted != utf16Len("Alice\nBob and <br>") {
 		t.Fatalf("inserted = %d, want %d", inserted, utf16Len("Alice\nBob and <br>"))
 	}
@@ -113,7 +122,10 @@ func TestBuildTableCellRequests_TableBreaksPreserveInlineStyleRanges(t *testing.
 }
 
 func TestBuildTableCellRequests_HeaderRowAppliesBoldOverWholeCell(t *testing.T) {
-	reqs, inserted := buildTableCellRequests("Field", 10, true, "")
+	reqs, inserted, err := buildTableCellRequests("Field", 10, true, "")
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	if inserted != utf16Len("Field") {
 		t.Fatalf("inserted = %d, want %d", inserted, utf16Len("Field"))
@@ -131,7 +143,10 @@ func TestBuildTableCellRequests_HeaderRowAppliesBoldOverWholeCell(t *testing.T) 
 }
 
 func TestBuildTableCellRequests_IncludesTabID(t *testing.T) {
-	reqs, inserted := buildTableCellRequests("**Field**", 10, true, "t.second")
+	reqs, inserted, err := buildTableCellRequests("**Field**", 10, true, "t.second")
+	if err != nil {
+		t.Fatal(err)
+	}
 	if inserted != utf16Len("Field") {
 		t.Fatalf("inserted = %d, want %d", inserted, utf16Len("Field"))
 	}
@@ -152,7 +167,10 @@ func TestBuildTableCellRequests_IncludesTabID(t *testing.T) {
 }
 
 func TestBuildTableCellRequests_PlainTextNoStyleRequest(t *testing.T) {
-	reqs, inserted := buildTableCellRequests("plain text", 1, false, "")
+	reqs, inserted, err := buildTableCellRequests("plain text", 1, false, "")
+	if err != nil {
+		t.Fatal(err)
+	}
 	if inserted != utf16Len("plain text") {
 		t.Fatalf("inserted = %d, want %d", inserted, utf16Len("plain text"))
 	}
@@ -166,9 +184,40 @@ func TestBuildTableCellRequests_PlainTextNoStyleRequest(t *testing.T) {
 
 func TestBuildTableCellRequests_EmptyAfterStrippingReturnsNothing(t *testing.T) {
 	// A cell whose entire content is markers (e.g. "**") would strip to "".
-	reqs, inserted := buildTableCellRequests("", 1, false, "")
+	reqs, inserted, err := buildTableCellRequests("", 1, false, "")
+	if err != nil {
+		t.Fatal(err)
+	}
 	if len(reqs) != 0 || inserted != 0 {
 		t.Fatalf("expected (nil, 0) for empty cell, got reqs=%#v inserted=%d", reqs, inserted)
+	}
+}
+
+func TestBuildTableCellRequests_PreservesNestedMarkdownLists(t *testing.T) {
+	rows := parseTableRow("| nested | - a<br>  - a1<br>  - a2<br>- b |")
+	if len(rows) != 2 {
+		t.Fatalf("parseTableRow() = %#v, want two cells", rows)
+	}
+
+	reqs, inserted, err := buildTableCellRequests(rows[1], 100, false, "t.second")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if inserted != utf16Len("a\na1\na2\nb") {
+		t.Fatalf("inserted = %d, want final nested-list length %d", inserted, utf16Len("a\na1\na2\nb"))
+	}
+	if got := reqs[0].InsertText; got == nil || got.Text != "a\n\ta1\n\ta2\nb" {
+		t.Fatalf("InsertText = %#v, want nested list text", got)
+	}
+	if len(reqs) != 2 {
+		t.Fatalf("requests = %d, want insert+bullets: %#v", len(reqs), reqs)
+	}
+	bullets := reqs[1].CreateParagraphBullets
+	if bullets == nil || bullets.BulletPreset != bulletPresetDisc {
+		t.Fatalf("missing native bullets: %#v", reqs[1])
+	}
+	if bullets.Range == nil || bullets.Range.StartIndex != 100 || bullets.Range.EndIndex != 111 || bullets.Range.TabId != "t.second" {
+		t.Fatalf("bullet range = %#v, want [100,111] in t.second", bullets.Range)
 	}
 }
 

@@ -212,7 +212,9 @@ gog docs cell-update <docId> --table-index 1 --row 2 --col 3 \
 
 Coordinates are 1-based. `--tab` targets a specific tab, and `--append` inserts
 at the end of the cell instead of replacing its current content. Markdown list
-content creates native Google Docs bullets or numbering inside the cell.
+content creates native Google Docs bullets or numbering inside the cell,
+including nested levels. Markdown table imports preserve the same nested list
+structure inside cells.
 
 Set or reset native table column widths after inserting or importing tables:
 

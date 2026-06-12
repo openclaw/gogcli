@@ -150,6 +150,46 @@ func TestDocsCellUpdate_ReplacesWithNativeMarkdownList(t *testing.T) {
 	}
 }
 
+func TestDocsCellUpdate_ReplacesWithNestedNativeMarkdownList(t *testing.T) {
+	origDocs := newDocsService
+	t.Cleanup(func() { newDocsService = origDocs })
+
+	var got docs.BatchUpdateDocumentRequest
+	docSvc, cleanup := newDocsServiceForTest(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, "/v1/documents/"):
+			_ = json.NewEncoder(w).Encode(cellUpdateTestDoc())
+		case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, ":batchUpdate"):
+			if err := json.NewDecoder(r.Body).Decode(&got); err != nil {
+				t.Fatalf("decode batchUpdate: %v", err)
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{"documentId": "doc1"})
+		default:
+			http.NotFound(w, r)
+		}
+	})
+	defer cleanup()
+	newDocsService = func(context.Context, string) (*docs.Service, error) { return docSvc, nil }
+
+	cmd := &DocsCellUpdateCmd{}
+	content := "- a\n  - a1\n  - a2\n- b"
+	if err := runKong(t, cmd, []string{"doc1", "--row", "1", "--col", "2", "--content=" + content}, newDocsCmdContext(t), &RootFlags{Account: "a@b.com"}); err != nil {
+		t.Fatalf("docs cell-update nested list: %v", err)
+	}
+	if len(got.Requests) != 3 {
+		t.Fatalf("expected delete+insert+bullets, got %d requests", len(got.Requests))
+	}
+	ins := got.Requests[1].InsertText
+	if ins == nil || ins.Location.Index != 10 || ins.Text != "a\n\ta1\n\ta2\nb" {
+		t.Fatalf("unexpected nested-list insert: %#v", ins)
+	}
+	bullets := got.Requests[2].CreateParagraphBullets
+	if bullets == nil || bullets.Range.StartIndex != 10 || bullets.Range.EndIndex != 21 || bullets.BulletPreset != bulletPresetDisc {
+		t.Fatalf("unexpected nested bullet request: %#v", bullets)
+	}
+}
+
 func TestDocsCellUpdate_ReplacesPlainCellWithInlineCodeStyle(t *testing.T) {
 	origDocs := newDocsService
 	t.Cleanup(func() { newDocsService = origDocs })

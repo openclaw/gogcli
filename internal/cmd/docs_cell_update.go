@@ -182,15 +182,13 @@ func updateDocsCellContent(ctx context.Context, svc *docs.Service, doc *docs.Doc
 				baseIndex++
 				prefix = "\n"
 			}
-			formatReqs, textToInsert, tables := MarkdownToDocsRequests(ParseMarkdown(content), baseIndex, tabID)
-			if len(tables) > 0 {
-				return usage("markdown tables are not supported inside table cells")
+			formatReqs, textToInsert, _, formatErr := buildMarkdownCellContent(content, baseIndex, tabID)
+			if formatErr != nil {
+				return formatErr
 			}
-			textToInsert = strings.TrimSuffix(textToInsert, "\n")
 			if textToInsert == "" {
 				return usage("markdown content produced no editable cell text")
 			}
-			formatReqs = clampDocsCellFormatRequests(formatReqs, baseIndex+utf16Len(textToInsert))
 			requests = append(requests, &docs.Request{
 				InsertText: &docs.InsertTextRequest{
 					Location: &docs.Location{Index: startIdx, TabId: tabID},
@@ -218,6 +216,29 @@ func updateDocsCellContent(ctx context.Context, svc *docs.Service, doc *docs.Doc
 		return fmt.Errorf("cell update: %w", err)
 	}
 	return nil
+}
+
+func buildMarkdownCellContent(content string, baseIndex int64, tabID string) ([]*docs.Request, string, int64, error) {
+	elements := ParseMarkdown(content)
+	formatReqs, text, tables := MarkdownToDocsRequests(elements, baseIndex, tabID)
+	if len(tables) > 0 {
+		return nil, "", 0, usage("markdown tables are not supported inside table cells")
+	}
+	text = strings.TrimSuffix(text, "\n")
+	if text == "" {
+		return nil, "", 0, nil
+	}
+	formatReqs = clampDocsCellFormatRequests(formatReqs, baseIndex+utf16Len(text))
+
+	// CreateParagraphBullets consumes one leading tab per nesting level.
+	// Report final document growth so later native-table offsets stay exact.
+	insertedLen := utf16Len(text)
+	for _, element := range elements {
+		if (element.Type == MDListItem || element.Type == MDNumberedList) && element.Level > 0 {
+			insertedLen -= int64(element.Level)
+		}
+	}
+	return formatReqs, text, insertedLen, nil
 }
 
 func markdownCellAppendNeedsBoundary(elements []MarkdownElement) bool {
