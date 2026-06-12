@@ -109,8 +109,9 @@ provide both `--cert` and `--key`.
 The channel token is required and compared before notification headers are
 parsed or any Drive API request or hook runs. Prefer `--channel-token-file` or
 `GOG_DRIVE_CHANNEL_TOKEN` so a long-running secret is not exposed in the process
-argument list. Use a random value; do not reuse OAuth credentials or other
-sensitive data.
+argument list. An explicit token file takes precedence over the ambient
+environment variable. Use a random value; do not reuse OAuth credentials or
+other sensitive data.
 
 To let `gog` create and renew the channel after the listener is bound:
 
@@ -158,10 +159,12 @@ Receiver behavior:
 The state file stores a SHA-256 digest of the channel token, not the token
 itself. Auto-renewed receivers also bind notifications to the persisted current
 or previous channel and resource IDs; manual receivers rely only on the channel
-token, including when reusing state previously written by auto-renew mode. Do
-not run `poll` and `serve` concurrently against the same state file.
-Message-number deduplication is scoped to both channel and resource ID, so a
-manually reused channel ID does not inherit the prior channel's sequence.
+token, including when reusing state previously written by auto-renew mode.
+`poll` and `serve` require separate state files; each state file records its
+own command kind and rejects cross-use. Legacy state files without a kind remain
+readable and gain one on the next write. Message-number deduplication is scoped
+to both channel and resource ID, so a manually reused channel ID does not
+inherit the prior channel's sequence.
 
 Command page:
 

@@ -854,6 +854,7 @@ func TestDriveChangesServeResolvesChannelTokenFile(t *testing.T) {
 	if err := os.WriteFile(path, []byte(" file-secret \n"), 0o600); err != nil {
 		t.Fatalf("write token file: %v", err)
 	}
+	t.Setenv("GOG_DRIVE_CHANNEL_TOKEN", "ambient-secret")
 	cmd := DriveChangesServeCmd{ChannelTokenFile: path}
 	token, err := cmd.resolveChannelToken()
 	if err != nil {
@@ -866,6 +867,33 @@ func TestDriveChangesServeResolvesChannelTokenFile(t *testing.T) {
 	cmd.ChannelToken = "direct-secret"
 	if _, err := cmd.resolveChannelToken(); err == nil || !strings.Contains(err.Error(), "only one") {
 		t.Fatalf("combined source error = %v", err)
+	}
+}
+
+func TestDriveChangesStateKindsRejectCrossUse(t *testing.T) {
+	dir := t.TempDir()
+	servePath := filepath.Join(dir, "serve.json")
+	if err := writePollState(servePath, driveChangesServeState{
+		Version:   pollStateVersion,
+		Kind:      driveChangesServeStateKind,
+		PageToken: pollTestStartToken,
+	}); err != nil {
+		t.Fatalf("write serve state: %v", err)
+	}
+	if _, _, err := readDriveChangesPollState(servePath); err == nil || !strings.Contains(err.Error(), "belongs to drive changes serve") {
+		t.Fatalf("poll reader error = %v", err)
+	}
+
+	pollPath := filepath.Join(dir, "poll.json")
+	if err := writePollState(pollPath, driveChangesPollState{
+		Version:   pollStateVersion,
+		Kind:      driveChangesPollStateKind,
+		PageToken: pollTestStartToken,
+	}); err != nil {
+		t.Fatalf("write poll state: %v", err)
+	}
+	if _, _, err := readDriveChangesServeState(pollPath); err == nil || !strings.Contains(err.Error(), "belongs to drive changes poll") {
+		t.Fatalf("serve reader error = %v", err)
 	}
 }
 

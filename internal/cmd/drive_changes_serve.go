@@ -34,7 +34,7 @@ type DriveChangesServeCmd struct {
 	Path                string        `name:"path" help:"Notification handler path" default:"/drive-changes"`
 	Cert                string        `name:"cert" help:"TLS certificate path; pair with --key (omit behind an HTTPS reverse proxy)"`
 	Key                 string        `name:"key" help:"TLS private key path; pair with --cert"`
-	ChannelToken        string        `name:"channel-token" help:"Expected X-Goog-Channel-Token value" env:"GOG_DRIVE_CHANNEL_TOKEN"`
+	ChannelToken        string        `name:"channel-token" help:"Expected X-Goog-Channel-Token value"`
 	ChannelTokenFile    string        `name:"channel-token-file" type:"path" help:"Read the expected channel token from a file"`
 	StateFile           string        `name:"state-file" required:"" help:"JSON file that stores the current Drive page token and channel state"`
 	Token               string        `name:"token" help:"Initial Drive page token when creating a new state file"`
@@ -61,6 +61,7 @@ type driveChangesServeChannelState struct {
 
 type driveChangesServeState struct {
 	Version            int                            `json:"version"`
+	Kind               string                         `json:"kind,omitempty"`
 	PageToken          string                         `json:"page_token"`
 	DriveID            string                         `json:"drive_id,omitempty"`
 	Channel            *driveChangesServeChannelState `json:"channel,omitempty"`
@@ -293,6 +294,9 @@ func (c *DriveChangesServeCmd) resolveChannelToken() (string, error) {
 		direct = strings.TrimSpace(string(raw))
 	}
 	if direct == "" {
+		direct = strings.TrimSpace(os.Getenv("GOG_DRIVE_CHANNEL_TOKEN"))
+	}
+	if direct == "" {
 		return "", usage("provide --channel-token, --channel-token-file, or GOG_DRIVE_CHANNEL_TOKEN")
 	}
 	return direct, nil
@@ -378,6 +382,7 @@ func initializeDriveChangesServeState(
 	}
 	state = driveChangesServeState{
 		Version:   pollStateVersion,
+		Kind:      driveChangesServeStateKind,
 		PageToken: initialToken,
 		DriveID:   driveID,
 		UpdatedAt: now.Format(time.RFC3339Nano),
@@ -396,6 +401,14 @@ func readDriveChangesServeState(path string) (driveChangesServeState, bool, erro
 	}
 	if state.Version != pollStateVersion {
 		return driveChangesServeState{}, false, fmt.Errorf("unsupported drive changes serve state version %d", state.Version)
+	}
+	switch state.Kind {
+	case "", driveChangesServeStateKind:
+		state.Kind = driveChangesServeStateKind
+	case driveChangesPollStateKind:
+		return driveChangesServeState{}, false, errors.New("state file belongs to drive changes poll; use a separate --state-file")
+	default:
+		return driveChangesServeState{}, false, fmt.Errorf("unsupported drive changes serve state kind %q", state.Kind)
 	}
 	state.PageToken = strings.TrimSpace(state.PageToken)
 	state.DriveID = strings.TrimSpace(state.DriveID)
