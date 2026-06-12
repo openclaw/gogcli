@@ -36,12 +36,13 @@ files initialize without replaying existing history:
 
 Drive state is scoped to `--drive`. Docs state is scoped to the document and
 the `--include-resolved` setting. Delete the state file or choose a new path to
-start a new stream.
+start a new stream. Run only one poller against a state file; concurrent writers
+can overwrite each other's cursor.
 
-The Docs API time filter is inclusive. State therefore records both the latest
-timestamp and comment IDs already delivered at that timestamp. Comments that
-share a modified time are delivered once without moving the watermark past an
-unseen peer.
+The Drive comments API time filter is inclusive. State therefore records both
+the latest timestamp and comment IDs already delivered at that timestamp.
+Comments that share a modified time are delivered once without moving the
+watermark past an unseen peer.
 
 ## Output
 
@@ -69,6 +70,9 @@ gog docs comments poll <docId> \
 Payload JSON is passed on stdin. Google-provided text is never interpolated
 into the command string. Hook stdout and stderr go to `gog` stderr so event
 stdout remains parseable.
+
+Hooks run through the platform shell and are not sandboxed. Use only fixed,
+operator-controlled commands; do not build the hook string from Google content.
 
 Drive invokes `--on-change` once per non-empty filtered batch. Docs invokes
 `--on-new` once per comment, in modified-time and comment-ID order. Hooks run
