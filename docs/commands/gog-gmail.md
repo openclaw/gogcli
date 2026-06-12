@@ -16,7 +16,7 @@ gog gmail (mail,email) <command> [flags]
 
 ## Subcommands
 
-- [gog gmail archive](gog-gmail-archive.md) - Archive messages (remove from inbox)
+- [gog gmail archive](gog-gmail-archive.md) - Archive messages or explicit threads (remove from inbox)
 - [gog gmail attachment](gog-gmail-attachment.md) - Download a single attachment
 - [gog gmail autoreply](gog-gmail-autoreply.md) - Reply once to matching messages
 - [gog gmail batch](gog-gmail-batch.md) - Batch operations (permanent delete requires broader Gmail scope; use gmail trash for normal trashing)

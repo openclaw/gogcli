@@ -415,7 +415,7 @@ Generated pages: 629.
       - [gog forms watch list](gog-forms-watch-list.md) - List active watches
       - [gog forms watch renew](gog-forms-watch-renew.md) - Renew a watch (extends 7 days)
   - [gog gmail](gog-gmail.md) - Gmail
-    - [gog gmail archive](gog-gmail-archive.md) - Archive messages (remove from inbox)
+    - [gog gmail archive](gog-gmail-archive.md) - Archive messages or explicit threads (remove from inbox)
     - [gog gmail attachment](gog-gmail-attachment.md) - Download a single attachment
     - [gog gmail autoreply](gog-gmail-autoreply.md) - Reply once to matching messages
     - [gog gmail batch](gog-gmail-batch.md) - Batch operations (permanent delete requires broader Gmail scope; use gmail trash for normal trashing)

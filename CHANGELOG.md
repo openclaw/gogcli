@@ -10,6 +10,7 @@
 - CLI: add Git-style `gog help <command>`, make explicit output flags override environment defaults, validate color and JSON-only transforms before command execution, report early usage errors on stderr, and reject contradictory schema plain output.
 - Docs: prevent multi-paragraph Markdown range replacements from inheriting the matched paragraph's heading or list style. (#756) — thanks @sebsnyk.
 - Docs: preserve nested Markdown list levels as native bullets inside imported and updated table cells. (#749) — thanks @sebsnyk.
+- Gmail: add explicit `gmail archive --thread` semantics so IDs from thread search can archive every message in each thread. (#752) — thanks @sebsnyk.
 
 ## 0.24.0 - 2026-06-11
 

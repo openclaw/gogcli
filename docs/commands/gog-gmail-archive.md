@@ -2,7 +2,7 @@
 
 > Generated from `gog schema --json`. Do not edit this page by hand; run `make docs-commands`.
 
-Archive messages (remove from inbox)
+Archive messages or explicit threads (remove from inbox)
 
 ## Usage
 
@@ -37,6 +37,7 @@ gog gmail (mail,email) archive [<messageId> ...] [flags]
 | `-q`<br>`--query` | `string` |  | Archive all messages matching this Gmail search query |
 | `--results-only` | `bool` |  | In JSON mode, emit only the primary result (drops envelope fields like nextPageToken) |
 | `--select`<br>`--pick`<br>`--project` | `string` |  | In JSON mode, select comma-separated fields (best-effort; supports dot paths). Desire path: use --fields for most commands. |
+| `--thread` | `bool` |  | Treat positional IDs as thread IDs and archive every message in each thread |
 | `-v`<br>`--verbose` | `bool` |  | Enable verbose logging |
 | `--version` | `kong.VersionFlag` |  | Print version and exit |
 | `--wrap-untrusted` | `bool` | false | In JSON/raw output, wrap fetched text fields in external untrusted-content markers |
