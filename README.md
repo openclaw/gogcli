@@ -297,6 +297,8 @@ Docs: [Google Docs editing](docs/docs-editing.md),
 ```bash
 gog docs write <docId> --append --markdown --text '## Status'
 gog docs format <docId> --match Status --bold --font-size 18
+gog docs format <docId> --match "Project site" --link https://example.com
+gog docs find-range <docId> "Release status" --json
 gog docs insert-page-break <docId> --at-end
 gog docs insert-table <docId> --rows 3 --cols 2 --at-end
 gog docs named-range create <docId> --name Status --at "Ready"
@@ -323,6 +325,8 @@ gog sheets table append <spreadsheetId> Tasks 'Ship README|done'
 gog sheets table clear <spreadsheetId> Tasks
 gog sheets validation set <spreadsheetId> 'Sheet1!B2:B100' \
   --type ONE_OF_LIST --value Open --value Done
+gog sheets links set <spreadsheetId> 'Sheet1!C2' https://example.com "Project"
+gog sheets delete-dimension <spreadsheetId> 'Sheet1!3:3' --dimension ROWS --force
 gog sheets conditional-format add <spreadsheetId> 'Sheet1!A2:A100' \
   --type text-contains \
   --expr blocked \
@@ -339,6 +343,7 @@ Docs: [Slides from Markdown](docs/slides-markdown.md),
 
 ```bash
 gog slides create-from-markdown "Weekly update" --content-file slides.md
+gog slides insert-image <presentationId> <slideId> chart.png --x 24 --y 24 --width 240
 gog slides insert-text <presentationId> <objectId> "New text"
 gog forms update <formId> --quiz=true
 gog forms add-question <formId> --title "What is 2+2?" --type radio -o 1 -o 4 --correct 4 --points 1

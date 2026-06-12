@@ -130,6 +130,52 @@ run_gmail_tests() {
     run_required "gmail" "gmail drafts delete" gog --force gmail drafts delete "$delete_draft_id" --json >/dev/null
   fi
 
+  local thread_seed_json recent_thread_id recent_attach_path recent_draft_json recent_draft_id recent_update_json recent_clear_json recent_thread_json
+  recent_attach_path="$LIVE_TMP/gmail-recent-attach-$TS.txt"
+  printf "recent attachment %s\n" "$TS" >"$recent_attach_path"
+  thread_seed_json=$(gog gmail send --to "$ACCOUNT" --subject "gogcli recent thread $TS" --body "thread seed $TS" --json)
+  recent_thread_id=$(extract_field "$thread_seed_json" threadId)
+  [ -n "$recent_thread_id" ] || { echo "Failed to parse recent Gmail thread id" >&2; exit 1; }
+  register_gmail_thread_cleanup "$recent_thread_id"
+  recent_draft_json=$(gog gmail drafts create --to "$ACCOUNT" \
+    --subject "Re: gogcli recent thread $TS" --body "draft reply" \
+    --thread-id "$recent_thread_id" --attach "$recent_attach_path" --json)
+  recent_draft_id=$(extract_field "$recent_draft_json" draftId)
+  [ -n "$recent_draft_id" ] || { echo "Failed to parse threaded draft id" >&2; exit 1; }
+  register_gmail_draft_cleanup "$recent_draft_id"
+  "$PY" -c 'import json,sys
+expected=sys.argv[1]
+attachments=json.load(sys.stdin).get("attachments", [])
+assert any(a.get("filename") == expected and a.get("size", 0) > 0 for a in attachments)' \
+    "gmail-recent-attach-$TS.txt" <<<"$recent_draft_json"
+
+  recent_update_json=$(gog gmail drafts update "$recent_draft_id" \
+    --subject "Re: gogcli recent thread $TS" --body "updated reply" \
+    --thread-id "$recent_thread_id" --json)
+  "$PY" -c 'import json,sys
+attachments=json.load(sys.stdin).get("attachments", [])
+assert attachments and attachments[0].get("size", 0) > 0' <<<"$recent_update_json"
+  recent_clear_json=$(gog gmail drafts update "$recent_draft_id" \
+    --subject "Re: gogcli recent thread $TS" --body "cleared reply" \
+    --thread-id "$recent_thread_id" --clear-attachments --json)
+  "$PY" -c 'import json,sys; assert not json.load(sys.stdin).get("attachments")' <<<"$recent_clear_json"
+  run_required "gmail" "gmail threaded draft delete" gog gmail drafts delete \
+    "$recent_draft_id" --force >/dev/null
+  run_required "gmail" "gmail archive thread" gog gmail archive \
+    --thread "$recent_thread_id" --json >/dev/null
+  recent_thread_json=$(gog gmail thread get "$recent_thread_id" --json)
+  "$PY" -c 'import json,sys
+obj=json.load(sys.stdin)
+def walk(value):
+    if isinstance(value, dict):
+        if "labelIds" in value and "INBOX" in (value.get("labelIds") or []):
+            return False
+        return all(walk(v) for v in value.values())
+    if isinstance(value, list):
+        return all(walk(v) for v in value)
+    return True
+assert walk(obj)' <<<"$recent_thread_json"
+
   local body_file send_json send_msg_id send_thread_id
   body_file="$LIVE_TMP/gmail-body-$TS.txt"
   printf "hello from gogcli %s\n" "$TS" >"$body_file"

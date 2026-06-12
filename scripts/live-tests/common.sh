@@ -7,6 +7,13 @@ if ! command -v "$PY" >/dev/null 2>&1; then
   PY="python"
 fi
 
+LIVE_DRIVE_CLEANUP_IDS=()
+LIVE_BATCH_CLEANUP_IDS=()
+LIVE_CALENDAR_CLEANUP_EVENTS=()
+LIVE_GMAIL_CLEANUP_DRAFTS=()
+LIVE_GMAIL_CLEANUP_THREADS=()
+LIVE_PHOTOS_PICKER_CLEANUP_IDS=()
+
 skip() {
   local key="$1"
   [ -n "${SKIP:-}" ] || return 1
@@ -203,7 +210,74 @@ print(find(obj))' <<<"$1"
 }
 
 gog() {
-  "$BIN" --account "$ACCOUNT" "$@"
+  local attempt max_attempts rc
+  max_attempts="${GOG_LIVE_RETRIES:-3}"
+  case "$max_attempts" in
+    ''|*[!0-9]*|0)
+      max_attempts=3
+      ;;
+  esac
+
+  for ((attempt = 1; attempt <= max_attempts; attempt++)); do
+    if "$BIN" --account "$ACCOUNT" "$@"; then
+      return 0
+    else
+      rc=$?
+    fi
+    if [ "$rc" -ne 8 ] || [ "$attempt" -eq "$max_attempts" ]; then
+      return "$rc"
+    fi
+    echo "retryable gog failure; retry $attempt/$max_attempts: $*" >&2
+    sleep "$attempt"
+  done
+}
+
+register_drive_cleanup() {
+  [ -n "${1:-}" ] && LIVE_DRIVE_CLEANUP_IDS+=("$1")
+}
+
+register_batch_cleanup() {
+  [ -n "${1:-}" ] && LIVE_BATCH_CLEANUP_IDS+=("$1")
+}
+
+register_calendar_cleanup() {
+  [ -n "${1:-}" ] && [ -n "${2:-}" ] && LIVE_CALENDAR_CLEANUP_EVENTS+=("$1"$'\t'"$2")
+}
+
+register_gmail_draft_cleanup() {
+  [ -n "${1:-}" ] && LIVE_GMAIL_CLEANUP_DRAFTS+=("$1")
+}
+
+register_gmail_thread_cleanup() {
+  [ -n "${1:-}" ] && LIVE_GMAIL_CLEANUP_THREADS+=("$1")
+}
+
+register_photos_picker_cleanup() {
+  [ -n "${1:-}" ] && LIVE_PHOTOS_PICKER_CLEANUP_IDS+=("$1")
+}
+
+cleanup_live_resources() {
+  local entry calendar_id event_id id
+
+  for id in "${LIVE_GMAIL_CLEANUP_DRAFTS[@]}"; do
+    gog gmail drafts delete "$id" --force >/dev/null 2>&1 || true
+  done
+  for id in "${LIVE_BATCH_CLEANUP_IDS[@]}"; do
+    "$BIN" batch abort "$id" >/dev/null 2>&1 || true
+  done
+  for entry in "${LIVE_CALENDAR_CLEANUP_EVENTS[@]}"; do
+    IFS=$'\t' read -r calendar_id event_id <<<"$entry"
+    gog calendar delete "$calendar_id" "$event_id" --force >/dev/null 2>&1 || true
+  done
+  for id in "${LIVE_GMAIL_CLEANUP_THREADS[@]}"; do
+    gog gmail thread modify "$id" --add TRASH --json >/dev/null 2>&1 || true
+  done
+  for id in "${LIVE_PHOTOS_PICKER_CLEANUP_IDS[@]}"; do
+    gog photos picker delete "$id" --force --json >/dev/null 2>&1 || true
+  done
+  for id in "${LIVE_DRIVE_CLEANUP_IDS[@]}"; do
+    gog drive delete "$id" --force >/dev/null 2>&1 || true
+  done
 }
 
 is_test_account() {

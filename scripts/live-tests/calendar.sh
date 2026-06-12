@@ -26,10 +26,29 @@ PY
   ev_json=$(gog calendar create primary --summary "gogcli-smoke-$TS" --from "$START" --to "$END" --location "Test" --send-updates none --json)
   ev_id=$(extract_id "$ev_json")
   [ -n "$ev_id" ] || { echo "Failed to parse calendar event id" >&2; exit 1; }
+  register_calendar_cleanup primary "$ev_id"
 
   run_required "calendar" "calendar event get" gog calendar event primary "$ev_id" --json >/dev/null
   run_required "calendar" "calendar propose-time" gog calendar propose-time primary "$ev_id" --json >/dev/null
   run_required "calendar" "calendar update" gog calendar update primary "$ev_id" --summary "gogcli-smoke-updated-$TS" --json >/dev/null
+
+  local attachment_doc_json attachment_doc_id attachment_url attachment_event_json
+  attachment_doc_json=$(gog docs create "gogcli-calendar-attachment-$TS" --json)
+  attachment_doc_id=$(extract_id "$attachment_doc_json")
+  [ -n "$attachment_doc_id" ] || { echo "Failed to parse calendar attachment doc id" >&2; exit 1; }
+  register_drive_cleanup "$attachment_doc_id"
+  attachment_url="https://drive.google.com/file/d/$attachment_doc_id/view"
+  run_required "calendar" "calendar update attachment" gog calendar update primary "$ev_id" \
+    --attachment "$attachment_url" --json >/dev/null
+  attachment_event_json=$(gog calendar event primary "$ev_id" --json)
+  "$PY" -c 'import json,sys
+want=sys.argv[1]
+obj=json.load(sys.stdin)
+attachments=obj.get("event", {}).get("attachments", [])
+assert any(a.get("fileUrl") == want for a in attachments)' "$attachment_url" <<<"$attachment_event_json"
+  run_required "calendar" "calendar clear attachments" gog calendar update primary "$ev_id" \
+    --attachment= --json >/dev/null
+
   run_required "calendar" "calendar events list" gog calendar events primary --from "$START" --to "$END" --json --max 5 >/dev/null
   run_required "calendar" "calendar search" gog calendar search "gogcli-smoke" --from "$START" --to "$END" --json --max 5 >/dev/null
   run_required "calendar" "calendar freebusy" gog calendar freebusy primary --from "$START" --to "$END" --json >/dev/null

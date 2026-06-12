@@ -4,6 +4,19 @@ set -euo pipefail
 
 run_workspace_tests() {
   if is_consumer_account "$ACCOUNT"; then
+    echo "==> chat attachment (skipped; Workspace only)"
+  elif [ -n "${GOG_LIVE_CHAT_SPACE:-}" ]; then
+    local chat_attachment
+    chat_attachment="$LIVE_TMP/chat-attachment-$TS.txt"
+    printf "chat attachment %s\n" "$TS" >"$chat_attachment"
+    run_required "chat" "chat attachment send" gog chat messages send \
+      "$GOG_LIVE_CHAT_SPACE" --text "gogcli live $TS" \
+      --attach "$chat_attachment" --json >/dev/null
+  else
+    echo "==> chat attachment (skipped; set GOG_LIVE_CHAT_SPACE)"
+  fi
+
+  if is_consumer_account "$ACCOUNT"; then
     echo "==> groups (skipped; Workspace only)"
   else
     run_optional "groups" "groups list" gog groups list --json --max 5 >/dev/null

@@ -51,6 +51,29 @@ cells. When a target fully selects a table-managed dropdown column, pass
 column to text. Validation-only copy/paste preserves table-managed dropdown
 definitions when copying from a table column into ordinary cells.
 
+## Cell Links
+
+Write a single whole-cell link, multiple independently linked text runs, or a
+batch of cells:
+
+```bash
+gog sheets links set "$spreadsheet_id" 'Sheet1!A1' \
+  https://example.com "Project"
+gog sheets links set "$spreadsheet_id" 'Sheet1!B1' \
+  --runs-json '[{"text":"Docs","uri":"https://docs.example.com"},{"text":" / "},{"text":"Issues","uri":"https://issues.example.com"}]'
+gog sheets links set "$spreadsheet_id" \
+  --cells-json '[{"cell":"Sheet1!C1","url":"mailto:owner@example.com","text":"Owner"}]'
+```
+
+Read links back from a range:
+
+```bash
+gog sheets links get "$spreadsheet_id" 'Sheet1!A1:C1' --json
+```
+
+The read command emits one result per URL, so a rich-text cell can appear more
+than once with the same A1 address.
+
 ## Conditional Formats
 
 Add a rule to a sheet-qualified range:
@@ -126,6 +149,8 @@ gog sheets banding clear "$spreadsheet_id" --sheet Sheet1 --all --force
 - [`gog sheets validation get`](commands/gog-sheets-validation-get.md)
 - [`gog sheets validation set`](commands/gog-sheets-validation-set.md)
 - [`gog sheets validation clear`](commands/gog-sheets-validation-clear.md)
+- [`gog sheets links get`](commands/gog-sheets-links-get.md)
+- [`gog sheets links set`](commands/gog-sheets-links-set.md)
 - [`gog sheets conditional-format`](commands/gog-sheets-conditional-format.md)
 - [`gog sheets conditional-format add`](commands/gog-sheets-conditional-format-add.md)
 - [`gog sheets conditional-format list`](commands/gog-sheets-conditional-format-list.md)
