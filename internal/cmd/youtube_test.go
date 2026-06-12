@@ -555,6 +555,49 @@ func TestYouTubeSubscriptionsListMine(t *testing.T) {
 	}
 }
 
+func TestYouTubeSubscriptionsSubscribe(t *testing.T) {
+	var gotBody []byte
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/youtube/v3/subscriptions" {
+			t.Fatalf("path = %s", r.URL.Path)
+		}
+		if r.Method != http.MethodPost {
+			t.Fatalf("method = %s", r.Method)
+		}
+		var err error
+		gotBody, err = io.ReadAll(r.Body)
+		if err != nil {
+			t.Fatalf("read body: %v", err)
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"id": "NEWSUB456",
+			"snippet": map[string]any{
+				"resourceId": map[string]any{
+					"kind":      "youtube#channel",
+					"channelId": "UCnew",
+				},
+			},
+		})
+	}))
+	defer srv.Close()
+
+	svc := newGoogleTestServiceWithEndpoint(t, srv.Client(), srv.URL+"/", youtube.NewService)
+	var stdout bytes.Buffer
+	ctx := withYouTubeTestServices(newCmdRuntimeOutputContext(t, &stdout, io.Discard), youtubeTestServices{
+		Account: fixedYouTubeTestService(svc),
+	})
+	err := runKong(t, &YouTubeSubscriptionsSubscribeCmd{}, []string{"--channel-id", "UCnew"}, ctx, &RootFlags{Account: "me@example.com"})
+	if err != nil {
+		t.Fatalf("runKong: %v", err)
+	}
+	if !strings.Contains(string(gotBody), "UCnew") {
+		t.Fatalf("request body missing channel ID: %s", gotBody)
+	}
+	if !strings.Contains(stdout.String(), "NEWSUB456") {
+		t.Fatalf("stdout missing subscription ID: %q", stdout.String())
+	}
+}
+
 func TestYouTubeValidationRejectsBlankSelectorsBeforeService(t *testing.T) {
 	ctx := withYouTubeTestServices(newCmdRuntimeOutputContext(t, io.Discard, io.Discard), youtubeTestServices{
 		Account:  unexpectedYouTubeTestService(t, "expected validation to fail before OAuth YouTube service creation"),

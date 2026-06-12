@@ -604,11 +604,41 @@ func (c *YouTubeSubscriptionsListCmd) Run(ctx context.Context, flags *RootFlags)
 }
 
 type YouTubeSubscriptionsSubscribeCmd struct {
-	ChannelID string `name:"channel-id" required:"" help:"Channel ID to subscribe to"`
+	ChannelID string `name:"channel-id" help:"Channel ID to subscribe to"`
 }
 
 func (c *YouTubeSubscriptionsSubscribeCmd) Run(ctx context.Context, flags *RootFlags) error {
-	return fmt.Errorf("not implemented")
+	u := ui.FromContext(ctx)
+	channelID := strings.TrimSpace(c.ChannelID)
+	if channelID == "" {
+		return usage("--channel-id is required")
+	}
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
+	}
+	svc, err := getYouTubeServiceForAccount(ctx, account)
+	if err != nil {
+		return err
+	}
+
+	sub, err := svc.Subscriptions.Insert([]string{"snippet"}, &youtube.Subscription{
+		Snippet: &youtube.SubscriptionSnippet{
+			ResourceId: &youtube.ResourceId{
+				Kind:      "youtube#channel",
+				ChannelId: channelID,
+			},
+		},
+	}).Do()
+	if err != nil {
+		return err
+	}
+
+	if outfmt.IsJSON(ctx) {
+		return outfmt.WriteJSON(ctx, stdoutWriter(ctx), sub)
+	}
+	u.Out().Printf("Subscribed: %s (subscription ID: %s)\n", channelID, sub.Id)
+	return nil
 }
 
 type YouTubeSubscriptionsUnsubscribeCmd struct {
