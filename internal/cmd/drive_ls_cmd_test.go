@@ -50,6 +50,16 @@ func TestDriveLsCmd_TextAndJSON(t *testing.T) {
 						"size":         "0",
 						"modifiedTime": "2025-12-11T00:00:00Z",
 					},
+					{
+						"id":           "s1",
+						"name":         "Folder shortcut",
+						"mimeType":     driveMimeShortcut,
+						"modifiedTime": "2025-12-10T00:00:00Z",
+						"shortcutDetails": map[string]any{
+							"targetId":       "d1",
+							"targetMimeType": driveMimeFolder,
+						},
+					},
 				},
 				"nextPageToken": "npt",
 			})
@@ -98,6 +108,9 @@ func TestDriveLsCmd_TextAndJSON(t *testing.T) {
 	if !strings.Contains(textOut, "d1") || !strings.Contains(textOut, "Folder") || !strings.Contains(textOut, "folder") {
 		t.Fatalf("missing folder row: %q", textOut)
 	}
+	if !strings.Contains(textOut, "s1") || !strings.Contains(textOut, "shortcut") || !strings.Contains(textOut, "d1") {
+		t.Fatalf("missing shortcut row: %q", textOut)
+	}
 	if !strings.Contains(errBuf.String(), "--page npt") {
 		t.Fatalf("missing next page hint: %q", errBuf.String())
 	}
@@ -128,11 +141,14 @@ func TestDriveLsCmd_TextAndJSON(t *testing.T) {
 	if unmarshalErr := json.Unmarshal([]byte(jsonOut), &parsed); unmarshalErr != nil {
 		t.Fatalf("json parse: %v\nout=%q", unmarshalErr, jsonOut)
 	}
-	if parsed.NextPageToken != "npt" || len(parsed.Files) != 2 {
+	if parsed.NextPageToken != "npt" || len(parsed.Files) != 3 {
 		t.Fatalf("unexpected json: %#v", parsed)
 	}
 	if !parsed.Files[0].HasThumbnail || parsed.Files[0].ThumbnailLink != "https://thumb.example/f1" {
 		t.Fatalf("expected thumbnail fields in json, got %#v", parsed.Files[0])
+	}
+	if got := driveShortcutTargetID(parsed.Files[2]); got != "d1" {
+		t.Fatalf("shortcut target = %q, want d1", got)
 	}
 
 	// Plain mode: stable TSV (tabs preserved).
@@ -150,7 +166,7 @@ func TestDriveLsCmd_TextAndJSON(t *testing.T) {
 			t.Fatalf("execute: %v", execErr)
 		}
 	})
-	if !strings.Contains(plainOut, "ID\tNAME\tTYPE\tSIZE\tMODIFIED\tOWNER") {
+	if !strings.Contains(plainOut, "ID\tNAME\tTYPE\tSIZE\tMODIFIED\tOWNER\tTARGET_ID") {
 		t.Fatalf("expected TSV header, got: %q", plainOut)
 	}
 }

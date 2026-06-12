@@ -35,6 +35,7 @@ const (
 	driveMimeGoogleSlides  = "application/vnd.google-apps.presentation"
 	driveMimeGoogleDrawing = "application/vnd.google-apps.drawing"
 	driveMimeGoogleSite    = "application/vnd.google-apps.site"
+	driveMimeShortcut      = "application/vnd.google-apps.shortcut"
 	driveQueryNotTrashed   = "trashed = false"
 	mimePDF                = "application/pdf"
 	mimeCSV                = "text/csv"
@@ -71,6 +72,7 @@ type DriveCmd struct {
 	Delete      DriveDeleteCmd      `cmd:"" name:"delete" help:"Move a file to trash (use --permanent to delete forever)" aliases:"rm,del"`
 	Move        DriveMoveCmd        `cmd:"" name:"move" help:"Move a file to a different folder"`
 	Rename      DriveRenameCmd      `cmd:"" name:"rename" help:"Rename a file or folder"`
+	Shortcut    DriveShortcutCmd    `cmd:"" name:"shortcut" aliases:"shortcuts" help:"Manage shortcuts to Drive files and folders"`
 	Share       DriveShareCmd       `cmd:"" name:"share" help:"Share a file or folder"`
 	Unshare     DriveUnshareCmd     `cmd:"" name:"unshare" help:"Remove a permission from a file"`
 	Permissions DrivePermissionsCmd `cmd:"" name:"permissions" help:"List permissions on a file"`
@@ -150,10 +152,14 @@ func (c *DriveGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u.Out().Linef("size\t%s", formatDriveSize(f.Size))
 	u.Out().Linef("created\t%s", f.CreatedTime)
 	u.Out().Linef("modified\t%s", f.ModifiedTime)
+	if len(f.Parents) > 0 {
+		u.Out().Linef("parents\t%s", strings.Join(f.Parents, ","))
+	}
 	if f.Description != "" {
 		u.Out().Linef("description\t%s", f.Description)
 	}
 	u.Out().Linef("starred\t%t", f.Starred)
+	writeDriveShortcutDetails(u, f.ShortcutDetails)
 	if f.WebViewLink != "" {
 		u.Out().Linef("link\t%s", f.WebViewLink)
 	}
@@ -490,8 +496,41 @@ func driveType(mimeType string) string {
 		return "drawing"
 	case driveMimeGoogleSite:
 		return "site"
+	case driveMimeShortcut:
+		return "shortcut"
 	}
 	return strFile
+}
+
+func driveShortcutTargetID(f *drive.File) string {
+	if f == nil {
+		return "-"
+	}
+	return driveShortcutDetailsTargetID(f.ShortcutDetails)
+}
+
+func driveShortcutDetailsTargetID(details *drive.FileShortcutDetails) string {
+	if details == nil {
+		return "-"
+	}
+	targetID := strings.TrimSpace(details.TargetId)
+	if targetID == "" {
+		return "-"
+	}
+	return targetID
+}
+
+func writeDriveShortcutDetails(u *ui.UI, details *drive.FileShortcutDetails) {
+	if details == nil {
+		return
+	}
+	u.Out().Linef("target_id\t%s", details.TargetId)
+	if details.TargetMimeType != "" {
+		u.Out().Linef("target_type\t%s", details.TargetMimeType)
+	}
+	if details.TargetResourceKey != "" {
+		u.Out().Linef("target_resource_key\t%s", details.TargetResourceKey)
+	}
 }
 
 func formatDateTime(iso string) string {

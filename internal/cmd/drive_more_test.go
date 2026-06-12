@@ -9,6 +9,9 @@ func TestDriveType(t *testing.T) {
 	if got := driveType("application/pdf"); got != "file" {
 		t.Fatalf("unexpected: %q", got)
 	}
+	if got := driveType(driveMimeShortcut); got != "shortcut" {
+		t.Fatalf("unexpected shortcut type: %q", got)
+	}
 }
 
 func TestFormatDateTime(t *testing.T) {

@@ -131,17 +131,18 @@ func writeDriveFileList(ctx context.Context, resp *drive.FileList, emptyMessage 
 
 	w, flush := tableWriter(ctx)
 	defer flush()
-	fmt.Fprintln(w, "ID\tNAME\tTYPE\tSIZE\tMODIFIED\tOWNER")
+	fmt.Fprintln(w, "ID\tNAME\tTYPE\tSIZE\tMODIFIED\tOWNER\tTARGET_ID")
 	for _, f := range resp.Files {
 		fmt.Fprintf(
 			w,
-			"%s\t%s\t%s\t%s\t%s\t%s\n",
+			"%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
 			f.Id,
 			f.Name,
 			driveType(f.MimeType),
 			formatDriveSize(f.Size),
 			formatDateTime(f.ModifiedTime),
 			driveOwnerEmail(f.Owners),
+			driveShortcutTargetID(f),
 		)
 	}
 	printNextPageHint(u, resp.NextPageToken)

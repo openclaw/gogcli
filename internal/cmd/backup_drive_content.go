@@ -14,8 +14,7 @@ import (
 )
 
 const (
-	driveMimeGoogleFolder   = "application/vnd.google-apps.folder"
-	driveMimeGoogleShortcut = "application/vnd.google-apps.shortcut"
+	driveMimeGoogleFolder = "application/vnd.google-apps.folder"
 )
 
 type driveBackupContent struct {
@@ -104,7 +103,7 @@ func driveBackupContentPlans(file *drive.File, includeBinary bool) []driveBackup
 		return nil
 	}
 	switch file.MimeType {
-	case driveMimeGoogleFolder, driveMimeGoogleShortcut:
+	case driveMimeGoogleFolder, driveMimeShortcut:
 		return nil
 	case driveMimeGoogleDoc:
 		return []driveBackupContentPlan{

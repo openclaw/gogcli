@@ -37,6 +37,29 @@ run_drive_tests() {
   run_required "drive" "drive move" gog drive move "$file_id" --parent "$folder_b_id" --json >/dev/null
   run_required "drive" "drive search" gog drive search "name contains 'gogcli-smoke'" --json --max 1 >/dev/null
 
+  local shortcut_json shortcut_id shortcut_get_json shortcut_target_id shortcut_list_json shortcut_tree_json
+  shortcut_json=$(gog drive shortcut create "$file_id" --parent "$folder_a_id" --name "gogcli-smoke-shortcut-$TS" --json)
+  shortcut_id=$(extract_id "$shortcut_json")
+  [ -n "$shortcut_id" ] || { echo "Failed to parse shortcut id" >&2; exit 1; }
+
+  shortcut_get_json=$(gog drive get "$shortcut_id" --json)
+  shortcut_target_id=$(extract_field "$shortcut_get_json" targetId)
+  [ "$shortcut_target_id" = "$file_id" ] || { echo "Shortcut target mismatch from drive get" >&2; exit 1; }
+
+  shortcut_list_json=$(gog drive ls --parent "$folder_a_id" --json --max 10)
+  shortcut_target_id=$(extract_field "$shortcut_list_json" targetId)
+  [ "$shortcut_target_id" = "$file_id" ] || { echo "Shortcut target missing from drive ls" >&2; exit 1; }
+
+  shortcut_tree_json=$(gog drive tree --parent "$folder_a_id" --json --depth 2)
+  shortcut_target_id=$(extract_field "$shortcut_tree_json" targetId)
+  [ "$shortcut_target_id" = "$file_id" ] || { echo "Shortcut target missing from drive tree" >&2; exit 1; }
+
+  run_required "drive" "drive rename shortcut" gog drive rename "$shortcut_id" "gogcli-smoke-shortcut-renamed-$TS" >/dev/null
+  local target_after_shortcut_rename target_name
+  target_after_shortcut_rename=$(gog drive get "$file_id" --json)
+  target_name=$(extract_field "$target_after_shortcut_rename" name)
+  [ "$target_name" = "gogcli-smoke-renamed-$TS.txt" ] || { echo "Renaming shortcut mutated target name" >&2; exit 1; }
+
   run_required "drive" "drive permissions" gog drive permissions "$file_id" --json >/dev/null
 
   local share_json perm_id perms_json
@@ -69,6 +92,7 @@ run_drive_tests() {
   download_path="$LIVE_TMP/drive-download-$TS.txt"
   run_required "drive" "drive download" gog drive download "$file_id" --out "$download_path" >/dev/null
 
+  run_required "drive" "drive delete shortcut" gog drive delete "$shortcut_id" --force >/dev/null
   run_required "drive" "drive delete copy" gog drive delete "$copy_id" --force >/dev/null
   run_required "drive" "drive delete file" gog drive delete "$file_id" --force >/dev/null
   run_required "drive" "drive delete folder A" gog drive delete "$folder_a_id" --force >/dev/null

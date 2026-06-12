@@ -340,6 +340,8 @@ Generated from `gog schema --json`.
       - [`gog drive (drv) revisions (revision) list (ls) <fileId> [flags]`](commands/gog-drive-revisions-list.md) - List revisions for a file
     - [`gog drive (drv) search <query> ... [flags]`](commands/gog-drive-search.md) - Full-text search across Drive
     - [`gog drive (drv) share <fileId> [flags]`](commands/gog-drive-share.md) - Share a file or folder
+    - [`gog drive (drv) shortcut (shortcuts) <command>`](commands/gog-drive-shortcut.md) - Manage shortcuts to Drive files and folders
+      - [`gog drive (drv) shortcut (shortcuts) create (add,new) <targetId> [flags]`](commands/gog-drive-shortcut-create.md) - Create a shortcut to a Drive file or folder
     - [`gog drive (drv) tree [flags]`](commands/gog-drive-tree.md) - Print a read-only folder tree
     - [`gog drive (drv) unshare <fileId> <permissionId>`](commands/gog-drive-unshare.md) - Remove a permission from a file
     - [`gog drive (drv) upload <localPath> [flags]`](commands/gog-drive-upload.md) - Upload a file

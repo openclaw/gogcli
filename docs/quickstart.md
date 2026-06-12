@@ -102,6 +102,7 @@ gog calendar create --summary "Review" \
 gog drive ls --max 20
 gog drive tree --parent <folderId> --depth 2
 gog drive du   --parent <folderId> --max 20 --json
+gog drive shortcut create <fileId> --parent <folderId>
 
 # Docs / Sheets / Slides
 gog docs cat <docId> --tab "Notes"

@@ -68,16 +68,17 @@ func (c *DriveTreeCmd) Run(ctx context.Context, flags *RootFlags) error {
 
 	w, flush := tableWriter(ctx)
 	defer flush()
-	fmt.Fprintln(w, "PATH\tTYPE\tSIZE\tMODIFIED\tID")
+	fmt.Fprintln(w, "PATH\tTYPE\tSIZE\tMODIFIED\tID\tTARGET_ID")
 	for _, it := range items {
 		fmt.Fprintf(
 			w,
-			"%s\t%s\t%s\t%s\t%s\n",
+			"%s\t%s\t%s\t%s\t%s\t%s\n",
 			sanitizeTab(it.Path),
 			driveType(it.MimeType),
 			formatDriveSize(it.Size),
 			formatDateTime(it.ModifiedTime),
 			it.ID,
+			driveShortcutDetailsTargetID(it.ShortcutDetails),
 		)
 	}
 	if truncated {
@@ -142,7 +143,7 @@ func (c *DriveInventoryCmd) Run(ctx context.Context, flags *RootFlags) error {
 
 	w, flush := tableWriter(ctx)
 	defer flush()
-	fmt.Fprintln(w, "PATH\tTYPE\tSIZE\tMODIFIED\tOWNER\tID")
+	fmt.Fprintln(w, "PATH\tTYPE\tSIZE\tMODIFIED\tOWNER\tID\tTARGET_ID")
 	for _, it := range items {
 		owner := "-"
 		if len(it.Owners) > 0 {
@@ -150,13 +151,14 @@ func (c *DriveInventoryCmd) Run(ctx context.Context, flags *RootFlags) error {
 		}
 		fmt.Fprintf(
 			w,
-			"%s\t%s\t%s\t%s\t%s\t%s\n",
+			"%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
 			sanitizeTab(it.Path),
 			driveType(it.MimeType),
 			formatDriveSize(it.Size),
 			formatDateTime(it.ModifiedTime),
 			owner,
 			it.ID,
+			driveShortcutDetailsTargetID(it.ShortcutDetails),
 		)
 	}
 	if truncated {
@@ -236,17 +238,18 @@ func (c *DriveDuCmd) Run(ctx context.Context, flags *RootFlags) error {
 }
 
 type driveTreeItem struct {
-	ID           string   `json:"id"`
-	Name         string   `json:"name"`
-	Path         string   `json:"path"`
-	ParentID     string   `json:"parentId,omitempty"`
-	MimeType     string   `json:"mimeType"`
-	Size         int64    `json:"size,omitempty"`
-	ModifiedTime string   `json:"modifiedTime,omitempty"`
-	WebViewLink  string   `json:"webViewLink,omitempty"`
-	Owners       []string `json:"owners,omitempty"`
-	MD5          string   `json:"md5,omitempty"`
-	Depth        int      `json:"depth"`
+	ID              string                     `json:"id"`
+	Name            string                     `json:"name"`
+	Path            string                     `json:"path"`
+	ParentID        string                     `json:"parentId,omitempty"`
+	MimeType        string                     `json:"mimeType"`
+	Size            int64                      `json:"size,omitempty"`
+	ModifiedTime    string                     `json:"modifiedTime,omitempty"`
+	WebViewLink     string                     `json:"webViewLink,omitempty"`
+	Owners          []string                   `json:"owners,omitempty"`
+	MD5             string                     `json:"md5,omitempty"`
+	ShortcutDetails *drive.FileShortcutDetails `json:"shortcutDetails,omitempty"`
+	Depth           int                        `json:"depth"`
 }
 
 func (d driveTreeItem) IsFolder() bool {
@@ -280,8 +283,8 @@ type driveFolderQueueItem struct {
 }
 
 const (
-	driveTreeFields      = "id,name,mimeType,size,modifiedTime"
-	driveInventoryFields = "id,name,mimeType,size,modifiedTime,owners(emailAddress,displayName)"
+	driveTreeFields      = "id,name,mimeType,size,modifiedTime,shortcutDetails(targetId,targetMimeType,targetResourceKey)"
+	driveInventoryFields = "id,name,mimeType,size,modifiedTime,owners(emailAddress,displayName),shortcutDetails(targetId,targetMimeType,targetResourceKey)"
 )
 
 func listDriveTree(ctx context.Context, svc *drive.Service, opts driveTreeOptions) ([]driveTreeItem, bool, error) {
@@ -312,19 +315,22 @@ func listDriveTree(ctx context.Context, svc *drive.Service, opts driveTreeOption
 			}
 			depth := folder.Depth + 1
 			item := driveTreeItem{
-				ID:           child.Id,
-				Name:         child.Name,
-				Path:         joinDrivePath(folder.Path, child.Name),
-				ParentID:     folder.ID,
-				MimeType:     child.MimeType,
-				Size:         child.Size,
-				ModifiedTime: child.ModifiedTime,
-				WebViewLink:  child.WebViewLink,
-				Owners:       driveOwners(child),
-				MD5:          child.Md5Checksum,
-				Depth:        depth,
+				ID:              child.Id,
+				Name:            child.Name,
+				Path:            joinDrivePath(folder.Path, child.Name),
+				ParentID:        folder.ID,
+				MimeType:        child.MimeType,
+				Size:            child.Size,
+				ModifiedTime:    child.ModifiedTime,
+				WebViewLink:     child.WebViewLink,
+				Owners:          driveOwners(child),
+				MD5:             child.Md5Checksum,
+				ShortcutDetails: child.ShortcutDetails,
+				Depth:           depth,
 			}
 
+			// Shortcuts are leaves even when their target is a folder. Following
+			// targets would duplicate paths and can introduce traversal cycles.
 			if item.IsFolder() {
 				if opts.IncludeFolder {
 					out = append(out, item)

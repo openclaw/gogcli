@@ -2,7 +2,7 @@
 
 Every `gog` command has a generated docs page. The source of truth is the live CLI schema; run `make docs-commands` after changing command names, flags, help text, aliases, or arguments.
 
-Generated pages: 631.
+Generated pages: 633.
 
 ## Top-level Commands
 
@@ -391,6 +391,8 @@ Generated pages: 631.
       - [gog drive revisions list](gog-drive-revisions-list.md) - List revisions for a file
     - [gog drive search](gog-drive-search.md) - Full-text search across Drive
     - [gog drive share](gog-drive-share.md) - Share a file or folder
+    - [gog drive shortcut](gog-drive-shortcut.md) - Manage shortcuts to Drive files and folders
+      - [gog drive shortcut create](gog-drive-shortcut-create.md) - Create a shortcut to a Drive file or folder
     - [gog drive tree](gog-drive-tree.md) - Print a read-only folder tree
     - [gog drive unshare](gog-drive-unshare.md) - Remove a permission from a file
     - [gog drive upload](gog-drive-upload.md) - Upload a file

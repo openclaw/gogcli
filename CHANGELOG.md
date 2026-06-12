@@ -12,6 +12,7 @@
 - Docs: preserve nested Markdown list levels as native bullets inside imported and updated table cells. (#749) — thanks @sebsnyk.
 - Gmail: add explicit `gmail archive --thread` semantics so IDs from thread search can archive every message in each thread. (#752) — thanks @sebsnyk.
 - Drive/Docs: add persisted polling for Drive changes and Docs comments, with bounded runs, filters, retry-safe cursors, and sequential JSON hooks. (#690, #751)
+- Drive: expose shortcut targets in metadata and folder reports, classify shortcuts distinctly, keep tree scans from following folder targets, and add `drive shortcut create`.
 
 ## 0.24.0 - 2026-06-11
 

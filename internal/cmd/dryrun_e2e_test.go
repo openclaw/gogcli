@@ -157,6 +157,11 @@ func TestDryRunE2E_MutatingCommandsSkipAuthAndAPI(t *testing.T) {
 			op:   "drive.move",
 		},
 		{
+			name: "drive shortcut create",
+			args: []string{"drive", "shortcut", "create", "file123", "--parent", "folder123"},
+			op:   "drive.shortcut.create",
+		},
+		{
 			name: "drive rename",
 			args: []string{"drive", "rename", "file123", "New"},
 			op:   "drive.rename",

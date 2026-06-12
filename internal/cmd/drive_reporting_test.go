@@ -95,6 +95,16 @@ func TestExecuteDriveTreeJSON(t *testing.T) {
 						"size":         "12",
 						"modifiedTime": "2026-01-02T00:00:00Z",
 					},
+					{
+						"id":           "shortcut1",
+						"name":         "Reports elsewhere",
+						"mimeType":     driveMimeShortcut,
+						"modifiedTime": "2026-01-02T00:00:00Z",
+						"shortcutDetails": map[string]any{
+							"targetId":       "folder-target",
+							"targetMimeType": driveMimeFolder,
+						},
+					},
 				},
 			})
 		case strings.Contains(q, "'folder1' in parents"):
@@ -130,10 +140,13 @@ func TestExecuteDriveTreeJSON(t *testing.T) {
 	if err := json.Unmarshal([]byte(out), &parsed); err != nil {
 		t.Fatalf("json parse: %v\nout=%q", err, out)
 	}
-	if len(parsed.Items) != 3 {
-		t.Fatalf("items len = %d, want 3: %#v", len(parsed.Items), parsed.Items)
+	if len(parsed.Items) != 4 {
+		t.Fatalf("items len = %d, want 4: %#v", len(parsed.Items), parsed.Items)
 	}
-	if parsed.Items[2].Path != "Reports/child.txt" {
-		t.Fatalf("nested path = %q, want Reports/child.txt", parsed.Items[2].Path)
+	if parsed.Items[2].Path != "Reports elsewhere" || driveShortcutDetailsTargetID(parsed.Items[2].ShortcutDetails) != "folder-target" {
+		t.Fatalf("shortcut item = %#v", parsed.Items[2])
+	}
+	if parsed.Items[3].Path != "Reports/child.txt" {
+		t.Fatalf("nested path = %q, want Reports/child.txt", parsed.Items[3].Path)
 	}
 }
