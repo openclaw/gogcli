@@ -98,6 +98,8 @@ func parseDriveChangesNotification(r *http.Request) (driveChangesNotification, e
 	resourceState := strings.ToLower(strings.TrimSpace(r.Header.Get("X-Goog-Resource-State")))
 	resourceURI := strings.TrimSpace(r.Header.Get("X-Goog-Resource-URI"))
 	messageNumberRaw := strings.TrimSpace(r.Header.Get("X-Goog-Message-Number"))
+	changed := strings.TrimSpace(r.Header.Get("X-Goog-Changed"))
+	channelExpiration := strings.TrimSpace(r.Header.Get("X-Goog-Channel-Expiration"))
 	switch {
 	case channelID == "":
 		return driveChangesNotification{}, errors.New("missing X-Goog-Channel-ID")
@@ -117,6 +119,10 @@ func parseDriveChangesNotification(r *http.Request) (driveChangesNotification, e
 		return driveChangesNotification{}, errors.New("x-goog-resource-uri is too long")
 	case messageNumberRaw == "":
 		return driveChangesNotification{}, errors.New("missing X-Goog-Message-Number")
+	case len(changed) > 1024:
+		return driveChangesNotification{}, errors.New("x-goog-changed is too long")
+	case len(channelExpiration) > 256:
+		return driveChangesNotification{}, errors.New("x-goog-channel-expiration is too long")
 	}
 	messageNumber, err := strconv.ParseUint(messageNumberRaw, 10, 64)
 	if err != nil || messageNumber == 0 {
@@ -127,8 +133,8 @@ func parseDriveChangesNotification(r *http.Request) (driveChangesNotification, e
 		ResourceID:        resourceID,
 		ResourceState:     resourceState,
 		ResourceURI:       resourceURI,
-		Changed:           strings.TrimSpace(r.Header.Get("X-Goog-Changed")),
-		ChannelExpiration: strings.TrimSpace(r.Header.Get("X-Goog-Channel-Expiration")),
+		Changed:           changed,
+		ChannelExpiration: channelExpiration,
 		MessageNumber:     messageNumber,
 	}, nil
 }

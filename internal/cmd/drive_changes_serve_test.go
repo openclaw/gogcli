@@ -47,6 +47,25 @@ func TestDriveChangesServeRejectsWrongTokenBeforeAPI(t *testing.T) {
 	}
 }
 
+func TestParseDriveChangesNotificationRejectsOversizedOptionalHeaders(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		header string
+		value  string
+	}{
+		{name: "changed", header: "X-Goog-Changed", value: strings.Repeat("x", 1025)},
+		{name: "expiration", header: "X-Goog-Channel-Expiration", value: strings.Repeat("x", 257)},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			request := newDriveChangesNotificationRequest(t, driveChangesTestChannelToken, "change", 2)
+			request.Header.Set(tc.header, tc.value)
+			if _, err := parseDriveChangesNotification(request); err == nil || !strings.Contains(err.Error(), "too long") {
+				t.Fatalf("error = %v", err)
+			}
+		})
+	}
+}
+
 func TestDriveChangesServeRejectsUntrackedChannel(t *testing.T) {
 	state := driveChangesServeState{
 		Version:   pollStateVersion,
@@ -405,6 +424,58 @@ func TestDriveChangesServeHookDoesNotBlockStateMutex(t *testing.T) {
 	close(releaseHook)
 	if code := <-done; code != http.StatusNoContent {
 		t.Fatalf("status = %d, want 204", code)
+	}
+}
+
+func TestDriveChangesServeChannelStopDoesNotBlockStateMutex(t *testing.T) {
+	stopStarted := make(chan struct{})
+	releaseStop := make(chan struct{})
+	svc, closeDrive := newDriveTestService(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/channels/stop" {
+			t.Fatalf("path = %q", r.URL.Path)
+		}
+		close(stopStarted)
+		<-releaseStop
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer closeDrive()
+
+	statePath := filepath.Join(t.TempDir(), "state.json")
+	state := driveChangesServeState{
+		Version:   pollStateVersion,
+		PageToken: pollTestStartToken,
+		PreviousChannel: &driveChangesServeChannelState{
+			ID:         "channel-old",
+			ResourceID: "resource-old",
+		},
+	}
+	if err := writePollState(statePath, state); err != nil {
+		t.Fatalf("write state: %v", err)
+	}
+	server := newDriveChangesTestReceiver(t, svc, state)
+	server.statePath = statePath
+
+	done := make(chan error, 1)
+	go func() {
+		done <- server.stopPreviousChannel(context.Background())
+	}()
+	<-stopStarted
+
+	stateLockAcquired := make(chan struct{})
+	go func() {
+		server.mu.Lock()
+		server.mu.Unlock()
+		close(stateLockAcquired)
+	}()
+	select {
+	case <-stateLockAcquired:
+	case <-time.After(time.Second):
+		t.Fatal("state mutex remained blocked during channel stop")
+	}
+
+	close(releaseStop)
+	if err := <-done; err != nil {
+		t.Fatalf("stop previous channel: %v", err)
 	}
 }
 

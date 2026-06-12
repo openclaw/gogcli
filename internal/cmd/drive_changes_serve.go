@@ -441,16 +441,13 @@ func (s *driveChangesServer) ensureChannel(ctx context.Context) (time.Duration, 
 	s.renewMu.Lock()
 	defer s.renewMu.Unlock()
 
-	s.mu.Lock()
-
 	pendingStopFailed := false
-	if s.state.PreviousChannel != nil {
-		if err := s.stopPreviousChannelLocked(ctx); err != nil {
-			pendingStopFailed = true
-			s.warnf("drive changes serve: stop previous channel failed: %v", err)
-		}
+	if err := s.stopPreviousChannel(ctx); err != nil {
+		pendingStopFailed = true
+		s.warnf("drive changes serve: stop previous channel failed: %v", err)
 	}
 
+	s.mu.Lock()
 	now := s.runtime.now().UTC()
 	if s.currentChannelMatchesLocked() {
 		delay := s.channelRenewalDelayLocked(now)
@@ -506,7 +503,6 @@ func (s *driveChangesServer) ensureChannel(ctx context.Context) (time.Duration, 
 	}
 
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	if s.pendingChannel == channelID {
 		s.pendingChannel = ""
 	}
@@ -523,19 +519,19 @@ func (s *driveChangesServer) ensureChannel(ctx context.Context) (time.Duration, 
 	nextState.UpdatedAt = now.Format(time.RFC3339Nano)
 	trimDriveChangesMessageNumbers(&nextState, nextState.Channel.ID, channelIDFor(nextState.PreviousChannel))
 	if err := writePollState(s.statePath, nextState); err != nil {
-		_ = s.service.Channels.Stop(&drive.Channel{
-			Id:         nextState.Channel.ID,
-			ResourceId: nextState.Channel.ResourceID,
-		}).Context(ctx).Do()
+		channelToStop := *nextState.Channel
+		s.mu.Unlock()
+		_ = s.stopDriveChangesChannel(ctx, &channelToStop)
 		return 0, err
 	}
 	s.state = nextState
+	s.mu.Unlock()
 
-	if s.state.PreviousChannel != nil {
-		if err := s.stopPreviousChannelLocked(ctx); err != nil {
-			s.warnf("drive changes serve: stop previous channel failed: %v", err)
-		}
+	if err := s.stopPreviousChannel(ctx); err != nil {
+		s.warnf("drive changes serve: stop previous channel failed: %v", err)
 	}
+
+	s.mu.Lock()
 	delay := s.channelRenewalDelayLocked(now)
 	if delay <= 0 {
 		s.warnf(
@@ -547,6 +543,7 @@ func (s *driveChangesServer) ensureChannel(ctx context.Context) (time.Duration, 
 	if s.state.PreviousChannel != nil && delay > driveChangesRenewRetry {
 		delay = driveChangesRenewRetry
 	}
+	s.mu.Unlock()
 	return delay, nil
 }
 
@@ -578,18 +575,22 @@ func (s *driveChangesServer) channelRenewalDelayLocked(now time.Time) time.Durat
 	return delay
 }
 
-func (s *driveChangesServer) stopPreviousChannelLocked(ctx context.Context) error {
-	previous := s.state.PreviousChannel
+func (s *driveChangesServer) stopPreviousChannel(ctx context.Context) error {
+	s.mu.Lock()
+	previous := cloneDriveChangesServeChannel(s.state.PreviousChannel)
+	s.mu.Unlock()
 	if previous == nil {
 		return nil
 	}
-	if previous.ID != "" && previous.ResourceID != "" {
-		if err := s.service.Channels.Stop(&drive.Channel{
-			Id:         previous.ID,
-			ResourceId: previous.ResourceID,
-		}).Context(ctx).Do(); err != nil && !isNotFoundAPIError(err) {
-			return err
-		}
+	if err := s.stopDriveChangesChannel(ctx, previous); err != nil {
+		return err
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	current := s.state.PreviousChannel
+	if current == nil || current.ID != previous.ID || current.ResourceID != previous.ResourceID {
+		return nil
 	}
 	nextState := cloneDriveChangesServeState(s.state)
 	nextState.PreviousChannel = nil
@@ -599,6 +600,28 @@ func (s *driveChangesServer) stopPreviousChannelLocked(ctx context.Context) erro
 	}
 	s.state = nextState
 	return nil
+}
+
+func (s *driveChangesServer) stopDriveChangesChannel(ctx context.Context, channel *driveChangesServeChannelState) error {
+	if channel == nil || channel.ID == "" || channel.ResourceID == "" {
+		return nil
+	}
+	err := s.service.Channels.Stop(&drive.Channel{
+		Id:         channel.ID,
+		ResourceId: channel.ResourceID,
+	}).Context(ctx).Do()
+	if err != nil && !isNotFoundAPIError(err) {
+		return err
+	}
+	return nil
+}
+
+func cloneDriveChangesServeChannel(channel *driveChangesServeChannelState) *driveChangesServeChannelState {
+	if channel == nil {
+		return nil
+	}
+	cloned := *channel
+	return &cloned
 }
 
 func (s *driveChangesServer) runRenewLoop(ctx context.Context, delay time.Duration) {
