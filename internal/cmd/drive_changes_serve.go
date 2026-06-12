@@ -105,7 +105,7 @@ type driveChangesServer struct {
 	mu             sync.Mutex
 	notificationMu sync.Mutex
 	renewMu        sync.Mutex
-	runCtx         context.Context
+	runDone        <-chan struct{}
 	pendingChannel string
 	statePath      string
 	state          driveChangesServeState
@@ -208,7 +208,7 @@ func (c *DriveChangesServeCmd) run(ctx context.Context, flags *RootFlags, runtim
 	}
 
 	server := &driveChangesServer{
-		runCtx:         ctx,
+		runDone:        ctx.Done(),
 		statePath:      statePath,
 		state:          state,
 		service:        svc,

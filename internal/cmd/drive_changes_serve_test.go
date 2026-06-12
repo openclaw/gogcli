@@ -289,7 +289,6 @@ func TestDriveChangesServeProcessingSurvivesRequestCancellation(t *testing.T) {
 		t.Fatalf("write state: %v", err)
 	}
 	server := newDriveChangesTestReceiver(t, svc, state)
-	server.runCtx = context.Background()
 	server.statePath = statePath
 	server.onChange = "./handle-change"
 	server.runtime.runHook = func(ctx context.Context, _ string, _ any) error {
@@ -314,6 +313,24 @@ func TestDriveChangesServeProcessingSurvivesRequestCancellation(t *testing.T) {
 	}
 	if persisted.PageToken != "next-token" || persisted.LastMessageNumbers["channel-1"] != 8 {
 		t.Fatalf("unexpected state: %#v", persisted)
+	}
+}
+
+func TestDriveChangesServeProcessingStopsOnCommandCancellation(t *testing.T) {
+	runDone := make(chan struct{})
+	server := newDriveChangesTestReceiver(t, nil, driveChangesServeState{})
+	server.runDone = runDone
+	ctx, cancel := server.notificationContext(context.Background())
+	defer cancel()
+
+	close(runDone)
+	select {
+	case <-ctx.Done():
+		if !errors.Is(ctx.Err(), context.Canceled) {
+			t.Fatalf("context error = %v", ctx.Err())
+		}
+	case <-time.After(time.Second):
+		t.Fatal("processing context did not stop with command context")
 	}
 }
 
@@ -437,6 +454,7 @@ func TestDriveChangesServeHookDoesNotBlockStateMutex(t *testing.T) {
 	stateLockAcquired := make(chan struct{})
 	go func() {
 		server.mu.Lock()
+		_ = server.state.PageToken
 		server.mu.Unlock()
 		close(stateLockAcquired)
 	}()
@@ -489,6 +507,7 @@ func TestDriveChangesServeChannelStopDoesNotBlockStateMutex(t *testing.T) {
 	stateLockAcquired := make(chan struct{})
 	go func() {
 		server.mu.Lock()
+		_ = server.state.PageToken
 		server.mu.Unlock()
 		close(stateLockAcquired)
 	}()

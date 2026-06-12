@@ -63,7 +63,9 @@ func (s *driveChangesServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
-	if err := s.handleNotification(s.notificationContext(), notification); err != nil {
+	notificationCtx, cancel := s.notificationContext(r.Context())
+	defer cancel()
+	if err := s.handleNotification(notificationCtx, notification); err != nil {
 		if errors.Is(err, errDriveChangesUntrackedNotification) {
 			w.WriteHeader(http.StatusUnauthorized)
 			return
@@ -79,11 +81,26 @@ func (s *driveChangesServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func (s *driveChangesServer) notificationContext() context.Context {
-	if s.runCtx != nil {
-		return s.runCtx
+func (s *driveChangesServer) notificationContext(requestCtx context.Context) (context.Context, context.CancelFunc) {
+	ctx, cancel := context.WithCancel(context.WithoutCancel(requestCtx))
+	if s.runDone == nil {
+		return ctx, cancel
 	}
-	return context.Background()
+	finished := make(chan struct{}, 1)
+	go func() {
+		select {
+		case <-s.runDone:
+			cancel()
+		case <-finished:
+		}
+	}()
+	return ctx, func() {
+		select {
+		case finished <- struct{}{}:
+		default:
+		}
+		cancel()
+	}
 }
 
 func driveChangesChannelTokenMatches(got string, expected string) bool {
