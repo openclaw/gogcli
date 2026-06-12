@@ -16,11 +16,11 @@ import (
 const youtubeCommentsOAuthScope = "https://www.googleapis.com/auth/youtube.force-ssl"
 
 type YouTubeCmd struct {
-	Activities YouTubeActivitiesCmd `cmd:"" name:"activities" aliases:"activity" help:"List channel activities"`
-	Videos     YouTubeVideosCmd     `cmd:"" name:"videos" aliases:"video" help:"List or get videos"`
-	Playlists  YouTubePlaylistsCmd  `cmd:"" name:"playlists" aliases:"playlist" help:"List playlists"`
-	Comments   YouTubeCommentsCmd   `cmd:"" name:"comments" aliases:"comment" help:"List comment threads"`
-	Channels   YouTubeChannelsCmd   `cmd:"" name:"channels" aliases:"channel" help:"List channels"`
+	Activities    YouTubeActivitiesCmd    `cmd:"" name:"activities" aliases:"activity" help:"List channel activities"`
+	Videos        YouTubeVideosCmd        `cmd:"" name:"videos" aliases:"video" help:"List or get videos"`
+	Playlists     YouTubePlaylistsCmd     `cmd:"" name:"playlists" aliases:"playlist" help:"List playlists"`
+	Comments      YouTubeCommentsCmd      `cmd:"" name:"comments" aliases:"comment" help:"List comment threads"`
+	Channels      YouTubeChannelsCmd      `cmd:"" name:"channels" aliases:"channel" help:"List channels"`
 	Search        YouTubeSearchCmd        `cmd:"" name:"search" aliases:"find" help:"Search YouTube for videos, channels, or playlists"`
 	Subscriptions YouTubeSubscriptionsCmd `cmd:"" name:"subscriptions" aliases:"subscription" help:"Manage channel subscriptions"`
 }
