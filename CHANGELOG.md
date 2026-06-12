@@ -8,6 +8,7 @@
 - Docs: add persisted, revision-locked request batches for composing supported mutations locally and submitting them atomically, with explicit split and partial-recovery modes. (#755)
 - CLI: remove the separate `gog agent` and `exit-codes` helpers; expose stable exit codes and effective automation safety state through `gog schema --json`, and summarize the contract in root help. (#677)
 - CLI: add Git-style `gog help <command>`, make explicit output flags override environment defaults, validate color and JSON-only transforms before command execution, report early usage errors on stderr, and reject contradictory schema plain output.
+- Docs: prevent multi-paragraph Markdown range replacements from inheriting the matched paragraph's heading or list style. (#756) — thanks @sebsnyk.
 
 ## 0.24.0 - 2026-06-11
 

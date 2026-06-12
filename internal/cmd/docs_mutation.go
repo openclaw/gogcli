@@ -136,7 +136,8 @@ func replaceDocsMarkdownRange(ctx context.Context, svc *docs.Service, doc *docs.
 		baseIndex++
 	}
 	formattingRequests, textToInsert, tables := MarkdownToDocsRequests(elements, baseIndex, tabID)
-	if markdownRangeReplacementIsInline(cleaned, elements) {
+	inlineReplacement := markdownRangeReplacementIsInline(cleaned, elements)
+	if inlineReplacement {
 		textToInsert = strings.TrimSuffix(textToInsert, "\n")
 	}
 
@@ -161,6 +162,13 @@ func replaceDocsMarkdownRange(ctx context.Context, svc *docs.Service, doc *docs.
 			},
 		})
 		requests = append(requests, resetDocsTextStyleRequest(baseIndex, baseIndex+utf16Len(textToInsert), tabID))
+		if !inlineReplacement {
+			resetEnd := baseIndex + utf16Len(textToInsert)
+			if docRangeCoversParagraphText(doc, startIdx, endIdx, tabID) {
+				resetEnd++
+			}
+			requests = append(requests, resetDocsParagraphRequests(baseIndex, resetEnd, tabID)...)
+		}
 		requests = append(requests, formattingRequests...)
 	}
 
@@ -208,6 +216,28 @@ func markdownRangeReplacementIsInline(markdown string, elements []MarkdownElemen
 	return !strings.HasSuffix(markdown, "\n") &&
 		len(elements) == 1 &&
 		elements[0].Type == MDParagraph
+}
+
+func resetDocsParagraphRequests(startIdx, endIdx int64, tabID string) []*docs.Request {
+	rng := &docs.Range{StartIndex: startIdx, EndIndex: endIdx, TabId: tabID}
+	return []*docs.Request{
+		{
+			DeleteParagraphBullets: &docs.DeleteParagraphBulletsRequest{
+				Range: rng,
+			},
+		},
+		{
+			UpdateParagraphStyle: &docs.UpdateParagraphStyleRequest{
+				Range: &docs.Range{StartIndex: startIdx, EndIndex: endIdx, TabId: tabID},
+				ParagraphStyle: &docs.ParagraphStyle{
+					NamedStyleType:  docsNamedStyleNormalText,
+					IndentStart:     &docs.Dimension{Magnitude: 0, Unit: "PT"},
+					IndentFirstLine: &docs.Dimension{Magnitude: 0, Unit: "PT"},
+				},
+				Fields: "namedStyleType,indentStart,indentFirstLine",
+			},
+		},
+	}
 }
 
 func markdownReplaceNeedsParagraphBoundary(doc *docs.Document, startIdx int64, tabID string, elements []MarkdownElement) bool {
@@ -429,6 +459,44 @@ func docRangeStartsParagraph(doc *docs.Document, startIdx int64, tabID string) b
 		return bodyHasParagraphStart(tab.DocumentTab.Body, startIdx)
 	}
 	return bodyHasParagraphStart(doc.Body, startIdx)
+}
+
+func docRangeCoversParagraphText(doc *docs.Document, startIdx, endIdx int64, tabID string) bool {
+	if doc == nil {
+		return false
+	}
+	if tabID != "" {
+		tab, err := findTab(flattenTabs(doc.Tabs), tabID)
+		if err != nil || tab.DocumentTab == nil {
+			return false
+		}
+		return elementsContainParagraphTextRange(tab.DocumentTab.Body.Content, startIdx, endIdx)
+	}
+	if doc.Body == nil {
+		return false
+	}
+	return elementsContainParagraphTextRange(doc.Body.Content, startIdx, endIdx)
+}
+
+func elementsContainParagraphTextRange(elements []*docs.StructuralElement, startIdx, endIdx int64) bool {
+	for _, el := range elements {
+		if el == nil {
+			continue
+		}
+		if el.Paragraph != nil && paragraphTextStart(el) == startIdx && el.EndIndex == endIdx+1 {
+			return true
+		}
+		if el.Table != nil {
+			for _, row := range el.Table.TableRows {
+				for _, cell := range row.TableCells {
+					if elementsContainParagraphTextRange(cell.Content, startIdx, endIdx) {
+						return true
+					}
+				}
+			}
+		}
+	}
+	return false
 }
 
 func bodyHasParagraphStart(body *docs.Body, startIdx int64) bool {

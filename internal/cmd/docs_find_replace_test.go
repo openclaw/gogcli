@@ -495,6 +495,81 @@ func TestDocsFindReplace_MarkdownResetsInheritedStylesBeforeLeadingBold(t *testi
 	}
 }
 
+func TestDocsFindReplace_MarkdownResetsInheritedParagraphStyle(t *testing.T) {
+	origDocs := newDocsService
+	t.Cleanup(func() { newDocsService = origDocs })
+
+	var got docs.BatchUpdateDocumentRequest
+	body := docBodyWithText("Section\n")
+	content := body["body"].(map[string]any)["content"].([]any)
+	content[1].(map[string]any)["paragraph"].(map[string]any)["paragraphStyle"] = map[string]any{
+		"namedStyleType": "HEADING_2",
+	}
+
+	docSvc, cleanup := newDocsServiceForTest(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, "/v1/documents/"):
+			_ = json.NewEncoder(w).Encode(body)
+		case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, ":batchUpdate"):
+			if err := json.NewDecoder(r.Body).Decode(&got); err != nil {
+				t.Fatalf("decode batchUpdate: %v", err)
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{"documentId": "doc1"})
+		default:
+			http.NotFound(w, r)
+		}
+	})
+	defer cleanup()
+	newDocsService = func(context.Context, string) (*docs.Service, error) { return docSvc, nil }
+
+	replacement := "## New heading\n\nNormal prose.\n\n- bullet one\n- bullet two\n"
+	err := runKong(t, &DocsFindReplaceCmd{}, []string{
+		"doc1", "Section", replacement, "--format", "markdown", "--first",
+	}, newDocsCmdContext(t), &RootFlags{Account: "a@b.com"})
+	if err != nil {
+		t.Fatalf("docs find-replace --format markdown --first: %v", err)
+	}
+
+	var reset *docs.UpdateParagraphStyleRequest
+	var heading *docs.UpdateParagraphStyleRequest
+	var bullets *docs.CreateParagraphBulletsRequest
+	for _, req := range got.Requests {
+		switch {
+		case req.UpdateParagraphStyle != nil &&
+			req.UpdateParagraphStyle.ParagraphStyle != nil &&
+			req.UpdateParagraphStyle.ParagraphStyle.NamedStyleType == docsNamedStyleNormalText:
+			reset = req.UpdateParagraphStyle
+		case req.UpdateParagraphStyle != nil &&
+			req.UpdateParagraphStyle.ParagraphStyle != nil &&
+			req.UpdateParagraphStyle.ParagraphStyle.NamedStyleType == docsNamedStyleHeading2:
+			heading = req.UpdateParagraphStyle
+		case req.CreateParagraphBullets != nil:
+			bullets = req.CreateParagraphBullets
+		}
+	}
+	if reset == nil || reset.Fields != "namedStyleType,indentStart,indentFirstLine" {
+		t.Fatalf("missing NORMAL_TEXT paragraph reset: %#v", got.Requests)
+	}
+	if reset.ParagraphStyle.IndentStart == nil || reset.ParagraphStyle.IndentStart.Magnitude != 0 ||
+		reset.ParagraphStyle.IndentFirstLine == nil || reset.ParagraphStyle.IndentFirstLine.Magnitude != 0 {
+		t.Fatalf("paragraph reset does not clear inherited list indentation: %#v", reset.ParagraphStyle)
+	}
+	if heading == nil {
+		t.Fatalf("missing explicit HEADING_2 request: %#v", got.Requests)
+	}
+	if bullets == nil {
+		t.Fatalf("missing native bullet request: %#v", got.Requests)
+	}
+	if reset.Range.StartIndex > heading.Range.StartIndex || reset.Range.EndIndex < bullets.Range.EndIndex {
+		t.Fatalf("paragraph reset does not cover formatted replacement: reset=%#v heading=%#v bullets=%#v", reset.Range, heading.Range, bullets.Range)
+	}
+	inserted := got.Requests[1].InsertText
+	if inserted == nil || reset.Range.EndIndex != inserted.Location.Index+utf16Len(inserted.Text)+1 {
+		t.Fatalf("full-paragraph reset must include the preserved anchor terminator: reset=%#v insert=%#v", reset.Range, inserted)
+	}
+}
+
 func TestDocsFindReplace_MarkdownCodeBlockStartsFreshParagraphWhenInline(t *testing.T) {
 	origDocs := newDocsService
 	t.Cleanup(func() { newDocsService = origDocs })
@@ -535,18 +610,18 @@ func TestDocsFindReplace_MarkdownCodeBlockStartsFreshParagraphWhenInline(t *test
 		t.Fatalf("expected 1 batchUpdate call, got %d", len(batchCalls))
 	}
 	reqs := batchCalls[0].Requests
-	if len(reqs) != 5 {
-		t.Fatalf("expected delete, insert, reset, code text style, and code shading requests, got %#v", reqs)
+	if len(reqs) != 7 {
+		t.Fatalf("expected delete, insert, text/paragraph/bullet resets, code text style, and code shading requests, got %#v", reqs)
 	}
 	if got := reqs[1].InsertText; got == nil || got.Location.Index != 7 || got.Text != "\nline1"+docsSoftLineBreak+"line2\n" {
 		t.Fatalf("unexpected insert request: %#v", got)
 	}
-	if got := reqs[3].UpdateTextStyle; got == nil || got.Range.StartIndex != 8 || got.Range.EndIndex != 20 {
+	if got := reqs[5].UpdateTextStyle; got == nil || got.Range.StartIndex != 8 || got.Range.EndIndex != 20 {
 		t.Fatalf("unexpected code text style request: %#v", got)
 	} else {
 		assertFencedCodeTextStyle(t, got)
 	}
-	if got := reqs[4].UpdateParagraphStyle; got == nil || got.Range.StartIndex != 8 || got.Range.EndIndex != 20 {
+	if got := reqs[6].UpdateParagraphStyle; got == nil || got.Range.StartIndex != 8 || got.Range.EndIndex != 20 {
 		t.Fatalf("unexpected code shading request: %#v", got)
 	}
 }
