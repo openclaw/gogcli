@@ -23,6 +23,7 @@ const (
 	groupReadonlyScope        = "https://www.googleapis.com/auth/cloud-identity.groups.readonly"
 
 	groupsWorkspaceRequiredMessage = "Cloud Identity Groups require a Google Workspace/Cloud Identity account; consumer accounts (gmail.com/googlemail.com) are not supported."
+	groupsExplicitAccountMessage   = "Groups require --account <workspace-email> when using a direct access token or Application Default Credentials."
 )
 
 type GroupsCmd struct {
@@ -129,6 +130,9 @@ func requireGroupsAccount(flags *RootFlags) (string, error) {
 	account, err := requireAccount(flags)
 	if err != nil {
 		return "", err
+	}
+	if account == accessTokenPlaceholderAccount || account == adcPlaceholderAccount {
+		return "", usage(groupsExplicitAccountMessage)
 	}
 	if isConsumerAccount(account) {
 		return "", &ExitError{

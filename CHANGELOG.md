@@ -12,7 +12,7 @@
 - Backup: bind configuration, legacy fallback, and home expansion to the selected runtime layout instead of process-global path state.
 - Classroom: require an archived course before deletion with actionable lifecycle guidance, and prevent live tests from leaving consumer-account courses behind.
 - Forms: validate scale question bounds locally and document the Forms API's accepted minimum and maximum values.
-- Groups: reject consumer accounts before Cloud Identity API calls and replace impossible OAuth recovery guidance with the required Workspace service-account setup.
+- Groups: reject consumer accounts and stored user OAuth before Cloud Identity API calls, require an explicit account for direct-token/ADC auth, and replace impossible OAuth recovery guidance with the required Workspace service-account setup.
 - Gmail: bind watch state to the selected runtime state directory and serialize atomic updates across concurrent watch processes.
 - Gmail: bind tracking configuration to the selected runtime state directory and preserve concurrent account updates with shared atomic locking.
 - Gmail: bind tracking encryption and admin keys to the active runtime secret store instead of reopening the ambient keyring.

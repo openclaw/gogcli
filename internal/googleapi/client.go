@@ -13,6 +13,7 @@ import (
 	"golang.org/x/oauth2/google"
 	"google.golang.org/api/option"
 
+	"github.com/steipete/gogcli/internal/authclient"
 	"github.com/steipete/gogcli/internal/googleauth"
 )
 
@@ -90,6 +91,22 @@ func newGoogleServiceForRequiredScopes[T any](
 	return newGoogleService(ctx, errorLabel, opts, factory)
 }
 
+func newGoogleServiceForServiceAccountScopes[T any](
+	ctx context.Context,
+	email string,
+	serviceLabel string,
+	errorLabel string,
+	scopes []string,
+	factory googleServiceFactory[T],
+) (*T, error) {
+	opts, err := optionsForServiceAccountScopes(ctx, serviceLabel, email, scopes)
+	if err != nil {
+		return nil, fmt.Errorf("%s options: %w", errorLabel, err)
+	}
+
+	return newGoogleService(ctx, errorLabel, opts, factory)
+}
+
 func newGoogleService[T any](
 	ctx context.Context,
 	label string,
@@ -156,6 +173,47 @@ func optionsForAccountScopes(ctx context.Context, serviceLabel string, email str
 
 func optionsForAccountScopesRequiringStoredGrant(ctx context.Context, serviceLabel string, email string, scopes []string) ([]option.ClientOption, error) {
 	return optionsForAccountScopesWithStoredScopeCheck(ctx, serviceLabel, email, scopes, true)
+}
+
+func optionsForServiceAccountScopes(ctx context.Context, serviceLabel string, email string, scopes []string) ([]option.ClientOption, error) {
+	if accessToken := authclient.AccessTokenFromContext(ctx); accessToken != "" {
+		slog.Debug("using direct access token", "serviceLabel", serviceLabel)
+
+		return tokenSourceClientOptions(oauth2.StaticTokenSource(&oauth2.Token{AccessToken: accessToken})), nil
+	}
+
+	if IsADCMode() {
+		slog.Debug("using Application Default Credentials (GOG_AUTH_MODE=adc)", "serviceLabel", serviceLabel)
+
+		ts, err := newADCTokenSource(ctx, scopes...)
+		if err != nil {
+			return nil, fmt.Errorf("ADC token source: %w", err)
+		}
+
+		return tokenSourceClientOptions(ts), nil
+	}
+
+	ts, path, ok, err := tokenSourceForServiceAccountScopes(ctx, serviceLabel, email, scopes)
+	if err != nil {
+		return nil, fmt.Errorf("service account token source: %w", err)
+	}
+
+	if !ok {
+		return nil, &AuthRequiredError{Service: serviceLabel, Email: email}
+	}
+
+	slog.Debug("using required service account credentials", "email", email, "path", path)
+
+	return tokenSourceClientOptions(ts), nil
+}
+
+func tokenSourceClientOptions(ts oauth2.TokenSource) []option.ClientOption {
+	return []option.ClientOption{option.WithHTTPClient(&http.Client{
+		Transport: NewRetryTransport(&oauth2.Transport{
+			Source: ts,
+			Base:   newBaseTransport(),
+		}),
+	})}
 }
 
 func optionsForAccountScopesWithStoredScopeCheck(

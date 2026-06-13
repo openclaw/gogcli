@@ -144,6 +144,9 @@ scope:
 gog --account admin@example.com groups list
 ```
 
+With an explicit access token or `GOG_AUTH_MODE=adc`, also pass
+`--account <workspace-email>`; Groups do not fall back to stored user OAuth.
+
 See [Workspace Admin](workspace-admin.md) for service-account setup, generated
 passwords, recovery fields, organizational units, and cleanup commands.
 

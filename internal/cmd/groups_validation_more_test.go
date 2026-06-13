@@ -73,6 +73,41 @@ func TestRequireGroupsAccount_ConsumerBlocked(t *testing.T) {
 	}
 }
 
+func TestRequireGroupsAccount_ExplicitIdentityRequiredForDirectToken(t *testing.T) {
+	t.Setenv("GOG_ACCOUNT", "")
+	t.Setenv("GOG_AUTH_MODE", "")
+
+	account, err := requireGroupsAccount(&RootFlags{
+		AccessToken: "direct-token",
+		diagnostics: io.Discard,
+	})
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if account != "" {
+		t.Fatalf("account = %q, want empty", account)
+	}
+	if ExitCode(err) != 2 || !strings.Contains(err.Error(), groupsExplicitAccountMessage) {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestRequireGroupsAccount_ExplicitIdentityRequiredForADC(t *testing.T) {
+	t.Setenv("GOG_AUTH_MODE", "adc")
+	t.Setenv("GOG_ACCOUNT", "")
+
+	account, err := requireGroupsAccount(&RootFlags{})
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if account != "" {
+		t.Fatalf("account = %q, want empty", account)
+	}
+	if ExitCode(err) != 2 || !strings.Contains(err.Error(), groupsExplicitAccountMessage) {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
 func TestGroupsConsumerPreflightSkipsServices(t *testing.T) {
 	ctx := withCloudIdentityTestServiceFactory(
 		newCmdRuntimeOutputContext(t, io.Discard, io.Discard),
