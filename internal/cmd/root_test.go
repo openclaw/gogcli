@@ -42,6 +42,9 @@ func TestExecute_Help(t *testing.T) {
 	if strings.Contains(out, "Search Console/Ads/") || strings.Contains(out, "searchconsole/ads/") {
 		t.Fatalf("root help must not advertise ads as a command service, got: %q", out)
 	}
+	if !strings.Contains(out, "Cloud Identity Groups (Workspace only)") {
+		t.Fatalf("root help must identify Groups as Workspace-only, got: %q", out)
+	}
 }
 
 func TestExecute_NoArgsShowsHelp(t *testing.T) {

@@ -26,7 +26,7 @@ type adminBackupMember struct {
 }
 
 func buildGroupsBackupSnapshot(ctx context.Context, flags *RootFlags, shardMaxRows int) (backup.Snapshot, error) {
-	account, err := requireAccount(flags)
+	account, err := requireGroupsAccount(flags)
 	if err != nil {
 		return backup.Snapshot{}, err
 	}

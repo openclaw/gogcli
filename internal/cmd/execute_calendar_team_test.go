@@ -160,6 +160,28 @@ func TestExecute_CalendarTeam_JSON(t *testing.T) {
 	}
 }
 
+func TestExecute_CalendarTeam_WrapsGroupPermissionError(t *testing.T) {
+	cloudSvc := newCloudIdentityTestService(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.Contains(r.URL.Path, "groups:lookup") {
+			writeGroupsPermissionError(t, w)
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	calSvc, closeCal := newCalendarServiceForTest(t, withPrimaryCalendar(http.NotFoundHandler()))
+	t.Cleanup(closeCal)
+
+	result := executeCalendarTeamTest(t, []string{
+		"--account", "admin@example.com", "calendar", "team", "engineering@example.com",
+	}, calSvc, cloudSvc)
+	if result.err == nil || ExitCode(result.err) != exitCodePermissionDenied {
+		t.Fatalf("unexpected error: %v\nstderr=%q", result.err, result.stderr)
+	}
+	if !strings.Contains(result.stderr, "gog auth service-account set admin@example.com") {
+		t.Fatalf("unexpected stderr: %q", result.stderr)
+	}
+}
+
 func TestExecute_CalendarTeam_FreeBusy(t *testing.T) {
 	// Mock Cloud Identity server
 	cloudSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

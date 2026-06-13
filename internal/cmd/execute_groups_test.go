@@ -123,6 +123,72 @@ func TestExecute_GroupsMembers_JSON(t *testing.T) {
 	}
 }
 
+func TestExecute_GroupsMembers_PermissionErrors(t *testing.T) {
+	tests := []struct {
+		name      string
+		failStage string
+	}{
+		{name: "lookup", failStage: "lookup"},
+		{name: "list", failStage: "list"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			svc := newCloudIdentityTestService(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				switch {
+				case strings.Contains(r.URL.Path, "groups:lookup"):
+					if tc.failStage == "lookup" {
+						writeGroupsPermissionError(t, w)
+						return
+					}
+					w.Header().Set("Content-Type", "application/json")
+					_ = json.NewEncoder(w).Encode(map[string]any{"name": "groups/abc123"})
+				case strings.Contains(r.URL.Path, "groups/abc123/memberships"):
+					writeGroupsPermissionError(t, w)
+				default:
+					http.NotFound(w, r)
+				}
+			}))
+
+			result := executeWithCloudIdentityTestService(t, []string{
+				"--account", "admin@example.com", "groups", "members", "engineering@example.com",
+			}, svc)
+			if result.err == nil || ExitCode(result.err) != exitCodePermissionDenied {
+				t.Fatalf("unexpected error: %v\nstderr=%q", result.err, result.stderr)
+			}
+			for _, want := range []string{
+				"Insufficient permissions for Cloud Identity API",
+				groupReadonlyScope,
+				"gog auth service-account set admin@example.com",
+			} {
+				if !strings.Contains(result.stderr, want) {
+					t.Fatalf("stderr = %q, want %q", result.stderr, want)
+				}
+			}
+			if strings.Contains(result.stderr, "gog auth add") {
+				t.Fatalf("stderr suggests unsupported OAuth recovery: %q", result.stderr)
+			}
+		})
+	}
+}
+
+func writeGroupsPermissionError(t *testing.T, w http.ResponseWriter) {
+	t.Helper()
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusForbidden)
+	if err := json.NewEncoder(w).Encode(map[string]any{
+		"error": map[string]any{
+			"code":    http.StatusForbidden,
+			"message": "Request had insufficient authentication scopes.",
+			"errors": []map[string]any{{
+				"reason": "insufficientPermissions",
+			}},
+		},
+	}); err != nil {
+		t.Fatalf("encode error response: %v", err)
+	}
+}
+
 func TestExecute_GroupsList_Text(t *testing.T) {
 	svc := newCloudIdentityTestService(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.Contains(r.URL.Path, "groups/-/memberships:searchTransitiveGroups") && r.Method == http.MethodGet {

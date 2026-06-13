@@ -99,8 +99,9 @@ Supported services:
   access.
 - `classroom`: courses, topics, announcements, coursework, materials, and
   submissions visible to the authenticated account.
-- `groups`: Cloud Identity groups the account belongs to, plus member lists
-  when the API permits them.
+- `groups`: Cloud Identity groups the account belongs to, plus member lists.
+  This is Workspace-only and requires a service account with domain-wide
+  delegation for `cloud-identity.groups.readonly`.
 - `admin`: Workspace Admin Directory users, groups, and group members. This is
   Workspace-only and requires the existing Admin SDK/domain-wide delegation
   setup.

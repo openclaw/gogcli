@@ -2,9 +2,12 @@ package googleapi
 
 import (
 	"context"
+	"errors"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/99designs/keyring"
 
 	"github.com/steipete/gogcli/internal/config"
 	"github.com/steipete/gogcli/internal/googleauth"
@@ -108,6 +111,37 @@ func TestNewKeepWithServiceAccountErrors(t *testing.T) {
 
 	if !strings.Contains(err.Error(), "read service account file") {
 		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestNewCloudIdentityGroupsAuthErrorUsesGroupsLabel(t *testing.T) {
+	origRead := readClientCredentials
+	origOpen := openSecretsStore
+
+	t.Cleanup(func() {
+		readClientCredentials = origRead
+		openSecretsStore = origOpen
+	})
+
+	readClientCredentials = func(string) (config.ClientCredentials, error) {
+		return config.ClientCredentials{ClientID: "id", ClientSecret: "secret"}, nil
+	}
+	openSecretsStore = func() (secrets.Store, error) {
+		return &stubStore{err: keyring.ErrKeyNotFound}, nil
+	}
+
+	_, err := NewCloudIdentityGroups(testClientResolverContext(), "admin@example.com")
+	if err == nil {
+		t.Fatal("expected error")
+	}
+
+	var authErr *AuthRequiredError
+	if !errors.As(err, &authErr) {
+		t.Fatalf("expected AuthRequiredError, got %T: %v", err, err)
+	}
+
+	if authErr.Service != "groups" {
+		t.Fatalf("service = %q, want groups", authErr.Service)
 	}
 }
 

@@ -57,6 +57,59 @@ func TestGroupsInvalidMaxFailsBeforeService(t *testing.T) {
 	}
 }
 
+func TestRequireGroupsAccount_ConsumerBlocked(t *testing.T) {
+	account, err := requireGroupsAccount(&RootFlags{Account: "person@gmail.com"})
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if account != "" {
+		t.Fatalf("account = %q, want empty", account)
+	}
+	if ExitCode(err) != exitCodePermissionDenied {
+		t.Fatalf("exit code = %d, want %d: %v", ExitCode(err), exitCodePermissionDenied, err)
+	}
+	if !strings.Contains(err.Error(), groupsWorkspaceRequiredMessage) {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestGroupsConsumerPreflightSkipsServices(t *testing.T) {
+	ctx := withCloudIdentityTestServiceFactory(
+		newCmdRuntimeOutputContext(t, io.Discard, io.Discard),
+		unexpectedCloudIdentityTestService(t, "consumer preflight must not create a Cloud Identity service"),
+	)
+	flags := &RootFlags{Account: "person@gmail.com"}
+
+	tests := []struct {
+		name string
+		run  func() error
+	}{
+		{name: "list", run: func() error { return (&GroupsListCmd{Max: 100}).Run(ctx, flags) }},
+		{name: "members", run: func() error {
+			return (&GroupsMembersCmd{GroupEmail: "engineering@example.com", Max: 100}).Run(ctx, flags)
+		}},
+		{name: "calendar team", run: func() error {
+			return (&CalendarTeamCmd{GroupEmail: "engineering@example.com", Max: 100}).Run(ctx, flags)
+		}},
+		{name: "backup", run: func() error {
+			_, err := buildGroupsBackupSnapshot(ctx, flags, 100)
+			return err
+		}},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			err := tc.run()
+			if err == nil || ExitCode(err) != exitCodePermissionDenied {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if !strings.Contains(err.Error(), "Workspace/Cloud Identity account") {
+				t.Fatalf("unexpected guidance: %v", err)
+			}
+		})
+	}
+}
+
 func TestGroupsList_NoGroups_Text(t *testing.T) {
 	svc := newCloudIdentityTestService(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.Contains(r.URL.Path, "groups/-/memberships:searchTransitiveGroups") && r.Method == http.MethodGet {
@@ -91,7 +144,11 @@ func TestWrapCloudIdentityError_Messages(t *testing.T) {
 	}
 
 	permErr := errors.New("insufficientPermissions")
-	if err := wrapCloudIdentityError(permErr, "user@company.com"); err == nil || !strings.Contains(err.Error(), "Insufficient permissions") {
+	if err := wrapCloudIdentityError(permErr, "admin@company.com"); err == nil ||
+		!strings.Contains(err.Error(), "Insufficient permissions") ||
+		!strings.Contains(err.Error(), groupReadonlyScope) ||
+		!strings.Contains(err.Error(), "gog auth service-account set admin@company.com") ||
+		strings.Contains(err.Error(), "gog auth add") {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
