@@ -156,6 +156,10 @@ For Google Docs tab work:
 When testing creation commands, name artifacts with a clear temporary prefix and
 delete or trash them after verification.
 
+`gmail batch delete` permanently deletes messages and requires the broader
+`https://mail.google.com/` OAuth scope. Prefer `gmail trash`; when permanent
+deletion is required, follow the exact reauthorization command printed by `gog`.
+
 For larger Sheets writes, prefer `sheets batch-update` over loops of
 `sheets update`; it sends multiple value ranges in one Sheets API request and
 accepts inline JSON or `@file` input.

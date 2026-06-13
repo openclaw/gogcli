@@ -2,7 +2,7 @@
 
 > Generated from `gog schema --json`. Do not edit this page by hand; run `make docs-commands`.
 
-Permanently delete multiple messages; use 'gmail trash' to move messages to trash with the default gmail.modify scope
+Permanently delete messages; requires https://mail.google.com/ OAuth scope (use 'gmail trash' with the default scope)
 
 ## Usage
 

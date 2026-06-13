@@ -69,6 +69,11 @@ func stableExitCode(err error) error {
 		return &ExitError{Code: exitCodeAuthRequired, Err: err}
 	}
 
+	var scopeErr *gogapi.InsufficientScopeError
+	if errors.As(err, &scopeErr) {
+		return &ExitError{Code: exitCodeAuthRequired, Err: err}
+	}
+
 	var credErr *config.CredentialsMissingError
 	if errors.As(err, &credErr) {
 		return &ExitError{Code: exitCodeConfig, Err: err}

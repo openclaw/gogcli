@@ -150,6 +150,12 @@ gog gmail settings filters export --out filters.xml
 gog --gmail-no-send gmail drafts create --to you@example.com --subject test
 ```
 
+Permanent deletion with `gog gmail batch delete` requires the broader
+`https://mail.google.com/` OAuth scope. The command reports an exact
+`gog auth add ... --extra-scopes https://mail.google.com/ --force-consent`
+reauthorization command when a known stored grant lacks it. Prefer
+`gog gmail trash` unless permanent deletion is intentional.
+
 ### Calendar
 
 Docs: [`gog calendar`](docs/commands/gog-calendar.md),

@@ -23,6 +23,8 @@
 
 ### Fixed
 
+- Gmail: preflight the broader OAuth grant required by permanent batch deletion and report an exact reauthorization command instead of a generic API 403.
+
 - Docs: recognize valid one-column Markdown tables, while preserving separator-shaped rows after the delimiter as table data.
 - Docs: scope default-tab named-range replace and delete requests correctly in multi-tab documents.
 - Forms: serialize `--quiz=false` explicitly so updating a form can disable quiz mode.

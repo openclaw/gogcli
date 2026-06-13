@@ -31,6 +31,18 @@ func TestStableExitCode_AuthRequired(t *testing.T) {
 	}
 }
 
+func TestStableExitCode_InsufficientScope(t *testing.T) {
+	in := &gogapi.InsufficientScopeError{
+		Service:        "gmail",
+		Email:          "a@b.com",
+		RequiredScopes: []string{"https://mail.google.com/"},
+	}
+	out := stableExitCode(in)
+	if got := ExitCode(out); got != exitCodeAuthRequired {
+		t.Fatalf("expected exit code %d, got %d", exitCodeAuthRequired, got)
+	}
+}
+
 func TestStableExitCode_CredentialsMissing(t *testing.T) {
 	in := &config.CredentialsMissingError{Path: "/tmp/credentials.json", Cause: errors.New("missing")}
 	out := stableExitCode(in)

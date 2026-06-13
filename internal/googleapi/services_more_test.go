@@ -35,6 +35,10 @@ func TestNewServicesWithStoredToken(t *testing.T) {
 		t.Fatalf("NewGmail: %v", err)
 	}
 
+	if _, err := NewGmailBatchDelete(ctx, "a@b.com"); err != nil {
+		t.Fatalf("NewGmailBatchDelete: %v", err)
+	}
+
 	if _, err := NewDrive(ctx, "a@b.com"); err != nil {
 		t.Fatalf("NewDrive: %v", err)
 	}

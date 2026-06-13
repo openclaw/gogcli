@@ -182,7 +182,13 @@ func clientCredentialsForAccount(ctx context.Context, email string) (string, con
 	return client, creds, nil
 }
 
-func tokenSourceForAvailableAccountAuth(ctx context.Context, serviceLabel string, email string, scopes []string) (oauth2.TokenSource, error) {
+func tokenSourceForAvailableAccountAuthWithStoredScopeCheck(
+	ctx context.Context,
+	serviceLabel string,
+	email string,
+	scopes []string,
+	requireStoredGrant bool,
+) (oauth2.TokenSource, error) {
 	if accessToken := authclient.AccessTokenFromContext(ctx); accessToken != "" {
 		slog.Debug("using direct access token", "serviceLabel", serviceLabel)
 		return oauth2.StaticTokenSource(&oauth2.Token{AccessToken: accessToken}), nil
@@ -200,7 +206,16 @@ func tokenSourceForAvailableAccountAuth(ctx context.Context, serviceLabel string
 		return nil, err
 	}
 
-	tokenSource, err := tokenSourceForAccountScopes(ctx, serviceLabel, email, client, creds.ClientID, creds.ClientSecret, scopes)
+	tokenSource, err := tokenSourceForAccountScopesWithStoredScopeCheck(
+		ctx,
+		serviceLabel,
+		email,
+		client,
+		creds.ClientID,
+		creds.ClientSecret,
+		scopes,
+		requireStoredGrant,
+	)
 	if err != nil {
 		return nil, fmt.Errorf("token source: %w", err)
 	}
@@ -209,6 +224,28 @@ func tokenSourceForAvailableAccountAuth(ctx context.Context, serviceLabel string
 }
 
 func tokenSourceForAccountScopes(ctx context.Context, serviceLabel string, email string, client string, clientID string, clientSecret string, requiredScopes []string) (oauth2.TokenSource, error) {
+	return tokenSourceForAccountScopesWithStoredScopeCheck(
+		ctx,
+		serviceLabel,
+		email,
+		client,
+		clientID,
+		clientSecret,
+		requiredScopes,
+		false,
+	)
+}
+
+func tokenSourceForAccountScopesWithStoredScopeCheck(
+	ctx context.Context,
+	serviceLabel string,
+	email string,
+	client string,
+	clientID string,
+	clientSecret string,
+	requiredScopes []string,
+	requireStoredGrant bool,
+) (oauth2.TokenSource, error) {
 	var store secrets.Store
 
 	if s, err := openSecretsStore(); err != nil {
@@ -227,6 +264,27 @@ func tokenSourceForAccountScopes(ctx context.Context, serviceLabel string, email
 		return nil, fmt.Errorf("get token for %s: %w", email, err)
 	} else {
 		tok = t
+	}
+
+	if requireStoredGrant && len(tok.Scopes) > 0 && !scopesContainAll(tok.Scopes, requiredScopes) {
+		services := normalizeScopeList(tok.Services)
+		if len(services) == 0 {
+			services = []string{serviceLabel}
+		}
+		requiredScopes = normalizeScopeList(requiredScopes)
+
+		return nil, &InsufficientScopeError{
+			Service:        serviceLabel,
+			Email:          email,
+			RequiredScopes: requiredScopes,
+			GrantedScopes:  normalizeScopeList(tok.Scopes),
+			ReauthorizeCommand: fmt.Sprintf(
+				"gog auth add %s --services %s --extra-scopes %s --force-consent",
+				email,
+				strings.Join(services, ","),
+				strings.Join(requiredScopes, ","),
+			),
+		}
 	}
 
 	cfg := oauth2.Config{

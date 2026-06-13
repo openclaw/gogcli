@@ -70,6 +70,7 @@ func newDefaultRuntime() *app.Runtime {
 			DriveLabels:     googleapi.NewDriveLabels,
 			Forms:           googleapi.NewForms,
 			Gmail:           googleapi.NewGmail,
+			GmailDelete:     googleapi.NewGmailBatchDelete,
 			Keep:            googleapi.NewKeepWithServiceAccount,
 			Meet:            googleapi.NewMeet,
 			PeopleContacts:  googleapi.NewPeopleContacts,
@@ -160,6 +161,13 @@ func normalizedRuntime(runtime *app.Runtime) *app.Runtime {
 	}
 	if normalized.Services.Forms == nil {
 		normalized.Services.Forms = defaults.Services.Forms
+	}
+	if normalized.Services.GmailDelete == nil {
+		if normalized.Services.Gmail != nil {
+			normalized.Services.GmailDelete = normalized.Services.Gmail
+		} else {
+			normalized.Services.GmailDelete = defaults.Services.GmailDelete
+		}
 	}
 	if normalized.Services.Gmail == nil {
 		normalized.Services.Gmail = defaults.Services.Gmail
@@ -611,6 +619,13 @@ func gmailServiceFactory(ctx context.Context) app.GmailServiceFactory {
 		return runtime.Services.Gmail
 	}
 	return googleapi.NewGmail
+}
+
+func gmailBatchDeleteService(ctx context.Context, account string) (*gmail.Service, error) {
+	if runtime, ok := app.FromContext(ctx); ok && runtime.Services.GmailDelete != nil {
+		return runtime.Services.GmailDelete(ctx, account)
+	}
+	return googleapi.NewGmailBatchDelete(ctx, account)
 }
 
 func peopleContactsService(ctx context.Context, account string) (*people.Service, error) {

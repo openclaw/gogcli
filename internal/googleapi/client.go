@@ -74,6 +74,22 @@ func newGoogleServiceForScopes[T any](
 	return newGoogleService(ctx, errorLabel, opts, factory)
 }
 
+func newGoogleServiceForRequiredScopes[T any](
+	ctx context.Context,
+	email string,
+	serviceLabel string,
+	errorLabel string,
+	scopes []string,
+	factory googleServiceFactory[T],
+) (*T, error) {
+	opts, err := optionsForAccountScopesRequiringStoredGrant(ctx, serviceLabel, email, scopes)
+	if err != nil {
+		return nil, fmt.Errorf("%s options: %w", errorLabel, err)
+	}
+
+	return newGoogleService(ctx, errorLabel, opts, factory)
+}
+
 func newGoogleService[T any](
 	ctx context.Context,
 	label string,
@@ -98,6 +114,16 @@ func IsADCMode() bool {
 }
 
 func authenticatedTransport(ctx context.Context, serviceLabel string, email string, scopes []string) (http.RoundTripper, error) {
+	return authenticatedTransportWithStoredScopeCheck(ctx, serviceLabel, email, scopes, false)
+}
+
+func authenticatedTransportWithStoredScopeCheck(
+	ctx context.Context,
+	serviceLabel string,
+	email string,
+	scopes []string,
+	requireStoredGrant bool,
+) (http.RoundTripper, error) {
 	var ts oauth2.TokenSource
 
 	if IsADCMode() {
@@ -112,7 +138,7 @@ func authenticatedTransport(ctx context.Context, serviceLabel string, email stri
 	} else {
 		var err error
 
-		ts, err = tokenSourceForAvailableAccountAuth(ctx, serviceLabel, email, scopes)
+		ts, err = tokenSourceForAvailableAccountAuthWithStoredScopeCheck(ctx, serviceLabel, email, scopes, requireStoredGrant)
 		if err != nil {
 			return nil, err
 		}
@@ -125,9 +151,23 @@ func authenticatedTransport(ctx context.Context, serviceLabel string, email stri
 }
 
 func optionsForAccountScopes(ctx context.Context, serviceLabel string, email string, scopes []string) ([]option.ClientOption, error) {
+	return optionsForAccountScopesWithStoredScopeCheck(ctx, serviceLabel, email, scopes, false)
+}
+
+func optionsForAccountScopesRequiringStoredGrant(ctx context.Context, serviceLabel string, email string, scopes []string) ([]option.ClientOption, error) {
+	return optionsForAccountScopesWithStoredScopeCheck(ctx, serviceLabel, email, scopes, true)
+}
+
+func optionsForAccountScopesWithStoredScopeCheck(
+	ctx context.Context,
+	serviceLabel string,
+	email string,
+	scopes []string,
+	requireStoredGrant bool,
+) ([]option.ClientOption, error) {
 	slog.Debug("creating client options with custom scopes", "serviceLabel", serviceLabel, "email", email)
 
-	transport, err := authenticatedTransport(ctx, serviceLabel, email, scopes)
+	transport, err := authenticatedTransportWithStoredScopeCheck(ctx, serviceLabel, email, scopes, requireStoredGrant)
 	if err != nil {
 		return nil, err
 	}

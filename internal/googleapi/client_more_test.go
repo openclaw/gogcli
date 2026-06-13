@@ -185,6 +185,104 @@ func TestTokenSourceForAccountScopes_HappyPath(t *testing.T) {
 	}
 }
 
+func TestTokenSourceForAccountScopes_RequiredStoredGrantMissing(t *testing.T) {
+	origOpen := openSecretsStore
+
+	t.Cleanup(func() { openSecretsStore = origOpen })
+
+	openSecretsStore = func() (secrets.Store, error) {
+		return &stubStore{tok: secrets.Token{
+			Email:        "a@b.com",
+			RefreshToken: "rt",
+			Services:     []string{"gmail", "drive"},
+			Scopes:       []string{"https://www.googleapis.com/auth/gmail.modify"},
+		}}, nil
+	}
+
+	_, err := tokenSourceForAccountScopesWithStoredScopeCheck(
+		context.Background(),
+		"gmail",
+		"a@b.com",
+		"default",
+		"id",
+		"secret",
+		[]string{scopeGmailFullAccess},
+		true,
+	)
+	if err == nil {
+		t.Fatal("expected insufficient scope error")
+	}
+
+	var scopeErr *InsufficientScopeError
+	if !errors.As(err, &scopeErr) {
+		t.Fatalf("expected InsufficientScopeError, got %T: %v", err, err)
+	}
+
+	if got := scopeErr.ReauthorizeCommand; got != "gog auth add a@b.com --services drive,gmail --extra-scopes https://mail.google.com/ --force-consent" {
+		t.Fatalf("reauthorize command = %q", got)
+	}
+}
+
+func TestTokenSourceForAccountScopes_RequiredStoredGrantPresent(t *testing.T) {
+	origOpen := openSecretsStore
+
+	t.Cleanup(func() { openSecretsStore = origOpen })
+
+	openSecretsStore = func() (secrets.Store, error) {
+		return &stubStore{tok: secrets.Token{
+			Email:        "a@b.com",
+			RefreshToken: "rt",
+			Scopes:       []string{scopeGmailFullAccess},
+		}}, nil
+	}
+
+	ts, err := tokenSourceForAccountScopesWithStoredScopeCheck(
+		context.Background(),
+		"gmail",
+		"a@b.com",
+		"default",
+		"id",
+		"secret",
+		[]string{scopeGmailFullAccess},
+		true,
+	)
+	if err != nil {
+		t.Fatalf("unexpected err: %v", err)
+	}
+
+	if ts == nil {
+		t.Fatal("expected token source")
+	}
+}
+
+func TestTokenSourceForAccountScopes_RequiredStoredGrantAllowsLegacyMetadata(t *testing.T) {
+	origOpen := openSecretsStore
+
+	t.Cleanup(func() { openSecretsStore = origOpen })
+
+	openSecretsStore = func() (secrets.Store, error) {
+		return &stubStore{tok: secrets.Token{Email: "a@b.com", RefreshToken: "rt"}}, nil
+	}
+
+	ts, err := tokenSourceForAccountScopesWithStoredScopeCheck(
+		context.Background(),
+		"gmail",
+		"a@b.com",
+		"default",
+		"id",
+		"secret",
+		[]string{scopeGmailFullAccess},
+		true,
+	)
+	if err != nil {
+		t.Fatalf("unexpected err: %v", err)
+	}
+
+	if ts == nil {
+		t.Fatal("expected token source")
+	}
+}
+
 func TestPersistingTokenSource_PersistsRotatedRefreshToken(t *testing.T) {
 	stored := secrets.Token{
 		Client:       config.DefaultClientName,
@@ -641,6 +739,36 @@ func TestOptionsForAccountScopes_AccessTokenBypassesStoredAuth(t *testing.T) {
 
 	if len(opts) == 0 {
 		t.Fatalf("expected client options")
+	}
+}
+
+func TestOptionsForAccountScopes_RequiredStoredGrantAllowsDirectAccessToken(t *testing.T) {
+	origRead := readClientCredentials
+	origOpen := openSecretsStore
+
+	t.Cleanup(func() {
+		readClientCredentials = origRead
+		openSecretsStore = origOpen
+	})
+
+	readClientCredentials = func(string) (config.ClientCredentials, error) {
+		t.Fatal("readClientCredentials should not be called when access token is provided")
+		return config.ClientCredentials{}, nil
+	}
+	openSecretsStore = func() (secrets.Store, error) {
+		t.Fatal("openSecretsStore should not be called when access token is provided")
+		return nil, errBoom
+	}
+
+	ctx := authclient.WithAccessToken(context.Background(), "ya29.test-access-token")
+
+	opts, err := optionsForAccountScopesRequiringStoredGrant(ctx, "gmail", "a@b.com", []string{scopeGmailFullAccess})
+	if err != nil {
+		t.Fatalf("unexpected err: %v", err)
+	}
+
+	if len(opts) == 0 {
+		t.Fatal("expected client options")
 	}
 }
 

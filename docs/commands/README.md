@@ -424,7 +424,7 @@ Generated pages: 642.
     - [gog gmail attachment](gog-gmail-attachment.md) - Download a single attachment
     - [gog gmail autoreply](gog-gmail-autoreply.md) - Reply once to matching messages
     - [gog gmail batch](gog-gmail-batch.md) - Batch operations (permanent delete requires broader Gmail scope; use gmail trash for normal trashing)
-      - [gog gmail batch delete](gog-gmail-batch-delete.md) - Permanently delete multiple messages; use 'gmail trash' to move messages to trash with the default gmail.modify scope
+      - [gog gmail batch delete](gog-gmail-batch-delete.md) - Permanently delete messages; requires https://mail.google.com/ OAuth scope (use 'gmail trash' with the default scope)
       - [gog gmail batch modify](gog-gmail-batch-modify.md) - Modify labels on multiple messages
     - [gog gmail drafts](gog-gmail-drafts.md) - Draft operations
       - [gog gmail drafts create](gog-gmail-drafts-create.md) - Create a draft

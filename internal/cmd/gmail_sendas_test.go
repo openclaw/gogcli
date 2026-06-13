@@ -1,11 +1,17 @@
 package cmd
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"google.golang.org/api/gmail/v1"
+
+	"github.com/steipete/gogcli/internal/app"
 )
 
 func TestGmailSendAsListCmd_JSON(t *testing.T) {
@@ -156,6 +162,44 @@ func TestGmailBatchDeleteCmd_JSON(t *testing.T) {
 	}
 	if parsed.Count != 3 {
 		t.Fatalf("unexpected count: %d", parsed.Count)
+	}
+}
+
+func TestGmailBatchDeleteCmd_UsesDedicatedServiceFactory(t *testing.T) {
+	var genericCalled bool
+	var deleteCalled bool
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.Contains(r.URL.Path, "/messages/batchDelete") && r.Method == http.MethodPost {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer srv.Close()
+
+	svc := newGmailServiceFromServer(t, srv)
+	result := executeWithTestRuntime(
+		t,
+		[]string{"--json", "--force", "--account", "a@b.com", "gmail", "batch", "delete", "msg1"},
+		&app.Runtime{Services: app.Services{
+			Gmail: func(context.Context, string) (*gmail.Service, error) {
+				genericCalled = true
+				return nil, errors.New("generic Gmail factory called")
+			},
+			GmailDelete: func(context.Context, string) (*gmail.Service, error) {
+				deleteCalled = true
+				return svc, nil
+			},
+		}},
+	)
+	if result.err != nil {
+		t.Fatalf("execute: %v\nstderr=%q", result.err, result.stderr)
+	}
+	if genericCalled {
+		t.Fatal("generic Gmail factory was called")
+	}
+	if !deleteCalled {
+		t.Fatal("dedicated Gmail delete factory was not called")
 	}
 }
 

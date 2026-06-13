@@ -103,6 +103,7 @@ type Services struct {
 	DriveLabels     DriveLabelsServiceFactory
 	Forms           FormsServiceFactory
 	Gmail           GmailServiceFactory
+	GmailDelete     GmailServiceFactory
 	Keep            KeepServiceAccountFactory
 	Meet            MeetServiceFactory
 	PeopleContacts  PeopleServiceFactory

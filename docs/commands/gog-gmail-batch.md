@@ -16,7 +16,7 @@ gog gmail (mail,email) batch <command>
 
 ## Subcommands
 
-- [gog gmail batch delete](gog-gmail-batch-delete.md) - Permanently delete multiple messages; use 'gmail trash' to move messages to trash with the default gmail.modify scope
+- [gog gmail batch delete](gog-gmail-batch-delete.md) - Permanently delete messages; requires https://mail.google.com/ OAuth scope (use 'gmail trash' with the default scope)
 - [gog gmail batch modify](gog-gmail-batch-modify.md) - Modify labels on multiple messages
 
 ## Flags

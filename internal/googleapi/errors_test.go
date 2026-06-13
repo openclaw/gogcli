@@ -14,6 +14,10 @@ func TestErrors_IsHelpers(t *testing.T) {
 		t.Fatalf("expected IsAuthRequiredError")
 	}
 
+	if !IsInsufficientScopeError(&InsufficientScopeError{Service: "gmail", Email: "a@b.com"}) {
+		t.Fatalf("expected IsInsufficientScopeError")
+	}
+
 	if !IsRateLimitError(&RateLimitError{RetryAfter: time.Second, Retries: 2}) {
 		t.Fatalf("expected IsRateLimitError")
 	}
@@ -43,6 +47,16 @@ func TestErrors_Messages(t *testing.T) {
 
 	if !errors.Is(authErr, errBase) {
 		t.Fatalf("expected unwrap to match base")
+	}
+
+	scopeErr := &InsufficientScopeError{
+		Service:            "gmail",
+		Email:              "a@b.com",
+		RequiredScopes:     []string{"https://mail.google.com/"},
+		ReauthorizeCommand: "gog auth add a@b.com --services gmail --extra-scopes https://mail.google.com/ --force-consent",
+	}
+	if got := scopeErr.Error(); !strings.Contains(got, scopeErr.ReauthorizeCommand) {
+		t.Fatalf("unexpected: %q", got)
 	}
 
 	if got := (&RateLimitError{RetryAfter: 2 * time.Second, Retries: 3}).Error(); !strings.Contains(got, "retry after 2s") {
