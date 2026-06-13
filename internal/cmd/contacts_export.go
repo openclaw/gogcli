@@ -26,13 +26,29 @@ type ContactsExportCmd struct {
 
 func (c *ContactsExportCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
 	validateErr := c.validate()
 	if validateErr != nil {
 		return validateErr
+	}
+	outPath := strings.TrimSpace(c.Out)
+	if outPath == "" {
+		outPath = stdoutPath
+	}
+	if dryRunErr := dryRunExit(ctx, flags, "contacts.export", map[string]any{
+		"selector":  strings.TrimSpace(c.Selector),
+		"query":     strings.TrimSpace(c.Query),
+		"all":       c.All,
+		"out":       outPath,
+		"max":       c.Max,
+		"page_size": c.PageSize,
+		"page":      strings.TrimSpace(c.Page),
+	}); dryRunErr != nil {
+		return dryRunErr
+	}
+
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
 	}
 
 	svc, err := peopleContactsService(ctx, account)
@@ -58,14 +74,14 @@ func (c *ContactsExportCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if writeErr != nil {
 		return writeErr
 	}
-	if c.Out == "-" || strings.TrimSpace(c.Out) == "" {
+	if isStdoutPath(outPath) {
 		_, err = stdoutWriter(ctx).Write(buf.Bytes())
 		return err
 	}
-	if err := os.WriteFile(c.Out, buf.Bytes(), 0o600); err != nil {
+	if err := os.WriteFile(outPath, buf.Bytes(), 0o600); err != nil {
 		return err
 	}
-	u.Err().Linef("Exported %d contact%s to %s", len(contacts), pluralS(len(contacts)), c.Out)
+	u.Err().Linef("Exported %d contact%s to %s", len(contacts), pluralS(len(contacts)), outPath)
 	return nil
 }
 

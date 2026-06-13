@@ -24,12 +24,39 @@ type BackupCatCmd struct {
 	Out    string `name:"out" help:"Write decrypted JSONL to this file instead of stdout"`
 }
 
-func (c *BackupCatCmd) Run(ctx context.Context) error {
+func (c *BackupCatCmd) Run(ctx context.Context, flags *RootFlags) error {
+	shardPath := strings.TrimSpace(c.Shard)
+	if shardPath == "" {
+		return usage("empty shard")
+	}
 	opts := c.options()
 	if err := bindBackupConfigStore(ctx, &opts); err != nil {
 		return err
 	}
-	shard, err := backup.Cat(ctx, opts, c.Shard)
+	outPath := strings.TrimSpace(c.Out)
+	if outPath != "" {
+		var expandErr error
+		outPath, expandErr = expandUserPath(outPath)
+		if expandErr != nil {
+			return expandErr
+		}
+	}
+	if flags != nil && flags.DryRun {
+		cfg, resolveErr := backup.ResolveOptions(opts)
+		if resolveErr != nil {
+			return resolveErr
+		}
+		if dryRunErr := dryRunExit(ctx, flags, "backup.cat", map[string]any{
+			"shard":  shardPath,
+			"out":    outputPathOrStdout(outPath),
+			"pretty": c.Pretty,
+			"repo":   cfg.Repo,
+			"pull":   !c.NoPull,
+		}); dryRunErr != nil {
+			return dryRunErr
+		}
+	}
+	shard, err := backup.Cat(ctx, opts, shardPath)
 	if err != nil {
 		return err
 	}
@@ -40,15 +67,11 @@ func (c *BackupCatCmd) Run(ctx context.Context) error {
 			return fmt.Errorf("pretty-print shard: %w", err)
 		}
 	}
-	if strings.TrimSpace(c.Out) != "" {
-		out, expandErr := expandUserPath(c.Out)
-		if expandErr != nil {
-			return expandErr
-		}
-		if mkdirErr := os.MkdirAll(filepath.Dir(out), 0o700); mkdirErr != nil {
+	if outPath != "" {
+		if mkdirErr := os.MkdirAll(filepath.Dir(outPath), 0o700); mkdirErr != nil {
 			return mkdirErr
 		}
-		return os.WriteFile(out, data, 0o600)
+		return os.WriteFile(outPath, data, 0o600)
 	}
 	_, err = stdoutWriter(ctx).Write(data)
 	return err
@@ -74,7 +97,7 @@ type backupExportOptions struct {
 	GmailAttachments string
 }
 
-func (c *BackupExportCmd) Run(ctx context.Context) error {
+func (c *BackupExportCmd) Run(ctx context.Context, flags *RootFlags) error {
 	backupOpts := c.options()
 	if err := bindBackupConfigStore(ctx, &backupOpts); err != nil {
 		return err
@@ -86,6 +109,24 @@ func (c *BackupExportCmd) Run(ctx context.Context) error {
 	exportOpts := backupExportOptions{
 		GmailFormat:      c.GmailFormat,
 		GmailAttachments: c.GmailAttachments,
+	}
+	if flags != nil && flags.DryRun {
+		cfg, resolveErr := backup.ResolveOptions(backupOpts)
+		if resolveErr != nil {
+			return resolveErr
+		}
+		if outsideErr := ensureExportOutsideRepo(outDir, cfg.Repo); outsideErr != nil {
+			return outsideErr
+		}
+		if dryRunErr := dryRunExit(ctx, flags, "backup.export", map[string]any{
+			"out":               outDir,
+			"repo":              cfg.Repo,
+			"pull":              !c.NoPull,
+			"gmail_format":      exportOpts.GmailFormat,
+			"gmail_attachments": exportOpts.GmailAttachments,
+		}); dryRunErr != nil {
+			return dryRunErr
+		}
 	}
 	result := backupExportResult{
 		Out:    outDir,

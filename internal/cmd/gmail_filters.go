@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/steipete/gogcli/internal/config"
 	"github.com/steipete/gogcli/internal/outfmt"
 	"github.com/steipete/gogcli/internal/ui"
 )
@@ -146,6 +147,31 @@ type GmailFiltersExportCmd struct {
 }
 
 func (c *GmailFiltersExportCmd) Run(ctx context.Context, flags *RootFlags) error {
+	format := strings.ToLower(strings.TrimSpace(c.Format))
+	outPath := strings.TrimSpace(c.Out)
+	if format == "" {
+		format = "xml"
+		if outPath == "" && outfmt.IsJSON(ctx) {
+			format = "json"
+		}
+	}
+	if format != "xml" && format != "json" {
+		return usage("--format must be xml or json")
+	}
+	if outPath != "" {
+		var err error
+		outPath, err = config.ExpandPath(outPath)
+		if err != nil {
+			return err
+		}
+	}
+	if dryRunErr := dryRunExit(ctx, flags, "gmail.filters.export", map[string]any{
+		"format": format,
+		"out":    outputPathOrStdout(outPath),
+	}); dryRunErr != nil {
+		return dryRunErr
+	}
+
 	account, svc, err := requireGmailService(ctx, flags)
 	if err != nil {
 		return err
@@ -154,15 +180,6 @@ func (c *GmailFiltersExportCmd) Run(ctx context.Context, flags *RootFlags) error
 	resp, err := svc.Users.Settings.Filters.List("me").Do()
 	if err != nil {
 		return err
-	}
-
-	format := strings.ToLower(strings.TrimSpace(c.Format))
-	outPath := strings.TrimSpace(c.Out)
-	if format == "" {
-		format = "xml"
-		if outPath == "" && outfmt.IsJSON(ctx) {
-			format = "json"
-		}
 	}
 
 	filters := normalizeGmailFilters(resp.Filter)
@@ -191,8 +208,6 @@ func (c *GmailFiltersExportCmd) Run(ctx context.Context, flags *RootFlags) error
 			_, err = stdoutWriter(ctx).Write(data)
 			return err
 		}
-	default:
-		return usage("--format must be xml or json")
 	}
 
 	if outPath == "" {

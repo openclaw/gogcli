@@ -9,6 +9,7 @@
 
 ### Fixed
 
+- Dry-run safety: keep Drive, Contacts, Slides thumbnail, backup plaintext, OAuth token, Gmail filter, Photos, and Photos Picker downloads/exports offline and prevent local file or secret output.
 - Auth: make `auth credentials set --dry-run` preview credential and domain writes without opening the keyring or changing files, and validate every domain before storing credentials.
 - CLI: replace the stale hard-coded `--account` service list with concise email, alias, and auto-selection guidance that applies across authenticated Google API commands.
 - Calendar: remove the dead `calendar appointments` command, which could only report an API limitation; existing invocations now return unknown-command usage, while the limitation remains documented.

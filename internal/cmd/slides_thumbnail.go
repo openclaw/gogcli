@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/steipete/gogcli/internal/config"
 	"github.com/steipete/gogcli/internal/outfmt"
 	"github.com/steipete/gogcli/internal/ui"
 )
@@ -22,11 +23,6 @@ type SlidesThumbnailCmd struct {
 func (c *SlidesThumbnailCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
 
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
-
 	presentationID := strings.TrimSpace(c.PresentationID)
 	if presentationID == "" {
 		return usage("empty presentationId")
@@ -41,6 +37,27 @@ func (c *SlidesThumbnailCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 	format, err := normalizeSlidesThumbnailFormat(c.Format)
+	if err != nil {
+		return err
+	}
+	outputPath := strings.TrimSpace(c.Output)
+	if outputPath != "" {
+		outputPath, err = config.ExpandPath(outputPath)
+		if err != nil {
+			return err
+		}
+	}
+	if dryRunErr := dryRunExit(ctx, flags, "slides.thumbnail", map[string]any{
+		"presentation_id": presentationID,
+		"slide_id":        slideID,
+		"size":            strings.ToLower(size),
+		"format":          strings.ToLower(format),
+		"out":             outputPath,
+	}); dryRunErr != nil {
+		return dryRunErr
+	}
+
+	account, err := requireAccount(flags)
 	if err != nil {
 		return err
 	}
@@ -72,7 +89,6 @@ func (c *SlidesThumbnailCmd) Run(ctx context.Context, flags *RootFlags) error {
 		"format":         strings.ToLower(format),
 	}
 
-	outputPath := strings.TrimSpace(c.Output)
 	if outputPath != "" {
 		written, writtenPath, err := downloadSlidesThumbnail(ctx, thumb.ContentUrl, outputPath)
 		if err != nil {

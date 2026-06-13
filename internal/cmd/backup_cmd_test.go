@@ -176,7 +176,7 @@ func TestBackupExportReportsManifestSemanticCounts(t *testing.T) {
 	err = (&BackupExportCmd{
 		backupReadFlags: backupReadFlags{Config: config, Repo: repo, NoPull: true},
 		Out:             filepath.Join(t.TempDir(), "export"),
-	}).Run(newCmdOutputContext(t, &stdout, io.Discard))
+	}).Run(newCmdOutputContext(t, &stdout, io.Discard), &RootFlags{})
 	if err != nil {
 		t.Fatalf("BackupExportCmd.Run: %v", err)
 	}
@@ -218,7 +218,7 @@ func TestBackupExportReportsManifestCountsForSemanticCollisions(t *testing.T) {
 	err = (&BackupExportCmd{
 		backupReadFlags: backupReadFlags{Config: config, Repo: repo, NoPull: true},
 		Out:             filepath.Join(t.TempDir(), "export"),
-	}).Run(newCmdOutputContext(t, &stdout, io.Discard))
+	}).Run(newCmdOutputContext(t, &stdout, io.Discard), &RootFlags{})
 	if err != nil {
 		t.Fatalf("BackupExportCmd.Run: %v", err)
 	}

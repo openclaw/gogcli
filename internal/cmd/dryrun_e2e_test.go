@@ -2,13 +2,14 @@ package cmd
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 )
 
-func TestDryRunE2E_MutatingCommandsSkipAuthAndAPI(t *testing.T) {
+func TestDryRunE2E_CommandsSkipAuthAPIAndFileWrites(t *testing.T) {
 	imagePath := filepath.Join(t.TempDir(), "dryrun.png")
 	if err := os.WriteFile(imagePath, []byte("dry-run image placeholder"), 0o644); err != nil {
 		t.Fatalf("write dry-run image: %v", err)
@@ -25,11 +26,16 @@ func TestDryRunE2E_MutatingCommandsSkipAuthAndAPI(t *testing.T) {
 	if err := os.WriteFile(markdownPath, []byte("## Slide\nBody"), 0o600); err != nil {
 		t.Fatalf("write dry-run markdown: %v", err)
 	}
+	outputDir := t.TempDir()
+	outputPath := func(name string) string {
+		return filepath.Join(outputDir, name)
+	}
 
 	cases := []struct {
-		name string
-		args []string
-		op   string
+		name    string
+		args    []string
+		op      string
+		outPath string
 	}{
 		{
 			name: "contacts create",
@@ -192,6 +198,12 @@ func TestDryRunE2E_MutatingCommandsSkipAuthAndAPI(t *testing.T) {
 			op:   "docs.tab-export",
 		},
 		{
+			name:    "drive download",
+			args:    []string{"drive", "download", "file123", "--out", outputPath("drive.bin")},
+			op:      "drive.download",
+			outPath: outputPath("drive.bin"),
+		},
+		{
 			name: "drive changes watch",
 			args: []string{"drive", "changes", "watch", "--token", "token123", "--webhook-url", "https://example.com/hook", "--channel-id", "channel123"},
 			op:   "drive.changes.watch",
@@ -230,6 +242,12 @@ func TestDryRunE2E_MutatingCommandsSkipAuthAndAPI(t *testing.T) {
 			name: "auth tokens import",
 			args: []string{"auth", "tokens", "import", tokenPath},
 			op:   "auth.tokens.import",
+		},
+		{
+			name:    "auth tokens export",
+			args:    []string{"auth", "tokens", "export", "user@example.com", "--out", outputPath("token-export.json")},
+			op:      "auth.tokens.export",
+			outPath: outputPath("token-export.json"),
 		},
 		{
 			name: "auth service account set",
@@ -651,6 +669,48 @@ func TestDryRunE2E_MutatingCommandsSkipAuthAndAPI(t *testing.T) {
 			args: []string{"forms", "delete-question", "form123", "0"},
 			op:   "forms.delete-question",
 		},
+		{
+			name:    "contacts export",
+			args:    []string{"contacts", "export", "people/123", "--out", outputPath("contacts.vcf")},
+			op:      "contacts.export",
+			outPath: outputPath("contacts.vcf"),
+		},
+		{
+			name:    "slides thumbnail",
+			args:    []string{"slides", "thumbnail", "presentation123", "slide123", "--out", outputPath("thumbnail.png")},
+			op:      "slides.thumbnail",
+			outPath: outputPath("thumbnail.png"),
+		},
+		{
+			name:    "backup cat",
+			args:    []string{"backup", "cat", "data/test.jsonl.gz.age", "--repo", outputPath("backup-repo"), "--no-pull", "--out", outputPath("backup.jsonl")},
+			op:      "backup.cat",
+			outPath: outputPath("backup.jsonl"),
+		},
+		{
+			name:    "backup export",
+			args:    []string{"backup", "export", "--repo", outputPath("backup-repo"), "--no-pull", "--out", outputPath("backup-export")},
+			op:      "backup.export",
+			outPath: outputPath("backup-export"),
+		},
+		{
+			name:    "gmail filters export",
+			args:    []string{"gmail", "filters", "export", "--format", "xml", "--out", outputPath("filters.xml")},
+			op:      "gmail.filters.export",
+			outPath: outputPath("filters.xml"),
+		},
+		{
+			name:    "photos download",
+			args:    []string{"photos", "download", "media123", "--out", outputPath("photo.jpg")},
+			op:      "photos.download",
+			outPath: outputPath("photo.jpg"),
+		},
+		{
+			name:    "photos picker download",
+			args:    []string{"photos", "picker", "download", "session123", "media123", "--out", outputPath("picked.jpg")},
+			op:      "photos.picker.download",
+			outPath: outputPath("picked.jpg"),
+		},
 	}
 
 	for _, tc := range cases {
@@ -681,6 +741,11 @@ func TestDryRunE2E_MutatingCommandsSkipAuthAndAPI(t *testing.T) {
 			}
 			if len(payload.Request) == 0 || string(payload.Request) == "null" {
 				t.Fatalf("dry-run output missing structured request: %s", out)
+			}
+			if tc.outPath != "" {
+				if _, statErr := os.Stat(tc.outPath); !errors.Is(statErr, os.ErrNotExist) {
+					t.Fatalf("dry-run wrote output path %s: %v", tc.outPath, statErr)
+				}
 			}
 		})
 	}

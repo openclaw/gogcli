@@ -187,6 +187,32 @@ func (c *PhotosPickerDownloadCmd) Run(ctx context.Context, flags *RootFlags) err
 	if mediaItemID == "" {
 		return usage("empty mediaItemId")
 	}
+	outPathFlag := strings.TrimSpace(c.Out)
+	if outPathFlag != "" {
+		var expandErr error
+		outPathFlag, expandErr = appconfig.ExpandPath(outPathFlag)
+		if expandErr != nil {
+			return expandErr
+		}
+	}
+	defaultDir := ""
+	if outPathFlag == "" {
+		layout, layoutErr := commandLayout(ctx, appconfig.PathKindConfig)
+		if layoutErr != nil {
+			return layoutErr
+		}
+		defaultDir = layout.DriveDownloadsDir()
+	}
+	if dryRunErr := dryRunExit(ctx, flags, "photos.picker.download", map[string]any{
+		"session_id":            sessionID,
+		"media_item_id":         mediaItemID,
+		"out":                   outPathFlag,
+		"default_downloads_dir": defaultDir,
+		"overwrite":             c.Overwrite,
+	}); dryRunErr != nil {
+		return dryRunErr
+	}
+
 	client, err := requirePhotosPickerClient(ctx, flags)
 	if err != nil {
 		return err
@@ -201,7 +227,7 @@ func (c *PhotosPickerDownloadCmd) Run(ctx context.Context, flags *RootFlags) err
 	}
 	defer resp.Body.Close()
 
-	if isStdoutPath(c.Out) {
+	if isStdoutPath(outPathFlag) {
 		_, err = io.Copy(stdoutWriter(ctx), resp.Body)
 		return err
 	}
@@ -209,15 +235,7 @@ func (c *PhotosPickerDownloadCmd) Run(ctx context.Context, flags *RootFlags) err
 	if item.MediaFile != nil {
 		filename = item.MediaFile.Filename
 	}
-	defaultDir := ""
-	if strings.TrimSpace(c.Out) == "" {
-		layout, layoutErr := commandLayout(ctx, appconfig.PathKindConfig)
-		if layoutErr != nil {
-			return layoutErr
-		}
-		defaultDir = layout.DriveDownloadsDir()
-	}
-	dest, err := resolvePhotosDownloadDestPathParts(item.ID, filename, c.Out, defaultDir)
+	dest, err := resolvePhotosDownloadDestPathParts(item.ID, filename, outPathFlag, defaultDir)
 	if err != nil {
 		return err
 	}

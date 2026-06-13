@@ -123,7 +123,7 @@ type tokenNoMigrateGetter interface {
 	GetTokenNoMigrate(client string, email string) (secrets.Token, error)
 }
 
-func (c *AuthTokensExportCmd) Run(ctx context.Context, _ *RootFlags) error {
+func (c *AuthTokensExportCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
 	email := strings.TrimSpace(c.Email)
 	if email == "" {
@@ -132,6 +132,18 @@ func (c *AuthTokensExportCmd) Run(ctx context.Context, _ *RootFlags) error {
 	outPath := strings.TrimSpace(c.Output.Path)
 	if outPath == "" {
 		return usage("empty outPath")
+	}
+	outPath, err := config.ExpandPath(outPath)
+	if err != nil {
+		return err
+	}
+	if dryRunErr := dryRunExit(ctx, flags, "auth.tokens.export", map[string]any{
+		"email":            email,
+		"out":              outPath,
+		"overwrite":        c.Overwrite,
+		"contains_secrets": true,
+	}); dryRunErr != nil {
+		return dryRunErr
 	}
 
 	store, err := openAuthSecretsStore(ctx)

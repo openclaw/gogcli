@@ -21,6 +21,13 @@ func isStdoutPath(path string) bool {
 	return strings.TrimSpace(path) == stdoutPath
 }
 
+func outputPathOrStdout(path string) string {
+	if strings.TrimSpace(path) == "" {
+		return stdoutPath
+	}
+	return path
+}
+
 func openUserOutputFile(path string, opts outputFileOptions) (*os.File, string, error) {
 	path = strings.TrimSpace(path)
 	if path == "" {

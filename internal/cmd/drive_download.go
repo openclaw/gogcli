@@ -48,6 +48,34 @@ func (c *DriveDownloadCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return formatErr
 	}
 
+	outPathFlag := strings.TrimSpace(c.Output.Path)
+	if outPathFlag != "" {
+		expanded, expandErr := config.ExpandPath(outPathFlag)
+		if expandErr != nil {
+			return expandErr
+		}
+		outPathFlag = expanded
+	}
+	if outfmt.IsJSON(ctx) && isStdoutPath(outPathFlag) {
+		return usage("can't combine --json with --out -")
+	}
+	defaultDir := ""
+	if outPathFlag == "" {
+		layout, layoutErr := commandLayout(ctx, config.PathKindConfig)
+		if layoutErr != nil {
+			return layoutErr
+		}
+		defaultDir = layout.DriveDownloadsDir()
+	}
+	if dryRunErr := dryRunExit(ctx, flags, "drive.download", map[string]any{
+		"file_id":               fileID,
+		"out":                   outPathFlag,
+		"default_downloads_dir": defaultDir,
+		"format":                strings.ToLower(strings.TrimSpace(c.Format)),
+	}); dryRunErr != nil {
+		return dryRunErr
+	}
+
 	account, err := requireAccount(flags)
 	if err != nil {
 		return err
@@ -73,20 +101,9 @@ func (c *DriveDownloadCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return fileFormatErr
 	}
 
-	defaultDir := ""
-	if strings.TrimSpace(c.Output.Path) == "" {
-		layout, layoutErr := commandLayout(ctx, config.PathKindConfig)
-		if layoutErr != nil {
-			return layoutErr
-		}
-		defaultDir = layout.DriveDownloadsDir()
-	}
-	destPath, err := resolveDriveDownloadDestPath(meta, c.Output.Path, defaultDir)
+	destPath, err := resolveDriveDownloadDestPath(meta, outPathFlag, defaultDir)
 	if err != nil {
 		return err
-	}
-	if outfmt.IsJSON(ctx) && isStdoutPath(destPath) {
-		return usage("can't combine --json with --out -")
 	}
 
 	downloadedPath, size, err := downloadDriveFile(ctx, svc, meta, destPath, c.Format)
