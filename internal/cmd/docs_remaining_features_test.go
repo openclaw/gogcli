@@ -40,8 +40,8 @@ func TestDocsPageSizeRejectsExplicitDimensions(t *testing.T) {
 
 func TestDocsCellStyleBuildsTableAndTextRequests(t *testing.T) {
 	cmd := &DocsCellStyleCmd{
-		Row:             0,
-		Col:             1,
+		Row:             1,
+		Col:             2,
 		RowSpan:         1,
 		ColSpan:         2,
 		BackgroundColor: "#abc",
@@ -95,12 +95,126 @@ func TestDocsCellStyle_TableSelectionErrorsAreUsage(t *testing.T) {
 
 	cmd := &DocsCellStyleCmd{}
 	ctx := withDocsTestService(newCmdRuntimeOutputContext(t, io.Discard, io.Discard), docSvc)
-	err := runKong(t, cmd, []string{"doc1", "--row", "0", "--col", "0", "--background-color", "#fff"}, ctx, &RootFlags{Account: "a@b.com"})
+	err := runKong(t, cmd, []string{"doc1", "--row", "1", "--col", "1", "--background-color", "#fff"}, ctx, &RootFlags{Account: "a@b.com"})
 	if err == nil || !strings.Contains(err.Error(), "document has no tables") {
 		t.Fatalf("expected no-tables error, got %v", err)
 	}
 	if got := ExitCode(err); got != 2 {
 		t.Fatalf("ExitCode = %d, want 2 (err=%v)", got, err)
+	}
+}
+
+func TestDocsCellStyleValidation(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		cmd  DocsCellStyleCmd
+		want string
+	}{
+		{
+			name: "zero table index",
+			cmd:  DocsCellStyleCmd{DocID: "doc1", TableIndex: 0, Row: 1, Col: 1, RowSpan: 1, ColSpan: 1, BackgroundColor: "#fff"},
+			want: "--table-index cannot be 0",
+		},
+		{
+			name: "zero row",
+			cmd:  DocsCellStyleCmd{DocID: "doc1", TableIndex: 1, Row: 0, Col: 1, RowSpan: 1, ColSpan: 1, BackgroundColor: "#fff"},
+			want: "--row must be >= 1",
+		},
+		{
+			name: "zero column",
+			cmd:  DocsCellStyleCmd{DocID: "doc1", TableIndex: 1, Row: 1, Col: 0, RowSpan: 1, ColSpan: 1, BackgroundColor: "#fff"},
+			want: "--col must be >= 1",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := tt.cmd.Run(
+				newCmdRuntimeOutputContext(t, io.Discard, io.Discard),
+				&RootFlags{Account: "a@b.com", DryRun: true},
+			)
+			if err == nil || !strings.Contains(err.Error(), tt.want) {
+				t.Fatalf("expected %q error, got %v", tt.want, err)
+			}
+			if got := ExitCode(err); got != 2 {
+				t.Fatalf("ExitCode = %d, want 2 (err=%v)", got, err)
+			}
+		})
+	}
+}
+
+func TestDocsCellStyle_NegativeTableIndexReportsResolvedIndex(t *testing.T) {
+	t.Parallel()
+
+	var got docs.BatchUpdateDocumentRequest
+	doc := &docs.Document{
+		DocumentId: "doc1",
+		RevisionId: "rev1",
+		Body: &docs.Body{Content: []*docs.StructuralElement{
+			{
+				StartIndex: 1,
+				EndIndex:   10,
+				Table: &docs.Table{TableRows: []*docs.TableRow{
+					{TableCells: []*docs.TableCell{cellUpdateTestCell(3, "First\n")}},
+				}},
+			},
+			{
+				StartIndex: 20,
+				EndIndex:   30,
+				Table: &docs.Table{TableRows: []*docs.TableRow{
+					{TableCells: []*docs.TableCell{cellUpdateTestCell(23, "Last\n")}},
+				}},
+			},
+		}},
+	}
+	docSvc, cleanup := newDocsServiceForTest(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, "/v1/documents/"):
+			_ = json.NewEncoder(w).Encode(doc)
+		case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, ":batchUpdate"):
+			if err := json.NewDecoder(r.Body).Decode(&got); err != nil {
+				t.Fatalf("decode batchUpdate: %v", err)
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{"documentId": "doc1"})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer cleanup()
+
+	var output strings.Builder
+	ctx := withDocsTestService(newCmdRuntimeJSONOutputContext(t, &output, io.Discard), docSvc)
+	err := runKong(
+		t,
+		&DocsCellStyleCmd{},
+		[]string{"doc1", "--table-index=-1", "--row", "1", "--col", "1", "--background-color", "#fff"},
+		ctx,
+		&RootFlags{Account: "a@b.com"},
+	)
+	if err != nil {
+		t.Fatalf("docs cell-style: %v", err)
+	}
+	if len(got.Requests) != 1 || got.Requests[0].UpdateTableCellStyle == nil {
+		t.Fatalf("unexpected requests: %#v", got.Requests)
+	}
+	loc := got.Requests[0].UpdateTableCellStyle.TableRange.TableCellLocation
+	if loc.TableStartLocation.Index != 20 || loc.RowIndex != 0 || loc.ColumnIndex != 0 {
+		t.Fatalf("unexpected cell location: %#v", loc)
+	}
+	var payload struct {
+		TableIndex int `json:"tableIndex"`
+		Row        int `json:"row"`
+		Col        int `json:"col"`
+	}
+	if err := json.Unmarshal([]byte(output.String()), &payload); err != nil {
+		t.Fatalf("decode output %q: %v", output.String(), err)
+	}
+	if payload.TableIndex != 2 || payload.Row != 1 || payload.Col != 1 {
+		t.Fatalf("unexpected output: %#v", payload)
 	}
 }
 

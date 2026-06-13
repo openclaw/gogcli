@@ -24,7 +24,7 @@ gog docs (doc) cell-style --row=INT --col=INT <docId> [flags]
 | `--batch` | `string` |  | Append requests to a persisted Docs batch instead of submitting |
 | `--bold` | `bool` |  | Set cell text bold |
 | `--client` | `string` |  | OAuth client name (selects stored credentials + token bucket) |
-| `--col` | `int` |  | 0-based column number |
+| `--col` | `int` |  | 1-based column number |
 | `--col-span` | `int64` | 1 | Number of columns to style |
 | `--color` | `string` | auto | Color output: auto\|always\|never |
 | `--disable-commands` | `string` |  | Comma-separated list of disabled commands; dot paths allowed |
@@ -40,11 +40,11 @@ gog docs (doc) cell-style --row=INT --col=INT <docId> [flags]
 | `--no-input`<br>`--non-interactive`<br>`--noninteractive` | `bool` |  | Never prompt; fail instead (useful for CI) |
 | `-p`<br>`--plain`<br>`--tsv` | `bool` | false | Output stable, parseable text to stdout (TSV; no colors) |
 | `--results-only` | `bool` |  | In JSON mode, emit only the primary result (drops envelope fields like nextPageToken) |
-| `--row` | `int` |  | 0-based row number |
+| `--row` | `int` |  | 1-based row number |
 | `--row-span` | `int64` | 1 | Number of rows to style |
 | `--select`<br>`--pick`<br>`--project` | `string` |  | In JSON mode, select comma-separated fields (best-effort; supports dot paths). Desire path: use --fields for most commands. |
 | `--tab` | `string` |  | Target a specific tab by title or ID (see docs list-tabs) |
-| `--table-index` | `int` | 0 | 0-based table index in document order |
+| `--table-index` | `int` | 1 | 1-based table index in document order; negative indexes count from the end |
 | `--text-color` | `string` |  | Text color as #RRGGBB or #RGB |
 | `--underline` | `bool` |  | Set cell text underline |
 | `-v`<br>`--verbose` | `bool` |  | Enable verbose logging |
