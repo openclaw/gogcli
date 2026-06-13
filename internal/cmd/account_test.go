@@ -149,6 +149,24 @@ func TestRequireAccount_ADCNilFlags(t *testing.T) {
 	}
 }
 
+func TestRequireAccount_ADCEnvAutoUsesPlaceholder(t *testing.T) {
+	t.Setenv("GOG_AUTH_MODE", "adc")
+
+	for _, value := range []string{"auto", "default"} {
+		t.Run(value, func(t *testing.T) {
+			t.Setenv("GOG_ACCOUNT", value)
+
+			got, err := requireAccount(nil)
+			if err != nil {
+				t.Fatalf("err: %v", err)
+			}
+			if got != adcPlaceholderAccount {
+				t.Fatalf("got %q", got)
+			}
+		})
+	}
+}
+
 func TestRequireAccount_Missing(t *testing.T) {
 	t.Setenv("GOG_ACCOUNT", "")
 	flags := &RootFlags{}

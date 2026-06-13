@@ -94,17 +94,22 @@ func TestRequireGroupsAccount_ExplicitIdentityRequiredForDirectToken(t *testing.
 
 func TestRequireGroupsAccount_ExplicitIdentityRequiredForADC(t *testing.T) {
 	t.Setenv("GOG_AUTH_MODE", "adc")
-	t.Setenv("GOG_ACCOUNT", "")
 
-	account, err := requireGroupsAccount(&RootFlags{})
-	if err == nil {
-		t.Fatal("expected error")
-	}
-	if account != "" {
-		t.Fatalf("account = %q, want empty", account)
-	}
-	if ExitCode(err) != 2 || !strings.Contains(err.Error(), groupsExplicitAccountMessage) {
-		t.Fatalf("unexpected error: %v", err)
+	for _, value := range []string{"", "auto", "default"} {
+		t.Run(value, func(t *testing.T) {
+			t.Setenv("GOG_ACCOUNT", value)
+
+			account, err := requireGroupsAccount(&RootFlags{})
+			if err == nil {
+				t.Fatal("expected error")
+			}
+			if account != "" {
+				t.Fatalf("account = %q, want empty", account)
+			}
+			if ExitCode(err) != 2 || !strings.Contains(err.Error(), groupsExplicitAccountMessage) {
+				t.Fatalf("unexpected error: %v", err)
+			}
+		})
 	}
 }
 

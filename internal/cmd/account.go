@@ -29,6 +29,9 @@ func requireAccount(flags *RootFlags) (string, error) {
 			return v, nil
 		}
 		if v := strings.TrimSpace(os.Getenv("GOG_ACCOUNT")); v != "" {
+			if shouldAutoSelectAccount(v) {
+				return adcPlaceholderAccount, nil
+			}
 			return v, nil
 		}
 		return adcPlaceholderAccount, nil
