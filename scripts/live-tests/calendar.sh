@@ -2,6 +2,40 @@
 
 set -euo pipefail
 
+run_calendar_conflicts_test() {
+  local calendar_count="$1"
+  local start="$2"
+  local end="$3"
+
+  if [ "$calendar_count" -ge 2 ]; then
+    run_required "calendar" "calendar conflicts" \
+      gog calendar conflicts --from "$start" --to "$end" --json >/dev/null
+    return 0
+  fi
+
+  local stdout_file stderr_file exit_code
+  stdout_file="$LIVE_TMP/calendar-conflicts-single.stdout"
+  stderr_file="$LIVE_TMP/calendar-conflicts-single.stderr"
+  echo "==> calendar conflicts (single-calendar validation)"
+  if gog calendar conflicts --from "$start" --to "$end" --json \
+    >"$stdout_file" 2>"$stderr_file"; then
+    echo "Expected single-calendar conflict detection to fail, but it succeeded" >&2
+    return 1
+  else
+    exit_code=$?
+  fi
+  if [ "$exit_code" -ne 2 ]; then
+    cat "$stderr_file" >&2
+    echo "Expected single-calendar conflict detection to exit 2, got $exit_code" >&2
+    return 1
+  fi
+  [ ! -s "$stdout_file" ] || {
+    echo "Single-calendar conflict validation wrote to stdout" >&2
+    return 1
+  }
+  grep -q "requires at least two calendars" "$stderr_file"
+}
+
 run_calendar_tests() {
   if skip "calendar"; then
     echo "==> calendar (skipped)"
@@ -17,7 +51,10 @@ print(start.strftime('%Y-%m-%dT%H:%M:%SZ'), end.strftime('%Y-%m-%dT%H:%M:%SZ'), 
 PY
 )"
 
-  run_required "calendar" "calendar list" gog calendar calendars --json --max 1 >/dev/null
+  local calendars_json calendar_count
+  echo "==> calendar list"
+  calendars_json=$(gog calendar calendars --json --max 100)
+  calendar_count=$("$PY" -c 'import json,sys; print(len(json.load(sys.stdin).get("calendars", [])))' <<<"$calendars_json")
   run_required "calendar" "calendar acl" gog calendar acl primary --json --max 1 >/dev/null
   run_required "calendar" "calendar colors" gog calendar colors --json >/dev/null
   run_required "calendar" "calendar time" gog calendar time --json >/dev/null
@@ -52,7 +89,7 @@ assert any(a.get("fileUrl") == want for a in attachments)' "$attachment_url" <<<
   run_required "calendar" "calendar events list" gog calendar events primary --from "$START" --to "$END" --json --max 5 >/dev/null
   run_required "calendar" "calendar search" gog calendar search "gogcli-smoke" --from "$START" --to "$END" --json --max 5 >/dev/null
   run_required "calendar" "calendar freebusy" gog calendar freebusy primary --from "$START" --to "$END" --json >/dev/null
-  run_required "calendar" "calendar conflicts" gog calendar conflicts --from "$START" --to "$END" --json >/dev/null
+  run_calendar_conflicts_test "$calendar_count" "$START" "$END"
 
   if [ -n "${GOG_LIVE_CALENDAR_RESPOND:-}" ]; then
     run_optional "calendar-respond" "calendar respond" gog calendar respond primary "$ev_id" --status accepted --json >/dev/null
