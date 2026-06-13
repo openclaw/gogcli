@@ -34,9 +34,8 @@ gog backup verify [flags]
 | `--identity` | `string` |  | Local age identity path |
 | `-j`<br>`--json`<br>`--machine` | `bool` | false | Output JSON to stdout (best for scripting) |
 | `--no-input`<br>`--non-interactive`<br>`--noninteractive` | `bool` |  | Never prompt; fail instead (useful for CI) |
-| `--no-push` | `bool` |  | Commit locally but do not push to the remote |
+| `--no-pull` | `bool` |  | Use local backup repository state without pulling first |
 | `-p`<br>`--plain`<br>`--tsv` | `bool` | false | Output stable, parseable text to stdout (TSV; no colors) |
-| `--recipient` | `[]string` |  | Public age recipient (repeatable) |
 | `--remote` | `string` |  | Backup Git remote URL |
 | `--repo` | `string` |  | Local backup repository path |
 | `--results-only` | `bool` |  | In JSON mode, emit only the primary result (drops envelope fields like nextPageToken) |

@@ -293,7 +293,7 @@ func (c *BackupGmailPushCmd) validate() error {
 }
 
 type BackupStatusCmd struct {
-	backupFlags
+	backupReadFlags
 }
 
 func (c *BackupStatusCmd) Run(ctx context.Context) error {
@@ -327,7 +327,7 @@ func (c *BackupStatusCmd) Run(ctx context.Context) error {
 }
 
 type BackupVerifyCmd struct {
-	backupFlags
+	backupReadFlags
 }
 
 func (c *BackupVerifyCmd) Run(ctx context.Context) error {

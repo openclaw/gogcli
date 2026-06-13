@@ -150,6 +150,36 @@ func TestWriteBackupResultUsesRuntimeOutput(t *testing.T) {
 	}
 }
 
+func TestBackupStatusAndVerifyExposeReadFlags(t *testing.T) {
+	for _, command := range []string{"status", "verify"} {
+		t.Run(command, func(t *testing.T) {
+			result := executeWithTestRuntime(t, []string{"schema", "backup " + command}, nil)
+			if result.err != nil {
+				t.Fatalf("schema: %v", result.err)
+			}
+			var doc schemaDoc
+			if err := json.Unmarshal([]byte(result.stdout), &doc); err != nil {
+				t.Fatalf("decode schema: %v", err)
+			}
+			if doc.Command == nil {
+				t.Fatal("missing command schema")
+			}
+			flags := make(map[string]bool, len(doc.Command.Flags))
+			for _, flag := range doc.Command.Flags {
+				flags[flag.Name] = true
+			}
+			if !flags["no-pull"] {
+				t.Fatal("missing --no-pull")
+			}
+			for _, unexpected := range []string{"no-push", "recipient"} {
+				if flags[unexpected] {
+					t.Fatalf("unexpected --%s", unexpected)
+				}
+			}
+		})
+	}
+}
+
 func TestBackupExportReportsManifestSemanticCounts(t *testing.T) {
 	repo, config, recipients := newBackupConfigForCmdTest(t)
 	shard, err := backup.NewJSONLShard("contacts", "people", "acct", "data/contacts/acct/people/part-0001.jsonl.gz.age", []map[string]string{

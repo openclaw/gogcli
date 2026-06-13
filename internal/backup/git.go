@@ -16,20 +16,7 @@ func ensureRepo(ctx context.Context, cfg Config) error {
 		return fmt.Errorf("backup repo path is required")
 	}
 	if _, err := os.Stat(filepath.Join(cfg.Repo, ".git")); err == nil {
-		pullErr := git(ctx, cfg.Repo, "pull", "--rebase")
-		if pullErr != nil {
-			hasHead := git(ctx, cfg.Repo, "rev-parse", "--verify", "HEAD") == nil
-			if !hasHead {
-				return nil
-			}
-			if strings.Contains(pullErr.Error(), "no tracking information") ||
-				strings.Contains(pullErr.Error(), "No remote repository specified") ||
-				strings.Contains(pullErr.Error(), "no such ref was fetched") {
-				return nil
-			}
-			return pullErr
-		}
-		return nil
+		return pullRepo(ctx, cfg.Repo)
 	}
 	if strings.TrimSpace(cfg.Remote) != "" {
 		if err := os.MkdirAll(filepath.Dir(cfg.Repo), 0o700); err != nil {
@@ -51,6 +38,47 @@ func ensureRepo(ctx context.Context, cfg Config) error {
 		}
 	}
 	return nil
+}
+
+func prepareReadRepo(ctx context.Context, cfg Config, skipPull bool) error {
+	if strings.TrimSpace(cfg.Repo) == "" {
+		return fmt.Errorf("backup repo path is required")
+	}
+	if skipPull {
+		return nil
+	}
+
+	gitPath := filepath.Join(cfg.Repo, ".git")
+	if _, err := os.Stat(gitPath); err == nil {
+		return pullRepo(ctx, cfg.Repo)
+	} else if !os.IsNotExist(err) {
+		return err
+	}
+
+	if strings.TrimSpace(cfg.Remote) == "" {
+		return fmt.Errorf("backup repo is not initialized at %s; run 'gog backup init' or provide --remote", cfg.Repo)
+	}
+	if err := os.MkdirAll(filepath.Dir(cfg.Repo), 0o700); err != nil {
+		return err
+	}
+	return git(ctx, "", "clone", cfg.Remote, cfg.Repo)
+}
+
+func pullRepo(ctx context.Context, repo string) error {
+	pullErr := git(ctx, repo, "pull", "--rebase")
+	if pullErr == nil {
+		return nil
+	}
+	hasHead := git(ctx, repo, "rev-parse", "--verify", "HEAD") == nil
+	if !hasHead {
+		return nil
+	}
+	if strings.Contains(pullErr.Error(), "no tracking information") ||
+		strings.Contains(pullErr.Error(), "No remote repository specified") ||
+		strings.Contains(pullErr.Error(), "no such ref was fetched") {
+		return nil
+	}
+	return pullErr
 }
 
 func commitAndPush(ctx context.Context, cfg Config, message string, push bool) (bool, error) {
