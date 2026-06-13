@@ -143,15 +143,6 @@ func (s *ConfigStore) write(cfg File) error {
 	return nil
 }
 
-func UpdateConfig(update func(*File) error) error {
-	store, err := defaultConfigStore()
-	if err != nil {
-		return err
-	}
-
-	return store.Update(update)
-}
-
 func (s *ConfigStore) Update(update func(*File) error) error {
 	unlock, err := s.acquireLock()
 	if err != nil {
