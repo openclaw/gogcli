@@ -25,6 +25,7 @@ gog gmail (mail,email) drafts (draft) create (add,new) [flags]
 | `--body` | `string` |  | Body (plain text; required unless --body-html is set) |
 | `--body-file` | `string` |  | Body file path (plain text; '-' for stdin) |
 | `--body-html` | `string` |  | Body (HTML; optional) |
+| `--body-html-file` | `string` |  | HTML body file path ('-' for stdin) |
 | `--cc` | `string` |  | CC recipients (comma-separated) |
 | `--client` | `string` |  | OAuth client name (selects stored credentials + token bucket) |
 | `--color` | `string` | auto | Color output: auto\|always\|never |

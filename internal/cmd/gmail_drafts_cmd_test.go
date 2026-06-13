@@ -255,6 +255,71 @@ func TestGmailDraftsCreateCmd_JSON(t *testing.T) {
 	}
 }
 
+func TestGmailDraftsCreateCmd_BodyHTMLFile(t *testing.T) {
+	htmlPath := filepath.Join(t.TempDir(), "body.html")
+	if err := os.WriteFile(htmlPath, []byte("<h1>Hello</h1>\n<p>from file</p>"), 0o600); err != nil {
+		t.Fatalf("write html: %v", err)
+	}
+
+	var rawCreated string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.Contains(r.URL.Path, "/gmail/v1/users/me/drafts") && r.Method == http.MethodPost {
+			var draft gmail.Draft
+			if err := json.NewDecoder(r.Body).Decode(&draft); err != nil {
+				t.Fatalf("decode draft: %v", err)
+			}
+			if draft.Message == nil {
+				t.Fatalf("expected message in create")
+			}
+			raw, err := base64.RawURLEncoding.DecodeString(draft.Message.Raw)
+			if err != nil {
+				t.Fatalf("decode raw: %v", err)
+			}
+			rawCreated = string(raw)
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"id":      "d-html",
+				"message": map[string]any{"id": "m-html"},
+			})
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer srv.Close()
+
+	svc := newGmailServiceFromServer(t, srv)
+	ctx := withGmailTestService(newCmdRuntimeOutputContext(t, io.Discard, io.Discard), svc)
+	if err := runKong(t, &GmailDraftsCreateCmd{}, []string{
+		"--to", "a@example.com",
+		"--subject", "Hello",
+		"--body-html-file", htmlPath,
+	}, ctx, &RootFlags{Account: "a@b.com"}); err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+
+	if !strings.Contains(rawCreated, "Content-Type: text/html") ||
+		!strings.Contains(rawCreated, "<h1>Hello</h1>") {
+		t.Fatalf("expected HTML file body in created draft, got:\n%s", rawCreated)
+	}
+}
+
+func TestGmailDraftsCreateCmd_BodyHTMLFileConflict(t *testing.T) {
+	cmd := &GmailDraftsCreateCmd{
+		To:           "a@example.com",
+		Subject:      "Hello",
+		BodyHTML:     "<p>inline</p>",
+		BodyHTMLFile: "/tmp/body.html",
+	}
+
+	err := cmd.Run(newCmdRuntimeOutputContext(t, io.Discard, io.Discard), &RootFlags{Account: "a@b.com"})
+	if err == nil {
+		t.Fatalf("expected conflict error")
+	}
+	if !strings.Contains(err.Error(), "--body-html") || !strings.Contains(err.Error(), "--body-html-file") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
 func TestGmailDraftsCreateCmd_NoTo(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.Contains(r.URL.Path, "/gmail/v1/users/me/drafts") && r.Method == http.MethodPost {
@@ -656,6 +721,99 @@ func TestGmailDraftsUpdateCmd_JSON(t *testing.T) {
 	}
 	if len(parsed.Attachments) != 1 || parsed.Attachments[0].Filename != "note.txt" || parsed.Attachments[0].Size != int64(len(attData)) {
 		t.Fatalf("unexpected attachment metadata: %#v", parsed.Attachments)
+	}
+}
+
+func TestGmailDraftsUpdateCmd_BodyHTMLFileFromStdin(t *testing.T) {
+	var rawUpdated string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case strings.Contains(r.URL.Path, "/gmail/v1/users/me/drafts/d1") && r.Method == http.MethodGet:
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"id":      "d1",
+				"message": map[string]any{"id": "m1", "threadId": "t1"},
+			})
+			return
+		case strings.Contains(r.URL.Path, "/gmail/v1/users/me/threads/t1") && r.Method == http.MethodGet:
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"id": "t1",
+				"messages": []map[string]any{
+					{
+						"id":       "m1",
+						"threadId": "t1",
+						"payload": map[string]any{
+							"headers": []map[string]any{
+								{"name": "Message-ID", "value": "<m1@example.com>"},
+							},
+						},
+					},
+				},
+			})
+			return
+		case strings.Contains(r.URL.Path, "/gmail/v1/users/me/drafts/d1") && r.Method == http.MethodPut:
+			var draft gmail.Draft
+			if err := json.NewDecoder(r.Body).Decode(&draft); err != nil {
+				t.Fatalf("decode draft: %v", err)
+			}
+			if draft.Message == nil {
+				t.Fatalf("expected message in update")
+			}
+			raw, err := base64.RawURLEncoding.DecodeString(draft.Message.Raw)
+			if err != nil {
+				t.Fatalf("decode raw: %v", err)
+			}
+			rawUpdated = string(raw)
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"id":      "d1",
+				"message": map[string]any{"id": "m2", "threadId": "t1"},
+			})
+			return
+		default:
+			http.NotFound(w, r)
+			return
+		}
+	}))
+	defer srv.Close()
+
+	svc := newGmailServiceFromServer(t, srv)
+	ctx := withGmailTestService(
+		newCmdRuntimeIOContext(t, strings.NewReader("<h1>Updated</h1>\n<p>from stdin</p>"), io.Discard, io.Discard),
+		svc,
+	)
+	if err := runKong(t, &GmailDraftsUpdateCmd{}, []string{
+		"d1",
+		"--to", "a@example.com",
+		"--subject", "Updated",
+		"--body-html-file", "-",
+	}, ctx, &RootFlags{Account: "a@b.com"}); err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+
+	if !strings.Contains(rawUpdated, "Content-Type: text/html") ||
+		!strings.Contains(rawUpdated, "<h1>Updated</h1>") {
+		t.Fatalf("expected HTML stdin body in updated draft, got:\n%s", rawUpdated)
+	}
+}
+
+func TestGmailDraftsUpdateCmd_BodyHTMLFileConflict(t *testing.T) {
+	validTo := "a@example.com"
+	cmd := &GmailDraftsUpdateCmd{
+		DraftID:      "d1",
+		To:           &validTo,
+		Subject:      "Hello",
+		BodyHTML:     "<p>inline</p>",
+		BodyHTMLFile: "/tmp/body.html",
+	}
+
+	err := cmd.Run(newCmdRuntimeOutputContext(t, io.Discard, io.Discard), &RootFlags{Account: "a@b.com"})
+	if err == nil {
+		t.Fatalf("expected conflict error")
+	}
+	if !strings.Contains(err.Error(), "--body-html") || !strings.Contains(err.Error(), "--body-html-file") {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
 

@@ -25,6 +25,7 @@ gog gmail (mail,email) drafts (draft) update (edit,set) <draftId> [flags]
 | `--body` | `string` |  | Body (plain text; required unless --body-html is set) |
 | `--body-file` | `string` |  | Body file path (plain text; '-' for stdin) |
 | `--body-html` | `string` |  | Body (HTML; optional) |
+| `--body-html-file` | `string` |  | HTML body file path ('-' for stdin) |
 | `--cc` | `string` |  | CC recipients (comma-separated) |
 | `--clear-attachments` | `bool` |  | Remove all attachments from the draft. By default, omitting --attach preserves the draft's existing attachments. |
 | `--client` | `string` |  | OAuth client name (selects stored credentials + token bucket) |
