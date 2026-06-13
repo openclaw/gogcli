@@ -23,5 +23,9 @@ run_meet_tests() {
 
   run_required "meet" "meet get" gog meet get "$meeting_code" --json >/dev/null
   run_required "meet" "meet update" gog meet update "$meeting_code" --access open --json >/dev/null
-  run_required "meet" "meet history" gog meet history "$meeting_code" --json --max 1 >/dev/null
+  local history_json participants_json
+  history_json=$(gog meet history "$meeting_code" --json --max 1)
+  echo "$history_json" | "$PY" -c 'import json,sys; value=json.load(sys.stdin)["conferences"]; assert isinstance(value,list)'
+  participants_json=$(gog meet participants "$meeting_code" --json --max 1)
+  echo "$participants_json" | "$PY" -c 'import json,sys; value=json.load(sys.stdin)["participants"]; assert isinstance(value,list)'
 }

@@ -62,7 +62,6 @@ func (c *MeetHistoryCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 
 	var records []*meet.ConferenceRecord
-
 	nextPageToken := ""
 
 	if c.All {
@@ -79,6 +78,9 @@ func (c *MeetHistoryCmd) Run(ctx context.Context, flags *RootFlags) error {
 		if err != nil {
 			return err
 		}
+	}
+	if records == nil {
+		records = make([]*meet.ConferenceRecord, 0)
 	}
 
 	if outfmt.IsJSON(ctx) {
