@@ -146,11 +146,11 @@ func requireGroupsAuthAccount(flags *RootFlags) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if hasDirectAccessToken(flags) {
-		return accessTokenPlaceholderAccount, nil
-	}
 	if googleapi.IsADCMode() {
 		return adcPlaceholderAccount, nil
+	}
+	if hasDirectAccessToken(flags) {
+		return accessTokenPlaceholderAccount, nil
 	}
 	if isConsumerAccount(account) {
 		return "", groupsConsumerAccountError()

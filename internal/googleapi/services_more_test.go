@@ -181,6 +181,32 @@ func TestNewCloudIdentityGroupsUsesADC(t *testing.T) {
 	}
 }
 
+func TestNewCloudIdentityGroupsADCPrecedesDirectToken(t *testing.T) {
+	t.Setenv("GOG_AUTH_MODE", "adc")
+
+	origADC := newADCTokenSource
+
+	t.Cleanup(func() { newADCTokenSource = origADC })
+
+	adcCalled := false
+	newADCTokenSource = func(_ context.Context, scopes ...string) (oauth2.TokenSource, error) {
+		adcCalled = true
+		if len(scopes) != 1 || scopes[0] != scopeCloudIdentityGroupsRO {
+			t.Fatalf("scopes = %#v", scopes)
+		}
+
+		return oauth2.StaticTokenSource(&oauth2.Token{AccessToken: "adc-token"}), nil
+	}
+
+	ctx := authclient.WithAccessToken(testClientResolverContext(), "direct-token")
+	if _, err := NewCloudIdentityGroups(ctx, "admin@example.com"); err != nil {
+		t.Fatalf("NewCloudIdentityGroups: %v", err)
+	}
+	if !adcCalled {
+		t.Fatal("expected ADC token source to take precedence")
+	}
+}
+
 func TestNewCloudIdentityGroupsUsesRequiredServiceAccount(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)

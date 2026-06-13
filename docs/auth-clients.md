@@ -88,13 +88,15 @@ domain-wide delegation, then run:
 ```bash
 gog --account admin@example.com groups list
 gog --account admin@example.com groups members engineering@example.com
+gog --account admin@example.com calendar team engineering@example.com
 ```
 
 Explicit `--access-token` and `GOG_AUTH_MODE=adc` auth remain available for
 advanced environments. `groups list` and Groups backups also require
 `--account <workspace-email>` because their transitive membership searches
 need the Workspace identity; `groups members` can use the active principal
-without that flag. Stored user OAuth tokens are not used for Groups.
+without that flag. `calendar team` shares the same Groups auth boundary.
+Stored user OAuth tokens are not used for these Cloud Identity lookups.
 
 Then run Admin SDK commands with that account:
 

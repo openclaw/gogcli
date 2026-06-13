@@ -22,7 +22,7 @@ type CalendarCmd struct {
 	Search          CalendarSearchCmd          `cmd:"" name:"search" aliases:"find,query" help:"Search events"`
 	Time            CalendarTimeCmd            `cmd:"" name:"time" help:"Show server time"`
 	Users           CalendarUsersCmd           `cmd:"" name:"users" help:"List workspace users (use their email as calendar ID)"`
-	Team            CalendarTeamCmd            `cmd:"" name:"team" help:"Show events for all members of a Google Group"`
+	Team            CalendarTeamCmd            `cmd:"" name:"team" help:"Show events for Workspace group members (service account, direct token, or ADC)"`
 	FocusTime       CalendarFocusTimeCmd       `cmd:"" name:"focus-time" aliases:"focus" help:"Create a Focus Time block"`
 	OOO             CalendarOOOCmd             `cmd:"" name:"out-of-office" aliases:"ooo" help:"Create an Out of Office event"`
 	WorkingLocation CalendarWorkingLocationCmd `cmd:"" name:"working-location" aliases:"wl" help:"Set working location (home/office/custom)"`

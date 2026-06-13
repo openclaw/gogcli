@@ -2,7 +2,7 @@
 
 > Generated from `gog schema --json`. Do not edit this page by hand; run `make docs-commands`.
 
-Show events for all members of a Google Group
+Show events for Workspace group members (service account, direct token, or ADC)
 
 ## Usage
 

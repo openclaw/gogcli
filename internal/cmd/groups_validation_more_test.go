@@ -167,6 +167,7 @@ func TestRequireGroupsAuthAccount_IgnoresIdentityHintForDirectAuth(t *testing.T)
 	}{
 		{name: "direct token", accessToken: "direct-token", want: accessTokenPlaceholderAccount},
 		{name: "ADC", authMode: "adc", want: adcPlaceholderAccount},
+		{name: "ADC over direct token", authMode: "adc", accessToken: "direct-token", want: adcPlaceholderAccount},
 	}
 
 	for _, tc := range tests {

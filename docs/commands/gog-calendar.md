@@ -36,7 +36,7 @@ gog calendar (cal) <command> [flags]
 - [gog calendar respond](gog-calendar-respond.md) - Respond to an event invitation
 - [gog calendar search](gog-calendar-search.md) - Search events
 - [gog calendar subscribe](gog-calendar-subscribe.md) - Add a calendar to your calendar list
-- [gog calendar team](gog-calendar-team.md) - Show events for all members of a Google Group
+- [gog calendar team](gog-calendar-team.md) - Show events for Workspace group members (service account, direct token, or ADC)
 - [gog calendar time](gog-calendar-time.md) - Show server time
 - [gog calendar update](gog-calendar-update.md) - Update an event
 - [gog calendar users](gog-calendar-users.md) - List workspace users (use their email as calendar ID)

@@ -147,7 +147,8 @@ gog --account admin@example.com groups list
 With an explicit access token or `GOG_AUTH_MODE=adc`, `groups list` and Groups
 backups also need `--account <workspace-email>` for their transitive membership
 search. `groups members` can use the active principal without that flag.
-Groups do not fall back to stored user OAuth.
+`calendar team` uses the same Groups auth boundary. These Cloud Identity
+lookups do not fall back to stored user OAuth.
 
 See [Workspace Admin](workspace-admin.md) for service-account setup, generated
 passwords, recovery fields, organizational units, and cleanup commands.

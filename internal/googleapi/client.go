@@ -176,12 +176,6 @@ func optionsForAccountScopesRequiringStoredGrant(ctx context.Context, serviceLab
 }
 
 func optionsForServiceAccountScopes(ctx context.Context, serviceLabel string, email string, scopes []string) ([]option.ClientOption, error) {
-	if accessToken := authclient.AccessTokenFromContext(ctx); accessToken != "" {
-		slog.Debug("using direct access token", "serviceLabel", serviceLabel)
-
-		return tokenSourceClientOptions(oauth2.StaticTokenSource(&oauth2.Token{AccessToken: accessToken})), nil
-	}
-
 	if IsADCMode() {
 		slog.Debug("using Application Default Credentials (GOG_AUTH_MODE=adc)", "serviceLabel", serviceLabel)
 
@@ -191,6 +185,12 @@ func optionsForServiceAccountScopes(ctx context.Context, serviceLabel string, em
 		}
 
 		return tokenSourceClientOptions(ts), nil
+	}
+
+	if accessToken := authclient.AccessTokenFromContext(ctx); accessToken != "" {
+		slog.Debug("using direct access token", "serviceLabel", serviceLabel)
+
+		return tokenSourceClientOptions(oauth2.StaticTokenSource(&oauth2.Token{AccessToken: accessToken})), nil
 	}
 
 	ts, path, ok, err := tokenSourceForServiceAccountScopes(ctx, serviceLabel, email, scopes)
