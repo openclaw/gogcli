@@ -4,6 +4,7 @@ package backup
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"net/url"
 	"os"
@@ -76,6 +77,14 @@ func prepareReadRepo(ctx context.Context, cfg Config, skipPull bool) error {
 }
 
 func cloneReadRepo(ctx context.Context, remote, repo string) error {
+	info, statErr := os.Stat(repo)
+	if statErr == nil {
+		return cloneReadRepoIntoExisting(ctx, remote, repo, info)
+	}
+	if !os.IsNotExist(statErr) {
+		return statErr
+	}
+
 	parent := filepath.Dir(repo)
 	tempRepo, err := os.MkdirTemp(parent, "."+filepath.Base(repo)+".clone-*")
 	if err != nil {
@@ -94,6 +103,40 @@ func cloneReadRepo(ctx context.Context, remote, repo string) error {
 		return fmt.Errorf("install cloned backup repo: %w", err)
 	}
 	tempRepo = ""
+	return nil
+}
+
+func cloneReadRepoIntoExisting(ctx context.Context, remote, repo string, info os.FileInfo) error {
+	if !info.IsDir() {
+		return fmt.Errorf("backup repo path exists but is not a directory: %s", repo)
+	}
+	entries, err := os.ReadDir(repo)
+	if err != nil {
+		return err
+	}
+	if len(entries) != 0 {
+		return fmt.Errorf("backup repo path exists but is not a Git repository or empty directory: %s", repo)
+	}
+
+	if err := git(ctx, "", "clone", remote, repo); err != nil {
+		if cleanupErr := removeDirectoryContents(repo); cleanupErr != nil {
+			return errors.Join(err, fmt.Errorf("clean failed clone: %w", cleanupErr))
+		}
+		return err
+	}
+	return nil
+}
+
+func removeDirectoryContents(dir string) error {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return err
+	}
+	for _, entry := range entries {
+		if err := os.RemoveAll(filepath.Join(dir, entry.Name())); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 

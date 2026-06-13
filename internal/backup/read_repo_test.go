@@ -91,6 +91,80 @@ func TestReadRepoCloneFailureDoesNotInitializeRepo(t *testing.T) {
 	}
 }
 
+func TestReadRepoClonesIntoExistingEmptyDirectory(t *testing.T) {
+	dir := t.TempDir()
+	remote := filepath.Join(dir, "remote.git")
+	repo := filepath.Join(dir, "repo")
+
+	if err := os.Mkdir(repo, 0o700); err != nil {
+		t.Fatalf("mkdir repo: %v", err)
+	}
+
+	if err := os.Mkdir(remote, 0o700); err != nil {
+		t.Fatalf("mkdir remote: %v", err)
+	}
+
+	if err := git(t.Context(), remote, "init", "--bare"); err != nil {
+		t.Fatalf("init bare remote: %v", err)
+	}
+
+	if err := cloneReadRepo(t.Context(), remote, repo); err != nil {
+		t.Fatalf("cloneReadRepo: %v", err)
+	}
+
+	if _, err := os.Stat(filepath.Join(repo, ".git")); err != nil {
+		t.Fatalf("stat cloned .git: %v", err)
+	}
+}
+
+func TestReadRepoCloneFailurePreservesExistingEmptyDirectory(t *testing.T) {
+	dir := t.TempDir()
+	remote := filepath.Join(dir, "missing-remote.git")
+
+	repo := filepath.Join(dir, "repo")
+	if err := os.Mkdir(repo, 0o700); err != nil {
+		t.Fatalf("mkdir repo: %v", err)
+	}
+
+	err := cloneReadRepo(t.Context(), remote, repo)
+	if err == nil || !strings.Contains(err.Error(), "git clone") {
+		t.Fatalf("error = %v, want clone failure", err)
+	}
+
+	entries, readErr := os.ReadDir(repo)
+	if readErr != nil {
+		t.Fatalf("read repo: %v", readErr)
+	}
+
+	if len(entries) != 0 {
+		t.Fatalf("clone failure left existing repo contents: %v", entries)
+	}
+}
+
+func TestReadRepoDoesNotModifyExistingNonEmptyDirectory(t *testing.T) {
+	dir := t.TempDir()
+	remote := filepath.Join(dir, "missing-remote.git")
+
+	repo := filepath.Join(dir, "repo")
+	if err := os.Mkdir(repo, 0o700); err != nil {
+		t.Fatalf("mkdir repo: %v", err)
+	}
+
+	marker := filepath.Join(repo, "keep.txt")
+	if err := os.WriteFile(marker, []byte("keep"), 0o600); err != nil {
+		t.Fatalf("write marker: %v", err)
+	}
+
+	err := cloneReadRepo(t.Context(), remote, repo)
+	if err == nil || !strings.Contains(err.Error(), "not a Git repository or empty directory") {
+		t.Fatalf("error = %v, want non-empty directory guidance", err)
+	}
+
+	if got, readErr := os.ReadFile(marker); readErr != nil || string(got) != "keep" {
+		t.Fatalf("marker changed: content=%q err=%v", got, readErr)
+	}
+}
+
 func TestGitErrorRedactsCredentialedRemote(t *testing.T) {
 	remote := "https://oauth2:secret-password@example.com/repo.git?access_token=secret-query#secret-fragment"
 	err := gitError(
