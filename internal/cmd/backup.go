@@ -74,6 +74,11 @@ type backupReadFlags struct {
 	NoPull   bool   `name:"no-pull" help:"Use local backup repository state without pulling first"`
 }
 
+type backupReadCompatFlags struct {
+	NoPush     bool     `name:"no-push" hidden:"" help:"(deprecated) Ignored for read commands"`
+	Recipients []string `name:"recipient" hidden:"" help:"(deprecated) Ignored for read commands"`
+}
+
 func (f backupReadFlags) options() backup.Options {
 	return backup.Options{
 		ConfigPath: f.Config,
@@ -294,6 +299,7 @@ func (c *BackupGmailPushCmd) validate() error {
 
 type BackupStatusCmd struct {
 	backupReadFlags
+	backupReadCompatFlags
 }
 
 func (c *BackupStatusCmd) Run(ctx context.Context) error {
@@ -328,6 +334,7 @@ func (c *BackupStatusCmd) Run(ctx context.Context) error {
 
 type BackupVerifyCmd struct {
 	backupReadFlags
+	backupReadCompatFlags
 }
 
 func (c *BackupVerifyCmd) Run(ctx context.Context) error {

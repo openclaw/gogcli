@@ -171,9 +171,27 @@ func TestBackupStatusAndVerifyExposeReadFlags(t *testing.T) {
 			if !flags["no-pull"] {
 				t.Fatal("missing --no-pull")
 			}
-			for _, unexpected := range []string{"no-push", "recipient"} {
-				if flags[unexpected] {
-					t.Fatalf("unexpected --%s", unexpected)
+			for _, hidden := range []string{"no-push", "recipient"} {
+				if flags[hidden] {
+					t.Fatalf("hidden compatibility flag --%s appears in default schema", hidden)
+				}
+			}
+
+			hiddenResult := executeWithTestRuntime(t, []string{"schema", "--include-hidden", "backup " + command}, nil)
+			if hiddenResult.err != nil {
+				t.Fatalf("hidden schema: %v", hiddenResult.err)
+			}
+			var hiddenDoc schemaDoc
+			if err := json.Unmarshal([]byte(hiddenResult.stdout), &hiddenDoc); err != nil {
+				t.Fatalf("decode hidden schema: %v", err)
+			}
+			hiddenFlags := make(map[string]bool, len(hiddenDoc.Command.Flags))
+			for _, flag := range hiddenDoc.Command.Flags {
+				hiddenFlags[flag.Name] = flag.Hidden
+			}
+			for _, compat := range []string{"no-push", "recipient"} {
+				if !hiddenFlags[compat] {
+					t.Fatalf("missing hidden compatibility flag --%s", compat)
 				}
 			}
 		})
