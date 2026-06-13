@@ -32,7 +32,7 @@ type AuthCredentialsSetCmd struct {
 	Insecure  bool   `name:"insecure" help:"Store OAuth client_secret in credentials.json instead of the keyring"`
 }
 
-func (c *AuthCredentialsSetCmd) Run(ctx context.Context, _ *RootFlags) error {
+func (c *AuthCredentialsSetCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
 	client, err := normalizeClientForFlag(authclient.ClientOverrideFromContext(ctx))
 	if err != nil {
@@ -60,6 +60,37 @@ func (c *AuthCredentialsSetCmd) Run(ctx context.Context, _ *RootFlags) error {
 		return err
 	}
 
+	domains := splitCommaList(c.Domains)
+	var (
+		configStore *config.ConfigStore
+		cfg         config.File
+	)
+	if len(domains) > 0 {
+		configStore, err = commandConfigStore(ctx)
+		if err != nil {
+			return err
+		}
+		cfg, err = configStore.Read()
+		if err != nil {
+			return err
+		}
+		for _, domain := range domains {
+			if setErr := config.SetClientDomain(&cfg, domain, client); setErr != nil {
+				return setErr
+			}
+		}
+	}
+
+	if dryRunErr := dryRunExit(ctx, flags, "auth.credentials.set", map[string]any{
+		"client":                   client,
+		"credentials_source":       inPath,
+		"domains":                  domains,
+		"expand_env":               c.ExpandEnv,
+		"client_secret_in_keyring": !c.Insecure,
+	}); dryRunErr != nil {
+		return dryRunErr
+	}
+
 	credentialStore, err := commandOAuthCredentialsStore(ctx)
 	if err != nil {
 		return err
@@ -72,20 +103,7 @@ func (c *AuthCredentialsSetCmd) Run(ctx context.Context, _ *RootFlags) error {
 	if err != nil {
 		return err
 	}
-	if strings.TrimSpace(c.Domains) != "" {
-		configStore, err := commandConfigStore(ctx)
-		if err != nil {
-			return err
-		}
-		cfg, err := configStore.Read()
-		if err != nil {
-			return err
-		}
-		for _, domain := range splitCommaList(c.Domains) {
-			if err := config.SetClientDomain(&cfg, domain, client); err != nil {
-				return err
-			}
-		}
+	if configStore != nil {
 		if err := configStore.Write(cfg); err != nil {
 			return err
 		}

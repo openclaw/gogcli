@@ -162,6 +162,119 @@ func TestExecute_AuthCredentials_UsesInjectedStores(t *testing.T) {
 	}
 }
 
+func TestExecute_AuthCredentials_DryRunDoesNotWriteOrOpenSecretStore(t *testing.T) {
+	root := t.TempDir()
+	layout := config.Layout{
+		ConfigDir:      filepath.Join(root, "config"),
+		DataDir:        filepath.Join(root, "data"),
+		ExplicitConfig: true,
+		ExplicitData:   true,
+	}
+	configStore := config.NewConfigStore(layout)
+	in := filepath.Join(t.TempDir(), "creds.json")
+	if err := os.WriteFile(in, []byte(`{"installed":{"client_id":"id","client_secret":"super-secret-value"}}`), 0o600); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	secretStoreOpened := false
+	runtime := &app.Runtime{
+		IO: app.IO{
+			In:  strings.NewReader(""),
+			Out: &stdout,
+			Err: &stderr,
+		},
+		Config: configStore,
+		Auth: app.AuthOperations{
+			OpenSecretStore: func() (secrets.SecretStore, error) {
+				secretStoreOpened = true
+				return nil, errors.New("unexpected secret store open")
+			},
+		},
+	}
+	if err := executeWithRuntime([]string{"--json", "--dry-run", "--client", "work", "auth", "credentials", in, "--domain", "example.com"}, runtime); err != nil {
+		t.Fatalf("executeWithRuntime: %v\nstderr=%s", err, stderr.String())
+	}
+	if secretStoreOpened {
+		t.Fatal("dry-run opened the secret store")
+	}
+
+	var result struct {
+		DryRun  bool   `json:"dry_run"`
+		Op      string `json:"op"`
+		Request struct {
+			Client                string   `json:"client"`
+			Domains               []string `json:"domains"`
+			ClientSecretInKeyring bool     `json:"client_secret_in_keyring"`
+		} `json:"request"`
+	}
+	if err := json.Unmarshal(stdout.Bytes(), &result); err != nil {
+		t.Fatalf("json parse: %v\nout=%q", err, stdout.String())
+	}
+	if !result.DryRun || result.Op != "auth.credentials.set" || result.Request.Client != "work" {
+		t.Fatalf("unexpected dry-run result: %#v", result)
+	}
+	if len(result.Request.Domains) != 1 || result.Request.Domains[0] != "example.com" || !result.Request.ClientSecretInKeyring {
+		t.Fatalf("unexpected dry-run request: %#v", result.Request)
+	}
+	if strings.Contains(stdout.String(), "super-secret-value") {
+		t.Fatalf("dry-run output leaked client secret: %s", stdout.String())
+	}
+	if _, err := os.Stat(configStore.Path()); !os.IsNotExist(err) {
+		t.Fatalf("dry-run wrote config: %v", err)
+	}
+	metadataPath, err := config.NewClientCredentialsStore(layout).PathFor("work")
+	if err != nil {
+		t.Fatalf("credential metadata path: %v", err)
+	}
+	if _, err := os.Stat(metadataPath); !os.IsNotExist(err) {
+		t.Fatalf("dry-run wrote credential metadata: %v", err)
+	}
+}
+
+func TestExecute_AuthCredentials_InvalidDomainDoesNotWrite(t *testing.T) {
+	root := t.TempDir()
+	layout := config.Layout{
+		ConfigDir:      filepath.Join(root, "config"),
+		DataDir:        filepath.Join(root, "data"),
+		ExplicitConfig: true,
+		ExplicitData:   true,
+	}
+	configStore := config.NewConfigStore(layout)
+	in := filepath.Join(t.TempDir(), "creds.json")
+	if err := os.WriteFile(in, []byte(`{"installed":{"client_id":"id","client_secret":"sec"}}`), 0o600); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+
+	secretStoreOpened := false
+	runtime := &app.Runtime{
+		Config: configStore,
+		Auth: app.AuthOperations{
+			OpenSecretStore: func() (secrets.SecretStore, error) {
+				secretStoreOpened = true
+				return nil, errors.New("unexpected secret store open")
+			},
+		},
+	}
+	err := executeWithRuntime([]string{"--client", "work", "auth", "credentials", in, "--domain", "bad domain"}, runtime)
+	if err == nil {
+		t.Fatal("expected invalid domain error")
+	}
+	if secretStoreOpened {
+		t.Fatal("invalid domain opened the secret store")
+	}
+	if _, err := os.Stat(configStore.Path()); !os.IsNotExist(err) {
+		t.Fatalf("invalid domain wrote config: %v", err)
+	}
+	metadataPath, pathErr := config.NewClientCredentialsStore(layout).PathFor("work")
+	if pathErr != nil {
+		t.Fatalf("credential metadata path: %v", pathErr)
+	}
+	if _, err := os.Stat(metadataPath); !os.IsNotExist(err) {
+		t.Fatalf("invalid domain wrote credential metadata: %v", err)
+	}
+}
+
 func TestExecute_AuthCredentials_Stdin_JSON(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)

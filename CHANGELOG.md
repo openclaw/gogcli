@@ -9,6 +9,7 @@
 
 ### Fixed
 
+- Auth: make `auth credentials set --dry-run` preview credential and domain writes without opening the keyring or changing files, and validate every domain before storing credentials.
 - CLI: replace the stale hard-coded `--account` service list with concise email, alias, and auto-selection guidance that applies across authenticated Google API commands.
 - Calendar: remove the dead `calendar appointments` command, which could only report an API limitation; existing invocations now return unknown-command usage, while the limitation remains documented.
 - Drive: preserve repeated folder placements in tree, inventory, and size summaries; reject cyclic folder graphs instead of collapsing paths or scanning indefinitely.
