@@ -122,9 +122,30 @@ Contacts/People, Tasks, and Classroom. Workspace-only APIs such as Admin
 Directory, Cloud Identity Groups, Chat, and Keep/domain-wide-delegation flows
 require a managed domain.
 
-If your OAuth app is External + Testing, Google refresh tokens for user-data
-scopes can expire after 7 days. Publish the personal OAuth app if you want
-long-lived refresh tokens.
+### Avoid the seven-day OAuth expiry
+
+If your OAuth app is **External** with publishing status **Testing**, Google
+refresh tokens for user-data scopes can expire after seven days. For a personal
+CLI app, publish it before the final authorization:
+
+1. Open [Google Auth Platform → Audience](https://console.cloud.google.com/auth/audience)
+   in the same Cloud project that owns your Desktop OAuth client.
+2. Under **Publishing status**, click **Publish app**, then **Confirm**. This
+   changes the app to **In production**; it does not submit the app for Google
+   verification.
+3. If you already authorized while the app was in Testing, replace that token
+   once, preserving the services you use:
+
+   ```bash
+   gog auth add you@gmail.com --services gmail,calendar,drive,docs,sheets,contacts --force-consent
+   gog auth doctor --check
+   ```
+
+An unverified personal app can run In production, but sensitive scopes show an
+unverified-app warning and are subject to a lifetime 100-user cap. Public apps
+should complete [Google's OAuth verification](https://support.google.com/cloud/answer/9110914).
+See Google's [refresh-token expiration rules](https://developers.google.com/identity/protocols/oauth2#expiration)
+and [unverified-app limits](https://support.google.com/cloud/answer/7454865).
 
 ## Daily Examples
 

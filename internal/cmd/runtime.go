@@ -471,6 +471,9 @@ func checkAuthRefreshToken(ctx context.Context, client, refreshToken string, sco
 }
 
 func buildManualAuthURL(ctx context.Context, options googleauth.AuthorizeOptions) (googleauth.ManualAuthURLResult, error) {
+	if err := bindManualAuthStateStore(ctx, &options); err != nil {
+		return googleauth.ManualAuthURLResult{}, err
+	}
 	if runtime, ok := app.FromContext(ctx); ok && runtime.Auth.ManualAuthURL != nil {
 		return runtime.Auth.ManualAuthURL(ctx, options)
 	}

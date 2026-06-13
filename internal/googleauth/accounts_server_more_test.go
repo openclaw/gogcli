@@ -319,7 +319,10 @@ func TestStartManageServerOpenStoreError(t *testing.T) {
 		return nil, errTestStoreBoom
 	}
 
-	if err := StartManageServer(context.Background(), ManageServerOptions{Timeout: time.Second}); err == nil {
+	if err := StartManageServer(context.Background(), ManageServerOptions{
+		Timeout:               time.Second,
+		UpdateEmailReferences: func(string, string) error { return nil },
+	}); err == nil {
 		t.Fatalf("expected error")
 	}
 }

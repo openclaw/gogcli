@@ -29,7 +29,7 @@ func TestNewServicesWithStoredToken(t *testing.T) {
 		return store, nil
 	}
 
-	ctx := context.Background()
+	ctx := testClientResolverContext()
 
 	if _, err := NewGmail(ctx, "a@b.com"); err != nil {
 		t.Fatalf("NewGmail: %v", err)

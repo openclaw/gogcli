@@ -29,7 +29,7 @@ type GmailMessagesSearchCmd struct {
 	Page        string   `name:"page" aliases:"cursor" help:"Page token"`
 	All         bool     `name:"all" aliases:"all-pages,allpages" help:"Fetch all pages"`
 	FailEmpty   bool     `name:"fail-empty" aliases:"non-empty,require-results" help:"Exit with code 3 if no results"`
-	Timezone    string   `name:"timezone" short:"z" help:"Output timezone (IANA name, e.g. America/New_York, UTC). Default: local"`
+	Timezone    string   `name:"timezone" short:"z" help:"Output timezone (IANA name, e.g. America/New_York, UTC). Default: GOG_TIMEZONE, config, then local"`
 	Local       bool     `name:"local" help:"Use local timezone (default behavior, useful to override --timezone)"`
 	IncludeBody bool     `name:"include-body" help:"Include decoded message body (JSON is full; text output is truncated)"`
 	BodyFormat  string   `name:"body-format" help:"Body format preference when --include-body is set: text or html" default:"text" enum:"text,html"`
@@ -91,7 +91,7 @@ func (c *GmailMessagesSearchCmd) Run(ctx context.Context, flags *RootFlags) erro
 		return err
 	}
 
-	loc, err := resolveOutputLocation(c.Timezone, c.Local, stderrWriter(ctx))
+	loc, err := resolveOutputLocation(ctx, c.Timezone, c.Local, stderrWriter(ctx))
 	if err != nil {
 		return err
 	}

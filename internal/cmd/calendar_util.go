@@ -16,7 +16,7 @@ func isAllDayEvent(e *calendar.Event) bool {
 
 // prepareCalendarID resolves aliases before any API-backed calendar lookup.
 // When defaultPrimary is true, empty input becomes the primary calendar.
-func prepareCalendarID(calendarID string, defaultPrimary bool) (string, error) {
+func prepareCalendarID(store *config.ConfigStore, calendarID string, defaultPrimary bool) (string, error) {
 	calendarID = strings.TrimSpace(calendarID)
 	if calendarID == "" {
 		if defaultPrimary {
@@ -25,7 +25,7 @@ func prepareCalendarID(calendarID string, defaultPrimary bool) (string, error) {
 		return "", usage("empty calendarId")
 	}
 
-	resolved, err := config.ResolveCalendarID(calendarID)
+	resolved, err := store.ResolveCalendarID(calendarID)
 	if err != nil {
 		return "", err
 	}
@@ -33,18 +33,18 @@ func prepareCalendarID(calendarID string, defaultPrimary bool) (string, error) {
 	return resolved, nil
 }
 
-func resolveCalendarSelector(ctx context.Context, svc *calendar.Service, calendarID string, defaultPrimary bool) (string, error) {
-	prepared, err := prepareCalendarID(calendarID, defaultPrimary)
+func resolveCalendarSelector(ctx context.Context, store *config.ConfigStore, svc *calendar.Service, calendarID string, defaultPrimary bool) (string, error) {
+	prepared, err := prepareCalendarID(store, calendarID, defaultPrimary)
 	if err != nil {
 		return "", err
 	}
 	return resolveCalendarID(ctx, svc, prepared)
 }
 
-func prepareCalendarIDs(inputs []string) ([]string, error) {
+func prepareCalendarIDs(store *config.ConfigStore, inputs []string) ([]string, error) {
 	prepared := make([]string, 0, len(inputs))
 	for _, input := range inputs {
-		resolved, err := prepareCalendarID(input, false)
+		resolved, err := prepareCalendarID(store, input, false)
 		if err != nil {
 			return nil, err
 		}
@@ -86,7 +86,7 @@ func resolveAllCalendarIDs(ctx context.Context, svc *calendar.Service) ([]string
 	return ids, nil
 }
 
-func resolveSelectedCalendarIDs(ctx context.Context, svc *calendar.Service, cal []string, calendars string, all, defaultPrimary bool) ([]string, error) {
+func resolveSelectedCalendarIDs(ctx context.Context, store *config.ConfigStore, svc *calendar.Service, cal []string, calendars string, all, defaultPrimary bool) ([]string, error) {
 	inputs := collectCalendarInputs(cal, calendars)
 	if all {
 		if len(inputs) > 0 {
@@ -102,7 +102,7 @@ func resolveSelectedCalendarIDs(ctx context.Context, svc *calendar.Service, cal 
 		return nil, usage("no calendar IDs provided")
 	}
 
-	prepared, err := prepareCalendarIDs(inputs)
+	prepared, err := prepareCalendarIDs(store, inputs)
 	if err != nil {
 		return nil, err
 	}

@@ -13,7 +13,11 @@ type CalendarMoveCmd struct {
 }
 
 func (c *CalendarMoveCmd) Run(ctx context.Context, flags *RootFlags) error {
-	calendarID, err := prepareCalendarID(c.CalendarID, false)
+	store, err := commandConfigStore(ctx)
+	if err != nil {
+		return err
+	}
+	calendarID, err := prepareCalendarID(store, c.CalendarID, false)
 	if err != nil {
 		return err
 	}
@@ -21,7 +25,7 @@ func (c *CalendarMoveCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if eventID == "" {
 		return usage("empty eventId")
 	}
-	destinationCalendarID, err := prepareCalendarID(c.DestinationCalendarID, false)
+	destinationCalendarID, err := prepareCalendarID(store, c.DestinationCalendarID, false)
 	if err != nil {
 		return err
 	}

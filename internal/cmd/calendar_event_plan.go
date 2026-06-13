@@ -4,6 +4,8 @@ import (
 	"strings"
 
 	"google.golang.org/api/calendar/v3"
+
+	"github.com/steipete/gogcli/internal/config"
 )
 
 type focusTimeInput struct {
@@ -205,8 +207,8 @@ func (f calendarUpdateFields) zoomMutation() bool {
 	return f.WithZoom || f.RegenerateZoom || f.RemoveZoom
 }
 
-func buildCalendarUpdatePlan(input calendarUpdateInput, fields calendarUpdateFields) (*calendarUpdatePlan, error) {
-	calendarID, err := prepareCalendarID(input.CalendarID, false)
+func buildCalendarUpdatePlan(store *config.ConfigStore, input calendarUpdateInput, fields calendarUpdateFields) (*calendarUpdatePlan, error) {
+	calendarID, err := prepareCalendarID(store, input.CalendarID, false)
 	if err != nil {
 		return nil, err
 	}
@@ -299,7 +301,7 @@ func (p *calendarUpdatePlan) dryRunRequest() map[string]any {
 	return request
 }
 
-func buildCalendarCreatePlan(input calendarCreateInput, fields calendarCreateFields) (*calendarCreatePlan, error) {
+func buildCalendarCreatePlan(store *config.ConfigStore, input calendarCreateInput, fields calendarCreateFields) (*calendarCreatePlan, error) {
 	if fields.WithMeet && fields.WithZoom {
 		return nil, usage("use only one of --with-zoom or --with-meet")
 	}
@@ -315,7 +317,7 @@ func buildCalendarCreatePlan(input calendarCreateInput, fields calendarCreateFie
 	if err != nil {
 		return nil, err
 	}
-	calendarID, err := prepareCalendarID(input.CalendarID, false)
+	calendarID, err := prepareCalendarID(store, input.CalendarID, false)
 	if err != nil {
 		return nil, err
 	}

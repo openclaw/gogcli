@@ -2,6 +2,7 @@ package tracking
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -13,10 +14,6 @@ import (
 func setupTrackingConfigEnv(t *testing.T) *ConfigStore {
 	t.Helper()
 	home := t.TempDir()
-	t.Setenv("HOME", home)
-	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, "xdg"))
-	t.Setenv("GOG_KEYRING_BACKEND", "file")
-	t.Setenv("GOG_KEYRING_PASSWORD", "testpass")
 
 	return newTrackingConfigTestStore(
 		t,
@@ -30,11 +27,13 @@ func setupTrackingConfigEnv(t *testing.T) *ConfigStore {
 func newTrackingConfigTestStore(t *testing.T, configDir, stateDir, legacyConfigBase string, explicitState bool) *ConfigStore {
 	t.Helper()
 
+	secretStore, _ := newTestSecretStore(t)
+
 	store, err := NewConfigStore(config.Layout{
 		ConfigDir:     configDir,
 		StateDir:      stateDir,
 		ExplicitState: explicitState,
-	}, legacyConfigBase)
+	}, legacyConfigBase, secretStore)
 	if err != nil {
 		t.Fatalf("new config store: %v", err)
 	}
@@ -55,10 +54,40 @@ func TestLoadConfigMissingReturnsDisabled(t *testing.T) {
 	}
 }
 
+func TestConfigStoreHydrationRequiresSecretStore(t *testing.T) {
+	root := t.TempDir()
+
+	store, err := NewConfigStore(config.Layout{
+		ConfigDir:      filepath.Join(root, "config"),
+		StateDir:       filepath.Join(root, "state"),
+		ExplicitConfig: true,
+		ExplicitState:  true,
+	}, "", nil)
+	if err != nil {
+		t.Fatalf("NewConfigStore: %v", err)
+	}
+
+	if err := store.Save("a@b.com", &Config{
+		Enabled:          true,
+		WorkerURL:        "https://example.com",
+		SecretsInKeyring: true,
+	}); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+
+	if _, err := store.Load("a@b.com"); !errors.Is(err, errNilSecretStore) {
+		t.Fatalf("Load error = %v", err)
+	}
+
+	if _, err := store.LoadMetadata("a@b.com"); err != nil {
+		t.Fatalf("LoadMetadata: %v", err)
+	}
+}
+
 func TestSaveConfigSecretsInKeyring(t *testing.T) {
 	store := setupTrackingConfigEnv(t)
 
-	if err := SaveSecrets("a@b.com", "track", "admin"); err != nil {
+	if err := store.secrets.SaveSecrets("a@b.com", "track", "admin"); err != nil {
 		t.Fatalf("SaveSecrets: %v", err)
 	}
 
@@ -115,6 +144,10 @@ func TestShouldLoadTrackingSecrets(t *testing.T) {
 			if got := shouldLoadTrackingSecrets(tt.cfg); got != tt.want {
 				t.Fatalf("shouldLoadTrackingSecrets = %t, want %t", got, tt.want)
 			}
+
+			if got := tt.cfg.NeedsSecretStore(); got != tt.want {
+				t.Fatalf("NeedsSecretStore = %t, want %t", got, tt.want)
+			}
 		})
 	}
 }
@@ -122,7 +155,7 @@ func TestShouldLoadTrackingSecrets(t *testing.T) {
 func TestLoadConfigPrefersFileSecretsWhenKeyringHasStaleValues(t *testing.T) {
 	store := setupTrackingConfigEnv(t)
 
-	if err := SaveSecrets("a@b.com", "stale-track", "stale-admin"); err != nil {
+	if err := store.secrets.SaveSecrets("a@b.com", "stale-track", "stale-admin"); err != nil {
 		t.Fatalf("SaveSecrets: %v", err)
 	}
 
@@ -149,7 +182,7 @@ func TestLoadConfigPrefersFileSecretsWhenKeyringHasStaleValues(t *testing.T) {
 func TestLoadConfigFallsBackToKeyringWhenLegacySecretsAreEmpty(t *testing.T) {
 	store := setupTrackingConfigEnv(t)
 
-	if err := SaveSecrets("a@b.com", "track", "admin"); err != nil {
+	if err := store.secrets.SaveSecrets("a@b.com", "track", "admin"); err != nil {
 		t.Fatalf("SaveSecrets: %v", err)
 	}
 

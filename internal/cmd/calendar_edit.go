@@ -123,7 +123,11 @@ func calendarCreateInputFromCommand(c *CalendarCreateCmd) calendarCreateInput {
 func (c *CalendarCreateCmd) Run(ctx context.Context, flags *RootFlags, kctx *kong.Context) error {
 	ctx = withZoomIncludePasswords(ctx, c.IncludePasswords)
 	fields := calendarCreateFieldsFromKong(kctx)
-	plan, err := buildCalendarCreatePlan(calendarCreateInputFromCommand(c), fields)
+	store, err := commandConfigStore(ctx)
+	if err != nil {
+		return err
+	}
+	plan, err := buildCalendarCreatePlan(store, calendarCreateInputFromCommand(c), fields)
 	if err != nil {
 		return err
 	}
@@ -134,7 +138,7 @@ func (c *CalendarCreateCmd) Run(ctx context.Context, flags *RootFlags, kctx *kon
 		if placeErr := c.resolvePlace(ctx, fields); placeErr != nil {
 			return placeErr
 		}
-		plan, err = buildCalendarCreatePlan(calendarCreateInputFromCommand(c), fields)
+		plan, err = buildCalendarCreatePlan(store, calendarCreateInputFromCommand(c), fields)
 		if err != nil {
 			return err
 		}
@@ -316,7 +320,11 @@ func calendarUpdateInputFromCommand(c *CalendarUpdateCmd) calendarUpdateInput {
 func (c *CalendarUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *RootFlags) error {
 	ctx = withZoomIncludePasswords(ctx, c.IncludePasswords)
 	fields := calendarUpdateFieldsFromKong(kctx)
-	plan, err := buildCalendarUpdatePlan(calendarUpdateInputFromCommand(c), fields)
+	store, err := commandConfigStore(ctx)
+	if err != nil {
+		return err
+	}
+	plan, err := buildCalendarUpdatePlan(store, calendarUpdateInputFromCommand(c), fields)
 	if err != nil {
 		return err
 	}
@@ -327,7 +335,7 @@ func (c *CalendarUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *
 		if placeErr := c.resolvePlace(ctx, fields); placeErr != nil {
 			return placeErr
 		}
-		plan, err = buildCalendarUpdatePlan(calendarUpdateInputFromCommand(c), fields)
+		plan, err = buildCalendarUpdatePlan(store, calendarUpdateInputFromCommand(c), fields)
 		if err != nil {
 			return err
 		}
@@ -591,7 +599,11 @@ type CalendarDeleteCmd struct {
 
 func (c *CalendarDeleteCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
-	calendarID, err := prepareCalendarID(c.CalendarID, false)
+	store, err := commandConfigStore(ctx)
+	if err != nil {
+		return err
+	}
+	calendarID, err := prepareCalendarID(store, c.CalendarID, false)
 	if err != nil {
 		return err
 	}

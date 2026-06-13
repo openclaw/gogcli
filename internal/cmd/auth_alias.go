@@ -6,7 +6,6 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/steipete/gogcli/internal/config"
 	"github.com/steipete/gogcli/internal/outfmt"
 	"github.com/steipete/gogcli/internal/ui"
 )
@@ -21,7 +20,11 @@ type AuthAliasListCmd struct{}
 
 func (c *AuthAliasListCmd) Run(ctx context.Context) error {
 	u := ui.FromContext(ctx)
-	aliases, err := config.ListAccountAliases()
+	store, err := commandConfigStore(ctx)
+	if err != nil {
+		return err
+	}
+	aliases, err := store.ListAccountAliases()
 	if err != nil {
 		return err
 	}
@@ -73,7 +76,11 @@ func (c *AuthAliasSetCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}); err != nil {
 		return err
 	}
-	if err := config.SetAccountAlias(alias, email); err != nil {
+	store, err := commandConfigStore(ctx)
+	if err != nil {
+		return err
+	}
+	if err := store.SetAccountAlias(alias, email); err != nil {
 		return err
 	}
 	if outfmt.IsJSON(ctx) {
@@ -102,7 +109,11 @@ func (c *AuthAliasUnsetCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}); err != nil {
 		return err
 	}
-	deleted, err := config.DeleteAccountAlias(alias)
+	store, err := commandConfigStore(ctx)
+	if err != nil {
+		return err
+	}
+	deleted, err := store.DeleteAccountAlias(alias)
 	if err != nil {
 		return err
 	}

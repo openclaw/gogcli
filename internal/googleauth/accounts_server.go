@@ -39,12 +39,13 @@ type Identity struct {
 
 // ManageServerOptions configures the accounts management server
 type ManageServerOptions struct {
-	Timeout      time.Duration
-	Services     []Service
-	ForceConsent bool
-	Client       string
-	ListenAddr   string
-	RedirectURI  string
+	Timeout               time.Duration
+	Services              []Service
+	ForceConsent          bool
+	Client                string
+	ListenAddr            string
+	RedirectURI           string
+	UpdateEmailReferences EmailReferenceUpdater
 }
 
 // ManageServer handles the accounts management UI
@@ -117,6 +118,10 @@ func StartManageServer(ctx context.Context, opts ManageServerOptions) error {
 			return normalizeErr
 		}
 		opts.RedirectURI = resolvedRedirectURI
+	}
+
+	if opts.UpdateEmailReferences == nil {
+		return errEmailReferenceUpdaterRequired
 	}
 
 	store, err := openDefaultStore()
@@ -478,7 +483,7 @@ func (ms *ManageServer) handleOAuthCallback(w http.ResponseWriter, r *http.Reque
 	}
 
 	if needKeychain {
-		if keychainErr := ensureKeychainAccess(); keychainErr != nil { //nolint:contextcheck,nolintlint // keychain ops don't use context; nolint unused on non-Darwin
+		if keychainErr := ensureKeychainAccess(); keychainErr != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			renderErrorPage(w, "Keychain is locked: "+keychainErr.Error())
 
@@ -513,7 +518,7 @@ func (ms *ManageServer) handleOAuthCallback(w http.ResponseWriter, r *http.Reque
 	}
 
 	if migratedEmail != "" {
-		if err := MigrateStoredEmailReferences(ms.store, ms.client, migratedEmail, email); err != nil {
+		if err := MigrateStoredEmailReferences(ms.store, ms.opts.UpdateEmailReferences, ms.client, migratedEmail, email); err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			renderErrorPage(w, "Failed to migrate stored token references: "+err.Error())
 

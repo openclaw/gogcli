@@ -877,6 +877,13 @@ func TestManageServer_HandleOAuthCallback_MigratesAndDeletesAliasAfterSetToken(t
 			RefreshToken: "old-refresh",
 		}},
 	}
+
+	configStore := config.NewConfigStore(config.Layout{ConfigDir: t.TempDir()})
+	if writeErr := configStore.Write(config.File{
+		AccountAliases: map[string]string{"work": "old@example.com"},
+	}); writeErr != nil {
+		t.Fatalf("write config: %v", writeErr)
+	}
 	ms := &ManageServer{
 		oauthState:    "state1",
 		oauthVerifier: testCodeVerifier,
@@ -885,7 +892,10 @@ func TestManageServer_HandleOAuthCallback_MigratesAndDeletesAliasAfterSetToken(t
 		fetchIdentity: func(context.Context, *oauth2.Token) (Identity, error) {
 			return Identity{Subject: "sub-123", Email: "new@example.com"}, nil
 		},
-		opts:   ManageServerOptions{Services: []Service{ServiceGmail}},
+		opts: ManageServerOptions{
+			Services:              []Service{ServiceGmail},
+			UpdateEmailReferences: configStore.MigrateAccountEmailReferences,
+		},
 		client: config.DefaultClientName,
 	}
 
@@ -901,6 +911,15 @@ func TestManageServer_HandleOAuthCallback_MigratesAndDeletesAliasAfterSetToken(t
 	if len(store.ops) != len(wantOps) || store.ops[0] != wantOps[0] || store.ops[1] != wantOps[1] {
 		t.Fatalf("unexpected store ops: %#v", store.ops)
 	}
+
+	cfg, err := configStore.Read()
+	if err != nil {
+		t.Fatalf("read config: %v", err)
+	}
+
+	if cfg.AccountAliases["work"] != "new@example.com" {
+		t.Fatalf("account aliases = %#v", cfg.AccountAliases)
+	}
 }
 
 func TestStartManageServerRejectsNonLoopbackListenAddr(t *testing.T) {
@@ -914,6 +933,16 @@ func TestStartManageServerRejectsNonLoopbackListenAddr(t *testing.T) {
 
 	if !errors.Is(err, errNonLoopbackManageAddr) {
 		t.Fatalf("expected errNonLoopbackManageAddr, got %v", err)
+	}
+}
+
+func TestStartManageServerRequiresEmailReferenceUpdater(t *testing.T) {
+	err := StartManageServer(context.Background(), ManageServerOptions{
+		ListenAddr: "127.0.0.1:0",
+		Timeout:    50 * time.Millisecond,
+	})
+	if !errors.Is(err, errEmailReferenceUpdaterRequired) {
+		t.Fatalf("error = %v, want updater-required", err)
 	}
 }
 
@@ -1190,7 +1219,10 @@ func TestStartManageServer_Timeout(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	if err := StartManageServer(ctx, ManageServerOptions{Timeout: 50 * time.Millisecond}); err != nil {
+	if err := StartManageServer(ctx, ManageServerOptions{
+		Timeout:               50 * time.Millisecond,
+		UpdateEmailReferences: func(string, string) error { return nil },
+	}); err != nil {
 		t.Fatalf("StartManageServer: %v", err)
 	}
 

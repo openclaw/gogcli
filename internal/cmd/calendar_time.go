@@ -20,7 +20,11 @@ func (c *CalendarTimeCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
-	calendarID, err := prepareCalendarID(c.CalendarID, true)
+	store, err := commandConfigStore(ctx)
+	if err != nil {
+		return err
+	}
+	calendarID, err := prepareCalendarID(store, c.CalendarID, true)
 	if err != nil {
 		return err
 	}
@@ -29,7 +33,7 @@ func (c *CalendarTimeCmd) Run(ctx context.Context, flags *RootFlags) error {
 	var loc *time.Location
 
 	// Check for explicitly configured timezone (flag, env, or config)
-	loc, err = getConfiguredTimezone(c.Timezone, stderrWriter(ctx))
+	loc, err = getConfiguredTimezone(ctx, c.Timezone, stderrWriter(ctx))
 	if err != nil {
 		return err
 	}
@@ -44,7 +48,7 @@ func (c *CalendarTimeCmd) Run(ctx context.Context, flags *RootFlags) error {
 			return err
 		}
 
-		calendarID, err = resolveCalendarSelector(ctx, svc, calendarID, true)
+		calendarID, err = resolveCalendarSelector(ctx, store, svc, calendarID, true)
 		if err != nil {
 			return err
 		}

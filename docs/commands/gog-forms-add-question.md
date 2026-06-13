@@ -43,9 +43,9 @@ gog forms (form) add-question (add-q,aq) --title=STRING <formId> [flags]
 | `--points` | `int` |  | Positive quiz points for the question when --correct is set |
 | `--required` | `bool` |  | Whether an answer is required |
 | `--results-only` | `bool` |  | In JSON mode, emit only the primary result (drops envelope fields like nextPageToken) |
-| `--scale-high` | `int` | 5 | Scale maximum value |
+| `--scale-high` | `int` | 5 | Scale maximum value: 2 through 10 |
 | `--scale-high-label` | `string` |  | Label for high end of scale |
-| `--scale-low` | `int` | 1 | Scale minimum value |
+| `--scale-low` | `int` | 1 | Scale minimum value: 0 or 1 |
 | `--scale-low-label` | `string` |  | Label for low end of scale |
 | `--select`<br>`--pick`<br>`--project` | `string` |  | In JSON mode, select comma-separated fields (best-effort; supports dot paths). Desire path: use --fields for most commands. |
 | `--title` | `string` |  | Question title/text |

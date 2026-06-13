@@ -9,6 +9,7 @@ import (
 	"google.golang.org/api/calendar/v3"
 	gapi "google.golang.org/api/googleapi"
 
+	"github.com/steipete/gogcli/internal/config"
 	"github.com/steipete/gogcli/internal/outfmt"
 	"github.com/steipete/gogcli/internal/ui"
 )
@@ -287,8 +288,8 @@ func calendarTimezoneHints(calendars []*calendar.CalendarListEntry) map[string]c
 	return hints
 }
 
-func resolveCalendarIDs(ctx context.Context, svc *calendar.Service, inputs []string) ([]string, error) {
-	prepared, err := prepareCalendarIDs(inputs)
+func resolveCalendarIDs(ctx context.Context, store *config.ConfigStore, svc *calendar.Service, inputs []string) ([]string, error) {
+	prepared, err := prepareCalendarIDs(store, inputs)
 	if err != nil {
 		return nil, err
 	}

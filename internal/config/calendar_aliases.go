@@ -19,20 +19,20 @@ func NormalizeCalendarAlias(alias string) string {
 	return strings.ToLower(strings.TrimSpace(alias))
 }
 
-func ResolveCalendarAlias(alias string) (string, bool, error) {
-	return resolveAliasValue(alias, NormalizeCalendarAlias, calendarAliasesField)
+func (s *ConfigStore) ResolveCalendarAlias(alias string) (string, bool, error) {
+	return s.resolveAliasValue(alias, NormalizeCalendarAlias, calendarAliasesField)
 }
 
 // ResolveCalendarID resolves a calendar ID, checking aliases first.
 // If the input matches an alias, returns the mapped calendar ID.
 // Otherwise returns the input unchanged.
-func ResolveCalendarID(calendarID string) (string, error) {
+func (s *ConfigStore) ResolveCalendarID(calendarID string) (string, error) {
 	calendarID = strings.TrimSpace(calendarID)
 	if calendarID == "" {
 		return "", nil
 	}
 
-	resolved, ok, err := ResolveCalendarAlias(calendarID)
+	resolved, ok, err := s.ResolveCalendarAlias(calendarID)
 	if err != nil {
 		return "", err
 	}
@@ -44,8 +44,8 @@ func ResolveCalendarID(calendarID string) (string, error) {
 	return calendarID, nil
 }
 
-func SetCalendarAlias(alias, calendarID string) error {
-	return setAliasValue(alias, calendarID, NormalizeCalendarAlias, strings.TrimSpace, func(alias, calendarID string) error {
+func (s *ConfigStore) SetCalendarAlias(alias, calendarID string) error {
+	return s.setAliasValue(alias, calendarID, NormalizeCalendarAlias, strings.TrimSpace, func(alias, calendarID string) error {
 		if alias == "" {
 			return errCalendarAliasEmpty
 		}
@@ -62,10 +62,10 @@ func SetCalendarAlias(alias, calendarID string) error {
 	}, calendarAliasesField)
 }
 
-func DeleteCalendarAlias(alias string) (bool, error) {
-	return deleteAliasValue(alias, NormalizeCalendarAlias, calendarAliasesField)
+func (s *ConfigStore) DeleteCalendarAlias(alias string) (bool, error) {
+	return s.deleteAliasValue(alias, NormalizeCalendarAlias, calendarAliasesField)
 }
 
-func ListCalendarAliases() (map[string]string, error) {
-	return listAliasValues(calendarAliasesField)
+func (s *ConfigStore) ListCalendarAliases() (map[string]string, error) {
+	return s.listAliasValues(calendarAliasesField)
 }

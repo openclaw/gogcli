@@ -4,7 +4,6 @@ import (
 	"context"
 	"strings"
 
-	"github.com/steipete/gogcli/internal/config"
 	"github.com/steipete/gogcli/internal/outfmt"
 	"github.com/steipete/gogcli/internal/ui"
 )
@@ -19,7 +18,11 @@ type CalendarAliasListCmd struct{}
 
 func (c *CalendarAliasListCmd) Run(ctx context.Context) error {
 	u := ui.FromContext(ctx)
-	aliases, err := config.ListCalendarAliases()
+	store, err := commandConfigStore(ctx)
+	if err != nil {
+		return err
+	}
+	aliases, err := store.ListCalendarAliases()
 	if err != nil {
 		return err
 	}
@@ -51,7 +54,11 @@ func (c *CalendarAliasSetCmd) Run(ctx context.Context) error {
 	if calendarID == "" {
 		return usage("empty calendar ID")
 	}
-	if err := config.SetCalendarAlias(alias, calendarID); err != nil {
+	store, err := commandConfigStore(ctx)
+	if err != nil {
+		return err
+	}
+	if err := store.SetCalendarAlias(alias, calendarID); err != nil {
 		return err
 	}
 	if outfmt.IsJSON(ctx) {
@@ -75,7 +82,11 @@ func (c *CalendarAliasUnsetCmd) Run(ctx context.Context) error {
 	if alias == "" {
 		return usage("empty alias")
 	}
-	deleted, err := config.DeleteCalendarAlias(alias)
+	store, err := commandConfigStore(ctx)
+	if err != nil {
+		return err
+	}
+	deleted, err := store.DeleteCalendarAlias(alias)
 	if err != nil {
 		return err
 	}

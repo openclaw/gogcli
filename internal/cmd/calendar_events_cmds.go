@@ -42,6 +42,10 @@ func (c *CalendarEventsCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if err != nil {
 		return err
 	}
+	store, err := commandConfigStore(ctx)
+	if err != nil {
+		return err
+	}
 
 	calendarID, err := normalizeCalendarEventsArgs(c.CalendarID)
 	if err != nil {
@@ -63,7 +67,7 @@ func (c *CalendarEventsCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 	if !c.All && len(calInputs) == 0 {
-		calendarID, err = resolveCalendarSelector(ctx, svc, calendarID, true)
+		calendarID, err = resolveCalendarSelector(ctx, store, svc, calendarID, true)
 		if err != nil {
 			return err
 		}
@@ -88,7 +92,7 @@ func (c *CalendarEventsCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return listAllCalendarsEvents(ctx, svc, from, to, c.Max, c.Page, c.AllPages, c.FailEmpty, c.Query, c.PrivatePropFilter, c.SharedPropFilter, c.Fields, c.Weekday, c.Location, c.Sort, c.Order)
 	}
 	if len(calInputs) > 0 {
-		ids, err := resolveCalendarIDs(ctx, svc, calInputs)
+		ids, err := resolveCalendarIDs(ctx, store, svc, calInputs)
 		if err != nil {
 			return err
 		}
@@ -131,6 +135,10 @@ func (c *CalendarEventCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if err != nil {
 		return err
 	}
+	store, err := commandConfigStore(ctx)
+	if err != nil {
+		return err
+	}
 	eventID := normalizeCalendarEventID(c.EventID)
 	if eventID == "" {
 		return usage("empty eventId")
@@ -140,7 +148,7 @@ func (c *CalendarEventCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if err != nil {
 		return err
 	}
-	calendarID, err := resolveCalendarSelector(ctx, svc, c.CalendarID, false)
+	calendarID, err := resolveCalendarSelector(ctx, store, svc, c.CalendarID, false)
 	if err != nil {
 		return err
 	}

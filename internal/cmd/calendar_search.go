@@ -32,7 +32,11 @@ func (c *CalendarSearchCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if err != nil {
 		return err
 	}
-	calendarID, err := resolveCalendarSelector(ctx, svc, c.CalendarID, true)
+	store, err := commandConfigStore(ctx)
+	if err != nil {
+		return err
+	}
+	calendarID, err := resolveCalendarSelector(ctx, store, svc, c.CalendarID, true)
 	if err != nil {
 		return err
 	}

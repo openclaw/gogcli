@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"bytes"
+	"context"
 	"io"
 	"os"
 	"strings"
@@ -10,6 +11,7 @@ import (
 
 	"google.golang.org/api/gmail/v1"
 
+	"github.com/steipete/gogcli/internal/app"
 	"github.com/steipete/gogcli/internal/config"
 )
 
@@ -279,7 +281,7 @@ func TestResolveOutputLocation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := resolveOutputLocation(tt.timezone, tt.local, io.Discard)
+			got, err := resolveOutputLocation(context.Background(), tt.timezone, tt.local, io.Discard)
 
 			if tt.wantErr {
 				if err == nil {
@@ -322,7 +324,7 @@ func TestResolveOutputLocation_EnvVar(t *testing.T) {
 
 	// Test GOG_TIMEZONE takes effect when no flag provided
 	os.Setenv("GOG_TIMEZONE", envTZ)
-	loc, err := resolveOutputLocation("", false, io.Discard)
+	loc, err := resolveOutputLocation(context.Background(), "", false, io.Discard)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -331,7 +333,7 @@ func TestResolveOutputLocation_EnvVar(t *testing.T) {
 	}
 
 	// Test flag takes precedence over env var
-	loc, err = resolveOutputLocation(flagTZ, false, io.Discard)
+	loc, err = resolveOutputLocation(context.Background(), flagTZ, false, io.Discard)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -340,7 +342,7 @@ func TestResolveOutputLocation_EnvVar(t *testing.T) {
 	}
 
 	// Test --timezone local overrides env var
-	loc, err = resolveOutputLocation("local", false, io.Discard)
+	loc, err = resolveOutputLocation(context.Background(), "local", false, io.Discard)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -349,7 +351,7 @@ func TestResolveOutputLocation_EnvVar(t *testing.T) {
 	}
 
 	// Test --local overrides env var
-	loc, err = resolveOutputLocation("", true, io.Discard)
+	loc, err = resolveOutputLocation(context.Background(), "", true, io.Discard)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -359,7 +361,7 @@ func TestResolveOutputLocation_EnvVar(t *testing.T) {
 
 	// Test invalid env var returns error
 	os.Setenv("GOG_TIMEZONE", "Invalid/Zone")
-	_, err = resolveOutputLocation("", false, io.Discard)
+	_, err = resolveOutputLocation(context.Background(), "", false, io.Discard)
 	if err == nil {
 		t.Fatal("expected error for invalid GOG_TIMEZONE")
 	}
@@ -426,7 +428,7 @@ func TestGetConfiguredTimezone(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			os.Setenv("GOG_TIMEZONE", tt.env)
-			loc, err := getConfiguredTimezone(tt.flag, io.Discard)
+			loc, err := getConfiguredTimezone(context.Background(), tt.flag, io.Discard)
 
 			if tt.wantErr {
 				if err == nil {
@@ -463,15 +465,27 @@ func TestGetConfiguredTimezone(t *testing.T) {
 }
 
 func TestInvalidConfigTimezoneUsesDiagnosticWriter(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
-	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	t.Setenv("GOG_TIMEZONE", "")
-	if err := config.WriteConfig(config.File{DefaultTimezone: "Invalid/Zone"}); err != nil {
-		t.Fatalf("write config: %v", err)
+
+	ambientLayout := config.Layout{ConfigDir: t.TempDir(), ExplicitConfig: true}
+	ambientStore := config.NewConfigStore(ambientLayout)
+	if err := ambientStore.Write(config.File{DefaultTimezone: "UTC"}); err != nil {
+		t.Fatalf("write ambient config: %v", err)
 	}
+	t.Setenv("GOG_CONFIG_DIR", ambientLayout.ConfigDir)
+
+	runtimeLayout := config.Layout{ConfigDir: t.TempDir(), ExplicitConfig: true}
+	runtimeStore := config.NewConfigStore(runtimeLayout)
+	if err := runtimeStore.Write(config.File{DefaultTimezone: "Invalid/Zone"}); err != nil {
+		t.Fatalf("write runtime config: %v", err)
+	}
+	ctx := app.WithRuntime(context.Background(), &app.Runtime{
+		Layout: runtimeLayout,
+		Config: runtimeStore,
+	})
 
 	var diagnostics bytes.Buffer
-	loc, err := resolveOutputLocation("", false, &diagnostics)
+	loc, err := resolveOutputLocation(ctx, "", false, &diagnostics)
 	if err != nil {
 		t.Fatalf("resolveOutputLocation: %v", err)
 	}
@@ -480,5 +494,33 @@ func TestInvalidConfigTimezoneUsesDiagnosticWriter(t *testing.T) {
 	}
 	if got := diagnostics.String(); !strings.Contains(got, "using local timezone") {
 		t.Fatalf("unexpected diagnostics: %q", got)
+	}
+}
+
+func TestResolveOutputLocationUsesRuntimeConfig(t *testing.T) {
+	t.Setenv("GOG_TIMEZONE", "")
+
+	ambientLayout := config.Layout{ConfigDir: t.TempDir(), ExplicitConfig: true}
+	if err := config.NewConfigStore(ambientLayout).Write(config.File{DefaultTimezone: "UTC"}); err != nil {
+		t.Fatalf("write ambient config: %v", err)
+	}
+	t.Setenv("GOG_CONFIG_DIR", ambientLayout.ConfigDir)
+
+	runtimeLayout := config.Layout{ConfigDir: t.TempDir(), ExplicitConfig: true}
+	runtimeStore := config.NewConfigStore(runtimeLayout)
+	if err := runtimeStore.Write(config.File{DefaultTimezone: "Europe/London"}); err != nil {
+		t.Fatalf("write runtime config: %v", err)
+	}
+	ctx := app.WithRuntime(context.Background(), &app.Runtime{
+		Layout: runtimeLayout,
+		Config: runtimeStore,
+	})
+
+	loc, err := resolveOutputLocation(ctx, "", false, io.Discard)
+	if err != nil {
+		t.Fatalf("resolveOutputLocation: %v", err)
+	}
+	if got := loc.String(); got != "Europe/London" {
+		t.Fatalf("location = %q, want Europe/London", got)
 	}
 }

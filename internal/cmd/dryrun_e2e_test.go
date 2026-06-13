@@ -771,8 +771,12 @@ func TestDryRunE2E_ValidatesFormsAndSheetsLocalInputs(t *testing.T) {
 			args: []string{"forms", "add-question", "form123", "--title", "Q", "--type", "radio"},
 		},
 		{
-			name: "forms add scale rejects inverted range",
-			args: []string{"forms", "add-question", "form123", "--title", "Q", "--type", "scale", "--scale-low", "5", "--scale-high", "1"},
+			name: "forms add scale rejects invalid lower bound",
+			args: []string{"forms", "add-question", "form123", "--title", "Q", "--type", "scale", "--scale-low", "2"},
+		},
+		{
+			name: "forms add scale rejects invalid upper bound",
+			args: []string{"forms", "add-question", "form123", "--title", "Q", "--type", "scale", "--scale-high", "11"},
 		},
 		{
 			name: "forms update requires a field before auth",

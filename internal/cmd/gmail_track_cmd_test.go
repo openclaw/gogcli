@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -12,8 +13,11 @@ import (
 
 	"github.com/steipete/gogcli/internal/app"
 	"github.com/steipete/gogcli/internal/config"
+	"github.com/steipete/gogcli/internal/secrets"
 	"github.com/steipete/gogcli/internal/tracking"
 )
+
+var errUnexpectedTrackingSecretStoreOpen = errors.New("unexpected tracking secret store open")
 
 func setupTrackingEnv(t *testing.T) {
 	t.Helper()
@@ -37,7 +41,7 @@ func trackingConfigStoreForTest(t *testing.T) *tracking.ConfigStore {
 			t.Fatalf("resolve user config base: %v", err)
 		}
 	}
-	store, err := tracking.NewConfigStore(layout, legacyConfigBase)
+	store, err := tracking.NewConfigStore(layout, legacyConfigBase, nil)
 	if err != nil {
 		t.Fatalf("new tracking config store: %v", err)
 	}
@@ -68,7 +72,7 @@ func TestTrackingConfigStoreUsesRuntimeLayout(t *testing.T) {
 			ExplicitState:  true,
 		}
 	})
-	store, err := newTrackingConfigStore(ctx)
+	store, err := newTrackingConfigStore(ctx, nil)
 	if err != nil {
 		t.Fatalf("new store: %v", err)
 	}
@@ -91,6 +95,138 @@ func TestTrackingConfigStoreUsesRuntimeLayout(t *testing.T) {
 		if _, err := os.Stat(path); !os.IsNotExist(err) {
 			t.Fatalf("ambient path unexpectedly touched: %s (%v)", path, err)
 		}
+	}
+}
+
+func TestGmailTrackCommandsUseRuntimeSecretStore(t *testing.T) {
+	ambientHome := t.TempDir()
+	t.Setenv("GOG_HOME", ambientHome)
+	t.Setenv("GOG_KEYRING_BACKEND", "file")
+	t.Setenv("GOG_KEYRING_PASSWORD", "ambient-password")
+
+	runtimeRoot := t.TempDir()
+	secretStore := newMemSecretsStore()
+	runtime := &app.Runtime{
+		Layout: config.Layout{
+			ConfigDir:      filepath.Join(runtimeRoot, "config"),
+			StateDir:       filepath.Join(runtimeRoot, "state"),
+			ExplicitConfig: true,
+			ExplicitState:  true,
+		},
+		Auth: app.AuthOperations{
+			OpenSecretStore: func() (secrets.SecretStore, error) {
+				return secretStore, nil
+			},
+		},
+	}
+	account := "runtime@example.com"
+
+	setupResult := executeWithTestRuntime(t, []string{
+		"--account", account,
+		"--no-input",
+		"--json",
+		"gmail", "track", "setup",
+		"--worker-url", "https://example.com",
+		"--tracking-key", "track-v1",
+		"--admin-key", "admin",
+	}, runtime)
+	if setupResult.err != nil {
+		t.Fatalf("setup: %v", setupResult.err)
+	}
+
+	statusResult := executeWithTestRuntime(t, []string{
+		"--account", account,
+		"--json",
+		"gmail", "track", "status",
+	}, runtime)
+	if statusResult.err != nil {
+		t.Fatalf("status: %v", statusResult.err)
+	}
+	if !strings.Contains(statusResult.stdout, `"configured": true`) {
+		t.Fatalf("status output = %q", statusResult.stdout)
+	}
+
+	rotateResult := executeWithTestRuntime(t, []string{
+		"--account", account,
+		"--no-input",
+		"--json",
+		"gmail", "track", "key", "rotate",
+		"--no-deploy",
+	}, runtime)
+	if rotateResult.err != nil {
+		t.Fatalf("rotate: %v", rotateResult.err)
+	}
+
+	for _, key := range []string{
+		"tracking/runtime@example.com/tracking_key_v1",
+		"tracking/runtime@example.com/tracking_key_v2",
+		"tracking/runtime@example.com/tracking_key",
+		"tracking/runtime@example.com/admin_key",
+	} {
+		if _, ok := secretStore.secrets[key]; !ok {
+			t.Fatalf("runtime secret %q not written: %#v", key, secretStore.secrets)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(ambientHome, "data", "keyring")); !os.IsNotExist(err) {
+		t.Fatalf("ambient keyring touched: %v", err)
+	}
+}
+
+func TestGmailTrackInlineSecretsDoNotOpenRuntimeSecretStore(t *testing.T) {
+	root := t.TempDir()
+	layout := config.Layout{
+		ConfigDir:      filepath.Join(root, "config"),
+		StateDir:       filepath.Join(root, "state"),
+		ExplicitConfig: true,
+		ExplicitState:  true,
+	}
+	store, err := tracking.NewConfigStore(layout, "", nil)
+	if err != nil {
+		t.Fatalf("NewConfigStore: %v", err)
+	}
+	account := "inline@example.com"
+	if saveErr := store.Save(account, &tracking.Config{
+		Enabled:     true,
+		WorkerURL:   "https://example.com",
+		TrackingKey: "inline-track",
+		AdminKey:    "inline-admin",
+	}); saveErr != nil {
+		t.Fatalf("Save: %v", saveErr)
+	}
+
+	opened := false
+	runtime := &app.Runtime{
+		Layout: layout,
+		Auth: app.AuthOperations{
+			OpenSecretStore: func() (secrets.SecretStore, error) {
+				opened = true
+				return nil, errUnexpectedTrackingSecretStoreOpen
+			},
+		},
+	}
+	statusResult := executeWithTestRuntime(t, []string{
+		"--account", account,
+		"--json",
+		"gmail", "track", "status",
+	}, runtime)
+	if statusResult.err != nil {
+		t.Fatalf("status: %v", statusResult.err)
+	}
+
+	ctx := withTestRuntime(newCmdRuntimeOutputContext(t, io.Discard, io.Discard), func(testRuntime *app.Runtime) {
+		testRuntime.Layout = layout
+		testRuntime.Auth = runtime.Auth
+	})
+	sendCmd := GmailSendCmd{BodyHTML: "<p>tracked</p>"}
+	cfg, err := sendCmd.resolveTrackingConfig(ctx, account, []string{"to@example.com"}, nil, nil, sendCmd.BodyHTML)
+	if err != nil {
+		t.Fatalf("resolveTrackingConfig: %v", err)
+	}
+	if cfg.TrackingKey != "inline-track" {
+		t.Fatalf("tracking config = %#v", cfg)
+	}
+	if opened {
+		t.Fatalf("inline config opened runtime secret store")
 	}
 }
 

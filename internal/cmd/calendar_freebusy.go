@@ -28,8 +28,12 @@ func (c *CalendarFreeBusyCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if err != nil {
 		return err
 	}
+	store, err := commandConfigStore(ctx)
+	if err != nil {
+		return err
+	}
 
-	calendarIDs, err := resolveSelectedCalendarIDs(ctx, svc, c.Cal, c.CalendarIDs, c.All, true)
+	calendarIDs, err := resolveSelectedCalendarIDs(ctx, store, svc, c.Cal, c.CalendarIDs, c.All, true)
 	if err != nil {
 		return err
 	}

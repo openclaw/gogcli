@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -136,7 +137,7 @@ func TestAuthAddCmd_KeychainError(t *testing.T) {
 	openSecretsStore := func() (secrets.Store, error) { return store, nil }
 
 	cmd := &AuthAddCmd{Email: "test@example.com", ServicesCSV: "gmail"}
-	ctx := app.WithRuntime(context.Background(), runtimeWithAuthTestOperations(
+	ctx := app.WithRuntime(withTestClientResolver(context.Background()), runtimeWithAuthTestOperations(
 		openSecretsStore, authorizeGoogle, ensureKeychainAccess, fetchAuthorizedIdentity,
 	))
 	err := cmd.Run(ctx, &RootFlags{})
@@ -202,6 +203,71 @@ func TestAuthAddCmd_ListTokenFailureDoesNotBlockFreshTokenSave(t *testing.T) {
 	}
 	if tok.RefreshToken != "rt" || tok.Subject != "sub-123" {
 		t.Fatalf("unexpected saved token: %#v", tok)
+	}
+}
+
+func TestExecuteAuthAddMigratesRuntimeEmailReferences(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, "xdg-config"))
+
+	ambientStore := defaultConfigStoreForTest(t)
+	if err := ambientStore.Write(config.File{
+		AccountAliases: map[string]string{"work": "old@example.com"},
+	}); err != nil {
+		t.Fatalf("write ambient config: %v", err)
+	}
+	runtimeStore := config.NewConfigStore(config.Layout{ConfigDir: t.TempDir()})
+	if err := runtimeStore.Write(config.File{
+		AccountAliases: map[string]string{"work": "old@example.com"},
+		AccountClients: map[string]string{"old@example.com": "work-client"},
+	}); err != nil {
+		t.Fatalf("write runtime config: %v", err)
+	}
+
+	store := newMemSecretsStore()
+	if err := store.SetToken(config.DefaultClientName, "old@example.com", secrets.Token{
+		Subject:      "sub-123",
+		Email:        "old@example.com",
+		RefreshToken: "old-refresh",
+	}); err != nil {
+		t.Fatalf("set old token: %v", err)
+	}
+	store.defaults[config.DefaultClientName] = "old@example.com"
+
+	runtime := runtimeWithAuthTestOperations(
+		func() (secrets.Store, error) { return store, nil },
+		func(context.Context, googleauth.AuthorizeOptions) (string, error) { return "new-refresh", nil },
+		func(context.Context) error { return nil },
+		func(context.Context, string, string, []string, time.Duration) (googleauth.Identity, error) {
+			return googleauth.Identity{Subject: "sub-123", Email: "new@example.com"}, nil
+		},
+	)
+	runtime.Config = runtimeStore
+
+	result := executeWithTestRuntime(t, []string{
+		"auth", "add", "new@example.com", "--services", "gmail", "--manual",
+	}, runtime)
+	if result.err != nil {
+		t.Fatalf("execute: %v", result.err)
+	}
+
+	runtimeCfg, err := runtimeStore.Read()
+	if err != nil {
+		t.Fatalf("read runtime config: %v", err)
+	}
+	if runtimeCfg.AccountAliases["work"] != "new@example.com" || runtimeCfg.AccountClients["new@example.com"] != "work-client" {
+		t.Fatalf("runtime config = %#v", runtimeCfg)
+	}
+	ambientCfg, err := ambientStore.Read()
+	if err != nil {
+		t.Fatalf("read ambient config: %v", err)
+	}
+	if ambientCfg.AccountAliases["work"] != "old@example.com" {
+		t.Fatalf("ambient config changed: %#v", ambientCfg)
+	}
+	if store.defaults[config.DefaultClientName] != "new@example.com" {
+		t.Fatalf("default account = %q", store.defaults[config.DefaultClientName])
 	}
 }
 

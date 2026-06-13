@@ -1,7 +1,6 @@
 package googleapi
 
 import (
-	"context"
 	"testing"
 
 	"github.com/steipete/gogcli/internal/config"
@@ -43,7 +42,7 @@ func TestNewTasks(t *testing.T) {
 		return &tasksStubStore{tok: secrets.Token{RefreshToken: "rt"}}, nil
 	}
 
-	svc, err := NewTasks(context.Background(), "a@b.com")
+	svc, err := NewTasks(testClientResolverContext(), "a@b.com")
 	if err != nil {
 		t.Fatalf("NewTasks: %v", err)
 	}

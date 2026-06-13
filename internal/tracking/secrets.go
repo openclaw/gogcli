@@ -3,6 +3,7 @@ package tracking
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -14,6 +15,7 @@ import (
 var (
 	errMissingTrackingKey = errors.New("missing tracking key")
 	errMissingAdminKey    = errors.New("missing admin key")
+	errNilSecretStore     = errors.New("secret store is nil")
 )
 
 const (
@@ -23,7 +25,19 @@ const (
 	adminKeySecretSuffix       = "admin_key"
 )
 
-func SaveSecrets(account, trackingKey, adminKey string) error {
+type SecretStore struct {
+	store secrets.SecretStore
+}
+
+func NewSecretStore(store secrets.SecretStore) (*SecretStore, error) {
+	if store == nil {
+		return nil, errNilSecretStore
+	}
+
+	return &SecretStore{store: store}, nil
+}
+
+func (s *SecretStore) SaveSecrets(account, trackingKey, adminKey string) error {
 	account = normalizeAccount(account)
 	if account == "" {
 		return errMissingAccount
@@ -37,14 +51,14 @@ func SaveSecrets(account, trackingKey, adminKey string) error {
 		return errMissingAdminKey
 	}
 
-	if err := SaveTrackingKeys(account, map[int]string{1: trackingKey}, 1, adminKey); err != nil {
+	if err := s.SaveTrackingKeys(account, map[int]string{1: trackingKey}, 1, adminKey); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func SaveTrackingKeys(account string, trackingKeys map[int]string, currentVersion int, adminKey string) error {
+func (s *SecretStore) SaveTrackingKeys(account string, trackingKeys map[int]string, currentVersion int, adminKey string) error {
 	account = normalizeAccount(account)
 	if account == "" {
 		return errMissingAccount
@@ -58,7 +72,11 @@ func SaveTrackingKeys(account string, trackingKeys map[int]string, currentVersio
 		return errMissingAdminKey
 	}
 
-	for version, trackingKey := range trackingKeys {
+	versions := mapKeyVersions(trackingKeys)
+	slices.Sort(versions)
+
+	for _, version := range versions {
+		trackingKey := trackingKeys[version]
 		if version < 1 || version > 255 {
 			return fmt.Errorf("%w: %d", errInvalidTrackingKeyVersion, version)
 		}
@@ -67,7 +85,7 @@ func SaveTrackingKeys(account string, trackingKeys map[int]string, currentVersio
 			return errMissingTrackingKey
 		}
 
-		if err := secrets.SetSecret(scopedSecretKey(account, versionedTrackingKeySecretSuffix(version)), []byte(trackingKey)); err != nil {
+		if err := s.setSecret(scopedSecretKey(account, versionedTrackingKeySecretSuffix(version)), []byte(trackingKey)); err != nil {
 			return fmt.Errorf("store tracking key v%d: %w", version, err)
 		}
 	}
@@ -77,18 +95,18 @@ func SaveTrackingKeys(account string, trackingKeys map[int]string, currentVersio
 		return fmt.Errorf("%w: %d", errMissingCurrentTrackingKeyValue, currentVersion)
 	}
 
-	if err := secrets.SetSecret(scopedSecretKey(account, trackingKeySecretSuffix), []byte(currentKey)); err != nil {
+	if err := s.setSecret(scopedSecretKey(account, trackingKeySecretSuffix), []byte(currentKey)); err != nil {
 		return fmt.Errorf("store tracking key: %w", err)
 	}
 
-	if err := secrets.SetSecret(scopedSecretKey(account, adminKeySecretSuffix), []byte(adminKey)); err != nil {
+	if err := s.setSecret(scopedSecretKey(account, adminKeySecretSuffix), []byte(adminKey)); err != nil {
 		return fmt.Errorf("store admin key: %w", err)
 	}
 
 	return nil
 }
 
-func LoadTrackingKeys(account string, knownVersions []int, currentVersion int) (map[int]string, int, error) {
+func (s *SecretStore) LoadTrackingKeys(account string, knownVersions []int, currentVersion int) (map[int]string, int, error) {
 	account = normalizeAccount(account)
 	if account == "" {
 		return nil, 0, errMissingAccount
@@ -102,7 +120,7 @@ func LoadTrackingKeys(account string, knownVersions []int, currentVersion int) (
 	keys := map[int]string{}
 
 	for _, version := range versions {
-		key, err := readSecretWithFallback(scopedSecretKey(account, versionedTrackingKeySecretSuffix(version)), "")
+		key, err := s.readSecretWithFallback(scopedSecretKey(account, versionedTrackingKeySecretSuffix(version)), "")
 		if err != nil {
 			return nil, 0, fmt.Errorf("read tracking key v%d: %w", version, err)
 		}
@@ -113,7 +131,7 @@ func LoadTrackingKeys(account string, knownVersions []int, currentVersion int) (
 	}
 
 	if keys[1] == "" {
-		legacyKey, err := readSecretWithFallback(scopedSecretKey(account, trackingKeySecretSuffix), legacyTrackingKeySecretKey)
+		legacyKey, err := s.readSecretWithFallback(scopedSecretKey(account, trackingKeySecretSuffix), legacyTrackingKeySecretKey)
 		if err != nil {
 			return nil, 0, fmt.Errorf("read tracking key: %w", err)
 		}
@@ -139,18 +157,18 @@ func LoadTrackingKeys(account string, knownVersions []int, currentVersion int) (
 	return keys, currentVersion, nil
 }
 
-func LoadSecrets(account string) (trackingKey, adminKey string, err error) {
+func (s *SecretStore) LoadSecrets(account string) (trackingKey, adminKey string, err error) {
 	account = normalizeAccount(account)
 	if account == "" {
 		return "", "", errMissingAccount
 	}
 
-	trackingKey, err = readSecretWithFallback(scopedSecretKey(account, trackingKeySecretSuffix), legacyTrackingKeySecretKey)
+	trackingKey, err = s.readSecretWithFallback(scopedSecretKey(account, trackingKeySecretSuffix), legacyTrackingKeySecretKey)
 	if err != nil {
 		return "", "", fmt.Errorf("read tracking key: %w", err)
 	}
 
-	adminKey, err = readSecretWithFallback(scopedSecretKey(account, adminKeySecretSuffix), legacyAdminKeySecretKey)
+	adminKey, err = s.readSecretWithFallback(scopedSecretKey(account, adminKeySecretSuffix), legacyAdminKeySecretKey)
 	if err != nil {
 		return "", "", fmt.Errorf("read admin key: %w", err)
 	}
@@ -158,8 +176,24 @@ func LoadSecrets(account string) (trackingKey, adminKey string, err error) {
 	return trackingKey, adminKey, nil
 }
 
-func readSecretWithFallback(primary, legacy string) (string, error) {
-	val, err := secrets.GetSecret(primary)
+func (s *SecretStore) setSecret(key string, value []byte) error {
+	if s == nil || s.store == nil {
+		return errNilSecretStore
+	}
+
+	if err := s.store.SetSecret(key, value); err != nil {
+		return fmt.Errorf("set secret: %w", err)
+	}
+
+	return nil
+}
+
+func (s *SecretStore) readSecretWithFallback(primary, legacy string) (string, error) {
+	if s == nil || s.store == nil {
+		return "", errNilSecretStore
+	}
+
+	val, err := s.store.GetSecret(primary)
 	if err == nil {
 		return string(val), nil
 	}
@@ -172,7 +206,7 @@ func readSecretWithFallback(primary, legacy string) (string, error) {
 		return "", nil
 	}
 
-	legacyVal, legacyErr := secrets.GetSecret(legacy)
+	legacyVal, legacyErr := s.store.GetSecret(legacy)
 	if legacyErr == nil {
 		return string(legacyVal), nil
 	}
@@ -182,6 +216,15 @@ func readSecretWithFallback(primary, legacy string) (string, error) {
 	}
 
 	return "", fmt.Errorf("read legacy secret: %w", legacyErr)
+}
+
+func mapKeyVersions(values map[int]string) []int {
+	versions := make([]int, 0, len(values))
+	for version := range values {
+		versions = append(versions, version)
+	}
+
+	return versions
 }
 
 func scopedSecretKey(account, suffix string) string {

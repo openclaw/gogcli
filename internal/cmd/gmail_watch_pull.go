@@ -20,7 +20,7 @@ import (
 type GmailWatchPullCmd struct {
 	Subscription  string   `name:"subscription" help:"Pub/Sub pull subscription (projects/.../subscriptions/...)"`
 	FetchDelay    string   `name:"fetch-delay" help:"Delay before fetching Gmail history (seconds or duration)" default:"3s"`
-	Timezone      string   `name:"timezone" short:"z" help:"Output timezone (IANA name, e.g. America/New_York, UTC). Default: local"`
+	Timezone      string   `name:"timezone" short:"z" help:"Output timezone (IANA name, e.g. America/New_York, UTC). Default: GOG_TIMEZONE, config, then local"`
 	Local         bool     `name:"local" help:"Use local timezone (default behavior, useful to override --timezone)"`
 	HookURL       string   `name:"hook-url" help:"Webhook URL to forward messages"`
 	HookToken     string   `name:"hook-token" help:"Webhook bearer token"`
@@ -45,7 +45,7 @@ func (c *GmailWatchPullCmd) Run(ctx context.Context, kctx *kong.Context, flags *
 		return subscriptionErr
 	}
 
-	loc, err := resolveOutputLocation(c.Timezone, c.Local, stderrWriter(ctx))
+	loc, err := resolveOutputLocation(ctx, c.Timezone, c.Local, stderrWriter(ctx))
 	if err != nil {
 		return err
 	}

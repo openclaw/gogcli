@@ -12,7 +12,7 @@ type GmailTrackStatusCmd struct{}
 
 func (c *GmailTrackStatusCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
-	account, cfg, configStore, err := loadTrackingConfigForAccount(ctx, flags)
+	account, cfg, configStore, _, err := loadTrackingConfigForAccount(ctx, flags)
 	if err != nil {
 		return err
 	}

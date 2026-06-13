@@ -20,7 +20,7 @@ type GmailSearchCmd struct {
 	All         bool     `name:"all" aliases:"all-pages,allpages" help:"Fetch all pages"`
 	FailEmpty   bool     `name:"fail-empty" aliases:"non-empty,require-results" help:"Exit with code 3 if no results"`
 	Oldest      bool     `name:"oldest" help:"Show first message date instead of last"`
-	Timezone    string   `name:"timezone" short:"z" help:"Output timezone (IANA name, e.g. America/New_York, UTC). Default: local"`
+	Timezone    string   `name:"timezone" short:"z" help:"Output timezone (IANA name, e.g. America/New_York, UTC). Default: GOG_TIMEZONE, config, then local"`
 	Local       bool     `name:"local" help:"Use local timezone (default behavior, useful to override --timezone)"`
 }
 
@@ -81,7 +81,7 @@ func (c *GmailSearchCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
-	loc, err := resolveOutputLocation(c.Timezone, c.Local, stderrWriter(ctx))
+	loc, err := resolveOutputLocation(ctx, c.Timezone, c.Local, stderrWriter(ctx))
 	if err != nil {
 		return err
 	}

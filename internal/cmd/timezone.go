@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -25,18 +26,18 @@ const (
 	warnConfigIgnore    = "warning: invalid %s in config %q, ignoring\n"
 )
 
-func resolveOutputLocation(timezone string, local bool, diagnostics io.Writer) (*time.Location, error) {
-	return resolveTimezone(timezone, local, timezoneWithFallback, diagnostics)
+func resolveOutputLocation(ctx context.Context, timezone string, local bool, diagnostics io.Writer) (*time.Location, error) {
+	return resolveTimezone(ctx, timezone, local, timezoneWithFallback, diagnostics)
 }
 
 // getConfiguredTimezone returns the timezone from flag, env var, or config file.
 // Returns nil if no timezone is explicitly configured. The special value "local"
 // returns time.Local to explicitly use the local timezone.
-func getConfiguredTimezone(timezone string, diagnostics io.Writer) (*time.Location, error) {
-	return resolveTimezone(timezone, false, timezoneExplicitOnly, diagnostics)
+func getConfiguredTimezone(ctx context.Context, timezone string, diagnostics io.Writer) (*time.Location, error) {
+	return resolveTimezone(ctx, timezone, false, timezoneExplicitOnly, diagnostics)
 }
 
-func resolveTimezone(timezone string, local bool, mode timezoneResolveMode, diagnostics io.Writer) (*time.Location, error) {
+func resolveTimezone(ctx context.Context, timezone string, local bool, mode timezoneResolveMode, diagnostics io.Writer) (*time.Location, error) {
 	if local {
 		return time.Local, nil
 	}
@@ -49,7 +50,7 @@ func resolveTimezone(timezone string, local bool, mode timezoneResolveMode, diag
 		return loc, err
 	}
 
-	if cfg, ok := readConfigOptional(); ok && cfg.DefaultTimezone != "" {
+	if cfg, ok := readConfigOptional(ctx); ok && cfg.DefaultTimezone != "" {
 		loc, ok, err := parseTimezoneValue(configTimezoneLabel, cfg.DefaultTimezone, false)
 		if ok {
 			if err != nil {
@@ -95,8 +96,12 @@ func tryLoadTimezoneLocation(timezone string) (*time.Location, bool) {
 	return loc, true
 }
 
-func readConfigOptional() (config.File, bool) {
-	cfg, err := config.ReadConfig()
+func readConfigOptional(ctx context.Context) (config.File, bool) {
+	store, err := commandConfigStore(ctx)
+	if err != nil {
+		return config.File{}, false
+	}
+	cfg, err := store.Read()
 	if err != nil {
 		return config.File{}, false
 	}

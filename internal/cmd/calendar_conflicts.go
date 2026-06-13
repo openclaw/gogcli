@@ -37,13 +37,17 @@ func (c *CalendarConflictsCmd) Run(ctx context.Context, flags *RootFlags) error 
 	if err != nil {
 		return err
 	}
+	store, err := commandConfigStore(ctx)
+	if err != nil {
+		return err
+	}
 
 	allCalendars := c.All
 	if !allCalendars && len(collectCalendarInputs(c.Cal, c.Calendars)) == 0 {
 		allCalendars = true
 	}
 
-	calendarIDs, err := resolveSelectedCalendarIDs(ctx, svc, c.Cal, c.Calendars, allCalendars, false)
+	calendarIDs, err := resolveSelectedCalendarIDs(ctx, store, svc, c.Cal, c.Calendars, allCalendars, false)
 	if err != nil {
 		return err
 	}

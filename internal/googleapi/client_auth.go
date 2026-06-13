@@ -34,7 +34,8 @@ type persistingTokenSource struct {
 	// Metadata repair uses only scopes returned by the OAuth server, not the
 	// requested set. serviceLabel is added only when the observed grant covers
 	// the canonical scope set for that service.
-	serviceLabel string
+	serviceLabel          string
+	updateEmailReferences googleauth.EmailReferenceUpdater
 
 	mu  sync.Mutex
 	tok secrets.Token
@@ -44,14 +45,15 @@ type tokenAliasDeleter interface {
 	DeleteTokenAlias(client string, email string) error
 }
 
-func newPersistingTokenSource(base oauth2.TokenSource, store secrets.Store, client string, email string, tok secrets.Token, serviceLabel string) oauth2.TokenSource {
+func newPersistingTokenSource(base oauth2.TokenSource, store secrets.Store, client string, email string, tok secrets.Token, serviceLabel string, updateEmailReferences googleauth.EmailReferenceUpdater) oauth2.TokenSource {
 	return &persistingTokenSource{
-		base:         base,
-		store:        store,
-		client:       client,
-		email:        email,
-		serviceLabel: strings.TrimSpace(serviceLabel),
-		tok:          tok,
+		base:                  base,
+		store:                 store,
+		client:                client,
+		email:                 email,
+		serviceLabel:          strings.TrimSpace(serviceLabel),
+		updateEmailReferences: updateEmailReferences,
+		tok:                   tok,
 	}
 }
 
@@ -135,7 +137,7 @@ func (p *persistingTokenSource) Token() (*oauth2.Token, error) {
 	}
 
 	if !strings.EqualFold(p.email, persistEmail) {
-		if err := googleauth.MigrateStoredEmailReferences(p.store, p.client, p.email, persistEmail); err != nil {
+		if err := googleauth.MigrateStoredEmailReferences(p.store, p.updateEmailReferences, p.client, p.email, persistEmail); err != nil {
 			slog.Warn("migrate renamed token email references failed", "old_email", p.email, "new_email", persistEmail, "client", p.client, "err", err)
 		}
 
@@ -303,7 +305,9 @@ func tokenSourceForAccountScopesWithStoredScopeCheck(
 		Expiry:       tok.AccessTokenExpiresAt,
 	})
 
-	return newPersistingTokenSource(baseSource, store, client, email, tok, serviceLabel), nil
+	return newPersistingTokenSource(baseSource, store, client, email, tok, serviceLabel, func(oldEmail, newEmail string) error {
+		return authclient.UpdateEmailReferences(ctx, oldEmail, newEmail)
+	}), nil
 }
 
 func tokenGrantedScopes(t *oauth2.Token) []string {

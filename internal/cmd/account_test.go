@@ -1,10 +1,13 @@
 package cmd
 
 import (
+	"context"
 	"errors"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"google.golang.org/api/calendar/v3"
 
 	"github.com/steipete/gogcli/internal/app"
 	"github.com/steipete/gogcli/internal/config"
@@ -241,5 +244,41 @@ func TestRequireAccount_AccessTokenWithExplicitAccount(t *testing.T) {
 	}
 	if !strings.Contains(diagnostics.String(), directAccessTokenWarning) {
 		t.Fatalf("expected warning, got %q", diagnostics.String())
+	}
+}
+
+func TestExecuteAccountAliasUsesRuntimeConfigStore(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, "xdg-config"))
+
+	ambientStore := defaultConfigStoreForTest(t)
+	if err := ambientStore.SetAccountAlias("work", "ambient@example.com"); err != nil {
+		t.Fatalf("set ambient alias: %v", err)
+	}
+	runtimeStore := config.NewConfigStore(config.Layout{ConfigDir: t.TempDir()})
+	if err := runtimeStore.SetAccountAlias("work", "runtime@example.com"); err != nil {
+		t.Fatalf("set runtime alias: %v", err)
+	}
+
+	wantErr := errors.New("stop after account resolution")
+	var gotAccount string
+	result := executeWithTestRuntime(t, []string{
+		"--account", "work",
+		"calendar", "time",
+	}, &app.Runtime{
+		Config: runtimeStore,
+		Services: app.Services{
+			Calendar: func(_ context.Context, account string) (*calendar.Service, error) {
+				gotAccount = account
+				return nil, wantErr
+			},
+		},
+	})
+	if !errors.Is(result.err, wantErr) {
+		t.Fatalf("error = %v, want %v", result.err, wantErr)
+	}
+	if gotAccount != "runtime@example.com" {
+		t.Fatalf("account = %q, want runtime alias target", gotAccount)
 	}
 }

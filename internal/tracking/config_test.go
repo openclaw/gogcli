@@ -14,7 +14,7 @@ func TestConfigRoundTrip(t *testing.T) {
 
 	account := "test@example.com"
 
-	if err := SaveSecrets(account, "testkey123", "adminkey456"); err != nil {
+	if err := store.secrets.SaveSecrets(account, "testkey123", "adminkey456"); err != nil {
 		t.Fatalf("SaveSecrets failed: %v", err)
 	}
 

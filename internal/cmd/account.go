@@ -60,7 +60,7 @@ func requireAccount(flags *RootFlags) (string, error) {
 
 func configuredAccount(flags *RootFlags) (string, bool, error) {
 	if candidate := flagAccount(flags); candidate != "" {
-		account, ok, err := selectConfiguredAccount(candidate)
+		account, ok, err := selectConfiguredAccount(flags, candidate)
 		if err != nil {
 			return "", false, err
 		}
@@ -68,7 +68,7 @@ func configuredAccount(flags *RootFlags) (string, bool, error) {
 	}
 
 	if candidate := strings.TrimSpace(os.Getenv("GOG_ACCOUNT")); candidate != "" {
-		account, ok, err := selectConfiguredAccount(candidate)
+		account, ok, err := selectConfiguredAccount(flags, candidate)
 		if err != nil {
 			return "", false, err
 		}
@@ -86,8 +86,8 @@ func flagAccount(flags *RootFlags) string {
 	return strings.TrimSpace(flags.Account)
 }
 
-func selectConfiguredAccount(value string) (string, bool, error) {
-	if resolved, ok, err := resolveAccountAlias(value); err != nil {
+func selectConfiguredAccount(flags *RootFlags, value string) (string, bool, error) {
+	if resolved, ok, err := resolveAccountAlias(flags, value); err != nil {
 		return "", false, err
 	} else if ok {
 		return resolved, true, nil
@@ -177,12 +177,24 @@ func accountDiagnostics(flags *RootFlags) io.Writer {
 	return flags.diagnostics
 }
 
-func resolveAccountAlias(value string) (string, bool, error) {
+func resolveAccountAlias(flags *RootFlags, value string) (string, bool, error) {
 	value = strings.TrimSpace(value)
 	if value == "" || strings.Contains(value, "@") || shouldAutoSelectAccount(value) {
 		return "", false, nil
 	}
-	return config.ResolveAccountAlias(value)
+
+	store, err := accountConfigStore(flags)
+	if err != nil {
+		return "", false, err
+	}
+	return store.ResolveAccountAlias(value)
+}
+
+func accountConfigStore(flags *RootFlags) (*config.ConfigStore, error) {
+	if flags != nil && flags.configStoreResolver != nil {
+		return flags.configStoreResolver()
+	}
+	return config.DefaultConfigStore()
 }
 
 func shouldAutoSelectAccount(value string) bool {

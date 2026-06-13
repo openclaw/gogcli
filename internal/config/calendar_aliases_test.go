@@ -1,20 +1,18 @@
 package config
 
 import (
-	"path/filepath"
+	"os"
 	"testing"
 )
 
 func TestCalendarAliasesCRUD(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv("HOME", home)
-	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, "xdg-config"))
+	store := NewConfigStore(Layout{ConfigDir: t.TempDir()})
 
-	if err := SetCalendarAlias("family", "3656f8abc123@group.calendar.google.com"); err != nil {
+	if err := store.SetCalendarAlias("family", "3656f8abc123@group.calendar.google.com"); err != nil {
 		t.Fatalf("set alias: %v", err)
 	}
 
-	calID, ok, err := ResolveCalendarAlias("family")
+	calID, ok, err := store.ResolveCalendarAlias("family")
 	if err != nil {
 		t.Fatalf("resolve alias: %v", err)
 	}
@@ -23,7 +21,7 @@ func TestCalendarAliasesCRUD(t *testing.T) {
 		t.Fatalf("unexpected alias resolve: ok=%v calID=%q", ok, calID)
 	}
 
-	aliases, err := ListCalendarAliases()
+	aliases, err := store.ListCalendarAliases()
 	if err != nil {
 		t.Fatalf("list aliases: %v", err)
 	}
@@ -32,7 +30,7 @@ func TestCalendarAliasesCRUD(t *testing.T) {
 		t.Fatalf("unexpected alias list: %#v", aliases)
 	}
 
-	deleted, err := DeleteCalendarAlias("family")
+	deleted, err := store.DeleteCalendarAlias("family")
 	if err != nil {
 		t.Fatalf("delete alias: %v", err)
 	}
@@ -43,12 +41,10 @@ func TestCalendarAliasesCRUD(t *testing.T) {
 }
 
 func TestResolveCalendarID(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv("HOME", home)
-	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, "xdg-config"))
+	store := NewConfigStore(Layout{ConfigDir: t.TempDir()})
 
 	// Empty stays empty; command parsing owns default-primary behavior.
-	resolved, err := ResolveCalendarID("")
+	resolved, err := store.ResolveCalendarID("")
 	if err != nil {
 		t.Fatalf("resolve empty: %v", err)
 	}
@@ -58,7 +54,7 @@ func TestResolveCalendarID(t *testing.T) {
 	}
 
 	// Non-alias returns unchanged
-	resolved, err = ResolveCalendarID("some-calendar-id@group.calendar.google.com")
+	resolved, err = store.ResolveCalendarID("some-calendar-id@group.calendar.google.com")
 	if err != nil {
 		t.Fatalf("resolve non-alias: %v", err)
 	}
@@ -68,11 +64,11 @@ func TestResolveCalendarID(t *testing.T) {
 	}
 
 	// Set alias and resolve
-	if setErr := SetCalendarAlias("work", "work-calendar@group.calendar.google.com"); setErr != nil {
+	if setErr := store.SetCalendarAlias("work", "work-calendar@group.calendar.google.com"); setErr != nil {
 		t.Fatalf("set alias: %v", setErr)
 	}
 
-	resolved, err = ResolveCalendarID("work")
+	resolved, err = store.ResolveCalendarID("work")
 	if err != nil {
 		t.Fatalf("resolve alias: %v", err)
 	}
@@ -82,7 +78,7 @@ func TestResolveCalendarID(t *testing.T) {
 	}
 
 	// Alias lookup is case-insensitive
-	resolved, err = ResolveCalendarID("WORK")
+	resolved, err = store.ResolveCalendarID("WORK")
 	if err != nil {
 		t.Fatalf("resolve uppercase alias: %v", err)
 	}
@@ -93,17 +89,15 @@ func TestResolveCalendarID(t *testing.T) {
 }
 
 func TestCalendarAliasNormalization(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv("HOME", home)
-	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, "xdg-config"))
+	store := NewConfigStore(Layout{ConfigDir: t.TempDir()})
 
 	// Set with mixed case and whitespace
-	if err := SetCalendarAlias("  Family  ", "family-cal@group.calendar.google.com"); err != nil {
+	if err := store.SetCalendarAlias("  Family  ", "family-cal@group.calendar.google.com"); err != nil {
 		t.Fatalf("set alias: %v", err)
 	}
 
 	// Resolve with different case
-	calID, ok, err := ResolveCalendarAlias("FAMILY")
+	calID, ok, err := store.ResolveCalendarAlias("FAMILY")
 	if err != nil {
 		t.Fatalf("resolve alias: %v", err)
 	}
@@ -113,7 +107,7 @@ func TestCalendarAliasNormalization(t *testing.T) {
 	}
 
 	// Delete with different case
-	deleted, err := DeleteCalendarAlias("family")
+	deleted, err := store.DeleteCalendarAlias("family")
 	if err != nil {
 		t.Fatalf("delete alias: %v", err)
 	}
@@ -124,9 +118,7 @@ func TestCalendarAliasNormalization(t *testing.T) {
 }
 
 func TestSetCalendarAlias_Validation(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv("HOME", home)
-	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, "xdg-config"))
+	store := NewConfigStore(Layout{ConfigDir: t.TempDir()})
 
 	tests := []struct {
 		name       string
@@ -140,9 +132,30 @@ func TestSetCalendarAlias_Validation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if err := SetCalendarAlias(tt.alias, tt.calendarID); err == nil {
+			if err := store.SetCalendarAlias(tt.alias, tt.calendarID); err == nil {
 				t.Fatal("expected validation error, got nil")
 			}
 		})
+	}
+}
+
+func TestCalendarAliasReadMissesDoNotCreateConfig(t *testing.T) {
+	store := NewConfigStore(Layout{ConfigDir: t.TempDir()})
+
+	if _, ok, err := store.ResolveCalendarAlias("missing"); err != nil || ok {
+		t.Fatalf("resolve missing alias: ok=%v err=%v", ok, err)
+	}
+
+	aliases, err := store.ListCalendarAliases()
+	if err != nil {
+		t.Fatalf("list aliases: %v", err)
+	}
+
+	if len(aliases) != 0 {
+		t.Fatalf("aliases = %#v, want empty", aliases)
+	}
+
+	if _, err := os.Stat(store.Path()); !os.IsNotExist(err) {
+		t.Fatalf("expected no config file, stat err=%v", err)
 	}
 }

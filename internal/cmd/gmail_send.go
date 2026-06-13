@@ -229,11 +229,7 @@ func (c *GmailSendCmd) resolveTrackingConfig(ctx context.Context, account string
 		return nil, fmt.Errorf("--track requires an HTML body (use --body-html or --quote)")
 	}
 
-	store, err := newTrackingConfigStore(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("load tracking config: %w", err)
-	}
-	trackingCfg, err := store.Load(account)
+	trackingCfg, _, _, err := loadTrackingConfig(ctx, account, true)
 	if err != nil {
 		return nil, fmt.Errorf("load tracking config: %w", err)
 	}

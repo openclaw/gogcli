@@ -3,6 +3,7 @@ package zoom
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -102,7 +103,7 @@ func TestStoreCredentialsRoundTrip(t *testing.T) {
 		t.Fatalf("stat metadata: %v", err)
 	}
 
-	if info.Mode().Perm() != metadataFileMode {
+	if runtime.GOOS != "windows" && info.Mode().Perm() != metadataFileMode {
 		t.Fatalf("metadata mode = %v", info.Mode().Perm())
 	}
 }

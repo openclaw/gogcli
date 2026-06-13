@@ -4,8 +4,6 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
-
-	"github.com/steipete/gogcli/internal/config"
 )
 
 func TestSplitCommandPath_SplitsWhitespaceWithinArgs(t *testing.T) {
@@ -139,12 +137,9 @@ func assertSchemaAliases(t *testing.T, node *schemaNode) {
 func TestExecute_SchemaResolvesAccountNoSendAliasFromEnvironment(t *testing.T) {
 	setTestConfigHome(t)
 	t.Setenv("GOG_ACCOUNT", "work")
-	if err := config.SetAccountAlias("work", "user@example.com"); err != nil {
+	store := defaultConfigStoreForTest(t)
+	if err := store.SetAccountAlias("work", "user@example.com"); err != nil {
 		t.Fatalf("SetAccountAlias: %v", err)
-	}
-	store, err := config.DefaultConfigStore()
-	if err != nil {
-		t.Fatalf("DefaultConfigStore: %v", err)
 	}
 	if err := store.SetNoSendAccount("user@example.com", true); err != nil {
 		t.Fatalf("SetNoSendAccount: %v", err)

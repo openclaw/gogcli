@@ -26,12 +26,16 @@ func (c *CalendarRawCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if err != nil {
 		return err
 	}
+	store, err := commandConfigStore(ctx)
+	if err != nil {
+		return err
+	}
 	svc, err := calendarService(ctx, account)
 	if err != nil {
 		return err
 	}
 
-	calendarID, err := resolveCalendarSelector(ctx, svc, c.CalendarID, false)
+	calendarID, err := resolveCalendarSelector(ctx, store, svc, c.CalendarID, false)
 	if err != nil {
 		return err
 	}

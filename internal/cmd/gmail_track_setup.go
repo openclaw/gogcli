@@ -37,11 +37,18 @@ func (c *GmailTrackSetupCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return usage("missing --account (dry-run requires an explicit account and does not auto-select)")
 	}
 
-	loadConfig := loadTrackingConfigForAccount
+	var (
+		account     string
+		cfg         *tracking.Config
+		configStore *tracking.ConfigStore
+		secretStore *tracking.SecretStore
+		err         error
+	)
 	if flags != nil && flags.DryRun {
-		loadConfig = loadTrackingConfigMetadataForAccount
+		account, cfg, configStore, secretStore, err = loadTrackingConfigMetadataForAccount(ctx, flags)
+	} else {
+		account, cfg, configStore, secretStore, err = loadTrackingConfigForAccount(ctx, flags)
 	}
-	account, cfg, configStore, err := loadConfig(ctx, flags)
 	if err != nil {
 		return err
 	}
@@ -96,6 +103,10 @@ func (c *GmailTrackSetupCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if err = c.dryRunSetupExit(ctx, flags, account, cfg, workerName, explicitTrackingKey); err != nil {
 		return err
 	}
+	secretStore, err = ensureTrackingSecretStore(ctx, secretStore)
+	if err != nil {
+		return err
+	}
 
 	currentVersion := cfg.TrackingCurrentKeyVersion
 	if currentVersion <= 0 {
@@ -107,7 +118,7 @@ func (c *GmailTrackSetupCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if !explicitTrackingKey {
 		versions := tracking.NormalizeTrackingKeyVersions(cfg.TrackingKeyVersions, currentVersion)
 		if len(versions) > 0 {
-			loadedKeys, loadedCurrentVersion, loadErr := tracking.LoadTrackingKeys(account, versions, currentVersion)
+			loadedKeys, loadedCurrentVersion, loadErr := secretStore.LoadTrackingKeys(account, versions, currentVersion)
 			if loadErr != nil {
 				return fmt.Errorf("load tracking keys: %w", loadErr)
 			}
@@ -149,7 +160,7 @@ func (c *GmailTrackSetupCmd) Run(ctx context.Context, flags *RootFlags) error {
 		}
 	}
 
-	if err := tracking.SaveTrackingKeys(account, trackingKeys, currentVersion, adminKey); err != nil {
+	if err := secretStore.SaveTrackingKeys(account, trackingKeys, currentVersion, adminKey); err != nil {
 		return fmt.Errorf("save tracking secrets: %w", err)
 	}
 

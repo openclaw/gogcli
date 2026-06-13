@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/steipete/gogcli/internal/app"
 	"github.com/steipete/gogcli/internal/config"
 )
 
@@ -47,7 +48,7 @@ func TestCalendarAliasSetListUnset_JSON(t *testing.T) {
 	}
 
 	// Verify the alias was deleted
-	_, ok, err := config.ResolveCalendarAlias("family")
+	_, ok, err := defaultConfigStoreForTest(t).ResolveCalendarAlias("family")
 	if err != nil {
 		t.Fatalf("failed to resolve alias: %v", err)
 	}
@@ -128,9 +129,10 @@ func TestPrepareCalendarID_Integration(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, "xdg-config"))
+	store := defaultConfigStoreForTest(t)
 
 	// Set up alias
-	if err := config.SetCalendarAlias("family", "family-cal@group.calendar.google.com"); err != nil {
+	if err := defaultConfigStoreForTest(t).SetCalendarAlias("family", "family-cal@group.calendar.google.com"); err != nil {
 		t.Fatalf("failed to set alias: %v", err)
 	}
 
@@ -148,7 +150,7 @@ func TestPrepareCalendarID_Integration(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := prepareCalendarID(tt.input, false)
+			got, err := prepareCalendarID(store, tt.input, false)
 			if tt.wantErr {
 				if err == nil {
 					t.Fatal("expected error, got nil")
@@ -165,7 +167,7 @@ func TestPrepareCalendarID_Integration(t *testing.T) {
 	}
 
 	t.Run("empty defaults to primary when requested", func(t *testing.T) {
-		got, err := prepareCalendarID("", true)
+		got, err := prepareCalendarID(store, "", true)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -173,4 +175,52 @@ func TestPrepareCalendarID_Integration(t *testing.T) {
 			t.Fatalf("expected %q, got %q", primaryCalendarID, got)
 		}
 	})
+}
+
+func TestExecuteCalendarAliasCRUDUsesRuntimeConfigStore(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, "xdg-config"))
+
+	ambientStore := defaultConfigStoreForTest(t)
+	if err := ambientStore.SetCalendarAlias("family", "ambient@group.calendar.google.com"); err != nil {
+		t.Fatalf("set ambient alias: %v", err)
+	}
+	runtimeStore := config.NewConfigStore(config.Layout{ConfigDir: t.TempDir()})
+	runtime := &app.Runtime{Config: runtimeStore}
+
+	setResult := executeWithTestRuntime(t, []string{
+		"--json", "calendar", "alias", "set", "family", "runtime@group.calendar.google.com",
+	}, runtime)
+	if setResult.err != nil {
+		t.Fatalf("set: %v", setResult.err)
+	}
+	if calendarID, ok, err := runtimeStore.ResolveCalendarAlias("family"); err != nil || !ok || calendarID != "runtime@group.calendar.google.com" {
+		t.Fatalf("runtime alias = %q, ok=%v err=%v", calendarID, ok, err)
+	}
+	if calendarID, ok, err := ambientStore.ResolveCalendarAlias("family"); err != nil || !ok || calendarID != "ambient@group.calendar.google.com" {
+		t.Fatalf("ambient alias = %q, ok=%v err=%v", calendarID, ok, err)
+	}
+
+	listResult := executeWithTestRuntime(t, []string{"--json", "calendar", "alias", "list"}, runtime)
+	if listResult.err != nil {
+		t.Fatalf("list: %v", listResult.err)
+	}
+	var listed struct {
+		Aliases map[string]string `json:"aliases"`
+	}
+	if err := json.Unmarshal([]byte(listResult.stdout), &listed); err != nil {
+		t.Fatalf("list JSON: %v", err)
+	}
+	if listed.Aliases["family"] != "runtime@group.calendar.google.com" {
+		t.Fatalf("listed aliases = %#v", listed.Aliases)
+	}
+
+	unsetResult := executeWithTestRuntime(t, []string{"--json", "calendar", "alias", "unset", "family"}, runtime)
+	if unsetResult.err != nil {
+		t.Fatalf("unset: %v", unsetResult.err)
+	}
+	if _, ok, err := runtimeStore.ResolveCalendarAlias("family"); err != nil || ok {
+		t.Fatalf("runtime alias after unset: ok=%v err=%v", ok, err)
+	}
 }

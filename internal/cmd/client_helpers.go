@@ -17,7 +17,7 @@ func resolveClientOverride(flags *RootFlags) string {
 
 func resolveClientForEmail(ctx context.Context, email string, flags *RootFlags) (string, error) {
 	override := resolveClientOverride(flags)
-	return authclient.ResolveClientWithOverrideContext(ctx, email, override)
+	return authclient.ResolveClientWithOverride(ctx, email, override)
 }
 
 func normalizeClientForFlag(raw string) (string, error) {
@@ -29,5 +29,5 @@ func resolveClientForEmailWithContext(ctx context.Context, email string, cmdClie
 	if override == "" {
 		override = authclient.ClientOverrideFromContext(ctx)
 	}
-	return authclient.ResolveClientWithOverrideContext(ctx, email, override)
+	return authclient.ResolveClientWithOverride(ctx, email, override)
 }

@@ -33,6 +33,7 @@ type AuthorizeOptions struct {
 	ListenAddr                  string
 	RedirectURI                 string
 	RequireState                bool
+	ManualStateStore            *ManualStateStore
 }
 
 type ManualAuthURLResult struct {
@@ -73,6 +74,7 @@ var (
 	errNoRefreshToken      = errors.New("no refresh token received; try again with --force-consent")
 	errManualStateMissing  = errors.New("manual auth state missing; start a new manual flow or run remote step 1 again")
 	errManualStateMismatch = errors.New("manual auth state mismatch; start a new manual flow or run remote step 1 again")
+	errManualStateStore    = errors.New("manual auth state store is required")
 	errStateMismatch       = errors.New("state mismatch")
 
 	errInvalidAuthorizeOptionsAuthURLAndCode    = errors.New("cannot combine auth-url with auth-code")
@@ -103,6 +105,10 @@ func Authorize(ctx context.Context, opts AuthorizeOptions) (string, error) {
 
 	if len(opts.Scopes) == 0 {
 		return "", errMissingScopes
+	}
+
+	if opts.Manual && opts.ManualStateStore == nil {
+		return "", errManualStateStore
 	}
 
 	creds, err := readClientCredentials(opts.Client)

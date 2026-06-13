@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/steipete/gogcli/internal/app"
+	"github.com/steipete/gogcli/internal/config"
 	"github.com/steipete/gogcli/internal/googleauth"
 	"github.com/steipete/gogcli/internal/secrets"
 )
@@ -19,10 +20,29 @@ func openAuthSecretsStore(ctx context.Context) (secrets.Store, error) {
 }
 
 func authorizeGoogleAccount(ctx context.Context, opts googleauth.AuthorizeOptions) (string, error) {
+	if err := bindManualAuthStateStore(ctx, &opts); err != nil {
+		return "", err
+	}
 	if runtime, ok := app.FromContext(ctx); ok && runtime.Auth.AuthorizeGoogle != nil {
 		return runtime.Auth.AuthorizeGoogle(ctx, opts)
 	}
 	return googleauth.Authorize(ctx, opts)
+}
+
+func bindManualAuthStateStore(ctx context.Context, opts *googleauth.AuthorizeOptions) error {
+	if !opts.Manual || opts.ManualStateStore != nil {
+		return nil
+	}
+	layout, err := commandLayout(ctx, config.PathKindConfig)
+	if err != nil {
+		return err
+	}
+	store, err := googleauth.NewManualStateStore(layout)
+	if err != nil {
+		return err
+	}
+	opts.ManualStateStore = store
+	return nil
 }
 
 func fetchAuthIdentity(

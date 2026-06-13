@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/steipete/gogcli/internal/app"
 	"github.com/steipete/gogcli/internal/config"
 )
 
@@ -22,7 +23,7 @@ func setupCalendarAliasHome(t *testing.T) {
 
 func TestCalendarEventCmd_UsesResolvedAliasID(t *testing.T) {
 	setupCalendarAliasHome(t)
-	if err := config.SetCalendarAlias("family", "family-cal@group.calendar.google.com"); err != nil {
+	if err := defaultConfigStoreForTest(t).SetCalendarAlias("family", "family-cal@group.calendar.google.com"); err != nil {
 		t.Fatalf("SetCalendarAlias: %v", err)
 	}
 
@@ -67,7 +68,7 @@ func TestCalendarEventCmd_UsesResolvedAliasID(t *testing.T) {
 
 func TestCalendarEventsCmd_CalInput_UsesResolvedAliasID(t *testing.T) {
 	setupCalendarAliasHome(t)
-	if err := config.SetCalendarAlias("family", "family-cal@group.calendar.google.com"); err != nil {
+	if err := defaultConfigStoreForTest(t).SetCalendarAlias("family", "family-cal@group.calendar.google.com"); err != nil {
 		t.Fatalf("SetCalendarAlias: %v", err)
 	}
 
@@ -126,7 +127,7 @@ func TestCalendarEventsCmd_CalInput_UsesResolvedAliasID(t *testing.T) {
 
 func TestCalendarCreateCmd_DryRun_UsesResolvedAliasID(t *testing.T) {
 	setupCalendarAliasHome(t)
-	if err := config.SetCalendarAlias("family", "family-cal@group.calendar.google.com"); err != nil {
+	if err := defaultConfigStoreForTest(t).SetCalendarAlias("family", "family-cal@group.calendar.google.com"); err != nil {
 		t.Fatalf("SetCalendarAlias: %v", err)
 	}
 
@@ -157,5 +158,42 @@ func TestCalendarCreateCmd_DryRun_UsesResolvedAliasID(t *testing.T) {
 	}
 	if got["dry_run"] != true {
 		t.Fatalf("dry_run = %v", got["dry_run"])
+	}
+}
+
+func TestCalendarCreateDryRunUsesRuntimeAliasOverAmbient(t *testing.T) {
+	setupCalendarAliasHome(t)
+	ambientStore := defaultConfigStoreForTest(t)
+	if err := ambientStore.SetCalendarAlias("family", "ambient@group.calendar.google.com"); err != nil {
+		t.Fatalf("set ambient alias: %v", err)
+	}
+	runtimeStore := config.NewConfigStore(config.Layout{ConfigDir: t.TempDir()})
+	if err := runtimeStore.SetCalendarAlias("family", "runtime@group.calendar.google.com"); err != nil {
+		t.Fatalf("set runtime alias: %v", err)
+	}
+
+	result := executeWithTestRuntime(t, []string{
+		"--json",
+		"--dry-run",
+		"calendar", "create",
+		"family",
+		"--summary", "Meeting",
+		"--from", "2025-01-01T10:00:00Z",
+		"--to", "2025-01-01T11:00:00Z",
+	}, &app.Runtime{Config: runtimeStore})
+	if result.err != nil {
+		t.Fatalf("Execute: %v", result.err)
+	}
+
+	var got struct {
+		Request struct {
+			CalendarID string `json:"calendar_id"`
+		} `json:"request"`
+	}
+	if err := json.Unmarshal([]byte(result.stdout), &got); err != nil {
+		t.Fatalf("json parse: %v", err)
+	}
+	if got.Request.CalendarID != "runtime@group.calendar.google.com" {
+		t.Fatalf("calendar_id = %q, want runtime alias target", got.Request.CalendarID)
 	}
 }

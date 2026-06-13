@@ -3,10 +3,12 @@ package cmd
 import (
 	"context"
 	"errors"
+	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/steipete/gogcli/internal/app"
+	"github.com/steipete/gogcli/internal/config"
 	"github.com/steipete/gogcli/internal/googleauth"
 )
 
@@ -34,6 +36,9 @@ func TestAuthManageCmd_ServicesAndOptions(t *testing.T) {
 	}
 	if got.RedirectURI != "https://gog.example.com/oauth2/callback" {
 		t.Fatalf("unexpected redirect uri: %q", got.RedirectURI)
+	}
+	if got.UpdateEmailReferences == nil {
+		t.Fatal("expected email reference updater")
 	}
 	if len(got.Services) != 2 {
 		t.Fatalf("expected de-duped services, got %#v", got.Services)
@@ -85,5 +90,51 @@ func TestAuthManageCmd_KeepRejected(t *testing.T) {
 
 	if err := runKong(t, &AuthManageCmd{}, []string{"--services", "keep"}, ctx, nil); err == nil {
 		t.Fatalf("expected error")
+	}
+}
+
+func TestExecuteAuthManageUsesRuntimeEmailReferenceUpdater(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, "xdg-config"))
+
+	ambientStore := defaultConfigStoreForTest(t)
+	if err := ambientStore.Write(config.File{
+		AccountAliases: map[string]string{"work": "old@example.com"},
+	}); err != nil {
+		t.Fatalf("write ambient config: %v", err)
+	}
+	runtimeStore := config.NewConfigStore(config.Layout{ConfigDir: t.TempDir()})
+	if err := runtimeStore.Write(config.File{
+		AccountAliases: map[string]string{"work": "old@example.com"},
+	}); err != nil {
+		t.Fatalf("write runtime config: %v", err)
+	}
+
+	result := executeWithTestRuntime(t, []string{"auth", "manage"}, &app.Runtime{
+		Config: runtimeStore,
+		Auth: app.AuthOperations{
+			StartManageServer: func(_ context.Context, opts googleauth.ManageServerOptions) error {
+				return opts.UpdateEmailReferences("old@example.com", "new@example.com")
+			},
+		},
+	})
+	if result.err != nil {
+		t.Fatalf("execute: %v", result.err)
+	}
+
+	runtimeCfg, err := runtimeStore.Read()
+	if err != nil {
+		t.Fatalf("read runtime config: %v", err)
+	}
+	if runtimeCfg.AccountAliases["work"] != "new@example.com" {
+		t.Fatalf("runtime aliases = %#v", runtimeCfg.AccountAliases)
+	}
+	ambientCfg, err := ambientStore.Read()
+	if err != nil {
+		t.Fatalf("read ambient config: %v", err)
+	}
+	if ambientCfg.AccountAliases["work"] != "old@example.com" {
+		t.Fatalf("ambient aliases changed: %#v", ambientCfg.AccountAliases)
 	}
 }

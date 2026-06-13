@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/steipete/gogcli/internal/config"
+	"github.com/steipete/gogcli/internal/secrets"
 )
 
 func TestIntegrationEncryptDecryptWithWorker(t *testing.T) {
@@ -27,7 +28,15 @@ func TestIntegrationEncryptDecryptWithWorker(t *testing.T) {
 			t.Skipf("Legacy tracking path unavailable: %v", err)
 		}
 	}
-	store, err := NewConfigStore(layout, legacyConfigBase)
+	secretRepository, err := secrets.OpenWithConfig(layout, config.NewConfigStore(layout))
+	if err != nil {
+		t.Skipf("Tracking secrets unavailable: %v", err)
+	}
+	secretStore, err := NewSecretStore(secretRepository)
+	if err != nil {
+		t.Skipf("Tracking secret store unavailable: %v", err)
+	}
+	store, err := NewConfigStore(layout, legacyConfigBase, secretStore)
 	if err != nil {
 		t.Skipf("Tracking store unavailable: %v", err)
 	}

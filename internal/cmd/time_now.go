@@ -15,21 +15,19 @@ type TimeCmd struct {
 }
 
 type TimeNowCmd struct {
-	Timezone string `name:"timezone" help:"Timezone (e.g., America/New_York, UTC)"`
+	Timezone string `name:"timezone" help:"Timezone (e.g., America/New_York, UTC). Default: GOG_TIMEZONE, config, then local"`
 }
 
 func (c *TimeNowCmd) Run(ctx context.Context) error {
 	u := ui.FromContext(ctx)
-	loc := time.Local
-	tz := loc.String()
-	if strings.TrimSpace(c.Timezone) != "" {
-		var err error
-		loc, err = time.LoadLocation(strings.TrimSpace(c.Timezone))
-		if err != nil {
-			return usagef("invalid timezone %q: %v", c.Timezone, err)
+	loc, err := resolveOutputLocation(ctx, c.Timezone, false, stderrWriter(ctx))
+	if err != nil {
+		if strings.TrimSpace(c.Timezone) != "" {
+			return usage(err.Error())
 		}
-		tz = c.Timezone
+		return err
 	}
+	tz := loc.String()
 
 	now := time.Now().In(loc)
 	formatted := now.Format("Monday, January 02, 2006 03:04 PM")

@@ -2,19 +2,27 @@ package authclient
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
-
-	"github.com/steipete/gogcli/internal/config"
 )
 
 type (
-	contextKey     struct{}
-	accessTokenKey struct{}
-	resolverKey    struct{}
+	contextKey               struct{}
+	accessTokenKey           struct{}
+	resolverKey              struct{}
+	emailReferenceUpdaterKey struct{}
 )
 
-type ClientResolver func(email string, override string) (string, error)
+type (
+	ClientResolver        func(email string, override string) (string, error)
+	EmailReferenceUpdater func(oldEmail, newEmail string) error
+)
+
+var (
+	errClientResolverRequired        = errors.New("client resolver is required")
+	errEmailReferenceUpdaterRequired = errors.New("email reference updater is required")
+)
 
 func WithClient(ctx context.Context, client string) context.Context {
 	client = strings.TrimSpace(client)
@@ -70,31 +78,43 @@ func WithClientResolver(ctx context.Context, resolver ClientResolver) context.Co
 	return context.WithValue(ctx, resolverKey{}, resolver)
 }
 
-func ResolveClient(ctx context.Context, email string) (string, error) {
-	override := ClientOverrideFromContext(ctx)
-	if resolver := clientResolverFromContext(ctx); resolver != nil {
-		client, err := resolver(email, override)
-		if err != nil {
-			return "", fmt.Errorf("resolve client: %w", err)
-		}
-
-		return client, nil
+func WithEmailReferenceUpdater(ctx context.Context, updater EmailReferenceUpdater) context.Context {
+	if updater == nil {
+		return ctx
 	}
 
-	return ResolveClientWithOverride(email, override)
+	return context.WithValue(ctx, emailReferenceUpdaterKey{}, updater)
 }
 
-func ResolveClientWithOverrideContext(ctx context.Context, email string, override string) (string, error) {
-	if resolver := clientResolverFromContext(ctx); resolver != nil {
-		client, err := resolver(email, override)
-		if err != nil {
-			return "", fmt.Errorf("resolve client: %w", err)
-		}
-
-		return client, nil
+func UpdateEmailReferences(ctx context.Context, oldEmail, newEmail string) error {
+	updater := emailReferenceUpdaterFromContext(ctx)
+	if updater == nil {
+		return errEmailReferenceUpdaterRequired
 	}
 
-	return ResolveClientWithOverride(email, override)
+	if err := updater(oldEmail, newEmail); err != nil {
+		return fmt.Errorf("update email references: %w", err)
+	}
+
+	return nil
+}
+
+func ResolveClient(ctx context.Context, email string) (string, error) {
+	return ResolveClientWithOverride(ctx, email, ClientOverrideFromContext(ctx))
+}
+
+func ResolveClientWithOverride(ctx context.Context, email string, override string) (string, error) {
+	resolver := clientResolverFromContext(ctx)
+	if resolver == nil {
+		return "", errClientResolverRequired
+	}
+
+	client, err := resolver(email, override)
+	if err != nil {
+		return "", fmt.Errorf("resolve client: %w", err)
+	}
+
+	return client, nil
 }
 
 func clientResolverFromContext(ctx context.Context) ClientResolver {
@@ -107,16 +127,12 @@ func clientResolverFromContext(ctx context.Context) ClientResolver {
 	return resolver
 }
 
-func ResolveClientWithOverride(email string, override string) (string, error) {
-	cfg, err := config.ReadConfig()
-	if err != nil {
-		return "", fmt.Errorf("read config: %w", err)
+func emailReferenceUpdaterFromContext(ctx context.Context) EmailReferenceUpdater {
+	if ctx == nil {
+		return nil
 	}
 
-	client, err := config.ResolveClientForAccount(cfg, email, override)
-	if err != nil {
-		return "", fmt.Errorf("resolve client: %w", err)
-	}
+	updater, _ := ctx.Value(emailReferenceUpdaterKey{}).(EmailReferenceUpdater)
 
-	return client, nil
+	return updater
 }

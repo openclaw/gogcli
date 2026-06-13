@@ -432,7 +432,7 @@ func TestResolveCalendarIDs_IndexOutOfRange(t *testing.T) {
 	})))
 	defer closeServer()
 
-	_, err := resolveCalendarIDs(context.Background(), svc, []string{"2"})
+	_, err := resolveCalendarIDs(context.Background(), defaultConfigStoreForTest(t), svc, []string{"2"})
 	if err == nil {
 		t.Fatalf("expected error")
 	}
@@ -461,7 +461,7 @@ func TestResolveCalendarIDs_AmbiguousName(t *testing.T) {
 	})))
 	defer closeServer()
 
-	_, err := resolveCalendarIDs(context.Background(), svc, []string{"Work"})
+	_, err := resolveCalendarIDs(context.Background(), defaultConfigStoreForTest(t), svc, []string{"Work"})
 	if err == nil {
 		t.Fatalf("expected error")
 	}
@@ -493,7 +493,7 @@ func TestResolveCalendarIDs_UnrecognizedName(t *testing.T) {
 	defer closeServer()
 
 	// Test single unrecognized name
-	_, err := resolveCalendarIDs(context.Background(), svc, []string{"NonExistent"})
+	_, err := resolveCalendarIDs(context.Background(), defaultConfigStoreForTest(t), svc, []string{"NonExistent"})
 	if err == nil {
 		t.Fatalf("expected error for unrecognized calendar name")
 	}
@@ -509,7 +509,7 @@ func TestResolveCalendarIDs_UnrecognizedName(t *testing.T) {
 	}
 
 	// Test multiple unrecognized names
-	_, err = resolveCalendarIDs(context.Background(), svc, []string{"Work", "Unknown1", "Unknown2"})
+	_, err = resolveCalendarIDs(context.Background(), defaultConfigStoreForTest(t), svc, []string{"Work", "Unknown1", "Unknown2"})
 	if err == nil {
 		t.Fatalf("expected error for unrecognized calendar names")
 	}
@@ -521,7 +521,7 @@ func TestResolveCalendarIDs_UnrecognizedName(t *testing.T) {
 	}
 
 	// Test valid names still work
-	ids, err := resolveCalendarIDs(context.Background(), svc, []string{"Work", "Family"})
+	ids, err := resolveCalendarIDs(context.Background(), defaultConfigStoreForTest(t), svc, []string{"Work", "Family"})
 	if err != nil {
 		t.Fatalf("unexpected error for valid calendar names: %v", err)
 	}

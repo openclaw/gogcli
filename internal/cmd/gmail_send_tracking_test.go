@@ -20,7 +20,7 @@ func TestResolveTrackingConfig(t *testing.T) {
 
 	cmd := &GmailSendCmd{}
 	cmd.BodyHTML = "<html></html>"
-	ctx := newCmdRuntimeOutputContext(t, io.Discard, io.Discard)
+	ctx := withAuthStore(newCmdRuntimeOutputContext(t, io.Discard, io.Discard), newMemSecretsStore())
 
 	// Multiple recipients without split should fail.
 	if _, err := cmd.resolveTrackingConfig(ctx, "a@b.com", []string{"a@b.com", "b@b.com"}, nil, nil, cmd.BodyHTML); err == nil {

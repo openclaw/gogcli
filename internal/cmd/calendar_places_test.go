@@ -154,7 +154,7 @@ func TestCalendarUpdateDryRunPlaceIDSkipsPlacesAPI(t *testing.T) {
 }
 
 func TestBuildCalendarCreatePlanAppliesResolvedPlace(t *testing.T) {
-	plan, err := buildCalendarCreatePlan(calendarCreateInput{
+	plan, err := buildCalendarCreatePlan(defaultConfigStoreForTest(t), calendarCreateInput{
 		CalendarID:  "primary",
 		Summary:     "Coffee",
 		From:        "2026-05-10T10:00:00Z",

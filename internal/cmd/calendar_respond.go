@@ -19,7 +19,11 @@ type CalendarRespondCmd struct {
 
 func (c *CalendarRespondCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
-	calendarID, err := prepareCalendarID(c.CalendarID, false)
+	store, err := commandConfigStore(ctx)
+	if err != nil {
+		return err
+	}
+	calendarID, err := prepareCalendarID(store, c.CalendarID, false)
 	if err != nil {
 		return err
 	}

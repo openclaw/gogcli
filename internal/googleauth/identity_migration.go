@@ -1,21 +1,25 @@
 package googleauth
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
-	"github.com/steipete/gogcli/internal/config"
 	"github.com/steipete/gogcli/internal/secrets"
 )
 
-func MigrateStoredSubjectIdentity(store secrets.Store, client string, identity Identity) (string, error) {
+type EmailReferenceUpdater func(oldEmail, newEmail string) error
+
+var errEmailReferenceUpdaterRequired = errors.New("email reference updater is required")
+
+func MigrateStoredSubjectIdentity(store secrets.Store, updater EmailReferenceUpdater, client string, identity Identity) (string, error) {
 	oldEmail, err := FindStoredSubjectIdentityEmail(store, client, identity)
 	if err != nil || oldEmail == "" {
 		return oldEmail, err
 	}
 
 	newEmail := normalizeEmail(identity.Email)
-	if err := MigrateStoredEmailReferences(store, client, oldEmail, newEmail); err != nil {
+	if err := MigrateStoredEmailReferences(store, updater, client, oldEmail, newEmail); err != nil {
 		return "", err
 	}
 
@@ -107,12 +111,16 @@ func DeleteStoredEmailAlias(store secrets.Store, client string, email string) er
 	return nil
 }
 
-func MigrateStoredEmailReferences(store secrets.Store, client string, oldEmail string, newEmail string) error {
+func MigrateStoredEmailReferences(store secrets.Store, updater EmailReferenceUpdater, client string, oldEmail string, newEmail string) error {
 	oldEmail = normalizeEmail(oldEmail)
 	newEmail = normalizeEmail(newEmail)
 
 	if oldEmail == "" || newEmail == "" || oldEmail == newEmail {
 		return nil
+	}
+
+	if updater == nil {
+		return errEmailReferenceUpdaterRequired
 	}
 
 	if defaultEmail, getErr := store.GetDefaultAccount(client); getErr == nil && normalizeEmail(defaultEmail) == oldEmail {
@@ -121,35 +129,7 @@ func MigrateStoredEmailReferences(store secrets.Store, client string, oldEmail s
 		}
 	}
 
-	if err := migrateStoredSubjectConfig(oldEmail, newEmail); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func migrateStoredSubjectConfig(oldEmail string, newEmail string) error {
-	if err := config.UpdateConfig(func(cfg *config.File) error {
-		for alias, target := range cfg.AccountAliases {
-			if strings.EqualFold(target, oldEmail) {
-				cfg.AccountAliases[alias] = newEmail
-			}
-		}
-
-		if cfg.AccountClients != nil {
-			if client, ok := cfg.AccountClients[oldEmail]; ok {
-				cfg.AccountClients[newEmail] = client
-				delete(cfg.AccountClients, oldEmail)
-			}
-
-			if client, ok := cfg.AccountClients[strings.ToLower(oldEmail)]; ok {
-				cfg.AccountClients[newEmail] = client
-				delete(cfg.AccountClients, strings.ToLower(oldEmail))
-			}
-		}
-
-		return nil
-	}); err != nil {
+	if err := updater(oldEmail, newEmail); err != nil {
 		return fmt.Errorf("update config for subject identity migration: %w", err)
 	}
 

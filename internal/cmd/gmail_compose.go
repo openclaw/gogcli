@@ -173,7 +173,13 @@ func buildGmailMessage(ctx context.Context, opts sendMessageOptions, batch sendB
 		reply = *opts.ReplyInfo
 	}
 
-	rfc822Cfg := rfc822Config{diagnostics: stderrWriter(ctx)}
+	dateLocation, err := mailDateLocation(ctx, stderrWriter(ctx))
+	if err != nil {
+		return nil, err
+	}
+	rfc822Cfg := rfc822Config{
+		dateLocation: dateLocation,
+	}
 	if cfg != nil {
 		rfc822Cfg.allowMissingTo = cfg.allowMissingTo
 	}

@@ -16,9 +16,15 @@ import (
 const (
 	manualStateFilePrefix = "oauth-manual-state-"
 	manualStateFileSuffix = ".json"
+	manualStateMaxLength  = 256
 )
 
-var errEmptyManualAuthState = errors.New("empty manual auth state")
+var (
+	errEmptyManualAuthState   = errors.New("empty manual auth state")
+	errInvalidManualAuthState = errors.New("invalid manual auth state")
+	errManualStateDirRequired = errors.New("manual auth state directory is required")
+	errManualStateDirAbsolute = errors.New("manual auth state directory must be absolute")
+)
 
 // manualStateTTL controls how long a stored manual auth state is considered valid.
 // This should be shorter than typical OAuth code expiration windows.
@@ -34,32 +40,66 @@ type manualState struct {
 	CreatedAt    time.Time `json:"created_at"`
 }
 
-var (
-	manualStateDirFn = manualStateDir
-	manualStateNowFn = time.Now
-)
-
-func manualStateDir() (string, error) {
-	dir, err := config.EnsureDir()
-	if err != nil {
-		return "", fmt.Errorf("ensure config dir: %w", err)
-	}
-
-	return dir, nil
+type ManualStateStore struct {
+	dir string
+	now func() time.Time
 }
 
-func manualStatePathFor(state string) (string, error) {
-	dir, err := manualStateDirFn()
-	if err != nil {
-		return "", err
+func NewManualStateStore(layout config.Layout) (*ManualStateStore, error) {
+	dir := strings.TrimSpace(layout.ConfigDir)
+	if dir == "" {
+		return nil, errManualStateDirRequired
 	}
 
+	if !filepath.IsAbs(dir) {
+		return nil, fmt.Errorf("%w: %s", errManualStateDirAbsolute, dir)
+	}
+
+	return &ManualStateStore{
+		dir: filepath.Clean(dir),
+		now: time.Now,
+	}, nil
+}
+
+func (s *ManualStateStore) Dir() string {
+	if s == nil {
+		return ""
+	}
+
+	return s.dir
+}
+
+func (s *ManualStateStore) pathFor(state string) (string, error) {
 	state = strings.TrimSpace(state)
 	if state == "" {
 		return "", errEmptyManualAuthState
 	}
 
-	return filepath.Join(dir, manualStateFilePrefix+state+manualStateFileSuffix), nil
+	if !isValidManualState(state) {
+		return "", errInvalidManualAuthState
+	}
+
+	return filepath.Join(s.dir, manualStateFilePrefix+state+manualStateFileSuffix), nil
+}
+
+func isValidManualState(state string) bool {
+	if len(state) == 0 || len(state) > manualStateMaxLength {
+		return false
+	}
+
+	for _, r := range state {
+		if r >= 'a' && r <= 'z' ||
+			r >= 'A' && r <= 'Z' ||
+			r >= '0' && r <= '9' ||
+			r == '-' ||
+			r == '_' {
+			continue
+		}
+
+		return false
+	}
+
+	return true
 }
 
 func isManualStateFilename(name string) (state string, ok bool) {
@@ -68,21 +108,20 @@ func isManualStateFilename(name string) (state string, ok bool) {
 	}
 
 	state = strings.TrimSuffix(strings.TrimPrefix(name, manualStateFilePrefix), manualStateFileSuffix)
-	if strings.TrimSpace(state) == "" {
+	if !isValidManualState(state) {
 		return "", false
 	}
 
 	return state, true
 }
 
-func loadManualState(client string, scopes []string, forceConsent bool) (manualState, bool, error) {
-	dir, err := manualStateDirFn()
+func (s *ManualStateStore) load(client string, scopes []string, forceConsent bool) (manualState, bool, error) {
+	entries, err := os.ReadDir(s.dir)
 	if err != nil {
-		return manualState{}, false, err
-	}
+		if os.IsNotExist(err) {
+			return manualState{}, false, nil
+		}
 
-	entries, err := os.ReadDir(dir)
-	if err != nil {
 		return manualState{}, false, fmt.Errorf("read manual auth state dir: %w", err)
 	}
 
@@ -101,9 +140,9 @@ func loadManualState(client string, scopes []string, forceConsent bool) (manualS
 			continue
 		}
 
-		path := filepath.Join(dir, ent.Name())
+		path := filepath.Join(s.dir, ent.Name())
 
-		st, valid, loadErr := loadManualStateByPath(path)
+		st, valid, loadErr := s.loadByPath(path)
 		if loadErr != nil {
 			return manualState{}, false, loadErr
 		}
@@ -141,7 +180,16 @@ func loadManualState(client string, scopes []string, forceConsent bool) (manualS
 	return bestState, true, nil
 }
 
-func loadManualStateByPath(path string) (manualState, bool, error) {
+func (s *ManualStateStore) loadState(state string) (manualState, bool, error) {
+	path, err := s.pathFor(state)
+	if err != nil {
+		return manualState{}, false, err
+	}
+
+	return s.loadByPath(path)
+}
+
+func (s *ManualStateStore) loadByPath(path string) (manualState, bool, error) {
 	data, err := os.ReadFile(path) //nolint:gosec // config path
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -162,7 +210,7 @@ func loadManualStateByPath(path string) (manualState, bool, error) {
 		return manualState{}, false, nil
 	}
 
-	if manualStateNowFn().Sub(st.CreatedAt) > manualStateTTL {
+	if s.now().Sub(st.CreatedAt) > manualStateTTL {
 		_ = os.Remove(path)
 		return manualState{}, false, nil
 	}
@@ -170,10 +218,21 @@ func loadManualStateByPath(path string) (manualState, bool, error) {
 	return st, true, nil
 }
 
-func saveManualState(client string, scopes []string, forceConsent bool, state string, redirectURI string, codeVerifier string) error {
-	path, err := manualStatePathFor(state)
+func (s *ManualStateStore) save(
+	client string,
+	scopes []string,
+	forceConsent bool,
+	state string,
+	redirectURI string,
+	codeVerifier string,
+) error {
+	path, err := s.pathFor(state)
 	if err != nil {
 		return err
+	}
+
+	if mkdirErr := os.MkdirAll(s.dir, 0o700); mkdirErr != nil {
+		return fmt.Errorf("create manual auth state dir: %w", mkdirErr)
 	}
 
 	st := manualState{
@@ -183,7 +242,7 @@ func saveManualState(client string, scopes []string, forceConsent bool, state st
 		ForceConsent: forceConsent,
 		RedirectURI:  strings.TrimSpace(redirectURI),
 		CodeVerifier: strings.TrimSpace(codeVerifier),
-		CreatedAt:    manualStateNowFn().UTC(),
+		CreatedAt:    s.now().UTC(),
 	}
 
 	data, err := json.MarshalIndent(st, "", "  ")
@@ -193,20 +252,15 @@ func saveManualState(client string, scopes []string, forceConsent bool, state st
 
 	data = append(data, '\n')
 
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, data, 0o600); err != nil {
+	if err := config.WriteFileAtomic(path, data, 0o600); err != nil {
 		return fmt.Errorf("write manual auth state: %w", err)
-	}
-
-	if err := os.Rename(tmp, path); err != nil {
-		return fmt.Errorf("commit manual auth state: %w", err)
 	}
 
 	return nil
 }
 
-func clearManualState(state string) error {
-	path, err := manualStatePathFor(state)
+func (s *ManualStateStore) clear(state string) error {
+	path, err := s.pathFor(state)
 	if err != nil {
 		return err
 	}

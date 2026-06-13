@@ -19,7 +19,7 @@ func TestBuildCalendarUpdatePlan(t *testing.T) {
 		WithZoom:    true,
 	}
 
-	plan, err := buildCalendarUpdatePlan(input, fields)
+	plan, err := buildCalendarUpdatePlan(defaultConfigStoreForTest(t), input, fields)
 	if err != nil {
 		t.Fatalf("buildCalendarUpdatePlan: %v", err)
 	}
@@ -78,7 +78,7 @@ func TestBuildCalendarUpdatePlanValidatesSelectedFields(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			_, err := buildCalendarUpdatePlan(tc.input, tc.fields)
+			_, err := buildCalendarUpdatePlan(defaultConfigStoreForTest(t), tc.input, tc.fields)
 			if err == nil || !strings.Contains(err.Error(), tc.want) {
 				t.Fatalf("expected %q error, got %v", tc.want, err)
 			}
@@ -95,7 +95,7 @@ func TestBuildCalendarUpdatePlanDefersPlaceResolution(t *testing.T) {
 	}
 	fields := calendarUpdateFields{LocationSearch: true}
 
-	plan, err := buildCalendarUpdatePlan(input, fields)
+	plan, err := buildCalendarUpdatePlan(defaultConfigStoreForTest(t), input, fields)
 	if err != nil {
 		t.Fatalf("buildCalendarUpdatePlan: %v", err)
 	}
@@ -127,7 +127,7 @@ func TestBuildCalendarCreatePlan(t *testing.T) {
 		WithZoom:       true,
 	}
 
-	plan, err := buildCalendarCreatePlan(input, fields)
+	plan, err := buildCalendarCreatePlan(defaultConfigStoreForTest(t), input, fields)
 	if err != nil {
 		t.Fatalf("buildCalendarCreatePlan: %v", err)
 	}
@@ -148,7 +148,7 @@ func TestBuildCalendarCreatePlan(t *testing.T) {
 }
 
 func TestBuildCalendarCreatePlanRejectsConferenceConflict(t *testing.T) {
-	_, err := buildCalendarCreatePlan(calendarCreateInput{
+	_, err := buildCalendarCreatePlan(defaultConfigStoreForTest(t), calendarCreateInput{
 		CalendarID: "primary",
 		Summary:    "Meeting",
 		From:       "2026-05-10T10:00:00Z",

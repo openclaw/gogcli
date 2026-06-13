@@ -33,9 +33,17 @@ func (c *Config) IsConfigured() bool {
 	return c.Enabled && c.WorkerURL != "" && c.TrackingKey != ""
 }
 
-func hydrateConfig(account string, cfg *Config) (*Config, error) {
+func (c *Config) NeedsSecretStore() bool {
+	return shouldLoadTrackingSecrets(c)
+}
+
+func hydrateConfig(account string, cfg *Config, secretStore *SecretStore) (*Config, error) {
 	if shouldLoadTrackingSecrets(cfg) {
-		trackingKey, adminKey, secretErr := LoadSecrets(account)
+		if secretStore == nil {
+			return nil, errNilSecretStore
+		}
+
+		trackingKey, adminKey, secretErr := secretStore.LoadSecrets(account)
 		if secretErr != nil {
 			return nil, secretErr
 		}
@@ -51,7 +59,7 @@ func hydrateConfig(account string, cfg *Config) (*Config, error) {
 		if cfg.TrackingCurrentKeyVersion > 0 || len(cfg.TrackingKeyVersions) > 0 {
 			versions := NormalizeTrackingKeyVersions(cfg.TrackingKeyVersions, cfg.TrackingCurrentKeyVersion)
 
-			keys, currentVersion, keyErr := LoadTrackingKeys(account, versions, cfg.TrackingCurrentKeyVersion)
+			keys, currentVersion, keyErr := secretStore.LoadTrackingKeys(account, versions, cfg.TrackingCurrentKeyVersion)
 			if keyErr != nil {
 				return nil, keyErr
 			}

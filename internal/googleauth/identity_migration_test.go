@@ -1,7 +1,7 @@
 package googleauth
 
 import (
-	"path/filepath"
+	"errors"
 	"sort"
 	"strings"
 	"testing"
@@ -11,6 +11,8 @@ import (
 	"github.com/steipete/gogcli/internal/config"
 	"github.com/steipete/gogcli/internal/secrets"
 )
+
+var errIdentityReferenceUpdate = errors.New("identity reference update failed")
 
 type migrationStore struct {
 	tokens       map[string]secrets.Token
@@ -96,16 +98,14 @@ func (s *migrationStore) SetDefaultAccount(_ string, email string) error {
 }
 
 func TestMigrateStoredSubjectIdentityUpdatesEmailReferences(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv("HOME", home)
-	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, "xdg"))
-
 	cfg := config.File{
 		AccountAliases: map[string]string{"work": "old@example.com"},
 		AccountClients: map[string]string{"old@example.com": "work-client"},
 	}
-	if err := config.WriteConfig(cfg); err != nil {
-		t.Fatalf("WriteConfig: %v", err)
+
+	configStore := config.NewConfigStore(config.Layout{ConfigDir: t.TempDir()})
+	if err := configStore.Write(cfg); err != nil {
+		t.Fatalf("write config: %v", err)
 	}
 
 	store := newMigrationStore()
@@ -118,7 +118,7 @@ func TestMigrateStoredSubjectIdentityUpdatesEmailReferences(t *testing.T) {
 	}
 	store.defaultEmail = "old@example.com"
 
-	migrated, err := MigrateStoredSubjectIdentity(store, config.DefaultClientName, Identity{
+	migrated, err := MigrateStoredSubjectIdentity(store, configStore.MigrateAccountEmailReferences, config.DefaultClientName, Identity{
 		Subject: "sub-123",
 		Email:   "new@example.com",
 	})
@@ -138,9 +138,9 @@ func TestMigrateStoredSubjectIdentityUpdatesEmailReferences(t *testing.T) {
 		t.Fatalf("expected default migrated, got %q", store.defaultEmail)
 	}
 
-	updated, err := config.ReadConfig()
+	updated, err := configStore.Read()
 	if err != nil {
-		t.Fatalf("ReadConfig: %v", err)
+		t.Fatalf("read config: %v", err)
 	}
 
 	if updated.AccountAliases["work"] != "new@example.com" {
@@ -157,10 +157,6 @@ func TestMigrateStoredSubjectIdentityUpdatesEmailReferences(t *testing.T) {
 }
 
 func TestMigrateStoredSubjectIdentityPreservesOldTokenWhenNewAlreadyStored(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv("HOME", home)
-	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, "xdg"))
-
 	store := newMigrationStore()
 
 	store.listNewOnly = true
@@ -178,7 +174,7 @@ func TestMigrateStoredSubjectIdentityPreservesOldTokenWhenNewAlreadyStored(t *te
 		t.Fatalf("SetToken old: %v", err)
 	}
 
-	migrated, err := MigrateStoredSubjectIdentity(store, config.DefaultClientName, Identity{
+	migrated, err := MigrateStoredSubjectIdentity(store, func(string, string) error { return nil }, config.DefaultClientName, Identity{
 		Subject: "sub-123",
 		Email:   "new@example.com",
 	})
@@ -196,5 +192,35 @@ func TestMigrateStoredSubjectIdentityPreservesOldTokenWhenNewAlreadyStored(t *te
 
 	if _, getErr := store.GetToken(config.DefaultClientName, "new@example.com"); getErr != nil {
 		t.Fatalf("expected new token kept, got %v", getErr)
+	}
+}
+
+func TestMigrateStoredEmailReferencesRequiresUpdaterBeforeDefaultChange(t *testing.T) {
+	store := newMigrationStore()
+	store.defaultEmail = "old@example.com"
+
+	err := MigrateStoredEmailReferences(store, nil, config.DefaultClientName, "old@example.com", "new@example.com")
+	if !errors.Is(err, errEmailReferenceUpdaterRequired) {
+		t.Fatalf("error = %v, want updater-required", err)
+	}
+
+	if store.defaultEmail != "old@example.com" {
+		t.Fatalf("default email changed to %q", store.defaultEmail)
+	}
+}
+
+func TestMigrateStoredEmailReferencesPreservesConfigFailureContract(t *testing.T) {
+	store := newMigrationStore()
+	store.defaultEmail = "old@example.com"
+
+	err := MigrateStoredEmailReferences(store, func(string, string) error {
+		return errIdentityReferenceUpdate
+	}, config.DefaultClientName, "old@example.com", "new@example.com")
+	if !errors.Is(err, errIdentityReferenceUpdate) {
+		t.Fatalf("error = %v, want update failure", err)
+	}
+
+	if store.defaultEmail != "new@example.com" {
+		t.Fatalf("default email = %q, want migrated before config failure", store.defaultEmail)
 	}
 }

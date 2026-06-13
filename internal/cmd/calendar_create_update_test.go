@@ -168,7 +168,7 @@ func TestCalendarCreateCmd_RecurringOffsetTimezoneFallback(t *testing.T) {
 }
 
 func TestCalendarCreateCmd_ExplicitTimezones(t *testing.T) {
-	plan, err := buildCalendarCreatePlan(calendarCreateInput{
+	plan, err := buildCalendarCreatePlan(defaultConfigStoreForTest(t), calendarCreateInput{
 		CalendarID:    "primary",
 		Summary:       "Flight",
 		From:          "2026-08-13T13:40:00+02:00",

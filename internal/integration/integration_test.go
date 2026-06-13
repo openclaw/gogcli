@@ -46,11 +46,22 @@ func integrationAccount(t *testing.T) string {
 	return ""
 }
 
+func withIntegrationClientResolver(ctx context.Context) context.Context {
+	return authclient.WithClientResolver(ctx, func(email string, override string) (string, error) {
+		cfg, err := config.ReadConfig()
+		if err != nil {
+			return "", err
+		}
+		return config.ResolveClientForAccount(cfg, email, override)
+	})
+}
+
 func TestDriveSmoke(t *testing.T) {
 	account := integrationAccount(t)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
+	ctx = withIntegrationClientResolver(ctx)
 
 	svc, err := googleapi.NewDrive(ctx, account)
 	if err != nil {
@@ -73,6 +84,7 @@ func TestCalendarSmoke(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
+	ctx = withIntegrationClientResolver(ctx)
 
 	svc, err := googleapi.NewCalendar(ctx, account)
 	if err != nil {
@@ -89,6 +101,7 @@ func TestGmailSmoke(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
+	ctx = withIntegrationClientResolver(ctx)
 
 	svc, err := googleapi.NewGmail(ctx, account)
 	if err != nil {
@@ -110,7 +123,7 @@ func TestAuthRefreshTokenSmoke(t *testing.T) {
 	if err != nil {
 		t.Fatalf("OpenDefault: %v", err)
 	}
-	client, err := authclient.ResolveClientWithOverride(account, "")
+	client, err := authclient.ResolveClientWithOverride(withIntegrationClientResolver(ctx), account, "")
 	if err != nil {
 		t.Fatalf("ResolveClient: %v", err)
 	}
@@ -133,6 +146,7 @@ func TestContactsSmoke(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
+	ctx = withIntegrationClientResolver(ctx)
 
 	svc, err := googleapi.NewPeopleContacts(ctx, account)
 	if err != nil {
@@ -149,6 +163,7 @@ func TestClassroomSmoke(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
+	ctx = withIntegrationClientResolver(ctx)
 
 	svc, err := googleapi.NewClassroom(ctx, account)
 	if err != nil {
@@ -169,6 +184,7 @@ func TestCalendarSendUpdates(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
+	ctx = withIntegrationClientResolver(ctx)
 
 	svc, err := googleapi.NewCalendar(ctx, account)
 	if err != nil {

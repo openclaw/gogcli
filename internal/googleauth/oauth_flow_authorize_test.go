@@ -101,16 +101,15 @@ func newTokenServer(t *testing.T) *httptest.Server {
 	}))
 }
 
-func useTempManualStatePath(t *testing.T) {
+func newTestManualStateStore(t *testing.T) *ManualStateStore {
 	t.Helper()
 
-	origDir := manualStateDirFn
-	dir := t.TempDir()
-	manualStateDirFn = func() (string, error) { return dir, nil }
+	store, err := NewManualStateStore(config.Layout{ConfigDir: t.TempDir()})
+	if err != nil {
+		t.Fatalf("new manual state store: %v", err)
+	}
 
-	t.Cleanup(func() {
-		manualStateDirFn = origDir
-	})
+	return store
 }
 
 func TestAuthorize_MissingScopes(t *testing.T) {
@@ -131,7 +130,7 @@ func TestAuthorize_Manual_Success(t *testing.T) {
 		randomStateFn = origState
 	})
 
-	useTempManualStatePath(t)
+	stateStore := newTestManualStateStore(t)
 
 	readClientCredentials = func(string) (config.ClientCredentials, error) {
 		return config.ClientCredentials{ClientID: "id", ClientSecret: "secret"}, nil
@@ -149,9 +148,10 @@ func TestAuthorize_Manual_Success(t *testing.T) {
 	_ = w.Close()
 
 	rt, err := Authorize(context.Background(), AuthorizeOptions{
-		Scopes:  []string{"s1"},
-		Manual:  true,
-		Timeout: 2 * time.Second,
+		Scopes:           []string{"s1"},
+		Manual:           true,
+		Timeout:          2 * time.Second,
+		ManualStateStore: stateStore,
 	})
 	if err != nil {
 		t.Fatalf("Authorize: %v", err)
@@ -172,7 +172,7 @@ func TestAuthorize_Manual_Success_NoNewline(t *testing.T) {
 		oauthEndpoint = origEndpoint
 		randomStateFn = origState
 	})
-	useTempManualStatePath(t)
+	stateStore := newTestManualStateStore(t)
 
 	readClientCredentials = func(string) (config.ClientCredentials, error) {
 		return config.ClientCredentials{ClientID: "id", ClientSecret: "secret"}, nil
@@ -190,9 +190,10 @@ func TestAuthorize_Manual_Success_NoNewline(t *testing.T) {
 	_ = w.Close()
 
 	rt, err := Authorize(context.Background(), AuthorizeOptions{
-		Scopes:  []string{"s1"},
-		Manual:  true,
-		Timeout: 2 * time.Second,
+		Scopes:           []string{"s1"},
+		Manual:           true,
+		Timeout:          2 * time.Second,
+		ManualStateStore: stateStore,
 	})
 	if err != nil {
 		t.Fatalf("Authorize: %v", err)
@@ -213,7 +214,7 @@ func TestAuthorize_Manual_CancelEOF(t *testing.T) {
 		oauthEndpoint = origEndpoint
 		randomStateFn = origState
 	})
-	useTempManualStatePath(t)
+	stateStore := newTestManualStateStore(t)
 
 	readClientCredentials = func(string) (config.ClientCredentials, error) {
 		return config.ClientCredentials{ClientID: "id", ClientSecret: "secret"}, nil
@@ -230,9 +231,10 @@ func TestAuthorize_Manual_CancelEOF(t *testing.T) {
 	_ = w.Close()
 
 	_, err := Authorize(context.Background(), AuthorizeOptions{
-		Scopes:  []string{"s1"},
-		Manual:  true,
-		Timeout: 2 * time.Second,
+		Scopes:           []string{"s1"},
+		Manual:           true,
+		Timeout:          2 * time.Second,
+		ManualStateStore: stateStore,
 	})
 	if err == nil {
 		t.Fatalf("expected error")
@@ -253,7 +255,7 @@ func TestAuthorize_Manual_StateMismatch(t *testing.T) {
 		oauthEndpoint = origEndpoint
 		randomStateFn = origState
 	})
-	useTempManualStatePath(t)
+	stateStore := newTestManualStateStore(t)
 
 	readClientCredentials = func(string) (config.ClientCredentials, error) {
 		return config.ClientCredentials{ClientID: "id", ClientSecret: "secret"}, nil
@@ -271,9 +273,10 @@ func TestAuthorize_Manual_StateMismatch(t *testing.T) {
 	_ = w.Close()
 
 	if _, err := Authorize(context.Background(), AuthorizeOptions{
-		Scopes:  []string{"s1"},
-		Manual:  true,
-		Timeout: 2 * time.Second,
+		Scopes:           []string{"s1"},
+		Manual:           true,
+		Timeout:          2 * time.Second,
+		ManualStateStore: stateStore,
 	}); err == nil || !strings.Contains(err.Error(), "state mismatch") {
 		t.Fatalf("expected state mismatch, got: %v", err)
 	}
@@ -289,13 +292,13 @@ func TestAuthorize_Manual_AuthCode(t *testing.T) {
 		oauthEndpoint = origEndpoint
 		randomStateFn = origState
 	})
-	useTempManualStatePath(t)
+	stateStore := newTestManualStateStore(t)
 
 	readClientCredentials = func(string) (config.ClientCredentials, error) {
 		return config.ClientCredentials{ClientID: "id", ClientSecret: "secret"}, nil
 	}
 
-	if err := saveManualState("", []string{"s1"}, false, "state123", testRedirectURI, testCodeVerifier); err != nil {
+	if err := stateStore.save("", []string{"s1"}, false, "state123", testRedirectURI, testCodeVerifier); err != nil {
 		t.Fatalf("save manual state: %v", err)
 	}
 
@@ -310,10 +313,11 @@ func TestAuthorize_Manual_AuthCode(t *testing.T) {
 	oauthEndpoint = oauth2EndpointForTest(tokenSrv.URL)
 
 	rt, err := Authorize(context.Background(), AuthorizeOptions{
-		Scopes:   []string{"s1"},
-		Manual:   true,
-		AuthCode: "abc",
-		Timeout:  2 * time.Second,
+		Scopes:           []string{"s1"},
+		Manual:           true,
+		AuthCode:         "abc",
+		Timeout:          2 * time.Second,
+		ManualStateStore: stateStore,
 	})
 	if err != nil {
 		t.Fatalf("Authorize: %v", err)
@@ -336,14 +340,14 @@ func TestAuthorize_Manual_AuthCode_WithRedirectURI(t *testing.T) {
 		readClientCredentials = origRead
 		oauthEndpoint = origEndpoint
 	})
-	useTempManualStatePath(t)
+	stateStore := newTestManualStateStore(t)
 
 	readClientCredentials = func(string) (config.ClientCredentials, error) {
 		return config.ClientCredentials{ClientID: "id", ClientSecret: "secret"}, nil
 	}
 
 	wantRedirectURI := "https://host.example/oauth2/callback"
-	if err := saveManualState("", []string{"s1"}, false, "state123", wantRedirectURI, testCodeVerifier); err != nil {
+	if err := stateStore.save("", []string{"s1"}, false, "state123", wantRedirectURI, testCodeVerifier); err != nil {
 		t.Fatalf("save manual state: %v", err)
 	}
 
@@ -375,11 +379,12 @@ func TestAuthorize_Manual_AuthCode_WithRedirectURI(t *testing.T) {
 	oauthEndpoint = oauth2EndpointForTest(tokenSrv.URL)
 
 	rt, err := Authorize(context.Background(), AuthorizeOptions{
-		Scopes:      []string{"s1"},
-		Manual:      true,
-		AuthCode:    "abc",
-		RedirectURI: wantRedirectURI,
-		Timeout:     2 * time.Second,
+		Scopes:           []string{"s1"},
+		Manual:           true,
+		AuthCode:         "abc",
+		RedirectURI:      wantRedirectURI,
+		Timeout:          2 * time.Second,
+		ManualStateStore: stateStore,
 	})
 	if err != nil {
 		t.Fatalf("Authorize: %v", err)
@@ -398,14 +403,14 @@ func TestAuthorize_Manual_AuthURL_PrefersAuthURLRedirectOverOverride(t *testing.
 		readClientCredentials = origRead
 		oauthEndpoint = origEndpoint
 	})
-	useTempManualStatePath(t)
+	stateStore := newTestManualStateStore(t)
 
 	readClientCredentials = func(string) (config.ClientCredentials, error) {
 		return config.ClientCredentials{ClientID: "id", ClientSecret: "secret"}, nil
 	}
 
 	redirectFromAuthURL := "https://from-auth-url.example/oauth2/callback"
-	if err := saveManualState("", []string{"s1"}, false, "state123", redirectFromAuthURL, testCodeVerifier); err != nil {
+	if err := stateStore.save("", []string{"s1"}, false, "state123", redirectFromAuthURL, testCodeVerifier); err != nil {
 		t.Fatalf("save manual state: %v", err)
 	}
 
@@ -437,11 +442,12 @@ func TestAuthorize_Manual_AuthURL_PrefersAuthURLRedirectOverOverride(t *testing.
 	oauthEndpoint = oauth2EndpointForTest(tokenSrv.URL)
 
 	rt, err := Authorize(context.Background(), AuthorizeOptions{
-		Scopes:      []string{"s1"},
-		Manual:      true,
-		AuthURL:     redirectFromAuthURL + "?code=abc",
-		RedirectURI: "https://override.example/oauth2/callback",
-		Timeout:     2 * time.Second,
+		Scopes:           []string{"s1"},
+		Manual:           true,
+		AuthURL:          redirectFromAuthURL + "?code=abc",
+		RedirectURI:      "https://override.example/oauth2/callback",
+		Timeout:          2 * time.Second,
+		ManualStateStore: stateStore,
 	})
 	if err != nil {
 		t.Fatalf("Authorize: %v", err)
@@ -460,7 +466,7 @@ func TestAuthorize_Manual_AuthURL_RequireStateMissing(t *testing.T) {
 		readClientCredentials = origRead
 		oauthEndpoint = origEndpoint
 	})
-	useTempManualStatePath(t)
+	stateStore := newTestManualStateStore(t)
 
 	readClientCredentials = func(string) (config.ClientCredentials, error) {
 		return config.ClientCredentials{ClientID: "id", ClientSecret: "secret"}, nil
@@ -468,12 +474,13 @@ func TestAuthorize_Manual_AuthURL_RequireStateMissing(t *testing.T) {
 	oauthEndpoint = oauth2EndpointForTest("http://example.com")
 
 	_, err := Authorize(context.Background(), AuthorizeOptions{
-		Scopes:       []string{"s1"},
-		Manual:       true,
-		AuthURL:      "http://127.0.0.1:55555/oauth2/callback?code=abc",
-		RequireState: true,
-		Client:       "default",
-		Timeout:      2 * time.Second,
+		Scopes:           []string{"s1"},
+		Manual:           true,
+		AuthURL:          "http://127.0.0.1:55555/oauth2/callback?code=abc",
+		RequireState:     true,
+		Client:           "default",
+		Timeout:          2 * time.Second,
+		ManualStateStore: stateStore,
 	})
 	if err == nil {
 		t.Fatalf("expected error")
@@ -492,7 +499,7 @@ func TestAuthorize_Manual_AuthURL_RequireStateMissingCache(t *testing.T) {
 		readClientCredentials = origRead
 		oauthEndpoint = origEndpoint
 	})
-	useTempManualStatePath(t)
+	stateStore := newTestManualStateStore(t)
 
 	readClientCredentials = func(string) (config.ClientCredentials, error) {
 		return config.ClientCredentials{ClientID: "id", ClientSecret: "secret"}, nil
@@ -500,12 +507,13 @@ func TestAuthorize_Manual_AuthURL_RequireStateMissingCache(t *testing.T) {
 	oauthEndpoint = oauth2EndpointForTest("http://example.com")
 
 	_, err := Authorize(context.Background(), AuthorizeOptions{
-		Scopes:       []string{"s1"},
-		Manual:       true,
-		AuthURL:      "http://127.0.0.1:55555/oauth2/callback?code=abc&state=state123",
-		RequireState: true,
-		Client:       "default",
-		Timeout:      2 * time.Second,
+		Scopes:           []string{"s1"},
+		Manual:           true,
+		AuthURL:          "http://127.0.0.1:55555/oauth2/callback?code=abc&state=state123",
+		RequireState:     true,
+		Client:           "default",
+		Timeout:          2 * time.Second,
+		ManualStateStore: stateStore,
 	})
 	if err == nil {
 		t.Fatalf("expected error")
@@ -524,24 +532,25 @@ func TestAuthorize_Manual_AuthURL_RequireStateMissingForDifferentState(t *testin
 		readClientCredentials = origRead
 		oauthEndpoint = origEndpoint
 	})
-	useTempManualStatePath(t)
+	stateStore := newTestManualStateStore(t)
 
 	readClientCredentials = func(string) (config.ClientCredentials, error) {
 		return config.ClientCredentials{ClientID: "id", ClientSecret: "secret"}, nil
 	}
 	oauthEndpoint = oauth2EndpointForTest("http://example.com")
 
-	if err := saveManualState("default", []string{"s1"}, false, "state123", "http://127.0.0.1:55555/oauth2/callback", testCodeVerifier); err != nil {
+	if err := stateStore.save("default", []string{"s1"}, false, "state123", "http://127.0.0.1:55555/oauth2/callback", testCodeVerifier); err != nil {
 		t.Fatalf("save manual state: %v", err)
 	}
 
 	_, err := Authorize(context.Background(), AuthorizeOptions{
-		Scopes:       []string{"s1"},
-		Manual:       true,
-		AuthURL:      "http://127.0.0.1:55555/oauth2/callback?code=abc&state=DIFFERENT",
-		RequireState: true,
-		Client:       "default",
-		Timeout:      2 * time.Second,
+		Scopes:           []string{"s1"},
+		Manual:           true,
+		AuthURL:          "http://127.0.0.1:55555/oauth2/callback?code=abc&state=DIFFERENT",
+		RequireState:     true,
+		Client:           "default",
+		Timeout:          2 * time.Second,
+		ManualStateStore: stateStore,
 	})
 	if err == nil {
 		t.Fatalf("expected error")
@@ -672,7 +681,7 @@ func TestAuthorize_Manual_AuthURL_UsesStoredPKCEVerifier(t *testing.T) {
 		generateVerifierFn = origVerifier
 	})
 
-	useTempManualStatePath(t)
+	stateStore := newTestManualStateStore(t)
 
 	readClientCredentials = func(string) (config.ClientCredentials, error) {
 		return config.ClientCredentials{ClientID: "id", ClientSecret: "secret"}, nil
@@ -708,9 +717,10 @@ func TestAuthorize_Manual_AuthURL_UsesStoredPKCEVerifier(t *testing.T) {
 	oauthEndpoint = oauth2EndpointForTest(tokenSrv.URL)
 
 	res, err := ManualAuthURL(context.Background(), AuthorizeOptions{
-		Scopes:  []string{"s1"},
-		Manual:  true,
-		Timeout: 2 * time.Second,
+		Scopes:           []string{"s1"},
+		Manual:           true,
+		Timeout:          2 * time.Second,
+		ManualStateStore: stateStore,
 	})
 	if err != nil {
 		t.Fatalf("ManualAuthURL: %v", err)
@@ -733,10 +743,11 @@ func TestAuthorize_Manual_AuthURL_UsesStoredPKCEVerifier(t *testing.T) {
 	state := parsed.Query().Get("state")
 
 	rt, err := Authorize(context.Background(), AuthorizeOptions{
-		Scopes:  []string{"s1"},
-		Manual:  true,
-		AuthURL: redirectURI + "?code=abc&state=" + url.QueryEscape(state),
-		Timeout: 2 * time.Second,
+		Scopes:           []string{"s1"},
+		Manual:           true,
+		AuthURL:          redirectURI + "?code=abc&state=" + url.QueryEscape(state),
+		Timeout:          2 * time.Second,
+		ManualStateStore: stateStore,
 	})
 	if err != nil {
 		t.Fatalf("Authorize: %v", err)

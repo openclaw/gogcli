@@ -160,7 +160,11 @@ func (c *CalendarAclCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if err != nil {
 		return err
 	}
-	calendarID, err = resolveCalendarSelector(ctx, svc, calendarID, false)
+	store, err := commandConfigStore(ctx)
+	if err != nil {
+		return err
+	}
+	calendarID, err = resolveCalendarSelector(ctx, store, svc, calendarID, false)
 	if err != nil {
 		return err
 	}

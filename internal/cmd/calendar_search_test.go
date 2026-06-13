@@ -12,8 +12,6 @@ import (
 
 	"google.golang.org/api/calendar/v3"
 	"google.golang.org/api/option"
-
-	"github.com/steipete/gogcli/internal/config"
 )
 
 func TestCalendarSearchCmd_JSON(t *testing.T) {
@@ -100,7 +98,7 @@ func TestCalendarSearchCmd_UsesResolvedAliasID(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, "xdg-config"))
-	if err := config.SetCalendarAlias("family", "family-cal@group.calendar.google.com"); err != nil {
+	if err := defaultConfigStoreForTest(t).SetCalendarAlias("family", "family-cal@group.calendar.google.com"); err != nil {
 		t.Fatalf("SetCalendarAlias: %v", err)
 	}
 

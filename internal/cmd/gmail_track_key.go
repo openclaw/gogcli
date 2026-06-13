@@ -34,7 +34,7 @@ func (c *GmailTrackKeyRotateCmd) Run(ctx context.Context, flags *RootFlags) erro
 		})
 	}
 
-	account, cfg, configStore, err := loadTrackingConfigForAccount(ctx, flags)
+	account, cfg, configStore, secretStore, err := loadTrackingConfigForAccount(ctx, flags)
 	if err != nil {
 		return err
 	}
@@ -44,13 +44,17 @@ func (c *GmailTrackKeyRotateCmd) Run(ctx context.Context, flags *RootFlags) erro
 	if strings.TrimSpace(cfg.AdminKey) == "" {
 		return fmt.Errorf("tracking admin key not configured; run 'gog gmail track setup' again")
 	}
+	secretStore, err = ensureTrackingSecretStore(ctx, secretStore)
+	if err != nil {
+		return err
+	}
 
 	currentVersion := cfg.TrackingCurrentKeyVersion
 	if currentVersion <= 0 {
 		currentVersion = 1
 	}
 	knownVersions := tracking.NormalizeTrackingKeyVersions(cfg.TrackingKeyVersions, currentVersion)
-	keys, currentVersion, err := tracking.LoadTrackingKeys(account, knownVersions, currentVersion)
+	keys, currentVersion, err := secretStore.LoadTrackingKeys(account, knownVersions, currentVersion)
 	if err != nil {
 		return fmt.Errorf("load tracking keys: %w", err)
 	}
@@ -104,7 +108,7 @@ func (c *GmailTrackKeyRotateCmd) Run(ctx context.Context, flags *RootFlags) erro
 		cfg.WorkerName = workerName
 	}
 
-	if err := tracking.SaveTrackingKeys(account, keys, nextVersion, cfg.AdminKey); err != nil {
+	if err := secretStore.SaveTrackingKeys(account, keys, nextVersion, cfg.AdminKey); err != nil {
 		return fmt.Errorf("save tracking keys: %w", err)
 	}
 

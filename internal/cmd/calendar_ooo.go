@@ -18,7 +18,11 @@ type CalendarOOOCmd struct {
 }
 
 func (c *CalendarOOOCmd) Run(ctx context.Context, flags *RootFlags) error {
-	calendarID, err := prepareCalendarID(c.CalendarID, true)
+	store, err := commandConfigStore(ctx)
+	if err != nil {
+		return err
+	}
+	calendarID, err := prepareCalendarID(store, c.CalendarID, true)
 	if err != nil {
 		return err
 	}

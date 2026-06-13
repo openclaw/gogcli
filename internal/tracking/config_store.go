@@ -28,9 +28,10 @@ type ConfigStore struct {
 	legacyPath   string
 	allowLegacy  bool
 	lock         *filelock.Lock
+	secrets      *SecretStore
 }
 
-func NewConfigStore(layout config.Layout, legacyConfigBase string) (*ConfigStore, error) {
+func NewConfigStore(layout config.Layout, legacyConfigBase string, secretStore *SecretStore) (*ConfigStore, error) {
 	if !filepath.IsAbs(layout.StateDir) {
 		return nil, fmt.Errorf("%w: state=%s", errInvalidTrackingConfigPath, layout.StateDir)
 	}
@@ -43,6 +44,7 @@ func NewConfigStore(layout config.Layout, legacyConfigBase string) (*ConfigStore
 		path:        filepath.Join(layout.StateDir, "tracking.json"),
 		allowLegacy: !layout.ExplicitState,
 		lock:        filelock.Shared(filepath.Join(layout.StateDir, "tracking.lock"), trackingLockTimeout),
+		secrets:     secretStore,
 	}
 	if store.allowLegacy {
 		if !filepath.IsAbs(legacyConfigBase) {
@@ -101,7 +103,7 @@ func (s *ConfigStore) load(account string, hydrate bool) (*Config, error) {
 			return cfg, nil
 		}
 
-		return hydrateConfig(account, cfg)
+		return hydrateConfig(account, cfg, s.secrets)
 	}
 
 	var legacy Config
@@ -113,7 +115,7 @@ func (s *ConfigStore) load(account string, hydrate bool) (*Config, error) {
 		return &legacy, nil
 	}
 
-	return hydrateConfig(account, &legacy)
+	return hydrateConfig(account, &legacy, s.secrets)
 }
 
 func (s *ConfigStore) Save(account string, cfg *Config) error {

@@ -222,7 +222,7 @@ type GmailWatchServeCmd struct {
 	Port          int      `name:"port" help:"Listen port" default:"8788"`
 	Path          string   `name:"path" help:"Push handler path" default:"/gmail-pubsub"`
 	FetchDelay    string   `name:"fetch-delay" help:"Delay before fetching Gmail history (seconds or duration)" default:"3s"`
-	Timezone      string   `name:"timezone" short:"z" help:"Output timezone (IANA name, e.g. America/New_York, UTC). Default: local"`
+	Timezone      string   `name:"timezone" short:"z" help:"Output timezone (IANA name, e.g. America/New_York, UTC). Default: GOG_TIMEZONE, config, then local"`
 	Local         bool     `name:"local" help:"Use local timezone (default behavior, useful to override --timezone)"`
 	VerifyOIDC    bool     `name:"verify-oidc" help:"Verify Pub/Sub OIDC tokens"`
 	OIDCEmail     string   `name:"oidc-email" help:"Expected service account email"`
@@ -259,7 +259,7 @@ func (c *GmailWatchServeCmd) Run(ctx context.Context, kctx *kong.Context, flags 
 		return usage("--oidc-audience requires --verify-oidc")
 	}
 
-	loc, err := resolveOutputLocation(c.Timezone, c.Local, stderrWriter(ctx))
+	loc, err := resolveOutputLocation(ctx, c.Timezone, c.Local, stderrWriter(ctx))
 	if err != nil {
 		return err
 	}
