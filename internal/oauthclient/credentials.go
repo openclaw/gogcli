@@ -36,39 +36,6 @@ func NewCredentialsStore(files *config.ClientCredentialsStore, secretStore secre
 	return &CredentialsStore{files: files, secrets: secretStore}, nil
 }
 
-type secretFuncs struct{}
-
-func (secretFuncs) SetSecret(key string, value []byte) error {
-	if err := secrets.SetSecret(key, value); err != nil {
-		return fmt.Errorf("set secret: %w", err)
-	}
-	return nil
-}
-
-func (secretFuncs) GetSecret(key string) ([]byte, error) {
-	value, err := secrets.GetSecret(key)
-	if err != nil {
-		return nil, fmt.Errorf("get secret: %w", err)
-	}
-	return value, nil
-}
-
-func (secretFuncs) DeleteSecret(key string) error {
-	if err := secrets.DeleteSecret(key); err != nil {
-		return fmt.Errorf("delete secret: %w", err)
-	}
-	return nil
-}
-
-func defaultCredentialsStore() (*CredentialsStore, error) {
-	files, err := config.DefaultClientCredentialsStore()
-	if err != nil {
-		return nil, fmt.Errorf("resolve credential store: %w", err)
-	}
-
-	return NewCredentialsStore(files, secretFuncs{})
-}
-
 func ClientSecretKey(client string) (string, error) {
 	normalized, err := config.NormalizeClientNameOrDefault(client)
 	if err != nil {
@@ -114,15 +81,6 @@ func (s *CredentialsStore) Write(client string, creds config.ClientCredentials, 
 		return fmt.Errorf("write credentials metadata: %w", writeErr)
 	}
 	return nil
-}
-
-func ReadClientCredentialsFor(client string) (config.ClientCredentials, error) {
-	store, err := defaultCredentialsStore()
-	if err != nil {
-		return config.ClientCredentials{}, err
-	}
-
-	return store.Read(client)
 }
 
 func (s *CredentialsStore) Read(client string) (config.ClientCredentials, error) {

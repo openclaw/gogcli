@@ -4,7 +4,27 @@ import (
 	"context"
 	"errors"
 	"testing"
+
+	"github.com/steipete/gogcli/internal/config"
+	"github.com/steipete/gogcli/internal/secrets"
 )
+
+type testSecretsStore struct{}
+
+func (testSecretsStore) Keys() ([]string, error) { return nil, nil }
+func (testSecretsStore) SetToken(string, string, secrets.Token) error {
+	return nil
+}
+
+func (testSecretsStore) GetToken(string, string) (secrets.Token, error) {
+	return secrets.Token{}, nil
+}
+func (testSecretsStore) DeleteToken(string, string) error { return nil }
+func (testSecretsStore) ListTokens() ([]secrets.Token, error) {
+	return nil, nil
+}
+func (testSecretsStore) GetDefaultAccount(string) (string, error) { return "", nil }
+func (testSecretsStore) SetDefaultAccount(string, string) error   { return nil }
 
 func TestWithAccessToken_EmptyToken(t *testing.T) {
 	ctx := context.Background()
@@ -21,8 +41,7 @@ func TestWithAccessToken_TrimsWhitespace(t *testing.T) {
 }
 
 func TestAccessTokenFromContext_NilContext(t *testing.T) {
-	//nolint:staticcheck // intentional nil for regression coverage
-	if got := AccessTokenFromContext(nil); got != "" {
+	if got := AccessTokenFromContext(nil); got != "" { //nolint:staticcheck // intentional nil regression coverage
 		t.Fatalf("expected empty token, got %q", got)
 	}
 }
@@ -121,5 +140,60 @@ func TestUpdateEmailReferencesRequiresUpdater(t *testing.T) {
 
 	if err := UpdateEmailReferences(context.Background(), "old@example.com", "new@example.com"); !errors.Is(err, errEmailReferenceUpdaterRequired) {
 		t.Fatalf("error = %v, want updater-required", err)
+	}
+}
+
+func TestReadCredentialsUsesContextReader(t *testing.T) {
+	t.Parallel()
+
+	ctx := WithCredentialsReader(context.Background(), func(client string) (config.ClientCredentials, error) {
+		if client != "work" {
+			t.Fatalf("client = %q", client)
+		}
+
+		return config.ClientCredentials{ClientID: "id", ClientSecret: "secret"}, nil
+	})
+
+	credentials, err := ReadCredentials(ctx, "work")
+	if err != nil {
+		t.Fatalf("ReadCredentials: %v", err)
+	}
+
+	if credentials.ClientID != "id" || credentials.ClientSecret != "secret" {
+		t.Fatalf("credentials = %#v", credentials)
+	}
+}
+
+func TestReadCredentialsRequiresReader(t *testing.T) {
+	t.Parallel()
+
+	if _, err := ReadCredentials(context.Background(), "work"); !errors.Is(err, errCredentialsReaderRequired) {
+		t.Fatalf("error = %v, want reader-required", err)
+	}
+}
+
+func TestOpenSecretsStoreUsesContextOpener(t *testing.T) {
+	t.Parallel()
+
+	want := testSecretsStore{}
+	ctx := WithSecretsStoreOpener(context.Background(), func() (secrets.Store, error) {
+		return want, nil
+	})
+
+	store, err := OpenSecretsStore(ctx)
+	if err != nil {
+		t.Fatalf("OpenSecretsStore: %v", err)
+	}
+
+	if _, ok := store.(testSecretsStore); !ok {
+		t.Fatalf("store = %T", store)
+	}
+}
+
+func TestOpenSecretsStoreRequiresOpener(t *testing.T) {
+	t.Parallel()
+
+	if _, err := OpenSecretsStore(context.Background()); !errors.Is(err, errSecretsStoreOpenerRequired) {
+		t.Fatalf("error = %v, want opener-required", err)
 	}
 }

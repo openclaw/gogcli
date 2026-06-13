@@ -17,13 +17,12 @@ import (
 	"github.com/steipete/gogcli/internal/authclient"
 	"github.com/steipete/gogcli/internal/config"
 	"github.com/steipete/gogcli/internal/googleauth"
-	"github.com/steipete/gogcli/internal/oauthclient"
 	"github.com/steipete/gogcli/internal/secrets"
 )
 
 var (
-	readClientCredentials = oauthclient.ReadClientCredentialsFor
-	openSecretsStore      = secrets.OpenDefault
+	readClientCredentials func(string) (config.ClientCredentials, error)
+	openSecretsStore      func() (secrets.Store, error)
 )
 
 type persistingTokenSource struct {
@@ -176,7 +175,7 @@ func clientCredentialsForAccount(ctx context.Context, email string) (string, con
 		return "", config.ClientCredentials{}, fmt.Errorf("resolve client: %w", err)
 	}
 
-	creds, err := readClientCredentials(client)
+	creds, err := readGoogleClientCredentials(ctx, client)
 	if err != nil {
 		return "", config.ClientCredentials{}, fmt.Errorf("read credentials: %w", err)
 	}
@@ -250,7 +249,7 @@ func tokenSourceForAccountScopesWithStoredScopeCheck(
 ) (oauth2.TokenSource, error) {
 	var store secrets.Store
 
-	if s, err := openSecretsStore(); err != nil {
+	if s, err := openGoogleSecretsStore(ctx); err != nil {
 		return nil, fmt.Errorf("open secrets store: %w", err)
 	} else {
 		store = s
@@ -308,6 +307,32 @@ func tokenSourceForAccountScopesWithStoredScopeCheck(
 	return newPersistingTokenSource(baseSource, store, client, email, tok, serviceLabel, func(oldEmail, newEmail string) error {
 		return authclient.UpdateEmailReferences(ctx, oldEmail, newEmail)
 	}), nil
+}
+
+func readGoogleClientCredentials(ctx context.Context, client string) (config.ClientCredentials, error) {
+	if readClientCredentials != nil {
+		return readClientCredentials(client)
+	}
+
+	credentials, err := authclient.ReadCredentials(ctx, client)
+	if err != nil {
+		return config.ClientCredentials{}, fmt.Errorf("read Google client credentials: %w", err)
+	}
+
+	return credentials, nil
+}
+
+func openGoogleSecretsStore(ctx context.Context) (secrets.Store, error) {
+	if openSecretsStore != nil {
+		return openSecretsStore()
+	}
+
+	store, err := authclient.OpenSecretsStore(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("open Google secrets store: %w", err)
+	}
+
+	return store, nil
 }
 
 func tokenGrantedScopes(t *oauth2.Token) []string {

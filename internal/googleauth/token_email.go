@@ -22,7 +22,7 @@ func IdentityForRefreshToken(ctx context.Context, client string, refreshToken st
 		timeout = 15 * time.Second
 	}
 
-	creds, err := readClientCredentials(client)
+	creds, err := readOAuthClientCredentials(ctx, client)
 	if err != nil {
 		return Identity{}, fmt.Errorf("read credentials: %w", err)
 	}

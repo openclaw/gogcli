@@ -32,6 +32,7 @@ import (
 	"google.golang.org/api/tasks/v1"
 
 	"github.com/steipete/gogcli/internal/app"
+	"github.com/steipete/gogcli/internal/authclient"
 	"github.com/steipete/gogcli/internal/config"
 	"github.com/steipete/gogcli/internal/googleapi"
 	"github.com/steipete/gogcli/internal/googleauth"
@@ -457,6 +458,11 @@ func stdinIsTerminal(ctx context.Context) bool {
 }
 
 func startAuthManageServer(ctx context.Context, options googleauth.ManageServerOptions) error {
+	if options.ReadCredentials == nil {
+		options.ReadCredentials = func(client string) (config.ClientCredentials, error) {
+			return authclient.ReadCredentials(ctx, client)
+		}
+	}
 	if runtime, ok := app.FromContext(ctx); ok && runtime.Auth.StartManageServer != nil {
 		return runtime.Auth.StartManageServer(ctx, options)
 	}
