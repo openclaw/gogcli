@@ -56,7 +56,8 @@ commands that were not reviewed for MCP use.
 
 - no generic command execution tool
 - no model-supplied argv passthrough
-- fixed tool schemas with unknown fields rejected
+- fixed tool schemas validated before command execution, including required
+  fields, types, and rejection of unknown fields
 - read-only tools by default
 - write tools require explicit server startup flags
 - existing `gog` account, auth, dry-run, no-input, and command safety flags are

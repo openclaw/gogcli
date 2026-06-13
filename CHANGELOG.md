@@ -9,6 +9,7 @@
 
 ### Fixed
 
+- MCP: validate typed tool calls against their closed schemas before command execution, rejecting unknown fields, wrong types, and missing required fields.
 - CLI: classify malformed OAuth token imports as usage errors and missing Gmail tracking setup as configuration errors.
 - CLI: classify invalid Docs batch IDs and incomplete Gmail filter definitions as usage errors with exit code 2.
 - Docs: keep batch list/show, batch target validation, and batch end dry-runs read-only without creating state directories or lock files.

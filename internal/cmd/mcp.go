@@ -75,18 +75,10 @@ func (c *McpCmd) Run(ctx context.Context, flags *RootFlags) error {
 	timeout := time.Duration(c.TimeoutSeconds) * time.Second
 	maxOutputBytes := c.MaxOutputBytes
 
-	s := server.NewMCPServer("gog", VersionString(), server.WithToolCapabilities(false))
+	s := newMCPServer()
 	for _, spec := range tools {
 		tool := spec
-		opts := append([]mcp.ToolOption{
-			mcp.WithDescription(tool.Description),
-			mcp.WithReadOnlyHintAnnotation(tool.Risk == mcpRiskRead),
-			mcp.WithDestructiveHintAnnotation(tool.Risk == mcpRiskWrite),
-			mcp.WithIdempotentHintAnnotation(tool.Risk == mcpRiskRead),
-			mcp.WithOpenWorldHintAnnotation(true),
-			mcp.WithSchemaAdditionalProperties(false),
-		}, tool.Options...)
-		s.AddTool(mcp.NewTool(tool.Name, opts...), func(reqCtx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		s.AddTool(newMCPTool(tool), func(reqCtx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			childCommandArgs, buildErr := tool.BuildArgs(req)
 			if buildErr != nil {
 				result := mcp.NewToolResultError(buildErr.Error())
@@ -106,6 +98,27 @@ func (c *McpCmd) Run(ctx context.Context, flags *RootFlags) error {
 		})
 	}
 	return server.ServeStdio(s)
+}
+
+func newMCPServer() *server.MCPServer {
+	return server.NewMCPServer(
+		"gog",
+		VersionString(),
+		server.WithToolCapabilities(false),
+		server.WithInputSchemaValidation(),
+	)
+}
+
+func newMCPTool(tool mcpToolSpec) mcp.Tool {
+	opts := append([]mcp.ToolOption{
+		mcp.WithDescription(tool.Description),
+		mcp.WithReadOnlyHintAnnotation(tool.Risk == mcpRiskRead),
+		mcp.WithDestructiveHintAnnotation(tool.Risk == mcpRiskWrite),
+		mcp.WithIdempotentHintAnnotation(tool.Risk == mcpRiskRead),
+		mcp.WithOpenWorldHintAnnotation(true),
+		mcp.WithSchemaAdditionalProperties(false),
+	}, tool.Options...)
+	return mcp.NewTool(tool.Name, opts...)
 }
 
 type mcpRunOptions struct {
