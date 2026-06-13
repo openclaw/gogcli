@@ -9,6 +9,7 @@
 
 ### Fixed
 
+- Auth: clarify that `auth import` always requires a refresh-token source and only optionally accepts a current access token plus expiry.
 - Calendar: make alias set/unset dry-runs preview config changes without writing `config.json`.
 - Dry-run safety: keep Drive, Contacts, Slides thumbnail, backup plaintext, OAuth token, Gmail filter, Photos, and Photos Picker downloads/exports offline and prevent local file or secret output.
 - Auth: make `auth credentials set --dry-run` preview credential and domain writes without opening the keyring or changing files, and validate every domain before storing credentials.

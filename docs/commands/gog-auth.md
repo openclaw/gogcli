@@ -20,7 +20,7 @@ gog auth <command> [flags]
 - [gog auth alias](gog-auth-alias.md) - Manage account aliases
 - [gog auth credentials](gog-auth-credentials.md) - Manage OAuth client credentials
 - [gog auth doctor](gog-auth-doctor.md) - Diagnose auth, keyring, and refresh-token issues
-- [gog auth import](gog-auth-import.md) - Import a refresh token non-interactively from stdin, file, or env
+- [gog auth import](gog-auth-import.md) - Import a required refresh token and optional current access token non-interactively
 - [gog auth keep](gog-auth-keep.md) - Configure service account for Google Keep (Workspace only)
 - [gog auth keyring](gog-auth-keyring.md) - Configure keyring backend
 - [gog auth list](gog-auth-list.md) - List stored accounts

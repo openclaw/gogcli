@@ -92,7 +92,7 @@ Generated pages: 643.
       - [gog auth credentials remove](gog-auth-credentials-remove.md) - Remove stored OAuth client credentials
       - [gog auth credentials set](gog-auth-credentials-set.md) - Store OAuth client credentials
     - [gog auth doctor](gog-auth-doctor.md) - Diagnose auth, keyring, and refresh-token issues
-    - [gog auth import](gog-auth-import.md) - Import a refresh token non-interactively from stdin, file, or env
+    - [gog auth import](gog-auth-import.md) - Import a required refresh token and optional current access token non-interactively
     - [gog auth keep](gog-auth-keep.md) - Configure service account for Google Keep (Workspace only)
     - [gog auth keyring](gog-auth-keyring.md) - Configure keyring backend
     - [gog auth list](gog-auth-list.md) - List stored accounts

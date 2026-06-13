@@ -2,7 +2,7 @@
 
 > Generated from `gog schema --json`. Do not edit this page by hand; run `make docs-commands`.
 
-Import a refresh token non-interactively from stdin, file, or env
+Import a required refresh token and optional current access token non-interactively
 
 ## Usage
 
@@ -19,10 +19,10 @@ gog auth import --email=STRING [flags]
 | Flag | Type | Default | Help |
 | --- | --- | --- | --- |
 | `--access-token` | `string` |  | Use provided access token directly (bypasses stored refresh tokens; token expires in ~1h) |
-| `--access-token-env` | `string` |  | Read OAuth access token from the named environment variable |
-| `--access-token-expires-at` | `string` |  | Access token expiry timestamp (RFC3339; default: now+1h when an access token is provided) |
-| `--access-token-file` | `string` |  | Read OAuth access token from file |
-| `--access-token-stdin` | `bool` |  | Read OAuth access token from stdin |
+| `--access-token-env` | `string` |  | Also read a current OAuth access token from the named environment variable (requires a refresh-token source) |
+| `--access-token-expires-at` | `string` |  | Expiry for the optional access token (RFC3339; default: now+1h when provided) |
+| `--access-token-file` | `string` |  | Also read a current OAuth access token from file (requires a refresh-token source) |
+| `--access-token-stdin` | `bool` |  | Also read a current OAuth access token from stdin (requires a refresh-token source) |
 | `-a`<br>`--account`<br>`--acct` | `string` |  | Account email, alias, or auto for authenticated Google API commands |
 | `--client` | `string` |  | OAuth client name (selects stored credentials + token bucket) |
 | `--color` | `string` | auto | Color output: auto\|always\|never |
