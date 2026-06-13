@@ -9,6 +9,7 @@
 ### Fixed
 
 - Drive: preserve repeated folder placements in tree, inventory, and size summaries; reject cyclic folder graphs instead of collapsing paths or scanning indefinitely.
+- Classroom: require an archived course before deletion with actionable lifecycle guidance, and prevent live tests from leaving consumer-account courses behind.
 
 ## 0.25.0 - 2026-06-12
 

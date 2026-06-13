@@ -11,12 +11,19 @@ import (
 	"github.com/steipete/gogcli/internal/ui"
 )
 
+const (
+	classroomCourseStateActive      = "ACTIVE"
+	classroomCourseStateArchived    = "ARCHIVED"
+	classroomCourseStateProvisioned = "PROVISIONED"
+	classroomCourseStateDeclined    = "DECLINED"
+)
+
 type ClassroomCoursesCmd struct {
 	List      ClassroomCoursesListCmd      `cmd:"" default:"withargs" aliases:"ls" help:"List courses"`
 	Get       ClassroomCoursesGetCmd       `cmd:"" aliases:"info,show" help:"Get a course"`
 	Create    ClassroomCoursesCreateCmd    `cmd:"" aliases:"add,new" help:"Create a course"`
 	Update    ClassroomCoursesUpdateCmd    `cmd:"" aliases:"edit,set" help:"Update a course"`
-	Delete    ClassroomCoursesDeleteCmd    `cmd:"" aliases:"rm,del,remove" help:"Delete a course"`
+	Delete    ClassroomCoursesDeleteCmd    `cmd:"" aliases:"rm,del,remove" help:"Delete an archived course"`
 	Archive   ClassroomCoursesArchiveCmd   `cmd:"" aliases:"arch" help:"Archive a course"`
 	Unarchive ClassroomCoursesUnarchiveCmd `cmd:"" aliases:"unarch,restore" help:"Unarchive a course"`
 	Join      ClassroomCoursesJoinCmd      `cmd:"" aliases:"enroll" help:"Join a course"`
@@ -311,6 +318,14 @@ func (c *ClassroomCoursesDeleteCmd) Run(ctx context.Context, flags *RootFlags) e
 		return wrapClassroomError(err)
 	}
 
+	course, err := svc.Courses.Get(courseID).Context(ctx).Do()
+	if err != nil {
+		return wrapClassroomError(err)
+	}
+	if course.CourseState != classroomCourseStateArchived {
+		return classroomCourseDeleteStateError(courseID, course.CourseState)
+	}
+
 	if _, err := svc.Courses.Delete(courseID).Context(ctx).Do(); err != nil {
 		return wrapClassroomError(err)
 	}
@@ -321,12 +336,36 @@ func (c *ClassroomCoursesDeleteCmd) Run(ctx context.Context, flags *RootFlags) e
 	)
 }
 
+func classroomCourseDeleteStateError(courseID, state string) error {
+	switch state {
+	case classroomCourseStateActive:
+		return fmt.Errorf(
+			"course %s is ACTIVE; archive it before deleting: gog classroom courses archive %s",
+			courseID,
+			courseID,
+		)
+	case classroomCourseStateProvisioned:
+		return fmt.Errorf(
+			"course %s is PROVISIONED; accept its teaching invitation in Google Classroom, then archive it before deleting",
+			courseID,
+		)
+	case classroomCourseStateDeclined:
+		return fmt.Errorf("course %s is DECLINED; declined courses cannot be deleted or recovered", courseID)
+	default:
+		return fmt.Errorf(
+			"course %s must be ARCHIVED before deletion (current state: %s)",
+			courseID,
+			state,
+		)
+	}
+}
+
 type ClassroomCoursesArchiveCmd struct {
 	CourseID string `arg:"" name:"courseId" help:"Course ID or alias"`
 }
 
 func (c *ClassroomCoursesArchiveCmd) Run(ctx context.Context, flags *RootFlags) error {
-	return updateCourseState(ctx, flags, c.CourseID, "ARCHIVED")
+	return updateCourseState(ctx, flags, c.CourseID, classroomCourseStateArchived)
 }
 
 type ClassroomCoursesUnarchiveCmd struct {
@@ -334,7 +373,7 @@ type ClassroomCoursesUnarchiveCmd struct {
 }
 
 func (c *ClassroomCoursesUnarchiveCmd) Run(ctx context.Context, flags *RootFlags) error {
-	return updateCourseState(ctx, flags, c.CourseID, "ACTIVE")
+	return updateCourseState(ctx, flags, c.CourseID, classroomCourseStateActive)
 }
 
 func updateCourseState(ctx context.Context, flags *RootFlags, courseID, state string) error {
@@ -347,9 +386,9 @@ func updateCourseState(ctx context.Context, flags *RootFlags, courseID, state st
 	course := &classroom.Course{CourseState: state}
 	op := "classroom.courses.update_state"
 	switch state {
-	case "ARCHIVED":
+	case classroomCourseStateArchived:
 		op = "classroom.courses.archive"
-	case "ACTIVE":
+	case classroomCourseStateActive:
 		op = "classroom.courses.unarchive"
 	}
 	if err := dryRunExit(ctx, flags, op, map[string]any{

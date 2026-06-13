@@ -183,7 +183,7 @@ Generated pages: 642.
     - [gog classroom courses](gog-classroom-courses.md) - Courses
       - [gog classroom courses archive](gog-classroom-courses-archive.md) - Archive a course
       - [gog classroom courses create](gog-classroom-courses-create.md) - Create a course
-      - [gog classroom courses delete](gog-classroom-courses-delete.md) - Delete a course
+      - [gog classroom courses delete](gog-classroom-courses-delete.md) - Delete an archived course
       - [gog classroom courses get](gog-classroom-courses-get.md) - Get a course
       - [gog classroom courses join](gog-classroom-courses-join.md) - Join a course
       - [gog classroom courses leave](gog-classroom-courses-leave.md) - Leave a course

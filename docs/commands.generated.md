@@ -132,7 +132,7 @@ Generated from `gog schema --json`.
     - [`gog classroom (class) courses (course) <command>`](commands/gog-classroom-courses.md) - Courses
       - [`gog classroom (class) courses (course) archive (arch) <courseId>`](commands/gog-classroom-courses-archive.md) - Archive a course
       - [`gog classroom (class) courses (course) create (add,new) --name=STRING [flags]`](commands/gog-classroom-courses-create.md) - Create a course
-      - [`gog classroom (class) courses (course) delete (rm,del,remove) <courseId>`](commands/gog-classroom-courses-delete.md) - Delete a course
+      - [`gog classroom (class) courses (course) delete (rm,del,remove) <courseId>`](commands/gog-classroom-courses-delete.md) - Delete an archived course
       - [`gog classroom (class) courses (course) get (info,show) <courseId>`](commands/gog-classroom-courses-get.md) - Get a course
       - [`gog classroom (class) courses (course) join (enroll) <courseId> [flags]`](commands/gog-classroom-courses-join.md) - Join a course
       - [`gog classroom (class) courses (course) leave (unenroll) <courseId> [flags]`](commands/gog-classroom-courses-leave.md) - Leave a course

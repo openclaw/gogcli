@@ -382,7 +382,11 @@ func TestExecute_ClassroomMoreCommands_JSON(t *testing.T) {
 		case strings.Contains(path, "/courses/"):
 			switch r.Method {
 			case http.MethodGet:
-				writeJSON(map[string]any{"id": "c1", "name": "Biology", "courseState": "ACTIVE", "ownerId": "me", "alternateLink": "https://classroom.google.com/c/c1"})
+				state := "ACTIVE"
+				if strings.HasSuffix(path, "/c-delete") {
+					state = "ARCHIVED"
+				}
+				writeJSON(map[string]any{"id": "c1", "name": "Biology", "courseState": state, "ownerId": "me", "alternateLink": "https://classroom.google.com/c/c1"})
 				return
 			case http.MethodPatch:
 				mask := r.URL.Query().Get("updateMask")
@@ -440,7 +444,7 @@ func TestExecute_ClassroomMoreCommands_JSON(t *testing.T) {
 	runJSONForce("classroom", "courses", "leave", "c1", "--role", "student", "--user", "s1")
 	runJSONForce("classroom", "courses", "leave", "c1", "--role", "teacher", "--user", "t1")
 	runJSON("classroom", "courses", "url", "c1", "c2")
-	runJSONForce("classroom", "courses", "delete", "c1")
+	runJSONForce("classroom", "courses", "delete", "c-delete")
 
 	runJSON("classroom", "students", "c1", "--max", "1", "--page", "p1")
 	runJSON("classroom", "students", "get", "c1", "s1")

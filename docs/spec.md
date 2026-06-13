@@ -299,7 +299,7 @@ Drive hierarchy semantics:
 - `gog classroom courses get <courseId>`
 - `gog classroom courses create --name NAME [--owner me] [--state ACTIVE|...]`
 - `gog classroom courses update <courseId> [--name ...] [--state ...]`
-- `gog classroom courses delete <courseId>`
+- `gog classroom courses delete <archivedCourseId>`
 - `gog classroom courses archive <courseId>`
 - `gog classroom courses unarchive <courseId>`
 - `gog classroom courses join <courseId> [--role student|teacher] [--user me]`
