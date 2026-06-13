@@ -38,10 +38,6 @@ func HasExplicitConfigOverride() bool {
 	return currentLayoutEnv().hasExplicit(PathKindConfig)
 }
 
-func HasExplicitStateOverride() bool {
-	return currentLayoutEnv().hasExplicit(PathKindState)
-}
-
 func HasExplicitDataOverride() bool {
 	return currentLayoutEnv().hasExplicit(PathKindData)
 }
@@ -78,19 +74,6 @@ func EnsureDataDir() (string, error) {
 	}
 
 	return layout.EnsureDataDir()
-}
-
-func EnsureStateDir() (string, error) {
-	dir, err := StateDir()
-	if err != nil {
-		return "", err
-	}
-
-	if err := os.MkdirAll(dir, 0o700); err != nil {
-		return "", fmt.Errorf("ensure state dir: %w", err)
-	}
-
-	return dir, nil
 }
 
 // KeyringDir is where the keyring "file" backend stores encrypted entries.
