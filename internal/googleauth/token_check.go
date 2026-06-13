@@ -14,7 +14,7 @@ func CheckRefreshToken(ctx context.Context, client string, refreshToken string, 
 		timeout = 15 * time.Second
 	}
 
-	creds, err := readClientCredentials(client)
+	creds, err := readOAuthClientCredentials(ctx, client)
 	if err != nil {
 		return fmt.Errorf("read credentials: %w", err)
 	}

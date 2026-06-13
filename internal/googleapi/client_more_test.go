@@ -664,6 +664,49 @@ func testClientResolverContext() context.Context {
 	})
 }
 
+func TestClientCredentialsForAccountUsesContextReader(t *testing.T) {
+	origRead := readClientCredentials
+
+	t.Cleanup(func() { readClientCredentials = origRead })
+	readClientCredentials = nil
+
+	ctx := authclient.WithClientResolver(context.Background(), func(_ string, _ string) (string, error) {
+		return "runtime", nil
+	})
+	ctx = authclient.WithCredentialsReader(ctx, func(client string) (config.ClientCredentials, error) {
+		if client != "runtime" {
+			t.Fatalf("client = %q", client)
+		}
+
+		return config.ClientCredentials{ClientID: "runtime-id", ClientSecret: "runtime-secret"}, nil
+	})
+
+	client, credentials, err := clientCredentialsForAccount(ctx, "a@b.com")
+	if err != nil {
+		t.Fatalf("clientCredentialsForAccount: %v", err)
+	}
+
+	if client != "runtime" || credentials.ClientID != "runtime-id" || credentials.ClientSecret != "runtime-secret" {
+		t.Fatalf("client=%q credentials=%#v", client, credentials)
+	}
+}
+
+func TestTokenSourceUsesContextSecretsStore(t *testing.T) {
+	origOpen := openSecretsStore
+
+	t.Cleanup(func() { openSecretsStore = origOpen })
+	openSecretsStore = nil
+
+	store := &stubStore{tok: secrets.Token{Email: "a@b.com", RefreshToken: "rt"}}
+	ctx := authclient.WithSecretsStoreOpener(context.Background(), func() (secrets.Store, error) {
+		return store, nil
+	})
+
+	if _, err := tokenSourceForAccountScopes(ctx, "gmail", "a@b.com", "runtime", "id", "secret", []string{"scope"}); err != nil {
+		t.Fatalf("tokenSourceForAccountScopes: %v", err)
+	}
+}
+
 func TestTokenSourceForAccount_ReadCredsError(t *testing.T) {
 	origRead := readClientCredentials
 

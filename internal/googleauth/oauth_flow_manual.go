@@ -251,7 +251,7 @@ func ManualAuthURL(ctx context.Context, opts AuthorizeOptions) (ManualAuthURLRes
 		return ManualAuthURLResult{}, errManualStateStore
 	}
 
-	creds, err := readClientCredentials(opts.Client)
+	creds, err := readOAuthClientCredentials(ctx, opts.Client)
 	if err != nil {
 		return ManualAuthURLResult{}, err
 	}

@@ -16,8 +16,8 @@ import (
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 
+	"github.com/steipete/gogcli/internal/authclient"
 	"github.com/steipete/gogcli/internal/config"
-	"github.com/steipete/gogcli/internal/oauthclient"
 )
 
 type AuthorizeOptions struct {
@@ -55,7 +55,7 @@ type successTemplateData struct {
 }
 
 var (
-	readClientCredentials = oauthclient.ReadClientCredentialsFor
+	readClientCredentials func(string) (config.ClientCredentials, error)
 	openBrowserFn         = openBrowser
 	oauthEndpoint         = google.Endpoint
 	randomStateFn         = randomState
@@ -64,18 +64,19 @@ var (
 )
 
 var (
-	errAuthorization       = errors.New("authorization error")
-	errInvalidRedirectURL  = errors.New("invalid redirect URL")
-	errMissingCode         = errors.New("missing code")
-	errMissingRedirectURI  = errors.New("missing redirect uri; provide auth-url")
-	errMissingState        = errors.New("missing state in redirect URL")
-	errMissingScopes       = errors.New("missing scopes")
-	errNoCodeInURL         = errors.New("no code found in URL")
-	errNoRefreshToken      = errors.New("no refresh token received; try again with --force-consent")
-	errManualStateMissing  = errors.New("manual auth state missing; start a new manual flow or run remote step 1 again")
-	errManualStateMismatch = errors.New("manual auth state mismatch; start a new manual flow or run remote step 1 again")
-	errManualStateStore    = errors.New("manual auth state store is required")
-	errStateMismatch       = errors.New("state mismatch")
+	errAuthorization             = errors.New("authorization error")
+	errInvalidRedirectURL        = errors.New("invalid redirect URL")
+	errMissingCode               = errors.New("missing code")
+	errMissingRedirectURI        = errors.New("missing redirect uri; provide auth-url")
+	errMissingState              = errors.New("missing state in redirect URL")
+	errMissingScopes             = errors.New("missing scopes")
+	errNoCodeInURL               = errors.New("no code found in URL")
+	errNoRefreshToken            = errors.New("no refresh token received; try again with --force-consent")
+	errManualStateMissing        = errors.New("manual auth state missing; start a new manual flow or run remote step 1 again")
+	errManualStateMismatch       = errors.New("manual auth state mismatch; start a new manual flow or run remote step 1 again")
+	errManualStateStore          = errors.New("manual auth state store is required")
+	errStateMismatch             = errors.New("state mismatch")
+	errCredentialsReaderRequired = errors.New("credentials reader is required")
 
 	errInvalidAuthorizeOptionsAuthURLAndCode    = errors.New("cannot combine auth-url with auth-code")
 	errInvalidAuthorizeOptionsAuthCodeWithState = errors.New("auth-code is not valid when state is required; provide auth-url")
@@ -111,7 +112,7 @@ func Authorize(ctx context.Context, opts AuthorizeOptions) (string, error) {
 		return "", errManualStateStore
 	}
 
-	creds, err := readClientCredentials(opts.Client)
+	creds, err := readOAuthClientCredentials(ctx, opts.Client)
 	if err != nil {
 		return "", err
 	}
@@ -124,6 +125,44 @@ func Authorize(ctx context.Context, opts AuthorizeOptions) (string, error) {
 	}
 
 	return authorizeServer(ctx, opts, creds)
+}
+
+func readOAuthClientCredentials(ctx context.Context, client string) (config.ClientCredentials, error) {
+	if readClientCredentials != nil {
+		return readClientCredentials(client)
+	}
+
+	credentials, err := authclient.ReadCredentials(ctx, client)
+	if err != nil {
+		return config.ClientCredentials{}, fmt.Errorf("read OAuth client credentials: %w", err)
+	}
+
+	return credentials, nil
+}
+
+func manageCredentialsReader(
+	ctx context.Context,
+	reader func(client string) (config.ClientCredentials, error),
+) func(client string) (config.ClientCredentials, error) {
+	if reader != nil {
+		return reader
+	}
+
+	return func(client string) (config.ClientCredentials, error) {
+		return readOAuthClientCredentials(ctx, client)
+	}
+}
+
+func (ms *ManageServer) readCredentials() (config.ClientCredentials, error) {
+	if ms.opts.ReadCredentials != nil {
+		return ms.opts.ReadCredentials(ms.client)
+	}
+
+	if readClientCredentials != nil {
+		return readClientCredentials(ms.client)
+	}
+
+	return config.ClientCredentials{}, errCredentialsReaderRequired
 }
 
 func authorizeServer(ctx context.Context, opts AuthorizeOptions, creds config.ClientCredentials) (string, error) {
