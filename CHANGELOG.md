@@ -11,6 +11,7 @@
 - Drive: preserve repeated folder placements in tree, inventory, and size summaries; reject cyclic folder graphs instead of collapsing paths or scanning indefinitely.
 - Backup: bind configuration, legacy fallback, and home expansion to the selected runtime layout instead of process-global path state.
 - Classroom: require an archived course before deletion with actionable lifecycle guidance, and prevent live tests from leaving consumer-account courses behind.
+- Forms: validate scale question bounds locally and document the Forms API's accepted minimum and maximum values.
 - Gmail: bind watch state to the selected runtime state directory and serialize atomic updates across concurrent watch processes.
 - Gmail: bind tracking configuration to the selected runtime state directory and preserve concurrent account updates with shared atomic locking.
 - Zoom: bind credential metadata and encrypted secret/token storage to the selected runtime layout, with consistent alias canonicalization.

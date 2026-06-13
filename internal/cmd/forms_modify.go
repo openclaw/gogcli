@@ -23,8 +23,8 @@ type FormsAddQuestionCmd struct {
 	Points   int      `name:"points" help:"Positive quiz points for the question when --correct is set"`
 
 	// Scale-specific
-	ScaleLow       int    `name:"scale-low" help:"Scale minimum value" default:"1"`
-	ScaleHigh      int    `name:"scale-high" help:"Scale maximum value" default:"5"`
+	ScaleLow       int    `name:"scale-low" help:"Scale minimum value: 0 or 1" default:"1"`
+	ScaleHigh      int    `name:"scale-high" help:"Scale maximum value: 2 through 10" default:"5"`
 	ScaleLowLabel  string `name:"scale-low-label" help:"Label for low end of scale"`
 	ScaleHighLabel string `name:"scale-high-label" help:"Label for high end of scale"`
 
@@ -139,8 +139,11 @@ func buildQuestion(qType string, input *formsAddQuestionInput) (*formsapi.Questi
 			Options: opts,
 		}
 	case "scale":
-		if input.ScaleLow > input.ScaleHigh {
-			return nil, usage("--scale-low must be <= --scale-high")
+		if input.ScaleLow != 0 && input.ScaleLow != 1 {
+			return nil, usage("--scale-low must be 0 or 1")
+		}
+		if input.ScaleHigh < 2 || input.ScaleHigh > 10 {
+			return nil, usage("--scale-high must be between 2 and 10")
 		}
 		q.ScaleQuestion = &formsapi.ScaleQuestion{
 			Low:       int64(input.ScaleLow),

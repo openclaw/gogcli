@@ -20,15 +20,53 @@ func TestBuildQuestion(t *testing.T) {
 	})
 
 	t.Run("scale question", func(t *testing.T) {
-		q, err := buildQuestion("scale", &formsAddQuestionInput{Required: true, ScaleLow: 1, ScaleHigh: 7, ScaleLowLabel: "low", ScaleHighLabel: "high"})
-		if err != nil {
-			t.Fatalf("buildQuestion: %v", err)
+		for _, tc := range []struct {
+			name string
+			low  int
+			high int
+		}{
+			{name: "minimum bounds", low: 0, high: 2},
+			{name: "maximum bounds", low: 1, high: 10},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				q, err := buildQuestion("scale", &formsAddQuestionInput{
+					Required:       true,
+					ScaleLow:       tc.low,
+					ScaleHigh:      tc.high,
+					ScaleLowLabel:  "low",
+					ScaleHighLabel: "high",
+				})
+				if err != nil {
+					t.Fatalf("buildQuestion: %v", err)
+				}
+				if q.ScaleQuestion == nil || q.ScaleQuestion.Low != int64(tc.low) || q.ScaleQuestion.High != int64(tc.high) {
+					t.Fatalf("unexpected scale question: %#v", q)
+				}
+				if !q.Required {
+					t.Fatalf("expected required question")
+				}
+			})
 		}
-		if q.ScaleQuestion == nil || q.ScaleQuestion.Low != 1 || q.ScaleQuestion.High != 7 {
-			t.Fatalf("unexpected scale question: %#v", q)
-		}
-		if !q.Required {
-			t.Fatalf("expected required question")
+	})
+
+	t.Run("scale question validation", func(t *testing.T) {
+		for _, tc := range []struct {
+			name string
+			low  int
+			high int
+			want string
+		}{
+			{name: "low below range", low: -1, high: 5, want: "--scale-low must be 0 or 1"},
+			{name: "low above range", low: 2, high: 5, want: "--scale-low must be 0 or 1"},
+			{name: "high below range", low: 1, high: 1, want: "--scale-high must be between 2 and 10"},
+			{name: "high above range", low: 1, high: 11, want: "--scale-high must be between 2 and 10"},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				_, err := buildQuestion("scale", &formsAddQuestionInput{ScaleLow: tc.low, ScaleHigh: tc.high})
+				if err == nil || !strings.Contains(err.Error(), tc.want) {
+					t.Fatalf("expected %q, got %v", tc.want, err)
+				}
+			})
 		}
 	})
 
@@ -62,7 +100,7 @@ func TestBuildQuestion(t *testing.T) {
 			t.Fatalf("expected points validation, got %v", err)
 		}
 
-		_, err = buildQuestion("scale", &formsAddQuestionInput{Correct: []string{"5"}, Points: 1})
+		_, err = buildQuestion("scale", &formsAddQuestionInput{ScaleLow: 1, ScaleHigh: 5, Correct: []string{"5"}, Points: 1})
 		if err == nil || !strings.Contains(err.Error(), "supported only") {
 			t.Fatalf("expected type validation, got %v", err)
 		}
@@ -138,6 +176,22 @@ func TestFormsAddQuestionRejectsInvalidAppendIndexBeforeDryRun(t *testing.T) {
 	}
 	if got := ExitCode(err); got != 2 {
 		t.Fatalf("ExitCode = %d, want 2 (err=%v)", got, err)
+	}
+}
+
+func TestFormsAddQuestionRejectsInvalidScaleBeforeDryRun(t *testing.T) {
+	ctx := withFormsTestServiceFactory(newQuietUIContext(t), unexpectedFormsTestService(t, "forms service should not be created"))
+	for _, args := range [][]string{
+		{"form1", "--title", "Rating", "--type", "scale", "--scale-low", "2"},
+		{"form1", "--title", "Rating", "--type", "scale", "--scale-high", "11"},
+	} {
+		err := runKong(t, &FormsAddQuestionCmd{}, args, ctx, &RootFlags{Account: "a@b.com", DryRun: true})
+		if err == nil {
+			t.Fatalf("expected scale validation error for %v", args)
+		}
+		if got := ExitCode(err); got != 2 {
+			t.Fatalf("ExitCode = %d, want 2 (err=%v)", got, err)
+		}
 	}
 }
 
