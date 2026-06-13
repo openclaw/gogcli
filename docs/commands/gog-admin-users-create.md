@@ -19,7 +19,7 @@ gog admin users create (add,new) <email> [flags]
 | Flag | Type | Default | Help |
 | --- | --- | --- | --- |
 | `--access-token` | `string` |  | Use provided access token directly (bypasses stored refresh tokens; token expires in ~1h) |
-| `-a`<br>`--account`<br>`--acct` | `string` |  | Account email for API commands (gmail/calendar/chat/classroom/drive/drivelabels/docs/slides/contacts/tasks/people/sheets/forms/sites/appscript/analytics/searchconsole/youtube/photos) |
+| `-a`<br>`--account`<br>`--acct` | `string` |  | Account email, alias, or auto for authenticated Google API commands |
 | `--admin` | `bool` |  | Not supported; assign admin roles separately after user creation |
 | `--archived` | `bool` |  | Create user in archived state |
 | `--change-password` | `bool` |  | Require password change on first login |

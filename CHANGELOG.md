@@ -9,6 +9,7 @@
 
 ### Fixed
 
+- CLI: replace the stale hard-coded `--account` service list with concise email, alias, and auto-selection guidance that applies across authenticated Google API commands.
 - Calendar: remove the dead `calendar appointments` command, which could only report an API limitation; existing invocations now return unknown-command usage, while the limitation remains documented.
 - Drive: preserve repeated folder placements in tree, inventory, and size summaries; reject cyclic folder graphs instead of collapsing paths or scanning indefinitely.
 - Backup: bind configuration, legacy fallback, and home expansion to the selected runtime layout instead of process-global path state.

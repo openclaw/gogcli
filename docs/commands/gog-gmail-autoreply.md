@@ -19,7 +19,7 @@ gog gmail (mail,email) autoreply <query> ... [flags]
 | Flag | Type | Default | Help |
 | --- | --- | --- | --- |
 | `--access-token` | `string` |  | Use provided access token directly (bypasses stored refresh tokens; token expires in ~1h) |
-| `-a`<br>`--account`<br>`--acct` | `string` |  | Account email for API commands (gmail/calendar/chat/classroom/drive/drivelabels/docs/slides/contacts/tasks/people/sheets/forms/sites/appscript/analytics/searchconsole/youtube/photos) |
+| `-a`<br>`--account`<br>`--acct` | `string` |  | Account email, alias, or auto for authenticated Google API commands |
 | `--allow-self` | `bool` |  | Allow replying to messages sent by your own account/alias |
 | `--archive` | `bool` |  | Archive threads after auto-replying |
 | `--body` | `string` |  | Reply body (plain text; required unless --body-html is set) |

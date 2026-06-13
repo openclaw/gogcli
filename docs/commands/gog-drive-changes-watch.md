@@ -19,7 +19,7 @@ gog drive (drv) changes watch --token=STRING --webhook-url=STRING [flags]
 | Flag | Type | Default | Help |
 | --- | --- | --- | --- |
 | `--access-token` | `string` |  | Use provided access token directly (bypasses stored refresh tokens; token expires in ~1h) |
-| `-a`<br>`--account`<br>`--acct` | `string` |  | Account email for API commands (gmail/calendar/chat/classroom/drive/drivelabels/docs/slides/contacts/tasks/people/sheets/forms/sites/appscript/analytics/searchconsole/youtube/photos) |
+| `-a`<br>`--account`<br>`--acct` | `string` |  | Account email, alias, or auto for authenticated Google API commands |
 | `--channel-id` | `string` |  | Webhook channel ID (default: generated) |
 | `--channel-token` | `string` |  | Opaque token echoed by Google in webhook notifications |
 | `--client` | `string` |  | OAuth client name (selects stored credentials + token bucket) |

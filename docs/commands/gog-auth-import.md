@@ -23,7 +23,7 @@ gog auth import --email=STRING [flags]
 | `--access-token-expires-at` | `string` |  | Access token expiry timestamp (RFC3339; default: now+1h when an access token is provided) |
 | `--access-token-file` | `string` |  | Read OAuth access token from file |
 | `--access-token-stdin` | `bool` |  | Read OAuth access token from stdin |
-| `-a`<br>`--account`<br>`--acct` | `string` |  | Account email for API commands (gmail/calendar/chat/classroom/drive/drivelabels/docs/slides/contacts/tasks/people/sheets/forms/sites/appscript/analytics/searchconsole/youtube/photos) |
+| `-a`<br>`--account`<br>`--acct` | `string` |  | Account email, alias, or auto for authenticated Google API commands |
 | `--client` | `string` |  | OAuth client name (selects stored credentials + token bucket) |
 | `--color` | `string` | auto | Color output: auto\|always\|never |
 | `--disable-commands` | `string` |  | Comma-separated list of disabled commands; dot paths allowed |

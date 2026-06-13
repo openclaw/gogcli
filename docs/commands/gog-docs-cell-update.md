@@ -19,7 +19,7 @@ gog docs (doc) cell-update (update-cell) --row=INT --col=INT <docId> [flags]
 | Flag | Type | Default | Help |
 | --- | --- | --- | --- |
 | `--access-token` | `string` |  | Use provided access token directly (bypasses stored refresh tokens; token expires in ~1h) |
-| `-a`<br>`--account`<br>`--acct` | `string` |  | Account email for API commands (gmail/calendar/chat/classroom/drive/drivelabels/docs/slides/contacts/tasks/people/sheets/forms/sites/appscript/analytics/searchconsole/youtube/photos) |
+| `-a`<br>`--account`<br>`--acct` | `string` |  | Account email, alias, or auto for authenticated Google API commands |
 | `--append` | `bool` |  | Append inside the cell instead of replacing existing cell content |
 | `--client` | `string` |  | OAuth client name (selects stored credentials + token bucket) |
 | `--col` | `int` |  | 1-based column number |

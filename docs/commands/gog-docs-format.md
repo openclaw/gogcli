@@ -19,7 +19,7 @@ gog docs (doc) format <docId> [flags]
 | Flag | Type | Default | Help |
 | --- | --- | --- | --- |
 | `--access-token` | `string` |  | Use provided access token directly (bypasses stored refresh tokens; token expires in ~1h) |
-| `-a`<br>`--account`<br>`--acct` | `string` |  | Account email for API commands (gmail/calendar/chat/classroom/drive/drivelabels/docs/slides/contacts/tasks/people/sheets/forms/sites/appscript/analytics/searchconsole/youtube/photos) |
+| `-a`<br>`--account`<br>`--acct` | `string` |  | Account email, alias, or auto for authenticated Google API commands |
 | `--alignment` | `string` |  | Paragraph alignment: left, center, right, justify, start, end, justified |
 | `--batch` | `string` |  | Append requests to a persisted Docs batch instead of submitting |
 | `--bg-color` | `string` |  | Text background color as #RRGGBB or #RGB |

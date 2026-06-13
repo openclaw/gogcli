@@ -19,7 +19,7 @@ gog mcp [flags]
 | Flag | Type | Default | Help |
 | --- | --- | --- | --- |
 | `--access-token` | `string` |  | Use provided access token directly (bypasses stored refresh tokens; token expires in ~1h) |
-| `-a`<br>`--account`<br>`--acct` | `string` |  | Account email for API commands (gmail/calendar/chat/classroom/drive/drivelabels/docs/slides/contacts/tasks/people/sheets/forms/sites/appscript/analytics/searchconsole/youtube/photos) |
+| `-a`<br>`--account`<br>`--acct` | `string` |  | Account email, alias, or auto for authenticated Google API commands |
 | `--allow-tool`<br>`--tool` | `[]string` |  | Tool or service allowlist (default: all read-only tools). Examples: gmail.*,docs_get,sheets |
 | `--allow-write` | `bool` |  | Expose write tools. Write tools must also match --allow-tool when that flag is set. |
 | `--client` | `string` |  | OAuth client name (selects stored credentials + token bucket) |

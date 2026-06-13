@@ -45,6 +45,13 @@ func TestExecute_Help(t *testing.T) {
 	if !strings.Contains(out, "Cloud Identity Groups (Workspace only)") {
 		t.Fatalf("root help must identify Groups as Workspace-only, got: %q", out)
 	}
+	normalizedHelp := strings.Join(strings.Fields(out), " ")
+	if !strings.Contains(normalizedHelp, "Account email, alias, or auto for authenticated Google API commands") {
+		t.Fatalf("root help must describe account selection without a stale service list, got: %q", out)
+	}
+	if strings.Contains(out, "gmail/calendar/chat/classroom") {
+		t.Fatalf("root help must not hard-code an incomplete account-scoped service list, got: %q", out)
+	}
 }
 
 func TestExecute_NoArgsShowsHelp(t *testing.T) {

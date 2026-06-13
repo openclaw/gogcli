@@ -100,6 +100,19 @@ func TestExecute_SchemaIncludesAutomationContract(t *testing.T) {
 	if got := strings.Join(doc.Automation.Safety.CommandRules.Disabled, ","); got != "gmail.send" {
 		t.Fatalf("disabled = %q", got)
 	}
+	var accountFlag *schemaFlag
+	for i := range doc.Command.Flags {
+		if doc.Command.Flags[i].Name == "account" {
+			accountFlag = &doc.Command.Flags[i]
+			break
+		}
+	}
+	if accountFlag == nil {
+		t.Fatal("root schema is missing --account")
+	}
+	if accountFlag.Help != "Account email, alias, or auto for authenticated Google API commands" {
+		t.Fatalf("account help = %q", accountFlag.Help)
+	}
 }
 
 func TestExecute_SchemaRejectsPlainMode(t *testing.T) {

@@ -33,7 +33,7 @@ const (
 type RootFlags struct {
 	Color               string `help:"Color output: auto|always|never" default:"${color}"`
 	Home                string `name:"home" help:"Override gogcli config/data/state/cache root (equivalent to GOG_HOME)"`
-	Account             string `help:"Account email for API commands (gmail/calendar/chat/classroom/drive/drivelabels/docs/slides/contacts/tasks/people/sheets/forms/sites/appscript/analytics/searchconsole/youtube/photos)" aliases:"acct" short:"a"`
+	Account             string `help:"Account email, alias, or auto for authenticated Google API commands" aliases:"acct" short:"a"`
 	Client              string `help:"OAuth client name (selects stored credentials + token bucket)" default:"${client}"`
 	AccessToken         string `help:"Use provided access token directly (bypasses stored refresh tokens; token expires in ~1h)" env:"GOG_ACCESS_TOKEN"`
 	EnableCommands      string `help:"Comma-separated list of enabled command prefixes; dot paths allowed (restricts CLI)" default:"${enabled_commands}"`
