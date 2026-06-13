@@ -67,11 +67,7 @@ func (c *GmailSendCmd) Run(ctx context.Context, flags *RootFlags) error {
 	replyToMessageID := normalizeGmailMessageID(c.ReplyToMessageID)
 	threadID := normalizeGmailThreadID(c.ThreadID)
 
-	body, err := resolveBodyInput(ctx, c.Body, c.BodyFile)
-	if err != nil {
-		return err
-	}
-	htmlBodyInput, err := resolveBodyFileInput(ctx, c.BodyHTML, c.BodyHTMLFile, "--body-html", "--body-html-file")
+	body, htmlBodyInput, err := resolveComposeBodyInputs(ctx, c.Body, c.BodyFile, c.BodyHTML, c.BodyHTMLFile)
 	if err != nil {
 		return err
 	}

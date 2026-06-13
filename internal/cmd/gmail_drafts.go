@@ -526,11 +526,7 @@ func messageFromMatchesAccount(msg *gmail.Message, account string) bool {
 func (c *GmailDraftsCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
 
-	body, err := resolveBodyInput(ctx, c.Body, c.BodyFile)
-	if err != nil {
-		return err
-	}
-	htmlBody, err := resolveBodyFileInput(ctx, c.BodyHTML, c.BodyHTMLFile, "--body-html", "--body-html-file")
+	body, htmlBody, err := resolveComposeBodyInputs(ctx, c.Body, c.BodyFile, c.BodyHTML, c.BodyHTMLFile)
 	if err != nil {
 		return err
 	}
@@ -636,11 +632,7 @@ func (c *GmailDraftsUpdateCmd) Run(ctx context.Context, flags *RootFlags) error 
 		to = *c.To
 	}
 
-	body, err := resolveBodyInput(ctx, c.Body, c.BodyFile)
-	if err != nil {
-		return err
-	}
-	htmlBody, err := resolveBodyFileInput(ctx, c.BodyHTML, c.BodyHTMLFile, "--body-html", "--body-html-file")
+	body, htmlBody, err := resolveComposeBodyInputs(ctx, c.Body, c.BodyFile, c.BodyHTML, c.BodyHTMLFile)
 	if err != nil {
 		return err
 	}

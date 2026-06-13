@@ -44,3 +44,11 @@ func TestResolveBodyInput_Conflict(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
+
+func TestResolveComposeBodyInputs_RejectsDoubleStdin(t *testing.T) {
+	ctx := newCmdRuntimeIOContext(t, strings.NewReader("body"), io.Discard, io.Discard)
+	_, _, err := resolveComposeBodyInputs(ctx, "", "-", "", "-")
+	if err == nil || !strings.Contains(err.Error(), "use stdin for only one") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
