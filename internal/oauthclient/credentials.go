@@ -85,15 +85,6 @@ func (s *CredentialsStore) PathFor(client string) (string, error) {
 	return path, nil
 }
 
-func WriteClientCredentialsFor(client string, creds config.ClientCredentials, insecure bool) error {
-	store, err := defaultCredentialsStore()
-	if err != nil {
-		return err
-	}
-
-	return store.Write(client, creds, insecure)
-}
-
 func (s *CredentialsStore) Write(client string, creds config.ClientCredentials, insecure bool) error {
 	normalized, err := config.NormalizeClientNameOrDefault(client)
 	if err != nil {
@@ -159,15 +150,6 @@ func (s *CredentialsStore) Read(client string) (config.ClientCredentials, error)
 		return config.ClientCredentials{}, errEmptyClientSecret
 	}
 	return creds, nil
-}
-
-func DeleteClientCredentialsFor(client string) error {
-	store, err := defaultCredentialsStore()
-	if err != nil {
-		return err
-	}
-
-	return store.Delete(client)
 }
 
 func (s *CredentialsStore) Delete(client string) error {
