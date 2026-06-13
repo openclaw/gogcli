@@ -5,14 +5,18 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 )
 
 type noInputContextKey struct{}
+
+var gitURLPattern = regexp.MustCompile(`[A-Za-z][A-Za-z0-9+.-]*://[^\s<>"']+`)
 
 func WithNoInput(ctx context.Context) context.Context {
 	return context.WithValue(ctx, noInputContextKey{}, true)
@@ -155,10 +159,7 @@ func git(ctx context.Context, dir string, args ...string) error {
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {
-		if stderr.Len() > 0 {
-			return fmt.Errorf("git %s: %w: %s", strings.Join(args, " "), err, strings.TrimSpace(stderr.String()))
-		}
-		return fmt.Errorf("git %s: %w", strings.Join(args, " "), err)
+		return gitError(args, err, stderr.String())
 	}
 	return nil
 }
@@ -169,12 +170,60 @@ func gitOutput(ctx context.Context, dir string, args ...string) (string, error) 
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {
-		if stderr.Len() > 0 {
-			return "", fmt.Errorf("git %s: %w: %s", strings.Join(args, " "), err, strings.TrimSpace(stderr.String()))
-		}
-		return "", fmt.Errorf("git %s: %w", strings.Join(args, " "), err)
+		return "", gitError(args, err, stderr.String())
 	}
 	return stdout.String(), nil
+}
+
+func gitError(args []string, err error, stderr string) error {
+	safeArgs := make([]string, len(args))
+	safeStderr := redactGitURLsInText(strings.TrimSpace(stderr))
+	for i, arg := range args {
+		safeArgs[i] = redactGitURL(arg)
+		if safeArgs[i] != arg {
+			safeStderr = strings.ReplaceAll(safeStderr, arg, safeArgs[i])
+		}
+	}
+	if safeStderr != "" {
+		return fmt.Errorf("git %s: %w: %s", strings.Join(safeArgs, " "), err, safeStderr)
+	}
+	return fmt.Errorf("git %s: %w", strings.Join(safeArgs, " "), err)
+}
+
+func redactGitURLsInText(value string) string {
+	return gitURLPattern.ReplaceAllStringFunc(value, redactGitURL)
+}
+
+func redactGitURL(value string) string {
+	parsed, err := url.Parse(value)
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+		return value
+	}
+
+	redacted := false
+	if parsed.User != nil {
+		parsed.User = url.User("redacted")
+		redacted = true
+	}
+	if parsed.RawQuery != "" {
+		query := parsed.Query()
+		for key, values := range query {
+			for i := range values {
+				values[i] = "redacted"
+			}
+			query[key] = values
+		}
+		parsed.RawQuery = query.Encode()
+		redacted = true
+	}
+	if parsed.Fragment != "" {
+		parsed.Fragment = "redacted"
+		redacted = true
+	}
+	if !redacted {
+		return value
+	}
+	return parsed.String()
 }
 
 func gitCommand(ctx context.Context, dir string, args ...string) *exec.Cmd {

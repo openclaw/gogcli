@@ -9,6 +9,8 @@ import (
 	"testing"
 )
 
+var errTestGitExit = errors.New("exit status 128")
+
 func TestReadOperationsDoNotInitializeMissingRepo(t *testing.T) {
 	operations := []struct {
 		name string
@@ -86,6 +88,28 @@ func TestReadRepoCloneFailureDoesNotInitializeRepo(t *testing.T) {
 
 	if len(matches) != 0 {
 		t.Fatalf("clone failure left temporary repos: %v", matches)
+	}
+}
+
+func TestGitErrorRedactsCredentialedRemote(t *testing.T) {
+	remote := "https://oauth2:secret-password@example.com/repo.git?access_token=secret-query#secret-fragment"
+	err := gitError(
+		[]string{"clone", remote, "/tmp/repo"},
+		errTestGitExit,
+		"fatal: unable to access 'https://oauth2:secret-password@example.com/repo.git/': authentication failed",
+	)
+
+	got := err.Error()
+	for _, secret := range []string{"oauth2", "secret-password", "secret-query", "secret-fragment"} {
+		if strings.Contains(got, secret) {
+			t.Fatalf("git error exposed %q: %s", secret, got)
+		}
+	}
+
+	for _, want := range []string{"git clone", "example.com/repo.git", "redacted", "authentication failed"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("git error = %q, want %q", got, want)
+		}
 	}
 }
 
