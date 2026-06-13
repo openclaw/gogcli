@@ -49,6 +49,10 @@ Use `--no-input` in CI and unattended processes. Use `--wrap-untrusted` when
 Google-hosted free text will be consumed by an LLM or another instruction-aware
 system.
 
+Interactive browser commands fail fast under `--no-input`. Preview
+`gog auth manage` with `--dry-run`; use `gog auth import` for unattended token
+installation.
+
 ## Schema automation metadata
 
 The top-level `automation` object has three parts:

@@ -96,7 +96,7 @@ Generated pages: 643.
     - [gog auth keep](gog-auth-keep.md) - Configure service account for Google Keep (Workspace only)
     - [gog auth keyring](gog-auth-keyring.md) - Configure keyring backend
     - [gog auth list](gog-auth-list.md) - List stored accounts
-    - [gog auth manage](gog-auth-manage.md) - Open accounts manager in browser
+    - [gog auth manage](gog-auth-manage.md) - Open interactive accounts manager in browser
     - [gog auth remove](gog-auth-remove.md) - Remove a stored refresh token
     - [gog auth service-account](gog-auth-service-account.md) - Configure service account (Workspace only; domain-wide delegation)
       - [gog auth service-account set](gog-auth-service-account-set.md) - Store a service account key for impersonation

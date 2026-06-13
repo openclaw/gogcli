@@ -1,9 +1,12 @@
 package cmd
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -40,6 +43,82 @@ func TestAuthManageCmd_ServicesAndOptions(t *testing.T) {
 	}
 	if len(got.Services) != 2 {
 		t.Fatalf("expected de-duped services, got %#v", got.Services)
+	}
+}
+
+func TestAuthManageCmd_DryRunNoInputSkipsServer(t *testing.T) {
+	var stdout bytes.Buffer
+	called := false
+	ctx := authclient.WithClient(newCmdRuntimeJSONOutputContext(t, &stdout, &bytes.Buffer{}), "work")
+	ctx = withTestRuntime(ctx, func(runtime *app.Runtime) {
+		runtime.Auth.StartManageServer = func(context.Context, googleauth.ManageServerOptions) error {
+			called = true
+			return nil
+		}
+	})
+
+	err := (&AuthManageCmd{
+		ServicesCSV:  string(googleauth.ServiceGmail) + "," + string(googleauth.ServiceDrive),
+		ForceConsent: true,
+		Timeout:      2 * time.Minute,
+		ListenAddr:   " 127.0.0.1:8080 ",
+		RedirectHost: "gog.example.com",
+	}).Run(ctx, &RootFlags{DryRun: true, NoInput: true})
+	if ExitCode(err) != 0 {
+		t.Fatalf("exit code = %d, want 0: %v", ExitCode(err), err)
+	}
+	if called {
+		t.Fatal("manage server was called during dry-run")
+	}
+
+	var got struct {
+		DryRun  bool   `json:"dry_run"`
+		Op      string `json:"op"`
+		Request struct {
+			Client       string   `json:"client"`
+			ForceConsent bool     `json:"force_consent"`
+			ListenAddr   string   `json:"listen_addr"`
+			RedirectURI  string   `json:"redirect_uri"`
+			Services     []string `json:"services"`
+			Timeout      string   `json:"timeout"`
+		} `json:"request"`
+	}
+	if err := json.Unmarshal(stdout.Bytes(), &got); err != nil {
+		t.Fatalf("decode dry-run: %v\noutput=%q", err, stdout.String())
+	}
+	if !got.DryRun || got.Op != "auth.manage" {
+		t.Fatalf("unexpected dry-run envelope: %#v", got)
+	}
+	if got.Request.Client != "work" ||
+		!got.Request.ForceConsent ||
+		got.Request.ListenAddr != "127.0.0.1:8080" ||
+		got.Request.RedirectURI != "https://gog.example.com/oauth2/callback" ||
+		got.Request.Timeout != "2m0s" ||
+		len(got.Request.Services) != 2 ||
+		got.Request.Services[0] != string(googleauth.ServiceGmail) ||
+		got.Request.Services[1] != string(googleauth.ServiceDrive) {
+		t.Fatalf("unexpected dry-run request: %#v", got.Request)
+	}
+}
+
+func TestAuthManageCmd_NoInputFailsBeforeServer(t *testing.T) {
+	called := false
+	ctx := withTestRuntime(context.Background(), func(runtime *app.Runtime) {
+		runtime.Auth.StartManageServer = func(context.Context, googleauth.ManageServerOptions) error {
+			called = true
+			return nil
+		}
+	})
+
+	err := (&AuthManageCmd{}).Run(ctx, &RootFlags{NoInput: true})
+	if ExitCode(err) != 2 {
+		t.Fatalf("exit code = %d, want 2: %v", ExitCode(err), err)
+	}
+	if called {
+		t.Fatal("manage server was called with --no-input")
+	}
+	if !strings.Contains(err.Error(), "use 'gog auth import'") {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
 

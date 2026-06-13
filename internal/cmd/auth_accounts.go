@@ -263,7 +263,7 @@ type AuthManageCmd struct {
 	RedirectHost string        `name:"redirect-host" help:"Hostname for OAuth callback; builds https://{host}/oauth2/callback"`
 }
 
-func (c *AuthManageCmd) Run(ctx context.Context, _ *RootFlags) error {
+func (c *AuthManageCmd) Run(ctx context.Context, flags *RootFlags) error {
 	services, err := parseAuthServices(c.ServicesCSV)
 	if err != nil {
 		return err
@@ -276,14 +276,29 @@ func (c *AuthManageCmd) Run(ctx context.Context, _ *RootFlags) error {
 		}
 	}
 
-	return startAuthManageServer(ctx, googleauth.ManageServerOptions{
+	opts := googleauth.ManageServerOptions{
 		Timeout:      c.Timeout,
 		Services:     services,
 		ForceConsent: c.ForceConsent,
 		Client:       authclient.ClientOverrideFromContext(ctx),
 		ListenAddr:   strings.TrimSpace(c.ListenAddr),
 		RedirectURI:  redirectURI,
-	})
+	}
+	if err := dryRunExit(ctx, flags, "auth.manage", map[string]any{
+		"client":        opts.Client,
+		"force_consent": opts.ForceConsent,
+		"listen_addr":   opts.ListenAddr,
+		"redirect_uri":  opts.RedirectURI,
+		"services":      opts.Services,
+		"timeout":       opts.Timeout.String(),
+	}); err != nil {
+		return err
+	}
+	if flags != nil && flags.NoInput {
+		return usage("auth manage requires interactive browser input; omit --no-input or use 'gog auth import' for unattended token installation")
+	}
+
+	return startAuthManageServer(ctx, opts)
 }
 
 type AuthKeepCmd struct {
