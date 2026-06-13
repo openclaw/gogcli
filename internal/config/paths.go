@@ -34,10 +34,6 @@ func Dir() (string, error) {
 	return currentLayoutDir(PathKindConfig)
 }
 
-func HasExplicitConfigOverride() bool {
-	return currentLayoutEnv().hasExplicit(PathKindConfig)
-}
-
 func HasExplicitDataOverride() bool {
 	return currentLayoutEnv().hasExplicit(PathKindData)
 }
