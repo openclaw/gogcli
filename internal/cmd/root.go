@@ -74,7 +74,7 @@ type CLI struct {
 	Auth          AuthCmd               `cmd:"" help:"Auth and credentials"`
 	Backup        BackupCmd             `cmd:"" help:"Encrypted Google account backups"`
 	Batch         BatchCmd              `cmd:"" help:"Build and submit persisted Google Docs request batches"`
-	Groups        GroupsCmd             `cmd:"" aliases:"group" help:"Google Groups"`
+	Groups        GroupsCmd             `cmd:"" aliases:"group" help:"Cloud Identity Groups (Workspace only)"`
 	Admin         AdminCmd              `cmd:"" help:"Google Workspace Admin (Directory API) - requires domain-wide delegation"`
 	Drive         DriveCmd              `cmd:"" aliases:"drv" help:"Google Drive"`
 	Docs          DocsCmd               `cmd:"" aliases:"doc" help:"Google Docs (export via Drive)"`

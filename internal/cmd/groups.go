@@ -20,6 +20,9 @@ const (
 
 	groupLabelDiscussionForum = "cloudidentity.googleapis.com/groups.discussion_forum"
 	groupLabelDynamic         = "cloudidentity.googleapis.com/groups.dynamic"
+	groupReadonlyScope        = "https://www.googleapis.com/auth/cloud-identity.groups.readonly"
+
+	groupsWorkspaceRequiredMessage = "Cloud Identity Groups require a Google Workspace/Cloud Identity account; consumer accounts (gmail.com/googlemail.com) are not supported."
 )
 
 type GroupsCmd struct {
@@ -39,7 +42,7 @@ func (c *GroupsListCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if c.Max <= 0 {
 		return usage("max must be > 0")
 	}
-	account, err := requireAccount(flags)
+	account, err := requireGroupsAccount(flags)
 	if err != nil {
 		return err
 	}
@@ -122,6 +125,20 @@ func (c *GroupsListCmd) Run(ctx context.Context, flags *RootFlags) error {
 	return nil
 }
 
+func requireGroupsAccount(flags *RootFlags) (string, error) {
+	account, err := requireAccount(flags)
+	if err != nil {
+		return "", err
+	}
+	if isConsumerAccount(account) {
+		return "", &ExitError{
+			Code: exitCodePermissionDenied,
+			Err:  errfmt.NewUserFacingError(groupsWorkspaceRequiredMessage, nil),
+		}
+	}
+	return account, nil
+}
+
 // wrapCloudIdentityError provides helpful error messages for common Cloud Identity API issues.
 func wrapCloudIdentityError(err error, account string) error {
 	errStr := err.Error()
@@ -131,10 +148,17 @@ func wrapCloudIdentityError(err error, account string) error {
 	}
 	if strings.Contains(errStr, "insufficientPermissions") ||
 		strings.Contains(errStr, "insufficient authentication scopes") {
-		return errfmt.NewUserFacingError("Insufficient permissions for Cloud Identity API; re-authenticate with the cloud-identity.groups.readonly scope: gog auth add <account> --services groups", err)
+		return errfmt.NewUserFacingError(
+			fmt.Sprintf(
+				"Insufficient permissions for Cloud Identity API; configure a Workspace service account with domain-wide delegation for %s, then run: gog auth service-account set %s --key <service-account.json>",
+				groupReadonlyScope,
+				strings.TrimSpace(account),
+			),
+			err,
+		)
 	}
 	if isConsumerAccount(account) && (strings.Contains(errStr, "invalid argument") || strings.Contains(errStr, "badRequest")) {
-		return errfmt.NewUserFacingError("Cloud Identity groups require a Google Workspace/Cloud Identity account; consumer accounts (gmail.com/googlemail.com) are not supported.", err)
+		return errfmt.NewUserFacingError(groupsWorkspaceRequiredMessage, err)
 	}
 	return err
 }
@@ -178,7 +202,7 @@ func (c *GroupsMembersCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if c.Max <= 0 {
 		return usage("max must be > 0")
 	}
-	account, err := requireAccount(flags)
+	account, err := requireGroupsAccount(flags)
 	if err != nil {
 		return err
 	}
@@ -191,7 +215,7 @@ func (c *GroupsMembersCmd) Run(ctx context.Context, flags *RootFlags) error {
 	// First, look up the group by email to get its resource name
 	groupName, err := lookupGroupByEmail(ctx, svc, groupEmail)
 	if err != nil {
-		return fmt.Errorf("failed to find group %q: %w", groupEmail, err)
+		return fmt.Errorf("failed to find group %q: %w", groupEmail, wrapCloudIdentityError(err, account))
 	}
 
 	// List members of the group
@@ -204,7 +228,7 @@ func (c *GroupsMembersCmd) Run(ctx context.Context, flags *RootFlags) error {
 		}
 		resp, callErr := call.Do()
 		if callErr != nil {
-			return nil, "", fmt.Errorf("failed to list members: %w", callErr)
+			return nil, "", fmt.Errorf("failed to list members: %w", wrapCloudIdentityError(callErr, account))
 		}
 		return resp.Memberships, resp.NextPageToken, nil
 	}

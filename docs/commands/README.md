@@ -23,7 +23,7 @@ Generated pages: 642.
 - [gog drive](gog-drive.md) - Google Drive
 - [gog forms](gog-forms.md) - Google Forms
 - [gog gmail](gog-gmail.md) - Gmail
-- [gog groups](gog-groups.md) - Google Groups
+- [gog groups](gog-groups.md) - Cloud Identity Groups (Workspace only)
 - [gog keep](gog-keep.md) - Google Keep (Workspace only)
 - [gog login](gog-login.md) - Authorize and store a refresh token (alias for 'auth add')
 - [gog logout](gog-logout.md) - Remove a stored refresh token (alias for 'auth remove')
@@ -501,7 +501,7 @@ Generated pages: 642.
     - [gog gmail trash](gog-gmail-trash.md) - Move messages to trash
     - [gog gmail unread](gog-gmail-unread.md) - Mark messages as unread
     - [gog gmail url](gog-gmail-url.md) - Print Gmail web URLs for threads
-  - [gog groups](gog-groups.md) - Google Groups
+  - [gog groups](gog-groups.md) - Cloud Identity Groups (Workspace only)
     - [gog groups list](gog-groups-list.md) - List groups you belong to
     - [gog groups members](gog-groups-members.md) - List members of a group
   - [gog keep](gog-keep.md) - Google Keep (Workspace only)

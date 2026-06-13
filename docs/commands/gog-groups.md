@@ -2,7 +2,7 @@
 
 > Generated from `gog schema --json`. Do not edit this page by hand; run `make docs-commands`.
 
-Google Groups
+Cloud Identity Groups (Workspace only)
 
 ## Usage
 

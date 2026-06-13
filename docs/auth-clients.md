@@ -81,6 +81,15 @@ gog auth service-account set admin@example.com --key ~/Downloads/service-account
 gog auth service-account status admin@example.com
 ```
 
+Cloud Identity Groups commands use the same Workspace service-account setup.
+Include `https://www.googleapis.com/auth/cloud-identity.groups.readonly` in
+domain-wide delegation, then run:
+
+```bash
+gog --account admin@example.com groups list
+gog --account admin@example.com groups members engineering@example.com
+```
+
 Then run Admin SDK commands with that account:
 
 ```

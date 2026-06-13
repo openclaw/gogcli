@@ -46,7 +46,7 @@ func (c *CalendarTeamCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if c.Max <= 0 {
 		return usage("max must be > 0")
 	}
-	account, err := requireAccount(flags)
+	account, err := requireGroupsAccount(flags)
 	if err != nil {
 		return err
 	}
@@ -71,7 +71,7 @@ func (c *CalendarTeamCmd) Run(ctx context.Context, flags *RootFlags) error {
 
 	memberEmails, err := collectGroupMemberEmails(ctx, cloudSvc, groupEmail)
 	if err != nil {
-		return fmt.Errorf("failed to list group members: %w", err)
+		return fmt.Errorf("failed to list group members: %w", wrapCloudIdentityError(err, account))
 	}
 
 	if len(memberEmails) == 0 {

@@ -35,7 +35,7 @@ func TestFormat_AuthRequired(t *testing.T) {
 }
 
 func TestFormat_AuthRequired_ServiceAccountOnly(t *testing.T) {
-	for _, service := range []string{"admin", "admin directory", "admin orgunits"} {
+	for _, service := range []string{"admin", "admin directory", "admin orgunits", "groups", "keep"} {
 		t.Run(service, func(t *testing.T) {
 			err := &gogapi.AuthRequiredError{Service: service, Email: "a@b.com", Cause: keyring.ErrKeyNotFound}
 			got := Format(err)

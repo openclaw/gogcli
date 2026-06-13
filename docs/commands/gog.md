@@ -33,7 +33,7 @@ gog <command> [flags]
 - [gog drive](gog-drive.md) - Google Drive
 - [gog forms](gog-forms.md) - Google Forms
 - [gog gmail](gog-gmail.md) - Gmail
-- [gog groups](gog-groups.md) - Google Groups
+- [gog groups](gog-groups.md) - Cloud Identity Groups (Workspace only)
 - [gog keep](gog-keep.md) - Google Keep (Workspace only)
 - [gog login](gog-login.md) - Authorize and store a refresh token (alias for 'auth add')
 - [gog logout](gog-logout.md) - Remove a stored refresh token (alias for 'auth remove')

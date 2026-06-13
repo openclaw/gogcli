@@ -136,6 +136,14 @@ gog --account admin@example.com admin users create ada@example.com \
 gog --account admin@example.com admin orgunits list --type all
 ```
 
+Cloud Identity Groups also require the Workspace service account and the
+`https://www.googleapis.com/auth/cloud-identity.groups.readonly` delegated
+scope:
+
+```bash
+gog --account admin@example.com groups list
+```
+
 See [Workspace Admin](workspace-admin.md) for service-account setup, generated
 passwords, recovery fields, organizational units, and cleanup commands.
 
