@@ -13,6 +13,7 @@ import (
 
 const (
 	accessTokenPlaceholderAccount = "access-token-user"
+	adcPlaceholderAccount         = "adc"
 	directAccessTokenWarning      = "Note: Using direct access token (expires in ~1 hour; no auto-refresh)" //nolint:gosec // user-facing warning text, not a credential
 )
 
@@ -23,14 +24,14 @@ func requireAccount(flags *RootFlags) (string, error) {
 	if googleapi.IsADCMode() {
 		if v := flagAccount(flags); v != "" {
 			if shouldAutoSelectAccount(v) {
-				return "adc", nil
+				return adcPlaceholderAccount, nil
 			}
 			return v, nil
 		}
 		if v := strings.TrimSpace(os.Getenv("GOG_ACCOUNT")); v != "" {
 			return v, nil
 		}
-		return "adc", nil
+		return adcPlaceholderAccount, nil
 	}
 
 	client := config.DefaultClientName

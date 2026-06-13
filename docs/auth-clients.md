@@ -90,6 +90,11 @@ gog --account admin@example.com groups list
 gog --account admin@example.com groups members engineering@example.com
 ```
 
+Explicit `--access-token` and `GOG_AUTH_MODE=adc` auth remain available for
+advanced environments, but Groups still require `--account <workspace-email>`
+because membership lookup needs the Workspace identity. Stored user OAuth
+tokens are not used for Groups.
+
 Then run Admin SDK commands with that account:
 
 ```
