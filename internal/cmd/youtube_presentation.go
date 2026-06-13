@@ -93,6 +93,48 @@ func youtubePlaylistColumns() []outfmt.Column[*youtube.Playlist] {
 	}
 }
 
+func youtubePlaylistItemColumns() []outfmt.Column[*youtube.PlaylistItem] {
+	return []outfmt.Column[*youtube.PlaylistItem]{
+		{Header: "VIDEO_ID", Value: func(item *youtube.PlaylistItem) string {
+			if item.ContentDetails != nil && item.ContentDetails.VideoId != "" {
+				return sanitizeTab(item.ContentDetails.VideoId)
+			}
+			if item.Snippet != nil && item.Snippet.ResourceId != nil {
+				return sanitizeTab(item.Snippet.ResourceId.VideoId)
+			}
+			return ""
+		}},
+		{Header: "TITLE", Value: func(item *youtube.PlaylistItem) string {
+			if item.Snippet == nil {
+				return ""
+			}
+			return sanitizeTab(item.Snippet.Title)
+		}},
+		{Header: "CHANNEL", Value: func(item *youtube.PlaylistItem) string {
+			if item.Snippet == nil {
+				return ""
+			}
+			if item.Snippet.VideoOwnerChannelTitle != "" {
+				return sanitizeTab(item.Snippet.VideoOwnerChannelTitle)
+			}
+			return sanitizeTab(item.Snippet.ChannelTitle)
+		}},
+		{Header: "POSITION", Value: func(item *youtube.PlaylistItem) string {
+			if item.Snippet == nil {
+				return ""
+			}
+			return fmt.Sprintf("%d", item.Snippet.Position)
+		}},
+		{Header: "ITEM_ID", Value: func(item *youtube.PlaylistItem) string { return item.Id }},
+		{Header: "PUBLISHED_AT", Value: func(item *youtube.PlaylistItem) string {
+			if item.Snippet == nil {
+				return ""
+			}
+			return sanitizeTab(item.Snippet.PublishedAt)
+		}},
+	}
+}
+
 func youtubeCommentColumns() []outfmt.Column[*youtube.CommentThread] {
 	return []outfmt.Column[*youtube.CommentThread]{
 		{Header: "ID", Value: func(thread *youtube.CommentThread) string { return thread.Id }},

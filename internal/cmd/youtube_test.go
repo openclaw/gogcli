@@ -708,6 +708,168 @@ func TestYouTubeSubscriptionsUnsubscribeValidation(t *testing.T) {
 	}
 }
 
+func TestYouTubeVideosListMyRatingUsesOAuthService(t *testing.T) {
+	var gotAccount string
+	var gotQuery string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/youtube/v3/videos" {
+			t.Fatalf("path = %s", r.URL.Path)
+		}
+		gotQuery = r.URL.RawQuery
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"items": []map[string]any{
+				{
+					"id": "vidLiked",
+					"snippet": map[string]any{
+						"title":        "Liked Video",
+						"channelTitle": "Some Channel",
+						"publishedAt":  "2026-01-02T03:04:05Z",
+					},
+					"statistics": map[string]any{"viewCount": "42"},
+				},
+			},
+		})
+	}))
+	defer srv.Close()
+
+	svc := newGoogleTestServiceWithEndpoint(t, srv.Client(), srv.URL+"/", youtube.NewService)
+	var stdout bytes.Buffer
+	ctx := withYouTubeTestServices(newCmdRuntimeOutputContext(t, &stdout, io.Discard), youtubeTestServices{
+		Account: func(_ context.Context, account string) (*youtube.Service, error) {
+			gotAccount = account
+			return svc, nil
+		},
+		APIKey: unexpectedYouTubeTestService(t, "API key service should not be used for --my-rating"),
+	})
+	err := runKong(t, &YouTubeVideosListCmd{}, []string{"--my-rating", "like", "--max", "1"}, ctx, &RootFlags{Account: "me@example.com"})
+	if err != nil {
+		t.Fatalf("runKong: %v", err)
+	}
+	if gotAccount != "me@example.com" {
+		t.Fatalf("account = %q", gotAccount)
+	}
+	if !strings.Contains(gotQuery, "myRating=like") {
+		t.Fatalf("query = %s", gotQuery)
+	}
+	out := stdout.String()
+	if !strings.Contains(out, "vidLiked") || !strings.Contains(out, "Liked Video") {
+		t.Fatalf("stdout = %q", out)
+	}
+}
+
+func TestYouTubeVideosListMyRatingValidation(t *testing.T) {
+	ctx := withYouTubeTestServices(newCmdRuntimeOutputContext(t, io.Discard, io.Discard), youtubeTestServices{
+		Account: unexpectedYouTubeTestService(t, "should not reach service with invalid my-rating"),
+		APIKey:  unexpectedYouTubeTestService(t, "should not reach service with invalid my-rating"),
+	})
+	flags := &RootFlags{Account: "me@example.com"}
+	tests := []struct {
+		name string
+		args []string
+		want string
+	}{
+		{
+			name: "invalid value",
+			args: []string{"--my-rating", "love", "--max", "1"},
+			want: "--my-rating must be like or dislike",
+		},
+		{
+			name: "combined with id",
+			args: []string{"--id", "vid1", "--my-rating", "like", "--max", "1"},
+			want: "use only one of --id, --chart, or --my-rating",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := runKong(t, &YouTubeVideosListCmd{}, tt.args, ctx, flags)
+			if err == nil || ExitCode(err) != 2 || !strings.Contains(err.Error(), tt.want) {
+				t.Fatalf("expected usage error containing %q, got %v", tt.want, err)
+			}
+		})
+	}
+}
+
+func TestYouTubePlaylistsItemsListWithAPIKey(t *testing.T) {
+	t.Setenv("GOG_ACCOUNT", "")
+	t.Setenv("GOG_YOUTUBE_API_KEY", "test-key")
+
+	var gotQuery string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/youtube/v3/playlistItems" {
+			t.Fatalf("path = %s", r.URL.Path)
+		}
+		gotQuery = r.URL.RawQuery
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"items": []map[string]any{
+				{
+					"id": "PLITEM1",
+					"snippet": map[string]any{
+						"title":                  "First Video",
+						"position":               0,
+						"videoOwnerChannelTitle": "Uploader Channel",
+						"publishedAt":            "2026-01-02T03:04:05Z",
+						"resourceId": map[string]any{
+							"kind":    "youtube#video",
+							"videoId": "vid111",
+						},
+					},
+					"contentDetails": map[string]any{"videoId": "vid111"},
+				},
+			},
+		})
+	}))
+	defer srv.Close()
+
+	svc := newGoogleTestServiceWithEndpoint(t, srv.Client(), srv.URL+"/", youtube.NewService)
+	var stdout bytes.Buffer
+	ctx := withYouTubeTestServices(newCmdRuntimeOutputContext(t, &stdout, io.Discard), youtubeTestServices{
+		APIKey: fixedYouTubeTestService(svc),
+	})
+	err := runKong(t, &YouTubePlaylistsItemsListCmd{}, []string{"--playlist-id", "PL123", "--max", "10"}, ctx, &RootFlags{})
+	if err != nil {
+		t.Fatalf("runKong: %v", err)
+	}
+	if !strings.Contains(gotQuery, "playlistId=PL123") || !strings.Contains(gotQuery, "maxResults=10") {
+		t.Fatalf("query = %s", gotQuery)
+	}
+	out := stdout.String()
+	if !strings.Contains(out, "vid111") || !strings.Contains(out, "First Video") || !strings.Contains(out, "Uploader Channel") {
+		t.Fatalf("stdout = %q", out)
+	}
+}
+
+func TestYouTubePlaylistsItemsListWithAccountUsesOAuthService(t *testing.T) {
+	var gotAccount string
+	var gotQuery string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/youtube/v3/playlistItems" {
+			t.Fatalf("path = %s", r.URL.Path)
+		}
+		gotQuery = r.URL.RawQuery
+		_ = json.NewEncoder(w).Encode(map[string]any{"items": []map[string]any{}})
+	}))
+	defer srv.Close()
+
+	svc := newGoogleTestServiceWithEndpoint(t, srv.Client(), srv.URL+"/", youtube.NewService)
+	ctx := withYouTubeTestServices(newCmdRuntimeOutputContext(t, io.Discard, io.Discard), youtubeTestServices{
+		Account: func(_ context.Context, account string) (*youtube.Service, error) {
+			gotAccount = account
+			return svc, nil
+		},
+		APIKey: unexpectedYouTubeTestService(t, "API key service should not be used when account is configured"),
+	})
+	err := runKong(t, &YouTubePlaylistsItemsListCmd{}, []string{"--playlist-id", "LL", "--max", "5"}, ctx, &RootFlags{Account: "me@example.com"})
+	if err != nil {
+		t.Fatalf("runKong: %v", err)
+	}
+	if gotAccount != "me@example.com" {
+		t.Fatalf("account = %q", gotAccount)
+	}
+	if !strings.Contains(gotQuery, "playlistId=LL") {
+		t.Fatalf("query = %s", gotQuery)
+	}
+}
+
 func TestYouTubeValidationRejectsBlankSelectorsBeforeService(t *testing.T) {
 	ctx := withYouTubeTestServices(newCmdRuntimeOutputContext(t, io.Discard, io.Discard), youtubeTestServices{
 		Account:  unexpectedYouTubeTestService(t, "expected validation to fail before OAuth YouTube service creation"),
@@ -726,7 +888,14 @@ func TestYouTubeValidationRejectsBlankSelectorsBeforeService(t *testing.T) {
 			run: func() error {
 				return runKong(t, &YouTubeVideosListCmd{}, []string{"--id", ",", "--max", "1"}, ctx, flags)
 			},
-			want: "set --id VIDEO_IDS or --chart mostPopular",
+			want: "set --id VIDEO_IDS, --chart mostPopular, or --my-rating like",
+		},
+		{
+			name: "playlist items blank id",
+			run: func() error {
+				return runKong(t, &YouTubePlaylistsItemsListCmd{}, []string{"--playlist-id", " ", "--max", "1"}, ctx, flags)
+			},
+			want: "set --playlist-id ID",
 		},
 		{
 			name: "channels empty csv ids",

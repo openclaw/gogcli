@@ -1,27 +1,22 @@
-# `gog youtube playlists`
+# `gog youtube playlists items`
 
 > Generated from `gog schema --json`. Do not edit this page by hand; run `make docs-commands`.
 
-Manage playlists
+List the videos inside a playlist
 
 ## Usage
 
 ```bash
-gog youtube (yt) playlists (playlist) <command>
+gog youtube (yt) playlists (playlist) items (item) <command>
 ```
 
 ## Parent
 
-- [gog youtube](gog-youtube.md)
+- [gog youtube playlists](gog-youtube-playlists.md)
 
 ## Subcommands
 
-- [gog youtube playlists add](gog-youtube-playlists-add.md) - Add a video to a playlist
-- [gog youtube playlists create](gog-youtube-playlists-create.md) - Create a new playlist
-- [gog youtube playlists delete](gog-youtube-playlists-delete.md) - Delete a playlist
-- [gog youtube playlists items](gog-youtube-playlists-items.md) - List the videos inside a playlist
-- [gog youtube playlists list](gog-youtube-playlists-list.md) - List playlists by channel or authenticated user
-- [gog youtube playlists remove](gog-youtube-playlists-remove.md) - Remove a video from a playlist
+- [gog youtube playlists items list](gog-youtube-playlists-items-list.md) - List the videos inside a playlist
 
 ## Flags
 
@@ -50,5 +45,5 @@ gog youtube (yt) playlists (playlist) <command>
 
 ## See Also
 
-- [gog youtube](gog-youtube.md)
+- [gog youtube playlists](gog-youtube-playlists.md)
 - [Command index](README.md)

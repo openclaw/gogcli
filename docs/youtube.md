@@ -38,6 +38,35 @@ The account must already have a YouTube channel. If the API returns
 `youtubeSignupRequired`, initialize the channel once at
 [youtube.com](https://www.youtube.com/) and retry.
 
+## Read playlists and liked videos
+
+List the playlists owned by a channel or by the authenticated user:
+
+```bash
+gog yt playlists list --channel-id UC_x5XG1OV2P6uZZ5FSM9Ttw
+gog yt playlists list --mine --account you@gmail.com
+```
+
+List the videos inside a playlist with `playlists items list`. Public playlists
+work with an API key; private playlists and the special `LL` (liked videos)
+playlist need account OAuth. Use `--all` to page through large playlists:
+
+```bash
+gog yt playlists items list --playlist-id PLAYLIST_ID --all
+gog yt playlists items list --playlist-id LL --account you@gmail.com --all
+```
+
+Read your liked (or disliked) videos directly with `videos list --my-rating`.
+This is a per-user read, so it always uses account OAuth:
+
+```bash
+gog yt videos list --my-rating like --account you@gmail.com --max 50
+gog yt videos list --my-rating dislike --account you@gmail.com --json
+```
+
+Both reads work with the default `youtube.readonly` scope; no extra scope is
+required.
+
 ## Manage subscriptions
 
 List one page or fetch every page:

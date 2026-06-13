@@ -404,6 +404,9 @@ gog yt channels list --id UC_x5XG1OV2P6uZZ5FSM9Ttw --json
 gog yt videos list --chart mostPopular --region US --max 5
 gog yt activities list --mine -a you@gmail.com
 gog yt subscriptions list --all -a you@gmail.com
+gog yt playlists list --mine -a you@gmail.com
+gog yt playlists items list --playlist-id PLAYLIST_ID --all
+gog yt videos list --my-rating like -a you@gmail.com   # your liked videos
 gog yt playlists create --title "Research" -a you@gmail.com
 ```
 

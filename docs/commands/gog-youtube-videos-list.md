@@ -34,6 +34,7 @@ gog youtube (yt) videos (video) list (ls) [flags]
 | `--id` | `string` |  | Comma-separated video IDs |
 | `-j`<br>`--json`<br>`--machine` | `bool` | false | Output JSON to stdout (best for scripting) |
 | `--max`<br>`--limit` | `int64` | 25 | Max results |
+| `--my-rating` | `string` |  | Your rated videos: like (liked videos) or dislike (requires -a account) |
 | `--no-input`<br>`--non-interactive`<br>`--noninteractive` | `bool` |  | Never prompt; fail instead (useful for CI) |
 | `--page` | `string` |  | Page token |
 | `-p`<br>`--plain`<br>`--tsv` | `bool` | false | Output stable, parseable text to stdout (TSV; no colors) |

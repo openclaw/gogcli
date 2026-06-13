@@ -5,6 +5,7 @@
 ### Added
 
 - YouTube: add subscription listing and management plus playlist create, add, remove, and delete commands with least-privilege OAuth, dry-run support, structured output, and destructive-operation confirmation. (#767) — thanks @beezly.
+- YouTube: add `playlists items list` to read the videos inside a playlist (public playlists via API key; private playlists and the `LL` liked-videos playlist via account OAuth, with `--all` pagination) and `videos list --my-rating like|dislike` to read your rated videos. Both use the default `youtube.readonly` scope.
 - Calendar: add `unsubscribe` for removing calendar-list entries and `delete-calendar` for deleting owned secondary calendars, with dry-run, confirmation, and structured output.
 
 ### Fixed

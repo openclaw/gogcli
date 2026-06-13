@@ -105,11 +105,12 @@ type YouTubeVideosCmd struct {
 }
 
 type YouTubeVideosListCmd struct {
-	ID     string `name:"id" help:"Comma-separated video IDs"`
-	Chart  string `name:"chart" help:"Chart: mostPopular (regionCode required)"`
-	Region string `name:"region" help:"Region code (e.g. US) for chart"`
-	Max    int64  `name:"max" aliases:"limit" help:"Max results" default:"25"`
-	Page   string `name:"page" help:"Page token"`
+	ID       string `name:"id" help:"Comma-separated video IDs"`
+	Chart    string `name:"chart" help:"Chart: mostPopular (regionCode required)"`
+	Region   string `name:"region" help:"Region code (e.g. US) for chart"`
+	MyRating string `name:"my-rating" help:"Your rated videos: like (liked videos) or dislike (requires -a account)"`
+	Max      int64  `name:"max" aliases:"limit" help:"Max results" default:"25"`
+	Page     string `name:"page" help:"Page token"`
 }
 
 func (c *YouTubeVideosListCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -120,11 +121,23 @@ func (c *YouTubeVideosListCmd) Run(ctx context.Context, flags *RootFlags) error 
 	ids := splitCSV(c.ID)
 	chart := strings.TrimSpace(c.Chart)
 	region := strings.TrimSpace(c.Region)
-	if len(ids) == 0 && chart == "" {
-		return usage("set --id VIDEO_IDS or --chart mostPopular")
+	myRating := strings.TrimSpace(c.MyRating)
+
+	modes := 0
+	if len(ids) > 0 {
+		modes++
 	}
-	if len(ids) > 0 && chart != "" {
-		return usage("use either --id or --chart, not both")
+	if chart != "" {
+		modes++
+	}
+	if myRating != "" {
+		modes++
+	}
+	if modes == 0 {
+		return usage("set --id VIDEO_IDS, --chart mostPopular, or --my-rating like")
+	}
+	if modes > 1 {
+		return usage("use only one of --id, --chart, or --my-rating")
 	}
 	if chart != "" && chart != "mostPopular" {
 		return usage("--chart must be mostPopular")
@@ -132,8 +145,22 @@ func (c *YouTubeVideosListCmd) Run(ctx context.Context, flags *RootFlags) error 
 	if chart == "mostPopular" && region == "" {
 		return usage("--chart mostPopular requires --region (e.g. US)")
 	}
+	if myRating != "" && myRating != "like" && myRating != "dislike" {
+		return usage("--my-rating must be like or dislike")
+	}
 
-	svc, err := getYouTubeReadService(ctx, flags)
+	var svc *youtube.Service
+	var err error
+	if myRating != "" {
+		// myRating reads are per-user and require OAuth, not an API key.
+		account, accErr := requireAccount(flags)
+		if accErr != nil {
+			return accErr
+		}
+		svc, err = getYouTubeServiceForAccount(ctx, account)
+	} else {
+		svc, err = getYouTubeReadService(ctx, flags)
+	}
 	if err != nil {
 		return err
 	}
@@ -141,10 +168,13 @@ func (c *YouTubeVideosListCmd) Run(ctx context.Context, flags *RootFlags) error 
 	call := svc.Videos.List([]string{"snippet", "contentDetails", "statistics"}).
 		MaxResults(c.Max).
 		PageToken(c.Page)
-	if len(ids) > 0 {
+	switch {
+	case len(ids) > 0:
 		call = call.Id(ids...)
-	} else {
+	case chart != "":
 		call = call.Chart(chart).RegionCode(region)
+	default:
+		call = call.MyRating(myRating)
 	}
 	resp, err := call.Do()
 	if err != nil {
@@ -175,6 +205,7 @@ func (c *YouTubeVideosListCmd) Run(ctx context.Context, flags *RootFlags) error 
 
 type YouTubePlaylistsCmd struct {
 	List   YouTubePlaylistsListCmd   `cmd:"" name:"list" aliases:"ls" help:"List playlists by channel or authenticated user"`
+	Items  YouTubePlaylistsItemsCmd  `cmd:"" name:"items" aliases:"item" help:"List the videos inside a playlist"`
 	Create YouTubePlaylistsCreateCmd `cmd:"" name:"create" help:"Create a new playlist"`
 	Add    YouTubePlaylistsAddCmd    `cmd:"" name:"add" help:"Add a video to a playlist"`
 	Remove YouTubePlaylistsRemoveCmd `cmd:"" name:"remove" aliases:"rm" help:"Remove a video from a playlist"`
@@ -248,6 +279,70 @@ func (c *YouTubePlaylistsListCmd) Run(ctx context.Context, flags *RootFlags) err
 		return err
 	}
 	printNextPageHint(u, resp.NextPageToken)
+	return nil
+}
+
+type YouTubePlaylistsItemsCmd struct {
+	List YouTubePlaylistsItemsListCmd `cmd:"" name:"list" aliases:"ls" help:"List the videos inside a playlist"`
+}
+
+type YouTubePlaylistsItemsListCmd struct {
+	PlaylistID string `name:"playlist-id" help:"Playlist ID (use LL for your liked videos; LL/private playlists require -a account)"`
+	Max        int64  `name:"max" aliases:"limit" help:"Max results per page" default:"50"`
+	Page       string `name:"page" aliases:"cursor" help:"Page token"`
+	All        bool   `name:"all" aliases:"all-pages,allpages" help:"Fetch all pages"`
+}
+
+func (c *YouTubePlaylistsItemsListCmd) Run(ctx context.Context, flags *RootFlags) error {
+	u := ui.FromContext(ctx)
+	if err := validateYouTubeMax(c.Max); err != nil {
+		return err
+	}
+	playlistID := strings.TrimSpace(c.PlaylistID)
+	if playlistID == "" {
+		return usage("set --playlist-id ID (use LL for your liked videos; LL/private playlists require -a account)")
+	}
+
+	svc, err := getYouTubeReadService(ctx, flags)
+	if err != nil {
+		return err
+	}
+
+	fetch := func(pageToken string) ([]*youtube.PlaylistItem, string, error) {
+		resp, callErr := svc.PlaylistItems.List([]string{"snippet", "contentDetails"}).
+			PlaylistId(playlistID).
+			MaxResults(c.Max).
+			PageToken(pageToken).
+			Do()
+		if callErr != nil {
+			return nil, "", callErr
+		}
+		return youtubeItemsOrEmpty(resp.Items), resp.NextPageToken, nil
+	}
+	items, nextPageToken, err := loadPagedItems(c.Page, c.All, fetch)
+	if err != nil {
+		return err
+	}
+
+	if outfmt.IsJSON(ctx) {
+		return outfmt.WriteJSON(ctx, stdoutWriter(ctx), map[string]any{
+			"items":         youtubeItemsOrEmpty(items),
+			"nextPageToken": nextPageToken,
+		})
+	}
+	if len(items) == 0 {
+		u.Err().Println("No playlist items")
+		return nil
+	}
+	if err := outfmt.WriteTable(
+		ctx,
+		stdoutWriter(ctx),
+		compactYouTubeRows(items),
+		youtubePlaylistItemColumns(),
+	); err != nil {
+		return err
+	}
+	printNextPageHint(u, nextPageToken)
 	return nil
 }
 
