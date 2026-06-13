@@ -191,6 +191,7 @@ func TestNewCloudIdentityGroupsADCPrecedesDirectToken(t *testing.T) {
 	adcCalled := false
 	newADCTokenSource = func(_ context.Context, scopes ...string) (oauth2.TokenSource, error) {
 		adcCalled = true
+
 		if len(scopes) != 1 || scopes[0] != scopeCloudIdentityGroupsRO {
 			t.Fatalf("scopes = %#v", scopes)
 		}
@@ -202,6 +203,7 @@ func TestNewCloudIdentityGroupsADCPrecedesDirectToken(t *testing.T) {
 	if _, err := NewCloudIdentityGroups(ctx, "admin@example.com"); err != nil {
 		t.Fatalf("NewCloudIdentityGroups: %v", err)
 	}
+
 	if !adcCalled {
 		t.Fatal("expected ADC token source to take precedence")
 	}
