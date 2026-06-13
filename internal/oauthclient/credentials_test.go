@@ -48,14 +48,23 @@ func withSecretStore(t *testing.T) map[string][]byte {
 	return secrets
 }
 
+func defaultCredentialsStoreForTest(t *testing.T) *CredentialsStore {
+	t.Helper()
+	store, err := defaultCredentialsStore()
+	if err != nil {
+		t.Fatalf("defaultCredentialsStore: %v", err)
+	}
+	return store
+}
+
 func TestWriteReadClientCredentials_KeyringSecret(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, "xdg-config"))
 	secrets := withSecretStore(t)
 
-	if err := WriteClientCredentialsFor("work", config.ClientCredentials{ClientID: "id", ClientSecret: "sec"}, false); err != nil {
-		t.Fatalf("WriteClientCredentialsFor: %v", err)
+	if err := defaultCredentialsStoreForTest(t).Write("work", config.ClientCredentials{ClientID: "id", ClientSecret: "sec"}, false); err != nil {
+		t.Fatalf("Write: %v", err)
 	}
 	key, err := ClientSecretKey("work")
 	if err != nil {
@@ -111,7 +120,7 @@ func TestWriteClientCredentials_KeyringFailurePreservesPlaintext(t *testing.T) {
 	if err := config.WriteClientCredentialsFor("work", config.ClientCredentials{ClientID: "old-id", ClientSecret: "old-sec"}); err != nil {
 		t.Fatalf("WriteClientCredentialsFor legacy: %v", err)
 	}
-	if err := WriteClientCredentialsFor("work", config.ClientCredentials{ClientID: "new-id", ClientSecret: "new-sec"}, false); err == nil {
+	if err := defaultCredentialsStoreForTest(t).Write("work", config.ClientCredentials{ClientID: "new-id", ClientSecret: "new-sec"}, false); err == nil {
 		t.Fatalf("expected set secret error")
 	}
 
@@ -130,11 +139,12 @@ func TestDeleteClientCredentials_DeletesMetadataAndSecret(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, "xdg-config"))
 	secrets := withSecretStore(t)
 
-	if err := WriteClientCredentialsFor("work", config.ClientCredentials{ClientID: "id", ClientSecret: "sec"}, false); err != nil {
-		t.Fatalf("WriteClientCredentialsFor: %v", err)
+	store := defaultCredentialsStoreForTest(t)
+	if err := store.Write("work", config.ClientCredentials{ClientID: "id", ClientSecret: "sec"}, false); err != nil {
+		t.Fatalf("Write: %v", err)
 	}
-	if err := DeleteClientCredentialsFor("work"); err != nil {
-		t.Fatalf("DeleteClientCredentialsFor: %v", err)
+	if err := store.Delete("work"); err != nil {
+		t.Fatalf("Delete: %v", err)
 	}
 	if len(secrets) != 0 {
 		t.Fatalf("expected secret deleted: %#v", secrets)
@@ -154,7 +164,7 @@ func TestDeleteClientCredentials_PropagatesSecretDeleteError(t *testing.T) {
 	if err := config.WriteClientCredentialsMetadataFor("work", config.ClientCredentials{ClientID: "id"}); err != nil {
 		t.Fatalf("WriteClientCredentialsMetadataFor: %v", err)
 	}
-	if err := DeleteClientCredentialsFor("work"); err == nil {
+	if err := defaultCredentialsStoreForTest(t).Delete("work"); err == nil {
 		t.Fatalf("expected delete error")
 	}
 	if _, err := config.ReadClientCredentialsMetadataFor("work"); err != nil {
@@ -172,8 +182,8 @@ func TestDeleteClientCredentials_PlaintextDoesNotRequireKeyring(t *testing.T) {
 	if err := config.WriteClientCredentialsFor("work", config.ClientCredentials{ClientID: "id", ClientSecret: "legacy-sec"}); err != nil {
 		t.Fatalf("WriteClientCredentialsFor legacy: %v", err)
 	}
-	if err := DeleteClientCredentialsFor("work"); err != nil {
-		t.Fatalf("DeleteClientCredentialsFor: %v", err)
+	if err := defaultCredentialsStoreForTest(t).Delete("work"); err != nil {
+		t.Fatalf("Delete: %v", err)
 	}
 	if _, err := config.ReadClientCredentialsMetadataFor("work"); err == nil {
 		t.Fatalf("expected credentials file deleted")
