@@ -9,7 +9,7 @@
 
 ### Fixed
 
-- Backup: make status, verify, cat, and export use read-only repository setup, preserve clone failures instead of initializing a new repository, and give status/verify the existing `--no-pull` flags while retaining hidden compatibility for legacy write-only options.
+- Backup: make status, verify, cat, and export use read-only repository setup, keep failed clones atomic, disable Git credential prompts under `--no-input`, preserve clone failures instead of initializing a new repository, and give status/verify the existing `--no-pull` flags while retaining hidden compatibility for legacy write-only options.
 - Auth: make `auth manage --dry-run` preview the browser flow without touching the keyring or server, and fail fast when real execution uses `--no-input`.
 - Docs: make `docs cell-style` table, row, and column coordinates one-based like adjacent table commands, with negative table indexes counting from the end.
 - Auth: clarify that `auth import` always requires a refresh-token source and only optionally accepts a current access token plus expiry.

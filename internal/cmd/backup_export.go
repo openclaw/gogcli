@@ -26,6 +26,7 @@ type BackupCatCmd struct {
 }
 
 func (c *BackupCatCmd) Run(ctx context.Context, flags *RootFlags) error {
+	ctx = backupCommandContext(ctx, flags)
 	shardPath := strings.TrimSpace(c.Shard)
 	if shardPath == "" {
 		return usage("empty shard")
@@ -99,6 +100,7 @@ type backupExportOptions struct {
 }
 
 func (c *BackupExportCmd) Run(ctx context.Context, flags *RootFlags) error {
+	ctx = backupCommandContext(ctx, flags)
 	backupOpts := c.options()
 	if err := bindBackupConfigStore(ctx, &backupOpts); err != nil {
 		return err

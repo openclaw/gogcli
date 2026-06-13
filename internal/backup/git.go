@@ -8,8 +8,15 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 )
+
+type noInputContextKey struct{}
+
+func WithNoInput(ctx context.Context) context.Context {
+	return context.WithValue(ctx, noInputContextKey{}, true)
+}
 
 func ensureRepo(ctx context.Context, cfg Config) error {
 	if strings.TrimSpace(cfg.Repo) == "" {
@@ -61,7 +68,29 @@ func prepareReadRepo(ctx context.Context, cfg Config, skipPull bool) error {
 	if err := os.MkdirAll(filepath.Dir(cfg.Repo), 0o700); err != nil {
 		return err
 	}
-	return git(ctx, "", "clone", cfg.Remote, cfg.Repo)
+	return cloneReadRepo(ctx, cfg.Remote, cfg.Repo)
+}
+
+func cloneReadRepo(ctx context.Context, remote, repo string) error {
+	parent := filepath.Dir(repo)
+	tempRepo, err := os.MkdirTemp(parent, "."+filepath.Base(repo)+".clone-*")
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if tempRepo != "" {
+			_ = os.RemoveAll(tempRepo)
+		}
+	}()
+
+	if err := git(ctx, "", "clone", remote, tempRepo); err != nil {
+		return err
+	}
+	if err := os.Rename(tempRepo, repo); err != nil {
+		return fmt.Errorf("install cloned backup repo: %w", err)
+	}
+	tempRepo = ""
+	return nil
 }
 
 func pullRepo(ctx context.Context, repo string) error {
@@ -122,14 +151,7 @@ func pushCommit(ctx context.Context, cfg Config, sha string) error {
 }
 
 func git(ctx context.Context, dir string, args ...string) error {
-	cmd := exec.CommandContext(ctx, "git", args...) // #nosec G204 -- callers pass fixed git subcommands plus configured repo paths.
-	cmd.Dir = dir
-	cmd.Env = append(os.Environ(),
-		"GIT_AUTHOR_NAME=gog",
-		"GIT_AUTHOR_EMAIL=gog@example.invalid",
-		"GIT_COMMITTER_NAME=gog",
-		"GIT_COMMITTER_EMAIL=gog@example.invalid",
-	)
+	cmd := gitCommand(ctx, dir, args...)
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {
@@ -142,14 +164,7 @@ func git(ctx context.Context, dir string, args ...string) error {
 }
 
 func gitOutput(ctx context.Context, dir string, args ...string) (string, error) {
-	cmd := exec.CommandContext(ctx, "git", args...) // #nosec G204 -- callers pass fixed git subcommands plus configured repo paths.
-	cmd.Dir = dir
-	cmd.Env = append(os.Environ(),
-		"GIT_AUTHOR_NAME=gog",
-		"GIT_AUTHOR_EMAIL=gog@example.invalid",
-		"GIT_COMMITTER_NAME=gog",
-		"GIT_COMMITTER_EMAIL=gog@example.invalid",
-	)
+	cmd := gitCommand(ctx, dir, args...)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
@@ -160,4 +175,52 @@ func gitOutput(ctx context.Context, dir string, args ...string) (string, error) 
 		return "", fmt.Errorf("git %s: %w", strings.Join(args, " "), err)
 	}
 	return stdout.String(), nil
+}
+
+func gitCommand(ctx context.Context, dir string, args ...string) *exec.Cmd {
+	cmd := exec.CommandContext(ctx, "git", args...) // #nosec G204 -- callers pass fixed git subcommands plus configured repo paths.
+	cmd.Dir = dir
+	cmd.Env = gitEnvironment(ctx)
+	return cmd
+}
+
+func gitEnvironment(ctx context.Context) []string {
+	values := map[string]string{
+		"GIT_AUTHOR_NAME":     "gog",
+		"GIT_AUTHOR_EMAIL":    "gog@example.invalid",
+		"GIT_COMMITTER_NAME":  "gog",
+		"GIT_COMMITTER_EMAIL": "gog@example.invalid",
+	}
+	if noInput, _ := ctx.Value(noInputContextKey{}).(bool); noInput {
+		values["GIT_TERMINAL_PROMPT"] = "0"
+		values["GCM_INTERACTIVE"] = "Never"
+		values["GIT_ASKPASS"] = ""
+		values["SSH_ASKPASS"] = ""
+		sshCommand := strings.TrimSpace(os.Getenv("GIT_SSH_COMMAND"))
+		if sshCommand == "" {
+			sshCommand = "ssh"
+		}
+		values["GIT_SSH_COMMAND"] = sshCommand + " -o BatchMode=yes"
+	}
+	return replaceEnvironment(os.Environ(), values)
+}
+
+func replaceEnvironment(base []string, values map[string]string) []string {
+	env := make([]string, 0, len(base)+len(values))
+	for _, entry := range base {
+		key, _, ok := strings.Cut(entry, "=")
+		if _, replace := values[key]; ok && replace {
+			continue
+		}
+		env = append(env, entry)
+	}
+	keys := make([]string, 0, len(values))
+	for key := range values {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	for _, key := range keys {
+		env = append(env, key+"="+values[key])
+	}
+	return env
 }

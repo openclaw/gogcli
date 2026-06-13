@@ -106,11 +106,19 @@ func bindBackupConfigStore(ctx context.Context, opts *backup.Options) error {
 	return nil
 }
 
+func backupCommandContext(ctx context.Context, flags *RootFlags) context.Context {
+	if flags != nil && flags.NoInput {
+		return backup.WithNoInput(ctx)
+	}
+	return ctx
+}
+
 type BackupInitCmd struct {
 	backupFlags
 }
 
 func (c *BackupInitCmd) Run(ctx context.Context, flags *RootFlags) error {
+	ctx = backupCommandContext(ctx, flags)
 	opts := c.options()
 	if err := bindBackupConfigStore(ctx, &opts); err != nil {
 		return err
@@ -175,6 +183,7 @@ type BackupPushCmd struct {
 }
 
 func (c *BackupPushCmd) Run(ctx context.Context, flags *RootFlags) error {
+	ctx = backupCommandContext(ctx, flags)
 	services := expandBackupServices(splitCSV(c.Services))
 	if len(services) == 0 {
 		return usage("at least one --services value is required")
@@ -250,6 +259,7 @@ type BackupGmailPushCmd struct {
 }
 
 func (c *BackupGmailPushCmd) Run(ctx context.Context, flags *RootFlags) error {
+	ctx = backupCommandContext(ctx, flags)
 	if err := c.validate(); err != nil {
 		return err
 	}
@@ -302,7 +312,8 @@ type BackupStatusCmd struct {
 	backupReadCompatFlags
 }
 
-func (c *BackupStatusCmd) Run(ctx context.Context) error {
+func (c *BackupStatusCmd) Run(ctx context.Context, flags *RootFlags) error {
+	ctx = backupCommandContext(ctx, flags)
 	opts := c.options()
 	if err := bindBackupConfigStore(ctx, &opts); err != nil {
 		return err
@@ -337,7 +348,8 @@ type BackupVerifyCmd struct {
 	backupReadCompatFlags
 }
 
-func (c *BackupVerifyCmd) Run(ctx context.Context) error {
+func (c *BackupVerifyCmd) Run(ctx context.Context, flags *RootFlags) error {
+	ctx = backupCommandContext(ctx, flags)
 	opts := c.options()
 	if err := bindBackupConfigStore(ctx, &opts); err != nil {
 		return err

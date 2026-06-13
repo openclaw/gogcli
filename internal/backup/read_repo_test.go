@@ -75,8 +75,47 @@ func TestReadRepoCloneFailureDoesNotInitializeRepo(t *testing.T) {
 		t.Fatalf("error = %v, want clone failure", err)
 	}
 
-	if _, statErr := os.Stat(filepath.Join(repo, ".git")); !errors.Is(statErr, os.ErrNotExist) {
-		t.Fatalf("clone failure initialized repo: %v", statErr)
+	if _, statErr := os.Stat(repo); !errors.Is(statErr, os.ErrNotExist) {
+		t.Fatalf("clone failure left repo behind: %v", statErr)
+	}
+
+	matches, globErr := filepath.Glob(filepath.Join(dir, ".repo.clone-*"))
+	if globErr != nil {
+		t.Fatalf("Glob: %v", globErr)
+	}
+
+	if len(matches) != 0 {
+		t.Fatalf("clone failure left temporary repos: %v", matches)
+	}
+}
+
+func TestNoInputGitEnvironmentDisablesPrompts(t *testing.T) {
+	t.Setenv("GIT_TERMINAL_PROMPT", "1")
+	t.Setenv("GCM_INTERACTIVE", "Always")
+	t.Setenv("GIT_ASKPASS", "askpass")
+	t.Setenv("SSH_ASKPASS", "ssh-askpass")
+	t.Setenv("GIT_SSH_COMMAND", "ssh -i test-key")
+
+	env := gitEnvironment(WithNoInput(t.Context()))
+	values := make(map[string][]string)
+
+	for _, entry := range env {
+		key, value, ok := strings.Cut(entry, "=")
+		if ok {
+			values[key] = append(values[key], value)
+		}
+	}
+
+	for key, want := range map[string]string{
+		"GIT_TERMINAL_PROMPT": "0",
+		"GCM_INTERACTIVE":     "Never",
+		"GIT_ASKPASS":         "",
+		"SSH_ASKPASS":         "",
+		"GIT_SSH_COMMAND":     "ssh -i test-key -o BatchMode=yes",
+	} {
+		if got := values[key]; len(got) != 1 || got[0] != want {
+			t.Fatalf("%s = %q, want [%q]", key, got, want)
+		}
 	}
 }
 

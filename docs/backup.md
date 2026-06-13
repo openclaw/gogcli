@@ -74,6 +74,8 @@ remote.
 configured remote before reading. Use `--no-pull` to read local state directly.
 Read commands never initialize a new Git repository when the repository is
 missing or a clone fails.
+With `--no-input`, backup Git operations disable credential/UI prompts and SSH
+password prompts; failed read-side clones leave the configured path untouched.
 
 Supported services:
 
