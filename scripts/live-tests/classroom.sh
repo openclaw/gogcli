@@ -48,7 +48,10 @@ run_classroom_tests() {
     else
       course_json=""
     fi
-    course_id=$(extract_id "$course_json")
+    course_id=""
+    if [ -n "$course_json" ]; then
+      course_id=$(extract_id "$course_json")
+    fi
     if [ -z "$course_id" ]; then
       echo "Classroom ACTIVE course create failed; skipping create tests."
       if [ "${STRICT:-false}" = true ]; then
