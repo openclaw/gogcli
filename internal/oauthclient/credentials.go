@@ -18,9 +18,6 @@ var (
 	errEmptyClientSecret  = errors.New("OAuth client secret in keyring is empty")
 	errNilCredentialFiles = errors.New("credential file store is nil")
 	errNilSecretStore     = errors.New("secret store is nil")
-	setSecret             = secrets.SetSecret
-	getSecret             = secrets.GetSecret
-	deleteSecret          = secrets.DeleteSecret
 )
 
 type CredentialsStore struct {
@@ -42,15 +39,25 @@ func NewCredentialsStore(files *config.ClientCredentialsStore, secretStore secre
 type secretFuncs struct{}
 
 func (secretFuncs) SetSecret(key string, value []byte) error {
-	return setSecret(key, value)
+	if err := secrets.SetSecret(key, value); err != nil {
+		return fmt.Errorf("set secret: %w", err)
+	}
+	return nil
 }
 
 func (secretFuncs) GetSecret(key string) ([]byte, error) {
-	return getSecret(key)
+	value, err := secrets.GetSecret(key)
+	if err != nil {
+		return nil, fmt.Errorf("get secret: %w", err)
+	}
+	return value, nil
 }
 
 func (secretFuncs) DeleteSecret(key string) error {
-	return deleteSecret(key)
+	if err := secrets.DeleteSecret(key); err != nil {
+		return fmt.Errorf("delete secret: %w", err)
+	}
+	return nil
 }
 
 func defaultCredentialsStore() (*CredentialsStore, error) {
@@ -68,6 +75,14 @@ func ClientSecretKey(client string) (string, error) {
 		return "", fmt.Errorf("normalize client: %w", err)
 	}
 	return fmt.Sprintf(clientSecretKeyFmt, normalized), nil
+}
+
+func (s *CredentialsStore) PathFor(client string) (string, error) {
+	path, err := s.files.PathFor(client)
+	if err != nil {
+		return "", fmt.Errorf("resolve credentials path: %w", err)
+	}
+	return path, nil
 }
 
 func (s *CredentialsStore) Write(client string, creds config.ClientCredentials, insecure bool) error {

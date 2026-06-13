@@ -19,6 +19,7 @@
 - Zoom: bind credential metadata and encrypted secret/token storage to the selected runtime layout, with consistent alias canonicalization.
 - Auth: bind temporary manual OAuth state to the selected runtime config directory and reject unsafe redirect state values before filesystem access.
 - Auth: bind renamed-account alias, client, and default-account migration to the active runtime config store.
+- Auth: bind OAuth client credential commands to the active runtime secret store instead of reopening the ambient keyring.
 - Time: honor the runtime-selected `default_timezone` in `time now`, Gmail timestamps, watch output, Calendar time, and generated email Date headers instead of reading ambient config.
 - Config: bind account and calendar alias management and resolution to the active runtime config store.
 - Docs: document publishing personal External OAuth apps before authorization to avoid Google's seven-day Testing refresh-token expiry.

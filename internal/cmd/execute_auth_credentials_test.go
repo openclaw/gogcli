@@ -99,6 +99,7 @@ func TestExecute_AuthCredentials_UsesInjectedStores(t *testing.T) {
 		ExplicitData:   true,
 	}
 	configStore := config.NewConfigStore(layout)
+	secretStore := newMemSecretsStore()
 
 	in := filepath.Join(t.TempDir(), "creds.json")
 	if err := os.WriteFile(in, []byte(`{"installed":{"client_id":"id","client_secret":"sec"}}`), 0o600); err != nil {
@@ -113,6 +114,11 @@ func TestExecute_AuthCredentials_UsesInjectedStores(t *testing.T) {
 			Err: &stderr,
 		},
 		Config: configStore,
+		Auth: app.AuthOperations{
+			OpenSecretStore: func() (secrets.SecretStore, error) {
+				return secretStore, nil
+			},
+		},
 	}
 	if err := executeWithRuntime([]string{"--client", "work", "auth", "credentials", in, "--domain", "example.com"}, runtime); err != nil {
 		t.Fatalf("executeWithRuntime: %v\nstderr=%s", err, stderr.String())
@@ -135,15 +141,11 @@ func TestExecute_AuthCredentials_UsesInjectedStores(t *testing.T) {
 		t.Fatalf("client domains = %#v", cfg.ClientDomains)
 	}
 
-	repository, err := secrets.OpenWithConfig(layout, configStore)
-	if err != nil {
-		t.Fatalf("open injected secrets: %v", err)
-	}
 	key, err := oauthclient.ClientSecretKey("work")
 	if err != nil {
 		t.Fatalf("client secret key: %v", err)
 	}
-	secret, err := repository.GetSecret(key)
+	secret, err := secretStore.GetSecret(key)
 	if err != nil {
 		t.Fatalf("read injected client secret: %v", err)
 	}
