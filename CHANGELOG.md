@@ -15,6 +15,7 @@
 - Gmail: bind watch state to the selected runtime state directory and serialize atomic updates across concurrent watch processes.
 - Gmail: bind tracking configuration to the selected runtime state directory and preserve concurrent account updates with shared atomic locking.
 - Gmail: bind tracking encryption and admin keys to the active runtime secret store instead of reopening the ambient keyring.
+- Gmail: add `--body-html-file` to draft create and update, including stdin support, for parity with send. (#774, #776) — thanks @TurboTheTurtle.
 - Zoom: bind credential metadata and encrypted secret/token storage to the selected runtime layout, with consistent alias canonicalization.
 - Auth: bind temporary manual OAuth state to the selected runtime config directory and reject unsafe redirect state values before filesystem access.
 - Auth: bind renamed-account alias, client, and default-account migration to the active runtime config store.
