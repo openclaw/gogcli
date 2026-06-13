@@ -355,7 +355,8 @@ gog forms raw <formId> --pretty
 
 ### YouTube
 
-Docs: [`gog youtube`](docs/commands/gog-youtube.md),
+Docs: [YouTube workflows](docs/youtube.md),
+[`gog youtube`](docs/commands/gog-youtube.md),
 [`youtube channels`](docs/commands/gog-youtube-channels.md),
 [`youtube videos`](docs/commands/gog-youtube-videos.md),
 [`youtube activities`](docs/commands/gog-youtube-activities.md),
