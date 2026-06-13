@@ -101,6 +101,44 @@ func TestPhotosDownloadStreamsToRuntimeOutput(t *testing.T) {
 	}
 }
 
+func TestPhotosDownloadNotFoundExitCode(t *testing.T) {
+	var srv *httptest.Server
+	srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/mediaItems/missing":
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"id":       "missing",
+				"filename": "missing.jpg",
+				"baseUrl":  srv.URL + "/media/missing",
+			})
+		case "/media/missing=d":
+			w.WriteHeader(http.StatusNotFound)
+			_, _ = io.WriteString(w, "expired")
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+
+	client := googleapi.NewPhotosClient(srv.Client(), googleapi.WithPhotosBaseURL(srv.URL))
+	result := runWithPhotosTestServices(t, photosTestServices{
+		Photos: fixedPhotosTestService(client),
+	}, func(ctx context.Context) error {
+		return (&PhotosDownloadCmd{MediaItemID: "missing", Out: "-"}).Run(
+			ctx,
+			&RootFlags{Account: "a@example.com"},
+		)
+	})
+
+	if got := ExitCode(stableExitCode(result.err)); got != exitCodeNotFound {
+		t.Fatalf("exit code = %d, want %d (err=%v)", got, exitCodeNotFound, result.err)
+	}
+	if !strings.Contains(result.err.Error(), "HTTP 404: expired") {
+		t.Fatalf("err = %v", result.err)
+	}
+}
+
 func TestPhotosValidationFailsBeforeClient(t *testing.T) {
 	testCases := []struct {
 		name string

@@ -160,7 +160,14 @@ func (c *PhotosDownloadCmd) Run(ctx context.Context, flags *RootFlags) error {
 	defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		b, _ := io.ReadAll(io.LimitReader(resp.Body, 64<<10))
-		return fmt.Errorf("download media item: HTTP %d: %s", resp.StatusCode, strings.TrimSpace(string(b)))
+		return &googleapi.HTTPStatusError{
+			Code: resp.StatusCode,
+			Err: fmt.Errorf(
+				"download media item: HTTP %d: %s",
+				resp.StatusCode,
+				strings.TrimSpace(string(b)),
+			),
+		}
 	}
 
 	if isStdoutPath(c.Out) {

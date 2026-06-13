@@ -3,6 +3,7 @@ package googleapi
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -145,6 +146,36 @@ func TestPhotosPickerDownloadMedia(t *testing.T) {
 
 	if string(body) != "photo-bytes" {
 		t.Fatalf("body = %q", body)
+	}
+}
+
+func TestPhotosPickerDownloadMediaPreservesHTTPStatus(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+		_, _ = io.WriteString(w, "expired")
+	}))
+	defer srv.Close()
+
+	client := NewPhotosPickerClient(srv.Client())
+
+	resp, err := client.DownloadMedia(context.Background(), &PhotosPickerMediaItem{
+		ID:   "photo-1",
+		Type: "PHOTO",
+		MediaFile: &PhotosPickerMediaFile{
+			BaseURL: srv.URL + "/photo",
+		},
+	})
+	if resp != nil {
+		defer resp.Body.Close()
+	}
+
+	var statusErr *HTTPStatusError
+	if !errors.As(err, &statusErr) || statusErr.Code != http.StatusNotFound {
+		t.Fatalf("err = %v, want HTTPStatusError 404", err)
+	}
+
+	if !strings.Contains(err.Error(), "HTTP 404: expired") {
+		t.Fatalf("err = %v", err)
 	}
 }
 

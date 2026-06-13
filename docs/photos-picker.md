@@ -77,6 +77,8 @@ gog photos picker delete <sessionId>
 
 Google recommends deleting completed or timed-out sessions to avoid session
 resource limits. `create` and `delete` support the global `--dry-run` flag.
+After a session expires or is deleted, commands that access it return the
+stable `not_found` exit code (`5`).
 
 Command pages:
 

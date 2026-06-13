@@ -48,6 +48,26 @@ func (e *InsufficientScopeError) Error() string {
 	return message
 }
 
+// HTTPStatusError preserves status metadata from Google APIs implemented with
+// direct HTTP clients while retaining the service-specific error text.
+type HTTPStatusError struct {
+	Code   int
+	Status string
+	Err    error
+}
+
+func (e *HTTPStatusError) Error() string {
+	if e.Err != nil {
+		return e.Err.Error()
+	}
+
+	return fmt.Sprintf("HTTP %d", e.Code)
+}
+
+func (e *HTTPStatusError) Unwrap() error {
+	return e.Err
+}
+
 // RateLimitError indicates rate limit was exceeded
 type RateLimitError struct {
 	RetryAfter time.Duration

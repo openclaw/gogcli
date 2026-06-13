@@ -59,6 +59,42 @@ func TestStableExitCode_GoogleAPINotFound(t *testing.T) {
 	}
 }
 
+func TestStableExitCode_HTTPStatusNotFound(t *testing.T) {
+	in := &gogapi.HTTPStatusError{
+		Code:   404,
+		Status: "NOT_FOUND",
+		Err:    errors.New("photos API error"),
+	}
+	out := stableExitCode(in)
+	if got := ExitCode(out); got != exitCodeNotFound {
+		t.Fatalf("expected exit code %d, got %d", exitCodeNotFound, got)
+	}
+}
+
+func TestStableExitCode_HTTPStatusResourceExhausted(t *testing.T) {
+	in := &gogapi.HTTPStatusError{
+		Code:   403,
+		Status: "RESOURCE_EXHAUSTED",
+		Err:    errors.New("places API error"),
+	}
+	out := stableExitCode(in)
+	if got := ExitCode(out); got != exitCodeRateLimited {
+		t.Fatalf("expected exit code %d, got %d", exitCodeRateLimited, got)
+	}
+}
+
+func TestStableExitCode_HTTPStatusRetryable(t *testing.T) {
+	in := &gogapi.HTTPStatusError{
+		Code:   503,
+		Status: "UNAVAILABLE",
+		Err:    errors.New("photos API error"),
+	}
+	out := stableExitCode(in)
+	if got := ExitCode(out); got != exitCodeRetryable {
+		t.Fatalf("expected exit code %d, got %d", exitCodeRetryable, got)
+	}
+}
+
 func TestStableExitCode_GoogleAPIRateLimited(t *testing.T) {
 	in := &ggoogleapi.Error{Code: 429, Message: "too many requests"}
 	out := stableExitCode(in)

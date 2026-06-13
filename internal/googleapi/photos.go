@@ -256,11 +256,21 @@ func photosAPIError(statusCode int, body []byte) error {
 	}
 	if err := json.Unmarshal(body, &parsed); err == nil && parsed.Error.Message != "" {
 		if parsed.Error.Status != "" {
-			return fmt.Errorf("%w (%d %s): %s", errPhotosAPI, statusCode, parsed.Error.Status, parsed.Error.Message)
+			return &HTTPStatusError{
+				Code:   statusCode,
+				Status: parsed.Error.Status,
+				Err:    fmt.Errorf("%w (%d %s): %s", errPhotosAPI, statusCode, parsed.Error.Status, parsed.Error.Message),
+			}
 		}
 
-		return fmt.Errorf("%w (%d): %s", errPhotosAPI, statusCode, parsed.Error.Message)
+		return &HTTPStatusError{
+			Code: statusCode,
+			Err:  fmt.Errorf("%w (%d): %s", errPhotosAPI, statusCode, parsed.Error.Message),
+		}
 	}
 
-	return fmt.Errorf("%w (%d): %s", errPhotosAPI, statusCode, strings.TrimSpace(string(body)))
+	return &HTTPStatusError{
+		Code: statusCode,
+		Err:  fmt.Errorf("%w (%d): %s", errPhotosAPI, statusCode, strings.TrimSpace(string(body))),
+	}
 }

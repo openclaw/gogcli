@@ -284,12 +284,15 @@ func (c *PhotosPickerClient) DownloadMedia(ctx context.Context, item *PhotosPick
 	defer resp.Body.Close()
 	body, _ := io.ReadAll(io.LimitReader(resp.Body, 64<<10))
 
-	return nil, fmt.Errorf(
-		"%w: HTTP %d: %s",
-		errPhotosPickerDownloadFailed,
-		resp.StatusCode,
-		strings.TrimSpace(string(body)),
-	)
+	return nil, &HTTPStatusError{
+		Code: resp.StatusCode,
+		Err: fmt.Errorf(
+			"%w: HTTP %d: %s",
+			errPhotosPickerDownloadFailed,
+			resp.StatusCode,
+			strings.TrimSpace(string(body)),
+		),
+	}
 }
 
 func (c *PhotosPickerClient) doJSON(ctx context.Context, method string, endpoint string, body any, out any) error {

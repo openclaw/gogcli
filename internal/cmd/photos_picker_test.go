@@ -263,6 +263,32 @@ func TestPhotosPickerListRejectsRepeatedPageToken(t *testing.T) {
 	}
 }
 
+func TestPhotosPickerGetNotFoundExitCode(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusNotFound)
+		_, _ = io.WriteString(w, `{"error":{"code":404,"status":"NOT_FOUND","message":"session missing"}}`)
+	}))
+	defer srv.Close()
+
+	client := googleapi.NewPhotosPickerClient(srv.Client(), googleapi.WithPhotosPickerBaseURL(srv.URL))
+	result := runWithPhotosTestServices(t, photosTestServices{
+		PhotosPicker: fixedPhotosPickerTestService(client),
+	}, func(ctx context.Context) error {
+		return (&PhotosPickerGetCmd{SessionID: "deleted-session"}).Run(
+			ctx,
+			&RootFlags{Account: "a@example.com"},
+		)
+	})
+
+	if got := ExitCode(stableExitCode(result.err)); got != exitCodeNotFound {
+		t.Fatalf("exit code = %d, want %d (err=%v)", got, exitCodeNotFound, result.err)
+	}
+	if !strings.Contains(result.err.Error(), "404 NOT_FOUND") {
+		t.Fatalf("err = %v", result.err)
+	}
+}
+
 func TestPhotosPickerValidationFailsBeforeClient(t *testing.T) {
 	testCases := []struct {
 		name string

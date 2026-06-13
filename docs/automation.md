@@ -120,6 +120,10 @@ gog auth doctor --check --json --no-input
 | 11 | `orphaned` | Requested Docs comment is no longer attached to content |
 | 130 | `cancelled` | Interrupted with Ctrl-C or context cancellation |
 
+The same classifications apply to direct HTTP integrations such as Photos
+Library, Photos Picker, and Places. For example, an expired or deleted Picker
+session returns `not_found` (`5`) instead of a generic error.
+
 Read the map programmatically:
 
 ```bash
