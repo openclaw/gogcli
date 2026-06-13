@@ -325,6 +325,16 @@ func TestDryRunE2E_CommandsSkipAuthAPIAndFileWrites(t *testing.T) {
 			op:   "calendar.delete-calendar",
 		},
 		{
+			name: "calendar alias set",
+			args: []string{"calendar", "alias", "set", "family", "family@group.calendar.google.com"},
+			op:   "calendar.alias.set",
+		},
+		{
+			name: "calendar alias unset",
+			args: []string{"calendar", "alias", "unset", "family"},
+			op:   "calendar.alias.unset",
+		},
+		{
 			name: "calendar focus time",
 			args: []string{"calendar", "focus-time", "primary", "--from", "2030-01-01T10:00:00Z", "--to", "2030-01-01T11:00:00Z"},
 			op:   "calendar.focus-time",

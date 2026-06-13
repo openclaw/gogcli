@@ -224,3 +224,31 @@ func TestExecuteCalendarAliasCRUDUsesRuntimeConfigStore(t *testing.T) {
 		t.Fatalf("runtime alias after unset: ok=%v err=%v", ok, err)
 	}
 }
+
+func TestExecuteCalendarAliasDryRunDoesNotMutateConfig(t *testing.T) {
+	runtimeStore := config.NewConfigStore(config.Layout{ConfigDir: t.TempDir()})
+	if err := runtimeStore.SetCalendarAlias("family", "original@group.calendar.google.com"); err != nil {
+		t.Fatalf("set initial alias: %v", err)
+	}
+	runtime := &app.Runtime{Config: runtimeStore}
+
+	setResult := executeWithTestRuntime(t, []string{
+		"--json", "--dry-run", "calendar", "alias", "set", "family", "replacement@group.calendar.google.com",
+	}, runtime)
+	if setResult.err != nil {
+		t.Fatalf("dry-run set: %v", setResult.err)
+	}
+	if calendarID, ok, err := runtimeStore.ResolveCalendarAlias("family"); err != nil || !ok || calendarID != "original@group.calendar.google.com" {
+		t.Fatalf("alias after dry-run set = %q, ok=%v err=%v", calendarID, ok, err)
+	}
+
+	unsetResult := executeWithTestRuntime(t, []string{
+		"--json", "--dry-run", "calendar", "alias", "unset", "family",
+	}, runtime)
+	if unsetResult.err != nil {
+		t.Fatalf("dry-run unset: %v", unsetResult.err)
+	}
+	if calendarID, ok, err := runtimeStore.ResolveCalendarAlias("family"); err != nil || !ok || calendarID != "original@group.calendar.google.com" {
+		t.Fatalf("alias after dry-run unset = %q, ok=%v err=%v", calendarID, ok, err)
+	}
+}

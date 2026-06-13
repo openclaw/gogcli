@@ -41,7 +41,7 @@ type CalendarAliasSetCmd struct {
 	CalendarID string `arg:"" name:"calendarId" help:"Calendar ID (e.g., abc123@group.calendar.google.com)"`
 }
 
-func (c *CalendarAliasSetCmd) Run(ctx context.Context) error {
+func (c *CalendarAliasSetCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
 	alias := strings.TrimSpace(c.Alias)
 	if alias == "" {
@@ -53,6 +53,12 @@ func (c *CalendarAliasSetCmd) Run(ctx context.Context) error {
 	calendarID := strings.TrimSpace(c.CalendarID)
 	if calendarID == "" {
 		return usage("empty calendar ID")
+	}
+	if dryRunErr := dryRunExit(ctx, flags, "calendar.alias.set", map[string]any{
+		"alias":       strings.ToLower(alias),
+		"calendar_id": calendarID,
+	}); dryRunErr != nil {
+		return dryRunErr
 	}
 	store, err := commandConfigStore(ctx)
 	if err != nil {
@@ -76,11 +82,16 @@ type CalendarAliasUnsetCmd struct {
 	Alias string `arg:"" name:"alias" help:"Alias name"`
 }
 
-func (c *CalendarAliasUnsetCmd) Run(ctx context.Context) error {
+func (c *CalendarAliasUnsetCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
 	alias := strings.TrimSpace(c.Alias)
 	if alias == "" {
 		return usage("empty alias")
+	}
+	if dryRunErr := dryRunExit(ctx, flags, "calendar.alias.unset", map[string]any{
+		"alias": strings.ToLower(alias),
+	}); dryRunErr != nil {
+		return dryRunErr
 	}
 	store, err := commandConfigStore(ctx)
 	if err != nil {
