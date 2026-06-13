@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"bytes"
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -193,6 +194,62 @@ func TestBackupStatusAndVerifyExposeReadFlags(t *testing.T) {
 				if !hiddenFlags[compat] {
 					t.Fatalf("missing hidden compatibility flag --%s", compat)
 				}
+			}
+		})
+	}
+}
+
+func TestBackupStatusAndVerifyDryRunDoNotCreateRepo(t *testing.T) {
+	testCases := []struct {
+		name string
+		run  func(context.Context, *RootFlags, string) error
+	}{
+		{
+			name: "status",
+			run: func(ctx context.Context, flags *RootFlags, repo string) error {
+				return (&BackupStatusCmd{
+					backupReadFlags: backupReadFlags{Repo: repo},
+				}).Run(ctx, flags)
+			},
+		},
+		{
+			name: "verify",
+			run: func(ctx context.Context, flags *RootFlags, repo string) error {
+				return (&BackupVerifyCmd{
+					backupReadFlags: backupReadFlags{Repo: repo},
+				}).Run(ctx, flags)
+			},
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			repo := filepath.Join(t.TempDir(), testCase.name+"-repo")
+			var stdout bytes.Buffer
+			ctx := newCmdRuntimeJSONOutputContext(t, &stdout, io.Discard)
+			err := testCase.run(ctx, &RootFlags{DryRun: true, NoInput: true}, repo)
+
+			var exitErr *ExitError
+			if !errors.As(err, &exitErr) || exitErr.Code != 0 {
+				t.Fatalf("expected dry-run exit 0, got %#v", err)
+			}
+			var payload struct {
+				DryRun  bool           `json:"dry_run"`
+				Op      string         `json:"op"`
+				Request map[string]any `json:"request"`
+			}
+			if decodeErr := json.Unmarshal(stdout.Bytes(), &payload); decodeErr != nil {
+				t.Fatalf("decode dry-run output: %v\n%s", decodeErr, stdout.String())
+			}
+			if !payload.DryRun || payload.Op != "backup."+testCase.name {
+				t.Fatalf("unexpected dry-run payload: %#v", payload)
+			}
+			requestRepo, ok := payload.Request["repo"].(string)
+			if !ok || requestRepo != repo {
+				t.Fatalf("missing repo in request: %#v", payload.Request)
+			}
+			if _, statErr := os.Stat(repo); !errors.Is(statErr, os.ErrNotExist) {
+				t.Fatalf("dry-run created repo: %v", statErr)
 			}
 		})
 	}

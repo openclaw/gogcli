@@ -76,6 +76,8 @@ Read commands never initialize a new Git repository when the repository is
 missing or a clone fails.
 With `--no-input`, backup Git operations disable credential/UI prompts and SSH
 password prompts; failed read-side clones leave the configured path untouched.
+With `--dry-run`, all four read commands print their resolved repository/pull
+plan without cloning, pulling, decrypting, or writing plaintext output.
 
 Supported services:
 

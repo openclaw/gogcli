@@ -318,6 +318,16 @@ func (c *BackupStatusCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if err := bindBackupConfigStore(ctx, &opts); err != nil {
 		return err
 	}
+	if flags != nil && flags.DryRun {
+		cfg, err := backup.ResolveOptions(opts)
+		if err != nil {
+			return err
+		}
+		return dryRunExit(ctx, flags, "backup.status", map[string]any{
+			"repo": cfg.Repo,
+			"pull": !c.NoPull,
+		})
+	}
 	manifest, repo, err := backup.Status(ctx, opts)
 	if err != nil {
 		return err
@@ -353,6 +363,16 @@ func (c *BackupVerifyCmd) Run(ctx context.Context, flags *RootFlags) error {
 	opts := c.options()
 	if err := bindBackupConfigStore(ctx, &opts); err != nil {
 		return err
+	}
+	if flags != nil && flags.DryRun {
+		cfg, err := backup.ResolveOptions(opts)
+		if err != nil {
+			return err
+		}
+		return dryRunExit(ctx, flags, "backup.verify", map[string]any{
+			"repo": cfg.Repo,
+			"pull": !c.NoPull,
+		})
 	}
 	result, err := backup.Verify(ctx, opts)
 	if err != nil {
