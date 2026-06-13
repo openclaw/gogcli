@@ -108,6 +108,56 @@ func TestRequireGroupsAccount_ExplicitIdentityRequiredForADC(t *testing.T) {
 	}
 }
 
+func TestRequireGroupsAccount_ExplicitIdentityRequiredForADCAutoEnv(t *testing.T) {
+	t.Setenv("GOG_AUTH_MODE", "adc")
+
+	for _, accountEnv := range []string{"auto", "default"} {
+		t.Run(accountEnv, func(t *testing.T) {
+			t.Setenv("GOG_ACCOUNT", accountEnv)
+
+			account, err := requireGroupsAccount(&RootFlags{})
+			if err == nil {
+				t.Fatal("expected error")
+			}
+			if account != "" {
+				t.Fatalf("account = %q, want empty", account)
+			}
+			if ExitCode(err) != 2 || !strings.Contains(err.Error(), groupsExplicitAccountMessage) {
+				t.Fatalf("unexpected error: %v", err)
+			}
+		})
+	}
+}
+
+func TestRequireGroupsAuthAccount_AllowsDirectTokenWithoutIdentity(t *testing.T) {
+	t.Setenv("GOG_ACCOUNT", "")
+	t.Setenv("GOG_AUTH_MODE", "")
+
+	account, err := requireGroupsAuthAccount(&RootFlags{
+		AccessToken: "direct-token",
+		diagnostics: io.Discard,
+	})
+	if err != nil {
+		t.Fatalf("requireGroupsAuthAccount: %v", err)
+	}
+	if account != accessTokenPlaceholderAccount {
+		t.Fatalf("account = %q, want %q", account, accessTokenPlaceholderAccount)
+	}
+}
+
+func TestRequireGroupsAuthAccount_AllowsADCWithoutIdentity(t *testing.T) {
+	t.Setenv("GOG_AUTH_MODE", "adc")
+	t.Setenv("GOG_ACCOUNT", "")
+
+	account, err := requireGroupsAuthAccount(&RootFlags{})
+	if err != nil {
+		t.Fatalf("requireGroupsAuthAccount: %v", err)
+	}
+	if account != adcPlaceholderAccount {
+		t.Fatalf("account = %q, want %q", account, adcPlaceholderAccount)
+	}
+}
+
 func TestGroupsConsumerPreflightSkipsServices(t *testing.T) {
 	ctx := withCloudIdentityTestServiceFactory(
 		newCmdRuntimeOutputContext(t, io.Discard, io.Discard),
@@ -190,6 +240,24 @@ func TestWrapCloudIdentityError_Messages(t *testing.T) {
 	other := errors.New("other")
 	if err := wrapCloudIdentityError(other, "user@company.com"); err == nil || err.Error() != "other" {
 		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestWrapCloudIdentityError_AuthModeGuidance(t *testing.T) {
+	permissionErr := errors.New("insufficientPermissions")
+
+	directErr := wrapCloudIdentityError(permissionErr, accessTokenPlaceholderAccount)
+	if !strings.Contains(directErr.Error(), "direct access token") ||
+		!strings.Contains(directErr.Error(), groupReadonlyScope) ||
+		strings.Contains(directErr.Error(), "service-account set access-token-user") {
+		t.Fatalf("unexpected direct-token guidance: %v", directErr)
+	}
+
+	adcErr := wrapCloudIdentityError(permissionErr, adcPlaceholderAccount)
+	if !strings.Contains(adcErr.Error(), "Application Default Credentials principal") ||
+		!strings.Contains(adcErr.Error(), "unset GOG_AUTH_MODE") ||
+		strings.Contains(adcErr.Error(), "service-account set adc") {
+		t.Fatalf("unexpected ADC guidance: %v", adcErr)
 	}
 }
 

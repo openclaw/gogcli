@@ -46,7 +46,7 @@ func (c *CalendarTeamCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if c.Max <= 0 {
 		return usage("max must be > 0")
 	}
-	account, err := requireGroupsAccount(flags)
+	account, err := requireGroupsAuthAccount(flags)
 	if err != nil {
 		return err
 	}

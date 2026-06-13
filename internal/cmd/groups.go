@@ -127,12 +127,20 @@ func (c *GroupsListCmd) Run(ctx context.Context, flags *RootFlags) error {
 }
 
 func requireGroupsAccount(flags *RootFlags) (string, error) {
-	account, err := requireAccount(flags)
+	account, err := requireGroupsAuthAccount(flags)
 	if err != nil {
 		return "", err
 	}
-	if account == accessTokenPlaceholderAccount || account == adcPlaceholderAccount {
+	if account == accessTokenPlaceholderAccount || account == adcPlaceholderAccount || shouldAutoSelectAccount(account) {
 		return "", usage(groupsExplicitAccountMessage)
+	}
+	return account, nil
+}
+
+func requireGroupsAuthAccount(flags *RootFlags) (string, error) {
+	account, err := requireAccount(flags)
+	if err != nil {
+		return "", err
 	}
 	if isConsumerAccount(account) {
 		return "", &ExitError{
@@ -152,9 +160,27 @@ func wrapCloudIdentityError(err error, account string) error {
 	}
 	if strings.Contains(errStr, "insufficientPermissions") ||
 		strings.Contains(errStr, "insufficient authentication scopes") {
+		switch account {
+		case accessTokenPlaceholderAccount:
+			return errfmt.NewUserFacingError(
+				fmt.Sprintf(
+					"Insufficient permissions for Cloud Identity API; the direct access token needs Workspace Cloud Identity access and scope %s.",
+					groupReadonlyScope,
+				),
+				err,
+			)
+		case adcPlaceholderAccount:
+			return errfmt.NewUserFacingError(
+				fmt.Sprintf(
+					"Insufficient permissions for Cloud Identity API; the Application Default Credentials principal needs Workspace Cloud Identity access and scope %s. To use a stored delegated service account instead, unset GOG_AUTH_MODE and pass --account <workspace-email>.",
+					groupReadonlyScope,
+				),
+				err,
+			)
+		}
 		return errfmt.NewUserFacingError(
 			fmt.Sprintf(
-				"Insufficient permissions for Cloud Identity API; configure a Workspace service account with domain-wide delegation for %s, then run: gog auth service-account set %s --key <service-account.json>",
+				"Insufficient permissions for Cloud Identity API; the active credential needs Workspace Cloud Identity access and scope %s. Stored user OAuth is not supported. For delegated service-account auth, run: gog auth service-account set %s --key <service-account.json>. Direct-token and ADC callers must grant equivalent access to the active principal.",
 				groupReadonlyScope,
 				strings.TrimSpace(account),
 			),
@@ -206,7 +232,7 @@ func (c *GroupsMembersCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if c.Max <= 0 {
 		return usage("max must be > 0")
 	}
-	account, err := requireGroupsAccount(flags)
+	account, err := requireGroupsAuthAccount(flags)
 	if err != nil {
 		return err
 	}
