@@ -9,6 +9,7 @@ import (
 	"google.golang.org/api/cloudidentity/v1"
 
 	"github.com/steipete/gogcli/internal/errfmt"
+	"github.com/steipete/gogcli/internal/googleapi"
 	"github.com/steipete/gogcli/internal/outfmt"
 	"github.com/steipete/gogcli/internal/ui"
 )
@@ -127,12 +128,15 @@ func (c *GroupsListCmd) Run(ctx context.Context, flags *RootFlags) error {
 }
 
 func requireGroupsAccount(flags *RootFlags) (string, error) {
-	account, err := requireGroupsAuthAccount(flags)
+	account, err := requireAccount(flags)
 	if err != nil {
 		return "", err
 	}
 	if account == accessTokenPlaceholderAccount || account == adcPlaceholderAccount || shouldAutoSelectAccount(account) {
 		return "", usage(groupsExplicitAccountMessage)
+	}
+	if isConsumerAccount(account) {
+		return "", groupsConsumerAccountError()
 	}
 	return account, nil
 }
@@ -142,13 +146,23 @@ func requireGroupsAuthAccount(flags *RootFlags) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	if hasDirectAccessToken(flags) {
+		return accessTokenPlaceholderAccount, nil
+	}
+	if googleapi.IsADCMode() {
+		return adcPlaceholderAccount, nil
+	}
 	if isConsumerAccount(account) {
-		return "", &ExitError{
-			Code: exitCodePermissionDenied,
-			Err:  errfmt.NewUserFacingError(groupsWorkspaceRequiredMessage, nil),
-		}
+		return "", groupsConsumerAccountError()
 	}
 	return account, nil
+}
+
+func groupsConsumerAccountError() error {
+	return &ExitError{
+		Code: exitCodePermissionDenied,
+		Err:  errfmt.NewUserFacingError(groupsWorkspaceRequiredMessage, nil),
+	}
 }
 
 // wrapCloudIdentityError provides helpful error messages for common Cloud Identity API issues.

@@ -158,6 +158,36 @@ func TestRequireGroupsAuthAccount_AllowsADCWithoutIdentity(t *testing.T) {
 	}
 }
 
+func TestRequireGroupsAuthAccount_IgnoresIdentityHintForDirectAuth(t *testing.T) {
+	tests := []struct {
+		name        string
+		authMode    string
+		accessToken string
+		want        string
+	}{
+		{name: "direct token", accessToken: "direct-token", want: accessTokenPlaceholderAccount},
+		{name: "ADC", authMode: "adc", want: adcPlaceholderAccount},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv("GOG_AUTH_MODE", tc.authMode)
+			t.Setenv("GOG_ACCOUNT", "person@gmail.com")
+
+			account, err := requireGroupsAuthAccount(&RootFlags{
+				AccessToken: tc.accessToken,
+				diagnostics: io.Discard,
+			})
+			if err != nil {
+				t.Fatalf("requireGroupsAuthAccount: %v", err)
+			}
+			if account != tc.want {
+				t.Fatalf("account = %q, want %q", account, tc.want)
+			}
+		})
+	}
+}
+
 func TestGroupsConsumerPreflightSkipsServices(t *testing.T) {
 	ctx := withCloudIdentityTestServiceFactory(
 		newCmdRuntimeOutputContext(t, io.Discard, io.Discard),
