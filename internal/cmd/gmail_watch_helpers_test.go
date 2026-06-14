@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/steipete/gogcli/internal/config"
+	"github.com/steipete/gogcli/internal/gmailwatch"
 	"github.com/steipete/gogcli/internal/outfmt"
 	"github.com/steipete/gogcli/internal/ui"
 )
@@ -39,6 +40,14 @@ func newGmailWatchTestStore(t *testing.T, account string) *gmailWatchStore {
 		t.Fatalf("new watch store: %v", err)
 	}
 	return store
+}
+
+func newMemoryGmailWatchTestStore(state gmailWatchState) *gmailWatchStore {
+	return gmailwatch.NewMemory(state, gmailwatch.Options{})
+}
+
+func newEmptyGmailWatchTestStore() *gmailWatchStore {
+	return gmailwatch.New("", gmailwatch.Options{})
 }
 
 func TestReadGmailWatchStateOptionalMatchesLayoutSelection(t *testing.T) {
@@ -205,8 +214,8 @@ func TestGmailWatchStore_StateHelpers(t *testing.T) {
 	setWatchTestConfigHome(t)
 
 	store := newGmailWatchTestStore(t, "User+X@Example.COM")
-	if !strings.Contains(store.path, "user_x_example_com.json") {
-		t.Fatalf("unexpected path: %s", store.path)
+	if !strings.Contains(store.Path(), "user_x_example_com.json") {
+		t.Fatalf("unexpected path: %s", store.Path())
 	}
 	id, startErr := store.StartHistoryID("101")
 	if startErr != nil {
@@ -215,7 +224,7 @@ func TestGmailWatchStore_StateHelpers(t *testing.T) {
 	if id != 101 {
 		t.Fatalf("expected history id 101, got %d", id)
 	}
-	if store.state.HistoryID != "101" {
+	if store.Get().HistoryID != "101" {
 		t.Fatalf("expected history set")
 	}
 	id, startErr = store.StartHistoryID("")
@@ -232,7 +241,7 @@ func TestGmailWatchStore_StateHelpers(t *testing.T) {
 	if id != 0 {
 		t.Fatalf("expected stale history ignored, got %d", id)
 	}
-	if store.state.HistoryID != "101" {
+	if store.Get().HistoryID != "101" {
 		t.Fatalf("expected history unchanged")
 	}
 	id, startErr = store.StartHistoryID("bad")
@@ -252,7 +261,7 @@ func TestGmailWatchStore_StateHelpers(t *testing.T) {
 }
 
 func TestGmailWatchStore_SaveMissingPath(t *testing.T) {
-	store := &gmailWatchStore{}
+	store := newEmptyGmailWatchTestStore()
 	if err := store.Save(); err == nil {
 		t.Fatalf("expected error")
 	}

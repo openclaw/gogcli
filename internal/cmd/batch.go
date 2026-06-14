@@ -10,6 +10,7 @@ import (
 
 	"google.golang.org/api/docs/v1"
 
+	"github.com/steipete/gogcli/internal/docsbatch"
 	"github.com/steipete/gogcli/internal/outfmt"
 	"github.com/steipete/gogcli/internal/ui"
 )
@@ -53,7 +54,7 @@ func (c *BatchBeginCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if err != nil {
 		return err
 	}
-	state, err := store.create(docsBatchState{
+	state, err := store.Create(docsbatch.State{
 		Name:       strings.TrimSpace(c.Name),
 		Service:    c.Service,
 		DocumentID: documentID,
@@ -79,7 +80,7 @@ func (c *BatchListCmd) Run(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	batches, err := store.list()
+	batches, err := store.List()
 	if err != nil {
 		return err
 	}
@@ -108,7 +109,7 @@ func (c *BatchShowCmd) Run(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	state, err := store.get(batchID)
+	state, err := store.Get(batchID)
 	if err != nil {
 		return err
 	}
@@ -145,7 +146,7 @@ func (c *BatchAbortCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if err != nil {
 		return err
 	}
-	state, err := store.delete(batchID)
+	state, err := store.Delete(batchID)
 	if err != nil {
 		return err
 	}
@@ -176,7 +177,7 @@ func (c *BatchPruneCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if err != nil {
 		return err
 	}
-	removed, err := store.prune(c.OlderThan)
+	removed, err := store.Prune(c.OlderThan)
 	if err != nil {
 		return err
 	}
@@ -220,7 +221,7 @@ func (c *BatchEndCmd) Run(ctx context.Context, flags *RootFlags) error {
 		if err != nil {
 			return err
 		}
-		state, err := store.get(batchID)
+		state, err := store.Get(batchID)
 		if err != nil {
 			return err
 		}
@@ -242,7 +243,8 @@ func (c *BatchEndCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 
 	var result docsBatchEndResult
-	err = store.withLockedState(batchID, func(state *docsBatchState) error {
+	err = store.WithState(batchID, func(transaction *docsbatch.Transaction) error {
+		state := transaction.State()
 		if len(state.Requests) == 0 {
 			return errors.New("batch has no requests")
 		}
@@ -253,20 +255,21 @@ func (c *BatchEndCmd) Run(ctx context.Context, flags *RootFlags) error {
 			return usagef("batch has %d requests; Docs allows at most %d per atomic update (use --auto-split for non-atomic submission)", len(state.Requests), docsBatchUpdateRequestCap)
 		}
 		if c.AutoSplit {
-			return c.submitSplit(ctx, store, state, &result)
+			return c.submitSplit(ctx, transaction, state, &result)
 		}
 
 		_, submitErr := submitDocsBatch(ctx, state, state.Requests)
 		if submitErr == nil {
 			result.Chunks = 1
 			state.Requests = nil
-			return store.persistOrDeleteUnlocked(state)
+
+			return transaction.PersistOrDelete()
 		}
 		if !c.ContinueOnError || !isDocsBatchBadRequest(submitErr) {
 			return submitErr
 		}
 
-		return c.submitIndividually(ctx, store, state, &result)
+		return c.submitIndividually(ctx, transaction, state, &result)
 	})
 	if err != nil {
 		return err
@@ -275,7 +278,12 @@ func (c *BatchEndCmd) Run(ctx context.Context, flags *RootFlags) error {
 	return writeDocsBatchEndResult(ctx, result)
 }
 
-func (c *BatchEndCmd) submitSplit(ctx context.Context, store *docsBatchStore, state *docsBatchState, result *docsBatchEndResult) error {
+func (c *BatchEndCmd) submitSplit(
+	ctx context.Context,
+	transaction *docsbatch.Transaction,
+	state *docsbatch.State,
+	result *docsBatchEndResult,
+) error {
 	result.Atomic = false
 	for len(state.Requests) > 0 {
 		count := min(len(state.Requests), docsBatchUpdateRequestCap)
@@ -285,44 +293,64 @@ func (c *BatchEndCmd) submitSplit(ctx context.Context, store *docsBatchStore, st
 		}
 		result.Chunks++
 		state.Requests = state.Requests[count:]
+		missingRevision := false
 		if len(state.Requests) > 0 {
 			revision := docsBatchResponseRevision(response)
 			if revision == "" {
-				return errors.New("docs response omitted the revision required to continue split submission")
+				missingRevision = true
+			} else {
+				state.RequiredRevisionID = revision
 			}
-			state.RequiredRevisionID = revision
 		}
-		if err := store.persistOrDeleteUnlocked(state); err != nil {
+		if err := transaction.PersistOrDelete(); err != nil {
 			return err
+		}
+		if missingRevision {
+			return errors.New("docs response omitted the revision required to continue split submission")
 		}
 	}
 
 	return nil
 }
 
-func (c *BatchEndCmd) submitIndividually(ctx context.Context, store *docsBatchStore, state *docsBatchState, result *docsBatchEndResult) error {
+func (c *BatchEndCmd) submitIndividually(
+	ctx context.Context,
+	transaction *docsbatch.Transaction,
+	state *docsbatch.State,
+	result *docsBatchEndResult,
+) error {
 	result.Atomic = false
-	failed := make([]docsBatchRequestEntry, 0)
-	for index, entry := range state.Requests {
-		response, err := submitDocsBatch(ctx, state, []docsBatchRequestEntry{entry})
+	failed := make([]docsbatch.RequestEntry, 0)
+	pending := append([]docsbatch.RequestEntry(nil), state.Requests...)
+	for index := 0; len(pending) > 0; index++ {
+		entry := pending[0]
+		pending = pending[1:]
+		response, err := submitDocsBatch(ctx, state, []docsbatch.RequestEntry{entry})
+		missingRevision := false
 		if err != nil {
 			failed = append(failed, entry)
 			ui.FromContext(ctx).Err().Linef("batch request %d failed: %v", index+1, err)
-			continue
+		} else {
+			result.Chunks++
+			revision := docsBatchResponseRevision(response)
+			if (len(failed) > 0 || len(pending) > 0) && revision == "" {
+				missingRevision = true
+			} else if revision != "" {
+				state.RequiredRevisionID = revision
+			}
 		}
-		result.Chunks++
-		revision := docsBatchResponseRevision(response)
-		if index < len(state.Requests)-1 && revision == "" {
+
+		state.Requests = append(append([]docsbatch.RequestEntry(nil), failed...), pending...)
+		result.Failed = len(failed)
+		if err := transaction.PersistOrDelete(); err != nil {
+			return err
+		}
+		if missingRevision {
 			return errors.New("docs response omitted the revision required to continue individual submission")
 		}
-		if revision != "" {
-			state.RequiredRevisionID = revision
-		}
 	}
-	state.Requests = failed
-	result.Failed = len(failed)
 
-	return store.persistOrDeleteUnlocked(state)
+	return nil
 }
 
 func writeDocsBatchEndResult(ctx context.Context, result docsBatchEndResult) error {
@@ -367,12 +395,17 @@ func validateDocsBatchTarget(ctx context.Context, flags *RootFlags, batchID, doc
 	if err != nil {
 		return err
 	}
-	state, err := store.get(batchID)
+	state, err := store.Get(batchID)
 	if err != nil {
 		return err
 	}
 
-	return validateDocsBatchIdentity(state, strings.TrimSpace(documentID), account, client)
+	return docsbatch.ValidateIdentity(state, docsbatch.Identity{
+		Service:    docsbatch.ServiceDocs,
+		DocumentID: strings.TrimSpace(documentID),
+		Account:    account,
+		Client:     client,
+	})
 }
 
 func captureDocsBatchRevision(ctx context.Context, svc *docs.Service, batchID, documentID string) (string, error) {
@@ -416,7 +449,23 @@ func queueDocsBatchRequests(ctx context.Context, flags *RootFlags, batchID, docu
 	if err != nil {
 		return true, err
 	}
-	total, err := store.appendRequests(batchID, command, documentID, account, client, revisionID, requests, requireEmpty)
+	rawRequests, err := marshalDocsBatchRequests(requests)
+	if err != nil {
+		return true, err
+	}
+	total, err := store.Append(docsbatch.AppendOptions{
+		BatchID: batchID,
+		Command: command,
+		Identity: docsbatch.Identity{
+			Service:    docsbatch.ServiceDocs,
+			DocumentID: documentID,
+			Account:    account,
+			Client:     client,
+		},
+		RevisionID:   revisionID,
+		Requests:     rawRequests,
+		RequireEmpty: requireEmpty,
+	})
 	if err != nil {
 		return true, err
 	}
@@ -437,5 +486,5 @@ func queueDocsBatchRequests(ctx context.Context, flags *RootFlags, batchID, docu
 }
 
 func validateDocsBatchIDArg(batchID string) error {
-	return newUsageError(validateDocsBatchID(batchID))
+	return newUsageError(docsbatch.ValidateID(batchID))
 }

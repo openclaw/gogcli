@@ -19,94 +19,8 @@ import (
 
 	"github.com/steipete/gogcli/internal/app"
 	"github.com/steipete/gogcli/internal/config"
+	"github.com/steipete/gogcli/internal/docsbatch"
 )
-
-func TestDocsBatchStoreLifecyclePreservesRequestJSON(t *testing.T) {
-	dir := t.TempDir()
-	store := newDocsBatchStoreAt(dir)
-	state, err := store.create(docsBatchState{
-		Service:    docsBatchService,
-		DocumentID: "doc1",
-		Account:    "user@example.com",
-		Client:     "default",
-	})
-	if err != nil {
-		t.Fatalf("create: %v", err)
-	}
-
-	request := &docs.Request{UpdateTextStyle: &docs.UpdateTextStyleRequest{
-		Range:  &docs.Range{StartIndex: 1, EndIndex: 2},
-		Fields: "bold",
-		TextStyle: &docs.TextStyle{
-			Bold:            false,
-			ForceSendFields: []string{"Bold"},
-		},
-	}}
-	total, err := store.appendRequests(state.BatchID, "docs.format", "doc1", "user@example.com", "default", "rev1", []*docs.Request{request}, false)
-	if err != nil {
-		t.Fatalf("append: %v", err)
-	}
-	if total != 1 {
-		t.Fatalf("total = %d, want 1", total)
-	}
-
-	loaded, err := store.get(state.BatchID)
-	if err != nil {
-		t.Fatalf("get: %v", err)
-	}
-	if !compactJSONContains(t, loaded.Requests[0].Request, `"bold":false`) {
-		t.Fatalf("request JSON lost explicit false: %s", loaded.Requests[0].Request)
-	}
-	if loaded.RequiredRevisionID != "rev1" {
-		t.Fatalf("revision = %q, want rev1", loaded.RequiredRevisionID)
-	}
-
-	listed, err := store.list()
-	if err != nil {
-		t.Fatalf("list: %v", err)
-	}
-	if len(listed) != 1 || listed[0].Requests != 1 {
-		t.Fatalf("list = %#v", listed)
-	}
-
-	deleted, err := store.delete(state.BatchID)
-	if err != nil {
-		t.Fatalf("delete: %v", err)
-	}
-	if len(deleted.Requests) != 1 {
-		t.Fatalf("deleted requests = %d, want 1", len(deleted.Requests))
-	}
-}
-
-func TestDocsBatchStoreRejectsIdentityRevisionAndNonemptyReplace(t *testing.T) {
-	store := newDocsBatchStoreAt(t.TempDir())
-	state, err := store.create(docsBatchState{
-		Service:    docsBatchService,
-		DocumentID: "doc1",
-		Account:    "user@example.com",
-		Client:     "default",
-	})
-	if err != nil {
-		t.Fatalf("create: %v", err)
-	}
-	request := []*docs.Request{{InsertText: &docs.InsertTextRequest{
-		Location: &docs.Location{Index: 1},
-		Text:     "x",
-	}}}
-
-	if _, err := store.appendRequests(state.BatchID, "docs.insert", "other", "user@example.com", "default", "rev1", request, false); err == nil {
-		t.Fatal("expected document mismatch")
-	}
-	if _, err := store.appendRequests(state.BatchID, "docs.insert", "doc1", "user@example.com", "default", "rev1", request, false); err != nil {
-		t.Fatalf("first append: %v", err)
-	}
-	if _, err := store.appendRequests(state.BatchID, "docs.insert", "doc1", "user@example.com", "default", "rev2", request, false); err == nil {
-		t.Fatal("expected revision mismatch")
-	}
-	if _, err := store.appendRequests(state.BatchID, "docs.write", "doc1", "user@example.com", "default", "rev1", request, true); err == nil {
-		t.Fatal("expected nonempty batch rejection")
-	}
-}
 
 func TestBatchEndAtomicSubmitsExactPayloadAndDeletesState(t *testing.T) {
 	store, state, ctx := prepareDocsBatchEndTest(t, 1)
@@ -133,7 +47,7 @@ func TestBatchEndAtomicSubmitsExactPayloadAndDeletesState(t *testing.T) {
 	if received.WriteControl == nil || received.WriteControl.RequiredRevisionId != "rev1" {
 		t.Fatalf("write control = %#v", received.WriteControl)
 	}
-	if _, err := store.get(state.BatchID); err == nil {
+	if _, err := store.Get(state.BatchID); err == nil {
 		t.Fatal("completed batch still exists")
 	}
 }
@@ -172,8 +86,31 @@ func TestBatchEndAutoSplitChainsRevision(t *testing.T) {
 	if fmt.Sprint(revisions) != "[rev1 rev2]" {
 		t.Fatalf("revisions = %v", revisions)
 	}
-	if _, err := store.get(state.BatchID); err == nil {
+	if _, err := store.Get(state.BatchID); err == nil {
 		t.Fatal("completed split batch still exists")
+	}
+}
+
+func TestBatchEndAutoSplitPersistsProgressBeforeMissingRevisionError(t *testing.T) {
+	store, state, ctx := prepareDocsBatchEndTest(t, docsBatchUpdateRequestCap+1)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = fmt.Fprint(w, `{"documentId":"doc1"}`)
+	}))
+	defer server.Close()
+	ctx = withDocsBatchHTTPTest(t, ctx, server)
+
+	err := (&BatchEndCmd{BatchID: state.BatchID, AutoSplit: true}).Run(ctx, &RootFlags{})
+	if err == nil || !strings.Contains(err.Error(), "omitted the revision") {
+		t.Fatalf("error = %v", err)
+	}
+
+	loaded, err := store.Get(state.BatchID)
+	if err != nil {
+		t.Fatalf("get retained state: %v", err)
+	}
+	if len(loaded.Requests) != 1 || !compactJSONContains(t, loaded.Requests[0].Request, `"text":"request-500"`) {
+		t.Fatalf("retained requests = %#v", loaded.Requests)
 	}
 }
 
@@ -198,7 +135,7 @@ func TestBatchEndContinueOnErrorRetainsFailedRequests(t *testing.T) {
 	if err := (&BatchEndCmd{BatchID: state.BatchID, ContinueOnError: true}).Run(ctx, &RootFlags{}); err != nil {
 		t.Fatalf("end continue: %v", err)
 	}
-	loaded, err := store.get(state.BatchID)
+	loaded, err := store.Get(state.BatchID)
 	if err != nil {
 		t.Fatalf("get retained state: %v", err)
 	}
@@ -210,18 +147,83 @@ func TestBatchEndContinueOnErrorRetainsFailedRequests(t *testing.T) {
 	}
 }
 
+func TestBatchEndContinueOnErrorPersistsProgressBeforeMissingRevisionError(t *testing.T) {
+	store, state, ctx := prepareDocsBatchEndTest(t, 2)
+
+	calls := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		calls++
+		if calls == 1 {
+			w.WriteHeader(http.StatusBadRequest)
+			_, _ = fmt.Fprint(w, `{"error":{"code":400,"message":"invalid request","status":"INVALID_ARGUMENT"}}`)
+
+			return
+		}
+		_, _ = fmt.Fprint(w, `{"documentId":"doc1"}`)
+	}))
+	defer server.Close()
+	ctx = withDocsBatchHTTPTest(t, ctx, server)
+
+	err := (&BatchEndCmd{BatchID: state.BatchID, ContinueOnError: true}).Run(ctx, &RootFlags{})
+	if err == nil || !strings.Contains(err.Error(), "omitted the revision") {
+		t.Fatalf("error = %v", err)
+	}
+
+	loaded, err := store.Get(state.BatchID)
+	if err != nil {
+		t.Fatalf("get retained state: %v", err)
+	}
+	if len(loaded.Requests) != 1 || !compactJSONContains(t, loaded.Requests[0].Request, `"text":"request-1"`) {
+		t.Fatalf("retained requests = %#v", loaded.Requests)
+	}
+}
+
+func TestBatchEndContinueOnErrorRequiresRevisionForEarlierFailure(t *testing.T) {
+	store, state, ctx := prepareDocsBatchEndTest(t, 2)
+
+	calls := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		calls++
+		if calls <= 2 {
+			w.WriteHeader(http.StatusBadRequest)
+			_, _ = fmt.Fprint(w, `{"error":{"code":400,"message":"invalid request","status":"INVALID_ARGUMENT"}}`)
+
+			return
+		}
+		_, _ = fmt.Fprint(w, `{"documentId":"doc1"}`)
+	}))
+	defer server.Close()
+	ctx = withDocsBatchHTTPTest(t, ctx, server)
+
+	err := (&BatchEndCmd{BatchID: state.BatchID, ContinueOnError: true}).Run(ctx, &RootFlags{})
+	if err == nil || !strings.Contains(err.Error(), "omitted the revision") {
+		t.Fatalf("error = %v", err)
+	}
+
+	loaded, err := store.Get(state.BatchID)
+	if err != nil {
+		t.Fatalf("get retained state: %v", err)
+	}
+	if len(loaded.Requests) != 1 || !compactJSONContains(t, loaded.Requests[0].Request, `"text":"request-0"`) {
+		t.Fatalf("retained requests = %#v", loaded.Requests)
+	}
+}
+
 func TestBatchEndDryRunKeepsStateWithoutHTTP(t *testing.T) {
 	store, state, ctx := prepareDocsBatchEndTest(t, 1)
 	ctx = withDocsTestHTTPClientFactory(ctx, func(context.Context, string) (*http.Client, error) {
 		t.Fatal("dry run created HTTP client")
 		return nil, errors.New("unexpected HTTP client request")
 	})
-	statePath := store.path(state.BatchID)
+	statePath, pathErr := store.Path(state.BatchID)
+	if pathErr != nil {
+		t.Fatalf("state path: %v", pathErr)
+	}
 	before, readErr := os.ReadFile(statePath)
 	if readErr != nil {
 		t.Fatalf("read state before dry run: %v", readErr)
 	}
-	lockPath := filepath.Join(store.dir, ".lock")
+	lockPath := filepath.Join(filepath.Dir(statePath), ".lock")
 	if removeErr := os.Remove(lockPath); removeErr != nil {
 		t.Fatalf("remove setup lock: %v", removeErr)
 	}
@@ -229,7 +231,7 @@ func TestBatchEndDryRunKeepsStateWithoutHTTP(t *testing.T) {
 	if runErr := (&BatchEndCmd{BatchID: state.BatchID}).Run(ctx, &RootFlags{DryRun: true}); runErr != nil {
 		t.Fatalf("dry-run end: %v", runErr)
 	}
-	if _, getErr := store.get(state.BatchID); getErr != nil {
+	if _, getErr := store.Get(state.BatchID); getErr != nil {
 		t.Fatalf("dry run removed state: %v", getErr)
 	}
 	after, readErr := os.ReadFile(statePath)
@@ -252,7 +254,7 @@ func TestBatchJSONUsesRuntimeOutput(t *testing.T) {
 	}
 
 	var result struct {
-		Batches []docsBatchSummary `json:"batches"`
+		Batches []docsbatch.Summary `json:"batches"`
 	}
 	if err := json.Unmarshal(output.Bytes(), &result); err != nil {
 		t.Fatalf("decode output %q: %v", output.String(), err)
@@ -285,8 +287,8 @@ func TestBatchListAndShowReadWithoutLock(t *testing.T) {
 	if err != nil {
 		t.Fatalf("new store: %v", err)
 	}
-	state, err := store.create(docsBatchState{
-		Service:    docsBatchService,
+	state, err := store.Create(docsbatch.State{
+		Service:    docsbatch.ServiceDocs,
 		DocumentID: "doc1",
 		Account:    "a@b.com",
 		Client:     "default",
@@ -294,12 +296,15 @@ func TestBatchListAndShowReadWithoutLock(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
-	statePath := store.path(state.BatchID)
+	statePath, pathErr := store.Path(state.BatchID)
+	if pathErr != nil {
+		t.Fatalf("state path: %v", pathErr)
+	}
 	before, readErr := os.ReadFile(statePath)
 	if readErr != nil {
 		t.Fatalf("read state before commands: %v", readErr)
 	}
-	lockPath := filepath.Join(store.dir, ".lock")
+	lockPath := filepath.Join(filepath.Dir(statePath), ".lock")
 	if removeErr := os.Remove(lockPath); removeErr != nil {
 		t.Fatalf("remove setup lock: %v", removeErr)
 	}
@@ -365,7 +370,7 @@ func TestValidateDocsBatchTargetRejectsInvalidIDBeforeAccountResolution(t *testi
 func TestBatchLocalMutatorsHonorDryRun(t *testing.T) {
 	ctx := batchTestContext(t)
 	dryRun := &RootFlags{DryRun: true}
-	beginErr := (&BatchBeginCmd{Service: docsBatchService, DocID: "doc1"}).Run(ctx, dryRun)
+	beginErr := (&BatchBeginCmd{Service: docsbatch.ServiceDocs, DocID: "doc1"}).Run(ctx, dryRun)
 	if !isSuccessfulDryRunExit(beginErr) {
 		t.Fatalf("begin dry run: %v", beginErr)
 	}
@@ -374,7 +379,7 @@ func TestBatchLocalMutatorsHonorDryRun(t *testing.T) {
 	if err != nil {
 		t.Fatalf("new store: %v", err)
 	}
-	batches, err := store.list()
+	batches, err := store.List()
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}
@@ -382,8 +387,8 @@ func TestBatchLocalMutatorsHonorDryRun(t *testing.T) {
 		t.Fatalf("begin dry run created batches: %#v", batches)
 	}
 
-	state, err := store.create(docsBatchState{
-		Service:    docsBatchService,
+	state, err := store.Create(docsbatch.State{
+		Service:    docsbatch.ServiceDocs,
 		DocumentID: "doc1",
 		Account:    "a@b.com",
 		Client:     "default",
@@ -395,7 +400,7 @@ func TestBatchLocalMutatorsHonorDryRun(t *testing.T) {
 	if !isSuccessfulDryRunExit(abortErr) {
 		t.Fatalf("abort dry run: %v", abortErr)
 	}
-	if _, err := store.get(state.BatchID); err != nil {
+	if _, err := store.Get(state.BatchID); err != nil {
 		t.Fatalf("abort dry run removed batch: %v", err)
 	}
 
@@ -403,7 +408,7 @@ func TestBatchLocalMutatorsHonorDryRun(t *testing.T) {
 	if !isSuccessfulDryRunExit(pruneErr) {
 		t.Fatalf("prune dry run: %v", pruneErr)
 	}
-	if _, err := store.get(state.BatchID); err != nil {
+	if _, err := store.Get(state.BatchID); err != nil {
 		t.Fatalf("prune dry run removed batch: %v", err)
 	}
 }
@@ -427,8 +432,8 @@ func TestDocsInsertPageBreakBatchQueuesWithoutSubmitting(t *testing.T) {
 	if err != nil {
 		t.Fatalf("new store: %v", err)
 	}
-	state, err := store.create(docsBatchState{
-		Service:    docsBatchService,
+	state, err := store.Create(docsbatch.State{
+		Service:    docsbatch.ServiceDocs,
 		DocumentID: "doc1",
 		Account:    "a@b.com",
 		Client:     "default",
@@ -442,7 +447,7 @@ func TestDocsInsertPageBreakBatchQueuesWithoutSubmitting(t *testing.T) {
 	if postCalls != 0 {
 		t.Fatalf("POST calls = %d, want 0", postCalls)
 	}
-	loaded, err := store.get(state.BatchID)
+	loaded, err := store.Get(state.BatchID)
 	if err != nil {
 		t.Fatalf("get: %v", err)
 	}
@@ -462,7 +467,7 @@ func TestDocsWriteBatchRejectsMultiPhaseModes(t *testing.T) {
 	}
 }
 
-func prepareDocsBatchEndTest(t *testing.T, requestCount int) (*docsBatchStore, *docsBatchState, context.Context) {
+func prepareDocsBatchEndTest(t *testing.T, requestCount int) (*docsbatch.Repository, *docsbatch.State, context.Context) {
 	t.Helper()
 
 	ctx := batchTestContext(t)
@@ -470,8 +475,8 @@ func prepareDocsBatchEndTest(t *testing.T, requestCount int) (*docsBatchStore, *
 	if err != nil {
 		t.Fatalf("new store: %v", err)
 	}
-	state, err := store.create(docsBatchState{
-		Service:    docsBatchService,
+	state, err := store.Create(docsbatch.State{
+		Service:    docsbatch.ServiceDocs,
 		DocumentID: "doc1",
 		Account:    "user@example.com",
 		Client:     "default",
@@ -486,7 +491,22 @@ func prepareDocsBatchEndTest(t *testing.T, requestCount int) (*docsBatchStore, *
 			Text:     fmt.Sprintf("request-%d", index),
 		}})
 	}
-	if _, err := store.appendRequests(state.BatchID, "docs.insert", "doc1", "user@example.com", "default", "rev1", requests, false); err != nil {
+	rawRequests, err := marshalDocsBatchRequests(requests)
+	if err != nil {
+		t.Fatalf("marshal requests: %v", err)
+	}
+	if _, err := store.Append(docsbatch.AppendOptions{
+		BatchID: state.BatchID,
+		Command: "docs.insert",
+		Identity: docsbatch.Identity{
+			Service:    docsbatch.ServiceDocs,
+			DocumentID: "doc1",
+			Account:    "user@example.com",
+			Client:     "default",
+		},
+		RevisionID: "rev1",
+		Requests:   rawRequests,
+	}); err != nil {
 		t.Fatalf("append: %v", err)
 	}
 
@@ -519,46 +539,6 @@ func withDocsBatchStateDir(ctx context.Context, stateDir string) context.Context
 			ExplicitState: true,
 		}
 	})
-}
-
-func TestDocsBatchPruneRemovesOnlyStaleState(t *testing.T) {
-	dir := t.TempDir()
-	if err := os.MkdirAll(dir, 0o700); err != nil {
-		t.Fatal(err)
-	}
-	store := newDocsBatchStoreAt(dir)
-	oldNow := docsBatchNow
-	now := time.Date(2026, 6, 11, 12, 0, 0, 0, time.UTC)
-	docsBatchNow = func() time.Time { return now.Add(-4 * time.Hour) }
-	stale, err := store.create(docsBatchState{Service: docsBatchService, DocumentID: "old", Account: "a", Client: "default"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	docsBatchNow = func() time.Time { return now }
-	current, err := store.create(docsBatchState{Service: docsBatchService, DocumentID: "new", Account: "a", Client: "default"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { docsBatchNow = oldNow })
-
-	removed, err := store.prune(3 * time.Hour)
-	if err != nil {
-		t.Fatalf("prune: %v", err)
-	}
-	if len(removed) != 1 || removed[0].BatchID != stale.BatchID {
-		t.Fatalf("removed = %#v", removed)
-	}
-	if _, err := os.Stat(filepath.Join(dir, current.BatchID+".json")); err != nil {
-		t.Fatalf("current batch missing: %v", err)
-	}
-}
-
-func TestValidateDocsBatchIDRejectsTraversal(t *testing.T) {
-	for _, value := range []string{"../batch", "not-a-uuid", strings.ToUpper("018f47b5-7b5e-7cc0-9a78-4a5bb1886251")} {
-		if err := validateDocsBatchID(value); err == nil {
-			t.Fatalf("validateDocsBatchID(%q) succeeded", value)
-		}
-	}
 }
 
 func compactJSONContains(t *testing.T, data []byte, value string) bool {

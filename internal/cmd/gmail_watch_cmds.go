@@ -353,11 +353,7 @@ func (c *GmailWatchServeCmd) Run(ctx context.Context, kctx *kong.Context, flags 
 		hook = nil
 	}
 	if c.SaveHook && hook != nil {
-		if updateErr := store.Update(func(s *gmailWatchState) error {
-			s.Hook = hook
-			s.UpdatedAtMs = time.Now().UnixMilli()
-			return nil
-		}); updateErr != nil {
+		if updateErr := store.SetHook(hook, time.Now()); updateErr != nil {
 			return updateErr
 		}
 	}

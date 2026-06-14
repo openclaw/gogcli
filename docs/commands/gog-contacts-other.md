@@ -16,7 +16,6 @@ gog contacts (contact) other <command>
 
 ## Subcommands
 
-- [gog contacts other delete](gog-contacts-other-delete.md) - Delete an other contact
 - [gog contacts other list](gog-contacts-other-list.md) - List other contacts
 - [gog contacts other search](gog-contacts-other-search.md) - Search other contacts
 

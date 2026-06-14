@@ -59,7 +59,7 @@ func TestGmailWatchRenewAndStop_JSON(t *testing.T) {
 		t.Fatalf("stop: %v", err)
 	}
 
-	if _, statErr := os.Stat(store.path); !os.IsNotExist(statErr) {
+	if _, statErr := os.Stat(store.Path()); !os.IsNotExist(statErr) {
 		t.Fatalf("expected watch state removed, err=%v", statErr)
 	}
 }

@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -14,6 +13,7 @@ import (
 	"google.golang.org/api/gmail/v1"
 
 	"github.com/steipete/gogcli/internal/authclient"
+	"github.com/steipete/gogcli/internal/gmailwatch"
 	"github.com/steipete/gogcli/internal/ui"
 )
 
@@ -93,11 +93,7 @@ func (c *GmailWatchPullCmd) Run(ctx context.Context, kctx *kong.Context, flags *
 		return err
 	}
 	if c.SaveHook && hook != nil {
-		if updateErr := store.Update(func(s *gmailWatchState) error {
-			s.Hook = hook
-			s.UpdatedAtMs = time.Now().UnixMilli()
-			return nil
-		}); updateErr != nil {
+		if updateErr := store.SetHook(hook, time.Now()); updateErr != nil {
 			return updateErr
 		}
 	}
@@ -284,63 +280,4 @@ func (s *gmailWatchServer) handlePullMessage(ctx context.Context, msg *gmailPubS
 	msg.Nack()
 }
 
-func (s *gmailWatchServer) processGmailWatchPayload(ctx context.Context, payload gmailPushPayload) (*gmailWatchProcessedPayload, error) {
-	var progressBefore gmailWatchState
-	if s.store != nil {
-		progressBefore = s.store.Get()
-	}
-	result, err := s.handlePush(ctx, payload)
-	if err != nil {
-		return nil, err
-	}
-	if result == nil {
-		return nil, errNoNewMessages
-	}
-	processed := &gmailWatchProcessedPayload{Payload: result}
-	if s.cfg.HookURL == "" {
-		return processed, nil
-	}
-	if err := s.sendHook(ctx, result); err != nil {
-		s.warnf("watch: hook failed: %v", err)
-		processed.HookFailed = true
-		if restoreErr := s.restoreWatchProgressForRetry(progressBefore, result.HistoryID, payload.MessageID); restoreErr != nil {
-			s.warnf("watch: failed to preserve retry state after hook failure: %v", restoreErr)
-		}
-		return processed, &gmailWatchHookDeliveryError{Err: err}
-	}
-	return processed, nil
-}
-
-type gmailWatchProcessedPayload struct {
-	Payload    *gmailHookPayload
-	HookFailed bool
-}
-
-type gmailWatchHookDeliveryError struct {
-	Err error
-}
-
-func (e *gmailWatchHookDeliveryError) Error() string {
-	return fmt.Sprintf("hook delivery failed: %v", e.Err)
-}
-
-func (e *gmailWatchHookDeliveryError) Unwrap() error {
-	return e.Err
-}
-
-func (s *gmailWatchServer) restoreWatchProgressForRetry(before gmailWatchState, historyID, pushMessageID string) error {
-	if s.store == nil {
-		return nil
-	}
-	return s.store.Update(func(state *gmailWatchState) error {
-		if state.HistoryID != historyID {
-			return nil
-		}
-		if pushMessageID != "" && state.LastPushMessageID != pushMessageID {
-			return nil
-		}
-		state.HistoryID = before.HistoryID
-		state.LastPushMessageID = before.LastPushMessageID
-		return nil
-	})
-}
+type gmailWatchProcessedPayload = gmailwatch.ProcessedPayload
