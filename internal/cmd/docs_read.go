@@ -29,7 +29,12 @@ func (c *DocsCatCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if id == "" {
 		return usage("empty docId")
 	}
-	if strings.TrimSpace(c.Tab) != "" && c.AllTabs {
+	tab := strings.TrimSpace(c.Tab)
+	if c.Tab != "" && tab == "" {
+		return usage("--tab cannot be empty")
+	}
+	c.Tab = tab
+	if c.Tab != "" && c.AllTabs {
 		return usage("--tab and --all-tabs cannot be used together")
 	}
 
