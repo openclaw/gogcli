@@ -114,10 +114,7 @@ func youtubePlaylistItemColumns() []outfmt.Column[*youtube.PlaylistItem] {
 			if item.Snippet == nil {
 				return ""
 			}
-			if item.Snippet.VideoOwnerChannelTitle != "" {
-				return sanitizeTab(item.Snippet.VideoOwnerChannelTitle)
-			}
-			return sanitizeTab(item.Snippet.ChannelTitle)
+			return sanitizeTab(item.Snippet.VideoOwnerChannelTitle)
 		}},
 		{Header: "POSITION", Value: func(item *youtube.PlaylistItem) string {
 			if item.Snippet == nil {
@@ -127,10 +124,10 @@ func youtubePlaylistItemColumns() []outfmt.Column[*youtube.PlaylistItem] {
 		}},
 		{Header: "ITEM_ID", Value: func(item *youtube.PlaylistItem) string { return item.Id }},
 		{Header: "PUBLISHED_AT", Value: func(item *youtube.PlaylistItem) string {
-			if item.Snippet == nil {
+			if item.ContentDetails == nil {
 				return ""
 			}
-			return sanitizeTab(item.Snippet.PublishedAt)
+			return sanitizeTab(item.ContentDetails.VideoPublishedAt)
 		}},
 	}
 }

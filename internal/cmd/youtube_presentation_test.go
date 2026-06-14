@@ -57,6 +57,40 @@ func TestYouTubePresentationSchemas(t *testing.T) {
 		)
 	})
 
+	t.Run("playlist items", func(t *testing.T) {
+		t.Parallel()
+		got := renderPlainTable(t, []*youtube.PlaylistItem{
+			{
+				Id: "item1",
+				Snippet: &youtube.PlaylistItemSnippet{
+					Title:                  "Video",
+					ChannelTitle:           "Playlist Owner",
+					VideoOwnerChannelTitle: "Uploader",
+					Position:               3,
+				},
+				ContentDetails: &youtube.PlaylistItemContentDetails{
+					VideoId:          "video1",
+					VideoPublishedAt: "2026-06-12T12:00:00Z",
+				},
+			},
+			{
+				Id: "item2",
+				Snippet: &youtube.PlaylistItemSnippet{
+					Title:        "Deleted video",
+					ChannelTitle: "Playlist Owner",
+					Position:     4,
+				},
+			},
+		}, youtubePlaylistItemColumns())
+		assertTableOutput(
+			t,
+			got,
+			"VIDEO_ID\tTITLE\tCHANNEL\tPOSITION\tITEM_ID\tPUBLISHED_AT\n"+
+				"video1\tVideo\tUploader\t3\titem1\t2026-06-12T12:00:00Z\n"+
+				"\tDeleted video\t\t4\titem2\t\n",
+		)
+	})
+
 	t.Run("comments", func(t *testing.T) {
 		t.Parallel()
 		text := strings.Repeat("x", 61)
