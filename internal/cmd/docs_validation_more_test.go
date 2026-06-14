@@ -68,7 +68,7 @@ func TestDocsCreateCat_ValidationErrors(t *testing.T) {
 	if err := (&DocsCreateCmd{}).Run(ctx, flags); err == nil {
 		t.Fatalf("expected missing title error")
 	}
-	if err := (&DocsCatCmd{}).Run(ctx, flags); err == nil {
+	if err := (&DocsCatCmd{}).Run(ctx, nil, flags); err == nil {
 		t.Fatalf("expected missing docId error")
 	}
 }
@@ -113,7 +113,7 @@ func TestDocsCat_JSON_EmptyDoc(t *testing.T) {
 	ctx := withDocsTestService(newCmdRuntimeJSONOutputContext(t, &output, io.Discard), svc)
 	flags := &RootFlags{Account: "a@b.com"}
 
-	if err := (&DocsCatCmd{DocID: "doc1"}).Run(ctx, flags); err != nil {
+	if err := (&DocsCatCmd{DocID: "doc1"}).Run(ctx, nil, flags); err != nil {
 		t.Fatalf("cat: %v", err)
 	}
 	if !strings.Contains(output.String(), "\"text\"") {

@@ -175,6 +175,10 @@ func mcpDocsGetTool() mcpToolSpec {
 			}
 			args := []string{"docs", "cat", "--max-bytes", strconv.Itoa(clampMCPInt(req.GetInt("max_bytes", 2000000), 0, 20_000_000))}
 			tab := strings.TrimSpace(req.GetString("tab", ""))
+			_, tabProvided := req.GetArguments()["tab"]
+			if tabProvided && tab == "" {
+				return nil, fmt.Errorf("tab cannot be empty")
+			}
 			allTabs := req.GetBool("all_tabs", false)
 			if tab != "" && allTabs {
 				return nil, fmt.Errorf("tab and all_tabs are mutually exclusive")

@@ -9,6 +9,7 @@ import (
 	"io"
 	"strings"
 
+	"github.com/alecthomas/kong"
 	"google.golang.org/api/docs/v1"
 
 	"github.com/steipete/gogcli/internal/outfmt"
@@ -24,13 +25,14 @@ type DocsCatCmd struct {
 	Numbered bool   `name:"numbered" short:"N" help:"Prefix each paragraph with its number"`
 }
 
-func (c *DocsCatCmd) Run(ctx context.Context, flags *RootFlags) error {
+func (c *DocsCatCmd) Run(ctx context.Context, kctx *kong.Context, flags *RootFlags) error {
 	id := strings.TrimSpace(c.DocID)
 	if id == "" {
 		return usage("empty docId")
 	}
+	tabProvided := flagProvided(kctx, "tab") || c.Tab != ""
 	tab := strings.TrimSpace(c.Tab)
-	if c.Tab != "" && tab == "" {
+	if tabProvided && tab == "" {
 		return usage("--tab cannot be empty")
 	}
 	c.Tab = tab

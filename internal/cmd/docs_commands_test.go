@@ -496,6 +496,16 @@ func TestDocsCat_RejectsTabWithAllTabs(t *testing.T) {
 	if emptyRawTabResult.err == nil || !strings.Contains(emptyRawTabResult.err.Error(), "--tab cannot be empty") {
 		t.Fatalf("expected raw empty tab usage error, got: %v", emptyRawTabResult.err)
 	}
+
+	explicitEmptyTabResult := runDocsCatCommand(t, docSvc, []string{"doc1", "--tab="}, false)
+	if explicitEmptyTabResult.err == nil || !strings.Contains(explicitEmptyTabResult.err.Error(), "--tab cannot be empty") {
+		t.Fatalf("expected explicit empty tab usage error, got: %v", explicitEmptyTabResult.err)
+	}
+
+	explicitEmptyRawTabResult := runDocsCatCommand(t, docSvc, []string{"doc1", "--raw", "--tab=", "--all-tabs"}, false)
+	if explicitEmptyRawTabResult.err == nil || !strings.Contains(explicitEmptyRawTabResult.err.Error(), "--tab cannot be empty") {
+		t.Fatalf("expected raw explicit empty tab usage error, got: %v", explicitEmptyRawTabResult.err)
+	}
 	if requests != 0 {
 		t.Fatalf("Docs API requests = %d, want 0", requests)
 	}
