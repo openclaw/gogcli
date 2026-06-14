@@ -461,8 +461,21 @@ func TestDocsCat_AllTabs_JSON(t *testing.T) {
 func TestDocsCat_RejectsTabWithAllTabs(t *testing.T) {
 	t.Parallel()
 
-	docSvc, cleanup := newTabsTestServer(t)
-	defer cleanup()
+	requests := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		requests++
+		http.Error(w, "unexpected Docs API request", http.StatusInternalServerError)
+	}))
+	defer srv.Close()
+
+	docSvc, err := docs.NewService(context.Background(),
+		option.WithoutAuthentication(),
+		option.WithHTTPClient(srv.Client()),
+		option.WithEndpoint(srv.URL+"/"),
+	)
+	if err != nil {
+		t.Fatalf("NewDocsService: %v", err)
+	}
 
 	result := runDocsCatCommand(t, docSvc, []string{"doc1", "--tab", "Overview", "--all-tabs"}, false)
 	if result.err == nil || !strings.Contains(result.err.Error(), "--tab and --all-tabs cannot be used together") {
@@ -472,6 +485,9 @@ func TestDocsCat_RejectsTabWithAllTabs(t *testing.T) {
 	rawResult := runDocsCatCommand(t, docSvc, []string{"doc1", "--raw", "--tab", "Overview", "--all-tabs"}, false)
 	if rawResult.err == nil || !strings.Contains(rawResult.err.Error(), "--tab and --all-tabs cannot be used together") {
 		t.Fatalf("expected raw tab/all-tabs usage error, got: %v", rawResult.err)
+	}
+	if requests != 0 {
+		t.Fatalf("Docs API requests = %d, want 0", requests)
 	}
 }
 

@@ -2,6 +2,10 @@
 
 ## 0.26.1 - Unreleased
 
+### Fixed
+
+- Docs: reject ambiguous `docs cat --tab ... --all-tabs` and MCP `docs_get` requests before contacting the Docs API. (#801) — thanks @kiranmagic7.
+
 ## 0.26.0 - 2026-06-14
 
 ### Added
