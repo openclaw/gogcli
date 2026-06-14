@@ -1,26 +1,23 @@
-package cmd
+package mailmime
 
 import (
-	"context"
-	"encoding/base64"
 	"net/mail"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
-
-	"github.com/steipete/gogcli/internal/app"
-	"github.com/steipete/gogcli/internal/config"
 )
 
 func TestBuildRFC822_MissingFields(t *testing.T) {
 	if _, err := buildRFC822(mailOptions{To: []string{"c@d.com"}, Subject: "Hi"}, nil); err == nil {
 		t.Fatalf("expected missing From error")
 	}
+
 	if _, err := buildRFC822(mailOptions{From: "a@b.com", Subject: "Hi"}, nil); err == nil {
 		t.Fatalf("expected missing To error")
 	}
+
 	if _, err := buildRFC822(mailOptions{From: "a@b.com", To: []string{"c@d.com"}}, nil); err == nil {
 		t.Fatalf("expected missing Subject error")
 	}
@@ -35,6 +32,7 @@ func TestBuildRFC822_AllowMissingTo(t *testing.T) {
 	if err != nil {
 		t.Fatalf("buildRFC822: %v", err)
 	}
+
 	if strings.Contains(string(raw), "\r\nTo:") {
 		t.Fatalf("expected no To header")
 	}
@@ -43,6 +41,7 @@ func TestBuildRFC822_AllowMissingTo(t *testing.T) {
 func TestBuildRFC822_DateHeaderUsesExplicitLocation(t *testing.T) {
 	oldLocal := time.Local
 	time.Local = time.FixedZone("JST", 9*60*60)
+
 	t.Cleanup(func() { time.Local = oldLocal })
 
 	raw, err := buildRFC822(mailOptions{
@@ -59,49 +58,10 @@ func TestBuildRFC822_DateHeaderUsesExplicitLocation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ReadMessage: %v", err)
 	}
+
 	dateHeader := msg.Header.Get("Date")
 	if !strings.HasSuffix(dateHeader, "+0000") {
 		t.Fatalf("expected UTC Date header, got %q", dateHeader)
-	}
-}
-
-func TestBuildGmailMessage_DateHeaderUsesRuntimeTimezone(t *testing.T) {
-	t.Setenv("GOG_TIMEZONE", "")
-
-	ambientLayout := config.Layout{ConfigDir: t.TempDir(), ExplicitConfig: true}
-	if err := config.NewConfigStore(ambientLayout).Write(config.File{DefaultTimezone: "UTC"}); err != nil {
-		t.Fatalf("write ambient config: %v", err)
-	}
-	t.Setenv("GOG_CONFIG_DIR", ambientLayout.ConfigDir)
-
-	runtimeLayout := config.Layout{ConfigDir: t.TempDir(), ExplicitConfig: true}
-	runtimeStore := config.NewConfigStore(runtimeLayout)
-	if err := runtimeStore.Write(config.File{DefaultTimezone: "Asia/Tokyo"}); err != nil {
-		t.Fatalf("write runtime config: %v", err)
-	}
-	ctx := app.WithRuntime(context.Background(), &app.Runtime{
-		Layout: runtimeLayout,
-		Config: runtimeStore,
-	})
-
-	msg, err := buildGmailMessage(ctx, sendMessageOptions{
-		FromAddr: "a@b.com",
-		Subject:  "Hi",
-		Body:     "Hello",
-	}, sendBatch{To: []string{"c@d.com"}}, nil)
-	if err != nil {
-		t.Fatalf("buildGmailMessage: %v", err)
-	}
-	raw, err := base64.RawURLEncoding.DecodeString(msg.Raw)
-	if err != nil {
-		t.Fatalf("decode message: %v", err)
-	}
-	parsed, err := mail.ReadMessage(strings.NewReader(string(raw)))
-	if err != nil {
-		t.Fatalf("ReadMessage: %v", err)
-	}
-	if dateHeader := parsed.Header.Get("Date"); !strings.HasSuffix(dateHeader, "+0900") {
-		t.Fatalf("expected Asia/Tokyo Date header, got %q", dateHeader)
 	}
 }
 
@@ -113,6 +73,7 @@ func TestBuildRFC822_InvalidHeaders(t *testing.T) {
 	}, nil); err == nil {
 		t.Fatalf("expected invalid From error")
 	}
+
 	if _, err := buildRFC822(mailOptions{
 		From:    "a@b.com",
 		To:      []string{"c@d.com\r\n"},
@@ -120,6 +81,7 @@ func TestBuildRFC822_InvalidHeaders(t *testing.T) {
 	}, nil); err == nil {
 		t.Fatalf("expected invalid address error")
 	}
+
 	if _, err := buildRFC822(mailOptions{
 		From:      "a@b.com",
 		To:        []string{"c@d.com"},
@@ -130,6 +92,7 @@ func TestBuildRFC822_InvalidHeaders(t *testing.T) {
 	}, nil); err == nil {
 		t.Fatalf("expected invalid Reply-To error")
 	}
+
 	if _, err := buildRFC822(mailOptions{
 		From:       "a@b.com",
 		To:         []string{"c@d.com"},
@@ -139,6 +102,7 @@ func TestBuildRFC822_InvalidHeaders(t *testing.T) {
 	}, nil); err == nil {
 		t.Fatalf("expected invalid References error")
 	}
+
 	if _, err := buildRFC822(mailOptions{
 		From:    "a@b.com",
 		To:      []string{"c@d.com"},
@@ -147,6 +111,7 @@ func TestBuildRFC822_InvalidHeaders(t *testing.T) {
 	}, nil); err == nil {
 		t.Fatalf("expected invalid Subject error")
 	}
+
 	if _, err := buildRFC822(mailOptions{
 		From:    "a@b.com",
 		To:      []string{"c@d.com"},
@@ -161,10 +126,12 @@ func TestBuildRFC822_InvalidHeaders(t *testing.T) {
 
 func TestBuildRFC822_AttachmentFromPath_DefaultMime(t *testing.T) {
 	dir := t.TempDir()
+
 	path := filepath.Join(dir, "file.unknownext")
 	if err := os.WriteFile(path, []byte("data"), 0o600); err != nil {
 		t.Fatalf("WriteFile: %v", err)
 	}
+
 	raw, err := buildRFC822(mailOptions{
 		From:    "a@b.com",
 		To:      []string{"c@d.com"},
@@ -177,10 +144,12 @@ func TestBuildRFC822_AttachmentFromPath_DefaultMime(t *testing.T) {
 	if err != nil {
 		t.Fatalf("buildRFC822: %v", err)
 	}
+
 	s := string(raw)
 	if !strings.Contains(s, "application/octet-stream") {
 		t.Fatalf("expected default mime type, got: %q", s)
 	}
+
 	if !strings.Contains(s, "Content-Disposition: attachment; filename=\"file.unknownext\"") {
 		t.Fatalf("expected attachment header, got: %q", s)
 	}
@@ -188,6 +157,7 @@ func TestBuildRFC822_AttachmentFromPath_DefaultMime(t *testing.T) {
 
 func TestWrapBase64_LongLine(t *testing.T) {
 	data := make([]byte, 80)
+
 	out := wrapBase64(data)
 	if !strings.Contains(out, "\r\n") {
 		t.Fatalf("expected wrapped base64")

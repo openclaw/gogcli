@@ -2,12 +2,17 @@ package cmd
 
 import (
 	"context"
+	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
 	"net/http"
 	"net/mail"
+	"os"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/steipete/gogcli/internal/mailmime"
 )
 
 func TestRunGmailAutoReply_RepliesAndArchives(t *testing.T) {
@@ -209,13 +214,18 @@ func TestAutoReplyRecipients(t *testing.T) {
 }
 
 func TestSendMessageOptionsHeadersReachRFC822(t *testing.T) {
-	raw, err := buildRFC822(mailOptions{
+	raw, err := mailmime.BuildRFC822(mailmime.Options{
 		From:              "bot@example.com",
 		To:                []string{"user@example.com"},
 		Subject:           "Hi",
 		Body:              "Hello",
 		AdditionalHeaders: map[string]string{"X-Test": "1"},
-	}, nil)
+	}, mailmime.Config{
+		DateLocation: time.UTC,
+		Now:          time.Now,
+		Random:       rand.Reader,
+		ReadFile:     os.ReadFile,
+	})
 	if err != nil {
 		t.Fatalf("buildRFC822: %v", err)
 	}

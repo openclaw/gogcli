@@ -7,6 +7,7 @@ import (
 	"net/mail"
 	"strings"
 
+	"github.com/steipete/gogcli/internal/mailmime"
 	"github.com/steipete/gogcli/internal/ui"
 )
 
@@ -88,7 +89,7 @@ func (c *GmailForwardCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 
 	// Download and re-attach original attachments.
-	var attachments []mailAttachment
+	var attachments []mailmime.Attachment
 	if !c.SkipAttachments {
 		origAtts := collectAttachments(origMsg.Payload)
 		for _, att := range origAtts {
@@ -96,7 +97,7 @@ func (c *GmailForwardCmd) Run(ctx context.Context, flags *RootFlags) error {
 			if dlErr != nil {
 				return fmt.Errorf("download attachment %q: %w", att.Filename, dlErr)
 			}
-			attachments = append(attachments, mailAttachment{
+			attachments = append(attachments, mailmime.Attachment{
 				Filename: att.Filename,
 				MIMEType: att.MimeType,
 				Data:     data,
@@ -122,7 +123,7 @@ func (c *GmailForwardCmd) Run(ctx context.Context, flags *RootFlags) error {
 		To:  toRecipients,
 		Cc:  ccRecipients,
 		Bcc: bccRecipients,
-	}, nil)
+	}, false)
 	if err != nil {
 		return fmt.Errorf("build message: %w", err)
 	}

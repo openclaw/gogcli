@@ -1,4 +1,4 @@
-package cmd
+package mailmime
 
 import (
 	"io"
@@ -20,13 +20,16 @@ func TestBuildRFC822Plain(t *testing.T) {
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
+
 	s := string(raw)
 	if !strings.Contains(s, "\r\nMessage-ID: <") {
 		t.Fatalf("missing message-id: %q", s)
 	}
+
 	if !strings.Contains(s, "Content-Type: text/plain") {
 		t.Fatalf("missing content-type: %q", s)
 	}
+
 	if !strings.Contains(s, "\r\n\r\nHello\r\n") {
 		t.Fatalf("missing body: %q", s)
 	}
@@ -42,13 +45,16 @@ func TestBuildRFC822HTMLOnly(t *testing.T) {
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
+
 	s := string(raw)
 	if !strings.Contains(s, "Content-Type: text/html") {
 		t.Fatalf("missing content-type: %q", s)
 	}
+
 	if strings.Contains(s, "multipart/alternative") {
 		t.Fatalf("unexpected multipart/alternative: %q", s)
 	}
+
 	if !strings.Contains(s, "<p>Hello</p>") {
 		t.Fatalf("missing html body: %q", s)
 	}
@@ -65,13 +71,16 @@ func TestBuildRFC822PlainAndHTMLAlternative(t *testing.T) {
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
+
 	s := string(raw)
 	if !strings.Contains(s, "multipart/alternative") {
 		t.Fatalf("expected multipart/alternative: %q", s)
 	}
+
 	if !strings.Contains(s, "Content-Type: text/plain") || !strings.Contains(s, "Content-Type: text/html") {
 		t.Fatalf("expected both text/plain and text/html parts: %q", s)
 	}
+
 	if !strings.Contains(s, "\r\n\r\nPlain\r\n") || !strings.Contains(s, "<p>HTML</p>") {
 		t.Fatalf("missing bodies: %q", s)
 	}
@@ -90,10 +99,12 @@ func TestBuildRFC822WithAttachment(t *testing.T) {
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
+
 	s := string(raw)
 	if !strings.Contains(s, "multipart/mixed") {
 		t.Fatalf("expected multipart: %q", s)
 	}
+
 	if !strings.Contains(s, "Content-Disposition: attachment; filename=\"x.txt\"") {
 		t.Fatalf("missing attachment header: %q", s)
 	}
@@ -113,16 +124,20 @@ func TestBuildRFC822AlternativeWithAttachment(t *testing.T) {
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
+
 	s := string(raw)
 	if !strings.Contains(s, "multipart/mixed") {
 		t.Fatalf("expected multipart/mixed: %q", s)
 	}
+
 	if !strings.Contains(s, "multipart/alternative") {
 		t.Fatalf("expected multipart/alternative: %q", s)
 	}
+
 	if !strings.Contains(s, "Content-Disposition: attachment; filename=\"x.txt\"") {
 		t.Fatalf("missing attachment header: %q", s)
 	}
+
 	if !strings.Contains(s, "Content-Type: text/plain") || !strings.Contains(s, "Content-Type: text/html") {
 		t.Fatalf("expected both text/plain and text/html parts: %q", s)
 	}
@@ -130,10 +145,12 @@ func TestBuildRFC822AlternativeWithAttachment(t *testing.T) {
 
 func TestPrepareMailAttachments(t *testing.T) {
 	dir := t.TempDir()
+
 	payloadPath := filepath.Join(dir, "report.txt")
 	if err := os.WriteFile(payloadPath, []byte("payload"), 0o600); err != nil {
 		t.Fatalf("write payload: %v", err)
 	}
+
 	emptyPath := filepath.Join(dir, "empty.bin")
 	if err := os.WriteFile(emptyPath, nil, 0o600); err != nil {
 		t.Fatalf("write empty attachment: %v", err)
@@ -147,15 +164,19 @@ func TestPrepareMailAttachments(t *testing.T) {
 	if err != nil {
 		t.Fatalf("prepareMailAttachments: %v", err)
 	}
+
 	if len(prepared) != 3 || len(metadata) != 3 {
 		t.Fatalf("unexpected attachment counts: prepared=%d metadata=%d", len(prepared), len(metadata))
 	}
+
 	if string(prepared[0].Data) != "payload" || !prepared[0].DataSet {
 		t.Fatalf("unexpected prepared payload: %#v", prepared[0])
 	}
+
 	if !prepared[1].DataSet || len(prepared[1].Data) != 0 {
 		t.Fatalf("unexpected prepared empty attachment: %#v", prepared[1])
 	}
+
 	want := []mailAttachmentMetadata{
 		{Filename: "report.txt", Size: 7},
 		{Filename: "empty.bin", Size: 0},
@@ -178,6 +199,7 @@ func TestBuildRFC822UTF8Subject(t *testing.T) {
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
+
 	s := string(raw)
 	if !strings.Contains(strings.ToLower(s), "subject: =?utf-8?") {
 		t.Fatalf("expected encoded-word Subject: %q", s)
@@ -194,13 +216,16 @@ func TestBuildRFC822UTF8FromDisplayName(t *testing.T) {
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
+
 	s := string(raw)
 	if !strings.Contains(strings.ToLower(s), "from: =?utf-8?") {
 		t.Fatalf("expected encoded-word From header: %q", s)
 	}
+
 	if !strings.Contains(s, "<alias@domain.com>") {
 		t.Fatalf("expected alias email in From header: %q", s)
 	}
+
 	if strings.Contains(s, "From: Sérgio Bastos • Importrust <alias@domain.com>") {
 		t.Fatalf("expected From header to be RFC 2047 encoded: %q", s)
 	}
@@ -216,10 +241,12 @@ func TestBuildRFC822PlainFromAddressStaysUnwrapped(t *testing.T) {
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
+
 	s := string(raw)
 	if !strings.Contains(s, "From: a@b.com\r\n") {
 		t.Fatalf("expected plain From address, got: %q", s)
 	}
+
 	if strings.Contains(s, "From: <a@b.com>\r\n") {
 		t.Fatalf("unexpected wrapped From address: %q", s)
 	}
@@ -236,6 +263,7 @@ func TestBuildRFC822ReplyToHeader(t *testing.T) {
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
+
 	s := string(raw)
 	if !strings.Contains(s, "Reply-To: reply@example.com") {
 		t.Fatalf("missing Reply-To header: %q", s)
@@ -255,10 +283,12 @@ func TestBuildRFC822AdditionalHeadersMessageIDIsNotDuplicated(t *testing.T) {
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
+
 	s := string(raw)
 	if strings.Count(s, "\r\nMessage-ID: ") != 1 {
 		t.Fatalf("expected exactly one Message-ID header: %q", s)
 	}
+
 	if !strings.Contains(s, "\r\nMessage-ID: <custom@id>\r\n") {
 		t.Fatalf("missing custom message-id: %q", s)
 	}
@@ -281,6 +311,7 @@ func TestEncodeHeaderIfNeeded(t *testing.T) {
 	if got := encodeHeaderIfNeeded("Hello"); got != "Hello" {
 		t.Fatalf("unexpected: %q", got)
 	}
+
 	got := encodeHeaderIfNeeded("Grüße")
 	if got == "Grüße" || !strings.Contains(strings.ToLower(got), "=?utf-8?") {
 		t.Fatalf("expected encoded-word, got: %q", got)
@@ -291,6 +322,7 @@ func TestContentDispositionFilename(t *testing.T) {
 	if got := contentDispositionFilename("a.txt"); got != "filename=\"a.txt\"" {
 		t.Fatalf("unexpected: %q", got)
 	}
+
 	got := contentDispositionFilename("Grüße.txt")
 	if !strings.HasPrefix(got, "filename*=UTF-8''") {
 		t.Fatalf("unexpected: %q", got)
@@ -312,30 +344,35 @@ func TestHasHeader(t *testing.T) {
 	if hasHeader(nil, "Message-ID") {
 		t.Fatalf("expected false")
 	}
+
 	if hasHeader(map[string]string{}, "Message-ID") {
 		t.Fatalf("expected false")
 	}
+
 	if !hasHeader(map[string]string{"message-id": "x"}, "Message-ID") {
 		t.Fatalf("expected true")
 	}
+
 	if !hasHeader(map[string]string{"Message-Id": "x"}, "message-id") {
 		t.Fatalf("expected true")
 	}
 }
 
 func TestRandomMessageID(t *testing.T) {
-	id, err := randomMessageID("A <a@b.com>")
+	id, err := randomMessageID("A <a@b.com>", testConfig().Random)
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
+
 	if !regexp.MustCompile(`^<[A-Za-z0-9_-]+@b\.com>$`).MatchString(id) {
 		t.Fatalf("unexpected: %q", id)
 	}
 
-	id, err = randomMessageID("not-an-email")
+	id, err = randomMessageID("not-an-email", testConfig().Random)
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
+
 	if !regexp.MustCompile(`^<[A-Za-z0-9_-]+@gogcli\.local>$`).MatchString(id) {
 		t.Fatalf("unexpected: %q", id)
 	}
@@ -343,6 +380,7 @@ func TestRandomMessageID(t *testing.T) {
 
 func TestFormatAddressHeaderUnparseable(t *testing.T) {
 	input := "not an email at all"
+
 	got := formatAddressHeader(input)
 	if got != input {
 		t.Fatalf("expected unparseable input returned unchanged, got: %q", got)
@@ -373,6 +411,7 @@ func TestFormatAddressHeadersMixed(t *testing.T) {
 	if !strings.Contains(strings.ToLower(parts[2]), "=?utf-8?") {
 		t.Fatalf("expected RFC 2047 encoded name in third part, got: %q", parts[2])
 	}
+
 	if !strings.Contains(parts[2], "s@b.com") {
 		t.Fatalf("expected address s@b.com in third part, got: %q", parts[2])
 	}
@@ -380,6 +419,7 @@ func TestFormatAddressHeadersMixed(t *testing.T) {
 
 func TestFormatAddressHeadersFiltersEmpty(t *testing.T) {
 	got := formatAddressHeaders([]string{"a@b.com", "", "b@c.com"})
+
 	expected := "a@b.com, b@c.com"
 	if got != expected {
 		t.Fatalf("expected %q, got %q", expected, got)
@@ -390,6 +430,7 @@ func TestBuildRFC822PlainBodyNotHardWrapped(t *testing.T) {
 	// A single long paragraph (~200 chars) must survive round-trip through
 	// quoted-printable encoding without hard line breaks in the decoded output.
 	longLine := "Hope you are doing well. I wanted to connect you both as I believe there could be a mutually interesting conversation around potential synergies between your respective companies and their product offerings."
+
 	raw, err := buildRFC822(mailOptions{
 		From:    "a@b.com",
 		To:      []string{"c@d.com"},
@@ -399,6 +440,7 @@ func TestBuildRFC822PlainBodyNotHardWrapped(t *testing.T) {
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
+
 	s := string(raw)
 
 	// Must use quoted-printable, not 7bit, to avoid transport-level wrapping.
@@ -413,10 +455,12 @@ func TestBuildRFC822PlainBodyNotHardWrapped(t *testing.T) {
 		t.Fatalf("could not find header/body separator in: %q", s)
 	}
 	bodyEncoded := parts[1]
+
 	decoded, err := io.ReadAll(quotedprintable.NewReader(strings.NewReader(bodyEncoded)))
 	if err != nil {
 		t.Fatalf("QP decode error: %v", err)
 	}
+
 	decodedStr := strings.TrimRight(string(decoded), "\r\n")
 	if decodedStr != longLine {
 		t.Fatalf("decoded body mismatch:\n  got:  %q\n  want: %q", decodedStr, longLine)
@@ -425,6 +469,7 @@ func TestBuildRFC822PlainBodyNotHardWrapped(t *testing.T) {
 
 func TestBuildRFC822PlainBodyMultiParagraph(t *testing.T) {
 	body := "First long paragraph that should flow naturally without any hard wrapping at seventy-two characters or any other artificial limit.\r\n\r\nSecond paragraph also long enough to verify it stays as one logical line when decoded from quoted-printable.\r\n\r\nThird short paragraph."
+
 	raw, err := buildRFC822(mailOptions{
 		From:    "a@b.com",
 		To:      []string{"c@d.com"},
@@ -434,16 +479,19 @@ func TestBuildRFC822PlainBodyMultiParagraph(t *testing.T) {
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
+
 	s := string(raw)
 
 	parts := strings.SplitN(s, "\r\n\r\n", 2)
 	if len(parts) != 2 {
 		t.Fatalf("could not find header/body separator")
 	}
+
 	decoded, err := io.ReadAll(quotedprintable.NewReader(strings.NewReader(parts[1])))
 	if err != nil {
 		t.Fatalf("QP decode error: %v", err)
 	}
+
 	decodedStr := strings.TrimRight(string(decoded), "\r\n")
 	if decodedStr != body {
 		t.Fatalf("decoded body mismatch:\n  got:  %q\n  want: %q", decodedStr, body)
@@ -460,6 +508,7 @@ func TestBuildRFC822HTMLBodyStays7bit(t *testing.T) {
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
+
 	s := string(raw)
 	if !strings.Contains(s, "Content-Transfer-Encoding: 7bit") {
 		t.Fatalf("expected 7bit encoding for HTML body, got: %q", s)
@@ -476,10 +525,12 @@ func TestBuildRFC822NonASCIIHTMLBodyUses8bit(t *testing.T) {
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
+
 	s := string(raw)
 	if !strings.Contains(s, "Content-Transfer-Encoding: 8bit") {
 		t.Fatalf("expected 8bit encoding for non-ASCII HTML body, got: %q", s)
 	}
+
 	if strings.Contains(s, "Content-Transfer-Encoding: 7bit") {
 		t.Fatalf("non-ASCII HTML body must not be declared 7bit: %q", s)
 	}
@@ -496,6 +547,7 @@ func TestBuildRFC822NonASCIIHTMLPartUses8bit(t *testing.T) {
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
+
 	s := string(raw)
 	if !strings.Contains(s, "Content-Type: text/html; charset=\"utf-8\"\r\nContent-Transfer-Encoding: 8bit") {
 		t.Fatalf("expected 8bit encoding for non-ASCII HTML part, got: %q", s)
@@ -504,10 +556,12 @@ func TestBuildRFC822NonASCIIHTMLPartUses8bit(t *testing.T) {
 
 func TestFormatAddressHeadersParsesCommaSeparatedList(t *testing.T) {
 	got := formatAddressHeaders([]string{"Alice <a@b.com>, Bob <b@c.com>"})
+
 	parts := strings.SplitN(got, ", ", 2)
 	if len(parts) != 2 {
 		t.Fatalf("expected 2 comma-separated parts, got %q", got)
 	}
+
 	if !strings.Contains(parts[0], "a@b.com") || !strings.Contains(parts[1], "b@c.com") {
 		t.Fatalf("expected both addresses in output, got %q", got)
 	}

@@ -13,6 +13,8 @@ import (
 	"testing"
 
 	"google.golang.org/api/gmail/v1"
+
+	"github.com/steipete/gogcli/internal/mailmime"
 )
 
 func TestGmailDraftsListCmd_TextAndJSON(t *testing.T) {
@@ -430,7 +432,7 @@ func TestGmailDraftsCreateCmd_WithFromAndReply(t *testing.T) {
 		t.Fatalf("execute: %v", err)
 	}
 	var parsed struct {
-		Attachments []mailAttachmentMetadata `json:"attachments"`
+		Attachments []mailmime.AttachmentMetadata `json:"attachments"`
 	}
 	if err := json.Unmarshal(jsonOut.Bytes(), &parsed); err != nil {
 		t.Fatalf("decode output: %v", err)
@@ -709,9 +711,9 @@ func TestGmailDraftsUpdateCmd_JSON(t *testing.T) {
 	}
 
 	var parsed struct {
-		DraftID     string                   `json:"draftId"`
-		ThreadID    string                   `json:"threadId"`
-		Attachments []mailAttachmentMetadata `json:"attachments"`
+		DraftID     string                        `json:"draftId"`
+		ThreadID    string                        `json:"threadId"`
+		Attachments []mailmime.AttachmentMetadata `json:"attachments"`
 	}
 	if err := json.Unmarshal(jsonOut.Bytes(), &parsed); err != nil {
 		t.Fatalf("json parse: %v", err)
@@ -1517,12 +1519,12 @@ func TestGmailDraftsUpdateCmd_PreservesAttachmentsWhenOmitted(t *testing.T) {
 		t.Fatalf("zero-byte inline attachment filename missing from rebuilt draft:\n%s", s)
 	}
 	var parsed struct {
-		Attachments []mailAttachmentMetadata `json:"attachments"`
+		Attachments []mailmime.AttachmentMetadata `json:"attachments"`
 	}
 	if err := json.Unmarshal([]byte(jsonOut), &parsed); err != nil {
 		t.Fatalf("decode output: %v", err)
 	}
-	want := []mailAttachmentMetadata{
+	want := []mailmime.AttachmentMetadata{
 		{Filename: "report.pdf", Size: 5},
 		{Filename: "empty.bin", Size: 0},
 		{Filename: "inline.txt", Size: 6},

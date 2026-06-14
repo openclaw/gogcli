@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/steipete/gogcli/internal/mailmime"
 	"github.com/steipete/gogcli/internal/outfmt"
 	"github.com/steipete/gogcli/internal/tracking"
 	"github.com/steipete/gogcli/internal/ui"
@@ -86,13 +87,13 @@ func TestWriteSendResults_JSONMultiple(t *testing.T) {
 		if err := writeSendResults(ctx, u, "from@example.com", []sendResult{
 			{MessageID: "m1", ThreadID: "t1", To: "a@example.com"},
 			{MessageID: "m2", ThreadID: "t2", To: "b@example.com"},
-		}, []mailAttachmentMetadata{{Filename: "report.pdf", Size: 42}}); err != nil {
+		}, []mailmime.AttachmentMetadata{{Filename: "report.pdf", Size: 42}}); err != nil {
 			t.Fatalf("writeSendResults: %v", err)
 		}
 	})
 	var parsed struct {
 		Messages []struct {
-			Attachments []mailAttachmentMetadata `json:"attachments"`
+			Attachments []mailmime.AttachmentMetadata `json:"attachments"`
 		} `json:"messages"`
 	}
 	if err := json.Unmarshal([]byte(out), &parsed); err != nil {

@@ -2,14 +2,18 @@ package cmd
 
 import (
 	"context"
+	"crypto/rand"
 	"encoding/base64"
 	"fmt"
+	"os"
 	"strings"
+	"time"
 
 	"google.golang.org/api/gmail/v1"
 	"google.golang.org/api/people/v1"
 
 	"github.com/steipete/gogcli/internal/config"
+	"github.com/steipete/gogcli/internal/mailmime"
 	"github.com/steipete/gogcli/internal/outfmt"
 	"github.com/steipete/gogcli/internal/ui"
 )
@@ -25,7 +29,7 @@ type gmailMessageResult struct {
 	MessageID   string
 	ThreadID    string
 	TrackingID  string
-	Attachments []mailAttachmentMetadata
+	Attachments []mailmime.AttachmentMetadata
 }
 
 func requireGmailSendService(ctx context.Context, flags *RootFlags) (string, *gmail.Service, error) {
@@ -51,10 +55,10 @@ func expandComposeAttachmentPaths(paths []string) ([]string, error) {
 	return expanded, nil
 }
 
-func attachmentsFromPaths(paths []string) []mailAttachment {
-	attachments := make([]mailAttachment, 0, len(paths))
+func attachmentsFromPaths(paths []string) []mailmime.Attachment {
+	attachments := make([]mailmime.Attachment, 0, len(paths))
 	for _, path := range paths {
-		attachments = append(attachments, mailAttachment{Path: path})
+		attachments = append(attachments, mailmime.Attachment{Path: path})
 	}
 	return attachments
 }
@@ -75,7 +79,7 @@ func validateComposeHeaderInputs(to, cc, bcc, replyTo, subject, from string) err
 			if strings.TrimSpace(value) == "" {
 				continue
 			}
-			if err := validateHeaderValue(value); err != nil {
+			if err := mailmime.ValidateHeaderValue(value); err != nil {
 				return usagef("invalid %s: %v", tc.flag, err)
 			}
 		}
@@ -167,7 +171,7 @@ func prepareComposeReply(ctx context.Context, svc *gmail.Service, replyToMessage
 	return info, plainBody, htmlBody, nil
 }
 
-func buildGmailMessage(ctx context.Context, opts sendMessageOptions, batch sendBatch, cfg *rfc822Config) (*gmail.Message, error) {
+func buildGmailMessage(ctx context.Context, opts sendMessageOptions, batch sendBatch, allowMissingTo bool) (*gmail.Message, error) {
 	reply := replyInfo{}
 	if opts.ReplyInfo != nil {
 		reply = *opts.ReplyInfo
@@ -177,13 +181,7 @@ func buildGmailMessage(ctx context.Context, opts sendMessageOptions, batch sendB
 	if err != nil {
 		return nil, err
 	}
-	rfc822Cfg := rfc822Config{
-		dateLocation: dateLocation,
-	}
-	if cfg != nil {
-		rfc822Cfg.allowMissingTo = cfg.allowMissingTo
-	}
-	raw, err := buildRFC822(mailOptions{
+	raw, err := mailmime.BuildRFC822(mailmime.Options{
 		From:              opts.FromAddr,
 		To:                batch.To,
 		Cc:                batch.Cc,
@@ -196,7 +194,13 @@ func buildGmailMessage(ctx context.Context, opts sendMessageOptions, batch sendB
 		References:        reply.References,
 		AdditionalHeaders: opts.Headers,
 		Attachments:       opts.Attachments,
-	}, &rfc822Cfg)
+	}, mailmime.Config{
+		AllowMissingTo: allowMissingTo,
+		DateLocation:   dateLocation,
+		Now:            time.Now,
+		Random:         rand.Reader,
+		ReadFile:       os.ReadFile,
+	})
 	if err != nil {
 		return nil, err
 	}

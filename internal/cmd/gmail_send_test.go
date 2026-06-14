@@ -17,6 +17,8 @@ import (
 
 	"google.golang.org/api/gmail/v1"
 	"google.golang.org/api/people/v1"
+
+	"github.com/steipete/gogcli/internal/mailmime"
 )
 
 func runGmailSendJSON(t *testing.T, cmd *GmailSendCmd, gmailSvc *gmail.Service, peopleSvc *people.Service) string {
@@ -379,9 +381,9 @@ func TestGmailSendCmd_RunJSON(t *testing.T) {
 
 	out := runGmailSendJSON(t, cmd, svc, nil)
 	var parsed struct {
-		MessageID   string                   `json:"messageId"`
-		ThreadID    string                   `json:"threadId"`
-		Attachments []mailAttachmentMetadata `json:"attachments"`
+		MessageID   string                        `json:"messageId"`
+		ThreadID    string                        `json:"threadId"`
+		Attachments []mailmime.AttachmentMetadata `json:"attachments"`
 	}
 	if err := json.Unmarshal([]byte(out), &parsed); err != nil {
 		t.Fatalf("decode output: %v", err)

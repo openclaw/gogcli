@@ -4,11 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 
 	"google.golang.org/api/gmail/v1"
 
 	"github.com/steipete/gogcli/internal/config"
+	"github.com/steipete/gogcli/internal/mailmime"
 	"github.com/steipete/gogcli/internal/outfmt"
 	"github.com/steipete/gogcli/internal/ui"
 )
@@ -279,7 +281,7 @@ type draftComposeInput struct {
 	Attach           []string
 	// PrebuiltAttachments carry already-resolved attachment bytes (e.g. existing
 	// draft attachments preserved across an update) alongside any --attach paths.
-	PrebuiltAttachments []mailAttachment
+	PrebuiltAttachments []mailmime.Attachment
 	From                string
 }
 
@@ -295,7 +297,7 @@ func (c draftComposeInput) validate() error {
 	return nil
 }
 
-func buildDraftMessage(ctx context.Context, svc *gmail.Service, account string, input draftComposeInput) (*gmail.Message, string, []mailAttachmentMetadata, error) {
+func buildDraftMessage(ctx context.Context, svc *gmail.Service, account string, input draftComposeInput) (*gmail.Message, string, []mailmime.AttachmentMetadata, error) {
 	from, err := resolveComposeSender(ctx, svc, account, input.From)
 	if err != nil {
 		return nil, "", nil, err
@@ -308,7 +310,7 @@ func buildDraftMessage(ctx context.Context, svc *gmail.Service, account string, 
 	threadID := info.ThreadID
 	atts := attachmentsFromPaths(input.Attach)
 	atts = append(atts, input.PrebuiltAttachments...)
-	atts, attachmentMetadata, err := prepareMailAttachments(atts)
+	atts, attachmentMetadata, err := mailmime.PrepareAttachments(atts, os.ReadFile)
 	if err != nil {
 		return nil, "", nil, err
 	}
@@ -329,7 +331,7 @@ func buildDraftMessage(ctx context.Context, svc *gmail.Service, account string, 
 		To:  splitCSV(input.To),
 		Cc:  splitCSV(input.Cc),
 		Bcc: splitCSV(input.Bcc),
-	}, &rfc822Config{allowMissingTo: true})
+	}, true)
 	if err != nil {
 		return nil, "", nil, err
 	}
@@ -340,8 +342,8 @@ func buildDraftMessage(ctx context.Context, svc *gmail.Service, account string, 
 // carryForwardDraftAttachments fetches the bytes of an existing draft message's
 // attachments so they can be re-attached to a rebuilt draft on update. Returns
 // nil when the draft has no attachments. Mirrors the gmail forward reattach path.
-func carryForwardDraftAttachments(ctx context.Context, svc *gmail.Service, messageID string, payload *gmail.MessagePart) ([]mailAttachment, error) {
-	var out []mailAttachment
+func carryForwardDraftAttachments(ctx context.Context, svc *gmail.Service, messageID string, payload *gmail.MessagePart) ([]mailmime.Attachment, error) {
+	var out []mailmime.Attachment
 	var walk func(*gmail.MessagePart) error
 	walk = func(part *gmail.MessagePart) error {
 		if part == nil {
@@ -358,7 +360,7 @@ func carryForwardDraftAttachments(ctx context.Context, svc *gmail.Service, messa
 				if dlErr != nil {
 					return fmt.Errorf("preserve attachment %q: %w", filename, dlErr)
 				}
-				out = append(out, mailAttachment{
+				out = append(out, mailmime.Attachment{
 					Filename: filename,
 					MIMEType: part.MimeType,
 					Data:     data,
@@ -373,7 +375,7 @@ func carryForwardDraftAttachments(ctx context.Context, svc *gmail.Service, messa
 					}
 					data = decoded
 				}
-				out = append(out, mailAttachment{
+				out = append(out, mailmime.Attachment{
 					Filename: filename,
 					MIMEType: part.MimeType,
 					Data:     data,
@@ -411,7 +413,7 @@ func fetchDraftAttachmentBytes(ctx context.Context, svc *gmail.Service, messageI
 	return decodeBase64URLBytes(body.Data)
 }
 
-func writeDraftResult(ctx context.Context, u *ui.UI, draft *gmail.Draft, threadID string, attachments []mailAttachmentMetadata) error {
+func writeDraftResult(ctx context.Context, u *ui.UI, draft *gmail.Draft, threadID string, attachments []mailmime.AttachmentMetadata) error {
 	if threadID == "" && draft != nil && draft.Message != nil {
 		threadID = draft.Message.ThreadId
 	}
