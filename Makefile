@@ -75,6 +75,7 @@ docs-site: docs-commands
 	@node scripts/build-docs-site.mjs
 
 docs-check: docs-site
+	@node --test scripts/check-docs-coverage.test.mjs
 	@node scripts/check-docs-coverage.mjs
 
 tools:
