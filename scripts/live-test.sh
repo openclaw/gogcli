@@ -32,7 +32,7 @@ Skip keys (base):
   gmail-attachments, gmail-track, gmail-watch, chat, drive, docs, sheets, slides,
   photos-picker,
   calendar, calendar-enterprise, calendar-respond, calendar-team, calendar-users,
-  tasks, contacts, people, groups, keep, classroom
+  tasks, contacts, contacts-directory, contacts-other, people, groups, keep, classroom
 
 Env:
   GOG_LIVE_EMAIL_TEST=steipete+gogtest@gmail.com
