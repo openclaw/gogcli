@@ -458,6 +458,23 @@ func TestDocsCat_AllTabs_JSON(t *testing.T) {
 	}
 }
 
+func TestDocsCat_RejectsTabWithAllTabs(t *testing.T) {
+	t.Parallel()
+
+	docSvc, cleanup := newTabsTestServer(t)
+	defer cleanup()
+
+	result := runDocsCatCommand(t, docSvc, []string{"doc1", "--tab", "Overview", "--all-tabs"}, false)
+	if result.err == nil || !strings.Contains(result.err.Error(), "--tab and --all-tabs cannot be used together") {
+		t.Fatalf("expected tab/all-tabs usage error, got: %v", result.err)
+	}
+
+	rawResult := runDocsCatCommand(t, docSvc, []string{"doc1", "--raw", "--tab", "Overview", "--all-tabs"}, false)
+	if rawResult.err == nil || !strings.Contains(rawResult.err.Error(), "--tab and --all-tabs cannot be used together") {
+		t.Fatalf("expected raw tab/all-tabs usage error, got: %v", rawResult.err)
+	}
+}
+
 func TestDocsCat_Raw(t *testing.T) {
 	t.Parallel()
 

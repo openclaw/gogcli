@@ -29,6 +29,9 @@ func (c *DocsCatCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if id == "" {
 		return usage("empty docId")
 	}
+	if strings.TrimSpace(c.Tab) != "" && c.AllTabs {
+		return usage("--tab and --all-tabs cannot be used together")
+	}
 
 	svc, err := requireDocsService(ctx, flags)
 	if err != nil {
