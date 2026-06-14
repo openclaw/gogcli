@@ -111,25 +111,87 @@ function checkMarkdownLinks(dir) {
   const broken = [];
   for (const file of allMarkdown(dir)) {
     const markdown = fs.readFileSync(file, "utf8");
+    const headings = headingAnchors(markdown);
     const linkPattern = /!?\[[^\]]*\]\(([^)]+)\)/g;
     let match;
     while ((match = linkPattern.exec(markdown)) !== null) {
-      const rawTarget = match[1].trim().replace(/^<|>$/g, "");
-      if (!rawTarget || rawTarget.startsWith("#")) continue;
+      const rawTarget = splitMarkdownTarget(match[1].trim());
+      if (!rawTarget) continue;
       if (/^[a-z][a-z0-9+.-]*:/i.test(rawTarget)) continue;
 
-      const targetWithoutTitle = rawTarget.split(/\s+["'][^"']*["']\s*$/)[0];
-      const targetPath = targetWithoutTitle.split("#")[0];
-      if (!targetPath) continue;
+      const [targetPath, rawAnchor] = rawTarget.split("#", 2);
       if (/^(url|path|file)$/i.test(targetPath)) continue;
 
-      const resolved = path.resolve(path.dirname(file), targetPath);
+      const resolved = targetPath ? path.resolve(path.dirname(file), targetPath) : file;
       if (!fs.existsSync(resolved)) {
         broken.push(`${path.relative(root, file)} -> ${targetPath}`);
+        continue;
+      }
+
+      if (rawAnchor && resolved.endsWith(".md")) {
+        const targetHeadings = resolved === file ? headings : headingAnchors(fs.readFileSync(resolved, "utf8"));
+        if (!targetHeadings.has(rawAnchor)) {
+          broken.push(`${path.relative(root, file)} -> ${rawTarget}`);
+        }
       }
     }
   }
   return broken;
+}
+
+function splitMarkdownTarget(rawTarget) {
+  const targetWithoutTitle = rawTarget.replace(/\s+["'][^"']*["']\s*$/, "");
+  return targetWithoutTitle.replace(/^<|>$/g, "");
+}
+
+function headingAnchors(markdown) {
+  const anchors = new Set();
+  const seen = new Map();
+  for (const rawLine of markdown.split("\n")) {
+    const line = rawLine.endsWith("\r") ? rawLine.slice(0, -1) : rawLine;
+    const match = line.match(/^(#{1,6})\s+(.*)$/);
+    if (!match) continue;
+
+    const base = slugifyHeading(match[2]);
+    if (!base) continue;
+
+    const count = seen.get(base) || 0;
+    seen.set(base, count + 1);
+    anchors.add(count === 0 ? base : `${base}-${count}`);
+  }
+  return anchors;
+}
+
+function slugifyHeading(text) {
+  let out = "";
+  let inTag = false;
+  let lastDash = false;
+  for (const char of text.toLowerCase()) {
+    if (char === "`") {
+      continue;
+    }
+    if (char === "<") {
+      inTag = true;
+      continue;
+    }
+    if (char === ">") {
+      inTag = false;
+      continue;
+    }
+    if (inTag) {
+      continue;
+    }
+    const code = char.charCodeAt(0);
+    const ok = (code >= 97 && code <= 122) || (code >= 48 && code <= 57);
+    if (ok) {
+      out += char;
+      lastDash = false;
+    } else if (!lastDash) {
+      out += "-";
+      lastDash = true;
+    }
+  }
+  return out.replace(/^-+|-+$/g, "");
 }
 
 function allMarkdown(dir) {
