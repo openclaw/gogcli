@@ -540,11 +540,6 @@ func TestDryRunE2E_CommandsSkipAuthAPIAndFileWrites(t *testing.T) {
 			op:   "classroom.guardian-invitations.create",
 		},
 		{
-			name: "contacts other delete",
-			args: []string{"contacts", "other", "delete", "otherContacts/c123"},
-			op:   "contacts.other.delete",
-		},
-		{
 			name: "meet update",
 			args: []string{"meet", "update", "abc-defg-hij", "--access", "open"},
 			op:   "meet.spaces.patch",

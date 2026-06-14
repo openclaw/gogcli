@@ -217,7 +217,6 @@ Generated from `gog schema --json`.
     - [`gog contacts (contact) get (info,show) <resourceName>`](commands/gog-contacts-get.md) - Get a contact
     - [`gog contacts (contact) list (ls) [flags]`](commands/gog-contacts-list.md) - List contacts
     - [`gog contacts (contact) other <command>`](commands/gog-contacts-other.md) - Other contacts
-      - [`gog contacts (contact) other delete <resourceName>`](commands/gog-contacts-other-delete.md) - Delete an other contact
       - [`gog contacts (contact) other list [flags]`](commands/gog-contacts-other-list.md) - List other contacts
       - [`gog contacts (contact) other search <query> ... [flags]`](commands/gog-contacts-other-search.md) - Search other contacts
     - [`gog contacts (contact) raw <identifier> [flags]`](commands/gog-contacts-raw.md) - Dump raw People API response as JSON (People.Get; lossless; for scripting and LLM consumption)

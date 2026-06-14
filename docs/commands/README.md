@@ -2,7 +2,7 @@
 
 Every `gog` command has a generated docs page. The source of truth is the live CLI schema; run `make docs-commands` after changing command names, flags, help text, aliases, or arguments.
 
-Generated pages: 643.
+Generated pages: 642.
 
 ## Top-level Commands
 
@@ -268,7 +268,6 @@ Generated pages: 643.
     - [gog contacts get](gog-contacts-get.md) - Get a contact
     - [gog contacts list](gog-contacts-list.md) - List contacts
     - [gog contacts other](gog-contacts-other.md) - Other contacts
-      - [gog contacts other delete](gog-contacts-other-delete.md) - Delete an other contact
       - [gog contacts other list](gog-contacts-other-list.md) - List other contacts
       - [gog contacts other search](gog-contacts-other-search.md) - Search other contacts
     - [gog contacts raw](gog-contacts-raw.md) - Dump raw People API response as JSON (People.Get; lossless; for scripting and LLM consumption)
