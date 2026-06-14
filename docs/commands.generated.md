@@ -641,7 +641,7 @@ Generated from `gog schema --json`.
       - [`gog youtube (yt) subscriptions (subscription) subscribe [flags]`](commands/gog-youtube-subscriptions-subscribe.md) - Subscribe to a channel
       - [`gog youtube (yt) subscriptions (subscription) unsubscribe [flags]`](commands/gog-youtube-subscriptions-unsubscribe.md) - Unsubscribe from a channel
     - [`gog youtube (yt) videos (video) <command>`](commands/gog-youtube-videos.md) - List or get videos
-      - [`gog youtube (yt) videos (video) list (ls) [flags]`](commands/gog-youtube-videos-list.md) - List videos by ID or chart
+      - [`gog youtube (yt) videos (video) list (ls) [flags]`](commands/gog-youtube-videos-list.md) - List videos by ID, chart, or your rating
   - [`gog zoom <command> [flags]`](commands/gog-zoom.md) - Zoom
     - [`gog zoom auth <command>`](commands/gog-zoom-auth.md) - Manage Zoom Server-to-Server OAuth credentials
       - [`gog zoom auth doctor [flags]`](commands/gog-zoom-auth-doctor.md) - Validate Zoom credentials

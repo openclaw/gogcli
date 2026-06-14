@@ -101,7 +101,7 @@ func (c *YouTubeActivitiesListCmd) Run(ctx context.Context, flags *RootFlags) er
 }
 
 type YouTubeVideosCmd struct {
-	List YouTubeVideosListCmd `cmd:"" name:"list" aliases:"ls" help:"List videos by ID or chart"`
+	List YouTubeVideosListCmd `cmd:"" name:"list" aliases:"ls" help:"List videos by ID, chart, or your rating"`
 }
 
 type YouTubeVideosListCmd struct {
@@ -301,6 +301,9 @@ func (c *YouTubePlaylistsItemsListCmd) Run(ctx context.Context, flags *RootFlags
 	playlistID := strings.TrimSpace(c.PlaylistID)
 	if playlistID == "" {
 		return usage("set --playlist-id ID (use LL for your liked videos; LL/private playlists require -a account)")
+	}
+	if playlistID == "LL" && !youtubeAccountSelectorPresent(flags) {
+		return usage("--playlist-id LL requires -a account")
 	}
 
 	svc, err := getYouTubeReadService(ctx, flags)

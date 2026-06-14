@@ -16,7 +16,7 @@ gog youtube (yt) videos (video) <command>
 
 ## Subcommands
 
-- [gog youtube videos list](gog-youtube-videos-list.md) - List videos by ID or chart
+- [gog youtube videos list](gog-youtube-videos-list.md) - List videos by ID, chart, or your rating
 
 ## Flags
 

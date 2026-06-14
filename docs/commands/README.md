@@ -692,7 +692,7 @@ Generated pages: 644.
       - [gog youtube subscriptions subscribe](gog-youtube-subscriptions-subscribe.md) - Subscribe to a channel
       - [gog youtube subscriptions unsubscribe](gog-youtube-subscriptions-unsubscribe.md) - Unsubscribe from a channel
     - [gog youtube videos](gog-youtube-videos.md) - List or get videos
-      - [gog youtube videos list](gog-youtube-videos-list.md) - List videos by ID or chart
+      - [gog youtube videos list](gog-youtube-videos-list.md) - List videos by ID, chart, or your rating
   - [gog zoom](gog-zoom.md) - Zoom
     - [gog zoom auth](gog-zoom-auth.md) - Manage Zoom Server-to-Server OAuth credentials
       - [gog zoom auth doctor](gog-zoom-auth-doctor.md) - Validate Zoom credentials
