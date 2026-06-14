@@ -2,12 +2,13 @@ package cmd
 
 import (
 	"context"
-	"regexp"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/api/docs/v1"
+
+	"github.com/steipete/gogcli/internal/docssed"
 )
 
 // =============================================================================
@@ -100,63 +101,6 @@ func TestProcessCellExprs_TableRef(t *testing.T) {
 }
 
 // =============================================================================
-// applyDeferredBullets coverage
-// =============================================================================
-
-func TestApplyDeferredBullets_NoBullets(t *testing.T) {
-	doc := &docs.Document{
-		DocumentId: "test-doc",
-		Body: &docs.Body{Content: []*docs.StructuralElement{
-			{Paragraph: &docs.Paragraph{
-				Elements: []*docs.ParagraphElement{
-					{TextRun: &docs.TextRun{Content: "no bullets\n"}, StartIndex: 1, EndIndex: 12},
-				},
-			}, StartIndex: 1, EndIndex: 12},
-		}},
-	}
-	svc, cleanup := newSedTestServer(t, doc)
-	defer cleanup()
-
-	cmd := &DocsSedCmd{}
-	err := cmd.applyDeferredBullets(context.Background(), svc, "test-doc")
-	assert.NoError(t, err)
-}
-
-func TestApplyDeferredBullets_WithTabs(t *testing.T) {
-	doc := &docs.Document{
-		DocumentId: "test-doc",
-		Body: &docs.Body{Content: []*docs.StructuralElement{
-			{Paragraph: &docs.Paragraph{
-				Elements: []*docs.ParagraphElement{
-					{TextRun: &docs.TextRun{Content: "- Item 1\n"}, StartIndex: 1, EndIndex: 10},
-				},
-			}, StartIndex: 1, EndIndex: 10},
-			{Paragraph: &docs.Paragraph{
-				Elements: []*docs.ParagraphElement{
-					{TextRun: &docs.TextRun{Content: "\t- Sub item\n"}, StartIndex: 10, EndIndex: 22},
-				},
-			}, StartIndex: 10, EndIndex: 22},
-		}},
-	}
-	svc, cleanup := newSedTestServer(t, doc)
-	defer cleanup()
-
-	cmd := &DocsSedCmd{}
-	err := cmd.applyDeferredBullets(context.Background(), svc, "test-doc")
-	assert.NoError(t, err)
-}
-
-func TestApplyDeferredBullets_NilBody(t *testing.T) {
-	doc := &docs.Document{DocumentId: "test-doc"}
-	svc, cleanup := newSedTestServer(t, doc)
-	defer cleanup()
-
-	cmd := &DocsSedCmd{}
-	err := cmd.applyDeferredBullets(context.Background(), svc, "test-doc")
-	assert.NoError(t, err)
-}
-
-// =============================================================================
 // runManualInner coverage — more paths
 // =============================================================================
 
@@ -194,6 +138,18 @@ func TestRunManualInner_SimpleReplace(t *testing.T) {
 	assert.Equal(t, 1, count)
 }
 
+func TestRunManualInnerInvalidPatternFailsBeforeFetch(t *testing.T) {
+	cmd := &DocsSedCmd{}
+	_, _, err := cmd.runManualInner(
+		context.Background(),
+		nil,
+		"test-doc",
+		sedExpr{pattern: "[", replacement: "x"},
+	)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "compile pattern")
+}
+
 func TestFindDocMatches_UTF16Offsets(t *testing.T) {
 	doc := &docs.Document{
 		DocumentId: "test-doc",
@@ -206,11 +162,13 @@ func TestFindDocMatches_UTF16Offsets(t *testing.T) {
 		}},
 	}
 
-	matches := findDocMatches(doc, regexp.MustCompile("foo"), sedExpr{pattern: "foo", replacement: "${0}"})
-	require.Len(t, matches, 1)
-	assert.Equal(t, int64(5), matches[0].start)
-	assert.Equal(t, int64(8), matches[0].end)
-	assert.Equal(t, "foo", matches[0].newText)
+	planner, err := docssed.NewMatchPlanner(docssed.Expression{Pattern: "foo", Replacement: "${0}"})
+	require.NoError(t, err)
+	actions := findDocActions(doc, planner)
+	require.Len(t, actions, 1)
+	assert.Equal(t, int64(5), actions[0].StartIndex)
+	assert.Equal(t, int64(8), actions[0].EndIndex)
+	assert.Equal(t, "foo", actions[0].Replacement.Text)
 }
 
 func TestRunManualInner_WithFormatting(t *testing.T) {
@@ -865,7 +823,7 @@ func TestCanBatchCell_MoreCases(t *testing.T) {
 }
 
 // =============================================================================
-// findDocMatches coverage — multiple paragraphs, table content
+// findDocActions coverage — multiple paragraphs, table content
 // =============================================================================
 
 func TestFindDocMatches_AcrossElements(t *testing.T) {
@@ -874,21 +832,19 @@ func TestFindDocMatches_AcrossElements(t *testing.T) {
 		para(plain("Hello again")),
 	)
 	expr := sedExpr{pattern: "Hello", replacement: "Hi", global: true}
-	re, err := expr.compilePattern()
+	planner, err := docssed.NewMatchPlanner(semanticExpressionFromSedExpr(expr))
 	require.NoError(t, err)
-
-	matches := findDocMatches(doc, re, expr)
-	assert.Equal(t, 2, len(matches))
+	actions := findDocActions(doc, planner)
+	assert.Equal(t, 2, len(actions))
 }
 
 func TestFindDocMatches_InTable(t *testing.T) {
 	doc := buildDocWithTable("", 2, 2, [][]string{{"hello", "world"}, {"foo", "bar"}}, "")
 	expr := sedExpr{pattern: "hello", replacement: "HI", global: true}
-	re, err := expr.compilePattern()
+	planner, err := docssed.NewMatchPlanner(semanticExpressionFromSedExpr(expr))
 	require.NoError(t, err)
-
-	matches := findDocMatches(doc, re, expr)
-	assert.Equal(t, 1, len(matches))
+	actions := findDocActions(doc, planner)
+	assert.Equal(t, 1, len(actions))
 }
 
 // =============================================================================

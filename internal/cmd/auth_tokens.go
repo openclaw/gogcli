@@ -265,7 +265,7 @@ func (c *AuthTokensImportCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 	var ex export
 	if unmarshalErr := json.Unmarshal(b, &ex); unmarshalErr != nil {
-		return unmarshalErr
+		return usagef("invalid token JSON: %v", unmarshalErr)
 	}
 	ex.Email = strings.TrimSpace(ex.Email)
 	if ex.Email == "" {
@@ -274,20 +274,12 @@ func (c *AuthTokensImportCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if strings.TrimSpace(ex.RefreshToken) == "" {
 		return usage("missing refresh_token in token file")
 	}
-	clientOverride := authclient.ClientOverrideFromContext(ctx)
-	if strings.TrimSpace(clientOverride) == "" {
-		clientOverride = strings.TrimSpace(ex.Client)
-	}
-	client, err := resolveClientForEmailWithContext(ctx, ex.Email, clientOverride)
-	if err != nil {
-		return err
-	}
 
 	var createdAt time.Time
 	if strings.TrimSpace(ex.CreatedAt) != "" {
 		parsed, parseErr := time.Parse(time.RFC3339, strings.TrimSpace(ex.CreatedAt))
 		if parseErr != nil {
-			return parseErr
+			return usagef("invalid created_at %q (expected RFC3339)", ex.CreatedAt)
 		}
 		createdAt = parsed
 	}
@@ -295,9 +287,18 @@ func (c *AuthTokensImportCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if strings.TrimSpace(ex.AccessTokenExpiresAt) != "" {
 		parsed, parseErr := time.Parse(time.RFC3339, strings.TrimSpace(ex.AccessTokenExpiresAt))
 		if parseErr != nil {
-			return parseErr
+			return usagef("invalid access_token_expires_at %q (expected RFC3339)", ex.AccessTokenExpiresAt)
 		}
 		accessTokenExpiresAt = parsed
+	}
+
+	clientOverride := authclient.ClientOverrideFromContext(ctx)
+	if strings.TrimSpace(clientOverride) == "" {
+		clientOverride = strings.TrimSpace(ex.Client)
+	}
+	client, err := resolveClientForEmailWithContext(ctx, ex.Email, clientOverride)
+	if err != nil {
+		return err
 	}
 
 	if dryRunErr := dryRunExit(ctx, flags, "auth.tokens.import", map[string]any{

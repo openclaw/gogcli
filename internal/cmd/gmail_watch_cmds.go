@@ -117,11 +117,11 @@ func (c *GmailWatchStatusCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if err != nil {
 		return err
 	}
-	store, err := loadGmailWatchStore(ctx, account)
+	state, err := readGmailWatchState(ctx, account)
 	if err != nil {
 		return err
 	}
-	return writeWatchState(ctx, store.Get(), c.ShowSecrets)
+	return writeWatchState(ctx, state, c.ShowSecrets)
 }
 
 type GmailWatchRenewCmd struct {
@@ -276,6 +276,64 @@ func (c *GmailWatchServeCmd) Run(ctx context.Context, kctx *kong.Context, flags 
 		return usage("--fetch-delay must be >= 0")
 	}
 
+	if flags != nil && flags.DryRun {
+		dryRunState, stateFound, stateErr := readGmailWatchStateOptional(ctx, account)
+		if stateErr != nil {
+			return stateErr
+		}
+		dryRunHook, hookErr := resolveWatchHookFromFlags(kctx, dryRunState, watchHookFlagValues{
+			URL:         c.HookURL,
+			Token:       c.HookToken,
+			IncludeBody: c.IncludeBody,
+			MaxBytes:    c.MaxBytes,
+		}, true)
+		if hookErr != nil {
+			if !errors.Is(hookErr, errNoHookConfigured) {
+				return hookErr
+			}
+			dryRunHook = nil
+		}
+		hookSource := "none"
+		if strings.TrimSpace(c.HookURL) != "" {
+			hookSource = "flags"
+		} else if stateFound && dryRunState.Hook != nil {
+			hookSource = "stored"
+		}
+		maxBodyBytes := defaultHookMaxBytes
+		includeBody := c.IncludeBody
+		hookTokenSet := c.HookToken != ""
+		if dryRunHook != nil {
+			includeBody = dryRunHook.IncludeBody
+			hookTokenSet = dryRunHook.Token != ""
+			if dryRunHook.MaxBytes > 0 {
+				maxBodyBytes = dryRunHook.MaxBytes
+			}
+		}
+		return dryRunExit(ctx, flags, "gmail.watch.serve", map[string]any{
+			"account": account,
+			"listen":  net.JoinHostPort(c.Bind, strconv.Itoa(c.Port)),
+			"path":    c.Path,
+			"auth": map[string]any{
+				"verify_oidc":       c.VerifyOIDC,
+				"oidc_email_set":    strings.TrimSpace(c.OIDCEmail) != "",
+				"oidc_audience_set": strings.TrimSpace(c.OIDCAudience) != "",
+				"shared_token_set":  c.SharedToken != "",
+			},
+			"hook": map[string]any{
+				"source":       hookSource,
+				"url_set":      dryRunHook != nil,
+				"token_set":    hookTokenSet,
+				"include_body": includeBody,
+				"max_bytes":    maxBodyBytes,
+				"save":         c.SaveHook,
+			},
+			"fetch_delay_seconds": fetchDelay.Seconds(),
+			"timezone":            loc.String(),
+			"history_types":       historyTypes,
+			"exclude_labels":      splitCommaList(c.ExcludeLabels),
+		})
+	}
+
 	store, err := loadGmailWatchStore(ctx, account)
 	if err != nil {
 		return err
@@ -295,11 +353,7 @@ func (c *GmailWatchServeCmd) Run(ctx context.Context, kctx *kong.Context, flags 
 		hook = nil
 	}
 	if c.SaveHook && hook != nil {
-		if updateErr := store.Update(func(s *gmailWatchState) error {
-			s.Hook = hook
-			s.UpdatedAtMs = time.Now().UnixMilli()
-			return nil
-		}); updateErr != nil {
+		if updateErr := store.SetHook(hook, time.Now()); updateErr != nil {
 			return updateErr
 		}
 	}

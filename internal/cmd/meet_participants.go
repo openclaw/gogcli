@@ -44,40 +44,44 @@ func (c *MeetParticipantsCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
-	fetch := func(pageToken string) ([]*meet.Participant, string, error) {
-		call := svc.ConferenceRecords.Participants.List(conferenceName).
-			PageSize(int64(c.Max)).
-			Context(ctx)
-		if strings.TrimSpace(pageToken) != "" {
-			call = call.PageToken(pageToken)
-		}
-
-		resp, err := call.Do()
-		if err != nil {
-			return nil, "", wrapMeetError(err)
-		}
-
-		return resp.Participants, resp.NextPageToken, nil
-	}
-
-	var participants []*meet.Participant
-
+	participants := make([]*meet.Participant, 0)
 	nextPageToken := ""
 
-	if c.All {
-		all, err := collectAllPages(c.Page, fetch)
-		if err != nil {
-			return err
+	if conferenceName != "" {
+		fetch := func(pageToken string) ([]*meet.Participant, string, error) {
+			call := svc.ConferenceRecords.Participants.List(conferenceName).
+				PageSize(int64(c.Max)).
+				Context(ctx)
+			if strings.TrimSpace(pageToken) != "" {
+				call = call.PageToken(pageToken)
+			}
+
+			resp, err := call.Do()
+			if err != nil {
+				return nil, "", wrapMeetError(err)
+			}
+
+			return resp.Participants, resp.NextPageToken, nil
 		}
 
-		participants = all
-	} else {
-		var err error
+		if c.All {
+			all, err := collectAllPages(c.Page, fetch)
+			if err != nil {
+				return err
+			}
 
-		participants, nextPageToken, err = fetch(c.Page)
-		if err != nil {
-			return err
+			participants = all
+		} else {
+			var err error
+
+			participants, nextPageToken, err = fetch(c.Page)
+			if err != nil {
+				return err
+			}
 		}
+	}
+	if participants == nil {
+		participants = make([]*meet.Participant, 0)
 	}
 
 	if outfmt.IsJSON(ctx) {
@@ -156,7 +160,7 @@ func resolveConference(ctx context.Context, svc *meet.Service, meetingCode, conf
 	}
 
 	if len(resp.ConferenceRecords) == 0 {
-		return "", usagef("no past calls found for %s", meetingCode)
+		return "", nil
 	}
 
 	return resp.ConferenceRecords[0].Name, nil

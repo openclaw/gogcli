@@ -41,11 +41,11 @@ Generated from `gog schema --json`.
       - [`gog auth credentials remove [<client>]`](commands/gog-auth-credentials-remove.md) - Remove stored OAuth client credentials
       - [`gog auth credentials set <credentials> [flags]`](commands/gog-auth-credentials-set.md) - Store OAuth client credentials
     - [`gog auth doctor [flags]`](commands/gog-auth-doctor.md) - Diagnose auth, keyring, and refresh-token issues
-    - [`gog auth import --email=STRING [flags]`](commands/gog-auth-import.md) - Import a refresh token non-interactively from stdin, file, or env
+    - [`gog auth import --email=STRING [flags]`](commands/gog-auth-import.md) - Import a required refresh token and optional current access token non-interactively
     - [`gog auth keep --key=STRING <email>`](commands/gog-auth-keep.md) - Configure service account for Google Keep (Workspace only)
     - [`gog auth keyring [<backend> [<backend2>]]`](commands/gog-auth-keyring.md) - Configure keyring backend
     - [`gog auth list [flags]`](commands/gog-auth-list.md) - List stored accounts
-    - [`gog auth manage (login) [flags]`](commands/gog-auth-manage.md) - Open accounts manager in browser
+    - [`gog auth manage (login) [flags]`](commands/gog-auth-manage.md) - Open interactive accounts manager in browser
     - [`gog auth remove <email>`](commands/gog-auth-remove.md) - Remove a stored refresh token
     - [`gog auth service-account <command>`](commands/gog-auth-service-account.md) - Configure service account (Workspace only; domain-wide delegation)
       - [`gog auth service-account set <email> [flags]`](commands/gog-auth-service-account-set.md) - Store a service account key for impersonation
@@ -217,7 +217,6 @@ Generated from `gog schema --json`.
     - [`gog contacts (contact) get (info,show) <resourceName>`](commands/gog-contacts-get.md) - Get a contact
     - [`gog contacts (contact) list (ls) [flags]`](commands/gog-contacts-list.md) - List contacts
     - [`gog contacts (contact) other <command>`](commands/gog-contacts-other.md) - Other contacts
-      - [`gog contacts (contact) other delete <resourceName>`](commands/gog-contacts-other-delete.md) - Delete an other contact
       - [`gog contacts (contact) other list [flags]`](commands/gog-contacts-other-list.md) - List other contacts
       - [`gog contacts (contact) other search <query> ... [flags]`](commands/gog-contacts-other-search.md) - Search other contacts
     - [`gog contacts (contact) raw <identifier> [flags]`](commands/gog-contacts-raw.md) - Dump raw People API response as JSON (People.Get; lossless; for scripting and LLM consumption)

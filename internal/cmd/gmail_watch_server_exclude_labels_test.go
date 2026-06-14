@@ -114,11 +114,11 @@ func TestGmailWatchServer_ServeHTTP_ExcludeLabels_SkipsHook(t *testing.T) {
 }
 
 func TestGmailWatchServer_isExcludedLabel_CaseSensitive(t *testing.T) {
-	s := &gmailWatchServer{excludeLabelIDs: map[string]struct{}{"Label_ABC": {}}}
-	if !s.isExcludedLabel([]string{"Label_ABC"}) {
+	labels := map[string]struct{}{"Label_ABC": {}}
+	if !labelSetContains(labels, []string{"Label_ABC"}) {
 		t.Fatalf("expected exact case label to match")
 	}
-	if s.isExcludedLabel([]string{"label_abc"}) {
+	if labelSetContains(labels, []string{"label_abc"}) {
 		t.Fatalf("expected case-mismatched label not to match")
 	}
 }

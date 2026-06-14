@@ -2,6 +2,23 @@
 
 set -euo pipefail
 
+run_contacts_other_tests() {
+  if skip "contacts-other"; then
+    echo "==> contacts other (skipped)"
+    return 0
+  fi
+
+  local other_json other_query
+  echo "==> contacts other list"
+  other_json=$(gog contacts other list --json --max 1)
+  other_query=$(extract_field "$other_json" email)
+  if [ -z "$other_query" ]; then
+    other_query="gogcli-smoke-$TS@example.com"
+  fi
+  run_required "contacts-other" "contacts other search" \
+    gog contacts other search "$other_query" --json --max 1 >/dev/null
+}
+
 run_contacts_tests() {
   if skip "contacts"; then
     echo "==> contacts (skipped)"
@@ -26,11 +43,10 @@ run_contacts_tests() {
 
   if is_consumer_account "$ACCOUNT"; then
     echo "==> contacts directory (skipped; Workspace only)"
-    echo "==> contacts other (skipped; Workspace only)"
   else
     run_optional "contacts-directory" "contacts directory list" gog contacts directory list --json --max 1 >/dev/null
     run_optional "contacts-directory" "contacts directory search" gog contacts directory search "gogcli" --json --max 1 >/dev/null
-    run_optional "contacts-other" "contacts other list" gog contacts other list --json --max 1 >/dev/null
-    run_optional "contacts-other" "contacts other search" gog contacts other search "gogcli" --json --max 1 >/dev/null
   fi
+
+  run_contacts_other_tests
 }

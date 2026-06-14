@@ -387,3 +387,70 @@ func TestExecute_MeetParticipants_JSON(t *testing.T) {
 		t.Fatalf("unexpected participants: %#v", parsed.Participants)
 	}
 }
+
+func TestExecute_MeetEmptyLists_JSON(t *testing.T) {
+	participantListCalled := false
+	svc := newTestMeetService(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/v2/spaces/abc-defg-hij" && r.Method == http.MethodGet:
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(meetSpaceResponse())
+		case r.URL.Path == "/v2/conferenceRecords" && r.Method == http.MethodGet:
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{})
+		case strings.Contains(r.URL.Path, "/participants"):
+			participantListCalled = true
+			http.Error(w, "unexpected participant list", http.StatusInternalServerError)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+
+	tests := []struct {
+		name  string
+		args  []string
+		field string
+	}{
+		{
+			name:  "history",
+			args:  []string{"meet", "history", "abc-defg-hij"},
+			field: "conferences",
+		},
+		{
+			name:  "participants",
+			args:  []string{"meet", "participants", "abc-defg-hij"},
+			field: "participants",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			baseArgs := append([]string{"--json", "--account", "a@b.com"}, tt.args...)
+			result := executeWithMeetTestService(t, baseArgs, svc)
+			if result.err != nil {
+				t.Fatalf("Execute: %v", result.err)
+			}
+			assertMeetEmptyJSONArray(t, result.stdout, tt.field)
+
+			failEmptyArgs := append(append([]string{}, baseArgs...), "--fail-empty")
+			failEmptyResult := executeWithMeetTestService(t, failEmptyArgs, svc)
+			if code := ExitCode(failEmptyResult.err); code != 3 {
+				t.Fatalf("fail-empty exit = %d, want 3; err=%v", code, failEmptyResult.err)
+			}
+			assertMeetEmptyJSONArray(t, failEmptyResult.stdout, tt.field)
+		})
+	}
+	if participantListCalled {
+		t.Fatal("participant list API called without a conference record")
+	}
+}
+
+func assertMeetEmptyJSONArray(t *testing.T, output, field string) {
+	t.Helper()
+	var parsed map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(output), &parsed); err != nil {
+		t.Fatalf("json parse: %v\nout=%q", err, output)
+	}
+	if got := string(parsed[field]); got != "[]" {
+		t.Fatalf("%s = %s, want []", field, got)
+	}
+}

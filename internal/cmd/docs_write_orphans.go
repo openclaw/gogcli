@@ -9,6 +9,7 @@ import (
 	"google.golang.org/api/docs/v1"
 	"google.golang.org/api/drive/v3"
 
+	"github.com/steipete/gogcli/internal/docsedit"
 	"github.com/steipete/gogcli/internal/docsmarkdown"
 	"github.com/steipete/gogcli/internal/outfmt"
 	"github.com/steipete/gogcli/internal/ui"
@@ -33,7 +34,7 @@ func findDocsWriteMarkdownOrphans(
 	driveSvc *drive.Service,
 	docsSvc *docs.Service,
 	docID string,
-	content string,
+	markdown preparedMarkdown,
 	tabQuery string,
 	wholeDocument bool,
 ) ([]docsWriteOrphanComment, string, error) {
@@ -63,7 +64,7 @@ func findDocsWriteMarkdownOrphans(
 		return nil, "", fmt.Errorf("list document comments: %w", err)
 	}
 
-	outgoing := docsWriteMarkdownDocument(content)
+	outgoing := docsWriteMarkdownDocument(markdown)
 	locator := DocsCommentsLocateCmd{NormalizeWhitespace: true}
 	var orphans []docsWriteOrphanComment
 	for _, comment := range comments {
@@ -123,7 +124,7 @@ func docsWriteOrphanTargetTabID(doc *docs.Document, tabQuery string, wholeDocume
 	return tab.TabProperties.TabId, nil
 }
 
-func docsWriteCommentTouchesTarget(matches []docsTextRangeMatch, targetTabID string, wholeDocument bool) bool {
+func docsWriteCommentTouchesTarget(matches []docsedit.TextRange, targetTabID string, wholeDocument bool) bool {
 	if wholeDocument {
 		return len(matches) > 0
 	}
@@ -135,9 +136,9 @@ func docsWriteCommentTouchesTarget(matches []docsTextRangeMatch, targetTabID str
 	return false
 }
 
-func docsWriteMarkdownDocument(content string) *docs.Document {
-	cleaned, images := extractMarkdownImages(content)
-	for _, image := range images {
+func docsWriteMarkdownDocument(markdown preparedMarkdown) *docs.Document {
+	cleaned := markdown.cleaned
+	for _, image := range markdown.images {
 		cleaned = strings.ReplaceAll(cleaned, image.placeholder(), "")
 	}
 

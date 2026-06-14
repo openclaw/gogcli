@@ -188,11 +188,19 @@ func TestInsertDocsMarkdownAt_AppendsTable_IssueRepro(t *testing.T) {
 	}, "\n")
 
 	// Initial body is "Existing\n" (9 chars), so the document endIndex is 10
-	// and docsAppendIndex(10) = 9.
+	// and docsedit.AppendIndex(10) = 9.
 	const insertIdx int64 = 9
 
-	if _, _, err := insertDocsMarkdownAt(context.Background(), svc, "doc1", insertIdx, markdown, ""); err != nil {
-		t.Fatalf("insertDocsMarkdownAt: %v", err)
+	if _, err := insertPreparedDocsMarkdownAt(
+		context.Background(),
+		svc,
+		"doc1",
+		insertIdx,
+		prepareMarkdown(markdown),
+		"",
+		false,
+	); err != nil {
+		t.Fatalf("insertPreparedDocsMarkdownAt: %v", err)
 	}
 
 	if !fake.hasTable {
@@ -295,8 +303,16 @@ func TestInsertDocsMarkdownAt_AppendsTableWithLeadingParagraph(t *testing.T) {
 
 	const insertIdx int64 = 9
 
-	if _, _, err := insertDocsMarkdownAt(context.Background(), svc, "doc1", insertIdx, markdown, ""); err != nil {
-		t.Fatalf("insertDocsMarkdownAt: %v", err)
+	if _, err := insertPreparedDocsMarkdownAt(
+		context.Background(),
+		svc,
+		"doc1",
+		insertIdx,
+		prepareMarkdown(markdown),
+		"",
+		false,
+	); err != nil {
+		t.Fatalf("insertPreparedDocsMarkdownAt: %v", err)
 	}
 	if !fake.hasTable {
 		t.Fatalf("expected InsertTable request for trailing table; batches=%#v", fake.batchCalls)
@@ -466,7 +482,15 @@ func TestInsertDocsMarkdownAt_TableErrorIsActionable(t *testing.T) {
 	}
 
 	markdown := "| a | b |\n|---|---|\n| 1 | 2 |\n"
-	_, _, err = insertDocsMarkdownAt(context.Background(), svc, "doc1", 9, markdown, "")
+	_, err = insertPreparedDocsMarkdownAt(
+		context.Background(),
+		svc,
+		"doc1",
+		9,
+		prepareMarkdown(markdown),
+		"",
+		false,
+	)
 	if err == nil {
 		t.Fatal("expected error from Docs API rejection; got nil")
 	}

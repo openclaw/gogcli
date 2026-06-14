@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/steipete/gogcli/internal/docsedit"
 	"github.com/steipete/gogcli/internal/outfmt"
 	"github.com/steipete/gogcli/internal/ui"
 )
@@ -85,7 +86,7 @@ func (c *DocsInsertTableCmd) Run(ctx context.Context, flags *RootFlags) error {
 			return endErr
 		}
 		c.Tab = tabID
-		insertIndex = docsAppendIndex(endIndex)
+		insertIndex = docsedit.AppendIndex(endIndex)
 	} else {
 		insertIndex = *c.Index
 		if c.Tab != "" {

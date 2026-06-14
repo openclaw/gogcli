@@ -35,6 +35,15 @@ func TestHelpSnapshot_Auth(t *testing.T) {
 	)
 }
 
+func TestHelpSnapshot_AuthImport(t *testing.T) {
+	out := captureHelpOutput(t, "auth", "import", "--help")
+	requireHelpContains(t, out,
+		"required refresh token",
+		"requires a refresh-token source",
+		"optional access token",
+	)
+}
+
 func TestHelpSnapshot_DocsUpdate(t *testing.T) {
 	out := captureHelpOutput(t, "docs", "update", "--help")
 	requireHelpContains(t, out,

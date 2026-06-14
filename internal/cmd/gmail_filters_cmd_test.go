@@ -22,13 +22,13 @@ func TestGmailFiltersCreate_Validation(t *testing.T) {
 	flags := &RootFlags{Account: "a@b.com", Force: true}
 
 	cmd := &GmailFiltersCreateCmd{}
-	if err := runKong(t, cmd, []string{}, context.Background(), flags); err == nil {
-		t.Fatalf("expected missing criteria error")
+	if err := runKong(t, cmd, []string{}, context.Background(), flags); err == nil || ExitCode(err) != 2 {
+		t.Fatalf("expected missing criteria usage error, got %v", err)
 	}
 
 	cmd = &GmailFiltersCreateCmd{}
-	if err := runKong(t, cmd, []string{"--from", "a@example.com"}, context.Background(), flags); err == nil {
-		t.Fatalf("expected missing action error")
+	if err := runKong(t, cmd, []string{"--from", "a@example.com"}, context.Background(), flags); err == nil || ExitCode(err) != 2 {
+		t.Fatalf("expected missing action usage error, got %v", err)
 	}
 }
 

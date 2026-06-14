@@ -4,6 +4,8 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/alecthomas/kong"
 )
 
 func TestRootDesirePathsHelpParses(t *testing.T) {
@@ -112,6 +114,7 @@ func TestDesirePaths_CursorAlias_Parses(t *testing.T) {
 }
 
 func TestDesirePaths_RewriteFields_KeepsCalendarEventsWithGlobalFlagValue(t *testing.T) {
+	model := desirePathModel(t)
 	cases := [][]string{
 		{"--account", "foo@example.com", "calendar", "events", "--fields", "items(id)"},
 		{"--home", "/tmp/gog-home", "calendar", "events", "--fields", "items(id)"},
@@ -120,7 +123,7 @@ func TestDesirePaths_RewriteFields_KeepsCalendarEventsWithGlobalFlagValue(t *tes
 	for _, in := range cases {
 		in := in
 		t.Run(strings.Join(in, " "), func(t *testing.T) {
-			got := rewriteDesirePathArgs(in)
+			got := rewriteDesirePathArgs(model, in)
 			if !reflect.DeepEqual(got, in) {
 				t.Fatalf("unexpected rewrite: got=%v want=%v", got, in)
 			}
@@ -130,7 +133,7 @@ func TestDesirePaths_RewriteFields_KeepsCalendarEventsWithGlobalFlagValue(t *tes
 
 func TestDesirePaths_RewriteFields_RewritesNonCalendarCommands(t *testing.T) {
 	in := []string{"--account", "foo@example.com", "gmail", "search", "newer_than:1d", "--fields=id,name"}
-	got := rewriteDesirePathArgs(in)
+	got := rewriteDesirePathArgs(desirePathModel(t), in)
 	want := []string{"--account", "foo@example.com", "gmail", "search", "newer_than:1d", "--select=id,name"}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("unexpected rewrite: got=%v want=%v", got, want)
@@ -138,6 +141,7 @@ func TestDesirePaths_RewriteFields_RewritesNonCalendarCommands(t *testing.T) {
 }
 
 func TestDesirePaths_RewriteFields_KeepsCommandsWithLocalFields(t *testing.T) {
+	model := desirePathModel(t)
 	cases := [][]string{
 		{"ls", "--fields=files(id,name)"},
 		{"list", "--fields=files(id,name)"},
@@ -153,7 +157,7 @@ func TestDesirePaths_RewriteFields_KeepsCommandsWithLocalFields(t *testing.T) {
 	for _, in := range cases {
 		in := in
 		t.Run(strings.Join(in, " "), func(t *testing.T) {
-			got := rewriteDesirePathArgs(in)
+			got := rewriteDesirePathArgs(model, in)
 			if !reflect.DeepEqual(got, in) {
 				t.Fatalf("unexpected rewrite: got=%v want=%v", got, in)
 			}
@@ -163,7 +167,7 @@ func TestDesirePaths_RewriteFields_KeepsCommandsWithLocalFields(t *testing.T) {
 
 func TestDesirePaths_RewriteFields_RewritesGlobalPositionFields(t *testing.T) {
 	in := []string{"--fields=id,name", "drive", "ls"}
-	got := rewriteDesirePathArgs(in)
+	got := rewriteDesirePathArgs(desirePathModel(t), in)
 	want := []string{"--select=id,name", "drive", "ls"}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("unexpected rewrite: got=%v want=%v", got, want)
@@ -172,7 +176,7 @@ func TestDesirePaths_RewriteFields_RewritesGlobalPositionFields(t *testing.T) {
 
 func TestDesirePaths_RewriteFields_DoesNotRewriteAfterDoubleDash(t *testing.T) {
 	in := []string{"open", "--", "--fields"}
-	got := rewriteDesirePathArgs(in)
+	got := rewriteDesirePathArgs(desirePathModel(t), in)
 	if !reflect.DeepEqual(got, in) {
 		t.Fatalf("unexpected rewrite: got=%v want=%v", got, in)
 	}
@@ -180,13 +184,14 @@ func TestDesirePaths_RewriteFields_DoesNotRewriteAfterDoubleDash(t *testing.T) {
 
 func TestDesirePaths_RewriteFields_KeepsCalendarEventsAlias(t *testing.T) {
 	in := []string{"-a", "foo@example.com", "cal", "ls", "--fields", "items(id)"}
-	got := rewriteDesirePathArgs(in)
+	got := rewriteDesirePathArgs(desirePathModel(t), in)
 	if !reflect.DeepEqual(got, in) {
 		t.Fatalf("unexpected rewrite: got=%v want=%v", got, in)
 	}
 }
 
 func TestDesirePaths_RewriteFields_KeepsCalendarEventsWithPickAndProject(t *testing.T) {
+	model := desirePathModel(t)
 	cases := [][]string{
 		{"--pick", "id", "calendar", "events", "--fields", "items(id)"},
 		{"--project", "id", "calendar", "events", "--fields", "items(id)"},
@@ -194,12 +199,112 @@ func TestDesirePaths_RewriteFields_KeepsCalendarEventsWithPickAndProject(t *test
 	for _, in := range cases {
 		in := in
 		t.Run(strings.Join(in, " "), func(t *testing.T) {
-			got := rewriteDesirePathArgs(in)
+			got := rewriteDesirePathArgs(model, in)
 			if !reflect.DeepEqual(got, in) {
 				t.Fatalf("unexpected rewrite: got=%v want=%v", got, in)
 			}
 		})
 	}
+}
+
+func TestDesirePaths_RewriteFields_KeepsEveryModelOwnedFieldsFlag(t *testing.T) {
+	model := desirePathModel(t)
+	paths := localFlagCommandPaths(model.Node, "fields")
+	if len(paths) == 0 {
+		t.Fatal("expected commands with local --fields flags")
+	}
+	for _, path := range paths {
+		path := path
+		t.Run(strings.Join(path, " "), func(t *testing.T) {
+			in := append(append([]string(nil), path...), "--fields=id,name")
+			if got := rewriteDesirePathArgs(model, in); !reflect.DeepEqual(got, in) {
+				t.Fatalf("unexpected rewrite: got=%v want=%v", got, in)
+			}
+		})
+	}
+}
+
+func TestDesirePaths_RewriteFields_DoesNotMutateModelActivation(t *testing.T) {
+	model := desirePathModel(t)
+	before := modelFlagActivation(model.Node)
+
+	_ = rewriteDesirePathArgs(model, []string{
+		"--account", "foo@example.com",
+		"drive", "ls", "--max", "1",
+		"--fields=files(id,name)",
+	})
+
+	if after := modelFlagActivation(model.Node); !reflect.DeepEqual(after, before) {
+		t.Fatalf("model flag activation changed: before=%v after=%v", before, after)
+	}
+}
+
+func desirePathModel(t *testing.T) *kong.Application {
+	t.Helper()
+	parser, _, err := newParser("test parser")
+	if err != nil {
+		t.Fatalf("newParser: %v", err)
+	}
+	return parser.Model
+}
+
+func modelFlagActivation(root *kong.Node) map[*kong.Flag]bool {
+	active := make(map[*kong.Flag]bool)
+	var walk func(*kong.Node)
+	walk = func(node *kong.Node) {
+		for _, flag := range node.Flags {
+			active[flag] = flag.Active
+		}
+		for _, child := range node.Children {
+			walk(child)
+		}
+	}
+	walk(root)
+	return active
+}
+
+func localFlagCommandPaths(root *kong.Node, flagName string) [][]string {
+	var paths [][]string
+	var walk func(*kong.Node, []string)
+	walk = func(node *kong.Node, prefixes []string) {
+		for _, child := range node.Children {
+			if child.Type != kong.CommandNode {
+				continue
+			}
+			spellings := acceptedCommandSpellings(node, child)
+			childPrefixes := make([]string, 0, len(prefixes)*len(spellings))
+			for _, prefix := range prefixes {
+				for _, spelling := range spellings {
+					childPrefixes = append(childPrefixes, strings.TrimSpace(prefix+" "+spelling))
+				}
+			}
+			if nodeHasLocalFlag(child, flagName) {
+				for _, path := range childPrefixes {
+					paths = append(paths, strings.Fields(path))
+				}
+			}
+			walk(child, childPrefixes)
+		}
+	}
+	walk(root, []string{""})
+	return paths
+}
+
+func acceptedCommandSpellings(parent, child *kong.Node) []string {
+	spellings := []string{child.Name}
+	for _, alias := range child.Aliases {
+		conflicts := false
+		for _, sibling := range parent.Children {
+			if sibling.Type == kong.CommandNode && sibling.Name == alias {
+				conflicts = true
+				break
+			}
+		}
+		if !conflicts {
+			spellings = append(spellings, alias)
+		}
+	}
+	return spellings
 }
 
 func TestDesirePaths_CalendarAliases_AreUnambiguous(t *testing.T) {

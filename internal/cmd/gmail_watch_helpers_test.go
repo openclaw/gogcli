@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/steipete/gogcli/internal/config"
+	"github.com/steipete/gogcli/internal/gmailwatch"
 	"github.com/steipete/gogcli/internal/outfmt"
 	"github.com/steipete/gogcli/internal/ui"
 )
@@ -39,6 +40,50 @@ func newGmailWatchTestStore(t *testing.T, account string) *gmailWatchStore {
 		t.Fatalf("new watch store: %v", err)
 	}
 	return store
+}
+
+func newMemoryGmailWatchTestStore(state gmailWatchState) *gmailWatchStore {
+	return gmailwatch.NewMemory(state, gmailwatch.Options{})
+}
+
+func newEmptyGmailWatchTestStore() *gmailWatchStore {
+	return gmailwatch.New("", gmailwatch.Options{})
+}
+
+func TestReadGmailWatchStateOptionalMatchesLayoutSelection(t *testing.T) {
+	root := t.TempDir()
+	layout := config.Layout{
+		ConfigDir: filepath.Join(root, "config"),
+		StateDir:  filepath.Join(root, "state"),
+	}
+	account := "a@b.com"
+	name := sanitizeAccountForPath(account) + ".json"
+	for path, maxBytes := range map[string]int{
+		filepath.Join(layout.PrimaryGmailWatchDir(), name): 111,
+		filepath.Join(layout.LegacyGmailWatchDir(), name):  222,
+	} {
+		if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+			t.Fatalf("mkdir state: %v", err)
+		}
+		payload, err := json.Marshal(gmailWatchState{
+			Account: account,
+			Hook:    &gmailWatchHook{URL: "https://example.com/hook", MaxBytes: maxBytes},
+		})
+		if err != nil {
+			t.Fatalf("marshal state: %v", err)
+		}
+		if err := os.WriteFile(path, payload, 0o600); err != nil {
+			t.Fatalf("write state: %v", err)
+		}
+	}
+
+	state, found, err := readGmailWatchStateOptionalForLayout(layout, account)
+	if err != nil {
+		t.Fatalf("read optional state: %v", err)
+	}
+	if !found || state.Hook == nil || state.Hook.MaxBytes != 222 {
+		t.Fatalf("state = %#v, found=%t; want legacy layout state", state, found)
+	}
 }
 
 func loadGmailWatchTestStore(t *testing.T, account string) *gmailWatchStore {
@@ -169,8 +214,8 @@ func TestGmailWatchStore_StateHelpers(t *testing.T) {
 	setWatchTestConfigHome(t)
 
 	store := newGmailWatchTestStore(t, "User+X@Example.COM")
-	if !strings.Contains(store.path, "user_x_example_com.json") {
-		t.Fatalf("unexpected path: %s", store.path)
+	if !strings.Contains(store.Path(), "user_x_example_com.json") {
+		t.Fatalf("unexpected path: %s", store.Path())
 	}
 	id, startErr := store.StartHistoryID("101")
 	if startErr != nil {
@@ -179,7 +224,7 @@ func TestGmailWatchStore_StateHelpers(t *testing.T) {
 	if id != 101 {
 		t.Fatalf("expected history id 101, got %d", id)
 	}
-	if store.state.HistoryID != "101" {
+	if store.Get().HistoryID != "101" {
 		t.Fatalf("expected history set")
 	}
 	id, startErr = store.StartHistoryID("")
@@ -196,7 +241,7 @@ func TestGmailWatchStore_StateHelpers(t *testing.T) {
 	if id != 0 {
 		t.Fatalf("expected stale history ignored, got %d", id)
 	}
-	if store.state.HistoryID != "101" {
+	if store.Get().HistoryID != "101" {
 		t.Fatalf("expected history unchanged")
 	}
 	id, startErr = store.StartHistoryID("bad")
@@ -216,7 +261,7 @@ func TestGmailWatchStore_StateHelpers(t *testing.T) {
 }
 
 func TestGmailWatchStore_SaveMissingPath(t *testing.T) {
-	store := &gmailWatchStore{}
+	store := newEmptyGmailWatchTestStore()
 	if err := store.Save(); err == nil {
 		t.Fatalf("expected error")
 	}

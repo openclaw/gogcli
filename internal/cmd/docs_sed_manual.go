@@ -3,11 +3,10 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"regexp"
-	"strings"
 
 	"google.golang.org/api/docs/v1"
 
+	"github.com/steipete/gogcli/internal/docssed"
 	"github.com/steipete/gogcli/internal/ui"
 )
 
@@ -24,7 +23,7 @@ func (c *DocsSedCmd) runManual(ctx context.Context, u *ui.UI, account, id string
 
 	// Apply deferred bullet requests via re-fetch to get current positions
 	if len(bulletReqs) > 0 {
-		if err := c.applyDeferredBullets(ctx, docsSvc, id); err != nil {
+		if err := docssed.NewServiceExecutor(docsSvc).ApplyDeferredBullets(ctx, id); err != nil {
 			return fmt.Errorf("apply bullets: %w", err)
 		}
 	}
@@ -32,128 +31,24 @@ func (c *DocsSedCmd) runManual(ctx context.Context, u *ui.UI, account, id string
 	return sedOutputOK(ctx, u, id, sedOutputKV{"replaced", count})
 }
 
-// runManualInner is like runManual but reuses an existing docsSvc and returns count
-// plus any deferred bullet requests. Bullet requests are returned separately so that
-// the caller can merge consecutive same-preset bullets into a single request —
-// required for Google Docs to interpret leading \t as nesting levels.
-// sedMatch represents a single regex match found in the document with its replacement info.
-type sedMatch struct {
-	start, end int64
-	oldText    string
-	newText    string
-	formats    []string
-	image      *ImageSpec
-	braceExpr  *braceExpr   // SEDMAT v3.5 brace expression
-	braceSpans []*braceSpan // Inline scoping spans
-}
-
-// findDocMatches walks the document content, finds all regex matches, and returns them.
-// It also handles nth-match filtering and global vs single-match logic.
-func findDocMatches(doc *docs.Document, re *regexp.Regexp, expr sedExpr) []sedMatch {
-	var matches []sedMatch
-
-	var walkContent func(content []*docs.StructuralElement)
-	walkContent = func(content []*docs.StructuralElement) {
-		for _, elem := range content {
-			if elem.Paragraph != nil {
-				for _, pe := range elem.Paragraph.Elements {
-					if pe.TextRun == nil || pe.TextRun.Content == "" {
-						continue
-					}
-					text := pe.TextRun.Content
-					baseIdx := pe.StartIndex
-					limit := -1
-					if !expr.global && expr.nthMatch <= 0 {
-						limit = 1
-					}
-					results := re.FindAllStringSubmatchIndex(text, limit)
-					for _, loc := range results {
-						oldText := text[loc[0]:loc[1]]
-						expanded := re.ReplaceAllString(oldText, expr.replacement)
-						matches = append(matches, classifyMatch(baseIdx, text, loc, oldText, expanded, expr))
-					}
-				}
-			}
-			if elem.Table != nil {
-				for _, row := range elem.Table.TableRows {
-					for _, cell := range row.TableCells {
-						walkContent(cell.Content)
-					}
-				}
-			}
-		}
-	}
-
-	if doc.Body != nil {
-		walkContent(doc.Body.Content)
-	}
-
-	// If nth-match is set, keep only the Nth occurrence across the whole document
-	if expr.nthMatch > 0 {
-		if len(matches) >= expr.nthMatch {
-			return matches[expr.nthMatch-1 : expr.nthMatch]
-		}
+func findDocActions(doc *docs.Document, planner *docssed.MatchPlanner) []docssed.MatchAction {
+	projection := docssed.ProjectDocument(doc)
+	if projection.Legacy == nil {
 		return nil
 	}
-
-	return matches
-}
-
-// classifyMatch creates a sedMatch from a regex match, determining if it's an image,
-// brace expression, or plain text replacement.
-func classifyMatch(baseIdx int64, text string, loc []int, oldText, expanded string, expr sedExpr) sedMatch {
-	start, end := matchDocsRange(baseIdx, text, loc)
-
-	// Fast path: only attempt image parsing if replacement starts with ![
-	var imgSpec *ImageSpec
-	if strings.HasPrefix(expanded, "![") {
-		imgSpec = parseImageSyntax(expanded)
-	}
-	switch {
-	case imgSpec != nil:
-		return sedMatch{start: start, end: end, oldText: oldText, image: imgSpec}
-	case expr.brace != nil && expr.brace.ImgRef != "":
-		// Brace image: {img=url x=W y=H}
-		spec := &ImageSpec{URL: expr.brace.ImgRef}
-		if expr.brace.Width > 0 {
-			spec.Width = expr.brace.Width
-		}
-		if expr.brace.Height > 0 {
-			spec.Height = expr.brace.Height
-		}
-		return sedMatch{start: start, end: end, oldText: oldText, image: spec}
-	case expr.brace != nil:
-		return sedMatch{
-			start:      start,
-			end:        end,
-			oldText:    oldText,
-			newText:    expanded,
-			formats:    braceExprToFormats(expr.brace),
-			braceExpr:  expr.brace,
-			braceSpans: expr.braceSpans,
-		}
-	default:
-		plainText, formats := parseMarkdownReplacement(expanded)
-		return sedMatch{start: start, end: end, oldText: oldText, newText: plainText, formats: formats}
-	}
-}
-
-func matchDocsRange(baseIdx int64, text string, loc []int) (int64, int64) {
-	start := baseIdx + utf16Len(text[:loc[0]])
-	end := start + utf16Len(text[loc[0]:loc[1]])
-	return start, end
+	return planner.PlanSegment(*projection.Legacy)
 }
 
 // processFootnotes handles footnote matches, each needing a two-phase create+populate approach.
-func processFootnotes(ctx context.Context, docsSvc *docs.Service, id string, footnoteMatches []sedMatch) error {
-	for i := len(footnoteMatches) - 1; i >= 0; i-- {
-		m := footnoteMatches[i]
+func processFootnotes(ctx context.Context, docsSvc *docs.Service, id string, footnotes []docssed.FootnoteMutation) error {
+	for i := len(footnotes) - 1; i >= 0; i-- {
+		footnote := footnotes[i]
 		fnReqs := []*docs.Request{
 			{DeleteContentRange: &docs.DeleteContentRangeRequest{
-				Range: &docs.Range{StartIndex: m.start, EndIndex: m.end},
+				Range: &docs.Range{StartIndex: footnote.StartIndex, EndIndex: footnote.EndIndex},
 			}},
 			{CreateFootnote: &docs.CreateFootnoteRequest{
-				Location: &docs.Location{Index: m.start},
+				Location: &docs.Location{Index: footnote.StartIndex},
 			}},
 		}
 		resp, err := batchUpdate(ctx, docsSvc, id, fnReqs)
@@ -171,7 +66,7 @@ func processFootnotes(ctx context.Context, docsSvc *docs.Service, id string, foo
 								Index:     1, // footnote body starts at index 1
 								SegmentId: fnID,
 							},
-							Text: m.newText,
+							Text: footnote.Text,
 						}},
 					}
 					if _, err := batchUpdate(ctx, docsSvc, id, fnTextReqs); err != nil {
@@ -185,19 +80,12 @@ func processFootnotes(ctx context.Context, docsSvc *docs.Service, id string, foo
 	return nil
 }
 
-// formatRange tracks a text range that needs formatting applied after insertion.
-type formatRange struct {
-	start, end int64
-	formats    []string
-	hasTab     bool         // replacement text starts with \t (nested list item)
-	braceExpr  *braceExpr   // SEDMAT v3.5 brace expression
-	braceSpans []*braceSpan // Inline scoping spans
-}
-
+// runManualInner is like runManual but reuses an existing docsSvc and returns count
+// plus deferred bullet requests that need a post-mutation document fetch.
 func (c *DocsSedCmd) runManualInner(ctx context.Context, docsSvc *docs.Service, id string, expr sedExpr) (int, []*docs.Request, error) {
-	re, err := expr.compilePattern()
+	planner, err := docssed.NewMatchPlanner(semanticExpressionFromSedExpr(expr))
 	if err != nil {
-		return 0, nil, fmt.Errorf("compile pattern: %w", err)
+		return 0, nil, err
 	}
 
 	doc, err := getDoc(ctx, docsSvc, id)
@@ -205,39 +93,22 @@ func (c *DocsSedCmd) runManualInner(ctx context.Context, docsSvc *docs.Service, 
 		return 0, nil, fmt.Errorf("get document: %w", err)
 	}
 
-	matches := findDocMatches(doc, re, expr)
-	if len(matches) == 0 {
+	plan := docssed.PlanTextMutations(findDocActions(doc, planner))
+	if plan.MatchCount == 0 {
 		return 0, nil, nil
 	}
 
-	// Build requests in reverse order
 	var requests []*docs.Request
-	var formatRanges []formatRange
-
-	// Separate footnote and image matches — they need special handling
-	var footnoteMatches []sedMatch
-	var imageMatches []sedMatch
-	var regularMatches []sedMatch
-	for _, m := range matches {
-		switch {
-		case containsFormat(m.formats, "footnote"):
-			footnoteMatches = append(footnoteMatches, m)
-		case m.image != nil:
-			imageMatches = append(imageMatches, m)
-		default:
-			regularMatches = append(regularMatches, m)
-		}
-	}
 
 	// Process image matches individually — Google Docs API cannot handle
 	// DeleteContentRange + InsertInlineImage in the same batch request
 	// (it fails to fetch the image URL when combined with other operations).
-	for i := len(imageMatches) - 1; i >= 0; i-- {
-		m := imageMatches[i]
+	for i := len(plan.Images) - 1; i >= 0; i-- {
+		image := plan.Images[i]
 		// First: delete the matched text
 		deleteReqs := []*docs.Request{{
 			DeleteContentRange: &docs.DeleteContentRangeRequest{
-				Range: &docs.Range{StartIndex: m.start, EndIndex: m.end},
+				Range: &docs.Range{StartIndex: image.StartIndex, EndIndex: image.EndIndex},
 			},
 		}}
 		if _, err2 := batchUpdate(ctx, docsSvc, id, deleteReqs); err2 != nil {
@@ -245,69 +116,65 @@ func (c *DocsSedCmd) runManualInner(ctx context.Context, docsSvc *docs.Service, 
 		}
 		// Then: insert image in a separate API call
 		imgReq := &docs.InsertInlineImageRequest{
-			Uri:        m.image.URL,
-			Location:   &docs.Location{Index: m.start},
-			ObjectSize: buildImageSizeSpec(m.image),
+			Uri:        image.Image.URL,
+			Location:   &docs.Location{Index: image.StartIndex},
+			ObjectSize: buildImageSizeSpec(image.Image),
 		}
 		if _, err2 := batchUpdate(ctx, docsSvc, id, []*docs.Request{{InsertInlineImage: imgReq}}); err2 != nil {
-			return 0, nil, fmt.Errorf("image insert (url=%s idx=%d): %w", m.image.URL, m.start, err2)
+			return 0, nil, fmt.Errorf(
+				"image insert (url=%s idx=%d): %w",
+				image.Image.URL,
+				image.StartIndex,
+				err2,
+			)
 		}
 	}
 
-	for i := len(regularMatches) - 1; i >= 0; i-- {
-		m := regularMatches[i]
+	for i := len(plan.TextEdits) - 1; i >= 0; i-- {
+		edit := plan.TextEdits[i]
 		requests = append(requests, &docs.Request{
 			DeleteContentRange: &docs.DeleteContentRangeRequest{
-				Range: &docs.Range{StartIndex: m.start, EndIndex: m.end},
+				Range: &docs.Range{StartIndex: edit.StartIndex, EndIndex: edit.EndIndex},
 			},
 		})
 
 		switch {
-		case containsFormat(m.formats, "hrule"):
+		case edit.HorizontalRule:
 			// Horizontal rule: insert a newline, then style it with a bottom border
 			requests = append(requests, &docs.Request{
 				InsertText: &docs.InsertTextRequest{
-					Location: &docs.Location{Index: m.start},
+					Location: &docs.Location{Index: edit.StartIndex},
 					Text:     "\n",
 				},
 			})
-			requests = append(requests, buildHruleBorderRequest(m.start, m.start+1))
+			requests = append(requests, buildHruleBorderRequest(edit.StartIndex, edit.StartIndex+1))
 		default:
-			if m.newText != "" {
+			if edit.InsertText != "" {
 				requests = append(requests, &docs.Request{
 					InsertText: &docs.InsertTextRequest{
-						Location: &docs.Location{Index: m.start},
-						Text:     m.newText,
+						Location: &docs.Location{Index: edit.StartIndex},
+						Text:     edit.InsertText,
 					},
-				})
-			}
-
-			if m.newText != "" && (len(m.formats) > 0 || m.braceExpr != nil) {
-				fmts := m.formats
-				if containsFormat(fmts, "codeblock") {
-					fmts = append(fmts, "code")
-				}
-				formatRanges = append(formatRanges, formatRange{
-					start:      m.start,
-					end:        m.start + utf16Len(m.newText),
-					formats:    fmts,
-					hasTab:     strings.HasPrefix(m.newText, "\t"),
-					braceExpr:  m.braceExpr,
-					braceSpans: m.braceSpans,
 				})
 			}
 		}
 	}
 
 	// Add text-level formatting (bold, italic, code, super/sub, etc.)
-	for _, fr := range formatRanges {
-		if fr.braceExpr != nil {
+	for _, formatting := range plan.Formatting {
+		if formatting.Brace != nil {
 			// SEDMAT v3.5 brace syntax path
-			requests = append(requests, buildBraceTextStyleRequests(fr.braceExpr, fr.start, fr.end)...)
+			requests = append(
+				requests,
+				buildBraceTextStyleRequests(formatting.Brace, formatting.StartIndex, formatting.EndIndex)...,
+			)
 			// Handle inline scoping spans
-			requests = append(requests, buildBraceInlineRequests(fr.braceSpans, fr.start)...)
+			requests = append(requests, buildBraceInlineRequests(formatting.BraceSpans, formatting.StartIndex)...)
 		} else {
-			requests = append(requests, buildTextStyleRequests(fr.formats, fr.start, fr.end)...)
+			requests = append(
+				requests,
+				buildTextStyleRequests(formatting.Formats, formatting.StartIndex, formatting.EndIndex)...,
+			)
 		}
 	}
 
@@ -318,14 +185,21 @@ func (c *DocsSedCmd) runManualInner(ctx context.Context, docsSvc *docs.Service, 
 	// for Google Docs to interpret leading \t as nesting levels.
 	var paraRequests []*docs.Request
 	var deferredBullets []*docs.Request
-	for _, fr := range formatRanges {
-		paraEnd := fr.end + 1
+	for _, formatting := range plan.Formatting {
+		paraEnd := formatting.EndIndex + 1
 		// Use brace paragraph formatting if available
-		if fr.braceExpr != nil && hasBraceParagraphFormat(fr.braceExpr) {
-			paraRequests = append(paraRequests, buildBraceParagraphStyleRequests(fr.braceExpr, fr.start, paraEnd)...)
+		if formatting.Brace != nil && hasBraceParagraphFormat(formatting.Brace) {
+			paraRequests = append(
+				paraRequests,
+				buildBraceParagraphStyleRequests(formatting.Brace, formatting.StartIndex, paraEnd)...,
+			)
 		} else {
-			for _, req := range buildParagraphStyleRequests(fr.formats, fr.start, paraEnd) {
-				if req.CreateParagraphBullets != nil && fr.hasTab {
+			for _, req := range buildParagraphStyleRequests(
+				formatting.Formats,
+				formatting.StartIndex,
+				paraEnd,
+			) {
+				if req.CreateParagraphBullets != nil && formatting.LeadingTab {
 					// Nested bullets (have \t) are deferred so the caller can merge
 					// them with adjacent L0 bullets for proper nesting.
 					deferredBullets = append(deferredBullets, req)
@@ -347,12 +221,12 @@ func (c *DocsSedCmd) runManualInner(ctx context.Context, docsSvc *docs.Service, 
 	}
 
 	// Handle footnotes — each needs create + populate, processed individually in reverse
-	if err = processFootnotes(ctx, docsSvc, id, footnoteMatches); err != nil {
+	if err = processFootnotes(ctx, docsSvc, id, plan.Footnotes); err != nil {
 		return 0, nil, err
 	}
 
 	// Phase 3: insert page/section/column break if {+=X} or {break=X} is set.
-	if err = applyBreakPhase(ctx, docsSvc, id, expr, formatRanges); err != nil {
+	if err = applyBreakPhase(ctx, docsSvc, id, expr, plan.Formatting); err != nil {
 		return 0, nil, err
 	}
 
@@ -367,17 +241,25 @@ func (c *DocsSedCmd) runManualInner(ctx context.Context, docsSvc *docs.Service, 
 		// Collect all structural requests
 		var allStructuralReqs []*docs.Request
 
-		for _, fr := range formatRanges {
-			if fr.braceExpr == nil {
+		for _, formatting := range plan.Formatting {
+			if formatting.Brace == nil {
 				continue
 			}
 
 			// Get section boundaries for columns
-			sectionStart, sectionEnd := buildSectionRangeForMatch(freshDoc, fr.start, fr.end)
+			sectionStart, sectionEnd := buildSectionRangeForMatch(
+				freshDoc,
+				formatting.StructuralStartIndex,
+				formatting.StructuralEndIndex,
+			)
 
 			// Build structural requests
 			colReqs, bulletReqs, anchorReqs, chipReqs := buildStructuralRequests(
-				fr.braceExpr, fr.start, fr.end, sectionStart, sectionEnd,
+				formatting.Brace,
+				formatting.StructuralStartIndex,
+				formatting.StructuralEndIndex,
+				sectionStart,
+				sectionEnd,
 			)
 
 			allStructuralReqs = append(allStructuralReqs, colReqs...)
@@ -393,12 +275,18 @@ func (c *DocsSedCmd) runManualInner(ctx context.Context, docsSvc *docs.Service, 
 		}
 	}
 
-	return len(matches), deferredBullets, nil
+	return plan.MatchCount, deferredBullets, nil
 }
 
 // applyBreakPhase inserts page/section/column breaks after all text modifications.
-func applyBreakPhase(ctx context.Context, docsSvc *docs.Service, id string, expr sedExpr, formatRanges []formatRange) error {
-	if expr.brace == nil || !expr.brace.HasBreak || len(formatRanges) == 0 {
+func applyBreakPhase(
+	ctx context.Context,
+	docsSvc *docs.Service,
+	id string,
+	expr sedExpr,
+	formatting []docssed.FormatIntent,
+) error {
+	if expr.brace == nil || !expr.brace.HasBreak || len(formatting) == 0 {
 		return nil
 	}
 
@@ -407,7 +295,7 @@ func applyBreakPhase(ctx context.Context, docsSvc *docs.Service, id string, expr
 		return fmt.Errorf("get doc for break: %w", err)
 	}
 
-	lastEnd := formatRanges[len(formatRanges)-1].end
+	lastEnd := formatting[len(formatting)-1].StructuralEndIndex
 	breakIdx := lastEnd + 1
 	if freshDoc.Body != nil && len(freshDoc.Body.Content) > 0 {
 		bodyEnd := freshDoc.Body.Content[len(freshDoc.Body.Content)-1].EndIndex

@@ -19,6 +19,33 @@ func testImages(count int) []markdownImage {
 // extractMarkdownImages
 // ---------------------------------------------------------------------------
 
+func TestPrepareMarkdownExtractsImagesOnce(t *testing.T) {
+	origToken := imgPlaceholderToken
+	t.Cleanup(func() { imgPlaceholderToken = origToken })
+
+	calls := 0
+	imgPlaceholderToken = func() string {
+		calls++
+
+		return "prepared"
+	}
+
+	source := "before ![alt](https://example.com/image.png) after"
+	got := prepareMarkdown(source)
+	if calls != 1 {
+		t.Fatalf("placeholder token calls = %d, want 1", calls)
+	}
+	if got.source != source {
+		t.Fatalf("source = %q, want %q", got.source, source)
+	}
+	if got.cleaned != "before <<IMG_prepared_0>> after" {
+		t.Fatalf("cleaned = %q", got.cleaned)
+	}
+	if len(got.images) != 1 || got.images[0].placeholder() != "<<IMG_prepared_0>>" {
+		t.Fatalf("images = %#v", got.images)
+	}
+}
+
 func TestExtractMarkdownImages_NoImages(t *testing.T) {
 	origToken := imgPlaceholderToken
 	t.Cleanup(func() { imgPlaceholderToken = origToken })

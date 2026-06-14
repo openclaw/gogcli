@@ -14,13 +14,8 @@ func Cat(ctx context.Context, opts Options, shardPath string) (PlainShard, error
 	if err != nil {
 		return PlainShard{}, err
 	}
-	if !opts.SkipPull {
-		repoErr := ensureRepo(ctx, cfg)
-		if repoErr != nil {
-			return PlainShard{}, repoErr
-		}
-	} else if strings.TrimSpace(cfg.Repo) == "" {
-		return PlainShard{}, fmt.Errorf("backup repo path is required")
+	if repoErr := prepareReadRepo(ctx, cfg, opts.SkipPull); repoErr != nil {
+		return PlainShard{}, repoErr
 	}
 	manifest, err := readManifest(cfg.Repo)
 	if err != nil {
@@ -50,13 +45,8 @@ func WalkSnapshot(ctx context.Context, opts Options, visit func(Manifest, string
 	if err != nil {
 		return Manifest{}, "", err
 	}
-	if !opts.SkipPull {
-		repoErr := ensureRepo(ctx, cfg)
-		if repoErr != nil {
-			return Manifest{}, "", repoErr
-		}
-	} else if strings.TrimSpace(cfg.Repo) == "" {
-		return Manifest{}, "", fmt.Errorf("backup repo path is required")
+	if repoErr := prepareReadRepo(ctx, cfg, opts.SkipPull); repoErr != nil {
+		return Manifest{}, "", repoErr
 	}
 	manifest, err := readManifest(cfg.Repo)
 	if err != nil {

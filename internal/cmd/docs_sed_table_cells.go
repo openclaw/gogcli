@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 	"sort"
-	"strings"
 
 	"google.golang.org/api/docs/v1"
 
+	"github.com/steipete/gogcli/internal/docssed"
 	"github.com/steipete/gogcli/internal/ui"
 )
 
@@ -21,6 +21,11 @@ func (c *DocsSedCmd) runTableCellReplace(ctx context.Context, u *ui.UI, account,
 		return c.runTableRowColOp(ctx, u, account, id, expr)
 	}
 
+	planner, err := docssed.NewCellPlanner(semanticExpressionFromSedExpr(expr))
+	if err != nil {
+		return err
+	}
+
 	docsSvc, doc, err := fetchDoc(ctx, account, id)
 	if err != nil {
 		return err
@@ -28,7 +33,7 @@ func (c *DocsSedCmd) runTableCellReplace(ctx context.Context, u *ui.UI, account,
 
 	// Handle wildcard ranges: iterate over matching cells
 	if ref.row == 0 || ref.col == 0 {
-		return c.runTableWildcardReplace(ctx, docsSvc, u, id, doc, expr)
+		return c.runTableWildcardReplace(ctx, docsSvc, u, id, doc, expr, planner)
 	}
 
 	cell, err := findTableCell(doc, ref)
@@ -37,113 +42,23 @@ func (c *DocsSedCmd) runTableCellReplace(ctx context.Context, u *ui.UI, account,
 	}
 
 	cellText, startIdx, endIdx := getCellText(cell)
-
-	var requests []*docs.Request
-	var newText string
-
-	if expr.pattern == "" {
-		// Whole cell replacement: replace entire cell content
-		// Expand ${0} (whole match / sed &) to existing cell text
-		trimmedCell := strings.TrimRight(cellText, "\n")
-		r := literalReplacement(expr.replacement)
-		r = strings.ReplaceAll(r, "${0}", trimmedCell)
-
-		// Parse markdown formatting
-		plainText, formats := parseMarkdownReplacement(r)
-		newText = plainText
-
-		// Strip trailing newline from cell text (cells always end with \n)
-		deleteEnd := endIdx
-		if len(cellText) > 0 && cellText[len(cellText)-1] == '\n' {
-			deleteEnd = endIdx - 1 // keep the trailing newline
-		}
-		requests = append(requests, buildCellReplaceRequests(startIdx, deleteEnd, newText, formats)...)
-	} else {
-		// Sub-pattern replacement within the cell
-		re, reErr := expr.compilePattern()
-		if reErr != nil {
-			return fmt.Errorf("compile pattern: %w", reErr)
-		}
-
-		// Find matches within cell text
-		type cellMatch struct {
-			start, end int64
-			newText    string
-		}
-		var matches []cellMatch
-
-		// Use LiteralString unless replacement contains backreferences like ${1}
-		replaceFunc := re.ReplaceAllLiteralString
-		if strings.Contains(expr.replacement, "${") || strings.Contains(expr.replacement, "$\\") {
-			replaceFunc = re.ReplaceAllString
-		}
-
-		if expr.global {
-			results := re.FindAllStringIndex(cellText, -1)
-			for _, loc := range results {
-				oldText := cellText[loc[0]:loc[1]]
-				replaced := replaceFunc(oldText, expr.replacement)
-				matches = append(matches, cellMatch{
-					start:   startIdx + int64(loc[0]),
-					end:     startIdx + int64(loc[1]),
-					newText: replaced,
-				})
-			}
-		} else {
-			loc := re.FindStringIndex(cellText)
-			if loc != nil {
-				oldText := cellText[loc[0]:loc[1]]
-				replaced := replaceFunc(oldText, expr.replacement)
-				matches = append(matches, cellMatch{
-					start:   startIdx + int64(loc[0]),
-					end:     startIdx + int64(loc[1]),
-					newText: replaced,
-				})
-			}
-		}
-
-		// Build requests in reverse order
-		for i := len(matches) - 1; i >= 0; i-- {
-			m := matches[i]
-			requests = append(requests, &docs.Request{
-				DeleteContentRange: &docs.DeleteContentRangeRequest{
-					Range: &docs.Range{
-						StartIndex: m.start,
-						EndIndex:   m.end,
-					},
-				},
-			})
-			if m.newText != "" {
-				requests = append(requests, &docs.Request{
-					InsertText: &docs.InsertTextRequest{
-						Location: &docs.Location{Index: m.start},
-						Text:     m.newText,
-					},
-				})
-			}
-		}
-	}
+	plan := planner.Plan(docssed.CellInput{
+		Text:           cellText,
+		TextStartIndex: startIdx,
+		TextEndIndex:   endIdx,
+	})
+	requests := buildCellPlanRequests(plan)
 
 	if len(requests) == 0 {
 		return sedOutputOK(ctx, u, id, sedOutputKV{"replaced", 0})
 	}
 
-	err = retryOnQuota(ctx, func() error {
-		_, e := docsSvc.Documents.BatchUpdate(id, &docs.BatchUpdateDocumentRequest{
-			Requests: requests,
-		}).Context(ctx).Do()
-		return e
-	})
+	_, err = batchUpdate(ctx, docsSvc, id, requests)
 	if err != nil {
 		return fmt.Errorf("batch update: %w", err)
 	}
 
-	replaced := 1
-	if expr.pattern != "" && expr.global {
-		replaced = (len(requests) + 1) / 2 // each match = delete + insert
-	}
-
-	return sedOutputOK(ctx, u, id, sedOutputKV{"replaced", replaced})
+	return sedOutputOK(ctx, u, id, sedOutputKV{"replaced", plan.MatchCount})
 }
 
 // runBatchCellReplace batches multiple whole-cell replacements for the same table into one API call.
@@ -154,9 +69,8 @@ func (c *DocsSedCmd) runBatchCellReplace(ctx context.Context, _ *ui.UI, account,
 	}
 
 	type cellOp struct {
-		startIdx, endIdx int64
-		cellText         string
-		replacement      string
+		input       docssed.CellInput
+		replacement string
 	}
 	var ops []cellOp
 
@@ -166,33 +80,29 @@ func (c *DocsSedCmd) runBatchCellReplace(ctx context.Context, _ *ui.UI, account,
 			return fmt.Errorf("expression %d: %w", ie.index+1, findErr)
 		}
 		cellText, startIdx, endIdx := getCellText(cell)
-		ops = append(ops, cellOp{startIdx: startIdx, endIdx: endIdx, cellText: cellText, replacement: ie.expr.replacement})
+		ops = append(ops, cellOp{
+			input: docssed.CellInput{
+				Text:           cellText,
+				TextStartIndex: startIdx,
+				TextEndIndex:   endIdx,
+			},
+			replacement: ie.expr.replacement,
+		})
 	}
 
 	// Sort by startIdx descending (reverse document order)
 	sort.Slice(ops, func(i, j int) bool {
-		return ops[i].startIdx > ops[j].startIdx
+		return ops[i].input.TextStartIndex > ops[j].input.TextStartIndex
 	})
 
 	var requests []*docs.Request
 	for _, op := range ops {
-		trimmedCell := strings.TrimRight(op.cellText, "\n")
-		r := literalReplacement(op.replacement)
-		r = strings.ReplaceAll(r, "${0}", trimmedCell)
-		plainText, formats := parseMarkdownReplacement(r)
-
-		deleteEnd := op.endIdx
-		if len(op.cellText) > 0 && op.cellText[len(op.cellText)-1] == '\n' {
-			deleteEnd = op.endIdx - 1
-		}
-		requests = append(requests, buildCellReplaceRequests(op.startIdx, deleteEnd, plainText, formats)...)
+		plan := docssed.PlanWholeCellReplacement(op.input, op.replacement)
+		requests = append(requests, buildCellPlanRequests(plan)...)
 	}
 
 	if len(requests) > 0 {
-		err = retryOnQuota(ctx, func() error {
-			_, e := docsSvc.Documents.BatchUpdate(id, &docs.BatchUpdateDocumentRequest{Requests: requests}).Context(ctx).Do()
-			return e
-		})
+		_, err = batchUpdate(ctx, docsSvc, id, requests)
 		if err != nil {
 			return fmt.Errorf("batch cell update: %w", err)
 		}
@@ -202,7 +112,15 @@ func (c *DocsSedCmd) runBatchCellReplace(ctx context.Context, _ *ui.UI, account,
 }
 
 // runTableWildcardReplace handles cell references with wildcards: |1|[1,*], |1|[*,2], |1|[*,*]
-func (c *DocsSedCmd) runTableWildcardReplace(ctx context.Context, docsSvc *docs.Service, u *ui.UI, id string, doc *docs.Document, expr sedExpr) error {
+func (c *DocsSedCmd) runTableWildcardReplace(
+	ctx context.Context,
+	docsSvc *docs.Service,
+	u *ui.UI,
+	id string,
+	doc *docs.Document,
+	expr sedExpr,
+	planner *docssed.CellPlanner,
+) error {
 	ref := expr.cellRef
 
 	tables := collectAllTables(doc)
@@ -223,12 +141,7 @@ func (c *DocsSedCmd) runTableWildcardReplace(ctx context.Context, docsSvc *docs.
 	}
 
 	// Collect all matching cells
-	type cellInfo struct {
-		startIdx int64
-		endIdx   int64
-		text     string
-	}
-	var cells []cellInfo
+	var cells []docssed.CellInput
 
 	for ri, row := range table.TableRows {
 		for ci, cell := range row.TableCells {
@@ -237,7 +150,11 @@ func (c *DocsSedCmd) runTableWildcardReplace(ctx context.Context, docsSvc *docs.
 			colMatch := ref.col == 0 || ref.col == ci+1
 			if rowMatch && colMatch {
 				text, start, end := getCellText(cell)
-				cells = append(cells, cellInfo{startIdx: start, endIdx: end, text: text})
+				cells = append(cells, docssed.CellInput{
+					Text:           text,
+					TextStartIndex: start,
+					TextEndIndex:   end,
+				})
 			}
 		}
 	}
@@ -246,77 +163,58 @@ func (c *DocsSedCmd) runTableWildcardReplace(ctx context.Context, docsSvc *docs.
 		return sedOutputOK(ctx, u, id, sedOutputKV{"replaced", 0})
 	}
 
-	// Build requests in reverse order (to preserve indices)
+	sort.Slice(cells, func(i, j int) bool {
+		return cells[i].TextStartIndex > cells[j].TextStartIndex
+	})
+
 	var requests []*docs.Request
 	replaced := 0
 
-	for i := len(cells) - 1; i >= 0; i-- {
-		cell := cells[i]
-
-		// Parse the replacement per-cell (need to expand ${0} with cell content)
-		cellRepl := literalReplacement(expr.replacement)
-		if expr.pattern == "" {
-			// Expand ${0} (sed &) to existing cell text
-			trimmedCell := strings.TrimRight(cell.text, "\n")
-			cellRepl = strings.ReplaceAll(cellRepl, "${0}", trimmedCell)
-		}
-		plainText, formats := parseMarkdownReplacement(cellRepl)
-
-		if expr.pattern == "" {
-			// Whole cell replacement
-			deleteEnd := cell.endIdx
-			if len(cell.text) > 0 && cell.text[len(cell.text)-1] == '\n' {
-				deleteEnd = cell.endIdx - 1
-			}
-			requests = append(requests, buildCellReplaceRequests(cell.startIdx, deleteEnd, plainText, formats)...)
-			replaced++
-		} else {
-			// Sub-pattern replacement within matching cells
-			re, err := expr.compilePattern()
-			if err != nil {
-				return fmt.Errorf("compile pattern: %w", err)
-			}
-			results := re.FindAllStringIndex(cell.text, -1)
-			if !expr.global && len(results) > 1 {
-				results = results[:1]
-			}
-			for j := len(results) - 1; j >= 0; j-- {
-				loc := results[j]
-				start := cell.startIdx + int64(loc[0])
-				end := cell.startIdx + int64(loc[1])
-				requests = append(requests, &docs.Request{
-					DeleteContentRange: &docs.DeleteContentRangeRequest{
-						Range: &docs.Range{StartIndex: start, EndIndex: end},
-					},
-				})
-				if plainText != "" {
-					requests = append(requests, &docs.Request{
-						InsertText: &docs.InsertTextRequest{
-							Location: &docs.Location{Index: start},
-							Text:     plainText,
-						},
-					})
-				}
-				replaced++
-			}
-		}
+	for _, cell := range cells {
+		plan := planner.Plan(cell)
+		requests = append(requests, buildCellPlanRequests(plan)...)
+		replaced += plan.MatchCount
 	}
 
 	if len(requests) == 0 {
 		return sedOutputOK(ctx, u, id, sedOutputKV{"replaced", 0})
 	}
 
-	err := retryOnQuota(ctx, func() error {
-		_, e := docsSvc.Documents.BatchUpdate(id, &docs.BatchUpdateDocumentRequest{
-			Requests: requests,
-		}).Context(ctx).Do()
-		return e
-	})
+	_, err := batchUpdate(ctx, docsSvc, id, requests)
 	if err != nil {
 		return fmt.Errorf("batch update (wildcard cell replace): %w", err)
 	}
 
 	return sedOutputOK(ctx, u, id, sedOutputKV{"replaced", replaced})
+}
+
+func buildCellPlanRequests(plan docssed.TextPlan) []*docs.Request {
+	var requests []*docs.Request
+	for index := len(plan.TextEdits) - 1; index >= 0; index-- {
+		edit := plan.TextEdits[index]
+		if edit.StartIndex < edit.EndIndex {
+			requests = append(requests, &docs.Request{
+				DeleteContentRange: &docs.DeleteContentRangeRequest{
+					Range: &docs.Range{StartIndex: edit.StartIndex, EndIndex: edit.EndIndex},
+				},
+			})
+		}
+		if edit.InsertText != "" {
+			requests = append(requests, &docs.Request{
+				InsertText: &docs.InsertTextRequest{
+					Location: &docs.Location{Index: edit.StartIndex},
+					Text:     edit.InsertText,
+				},
+			})
+		}
+	}
+	for _, formatting := range plan.Formatting {
+		requests = append(
+			requests,
+			buildTextStyleRequests(formatting.Formats, formatting.StartIndex, formatting.EndIndex)...,
+		)
+	}
+	return requests
 }
 
 func validateWildcardTableRef(table *docs.Table, ref *tableCellRef) error {

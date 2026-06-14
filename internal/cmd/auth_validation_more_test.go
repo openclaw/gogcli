@@ -186,6 +186,8 @@ func TestAuthTokensImport_ErrorsAndStdin(t *testing.T) {
 	}
 	if err := (&AuthTokensImportCmd{InPath: tmp}).Run(ctx, &RootFlags{}); err == nil {
 		t.Fatalf("expected unmarshal error")
+	} else if ExitCode(err) != 2 || !strings.Contains(err.Error(), "invalid token JSON") {
+		t.Fatalf("unmarshal error = %v, exit = %d", err, ExitCode(err))
 	}
 
 	missing := filepath.Join(t.TempDir(), "missing.json")
@@ -202,9 +204,23 @@ func TestAuthTokensImport_ErrorsAndStdin(t *testing.T) {
 	}
 	if err := (&AuthTokensImportCmd{InPath: badDate}).Run(ctx, &RootFlags{}); err == nil {
 		t.Fatalf("expected date parse error")
+	} else if ExitCode(err) != 2 || !strings.Contains(err.Error(), "invalid created_at") {
+		t.Fatalf("created_at error = %v, exit = %d", err, ExitCode(err))
 	}
 	if err := (&AuthTokensImportCmd{InPath: badDate}).Run(ctx, &RootFlags{DryRun: true}); err == nil {
 		t.Fatalf("expected dry-run date parse error")
+	} else if ExitCode(err) != 2 {
+		t.Fatalf("dry-run created_at exit = %d, err = %v", ExitCode(err), err)
+	}
+
+	badExpiry := filepath.Join(t.TempDir(), "bad-expiry.json")
+	if err := os.WriteFile(badExpiry, []byte(`{"email":"a@b.com","refresh_token":"rt","access_token_expires_at":"bad"}`), 0o600); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	if err := (&AuthTokensImportCmd{InPath: badExpiry}).Run(ctx, &RootFlags{}); err == nil {
+		t.Fatalf("expected access-token expiry parse error")
+	} else if ExitCode(err) != 2 || !strings.Contains(err.Error(), "invalid access_token_expires_at") {
+		t.Fatalf("access_token_expires_at error = %v, exit = %d", err, ExitCode(err))
 	}
 
 	store := newMemStore()

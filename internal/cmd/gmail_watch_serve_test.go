@@ -1,9 +1,14 @@
 package cmd
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -12,6 +17,178 @@ import (
 
 	"github.com/steipete/gogcli/internal/authclient"
 )
+
+func TestGmailWatchServeCmd_DryRunDoesNotTouchStateOrListen(t *testing.T) {
+	origListen := listenAndServe
+	origOIDC := newOIDCValidator
+	t.Cleanup(func() {
+		listenAndServe = origListen
+		newOIDCValidator = origOIDC
+	})
+
+	setWatchTestConfigHome(t)
+	layout := gmailWatchTestLayout(t)
+	listenAndServe = func(*http.Server) error {
+		t.Fatal("dry-run started server")
+		return nil
+	}
+	newOIDCValidator = func(context.Context, ...idtoken.ClientOption) (*idtoken.Validator, error) {
+		t.Fatal("dry-run created OIDC validator")
+		return nil, errors.New("dry-run created OIDC validator")
+	}
+
+	var stdout bytes.Buffer
+	ctx := newCmdRuntimeJSONOutputContext(t, &stdout, io.Discard)
+	err := runKong(t, &GmailWatchServeCmd{}, []string{
+		"--bind", "0.0.0.0",
+		"--port", "9999",
+		"--path", "/hook",
+		"--fetch-delay", "750ms",
+		"--timezone", "UTC",
+		"--verify-oidc",
+		"--oidc-email", "push@example.com",
+		"--oidc-audience", "https://example.com/hook?secret=value",
+		"--token", "shared-secret",
+		"--hook-url", "https://example.com/downstream?secret=value",
+		"--hook-token", "hook-secret",
+		"--include-body",
+		"--max-bytes", "42",
+		"--history-types", "messageAdded,labelRemoved",
+		"--exclude-labels", "SPAM,Label_123",
+		"--save-hook",
+	}, ctx, &RootFlags{Account: "a@b.com", DryRun: true, NoInput: true})
+	if ExitCode(err) != 0 {
+		t.Fatalf("exit code = %d, want 0: %v", ExitCode(err), err)
+	}
+
+	for _, path := range []string{layout.PrimaryGmailWatchDir(), layout.LegacyGmailWatchDir()} {
+		if _, statErr := os.Stat(path); !os.IsNotExist(statErr) {
+			t.Fatalf("dry-run touched watch state path %q: %v", path, statErr)
+		}
+	}
+
+	var got struct {
+		DryRun  bool   `json:"dry_run"`
+		Op      string `json:"op"`
+		Request struct {
+			Account string `json:"account"`
+			Listen  string `json:"listen"`
+			Path    string `json:"path"`
+			Auth    struct {
+				VerifyOIDC      bool `json:"verify_oidc"`
+				OIDCEmailSet    bool `json:"oidc_email_set"`
+				OIDCAudienceSet bool `json:"oidc_audience_set"`
+				SharedTokenSet  bool `json:"shared_token_set"`
+			} `json:"auth"`
+			Hook struct {
+				Source      string `json:"source"`
+				URLSet      bool   `json:"url_set"`
+				TokenSet    bool   `json:"token_set"`
+				IncludeBody bool   `json:"include_body"`
+				MaxBytes    int    `json:"max_bytes"`
+				Save        bool   `json:"save"`
+			} `json:"hook"`
+			FetchDelaySeconds float64  `json:"fetch_delay_seconds"`
+			Timezone          string   `json:"timezone"`
+			HistoryTypes      []string `json:"history_types"`
+			ExcludeLabels     []string `json:"exclude_labels"`
+		} `json:"request"`
+	}
+	if decodeErr := json.Unmarshal(stdout.Bytes(), &got); decodeErr != nil {
+		t.Fatalf("decode dry-run: %v\noutput=%q", decodeErr, stdout.String())
+	}
+	if !got.DryRun || got.Op != "gmail.watch.serve" {
+		t.Fatalf("unexpected dry-run envelope: %#v", got)
+	}
+	if got.Request.Account != "a@b.com" ||
+		got.Request.Listen != "0.0.0.0:9999" ||
+		got.Request.Path != "/hook" ||
+		!got.Request.Auth.VerifyOIDC ||
+		!got.Request.Auth.OIDCEmailSet ||
+		!got.Request.Auth.OIDCAudienceSet ||
+		!got.Request.Auth.SharedTokenSet ||
+		got.Request.Hook.Source != "flags" ||
+		!got.Request.Hook.URLSet ||
+		!got.Request.Hook.TokenSet ||
+		!got.Request.Hook.IncludeBody ||
+		got.Request.Hook.MaxBytes != 42 ||
+		!got.Request.Hook.Save ||
+		got.Request.FetchDelaySeconds != 0.75 ||
+		got.Request.Timezone != "UTC" ||
+		len(got.Request.HistoryTypes) != 2 ||
+		len(got.Request.ExcludeLabels) != 2 {
+		t.Fatalf("unexpected dry-run request: %#v", got.Request)
+	}
+	if bytes.Contains(stdout.Bytes(), []byte("shared-secret")) ||
+		bytes.Contains(stdout.Bytes(), []byte("hook-secret")) ||
+		bytes.Contains(stdout.Bytes(), []byte("secret=value")) {
+		t.Fatalf("dry-run exposed secret input: %s", stdout.String())
+	}
+}
+
+func TestGmailWatchServeCmd_DryRunReadsStoredHookWithoutLocking(t *testing.T) {
+	setWatchTestConfigHome(t)
+	layout := gmailWatchTestLayout(t)
+	statePath := filepath.Join(layout.GmailWatchDir(), sanitizeAccountForPath("a@b.com")+".json")
+	if err := os.MkdirAll(filepath.Dir(statePath), 0o700); err != nil {
+		t.Fatalf("mkdir watch state: %v", err)
+	}
+	stateBytes, marshalErr := json.Marshal(gmailWatchState{
+		Account:   "a@b.com",
+		HistoryID: "100",
+		Hook: &gmailWatchHook{
+			URL:         "https://example.com/hook",
+			Token:       "stored-secret",
+			IncludeBody: false,
+			MaxBytes:    123,
+		},
+	})
+	if marshalErr != nil {
+		t.Fatalf("marshal state: %v", marshalErr)
+	}
+	if writeErr := os.WriteFile(statePath, stateBytes, 0o600); writeErr != nil {
+		t.Fatalf("write state: %v", writeErr)
+	}
+
+	ctx := newCmdRuntimeJSONOutputContext(t, io.Discard, io.Discard)
+	invalidErr := runKong(t, &GmailWatchServeCmd{}, []string{
+		"--max-bytes", "0",
+	}, ctx, &RootFlags{Account: "a@b.com", DryRun: true, NoInput: true})
+	if ExitCode(invalidErr) != 2 {
+		t.Fatalf("invalid override exit code = %d, want 2: %v", ExitCode(invalidErr), invalidErr)
+	}
+
+	var stdout bytes.Buffer
+	ctx = newCmdRuntimeJSONOutputContext(t, &stdout, io.Discard)
+	if runErr := runKong(t, &GmailWatchServeCmd{}, nil, ctx, &RootFlags{Account: "a@b.com", DryRun: true, NoInput: true}); ExitCode(runErr) != 0 {
+		t.Fatalf("stored-hook dry-run: %v", runErr)
+	}
+	var got struct {
+		Request struct {
+			Hook struct {
+				Source   string `json:"source"`
+				TokenSet bool   `json:"token_set"`
+				MaxBytes int    `json:"max_bytes"`
+			} `json:"hook"`
+		} `json:"request"`
+	}
+	if decodeErr := json.Unmarshal(stdout.Bytes(), &got); decodeErr != nil {
+		t.Fatalf("decode dry-run: %v\noutput=%q", decodeErr, stdout.String())
+	}
+	if got.Request.Hook.Source != "stored" || !got.Request.Hook.TokenSet || got.Request.Hook.MaxBytes != 123 {
+		t.Fatalf("unexpected stored hook plan: %#v", got.Request.Hook)
+	}
+	if _, statErr := os.Stat(filepath.Join(filepath.Dir(statePath), ".lock")); !os.IsNotExist(statErr) {
+		t.Fatalf("dry-run created watch lock: %v", statErr)
+	}
+	after, readErr := os.ReadFile(statePath)
+	if readErr != nil {
+		t.Fatalf("read state after dry-run: %v", readErr)
+	}
+	if !bytes.Equal(after, stateBytes) {
+		t.Fatalf("dry-run changed watch state:\nwant=%s\ngot=%s", stateBytes, after)
+	}
+}
 
 func TestGmailWatchServeCmd_UsesStoredHook(t *testing.T) {
 	origListen := listenAndServe

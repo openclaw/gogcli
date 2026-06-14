@@ -9,6 +9,7 @@ import (
 	"google.golang.org/api/docs/v1"
 	"google.golang.org/api/drive/v3"
 
+	"github.com/steipete/gogcli/internal/docsedit"
 	"github.com/steipete/gogcli/internal/outfmt"
 	"github.com/steipete/gogcli/internal/ui"
 )
@@ -24,7 +25,7 @@ type DocsCommentsLocateCmd struct {
 
 type docsCommentLocateResult struct {
 	CommentID string               `json:"commentId"`
-	Matches   []docsTextRangeMatch `json:"matches"`
+	Matches   []docsedit.TextRange `json:"matches"`
 	Orphaned  bool                 `json:"orphaned"`
 	Quote     string               `json:"quote"`
 }
@@ -55,7 +56,7 @@ func (c *DocsCommentsLocateCmd) Run(ctx context.Context, flags *RootFlags) error
 	}
 
 	quote := docsCommentQuote(comment)
-	var matches []docsTextRangeMatch
+	var matches []docsedit.TextRange
 	if strings.TrimSpace(quote) != "" {
 		docsSvc, svcErr := requireDocsService(ctx, flags)
 		if svcErr != nil {
@@ -71,7 +72,7 @@ func (c *DocsCommentsLocateCmd) Run(ctx context.Context, flags *RootFlags) error
 	return writeDocsCommentLocateResult(ctx, commentID, quote, matches)
 }
 
-func (c *DocsCommentsLocateCmd) findQuoteMatches(ctx context.Context, svc *docs.Service, docID string, quote string) ([]docsTextRangeMatch, error) {
+func (c *DocsCommentsLocateCmd) findQuoteMatches(ctx context.Context, svc *docs.Service, docID string, quote string) ([]docsedit.TextRange, error) {
 	if c.Tab != "" {
 		findCmd := DocsFindRangeCmd{Tab: c.Tab}
 		doc, tabID, err := findCmd.loadTargetDoc(ctx, svc, docID)
@@ -96,8 +97,8 @@ func (c *DocsCommentsLocateCmd) findQuoteMatches(ctx context.Context, svc *docs.
 	return c.findQuoteMatchesAcrossDocument(doc, quote), nil
 }
 
-func (c *DocsCommentsLocateCmd) findQuoteMatchesAcrossDocument(doc *docs.Document, quote string) []docsTextRangeMatch {
-	var matches []docsTextRangeMatch
+func (c *DocsCommentsLocateCmd) findQuoteMatchesAcrossDocument(doc *docs.Document, quote string) []docsedit.TextRange {
+	var matches []docsedit.TextRange
 	tabs := flattenTabs(doc.Tabs)
 	if len(tabs) == 0 {
 		return c.findQuoteMatchesInDoc(doc, quote, "")
@@ -116,20 +117,20 @@ func (c *DocsCommentsLocateCmd) findQuoteMatchesAcrossDocument(doc *docs.Documen
 	return matches
 }
 
-func (c *DocsCommentsLocateCmd) findQuoteMatchesInDoc(doc *docs.Document, quote string, tabID string) []docsTextRangeMatch {
-	opts := docsTextRangeOptions{
+func (c *DocsCommentsLocateCmd) findQuoteMatchesInDoc(doc *docs.Document, quote string, tabID string) []docsedit.TextRange {
+	opts := docsedit.SearchOptions{
 		MatchCase:            c.MatchCase,
 		NormalizeWhitespace:  c.NormalizeWhitespace,
 		TabID:                tabID,
 		PreserveHTMLEntities: true,
 	}
-	matches := findDocsTextRanges(doc, quote, opts)
+	matches := docsedit.FindTextRanges(doc, quote, opts)
 	if len(matches) > 0 {
 		return matches
 	}
 	if html.UnescapeString(quote) != quote {
 		opts.PreserveHTMLEntities = false
-		return findDocsTextRanges(doc, quote, opts)
+		return docsedit.FindTextRanges(doc, quote, opts)
 	}
 	return matches
 }
@@ -141,9 +142,9 @@ func docsCommentQuote(comment *drive.Comment) string {
 	return comment.QuotedFileContent.Value
 }
 
-func writeDocsCommentLocateResult(ctx context.Context, commentID, quote string, matches []docsTextRangeMatch) error {
+func writeDocsCommentLocateResult(ctx context.Context, commentID, quote string, matches []docsedit.TextRange) error {
 	if matches == nil {
-		matches = []docsTextRangeMatch{}
+		matches = []docsedit.TextRange{}
 	}
 	orphaned := len(matches) == 0
 	result := docsCommentLocateResult{

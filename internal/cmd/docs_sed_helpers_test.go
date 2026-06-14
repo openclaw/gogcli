@@ -3,14 +3,11 @@ package cmd
 import (
 	"bytes"
 	"context"
-	"errors"
 	"io"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"google.golang.org/api/docs/v1"
-	gapi "google.golang.org/api/googleapi"
 
 	"github.com/steipete/gogcli/internal/ui"
 )
@@ -114,35 +111,6 @@ func TestFormatBraceFlags(t *testing.T) {
 	assert.Contains(t, result3, "_")
 }
 
-func TestIsRetryableError(t *testing.T) {
-	assert.False(t, isRetryableError(nil))
-	assert.False(t, isRetryableError(errors.New("some error")))
-
-	// 429 rate limit
-	apiErr429 := &gapi.Error{Code: 429}
-	assert.True(t, isRetryableError(apiErr429))
-
-	// 500 server error
-	apiErr500 := &gapi.Error{Code: 500}
-	assert.True(t, isRetryableError(apiErr500))
-
-	// 502 bad gateway
-	apiErr502 := &gapi.Error{Code: 502}
-	assert.True(t, isRetryableError(apiErr502))
-
-	// 503 service unavailable
-	apiErr503 := &gapi.Error{Code: 503}
-	assert.True(t, isRetryableError(apiErr503))
-
-	// 404 not found — not retryable
-	apiErr404 := &gapi.Error{Code: 404}
-	assert.False(t, isRetryableError(apiErr404))
-
-	// String-based match
-	assert.True(t, isRetryableError(errors.New("rateLimitExceeded")))
-	assert.True(t, isRetryableError(errors.New("error 429 too many requests")))
-}
-
 func TestCompilePattern(t *testing.T) {
 	e := sedExpr{pattern: `\d+`}
 	re, err := e.compilePattern()
@@ -211,46 +179,6 @@ func TestRunDryRun_CellExpr(t *testing.T) {
 	err = cmd.runDryRun(context.Background(), u, exprs)
 	assert.NoError(t, err)
 	assert.Contains(t, buf.String(), "cell")
-}
-
-func TestInferBulletPreset(t *testing.T) {
-	// nil doc.Lists
-	doc := &docs.Document{}
-	assert.Equal(t, bulletPresetDisc, inferBulletPreset(doc, "list1"))
-
-	// Unknown list ID
-	doc.Lists = map[string]docs.List{}
-	assert.Equal(t, bulletPresetDisc, inferBulletPreset(doc, "unknown"))
-
-	// Unordered list (default)
-	doc.Lists["list1"] = docs.List{
-		ListProperties: &docs.ListProperties{
-			NestingLevels: []*docs.NestingLevel{
-				{GlyphType: "GLYPH_TYPE_UNSPECIFIED"},
-			},
-		},
-	}
-	assert.Equal(t, bulletPresetDisc, inferBulletPreset(doc, "list1"))
-
-	// Ordered list (DECIMAL)
-	doc.Lists["list2"] = docs.List{
-		ListProperties: &docs.ListProperties{
-			NestingLevels: []*docs.NestingLevel{
-				{GlyphType: "DECIMAL"},
-			},
-		},
-	}
-	assert.Equal(t, bulletPresetNumbered, inferBulletPreset(doc, "list2"))
-
-	// Ordered list (UPPER_ALPHA)
-	doc.Lists["list3"] = docs.List{
-		ListProperties: &docs.ListProperties{
-			NestingLevels: []*docs.NestingLevel{
-				{GlyphType: "UPPER_ALPHA"},
-			},
-		},
-	}
-	assert.Equal(t, bulletPresetNumbered, inferBulletPreset(doc, "list3"))
 }
 
 func TestBuildTextStyleRequests_Superscript(t *testing.T) {

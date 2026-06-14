@@ -3,12 +3,12 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"path"
 	"strings"
 
 	"google.golang.org/api/drive/v3"
 	gapi "google.golang.org/api/googleapi"
 
+	"github.com/steipete/gogcli/internal/drivereport"
 	"github.com/steipete/gogcli/internal/outfmt"
 	"github.com/steipete/gogcli/internal/ui"
 )
@@ -164,7 +164,7 @@ func (c *DriveDuCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
-	items, truncated, err := listDriveTree(ctx, svc, driveTreeOptions{
+	placements, truncated, err := listDrivePlacements(ctx, svc, driveTreeOptions{
 		RootID:        rootID,
 		MaxDepth:      0,
 		MaxItems:      0,
@@ -180,11 +180,11 @@ func (c *DriveDuCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return fmt.Errorf("drive du truncated unexpectedly")
 	}
 
-	summaries, err := summarizeDriveDu(items, rootID, depth)
+	summaries, err := drivereport.Summarize(placements, rootID, depth)
 	if err != nil {
 		return err
 	}
-	sortDriveDu(summaries, c.Sort, c.Order)
+	drivereport.SortSummaries(summaries, c.Sort, c.Order)
 
 	if maxItems > 0 && len(summaries) > maxItems {
 		summaries = summaries[:maxItems]
@@ -245,125 +245,118 @@ type driveTreeOptions struct {
 	AllDrives     bool
 }
 
-type driveFolderQueueItem struct {
-	ID          string
-	Path        string
-	Depth       int
-	PlacementID drivePlacementID
-	Ancestry    *driveFolderAncestry
-}
-
-type drivePlacementID uint64
-
-type driveFolderAncestry struct {
-	ID     string
-	Parent *driveFolderAncestry
-}
-
-func (a *driveFolderAncestry) contains(id string) bool {
-	for current := a; current != nil; current = current.Parent {
-		if current.ID == id {
-			return true
-		}
-	}
-	return false
-}
+type drivePlacementID = drivereport.PlacementID
 
 const (
-	driveRootPlacementID drivePlacementID = 1
-	driveTreeFields                       = "id,name,mimeType,size,modifiedTime,shortcutDetails(targetId,targetMimeType,targetResourceKey)"
-	driveInventoryFields                  = "id,name,mimeType,size,modifiedTime,owners(emailAddress,displayName),shortcutDetails(targetId,targetMimeType,targetResourceKey)"
+	driveRootPlacementID = drivereport.RootPlacementID
+	driveTreeFields      = "id,name,mimeType,size,modifiedTime,shortcutDetails(targetId,targetMimeType,targetResourceKey)"
+	driveInventoryFields = "id,name,mimeType,size,modifiedTime,owners(emailAddress,displayName),shortcutDetails(targetId,targetMimeType,targetResourceKey)"
 )
 
 func listDriveTree(ctx context.Context, svc *drive.Service, opts driveTreeOptions) ([]driveTreeItem, bool, error) {
-	rootID := strings.TrimSpace(opts.RootID)
-	if rootID == "" {
-		rootID = driveRootID
+	placements, truncated, err := listDrivePlacements(ctx, svc, opts)
+	if err != nil {
+		return nil, false, err
 	}
+	items := make([]driveTreeItem, 0, len(placements))
+	for _, placement := range placements {
+		items = append(items, driveTreeItemFromPlacement(placement))
+	}
+	return items, truncated, nil
+}
+
+func listDrivePlacements(ctx context.Context, svc *drive.Service, opts driveTreeOptions) ([]drivereport.Placement, bool, error) {
 	fields := strings.TrimSpace(opts.Fields)
 	if fields == "" {
 		fields = driveTreeFields
 	}
-
-	queue := []driveFolderQueueItem{{
-		ID:          rootID,
-		Path:        "",
-		Depth:       0,
-		PlacementID: driveRootPlacementID,
-		Ancestry:    &driveFolderAncestry{ID: rootID},
-	}}
-	out := make([]driveTreeItem, 0, 128)
-	truncated := false
-	nextPlacementID := driveRootPlacementID
-
-	for len(queue) > 0 {
-		folder := queue[0]
-		queue = queue[1:]
-
-		children, err := listDriveChildren(ctx, svc, folder.ID, fields, opts.AllDrives)
-		if err != nil {
-			return nil, false, err
-		}
-		for _, child := range children {
-			if child == nil {
-				continue
-			}
-			nextPlacementID++
-			depth := folder.Depth + 1
-			size := child.Size
-			if child.MimeType == driveMimeShortcut {
-				size = 0
-			}
-			item := driveTreeItem{
-				ID:                child.Id,
-				Name:              child.Name,
-				Path:              joinDrivePath(folder.Path, child.Name),
-				ParentID:          folder.ID,
-				MimeType:          child.MimeType,
-				Size:              size,
-				ModifiedTime:      child.ModifiedTime,
-				WebViewLink:       child.WebViewLink,
-				Owners:            driveOwners(child),
-				MD5:               child.Md5Checksum,
-				ShortcutDetails:   child.ShortcutDetails,
-				Depth:             depth,
-				placementID:       nextPlacementID,
-				parentPlacementID: folder.PlacementID,
-			}
-
-			// Shortcuts are leaves even when their target is a folder. Following
-			// targets would duplicate paths and can introduce traversal cycles.
-			if item.IsFolder() {
-				if folder.Ancestry.contains(item.ID) {
-					return nil, false, fmt.Errorf("drive folder cycle detected at %q (id %s)", item.Path, item.ID)
-				}
-				if opts.IncludeFolder {
-					out = append(out, item)
-				}
-				if opts.MaxDepth <= 0 || depth < opts.MaxDepth {
-					queue = append(queue, driveFolderQueueItem{
-						ID:          child.Id,
-						Path:        item.Path,
-						Depth:       depth,
-						PlacementID: item.placementID,
-						Ancestry: &driveFolderAncestry{
-							ID:     child.Id,
-							Parent: folder.Ancestry,
-						},
-					})
-				}
-			} else if opts.IncludeFiles {
-				out = append(out, item)
-			}
-
-			if opts.MaxItems > 0 && len(out) >= opts.MaxItems {
-				truncated = true
-				return out, truncated, nil
-			}
-		}
+	placements, truncated, err := drivereport.Traverse(ctx, driveTreeSource{
+		service:   svc,
+		fields:    fields,
+		allDrives: opts.AllDrives,
+	}, drivereport.Options{
+		RootID:         opts.RootID,
+		MaxDepth:       opts.MaxDepth,
+		MaxItems:       opts.MaxItems,
+		IncludeFiles:   opts.IncludeFiles,
+		IncludeFolders: opts.IncludeFolder,
+	})
+	if err != nil {
+		return nil, false, err
 	}
+	return placements, truncated, nil
+}
 
-	return out, truncated, nil
+type driveTreeSource struct {
+	service   *drive.Service
+	fields    string
+	allDrives bool
+}
+
+func (s driveTreeSource) Children(ctx context.Context, parentID string) ([]drivereport.File, error) {
+	children, err := listDriveChildren(ctx, s.service, parentID, s.fields, s.allDrives)
+	if err != nil {
+		return nil, err
+	}
+	files := make([]drivereport.File, 0, len(children))
+	for _, child := range children {
+		if child == nil {
+			continue
+		}
+		files = append(files, drivereport.File{
+			ID:              child.Id,
+			Name:            child.Name,
+			MimeType:        child.MimeType,
+			Size:            child.Size,
+			ModifiedTime:    child.ModifiedTime,
+			WebViewLink:     child.WebViewLink,
+			Owners:          driveOwners(child),
+			MD5:             child.Md5Checksum,
+			ShortcutDetails: driveReportShortcutDetails(child.ShortcutDetails),
+		})
+	}
+	return files, nil
+}
+
+func driveTreeItemFromPlacement(placement drivereport.Placement) driveTreeItem {
+	return driveTreeItem{
+		ID:                placement.ID,
+		Name:              placement.Name,
+		Path:              placement.Path,
+		ParentID:          placement.ParentID,
+		MimeType:          placement.MimeType,
+		Size:              placement.Size,
+		ModifiedTime:      placement.ModifiedTime,
+		WebViewLink:       placement.WebViewLink,
+		Owners:            placement.Owners,
+		MD5:               placement.MD5,
+		ShortcutDetails:   driveAPIShortcutDetails(placement.ShortcutDetails),
+		Depth:             placement.Depth,
+		placementID:       placement.PlacementID,
+		parentPlacementID: placement.ParentPlacementID,
+	}
+}
+
+func driveReportShortcutDetails(details *drive.FileShortcutDetails) *drivereport.ShortcutDetails {
+	if details == nil {
+		return nil
+	}
+	return &drivereport.ShortcutDetails{
+		TargetID:          details.TargetId,
+		TargetMimeType:    details.TargetMimeType,
+		TargetResourceKey: details.TargetResourceKey,
+	}
+}
+
+func driveAPIShortcutDetails(details *drivereport.ShortcutDetails) *drive.FileShortcutDetails {
+	if details == nil {
+		return nil
+	}
+	return &drive.FileShortcutDetails{
+		TargetId:          details.TargetID,
+		TargetMimeType:    details.TargetMimeType,
+		TargetResourceKey: details.TargetResourceKey,
+	}
 }
 
 func listDriveChildren(ctx context.Context, svc *drive.Service, parentID string, fields string, allDrives bool) ([]*drive.File, error) {
@@ -397,24 +390,6 @@ func listDriveChildren(ctx context.Context, svc *drive.Service, parentID string,
 	}
 
 	return out, nil
-}
-
-func joinDrivePath(parent string, name string) string {
-	name = sanitizeDriveName(name)
-	if parent == "" {
-		return name
-	}
-	return path.Join(parent, name)
-}
-
-func sanitizeDriveName(name string) string {
-	name = strings.ReplaceAll(name, "/", "_")
-	name = strings.ReplaceAll(name, "\\", "_")
-	name = strings.TrimSpace(name)
-	if name == "" || name == "." || name == ".." {
-		return "_"
-	}
-	return name
 }
 
 func driveOwners(f *drive.File) []string {

@@ -10,6 +10,7 @@ import (
 
 	"google.golang.org/api/docs/v1"
 
+	"github.com/steipete/gogcli/internal/docssed"
 	"github.com/steipete/gogcli/internal/ui"
 )
 
@@ -25,15 +26,15 @@ type DocsSedCmd struct {
 
 // parseExpressionLines splits data into trimmed non-empty, non-comment lines.
 func parseExpressionLines(data []byte) []string {
-	var exprs []string
+	var expressions []string
 	for _, line := range strings.Split(string(data), "\n") {
 		line = strings.TrimSpace(line)
 		if line == "" || strings.HasPrefix(line, "#") {
 			continue
 		}
-		exprs = append(exprs, line)
+		expressions = append(expressions, line)
 	}
-	return exprs
+	return expressions
 }
 
 // collectExpressions gathers sed expressions from positional arg, -e flags, -f file, and stdin.
@@ -73,13 +74,7 @@ func (c *DocsSedCmd) collectExpressions(ctx context.Context) ([]string, error) {
 	return exprs, nil
 }
 
-// sedAddress represents a paragraph-number address prefix on a sed expression.
-// Addresses target specific paragraphs by number (1-based), or $ for last.
-type sedAddress struct {
-	Start    int  // 1-based paragraph number, -1 = last ($)
-	End      int  // 0 = same as Start (single paragraph), -1 = last ($)
-	HasRange bool // true if comma-separated range was given
-}
+type sedAddress = docssed.Address
 
 type sedExpr struct {
 	pattern     string
@@ -159,12 +154,7 @@ func (c *DocsSedCmd) runPositionalInsert(ctx context.Context, u *ui.UI, account,
 		return true, fmt.Errorf("create docs service: %w", err)
 	}
 
-	var doc *docs.Document
-	err = retryOnQuota(ctx, func() error {
-		var e error
-		doc, e = docsSvc.Documents.Get(id).Context(ctx).Do()
-		return e
-	})
+	doc, err := getDoc(ctx, docsSvc, id)
 	if err != nil {
 		return true, fmt.Errorf("get document: %w", err)
 	}
@@ -208,19 +198,14 @@ func (c *DocsSedCmd) runPositionalInsert(ctx context.Context, u *ui.UI, account,
 			if deleteEnd < 2 {
 				return true, sedOutputOK(ctx, u, id, sedOutputKV{"cleared", 0})
 			}
-			err = retryOnQuota(ctx, func() error {
-				_, e := docsSvc.Documents.BatchUpdate(id, &docs.BatchUpdateDocumentRequest{
-					Requests: []*docs.Request{{
-						DeleteContentRange: &docs.DeleteContentRangeRequest{
-							Range: &docs.Range{
-								StartIndex: 1,
-								EndIndex:   deleteEnd,
-							},
-						},
-					}},
-				}).Context(ctx).Do()
-				return e
-			})
+			_, err = batchUpdate(ctx, docsSvc, id, []*docs.Request{{
+				DeleteContentRange: &docs.DeleteContentRangeRequest{
+					Range: &docs.Range{
+						StartIndex: 1,
+						EndIndex:   deleteEnd,
+					},
+				},
+			}})
 			if err != nil {
 				return true, fmt.Errorf("clearing document: %w", err)
 			}
@@ -314,7 +299,7 @@ func (c *DocsSedCmd) runSingle(ctx context.Context, u *ui.UI, account, id string
 	}
 
 	// Check if pattern is an image reference (!(n), ![regex], etc.)
-	imgRef := parseImageRefPattern(expr.pattern)
+	imgRef := docssed.ParseImageReference(expr.pattern)
 	if imgRef != nil {
 		return c.runImageReplace(ctx, u, account, id, imgRef, expr.replacement, expr.global)
 	}
@@ -439,7 +424,7 @@ func (c *DocsSedCmd) runBatch(ctx context.Context, u *ui.UI, account, id string,
 			continue
 		}
 
-		imgRef := parseImageRefPattern(ie.expr.pattern)
+		imgRef := docssed.ParseImageReference(ie.expr.pattern)
 		if imgRef != nil {
 			if imgErr := c.runImageReplace(ctx, u, account, id, imgRef, ie.expr.replacement, ie.expr.global); imgErr != nil {
 				return fmt.Errorf("expression %d: %w", ie.index+1, imgErr)
@@ -460,7 +445,7 @@ func (c *DocsSedCmd) runBatch(ctx context.Context, u *ui.UI, account, id string,
 	// leading \t, groups them with adjacent bulleted paragraphs, and re-creates
 	// bullets with merged ranges so Docs interprets tabs as nesting levels.
 	if len(manualExprs) > 0 {
-		if bulletErr := c.applyDeferredBullets(ctx, docsSvc, id); bulletErr != nil {
+		if bulletErr := docssed.NewServiceExecutor(docsSvc).ApplyDeferredBullets(ctx, id); bulletErr != nil {
 			return fmt.Errorf("apply bullets: %w", bulletErr)
 		}
 	}
@@ -544,7 +529,7 @@ func classifyExprForBatch(expr sedExpr) exprCategory {
 	if parseTableCreate(expr.replacement) != nil || parseTableFromPipes(expr.replacement) != nil {
 		return exprCatTableCreate
 	}
-	if parseImageRefPattern(expr.pattern) != nil {
+	if docssed.ParseImageReference(expr.pattern) != nil {
 		return exprCatImagePattern
 	}
 	if canUseNativeReplace(expr.replacement) && expr.global && expr.nthMatch <= 0 {
@@ -610,8 +595,17 @@ func (c *DocsSedCmd) processCellExprs(ctx context.Context, u *ui.UI, account, id
 		if canBatchCell(ie) {
 			tableIdx := ie.expr.cellRef.tableIndex
 			batch := []indexedExpr{ie}
+			seenCells := map[[2]int]struct{}{{
+				ie.expr.cellRef.row,
+				ie.expr.cellRef.col,
+			}: {}}
 			j := i + 1
 			for j < len(cellExprs) && canBatchCell(cellExprs[j]) && cellExprs[j].expr.cellRef.tableIndex == tableIdx {
+				cell := [2]int{cellExprs[j].expr.cellRef.row, cellExprs[j].expr.cellRef.col}
+				if _, duplicate := seenCells[cell]; duplicate {
+					break
+				}
+				seenCells[cell] = struct{}{}
 				batch = append(batch, cellExprs[j])
 				j++
 			}

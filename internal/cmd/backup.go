@@ -74,6 +74,11 @@ type backupReadFlags struct {
 	NoPull   bool   `name:"no-pull" help:"Use local backup repository state without pulling first"`
 }
 
+type backupReadCompatFlags struct {
+	NoPush     bool     `name:"no-push" hidden:"" help:"(deprecated) Ignored for read commands"`
+	Recipients []string `name:"recipient" hidden:"" help:"(deprecated) Ignored for read commands"`
+}
+
 func (f backupReadFlags) options() backup.Options {
 	return backup.Options{
 		ConfigPath: f.Config,
@@ -101,11 +106,19 @@ func bindBackupConfigStore(ctx context.Context, opts *backup.Options) error {
 	return nil
 }
 
+func backupCommandContext(ctx context.Context, flags *RootFlags) context.Context {
+	if flags != nil && flags.NoInput {
+		return backup.WithNoInput(ctx)
+	}
+	return ctx
+}
+
 type BackupInitCmd struct {
 	backupFlags
 }
 
 func (c *BackupInitCmd) Run(ctx context.Context, flags *RootFlags) error {
+	ctx = backupCommandContext(ctx, flags)
 	opts := c.options()
 	if err := bindBackupConfigStore(ctx, &opts); err != nil {
 		return err
@@ -170,6 +183,7 @@ type BackupPushCmd struct {
 }
 
 func (c *BackupPushCmd) Run(ctx context.Context, flags *RootFlags) error {
+	ctx = backupCommandContext(ctx, flags)
 	services := expandBackupServices(splitCSV(c.Services))
 	if len(services) == 0 {
 		return usage("at least one --services value is required")
@@ -245,6 +259,7 @@ type BackupGmailPushCmd struct {
 }
 
 func (c *BackupGmailPushCmd) Run(ctx context.Context, flags *RootFlags) error {
+	ctx = backupCommandContext(ctx, flags)
 	if err := c.validate(); err != nil {
 		return err
 	}
@@ -293,13 +308,25 @@ func (c *BackupGmailPushCmd) validate() error {
 }
 
 type BackupStatusCmd struct {
-	backupFlags
+	backupReadFlags
+	backupReadCompatFlags
 }
 
-func (c *BackupStatusCmd) Run(ctx context.Context) error {
+func (c *BackupStatusCmd) Run(ctx context.Context, flags *RootFlags) error {
+	ctx = backupCommandContext(ctx, flags)
 	opts := c.options()
 	if err := bindBackupConfigStore(ctx, &opts); err != nil {
 		return err
+	}
+	if flags != nil && flags.DryRun {
+		cfg, err := backup.ResolveOptions(opts)
+		if err != nil {
+			return err
+		}
+		return dryRunExit(ctx, flags, "backup.status", map[string]any{
+			"repo": cfg.Repo,
+			"pull": !c.NoPull,
+		})
 	}
 	manifest, repo, err := backup.Status(ctx, opts)
 	if err != nil {
@@ -327,13 +354,25 @@ func (c *BackupStatusCmd) Run(ctx context.Context) error {
 }
 
 type BackupVerifyCmd struct {
-	backupFlags
+	backupReadFlags
+	backupReadCompatFlags
 }
 
-func (c *BackupVerifyCmd) Run(ctx context.Context) error {
+func (c *BackupVerifyCmd) Run(ctx context.Context, flags *RootFlags) error {
+	ctx = backupCommandContext(ctx, flags)
 	opts := c.options()
 	if err := bindBackupConfigStore(ctx, &opts); err != nil {
 		return err
+	}
+	if flags != nil && flags.DryRun {
+		cfg, err := backup.ResolveOptions(opts)
+		if err != nil {
+			return err
+		}
+		return dryRunExit(ctx, flags, "backup.verify", map[string]any{
+			"repo": cfg.Repo,
+			"pull": !c.NoPull,
+		})
 	}
 	result, err := backup.Verify(ctx, opts)
 	if err != nil {

@@ -67,7 +67,7 @@ func TestDocsInsertCmd_DefaultsToEndOfDoc(t *testing.T) {
 	if loc == nil {
 		t.Fatalf("expected Location, got nil")
 	}
-	// endIndex = 42 → docsAppendIndex(42) = 41
+	// endIndex = 42 -> docsedit.AppendIndex(42) = 41.
 	if loc.Index != 41 {
 		t.Fatalf("expected insert at end-1 (41), got %d", loc.Index)
 	}

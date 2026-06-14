@@ -8,6 +8,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/steipete/gogcli/internal/slidesmarkdown"
 )
 
 func TestSlideyFixture_ParsesAndRenders(t *testing.T) {
@@ -15,7 +17,7 @@ func TestSlideyFixture_ParsesAndRenders(t *testing.T) {
 	data, err := os.ReadFile(path)
 	require.NoError(t, err)
 
-	parsed, err := ParseMarkdownToSlides(string(data), ParseOptions{})
+	parsed, err := slidesmarkdown.Parse(string(data), slidesmarkdown.ParseOptions{})
 	require.NoError(t, err)
 	assert.GreaterOrEqual(t, len(parsed), 30, "fixture should produce ~30+ slides")
 
@@ -33,35 +35,35 @@ func TestSlideyFixture_ParsesAndRenders(t *testing.T) {
 		if s.Notes != "" {
 			sawNotes = true
 		}
-		var walk func([]Block)
-		walk = func(blocks []Block) {
+		var walk func([]slidesmarkdown.Block)
+		walk = func(blocks []slidesmarkdown.Block) {
 			for _, b := range blocks {
 				switch v := b.(type) {
-				case ParagraphBlock:
+				case slidesmarkdown.ParagraphBlock:
 					for _, in := range v.Inlines {
-						if _, ok := in.(IconRef); ok {
+						if _, ok := in.(slidesmarkdown.IconRef); ok {
 							sawIcon = true
 						}
 					}
-				case BulletsBlock:
+				case slidesmarkdown.BulletsBlock:
 					for _, item := range v.Items {
 						for _, in := range item.Inlines {
-							if _, ok := in.(IconRef); ok {
+							if _, ok := in.(slidesmarkdown.IconRef); ok {
 								sawIcon = true
 							}
 						}
 					}
-				case IconRowsBlock:
+				case slidesmarkdown.IconRowsBlock:
 					for _, row := range v.Rows {
 						if row.Icon != nil {
 							sawIcon = true
 						}
 					}
-				case ColumnsBlock:
+				case slidesmarkdown.ColumnsBlock:
 					for _, col := range v.Columns {
 						walk(col)
 					}
-				case DiagramBlock:
+				case slidesmarkdown.DiagramBlock:
 					sawDiagram = true
 				}
 			}

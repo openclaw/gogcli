@@ -75,6 +75,9 @@ func TestAuthImportCmd_RejectsMissingRefreshTokenSource(t *testing.T) {
 	if !strings.Contains(err.Error(), "--refresh-token-stdin") {
 		t.Fatalf("expected safe source hint in error, got %q", err.Error())
 	}
+	if !strings.Contains(err.Error(), "required refresh token") || !strings.Contains(err.Error(), "cannot replace it") {
+		t.Fatalf("expected refresh/access dependency guidance, got %q", err.Error())
+	}
 }
 
 func TestAuthImportCmd_RejectsMultipleRefreshTokenSources(t *testing.T) {

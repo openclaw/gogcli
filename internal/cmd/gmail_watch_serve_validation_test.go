@@ -49,4 +49,15 @@ func TestGmailWatchServeCmd_ValidationErrors(t *testing.T) {
 			t.Fatalf("expected error")
 		}
 	})
+
+	t.Run("dry-run validates explicit hook options", func(t *testing.T) {
+		dryRunFlags := &RootFlags{Account: "a@b.com", DryRun: true}
+		if err := runKong(t, &GmailWatchServeCmd{}, []string{
+			"--hook-url", "https://example.com/hook",
+			"--max-bytes", "0",
+			"--port", "9999",
+		}, context.Background(), dryRunFlags); err == nil {
+			t.Fatalf("expected error")
+		}
+	})
 }

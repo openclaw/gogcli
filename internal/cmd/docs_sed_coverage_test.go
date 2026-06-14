@@ -2,14 +2,12 @@ package cmd
 
 import (
 	"context"
-	"errors"
 	"io"
+	"math"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	gapi "google.golang.org/api/googleapi"
 
 	"google.golang.org/api/docs/v1"
 
@@ -180,70 +178,6 @@ func TestBuildSectionRangeForMatch(t *testing.T) {
 	s, e = buildSectionRangeForMatch(nil, 10, 20)
 	assert.Equal(t, int64(1), s)
 	assert.Equal(t, int64(21), e)
-}
-
-// --- retryOnQuota ---
-
-func TestRetryOnQuota_Success(t *testing.T) {
-	calls := 0
-	err := retryOnQuota(context.Background(), func() error {
-		calls++
-		return nil
-	})
-	assert.NoError(t, err)
-	assert.Equal(t, 1, calls)
-}
-
-func TestRetryOnQuota_NonRetryable(t *testing.T) {
-	err := retryOnQuota(context.Background(), func() error {
-		return errors.New("permanent error")
-	})
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "permanent error")
-}
-
-func TestRetryOnQuota_ContextCancel(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel() // cancel immediately
-
-	calls := 0
-	err := retryOnQuota(ctx, func() error {
-		calls++
-		return &gapi.Error{Code: 429, Message: "rate limit"}
-	})
-	// Should get either context error or the 429 error
-	assert.Error(t, err)
-}
-
-func TestRetryOnQuota_RetryableEventualSuccess(t *testing.T) {
-	calls := 0
-	// Override constants not possible, but we can test with a fast context timeout
-	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
-	defer cancel()
-
-	err := retryOnQuota(ctx, func() error {
-		calls++
-		if calls < 2 {
-			return &gapi.Error{Code: 429, Message: "rate limit"}
-		}
-		return nil
-	})
-	// May succeed or timeout depending on backoff timing
-	if err == nil {
-		assert.GreaterOrEqual(t, calls, 2)
-	}
-}
-
-func TestIsRetryableError_Extended(t *testing.T) {
-	assert.False(t, isRetryableError(nil))
-	assert.False(t, isRetryableError(errors.New("random error")))
-	assert.True(t, isRetryableError(&gapi.Error{Code: 429}))
-	assert.True(t, isRetryableError(&gapi.Error{Code: 500}))
-	assert.True(t, isRetryableError(&gapi.Error{Code: 502}))
-	assert.True(t, isRetryableError(&gapi.Error{Code: 503}))
-	assert.False(t, isRetryableError(&gapi.Error{Code: 404}))
-	assert.True(t, isRetryableError(errors.New("rateLimitExceeded")))
-	assert.True(t, isRetryableError(errors.New("error 429")))
 }
 
 // --- formatBraceFlags ---
@@ -455,6 +389,38 @@ func TestFindDocImages_PositionedObjects(t *testing.T) {
 	assert.True(t, images[0].IsPositioned)
 }
 
+func TestFindDocImages_DeterministicDocumentOrder(t *testing.T) {
+	doc := &docs.Document{
+		Body: &docs.Body{Content: []*docs.StructuralElement{
+			{
+				StartIndex: 1,
+				EndIndex:   5,
+				Paragraph: &docs.Paragraph{
+					PositionedObjectIds: []string{"positioned-z"},
+					Elements: []*docs.ParagraphElement{{
+						StartIndex:          3,
+						EndIndex:            4,
+						InlineObjectElement: &docs.InlineObjectElement{InlineObjectId: "inline"},
+					}},
+				},
+			},
+		}},
+		PositionedObjects: map[string]docs.PositionedObject{
+			"positioned-z": {},
+			"positioned-a": {},
+		},
+	}
+
+	images := findDocImages(doc)
+	require.Len(t, images, 3)
+	assert.Equal(t, []string{"positioned-z", "inline", "positioned-a"}, []string{
+		images[0].ObjectID,
+		images[1].ObjectID,
+		images[2].ObjectID,
+	})
+	assert.Equal(t, int64(1), images[0].Index)
+}
+
 // --- resolveAlign / resolveBreak edge cases ---
 
 func TestResolveAlign_CaseInsensitive(t *testing.T) {
@@ -471,23 +437,6 @@ func TestResolveBreak_AllValues(t *testing.T) {
 	assert.Equal(t, "column_break", resolveBreak("c"))
 	assert.Equal(t, "section_break", resolveBreak("s"))
 	assert.Equal(t, "x", resolveBreak("x"))
-}
-
-// --- tokenizeBraceContent edge cases ---
-
-func TestTokenizeBraceContent_Extended(t *testing.T) {
-	// Already tested at 70%, add edge cases
-	tokens := tokenizeBraceContent("{b,i,_}")
-	assert.NotEmpty(t, tokens)
-
-	// Nested braces
-	tokens = tokenizeBraceContent("{b,{color:#FF0000}}")
-	assert.NotEmpty(t, tokens)
-
-	// Empty
-	tokens = tokenizeBraceContent("{}")
-	// May return empty or single empty token depending on impl
-	_ = tokens
 }
 
 // --- parseFullExpr edge cases to increase coverage ---
@@ -696,6 +645,8 @@ func TestClassifyExpression_MoreCases(t *testing.T) {
 
 	// table op
 	assert.Equal(t, "delete table 1", classifyExpression(sedExpr{tableRef: 1}))
+	assert.Equal(t, "delete all tables", classifyExpression(sedExpr{tableRef: math.MinInt32}))
+	assert.Equal(t, "all tables op", classifyExpression(sedExpr{tableRef: math.MinInt32, replacement: "new"}))
 
 	// image
 	assert.Equal(t, "image", classifyExpression(sedExpr{pattern: "!(1)"}))
@@ -764,39 +715,6 @@ func TestClassifyExprForBatch(t *testing.T) {
 			assert.Equal(t, tt.want, classifyExprForBatch(tt.expr))
 		})
 	}
-}
-
-func TestExtractParagraphText_FastPath(t *testing.T) {
-	// Single text run — fast path
-	p := &docs.Paragraph{
-		Elements: []*docs.ParagraphElement{
-			{TextRun: &docs.TextRun{Content: "hello world\n"}},
-		},
-	}
-	assert.Equal(t, "hello world", extractParagraphText(p))
-
-	// Multiple text runs — builder path
-	p2 := &docs.Paragraph{
-		Elements: []*docs.ParagraphElement{
-			{TextRun: &docs.TextRun{Content: "hello "}},
-			{TextRun: &docs.TextRun{Content: "world\n"}},
-		},
-	}
-	assert.Equal(t, "hello world", extractParagraphText(p2))
-
-	// Non-text element mixed in
-	p3 := &docs.Paragraph{
-		Elements: []*docs.ParagraphElement{
-			{TextRun: &docs.TextRun{Content: "hello "}},
-			{}, // non-text element
-			{TextRun: &docs.TextRun{Content: "world"}},
-		},
-	}
-	assert.Equal(t, "hello world", extractParagraphText(p3))
-
-	// Empty paragraph
-	p4 := &docs.Paragraph{Elements: []*docs.ParagraphElement{}}
-	assert.Equal(t, "", extractParagraphText(p4))
 }
 
 func TestLiteralReplacement_Extended(t *testing.T) {

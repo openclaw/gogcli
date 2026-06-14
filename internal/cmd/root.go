@@ -123,8 +123,6 @@ func executeWithRuntime(args []string, runtime *app.Runtime) (err error) {
 		args = []string{"--help"}
 	}
 	args = rewriteHelpArgs(args)
-	args = rewriteDesirePathArgs(args)
-	args = rewriteDocsCellUpdateContentArgs(args)
 
 	home, homeProvided := preScanHomeArg(args)
 	if bindErr := bindRuntimeLayoutResolver(runtime, home); bindErr != nil {
@@ -140,6 +138,8 @@ func executeWithRuntime(args []string, runtime *app.Runtime) (err error) {
 	if err != nil {
 		return reportEarlyError(runtimeIO.Err, err)
 	}
+	args = rewriteDocsCellUpdateContentArgs(parser.Model, args)
+	args = rewriteDesirePathArgs(parser.Model, args)
 
 	defer func() {
 		if r := recover(); r != nil {
@@ -390,39 +390,6 @@ func isTerminalWriter(w io.Writer) bool {
 	return ok && termutil.IsTerminal(file)
 }
 
-func rewriteDesirePathArgs(args []string) []string {
-	// Some commands use `--fields` for API field masks. Agents also frequently
-	// guess `--fields` to mean "select output fields", so we squat it everywhere
-	// else by rewriting to the global `--select` flag.
-	//
-	// We avoid adding `--fields` as a real alias because Kong would treat it as a duplicate flag.
-	out := make([]string, 0, len(args))
-	for i, a := range args {
-		if a == "--" {
-			out = append(out, args[i:]...)
-			break
-		}
-		if a == "--fields" {
-			if commandHasLocalFieldsFlagBefore(args, i) {
-				out = append(out, a)
-			} else {
-				out = append(out, "--select")
-			}
-			continue
-		}
-		if strings.HasPrefix(a, "--fields=") {
-			if commandHasLocalFieldsFlagBefore(args, i) {
-				out = append(out, a)
-			} else {
-				out = append(out, "--select="+strings.TrimPrefix(a, "--fields="))
-			}
-			continue
-		}
-		out = append(out, a)
-	}
-	return out
-}
-
 func preScanHomeArg(args []string) (string, bool) {
 	for i := 0; i < len(args); i++ {
 		arg := args[i]
@@ -446,81 +413,6 @@ func preScanHomeArg(args []string) (string, bool) {
 		}
 	}
 	return "", false
-}
-
-func commandHasLocalFieldsFlagBefore(args []string, fieldsIndex int) bool {
-	if fieldsIndex < 0 || fieldsIndex > len(args) {
-		return false
-	}
-	return commandTokensHaveLocalFieldsFlag(commandTokens(args[:fieldsIndex], 5))
-}
-
-func commandTokensHaveLocalFieldsFlag(cmdTokens []string) bool {
-	if len(cmdTokens) == 0 {
-		return false
-	}
-	cmd0 := strings.TrimSpace(strings.ToLower(cmdTokens[0]))
-	if cmd0 == "ls" || cmd0 == strList {
-		return true
-	}
-	if len(cmdTokens) < 2 {
-		return false
-	}
-	cmd1 := strings.TrimSpace(strings.ToLower(cmdTokens[1]))
-	switch cmd0 {
-	case "calendar", "cal":
-		return cmd1 == "events" || cmd1 == "ls" || cmd1 == "list"
-	case backupServiceDrive, "drv":
-		if cmd1 == "ls" || cmd1 == strList || cmd1 == "get" || cmd1 == "raw" {
-			return true
-		}
-		return driveLabelsCommandHasLocalFieldsFlag(cmdTokens[1:])
-	case "sites", "site":
-		return cmd1 == "get" || cmd1 == "info" || cmd1 == "show"
-	default:
-		return false
-	}
-}
-
-func driveLabelsCommandHasLocalFieldsFlag(tokens []string) bool {
-	if len(tokens) < 2 {
-		return false
-	}
-	if tokens[0] != "labels" && tokens[0] != "label" {
-		return false
-	}
-	switch tokens[1] {
-	case "list", "ls", "get", "info", "show":
-		return true
-	case strFile:
-		if len(tokens) < 3 {
-			return false
-		}
-		return tokens[2] == strList || tokens[2] == "ls"
-	default:
-		return false
-	}
-}
-
-func commandTokens(args []string, maxTokens int) []string {
-	cmdTokens := make([]string, 0, maxTokens)
-	for i := 0; i < len(args); i++ {
-		a := args[i]
-		if a == "--" {
-			return cmdTokens
-		}
-		if strings.HasPrefix(a, "-") {
-			if globalFlagTakesValue(a) && i+1 < len(args) {
-				i++
-			}
-			continue
-		}
-		cmdTokens = append(cmdTokens, a)
-		if len(cmdTokens) >= maxTokens {
-			return cmdTokens
-		}
-	}
-	return cmdTokens
 }
 
 func globalFlagTakesValue(flag string) bool {

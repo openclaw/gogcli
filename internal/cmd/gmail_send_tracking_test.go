@@ -31,11 +31,15 @@ func TestResolveTrackingConfig(t *testing.T) {
 	cmd.BodyHTML = ""
 	if _, err := cmd.resolveTrackingConfig(ctx, "a@b.com", []string{"a@b.com"}, nil, nil, cmd.BodyHTML); err == nil {
 		t.Fatalf("expected error for missing body html")
+	} else if ExitCode(err) != 2 {
+		t.Fatalf("missing HTML exit = %d, want 2: %v", ExitCode(err), err)
 	}
 
 	cmd.BodyHTML = "<html></html>"
 	if _, err := cmd.resolveTrackingConfig(ctx, "a@b.com", []string{"a@b.com"}, nil, nil, cmd.BodyHTML); err == nil {
 		t.Fatalf("expected error for unconfigured tracking")
+	} else if ExitCode(err) != exitCodeConfig {
+		t.Fatalf("unconfigured tracking exit = %d, want %d: %v", ExitCode(err), exitCodeConfig, err)
 	}
 
 	key, err := tracking.GenerateKey()

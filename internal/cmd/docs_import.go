@@ -26,6 +26,22 @@ type markdownImage struct {
 	heightPt    float64 // optional height in points (0 = use default)
 }
 
+type preparedMarkdown struct {
+	source  string
+	cleaned string
+	images  []markdownImage
+}
+
+func prepareMarkdown(content string) preparedMarkdown {
+	cleaned, images := extractMarkdownImages(content)
+
+	return preparedMarkdown{
+		source:  content,
+		cleaned: cleaned,
+		images:  images,
+	}
+}
+
 // placeholder returns the placeholder string for this image.
 // Uses a unique token so it cannot collide with user content.
 func (m markdownImage) placeholder() string {

@@ -70,6 +70,19 @@ gog backup export --no-pull --out ~/Library/CloudStorage/Dropbox/backup/gog --gm
 Use `--no-push` on `init` or `push` to commit locally without pushing to the
 remote.
 
+`status`, `verify`, `cat`, and `export` pull an existing repository or clone the
+configured remote before reading. Use `--no-pull` to read local state directly.
+Read commands never initialize a new Git repository when the repository is
+missing or a clone fails.
+With `--no-input`, backup Git operations disable credential/UI prompts and SSH
+password prompts; failed read-side clones leave the configured path untouched.
+Pre-created empty repository directories are supported, including mounted
+paths; failed clones clean their partial contents while preserving the directory.
+Git errors redact credentials embedded in remote URLs before printing command
+arguments or captured diagnostics.
+With `--dry-run`, all four read commands print their resolved repository/pull
+plan without cloning, pulling, decrypting, or writing plaintext output.
+
 Supported services:
 
 - `gmail`: labels and raw MIME messages. Fetched raw messages are cached under
@@ -301,7 +314,10 @@ completed backup waits for the queue to drain, then promotes the completed
 checkpoint message shards into the root manifest instead of re-encrypting the
 same mailbox into a second multi-GB final push. If no complete matching
 checkpoint exists, final Gmail message shards still split by row count and the
-same conservative plaintext byte ceiling. Tune the commit cadence with
+same conservative plaintext byte ceiling. Checkpoint reuse fingerprints the
+exact ordered Gmail message IDs and requires the manifest run, service,
+account, row count, and encryption recipients to remain compatible. Tune the
+commit cadence with
 `--gmail-checkpoint-rows` /
 `--gmail-checkpoint-interval` on `gog backup push`, or `--checkpoint-rows` /
 `--checkpoint-interval` on `gog backup gmail push`; set the interval or rows to

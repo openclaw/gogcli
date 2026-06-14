@@ -15,6 +15,7 @@ import (
 	gapi "google.golang.org/api/googleapi"
 
 	"github.com/steipete/gogcli/internal/config"
+	"github.com/steipete/gogcli/internal/docsedit"
 	"github.com/steipete/gogcli/internal/outfmt"
 	"github.com/steipete/gogcli/internal/ui"
 )
@@ -319,7 +320,7 @@ func (c *DocsInsertImageCmd) buildInsertRequests(ctx context.Context, svc *docs.
 	reqs := make([]*docs.Request, 0, 2)
 	if placeholder != nil {
 		reqs = append(reqs, &docs.Request{DeleteContentRange: &docs.DeleteContentRangeRequest{
-			Range: &docs.Range{StartIndex: placeholder.startIndex, EndIndex: placeholder.endIndex, TabId: tabID},
+			Range: &docs.Range{StartIndex: placeholder.StartIndex, EndIndex: placeholder.EndIndex, TabId: tabID},
 		}})
 	}
 	reqs = append(reqs, &docs.Request{InsertInlineImage: &docs.InsertInlineImageRequest{
@@ -338,7 +339,7 @@ func (c *DocsInsertImageCmd) buildLinkFallbackRequests(ctx context.Context, svc 
 	reqs := make([]*docs.Request, 0, 2)
 	if placeholder != nil {
 		reqs = append(reqs, &docs.Request{DeleteContentRange: &docs.DeleteContentRangeRequest{
-			Range: &docs.Range{StartIndex: placeholder.startIndex, EndIndex: placeholder.endIndex, TabId: tabID},
+			Range: &docs.Range{StartIndex: placeholder.StartIndex, EndIndex: placeholder.EndIndex, TabId: tabID},
 		}})
 	}
 	reqs = append(reqs, &docs.Request{InsertText: &docs.InsertTextRequest{
@@ -348,23 +349,27 @@ func (c *DocsInsertImageCmd) buildLinkFallbackRequests(ctx context.Context, svc 
 	return reqs, index, tabID, nil
 }
 
-func (c *DocsInsertImageCmd) resolveImageTarget(ctx context.Context, svc *docs.Service, docID, at string) (int64, *docRange, string, error) {
+func (c *DocsInsertImageCmd) resolveImageTarget(ctx context.Context, svc *docs.Service, docID, at string) (int64, *docsedit.TextRange, string, error) {
 	if strings.EqualFold(at, docsAtIndexEnd) {
 		endIndex, tabID, err := docsTargetEndIndexAndTabID(ctx, svc, docID, c.Tab)
 		if err != nil {
 			return 0, nil, "", err
 		}
-		return docsAppendIndex(endIndex), nil, tabID, nil
+		return docsedit.AppendIndex(endIndex), nil, tabID, nil
 	}
 	loaded, err := loadDocsTargetDocument(ctx, svc, docID, c.Tab)
 	if err != nil {
 		return 0, nil, "", err
 	}
-	matches := findTextMatches(loaded.target, at, true)
+	matches := docsedit.FindTextRanges(loaded.target, at, docsedit.SearchOptions{
+		MatchCase:            true,
+		PreserveHTMLEntities: true,
+		RequireTextSegment:   true,
+	})
 	if len(matches) == 0 {
 		return 0, nil, "", fmt.Errorf("placeholder not found: %q", at)
 	}
-	return matches[0].startIndex, &matches[0], loaded.tabID, nil
+	return matches[0].StartIndex, &matches[0], loaded.tabID, nil
 }
 
 func isDocsInsertImageMime(mimeType string) bool {

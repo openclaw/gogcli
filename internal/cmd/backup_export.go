@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/steipete/gogcli/internal/backup"
+	gmailbackup "github.com/steipete/gogcli/internal/backup/gmail"
 	"github.com/steipete/gogcli/internal/outfmt"
 	"github.com/steipete/gogcli/internal/ui"
 )
@@ -25,6 +26,7 @@ type BackupCatCmd struct {
 }
 
 func (c *BackupCatCmd) Run(ctx context.Context, flags *RootFlags) error {
+	ctx = backupCommandContext(ctx, flags)
 	shardPath := strings.TrimSpace(c.Shard)
 	if shardPath == "" {
 		return usage("empty shard")
@@ -98,6 +100,7 @@ type backupExportOptions struct {
 }
 
 func (c *BackupExportCmd) Run(ctx context.Context, flags *RootFlags) error {
+	ctx = backupCommandContext(ctx, flags)
 	backupOpts := c.options()
 	if err := bindBackupConfigStore(ctx, &backupOpts); err != nil {
 		return err
@@ -298,7 +301,7 @@ func resetExportTargets(outDir string, shards []backup.ShardEntry) error {
 	for _, shard := range shards {
 		target := ""
 		switch {
-		case shard.Service == backupServiceGmail && shard.Kind == gmailBackupShardKindMessages:
+		case shard.Service == backupServiceGmail && shard.Kind == gmailbackup.MessageShardKind:
 			target = filepath.Join(outDir, backupServiceGmail, sanitizeFilePart(shard.Account), "messages", "index.jsonl")
 		case shard.Service == backupServiceDrive && shard.Kind == "contents":
 			target = filepath.Join(outDir, backupServiceDrive, sanitizeFilePart(shard.Account), "files", "index.jsonl")
@@ -348,7 +351,7 @@ func exportPlainShard(outDir string, shard backup.PlainShard, opts backupExportO
 		return exportDriveContents(outDir, shard)
 	case shard.Service == backupServiceGmail && shard.Kind == "labels":
 		return exportGmailLabels(outDir, shard)
-	case shard.Service == backupServiceGmail && shard.Kind == gmailBackupShardKindMessages:
+	case shard.Service == backupServiceGmail && shard.Kind == gmailbackup.MessageShardKind:
 		return exportGmailMessages(outDir, shard, opts)
 	default:
 		return exportRawShard(outDir, shard)

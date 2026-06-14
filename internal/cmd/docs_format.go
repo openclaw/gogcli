@@ -7,6 +7,7 @@ import (
 
 	"google.golang.org/api/docs/v1"
 
+	"github.com/steipete/gogcli/internal/docsedit"
 	"github.com/steipete/gogcli/internal/docsformat"
 	"github.com/steipete/gogcli/internal/outfmt"
 	"github.com/steipete/gogcli/internal/ui"
@@ -142,7 +143,7 @@ func (c *DocsFormatCmd) Run(ctx context.Context, flags *RootFlags) error {
 
 	reqs := make([]*docs.Request, 0, len(ranges)*2)
 	for _, r := range ranges {
-		formatReqs, buildErr := format.buildRequests(r.startIndex, r.endIndex, tabID)
+		formatReqs, buildErr := format.buildRequests(r.StartIndex, r.EndIndex, tabID)
 		if buildErr != nil {
 			return buildErr
 		}
@@ -163,7 +164,7 @@ func (c *DocsFormatCmd) Run(ctx context.Context, flags *RootFlags) error {
 	return c.writeResult(ctx, resp, len(reqs), len(ranges), tabID)
 }
 
-func (c *DocsFormatCmd) targetRanges(ctx context.Context, svc *docs.Service, docID string) ([]docRange, string, error) {
+func (c *DocsFormatCmd) targetRanges(ctx context.Context, svc *docs.Service, docID string) ([]docsedit.TextRange, string, error) {
 	if strings.TrimSpace(c.Match) == "" {
 		endIndex, tabID, err := docsTargetEndIndexAndTabID(ctx, svc, docID, c.Tab)
 		if err != nil {
@@ -173,7 +174,7 @@ func (c *DocsFormatCmd) targetRanges(ctx context.Context, svc *docs.Service, doc
 		if end <= 1 {
 			return nil, tabID, nil
 		}
-		return []docRange{{startIndex: 1, endIndex: end}}, tabID, nil
+		return []docsedit.TextRange{{StartIndex: 1, EndIndex: end}}, tabID, nil
 	}
 
 	getCall := svc.Documents.Get(docID).Context(ctx)
@@ -204,7 +205,11 @@ func (c *DocsFormatCmd) targetRanges(ctx context.Context, svc *docs.Service, doc
 		}
 	}
 
-	matches := findTextMatches(targetDoc, c.Match, c.MatchCase)
+	matches := docsedit.FindTextRanges(targetDoc, c.Match, docsedit.SearchOptions{
+		MatchCase:            c.MatchCase,
+		PreserveHTMLEntities: true,
+		RequireTextSegment:   true,
+	})
 	if !c.MatchAll && len(matches) > 1 {
 		matches = matches[:1]
 	}

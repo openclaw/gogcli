@@ -281,13 +281,11 @@ func (c *DocsCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
 		if readErr != nil {
 			return fmt.Errorf("read markdown file: %w", readErr)
 		}
-		content := string(raw)
-
-		var cleaned string
-		cleaned, images = extractMarkdownImages(content)
+		markdown := prepareMarkdown(string(raw))
+		images = markdown.images
 
 		createCall = createCall.Media(
-			strings.NewReader(cleaned),
+			strings.NewReader(markdown.cleaned),
 			gapi.ContentType("text/markdown"),
 		)
 	}

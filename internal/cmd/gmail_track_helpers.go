@@ -12,6 +12,10 @@ import (
 
 var errTrackingSecretStoreRequired = errors.New("tracking secret store is required")
 
+func trackingConfigError(msg string) error {
+	return &ExitError{Code: exitCodeConfig, Err: errors.New(msg)}
+}
+
 func newTrackingConfigStore(ctx context.Context, secretStore *tracking.SecretStore) (*tracking.ConfigStore, error) {
 	layout, err := commandLayout(ctx, config.PathKindConfig, config.PathKindState)
 	if err != nil {

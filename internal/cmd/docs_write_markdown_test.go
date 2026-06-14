@@ -577,6 +577,39 @@ func TestDocsWrite_MarkdownAppendUsesDocsFormatting(t *testing.T) {
 	}
 }
 
+func TestInsertPreparedDocsMarkdownAtReturnsContentBounds(t *testing.T) {
+	docSvc, cleanup := newDocsServiceForTest(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost || !strings.Contains(r.URL.Path, ":batchUpdate") {
+			http.NotFound(w, r)
+
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{"documentId": "doc1"})
+	}))
+	defer cleanup()
+
+	result, err := insertPreparedDocsMarkdownAt(
+		context.Background(),
+		docSvc,
+		"doc1",
+		9,
+		prepareMarkdown("# Title"),
+		"",
+		true,
+	)
+	if err != nil {
+		t.Fatalf("insertPreparedDocsMarkdownAt: %v", err)
+	}
+	if result.RequestCount != 2 || result.Inserted != len("\nTitle\n") {
+		t.Fatalf("result = %#v", result)
+	}
+	if result.ContentStart != 10 || result.ContentEnd != 16 {
+		t.Fatalf("content bounds = [%d,%d), want [10,16)", result.ContentStart, result.ContentEnd)
+	}
+}
+
 func TestDocsWrite_MarkdownAppendRewritesExplicitHeadingAnchorLinks(t *testing.T) {
 	var batchRequests [][]*docs.Request
 	var getCalls int

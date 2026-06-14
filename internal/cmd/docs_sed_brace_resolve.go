@@ -6,41 +6,6 @@ import (
 	"unicode"
 )
 
-// namedColors maps color names to hex values per SEDMAT spec.
-var namedColors = map[string]string{
-	"black":     "#000000",
-	"white":     "#FFFFFF",
-	"red":       "#FF0000",
-	"green":     "#00FF00",
-	"blue":      "#0000FF",
-	"yellow":    "#FFFF00",
-	"cyan":      "#00FFFF",
-	"magenta":   "#FF00FF",
-	"orange":    "#FF8C00",
-	"purple":    "#800080",
-	"pink":      "#FF69B4",
-	"brown":     "#8B4513",
-	"gray":      "#808080",
-	"grey":      "#808080",
-	"lightgray": "#D3D3D3",
-	"darkgray":  "#404040",
-	"navy":      "#000080",
-	"teal":      "#008080",
-}
-
-// resolveColor returns hex from a color name or passes through hex values.
-// If the input is a named color, returns its hex equivalent.
-// If already hex (#RRGGBB), returns as-is.
-// Otherwise returns the input unchanged.
-func resolveColor(s string) string {
-	lower := strings.ToLower(s)
-	if hex, ok := namedColors[lower]; ok {
-		return hex
-	}
-	// Already hex or unknown — return as-is
-	return s
-}
-
 // headingMap maps SEDMAT heading values to Google Docs named styles.
 var headingMap = map[string]string{
 	"t": "TITLE",

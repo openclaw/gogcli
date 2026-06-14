@@ -65,7 +65,7 @@ func TestGmailWatchStoreUpdateReloadsDiskState(t *testing.T) {
 	renewed.ExpirationMs = 2000
 	renewed.ProviderExpirationMs = 2000
 	renewed.RenewAfterMs = 1900
-	writeGmailWatchStateFile(t, store.path, renewed)
+	writeGmailWatchStateFile(t, store.Path(), renewed)
 
 	if updateErr := store.Update(func(s *gmailWatchState) error {
 		s.LastDeliveryStatus = "ok"
@@ -75,7 +75,7 @@ func TestGmailWatchStoreUpdateReloadsDiskState(t *testing.T) {
 		t.Fatalf("delivery update: %v", updateErr)
 	}
 
-	got := readGmailWatchStateFile(t, store.path)
+	got := readGmailWatchStateFile(t, store.Path())
 	if got.ExpirationMs != 2000 || got.ProviderExpirationMs != 2000 || got.RenewAfterMs != 1900 {
 		t.Fatalf("renewal fields were clobbered: %#v", got)
 	}
@@ -155,8 +155,8 @@ func TestGmailWatchStoreUsesInjectedRuntimeLayout(t *testing.T) {
 	}
 
 	expected := filepath.Join(runtimeStateDir, "gmail-watch", "me_example_com.json")
-	if store.path != expected {
-		t.Fatalf("path = %q, want %q", store.path, expected)
+	if store.Path() != expected {
+		t.Fatalf("path = %q, want %q", store.Path(), expected)
 	}
 	if _, err := os.Stat(expected); err != nil {
 		t.Fatalf("runtime state file: %v", err)

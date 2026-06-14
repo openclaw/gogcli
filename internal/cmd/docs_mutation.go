@@ -126,9 +126,20 @@ func replaceDocsTextRange(ctx context.Context, svc *docs.Service, doc *docs.Docu
 }
 
 func replaceDocsMarkdownRange(ctx context.Context, svc *docs.Service, doc *docs.Document, startIdx, endIdx int64, replaceText string, tabID string) (requestCount int, inserted int, err error) {
-	cleaned, images := extractMarkdownImages(replaceText)
-	explicitHeadingAnchors := docsmarkdown.ExplicitHeadingAnchors(cleaned)
-	elements := docsmarkdown.ParseMarkdown(cleaned)
+	return replacePreparedDocsMarkdownRange(ctx, svc, doc, startIdx, endIdx, prepareMarkdown(replaceText), tabID)
+}
+
+func replacePreparedDocsMarkdownRange(
+	ctx context.Context,
+	svc *docs.Service,
+	doc *docs.Document,
+	startIdx int64,
+	endIdx int64,
+	markdown preparedMarkdown,
+	tabID string,
+) (requestCount int, inserted int, err error) {
+	explicitHeadingAnchors := docsmarkdown.ExplicitHeadingAnchors(markdown.cleaned)
+	elements := docsmarkdown.ParseMarkdown(markdown.cleaned)
 	docsmarkdown.StripElementHeadingAnchors(elements)
 	prefix := ""
 	baseIndex := startIdx
@@ -137,7 +148,7 @@ func replaceDocsMarkdownRange(ctx context.Context, svc *docs.Service, doc *docs.
 		baseIndex++
 	}
 	formattingRequests, textToInsert, tables := docsmarkdown.MarkdownToDocsRequests(elements, baseIndex, tabID)
-	inlineReplacement := markdownRangeReplacementIsInline(cleaned, elements)
+	inlineReplacement := markdownRangeReplacementIsInline(markdown.cleaned, elements)
 	if inlineReplacement {
 		textToInsert = strings.TrimSuffix(textToInsert, "\n")
 	}
@@ -193,16 +204,16 @@ func replaceDocsMarkdownRange(ctx context.Context, svc *docs.Service, doc *docs.
 		rewriteMaxIndex += tableOffset
 	}
 
-	if len(images) > 0 {
-		imgErr := insertImagesIntoDocs(ctx, svc, doc.DocumentId, images, tabID)
-		cleanupDocsImagePlaceholders(ctx, svc, doc.DocumentId, images, tabID)
+	if len(markdown.images) > 0 {
+		imgErr := insertImagesIntoDocs(ctx, svc, doc.DocumentId, markdown.images, tabID)
+		cleanupDocsImagePlaceholders(ctx, svc, doc.DocumentId, markdown.images, tabID)
 		if imgErr != nil {
 			return requestCount, len(prefix) + len(textToInsert), fmt.Errorf("insert images: %w", imgErr)
 		}
-		rewriteMaxIndex = subtractMarkdownImagePlaceholderDrift(rewriteMaxIndex, baseIndex, images)
+		rewriteMaxIndex = subtractMarkdownImagePlaceholderDrift(rewriteMaxIndex, baseIndex, markdown.images)
 	}
 
-	if markdownMayContainHeadingLinks(cleaned) {
+	if markdownMayContainHeadingLinks(markdown.cleaned) {
 		rewritten, rewriteErr := rewriteMarkdownHeadingLinksInRange(ctx, svc, doc.DocumentId, tabID, explicitHeadingAnchors, baseIndex, rewriteMaxIndex)
 		if rewriteErr != nil {
 			return requestCount, len(prefix) + len(textToInsert), fmt.Errorf("rewrite heading links: %w", rewriteErr)
@@ -245,18 +256,23 @@ func markdownReplaceNeedsParagraphBoundary(doc *docs.Document, startIdx int64, t
 	return markdownAppendNeedsParagraphBoundary(elements) && !docRangeStartsParagraph(doc, startIdx, tabID)
 }
 
-func insertDocsMarkdownAt(ctx context.Context, svc *docs.Service, docID string, insertIdx int64, content string, tabID string) (requestCount int, inserted int, err error) {
-	return insertDocsMarkdownAtWithOptions(ctx, svc, docID, insertIdx, content, tabID, false)
+type docsMarkdownInsertResult struct {
+	RequestCount int
+	Inserted     int
+	ContentStart int64
+	ContentEnd   int64
 }
 
-func insertDocsMarkdownAtWithOptions(ctx context.Context, svc *docs.Service, docID string, insertIdx int64, content string, tabID string, stripHeadingAnchors bool) (requestCount int, inserted int, err error) {
-	requestCount, inserted, _, err = insertDocsMarkdownAtWithOptionsAndEnd(ctx, svc, docID, insertIdx, content, tabID, stripHeadingAnchors)
-	return requestCount, inserted, err
-}
-
-func insertDocsMarkdownAtWithOptionsAndEnd(ctx context.Context, svc *docs.Service, docID string, insertIdx int64, content string, tabID string, stripHeadingAnchors bool) (requestCount int, inserted int, endIndex int64, err error) {
-	cleaned, images := extractMarkdownImages(content)
-	elements := docsmarkdown.ParseMarkdown(cleaned)
+func insertPreparedDocsMarkdownAt(
+	ctx context.Context,
+	svc *docs.Service,
+	docID string,
+	insertIdx int64,
+	markdown preparedMarkdown,
+	tabID string,
+	stripHeadingAnchors bool,
+) (docsMarkdownInsertResult, error) {
+	elements := docsmarkdown.ParseMarkdown(markdown.cleaned)
 	if stripHeadingAnchors {
 		docsmarkdown.StripElementHeadingAnchors(elements)
 	}
@@ -266,11 +282,17 @@ func insertDocsMarkdownAtWithOptionsAndEnd(ctx context.Context, svc *docs.Servic
 		prefix = "\n"
 		baseIndex++
 	}
+
+	result := docsMarkdownInsertResult{
+		ContentStart: baseIndex,
+		ContentEnd:   insertIdx,
+	}
 	formattingRequests, textToInsert, tables := docsmarkdown.MarkdownToDocsRequests(elements, baseIndex, tabID)
 	if textToInsert == "" {
-		return 0, 0, insertIdx, nil
+		return result, nil
 	}
-	endIndex = insertIdx + utf16Len(prefix+textToInsert)
+	result.Inserted = len(prefix) + len(textToInsert)
+	result.ContentEnd = insertIdx + utf16Len(prefix+textToInsert)
 
 	applyTabIDToFormattingRequests(formattingRequests, tabID)
 
@@ -286,10 +308,11 @@ func insertDocsMarkdownAtWithOptionsAndEnd(ctx context.Context, svc *docs.Servic
 	})
 	requests = append(requests, formattingRequests...)
 
-	requestCount, err = submitBatchedDocsRequests(ctx, svc, docID, requests, nil)
+	requestCount, err := submitBatchedDocsRequests(ctx, svc, docID, requests, nil)
 	if err != nil {
-		return 0, 0, insertIdx, fmt.Errorf("append (markdown): %w", err)
+		return docsMarkdownInsertResult{}, fmt.Errorf("append (markdown): %w", err)
 	}
+	result.RequestCount = requestCount
 
 	if len(tables) > 0 {
 		tableInserter := NewTableInserter(svc, docID)
@@ -298,23 +321,23 @@ func insertDocsMarkdownAtWithOptionsAndEnd(ctx context.Context, svc *docs.Servic
 			tableIndex := table.StartIndex + tableOffset
 			tableEnd, tableErr := tableInserter.InsertNativeTable(ctx, tableIndex, table.Cells, tabID)
 			if tableErr != nil {
-				return requestCount, len(textToInsert), endIndex, fmt.Errorf("insert native table: %w", tableErr)
+				return result, fmt.Errorf("insert native table: %w", tableErr)
 			}
 			tableOffset = nextTableInsertOffset(tableOffset, tableIndex, tableEnd)
 		}
-		endIndex += tableOffset
+		result.ContentEnd += tableOffset
 	}
 
-	if len(images) > 0 {
-		imgErr := insertImagesIntoDocs(ctx, svc, docID, images, tabID)
-		cleanupDocsImagePlaceholders(ctx, svc, docID, images, tabID)
+	if len(markdown.images) > 0 {
+		imgErr := insertImagesIntoDocs(ctx, svc, docID, markdown.images, tabID)
+		cleanupDocsImagePlaceholders(ctx, svc, docID, markdown.images, tabID)
 		if imgErr != nil {
-			return requestCount, len(prefix) + len(textToInsert), endIndex, fmt.Errorf("insert images: %w", imgErr)
+			return result, fmt.Errorf("insert images: %w", imgErr)
 		}
-		endIndex = subtractMarkdownImagePlaceholderDrift(endIndex, insertIdx, images)
+		result.ContentEnd = subtractMarkdownImagePlaceholderDrift(result.ContentEnd, insertIdx, markdown.images)
 	}
 
-	return requestCount, len(prefix) + len(textToInsert), endIndex, nil
+	return result, nil
 }
 
 func subtractMarkdownImagePlaceholderDrift(index int64, floor int64, images []markdownImage) int64 {
@@ -557,83 +580,4 @@ func cleanupDocsImagePlaceholders(ctx context.Context, svc *docs.Service, docID 
 	_, _ = svc.Documents.BatchUpdate(docID, &docs.BatchUpdateDocumentRequest{
 		Requests: reqs,
 	}).Context(ctx).Do()
-}
-
-func findTextInDoc(doc *docs.Document, searchText string, matchCase bool) (int64, int64, int) {
-	matches := findTextMatches(doc, searchText, matchCase)
-	if len(matches) == 0 {
-		return 0, 0, 0
-	}
-	return matches[0].startIndex, matches[0].endIndex, len(matches)
-}
-
-func findTextMatches(doc *docs.Document, searchText string, matchCase bool) []docRange {
-	if doc == nil || doc.Body == nil {
-		return nil
-	}
-
-	find := searchText
-	if !matchCase {
-		find = strings.ToLower(find)
-	}
-
-	var matches []docRange
-	findTextInElements(doc.Body.Content, searchText, find, matchCase, &matches)
-	return matches
-}
-
-func findTextInElements(elements []*docs.StructuralElement, searchText, find string, matchCase bool, matches *[]docRange) {
-	for _, el := range elements {
-		if el == nil {
-			continue
-		}
-		switch {
-		case el.Paragraph != nil:
-			findTextInParagraph(el.Paragraph, searchText, find, matchCase, matches)
-		case el.Table != nil:
-			for _, row := range el.Table.TableRows {
-				for _, cell := range row.TableCells {
-					findTextInElements(cell.Content, searchText, find, matchCase, matches)
-				}
-			}
-		}
-	}
-}
-
-func findTextInParagraph(para *docs.Paragraph, searchText, find string, matchCase bool, matches *[]docRange) {
-	var paraText strings.Builder
-	var paraStart int64
-	first := true
-	for _, pe := range para.Elements {
-		if pe.TextRun == nil {
-			continue
-		}
-		if first {
-			paraStart = pe.StartIndex
-			first = false
-		}
-		paraText.WriteString(pe.TextRun.Content)
-	}
-	if paraText.Len() == 0 {
-		return
-	}
-
-	text := paraText.String()
-	compareText := text
-	if !matchCase {
-		compareText = strings.ToLower(text)
-	}
-
-	offset := 0
-	for {
-		idx := strings.Index(compareText[offset:], find)
-		if idx < 0 {
-			break
-		}
-		absIdx := offset + idx
-		matchStart := paraStart + utf16Len(text[:absIdx])
-		matchEnd := matchStart + utf16Len(searchText)
-		*matches = append(*matches, docRange{startIndex: matchStart, endIndex: matchEnd})
-		offset = absIdx + len(find)
-	}
 }

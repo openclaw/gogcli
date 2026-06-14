@@ -13,9 +13,9 @@ import (
 
 type DocsCellStyleCmd struct {
 	DocID           string `arg:"" name:"docId" help:"Doc ID"`
-	TableIndex      int    `name:"table-index" help:"0-based table index in document order" default:"0"`
-	Row             int    `name:"row" required:"" help:"0-based row number"`
-	Col             int    `name:"col" required:"" help:"0-based column number"`
+	TableIndex      int    `name:"table-index" help:"1-based table index in document order; negative indexes count from the end" default:"1"`
+	Row             int    `name:"row" required:"" help:"1-based row number"`
+	Col             int    `name:"col" required:"" help:"1-based column number"`
 	RowSpan         int64  `name:"row-span" help:"Number of rows to style" default:"1"`
 	ColSpan         int64  `name:"col-span" help:"Number of columns to style" default:"1"`
 	BackgroundColor string `name:"background-color" aliases:"bg-color" help:"Cell background color as #RRGGBB or #RGB"`
@@ -33,14 +33,14 @@ func (c *DocsCellStyleCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if docID == "" {
 		return usage("empty docId")
 	}
-	if c.TableIndex < 0 {
-		return usage("--table-index must be >= 0")
+	if c.TableIndex == 0 {
+		return usage("--table-index cannot be 0")
 	}
-	if c.Row < 0 {
-		return usage("--row must be >= 0")
+	if c.Row < 1 {
+		return usage("--row must be >= 1")
 	}
-	if c.Col < 0 {
-		return usage("--col must be >= 0")
+	if c.Col < 1 {
+		return usage("--col must be >= 1")
 	}
 	if c.RowSpan < 1 || c.ColSpan < 1 {
 		return usage("--row-span and --col-span must be >= 1")
@@ -82,18 +82,14 @@ func (c *DocsCellStyleCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 	c.Tab = loaded.tabID
 
-	tables := collectAllTablesWithIndex(loaded.target)
-	if len(tables) == 0 {
-		return usage("document has no tables")
+	table, resolvedTableIndex, err := resolveDocsTableWithIndex(loaded.target, c.TableIndex)
+	if err != nil {
+		return err
 	}
-	if c.TableIndex >= len(tables) {
-		return usagef("table %d out of range (document has %d tables)", c.TableIndex, len(tables))
-	}
-	table := tables[c.TableIndex]
 	cell, err := findTableCell(loaded.target, &tableCellRef{
-		tableIndex: c.TableIndex + 1,
-		row:        c.Row + 1,
-		col:        c.Col + 1,
+		tableIndex: resolvedTableIndex,
+		row:        c.Row,
+		col:        c.Col,
 	})
 	if err != nil {
 		return err
@@ -119,7 +115,7 @@ func (c *DocsCellStyleCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if outfmt.IsJSON(ctx) {
 		payload := map[string]any{
 			"documentId": resp.DocumentId,
-			"tableIndex": c.TableIndex,
+			"tableIndex": resolvedTableIndex,
 			"row":        c.Row,
 			"col":        c.Col,
 			"requests":   len(reqs),
@@ -131,7 +127,7 @@ func (c *DocsCellStyleCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return outfmt.WriteJSON(ctx, stdoutWriter(ctx), payload)
 	}
 	u.Out().Linef("documentId\t%s", resp.DocumentId)
-	u.Out().Linef("table_index\t%d", c.TableIndex)
+	u.Out().Linef("table_index\t%d", resolvedTableIndex)
 	u.Out().Linef("row\t%d", c.Row)
 	u.Out().Linef("col\t%d", c.Col)
 	u.Out().Linef("requests\t%d", len(reqs))
@@ -166,8 +162,8 @@ func (c *DocsCellStyleCmd) buildRequests(tableStart int64, cell *docs.TableCell,
 				RowSpan:    c.RowSpan,
 				ColumnSpan: c.ColSpan,
 				TableCellLocation: &docs.TableCellLocation{
-					RowIndex:    int64(c.Row),
-					ColumnIndex: int64(c.Col),
+					RowIndex:    int64(c.Row - 1),
+					ColumnIndex: int64(c.Col - 1),
 					TableStartLocation: &docs.Location{
 						Index: tableStart,
 						TabId: tabID,

@@ -75,7 +75,7 @@ type GmailFiltersCreateCmd struct {
 func (c *GmailFiltersCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
 	forwardTarget, err := c.validate()
 	if err != nil {
-		return err
+		return newUsageError(err)
 	}
 
 	if dryRunErr := dryRunExit(ctx, flags, "gmail.filters.create", c.dryRunPayload(forwardTarget)); dryRunErr != nil {

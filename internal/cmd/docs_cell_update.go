@@ -8,6 +8,8 @@ import (
 
 	"google.golang.org/api/docs/v1"
 
+	"github.com/alecthomas/kong"
+
 	"github.com/steipete/gogcli/internal/docsmarkdown"
 	"github.com/steipete/gogcli/internal/outfmt"
 	"github.com/steipete/gogcli/internal/ui"
@@ -146,16 +148,14 @@ func (c *DocsCellUpdateCmd) resolveContent() (string, error) {
 	return string(data), nil
 }
 
-func rewriteDocsCellUpdateContentArgs(args []string) []string {
-	tokens := commandTokens(args, 2)
-	if len(tokens) < 2 ||
-		(tokens[0] != "docs" && tokens[0] != "doc") ||
-		(tokens[1] != "cell-update" && tokens[1] != "update-cell") {
+func rewriteDocsCellUpdateContentArgs(model *kong.Application, args []string) []string {
+	if model == nil || model.Node == nil {
 		return args
 	}
-
 	for i := 0; i+1 < len(args); i++ {
-		if args[i] != "--content" || !strings.HasPrefix(args[i+1], "- ") {
+		if args[i] != "--content" ||
+			!strings.HasPrefix(args[i+1], "- ") ||
+			!isDocsCellUpdateCommand(commandNodeBefore(model.Node, args[:i])) {
 			continue
 		}
 		out := append([]string(nil), args[:i]...)
@@ -164,6 +164,13 @@ func rewriteDocsCellUpdateContentArgs(args []string) []string {
 		return out
 	}
 	return args
+}
+
+func isDocsCellUpdateCommand(node *kong.Node) bool {
+	return node != nil &&
+		node.Name == "cell-update" &&
+		node.Parent != nil &&
+		node.Parent.Name == "docs"
 }
 
 func updateDocsCellContent(ctx context.Context, svc *docs.Service, doc *docs.Document, startIdx, endIdx int64, content, format string, appendOnly bool, prefixBoundary bool, tabID string) error {

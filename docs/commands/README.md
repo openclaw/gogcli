@@ -2,7 +2,7 @@
 
 Every `gog` command has a generated docs page. The source of truth is the live CLI schema; run `make docs-commands` after changing command names, flags, help text, aliases, or arguments.
 
-Generated pages: 645.
+Generated pages: 644.
 
 ## Top-level Commands
 
@@ -92,11 +92,11 @@ Generated pages: 645.
       - [gog auth credentials remove](gog-auth-credentials-remove.md) - Remove stored OAuth client credentials
       - [gog auth credentials set](gog-auth-credentials-set.md) - Store OAuth client credentials
     - [gog auth doctor](gog-auth-doctor.md) - Diagnose auth, keyring, and refresh-token issues
-    - [gog auth import](gog-auth-import.md) - Import a refresh token non-interactively from stdin, file, or env
+    - [gog auth import](gog-auth-import.md) - Import a required refresh token and optional current access token non-interactively
     - [gog auth keep](gog-auth-keep.md) - Configure service account for Google Keep (Workspace only)
     - [gog auth keyring](gog-auth-keyring.md) - Configure keyring backend
     - [gog auth list](gog-auth-list.md) - List stored accounts
-    - [gog auth manage](gog-auth-manage.md) - Open accounts manager in browser
+    - [gog auth manage](gog-auth-manage.md) - Open interactive accounts manager in browser
     - [gog auth remove](gog-auth-remove.md) - Remove a stored refresh token
     - [gog auth service-account](gog-auth-service-account.md) - Configure service account (Workspace only; domain-wide delegation)
       - [gog auth service-account set](gog-auth-service-account-set.md) - Store a service account key for impersonation
@@ -268,7 +268,6 @@ Generated pages: 645.
     - [gog contacts get](gog-contacts-get.md) - Get a contact
     - [gog contacts list](gog-contacts-list.md) - List contacts
     - [gog contacts other](gog-contacts-other.md) - Other contacts
-      - [gog contacts other delete](gog-contacts-other-delete.md) - Delete an other contact
       - [gog contacts other list](gog-contacts-other-list.md) - List other contacts
       - [gog contacts other search](gog-contacts-other-search.md) - Search other contacts
     - [gog contacts raw](gog-contacts-raw.md) - Dump raw People API response as JSON (People.Get; lossless; for scripting and LLM consumption)

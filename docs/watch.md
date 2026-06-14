@@ -93,6 +93,8 @@ gog gmail history --since <historyId> [--max <n>] [--page <token>]
 
 Notes:
 - `watch start` stores `{historyId, expirationMs, topic, labels}` for account.
+- `watch status` reads atomic state without creating state directories or lock
+  files.
 - `watch renew` reuses stored topic/labels.
 - `watch stop` calls Gmail stop + clears state.
 - `watch serve` and `watch pull` use stored hook config if `--hook-url` is not
@@ -100,6 +102,10 @@ Notes:
 - `watch pull` needs Google credentials that can consume the Pub/Sub
   subscription.
 - `watch serve` needs an HTTP endpoint reachable by Pub/Sub.
+- `watch serve --dry-run` validates flags and prints a secret-free listen/auth/
+  hook plan. It may read existing atomic watch state to resolve stored hook
+  settings, but does not create/lock/update state, create clients, or open a
+  socket.
 - `watch serve` and `watch pull` default `--exclude-labels` to `SPAM,TRASH`; set to an empty string to disable.
 - Exclude label IDs are matched exactly (case-sensitive opaque IDs).
 - `watch serve --fetch-delay` and `watch pull --fetch-delay` delay Gmail

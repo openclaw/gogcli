@@ -2,7 +2,6 @@
 package cmd
 
 import (
-	"strconv"
 	"strings"
 
 	"google.golang.org/api/docs/v1"
@@ -287,92 +286,6 @@ func buildBraceBreakRequests(be *braceExpr, insertIdx int64) []*docs.Request {
 	return requests
 }
 
-// braceExprToFormats converts a braceExpr to the existing format string slice
-// for backward compatibility with existing code paths.
-func braceExprToFormats(be *braceExpr) []string {
-	if be == nil {
-		return nil
-	}
-
-	var formats []string
-
-	// Boolean flags
-	if be.Bold != nil && *be.Bold {
-		formats = append(formats, "bold")
-	}
-	if be.Italic != nil && *be.Italic {
-		formats = append(formats, "italic")
-	}
-	if be.Underline != nil && *be.Underline {
-		formats = append(formats, "underline")
-	}
-	if be.Strike != nil && *be.Strike {
-		formats = append(formats, "strikethrough")
-	}
-	if be.Code != nil && *be.Code {
-		formats = append(formats, "code")
-	}
-	if be.Sup != nil && *be.Sup {
-		formats = append(formats, "superscript")
-	}
-	if be.Sub != nil && *be.Sub {
-		formats = append(formats, "subscript")
-	}
-	if be.SmallCaps != nil && *be.SmallCaps {
-		formats = append(formats, "smallcaps")
-	}
-
-	// Value flags
-	if be.Font != "" {
-		formats = append(formats, "font:"+be.Font)
-	}
-	if be.Size > 0 {
-		formats = append(formats, "size:"+formatFloat(be.Size))
-	}
-	if be.Color != "" {
-		formats = append(formats, "color:"+be.Color)
-	}
-	if be.Bg != "" {
-		formats = append(formats, "bg:"+be.Bg)
-	}
-	if be.URL != "" {
-		formats = append(formats, "link:"+be.URL)
-	}
-
-	// Heading
-	if be.Heading != "" {
-		level := be.Heading
-		switch level {
-		case "t":
-			formats = append(formats, "title")
-		case "s":
-			formats = append(formats, "subtitle")
-		case "0":
-			formats = append(formats, "normal")
-		default:
-			formats = append(formats, "heading"+level)
-		}
-	}
-
-	// Alignment
-	if be.Align != "" {
-		formats = append(formats, "align:"+be.Align)
-	}
-
-	return formats
-}
-
-// formatFloat formats a float64 without unnecessary trailing zeros.
-func formatFloat(f float64) string {
-	// Check if it's a whole number
-	if f == float64(int64(f)) {
-		return strconv.FormatInt(int64(f), 10)
-	}
-	// Format with precision, trim trailing zeros
-	s := strconv.FormatFloat(f, 'f', -1, 64)
-	return s
-}
-
 // hasBraceTextFormat checks if braceExpr has formatting that requires text styling.
 func hasBraceTextFormat(be *braceExpr) bool {
 	return braceExprHasTextFormat(be)
@@ -385,83 +298,6 @@ func hasBraceParagraphFormat(be *braceExpr) bool {
 	}
 	return be.Heading != "" || be.Align != "" || be.Indent >= 0 ||
 		be.Leading > 0 || be.SpacingSet
-}
-
-// mergeBraceSpans merges multiple braceSpans into a single braceExpr for global formatting.
-// Only global spans (those that apply to the entire match) are merged; non-global spans
-// represent inline-scoped formatting (e.g., {b=Warning}) and are handled separately
-// by buildBraceInlineRequests, which applies them at their specific positions.
-func mergeBraceSpans(spans []*braceSpan) *braceExpr {
-	merged := &braceExpr{Indent: indentNotSet}
-	for _, span := range spans {
-		if span.IsGlobal && span.Expr != nil {
-			// Copy global flags to merged
-			if span.Expr.Bold != nil {
-				merged.Bold = span.Expr.Bold
-			}
-			if span.Expr.Italic != nil {
-				merged.Italic = span.Expr.Italic
-			}
-			if span.Expr.Underline != nil {
-				merged.Underline = span.Expr.Underline
-			}
-			if span.Expr.Strike != nil {
-				merged.Strike = span.Expr.Strike
-			}
-			if span.Expr.Code != nil {
-				merged.Code = span.Expr.Code
-			}
-			if span.Expr.Sup != nil {
-				merged.Sup = span.Expr.Sup
-			}
-			if span.Expr.Sub != nil {
-				merged.Sub = span.Expr.Sub
-			}
-			if span.Expr.SmallCaps != nil {
-				merged.SmallCaps = span.Expr.SmallCaps
-			}
-			if span.Expr.Color != "" {
-				merged.Color = span.Expr.Color
-			}
-			if span.Expr.Bg != "" {
-				merged.Bg = span.Expr.Bg
-			}
-			if span.Expr.Font != "" {
-				merged.Font = span.Expr.Font
-			}
-			if span.Expr.Size > 0 {
-				merged.Size = span.Expr.Size
-			}
-			if span.Expr.URL != "" {
-				merged.URL = span.Expr.URL
-			}
-			if span.Expr.Heading != "" {
-				merged.Heading = span.Expr.Heading
-			}
-			if span.Expr.Align != "" {
-				merged.Align = span.Expr.Align
-			}
-			if span.Expr.Leading > 0 {
-				merged.Leading = span.Expr.Leading
-			}
-			if span.Expr.SpacingSet {
-				merged.SpacingSet = true
-				merged.SpacingAbove = span.Expr.SpacingAbove
-				merged.SpacingBelow = span.Expr.SpacingBelow
-			}
-			if span.Expr.Indent >= 0 {
-				merged.Indent = span.Expr.Indent
-			}
-			if span.Expr.Reset {
-				merged.Reset = true
-			}
-			if span.Expr.HasBreak {
-				merged.HasBreak = true
-				merged.Break = span.Expr.Break
-			}
-		}
-	}
-	return merged
 }
 
 // (Legacy attrsTobraceExpr removed — sedAttrs no longer exists)

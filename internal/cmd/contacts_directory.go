@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"context"
-	"fmt"
 	"strings"
 	"time"
 
@@ -211,7 +210,6 @@ func (c *ContactsDirectorySearchCmd) Run(ctx context.Context, flags *RootFlags) 
 type ContactsOtherCmd struct {
 	List   ContactsOtherListCmd   `cmd:"" name:"list" help:"List other contacts"`
 	Search ContactsOtherSearchCmd `cmd:"" name:"search" help:"Search other contacts"`
-	Delete ContactsOtherDeleteCmd `cmd:"" name:"delete" help:"Delete an other contact"`
 }
 
 const contactsOtherReadMask = "names,emailAddresses,phoneNumbers"
@@ -364,68 +362,4 @@ func (c *ContactsOtherSearchCmd) Run(ctx context.Context, flags *RootFlags) erro
 	}
 
 	return outfmt.WriteTable(ctx, stdoutWriter(ctx), contactSearchRows(resp.Results), otherContactColumns())
-}
-
-type ContactsOtherDeleteCmd struct {
-	ResourceName string `arg:"" name:"resourceName" help:"Resource name (otherContacts/...)"`
-}
-
-const otherContactCopyMask = "names,phoneNumbers,emailAddresses,organizations,biographies,urls,addresses,birthdays,events,relations,userDefined"
-
-func (c *ContactsOtherDeleteCmd) Run(ctx context.Context, flags *RootFlags) error {
-	u := ui.FromContext(ctx)
-	resourceName := strings.TrimSpace(c.ResourceName)
-	if !strings.HasPrefix(resourceName, "otherContacts/") {
-		return usage("resourceName must start with otherContacts/")
-	}
-
-	if confirmErr := dryRunAndConfirmDestructive(ctx, flags, "contacts.other.delete", map[string]any{
-		"resource_name": resourceName,
-	}, fmt.Sprintf("delete other contact %s", resourceName)); confirmErr != nil {
-		return confirmErr
-	}
-
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
-
-	if err := deleteOtherContact(ctx, account, resourceName); err != nil {
-		return err
-	}
-	return writeDeleteResult(ctx, u, resourceName)
-}
-
-func deleteOtherContact(ctx context.Context, account, resourceName string) error {
-	otherSvc, err := peopleOtherContactsService(ctx, account)
-	if err != nil {
-		return err
-	}
-	copied, err := otherSvc.OtherContacts.CopyOtherContactToMyContactsGroup(
-		resourceName,
-		&people.CopyOtherContactToMyContactsGroupRequest{
-			// CopyMask is required by the People API; omitting it causes a 400 "copyMask is required" error.
-			// See: https://developers.google.com/people/api/rest/v1/otherContacts/copyOtherContactToMyContactsGroup
-			CopyMask: otherContactCopyMask,
-		},
-	).Do()
-	if err != nil {
-		return fmt.Errorf("copy to my contacts: %w", err)
-	}
-	copiedResource := ""
-	if copied != nil {
-		copiedResource = strings.TrimSpace(copied.ResourceName)
-	}
-	if copiedResource == "" {
-		return fmt.Errorf("copy to my contacts: empty resource name")
-	}
-
-	contactsSvc, err := peopleContactsService(ctx, account)
-	if err != nil {
-		return err
-	}
-	if _, err := contactsSvc.People.DeleteContact(copiedResource).Do(); err != nil {
-		return fmt.Errorf("delete copied contact %s: %w", copiedResource, err)
-	}
-	return nil
 }

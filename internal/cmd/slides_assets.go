@@ -13,20 +13,28 @@ import (
 	"time"
 
 	"google.golang.org/api/drive/v3"
+
+	"github.com/steipete/gogcli/internal/slidesmarkdown"
 )
 
 // AssetMap pairs parsed AST references with uploaded Drive ImageRefs.
-// Icons is keyed by IconRef value (Style+Name); Diagrams is keyed by
-// DiagramBlock.ID.
+// Icons is keyed by slidesmarkdown.IconRef value (Style+Name); Diagrams is
+// keyed by slidesmarkdown.DiagramBlock.ID.
 type AssetMap struct {
-	Icons    map[IconRef]ImageRef
+	Icons    map[slidesmarkdown.IconRef]ImageRef
 	Diagrams map[string]ImageRef
+}
+
+// ImageRef is the result of uploading an asset to Drive.
+type ImageRef struct {
+	DriveFileID string
+	PublicURL   string
 }
 
 // NewAssetMap returns an empty initialized AssetMap.
 func NewAssetMap() AssetMap {
 	return AssetMap{
-		Icons:    map[IconRef]ImageRef{},
+		Icons:    map[slidesmarkdown.IconRef]ImageRef{},
 		Diagrams: map[string]ImageRef{},
 	}
 }
@@ -192,7 +200,7 @@ type AssetPipeline struct {
 // fetches/renders/uploads each, and returns the resulting AssetMap.
 //
 // Per-asset failures are logged (warn-and-skip) unless Config.Strict.
-func (p *AssetPipeline) Resolve(ctx context.Context, slides []Slide) (AssetMap, error) {
+func (p *AssetPipeline) Resolve(ctx context.Context, slides []slidesmarkdown.Slide) (AssetMap, error) {
 	am := NewAssetMap()
 
 	icons := collectIconRefs(slides)
@@ -274,31 +282,31 @@ func (p *AssetPipeline) Cleanup(ctx context.Context) error {
 }
 
 // collectIconRefs walks all slides, deduping IconRef values.
-func collectIconRefs(slides []Slide) map[IconRef]struct{} {
-	out := map[IconRef]struct{}{}
-	var walkBlocks func([]Block)
-	walkBlocks = func(blocks []Block) {
+func collectIconRefs(slides []slidesmarkdown.Slide) map[slidesmarkdown.IconRef]struct{} {
+	out := map[slidesmarkdown.IconRef]struct{}{}
+	var walkBlocks func([]slidesmarkdown.Block)
+	walkBlocks = func(blocks []slidesmarkdown.Block) {
 		for _, b := range blocks {
 			switch v := b.(type) {
-			case ParagraphBlock:
+			case slidesmarkdown.ParagraphBlock:
 				if r, ok := leadingIcon(v.Inlines); ok {
 					out[r] = struct{}{}
 				}
-			case BulletsBlock:
+			case slidesmarkdown.BulletsBlock:
 				for _, item := range v.Items {
 					if r, ok := leadingIcon(item.Inlines); ok {
 						out[r] = struct{}{}
 					}
 				}
-			case HeadingBlock:
+			case slidesmarkdown.HeadingBlock:
 				if r, ok := leadingIcon(v.Inlines); ok {
 					out[r] = struct{}{}
 				}
-			case ColumnsBlock:
+			case slidesmarkdown.ColumnsBlock:
 				for _, col := range v.Columns {
 					walkBlocks(col)
 				}
-			case IconRowsBlock:
+			case slidesmarkdown.IconRowsBlock:
 				for _, row := range v.Rows {
 					if row.Icon != nil {
 						out[*row.Icon] = struct{}{}
@@ -313,24 +321,24 @@ func collectIconRefs(slides []Slide) map[IconRef]struct{} {
 	return out
 }
 
-func leadingIcon(inlines []Inline) (IconRef, bool) {
+func leadingIcon(inlines []slidesmarkdown.Inline) (slidesmarkdown.IconRef, bool) {
 	if len(inlines) == 0 {
-		return IconRef{}, false
+		return slidesmarkdown.IconRef{}, false
 	}
-	ref, ok := inlines[0].(IconRef)
+	ref, ok := inlines[0].(slidesmarkdown.IconRef)
 	return ref, ok
 }
 
 // collectDiagrams walks all slides for DiagramBlocks, returning {ID: source}.
-func collectDiagrams(slides []Slide) map[string]string {
+func collectDiagrams(slides []slidesmarkdown.Slide) map[string]string {
 	out := map[string]string{}
-	var walkBlocks func([]Block)
-	walkBlocks = func(blocks []Block) {
+	var walkBlocks func([]slidesmarkdown.Block)
+	walkBlocks = func(blocks []slidesmarkdown.Block) {
 		for _, b := range blocks {
 			switch v := b.(type) {
-			case DiagramBlock:
+			case slidesmarkdown.DiagramBlock:
 				out[v.ID] = v.Source
-			case ColumnsBlock:
+			case slidesmarkdown.ColumnsBlock:
 				for _, col := range v.Columns {
 					walkBlocks(col)
 				}
@@ -348,7 +356,7 @@ func collectDiagrams(slides []Slide) map[string]string {
 // only published under brands/), it tries the other free-tier styles in a
 // fixed order: brands, regular, solid. Returns the body, the style that
 // actually served, and the final error.
-func fetchFAIconWithStyleFallback(ctx context.Context, client *http.Client, ref IconRef) ([]byte, string, error) {
+func fetchFAIconWithStyleFallback(ctx context.Context, client *http.Client, ref slidesmarkdown.IconRef) ([]byte, string, error) {
 	tried := map[string]bool{}
 	order := []string{ref.Style, "brands", "regular", "solid"}
 	var lastErr error

@@ -112,7 +112,7 @@ func TestFindDocsWriteMarkdownOrphansFiltersAndMatchesRenderedText(t *testing.T)
 		driveSvc,
 		docsSvc,
 		"doc1",
-		"# Replacement\n\nkept phrase",
+		prepareMarkdown("# Replacement\n\nkept phrase"),
 		"",
 		true,
 	)
@@ -152,7 +152,7 @@ func TestFindDocsWriteMarkdownOrphansScopesToTargetTab(t *testing.T) {
 		driveSvc,
 		docsSvc,
 		"doc1",
-		"replacement",
+		prepareMarkdown("replacement"),
 		"Second",
 		false,
 	)
@@ -168,7 +168,7 @@ func TestFindDocsWriteMarkdownOrphansScopesToTargetTab(t *testing.T) {
 }
 
 func TestDocsWriteMarkdownDocumentIncludesTableCellText(t *testing.T) {
-	doc := docsWriteMarkdownDocument("| Name | Note |\n| --- | --- |\n| Ada | **cell phrase** |")
+	doc := docsWriteMarkdownDocument(prepareMarkdown("| Name | Note |\n| --- | --- |\n| Ada | **cell phrase** |"))
 	locator := DocsCommentsLocateCmd{NormalizeWhitespace: true}
 	matches := locator.findQuoteMatchesInDoc(doc, "cell phrase", "")
 	if len(matches) != 1 || !matches[0].InTable {
@@ -177,7 +177,7 @@ func TestDocsWriteMarkdownDocumentIncludesTableCellText(t *testing.T) {
 }
 
 func TestDocsWriteMarkdownDocumentStripsHeadingAnchors(t *testing.T) {
-	doc := docsWriteMarkdownDocument("## Files {#attachments}")
+	doc := docsWriteMarkdownDocument(prepareMarkdown("## Files {#attachments}"))
 	locator := DocsCommentsLocateCmd{NormalizeWhitespace: true}
 	if matches := locator.findQuoteMatchesInDoc(doc, "{#attachments}", ""); len(matches) != 0 {
 		t.Fatalf("matches = %#v, want explicit heading anchor stripped", matches)

@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"bytes"
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -147,6 +148,110 @@ func TestWriteBackupResultUsesRuntimeOutput(t *testing.T) {
 	}
 	if result.Repo != "/tmp/repo" || !result.Changed || result.Shards != 2 {
 		t.Fatalf("result = %#v", result)
+	}
+}
+
+func TestBackupStatusAndVerifyExposeReadFlags(t *testing.T) {
+	for _, command := range []string{"status", "verify"} {
+		t.Run(command, func(t *testing.T) {
+			result := executeWithTestRuntime(t, []string{"schema", "backup " + command}, nil)
+			if result.err != nil {
+				t.Fatalf("schema: %v", result.err)
+			}
+			var doc schemaDoc
+			if err := json.Unmarshal([]byte(result.stdout), &doc); err != nil {
+				t.Fatalf("decode schema: %v", err)
+			}
+			if doc.Command == nil {
+				t.Fatal("missing command schema")
+			}
+			flags := make(map[string]bool, len(doc.Command.Flags))
+			for _, flag := range doc.Command.Flags {
+				flags[flag.Name] = true
+			}
+			if !flags["no-pull"] {
+				t.Fatal("missing --no-pull")
+			}
+			for _, hidden := range []string{"no-push", "recipient"} {
+				if flags[hidden] {
+					t.Fatalf("hidden compatibility flag --%s appears in default schema", hidden)
+				}
+			}
+
+			hiddenResult := executeWithTestRuntime(t, []string{"schema", "--include-hidden", "backup " + command}, nil)
+			if hiddenResult.err != nil {
+				t.Fatalf("hidden schema: %v", hiddenResult.err)
+			}
+			var hiddenDoc schemaDoc
+			if err := json.Unmarshal([]byte(hiddenResult.stdout), &hiddenDoc); err != nil {
+				t.Fatalf("decode hidden schema: %v", err)
+			}
+			hiddenFlags := make(map[string]bool, len(hiddenDoc.Command.Flags))
+			for _, flag := range hiddenDoc.Command.Flags {
+				hiddenFlags[flag.Name] = flag.Hidden
+			}
+			for _, compat := range []string{"no-push", "recipient"} {
+				if !hiddenFlags[compat] {
+					t.Fatalf("missing hidden compatibility flag --%s", compat)
+				}
+			}
+		})
+	}
+}
+
+func TestBackupStatusAndVerifyDryRunDoNotCreateRepo(t *testing.T) {
+	testCases := []struct {
+		name string
+		run  func(context.Context, *RootFlags, string) error
+	}{
+		{
+			name: "status",
+			run: func(ctx context.Context, flags *RootFlags, repo string) error {
+				return (&BackupStatusCmd{
+					backupReadFlags: backupReadFlags{Repo: repo},
+				}).Run(ctx, flags)
+			},
+		},
+		{
+			name: "verify",
+			run: func(ctx context.Context, flags *RootFlags, repo string) error {
+				return (&BackupVerifyCmd{
+					backupReadFlags: backupReadFlags{Repo: repo},
+				}).Run(ctx, flags)
+			},
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			repo := filepath.Join(t.TempDir(), testCase.name+"-repo")
+			var stdout bytes.Buffer
+			ctx := newCmdRuntimeJSONOutputContext(t, &stdout, io.Discard)
+			err := testCase.run(ctx, &RootFlags{DryRun: true, NoInput: true}, repo)
+
+			var exitErr *ExitError
+			if !errors.As(err, &exitErr) || exitErr.Code != 0 {
+				t.Fatalf("expected dry-run exit 0, got %#v", err)
+			}
+			var payload struct {
+				DryRun  bool           `json:"dry_run"`
+				Op      string         `json:"op"`
+				Request map[string]any `json:"request"`
+			}
+			if decodeErr := json.Unmarshal(stdout.Bytes(), &payload); decodeErr != nil {
+				t.Fatalf("decode dry-run output: %v\n%s", decodeErr, stdout.String())
+			}
+			if !payload.DryRun || payload.Op != "backup."+testCase.name {
+				t.Fatalf("unexpected dry-run payload: %#v", payload)
+			}
+			requestRepo, ok := payload.Request["repo"].(string)
+			if !ok || requestRepo != repo {
+				t.Fatalf("missing repo in request: %#v", payload.Request)
+			}
+			if _, statErr := os.Stat(repo); !errors.Is(statErr, os.ErrNotExist) {
+				t.Fatalf("dry-run created repo: %v", statErr)
+			}
+		})
 	}
 }
 

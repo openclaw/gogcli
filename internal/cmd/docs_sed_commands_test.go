@@ -5,7 +5,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"google.golang.org/api/docs/v1"
+
+	"github.com/steipete/gogcli/internal/docssed"
 )
 
 func TestParseFullExpr_SCommands(t *testing.T) {
@@ -191,79 +192,6 @@ func TestParseFullExpr_CommandAmbiguity(t *testing.T) {
 	}
 }
 
-func TestSplitByDelim(t *testing.T) {
-	tests := []struct {
-		name  string
-		input string
-		delim byte
-		want  []string
-	}{
-		{"basic", "a/b/c", '/', []string{"a", "b", "c"}},
-		{"escaped", `a\/b/c`, '/', []string{"a/b", "c"}},
-		{"empty parts", "//", '/', []string{"", "", ""}},
-		{"no delim", "abc", '/', []string{"abc"}},
-		{"custom delim", "a|b|c", '|', []string{"a", "b", "c"}},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.want, splitByDelim(tt.input, tt.delim))
-		})
-	}
-}
-
-func TestApplyRegexFlags(t *testing.T) {
-	assert.Equal(t, "foo", applyRegexFlags("foo", ""))
-	assert.Equal(t, "(?i)foo", applyRegexFlags("foo", "i"))
-	assert.Equal(t, "(?m)foo", applyRegexFlags("foo", "m"))
-	assert.Equal(t, "(?m)(?i)foo", applyRegexFlags("foo", "im"))
-	assert.Equal(t, "(?m)(?i)foo", applyRegexFlags("foo", "gim")) // g ignored here
-}
-
-func TestExtractParagraphText(t *testing.T) {
-	// nil elements
-	p := &docs.Paragraph{}
-	assert.Equal(t, "", extractParagraphText(p))
-
-	// single text run
-	p = &docs.Paragraph{
-		Elements: []*docs.ParagraphElement{
-			{TextRun: &docs.TextRun{Content: "Hello World\n"}},
-		},
-	}
-	assert.Equal(t, "Hello World", extractParagraphText(p))
-
-	// multiple text runs
-	p = &docs.Paragraph{
-		Elements: []*docs.ParagraphElement{
-			{TextRun: &docs.TextRun{Content: "Hello "}},
-			{TextRun: &docs.TextRun{Content: "World\n"}},
-		},
-	}
-	assert.Equal(t, "Hello World", extractParagraphText(p))
-}
-
-func TestExtractNumber(t *testing.T) {
-	tests := []struct {
-		input string
-		want  int
-	}{
-		{"", 0},
-		{"g", 0},
-		{"2", 2},
-		{"g3", 3},
-		{"2g", 2},
-		{"10", 10},
-		{"gi", 0},
-		{"0", 0},
-		{"-1", 1}, // extracts digits only, ignores minus
-	}
-	for _, tt := range tests {
-		t.Run(tt.input, func(t *testing.T) {
-			assert.Equal(t, tt.want, extractNumber(tt.input))
-		})
-	}
-}
-
 func TestEscapeUnescapeMarkdown(t *testing.T) {
 	tests := []struct {
 		name  string
@@ -279,21 +207,10 @@ func TestEscapeUnescapeMarkdown(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			escaped := escapeMarkdown(tt.input)
-			restored := unescapeMarkdown(escaped)
-			// After escape+unescape, \n should be real newline, others literal
-			assert.Equal(t, tt.want, restored)
+			parsed := docssed.ParseMarkdownReplacement(tt.input)
+			assert.Equal(t, tt.want, parsed.Text)
 		})
 	}
-}
-
-func TestIsAlphanumeric(t *testing.T) {
-	assert.True(t, isAlphanumeric('a'))
-	assert.True(t, isAlphanumeric('Z'))
-	assert.True(t, isAlphanumeric('5'))
-	assert.False(t, isAlphanumeric('/'))
-	assert.False(t, isAlphanumeric('|'))
-	assert.False(t, isAlphanumeric(' '))
 }
 
 func TestClassifyExpression(t *testing.T) {
@@ -365,47 +282,83 @@ func TestBuildParagraphStyleRequests(t *testing.T) {
 	}
 }
 
-func TestBuildCellReplaceRequests(t *testing.T) {
+func TestBuildCellPlanRequests(t *testing.T) {
 	// No delete, with text
-	reqs := buildCellReplaceRequests(10, 10, "hello", nil)
+	reqs := buildCellPlanRequests(docssed.TextPlan{TextEdits: []docssed.TextEdit{{
+		StartIndex: 10,
+		EndIndex:   10,
+		InsertText: "hello",
+	}}})
 	assert.Equal(t, 1, len(reqs)) // insert only
 	assert.NotNil(t, reqs[0].InsertText)
 
 	// With delete and text
-	reqs = buildCellReplaceRequests(10, 15, "hello", nil)
+	reqs = buildCellPlanRequests(docssed.TextPlan{TextEdits: []docssed.TextEdit{{
+		StartIndex: 10,
+		EndIndex:   15,
+		InsertText: "hello",
+	}}})
 	assert.Equal(t, 2, len(reqs)) // delete + insert
 	assert.NotNil(t, reqs[0].DeleteContentRange)
 	assert.NotNil(t, reqs[1].InsertText)
 
 	// With delete, text, and format
-	reqs = buildCellReplaceRequests(10, 15, "hello", []string{"bold"})
+	reqs = buildCellPlanRequests(docssed.TextPlan{
+		TextEdits: []docssed.TextEdit{{
+			StartIndex: 10,
+			EndIndex:   15,
+			InsertText: "hello",
+		}},
+		Formatting: []docssed.FormatIntent{{
+			StartIndex: 10,
+			EndIndex:   15,
+			Formats:    []string{"bold"},
+		}},
+	})
 	assert.Equal(t, 3, len(reqs)) // delete + insert + format
 
-	// Formatting ranges must use UTF-16 code units, not UTF-8 byte length.
-	reqs = buildCellReplaceRequests(10, 10, "A🐢", []string{"bold"})
+	// The adapter preserves planner-provided UTF-16 formatting ranges.
+	reqs = buildCellPlanRequests(docssed.TextPlan{
+		TextEdits: []docssed.TextEdit{{
+			StartIndex: 10,
+			EndIndex:   10,
+			InsertText: "A🐢",
+		}},
+		Formatting: []docssed.FormatIntent{{
+			StartIndex: 10,
+			EndIndex:   13,
+			Formats:    []string{"bold"},
+		}},
+	})
 	require.Len(t, reqs, 2)
 	require.NotNil(t, reqs[1].UpdateTextStyle)
 	assert.Equal(t, int64(10), reqs[1].UpdateTextStyle.Range.StartIndex)
 	assert.Equal(t, int64(13), reqs[1].UpdateTextStyle.Range.EndIndex)
 
 	// Empty text
-	reqs = buildCellReplaceRequests(10, 15, "", nil)
+	reqs = buildCellPlanRequests(docssed.TextPlan{TextEdits: []docssed.TextEdit{{
+		StartIndex: 10,
+		EndIndex:   15,
+	}}})
 	assert.Equal(t, 1, len(reqs)) // delete only
 
 	// No delete, no text
-	reqs = buildCellReplaceRequests(10, 10, "", nil)
+	reqs = buildCellPlanRequests(docssed.TextPlan{TextEdits: []docssed.TextEdit{{
+		StartIndex: 10,
+		EndIndex:   10,
+	}}})
 	assert.Equal(t, 0, len(reqs))
 }
 
 func TestBuildImageSizeSpec(t *testing.T) {
-	assert.Nil(t, buildImageSizeSpec(&ImageSpec{URL: "http://x.com/img.png"}))
+	assert.Nil(t, buildImageSizeSpec(&docssed.ImageSpec{URL: "http://x.com/img.png"}))
 
-	size := buildImageSizeSpec(&ImageSpec{URL: "http://x.com/img.png", Width: 100})
+	size := buildImageSizeSpec(&docssed.ImageSpec{URL: "http://x.com/img.png", Width: 100})
 	require.NotNil(t, size)
 	assert.NotNil(t, size.Width)
 	assert.Nil(t, size.Height)
 
-	size = buildImageSizeSpec(&ImageSpec{URL: "http://x.com/img.png", Width: 100, Height: 200})
+	size = buildImageSizeSpec(&docssed.ImageSpec{URL: "http://x.com/img.png", Width: 100, Height: 200})
 	require.NotNil(t, size)
 	assert.NotNil(t, size.Width)
 	assert.NotNil(t, size.Height)
@@ -612,48 +565,17 @@ func TestParseFullExpr_Addressed(t *testing.T) {
 	}
 }
 
-func TestResolveAddress(t *testing.T) {
-	pm := &paragraphMap{
-		Paragraphs: []docParagraph{
-			{Num: 1, Text: "first", StartIndex: 0, EndIndex: 6},
-			{Num: 2, Text: "second", StartIndex: 6, EndIndex: 13},
-			{Num: 3, Text: "third", StartIndex: 13, EndIndex: 19},
-			{Num: 4, Text: "fourth", StartIndex: 19, EndIndex: 26},
-			{Num: 5, Text: "fifth", StartIndex: 26, EndIndex: 32},
-		},
-	}
-
-	// Single address
-	targets, err := resolveAddress(&sedAddress{Start: 3}, pm)
-	require.NoError(t, err)
-	assert.Len(t, targets, 1)
-	assert.Equal(t, "third", targets[0].Text)
-
-	// Last paragraph ($)
-	targets, err = resolveAddress(&sedAddress{Start: -1}, pm)
-	require.NoError(t, err)
-	assert.Len(t, targets, 1)
-	assert.Equal(t, "fifth", targets[0].Text)
-
-	// Range
-	targets, err = resolveAddress(&sedAddress{Start: 2, End: 4, HasRange: true}, pm)
-	require.NoError(t, err)
-	assert.Len(t, targets, 3)
-	assert.Equal(t, "second", targets[0].Text)
-	assert.Equal(t, "fourth", targets[2].Text)
-
-	// Range ending with $
-	targets, err = resolveAddress(&sedAddress{Start: 3, End: -1, HasRange: true}, pm)
-	require.NoError(t, err)
-	assert.Len(t, targets, 3)
-	assert.Equal(t, "third", targets[0].Text)
-	assert.Equal(t, "fifth", targets[2].Text)
-
-	// Out of range
-	_, err = resolveAddress(&sedAddress{Start: 10}, pm)
-	assert.Error(t, err)
-
-	// Empty paragraph map
-	_, err = resolveAddress(&sedAddress{Start: 1}, &paragraphMap{})
-	assert.Error(t, err)
+func TestBuildAddressMutationRequestsReversesAndScopesTab(t *testing.T) {
+	requests := buildAddressMutationRequests([]docssed.AddressMutation{
+		{StartIndex: 1, EndIndex: 4},
+		{StartIndex: 8, EndIndex: 8, InsertText: "text\n"},
+	}, "tab-1")
+	require.Len(t, requests, 2)
+	require.NotNil(t, requests[0].InsertText)
+	assert.Equal(t, int64(8), requests[0].InsertText.Location.Index)
+	assert.Equal(t, "tab-1", requests[0].InsertText.Location.TabId)
+	require.NotNil(t, requests[1].DeleteContentRange)
+	assert.Equal(t, int64(1), requests[1].DeleteContentRange.Range.StartIndex)
+	assert.Equal(t, int64(4), requests[1].DeleteContentRange.Range.EndIndex)
+	assert.Equal(t, "tab-1", requests[1].DeleteContentRange.Range.TabId)
 }

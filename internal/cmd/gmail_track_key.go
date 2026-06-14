@@ -39,10 +39,10 @@ func (c *GmailTrackKeyRotateCmd) Run(ctx context.Context, flags *RootFlags) erro
 		return err
 	}
 	if !cfg.IsConfigured() {
-		return fmt.Errorf("tracking not configured; run 'gog gmail track setup' first")
+		return trackingConfigError("tracking not configured; run 'gog gmail track setup' first")
 	}
 	if strings.TrimSpace(cfg.AdminKey) == "" {
-		return fmt.Errorf("tracking admin key not configured; run 'gog gmail track setup' again")
+		return trackingConfigError("tracking admin key not configured; run 'gog gmail track setup' again")
 	}
 	secretStore, err = ensureTrackingSecretStore(ctx, secretStore)
 	if err != nil {
@@ -86,7 +86,7 @@ func (c *GmailTrackKeyRotateCmd) Run(ctx context.Context, flags *RootFlags) erro
 	if !c.NoDeploy {
 		workerName := strings.TrimSpace(cfg.WorkerName)
 		if workerName == "" {
-			return fmt.Errorf("tracking worker name not configured; run 'gog gmail track setup' again")
+			return trackingConfigError("tracking worker name not configured; run 'gog gmail track setup' again")
 		}
 		dbName := strings.TrimSpace(cfg.DatabaseName)
 		if dbName == "" {

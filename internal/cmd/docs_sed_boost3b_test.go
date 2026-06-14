@@ -7,6 +7,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/api/docs/v1"
+
+	"github.com/steipete/gogcli/internal/docssed"
 )
 
 // =============================================================================
@@ -281,40 +283,6 @@ func TestRunBatch_ImageExpressions(t *testing.T) {
 }
 
 // =============================================================================
-// applyDeferredBullets — with existing bullets
-// =============================================================================
-
-func TestApplyDeferredBullets_ExistingBullets(t *testing.T) {
-	doc := &docs.Document{
-		DocumentId: "test-doc",
-		Body: &docs.Body{Content: []*docs.StructuralElement{
-			{Paragraph: &docs.Paragraph{
-				Bullet: &docs.Bullet{ListId: "list1"},
-				Elements: []*docs.ParagraphElement{
-					{TextRun: &docs.TextRun{Content: "- Item 1\n"}, StartIndex: 1, EndIndex: 10},
-				},
-			}, StartIndex: 1, EndIndex: 10},
-			{Paragraph: &docs.Paragraph{
-				Elements: []*docs.ParagraphElement{
-					{TextRun: &docs.TextRun{Content: "\t- Sub item\n"}, StartIndex: 10, EndIndex: 22},
-				},
-			}, StartIndex: 10, EndIndex: 22},
-			{Paragraph: &docs.Paragraph{
-				Elements: []*docs.ParagraphElement{
-					{TextRun: &docs.TextRun{Content: "- Item 2\n"}, StartIndex: 22, EndIndex: 31},
-				},
-			}, StartIndex: 22, EndIndex: 31},
-		}},
-	}
-	svc, cleanup := newSedTestServer(t, doc)
-	defer cleanup()
-
-	cmd := &DocsSedCmd{}
-	err := cmd.applyDeferredBullets(context.Background(), svc, "test-doc")
-	assert.NoError(t, err)
-}
-
-// =============================================================================
 // processFootnotes coverage
 // =============================================================================
 
@@ -367,7 +335,7 @@ func TestApplyBreakPhase_WithBreak(t *testing.T) {
 
 	brace, _ := parseBraceExpr("+=page")
 	expr := sedExpr{pattern: "content", replacement: "content", brace: brace}
-	frs := []formatRange{{start: 1, end: 8}}
+	frs := []docssed.FormatIntent{{StartIndex: 1, EndIndex: 8}}
 	err := applyBreakPhase(context.Background(), svc, "test-doc", expr, frs)
 	assert.NoError(t, err)
 }

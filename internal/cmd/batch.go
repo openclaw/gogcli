@@ -10,6 +10,7 @@ import (
 
 	"google.golang.org/api/docs/v1"
 
+	"github.com/steipete/gogcli/internal/docsbatch"
 	"github.com/steipete/gogcli/internal/outfmt"
 	"github.com/steipete/gogcli/internal/ui"
 )
@@ -53,7 +54,7 @@ func (c *BatchBeginCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if err != nil {
 		return err
 	}
-	state, err := store.create(docsBatchState{
+	state, err := store.Create(docsbatch.State{
 		Name:       strings.TrimSpace(c.Name),
 		Service:    c.Service,
 		DocumentID: documentID,
@@ -75,11 +76,11 @@ func (c *BatchBeginCmd) Run(ctx context.Context, flags *RootFlags) error {
 type BatchListCmd struct{}
 
 func (c *BatchListCmd) Run(ctx context.Context) error {
-	store, err := newDocsBatchStore(ctx)
+	store, err := openDocsBatchStore(ctx)
 	if err != nil {
 		return err
 	}
-	batches, err := store.list()
+	batches, err := store.List()
 	if err != nil {
 		return err
 	}
@@ -100,11 +101,15 @@ type BatchShowCmd struct {
 }
 
 func (c *BatchShowCmd) Run(ctx context.Context) error {
-	store, err := newDocsBatchStore(ctx)
+	batchID := strings.TrimSpace(c.BatchID)
+	if err := validateDocsBatchIDArg(batchID); err != nil {
+		return err
+	}
+	store, err := openDocsBatchStore(ctx)
 	if err != nil {
 		return err
 	}
-	state, err := store.get(strings.TrimSpace(c.BatchID))
+	state, err := store.Get(batchID)
 	if err != nil {
 		return err
 	}
@@ -131,7 +136,7 @@ type BatchAbortCmd struct {
 
 func (c *BatchAbortCmd) Run(ctx context.Context, flags *RootFlags) error {
 	batchID := strings.TrimSpace(c.BatchID)
-	if err := validateDocsBatchID(batchID); err != nil {
+	if err := validateDocsBatchIDArg(batchID); err != nil {
 		return err
 	}
 	if err := dryRunExit(ctx, flags, "batch.abort", map[string]any{"batch_id": batchID}); err != nil {
@@ -141,7 +146,7 @@ func (c *BatchAbortCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if err != nil {
 		return err
 	}
-	state, err := store.delete(batchID)
+	state, err := store.Delete(batchID)
 	if err != nil {
 		return err
 	}
@@ -172,7 +177,7 @@ func (c *BatchPruneCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if err != nil {
 		return err
 	}
-	removed, err := store.prune(c.OlderThan)
+	removed, err := store.Prune(c.OlderThan)
 	if err != nil {
 		return err
 	}
@@ -207,42 +212,64 @@ func (c *BatchEndCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if c.ContinueOnError && c.AutoSplit {
 		return usage("--continue-on-error and --auto-split are mutually exclusive")
 	}
+	batchID := strings.TrimSpace(c.BatchID)
+	if err := validateDocsBatchIDArg(batchID); err != nil {
+		return err
+	}
+	if flags != nil && flags.DryRun {
+		store, err := openDocsBatchStore(ctx)
+		if err != nil {
+			return err
+		}
+		state, err := store.Get(batchID)
+		if err != nil {
+			return err
+		}
+		if len(state.Requests) == 0 {
+			return errors.New("batch has no requests")
+		}
+
+		return writeDocsBatchEndResult(ctx, docsBatchEndResult{
+			BatchID:  state.BatchID,
+			Requests: len(state.Requests),
+			Atomic:   !c.AutoSplit,
+			DryRun:   true,
+			Payload:  docsBatchWirePayload(state, state.Requests),
+		})
+	}
 	store, err := newDocsBatchStore(ctx)
 	if err != nil {
 		return err
 	}
 
 	var result docsBatchEndResult
-	err = store.withLockedState(strings.TrimSpace(c.BatchID), func(state *docsBatchState) error {
+	err = store.WithState(batchID, func(transaction *docsbatch.Transaction) error {
+		state := transaction.State()
 		if len(state.Requests) == 0 {
 			return errors.New("batch has no requests")
 		}
 		result.BatchID = state.BatchID
 		result.Requests = len(state.Requests)
 		result.Atomic = !c.AutoSplit
-		if flags != nil && flags.DryRun {
-			result.DryRun = true
-			result.Payload = docsBatchWirePayload(state, state.Requests)
-			return nil
-		}
 		if len(state.Requests) > docsBatchUpdateRequestCap && !c.AutoSplit {
 			return usagef("batch has %d requests; Docs allows at most %d per atomic update (use --auto-split for non-atomic submission)", len(state.Requests), docsBatchUpdateRequestCap)
 		}
 		if c.AutoSplit {
-			return c.submitSplit(ctx, store, state, &result)
+			return c.submitSplit(ctx, transaction, state, &result)
 		}
 
 		_, submitErr := submitDocsBatch(ctx, state, state.Requests)
 		if submitErr == nil {
 			result.Chunks = 1
 			state.Requests = nil
-			return store.persistOrDeleteUnlocked(state)
+
+			return transaction.PersistOrDelete()
 		}
 		if !c.ContinueOnError || !isDocsBatchBadRequest(submitErr) {
 			return submitErr
 		}
 
-		return c.submitIndividually(ctx, store, state, &result)
+		return c.submitIndividually(ctx, transaction, state, &result)
 	})
 	if err != nil {
 		return err
@@ -251,7 +278,12 @@ func (c *BatchEndCmd) Run(ctx context.Context, flags *RootFlags) error {
 	return writeDocsBatchEndResult(ctx, result)
 }
 
-func (c *BatchEndCmd) submitSplit(ctx context.Context, store *docsBatchStore, state *docsBatchState, result *docsBatchEndResult) error {
+func (c *BatchEndCmd) submitSplit(
+	ctx context.Context,
+	transaction *docsbatch.Transaction,
+	state *docsbatch.State,
+	result *docsBatchEndResult,
+) error {
 	result.Atomic = false
 	for len(state.Requests) > 0 {
 		count := min(len(state.Requests), docsBatchUpdateRequestCap)
@@ -261,44 +293,64 @@ func (c *BatchEndCmd) submitSplit(ctx context.Context, store *docsBatchStore, st
 		}
 		result.Chunks++
 		state.Requests = state.Requests[count:]
+		missingRevision := false
 		if len(state.Requests) > 0 {
 			revision := docsBatchResponseRevision(response)
 			if revision == "" {
-				return errors.New("docs response omitted the revision required to continue split submission")
+				missingRevision = true
+			} else {
+				state.RequiredRevisionID = revision
 			}
-			state.RequiredRevisionID = revision
 		}
-		if err := store.persistOrDeleteUnlocked(state); err != nil {
+		if err := transaction.PersistOrDelete(); err != nil {
 			return err
+		}
+		if missingRevision {
+			return errors.New("docs response omitted the revision required to continue split submission")
 		}
 	}
 
 	return nil
 }
 
-func (c *BatchEndCmd) submitIndividually(ctx context.Context, store *docsBatchStore, state *docsBatchState, result *docsBatchEndResult) error {
+func (c *BatchEndCmd) submitIndividually(
+	ctx context.Context,
+	transaction *docsbatch.Transaction,
+	state *docsbatch.State,
+	result *docsBatchEndResult,
+) error {
 	result.Atomic = false
-	failed := make([]docsBatchRequestEntry, 0)
-	for index, entry := range state.Requests {
-		response, err := submitDocsBatch(ctx, state, []docsBatchRequestEntry{entry})
+	failed := make([]docsbatch.RequestEntry, 0)
+	pending := append([]docsbatch.RequestEntry(nil), state.Requests...)
+	for index := 0; len(pending) > 0; index++ {
+		entry := pending[0]
+		pending = pending[1:]
+		response, err := submitDocsBatch(ctx, state, []docsbatch.RequestEntry{entry})
+		missingRevision := false
 		if err != nil {
 			failed = append(failed, entry)
 			ui.FromContext(ctx).Err().Linef("batch request %d failed: %v", index+1, err)
-			continue
+		} else {
+			result.Chunks++
+			revision := docsBatchResponseRevision(response)
+			if (len(failed) > 0 || len(pending) > 0) && revision == "" {
+				missingRevision = true
+			} else if revision != "" {
+				state.RequiredRevisionID = revision
+			}
 		}
-		result.Chunks++
-		revision := docsBatchResponseRevision(response)
-		if index < len(state.Requests)-1 && revision == "" {
+
+		state.Requests = append(append([]docsbatch.RequestEntry(nil), failed...), pending...)
+		result.Failed = len(failed)
+		if err := transaction.PersistOrDelete(); err != nil {
+			return err
+		}
+		if missingRevision {
 			return errors.New("docs response omitted the revision required to continue individual submission")
 		}
-		if revision != "" {
-			state.RequiredRevisionID = revision
-		}
 	}
-	state.Requests = failed
-	result.Failed = len(failed)
 
-	return store.persistOrDeleteUnlocked(state)
+	return nil
 }
 
 func writeDocsBatchEndResult(ctx context.Context, result docsBatchEndResult) error {
@@ -328,6 +380,9 @@ func validateDocsBatchTarget(ctx context.Context, flags *RootFlags, batchID, doc
 	if batchID == "" {
 		return nil
 	}
+	if err := validateDocsBatchIDArg(batchID); err != nil {
+		return err
+	}
 	account, err := requireAccount(flags)
 	if err != nil {
 		return err
@@ -336,16 +391,21 @@ func validateDocsBatchTarget(ctx context.Context, flags *RootFlags, batchID, doc
 	if err != nil {
 		return err
 	}
-	store, err := newDocsBatchStore(ctx)
+	store, err := openDocsBatchStore(ctx)
 	if err != nil {
 		return err
 	}
-	state, err := store.get(batchID)
+	state, err := store.Get(batchID)
 	if err != nil {
 		return err
 	}
 
-	return validateDocsBatchIdentity(state, strings.TrimSpace(documentID), account, client)
+	return docsbatch.ValidateIdentity(state, docsbatch.Identity{
+		Service:    docsbatch.ServiceDocs,
+		DocumentID: strings.TrimSpace(documentID),
+		Account:    account,
+		Client:     client,
+	})
 }
 
 func captureDocsBatchRevision(ctx context.Context, svc *docs.Service, batchID, documentID string) (string, error) {
@@ -371,6 +431,9 @@ func queueDocsBatchRequests(ctx context.Context, flags *RootFlags, batchID, docu
 	if batchID == "" {
 		return false, nil
 	}
+	if err := validateDocsBatchIDArg(batchID); err != nil {
+		return true, err
+	}
 	if len(requests) == 0 {
 		return true, errors.New("no Docs requests to append")
 	}
@@ -386,7 +449,23 @@ func queueDocsBatchRequests(ctx context.Context, flags *RootFlags, batchID, docu
 	if err != nil {
 		return true, err
 	}
-	total, err := store.appendRequests(batchID, command, documentID, account, client, revisionID, requests, requireEmpty)
+	rawRequests, err := marshalDocsBatchRequests(requests)
+	if err != nil {
+		return true, err
+	}
+	total, err := store.Append(docsbatch.AppendOptions{
+		BatchID: batchID,
+		Command: command,
+		Identity: docsbatch.Identity{
+			Service:    docsbatch.ServiceDocs,
+			DocumentID: documentID,
+			Account:    account,
+			Client:     client,
+		},
+		RevisionID:   revisionID,
+		Requests:     rawRequests,
+		RequireEmpty: requireEmpty,
+	})
 	if err != nil {
 		return true, err
 	}
@@ -404,4 +483,8 @@ func queueDocsBatchRequests(ctx context.Context, flags *RootFlags, batchID, docu
 	}
 
 	return true, err
+}
+
+func validateDocsBatchIDArg(batchID string) error {
+	return newUsageError(docsbatch.ValidateID(batchID))
 }

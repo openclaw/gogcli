@@ -13,6 +13,8 @@ import (
 	"time"
 
 	"google.golang.org/api/gmail/v1"
+
+	"github.com/steipete/gogcli/internal/gmailwatch"
 )
 
 func TestGmailWatchStartCmd_JSON(t *testing.T) {
@@ -208,7 +210,7 @@ func TestDecodeGmailPushPayload_NumberHistoryID(t *testing.T) {
 
 	env := &pubsubPushEnvelope{}
 	env.Message.Data = base64.StdEncoding.EncodeToString(payload)
-	got, err := decodeGmailPushPayload(env)
+	got, err := gmailwatch.DecodePushPayload(env)
 	if err != nil {
 		t.Fatalf("decode: %v", err)
 	}
@@ -228,7 +230,7 @@ func TestDecodeGmailPushPayload_StringHistoryID(t *testing.T) {
 
 	env := &pubsubPushEnvelope{}
 	env.Message.Data = base64.StdEncoding.EncodeToString(payload)
-	got, err := decodeGmailPushPayload(env)
+	got, err := gmailwatch.DecodePushPayload(env)
 	if err != nil {
 		t.Fatalf("decode: %v", err)
 	}
@@ -248,7 +250,7 @@ func TestDecodeGmailPushPayload_InvalidHistoryID(t *testing.T) {
 
 	env := &pubsubPushEnvelope{}
 	env.Message.Data = base64.StdEncoding.EncodeToString(payload)
-	if _, err := decodeGmailPushPayload(env); err == nil {
+	if _, err := gmailwatch.DecodePushPayload(env); err == nil {
 		t.Fatalf("expected error")
 	}
 }

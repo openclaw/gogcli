@@ -9,6 +9,7 @@ import (
 	"github.com/alecthomas/kong"
 	"google.golang.org/api/docs/v1"
 
+	"github.com/steipete/gogcli/internal/docsedit"
 	"github.com/steipete/gogcli/internal/outfmt"
 	"github.com/steipete/gogcli/internal/ui"
 )
@@ -116,29 +117,18 @@ func (c *DocsNamedRangesCreateCmd) Run(ctx context.Context, kctx *kong.Context, 
 	if utf16Len(name) > 256 {
 		return usage("--name must be at most 256 UTF-16 code units")
 	}
-	atProvided := flagProvided(kctx, "at")
-	if err := validateDocsAtAnchorFlags(docsAtAnchorFlags{
-		At:         c.At,
-		AtProvided: atProvided,
-		Occurrence: c.Occurrence,
-		MatchCase:  c.MatchCase,
-	}); err != nil {
-		return err
-	}
-	indexProvided := c.Start != nil || c.End != nil
-	if atProvided && indexProvided {
-		return usage("--at cannot be combined with --start or --end")
-	}
-	if !atProvided && (c.Start == nil || c.End == nil) {
-		return usage("provide --at or both --start and --end")
-	}
-	if !atProvided {
-		if *c.Start < 1 {
-			return usage("--start must be >= 1")
-		}
-		if *c.End <= *c.Start {
-			return usage("--end must be greater than --start")
-		}
+	placement, err := docsedit.PlanRangePlacement(docsedit.RangePlacementOptions{
+		Start: c.Start,
+		End:   c.End,
+		Anchor: docsedit.AnchorOptions{
+			Text:       c.At,
+			Provided:   flagProvided(kctx, "at"),
+			Occurrence: c.Occurrence,
+			MatchCase:  c.MatchCase,
+		},
+	})
+	if err != nil {
+		return usage(err.Error())
 	}
 	tab, err := resolveTabArg(ctx, c.Tab, c.TabID)
 	if err != nil {
@@ -150,15 +140,15 @@ func (c *DocsNamedRangesCreateCmd) Run(ctx context.Context, kctx *kong.Context, 
 		"name":        name,
 		"tab":         tab,
 	}
-	if atProvided {
+	if placement.Kind == docsedit.PlacementAnchor {
 		addDocsAtAnchorDryRunPayload(dryRunPayload, docsAtAnchorFlags{
-			At:         c.At,
-			Occurrence: c.Occurrence,
-			MatchCase:  c.MatchCase,
+			At:         placement.Anchor.Text,
+			Occurrence: placement.Anchor.Occurrence,
+			MatchCase:  placement.Anchor.MatchCase,
 		})
 	} else {
-		dryRunPayload["start_index"] = *c.Start
-		dryRunPayload["end_index"] = *c.End
+		dryRunPayload["start_index"] = placement.Range.Start
+		dryRunPayload["end_index"] = placement.Range.End
 	}
 	if dryRunErr := dryRunExit(ctx, flags, "docs.named-range.create", dryRunPayload); dryRunErr != nil {
 		return dryRunErr
@@ -171,11 +161,11 @@ func (c *DocsNamedRangesCreateCmd) Run(ctx context.Context, kctx *kong.Context, 
 
 	var loaded *docsLoadedTarget
 	var span docsNamedRangeSpan
-	if atProvided {
+	if placement.Kind == docsedit.PlacementAnchor {
 		resolved, resolveErr := resolveDocsAtAnchor(ctx, svc, docID, docsAtAnchorFlags{
-			At:         c.At,
-			Occurrence: c.Occurrence,
-			MatchCase:  c.MatchCase,
+			At:         placement.Anchor.Text,
+			Occurrence: placement.Anchor.Occurrence,
+			MatchCase:  placement.Anchor.MatchCase,
 			Tab:        tab,
 		})
 		if resolveErr != nil {
@@ -192,7 +182,11 @@ func (c *DocsNamedRangesCreateCmd) Run(ctx context.Context, kctx *kong.Context, 
 		if err != nil {
 			return err
 		}
-		span = docsNamedRangeSpan{StartIndex: *c.Start, EndIndex: *c.End, TabID: loaded.tabID}
+		span = docsNamedRangeSpan{
+			StartIndex: placement.Range.Start,
+			EndIndex:   placement.Range.End,
+			TabID:      loaded.tabID,
+		}
 	}
 
 	items, err := docsNamedRangeItemsForLoaded(loaded)

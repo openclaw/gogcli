@@ -23,10 +23,10 @@ type AuthImportCmd struct {
 	RefreshTokenStdin    bool   `name:"refresh-token-stdin" help:"Read OAuth refresh token from stdin"`
 	RefreshTokenFile     string `name:"refresh-token-file" type:"path" help:"Read OAuth refresh token from file"`
 	RefreshTokenEnv      string `name:"refresh-token-env" help:"Read OAuth refresh token from the named environment variable"`
-	AccessTokenStdin     bool   `name:"access-token-stdin" help:"Read OAuth access token from stdin"`
-	AccessTokenFile      string `name:"access-token-file" type:"path" help:"Read OAuth access token from file"`
-	AccessTokenEnv       string `name:"access-token-env" help:"Read OAuth access token from the named environment variable"`
-	AccessTokenExpiresAt string `name:"access-token-expires-at" help:"Access token expiry timestamp (RFC3339; default: now+1h when an access token is provided)"`
+	AccessTokenStdin     bool   `name:"access-token-stdin" help:"Also read a current OAuth access token from stdin (requires a refresh-token source)"`
+	AccessTokenFile      string `name:"access-token-file" type:"path" help:"Also read a current OAuth access token from file (requires a refresh-token source)"`
+	AccessTokenEnv       string `name:"access-token-env" help:"Also read a current OAuth access token from the named environment variable (requires a refresh-token source)"`
+	AccessTokenExpiresAt string `name:"access-token-expires-at" help:"Expiry for the optional access token (RFC3339; default: now+1h when provided)"`
 	ServicesCSV          string `name:"services" help:"Comma-separated services to record on the token (informational; does not affect scopes)"`
 }
 
@@ -136,7 +136,7 @@ func (c *AuthImportCmd) resolveRefreshToken(ctx context.Context) (string, error)
 		sources++
 	}
 	if sources == 0 {
-		return "", usage("provide refresh token with --refresh-token-stdin, --refresh-token-file, or --refresh-token-env")
+		return "", usage("provide required refresh token with --refresh-token-stdin, --refresh-token-file, or --refresh-token-env; access-token sources are optional and cannot replace it")
 	}
 	if sources > 1 {
 		return "", usage("provide exactly one refresh token source")

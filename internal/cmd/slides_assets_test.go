@@ -16,6 +16,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/steipete/gogcli/internal/slidesmarkdown"
 )
 
 func TestFetchFAIcon_OK(t *testing.T) {
@@ -151,14 +153,14 @@ func TestAssetPipeline_CollectsUniqueIcons(t *testing.T) {
 	uploader := &fakeDriveUploader{}
 	p := &AssetPipeline{Config: cfg, Uploader: uploader}
 
-	slides := []Slide{
-		{Body: []Block{ParagraphBlock{Inlines: []Inline{
-			IconRef{Style: "solid", Name: "truck-fast"},
-			TextRun{Text: " hello "},
-			IconRef{Style: "solid", Name: "truck-fast"}, // duplicate, should not re-upload
+	slides := []slidesmarkdown.Slide{
+		{Body: []slidesmarkdown.Block{slidesmarkdown.ParagraphBlock{Inlines: []slidesmarkdown.Inline{
+			slidesmarkdown.IconRef{Style: "solid", Name: "truck-fast"},
+			slidesmarkdown.TextRun{Text: " hello "},
+			slidesmarkdown.IconRef{Style: "solid", Name: "truck-fast"}, // duplicate, should not re-upload
 		}}}},
-		{Body: []Block{IconRowsBlock{Kind: "boxes", Rows: []IconRow{
-			{Icon: &IconRef{Style: "brands", Name: "github"}, Text: "GitHub"},
+		{Body: []slidesmarkdown.Block{slidesmarkdown.IconRowsBlock{Kind: "boxes", Rows: []slidesmarkdown.IconRow{
+			{Icon: &slidesmarkdown.IconRef{Style: "brands", Name: "github"}, Text: "GitHub"},
 		}}}},
 	}
 
@@ -174,8 +176,8 @@ func TestAssetPipeline_StrictFailsWhenMMDCDisabled(t *testing.T) {
 	cfg.Strict = true
 
 	p := &AssetPipeline{Config: cfg, Uploader: &fakeDriveUploader{}}
-	slides := []Slide{{Body: []Block{
-		DiagramBlock{Kind: "mermaid", Source: "graph TD\nA-->B", ID: "block-1"},
+	slides := []slidesmarkdown.Slide{{Body: []slidesmarkdown.Block{
+		slidesmarkdown.DiagramBlock{Kind: "mermaid", Source: "graph TD\nA-->B", ID: "block-1"},
 	}}}
 
 	_, err := p.Resolve(context.Background(), slides)
@@ -190,8 +192,8 @@ func TestAssetPipelineWarningUsesRuntimeStderr(t *testing.T) {
 	var stderr bytes.Buffer
 	ctx := newCmdRuntimeOutputContext(t, io.Discard, &stderr)
 	p := &AssetPipeline{Config: cfg, Uploader: &fakeDriveUploader{}}
-	slides := []Slide{{Body: []Block{
-		DiagramBlock{Kind: "mermaid", Source: "graph TD\nA-->B", ID: "block-1"},
+	slides := []slidesmarkdown.Slide{{Body: []slidesmarkdown.Block{
+		slidesmarkdown.DiagramBlock{Kind: "mermaid", Source: "graph TD\nA-->B", ID: "block-1"},
 	}}}
 
 	_, err := p.Resolve(ctx, slides)
@@ -200,13 +202,13 @@ func TestAssetPipelineWarningUsesRuntimeStderr(t *testing.T) {
 }
 
 func TestCollectIconRefs_OnlyLeadingParagraphAndHeadingIcons(t *testing.T) {
-	leading := IconRef{Style: "solid", Name: "file"}
-	mid := IconRef{Style: "solid", Name: "truck-fast"}
+	leading := slidesmarkdown.IconRef{Style: "solid", Name: "file"}
+	mid := slidesmarkdown.IconRef{Style: "solid", Name: "truck-fast"}
 
-	got := collectIconRefs([]Slide{{
-		Body: []Block{
-			HeadingBlock{Inlines: []Inline{leading, TextRun{Text: " Rethink"}}},
-			ParagraphBlock{Inlines: []Inline{TextRun{Text: "middle "}, mid}},
+	got := collectIconRefs([]slidesmarkdown.Slide{{
+		Body: []slidesmarkdown.Block{
+			slidesmarkdown.HeadingBlock{Inlines: []slidesmarkdown.Inline{leading, slidesmarkdown.TextRun{Text: " Rethink"}}},
+			slidesmarkdown.ParagraphBlock{Inlines: []slidesmarkdown.Inline{slidesmarkdown.TextRun{Text: "middle "}, mid}},
 		},
 	}})
 

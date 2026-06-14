@@ -738,6 +738,53 @@ func TestGmailTrackOpens_NotConfigured(t *testing.T) {
 
 	if err := Execute([]string{"--account", "a@b.com", "gmail", "track", "opens"}); err == nil {
 		t.Fatalf("expected error for unconfigured tracking")
+	} else if ExitCode(err) != exitCodeConfig {
+		t.Fatalf("exit = %d, want %d: %v", ExitCode(err), exitCodeConfig, err)
+	}
+}
+
+func TestGmailTrackMissingConfigurationUsesConfigExit(t *testing.T) {
+	tests := []struct {
+		name string
+		cfg  *tracking.Config
+		args []string
+	}{
+		{
+			name: "opens admin key",
+			cfg:  &tracking.Config{Enabled: true, WorkerURL: "https://example.com", TrackingKey: "track"},
+			args: []string{"gmail", "track", "opens"},
+		},
+		{
+			name: "rotate setup",
+			cfg:  &tracking.Config{},
+			args: []string{"gmail", "track", "key", "rotate", "--no-deploy"},
+		},
+		{
+			name: "rotate admin key",
+			cfg:  &tracking.Config{Enabled: true, WorkerURL: "https://example.com", TrackingKey: "track"},
+			args: []string{"gmail", "track", "key", "rotate", "--no-deploy"},
+		},
+		{
+			name: "rotate worker name",
+			cfg:  &tracking.Config{Enabled: true, WorkerURL: "https://example.com", TrackingKey: "track", AdminKey: "admin"},
+			args: []string{"gmail", "track", "key", "rotate"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			setupTrackingEnv(t)
+			saveTrackingConfigForTest(t, tt.cfg)
+
+			args := append([]string{"--account", "a@b.com", "--no-input"}, tt.args...)
+			err := Execute(args)
+			if err == nil {
+				t.Fatalf("expected configuration error")
+			}
+			if ExitCode(err) != exitCodeConfig {
+				t.Fatalf("exit = %d, want %d: %v", ExitCode(err), exitCodeConfig, err)
+			}
+		})
 	}
 }
 

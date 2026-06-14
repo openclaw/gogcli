@@ -159,13 +159,6 @@ func resolveDocsTabID(ctx context.Context, svc *docs.Service, docID, tabQuery st
 	return tabID, err
 }
 
-func docsAppendIndex(endIndex int64) int64 {
-	if endIndex > 1 {
-		return endIndex - 1
-	}
-	return 1
-}
-
 func isDocsNotFound(err error) bool {
 	var apiErr *gapi.Error
 	if !errors.As(err, &apiErr) {

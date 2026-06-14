@@ -14,6 +14,8 @@ import (
 
 	"google.golang.org/api/gmail/v1"
 	"google.golang.org/api/option"
+
+	"github.com/steipete/gogcli/internal/gmailwatch"
 )
 
 func TestGmailWatchServer_History429OpensAccountCircuit(t *testing.T) {
@@ -163,7 +165,7 @@ func TestGmailWatchServer_OpenCircuitReturnsRetryAfter(t *testing.T) {
 func TestUpdateStateAfterHistoryKeepsConcurrentRateLimitCircuit(t *testing.T) {
 	until := time.Now().Add(time.Minute).UnixMilli()
 	state := gmailWatchState{HistoryID: "100", RateLimitedUntilMs: until}
-	if err := updateStateAfterHistory(&state, "200", "push1"); err != nil {
+	if err := gmailwatch.AdvanceHistory(&state, "200", "push1", time.Now()); err != nil {
 		t.Fatalf("update state: %v", err)
 	}
 	if state.RateLimitedUntilMs != until {

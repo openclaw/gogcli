@@ -3,43 +3,13 @@ package cmd
 import (
 	"regexp"
 	"testing"
+
+	"github.com/steipete/gogcli/internal/docssed"
 )
-
-func TestImageRefPatternEdgeCases(t *testing.T) {
-	tests := []struct {
-		name    string
-		input   string
-		wantNil bool
-		desc    string
-	}{
-		{"zero position", "!(0)", false, "position 0 parses but won't match anything"},
-		{"float position", "!(1.5)", true, "floats not supported"},
-		{"negative zero", "!(-0)", false, "parses as 0, won't match anything"},
-		{"large positive", "!(999)", false, "valid, will just not match"},
-		{"large negative", "!(-999)", false, "valid, will just not match"},
-		{"empty parens", "!()", true, "empty is invalid"},
-		{"space in parens", "!( 1 )", true, "spaces not trimmed"},
-		{"alt with spaces", "![my logo]", false, "spaces in alt ok"},
-		{"complex regex", `![^fig-\d{2,4}$]`, false, "complex regex ok"},
-		{"invalid regex", "![[invalid]", true, "unclosed bracket"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := parseImageRefPattern(tt.input)
-			if tt.wantNil && got != nil {
-				t.Errorf("parseImageRefPattern(%q) = %+v, want nil (%s)", tt.input, got, tt.desc)
-			}
-			if !tt.wantNil && got == nil {
-				t.Errorf("parseImageRefPattern(%q) = nil, want non-nil (%s)", tt.input, tt.desc)
-			}
-		})
-	}
-}
 
 func TestMatchImagesEdgeCases(t *testing.T) {
 	t.Run("empty list", func(t *testing.T) {
-		ref := parseImageRefPattern("!(1)")
+		ref := docssed.ParseImageReference("!(1)")
 		matched := matchImages(nil, ref)
 		if len(matched) != 0 {
 			t.Errorf("expected no matches for empty list")
@@ -49,17 +19,17 @@ func TestMatchImagesEdgeCases(t *testing.T) {
 	t.Run("single image", func(t *testing.T) {
 		images := []DocImage{{ObjectID: "only", Alt: "solo"}}
 
-		ref1 := parseImageRefPattern("!(1)")
+		ref1 := docssed.ParseImageReference("!(1)")
 		if m := matchImages(images, ref1); len(m) != 1 || m[0].ObjectID != "only" {
 			t.Errorf("!(1) should match single image")
 		}
 
-		ref2 := parseImageRefPattern("!(-1)")
+		ref2 := docssed.ParseImageReference("!(-1)")
 		if m := matchImages(images, ref2); len(m) != 1 || m[0].ObjectID != "only" {
 			t.Errorf("!(-1) should match single image")
 		}
 
-		ref3 := parseImageRefPattern("!(2)")
+		ref3 := docssed.ParseImageReference("!(2)")
 		if m := matchImages(images, ref3); len(m) != 0 {
 			t.Errorf("!(2) should not match single image")
 		}
@@ -71,7 +41,7 @@ func TestMatchImagesEdgeCases(t *testing.T) {
 			{ObjectID: "img2", Alt: "has-alt"},
 		}
 
-		ref := parseImageRefPattern("![^$]")
+		ref := docssed.ParseImageReference("![^$]")
 		matched := matchImages(images, ref)
 		if len(matched) != 1 || matched[0].ObjectID != "img1" {
 			t.Errorf("![^$] should match empty alt")
@@ -84,7 +54,7 @@ func TestMatchImagesEdgeCases(t *testing.T) {
 			{ObjectID: "img2", Alt: "image [2]"},
 		}
 
-		ref := parseImageRefPattern(`![image \(1\)]`)
+		ref := docssed.ParseImageReference(`![image \(1\)]`)
 		matched := matchImages(images, ref)
 		if len(matched) != 1 || matched[0].ObjectID != "img1" {
 			t.Errorf("escaped parens should match")

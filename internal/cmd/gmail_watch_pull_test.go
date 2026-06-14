@@ -228,43 +228,6 @@ func TestGmailWatchPullMessage_NacksHookFailureAndPreservesProgress(t *testing.T
 	}
 }
 
-func TestGmailWatchRestoreProgressForRetrySkipsNewerProgress(t *testing.T) {
-	setWatchTestConfigHome(t)
-
-	store := newGmailWatchTestStore(t, "a@b.com")
-	if updateErr := store.Update(func(s *gmailWatchState) error {
-		*s = gmailWatchState{
-			Account:           "a@b.com",
-			HistoryID:         "100",
-			LastPushMessageID: "msg-before",
-		}
-		return nil
-	}); updateErr != nil {
-		t.Fatalf("seed: %v", updateErr)
-	}
-	before := store.Get()
-	if updateErr := store.Update(func(s *gmailWatchState) error {
-		s.HistoryID = "300"
-		s.LastPushMessageID = "msg-newer"
-		return nil
-	}); updateErr != nil {
-		t.Fatalf("advance: %v", updateErr)
-	}
-
-	server := &gmailWatchServer{store: store}
-	if err := server.restoreWatchProgressForRetry(before, "200", "msg-failed"); err != nil {
-		t.Fatalf("restore: %v", err)
-	}
-
-	state := store.Get()
-	if state.HistoryID != "300" {
-		t.Fatalf("history id = %q", state.HistoryID)
-	}
-	if state.LastPushMessageID != "msg-newer" {
-		t.Fatalf("last push message id = %q", state.LastPushMessageID)
-	}
-}
-
 func TestGmailWatchPullMessage_RetriesHookFailureThenAcksSuccess(t *testing.T) {
 	server, hook, cleanup := newPullProcessorTestServer(t, http.StatusOK)
 	defer cleanup()
@@ -416,7 +379,7 @@ func newPullProcessorTestServer(t *testing.T, historyStatus int) (*gmailWatchSer
 	cleanup := func() {
 		gmailServer.Close()
 		hookServer.Close()
-		_ = os.Remove(store.path)
+		_ = os.Remove(store.Path())
 	}
 	return processor, hookServer, cleanup
 }

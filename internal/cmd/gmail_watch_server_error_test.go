@@ -63,7 +63,7 @@ func TestGmailWatchServer_ServeHTTP_InvalidPayload(t *testing.T) {
 func TestGmailWatchServer_ServeHTTP_EmptyHistoryID(t *testing.T) {
 	s := &gmailWatchServer{
 		cfg:   gmailWatchServeConfig{Path: "/hook", Account: "a@b.com"},
-		store: &gmailWatchStore{},
+		store: newEmptyGmailWatchTestStore(),
 		logf:  func(string, ...any) {},
 		warnf: func(string, ...any) {},
 	}
@@ -83,7 +83,7 @@ func TestGmailWatchServer_ServeHTTP_EmptyHistoryID(t *testing.T) {
 func TestGmailWatchServer_ServeHTTP_EmailMismatch(t *testing.T) {
 	s := &gmailWatchServer{
 		cfg:   gmailWatchServeConfig{Path: "/hook", Account: "a@b.com"},
-		store: &gmailWatchStore{},
+		store: newEmptyGmailWatchTestStore(),
 		logf:  func(string, ...any) {},
 		warnf: func(string, ...any) {},
 	}

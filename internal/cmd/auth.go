@@ -92,7 +92,7 @@ const (
 type AuthCmd struct {
 	Credentials AuthCredentialsCmd    `cmd:"" name:"credentials" help:"Manage OAuth client credentials"`
 	Add         AuthAddCmd            `cmd:"" name:"add" help:"Authorize and store a refresh token"`
-	Import      AuthImportCmd         `cmd:"" name:"import" help:"Import a refresh token non-interactively from stdin, file, or env"`
+	Import      AuthImportCmd         `cmd:"" name:"import" help:"Import a required refresh token and optional current access token non-interactively"`
 	Services    AuthServicesCmd       `cmd:"" name:"services" help:"List supported auth services and scopes"`
 	List        AuthListCmd           `cmd:"" name:"list" help:"List stored accounts"`
 	Doctor      AuthDoctorCmd         `cmd:"" name:"doctor" help:"Diagnose auth, keyring, and refresh-token issues"`
@@ -101,7 +101,7 @@ type AuthCmd struct {
 	Keyring     AuthKeyringCmd        `cmd:"" name:"keyring" help:"Configure keyring backend"`
 	Remove      AuthRemoveCmd         `cmd:"" name:"remove" help:"Remove a stored refresh token"`
 	Tokens      AuthTokensCmd         `cmd:"" name:"tokens" help:"Manage stored refresh tokens"`
-	Manage      AuthManageCmd         `cmd:"" name:"manage" help:"Open accounts manager in browser" aliases:"login"`
+	Manage      AuthManageCmd         `cmd:"" name:"manage" help:"Open interactive accounts manager in browser" aliases:"login"`
 	ServiceAcct AuthServiceAccountCmd `cmd:"" name:"service-account" help:"Configure service account (Workspace only; domain-wide delegation)"`
 	Keep        AuthKeepCmd           `cmd:"" name:"keep" help:"Configure service account for Google Keep (Workspace only)"`
 }

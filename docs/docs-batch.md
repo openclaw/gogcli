@@ -58,6 +58,6 @@ Use `batch abort <batchId>` to discard a batch and `batch prune --older-than 72h
 
 ## Local state
 
-Batch files live under the state directory described in [Paths and State](paths.md), in the `batches/` subdirectory. Directories use mode `0700`; batch files and the lock file use mode `0600`.
+Batch files live under the state directory described in [Paths and State](paths.md), in the `batches/` subdirectory. Directories use mode `0700`; batch files and the lock file use mode `0600`. `batch list`, `batch show`, and `batch end --dry-run` read atomic state without creating the directory or lock file. Commands that create, queue, submit, abort, or prune batches retain the cross-process mutation lock.
 
 Requests can contain document text, links, email addresses, and other content. Treat the state directory as sensitive. `batch show` exposes both request metadata and the exact wire payload.

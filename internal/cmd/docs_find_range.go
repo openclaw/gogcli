@@ -3,12 +3,11 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"html"
 	"strings"
-	"unicode"
 
 	"google.golang.org/api/docs/v1"
 
+	"github.com/steipete/gogcli/internal/docsedit"
 	"github.com/steipete/gogcli/internal/outfmt"
 	"github.com/steipete/gogcli/internal/ui"
 )
@@ -26,33 +25,7 @@ type DocsFindRangeCmd struct {
 }
 
 type docsFindRangeResult struct {
-	Matches []docsTextRangeMatch `json:"matches"`
-}
-
-type docsTextRangeOptions struct {
-	MatchCase            bool
-	NormalizeWhitespace  bool
-	TabID                string
-	PreserveHTMLEntities bool
-	RequireTextSegment   bool
-}
-
-type docsTextRangeMatch struct {
-	StartIndex     int64  `json:"startIndex"`
-	EndIndex       int64  `json:"endIndex"`
-	ParagraphIndex int    `json:"paragraphIndex"`
-	TabID          string `json:"tabId"`
-	InTable        bool   `json:"inTable,omitempty"`
-}
-
-type docsTextUnit struct {
-	StartByte      int
-	EndByte        int
-	StartIndex     int64
-	EndIndex       int64
-	ParagraphIndex int
-	Segment        int
-	InTable        bool
+	Matches []docsedit.TextRange `json:"matches"`
 }
 
 func (c *DocsFindRangeCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -85,7 +58,7 @@ func (c *DocsFindRangeCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if err != nil {
 		return err
 	}
-	matches := findDocsTextRanges(doc, c.Text, docsTextRangeOptions{
+	matches := docsedit.FindTextRanges(doc, c.Text, docsedit.SearchOptions{
 		MatchCase:           c.MatchCase,
 		NormalizeWhitespace: c.NormalizeWhitespace,
 		TabID:               tabID,
@@ -130,7 +103,7 @@ func (c *DocsFindRangeCmd) loadTargetDoc(ctx context.Context, svc *docs.Service,
 	return targetDoc, tabID, nil
 }
 
-func (c *DocsFindRangeCmd) selectMatches(matches []docsTextRangeMatch) []docsTextRangeMatch {
+func (c *DocsFindRangeCmd) selectMatches(matches []docsedit.TextRange) []docsedit.TextRange {
 	if c.All {
 		return matches
 	}
@@ -144,9 +117,9 @@ func (c *DocsFindRangeCmd) selectMatches(matches []docsTextRangeMatch) []docsTex
 	return matches[occurrence-1 : occurrence]
 }
 
-func (c *DocsFindRangeCmd) writeResult(ctx context.Context, matches []docsTextRangeMatch) error {
+func (c *DocsFindRangeCmd) writeResult(ctx context.Context, matches []docsedit.TextRange) error {
 	if matches == nil {
-		matches = []docsTextRangeMatch{}
+		matches = []docsedit.TextRange{}
 	}
 	if outfmt.IsJSON(ctx) {
 		if err := outfmt.WriteJSON(ctx, stdoutWriter(ctx), docsFindRangeResult{Matches: matches}); err != nil {
@@ -162,199 +135,9 @@ func (c *DocsFindRangeCmd) writeResult(ctx context.Context, matches []docsTextRa
 	return failEmptyIfNoDocsRange(c.FailEmpty, matches)
 }
 
-func failEmptyIfNoDocsRange(failEmpty bool, matches []docsTextRangeMatch) error {
+func failEmptyIfNoDocsRange(failEmpty bool, matches []docsedit.TextRange) error {
 	if len(matches) == 0 {
 		return failEmptyExit(failEmpty)
 	}
 	return nil
-}
-
-func findDocsTextRanges(doc *docs.Document, searchText string, opts docsTextRangeOptions) []docsTextRangeMatch {
-	if doc == nil || doc.Body == nil {
-		return nil
-	}
-	find := prepareDocsFindNeedle(searchText, opts)
-	if find == "" {
-		return nil
-	}
-
-	var matches []docsTextRangeMatch
-	text, units := buildDocsComparableDocumentText(doc.Body.Content, opts)
-	if text == "" {
-		return nil
-	}
-
-	offset := 0
-	for {
-		idx := strings.Index(text[offset:], find)
-		if idx < 0 {
-			return matches
-		}
-		startByte := offset + idx
-		endByte := startByte + len(find)
-		startIndex, endIndex, paragraphIndex, inTable, ok := docsOriginalRangeForComparableBytes(units, startByte, endByte, opts.RequireTextSegment)
-		if ok {
-			matches = append(matches, docsTextRangeMatch{
-				StartIndex:     startIndex,
-				EndIndex:       endIndex,
-				ParagraphIndex: paragraphIndex,
-				TabID:          opts.TabID,
-				InTable:        inTable,
-			})
-			offset = endByte
-			continue
-		}
-		offset = startByte + 1
-	}
-}
-
-func prepareDocsFindNeedle(text string, opts docsTextRangeOptions) string {
-	if !opts.PreserveHTMLEntities {
-		text = html.UnescapeString(text)
-	}
-	var b strings.Builder
-	lastWasWhitespace := false
-	for _, r := range text {
-		if opts.NormalizeWhitespace && unicode.IsSpace(r) {
-			if !lastWasWhitespace {
-				b.WriteRune(' ')
-				lastWasWhitespace = true
-			}
-			continue
-		}
-		if !opts.MatchCase {
-			r = unicode.ToLower(r)
-		}
-		b.WriteRune(r)
-		lastWasWhitespace = false
-	}
-	return b.String()
-}
-
-func buildDocsComparableDocumentText(elements []*docs.StructuralElement, opts docsTextRangeOptions) (string, []docsTextUnit) {
-	var b strings.Builder
-	var units []docsTextUnit
-	lastWhitespaceUnit := -1
-	paragraphIndex := 0
-	segment := 0
-
-	var walk func([]*docs.StructuralElement, bool)
-	walk = func(elements []*docs.StructuralElement, inTable bool) {
-		for _, el := range elements {
-			if el == nil {
-				continue
-			}
-			switch {
-			case el.Paragraph != nil:
-				segment++
-				if opts.RequireTextSegment {
-					lastWhitespaceUnit = -1
-				}
-				appendDocsComparableParagraphText(&b, &units, el.Paragraph, opts, paragraphIndex, &lastWhitespaceUnit, &segment, inTable)
-				paragraphIndex++
-			case el.Table != nil:
-				for _, row := range el.Table.TableRows {
-					if row == nil {
-						continue
-					}
-					for _, cell := range row.TableCells {
-						if cell == nil {
-							continue
-						}
-						walk(cell.Content, true)
-					}
-				}
-			}
-		}
-	}
-	walk(elements, false)
-	return b.String(), units
-}
-
-func appendDocsComparableParagraphText(b *strings.Builder, units *[]docsTextUnit, para *docs.Paragraph, opts docsTextRangeOptions, paragraphIndex int, lastWhitespaceUnit *int, segment *int, inTable bool) {
-	if para == nil {
-		return
-	}
-	for _, pe := range para.Elements {
-		if pe == nil || pe.TextRun == nil {
-			(*segment)++
-			if opts.RequireTextSegment {
-				*lastWhitespaceUnit = -1
-			}
-			continue
-		}
-		runOffset := int64(0)
-		for _, r := range pe.TextRun.Content {
-			startIndex := pe.StartIndex + runOffset
-			endIndex := startIndex + utf16RuneLen(r)
-			runOffset = endIndex - pe.StartIndex
-
-			if opts.NormalizeWhitespace && unicode.IsSpace(r) {
-				if *lastWhitespaceUnit >= 0 {
-					(*units)[*lastWhitespaceUnit].EndIndex = endIndex
-					continue
-				}
-				appendDocsTextUnit(b, units, ' ', startIndex, endIndex, paragraphIndex, *segment, inTable)
-				*lastWhitespaceUnit = len(*units) - 1
-				continue
-			}
-
-			if !opts.MatchCase {
-				r = unicode.ToLower(r)
-			}
-			appendDocsTextUnit(b, units, r, startIndex, endIndex, paragraphIndex, *segment, inTable)
-			*lastWhitespaceUnit = -1
-		}
-	}
-}
-
-func appendDocsTextUnit(b *strings.Builder, units *[]docsTextUnit, r rune, startIndex, endIndex int64, paragraphIndex, segment int, inTable bool) {
-	startByte := b.Len()
-	b.WriteRune(r)
-	*units = append(*units, docsTextUnit{
-		StartByte:      startByte,
-		EndByte:        b.Len(),
-		StartIndex:     startIndex,
-		EndIndex:       endIndex,
-		ParagraphIndex: paragraphIndex,
-		Segment:        segment,
-		InTable:        inTable,
-	})
-}
-
-func docsOriginalRangeForComparableBytes(units []docsTextUnit, startByte, endByte int, requireTextSegment bool) (int64, int64, int, bool, bool) {
-	first := -1
-	last := -1
-	for i, unit := range units {
-		if first < 0 && unit.EndByte > startByte {
-			first = i
-		}
-		if unit.StartByte < endByte {
-			last = i
-			continue
-		}
-		break
-	}
-	if first < 0 || last < first {
-		return 0, 0, 0, false, false
-	}
-	if requireTextSegment {
-		segment := units[first].Segment
-		for i := first; i <= last; i++ {
-			if units[i].Segment != segment {
-				return 0, 0, 0, false, false
-			}
-			if i > first && units[i-1].EndIndex != units[i].StartIndex {
-				return 0, 0, 0, false, false
-			}
-		}
-	}
-	return units[first].StartIndex, units[last].EndIndex, units[first].ParagraphIndex, units[first].InTable, true
-}
-
-func utf16RuneLen(r rune) int64 {
-	if r >= 0x10000 {
-		return 2
-	}
-	return 1
 }

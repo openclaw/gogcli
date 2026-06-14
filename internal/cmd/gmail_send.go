@@ -222,7 +222,7 @@ func (c *GmailSendCmd) resolveTrackingConfig(ctx context.Context, account string
 	}
 
 	if strings.TrimSpace(htmlBody) == "" {
-		return nil, fmt.Errorf("--track requires an HTML body (use --body-html or --quote)")
+		return nil, usage("--track requires an HTML body (use --body-html or --quote)")
 	}
 
 	trackingCfg, _, _, err := loadTrackingConfig(ctx, account, true)
@@ -230,7 +230,7 @@ func (c *GmailSendCmd) resolveTrackingConfig(ctx context.Context, account string
 		return nil, fmt.Errorf("load tracking config: %w", err)
 	}
 	if !trackingCfg.IsConfigured() {
-		return nil, fmt.Errorf("tracking not configured; run 'gog gmail track setup' first")
+		return nil, trackingConfigError("tracking not configured; run 'gog gmail track setup' first")
 	}
 
 	return trackingCfg, nil

@@ -15,6 +15,7 @@ import (
 func TestRewriteDocsCellUpdateContentArgs(t *testing.T) {
 	t.Parallel()
 
+	model := desirePathModel(t)
 	tests := []struct {
 		name string
 		args []string
@@ -50,7 +51,7 @@ func TestRewriteDocsCellUpdateContentArgs(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			if got := rewriteDocsCellUpdateContentArgs(tt.args); !reflect.DeepEqual(got, tt.want) {
+			if got := rewriteDocsCellUpdateContentArgs(model, tt.args); !reflect.DeepEqual(got, tt.want) {
 				t.Fatalf("rewriteDocsCellUpdateContentArgs() = %#v, want %#v", got, tt.want)
 			}
 		})

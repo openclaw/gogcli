@@ -1,6 +1,10 @@
 package cmd
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/steipete/gogcli/internal/docssed"
+)
 
 func TestParseImageSyntax(t *testing.T) {
 	tests := []struct {
@@ -112,7 +116,7 @@ func TestParseImageSyntax(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := parseImageSyntax(tt.input)
+			got := docssed.ParseImageSyntax(tt.input)
 			if tt.wantNil {
 				if got != nil {
 					t.Errorf("parseImageSyntax(%q) = %+v, want nil", tt.input, got)
@@ -137,67 +141,6 @@ func TestParseImageSyntax(t *testing.T) {
 			}
 			if got.Height != tt.wantHeight {
 				t.Errorf("Height = %d, want %d", got.Height, tt.wantHeight)
-			}
-		})
-	}
-}
-
-func TestParseImageRefPattern(t *testing.T) {
-	tests := []struct {
-		name         string
-		input        string
-		wantNil      bool
-		wantPosition bool
-		wantPos      int
-		wantAll      bool
-		wantByAlt    bool
-		wantRegex    string
-	}{
-		{"first image", "!(1)", false, true, 1, false, false, ""},
-		{"second image", "!(2)", false, true, 2, false, false, ""},
-		{"last image", "!(-1)", false, true, -1, false, false, ""},
-		{"second to last", "!(-2)", false, true, -2, false, false, ""},
-		{"all images", "!(*)", false, true, 0, true, false, ""},
-		{"first image alt syntax", "![](1)", false, true, 1, false, false, ""},
-		{"all images alt syntax", "![](*)", false, true, 0, true, false, ""},
-		{"exact alt match", "![logo]", false, false, 0, false, true, "logo"},
-		{"alt starts with", "![fig-.*]", false, false, 0, false, true, "fig-.*"},
-		{"alt contains", "![.*draft.*]", false, false, 0, false, true, ".*draft.*"},
-		{"alt with digits", `![img-\d+]`, false, false, 0, false, true, `img-\d+`},
-		{"case insensitive", "![(?i)logo]", false, false, 0, false, true, "(?i)logo"},
-		{"actual image insert", "!(https://example.com/img.png)", true, false, 0, false, false, ""},
-		{"full image syntax", "![alt](https://example.com/img.png)", true, false, 0, false, false, ""},
-		{"plain text", "hello world", true, false, 0, false, false, ""},
-		{"empty brackets", "![]", true, false, 0, false, false, ""},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := parseImageRefPattern(tt.input)
-			if tt.wantNil {
-				if got != nil {
-					t.Errorf("parseImageRefPattern(%q) = %+v, want nil", tt.input, got)
-				}
-				return
-			}
-			if got == nil {
-				t.Fatalf("parseImageRefPattern(%q) = nil, want non-nil", tt.input)
-				return
-			}
-			if got.ByPosition != tt.wantPosition {
-				t.Errorf("ByPosition = %v, want %v", got.ByPosition, tt.wantPosition)
-			}
-			if got.Position != tt.wantPos {
-				t.Errorf("Position = %d, want %d", got.Position, tt.wantPos)
-			}
-			if got.AllImages != tt.wantAll {
-				t.Errorf("AllImages = %v, want %v", got.AllImages, tt.wantAll)
-			}
-			if got.ByAlt != tt.wantByAlt {
-				t.Errorf("ByAlt = %v, want %v", got.ByAlt, tt.wantByAlt)
-			}
-			if tt.wantByAlt && got.AltRegex != nil && got.AltRegex.String() != tt.wantRegex {
-				t.Errorf("AltRegex = %q, want %q", got.AltRegex.String(), tt.wantRegex)
 			}
 		})
 	}
@@ -232,7 +175,7 @@ func TestMatchImages(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ref := parseImageRefPattern(tt.pattern)
+			ref := docssed.ParseImageReference(tt.pattern)
 			if ref == nil {
 				t.Fatalf("parseImageRefPattern(%q) = nil", tt.pattern)
 			}
@@ -290,13 +233,13 @@ func TestImageShorthandSyntax(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ref := parseImageRefPattern(tt.input)
+			ref := docssed.ParseImageReference(tt.input)
 			if ref != nil && !tt.wantNil {
 				t.Errorf("parseImageRefPattern(%q) matched as reference, expected URL", tt.input)
 				return
 			}
 
-			img := parseImageSyntax(tt.input)
+			img := docssed.ParseImageSyntax(tt.input)
 			if tt.wantNil {
 				if img != nil {
 					t.Errorf("parseImageSyntax(%q) = %+v, want nil", tt.input, img)

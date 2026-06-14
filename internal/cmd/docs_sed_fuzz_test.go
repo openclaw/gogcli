@@ -1,8 +1,6 @@
 package cmd
 
-import (
-	"testing"
-)
+import "testing"
 
 // FuzzParseSedExpr fuzzes the sed expression parser with arbitrary input.
 // It ensures no panics on malformed expressions.
@@ -144,36 +142,6 @@ func FuzzParseTableCreate(f *testing.F) {
 	})
 }
 
-// FuzzParseImageSyntax fuzzes the markdown image syntax parser.
-func FuzzParseImageSyntax(f *testing.F) {
-	seeds := []string{
-		"![alt](https://example.com/image.png)",
-		"![](https://example.com/image.png)",
-		`![alt](https://example.com/image.png "title")`,
-		"![alt](url =100x200)",
-		"![alt](url =100x)",
-		"![alt](url =x200)",
-		"![alt](url width=100 height=200)",
-		"![alt](url width=100px)",
-		"not an image",
-		"",
-		"![",
-		"![]()",
-		"![](",
-		"![alt]",
-		"![alt](",
-		"![alt](url =0x0)",
-		"![alt](url =-1x-1)",
-	}
-	for _, s := range seeds {
-		f.Add(s)
-	}
-
-	f.Fuzz(func(t *testing.T, input string) {
-		parseImageSyntax(input)
-	})
-}
-
 // FuzzParseTableCellRef fuzzes the table cell reference parser.
 func FuzzParseTableCellRef(f *testing.F) {
 	seeds := []string{
@@ -264,65 +232,5 @@ func FuzzParseYCommand(f *testing.F) {
 	}
 	f.Fuzz(func(t *testing.T, input string) {
 		parseYCommand(input)
-	})
-}
-
-// FuzzParseMarkdownReplacement fuzzes the markdown replacement string parser.
-func FuzzParseMarkdownReplacement(f *testing.F) {
-	seeds := []string{
-		"**bold**",
-		"*italic*",
-		"***bolditalic***",
-		"~~strike~~",
-		"`code`",
-		"__underline__",
-		"[text](url)",
-		"# Heading 1",
-		"## Heading 2",
-		"### Heading 3",
-		"- bullet",
-		"1. numbered",
-		"+ checkbox",
-		"plain text",
-		"",
-		"**",
-		"*",
-		"~~",
-		"`",
-		"__",
-		"**unclosed",
-		"*unclosed",
-		"[unclosed](",
-		"[text]()",
-		"[](url)",
-		// New formats
-		"---", "***", "___",
-		"> blockquote text",
-		"```\ncode\n```",
-		"```go\nfunc main() {}\n```",
-		"  - nested bullet",
-		"    - double nested",
-		"  1. nested numbered",
-		"^{superscript}",
-		"~{subscript}",
-		"E = mc^{2}",
-		"H~{2}O",
-		"{super=TM}",
-		"{sub=2}",
-		"E = mc{super=2}",
-		"H{sub=2}O",
-		"[^footnote text]",
-		"[^]",
-		">",
-		"```",
-		"^{}",
-		"~{}",
-	}
-	for _, s := range seeds {
-		f.Add(s)
-	}
-
-	f.Fuzz(func(t *testing.T, input string) {
-		parseMarkdownReplacement(input)
 	})
 }

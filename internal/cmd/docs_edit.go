@@ -162,7 +162,7 @@ func (c *DocsWriteCmd) writePlainText(ctx context.Context, flags *RootFlags, doc
 	c.Tab = tabID
 	insertIndex := int64(1)
 	if c.Append {
-		insertIndex = docsAppendIndex(endIndex)
+		insertIndex = docsedit.AppendIndex(endIndex)
 	}
 
 	reqs, err := docsedit.BuildWriteRequests(docsedit.WriteOptions{
@@ -245,37 +245,49 @@ func (c *DocsWriteCmd) writePlainTextResult(ctx context.Context, resp *docs.Batc
 }
 
 func (c *DocsWriteCmd) writeMarkdown(ctx context.Context, flags *RootFlags, docID, content string) error {
+	markdown := prepareMarkdown(content)
+	plan, err := docsedit.PlanMarkdownWrite(docsedit.MarkdownWriteOptions{
+		Markdown:           markdown.cleaned,
+		ImageCount:         len(markdown.images),
+		Append:             c.Append,
+		Replace:            c.Replace,
+		Tab:                c.Tab,
+		CheckOrphans:       c.CheckOrphans,
+		ApplyDocumentStyle: c.Pageless || c.Layout.any(),
+	})
+	if err != nil {
+		return usage(err.Error())
+	}
+
+	switch plan.Mode {
+	case docsedit.MarkdownWriteDriveReplace:
+		return c.replaceMarkdownWithDrive(ctx, flags, docID, markdown, plan)
+	case docsedit.MarkdownWriteLocalAppend:
+		return c.appendMarkdown(ctx, flags, docID, markdown, plan)
+	case docsedit.MarkdownWriteLocalReplace:
+		return c.replaceMarkdownLocally(ctx, flags, docID, markdown, plan)
+	default:
+		return fmt.Errorf("unsupported markdown write mode: %d", plan.Mode)
+	}
+}
+
+func (c *DocsWriteCmd) replaceMarkdownWithDrive(
+	ctx context.Context,
+	flags *RootFlags,
+	docID string,
+	markdown preparedMarkdown,
+	plan docsedit.MarkdownWritePlan,
+) error {
 	u := ui.FromContext(ctx)
-
-	if c.Append {
-		return c.appendMarkdown(ctx, flags, docID, content)
-	}
-	if !c.Replace {
-		return usage("--markdown requires --replace or --append")
-	}
-	// Drive's markdown converter operates on entire documents, so we cannot use
-	// the Drive Files.Update path when --tab is set. Instead, render markdown
-	// locally and apply it to the specified tab via Docs batchUpdate.
-	if c.Tab != "" {
-		return c.replaceMarkdownInTab(ctx, flags, docID, content)
-	}
-
-	cleaned, images := extractMarkdownImages(content)
-	if docsmarkdown.HasTableCellBreaks(cleaned) {
-		return c.replaceMarkdownInTab(ctx, flags, docID, content)
-	}
-	cleaned = docsmarkdown.NormalizeTablesForDriveImport(cleaned)
-	explicitHeadingAnchors := docsmarkdown.ImportExplicitHeadingAnchors(cleaned)
-	cleaned = docsmarkdown.StripHeadingAnchors(cleaned)
 	dryRunPayload := map[string]any{
 		"document_id":   docID,
-		"written":       len(content),
+		"written":       len(markdown.source),
 		"append":        false,
 		"replace":       true,
 		"markdown":      true,
 		"pageless":      c.Pageless,
-		"images":        len(images),
-		"check_orphans": c.CheckOrphans,
+		"images":        plan.ImageCount,
+		"check_orphans": plan.CheckOrphans,
 	}
 	for k, v := range c.Layout.dryRunPayload() {
 		dryRunPayload[k] = v
@@ -290,12 +302,20 @@ func (c *DocsWriteCmd) writeMarkdown(ctx context.Context, flags *RootFlags, docI
 	}
 
 	var docsSvc *docs.Service
-	if c.CheckOrphans {
+	if plan.CheckOrphans {
 		docsSvc, err = docsService(ctx, account)
 		if err != nil {
 			return err
 		}
-		orphans, tabID, orphanErr := findDocsWriteMarkdownOrphans(ctx, driveSvc, docsSvc, docID, content, "", true)
+		orphans, tabID, orphanErr := findDocsWriteMarkdownOrphans(
+			ctx,
+			driveSvc,
+			docsSvc,
+			docID,
+			markdown,
+			plan.Tab,
+			plan.OrphanScopeWholeDocument,
+		)
 		if orphanErr != nil {
 			return orphanErr
 		}
@@ -305,7 +325,7 @@ func (c *DocsWriteCmd) writeMarkdown(ctx context.Context, flags *RootFlags, docI
 	}
 
 	updated, err := driveSvc.Files.Update(docID, &drive.File{}).
-		Media(strings.NewReader(cleaned), gapi.ContentType(mimeTextMarkdown)).
+		Media(strings.NewReader(plan.Markdown), gapi.ContentType(mimeTextMarkdown)).
 		SupportsAllDrives(true).
 		Fields("id,name,webViewLink").
 		Context(ctx).
@@ -314,8 +334,7 @@ func (c *DocsWriteCmd) writeMarkdown(ctx context.Context, flags *RootFlags, docI
 		return fmt.Errorf("writing markdown to document: %w", err)
 	}
 
-	needsDocsSvc := len(images) > 0 || c.Pageless || c.Layout.any() || markdownMayContainHeadingLinks(cleaned)
-	if needsDocsSvc && docsSvc == nil {
+	if plan.RequiresDocumentsService && docsSvc == nil {
 		var svcErr error
 		docsSvc, svcErr = docsService(ctx, account)
 		if svcErr != nil {
@@ -323,20 +342,20 @@ func (c *DocsWriteCmd) writeMarkdown(ctx context.Context, flags *RootFlags, docI
 		}
 	}
 	rewrittenHeadingLinks := 0
-	if markdownMayContainHeadingLinks(cleaned) {
-		count, rewriteErr := rewriteMarkdownHeadingLinks(ctx, docsSvc, docID, "", explicitHeadingAnchors)
+	if plan.RewriteHeadingLinks {
+		count, rewriteErr := rewriteMarkdownHeadingLinks(ctx, docsSvc, docID, plan.Tab, plan.ExplicitHeadingAnchors)
 		if rewriteErr != nil {
 			return fmt.Errorf("rewrite heading links: %w", rewriteErr)
 		}
 		rewrittenHeadingLinks = count
 	}
-	if len(images) > 0 {
-		if err := insertImagesIntoDocs(ctx, docsSvc, docID, images, ""); err != nil {
-			cleanupDocsImagePlaceholders(ctx, docsSvc, docID, images, "")
+	if plan.InsertImages {
+		if err := insertImagesIntoDocs(ctx, docsSvc, docID, markdown.images, plan.Tab); err != nil {
+			cleanupDocsImagePlaceholders(ctx, docsSvc, docID, markdown.images, plan.Tab)
 			return fmt.Errorf("insert images: %w", err)
 		}
 	}
-	if c.Pageless || c.Layout.any() {
+	if plan.ApplyDocumentStyle {
 		if err := c.applyDocumentStyle(ctx, docsSvc, docID); err != nil {
 			return err
 		}
@@ -345,7 +364,7 @@ func (c *DocsWriteCmd) writeMarkdown(ctx context.Context, flags *RootFlags, docI
 	if outfmt.IsJSON(ctx) {
 		payload := map[string]any{
 			"documentId": updated.Id,
-			"written":    len(content),
+			"written":    len(markdown.source),
 			"replaced":   true,
 			"markdown":   true,
 		}
@@ -359,7 +378,7 @@ func (c *DocsWriteCmd) writeMarkdown(ctx context.Context, flags *RootFlags, docI
 	}
 
 	u.Out().Linef("documentId\t%s", updated.Id)
-	u.Out().Linef("written\t%d", len(content))
+	u.Out().Linef("written\t%d", len(markdown.source))
 	u.Out().Linef("mode\treplaced (markdown converted)")
 	if c.Pageless {
 		u.Out().Linef("pageless\ttrue")
@@ -373,18 +392,22 @@ func (c *DocsWriteCmd) writeMarkdown(ctx context.Context, flags *RootFlags, docI
 	return nil
 }
 
-func (c *DocsWriteCmd) appendMarkdown(ctx context.Context, flags *RootFlags, docID, content string) error {
-	cleaned, images := extractMarkdownImages(content)
-	explicitHeadingAnchors := docsmarkdown.ExplicitHeadingAnchors(cleaned)
+func (c *DocsWriteCmd) appendMarkdown(
+	ctx context.Context,
+	flags *RootFlags,
+	docID string,
+	markdown preparedMarkdown,
+	plan docsedit.MarkdownWritePlan,
+) error {
 	dryRunPayload := map[string]any{
 		"document_id": docID,
-		"written":     len(cleaned),
+		"written":     len(plan.Markdown),
 		"append":      true,
 		"replace":     false,
 		"markdown":    true,
 		"pageless":    c.Pageless,
-		"tab":         c.Tab,
-		"images":      len(images),
+		"tab":         plan.Tab,
+		"images":      plan.ImageCount,
 	}
 	for k, v := range c.Layout.dryRunPayload() {
 		dryRunPayload[k] = v
@@ -403,38 +426,41 @@ func (c *DocsWriteCmd) appendMarkdown(ctx context.Context, flags *RootFlags, doc
 		return err
 	}
 	c.Tab = tabID
-	insertIndex := docsAppendIndex(endIndex)
-	insertedMarkdownStart := insertIndex
-	appendElements := docsmarkdown.ParseMarkdown(cleaned)
-	if insertIndex > 1 && markdownAppendNeedsParagraphBoundary(appendElements) {
-		insertedMarkdownStart++
-	}
-
-	requestCount, inserted, err := insertDocsMarkdownAtWithOptions(ctx, svc, docID, insertIndex, content, c.Tab, true)
+	insertIndex := docsedit.AppendIndex(endIndex)
+	insertResult, err := insertPreparedDocsMarkdownAt(ctx, svc, docID, insertIndex, markdown, c.Tab, true)
 	if err != nil {
 		if isDocsNotFound(err) {
 			return fmt.Errorf("doc not found or not a Google Doc (id=%s)", docID)
 		}
 		return err
 	}
-	if err := c.applyDocumentStyle(ctx, svc, docID); err != nil {
-		return err
+	if plan.ApplyDocumentStyle {
+		if err := c.applyDocumentStyle(ctx, svc, docID); err != nil {
+			return err
+		}
 	}
 	rewrittenHeadingLinks := 0
-	if markdownMayContainHeadingLinks(cleaned) {
-		count, rewriteErr := rewriteMarkdownHeadingLinksFromIndex(ctx, svc, docID, c.Tab, explicitHeadingAnchors, insertedMarkdownStart)
+	if plan.RewriteHeadingLinks {
+		count, rewriteErr := rewriteMarkdownHeadingLinksFromIndex(
+			ctx,
+			svc,
+			docID,
+			c.Tab,
+			plan.ExplicitHeadingAnchors,
+			insertResult.ContentStart,
+		)
 		if rewriteErr != nil {
 			return fmt.Errorf("rewrite heading links: %w", rewriteErr)
 		}
 		rewrittenHeadingLinks = count
-		requestCount += count
+		insertResult.RequestCount += count
 	}
 
 	if outfmt.IsJSON(ctx) {
 		payload := map[string]any{
 			"documentId": docID,
-			"written":    inserted,
-			"requests":   requestCount,
+			"written":    insertResult.Inserted,
+			"requests":   insertResult.RequestCount,
 			"append":     true,
 			"index":      insertIndex,
 			"markdown":   true,
@@ -453,8 +479,8 @@ func (c *DocsWriteCmd) appendMarkdown(ctx context.Context, flags *RootFlags, doc
 
 	u := ui.FromContext(ctx)
 	u.Out().Linef("documentId\t%s", docID)
-	u.Out().Linef("written\t%d", inserted)
-	u.Out().Linef("requests\t%d", requestCount)
+	u.Out().Linef("written\t%d", insertResult.Inserted)
+	u.Out().Linef("requests\t%d", insertResult.RequestCount)
 	u.Out().Linef("mode\tappended (markdown converted)")
 	u.Out().Linef("index\t%d", insertIndex)
 	if rewrittenHeadingLinks > 0 {
@@ -466,24 +492,26 @@ func (c *DocsWriteCmd) appendMarkdown(ctx context.Context, flags *RootFlags, doc
 	return nil
 }
 
-// replaceMarkdownInTab implements --replace --markdown --tab=<tab>. Drive's
-// markdown converter is whole-document-only, so per-tab whole-tab re-render
-// is achieved at the gogcli layer: render markdown locally with the same
-// Docs API path used by --append --markdown, after wiping the tab's existing
-// body content via DeleteContentRange. Other tabs are untouched.
-func (c *DocsWriteCmd) replaceMarkdownInTab(ctx context.Context, flags *RootFlags, docID, content string) error {
-	cleaned, images := extractMarkdownImages(content)
-	explicitHeadingAnchors := docsmarkdown.ExplicitHeadingAnchors(cleaned)
+// replaceMarkdownLocally renders Markdown through Docs batchUpdate after
+// clearing the selected body. This preserves tab targeting and table-cell
+// line breaks that Drive's whole-document converter cannot represent.
+func (c *DocsWriteCmd) replaceMarkdownLocally(
+	ctx context.Context,
+	flags *RootFlags,
+	docID string,
+	markdown preparedMarkdown,
+	plan docsedit.MarkdownWritePlan,
+) error {
 	dryRunPayload := map[string]any{
 		"document_id":   docID,
-		"written":       len(cleaned),
+		"written":       len(plan.Markdown),
 		"append":        false,
 		"replace":       true,
 		"markdown":      true,
 		"pageless":      c.Pageless,
-		"tab":           c.Tab,
-		"images":        len(images),
-		"check_orphans": c.CheckOrphans,
+		"tab":           plan.Tab,
+		"images":        plan.ImageCount,
+		"check_orphans": plan.CheckOrphans,
 	}
 	for k, v := range c.Layout.dryRunPayload() {
 		dryRunPayload[k] = v
@@ -494,7 +522,7 @@ func (c *DocsWriteCmd) replaceMarkdownInTab(ctx context.Context, flags *RootFlag
 
 	var svc *docs.Service
 	var err error
-	if c.CheckOrphans {
+	if plan.CheckOrphans {
 		account, driveSvc, driveErr := requireDriveService(ctx, flags)
 		if driveErr != nil {
 			return driveErr
@@ -503,7 +531,15 @@ func (c *DocsWriteCmd) replaceMarkdownInTab(ctx context.Context, flags *RootFlag
 		if err != nil {
 			return err
 		}
-		orphans, resolvedTabID, orphanErr := findDocsWriteMarkdownOrphans(ctx, driveSvc, svc, docID, content, c.Tab, false)
+		orphans, resolvedTabID, orphanErr := findDocsWriteMarkdownOrphans(
+			ctx,
+			driveSvc,
+			svc,
+			docID,
+			markdown,
+			plan.Tab,
+			plan.OrphanScopeWholeDocument,
+		)
 		if orphanErr != nil {
 			return orphanErr
 		}
@@ -543,31 +579,33 @@ func (c *DocsWriteCmd) replaceMarkdownInTab(ctx context.Context, flags *RootFlag
 		}
 	}
 
-	requestCount, inserted, err := insertDocsMarkdownAtWithOptions(ctx, svc, docID, 1, content, tabID, true)
+	insertResult, err := insertPreparedDocsMarkdownAt(ctx, svc, docID, 1, markdown, tabID, true)
 	if err != nil {
 		if isDocsNotFound(err) {
 			return fmt.Errorf("doc not found or not a Google Doc (id=%s)", docID)
 		}
 		return err
 	}
-	if err := c.applyDocumentStyle(ctx, svc, docID); err != nil {
-		return err
+	if plan.ApplyDocumentStyle {
+		if err := c.applyDocumentStyle(ctx, svc, docID); err != nil {
+			return err
+		}
 	}
 	rewrittenHeadingLinks := 0
-	if markdownMayContainHeadingLinks(cleaned) {
-		count, rewriteErr := rewriteMarkdownHeadingLinks(ctx, svc, docID, tabID, explicitHeadingAnchors)
+	if plan.RewriteHeadingLinks {
+		count, rewriteErr := rewriteMarkdownHeadingLinks(ctx, svc, docID, tabID, plan.ExplicitHeadingAnchors)
 		if rewriteErr != nil {
 			return fmt.Errorf("rewrite heading links: %w", rewriteErr)
 		}
 		rewrittenHeadingLinks = count
-		requestCount += count
+		insertResult.RequestCount += count
 	}
 
 	if outfmt.IsJSON(ctx) {
 		payload := map[string]any{
 			"documentId": docID,
-			"written":    inserted,
-			"requests":   requestCount,
+			"written":    insertResult.Inserted,
+			"requests":   insertResult.RequestCount,
 			"replaced":   true,
 			"markdown":   true,
 			"tabId":      tabID,
@@ -586,8 +624,8 @@ func (c *DocsWriteCmd) replaceMarkdownInTab(ctx context.Context, flags *RootFlag
 
 	u := ui.FromContext(ctx)
 	u.Out().Linef("documentId\t%s", docID)
-	u.Out().Linef("written\t%d", inserted)
-	u.Out().Linef("requests\t%d", requestCount)
+	u.Out().Linef("written\t%d", insertResult.Inserted)
+	u.Out().Linef("requests\t%d", insertResult.RequestCount)
 	u.Out().Linef("mode\treplaced tab (markdown converted)")
 	u.Out().Linef("tabId\t%s", tabID)
 	if rewrittenHeadingLinks > 0 {
@@ -615,7 +653,7 @@ type DocsUpdateCmd struct {
 	Batch        string `name:"batch" help:"Append requests to a persisted Docs batch instead of submitting"`
 }
 
-func (c *DocsUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *RootFlags) error { //nolint:gocyclo,cyclop // Existing command supports several placement and content modes.
+func (c *DocsUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
 	id := strings.TrimSpace(c.DocID)
 	if id == "" {
@@ -632,15 +670,23 @@ func (c *DocsUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *Root
 	if text == "" {
 		return usage("empty text")
 	}
-	at, placementErr := c.validatePlacement(kctx)
-	if placementErr != nil {
-		return placementErr
-	}
-
-	replaceRange, replacing, err := docsedit.ParseRange(c.ReplaceRange)
+	placement, err := docsedit.PlanUpdatePlacement(docsedit.UpdatePlacementOptions{
+		Index:         c.Index,
+		IndexProvided: flagProvided(kctx, "index"),
+		ReplaceRange:  c.ReplaceRange,
+		Anchor: docsedit.AnchorOptions{
+			Text:       c.At,
+			Provided:   flagProvided(kctx, "at"),
+			Occurrence: c.Occurrence,
+			MatchCase:  c.MatchCase,
+		},
+	})
 	if err != nil {
 		return usage(err.Error())
 	}
+	at := placement.Anchor.Text
+	replacing := placement.Kind == docsedit.PlacementRange
+	replaceRange := placement.Range
 	replaceStart, replaceEnd := replaceRange.Start, replaceRange.End
 
 	tab, tabErr := resolveTabArg(ctx, c.Tab, c.TabID)
@@ -667,41 +713,16 @@ func (c *DocsUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *Root
 		return err
 	}
 
-	insertIndex := c.Index
-	anchor, anchorReplacing, anchorErr := c.resolveAtAnchor(ctx, svc, id, at)
-	if anchorErr != nil {
-		return anchorErr
+	resolvedPlacement, err := resolveDocsPlacement(ctx, svc, id, c.Tab, placement)
+	if err != nil {
+		return err
 	}
-	if anchorReplacing {
-		replaceStart = anchor.Match.StartIndex
-		replaceEnd = anchor.Match.EndIndex
+	insertIndex := resolvedPlacement.Index
+	c.Tab = resolvedPlacement.TabID
+	if resolvedPlacement.Range != nil {
+		replaceStart = resolvedPlacement.Range.Start
+		replaceEnd = resolvedPlacement.Range.End
 		replacing = true
-		insertIndex = replaceStart
-		c.Tab = anchor.Match.TabID
-	}
-	switch {
-	case replacing:
-		insertIndex = replaceStart
-		if c.Tab != "" {
-			tabID, tabErr := resolveDocsTabID(ctx, svc, id, c.Tab)
-			if tabErr != nil {
-				return tabErr
-			}
-			c.Tab = tabID
-		}
-	case insertIndex <= 0:
-		endIndex, tabID, endErr := docsTargetEndIndexAndTabID(ctx, svc, id, c.Tab)
-		if endErr != nil {
-			return endErr
-		}
-		c.Tab = tabID
-		insertIndex = docsAppendIndex(endIndex)
-	case c.Tab != "":
-		tabID, tabErr := resolveDocsTabID(ctx, svc, id, c.Tab)
-		if tabErr != nil {
-			return tabErr
-		}
-		c.Tab = tabID
 	}
 
 	requestCount := 0
@@ -710,10 +731,10 @@ func (c *DocsUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *Root
 
 	if c.Markdown {
 		var inserted int
-		cleaned, _ := extractMarkdownImages(text)
-		explicitHeadingAnchors := docsmarkdown.ExplicitHeadingAnchors(cleaned)
+		markdown := prepareMarkdown(text)
+		explicitHeadingAnchors := docsmarkdown.ExplicitHeadingAnchors(markdown.cleaned)
 		if replacing {
-			loadedDoc := anchorDocumentForMarkdownReplace(anchor)
+			loadedDoc := resolvedPlacement.Document
 			if loadedDoc == nil {
 				loaded, loadErr := loadDocsTargetDocument(ctx, svc, id, c.Tab)
 				if loadErr != nil {
@@ -722,7 +743,15 @@ func (c *DocsUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *Root
 				c.Tab = loaded.tabID
 				loadedDoc = loaded.full
 			}
-			replacedRequests, replacedText, replaceErr := replaceDocsMarkdownRange(ctx, svc, loadedDoc, replaceStart, replaceEnd, text, c.Tab)
+			replacedRequests, replacedText, replaceErr := replacePreparedDocsMarkdownRange(
+				ctx,
+				svc,
+				loadedDoc,
+				replaceStart,
+				replaceEnd,
+				markdown,
+				c.Tab,
+			)
 			if replaceErr != nil {
 				err = replaceErr
 			} else {
@@ -730,17 +759,21 @@ func (c *DocsUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *Root
 				requestCount = replacedRequests
 			}
 		} else {
-			insertedMarkdownStart := insertIndex
-			insertElements := docsmarkdown.ParseMarkdown(cleaned)
-			docsmarkdown.StripElementHeadingAnchors(insertElements)
-			if insertIndex > 1 && markdownAppendNeedsParagraphBoundary(insertElements) {
-				insertedMarkdownStart++
-			}
-			var insertedMarkdownEnd int64
-			requestCount, inserted, insertedMarkdownEnd, err = insertDocsMarkdownAtWithOptionsAndEnd(ctx, svc, id, insertIndex, text, c.Tab, true)
-			if err == nil && markdownMayContainHeadingLinks(cleaned) {
+			var insertResult docsMarkdownInsertResult
+			insertResult, err = insertPreparedDocsMarkdownAt(ctx, svc, id, insertIndex, markdown, c.Tab, true)
+			requestCount = insertResult.RequestCount
+			inserted = insertResult.Inserted
+			if err == nil && markdownMayContainHeadingLinks(markdown.cleaned) {
 				var rewritten int
-				rewritten, err = rewriteMarkdownHeadingLinksInRange(ctx, svc, id, c.Tab, explicitHeadingAnchors, insertedMarkdownStart, insertedMarkdownEnd)
+				rewritten, err = rewriteMarkdownHeadingLinksInRange(
+					ctx,
+					svc,
+					id,
+					c.Tab,
+					explicitHeadingAnchors,
+					insertResult.ContentStart,
+					insertResult.ContentEnd,
+				)
 				requestCount += rewritten
 			}
 		}
@@ -760,9 +793,7 @@ func (c *DocsUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *Root
 		reqs := docsedit.BuildUpdateRequests(text, insertIndex, c.Tab, targetRange)
 		requestCount = len(reqs)
 		batchReq := &docs.BatchUpdateDocumentRequest{Requests: reqs}
-		if anchor != nil {
-			batchReq.WriteControl = docsRequiredRevisionWriteControl(anchor.RevisionID)
-		}
+		batchReq.WriteControl = docsRequiredRevisionWriteControl(resolvedPlacement.RequiredRevisionID)
 		if queued, queueErr := queueDocsBatchRequests(ctx, flags, c.Batch, id, "docs.update", batchRevision, reqs, false); queued || queueErr != nil {
 			return queueErr
 		}
@@ -823,23 +854,6 @@ func (c *DocsUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *Root
 	return nil
 }
 
-func (c *DocsUpdateCmd) validatePlacement(kctx *kong.Context) (string, error) {
-	if flagProvided(kctx, "index") && c.Index <= 0 {
-		return "", usage("invalid --index (must be >= 1)")
-	}
-	if flagProvided(kctx, "index") && strings.TrimSpace(c.ReplaceRange) != "" {
-		return "", usage("--index cannot be combined with --replace-range")
-	}
-	if err := validateDocsAtAnchorFlags(docsAtAnchorFlags{At: c.At, AtProvided: flagProvided(kctx, "at"), Occurrence: c.Occurrence, MatchCase: c.MatchCase}); err != nil {
-		return "", err
-	}
-	at := c.At
-	if at != "" && (flagProvided(kctx, "index") || strings.TrimSpace(c.ReplaceRange) != "") {
-		return "", usage("--at cannot be combined with --index or --replace-range")
-	}
-	return at, nil
-}
-
 func (c *DocsUpdateCmd) dryRunPayload(docID string, written int, replacing bool, replaceStart, replaceEnd int64, at string) map[string]any {
 	var index any = docsAtIndexEnd
 	switch {
@@ -864,29 +878,6 @@ func (c *DocsUpdateCmd) dryRunPayload(docID string, written int, replacing bool,
 	}
 	addDocsAtAnchorDryRunPayload(payload, docsAtAnchorFlags{At: at, Occurrence: c.Occurrence, MatchCase: c.MatchCase})
 	return payload
-}
-
-func (c *DocsUpdateCmd) resolveAtAnchor(ctx context.Context, svc *docs.Service, docID, at string) (*docsResolvedAtAnchor, bool, error) {
-	if at == "" {
-		return nil, false, nil
-	}
-	match, err := resolveDocsAtAnchor(ctx, svc, docID, docsAtAnchorFlags{
-		At:         at,
-		Occurrence: c.Occurrence,
-		MatchCase:  c.MatchCase,
-		Tab:        c.Tab,
-	})
-	if err != nil {
-		return nil, false, err
-	}
-	return &match, true, nil
-}
-
-func anchorDocumentForMarkdownReplace(anchor *docsResolvedAtAnchor) *docs.Document {
-	if anchor == nil {
-		return nil
-	}
-	return anchor.Document
 }
 
 type DocsInsertCmd struct {
@@ -915,16 +906,19 @@ func (c *DocsInsertCmd) Run(ctx context.Context, kctx *kong.Context, flags *Root
 	if content == "" {
 		return usage("no content provided (use argument, --file, or stdin)")
 	}
-	if c.Index != nil && *c.Index < 1 {
-		return usage("--index must be >= 1 (index 0 is reserved)")
+	placement, err := docsedit.PlanInsertPlacement(docsedit.InsertPlacementOptions{
+		Index: c.Index,
+		Anchor: docsedit.AnchorOptions{
+			Text:       c.At,
+			Provided:   flagProvided(kctx, "at"),
+			Occurrence: c.Occurrence,
+			MatchCase:  c.MatchCase,
+		},
+	})
+	if err != nil {
+		return usage(err.Error())
 	}
-	if anchorErr := validateDocsAtAnchorFlags(docsAtAnchorFlags{At: c.At, AtProvided: flagProvided(kctx, "at"), Occurrence: c.Occurrence, MatchCase: c.MatchCase}); anchorErr != nil {
-		return anchorErr
-	}
-	at := c.At
-	if at != "" && c.Index != nil {
-		return usage("--at and --index are mutually exclusive")
-	}
+	at := placement.Anchor.Text
 
 	tab, tabErr := resolveTabArg(ctx, c.Tab, c.TabID)
 	if tabErr != nil {
@@ -937,12 +931,12 @@ func (c *DocsInsertCmd) Run(ctx context.Context, kctx *kong.Context, flags *Root
 		"tab":        c.Tab,
 		"batch":      c.Batch,
 	}
-	switch {
-	case c.Index != nil:
-		dryRunPayload["atIndex"] = *c.Index
-	case at != "":
+	switch placement.Kind {
+	case docsedit.PlacementAnchor:
 		dryRunPayload["atIndex"] = docsAtIndexAnchorStart
 		addDocsAtAnchorDryRunPayload(dryRunPayload, docsAtAnchorFlags{At: at, Occurrence: c.Occurrence, MatchCase: c.MatchCase})
+	case docsedit.PlacementIndex:
+		dryRunPayload["atIndex"] = placement.Index
 	default:
 		dryRunPayload["atIndex"] = docsAtIndexEnd
 	}
@@ -962,46 +956,17 @@ func (c *DocsInsertCmd) Run(ctx context.Context, kctx *kong.Context, flags *Root
 		return err
 	}
 
-	var insertIndex int64
-	var anchor *docsResolvedAtAnchor
-	switch {
-	case at != "":
-		match, anchorErr := resolveDocsAtAnchor(ctx, svc, docID, docsAtAnchorFlags{
-			At:         at,
-			Occurrence: c.Occurrence,
-			MatchCase:  c.MatchCase,
-			Tab:        c.Tab,
-		})
-		if anchorErr != nil {
-			return anchorErr
-		}
-		anchor = &match
-		insertIndex = match.Match.StartIndex
-		c.Tab = match.Match.TabID
-	case c.Index != nil:
-		insertIndex = *c.Index
-		if c.Tab != "" {
-			tabID, tabErr := resolveDocsTabID(ctx, svc, docID, c.Tab)
-			if tabErr != nil {
-				return tabErr
-			}
-			c.Tab = tabID
-		}
-	default:
-		endIndex, tabID, endErr := docsTargetEndIndexAndTabID(ctx, svc, docID, c.Tab)
-		if endErr != nil {
-			return endErr
-		}
-		c.Tab = tabID
-		insertIndex = docsAppendIndex(endIndex)
+	resolvedPlacement, err := resolveDocsPlacement(ctx, svc, docID, c.Tab, placement)
+	if err != nil {
+		return err
 	}
+	insertIndex := resolvedPlacement.Index
+	c.Tab = resolvedPlacement.TabID
 
 	batchReq := &docs.BatchUpdateDocumentRequest{
 		Requests: []*docs.Request{docsedit.BuildInsertRequest(content, insertIndex, c.Tab)},
 	}
-	if anchor != nil {
-		batchReq.WriteControl = docsRequiredRevisionWriteControl(anchor.RevisionID)
-	}
+	batchReq.WriteControl = docsRequiredRevisionWriteControl(resolvedPlacement.RequiredRevisionID)
 	if queued, queueErr := queueDocsBatchRequests(ctx, flags, c.Batch, docID, "docs.insert", batchRevision, batchReq.Requests, false); queued || queueErr != nil {
 		return queueErr
 	}
@@ -1045,23 +1010,20 @@ func (c *DocsDeleteCmd) Run(ctx context.Context, kctx *kong.Context, flags *Root
 	if docID == "" {
 		return usage("empty docId")
 	}
-	if anchorErr := validateDocsAtAnchorFlags(docsAtAnchorFlags{At: c.At, AtProvided: flagProvided(kctx, "at"), Occurrence: c.Occurrence, MatchCase: c.MatchCase}); anchorErr != nil {
-		return anchorErr
+	placement, err := docsedit.PlanRangePlacement(docsedit.RangePlacementOptions{
+		Start: c.Start,
+		End:   c.End,
+		Anchor: docsedit.AnchorOptions{
+			Text:       c.At,
+			Provided:   flagProvided(kctx, "at"),
+			Occurrence: c.Occurrence,
+			MatchCase:  c.MatchCase,
+		},
+	})
+	if err != nil {
+		return usage(err.Error())
 	}
-	at := c.At
-	hasNumericRange := c.Start != nil || c.End != nil
-	if at != "" && hasNumericRange {
-		return usage("--at cannot be combined with --start or --end")
-	}
-	if at == "" && (c.Start == nil || c.End == nil) {
-		return usage("provide --at or both --start and --end")
-	}
-	if c.Start != nil && *c.Start < 1 {
-		return usage("--start must be >= 1")
-	}
-	if c.Start != nil && c.End != nil && *c.End <= *c.Start {
-		return usage("--end must be greater than --start")
-	}
+	at := placement.Anchor.Text
 
 	tab, tabErr := resolveTabArg(ctx, c.Tab, c.TabID)
 	if tabErr != nil {
@@ -1077,11 +1039,11 @@ func (c *DocsDeleteCmd) Run(ctx context.Context, kctx *kong.Context, flags *Root
 		"batch":       c.Batch,
 	}
 	addDocsAtAnchorDryRunPayload(dryRunPayload, docsAtAnchorFlags{At: at, Occurrence: c.Occurrence, MatchCase: c.MatchCase})
-	if err := dryRunExit(ctx, flags, "docs.delete", dryRunPayload); err != nil {
-		return err
+	if dryRunErr := dryRunExit(ctx, flags, "docs.delete", dryRunPayload); dryRunErr != nil {
+		return dryRunErr
 	}
-	if err := validateDocsBatchTarget(ctx, flags, c.Batch, docID); err != nil {
-		return err
+	if batchErr := validateDocsBatchTarget(ctx, flags, c.Batch, docID); batchErr != nil {
+		return batchErr
 	}
 
 	svc, err := requireDocsService(ctx, flags)
@@ -1092,40 +1054,18 @@ func (c *DocsDeleteCmd) Run(ctx context.Context, kctx *kong.Context, flags *Root
 	if err != nil {
 		return err
 	}
-	var start, end int64
-	var anchor *docsResolvedAtAnchor
-	if at != "" {
-		match, anchorErr := resolveDocsAtAnchor(ctx, svc, docID, docsAtAnchorFlags{
-			At:         at,
-			Occurrence: c.Occurrence,
-			MatchCase:  c.MatchCase,
-			Tab:        c.Tab,
-		})
-		if anchorErr != nil {
-			return anchorErr
-		}
-		anchor = &match
-		start = match.Match.StartIndex
-		end = match.Match.EndIndex
-		c.Tab = match.Match.TabID
-	} else {
-		start = *c.Start
-		end = *c.End
+	resolvedPlacement, err := resolveDocsPlacement(ctx, svc, docID, c.Tab, placement)
+	if err != nil {
+		return err
 	}
-	if at == "" && c.Tab != "" {
-		tabID, tabErr := resolveDocsTabID(ctx, svc, docID, c.Tab)
-		if tabErr != nil {
-			return tabErr
-		}
-		c.Tab = tabID
-	}
+	start := resolvedPlacement.Range.Start
+	end := resolvedPlacement.Range.End
+	c.Tab = resolvedPlacement.TabID
 
 	batchReq := &docs.BatchUpdateDocumentRequest{
 		Requests: []*docs.Request{docsedit.BuildDeleteRequest(docsedit.Range{Start: start, End: end}, c.Tab)},
 	}
-	if anchor != nil {
-		batchReq.WriteControl = docsRequiredRevisionWriteControl(anchor.RevisionID)
-	}
+	batchReq.WriteControl = docsRequiredRevisionWriteControl(resolvedPlacement.RequiredRevisionID)
 	if queued, queueErr := queueDocsBatchRequests(ctx, flags, c.Batch, docID, "docs.delete", batchRevision, batchReq.Requests, false); queued || queueErr != nil {
 		return queueErr
 	}
@@ -1293,24 +1233,33 @@ func (c *DocsFindReplaceCmd) Run(ctx context.Context, flags *RootFlags) error {
 	targetDoc := loaded.target
 
 	if c.First {
-		startIdx, endIdx, total := findTextInDoc(targetDoc, c.Find, c.MatchCase)
-		if total == 0 {
+		matches := docsedit.FindTextRanges(targetDoc, c.Find, docsedit.SearchOptions{
+			MatchCase:            c.MatchCase,
+			PreserveHTMLEntities: true,
+			RequireTextSegment:   true,
+		})
+		if len(matches) == 0 {
 			return c.printFirstResult(ctx, u, docID, replaceText, 0, 0)
 		}
+		match := matches[0]
 		if format == docsContentFormatMarkdown {
-			err = c.runMarkdown(ctx, svc, doc, startIdx, endIdx, replaceText)
+			err = c.runMarkdown(ctx, svc, doc, match.StartIndex, match.EndIndex, replaceText)
 		} else {
-			err = c.runPlain(ctx, svc, doc, startIdx, endIdx, replaceText)
+			err = c.runPlain(ctx, svc, doc, match.StartIndex, match.EndIndex, replaceText)
 		}
 		if err != nil {
 			return err
 		}
-		return c.printFirstResult(ctx, u, docID, replaceText, 1, total)
+		return c.printFirstResult(ctx, u, docID, replaceText, 1, len(matches))
 	}
 
-	matches := findTextMatches(targetDoc, c.Find, c.MatchCase)
+	matches := docsedit.FindTextRanges(targetDoc, c.Find, docsedit.SearchOptions{
+		MatchCase:            c.MatchCase,
+		PreserveHTMLEntities: true,
+		RequireTextSegment:   true,
+	})
 	for i := len(matches) - 1; i >= 0; i-- {
-		if err = c.runMarkdown(ctx, svc, doc, matches[i].startIndex, matches[i].endIndex, replaceText); err != nil {
+		if err = c.runMarkdown(ctx, svc, doc, matches[i].StartIndex, matches[i].EndIndex, replaceText); err != nil {
 			return err
 		}
 		if i == 0 {
@@ -1353,7 +1302,11 @@ func (c *DocsFindReplaceCmd) runDryRun(ctx context.Context, u *ui.UI, svc *docs.
 	}
 	c.Tab = loaded.tabID
 
-	matches := findTextMatches(loaded.target, c.Find, c.MatchCase)
+	matches := docsedit.FindTextRanges(loaded.target, c.Find, docsedit.SearchOptions{
+		MatchCase:            c.MatchCase,
+		PreserveHTMLEntities: true,
+		RequireTextSegment:   true,
+	})
 	replacements := len(matches)
 	if c.First && replacements > 1 {
 		replacements = 1

@@ -7,27 +7,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestResolveColor(t *testing.T) {
-	tests := []struct {
-		input string
-		want  string
-	}{
-		{"red", "#FF0000"},
-		{"RED", "#FF0000"},
-		{"Red", "#FF0000"},
-		{"#ABCDEF", "#ABCDEF"},
-		{"unknown", "unknown"},
-		{"navy", "#000080"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.input, func(t *testing.T) {
-			got := resolveColor(tt.input)
-			assert.Equal(t, tt.want, got)
-		})
-	}
-}
-
 func TestResolveHeading(t *testing.T) {
 	tests := []struct {
 		input string
@@ -243,32 +222,6 @@ func TestParseBraceExpr_BareValueFlags(t *testing.T) {
 			expr, err := parseBraceExpr(tt.input)
 			require.NoError(t, err)
 			tt.check(t, expr)
-		})
-	}
-}
-
-func TestLooksLikeBraceExpr(t *testing.T) {
-	tests := []struct {
-		input string
-		want  bool
-	}{
-		{"b", true},
-		{"bold", true},
-		{"!b", true},
-		{"0", true},
-		{"0 b", true},
-		{"+", true},
-		{"+=p", true},
-		{"c=red", true},
-		{"unknown", false},
-		{"", false},
-		{"12345", false},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.input, func(t *testing.T) {
-			got := looksLikeBraceExpr(tt.input)
-			assert.Equal(t, tt.want, got)
 		})
 	}
 }

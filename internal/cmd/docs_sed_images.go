@@ -3,12 +3,11 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"regexp"
-	"strconv"
 	"strings"
 
 	"google.golang.org/api/docs/v1"
 
+	"github.com/steipete/gogcli/internal/docssed"
 	"github.com/steipete/gogcli/internal/ui"
 )
 
@@ -19,12 +18,7 @@ func (c *DocsSedCmd) runImageReplace(ctx context.Context, u *ui.UI, account, doc
 	}
 
 	// Get document to find images
-	var doc *docs.Document
-	err = retryOnQuota(ctx, func() error {
-		var e error
-		doc, e = docsSvc.Documents.Get(docID).Context(ctx).Do()
-		return e
-	})
+	doc, err := getDoc(ctx, docsSvc, docID)
 	if err != nil {
 		return fmt.Errorf("get document: %w", err)
 	}
@@ -49,12 +43,12 @@ func (c *DocsSedCmd) runImageReplace(ctx context.Context, u *ui.UI, account, doc
 	// Parse replacement - could be new image, text, or empty (delete)
 	var requests []*docs.Request
 	isDelete := replacement == ""
-	newImage := parseImageSyntax(replacement)
+	newImage := docssed.ParseImageSyntax(replacement)
 	if newImage == nil && strings.HasPrefix(replacement, "!(") && strings.HasSuffix(replacement, ")") {
 		// Check for !(url) shorthand
 		inner := replacement[2 : len(replacement)-1]
 		if strings.HasPrefix(inner, "http://") || strings.HasPrefix(inner, "https://") {
-			newImage = &ImageSpec{URL: inner}
+			newImage = &docssed.ImageSpec{URL: inner}
 		}
 	}
 
@@ -134,12 +128,7 @@ func (c *DocsSedCmd) runImageReplace(ctx context.Context, u *ui.UI, account, doc
 	}
 
 	// Execute batch update
-	err = retryOnQuota(ctx, func() error {
-		_, e := docsSvc.Documents.BatchUpdate(docID, &docs.BatchUpdateDocumentRequest{
-			Requests: requests,
-		}).Context(ctx).Do()
-		return e
-	})
+	_, err = batchUpdate(ctx, docsSvc, docID, requests)
 	if err != nil {
 		return fmt.Errorf("update document: %w", err)
 	}
@@ -147,152 +136,16 @@ func (c *DocsSedCmd) runImageReplace(ctx context.Context, u *ui.UI, account, doc
 	return sedOutputOK(ctx, u, docID, sedOutputKV{"replaced", len(matched)})
 }
 
-// ImageSpec holds the URL and optional dimensions for an inline image insertion.
-type ImageSpec struct {
-	URL     string
-	Alt     string
-	Caption string // from title in ![alt](url "title")
-	Width   int    // in pixels, 0 if not specified
-	Height  int    // in pixels, 0 if not specified
-}
+// DocImage is the projection-owned image metadata used by the command executor.
+type DocImage = docssed.DocumentImage
 
-// ImageRefPattern holds a parsed image reference pattern (for finding existing images)
-type ImageRefPattern struct {
-	ByPosition bool           // true if matching by position (!(n))
-	Position   int            // 1-based position, negative for from-end, 0 for all (*)
-	AllImages  bool           // true if matching all images (!(*)  )
-	ByAlt      bool           // true if matching by alt text regex (![regex])
-	AltRegex   *regexp.Regexp // compiled regex for alt text matching
-}
-
-// DocImage represents an image found in the document
-type DocImage struct {
-	ObjectID     string // inline object ID or positioned object ID
-	Index        int64  // position in document
-	Alt          string // alt text if available
-	IsPositioned bool   // true if floating/positioned, false if inline
-}
-
-// parseImageRefPattern parses image reference patterns for finding existing images
-// Patterns: !(1), !(-1), !(*), ![regex], ![](1), ![](-1), ![](*)
-func parseImageRefPattern(pattern string) *ImageRefPattern {
-	// !(n) or !(*) - positional reference
-	if strings.HasPrefix(pattern, "!(") && strings.HasSuffix(pattern, ")") {
-		inner := pattern[2 : len(pattern)-1]
-		if inner == "*" {
-			return &ImageRefPattern{ByPosition: true, AllImages: true}
-		}
-		if n, err := strconv.Atoi(inner); err == nil {
-			return &ImageRefPattern{ByPosition: true, Position: n}
-		}
-		// Could be a URL, not a reference
-		if strings.HasPrefix(inner, "http://") || strings.HasPrefix(inner, "https://") {
-			return nil
-		}
-		return nil
-	}
-
-	// ![](n) or ![](*) - positional reference with empty alt
-	if strings.HasPrefix(pattern, "![](") && strings.HasSuffix(pattern, ")") {
-		inner := pattern[4 : len(pattern)-1]
-		if inner == "*" {
-			return &ImageRefPattern{ByPosition: true, AllImages: true}
-		}
-		if n, err := strconv.Atoi(inner); err == nil {
-			return &ImageRefPattern{ByPosition: true, Position: n}
-		}
-		return nil
-	}
-
-	// ![regex] - alt text regex match (no URL part)
-	if strings.HasPrefix(pattern, "![") && strings.HasSuffix(pattern, "]") && !strings.Contains(pattern, "](") {
-		regexStr := pattern[2 : len(pattern)-1]
-		if regexStr == "" {
-			return nil
-		}
-		// Compile as regex, anchor if it looks like exact match
-		re, err := regexp.Compile(regexStr)
-		if err != nil {
-			return nil
-		}
-		return &ImageRefPattern{ByAlt: true, AltRegex: re}
-	}
-
-	return nil
-}
-
-// findDocImages walks a document and returns all images with their metadata
+// findDocImages returns first-tab image metadata, preserving current sed behavior.
 func findDocImages(doc *docs.Document) []DocImage {
-	var images []DocImage
-
-	if doc.InlineObjects != nil {
-		// Build a map of inline object IDs to their properties
-		inlineProps := make(map[string]*docs.InlineObjectProperties)
-		for id, obj := range doc.InlineObjects {
-			if obj.InlineObjectProperties != nil {
-				inlineProps[id] = obj.InlineObjectProperties
-			}
-		}
-
-		// Walk document to find inline object elements and their positions
-		var walkContent func(content []*docs.StructuralElement)
-		walkContent = func(content []*docs.StructuralElement) {
-			for _, elem := range content {
-				if elem.Paragraph != nil {
-					for _, pe := range elem.Paragraph.Elements {
-						if pe.InlineObjectElement != nil {
-							objID := pe.InlineObjectElement.InlineObjectId
-							alt := ""
-							if props, ok := inlineProps[objID]; ok && props.EmbeddedObject != nil {
-								alt = props.EmbeddedObject.Title // or Description
-								if alt == "" {
-									alt = props.EmbeddedObject.Description
-								}
-							}
-							images = append(images, DocImage{
-								ObjectID:     objID,
-								Index:        pe.StartIndex,
-								Alt:          alt,
-								IsPositioned: false,
-							})
-						}
-					}
-				}
-				if elem.Table != nil {
-					for _, row := range elem.Table.TableRows {
-						for _, cell := range row.TableCells {
-							walkContent(cell.Content)
-						}
-					}
-				}
-			}
-		}
-
-		if doc.Body != nil {
-			walkContent(doc.Body.Content)
-		}
+	projection := docssed.ProjectDocument(doc)
+	if projection.Legacy == nil {
+		return nil
 	}
-
-	// Also check positioned objects
-	if doc.PositionedObjects != nil {
-		for id, obj := range doc.PositionedObjects {
-			alt := ""
-			if obj.PositionedObjectProperties != nil && obj.PositionedObjectProperties.EmbeddedObject != nil {
-				alt = obj.PositionedObjectProperties.EmbeddedObject.Title
-				if alt == "" {
-					alt = obj.PositionedObjectProperties.EmbeddedObject.Description
-				}
-			}
-			images = append(images, DocImage{
-				ObjectID:     id,
-				Index:        0, // positioned objects don't have a fixed index
-				Alt:          alt,
-				IsPositioned: true,
-			})
-		}
-	}
-
-	return images
+	return projection.Legacy.Images
 }
 
 // matchImages returns images that match the reference pattern
@@ -325,73 +178,4 @@ func matchImages(images []DocImage, ref *ImageRefPattern) []DocImage {
 	}
 
 	return nil
-}
-
-// parseImageSyntax parses markdown image syntax: ![alt](url "title"){width=X height=Y}
-// Returns nil if the text is not an image
-func parseImageSyntax(text string) *ImageSpec {
-	// Must start with ![
-	if !strings.HasPrefix(text, "![") {
-		return nil
-	}
-
-	// Find the closing ] for alt text
-	altEnd := strings.Index(text, "](")
-	if altEnd == -1 {
-		return nil
-	}
-	alt := text[2:altEnd]
-
-	// Find the URL - starts after ]( and ends at ) or " or {
-	rest := text[altEnd+2:]
-
-	// Find where URL ends
-	urlEnd := -1
-	for i, c := range rest {
-		if c == '"' || c == ')' || c == '{' {
-			urlEnd = i
-			break
-		}
-	}
-	if urlEnd == -1 {
-		// URL goes to end, look for closing )
-		if strings.HasSuffix(rest, ")") {
-			urlEnd = len(rest) - 1
-		} else {
-			return nil
-		}
-	}
-
-	url := strings.TrimSpace(rest[:urlEnd])
-	rest = rest[urlEnd:]
-
-	spec := &ImageSpec{
-		URL: url,
-		Alt: alt,
-	}
-
-	// Parse optional title in quotes: "title")
-	if strings.HasPrefix(rest, " \"") || strings.HasPrefix(rest, "\"") {
-		rest = strings.TrimPrefix(rest, " ")
-		if strings.HasPrefix(rest, "\"") {
-			titleEnd := strings.Index(rest[1:], "\"")
-			if titleEnd != -1 {
-				spec.Caption = rest[1 : titleEnd+1]
-				rest = rest[titleEnd+2:]
-			}
-		}
-	}
-
-	// Skip closing paren if present
-	rest = strings.TrimPrefix(rest, ")")
-
-	// Parse optional Pandoc-style attributes: {width=X height=Y}
-	if strings.HasPrefix(rest, "{") {
-		attrEnd := strings.Index(rest, "}")
-		if attrEnd != -1 {
-			spec.Width, spec.Height = parseImageDimAttrs(rest[1:attrEnd])
-		}
-	}
-
-	return spec
 }
