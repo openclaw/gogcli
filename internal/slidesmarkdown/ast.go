@@ -1,4 +1,4 @@
-package cmd
+package slidesmarkdown
 
 // SlideFrontmatter holds per-slide YAML frontmatter values.
 type SlideFrontmatter struct {
@@ -91,10 +91,3 @@ type IconRef struct {
 
 func (TextRun) isInline() {}
 func (IconRef) isInline() {}
-
-// ImageRef is the result of uploading an asset (icon SVG or rendered
-// diagram PNG) to Drive.
-type ImageRef struct {
-	DriveFileID string
-	PublicURL   string
-}

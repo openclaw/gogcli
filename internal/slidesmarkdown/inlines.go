@@ -1,4 +1,4 @@
-package cmd
+package slidesmarkdown
 
 import (
 	"regexp"
@@ -23,11 +23,13 @@ func parseInlines(text string, defaultFAStyle string) []Inline {
 
 	idxs := faShortcodeRE.FindAllStringSubmatchIndex(text, -1)
 	cursor := 0
+
 	for _, m := range idxs {
 		// Append text before the icon.
 		if m[0] > cursor {
 			out = append(out, parseEmphasis(text[cursor:m[0]])...)
 		}
+
 		stylePrefix := ""
 		if m[2] != -1 {
 			stylePrefix = text[m[2]:m[3]]
@@ -36,9 +38,11 @@ func parseInlines(text string, defaultFAStyle string) []Inline {
 		out = append(out, IconRef{Style: faStyleFromPrefix(stylePrefix, defaultFAStyle), Name: name})
 		cursor = m[1]
 	}
+
 	if cursor < len(text) {
 		out = append(out, parseEmphasis(text[cursor:])...)
 	}
+
 	return out
 }
 
@@ -63,10 +67,12 @@ func faStyleFromPrefix(prefix, defaultStyle string) string {
 func parseEmphasis(s string) []Inline {
 	var out []Inline
 	cursor := 0
+
 	for _, m := range emphasisRE.FindAllStringIndex(s, -1) {
 		if m[0] > cursor {
 			out = append(out, TextRun{Text: s[cursor:m[0]]})
 		}
+
 		token := s[m[0]:m[1]]
 		switch {
 		case strings.HasPrefix(token, "**") && strings.HasSuffix(token, "**"):
@@ -82,9 +88,11 @@ func parseEmphasis(s string) []Inline {
 		}
 		cursor = m[1]
 	}
+
 	if cursor < len(s) {
 		out = append(out, TextRun{Text: s[cursor:]})
 	}
+
 	return out
 }
 

@@ -10,6 +10,7 @@ import (
 	"google.golang.org/api/drive/v3"
 
 	"github.com/steipete/gogcli/internal/outfmt"
+	"github.com/steipete/gogcli/internal/slidesmarkdown"
 	"github.com/steipete/gogcli/internal/ui"
 )
 
@@ -222,7 +223,7 @@ func (c *SlidesCreateFromMarkdownCmd) Run(ctx context.Context, flags *RootFlags)
 		return usage("either --content or --content-file is required")
 	}
 
-	parsed, err := ParseMarkdownToSlides(markdown, ParseOptions{DefaultFAStyle: c.FAStyle})
+	parsed, err := slidesmarkdown.Parse(markdown, slidesmarkdown.ParseOptions{DefaultFAStyle: c.FAStyle})
 	if err != nil {
 		return fmt.Errorf("parse markdown: %w", err)
 	}

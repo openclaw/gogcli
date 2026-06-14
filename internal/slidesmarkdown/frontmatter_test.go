@@ -1,4 +1,4 @@
-package cmd
+package slidesmarkdown
 
 import (
 	"strings"
@@ -70,6 +70,7 @@ func TestSplitMarkdownIntoSlideBlocks(t *testing.T) {
 			got, err := splitMarkdownIntoSlideBlocks(tc.input)
 			require.NoError(t, err)
 			require.Equal(t, len(tc.expected), len(got))
+
 			for i := range tc.expected {
 				assert.Equal(t, tc.expected[i].Frontmatter, got[i].Frontmatter, "slide %d frontmatter", i)
 				assert.Equal(t, tc.expected[i].Body, got[i].Body, "slide %d body", i)

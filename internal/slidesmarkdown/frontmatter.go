@@ -1,4 +1,4 @@
-package cmd
+package slidesmarkdown
 
 import (
 	"fmt"
@@ -14,6 +14,8 @@ type slideBlock struct {
 	Frontmatter SlideFrontmatter
 	Body        string
 }
+
+const markdownTripleDash = "---"
 
 var yamlKeyLineRE = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_-]*:\s`)
 
@@ -45,6 +47,7 @@ func splitMarkdownIntoSlideBlocks(markdown string) ([]slideBlock, error) {
 		if err != nil {
 			return nil, err
 		}
+
 		if ok {
 			i = after
 			// Skip the blank line(s) separating frontmatter from body.
@@ -68,6 +71,7 @@ func splitMarkdownIntoSlideBlocks(markdown string) ([]slideBlock, error) {
 		// body, so delimiter examples inside code blocks stay intact.
 		bodyStart := i
 		var fenceChar byte
+
 		fenceLen := 0
 		for i < len(lines) {
 			inFence := fenceLen > 0
@@ -78,6 +82,7 @@ func splitMarkdownIntoSlideBlocks(markdown string) ([]slideBlock, error) {
 			i++
 		}
 		bodyLines := lines[bodyStart:i]
+
 		body := strings.Join(bodyLines, "\n")
 		if strings.TrimSpace(body) == "" {
 			continue
@@ -98,6 +103,7 @@ func tryConsumeFrontmatter(lines []string, start int) (SlideFrontmatter, int, bo
 	for i < len(lines) && strings.TrimSpace(lines[i]) == "" {
 		i++
 	}
+
 	if i >= len(lines) || !isBareDelimiter(lines[i]) {
 		return SlideFrontmatter{}, start, false, nil
 	}
@@ -107,9 +113,11 @@ func tryConsumeFrontmatter(lines []string, start int) (SlideFrontmatter, int, bo
 	for j < len(lines) && strings.TrimSpace(lines[j]) == "" {
 		j++
 	}
+
 	if j >= len(lines) {
 		return SlideFrontmatter{}, start, false, nil
 	}
+
 	if !isFrontmatterStartKey(lines[j]) {
 		return SlideFrontmatter{}, start, false, nil
 	}
@@ -117,42 +125,52 @@ func tryConsumeFrontmatter(lines []string, start int) (SlideFrontmatter, int, bo
 	// Find closing "---" before normal body content begins. This intentionally
 	// keeps "Problem: hard\n\nbody\n---" as slide content, not frontmatter.
 	closeIdx := -1
+
 	for k := j; k < len(lines); k++ {
 		if isBareDelimiter(lines[k]) {
 			closeIdx = k
+
 			break
 		}
+
 		trimmed := strings.TrimSpace(lines[k])
 		if trimmed == "" {
 			return SlideFrontmatter{}, start, false, nil
 		}
+
 		if !isFrontmatterStartKey(lines[k]) {
 			return SlideFrontmatter{}, start, false, nil
 		}
 	}
+
 	if closeIdx == -1 {
 		return SlideFrontmatter{}, start, false, nil
 	}
 
 	yamlText := strings.Join(lines[i+1:closeIdx], "\n")
+
 	fm, err := parseSlideFrontmatter(yamlText)
 	if err != nil {
 		return SlideFrontmatter{}, start, false, fmt.Errorf("frontmatter at line %d: %w", i+1, err)
 	}
+
 	return fm, closeIdx + 1, true, nil
 }
 
 func parseSlideFrontmatter(yamlText string) (SlideFrontmatter, error) {
 	raw := map[string]string{}
+
 	if strings.TrimSpace(yamlText) != "" {
 		var m map[string]any
 		if err := yaml.Unmarshal([]byte(yamlText), &m); err != nil {
-			return SlideFrontmatter{}, err
+			return SlideFrontmatter{}, fmt.Errorf("decode YAML: %w", err)
 		}
+
 		for k, v := range m {
 			raw[k] = fmt.Sprintf("%v", v)
 		}
 	}
+
 	return SlideFrontmatter{
 		Layout:  raw["layout"],
 		Content: raw["content"],
@@ -166,7 +184,7 @@ func isFrontmatterStartKey(line string) bool {
 }
 
 func isBareDelimiter(line string) bool {
-	return strings.TrimSpace(line) == literalMarkdownTripleDash
+	return strings.TrimSpace(line) == markdownTripleDash
 }
 
 func updateMarkdownFenceState(line string, fenceChar byte, fenceLen int) (byte, int) {
@@ -174,12 +192,15 @@ func updateMarkdownFenceState(line string, fenceChar byte, fenceLen int) (byte, 
 	if !ok {
 		return fenceChar, fenceLen
 	}
+
 	if fenceLen == 0 {
 		return char, length
 	}
+
 	if char == fenceChar && length >= fenceLen && markdownFenceCloser(line, length) {
 		return 0, 0
 	}
+
 	return fenceChar, fenceLen
 }
 
@@ -188,17 +209,21 @@ func markdownFenceMarker(line string) (byte, int, bool) {
 	if len(trimmed) < 3 {
 		return 0, 0, false
 	}
+
 	char := trimmed[0]
 	if char != '`' && char != '~' {
 		return 0, 0, false
 	}
+
 	length := 0
 	for length < len(trimmed) && trimmed[length] == char {
 		length++
 	}
+
 	if length < 3 {
 		return 0, 0, false
 	}
+
 	return char, length, true
 }
 
@@ -207,5 +232,6 @@ func markdownFenceCloser(line string, markerLen int) bool {
 	if markerLen > len(trimmed) {
 		return false
 	}
+
 	return strings.TrimSpace(trimmed[markerLen:]) == ""
 }

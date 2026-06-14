@@ -7,6 +7,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/api/slides/v1"
+
+	sm "github.com/steipete/gogcli/internal/slidesmarkdown"
 )
 
 func defaultGeometry() LayoutGeometry {
@@ -14,13 +16,13 @@ func defaultGeometry() LayoutGeometry {
 }
 
 func TestRenderSlide_DefaultLayout_TitlePlusBody(t *testing.T) {
-	s := Slide{
+	s := sm.Slide{
 		Title: "Hello",
-		Body: []Block{
-			ParagraphBlock{Inlines: []Inline{TextRun{Text: "World"}}},
+		Body: []sm.Block{
+			sm.ParagraphBlock{Inlines: []sm.Inline{sm.TextRun{Text: "World"}}},
 		},
 	}
-	reqs, _ := RenderSlides([]Slide{s}, NewAssetMap(), defaultGeometry())
+	reqs, _ := RenderSlides([]sm.Slide{s}, NewAssetMap(), defaultGeometry())
 
 	// Expect: CreateSlide, CreateShape (title), InsertText (title),
 	// UpdateTextStyle (title bold), CreateShape (body), InsertText (body).
@@ -43,8 +45,8 @@ func TestRenderSlide_DefaultLayout_TitlePlusBody(t *testing.T) {
 }
 
 func TestRenderSlide_NotesRequestsReturned(t *testing.T) {
-	s := Slide{Title: "T", Notes: "speaker hint"}
-	_, notesPlan := RenderSlides([]Slide{s}, NewAssetMap(), defaultGeometry())
+	s := sm.Slide{Title: "T", Notes: "speaker hint"}
+	_, notesPlan := RenderSlides([]sm.Slide{s}, NewAssetMap(), defaultGeometry())
 
 	// notesPlan is a slice of {SlideIndex int, Text string} we feed into
 	// the second BatchUpdate after discovering notes object IDs.
@@ -54,13 +56,13 @@ func TestRenderSlide_NotesRequestsReturned(t *testing.T) {
 }
 
 func TestRenderSlide_HeroLayoutLargeTitleNoTitleBox(t *testing.T) {
-	s := Slide{
-		Frontmatter: SlideFrontmatter{Layout: "hero"},
-		Body: []Block{
-			HeadingBlock{Level: 1, Inlines: []Inline{TextRun{Text: "Big Wordmark"}}},
+	s := sm.Slide{
+		Frontmatter: sm.SlideFrontmatter{Layout: "hero"},
+		Body: []sm.Block{
+			sm.HeadingBlock{Level: 1, Inlines: []sm.Inline{sm.TextRun{Text: "Big Wordmark"}}},
 		},
 	}
-	reqs, _ := RenderSlides([]Slide{s}, NewAssetMap(), defaultGeometry())
+	reqs, _ := RenderSlides([]sm.Slide{s}, NewAssetMap(), defaultGeometry())
 
 	// No separate title text box — find the body insert and the 44pt style.
 	var sawLargeStyle bool
@@ -75,11 +77,11 @@ func TestRenderSlide_HeroLayoutLargeTitleNoTitleBox(t *testing.T) {
 }
 
 func TestRenderSlide_CenterLayoutWithOnlyTitleDoesNotStyleEmptyBody(t *testing.T) {
-	s := Slide{
-		Frontmatter: SlideFrontmatter{Layout: "center"},
+	s := sm.Slide{
+		Frontmatter: sm.SlideFrontmatter{Layout: "center"},
 		Title:       "Only title",
 	}
-	reqs, _ := RenderSlides([]Slide{s}, NewAssetMap(), defaultGeometry())
+	reqs, _ := RenderSlides([]sm.Slide{s}, NewAssetMap(), defaultGeometry())
 
 	for _, r := range reqs {
 		if r.UpdateParagraphStyle != nil && r.UpdateParagraphStyle.ObjectId == "body_1" {
@@ -89,13 +91,13 @@ func TestRenderSlide_CenterLayoutWithOnlyTitleDoesNotStyleEmptyBody(t *testing.T
 }
 
 func TestRenderSlide_HeroStyleRangeUsesUTF16(t *testing.T) {
-	s := Slide{
-		Frontmatter: SlideFrontmatter{Layout: "hero"},
-		Body: []Block{
-			HeadingBlock{Level: 1, Inlines: []Inline{TextRun{Text: "A 🐢"}}},
+	s := sm.Slide{
+		Frontmatter: sm.SlideFrontmatter{Layout: "hero"},
+		Body: []sm.Block{
+			sm.HeadingBlock{Level: 1, Inlines: []sm.Inline{sm.TextRun{Text: "A 🐢"}}},
 		},
 	}
-	reqs, _ := RenderSlides([]Slide{s}, NewAssetMap(), defaultGeometry())
+	reqs, _ := RenderSlides([]sm.Slide{s}, NewAssetMap(), defaultGeometry())
 
 	for _, r := range reqs {
 		if r.UpdateTextStyle != nil && r.UpdateTextStyle.TextRange != nil &&
@@ -109,17 +111,17 @@ func TestRenderSlide_HeroStyleRangeUsesUTF16(t *testing.T) {
 }
 
 func TestRenderSlide_TwoColumnsCreateTwoBodyBoxes(t *testing.T) {
-	s := Slide{
-		Frontmatter: SlideFrontmatter{Layout: "two-cols"},
+	s := sm.Slide{
+		Frontmatter: sm.SlideFrontmatter{Layout: "two-cols"},
 		Title:       "T",
-		Body: []Block{
-			ColumnsBlock{Columns: [][]Block{
-				{ParagraphBlock{Inlines: []Inline{TextRun{Text: "left"}}}},
-				{ParagraphBlock{Inlines: []Inline{TextRun{Text: "right"}}}},
+		Body: []sm.Block{
+			sm.ColumnsBlock{Columns: [][]sm.Block{
+				{sm.ParagraphBlock{Inlines: []sm.Inline{sm.TextRun{Text: "left"}}}},
+				{sm.ParagraphBlock{Inlines: []sm.Inline{sm.TextRun{Text: "right"}}}},
 			}},
 		},
 	}
-	reqs, _ := RenderSlides([]Slide{s}, NewAssetMap(), defaultGeometry())
+	reqs, _ := RenderSlides([]sm.Slide{s}, NewAssetMap(), defaultGeometry())
 	// Expect a CreateShape per column (in addition to title shape).
 	shapeCount := 0
 	for _, r := range reqs {
@@ -131,16 +133,16 @@ func TestRenderSlide_TwoColumnsCreateTwoBodyBoxes(t *testing.T) {
 }
 
 func TestRenderSlide_ExplicitColumnsWithoutLayoutCreateColumnBoxes(t *testing.T) {
-	s := Slide{
+	s := sm.Slide{
 		Title: "T",
-		Body: []Block{
-			ColumnsBlock{Columns: [][]Block{
-				{ParagraphBlock{Inlines: []Inline{TextRun{Text: "left"}}}},
-				{ParagraphBlock{Inlines: []Inline{TextRun{Text: "right"}}}},
+		Body: []sm.Block{
+			sm.ColumnsBlock{Columns: [][]sm.Block{
+				{sm.ParagraphBlock{Inlines: []sm.Inline{sm.TextRun{Text: "left"}}}},
+				{sm.ParagraphBlock{Inlines: []sm.Inline{sm.TextRun{Text: "right"}}}},
 			}},
 		},
 	}
-	reqs, _ := RenderSlides([]Slide{s}, NewAssetMap(), defaultGeometry())
+	reqs, _ := RenderSlides([]sm.Slide{s}, NewAssetMap(), defaultGeometry())
 
 	var columnShapes []string
 	for _, r := range reqs {
@@ -152,18 +154,18 @@ func TestRenderSlide_ExplicitColumnsWithoutLayoutCreateColumnBoxes(t *testing.T)
 }
 
 func TestRenderSlide_ThreeColumnsCreateThreeBodyBoxes(t *testing.T) {
-	s := Slide{
-		Frontmatter: SlideFrontmatter{Layout: "three-cols"},
+	s := sm.Slide{
+		Frontmatter: sm.SlideFrontmatter{Layout: "three-cols"},
 		Title:       "T",
-		Body: []Block{
-			ColumnsBlock{Columns: [][]Block{
-				{ParagraphBlock{Inlines: []Inline{TextRun{Text: "A"}}}},
-				{ParagraphBlock{Inlines: []Inline{TextRun{Text: "B"}}}},
-				{ParagraphBlock{Inlines: []Inline{TextRun{Text: "C"}}}},
+		Body: []sm.Block{
+			sm.ColumnsBlock{Columns: [][]sm.Block{
+				{sm.ParagraphBlock{Inlines: []sm.Inline{sm.TextRun{Text: "A"}}}},
+				{sm.ParagraphBlock{Inlines: []sm.Inline{sm.TextRun{Text: "B"}}}},
+				{sm.ParagraphBlock{Inlines: []sm.Inline{sm.TextRun{Text: "C"}}}},
 			}},
 		},
 	}
-	reqs, _ := RenderSlides([]Slide{s}, NewAssetMap(), defaultGeometry())
+	reqs, _ := RenderSlides([]sm.Slide{s}, NewAssetMap(), defaultGeometry())
 	shapeCount := 0
 	for _, r := range reqs {
 		if r.CreateShape != nil {
@@ -174,13 +176,13 @@ func TestRenderSlide_ThreeColumnsCreateThreeBodyBoxes(t *testing.T) {
 }
 
 func TestFindColumnsBlock_PreservesSurroundingContent(t *testing.T) {
-	got := findColumnsBlock([]Block{
-		ParagraphBlock{Inlines: []Inline{TextRun{Text: "Intro"}}},
-		ColumnsBlock{Columns: [][]Block{
-			{ParagraphBlock{Inlines: []Inline{TextRun{Text: "Left"}}}},
-			{ParagraphBlock{Inlines: []Inline{TextRun{Text: "Right"}}}},
+	got := findColumnsBlock([]sm.Block{
+		sm.ParagraphBlock{Inlines: []sm.Inline{sm.TextRun{Text: "Intro"}}},
+		sm.ColumnsBlock{Columns: [][]sm.Block{
+			{sm.ParagraphBlock{Inlines: []sm.Inline{sm.TextRun{Text: "Left"}}}},
+			{sm.ParagraphBlock{Inlines: []sm.Inline{sm.TextRun{Text: "Right"}}}},
 		}},
-		ParagraphBlock{Inlines: []Inline{TextRun{Text: "After"}}},
+		sm.ParagraphBlock{Inlines: []sm.Inline{sm.TextRun{Text: "After"}}},
 	}, 2)
 
 	require.Equal(t, 2, len(got))
@@ -191,7 +193,7 @@ func TestFindColumnsBlock_PreservesSurroundingContent(t *testing.T) {
 func TestBuildPopulateRequests_DeleteDefaultSlideAfterCreatedSlides(t *testing.T) {
 	reqs, _ := buildPopulateRequests(
 		&slides.Presentation{Slides: []*slides.Page{{ObjectId: "default-slide"}}},
-		[]Slide{{Title: "Imported"}},
+		[]sm.Slide{{Title: "Imported"}},
 		NewAssetMap(),
 		defaultGeometry(),
 	)
@@ -204,14 +206,14 @@ func TestBuildPopulateRequests_DeleteDefaultSlideAfterCreatedSlides(t *testing.T
 
 func TestRenderSlide_DiagramEmitsCreateImage(t *testing.T) {
 	bid := "block-test-1"
-	s := Slide{
+	s := sm.Slide{
 		Title: "T",
-		Body:  []Block{DiagramBlock{Kind: "mermaid", Source: "graph TD\nA-->B", ID: bid}},
+		Body:  []sm.Block{sm.DiagramBlock{Kind: "mermaid", Source: "graph TD\nA-->B", ID: bid}},
 	}
 	am := NewAssetMap()
 	am.Diagrams[bid] = ImageRef{DriveFileID: "f1", PublicURL: "https://drive.example/f1"}
 
-	reqs, _ := RenderSlides([]Slide{s}, am, defaultGeometry())
+	reqs, _ := RenderSlides([]sm.Slide{s}, am, defaultGeometry())
 	var sawImage bool
 	for _, r := range reqs {
 		if r.CreateImage != nil && r.CreateImage.Url == "https://drive.example/f1" {
@@ -222,28 +224,28 @@ func TestRenderSlide_DiagramEmitsCreateImage(t *testing.T) {
 }
 
 func TestBlocksToPlainText_ReservesDiagramSpace(t *testing.T) {
-	got := blocksToPlainText([]Block{
-		DiagramBlock{Kind: "mermaid", Source: "graph TD\nA-->B", ID: "diagram-1"},
-		ParagraphBlock{Inlines: []Inline{TextRun{Text: "After"}}},
+	got := blocksToPlainText([]sm.Block{
+		sm.DiagramBlock{Kind: "mermaid", Source: "graph TD\nA-->B", ID: "diagram-1"},
+		sm.ParagraphBlock{Inlines: []sm.Inline{sm.TextRun{Text: "After"}}},
 	})
 
 	assert.Equal(t, strings.Repeat("\n", diagramVisualLines+1)+"After", got)
 }
 
 func TestRenderSlide_BulletWithLeadingIconEmitsImage(t *testing.T) {
-	icon := IconRef{Style: "solid", Name: "truck-fast"}
-	s := Slide{
+	icon := sm.IconRef{Style: "solid", Name: "truck-fast"}
+	s := sm.Slide{
 		Title: "T",
-		Body: []Block{
-			BulletsBlock{Items: []BulletItem{
-				{Inlines: []Inline{icon, TextRun{Text: " Fulfilment"}}},
+		Body: []sm.Block{
+			sm.BulletsBlock{Items: []sm.BulletItem{
+				{Inlines: []sm.Inline{icon, sm.TextRun{Text: " Fulfilment"}}},
 			}},
 		},
 	}
 	am := NewAssetMap()
 	am.Icons[icon] = ImageRef{DriveFileID: "f2", PublicURL: "https://drive.example/f2"}
 
-	reqs, _ := RenderSlides([]Slide{s}, am, defaultGeometry())
+	reqs, _ := RenderSlides([]sm.Slide{s}, am, defaultGeometry())
 	var sawIcon bool
 	for _, r := range reqs {
 		if r.CreateImage != nil && r.CreateImage.Url == "https://drive.example/f2" {
@@ -255,13 +257,13 @@ func TestRenderSlide_BulletWithLeadingIconEmitsImage(t *testing.T) {
 }
 
 func TestBlocksToPlainText_PreservesOrderedAndNestedLists(t *testing.T) {
-	got := blocksToPlainText([]Block{
-		BulletsBlock{Ordered: true, Items: []BulletItem{
-			{Inlines: []Inline{TextRun{Text: "first"}}},
-			{Indent: 1, Inlines: []Inline{TextRun{Text: "second"}}},
+	got := blocksToPlainText([]sm.Block{
+		sm.BulletsBlock{Ordered: true, Items: []sm.BulletItem{
+			{Inlines: []sm.Inline{sm.TextRun{Text: "first"}}},
+			{Indent: 1, Inlines: []sm.Inline{sm.TextRun{Text: "second"}}},
 		}},
-		BulletsBlock{Items: []BulletItem{
-			{Indent: 2, Inlines: []Inline{TextRun{Text: "nested"}}},
+		sm.BulletsBlock{Items: []sm.BulletItem{
+			{Indent: 2, Inlines: []sm.Inline{sm.TextRun{Text: "nested"}}},
 		}},
 	})
 
@@ -269,17 +271,17 @@ func TestBlocksToPlainText_PreservesOrderedAndNestedLists(t *testing.T) {
 }
 
 func TestRenderSlide_IconRowsEmitImages(t *testing.T) {
-	icon := IconRef{Style: "solid", Name: "headset"}
-	s := Slide{
+	icon := sm.IconRef{Style: "solid", Name: "headset"}
+	s := sm.Slide{
 		Title: "T",
-		Body: []Block{
-			IconRowsBlock{Kind: "boxes", Rows: []IconRow{{Icon: &icon, Text: "Support"}}},
+		Body: []sm.Block{
+			sm.IconRowsBlock{Kind: "boxes", Rows: []sm.IconRow{{Icon: &icon, Text: "Support"}}},
 		},
 	}
 	am := NewAssetMap()
 	am.Icons[icon] = ImageRef{DriveFileID: "f3", PublicURL: "https://drive.example/f3"}
 
-	reqs, _ := RenderSlides([]Slide{s}, am, defaultGeometry())
+	reqs, _ := RenderSlides([]sm.Slide{s}, am, defaultGeometry())
 	var sawIcon bool
 	for _, r := range reqs {
 		if r.CreateImage != nil && r.CreateImage.Url == "https://drive.example/f3" {
@@ -291,17 +293,17 @@ func TestRenderSlide_IconRowsEmitImages(t *testing.T) {
 }
 
 func TestRenderSlide_HeadingLeadingIconEmitsImage(t *testing.T) {
-	icon := IconRef{Style: "solid", Name: "file"}
-	s := Slide{
+	icon := sm.IconRef{Style: "solid", Name: "file"}
+	s := sm.Slide{
 		Title: "T",
-		Body: []Block{
-			HeadingBlock{Level: 2, Inlines: []Inline{icon, TextRun{Text: " Rethink"}}},
+		Body: []sm.Block{
+			sm.HeadingBlock{Level: 2, Inlines: []sm.Inline{icon, sm.TextRun{Text: " Rethink"}}},
 		},
 	}
 	am := NewAssetMap()
 	am.Icons[icon] = ImageRef{DriveFileID: "f5", PublicURL: "https://drive.example/f5"}
 
-	reqs, _ := RenderSlides([]Slide{s}, am, defaultGeometry())
+	reqs, _ := RenderSlides([]sm.Slide{s}, am, defaultGeometry())
 	var sawIcon bool
 	for _, r := range reqs {
 		if r.CreateImage != nil && r.CreateImage.Url == "https://drive.example/f5" {
@@ -312,18 +314,18 @@ func TestRenderSlide_HeadingLeadingIconEmitsImage(t *testing.T) {
 }
 
 func TestRenderSlide_IconImagePositionAccountsForBlankLinesBetweenBlocks(t *testing.T) {
-	icon := IconRef{Style: "solid", Name: "file"}
-	s := Slide{
+	icon := sm.IconRef{Style: "solid", Name: "file"}
+	s := sm.Slide{
 		Title: "T",
-		Body: []Block{
-			ParagraphBlock{Inlines: []Inline{TextRun{Text: "Intro"}}},
-			HeadingBlock{Level: 2, Inlines: []Inline{icon, TextRun{Text: " Rethink"}}},
+		Body: []sm.Block{
+			sm.ParagraphBlock{Inlines: []sm.Inline{sm.TextRun{Text: "Intro"}}},
+			sm.HeadingBlock{Level: 2, Inlines: []sm.Inline{icon, sm.TextRun{Text: " Rethink"}}},
 		},
 	}
 	am := NewAssetMap()
 	am.Icons[icon] = ImageRef{DriveFileID: "f5", PublicURL: "https://drive.example/f5"}
 
-	reqs, _ := RenderSlides([]Slide{s}, am, defaultGeometry())
+	reqs, _ := RenderSlides([]sm.Slide{s}, am, defaultGeometry())
 	for _, r := range reqs {
 		if r.CreateImage != nil && r.CreateImage.Url == "https://drive.example/f5" {
 			assert.Equal(t, float64(152), r.CreateImage.ElementProperties.Transform.TranslateY)
@@ -335,20 +337,20 @@ func TestRenderSlide_IconImagePositionAccountsForBlankLinesBetweenBlocks(t *test
 
 func TestRenderSlide_ColumnDiagramEmitsCreateImage(t *testing.T) {
 	bid := "block-column-1"
-	s := Slide{
-		Frontmatter: SlideFrontmatter{Layout: "two-cols"},
+	s := sm.Slide{
+		Frontmatter: sm.SlideFrontmatter{Layout: "two-cols"},
 		Title:       "T",
-		Body: []Block{
-			ColumnsBlock{Columns: [][]Block{
-				{ParagraphBlock{Inlines: []Inline{TextRun{Text: "left"}}}},
-				{DiagramBlock{Kind: "mermaid", Source: "graph TD\nA-->B", ID: bid}},
+		Body: []sm.Block{
+			sm.ColumnsBlock{Columns: [][]sm.Block{
+				{sm.ParagraphBlock{Inlines: []sm.Inline{sm.TextRun{Text: "left"}}}},
+				{sm.DiagramBlock{Kind: "mermaid", Source: "graph TD\nA-->B", ID: bid}},
 			}},
 		},
 	}
 	am := NewAssetMap()
 	am.Diagrams[bid] = ImageRef{DriveFileID: "f4", PublicURL: "https://drive.example/f4"}
 
-	reqs, _ := RenderSlides([]Slide{s}, am, defaultGeometry())
+	reqs, _ := RenderSlides([]sm.Slide{s}, am, defaultGeometry())
 	var sawImage bool
 	for _, r := range reqs {
 		if r.CreateImage != nil && r.CreateImage.Url == "https://drive.example/f4" {

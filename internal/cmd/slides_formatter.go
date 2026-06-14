@@ -8,6 +8,8 @@ import (
 
 	"google.golang.org/api/drive/v3"
 	"google.golang.org/api/slides/v1"
+
+	"github.com/steipete/gogcli/internal/slidesmarkdown"
 )
 
 const (
@@ -29,7 +31,7 @@ type SlideNotesPlan struct {
 // RenderSlides converts a parsed Slide AST plus an AssetMap into the
 // initial BatchUpdate requests AND a notes plan to apply after the
 // presentation is created.
-func RenderSlides(in []Slide, assets AssetMap, g LayoutGeometry) ([]*slides.Request, []SlideNotesPlan) {
+func RenderSlides(in []slidesmarkdown.Slide, assets AssetMap, g LayoutGeometry) ([]*slides.Request, []SlideNotesPlan) {
 	var reqs []*slides.Request
 	var notes []SlideNotesPlan
 
@@ -149,32 +151,32 @@ func RenderSlides(in []Slide, assets AssetMap, g LayoutGeometry) ([]*slides.Requ
 	return reqs, notes
 }
 
-func appendBlockImages(reqs []*slides.Request, blocks []Block, slideID string, assets AssetMap, box BoxRect) []*slides.Request {
+func appendBlockImages(reqs []*slides.Request, blocks []slidesmarkdown.Block, slideID string, assets AssetMap, box BoxRect) []*slides.Request {
 	line := 0
 	for i, b := range blocks {
 		switch v := b.(type) {
-		case ParagraphBlock:
+		case slidesmarkdown.ParagraphBlock:
 			if icon, ok := leadingIcon(v.Inlines); ok {
 				if img, ok := assets.Icons[icon]; ok {
 					reqs = append(reqs, createIconImageRequest(slideID, img.PublicURL, box, line))
 				}
 			}
-		case HeadingBlock:
+		case slidesmarkdown.HeadingBlock:
 			if icon, ok := leadingIcon(v.Inlines); ok {
 				if img, ok := assets.Icons[icon]; ok {
 					reqs = append(reqs, createIconImageRequest(slideID, img.PublicURL, box, line))
 				}
 			}
-		case DiagramBlock:
+		case slidesmarkdown.DiagramBlock:
 			if ir, ok := assets.Diagrams[v.ID]; ok {
 				reqs = append(reqs, createImageRequest(slideID, ir.PublicURL, box.LeftPT, box.TopPT+float64(line)*slideLineHeightPT, box.WidthPT, minFloat(box.HeightPT, maxDiagramHeightPT)))
 			}
-		case BulletsBlock:
+		case slidesmarkdown.BulletsBlock:
 			for j, item := range v.Items {
 				if len(item.Inlines) == 0 {
 					continue
 				}
-				icon, ok := item.Inlines[0].(IconRef)
+				icon, ok := item.Inlines[0].(slidesmarkdown.IconRef)
 				if !ok {
 					continue
 				}
@@ -182,7 +184,7 @@ func appendBlockImages(reqs []*slides.Request, blocks []Block, slideID string, a
 					reqs = append(reqs, createIconImageRequest(slideID, img.PublicURL, box, line+j))
 				}
 			}
-		case IconRowsBlock:
+		case slidesmarkdown.IconRowsBlock:
 			for j, row := range v.Rows {
 				if row.Icon == nil {
 					continue
@@ -191,7 +193,7 @@ func appendBlockImages(reqs []*slides.Request, blocks []Block, slideID string, a
 					reqs = append(reqs, createIconImageRequest(slideID, img.PublicURL, box, line+j))
 				}
 			}
-		case ColumnsBlock:
+		case slidesmarkdown.ColumnsBlock:
 			// Columns are rendered by the column-layout branch with real box positions.
 		}
 		line += blockVisualLines(b)
@@ -202,22 +204,22 @@ func appendBlockImages(reqs []*slides.Request, blocks []Block, slideID string, a
 	return reqs
 }
 
-func blockVisualLines(block Block) int {
+func blockVisualLines(block slidesmarkdown.Block) int {
 	switch v := block.(type) {
-	case ParagraphBlock:
-		return textVisualLines(inlinesToText(v.Inlines))
-	case HeadingBlock:
-		return textVisualLines(inlinesToText(v.Inlines))
-	case BulletsBlock:
+	case slidesmarkdown.ParagraphBlock:
+		return textVisualLines(slidesmarkdown.InlineText(v.Inlines))
+	case slidesmarkdown.HeadingBlock:
+		return textVisualLines(slidesmarkdown.InlineText(v.Inlines))
+	case slidesmarkdown.BulletsBlock:
 		return maxInt(1, len(v.Items))
-	case CodeBlock:
+	case slidesmarkdown.CodeBlock:
 		return textVisualLines(v.Source)
-	case IconRowsBlock:
+	case slidesmarkdown.IconRowsBlock:
 		return maxInt(1, len(v.Rows))
-	case DiagramBlock:
+	case slidesmarkdown.DiagramBlock:
 		return diagramVisualLines
-	case ColumnsBlock:
-		return textVisualLines(blocksToPlainText([]Block{v}))
+	case slidesmarkdown.ColumnsBlock:
+		return textVisualLines(blocksToPlainText([]slidesmarkdown.Block{v}))
 	default:
 		return 1
 	}
@@ -318,18 +320,18 @@ func createTextBox(objectID, slideID string, box BoxRect) *slides.Request {
 // joined by blank lines, bullets prefixed with "• ", code blocks shown
 // verbatim. Inline icons are skipped; diagrams reserve blank text lines
 // so later text does not overlap the CreateImage request.
-func blocksToPlainText(blocks []Block) string {
+func blocksToPlainText(blocks []slidesmarkdown.Block) string {
 	var b strings.Builder
 	for i, blk := range blocks {
 		if i > 0 {
 			b.WriteString("\n\n")
 		}
 		switch v := blk.(type) {
-		case ParagraphBlock:
-			b.WriteString(inlinesToText(v.Inlines))
-		case HeadingBlock:
-			b.WriteString(inlinesToText(v.Inlines))
-		case BulletsBlock:
+		case slidesmarkdown.ParagraphBlock:
+			b.WriteString(slidesmarkdown.InlineText(v.Inlines))
+		case slidesmarkdown.HeadingBlock:
+			b.WriteString(slidesmarkdown.InlineText(v.Inlines))
+		case slidesmarkdown.BulletsBlock:
 			for j, item := range v.Items {
 				if j > 0 {
 					b.WriteString("\n")
@@ -340,11 +342,11 @@ func blocksToPlainText(blocks []Block) string {
 				} else {
 					b.WriteString("• ")
 				}
-				b.WriteString(inlinesToText(item.Inlines))
+				b.WriteString(slidesmarkdown.InlineText(item.Inlines))
 			}
-		case CodeBlock:
+		case slidesmarkdown.CodeBlock:
 			b.WriteString(v.Source)
-		case ColumnsBlock:
+		case slidesmarkdown.ColumnsBlock:
 			// Tasks 16/17 render columns as separate boxes; here we
 			// flatten so the renderer still produces output.
 			for ci, col := range v.Columns {
@@ -353,7 +355,7 @@ func blocksToPlainText(blocks []Block) string {
 				}
 				b.WriteString(blocksToPlainText(col))
 			}
-		case IconRowsBlock:
+		case slidesmarkdown.IconRowsBlock:
 			for j, row := range v.Rows {
 				if j > 0 {
 					b.WriteString("\n")
@@ -365,7 +367,7 @@ func blocksToPlainText(blocks []Block) string {
 				}
 				b.WriteString(row.Text)
 			}
-		case DiagramBlock:
+		case slidesmarkdown.DiagramBlock:
 			b.WriteString(strings.Repeat("\n", diagramVisualLines-1))
 		}
 	}
@@ -377,7 +379,7 @@ func blocksToPlainText(blocks []Block) string {
 type CreatePresentationFromMarkdownOptions struct {
 	Title         string
 	Parent        string
-	Slides        []Slide
+	Slides        []slidesmarkdown.Slide
 	SlidesService *slides.Service
 	DriveService  *drive.Service
 	Pipeline      AssetPipelineConfig
@@ -456,7 +458,7 @@ func CreatePresentationFromMarkdownV2(ctx context.Context, opts CreatePresentati
 	return created, nil
 }
 
-func buildPopulateRequests(created *slides.Presentation, in []Slide, assets AssetMap, g LayoutGeometry) ([]*slides.Request, []SlideNotesPlan) {
+func buildPopulateRequests(created *slides.Presentation, in []slidesmarkdown.Slide, assets AssetMap, g LayoutGeometry) ([]*slides.Request, []SlideNotesPlan) {
 	mainReqs, notesPlan := RenderSlides(in, assets, g)
 	mainReqs = append(mainReqs, deleteExistingSlideRequests(created)...)
 	return mainReqs, notesPlan
@@ -516,7 +518,7 @@ func buildNotesRequests(p *slides.Presentation, plan []SlideNotesPlan) []*slides
 	return reqs
 }
 
-func buildSlideyDryRunBatchUpdate(slideData []Slide) *slides.BatchUpdatePresentationRequest {
+func buildSlideyDryRunBatchUpdate(slideData []slidesmarkdown.Slide) *slides.BatchUpdatePresentationRequest {
 	g := defaultPageGeometry()
 	assets := NewAssetMap()
 	// Stub asset map: every IconRef gets a placeholder URL; same for diagrams.
@@ -554,11 +556,11 @@ func utf16CodeUnits(s string) int64 {
 // padded/truncated to exactly n columns. Surrounding blocks are preserved:
 // prefix content is prepended to the first column, suffix content appended to
 // the last column.
-func findColumnsBlock(blocks []Block, n int) [][]Block {
-	out := make([][]Block, n)
+func findColumnsBlock(blocks []slidesmarkdown.Block, n int) [][]slidesmarkdown.Block {
+	out := make([][]slidesmarkdown.Block, n)
 	found := false
 	for _, b := range blocks {
-		if c, ok := b.(ColumnsBlock); ok {
+		if c, ok := b.(slidesmarkdown.ColumnsBlock); ok {
 			if !found {
 				for i := 0; i < n; i++ {
 					if i < len(c.Columns) {
@@ -585,9 +587,9 @@ func findColumnsBlock(blocks []Block, n int) [][]Block {
 	return out
 }
 
-func explicitColumnsCount(blocks []Block) int {
+func explicitColumnsCount(blocks []slidesmarkdown.Block) int {
 	for _, b := range blocks {
-		c, ok := b.(ColumnsBlock)
+		c, ok := b.(slidesmarkdown.ColumnsBlock)
 		if !ok {
 			continue
 		}
