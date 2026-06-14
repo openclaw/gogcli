@@ -870,17 +870,30 @@ func TestYouTubePlaylistsItemsListWithAccountUsesOAuthService(t *testing.T) {
 	}
 }
 
-func TestYouTubePlaylistsItemsListLikedRequiresAccount(t *testing.T) {
+func TestYouTubePlaylistsItemsListLikedUsesDefaultAccount(t *testing.T) {
 	t.Setenv("GOG_ACCOUNT", "")
 	t.Setenv("GOG_YOUTUBE_API_KEY", "test-key")
 
+	var gotAccount string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{"items": []map[string]any{}})
+	}))
+	defer srv.Close()
+
+	svc := newGoogleTestServiceWithEndpoint(t, srv.Client(), srv.URL+"/", youtube.NewService)
 	ctx := withYouTubeTestServices(newCmdRuntimeOutputContext(t, io.Discard, io.Discard), youtubeTestServices{
-		Account: unexpectedYouTubeTestService(t, "should not reach OAuth service without an account"),
-		APIKey:  unexpectedYouTubeTestService(t, "should not reach API key service for the liked playlist"),
+		Account: func(_ context.Context, account string) (*youtube.Service, error) {
+			gotAccount = account
+			return svc, nil
+		},
+		APIKey: unexpectedYouTubeTestService(t, "should not reach API key service for the liked playlist"),
 	})
-	err := runKong(t, &YouTubePlaylistsItemsListCmd{}, []string{"--playlist-id", "LL", "--max", "5"}, ctx, &RootFlags{})
-	if err == nil || ExitCode(err) != 2 || !strings.Contains(err.Error(), "--playlist-id LL requires -a account") {
-		t.Fatalf("expected account usage error, got %v", err)
+	flags := rootFlagsWithAuthStore(nil, &fakeSecretsStore{defaultAccount: "default@example.com"})
+	if err := runKong(t, &YouTubePlaylistsItemsListCmd{}, []string{"--playlist-id", "LL", "--max", "5"}, ctx, flags); err != nil {
+		t.Fatalf("runKong: %v", err)
+	}
+	if gotAccount != "default@example.com" {
+		t.Fatalf("account = %q", gotAccount)
 	}
 }
 

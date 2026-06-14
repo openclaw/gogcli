@@ -302,11 +302,18 @@ func (c *YouTubePlaylistsItemsListCmd) Run(ctx context.Context, flags *RootFlags
 	if playlistID == "" {
 		return usage("set --playlist-id ID (use LL for your liked videos; LL/private playlists require -a account)")
 	}
-	if playlistID == "LL" && !youtubeAccountSelectorPresent(flags) {
-		return usage("--playlist-id LL requires -a account")
-	}
 
-	svc, err := getYouTubeReadService(ctx, flags)
+	var svc *youtube.Service
+	var err error
+	if playlistID == "LL" {
+		account, accErr := requireAccount(flags)
+		if accErr != nil {
+			return accErr
+		}
+		svc, err = getYouTubeServiceForAccount(ctx, account)
+	} else {
+		svc, err = getYouTubeReadService(ctx, flags)
+	}
 	if err != nil {
 		return err
 	}
