@@ -33,6 +33,12 @@ type TimeRange struct {
 	Location *time.Location
 }
 
+const (
+	calendarExprToday     = "today"
+	calendarExprTomorrow  = "tomorrow"
+	calendarExprYesterday = "yesterday"
+)
+
 // getCalendarLocation fetches a calendar's timezone and returns it as a location.
 // Uses Calendars.Get (not CalendarList.Get) so it works for service accounts
 // whose "primary" calendar may not appear in their CalendarList.
@@ -234,7 +240,7 @@ func isDayExpr(expr string, now time.Time, loc *time.Location) bool {
 	}
 	exprLower := strings.ToLower(expr)
 	switch exprLower {
-	case "today", "tomorrow", "yesterday":
+	case calendarExprToday, calendarExprTomorrow, calendarExprYesterday:
 		return true
 	case "now":
 		return false

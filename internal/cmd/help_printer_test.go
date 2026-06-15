@@ -128,10 +128,30 @@ func TestHelpProfileNoColorEnv(t *testing.T) {
 }
 
 func TestHelpProfileAlways(t *testing.T) {
-	orig := os.Getenv("NO_COLOR")
-	t.Cleanup(func() { _ = os.Setenv("NO_COLOR", orig) })
+	orig, hadOrig := os.LookupEnv("NO_COLOR")
+	origCLIColor, hadCLIColor := os.LookupEnv("CLICOLOR")
+	origCLIColorForce, hadCLIColorForce := os.LookupEnv("CLICOLOR_FORCE")
+	t.Cleanup(func() {
+		if hadOrig {
+			_ = os.Setenv("NO_COLOR", orig)
+		} else {
+			_ = os.Unsetenv("NO_COLOR")
+		}
+		if hadCLIColor {
+			_ = os.Setenv("CLICOLOR", origCLIColor)
+		} else {
+			_ = os.Unsetenv("CLICOLOR")
+		}
+		if hadCLIColorForce {
+			_ = os.Setenv("CLICOLOR_FORCE", origCLIColorForce)
+		} else {
+			_ = os.Unsetenv("CLICOLOR_FORCE")
+		}
+	})
 
-	_ = os.Setenv("NO_COLOR", "")
+	_ = os.Unsetenv("NO_COLOR")
+	_ = os.Unsetenv("CLICOLOR")
+	_ = os.Unsetenv("CLICOLOR_FORCE")
 	if got := helpProfile(io.Discard, "always"); got != termenv.TrueColor {
 		t.Fatalf("expected truecolor profile")
 	}

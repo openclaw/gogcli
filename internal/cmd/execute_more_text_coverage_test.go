@@ -139,7 +139,7 @@ func TestExecute_ContactsGet_CustomFieldsSorted_Text(t *testing.T) {
 }
 
 func TestExecute_CalendarFreeBusy_Text(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(withPrimaryCalendar(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !(strings.Contains(r.URL.Path, "/freeBusy") && r.Method == http.MethodPost) {
 			http.NotFound(w, r)
 			return
@@ -152,7 +152,7 @@ func TestExecute_CalendarFreeBusy_Text(t *testing.T) {
 				},
 			},
 		})
-	}))
+	})))
 	defer srv.Close()
 
 	svc, err := calendar.NewService(context.Background(),

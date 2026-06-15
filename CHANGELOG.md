@@ -2,6 +2,10 @@
 
 ## 0.27.1 - Unreleased
 
+### Fixed
+
+- Calendar: accept relative and date-only `freebusy --from`/`--to` values using the same timezone-aware range parsing as events. (#806, #811) — thanks @privatenumber.
+
 ## 0.27.0 - 2026-06-14
 
 ### Added
