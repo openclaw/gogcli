@@ -17,6 +17,7 @@ import (
 const (
 	gmailMessageBodyFormatText = "text"
 	gmailMessageBodyFormatHTML = "html"
+	gmailTextTruncationMarker  = "... [truncated; use --full or --json]"
 )
 
 type GmailMessagesCmd struct {
@@ -336,8 +337,5 @@ func truncateRunes(s string, maxLen int) string {
 	if len(runes) <= maxLen {
 		return s
 	}
-	if maxLen <= 3 {
-		return string(runes[:maxLen])
-	}
-	return string(runes[:maxLen-3]) + "..."
+	return string(runes[:maxLen]) + gmailTextTruncationMarker
 }

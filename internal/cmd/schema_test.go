@@ -115,6 +115,51 @@ func TestExecute_SchemaIncludesAutomationContract(t *testing.T) {
 	}
 }
 
+func TestExecute_Schema_GmailTruncationHelp(t *testing.T) {
+	threadDoc := schemaForCommand(t, "gmail thread get")
+	threadFull := schemaFlagByName(t, threadDoc.Command, "full")
+	if threadFull.Help != "Show full message bodies without truncation" {
+		t.Fatalf("thread get --full help = %q", threadFull.Help)
+	}
+
+	messagesDoc := schemaForCommand(t, "gmail messages search")
+	messagesFull := schemaFlagByName(t, messagesDoc.Command, "full")
+	if messagesFull.Help != "Show full message bodies without truncation (implies --include-body)" {
+		t.Fatalf("messages search --full help = %q", messagesFull.Help)
+	}
+	includeBody := schemaFlagByName(t, messagesDoc.Command, "include-body")
+	if includeBody.Help != "Include decoded message body (JSON is full; text output is truncated)" {
+		t.Fatalf("messages search --include-body help = %q", includeBody.Help)
+	}
+}
+
+func schemaForCommand(t *testing.T, command string) schemaDoc {
+	t.Helper()
+	result := executeWithTestRuntime(t, []string{"schema", command}, nil)
+	if result.err != nil {
+		t.Fatalf("Execute schema %q: %v", command, result.err)
+	}
+	var doc schemaDoc
+	if err := json.Unmarshal([]byte(result.stdout), &doc); err != nil {
+		t.Fatalf("decode schema %q: %v", command, err)
+	}
+	if doc.Command == nil {
+		t.Fatalf("schema %q missing command", command)
+	}
+	return doc
+}
+
+func schemaFlagByName(t *testing.T, node *schemaNode, name string) schemaFlag {
+	t.Helper()
+	for _, flag := range node.Flags {
+		if flag.Name == name {
+			return flag
+		}
+	}
+	t.Fatalf("%s missing --%s", node.Path, name)
+	return schemaFlag{}
+}
+
 func TestExecute_SchemaRejectsPlainMode(t *testing.T) {
 	var runErr error
 	errText := captureStderr(t, func() {

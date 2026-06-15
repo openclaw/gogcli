@@ -199,6 +199,86 @@ func TestExecute_GmailMessagesSearch_JSON_IncludeBody(t *testing.T) {
 	}
 }
 
+func TestExecute_GmailMessagesSearch_Text_IncludeBodyTruncationDiscoverable(t *testing.T) {
+	longBody := strings.Repeat("b", 240)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := r.URL.Path
+		switch {
+		case strings.Contains(path, "/users/me/messages") && !strings.Contains(path, "/users/me/messages/"):
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"messages": []map[string]any{
+					{"id": "m1", "threadId": "t1"},
+				},
+			})
+			return
+		case strings.Contains(path, "/users/me/messages/m1"):
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"id":       "m1",
+				"threadId": "t1",
+				"labelIds": []string{"INBOX"},
+				"payload": map[string]any{
+					"mimeType": "text/plain",
+					"headers": []map[string]any{
+						{"name": "From", "value": "Example <no-reply@example.com>"},
+						{"name": "Subject", "value": "Receipt"},
+						{"name": "Date", "value": "Mon, 02 Jan 2006 15:04:05 -0700"},
+					},
+					"body": map[string]any{
+						"data": encodeBase64URL(longBody),
+					},
+				},
+			})
+			return
+		case strings.Contains(path, "/users/me/labels"):
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"labels": []map[string]any{
+					{"id": "INBOX", "name": "INBOX", "type": "system"},
+				},
+			})
+			return
+		default:
+			http.NotFound(w, r)
+			return
+		}
+	}))
+	defer srv.Close()
+
+	svc := newGmailServiceFromServer(t, srv)
+
+	defaultResult := executeWithGmailTestService(
+		t,
+		[]string{"--plain", "--account", "a@b.com", "gmail", "messages", "search", "from:example.com", "--include-body"},
+		svc,
+	)
+	if defaultResult.err != nil {
+		t.Fatalf("Execute: %v\nstderr=%q", defaultResult.err, defaultResult.stderr)
+	}
+	if !strings.Contains(defaultResult.stdout, strings.Repeat("b", 200)+gmailTextTruncationMarker) {
+		t.Fatalf("expected actionable truncation marker, got: %q", defaultResult.stdout)
+	}
+	if strings.Contains(defaultResult.stdout, longBody) {
+		t.Fatalf("expected body to be truncated, got: %q", defaultResult.stdout)
+	}
+
+	fullResult := executeWithGmailTestService(
+		t,
+		[]string{"--plain", "--account", "a@b.com", "gmail", "messages", "search", "from:example.com", "--full"},
+		svc,
+	)
+	if fullResult.err != nil {
+		t.Fatalf("Execute full: %v\nstderr=%q", fullResult.err, fullResult.stderr)
+	}
+	if strings.Contains(fullResult.stdout, "[truncated") {
+		t.Fatalf("expected full output without truncation marker, got: %q", fullResult.stdout)
+	}
+	if !strings.Contains(fullResult.stdout, longBody) {
+		t.Fatalf("expected full body, got: %q", fullResult.stdout)
+	}
+}
+
 func TestExecute_GmailMessagesSearch_AppliesSystemLabelFilters(t *testing.T) {
 	var gotQuery string
 	var gotLabels []string

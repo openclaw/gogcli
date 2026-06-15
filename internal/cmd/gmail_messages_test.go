@@ -16,18 +16,19 @@ import (
 func TestSanitizeMessageBody_TruncateUTF8(t *testing.T) {
 	long := strings.Repeat("€", 210)
 	got := sanitizeMessageBody(long, false)
-	if !strings.HasSuffix(got, "...") {
+	if !strings.HasSuffix(got, gmailTextTruncationMarker) {
 		t.Fatalf("expected truncation suffix, got %q", got)
 	}
-	if len([]rune(got)) != 200 {
-		t.Fatalf("expected 200 runes, got %d", len([]rune(got)))
+	preview := strings.TrimSuffix(got, gmailTextTruncationMarker)
+	if len([]rune(preview)) != 200 {
+		t.Fatalf("expected 200 preview runes, got %d", len([]rune(preview)))
 	}
 }
 
 func TestSanitizeMessageBody_FullSkipsTruncation(t *testing.T) {
 	long := strings.Repeat("€", 210)
 	got := sanitizeMessageBody(long, true)
-	if strings.HasSuffix(got, "...") {
+	if strings.Contains(got, "[truncated") {
 		t.Fatalf("expected no truncation with full=true, got %q", got)
 	}
 	if len([]rune(got)) != 210 {

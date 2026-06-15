@@ -134,7 +134,7 @@ func TestExecute_GmailThread_Text_FullFlag(t *testing.T) {
 			t.Fatalf("Execute: %v", result.err)
 		}
 
-		if !strings.Contains(result.stdout, "[truncated") {
+		if !strings.Contains(result.stdout, gmailTextTruncationMarker) {
 			t.Fatalf("expected truncated output, got=%q", result.stdout)
 		}
 		if strings.Contains(result.stdout, longBody) {

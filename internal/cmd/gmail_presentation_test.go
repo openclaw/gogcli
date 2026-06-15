@@ -59,7 +59,7 @@ func TestGmailPresentationSchemas(t *testing.T) {
 			t,
 			got,
 			"ID\tTHREAD\tDATE\tFROM\tSUBJECT\tLABELS\tBODY\n"+
-				"m1\t\t\t\t\t\t"+strings.Repeat("x", 197)+"...\n",
+				"m1\t\t\t\t\t\t"+strings.Repeat("x", 200)+gmailTextTruncationMarker+"\n",
 		)
 	})
 
