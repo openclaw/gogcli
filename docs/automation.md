@@ -45,6 +45,10 @@ being silently ignored. Explicit output flags override `GOG_JSON` and
 `GOG_PLAIN` environment defaults. `gog schema` always emits JSON and rejects
 `--plain`.
 
+`--fields` is accepted as an alias for `--select` output projection on commands
+that do not define their own API field-mask `--fields`; commands with a local
+field-mask flag keep that command-specific meaning.
+
 Use `--no-input` in CI and unattended processes. Use `--wrap-untrusted` when
 Google-hosted free text will be consumed by an LLM or another instruction-aware
 system.

@@ -491,6 +491,9 @@ Useful global flags:
 - `--client <name>`: select a stored OAuth client
 - `--json`: JSON stdout
 - `--plain`: stable parseable text stdout
+- `--select <csv>`: in JSON mode, project output fields. `--fields` is
+  accepted as an alias on commands that do not define their own API field-mask
+  `--fields`.
 - `--wrap-untrusted`: in JSON/raw output, wrap fetched free-text fields with
   external untrusted-content markers for LLM/agent consumption
 - `--dry-run`: print intended actions where a command supports planning

@@ -23,6 +23,10 @@ stable exit codes, command guards, and untrusted-content wrapping apply across
 the CLI. Root help summarizes the human contract; `schema` exposes command
 syntax, stable exit codes, and effective safety state for automation.
 
+For JSON output projection, `--fields` is accepted as an alias for `--select` on
+commands that do not define their own API field-mask `--fields`; commands with a
+local field-mask flag keep that command-specific meaning.
+
 Pick the account explicitly for API work:
 
 ```bash
