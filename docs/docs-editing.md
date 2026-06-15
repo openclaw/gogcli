@@ -129,8 +129,10 @@ gog docs paragraphs list <docId> --style NORMAL_TEXT --tab "Notes"
 
 All four commands accept `--tab` by title or ID. JSON output includes stable
 element indexes and Docs API positions; `--plain` emits headerless TSV for
-shell pipelines. Paragraph JSON also reports `isEmpty` plus each text run's
-UTF-16 range, text style, and link metadata.
+shell pipelines. Heading and paragraph JSON includes `headingId` when present,
+which can be used in a `#heading=<id>` document URL. Paragraph JSON also reports
+`isEmpty` plus each text run's UTF-16 range, text style, and link metadata,
+including bookmark and heading link IDs.
 
 Command pages:
 

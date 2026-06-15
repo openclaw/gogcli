@@ -231,6 +231,15 @@ func TestDocsHeadingsAndParagraphsJSONIncludeHeadingID(t *testing.T) {
 	if len(headings.Headings) != 1 || headings.Headings[0].HeadingID != "h.section" {
 		t.Fatalf("headings = %#v", headings.Headings)
 	}
+	var rawHeadings struct {
+		Headings []map[string]json.RawMessage `json:"headings"`
+	}
+	if err := json.Unmarshal(output.Bytes(), &rawHeadings); err != nil {
+		t.Fatalf("unmarshal raw headings: %v\n%s", err, output.String())
+	}
+	if _, ok := rawHeadings.Headings[0]["headingId"]; !ok {
+		t.Fatalf("heading JSON missing headingId: %s", output.String())
+	}
 
 	output.Reset()
 	if err := runKong(t, &DocsParagraphsListCmd{}, []string{"doc1"}, ctx, &RootFlags{Account: "a@b.com"}); err != nil {
@@ -247,6 +256,18 @@ func TestDocsHeadingsAndParagraphsJSONIncludeHeadingID(t *testing.T) {
 	}
 	if paragraphs.Paragraphs[1].HeadingID != "" {
 		t.Fatalf("normal paragraph headingId = %q, want empty", paragraphs.Paragraphs[1].HeadingID)
+	}
+	var rawParagraphs struct {
+		Paragraphs []map[string]json.RawMessage `json:"paragraphs"`
+	}
+	if err := json.Unmarshal(output.Bytes(), &rawParagraphs); err != nil {
+		t.Fatalf("unmarshal raw paragraphs: %v\n%s", err, output.String())
+	}
+	if _, ok := rawParagraphs.Paragraphs[0]["headingId"]; !ok {
+		t.Fatalf("heading paragraph JSON missing headingId: %s", output.String())
+	}
+	if _, ok := rawParagraphs.Paragraphs[1]["headingId"]; ok {
+		t.Fatalf("normal paragraph JSON includes empty headingId: %s", output.String())
 	}
 }
 

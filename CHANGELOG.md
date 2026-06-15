@@ -5,6 +5,7 @@
 ### Added
 
 - Contacts: add guarded `contacts dedupe --apply` merging with exact dry-run plans, repeatable `--resource` scoping, confirmation, full updatable-field preservation, etag checks before deletion, and refusal of ambiguous or unmergeable groups. (#815) — thanks @privatenumber.
+- Docs: expose heading IDs in `docs headings list --json` and `docs paragraphs list --json` for building in-document deep links. (#819, #820) — thanks @sebsnyk.
 
 ### Changed
 
