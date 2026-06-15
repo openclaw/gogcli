@@ -45,6 +45,18 @@ Then inspect the exact mutation plan without changing contacts:
 gog contacts dedupe --apply --dry-run --json
 ```
 
+For automation, copy the contact resource names from the reviewed preview and
+scope both dry-run and apply to that exact set:
+
+```bash
+gog contacts dedupe \
+  --resource people/123 \
+  --resource people/456 \
+  --apply \
+  --dry-run \
+  --json
+```
+
 Apply interactively:
 
 ```bash
@@ -54,7 +66,12 @@ gog contacts dedupe --apply
 Non-interactive automation must explicitly skip confirmation:
 
 ```bash
-gog contacts dedupe --apply --force --json
+gog contacts dedupe \
+  --resource people/123 \
+  --resource people/456 \
+  --apply \
+  --force \
+  --json
 ```
 
 ## Output
@@ -82,6 +99,8 @@ Applied output also includes:
 
 - requires confirmation unless `--force` is present
 - honors `--dry-run`
+- supports repeatable `--resource` scoping so automation can apply an exact
+  reviewed contact set
 - reads contact-source data only
 - refreshes each contact before planning
 - updates the selected primary before deleting anything

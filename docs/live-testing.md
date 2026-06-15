@@ -34,6 +34,7 @@ available services. Recent-feature coverage includes:
 - Drive shortcuts, revisions, and persisted changes polling.
 - Gmail thread-aware drafts, attachment metadata preservation/clearing, and
   explicit thread archive semantics.
+- Contacts duplicate merge dry-run, apply, merged-field readback, and cleanup.
 - CLI schema exit codes, Git-style help, output-mode precedence, and early
   validation errors.
 

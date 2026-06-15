@@ -23,6 +23,19 @@ func TestParseContactsDedupeMatch(t *testing.T) {
 	}
 }
 
+func TestNormalizeContactsDedupeResources(t *testing.T) {
+	got, err := normalizeContactsDedupeResources([]string{" people/1 ", "people/2", "people/1"})
+	if err != nil {
+		t.Fatalf("normalize: %v", err)
+	}
+	if !reflect.DeepEqual(got, []string{"people/1", "people/2"}) {
+		t.Fatalf("resources = %#v", got)
+	}
+	if _, err := normalizeContactsDedupeResources([]string{"contacts/1"}); err == nil {
+		t.Fatal("expected invalid resource error")
+	}
+}
+
 func TestBuildContactsDedupeGroupsTransitive(t *testing.T) {
 	contacts := []*people.Person{
 		testDedupePerson("people/1", "Ada One", []string{"ada@example.com"}, nil),
@@ -55,6 +68,47 @@ func TestBuildContactsDedupeGroupsNameOptIn(t *testing.T) {
 	}
 	if groups := buildContactsDedupeGroups(contacts, contactsDedupeMatch{Name: true}); len(groups) != 1 {
 		t.Fatalf("name match should find one group, got %d", len(groups))
+	}
+}
+
+func TestContactsDedupeExecuteScopedResources(t *testing.T) {
+	svc, closeSrv := newPeopleService(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet || (r.URL.Path != "/v1/people/1" && r.URL.Path != "/v1/people/2") {
+			http.NotFound(w, r)
+			return
+		}
+		resource := strings.TrimPrefix(r.URL.Path, "/v1/")
+		if got := r.URL.Query()["sources"]; !reflect.DeepEqual(got, []string{contactsDedupeContactSource}) {
+			t.Fatalf("sources = %#v", got)
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"resourceName":   resource,
+			"names":          []map[string]any{{"displayName": "Ada"}},
+			"emailAddresses": []map[string]any{{"value": "ada@example.com"}},
+		})
+	}))
+	defer closeSrv()
+
+	result := executeWithPeopleTestServices(
+		t,
+		[]string{
+			"--json", "--account", "a@example.com", "contacts", "dedupe",
+			"--resource", "people/1", "--resource", "people/2",
+		},
+		peopleTestServices{Contacts: fixedPeopleTestService(svc)},
+	)
+	if result.err != nil {
+		t.Fatalf("Execute: %v\nstdout=%s\nstderr=%s", result.err, result.stdout, result.stderr)
+	}
+	var payload struct {
+		Scanned int   `json:"scanned"`
+		Groups  []any `json:"groups"`
+	}
+	if err := json.Unmarshal([]byte(result.stdout), &payload); err != nil {
+		t.Fatalf("decode output: %v\n%s", err, result.stdout)
+	}
+	if payload.Scanned != 2 || len(payload.Groups) != 1 {
+		t.Fatalf("output = %#v", payload)
 	}
 }
 

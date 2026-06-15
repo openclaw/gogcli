@@ -323,6 +323,9 @@ gog contacts dedupe --match email,phone,name
 # Inspect the mutation plan, then apply with confirmation.
 gog contacts dedupe --apply --dry-run --json
 gog contacts dedupe --apply
+
+# Scope automation to exact reviewed contact resources.
+gog contacts dedupe --resource people/123 --resource people/456 --apply --force --json
 ```
 
 ### Docs

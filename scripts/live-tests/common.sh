@@ -13,6 +13,7 @@ LIVE_CALENDAR_CLEANUP_EVENTS=()
 LIVE_GMAIL_CLEANUP_DRAFTS=()
 LIVE_GMAIL_CLEANUP_THREADS=()
 LIVE_PHOTOS_PICKER_CLEANUP_IDS=()
+LIVE_CONTACT_CLEANUP_IDS=()
 
 skip() {
   local key="$1"
@@ -256,6 +257,10 @@ register_photos_picker_cleanup() {
   [ -n "${1:-}" ] && LIVE_PHOTOS_PICKER_CLEANUP_IDS+=("$1")
 }
 
+register_contact_cleanup() {
+  [ -n "${1:-}" ] && LIVE_CONTACT_CLEANUP_IDS+=("$1")
+}
+
 cleanup_live_resources() {
   local entry calendar_id event_id id
 
@@ -274,6 +279,9 @@ cleanup_live_resources() {
   done
   for id in "${LIVE_PHOTOS_PICKER_CLEANUP_IDS[@]}"; do
     gog photos picker delete "$id" --force --json >/dev/null 2>&1 || true
+  done
+  for id in "${LIVE_CONTACT_CLEANUP_IDS[@]}"; do
+    gog contacts delete "$id" --force >/dev/null 2>&1 || true
   done
   for id in "${LIVE_DRIVE_CLEANUP_IDS[@]}"; do
     gog drive delete "$id" --force >/dev/null 2>&1 || true
