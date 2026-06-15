@@ -74,6 +74,7 @@ type docsParagraphListItem struct {
 	StartIndex int64  `json:"startIndex"`
 	EndIndex   int64  `json:"endIndex"`
 	Style      string `json:"style"`
+	HeadingID  string `json:"headingId,omitempty"`
 	Text       string `json:"text"`
 }
 
@@ -82,6 +83,7 @@ type docsParagraphInspectItem struct {
 	StartIndex int64              `json:"startIndex"`
 	EndIndex   int64              `json:"endIndex"`
 	Style      string             `json:"style"`
+	HeadingID  string             `json:"headingId,omitempty"`
 	Text       string             `json:"text"`
 	IsEmpty    bool               `json:"isEmpty"`
 	Runs       []docsParagraphRun `json:"runs"`
@@ -212,6 +214,7 @@ func (c *DocsHeadingsListCmd) Run(ctx context.Context, flags *RootFlags) error {
 			StartIndex: paragraph.StartIndex,
 			EndIndex:   paragraph.EndIndex,
 			Style:      paragraph.Style,
+			HeadingID:  paragraph.HeadingID,
 			Text:       paragraph.Text,
 		})
 	}
@@ -236,6 +239,7 @@ func (c *DocsParagraphsListCmd) Run(ctx context.Context, flags *RootFlags) error
 			StartIndex: paragraph.StartIndex,
 			EndIndex:   paragraph.EndIndex,
 			Style:      paragraph.Style,
+			HeadingID:  paragraph.HeadingID,
 			Text:       paragraph.Text,
 		}
 		items = append(items, item)
@@ -244,6 +248,7 @@ func (c *DocsParagraphsListCmd) Run(ctx context.Context, flags *RootFlags) error
 			StartIndex: item.StartIndex,
 			EndIndex:   item.EndIndex,
 			Style:      item.Style,
+			HeadingID:  item.HeadingID,
 			Text:       item.Text,
 			IsEmpty:    paragraph.IsEmpty,
 			Runs:       paragraph.Runs,
@@ -488,6 +493,7 @@ type docsEnumeratedParagraph struct {
 	StartIndex int64
 	EndIndex   int64
 	Style      string
+	HeadingID  string
 	Text       string
 	IsEmpty    bool
 	Runs       []docsParagraphRun
@@ -506,15 +512,19 @@ func enumerateDocsParagraphs(doc *docs.Document) []docsEnumeratedParagraph {
 			}
 			if element.Paragraph != nil {
 				style := docsNamedStyleNormalText
-				if element.Paragraph.ParagraphStyle != nil &&
-					element.Paragraph.ParagraphStyle.NamedStyleType != "" {
-					style = element.Paragraph.ParagraphStyle.NamedStyleType
+				headingID := ""
+				if paragraphStyle := element.Paragraph.ParagraphStyle; paragraphStyle != nil {
+					if paragraphStyle.NamedStyleType != "" {
+						style = paragraphStyle.NamedStyleType
+					}
+					headingID = paragraphStyle.HeadingId
 				}
 				isEmpty, runs := inspectDocsParagraph(element.Paragraph)
 				paragraphs = append(paragraphs, docsEnumeratedParagraph{
 					StartIndex: element.StartIndex,
 					EndIndex:   element.EndIndex,
 					Style:      style,
+					HeadingID:  headingID,
 					Text:       paragraphText(element.Paragraph),
 					IsEmpty:    isEmpty,
 					Runs:       runs,
