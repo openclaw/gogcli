@@ -121,7 +121,7 @@ function commandSlug(command) {
   return slug || "gog";
 }
 
-function checkMarkdownLinks(dir) {
+export function checkMarkdownLinks(dir) {
   const broken = [];
   for (const file of allMarkdown(dir)) {
     const markdown = fs.readFileSync(file, "utf8");
@@ -133,7 +133,8 @@ function checkMarkdownLinks(dir) {
       if (!rawTarget) continue;
       if (/^[a-z][a-z0-9+.-]*:/i.test(rawTarget)) continue;
 
-      const [targetPath, rawAnchor] = rawTarget.split("#", 2);
+      const [rawPath, rawAnchor] = rawTarget.split("#", 2);
+      const targetPath = decodeMarkdownTarget(rawPath);
       if (/^(url|path|file)$/i.test(targetPath)) continue;
 
       const resolved = targetPath ? path.resolve(path.dirname(file), targetPath) : file;
@@ -142,9 +143,10 @@ function checkMarkdownLinks(dir) {
         continue;
       }
 
-      if (rawAnchor && resolved.endsWith(".md")) {
+      if (rawAnchor && resolved.toLowerCase().endsWith(".md")) {
+        const anchor = decodeMarkdownTarget(rawAnchor);
         const targetHeadings = resolved === file ? headings : headingAnchors(fs.readFileSync(resolved, "utf8"));
-        if (!targetHeadings.has(rawAnchor)) {
+        if (!targetHeadings.has(anchor)) {
           broken.push(`${path.relative(root, file)} -> ${rawTarget}`);
         }
       }
@@ -158,9 +160,17 @@ function splitMarkdownTarget(rawTarget) {
   return targetWithoutTitle.replace(/^<|>$/g, "");
 }
 
+function decodeMarkdownTarget(value) {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+}
+
 export function headingAnchors(markdown) {
   const anchors = new Set();
-  const seen = new Map();
+  const occurrences = new Map();
   let fence = null;
   for (const rawLine of markdown.split("\n")) {
     const line = rawLine.endsWith("\r") ? rawLine.slice(0, -1) : rawLine;
@@ -184,46 +194,29 @@ export function headingAnchors(markdown) {
     const match = line.match(/^(#{1,6})\s+(.*)$/);
     if (!match) continue;
 
-    const base = slugifyHeading(match[2]);
+    const heading = match[2].replace(/\s+#+\s*$/, "").trim();
+    const base = slugifyHeading(heading);
     if (!base) continue;
 
-    const count = seen.get(base) || 0;
-    seen.set(base, count + 1);
-    anchors.add(count === 0 ? base : `${base}-${count}`);
+    let anchor = base;
+    while (occurrences.has(anchor)) {
+      const count = (occurrences.get(base) || 0) + 1;
+      occurrences.set(base, count);
+      anchor = `${base}-${count}`;
+    }
+    occurrences.set(anchor, 0);
+    anchors.add(anchor);
   }
   return anchors;
 }
 
 function slugifyHeading(text) {
-  let out = "";
-  let inTag = false;
-  let lastDash = false;
-  for (const char of text.toLowerCase()) {
-    if (char === "`") {
-      continue;
-    }
-    if (char === "<") {
-      inTag = true;
-      continue;
-    }
-    if (char === ">") {
-      inTag = false;
-      continue;
-    }
-    if (inTag) {
-      continue;
-    }
-    const code = char.charCodeAt(0);
-    const ok = (code >= 97 && code <= 122) || (code >= 48 && code <= 57);
-    if (ok) {
-      out += char;
-      lastDash = false;
-    } else if (!lastDash) {
-      out += "-";
-      lastDash = true;
-    }
-  }
-  return out.replace(/^-+|-+$/g, "");
+  return text
+    .replace(/<[^>]*>/g, "")
+    .replace(/`/g, "")
+    .toLowerCase()
+    .replace(/[^\p{L}\p{M}\p{N}\p{Pc}\- ]/gu, "")
+    .replace(/ /g, "-");
 }
 
 function allMarkdown(dir) {
