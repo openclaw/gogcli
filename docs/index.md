@@ -40,7 +40,7 @@ gog slides create-from-markdown "Weekly update" --content-file slides.md
 - **Runtime discovery.** `gog schema --json` exposes command shape, stable exit codes, output modes, and effective safety state.
 - **Multi-account, multi-client.** Many Google accounts and OAuth client projects in one config; OAuth, direct access tokens, ADC, and Workspace service accounts all supported.
 - **One automation contract.** Humans, scripts, CI, and agents use the same commands, with JSON/TSV output, non-interactive operation, stable exit codes, untrusted-content wrapping, runtime command guards, and baked safety profiles.
-- **Read-only audits.** Drive `tree`, `du`, `inventory`; Contacts `dedupe` preview; raw API JSON dumps without ever mutating remote state.
+- **Preview-first audits.** Drive `tree`, `du`, `inventory`; Contacts `dedupe` previews by default and requires explicit `--apply` for guarded merges; raw API JSON dumps never mutate remote state.
 - **Generated reference.** Every command has a docs page produced from `gog schema --json`.
 
 ## Pick your path

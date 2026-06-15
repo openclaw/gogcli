@@ -259,7 +259,7 @@ Generated pages: 646.
     - [gog config unset](gog-config-unset.md) - Unset a config value
   - [gog contacts](gog-contacts.md) - Google Contacts
     - [gog contacts create](gog-contacts-create.md) - Create a contact
-    - [gog contacts dedupe](gog-contacts-dedupe.md) - Find likely duplicate contacts (preview only)
+    - [gog contacts dedupe](gog-contacts-dedupe.md) - Find likely duplicate contacts and optionally merge them
     - [gog contacts delete](gog-contacts-delete.md) - Delete a contact
     - [gog contacts directory](gog-contacts-directory.md) - Directory contacts
       - [gog contacts directory list](gog-contacts-directory-list.md) - List people from the Workspace directory

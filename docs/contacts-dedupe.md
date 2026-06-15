@@ -1,11 +1,11 @@
-# Contacts Dedupe Preview
+# Contacts Dedupe
 
 read_when:
 - Finding duplicate Google Contacts.
 - Reviewing or changing `gog contacts dedupe`.
 
 `gog contacts dedupe` finds likely duplicate personal contacts and prints a
-merge plan. It is preview-only: it does not merge, update, or delete contacts.
+merge plan. Preview is the default; `--apply` performs the reviewed plan.
 
 ## Command Page
 
@@ -31,6 +31,32 @@ Name matching is opt-in because it can produce false positives:
 gog contacts dedupe --match email,phone,name
 ```
 
+## Apply A Merge
+
+Review the plan first:
+
+```bash
+gog contacts dedupe --json
+```
+
+Then inspect the exact mutation plan without changing contacts:
+
+```bash
+gog contacts dedupe --apply --dry-run --json
+```
+
+Apply interactively:
+
+```bash
+gog contacts dedupe --apply
+```
+
+Non-interactive automation must explicitly skip confirmation:
+
+```bash
+gog contacts dedupe --apply --force --json
+```
+
 ## Output
 
 The command groups contacts that share a matching key. JSON output includes:
@@ -42,16 +68,34 @@ The command groups contacts that share a matching key. JSON output includes:
 - `matched_on`: duplicate email/phone/name keys that caused the group
 - `members`: all contacts in the group
 
+Applied output also includes:
+
+- `applied`: whether mutations ran
+- `groups_merged`: groups completed
+- `contacts_deleted`: redundant contacts deleted
+- `update_fields`: People API fields unioned into the primary contact
+- `delete`: redundant contacts removed after their data was copied
+
 ## Safety
 
-`contacts dedupe` is read-only. There is no apply flag.
+`contacts dedupe` remains read-only unless `--apply` is present. Apply mode:
 
-Use `--dry-run` in automation anyway when you want a uniform safety habit across
-commands:
+- requires confirmation unless `--force` is present
+- honors `--dry-run`
+- reads contact-source data only
+- refreshes each contact before planning
+- updates the selected primary before deleting anything
+- rechecks each redundant contact's etag immediately before deletion
+- refuses groups with conflicting singleton fields (`names`, `birthdays`,
+  `biographies`, or `genders`)
+- refuses secondary contacts with photos or other fields the People API cannot
+  preserve through `updateContact`
 
-```bash
-gog contacts dedupe --dry-run --json
-```
+The People API does not expose Google Contacts' native merge operation. gog
+therefore unions all API-updatable fields into the selected primary, then
+deletes redundant contacts sequentially. If a request fails, the command stops
+and reports completed groups/deletions; copied data remains on the primary and
+undeleted contacts remain intact.
 
 Use `--fail-empty` in scheduled checks when "no duplicates" should be reported
 as a distinct exit code:

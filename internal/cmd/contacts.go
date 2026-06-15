@@ -16,7 +16,7 @@ type ContactsCmd struct {
 	List      ContactsListCmd      `cmd:"" name:"list" aliases:"ls" help:"List contacts"`
 	Get       ContactsGetCmd       `cmd:"" name:"get" aliases:"info,show" help:"Get a contact"`
 	Export    ContactsExportCmd    `cmd:"" name:"export" help:"Export contacts as vCard (.vcf)"`
-	Dedupe    ContactsDedupeCmd    `cmd:"" name:"dedupe" help:"Find likely duplicate contacts (preview only)"`
+	Dedupe    ContactsDedupeCmd    `cmd:"" name:"dedupe" help:"Find likely duplicate contacts and optionally merge them"`
 	Create    ContactsCreateCmd    `cmd:"" name:"create" aliases:"add,new" help:"Create a contact"`
 	Update    ContactsUpdateCmd    `cmd:"" name:"update" aliases:"edit,set" help:"Update a contact"`
 	Delete    ContactsDeleteCmd    `cmd:"" name:"delete" aliases:"rm,del,remove" help:"Delete a contact"`

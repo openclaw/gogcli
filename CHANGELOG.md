@@ -2,6 +2,10 @@
 
 ## 0.27.2 - Unreleased
 
+### Added
+
+- Contacts: add guarded `contacts dedupe --apply` merging with exact dry-run plans, confirmation, full updatable-field preservation, etag checks before deletion, and refusal of ambiguous or unmergeable groups. (#815) — thanks @privatenumber.
+
 ### Changed
 
 - Gmail: show ordinary message bodies in full by default in text output, retain a generous cap for unusually large messages, and point truncated output to `--full` or `--json`. (#807) — thanks @privatenumber.

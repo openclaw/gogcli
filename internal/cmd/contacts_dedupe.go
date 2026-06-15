@@ -14,6 +14,7 @@ import (
 type ContactsDedupeCmd struct {
 	Match     string `name:"match" help:"Match fields: email,phone,name" default:"email,phone"`
 	Max       int64  `name:"max" aliases:"limit" help:"Max contacts to scan (0 = all)" default:"0"`
+	Apply     bool   `name:"apply" aliases:"merge" help:"Merge duplicate groups and delete redundant contacts (requires confirmation)"`
 	FailEmpty bool   `name:"fail-empty" aliases:"non-empty,require-results" help:"Exit with code 3 if no duplicates"`
 }
 
@@ -42,13 +43,34 @@ func (c *ContactsDedupeCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 
 	groups := buildContactsDedupeGroups(contacts, match)
-	if err := writeContactsDedupe(ctx, u, groups, len(contacts)); err != nil {
-		return err
-	}
 	if len(groups) == 0 {
+		if writeErr := writeContactsDedupe(ctx, u, groups, len(contacts)); writeErr != nil {
+			return writeErr
+		}
 		return failEmptyExit(c.FailEmpty)
 	}
-	return nil
+	if !c.Apply {
+		return writeContactsDedupe(ctx, u, groups, len(contacts))
+	}
+
+	plans, err := prepareContactsDedupeApply(ctx, svc, groups, match)
+	if err != nil {
+		return err
+	}
+	deleteCount := contactsDedupeDeleteCount(plans)
+	if u != nil {
+		u.Err().Linef("Prepared %d duplicate group(s); %d redundant contact(s) will be deleted", len(plans), deleteCount)
+	}
+	if confirmErr := dryRunAndConfirmDestructive(ctx, flags, "contacts.dedupe.apply", contactsDedupeApplyPayload(len(contacts), plans),
+		contactsDedupeApplyAction(len(plans), deleteCount)); confirmErr != nil {
+		return confirmErr
+	}
+
+	result, err := applyContactsDedupePlans(ctx, svc, len(contacts), plans)
+	if err != nil {
+		return err
+	}
+	return writeContactsDedupeApplyResult(ctx, u, result)
 }
 
 type contactsDedupeMatch struct {
@@ -92,6 +114,7 @@ func contactsDedupeList(ctx context.Context, svc *people.Service, maxResults int
 			PageSize(pageSize).
 			PageToken(pageToken).
 			RequestSyncToken(false).
+			Sources("READ_SOURCE_TYPE_CONTACT").
 			Context(ctx).
 			Do()
 		if err != nil {

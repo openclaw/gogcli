@@ -17,7 +17,7 @@ gog contacts (contact) <command> [flags]
 ## Subcommands
 
 - [gog contacts create](gog-contacts-create.md) - Create a contact
-- [gog contacts dedupe](gog-contacts-dedupe.md) - Find likely duplicate contacts (preview only)
+- [gog contacts dedupe](gog-contacts-dedupe.md) - Find likely duplicate contacts and optionally merge them
 - [gog contacts delete](gog-contacts-delete.md) - Delete a contact
 - [gog contacts directory](gog-contacts-directory.md) - Directory contacts
 - [gog contacts export](gog-contacts-export.md) - Export contacts as vCard (.vcf)
