@@ -81,7 +81,7 @@ func (c *DriveActivityQueryCmd) Run(ctx context.Context, flags *RootFlags) error
 			sanitizeTab(driveActivityTargets(activity.Targets)),
 		)
 	}
-	printNextPageHint(u, nextPageToken)
+	printNextPageHintWithAll(u, nextPageToken, "--all/--all-pages")
 	return nil
 }
 

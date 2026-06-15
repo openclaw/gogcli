@@ -92,7 +92,7 @@ func (c *KeepListCmd) Run(ctx context.Context, flags *RootFlags, keep *KeepCmd) 
 		}
 		fmt.Fprintf(w, "%s\t%s\t%s\n", n.Name, title, n.UpdateTime)
 	}
-	printNextPageHint(u, nextPageToken)
+	printNextPageHintWithAll(u, nextPageToken, "--all/--all-pages")
 	return nil
 }
 

@@ -167,7 +167,7 @@ func writeDriveCommentList(ctx context.Context, u *ui.UI, opts driveCommentListO
 	} else {
 		printCompactCommentTable(ctx, comments, opts.includeQuoted)
 	}
-	printNextPageHint(u, nextPageToken)
+	printNextPageHintWithAll(u, nextPageToken, "--all/--all-pages")
 	return nil
 }
 

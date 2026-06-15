@@ -109,7 +109,7 @@ func (c *ContactsDirectoryListCmd) Run(ctx context.Context, flags *RootFlags) er
 	); err != nil {
 		return err
 	}
-	printNextPageHint(u, nextPageToken)
+	printNextPageHintWithAll(u, nextPageToken, "--all/--all-pages")
 	return nil
 }
 
@@ -203,7 +203,7 @@ func (c *ContactsDirectorySearchCmd) Run(ctx context.Context, flags *RootFlags) 
 	); err != nil {
 		return err
 	}
-	printNextPageHint(u, nextPageToken)
+	printNextPageHintWithAll(u, nextPageToken, "--all/--all-pages")
 	return nil
 }
 
@@ -299,7 +299,7 @@ func (c *ContactsOtherListCmd) Run(ctx context.Context, flags *RootFlags) error 
 	); err != nil {
 		return err
 	}
-	printNextPageHint(u, nextPageToken)
+	printNextPageHintWithAll(u, nextPageToken, "--all/--all-pages")
 	return nil
 }
 

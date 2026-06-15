@@ -122,7 +122,7 @@ func (c *MeetHistoryCmd) Run(ctx context.Context, flags *RootFlags) error {
 		)
 	}
 
-	printNextPageHint(u, nextPageToken)
+	printNextPageHintWithAll(u, nextPageToken, "--all/--all-pages")
 
 	return nil
 }

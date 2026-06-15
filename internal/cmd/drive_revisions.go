@@ -98,7 +98,7 @@ func (c *DriveRevisionsListCmd) Run(ctx context.Context, flags *RootFlags) error
 			sanitizeTab(strings.Join(driveRevisionExportMIMEs(revision), ",")),
 		)
 	}
-	printNextPageHint(u, nextPageToken)
+	printNextPageHintWithAll(u, nextPageToken, "--all/--all-pages")
 	return nil
 }
 

@@ -78,6 +78,6 @@ func (c *GmailHistoryCmd) Run(ctx context.Context, flags *RootFlags) error {
 	for _, id := range ids {
 		u.Out().Println(id)
 	}
-	printNextPageHint(u, nextPageToken)
+	printNextPageHintWithAll(u, nextPageToken, "--all/--all-pages")
 	return nil
 }

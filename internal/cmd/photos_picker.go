@@ -491,6 +491,6 @@ func writePhotosPickerMediaItems(
 			height,
 		)
 	}
-	printNextPageHint(u, nextPageToken)
+	printNextPageHintWithAll(u, nextPageToken, "--all")
 	return nil
 }

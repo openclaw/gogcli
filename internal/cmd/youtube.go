@@ -352,7 +352,7 @@ func (c *YouTubePlaylistsItemsListCmd) Run(ctx context.Context, flags *RootFlags
 	); err != nil {
 		return err
 	}
-	printNextPageHint(u, nextPageToken)
+	printNextPageHintWithAll(u, nextPageToken, "--all/--all-pages")
 	return nil
 }
 
@@ -874,7 +874,7 @@ func (c *YouTubeSubscriptionsListCmd) Run(ctx context.Context, flags *RootFlags)
 	for _, s := range items {
 		printSubscriptionRow(w, s)
 	}
-	printNextPageHint(u, nextPageToken)
+	printNextPageHintWithAll(u, nextPageToken, "--all/--all-pages")
 
 	return nil
 }

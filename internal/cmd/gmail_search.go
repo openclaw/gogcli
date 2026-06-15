@@ -106,7 +106,7 @@ func (c *GmailSearchCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if err := outfmt.WriteTable(ctx, stdoutWriter(ctx), items, gmailThreadColumns()); err != nil {
 		return err
 	}
-	printNextPageHint(u, nextPageToken)
+	printNextPageHintWithAll(u, nextPageToken, "--all/--all-pages")
 	return nil
 }
 

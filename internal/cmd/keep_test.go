@@ -127,7 +127,7 @@ func TestKeepList_Plain(t *testing.T) {
 	if result.err != nil {
 		t.Fatalf("Execute: %v\nstderr=%q", result.err, result.stderr)
 	}
-	if !strings.Contains(result.stderr, "Next page") || !strings.Contains(result.stderr, "p2") {
+	if !strings.Contains(result.stderr, "# More results: use --all/--all-pages to fetch every page, or --page p2 for the next page") {
 		t.Fatalf("expected next page hint, got: %q", result.stderr)
 	}
 	if !strings.Contains(result.stdout, "notes/abc") {

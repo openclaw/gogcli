@@ -89,7 +89,7 @@ func (c *ClassroomStudentsListCmd) Run(ctx context.Context, flags *RootFlags) er
 	); err != nil {
 		return err
 	}
-	printNextPageHint(u, nextPageToken)
+	printNextPageHintWithAll(u, nextPageToken, "--all/--all-pages")
 	return nil
 }
 
@@ -312,7 +312,7 @@ func (c *ClassroomTeachersListCmd) Run(ctx context.Context, flags *RootFlags) er
 	); err != nil {
 		return err
 	}
-	printNextPageHint(u, nextPageToken)
+	printNextPageHintWithAll(u, nextPageToken, "--all/--all-pages")
 	return nil
 }
 

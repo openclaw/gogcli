@@ -169,7 +169,7 @@ func (c *ChatMessagesReactionsListCmd) Run(ctx context.Context, flags *RootFlags
 	); err != nil {
 		return err
 	}
-	printNextPageHint(u, nextPageToken)
+	printNextPageHintWithAll(u, nextPageToken, "--all")
 	return nil
 }
 

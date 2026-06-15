@@ -108,7 +108,7 @@ func (c *CalendarUsersCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if err := outfmt.WriteTable(ctx, stdoutWriter(ctx), rows, calendarUserColumns()); err != nil {
 		return err
 	}
-	printNextPageHint(u, nextPageToken)
+	printNextPageHintWithAll(u, nextPageToken, "--all/--all-pages")
 
 	u.Err().Println("\nTip: Use any email above as a calendar ID, e.g.:")
 	if len(rows) > 0 {

@@ -230,7 +230,7 @@ func TestExecute_PeopleSearch_Text(t *testing.T) {
 	if result.err != nil {
 		t.Fatalf("Execute: %v", result.err)
 	}
-	if !strings.Contains(result.stderr, "# Next page: --page npt") {
+	if !strings.Contains(result.stderr, "# More results: use --all/--all-pages to fetch every page, or --page npt for the next page") {
 		t.Fatalf("unexpected stderr=%q", result.stderr)
 	}
 	if !strings.Contains(result.stdout, "RESOURCE") || !strings.Contains(result.stdout, "people/abc") || !strings.Contains(result.stdout, "Ada Lovelace") {

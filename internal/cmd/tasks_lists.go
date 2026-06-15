@@ -79,7 +79,7 @@ func (c *TasksListsListCmd) Run(ctx context.Context, flags *RootFlags) error {
 	for _, tl := range items {
 		fmt.Fprintf(w, "%s\t%s\n", tl.Id, tl.Title)
 	}
-	printNextPageHint(u, nextPageToken)
+	printNextPageHintWithAll(u, nextPageToken, "--all/--all-pages")
 	return nil
 }
 

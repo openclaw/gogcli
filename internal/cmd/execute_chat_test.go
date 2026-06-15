@@ -62,7 +62,7 @@ func TestExecute_ChatSpacesList_Text(t *testing.T) {
 	if result.err != nil {
 		t.Fatalf("Execute: %v", result.err)
 	}
-	if !strings.Contains(result.stderr, "# Next page: --page npt") {
+	if !strings.Contains(result.stderr, "# More results: use --all/--all-pages to fetch every page, or --page npt for the next page") {
 		t.Fatalf("unexpected stderr=%q", result.stderr)
 	}
 	if !strings.Contains(result.stdout, "RESOURCE") || !strings.Contains(result.stdout, "spaces/aaa") || !strings.Contains(result.stdout, "Engineering") {
@@ -344,7 +344,7 @@ func TestExecute_ChatMessagesList_Text_Unread(t *testing.T) {
 	if result.err != nil {
 		t.Fatalf("Execute: %v", result.err)
 	}
-	if !strings.Contains(result.stderr, "# Next page: --page npt") {
+	if !strings.Contains(result.stderr, "# More results: use --all/--all-pages to fetch every page, or --page npt for the next page") {
 		t.Fatalf("unexpected stderr=%q", result.stderr)
 	}
 	if !strings.Contains(result.stdout, "RESOURCE") || !strings.Contains(result.stdout, "messages/msg1") || !strings.Contains(result.stdout, "hello") {

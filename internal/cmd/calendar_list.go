@@ -201,7 +201,7 @@ func renderCalendarEventsTable(ctx context.Context, events []*eventWithCalendar,
 		return err
 	}
 	if printPageHint {
-		printNextPageHint(u, nextPageToken)
+		printNextPageHintWithAll(u, nextPageToken, "--all-pages")
 	}
 	return nil
 }

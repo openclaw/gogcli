@@ -78,6 +78,6 @@ func (c *DriveDrivesCmd) Run(ctx context.Context, flags *RootFlags) error {
 			formatDateTime(d.CreatedTime),
 		)
 	}
-	printNextPageHint(u, nextPageToken)
+	printNextPageHintWithAll(u, nextPageToken, "--all/--all-pages")
 	return nil
 }

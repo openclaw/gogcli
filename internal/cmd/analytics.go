@@ -97,7 +97,7 @@ func (c *AnalyticsAccountsCmd) Run(ctx context.Context, flags *RootFlags) error 
 			len(item.PropertySummaries),
 		)
 	}
-	printNextPageHint(u, nextPageToken)
+	printNextPageHintWithAll(u, nextPageToken, "--all/--all-pages")
 	return nil
 }
 

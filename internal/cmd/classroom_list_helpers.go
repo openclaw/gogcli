@@ -56,7 +56,7 @@ func writeClassroomPagedList[T any](
 	if len(items) == 0 {
 		u.Err().Println(emptyMessage)
 		if hintOnEmpty {
-			printNextPageHint(u, nextPageToken)
+			printNextPageHintWithAll(u, nextPageToken, "--all/--all-pages")
 		}
 		return failEmptyExit(failEmpty)
 	}
@@ -64,6 +64,6 @@ func writeClassroomPagedList[T any](
 	if err := outfmt.WriteTable(ctx, stdoutWriter(ctx), compactClassroomRows(items), columns); err != nil {
 		return err
 	}
-	printNextPageHint(u, nextPageToken)
+	printNextPageHintWithAll(u, nextPageToken, "--all/--all-pages")
 	return nil
 }

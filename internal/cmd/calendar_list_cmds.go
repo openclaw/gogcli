@@ -73,7 +73,7 @@ func (c *CalendarCalendarsCmd) Run(ctx context.Context, flags *RootFlags) error 
 	); err != nil {
 		return err
 	}
-	printNextPageHint(u, nextPageToken)
+	printNextPageHintWithAll(u, nextPageToken, "--all/--all-pages")
 	return nil
 }
 
@@ -210,6 +210,6 @@ func (c *CalendarAclCmd) Run(ctx context.Context, flags *RootFlags) error {
 	); err != nil {
 		return err
 	}
-	printNextPageHint(u, nextPageToken)
+	printNextPageHintWithAll(u, nextPageToken, "--all/--all-pages")
 	return nil
 }

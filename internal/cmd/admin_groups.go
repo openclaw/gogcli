@@ -103,7 +103,7 @@ func (c *AdminGroupsListCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if err := outfmt.WriteTable(ctx, stdoutWriter(ctx), nonNilAdminRows(groups), adminGroupColumns()); err != nil {
 		return err
 	}
-	printNextPageHint(u, nextPageToken)
+	printNextPageHintWithAll(u, nextPageToken, "--all/--all-pages")
 	return nil
 }
 
@@ -196,7 +196,7 @@ func (c *AdminGroupsMembersListCmd) Run(ctx context.Context, flags *RootFlags) e
 	if err := outfmt.WriteTable(ctx, stdoutWriter(ctx), nonNilAdminRows(members), adminMemberColumns()); err != nil {
 		return err
 	}
-	printNextPageHint(u, nextPageToken)
+	printNextPageHintWithAll(u, nextPageToken, "--all/--all-pages")
 	return nil
 }
 

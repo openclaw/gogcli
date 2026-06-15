@@ -119,7 +119,7 @@ func (c *ClassroomSubmissionsListCmd) Run(ctx context.Context, flags *RootFlags)
 	); err != nil {
 		return err
 	}
-	printNextPageHint(u, nextPageToken)
+	printNextPageHintWithAll(u, nextPageToken, "--all/--all-pages")
 	return nil
 }
 

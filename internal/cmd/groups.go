@@ -122,7 +122,7 @@ func (c *GroupsListCmd) Run(ctx context.Context, flags *RootFlags) error {
 			sanitizeTab(getRelationType(m.RelationType)),
 		)
 	}
-	printNextPageHint(u, nextPageToken)
+	printNextPageHintWithAll(u, nextPageToken, "--all/--all-pages")
 	return nil
 }
 
@@ -328,7 +328,7 @@ func (c *GroupsMembersCmd) Run(ctx context.Context, flags *RootFlags) error {
 			sanitizeTab(m.Type),
 		)
 	}
-	printNextPageHint(u, nextPageToken)
+	printNextPageHintWithAll(u, nextPageToken, "--all/--all-pages")
 	return nil
 }
 

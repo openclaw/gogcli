@@ -55,3 +55,10 @@ func printNextPageHint(u *ui.UI, nextPageToken string) {
 	}
 	u.Err().Linef("# Next page: --page %s", nextPageToken)
 }
+
+func printNextPageHintWithAll(u *ui.UI, nextPageToken string, allFlag string) {
+	if u == nil || nextPageToken == "" {
+		return
+	}
+	u.Err().Linef("# More results: use %s to fetch every page, or --page %s for the next page", allFlag, nextPageToken)
+}

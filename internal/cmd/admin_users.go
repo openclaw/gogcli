@@ -113,7 +113,7 @@ func (c *AdminUsersListCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if err := outfmt.WriteTable(ctx, stdoutWriter(ctx), nonNilAdminRows(users), adminUserColumns()); err != nil {
 		return err
 	}
-	printNextPageHint(u, nextPageToken)
+	printNextPageHintWithAll(u, nextPageToken, "--all/--all-pages")
 	return nil
 }
 

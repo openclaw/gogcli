@@ -112,7 +112,7 @@ func (c *DriveChangesListCmd) Run(ctx context.Context, flags *RootFlags) error {
 		}
 		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%t\n", change.Time, change.Type, change.FileId, sanitizeTab(name), change.Removed)
 	}
-	printNextPageHint(u, nextPageToken)
+	printNextPageHintWithAll(u, nextPageToken, "--all/--all-pages")
 	return nil
 }
 
