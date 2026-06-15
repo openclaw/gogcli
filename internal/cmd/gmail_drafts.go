@@ -262,6 +262,7 @@ type GmailDraftsCreateCmd struct {
 	BodyHTMLFile     string   `name:"body-html-file" help:"HTML body file path ('-' for stdin)"`
 	ReplyToMessageID string   `name:"reply-to-message-id" help:"Reply to Gmail message ID (sets In-Reply-To/References and thread)"`
 	ThreadID         string   `name:"thread-id" help:"Reply within a Gmail thread (uses latest message for headers)"`
+	ReplyAll         bool     `name:"reply-all" help:"Auto-populate recipients from original message (requires --reply-to-message-id or --thread-id)"`
 	ReplyTo          string   `name:"reply-to" help:"Reply-To header address"`
 	Quote            bool     `name:"quote" help:"Include quoted original message in reply (requires --reply-to-message-id or --thread-id)"`
 	Attach           []string `name:"attach" help:"Attachment file path (repeatable)"`
@@ -277,6 +278,7 @@ type draftComposeInput struct {
 	BodyHTML         string
 	ReplyToMessageID string
 	ReplyToThreadID  string
+	ReplyAll         bool
 	ReplyTo          string
 	Quote            bool
 	Attach           []string
@@ -287,6 +289,11 @@ type draftComposeInput struct {
 }
 
 func (c draftComposeInput) validate() error {
+	if c.ReplyAll &&
+		strings.TrimSpace(c.ReplyToMessageID) == "" &&
+		strings.TrimSpace(c.ReplyToThreadID) == "" {
+		return usage("--reply-all requires --reply-to-message-id or --thread-id")
+	}
 	if strings.TrimSpace(c.Subject) == "" &&
 		strings.TrimSpace(c.ReplyToMessageID) == "" &&
 		strings.TrimSpace(c.ReplyToThreadID) == "" {
@@ -299,7 +306,8 @@ func (c draftComposeInput) validate() error {
 }
 
 func buildDraftMessage(ctx context.Context, svc *gmail.Service, account string, input draftComposeInput) (*gmail.Message, string, []mailmime.AttachmentMetadata, error) {
-	from, err := resolveComposeSender(ctx, svc, account, input.From)
+	sendAs, sendAsErr := listSendAs(ctx, svc)
+	from, err := resolveComposeFrom(ctx, svc, account, input.From, sendAs, sendAsErr)
 	if err != nil {
 		return nil, "", nil, err
 	}
@@ -321,6 +329,36 @@ func buildDraftMessage(ctx context.Context, svc *gmail.Service, account string, 
 		subject = autoReplySubject("", info.Subject)
 	}
 
+	toRecipients := splitCSV(input.To)
+	ccRecipients := splitCSV(input.Cc)
+	bccRecipients := splitCSV(input.Bcc)
+	if input.ReplyAll {
+		recipients, recipientErr := buildReplyRecipients(
+			info,
+			selfEmailsForReply(account, from.sendingEmail, sendAs),
+			true,
+			nil,
+			nil,
+			nil,
+			nil,
+		)
+		if recipientErr != nil {
+			return nil, "", nil, recipientErr
+		}
+		toRecipients = formatMailboxes(recipients.To)
+		ccRecipients = formatMailboxes(recipients.Cc)
+		bccRecipients = formatMailboxes(recipients.Bcc)
+		if strings.TrimSpace(input.To) != "" {
+			toRecipients = splitCSV(input.To)
+		}
+		if strings.TrimSpace(input.Cc) != "" {
+			ccRecipients = splitCSV(input.Cc)
+		}
+		if strings.TrimSpace(input.Bcc) != "" {
+			bccRecipients = splitCSV(input.Bcc)
+		}
+	}
+
 	msg, err := buildGmailMessage(ctx, sendMessageOptions{
 		FromAddr:    from.header,
 		ReplyTo:     input.ReplyTo,
@@ -330,9 +368,9 @@ func buildDraftMessage(ctx context.Context, svc *gmail.Service, account string, 
 		ReplyInfo:   info,
 		Attachments: atts,
 	}, sendBatch{
-		To:  splitCSV(input.To),
-		Cc:  splitCSV(input.Cc),
-		Bcc: splitCSV(input.Bcc),
+		To:  toRecipients,
+		Cc:  ccRecipients,
+		Bcc: bccRecipients,
 	}, true)
 	if err != nil {
 		return nil, "", nil, err
@@ -557,6 +595,7 @@ func (c *GmailDraftsCreateCmd) Run(ctx context.Context, flags *RootFlags) error 
 		BodyHTML:         htmlBody,
 		ReplyToMessageID: replyToMessageID,
 		ReplyToThreadID:  threadID,
+		ReplyAll:         c.ReplyAll,
 		ReplyTo:          c.ReplyTo,
 		Quote:            c.Quote,
 		Attach:           attachPaths,
@@ -578,6 +617,7 @@ func (c *GmailDraftsCreateCmd) Run(ctx context.Context, flags *RootFlags) error 
 		"body_html_len":       len(strings.TrimSpace(input.BodyHTML)),
 		"reply_to_message_id": strings.TrimSpace(input.ReplyToMessageID),
 		"thread_id":           strings.TrimSpace(input.ReplyToThreadID),
+		"reply_all":           input.ReplyAll,
 		"reply_to":            strings.TrimSpace(input.ReplyTo),
 		"quote":               input.Quote,
 		"from":                strings.TrimSpace(input.From),
@@ -615,6 +655,7 @@ type GmailDraftsUpdateCmd struct {
 	BodyHTMLFile     string   `name:"body-html-file" help:"HTML body file path ('-' for stdin)"`
 	ReplyToMessageID string   `name:"reply-to-message-id" help:"Reply to Gmail message ID (sets In-Reply-To/References and thread)"`
 	ThreadID         string   `name:"thread-id" help:"Reply within a Gmail thread (uses latest message for headers); overrides the draft's existing thread"`
+	ReplyAll         bool     `name:"reply-all" help:"Auto-populate recipients from original message (requires --reply-to-message-id or --thread-id)"`
 	ReplyTo          string   `name:"reply-to" help:"Reply-To header address"`
 	Quote            bool     `name:"quote" help:"Include quoted original message in reply"`
 	Attach           []string `name:"attach" help:"Attachment file path (repeatable). Replaces existing attachments; omit to preserve them, or use --clear-attachments to remove all."`
@@ -667,6 +708,7 @@ func (c *GmailDraftsUpdateCmd) Run(ctx context.Context, flags *RootFlags) error 
 		BodyHTML:         htmlBody,
 		ReplyToMessageID: replyToMessageID,
 		ReplyToThreadID:  threadID,
+		ReplyAll:         c.ReplyAll,
 		ReplyTo:          c.ReplyTo,
 		Quote:            c.Quote,
 		Attach:           attachPaths,
@@ -681,7 +723,7 @@ func (c *GmailDraftsUpdateCmd) Run(ctx context.Context, flags *RootFlags) error 
 
 	if dryRunErr := dryRunExit(ctx, flags, "gmail.drafts.update", map[string]any{
 		"draft_id":             draftID,
-		"to_keep_existing":     !toWasSet,
+		"to_keep_existing":     !toWasSet && !input.ReplyAll,
 		"to":                   splitCSV(input.To),
 		"cc":                   splitCSV(input.Cc),
 		"bcc":                  splitCSV(input.Bcc),
@@ -689,6 +731,7 @@ func (c *GmailDraftsUpdateCmd) Run(ctx context.Context, flags *RootFlags) error 
 		"body_len":             len(strings.TrimSpace(input.Body)),
 		"body_html_len":        len(strings.TrimSpace(input.BodyHTML)),
 		"reply_to_message_id":  strings.TrimSpace(input.ReplyToMessageID),
+		"reply_all":            input.ReplyAll,
 		"reply_to":             strings.TrimSpace(input.ReplyTo),
 		"quote":                input.Quote,
 		"from":                 strings.TrimSpace(input.From),
@@ -709,7 +752,7 @@ func (c *GmailDraftsUpdateCmd) Run(ctx context.Context, flags *RootFlags) error 
 	existingMessageID := ""
 	existingTo := ""
 	var existingPayload *gmail.MessagePart
-	if !toWasSet || strings.TrimSpace(replyToMessageID) == "" || preserveAttachments {
+	if (!toWasSet && !c.ReplyAll) || strings.TrimSpace(replyToMessageID) == "" || preserveAttachments {
 		existing, fetchErr := svc.Users.Drafts.Get("me", draftID).Format("full").Do()
 		if fetchErr != nil {
 			return fetchErr
@@ -718,12 +761,12 @@ func (c *GmailDraftsUpdateCmd) Run(ctx context.Context, flags *RootFlags) error 
 			existingThreadID = strings.TrimSpace(existing.Message.ThreadId)
 			existingMessageID = strings.TrimSpace(existing.Message.Id)
 			existingPayload = existing.Message.Payload
-			if !toWasSet {
+			if !toWasSet && !c.ReplyAll {
 				existingTo = strings.TrimSpace(headerValue(existing.Message.Payload, "To"))
 			}
 		}
 	}
-	if !toWasSet {
+	if !toWasSet && !c.ReplyAll {
 		to = existingTo
 	}
 

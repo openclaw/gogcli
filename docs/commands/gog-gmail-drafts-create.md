@@ -42,6 +42,7 @@ gog gmail (mail,email) drafts (draft) create (add,new) [flags]
 | `--no-input`<br>`--non-interactive`<br>`--noninteractive` | `bool` |  | Never prompt; fail instead (useful for CI) |
 | `-p`<br>`--plain`<br>`--tsv` | `bool` | false | Output stable, parseable text to stdout (TSV; no colors) |
 | `--quote` | `bool` |  | Include quoted original message in reply (requires --reply-to-message-id or --thread-id) |
+| `--reply-all` | `bool` |  | Auto-populate recipients from original message (requires --reply-to-message-id or --thread-id) |
 | `--reply-to` | `string` |  | Reply-To header address |
 | `--reply-to-message-id` | `string` |  | Reply to Gmail message ID (sets In-Reply-To/References and thread) |
 | `--results-only` | `bool` |  | In JSON mode, emit only the primary result (drops envelope fields like nextPageToken) |

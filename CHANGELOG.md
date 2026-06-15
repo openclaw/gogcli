@@ -5,6 +5,7 @@
 ### Fixed
 
 - Calendar: accept relative and date-only `freebusy --from`/`--to` values using the same timezone-aware range parsing as events. (#806, #811) — thanks @privatenumber.
+- Gmail: add `--reply-all` to draft create and update so reply drafts can infer original recipients while preserving explicit recipient overrides. (#804, #805) — thanks @privatenumber.
 
 ## 0.27.0 - 2026-06-14
 

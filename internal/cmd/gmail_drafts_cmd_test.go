@@ -1426,6 +1426,260 @@ func TestGmailDraftsUpdateCmd_WithThreadIDOverridesExisting(t *testing.T) {
 	}
 }
 
+func TestGmailDraftsCreateCmd_ReplyAllWithReplyToMessageID(t *testing.T) {
+	var posted gmail.Draft
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/gmail/v1/users/me/settings/sendAs" && r.Method == http.MethodGet:
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"sendAs": []map[string]any{
+					{"sendAsEmail": "me@example.com", "displayName": "Me Person", "isPrimary": true, "verificationStatus": "accepted"},
+					{"sendAsEmail": "alias@example.com", "displayName": "Alias", "verificationStatus": "accepted"},
+				},
+			})
+			return
+		case strings.Contains(r.URL.Path, "/gmail/v1/users/me/messages/m1") && r.Method == http.MethodGet:
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"id":       "m1",
+				"threadId": "t1",
+				"payload": map[string]any{"headers": []map[string]any{
+					{"name": "Message-ID", "value": "<m1@example.com>"},
+					{"name": "From", "value": `"Alice Sender" <alice@example.com>`},
+					{"name": "To", "value": `"Me Person" <me@example.com>, "Other Person" <other@example.com>`},
+					{"name": "Cc", "value": `"Intro Person" <intro@example.com>, Alias <alias@example.com>`},
+					{"name": "Subject", "value": "Project update"},
+				}},
+			})
+			return
+		case strings.Contains(r.URL.Path, "/gmail/v1/users/me/drafts") && r.Method == http.MethodPost:
+			body, _ := io.ReadAll(r.Body)
+			if unmarshalErr := json.Unmarshal(body, &posted); unmarshalErr != nil {
+				t.Fatalf("unmarshal: %v", unmarshalErr)
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{"id": "d1", "message": map[string]any{"id": "m2", "threadId": "t1"}})
+			return
+		default:
+			http.NotFound(w, r)
+			return
+		}
+	}))
+	defer srv.Close()
+
+	svc := newGmailServiceFromServer(t, srv)
+	flags := &RootFlags{Account: "me@example.com"}
+	ctx := withGmailTestService(newCmdRuntimeJSONOutputContext(t, io.Discard, io.Discard), svc)
+	if runErr := runKong(t, &GmailDraftsCreateCmd{}, []string{
+		"--reply-to-message-id", "m1",
+		"--reply-all",
+		"--body", "Thanks",
+	}, ctx, flags); runErr != nil {
+		t.Fatalf("execute: %v", runErr)
+	}
+
+	raw, decErr := base64.RawURLEncoding.DecodeString(posted.Message.Raw)
+	if decErr != nil {
+		t.Fatalf("decode raw: %v", decErr)
+	}
+	s := string(raw)
+	for _, want := range []string{
+		`Alice Sender`,
+		`alice@example.com`,
+		`Other Person`,
+		`other@example.com`,
+		`Intro Person`,
+		`intro@example.com`,
+		`Subject: Re: Project update`,
+		`In-Reply-To: <m1@example.com>`,
+	} {
+		if !strings.Contains(s, want) {
+			t.Fatalf("reply-all draft missing %q:\n%s", want, s)
+		}
+	}
+	for _, excluded := range []string{"alias@example.com"} {
+		if strings.Contains(s, excluded) {
+			t.Fatalf("reply-all draft included self address %q:\n%s", excluded, s)
+		}
+	}
+}
+
+func TestGmailDraftsCreateCmd_ReplyAllRequiresReplyTarget(t *testing.T) {
+	flags := &RootFlags{Account: "me@example.com"}
+	ctx := newCmdRuntimeOutputContext(t, io.Discard, io.Discard)
+	err := runKong(t, &GmailDraftsCreateCmd{}, []string{
+		"--subject", "S", "--body", "B", "--reply-all",
+	}, ctx, flags)
+	if err == nil || !strings.Contains(err.Error(), "--reply-all requires --reply-to-message-id or --thread-id") {
+		t.Fatalf("expected reply-all target validation error, got %v", err)
+	}
+}
+
+func TestGmailDraftsCreateCmd_ReplyAllExplicitRecipientsReplaceInferred(t *testing.T) {
+	var posted gmail.Draft
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/gmail/v1/users/me/settings/sendAs" && r.Method == http.MethodGet:
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"sendAs": []map[string]any{
+					{"sendAsEmail": "me@example.com", "displayName": "Me Person", "isPrimary": true, "verificationStatus": "accepted"},
+				},
+			})
+			return
+		case strings.Contains(r.URL.Path, "/gmail/v1/users/me/messages/m1") && r.Method == http.MethodGet:
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"id":       "m1",
+				"threadId": "t1",
+				"payload": map[string]any{"headers": []map[string]any{
+					{"name": "Message-ID", "value": "<m1@example.com>"},
+					{"name": "From", "value": `"Alice Sender" <alice@example.com>`},
+					{"name": "To", "value": `"Me Person" <me@example.com>, "Other Person" <other@example.com>`},
+					{"name": "Cc", "value": `"Intro Person" <intro@example.com>`},
+					{"name": "Subject", "value": "Project update"},
+				}},
+			})
+			return
+		case strings.Contains(r.URL.Path, "/gmail/v1/users/me/drafts") && r.Method == http.MethodPost:
+			body, _ := io.ReadAll(r.Body)
+			if unmarshalErr := json.Unmarshal(body, &posted); unmarshalErr != nil {
+				t.Fatalf("unmarshal: %v", unmarshalErr)
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{"id": "d1", "message": map[string]any{"id": "m2", "threadId": "t1"}})
+			return
+		default:
+			http.NotFound(w, r)
+			return
+		}
+	}))
+	defer srv.Close()
+
+	svc := newGmailServiceFromServer(t, srv)
+	flags := &RootFlags{Account: "me@example.com"}
+	ctx := withGmailTestService(newCmdRuntimeJSONOutputContext(t, io.Discard, io.Discard), svc)
+	if runErr := runKong(t, &GmailDraftsCreateCmd{}, []string{
+		"--reply-to-message-id", "m1",
+		"--reply-all",
+		"--to", "override@example.com",
+		"--cc", "copy@example.com",
+		"--bcc", "hidden@example.com",
+		"--body", "Thanks",
+	}, ctx, flags); runErr != nil {
+		t.Fatalf("execute: %v", runErr)
+	}
+
+	raw, decErr := base64.RawURLEncoding.DecodeString(posted.Message.Raw)
+	if decErr != nil {
+		t.Fatalf("decode raw: %v", decErr)
+	}
+	s := string(raw)
+	for _, want := range []string{
+		"To: override@example.com",
+		"Cc: copy@example.com",
+		"Bcc: hidden@example.com",
+		"Subject: Re: Project update",
+		"In-Reply-To: <m1@example.com>",
+	} {
+		if !strings.Contains(s, want) {
+			t.Fatalf("reply-all draft missing explicit replacement %q:\n%s", want, s)
+		}
+	}
+	for _, excluded := range []string{
+		"alice@example.com",
+		"other@example.com",
+		"intro@example.com",
+	} {
+		if strings.Contains(s, excluded) {
+			t.Fatalf("reply-all draft kept inferred recipient %q after explicit replacement:\n%s", excluded, s)
+		}
+	}
+}
+
+func TestGmailDraftsUpdateCmd_ReplyAllWithThreadIDDoesNotKeepExistingTo(t *testing.T) {
+	var posted gmail.Draft
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/gmail/v1/users/me/settings/sendAs" && r.Method == http.MethodGet:
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"sendAs": []map[string]any{
+					{"sendAsEmail": "me@example.com", "displayName": "Me Person", "isPrimary": true, "verificationStatus": "accepted"},
+				},
+			})
+			return
+		case strings.Contains(r.URL.Path, "/gmail/v1/users/me/drafts/d1") && r.Method == http.MethodGet:
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"id": "d1",
+				"message": map[string]any{
+					"id":       "dm1",
+					"threadId": "old-thread",
+					"payload": map[string]any{"headers": []map[string]any{
+						{"name": "To", "value": "stale@example.com"},
+					}},
+				},
+			})
+			return
+		case strings.Contains(r.URL.Path, "/gmail/v1/users/me/threads/t1") && r.Method == http.MethodGet:
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"id": "t1",
+				"messages": []map[string]any{
+					{
+						"id": "latest", "threadId": "t1", "internalDate": "2000",
+						"payload": map[string]any{"headers": []map[string]any{
+							{"name": "Message-ID", "value": "<latest@example.com>"},
+							{"name": "From", "value": `"Sender" <sender@example.com>`},
+							{"name": "To", "value": `"Me Person" <me@example.com>`},
+							{"name": "Subject", "value": "Original"},
+						}},
+					},
+				},
+			})
+			return
+		case strings.Contains(r.URL.Path, "/gmail/v1/users/me/drafts/d1") && r.Method == http.MethodPut:
+			body, _ := io.ReadAll(r.Body)
+			if unmarshalErr := json.Unmarshal(body, &posted); unmarshalErr != nil {
+				t.Fatalf("unmarshal: %v", unmarshalErr)
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{"id": "d1", "message": map[string]any{"id": "m2", "threadId": "t1"}})
+			return
+		default:
+			http.NotFound(w, r)
+			return
+		}
+	}))
+	defer srv.Close()
+
+	svc := newGmailServiceFromServer(t, srv)
+	flags := &RootFlags{Account: "me@example.com"}
+	ctx := withGmailTestService(newCmdRuntimeJSONOutputContext(t, io.Discard, io.Discard), svc)
+	if runErr := runKong(t, &GmailDraftsUpdateCmd{}, []string{
+		"d1", "--body", "Thanks", "--thread-id", "t1", "--reply-all",
+	}, ctx, flags); runErr != nil {
+		t.Fatalf("execute: %v", runErr)
+	}
+
+	raw, decErr := base64.RawURLEncoding.DecodeString(posted.Message.Raw)
+	if decErr != nil {
+		t.Fatalf("decode raw: %v", decErr)
+	}
+	s := string(raw)
+	if !strings.Contains(s, `To: "Sender" <sender@example.com>`) {
+		t.Fatalf("reply-all update did not infer sender recipient:\n%s", s)
+	}
+	if strings.Contains(s, "stale@example.com") {
+		t.Fatalf("reply-all update preserved stale draft To:\n%s", s)
+	}
+	if !strings.Contains(s, "Subject: Re: Original") {
+		t.Fatalf("reply-all update did not inherit subject:\n%s", s)
+	}
+}
+
 // draftUpdateAttachmentServer stubs a draft (with one attachment) get, the
 // attachment bytes endpoint, and the update PUT (capturing the posted draft).
 func draftUpdateAttachmentServer(t *testing.T, posted *gmail.Draft, attBytesHit *bool) *httptest.Server {
