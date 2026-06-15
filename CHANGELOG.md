@@ -6,6 +6,9 @@
 
 - Calendar: accept relative and date-only `freebusy --from`/`--to` values using the same timezone-aware range parsing as events. (#806, #811) — thanks @privatenumber.
 - Gmail: add `--reply-all` to draft create and update so reply drafts can infer original recipients while preserving explicit recipient overrides. (#804, #805) — thanks @privatenumber.
+- Gmail: make truncated text bodies point to `--full` or `--json` and align thread help with full-body behavior. (#807, #809) — thanks @privatenumber.
+- CLI: mention `--all` or `--all-pages` in next-page hints while retaining page-token guidance. (#808, #810) — thanks @privatenumber.
+- Docs: validate local Markdown heading anchors during docs coverage checks, including Unicode and encoded fragments. (#812) — thanks @kiranmagic7.
 
 ## 0.27.0 - 2026-06-14
 
