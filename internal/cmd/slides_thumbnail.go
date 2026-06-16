@@ -18,6 +18,7 @@ type SlidesThumbnailCmd struct {
 	Size           string `name:"size" help:"Thumbnail size: small|medium|large" default:"large"`
 	Format         string `name:"format" help:"Thumbnail format: png|jpeg" default:"png"`
 	Output         string `name:"out" aliases:"output" help:"Write the thumbnail image to a local file"`
+	Overwrite      bool   `name:"overwrite" help:"Overwrite an existing output file"`
 }
 
 func (c *SlidesThumbnailCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -53,6 +54,7 @@ func (c *SlidesThumbnailCmd) Run(ctx context.Context, flags *RootFlags) error {
 		"size":            strings.ToLower(size),
 		"format":          strings.ToLower(format),
 		"out":             outputPath,
+		"overwrite":       c.Overwrite,
 	}); dryRunErr != nil {
 		return dryRunErr
 	}
@@ -90,7 +92,7 @@ func (c *SlidesThumbnailCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 
 	if outputPath != "" {
-		written, writtenPath, err := downloadSlidesThumbnail(ctx, thumb.ContentUrl, outputPath)
+		written, writtenPath, err := downloadSlidesThumbnail(ctx, thumb.ContentUrl, outputPath, c.Overwrite)
 		if err != nil {
 			return err
 		}
@@ -148,7 +150,7 @@ func normalizeSlidesThumbnailFormat(v string) (string, error) {
 	}
 }
 
-func downloadSlidesThumbnail(ctx context.Context, url, outputPath string) (int64, string, error) {
+func downloadSlidesThumbnail(ctx context.Context, url, outputPath string, overwrite bool) (int64, string, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return 0, "", fmt.Errorf("build thumbnail download request: %w", err)
@@ -164,7 +166,11 @@ func downloadSlidesThumbnail(ctx context.Context, url, outputPath string) (int64
 		return 0, "", fmt.Errorf("download thumbnail: unexpected status %s", resp.Status)
 	}
 
-	f, expandedPath, err := createUserOutputFile(outputPath)
+	f, expandedPath, err := openUserOutputFile(outputPath, outputFileOptions{
+		Overwrite: overwrite,
+		FileMode:  0o600,
+		DirMode:   0o700,
+	})
 	if err != nil {
 		return 0, "", fmt.Errorf("create output file: %w", err)
 	}

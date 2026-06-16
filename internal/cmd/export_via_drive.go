@@ -107,7 +107,7 @@ func exportViaDrive(ctx context.Context, flags *RootFlags, opts exportViaDriveOp
 		return usage("can't combine --json with --out -")
 	}
 
-	downloadedPath, size, err := downloadDriveFile(ctx, svc, meta, destPath, format)
+	downloadedPath, size, err := downloadDriveFile(ctx, svc, meta, destPath, format, false)
 	if err != nil {
 		return err
 	}

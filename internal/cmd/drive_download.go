@@ -17,10 +17,11 @@ import (
 )
 
 type DriveDownloadCmd struct {
-	FileID string         `arg:"" name:"fileId" help:"File ID"`
-	Output OutputPathFlag `embed:""`
-	Format string         `name:"format" help:"Export format for Google Docs files: pdf|csv|xlsx|pptx|txt|png|docx|md (default: inferred)"`
-	Tab    string         `name:"tab" help:"(experimental) Export a specific tab by title or ID (Google Docs only; see 'gog docs list-tabs')"`
+	FileID    string         `arg:"" name:"fileId" help:"File ID"`
+	Output    OutputPathFlag `embed:""`
+	Format    string         `name:"format" help:"Export format for Google Docs files: pdf|csv|xlsx|pptx|txt|png|docx|md (default: inferred)"`
+	Tab       string         `name:"tab" help:"(experimental) Export a specific tab by title or ID (Google Docs only; see 'gog docs list-tabs')"`
+	Overwrite bool           `name:"overwrite" help:"Overwrite an existing output file"`
 }
 
 func (c *DriveDownloadCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -36,10 +37,11 @@ func (c *DriveDownloadCmd) Run(ctx context.Context, flags *RootFlags) error {
 			}
 		}
 		return runDocsTabExport(ctx, flags, tabExportParams{
-			DocID:    fileID,
-			OutFlag:  c.Output.Path,
-			Format:   c.Format,
-			TabQuery: tab,
+			DocID:     fileID,
+			OutFlag:   c.Output.Path,
+			Format:    c.Format,
+			TabQuery:  tab,
+			Overwrite: c.Overwrite,
 		})
 	}
 
@@ -72,6 +74,7 @@ func (c *DriveDownloadCmd) Run(ctx context.Context, flags *RootFlags) error {
 		"out":                   outPathFlag,
 		"default_downloads_dir": defaultDir,
 		"format":                strings.ToLower(strings.TrimSpace(c.Format)),
+		"overwrite":             c.Overwrite,
 	}); dryRunErr != nil {
 		return dryRunErr
 	}
@@ -106,7 +109,7 @@ func (c *DriveDownloadCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
-	downloadedPath, size, err := downloadDriveFile(ctx, svc, meta, destPath, c.Format)
+	downloadedPath, size, err := downloadDriveFile(ctx, svc, meta, destPath, c.Format, c.Overwrite)
 	if err != nil {
 		return err
 	}
@@ -126,7 +129,7 @@ func (c *DriveDownloadCmd) Run(ctx context.Context, flags *RootFlags) error {
 	return nil
 }
 
-func downloadDriveFile(ctx context.Context, svc *drive.Service, meta *drive.File, destPath string, format string) (string, int64, error) {
+func downloadDriveFile(ctx context.Context, svc *drive.Service, meta *drive.File, destPath string, format string, overwrite bool) (string, int64, error) {
 	isGoogleDoc := strings.HasPrefix(meta.MimeType, "application/vnd.google-apps.")
 	normalizedFormat := strings.ToLower(strings.TrimSpace(format))
 	if normalizedFormat == formatAuto {
@@ -182,7 +185,11 @@ func downloadDriveFile(ctx context.Context, svc *drive.Service, meta *drive.File
 		return stdoutPath, n, copyErr
 	}
 
-	f, outPath, err := createUserOutputFile(outPath)
+	f, outPath, err := openUserOutputFile(outPath, outputFileOptions{
+		Overwrite: overwrite,
+		FileMode:  0o600,
+		DirMode:   0o700,
+	})
 	if err != nil {
 		return "", 0, err
 	}

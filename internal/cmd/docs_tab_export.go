@@ -66,10 +66,11 @@ func isGoogleAuthHost(host string) bool {
 }
 
 type tabExportParams struct {
-	DocID    string
-	OutFlag  string
-	Format   string
-	TabQuery string
+	DocID     string
+	OutFlag   string
+	Format    string
+	TabQuery  string
+	Overwrite bool
 }
 
 // sanitizeFilenameComponent replaces characters unsafe for filenames with
@@ -181,10 +182,11 @@ func runDocsTabExport(ctx context.Context, flags *RootFlags, p tabExportParams) 
 	}
 
 	if dryErr := dryRunExit(ctx, flags, "docs.tab-export", map[string]any{
-		"docID":  p.DocID,
-		"tab":    p.TabQuery,
-		"format": format,
-		"out":    outPath,
+		"docID":     p.DocID,
+		"tab":       p.TabQuery,
+		"format":    format,
+		"out":       outPath,
+		"overwrite": p.Overwrite,
 	}); dryErr != nil {
 		return dryErr
 	}
@@ -234,7 +236,11 @@ func runDocsTabExport(ctx context.Context, flags *RootFlags, p tabExportParams) 
 		return copyErr
 	}
 
-	f, outPath, writeErr := createUserOutputFile(outPath)
+	f, outPath, writeErr := openUserOutputFile(outPath, outputFileOptions{
+		Overwrite: p.Overwrite,
+		FileMode:  0o600,
+		DirMode:   0o700,
+	})
 	if writeErr != nil {
 		return writeErr
 	}
