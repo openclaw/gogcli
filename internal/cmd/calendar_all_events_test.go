@@ -36,6 +36,7 @@ func TestListAllCalendarsEvents_JSON(t *testing.T) {
 						"attendees":   []map[string]any{{"email": "a@example.com"}},
 					},
 				},
+				"nextPageToken": "cal1-next",
 			})
 			return
 		case strings.Contains(r.URL.Path, "/calendars/cal2/events") && r.Method == http.MethodGet:

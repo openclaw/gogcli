@@ -100,3 +100,60 @@ func TestExecute_CalendarEvents_Text_All(t *testing.T) {
 		t.Fatalf("unexpected out=%q", out)
 	}
 }
+
+func TestExecute_CalendarEvents_Text_AllWithPagingHint(t *testing.T) {
+	srv := httptest.NewServer(withPrimaryCalendar(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case strings.Contains(r.URL.Path, "/users/me/calendarList"):
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"items": []map[string]any{
+					{"id": "c1"},
+					{"id": "c2"},
+				},
+			})
+			return
+		case strings.Contains(r.URL.Path, "/calendars/c1/events"):
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"items": []map[string]any{
+					{"id": "e1", "summary": "S1", "start": map[string]any{"dateTime": "2025-12-17T10:00:00Z"}, "end": map[string]any{"dateTime": "2025-12-17T11:00:00Z"}},
+				},
+				"nextPageToken": "c1-next",
+			})
+			return
+		case strings.Contains(r.URL.Path, "/calendars/c2/events"):
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"items": []map[string]any{
+					{"id": "e2", "summary": "S2", "start": map[string]any{"dateTime": "2025-12-17T12:00:00Z"}, "end": map[string]any{"dateTime": "2025-12-17T13:00:00Z"}},
+				},
+			})
+			return
+		default:
+			http.NotFound(w, r)
+			return
+		}
+	})))
+	defer srv.Close()
+
+	svc, err := calendar.NewService(context.Background(),
+		option.WithoutAuthentication(),
+		option.WithHTTPClient(srv.Client()),
+		option.WithEndpoint(srv.URL+"/"),
+	)
+	if err != nil {
+		t.Fatalf("NewService: %v", err)
+	}
+	result := executeWithCalendarTestService(t, []string{"--account", "a@b.com", "calendar", "events", "--all", "--from", "2025-12-17T00:00:00Z", "--to", "2025-12-18T00:00:00Z"}, svc)
+	if result.err != nil {
+		t.Fatalf("Execute: %v", result.err)
+	}
+	if !strings.Contains(result.stderr, "# More results: use --all-pages to fetch every page (c1 has more results)") {
+		t.Fatalf("unexpected stderr=%q", result.stderr)
+	}
+	out := result.stdout
+	if !strings.Contains(out, "CALENDAR") || !strings.Contains(out, "c1") || !strings.Contains(out, "e1") || !strings.Contains(out, "S1") || !strings.Contains(out, "c2") || !strings.Contains(out, "e2") || !strings.Contains(out, "S2") {
+		t.Fatalf("unexpected out=%q", out)
+	}
+}
