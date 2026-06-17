@@ -2,6 +2,10 @@
 
 ## 0.28.1 - Unreleased
 
+### Added
+
+- Slides: allow `insert-image` and `replace-slide` to use public HTTPS image URLs without temporary Drive sharing. (#825) — thanks @sebsnyk.
+
 ### Fixed
 
 - Docs: update the Docker authentication example to persist file-keyring tokens with `GOG_HOME`. (#828, #830) — thanks @WadydX.

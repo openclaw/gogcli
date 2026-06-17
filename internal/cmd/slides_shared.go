@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
 
 	gapi "google.golang.org/api/googleapi"
@@ -20,6 +22,43 @@ const (
 
 	placeholderTypeBody = "BODY"
 )
+
+type slidesImageSource struct {
+	localPath string
+	mimeType  string
+	imageURL  string
+}
+
+func resolveSlidesImageSource(localImage, imageURL string) (slidesImageSource, error) {
+	imageURL = strings.TrimSpace(imageURL)
+	if localImage == "" && imageURL == "" {
+		return slidesImageSource{}, usage("required: image argument or --url")
+	}
+	if localImage != "" && imageURL != "" {
+		return slidesImageSource{}, usage("image argument and --url are mutually exclusive")
+	}
+	if imageURL != "" {
+		parsed, err := url.ParseRequestURI(imageURL)
+		if err != nil || !strings.EqualFold(parsed.Scheme, "https") || parsed.Host == "" || parsed.User != nil {
+			return slidesImageSource{}, usage("--url must be a public HTTPS image URL without embedded credentials")
+		}
+		return slidesImageSource{imageURL: parsed.String()}, nil
+	}
+
+	ext := strings.ToLower(filepath.Ext(localImage))
+	var mimeType string
+	switch ext {
+	case extPNG:
+		mimeType = mimePNG
+	case imageExtJPG, imageExtJPEG:
+		mimeType = imageMimeJPEG
+	case imageExtGIF:
+		mimeType = imageMimeGIF
+	default:
+		return slidesImageSource{}, usagef("unsupported image format %q (use PNG, JPG, or GIF)", ext)
+	}
+	return slidesImageSource{localPath: localImage, mimeType: mimeType}, nil
+}
 
 func resolveSlidesNotesInput(notes *string, notesFile string) (string, bool, error) {
 	if notesFile != "" {

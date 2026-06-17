@@ -24,12 +24,12 @@ gog slides (slide) <command> [flags]
 - [gog slides delete-slide](gog-slides-delete-slide.md) - Delete a slide by object ID
 - [gog slides export](gog-slides-export.md) - Export a Google Slides deck (pdf|pptx)
 - [gog slides info](gog-slides-info.md) - Get Google Slides presentation metadata
-- [gog slides insert-image](gog-slides-insert-image.md) - Insert an image at a position and size on an existing slide
+- [gog slides insert-image](gog-slides-insert-image.md) - Insert a local or public image at a position and size
 - [gog slides insert-text](gog-slides-insert-text.md) - Insert text into an existing page element (shape or table) by objectId
 - [gog slides list-slides](gog-slides-list-slides.md) - List all slides with their object IDs
 - [gog slides raw](gog-slides-raw.md) - Dump raw Google Slides API response as JSON (Presentations.Get; lossless; for scripting and LLM consumption)
 - [gog slides read-slide](gog-slides-read-slide.md) - Read slide content: speaker notes, text elements, and images
-- [gog slides replace-slide](gog-slides-replace-slide.md) - Replace the image on an existing slide in-place
+- [gog slides replace-slide](gog-slides-replace-slide.md) - Replace an existing slide image from a local file or public URL
 - [gog slides replace-text](gog-slides-replace-text.md) - Find-and-replace text across a presentation
 - [gog slides thumbnail](gog-slides-thumbnail.md) - Get or download a rendered thumbnail for a slide
 - [gog slides update-notes](gog-slides-update-notes.md) - Update speaker notes on an existing slide

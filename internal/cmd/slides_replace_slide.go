@@ -17,7 +17,8 @@ import (
 type SlidesReplaceSlideCmd struct {
 	PresentationID string  `arg:"" name:"presentationId" help:"Presentation ID"`
 	SlideID        string  `arg:"" name:"slideId" help:"Slide object ID to replace"`
-	Image          string  `arg:"" name:"image" help:"Local image file (PNG/JPG/GIF)" type:"existingfile"`
+	Image          string  `arg:"" optional:"" name:"image" help:"Local image file (PNG/JPG/GIF)" type:"existingfile"`
+	URL            string  `name:"url" help:"Public HTTPS image URL to use directly"`
 	Notes          *string `name:"notes" help:"New speaker notes text (omit to preserve existing notes; use --notes '' to clear)"`
 	NotesFile      string  `name:"notes-file" help:"Path to file containing new speaker notes" type:"existingfile"`
 }
@@ -39,28 +40,24 @@ func (c *SlidesReplaceSlideCmd) Run(ctx context.Context, flags *RootFlags) error
 		return usage("empty slideId")
 	}
 
-	// Validate image format.
-	ext := strings.ToLower(filepath.Ext(c.Image))
-	var mimeType string
-	switch ext {
-	case extPNG:
-		mimeType = mimePNG
-	case imageExtJPG, imageExtJPEG:
-		mimeType = imageMimeJPEG
-	case imageExtGIF:
-		mimeType = imageMimeGIF
-	default:
-		return usagef("unsupported image format %q (use PNG, JPG, or GIF)", ext)
+	source, err := resolveSlidesImageSource(c.Image, c.URL)
+	if err != nil {
+		return err
 	}
 
-	if dryRunErr := dryRunExit(ctx, flags, "slides.replace-slide", map[string]any{
+	dryRunPayload := map[string]any{
 		"presentation_id": presentationID,
 		"slide_id":        slideID,
-		"image":           c.Image,
-		"mime_type":       mimeType,
 		"update_notes":    updateNotes,
 		"notes":           updateNotes && notes != "",
-	}); dryRunErr != nil {
+	}
+	if source.imageURL != "" {
+		dryRunPayload["url"] = source.imageURL
+	} else {
+		dryRunPayload["image"] = source.localPath
+		dryRunPayload["mime_type"] = source.mimeType
+	}
+	if dryRunErr := dryRunExit(ctx, flags, "slides.replace-slide", dryRunPayload); dryRunErr != nil {
 		return dryRunErr
 	}
 
@@ -70,10 +67,6 @@ func (c *SlidesReplaceSlideCmd) Run(ctx context.Context, flags *RootFlags) error
 	}
 
 	slidesSvc, err := slidesService(ctx, account)
-	if err != nil {
-		return err
-	}
-	driveSvc, err := driveService(ctx, account)
 	if err != nil {
 		return err
 	}
@@ -101,36 +94,40 @@ func (c *SlidesReplaceSlideCmd) Run(ctx context.Context, flags *RootFlags) error
 		return fmt.Errorf("no image found on slide %s", slideID)
 	}
 
-	// Upload new image to Drive.
-	imgFile, err := os.Open(c.Image)
-	if err != nil {
-		return fmt.Errorf("open image: %w", err)
+	imageURL := source.imageURL
+	if imageURL == "" {
+		driveSvc, driveErr := driveService(ctx, account)
+		if driveErr != nil {
+			return driveErr
+		}
+		imgFile, openErr := os.Open(source.localPath)
+		if openErr != nil {
+			return fmt.Errorf("open image: %w", openErr)
+		}
+		defer imgFile.Close()
+
+		driveFile, uploadErr := driveSvc.Files.Create(&drive.File{
+			Name:     filepath.Base(source.localPath),
+			MimeType: source.mimeType,
+		}).Media(imgFile).Fields("id, webContentLink").Context(ctx).Do()
+		if uploadErr != nil {
+			return fmt.Errorf("upload image to Drive: %w", uploadErr)
+		}
+		defer func() {
+			if delErr := driveSvc.Files.Delete(driveFile.Id).Context(context.WithoutCancel(ctx)).Do(); delErr != nil {
+				u.Err().Linef("Warning: failed to delete temporary Drive image %s; it may remain publicly readable until removed: %v", driveFile.Id, delErr)
+			}
+		}()
+
+		_, permissionErr := driveSvc.Permissions.Create(driveFile.Id, &drive.Permission{
+			Type: "anyone",
+			Role: "reader",
+		}).Context(ctx).Do()
+		if permissionErr != nil {
+			return fmt.Errorf("set image permissions: %w", permissionErr)
+		}
+		imageURL = driveImageDownloadURL(driveFile.Id)
 	}
-	defer imgFile.Close()
-
-	driveFile, err := driveSvc.Files.Create(&drive.File{
-		Name:     filepath.Base(c.Image),
-		MimeType: mimeType,
-	}).Media(imgFile).Fields("id, webContentLink").Context(ctx).Do()
-	if err != nil {
-		return fmt.Errorf("upload image to Drive: %w", err)
-	}
-
-	// Clean up the temporary Drive file when done.
-	defer func() {
-		_ = driveSvc.Files.Delete(driveFile.Id).Context(ctx).Do()
-	}()
-
-	// Make publicly readable so the Slides API can fetch it.
-	_, err = driveSvc.Permissions.Create(driveFile.Id, &drive.Permission{
-		Type: "anyone",
-		Role: "reader",
-	}).Context(ctx).Do()
-	if err != nil {
-		return fmt.Errorf("set image permissions: %w", err)
-	}
-
-	imageURL := driveImageDownloadURL(driveFile.Id)
 
 	// Replace the image in-place.
 	requests := []*slides.Request{
