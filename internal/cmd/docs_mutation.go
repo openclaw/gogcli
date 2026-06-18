@@ -179,7 +179,10 @@ func replacePreparedDocsMarkdownRange(
 			if docRangeCoversParagraphText(doc, startIdx, endIdx, tabID) {
 				resetEnd++
 			}
-			requests = append(requests, resetDocsParagraphRequests(baseIndex, resetEnd, tabID)...)
+			resetStart := markdownParagraphResetStart(elements, textToInsert, baseIndex)
+			if resetStart < resetEnd {
+				requests = append(requests, resetDocsParagraphRequests(resetStart, resetEnd, tabID)...)
+			}
 		}
 		requests = append(requests, formattingRequests...)
 	}
@@ -228,6 +231,16 @@ func markdownRangeReplacementIsInline(markdown string, elements []docsmarkdown.M
 	return !strings.HasSuffix(markdown, "\n") &&
 		len(elements) == 1 &&
 		elements[0].Type == docsmarkdown.MDParagraph
+}
+
+func markdownParagraphResetStart(elements []docsmarkdown.MarkdownElement, text string, baseIndex int64) int64 {
+	if len(elements) == 0 || elements[0].Type != docsmarkdown.MDParagraph {
+		return baseIndex
+	}
+	if newline := strings.IndexByte(text, '\n'); newline >= 0 {
+		return baseIndex + utf16Len(text[:newline+1])
+	}
+	return baseIndex + utf16Len(text)
 }
 
 func resetDocsParagraphRequests(startIdx, endIdx int64, tabID string) []*docs.Request {

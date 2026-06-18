@@ -536,6 +536,75 @@ func TestDocsFindReplace_MarkdownResetsInheritedParagraphStyle(t *testing.T) {
 	}
 }
 
+func TestDocsFindReplace_MarkdownBlockPreservesFirstPlainParagraphStyle(t *testing.T) {
+	for _, tc := range []struct {
+		name           string
+		paragraphStyle map[string]any
+		bullet         map[string]any
+	}{
+		{
+			name: "heading",
+			paragraphStyle: map[string]any{
+				"namedStyleType": "HEADING_2",
+			},
+		},
+		{
+			name: "bullet",
+			paragraphStyle: map[string]any{
+				"namedStyleType": "NORMAL_TEXT",
+				"indentStart": map[string]any{
+					"magnitude": 18,
+					"unit":      "PT",
+				},
+			},
+			bullet: map[string]any{"listId": "list-1"},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var got docs.BatchUpdateDocumentRequest
+			body := docBodyWithText("Section\n")
+			paragraph := body["body"].(map[string]any)["content"].([]any)[1].(map[string]any)["paragraph"].(map[string]any)
+			paragraph["paragraphStyle"] = tc.paragraphStyle
+			if tc.bullet != nil {
+				paragraph["bullet"] = tc.bullet
+			}
+
+			docSvc, cleanup := newDocsServiceForTest(t, func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				switch {
+				case r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, "/v1/documents/"):
+					_ = json.NewEncoder(w).Encode(body)
+				case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, ":batchUpdate"):
+					if err := json.NewDecoder(r.Body).Decode(&got); err != nil {
+						t.Fatalf("decode batchUpdate: %v", err)
+					}
+					_ = json.NewEncoder(w).Encode(map[string]any{"documentId": "doc1"})
+				default:
+					http.NotFound(w, r)
+				}
+			})
+			defer cleanup()
+
+			err := runKong(t, &DocsFindReplaceCmd{}, []string{
+				"doc1", "Section", "First paragraph\n\nSecond paragraph", "--format", "markdown", "--first",
+			}, newDocsFindReplaceTestContext(t, docSvc), &RootFlags{Account: "a@b.com"})
+			if err != nil {
+				t.Fatalf("docs find-replace --format markdown --first: %v", err)
+			}
+
+			firstParagraphEnd := int64(1 + utf16Len("First paragraph\n"))
+			for _, req := range got.Requests {
+				if req.DeleteParagraphBullets != nil && req.DeleteParagraphBullets.Range.StartIndex < firstParagraphEnd {
+					t.Fatalf("first paragraph bullet reset: %#v", req.DeleteParagraphBullets.Range)
+				}
+				if req.UpdateParagraphStyle != nil && req.UpdateParagraphStyle.Range.StartIndex < firstParagraphEnd {
+					t.Fatalf("first paragraph style reset: %#v", req.UpdateParagraphStyle)
+				}
+			}
+		})
+	}
+}
+
 func TestDocsFindReplace_MarkdownCodeBlockStartsFreshParagraphWhenInline(t *testing.T) {
 	var batchCalls []docs.BatchUpdateDocumentRequest
 	docSvc, cleanup := newDocsServiceForTest(t, func(w http.ResponseWriter, r *http.Request) {
