@@ -178,7 +178,9 @@ gog docs insert-image <docId> --url https://example.com/chart.png --at end
 
 Use `--file` for local PNG, JPEG, or GIF input. Local files are uploaded to
 Drive and may require link sharing; `--url` leaves Drive permissions unchanged.
-Both modes accept `--tab`, `--width`, and `--height`.
+Both modes accept `--tab`, `--width`, and `--height`. Omit anchor flags or use
+`--at end` to append. `--at <text>` deletes and replaces the first literal text
+match; use `--before <text>` or `--after <text>` to preserve the anchor text.
 
 Command page:
 

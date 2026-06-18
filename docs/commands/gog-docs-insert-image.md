@@ -20,7 +20,9 @@ gog docs (doc) insert-image <docId> [flags]
 | --- | --- | --- | --- |
 | `--access-token` | `string` |  | Use provided access token directly (bypasses stored refresh tokens; token expires in ~1h) |
 | `-a`<br>`--account`<br>`--acct` | `string` |  | Account email, alias, or auto for authenticated Google API commands |
-| `--at` | `string` | end | Placeholder text to replace, or 'end' to append |
+| `--after` | `*string` |  | Insert after the first literal text match without deleting it |
+| `--at` | `*string` |  | Placeholder text to delete and replace, or 'end' to append |
+| `--before` | `*string` |  | Insert before the first literal text match without deleting it |
 | `--client` | `string` |  | OAuth client name (selects stored credentials + token bucket) |
 | `--color` | `string` | auto | Color output: auto\|always\|never |
 | `--disable-commands` | `string` |  | Comma-separated list of disabled commands; dot paths allowed |

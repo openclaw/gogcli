@@ -50,6 +50,41 @@ func TestDocsInsertImageResolveSourceURL(t *testing.T) {
 	}
 }
 
+func TestDocsInsertImageResolveTarget(t *testing.T) {
+	value := func(s string) *string { return &s }
+	tests := []struct {
+		name       string
+		cmd        DocsInsertImageCmd
+		wantAnchor string
+		wantMode   docsImageAnchorMode
+		wantErr    string
+	}{
+		{name: "default end", cmd: DocsInsertImageCmd{}, wantAnchor: "end", wantMode: docsImageAnchorReplace},
+		{name: "replace", cmd: DocsInsertImageCmd{At: value(" marker ")}, wantAnchor: "marker", wantMode: docsImageAnchorReplace},
+		{name: "before", cmd: DocsInsertImageCmd{Before: value(" marker ")}, wantAnchor: "marker", wantMode: docsImageAnchorBefore},
+		{name: "after", cmd: DocsInsertImageCmd{After: value(" marker ")}, wantAnchor: "marker", wantMode: docsImageAnchorAfter},
+		{name: "empty", cmd: DocsInsertImageCmd{Before: value(" ")}, wantErr: "empty --before"},
+		{name: "conflict", cmd: DocsInsertImageCmd{At: value("a"), After: value("b")}, wantErr: "mutually exclusive"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			target, err := tt.cmd.resolveTarget()
+			if tt.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+					t.Fatalf("resolveTarget() error = %v, want %q", err, tt.wantErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("resolveTarget(): %v", err)
+			}
+			if target.anchor != tt.wantAnchor || target.mode != tt.wantMode {
+				t.Fatalf("resolveTarget() = %#v", target)
+			}
+		})
+	}
+}
+
 func TestDocsInsertImageURLRunSkipsDrive(t *testing.T) {
 	t.Parallel()
 
@@ -136,12 +171,13 @@ func TestDocsInsertImageURLDryRunSkipsServices(t *testing.T) {
 		Op      string `json:"op"`
 		Request struct {
 			URL string `json:"url"`
+			At  string `json:"at"`
 		} `json:"request"`
 	}
 	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
 		t.Fatalf("decode dry-run output: %v\n%s", err, stdout.String())
 	}
-	if payload.Op != "docs.insert-image" || payload.Request.URL != "https://example.com/image.png" {
+	if payload.Op != "docs.insert-image" || payload.Request.URL != "https://example.com/image.png" || payload.Request.At != "end" {
 		t.Fatalf("unexpected dry-run output: %#v", payload)
 	}
 }

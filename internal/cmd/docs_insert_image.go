@@ -24,7 +24,9 @@ type DocsInsertImageCmd struct {
 	DocID        string  `arg:"" name:"docId" help:"Doc ID"`
 	File         string  `name:"file" help:"Local PNG, JPEG, or GIF image to upload and insert" type:"existingfile"`
 	URL          string  `name:"url" help:"Public HTTPS image URL to insert directly"`
-	At           string  `name:"at" help:"Placeholder text to replace, or 'end' to append" default:"end"`
+	At           *string `name:"at" help:"Placeholder text to delete and replace, or 'end' to append"`
+	Before       *string `name:"before" help:"Insert before the first literal text match without deleting it"`
+	After        *string `name:"after" help:"Insert after the first literal text match without deleting it"`
 	Width        float64 `name:"width" help:"Image width in points; default 468pt" default:"468"`
 	Height       float64 `name:"height" help:"Image height in points (optional; width-only preserves aspect ratio)"`
 	Parent       string  `name:"parent" help:"Drive folder ID for the uploaded image"`
@@ -53,6 +55,19 @@ type docsInsertImageSource struct {
 	imageURL  string
 }
 
+type docsImageAnchorMode string
+
+const (
+	docsImageAnchorReplace docsImageAnchorMode = "at"
+	docsImageAnchorBefore  docsImageAnchorMode = "before"
+	docsImageAnchorAfter   docsImageAnchorMode = "after"
+)
+
+type docsImageTarget struct {
+	anchor string
+	mode   docsImageAnchorMode
+}
+
 func (c *DocsInsertImageCmd) Run(ctx context.Context, flags *RootFlags) error {
 	docID := strings.TrimSpace(c.DocID)
 	if docID == "" {
@@ -65,16 +80,16 @@ func (c *DocsInsertImageCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if err != nil {
 		return err
 	}
-	at := strings.TrimSpace(c.At)
-	if at == "" {
-		return usage("empty --at")
+	target, err := c.resolveTarget()
+	if err != nil {
+		return err
 	}
 	dryRunPayload := map[string]any{
-		"documentId": docID,
-		"at":         at,
-		"width":      c.Width,
-		"height":     c.Height,
-		"tab":        c.Tab,
+		"documentId":        docID,
+		"width":             c.Width,
+		"height":            c.Height,
+		"tab":               c.Tab,
+		string(target.mode): target.anchor,
 	}
 	if source.imageURL != "" {
 		dryRunPayload["url"] = source.imageURL
@@ -105,18 +120,46 @@ func (c *DocsInsertImageCmd) Run(ctx context.Context, flags *RootFlags) error {
 
 	var result docsInsertImageResult
 	if source.imageURL != "" {
-		result, err = c.runURL(ctx, docsSvc, docID, source.imageURL, at)
+		result, err = c.runURL(ctx, docsSvc, docID, source.imageURL, target)
 	} else {
 		driveSvc, driveErr := driveService(ctx, account)
 		if driveErr != nil {
 			return driveErr
 		}
-		result, err = c.runFile(ctx, docsSvc, driveSvc, docID, source.localPath, source.name, source.mimeType, at)
+		result, err = c.runFile(ctx, docsSvc, driveSvc, docID, source.localPath, source.name, source.mimeType, target)
 	}
 	if err != nil {
 		return err
 	}
 	return writeDocsInsertImageResult(ctx, result)
+}
+
+func (c *DocsInsertImageCmd) resolveTarget() (docsImageTarget, error) {
+	set := 0
+	for _, value := range []*string{c.At, c.Before, c.After} {
+		if value != nil {
+			set++
+		}
+	}
+	if set > 1 {
+		return docsImageTarget{}, usage("--at, --before, and --after are mutually exclusive")
+	}
+
+	target := docsImageTarget{anchor: docsAtIndexEnd, mode: docsImageAnchorReplace}
+	switch {
+	case c.At != nil:
+		target.anchor = strings.TrimSpace(*c.At)
+	case c.Before != nil:
+		target.anchor = strings.TrimSpace(*c.Before)
+		target.mode = docsImageAnchorBefore
+	case c.After != nil:
+		target.anchor = strings.TrimSpace(*c.After)
+		target.mode = docsImageAnchorAfter
+	}
+	if target.anchor == "" {
+		return docsImageTarget{}, usage(fmt.Sprintf("empty --%s", target.mode))
+	}
+	return target, nil
 }
 
 func (c *DocsInsertImageCmd) resolveSource() (docsInsertImageSource, error) {
@@ -198,12 +241,12 @@ func writeDocsInsertImageResult(ctx context.Context, result docsInsertImageResul
 	return nil
 }
 
-func (c *DocsInsertImageCmd) runURL(ctx context.Context, docsSvc *docs.Service, docID, imageURL, at string) (docsInsertImageResult, error) {
+func (c *DocsInsertImageCmd) runURL(ctx context.Context, docsSvc *docs.Service, docID, imageURL string, target docsImageTarget) (docsInsertImageResult, error) {
 	result := docsInsertImageResult{sourceURL: imageURL}
-	return c.insertImageURL(ctx, docsSvc, docID, imageURL, at, result)
+	return c.insertImageURL(ctx, docsSvc, docID, imageURL, target, result)
 }
 
-func (c *DocsInsertImageCmd) runFile(ctx context.Context, docsSvc *docs.Service, driveSvc *drive.Service, docID, localPath, name, mimeType, at string) (result docsInsertImageResult, err error) {
+func (c *DocsInsertImageCmd) runFile(ctx context.Context, docsSvc *docs.Service, driveSvc *drive.Service, docID, localPath, name, mimeType string, target docsImageTarget) (result docsInsertImageResult, err error) {
 	uploaded, err := uploadDocsInlineImage(ctx, driveSvc, localPath, name, mimeType, strings.TrimSpace(c.Parent))
 	if err != nil {
 		return result, err
@@ -218,7 +261,7 @@ func (c *DocsInsertImageCmd) runFile(ctx context.Context, docsSvc *docs.Service,
 		Do()
 	if err != nil {
 		if strings.EqualFold(c.OnRestricted, "link") && isDrivePublicSharingRestricted(err) {
-			return c.insertRestrictedImageFallback(ctx, docsSvc, docID, uploaded, at, result)
+			return c.insertRestrictedImageFallback(ctx, docsSvc, docID, uploaded, target, result)
 		}
 		return result, fmt.Errorf("share uploaded image publicly: %w", err)
 	}
@@ -243,11 +286,11 @@ func (c *DocsInsertImageCmd) runFile(ctx context.Context, docsSvc *docs.Service,
 	}()
 
 	imageURL := driveImageDownloadURL(uploaded.Id)
-	return c.insertImageURL(ctx, docsSvc, docID, imageURL, at, result)
+	return c.insertImageURL(ctx, docsSvc, docID, imageURL, target, result)
 }
 
-func (c *DocsInsertImageCmd) insertImageURL(ctx context.Context, docsSvc *docs.Service, docID, imageURL, at string, result docsInsertImageResult) (docsInsertImageResult, error) {
-	reqs, index, tabID, err := c.buildInsertRequests(ctx, docsSvc, docID, at, imageURL)
+func (c *DocsInsertImageCmd) insertImageURL(ctx context.Context, docsSvc *docs.Service, docID, imageURL string, target docsImageTarget, result docsInsertImageResult) (docsInsertImageResult, error) {
+	reqs, index, tabID, err := c.buildInsertRequests(ctx, docsSvc, docID, target, imageURL)
 	if err != nil {
 		return result, err
 	}
@@ -261,12 +304,12 @@ func (c *DocsInsertImageCmd) insertImageURL(ctx context.Context, docsSvc *docs.S
 	return result, nil
 }
 
-func (c *DocsInsertImageCmd) insertRestrictedImageFallback(ctx context.Context, docsSvc *docs.Service, docID string, uploaded *drive.File, at string, result docsInsertImageResult) (docsInsertImageResult, error) {
+func (c *DocsInsertImageCmd) insertRestrictedImageFallback(ctx context.Context, docsSvc *docs.Service, docID string, uploaded *drive.File, target docsImageTarget, result docsInsertImageResult) (docsInsertImageResult, error) {
 	link := uploaded.WebViewLink
 	if link == "" {
 		link = bestEffortWebURL("drive", uploaded.Id)
 	}
-	reqs, index, tabID, err := c.buildLinkFallbackRequests(ctx, docsSvc, docID, at, link)
+	reqs, index, tabID, err := c.buildLinkFallbackRequests(ctx, docsSvc, docID, target, link)
 	if err != nil {
 		return result, err
 	}
@@ -305,8 +348,8 @@ func uploadDocsInlineImage(ctx context.Context, svc *drive.Service, localPath, n
 	return created, nil
 }
 
-func (c *DocsInsertImageCmd) buildInsertRequests(ctx context.Context, svc *docs.Service, docID, at, imageURL string) ([]*docs.Request, int64, string, error) {
-	index, placeholder, tabID, err := c.resolveImageTarget(ctx, svc, docID, at)
+func (c *DocsInsertImageCmd) buildInsertRequests(ctx context.Context, svc *docs.Service, docID string, target docsImageTarget, imageURL string) ([]*docs.Request, int64, string, error) {
+	index, placeholder, tabID, err := c.resolveImageTarget(ctx, svc, docID, target)
 	if err != nil {
 		return nil, 0, "", err
 	}
@@ -331,8 +374,8 @@ func (c *DocsInsertImageCmd) buildInsertRequests(ctx context.Context, svc *docs.
 	return reqs, index, tabID, nil
 }
 
-func (c *DocsInsertImageCmd) buildLinkFallbackRequests(ctx context.Context, svc *docs.Service, docID, at, link string) ([]*docs.Request, int64, string, error) {
-	index, placeholder, tabID, err := c.resolveImageTarget(ctx, svc, docID, at)
+func (c *DocsInsertImageCmd) buildLinkFallbackRequests(ctx context.Context, svc *docs.Service, docID string, target docsImageTarget, link string) ([]*docs.Request, int64, string, error) {
+	index, placeholder, tabID, err := c.resolveImageTarget(ctx, svc, docID, target)
 	if err != nil {
 		return nil, 0, "", err
 	}
@@ -349,8 +392,8 @@ func (c *DocsInsertImageCmd) buildLinkFallbackRequests(ctx context.Context, svc 
 	return reqs, index, tabID, nil
 }
 
-func (c *DocsInsertImageCmd) resolveImageTarget(ctx context.Context, svc *docs.Service, docID, at string) (int64, *docsedit.TextRange, string, error) {
-	if strings.EqualFold(at, docsAtIndexEnd) {
+func (c *DocsInsertImageCmd) resolveImageTarget(ctx context.Context, svc *docs.Service, docID string, target docsImageTarget) (int64, *docsedit.TextRange, string, error) {
+	if target.mode == docsImageAnchorReplace && strings.EqualFold(target.anchor, docsAtIndexEnd) {
 		endIndex, tabID, err := docsTargetEndIndexAndTabID(ctx, svc, docID, c.Tab)
 		if err != nil {
 			return 0, nil, "", err
@@ -361,15 +404,23 @@ func (c *DocsInsertImageCmd) resolveImageTarget(ctx context.Context, svc *docs.S
 	if err != nil {
 		return 0, nil, "", err
 	}
-	matches := docsedit.FindTextRanges(loaded.target, at, docsedit.SearchOptions{
+	matches := docsedit.FindTextRanges(loaded.target, target.anchor, docsedit.SearchOptions{
 		MatchCase:            true,
 		PreserveHTMLEntities: true,
 		RequireTextSegment:   true,
 	})
 	if len(matches) == 0 {
-		return 0, nil, "", fmt.Errorf("placeholder not found: %q", at)
+		return 0, nil, "", fmt.Errorf("anchor not found: %q", target.anchor)
 	}
-	return matches[0].StartIndex, &matches[0], loaded.tabID, nil
+	match := matches[0]
+	switch target.mode {
+	case docsImageAnchorBefore:
+		return match.StartIndex, nil, loaded.tabID, nil
+	case docsImageAnchorAfter:
+		return match.EndIndex, nil, loaded.tabID, nil
+	default:
+		return match.StartIndex, &match, loaded.tabID, nil
+	}
 }
 
 func isDocsInsertImageMime(mimeType string) bool {

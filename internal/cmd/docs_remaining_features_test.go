@@ -332,7 +332,7 @@ func TestDocsSmartChipCommandsBuildRequests(t *testing.T) {
 }
 
 func TestDocsInsertImageBuildsPlaceholderReplacement(t *testing.T) {
-	cmd := &DocsInsertImageCmd{At: "IMG_HERE", Width: 320}
+	cmd := &DocsInsertImageCmd{Width: 320}
 	docSvc, cleanup := newDocsServiceForTest(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet || !strings.Contains(r.URL.Path, "/v1/documents/doc1") {
 			http.NotFound(w, r)
@@ -343,7 +343,8 @@ func TestDocsInsertImageBuildsPlaceholderReplacement(t *testing.T) {
 	}))
 	defer cleanup()
 
-	reqs, index, tabID, err := cmd.buildInsertRequests(context.Background(), docSvc, "doc1", "IMG_HERE", "https://example.com/i.png")
+	target := docsImageTarget{anchor: "IMG_HERE", mode: docsImageAnchorReplace}
+	reqs, index, tabID, err := cmd.buildInsertRequests(context.Background(), docSvc, "doc1", target, "https://example.com/i.png")
 	if err != nil {
 		t.Fatalf("buildInsertRequests: %v", err)
 	}
@@ -355,5 +356,50 @@ func TestDocsInsertImageBuildsPlaceholderReplacement(t *testing.T) {
 	}
 	if reqs[1].InsertInlineImage.Uri != "https://example.com/i.png" || reqs[1].InsertInlineImage.ObjectSize.Width.Magnitude != 320 {
 		t.Fatalf("unexpected image request: %#v", reqs[1].InsertInlineImage)
+	}
+}
+
+func TestDocsInsertImageBuildsNonDestructiveAnchorInsertions(t *testing.T) {
+	cmd := &DocsInsertImageCmd{Width: 320}
+	docSvc, cleanup := newDocsServiceForTest(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet || !strings.Contains(r.URL.Path, "/v1/documents/doc1") {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(docBodyWithText("before IMG_HERE after\n"))
+	}))
+	defer cleanup()
+
+	for _, tc := range []struct {
+		name  string
+		mode  docsImageAnchorMode
+		index int64
+	}{
+		{name: "before", mode: docsImageAnchorBefore, index: 8},
+		{name: "after", mode: docsImageAnchorAfter, index: 16},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			target := docsImageTarget{anchor: "IMG_HERE", mode: tc.mode}
+			reqs, index, _, err := cmd.buildInsertRequests(context.Background(), docSvc, "doc1", target, "https://example.com/i.png")
+			if err != nil {
+				t.Fatalf("buildInsertRequests: %v", err)
+			}
+			if index != tc.index || len(reqs) != 1 || reqs[0].InsertInlineImage == nil {
+				t.Fatalf("index=%d requests=%#v", index, reqs)
+			}
+			if reqs[0].InsertInlineImage.Location.Index != tc.index {
+				t.Fatalf("image location = %#v", reqs[0].InsertInlineImage.Location)
+			}
+		})
+	}
+
+	target := docsImageTarget{anchor: "IMG_HERE", mode: docsImageAnchorAfter}
+	reqs, index, _, err := cmd.buildLinkFallbackRequests(context.Background(), docSvc, "doc1", target, "https://example.com/file")
+	if err != nil {
+		t.Fatalf("buildLinkFallbackRequests: %v", err)
+	}
+	if index != 16 || len(reqs) != 1 || reqs[0].InsertText == nil || reqs[0].InsertText.Location.Index != 16 {
+		t.Fatalf("index=%d requests=%#v", index, reqs)
 	}
 }
