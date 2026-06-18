@@ -38,6 +38,31 @@ func mockSlidesBatchUpdateServer(
 	return srv
 }
 
+func mockSlidesPresentationBatchUpdateServer(
+	t *testing.T,
+	captured *[]*slides.Request,
+	pres *slides.Presentation,
+	response map[string]any,
+) *httptest.Server {
+	t.Helper()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case strings.HasSuffix(r.URL.Path, ":batchUpdate") && r.Method == http.MethodPost:
+			var req slides.BatchUpdatePresentationRequest
+			if err := json.NewDecoder(r.Body).Decode(&req); err == nil {
+				*captured = req.Requests
+			}
+			_ = json.NewEncoder(w).Encode(response)
+		case strings.Contains(r.URL.Path, "/presentations/") && r.Method == http.MethodGet:
+			_ = json.NewEncoder(w).Encode(pres)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	return srv
+}
+
 func newSlidesServiceFromServer(t *testing.T, srv *httptest.Server) *slides.Service {
 	t.Helper()
 	svc, err := slides.NewService(context.Background(),
@@ -49,6 +74,37 @@ func newSlidesServiceFromServer(t *testing.T, srv *httptest.Server) *slides.Serv
 		t.Fatalf("slides.NewService: %v", err)
 	}
 	return svc
+}
+
+func slidesPresentationWithTableCellText(tableID string, rowIndex, columnIndex int, content string) *slides.Presentation {
+	rows := make([]*slides.TableRow, rowIndex+1)
+	for r := range rows {
+		cells := make([]*slides.TableCell, columnIndex+1)
+		for c := range cells {
+			cells[c] = &slides.TableCell{}
+		}
+		rows[r] = &slides.TableRow{TableCells: cells}
+	}
+	rows[rowIndex].TableCells[columnIndex].Text = &slides.TextContent{
+		TextElements: []*slides.TextElement{{
+			StartIndex: 0,
+			EndIndex:   int64(len(content)),
+			TextRun:    &slides.TextRun{Content: content},
+		}},
+	}
+	return &slides.Presentation{
+		Slides: []*slides.Page{{
+			ObjectId: "slide_1",
+			PageElements: []*slides.PageElement{{
+				ObjectId: tableID,
+				Table: &slides.Table{
+					Rows:      int64(rowIndex + 1),
+					Columns:   int64(columnIndex + 1),
+					TableRows: rows,
+				},
+			}},
+		}},
+	}
 }
 
 func TestSlidesInsertText(t *testing.T) {
@@ -170,10 +226,16 @@ func TestSlidesInsertText_CellLocation(t *testing.T) {
 
 func TestSlidesInsertText_CellReplaceEmitsCellDeleteThenInsert(t *testing.T) {
 	var captured []*slides.Request
-	srv := mockSlidesBatchUpdateServer(t, &captured, map[string]any{
-		"presentationId": "pres1",
-		"replies":        []any{map[string]any{}, map[string]any{}},
-	})
+	pres := slidesPresentationWithTableCellText("table_1", 1, 0, "old value\n")
+	srv := mockSlidesPresentationBatchUpdateServer(
+		t,
+		&captured,
+		pres,
+		map[string]any{
+			"presentationId": "pres1",
+			"replies":        []any{map[string]any{}, map[string]any{}},
+		},
+	)
 	defer srv.Close()
 
 	svc := newSlidesServiceFromServer(t, srv)
@@ -207,6 +269,50 @@ func TestSlidesInsertText_CellReplaceEmitsCellDeleteThenInsert(t *testing.T) {
 	}
 	if captured[1].InsertText.CellLocation.RowIndex != 1 || captured[1].InsertText.CellLocation.ColumnIndex != 0 {
 		t.Fatalf("unexpected insert cell location: %+v", captured[1].InsertText.CellLocation)
+	}
+}
+
+func TestSlidesInsertText_CellReplaceSkipsDeleteForBlankCell(t *testing.T) {
+	var captured []*slides.Request
+	pres := slidesPresentationWithTableCellText("table_1", 0, 0, "\n")
+	srv := mockSlidesPresentationBatchUpdateServer(
+		t,
+		&captured,
+		pres,
+		map[string]any{
+			"presentationId": "pres1",
+			"replies":        []any{map[string]any{}},
+		},
+	)
+	defer srv.Close()
+
+	svc := newSlidesServiceFromServer(t, srv)
+	flags := &RootFlags{Account: "a@b.com"}
+	ctx := withSlidesTestService(newCmdRuntimeOutputContext(t, io.Discard, io.Discard), svc)
+	row, col := int64(0), int64(0)
+
+	cmd := &SlidesInsertTextCmd{
+		PresentationID: "pres1",
+		ObjectID:       "table_1",
+		Text:           "first text",
+		Replace:        true,
+		Row:            &row,
+		Col:            &col,
+	}
+	if err := cmd.Run(ctx, flags); err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+
+	if len(captured) != 1 || captured[0].InsertText == nil {
+		t.Fatalf("expected only InsertText for blank cell, got %+v", captured)
+	}
+	if captured[0].InsertText.CellLocation == nil ||
+		captured[0].InsertText.CellLocation.RowIndex != 0 ||
+		captured[0].InsertText.CellLocation.ColumnIndex != 0 {
+		t.Fatalf("unexpected insert cell location: %+v", captured[0].InsertText.CellLocation)
+	}
+	if captured[0].InsertText.Text != "first text" {
+		t.Fatalf("inserted text = %q", captured[0].InsertText.Text)
 	}
 }
 

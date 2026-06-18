@@ -125,6 +125,77 @@ func slidesPageElementHasText(page *slides.Page, objectID string) bool {
 	return false
 }
 
+func slidesTableCellHasText(pres *slides.Presentation, objectID string, rowIndex, columnIndex int64) bool {
+	for _, slide := range pres.Slides {
+		if slide == nil {
+			continue
+		}
+		if slidesTableCellInElementsHasText(slide.PageElements, objectID, rowIndex, columnIndex) {
+			return true
+		}
+	}
+	return false
+}
+
+func slidesTableCellInElementsHasText(elements []*slides.PageElement, objectID string, rowIndex, columnIndex int64) bool {
+	for _, el := range elements {
+		if el == nil {
+			continue
+		}
+		if el.ObjectId == objectID && el.Table != nil {
+			return slidesTableCellContentHasText(el.Table, rowIndex, columnIndex)
+		}
+		if el.ElementGroup != nil && slidesTableCellInElementsHasText(el.ElementGroup.Children, objectID, rowIndex, columnIndex) {
+			return true
+		}
+	}
+	return false
+}
+
+func slidesTableCellContentHasText(table *slides.Table, rowIndex, columnIndex int64) bool {
+	if table == nil {
+		return false
+	}
+	for rowPos, row := range table.TableRows {
+		if row == nil {
+			continue
+		}
+		for colPos, cell := range row.TableCells {
+			if cell == nil {
+				continue
+			}
+			cellRow := int64(rowPos)
+			cellColumn := int64(colPos)
+			if cell.Location != nil {
+				cellRow = cell.Location.RowIndex
+				cellColumn = cell.Location.ColumnIndex
+			}
+			if cellRow == rowIndex && cellColumn == columnIndex {
+				return slidesTextContentHasDeletableText(cell.Text)
+			}
+		}
+	}
+	return false
+}
+
+func slidesTextContentHasDeletableText(content *slides.TextContent) bool {
+	if content == nil {
+		return false
+	}
+	for _, textElement := range content.TextElements {
+		if textElement == nil {
+			continue
+		}
+		if textElement.TextRun != nil && strings.TrimRight(textElement.TextRun.Content, "\r\n") != "" {
+			return true
+		}
+		if textElement.AutoText != nil && strings.TrimRight(textElement.AutoText.Content, "\r\n") != "" {
+			return true
+		}
+	}
+	return false
+}
+
 func buildSlidesReplaceTextRequests(objectID string, text string, hasExistingText bool) []*slides.Request {
 	return buildSlidesReplaceTextRequestsAt(objectID, text, hasExistingText, nil)
 }

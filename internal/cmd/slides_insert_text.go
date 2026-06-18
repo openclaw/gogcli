@@ -107,6 +107,15 @@ func (c *SlidesInsertTextCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
+	if c.Replace && cellLocation != nil {
+		pres, err := slidesSvc.Presentations.Get(presentationID).Context(ctx).Do()
+		if err != nil {
+			return fmt.Errorf("get presentation: %w", err)
+		}
+		hasExistingText := slidesTableCellHasText(pres, objectID, *c.Row, *c.Col)
+		body.Requests = buildSlidesReplaceTextRequestsAt(objectID, text, hasExistingText, cellLocation)
+	}
+
 	resp, err := slidesSvc.Presentations.BatchUpdate(presentationID, body).Context(ctx).Do()
 	if err != nil {
 		return fmt.Errorf("insert text: %w", err)
