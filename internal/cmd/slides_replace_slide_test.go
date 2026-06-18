@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -156,6 +157,100 @@ func TestSlidesReplaceSlide(t *testing.T) {
 
 	if !deleteCalled {
 		t.Error("expected Drive file cleanup")
+	}
+}
+
+func TestSlidesReplaceSlide_URLSkipsDrive(t *testing.T) {
+	t.Parallel()
+
+	var capturedRequests []*slides.Request
+	slidesSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case strings.HasSuffix(r.URL.Path, ":batchUpdate") && r.Method == http.MethodPost:
+			var req slides.BatchUpdatePresentationRequest
+			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+				t.Fatalf("decode batchUpdate: %v", err)
+			}
+			capturedRequests = req.Requests
+			_ = json.NewEncoder(w).Encode(map[string]any{"presentationId": "pres1", "replies": []any{}})
+		case strings.Contains(r.URL.Path, "/presentations/pres1") && r.Method == http.MethodGet:
+			_ = json.NewEncoder(w).Encode(replaceSlidePresResponse())
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer slidesSrv.Close()
+
+	slidesSvc, err := slides.NewService(context.Background(),
+		option.WithoutAuthentication(), option.WithHTTPClient(slidesSrv.Client()), option.WithEndpoint(slidesSrv.URL+"/"))
+	if err != nil {
+		t.Fatalf("slides.NewService: %v", err)
+	}
+	driveFactory := func(context.Context, string) (*drive.Service, error) {
+		t.Fatal("URL replacement must not create a Drive service")
+		return nil, errors.New("unexpected Drive service call")
+	}
+
+	var stdout, stderr bytes.Buffer
+	ctx := withSlidesTestService(
+		withDriveTestServiceFactory(newCmdRuntimeJSONOutputContext(t, &stdout, &stderr), driveFactory),
+		slidesSvc,
+	)
+	runErr := runKong(t, &SlidesReplaceSlideCmd{}, []string{
+		"pres1",
+		"slide_1",
+		"--url", "https://example.com/replacement.png?sig=abc",
+	}, ctx, &RootFlags{Account: "a@b.com"})
+	if runErr != nil {
+		t.Fatalf("slides replace-slide --url: %v", runErr)
+	}
+	if len(capturedRequests) != 1 || capturedRequests[0].ReplaceImage == nil {
+		t.Fatalf("unexpected requests: %#v", capturedRequests)
+	}
+	replace := capturedRequests[0].ReplaceImage
+	if replace.ImageObjectId != "img_on_slide" || replace.Url != "https://example.com/replacement.png?sig=abc" {
+		t.Fatalf("unexpected ReplaceImage request: %#v", replace)
+	}
+}
+
+func TestSlidesReplaceSlide_URLDryRunSkipsServices(t *testing.T) {
+	t.Parallel()
+
+	slidesFactory := func(context.Context, string) (*slides.Service, error) {
+		t.Fatal("dry-run must not create a Slides service")
+		return nil, errors.New("unexpected Slides service call")
+	}
+	driveFactory := func(context.Context, string) (*drive.Service, error) {
+		t.Fatal("dry-run must not create a Drive service")
+		return nil, errors.New("unexpected Drive service call")
+	}
+
+	var stdout, stderr bytes.Buffer
+	ctx := withSlidesTestServiceFactory(
+		withDriveTestServiceFactory(newCmdRuntimeJSONOutputContext(t, &stdout, &stderr), driveFactory),
+		slidesFactory,
+	)
+	err := runKong(t, &SlidesReplaceSlideCmd{}, []string{
+		"pres1",
+		"slide_1",
+		"--url", "https://example.com/replacement.png",
+	}, ctx, &RootFlags{Account: "a@b.com", DryRun: true, NoInput: true})
+	var exitErr *ExitError
+	if !errors.As(err, &exitErr) || exitErr.Code != 0 {
+		t.Fatalf("dry-run error = %v", err)
+	}
+	var payload struct {
+		Op      string `json:"op"`
+		Request struct {
+			URL string `json:"url"`
+		} `json:"request"`
+	}
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatalf("decode dry-run output: %v\n%s", err, stdout.String())
+	}
+	if payload.Op != "slides.replace-slide" || payload.Request.URL != "https://example.com/replacement.png" {
+		t.Fatalf("unexpected dry-run output: %#v", payload)
 	}
 }
 

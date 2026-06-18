@@ -23,17 +23,17 @@ import (
 // existing slide. Unlike add-slide (which lays a full-bleed image on a new
 // slide), this places a sized element on a slide you already have, so callers
 // can build native decks via the Slides API and still drop in a logo, chart,
-// or badge at a precise location. It reuses the same private-image flow as
-// add-slide: upload to Drive, grant a temporary read permission so the Slides
-// image fetcher can read it, create the image, then delete the temp file.
+// or badge at a precise location. Local files use the same temporary Drive
+// upload flow as add-slide; public HTTPS URLs are passed directly to Slides.
 type SlidesInsertImageCmd struct {
 	PresentationID string  `arg:"" name:"presentationId" help:"Presentation ID"`
 	SlideID        string  `arg:"" name:"slideId" help:"Slide object ID to place the image on"`
-	Image          string  `arg:"" name:"image" help:"Local image file (PNG/JPG/GIF)" type:"existingfile"`
+	Image          string  `arg:"" optional:"" name:"image" help:"Local image file (PNG/JPG/GIF)" type:"existingfile"`
+	URL            string  `name:"url" help:"Public HTTPS image URL to insert directly"`
 	X              float64 `name:"x" default:"0" help:"Left position of the image, in --unit"`
 	Y              float64 `name:"y" default:"0" help:"Top position of the image, in --unit"`
 	Width          float64 `name:"width" required:"" help:"Image width, in --unit"`
-	Height         float64 `name:"height" default:"0" help:"Image height, in --unit; omit to keep the image's aspect ratio"`
+	Height         float64 `name:"height" default:"0" help:"Image height, in --unit; required with --url, local files preserve aspect ratio when omitted"`
 	Unit           string  `name:"unit" enum:"PT,EMU" default:"PT" help:"Measurement unit for x/y/width/height (PT or EMU)"`
 }
 
@@ -55,41 +55,40 @@ func (c *SlidesInsertImageCmd) Run(ctx context.Context, flags *RootFlags) error 
 		return usage("--height cannot be negative")
 	}
 
-	// Validate image format.
-	ext := strings.ToLower(filepath.Ext(c.Image))
-	var mimeType string
-	switch ext {
-	case extPNG:
-		mimeType = mimePNG
-	case imageExtJPG, imageExtJPEG:
-		mimeType = imageMimeJPEG
-	case imageExtGIF:
-		mimeType = imageMimeGIF
-	default:
-		return usagef("unsupported image format %q (use PNG, JPG, or GIF)", ext)
+	source, err := resolveSlidesImageSource(c.Image, c.URL)
+	if err != nil {
+		return err
 	}
 
 	// Resolve height from the image's aspect ratio when not supplied.
 	height := c.Height
 	if height == 0 {
-		ar, err := imageAspectRatio(c.Image)
-		if err != nil {
-			return fmt.Errorf("determine image aspect ratio (pass --height to skip): %w", err)
+		if source.imageURL != "" {
+			return usage("--height is required with --url")
+		}
+		ar, aspectErr := imageAspectRatio(source.localPath)
+		if aspectErr != nil {
+			return fmt.Errorf("determine image aspect ratio (pass --height to skip): %w", aspectErr)
 		}
 		height = c.Width * ar
 	}
 
-	if dryRunErr := dryRunExit(ctx, flags, "slides.insert-image", map[string]any{
+	dryRunPayload := map[string]any{
 		"presentation_id": presentationID,
 		"slide_id":        slideID,
-		"image":           c.Image,
-		"mime_type":       mimeType,
 		"x":               c.X,
 		"y":               c.Y,
 		"width":           c.Width,
 		"height":          height,
 		"unit":            c.Unit,
-	}); dryRunErr != nil {
+	}
+	if source.imageURL != "" {
+		dryRunPayload["url"] = source.imageURL
+	} else {
+		dryRunPayload["image"] = source.localPath
+		dryRunPayload["mime_type"] = source.mimeType
+	}
+	if dryRunErr := dryRunExit(ctx, flags, "slides.insert-image", dryRunPayload); dryRunErr != nil {
 		return dryRunErr
 	}
 
@@ -113,46 +112,41 @@ func (c *SlidesInsertImageCmd) Run(ctx context.Context, flags *RootFlags) error 
 		return fmt.Errorf("slide %q not found in presentation", slideID)
 	}
 
-	driveSvc, err := driveService(ctx, account)
-	if err != nil {
-		return err
-	}
-
-	// Upload the image to Drive as a temporary file.
-	imgFile, err := os.Open(c.Image)
-	if err != nil {
-		return fmt.Errorf("open image: %w", err)
-	}
-	defer imgFile.Close()
-
-	driveFile, err := driveSvc.Files.Create(&drive.File{
-		Name:     filepath.Base(c.Image),
-		MimeType: mimeType,
-	}).Media(imgFile).Fields("id, webContentLink").Context(ctx).Do()
-	if err != nil {
-		return fmt.Errorf("upload image to Drive: %w", err)
-	}
-
-	// Clean up the temporary Drive file when done. Use a cancellation-immune
-	// context so the public temp file is still removed if the request context
-	// was canceled, and surface a loud warning if deletion fails (otherwise the
-	// uploaded image stays world-readable until someone removes it by hand).
-	defer func() {
-		if delErr := driveSvc.Files.Delete(driveFile.Id).Context(context.WithoutCancel(ctx)).Do(); delErr != nil {
-			u.Err().Linef("Warning: failed to delete temporary Drive image %s; it may remain publicly readable until removed: %v", driveFile.Id, delErr)
+	imageURL := source.imageURL
+	if imageURL == "" {
+		driveSvc, driveErr := driveService(ctx, account)
+		if driveErr != nil {
+			return driveErr
 		}
-	}()
+		imgFile, openErr := os.Open(source.localPath)
+		if openErr != nil {
+			return fmt.Errorf("open image: %w", openErr)
+		}
+		defer imgFile.Close()
 
-	// Make publicly readable so the Slides API can fetch it.
-	_, err = driveSvc.Permissions.Create(driveFile.Id, &drive.Permission{
-		Type: "anyone",
-		Role: "reader",
-	}).Context(ctx).Do()
-	if err != nil {
-		return fmt.Errorf("set image permissions: %w", err)
+		driveFile, uploadErr := driveSvc.Files.Create(&drive.File{
+			Name:     filepath.Base(source.localPath),
+			MimeType: source.mimeType,
+		}).Media(imgFile).Fields("id, webContentLink").Context(ctx).Do()
+		if uploadErr != nil {
+			return fmt.Errorf("upload image to Drive: %w", uploadErr)
+		}
+		defer func() {
+			if delErr := driveSvc.Files.Delete(driveFile.Id).Context(context.WithoutCancel(ctx)).Do(); delErr != nil {
+				u.Err().Linef("Warning: failed to delete temporary Drive image %s; it may remain publicly readable until removed: %v", driveFile.Id, delErr)
+			}
+		}()
+
+		_, permissionErr := driveSvc.Permissions.Create(driveFile.Id, &drive.Permission{
+			Type: "anyone",
+			Role: "reader",
+		}).Context(ctx).Do()
+		if permissionErr != nil {
+			return fmt.Errorf("set image permissions: %w", permissionErr)
+		}
+		imageURL = driveImageDownloadURL(driveFile.Id)
 	}
 
-	imageURL := driveImageDownloadURL(driveFile.Id)
 	imageID := fmt.Sprintf("img_%d", time.Now().UnixNano())
 
 	err = batchUpdateSlidesImageRequests(ctx, slidesSvc, presentationID, &slides.BatchUpdatePresentationRequest{

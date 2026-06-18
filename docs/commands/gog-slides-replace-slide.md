@@ -2,12 +2,12 @@
 
 > Generated from `gog schema --json`. Do not edit this page by hand; run `make docs-commands`.
 
-Replace the image on an existing slide in-place
+Replace an existing slide image from a local file or public URL
 
 ## Usage
 
 ```bash
-gog slides (slide) replace-slide <presentationId> <slideId> <image> [flags]
+gog slides (slide) replace-slide <presentationId> <slideId> [<image>] [flags]
 ```
 
 ## Parent
@@ -37,6 +37,7 @@ gog slides (slide) replace-slide <presentationId> <slideId> <image> [flags]
 | `-p`<br>`--plain`<br>`--tsv` | `bool` | false | Output stable, parseable text to stdout (TSV; no colors) |
 | `--results-only` | `bool` |  | In JSON mode, emit only the primary result (drops envelope fields like nextPageToken) |
 | `--select`<br>`--pick`<br>`--project` | `string` |  | In JSON mode, select comma-separated fields (best-effort; supports dot paths). Desire path: use --fields for most commands. |
+| `--url` | `string` |  | Public HTTPS image URL to use directly |
 | `-v`<br>`--verbose` | `bool` |  | Enable verbose logging |
 | `--version` | `kong.VersionFlag` |  | Print version and exit |
 | `--wrap-untrusted` | `bool` | false | In JSON/raw output, wrap fetched text fields in external untrusted-content markers |
