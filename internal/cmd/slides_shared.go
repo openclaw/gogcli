@@ -125,12 +125,90 @@ func slidesPageElementHasText(page *slides.Page, objectID string) bool {
 	return false
 }
 
+func slidesTableCellTextState(pres *slides.Presentation, objectID string, rowIndex, columnIndex int64) (bool, bool) {
+	for _, slide := range pres.Slides {
+		if slide == nil {
+			continue
+		}
+		if found, hasText := slidesTableCellStateInElements(slide.PageElements, objectID, rowIndex, columnIndex); found {
+			return true, hasText
+		}
+	}
+	return false, false
+}
+
+func slidesTableCellStateInElements(elements []*slides.PageElement, objectID string, rowIndex, columnIndex int64) (bool, bool) {
+	for _, el := range elements {
+		if el == nil {
+			continue
+		}
+		if el.ObjectId == objectID && el.Table != nil {
+			return slidesTableCellContentState(el.Table, rowIndex, columnIndex)
+		}
+		if el.ElementGroup != nil {
+			if found, hasText := slidesTableCellStateInElements(el.ElementGroup.Children, objectID, rowIndex, columnIndex); found {
+				return true, hasText
+			}
+		}
+	}
+	return false, false
+}
+
+func slidesTableCellContentState(table *slides.Table, rowIndex, columnIndex int64) (bool, bool) {
+	if table == nil {
+		return false, false
+	}
+	for rowPos, row := range table.TableRows {
+		if row == nil {
+			continue
+		}
+		for colPos, cell := range row.TableCells {
+			if cell == nil {
+				continue
+			}
+			cellRow := int64(rowPos)
+			cellColumn := int64(colPos)
+			if cell.Location != nil {
+				cellRow = cell.Location.RowIndex
+				cellColumn = cell.Location.ColumnIndex
+			}
+			if cellRow == rowIndex && cellColumn == columnIndex {
+				return true, slidesTextContentHasDeletableText(cell.Text)
+			}
+		}
+	}
+	return false, false
+}
+
+func slidesTextContentHasDeletableText(content *slides.TextContent) bool {
+	if content == nil {
+		return false
+	}
+	for _, textElement := range content.TextElements {
+		if textElement == nil {
+			continue
+		}
+		if textElement.TextRun != nil && strings.TrimRight(textElement.TextRun.Content, "\r\n") != "" {
+			return true
+		}
+		if textElement.AutoText != nil && strings.TrimRight(textElement.AutoText.Content, "\r\n") != "" {
+			return true
+		}
+	}
+	return false
+}
+
 func buildSlidesReplaceTextRequests(objectID string, text string, hasExistingText bool) []*slides.Request {
+	return buildSlidesReplaceTextRequestsAt(objectID, text, hasExistingText, nil)
+}
+
+func buildSlidesReplaceTextRequestsAt(objectID string, text string, hasExistingText bool, cell *slides.TableCellLocation) []*slides.Request {
 	requests := []*slides.Request{}
 	if hasExistingText {
 		requests = append(requests, &slides.Request{
 			DeleteText: &slides.DeleteTextRequest{
-				ObjectId: objectID,
+				CellLocation: cell,
+				ObjectId:     objectID,
 				TextRange: &slides.Range{
 					Type: "ALL",
 				},
@@ -140,16 +218,25 @@ func buildSlidesReplaceTextRequests(objectID string, text string, hasExistingTex
 	if text != "" {
 		requests = append(requests, &slides.Request{
 			InsertText: &slides.InsertTextRequest{
-				ObjectId: objectID,
-				Text:     text,
+				CellLocation: cell,
+				ObjectId:     objectID,
+				Text:         text,
 			},
 		})
 	}
 	return requests
 }
 
-func buildSlidesClearAndInsertTextRequests(objectID string, text string) []*slides.Request {
-	return buildSlidesReplaceTextRequests(objectID, text, true)
+func buildSlidesClearAndInsertTextRequestsAt(objectID string, text string, cell *slides.TableCellLocation) []*slides.Request {
+	return buildSlidesReplaceTextRequestsAt(objectID, text, true, cell)
+}
+
+func slidesTableCellLocation(row, col int64) *slides.TableCellLocation {
+	return &slides.TableCellLocation{
+		RowIndex:        row,
+		ColumnIndex:     col,
+		ForceSendFields: []string{"RowIndex", "ColumnIndex"},
+	}
 }
 
 func batchUpdateSlidesImageRequests(ctx context.Context, svc *slides.Service, presentationID string, req *slides.BatchUpdatePresentationRequest) error {

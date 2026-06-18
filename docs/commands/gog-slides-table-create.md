@@ -1,18 +1,18 @@
-# `gog slides insert-text`
+# `gog slides table create`
 
 > Generated from `gog schema --json`. Do not edit this page by hand; run `make docs-commands`.
 
-Insert text into an existing page element (shape or table) by objectId
+Create an auto-sized native table on a slide
 
 ## Usage
 
 ```bash
-gog slides (slide) insert-text <presentationId> <objectId> <text> [flags]
+gog slides (slide) table create (add) --rows=INT-64 --cols=INT-64 <presentationId> <slideId> [flags]
 ```
 
 ## Parent
 
-- [gog slides](gog-slides.md)
+- [gog slides table](gog-slides-table.md)
 
 ## Flags
 
@@ -21,8 +21,8 @@ gog slides (slide) insert-text <presentationId> <objectId> <text> [flags]
 | `--access-token` | `string` |  | Use provided access token directly (bypasses stored refresh tokens; token expires in ~1h) |
 | `-a`<br>`--account`<br>`--acct` | `string` |  | Account email, alias, or auto for authenticated Google API commands |
 | `--client` | `string` |  | OAuth client name (selects stored credentials + token bucket) |
-| `--col` | `*int64` |  | 0-based table column index for cell-targeted text; requires --row |
 | `--color` | `string` | auto | Color output: auto\|always\|never |
+| `--cols` | `int64` |  | Number of table columns (>=1) |
 | `--disable-commands` | `string` |  | Comma-separated list of disabled commands; dot paths allowed |
 | `-n`<br>`--dry-run`<br>`--dryrun`<br>`--noop`<br>`--preview` | `bool` |  | Do not make changes; print intended actions and exit successfully |
 | `--enable-commands` | `string` |  | Comma-separated list of enabled command prefixes; dot paths allowed (restricts CLI) |
@@ -31,13 +31,12 @@ gog slides (slide) insert-text <presentationId> <objectId> <text> [flags]
 | `--gmail-no-send` | `bool` | false | Block Gmail send operations (agent safety) |
 | `-h`<br>`--help` | `kong.helpFlag` |  | Show context-sensitive help. |
 | `--home` | `string` |  | Override gogcli config/data/state/cache root (equivalent to GOG_HOME) |
-| `--insertion-index` | `int64` | 0 | Zero-based index where text is inserted within the element's existing text |
 | `-j`<br>`--json`<br>`--machine` | `bool` | false | Output JSON to stdout (best for scripting) |
 | `--no-input`<br>`--non-interactive`<br>`--noninteractive` | `bool` |  | Never prompt; fail instead (useful for CI) |
+| `--object-id` | `string` |  | Optional table object ID to assign |
 | `-p`<br>`--plain`<br>`--tsv` | `bool` | false | Output stable, parseable text to stdout (TSV; no colors) |
-| `--replace` | `bool` |  | Clear existing text in the element before inserting (emits DeleteText + InsertText in the same batch) |
 | `--results-only` | `bool` |  | In JSON mode, emit only the primary result (drops envelope fields like nextPageToken) |
-| `--row` | `*int64` |  | 0-based table row index for cell-targeted text; requires --col |
+| `--rows` | `int64` |  | Number of table rows (>=1) |
 | `--select`<br>`--pick`<br>`--project` | `string` |  | In JSON mode, select comma-separated fields (best-effort; supports dot paths). Desire path: use --fields for most commands. |
 | `-v`<br>`--verbose` | `bool` |  | Enable verbose logging |
 | `--version` | `kong.VersionFlag` |  | Print version and exit |
@@ -45,5 +44,5 @@ gog slides (slide) insert-text <presentationId> <objectId> <text> [flags]
 
 ## See Also
 
-- [gog slides](gog-slides.md)
+- [gog slides table](gog-slides-table.md)
 - [Command index](README.md)

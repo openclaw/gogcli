@@ -604,6 +604,8 @@ Generated from `gog schema --json`.
     - [`gog slides (slide) replace-slide <presentationId> <slideId> [<image>] [flags]`](commands/gog-slides-replace-slide.md) - Replace an existing slide image from a local file or public URL
     - [`gog slides (slide) replace-text <presentationId> <find> <replacement> [flags]`](commands/gog-slides-replace-text.md) - Find-and-replace text in an explicit object, slide, or presentation scope
     - [`gog slides (slide) style-text --range=STRING <presentationId> <objectId> [flags]`](commands/gog-slides-style-text.md) - Apply range-scoped text styling to one page element
+    - [`gog slides (slide) table <command>`](commands/gog-slides-table.md) - Create and update native tables
+      - [`gog slides (slide) table create (add) --rows=INT-64 --cols=INT-64 <presentationId> <slideId> [flags]`](commands/gog-slides-table-create.md) - Create an auto-sized native table on a slide
     - [`gog slides (slide) thumbnail (thumb) <presentationId> <slideId> [flags]`](commands/gog-slides-thumbnail.md) - Get or download a rendered thumbnail for a slide
     - [`gog slides (slide) update-notes <presentationId> <slideId> [flags]`](commands/gog-slides-update-notes.md) - Update speaker notes on an existing slide
   - [`gog status (st) [flags]`](commands/gog-status.md) - Show auth/config status (alias for 'auth status')

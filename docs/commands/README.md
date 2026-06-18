@@ -2,7 +2,7 @@
 
 Every `gog` command has a generated docs page. The source of truth is the live CLI schema; run `make docs-commands` after changing command names, flags, help text, aliases, or arguments.
 
-Generated pages: 650.
+Generated pages: 652.
 
 ## Top-level Commands
 
@@ -655,6 +655,8 @@ Generated pages: 650.
     - [gog slides replace-slide](gog-slides-replace-slide.md) - Replace an existing slide image from a local file or public URL
     - [gog slides replace-text](gog-slides-replace-text.md) - Find-and-replace text in an explicit object, slide, or presentation scope
     - [gog slides style-text](gog-slides-style-text.md) - Apply range-scoped text styling to one page element
+    - [gog slides table](gog-slides-table.md) - Create and update native tables
+      - [gog slides table create](gog-slides-table-create.md) - Create an auto-sized native table on a slide
     - [gog slides thumbnail](gog-slides-thumbnail.md) - Get or download a rendered thumbnail for a slide
     - [gog slides update-notes](gog-slides-update-notes.md) - Update speaker notes on an existing slide
   - [gog status](gog-status.md) - Show auth/config status (alias for 'auth status')
