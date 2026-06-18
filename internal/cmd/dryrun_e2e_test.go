@@ -595,8 +595,28 @@ func TestDryRunE2E_CommandsSkipAuthAPIAndFileWrites(t *testing.T) {
 			op:   "slides.insert-text",
 		},
 		{
+			name: "slides style text",
+			args: []string{"slides", "style-text", "pres123", "shape123", "--range", "0:5", "--bold"},
+			op:   "slides.style-text",
+		},
+		{
+			name: "slides link",
+			args: []string{"slides", "link", "pres123", "shape123", "--range", "0:5", "--url", "https://example.com"},
+			op:   "slides.link",
+		},
+		{
+			name: "slides bullets",
+			args: []string{"slides", "bullets", "pres123", "shape123", "--range", "0:5", "--on"},
+			op:   "slides.bullets",
+		},
+		{
 			name: "slides replace text",
-			args: []string{"slides", "replace-text", "pres123", "old", "new"},
+			args: []string{"slides", "replace-text", "pres123", "old", "new", "--all"},
+			op:   "slides.replace-text",
+		},
+		{
+			name: "slides replace text object scoped",
+			args: []string{"slides", "replace-text", "pres123", "old", "new", "--object", "shape123"},
 			op:   "slides.replace-text",
 		},
 		{

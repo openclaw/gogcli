@@ -6,6 +6,7 @@
 
 - Slides: allow `insert-image` and `replace-slide` to use public HTTPS image URLs without temporary Drive sharing. (#825) — thanks @sebsnyk.
 - Slides: add structured element geometry, styled text runs, table-cell content, image source URLs, native presentation metadata, and read-only text location with exact UTF-16 ranges. (#822) — thanks @sebsnyk.
+- Slides: add range-scoped styling, links, bullets, and object-scoped replacement; `replace-text` now requires explicit `--object`, `--page`, or `--all` scope instead of silently changing the whole deck. (#823, #835) — thanks @sebsnyk.
 
 ### Fixed
 

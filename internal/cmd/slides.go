@@ -31,7 +31,10 @@ type SlidesCmd struct {
 	ReplaceSlide       SlidesReplaceSlideCmd       `cmd:"" name:"replace-slide" help:"Replace an existing slide image from a local file or public URL"`
 	InsertImage        SlidesInsertImageCmd        `cmd:"" name:"insert-image" help:"Insert a local or public image at a position and size"`
 	InsertText         SlidesInsertTextCmd         `cmd:"" name:"insert-text" help:"Insert text into an existing page element (shape or table) by objectId"`
-	ReplaceText        SlidesReplaceTextCmd        `cmd:"" name:"replace-text" help:"Find-and-replace text across a presentation"`
+	StyleText          SlidesStyleTextCmd          `cmd:"" name:"style-text" help:"Apply range-scoped text styling to one page element"`
+	Link               SlidesLinkCmd               `cmd:"" name:"link" help:"Apply a hyperlink to a text range in one page element"`
+	Bullets            SlidesBulletsCmd            `cmd:"" name:"bullets" help:"Turn paragraph bullets on or off in one page element"`
+	ReplaceText        SlidesReplaceTextCmd        `cmd:"" name:"replace-text" help:"Find-and-replace text in an explicit object, slide, or presentation scope"`
 	Raw                SlidesRawCmd                `cmd:"" name:"raw" help:"Dump raw Google Slides API response as JSON (Presentations.Get; lossless; for scripting and LLM consumption)"`
 }
 
