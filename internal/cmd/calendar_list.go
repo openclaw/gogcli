@@ -181,7 +181,10 @@ func listCalendarIDsEvents(ctx context.Context, svc *calendar.Service, calendarI
 	sortEventsBy(all, sortKey, sortOrder)
 
 	if outfmt.IsJSON(ctx) {
-		if err := outfmt.WriteJSON(ctx, stdoutWriter(ctx), map[string]any{"events": all}); err != nil {
+		if err := outfmt.WriteJSON(ctx, stdoutWriter(ctx), map[string]any{
+			"events":         all,
+			"nextPageTokens": nextPages,
+		}); err != nil {
 			return err
 		}
 		if len(all) == 0 {
@@ -197,8 +200,8 @@ func listCalendarIDsEvents(ctx context.Context, svc *calendar.Service, calendarI
 }
 
 type calendarEventsNextPage struct {
-	CalendarID    string
-	NextPageToken string
+	CalendarID    string `json:"calendarId"`
+	NextPageToken string `json:"nextPageToken"`
 }
 
 func printCalendarEventsNextPageHint(u *ui.UI, calendarCount int, nextPages []calendarEventsNextPage) {

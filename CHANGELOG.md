@@ -8,6 +8,7 @@
 
 ### Fixed
 
+- Calendar: report multi-calendar event truncation on stderr for text output and as per-calendar page tokens in JSON. (#831) — thanks @TurboTheTurtle.
 - Docs: update the Docker authentication example to persist file-keyring tokens with `GOG_HOME`. (#828, #830) — thanks @WadydX.
 
 ## 0.28.0 - 2026-06-15
