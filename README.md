@@ -381,11 +381,15 @@ gog sheets banding set <spreadsheetId> 'Sheet1!A1:D100'
 
 Docs: [Slides from Markdown](docs/slides-markdown.md),
 [template replacement](docs/slides-template-replacement.md),
+[introspection](docs/slides-introspection.md),
 [`gog slides`](docs/commands/gog-slides.md),
 [`gog forms`](docs/commands/gog-forms.md).
 
 ```bash
 gog slides create-from-markdown "Weekly update" --content-file slides.md
+gog slides info <presentationId> --json
+gog slides read-slide <presentationId> <slideId> --detail --json
+gog slides locate <presentationId> "Quarterly revenue" --all --json
 gog slides insert-image <presentationId> <slideId> chart.png --x 24 --y 24 --width 240
 gog slides insert-text <presentationId> <objectId> "New text"
 gog forms update <formId> --quiz=true

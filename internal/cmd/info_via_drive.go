@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"strings"
 
+	"google.golang.org/api/drive/v3"
+
 	"github.com/steipete/gogcli/internal/outfmt"
 	"github.com/steipete/gogcli/internal/ui"
 )
@@ -19,10 +21,17 @@ type infoViaDriveOptions struct {
 const infoViaDriveDefaultKindLabel = "expected type"
 
 func infoViaDrive(ctx context.Context, flags *RootFlags, opts infoViaDriveOptions, id string) error {
-	u := ui.FromContext(ctx)
-	account, err := requireAccount(flags)
+	f, err := loadInfoViaDrive(ctx, flags, opts, id)
 	if err != nil {
 		return err
+	}
+	return writeInfoViaDrive(ctx, f)
+}
+
+func loadInfoViaDrive(ctx context.Context, flags *RootFlags, opts infoViaDriveOptions, id string) (*drive.File, error) {
+	account, err := requireAccount(flags)
+	if err != nil {
+		return nil, err
 	}
 
 	argName := strings.TrimSpace(opts.ArgName)
@@ -31,12 +40,12 @@ func infoViaDrive(ctx context.Context, flags *RootFlags, opts infoViaDriveOption
 	}
 	id = normalizeGoogleID(strings.TrimSpace(id))
 	if id == "" {
-		return usage(fmt.Sprintf("empty %s", argName))
+		return nil, usage(fmt.Sprintf("empty %s", argName))
 	}
 
 	svc, err := driveService(ctx, account)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	f, err := svc.Files.Get(id).
@@ -45,23 +54,27 @@ func infoViaDrive(ctx context.Context, flags *RootFlags, opts infoViaDriveOption
 		Context(ctx).
 		Do()
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if f == nil {
-		return errors.New("file not found")
+		return nil, errors.New("file not found")
 	}
 	if opts.ExpectedMime != "" && f.MimeType != opts.ExpectedMime {
 		label := strings.TrimSpace(opts.KindLabel)
 		if label == "" {
 			label = infoViaDriveDefaultKindLabel
 		}
-		return fmt.Errorf("file is not a %s (mimeType=%q)", label, f.MimeType)
+		return nil, fmt.Errorf("file is not a %s (mimeType=%q)", label, f.MimeType)
 	}
+	return f, nil
+}
 
+func writeInfoViaDrive(ctx context.Context, f *drive.File) error {
 	if outfmt.IsJSON(ctx) {
 		return outfmt.WriteJSON(ctx, stdoutWriter(ctx), map[string]any{strFile: f})
 	}
 
+	u := ui.FromContext(ctx)
 	u.Out().Linef("id\t%s", f.Id)
 	u.Out().Linef("name\t%s", f.Name)
 	u.Out().Linef("mime\t%s", f.MimeType)

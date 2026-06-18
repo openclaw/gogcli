@@ -5,6 +5,7 @@
 ### Added
 
 - Slides: allow `insert-image` and `replace-slide` to use public HTTPS image URLs without temporary Drive sharing. (#825) — thanks @sebsnyk.
+- Slides: add structured element geometry, styled text runs, table-cell content, image source URLs, native presentation metadata, and read-only text location with exact UTF-16 ranges. (#822) — thanks @sebsnyk.
 
 ### Fixed
 

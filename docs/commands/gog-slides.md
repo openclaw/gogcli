@@ -27,6 +27,7 @@ gog slides (slide) <command> [flags]
 - [gog slides insert-image](gog-slides-insert-image.md) - Insert a local or public image at a position and size
 - [gog slides insert-text](gog-slides-insert-text.md) - Insert text into an existing page element (shape or table) by objectId
 - [gog slides list-slides](gog-slides-list-slides.md) - List all slides with their object IDs
+- [gog slides locate](gog-slides-locate.md) - Locate text in shapes and table cells with object IDs and UTF-16 ranges
 - [gog slides raw](gog-slides-raw.md) - Dump raw Google Slides API response as JSON (Presentations.Get; lossless; for scripting and LLM consumption)
 - [gog slides read-slide](gog-slides-read-slide.md) - Read slide content: speaker notes, text elements, and images
 - [gog slides replace-slide](gog-slides-replace-slide.md) - Replace an existing slide image from a local file or public URL

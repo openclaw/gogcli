@@ -14,6 +14,7 @@ import (
 	"google.golang.org/api/docs/v1"
 	"google.golang.org/api/drive/v3"
 	"google.golang.org/api/option"
+	"google.golang.org/api/slides/v1"
 
 	"github.com/steipete/gogcli/internal/app"
 )
@@ -48,6 +49,14 @@ func TestExecute_DocsSlidesSheets_CopyCreateInfoCat_JSON(t *testing.T) {
 						},
 					},
 				},
+			})
+			return
+		case r.Method == http.MethodGet && strings.HasPrefix(path, "/v1/presentations/"):
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"presentationId": "p1",
+				"title":          "Slides 1",
+				"slides":         []any{map[string]any{"objectId": "slide1"}},
 			})
 			return
 		case r.Method == http.MethodGet && strings.Contains(drivePath, "/files/d1") && !strings.HasSuffix(drivePath, "/copy"):
@@ -140,6 +149,15 @@ func TestExecute_DocsSlidesSheets_CopyCreateInfoCat_JSON(t *testing.T) {
 		t.Fatalf("NewDocsService: %v", err)
 	}
 
+	slidesSvc, err := slides.NewService(context.Background(),
+		option.WithoutAuthentication(),
+		option.WithHTTPClient(srv.Client()),
+		option.WithEndpoint(srv.URL+"/"),
+	)
+	if err != nil {
+		t.Fatalf("NewSlidesService: %v", err)
+	}
+
 	export := func(_ context.Context, _ *drive.Service, fileID, mimeType string) (*http.Response, error) {
 		if fileID == "" || mimeType == "" {
 			return nil, fmt.Errorf("invalid export request: file=%q mime=%q", fileID, mimeType)
@@ -155,6 +173,9 @@ func TestExecute_DocsSlidesSheets_CopyCreateInfoCat_JSON(t *testing.T) {
 	runtime := &app.Runtime{Services: app.Services{
 		Docs: func(context.Context, string) (*docs.Service, error) {
 			return docSvc, nil
+		},
+		Slides: func(context.Context, string) (*slides.Service, error) {
+			return slidesSvc, nil
 		},
 		Drive:       stubDriveService(svc),
 		DriveExport: export,

@@ -25,6 +25,7 @@ type SlidesCmd struct {
 	ListSlides         SlidesListSlidesCmd         `cmd:"" name:"list-slides" help:"List all slides with their object IDs"`
 	DeleteSlide        SlidesDeleteSlideCmd        `cmd:"" name:"delete-slide" help:"Delete a slide by object ID"`
 	ReadSlide          SlidesReadSlideCmd          `cmd:"" name:"read-slide" help:"Read slide content: speaker notes, text elements, and images"`
+	Locate             SlidesLocateCmd             `cmd:"" name:"locate" aliases:"find-element" help:"Locate text in shapes and table cells with object IDs and UTF-16 ranges"`
 	Thumbnail          SlidesThumbnailCmd          `cmd:"" name:"thumbnail" aliases:"thumb" help:"Get or download a rendered thumbnail for a slide"`
 	UpdateNotes        SlidesUpdateNotesCmd        `cmd:"" name:"update-notes" help:"Update speaker notes on an existing slide"`
 	ReplaceSlide       SlidesReplaceSlideCmd       `cmd:"" name:"replace-slide" help:"Replace an existing slide image from a local file or public URL"`
@@ -91,14 +92,6 @@ func (c *SlidesExportCmd) Run(ctx context.Context, flags *RootFlags) error {
 
 type SlidesInfoCmd struct {
 	PresentationID string `arg:"" name:"presentationId" help:"Presentation ID"`
-}
-
-func (c *SlidesInfoCmd) Run(ctx context.Context, flags *RootFlags) error {
-	return infoViaDrive(ctx, flags, infoViaDriveOptions{
-		ArgName:      "presentationId",
-		ExpectedMime: "application/vnd.google-apps.presentation",
-		KindLabel:    "Google Slides presentation",
-	}, c.PresentationID)
 }
 
 type SlidesCreateCmd struct {
