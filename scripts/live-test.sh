@@ -16,7 +16,7 @@ usage() {
 Usage: scripts/live-test.sh [options]
 
 Options:
-  --fast              Skip slower tests (docs/sheets/slides)
+  --fast              Skip slower tests (docs/sheets/slides/structure)
   --strict            Fail on optional tests (groups/keep/enterprise)
   --allow-nontest     Allow running against non-test accounts
   --account <email>   Account to use (defaults to GOG_IT_ACCOUNT or first auth)
@@ -109,9 +109,9 @@ fi
 SKIP="${SKIP:-${GOG_LIVE_SKIP:-}}"
 if [ "$FAST" = true ]; then
   if [ -n "$SKIP" ]; then
-    SKIP="$SKIP,docs,sheets,slides"
+    SKIP="$SKIP,docs,sheets,slides,structure"
   else
-    SKIP="docs,sheets,slides"
+    SKIP="docs,sheets,slides,structure"
   fi
 fi
 
