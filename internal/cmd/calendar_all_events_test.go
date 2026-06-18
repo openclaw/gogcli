@@ -36,6 +36,7 @@ func TestListAllCalendarsEvents_JSON(t *testing.T) {
 						"attendees":   []map[string]any{{"email": "a@example.com"}},
 					},
 				},
+				"nextPageToken": "cal1-next",
 			})
 			return
 		case strings.Contains(r.URL.Path, "/calendars/cal2/events") && r.Method == http.MethodGet:
@@ -68,13 +69,17 @@ func TestListAllCalendarsEvents_JSON(t *testing.T) {
 	})
 
 	var parsed struct {
-		Events []map[string]any `json:"events"`
+		Events         []map[string]any         `json:"events"`
+		NextPageTokens []calendarEventsNextPage `json:"nextPageTokens"`
 	}
 	if err := json.Unmarshal([]byte(jsonOut), &parsed); err != nil {
 		t.Fatalf("json parse: %v", err)
 	}
 	if len(parsed.Events) != 2 {
 		t.Fatalf("unexpected events: %#v", parsed.Events)
+	}
+	if len(parsed.NextPageTokens) != 1 || parsed.NextPageTokens[0].CalendarID != "cal1" || parsed.NextPageTokens[0].NextPageToken != "cal1-next" {
+		t.Fatalf("unexpected nextPageTokens: %#v", parsed.NextPageTokens)
 	}
 }
 
@@ -127,13 +132,17 @@ func TestListAllCalendarsEvents_SortByStart(t *testing.T) {
 	})
 
 	var parsed struct {
-		Events []map[string]any `json:"events"`
+		Events         []map[string]any         `json:"events"`
+		NextPageTokens []calendarEventsNextPage `json:"nextPageTokens"`
 	}
 	if err := json.Unmarshal([]byte(jsonOut), &parsed); err != nil {
 		t.Fatalf("json parse: %v", err)
 	}
 	if len(parsed.Events) != 2 {
 		t.Fatalf("expected 2 events, got %#v", parsed.Events)
+	}
+	if len(parsed.NextPageTokens) != 0 {
+		t.Fatalf("unexpected nextPageTokens: %#v", parsed.NextPageTokens)
 	}
 	if got, _ := parsed.Events[0]["id"].(string); got != "early" {
 		t.Fatalf("expected first event id 'early', got %q (events: %#v)", got, parsed.Events)

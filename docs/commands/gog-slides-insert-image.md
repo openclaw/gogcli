@@ -2,12 +2,12 @@
 
 > Generated from `gog schema --json`. Do not edit this page by hand; run `make docs-commands`.
 
-Insert an image at a position and size on an existing slide
+Insert a local or public image at a position and size
 
 ## Usage
 
 ```bash
-gog slides (slide) insert-image --width=FLOAT-64 <presentationId> <slideId> <image> [flags]
+gog slides (slide) insert-image --width=FLOAT-64 <presentationId> <slideId> [<image>] [flags]
 ```
 
 ## Parent
@@ -28,7 +28,7 @@ gog slides (slide) insert-image --width=FLOAT-64 <presentationId> <slideId> <ima
 | `--enable-commands-exact` | `string` |  | Comma-separated list of exact enabled commands; dot paths allowed and parent commands do not enable children |
 | `-y`<br>`--force`<br>`--assume-yes`<br>`--yes` | `bool` |  | Skip confirmations for destructive commands |
 | `--gmail-no-send` | `bool` | false | Block Gmail send operations (agent safety) |
-| `--height` | `float64` | 0 | Image height, in --unit; omit to keep the image's aspect ratio |
+| `--height` | `float64` | 0 | Image height, in --unit; required with --url, local files preserve aspect ratio when omitted |
 | `-h`<br>`--help` | `kong.helpFlag` |  | Show context-sensitive help. |
 | `--home` | `string` |  | Override gogcli config/data/state/cache root (equivalent to GOG_HOME) |
 | `-j`<br>`--json`<br>`--machine` | `bool` | false | Output JSON to stdout (best for scripting) |
@@ -37,6 +37,7 @@ gog slides (slide) insert-image --width=FLOAT-64 <presentationId> <slideId> <ima
 | `--results-only` | `bool` |  | In JSON mode, emit only the primary result (drops envelope fields like nextPageToken) |
 | `--select`<br>`--pick`<br>`--project` | `string` |  | In JSON mode, select comma-separated fields (best-effort; supports dot paths). Desire path: use --fields for most commands. |
 | `--unit` | `string` | PT | Measurement unit for x/y/width/height (PT or EMU) |
+| `--url` | `string` |  | Public HTTPS image URL to insert directly |
 | `-v`<br>`--verbose` | `bool` |  | Enable verbose logging |
 | `--version` | `kong.VersionFlag` |  | Print version and exit |
 | `--width` | `float64` |  | Image width, in --unit |

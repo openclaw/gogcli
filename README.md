@@ -47,16 +47,17 @@ gog --version
 docker run --rm ghcr.io/openclaw/gogcli:latest version
 ```
 
-Authenticated container runs should use a persistent config volume and the
+Authenticated container runs should use a persistent `GOG_HOME` directory and the
 encrypted file keyring:
 
 ```bash
-docker volume create gogcli-config
+docker volume create gogcli-state
 
 docker run --rm -it \
+  -e GOG_HOME=/persist/gogcli \
   -e GOG_KEYRING_BACKEND=file \
   -e GOG_KEYRING_PASSWORD \
-  -v gogcli-config:/home/gog/.config/gogcli \
+  -v gogcli-state:/persist/gogcli \
   ghcr.io/openclaw/gogcli:latest \
   auth add you@gmail.com --services gmail,calendar,drive
 ```

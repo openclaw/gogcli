@@ -145,6 +145,7 @@ func listSelectedCalendarsEvents(ctx context.Context, svc *calendar.Service, cal
 func listCalendarIDsEvents(ctx context.Context, svc *calendar.Service, calendarIDs []string, from, to string, maxResults int64, page string, allPages bool, failEmpty bool, query, privatePropFilter, sharedPropFilter, fields string, showWeekday bool, showLocation bool, timezoneHints map[string]calendarTimezoneHint, sortKey, sortOrder string) error {
 	u := ui.FromContext(ctx)
 	all := []*eventWithCalendar{}
+	nextPages := []calendarEventsNextPage{}
 	for _, calID := range calendarIDs {
 		calID = strings.TrimSpace(calID)
 		if calID == "" {
@@ -159,10 +160,16 @@ func listCalendarIDsEvents(ctx context.Context, svc *calendar.Service, calendarI
 			return resp.Items, resp.NextPageToken, nil
 		}
 
-		events, _, err := loadPagedItems(page, allPages, fetch)
+		events, nextPageToken, err := loadPagedItems(page, allPages, fetch)
 		if err != nil {
 			u.Err().Linef("calendar %s: %v", calID, err)
 			continue
+		}
+		if nextPageToken != "" {
+			nextPages = append(nextPages, calendarEventsNextPage{
+				CalendarID:    calID,
+				NextPageToken: nextPageToken,
+			})
 		}
 
 		for _, e := range events {
@@ -174,7 +181,10 @@ func listCalendarIDsEvents(ctx context.Context, svc *calendar.Service, calendarI
 	sortEventsBy(all, sortKey, sortOrder)
 
 	if outfmt.IsJSON(ctx) {
-		if err := outfmt.WriteJSON(ctx, stdoutWriter(ctx), map[string]any{"events": all}); err != nil {
+		if err := outfmt.WriteJSON(ctx, stdoutWriter(ctx), map[string]any{
+			"events":         all,
+			"nextPageTokens": nextPages,
+		}); err != nil {
 			return err
 		}
 		if len(all) == 0 {
@@ -182,7 +192,31 @@ func listCalendarIDsEvents(ctx context.Context, svc *calendar.Service, calendarI
 		}
 		return nil
 	}
-	return renderCalendarEventsTable(ctx, all, "", true, showWeekday, showLocation, failEmpty, false)
+	if err := renderCalendarEventsTable(ctx, all, "", true, showWeekday, showLocation, failEmpty, false); err != nil {
+		return err
+	}
+	printCalendarEventsNextPageHint(u, len(calendarIDs), nextPages)
+	return nil
+}
+
+type calendarEventsNextPage struct {
+	CalendarID    string `json:"calendarId"`
+	NextPageToken string `json:"nextPageToken"`
+}
+
+func printCalendarEventsNextPageHint(u *ui.UI, calendarCount int, nextPages []calendarEventsNextPage) {
+	if u == nil || len(nextPages) == 0 {
+		return
+	}
+	if calendarCount == 1 {
+		printNextPageHintWithAll(u, nextPages[0].NextPageToken, "--all-pages")
+		return
+	}
+	if len(nextPages) == 1 {
+		u.Err().Linef("# More results: use --all-pages to fetch every page (%s has more results)", nextPages[0].CalendarID)
+		return
+	}
+	u.Err().Linef("# More results: use --all-pages to fetch every page (%d calendars have more results)", len(nextPages))
 }
 
 func renderCalendarEventsTable(ctx context.Context, events []*eventWithCalendar, nextPageToken string, includeCalendar, showWeekday, showLocation, failEmpty bool, printPageHint bool) error {
