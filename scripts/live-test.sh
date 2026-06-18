@@ -29,7 +29,7 @@ Skip keys (base):
   time, version, completion, schema, help, output-precedence, auth, auth-alias, config, enable-commands,
   gmail, gmail-settings, gmail-delegates, gmail-batch-delete, gmail-history, gmail-url, gmail-labels,
   gmail-send-safety, gmail-forward,
-  gmail-attachments, gmail-track, gmail-watch, chat, drive, docs, sheets, slides,
+  gmail-attachments, gmail-track, gmail-watch, chat, drive, docs, sheets, slides, structure,
   photos-picker,
   calendar, calendar-enterprise, calendar-respond, calendar-team, calendar-users,
   tasks, contacts, contacts-directory, contacts-other, people, groups, keep, classroom
@@ -155,6 +155,7 @@ source "$ROOT_DIR/scripts/live-tests/drive.sh"
 source "$ROOT_DIR/scripts/live-tests/docs.sh"
 source "$ROOT_DIR/scripts/live-tests/sheets.sh"
 source "$ROOT_DIR/scripts/live-tests/slides.sh"
+source "$ROOT_DIR/scripts/live-tests/structure.sh"
 source "$ROOT_DIR/scripts/live-tests/photos.sh"
 source "$ROOT_DIR/scripts/live-tests/calendar.sh"
 source "$ROOT_DIR/scripts/live-tests/tasks.sh"
@@ -187,6 +188,7 @@ run_drive_tests
 run_docs_tests
 run_sheets_tests
 run_slides_tests
+run_structure_tests
 run_photos_picker_tests
 run_calendar_tests
 run_tasks_tests
