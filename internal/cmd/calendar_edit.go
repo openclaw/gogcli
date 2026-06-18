@@ -22,6 +22,7 @@ type CalendarCreateCmd struct {
 	To                    string   `name:"to" help:"End time (RFC3339)"`
 	StartTimezone         string   `name:"start-timezone" aliases:"from-timezone" help:"IANA timezone metadata for --from (e.g., Europe/Rome)"`
 	EndTimezone           string   `name:"end-timezone" aliases:"to-timezone" help:"IANA timezone metadata for --to (e.g., America/New_York)"`
+	Timezone              string   `name:"timezone" aliases:"tz" help:"IANA timezone metadata applied to both --from and --to (e.g., America/Los_Angeles); mutually exclusive with --start-timezone/--end-timezone"`
 	Description           string   `name:"description" help:"Description"`
 	Location              string   `name:"location" help:"Location"`
 	LocationSearch        string   `name:"location-search" help:"Resolve a Google Places text search and use the best match as event location"`
@@ -80,6 +81,7 @@ func calendarCreateInputFromCommand(c *CalendarCreateCmd) calendarCreateInput {
 		To:                    c.To,
 		StartTimezone:         c.StartTimezone,
 		EndTimezone:           c.EndTimezone,
+		Timezone:              c.Timezone,
 		Description:           c.Description,
 		Location:              c.Location,
 		Attendees:             c.Attendees,

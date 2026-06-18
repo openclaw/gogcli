@@ -66,6 +66,7 @@ gog calendar (cal) create (add,new) <calendarId> [flags]
 | `--source-url` | `string` |  | URL where event was created/imported from |
 | `--start-timezone`<br>`--from-timezone` | `string` |  | IANA timezone metadata for --from (e.g., Europe/Rome) |
 | `--summary` | `string` |  | Event summary/title |
+| `--timezone`<br>`--tz` | `string` |  | IANA timezone metadata applied to both --from and --to (e.g., America/Los_Angeles); mutually exclusive with --start-timezone/--end-timezone |
 | `--to` | `string` |  | End time (RFC3339) |
 | `--transparency` | `string` |  | Show as busy (opaque) or free (transparent). Aliases: busy, free |
 | `-v`<br>`--verbose` | `bool` |  | Enable verbose logging |

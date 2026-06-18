@@ -44,6 +44,30 @@ func buildEventDateTimeWithTimezone(value string, allDay bool, timezone, flagNam
 	return edt, nil
 }
 
+// Flag names for the event start/end timezone options. Shared so the unified
+// --timezone resolution can attribute validation errors to the flag the user
+// actually set.
+const (
+	flagStartTimezone = "--start-timezone"
+	flagEndTimezone   = "--end-timezone"
+	flagTimezone      = "--timezone"
+)
+
+// resolveUnifiedTimezone applies a single --timezone/--tz value to both the
+// start and end timezone. It is mutually exclusive with the granular
+// --start-timezone/--end-timezone flags: supplying --timezone alongside either
+// is a usage error. The returned flag names let downstream validation errors
+// (invalid zone, all-day) point at whichever flag the user actually set.
+func resolveUnifiedTimezone(unified, start, end string) (startTZ, startFlag, endTZ, endFlag string, err error) {
+	if strings.TrimSpace(unified) == "" {
+		return start, flagStartTimezone, end, flagEndTimezone, nil
+	}
+	if strings.TrimSpace(start) != "" || strings.TrimSpace(end) != "" {
+		return "", "", "", "", usage("--timezone cannot be combined with --start-timezone or --end-timezone")
+	}
+	return unified, flagTimezone, unified, flagTimezone, nil
+}
+
 func etcGMTForOffsetSeconds(offset int) (string, bool) {
 	if offset == 0 || offset%3600 != 0 {
 		return "", false
