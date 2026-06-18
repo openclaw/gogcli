@@ -40,7 +40,7 @@ func mockSlidesBatchUpdateServer(
 
 func mockSlidesPresentationBatchUpdateServer(
 	t *testing.T,
-	captured *[]*slides.Request,
+	captured *slides.BatchUpdatePresentationRequest,
 	pres *slides.Presentation,
 	response map[string]any,
 ) *httptest.Server {
@@ -51,7 +51,7 @@ func mockSlidesPresentationBatchUpdateServer(
 		case strings.HasSuffix(r.URL.Path, ":batchUpdate") && r.Method == http.MethodPost:
 			var req slides.BatchUpdatePresentationRequest
 			if err := json.NewDecoder(r.Body).Decode(&req); err == nil {
-				*captured = req.Requests
+				*captured = req
 			}
 			_ = json.NewEncoder(w).Encode(response)
 		case strings.Contains(r.URL.Path, "/presentations/") && r.Method == http.MethodGet:
@@ -93,6 +93,7 @@ func slidesPresentationWithTableCellText(tableID string, rowIndex, columnIndex i
 		}},
 	}
 	return &slides.Presentation{
+		RevisionId: "rev-read",
 		Slides: []*slides.Page{{
 			ObjectId: "slide_1",
 			PageElements: []*slides.PageElement{{
@@ -225,7 +226,7 @@ func TestSlidesInsertText_CellLocation(t *testing.T) {
 }
 
 func TestSlidesInsertText_CellReplaceEmitsCellDeleteThenInsert(t *testing.T) {
-	var captured []*slides.Request
+	var captured slides.BatchUpdatePresentationRequest
 	pres := slidesPresentationWithTableCellText("table_1", 1, 0, "old value\n")
 	srv := mockSlidesPresentationBatchUpdateServer(
 		t,
@@ -255,25 +256,28 @@ func TestSlidesInsertText_CellReplaceEmitsCellDeleteThenInsert(t *testing.T) {
 		t.Fatalf("Run: %v", err)
 	}
 
-	if len(captured) != 2 {
-		t.Fatalf("expected DeleteText + InsertText, got %+v", captured)
+	if captured.WriteControl == nil || captured.WriteControl.RequiredRevisionId != "rev-read" {
+		t.Fatalf("write control = %+v, want required revision rev-read", captured.WriteControl)
 	}
-	if captured[0].DeleteText == nil || captured[0].DeleteText.CellLocation == nil {
-		t.Fatalf("expected cell-targeted DeleteText, got %+v", captured[0])
+	if len(captured.Requests) != 2 {
+		t.Fatalf("expected DeleteText + InsertText, got %+v", captured.Requests)
 	}
-	if captured[0].DeleteText.CellLocation.RowIndex != 1 || captured[0].DeleteText.CellLocation.ColumnIndex != 0 {
-		t.Fatalf("unexpected delete cell location: %+v", captured[0].DeleteText.CellLocation)
+	if captured.Requests[0].DeleteText == nil || captured.Requests[0].DeleteText.CellLocation == nil {
+		t.Fatalf("expected cell-targeted DeleteText, got %+v", captured.Requests[0])
 	}
-	if captured[1].InsertText == nil || captured[1].InsertText.CellLocation == nil {
-		t.Fatalf("expected cell-targeted InsertText, got %+v", captured[1])
+	if captured.Requests[0].DeleteText.CellLocation.RowIndex != 1 || captured.Requests[0].DeleteText.CellLocation.ColumnIndex != 0 {
+		t.Fatalf("unexpected delete cell location: %+v", captured.Requests[0].DeleteText.CellLocation)
 	}
-	if captured[1].InsertText.CellLocation.RowIndex != 1 || captured[1].InsertText.CellLocation.ColumnIndex != 0 {
-		t.Fatalf("unexpected insert cell location: %+v", captured[1].InsertText.CellLocation)
+	if captured.Requests[1].InsertText == nil || captured.Requests[1].InsertText.CellLocation == nil {
+		t.Fatalf("expected cell-targeted InsertText, got %+v", captured.Requests[1])
+	}
+	if captured.Requests[1].InsertText.CellLocation.RowIndex != 1 || captured.Requests[1].InsertText.CellLocation.ColumnIndex != 0 {
+		t.Fatalf("unexpected insert cell location: %+v", captured.Requests[1].InsertText.CellLocation)
 	}
 }
 
 func TestSlidesInsertText_CellReplaceSkipsDeleteForBlankCell(t *testing.T) {
-	var captured []*slides.Request
+	var captured slides.BatchUpdatePresentationRequest
 	pres := slidesPresentationWithTableCellText("table_1", 0, 0, "\n")
 	srv := mockSlidesPresentationBatchUpdateServer(
 		t,
@@ -303,16 +307,19 @@ func TestSlidesInsertText_CellReplaceSkipsDeleteForBlankCell(t *testing.T) {
 		t.Fatalf("Run: %v", err)
 	}
 
-	if len(captured) != 1 || captured[0].InsertText == nil {
-		t.Fatalf("expected only InsertText for blank cell, got %+v", captured)
+	if captured.WriteControl == nil || captured.WriteControl.RequiredRevisionId != "rev-read" {
+		t.Fatalf("write control = %+v, want required revision rev-read", captured.WriteControl)
 	}
-	if captured[0].InsertText.CellLocation == nil ||
-		captured[0].InsertText.CellLocation.RowIndex != 0 ||
-		captured[0].InsertText.CellLocation.ColumnIndex != 0 {
-		t.Fatalf("unexpected insert cell location: %+v", captured[0].InsertText.CellLocation)
+	if len(captured.Requests) != 1 || captured.Requests[0].InsertText == nil {
+		t.Fatalf("expected only InsertText for blank cell, got %+v", captured.Requests)
 	}
-	if captured[0].InsertText.Text != "first text" {
-		t.Fatalf("inserted text = %q", captured[0].InsertText.Text)
+	if captured.Requests[0].InsertText.CellLocation == nil ||
+		captured.Requests[0].InsertText.CellLocation.RowIndex != 0 ||
+		captured.Requests[0].InsertText.CellLocation.ColumnIndex != 0 {
+		t.Fatalf("unexpected insert cell location: %+v", captured.Requests[0].InsertText.CellLocation)
+	}
+	if captured.Requests[0].InsertText.Text != "first text" {
+		t.Fatalf("inserted text = %q", captured.Requests[0].InsertText.Text)
 	}
 }
 

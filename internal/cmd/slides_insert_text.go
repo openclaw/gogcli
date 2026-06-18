@@ -114,6 +114,9 @@ func (c *SlidesInsertTextCmd) Run(ctx context.Context, flags *RootFlags) error {
 		}
 		hasExistingText := slidesTableCellHasText(pres, objectID, *c.Row, *c.Col)
 		body.Requests = buildSlidesReplaceTextRequestsAt(objectID, text, hasExistingText, cellLocation)
+		if pres.RevisionId != "" {
+			body.WriteControl = &slides.WriteControl{RequiredRevisionId: pres.RevisionId}
+		}
 	}
 
 	resp, err := slidesSvc.Presentations.BatchUpdate(presentationID, body).Context(ctx).Do()
