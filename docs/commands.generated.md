@@ -592,6 +592,7 @@ Generated from `gog schema --json`.
     - [`gog slides (slide) create-from-markdown <title> [flags]`](commands/gog-slides-create-from-markdown.md) - Create a Google Slides presentation from markdown
     - [`gog slides (slide) create-from-template <templateId> <title> [flags]`](commands/gog-slides-create-from-template.md) - Create a presentation from template with text replacements
     - [`gog slides (slide) delete-slide <presentationId> <slideId>`](commands/gog-slides-delete-slide.md) - Delete a slide by object ID
+    - [`gog slides (slide) duplicate-slide <presentationId> <slideId> [flags]`](commands/gog-slides-duplicate-slide.md) - Duplicate a slide by object ID
     - [`gog slides (slide) export (download,dl) <presentationId> [flags]`](commands/gog-slides-export.md) - Export a Google Slides deck (pdf|pptx)
     - [`gog slides (slide) info (get,show) <presentationId>`](commands/gog-slides-info.md) - Get Google Slides presentation metadata
     - [`gog slides (slide) insert-image --width=FLOAT-64 <presentationId> <slideId> [<image>] [flags]`](commands/gog-slides-insert-image.md) - Insert a local or public image at a position and size
@@ -599,6 +600,8 @@ Generated from `gog schema --json`.
     - [`gog slides (slide) link --range=STRING <presentationId> <objectId> [flags]`](commands/gog-slides-link.md) - Apply a hyperlink to a text range in one page element
     - [`gog slides (slide) list-slides <presentationId>`](commands/gog-slides-list-slides.md) - List all slides with their object IDs
     - [`gog slides (slide) locate (find-element) <presentationId> <text> [flags]`](commands/gog-slides-locate.md) - Locate text in shapes and table cells with object IDs and UTF-16 ranges
+    - [`gog slides (slide) move-slide --to-index=TO-INDEX <presentationId> <slideId>`](commands/gog-slides-move-slide.md) - Move a slide to a zero-based insertion index
+    - [`gog slides (slide) new-slide <presentationId> [flags]`](commands/gog-slides-new-slide.md) - Create a native themed slide
     - [`gog slides (slide) raw <presentationId> [flags]`](commands/gog-slides-raw.md) - Dump raw Google Slides API response as JSON (Presentations.Get; lossless; for scripting and LLM consumption)
     - [`gog slides (slide) read-slide <presentationId> <slideId> [flags]`](commands/gog-slides-read-slide.md) - Read slide content: speaker notes, text elements, and images
     - [`gog slides (slide) replace-slide <presentationId> <slideId> [<image>] [flags]`](commands/gog-slides-replace-slide.md) - Replace an existing slide image from a local file or public URL

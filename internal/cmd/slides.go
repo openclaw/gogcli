@@ -22,6 +22,9 @@ type SlidesCmd struct {
 	CreateFromTemplate SlidesCreateFromTemplateCmd `cmd:"" name:"create-from-template" help:"Create a presentation from template with text replacements"`
 	Copy               SlidesCopyCmd               `cmd:"" name:"copy" aliases:"cp,duplicate" help:"Copy a Google Slides presentation"`
 	AddSlide           SlidesAddSlideCmd           `cmd:"" name:"add-slide" help:"Add a slide with a full-bleed image and optional speaker notes"`
+	NewSlide           SlidesNewSlideCmd           `cmd:"" name:"new-slide" help:"Create a native themed slide"`
+	DuplicateSlide     SlidesDuplicateSlideCmd     `cmd:"" name:"duplicate-slide" help:"Duplicate a slide by object ID"`
+	MoveSlide          SlidesMoveSlideCmd          `cmd:"" name:"move-slide" help:"Move a slide to a zero-based insertion index"`
 	ListSlides         SlidesListSlidesCmd         `cmd:"" name:"list-slides" help:"List all slides with their object IDs"`
 	DeleteSlide        SlidesDeleteSlideCmd        `cmd:"" name:"delete-slide" help:"Delete a slide by object ID"`
 	ReadSlide          SlidesReadSlideCmd          `cmd:"" name:"read-slide" help:"Read slide content: speaker notes, text elements, and images"`
