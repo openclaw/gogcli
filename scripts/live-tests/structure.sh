@@ -2,29 +2,121 @@
 
 set -euo pipefail
 
-# Structure-preservation regression suite.
-#
-# Seeds one rich fixture per surface (docs / slides / sheets), snapshots the
-# `… raw --json` BEFORE, runs each mutating command against a single target,
-# re-reads the raw AFTER, and asserts the structural invariants below survive:
-#
-#   - paragraph bullet / listId (list membership)
-#   - paragraphStyle.namedStyleType (heading level)
-#   - run textStyle.{bold,italic,underline,link} (run styling)
-#   - native person chip
-#   - inline image object
-#   - table cell text + cell style
-#   - sheet cell value + textFormat / backgroundColor
-#   - adjacent / untargeted content + document order (diff BEFORE vs AFTER
-#     outside the targeted range)
-#
-# Skip key: "structure". Known-bug ops use run_optional so the suite documents
-# them and flips to a hard assert once fixed (see openclaw/gogcli#838, #839).
-#
-# This is a SKELETON: the seed + assert bodies for the bullet/heading/run cases
-# are wired; the remaining invariants (person chip, image, table, slides, sheets)
-# are stubbed with TODO markers and run_optional placeholders so the structure of
-# the suite is reviewable before the full assert bodies land.
+# Docs structure-preservation regressions. Target paragraphs contain STRUCT_;
+# every other paragraph is fingerprinted before edits and compared after each
+# mutation so adjacent content, order, paragraph structure, and run styles stay
+# unchanged.
+
+docs_structure_fingerprint() {
+  local raw="$1"
+  "$PY" -c '
+import json,sys
+obj=json.load(sys.stdin)
+out=[]
+for el in obj.get("body",{}).get("content",[]):
+    p=el.get("paragraph")
+    if not p:
+        continue
+    runs=[]
+    text=""
+    for item in p.get("elements",[]):
+        run=item.get("textRun")
+        if not run:
+            continue
+        content=run.get("content","")
+        text+=content
+        runs.append({"text":content,"style":run.get("textStyle",{})})
+    if "STRUCT_" in text or not text.strip():
+        continue
+    style={k:v for k,v in p.get("paragraphStyle",{}).items() if k != "headingId"}
+    out.append({"text":text,"bullet":p.get("bullet"),"style":style,"runs":runs})
+json.dump(out,sys.stdout,sort_keys=True,separators=(",",":"))' <<<"$raw"
+}
+
+assert_docs_structure_fingerprint() {
+  local before="$1" raw="$2" after
+  after=$(docs_structure_fingerprint "$raw")
+  if [ "$after" != "$before" ]; then
+    echo "Untargeted Docs structure changed" >&2
+    BEFORE="$before" AFTER="$after" "$PY" -c '
+import difflib,json,os
+before=json.dumps(json.loads(os.environ["BEFORE"]),indent=2,sort_keys=True).splitlines()
+after=json.dumps(json.loads(os.environ["AFTER"]),indent=2,sort_keys=True).splitlines()
+print("\n".join(difflib.unified_diff(before,after,fromfile="before",tofile="after")))' >&2
+    return 1
+  fi
+}
+
+docs_paragraph_property() {
+  local raw="$1" needle="$2" property="$3"
+  NEEDLE="$needle" PROPERTY="$property" "$PY" -c '
+import json,os,sys
+obj=json.load(sys.stdin); needle=os.environ["NEEDLE"]; prop=os.environ["PROPERTY"]
+for el in obj.get("body",{}).get("content",[]):
+    p=el.get("paragraph")
+    if not p:
+        continue
+    text="".join(r.get("textRun",{}).get("content","") for r in p.get("elements",[]))
+    if needle not in text:
+        continue
+    if prop == "bullet.listId":
+        print(p.get("bullet",{}).get("listId", ""))
+    elif prop == "paragraphStyle.namedStyleType":
+        print(p.get("paragraphStyle",{}).get("namedStyleType", ""))
+    elif prop == "text":
+        print(text, end="")
+    sys.exit(0)
+raise SystemExit(f"paragraph {needle!r} not found")' <<<"$raw"
+}
+
+assert_docs_paragraph_property() {
+  local raw="$1" needle="$2" property="$3" want="$4" got
+  got=$(docs_paragraph_property "$raw" "$needle" "$property")
+  [ "$got" = "$want" ] || {
+    echo "Paragraph $needle property $property: got '$got', want '$want'" >&2
+    return 1
+  }
+}
+
+assert_docs_run_style() {
+  local raw="$1" needle="$2" property="$3" want="$4"
+  NEEDLE="$needle" PROPERTY="$property" WANT="$want" "$PY" -c '
+import json,os,sys
+obj=json.load(sys.stdin); needle=os.environ["NEEDLE"]; prop=os.environ["PROPERTY"]; want=os.environ["WANT"]
+def walk(value):
+    if isinstance(value,dict):
+        if "textRun" in value:
+            yield value["textRun"]
+        for child in value.values():
+            yield from walk(child)
+    elif isinstance(value,list):
+        for child in value:
+            yield from walk(child)
+for run in walk(obj):
+    if run.get("content","").strip() != needle:
+        continue
+    style=run.get("textStyle",{})
+    got=style.get("link",{}).get("url","") if prop == "link.url" else style.get(prop)
+    expected=True if want == "true" else want
+    assert got == expected, f"run {needle!r} property {prop}: {got!r} != {expected!r}"
+    sys.exit(0)
+raise SystemExit(f"run {needle!r} not found")' <<<"$raw"
+}
+
+assert_docs_inline_image_count() {
+  local raw="$1" want="$2"
+  WANT="$want" "$PY" -c '
+import json,os,sys
+obj=json.load(sys.stdin)
+def count(value):
+    if isinstance(value,dict):
+        return (1 if "inlineObjectElement" in value else 0) + sum(count(v) for v in value.values())
+    if isinstance(value,list):
+        return sum(count(v) for v in value)
+    return 0
+got=count(obj); want=int(os.environ["WANT"])
+assert got == want, f"inline image count {got} != {want}"' <<<"$raw"
+}
 
 run_structure_tests() {
   if skip "structure"; then
@@ -32,143 +124,68 @@ run_structure_tests() {
     return 0
   fi
 
-  run_structure_docs_tests
-  run_structure_slides_tests
-  run_structure_sheets_tests
-}
-
-# --- helpers ---------------------------------------------------------------
-
-# assert_paragraph_bullet <raw-json> <text-substr>
-# Fails if the paragraph whose first run contains <text-substr> has no bullet.
-assert_paragraph_bullet() {
-  local raw="$1" needle="$2"
-  NEEDLE="$needle" "$PY" -c '
-import json,os,sys
-obj=json.load(sys.stdin); needle=os.environ["NEEDLE"]
-for el in obj.get("body",{}).get("content",[]):
-    p=el.get("paragraph")
-    if not p: continue
-    text="".join(r.get("textRun",{}).get("content","") for r in p.get("elements",[]))
-    if needle in text:
-        assert p.get("bullet",{}).get("listId"), f"paragraph {needle!r} lost its bullet/listId"
-        sys.exit(0)
-raise SystemExit(f"paragraph {needle!r} not found")' <<<"$raw"
-}
-
-# assert_paragraph_named_style <raw-json> <text-substr> <expected-style>
-assert_paragraph_named_style() {
-  local raw="$1" needle="$2" want="$3"
-  NEEDLE="$needle" WANT="$want" "$PY" -c '
-import json,os,sys
-obj=json.load(sys.stdin); needle=os.environ["NEEDLE"]; want=os.environ["WANT"]
-for el in obj.get("body",{}).get("content",[]):
-    p=el.get("paragraph")
-    if not p: continue
-    text="".join(r.get("textRun",{}).get("content","") for r in p.get("elements",[]))
-    if needle in text:
-        got=p.get("paragraphStyle",{}).get("namedStyleType")
-        assert got==want, f"paragraph {needle!r} namedStyleType {got!r} != {want!r}"
-        sys.exit(0)
-raise SystemExit(f"paragraph {needle!r} not found")' <<<"$raw"
-}
-
-# assert_run_style <raw-json> <run-text> <bold|italic|underline>
-assert_run_style() {
-  local raw="$1" needle="$2" attr="$3"
-  NEEDLE="$needle" ATTR="$attr" "$PY" -c '
-import json,os,sys
-obj=json.load(sys.stdin); needle=os.environ["NEEDLE"]; attr=os.environ["ATTR"]
-def runs(v):
-    if isinstance(v,dict):
-        if "textRun" in v: yield v["textRun"]
-        for x in v.values(): yield from runs(x)
-    elif isinstance(v,list):
-        for x in v: yield from runs(x)
-for r in runs(obj):
-    if r.get("content","").strip()==needle:
-        assert r.get("textStyle",{}).get(attr) is True, f"run {needle!r} lost {attr}"
-        sys.exit(0)
-raise SystemExit(f"run {needle!r} not found")' <<<"$raw"
-}
-
-# --- docs ------------------------------------------------------------------
-
-# Block / multi-paragraph markdown replacement against a list item. Returns
-# non-zero while #838 is open (the replacement paragraph loses its bullet).
-# Reuses assert_paragraph_bullet, which exits non-zero on failure.
-structure_docs_block_replace_keeps_bullet() {
-  local doc_id="$1" repl_path raw
-  repl_path="$LIVE_TMP/structure-block-$TS.md"
-  printf 'Item two block A\n\nItem two block B' >"$repl_path"
-  gog docs find-replace "$doc_id" "Item two" \
-    --content-file "$repl_path" --first --format markdown --json >/dev/null
-  raw=$(gog docs raw "$doc_id" --json)
-  assert_paragraph_bullet "$raw" "Item two block A"
-}
-
-run_structure_docs_tests() {
-  local doc_json doc_id seed_path repl_path before after
+  local doc_json doc_id seed_path block_path heading_path before baseline after
+  local inline_list_id block_list_id image_url
   doc_json=$(gog docs create "gogcli-structure-doc-$TS" --json)
   doc_id=$(extract_id "$doc_json")
   [ -n "$doc_id" ] || { echo "Failed to parse structure doc id" >&2; exit 1; }
   register_drive_cleanup "$doc_id"
 
   seed_path="$LIVE_TMP/structure-seed-$TS.md"
-  printf '# Heading A\n\nNormal with **bold word** and *italic word* and a [link word](https://example.com) inside.\n\n## Heading B\n\n- Item one\n- Item two\n- Item three\n\n1. First step\n2. Second step\n3. Third step\n\nPlain trailing paragraph.\n' >"$seed_path"
+  block_path="$LIVE_TMP/structure-block-$TS.md"
+  heading_path="$LIVE_TMP/structure-heading-$TS.md"
+  printf '# Heading control\n\nNormal with **bold word** and *italic word* and a [link word](https://example.com) inside.\n\n## STRUCT_HEADING_TARGET\n\nHeading neighbor.\n\n- Item one\n- STRUCT_INLINE_TARGET\n- STRUCT_BLOCK_TARGET\n- Item four\n\n1. First step\n2. Second step\n3. Third step\n\nSTRUCT_IMAGE_TARGET\n\nPlain trailing paragraph.\n' >"$seed_path"
+  printf 'STRUCT_BLOCK_TARGET A\n\nSTRUCT_BLOCK_TARGET B' >"$block_path"
+  printf 'STRUCT_HEADING_TARGET A\n\nSTRUCT_HEADING_TARGET B' >"$heading_path"
+
   run_required "structure" "structure docs seed" gog docs write "$doc_id" \
     --file "$seed_path" --replace --markdown --json >/dev/null
-
   before=$(gog docs raw "$doc_id" --json)
-  assert_paragraph_bullet "$before" "Item one"
-  assert_paragraph_named_style "$before" "Heading A" "HEADING_1"
-  assert_run_style "$before" "bold word" "bold"
+  baseline=$(docs_structure_fingerprint "$before")
+  inline_list_id=$(docs_paragraph_property "$before" "STRUCT_INLINE_TARGET" "bullet.listId")
+  block_list_id=$(docs_paragraph_property "$before" "STRUCT_BLOCK_TARGET" "bullet.listId")
+  [ -n "$inline_list_id" ] && [ -n "$block_list_id" ] || {
+    echo "Structure fixture list IDs missing" >&2
+    exit 1
+  }
+  assert_docs_run_style "$before" "bold word" "bold" "true"
+  assert_docs_run_style "$before" "italic word" "italic" "true"
+  assert_docs_run_style "$before" "link word" "link.url" "https://example.com"
 
-  # PASS: inline single-paragraph markdown replacement preserves bullet (guarded
-  # by inlineReplacement, #740).
-  run_required "structure" "structure docs inline md replace keeps bullet" \
-    gog docs find-replace "$doc_id" "Item one" "Item one edited" --first --format markdown --json >/dev/null
+  run_required "structure" "structure docs inline markdown replacement" \
+    gog docs find-replace "$doc_id" "STRUCT_INLINE_TARGET" "STRUCT_INLINE_TARGET edited" \
+      --first --format markdown --json >/dev/null
   after=$(gog docs raw "$doc_id" --json)
-  assert_paragraph_bullet "$after" "Item one edited"
-  assert_paragraph_named_style "$after" "Heading A" "HEADING_1"
+  assert_docs_paragraph_property "$after" "STRUCT_INLINE_TARGET edited" "bullet.listId" "$inline_list_id"
+  assert_docs_structure_fingerprint "$baseline" "$after"
 
-  # KNOWN BUG #838: block / multi-paragraph markdown replacement drops the
-  # matched paragraph's bullet. run_optional until fixed; flip to a hard
-  # assert_paragraph_bullet on "Item two block A" (and remove the xfail
-  # wrapper) once #838 lands.
-  run_optional "structure" "structure docs block md replace keeps bullet (#838 xfail)" \
-    structure_docs_block_replace_keeps_bullet "$doc_id"
+  run_required "structure" "structure docs block markdown list replacement" \
+    gog docs find-replace "$doc_id" "STRUCT_BLOCK_TARGET" --content-file "$block_path" \
+      --first --format markdown --json >/dev/null
+  after=$(gog docs raw "$doc_id" --json)
+  assert_docs_paragraph_property "$after" "STRUCT_BLOCK_TARGET A" "bullet.listId" "$block_list_id"
+  assert_docs_paragraph_property "$after" "STRUCT_BLOCK_TARGET B" "bullet.listId" ""
+  assert_docs_structure_fingerprint "$baseline" "$after"
 
-  # TODO: assert adjacent/untargeted invariant — diff BEFORE vs AFTER element
-  # list outside the targeted paragraph; fail on any change in count/order/text.
-  # TODO: person-chip invariant — insert-person at a placeholder, assert chip
-  # present and neighbouring runs unchanged.
-  # TODO: inline-image invariant — and KNOWN BUG #839: insert-image --at <text>
-  # deletes the anchor; run_optional until a non-destructive mode exists.
-  # TODO: table invariant — insert-table + cell-update --format markdown, assert
-  # sibling cells + cell styles intact.
+  run_required "structure" "structure docs block markdown heading replacement" \
+    gog docs find-replace "$doc_id" "STRUCT_HEADING_TARGET" --content-file "$heading_path" \
+      --first --format markdown --json >/dev/null
+  after=$(gog docs raw "$doc_id" --json)
+  assert_docs_paragraph_property "$after" "STRUCT_HEADING_TARGET A" "paragraphStyle.namedStyleType" "HEADING_2"
+  assert_docs_paragraph_property "$after" "STRUCT_HEADING_TARGET B" "paragraphStyle.namedStyleType" "NORMAL_TEXT"
+  assert_docs_structure_fingerprint "$baseline" "$after"
+
+  image_url="https://www.gstatic.com/images/branding/product/2x/docs_96dp.png"
+  run_required "structure" "structure docs image before preserved anchor" \
+    gog docs insert-image "$doc_id" --url "$image_url" --before "STRUCT_IMAGE_TARGET" \
+      --width 40 --json >/dev/null
+  run_required "structure" "structure docs image after preserved anchor" \
+    gog docs insert-image "$doc_id" --url "$image_url" --after "STRUCT_IMAGE_TARGET" \
+      --width 40 --json >/dev/null
+  after=$(gog docs raw "$doc_id" --json)
+  assert_docs_paragraph_property "$after" "STRUCT_IMAGE_TARGET" "text" "STRUCT_IMAGE_TARGET"
+  assert_docs_inline_image_count "$after" 2
+  assert_docs_structure_fingerprint "$baseline" "$after"
 
   run_required "structure" "structure docs delete" gog drive delete "$doc_id" --force >/dev/null
-}
-
-# --- slides ----------------------------------------------------------------
-
-run_structure_slides_tests() {
-  # TODO: seed a slide with a title shape (multi-word, one bold sub-range + one
-  # linked sub-range) and a body shape with 3 bulleted paragraphs.
-  # Assert after style-text / link / bullets / insert-text / replace-text that
-  # neighbouring runs + links + bullet paragraphs are preserved.
-  # Note: slides replace-text uses native ReplaceAllText; an exact-match over a
-  # styled sub-run collapses into the surrounding run style (Google API), so
-  # that case is a documented caveat, not a hard assert.
-  echo "==> structure slides (TODO: seed + asserts)"
-}
-
-# --- sheets ----------------------------------------------------------------
-
-run_structure_sheets_tests() {
-  # TODO: seed a 3x3 range with a bold + background-coloured header row.
-  # Assert after update / find-replace / delete-dimension / merge / unmerge that
-  # the header textFormat + backgroundColor and untouched cell values survive.
-  echo "==> structure sheets (TODO: seed + asserts)"
 }
