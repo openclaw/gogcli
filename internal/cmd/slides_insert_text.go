@@ -21,6 +21,8 @@ type SlidesInsertTextCmd struct {
 	Text           string `arg:"" name:"text" help:"Text to insert (use '-' to read from stdin)"`
 	InsertionIndex int64  `name:"insertion-index" help:"Zero-based index where text is inserted within the element's existing text" default:"0"`
 	Replace        bool   `name:"replace" help:"Clear existing text in the element before inserting (emits DeleteText + InsertText in the same batch)"`
+	Row            *int64 `name:"row" help:"0-based table row index for cell-targeted text; requires --col"`
+	Col            *int64 `name:"col" help:"0-based table column index for cell-targeted text; requires --row"`
 }
 
 // Run executes the insert-text command.
@@ -51,14 +53,28 @@ func (c *SlidesInsertTextCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if c.InsertionIndex < 0 {
 		return usage("insertion-index must be >= 0")
 	}
+	var cellLocation *slides.TableCellLocation
+	if c.Row != nil || c.Col != nil {
+		if c.Row == nil || c.Col == nil {
+			return usage("--row and --col must be provided together")
+		}
+		if *c.Row < 0 {
+			return usage("--row must be >= 0")
+		}
+		if *c.Col < 0 {
+			return usage("--col must be >= 0")
+		}
+		cellLocation = slidesTableCellLocation(*c.Row, *c.Col)
+	}
 
 	// Build the batchUpdate request body.
 	var requests []*slides.Request
 	if c.Replace {
-		requests = buildSlidesClearAndInsertTextRequests(objectID, text)
+		requests = buildSlidesClearAndInsertTextRequestsAt(objectID, text, cellLocation)
 	} else {
 		requests = append(requests, &slides.Request{
 			InsertText: &slides.InsertTextRequest{
+				CellLocation:   cellLocation,
 				ObjectId:       objectID,
 				Text:           text,
 				InsertionIndex: c.InsertionIndex,
@@ -74,6 +90,8 @@ func (c *SlidesInsertTextCmd) Run(ctx context.Context, flags *RootFlags) error {
 		"text_length":     len(text),
 		"insertion_index": c.InsertionIndex,
 		"replace":         c.Replace,
+		"row":             c.Row,
+		"col":             c.Col,
 		"batch_update":    body,
 	}); err != nil {
 		return err

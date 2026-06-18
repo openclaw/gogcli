@@ -132,6 +132,84 @@ func TestSlidesInsertText_ReplaceEmitsDeleteThenInsert(t *testing.T) {
 	}
 }
 
+func TestSlidesInsertText_CellLocation(t *testing.T) {
+	var captured []*slides.Request
+	srv := mockSlidesBatchUpdateServer(t, &captured, map[string]any{
+		"presentationId": "pres1",
+		"replies":        []any{map[string]any{}},
+	})
+	defer srv.Close()
+
+	svc := newSlidesServiceFromServer(t, srv)
+	flags := &RootFlags{Account: "a@b.com"}
+	ctx := withSlidesTestService(newCmdRuntimeOutputContext(t, io.Discard, io.Discard), svc)
+	row, col := int64(0), int64(2)
+
+	cmd := &SlidesInsertTextCmd{
+		PresentationID: "pres1",
+		ObjectID:       "table_1",
+		Text:           "cell text",
+		Row:            &row,
+		Col:            &col,
+	}
+	if err := cmd.Run(ctx, flags); err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+
+	if len(captured) != 1 || captured[0].InsertText == nil {
+		t.Fatalf("expected single InsertText request, got %+v", captured)
+	}
+	insert := captured[0].InsertText
+	if insert.ObjectId != "table_1" || insert.Text != "cell text" {
+		t.Fatalf("unexpected insert text request: %+v", insert)
+	}
+	if insert.CellLocation == nil || insert.CellLocation.RowIndex != 0 || insert.CellLocation.ColumnIndex != 2 {
+		t.Fatalf("unexpected cell location: %+v", insert.CellLocation)
+	}
+}
+
+func TestSlidesInsertText_CellReplaceEmitsCellDeleteThenInsert(t *testing.T) {
+	var captured []*slides.Request
+	srv := mockSlidesBatchUpdateServer(t, &captured, map[string]any{
+		"presentationId": "pres1",
+		"replies":        []any{map[string]any{}, map[string]any{}},
+	})
+	defer srv.Close()
+
+	svc := newSlidesServiceFromServer(t, srv)
+	flags := &RootFlags{Account: "a@b.com"}
+	ctx := withSlidesTestService(newCmdRuntimeOutputContext(t, io.Discard, io.Discard), svc)
+	row, col := int64(1), int64(0)
+
+	cmd := &SlidesInsertTextCmd{
+		PresentationID: "pres1",
+		ObjectID:       "table_1",
+		Text:           "replacement",
+		Replace:        true,
+		Row:            &row,
+		Col:            &col,
+	}
+	if err := cmd.Run(ctx, flags); err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+
+	if len(captured) != 2 {
+		t.Fatalf("expected DeleteText + InsertText, got %+v", captured)
+	}
+	if captured[0].DeleteText == nil || captured[0].DeleteText.CellLocation == nil {
+		t.Fatalf("expected cell-targeted DeleteText, got %+v", captured[0])
+	}
+	if captured[0].DeleteText.CellLocation.RowIndex != 1 || captured[0].DeleteText.CellLocation.ColumnIndex != 0 {
+		t.Fatalf("unexpected delete cell location: %+v", captured[0].DeleteText.CellLocation)
+	}
+	if captured[1].InsertText == nil || captured[1].InsertText.CellLocation == nil {
+		t.Fatalf("expected cell-targeted InsertText, got %+v", captured[1])
+	}
+	if captured[1].InsertText.CellLocation.RowIndex != 1 || captured[1].InsertText.CellLocation.ColumnIndex != 0 {
+		t.Fatalf("unexpected insert cell location: %+v", captured[1].InsertText.CellLocation)
+	}
+}
+
 func TestSlidesInsertText_ReplaceEmptyClearsOnly(t *testing.T) {
 	var captured []*slides.Request
 	srv := mockSlidesBatchUpdateServer(t, &captured, map[string]any{
@@ -236,6 +314,42 @@ func TestSlidesInsertText_DryRunNoAPICall(t *testing.T) {
 	}
 }
 
+func TestSlidesInsertText_DryRunCellLocationIncludesZeroIndexes(t *testing.T) {
+	flags := &RootFlags{Account: "a@b.com", DryRun: true}
+	var out bytes.Buffer
+	ctx := withSlidesTestServiceFactory(
+		newCmdRuntimeJSONOutputContext(t, &out, io.Discard),
+		func(context.Context, string) (*slides.Service, error) {
+			t.Fatal("slides service should not be created during dry-run")
+			return nil, context.Canceled
+		},
+	)
+	row, col := int64(0), int64(0)
+	cmd := &SlidesInsertTextCmd{
+		PresentationID: "pres1",
+		ObjectID:       "table_1",
+		Text:           "dry",
+		Row:            &row,
+		Col:            &col,
+	}
+	if err := cmd.Run(ctx, flags); err != nil && ExitCode(err) != 0 {
+		t.Fatalf("Run: %v", err)
+	}
+
+	var got struct {
+		Request struct {
+			BatchUpdate slides.BatchUpdatePresentationRequest `json:"batch_update"`
+		} `json:"request"`
+	}
+	if err := json.Unmarshal(out.Bytes(), &got); err != nil {
+		t.Fatalf("decode dry-run output: %v\n%s", err, out.String())
+	}
+	insert := got.Request.BatchUpdate.Requests[0].InsertText
+	if insert == nil || insert.CellLocation == nil || insert.CellLocation.RowIndex != 0 || insert.CellLocation.ColumnIndex != 0 {
+		t.Fatalf("dry-run output should include zero cell indexes, got: %+v", got.Request.BatchUpdate.Requests)
+	}
+}
+
 func TestSlidesInsertText_InvalidInsertionIndexIsUsageErrorBeforeDryRun(t *testing.T) {
 	flags := &RootFlags{Account: "a@b.com", DryRun: true}
 	ctx := withSlidesTestServiceFactory(
@@ -258,6 +372,36 @@ func TestSlidesInsertText_InvalidInsertionIndexIsUsageErrorBeforeDryRun(t *testi
 	}
 	if got := ExitCode(err); got != 2 {
 		t.Fatalf("ExitCode = %d, want 2 (err=%v)", got, err)
+	}
+}
+
+func TestSlidesInsertText_InvalidCellFlags(t *testing.T) {
+	flags := &RootFlags{Account: "a@b.com"}
+	ctx := withSlidesTestServiceFactory(
+		newCmdRuntimeOutputContext(t, io.Discard, io.Discard),
+		func(context.Context, string) (*slides.Service, error) {
+			t.Fatal("slides service should not be created")
+			return nil, context.Canceled
+		},
+	)
+	zero, neg := int64(0), int64(-1)
+	cases := []struct {
+		name string
+		cmd  SlidesInsertTextCmd
+		want string
+	}{
+		{name: "row without col", cmd: SlidesInsertTextCmd{PresentationID: "pres1", ObjectID: "table_1", Text: "x", Row: &zero}, want: "--row and --col"},
+		{name: "col without row", cmd: SlidesInsertTextCmd{PresentationID: "pres1", ObjectID: "table_1", Text: "x", Col: &zero}, want: "--row and --col"},
+		{name: "negative row", cmd: SlidesInsertTextCmd{PresentationID: "pres1", ObjectID: "table_1", Text: "x", Row: &neg, Col: &zero}, want: "--row must be >= 0"},
+		{name: "negative col", cmd: SlidesInsertTextCmd{PresentationID: "pres1", ObjectID: "table_1", Text: "x", Row: &zero, Col: &neg}, want: "--col must be >= 0"},
+	}
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.cmd.Run(ctx, flags)
+			if err == nil || !strings.Contains(err.Error(), tt.want) {
+				t.Fatalf("expected %q error, got %v", tt.want, err)
+			}
+		})
 	}
 }
 

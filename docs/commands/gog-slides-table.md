@@ -1,43 +1,22 @@
-# `gog slides`
+# `gog slides table`
 
 > Generated from `gog schema --json`. Do not edit this page by hand; run `make docs-commands`.
 
-Google Slides
+Create and update native tables
 
 ## Usage
 
 ```bash
-gog slides (slide) <command> [flags]
+gog slides (slide) table <command>
 ```
 
 ## Parent
 
-- [gog](gog.md)
+- [gog slides](gog-slides.md)
 
 ## Subcommands
 
-- [gog slides add-slide](gog-slides-add-slide.md) - Add a slide with a full-bleed image and optional speaker notes
-- [gog slides bullets](gog-slides-bullets.md) - Turn paragraph bullets on or off in one page element
-- [gog slides copy](gog-slides-copy.md) - Copy a Google Slides presentation
-- [gog slides create](gog-slides-create.md) - Create a Google Slides presentation
-- [gog slides create-from-markdown](gog-slides-create-from-markdown.md) - Create a Google Slides presentation from markdown
-- [gog slides create-from-template](gog-slides-create-from-template.md) - Create a presentation from template with text replacements
-- [gog slides delete-slide](gog-slides-delete-slide.md) - Delete a slide by object ID
-- [gog slides export](gog-slides-export.md) - Export a Google Slides deck (pdf|pptx)
-- [gog slides info](gog-slides-info.md) - Get Google Slides presentation metadata
-- [gog slides insert-image](gog-slides-insert-image.md) - Insert a local or public image at a position and size
-- [gog slides insert-text](gog-slides-insert-text.md) - Insert text into an existing page element (shape or table) by objectId
-- [gog slides link](gog-slides-link.md) - Apply a hyperlink to a text range in one page element
-- [gog slides list-slides](gog-slides-list-slides.md) - List all slides with their object IDs
-- [gog slides locate](gog-slides-locate.md) - Locate text in shapes and table cells with object IDs and UTF-16 ranges
-- [gog slides raw](gog-slides-raw.md) - Dump raw Google Slides API response as JSON (Presentations.Get; lossless; for scripting and LLM consumption)
-- [gog slides read-slide](gog-slides-read-slide.md) - Read slide content: speaker notes, text elements, and images
-- [gog slides replace-slide](gog-slides-replace-slide.md) - Replace an existing slide image from a local file or public URL
-- [gog slides replace-text](gog-slides-replace-text.md) - Find-and-replace text in an explicit object, slide, or presentation scope
-- [gog slides style-text](gog-slides-style-text.md) - Apply range-scoped text styling to one page element
-- [gog slides table](gog-slides-table.md) - Create and update native tables
-- [gog slides thumbnail](gog-slides-thumbnail.md) - Get or download a rendered thumbnail for a slide
-- [gog slides update-notes](gog-slides-update-notes.md) - Update speaker notes on an existing slide
+- [gog slides table create](gog-slides-table-create.md) - Create an auto-sized native table on a slide
 
 ## Flags
 
@@ -66,5 +45,5 @@ gog slides (slide) <command> [flags]
 
 ## See Also
 
-- [gog](gog.md)
+- [gog slides](gog-slides.md)
 - [Command index](README.md)

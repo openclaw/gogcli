@@ -383,6 +383,7 @@ Docs: [Slides from Markdown](docs/slides-markdown.md),
 [template replacement](docs/slides-template-replacement.md),
 [introspection](docs/slides-introspection.md),
 [text editing](docs/slides-text-editing.md),
+[tables](docs/slides-tables.md),
 [`gog slides`](docs/commands/gog-slides.md),
 [`gog forms`](docs/commands/gog-forms.md).
 
@@ -393,6 +394,8 @@ gog slides read-slide <presentationId> <slideId> --detail --json
 gog slides locate <presentationId> "Quarterly revenue" --all --json
 gog slides style-text <presentationId> <objectId> --range 0:12 --bold --size 24
 gog slides replace-text <presentationId> old new --object <objectId>
+gog slides table create <presentationId> <slideId> --rows 2 --cols 3
+gog slides insert-text <presentationId> <tableId> "Revenue" --row 0 --col 0 --replace
 gog slides insert-image <presentationId> <slideId> chart.png --x 24 --y 24 --width 240
 gog slides insert-text <presentationId> <objectId> "New text"
 gog forms update <formId> --quiz=true

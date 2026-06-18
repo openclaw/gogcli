@@ -126,11 +126,16 @@ func slidesPageElementHasText(page *slides.Page, objectID string) bool {
 }
 
 func buildSlidesReplaceTextRequests(objectID string, text string, hasExistingText bool) []*slides.Request {
+	return buildSlidesReplaceTextRequestsAt(objectID, text, hasExistingText, nil)
+}
+
+func buildSlidesReplaceTextRequestsAt(objectID string, text string, hasExistingText bool, cell *slides.TableCellLocation) []*slides.Request {
 	requests := []*slides.Request{}
 	if hasExistingText {
 		requests = append(requests, &slides.Request{
 			DeleteText: &slides.DeleteTextRequest{
-				ObjectId: objectID,
+				CellLocation: cell,
+				ObjectId:     objectID,
 				TextRange: &slides.Range{
 					Type: "ALL",
 				},
@@ -140,16 +145,25 @@ func buildSlidesReplaceTextRequests(objectID string, text string, hasExistingTex
 	if text != "" {
 		requests = append(requests, &slides.Request{
 			InsertText: &slides.InsertTextRequest{
-				ObjectId: objectID,
-				Text:     text,
+				CellLocation: cell,
+				ObjectId:     objectID,
+				Text:         text,
 			},
 		})
 	}
 	return requests
 }
 
-func buildSlidesClearAndInsertTextRequests(objectID string, text string) []*slides.Request {
-	return buildSlidesReplaceTextRequests(objectID, text, true)
+func buildSlidesClearAndInsertTextRequestsAt(objectID string, text string, cell *slides.TableCellLocation) []*slides.Request {
+	return buildSlidesReplaceTextRequestsAt(objectID, text, true, cell)
+}
+
+func slidesTableCellLocation(row, col int64) *slides.TableCellLocation {
+	return &slides.TableCellLocation{
+		RowIndex:        row,
+		ColumnIndex:     col,
+		ForceSendFields: []string{"RowIndex", "ColumnIndex"},
+	}
 }
 
 func batchUpdateSlidesImageRequests(ctx context.Context, svc *slides.Service, presentationID string, req *slides.BatchUpdatePresentationRequest) error {
