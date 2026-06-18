@@ -22,7 +22,7 @@ type exportViaDriveOptions struct {
 
 const defaultExportFormat = "pdf"
 
-func exportViaDrive(ctx context.Context, flags *RootFlags, opts exportViaDriveOptions, id string, outPathFlag string, format string) error {
+func exportViaDrive(ctx context.Context, flags *RootFlags, opts exportViaDriveOptions, id string, outPathFlag string, format string, overwrite bool) error {
 	u := ui.FromContext(ctx)
 
 	argName := strings.TrimSpace(opts.ArgName)
@@ -69,6 +69,7 @@ func exportViaDrive(ctx context.Context, flags *RootFlags, opts exportViaDriveOp
 		"out":                   outPathFlag,
 		"default_downloads_dir": defaultDownloadsDir,
 		"format":                format,
+		"overwrite":             overwrite,
 		"expected_mime":         strings.TrimSpace(opts.ExpectedMime),
 		"kind":                  strings.TrimSpace(opts.KindLabel),
 	}); err != nil {
@@ -107,7 +108,7 @@ func exportViaDrive(ctx context.Context, flags *RootFlags, opts exportViaDriveOp
 		return usage("can't combine --json with --out -")
 	}
 
-	downloadedPath, size, err := downloadDriveFile(ctx, svc, meta, destPath, format, false)
+	downloadedPath, size, err := downloadDriveFile(ctx, svc, meta, destPath, format, overwrite)
 	if err != nil {
 		return err
 	}

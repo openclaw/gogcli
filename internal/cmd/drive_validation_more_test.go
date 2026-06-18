@@ -476,10 +476,10 @@ func TestDownloadDriveFile_ErrorPaths(t *testing.T) {
 	}
 
 	ctx := withDriveTestOperations(context.Background(), &drive.Service{}, download, export)
-	if _, _, err := downloadDriveFile(ctx, &drive.Service{}, &drive.File{Id: "x", MimeType: "text/plain"}, "out", ""); err == nil {
+	if _, _, err := downloadDriveFile(ctx, &drive.Service{}, &drive.File{Id: "x", MimeType: "text/plain"}, "out", "", false); err == nil {
 		t.Fatalf("expected download error")
 	}
-	if _, _, err := downloadDriveFile(ctx, &drive.Service{}, &drive.File{Id: "x", MimeType: driveMimeGoogleDoc}, "out", ""); err == nil {
+	if _, _, err := downloadDriveFile(ctx, &drive.Service{}, &drive.File{Id: "x", MimeType: driveMimeGoogleDoc}, "out", "", false); err == nil {
 		t.Fatalf("expected export error")
 	}
 }

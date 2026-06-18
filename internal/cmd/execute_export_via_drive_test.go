@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -50,6 +51,9 @@ func TestExecute_DocsExport_JSON(t *testing.T) {
 	}
 
 	outBase := filepath.Join(t.TempDir(), "out")
+	if writeErr := os.WriteFile(outBase+".docx", []byte("original"), 0o600); writeErr != nil {
+		t.Fatalf("WriteFile: %v", writeErr)
+	}
 
 	result := executeWithDriveTestOperations(t, []string{
 		"--json",
@@ -58,8 +62,23 @@ func TestExecute_DocsExport_JSON(t *testing.T) {
 		"--out", outBase,
 		"--format", "docx",
 	}, svc, nil, export)
+	if !errors.Is(result.err, os.ErrExist) {
+		t.Fatalf("expected existing-file error, got %v", result.err)
+	}
+	if got, readErr := os.ReadFile(outBase + ".docx"); readErr != nil || string(got) != "original" {
+		t.Fatalf("existing file changed: data=%q err=%v", got, readErr)
+	}
+
+	result = executeWithDriveTestOperations(t, []string{
+		"--json",
+		"--account", "a@b.com",
+		"docs", "export", "id1",
+		"--out", outBase,
+		"--format", "docx",
+		"--overwrite",
+	}, svc, nil, export)
 	if result.err != nil {
-		t.Fatalf("Execute: %v", result.err)
+		t.Fatalf("Execute overwrite: %v", result.err)
 	}
 
 	var parsed struct {

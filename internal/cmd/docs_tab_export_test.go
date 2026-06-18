@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -413,6 +414,39 @@ func TestRunDocsTabExport_JSONOutput(t *testing.T) {
 	}
 }
 
+func TestRunDocsTabExport_RequiresOverwrite(t *testing.T) {
+	ctx, _ := newTabExportTestContext(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/pdf")
+		_, _ = w.Write([]byte("replacement"))
+	}), false)
+
+	outPath := filepath.Join(t.TempDir(), "output.pdf")
+	if err := os.WriteFile(outPath, []byte("original"), 0o600); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	params := tabExportParams{
+		DocID:    "doc1",
+		OutFlag:  outPath,
+		Format:   "pdf",
+		TabQuery: "First Tab",
+	}
+
+	if err := runDocsTabExport(ctx, &RootFlags{Account: "test@example.com"}, params); !errors.Is(err, os.ErrExist) {
+		t.Fatalf("expected existing-file error, got %v", err)
+	}
+	if got, err := os.ReadFile(outPath); err != nil || string(got) != "original" {
+		t.Fatalf("existing file changed: data=%q err=%v", got, err)
+	}
+
+	params.Overwrite = true
+	if err := runDocsTabExport(ctx, &RootFlags{Account: "test@example.com"}, params); err != nil {
+		t.Fatalf("runDocsTabExport overwrite: %v", err)
+	}
+	if got, err := os.ReadFile(outPath); err != nil || string(got) != "replacement" {
+		t.Fatalf("overwrite failed: data=%q err=%v", got, err)
+	}
+}
+
 func TestDocsExportCmd_TabRouting(t *testing.T) {
 	ctx, _ := newTabExportTestContext(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/pdf")
@@ -420,12 +454,16 @@ func TestDocsExportCmd_TabRouting(t *testing.T) {
 	}), false)
 
 	outPath := filepath.Join(t.TempDir(), "out.pdf")
+	if err := os.WriteFile(outPath, []byte("original"), 0o600); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
 
 	cmd := &DocsExportCmd{
-		DocID:  "doc1",
-		Format: "pdf",
-		Tab:    "Second Tab",
-		Output: OutputPathFlag{Path: outPath},
+		DocID:     "doc1",
+		Format:    "pdf",
+		Tab:       "Second Tab",
+		Output:    OutputPathFlag{Path: outPath},
+		Overwrite: true,
 	}
 
 	if err := cmd.Run(ctx, &RootFlags{Account: "test@example.com"}); err != nil {

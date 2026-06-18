@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -172,6 +173,9 @@ func TestSlidesThumbnail_Download(t *testing.T) {
 
 	flags := &RootFlags{Account: "a@b.com"}
 	outputPath := filepath.Join(t.TempDir(), "slide.png")
+	if err := os.WriteFile(outputPath, []byte("original"), 0o600); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
 	var out bytes.Buffer
 	ctx := withSlidesTestService(newCmdRuntimeOutputContext(t, &out, io.Discard), svc)
 	cmd := &SlidesThumbnailCmd{
@@ -179,8 +183,16 @@ func TestSlidesThumbnail_Download(t *testing.T) {
 		SlideID:        "slide_1",
 		Output:         outputPath,
 	}
+	if err := cmd.Run(ctx, flags); !errors.Is(err, os.ErrExist) {
+		t.Fatalf("expected existing-file error, got %v", err)
+	}
+	if gotBytes, err := os.ReadFile(outputPath); err != nil || string(gotBytes) != "original" {
+		t.Fatalf("existing file changed: data=%q err=%v", gotBytes, err)
+	}
+
+	cmd.Overwrite = true
 	if err := cmd.Run(ctx, flags); err != nil {
-		t.Fatalf("Run: %v", err)
+		t.Fatalf("Run overwrite: %v", err)
 	}
 
 	gotBytes, err := os.ReadFile(outputPath)

@@ -71,6 +71,7 @@ type SheetsExportCmd struct {
 	SpreadsheetID string         `arg:"" name:"spreadsheetId" help:"Spreadsheet ID"`
 	Output        OutputPathFlag `embed:""`
 	Format        string         `name:"format" help:"Export format: pdf|xlsx|csv" default:"xlsx"`
+	Overwrite     bool           `name:"overwrite" help:"Overwrite an existing output file"`
 }
 
 func (c *SheetsExportCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -81,7 +82,7 @@ func (c *SheetsExportCmd) Run(ctx context.Context, flags *RootFlags) error {
 		KindLabel:     "Google Sheet",
 		DefaultFormat: "xlsx",
 		FormatHelp:    "Export format: pdf|xlsx|csv",
-	}, c.SpreadsheetID, c.Output.Path, c.Format)
+	}, c.SpreadsheetID, c.Output.Path, c.Format, c.Overwrite)
 }
 
 type SheetsCopyCmd struct {

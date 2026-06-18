@@ -77,6 +77,7 @@ type SlidesExportCmd struct {
 	PresentationID string         `arg:"" name:"presentationId" help:"Presentation ID"`
 	Output         OutputPathFlag `embed:""`
 	Format         string         `name:"format" help:"Export format: pdf|pptx" default:"pptx"`
+	Overwrite      bool           `name:"overwrite" help:"Overwrite an existing output file"`
 }
 
 func (c *SlidesExportCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -85,7 +86,7 @@ func (c *SlidesExportCmd) Run(ctx context.Context, flags *RootFlags) error {
 		ExpectedMime:  "application/vnd.google-apps.presentation",
 		KindLabel:     "Google Slides presentation",
 		DefaultFormat: "pptx",
-	}, c.PresentationID, c.Output.Path, c.Format)
+	}, c.PresentationID, c.Output.Path, c.Format, c.Overwrite)
 }
 
 type SlidesInfoCmd struct {

@@ -220,7 +220,7 @@ func TestDownloadDriveFile_InvalidExportFormat(t *testing.T) {
 	_, _, err := downloadDriveFile(ctx, &drive.Service{}, &drive.File{
 		Id:       "id1",
 		MimeType: "application/vnd.google-apps.document",
-	}, dest, "xlsx")
+	}, dest, "xlsx", false)
 	if err == nil {
 		t.Fatalf("expected error")
 	}

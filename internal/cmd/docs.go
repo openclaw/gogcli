@@ -152,19 +152,21 @@ func projectRawDocumentTab(doc *docs.Document, tab *docs.Tab) (*docs.Document, e
 }
 
 type DocsExportCmd struct {
-	DocID  string         `arg:"" name:"docId" help:"Doc ID"`
-	Output OutputPathFlag `embed:""`
-	Format string         `name:"format" help:"Export format: pdf|docx|txt|md|html" default:"pdf"`
-	Tab    string         `name:"tab" help:"(experimental) Export a specific tab by title or ID (see 'gog docs list-tabs')"`
+	DocID     string         `arg:"" name:"docId" help:"Doc ID"`
+	Output    OutputPathFlag `embed:""`
+	Format    string         `name:"format" help:"Export format: pdf|docx|txt|md|html" default:"pdf"`
+	Tab       string         `name:"tab" help:"(experimental) Export a specific tab by title or ID (see 'gog docs list-tabs')"`
+	Overwrite bool           `name:"overwrite" help:"Overwrite an existing output file"`
 }
 
 func (c *DocsExportCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if tab := strings.TrimSpace(c.Tab); tab != "" {
 		return runDocsTabExport(ctx, flags, tabExportParams{
-			DocID:    c.DocID,
-			OutFlag:  c.Output.Path,
-			Format:   c.Format,
-			TabQuery: tab,
+			DocID:     c.DocID,
+			OutFlag:   c.Output.Path,
+			Format:    c.Format,
+			TabQuery:  tab,
+			Overwrite: c.Overwrite,
 		})
 	}
 	return exportViaDrive(ctx, flags, exportViaDriveOptions{
@@ -172,7 +174,7 @@ func (c *DocsExportCmd) Run(ctx context.Context, flags *RootFlags) error {
 		ExpectedMime:  "application/vnd.google-apps.document",
 		KindLabel:     "Google Doc",
 		DefaultFormat: "pdf",
-	}, c.DocID, c.Output.Path, c.Format)
+	}, c.DocID, c.Output.Path, c.Format, c.Overwrite)
 }
 
 type DocsInfoCmd struct {
