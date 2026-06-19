@@ -112,6 +112,121 @@ func TestCalendarCreateCmd_WithMeetAndAttachments(t *testing.T) {
 	}
 }
 
+func TestCalendarCreateCmd_UnifiedTimezoneSetsBoth(t *testing.T) {
+	var gotEvent calendar.Event
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := strings.TrimPrefix(r.URL.Path, "/calendar/v3")
+		if r.Method == http.MethodPost && path == "/calendars/cal@example.com/events" {
+			_ = json.NewDecoder(r.Body).Decode(&gotEvent)
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{"id": "ev1"})
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer srv.Close()
+
+	svc := newCalendarServiceFromServer(t, srv)
+	ctx := withCalendarTestService(newCmdRuntimeJSONOutputContext(t, io.Discard, io.Discard), svc)
+
+	cmd := &CalendarCreateCmd{}
+	if err := runKong(t, cmd, []string{
+		"cal@example.com",
+		"--summary", "Meeting",
+		"--from", "2026-08-13T13:40:00-07:00",
+		"--to", "2026-08-13T14:40:00-07:00",
+		"--tz", "America/Los_Angeles",
+	}, ctx, &RootFlags{Account: "a@b.com"}); err != nil {
+		t.Fatalf("runKong: %v", err)
+	}
+	if gotEvent.Start == nil || gotEvent.End == nil {
+		t.Fatalf("missing start/end: %#v", gotEvent)
+	}
+	if gotEvent.Start.TimeZone != "America/Los_Angeles" || gotEvent.End.TimeZone != "America/Los_Angeles" {
+		t.Fatalf("expected both zones America/Los_Angeles, got start=%q end=%q", gotEvent.Start.TimeZone, gotEvent.End.TimeZone)
+	}
+}
+
+func TestCalendarCreateCmd_UnifiedTimezoneConflict(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.NotFound(w, r)
+	}))
+	defer srv.Close()
+
+	svc := newCalendarServiceFromServer(t, srv)
+	ctx := withCalendarTestService(newCmdRuntimeJSONOutputContext(t, io.Discard, io.Discard), svc)
+
+	cmd := &CalendarCreateCmd{}
+	err := runKong(t, cmd, []string{
+		"cal@example.com",
+		"--summary", "Meeting",
+		"--from", "2026-08-13T13:40:00-07:00",
+		"--to", "2026-08-13T14:40:00-07:00",
+		"--timezone", "America/Los_Angeles",
+		"--start-timezone", "Europe/Rome",
+	}, ctx, &RootFlags{Account: "a@b.com"})
+	if err == nil {
+		t.Fatalf("expected error combining --timezone with --start-timezone")
+	}
+	if got := ExitCode(err); got != 2 {
+		t.Fatalf("expected usage exit code 2, got %d (err=%v)", got, err)
+	}
+}
+
+func TestCalendarCreateCmd_UnifiedTimezoneInvalidZoneAttributesFlag(t *testing.T) {
+	cases := []struct {
+		name string
+		args []string
+	}{
+		{
+			name: "invalid zone",
+			args: []string{
+				"cal@example.com",
+				"--summary", "Meeting",
+				"--from", "2026-08-13T13:40:00-07:00",
+				"--to", "2026-08-13T14:40:00-07:00",
+				"--timezone", "Nope/Zone",
+			},
+		},
+		{
+			name: "all-day rejects timezone",
+			args: []string{
+				"cal@example.com",
+				"--summary", "Meeting",
+				"--all-day",
+				"--from", "2026-08-13",
+				"--to", "2026-08-14",
+				"--timezone", "America/Los_Angeles",
+			},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				http.NotFound(w, r)
+			}))
+			defer srv.Close()
+
+			svc := newCalendarServiceFromServer(t, srv)
+			ctx := withCalendarTestService(newCmdRuntimeJSONOutputContext(t, io.Discard, io.Discard), svc)
+
+			cmd := &CalendarCreateCmd{}
+			err := runKong(t, cmd, tc.args, ctx, &RootFlags{Account: "a@b.com"})
+			if err == nil {
+				t.Fatalf("expected error, got nil")
+			}
+			if got := ExitCode(err); got != 2 {
+				t.Fatalf("expected usage exit code 2, got %d (err=%v)", got, err)
+			}
+			// The whole point of the flag-name plumbing: the error must name
+			// --timezone, not the granular --start-timezone the user didn't use.
+			if msg := err.Error(); !strings.Contains(msg, "--timezone") || strings.Contains(msg, "--start-timezone") {
+				t.Fatalf("expected error to attribute to --timezone, got: %q", msg)
+			}
+		})
+	}
+}
+
 func TestCalendarCreateCmd_RecurringOffsetTimezoneFallback(t *testing.T) {
 	var gotEvent calendar.Event
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

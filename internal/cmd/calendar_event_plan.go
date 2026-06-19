@@ -35,6 +35,7 @@ type calendarCreateInput struct {
 	To                    string
 	StartTimezone         string
 	EndTimezone           string
+	Timezone              string
 	Description           string
 	Location              string
 	Attendees             string
@@ -358,11 +359,15 @@ func buildCalendarCreatePlan(store *config.ConfigStore, input calendarCreateInpu
 	if err != nil {
 		return nil, err
 	}
-	start, err := buildEventDateTimeWithTimezone(input.From, allDay, input.StartTimezone, "--start-timezone")
+	startTZ, startTZFlag, endTZ, endTZFlag, err := resolveUnifiedTimezone(input.Timezone, input.StartTimezone, input.EndTimezone)
 	if err != nil {
 		return nil, err
 	}
-	end, err := buildEventDateTimeWithTimezone(input.To, allDay, input.EndTimezone, "--end-timezone")
+	start, err := buildEventDateTimeWithTimezone(input.From, allDay, startTZ, startTZFlag)
+	if err != nil {
+		return nil, err
+	}
+	end, err := buildEventDateTimeWithTimezone(input.To, allDay, endTZ, endTZFlag)
 	if err != nil {
 		return nil, err
 	}

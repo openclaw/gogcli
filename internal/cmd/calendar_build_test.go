@@ -94,3 +94,41 @@ func TestBuildExtendedProperties(t *testing.T) {
 		t.Fatalf("unexpected shared props: %#v", props.Shared)
 	}
 }
+
+func TestResolveUnifiedTimezone(t *testing.T) {
+	// Unset --timezone: pass the granular values through unchanged.
+	startTZ, startFlag, endTZ, endFlag, err := resolveUnifiedTimezone("", "Europe/Rome", "America/New_York")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if startTZ != "Europe/Rome" || endTZ != "America/New_York" {
+		t.Fatalf("passthrough changed values: start=%q end=%q", startTZ, endTZ)
+	}
+	if startFlag != "--start-timezone" || endFlag != "--end-timezone" {
+		t.Fatalf("unexpected flag names: %q %q", startFlag, endFlag)
+	}
+
+	// --timezone alone: apply it to both endpoints with --timezone error attribution.
+	startTZ, startFlag, endTZ, endFlag, err = resolveUnifiedTimezone("America/Los_Angeles", "", "")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if startTZ != "America/Los_Angeles" || endTZ != "America/Los_Angeles" {
+		t.Fatalf("expected both zones set, got start=%q end=%q", startTZ, endTZ)
+	}
+	if startFlag != "--timezone" || endFlag != "--timezone" {
+		t.Fatalf("expected --timezone flag names, got %q %q", startFlag, endFlag)
+	}
+
+	// --timezone combined with --start-timezone is a usage error.
+	if _, _, _, _, err := resolveUnifiedTimezone("America/Los_Angeles", "Europe/Rome", ""); err == nil {
+		t.Fatalf("expected error combining --timezone with --start-timezone")
+	} else if got := ExitCode(err); got != 2 {
+		t.Fatalf("expected usage exit code 2, got %d (err=%v)", got, err)
+	}
+
+	// --timezone combined with --end-timezone is a usage error.
+	if _, _, _, _, err := resolveUnifiedTimezone("America/Los_Angeles", "", "America/New_York"); err == nil {
+		t.Fatalf("expected error combining --timezone with --end-timezone")
+	}
+}
