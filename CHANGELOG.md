@@ -2,6 +2,10 @@
 
 ## 0.29.1 - Unreleased
 
+### Added
+
+- Docs: add `insert --markdown` to convert markdown to Google Docs formatting and place the converted block at a position resolved by `--index`/`--at`/`--occurrence`, giving `insert` parity with the existing `update --markdown` and `write --markdown` paths. (#851)
+
 ## 0.29.0 - 2026-06-19
 
 ### Added

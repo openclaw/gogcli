@@ -888,6 +888,7 @@ type DocsInsertCmd struct {
 	Occurrence *int   `name:"occurrence" help:"Use the Nth --at match (1-based; required when --at is ambiguous)"`
 	MatchCase  bool   `name:"match-case" help:"Use case-sensitive --at matching"`
 	File       string `name:"file" short:"f" help:"Read content from file (use - for stdin)"`
+	Markdown   bool   `name:"markdown" help:"Convert markdown to Google Docs formatting before inserting"`
 	Tab        string `name:"tab" help:"Target a specific tab by title or ID (see docs list-tabs)"`
 	TabID      string `name:"tab-id" hidden:"" help:"(deprecated) Use --tab"`
 	Batch      string `name:"batch" help:"Append requests to a persisted Docs batch instead of submitting"`
@@ -925,9 +926,13 @@ func (c *DocsInsertCmd) Run(ctx context.Context, kctx *kong.Context, flags *Root
 		return tabErr
 	}
 	c.Tab = tab
+	if c.Markdown && c.Batch != "" {
+		return usage("--markdown cannot be combined with --batch")
+	}
 	dryRunPayload := map[string]any{
 		"documentId": docID,
 		"inserted":   len(content),
+		"markdown":   c.Markdown,
 		"tab":        c.Tab,
 		"batch":      c.Batch,
 	}
@@ -963,6 +968,10 @@ func (c *DocsInsertCmd) Run(ctx context.Context, kctx *kong.Context, flags *Root
 	insertIndex := resolvedPlacement.Index
 	c.Tab = resolvedPlacement.TabID
 
+	if c.Markdown {
+		return c.runMarkdown(ctx, svc, docID, insertIndex, content)
+	}
+
 	batchReq := &docs.BatchUpdateDocumentRequest{
 		Requests: []*docs.Request{docsedit.BuildInsertRequest(content, insertIndex, c.Tab)},
 	}
@@ -986,6 +995,64 @@ func (c *DocsInsertCmd) Run(ctx context.Context, kctx *kong.Context, flags *Root
 	u.Out().Linef("documentId\t%s", result.DocumentId)
 	u.Out().Linef("inserted\t%d bytes", len(content))
 	u.Out().Linef("atIndex\t%d", insertIndex)
+	if c.Tab != "" {
+		u.Out().Linef("tabId\t%s", c.Tab)
+	}
+	return nil
+}
+
+// runMarkdown converts the supplied content from markdown to Google Docs
+// formatting and inserts it at insertIndex. It reuses the same converter +
+// insertion helper that backs `docs write --markdown` and the non-replacing
+// branch of `docs update --markdown`, so headings, fenced code blocks, lists,
+// tables and images render identically regardless of which command placed them.
+func (c *DocsInsertCmd) runMarkdown(ctx context.Context, svc *docs.Service, docID string, insertIndex int64, content string) error {
+	markdown := prepareMarkdown(content)
+	insertResult, err := insertPreparedDocsMarkdownAt(ctx, svc, docID, insertIndex, markdown, c.Tab, true)
+	if err != nil {
+		if isDocsNotFound(err) {
+			return fmt.Errorf("doc not found or not a Google Doc (id=%s)", docID)
+		}
+		return err
+	}
+	requestCount := insertResult.RequestCount
+	if markdownMayContainHeadingLinks(markdown.cleaned) {
+		explicitHeadingAnchors := docsmarkdown.ExplicitHeadingAnchors(markdown.cleaned)
+		rewritten, rewriteErr := rewriteMarkdownHeadingLinksInRange(
+			ctx,
+			svc,
+			docID,
+			c.Tab,
+			explicitHeadingAnchors,
+			insertResult.ContentStart,
+			insertResult.ContentEnd,
+		)
+		if rewriteErr != nil {
+			return fmt.Errorf("rewrite heading links: %w", rewriteErr)
+		}
+		requestCount += rewritten
+	}
+
+	if outfmt.IsJSON(ctx) {
+		payload := map[string]any{
+			"documentId": docID,
+			"inserted":   insertResult.Inserted,
+			"requests":   requestCount,
+			"atIndex":    insertIndex,
+			"markdown":   true,
+		}
+		if c.Tab != "" {
+			payload["tabId"] = c.Tab
+		}
+		return outfmt.WriteJSON(ctx, stdoutWriter(ctx), payload)
+	}
+
+	u := ui.FromContext(ctx)
+	u.Out().Linef("documentId\t%s", docID)
+	u.Out().Linef("inserted\t%d", insertResult.Inserted)
+	u.Out().Linef("requests\t%d", requestCount)
+	u.Out().Linef("atIndex\t%d", insertIndex)
+	u.Out().Linef("markdown\ttrue")
 	if c.Tab != "" {
 		u.Out().Linef("tabId\t%s", c.Tab)
 	}

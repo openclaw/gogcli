@@ -35,6 +35,7 @@ gog docs (doc) insert <docId> [<content>] [flags]
 | `--home` | `string` |  | Override gogcli config/data/state/cache root (equivalent to GOG_HOME) |
 | `--index` | `*int64` |  | Character index to insert at (1 = beginning). Defaults to end-of-doc when omitted. |
 | `-j`<br>`--json`<br>`--machine` | `bool` | false | Output JSON to stdout (best for scripting) |
+| `--markdown` | `bool` |  | Convert markdown to Google Docs formatting before inserting |
 | `--match-case` | `bool` |  | Use case-sensitive --at matching |
 | `--no-input`<br>`--non-interactive`<br>`--noninteractive` | `bool` |  | Never prompt; fail instead (useful for CI) |
 | `--occurrence` | `*int` |  | Use the Nth --at match (1-based; required when --at is ambiguous) |

@@ -111,6 +111,15 @@ Use `--occurrence N` when an anchor is ambiguous and `--match-case` when case
 must be exact. `docs comments locate` applies the same matching rules to a
 comment's quoted text and reports its tab plus UTF-16 range.
 
+`insert` and `update` both accept `--markdown` to convert the content (headings,
+fenced code blocks, lists, tables, images) before placing it at the resolved
+position. `insert --markdown` adds the block without deleting anything; `update
+--markdown` with `--at`/`--replace-range` replaces the matched range.
+
+```bash
+gog docs insert <docId> --markdown --at "## Section" --file block.md
+```
+
 Command pages:
 
 - [`gog docs find-range`](commands/gog-docs-find-range.md)
