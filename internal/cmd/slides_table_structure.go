@@ -14,11 +14,13 @@ import (
 type SlidesTableRowCmd struct {
 	Insert SlidesTableRowInsertCmd `cmd:"" name:"insert" aliases:"add" help:"Insert rows above or below a zero-based row"`
 	Delete SlidesTableRowDeleteCmd `cmd:"" name:"delete" aliases:"rm,remove,del" help:"Delete the row containing a zero-based table cell"`
+	Size   SlidesTableRowSizeCmd   `cmd:"" name:"size" help:"Set a row's minimum height"`
 }
 
 type SlidesTableColumnCmd struct {
 	Insert SlidesTableColumnInsertCmd `cmd:"" name:"insert" aliases:"add" help:"Insert columns left or right of a zero-based column"`
 	Delete SlidesTableColumnDeleteCmd `cmd:"" name:"delete" aliases:"rm,remove,del" help:"Delete the column containing a zero-based table cell"`
+	Size   SlidesTableColumnSizeCmd   `cmd:"" name:"size" help:"Set a column's width"`
 }
 
 type SlidesTableRowInsertCmd struct {
@@ -270,6 +272,7 @@ type slidesTableMutation struct {
 	PresentationID string
 	TableObjectID  string
 	Request        *slides.Request
+	Requests       []*slides.Request
 	Payload        map[string]any
 	Output         map[string]any
 	Text           string
@@ -278,7 +281,14 @@ type slidesTableMutation struct {
 }
 
 func runSlidesTableMutation(ctx context.Context, flags *RootFlags, mutation slidesTableMutation) error {
-	body := &slides.BatchUpdatePresentationRequest{Requests: []*slides.Request{mutation.Request}}
+	requests := mutation.Requests
+	if len(requests) == 0 && mutation.Request != nil {
+		requests = []*slides.Request{mutation.Request}
+	}
+	if len(requests) == 0 {
+		return fmt.Errorf("%s: no Slides requests provided", mutation.Action)
+	}
+	body := &slides.BatchUpdatePresentationRequest{Requests: requests}
 	payload := mutation.Payload
 	if payload == nil {
 		payload = make(map[string]any)

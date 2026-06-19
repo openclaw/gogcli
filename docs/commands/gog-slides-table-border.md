@@ -1,13 +1,13 @@
-# `gog slides table row`
+# `gog slides table border`
 
 > Generated from `gog schema --json`. Do not edit this page by hand; run `make docs-commands`.
 
-Insert, delete, or size table rows
+Style table borders
 
 ## Usage
 
 ```bash
-gog slides (slide) table row <command>
+gog slides (slide) table border <command>
 ```
 
 ## Parent
@@ -16,9 +16,7 @@ gog slides (slide) table row <command>
 
 ## Subcommands
 
-- [gog slides table row delete](gog-slides-table-row-delete.md) - Delete the row containing a zero-based table cell
-- [gog slides table row insert](gog-slides-table-row-insert.md) - Insert rows above or below a zero-based row
-- [gog slides table row size](gog-slides-table-row-size.md) - Set a row's minimum height
+- [gog slides table border style](gog-slides-table-border-style.md) - Style borders around or within a table cell range
 
 ## Flags
 

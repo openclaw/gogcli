@@ -27,13 +27,72 @@ run_slides_tests() {
   read_json=$(gog slides read-slide "$slides_id" "$slide_id" --json)
   "$PY" -c 'import json,sys; assert len(json.load(sys.stdin).get("images", [])) >= 2' <<<"$read_json"
 
-  local native_json native_slide_id native_read native_after_delete table_read table_after_delete
+  local native_json native_slide_id native_read native_after_delete table_read table_after_delete table_style_read
   native_json=$(gog slides new-slide "$slides_id" --json)
   native_slide_id=$(extract_field "$native_json" slideObjectId)
   [ -n "$native_slide_id" ] || { echo "Failed to parse native slide object id" >&2; exit 1; }
 
   run_required "slides" "slides create table" gog slides table create \
     "$slides_id" "$native_slide_id" --rows 3 --cols 3 --object-id gogTableStruct >/dev/null
+  run_required "slides" "slides size table row" gog slides table row size \
+    "$slides_id" gogTableStruct --row 0 --height 48 >/dev/null
+  run_required "slides" "slides size table column" gog slides table column size \
+    "$slides_id" gogTableStruct --col 0 --width 120 >/dev/null
+  run_required "slides" "slides write styled table cell" gog slides insert-text \
+    "$slides_id" gogTableStruct "Header" --row 0 --col 0 --replace >/dev/null
+  run_required "slides" "slides style table cell" gog slides table cell style \
+    "$slides_id" gogTableStruct --row 0 --col 0 --fill-color '#3367d6' \
+    --content-align MIDDLE --bold --text-color '#ffffff' --size 18 --font Cambria >/dev/null
+  run_required "slides" "slides style table borders" gog slides table border style \
+    "$slides_id" gogTableStruct --row 0 --col 0 --row-span 2 --col-span 2 \
+    --position OUTER --border-color '#ea4335' --weight 2 --dash DASH >/dev/null
+  table_style_read=$(gog slides raw "$slides_id")
+  "$PY" -c '
+import json,sys
+
+def points(dimension):
+    magnitude = dimension["magnitude"]
+    return magnitude / 12700 if dimension["unit"] == "EMU" else magnitude
+
+def rgb(fill):
+    color = fill["solidFill"]["color"]["rgbColor"]
+    return tuple(round(color.get(component, 0) * 255) for component in ("red", "green", "blue"))
+
+presentation = json.load(sys.stdin)
+element = next(
+    element
+    for slide in presentation["slides"]
+    for element in slide.get("pageElements", [])
+    if element.get("objectId") == "gogTableStruct"
+)
+table = element["table"]
+assert abs(points(table["tableColumns"][0]["columnWidth"]) - 120) < 0.01
+assert abs(points(table["tableRows"][0]["tableRowProperties"]["minRowHeight"]) - 48) < 0.01
+cell = table["tableRows"][0]["tableCells"][0]
+properties = cell["tableCellProperties"]
+assert properties["contentAlignment"] == "MIDDLE"
+assert properties["tableCellBackgroundFill"].get("propertyState", "RENDERED") == "RENDERED"
+assert rgb(properties["tableCellBackgroundFill"]) == (51, 103, 214)
+run = next(item["textRun"] for item in cell["text"]["textElements"] if "textRun" in item)
+assert run["content"].rstrip("\n") == "Header"
+assert run["style"]["bold"] is True
+assert run["style"]["fontFamily"] == "Cambria"
+assert abs(points(run["style"]["fontSize"]) - 18) < 0.01
+foreground = run["style"]["foregroundColor"]["opaqueColor"]["rgbColor"]
+assert tuple(round(foreground.get(component, 0) * 255) for component in ("red", "green", "blue")) == (255, 255, 255)
+borders = [
+    border["tableBorderProperties"]
+    for rows in (table["horizontalBorderRows"], table["verticalBorderRows"])
+    for row in rows
+    for border in row.get("tableBorderCells", [])
+]
+assert any(
+    border.get("dashStyle") == "DASH"
+    and abs(points(border["weight"]) - 2) < 0.01
+    and rgb(border["tableBorderFill"]) == (234, 67, 53)
+    for border in borders
+)
+' <<<"$table_style_read"
   run_required "slides" "slides insert table row" gog slides table row insert \
     "$slides_id" gogTableStruct --row 0 --below >/dev/null
   run_required "slides" "slides insert table column" gog slides table column insert \

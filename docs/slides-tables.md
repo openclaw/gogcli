@@ -53,3 +53,37 @@ whole table.
 Use `--dry-run --json` to inspect the exact Slides `batchUpdate` request without
 contacting Google. Use `slides read-slide --detail --json` to verify the table
 dimensions, cell coordinates, and text returned by the provider.
+
+## Sizing and style
+
+Set row and column dimensions in points:
+
+```bash
+gog slides table row size <presentationId> <tableId> --row 0 --height 48
+gog slides table column size <presentationId> <tableId> --col 0 --width 120
+```
+
+Row height is a minimum; Slides may render a taller row to fit its content.
+Column width must be at least 32 points, matching the provider minimum.
+
+Style one cell's fill, vertical content alignment, and text in one atomic batch:
+
+```bash
+gog slides table cell style <presentationId> <tableId> --row 0 --col 0 \
+  --fill-color '#3367d6' --content-align MIDDLE \
+  --bold --text-color '#ffffff' --size 18 --font Cambria
+```
+
+Text options default to all text in the cell. Pass `--range start:end` to style
+one UTF-16 text range. `--fill-transparent` removes the cell fill.
+
+Style borders for a rectangular cell range:
+
+```bash
+gog slides table border style <presentationId> <tableId> \
+  --row 0 --col 0 --row-span 1 --col-span 3 --position OUTER \
+  --border-color '#ea4335' --weight 2 --dash DASH
+```
+
+`--position` accepts `ALL`, `OUTER`, `INNER`, individual sides, or inner
+horizontal/vertical borders. `--transparent` hides the selected borders.

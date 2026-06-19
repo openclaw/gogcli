@@ -13,8 +13,10 @@ import (
 
 type SlidesTableCmd struct {
 	Create  SlidesTableCreateCmd  `cmd:"" name:"create" aliases:"add" help:"Create an auto-sized native table on a slide"`
-	Row     SlidesTableRowCmd     `cmd:"" name:"row" help:"Insert or delete table rows"`
-	Column  SlidesTableColumnCmd  `cmd:"" name:"column" aliases:"col" help:"Insert or delete table columns"`
+	Row     SlidesTableRowCmd     `cmd:"" name:"row" help:"Insert, delete, or size table rows"`
+	Column  SlidesTableColumnCmd  `cmd:"" name:"column" aliases:"col" help:"Insert, delete, or size table columns"`
+	Cell    SlidesTableCellCmd    `cmd:"" name:"cell" help:"Style table cells"`
+	Border  SlidesTableBorderCmd  `cmd:"" name:"border" help:"Style table borders"`
 	Merge   SlidesTableMergeCmd   `cmd:"" name:"merge" help:"Merge a rectangular table cell range"`
 	Unmerge SlidesTableUnmergeCmd `cmd:"" name:"unmerge" aliases:"split" help:"Unmerge cells in a rectangular table range"`
 }

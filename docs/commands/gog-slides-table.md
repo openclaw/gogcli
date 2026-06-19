@@ -16,10 +16,12 @@ gog slides (slide) table <command>
 
 ## Subcommands
 
-- [gog slides table column](gog-slides-table-column.md) - Insert or delete table columns
+- [gog slides table border](gog-slides-table-border.md) - Style table borders
+- [gog slides table cell](gog-slides-table-cell.md) - Style table cells
+- [gog slides table column](gog-slides-table-column.md) - Insert, delete, or size table columns
 - [gog slides table create](gog-slides-table-create.md) - Create an auto-sized native table on a slide
 - [gog slides table merge](gog-slides-table-merge.md) - Merge a rectangular table cell range
-- [gog slides table row](gog-slides-table-row.md) - Insert or delete table rows
+- [gog slides table row](gog-slides-table-row.md) - Insert, delete, or size table rows
 - [gog slides table unmerge](gog-slides-table-unmerge.md) - Unmerge cells in a rectangular table range
 
 ## Flags

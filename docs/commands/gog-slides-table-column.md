@@ -2,7 +2,7 @@
 
 > Generated from `gog schema --json`. Do not edit this page by hand; run `make docs-commands`.
 
-Insert or delete table columns
+Insert, delete, or size table columns
 
 ## Usage
 
@@ -18,6 +18,7 @@ gog slides (slide) table column (col) <command>
 
 - [gog slides table column delete](gog-slides-table-column-delete.md) - Delete the column containing a zero-based table cell
 - [gog slides table column insert](gog-slides-table-column-insert.md) - Insert columns left or right of a zero-based column
+- [gog slides table column size](gog-slides-table-column-size.md) - Set a column's width
 
 ## Flags
 

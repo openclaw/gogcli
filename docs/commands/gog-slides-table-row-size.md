@@ -1,24 +1,18 @@
-# `gog slides table row`
+# `gog slides table row size`
 
 > Generated from `gog schema --json`. Do not edit this page by hand; run `make docs-commands`.
 
-Insert, delete, or size table rows
+Set a row's minimum height
 
 ## Usage
 
 ```bash
-gog slides (slide) table row <command>
+gog slides (slide) table row size --row=INT-64 --height=FLOAT-64 <presentationId> <tableObjectId>
 ```
 
 ## Parent
 
-- [gog slides table](gog-slides-table.md)
-
-## Subcommands
-
-- [gog slides table row delete](gog-slides-table-row-delete.md) - Delete the row containing a zero-based table cell
-- [gog slides table row insert](gog-slides-table-row-insert.md) - Insert rows above or below a zero-based row
-- [gog slides table row size](gog-slides-table-row-size.md) - Set a row's minimum height
+- [gog slides table row](gog-slides-table-row.md)
 
 ## Flags
 
@@ -34,12 +28,14 @@ gog slides (slide) table row <command>
 | `--enable-commands-exact` | `string` |  | Comma-separated list of exact enabled commands; dot paths allowed and parent commands do not enable children |
 | `-y`<br>`--force`<br>`--assume-yes`<br>`--yes` | `bool` |  | Skip confirmations for destructive commands |
 | `--gmail-no-send` | `bool` | false | Block Gmail send operations (agent safety) |
+| `--height` | `float64` |  | Minimum row height in points (>=0) |
 | `-h`<br>`--help` | `kong.helpFlag` |  | Show context-sensitive help. |
 | `--home` | `string` |  | Override gogcli config/data/state/cache root (equivalent to GOG_HOME) |
 | `-j`<br>`--json`<br>`--machine` | `bool` | false | Output JSON to stdout (best for scripting) |
 | `--no-input`<br>`--non-interactive`<br>`--noninteractive` | `bool` |  | Never prompt; fail instead (useful for CI) |
 | `-p`<br>`--plain`<br>`--tsv` | `bool` | false | Output stable, parseable text to stdout (TSV; no colors) |
 | `--results-only` | `bool` |  | In JSON mode, emit only the primary result (drops envelope fields like nextPageToken) |
+| `--row` | `int64` |  | Zero-based row |
 | `--select`<br>`--pick`<br>`--project` | `string` |  | In JSON mode, select comma-separated fields (best-effort; supports dot paths). Desire path: use --fields for most commands. |
 | `-v`<br>`--verbose` | `bool` |  | Enable verbose logging |
 | `--version` | `kong.VersionFlag` |  | Print version and exit |
@@ -47,5 +43,5 @@ gog slides (slide) table row <command>
 
 ## See Also
 
-- [gog slides table](gog-slides-table.md)
+- [gog slides table row](gog-slides-table-row.md)
 - [Command index](README.md)
