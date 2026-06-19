@@ -285,6 +285,19 @@ func insertPreparedDocsMarkdownAt(
 	tabID string,
 	stripHeadingAnchors bool,
 ) (docsMarkdownInsertResult, error) {
+	return insertPreparedDocsMarkdownAtWithWriteControl(ctx, svc, docID, insertIdx, markdown, tabID, stripHeadingAnchors, nil)
+}
+
+func insertPreparedDocsMarkdownAtWithWriteControl(
+	ctx context.Context,
+	svc *docs.Service,
+	docID string,
+	insertIdx int64,
+	markdown preparedMarkdown,
+	tabID string,
+	stripHeadingAnchors bool,
+	writeControl *docs.WriteControl,
+) (docsMarkdownInsertResult, error) {
 	elements := docsmarkdown.ParseMarkdown(markdown.cleaned)
 	if stripHeadingAnchors {
 		docsmarkdown.StripElementHeadingAnchors(elements)
@@ -321,7 +334,7 @@ func insertPreparedDocsMarkdownAt(
 	})
 	requests = append(requests, formattingRequests...)
 
-	requestCount, err := submitBatchedDocsRequests(ctx, svc, docID, requests, nil)
+	requestCount, err := submitBatchedDocsRequests(ctx, svc, docID, requests, writeControl)
 	if err != nil {
 		return docsMarkdownInsertResult{}, fmt.Errorf("append (markdown): %w", err)
 	}

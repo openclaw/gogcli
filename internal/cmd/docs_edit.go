@@ -969,7 +969,7 @@ func (c *DocsInsertCmd) Run(ctx context.Context, kctx *kong.Context, flags *Root
 	c.Tab = resolvedPlacement.TabID
 
 	if c.Markdown {
-		return c.runMarkdown(ctx, svc, docID, insertIndex, content)
+		return c.runMarkdown(ctx, svc, docID, insertIndex, resolvedPlacement.RequiredRevisionID, content)
 	}
 
 	batchReq := &docs.BatchUpdateDocumentRequest{
@@ -1006,9 +1006,25 @@ func (c *DocsInsertCmd) Run(ctx context.Context, kctx *kong.Context, flags *Root
 // insertion helper that backs `docs write --markdown` and the non-replacing
 // branch of `docs update --markdown`, so headings, fenced code blocks, lists,
 // tables and images render identically regardless of which command placed them.
-func (c *DocsInsertCmd) runMarkdown(ctx context.Context, svc *docs.Service, docID string, insertIndex int64, content string) error {
+func (c *DocsInsertCmd) runMarkdown(
+	ctx context.Context,
+	svc *docs.Service,
+	docID string,
+	insertIndex int64,
+	requiredRevisionID string,
+	content string,
+) error {
 	markdown := prepareMarkdown(content)
-	insertResult, err := insertPreparedDocsMarkdownAt(ctx, svc, docID, insertIndex, markdown, c.Tab, true)
+	insertResult, err := insertPreparedDocsMarkdownAtWithWriteControl(
+		ctx,
+		svc,
+		docID,
+		insertIndex,
+		markdown,
+		c.Tab,
+		true,
+		docsRequiredRevisionWriteControl(requiredRevisionID),
+	)
 	if err != nil {
 		if isDocsNotFound(err) {
 			return fmt.Errorf("doc not found or not a Google Doc (id=%s)", docID)

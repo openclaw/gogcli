@@ -43,7 +43,8 @@ func TestDocsInsertCmd_MarkdownAtIndex(t *testing.T) {
 	flags := &RootFlags{Account: "a@b.com"}
 	ctx := withDocsTestService(newCmdRuntimeOutputContext(t, io.Discard, io.Discard), docSvc)
 
-	if err := runKong(t, &DocsInsertCmd{}, []string{"doc1", "## Heading", "--markdown", "--index", "7"}, ctx, flags); err != nil {
+	markdown := "## Heading\n\n```\ncode\n```"
+	if err := runKong(t, &DocsInsertCmd{}, []string{"doc1", markdown, "--markdown", "--index", "7"}, ctx, flags); err != nil {
 		t.Fatalf("insert --markdown: %v", err)
 	}
 
@@ -58,6 +59,7 @@ func TestDocsInsertCmd_MarkdownAtIndex(t *testing.T) {
 
 	var insertAtIndex *docs.InsertTextRequest
 	var sawHeadingStyle bool
+	var fencedCodeStyle *docs.UpdateTextStyleRequest
 	for _, req := range batchRequests[0] {
 		if req.InsertText != nil && req.InsertText.Location != nil && req.InsertText.Location.Index == 7 {
 			insertAtIndex = req.InsertText
@@ -66,6 +68,9 @@ func TestDocsInsertCmd_MarkdownAtIndex(t *testing.T) {
 			req.UpdateParagraphStyle.ParagraphStyle != nil &&
 			strings.HasPrefix(req.UpdateParagraphStyle.ParagraphStyle.NamedStyleType, "HEADING") {
 			sawHeadingStyle = true
+		}
+		if req.UpdateTextStyle != nil && strings.Contains(req.UpdateTextStyle.Fields, "weightedFontFamily") {
+			fencedCodeStyle = req.UpdateTextStyle
 		}
 	}
 	if insertAtIndex == nil {
@@ -77,6 +82,26 @@ func TestDocsInsertCmd_MarkdownAtIndex(t *testing.T) {
 	if !sawHeadingStyle {
 		t.Fatalf("expected a HEADING paragraph-style request from the markdown converter, requests: %#v", batchRequests[0])
 	}
+	assertFencedCodeTextStyle(t, fencedCodeStyle)
+}
+
+func TestDocsInsertCmd_MarkdownAtAnchorUsesRevisionControl(t *testing.T) {
+	t.Parallel()
+
+	rec := &docsAtAnchorRecorder{}
+	doc := docsFindRangeDoc(docsFindRangeParagraph(1, "Before anchor after\n"))
+	doc.RevisionId = "rev-markdown-anchor"
+	svc := setupDocsAtAnchorTestService(t, doc, rec)
+
+	flags := &RootFlags{Account: "a@b.com"}
+	ctx := withDocsTestService(newCmdRuntimeOutputContext(t, io.Discard, io.Discard), svc)
+	if err := runKong(t, &DocsInsertCmd{}, []string{"doc1", "## Heading", "--markdown", "--at", "anchor"}, ctx, flags); err != nil {
+		t.Fatalf("insert --markdown --at: %v", err)
+	}
+	if len(rec.batchRequests) != 1 {
+		t.Fatalf("batch calls = %d, want 1", len(rec.batchRequests))
+	}
+	assertDocsAtAnchorWriteControl(t, rec, 0, "rev-markdown-anchor")
 }
 
 // TestDocsInsertCmd_MarkdownRejectsBatch verifies the --markdown/--batch combo
