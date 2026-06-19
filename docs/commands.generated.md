@@ -593,6 +593,16 @@ Generated from `gog schema --json`.
     - [`gog slides (slide) create-from-template <templateId> <title> [flags]`](commands/gog-slides-create-from-template.md) - Create a presentation from template with text replacements
     - [`gog slides (slide) delete-slide <presentationId> <slideId>`](commands/gog-slides-delete-slide.md) - Delete a slide by object ID
     - [`gog slides (slide) duplicate-slide <presentationId> <slideId> [flags]`](commands/gog-slides-duplicate-slide.md) - Duplicate a slide by object ID
+    - [`gog slides (slide) element <command>`](commands/gog-slides-element.md) - Create and manipulate native page elements
+      - [`gog slides (slide) element alt-text <presentationId> <objectId> [flags]`](commands/gog-slides-element-alt-text.md) - Set or clear element accessibility text
+      - [`gog slides (slide) element create-line <presentationId> <slideId> [flags]`](commands/gog-slides-element-create-line.md) - Create a native line on a slide
+      - [`gog slides (slide) element create-shape <presentationId> <slideId> [flags]`](commands/gog-slides-element-create-shape.md) - Create a native shape on a slide
+      - [`gog slides (slide) element delete (rm) <presentationId> <objectId>`](commands/gog-slides-element-delete.md) - Delete one page element
+      - [`gog slides (slide) element group <presentationId> <objectId> ... [flags]`](commands/gog-slides-element-group.md) - Group two or more elements
+      - [`gog slides (slide) element style <presentationId> <objectId> [flags]`](commands/gog-slides-element-style.md) - Style a shape fill/outline or a line
+      - [`gog slides (slide) element transform (move,resize,rotate) <presentationId> <objectId> [flags]`](commands/gog-slides-element-transform.md) - Move, resize, rotate, or replace an element transform
+      - [`gog slides (slide) element ungroup <presentationId> <groupId> ...`](commands/gog-slides-element-ungroup.md) - Ungroup one or more element groups
+      - [`gog slides (slide) element z-order --operation=STRING <presentationId> <objectId> ...`](commands/gog-slides-element-z-order.md) - Change element stacking order
     - [`gog slides (slide) export (download,dl) <presentationId> [flags]`](commands/gog-slides-export.md) - Export a Google Slides deck (pdf|pptx)
     - [`gog slides (slide) info (get,show) <presentationId>`](commands/gog-slides-info.md) - Get Google Slides presentation metadata
     - [`gog slides (slide) insert-image --width=FLOAT-64 <presentationId> <slideId> [<image>] [flags]`](commands/gog-slides-insert-image.md) - Insert a local or public image at a position and size

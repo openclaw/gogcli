@@ -35,6 +35,7 @@ type SlidesCmd struct {
 	InsertImage        SlidesInsertImageCmd        `cmd:"" name:"insert-image" help:"Insert a local or public image at a position and size"`
 	InsertText         SlidesInsertTextCmd         `cmd:"" name:"insert-text" help:"Insert text into an existing page element (shape or table) by objectId"`
 	Table              SlidesTableCmd              `cmd:"" name:"table" help:"Create and update native tables"`
+	Element            SlidesElementCmd            `cmd:"" name:"element" help:"Create and manipulate native page elements"`
 	StyleText          SlidesStyleTextCmd          `cmd:"" name:"style-text" help:"Apply range-scoped text styling to one page element"`
 	Link               SlidesLinkCmd               `cmd:"" name:"link" help:"Apply a hyperlink to a text range in one page element"`
 	Bullets            SlidesBulletsCmd            `cmd:"" name:"bullets" help:"Turn paragraph bullets on or off in one page element"`

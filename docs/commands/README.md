@@ -2,7 +2,7 @@
 
 Every `gog` command has a generated docs page. The source of truth is the live CLI schema; run `make docs-commands` after changing command names, flags, help text, aliases, or arguments.
 
-Generated pages: 655.
+Generated pages: 665.
 
 ## Top-level Commands
 
@@ -644,6 +644,16 @@ Generated pages: 655.
     - [gog slides create-from-template](gog-slides-create-from-template.md) - Create a presentation from template with text replacements
     - [gog slides delete-slide](gog-slides-delete-slide.md) - Delete a slide by object ID
     - [gog slides duplicate-slide](gog-slides-duplicate-slide.md) - Duplicate a slide by object ID
+    - [gog slides element](gog-slides-element.md) - Create and manipulate native page elements
+      - [gog slides element alt-text](gog-slides-element-alt-text.md) - Set or clear element accessibility text
+      - [gog slides element create-line](gog-slides-element-create-line.md) - Create a native line on a slide
+      - [gog slides element create-shape](gog-slides-element-create-shape.md) - Create a native shape on a slide
+      - [gog slides element delete](gog-slides-element-delete.md) - Delete one page element
+      - [gog slides element group](gog-slides-element-group.md) - Group two or more elements
+      - [gog slides element style](gog-slides-element-style.md) - Style a shape fill/outline or a line
+      - [gog slides element transform](gog-slides-element-transform.md) - Move, resize, rotate, or replace an element transform
+      - [gog slides element ungroup](gog-slides-element-ungroup.md) - Ungroup one or more element groups
+      - [gog slides element z-order](gog-slides-element-z-order.md) - Change element stacking order
     - [gog slides export](gog-slides-export.md) - Export a Google Slides deck (pdf|pptx)
     - [gog slides info](gog-slides-info.md) - Get Google Slides presentation metadata
     - [gog slides insert-image](gog-slides-insert-image.md) - Insert a local or public image at a position and size

@@ -27,6 +27,59 @@ run_slides_tests() {
   read_json=$(gog slides read-slide "$slides_id" "$slide_id" --json)
   "$PY" -c 'import json,sys; assert len(json.load(sys.stdin).get("images", [])) >= 2' <<<"$read_json"
 
+  local native_json native_slide_id native_read native_after_delete
+  native_json=$(gog slides new-slide "$slides_id" --json)
+  native_slide_id=$(extract_field "$native_json" slideObjectId)
+  [ -n "$native_slide_id" ] || { echo "Failed to parse native slide object id" >&2; exit 1; }
+
+  run_required "slides" "slides create shape A" gog slides element create-shape \
+    "$slides_id" "$native_slide_id" --type ROUND_RECTANGLE --x 24 --y 24 --width 180 --height 80 \
+    --object-id gogShapeA >/dev/null
+  run_required "slides" "slides create shape B" gog slides element create-shape \
+    "$slides_id" "$native_slide_id" --type ELLIPSE --x 240 --y 24 --width 100 --height 80 \
+    --object-id gogShapeB >/dev/null
+  run_required "slides" "slides create line" gog slides element create-line \
+    "$slides_id" "$native_slide_id" --category STRAIGHT --x 50 --y 150 --width 240 --height 40 \
+    --object-id gogLineA >/dev/null
+  run_required "slides" "slides style shape" gog slides element style \
+    "$slides_id" gogShapeA --fill-color '#3367d6' --outline-color '#ffffff' \
+    --outline-weight 2 --outline-dash SOLID >/dev/null
+  run_required "slides" "slides style line" gog slides element style \
+    "$slides_id" gogLineA --kind line --outline-color '#ea4335' --outline-weight 3 \
+    --outline-dash DASH >/dev/null
+  run_required "slides" "slides transform element" gog slides element transform \
+    "$slides_id" gogShapeA --translate-x 12 --translate-y 6 >/dev/null
+  run_required "slides" "slides set alt text" gog slides element alt-text \
+    "$slides_id" gogShapeA --title "gogcli live shape" --description "Slides element lifecycle proof" >/dev/null
+  run_required "slides" "slides change z-order" gog slides element z-order \
+    "$slides_id" gogShapeA gogShapeB --operation BRING_TO_FRONT >/dev/null
+  run_required "slides" "slides group elements" gog slides element group \
+    "$slides_id" gogShapeA gogShapeB --group-id gogGroupA >/dev/null
+
+  native_read=$(gog slides read-slide "$slides_id" "$native_slide_id" --detail --json)
+  "$PY" -c '
+import json,sys
+elements = {item["objectId"]: item for item in json.load(sys.stdin).get("elements", [])}
+assert {"gogShapeA", "gogShapeB", "gogLineA", "gogGroupA"} <= elements.keys()
+assert elements["gogShapeA"].get("parentObjectId") == "gogGroupA"
+assert elements["gogShapeA"].get("title") == "gogcli live shape"
+' <<<"$native_read"
+
+  run_required "slides" "slides ungroup elements" gog slides element ungroup \
+    "$slides_id" gogGroupA >/dev/null
+  run_required "slides" "slides delete line" gog slides element delete \
+    "$slides_id" gogLineA --force >/dev/null
+  run_required "slides" "slides delete shape A" gog slides element delete \
+    "$slides_id" gogShapeA --force >/dev/null
+  run_required "slides" "slides delete shape B" gog slides element delete \
+    "$slides_id" gogShapeB --force >/dev/null
+  native_after_delete=$(gog slides read-slide "$slides_id" "$native_slide_id" --detail --json)
+  "$PY" -c '
+import json,sys
+ids = {item["objectId"] for item in json.load(sys.stdin).get("elements", [])}
+assert not ({"gogShapeA", "gogShapeB", "gogLineA", "gogGroupA"} & ids)
+' <<<"$native_after_delete"
+
   export_path="$LIVE_TMP/slides-export-$TS.pdf"
   run_required "slides" "slides export" gog slides export "$slides_id" --format pdf --out "$export_path" >/dev/null
 

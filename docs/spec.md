@@ -266,6 +266,7 @@ Drive hierarchy semantics:
 - Folder scans reject an ancestor cycle instead of following it indefinitely.
 
 - `gog slides thumbnail <presentationId> <slideId> [--size small|medium|large] [--format png|jpeg] [--out PATH]`
+- `gog slides element <create-shape|create-line|transform|style|z-order|group|ungroup|alt-text|delete> ...` (native page-element lifecycle; exact batch payloads available with `--dry-run --json`)
 - `gog calendar calendars`
 - `gog calendar subscribe <calendarId>`
 - `gog calendar unsubscribe <calendarId>`

@@ -24,6 +24,7 @@ gog slides (slide) <command> [flags]
 - [gog slides create-from-template](gog-slides-create-from-template.md) - Create a presentation from template with text replacements
 - [gog slides delete-slide](gog-slides-delete-slide.md) - Delete a slide by object ID
 - [gog slides duplicate-slide](gog-slides-duplicate-slide.md) - Duplicate a slide by object ID
+- [gog slides element](gog-slides-element.md) - Create and manipulate native page elements
 - [gog slides export](gog-slides-export.md) - Export a Google Slides deck (pdf|pptx)
 - [gog slides info](gog-slides-info.md) - Get Google Slides presentation metadata
 - [gog slides insert-image](gog-slides-insert-image.md) - Insert a local or public image at a position and size

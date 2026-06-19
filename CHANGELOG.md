@@ -12,6 +12,7 @@
 - Slides: add range-scoped styling, links, bullets, and object-scoped replacement; `replace-text` now requires explicit `--object`, `--page`, or `--all` scope instead of silently changing the whole deck. (#823, #835) — thanks @sebsnyk.
 - Slides: add native table creation and zero-based table-cell targeting for `insert-text`, including atomic cell replacement. (#824, #834) — thanks @sebsnyk.
 - Slides: add native themed slide creation, duplication, and reordering with predefined or exact custom layouts and explicit zero-based positions. (#826, #833) — thanks @sebsnyk.
+- Slides: add native shape and line creation plus element transforms, fill/outline styling, z-order, grouping, alt text, and guarded deletion. (#826) — thanks @sebsnyk.
 
 ### Fixed
 
