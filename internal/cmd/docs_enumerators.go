@@ -271,6 +271,19 @@ func loadDocsEnumeratorDocument(
 	if err != nil {
 		return nil, "", err
 	}
+	return loadDocsEnumeratorDocumentWithService(ctx, svc, id, tabQuery)
+}
+
+func loadDocsEnumeratorDocumentWithService(
+	ctx context.Context,
+	svc *docs.Service,
+	docID string,
+	tabQuery string,
+) (*docs.Document, string, error) {
+	id := normalizeGoogleID(strings.TrimSpace(docID))
+	if id == "" {
+		return nil, "", usage("empty docId")
+	}
 	tabQuery = strings.TrimSpace(tabQuery)
 	call := svc.Documents.Get(id).Context(ctx)
 	if tabQuery != "" {

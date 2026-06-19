@@ -47,6 +47,7 @@ gog docs (doc) <command> [flags]
 - [gog docs paragraphs](gog-docs-paragraphs.md) - List document paragraphs
 - [gog docs raw](gog-docs-raw.md) - Dump raw Google Docs API response as JSON (Documents.Get; lossless; for scripting and LLM consumption)
 - [gog docs rename-tab](gog-docs-rename-tab.md) - Rename a tab in a Google Doc
+- [gog docs replace-image](gog-docs-replace-image.md) - Replace an existing image without changing its position or bounds
 - [gog docs sed](gog-docs-sed.md) - Regex find/replace (sed-style: s/pattern/replacement/g)
 - [gog docs structure](gog-docs-structure.md) - Show document structure with numbered paragraphs
 - [gog docs table-column](gog-docs-table-column.md) - Insert or delete native table columns

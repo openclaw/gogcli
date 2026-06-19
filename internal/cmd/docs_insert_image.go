@@ -254,11 +254,7 @@ func (c *DocsInsertImageCmd) runFile(ctx context.Context, docsSvc *docs.Service,
 	result.uploadedFileID = uploaded.Id
 	result.uploadedFileName = uploaded.Name
 
-	perm, err := driveSvc.Permissions.Create(uploaded.Id, &drive.Permission{Type: "anyone", Role: drivePermRoleReader}).
-		SupportsAllDrives(true).
-		Fields("id,type,role").
-		Context(ctx).
-		Do()
+	perm, err := shareDocsImagePublicly(ctx, driveSvc, uploaded.Id)
 	if err != nil {
 		if strings.EqualFold(c.OnRestricted, "link") && isDrivePublicSharingRestricted(err) {
 			return c.insertRestrictedImageFallback(ctx, docsSvc, docID, uploaded, target, result)
@@ -271,18 +267,7 @@ func (c *DocsInsertImageCmd) runFile(ctx context.Context, docsSvc *docs.Service,
 		if perm.Id == "" {
 			return
 		}
-		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
-		defer cancel()
-		revokeErr := driveSvc.Permissions.Delete(uploaded.Id, perm.Id).SupportsAllDrives(true).Context(cleanupCtx).Do()
-		if revokeErr == nil {
-			result.revoked = true
-			return
-		}
-		if err != nil {
-			err = fmt.Errorf("%w; additionally failed to revoke temporary public permission %s on %s: %w", err, perm.Id, uploaded.Id, revokeErr)
-			return
-		}
-		err = fmt.Errorf("revoke temporary public permission %s on %s: %w", perm.Id, uploaded.Id, revokeErr)
+		result.revoked, err = finishDocsImagePublicShare(ctx, driveSvc, uploaded.Id, perm.Id, err)
 	}()
 
 	imageURL := driveImageDownloadURL(uploaded.Id)
@@ -346,6 +331,36 @@ func uploadDocsInlineImage(ctx context.Context, svc *drive.Service, localPath, n
 		return nil, fmt.Errorf("upload image: %w", err)
 	}
 	return created, nil
+}
+
+func shareDocsImagePublicly(ctx context.Context, svc *drive.Service, fileID string) (*drive.Permission, error) {
+	return svc.Permissions.Create(fileID, &drive.Permission{Type: "anyone", Role: drivePermRoleReader}).
+		SupportsAllDrives(true).
+		Fields("id,type,role").
+		Context(ctx).
+		Do()
+}
+
+func finishDocsImagePublicShare(
+	ctx context.Context,
+	svc *drive.Service,
+	fileID string,
+	permissionID string,
+	operationErr error,
+) (bool, error) {
+	if permissionID == "" {
+		return false, operationErr
+	}
+	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
+	defer cancel()
+	revokeErr := svc.Permissions.Delete(fileID, permissionID).SupportsAllDrives(true).Context(cleanupCtx).Do()
+	if revokeErr == nil {
+		return true, operationErr
+	}
+	if operationErr != nil {
+		return false, fmt.Errorf("%w; additionally failed to revoke temporary public permission %s on %s: %w", operationErr, permissionID, fileID, revokeErr)
+	}
+	return false, fmt.Errorf("revoke temporary public permission %s on %s: %w", permissionID, fileID, revokeErr)
 }
 
 func (c *DocsInsertImageCmd) buildInsertRequests(ctx context.Context, svc *docs.Service, docID string, target docsImageTarget, imageURL string) ([]*docs.Request, int64, string, error) {

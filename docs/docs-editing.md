@@ -191,9 +191,21 @@ Both modes accept `--tab`, `--width`, and `--height`. Omit anchor flags or use
 `--at end` to append. `--at <text>` deletes and replaces the first literal text
 match; use `--before <text>` or `--after <text>` to preserve the anchor text.
 
-Command page:
+Replace an existing image without changing its position or rendered bounds:
+
+```bash
+gog docs replace-image <docId> --object-id <imageObjectId> --url https://example.com/chart.png
+gog docs replace-image <docId> --match-alt "Quarterly chart" --file chart.png
+```
+
+Get image object IDs and alt text from `docs images list`. When the selected tab
+contains exactly one image, omit both selector flags. Local replacement files
+use the same temporary Drive sharing and permission cleanup as `insert-image`.
+
+Command pages:
 
 - [`gog docs insert-image`](commands/gog-docs-insert-image.md)
+- [`gog docs replace-image`](commands/gog-docs-replace-image.md)
 
 ## Page Breaks
 

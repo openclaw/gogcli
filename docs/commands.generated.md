@@ -270,6 +270,7 @@ Generated from `gog schema --json`.
       - [`gog docs (doc) paragraphs list (ls) <docId> [flags]`](commands/gog-docs-paragraphs-list.md) - List paragraphs
     - [`gog docs (doc) raw <docId> [flags]`](commands/gog-docs-raw.md) - Dump raw Google Docs API response as JSON (Documents.Get; lossless; for scripting and LLM consumption)
     - [`gog docs (doc) rename-tab <docId> [flags]`](commands/gog-docs-rename-tab.md) - Rename a tab in a Google Doc
+    - [`gog docs (doc) replace-image <docId> [flags]`](commands/gog-docs-replace-image.md) - Replace an existing image without changing its position or bounds
     - [`gog docs (doc) sed <docId> [<expression>] [flags]`](commands/gog-docs-sed.md) - Regex find/replace (sed-style: s/pattern/replacement/g)
     - [`gog docs (doc) structure (struct) <docId> [flags]`](commands/gog-docs-structure.md) - Show document structure with numbered paragraphs
     - [`gog docs (doc) table-column <command>`](commands/gog-docs-table-column.md) - Insert or delete native table columns
