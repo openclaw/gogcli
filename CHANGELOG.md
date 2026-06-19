@@ -4,6 +4,7 @@
 
 ### Added
 
+- Auth: make keyring open/operation timeouts configurable with `GOG_KEYRING_OPEN_TIMEOUT`, using a `30s` macOS default for permission prompts while retaining `10s` elsewhere. (#845) — thanks @malob.
 - Calendar: add `create --timezone`/`--tz` to apply one IANA timezone to both event endpoints while retaining granular start/end timezone flags. (#844) — thanks @malob.
 - Docs: add non-destructive `insert-image --before` and `--after` anchors while clarifying that `--at` replaces its placeholder. (#839) — thanks @sebsnyk.
 - Slides: allow `insert-image` and `replace-slide` to use public HTTPS image URLs without temporary Drive sharing. (#825) — thanks @sebsnyk.

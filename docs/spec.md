@@ -112,7 +112,7 @@ Implementation: `internal/config/*`.
 - Legacy key format: `token:<email>` (migrated on first read)
 - Stored payload is JSON (refresh token + metadata like OIDC subject, current email, selected services/scopes).
 - Email is treated as display/contact state; Google's OIDC `sub` is used to detect the same account after an email rename and migrate aliases/defaults/client mappings on reauthorization.
-- macOS Keychain operations are bounded by a timeout (default `30s`, configurable via `GOG_KEYRING_OPEN_TIMEOUT`) so non-surfacing permission prompts return actionable guidance instead of hanging indefinitely.
+- Keyring operations are bounded by a timeout (default `30s` on macOS and `10s` elsewhere, configurable via `GOG_KEYRING_OPEN_TIMEOUT`) so non-surfacing permission prompts and unresponsive backends return actionable guidance instead of hanging indefinitely.
 - Fallback: if no OS credential store is available, keyring may use its encrypted "file" backend:
   - Directory: `$(os.UserConfigDir())/gogcli/keyring/` (one file per key; gog-managed key names are encoded for portable filenames)
   - Password: prompts on TTY; for non-interactive runs set `GOG_KEYRING_PASSWORD`
@@ -169,7 +169,7 @@ Environment:
 - `GOG_KEYRING_PASSWORD=...` (used when keyring falls back to encrypted file backend in non-interactive environments)
 - `GOG_KEYRING_BACKEND={auto|keychain|file}` (force backend; use `file` to avoid Keychain prompts and pair with `GOG_KEYRING_PASSWORD` for non-interactive)
 - `GOG_KEYRING_SERVICE_NAME=...` (override keyring namespace/service name; default `gogcli`)
-- `GOG_KEYRING_OPEN_TIMEOUT=30s` (max time to wait for a keyring open/operation — e.g. a macOS Keychain permission prompt — before failing; Go duration, default `30s`)
+- `GOG_KEYRING_OPEN_TIMEOUT=30s` (max time to wait for a keyring open/operation — e.g. a macOS Keychain permission prompt — before failing; Go duration, default `30s` on macOS and `10s` elsewhere)
 - `GOG_TIMEZONE=America/New_York` (default output timezone; IANA name or `UTC`; `local` forces local timezone)
 - `GOG_ENABLE_COMMANDS=calendar,tasks,gmail.search` (optional prefix allowlist; dot paths allowed; parent paths allow children)
 - `GOG_ENABLE_COMMANDS_EXACT=calendar.events,gmail.search` (optional exact allowlist; dot paths allowed; parent paths do not allow children)

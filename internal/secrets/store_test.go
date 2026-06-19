@@ -102,20 +102,24 @@ func TestParseKeyringOpenTimeout(t *testing.T) {
 	tests := []struct {
 		name string
 		raw  string
+		goos string
 		want time.Duration
 	}{
-		{name: "empty falls back to default", raw: "", want: keyringOpenTimeout},
-		{name: "valid duration", raw: "1m", want: time.Minute},
-		{name: "unparseable falls back to default", raw: "nonsense", want: keyringOpenTimeout},
-		{name: "non-positive falls back to default", raw: "-5s", want: keyringOpenTimeout},
+		{name: "darwin default", goos: "darwin", want: darwinKeyringOpenTimeout},
+		{name: "linux default", goos: "linux", want: keyringOpenTimeout},
+		{name: "other default", goos: "windows", want: keyringOpenTimeout},
+		{name: "valid duration overrides darwin", raw: "1m", goos: "darwin", want: time.Minute},
+		{name: "valid duration overrides linux", raw: "45s", goos: "linux", want: 45 * time.Second},
+		{name: "invalid uses darwin default", raw: "nonsense", goos: "darwin", want: darwinKeyringOpenTimeout},
+		{name: "non-positive uses linux default", raw: "-5s", goos: "linux", want: keyringOpenTimeout},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			if got := parseKeyringOpenTimeout(tt.raw); got != tt.want {
-				t.Fatalf("parseKeyringOpenTimeout(%q) = %v, want %v", tt.raw, got, tt.want)
+			if got := parseKeyringOpenTimeout(tt.raw, tt.goos); got != tt.want {
+				t.Fatalf("parseKeyringOpenTimeout(%q, %q) = %v, want %v", tt.raw, tt.goos, got, tt.want)
 			}
 		})
 	}
