@@ -27,10 +27,41 @@ run_slides_tests() {
   read_json=$(gog slides read-slide "$slides_id" "$slide_id" --json)
   "$PY" -c 'import json,sys; assert len(json.load(sys.stdin).get("images", [])) >= 2' <<<"$read_json"
 
-  local native_json native_slide_id native_read native_after_delete
+  local native_json native_slide_id native_read native_after_delete table_read table_after_delete
   native_json=$(gog slides new-slide "$slides_id" --json)
   native_slide_id=$(extract_field "$native_json" slideObjectId)
   [ -n "$native_slide_id" ] || { echo "Failed to parse native slide object id" >&2; exit 1; }
+
+  run_required "slides" "slides create table" gog slides table create \
+    "$slides_id" "$native_slide_id" --rows 3 --cols 3 --object-id gogTableStruct >/dev/null
+  run_required "slides" "slides insert table row" gog slides table row insert \
+    "$slides_id" gogTableStruct --row 0 --below >/dev/null
+  run_required "slides" "slides insert table column" gog slides table column insert \
+    "$slides_id" gogTableStruct --col 0 --right >/dev/null
+  run_required "slides" "slides merge table cells" gog slides table merge \
+    "$slides_id" gogTableStruct --row 0 --col 0 --row-span 1 --col-span 2 >/dev/null
+  table_read=$(gog slides read-slide "$slides_id" "$native_slide_id" --detail --json)
+  "$PY" -c '
+import json,sys
+elements = {item["objectId"]: item for item in json.load(sys.stdin).get("elements", [])}
+table = elements["gogTableStruct"]["table"]
+assert (table["rows"], table["columns"]) == (4, 4)
+assert any(cell["rowIndex"] == 0 and cell["columnIndex"] == 0 and cell["columnSpan"] == 2 for cell in table["cells"])
+' <<<"$table_read"
+  run_required "slides" "slides unmerge table cells" gog slides table unmerge \
+    "$slides_id" gogTableStruct --row 0 --col 0 --row-span 1 --col-span 2 >/dev/null
+  run_required "slides" "slides delete table row" gog slides table row delete \
+    "$slides_id" gogTableStruct --row 3 --force >/dev/null
+  run_required "slides" "slides delete table column" gog slides table column delete \
+    "$slides_id" gogTableStruct --col 3 --force >/dev/null
+  table_after_delete=$(gog slides read-slide "$slides_id" "$native_slide_id" --detail --json)
+  "$PY" -c '
+import json,sys
+elements = {item["objectId"]: item for item in json.load(sys.stdin).get("elements", [])}
+table = elements["gogTableStruct"]["table"]
+assert (table["rows"], table["columns"]) == (3, 3)
+assert all(cell["rowSpan"] == 1 and cell["columnSpan"] == 1 for cell in table["cells"])
+' <<<"$table_after_delete"
 
   run_required "slides" "slides create shape A" gog slides element create-shape \
     "$slides_id" "$native_slide_id" --type ROUND_RECTANGLE --x 24 --y 24 --width 180 --height 80 \

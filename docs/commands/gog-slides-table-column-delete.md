@@ -1,26 +1,18 @@
-# `gog slides table`
+# `gog slides table column delete`
 
 > Generated from `gog schema --json`. Do not edit this page by hand; run `make docs-commands`.
 
-Create and update native tables
+Delete the column containing a zero-based table cell
 
 ## Usage
 
 ```bash
-gog slides (slide) table <command>
+gog slides (slide) table column (col) delete (rm,remove,del) --col=INT-64 <presentationId> <tableObjectId>
 ```
 
 ## Parent
 
-- [gog slides](gog-slides.md)
-
-## Subcommands
-
-- [gog slides table column](gog-slides-table-column.md) - Insert or delete table columns
-- [gog slides table create](gog-slides-table-create.md) - Create an auto-sized native table on a slide
-- [gog slides table merge](gog-slides-table-merge.md) - Merge a rectangular table cell range
-- [gog slides table row](gog-slides-table-row.md) - Insert or delete table rows
-- [gog slides table unmerge](gog-slides-table-unmerge.md) - Unmerge cells in a rectangular table range
+- [gog slides table column](gog-slides-table-column.md)
 
 ## Flags
 
@@ -29,6 +21,7 @@ gog slides (slide) table <command>
 | `--access-token` | `string` |  | Use provided access token directly (bypasses stored refresh tokens; token expires in ~1h) |
 | `-a`<br>`--account`<br>`--acct` | `string` |  | Account email, alias, or auto for authenticated Google API commands |
 | `--client` | `string` |  | OAuth client name (selects stored credentials + token bucket) |
+| `--col` | `int64` |  | Zero-based column to delete |
 | `--color` | `string` | auto | Color output: auto\|always\|never |
 | `--disable-commands` | `string` |  | Comma-separated list of disabled commands; dot paths allowed |
 | `-n`<br>`--dry-run`<br>`--dryrun`<br>`--noop`<br>`--preview` | `bool` |  | Do not make changes; print intended actions and exit successfully |
@@ -49,5 +42,5 @@ gog slides (slide) table <command>
 
 ## See Also
 
-- [gog slides](gog-slides.md)
+- [gog slides table column](gog-slides-table-column.md)
 - [Command index](README.md)

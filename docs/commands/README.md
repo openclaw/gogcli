@@ -2,7 +2,7 @@
 
 Every `gog` command has a generated docs page. The source of truth is the live CLI schema; run `make docs-commands` after changing command names, flags, help text, aliases, or arguments.
 
-Generated pages: 665.
+Generated pages: 673.
 
 ## Top-level Commands
 
@@ -669,7 +669,15 @@ Generated pages: 665.
     - [gog slides replace-text](gog-slides-replace-text.md) - Find-and-replace text in an explicit object, slide, or presentation scope
     - [gog slides style-text](gog-slides-style-text.md) - Apply range-scoped text styling to one page element
     - [gog slides table](gog-slides-table.md) - Create and update native tables
+      - [gog slides table column](gog-slides-table-column.md) - Insert or delete table columns
+        - [gog slides table column delete](gog-slides-table-column-delete.md) - Delete the column containing a zero-based table cell
+        - [gog slides table column insert](gog-slides-table-column-insert.md) - Insert columns left or right of a zero-based column
       - [gog slides table create](gog-slides-table-create.md) - Create an auto-sized native table on a slide
+      - [gog slides table merge](gog-slides-table-merge.md) - Merge a rectangular table cell range
+      - [gog slides table row](gog-slides-table-row.md) - Insert or delete table rows
+        - [gog slides table row delete](gog-slides-table-row-delete.md) - Delete the row containing a zero-based table cell
+        - [gog slides table row insert](gog-slides-table-row-insert.md) - Insert rows above or below a zero-based row
+      - [gog slides table unmerge](gog-slides-table-unmerge.md) - Unmerge cells in a rectangular table range
     - [gog slides thumbnail](gog-slides-thumbnail.md) - Get or download a rendered thumbnail for a slide
     - [gog slides update-notes](gog-slides-update-notes.md) - Update speaker notes on an existing slide
   - [gog status](gog-status.md) - Show auth/config status (alias for 'auth status')
