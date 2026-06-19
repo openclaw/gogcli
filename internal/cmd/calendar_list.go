@@ -14,7 +14,7 @@ import (
 	"github.com/steipete/gogcli/internal/ui"
 )
 
-func calendarEventsListCall(ctx context.Context, svc *calendar.Service, calendarID, from, to string, maxResults int64, query, privatePropFilter, sharedPropFilter, fields, pageToken string) *calendar.EventsListCall {
+func calendarEventsListCall(ctx context.Context, svc *calendar.Service, calendarID, from, to string, maxResults int64, query, privatePropFilter, sharedPropFilter, fields string, eventTypes []string, pageToken string) *calendar.EventsListCall {
 	call := svc.Events.List(calendarID).
 		TimeMin(from).
 		TimeMax(to).
@@ -23,6 +23,9 @@ func calendarEventsListCall(ctx context.Context, svc *calendar.Service, calendar
 		OrderBy("startTime").
 		ShowDeleted(false).
 		Context(ctx)
+	if len(eventTypes) > 0 {
+		call = call.EventTypes(eventTypes...)
+	}
 	if strings.TrimSpace(pageToken) != "" {
 		call = call.PageToken(pageToken)
 	}
@@ -41,10 +44,10 @@ func calendarEventsListCall(ctx context.Context, svc *calendar.Service, calendar
 	return call
 }
 
-func listCalendarEvents(ctx context.Context, svc *calendar.Service, calendarID, from, to string, maxResults int64, page string, allPages bool, failEmpty bool, query, privatePropFilter, sharedPropFilter, fields string, showWeekday bool, showLocation bool, sortKey, sortOrder string) error {
+func listCalendarEvents(ctx context.Context, svc *calendar.Service, calendarID, from, to string, maxResults int64, page string, allPages bool, failEmpty bool, query, privatePropFilter, sharedPropFilter, fields string, eventTypes []string, showWeekday bool, showLocation bool, sortKey, sortOrder string) error {
 	calendarTimezone, loc := calendarDisplayTimezone(ctx, svc, calendarID, nil)
 	fetch := func(pageToken string) ([]*calendar.Event, string, error) {
-		resp, err := calendarEventsListCall(ctx, svc, calendarID, from, to, maxResults, query, privatePropFilter, sharedPropFilter, fields, pageToken).Do()
+		resp, err := calendarEventsListCall(ctx, svc, calendarID, from, to, maxResults, query, privatePropFilter, sharedPropFilter, fields, eventTypes, pageToken).Do()
 		if err != nil {
 			return nil, "", err
 		}
@@ -111,7 +114,7 @@ type calendarTimezoneHint struct {
 	loc      *time.Location
 }
 
-func listAllCalendarsEvents(ctx context.Context, svc *calendar.Service, from, to string, maxResults int64, page string, allPages bool, failEmpty bool, query, privatePropFilter, sharedPropFilter, fields string, showWeekday bool, showLocation bool, sortKey, sortOrder string) error {
+func listAllCalendarsEvents(ctx context.Context, svc *calendar.Service, from, to string, maxResults int64, page string, allPages bool, failEmpty bool, query, privatePropFilter, sharedPropFilter, fields string, eventTypes []string, showWeekday bool, showLocation bool, sortKey, sortOrder string) error {
 	u := ui.FromContext(ctx)
 
 	calendars, err := listCalendarList(ctx, svc)
@@ -135,14 +138,14 @@ func listAllCalendarsEvents(ctx context.Context, svc *calendar.Service, from, to
 		u.Err().Println("No calendars")
 		return nil
 	}
-	return listCalendarIDsEvents(ctx, svc, ids, from, to, maxResults, page, allPages, failEmpty, query, privatePropFilter, sharedPropFilter, fields, showWeekday, showLocation, calendarTimezoneHints(calendars), sortKey, sortOrder)
+	return listCalendarIDsEvents(ctx, svc, ids, from, to, maxResults, page, allPages, failEmpty, query, privatePropFilter, sharedPropFilter, fields, eventTypes, showWeekday, showLocation, calendarTimezoneHints(calendars), sortKey, sortOrder)
 }
 
-func listSelectedCalendarsEvents(ctx context.Context, svc *calendar.Service, calendarIDs []string, from, to string, maxResults int64, page string, allPages bool, failEmpty bool, query, privatePropFilter, sharedPropFilter, fields string, showWeekday bool, showLocation bool, sortKey, sortOrder string) error {
-	return listCalendarIDsEvents(ctx, svc, calendarIDs, from, to, maxResults, page, allPages, failEmpty, query, privatePropFilter, sharedPropFilter, fields, showWeekday, showLocation, nil, sortKey, sortOrder)
+func listSelectedCalendarsEvents(ctx context.Context, svc *calendar.Service, calendarIDs []string, from, to string, maxResults int64, page string, allPages bool, failEmpty bool, query, privatePropFilter, sharedPropFilter, fields string, eventTypes []string, showWeekday bool, showLocation bool, sortKey, sortOrder string) error {
+	return listCalendarIDsEvents(ctx, svc, calendarIDs, from, to, maxResults, page, allPages, failEmpty, query, privatePropFilter, sharedPropFilter, fields, eventTypes, showWeekday, showLocation, nil, sortKey, sortOrder)
 }
 
-func listCalendarIDsEvents(ctx context.Context, svc *calendar.Service, calendarIDs []string, from, to string, maxResults int64, page string, allPages bool, failEmpty bool, query, privatePropFilter, sharedPropFilter, fields string, showWeekday bool, showLocation bool, timezoneHints map[string]calendarTimezoneHint, sortKey, sortOrder string) error {
+func listCalendarIDsEvents(ctx context.Context, svc *calendar.Service, calendarIDs []string, from, to string, maxResults int64, page string, allPages bool, failEmpty bool, query, privatePropFilter, sharedPropFilter, fields string, eventTypes []string, showWeekday bool, showLocation bool, timezoneHints map[string]calendarTimezoneHint, sortKey, sortOrder string) error {
 	u := ui.FromContext(ctx)
 	all := []*eventWithCalendar{}
 	nextPages := []calendarEventsNextPage{}
@@ -153,7 +156,7 @@ func listCalendarIDsEvents(ctx context.Context, svc *calendar.Service, calendarI
 		}
 		calendarTimezone, loc := calendarDisplayTimezone(ctx, svc, calID, timezoneHints)
 		fetch := func(pageToken string) ([]*calendar.Event, string, error) {
-			resp, err := calendarEventsListCall(ctx, svc, calID, from, to, maxResults, query, privatePropFilter, sharedPropFilter, fields, pageToken).Do()
+			resp, err := calendarEventsListCall(ctx, svc, calID, from, to, maxResults, query, privatePropFilter, sharedPropFilter, fields, eventTypes, pageToken).Do()
 			if err != nil {
 				return nil, "", err
 			}

@@ -6,7 +6,9 @@ import (
 
 const (
 	eventTypeDefault         = "default"
+	eventTypeBirthday        = "birthday"
 	eventTypeFocusTime       = "focusTime"
+	eventTypeFromGmail       = "fromGmail"
 	eventTypeOutOfOffice     = "outOfOffice"
 	eventTypeWorkingLocation = "workingLocation"
 
@@ -18,23 +20,55 @@ const (
 	defaultOOOAutoDecline   = literalAll
 )
 
+// eventTypeAliases maps user-supplied event type spellings (canonical and
+// friendly aliases, all lowercase) to the canonical Calendar API eventType
+// value. It is the single source of truth for both the create/update path
+// (which further restricts to creatableEventTypes) and the events.list
+// eventTypes filter (which accepts every type the API can return).
+var eventTypeAliases = map[string]string{
+	"default":          eventTypeDefault,
+	"birthday":         eventTypeBirthday,
+	"focus":            eventTypeFocusTime,
+	"focus-time":       eventTypeFocusTime,
+	"focustime":        eventTypeFocusTime,
+	"focus_time":       eventTypeFocusTime,
+	"from-gmail":       eventTypeFromGmail,
+	"fromgmail":        eventTypeFromGmail,
+	"from_gmail":       eventTypeFromGmail,
+	"ooo":              eventTypeOutOfOffice,
+	"out-of-office":    eventTypeOutOfOffice,
+	"outofoffice":      eventTypeOutOfOffice,
+	"out_of_office":    eventTypeOutOfOffice,
+	"wl":               eventTypeWorkingLocation,
+	"working-location": eventTypeWorkingLocation,
+	"workinglocation":  eventTypeWorkingLocation,
+	"working_location": eventTypeWorkingLocation,
+}
+
+// creatableEventTypes are the event types that can be set when creating or
+// updating an event. birthday and fromGmail are read-only — they sync from
+// Google Contacts and Gmail — so the create/update path rejects them, even
+// though they remain valid values for the events.list filter.
+var creatableEventTypes = map[string]bool{
+	eventTypeDefault:         true,
+	eventTypeFocusTime:       true,
+	eventTypeOutOfOffice:     true,
+	eventTypeWorkingLocation: true,
+}
+
+// normalizeEventType maps a user-supplied event type to a canonical value for
+// the create/update path, which accepts only the user-creatable types. An empty
+// value returns an empty string so callers can fall back to the boolean
+// event-type flags.
 func normalizeEventType(raw string) (string, error) {
 	raw = strings.TrimSpace(strings.ToLower(raw))
 	if raw == "" {
 		return "", nil
 	}
-	switch raw {
-	case eventTypeDefault:
-		return eventTypeDefault, nil
-	case "focus", "focus-time", "focustime", "focus_time":
-		return eventTypeFocusTime, nil
-	case "out-of-office", "ooo", "outofoffice", "out_of_office":
-		return eventTypeOutOfOffice, nil
-	case "working-location", "workinglocation", "working_location", "wl":
-		return eventTypeWorkingLocation, nil
-	default:
-		return "", usagef("invalid event type: %q (must be %s, focus-time, out-of-office, or working-location)", raw, eventTypeDefault)
+	if canonical, ok := eventTypeAliases[raw]; ok && creatableEventTypes[canonical] {
+		return canonical, nil
 	}
+	return "", usagef("invalid event type: %q (must be one of: default, focus-time, out-of-office, working-location)", raw)
 }
 
 func resolveEventType(raw string, focusFlags, oooFlags, workingFlags bool) (string, error) {
@@ -82,4 +116,46 @@ func resolveEventType(raw string, focusFlags, oooFlags, workingFlags bool) (stri
 		}
 	}
 	return eventType, nil
+}
+
+// normalizeFilterEventType maps a user-supplied event type (canonical or a
+// friendly alias) to a canonical Calendar API eventType value for the
+// events.list eventTypes filter. Unlike normalizeEventType, it accepts every
+// type the API can return — including the read-only birthday and fromGmail,
+// which are common things to filter on.
+func normalizeFilterEventType(raw string) (string, error) {
+	if canonical, ok := eventTypeAliases[strings.TrimSpace(strings.ToLower(raw))]; ok {
+		return canonical, nil
+	}
+	return "", usagef("invalid event type: %q (must be one of: default, birthday, focus-time, from-gmail, out-of-office, working-location)", raw)
+}
+
+// resolveFilterEventTypes flattens repeated and comma-separated --event-types
+// values into a deduplicated list of canonical Calendar API eventType values,
+// preserving first-seen order. A nil/empty slice (flag absent) leaves the
+// request unfiltered — the API default of returning all types — while a flag
+// that resolves to no values (e.g. --event-types "") is a usage error.
+func resolveFilterEventTypes(raw []string) ([]string, error) {
+	if len(raw) == 0 {
+		return nil, nil
+	}
+	out := make([]string, 0, len(raw))
+	seen := make(map[string]struct{})
+	for _, item := range raw {
+		for _, part := range splitCSV(item) {
+			canonical, err := normalizeFilterEventType(part)
+			if err != nil {
+				return nil, err
+			}
+			if _, ok := seen[canonical]; ok {
+				continue
+			}
+			seen[canonical] = struct{}{}
+			out = append(out, canonical)
+		}
+	}
+	if len(out) == 0 {
+		return nil, usage("--event-types must include at least one value")
+	}
+	return out, nil
 }

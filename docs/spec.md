@@ -273,7 +273,8 @@ Drive hierarchy semantics:
 - `gog calendar create-calendar <summary> [--description D] [--timezone TZ] [--location L]`
 - `gog calendar delete-calendar <ownedSecondaryCalendarId>`
 - `gog calendar acl <calendarId>`
-- `gog calendar events <calendarId> [--cal ID_OR_NAME] [--calendars CSV] [--all] [--from RFC3339] [--to RFC3339] [--max N] [--page TOKEN] [--query Q] [--weekday]`
+- `gog calendar events <calendarId> [--cal ID_OR_NAME] [--calendars CSV] [--all] [--from RFC3339] [--to RFC3339] [--max N] [--page TOKEN] [--query Q] [--event-types TYPES] [--weekday]`
+  - `--event-types` filters to one or more event types (repeatable or comma-separated): `default`, `birthday`, `focus-time`, `from-gmail`, `out-of-office`, `working-location`. Unset returns all types (the API default).
 - `gog calendar event|get <calendarId> <eventId>`
 - `GOG_CALENDAR_WEEKDAY=1` defaults `--weekday` for `gog calendar events`
 - `gog calendar create <calendarId> --summary S --from DT --to DT [--timezone TZ] [--start-timezone TZ] [--end-timezone TZ] [--description D] [--location L|--location-search Q|--place-id ID] [--place-language LANG] [--place-region REGION] [--attendees a@b.com,c@d.com] [--all-day] [--event-type TYPE]`

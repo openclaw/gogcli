@@ -6,7 +6,9 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"maps"
 	"net/http"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -30,7 +32,7 @@ func TestListCalendarEvents_JSON(t *testing.T) {
 
 	var output bytes.Buffer
 	ctx := newCmdRuntimeJSONOutputContext(t, &output, io.Discard)
-	if err := listCalendarEvents(ctx, svc, "cal1", "2025-01-01T00:00:00Z", "2025-01-02T00:00:00Z", 10, "", false, false, "", "", "", "", false, false, "", ""); err != nil {
+	if err := listCalendarEvents(ctx, svc, "cal1", "2025-01-01T00:00:00Z", "2025-01-02T00:00:00Z", 10, "", false, false, "", "", "", "", nil, false, false, "", ""); err != nil {
 		t.Fatalf("listCalendarEvents: %v", err)
 	}
 
@@ -82,7 +84,7 @@ func TestListCalendarEvents_TableUsesCalendarTimezone(t *testing.T) {
 
 	var output bytes.Buffer
 	ctx := newCmdRuntimeOutputContext(t, &output, io.Discard)
-	if err := listCalendarEvents(ctx, svc, "cal1", "2026-04-08T00:00:00Z", "2026-04-09T00:00:00Z", 10, "", false, false, "", "", "", "", false, false, "", ""); err != nil {
+	if err := listCalendarEvents(ctx, svc, "cal1", "2026-04-08T00:00:00Z", "2026-04-09T00:00:00Z", 10, "", false, false, "", "", "", "", nil, false, false, "", ""); err != nil {
 		t.Fatalf("listCalendarEvents: %v", err)
 	}
 	text := output.String()
@@ -127,7 +129,7 @@ func TestListCalendarEvents_TableIncludesLocation(t *testing.T) {
 
 	var output bytes.Buffer
 	ctx := newCmdRuntimeOutputContext(t, &output, io.Discard)
-	if err := listCalendarEvents(ctx, svc, "cal1", "2026-04-08T00:00:00Z", "2026-04-09T00:00:00Z", 10, "", false, false, "", "", "", "", false, false, "", ""); err != nil {
+	if err := listCalendarEvents(ctx, svc, "cal1", "2026-04-08T00:00:00Z", "2026-04-09T00:00:00Z", 10, "", false, false, "", "", "", "", nil, false, false, "", ""); err != nil {
 		t.Fatalf("listCalendarEvents: %v", err)
 	}
 	text := output.String()
@@ -137,7 +139,7 @@ func TestListCalendarEvents_TableIncludesLocation(t *testing.T) {
 	}
 
 	output.Reset()
-	if err := listCalendarEvents(ctx, svc, "cal1", "2026-04-08T00:00:00Z", "2026-04-09T00:00:00Z", 10, "", false, false, "", "", "", "", false, true, "", ""); err != nil {
+	if err := listCalendarEvents(ctx, svc, "cal1", "2026-04-08T00:00:00Z", "2026-04-09T00:00:00Z", 10, "", false, false, "", "", "", "", nil, false, true, "", ""); err != nil {
 		t.Fatalf("listCalendarEvents with location: %v", err)
 	}
 	text = output.String()
@@ -160,7 +162,7 @@ func TestListCalendarEvents_JSONUsesCalendarTimezoneForLocalFields(t *testing.T)
 
 	var output bytes.Buffer
 	ctx := newCmdRuntimeJSONOutputContext(t, &output, io.Discard)
-	if err := listCalendarEvents(ctx, svc, "cal1", "2026-04-08T00:00:00Z", "2026-04-09T00:00:00Z", 10, "", false, false, "", "", "", "", false, false, "", ""); err != nil {
+	if err := listCalendarEvents(ctx, svc, "cal1", "2026-04-08T00:00:00Z", "2026-04-09T00:00:00Z", 10, "", false, false, "", "", "", "", nil, false, false, "", ""); err != nil {
 		t.Fatalf("listCalendarEvents: %v", err)
 	}
 
@@ -300,6 +302,97 @@ func TestCalendarEventsCmd_CalendarsFlag(t *testing.T) {
 	if calls["c1"] == 0 || calls["c2"] == 0 || calls["c3"] != 0 {
 		t.Fatalf("unexpected calendar calls: %#v", calls)
 	}
+}
+
+func TestCalendarEventsCmd_EventTypesAcrossCalendars(t *testing.T) {
+	// The --event-types filter must reach the events.list call for every
+	// calendar on the multi-calendar paths (--cal/--calendars and --all), not
+	// just the single-calendar path covered by
+	// TestCalendarEventsListCall_EventTypesFilter.
+	want := []string{eventTypeBirthday, eventTypeDefault}
+
+	var mu sync.Mutex
+	captured := make(map[string][]string) // calendarID -> eventTypes query on its events request
+
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case strings.Contains(r.URL.Path, "/calendarList") &&
+			!strings.Contains(r.URL.Path, "/calendarList/primary") &&
+			r.Method == http.MethodGet:
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"items": []map[string]any{
+					{"id": "c1", "summary": "Work"},
+					{"id": "c2", "summary": "Family"},
+					{"id": "c3", "summary": "Other"},
+				},
+			})
+		case strings.HasSuffix(r.URL.Path, "/events") && r.Method == http.MethodGet:
+			calID := ""
+			parts := strings.Split(r.URL.Path, "/")
+			for i, p := range parts {
+				if p == "calendars" && i+1 < len(parts) {
+					calID = parts[i+1]
+					break
+				}
+			}
+			mu.Lock()
+			captured[calID] = r.URL.Query()["eventTypes"]
+			mu.Unlock()
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{"items": []map[string]any{}})
+		default:
+			http.NotFound(w, r)
+		}
+	})
+
+	run := func(t *testing.T, mutate func(*CalendarEventsCmd)) map[string][]string {
+		t.Helper()
+		mu.Lock()
+		captured = make(map[string][]string)
+		mu.Unlock()
+		svc, closeServer := newCalendarServiceForTest(t, withPrimaryCalendar(handler))
+		defer closeServer()
+
+		ctx := withCalendarTestService(newCmdRuntimeJSONOutputContext(t, &bytes.Buffer{}, io.Discard), svc)
+		cmd := &CalendarEventsCmd{
+			From:       "2025-01-01T00:00:00Z",
+			To:         "2025-01-02T00:00:00Z",
+			Max:        10,
+			EventTypes: []string{"birthday", "default"},
+		}
+		mutate(cmd)
+		if err := cmd.Run(ctx, &RootFlags{Account: "a@b.com"}); err != nil {
+			t.Fatalf("Run: %v", err)
+		}
+
+		mu.Lock()
+		defer mu.Unlock()
+		return maps.Clone(captured)
+	}
+
+	assertReached := func(t *testing.T, got map[string][]string, cals ...string) {
+		t.Helper()
+		for _, cal := range cals {
+			ets, ok := got[cal]
+			if !ok {
+				t.Fatalf("calendar %s was not queried; captured=%v", cal, got)
+			}
+			if !slices.Equal(ets, want) {
+				t.Fatalf("calendar %s eventTypes = %v, want %v", cal, ets, want)
+			}
+		}
+	}
+
+	t.Run("--calendars", func(t *testing.T) {
+		got := run(t, func(c *CalendarEventsCmd) { c.Calendars = "1,Family" })
+		assertReached(t, got, "c1", "c2")
+	})
+
+	t.Run("--all", func(t *testing.T) {
+		got := run(t, func(c *CalendarEventsCmd) { c.All = true })
+		assertReached(t, got, "c1", "c2", "c3")
+	})
 }
 
 func TestCalendarEventsCmd_ListSelectors(t *testing.T) {

@@ -24,6 +24,7 @@ type CalendarEventsCmd struct {
 	AllPages          bool     `name:"all-pages" aliases:"allpages" help:"Fetch all pages"`
 	FailEmpty         bool     `name:"fail-empty" aliases:"non-empty,require-results" help:"Exit with code 3 if no results"`
 	Query             string   `name:"query" help:"Free text search"`
+	EventTypes        []string `name:"event-types" help:"Filter to event types (repeatable or comma-separated): default, birthday, focus-time, from-gmail, out-of-office, working-location"`
 	All               bool     `name:"all" help:"Fetch events from all calendars"`
 	PrivatePropFilter string   `name:"private-prop-filter" help:"Filter by private extended property (key=value)"`
 	SharedPropFilter  string   `name:"shared-prop-filter" help:"Filter by shared extended property (key=value)"`
@@ -88,8 +89,13 @@ func (c *CalendarEventsCmd) Run(ctx context.Context, flags *RootFlags) error {
 
 	from, to := timeRange.FormatRFC3339()
 
+	eventTypes, err := resolveFilterEventTypes(c.EventTypes)
+	if err != nil {
+		return err
+	}
+
 	if c.All {
-		return listAllCalendarsEvents(ctx, svc, from, to, c.Max, c.Page, c.AllPages, c.FailEmpty, c.Query, c.PrivatePropFilter, c.SharedPropFilter, c.Fields, c.Weekday, c.Location, c.Sort, c.Order)
+		return listAllCalendarsEvents(ctx, svc, from, to, c.Max, c.Page, c.AllPages, c.FailEmpty, c.Query, c.PrivatePropFilter, c.SharedPropFilter, c.Fields, eventTypes, c.Weekday, c.Location, c.Sort, c.Order)
 	}
 	if len(calInputs) > 0 {
 		ids, err := resolveCalendarIDs(ctx, store, svc, calInputs)
@@ -99,9 +105,9 @@ func (c *CalendarEventsCmd) Run(ctx context.Context, flags *RootFlags) error {
 		if len(ids) == 0 {
 			return usage("no calendars specified")
 		}
-		return listSelectedCalendarsEvents(ctx, svc, ids, from, to, c.Max, c.Page, c.AllPages, c.FailEmpty, c.Query, c.PrivatePropFilter, c.SharedPropFilter, c.Fields, c.Weekday, c.Location, c.Sort, c.Order)
+		return listSelectedCalendarsEvents(ctx, svc, ids, from, to, c.Max, c.Page, c.AllPages, c.FailEmpty, c.Query, c.PrivatePropFilter, c.SharedPropFilter, c.Fields, eventTypes, c.Weekday, c.Location, c.Sort, c.Order)
 	}
-	return listCalendarEvents(ctx, svc, calendarID, from, to, c.Max, c.Page, c.AllPages, c.FailEmpty, c.Query, c.PrivatePropFilter, c.SharedPropFilter, c.Fields, c.Weekday, c.Location, c.Sort, c.Order)
+	return listCalendarEvents(ctx, svc, calendarID, from, to, c.Max, c.Page, c.AllPages, c.FailEmpty, c.Query, c.PrivatePropFilter, c.SharedPropFilter, c.Fields, eventTypes, c.Weekday, c.Location, c.Sort, c.Order)
 }
 
 func normalizeCalendarEventsArgs(args []string) (string, error) {

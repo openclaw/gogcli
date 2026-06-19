@@ -63,7 +63,7 @@ func TestListAllCalendarsEvents_JSON(t *testing.T) {
 	ctx := newCmdJSONContext(t)
 
 	jsonOut := captureStdout(t, func() {
-		if runErr := listAllCalendarsEvents(ctx, svc, "2025-01-01T00:00:00Z", "2025-01-02T00:00:00Z", 10, "", false, false, "", "", "", "", false, false, "", ""); runErr != nil {
+		if runErr := listAllCalendarsEvents(ctx, svc, "2025-01-01T00:00:00Z", "2025-01-02T00:00:00Z", 10, "", false, false, "", "", "", "", nil, false, false, "", ""); runErr != nil {
 			t.Fatalf("listAllCalendarsEvents: %v", runErr)
 		}
 	})
@@ -126,7 +126,7 @@ func TestListAllCalendarsEvents_SortByStart(t *testing.T) {
 
 	ctx := newCmdJSONContext(t)
 	jsonOut := captureStdout(t, func() {
-		if err := listAllCalendarsEvents(ctx, svc, "2025-01-01T00:00:00Z", "2025-01-02T00:00:00Z", 10, "", false, false, "", "", "", "", false, false, "start", "asc"); err != nil {
+		if err := listAllCalendarsEvents(ctx, svc, "2025-01-01T00:00:00Z", "2025-01-02T00:00:00Z", 10, "", false, false, "", "", "", "", nil, false, false, "start", "asc"); err != nil {
 			t.Fatalf("listAllCalendarsEvents: %v", err)
 		}
 	})
@@ -153,7 +153,7 @@ func TestListAllCalendarsEvents_SortByStart(t *testing.T) {
 
 	// Descending order flips it.
 	jsonOut = captureStdout(t, func() {
-		if err := listAllCalendarsEvents(ctx, svc, "2025-01-01T00:00:00Z", "2025-01-02T00:00:00Z", 10, "", false, false, "", "", "", "", false, false, "start", "desc"); err != nil {
+		if err := listAllCalendarsEvents(ctx, svc, "2025-01-01T00:00:00Z", "2025-01-02T00:00:00Z", 10, "", false, false, "", "", "", "", nil, false, false, "start", "desc"); err != nil {
 			t.Fatalf("listAllCalendarsEvents desc: %v", err)
 		}
 	})

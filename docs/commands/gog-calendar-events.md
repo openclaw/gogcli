@@ -31,6 +31,7 @@ gog calendar (cal) events (list,ls) [<calendarId> ...] [flags]
 | `-n`<br>`--dry-run`<br>`--dryrun`<br>`--noop`<br>`--preview` | `bool` |  | Do not make changes; print intended actions and exit successfully |
 | `--enable-commands` | `string` |  | Comma-separated list of enabled command prefixes; dot paths allowed (restricts CLI) |
 | `--enable-commands-exact` | `string` |  | Comma-separated list of exact enabled commands; dot paths allowed and parent commands do not enable children |
+| `--event-types` | `[]string` |  | Filter to event types (repeatable or comma-separated): default, birthday, focus-time, from-gmail, out-of-office, working-location |
 | `--fail-empty`<br>`--non-empty`<br>`--require-results` | `bool` |  | Exit with code 3 if no results |
 | `--fields` | `string` |  | Comma-separated fields to return |
 | `-y`<br>`--force`<br>`--assume-yes`<br>`--yes` | `bool` |  | Skip confirmations for destructive commands |
