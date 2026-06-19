@@ -68,8 +68,9 @@ func TestTimeoutKeyringTimesOutOperations(t *testing.T) {
 		t.Fatalf("expected timeout error, got %v", err)
 	}
 
-	if !strings.Contains(err.Error(), "listing keyring items") || !strings.Contains(err.Error(), "Always Allow") {
-		t.Fatalf("expected operation and macOS hint in timeout, got %v", err)
+	if !strings.Contains(err.Error(), "listing keyring items") || !strings.Contains(err.Error(), "Always Allow") ||
+		!strings.Contains(err.Error(), "GOG_KEYRING_OPEN_TIMEOUT") {
+		t.Fatalf("expected operation, macOS hint, and timeout env in error, got %v", err)
 	}
 }
 

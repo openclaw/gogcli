@@ -16,6 +16,7 @@ const (
 	keyringPasswordEnv    = "GOG_KEYRING_PASSWORD" //nolint:gosec // env var name, not a credential
 	keyringBackendEnv     = "GOG_KEYRING_BACKEND"  //nolint:gosec // env var name, not a credential
 	keyringServiceNameEnv = "GOG_KEYRING_SERVICE_NAME"
+	keyringOpenTimeoutEnv = "GOG_KEYRING_OPEN_TIMEOUT"
 )
 
 var (
@@ -68,6 +69,7 @@ func OpenOptionsFromLookup(
 	password, passwordSet := lookup(keyringPasswordEnv)
 	serviceName, _ := lookup(keyringServiceNameEnv)
 	dbusAddress, _ := lookup("DBUS_SESSION_BUS_ADDRESS")
+	openTimeoutRaw, _ := lookup(keyringOpenTimeoutEnv)
 	lockTimeoutRaw, _ := lookup(keyringLockTimeoutEnv)
 
 	return OpenOptions{
@@ -80,7 +82,7 @@ func OpenOptionsFromLookup(
 		GOOS:        goos,
 		DBusAddress: dbusAddress,
 		IsTTY:       isTTY,
-		OpenTimeout: keyringOpenTimeout,
+		OpenTimeout: parseKeyringOpenTimeout(openTimeoutRaw),
 		LockTimeout: parseKeyringLockTimeout(lockTimeoutRaw),
 	}
 }
@@ -161,14 +163,32 @@ func serviceNameFor(options OpenOptions) string {
 	return config.AppName
 }
 
-// keyringOpenTimeout is the maximum time to wait for keyring.Open() to complete.
-// On headless Linux, D-Bus SecretService can hang indefinitely if gnome-keyring
-// is installed but not running.
+// keyringOpenTimeout is the default maximum time to wait for a keyring open or
+// operation to complete; override with GOG_KEYRING_OPEN_TIMEOUT. It guards
+// against backends that can hang indefinitely (headless-Linux D-Bus
+// SecretService when gnome-keyring is installed but not running; an unresponsive
+// macOS Keychain) while still leaving room for an interactive macOS Keychain
+// permission prompt (password entry plus "Always Allow").
 const (
-	keyringOpenTimeout = 10 * time.Second
+	keyringOpenTimeout = 30 * time.Second
 	goosDarwin         = "darwin"
 	goosLinux          = "linux"
 )
+
+// parseKeyringOpenTimeout resolves GOG_KEYRING_OPEN_TIMEOUT, falling back to the
+// default when unset, unparseable, or non-positive.
+func parseKeyringOpenTimeout(raw string) time.Duration {
+	if raw == "" {
+		return keyringOpenTimeout
+	}
+
+	timeout, err := time.ParseDuration(raw)
+	if err != nil || timeout <= 0 {
+		return keyringOpenTimeout
+	}
+
+	return timeout
+}
 
 func shouldForceFileBackend(goos string, backendInfo KeyringBackendInfo, dbusAddr string) bool {
 	return goos == goosLinux && backendInfo.Value == keyringBackendAuto && dbusAddr == ""

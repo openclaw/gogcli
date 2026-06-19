@@ -76,6 +76,51 @@ func TestOpenOptionsFromLookupCapturesEnvironment(t *testing.T) {
 	}
 }
 
+func TestOpenOptionsFromLookupOpenTimeout(t *testing.T) {
+	t.Parallel()
+
+	values := map[string]string{keyringOpenTimeoutEnv: "45s"}
+	options := OpenOptionsFromLookup(
+		config.Layout{ConfigDir: "/config", DataDir: "/data"},
+		config.NewConfigStore(config.Layout{ConfigDir: "/config"}),
+		func(key string) (string, bool) {
+			value, ok := values[key]
+			return value, ok
+		},
+		"darwin",
+		true,
+	)
+
+	if options.OpenTimeout != 45*time.Second {
+		t.Fatalf("OpenTimeout = %v, want 45s", options.OpenTimeout)
+	}
+}
+
+func TestParseKeyringOpenTimeout(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		raw  string
+		want time.Duration
+	}{
+		{name: "empty falls back to default", raw: "", want: keyringOpenTimeout},
+		{name: "valid duration", raw: "1m", want: time.Minute},
+		{name: "unparseable falls back to default", raw: "nonsense", want: keyringOpenTimeout},
+		{name: "non-positive falls back to default", raw: "-5s", want: keyringOpenTimeout},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := parseKeyringOpenTimeout(tt.raw); got != tt.want {
+				t.Fatalf("parseKeyringOpenTimeout(%q) = %v, want %v", tt.raw, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestOpenUsesInjectedOptions(t *testing.T) {
 	t.Parallel()
 

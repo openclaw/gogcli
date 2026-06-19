@@ -47,8 +47,8 @@ func withKeyringTimeout[T any](timeout time.Duration, operation string, hint str
 
 func keyringTimeoutError(operation string, timeout time.Duration, hint string) error {
 	return fmt.Errorf("%w after %v while %s (%s); "+
-		"set GOG_KEYRING_BACKEND=file and GOG_KEYRING_PASSWORD=<password> to use encrypted file storage instead",
-		errKeyringTimeout, timeout, operation, hint)
+		"set %s to allow more time, or set GOG_KEYRING_BACKEND=file and GOG_KEYRING_PASSWORD=<password> to use encrypted file storage instead",
+		errKeyringTimeout, timeout, operation, hint, keyringOpenTimeoutEnv)
 }
 
 func IsKeyringTimeout(err error) bool {
