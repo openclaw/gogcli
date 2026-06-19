@@ -120,6 +120,9 @@ func (c *DocsWriteCmd) resolveWriteText(ctx context.Context, kctx *kong.Context)
 }
 
 func (c *DocsWriteCmd) writePlainText(ctx context.Context, flags *RootFlags, docID, text string) error {
+	if c.Append && c.Format.createsBullets() && c.Format.hasParagraphStyle() {
+		return usage("docs write --append cannot combine bullet creation with paragraph formatting; append first, then use docs format")
+	}
 	if c.Format.any() {
 		if _, err := c.Format.buildRequests(1, 1+utf16Len(text), c.Tab); err != nil {
 			return err

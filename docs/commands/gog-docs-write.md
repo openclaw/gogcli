@@ -25,6 +25,8 @@ gog docs (doc) write <docId> [flags]
 | `--batch` | `string` |  | Append requests to a persisted Docs batch instead of submitting |
 | `--bg-color` | `string` |  | Text background color as #RRGGBB or #RGB |
 | `--bold` | `bool` |  | Set bold |
+| `--bullet-preset` | `string` |  | Create a list with a Google Docs bullet glyph preset |
+| `--bullets` | `bool` |  | Create a bulleted list with the default disc preset |
 | `--check-orphans` | `bool` |  | Block markdown replacement when open comment quotes would disappear |
 | `--client` | `string` |  | OAuth client name (selects stored credentials + token bucket) |
 | `--code` | `bool` |  | Apply code style (Courier New + grey background) |
@@ -41,8 +43,13 @@ gog docs (doc) write <docId> [flags]
 | `--heading-level` | `*int` |  | Set paragraph named style to HEADING_1..HEADING_6 (shortcut for --named-style=HEADING_N) |
 | `-h`<br>`--help` | `kong.helpFlag` |  | Show context-sensitive help. |
 | `--home` | `string` |  | Override gogcli config/data/state/cache root (equivalent to GOG_HOME) |
+| `--indent-end` | `*float64` |  | Paragraph end indentation in points |
+| `--indent-first-line` | `*float64` |  | Paragraph first-line indentation in points |
+| `--indent-start` | `*float64` |  | Paragraph start indentation in points |
 | `--italic` | `bool` |  | Set italic |
 | `-j`<br>`--json`<br>`--machine` | `bool` | false | Output JSON to stdout (best for scripting) |
+| `--keep-lines-together` | `*bool` |  | Keep all paragraph lines on one page or column when possible; use --no-keep-lines-together to clear |
+| `--keep-with-next` | `*bool` |  | Keep the paragraph with the next paragraph when possible; use --no-keep-with-next to clear |
 | `--line-spacing` | `float64` |  | Paragraph line spacing percentage, for example 100 or 150 |
 | `--margin-bottom` | `string` |  | Set bottom page margin (points by default; supports pt, in, cm, mm) |
 | `--margin-left` | `string` |  | Set left page margin (points by default; supports pt, in, cm, mm) |
@@ -51,10 +58,12 @@ gog docs (doc) write <docId> [flags]
 | `--markdown` | `bool` |  | Convert markdown to Google Docs formatting (requires --replace or --append) |
 | `--named-style` | `string` |  | Set paragraph named style: NORMAL_TEXT, TITLE, SUBTITLE, HEADING_1..HEADING_6 |
 | `--no-bold` | `bool` |  | Clear bold |
+| `--no-bullets` | `bool` |  | Remove bullets or numbering |
 | `--no-input`<br>`--non-interactive`<br>`--noninteractive` | `bool` |  | Never prompt; fail instead (useful for CI) |
 | `--no-italic` | `bool` |  | Clear italic |
 | `--no-strikethrough`<br>`--no-strike` | `bool` |  | Clear strikethrough |
 | `--no-underline` | `bool` |  | Clear underline |
+| `--ordered` | `bool` |  | Create a numbered list with the default decimal preset |
 | `--page-height` | `string` |  | Set page height (points by default; supports pt, in, cm, mm) |
 | `--page-size` | `string` |  | Named page size: A4, A5, Letter, Legal, Tabloid |
 | `--page-width` | `string` |  | Set page width (points by default; supports pt, in, cm, mm) |
@@ -63,6 +72,8 @@ gog docs (doc) write <docId> [flags]
 | `--replace` | `bool` |  | Replace all content explicitly (required with --markdown unless --append is set) |
 | `--results-only` | `bool` |  | In JSON mode, emit only the primary result (drops envelope fields like nextPageToken) |
 | `--select`<br>`--pick`<br>`--project` | `string` |  | In JSON mode, select comma-separated fields (best-effort; supports dot paths). Desire path: use --fields for most commands. |
+| `--space-above` | `*float64` |  | Space above the paragraph in points |
+| `--space-below` | `*float64` |  | Space below the paragraph in points |
 | `--strikethrough`<br>`--strike` | `bool` |  | Set strikethrough |
 | `--tab` | `string` |  | Target a specific tab by title or ID (see docs list-tabs) |
 | `--text` | `string` |  | Text to write |

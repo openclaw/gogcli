@@ -8,6 +8,10 @@ import (
 	"testing"
 
 	"google.golang.org/api/docs/v1"
+
+	"github.com/steipete/gogcli/internal/docsedit"
+	"github.com/steipete/gogcli/internal/docsformat"
+	"github.com/steipete/gogcli/internal/docssed"
 )
 
 func TestDocsFormatFlagsBuildRequests(t *testing.T) {
@@ -330,6 +334,102 @@ func TestDocsFormatCmdMatchAll(t *testing.T) {
 	}
 	if got := reqs[1].UpdateTextStyle.Range; got.StartIndex != 12 || got.EndIndex != 17 {
 		t.Fatalf("unexpected second match range: %#v", got)
+	}
+}
+
+func TestDocsFormatCmdParagraphControls(t *testing.T) {
+	t.Parallel()
+
+	var batchRequests [][]*docs.Request
+	docSvc, cleanup := newDocsServiceForTest(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodPost && strings.Contains(r.URL.Path, ":batchUpdate"):
+			var req docs.BatchUpdateDocumentRequest
+			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+				t.Fatalf("decode request: %v", err)
+			}
+			batchRequests = append(batchRequests, req.Requests)
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{"documentId": "doc1"})
+		case r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, "/v1/documents/"):
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(docBodyWithText("Alpha Beta Alpha\n"))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer cleanup()
+
+	ctx := withDocsTestService(newCmdRuntimeJSONOutputContext(t, io.Discard, io.Discard), docSvc)
+	flags := &RootFlags{Account: "a@b.com"}
+	err := runKong(t, &DocsFormatCmd{}, []string{
+		"doc1", "--match", "Alpha", "--match-all", "--bold", "--ordered",
+		"--indent-start", "24", "--space-below", "6",
+		"--keep-with-next", "--no-keep-lines-together",
+	}, ctx, flags)
+	if err != nil {
+		t.Fatalf("format: %v", err)
+	}
+	if len(batchRequests) != 1 || len(batchRequests[0]) != 4 {
+		t.Fatalf("unexpected requests: %#v", batchRequests)
+	}
+
+	if first, second := batchRequests[0][0].UpdateTextStyle, batchRequests[0][1].UpdateTextStyle; first == nil || second == nil || first.Range.StartIndex != 1 || first.Range.EndIndex != 6 ||
+		second.Range.StartIndex != 12 || second.Range.EndIndex != 17 {
+		t.Fatalf("exact text requests must precede bullets: %#v", batchRequests[0][:2])
+	}
+	bullets := batchRequests[0][2].CreateParagraphBullets
+	paragraph := batchRequests[0][3].UpdateParagraphStyle
+	if paragraph == nil || bullets == nil || paragraph.Range.StartIndex != 1 || paragraph.Range.EndIndex != 18 ||
+		bullets.Range.StartIndex != 1 || bullets.Range.EndIndex != 18 {
+		t.Fatalf("grouped paragraph requests: %#v", batchRequests[0])
+	}
+	if paragraph.ParagraphStyle.IndentStart.Magnitude != 24 || paragraph.ParagraphStyle.SpaceBelow.Magnitude != 6 ||
+		!paragraph.ParagraphStyle.KeepWithNext || paragraph.ParagraphStyle.KeepLinesTogether {
+		t.Fatalf("unexpected paragraph style: %#v", paragraph.ParagraphStyle)
+	}
+	if bullets.BulletPreset != docsformat.BulletPresetNumbered {
+		t.Fatalf("preset = %q", bullets.BulletPreset)
+	}
+}
+
+func TestDocsFormatBulletTargetsAdjustLeadingTabsInForwardOrder(t *testing.T) {
+	t.Parallel()
+
+	paragraphs := []docssed.DocumentParagraph{
+		{Text: "\tFirst\n", StartIndex: 1, EndIndex: 8},
+		{Text: "\t\tSecond\n", StartIndex: 8, EndIndex: 17},
+		{Text: "Third\n", StartIndex: 17, EndIndex: 23},
+	}
+	targets := []docsFormatTargetRange{
+		{TextRange: docsedit.TextRange{StartIndex: 2, EndIndex: 7}, BulletParagraphs: docsFormatBulletParagraphs(paragraphs, 2, 7)},
+		{TextRange: docsedit.TextRange{StartIndex: 10, EndIndex: 16}, BulletParagraphs: docsFormatBulletParagraphs(paragraphs, 10, 16)},
+	}
+	adjustDocsFormatBulletTargets(targets, true)
+	if got := targets[0]; got.StartIndex != 2 || got.EndIndex != 7 || got.PostBulletStart != 1 || got.PostBulletEnd != 7 {
+		t.Fatalf("first adjusted target: %#v", got)
+	}
+	if got := targets[1]; got.StartIndex != 9 || got.EndIndex != 15 || got.PostBulletStart != 7 || got.PostBulletEnd != 14 {
+		t.Fatalf("second adjusted target: %#v", got)
+	}
+}
+
+func TestGroupDocsFormatBulletTargets(t *testing.T) {
+	t.Parallel()
+
+	p1 := docsFormatBulletParagraph{StartIndex: 1, EndIndex: 8}
+	p2 := docsFormatBulletParagraph{StartIndex: 8, EndIndex: 17}
+	p3 := docsFormatBulletParagraph{StartIndex: 20, EndIndex: 27}
+	targets := []docsFormatTargetRange{
+		{BulletParagraphs: []docsFormatBulletParagraph{p1}},
+		{BulletParagraphs: []docsFormatBulletParagraph{p1}},
+		{BulletParagraphs: []docsFormatBulletParagraph{p2}},
+		{BulletParagraphs: []docsFormatBulletParagraph{p3}},
+	}
+	groups := groupDocsFormatBulletTargets(targets)
+	if len(groups) != 2 || groups[0].StartIndex != 1 || groups[0].EndIndex != 17 ||
+		len(groups[0].BulletParagraphs) != 2 || groups[1].StartIndex != 20 || groups[1].EndIndex != 27 {
+		t.Fatalf("groups = %#v", groups)
 	}
 }
 

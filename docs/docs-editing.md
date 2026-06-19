@@ -67,6 +67,28 @@ gog docs format <docId> --match "Status" --heading-level 2
 gog docs format <docId> --match "Overview" --named-style title --alignment center
 ```
 
+Create or remove native lists, optionally choosing an exact Docs glyph preset:
+
+```bash
+gog docs format <docId> --match "Action item" --bullets
+gog docs format <docId> --match "Step one" --ordered
+gog docs format <docId> --match "Task" --bullet-preset BULLET_CHECKBOX
+gog docs format <docId> --match "Action item" --no-bullets
+```
+
+Paragraph layout controls use points and accept explicit zero values. Boolean
+keep controls have matching `--no-...` forms:
+
+```bash
+gog docs format <docId> --match "Summary" --indent-start 24 --indent-first-line 12
+gog docs format <docId> --match "Summary" --space-above 6 --space-below 12 --keep-with-next
+gog docs format <docId> --match "Summary" --no-keep-with-next --keep-lines-together
+```
+
+Plain-text `docs write` accepts the same list and paragraph flags while
+replacing content. For `--append`, create the list and apply paragraph layout
+in a following `docs format` call so Docs can resolve post-insertion indexes.
+
 Use `--match-all` when every occurrence should be formatted.
 
 Command page:

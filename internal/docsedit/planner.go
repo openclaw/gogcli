@@ -43,8 +43,14 @@ func BuildWriteRequests(options WriteOptions) ([]*docs.Request, error) {
 
 	requests = append(requests, BuildInsertRequest(options.Text, options.InsertIndex, options.TabID))
 	if options.Format.Any() {
+		format := options.Format
+		if !options.Append && createsParagraphBullets(format) && hasParagraphStyle(format) {
+			format.PostBulletParagraphStart = options.InsertIndex
+			format.PostBulletParagraphEnd = options.InsertIndex + utf16Length(options.Text) - leadingParagraphTabs(options.Text)
+		}
+
 		formatRequests, err := docsformat.BuildRequests(
-			options.Format,
+			format,
 			options.InsertIndex,
 			options.InsertIndex+utf16Length(options.Text),
 			options.TabID,
@@ -57,6 +63,37 @@ func BuildWriteRequests(options WriteOptions) ([]*docs.Request, error) {
 	}
 
 	return requests, nil
+}
+
+func createsParagraphBullets(options docsformat.Options) bool {
+	return options.Bullets || options.Ordered || strings.TrimSpace(options.BulletPreset) != ""
+}
+
+func hasParagraphStyle(options docsformat.Options) bool {
+	return strings.TrimSpace(options.Alignment) != "" || options.LineSpacing != 0 || options.HeadingLevel != nil ||
+		strings.TrimSpace(options.NamedStyle) != "" || options.IndentStart != nil || options.IndentFirstLine != nil ||
+		options.IndentEnd != nil || options.SpaceAbove != nil || options.SpaceBelow != nil ||
+		options.KeepWithNext != nil || options.KeepLinesTogether != nil
+}
+
+func leadingParagraphTabs(text string) int64 {
+	atParagraphStart := true
+	count := int64(0)
+
+	for _, r := range text {
+		if r == '\n' {
+			atParagraphStart = true
+			continue
+		}
+
+		if atParagraphStart && r == '\t' {
+			count++
+			continue
+		}
+		atParagraphStart = false
+	}
+
+	return count
 }
 
 func BuildUpdateRequests(text string, insertIndex int64, tabID string, replace *Range) []*docs.Request {

@@ -9,6 +9,7 @@ import (
 
 	"github.com/steipete/gogcli/internal/docsedit"
 	"github.com/steipete/gogcli/internal/docsformat"
+	"github.com/steipete/gogcli/internal/docssed"
 	"github.com/steipete/gogcli/internal/outfmt"
 	"github.com/steipete/gogcli/internal/ui"
 )
@@ -27,23 +28,34 @@ type DocsFormatCmd struct {
 }
 
 type DocsFormatFlags struct {
-	FontFamily    string  `name:"font-family" help:"Font family, for example Arial or Georgia"`
-	FontSize      float64 `name:"font-size" help:"Font size in points"`
-	TextColor     string  `name:"text-color" help:"Text color as #RRGGBB or #RGB"`
-	BgColor       string  `name:"bg-color" help:"Text background color as #RRGGBB or #RGB"`
-	Code          bool    `name:"code" help:"Apply code style (Courier New + grey background)"`
-	Bold          bool    `name:"bold" help:"Set bold"`
-	NoBold        bool    `name:"no-bold" help:"Clear bold"`
-	Italic        bool    `name:"italic" help:"Set italic"`
-	NoItalic      bool    `name:"no-italic" help:"Clear italic"`
-	Underline     bool    `name:"underline" help:"Set underline"`
-	NoUnderline   bool    `name:"no-underline" help:"Clear underline"`
-	Strikethrough bool    `name:"strikethrough" aliases:"strike" help:"Set strikethrough"`
-	NoStrike      bool    `name:"no-strikethrough" aliases:"no-strike" help:"Clear strikethrough"`
-	Alignment     string  `name:"alignment" help:"Paragraph alignment: left, center, right, justify, start, end, justified"`
-	LineSpacing   float64 `name:"line-spacing" help:"Paragraph line spacing percentage, for example 100 or 150"`
-	HeadingLevel  *int    `name:"heading-level" help:"Set paragraph named style to HEADING_1..HEADING_6 (shortcut for --named-style=HEADING_N)"`
-	NamedStyle    string  `name:"named-style" help:"Set paragraph named style: NORMAL_TEXT, TITLE, SUBTITLE, HEADING_1..HEADING_6"`
+	FontFamily        string   `name:"font-family" help:"Font family, for example Arial or Georgia"`
+	FontSize          float64  `name:"font-size" help:"Font size in points"`
+	TextColor         string   `name:"text-color" help:"Text color as #RRGGBB or #RGB"`
+	BgColor           string   `name:"bg-color" help:"Text background color as #RRGGBB or #RGB"`
+	Code              bool     `name:"code" help:"Apply code style (Courier New + grey background)"`
+	Bold              bool     `name:"bold" help:"Set bold"`
+	NoBold            bool     `name:"no-bold" help:"Clear bold"`
+	Italic            bool     `name:"italic" help:"Set italic"`
+	NoItalic          bool     `name:"no-italic" help:"Clear italic"`
+	Underline         bool     `name:"underline" help:"Set underline"`
+	NoUnderline       bool     `name:"no-underline" help:"Clear underline"`
+	Strikethrough     bool     `name:"strikethrough" aliases:"strike" help:"Set strikethrough"`
+	NoStrike          bool     `name:"no-strikethrough" aliases:"no-strike" help:"Clear strikethrough"`
+	Alignment         string   `name:"alignment" help:"Paragraph alignment: left, center, right, justify, start, end, justified"`
+	LineSpacing       float64  `name:"line-spacing" help:"Paragraph line spacing percentage, for example 100 or 150"`
+	HeadingLevel      *int     `name:"heading-level" help:"Set paragraph named style to HEADING_1..HEADING_6 (shortcut for --named-style=HEADING_N)"`
+	NamedStyle        string   `name:"named-style" help:"Set paragraph named style: NORMAL_TEXT, TITLE, SUBTITLE, HEADING_1..HEADING_6"`
+	Bullets           bool     `name:"bullets" help:"Create a bulleted list with the default disc preset"`
+	Ordered           bool     `name:"ordered" help:"Create a numbered list with the default decimal preset"`
+	BulletPreset      string   `name:"bullet-preset" placeholder:"PRESET" help:"Create a list with a Google Docs bullet glyph preset"`
+	NoBullets         bool     `name:"no-bullets" help:"Remove bullets or numbering"`
+	IndentStart       *float64 `name:"indent-start" placeholder:"PT" help:"Paragraph start indentation in points"`
+	IndentFirstLine   *float64 `name:"indent-first-line" placeholder:"PT" help:"Paragraph first-line indentation in points"`
+	IndentEnd         *float64 `name:"indent-end" placeholder:"PT" help:"Paragraph end indentation in points"`
+	SpaceAbove        *float64 `name:"space-above" placeholder:"PT" help:"Space above the paragraph in points"`
+	SpaceBelow        *float64 `name:"space-below" placeholder:"PT" help:"Space below the paragraph in points"`
+	KeepWithNext      *bool    `name:"keep-with-next" negatable:"" help:"Keep the paragraph with the next paragraph when possible; use --no-keep-with-next to clear"`
+	KeepLinesTogether *bool    `name:"keep-lines-together" negatable:"" help:"Keep all paragraph lines on one page or column when possible; use --no-keep-lines-together to clear"`
 
 	link         string
 	noLink       bool
@@ -92,25 +104,36 @@ func (c *DocsFormatCmd) Run(ctx context.Context, flags *RootFlags) error {
 		"tab":         c.Tab,
 		"batch":       c.Batch,
 		"format": map[string]any{
-			"font_family":   c.Format.FontFamily,
-			"font_size":     c.Format.FontSize,
-			"text_color":    c.Format.TextColor,
-			"bg_color":      c.Format.BgColor,
-			"link":          c.Link,
-			"no_link":       c.NoLink,
-			"code":          c.Format.Code,
-			"bold":          c.Format.Bold,
-			"no_bold":       c.Format.NoBold,
-			"italic":        c.Format.Italic,
-			"no_italic":     c.Format.NoItalic,
-			"underline":     c.Format.Underline,
-			"no_underline":  c.Format.NoUnderline,
-			"strikethrough": c.Format.Strikethrough,
-			"no_strike":     c.Format.NoStrike,
-			"alignment":     c.Format.Alignment,
-			"line_spacing":  c.Format.LineSpacing,
-			"heading_level": c.Format.HeadingLevel,
-			"named_style":   c.Format.NamedStyle,
+			"font_family":         c.Format.FontFamily,
+			"font_size":           c.Format.FontSize,
+			"text_color":          c.Format.TextColor,
+			"bg_color":            c.Format.BgColor,
+			"link":                c.Link,
+			"no_link":             c.NoLink,
+			"code":                c.Format.Code,
+			"bold":                c.Format.Bold,
+			"no_bold":             c.Format.NoBold,
+			"italic":              c.Format.Italic,
+			"no_italic":           c.Format.NoItalic,
+			"underline":           c.Format.Underline,
+			"no_underline":        c.Format.NoUnderline,
+			"strikethrough":       c.Format.Strikethrough,
+			"no_strike":           c.Format.NoStrike,
+			"alignment":           c.Format.Alignment,
+			"line_spacing":        c.Format.LineSpacing,
+			"heading_level":       c.Format.HeadingLevel,
+			"named_style":         c.Format.NamedStyle,
+			"bullets":             c.Format.Bullets,
+			"ordered":             c.Format.Ordered,
+			"bullet_preset":       c.Format.BulletPreset,
+			"no_bullets":          c.Format.NoBullets,
+			"indent_start":        c.Format.IndentStart,
+			"indent_first_line":   c.Format.IndentFirstLine,
+			"indent_end":          c.Format.IndentEnd,
+			"space_above":         c.Format.SpaceAbove,
+			"space_below":         c.Format.SpaceBelow,
+			"keep_with_next":      c.Format.KeepWithNext,
+			"keep_lines_together": c.Format.KeepLinesTogether,
 		},
 	}); err != nil {
 		return err
@@ -140,14 +163,39 @@ func (c *DocsFormatCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if len(ranges) == 0 {
 		return usage("no matching text found")
 	}
-
 	reqs := make([]*docs.Request, 0, len(ranges)*2)
-	for _, r := range ranges {
-		formatReqs, buildErr := format.buildRequests(r.StartIndex, r.EndIndex, tabID)
-		if buildErr != nil {
-			return buildErr
+	if format.createsBullets() {
+		// Apply exact-range text styles before bullet creation can remove nesting
+		// tabs, then group selected adjacent paragraphs into native list runs.
+		textFormat := format.textOnly()
+		if textFormat.any() {
+			for _, r := range ranges {
+				formatReqs, buildErr := textFormat.buildRequests(r.StartIndex, r.EndIndex, tabID)
+				if buildErr != nil {
+					return buildErr
+				}
+				reqs = append(reqs, formatReqs...)
+			}
 		}
-		reqs = append(reqs, formatReqs...)
+
+		paragraphFormat := format.paragraphOnly()
+		bulletTargets := groupDocsFormatBulletTargets(ranges)
+		adjustDocsFormatBulletTargets(bulletTargets, paragraphFormat.hasParagraphStyle())
+		for _, r := range bulletTargets {
+			formatReqs, buildErr := paragraphFormat.buildTargetRequests(r, tabID)
+			if buildErr != nil {
+				return buildErr
+			}
+			reqs = append(reqs, formatReqs...)
+		}
+	} else {
+		for _, r := range ranges {
+			formatReqs, buildErr := format.buildTargetRequests(r, tabID)
+			if buildErr != nil {
+				return buildErr
+			}
+			reqs = append(reqs, formatReqs...)
+		}
 	}
 	if queued, queueErr := queueDocsBatchRequests(ctx, flags, c.Batch, id, "docs.format", batchRevision, reqs, false); queued || queueErr != nil {
 		return queueErr
@@ -164,19 +212,7 @@ func (c *DocsFormatCmd) Run(ctx context.Context, flags *RootFlags) error {
 	return c.writeResult(ctx, resp, len(reqs), len(ranges), tabID)
 }
 
-func (c *DocsFormatCmd) targetRanges(ctx context.Context, svc *docs.Service, docID string) ([]docsedit.TextRange, string, error) {
-	if strings.TrimSpace(c.Match) == "" {
-		endIndex, tabID, err := docsTargetEndIndexAndTabID(ctx, svc, docID, c.Tab)
-		if err != nil {
-			return nil, "", err
-		}
-		end := endIndex - 1
-		if end <= 1 {
-			return nil, tabID, nil
-		}
-		return []docsedit.TextRange{{StartIndex: 1, EndIndex: end}}, tabID, nil
-	}
-
+func (c *DocsFormatCmd) targetRanges(ctx context.Context, svc *docs.Service, docID string) ([]docsFormatTargetRange, string, error) {
 	getCall := svc.Documents.Get(docID).Context(ctx)
 	if c.Tab != "" {
 		getCall = getCall.IncludeTabsContent(true)
@@ -205,15 +241,128 @@ func (c *DocsFormatCmd) targetRanges(ctx context.Context, svc *docs.Service, doc
 		}
 	}
 
-	matches := docsedit.FindTextRanges(targetDoc, c.Match, docsedit.SearchOptions{
-		MatchCase:            c.MatchCase,
-		PreserveHTMLEntities: true,
-		RequireTextSegment:   true,
-	})
-	if !c.MatchAll && len(matches) > 1 {
-		matches = matches[:1]
+	var ranges []docsedit.TextRange
+	if strings.TrimSpace(c.Match) == "" {
+		end := docsDocumentEndIndex(targetDoc) - 1
+		if end > 1 {
+			ranges = []docsedit.TextRange{{StartIndex: 1, EndIndex: end}}
+		}
+	} else {
+		ranges = docsedit.FindTextRanges(targetDoc, c.Match, docsedit.SearchOptions{
+			MatchCase:            c.MatchCase,
+			PreserveHTMLEntities: true,
+			RequireTextSegment:   true,
+		})
+		if !c.MatchAll && len(ranges) > 1 {
+			ranges = ranges[:1]
+		}
 	}
-	return matches, tabID, nil
+
+	paragraphs := []docssed.DocumentParagraph(nil)
+	if projection := docssed.ProjectDocument(targetDoc); projection.Legacy != nil {
+		paragraphs = projection.Legacy.Paragraphs
+	}
+	targets := make([]docsFormatTargetRange, 0, len(ranges))
+	for _, r := range ranges {
+		target := docsFormatTargetRange{TextRange: r}
+		if c.Format.createsBullets() {
+			target.BulletParagraphs = docsFormatBulletParagraphs(paragraphs, r.StartIndex, r.EndIndex)
+		}
+		targets = append(targets, target)
+	}
+	return targets, tabID, nil
+}
+
+type docsFormatTargetRange struct {
+	docsedit.TextRange
+	PostBulletStart  int64
+	PostBulletEnd    int64
+	BulletParagraphs []docsFormatBulletParagraph
+}
+
+type docsFormatBulletParagraph struct {
+	StartIndex  int64
+	EndIndex    int64
+	LeadingTabs int64
+}
+
+func docsFormatBulletParagraphs(paragraphs []docssed.DocumentParagraph, start, end int64) []docsFormatBulletParagraph {
+	var affected []docsFormatBulletParagraph
+	for _, paragraph := range paragraphs {
+		if paragraph.StartIndex >= end || paragraph.EndIndex <= start {
+			continue
+		}
+		item := docsFormatBulletParagraph{StartIndex: paragraph.StartIndex, EndIndex: paragraph.EndIndex}
+		for _, r := range paragraph.Text {
+			if r != '\t' {
+				break
+			}
+			item.LeadingTabs++
+		}
+		affected = append(affected, item)
+	}
+	return affected
+}
+
+func adjustDocsFormatBulletTargets(targets []docsFormatTargetRange, withParagraphStyle bool) {
+	seenParagraphs := make(map[int64]bool)
+	var removedTabIndexes []int64
+	shiftedIndex := func(index int64) int64 {
+		shift := int64(0)
+		for _, removed := range removedTabIndexes {
+			if removed < index {
+				shift++
+			}
+		}
+		return index - shift
+	}
+
+	for i := range targets {
+		target := &targets[i]
+		target.StartIndex = shiftedIndex(target.StartIndex)
+		target.EndIndex = shiftedIndex(target.EndIndex)
+
+		for _, paragraph := range target.BulletParagraphs {
+			if seenParagraphs[paragraph.StartIndex] {
+				continue
+			}
+			seenParagraphs[paragraph.StartIndex] = true
+			for offset := int64(0); offset < paragraph.LeadingTabs; offset++ {
+				removedTabIndexes = append(removedTabIndexes, paragraph.StartIndex+offset)
+			}
+		}
+		if !withParagraphStyle || len(target.BulletParagraphs) == 0 {
+			continue
+		}
+
+		target.PostBulletStart = shiftedIndex(target.BulletParagraphs[0].StartIndex)
+		target.PostBulletEnd = shiftedIndex(target.BulletParagraphs[len(target.BulletParagraphs)-1].EndIndex)
+	}
+}
+
+func groupDocsFormatBulletTargets(targets []docsFormatTargetRange) []docsFormatTargetRange {
+	seen := make(map[int64]bool)
+	var groups []docsFormatTargetRange
+	for _, target := range targets {
+		for _, paragraph := range target.BulletParagraphs {
+			if seen[paragraph.StartIndex] {
+				continue
+			}
+			seen[paragraph.StartIndex] = true
+
+			last := len(groups) - 1
+			if last >= 0 && groups[last].BulletParagraphs[len(groups[last].BulletParagraphs)-1].EndIndex == paragraph.StartIndex {
+				groups[last].EndIndex = paragraph.EndIndex
+				groups[last].BulletParagraphs = append(groups[last].BulletParagraphs, paragraph)
+				continue
+			}
+			groups = append(groups, docsFormatTargetRange{
+				TextRange:        docsedit.TextRange{StartIndex: paragraph.StartIndex, EndIndex: paragraph.EndIndex},
+				BulletParagraphs: []docsFormatBulletParagraph{paragraph},
+			})
+		}
+	}
+	return groups
 }
 
 func (c *DocsFormatCmd) writeResult(ctx context.Context, resp *docs.BatchUpdateDocumentResponse, requestCount, rangeCount int, tabID string) error {
@@ -249,6 +398,57 @@ func (f DocsFormatFlags) any() bool {
 	return f.options().Any()
 }
 
+func (f DocsFormatFlags) createsBullets() bool {
+	return f.Bullets || f.Ordered || strings.TrimSpace(f.BulletPreset) != ""
+}
+
+func (f DocsFormatFlags) hasParagraphStyle() bool {
+	return strings.TrimSpace(f.Alignment) != "" || f.LineSpacing != 0 || f.HeadingLevel != nil ||
+		strings.TrimSpace(f.NamedStyle) != "" || f.IndentStart != nil || f.IndentFirstLine != nil ||
+		f.IndentEnd != nil || f.SpaceAbove != nil || f.SpaceBelow != nil ||
+		f.KeepWithNext != nil || f.KeepLinesTogether != nil
+}
+
+func (f DocsFormatFlags) textOnly() DocsFormatFlags {
+	return DocsFormatFlags{
+		FontFamily:    f.FontFamily,
+		FontSize:      f.FontSize,
+		TextColor:     f.TextColor,
+		BgColor:       f.BgColor,
+		Code:          f.Code,
+		Bold:          f.Bold,
+		NoBold:        f.NoBold,
+		Italic:        f.Italic,
+		NoItalic:      f.NoItalic,
+		Underline:     f.Underline,
+		NoUnderline:   f.NoUnderline,
+		Strikethrough: f.Strikethrough,
+		NoStrike:      f.NoStrike,
+		link:          f.link,
+		noLink:        f.noLink,
+		resolvedLink:  f.resolvedLink,
+	}
+}
+
+func (f DocsFormatFlags) paragraphOnly() DocsFormatFlags {
+	return DocsFormatFlags{
+		Alignment:         f.Alignment,
+		LineSpacing:       f.LineSpacing,
+		HeadingLevel:      f.HeadingLevel,
+		NamedStyle:        f.NamedStyle,
+		Bullets:           f.Bullets,
+		Ordered:           f.Ordered,
+		BulletPreset:      f.BulletPreset,
+		IndentStart:       f.IndentStart,
+		IndentFirstLine:   f.IndentFirstLine,
+		IndentEnd:         f.IndentEnd,
+		SpaceAbove:        f.SpaceAbove,
+		SpaceBelow:        f.SpaceBelow,
+		KeepWithNext:      f.KeepWithNext,
+		KeepLinesTogether: f.KeepLinesTogether,
+	}
+}
+
 func (f DocsFormatFlags) buildRequests(start, end int64, tabID string) ([]*docs.Request, error) {
 	requests, err := docsformat.BuildRequests(f.options(), start, end, tabID)
 	if err != nil {
@@ -257,28 +457,50 @@ func (f DocsFormatFlags) buildRequests(start, end int64, tabID string) ([]*docs.
 	return requests, nil
 }
 
+func (f DocsFormatFlags) buildTargetRequests(target docsFormatTargetRange, tabID string) ([]*docs.Request, error) {
+	options := f.options()
+	options.PostBulletParagraphStart = target.PostBulletStart
+	options.PostBulletParagraphEnd = target.PostBulletEnd
+	requests, err := docsformat.BuildRequests(options, target.StartIndex, target.EndIndex, tabID)
+	if err != nil {
+		return nil, usage(err.Error())
+	}
+	return requests, nil
+}
+
 func (f DocsFormatFlags) options() docsformat.Options {
 	return docsformat.Options{
-		FontFamily:     f.FontFamily,
-		FontSize:       f.FontSize,
-		TextColor:      f.TextColor,
-		Background:     f.BgColor,
-		Link:           f.link,
-		ClearLink:      f.noLink,
-		ResolvedLink:   f.resolvedLink,
-		Code:           f.Code,
-		Bold:           f.Bold,
-		ClearBold:      f.NoBold,
-		Italic:         f.Italic,
-		ClearItalic:    f.NoItalic,
-		Underline:      f.Underline,
-		ClearUnderline: f.NoUnderline,
-		Strikethrough:  f.Strikethrough,
-		ClearStrike:    f.NoStrike,
-		Alignment:      f.Alignment,
-		LineSpacing:    f.LineSpacing,
-		HeadingLevel:   f.HeadingLevel,
-		NamedStyle:     f.NamedStyle,
+		FontFamily:        f.FontFamily,
+		FontSize:          f.FontSize,
+		TextColor:         f.TextColor,
+		Background:        f.BgColor,
+		Link:              f.link,
+		ClearLink:         f.noLink,
+		ResolvedLink:      f.resolvedLink,
+		Code:              f.Code,
+		Bold:              f.Bold,
+		ClearBold:         f.NoBold,
+		Italic:            f.Italic,
+		ClearItalic:       f.NoItalic,
+		Underline:         f.Underline,
+		ClearUnderline:    f.NoUnderline,
+		Strikethrough:     f.Strikethrough,
+		ClearStrike:       f.NoStrike,
+		Alignment:         f.Alignment,
+		LineSpacing:       f.LineSpacing,
+		HeadingLevel:      f.HeadingLevel,
+		NamedStyle:        f.NamedStyle,
+		Bullets:           f.Bullets,
+		Ordered:           f.Ordered,
+		BulletPreset:      f.BulletPreset,
+		ClearBullets:      f.NoBullets,
+		IndentStart:       f.IndentStart,
+		IndentFirstLine:   f.IndentFirstLine,
+		IndentEnd:         f.IndentEnd,
+		SpaceAbove:        f.SpaceAbove,
+		SpaceBelow:        f.SpaceBelow,
+		KeepWithNext:      f.KeepWithNext,
+		KeepLinesTogether: f.KeepLinesTogether,
 	}
 }
 

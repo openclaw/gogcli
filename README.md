@@ -341,6 +341,7 @@ Docs: [Google Docs editing](docs/docs-editing.md),
 gog docs write <docId> --append --markdown --text '## Status'
 gog docs format <docId> --match Status --bold --font-size 18
 gog docs format <docId> --match "Project site" --link https://example.com
+gog docs format <docId> --match "Action item" --bullets --space-below 6
 gog docs find-range <docId> "Release status" --json
 gog docs insert-page-break <docId> --at-end
 gog docs insert-table <docId> --rows 3 --cols 2 --at-end

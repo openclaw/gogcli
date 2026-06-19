@@ -11,6 +11,11 @@ import (
 const codeBackgroundGrey = 0.95
 
 const (
+	BulletPresetDisc     = "BULLET_DISC_CIRCLE_SQUARE"
+	BulletPresetNumbered = "NUMBERED_DECIMAL_ALPHA_ROMAN"
+)
+
+const (
 	namedStyleNormalText = "NORMAL_TEXT"
 	namedStyleTitle      = "TITLE"
 	namedStyleSubtitle   = "SUBTITLE"
@@ -29,26 +34,41 @@ func (e ValidationError) Error() string {
 }
 
 type Options struct {
-	FontFamily     string
-	FontSize       float64
-	TextColor      string
-	Background     string
-	Link           string
-	ClearLink      bool
-	ResolvedLink   *docs.Link
-	Code           bool
-	Bold           bool
-	ClearBold      bool
-	Italic         bool
-	ClearItalic    bool
-	Underline      bool
-	ClearUnderline bool
-	Strikethrough  bool
-	ClearStrike    bool
-	Alignment      string
-	LineSpacing    float64
-	HeadingLevel   *int
-	NamedStyle     string
+	FontFamily        string
+	FontSize          float64
+	TextColor         string
+	Background        string
+	Link              string
+	ClearLink         bool
+	ResolvedLink      *docs.Link
+	Code              bool
+	Bold              bool
+	ClearBold         bool
+	Italic            bool
+	ClearItalic       bool
+	Underline         bool
+	ClearUnderline    bool
+	Strikethrough     bool
+	ClearStrike       bool
+	Alignment         string
+	LineSpacing       float64
+	HeadingLevel      *int
+	NamedStyle        string
+	Bullets           bool
+	Ordered           bool
+	BulletPreset      string
+	ClearBullets      bool
+	IndentStart       *float64
+	IndentFirstLine   *float64
+	IndentEnd         *float64
+	SpaceAbove        *float64
+	SpaceBelow        *float64
+	KeepWithNext      *bool
+	KeepLinesTogether *bool
+	// PostBulletParagraphStart/End identify the same affected paragraphs after
+	// CreateParagraphBullets removes any leading nesting tabs.
+	PostBulletParagraphStart int64
+	PostBulletParagraphEnd   int64
 }
 
 func (o Options) Any() bool {
@@ -66,7 +86,11 @@ func (o Options) Any() bool {
 		strings.TrimSpace(o.Alignment) != "" ||
 		o.LineSpacing != 0 ||
 		o.HeadingLevel != nil ||
-		strings.TrimSpace(o.NamedStyle) != ""
+		strings.TrimSpace(o.NamedStyle) != "" ||
+		o.Bullets || o.Ordered || strings.TrimSpace(o.BulletPreset) != "" || o.ClearBullets ||
+		o.IndentStart != nil || o.IndentFirstLine != nil || o.IndentEnd != nil ||
+		o.SpaceAbove != nil || o.SpaceBelow != nil ||
+		o.KeepWithNext != nil || o.KeepLinesTogether != nil
 }
 
 func BuildRequests(options Options, start, end int64, tabID string) ([]*docs.Request, error) {
@@ -79,18 +103,41 @@ func BuildRequests(options Options, start, end int64, tabID string) ([]*docs.Req
 		return nil, err
 	}
 
-	paragraphReq, hasParagraph, err := buildParagraphStyleRequest(options, start, end, tabID)
+	paragraphStart, paragraphEnd := start, end
+
+	hasPostBulletRange := options.PostBulletParagraphStart > 0 && options.PostBulletParagraphEnd > options.PostBulletParagraphStart
+	if hasPostBulletRange {
+		paragraphStart = options.PostBulletParagraphStart
+		paragraphEnd = options.PostBulletParagraphEnd
+	}
+
+	paragraphReq, hasParagraph, err := buildParagraphStyleRequest(options, paragraphStart, paragraphEnd, tabID)
 	if err != nil {
 		return nil, err
 	}
 
-	requests := make([]*docs.Request, 0, 2)
+	bulletReq, hasBullets, err := buildParagraphBulletsRequest(options, start, end, tabID)
+	if err != nil {
+		return nil, err
+	}
+
+	requests := make([]*docs.Request, 0, 3)
 	if hasText {
 		requests = append(requests, textReq)
 	}
 
+	// Removing bullets preserves list nesting by adding paragraph indentation.
+	// Apply explicit paragraph controls afterward so the caller's values win.
+	if hasBullets && (options.ClearBullets || hasPostBulletRange) {
+		requests = append(requests, bulletReq)
+	}
+
 	if hasParagraph {
 		requests = append(requests, paragraphReq)
+	}
+
+	if hasBullets && !options.ClearBullets && !hasPostBulletRange {
+		requests = append(requests, bulletReq)
 	}
 
 	if len(requests) == 0 {
@@ -256,6 +303,61 @@ func buildParagraphStyleRequest(options Options, start, end int64, tabID string)
 		fields = append(fields, "namedStyleType")
 	}
 
+	addDimension := func(value *float64, flag, field string, apply func(*docs.Dimension)) error {
+		if value == nil {
+			return nil
+		}
+
+		if *value < 0 {
+			return invalidf("--%s must be non-negative", flag)
+		}
+
+		dimension := &docs.Dimension{Magnitude: *value, Unit: "PT"}
+		if *value == 0 {
+			dimension.ForceSendFields = append(dimension.ForceSendFields, "Magnitude")
+		}
+
+		apply(dimension)
+
+		fields = append(fields, field)
+
+		return nil
+	}
+	if err := addDimension(options.IndentStart, "indent-start", "indentStart", func(v *docs.Dimension) { style.IndentStart = v }); err != nil {
+		return nil, false, err
+	}
+
+	if err := addDimension(options.IndentFirstLine, "indent-first-line", "indentFirstLine", func(v *docs.Dimension) { style.IndentFirstLine = v }); err != nil {
+		return nil, false, err
+	}
+
+	if err := addDimension(options.IndentEnd, "indent-end", "indentEnd", func(v *docs.Dimension) { style.IndentEnd = v }); err != nil {
+		return nil, false, err
+	}
+
+	if err := addDimension(options.SpaceAbove, "space-above", "spaceAbove", func(v *docs.Dimension) { style.SpaceAbove = v }); err != nil {
+		return nil, false, err
+	}
+
+	if err := addDimension(options.SpaceBelow, "space-below", "spaceBelow", func(v *docs.Dimension) { style.SpaceBelow = v }); err != nil {
+		return nil, false, err
+	}
+
+	addBool := func(value *bool, field, forceField string, apply func(bool)) {
+		if value == nil {
+			return
+		}
+
+		apply(*value)
+
+		fields = append(fields, field)
+		if !*value {
+			style.ForceSendFields = append(style.ForceSendFields, forceField)
+		}
+	}
+	addBool(options.KeepWithNext, "keepWithNext", "KeepWithNext", func(v bool) { style.KeepWithNext = v })
+	addBool(options.KeepLinesTogether, "keepLinesTogether", "KeepLinesTogether", func(v bool) { style.KeepLinesTogether = v })
+
 	if len(fields) == 0 {
 		return nil, false, nil
 	}
@@ -265,6 +367,79 @@ func buildParagraphStyleRequest(options Options, start, end int64, tabID string)
 		ParagraphStyle: style,
 		Fields:         strings.Join(fields, ","),
 	}}, true, nil
+}
+
+func buildParagraphBulletsRequest(options Options, start, end int64, tabID string) (*docs.Request, bool, error) {
+	presetFlags := 0
+	if options.Bullets {
+		presetFlags++
+	}
+
+	if options.Ordered {
+		presetFlags++
+	}
+
+	if strings.TrimSpace(options.BulletPreset) != "" {
+		presetFlags++
+	}
+
+	if presetFlags > 1 {
+		return nil, false, ValidationError("--bullets, --ordered, and --bullet-preset are mutually exclusive")
+	}
+
+	if options.ClearBullets && presetFlags > 0 {
+		return nil, false, ValidationError("--no-bullets cannot be combined with --bullets, --ordered, or --bullet-preset")
+	}
+
+	range_ := &docs.Range{StartIndex: start, EndIndex: end, TabId: tabID}
+	if options.ClearBullets {
+		return &docs.Request{DeleteParagraphBullets: &docs.DeleteParagraphBulletsRequest{Range: range_}}, true, nil
+	}
+
+	if presetFlags == 0 {
+		return nil, false, nil
+	}
+
+	preset := BulletPresetDisc
+	if options.Ordered {
+		preset = BulletPresetNumbered
+	}
+
+	if custom := strings.ToUpper(strings.TrimSpace(options.BulletPreset)); custom != "" {
+		preset = custom
+	}
+
+	if !validBulletPreset(preset) {
+		return nil, false, ValidationError("--bullet-preset must be a supported Google Docs bullet glyph preset")
+	}
+
+	return &docs.Request{CreateParagraphBullets: &docs.CreateParagraphBulletsRequest{
+		Range:        range_,
+		BulletPreset: preset,
+	}}, true, nil
+}
+
+func validBulletPreset(value string) bool {
+	switch value {
+	case "BULLET_DISC_CIRCLE_SQUARE",
+		"BULLET_DIAMONDX_ARROW3D_SQUARE",
+		"BULLET_CHECKBOX",
+		"BULLET_ARROW_DIAMOND_DISC",
+		"BULLET_STAR_CIRCLE_SQUARE",
+		"BULLET_ARROW3D_CIRCLE_SQUARE",
+		"BULLET_LEFTTRIANGLE_DIAMOND_DISC",
+		"BULLET_DIAMONDX_HOLLOWDIAMOND_SQUARE",
+		"BULLET_DIAMOND_CIRCLE_SQUARE",
+		"NUMBERED_DECIMAL_ALPHA_ROMAN",
+		"NUMBERED_DECIMAL_ALPHA_ROMAN_PARENS",
+		"NUMBERED_DECIMAL_NESTED",
+		"NUMBERED_UPPERALPHA_ALPHA_ROMAN",
+		"NUMBERED_UPPERROMAN_UPPERALPHA_DECIMAL",
+		"NUMBERED_ZERODECIMAL_ALPHA_ROMAN":
+		return true
+	default:
+		return false
+	}
 }
 
 func formatLink(value string) (*docs.Link, error) {
