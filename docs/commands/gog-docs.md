@@ -53,7 +53,7 @@ gog docs (doc) <command> [flags]
 - [gog docs table-column](gog-docs-table-column.md) - Insert or delete native table columns
 - [gog docs table-column-width](gog-docs-table-column-width.md) - Set or reset native table column widths
 - [gog docs table-merge](gog-docs-table-merge.md) - Merge a native table cell range
-- [gog docs table-row](gog-docs-table-row.md) - Insert or delete native table rows
+- [gog docs table-row](gog-docs-table-row.md) - Insert, delete, or style native table rows
 - [gog docs table-unmerge](gog-docs-table-unmerge.md) - Unmerge the region containing a native table cell
 - [gog docs tables](gog-docs-tables.md) - List native tables
 - [gog docs tabs](gog-docs-tabs.md) - Manage Google Doc tabs

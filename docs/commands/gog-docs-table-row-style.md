@@ -1,24 +1,18 @@
-# `gog docs table-row`
+# `gog docs table-row style`
 
 > Generated from `gog schema --json`. Do not edit this page by hand; run `make docs-commands`.
 
-Insert, delete, or style native table rows
+Set native table row height and overflow styles
 
 ## Usage
 
 ```bash
-gog docs (doc) table-row <command>
+gog docs (doc) table-row style <docId> [flags]
 ```
 
 ## Parent
 
-- [gog docs](gog-docs.md)
-
-## Subcommands
-
-- [gog docs table-row delete](gog-docs-table-row-delete.md) - Delete a native table row
-- [gog docs table-row insert](gog-docs-table-row-insert.md) - Insert a native table row
-- [gog docs table-row style](gog-docs-table-row-style.md) - Set native table row height and overflow styles
+- [gog docs table-row](gog-docs-table-row.md)
 
 ## Flags
 
@@ -37,15 +31,20 @@ gog docs (doc) table-row <command>
 | `-h`<br>`--help` | `kong.helpFlag` |  | Show context-sensitive help. |
 | `--home` | `string` |  | Override gogcli config/data/state/cache root (equivalent to GOG_HOME) |
 | `-j`<br>`--json`<br>`--machine` | `bool` | false | Output JSON to stdout (best for scripting) |
+| `--min-height` | `string` |  | Minimum row height (points by default; supports pt, in, cm, mm) |
 | `--no-input`<br>`--non-interactive`<br>`--noninteractive` | `bool` |  | Never prompt; fail instead (useful for CI) |
 | `-p`<br>`--plain`<br>`--tsv` | `bool` | false | Output stable, parseable text to stdout (TSV; no colors) |
+| `--prevent-overflow` | `*bool` |  | Keep the row within one page or column; use --no-prevent-overflow to clear |
 | `--results-only` | `bool` |  | In JSON mode, emit only the primary result (drops envelope fields like nextPageToken) |
+| `--row` | `*int` |  | 1-based row number; negative indexes count from the end; omit to style all rows |
 | `--select`<br>`--pick`<br>`--project` | `string` |  | In JSON mode, select comma-separated fields (best-effort; supports dot paths). Desire path: use --fields for most commands. |
+| `--tab` | `string` |  | Target a specific tab by title or ID (see docs list-tabs) |
+| `--table` | `string` | 1 | Table selector: index, exact first-cell text, *, or text:VALUE for numeric/syntax-looking text |
 | `-v`<br>`--verbose` | `bool` |  | Enable verbose logging |
 | `--version` | `kong.VersionFlag` |  | Print version and exit |
 | `--wrap-untrusted` | `bool` | false | In JSON/raw output, wrap fetched text fields in external untrusted-content markers |
 
 ## See Also
 
-- [gog docs](gog-docs.md)
+- [gog docs table-row](gog-docs-table-row.md)
 - [Command index](README.md)

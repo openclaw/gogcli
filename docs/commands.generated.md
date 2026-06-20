@@ -278,9 +278,10 @@ Generated from `gog schema --json`.
       - [`gog docs (doc) table-column insert (add,append) <docId> [flags]`](commands/gog-docs-table-column-insert.md) - Insert a native table column
     - [`gog docs (doc) table-column-width (table-width,column-width) <docId> [flags]`](commands/gog-docs-table-column-width.md) - Set or reset native table column widths
     - [`gog docs (doc) table-merge --range=STRING <docId> [flags]`](commands/gog-docs-table-merge.md) - Merge a native table cell range
-    - [`gog docs (doc) table-row <command>`](commands/gog-docs-table-row.md) - Insert or delete native table rows
+    - [`gog docs (doc) table-row <command>`](commands/gog-docs-table-row.md) - Insert, delete, or style native table rows
       - [`gog docs (doc) table-row delete (rm,remove,del) --row=INT <docId> [flags]`](commands/gog-docs-table-row-delete.md) - Delete a native table row
       - [`gog docs (doc) table-row insert (add,append) <docId> [flags]`](commands/gog-docs-table-row-insert.md) - Insert a native table row
+      - [`gog docs (doc) table-row style <docId> [flags]`](commands/gog-docs-table-row-style.md) - Set native table row height and overflow styles
     - [`gog docs (doc) table-unmerge (table-split) --cell=STRING <docId> [flags]`](commands/gog-docs-table-unmerge.md) - Unmerge the region containing a native table cell
     - [`gog docs (doc) tables <command>`](commands/gog-docs-tables.md) - List native tables
       - [`gog docs (doc) tables list (ls) <docId> [flags]`](commands/gog-docs-tables-list.md) - List native tables in document order
