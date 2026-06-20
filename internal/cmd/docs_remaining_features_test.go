@@ -79,6 +79,73 @@ func TestDocsCellStyleBuildsTableAndTextRequests(t *testing.T) {
 	}
 }
 
+func TestDocsCellStyleBuildsBordersPaddingAndAlignment(t *testing.T) {
+	cmd := &DocsCellStyleCmd{
+		Row:          2,
+		Col:          3,
+		RowSpan:      2,
+		ColSpan:      4,
+		BorderAll:    "1pt,#abc,DOT",
+		BorderTop:    "2pt,#123456,DASH",
+		PaddingAll:   "6pt",
+		PaddingRight: "0",
+		ContentAlign: "middle",
+	}
+	reqs, err := cmd.buildRequests(8, &docs.TableCell{}, "tab-2")
+	if err != nil {
+		t.Fatalf("buildRequests: %v", err)
+	}
+	if len(reqs) != 1 || reqs[0].UpdateTableCellStyle == nil {
+		t.Fatalf("unexpected requests: %#v", reqs)
+	}
+	got := reqs[0].UpdateTableCellStyle
+	wantFields := "borderRight,borderLeft,borderBottom,borderTop,paddingTop,paddingBottom,paddingLeft,paddingRight,contentAlignment"
+	if got.Fields != wantFields {
+		t.Fatalf("fields = %q, want %q", got.Fields, wantFields)
+	}
+	if got.TableRange.RowSpan != 2 || got.TableRange.ColumnSpan != 4 {
+		t.Fatalf("table range = %#v", got.TableRange)
+	}
+	style := got.TableCellStyle
+	if style.BorderRight.Width.Magnitude != 1 || style.BorderRight.DashStyle != "DOT" {
+		t.Fatalf("right border = %#v", style.BorderRight)
+	}
+	if style.BorderTop.Width.Magnitude != 2 || style.BorderTop.DashStyle != "DASH" {
+		t.Fatalf("top border = %#v", style.BorderTop)
+	}
+	if gotRed := style.BorderTop.Color.Color.RgbColor.Red; gotRed < 0.07 || gotRed > 0.08 {
+		t.Fatalf("top border color = %#v", style.BorderTop.Color)
+	}
+	if style.PaddingTop.Magnitude != 6 || style.PaddingRight.Magnitude != 0 {
+		t.Fatalf("padding = top %#v right %#v", style.PaddingTop, style.PaddingRight)
+	}
+	if style.ContentAlignment != "MIDDLE" {
+		t.Fatalf("content alignment = %q", style.ContentAlignment)
+	}
+}
+
+func TestDocsCellStyleRejectsInvalidTableStyles(t *testing.T) {
+	tests := []struct {
+		name string
+		cmd  DocsCellStyleCmd
+		want string
+	}{
+		{name: "border shape", cmd: DocsCellStyleCmd{BorderTop: "1pt,#fff,SOLID,extra"}, want: "expected WIDTH"},
+		{name: "border dash", cmd: DocsCellStyleCmd{BorderTop: "1pt,#fff,WAVE"}, want: "expected SOLID"},
+		{name: "border color", cmd: DocsCellStyleCmd{BorderTop: "1pt,nope"}, want: "must be #RRGGBB"},
+		{name: "padding", cmd: DocsCellStyleCmd{PaddingAll: "-1pt"}, want: "non-negative length"},
+		{name: "alignment", cmd: DocsCellStyleCmd{ContentAlign: "center"}, want: "top, middle, or bottom"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, _, err := tt.cmd.buildCellStyle()
+			if err == nil || !strings.Contains(err.Error(), tt.want) {
+				t.Fatalf("expected %q error, got %v", tt.want, err)
+			}
+		})
+	}
+}
+
 func TestDocsCellStyle_TableSelectionErrorsAreUsage(t *testing.T) {
 	t.Parallel()
 

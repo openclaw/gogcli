@@ -225,7 +225,7 @@ Generated from `gog schema --json`.
   - [`gog docs (doc) <command> [flags]`](commands/gog-docs.md) - Google Docs (export via Drive)
     - [`gog docs (doc) add-tab <docId> [flags]`](commands/gog-docs-add-tab.md) - Add a tab to a Google Doc
     - [`gog docs (doc) cat (text,read) <docId> [flags]`](commands/gog-docs-cat.md) - Print a Google Doc as plain text
-    - [`gog docs (doc) cell-style --row=INT --col=INT <docId> [flags]`](commands/gog-docs-cell-style.md) - Apply table cell background and text styling
+    - [`gog docs (doc) cell-style --row=INT --col=INT <docId> [flags]`](commands/gog-docs-cell-style.md) - Apply table cell, border, padding, alignment, and text styling
     - [`gog docs (doc) cell-update (update-cell) --row=INT --col=INT <docId> [flags]`](commands/gog-docs-cell-update.md) - Replace or append content inside a specific table cell
     - [`gog docs (doc) clear <docId>`](commands/gog-docs-clear.md) - Clear all content from a Google Doc
     - [`gog docs (doc) comments <command>`](commands/gog-docs-comments.md) - Manage comments on files

@@ -2,7 +2,7 @@
 
 > Generated from `gog schema --json`. Do not edit this page by hand; run `make docs-commands`.
 
-Apply table cell background and text styling
+Apply table cell, border, padding, alignment, and text styling
 
 ## Usage
 
@@ -23,10 +23,16 @@ gog docs (doc) cell-style --row=INT --col=INT <docId> [flags]
 | `--background-color`<br>`--bg-color` | `string` |  | Cell background color as #RRGGBB or #RGB |
 | `--batch` | `string` |  | Append requests to a persisted Docs batch instead of submitting |
 | `--bold` | `bool` |  | Set cell text bold |
+| `--border-all` | `string` |  | All borders as WIDTH[,COLOR[,SOLID\|DOT\|DASH]] (e.g. 1pt,#000,DASH) |
+| `--border-bottom` | `string` |  | Bottom border; overrides --border-all |
+| `--border-left` | `string` |  | Left border; overrides --border-all |
+| `--border-right` | `string` |  | Right border; overrides --border-all |
+| `--border-top` | `string` |  | Top border; overrides --border-all |
 | `--client` | `string` |  | OAuth client name (selects stored credentials + token bucket) |
 | `--col` | `int` |  | 1-based column number |
 | `--col-span` | `int64` | 1 | Number of columns to style |
 | `--color` | `string` | auto | Color output: auto\|always\|never |
+| `--content-align` | `string` |  | Vertical content alignment: top, middle, or bottom |
 | `--disable-commands` | `string` |  | Comma-separated list of disabled commands; dot paths allowed |
 | `-n`<br>`--dry-run`<br>`--dryrun`<br>`--noop`<br>`--preview` | `bool` |  | Do not make changes; print intended actions and exit successfully |
 | `--enable-commands` | `string` |  | Comma-separated list of enabled command prefixes; dot paths allowed (restricts CLI) |
@@ -38,6 +44,11 @@ gog docs (doc) cell-style --row=INT --col=INT <docId> [flags]
 | `--italic` | `bool` |  | Set cell text italic |
 | `-j`<br>`--json`<br>`--machine` | `bool` | false | Output JSON to stdout (best for scripting) |
 | `--no-input`<br>`--non-interactive`<br>`--noninteractive` | `bool` |  | Never prompt; fail instead (useful for CI) |
+| `--padding-all` | `string` |  | All cell padding (points by default; supports pt, in, cm, mm) |
+| `--padding-bottom` | `string` |  | Bottom cell padding; overrides --padding-all |
+| `--padding-left` | `string` |  | Left cell padding; overrides --padding-all |
+| `--padding-right` | `string` |  | Right cell padding; overrides --padding-all |
+| `--padding-top` | `string` |  | Top cell padding; overrides --padding-all |
 | `-p`<br>`--plain`<br>`--tsv` | `bool` | false | Output stable, parseable text to stdout (TSV; no colors) |
 | `--results-only` | `bool` |  | In JSON mode, emit only the primary result (drops envelope fields like nextPageToken) |
 | `--row` | `int` |  | 1-based row number |

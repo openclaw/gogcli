@@ -31,7 +31,7 @@ type DocsCmd struct {
 	Insert           DocsInsertCmd           `cmd:"" name:"insert" help:"Insert text at a specific position"`
 	InsertTable      DocsInsertTableCmd      `cmd:"" name:"insert-table" help:"Insert a native table at a specific position (or end-of-doc with --at-end), optionally populated via --values-json"`
 	CellUpdate       DocsCellUpdateCmd       `cmd:"" name:"cell-update" aliases:"update-cell" help:"Replace or append content inside a specific table cell"`
-	CellStyle        DocsCellStyleCmd        `cmd:"" name:"cell-style" help:"Apply table cell background and text styling"`
+	CellStyle        DocsCellStyleCmd        `cmd:"" name:"cell-style" help:"Apply table cell, border, padding, alignment, and text styling"`
 	TableRow         DocsTableRowCmd         `cmd:"" name:"table-row" help:"Insert or delete native table rows"`
 	TableColumn      DocsTableColumnCmd      `cmd:"" name:"table-column" help:"Insert or delete native table columns"`
 	TableMerge       DocsTableMergeCmd       `cmd:"" name:"table-merge" help:"Merge a native table cell range"`
