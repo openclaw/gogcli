@@ -16,9 +16,10 @@ import (
 )
 
 type DocsTableRowCmd struct {
-	Insert DocsTableRowInsertCmd `cmd:"" name:"insert" aliases:"add,append" help:"Insert a native table row"`
-	Delete DocsTableRowDeleteCmd `cmd:"" name:"delete" aliases:"rm,remove,del" help:"Delete a native table row"`
-	Style  DocsTableRowStyleCmd  `cmd:"" name:"style" help:"Set native table row height and overflow styles"`
+	Insert    DocsTableRowInsertCmd `cmd:"" name:"insert" aliases:"add,append" help:"Insert a native table row"`
+	Delete    DocsTableRowDeleteCmd `cmd:"" name:"delete" aliases:"rm,remove,del" help:"Delete a native table row"`
+	Style     DocsTableRowStyleCmd  `cmd:"" name:"style" help:"Set native table row height and overflow styles"`
+	PinHeader DocsTablePinHeaderCmd `cmd:"" name:"pin-header" help:"Pin or unpin leading table header rows"`
 }
 
 type DocsTableColumnCmd struct {

@@ -21,9 +21,9 @@ type DocsTableRowStyleCmd struct {
 	Tab             string `name:"tab" help:"Target a specific tab by title or ID (see docs list-tabs)"`
 }
 
-type docsTableRowStyleResult struct {
-	TableIndex int `json:"tableIndex"`
-	Row        any `json:"row"`
+type docsTableRowActionResult struct {
+	TableIndex int
+	Value      any
 }
 
 func (c *DocsTableRowStyleCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -58,7 +58,7 @@ func (c *DocsTableRowStyleCmd) Run(ctx context.Context, flags *RootFlags) error 
 		return err
 	}
 	requests := make([]*docs.Request, 0, len(selected))
-	results := make([]docsTableRowStyleResult, 0, len(selected))
+	results := make([]docsTableRowActionResult, 0, len(selected))
 	for _, target := range selected {
 		rowIndices, resolvedRow, resolveErr := resolveDocsTableStyleRow(target.table, c.Row)
 		if resolveErr != nil {
@@ -70,12 +70,12 @@ func (c *DocsTableRowStyleCmd) Run(ctx context.Context, flags *RootFlags) error 
 			TableRowStyle:      style,
 			Fields:             strings.Join(fields, ","),
 		}})
-		results = append(results, docsTableRowStyleResult{TableIndex: target.index, Row: resolvedRow})
+		results = append(results, docsTableRowActionResult{TableIndex: target.index, Value: resolvedRow})
 	}
 	if _, err := executeDocsTableRequests(ctx, svc, docID, loaded.full.RevisionId, requests); err != nil {
 		return fmt.Errorf("style table row: %w", err)
 	}
-	return writeDocsTableRowStyleResult(ctx, docID, loaded.tabID, results)
+	return writeDocsTableRowActionResult(ctx, docID, loaded.tabID, "style", "row", results)
 }
 
 func (c *DocsTableRowStyleCmd) buildStyle() (*docs.TableRowStyle, []string, error) {
@@ -117,25 +117,29 @@ func resolveDocsTableStyleRow(table *docs.Table, requested *int) ([]int64, any, 
 	return []int64{int64(resolved - 1)}, resolved, nil
 }
 
-func writeDocsTableRowStyleResult(
+func writeDocsTableRowActionResult(
 	ctx context.Context,
-	docID, tabID string,
-	results []docsTableRowStyleResult,
+	docID, tabID, action, valueName string,
+	results []docsTableRowActionResult,
 ) error {
 	sort.Slice(results, func(i, j int) bool {
 		return results[i].TableIndex < results[j].TableIndex
 	})
+	tables := make([]map[string]any, 0, len(results))
+	for _, result := range results {
+		tables = append(tables, map[string]any{"tableIndex": result.TableIndex, valueName: result.Value})
+	}
 	if outfmt.IsJSON(ctx) {
 		payload := map[string]any{
 			"documentId": docID,
-			"action":     "style",
+			"action":     action,
 			"target":     "row",
 			"updated":    true,
-			"tables":     results,
+			"tables":     tables,
 		}
 		if len(results) == 1 {
 			payload["tableIndex"] = results[0].TableIndex
-			payload["row"] = results[0].Row
+			payload[valueName] = results[0].Value
 		}
 		if tabID != "" {
 			payload["tabId"] = tabID
@@ -145,10 +149,10 @@ func writeDocsTableRowStyleResult(
 
 	u := ui.FromContext(ctx)
 	u.Out().Linef("documentId\t%s", docID)
-	u.Out().Linef("action\tstyle")
+	u.Out().Linef("action\t%s", action)
 	u.Out().Linef("target\trow")
 	for _, result := range results {
-		u.Out().Linef("table\t%d\trow\t%v", result.TableIndex, result.Row)
+		u.Out().Linef("table\t%d\t%s\t%v", result.TableIndex, valueName, result.Value)
 	}
 	u.Out().Linef("updated\ttrue")
 	if tabID != "" {
