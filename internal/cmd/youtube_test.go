@@ -758,6 +758,210 @@ func TestYouTubeVideosListMyRatingUsesOAuthService(t *testing.T) {
 	}
 }
 
+// youtubePartValues collects the videos.list "part" selector from a request.
+// The Google SDK may send part either comma-joined or as repeated query params,
+// so normalize both into a flat slice.
+func youtubePartValues(r *http.Request) []string {
+	var out []string
+	for _, raw := range r.URL.Query()["part"] {
+		out = append(out, strings.Split(raw, ",")...)
+	}
+	return out
+}
+
+func TestYouTubeVideosListRequestsAllNonOwnerParts(t *testing.T) {
+	var gotParts []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/youtube/v3/videos" {
+			t.Fatalf("path = %s", r.URL.Path)
+		}
+		gotParts = youtubePartValues(r)
+		_ = json.NewEncoder(w).Encode(map[string]any{"items": []map[string]any{}})
+	}))
+	defer srv.Close()
+
+	svc := newGoogleTestServiceWithEndpoint(t, srv.Client(), srv.URL+"/", youtube.NewService)
+	ctx := withYouTubeTestServices(newCmdRuntimeOutputContext(t, io.Discard, io.Discard), youtubeTestServices{
+		Account: fixedYouTubeTestService(svc),
+		APIKey:  unexpectedYouTubeTestService(t, "API key service should not be used when account is configured"),
+	})
+	err := runKong(t, &YouTubeVideosListCmd{}, []string{"--id", "vid1", "--max", "1"}, ctx, &RootFlags{Account: "me@example.com"})
+	if err != nil {
+		t.Fatalf("runKong: %v", err)
+	}
+
+	wantParts := []string{
+		"snippet", "contentDetails", "statistics", "status", "topicDetails",
+		"recordingDetails", "liveStreamingDetails", "player", "localizations",
+	}
+	if len(gotParts) != len(wantParts) {
+		t.Fatalf("parts = %v (%d), want %d parts %v", gotParts, len(gotParts), len(wantParts), wantParts)
+	}
+	gotSet := make(map[string]bool, len(gotParts))
+	for _, p := range gotParts {
+		gotSet[p] = true
+	}
+	for _, p := range wantParts {
+		if !gotSet[p] {
+			t.Fatalf("part list %v is missing %q", gotParts, p)
+		}
+	}
+	// Owner-only parts must never be requested for arbitrary (non-owned) videos.
+	for _, owner := range []string{"fileDetails", "processingDetails", "suggestions"} {
+		if gotSet[owner] {
+			t.Fatalf("part list %v must not request owner-only part %q", gotParts, owner)
+		}
+	}
+}
+
+func TestYouTubeVideosListPartsOverride(t *testing.T) {
+	var gotParts []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/youtube/v3/videos" {
+			t.Fatalf("path = %s", r.URL.Path)
+		}
+		gotParts = youtubePartValues(r)
+		_ = json.NewEncoder(w).Encode(map[string]any{"items": []map[string]any{}})
+	}))
+	defer srv.Close()
+
+	svc := newGoogleTestServiceWithEndpoint(t, srv.Client(), srv.URL+"/", youtube.NewService)
+	ctx := withYouTubeTestServices(newCmdRuntimeOutputContext(t, io.Discard, io.Discard), youtubeTestServices{
+		Account: fixedYouTubeTestService(svc),
+	})
+	err := runKong(t, &YouTubeVideosListCmd{}, []string{"--id", "vid1", "--parts", "snippet, statistics", "--max", "1"}, ctx, &RootFlags{Account: "me@example.com"})
+	if err != nil {
+		t.Fatalf("runKong: %v", err)
+	}
+	if len(gotParts) != 2 || gotParts[0] != "snippet" || gotParts[1] != "statistics" {
+		t.Fatalf("parts = %v, want [snippet statistics]", gotParts)
+	}
+}
+
+func TestYouTubeVideosListJSONSerializesNonCoreParts(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/youtube/v3/videos" {
+			t.Fatalf("path = %s", r.URL.Path)
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"items": []map[string]any{
+				{
+					"id": "vidRich",
+					"snippet": map[string]any{
+						"title":       "Rich Video",
+						"publishedAt": "2026-01-02T03:04:05Z",
+						"thumbnails": map[string]any{
+							"default":  map[string]any{"url": "https://img/d.jpg", "width": 120, "height": 90},
+							"high":     map[string]any{"url": "https://img/h.jpg", "width": 480, "height": 360},
+							"maxres":   map[string]any{"url": "https://img/m.jpg", "width": 1280, "height": 720},
+						},
+					},
+					"status": map[string]any{
+						"privacyStatus": "public",
+						"uploadStatus":  "processed",
+						"madeForKids":   false,
+					},
+					"topicDetails": map[string]any{
+						"topicCategories": []string{"https://en.wikipedia.org/wiki/Music"},
+					},
+					"liveStreamingDetails": map[string]any{
+						"actualStartTime": "2026-01-01T00:00:00Z",
+					},
+				},
+			},
+		})
+	}))
+	defer srv.Close()
+
+	svc := newGoogleTestServiceWithEndpoint(t, srv.Client(), srv.URL+"/", youtube.NewService)
+	var stdout bytes.Buffer
+	ctx := withYouTubeTestServices(newCmdRuntimeJSONOutputContext(t, &stdout, io.Discard), youtubeTestServices{
+		Account: fixedYouTubeTestService(svc),
+	})
+	err := runKong(t, &YouTubeVideosListCmd{}, []string{"--id", "vidRich", "--max", "1"}, ctx, &RootFlags{Account: "me@example.com", JSON: true})
+	if err != nil {
+		t.Fatalf("runKong: %v", err)
+	}
+
+	var got struct {
+		Items []struct {
+			ID     string `json:"id"`
+			Status struct {
+				PrivacyStatus string `json:"privacyStatus"`
+				UploadStatus  string `json:"uploadStatus"`
+			} `json:"status"`
+			TopicDetails struct {
+				TopicCategories []string `json:"topicCategories"`
+			} `json:"topicDetails"`
+			Snippet struct {
+				Thumbnails map[string]struct {
+					URL string `json:"url"`
+				} `json:"thumbnails"`
+			} `json:"snippet"`
+			LiveStreamingDetails struct {
+				ActualStartTime string `json:"actualStartTime"`
+			} `json:"liveStreamingDetails"`
+		} `json:"items"`
+	}
+	if err := json.Unmarshal(stdout.Bytes(), &got); err != nil {
+		t.Fatalf("json output %q: %v", stdout.String(), err)
+	}
+	if len(got.Items) != 1 {
+		t.Fatalf("items len = %d: %s", len(got.Items), stdout.String())
+	}
+	item := got.Items[0]
+	if item.Status.PrivacyStatus != "public" {
+		t.Fatalf("status.privacyStatus = %q (non-core status part dropped): %s", item.Status.PrivacyStatus, stdout.String())
+	}
+	if len(item.TopicDetails.TopicCategories) != 1 {
+		t.Fatalf("topicDetails.topicCategories = %v (non-core topicDetails part dropped): %s", item.TopicDetails.TopicCategories, stdout.String())
+	}
+	for _, size := range []string{"default", "high", "maxres"} {
+		if item.Snippet.Thumbnails[size].URL == "" {
+			t.Fatalf("thumbnail size %q missing from JSON (compacted): %s", size, stdout.String())
+		}
+	}
+	if item.LiveStreamingDetails.ActualStartTime == "" {
+		t.Fatalf("liveStreamingDetails.actualStartTime dropped: %s", stdout.String())
+	}
+}
+
+// A video with no liveStreamingDetails (a normal non-live video) must still
+// serialize cleanly — the SDK omits parts with no data, never errors.
+func TestYouTubeVideosListToleratesPartialParts(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"items": []map[string]any{
+				{
+					"id":      "vidPlain",
+					"snippet": map[string]any{"title": "Plain Video"},
+					"status":  map[string]any{"privacyStatus": "unlisted"},
+				},
+			},
+		})
+	}))
+	defer srv.Close()
+
+	svc := newGoogleTestServiceWithEndpoint(t, srv.Client(), srv.URL+"/", youtube.NewService)
+	var stdout bytes.Buffer
+	ctx := withYouTubeTestServices(newCmdRuntimeJSONOutputContext(t, &stdout, io.Discard), youtubeTestServices{
+		Account: fixedYouTubeTestService(svc),
+	})
+	err := runKong(t, &YouTubeVideosListCmd{}, []string{"--id", "vidPlain", "--max", "1"}, ctx, &RootFlags{Account: "me@example.com", JSON: true})
+	if err != nil {
+		t.Fatalf("runKong: %v", err)
+	}
+	var got struct {
+		Items []json.RawMessage `json:"items"`
+	}
+	if err := json.Unmarshal(stdout.Bytes(), &got); err != nil {
+		t.Fatalf("json output %q: %v", stdout.String(), err)
+	}
+	if len(got.Items) != 1 {
+		t.Fatalf("items len = %d: %s", len(got.Items), stdout.String())
+	}
+}
+
 func TestYouTubeVideosListMyRatingValidation(t *testing.T) {
 	ctx := withYouTubeTestServices(newCmdRuntimeOutputContext(t, io.Discard, io.Discard), youtubeTestServices{
 		Account: unexpectedYouTubeTestService(t, "should not reach service with invalid my-rating"),
