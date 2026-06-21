@@ -246,7 +246,15 @@ Generated from `gog schema --json`.
     - [`gog docs (doc) export (download,dl) <docId> [flags]`](commands/gog-docs-export.md) - Export a Google Doc (pdf|docx|txt|md|html)
     - [`gog docs (doc) find-range <docId> <text> [flags]`](commands/gog-docs-find-range.md) - Find text and print Docs API UTF-16 index ranges
     - [`gog docs (doc) find-replace <docId> <find> [<replace>] [flags]`](commands/gog-docs-find-replace.md) - Find and replace text. Supports plain text or markdown with images; use --first for a single occurrence.
+    - [`gog docs (doc) footer (footers) <command>`](commands/gog-docs-footer.md) - List, create, or delete document footers
+      - [`gog docs (doc) footer (footers) create (add,new) <docId> [flags]`](commands/gog-docs-footer-create.md) - Create and optionally populate a footer
+      - [`gog docs (doc) footer (footers) delete (rm,remove,del) <docId> <footerId> [flags]`](commands/gog-docs-footer-delete.md) - Delete a footer
+      - [`gog docs (doc) footer (footers) list (ls) <docId> [flags]`](commands/gog-docs-footer-list.md) - List footers and their segment IDs
     - [`gog docs (doc) format <docId> [flags]`](commands/gog-docs-format.md) - Apply text or paragraph formatting to a Google Doc
+    - [`gog docs (doc) header (headers) <command>`](commands/gog-docs-header.md) - List, create, or delete document headers
+      - [`gog docs (doc) header (headers) create (add,new) <docId> [flags]`](commands/gog-docs-header-create.md) - Create and optionally populate a header
+      - [`gog docs (doc) header (headers) delete (rm,remove,del) <docId> <headerId> [flags]`](commands/gog-docs-header-delete.md) - Delete a header
+      - [`gog docs (doc) header (headers) list (ls) <docId> [flags]`](commands/gog-docs-header-list.md) - List headers and their segment IDs
     - [`gog docs (doc) headings <command>`](commands/gog-docs-headings.md) - List document headings
       - [`gog docs (doc) headings list (ls) <docId> [flags]`](commands/gog-docs-headings-list.md) - List heading paragraphs
     - [`gog docs (doc) images <command>`](commands/gog-docs-images.md) - List document images
@@ -255,9 +263,12 @@ Generated from `gog schema --json`.
     - [`gog docs (doc) insert <docId> [<content>] [flags]`](commands/gog-docs-insert.md) - Insert text at a specific position
     - [`gog docs (doc) insert-date-chip --date=STRING <docId> [flags]`](commands/gog-docs-insert-date-chip.md) - Insert a native date smart chip
     - [`gog docs (doc) insert-file-chip (insert-rich-link) --file-id=STRING <docId> [flags]`](commands/gog-docs-insert-file-chip.md) - Insert a native Drive file smart chip
+    - [`gog docs (doc) insert-footnote <docId> [flags]`](commands/gog-docs-insert-footnote.md) - Insert and populate a footnote
+    - [`gog docs (doc) insert-horizontal-rule (insert-hr,hr) <docId> [flags]`](commands/gog-docs-insert-horizontal-rule.md) - Insert a paragraph-border horizontal rule
     - [`gog docs (doc) insert-image <docId> [flags]`](commands/gog-docs-insert-image.md) - Insert a public image URL or upload a local image into a Google Doc
     - [`gog docs (doc) insert-page-break (page-break,pb) <docId> [flags]`](commands/gog-docs-insert-page-break.md) - Insert a page break at a specific position (or end-of-doc with --at-end)
     - [`gog docs (doc) insert-person --email=STRING <docId> [flags]`](commands/gog-docs-insert-person.md) - Insert a native person smart chip
+    - [`gog docs (doc) insert-section-break <docId> [flags]`](commands/gog-docs-insert-section-break.md) - Insert a continuous or next-page section break
     - [`gog docs (doc) insert-table --rows=INT --cols=INT <docId> [flags]`](commands/gog-docs-insert-table.md) - Insert a native table at a specific position (or end-of-doc with --at-end), optionally populated via --values-json
     - [`gog docs (doc) list-tabs <docId>`](commands/gog-docs-list-tabs.md) - List all tabs in a Google Doc
     - [`gog docs (doc) named-range (named-ranges,namedranges,nr) <command>`](commands/gog-docs-named-range.md) - Manage named ranges
@@ -271,6 +282,7 @@ Generated from `gog schema --json`.
     - [`gog docs (doc) raw <docId> [flags]`](commands/gog-docs-raw.md) - Dump raw Google Docs API response as JSON (Documents.Get; lossless; for scripting and LLM consumption)
     - [`gog docs (doc) rename-tab <docId> [flags]`](commands/gog-docs-rename-tab.md) - Rename a tab in a Google Doc
     - [`gog docs (doc) replace-image <docId> [flags]`](commands/gog-docs-replace-image.md) - Replace an existing image without changing its position or bounds
+    - [`gog docs (doc) section-columns --count=INT <docId> [flags]`](commands/gog-docs-section-columns.md) - Set the column count for a document section
     - [`gog docs (doc) sed <docId> [<expression>] [flags]`](commands/gog-docs-sed.md) - Regex find/replace (sed-style: s/pattern/replacement/g)
     - [`gog docs (doc) structure (struct) <docId> [flags]`](commands/gog-docs-structure.md) - Show document structure with numbered paragraphs
     - [`gog docs (doc) table-column <command>`](commands/gog-docs-table-column.md) - Insert or delete native table columns

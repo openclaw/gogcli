@@ -20,6 +20,7 @@ type DocsFormatCmd struct {
 	MatchAll  bool            `name:"match-all" help:"Format all matches instead of only the first"`
 	MatchCase bool            `name:"match-case" help:"Use case-sensitive matching with --match"`
 	Tab       string          `name:"tab" help:"Target a specific tab by title or ID (see docs list-tabs)"`
+	Segment   string          `name:"segment" help:"Target an exact header, footer, or footnote segment ID"`
 	TabID     string          `name:"tab-id" hidden:"" help:"(deprecated) Use --tab"`
 	Link      string          `name:"link" help:"Set hyperlink target (http://, https://, mailto:, #bookmarkId, or #heading-slug)"`
 	NoLink    bool            `name:"no-link" help:"Clear hyperlink"`
@@ -102,6 +103,7 @@ func (c *DocsFormatCmd) Run(ctx context.Context, flags *RootFlags) error {
 		"match_all":   c.MatchAll,
 		"match_case":  c.MatchCase,
 		"tab":         c.Tab,
+		"segment":     c.Segment,
 		"batch":       c.Batch,
 		"format": map[string]any{
 			"font_family":         c.Format.FontFamily,
@@ -151,12 +153,13 @@ func (c *DocsFormatCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
-	format, err = format.withResolvedLink(ctx, svc, id, c.Tab)
+	ranges, target, err := c.targetRanges(ctx, svc, id)
 	if err != nil {
 		return err
 	}
-
-	ranges, tabID, err := c.targetRanges(ctx, svc, id)
+	c.Tab = target.TabID
+	c.Segment = target.SegmentID
+	format, err = format.withResolvedLink(ctx, svc, id, c.Tab)
 	if err != nil {
 		return err
 	}
@@ -170,7 +173,7 @@ func (c *DocsFormatCmd) Run(ctx context.Context, flags *RootFlags) error {
 		textFormat := format.textOnly()
 		if textFormat.any() {
 			for _, r := range ranges {
-				formatReqs, buildErr := textFormat.buildRequests(r.StartIndex, r.EndIndex, tabID)
+				formatReqs, buildErr := textFormat.buildRequests(r.StartIndex, r.EndIndex, target.TabID)
 				if buildErr != nil {
 					return buildErr
 				}
@@ -182,7 +185,7 @@ func (c *DocsFormatCmd) Run(ctx context.Context, flags *RootFlags) error {
 		bulletTargets := groupDocsFormatBulletTargets(ranges)
 		adjustDocsFormatBulletTargets(bulletTargets, paragraphFormat.hasParagraphStyle())
 		for _, r := range bulletTargets {
-			formatReqs, buildErr := paragraphFormat.buildTargetRequests(r, tabID)
+			formatReqs, buildErr := paragraphFormat.buildTargetRequests(r, target.TabID)
 			if buildErr != nil {
 				return buildErr
 			}
@@ -190,13 +193,14 @@ func (c *DocsFormatCmd) Run(ctx context.Context, flags *RootFlags) error {
 		}
 	} else {
 		for _, r := range ranges {
-			formatReqs, buildErr := format.buildTargetRequests(r, tabID)
+			formatReqs, buildErr := format.buildTargetRequests(r, target.TabID)
 			if buildErr != nil {
 				return buildErr
 			}
 			reqs = append(reqs, formatReqs...)
 		}
 	}
+	applyDocsRequestTarget(reqs, target)
 	if queued, queueErr := queueDocsBatchRequests(ctx, flags, c.Batch, id, "docs.format", batchRevision, reqs, false); queued || queueErr != nil {
 		return queueErr
 	}
@@ -209,43 +213,26 @@ func (c *DocsFormatCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
-	return c.writeResult(ctx, resp, len(reqs), len(ranges), tabID)
+	return c.writeResult(ctx, resp, len(reqs), len(ranges), target)
 }
 
-func (c *DocsFormatCmd) targetRanges(ctx context.Context, svc *docs.Service, docID string) ([]docsFormatTargetRange, string, error) {
-	getCall := svc.Documents.Get(docID).Context(ctx)
-	if c.Tab != "" {
-		getCall = getCall.IncludeTabsContent(true)
-	}
-	doc, err := getCall.Do()
+func (c *DocsFormatCmd) targetRanges(ctx context.Context, svc *docs.Service, docID string) ([]docsFormatTargetRange, docsRequestTarget, error) {
+	loaded, err := loadDocsTargetSegment(ctx, svc, docID, c.Tab, c.Segment)
 	if err != nil {
-		if isDocsNotFound(err) {
-			return nil, "", fmt.Errorf("doc not found or not a Google Doc (id=%s)", docID)
-		}
-		return nil, "", err
+		return nil, docsRequestTarget{}, err
 	}
-
-	tabID := ""
-	targetDoc := doc
-	if c.Tab != "" {
-		tab, tabErr := findTab(flattenTabs(doc.Tabs), c.Tab)
-		if tabErr != nil {
-			return nil, "", tabErr
-		}
-		if tab.TabProperties != nil {
-			tabID = tab.TabProperties.TabId
-		}
-		targetDoc = &docs.Document{}
-		if tab.DocumentTab != nil {
-			targetDoc.Body = tab.DocumentTab.Body
-		}
-	}
+	targetDoc := loaded.target
+	target := docsRequestTarget{TabID: loaded.tabID, SegmentID: loaded.segmentID, SegmentKind: loaded.segmentKind}
 
 	var ranges []docsedit.TextRange
 	if strings.TrimSpace(c.Match) == "" {
+		start := int64(1)
+		if target.SegmentID != "" {
+			start = 0
+		}
 		end := docsDocumentEndIndex(targetDoc) - 1
-		if end > 1 {
-			ranges = []docsedit.TextRange{{StartIndex: 1, EndIndex: end}}
+		if end > start {
+			ranges = []docsedit.TextRange{{StartIndex: start, EndIndex: end}}
 		}
 	} else {
 		ranges = docsedit.FindTextRanges(targetDoc, c.Match, docsedit.SearchOptions{
@@ -270,7 +257,7 @@ func (c *DocsFormatCmd) targetRanges(ctx context.Context, svc *docs.Service, doc
 		}
 		targets = append(targets, target)
 	}
-	return targets, tabID, nil
+	return targets, target, nil
 }
 
 type docsFormatTargetRange struct {
@@ -365,7 +352,7 @@ func groupDocsFormatBulletTargets(targets []docsFormatTargetRange) []docsFormatT
 	return groups
 }
 
-func (c *DocsFormatCmd) writeResult(ctx context.Context, resp *docs.BatchUpdateDocumentResponse, requestCount, rangeCount int, tabID string) error {
+func (c *DocsFormatCmd) writeResult(ctx context.Context, resp *docs.BatchUpdateDocumentResponse, requestCount, rangeCount int, target docsRequestTarget) error {
 	u := ui.FromContext(ctx)
 	if outfmt.IsJSON(ctx) {
 		payload := map[string]any{
@@ -373,8 +360,12 @@ func (c *DocsFormatCmd) writeResult(ctx context.Context, resp *docs.BatchUpdateD
 			"requests":   requestCount,
 			"ranges":     rangeCount,
 		}
-		if tabID != "" {
-			payload["tabId"] = tabID
+		if target.TabID != "" {
+			payload["tabId"] = target.TabID
+		}
+		if target.SegmentID != "" {
+			payload["segmentId"] = target.SegmentID
+			payload["segmentType"] = target.SegmentKind
 		}
 		if resp.WriteControl != nil {
 			payload["writeControl"] = resp.WriteControl
@@ -385,8 +376,12 @@ func (c *DocsFormatCmd) writeResult(ctx context.Context, resp *docs.BatchUpdateD
 	u.Out().Linef("id\t%s", resp.DocumentId)
 	u.Out().Linef("requests\t%d", requestCount)
 	u.Out().Linef("ranges\t%d", rangeCount)
-	if tabID != "" {
-		u.Out().Linef("tabId\t%s", tabID)
+	if target.TabID != "" {
+		u.Out().Linef("tabId\t%s", target.TabID)
+	}
+	if target.SegmentID != "" {
+		u.Out().Linef("segmentId\t%s", target.SegmentID)
+		u.Out().Linef("segmentType\t%s", target.SegmentKind)
 	}
 	if resp.WriteControl != nil && resp.WriteControl.RequiredRevisionId != "" {
 		u.Out().Linef("revision\t%s", resp.WriteControl.RequiredRevisionId)

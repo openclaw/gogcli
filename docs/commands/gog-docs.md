@@ -30,16 +30,21 @@ gog docs (doc) <command> [flags]
 - [gog docs export](gog-docs-export.md) - Export a Google Doc (pdf|docx|txt|md|html)
 - [gog docs find-range](gog-docs-find-range.md) - Find text and print Docs API UTF-16 index ranges
 - [gog docs find-replace](gog-docs-find-replace.md) - Find and replace text. Supports plain text or markdown with images; use --first for a single occurrence.
+- [gog docs footer](gog-docs-footer.md) - List, create, or delete document footers
 - [gog docs format](gog-docs-format.md) - Apply text or paragraph formatting to a Google Doc
+- [gog docs header](gog-docs-header.md) - List, create, or delete document headers
 - [gog docs headings](gog-docs-headings.md) - List document headings
 - [gog docs images](gog-docs-images.md) - List document images
 - [gog docs info](gog-docs-info.md) - Get Google Doc metadata
 - [gog docs insert](gog-docs-insert.md) - Insert text at a specific position
 - [gog docs insert-date-chip](gog-docs-insert-date-chip.md) - Insert a native date smart chip
 - [gog docs insert-file-chip](gog-docs-insert-file-chip.md) - Insert a native Drive file smart chip
+- [gog docs insert-footnote](gog-docs-insert-footnote.md) - Insert and populate a footnote
+- [gog docs insert-horizontal-rule](gog-docs-insert-horizontal-rule.md) - Insert a paragraph-border horizontal rule
 - [gog docs insert-image](gog-docs-insert-image.md) - Insert a public image URL or upload a local image into a Google Doc
 - [gog docs insert-page-break](gog-docs-insert-page-break.md) - Insert a page break at a specific position (or end-of-doc with --at-end)
 - [gog docs insert-person](gog-docs-insert-person.md) - Insert a native person smart chip
+- [gog docs insert-section-break](gog-docs-insert-section-break.md) - Insert a continuous or next-page section break
 - [gog docs insert-table](gog-docs-insert-table.md) - Insert a native table at a specific position (or end-of-doc with --at-end), optionally populated via --values-json
 - [gog docs list-tabs](gog-docs-list-tabs.md) - List all tabs in a Google Doc
 - [gog docs named-range](gog-docs-named-range.md) - Manage named ranges
@@ -48,6 +53,7 @@ gog docs (doc) <command> [flags]
 - [gog docs raw](gog-docs-raw.md) - Dump raw Google Docs API response as JSON (Documents.Get; lossless; for scripting and LLM consumption)
 - [gog docs rename-tab](gog-docs-rename-tab.md) - Rename a tab in a Google Doc
 - [gog docs replace-image](gog-docs-replace-image.md) - Replace an existing image without changing its position or bounds
+- [gog docs section-columns](gog-docs-section-columns.md) - Set the column count for a document section
 - [gog docs sed](gog-docs-sed.md) - Regex find/replace (sed-style: s/pattern/replacement/g)
 - [gog docs structure](gog-docs-structure.md) - Show document structure with numbered paragraphs
 - [gog docs table-column](gog-docs-table-column.md) - Insert or delete native table columns

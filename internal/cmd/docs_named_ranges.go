@@ -307,7 +307,7 @@ func (c *DocsNamedRangesReplaceCmd) Run(ctx context.Context, kctx *kong.Context,
 	if in == "" {
 		return usage("empty nameOrId")
 	}
-	text, provided, err := resolveTextInput(ctx, c.Text, c.File, kctx, "text", "file")
+	text, provided, err := resolveTextInput(ctx, c.Text, c.File, kctx)
 	if err != nil {
 		return err
 	}

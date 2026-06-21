@@ -37,30 +37,36 @@ type Placement struct {
 type UpdatePlacementOptions struct {
 	Index         int64
 	IndexProvided bool
+	AllowZero     bool
 	ReplaceRange  string
 	Anchor        AnchorOptions
 }
 
 type InsertPlacementOptions struct {
-	Index  *int64
-	Anchor AnchorOptions
+	Index     *int64
+	AllowZero bool
+	Anchor    AnchorOptions
 }
 
 type EndInsertPlacementOptions struct {
-	Index  *int64
-	AtEnd  bool
-	Anchor AnchorOptions
+	Index     *int64
+	AllowZero bool
+	AtEnd     bool
+	Anchor    AnchorOptions
 }
 
 type RangePlacementOptions struct {
-	Start  *int64
-	End    *int64
-	Anchor AnchorOptions
+	Start     *int64
+	End       *int64
+	AllowZero bool
+	Anchor    AnchorOptions
 }
 
 type PlacementFacts struct {
 	EndIndex           int64
 	TabID              string
+	SegmentID          string
+	SegmentKind        string
 	Anchor             *TextRange
 	RequiredRevisionID string
 }
@@ -69,6 +75,8 @@ type ResolvedPlacement struct {
 	Index              int64
 	Range              *Range
 	TabID              string
+	SegmentID          string
+	SegmentKind        string
 	RequiredRevisionID string
 	Anchored           bool
 	InTable            bool
@@ -97,8 +105,14 @@ func ValidateAnchor(options AnchorOptions) error {
 
 func PlanUpdatePlacement(options UpdatePlacementOptions) (Placement, error) {
 	replaceRange := strings.TrimSpace(options.ReplaceRange)
-	if options.IndexProvided && options.Index <= 0 {
-		return Placement{}, invalid("invalid --index (must be >= 1)")
+
+	minimum := int64(1)
+	if options.AllowZero {
+		minimum = 0
+	}
+
+	if options.IndexProvided && options.Index < minimum {
+		return Placement{}, invalid(fmt.Sprintf("invalid --index (must be >= %d)", minimum))
 	}
 
 	if options.IndexProvided && replaceRange != "" {
@@ -113,7 +127,7 @@ func PlanUpdatePlacement(options UpdatePlacementOptions) (Placement, error) {
 		return Placement{}, invalid("--at cannot be combined with --index or --replace-range")
 	}
 
-	target, replacing, err := ParseRange(replaceRange)
+	target, replacing, err := parseRangeWithMinimum(replaceRange, minimum)
 	if err != nil {
 		return Placement{}, err
 	}
@@ -131,8 +145,13 @@ func PlanUpdatePlacement(options UpdatePlacementOptions) (Placement, error) {
 }
 
 func PlanInsertPlacement(options InsertPlacementOptions) (Placement, error) {
-	if options.Index != nil && *options.Index < 1 {
-		return Placement{}, invalid("--index must be >= 1 (index 0 is reserved)")
+	minimum := int64(1)
+	if options.AllowZero {
+		minimum = 0
+	}
+
+	if options.Index != nil && *options.Index < minimum {
+		return Placement{}, invalid(fmt.Sprintf("--index must be >= %d", minimum))
 	}
 
 	if err := ValidateAnchor(options.Anchor); err != nil {
@@ -151,8 +170,13 @@ func PlanEndInsertPlacement(options EndInsertPlacementOptions) (Placement, error
 		return Placement{}, invalid("--at-end and --index are mutually exclusive")
 	}
 
-	if options.Index != nil && *options.Index < 1 {
-		return Placement{}, invalid("--index must be >= 1 (index 0 is reserved)")
+	minimum := int64(1)
+	if options.AllowZero {
+		minimum = 0
+	}
+
+	if options.Index != nil && *options.Index < minimum {
+		return Placement{}, invalid(fmt.Sprintf("--index must be >= %d", minimum))
 	}
 
 	if err := ValidateAnchor(options.Anchor); err != nil {
@@ -184,8 +208,13 @@ func PlanRangePlacement(options RangePlacementOptions) (Placement, error) {
 		return Placement{Kind: PlacementAnchor, Anchor: options.Anchor}, nil
 	}
 
-	if *options.Start < 1 {
-		return Placement{}, invalid("--start must be >= 1")
+	minimum := int64(1)
+	if options.AllowZero {
+		minimum = 0
+	}
+
+	if *options.Start < minimum {
+		return Placement{}, invalid(fmt.Sprintf("--start must be >= %d", minimum))
 	}
 
 	if *options.End <= *options.Start {
@@ -202,21 +231,27 @@ func ResolvePlacement(placement Placement, facts PlacementFacts) (ResolvedPlacem
 	switch placement.Kind {
 	case PlacementEnd:
 		return ResolvedPlacement{
-			Index: AppendIndex(facts.EndIndex),
-			TabID: facts.TabID,
+			Index:       AppendIndexForTarget(facts.EndIndex, facts.SegmentID),
+			TabID:       facts.TabID,
+			SegmentID:   facts.SegmentID,
+			SegmentKind: facts.SegmentKind,
 		}, nil
 	case PlacementIndex:
 		return ResolvedPlacement{
-			Index: placement.Index,
-			TabID: facts.TabID,
+			Index:       placement.Index,
+			TabID:       facts.TabID,
+			SegmentID:   facts.SegmentID,
+			SegmentKind: facts.SegmentKind,
 		}, nil
 	case PlacementRange:
 		target := placement.Range
 
 		return ResolvedPlacement{
-			Index: target.Start,
-			Range: &target,
-			TabID: facts.TabID,
+			Index:       target.Start,
+			Range:       &target,
+			TabID:       facts.TabID,
+			SegmentID:   facts.SegmentID,
+			SegmentKind: facts.SegmentKind,
 		}, nil
 	case PlacementAnchor:
 		if facts.Anchor == nil {
@@ -232,6 +267,8 @@ func ResolvePlacement(placement Placement, facts PlacementFacts) (ResolvedPlacem
 			Index:              target.Start,
 			Range:              &target,
 			TabID:              facts.Anchor.TabID,
+			SegmentID:          facts.SegmentID,
+			SegmentKind:        facts.SegmentKind,
 			RequiredRevisionID: facts.RequiredRevisionID,
 			Anchored:           true,
 			InTable:            facts.Anchor.InTable,
@@ -251,6 +288,18 @@ func AppendIndex(endIndex int64) int64 {
 	}
 
 	return 1
+}
+
+func AppendIndexForTarget(endIndex int64, segmentID string) int64 {
+	if strings.TrimSpace(segmentID) == "" {
+		return AppendIndex(endIndex)
+	}
+
+	if endIndex > 0 {
+		return endIndex - 1
+	}
+
+	return 0
 }
 
 func insertPlacement(index *int64, atEnd bool, anchor AnchorOptions) Placement {

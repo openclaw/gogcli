@@ -59,12 +59,12 @@ const (
 	docsDocumentModePageless = "PAGELESS"
 )
 
-func resolveTextInput(ctx context.Context, text, file string, kctx *kong.Context, textFlag, fileFlag string) (string, bool, error) {
+func resolveTextInput(ctx context.Context, text, file string, kctx *kong.Context) (string, bool, error) {
 	file = strings.TrimSpace(file)
-	textProvided := text != "" || flagProvided(kctx, textFlag)
-	fileProvided := file != "" || flagProvided(kctx, fileFlag)
+	textProvided := text != "" || flagProvided(kctx, "text")
+	fileProvided := file != "" || flagProvided(kctx, "file")
 	if textProvided && fileProvided {
-		return "", true, usage(fmt.Sprintf("use only one of --%s or --%s", textFlag, fileFlag))
+		return "", true, usage("use only one of --text or --file")
 	}
 	if fileProvided {
 		b, err := readTextInput(ctx, file)

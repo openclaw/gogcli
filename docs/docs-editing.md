@@ -247,6 +247,79 @@ Command page:
 
 - [`gog docs insert-page-break`](commands/gog-docs-insert-page-break.md)
 
+## Structural Inserts And Sections
+
+Insert footnotes, section breaks, and paragraph-border horizontal rules with
+the same placement selectors as `insert-page-break`:
+
+```bash
+gog docs insert-footnote <docId> --at "Claim" --text "Source note"
+gog docs insert-section-break <docId> --at "Appendix" --type next-page
+gog docs insert-horizontal-rule <docId> --at "Summary"
+```
+
+All three accept `--index`, `--at`, `--occurrence`, `--match-case`,
+`--at-end`, and `--tab`. Footnote creation is a two-step operation because the
+Docs API returns the new footnote segment ID before its text can be populated;
+it therefore does not support persisted `--batch` mode.
+
+Set the columns on the section containing a selected position:
+
+```bash
+gog docs section-columns <docId> --at "Newsletter" --count 2
+gog docs section-columns <docId> --at-end --count 3 --separator between
+gog docs section-columns <docId> --at "Appendix" --count 1
+```
+
+Google Docs supports one to three section columns. `--count 1` resets the
+selected section to one column. Horizontal rules are implemented as a newline
+with a bottom paragraph border because the Docs API has no native horizontal
+rule insertion request.
+
+Command pages:
+
+- [`gog docs insert-footnote`](commands/gog-docs-insert-footnote.md)
+- [`gog docs insert-section-break`](commands/gog-docs-insert-section-break.md)
+- [`gog docs insert-horizontal-rule`](commands/gog-docs-insert-horizontal-rule.md)
+- [`gog docs section-columns`](commands/gog-docs-section-columns.md)
+
+## Headers, Footers, And Segments
+
+Create, discover, populate, and delete default headers and footers:
+
+```bash
+header_id=$(gog docs header create <docId> --text "Quarterly report" --json | jq -r .segmentId)
+gog docs header list <docId> --json
+gog docs footer create <docId> --file footer.txt
+gog --force docs header delete <docId> "$header_id"
+```
+
+Creation accepts the standard placement flags to select a section. Without a
+placement selector, the header or footer applies to the document's default
+section. The current Docs API only creates `DEFAULT` headers and footers; the
+first-page and even-page IDs exposed by raw output are read-only.
+
+Use an exact segment ID with the plain-text targeting commands:
+
+```bash
+gog docs find-range <docId> "Quarterly" --segment "$header_id" --json
+gog docs insert <docId> "FY26 " --segment "$header_id" --index 0
+gog docs update <docId> --segment "$header_id" --at "Quarterly" --text "Annual"
+gog docs format <docId> --segment "$header_id" --match "Annual" --bold
+gog docs delete <docId> --segment "$header_id" --at "FY26 "
+```
+
+`--segment` accepts the opaque ID returned by create/list/raw; do not prefix it
+with `header:` or `footer:`. It can be combined with `--tab` to scope lookup in
+a multi-tab document. Segment inserts and updates are plain-text-only because
+Markdown can contain tables, images, and other structures that are invalid in
+headers, footers, or footnotes.
+
+Command pages:
+
+- [`gog docs header`](commands/gog-docs-header.md)
+- [`gog docs footer`](commands/gog-docs-footer.md)
+
 ## Page Layout
 
 Set an existing document to pageless or paged mode:

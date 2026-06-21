@@ -75,11 +75,11 @@ func (c *DocsCommentsLocateCmd) Run(ctx context.Context, flags *RootFlags) error
 func (c *DocsCommentsLocateCmd) findQuoteMatches(ctx context.Context, svc *docs.Service, docID string, quote string) ([]docsedit.TextRange, error) {
 	if c.Tab != "" {
 		findCmd := DocsFindRangeCmd{Tab: c.Tab}
-		doc, tabID, err := findCmd.loadTargetDoc(ctx, svc, docID)
+		doc, target, err := findCmd.loadTargetDoc(ctx, svc, docID)
 		if err != nil {
 			return nil, err
 		}
-		return c.findQuoteMatchesInDoc(doc, quote, tabID), nil
+		return c.findQuoteMatchesInDoc(doc, quote, target.TabID), nil
 	}
 
 	doc, err := svc.Documents.Get(docID).Context(ctx).IncludeTabsContent(true).Do()

@@ -119,6 +119,10 @@ func BuildDeleteRequest(target Range, tabID string) *docs.Request {
 }
 
 func ParseRange(value string) (Range, bool, error) {
+	return parseRangeWithMinimum(value, 1)
+}
+
+func parseRangeWithMinimum(value string, minimum int64) (Range, bool, error) {
 	value = strings.TrimSpace(value)
 	if value == "" {
 		return Range{}, false, nil
@@ -130,8 +134,8 @@ func ParseRange(value string) (Range, bool, error) {
 	}
 
 	start, err := strconv.ParseInt(strings.TrimSpace(parts[0]), 10, 64)
-	if err != nil || start < 1 {
-		return Range{}, false, invalid("invalid --replace-range start (must be >= 1)")
+	if err != nil || start < minimum {
+		return Range{}, false, invalid(fmt.Sprintf("invalid --replace-range start (must be >= %d)", minimum))
 	}
 
 	end, err := strconv.ParseInt(strings.TrimSpace(parts[1]), 10, 64)

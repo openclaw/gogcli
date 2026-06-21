@@ -94,7 +94,7 @@ func (o Options) Any() bool {
 }
 
 func BuildRequests(options Options, start, end int64, tabID string) ([]*docs.Request, error) {
-	if start <= 0 || end <= start {
+	if start < 0 || end <= start {
 		return nil, invalidf("invalid format range: %d..%d", start, end)
 	}
 

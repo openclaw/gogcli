@@ -23,6 +23,8 @@ type DocsCmd struct {
 	Cat              DocsCatCmd              `cmd:"" name:"cat" aliases:"text,read" help:"Print a Google Doc as plain text"`
 	Comments         DocsCommentsCmd         `cmd:"" name:"comments" help:"Manage comments on files"`
 	Tabs             DocsTabsCmd             `cmd:"" name:"tabs" help:"Manage Google Doc tabs"`
+	Header           DocsHeaderCmd           `cmd:"" name:"header" aliases:"headers" help:"List, create, or delete document headers"`
+	Footer           DocsFooterCmd           `cmd:"" name:"footer" aliases:"footers" help:"List, create, or delete document footers"`
 	AddTab           DocsAddTabCmd           `cmd:"" name:"add-tab" help:"Add a tab to a Google Doc"`
 	RenameTab        DocsRenameTabCmd        `cmd:"" name:"rename-tab" help:"Rename a tab in a Google Doc"`
 	DeleteTab        DocsDeleteTabCmd        `cmd:"" name:"delete-tab" help:"Delete a tab from a Google Doc"`
@@ -43,6 +45,10 @@ type DocsCmd struct {
 	InsertFileChip   DocsInsertFileChipCmd   `cmd:"" name:"insert-file-chip" aliases:"insert-rich-link" help:"Insert a native Drive file smart chip"`
 	InsertDateChip   DocsInsertDateChipCmd   `cmd:"" name:"insert-date-chip" help:"Insert a native date smart chip"`
 	InsertPageBreak  DocsInsertPageBreakCmd  `cmd:"" name:"insert-page-break" aliases:"page-break,pb" help:"Insert a page break at a specific position (or end-of-doc with --at-end)"`
+	Footnote         DocsFootnoteCmd         `cmd:"" name:"insert-footnote" help:"Insert and populate a footnote"`
+	SectionBreak     DocsSectionBreakCmd     `cmd:"" name:"insert-section-break" help:"Insert a continuous or next-page section break"`
+	HorizontalRule   DocsHorizontalRuleCmd   `cmd:"" name:"insert-horizontal-rule" aliases:"insert-hr,hr" help:"Insert a paragraph-border horizontal rule"`
+	SectionColumns   DocsSectionColumnsCmd   `cmd:"" name:"section-columns" help:"Set the column count for a document section"`
 	Delete           DocsDeleteCmd           `cmd:"" name:"delete" help:"Delete text range from document"`
 	FindRange        DocsFindRangeCmd        `cmd:"" name:"find-range" help:"Find text and print Docs API UTF-16 index ranges"`
 	FindReplace      DocsFindReplaceCmd      `cmd:"" name:"find-replace" help:"Find and replace text. Supports plain text or markdown with images; use --first for a single occurrence."`

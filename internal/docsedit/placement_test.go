@@ -155,6 +155,40 @@ func TestPlanInsertPlacement(t *testing.T) {
 	}
 }
 
+func TestSegmentPlacementAllowsZeroAndUsesSegmentEnd(t *testing.T) {
+	zero := int64(0)
+
+	placement, err := PlanInsertPlacement(InsertPlacementOptions{Index: &zero, AllowZero: true})
+	if err != nil {
+		t.Fatalf("plan segment index zero: %v", err)
+	}
+
+	resolved, err := ResolvePlacement(placement, PlacementFacts{
+		TabID: "tab-1", SegmentID: "header-1", SegmentKind: "header",
+	})
+	if err != nil {
+		t.Fatalf("resolve segment index zero: %v", err)
+	}
+
+	if resolved.Index != 0 || resolved.SegmentID != "header-1" || resolved.SegmentKind != "header" {
+		t.Fatalf("unexpected resolved placement: %#v", resolved)
+	}
+
+	endPlacement, err := PlanEndInsertPlacement(EndInsertPlacementOptions{})
+	if err != nil {
+		t.Fatalf("plan segment end: %v", err)
+	}
+
+	resolved, err = ResolvePlacement(endPlacement, PlacementFacts{EndIndex: 1, SegmentID: "header-1"})
+	if err != nil {
+		t.Fatalf("resolve segment end: %v", err)
+	}
+
+	if resolved.Index != 0 {
+		t.Fatalf("segment append index = %d, want 0", resolved.Index)
+	}
+}
+
 func TestPlanEndInsertPlacement(t *testing.T) {
 	t.Parallel()
 

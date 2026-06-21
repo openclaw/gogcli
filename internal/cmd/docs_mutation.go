@@ -24,14 +24,21 @@ const (
 )
 
 type docsLoadedTarget struct {
-	full   *docs.Document
-	target *docs.Document
-	tabID  string
+	full        *docs.Document
+	target      *docs.Document
+	tabID       string
+	segmentID   string
+	segmentKind string
 }
 
 func loadDocsTargetDocument(ctx context.Context, svc *docs.Service, docID, tabID string) (*docsLoadedTarget, error) {
+	return loadDocsTargetSegment(ctx, svc, docID, tabID, "")
+}
+
+func loadDocsTargetSegment(ctx context.Context, svc *docs.Service, docID, tabQuery, segmentID string) (*docsLoadedTarget, error) {
+	segmentID = strings.TrimSpace(segmentID)
 	getCall := svc.Documents.Get(docID).Context(ctx)
-	if tabID != "" {
+	if tabQuery != "" || segmentID != "" {
 		getCall = getCall.IncludeTabsContent(true)
 	}
 
@@ -45,11 +52,15 @@ func loadDocsTargetDocument(ctx context.Context, svc *docs.Service, docID, tabID
 	if doc == nil {
 		return nil, errors.New("doc not found")
 	}
-	if tabID == "" {
+	if tabQuery == "" && segmentID == "" {
 		return &docsLoadedTarget{full: doc, target: doc}, nil
 	}
 
-	tab, tabErr := findTab(flattenTabs(doc.Tabs), tabID)
+	if segmentID != "" {
+		return selectDocsSegmentTarget(doc, tabQuery, segmentID)
+	}
+
+	tab, tabErr := findTab(flattenTabs(doc.Tabs), tabQuery)
 	if tabErr != nil {
 		return nil, tabErr
 	}
@@ -58,10 +69,10 @@ func loadDocsTargetDocument(ctx context.Context, svc *docs.Service, docID, tabID
 		resolvedTabID = strings.TrimSpace(tab.TabProperties.TabId)
 	}
 	if resolvedTabID == "" {
-		return nil, fmt.Errorf("tab has no ID: %s", tabID)
+		return nil, fmt.Errorf("tab has no ID: %s", tabQuery)
 	}
 	if tab.DocumentTab == nil || tab.DocumentTab.Body == nil {
-		return nil, fmt.Errorf("tab has no document body: %s", tabID)
+		return nil, fmt.Errorf("tab has no document body: %s", tabQuery)
 	}
 
 	return &docsLoadedTarget{

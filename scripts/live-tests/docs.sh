@@ -125,6 +125,42 @@ assert not any("{#recent-tab}" in value for item in objects for value in item.va
   run_required "docs" "docs page break at anchor" gog docs insert-page-break "$doc_id" \
     --at BreakHere --json >/dev/null
 
+  local footnote_json header_json header_id footer_json footer_id segment_raw_json
+  footnote_json=$(gog docs insert-footnote "$doc_id" --at AnchorReplaced \
+    --text "gogcli live footnote $TS" --json)
+  "$PY" -c 'import json,sys; assert json.load(sys.stdin)["footnoteId"]' <<<"$footnote_json"
+  run_required "docs" "docs horizontal rule at anchor" gog docs insert-horizontal-rule "$doc_id" \
+    --at AnchorReplaced --json >/dev/null
+  run_required "docs" "docs continuous section break" gog docs insert-section-break "$doc_id" \
+    --at BatchAnchor --type continuous --json >/dev/null
+  run_required "docs" "docs section columns" gog docs section-columns "$doc_id" \
+    --at Heading --count 2 --separator between --json >/dev/null
+
+  header_json=$(gog docs header create "$doc_id" --text "Live Header $TS" --json)
+  header_id=$("$PY" -c 'import json,sys; print(json.load(sys.stdin)["segmentId"])' <<<"$header_json")
+  footer_json=$(gog docs footer create "$doc_id" --text "Live Footer $TS" --json)
+  footer_id=$("$PY" -c 'import json,sys; print(json.load(sys.stdin)["segmentId"])' <<<"$footer_json")
+  [ -n "$header_id" ] && [ -n "$footer_id" ] || { echo "Failed to create Docs header/footer" >&2; exit 1; }
+  run_required "docs" "docs header list" gog docs header list "$doc_id" --json >/dev/null
+  run_required "docs" "docs footer list" gog docs footer list "$doc_id" --json >/dev/null
+  run_required "docs" "docs segment insert" gog docs insert "$doc_id" "!" \
+    --segment "$header_id" --json >/dev/null
+  run_required "docs" "docs segment update" gog docs update "$doc_id" \
+    --segment "$header_id" --at Live --text Verified --json >/dev/null
+  run_required "docs" "docs segment format" gog docs format "$doc_id" \
+    --segment "$header_id" --match Verified --bold --json >/dev/null
+  run_required "docs" "docs segment delete" gog docs delete "$doc_id" \
+    --segment "$header_id" --at Header --json >/dev/null
+  segment_raw_json=$(gog docs raw "$doc_id" --json)
+  "$PY" -c 'import json,sys
+obj=json.load(sys.stdin)
+segment=sys.argv[1]
+content=json.dumps(obj["headers"][segment].get("content", []))
+assert "Verified" in content
+assert any(run.get("textRun", {}).get("textStyle", {}).get("bold") is True for element in obj["headers"][segment].get("content", []) for para in [element.get("paragraph", {})] for run in para.get("elements", []))' "$header_id" <<<"$segment_raw_json"
+  run_required "docs" "docs header delete" gog --force docs header delete "$doc_id" "$header_id" --json >/dev/null
+  run_required "docs" "docs footer delete" gog --force docs footer delete "$doc_id" "$footer_id" --json >/dev/null
+
   local batch_id batch_json
   batch_id=$("$BIN" --account "$ACCOUNT" batch begin --service docs --doc "$doc_id" --name "live-$TS")
   [ -n "$batch_id" ] || { echo "Failed to create Docs batch" >&2; exit 1; }

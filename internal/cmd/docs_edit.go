@@ -106,7 +106,7 @@ func (c *DocsWriteCmd) validateDocumentStyle() error {
 }
 
 func (c *DocsWriteCmd) resolveWriteText(ctx context.Context, kctx *kong.Context) (string, error) {
-	text, provided, err := resolveTextInput(ctx, c.Text, c.File, kctx, "text", "file")
+	text, provided, err := resolveTextInput(ctx, c.Text, c.File, kctx)
 	if err != nil {
 		return "", err
 	}
@@ -652,6 +652,7 @@ type DocsUpdateCmd struct {
 	Markdown     bool   `name:"markdown" help:"Convert markdown to Google Docs formatting"`
 	Pageless     bool   `name:"pageless" help:"Set document to pageless mode"`
 	Tab          string `name:"tab" help:"Target a specific tab by title or ID (see docs list-tabs)"`
+	Segment      string `name:"segment" help:"Target an exact header, footer, or footnote segment ID"`
 	TabID        string `name:"tab-id" hidden:"" help:"(deprecated) Use --tab"`
 	Batch        string `name:"batch" help:"Append requests to a persisted Docs batch instead of submitting"`
 }
@@ -663,7 +664,7 @@ func (c *DocsUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *Root
 		return usage("empty docId")
 	}
 
-	text, provided, err := resolveTextInput(ctx, c.Text, c.File, kctx, "text", "file")
+	text, provided, err := resolveTextInput(ctx, c.Text, c.File, kctx)
 	if err != nil {
 		return err
 	}
@@ -676,6 +677,7 @@ func (c *DocsUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *Root
 	placement, err := docsedit.PlanUpdatePlacement(docsedit.UpdatePlacementOptions{
 		Index:         c.Index,
 		IndexProvided: flagProvided(kctx, "index"),
+		AllowZero:     strings.TrimSpace(c.Segment) != "",
 		ReplaceRange:  c.ReplaceRange,
 		Anchor: docsedit.AnchorOptions{
 			Text:       c.At,
@@ -697,6 +699,9 @@ func (c *DocsUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *Root
 		return tabErr
 	}
 	c.Tab = tab
+	if strings.TrimSpace(c.Segment) != "" && c.Markdown {
+		return usage("--segment supports plain-text updates only; markdown can contain structures that are invalid in segments")
+	}
 	if c.Batch != "" && (c.Markdown || c.Pageless) {
 		return usage("--batch supports plain text updates without --pageless")
 	}
@@ -716,12 +721,13 @@ func (c *DocsUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *Root
 		return err
 	}
 
-	resolvedPlacement, err := resolveDocsPlacement(ctx, svc, id, c.Tab, placement)
+	resolvedPlacement, err := resolveDocsPlacementTarget(ctx, svc, id, c.Tab, c.Segment, placement)
 	if err != nil {
 		return err
 	}
 	insertIndex := resolvedPlacement.Index
 	c.Tab = resolvedPlacement.TabID
+	c.Segment = resolvedPlacement.SegmentID
 	if resolvedPlacement.Range != nil {
 		replaceStart = resolvedPlacement.Range.Start
 		replaceEnd = resolvedPlacement.Range.End
@@ -794,6 +800,7 @@ func (c *DocsUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *Root
 			targetRange = &docsedit.Range{Start: replaceStart, End: replaceEnd}
 		}
 		reqs := docsedit.BuildUpdateRequests(text, insertIndex, c.Tab, targetRange)
+		applyDocsRequestTarget(reqs, docsTargetFromPlacement(resolvedPlacement.ResolvedPlacement))
 		requestCount = len(reqs)
 		batchReq := &docs.BatchUpdateDocumentRequest{Requests: reqs}
 		batchReq.WriteControl = docsRequiredRevisionWriteControl(resolvedPlacement.RequiredRevisionID)
@@ -831,6 +838,10 @@ func (c *DocsUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *Root
 		if c.Tab != "" {
 			payload["tabId"] = c.Tab
 		}
+		if c.Segment != "" {
+			payload["segmentId"] = c.Segment
+			payload["segmentType"] = resolvedPlacement.SegmentKind
+		}
 		if resp.WriteControl != nil {
 			payload["writeControl"] = resp.WriteControl
 		}
@@ -850,6 +861,10 @@ func (c *DocsUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *Root
 	}
 	if c.Tab != "" {
 		u.Out().Linef("tabId\t%s", c.Tab)
+	}
+	if c.Segment != "" {
+		u.Out().Linef("segmentId\t%s", c.Segment)
+		u.Out().Linef("segmentType\t%s", resolvedPlacement.SegmentKind)
 	}
 	if resp.WriteControl != nil && resp.WriteControl.RequiredRevisionId != "" {
 		u.Out().Linef("revision\t%s", resp.WriteControl.RequiredRevisionId)
@@ -874,6 +889,7 @@ func (c *DocsUpdateCmd) dryRunPayload(docID string, written int, replacing bool,
 		"markdown":    c.Markdown,
 		"pageless":    c.Pageless,
 		"tab":         c.Tab,
+		"segment":     c.Segment,
 		"batch":       c.Batch,
 	}
 	if replacing {
@@ -893,6 +909,7 @@ type DocsInsertCmd struct {
 	File       string `name:"file" short:"f" help:"Read content from file (use - for stdin)"`
 	Markdown   bool   `name:"markdown" help:"Convert markdown to Google Docs formatting before inserting"`
 	Tab        string `name:"tab" help:"Target a specific tab by title or ID (see docs list-tabs)"`
+	Segment    string `name:"segment" help:"Target an exact header, footer, or footnote segment ID"`
 	TabID      string `name:"tab-id" hidden:"" help:"(deprecated) Use --tab"`
 	Batch      string `name:"batch" help:"Append requests to a persisted Docs batch instead of submitting"`
 }
@@ -911,7 +928,8 @@ func (c *DocsInsertCmd) Run(ctx context.Context, kctx *kong.Context, flags *Root
 		return usage("no content provided (use argument, --file, or stdin)")
 	}
 	placement, err := docsedit.PlanInsertPlacement(docsedit.InsertPlacementOptions{
-		Index: c.Index,
+		Index:     c.Index,
+		AllowZero: strings.TrimSpace(c.Segment) != "",
 		Anchor: docsedit.AnchorOptions{
 			Text:       c.At,
 			Provided:   flagProvided(kctx, "at"),
@@ -929,6 +947,9 @@ func (c *DocsInsertCmd) Run(ctx context.Context, kctx *kong.Context, flags *Root
 		return tabErr
 	}
 	c.Tab = tab
+	if strings.TrimSpace(c.Segment) != "" && c.Markdown {
+		return usage("--segment supports plain-text inserts only; markdown can contain structures that are invalid in segments")
+	}
 	if c.Markdown && c.Batch != "" {
 		return usage("--markdown cannot be combined with --batch")
 	}
@@ -937,6 +958,7 @@ func (c *DocsInsertCmd) Run(ctx context.Context, kctx *kong.Context, flags *Root
 		"inserted":   len(content),
 		"markdown":   c.Markdown,
 		"tab":        c.Tab,
+		"segment":    c.Segment,
 		"batch":      c.Batch,
 	}
 	switch placement.Kind {
@@ -964,12 +986,13 @@ func (c *DocsInsertCmd) Run(ctx context.Context, kctx *kong.Context, flags *Root
 		return err
 	}
 
-	resolvedPlacement, err := resolveDocsPlacement(ctx, svc, docID, c.Tab, placement)
+	resolvedPlacement, err := resolveDocsPlacementTarget(ctx, svc, docID, c.Tab, c.Segment, placement)
 	if err != nil {
 		return err
 	}
 	insertIndex := resolvedPlacement.Index
 	c.Tab = resolvedPlacement.TabID
+	c.Segment = resolvedPlacement.SegmentID
 
 	if c.Markdown {
 		return c.runMarkdown(ctx, svc, docID, insertIndex, resolvedPlacement.RequiredRevisionID, content)
@@ -978,6 +1001,7 @@ func (c *DocsInsertCmd) Run(ctx context.Context, kctx *kong.Context, flags *Root
 	batchReq := &docs.BatchUpdateDocumentRequest{
 		Requests: []*docs.Request{docsedit.BuildInsertRequest(content, insertIndex, c.Tab)},
 	}
+	applyDocsRequestTarget(batchReq.Requests, docsTargetFromPlacement(resolvedPlacement.ResolvedPlacement))
 	batchReq.WriteControl = docsRequiredRevisionWriteControl(resolvedPlacement.RequiredRevisionID)
 	if queued, queueErr := queueDocsBatchRequests(ctx, flags, c.Batch, docID, "docs.insert", batchRevision, batchReq.Requests, false); queued || queueErr != nil {
 		return queueErr
@@ -992,6 +1016,10 @@ func (c *DocsInsertCmd) Run(ctx context.Context, kctx *kong.Context, flags *Root
 		if c.Tab != "" {
 			payload["tabId"] = c.Tab
 		}
+		if c.Segment != "" {
+			payload["segmentId"] = c.Segment
+			payload["segmentType"] = resolvedPlacement.SegmentKind
+		}
 		return outfmt.WriteJSON(ctx, stdoutWriter(ctx), payload)
 	}
 
@@ -1000,6 +1028,10 @@ func (c *DocsInsertCmd) Run(ctx context.Context, kctx *kong.Context, flags *Root
 	u.Out().Linef("atIndex\t%d", insertIndex)
 	if c.Tab != "" {
 		u.Out().Linef("tabId\t%s", c.Tab)
+	}
+	if c.Segment != "" {
+		u.Out().Linef("segmentId\t%s", c.Segment)
+		u.Out().Linef("segmentType\t%s", resolvedPlacement.SegmentKind)
 	}
 	return nil
 }
@@ -1086,6 +1118,7 @@ type DocsDeleteCmd struct {
 	Occurrence *int   `name:"occurrence" help:"Use the Nth --at match (1-based; required when --at is ambiguous)"`
 	MatchCase  bool   `name:"match-case" help:"Use case-sensitive --at matching"`
 	Tab        string `name:"tab" help:"Target a specific tab by title or ID (see docs list-tabs)"`
+	Segment    string `name:"segment" help:"Target an exact header, footer, or footnote segment ID"`
 	TabID      string `name:"tab-id" hidden:"" help:"(deprecated) Use --tab"`
 	Batch      string `name:"batch" help:"Append requests to a persisted Docs batch instead of submitting"`
 }
@@ -1097,8 +1130,9 @@ func (c *DocsDeleteCmd) Run(ctx context.Context, kctx *kong.Context, flags *Root
 		return usage("empty docId")
 	}
 	placement, err := docsedit.PlanRangePlacement(docsedit.RangePlacementOptions{
-		Start: c.Start,
-		End:   c.End,
+		Start:     c.Start,
+		End:       c.End,
+		AllowZero: strings.TrimSpace(c.Segment) != "",
 		Anchor: docsedit.AnchorOptions{
 			Text:       c.At,
 			Provided:   flagProvided(kctx, "at"),
@@ -1122,6 +1156,7 @@ func (c *DocsDeleteCmd) Run(ctx context.Context, kctx *kong.Context, flags *Root
 		"end_index":   docsDeleteDryRunEnd(c.End),
 		"deleted":     docsDeleteDryRunDeleted(c.Start, c.End, at),
 		"tab":         c.Tab,
+		"segment":     c.Segment,
 		"batch":       c.Batch,
 	}
 	addDocsAtAnchorDryRunPayload(dryRunPayload, docsAtAnchorFlags{At: at, Occurrence: c.Occurrence, MatchCase: c.MatchCase})
@@ -1140,17 +1175,19 @@ func (c *DocsDeleteCmd) Run(ctx context.Context, kctx *kong.Context, flags *Root
 	if err != nil {
 		return err
 	}
-	resolvedPlacement, err := resolveDocsPlacement(ctx, svc, docID, c.Tab, placement)
+	resolvedPlacement, err := resolveDocsPlacementTarget(ctx, svc, docID, c.Tab, c.Segment, placement)
 	if err != nil {
 		return err
 	}
 	start := resolvedPlacement.Range.Start
 	end := resolvedPlacement.Range.End
 	c.Tab = resolvedPlacement.TabID
+	c.Segment = resolvedPlacement.SegmentID
 
 	batchReq := &docs.BatchUpdateDocumentRequest{
 		Requests: []*docs.Request{docsedit.BuildDeleteRequest(docsedit.Range{Start: start, End: end}, c.Tab)},
 	}
+	applyDocsRequestTarget(batchReq.Requests, docsTargetFromPlacement(resolvedPlacement.ResolvedPlacement))
 	batchReq.WriteControl = docsRequiredRevisionWriteControl(resolvedPlacement.RequiredRevisionID)
 	if queued, queueErr := queueDocsBatchRequests(ctx, flags, c.Batch, docID, "docs.delete", batchRevision, batchReq.Requests, false); queued || queueErr != nil {
 		return queueErr
@@ -1170,6 +1207,10 @@ func (c *DocsDeleteCmd) Run(ctx context.Context, kctx *kong.Context, flags *Root
 		if c.Tab != "" {
 			payload["tabId"] = c.Tab
 		}
+		if c.Segment != "" {
+			payload["segmentId"] = c.Segment
+			payload["segmentType"] = resolvedPlacement.SegmentKind
+		}
 		return outfmt.WriteJSON(ctx, stdoutWriter(ctx), payload)
 	}
 
@@ -1178,6 +1219,10 @@ func (c *DocsDeleteCmd) Run(ctx context.Context, kctx *kong.Context, flags *Root
 	u.Out().Linef("range\t%d-%d", start, end)
 	if c.Tab != "" {
 		u.Out().Linef("tabId\t%s", c.Tab)
+	}
+	if c.Segment != "" {
+		u.Out().Linef("segmentId\t%s", c.Segment)
+		u.Out().Linef("segmentType\t%s", resolvedPlacement.SegmentKind)
 	}
 	return nil
 }

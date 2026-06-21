@@ -16,12 +16,15 @@ type docsAtAnchorFlags struct {
 	Occurrence *int
 	MatchCase  bool
 	Tab        string
+	Segment    string
 }
 
 type docsResolvedAtAnchor struct {
-	Match      docsedit.TextRange
-	RevisionID string
-	Document   *docs.Document
+	Match       docsedit.TextRange
+	RevisionID  string
+	Document    *docs.Document
+	SegmentID   string
+	SegmentKind string
 }
 
 const docsAtIndexAnchorStart = "at:start"
@@ -43,7 +46,7 @@ func resolveDocsAtAnchor(ctx context.Context, svc *docs.Service, docID string, a
 		return docsResolvedAtAnchor{}, usage(err.Error())
 	}
 
-	loaded, err := loadDocsTargetDocument(ctx, svc, docID, anchor.Tab)
+	loaded, err := loadDocsTargetSegment(ctx, svc, docID, anchor.Tab, anchor.Segment)
 	if err != nil {
 		return docsResolvedAtAnchor{}, err
 	}
@@ -58,7 +61,10 @@ func resolveDocsAtAnchor(ctx context.Context, svc *docs.Service, docID string, a
 	if err != nil {
 		return docsResolvedAtAnchor{}, err
 	}
-	return docsResolvedAtAnchor{Match: match, RevisionID: loaded.full.RevisionId, Document: loaded.full}, nil
+	return docsResolvedAtAnchor{
+		Match: match, RevisionID: loaded.full.RevisionId, Document: loaded.full,
+		SegmentID: loaded.segmentID, SegmentKind: loaded.segmentKind,
+	}, nil
 }
 
 func selectDocsAtAnchorMatch(at string, matches []docsedit.TextRange, occurrence *int) (docsedit.TextRange, error) {
