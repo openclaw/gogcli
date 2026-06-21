@@ -79,7 +79,7 @@ func (c *CalendarFocusTimeCmd) Run(ctx context.Context, flags *RootFlags) error 
 func validateAutoDeclineMode(s string) (string, error) {
 	s = strings.TrimSpace(strings.ToLower(s))
 	switch s {
-	case "", "none":
+	case "", sendUpdatesNone:
 		return "declineNone", nil
 	case defaultFocusAutoDecline:
 		return "declineAllConflictingInvitations", nil
