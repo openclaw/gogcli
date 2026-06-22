@@ -286,8 +286,9 @@ func authSetupGcloudValue(ctx context.Context, key string) (string, error) {
 	return value, nil
 }
 
+//nolint:gosec // Fixed gcloud binary; arguments are validated or generated.
 func authSetupRunGcloud(ctx context.Context, args ...string) (string, error) {
-	command := exec.CommandContext(ctx, authSetupGcloudBinary(), args...) //nolint:gosec // fixed gcloud binary; arguments are validated or generated
+	command := exec.CommandContext(ctx, authSetupGcloudBinary(), args...)
 	command.Env = append(os.Environ(), "CLOUDSDK_CORE_DISABLE_PROMPTS=1")
 	output, err := command.CombinedOutput()
 	if err != nil {
