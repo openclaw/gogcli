@@ -105,7 +105,7 @@ func TestReadOnlyPOSTAllowlist(t *testing.T) {
 		t.Fatal(err)
 	}
 	override.Header.Set("X-HTTP-Method-Override", http.MethodDelete)
-	if readOnlyHTTPRequest(override) {
+	if ReadOnlyRequestAllowed(override) {
 		t.Error("POST with X-HTTP-Method-Override unexpectedly allowed")
 	}
 }

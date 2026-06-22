@@ -47,7 +47,7 @@ func readOnlyTransportFromContext(ctx context.Context, base http.RoundTripper) h
 }
 
 func (t *readOnlyTransport) RoundTrip(request *http.Request) (*http.Response, error) {
-	if !readOnlyHTTPRequest(request) {
+	if !ReadOnlyRequestAllowed(request) {
 		method := ""
 		path := ""
 
@@ -69,7 +69,8 @@ func (t *readOnlyTransport) RoundTrip(request *http.Request) (*http.Response, er
 	return response, nil
 }
 
-func readOnlyHTTPRequest(request *http.Request) bool {
+// ReadOnlyRequestAllowed reports whether request is safe under runtime read-only enforcement.
+func ReadOnlyRequestAllowed(request *http.Request) bool {
 	if request == nil || request.URL == nil {
 		return false
 	}

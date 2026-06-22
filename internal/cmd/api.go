@@ -109,8 +109,12 @@ func (c *APICallCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if err != nil {
 		return err
 	}
+	request, err := discoveryapi.NewRequest(ctx, method.Spec.HttpMethod, requestURL, body)
+	if err != nil {
+		return fmt.Errorf("build API request: %w", err)
+	}
 
-	read := method.Spec.HttpMethod == http.MethodGet || method.Spec.HttpMethod == http.MethodHead
+	read := googleapi.ReadOnlyRequestAllowed(request)
 	if !read && !c.AllowWrite {
 		return usagef("method %s uses %s; pass --allow-write to opt in", method.ID, method.Spec.HttpMethod)
 	}
@@ -146,10 +150,6 @@ func (c *APICallCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 	httpClient.CheckRedirect = validateDiscoveryRedirect
-	request, err := discoveryapi.NewRequest(ctx, method.Spec.HttpMethod, requestURL, body)
-	if err != nil {
-		return fmt.Errorf("build API request: %w", err)
-	}
 	response, err := httpClient.Do(request)
 	if err != nil {
 		return fmt.Errorf("call %s: %w", method.ID, err)

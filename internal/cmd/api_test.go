@@ -43,6 +43,23 @@ func TestAPICallReadOnlyBlocksWriteBeforeAuth(t *testing.T) {
 	}
 }
 
+func TestAPICallReadOnlyAllowsQueryPOSTDryRun(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = fmt.Fprint(w, `{"rootUrl":"https://www.googleapis.com/","servicePath":"calendar/v3/","resources":{"freebusy":{"methods":{"query":{"id":"calendar.freebusy.query","httpMethod":"POST","path":"freeBusy","scopes":["scope"]}}}}}`)
+	}))
+	t.Cleanup(server.Close)
+	t.Setenv("GOG_DISCOVERY_BASE_URL", server.URL)
+
+	var stdout bytes.Buffer
+	ctx := newCmdRuntimeJSONOutputContext(t, &stdout, &bytes.Buffer{})
+	ctx = googleapi.WithReadOnly(ctx, true)
+	err := (&APICallCmd{API: "calendar", Version: "v3", Method: "calendar.freebusy.query"}).Run(ctx, &RootFlags{ReadOnly: true, DryRun: true, NoInput: true})
+	if ExitCode(err) != 0 {
+		t.Fatalf("query POST dry-run exit code = %d: %v", ExitCode(err), err)
+	}
+}
+
 func TestAPICallRejectsNonGoogleTargetBeforeAuth(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
