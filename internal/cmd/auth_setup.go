@@ -152,7 +152,7 @@ func (c *AuthSetupCmd) Run(ctx context.Context, flags *RootFlags) error {
 		}
 	}
 
-	result.NextSteps = authSetupNextSteps(c, result, gcloudAvailable)
+	result.NextSteps = authSetupNextSteps(c, result, gcloudAvailable, authclient.ClientOverrideFromContext(ctx))
 	if c.Login {
 		return (&AuthAddCmd{
 			Email:        strings.TrimSpace(c.Email),
@@ -204,8 +204,12 @@ func authSetupClient(ctx context.Context, email string) (string, error) {
 	return normalizeClientForFlag(override)
 }
 
-func authSetupNextSteps(c *AuthSetupCmd, result authSetupResult, gcloudAvailable bool) []string {
+func authSetupNextSteps(c *AuthSetupCmd, result authSetupResult, gcloudAvailable bool, clientOverride string) []string {
 	steps := make([]string, 0, 6)
+	gogCommand := "gog"
+	if client := strings.TrimSpace(clientOverride); client != "" {
+		gogCommand += " --client " + client
+	}
 	if !gcloudAvailable {
 		steps = append(steps, "Install gcloud, or create/select a Google Cloud project manually")
 	} else if result.GcloudAccount == "" {
@@ -220,12 +224,12 @@ func authSetupNextSteps(c *AuthSetupCmd, result authSetupResult, gcloudAvailable
 		)
 	}
 	if !result.CredentialsSaved {
-		steps = append(steps, "Store the download with `gog auth credentials /path/to/client_secret.json`")
+		steps = append(steps, "Store the download with `"+gogCommand+" auth credentials /path/to/client_secret.json`")
 	}
 	if strings.TrimSpace(c.Email) != "" {
-		steps = append(steps, fmt.Sprintf("Authorize with `gog auth add %s --services %s`", strings.TrimSpace(c.Email), strings.Join(result.Services, ",")))
+		steps = append(steps, fmt.Sprintf("Authorize with `%s auth add %s --services %s`", gogCommand, strings.TrimSpace(c.Email), strings.Join(result.Services, ",")))
 	} else {
-		steps = append(steps, "Authorize with `gog auth add you@example.com --services "+strings.Join(result.Services, ",")+"`")
+		steps = append(steps, "Authorize with `"+gogCommand+" auth add you@example.com --services "+strings.Join(result.Services, ",")+"`")
 	}
 	steps = append(steps, "Verify with `gog auth doctor --check`")
 	return steps

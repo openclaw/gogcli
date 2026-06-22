@@ -54,9 +54,9 @@ func TestAuthSetupGuidance(t *testing.T) {
 		Project:  "gog-test-project",
 		Services: []string{"gmail", "drive"},
 	}
-	steps := authSetupNextSteps(&AuthSetupCmd{Email: "user@example.com"}, result, true)
+	steps := authSetupNextSteps(&AuthSetupCmd{Email: "user@example.com"}, result, true, "work")
 	joined := strings.Join(steps, "\n")
-	for _, want := range []string{"auth/branding?project=gog-test-project", "auth/clients?project=gog-test-project", "gog auth credentials", "gog auth add user@example.com --services gmail,drive", "gog auth doctor --check"} {
+	for _, want := range []string{"auth/branding?project=gog-test-project", "auth/clients?project=gog-test-project", "gog --client work auth credentials", "gog --client work auth add user@example.com --services gmail,drive", "gog auth doctor --check"} {
 		if !strings.Contains(joined, want) {
 			t.Fatalf("guidance missing %q:\n%s", want, joined)
 		}
