@@ -503,13 +503,31 @@ gog schema --json
 gog schema --json | jq '.automation'
 ```
 
-There is no separate agent mode. The same CLI is designed for interactive use,
-scripts, CI, and agents: `--json`/`--plain` keep stdout parseable, `--no-input`
-prevents prompts, stable exit codes classify failures, `--wrap-untrusted`
-marks fetched free text, and runtime or baked command policies constrain
-available operations. Root `--help` summarizes that contract; `gog schema
---json` exposes the complete command schema, exit-code map, and effective
-safety state. See [Automation](docs/automation.md).
+There is no separate agent execution mode. The same CLI behavior serves
+interactive use, scripts, CI, and agents: `--json`/`--plain` keep stdout
+parseable, `--no-input` prevents prompts, stable exit codes classify failures,
+`--wrap-untrusted` marks fetched free text, and runtime or baked command
+policies constrain available operations. `GOG_HELP=agent gog --help` emits a
+compact root-help contract with common read-only recipes; it does not change
+commands or authorization. `gog schema --json` exposes the complete command
+schema, exit-code map, and effective safety state. See
+[Automation](docs/automation.md).
+
+### Agent evaluation
+
+The reproducible [gog/GWS comparison](docs/gws-comparison.md) runs identical
+Gmail, Calendar, and exact-name Drive tasks through Codex and OpenClaw. In the
+final two-repetition, cache-counterbalanced matrix against GWS 0.22.5, all 24
+task assertions passed:
+
+| Agent | gog median tokens | GWS median tokens | gog median latency | GWS median latency |
+| --- | ---: | ---: | ---: | ---: |
+| Codex | 94,078.5 | 97,546 | 13,735 ms | 13,676 ms |
+| OpenClaw | 38,350.5 | 45,727 | 41,124.5 ms | 45,597 ms |
+
+With correctness tied, gog used 3.6% fewer total tokens in Codex and 16.1%
+fewer in OpenClaw. The linked methodology documents fixtures, cache ordering,
+tool-call and uncached-token metrics, credential isolation, and reproduction.
 
 Useful global flags:
 
