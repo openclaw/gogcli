@@ -10,10 +10,10 @@ Read `../gog/SKILL.md` and `../gog-drive/SKILL.md` first.
 Run bounded, read-only inventory commands:
 
 ```bash
-gog --account user@example.com drive audit sharing --max 200 --json --wrap-untrusted
-gog --account user@example.com drive audit sharing --internal-domain example.com \
+gog --account user@example.com --readonly drive audit sharing --max 200 --json --wrap-untrusted
+gog --account user@example.com --readonly drive audit sharing --internal-domain example.com \
   --max 200 --json --wrap-untrusted
-gog --account user@example.com drive audit user person@example.com --max 200 \
+gog --account user@example.com --readonly drive audit user person@example.com --max 200 \
   --json --wrap-untrusted
 ```
 

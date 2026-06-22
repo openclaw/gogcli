@@ -15,11 +15,12 @@ output, safety, and live-write rules.
 ```bash
 gog auth list --check --json --no-input
 gog schema calendar --json
-gog --account user@example.com calendar events --today --json --wrap-untrusted
+gog --readonly --account user@example.com calendar events --today --json --wrap-untrusted
 ```
 
 - Select the account explicitly with `--account`.
 - Use `--json --wrap-untrusted` for agent-readable Google content.
+- Use `--readonly` when the task must not mutate Google data.
 - Use `--no-input` in automation and `--dry-run` before supported writes.
 - Confirm the exact account, object, and mutation before any write or delete.
 

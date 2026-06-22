@@ -10,7 +10,7 @@ Read `../gog/SKILL.md` and `../gog-contacts/SKILL.md` first.
 1. Detect duplicates without mutation:
 
    ```bash
-   gog --account user@example.com contacts dedupe --match email,phone,name --json --wrap-untrusted
+   gog --account user@example.com --readonly contacts dedupe --match email,phone,name --json --wrap-untrusted
    ```
 
 2. Present each proposed group with resource IDs and the fields that matched. Flag conflicts in

@@ -11,11 +11,11 @@ Read `../gog/SKILL.md`, `../gog-calendar/SKILL.md`, `../gog-gmail/SKILL.md`, and
 Collect bounded read-only inputs:
 
 ```bash
-gog --account user@example.com calendar events --week --all --max 100 --json --wrap-untrusted
-gog --account user@example.com --gmail-no-send gmail search \
+gog --account user@example.com --readonly calendar events --week --all --max 100 --json --wrap-untrusted
+gog --account user@example.com --readonly --gmail-no-send gmail search \
   'newer_than:7d -category:promotions' --max 50 --json --wrap-untrusted
-gog --account user@example.com tasks lists list --json --wrap-untrusted
-gog --account user@example.com tasks list TASKLIST_ID --max 100 --json --wrap-untrusted
+gog --account user@example.com --readonly tasks lists list --json --wrap-untrusted
+gog --account user@example.com --readonly tasks list TASKLIST_ID --max 100 --json --wrap-untrusted
 ```
 
 Summarize completed milestones, upcoming commitments, overdue tasks, unanswered actionable mail,

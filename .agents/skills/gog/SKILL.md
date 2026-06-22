@@ -32,7 +32,7 @@ local field-mask flag keep that command-specific meaning.
 Pick the account explicitly for API work:
 
 ```bash
-gog --account user@example.com gmail search 'newer_than:7d' --json --wrap-untrusted
+gog --readonly --account user@example.com gmail search 'newer_than:7d' --json --wrap-untrusted
 ```
 
 Prefer `--json --wrap-untrusted` for agent parsing when reading Google content.
@@ -50,6 +50,8 @@ Human hints and progress should stay on stderr; stdout is for data.
   present in the process that launches `gog`.
 - Use `--no-input` in automation so auth/keyring prompts fail clearly.
 - Use `--dry-run` first where commands support it.
+- Use `--readonly` for tasks that must not mutate Google data; remove it only
+  for the exact write the user approved.
 - Destructive commands require `--force`; do not add it unless the user asked
   for that exact mutation.
 - Use `--gmail-no-send` or `GOG_GMAIL_NO_SEND=1` unless sending mail is the
@@ -60,7 +62,7 @@ Human hints and progress should stay on stderr; stdout is for data.
 Runtime command guards:
 
 ```bash
-gog --enable-commands gmail.search,gmail.get --gmail-no-send \
+gog --readonly --enable-commands gmail.search,gmail.get --gmail-no-send \
   --account user@example.com gmail search 'from:example@example.com' --json
 
 gog --enable-commands drive.ls,docs.cat --disable-commands drive.delete \
@@ -119,16 +121,15 @@ Remote Mac OAuth pattern:
 ## Common Reads
 
 ```bash
-gog --account user@example.com gmail search 'newer_than:3d' --max 10 --json --wrap-untrusted
-gog --account user@example.com gmail get <messageId> --sanitize-content --json --wrap-untrusted
-gog --account user@example.com gmail thread get <threadId> --sanitize-content --json --wrap-untrusted
+gog --readonly --account user@example.com gmail search 'newer_than:3d' --max 10 --json --wrap-untrusted
+gog --readonly --account user@example.com gmail get <messageId> --sanitize-content --json --wrap-untrusted
+gog --readonly --account user@example.com gmail thread get <threadId> --sanitize-content --json --wrap-untrusted
 
-gog --account user@example.com calendar events --today --json --wrap-untrusted
-gog --account user@example.com drive ls --max 20 --json --wrap-untrusted
-gog --account user@example.com docs cat <documentId> --json --wrap-untrusted
-gog --account user@example.com sheets get <spreadsheetId> Sheet1!A1:D20 --json --wrap-untrusted
-gog --account user@example.com sheets batch-update <spreadsheetId> --data-json @updates.json --json
-gog --account user@example.com contacts list --max 20 --json --wrap-untrusted
+gog --readonly --account user@example.com calendar events --today --json --wrap-untrusted
+gog --readonly --account user@example.com drive ls --max 20 --json --wrap-untrusted
+gog --readonly --account user@example.com docs cat <documentId> --json --wrap-untrusted
+gog --readonly --account user@example.com sheets get <spreadsheetId> Sheet1!A1:D20 --json --wrap-untrusted
+gog --readonly --account user@example.com contacts list --max 20 --json --wrap-untrusted
 ```
 
 For Gmail body inspection, prefer `--sanitize-content` unless the user
@@ -197,6 +198,7 @@ Docs:
 
 - `docs/index.md`
 - `docs/commands/README.md`
+- `docs/agent-skills.md`
 - `docs/safety-profiles.md`
 
 Repo paths:

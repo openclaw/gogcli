@@ -27,14 +27,14 @@ const titles = {
 };
 
 const examples = {
-  calendar: "gog --account user@example.com calendar events --today --json --wrap-untrusted",
-  contacts: "gog --account user@example.com contacts search alice --json --wrap-untrusted",
-  docs: "gog --account user@example.com docs cat DOCUMENT_ID --json --wrap-untrusted",
-  drive: "gog --account user@example.com drive ls --max 20 --json --wrap-untrusted",
-  gmail: "gog --account user@example.com gmail search 'newer_than:7d' --max 10 --json --wrap-untrusted",
-  people: "gog --account user@example.com people me --json",
-  sheets: "gog --account user@example.com sheets get SHEET_ID 'Sheet1!A1:D20' --json --wrap-untrusted",
-  tasks: "gog --account user@example.com tasks lists list --json --wrap-untrusted",
+  calendar: "gog --readonly --account user@example.com calendar events --today --json --wrap-untrusted",
+  contacts: "gog --readonly --account user@example.com contacts search alice --json --wrap-untrusted",
+  docs: "gog --readonly --account user@example.com docs cat DOCUMENT_ID --json --wrap-untrusted",
+  drive: "gog --readonly --account user@example.com drive ls --max 20 --json --wrap-untrusted",
+  gmail: "gog --readonly --account user@example.com gmail search 'newer_than:7d' --max 10 --json --wrap-untrusted",
+  people: "gog --readonly --account user@example.com people me --json",
+  sheets: "gog --readonly --account user@example.com sheets get SHEET_ID 'Sheet1!A1:D20' --json --wrap-untrusted",
+  tasks: "gog --readonly --account user@example.com tasks lists list --json --wrap-untrusted",
 };
 
 function cleanText(value) {
@@ -63,7 +63,7 @@ function skillMarkdown(service, command) {
   const rows = (command.subcommands || []).map((child) =>
     `| \`${child.name}\` | ${cleanText(child.help) || "See command help."} |`,
   );
-  const example = examples[service] || `gog --account user@example.com ${service} --help`;
+  const example = examples[service] || `gog --readonly --account user@example.com ${service} --help`;
   return `---
 name: gog-${service}
 description: "${title} operations through gog."
@@ -86,6 +86,7 @@ ${example}
 
 - Select the account explicitly with \`--account\`.
 - Use \`--json --wrap-untrusted\` for agent-readable Google content.
+- Use \`--readonly\` when the task must not mutate Google data.
 - Use \`--no-input\` in automation and \`--dry-run\` before supported writes.
 - Confirm the exact account, object, and mutation before any write or delete.
 

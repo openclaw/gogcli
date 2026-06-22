@@ -1,4 +1,4 @@
 interface:
-  display_name: "Gog Weekly Digest"
+  display_name: "gog Weekly Digest"
   short_description: "Summarize Calendar, Gmail, and Tasks"
   default_prompt: "Use $gog-weekly-digest to produce a read-only weekly Google Workspace digest."

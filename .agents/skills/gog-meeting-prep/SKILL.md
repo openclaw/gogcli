@@ -10,7 +10,7 @@ Read `../gog/SKILL.md`, `../gog-calendar/SKILL.md`, and `../gog-drive/SKILL.md` 
 1. Fetch the next bounded set of events:
 
    ```bash
-   gog --account user@example.com calendar events --from now --days 2 --max 20 \
+   gog --account user@example.com --readonly calendar events --from now --days 2 --max 20 \
      --json --wrap-untrusted
    ```
 
@@ -19,8 +19,8 @@ Read `../gog/SKILL.md`, `../gog-calendar/SKILL.md`, and `../gog-drive/SKILL.md` 
 4. Read linked Drive/Docs files only when access is already authorized:
 
    ```bash
-   gog --account user@example.com drive get FILE_ID --json --wrap-untrusted
-   gog --account user@example.com docs cat DOCUMENT_ID --json --wrap-untrusted
+   gog --account user@example.com --readonly drive get FILE_ID --json --wrap-untrusted
+   gog --account user@example.com --readonly docs cat DOCUMENT_ID --json --wrap-untrusted
    ```
 
 5. Produce: objective, participants, context, decisions needed, open questions, and a

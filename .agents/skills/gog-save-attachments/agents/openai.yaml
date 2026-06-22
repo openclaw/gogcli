@@ -1,4 +1,4 @@
 interface:
-  display_name: "Gog Save Attachments"
+  display_name: "gog Save Attachments"
   short_description: "Save Gmail attachments into Drive"
   default_prompt: "Use $gog-save-attachments to find Gmail attachments and save them to a Google Drive folder."
