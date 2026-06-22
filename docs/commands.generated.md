@@ -52,6 +52,7 @@ Generated from `gog schema --json`.
       - [`gog auth service-account status <email>`](commands/gog-auth-service-account-status.md) - Show stored service account key status
       - [`gog auth service-account unset <email>`](commands/gog-auth-service-account-unset.md) - Remove stored service account key
     - [`gog auth services [flags]`](commands/gog-auth-services.md) - List supported auth services and scopes
+    - [`gog auth setup [<email>] [flags]`](commands/gog-auth-setup.md) - Guide Google Cloud, OAuth client, and account setup
     - [`gog auth status`](commands/gog-auth-status.md) - Show auth configuration and keyring backend
     - [`gog auth tokens <command>`](commands/gog-auth-tokens.md) - Manage stored refresh tokens
       - [`gog auth tokens delete <email>`](commands/gog-auth-tokens-delete.md) - Delete a stored refresh token

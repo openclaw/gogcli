@@ -2,7 +2,7 @@
 
 Every `gog` command has a generated docs page. The source of truth is the live CLI schema; run `make docs-commands` after changing command names, flags, help text, aliases, or arguments.
 
-Generated pages: 694.
+Generated pages: 695.
 
 ## Top-level Commands
 
@@ -103,6 +103,7 @@ Generated pages: 694.
       - [gog auth service-account status](gog-auth-service-account-status.md) - Show stored service account key status
       - [gog auth service-account unset](gog-auth-service-account-unset.md) - Remove stored service account key
     - [gog auth services](gog-auth-services.md) - List supported auth services and scopes
+    - [gog auth setup](gog-auth-setup.md) - Guide Google Cloud, OAuth client, and account setup
     - [gog auth status](gog-auth-status.md) - Show auth configuration and keyring backend
     - [gog auth tokens](gog-auth-tokens.md) - Manage stored refresh tokens
       - [gog auth tokens delete](gog-auth-tokens-delete.md) - Delete a stored refresh token

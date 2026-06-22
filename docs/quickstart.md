@@ -21,6 +21,23 @@ Other options (Docker, Windows ZIPs, source builds) are documented on
 
 ## 2. Get an OAuth client
 
+For guided setup, inspect or execute the common `gcloud` path:
+
+```bash
+gog auth setup you@gmail.com --gcloud-project my-gog-project --enable-apis --open-console
+```
+
+Add `--create-project` to create that project after confirmation. After downloading the
+Desktop OAuth client JSON, one command can store it and start authorization:
+
+```bash
+gog auth setup you@gmail.com --gcloud-project my-gog-project \
+  --credentials ~/Downloads/client_secret_*.json --login
+```
+
+Use `--dry-run --json --no-input` to inspect the complete plan without creating a project,
+enabling APIs, storing credentials, opening a browser, or starting OAuth.
+
 `gog` talks to Google APIs as you, using your own Cloud project. The one-time
 setup is:
 

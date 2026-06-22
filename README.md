@@ -607,6 +607,7 @@ Docs: [Auth clients](docs/auth-clients.md),
 Store a Desktop OAuth client once:
 
 ```bash
+gog auth setup you@gmail.com --gcloud-project my-gog-project --enable-apis --open-console
 gog auth credentials ~/Downloads/client_secret_....json
 gog auth add you@gmail.com --services gmail,calendar,drive
 ```

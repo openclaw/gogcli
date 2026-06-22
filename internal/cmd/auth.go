@@ -90,6 +90,7 @@ const (
 )
 
 type AuthCmd struct {
+	Setup       AuthSetupCmd          `cmd:"" name:"setup" help:"Guide Google Cloud, OAuth client, and account setup"`
 	Credentials AuthCredentialsCmd    `cmd:"" name:"credentials" help:"Manage OAuth client credentials"`
 	Add         AuthAddCmd            `cmd:"" name:"add" help:"Authorize and store a refresh token"`
 	Import      AuthImportCmd         `cmd:"" name:"import" help:"Import a required refresh token and optional current access token non-interactively"`

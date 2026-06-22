@@ -312,6 +312,35 @@ var serviceInfoByService = map[Service]serviceInfo{
 	},
 }
 
+var apiServiceIDsByService = map[Service][]string{
+	ServiceGmail:         {"gmail.googleapis.com"},
+	ServiceCalendar:      {"calendar-json.googleapis.com"},
+	ServiceChat:          {"chat.googleapis.com"},
+	ServiceClassroom:     {"classroom.googleapis.com"},
+	ServiceDrive:         {"drive.googleapis.com"},
+	ServiceDriveActivity: {"driveactivity.googleapis.com"},
+	ServiceDriveLabels:   {"drivelabels.googleapis.com"},
+	ServiceDocs:          {"docs.googleapis.com", "drive.googleapis.com"},
+	ServiceSlides:        {"drive.googleapis.com", "slides.googleapis.com"},
+	ServiceContacts:      {"people.googleapis.com"},
+	ServiceTasks:         {"tasks.googleapis.com"},
+	ServiceSheets:        {"drive.googleapis.com", "sheets.googleapis.com"},
+	ServicePeople:        {"people.googleapis.com"},
+	ServiceForms:         {"forms.googleapis.com"},
+	ServiceSites:         {"drive.googleapis.com"},
+	ServiceMeet:          {"meet.googleapis.com"},
+	ServiceAppScript:     {"script.googleapis.com"},
+	ServiceAnalytics:     {"analyticsadmin.googleapis.com", "analyticsdata.googleapis.com"},
+	ServiceSearchConsole: {"searchconsole.googleapis.com"},
+	ServiceAds:           {"googleads.googleapis.com"},
+	ServiceGroups:        {"cloudidentity.googleapis.com"},
+	ServiceKeep:          {"keep.googleapis.com"},
+	ServiceAdmin:         {"admin.googleapis.com"},
+	ServiceYouTube:       {"youtube.googleapis.com"},
+	ServicePhotos:        {"photoslibrary.googleapis.com"},
+	ServicePhotosPicker:  {"photospicker.googleapis.com"},
+}
+
 func ParseService(s string) (Service, error) {
 	parsed := Service(strings.ToLower(strings.TrimSpace(s)))
 	if _, ok := serviceInfoByService[parsed]; ok {
@@ -388,6 +417,30 @@ func ServicesInfo() []ServiceInfo {
 	}
 
 	return out
+}
+
+func APIServiceIDsForServices(services []Service) ([]string, error) {
+	var ids []string
+
+	for _, service := range services {
+		serviceIDs, ok := apiServiceIDsByService[service]
+		if !ok {
+			return nil, fmt.Errorf("%w %q", errUnknownService, service)
+		}
+
+		ids = append(ids, serviceIDs...)
+	}
+
+	sort.Strings(ids)
+
+	out := ids[:0]
+	for _, id := range ids {
+		if len(out) == 0 || out[len(out)-1] != id {
+			out = append(out, id)
+		}
+	}
+
+	return out, nil
 }
 
 func ServicesMarkdown(infos []ServiceInfo) string {
