@@ -4,10 +4,12 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 
 	"github.com/steipete/gogcli/internal/authclient"
+	"github.com/steipete/gogcli/internal/googleapi"
 	"github.com/steipete/gogcli/internal/googleauth"
 )
 
@@ -22,8 +24,7 @@ func TestAuthSetupDryRun(t *testing.T) {
 		EnableAPIs:    true,
 		Credentials:   "/tmp/client.json",
 		Login:         true,
-		Readonly:      true,
-	}).Run(ctx, &RootFlags{DryRun: true, NoInput: true})
+	}).Run(ctx, &RootFlags{DryRun: true, NoInput: true, ReadOnly: true})
 	if ExitCode(err) != 0 {
 		t.Fatalf("exit code = %d, want 0: %v", ExitCode(err), err)
 	}
@@ -100,6 +101,14 @@ func TestAuthSetupValidation(t *testing.T) {
 				t.Fatalf("error = %v, want %q", err, tt.want)
 			}
 		})
+	}
+}
+
+func TestAuthSetupReadOnlyBlocksGcloudMutations(t *testing.T) {
+	t.Setenv("PATH", t.TempDir())
+	err := (&AuthSetupCmd{Project: "valid-project", CreateProject: true}).Run(context.Background(), &RootFlags{ReadOnly: true})
+	if !errors.Is(err, googleapi.ErrReadOnly) {
+		t.Fatalf("error = %v, want ErrReadOnly", err)
 	}
 }
 

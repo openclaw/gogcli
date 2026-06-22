@@ -121,6 +121,9 @@ func (c *APICallCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if targetErr := discoveryapi.ValidateGoogleAPIURL(requestURL); targetErr != nil {
 		return usage(targetErr.Error())
 	}
+	if !read && googleapi.ReadOnly(ctx) {
+		return fmt.Errorf("%w: Discovery method %s uses %s", googleapi.ErrReadOnly, method.ID, method.Spec.HttpMethod)
+	}
 	if !read {
 		if confirmErr := confirmDestructiveChecked(ctx, flags, "invoke Discovery method "+method.ID); confirmErr != nil {
 			return confirmErr

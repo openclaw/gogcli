@@ -3,12 +3,14 @@ package cmd
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
+	"github.com/steipete/gogcli/internal/googleapi"
 	"github.com/steipete/gogcli/internal/outfmt"
 )
 
@@ -23,6 +25,21 @@ func TestAPICallRequiresWriteOptIn(t *testing.T) {
 	err := (&APICallCmd{API: "demo", Version: "v1", Method: "demo.items.create"}).Run(context.Background(), &RootFlags{})
 	if err == nil || !strings.Contains(err.Error(), "--allow-write") {
 		t.Fatalf("error = %v, want write opt-in", err)
+	}
+}
+
+func TestAPICallReadOnlyBlocksWriteBeforeAuth(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = fmt.Fprint(w, `{"rootUrl":"https://gmail.googleapis.com/","servicePath":"gmail/v1/","resources":{"users":{"methods":{"stop":{"id":"gmail.users.stop","httpMethod":"POST","path":"users/{userId}/stop","parameters":{"userId":{"location":"path","required":true}},"scopes":["scope"]}}}}}`)
+	}))
+	t.Cleanup(server.Close)
+	t.Setenv("GOG_DISCOVERY_BASE_URL", server.URL)
+
+	ctx := googleapi.WithReadOnly(context.Background(), true)
+	err := (&APICallCmd{API: "gmail", Version: "v1", Method: "gmail.users.stop", ParamsJSON: `{"userId":"me"}`, AllowWrite: true}).Run(ctx, &RootFlags{ReadOnly: true, Force: true})
+	if !errors.Is(err, googleapi.ErrReadOnly) {
+		t.Fatalf("error = %v, want ErrReadOnly", err)
 	}
 }
 

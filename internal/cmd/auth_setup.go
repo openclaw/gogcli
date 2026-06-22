@@ -11,6 +11,7 @@ import (
 
 	"github.com/steipete/gogcli/internal/authclient"
 	"github.com/steipete/gogcli/internal/config"
+	"github.com/steipete/gogcli/internal/googleapi"
 	"github.com/steipete/gogcli/internal/googleauth"
 	"github.com/steipete/gogcli/internal/outfmt"
 	"github.com/steipete/gogcli/internal/ui"
@@ -25,7 +26,6 @@ type AuthSetupCmd struct {
 	CreateProject bool   `name:"create-project" help:"Create --gcloud-project with gcloud (requires confirmation)"`
 	EnableAPIs    bool   `name:"enable-apis" help:"Enable selected Google APIs with gcloud"`
 	Login         bool   `name:"login" help:"Run browser OAuth after project/client setup"`
-	Readonly      bool   `name:"readonly" help:"Use read-only OAuth scopes when --login runs"`
 	ForceConsent  bool   `name:"force-consent" help:"Force OAuth consent when --login runs"`
 	OpenConsole   bool   `name:"open-console" help:"Open the OAuth client page for the selected project"`
 }
@@ -43,6 +43,7 @@ type authSetupResult struct {
 }
 
 func (c *AuthSetupCmd) Run(ctx context.Context, flags *RootFlags) error {
+	readonly := readOnlyEnabled(flags)
 	services, err := parseAuthServices(c.ServicesCSV)
 	if err != nil {
 		return err
@@ -77,6 +78,9 @@ func (c *AuthSetupCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if c.OpenConsole && project == "" {
 		return usage("--open-console requires --gcloud-project or an active gcloud project")
 	}
+	if readonly && (c.CreateProject || c.EnableAPIs) && (flags == nil || !flags.DryRun) {
+		return fmt.Errorf("%w: auth setup project/API mutations are disabled", googleapi.ErrReadOnly)
+	}
 	if (c.CreateProject || c.EnableAPIs) && !gcloudAvailable && (flags == nil || !flags.DryRun) {
 		return usage("gcloud is required for --create-project or --enable-apis; install it or omit those flags for manual guidance")
 	}
@@ -99,7 +103,7 @@ func (c *AuthSetupCmd) Run(ctx context.Context, flags *RootFlags) error {
 		"enable_apis":      c.EnableAPIs,
 		"credentials_file": strings.TrimSpace(c.Credentials),
 		"login_email":      strings.TrimSpace(c.Email),
-		"readonly":         c.Readonly,
+		"readonly":         readonly,
 		"force_consent":    c.ForceConsent,
 		"open_console":     c.OpenConsole,
 	}
@@ -157,7 +161,6 @@ func (c *AuthSetupCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return (&AuthAddCmd{
 			Email:        strings.TrimSpace(c.Email),
 			ServicesCSV:  c.ServicesCSV,
-			Readonly:     c.Readonly,
 			ForceConsent: c.ForceConsent,
 		}).Run(ctx, flags)
 	}
