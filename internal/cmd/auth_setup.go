@@ -156,7 +156,7 @@ func (c *AuthSetupCmd) Run(ctx context.Context, flags *RootFlags) error {
 		}
 	}
 
-	result.NextSteps = authSetupNextSteps(c, result, gcloudAvailable, authclient.ClientOverrideFromContext(ctx))
+	result.NextSteps = authSetupNextSteps(c, result, gcloudAvailable, authclient.ClientOverrideFromContext(ctx), readonly)
 	if c.Login {
 		return (&AuthAddCmd{
 			Email:        strings.TrimSpace(c.Email),
@@ -207,7 +207,7 @@ func authSetupClient(ctx context.Context, email string) (string, error) {
 	return normalizeClientForFlag(override)
 }
 
-func authSetupNextSteps(c *AuthSetupCmd, result authSetupResult, gcloudAvailable bool, clientOverride string) []string {
+func authSetupNextSteps(c *AuthSetupCmd, result authSetupResult, gcloudAvailable bool, clientOverride string, readonly bool) []string {
 	steps := make([]string, 0, 6)
 	gogCommand := "gog"
 	if client := strings.TrimSpace(clientOverride); client != "" {
@@ -229,10 +229,14 @@ func authSetupNextSteps(c *AuthSetupCmd, result authSetupResult, gcloudAvailable
 	if !result.CredentialsSaved {
 		steps = append(steps, "Store the download with `"+gogCommand+" auth credentials /path/to/client_secret.json`")
 	}
+	authCommand := gogCommand
+	if readonly {
+		authCommand += " --readonly"
+	}
 	if strings.TrimSpace(c.Email) != "" {
-		steps = append(steps, fmt.Sprintf("Authorize with `%s auth add %s --services %s`", gogCommand, strings.TrimSpace(c.Email), strings.Join(result.Services, ",")))
+		steps = append(steps, fmt.Sprintf("Authorize with `%s auth add %s --services %s`", authCommand, strings.TrimSpace(c.Email), strings.Join(result.Services, ",")))
 	} else {
-		steps = append(steps, "Authorize with `"+gogCommand+" auth add you@example.com --services "+strings.Join(result.Services, ",")+"`")
+		steps = append(steps, "Authorize with `"+authCommand+" auth add you@example.com --services "+strings.Join(result.Services, ",")+"`")
 	}
 	steps = append(steps, "Verify with `gog auth doctor --check`")
 	return steps
