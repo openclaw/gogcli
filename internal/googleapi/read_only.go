@@ -73,39 +73,45 @@ func readOnlyHTTPRequest(request *http.Request) bool {
 	if request == nil || request.URL == nil {
 		return false
 	}
+	if strings.TrimSpace(request.Header.Get("X-HTTP-Method-Override")) != "" {
+		return false
+	}
 
 	switch request.Method {
 	case http.MethodGet, http.MethodHead, http.MethodOptions:
 		return true
 	case http.MethodPost:
-		return readOnlyPOSTPath(request.URL.Path)
+		return readOnlyPOSTRequest(request)
 	default:
 		return false
 	}
 }
 
-func readOnlyPOSTPath(path string) bool {
-	if path == "" {
+func readOnlyPOSTRequest(request *http.Request) bool {
+	if request == nil || request.URL == nil || request.URL.Scheme != "https" {
 		return false
 	}
 
-	for _, suffix := range []string{
-		"/freeBusy",
-		"/searchAnalytics/query",
-		"/urlInspection/index:inspect",
-		"/mediaItems:search",
-		":batchGetByDataFilter",
-		":getByDataFilter",
-		":query",
-		":runReport",
-		":batchRunReports",
-		":runPivotReport",
-		":runRealtimeReport",
-	} {
-		if strings.HasSuffix(path, suffix) {
-			return true
-		}
-	}
+	host := strings.ToLower(strings.TrimSuffix(request.URL.Hostname(), "."))
+	path := request.URL.Path
 
-	return false
+	switch host {
+	case "www.googleapis.com", "www.mtls.googleapis.com", "calendar-json.googleapis.com", "calendar-json.mtls.googleapis.com":
+		return strings.HasSuffix(path, "/calendar/v3/freeBusy")
+	case "searchconsole.googleapis.com", "searchconsole.mtls.googleapis.com":
+		return strings.HasSuffix(path, "/searchAnalytics/query") || strings.HasSuffix(path, "/urlInspection/index:inspect")
+	case "photoslibrary.googleapis.com", "photoslibrary.mtls.googleapis.com":
+		return strings.HasSuffix(path, "/v1/mediaItems:search")
+	case "sheets.googleapis.com", "sheets.mtls.googleapis.com":
+		return strings.HasSuffix(path, ":batchGetByDataFilter") || strings.HasSuffix(path, ":getByDataFilter")
+	case "driveactivity.googleapis.com", "driveactivity.mtls.googleapis.com":
+		return strings.HasSuffix(path, "/v2/activity:query")
+	case "analyticsdata.googleapis.com", "analyticsdata.mtls.googleapis.com":
+		return strings.HasSuffix(path, ":runReport") ||
+			strings.HasSuffix(path, ":batchRunReports") ||
+			strings.HasSuffix(path, ":runPivotReport") ||
+			strings.HasSuffix(path, ":runRealtimeReport")
+	default:
+		return false
+	}
 }

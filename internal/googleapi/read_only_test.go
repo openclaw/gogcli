@@ -37,7 +37,7 @@ func TestReadOnlyTransport(t *testing.T) {
 		t.Fatalf("GET: %v", roundTripErr)
 	}
 
-	queryRequest, err := http.NewRequestWithContext(context.Background(), http.MethodPost, "https://example.test/v3/freeBusy", nil)
+	queryRequest, err := http.NewRequestWithContext(context.Background(), http.MethodPost, "https://www.googleapis.com/calendar/v3/freeBusy", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -60,6 +60,53 @@ func TestReadOnlyTransport(t *testing.T) {
 
 	if base.calls != 2 {
 		t.Fatalf("base calls = %d, want 2", base.calls)
+	}
+}
+
+func TestReadOnlyPOSTAllowlist(t *testing.T) {
+	allowed := []string{
+		"https://www.googleapis.com/calendar/v3/freeBusy",
+		"https://searchconsole.googleapis.com/webmasters/v3/sites/example/searchAnalytics/query",
+		"https://searchconsole.googleapis.com/v1/urlInspection/index:inspect",
+		"https://photoslibrary.googleapis.com/v1/mediaItems:search",
+		"https://sheets.googleapis.com/v4/spreadsheets/id/values:batchGetByDataFilter",
+		"https://driveactivity.googleapis.com/v2/activity:query",
+		"https://analyticsdata.googleapis.com/v1beta/properties/1:runReport",
+	}
+	for _, requestURL := range allowed {
+		request, err := http.NewRequestWithContext(context.Background(), http.MethodPost, requestURL, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !readOnlyPOSTRequest(request) {
+			t.Errorf("readOnlyPOSTRequest(%q) = false, want true", requestURL)
+		}
+	}
+
+	blocked := []string{
+		"http://www.googleapis.com/calendar/v3/freeBusy",
+		"https://example.test/calendar/v3/freeBusy",
+		"https://www.googleapis.com/v2/activity:query",
+		"https://driveactivity.googleapis.com/v2/items:query",
+		"https://sheets.googleapis.com/v4/spreadsheets/id:batchUpdate",
+	}
+	for _, requestURL := range blocked {
+		request, err := http.NewRequestWithContext(context.Background(), http.MethodPost, requestURL, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if readOnlyPOSTRequest(request) {
+			t.Errorf("readOnlyPOSTRequest(%q) = true, want false", requestURL)
+		}
+	}
+
+	override, err := http.NewRequestWithContext(context.Background(), http.MethodPost, "https://www.googleapis.com/calendar/v3/freeBusy", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	override.Header.Set("X-HTTP-Method-Override", http.MethodDelete)
+	if readOnlyHTTPRequest(override) {
+		t.Error("POST with X-HTTP-Method-Override unexpectedly allowed")
 	}
 }
 
