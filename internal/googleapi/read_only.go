@@ -74,6 +74,7 @@ func ReadOnlyRequestAllowed(request *http.Request) bool {
 	if request == nil || request.URL == nil {
 		return false
 	}
+
 	if strings.TrimSpace(request.Header.Get("X-HTTP-Method-Override")) != "" {
 		return false
 	}

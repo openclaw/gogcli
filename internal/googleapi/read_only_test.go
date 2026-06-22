@@ -78,6 +78,7 @@ func TestReadOnlyPOSTAllowlist(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+
 		if !readOnlyPOSTRequest(request) {
 			t.Errorf("readOnlyPOSTRequest(%q) = false, want true", requestURL)
 		}
@@ -95,6 +96,7 @@ func TestReadOnlyPOSTAllowlist(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+
 		if readOnlyPOSTRequest(request) {
 			t.Errorf("readOnlyPOSTRequest(%q) = true, want false", requestURL)
 		}
@@ -104,7 +106,9 @@ func TestReadOnlyPOSTAllowlist(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	override.Header.Set("X-HTTP-Method-Override", http.MethodDelete)
+
 	if ReadOnlyRequestAllowed(override) {
 		t.Error("POST with X-HTTP-Method-Override unexpectedly allowed")
 	}
