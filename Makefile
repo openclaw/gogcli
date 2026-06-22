@@ -4,7 +4,7 @@ SHELL := /bin/bash
 .DEFAULT_GOAL := build
 
 .PHONY: build build-safe gog gogcli gog-help gogcli-help help fmt fmt-check lint deadcode test ci tools pnpm-gate docs-commands docs-site docs-check
-.PHONY: worker-ci
+.PHONY: worker-ci eval-gws eval-gws-test
 
 BIN_DIR := $(CURDIR)/bin
 BIN := $(BIN_DIR)/gog
@@ -132,6 +132,13 @@ pnpm-gate:
 
 test:
 	@go test $(GO_TEST_FLAGS) $(TEST_FLAGS) $(TEST_PKGS)
+	@node --test scripts/eval-gws.test.mjs
+
+eval-gws: build
+	@node scripts/eval-gws.mjs --gog $(BIN) --gws $${GWS_BIN:-gws} --out $${OUT:-/tmp/gog-gws-eval.json}
+
+eval-gws-test:
+	@node --test scripts/eval-gws.test.mjs
 
 ci: pnpm-gate fmt-check lint deadcode test docs-check
 

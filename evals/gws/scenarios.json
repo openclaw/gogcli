@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "scenarios": [
+    {
+      "id": "root-help",
+      "description": "Root command discovery without credentials",
+      "gog": {"args": ["--help"], "exit": [0], "contains": ["Usage", "Gmail", "Calendar"]},
+      "gws": {"args": ["--help"], "exit": [0], "contains": ["USAGE", "gmail", "calendar"]}
+    },
+    {
+      "id": "gmail-label-schema",
+      "description": "Machine-readable schema for the same Gmail labels-list task",
+      "gog": {"args": ["schema", "gmail", "labels", "list"], "exit": [0], "json": true},
+      "gws": {"args": ["schema", "gmail.users.labels.list"], "exit": [0], "json": true}
+    },
+    {
+      "id": "gmail-help",
+      "description": "Service-level command discoverability",
+      "gog": {"args": ["gmail", "--help"], "exit": [0], "contains": ["search", "send", "labels"]},
+      "gws": {"args": ["gmail", "--help"], "exit": [0], "contains": ["users"]}
+    },
+    {
+      "id": "invalid-command",
+      "description": "Failure classification for an unknown command",
+      "gog": {"args": ["not-a-command"], "exit": [2]},
+      "gws": {"args": ["not-a-command"], "exit": [3, 4]}
+    }
+  ]
+}

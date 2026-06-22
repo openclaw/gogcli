@@ -2,6 +2,8 @@
 
 ## 0.30.1 - Unreleased
 
+- Evals: add a credential-free, reproducible gog/gws comparison harness with checked scenarios, timing/output metrics, methodology, and CI coverage.
+
 ## 0.30.0 - 2026-06-21
 
 ### Added

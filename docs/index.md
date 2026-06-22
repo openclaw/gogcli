@@ -59,6 +59,7 @@ gog slides create-from-markdown "Weekly update" --content-file slides.md
 - **Grouping Docs edits atomically.** [Google Docs request batches](docs-batch.md) covers persisted, revision-locked request queues and explicit recovery modes.
 - **Verifying real API behavior.** [Live testing](live-testing.md) covers the dedicated-account smoke suite, cleanup, retries, and optional infrastructure.
 - **Looking up a flag.** The [Command Index](commands/) has a generated page for every subcommand.
+- **Comparing Discovery-driven CLIs.** Reproduce the [gog and gws evaluation](gws-comparison.md) instead of relying on a stale feature table.
 
 ## Project
 
