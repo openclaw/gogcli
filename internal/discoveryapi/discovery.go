@@ -24,6 +24,7 @@ var (
 	ErrMethodNotFound     = errors.New("discovery method not found")
 	ErrMissingParameter   = errors.New("missing required parameter")
 	ErrUnknownParameter   = errors.New("unknown parameter")
+	ErrUntrustedAPIURL    = errors.New("untrusted Discovery API URL")
 )
 
 type Client struct {
@@ -211,6 +212,20 @@ func BuildURL(description *discovery.RestDescription, method Method, params map[
 	}
 
 	return u, nil
+}
+
+// ValidateGoogleAPIURL ensures OAuth credentials are only attached to Google API hosts.
+func ValidateGoogleAPIURL(requestURL string) error {
+	u, err := url.Parse(requestURL)
+	if err != nil {
+		return fmt.Errorf("%w: %v", ErrUntrustedAPIURL, err)
+	}
+	host := strings.ToLower(strings.TrimSuffix(u.Hostname(), "."))
+	if u.Scheme != "https" || u.User != nil || host == "" || (host != "googleapis.com" && !strings.HasSuffix(host, ".googleapis.com")) {
+		return fmt.Errorf("%w: %q", ErrUntrustedAPIURL, requestURL)
+	}
+
+	return nil
 }
 
 func escapeReservedPath(value string) string {

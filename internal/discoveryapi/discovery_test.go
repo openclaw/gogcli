@@ -55,3 +55,24 @@ func TestMethodsAndBuildURL(t *testing.T) {
 		t.Fatalf("unknown parameter error = %v", err)
 	}
 }
+
+func TestValidateGoogleAPIURL(t *testing.T) {
+	for _, requestURL := range []string{
+		"https://www.googleapis.com/gmail/v1/users/me/labels",
+		"https://gmail.googleapis.com/gmail/v1/users/me/labels",
+	} {
+		if err := ValidateGoogleAPIURL(requestURL); err != nil {
+			t.Fatalf("ValidateGoogleAPIURL(%q): %v", requestURL, err)
+		}
+	}
+
+	for _, requestURL := range []string{
+		"http://www.googleapis.com/gmail/v1/users/me/labels",
+		"https://googleapis.com.example.test/steal",
+		"https://example.test/steal",
+	} {
+		if err := ValidateGoogleAPIURL(requestURL); err == nil {
+			t.Fatalf("ValidateGoogleAPIURL(%q) unexpectedly succeeded", requestURL)
+		}
+	}
+}

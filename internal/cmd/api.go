@@ -115,6 +115,9 @@ func (c *APICallCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if dryRunErr := dryRunExit(ctx, flags, "api.call", plan); dryRunErr != nil {
 		return dryRunErr
 	}
+	if targetErr := discoveryapi.ValidateGoogleAPIURL(requestURL); targetErr != nil {
+		return usage(targetErr.Error())
+	}
 	if !read {
 		if confirmErr := confirmDestructiveChecked(ctx, flags, "invoke Discovery method "+method.ID); confirmErr != nil {
 			return confirmErr
@@ -253,7 +256,7 @@ func writeDiscoveryRaw(ctx context.Context, raw json.RawMessage) error {
 }
 
 func writeDiscoveryResponse(ctx context.Context, contentType string, raw []byte) error {
-	if json.Valid(raw) {
+	if discoveryJSONResponse(contentType) || (strings.TrimSpace(contentType) == "" && json.Valid(raw)) {
 		return writeDiscoveryRaw(ctx, raw)
 	}
 	if options, ok := outfmt.UntrustedWrapperFromContext(ctx); ok && discoveryTextResponse(contentType, raw) {
@@ -265,6 +268,11 @@ func writeDiscoveryResponse(ctx context.Context, contentType string, raw []byte)
 	}
 
 	return nil
+}
+
+func discoveryJSONResponse(contentType string) bool {
+	contentType = strings.ToLower(strings.TrimSpace(strings.SplitN(contentType, ";", 2)[0]))
+	return contentType == "application/json" || strings.HasSuffix(contentType, "+json")
 }
 
 func discoveryTextResponse(contentType string, raw []byte) bool {

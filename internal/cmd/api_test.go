@@ -26,6 +26,20 @@ func TestAPICallRequiresWriteOptIn(t *testing.T) {
 	}
 }
 
+func TestAPICallRejectsNonGoogleTargetBeforeAuth(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = fmt.Fprintf(w, `{"rootUrl":%q,"servicePath":"v1/","resources":{"items":{"methods":{"list":{"id":"demo.items.list","httpMethod":"GET","path":"items","scopes":["scope"]}}}}}`, "http://"+r.Host+"/")
+	}))
+	t.Cleanup(server.Close)
+	t.Setenv("GOG_DISCOVERY_BASE_URL", server.URL)
+
+	err := (&APICallCmd{API: "demo", Version: "v1", Method: "demo.items.list"}).Run(context.Background(), &RootFlags{})
+	if err == nil || !strings.Contains(err.Error(), "untrusted Discovery API URL") {
+		t.Fatalf("error = %v, want untrusted target rejection", err)
+	}
+}
+
 func TestDiscoveryGmailSendHonorsNoSendFlag(t *testing.T) {
 	err := checkDiscoveryGmailNoSend(context.Background(), &RootFlags{GmailNoSend: true}, "user@example.com", "gmail.users.messages.send")
 	if err == nil || !strings.Contains(err.Error(), "--gmail-no-send") {
@@ -42,6 +56,19 @@ func TestWriteDiscoveryResponsePreservesMedia(t *testing.T) {
 	}
 	if !bytes.Equal(stdout.Bytes(), []byte{0x00, 0x01, 0x02}) {
 		t.Fatalf("output = %v", stdout.Bytes())
+	}
+}
+
+func TestWriteDiscoveryResponsePreservesJSONShapedMedia(t *testing.T) {
+	var stdout bytes.Buffer
+	ctx := newCmdRuntimeOutputContext(t, &stdout, &bytes.Buffer{})
+	raw := []byte("{\"unchanged\": true}\n")
+
+	if err := writeDiscoveryResponse(ctx, "application/octet-stream", raw); err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(stdout.Bytes(), raw) {
+		t.Fatalf("output = %q, want %q", stdout.Bytes(), raw)
 	}
 }
 
