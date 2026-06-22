@@ -1,34 +1,49 @@
-# gogcli
+# gog — Google Workspace from the terminal
 
 ![gogcli banner](docs/assets/readme-banner.jpg)
 
-`gog` is a script-friendly Google CLI for Gmail, Calendar, Drive, Docs, Sheets,
-Sites, Slides, Forms, Meet, Apps Script, Analytics, Search Console, Contacts,
-Tasks, People, Classroom, Chat, YouTube, and Workspace admin flows.
+One binary. Task-first commands. Predictable automation.
 
-It is built for terminals, shell scripts, CI, and coding agents:
+`gog` gives people, scripts, CI, and coding agents one CLI for Gmail, Calendar,
+Drive, Docs, Sheets, Slides, Forms, Meet, Apps Script, Analytics, Search
+Console, Contacts, Tasks, Classroom, Chat, YouTube, and Workspace admin.
 
-- predictable `--json` and `--plain` output on stdout
-- human hints and progress on stderr
-- multiple Google accounts and OAuth clients
-- OAuth, direct access tokens, ADC, and Workspace service accounts
-- runtime command allowlists/denylists and baked safety-profile binaries
-- typed [MCP server](docs/mcp.md) for agent clients, read-only by default and
-  without a generic command runner
-- read-only audit/reporting commands for risky surfaces like Drive and Contacts
-- [generated docs](docs/commands/README.md) for every command
+```bash
+# Find mail, inspect today's calendar, and audit a Drive folder.
+gog --account you@gmail.com --readonly gmail search 'is:unread newer_than:7d' --max 10
+gog --account you@gmail.com --readonly calendar events --today
+gog --account you@gmail.com --readonly drive audit sharing --parent <folderId> --json
 
-Rendered docs: <https://gogcli.sh/>
+# Make automation parseable, non-interactive, read-only, and unable to send Gmail.
+gog --readonly --gmail-no-send --no-input --json gmail search 'label:inbox'
+```
 
-Start here:
+## Why gog
 
-- [Install](docs/install.md)
-- [Quickstart](docs/quickstart.md)
-- [Auth clients and service accounts](docs/auth-clients.md)
-- [MCP server](docs/mcp.md)
-- [Agent skills](docs/agent-skills.md)
-- [Command index](docs/commands/README.md)
-- [Gmail watch / Pub/Sub push](docs/watch.md) (<https://gogcli.sh/watch.html>)
+Google APIs expose resources and methods. Real work crosses them. `gog` keeps
+the raw capability, then adds the workflow and operational contracts a durable
+CLI needs:
+
+- **Task-first workflows:** search and sanitize mail, resolve calendar names,
+  audit Drive sharing, edit Docs, append Sheet tables, build Slides, manage
+  Workspace users, and back up accounts.
+- **Automation that composes:** stable `--json` and `--plain` stdout; prompts,
+  progress, and warnings on stderr; documented exit codes; `--no-input` for CI.
+- **Many identities, one install:** account aliases, named OAuth clients, direct
+  access tokens, ADC, OS/encrypted-file keyrings, and Workspace service accounts.
+- **Agent safety with explicit boundaries:** runtime `--readonly`, command
+  allow/deny rules, `--gmail-no-send`, untrusted-content wrapping, dry-run plans,
+  baked safety-profile binaries, and a typed MCP server that is read-only by default.
+- **A discoverable contract:** `gog schema --json`, generated reference pages
+  for every command, and schema-generated service skills for agent workflows.
+
+Read [Why gog](docs/why-gog.md) for the design tradeoffs, or go straight to:
+[Install](docs/install.md) · [Quickstart](docs/quickstart.md) · [Auth](docs/auth-clients.md) ·
+[Command index](docs/commands/README.md) · [Automation](docs/automation.md) ·
+[Agent skills](docs/agent-skills.md) · [MCP](docs/mcp.md).
+
+Rendered docs: <https://gogcli.sh/>. `gog` is open source and not affiliated
+with Google.
 
 ## Install
 
