@@ -503,6 +503,18 @@ gog schema --json
 gog schema --json | jq '.automation'
 ```
 
+For APIs or methods not yet modeled as first-class commands, inspect and call
+Google's Discovery surface directly:
+
+```bash
+gog api describe gmail v1 gmail.users.labels.list
+gog api call gmail v1 gmail.users.labels.list --params '{"userId":"me"}'
+```
+
+Generic mutations require `--allow-write` plus confirmation (or `--force`).
+Prefer first-class commands when available; `api call` intentionally grants a
+broader surface than a narrow command allowlist.
+
 There is no separate agent execution mode. The same CLI behavior serves
 interactive use, scripts, CI, and agents: `--json`/`--plain` keep stdout
 parseable, `--no-input` prevents prompts, stable exit codes classify failures,

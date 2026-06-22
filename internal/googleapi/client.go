@@ -251,6 +251,18 @@ func NewHTTPClient(ctx context.Context, service googleauth.Service, email string
 	return &http.Client{Transport: transport}, nil
 }
 
+// NewHTTPClientForScopes returns an authenticated raw client for a
+// Discovery-described API method whose scopes are not part of the static
+// service registry.
+func NewHTTPClientForScopes(ctx context.Context, serviceLabel, email string, scopes []string) (*http.Client, error) {
+	transport, err := authenticatedTransport(ctx, serviceLabel, email, scopes)
+	if err != nil {
+		return nil, err
+	}
+
+	return &http.Client{Transport: transport}, nil
+}
+
 func newBaseTransport() *http.Transport {
 	defaultTransport, ok := http.DefaultTransport.(*http.Transport)
 	if !ok || defaultTransport == nil {

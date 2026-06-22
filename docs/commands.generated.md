@@ -25,6 +25,10 @@ Generated from `gog schema --json`.
   - [`gog analytics (ga) <command> [flags]`](commands/gog-analytics.md) - Google Analytics
     - [`gog analytics (ga) accounts (list,ls) [flags]`](commands/gog-analytics-accounts.md) - List GA4 account summaries
     - [`gog analytics (ga) report <property> [flags]`](commands/gog-analytics-report.md) - Run a GA4 report (Analytics Data API)
+  - [`gog api <command> [flags]`](commands/gog-api.md) - Google Discovery APIs and generic method calls
+    - [`gog api call <api> <version> <method> [flags]`](commands/gog-api-call.md) - Call a Discovery-described API method
+    - [`gog api describe <api> <version> [<method>]`](commands/gog-api-describe.md) - Describe a Discovery API or method
+    - [`gog api list [flags]`](commands/gog-api-list.md) - List Google Discovery APIs
   - [`gog appscript (script,apps-script) <command> [flags]`](commands/gog-appscript.md) - Google Apps Script
     - [`gog appscript (script,apps-script) content (cat) <scriptId>`](commands/gog-appscript-content.md) - Get Apps Script project content
     - [`gog appscript (script,apps-script) create (new) --title=STRING [flags]`](commands/gog-appscript-create.md) - Create an Apps Script project

@@ -2,12 +2,13 @@
 
 Every `gog` command has a generated docs page. The source of truth is the live CLI schema; run `make docs-commands` after changing command names, flags, help text, aliases, or arguments.
 
-Generated pages: 695.
+Generated pages: 699.
 
 ## Top-level Commands
 
 - [gog admin](gog-admin.md) - Google Workspace Admin (Directory API) - requires domain-wide delegation
 - [gog analytics](gog-analytics.md) - Google Analytics
+- [gog api](gog-api.md) - Google Discovery APIs and generic method calls
 - [gog appscript](gog-appscript.md) - Google Apps Script
 - [gog auth](gog-auth.md) - Auth and credentials
 - [gog backup](gog-backup.md) - Encrypted Google account backups
@@ -76,6 +77,10 @@ Generated pages: 695.
   - [gog analytics](gog-analytics.md) - Google Analytics
     - [gog analytics accounts](gog-analytics-accounts.md) - List GA4 account summaries
     - [gog analytics report](gog-analytics-report.md) - Run a GA4 report (Analytics Data API)
+  - [gog api](gog-api.md) - Google Discovery APIs and generic method calls
+    - [gog api call](gog-api-call.md) - Call a Discovery-described API method
+    - [gog api describe](gog-api-describe.md) - Describe a Discovery API or method
+    - [gog api list](gog-api-list.md) - List Google Discovery APIs
   - [gog appscript](gog-appscript.md) - Google Apps Script
     - [gog appscript content](gog-appscript-content.md) - Get Apps Script project content
     - [gog appscript create](gog-appscript-create.md) - Create an Apps Script project
