@@ -41,6 +41,7 @@ gog admin users create (add,new) <email> [flags]
 | `--org-unit`<br>`--ou` | `string` |  | Organization unit path |
 | `--password`<br>`--pass` | `string` |  | Initial password (generated if omitted) |
 | `-p`<br>`--plain`<br>`--tsv` | `bool` | false | Output stable, parseable text to stdout (TSV; no colors) |
+| `--readonly` | `bool` | false | Block mutating API requests at runtime; auth add also requests read-only OAuth scopes |
 | `--recovery-email` | `string` |  | Recovery email address |
 | `--recovery-phone` | `string` |  | Recovery phone number in E.164 format |
 | `--results-only` | `bool` |  | In JSON mode, emit only the primary result (drops envelope fields like nextPageToken) |

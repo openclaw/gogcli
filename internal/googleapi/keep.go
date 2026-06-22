@@ -6,7 +6,6 @@ import (
 	"os"
 
 	"google.golang.org/api/keep/v1"
-	"google.golang.org/api/option"
 
 	"github.com/steipete/gogcli/internal/googleauth"
 )
@@ -44,7 +43,7 @@ func newKeepWithServiceAccount(
 		return nil, err
 	}
 
-	svc, err := keep.NewService(ctx, option.WithTokenSource(tokenSource))
+	svc, err := keep.NewService(ctx, tokenSourceClientOptions(ctx, tokenSource)...)
 	if err != nil {
 		return nil, fmt.Errorf("create keep service: %w", err)
 	}

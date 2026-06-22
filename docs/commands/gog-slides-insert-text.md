@@ -35,6 +35,7 @@ gog slides (slide) insert-text <presentationId> <objectId> <text> [flags]
 | `-j`<br>`--json`<br>`--machine` | `bool` | false | Output JSON to stdout (best for scripting) |
 | `--no-input`<br>`--non-interactive`<br>`--noninteractive` | `bool` |  | Never prompt; fail instead (useful for CI) |
 | `-p`<br>`--plain`<br>`--tsv` | `bool` | false | Output stable, parseable text to stdout (TSV; no colors) |
+| `--readonly` | `bool` | false | Block mutating API requests at runtime; auth add also requests read-only OAuth scopes |
 | `--replace` | `bool` |  | Clear existing text in the element before inserting (emits DeleteText + InsertText in the same batch) |
 | `--results-only` | `bool` |  | In JSON mode, emit only the primary result (drops envelope fields like nextPageToken) |
 | `--row` | `*int64` |  | 0-based table row index for cell-targeted text; requires --col |

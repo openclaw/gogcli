@@ -37,6 +37,7 @@ gog youtube (yt) search (find) list (ls) <query> [flags]
 | `--order` | `string` | relevance | Sort order: relevance, date, rating, title, videoCount, viewCount |
 | `--page` | `string` |  | Page token |
 | `-p`<br>`--plain`<br>`--tsv` | `bool` | false | Output stable, parseable text to stdout (TSV; no colors) |
+| `--readonly` | `bool` | false | Block mutating API requests at runtime; auth add also requests read-only OAuth scopes |
 | `--results-only` | `bool` |  | In JSON mode, emit only the primary result (drops envelope fields like nextPageToken) |
 | `--select`<br>`--pick`<br>`--project` | `string` |  | In JSON mode, select comma-separated fields (best-effort; supports dot paths). Desire path: use --fields for most commands. |
 | `--type` | `string` | video | Resource type: video, channel, playlist (comma-separated) |

@@ -556,6 +556,7 @@ Useful global flags:
 - `--wrap-untrusted`: in JSON/raw output, wrap fetched free-text fields with
   external untrusted-content markers for LLM/agent consumption
 - `--dry-run`: print intended actions where a command supports planning
+- `--readonly`: block mutating API requests before network dispatch; still allow known POST-based query APIs
 - `--no-input`: fail instead of prompting
 - `--force`: confirm destructive operations
 - `--enable-commands <csv>`: allow selected command prefixes. Parent paths allow children, so `gmail` allows the Gmail command family.
@@ -569,6 +570,7 @@ For coding agents or CI, prefer:
 gog --account you@gmail.com \
   --enable-commands-exact gmail.search,gmail.get,drive.ls,docs.cat \
   --gmail-no-send \
+  --readonly \
   --wrap-untrusted \
   --json \
   gmail search 'newer_than:7d'

@@ -63,6 +63,7 @@ func TestMCPParentArgsPreserveContextAndSafety(t *testing.T) {
 		Select:              "messages",
 		DryRun:              true,
 		GmailNoSend:         true,
+		ReadOnly:            true,
 		EnableCommands:      "gmail.search,docs.cat",
 		EnableCommandsExact: "mcp,gmail.messages.search",
 		DisableCommands:     "drive.delete",
@@ -74,7 +75,7 @@ func TestMCPParentArgsPreserveContextAndSafety(t *testing.T) {
 		}
 	}
 	safety := strings.Join(mcpParentSafetyArgs(flags), "\x00")
-	for _, want := range []string{"--gmail-no-send", "--enable-commands=gmail.search,docs.cat", "--enable-commands-exact=mcp,gmail.messages.search", "--disable-commands=drive.delete"} {
+	for _, want := range []string{"--gmail-no-send", "--readonly", "--enable-commands=gmail.search,docs.cat", "--enable-commands-exact=mcp,gmail.messages.search", "--disable-commands=drive.delete"} {
 		if !strings.Contains(safety, want) {
 			t.Fatalf("safety args missing %q in %#v", want, mcpParentSafetyArgs(flags))
 		}

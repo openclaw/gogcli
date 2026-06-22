@@ -63,6 +63,9 @@ func stableExitCode(err error) error {
 	if errors.Is(err, context.Canceled) {
 		return &ExitError{Code: exitCodeCancelled, Err: err}
 	}
+	if errors.Is(err, gogapi.ErrReadOnly) {
+		return &ExitError{Code: 2, Err: err}
+	}
 
 	var authErr *gogapi.AuthRequiredError
 	if errors.As(err, &authErr) {

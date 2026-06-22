@@ -34,6 +34,7 @@ type schemaSafetyState struct {
 	NoInput       bool               `json:"no_input"`
 	WrapUntrusted bool               `json:"wrap_untrusted"`
 	GmailNoSend   bool               `json:"gmail_no_send"`
+	ReadOnly      bool               `json:"readonly"`
 	BakedProfile  schemaBakedProfile `json:"baked_profile"`
 	CommandRules  schemaCommandRules `json:"command_rules"`
 }
@@ -154,6 +155,7 @@ func buildSchemaAutomation(ctx context.Context, flags *RootFlags, profile bakedS
 		safety.NoInput = flags.NoInput
 		safety.WrapUntrusted = flags.WrapUntrusted
 		safety.GmailNoSend = flags.GmailNoSend
+		safety.ReadOnly = flags.ReadOnly
 		safety.CommandRules.EnabledPrefixes = sortedCommandRules(flags.EnableCommands)
 		safety.CommandRules.EnabledExact = sortedCommandRules(flags.EnableCommandsExact)
 		safety.CommandRules.Disabled = sortedCommandRules(flags.DisableCommands)

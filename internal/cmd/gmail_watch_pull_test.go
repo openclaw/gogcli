@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -15,6 +16,7 @@ import (
 	"google.golang.org/api/gmail/v1"
 	"google.golang.org/api/option"
 
+	"github.com/steipete/gogcli/internal/googleapi"
 	"github.com/steipete/gogcli/internal/outfmt"
 	"github.com/steipete/gogcli/internal/ui"
 )
@@ -185,6 +187,14 @@ func TestGmailWatchPullCmd_DryRunDoesNotCreateReceiverOrState(t *testing.T) {
 		t.Fatalf("dry-run created config directory %s", watchDir)
 	} else if !os.IsNotExist(err) {
 		t.Fatalf("stat config directory: %v", err)
+	}
+}
+
+func TestGmailWatchPullCmd_ReadOnlyBlocksPubSubAck(t *testing.T) {
+	ctx := googleapi.WithReadOnly(context.Background(), true)
+	err := runKong(t, &GmailWatchPullCmd{}, nil, ctx, &RootFlags{ReadOnly: true})
+	if !errors.Is(err, googleapi.ErrReadOnly) {
+		t.Fatalf("error = %v, want ErrReadOnly", err)
 	}
 }
 

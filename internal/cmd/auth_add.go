@@ -28,13 +28,12 @@ type AuthAddCmd struct {
 	Timeout      time.Duration `name:"timeout" help:"Authorization timeout (manual flows default to 5m)"`
 	ForceConsent bool          `name:"force-consent" help:"Force consent screen to obtain a refresh token"`
 	ServicesCSV  string        `name:"services" help:"Services to authorize: user|all-user or comma-separated ${auth_services}; explicit opt-in: photospicker; all means all default user OAuth services. Workspace service-account-only services: admin, groups, keep" default:"user"`
-	Readonly     bool          `name:"readonly" help:"Use read-only scopes where available (still includes OIDC identity scopes)"`
 	DriveScope   string        `name:"drive-scope" help:"Drive scope mode: full|readonly|file" enum:"full,readonly,file" default:"full"`
 	GmailScope   string        `name:"gmail-scope" help:"Gmail scope mode: full|readonly" enum:"full,readonly" default:"full"`
 	ExtraScopes  string        `name:"extra-scopes" help:"Comma-separated list of additional OAuth scope URIs to request (appended after service scopes)"`
 }
 
-func formatRemoteStep2Instruction(services []googleauth.Service, c *AuthAddCmd) string {
+func formatRemoteStep2Instruction(services []googleauth.Service, c *AuthAddCmd, readonly bool) string {
 	parts := []string{"--remote", "--step", "2", "--auth-url", "<redirect-url>"}
 	if redirectHost := strings.TrimSpace(c.RedirectHost); redirectHost != "" {
 		parts = append(parts, "--redirect-host", redirectHost)
@@ -49,7 +48,7 @@ func formatRemoteStep2Instruction(services []googleauth.Service, c *AuthAddCmd) 
 		}
 		parts = append(parts, "--services", strings.Join(serialized, ","))
 	}
-	if c.Readonly {
+	if readonly {
 		parts = append(parts, "--readonly")
 	}
 	if driveScope := strings.ToLower(strings.TrimSpace(c.DriveScope)); driveScope != "" && driveScope != string(googleauth.DriveScopeFull) {
@@ -95,6 +94,7 @@ func (c *AuthAddCmd) isManualFlow(authURL, authCode string) bool {
 
 func (c *AuthAddCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
+	readonly := readOnlyEnabled(flags)
 
 	override := authclient.ClientOverrideFromContext(ctx)
 	client, err := authclient.ResolveClientWithOverride(ctx, c.Email, override)
@@ -111,11 +111,11 @@ func (c *AuthAddCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 
 	driveScope := strings.ToLower(strings.TrimSpace(c.DriveScope))
-	if c.Readonly && driveScope == strFile {
+	if readonly && driveScope == strFile {
 		return usage("cannot combine --readonly with --drive-scope=file (file is write-capable)")
 	}
 	gmailScope := strings.ToLower(strings.TrimSpace(c.GmailScope))
-	disableIncludeGrantedScopes := c.Readonly ||
+	disableIncludeGrantedScopes := readonly ||
 		driveScope == "readonly" ||
 		driveScope == strFile ||
 		gmailScope == "readonly"
@@ -123,7 +123,7 @@ func (c *AuthAddCmd) Run(ctx context.Context, flags *RootFlags) error {
 	extraScopes := parseExtraScopesCSV(c.ExtraScopes)
 
 	scopes, err := googleauth.ScopesForManageWithOptions(services, googleauth.ScopeOptions{
-		Readonly:    c.Readonly,
+		Readonly:    readonly,
 		DriveScope:  googleauth.DriveScopeMode(driveScope),
 		GmailScope:  googleauth.GmailScopeMode(gmailScope),
 		ExtraScopes: extraScopes,
@@ -184,7 +184,7 @@ func (c *AuthAddCmd) Run(ctx context.Context, flags *RootFlags) error {
 			}
 			u.Out().Linef("auth_url\t%s", result.URL)
 			u.Out().Linef("state_reused\t%t", result.StateReused)
-			u.Err().Linef("Run again with the same root flags and %s", formatRemoteStep2Instruction(services, c))
+			u.Err().Linef("Run again with the same root flags and %s", formatRemoteStep2Instruction(services, c, readonly))
 			return nil
 		case 2:
 			if authCode != "" {
@@ -213,7 +213,7 @@ func (c *AuthAddCmd) Run(ctx context.Context, flags *RootFlags) error {
 		"redirect_host": strings.TrimSpace(c.RedirectHost),
 		"redirect_uri":  redirectURI,
 		"force_consent": c.ForceConsent,
-		"readonly":      c.Readonly,
+		"readonly":      readonly,
 		"drive_scope":   c.DriveScope,
 		"gmail_scope":   c.GmailScope,
 		"extra_scopes":  extraScopes,
@@ -316,6 +316,10 @@ func (c *AuthAddCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u.Out().Linef("services\t%s", strings.Join(serviceNames, ","))
 	u.Out().Linef("client\t%s", client)
 	return nil
+}
+
+func readOnlyEnabled(flags *RootFlags) bool {
+	return flags != nil && flags.ReadOnly
 }
 
 func wrapAuthAddStoreError(err error) error {

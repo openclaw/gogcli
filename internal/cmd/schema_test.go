@@ -68,6 +68,7 @@ func TestExecute_SchemaIncludesAutomationContract(t *testing.T) {
 				"--no-input",
 				"--wrap-untrusted",
 				"--gmail-no-send",
+				"--readonly",
 				"--enable-commands-exact", "schema,gmail.search",
 				"--disable-commands", "gmail.send",
 				"schema",
@@ -91,7 +92,7 @@ func TestExecute_SchemaIncludesAutomationContract(t *testing.T) {
 		t.Fatalf("schema command metadata was transformed: %#v", doc.Command)
 	}
 	assertSchemaAliases(t, doc.Command)
-	if !doc.Automation.Safety.DryRun || !doc.Automation.Safety.NoInput || !doc.Automation.Safety.WrapUntrusted || !doc.Automation.Safety.GmailNoSend {
+	if !doc.Automation.Safety.DryRun || !doc.Automation.Safety.NoInput || !doc.Automation.Safety.WrapUntrusted || !doc.Automation.Safety.GmailNoSend || !doc.Automation.Safety.ReadOnly {
 		t.Fatalf("safety = %#v", doc.Automation.Safety)
 	}
 	if got := strings.Join(doc.Automation.Safety.CommandRules.EnabledExact, ","); got != "gmail.search,schema" {

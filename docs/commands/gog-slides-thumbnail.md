@@ -36,6 +36,7 @@ gog slides (slide) thumbnail (thumb) <presentationId> <slideId> [flags]
 | `--out`<br>`--output` | `string` |  | Write the thumbnail image to a local file |
 | `--overwrite` | `bool` |  | Overwrite an existing output file |
 | `-p`<br>`--plain`<br>`--tsv` | `bool` | false | Output stable, parseable text to stdout (TSV; no colors) |
+| `--readonly` | `bool` | false | Block mutating API requests at runtime; auth add also requests read-only OAuth scopes |
 | `--results-only` | `bool` |  | In JSON mode, emit only the primary result (drops envelope fields like nextPageToken) |
 | `--select`<br>`--pick`<br>`--project` | `string` |  | In JSON mode, select comma-separated fields (best-effort; supports dot paths). Desire path: use --fields for most commands. |
 | `--size` | `string` | large | Thumbnail size: small\|medium\|large |

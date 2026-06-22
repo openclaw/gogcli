@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -14,6 +15,7 @@ import (
 
 	"github.com/steipete/gogcli/internal/authclient"
 	"github.com/steipete/gogcli/internal/gmailwatch"
+	"github.com/steipete/gogcli/internal/googleapi"
 	"github.com/steipete/gogcli/internal/ui"
 )
 
@@ -32,6 +34,10 @@ type GmailWatchPullCmd struct {
 }
 
 func (c *GmailWatchPullCmd) Run(ctx context.Context, kctx *kong.Context, flags *RootFlags) error {
+	if googleapi.ReadOnly(ctx) && (flags == nil || !flags.DryRun) {
+		return fmt.Errorf("%w: Gmail watch pull acknowledges Pub/Sub messages", googleapi.ErrReadOnly)
+	}
+
 	u := ui.FromContext(ctx)
 	account, err := requireAccount(flags)
 	if err != nil {

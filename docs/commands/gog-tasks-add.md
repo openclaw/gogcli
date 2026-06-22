@@ -37,6 +37,7 @@ gog tasks (task) add (create) <tasklistId> [flags]
 | `--parent` | `string` |  | Parent task ID (create as subtask) |
 | `-p`<br>`--plain`<br>`--tsv` | `bool` | false | Output stable, parseable text to stdout (TSV; no colors) |
 | `--previous` | `string` |  | Previous sibling task ID (controls ordering) |
+| `--readonly` | `bool` | false | Block mutating API requests at runtime; auth add also requests read-only OAuth scopes |
 | `--recur` | `string` |  | Alias for --repeat cadence: daily, weekly, monthly, yearly |
 | `--recur-rrule` | `string` |  | Alias for --repeat cadence via RRULE (supports FREQ + optional INTERVAL) |
 | `--repeat` | `string` |  | Materialize repeated tasks: daily, weekly, monthly, yearly |

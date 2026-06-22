@@ -50,6 +50,7 @@ gog docs (doc) cell-style --row=INT --col=INT <docId> [flags]
 | `--padding-right` | `string` |  | Right cell padding; overrides --padding-all |
 | `--padding-top` | `string` |  | Top cell padding; overrides --padding-all |
 | `-p`<br>`--plain`<br>`--tsv` | `bool` | false | Output stable, parseable text to stdout (TSV; no colors) |
+| `--readonly` | `bool` | false | Block mutating API requests at runtime; auth add also requests read-only OAuth scopes |
 | `--results-only` | `bool` |  | In JSON mode, emit only the primary result (drops envelope fields like nextPageToken) |
 | `--row` | `int` |  | 1-based row number |
 | `--row-span` | `int64` | 1 | Number of rows to style |

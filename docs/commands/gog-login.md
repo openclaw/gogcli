@@ -40,7 +40,7 @@ gog login <email> [flags]
 | `--manual` | `bool` |  | Browserless auth flow (paste redirect URL) |
 | `--no-input`<br>`--non-interactive`<br>`--noninteractive` | `bool` |  | Never prompt; fail instead (useful for CI) |
 | `-p`<br>`--plain`<br>`--tsv` | `bool` | false | Output stable, parseable text to stdout (TSV; no colors) |
-| `--readonly` | `bool` |  | Use read-only scopes where available (still includes OIDC identity scopes) |
+| `--readonly` | `bool` | false | Block mutating API requests at runtime; auth add also requests read-only OAuth scopes |
 | `--redirect-host` | `string` |  | Hostname for OAuth callback in browser flows; builds https://{host}/oauth2/callback |
 | `--redirect-uri` | `string` |  | Override OAuth redirect URI for manual/remote flows (for example https://host.example/oauth2/callback) |
 | `--remote` | `bool` |  | Remote/server-friendly manual flow (print URL, then exchange code) |

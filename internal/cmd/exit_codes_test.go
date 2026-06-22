@@ -130,6 +130,13 @@ func TestStableExitCode_Cancelled(t *testing.T) {
 	}
 }
 
+func TestStableExitCode_ReadOnly(t *testing.T) {
+	out := stableExitCode(gogapi.ErrReadOnly)
+	if got := ExitCode(out); got != 2 {
+		t.Fatalf("expected exit code 2, got %d", got)
+	}
+}
+
 func TestStableExitCode_DeadlineExceeded(t *testing.T) {
 	out := stableExitCode(context.DeadlineExceeded)
 	if got := ExitCode(out); got != exitCodeRetryable {

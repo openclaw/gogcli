@@ -41,6 +41,7 @@ gog docs (doc) update <docId> [flags]
 | `--occurrence` | `*int` |  | Use the Nth --at match (1-based; required when --at is ambiguous) |
 | `--pageless` | `bool` |  | Set document to pageless mode |
 | `-p`<br>`--plain`<br>`--tsv` | `bool` | false | Output stable, parseable text to stdout (TSV; no colors) |
+| `--readonly` | `bool` | false | Block mutating API requests at runtime; auth add also requests read-only OAuth scopes |
 | `--replace-range` | `string` |  | Replace UTF-16 Docs API range START:END instead of inserting |
 | `--results-only` | `bool` |  | In JSON mode, emit only the primary result (drops envelope fields like nextPageToken) |
 | `--segment` | `string` |  | Target an exact header, footer, or footnote segment ID |

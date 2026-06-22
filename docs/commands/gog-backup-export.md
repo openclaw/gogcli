@@ -39,6 +39,7 @@ gog backup export [flags]
 | `--no-pull` | `bool` |  | Use local backup repository state without pulling first |
 | `--out` | `string` | ~/Documents/gog-backup-export | Plaintext export directory |
 | `-p`<br>`--plain`<br>`--tsv` | `bool` | false | Output stable, parseable text to stdout (TSV; no colors) |
+| `--readonly` | `bool` | false | Block mutating API requests at runtime; auth add also requests read-only OAuth scopes |
 | `--remote` | `string` |  | Backup Git remote URL |
 | `--repo` | `string` |  | Local backup repository path |
 | `--results-only` | `bool` |  | In JSON mode, emit only the primary result (drops envelope fields like nextPageToken) |

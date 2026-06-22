@@ -53,6 +53,18 @@ Use `--no-input` in CI and unattended processes. Use `--wrap-untrusted` when
 Google-hosted free text will be consumed by an LLM or another instruction-aware
 system.
 
+Use `--readonly` (or `GOG_READONLY=1`) as a runtime backstop. It permits GET,
+HEAD, OPTIONS, and the small allowlist of Google APIs whose query operations use
+POST, while rejecting mutating API requests before network dispatch. This guard
+is independent of OAuth scopes and command names, propagates into MCP child
+processes, and also blocks Zoom meeting mutations. `gog auth add --readonly`
+continues to request read-only OAuth scopes where Google provides them.
+
+```bash
+gog --readonly --account you@example.com gmail search 'newer_than:7d'
+gog --readonly --account you@example.com calendar freebusy you@example.com
+```
+
 Interactive browser commands fail fast under `--no-input`. Preview
 `gog auth manage` with `--dry-run`; use `gog auth import` for unattended token
 installation.
@@ -73,6 +85,7 @@ Example:
 gog \
   --enable-commands-exact schema,gmail.search \
   --gmail-no-send \
+  --readonly \
   --no-input \
   --wrap-untrusted \
   schema --json |
@@ -87,6 +100,7 @@ common_flags=(
   --account you@example.com
   --enable-commands-exact schema,gmail.search
   --gmail-no-send
+  --readonly
   --no-input
   --wrap-untrusted
 )
@@ -97,6 +111,7 @@ gog "${common_flags[@]}" schema --json |
     .automation.safety.no_input and
     .automation.safety.wrap_untrusted and
     .automation.safety.gmail_no_send and
+    .automation.safety.readonly and
     (.automation.safety.command_rules.enabled_exact | index("gmail.search"))
   '
 

@@ -47,6 +47,7 @@ gog calendar (cal) events (list,ls) [<calendarId> ...] [flags]
 | `-p`<br>`--plain`<br>`--tsv` | `bool` | false | Output stable, parseable text to stdout (TSV; no colors) |
 | `--private-prop-filter` | `string` |  | Filter by private extended property (key=value) |
 | `--query` | `string` |  | Free text search |
+| `--readonly` | `bool` | false | Block mutating API requests at runtime; auth add also requests read-only OAuth scopes |
 | `--results-only` | `bool` |  | In JSON mode, emit only the primary result (drops envelope fields like nextPageToken) |
 | `--select`<br>`--pick`<br>`--project` | `string` |  | In JSON mode, select comma-separated fields (best-effort; supports dot paths). Desire path: use --fields for most commands. |
 | `--shared-prop-filter` | `string` |  | Filter by shared extended property (key=value) |

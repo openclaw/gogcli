@@ -38,6 +38,7 @@ gog auth import --email=STRING [flags]
 | `-j`<br>`--json`<br>`--machine` | `bool` | false | Output JSON to stdout (best for scripting) |
 | `--no-input`<br>`--non-interactive`<br>`--noninteractive` | `bool` |  | Never prompt; fail instead (useful for CI) |
 | `-p`<br>`--plain`<br>`--tsv` | `bool` | false | Output stable, parseable text to stdout (TSV; no colors) |
+| `--readonly` | `bool` | false | Block mutating API requests at runtime; auth add also requests read-only OAuth scopes |
 | `--refresh-token-env` | `string` |  | Read OAuth refresh token from the named environment variable |
 | `--refresh-token-file` | `string` |  | Read OAuth refresh token from file |
 | `--refresh-token-stdin` | `bool` |  | Read OAuth refresh token from stdin |

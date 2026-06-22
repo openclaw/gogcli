@@ -38,6 +38,7 @@ gog slides (slide) table border style --row=INT-64 --col=INT-64 <presentationId>
 | `--no-input`<br>`--non-interactive`<br>`--noninteractive` | `bool` |  | Never prompt; fail instead (useful for CI) |
 | `-p`<br>`--plain`<br>`--tsv` | `bool` | false | Output stable, parseable text to stdout (TSV; no colors) |
 | `--position` | `string` | ALL | Borders within the selected range to update |
+| `--readonly` | `bool` | false | Block mutating API requests at runtime; auth add also requests read-only OAuth scopes |
 | `--results-only` | `bool` |  | In JSON mode, emit only the primary result (drops envelope fields like nextPageToken) |
 | `--row` | `int64` |  | Zero-based starting row |
 | `--row-span` | `int64` | 1 | Number of rows in the range |

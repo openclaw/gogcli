@@ -36,6 +36,7 @@ gog sheets (sheet) batch-update (batch) --data-json=STRING <spreadsheetId> [flag
 | `-j`<br>`--json`<br>`--machine` | `bool` | false | Output JSON to stdout (best for scripting) |
 | `--no-input`<br>`--non-interactive`<br>`--noninteractive` | `bool` |  | Never prompt; fail instead (useful for CI) |
 | `-p`<br>`--plain`<br>`--tsv` | `bool` | false | Output stable, parseable text to stdout (TSV; no colors) |
+| `--readonly` | `bool` | false | Block mutating API requests at runtime; auth add also requests read-only OAuth scopes |
 | `--response-date-time-render` | `string` |  | Response date/time render option: SERIAL_NUMBER or FORMATTED_STRING |
 | `--response-render` | `string` |  | Response value render option: FORMATTED_VALUE, UNFORMATTED_VALUE, or FORMULA |
 | `--results-only` | `bool` |  | In JSON mode, emit only the primary result (drops envelope fields like nextPageToken) |

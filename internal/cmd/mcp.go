@@ -227,6 +227,9 @@ func mcpParentSafetyArgs(flags *RootFlags) []string {
 	if flags.GmailNoSend {
 		out = append(out, "--gmail-no-send")
 	}
+	if flags.ReadOnly {
+		out = append(out, "--readonly")
+	}
 	if s := strings.TrimSpace(flags.EnableCommands); s != "" {
 		out = append(out, "--enable-commands="+s)
 	}

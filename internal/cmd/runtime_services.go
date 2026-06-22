@@ -398,6 +398,10 @@ func slidesService(ctx context.Context, account string) (*slides.Service, error)
 }
 
 func zoomMeetingClient(ctx context.Context, alias string) (app.ZoomMeetingClient, error) {
+	if googleapi.ReadOnly(ctx) {
+		return nil, fmt.Errorf("%w: Zoom meeting mutations are disabled", googleapi.ErrReadOnly)
+	}
+
 	runtime, err := runtimeWithService(ctx, "zoom")
 	if err != nil || runtime.Services.Zoom == nil {
 		return nil, serviceError(err, "zoom")

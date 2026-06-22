@@ -35,6 +35,7 @@ gog auth manage (login) [flags]
 | `--listen-addr` | `string` |  | Loopback address to listen on for the accounts manager (for example 127.0.0.1:8080 or [::1]:8080) |
 | `--no-input`<br>`--non-interactive`<br>`--noninteractive` | `bool` |  | Never prompt; fail instead (useful for CI) |
 | `-p`<br>`--plain`<br>`--tsv` | `bool` | false | Output stable, parseable text to stdout (TSV; no colors) |
+| `--readonly` | `bool` | false | Block mutating API requests at runtime; auth add also requests read-only OAuth scopes |
 | `--redirect-host` | `string` |  | Hostname for OAuth callback; builds https://{host}/oauth2/callback |
 | `--results-only` | `bool` |  | In JSON mode, emit only the primary result (drops envelope fields like nextPageToken) |
 | `--select`<br>`--pick`<br>`--project` | `string` |  | In JSON mode, select comma-separated fields (best-effort; supports dot paths). Desire path: use --fields for most commands. |

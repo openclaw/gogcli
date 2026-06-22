@@ -44,6 +44,7 @@ gog slides (slide) table cell style --row=INT-64 --col=INT-64 <presentationId> <
 | `--no-underline` | `bool` |  | Clear cell text underline |
 | `-p`<br>`--plain`<br>`--tsv` | `bool` | false | Output stable, parseable text to stdout (TSV; no colors) |
 | `--range` | `string` |  | Optional UTF-16 text range as start:end; defaults to all cell text |
+| `--readonly` | `bool` | false | Block mutating API requests at runtime; auth add also requests read-only OAuth scopes |
 | `--results-only` | `bool` |  | In JSON mode, emit only the primary result (drops envelope fields like nextPageToken) |
 | `--row` | `int64` |  | Zero-based row |
 | `--select`<br>`--pick`<br>`--project` | `string` |  | In JSON mode, select comma-separated fields (best-effort; supports dot paths). Desire path: use --fields for most commands. |
