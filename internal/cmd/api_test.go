@@ -64,15 +64,15 @@ func TestDiscoveryMethodPolicyRequiresExplicitPermission(t *testing.T) {
 }
 
 func TestValidateDiscoveryRedirect(t *testing.T) {
-	trusted, err := http.NewRequest(http.MethodGet, "https://gmail.googleapis.com/gmail/v1/users/me/labels", nil)
+	trusted, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "https://gmail.googleapis.com/gmail/v1/users/me/labels", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := validateDiscoveryRedirect(trusted, nil); err != nil {
-		t.Fatalf("trusted redirect: %v", err)
+	if redirectErr := validateDiscoveryRedirect(trusted, nil); redirectErr != nil {
+		t.Fatalf("trusted redirect: %v", redirectErr)
 	}
 
-	untrusted, err := http.NewRequest(http.MethodGet, "https://example.test/steal", nil)
+	untrusted, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "https://example.test/steal", nil)
 	if err != nil {
 		t.Fatal(err)
 	}

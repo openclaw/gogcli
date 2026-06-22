@@ -218,8 +218,9 @@ func BuildURL(description *discovery.RestDescription, method Method, params map[
 func ValidateGoogleAPIURL(requestURL string) error {
 	u, err := url.Parse(requestURL)
 	if err != nil {
-		return fmt.Errorf("%w: %v", ErrUntrustedAPIURL, err)
+		return fmt.Errorf("%w: %w", ErrUntrustedAPIURL, err)
 	}
+
 	host := strings.ToLower(strings.TrimSuffix(u.Hostname(), "."))
 	if u.Scheme != "https" || u.User != nil || host == "" || (host != "googleapis.com" && !strings.HasSuffix(host, ".googleapis.com")) {
 		return fmt.Errorf("%w: %q", ErrUntrustedAPIURL, requestURL)
