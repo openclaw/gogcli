@@ -50,8 +50,9 @@ function loadSchema() {
   }
   const configHome = mkdtempSync(join(tmpdir(), "gog-skill-schema-"));
   const env = { ...process.env, XDG_CONFIG_HOME: configHome };
-  delete env.GOG_KEYRING_BACKEND;
-  delete env.GOG_KEYRING_PASSWORD;
+  for (const key of Object.keys(env)) {
+    if (key.toUpperCase().startsWith("GOG_")) delete env[key];
+  }
   try {
     return JSON.parse(execFileSync(bin, ["schema", "--json"], { encoding: "utf8", env, maxBuffer: 32 * 1024 * 1024 }));
   } finally {
