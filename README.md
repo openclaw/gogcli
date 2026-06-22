@@ -513,7 +513,10 @@ gog api call gmail v1 gmail.users.labels.list --params '{"userId":"me"}'
 
 Generic mutations require `--allow-write` plus confirmation (or `--force`).
 Prefer first-class commands when available; `api call` intentionally grants a
-broader surface than a narrow command allowlist.
+broader surface than a narrow command allowlist. With runtime command filters,
+each method also needs an explicit `api.<method-id>` rule such as
+`api.gmail.users.labels.list`; generic calls are unavailable in binaries built
+with a baked safety profile.
 
 There is no separate agent execution mode. The same CLI behavior serves
 interactive use, scripts, CI, and agents: `--json`/`--plain` keep stdout

@@ -40,6 +40,47 @@ func TestAPICallRejectsNonGoogleTargetBeforeAuth(t *testing.T) {
 	}
 }
 
+func TestDiscoveryMethodPolicyRequiresExplicitPermission(t *testing.T) {
+	method := "drive.files.delete"
+
+	if err := enforceDiscoveryMethodPolicy(&RootFlags{}, method); err != nil {
+		t.Fatalf("unfiltered policy: %v", err)
+	}
+	if err := enforceDiscoveryMethodPolicy(&RootFlags{EnableCommands: "api.call"}, method); err == nil || !strings.Contains(err.Error(), "api.drive.files.delete") {
+		t.Fatalf("broad CLI permission error = %v", err)
+	}
+	if err := enforceDiscoveryMethodPolicy(&RootFlags{DisableCommands: "drive.delete"}, method); err == nil || !strings.Contains(err.Error(), "explicit command-policy permission") {
+		t.Fatalf("deny-only policy error = %v", err)
+	}
+	if err := enforceDiscoveryMethodPolicy(&RootFlags{EnableCommands: "api.call,api.drive.files.delete"}, method); err != nil {
+		t.Fatalf("explicit method permission: %v", err)
+	}
+	if err := enforceDiscoveryMethodPolicy(&RootFlags{EnableCommands: "api.call,api.drive.files.delete", DisableCommands: "api.drive"}, method); err == nil || !strings.Contains(err.Error(), "disabled") {
+		t.Fatalf("method deny error = %v", err)
+	}
+	if err := enforceDiscoveryMethodPolicy(&RootFlags{EnableCommands: "*", DisableCommands: "drive.delete"}, method); err == nil || !strings.Contains(err.Error(), "explicit command-policy permission") {
+		t.Fatalf("wildcard with deny error = %v", err)
+	}
+}
+
+func TestValidateDiscoveryRedirect(t *testing.T) {
+	trusted, err := http.NewRequest(http.MethodGet, "https://gmail.googleapis.com/gmail/v1/users/me/labels", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := validateDiscoveryRedirect(trusted, nil); err != nil {
+		t.Fatalf("trusted redirect: %v", err)
+	}
+
+	untrusted, err := http.NewRequest(http.MethodGet, "https://example.test/steal", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := validateDiscoveryRedirect(untrusted, nil); err == nil || !strings.Contains(err.Error(), "untrusted Discovery API URL") {
+		t.Fatalf("untrusted redirect error = %v", err)
+	}
+}
+
 func TestDiscoveryGmailSendHonorsNoSendFlag(t *testing.T) {
 	err := checkDiscoveryGmailNoSend(context.Background(), &RootFlags{GmailNoSend: true}, "user@example.com", "gmail.users.messages.send")
 	if err == nil || !strings.Contains(err.Error(), "--gmail-no-send") {

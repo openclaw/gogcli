@@ -89,6 +89,9 @@ func (c *APICallCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if err != nil {
 		return usage(err.Error())
 	}
+	if policyErr := enforceDiscoveryMethodPolicy(flags, method.ID); policyErr != nil {
+		return policyErr
+	}
 
 	params := map[string]any{}
 	paramsJSON := strings.TrimSpace(c.ParamsJSON)
@@ -139,6 +142,7 @@ func (c *APICallCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if err != nil {
 		return err
 	}
+	httpClient.CheckRedirect = validateDiscoveryRedirect
 	request, err := discoveryapi.NewRequest(ctx, method.Spec.HttpMethod, requestURL, body)
 	if err != nil {
 		return fmt.Errorf("build API request: %w", err)
@@ -161,6 +165,47 @@ func (c *APICallCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 
 	return writeDiscoveryResponse(ctx, response.Header.Get("Content-Type"), raw)
+}
+
+func enforceDiscoveryMethodPolicy(flags *RootFlags, methodID string) error {
+	profile, err := loadBakedSafetyProfile()
+	if err != nil {
+		return usagef("invalid baked safety profile: %v", err)
+	}
+	if profile.enabled {
+		return usage("api call is unavailable under a baked safety profile; use a first-class command")
+	}
+	if flags == nil {
+		return nil
+	}
+
+	allow := parseEnabledCommands(flags.EnableCommands)
+	exactAllow := parseEnabledCommands(flags.EnableCommandsExact)
+	deny := parseEnabledCommands(flags.DisableCommands)
+	if len(allow) == 0 && len(exactAllow) == 0 && len(deny) == 0 {
+		return nil
+	}
+
+	path := strings.Split("api."+strings.ToLower(strings.TrimSpace(methodID)), ".")
+	if commandPathMatches(deny, path) {
+		return usagef("Discovery method %q is disabled by command policy", methodID)
+	}
+	rule := strings.Join(path, ".")
+	if allow[rule] || exactAllow[rule] {
+		return nil
+	}
+	if len(deny) == 0 && (allow["*"] || allow["all"] || exactAllow["*"] || exactAllow["all"]) {
+		return nil
+	}
+
+	return usagef("Discovery method %q requires explicit command-policy permission; add %q to --enable-commands", methodID, rule)
+}
+
+func validateDiscoveryRedirect(req *http.Request, _ []*http.Request) error {
+	if err := discoveryapi.ValidateGoogleAPIURL(req.URL.String()); err != nil {
+		return fmt.Errorf("refuse API redirect: %w", err)
+	}
+	return nil
 }
 
 func discoveryScopes(available []string, override string) ([]string, error) {
