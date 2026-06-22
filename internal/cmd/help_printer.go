@@ -14,7 +14,10 @@ import (
 	"github.com/steipete/gogcli/internal/termutil"
 )
 
-const helpModeFull = "full"
+const (
+	helpModeAgent = "agent"
+	helpModeFull  = "full"
+)
 
 func helpOptions() kong.HelpOptions {
 	mode := strings.ToLower(strings.TrimSpace(os.Getenv("GOG_HELP")))
@@ -65,9 +68,34 @@ func helpPrinter(options kong.HelpOptions, ctx *kong.Context) error {
 	out = removeEmptyCommandGroups(out)
 	out = injectBuildLine(out)
 	out = injectAutomationHelp(out, ctx.Selected())
+	if strings.EqualFold(strings.TrimSpace(os.Getenv("GOG_HELP")), helpModeAgent) {
+		owner := helpOwnerNode(ctx.Selected())
+		if ctx.Selected() == nil || (owner != nil && owner.Type == kong.ApplicationNode) {
+			out = compactAgentHelp(out)
+		}
+	}
 	out = colorizeHelp(out, helpProfile(origStdout, helpColorMode(ctx.Args)))
 	_, err = io.WriteString(origStdout, out)
 	return err
+}
+
+func compactAgentHelp(out string) string {
+	lines := strings.Split(out, "\n")
+	prefix := make([]string, 0, 2)
+	for _, line := range lines {
+		if strings.HasPrefix(line, "Usage:") || strings.HasPrefix(line, "Build:") {
+			prefix = append(prefix, line)
+		}
+	}
+	start := strings.Index(out, "Automation:\n")
+	if start < 0 {
+		return out
+	}
+	section := out[start:]
+	if end := strings.Index(section, "\nCommands:\n"); end >= 0 {
+		section = section[:end]
+	}
+	return strings.Join(prefix, "\n") + "\n\n" + strings.TrimSpace(section) + "\n"
 }
 
 func injectBuildLine(out string) string {
@@ -105,7 +133,13 @@ func injectAutomationHelp(out string, selected *kong.Node) string {
 
 	const section = `Automation:
   Use --json or --plain for stable output; --no-input disables prompts.
-  Use "gog help <command>" or "gog <command> --help" for command help.
+  Common read-only commands:
+    gog gmail labels list --json --results-only
+    gog calendar calendars --json --results-only
+    gog drive search <text> --json --results-only
+  For exact Drive API filters, add --raw-query to drive search.
+  Run "gog schema <command path>" for a targeted machine-readable contract.
+  Use "gog help <command>" or "gog <command> --help" for prose help.
   Exit codes: 0 success, 1 error, 2 usage, 3 empty, 4 auth, 5 not found,
     6 denied, 7 rate limited, 8 retryable, 10 config, 11 orphaned,
     130 interrupted.

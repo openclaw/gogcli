@@ -64,11 +64,25 @@ func TestInjectAutomationHelp(t *testing.T) {
 
 	in := "Usage: gog\nFlags:\n\nCommands:\n  foo\n"
 	out := injectAutomationHelp(in, parser.Model.Node)
-	if !strings.Contains(out, "\nAutomation:\n") || !strings.Contains(out, `gog schema --json`) {
+	if !strings.Contains(out, "\nAutomation:\n") ||
+		!strings.Contains(out, `gog schema --json`) ||
+		!strings.Contains(out, `gog gmail labels list --json --results-only`) ||
+		!strings.Contains(out, `add --raw-query to drive search`) {
 		t.Fatalf("automation help missing: %q", out)
 	}
 	if again := injectAutomationHelp(out, parser.Model.Node); again != out {
 		t.Fatalf("injectAutomationHelp should be idempotent")
+	}
+}
+
+func TestCompactAgentHelp(t *testing.T) {
+	in := "Usage: gog <command>\nBuild: dev\n\nFlags:\n  --help\n\nAutomation:\n  recipe\n\nCommands:\n  gmail\n"
+	out := compactAgentHelp(in)
+	if !strings.Contains(out, "Usage: gog <command>") || !strings.Contains(out, "Automation:\n  recipe") {
+		t.Fatalf("compact help missing contract: %q", out)
+	}
+	if strings.Contains(out, "Flags:") || strings.Contains(out, "Commands:") {
+		t.Fatalf("compact help retained verbose sections: %q", out)
 	}
 }
 

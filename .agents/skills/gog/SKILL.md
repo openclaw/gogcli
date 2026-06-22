@@ -15,12 +15,14 @@ state before acting.
 gog --version
 gog auth list --check --json --no-input
 gog auth doctor --check --json --no-input
+GOG_HELP=agent gog --help
 gog schema --json
 ```
 
-`gog` has no separate agent mode. Its machine output, non-interactive behavior,
-stable exit codes, command guards, and untrusted-content wrapping apply across
-the CLI. Root help summarizes the human contract; `schema` exposes command
+`GOG_HELP=agent` makes root help emit a compact automation contract and common
+read-only recipes; commands and behavior stay unchanged. Machine output,
+non-interactive behavior, stable exit codes, command guards, and
+untrusted-content wrapping apply across the CLI. `schema` exposes command
 syntax, stable exit codes, and effective safety state for automation.
 
 For JSON output projection, `--fields` is accepted as an alias for `--select` on

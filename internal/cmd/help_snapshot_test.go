@@ -108,3 +108,16 @@ func TestHelpSnapshot_RootAutomationContract(t *testing.T) {
 		t.Fatalf("removed discovery commands leaked into help: %q", out)
 	}
 }
+
+func TestHelpSnapshot_RootAgentMode(t *testing.T) {
+	t.Setenv("GOG_HELP", "agent")
+	out := captureHelpOutput(t, "--help")
+	requireHelpContains(t, out,
+		"Usage: gog <command>",
+		"\nAutomation:\n",
+		"gog gmail labels list --json --results-only",
+	)
+	if strings.Contains(out, "\nFlags:\n") || strings.Contains(out, "\nCommands:\n") {
+		t.Fatalf("agent help retained verbose sections: %q", out)
+	}
+}
