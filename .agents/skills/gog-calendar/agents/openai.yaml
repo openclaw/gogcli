@@ -1,0 +1,4 @@
+interface:
+  display_name: "gog Google Calendar"
+  short_description: "Operate Google Calendar safely with gog"
+  default_prompt: "Use $gog-calendar to perform this Google Calendar task safely."

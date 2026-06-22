@@ -1,0 +1,4 @@
+interface:
+  display_name: "gog Google Meet"
+  short_description: "Operate Google Meet safely with gog"
+  default_prompt: "Use $gog-meet to perform this Google Meet task safely."

@@ -1,0 +1,4 @@
+interface:
+  display_name: "gog Google Keep"
+  short_description: "Operate Google Keep safely with gog"
+  default_prompt: "Use $gog-keep to perform this Google Keep task safely."

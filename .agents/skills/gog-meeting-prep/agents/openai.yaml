@@ -1,0 +1,4 @@
+interface:
+  display_name: "Gog Meeting Prep"
+  short_description: "Prepare meetings with Calendar and Drive"
+  default_prompt: "Use $gog-meeting-prep to prepare a concise brief for the next Google Calendar meeting."

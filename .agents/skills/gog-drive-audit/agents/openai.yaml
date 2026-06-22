@@ -1,0 +1,4 @@
+interface:
+  display_name: "Gog Drive Audit"
+  short_description: "Audit Drive sharing and ownership"
+  default_prompt: "Use $gog-drive-audit to inspect Google Drive sharing risks without changing files."

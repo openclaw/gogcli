@@ -1,0 +1,4 @@
+interface:
+  display_name: "gog Google Chat"
+  short_description: "Operate Google Chat safely with gog"
+  default_prompt: "Use $gog-chat to perform this Google Chat task safely."

@@ -1,0 +1,4 @@
+interface:
+  display_name: "gog Google Sites"
+  short_description: "Operate Google Sites safely with gog"
+  default_prompt: "Use $gog-sites to perform this Google Sites task safely."

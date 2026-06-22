@@ -3,7 +3,7 @@ SHELL := /bin/bash
 # `make` should build the binary by default.
 .DEFAULT_GOAL := build
 
-.PHONY: build build-safe gog gogcli gog-help gogcli-help help fmt fmt-check lint deadcode test ci tools pnpm-gate docs-commands docs-site docs-check
+.PHONY: build build-safe gog gogcli gog-help gogcli-help help fmt fmt-check lint deadcode test ci tools pnpm-gate docs-commands docs-site docs-check agent-skills agent-skills-check
 .PHONY: worker-ci eval-gws eval-gws-agents eval-gws-test
 
 BIN_DIR := $(CURDIR)/bin
@@ -78,6 +78,12 @@ docs-check: docs-site
 	@node --test scripts/check-docs-coverage.test.mjs
 	@node scripts/check-docs-coverage.mjs
 
+agent-skills: build
+	@node scripts/gen-agent-skills.mjs
+
+agent-skills-check: build
+	@node scripts/gen-agent-skills.mjs --check
+
 tools:
 	@mkdir -p $(TOOLS_DIR)
 	@if [ -x "$(GOFUMPT)" ] && [ -x "$(GOIMPORTS)" ] && [ -x "$(GOLANGCI_LINT)" ] && [ -x "$(DEADCODE)" ] && [ "$$(cat $(TOOLS_STAMP) 2>/dev/null)" = "$(TOOLS_VERSION)" ]; then \
@@ -143,7 +149,7 @@ eval-gws-agents: build
 eval-gws-test:
 	@node --test scripts/eval-gws.test.mjs scripts/eval-gws-agents.test.mjs
 
-ci: pnpm-gate fmt-check lint deadcode test docs-check
+ci: pnpm-gate fmt-check lint deadcode test docs-check agent-skills-check
 
 worker-ci:
 	@pnpm -C internal/tracking/worker lint

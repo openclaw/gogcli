@@ -1,0 +1,4 @@
+interface:
+  display_name: "gog YouTube"
+  short_description: "Operate YouTube safely with gog"
+  default_prompt: "Use $gog-youtube to perform this YouTube task safely."

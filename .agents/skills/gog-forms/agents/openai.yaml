@@ -1,0 +1,4 @@
+interface:
+  display_name: "gog Google Forms"
+  short_description: "Operate Google Forms safely with gog"
+  default_prompt: "Use $gog-forms to perform this Google Forms task safely."

@@ -1,0 +1,4 @@
+interface:
+  display_name: "gog Google Search Console"
+  short_description: "Operate Google Search Console safely with gog"
+  default_prompt: "Use $gog-searchconsole to perform this Google Search Console task safely."

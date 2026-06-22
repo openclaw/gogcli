@@ -1,0 +1,4 @@
+interface:
+  display_name: "gog Workspace Admin"
+  short_description: "Operate Workspace Admin safely with gog"
+  default_prompt: "Use $gog-admin to perform this Workspace Admin task safely."

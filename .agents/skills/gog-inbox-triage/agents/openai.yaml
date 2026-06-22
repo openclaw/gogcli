@@ -1,0 +1,4 @@
+interface:
+  display_name: "Gog Inbox Triage"
+  short_description: "Triage Gmail safely with gog"
+  default_prompt: "Use $gog-inbox-triage to review and prioritize recent unread Gmail without sending messages."

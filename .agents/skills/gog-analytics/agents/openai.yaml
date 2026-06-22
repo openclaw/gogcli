@@ -1,0 +1,4 @@
+interface:
+  display_name: "gog Google Analytics"
+  short_description: "Operate Google Analytics safely with gog"
+  default_prompt: "Use $gog-analytics to perform this Google Analytics task safely."

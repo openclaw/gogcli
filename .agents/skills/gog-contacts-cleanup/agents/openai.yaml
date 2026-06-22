@@ -1,0 +1,4 @@
+interface:
+  display_name: "Gog Contacts Cleanup"
+  short_description: "Find and clean duplicate contacts safely"
+  default_prompt: "Use $gog-contacts-cleanup to inspect duplicate Google Contacts and prepare a safe cleanup plan."

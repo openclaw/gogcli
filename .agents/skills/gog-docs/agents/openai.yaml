@@ -1,0 +1,4 @@
+interface:
+  display_name: "gog Google Docs"
+  short_description: "Operate Google Docs safely with gog"
+  default_prompt: "Use $gog-docs to perform this Google Docs task safely."

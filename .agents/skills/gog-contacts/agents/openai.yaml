@@ -1,0 +1,4 @@
+interface:
+  display_name: "gog Google Contacts"
+  short_description: "Operate Google Contacts safely with gog"
+  default_prompt: "Use $gog-contacts to perform this Google Contacts task safely."

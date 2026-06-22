@@ -1,0 +1,4 @@
+interface:
+  display_name: "gog Google People"
+  short_description: "Operate Google People safely with gog"
+  default_prompt: "Use $gog-people to perform this Google People task safely."

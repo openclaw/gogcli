@@ -1,0 +1,4 @@
+interface:
+  display_name: "gog Google Photos"
+  short_description: "Operate Google Photos safely with gog"
+  default_prompt: "Use $gog-photos to perform this Google Photos task safely."

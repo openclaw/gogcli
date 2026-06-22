@@ -1,0 +1,4 @@
+interface:
+  display_name: "gog Google Classroom"
+  short_description: "Operate Google Classroom safely with gog"
+  default_prompt: "Use $gog-classroom to perform this Google Classroom task safely."

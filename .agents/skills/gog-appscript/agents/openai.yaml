@@ -1,0 +1,4 @@
+interface:
+  display_name: "gog Apps Script"
+  short_description: "Operate Apps Script safely with gog"
+  default_prompt: "Use $gog-appscript to perform this Apps Script task safely."

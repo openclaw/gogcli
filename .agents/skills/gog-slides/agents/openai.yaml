@@ -1,0 +1,4 @@
+interface:
+  display_name: "gog Google Slides"
+  short_description: "Operate Google Slides safely with gog"
+  default_prompt: "Use $gog-slides to perform this Google Slides task safely."

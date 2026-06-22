@@ -1,0 +1,4 @@
+interface:
+  display_name: "gog Google Tasks"
+  short_description: "Operate Google Tasks safely with gog"
+  default_prompt: "Use $gog-tasks to perform this Google Tasks task safely."

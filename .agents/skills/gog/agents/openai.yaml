@@ -1,0 +1,4 @@
+interface:
+  display_name: "gog"
+  short_description: "Safe Google Workspace automation"
+  default_prompt: "Use $gog to perform this Google Workspace task safely."

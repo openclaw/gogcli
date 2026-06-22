@@ -1,0 +1,4 @@
+interface:
+  display_name: "gog Google Groups"
+  short_description: "Operate Google Groups safely with gog"
+  default_prompt: "Use $gog-groups to perform this Google Groups task safely."

@@ -1,0 +1,4 @@
+interface:
+  display_name: "gog Google Drive"
+  short_description: "Operate Google Drive safely with gog"
+  default_prompt: "Use $gog-drive to perform this Google Drive task safely."

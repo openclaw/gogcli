@@ -1,0 +1,4 @@
+interface:
+  display_name: "gog Gmail"
+  short_description: "Operate Gmail safely with gog"
+  default_prompt: "Use $gog-gmail to perform this Gmail task safely."

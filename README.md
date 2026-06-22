@@ -26,6 +26,7 @@ Start here:
 - [Quickstart](docs/quickstart.md)
 - [Auth clients and service accounts](docs/auth-clients.md)
 - [MCP server](docs/mcp.md)
+- [Agent skills](docs/agent-skills.md)
 - [Command index](docs/commands/README.md)
 - [Gmail watch / Pub/Sub push](docs/watch.md) (<https://gogcli.sh/watch.html>)
 
