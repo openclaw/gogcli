@@ -27,6 +27,10 @@ type Token struct {
 var (
 	errMissingEmail        = errors.New("missing email")
 	errMissingRefreshToken = errors.New("missing refresh token")
+	// ErrCorruptToken signals a token entry is present in the keyring but cannot
+	// be decoded (e.g. interrupted write, stored-shape change). Callers should
+	// treat it equivalently to a missing token and prompt re-authentication.
+	ErrCorruptToken = errors.New("stored token is corrupt")
 )
 
 type storedToken struct {
@@ -187,7 +191,7 @@ func (s *KeyringStore) getTokenNoLockOptions(client string, email string, migrat
 
 	var st storedToken
 	if err := json.Unmarshal(item.Data, &st); err != nil {
-		return Token{}, fmt.Errorf("decode token: %w", err)
+		return Token{}, fmt.Errorf("decode token: %w: %w", ErrCorruptToken, err)
 	}
 
 	return Token{
@@ -432,7 +436,7 @@ func (s *KeyringStore) getTokenBySubjectNoLock(client string, subject string) (T
 
 	var st storedToken
 	if err := json.Unmarshal(item.Data, &st); err != nil {
-		return Token{}, fmt.Errorf("decode token: %w", err)
+		return Token{}, fmt.Errorf("decode token: %w: %w", ErrCorruptToken, err)
 	}
 
 	return Token{

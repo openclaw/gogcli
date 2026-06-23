@@ -236,7 +236,10 @@ func tokenSourceForAccountScopesWithStoredScopeCheck(
 	var tok secrets.Token
 
 	if t, err := store.GetToken(client, email); err != nil {
-		if errors.Is(err, keyring.ErrKeyNotFound) {
+		// An absent or corrupt stored token is equivalent to "no usable credential":
+		// surface AuthRequiredError so the caller can prompt re-auth, instead of
+		// failing every command with a non-actionable decode error.
+		if errors.Is(err, keyring.ErrKeyNotFound) || errors.Is(err, secrets.ErrCorruptToken) {
 			return nil, &AuthRequiredError{Service: serviceLabel, Email: email, Client: client, Cause: err}
 		}
 
