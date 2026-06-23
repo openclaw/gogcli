@@ -8,12 +8,18 @@ import (
 	"strings"
 	"time"
 
+	"google.golang.org/api/gmail/v1"
+
 	"github.com/openclaw/gogcli/internal/gmailcontent"
 	"github.com/openclaw/gogcli/internal/ui"
 )
 
 type GmailForwardCmd struct {
-	MessageID       string `arg:"" name:"messageId" help:"Gmail message ID to forward"`
+	MessageID           string `arg:"" name:"messageId" help:"Gmail message ID to forward"`
+	GmailForwardOptions `embed:""`
+}
+
+type GmailForwardOptions struct {
 	To              string `name:"to" help:"Recipients (comma-separated; required)" required:""`
 	Cc              string `name:"cc" help:"CC recipients (comma-separated)"`
 	Bcc             string `name:"bcc" help:"BCC recipients (comma-separated)"`
@@ -23,31 +29,37 @@ type GmailForwardCmd struct {
 	SkipAttachments bool   `name:"skip-attachments" help:"Do not include original attachments"`
 }
 
+// forwardComposeInputs holds the validated, service-free inputs for a forward
+// compose. The note is resolved exactly once here because '-' reads stdin,
+// which cannot be read twice.
+type forwardComposeInputs struct {
+	messageID    string
+	note         string
+	toRecipients []string
+}
+
+// forwardComposeMessage carries the built forward message plus the metadata the
+// caller needs to record results.
+type forwardComposeMessage struct {
+	message    *gmail.Message
+	fromHeader string
+}
+
 func (c *GmailForwardCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
 
-	messageID := normalizeGmailMessageID(c.MessageID)
-	if messageID == "" {
-		return usage("required: messageId")
-	}
-
-	note, err := resolveBodyInput(ctx, c.Note, c.NoteFile)
+	inputs, err := c.resolveForwardInputs(ctx, c.MessageID)
 	if err != nil {
 		return err
 	}
 
-	toRecipients := splitCSV(c.To)
-	if len(toRecipients) == 0 {
-		return usage("required: --to")
-	}
-
 	if dryRunErr := dryRunExit(ctx, flags, "gmail.forward", map[string]any{
-		"message_id":       messageID,
-		"to":               toRecipients,
+		"message_id":       inputs.messageID,
+		"to":               inputs.toRecipients,
 		"cc":               splitCSV(c.Cc),
 		"bcc":              splitCSV(c.Bcc),
 		"from":             strings.TrimSpace(c.From),
-		"note_len":         len(note),
+		"note_len":         len(inputs.note),
 		"skip_attachments": c.SkipAttachments,
 	}); dryRunErr != nil {
 		return dryRunErr
@@ -58,15 +70,63 @@ func (c *GmailForwardCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
-	from, err := resolveComposeSender(ctx, svc, account, c.From)
+	built, err := c.buildForwardComposeMessage(ctx, svc, account, inputs)
 	if err != nil {
 		return err
 	}
 
-	// Fetch the original message in full format (headers + body + attachment metadata).
-	origMsg, err := svc.Users.Messages.Get("me", messageID).Format(gmailFormatFull).Context(ctx).Do()
+	sent, err := svc.Users.Messages.Send("me", built.message).Context(ctx).Do()
 	if err != nil {
-		return fmt.Errorf("fetch original message: %w", err)
+		return fmt.Errorf("send forward: %w", err)
+	}
+
+	return writeGmailMessageResults(ctx, u, []gmailMessageResult{{
+		From:      built.fromHeader,
+		MessageID: sent.Id,
+		ThreadID:  sent.ThreadId,
+	}})
+}
+
+// resolveForwardInputs normalizes the message ID, resolves the note input, and
+// runs all validation that does not require a Gmail service. It reads the note
+// exactly once so '-' (stdin) is consumed a single time.
+func (c *GmailForwardOptions) resolveForwardInputs(ctx context.Context, messageID string) (forwardComposeInputs, error) {
+	messageID = normalizeGmailMessageID(messageID)
+	if messageID == "" {
+		return forwardComposeInputs{}, usage("required: messageId")
+	}
+
+	note, err := resolveBodyInput(ctx, c.Note, c.NoteFile)
+	if err != nil {
+		return forwardComposeInputs{}, err
+	}
+
+	toRecipients := splitCSV(c.To)
+	if len(toRecipients) == 0 {
+		return forwardComposeInputs{}, usage("required: --to")
+	}
+
+	return forwardComposeInputs{
+		messageID:    messageID,
+		note:         note,
+		toRecipients: toRecipients,
+	}, nil
+}
+
+// buildForwardComposeMessage assembles the forwarded message from already-validated
+// inputs and an already-acquired service. It resolves the sender, fetches the
+// original message, and returns the message without sending so the caller
+// controls how it is dispatched.
+func (c *GmailForwardOptions) buildForwardComposeMessage(ctx context.Context, svc *gmail.Service, account string, inputs forwardComposeInputs) (forwardComposeMessage, error) {
+	from, err := resolveComposeSender(ctx, svc, account, c.From)
+	if err != nil {
+		return forwardComposeMessage{}, err
+	}
+
+	// Fetch the original message in full format (headers + body + attachment metadata).
+	origMsg, err := svc.Users.Messages.Get("me", inputs.messageID).Format(gmailFormatFull).Context(ctx).Do()
+	if err != nil {
+		return forwardComposeMessage{}, fmt.Errorf("fetch original message: %w", err)
 	}
 
 	origFrom := headerValue(origMsg.Payload, "From")
@@ -84,23 +144,23 @@ func (c *GmailForwardCmd) Run(ctx context.Context, flags *RootFlags) error {
 	// configured/local source as the reply quote and the outgoing Date header.
 	loc, err := mailDateLocation(ctx, stderrWriter(ctx))
 	if err != nil {
-		return err
+		return forwardComposeMessage{}, err
 	}
 
 	// Build forwarded body (plain text).
-	fwdPlain := formatForwardedMessage(note, origFrom, origDate, origSubject, origTo, origCc, origPlain, loc)
+	fwdPlain := formatForwardedMessage(inputs.note, origFrom, origDate, origSubject, origTo, origCc, origPlain, loc)
 
 	// Build forwarded body (HTML) if original had HTML.
 	var fwdHTML string
 	if origHTML != "" {
-		fwdHTML = formatForwardedMessageHTML(note, origFrom, origDate, origSubject, origTo, origCc, origHTML, loc)
+		fwdHTML = formatForwardedMessageHTML(inputs.note, origFrom, origDate, origSubject, origTo, origCc, origHTML, loc)
 	}
 
 	// Preserve CID-backed inline resources required by the forwarded HTML and,
 	// unless disabled, ordinary attachments.
-	attachments, err := preserveForwardMessageParts(ctx, svc, messageID, origMsg.Payload, origHTML, !c.SkipAttachments)
+	attachments, err := preserveForwardMessageParts(ctx, svc, inputs.messageID, origMsg.Payload, origHTML, !c.SkipAttachments)
 	if err != nil {
-		return fmt.Errorf("preserve forwarded message parts: %w", err)
+		return forwardComposeMessage{}, fmt.Errorf("preserve forwarded message parts: %w", err)
 	}
 
 	ccRecipients := splitCSV(c.Cc)
@@ -113,24 +173,18 @@ func (c *GmailForwardCmd) Run(ctx context.Context, flags *RootFlags) error {
 		BodyHTML:    fwdHTML,
 		Attachments: attachments,
 	}, sendBatch{
-		To:  toRecipients,
+		To:  inputs.toRecipients,
 		Cc:  ccRecipients,
 		Bcc: bccRecipients,
 	}, false)
 	if err != nil {
-		return fmt.Errorf("build message: %w", err)
+		return forwardComposeMessage{}, fmt.Errorf("build message: %w", err)
 	}
 
-	sent, err := svc.Users.Messages.Send("me", msg).Context(ctx).Do()
-	if err != nil {
-		return fmt.Errorf("send forward: %w", err)
-	}
-
-	return writeGmailMessageResults(ctx, u, []gmailMessageResult{{
-		From:      from.header,
-		MessageID: sent.Id,
-		ThreadID:  sent.ThreadId,
-	}})
+	return forwardComposeMessage{
+		message:    msg,
+		fromHeader: from.header,
+	}, nil
 }
 
 type forwardedHeader struct {
