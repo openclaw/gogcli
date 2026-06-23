@@ -14,26 +14,24 @@ import (
 )
 
 type GmailSendCmd struct {
-	To               string   `name:"to" help:"Recipients (comma-separated; required unless --reply-all is used)"`
-	Cc               string   `name:"cc" help:"CC recipients (comma-separated)"`
-	Bcc              string   `name:"bcc" help:"BCC recipients (comma-separated)"`
-	Subject          string   `name:"subject" help:"Subject (required unless replying; inherited with Re: for replies)"`
-	Body             string   `name:"body" help:"Body (plain text; required unless --body-html is set)"`
-	BodyFile         string   `name:"body-file" help:"Body file path (plain text; '-' for stdin)"`
-	BodyHTML         string   `name:"body-html" help:"Body (HTML; optional)"`
-	BodyHTMLFile     string   `name:"body-html-file" help:"HTML body file path ('-' for stdin)"`
-	ReplyToMessageID string   `name:"reply-to-message-id" aliases:"in-reply-to" help:"Reply to Gmail message ID (sets In-Reply-To/References and thread)"`
-	ThreadID         string   `name:"thread-id" help:"Reply within a Gmail thread (uses latest message for headers)"`
-	ReplyAll         bool     `name:"reply-all" help:"Auto-populate recipients from original message (requires --reply-to-message-id or --thread-id)"`
-	ReplyTo          string   `name:"reply-to" help:"Reply-To header address"`
-	Attach           []string `name:"attach" help:"Attachment file path (repeatable)"`
-	From             string   `name:"from" help:"Send from this email address (must be a verified send-as alias)"`
-	Signature        bool     `name:"signature" help:"Append the Gmail signature from the active send-as address"`
-	SignatureFrom    string   `name:"signature-from" help:"Append the Gmail signature from this send-as email address"`
-	SignatureFile    string   `name:"signature-file" help:"Append a local signature file (plain text or HTML)"`
-	Track            bool     `name:"track" help:"Enable open tracking (requires tracking setup)"`
-	TrackSplit       bool     `name:"track-split" help:"Send tracked messages separately per recipient"`
-	Quote            bool     `name:"quote" help:"Include quoted original message in reply (requires --reply-to-message-id or --thread-id)"`
+	To                      string   `name:"to" help:"Recipients (comma-separated; required unless --reply-all is used)"`
+	Cc                      string   `name:"cc" help:"CC recipients (comma-separated)"`
+	Bcc                     string   `name:"bcc" help:"BCC recipients (comma-separated)"`
+	Subject                 string   `name:"subject" help:"Subject (required unless replying; inherited with Re: for replies)"`
+	Body                    string   `name:"body" help:"Body (plain text; required unless --body-html is set)"`
+	BodyFile                string   `name:"body-file" help:"Body file path (plain text; '-' for stdin)"`
+	BodyHTML                string   `name:"body-html" help:"Body (HTML; optional)"`
+	BodyHTMLFile            string   `name:"body-html-file" help:"HTML body file path ('-' for stdin)"`
+	ReplyToMessageID        string   `name:"reply-to-message-id" aliases:"in-reply-to" help:"Reply to Gmail message ID (sets In-Reply-To/References and thread)"`
+	ThreadID                string   `name:"thread-id" help:"Reply within a Gmail thread (uses latest message for headers)"`
+	ReplyAll                bool     `name:"reply-all" help:"Auto-populate recipients from original message (requires --reply-to-message-id or --thread-id)"`
+	ReplyTo                 string   `name:"reply-to" help:"Reply-To header address"`
+	Attach                  []string `name:"attach" help:"Attachment file path (repeatable)"`
+	From                    string   `name:"from" help:"Send from this email address (must be a verified send-as alias)"`
+	composeSignatureOptions `embed:""`
+	Track                   bool `name:"track" help:"Enable open tracking (requires tracking setup)"`
+	TrackSplit              bool `name:"track-split" help:"Send tracked messages separately per recipient"`
+	Quote                   bool `name:"quote" help:"Include quoted original message in reply (requires --reply-to-message-id or --thread-id)"`
 }
 
 type sendBatch struct {

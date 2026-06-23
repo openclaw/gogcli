@@ -25,18 +25,26 @@ func (s composeSignature) empty() bool {
 	return strings.TrimSpace(s.Plain) == "" && strings.TrimSpace(s.HTML) == ""
 }
 
-func (c *GmailSendCmd) signatureRequested() bool {
+// composeSignatureOptions holds the shared signature flags used by the send and
+// reply compose commands.
+type composeSignatureOptions struct {
+	Signature     bool   `name:"signature" help:"Append the Gmail signature from the active send-as address"`
+	SignatureFrom string `name:"signature-from" help:"Append the Gmail signature from this send-as email address"`
+	SignatureFile string `name:"signature-file" help:"Append a local signature file (plain text or HTML)"`
+}
+
+func (c *composeSignatureOptions) signatureRequested() bool {
 	return c.Signature || strings.TrimSpace(c.SignatureFrom) != "" || strings.TrimSpace(c.SignatureFile) != ""
 }
 
-func (c *GmailSendCmd) validateSignatureOptions() error {
+func (c *composeSignatureOptions) validateSignatureOptions() error {
 	if strings.TrimSpace(c.SignatureFile) != "" && (c.Signature || strings.TrimSpace(c.SignatureFrom) != "") {
 		return usage("use only one of --signature/--signature-from or --signature-file")
 	}
 	return nil
 }
 
-func (c *GmailSendCmd) resolveComposeSignature(ctx context.Context, svc *gmail.Service, sendingEmail string) (composeSignature, string, error) {
+func (c *composeSignatureOptions) resolveComposeSignature(ctx context.Context, svc *gmail.Service, sendingEmail string) (composeSignature, string, error) {
 	if path := strings.TrimSpace(c.SignatureFile); path != "" {
 		signature, err := readComposeSignatureFile(path)
 		return signature, path, err

@@ -27,11 +27,11 @@ func TestGmailSendCmd_Run_WithSendAsSignature(t *testing.T) {
 			http.NotFound(w, r)
 		}
 	}, &GmailSendCmd{
-		To:        "recipient@example.com",
-		Subject:   "Hello",
-		Body:      "Body",
-		BodyHTML:  "<p>Body</p>",
-		Signature: true,
+		To:                      "recipient@example.com",
+		Subject:                 "Hello",
+		Body:                    "Body",
+		BodyHTML:                "<p>Body</p>",
+		composeSignatureOptions: composeSignatureOptions{Signature: true},
 	})
 
 	if !strings.Contains(raw, "Body\r\n\r\n--\r\nKind regards\r\nPrimary User") {
@@ -59,11 +59,11 @@ func TestGmailSendCmd_Run_SignatureFromAlias(t *testing.T) {
 			http.NotFound(w, r)
 		}
 	}, &GmailSendCmd{
-		To:            "recipient@example.com",
-		Subject:       "Hello",
-		Body:          "Body",
-		From:          "alias@example.com",
-		SignatureFrom: "alias@example.com",
+		To:                      "recipient@example.com",
+		Subject:                 "Hello",
+		Body:                    "Body",
+		From:                    "alias@example.com",
+		composeSignatureOptions: composeSignatureOptions{SignatureFrom: "alias@example.com"},
 	})
 
 	if !strings.Contains(raw, `From: "Alias" <alias@example.com>`) {
@@ -89,11 +89,11 @@ func TestGmailSendCmd_Run_WithSignatureFile(t *testing.T) {
 			http.NotFound(w, r)
 		}
 	}, &GmailSendCmd{
-		To:            "recipient@example.com",
-		Subject:       "Hello",
-		Body:          "Body",
-		BodyHTML:      "<p>Body</p>",
-		SignatureFile: path,
+		To:                      "recipient@example.com",
+		Subject:                 "Hello",
+		Body:                    "Body",
+		BodyHTML:                "<p>Body</p>",
+		composeSignatureOptions: composeSignatureOptions{SignatureFile: path},
 	})
 
 	if !strings.Contains(raw, "Body\r\n\r\n--\r\nLocal Sig\r\nhttps://example.com") {
@@ -147,10 +147,10 @@ func TestGmailSendCmd_Run_EmptySignatureWarnsAndSends(t *testing.T) {
 	var stderr strings.Builder
 	ctx := withGmailTestService(newGmailSendSignatureTestContext(t, io.Discard, &stderr), svc)
 	err := (&GmailSendCmd{
-		To:        "recipient@example.com",
-		Subject:   "Hello",
-		Body:      "Body",
-		Signature: true,
+		To:                      "recipient@example.com",
+		Subject:                 "Hello",
+		Body:                    "Body",
+		composeSignatureOptions: composeSignatureOptions{Signature: true},
 	}).Run(ctx, &RootFlags{Account: "a@b.com"})
 	if err != nil {
 		t.Fatalf("Run: %v", err)
@@ -166,11 +166,10 @@ func TestGmailSendCmd_Run_EmptySignatureWarnsAndSends(t *testing.T) {
 
 func TestGmailSendCmd_Run_SignatureOptionConflict(t *testing.T) {
 	err := (&GmailSendCmd{
-		To:            "recipient@example.com",
-		Subject:       "Hello",
-		Body:          "Body",
-		Signature:     true,
-		SignatureFile: "sig.txt",
+		To:                      "recipient@example.com",
+		Subject:                 "Hello",
+		Body:                    "Body",
+		composeSignatureOptions: composeSignatureOptions{Signature: true, SignatureFile: "sig.txt"},
 	}).Run(context.Background(), &RootFlags{Account: "a@b.com"})
 	if err == nil || !strings.Contains(err.Error(), "use only one of") {
 		t.Fatalf("expected signature option conflict, got %v", err)
