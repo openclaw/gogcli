@@ -236,7 +236,7 @@ func tokenSourceForAccountScopesWithStoredScopeCheck(
 	var tok secrets.Token
 
 	if t, err := store.GetToken(client, email); err != nil {
-		if errors.Is(err, keyring.ErrKeyNotFound) {
+		if errors.Is(err, keyring.ErrKeyNotFound) || errors.Is(err, secrets.ErrCorruptStoredToken) {
 			return nil, &AuthRequiredError{Service: serviceLabel, Email: email, Client: client, Cause: err}
 		}
 

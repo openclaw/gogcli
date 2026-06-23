@@ -603,6 +603,55 @@ func TestGetTokenNoMigrateReadsLegacyWithoutWritingPrimary(t *testing.T) {
 	}
 }
 
+func TestGetTokenClassifiesCorruptStoredToken(t *testing.T) {
+	ring := keyring.NewArrayKeyring(nil)
+	store := &KeyringStore{ring: ring}
+	client := "work"
+	email := "a@b.com"
+
+	if err := ring.Set(keyringItem(tokenKey(client, email), []byte("{not-json"))); err != nil {
+		t.Fatalf("seed token: %v", err)
+	}
+
+	_, err := store.GetToken(client, email)
+	if !errors.Is(err, ErrCorruptStoredToken) {
+		t.Fatalf("expected corrupt stored token error, got %v", err)
+	}
+
+	if errors.Is(err, keyring.ErrKeyNotFound) {
+		t.Fatalf("corrupt present token should not look missing: %v", err)
+	}
+}
+
+func TestGetTokenMissingTokenNotCorrupt(t *testing.T) {
+	store := &KeyringStore{ring: keyring.NewArrayKeyring(nil)}
+
+	_, err := store.GetToken("work", "a@b.com")
+	if !errors.Is(err, keyring.ErrKeyNotFound) {
+		t.Fatalf("expected missing token error, got %v", err)
+	}
+
+	if errors.Is(err, ErrCorruptStoredToken) {
+		t.Fatalf("missing token should not look corrupt: %v", err)
+	}
+}
+
+func TestGetTokenBySubjectClassifiesCorruptStoredToken(t *testing.T) {
+	ring := keyring.NewArrayKeyring(nil)
+	store := &KeyringStore{ring: ring}
+	client := "work"
+	subject := "sub-123"
+
+	if err := ring.Set(keyringItem(subjectTokenKey(client, subject), []byte("{not-json"))); err != nil {
+		t.Fatalf("seed subject token: %v", err)
+	}
+
+	_, err := store.getTokenBySubjectNoLock(client, subject)
+	if !errors.Is(err, ErrCorruptStoredToken) {
+		t.Fatalf("expected corrupt stored token error, got %v", err)
+	}
+}
+
 type legacyTokenReadErrorKeyring struct {
 	*keyring.ArrayKeyring
 	legacyKey string

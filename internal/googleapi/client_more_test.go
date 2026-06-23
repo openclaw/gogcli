@@ -166,6 +166,30 @@ func TestTokenSourceForAccountScopes_KeyNotFound(t *testing.T) {
 	}
 }
 
+func TestTokenSourceForAccountScopes_CorruptStoredToken(t *testing.T) {
+	dependencies := tokenTestDependencies(func() (secrets.Store, error) {
+		return &stubStore{err: fmt.Errorf("read token: %w", secrets.ErrCorruptStoredToken)}, nil
+	})
+
+	_, err := tokenSourceForAccountScopesWithStoredScopeCheck(context.Background(), dependencies, "gmail", "a@b.com", "default", "id", "secret", []string{"s1"}, false)
+	if err == nil {
+		t.Fatalf("expected error")
+	}
+	var are *AuthRequiredError
+
+	if !errors.As(err, &are) {
+		t.Fatalf("expected AuthRequiredError, got: %T %v", err, err)
+	}
+
+	if are.Service != "gmail" || are.Email != "a@b.com" || are.Client != "default" {
+		t.Fatalf("unexpected: %#v", are)
+	}
+
+	if !errors.Is(are.Cause, secrets.ErrCorruptStoredToken) {
+		t.Fatalf("expected corrupt stored token cause, got: %v", are.Cause)
+	}
+}
+
 func TestTokenSourceForAccountScopes_OtherGetError(t *testing.T) {
 	dependencies := tokenTestDependencies(func() (secrets.Store, error) {
 		return &stubStore{err: errNope}, nil

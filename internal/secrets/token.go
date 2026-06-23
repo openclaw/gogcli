@@ -29,6 +29,10 @@ var (
 	errMissingRefreshToken = errors.New("missing refresh token")
 )
 
+// ErrCorruptStoredToken marks a present OAuth token entry whose JSON payload
+// cannot be decoded.
+var ErrCorruptStoredToken = errors.New("corrupt stored token")
+
 type storedToken struct {
 	RefreshToken         string    `json:"refresh_token"`
 	Subject              string    `json:"subject,omitempty"`
@@ -187,7 +191,7 @@ func (s *KeyringStore) getTokenNoLockOptions(client string, email string, migrat
 
 	var st storedToken
 	if err := json.Unmarshal(item.Data, &st); err != nil {
-		return Token{}, fmt.Errorf("decode token: %w", err)
+		return Token{}, fmt.Errorf("%w: decode token: %w", ErrCorruptStoredToken, err)
 	}
 
 	return Token{
@@ -432,7 +436,7 @@ func (s *KeyringStore) getTokenBySubjectNoLock(client string, subject string) (T
 
 	var st storedToken
 	if err := json.Unmarshal(item.Data, &st); err != nil {
-		return Token{}, fmt.Errorf("decode token: %w", err)
+		return Token{}, fmt.Errorf("%w: decode token: %w", ErrCorruptStoredToken, err)
 	}
 
 	return Token{
