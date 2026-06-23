@@ -167,7 +167,13 @@ func prepareComposeReply(ctx context.Context, svc *gmail.Service, replyToMessage
 	if err != nil {
 		return nil, "", "", err
 	}
-	plainBody, htmlBody = applyQuoteToBodies(plainBody, htmlBody, quote, info)
+	if quote {
+		loc, locErr := mailDateLocation(ctx, stderrWriter(ctx))
+		if locErr != nil {
+			return nil, "", "", locErr
+		}
+		plainBody, htmlBody = applyQuoteToBodies(plainBody, htmlBody, quote, info, loc)
+	}
 	return info, plainBody, htmlBody, nil
 }
 

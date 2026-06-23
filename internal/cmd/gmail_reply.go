@@ -6,6 +6,7 @@ import (
 	"html"
 	"net/mail"
 	"strings"
+	"time"
 
 	"google.golang.org/api/gmail/v1"
 
@@ -257,7 +258,7 @@ func escapeTextToHTML(value string) string {
 	return strings.ReplaceAll(value, "\n", "<br>\n")
 }
 
-func applyQuoteToBodies(plainBody string, htmlBody string, quote bool, info *replyInfo) (string, string) {
+func applyQuoteToBodies(plainBody string, htmlBody string, quote bool, info *replyInfo, loc *time.Location) (string, string) {
 	if !quote || info == nil {
 		return plainBody, htmlBody
 	}
@@ -278,7 +279,7 @@ func applyQuoteToBodies(plainBody string, htmlBody string, quote bool, info *rep
 
 	outPlain := userPlain
 	if quotedPlain != "" && (!hasHTMLReply || strings.TrimSpace(userPlain) != "") {
-		outPlain += formatQuotedMessage(info.FromAddr, info.Date, quotedPlain)
+		outPlain += formatQuotedMessage(info.FromAddr, info.Date, quotedPlain, loc)
 	}
 
 	quoteContent := info.BodyHTML
@@ -289,7 +290,7 @@ func applyQuoteToBodies(plainBody string, htmlBody string, quote bool, info *rep
 		return outPlain, htmlBody
 	}
 
-	quoteHTML := formatQuotedMessageHTMLWithContent(info.FromAddr, info.Date, quoteContent)
+	quoteHTML := formatQuotedMessageHTMLWithContent(info.FromAddr, info.Date, quoteContent, loc)
 
 	outHTML := htmlBody
 	if strings.TrimSpace(outHTML) == "" {
@@ -302,7 +303,7 @@ func applyQuoteToBodies(plainBody string, htmlBody string, quote bool, info *rep
 }
 
 // formatQuotedMessage formats the original message as a quoted reply.
-func formatQuotedMessage(from, date, body string) string {
+func formatQuotedMessage(from, date, body string, loc *time.Location) string {
 	if body == "" {
 		return ""
 	}
@@ -310,9 +311,10 @@ func formatQuotedMessage(from, date, body string) string {
 	var sb strings.Builder
 	sb.WriteString("\n\n")
 
+	displayDate := formatQuoteDate(date, loc)
 	switch {
-	case date != "" && from != "":
-		fmt.Fprintf(&sb, "On %s, %s wrote:\n", date, from)
+	case displayDate != "" && from != "":
+		fmt.Fprintf(&sb, "On %s, %s wrote:\n", displayDate, from)
 	case from != "":
 		fmt.Fprintf(&sb, "%s wrote:\n", from)
 	default:
@@ -329,14 +331,14 @@ func formatQuotedMessage(from, date, body string) string {
 	return sb.String()
 }
 
-func formatQuotedMessageHTMLWithContent(from, date, htmlContent string) string {
+func formatQuotedMessageHTMLWithContent(from, date, htmlContent string, loc *time.Location) string {
 	senderName := from
 	if addr, err := mail.ParseAddress(from); err == nil && addr.Name != "" {
 		senderName = addr.Name
 	}
 
-	dateStr := date
-	if date == "" {
+	dateStr := formatQuoteDate(date, loc)
+	if dateStr == "" {
 		dateStr = "an earlier date"
 	}
 

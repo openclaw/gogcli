@@ -6,6 +6,7 @@ import (
 	"html"
 	"net/mail"
 	"strings"
+	"time"
 
 	"github.com/steipete/gogcli/internal/gmailcontent"
 	"github.com/steipete/gogcli/internal/ui"
@@ -79,13 +80,20 @@ func (c *GmailForwardCmd) Run(ctx context.Context, flags *RootFlags) error {
 	// Build forward subject (avoid stacking prefixes).
 	fwdSubject := buildForwardSubject(origSubject)
 
+	// Resolve the timezone for the forwarded Date header from the same
+	// configured/local source as the reply quote and the outgoing Date header.
+	loc, err := mailDateLocation(ctx, stderrWriter(ctx))
+	if err != nil {
+		return err
+	}
+
 	// Build forwarded body (plain text).
-	fwdPlain := formatForwardedMessage(note, origFrom, origDate, origSubject, origTo, origCc, origPlain)
+	fwdPlain := formatForwardedMessage(note, origFrom, origDate, origSubject, origTo, origCc, origPlain, loc)
 
 	// Build forwarded body (HTML) if original had HTML.
 	var fwdHTML string
 	if origHTML != "" {
-		fwdHTML = formatForwardedMessageHTML(note, origFrom, origDate, origSubject, origTo, origCc, origHTML)
+		fwdHTML = formatForwardedMessageHTML(note, origFrom, origDate, origSubject, origTo, origCc, origHTML, loc)
 	}
 
 	// Preserve CID-backed inline resources required by the forwarded HTML and,
@@ -130,10 +138,10 @@ type forwardedHeader struct {
 	value string
 }
 
-func forwardedMessageHeaders(from, date, subject, to, cc string) []forwardedHeader {
+func forwardedMessageHeaders(from, date, subject, to, cc string, loc *time.Location) []forwardedHeader {
 	return []forwardedHeader{
 		{"From", from},
-		{"Date", date},
+		{"Date", formatQuoteDate(date, loc)},
 		{"Subject", subject},
 		{"To", to},
 		{"Cc", cc},
@@ -170,7 +178,7 @@ func stripForwardPrefix(subject string) string {
 }
 
 // formatForwardedMessage builds the plain-text forwarded body.
-func formatForwardedMessage(note, from, date, subject, to, cc, body string) string {
+func formatForwardedMessage(note, from, date, subject, to, cc, body string, loc *time.Location) string {
 	var sb strings.Builder
 
 	if strings.TrimSpace(note) != "" {
@@ -179,7 +187,7 @@ func formatForwardedMessage(note, from, date, subject, to, cc, body string) stri
 	}
 
 	sb.WriteString("---------- Forwarded message ---------\n")
-	for _, h := range forwardedMessageHeaders(from, date, subject, to, cc) {
+	for _, h := range forwardedMessageHeaders(from, date, subject, to, cc, loc) {
 		if h.value != "" {
 			fmt.Fprintf(&sb, "%s: %s\n", h.label, h.value)
 		}
@@ -197,7 +205,7 @@ func formatForwardedMessage(note, from, date, subject, to, cc, body string) stri
 }
 
 // formatForwardedMessageHTML builds the HTML forwarded body.
-func formatForwardedMessageHTML(note, from, date, subject, to, cc, htmlContent string) string {
+func formatForwardedMessageHTML(note, from, date, subject, to, cc, htmlContent string, loc *time.Location) string {
 	var sb strings.Builder
 
 	if strings.TrimSpace(note) != "" {
@@ -210,7 +218,7 @@ func formatForwardedMessageHTML(note, from, date, subject, to, cc, htmlContent s
 	sb.WriteString(`<div style="margin:0 0 10px 0;color:#777">---------- Forwarded message ---------</div>`)
 	sb.WriteString(`<div style="margin:0 0 10px 0;color:#777">`)
 
-	for _, h := range forwardedMessageHeaders(from, date, subject, to, cc) {
+	for _, h := range forwardedMessageHeaders(from, date, subject, to, cc, loc) {
 		if h.value != "" {
 			displayName := html.EscapeString(h.value)
 			// Format the From address more nicely if it has a name part.

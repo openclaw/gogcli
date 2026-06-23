@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	"google.golang.org/api/gmail/v1"
 
@@ -60,6 +61,7 @@ func mockOriginalMessage(withAttachment bool) map[string]any {
 }
 
 func TestExecute_GmailForward_Basic(t *testing.T) {
+	t.Setenv("GOG_TIMEZONE", "UTC")
 	var sentRaw string
 	var sentThreadID string
 
@@ -115,8 +117,9 @@ func TestExecute_GmailForward_Basic(t *testing.T) {
 	if !strings.Contains(sentRaw, "From: Alice <alice@example.com>") {
 		t.Errorf("expected original From in forwarded body")
 	}
-	if !strings.Contains(sentRaw, "Date: Mon, 10 Mar 2026 09:00:00 -0400") {
-		t.Errorf("expected original Date in forwarded body")
+	// Original Date (09:00 -0400) reformatted to Gmail style in UTC.
+	if !strings.Contains(sentRaw, "Date: Tue, Mar 10, 2026 at 1:00 PM") {
+		t.Errorf("expected reformatted original Date in forwarded body")
 	}
 
 	// Verify note text.
@@ -319,13 +322,15 @@ func TestFormatForwardedMessage(t *testing.T) {
 		"bob@example.com",
 		"carol@example.com",
 		"Body text here.",
+		time.UTC,
 	)
 
 	checks := []string{
 		"See below",
 		"---------- Forwarded message ---------",
 		"From: Alice <alice@example.com>",
-		"Date: Mon, 10 Mar 2026 09:00:00 -0400",
+		// 09:00 -0400 rendered in UTC; weekday is recomputed (Mar 10 2026 is a Tue).
+		"Date: Tue, Mar 10, 2026 at 1:00 PM",
 		"Subject: Test Subject",
 		"To: bob@example.com",
 		"Cc: carol@example.com",
@@ -339,7 +344,7 @@ func TestFormatForwardedMessage(t *testing.T) {
 }
 
 func TestFormatForwardedMessage_NoNote(t *testing.T) {
-	result := formatForwardedMessage("", "from@x.com", "", "Subj", "to@x.com", "", "Body.")
+	result := formatForwardedMessage("", "from@x.com", "", "Subj", "to@x.com", "", "Body.", time.UTC)
 	if strings.HasPrefix(result, "\n\n------") {
 		// Should not have leading blank lines when note is empty.
 		t.Errorf("expected no leading blank lines when note is empty")
@@ -353,15 +358,20 @@ func TestFormatForwardedMessageHTML(t *testing.T) {
 	result := formatForwardedMessageHTML(
 		"Check this out",
 		"Alice <alice@example.com>",
-		"Mon, 10 Mar 2026",
+		"Mon, 10 Mar 2026 09:00:00 -0400",
 		"Test",
 		"bob@example.com",
 		"",
 		"<p>Original content</p>",
+		time.UTC,
 	)
 
 	if !strings.Contains(result, "Check this out") {
 		t.Error("missing note in HTML")
+	}
+	// Date (09:00 -0400) reformatted to Gmail style in UTC.
+	if !strings.Contains(result, "Tue, Mar 10, 2026 at 1:00 PM") {
+		t.Errorf("missing reformatted date in HTML, got:\n%s", result)
 	}
 	if !strings.Contains(result, "Forwarded message") {
 		t.Error("missing forward separator in HTML")

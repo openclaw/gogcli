@@ -4,14 +4,15 @@ import (
 	"encoding/base64"
 	"strings"
 	"testing"
+	"time"
 
 	"google.golang.org/api/gmail/v1"
 )
 
 func TestFormatQuotedMessage(t *testing.T) {
-	got := formatQuotedMessage("Alice <a@example.com>", "Mon, 1 Jan 2024 00:00:00 +0000", "l1\nl2")
+	got := formatQuotedMessage("Alice <a@example.com>", "Mon, 1 Jan 2024 00:00:00 +0000", "l1\nl2", time.UTC)
 	wantContains := []string{
-		"\n\nOn Mon, 1 Jan 2024 00:00:00 +0000, Alice <a@example.com> wrote:\n",
+		"\n\nOn Mon, Jan 1, 2024 at 12:00 AM, Alice <a@example.com> wrote:\n",
 		"> l1\n",
 		"> l2\n",
 	}
@@ -22,8 +23,34 @@ func TestFormatQuotedMessage(t *testing.T) {
 	}
 }
 
+func TestFormatQuoteDate(t *testing.T) {
+	cases := []struct {
+		name string
+		raw  string
+		loc  *time.Location
+		want string
+	}{
+		{"rfc2822 in utc", "Wed, 17 Jun 2026 00:29:51 +0000", time.UTC, "Wed, Jun 17, 2026 at 12:29 AM"},
+		{"converts offset into loc", "Wed, 17 Jun 2026 00:29:51 -0500", time.UTC, "Wed, Jun 17, 2026 at 5:29 AM"},
+		{"empty stays empty", "", time.UTC, ""},
+		{"unparseable returns trimmed raw", "  not a date  ", time.UTC, "not a date"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := formatQuoteDate(tc.raw, tc.loc); got != tc.want {
+				t.Fatalf("formatQuoteDate(%q) = %q, want %q", tc.raw, got, tc.want)
+			}
+		})
+	}
+
+	// A nil loc falls back to time.Local rather than panicking.
+	if got := formatQuoteDate("Wed, 17 Jun 2026 00:29:51 +0000", nil); got == "" {
+		t.Fatal("formatQuoteDate with nil loc returned empty")
+	}
+}
+
 func TestFormatQuotedMessageHTMLWithContent_EscapesHeader_NotBody(t *testing.T) {
-	out := formatQuotedMessageHTMLWithContent(`"><script>alert(1)</script>`, `<b>bad</b>`, `<b>ok</b>`)
+	out := formatQuotedMessageHTMLWithContent(`"><script>alert(1)</script>`, `<b>bad</b>`, `<b>ok</b>`, time.UTC)
 	if strings.Contains(out, "<script>") {
 		t.Fatalf("expected script tag to be escaped, got %q", out)
 	}
@@ -32,6 +59,20 @@ func TestFormatQuotedMessageHTMLWithContent_EscapesHeader_NotBody(t *testing.T) 
 	}
 	if !strings.Contains(out, "<b>ok</b>") {
 		t.Fatalf("expected htmlContent to be preserved, got %q", out)
+	}
+}
+
+func TestFormatQuotedMessageHTMLWithContent_Date(t *testing.T) {
+	// A parseable date is reformatted to Gmail style, converted into loc.
+	out := formatQuotedMessageHTMLWithContent("Alice <a@example.com>", "Wed, 17 Jun 2026 00:29:51 +0000", "<p>body</p>", time.UTC)
+	if !strings.Contains(out, "On Wed, Jun 17, 2026 at 12:29 AM, Alice wrote:") {
+		t.Fatalf("expected reformatted attribution date, got %q", out)
+	}
+
+	// An empty date falls back to "an earlier date".
+	out = formatQuotedMessageHTMLWithContent("Alice <a@example.com>", "", "<p>body</p>", time.UTC)
+	if !strings.Contains(out, "On an earlier date, Alice wrote:") {
+		t.Fatalf("expected 'an earlier date' fallback, got %q", out)
 	}
 }
 
@@ -82,6 +123,7 @@ func TestApplyQuoteToBodiesDerivesPlainReplyFromHTML(t *testing.T) {
 			Body:     "Original plain",
 			BodyHTML: "<p>Original HTML</p>",
 		},
+		time.UTC,
 	)
 
 	if !strings.Contains(plain, "HTML reply") {
@@ -104,6 +146,7 @@ func TestApplyQuoteToBodiesOmitsNonVisibleHTMLFromPlainReply(t *testing.T) {
 			Body:     "Original plain",
 			BodyHTML: "<p>Original HTML</p>",
 		},
+		time.UTC,
 	)
 
 	if !strings.Contains(plain, "Visible reply") || !strings.Contains(plain, "> Original plain") {
@@ -125,6 +168,7 @@ func TestApplyQuoteToBodiesDerivesPlainQuoteFromHTMLOriginal(t *testing.T) {
 			FromAddr: "sender@example.com",
 			BodyHTML: "<p>HTML-only original</p>",
 		},
+		time.UTC,
 	)
 
 	if !strings.Contains(plain, "HTML reply") || !strings.Contains(plain, "> HTML-only original") {
@@ -144,6 +188,7 @@ func TestApplyQuoteToBodiesKeepsImageOnlyReplyHTMLOnly(t *testing.T) {
 			Body:     "Original plain",
 			BodyHTML: "<p>Original HTML</p>",
 		},
+		time.UTC,
 	)
 
 	if strings.TrimSpace(plain) != "" {

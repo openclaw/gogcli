@@ -510,6 +510,7 @@ func TestGmailDraftsCreateCmd_WithFromAndReply(t *testing.T) {
 }
 
 func TestGmailDraftsCreateCmd_WithQuote(t *testing.T) {
+	t.Setenv("GOG_TIMEZONE", "UTC")
 	originalPlain := "Original plain line"
 	originalHTML := "<p>Original <b>HTML</b></p>"
 
@@ -527,7 +528,7 @@ func TestGmailDraftsCreateCmd_WithQuote(t *testing.T) {
 			if !strings.Contains(s, "Hello reply") {
 				t.Fatalf("missing body in raw:\n%s", s)
 			}
-			if !strings.Contains(s, "On Mon, 1 Jan 2024 00:00:00 +0000, Alice <alice@example.com> wrote:") {
+			if !strings.Contains(s, "On Mon, Jan 1, 2024 at 12:00 AM, Alice <alice@example.com> wrote:") {
 				t.Fatalf("missing quoted attribution in raw:\n%s", s)
 			}
 			if !strings.Contains(s, "> Original plain line") {
@@ -920,6 +921,7 @@ func TestGmailDraftsUpdateCmd_PreservesToWhenNotProvided(t *testing.T) {
 }
 
 func TestGmailDraftsUpdateCmd_WithQuoteFromExistingThread(t *testing.T) {
+	t.Setenv("GOG_TIMEZONE", "UTC")
 	originalPlain := "Original thread message"
 	originalHTML := "<div>Original <i>thread</i> HTML</div>"
 
@@ -1044,7 +1046,7 @@ func TestGmailDraftsUpdateCmd_WithQuoteFromExistingThread(t *testing.T) {
 			if !strings.Contains(s, "Updated body") {
 				t.Fatalf("missing body in raw:\n%s", s)
 			}
-			if !strings.Contains(s, "On Tue, 2 Jan 2024 03:04:05 +0000, Bob <bob@example.com> wrote:") {
+			if !strings.Contains(s, "On Tue, Jan 2, 2024 at 3:04 AM, Bob <bob@example.com> wrote:") {
 				t.Fatalf("missing quoted attribution in raw:\n%s", s)
 			}
 			if !strings.Contains(s, "> Original thread message") {
@@ -1154,6 +1156,7 @@ func TestGmailDraftsUpdateCmd_QuoteRequiresNonDraftNonSelfThreadMessage(t *testi
 }
 
 func TestGmailDraftsUpdateCmd_WithQuoteAndReplyToMessageID(t *testing.T) {
+	t.Setenv("GOG_TIMEZONE", "UTC")
 	originalPlain := "Quoted from explicit message id"
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -1185,7 +1188,7 @@ func TestGmailDraftsUpdateCmd_WithQuoteAndReplyToMessageID(t *testing.T) {
 			if !strings.Contains(s, "Updated body") {
 				t.Fatalf("missing body in raw:\n%s", s)
 			}
-			if !strings.Contains(s, "On Wed, 3 Jan 2024 06:07:08 +0000, Carol <carol@example.com> wrote:") {
+			if !strings.Contains(s, "On Wed, Jan 3, 2024 at 6:07 AM, Carol <carol@example.com> wrote:") {
 				t.Fatalf("missing quoted attribution in raw:\n%s", s)
 			}
 			if !strings.Contains(s, "> Quoted from explicit message id") {
