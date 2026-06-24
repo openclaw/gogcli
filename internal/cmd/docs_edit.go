@@ -204,8 +204,21 @@ func (c *DocsWriteCmd) applyDocumentStyle(ctx context.Context, svc *docs.Service
 	if c.Pageless {
 		mode = docsDocumentModePageless
 	}
+	// Document-style fields are per-tab. Resolve --tab to a concrete tab ID so
+	// pageless/layout lands on the targeted tab rather than silently hitting the
+	// default tab. resolveDocsTabID is a no-op when the tab is already a concrete
+	// ID (as in the plain-text path) and skipped entirely when no tab was given.
+	tabID := ""
+	if tab := strings.TrimSpace(c.Tab); tab != "" {
+		resolved, err := resolveDocsTabID(ctx, svc, docID, tab)
+		if err != nil {
+			return fmt.Errorf("resolve tab %q: %w", tab, err)
+		}
+		tabID = resolved
+	}
 	if err := setDocumentStyle(ctx, svc, docID, docsDocumentStyleOptions{
 		Mode:            mode,
+		TabID:           tabID,
 		DocsLayoutFlags: c.Layout,
 	}); err != nil {
 		return fmt.Errorf("set document style: %w", err)

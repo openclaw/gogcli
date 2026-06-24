@@ -22,6 +22,8 @@ type DocsPageLayoutCmd struct {
 	DocID       string          `arg:"" name:"docId" help:"Doc ID"`
 	Layout      string          `name:"layout" enum:"pageless,pages,paged" default:"pageless" help:"Page layout: pageless or pages"`
 	LayoutFlags DocsLayoutFlags `embed:""`
+	Tab         string          `name:"tab" help:"Target a specific tab by title or ID (see docs list-tabs). Page layout is per-tab; omit for the default tab."`
+	TabID       string          `name:"tab-id" hidden:"" help:"(deprecated) Use --tab"`
 }
 
 func (c *DocsPageLayoutCmd) Run(ctx context.Context, kctx *kong.Context, flags *RootFlags) error {
@@ -40,12 +42,20 @@ func (c *DocsPageLayoutCmd) Run(ctx context.Context, kctx *kong.Context, flags *
 		}
 	}
 
+	tab, err := resolveTabArg(ctx, c.Tab, c.TabID)
+	if err != nil {
+		return err
+	}
+
 	dryRunPayload := map[string]any{
 		"documentId": docID,
 	}
 	if mode != "" {
 		dryRunPayload["layout"] = c.Layout
 		dryRunPayload["mode"] = mode
+	}
+	if tab != "" {
+		dryRunPayload["tab"] = tab
 	}
 	for k, v := range c.LayoutFlags.dryRunPayload() {
 		dryRunPayload[k] = v
@@ -59,8 +69,17 @@ func (c *DocsPageLayoutCmd) Run(ctx context.Context, kctx *kong.Context, flags *
 		return err
 	}
 
+	tabID := ""
+	if tab != "" {
+		tabID, err = resolveDocsTabID(ctx, svc, docID, tab)
+		if err != nil {
+			return fmt.Errorf("resolve tab %q: %w", tab, err)
+		}
+	}
+
 	if err := setDocumentStyle(ctx, svc, docID, docsDocumentStyleOptions{
 		Mode:            mode,
+		TabID:           tabID,
 		DocsLayoutFlags: c.LayoutFlags,
 	}); err != nil {
 		if isDocsNotFound(err) {
@@ -77,6 +96,9 @@ func (c *DocsPageLayoutCmd) Run(ctx context.Context, kctx *kong.Context, flags *
 			payload["layout"] = c.Layout
 			payload["mode"] = mode
 		}
+		if tabID != "" {
+			payload["tabId"] = tabID
+		}
 		for k, v := range c.LayoutFlags.dryRunPayload() {
 			payload[k] = v
 		}
@@ -86,6 +108,9 @@ func (c *DocsPageLayoutCmd) Run(ctx context.Context, kctx *kong.Context, flags *
 	u.Out().Linef("documentId\t%s", docID)
 	if mode != "" {
 		u.Out().Linef("layout\t%s", c.Layout)
+	}
+	if tabID != "" {
+		u.Out().Linef("tabId\t%s", tabID)
 	}
 	for k, v := range c.LayoutFlags.dryRunPayload() {
 		u.Out().Linef("%s\t%s", k, v)

@@ -105,6 +105,53 @@ func TestDocsPageLayoutCmd_Pages(t *testing.T) {
 	}
 }
 
+func TestDocsPageLayoutCmd_TabTitleTargetsResolvedTab(t *testing.T) {
+	t.Parallel()
+
+	var update *docs.UpdateDocumentStyleRequest
+	docSvc, cleanup := newDocsServiceForTest(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/v1/documents/doc1":
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"documentId": "doc1",
+				"tabs": []map[string]any{{
+					"tabProperties": map[string]any{"tabId": "t.secondary", "title": "Secondary"},
+					"documentTab": map[string]any{
+						"body": map[string]any{"content": []map[string]any{{"startIndex": 0, "endIndex": 2}}},
+					},
+				}},
+			})
+		case r.Method == http.MethodPost && strings.Contains(r.URL.Path, ":batchUpdate"):
+			var req docs.BatchUpdateDocumentRequest
+			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+				t.Fatalf("decode: %v", err)
+			}
+			if len(req.Requests) != 1 {
+				t.Fatalf("requests = %d, want 1", len(req.Requests))
+			}
+			update = req.Requests[0].UpdateDocumentStyle
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{"documentId": "doc1"})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer cleanup()
+
+	flags := &RootFlags{Account: "a@b.com"}
+	ctx := withDocsTestService(newCmdRuntimeOutputContext(t, io.Discard, io.Discard), docSvc)
+	if err := runKong(t, &DocsPageLayoutCmd{}, []string{"doc1", "--tab", "Secondary"}, ctx, flags); err != nil {
+		t.Fatalf("page-layout tab: %v", err)
+	}
+	if update == nil {
+		t.Fatal("missing UpdateDocumentStyle request")
+	}
+	if update.TabId != "t.secondary" {
+		t.Fatalf("tabId = %q, want t.secondary", update.TabId)
+	}
+}
+
 func TestDocsPageLayoutCmd_EmptyDocID(t *testing.T) {
 	t.Parallel()
 

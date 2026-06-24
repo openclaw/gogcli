@@ -58,6 +58,10 @@ func (f DocsLayoutFlags) dryRunPayload() map[string]any {
 
 type docsDocumentStyleOptions struct {
 	Mode string
+	// TabID, when set, targets a specific tab. Document-style fields (e.g.
+	// documentMode/pageless) are per-tab; an empty TabID applies to the
+	// document's default tab.
+	TabID string
 	DocsLayoutFlags
 }
 
@@ -141,6 +145,7 @@ func buildUpdateDocumentStyleRequest(opts docsDocumentStyleOptions) (*docs.Updat
 	return &docs.UpdateDocumentStyleRequest{
 		DocumentStyle: style,
 		Fields:        strings.Join(fields, ","),
+		TabId:         strings.TrimSpace(opts.TabID),
 	}, nil
 }
 
