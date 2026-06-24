@@ -104,6 +104,30 @@ func TestGmailSendCmd_Run_WithSignatureFile(t *testing.T) {
 	}
 }
 
+func TestReadComposeSignatureFile_HTMLFragment(t *testing.T) {
+	t.Parallel()
+
+	path := filepath.Join(t.TempDir(), "signature.html")
+	fragment := `<style type="text/css">p { color: red; }</style><table><tr><td>Local Sig</td></tr></table>`
+	if err := os.WriteFile(path, []byte(fragment), 0o600); err != nil {
+		t.Fatalf("write signature file: %v", err)
+	}
+
+	signature, err := readComposeSignatureFile(path)
+	if err != nil {
+		t.Fatalf("read signature file: %v", err)
+	}
+	if signature.HTML != fragment {
+		t.Fatalf("HTML signature was escaped or changed:\n%s", signature.HTML)
+	}
+	if strings.Contains(signature.HTML, "&lt;") {
+		t.Fatalf("HTML signature contains escaped markup: %s", signature.HTML)
+	}
+	if signature.Plain != "Local Sig" {
+		t.Fatalf("plain signature = %q, want Local Sig", signature.Plain)
+	}
+}
+
 func TestGmailSendCmd_Run_EmptySignatureWarnsAndSends(t *testing.T) {
 	var raw string
 	svc, cleanup := newGmailServiceForTest(t, func(w http.ResponseWriter, r *http.Request) {

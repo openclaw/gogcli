@@ -139,6 +139,26 @@ func LooksLikeHTML(value string) bool {
 		strings.Contains(trimmed, "<html")
 }
 
+// LooksLikeHTMLFragment reports whether value appears to contain an HTML
+// document or recognized fragment. Use it only where both plain text and HTML
+// fragments are part of the input contract.
+func LooksLikeHTMLFragment(value string) bool {
+	trimmed := strings.TrimSpace(strings.ToLower(value))
+	if trimmed == "" {
+		return false
+	}
+
+	return LooksLikeHTML(trimmed) || htmlFragmentPattern.MatchString(trimmed)
+}
+
+// htmlFragmentPattern matches real HTML tags and comments, not angle-bracketed plain text
+// like <path>, <project>, or <a@example.com>. After the tag name, a real HTML boundary
+// is required: > (close tag), / (self-closing), or whitespace (start of attributes).
+// Punctuation like @, ., : does not count as a boundary.
+var htmlFragmentPattern = regexp.MustCompile(
+	`<!--|</?(?:p|br|div|span|table|tr|td|section|blockquote|a|img|font|style)[\s/>]`,
+)
+
 func decodePartBody(part *gmail.MessagePart) (string, error) {
 	if part == nil || part.Body == nil || part.Body.Data == "" {
 		return "", nil

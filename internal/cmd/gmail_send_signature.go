@@ -83,7 +83,7 @@ func readComposeSignatureFile(path string) (composeSignature, error) {
 	if value == "" {
 		return composeSignature{}, nil
 	}
-	if gmailcontent.LooksLikeHTML(value) {
+	if gmailcontent.LooksLikeHTMLFragment(value) {
 		return composeSignature{
 			Plain: htmlToPlainText(value),
 			HTML:  value,

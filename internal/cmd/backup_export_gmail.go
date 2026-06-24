@@ -231,7 +231,7 @@ func backupEmailMarkdownText(value string) string {
 	if value == "" {
 		return ""
 	}
-	if gmailcontent.LooksLikeHTML(value) || looksLikeHTMLFragment(value) {
+	if gmailcontent.LooksLikeHTMLFragment(value) {
 		return cleanBackupHTMLBody(value)
 	}
 	return value
@@ -240,23 +240,6 @@ func backupEmailMarkdownText(value string) string {
 func cleanBackupHTMLBody(value string) string {
 	cleaned := stdhtml.UnescapeString(gmailcontent.StripHTMLTags(value))
 	return strings.Join(strings.Fields(cleaned), " ")
-}
-
-func looksLikeHTMLFragment(value string) bool {
-	trimmed := strings.ToLower(strings.TrimSpace(value))
-	if trimmed == "" {
-		return false
-	}
-	for _, marker := range []string{
-		"<p", "</p", "<br", "<div", "</div", "<span", "</span", "<table", "</table",
-		"<tr", "</tr", "<td", "</td", "<section", "</section", "<blockquote",
-		"</blockquote", "<a ", "</a", "<img", "<font", "</font", "<style", "<!--",
-	} {
-		if strings.Contains(trimmed, marker) {
-			return true
-		}
-	}
-	return false
 }
 
 func renderGmailMessageMarkdown(message gmailBackupMessage, parsed backupEmail, body string, attachmentRels []string) string {

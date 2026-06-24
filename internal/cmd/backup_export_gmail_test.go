@@ -192,4 +192,9 @@ func TestBackupEmailMarkdownBodyCleansHTMLFragments(t *testing.T) {
 	if got != "Hi there" {
 		t.Fatalf("html body = %q, want %q", got, "Hi there")
 	}
+
+	got = backupEmailMarkdownBody(backupEmail{TextBody: "Use <code>foo</code> or <kbd>Ctrl-C</kbd>"})
+	if got != "Use <code>foo</code> or <kbd>Ctrl-C</kbd>" {
+		t.Fatalf("literal tag-like text changed: %q", got)
+	}
 }
