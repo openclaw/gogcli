@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/99designs/keyring"
+	"github.com/byteness/keyring"
 
 	"github.com/steipete/gogcli/internal/config"
 )

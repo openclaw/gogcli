@@ -6,7 +6,7 @@ import (
 	"net"
 	"strings"
 
-	"github.com/99designs/keyring"
+	"github.com/byteness/keyring"
 	ggoogleapi "google.golang.org/api/googleapi"
 
 	"github.com/steipete/gogcli/internal/config"

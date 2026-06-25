@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/99designs/keyring"
+	"github.com/byteness/keyring"
 )
 
 type timeoutKeyring struct {

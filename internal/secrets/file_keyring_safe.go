@@ -8,7 +8,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/99designs/keyring"
+	"github.com/byteness/keyring"
 )
 
 const fileKeyPrefix = "_gogcli_key_v1_"

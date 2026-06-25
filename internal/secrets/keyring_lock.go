@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/99designs/keyring"
+	"github.com/byteness/keyring"
 )
 
 const (

@@ -6,7 +6,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/99designs/keyring"
+	"github.com/byteness/keyring"
 	"github.com/alecthomas/kong"
 	ggoogleapi "google.golang.org/api/googleapi"
 

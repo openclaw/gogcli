@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/99designs/keyring"
+	"github.com/byteness/keyring"
 
 	"github.com/steipete/gogcli/internal/config"
 )
@@ -233,7 +233,7 @@ func isFileKeyring(ring keyring.Keyring) bool {
 
 func openKeyringWithOptions(options OpenOptions) (keyring.Keyring, error) {
 	// On Linux/WSL/containers, OS keychains (secret-service/kwallet) may be unavailable.
-	// In that case github.com/99designs/keyring falls back to the "file" backend,
+	// In that case github.com/byteness/keyring falls back to the "file" backend,
 	// which *requires* both a directory and a password prompt function.
 	keyringDir, err := options.Layout.EnsureKeyringDir()
 	if err != nil {

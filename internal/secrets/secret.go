@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/99designs/keyring"
+	"github.com/byteness/keyring"
 )
 
 var errMissingSecretKey = errors.New("missing secret key")

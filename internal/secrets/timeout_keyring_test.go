@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/99designs/keyring"
+	"github.com/byteness/keyring"
 )
 
 func TestKeyringOperationTimeoutGuards(t *testing.T) {

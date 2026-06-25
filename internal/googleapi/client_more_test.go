@@ -15,7 +15,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/99designs/keyring"
+	"github.com/byteness/keyring"
 	"golang.org/x/oauth2"
 
 	"github.com/steipete/gogcli/internal/authclient"
