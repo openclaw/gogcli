@@ -22,7 +22,7 @@ gog calendar (cal) create (add,new) <calendarId> [flags]
 | `-a`<br>`--account`<br>`--acct` | `string` |  | Account email, alias, or auto for authenticated Google API commands |
 | `--all-day` | `bool` |  | All-day event (use date-only in --from/--to) |
 | `--attachment` | `[]string` |  | File attachment URL (can be repeated) |
-| `--attendees` | `string` |  | Comma-separated attendee emails |
+| `--attendees` | `string` |  | Comma-separated attendee emails; modifiers: ;optional, ;resource, ;comment=TEXT |
 | `--client` | `string` |  | OAuth client name (selects stored credentials + token bucket) |
 | `--color` | `string` | auto | Color output: auto\|always\|never |
 | `--description` | `string` |  | Description |

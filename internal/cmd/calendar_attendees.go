@@ -30,8 +30,8 @@ func mergeAttendees(existing []*calendar.EventAttendee, addCSV string) []*calend
 
 // mergeAttendeesWithChange returns the merged attendees and whether at least one attendee was added.
 func mergeAttendeesWithChange(existing []*calendar.EventAttendee, addCSV string) ([]*calendar.EventAttendee, bool) {
-	newEmails := splitCSV(addCSV)
-	if len(newEmails) == 0 {
+	newAttendees := buildAttendees(addCSV)
+	if len(newAttendees) == 0 {
 		return existing, false
 	}
 
@@ -44,17 +44,19 @@ func mergeAttendeesWithChange(existing []*calendar.EventAttendee, addCSV string)
 	}
 
 	// Start with existing attendees (preserving all metadata)
-	out := make([]*calendar.EventAttendee, 0, len(existing)+len(newEmails))
+	out := make([]*calendar.EventAttendee, 0, len(existing)+len(newAttendees))
 	out = append(out, existing...)
 
 	// Add new attendees that don't already exist
 	added := false
-	for _, email := range newEmails {
+	for _, attendee := range newAttendees {
+		if attendee == nil || attendee.Email == "" {
+			continue
+		}
+		email := attendee.Email
 		if !existingEmails[strings.ToLower(email)] {
-			out = append(out, &calendar.EventAttendee{
-				Email:          email,
-				ResponseStatus: "needsAction",
-			})
+			attendee.ResponseStatus = "needsAction"
+			out = append(out, attendee)
 			existingEmails[strings.ToLower(email)] = true
 			added = true
 		}
@@ -79,6 +81,10 @@ func parseAttendee(s string) *calendar.EventAttendee {
 		lower := strings.ToLower(raw)
 		if lower == "optional" {
 			attendee.Optional = true
+			continue
+		}
+		if lower == "resource" {
+			attendee.Resource = true
 			continue
 		}
 		if strings.HasPrefix(lower, "comment=") {

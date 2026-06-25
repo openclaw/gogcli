@@ -151,15 +151,18 @@ func TestParseAttendee(t *testing.T) {
 		input    string
 		email    string
 		optional bool
+		resource bool
 		comment  string
 		isNil    bool
 	}{
-		{"alice@example.com", "alice@example.com", false, "", false},
-		{"bob@example.com;optional", "bob@example.com", true, "", false},
-		{"carol@example.com;comment=FYI only", "carol@example.com", false, "FYI only", false},
-		{"dave@example.com;OPTIONAL;comment=Hi", "dave@example.com", true, "Hi", false},
-		{";optional", "", false, "", true},
-		{"", "", false, "", true},
+		{"alice@example.com", "alice@example.com", false, false, "", false},
+		{"bob@example.com;optional", "bob@example.com", true, false, "", false},
+		{"carol@example.com;comment=FYI only", "carol@example.com", false, false, "FYI only", false},
+		{"dave@example.com;OPTIONAL;comment=Hi", "dave@example.com", true, false, "Hi", false},
+		{"room@example.com;RESOURCE", "room@example.com", false, true, "", false},
+		{"room@example.com;resource;optional;comment=Project room", "room@example.com", true, true, "Project room", false},
+		{";optional", "", false, false, "", true},
+		{"", "", false, false, "", true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
@@ -174,7 +177,7 @@ func TestParseAttendee(t *testing.T) {
 				t.Fatalf("expected attendee, got nil")
 				return
 			}
-			if got.Email != tt.email || got.Optional != tt.optional || got.Comment != tt.comment {
+			if got.Email != tt.email || got.Optional != tt.optional || got.Resource != tt.resource || got.Comment != tt.comment {
 				t.Fatalf("unexpected attendee: %#v", got)
 			}
 		})

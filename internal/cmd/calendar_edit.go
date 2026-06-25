@@ -29,7 +29,7 @@ type CalendarCreateCmd struct {
 	PlaceID               string   `name:"place-id" help:"Resolve a Google Places ID and use it as event location"`
 	PlaceLanguage         string   `name:"place-language" help:"Places API language code for location lookup"`
 	PlaceRegion           string   `name:"place-region" help:"Places API region code for location lookup"`
-	Attendees             string   `name:"attendees" help:"Comma-separated attendee emails"`
+	Attendees             string   `name:"attendees" help:"Comma-separated attendee emails; modifiers: ;optional, ;resource, ;comment=TEXT"`
 	AllDay                bool     `name:"all-day" help:"All-day event (use date-only in --from/--to)"`
 	Recurrence            []string `name:"rrule" help:"Recurrence rules (e.g., 'RRULE:FREQ=MONTHLY;BYMONTHDAY=11'). Can be repeated." sep:"none"`
 	Reminders             []string `name:"reminder" help:"Custom reminders as method:duration (e.g., popup:30m, email:1d). Can be repeated (max 5)."`
@@ -188,8 +188,8 @@ type CalendarUpdateCmd struct {
 	PlaceID               string   `name:"place-id" help:"Resolve a Google Places ID and use it as event location"`
 	PlaceLanguage         string   `name:"place-language" help:"Places API language code for location lookup"`
 	PlaceRegion           string   `name:"place-region" help:"Places API region code for location lookup"`
-	Attendees             string   `name:"attendees" help:"Comma-separated attendee emails (replaces all; set empty to clear)"`
-	AddAttendee           string   `name:"add-attendee" help:"Comma-separated attendee emails to add (preserves existing attendees)"`
+	Attendees             string   `name:"attendees" help:"Comma-separated attendee emails (replaces all; set empty to clear); modifiers: ;optional, ;resource, ;comment=TEXT"`
+	AddAttendee           string   `name:"add-attendee" help:"Comma-separated attendee emails to add (preserves existing attendees); modifiers: ;optional, ;resource, ;comment=TEXT"`
 	Attachments           []string `name:"attachment" help:"File attachment URL (can be repeated; replaces all; set empty to clear)"`
 	AllDay                bool     `name:"all-day" help:"All-day event (use date-only in --from/--to)"`
 	Recurrence            []string `name:"rrule" help:"Recurrence rules (e.g., 'RRULE:FREQ=MONTHLY;BYMONTHDAY=11'). Can be repeated. Set empty to clear." sep:"none"`

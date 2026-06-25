@@ -20,10 +20,10 @@ gog calendar (cal) update (edit,set) <calendarId> <eventId> [flags]
 | --- | --- | --- | --- |
 | `--access-token` | `string` |  | Use provided access token directly (bypasses stored refresh tokens; token expires in ~1h) |
 | `-a`<br>`--account`<br>`--acct` | `string` |  | Account email, alias, or auto for authenticated Google API commands |
-| `--add-attendee` | `string` |  | Comma-separated attendee emails to add (preserves existing attendees) |
+| `--add-attendee` | `string` |  | Comma-separated attendee emails to add (preserves existing attendees); modifiers: ;optional, ;resource, ;comment=TEXT |
 | `--all-day` | `bool` |  | All-day event (use date-only in --from/--to) |
 | `--attachment` | `[]string` |  | File attachment URL (can be repeated; replaces all; set empty to clear) |
-| `--attendees` | `string` |  | Comma-separated attendee emails (replaces all; set empty to clear) |
+| `--attendees` | `string` |  | Comma-separated attendee emails (replaces all; set empty to clear); modifiers: ;optional, ;resource, ;comment=TEXT |
 | `--client` | `string` |  | OAuth client name (selects stored credentials + token bucket) |
 | `--color` | `string` | auto | Color output: auto\|always\|never |
 | `--description` | `string` |  | New description (set empty to clear) |

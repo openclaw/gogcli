@@ -147,6 +147,26 @@ func TestBuildCalendarCreatePlan(t *testing.T) {
 	}
 }
 
+func TestBuildCalendarCreatePlanResourceAttendee(t *testing.T) {
+	plan, err := buildCalendarCreatePlan(defaultConfigStoreForTest(t), calendarCreateInput{
+		CalendarID: "primary",
+		Summary:    "Room booking",
+		From:       "2026-05-10T10:00:00Z",
+		To:         "2026-05-10T11:00:00Z",
+		Attendees:  "room@resource.calendar.google.com;resource;comment=Project room",
+	}, calendarCreateFields{})
+	if err != nil {
+		t.Fatalf("buildCalendarCreatePlan: %v", err)
+	}
+	if len(plan.Event.Attendees) != 1 {
+		t.Fatalf("expected 1 attendee, got %#v", plan.Event.Attendees)
+	}
+	attendee := plan.Event.Attendees[0]
+	if attendee.Email != "room@resource.calendar.google.com" || !attendee.Resource || attendee.Comment != "Project room" {
+		t.Fatalf("unexpected resource attendee: %#v", attendee)
+	}
+}
+
 func TestBuildCalendarCreatePlanRejectsConferenceConflict(t *testing.T) {
 	_, err := buildCalendarCreatePlan(defaultConfigStoreForTest(t), calendarCreateInput{
 		CalendarID: "primary",

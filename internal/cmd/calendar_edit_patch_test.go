@@ -55,6 +55,34 @@ func TestCalendarUpdateBuildPatch(t *testing.T) {
 	}
 }
 
+func TestCalendarUpdateBuildPatchResourceAttendee(t *testing.T) {
+	cmd := &CalendarUpdateCmd{}
+	parser, err := kong.New(cmd, kong.Writers(io.Discard, io.Discard))
+	if err != nil {
+		t.Fatalf("kong.New: %v", err)
+	}
+	kctx, err := parser.Parse([]string{
+		"cal1",
+		"evt1",
+		"--attendees", "room@resource.calendar.google.com;resource;optional;comment=Project room",
+	})
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+
+	patch, changed, err := buildCalendarUpdatePatch(calendarUpdateInputFromCommand(cmd), calendarUpdateFieldsFromKong(kctx))
+	if err != nil {
+		t.Fatalf("buildUpdatePatch: %v", err)
+	}
+	if !changed || len(patch.Attendees) != 1 {
+		t.Fatalf("unexpected attendees patch: %#v", patch)
+	}
+	attendee := patch.Attendees[0]
+	if attendee.Email != "room@resource.calendar.google.com" || !attendee.Resource || !attendee.Optional || attendee.Comment != "Project room" {
+		t.Fatalf("unexpected resource attendee: %#v", attendee)
+	}
+}
+
 func TestCalendarUpdateBuildPatch_ClearFields(t *testing.T) {
 	cmd := &CalendarUpdateCmd{}
 	parser, err := kong.New(cmd, kong.Writers(io.Discard, io.Discard))

@@ -719,7 +719,7 @@ func TestCalendarUpdateCmd_WithMeetScopeFutureExistingConferenceIsIdempotent(t *
 }
 
 func TestCalendarUpdateCmd_AddAttendee(t *testing.T) {
-	var patchedAttendees int
+	var patchedAttendees []*calendar.EventAttendee
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := strings.TrimPrefix(r.URL.Path, "/calendar/v3")
 		switch {
@@ -735,7 +735,7 @@ func TestCalendarUpdateCmd_AddAttendee(t *testing.T) {
 		case r.Method == http.MethodPatch && path == "/calendars/cal@example.com/events/ev":
 			var body calendar.Event
 			_ = json.NewDecoder(r.Body).Decode(&body)
-			patchedAttendees = len(body.Attendees)
+			patchedAttendees = body.Attendees
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"id": "ev",
@@ -762,13 +762,20 @@ func TestCalendarUpdateCmd_AddAttendee(t *testing.T) {
 	if err := runKong(t, cmd, []string{
 		"cal@example.com",
 		"ev",
-		"--add-attendee", "b@example.com",
+		"--add-attendee", "room@resource.calendar.google.com;resource;optional;comment=Project room",
 		"--scope", "all",
 	}, ctx, &RootFlags{Account: "a@b.com"}); err != nil {
 		t.Fatalf("runKong: %v", err)
 	}
-	if patchedAttendees < 2 {
-		t.Fatalf("expected merged attendees, got %d", patchedAttendees)
+	if len(patchedAttendees) < 2 {
+		t.Fatalf("expected merged attendees, got %d", len(patchedAttendees))
+	}
+	added := patchedAttendees[len(patchedAttendees)-1]
+	if added.Email != "room@resource.calendar.google.com" || !added.Resource || !added.Optional || added.Comment != "Project room" {
+		t.Fatalf("unexpected added resource attendee: %#v", added)
+	}
+	if added.ResponseStatus != "needsAction" {
+		t.Fatalf("expected needsAction response status, got %q", added.ResponseStatus)
 	}
 }
 
