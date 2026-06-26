@@ -56,6 +56,7 @@ gog <command> [flags]
 - [gog status](gog-status.md) - Show auth/config status (alias for 'auth status')
 - [gog tasks](gog-tasks.md) - Google Tasks
 - [gog time](gog-time.md) - Local time utilities
+- [gog update](gog-update.md) - Check gogcli release status
 - [gog upload](gog-upload.md) - Upload a file to Drive (alias for 'drive upload')
 - [gog version](gog-version.md) - Print version
 - [gog whoami](gog-whoami.md) - Show your profile (alias for 'people me')

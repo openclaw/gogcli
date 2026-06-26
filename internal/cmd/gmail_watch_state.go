@@ -51,7 +51,7 @@ func gmailWatchStatePath(layout config.Layout, account string) (string, error) {
 func sanitizeAccountForPath(account string) string {
 	clean := strings.TrimSpace(strings.ToLower(account))
 	if clean == "" {
-		return "unknown"
+		return trackingUnknown
 	}
 
 	var builder strings.Builder

@@ -86,6 +86,7 @@ type CLI struct {
 	Maps          MapsCmd               `cmd:"" aliases:"map" help:"Google Maps"`
 	Classroom     ClassroomCmd          `cmd:"" aliases:"class" help:"Google Classroom"`
 	Time          TimeCmd               `cmd:"" help:"Local time utilities"`
+	Update        UpdateCmd             `cmd:"" help:"Check gogcli release status"`
 	Gmail         GmailCmd              `cmd:"" aliases:"mail,email" help:"Gmail"`
 	Chat          ChatCmd               `cmd:"" help:"Google Chat"`
 	Contacts      ContactsCmd           `cmd:"" aliases:"contact" help:"Google Contacts"`

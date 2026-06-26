@@ -2,7 +2,7 @@
 
 Every `gog` command has a generated docs page. The source of truth is the live CLI schema; run `make docs-commands` after changing command names, flags, help text, aliases, or arguments.
 
-Generated pages: 700.
+Generated pages: 702.
 
 ## Top-level Commands
 
@@ -46,6 +46,7 @@ Generated pages: 700.
 - [gog status](gog-status.md) - Show auth/config status (alias for 'auth status')
 - [gog tasks](gog-tasks.md) - Google Tasks
 - [gog time](gog-time.md) - Local time utilities
+- [gog update](gog-update.md) - Check gogcli release status
 - [gog upload](gog-upload.md) - Upload a file to Drive (alias for 'drive upload')
 - [gog version](gog-version.md) - Print version
 - [gog whoami](gog-whoami.md) - Show your profile (alias for 'people me')
@@ -724,6 +725,8 @@ Generated pages: 700.
     - [gog tasks update](gog-tasks-update.md) - Update a task
   - [gog time](gog-time.md) - Local time utilities
     - [gog time now](gog-time-now.md) - Show current time
+  - [gog update](gog-update.md) - Check gogcli release status
+    - [gog update status](gog-update-status.md) - Show installed and latest gogcli release status
   - [gog upload](gog-upload.md) - Upload a file to Drive (alias for 'drive upload')
   - [gog version](gog-version.md) - Print version
   - [gog whoami](gog-whoami.md) - Show your profile (alias for 'people me')

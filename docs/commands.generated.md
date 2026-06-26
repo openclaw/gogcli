@@ -672,6 +672,8 @@ Generated from `gog schema --json`.
     - [`gog tasks (task) update (edit,set) <tasklistId> <taskId> [flags]`](commands/gog-tasks-update.md) - Update a task
   - [`gog time <command> [flags]`](commands/gog-time.md) - Local time utilities
     - [`gog time now [flags]`](commands/gog-time-now.md) - Show current time
+  - [`gog update <command> [flags]`](commands/gog-update.md) - Check gogcli release status
+    - [`gog update status (check) [flags]`](commands/gog-update-status.md) - Show installed and latest gogcli release status
   - [`gog upload (up,put) <localPath> [flags]`](commands/gog-upload.md) - Upload a file to Drive (alias for 'drive upload')
   - [`gog version [flags]`](commands/gog-version.md) - Print version
   - [`gog whoami (who-am-i) [flags]`](commands/gog-whoami.md) - Show your profile (alias for 'people me')
