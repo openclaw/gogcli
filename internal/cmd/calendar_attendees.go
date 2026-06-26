@@ -55,7 +55,7 @@ func mergeAttendeesWithChange(existing []*calendar.EventAttendee, addCSV string)
 		}
 		email := attendee.Email
 		if !existingEmails[strings.ToLower(email)] {
-			attendee.ResponseStatus = "needsAction"
+			attendee.ResponseStatus = taskStatusNeedsAction
 			out = append(out, attendee)
 			existingEmails[strings.ToLower(email)] = true
 			added = true
