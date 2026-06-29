@@ -78,6 +78,10 @@ calendar:
 drive:
   ls: true
   search: true
+  tree: true
+  du: true
+  inventory: true
+  raw: true
   get: true
   download: true
   upload: true

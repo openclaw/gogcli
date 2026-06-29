@@ -245,6 +245,55 @@ func TestAdminUsersDelete_JSONRequiresForceAndDeletes(t *testing.T) {
 	}
 }
 
+func TestAdminUsersUnsuspend_JSONForceSendsFalse(t *testing.T) {
+	var patchPath string
+	var patchBody string
+	svc := newAdminTestService(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !(r.Method == http.MethodPatch && strings.Contains(r.URL.Path, "/users/ada@example.com")) {
+			http.NotFound(w, r)
+			return
+		}
+		patchPath = r.URL.Path
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Fatalf("read patch body: %v", err)
+		}
+		patchBody = string(body)
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"primaryEmail": "ada@example.com",
+			"suspended":    false,
+		})
+	}))
+
+	result := runWithAdminDirectoryTestService(t, svc, func(ctx context.Context) error {
+		return (&AdminUsersUnsuspendCmd{UserEmail: "ada@example.com"}).Run(ctx, &RootFlags{
+			Account: "svc@example.com",
+			Force:   true,
+		})
+	})
+	if result.err != nil {
+		t.Fatalf("Run: %v\nstderr=%q", result.err, result.stderr)
+	}
+
+	if !strings.Contains(patchPath, "/users/ada@example.com") {
+		t.Fatalf("unexpected patch path: %q", patchPath)
+	}
+	if !strings.Contains(patchBody, `"suspended":false`) {
+		t.Fatalf("expected suspended=false to be force-sent, got %s", patchBody)
+	}
+	var parsed struct {
+		Email     string `json:"email"`
+		Suspended bool   `json:"suspended"`
+	}
+	if err := json.Unmarshal([]byte(result.stdout), &parsed); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if parsed.Email != "ada@example.com" || parsed.Suspended {
+		t.Fatalf("unexpected response: %#v", parsed)
+	}
+}
+
 func TestAdminOrgunitsCreateUpdateDelete_JSON(t *testing.T) {
 	var inserted admin.OrgUnit
 	var patched admin.OrgUnit

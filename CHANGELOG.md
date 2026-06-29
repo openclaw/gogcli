@@ -2,6 +2,9 @@
 
 ## 0.31.2 - Unreleased
 
+- Admin: add `admin users unsuspend` with `reactivate` and `restore` aliases, dry-run/force safety, generated command docs, and JSON output for Workspace user reactivation.
+- Safety: allow Drive `tree`, `du`, `inventory`, and `raw` in the read-only and agent-safe profiles.
+
 ## 0.31.1 - 2026-06-26
 
 - Calendar: add `calendar changed` for listing recently modified events, including cancellations, across one or more calendars. (#875) — thanks @sorenisanerd.

@@ -95,13 +95,19 @@ Suspend a user:
 gog --account admin@example.com admin users suspend ada@example.com --force
 ```
 
+Unsuspend a user:
+
+```bash
+gog --account admin@example.com admin users unsuspend ada@example.com --force
+```
+
 Delete a user:
 
 ```bash
 gog --account admin@example.com admin users delete ada@example.com --force
 ```
 
-Use `--dry-run` before create/suspend/delete operations when scripting:
+Use `--dry-run` before create/suspend/unsuspend/delete operations when scripting:
 
 ```bash
 gog --account admin@example.com admin users create dryrun@example.com \

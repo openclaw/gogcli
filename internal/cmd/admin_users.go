@@ -16,11 +16,12 @@ import (
 
 // AdminUsersCmd manages Workspace users.
 type AdminUsersCmd struct {
-	List    AdminUsersListCmd    `cmd:"" name:"list" aliases:"ls" help:"List users in a domain"`
-	Get     AdminUsersGetCmd     `cmd:"" name:"get" aliases:"info,show" help:"Get user details"`
-	Create  AdminUsersCreateCmd  `cmd:"" name:"create" aliases:"add,new" help:"Create a new user"`
-	Delete  AdminUsersDeleteCmd  `cmd:"" name:"delete" aliases:"rm,del,remove" help:"Delete a user account"`
-	Suspend AdminUsersSuspendCmd `cmd:"" name:"suspend" help:"Suspend a user account"`
+	List      AdminUsersListCmd      `cmd:"" name:"list" aliases:"ls" help:"List users in a domain"`
+	Get       AdminUsersGetCmd       `cmd:"" name:"get" aliases:"info,show" help:"Get user details"`
+	Create    AdminUsersCreateCmd    `cmd:"" name:"create" aliases:"add,new" help:"Create a new user"`
+	Delete    AdminUsersDeleteCmd    `cmd:"" name:"delete" aliases:"rm,del,remove" help:"Delete a user account"`
+	Suspend   AdminUsersSuspendCmd   `cmd:"" name:"suspend" help:"Suspend a user account"`
+	Unsuspend AdminUsersUnsuspendCmd `cmd:"" name:"unsuspend" aliases:"reactivate,restore" help:"Unsuspend a user account"`
 }
 
 type AdminUsersListCmd struct {
@@ -383,7 +384,7 @@ func (c *AdminUsersSuspendCmd) Run(ctx context.Context, flags *RootFlags) error 
 		return wrapAdminDirectoryError(err, account)
 	}
 
-	updated, err := svc.Users.Update(userEmail, &admin.User{Suspended: true}).Context(ctx).Do()
+	updated, err := patchAdminUserState(ctx, svc, userEmail, adminUserSuspendedPatch(true))
 	if err != nil {
 		return wrapAdminDirectoryError(err, account)
 	}
@@ -398,4 +399,56 @@ func (c *AdminUsersSuspendCmd) Run(ctx context.Context, flags *RootFlags) error 
 	u := ui.FromContext(ctx)
 	u.Out().Linef("Suspended user: %s", updated.PrimaryEmail)
 	return nil
+}
+
+type AdminUsersUnsuspendCmd struct {
+	UserEmail string `arg:"" name:"userEmail" help:"User email to unsuspend"`
+}
+
+func (c *AdminUsersUnsuspendCmd) Run(ctx context.Context, flags *RootFlags) error {
+	userEmail := strings.TrimSpace(c.UserEmail)
+	if userEmail == "" {
+		return usage("user email required")
+	}
+
+	if confirmErr := dryRunAndConfirmDestructive(ctx, flags, "admin.users.unsuspend", map[string]any{
+		"email":     userEmail,
+		"suspended": false,
+	}, fmt.Sprintf("unsuspend user %s", userEmail)); confirmErr != nil {
+		return confirmErr
+	}
+
+	account, err := requireAdminAccount(flags)
+	if err != nil {
+		return err
+	}
+
+	svc, err := adminDirectoryService(ctx, account)
+	if err != nil {
+		return wrapAdminDirectoryError(err, account)
+	}
+
+	updated, err := patchAdminUserState(ctx, svc, userEmail, adminUserSuspendedPatch(false))
+	if err != nil {
+		return wrapAdminDirectoryError(err, account)
+	}
+
+	if outfmt.IsJSON(ctx) {
+		return outfmt.WriteJSON(ctx, stdoutWriter(ctx), map[string]any{
+			"email":     updated.PrimaryEmail,
+			"suspended": updated.Suspended,
+		})
+	}
+
+	u := ui.FromContext(ctx)
+	u.Out().Linef("Unsuspended user: %s", updated.PrimaryEmail)
+	return nil
+}
+
+func adminUserSuspendedPatch(suspended bool) *admin.User {
+	patch := &admin.User{Suspended: suspended}
+	if !suspended {
+		patch.ForceSendFields = []string{"Suspended"}
+	}
+	return patch
 }
