@@ -383,3 +383,127 @@ func TestFormatForwardedMessageHTML(t *testing.T) {
 		t.Error("missing original HTML content")
 	}
 }
+
+// TestExecute_GmailForward_CommaInDisplayName proves that a recipient whose
+// display name contains a comma ("Smith, John" <john@example.com>) is parsed as
+// a single recipient, not naively split on the comma — across --to, --cc, and
+// --bcc (all emitted as real headers) and for both gmail forward and gmail
+// drafts forward, which share GmailForwardOptions.
+func TestExecute_GmailForward_CommaInDisplayName(t *testing.T) {
+	t.Setenv("GOG_TIMEZONE", "UTC")
+	cases := []struct {
+		name         string
+		verb         []string
+		finalizePath string
+	}{
+		{name: "send", verb: []string{"gmail", "forward"}, finalizePath: "/gmail/v1/users/me/messages/send"},
+		{name: "draft", verb: []string{"gmail", "drafts", "forward"}, finalizePath: "/gmail/v1/users/me/drafts"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			args := append([]string{"--json", "--account", "me@example.com"}, tc.verb...)
+			args = append(args, "orig-msg-1",
+				"--to", `"Smith, John" <john@example.com>, other@example.com`,
+				"--cc", `"Roe, Jane" <jane2@example.com>, z@y.com`,
+				"--bcc", `"Loe, Jane" <jane3@example.com>, w@y.com`,
+			)
+			raw, _ := captureForwardRaw(t, args, tc.finalizePath, mockForwardSourceMessage)
+
+			assertHeaderRecipients(t, raw, "To", []wantAddr{
+				{name: "Smith, John", address: "john@example.com"},
+				{address: "other@example.com"},
+			})
+			assertHeaderRecipients(t, raw, "Cc", []wantAddr{
+				{name: "Roe, Jane", address: "jane2@example.com"},
+				{address: "z@y.com"},
+			})
+			assertHeaderRecipients(t, raw, "Bcc", []wantAddr{
+				{name: "Loe, Jane", address: "jane3@example.com"},
+				{address: "w@y.com"},
+			})
+		})
+	}
+}
+
+// TestExecute_GmailForward_OrdinaryMultiRecipient guards the regression case:
+// a plain comma-separated list still yields the expected recipients.
+func TestExecute_GmailForward_OrdinaryMultiRecipient(t *testing.T) {
+	t.Setenv("GOG_TIMEZONE", "UTC")
+	raw, _ := captureForwardRaw(t, []string{
+		"--json", "--account", "me@example.com",
+		"gmail", "forward", "orig-msg-1",
+		"--to", "a@x.com, b@y.com",
+	}, "/gmail/v1/users/me/messages/send", mockForwardSourceMessage)
+
+	assertHeaderRecipients(t, raw, "To", []wantAddr{{address: "a@x.com"}, {address: "b@y.com"}})
+}
+
+// TestExecute_GmailForward_MalformedRecipientNoAPICall proves a malformed
+// recipient on any of --to/--cc/--bcc surfaces a clear, flag-named error before
+// any Gmail API request is made (no original-message fetch, no send/draft) — for
+// both gmail forward and gmail drafts forward.
+func TestExecute_GmailForward_MalformedRecipientNoAPICall(t *testing.T) {
+	verbs := []struct {
+		name string
+		verb []string
+	}{
+		{name: "send", verb: []string{"gmail", "forward"}},
+		{name: "draft", verb: []string{"gmail", "drafts", "forward"}},
+	}
+	flags := []string{"--to", "--cc", "--bcc"}
+	for _, v := range verbs {
+		for _, flag := range flags {
+			t.Run(v.name+"/"+flag, func(t *testing.T) {
+				requests := 0
+				svc, cleanup := newGmailServiceForTest(t, func(w http.ResponseWriter, r *http.Request) {
+					requests++
+					http.NotFound(w, r)
+				})
+				defer cleanup()
+
+				args := append([]string{"--account", "me@example.com"}, v.verb...)
+				// A valid --to keeps the failure attributable to the flag under test
+				// (the send path requires --to, which is checked after parsing).
+				args = append(args, "orig-msg-1", "--to", "recipient@example.com", flag, "not an address <<>")
+				result := executeWithGmailTestService(t, args, svc)
+				if result.err == nil {
+					t.Fatalf("expected error for malformed %s", flag)
+				}
+				if !strings.Contains(result.err.Error(), flag) {
+					t.Fatalf("expected %s validation error, got: %v", flag, result.err)
+				}
+				if requests != 0 {
+					t.Fatalf("expected no Gmail API requests, got %d", requests)
+				}
+			})
+		}
+	}
+}
+
+// TestExecute_GmailForward_DryRunReportsParsedRecipients proves the forward
+// dry-run dict reports --to parsed address-aware (the display-name comma did not
+// split into a third element) and that the dry-run makes no API call.
+func TestExecute_GmailForward_DryRunReportsParsedRecipients(t *testing.T) {
+	requests := 0
+	svc, cleanup := newGmailServiceForTest(t, func(w http.ResponseWriter, r *http.Request) {
+		requests++
+		http.NotFound(w, r)
+	})
+	defer cleanup()
+
+	result := executeWithGmailTestService(t, []string{
+		"--json", "--dry-run", "--account", "me@example.com",
+		"gmail", "forward", "orig-msg-1",
+		"--to", `"Smith, John" <john@example.com>, other@example.com`,
+	}, svc)
+	if code := ExitCode(result.err); code != 0 {
+		t.Fatalf("expected clean dry-run exit (code 0), got code %d: %v", code, result.err)
+	}
+	assertDryRunRequestList(t, result.stdout, "to", []string{
+		`"Smith, John" <john@example.com>`,
+		"other@example.com",
+	})
+	if requests != 0 {
+		t.Fatalf("expected no Gmail API requests, got %d", requests)
+	}
+}

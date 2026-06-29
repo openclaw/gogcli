@@ -15,8 +15,8 @@ import (
 )
 
 type GmailForwardCmd struct {
-	MessageID           string `arg:"" name:"messageId" help:"Gmail message ID to forward"`
-	GmailForwardOptions `embed:""`
+	MessageID string              `arg:"" name:"messageId" help:"Gmail message ID to forward"`
+	Options   GmailForwardOptions `embed:""`
 }
 
 type GmailForwardOptions struct {
@@ -42,9 +42,11 @@ const (
 // compose. The note is resolved exactly once here because '-' reads stdin,
 // which cannot be read twice.
 type forwardComposeInputs struct {
-	messageID    string
-	note         string
-	toRecipients []string
+	messageID     string
+	note          string
+	toRecipients  []string
+	ccRecipients  []string
+	bccRecipients []string
 	// allowMissingTo carries the recipient requirement forward to the build
 	// step: false on the send path (so buildGmailMessage keeps its missing-To
 	// backstop), true on the draft path (which permits an addressless forward).
@@ -61,12 +63,12 @@ type forwardComposeMessage struct {
 func (c *GmailForwardCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
 
-	inputs, err := c.resolveForwardInputs(ctx, c.MessageID, recipientsRequired)
+	inputs, err := c.Options.resolveForwardInputs(ctx, c.MessageID, recipientsRequired)
 	if err != nil {
 		return err
 	}
 
-	if dryRunErr := dryRunExit(ctx, flags, "gmail.forward", c.dryRunFields(inputs)); dryRunErr != nil {
+	if dryRunErr := dryRunExit(ctx, flags, "gmail.forward", c.Options.dryRunFields(inputs)); dryRunErr != nil {
 		return dryRunErr
 	}
 
@@ -75,7 +77,7 @@ func (c *GmailForwardCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
-	built, err := c.buildForwardComposeMessage(ctx, svc, account, inputs)
+	built, err := c.Options.buildForwardComposeMessage(ctx, svc, account, inputs)
 	if err != nil {
 		return err
 	}
@@ -99,8 +101,8 @@ func (c *GmailForwardOptions) dryRunFields(inputs forwardComposeInputs) map[stri
 	return map[string]any{
 		"message_id":       inputs.messageID,
 		"to":               inputs.toRecipients,
-		"cc":               splitCSV(c.Cc),
-		"bcc":              splitCSV(c.Bcc),
+		"cc":               inputs.ccRecipients,
+		"bcc":              inputs.bccRecipients,
 		"from":             strings.TrimSpace(c.From),
 		"note_len":         len(inputs.note),
 		"skip_attachments": c.SkipAttachments,
@@ -108,17 +110,21 @@ func (c *GmailForwardOptions) dryRunFields(inputs forwardComposeInputs) map[stri
 }
 
 // resolveForwardInputs normalizes the message ID, runs the service-free
-// validation, and resolves the note input. It reads the note
-// exactly once so '-' (stdin) is consumed a single time. When req is
-// recipientsRequired (the send path) an empty --to is rejected; a draft may have
-// no recipients, so the draft path passes recipientsOptional.
+// validation, and resolves the note input. It reads the note exactly once so
+// '-' (stdin) is consumed a single time. When req is recipientsRequired (the
+// send path) an empty --to is rejected; a draft may have no recipients, so the
+// draft path passes recipientsOptional.
 func (c *GmailForwardOptions) resolveForwardInputs(ctx context.Context, messageID string, req recipientRequirement) (forwardComposeInputs, error) {
 	messageID = normalizeGmailMessageID(messageID)
 	if messageID == "" {
 		return forwardComposeInputs{}, usage("required: messageId")
 	}
 
-	toRecipients := splitCSV(c.To)
+	// Parsed before the dry-run so it reports the lists the build will use.
+	toRecipients, ccRecipients, bccRecipients, err := parseComposeRecipients(c.To, c.Cc, c.Bcc)
+	if err != nil {
+		return forwardComposeInputs{}, err
+	}
 	if req == recipientsRequired && len(toRecipients) == 0 {
 		return forwardComposeInputs{}, usage("required: --to")
 	}
@@ -134,6 +140,8 @@ func (c *GmailForwardOptions) resolveForwardInputs(ctx context.Context, messageI
 		messageID:      messageID,
 		note:           note,
 		toRecipients:   toRecipients,
+		ccRecipients:   ccRecipients,
+		bccRecipients:  bccRecipients,
 		allowMissingTo: req == recipientsOptional,
 	}, nil
 }
@@ -188,9 +196,6 @@ func (c *GmailForwardOptions) buildForwardComposeMessage(ctx context.Context, sv
 		return forwardComposeMessage{}, fmt.Errorf("preserve forwarded message parts: %w", err)
 	}
 
-	ccRecipients := splitCSV(c.Cc)
-	bccRecipients := splitCSV(c.Bcc)
-
 	// allowMissingTo comes from the recipient requirement resolved up front: the
 	// send path keeps buildGmailMessage's missing-To backstop (false), while the
 	// draft path opts out (true) to permit an addressless forward like Gmail's UI.
@@ -202,8 +207,8 @@ func (c *GmailForwardOptions) buildForwardComposeMessage(ctx context.Context, sv
 		Attachments: attachments,
 	}, sendBatch{
 		To:  inputs.toRecipients,
-		Cc:  ccRecipients,
-		Bcc: bccRecipients,
+		Cc:  inputs.ccRecipients,
+		Bcc: inputs.bccRecipients,
 	}, inputs.allowMissingTo)
 	if err != nil {
 		return forwardComposeMessage{}, fmt.Errorf("build message: %w", err)
