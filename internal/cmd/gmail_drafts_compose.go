@@ -26,8 +26,8 @@ type GmailDraftsReplyAllCmd struct {
 
 // GmailDraftsForwardCmd saves a forward as a draft. Mirrors GmailForwardCmd.
 type GmailDraftsForwardCmd struct {
-	MessageID           string `arg:"" name:"messageId" help:"Gmail message ID to forward"`
-	GmailForwardOptions `embed:""`
+	MessageID string              `arg:"" name:"messageId" help:"Gmail message ID to forward"`
+	Options   GmailForwardOptions `embed:""`
 }
 
 func (c *GmailDraftsReplyCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -39,13 +39,14 @@ func (c *GmailDraftsReplyAllCmd) Run(ctx context.Context, flags *RootFlags) erro
 }
 
 func (c *GmailDraftsForwardCmd) Run(ctx context.Context, flags *RootFlags) error {
-	return c.runDraft(ctx, flags, c.MessageID)
+	return c.Options.runDraft(ctx, flags, c.MessageID)
 }
 
 // runDraft is the draft-saving counterpart to GmailReplyOptions.run. It reuses
 // the shared resolve/build helpers verbatim and differs only in the dry-run
 // action name, the service gate (the non-send gate, since saving a draft is not
-// a send), and the finalize step (Drafts.Create instead of Messages.Send).
+// a send), and the finalize/report step (Drafts.Create + writeDraftResult
+// instead of Messages.Send + writeGmailMessageResults).
 func (c *GmailReplyOptions) runDraft(ctx context.Context, flags *RootFlags, messageID string, replyAll bool) error {
 	u := ui.FromContext(ctx)
 
@@ -58,8 +59,11 @@ func (c *GmailReplyOptions) runDraft(ctx context.Context, flags *RootFlags, mess
 		return dryRunErr
 	}
 
-	// Drafts use the non-send gate: a draft is not a send, so this works under
-	// --gmail-no-send and the config no-send, matching gmail drafts create.
+	// A draft is not a send, so drafts compose stays usable under no-send,
+	// matching gmail drafts create: the --gmail-no-send flag and config keys
+	// are enforced pre-dispatch by the gmailSendCommandPaths list (which omits
+	// the drafts compose paths), and using requireGmailService here (not
+	// requireGmailSendService) skips the per-account config no-send check.
 	account, svc, err := requireGmailService(ctx, flags)
 	if err != nil {
 		return err
@@ -79,12 +83,13 @@ func (c *GmailReplyOptions) runDraft(ctx context.Context, flags *RootFlags, mess
 }
 
 // runDraft is the draft-saving counterpart to GmailForwardCmd.Run. Like the
-// reply draft path it reuses the shared resolve/build helpers verbatim and only
-// changes the dry-run action name, the service gate, and the finalize step.
+// reply draft path it reuses the shared resolve/build helpers verbatim and
+// changes the dry-run action name, the service gate, the finalize/report step,
+// and the recipient requirement: a draft may be addressless, so it resolves
+// with recipientsOptional where the send path requires --to.
 func (c *GmailForwardOptions) runDraft(ctx context.Context, flags *RootFlags, messageID string) error {
 	u := ui.FromContext(ctx)
 
-	// Drafts may have no recipients, so the draft path does not require --to.
 	inputs, err := c.resolveForwardInputs(ctx, messageID, recipientsOptional)
 	if err != nil {
 		return err

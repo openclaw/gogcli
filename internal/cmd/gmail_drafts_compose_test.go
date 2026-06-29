@@ -1,8 +1,11 @@
 package cmd
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -13,32 +16,9 @@ import (
 
 	"google.golang.org/api/gmail/v1"
 
+	"github.com/openclaw/gogcli/internal/app"
 	"github.com/openclaw/gogcli/internal/config"
 )
-
-// mockReplySourceMessage returns a gmail.Message JSON payload suitable as the
-// target of a reply: it has From/To/Cc/Subject/Message-ID headers and a plain
-// text body.
-func mockReplySourceMessage() map[string]any {
-	plain := base64.RawURLEncoding.EncodeToString([]byte("Original plain body."))
-	return map[string]any{
-		"id":       "msg-1",
-		"threadId": "thread-1",
-		"payload": map[string]any{
-			"mimeType": "text/plain",
-			"headers": []map[string]any{
-				{"name": "Message-ID", "value": "<original@example.com>"},
-				{"name": "References", "value": "<root@example.com>"},
-				{"name": "From", "value": `"Alice Sender" <alice@example.com>`},
-				{"name": "To", "value": `"Me Person" <me@example.com>, "Other Person" <other@example.com>`},
-				{"name": "Cc", "value": `"CC Person" <cc@example.com>`},
-				{"name": "Date", "value": "Fri, 12 Jun 2026 10:00:00 +0000"},
-				{"name": "Subject", "value": "Project update"},
-			},
-			"body": map[string]any{"data": plain, "size": len(plain)},
-		},
-	}
-}
 
 // mockReplySourceMessageWithInlineImage returns a reply target whose HTML body
 // references a CID inline image carried as a multipart/related part. The image
@@ -86,89 +66,24 @@ func mockReplySourceMessageWithInlineImage() map[string]any {
 	}
 }
 
-func sendAsListHandler(w http.ResponseWriter) {
-	_ = json.NewEncoder(w).Encode(map[string]any{
-		"sendAs": []map[string]any{
-			{"sendAsEmail": "me@example.com", "displayName": "Me Person", "isPrimary": true, "verificationStatus": "accepted"},
-			{"sendAsEmail": "alias@example.com", "displayName": "Alias", "verificationStatus": "accepted"},
-		},
-	})
-}
-
 // normalizeRawForParity strips the nondeterministic parts of a built RFC822
 // message so two independent builds can be compared byte-for-byte: the Date and
-// Message-ID header lines, and the randomly generated MIME boundary tokens
-// (gogcli_...). Everything else must match exactly.
+// Message-ID header lines, and the randomly generated MIME boundary tokens.
+// Boundaries are normalized by exact token: each boundary declared in a
+// Content-Type header is replaced everywhere it appears, numbered by
+// declaration order, so an undeclared or truncated boundary token still
+// diverges instead of being masked by a pattern match.
 func normalizeRawForParity(raw string) string {
 	dateRE := regexp.MustCompile(`(?m)^Date: .*\r?$`)
 	msgIDRE := regexp.MustCompile(`(?m)^Message-ID: .*\r?$`)
-	// Boundaries are "gogcli_" + base64url, so the charset is [A-Za-z0-9_-].
-	boundaryRE := regexp.MustCompile(`gogcli_[A-Za-z0-9_-]+`)
 	raw = dateRE.ReplaceAllString(raw, "Date: NORMALIZED")
 	raw = msgIDRE.ReplaceAllString(raw, "Message-ID: NORMALIZED")
-	raw = boundaryRE.ReplaceAllString(raw, "gogcli_BOUNDARY")
+
+	boundaryDeclRE := regexp.MustCompile(`boundary="?(gogcli_[A-Za-z0-9_-]+)"?`)
+	for i, m := range boundaryDeclRE.FindAllStringSubmatch(raw, -1) {
+		raw = strings.ReplaceAll(raw, m[1], fmt.Sprintf("gogcli_BOUNDARY_%d", i+1))
+	}
 	return raw
-}
-
-// handleFinalizeRaw services the finalize POST shared by the send and draft
-// paths: it decodes the outgoing message (from a Draft body when finalizePath is
-// the drafts endpoint, otherwise from a bare Message), writes the canned finalize
-// response, and returns the decoded RFC822 raw plus the stamped ThreadId.
-func handleFinalizeRaw(t *testing.T, w http.ResponseWriter, r *http.Request, finalizePath string) (raw, threadID string) {
-	t.Helper()
-	var msg *gmail.Message
-	if finalizePath == "/gmail/v1/users/me/drafts" {
-		var draft gmail.Draft
-		if err := json.NewDecoder(r.Body).Decode(&draft); err != nil {
-			t.Fatalf("decode draft: %v", err)
-		}
-		msg = draft.Message
-		_ = json.NewEncoder(w).Encode(map[string]any{"id": "d1", "message": map[string]any{"id": "m1"}})
-	} else {
-		var m gmail.Message
-		if err := json.NewDecoder(r.Body).Decode(&m); err != nil {
-			t.Fatalf("decode send: %v", err)
-		}
-		msg = &m
-		_ = json.NewEncoder(w).Encode(map[string]any{"id": "sent-1", "threadId": "thread-1"})
-	}
-	if msg == nil {
-		t.Fatalf("nil message in finalize body")
-	}
-	decoded, err := base64.RawURLEncoding.DecodeString(msg.Raw)
-	if err != nil {
-		t.Fatalf("decode raw: %v", err)
-	}
-	return string(decoded), msg.ThreadId
-}
-
-// captureReplyRaw runs a reply-style command (either send or draft) against a
-// mock Gmail server and returns the raw RFC822 of the outgoing message plus the
-// stamped ThreadId. finalizePath is the API path the command finalizes through
-// ("/gmail/v1/users/me/messages/send" or "/gmail/v1/users/me/drafts"). source
-// supplies the reply-target message payload.
-func captureReplyRaw(t *testing.T, args []string, finalizePath string, source func() map[string]any) (raw, threadID string) {
-	t.Helper()
-	svc, cleanup := newGmailServiceForTest(t, func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		switch {
-		case r.Method == http.MethodGet && r.URL.Path == "/gmail/v1/users/me/settings/sendAs":
-			sendAsListHandler(w)
-		case r.Method == http.MethodGet && r.URL.Path == "/gmail/v1/users/me/messages/msg-1":
-			_ = json.NewEncoder(w).Encode(source())
-		case r.Method == http.MethodPost && r.URL.Path == finalizePath:
-			raw, threadID = handleFinalizeRaw(t, w, r, finalizePath)
-		default:
-			http.NotFound(w, r)
-		}
-	})
-	defer cleanup()
-
-	result := executeWithGmailTestService(t, args, svc)
-	if result.err != nil {
-		t.Fatalf("Execute(%v): %v", args, result.err)
-	}
-	return raw, threadID
 }
 
 // TestGmailDraftsReply_ByteIdenticalToReply proves that gmail reply and gmail
@@ -180,8 +95,8 @@ func TestGmailDraftsReply_ByteIdenticalToReply(t *testing.T) {
 	replyArgs := append(append([]string{}, base...), "gmail", "reply", "msg-1", "--body", "Thanks for the update")
 	draftArgs := append(append([]string{}, base...), "gmail", "drafts", "reply", "msg-1", "--body", "Thanks for the update")
 
-	sentRaw, sentThread := captureReplyRaw(t, replyArgs, "/gmail/v1/users/me/messages/send", mockReplySourceMessage)
-	draftRaw, draftThread := captureReplyRaw(t, draftArgs, "/gmail/v1/users/me/drafts", mockReplySourceMessage)
+	sentRaw, sentThread := captureComposeRaw(t, replyArgs, "/gmail/v1/users/me/messages/send", mockReplySourceMessage)
+	draftRaw, draftThread := captureComposeRaw(t, draftArgs, "/gmail/v1/users/me/drafts", mockReplySourceMessage)
 
 	if normalizeRawForParity(sentRaw) != normalizeRawForParity(draftRaw) {
 		t.Fatalf("reply vs drafts reply raw differ:\n--- send ---\n%s\n--- draft ---\n%s", sentRaw, draftRaw)
@@ -203,8 +118,8 @@ func TestGmailDraftsReply_ByteIdenticalToReply_WithInlineImage(t *testing.T) {
 	replyArgs := append(append([]string{}, base...), "gmail", "reply", "msg-1", "--body", "Thanks for the update")
 	draftArgs := append(append([]string{}, base...), "gmail", "drafts", "reply", "msg-1", "--body", "Thanks for the update")
 
-	sentRaw, _ := captureReplyRaw(t, replyArgs, "/gmail/v1/users/me/messages/send", mockReplySourceMessageWithInlineImage)
-	draftRaw, _ := captureReplyRaw(t, draftArgs, "/gmail/v1/users/me/drafts", mockReplySourceMessageWithInlineImage)
+	sentRaw, _ := captureComposeRaw(t, replyArgs, "/gmail/v1/users/me/messages/send", mockReplySourceMessageWithInlineImage)
+	draftRaw, _ := captureComposeRaw(t, draftArgs, "/gmail/v1/users/me/drafts", mockReplySourceMessageWithInlineImage)
 
 	if normalizeRawForParity(sentRaw) != normalizeRawForParity(draftRaw) {
 		t.Fatalf("reply vs drafts reply raw differ (inline image):\n--- send ---\n%s\n--- draft ---\n%s", sentRaw, draftRaw)
@@ -215,45 +130,6 @@ func TestGmailDraftsReply_ByteIdenticalToReply_WithInlineImage(t *testing.T) {
 			t.Fatalf("drafts reply missing inline-image marker %q:\n%s", want, draftRaw)
 		}
 	}
-}
-
-func mockForwardSourceMessage() map[string]any {
-	return mockOriginalMessage(false)
-}
-
-// captureForwardRaw runs a forward-style command and returns the raw RFC822 and
-// stamped ThreadId. source supplies the original-message payload; when it
-// references attachmentIds (e.g. mockOriginalMessage(true)), the attachment
-// bytes are served from the attachments endpoint.
-func captureForwardRaw(t *testing.T, args []string, finalizePath string, source func() map[string]any) (raw, threadID string) {
-	t.Helper()
-	svc, cleanup := newGmailServiceForTest(t, func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		switch {
-		case r.Method == http.MethodGet && r.URL.Path == "/gmail/v1/users/me/settings/sendAs":
-			sendAsListHandler(w)
-		case r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/attachments/"):
-			// Original message attachments (e.g. report.pdf / att-123) re-attached
-			// on forward. Deterministic bytes so the parity comparison holds.
-			_ = json.NewEncoder(w).Encode(map[string]any{
-				"data": base64.RawURLEncoding.EncodeToString([]byte("pdf-file-contents")),
-				"size": 100,
-			})
-		case r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/gmail/v1/users/me/messages/orig-msg-1"):
-			_ = json.NewEncoder(w).Encode(source())
-		case r.Method == http.MethodPost && r.URL.Path == finalizePath:
-			raw, threadID = handleFinalizeRaw(t, w, r, finalizePath)
-		default:
-			http.NotFound(w, r)
-		}
-	})
-	defer cleanup()
-
-	result := executeWithGmailTestService(t, args, svc)
-	if result.err != nil {
-		t.Fatalf("Execute(%v): %v", args, result.err)
-	}
-	return raw, threadID
 }
 
 func TestGmailDraftsForward_ByteIdenticalToForward(t *testing.T) {
@@ -323,7 +199,7 @@ func TestGmailDraftsReply_SucceedsUnderNoSendFlag(t *testing.T) {
 			_ = json.NewEncoder(w).Encode(mockReplySourceMessage())
 		case r.Method == http.MethodPost && r.URL.Path == "/gmail/v1/users/me/drafts":
 			created = true
-			_ = json.NewEncoder(w).Encode(map[string]any{"id": "d1", "message": map[string]any{"id": "m1"}})
+			writeDraftCreatedResponse(w)
 		case r.Method == http.MethodPost && r.URL.Path == "/gmail/v1/users/me/messages/send":
 			t.Fatalf("drafts reply must not call Messages.Send")
 		default:
@@ -356,7 +232,7 @@ func TestGmailDraftsReplyAll_SucceedsUnderNoSendConfig(t *testing.T) {
 			_ = json.NewEncoder(w).Encode(mockReplySourceMessage())
 		case r.Method == http.MethodPost && r.URL.Path == "/gmail/v1/users/me/drafts":
 			created = true
-			_ = json.NewEncoder(w).Encode(map[string]any{"id": "d1", "message": map[string]any{"id": "m1"}})
+			writeDraftCreatedResponse(w)
 		default:
 			http.NotFound(w, r)
 		}
@@ -375,7 +251,11 @@ func TestGmailDraftsReplyAll_SucceedsUnderNoSendConfig(t *testing.T) {
 	}
 }
 
-func TestGmailDraftsForward_SucceedsUnderNoSendFlag(t *testing.T) {
+func TestGmailDraftsForward_SucceedsUnderNoSend(t *testing.T) {
+	// Both no-send dimensions at once: the config key (blocks send paths
+	// pre-dispatch) and the --gmail-no-send flag. A draft is not a send, so
+	// neither may block it.
+	writeNoSendConfig(t)
 	created := false
 	svc, cleanup := newGmailServiceForTest(t, func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -386,7 +266,7 @@ func TestGmailDraftsForward_SucceedsUnderNoSendFlag(t *testing.T) {
 			_ = json.NewEncoder(w).Encode(mockForwardSourceMessage())
 		case r.Method == http.MethodPost && r.URL.Path == "/gmail/v1/users/me/drafts":
 			created = true
-			_ = json.NewEncoder(w).Encode(map[string]any{"id": "d1", "message": map[string]any{"id": "m1"}})
+			writeDraftCreatedResponse(w)
 		default:
 			http.NotFound(w, r)
 		}
@@ -432,12 +312,11 @@ func TestGmailReply_BlockedUnderNoSendFlag(t *testing.T) {
 
 func TestGmailDraftsReply_QuoteByDefaultAndAdditiveRecipients(t *testing.T) {
 	t.Setenv("GOG_TIMEZONE", "UTC")
-	raw, threadID := captureReplyRaw(t, []string{
+	raw, threadID := captureComposeRaw(t, []string{
 		"--account", "me@example.com",
 		"gmail", "drafts", "reply", "msg-1",
 		"--body", "Thanks",
 		"--cc", "extra@example.com",
-		"--remove", "cc@example.com",
 	}, "/gmail/v1/users/me/drafts", mockReplySourceMessage)
 
 	for _, want := range []string{
@@ -451,17 +330,36 @@ func TestGmailDraftsReply_QuoteByDefaultAndAdditiveRecipients(t *testing.T) {
 			t.Fatalf("drafts reply missing %q:\n%s", want, raw)
 		}
 	}
-	if strings.Contains(raw, "cc@example.com") {
-		t.Fatalf("removed Cc recipient still present:\n%s", raw)
-	}
 	if threadID != "thread-1" {
 		t.Fatalf("threadId = %q, want thread-1", threadID)
 	}
 }
 
+// TestGmailDraftsReplyAll_RemoveSubtractsDerivedRecipient proves --remove on a
+// drafts reply-all subtracts a recipient that reply-all actually derived from
+// the original message (its Cc), while the other derived recipients stay.
+func TestGmailDraftsReplyAll_RemoveSubtractsDerivedRecipient(t *testing.T) {
+	t.Setenv("GOG_TIMEZONE", "UTC")
+	raw, _ := captureComposeRaw(t, []string{
+		"--account", "me@example.com",
+		"gmail", "drafts", "reply-all", "msg-1",
+		"--body", "Thanks",
+		"--remove", "cc@example.com",
+	}, "/gmail/v1/users/me/drafts", mockReplySourceMessage)
+
+	assertHeaderRecipients(t, raw, "To", []wantAddr{
+		{name: "Alice Sender", address: "alice@example.com"},
+		{name: "Other Person", address: "other@example.com"},
+	})
+	headerBlock, _, _ := strings.Cut(raw, "\r\n\r\n")
+	if strings.Contains(headerBlock, "cc@example.com") {
+		t.Fatalf("removed recipient still present in headers:\n%s", headerBlock)
+	}
+}
+
 func TestGmailDraftsReplyAll_DerivesRecipients(t *testing.T) {
 	t.Setenv("GOG_TIMEZONE", "UTC")
-	raw, _ := captureReplyRaw(t, []string{
+	raw, _ := captureComposeRaw(t, []string{
 		"--account", "me@example.com",
 		"gmail", "drafts", "reply-all", "msg-1",
 		"--body", "Thanks",
@@ -489,7 +387,7 @@ func TestGmailDraftsReplyAll_DerivesRecipients(t *testing.T) {
 }
 
 func TestGmailDraftsReply_SubjectOverrideClearsThread(t *testing.T) {
-	raw, threadID := captureReplyRaw(t, []string{
+	raw, threadID := captureComposeRaw(t, []string{
 		"--account", "me@example.com",
 		"gmail", "drafts", "reply", "msg-1",
 		"--body", "New topic",
@@ -506,7 +404,7 @@ func TestGmailDraftsReply_SubjectOverrideClearsThread(t *testing.T) {
 }
 
 func TestGmailDraftsReply_NoQuoteOmitsOriginal(t *testing.T) {
-	raw, _ := captureReplyRaw(t, []string{
+	raw, _ := captureComposeRaw(t, []string{
 		"--account", "me@example.com",
 		"gmail", "drafts", "reply", "msg-1",
 		"--body", "Short reply",
@@ -567,13 +465,9 @@ func newForwardDraftCaptureService(t *testing.T) (svc *gmail.Service, cleanup fu
 			_ = json.NewEncoder(w).Encode(mockForwardSourceMessage())
 		case r.Method == http.MethodPost && r.URL.Path == "/gmail/v1/users/me/drafts":
 			*created = true
-			var draft gmail.Draft
-			if err := json.NewDecoder(r.Body).Decode(&draft); err != nil {
-				t.Fatalf("decode draft: %v", err)
-			}
-			decoded, _ := base64.RawURLEncoding.DecodeString(draft.Message.Raw)
-			*raw = string(decoded)
-			_ = json.NewEncoder(w).Encode(map[string]any{"id": "d1", "message": map[string]any{"id": "m1"}})
+			// A forward draft never stamps a thread, so the request ThreadId must be "".
+			*raw = readGmailDraftRaw(t, r, "")
+			writeDraftCreatedResponse(w)
 		default:
 			http.NotFound(w, r)
 		}
@@ -596,6 +490,10 @@ func TestGmailDraftsForward_NoRecipientsSucceeds(t *testing.T) {
 	if !*created {
 		t.Fatal("expected Drafts.Create to be called")
 	}
+	// Positive check first: the draft really is the forward composition.
+	if !strings.Contains(*rawPtr, "Subject: Fwd: Original Subject") {
+		t.Fatalf("addressless draft missing forward subject:\n%s", *rawPtr)
+	}
 	// Inspect only the envelope headers (before the first blank line); the
 	// forwarded body legitimately quotes the original "To:" header.
 	headerBlock, _, _ := strings.Cut(*rawPtr, "\r\n\r\n")
@@ -605,6 +503,7 @@ func TestGmailDraftsForward_NoRecipientsSucceeds(t *testing.T) {
 }
 
 func TestGmailForward_NoRecipientsStillErrors(t *testing.T) {
+	setTestConfigHome(t)
 	requests := 0
 	svc, cleanup := newGmailServiceForTest(t, func(w http.ResponseWriter, r *http.Request) {
 		requests++
@@ -622,6 +521,9 @@ func TestGmailForward_NoRecipientsStillErrors(t *testing.T) {
 	if !strings.Contains(result.err.Error(), "--to") {
 		t.Fatalf("unexpected error: %v", result.err)
 	}
+	if requests != 0 {
+		t.Fatalf("expected no Gmail API requests, got %d", requests)
+	}
 }
 
 // --- Drafts compose dry-run action names. ---
@@ -637,26 +539,35 @@ func TestGmailDraftsCompose_DryRunActionNames(t *testing.T) {
 		{"forward", []string{"gmail", "drafts", "forward", "orig-msg-1", "--to", "a@example.com"}, "gmail.drafts.forward"},
 		// Addressless draft-forward dry-run: the action must fire even with no
 		// --to (the behavior distinguishing it from send-forward, which requires
-		// --to before the dry-run). nil service proves the gate is never reached.
+		// --to before the dry-run).
 		{"forward-no-to", []string{"gmail", "drafts", "forward", "orig-msg-1"}, "gmail.drafts.forward"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			args := append([]string{"--dry-run", "--account", "me@example.com"}, tc.args...)
-			result := executeWithGmailTestService(t, args, nil)
+			args := append([]string{"--plain", "--dry-run", "--account", "me@example.com"}, tc.args...)
+			// An error-returning factory proves the dry-run exits before any
+			// service acquisition; a nil service would succeed silently if the
+			// command never happened to dereference it.
+			result := executeWithTestRuntime(t, args, &app.Runtime{Services: app.Services{
+				Gmail: func(context.Context, string) (*gmail.Service, error) {
+					return nil, errors.New("service must not be acquired during dry-run")
+				},
+			}})
 			if result.err != nil {
 				t.Fatalf("dry-run: %v", result.err)
 			}
-			if !strings.Contains(result.stdout, tc.op) {
+			// Exact op line: a Contains on the bare op would let
+			// gmail.drafts.reply match reply-all output.
+			if !strings.Contains(result.stdout, "op\t"+tc.op+"\n") {
 				t.Fatalf("dry-run output missing action %q:\n%s", tc.op, result.stdout)
 			}
 		})
 	}
 }
 
-// --- Stdin read-once on the resolve step. ---
+// --- Stdin-backed body/note inputs land in the built draft. ---
 
-func TestGmailDraftsReply_BodyFileStdinReadOnce(t *testing.T) {
+func TestGmailDraftsReply_BodyFileStdinBodyInDraft(t *testing.T) {
 	created := false
 	var raw string
 	svc, cleanup := newGmailServiceForTest(t, func(w http.ResponseWriter, r *http.Request) {
@@ -668,13 +579,8 @@ func TestGmailDraftsReply_BodyFileStdinReadOnce(t *testing.T) {
 			_ = json.NewEncoder(w).Encode(mockReplySourceMessage())
 		case r.Method == http.MethodPost && r.URL.Path == "/gmail/v1/users/me/drafts":
 			created = true
-			var draft gmail.Draft
-			if err := json.NewDecoder(r.Body).Decode(&draft); err != nil {
-				t.Fatalf("decode draft: %v", err)
-			}
-			decoded, _ := base64.RawURLEncoding.DecodeString(draft.Message.Raw)
-			raw = string(decoded)
-			_ = json.NewEncoder(w).Encode(map[string]any{"id": "d1", "message": map[string]any{"id": "m1"}})
+			raw = readGmailDraftRaw(t, r, "thread-1")
+			writeDraftCreatedResponse(w)
 		default:
 			http.NotFound(w, r)
 		}
@@ -696,7 +602,7 @@ func TestGmailDraftsReply_BodyFileStdinReadOnce(t *testing.T) {
 	}
 }
 
-func TestGmailDraftsForward_NoteFileStdinReadOnce(t *testing.T) {
+func TestGmailDraftsForward_NoteFileStdinNoteInDraft(t *testing.T) {
 	t.Setenv("GOG_TIMEZONE", "UTC")
 	svc, cleanup, created, rawPtr := newForwardDraftCaptureService(t)
 	defer cleanup()
@@ -734,13 +640,8 @@ func TestGmailDraftsReply_WithSignatureFile(t *testing.T) {
 		case r.Method == http.MethodGet && r.URL.Path == "/gmail/v1/users/me/messages/msg-1":
 			_ = json.NewEncoder(w).Encode(mockReplySourceMessage())
 		case r.Method == http.MethodPost && r.URL.Path == "/gmail/v1/users/me/drafts":
-			var draft gmail.Draft
-			if err := json.NewDecoder(r.Body).Decode(&draft); err != nil {
-				t.Fatalf("decode draft: %v", err)
-			}
-			decoded, _ := base64.RawURLEncoding.DecodeString(draft.Message.Raw)
-			raw = string(decoded)
-			_ = json.NewEncoder(w).Encode(map[string]any{"id": "d1", "message": map[string]any{"id": "m1"}})
+			raw = readGmailDraftRaw(t, r, "thread-1")
+			writeDraftCreatedResponse(w)
 		default:
 			http.NotFound(w, r)
 		}
@@ -818,4 +719,80 @@ func TestGmailDraftsForward_CreateFailureWrapsError(t *testing.T) {
 	if !strings.Contains(result.err.Error(), "create forward draft") {
 		t.Fatalf("error not wrapped with %q: %v", "create forward draft", result.err)
 	}
+}
+
+// --- Alias gating: the no-send path list matches exact command paths, so the
+// drafts compose aliases must stay usable under a no-send config too. ---
+
+func TestGmailDraftsComposeAliases_SucceedUnderNoSendConfig(t *testing.T) {
+	writeNoSendConfig(t)
+
+	t.Run("replyall", func(t *testing.T) {
+		created := false
+		svc, cleanup := newGmailServiceForTest(t, func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			switch {
+			case r.Method == http.MethodGet && r.URL.Path == "/gmail/v1/users/me/settings/sendAs":
+				sendAsListHandler(w)
+			case r.Method == http.MethodGet && r.URL.Path == "/gmail/v1/users/me/messages/msg-1":
+				_ = json.NewEncoder(w).Encode(mockReplySourceMessage())
+			case r.Method == http.MethodPost && r.URL.Path == "/gmail/v1/users/me/drafts":
+				created = true
+				writeDraftCreatedResponse(w)
+			default:
+				http.NotFound(w, r)
+			}
+		})
+		defer cleanup()
+
+		result := executeWithGmailTestService(t, []string{
+			"--account", "me@example.com",
+			"gmail", "drafts", "replyall", "msg-1", "--body", "hi",
+		}, svc)
+		if result.err != nil {
+			t.Fatalf("drafts replyall under config no-send: %v", result.err)
+		}
+		if !created {
+			t.Fatal("expected Drafts.Create to be called")
+		}
+	})
+
+	t.Run("fwd", func(t *testing.T) {
+		created := false
+		svc, cleanup := newGmailServiceForTest(t, func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			switch {
+			case r.Method == http.MethodGet && r.URL.Path == "/gmail/v1/users/me/settings/sendAs":
+				sendAsListHandler(w)
+			case r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/gmail/v1/users/me/messages/orig-msg-1"):
+				_ = json.NewEncoder(w).Encode(mockForwardSourceMessage())
+			case r.Method == http.MethodPost && r.URL.Path == "/gmail/v1/users/me/drafts":
+				created = true
+				// A non-empty response threadId exercises writeDraftResult's
+				// fallback: a forward draft carries no built thread id, so the
+				// reported one must come from the Drafts.Create response.
+				_ = json.NewEncoder(w).Encode(map[string]any{
+					"id":      "d1",
+					"message": map[string]any{"id": "m1", "threadId": "t-created"},
+				})
+			default:
+				http.NotFound(w, r)
+			}
+		})
+		defer cleanup()
+
+		result := executeWithGmailTestService(t, []string{
+			"--json", "--account", "me@example.com",
+			"gmail", "drafts", "fwd", "orig-msg-1", "--to", "recipient@example.com",
+		}, svc)
+		if result.err != nil {
+			t.Fatalf("drafts fwd under config no-send: %v", result.err)
+		}
+		if !created {
+			t.Fatal("expected Drafts.Create to be called")
+		}
+		if !strings.Contains(result.stdout, `"threadId": "t-created"`) {
+			t.Fatalf("expected create-response thread id fallback, got:\n%s", result.stdout)
+		}
+	})
 }

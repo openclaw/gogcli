@@ -147,7 +147,7 @@ func TestGmailForward_NoteFilePreservesTrailingNewlines(t *testing.T) {
 
 	cmd := &GmailForwardCmd{
 		MessageID: "msg1",
-		GmailForwardOptions: GmailForwardOptions{
+		Options: GmailForwardOptions{
 			To:       "x@example.com",
 			NoteFile: notePath,
 		},

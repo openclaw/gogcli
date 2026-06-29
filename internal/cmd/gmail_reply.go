@@ -19,7 +19,7 @@ import (
 func buildReplyAllRecipients(info *replyInfo, selfEmail string) (to, cc []string) {
 	recipients, err := buildReplyRecipients(info, []string{selfEmail}, true, nil, nil, nil, nil)
 	if err != nil {
-		return []string{}, []string{}
+		return nil, nil
 	}
 	return formatMailboxes(recipients.To), formatMailboxes(recipients.Cc)
 }
@@ -261,13 +261,16 @@ func filterOutSelf(addresses []string, selfEmail string) []string {
 	return result
 }
 
+// deduplicateAddresses removes duplicate recipients, keeping the first
+// occurrence. It keys on the canonical bare address so a formatted mailbox
+// ("Bob" <a@x.com>) and a bare a@x.com (in any case) count as one recipient.
 func deduplicateAddresses(addresses []string) []string {
 	seen := make(map[string]bool)
 	result := make([]string, 0, len(addresses))
 	for _, addr := range addresses {
-		lower := strings.ToLower(addr)
-		if !seen[lower] {
-			seen[lower] = true
+		key := canonicalEmail(addr)
+		if !seen[key] {
+			seen[key] = true
 			result = append(result, addr)
 		}
 	}

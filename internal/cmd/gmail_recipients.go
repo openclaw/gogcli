@@ -124,6 +124,47 @@ func parseExplicitRecipientFields(to, cc, bcc []string) (replyRecipients, error)
 	return out, nil
 }
 
+// parseRecipientCSV parses a single comma-separated recipient flag (e.g.
+// --to "a@x.com, b@y.com") into the []string representation that
+// buildGmailMessage's sendBatch expects, the same form formatMailboxes produces
+// for the reply path. Unlike splitCSV it is address-aware: a comma inside a
+// quoted display name ("Smith, John" <john@example.com>) stays one recipient,
+// so recipients are counted correctly (--track's exactly-one gate), malformed
+// or zero-recipient input fails up front instead of late or not at all,
+// dry-runs report the real list, and duplicates dedup by address. An
+// empty/whitespace value yields no recipients (no error), preserving the
+// addressless-draft path.
+func parseRecipientCSV(flag, value string) ([]string, error) {
+	addrs, err := parseMailboxValues(flag, []string{value})
+	if err != nil {
+		return nil, err
+	}
+	return formatMailboxes(addrs), nil
+}
+
+// parseComposeRecipients parses the three explicit compose recipient flags
+// (--to/--cc/--bcc) address-aware via parseRecipientCSV, returning the
+// []string recipient lists that buildGmailMessage's sendBatch expects.
+//
+// Unlike the reply path's parseExplicitRecipientFields, it does not reject an
+// address appearing in two flags. Reply's --to/--cc/--bcc are add-or-MOVE
+// operations on an existing recipient set, so the same address in two flags is
+// a contradictory instruction; compose flags assign whole fields, so overlap
+// (including with --reply-all auto-populated fields) is well-defined and
+// preserved.
+func parseComposeRecipients(to, cc, bcc string) (toOut, ccOut, bccOut []string, err error) {
+	if toOut, err = parseRecipientCSV("--to", to); err != nil {
+		return nil, nil, nil, err
+	}
+	if ccOut, err = parseRecipientCSV("--cc", cc); err != nil {
+		return nil, nil, nil, err
+	}
+	if bccOut, err = parseRecipientCSV("--bcc", bcc); err != nil {
+		return nil, nil, nil, err
+	}
+	return toOut, ccOut, bccOut, nil
+}
+
 func parseMailboxValues(flag string, values []string) ([]mail.Address, error) {
 	var out []mail.Address
 	for _, value := range values {
@@ -134,6 +175,13 @@ func parseMailboxValues(flag string, values []string) ([]mail.Address, error) {
 		addrs, err := mail.ParseAddressList(value)
 		if err != nil {
 			return nil, usagef("invalid %s recipient list %q: %v", flag, value, err)
+		}
+		// RFC 5322 group syntax (e.g. "undisclosed-recipients:;") parses to
+		// zero addresses without a parse error. Reject it here so no flag
+		// consumer silently drops the value — and no dry-run reports an empty
+		// list while the real command fails late or proceeds without it.
+		if len(addrs) == 0 {
+			return nil, usagef("%s %q contains no recipients", flag, value)
 		}
 		for _, addr := range addrs {
 			if addr == nil || strings.TrimSpace(addr.Address) == "" {
@@ -241,27 +289,49 @@ func removeMailbox(addrs []mail.Address, key string) []mail.Address {
 	return out
 }
 
-func canonicalEmail(value string) string {
+// bareEmail extracts the bare address from a single formatted mailbox
+// ("Name" <a@x.com> → a@x.com), preserving its case. A value that does not
+// parse as an address is returned trimmed as-is.
+func bareEmail(value string) string {
 	value = strings.TrimSpace(value)
 	if addr, err := mail.ParseAddress(value); err == nil && addr != nil {
-		value = addr.Address
+		return strings.TrimSpace(addr.Address)
 	}
-	return strings.ToLower(strings.TrimSpace(value))
+	return value
+}
+
+// canonicalEmail returns the same address lowercased, for use as a map key.
+func canonicalEmail(value string) string {
+	return strings.ToLower(bareEmail(value))
 }
 
 func formatMailboxes(addrs []mail.Address) []string {
-	out := make([]string, 0, len(addrs))
+	// nil rather than an allocated empty slice when there are no mailboxes, so
+	// an omitted recipient flag serializes as null in dry-run JSON (the shape
+	// splitCSV produced), not [].
+	var out []string
 	for _, addr := range addrs {
 		if strings.TrimSpace(addr.Address) == "" {
 			continue
 		}
-		if strings.TrimSpace(addr.Name) == "" {
-			out = append(out, addr.Address)
-		} else {
-			out = append(out, addr.String())
-		}
+		out = append(out, formatMailbox(addr))
 	}
 	return out
+}
+
+// formatMailbox renders one mailbox for a recipient header: the bare address
+// when nameless, addr.String() otherwise. A nameless address whose bare form
+// does not re-parse — a quoted local part like "john smith"@example.com is
+// stored unquoted — is re-quoted via addr.String(), since the bare form is
+// invalid on the wire.
+func formatMailbox(addr mail.Address) string {
+	if strings.TrimSpace(addr.Name) != "" {
+		return addr.String()
+	}
+	if _, err := mail.ParseAddress(addr.Address); err != nil {
+		return addr.String()
+	}
+	return addr.Address
 }
 
 func selfEmailsForReply(account, sendingEmail string, sendAs []*gmail.SendAs) []string {

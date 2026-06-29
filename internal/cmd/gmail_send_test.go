@@ -985,6 +985,11 @@ func TestDeduplicateAddresses(t *testing.T) {
 			addresses: []string{"alice@example.com", "ALICE@EXAMPLE.COM", "bob@example.com"},
 			expect:    []string{"alice@example.com", "bob@example.com"},
 		},
+		{
+			name:      "formatted mailbox and bare address",
+			addresses: []string{`"Bob" <a@x.com>`, "A@X.COM", "b@y.com"},
+			expect:    []string{`"Bob" <a@x.com>`, "b@y.com"},
+		},
 	}
 
 	for _, tc := range tests {
@@ -1025,7 +1030,7 @@ func TestBuildReplyAllRecipients(t *testing.T) {
 			},
 			selfEmail: "me@example.com",
 			expectTo:  []string{`"Sender Name" <sender@example.com>`},
-			expectCc:  []string{},
+			expectCc:  nil,
 		},
 		{
 			name: "deduplication across To",
@@ -1036,7 +1041,7 @@ func TestBuildReplyAllRecipients(t *testing.T) {
 			},
 			selfEmail: "me@example.com",
 			expectTo:  []string{"sender@example.com", "alice@example.com"},
-			expectCc:  []string{},
+			expectCc:  nil,
 		},
 		{
 			name: "Cc address already in To is excluded from Cc",
@@ -1069,7 +1074,7 @@ func TestBuildReplyAllRecipients(t *testing.T) {
 			},
 			selfEmail: "me@example.com",
 			expectTo:  []string{"sender@example.com", "alice@example.com"},
-			expectCc:  []string{},
+			expectCc:  nil,
 		},
 		{
 			name: "empty recipients",
@@ -1079,8 +1084,8 @@ func TestBuildReplyAllRecipients(t *testing.T) {
 				CcAddrs:  nil,
 			},
 			selfEmail: "me@example.com",
-			expectTo:  []string{},
-			expectCc:  []string{},
+			expectTo:  nil,
+			expectCc:  nil,
 		},
 		{
 			name: "Reply-To header takes precedence over From (RFC 5322)",
@@ -1092,7 +1097,7 @@ func TestBuildReplyAllRecipients(t *testing.T) {
 			},
 			selfEmail: "me@example.com",
 			expectTo:  []string{"reply-here@example.com", "alice@example.com"},
-			expectCc:  []string{},
+			expectCc:  nil,
 		},
 		{
 			name: "Reply-To with display name",
@@ -1104,7 +1109,7 @@ func TestBuildReplyAllRecipients(t *testing.T) {
 			},
 			selfEmail: "me@example.com",
 			expectTo:  []string{`"Mailing List" <list@example.com>`, "alice@example.com"},
-			expectCc:  []string{},
+			expectCc:  nil,
 		},
 		{
 			name: "Empty Reply-To falls back to From",
@@ -1116,7 +1121,7 @@ func TestBuildReplyAllRecipients(t *testing.T) {
 			},
 			selfEmail: "me@example.com",
 			expectTo:  []string{"sender@example.com", "alice@example.com"},
-			expectCc:  []string{},
+			expectCc:  nil,
 		},
 	}
 

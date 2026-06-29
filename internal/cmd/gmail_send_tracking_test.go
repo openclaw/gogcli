@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/openclaw/gogcli/internal/mailmime"
@@ -61,6 +62,54 @@ func TestResolveTrackingConfig(t *testing.T) {
 	}
 	if got == nil || !got.IsConfigured() {
 		t.Fatalf("expected configured tracking, got %#v", got)
+	}
+}
+
+// TestResolveTrackingConfig_CountsParsedRecipients proves the --track
+// exactly-1-recipient gate counts address-aware parsed recipients: a single
+// display-name mailbox whose comma splitCSV used to miscount as two
+// recipients passes the gate, and a same-address pair deduped within the flag
+// counts as one. Each call stops at the empty-HTML-body check — the error
+// must be the HTML one, not the count one — so the test proves the gate
+// passed without touching the env-dependent tracking config load. The same
+// parsed list must also yield a single send batch.
+func TestResolveTrackingConfig_CountsParsedRecipients(t *testing.T) {
+	ctx := newCmdRuntimeOutputContext(t, io.Discard, io.Discard)
+	cases := []struct {
+		name  string
+		value string
+		bare  string
+	}{
+		{name: "display name comma", value: `"Smith, John" <john@example.com>`, bare: "john@example.com"},
+		{name: "case duplicate pair", value: "a@x.com, A@X.COM", bare: "a@x.com"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			to, err := parseRecipientCSV("--to", tc.value)
+			if err != nil {
+				t.Fatalf("parseRecipientCSV: %v", err)
+			}
+			if len(to) != 1 {
+				t.Fatalf("expected 1 parsed recipient, got %#v", to)
+			}
+
+			cmd := &GmailSendCmd{Track: true}
+			_, err = cmd.resolveTrackingConfig(ctx, "a@b.com", to, nil, nil, "")
+			if err == nil || !strings.Contains(err.Error(), "HTML body") {
+				t.Fatalf("expected HTML-body error (count gate passed), got: %v", err)
+			}
+			if strings.Contains(err.Error(), "exactly 1 recipient") {
+				t.Fatalf("count gate rejected a single parsed recipient: %v", err)
+			}
+
+			batches := buildSendBatches(to, nil, nil, true, false)
+			if len(batches) != 1 {
+				t.Fatalf("expected 1 batch, got %#v", batches)
+			}
+			if batches[0].TrackingRecipient != tc.bare {
+				t.Fatalf("tracking recipient = %q, want bare %q", batches[0].TrackingRecipient, tc.bare)
+			}
+		})
 	}
 }
 
