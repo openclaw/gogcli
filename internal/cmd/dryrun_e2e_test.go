@@ -895,6 +895,10 @@ func TestDryRunE2E_ValidatesFormsAndSheetsLocalInputs(t *testing.T) {
 			args: []string{"docs", "write", "doc123", "--text", "hello", "--font-size", "-1"},
 		},
 		{
+			name: "docs write validates spacing mode before dry-run",
+			args: []string{"docs", "write", "doc123", "--text", "hello", "--spacing-mode", "sometimes"},
+		},
+		{
 			name: "docs format validates colors before dry-run",
 			args: []string{"docs", "format", "doc123", "--text-color", "nope"},
 		},
