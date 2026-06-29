@@ -17,12 +17,15 @@ import (
 )
 
 type GmailDraftsCmd struct {
-	List   GmailDraftsListCmd   `cmd:"" name:"list" aliases:"ls" help:"List drafts"`
-	Get    GmailDraftsGetCmd    `cmd:"" name:"get" aliases:"info,show" help:"Get draft details"`
-	Delete GmailDraftsDeleteCmd `cmd:"" name:"delete" aliases:"rm,del,remove" help:"Permanently delete a draft (not recoverable; drafts are not moved to Trash)"`
-	Send   GmailDraftsSendCmd   `cmd:"" name:"send" aliases:"post" help:"Send a draft"`
-	Create GmailDraftsCreateCmd `cmd:"" name:"create" aliases:"add,new" help:"Create a draft"`
-	Update GmailDraftsUpdateCmd `cmd:"" name:"update" aliases:"edit,set" help:"Update a draft"`
+	List     GmailDraftsListCmd     `cmd:"" name:"list" aliases:"ls" help:"List drafts"`
+	Get      GmailDraftsGetCmd      `cmd:"" name:"get" aliases:"info,show" help:"Get draft details"`
+	Delete   GmailDraftsDeleteCmd   `cmd:"" name:"delete" aliases:"rm,del,remove" help:"Permanently delete a draft (not recoverable; drafts are not moved to Trash)"`
+	Send     GmailDraftsSendCmd     `cmd:"" name:"send" aliases:"post" help:"Send a draft"`
+	Create   GmailDraftsCreateCmd   `cmd:"" name:"create" aliases:"add,new" help:"Create a draft"`
+	Update   GmailDraftsUpdateCmd   `cmd:"" name:"update" aliases:"edit,set" help:"Update a draft"`
+	Reply    GmailDraftsReplyCmd    `cmd:"" name:"reply" help:"Save a reply as a draft"`
+	ReplyAll GmailDraftsReplyAllCmd `cmd:"" name:"reply-all" aliases:"replyall" help:"Save a reply-all as a draft"`
+	Forward  GmailDraftsForwardCmd  `cmd:"" name:"forward" aliases:"fwd" help:"Save a forward as a draft"`
 }
 
 type GmailDraftsListCmd struct {

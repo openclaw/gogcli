@@ -125,6 +125,29 @@ An explicit `--subject` override is supported. A changed subject cannot meet
 Gmail's thread-matching requirement, so gog keeps the RFC reply headers but
 does not force the original `threadId`; Gmail creates a new conversation.
 
+To stage a reply for review instead of sending it, use the draft-side
+counterparts. They accept the same flags and build the same message; only the
+finalize step differs (the draft is saved, not sent), so they work under
+no-send guardrails:
+
+```bash
+gog gmail drafts reply <messageId> --body-file reply.txt
+gog gmail drafts reply-all <messageId> --body "Thanks all"
+```
+
+## Forward
+
+`gog gmail forward` sends a message on with a `Fwd:` subject, a Gmail-style
+forwarded-message block, and the original attachments (skip them with
+`--skip-attachments`). `gog gmail drafts forward` saves the same composition
+as a draft instead; unlike the send side it does not require `--to`, matching
+Gmail's UI, which allows an addressless forward draft:
+
+```bash
+gog gmail forward <messageId> --to colleague@example.com --note "FYI"
+gog gmail drafts forward <messageId> --note "FYI"
+```
+
 Remote HTTP images remain remote references. Only MIME parts referenced with
 `cid:` are copied into the outgoing message.
 
@@ -142,8 +165,9 @@ Official behavior references:
 
 ## Attachment Confirmation
 
-`gmail send --json` and `gmail drafts create|update --json` include an
-`attachments` array when the resulting message contains attachments:
+`gmail send --json`, `gmail drafts create|update --json`, and
+`gmail drafts reply|reply-all --json` include an `attachments` array when the
+resulting message contains attachments:
 
 ```json
 {"attachments":[{"filename":"report.pdf","size":2411233}]}

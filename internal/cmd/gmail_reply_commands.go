@@ -64,6 +64,10 @@ type replyComposeMessage struct {
 	fromHeader         string
 	to                 []string
 	attachmentMetadata []mailmime.AttachmentMetadata
+	// threading records the reply headers the message was built with, for the
+	// draft path's result report. The send path reports the sent message's
+	// thread instead and ignores it.
+	threading draftThreading
 }
 
 func (c *GmailReplyOptions) run(ctx context.Context, flags *RootFlags, messageID string, replyAll bool) error {
@@ -74,23 +78,7 @@ func (c *GmailReplyOptions) run(ctx context.Context, flags *RootFlags, messageID
 		return err
 	}
 
-	if dryRunErr := dryRunExit(ctx, flags, "gmail."+replyModeName(replyAll), map[string]any{
-		"message_id":                inputs.messageID,
-		"to_add":                    c.To,
-		"cc_add":                    c.Cc,
-		"bcc_add":                   c.Bcc,
-		"remove":                    c.Remove,
-		"subject_override":          strings.TrimSpace(c.Subject),
-		"quote":                     !c.NoQuote,
-		"from":                      strings.TrimSpace(c.From),
-		"auto_from_addressed_alias": c.AutoFromAddressedAlias,
-		"body_len":                  len(inputs.body),
-		"body_html_len":             len(inputs.htmlBody),
-		"attachments":               inputs.attachPaths,
-		"signature":                 c.Signature,
-		"signature_from":            strings.TrimSpace(c.SignatureFrom),
-		"signature_file":            strings.TrimSpace(c.SignatureFile),
-	}); dryRunErr != nil {
+	if dryRunErr := dryRunExit(ctx, flags, "gmail."+replyModeName(replyAll), c.dryRunFields(inputs)); dryRunErr != nil {
 		return dryRunErr
 	}
 
@@ -116,6 +104,29 @@ func (c *GmailReplyOptions) run(ctx context.Context, flags *RootFlags, messageID
 		ThreadID:    sent.ThreadId,
 		Attachments: built.attachmentMetadata,
 	}})
+}
+
+// dryRunFields builds the dry-run request dictionary shared by the send-side
+// reply/reply-all and the draft-side reply/reply-all, so both report the same
+// fields and only the action name differs.
+func (c *GmailReplyOptions) dryRunFields(inputs replyComposeInputs) map[string]any {
+	return map[string]any{
+		"message_id":                inputs.messageID,
+		"to_add":                    c.To,
+		"cc_add":                    c.Cc,
+		"bcc_add":                   c.Bcc,
+		"remove":                    c.Remove,
+		"subject_override":          strings.TrimSpace(c.Subject),
+		"quote":                     !c.NoQuote,
+		"from":                      strings.TrimSpace(c.From),
+		"auto_from_addressed_alias": c.AutoFromAddressedAlias,
+		"body_len":                  len(inputs.body),
+		"body_html_len":             len(inputs.htmlBody),
+		"attachments":               inputs.attachPaths,
+		"signature":                 c.Signature,
+		"signature_from":            strings.TrimSpace(c.SignatureFrom),
+		"signature_file":            strings.TrimSpace(c.SignatureFile),
+	}
 }
 
 // resolveReplyInputs normalizes the message ID, resolves body/HTML inputs, and
@@ -253,10 +264,20 @@ func (c *GmailReplyOptions) buildReplyComposeMessage(ctx context.Context, svc *g
 		return replyComposeMessage{}, fmt.Errorf("build reply: %w", err)
 	}
 
+	threading := draftThreading{
+		ThreadID:   info.ThreadID,
+		InReplyTo:  strings.TrimSpace(info.InReplyTo),
+		References: strings.TrimSpace(info.References),
+	}
+	if threading.InReplyTo != "" {
+		threading.Source = replyContextCaller
+	}
+
 	return replyComposeMessage{
 		message:            msg,
 		fromHeader:         from.header,
 		to:                 toRecipients,
 		attachmentMetadata: attachmentMetadata,
+		threading:          threading,
 	}, nil
 }

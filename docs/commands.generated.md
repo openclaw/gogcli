@@ -403,11 +403,14 @@ Generated from `gog schema --json`.
     - [`gog gmail (mail,email) drafts (draft) <command>`](commands/gog-gmail-drafts.md) - Draft operations
       - [`gog gmail (mail,email) drafts (draft) create (add,new) [flags]`](commands/gog-gmail-drafts-create.md) - Create a draft
       - [`gog gmail (mail,email) drafts (draft) delete (rm,del,remove) <draftId>`](commands/gog-gmail-drafts-delete.md) - Permanently delete a draft (not recoverable; drafts are not moved to Trash)
+      - [`gog gmail (mail,email) drafts (draft) forward (fwd) <messageId> [flags]`](commands/gog-gmail-drafts-forward.md) - Save a forward as a draft
       - [`gog gmail (mail,email) drafts (draft) get (info,show) <draftId> [flags]`](commands/gog-gmail-drafts-get.md) - Get draft details
       - [`gog gmail (mail,email) drafts (draft) list (ls) [flags]`](commands/gog-gmail-drafts-list.md) - List drafts
+      - [`gog gmail (mail,email) drafts (draft) reply <messageId> [flags]`](commands/gog-gmail-drafts-reply.md) - Save a reply as a draft
+      - [`gog gmail (mail,email) drafts (draft) reply-all (replyall) <messageId> [flags]`](commands/gog-gmail-drafts-reply-all.md) - Save a reply-all as a draft
       - [`gog gmail (mail,email) drafts (draft) send (post) <draftId>`](commands/gog-gmail-drafts-send.md) - Send a draft
       - [`gog gmail (mail,email) drafts (draft) update (edit,set) <draftId> [flags]`](commands/gog-gmail-drafts-update.md) - Update a draft
-    - [`gog gmail (mail,email) forward (fwd) --to=STRING <messageId> [flags]`](commands/gog-gmail-forward.md) - Forward a message to new recipients
+    - [`gog gmail (mail,email) forward (fwd) <messageId> [flags]`](commands/gog-gmail-forward.md) - Forward a message to new recipients
     - [`gog gmail (mail,email) get (info,show) <messageId> [flags]`](commands/gog-gmail-get.md) - Get a message (full|metadata|raw)
     - [`gog gmail (mail,email) history [flags]`](commands/gog-gmail-history.md) - Gmail history
     - [`gog gmail (mail,email) import <file> [flags]`](commands/gog-gmail-import.md) - Import an RFC822/EML message into Gmail
