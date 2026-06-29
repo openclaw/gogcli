@@ -71,7 +71,8 @@ func createsParagraphBullets(options docsformat.Options) bool {
 
 func hasParagraphStyle(options docsformat.Options) bool {
 	return strings.TrimSpace(options.Alignment) != "" || options.LineSpacing != 0 || options.HeadingLevel != nil ||
-		strings.TrimSpace(options.NamedStyle) != "" || options.IndentStart != nil || options.IndentFirstLine != nil ||
+		strings.TrimSpace(options.SpacingMode) != "" || strings.TrimSpace(options.NamedStyle) != "" ||
+		options.IndentStart != nil || options.IndentFirstLine != nil ||
 		options.IndentEnd != nil || options.SpaceAbove != nil || options.SpaceBelow != nil ||
 		options.KeepWithNext != nil || options.KeepLinesTogether != nil
 }

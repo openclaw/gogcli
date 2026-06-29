@@ -64,15 +64,13 @@ func TestBuildWriteRequestsAppendSkipsDelete(t *testing.T) {
 }
 
 func TestBuildWriteRequestsBulletsAdjustParagraphRangeAfterTabs(t *testing.T) {
-	indent := 54.0
-
 	requests, err := BuildWriteRequests(WriteOptions{
 		EndIndex:    1,
 		InsertIndex: 1,
 		Text:        "\tFirst\n\t\tSecond\n",
 		Format: docsformat.Options{
 			Ordered:     true,
-			IndentStart: &indent,
+			SpacingMode: docsformat.SpacingModeCollapseLists,
 		},
 	})
 	if err != nil {
@@ -85,6 +83,10 @@ func TestBuildWriteRequestsBulletsAdjustParagraphRangeAfterTabs(t *testing.T) {
 
 	if got := requests[2].UpdateParagraphStyle.Range; got.StartIndex != 1 || got.EndIndex != 14 {
 		t.Fatalf("post-bullet paragraph range = %#v, want 1..14", got)
+	}
+
+	if got := requests[2].UpdateParagraphStyle.ParagraphStyle.SpacingMode; got != docsformat.SpacingModeCollapseLists {
+		t.Fatalf("spacing mode = %q, want %q", got, docsformat.SpacingModeCollapseLists)
 	}
 }
 

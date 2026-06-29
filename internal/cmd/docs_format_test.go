@@ -26,6 +26,7 @@ func TestDocsFormatFlagsBuildRequests(t *testing.T) {
 		Italic:      true,
 		Alignment:   "center",
 		LineSpacing: 150,
+		SpacingMode: "collapse_lists",
 	}).buildRequests(3, 9, "t.second")
 	if err != nil {
 		t.Fatalf("buildRequests: %v", err)
@@ -65,7 +66,8 @@ func TestDocsFormatFlagsBuildRequests(t *testing.T) {
 		t.Fatalf("missing paragraph request: %#v", reqs[1])
 		return
 	}
-	if paraReq.ParagraphStyle.Alignment != "CENTER" || paraReq.ParagraphStyle.LineSpacing != 150 {
+	if paraReq.ParagraphStyle.Alignment != "CENTER" || paraReq.ParagraphStyle.LineSpacing != 150 ||
+		paraReq.ParagraphStyle.SpacingMode != docsformat.SpacingModeCollapseLists {
 		t.Fatalf("unexpected paragraph style: %#v", paraReq.ParagraphStyle)
 	}
 	if got := paraReq.Range; got.TabId != "t.second" {
@@ -117,6 +119,9 @@ func TestDocsFormatFlagsValidation(t *testing.T) {
 	}
 	if _, err := (DocsFormatFlags{Alignment: "sideways"}).buildRequests(1, 2, ""); err == nil {
 		t.Fatalf("expected invalid alignment error")
+	}
+	if _, err := (DocsFormatFlags{SpacingMode: "sometimes"}).buildRequests(1, 2, ""); err == nil {
+		t.Fatalf("expected invalid spacing-mode error")
 	}
 	if _, err := (DocsFormatFlags{Code: true, FontFamily: "Arial"}).buildRequests(1, 2, ""); err == nil {
 		t.Fatalf("expected conflicting code/font-family flags error")
@@ -330,6 +335,7 @@ func TestDocsFormatCmdParagraphControls(t *testing.T) {
 	err := runKong(t, &DocsFormatCmd{}, []string{
 		"doc1", "--match", "Alpha", "--match-all", "--bold", "--ordered",
 		"--indent-start", "24", "--space-below", "6",
+		"--spacing-mode", "never_collapse",
 		"--keep-with-next", "--no-keep-lines-together",
 	}, ctx, flags)
 	if err != nil {
@@ -351,6 +357,7 @@ func TestDocsFormatCmdParagraphControls(t *testing.T) {
 		t.Fatalf("grouped paragraph requests: %#v", batchRequests[0])
 	}
 	if paragraph.ParagraphStyle.IndentStart.Magnitude != 24 || paragraph.ParagraphStyle.SpaceBelow.Magnitude != 6 ||
+		paragraph.ParagraphStyle.SpacingMode != docsformat.SpacingModeNeverCollapse ||
 		!paragraph.ParagraphStyle.KeepWithNext || paragraph.ParagraphStyle.KeepLinesTogether {
 		t.Fatalf("unexpected paragraph style: %#v", paragraph.ParagraphStyle)
 	}

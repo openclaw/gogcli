@@ -68,6 +68,7 @@ gog docs (doc) format <docId> [flags]
 | `--select`<br>`--pick`<br>`--project` | `string` |  | In JSON mode, select comma-separated fields (best-effort; supports dot paths). Desire path: use --fields for most commands. |
 | `--space-above` | `*float64` |  | Space above the paragraph in points |
 | `--space-below` | `*float64` |  | Space below the paragraph in points |
+| `--spacing-mode` | `string` |  | Paragraph spacing mode: NEVER_COLLAPSE or COLLAPSE_LISTS |
 | `--strikethrough`<br>`--strike` | `bool` |  | Set strikethrough |
 | `--tab` | `string` |  | Target a specific tab by title or ID (see docs list-tabs) |
 | `--text-color` | `string` |  | Text color as #RRGGBB or #RGB |

@@ -44,6 +44,7 @@ type DocsFormatFlags struct {
 	NoStrike          bool     `name:"no-strikethrough" aliases:"no-strike" help:"Clear strikethrough"`
 	Alignment         string   `name:"alignment" help:"Paragraph alignment: left, center, right, justify, start, end, justified"`
 	LineSpacing       float64  `name:"line-spacing" help:"Paragraph line spacing percentage, for example 100 or 150"`
+	SpacingMode       string   `name:"spacing-mode" help:"Paragraph spacing mode: NEVER_COLLAPSE or COLLAPSE_LISTS"`
 	HeadingLevel      *int     `name:"heading-level" help:"Set paragraph named style to HEADING_1..HEADING_6 (shortcut for --named-style=HEADING_N)"`
 	NamedStyle        string   `name:"named-style" help:"Set paragraph named style: NORMAL_TEXT, TITLE, SUBTITLE, HEADING_1..HEADING_6"`
 	Bullets           bool     `name:"bullets" help:"Create a bulleted list with the default disc preset"`
@@ -123,6 +124,7 @@ func (c *DocsFormatCmd) Run(ctx context.Context, flags *RootFlags) error {
 			"no_strike":           c.Format.NoStrike,
 			"alignment":           c.Format.Alignment,
 			"line_spacing":        c.Format.LineSpacing,
+			"spacing_mode":        c.Format.SpacingMode,
 			"heading_level":       c.Format.HeadingLevel,
 			"named_style":         c.Format.NamedStyle,
 			"bullets":             c.Format.Bullets,
@@ -399,7 +401,8 @@ func (f DocsFormatFlags) createsBullets() bool {
 
 func (f DocsFormatFlags) hasParagraphStyle() bool {
 	return strings.TrimSpace(f.Alignment) != "" || f.LineSpacing != 0 || f.HeadingLevel != nil ||
-		strings.TrimSpace(f.NamedStyle) != "" || f.IndentStart != nil || f.IndentFirstLine != nil ||
+		strings.TrimSpace(f.SpacingMode) != "" || strings.TrimSpace(f.NamedStyle) != "" ||
+		f.IndentStart != nil || f.IndentFirstLine != nil ||
 		f.IndentEnd != nil || f.SpaceAbove != nil || f.SpaceBelow != nil ||
 		f.KeepWithNext != nil || f.KeepLinesTogether != nil
 }
@@ -429,6 +432,7 @@ func (f DocsFormatFlags) paragraphOnly() DocsFormatFlags {
 	return DocsFormatFlags{
 		Alignment:         f.Alignment,
 		LineSpacing:       f.LineSpacing,
+		SpacingMode:       f.SpacingMode,
 		HeadingLevel:      f.HeadingLevel,
 		NamedStyle:        f.NamedStyle,
 		Bullets:           f.Bullets,
@@ -483,6 +487,7 @@ func (f DocsFormatFlags) options() docsformat.Options {
 		ClearStrike:       f.NoStrike,
 		Alignment:         f.Alignment,
 		LineSpacing:       f.LineSpacing,
+		SpacingMode:       f.SpacingMode,
 		HeadingLevel:      f.HeadingLevel,
 		NamedStyle:        f.NamedStyle,
 		Bullets:           f.Bullets,

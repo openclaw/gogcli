@@ -77,11 +77,13 @@ gog docs format <docId> --match "Action item" --no-bullets
 ```
 
 Paragraph layout controls use points and accept explicit zero values. Boolean
-keep controls have matching `--no-...` forms:
+keep controls have matching `--no-...` forms. `--spacing-mode` accepts the
+Docs API values `NEVER_COLLAPSE` and `COLLAPSE_LISTS` case-insensitively:
 
 ```bash
 gog docs format <docId> --match "Summary" --indent-start 24 --indent-first-line 12
 gog docs format <docId> --match "Summary" --space-above 6 --space-below 12 --keep-with-next
+gog docs format <docId> --match "Action item" --space-below 6 --spacing-mode NEVER_COLLAPSE
 gog docs format <docId> --match "Summary" --no-keep-with-next --keep-lines-together
 ```
 

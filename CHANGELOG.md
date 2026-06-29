@@ -2,6 +2,8 @@
 
 ## 0.31.2 - Unreleased
 
+- Docs: add `docs format --spacing-mode` for setting paragraph spacing collapse behavior alongside `--space-above` and `--space-below`. (#885) — thanks @odyssey4me.
+
 ## 0.31.1 - 2026-06-26
 
 - Calendar: add `calendar changed` for listing recently modified events, including cancellations, across one or more calendars. (#875) — thanks @sorenisanerd.

@@ -81,6 +81,10 @@ func TestOptionsAny(t *testing.T) {
 	if !(Options{SpaceBelow: floatPointer(0)}).Any() {
 		t.Fatal("explicit zero dimension should count as formatting")
 	}
+
+	if !(Options{SpacingMode: SpacingModeNeverCollapse}).Any() {
+		t.Fatal("spacing mode should count as formatting")
+	}
 }
 
 func TestBuildRequestsParagraphControlsAndBullets(t *testing.T) {
@@ -91,6 +95,7 @@ func TestBuildRequestsParagraphControlsAndBullets(t *testing.T) {
 		IndentEnd:         floatPointer(0),
 		SpaceAbove:        floatPointer(6),
 		SpaceBelow:        floatPointer(12),
+		SpacingMode:       "never_collapse",
 		KeepWithNext:      boolPointer(true),
 		KeepLinesTogether: boolPointer(false),
 	}, 3, 20, "t.second")
@@ -107,13 +112,14 @@ func TestBuildRequestsParagraphControlsAndBullets(t *testing.T) {
 		t.Fatalf("missing paragraph request: %#v", requests[0])
 	}
 
-	if paragraph.Fields != "indentStart,indentFirstLine,indentEnd,spaceAbove,spaceBelow,keepWithNext,keepLinesTogether" {
+	if paragraph.Fields != "spacingMode,indentStart,indentFirstLine,indentEnd,spaceAbove,spaceBelow,keepWithNext,keepLinesTogether" {
 		t.Fatalf("fields = %q", paragraph.Fields)
 	}
 
 	style := paragraph.ParagraphStyle
 	if style.IndentStart.Magnitude != 36 || style.IndentFirstLine.Magnitude != 18 || style.IndentEnd.Magnitude != 0 ||
-		style.SpaceAbove.Magnitude != 6 || style.SpaceBelow.Magnitude != 12 || !style.KeepWithNext || style.KeepLinesTogether {
+		style.SpaceAbove.Magnitude != 6 || style.SpaceBelow.Magnitude != 12 || style.SpacingMode != SpacingModeNeverCollapse ||
+		!style.KeepWithNext || style.KeepLinesTogether {
 		t.Fatalf("unexpected paragraph style: %#v", style)
 	}
 
@@ -215,6 +221,7 @@ func TestBuildRequestsParagraphControlValidation(t *testing.T) {
 		{Bullets: true, Ordered: true},
 		{Bullets: true, ClearBullets: true},
 		{BulletPreset: "not_a_preset"},
+		{SpacingMode: "sometimes"},
 	}
 	for _, options := range tests {
 		if _, err := BuildRequests(options, 1, 2, ""); err == nil {

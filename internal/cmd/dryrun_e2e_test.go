@@ -89,7 +89,7 @@ func TestDryRunE2E_CommandsSkipAuthAPIAndFileWrites(t *testing.T) {
 		},
 		{
 			name: "docs format",
-			args: []string{"docs", "format", "doc123", "--bold"},
+			args: []string{"docs", "format", "doc123", "--spacing-mode", "collapse_lists"},
 			op:   "docs.format",
 		},
 		{
@@ -897,6 +897,10 @@ func TestDryRunE2E_ValidatesFormsAndSheetsLocalInputs(t *testing.T) {
 		{
 			name: "docs format validates colors before dry-run",
 			args: []string{"docs", "format", "doc123", "--text-color", "nope"},
+		},
+		{
+			name: "docs format validates spacing mode before dry-run",
+			args: []string{"docs", "format", "doc123", "--spacing-mode", "sometimes"},
 		},
 	}
 

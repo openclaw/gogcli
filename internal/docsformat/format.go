@@ -27,6 +27,11 @@ const (
 	namedStyleHeading6   = "HEADING_6"
 )
 
+const (
+	SpacingModeNeverCollapse = "NEVER_COLLAPSE"
+	SpacingModeCollapseLists = "COLLAPSE_LISTS"
+)
+
 type ValidationError string
 
 func (e ValidationError) Error() string {
@@ -52,6 +57,7 @@ type Options struct {
 	ClearStrike       bool
 	Alignment         string
 	LineSpacing       float64
+	SpacingMode       string
 	HeadingLevel      *int
 	NamedStyle        string
 	Bullets           bool
@@ -85,6 +91,7 @@ func (o Options) Any() bool {
 		o.Strikethrough || o.ClearStrike ||
 		strings.TrimSpace(o.Alignment) != "" ||
 		o.LineSpacing != 0 ||
+		strings.TrimSpace(o.SpacingMode) != "" ||
 		o.HeadingLevel != nil ||
 		strings.TrimSpace(o.NamedStyle) != "" ||
 		o.Bullets || o.Ordered || strings.TrimSpace(o.BulletPreset) != "" || o.ClearBullets ||
@@ -292,6 +299,16 @@ func buildParagraphStyleRequest(options Options, start, end int64, tabID string)
 		fields = append(fields, "lineSpacing")
 	}
 
+	if spacingMode := strings.TrimSpace(options.SpacingMode); spacingMode != "" {
+		resolved, err := formatSpacingMode(spacingMode)
+		if err != nil {
+			return nil, false, err
+		}
+		style.SpacingMode = resolved
+
+		fields = append(fields, "spacingMode")
+	}
+
 	namedStyle, err := formatNamedStyle(options.HeadingLevel, options.NamedStyle)
 	if err != nil {
 		return nil, false, err
@@ -439,6 +456,17 @@ func validBulletPreset(value string) bool {
 		return true
 	default:
 		return false
+	}
+}
+
+func formatSpacingMode(value string) (string, error) {
+	switch strings.ToUpper(strings.TrimSpace(value)) {
+	case SpacingModeNeverCollapse:
+		return SpacingModeNeverCollapse, nil
+	case SpacingModeCollapseLists:
+		return SpacingModeCollapseLists, nil
+	default:
+		return "", ValidationError("--spacing-mode must be NEVER_COLLAPSE or COLLAPSE_LISTS")
 	}
 }
 
