@@ -41,6 +41,9 @@ gmail:
     get: true
     create: false
     update: false
+    reply: false
+    reply-all: false
+    forward: false
     delete: false
     send: false
   settings: false

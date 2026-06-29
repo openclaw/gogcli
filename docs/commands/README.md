@@ -2,7 +2,7 @@
 
 Every `gog` command has a generated docs page. The source of truth is the live CLI schema; run `make docs-commands` after changing command names, flags, help text, aliases, or arguments.
 
-Generated pages: 709.
+Generated pages: 712.
 
 ## Top-level Commands
 
@@ -456,8 +456,11 @@ Generated pages: 709.
     - [gog gmail drafts](gog-gmail-drafts.md) - Draft operations
       - [gog gmail drafts create](gog-gmail-drafts-create.md) - Create a draft
       - [gog gmail drafts delete](gog-gmail-drafts-delete.md) - Permanently delete a draft (not recoverable; drafts are not moved to Trash)
+      - [gog gmail drafts forward](gog-gmail-drafts-forward.md) - Save a forward as a draft
       - [gog gmail drafts get](gog-gmail-drafts-get.md) - Get draft details
       - [gog gmail drafts list](gog-gmail-drafts-list.md) - List drafts
+      - [gog gmail drafts reply](gog-gmail-drafts-reply.md) - Save a reply as a draft
+      - [gog gmail drafts reply-all](gog-gmail-drafts-reply-all.md) - Save a reply-all as a draft
       - [gog gmail drafts send](gog-gmail-drafts-send.md) - Send a draft
       - [gog gmail drafts update](gog-gmail-drafts-update.md) - Update a draft
     - [gog gmail forward](gog-gmail-forward.md) - Forward a message to new recipients

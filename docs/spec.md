@@ -397,6 +397,9 @@ after the bounded retry window, the command exits with retryable code `8`.
 - `gog gmail drafts get <draftId> [--download]`
 - `gog gmail drafts create [--subject S] [--to a@b.com] [--body B] [--body-html H] [--cc ...] [--bcc ...] [--reply-to-message-id <messageId>|--thread-id <threadId>] [--reply-all] [--reply-to addr] [--from addr|--auto-from-addressed-alias] [--attach <file>...]`
 - `gog gmail drafts update <draftId> [--subject S] [--to a@b.com] [--body B] [--body-html H] [--cc ...] [--bcc ...] [--reply-to-message-id <messageId>|--thread-id <threadId>] [--reply-all] [--reply-to addr] [--from addr|--auto-from-addressed-alias] [--attach <file>...]`
+- `gog gmail drafts reply <messageId> [--body B|--body-file PATH|--body-html HTML|--body-html-file PATH] [--to ...] [--cc ...] [--bcc ...] [--remove ...] [--subject S] [--no-quote] [--from addr|--auto-from-addressed-alias] [--signature|--signature-from addr|--signature-file path] [--attach <file>...]` (same flags as `gmail reply`, but saves a draft instead of sending; works under no-send)
+- `gog gmail drafts reply-all <messageId> [--body B|--body-file PATH|--body-html HTML|--body-html-file PATH] [--to ...] [--cc ...] [--bcc ...] [--remove ...] [--subject S] [--no-quote] [--from addr|--auto-from-addressed-alias] [--signature|--signature-from addr|--signature-file path] [--attach <file>...]` (same flags as `gmail reply-all`, but saves a draft; works under no-send)
+- `gog gmail drafts forward <messageId> [--to a@b.com] [--cc ...] [--bcc ...] [--note TEXT|--note-file PATH] [--from addr] [--skip-attachments]` (same flags as `gmail forward`, but saves a draft; `--to` is optional for a draft; works under no-send)
 - `gog gmail drafts send <draftId>`
 - `gog gmail drafts delete <draftId>`
 - `gog gmail watch start|status|renew|stop|serve`
