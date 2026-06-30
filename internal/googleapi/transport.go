@@ -11,10 +11,14 @@ import (
 	"math/big"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 )
 
-const maxBufferedReplayBodyBytes = int64(16 << 20)
+const (
+	maxBufferedReplayBodyBytes    = int64(16 << 20)
+	maxAuthRetryResponseBodyBytes = int64(1 << 20)
+)
 
 var errRequestBodyTooLarge = errors.New("request body too large to buffer for retry")
 
@@ -26,6 +30,7 @@ type RetryTransport struct {
 	MaxRetries5xx  int
 	BaseDelay      time.Duration
 	CircuitBreaker *CircuitBreaker
+	RefreshAuth    func(context.Context) error
 }
 
 // NewRetryTransport creates a RetryTransport with sensible defaults.
@@ -57,6 +62,7 @@ func (t *RetryTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	var resp *http.Response
 	retries429 := 0
 	retries5xx := 0
+	retriedAuth := false
 
 	for {
 		// Reset body for retry
@@ -132,6 +138,28 @@ func (t *RetryTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 			retries5xx++
 
 			continue
+		}
+
+		if resp.StatusCode == http.StatusForbidden && t.RefreshAuth != nil && !retriedAuth && replayable {
+			insufficientScopes, detectErr := responseIndicatesInsufficientScopes(resp)
+			if detectErr != nil {
+				slog.Debug("could not inspect auth failure response for retry", "err", detectErr)
+				return resp, nil
+			}
+
+			if insufficientScopes {
+				slog.Debug("insufficient scopes response, refreshing auth token and retrying")
+
+				drainAndClose(resp.Body)
+
+				if err := t.RefreshAuth(req.Context()); err != nil {
+					return nil, fmt.Errorf("refresh auth after insufficient scopes response: %w", err)
+				}
+
+				retriedAuth = true
+
+				continue
+			}
 		}
 
 		// Other errors (4xx except 429): don't retry
@@ -248,4 +276,33 @@ func drainAndClose(body io.ReadCloser) {
 	}
 	_, _ = io.Copy(io.Discard, io.LimitReader(body, 1<<20))
 	_ = body.Close()
+}
+
+func responseIndicatesInsufficientScopes(resp *http.Response) (bool, error) {
+	if resp == nil || resp.Body == nil {
+		return false, nil
+	}
+
+	if resp.ContentLength > maxAuthRetryResponseBodyBytes {
+		return false, nil
+	}
+
+	bodyBytes, err := io.ReadAll(io.LimitReader(resp.Body, maxAuthRetryResponseBodyBytes+1))
+	_ = resp.Body.Close()
+	resp.Body = io.NopCloser(bytes.NewReader(bodyBytes))
+
+	if err != nil {
+		return false, fmt.Errorf("read auth failure response: %w", err)
+	}
+
+	if int64(len(bodyBytes)) > maxAuthRetryResponseBodyBytes {
+		return false, nil
+	}
+
+	text := strings.ToLower(string(bodyBytes))
+	normalized := strings.NewReplacer("_", " ", "-", " ").Replace(text)
+
+	return strings.Contains(normalized, "insufficient authentication scopes") ||
+		strings.Contains(normalized, "insufficient scopes") ||
+		strings.Contains(normalized, "access token scope insufficient"), nil
 }
