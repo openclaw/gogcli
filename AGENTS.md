@@ -39,7 +39,7 @@
 ### PR Workflow (Review vs Land)
 
 - **Review mode (PR link only):** read `gh pr view/diff`; do not switch branches; do not change code.
-- **Landing mode:** temp branch from `main`; bring in PR (squash default; rebase/merge when needed); fix; update `CHANGELOG.md` (PR #/issue + thanks); run `make ci`; final commit; merge to `main`; delete temp; end on `main`.
+- **Landing mode:** temp branch from `main`; bring in PR with a normal merge commit by default; rebase only when explicitly needed; never squash; fix; update `CHANGELOG.md` (PR #/issue + thanks); run `make ci`; final commit; merge to `main`; delete temp; end on `main`.
 - If landing contributor work, always add `Co-authored-by:` trailers for PR authors, even when we partially rewrite, group, or manually apply their changes; leave a PR comment with what landed + SHAs.
 - New contributor: thank in `CHANGELOG.md` (and update README contributors list if present).
 
