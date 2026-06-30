@@ -148,10 +148,18 @@ func authenticatedTransportWithStoredScopeCheck(
 		}
 	}
 
-	return readOnlyTransportFromContext(ctx, NewRetryTransport(&oauth2.Transport{
+	retryTransport := NewRetryTransport(&oauth2.Transport{
 		Source: ts,
 		Base:   newBaseTransport(),
-	})), nil
+	})
+
+	if refresher, ok := ts.(interface {
+		ForceRefresh(context.Context) error
+	}); ok {
+		retryTransport.RefreshAuth = refresher.ForceRefresh
+	}
+
+	return readOnlyTransportFromContext(ctx, retryTransport), nil
 }
 
 func optionsForAccountScopes(ctx context.Context, serviceLabel string, email string, scopes []string) ([]option.ClientOption, error) {
