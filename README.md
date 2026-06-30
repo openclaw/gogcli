@@ -534,6 +534,14 @@ each method also needs an explicit `api.<method-id>` rule such as
 `api.gmail.users.labels.list`; generic calls are unavailable in binaries built
 with a baked safety profile.
 
+Some Google Cloud configuration is not exposed through Discovery. For OAuth
+consent-screen beta/test users, use the narrow operator commands documented in
+[Google Auth Platform](docs/auth-platform.md), for example:
+
+```bash
+gog auth-platform testers add --project arc-forge-console --email user@example.com --json
+```
+
 There is no separate agent execution mode. The same CLI behavior serves
 interactive use, scripts, CI, and agents: `--json`/`--plain` keep stdout
 parseable, `--no-input` prevents prompts, stable exit codes classify failures,

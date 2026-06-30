@@ -36,7 +36,7 @@ gog docs (doc) table-row insert (add,append) <docId> [flags]
 | `-p`<br>`--plain`<br>`--tsv` | `bool` | false | Output stable, parseable text to stdout (TSV; no colors) |
 | `--readonly` | `bool` | false | Block mutating API requests at runtime; auth add also requests read-only OAuth scopes |
 | `--results-only` | `bool` |  | In JSON mode, emit only the primary result (drops envelope fields like nextPageToken) |
-| `--select`<br>`--pick`<br>`--project` | `string` |  | In JSON mode, select comma-separated fields (best-effort; supports dot paths). Desire path: use --fields for most commands. |
+| `--select`<br>`--pick` | `string` |  | In JSON mode, select comma-separated fields (best-effort; supports dot paths). Desire path: use --fields for most commands. |
 | `--tab` | `string` |  | Target a specific tab by title or ID (see docs list-tabs) |
 | `--table` | `string` | 1 | Table selector: index, exact first-cell text, *, or text:VALUE for numeric/syntax-looking text |
 | `--values-json` | `string` |  | Optional JSON string array containing the new row values |

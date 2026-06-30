@@ -2,7 +2,7 @@
 
 Every `gog` command has a generated docs page. The source of truth is the live CLI schema; run `make docs-commands` after changing command names, flags, help text, aliases, or arguments.
 
-Generated pages: 702.
+Generated pages: 707.
 
 ## Top-level Commands
 
@@ -11,6 +11,7 @@ Generated pages: 702.
 - [gog api](gog-api.md) - Google Discovery APIs and generic method calls
 - [gog appscript](gog-appscript.md) - Google Apps Script
 - [gog auth](gog-auth.md) - Auth and credentials
+- [gog auth-platform](gog-auth-platform.md) - Google Auth Platform operator commands
 - [gog backup](gog-backup.md) - Encrypted Google account backups
 - [gog batch](gog-batch.md) - Build and submit persisted Google Docs request batches
 - [gog calendar](gog-calendar.md) - Google Calendar
@@ -116,6 +117,11 @@ Generated pages: 702.
       - [gog auth tokens export](gog-auth-tokens-export.md) - Export a refresh token to a file (contains secrets)
       - [gog auth tokens import](gog-auth-tokens-import.md) - Import a refresh token file into keyring (contains secrets)
       - [gog auth tokens list](gog-auth-tokens-list.md) - List stored tokens (by key only)
+  - [gog auth-platform](gog-auth-platform.md) - Google Auth Platform operator commands
+    - [gog auth-platform testers](gog-auth-platform-testers.md) - Manage OAuth beta/test users
+      - [gog auth-platform testers add](gog-auth-platform-testers-add.md) - Add an OAuth beta/test user idempotently
+      - [gog auth-platform testers list](gog-auth-platform-testers-list.md) - List OAuth beta/test users
+      - [gog auth-platform testers remove](gog-auth-platform-testers-remove.md) - Remove an OAuth beta/test user idempotently
   - [gog backup](gog-backup.md) - Encrypted Google account backups
     - [gog backup cat](gog-backup-cat.md) - Decrypt one backup shard to stdout
     - [gog backup export](gog-backup-export.md) - Write a local plaintext export

@@ -48,7 +48,7 @@ gog gmail (mail,email) drafts (draft) update (edit,set) <draftId> [flags]
 | `--reply-to` | `string` |  | Reply-To header address |
 | `--reply-to-message-id` | `string` |  | Reply to Gmail message ID (sets In-Reply-To/References and thread) |
 | `--results-only` | `bool` |  | In JSON mode, emit only the primary result (drops envelope fields like nextPageToken) |
-| `--select`<br>`--pick`<br>`--project` | `string` |  | In JSON mode, select comma-separated fields (best-effort; supports dot paths). Desire path: use --fields for most commands. |
+| `--select`<br>`--pick` | `string` |  | In JSON mode, select comma-separated fields (best-effort; supports dot paths). Desire path: use --fields for most commands. |
 | `--subject` | `string` |  | Subject (required) |
 | `--thread-id` | `string` |  | Reply within a Gmail thread (uses latest message for headers); overrides the draft's existing thread |
 | `--to` | `*string` |  | Recipients (comma-separated; omit to keep existing) |

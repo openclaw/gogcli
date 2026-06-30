@@ -72,7 +72,7 @@ gog docs (doc) write <docId> [flags]
 | `--readonly` | `bool` | false | Block mutating API requests at runtime; auth add also requests read-only OAuth scopes |
 | `--replace` | `bool` |  | Replace all content explicitly (required with --markdown unless --append is set) |
 | `--results-only` | `bool` |  | In JSON mode, emit only the primary result (drops envelope fields like nextPageToken) |
-| `--select`<br>`--pick`<br>`--project` | `string` |  | In JSON mode, select comma-separated fields (best-effort; supports dot paths). Desire path: use --fields for most commands. |
+| `--select`<br>`--pick` | `string` |  | In JSON mode, select comma-separated fields (best-effort; supports dot paths). Desire path: use --fields for most commands. |
 | `--space-above` | `*float64` |  | Space above the paragraph in points |
 | `--space-below` | `*float64` |  | Space below the paragraph in points |
 | `--spacing-mode` | `string` |  | Paragraph spacing mode: NEVER_COLLAPSE or COLLAPSE_LISTS |

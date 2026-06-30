@@ -45,7 +45,7 @@ gog gmail (mail,email) reply-all (replyall) <messageId> [flags]
 | `--readonly` | `bool` | false | Block mutating API requests at runtime; auth add also requests read-only OAuth scopes |
 | `--remove` | `[]string` |  | Remove recipients from all fields (repeatable) |
 | `--results-only` | `bool` |  | In JSON mode, emit only the primary result (drops envelope fields like nextPageToken) |
-| `--select`<br>`--pick`<br>`--project` | `string` |  | In JSON mode, select comma-separated fields (best-effort; supports dot paths). Desire path: use --fields for most commands. |
+| `--select`<br>`--pick` | `string` |  | In JSON mode, select comma-separated fields (best-effort; supports dot paths). Desire path: use --fields for most commands. |
 | `--signature` | `bool` |  | Append the Gmail signature from the active send-as address |
 | `--signature-file` | `string` |  | Append a local signature file (plain text or HTML) |
 | `--signature-from` | `string` |  | Append the Gmail signature from this send-as email address |

@@ -41,7 +41,7 @@ gog docs (doc) delete <docId> [flags]
 | `--readonly` | `bool` | false | Block mutating API requests at runtime; auth add also requests read-only OAuth scopes |
 | `--results-only` | `bool` |  | In JSON mode, emit only the primary result (drops envelope fields like nextPageToken) |
 | `--segment` | `string` |  | Target an exact header, footer, or footnote segment ID |
-| `--select`<br>`--pick`<br>`--project` | `string` |  | In JSON mode, select comma-separated fields (best-effort; supports dot paths). Desire path: use --fields for most commands. |
+| `--select`<br>`--pick` | `string` |  | In JSON mode, select comma-separated fields (best-effort; supports dot paths). Desire path: use --fields for most commands. |
 | `--start` | `*int64` |  | Start index (>= 1; required unless --at is set) |
 | `--tab` | `string` |  | Target a specific tab by title or ID (see docs list-tabs) |
 | `-v`<br>`--verbose` | `bool` |  | Enable verbose logging |

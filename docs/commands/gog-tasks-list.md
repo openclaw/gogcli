@@ -43,7 +43,7 @@ gog tasks (task) list (ls) <tasklistId> [flags]
 | `-p`<br>`--plain`<br>`--tsv` | `bool` | false | Output stable, parseable text to stdout (TSV; no colors) |
 | `--readonly` | `bool` | false | Block mutating API requests at runtime; auth add also requests read-only OAuth scopes |
 | `--results-only` | `bool` |  | In JSON mode, emit only the primary result (drops envelope fields like nextPageToken) |
-| `--select`<br>`--pick`<br>`--project` | `string` |  | In JSON mode, select comma-separated fields (best-effort; supports dot paths). Desire path: use --fields for most commands. |
+| `--select`<br>`--pick` | `string` |  | In JSON mode, select comma-separated fields (best-effort; supports dot paths). Desire path: use --fields for most commands. |
 | `--show-assigned` | `bool` | true | Include tasks assigned to current user |
 | `--show-completed` | `bool` | true | Include completed tasks (requires --show-hidden for some clients) |
 | `--show-deleted` | `bool` |  | Include deleted tasks |

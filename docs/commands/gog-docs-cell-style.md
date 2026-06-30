@@ -54,7 +54,7 @@ gog docs (doc) cell-style --row=INT --col=INT <docId> [flags]
 | `--results-only` | `bool` |  | In JSON mode, emit only the primary result (drops envelope fields like nextPageToken) |
 | `--row` | `int` |  | 1-based row number |
 | `--row-span` | `int64` | 1 | Number of rows to style |
-| `--select`<br>`--pick`<br>`--project` | `string` |  | In JSON mode, select comma-separated fields (best-effort; supports dot paths). Desire path: use --fields for most commands. |
+| `--select`<br>`--pick` | `string` |  | In JSON mode, select comma-separated fields (best-effort; supports dot paths). Desire path: use --fields for most commands. |
 | `--tab` | `string` |  | Target a specific tab by title or ID (see docs list-tabs) |
 | `--table-index` | `int` | 1 | 1-based table index in document order; negative indexes count from the end |
 | `--text-color` | `string` |  | Text color as #RRGGBB or #RGB |

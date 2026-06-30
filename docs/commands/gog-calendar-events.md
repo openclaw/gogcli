@@ -50,7 +50,7 @@ gog calendar (cal) events (list,ls) [<calendarId> ...] [flags]
 | `--query` | `string` |  | Free text search |
 | `--readonly` | `bool` | false | Block mutating API requests at runtime; auth add also requests read-only OAuth scopes |
 | `--results-only` | `bool` |  | In JSON mode, emit only the primary result (drops envelope fields like nextPageToken) |
-| `--select`<br>`--pick`<br>`--project` | `string` |  | In JSON mode, select comma-separated fields (best-effort; supports dot paths). Desire path: use --fields for most commands. |
+| `--select`<br>`--pick` | `string` |  | In JSON mode, select comma-separated fields (best-effort; supports dot paths). Desire path: use --fields for most commands. |
 | `--shared-prop-filter` | `string` |  | Filter by shared extended property (key=value) |
 | `--sort` | `string` |  | Sort events by start\|end\|summary\|calendar (default: keep API order; with --all, start is recommended for chronological output) |
 | `--to` | `string` |  | End time (RFC3339 with timezone, date, or relative: now, today, tomorrow, monday) |
