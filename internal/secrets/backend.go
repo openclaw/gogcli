@@ -249,7 +249,7 @@ func openKeyringWithOptions(options OpenOptions) (keyring.Keyring, error) {
 	}
 
 	if backendInfo.Value == KeyringBackendOnePassword {
-		return openOnePasswordKeyring(options.Config)
+		return openOnePasswordKeyring(options.Config, serviceNameFor(options))
 	}
 
 	// On Linux/WSL/containers, OS keychains (secret-service/kwallet) may be unavailable.

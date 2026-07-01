@@ -454,13 +454,13 @@ func TestOnePasswordConfigFromEnv(t *testing.T) {
 	t.Setenv(OnePasswordItemTitleEnv, "")
 	t.Setenv(OnePasswordOperationTimeoutEnv, "")
 
-	if _, err := onePasswordConfigFromEnv(nil); !errors.Is(err, errMissingOnePasswordToken) {
+	if _, err := onePasswordConfigFromEnv(nil, config.AppName); !errors.Is(err, errMissingOnePasswordToken) {
 		t.Fatalf("expected missing token, got %v", err)
 	}
 
 	t.Setenv(OnePasswordServiceAccountEnv, "token")
 
-	if _, err := onePasswordConfigFromEnv(nil); !errors.Is(err, errMissingOnePasswordVault) {
+	if _, err := onePasswordConfigFromEnv(nil, config.AppName); !errors.Is(err, errMissingOnePasswordVault) {
 		t.Fatalf("expected missing vault, got %v", err)
 	}
 
@@ -468,7 +468,7 @@ func TestOnePasswordConfigFromEnv(t *testing.T) {
 	t.Setenv(OnePasswordItemTitleEnv, " custom ")
 	t.Setenv(OnePasswordOperationTimeoutEnv, "250ms")
 
-	cfg, err := onePasswordConfigFromEnv(nil)
+	cfg, err := onePasswordConfigFromEnv(nil, config.AppName)
 	if err != nil {
 		t.Fatalf("onePasswordConfigFromEnv: %v", err)
 	}
@@ -489,7 +489,7 @@ func TestOnePasswordConfigFromEnv_DesktopAuth(t *testing.T) {
 	t.Setenv(OnePasswordVaultEnv, "vault")
 	t.Setenv(OnePasswordOperationTimeoutEnv, "")
 
-	cfg, err := onePasswordConfigFromEnv(nil)
+	cfg, err := onePasswordConfigFromEnv(nil, config.AppName)
 	if err != nil {
 		t.Fatalf("onePasswordConfigFromEnv: %v", err)
 	}
@@ -506,7 +506,7 @@ func TestOnePasswordConfigFromEnv_ExplicitDesktopRequiresAccount(t *testing.T) {
 	t.Setenv(OnePasswordVaultEnv, "vault")
 	t.Setenv(OnePasswordOperationTimeoutEnv, "")
 
-	_, err := onePasswordConfigFromEnv(nil)
+	_, err := onePasswordConfigFromEnv(nil, config.AppName)
 	if !errors.Is(err, errMissingOnePasswordAccount) {
 		t.Fatalf("expected missing account, got %v", err)
 	}
@@ -580,7 +580,7 @@ func TestOnePasswordConfigFromConfigAndEnvOverride(t *testing.T) {
 				t.Fatalf("write config: %v", err)
 			}
 
-			cfg, err := onePasswordConfigFromEnv(store)
+			cfg, err := onePasswordConfigFromEnv(store, config.AppName)
 			if err != nil {
 				t.Fatalf("onePasswordConfigFromEnv: %v", err)
 			}
@@ -627,6 +627,7 @@ func TestOpenKeyringUsesOnePasswordBackend(t *testing.T) {
 	t.Setenv("HOME", home)
 	t.Setenv("XDG_CONFIG_HOME", home)
 	t.Setenv(keyringBackendEnv, KeyringBackendOnePassword)
+	t.Setenv(keyringServiceNameEnv, "custom-gog")
 	t.Setenv(OnePasswordServiceAccountEnv, "token")
 	t.Setenv(OnePasswordVaultEnv, "vault")
 
@@ -642,6 +643,10 @@ func TestOpenKeyringUsesOnePasswordBackend(t *testing.T) {
 
 		if cfg.authMode != onePasswordAuthServiceAccount {
 			t.Fatalf("unexpected auth mode: %q", cfg.authMode)
+		}
+
+		if cfg.itemTitle != "custom-gog-keyring" {
+			t.Fatalf("unexpected item title: %q", cfg.itemTitle)
 		}
 
 		return fake, nil
