@@ -314,5 +314,7 @@ func responseIndicatesInsufficientScopes(resp *http.Response) (bool, error) {
 
 	return strings.Contains(normalized, "insufficient authentication scopes") ||
 		strings.Contains(normalized, "insufficient scopes") ||
+		strings.Contains(normalized, "insufficientpermissions") ||
+		strings.Contains(normalized, "insufficient permission") ||
 		strings.Contains(normalized, "access token scope insufficient"), nil
 }

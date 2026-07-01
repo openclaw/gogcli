@@ -394,6 +394,36 @@ func TestRetryTransportDoesNotRefreshAuthForNonReplayableInsufficientScope403(t 
 	}
 }
 
+func TestResponseIndicatesInsufficientScopesRecognizesGoogleVariants(t *testing.T) {
+	tests := []string{
+		`{"error":{"errors":[{"reason":"insufficientPermissions"}],"code":403}}`,
+		`{"error":{"message":"Insufficient Permission","code":403}}`,
+		`{"error":{"message":"Insufficient Permissions","code":403}}`,
+	}
+
+	for _, body := range tests {
+		resp := newTestResponse(http.StatusForbidden, body)
+
+		insufficient, err := responseIndicatesInsufficientScopes(resp)
+		if err != nil {
+			t.Fatalf("detect insufficient scopes for %q: %v", body, err)
+		}
+		if !insufficient {
+			t.Fatalf("Google scope variant not recognized: %s", body)
+		}
+
+		preserved, err := io.ReadAll(resp.Body)
+		if err != nil {
+			t.Fatalf("read preserved response: %v", err)
+		}
+		_ = resp.Body.Close()
+
+		if string(preserved) != body {
+			t.Fatalf("response body = %q, want %q", preserved, body)
+		}
+	}
+}
+
 func TestResponseIndicatesInsufficientScopesPreservesOversizedUnknownLengthBody(t *testing.T) {
 	want := strings.Repeat("x", int(maxAuthRetryResponseBodyBytes)+128)
 	resp := newTestResponse(http.StatusForbidden, want)
