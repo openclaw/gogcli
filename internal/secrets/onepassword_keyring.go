@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"runtime"
 	"sort"
 	"strings"
 	"time"
@@ -56,6 +57,44 @@ type onePasswordItemsClient interface {
 	Delete(context.Context, string, string) error
 }
 
+// retainedOnePasswordItemsClient keeps the SDK's parent Client alive. Items()
+// returns an API handle that does not retain its Client, whose finalizer releases
+// the underlying client ID (see 1Password/onepassword-sdk-go#210).
+type retainedOnePasswordItemsClient struct {
+	items  onePasswordItemsClient
+	client *onepassword.Client
+}
+
+func (c *retainedOnePasswordItemsClient) List(ctx context.Context, vaultID string, filters ...onepassword.ItemListFilter) ([]onepassword.ItemOverview, error) {
+	defer runtime.KeepAlive(c.client)
+
+	return c.items.List(ctx, vaultID, filters...)
+}
+
+func (c *retainedOnePasswordItemsClient) Get(ctx context.Context, vaultID string, itemID string) (onepassword.Item, error) {
+	defer runtime.KeepAlive(c.client)
+
+	return c.items.Get(ctx, vaultID, itemID)
+}
+
+func (c *retainedOnePasswordItemsClient) Create(ctx context.Context, params onepassword.ItemCreateParams) (onepassword.Item, error) {
+	defer runtime.KeepAlive(c.client)
+
+	return c.items.Create(ctx, params)
+}
+
+func (c *retainedOnePasswordItemsClient) Put(ctx context.Context, item onepassword.Item) (onepassword.Item, error) {
+	defer runtime.KeepAlive(c.client)
+
+	return c.items.Put(ctx, item)
+}
+
+func (c *retainedOnePasswordItemsClient) Delete(ctx context.Context, vaultID string, itemID string) error {
+	defer runtime.KeepAlive(c.client)
+
+	return c.items.Delete(ctx, vaultID, itemID)
+}
+
 type onePasswordKeyring struct {
 	items   onePasswordItemsClient
 	vaultID string
@@ -95,7 +134,10 @@ var newOnePasswordItemsClient = func(ctx context.Context, cfg onePasswordConfig)
 		return nil, fmt.Errorf("new 1Password client: %w", err)
 	}
 
-	return client.Items(), nil
+	return &retainedOnePasswordItemsClient{
+		items:  client.Items(),
+		client: client,
+	}, nil
 }
 
 // OnePasswordDesktopAuthSupported reports whether this binary can use the

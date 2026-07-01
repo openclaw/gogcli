@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -23,6 +24,36 @@ type fakeOnePasswordItems struct {
 
 func newFakeOnePasswordItems() *fakeOnePasswordItems {
 	return &fakeOnePasswordItems{items: make(map[string]onepassword.Item)}
+}
+
+func TestOnePasswordItemsClientRetainsSDKClient(t *testing.T) {
+	finalized := make(chan struct{}, 1)
+	client := &onepassword.Client{}
+	runtime.SetFinalizer(client, func(*onepassword.Client) {
+		finalized <- struct{}{}
+	})
+
+	items := &retainedOnePasswordItemsClient{
+		items:  newFakeOnePasswordItems(),
+		client: client,
+	}
+	client = nil
+
+	for range 3 {
+		runtime.GC()
+		runtime.Gosched()
+	}
+
+	select {
+	case <-finalized:
+		t.Fatal("SDK client finalized while its items client remained reachable")
+	default:
+	}
+
+	if _, err := items.List(context.Background(), "vault"); err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	runtime.KeepAlive(items)
 }
 
 func (f *fakeOnePasswordItems) List(_ context.Context, vaultID string, _ ...onepassword.ItemListFilter) ([]onepassword.ItemOverview, error) {
