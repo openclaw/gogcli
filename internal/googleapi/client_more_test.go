@@ -496,9 +496,11 @@ func TestResettableOAuthTokenSourcePreservesSourceWhenRefreshFails(t *testing.T)
 	if err != nil {
 		t.Fatalf("read cached token after failed refresh: %v", err)
 	}
+
 	if token.AccessToken != "cached" {
 		t.Fatalf("access token = %q, want cached", token.AccessToken)
 	}
+
 	if oldSourceReads != 2 {
 		t.Fatalf("old source reads = %d, want 2", oldSourceReads)
 	}

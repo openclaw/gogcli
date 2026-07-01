@@ -83,6 +83,7 @@ func (r *resettableOAuthTokenSource) ForceRefresh(context.Context) (*oauth2.Toke
 
 	refreshToken := r.refreshToken
 	candidate := r.newSource(&oauth2.Token{RefreshToken: refreshToken})
+
 	t, err := candidate.Token()
 	if err != nil {
 		return nil, fmt.Errorf("resettable oauth token source refresh: %w", err)
