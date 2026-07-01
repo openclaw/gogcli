@@ -175,7 +175,8 @@ Environment:
 - `OP_SERVICE_ACCOUNT_TOKEN=...` (1Password service account token for headless `GOG_KEYRING_BACKEND=1password` use)
 - `GOG_1PASSWORD_VAULT=...` (1Password vault ID for gog keyring items)
 - `GOG_1PASSWORD_ITEM_TITLE=...` (optional 1Password API Credential item title; default `gogcli-keyring`)
-- `GOG_1PASSWORD_TIMEOUT=10s` (optional per-operation timeout for the 1Password SDK backend)
+- `GOG_1PASSWORD_TIMEOUT=...` (optional per-operation timeout for the 1Password SDK backend; defaults to the platform keyring timeout: 30s on macOS, 10s elsewhere)
+- 1Password desktop app auth requires CGO on macOS and Linux. The static Linux release archives do not support it; use service-account auth or a CGO-enabled build.
 - The non-secret 1Password values above can also be set in `config.json` as
   `onepassword_auth`, `onepassword_account`, `onepassword_vault`,
   `onepassword_item_title`, and `onepassword_timeout`; environment variables

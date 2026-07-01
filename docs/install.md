@@ -74,21 +74,28 @@ Environment=GOG_1PASSWORD_VAULT=replace-with-vault-id
 ```
 
 Desktop-app auth is for local interactive agents where the 1Password app is
-running, unlocked, and configured to integrate with other apps. Use
-`GOG_1PASSWORD_ACCOUNT` there instead of `OP_SERVICE_ACCOUNT_TOKEN`.
+running, unlocked, and configured to integrate with other apps. It requires
+CGO on macOS and Linux; the static Linux release archives therefore require
+service-account auth or a custom CGO-enabled build. Use
+`GOG_1PASSWORD_ACCOUNT` for supported desktop builds instead of
+`OP_SERVICE_ACCOUNT_TOKEN`.
 For local agents, the non-secret 1Password selectors can also live in
 `config.json`:
 
 ```bash
 gog auth keyring 1password
 gog config set onepassword_auth desktop
-gog config set onepassword_account buildkite.1password.com
+gog config set onepassword_account 'Your 1Password account name'
 gog config set onepassword_vault replace-with-vault-id
 ```
 
 Items are created as API Credential entries titled `gogcli-keyring` by default;
 set `Environment=GOG_1PASSWORD_ITEM_TITLE=...` only if you want a different
 title.
+
+Changing the configured backend does not copy existing tokens, defaults, or
+client credentials. Export required tokens before switching, then import or
+re-authorize them after the 1Password backend is configured.
 
 Then reload and restart the service before testing from the same entrypoint the
 agent uses:

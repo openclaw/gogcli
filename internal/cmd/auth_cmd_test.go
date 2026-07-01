@@ -388,6 +388,13 @@ func TestAddOnePasswordEnvChecks_Desktop(t *testing.T) {
 	if got["keyring.1password.vault"] != doctorOK {
 		t.Fatalf("expected vault ok, got %#v", got)
 	}
+	if !secrets.OnePasswordDesktopAuthSupported() {
+		if got["keyring.1password.auth"] != doctorError {
+			t.Fatalf("expected unsupported desktop auth error, got %#v", got)
+		}
+
+		return
+	}
 	if got["keyring.1password.account"] != doctorOK {
 		t.Fatalf("expected account ok, got %#v", got)
 	}
@@ -416,6 +423,13 @@ func TestAddOnePasswordEnvChecks_ConfigDesktop(t *testing.T) {
 
 	if got["keyring.1password.vault"] != doctorOK {
 		t.Fatalf("expected vault ok, got %#v", got)
+	}
+	if !secrets.OnePasswordDesktopAuthSupported() {
+		if got["keyring.1password.auth"] != doctorError {
+			t.Fatalf("expected unsupported desktop auth error, got %#v", got)
+		}
+
+		return
 	}
 	if got["keyring.1password.account"] != doctorOK {
 		t.Fatalf("expected account ok, got %#v", got)

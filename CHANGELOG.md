@@ -3,6 +3,7 @@
 ## 0.31.2 - Unreleased
 
 - YouTube: add opt-in `videos list --parts all` full metadata while preserving the existing compact default and explicit owner-only part requests. (#871) — thanks @coeur-de-loup.
+- Auth: add a 1Password SDK-backed keyring backend for storing gog tokens, defaults, and client secrets as API Credential items in a configured vault, with desktop-app and service-account auth modes. (#894) — thanks @lox.
 - CLI: add read-only `update status` / `update check` release metadata, platform asset, checksum, and install-method reporting. (#882) — thanks @titus7490.
 - Docs: add `docs format --spacing-mode` for setting paragraph spacing collapse behavior alongside `--space-above` and `--space-below`. (#885) — thanks @odyssey4me.
 
@@ -21,7 +22,6 @@
 - Evals: add reproducible structural and live Codex/OpenClaw gog/gws comparisons with correctness assertions, token/tool/latency metrics, cache-counterbalanced repetitions, methodology, and CI coverage.
 - CLI: add `GOG_HELP=agent` compact root help with common read-only recipes and targeted schema guidance so agents can execute Gmail, Calendar, and Drive tasks without traversing multiple help levels.
 - Auth: add `auth setup` for guided Google Cloud project/API preparation, OAuth client installation, and optional browser authorization.
-- Auth: add a 1Password SDK-backed keyring backend for storing gog tokens, defaults, and client secrets as API Credential items in a configured 1Password vault, with desktop-app and service-account auth modes.
 - API: add Discovery-backed `api list`, `api describe`, and scoped `api call` access for Google methods outside the first-class command surface, with dry-run plans and explicit write opt-in.
 - Safety: add global `--readonly` / `GOG_READONLY=1` runtime enforcement that blocks mutating Google and Zoom API requests before dispatch while preserving read-only query POSTs and least-privilege OAuth setup.
 - Add schema-generated service skills and curated agent workflows for inbox triage, meeting prep, attachment archival, Drive audits, weekly digests, and contact cleanup.
