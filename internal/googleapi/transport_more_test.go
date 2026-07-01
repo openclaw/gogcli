@@ -408,6 +408,7 @@ func TestResponseIndicatesInsufficientScopesRecognizesGoogleVariants(t *testing.
 		if err != nil {
 			t.Fatalf("detect insufficient scopes for %q: %v", body, err)
 		}
+
 		if !insufficient {
 			t.Fatalf("Google scope variant not recognized: %s", body)
 		}
