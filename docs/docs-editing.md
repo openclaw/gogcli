@@ -500,3 +500,22 @@ gog docs raw <docId> --all-tabs --json
 default response. `--all-tabs` returns the canonical recursive `tabs` tree.
 
 See [Raw API Dumps](raw-api.md) for lossless-output safety notes.
+
+## Pending Text Suggestions
+
+List pending suggested insertions and deletions without changing the document:
+
+```bash
+gog docs suggestions list <docId>
+gog docs suggestions list <docId> --tab "Review" --json
+```
+
+The command requests Google's inline suggestions view and reports each
+suggestion ID, insertion/deletion kind, UTF-16 range, text, and document
+segment. Contiguous runs for the same suggestion are combined. The current
+surface intentionally excludes style-only suggestions and accept/reject
+mutation. Google Docs API responses do not expose suggestion authors.
+
+Command page:
+
+- [`gog docs suggestions list`](commands/gog-docs-suggestions-list.md)

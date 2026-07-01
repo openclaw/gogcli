@@ -56,6 +56,7 @@ gog docs (doc) <command> [flags]
 - [gog docs section-columns](gog-docs-section-columns.md) - Set the column count for a document section
 - [gog docs sed](gog-docs-sed.md) - Regex find/replace (sed-style: s/pattern/replacement/g)
 - [gog docs structure](gog-docs-structure.md) - Show document structure with numbered paragraphs
+- [gog docs suggestions](gog-docs-suggestions.md) - List pending text suggestions
 - [gog docs table-column](gog-docs-table-column.md) - Insert or delete native table columns
 - [gog docs table-column-width](gog-docs-table-column-width.md) - Set or reset native table column widths
 - [gog docs table-merge](gog-docs-table-merge.md) - Merge a native table cell range

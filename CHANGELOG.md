@@ -5,6 +5,7 @@
 - YouTube: add opt-in `videos list --parts all` full metadata while preserving the existing compact default and explicit owner-only part requests. (#871) — thanks @coeur-de-loup.
 - Auth: retry one replayable Google API request after an `insufficient scopes` 403 by refreshing stored OAuth credentials, while preserving ordinary permission failures and non-replayable requests. (#889) — thanks @ortonom.
 - CLI: add read-only `update status` / `update check` release metadata, platform asset, checksum, and install-method reporting. (#882) — thanks @titus7490.
+- Docs: add `docs suggestions list` for read-only pending text insertions and deletions, including exact UTF-16 ranges, segment context, and tab selection. (#876)
 - Docs: add `docs format --spacing-mode` for setting paragraph spacing collapse behavior alongside `--space-above` and `--space-below`. (#885) — thanks @odyssey4me.
 
 ## 0.31.1 - 2026-06-26
