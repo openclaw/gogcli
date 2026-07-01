@@ -93,8 +93,8 @@ var newOnePasswordItemsClient = func(ctx context.Context, cfg onePasswordConfig)
 	return client.Items(), nil
 }
 
-func openOnePasswordKeyring(store *config.ConfigStore) (keyring.Keyring, error) {
-	cfg, err := onePasswordConfigFromEnv(store)
+func openOnePasswordKeyring(store *config.ConfigStore, serviceName string) (keyring.Keyring, error) {
+	cfg, err := onePasswordConfigFromEnv(store, serviceName)
 	if err != nil {
 		return nil, err
 	}
@@ -110,7 +110,7 @@ func openOnePasswordKeyring(store *config.ConfigStore) (keyring.Keyring, error) 
 	return newOnePasswordKeyring(items, cfg), nil
 }
 
-func onePasswordConfigFromEnv(store *config.ConfigStore) (onePasswordConfig, error) {
+func onePasswordConfigFromEnv(store *config.ConfigStore, serviceName string) (onePasswordConfig, error) {
 	fileCfg, err := readOnePasswordConfig(store)
 	if err != nil && !onePasswordEnvHasRequiredValues() {
 		return onePasswordConfig{}, err
@@ -153,7 +153,7 @@ func onePasswordConfigFromEnv(store *config.ConfigStore) (onePasswordConfig, err
 
 	itemTitle := onePasswordConfigValue(OnePasswordItemTitleEnv, fileCfg.OnePasswordItemTitle)
 	if itemTitle == "" {
-		itemTitle = onePasswordDefaultItemTitle
+		itemTitle = onePasswordDefaultItemTitleForService(serviceName)
 	}
 
 	return onePasswordConfig{
@@ -164,6 +164,15 @@ func onePasswordConfigFromEnv(store *config.ConfigStore) (onePasswordConfig, err
 		itemTitle:           itemTitle,
 		timeout:             timeout,
 	}, nil
+}
+
+func onePasswordDefaultItemTitleForService(serviceName string) string {
+	serviceName = strings.TrimSpace(serviceName)
+	if serviceName == "" || serviceName == config.AppName {
+		return onePasswordDefaultItemTitle
+	}
+
+	return serviceName + "-keyring"
 }
 
 func readOnePasswordConfig(store *config.ConfigStore) (config.File, error) {
