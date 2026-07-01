@@ -465,6 +465,45 @@ func TestResettableOAuthTokenSourceSerializesRefreshWithTokenRead(t *testing.T) 
 	}
 }
 
+func TestResettableOAuthTokenSourcePreservesSourceWhenRefreshFails(t *testing.T) {
+	t.Parallel()
+
+	var oldSourceReads int
+	var newSourceCalls int
+	source := newResettableOAuthTokenSource(func(token *oauth2.Token) oauth2.TokenSource {
+		newSourceCalls++
+		if newSourceCalls == 1 {
+			return tokenSourceFunc(func() (*oauth2.Token, error) {
+				oldSourceReads++
+				return &oauth2.Token{AccessToken: "cached", RefreshToken: token.RefreshToken}, nil
+			})
+		}
+
+		return tokenSourceFunc(func() (*oauth2.Token, error) {
+			return nil, errBoom
+		})
+	}, &oauth2.Token{RefreshToken: "refresh"})
+
+	if _, err := source.Token(); err != nil {
+		t.Fatalf("read cached token: %v", err)
+	}
+
+	if _, err := source.ForceRefresh(context.Background()); !errors.Is(err, errBoom) {
+		t.Fatalf("force refresh error = %v, want %v", err, errBoom)
+	}
+
+	token, err := source.Token()
+	if err != nil {
+		t.Fatalf("read cached token after failed refresh: %v", err)
+	}
+	if token.AccessToken != "cached" {
+		t.Fatalf("access token = %q, want cached", token.AccessToken)
+	}
+	if oldSourceReads != 2 {
+		t.Fatalf("old source reads = %d, want 2", oldSourceReads)
+	}
+}
+
 func TestPersistingTokenSource_PersistsAccessToken(t *testing.T) {
 	stored := secrets.Token{
 		Client:       config.DefaultClientName,
