@@ -68,6 +68,7 @@ gog --readonly --account user@example.com docs cat DOCUMENT_ID --json --wrap-unt
 | `section-columns` | Set the column count for a document section |
 | `sed` | Regex find/replace (sed-style: s/pattern/replacement/g) |
 | `structure` | Show document structure with numbered paragraphs |
+| `suggestions` | List pending text suggestions |
 | `table-column` | Insert or delete native table columns |
 | `table-column-width` | Set or reset native table column widths |
 | `table-merge` | Merge a native table cell range |
