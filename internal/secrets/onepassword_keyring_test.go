@@ -27,17 +27,7 @@ func newFakeOnePasswordItems() *fakeOnePasswordItems {
 }
 
 func TestOnePasswordItemsClientRetainsSDKClient(t *testing.T) {
-	finalized := make(chan struct{}, 1)
-	client := &onepassword.Client{}
-	runtime.SetFinalizer(client, func(*onepassword.Client) {
-		finalized <- struct{}{}
-	})
-
-	items := &retainedOnePasswordItemsClient{
-		items:  newFakeOnePasswordItems(),
-		client: client,
-	}
-	client = nil
+	items, finalized := newFinalizableOnePasswordItemsClient()
 
 	for range 3 {
 		runtime.GC()
@@ -53,7 +43,21 @@ func TestOnePasswordItemsClientRetainsSDKClient(t *testing.T) {
 	if _, err := items.List(context.Background(), "vault"); err != nil {
 		t.Fatalf("List: %v", err)
 	}
+
 	runtime.KeepAlive(items)
+}
+
+func newFinalizableOnePasswordItemsClient() (*retainedOnePasswordItemsClient, <-chan struct{}) {
+	finalized := make(chan struct{}, 1)
+	client := &onepassword.Client{}
+	runtime.SetFinalizer(client, func(*onepassword.Client) {
+		finalized <- struct{}{}
+	})
+
+	return &retainedOnePasswordItemsClient{
+		items:  newFakeOnePasswordItems(),
+		client: client,
+	}, finalized
 }
 
 func (f *fakeOnePasswordItems) List(_ context.Context, vaultID string, _ ...onepassword.ItemListFilter) ([]onepassword.ItemOverview, error) {

@@ -68,31 +68,55 @@ type retainedOnePasswordItemsClient struct {
 func (c *retainedOnePasswordItemsClient) List(ctx context.Context, vaultID string, filters ...onepassword.ItemListFilter) ([]onepassword.ItemOverview, error) {
 	defer runtime.KeepAlive(c.client)
 
-	return c.items.List(ctx, vaultID, filters...)
+	items, err := c.items.List(ctx, vaultID, filters...)
+	if err != nil {
+		return nil, fmt.Errorf("list items: %w", err)
+	}
+
+	return items, nil
 }
 
 func (c *retainedOnePasswordItemsClient) Get(ctx context.Context, vaultID string, itemID string) (onepassword.Item, error) {
 	defer runtime.KeepAlive(c.client)
 
-	return c.items.Get(ctx, vaultID, itemID)
+	item, err := c.items.Get(ctx, vaultID, itemID)
+	if err != nil {
+		return onepassword.Item{}, fmt.Errorf("get item: %w", err)
+	}
+
+	return item, nil
 }
 
 func (c *retainedOnePasswordItemsClient) Create(ctx context.Context, params onepassword.ItemCreateParams) (onepassword.Item, error) {
 	defer runtime.KeepAlive(c.client)
 
-	return c.items.Create(ctx, params)
+	item, err := c.items.Create(ctx, params)
+	if err != nil {
+		return onepassword.Item{}, fmt.Errorf("create item: %w", err)
+	}
+
+	return item, nil
 }
 
 func (c *retainedOnePasswordItemsClient) Put(ctx context.Context, item onepassword.Item) (onepassword.Item, error) {
 	defer runtime.KeepAlive(c.client)
 
-	return c.items.Put(ctx, item)
+	updated, err := c.items.Put(ctx, item)
+	if err != nil {
+		return onepassword.Item{}, fmt.Errorf("put item: %w", err)
+	}
+
+	return updated, nil
 }
 
 func (c *retainedOnePasswordItemsClient) Delete(ctx context.Context, vaultID string, itemID string) error {
 	defer runtime.KeepAlive(c.client)
 
-	return c.items.Delete(ctx, vaultID, itemID)
+	if err := c.items.Delete(ctx, vaultID, itemID); err != nil {
+		return fmt.Errorf("delete item: %w", err)
+	}
+
+	return nil
 }
 
 type onePasswordKeyring struct {
