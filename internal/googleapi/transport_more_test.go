@@ -15,7 +15,10 @@ import (
 
 type roundTripFunc func(*http.Request) (*http.Response, error)
 
-var errUnexpectedRequestBody = errors.New("unexpected request body")
+var (
+	errUnexpectedRequestBody = errors.New("unexpected request body")
+	errRefreshFailed         = errors.New("refresh failed")
+)
 
 func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
 	return f(req)
@@ -297,6 +300,59 @@ func TestRetryTransportRefreshesAuthOnceForInsufficientScope403(t *testing.T) {
 
 	if gotBodies[0] != "payload" || gotBodies[1] != "payload" {
 		t.Fatalf("unexpected bodies: %#v", gotBodies)
+	}
+}
+
+func TestRetryTransportPreservesInsufficientScope403WhenAuthRefreshFails(t *testing.T) {
+	const body = `{"error":{"errors":[{"reason":"insufficientPermissions"}],"message":"Insufficient Permission","code":403}}`
+
+	refreshes := 0
+	calls := 0
+	base := roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		calls++
+
+		return newTestResponse(http.StatusForbidden, body), nil
+	})
+
+	rt := &RetryTransport{
+		Base: base,
+		RefreshAuth: func(context.Context) error {
+			refreshes++
+
+			return errRefreshFailed
+		},
+	}
+
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "http://example.com", nil)
+	if err != nil {
+		t.Fatalf("new request: %v", err)
+	}
+
+	resp, err := rt.RoundTrip(req)
+	if err != nil {
+		t.Fatalf("round trip: %v", err)
+	}
+
+	gotBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("read response body: %v", err)
+	}
+	_ = resp.Body.Close()
+
+	if resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("status = %d, want %d", resp.StatusCode, http.StatusForbidden)
+	}
+
+	if string(gotBody) != body {
+		t.Fatalf("response body = %q, want %q", gotBody, body)
+	}
+
+	if calls != 1 {
+		t.Fatalf("calls = %d, want 1", calls)
+	}
+
+	if refreshes != 1 {
+		t.Fatalf("refreshes = %d, want 1", refreshes)
 	}
 }
 

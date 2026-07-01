@@ -150,11 +150,13 @@ func (t *RetryTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 			if insufficientScopes {
 				slog.Debug("insufficient scopes response, refreshing auth token and retrying")
 
-				drainAndClose(resp.Body)
-
 				if err := t.RefreshAuth(req.Context()); err != nil {
-					return nil, fmt.Errorf("refresh auth after insufficient scopes response: %w", err)
+					slog.Debug("could not refresh auth after insufficient scopes response", "err", err)
+
+					return resp, nil
 				}
+
+				drainAndClose(resp.Body)
 
 				retriedAuth = true
 
