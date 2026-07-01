@@ -67,6 +67,22 @@ gog yt videos list --my-rating dislike --account you@gmail.com --json
 Both reads work with the default `youtube.readonly` scope; no extra scope is
 required.
 
+## Choose video fields
+
+`videos list` keeps its compact historical default: `snippet`,
+`contentDetails`, and `statistics`. Request every field available for arbitrary
+videos with `--parts all`, or pass an exact comma-separated list:
+
+```bash
+gog yt videos list --id VIDEO_ID --parts all --json
+gog yt videos list --id YOUR_VIDEO_ID --parts snippet,fileDetails --account you@gmail.com --json
+```
+
+`all` excludes the owner-only `fileDetails`, `processingDetails`, and
+`suggestions` parts. Explicit lists are passed through unchanged so authenticated
+owners can request those fields for their own uploads. Do not combine `all` with
+other part names.
+
 ## Manage subscriptions
 
 List one page or fetch every page:

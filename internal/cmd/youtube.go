@@ -16,24 +16,27 @@ import (
 
 const youtubeForceSSLOAuthScope = "https://www.googleapis.com/auth/youtube.force-ssl"
 
-// youtubeVideoAllParts is every videos.list part that is readable for an
-// arbitrary (non-owned) video. The owner-only parts fileDetails,
-// processingDetails and suggestions are deliberately excluded — the API returns
-// them only for videos the authenticated account itself uploaded, so requesting
-// them for other people's liked/playlist videos errors. The Google SDK simply
-// omits parts that have no data for a given video (e.g. liveStreamingDetails on
-// a non-live video), so requesting the full set is safe and tolerant of
-// per-video partial responses.
-var youtubeVideoAllParts = []string{
+var youtubeVideoDefaultParts = []string{
 	"snippet",
 	"contentDetails",
 	"statistics",
+}
+
+// youtubeVideoAllNonOwnerParts matches every videos.list part documented as
+// readable for arbitrary videos. Owner-only parts remain available through an
+// explicit --parts list for callers querying their own uploads.
+var youtubeVideoAllNonOwnerParts = []string{
+	"contentDetails",
+	"id",
+	"liveStreamingDetails",
+	"localizations",
+	"paidProductPlacementDetails",
+	"player",
+	"recordingDetails",
+	"snippet",
+	"statistics",
 	"status",
 	"topicDetails",
-	"recordingDetails",
-	"liveStreamingDetails",
-	"player",
-	"localizations",
 }
 
 type YouTubeCmd struct {
@@ -92,20 +95,30 @@ type YouTubeVideosListCmd struct {
 	Chart    string `name:"chart" help:"Chart: mostPopular (regionCode required)"`
 	Region   string `name:"region" help:"Region code (e.g. US) for chart"`
 	MyRating string `name:"my-rating" help:"Your rated videos: like (liked videos) or dislike (requires -a account)"`
-	Parts    string `name:"parts" help:"Comma-separated videos.list parts (default: every part readable for non-owned videos)"`
+	Parts    string `name:"parts" help:"Comma-separated videos.list parts or 'all' (default: snippet,contentDetails,statistics)"`
 	Max      int64  `name:"max" aliases:"limit" help:"Max results" default:"25"`
 	Page     string `name:"page" help:"Page token"`
 }
 
-// resolveParts returns the requested videos.list parts. An empty/blank --parts
-// flag (the default) yields the full non-owner part set so callers get complete
-// metadata without having to enumerate parts. An explicit --parts narrows it.
-func (c *YouTubeVideosListCmd) resolveParts() []string {
+func (c *YouTubeVideosListCmd) resolveParts() ([]string, error) {
 	parts := splitCSV(c.Parts)
 	if len(parts) == 0 {
-		return append([]string(nil), youtubeVideoAllParts...)
+		return append([]string(nil), youtubeVideoDefaultParts...), nil
 	}
-	return parts
+	all := false
+	for _, part := range parts {
+		if part == literalAll {
+			all = true
+			break
+		}
+	}
+	if !all {
+		return parts, nil
+	}
+	if len(parts) != 1 {
+		return nil, usage("--parts all cannot be combined with explicit parts")
+	}
+	return append([]string(nil), youtubeVideoAllNonOwnerParts...), nil
 }
 
 func (c *YouTubeVideosListCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -142,9 +155,12 @@ func (c *YouTubeVideosListCmd) Run(ctx context.Context, flags *RootFlags) error 
 	if myRating != "" && myRating != "like" && myRating != "dislike" {
 		return usage("--my-rating must be like or dislike")
 	}
+	parts, err := c.resolveParts()
+	if err != nil {
+		return err
+	}
 
 	var svc *youtube.Service
-	var err error
 	if myRating != "" {
 		// myRating reads are per-user and require OAuth, not an API key.
 		account, accErr := requireAccount(flags)
@@ -159,7 +175,7 @@ func (c *YouTubeVideosListCmd) Run(ctx context.Context, flags *RootFlags) error 
 		return err
 	}
 
-	call := svc.Videos.List(c.resolveParts()).
+	call := svc.Videos.List(parts).
 		MaxResults(c.Max).
 		PageToken(c.Page)
 	switch {

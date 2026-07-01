@@ -762,11 +762,35 @@ func TestYouTubeVideosListMyRatingUsesOAuthService(t *testing.T) {
 // The Google SDK may send part either comma-joined or as repeated query params,
 // so normalize both into a flat slice.
 func youtubePartValues(r *http.Request) []string {
-	var out []string
-	for _, raw := range r.URL.Query()["part"] {
+	values := r.URL.Query()["part"]
+	out := make([]string, 0, len(values))
+	for _, raw := range values {
 		out = append(out, strings.Split(raw, ",")...)
 	}
 	return out
+}
+
+func TestYouTubeVideosListPreservesDefaultParts(t *testing.T) {
+	var gotParts []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotParts = youtubePartValues(r)
+		_ = json.NewEncoder(w).Encode(map[string]any{"items": []map[string]any{}})
+	}))
+	defer srv.Close()
+
+	svc := newGoogleTestServiceWithEndpoint(t, srv.Client(), srv.URL+"/", youtube.NewService)
+	ctx := withYouTubeTestServices(newCmdRuntimeOutputContext(t, io.Discard, io.Discard), youtubeTestServices{
+		Account: fixedYouTubeTestService(svc),
+	})
+	err := runKong(t, &YouTubeVideosListCmd{}, []string{"--id", "vid1", "--max", "1"}, ctx, &RootFlags{Account: "me@example.com"})
+	if err != nil {
+		t.Fatalf("runKong: %v", err)
+	}
+
+	want := []string{"snippet", "contentDetails", "statistics"}
+	if strings.Join(gotParts, ",") != strings.Join(want, ",") {
+		t.Fatalf("parts = %v, want %v", gotParts, want)
+	}
 }
 
 func TestYouTubeVideosListRequestsAllNonOwnerParts(t *testing.T) {
@@ -785,28 +809,23 @@ func TestYouTubeVideosListRequestsAllNonOwnerParts(t *testing.T) {
 		Account: fixedYouTubeTestService(svc),
 		APIKey:  unexpectedYouTubeTestService(t, "API key service should not be used when account is configured"),
 	})
-	err := runKong(t, &YouTubeVideosListCmd{}, []string{"--id", "vid1", "--max", "1"}, ctx, &RootFlags{Account: "me@example.com"})
+	err := runKong(t, &YouTubeVideosListCmd{}, []string{"--id", "vid1", "--parts", "all", "--max", "1"}, ctx, &RootFlags{Account: "me@example.com"})
 	if err != nil {
 		t.Fatalf("runKong: %v", err)
 	}
 
 	wantParts := []string{
-		"snippet", "contentDetails", "statistics", "status", "topicDetails",
-		"recordingDetails", "liveStreamingDetails", "player", "localizations",
+		"contentDetails", "id", "liveStreamingDetails", "localizations",
+		"paidProductPlacementDetails", "player", "recordingDetails", "snippet",
+		"statistics", "status", "topicDetails",
 	}
-	if len(gotParts) != len(wantParts) {
-		t.Fatalf("parts = %v (%d), want %d parts %v", gotParts, len(gotParts), len(wantParts), wantParts)
+	if strings.Join(gotParts, ",") != strings.Join(wantParts, ",") {
+		t.Fatalf("parts = %v, want %v", gotParts, wantParts)
 	}
 	gotSet := make(map[string]bool, len(gotParts))
-	for _, p := range gotParts {
-		gotSet[p] = true
+	for _, part := range gotParts {
+		gotSet[part] = true
 	}
-	for _, p := range wantParts {
-		if !gotSet[p] {
-			t.Fatalf("part list %v is missing %q", gotParts, p)
-		}
-	}
-	// Owner-only parts must never be requested for arbitrary (non-owned) videos.
 	for _, owner := range []string{"fileDetails", "processingDetails", "suggestions"} {
 		if gotSet[owner] {
 			t.Fatalf("part list %v must not request owner-only part %q", gotParts, owner)
@@ -829,12 +848,23 @@ func TestYouTubeVideosListPartsOverride(t *testing.T) {
 	ctx := withYouTubeTestServices(newCmdRuntimeOutputContext(t, io.Discard, io.Discard), youtubeTestServices{
 		Account: fixedYouTubeTestService(svc),
 	})
-	err := runKong(t, &YouTubeVideosListCmd{}, []string{"--id", "vid1", "--parts", "snippet, statistics", "--max", "1"}, ctx, &RootFlags{Account: "me@example.com"})
+	err := runKong(t, &YouTubeVideosListCmd{}, []string{"--id", "vid1", "--parts", "snippet, fileDetails", "--max", "1"}, ctx, &RootFlags{Account: "me@example.com"})
 	if err != nil {
 		t.Fatalf("runKong: %v", err)
 	}
-	if len(gotParts) != 2 || gotParts[0] != "snippet" || gotParts[1] != "statistics" {
-		t.Fatalf("parts = %v, want [snippet statistics]", gotParts)
+	if len(gotParts) != 2 || gotParts[0] != "snippet" || gotParts[1] != "fileDetails" {
+		t.Fatalf("parts = %v, want [snippet fileDetails]", gotParts)
+	}
+}
+
+func TestYouTubeVideosListRejectsMixedAllParts(t *testing.T) {
+	ctx := withYouTubeTestServices(newCmdRuntimeOutputContext(t, io.Discard, io.Discard), youtubeTestServices{
+		Account: unexpectedYouTubeTestService(t, "invalid --parts must not create a service"),
+		APIKey:  unexpectedYouTubeTestService(t, "invalid --parts must not create a service"),
+	})
+	err := runKong(t, &YouTubeVideosListCmd{}, []string{"--id", "vid1", "--parts", "all,status", "--max", "1"}, ctx, &RootFlags{Account: "me@example.com"})
+	if err == nil || ExitCode(err) != 2 || !strings.Contains(err.Error(), "--parts all cannot be combined with explicit parts") {
+		t.Fatalf("expected mixed all usage error, got %v", err)
 	}
 }
 
@@ -851,9 +881,9 @@ func TestYouTubeVideosListJSONSerializesNonCoreParts(t *testing.T) {
 						"title":       "Rich Video",
 						"publishedAt": "2026-01-02T03:04:05Z",
 						"thumbnails": map[string]any{
-							"default":  map[string]any{"url": "https://img/d.jpg", "width": 120, "height": 90},
-							"high":     map[string]any{"url": "https://img/h.jpg", "width": 480, "height": 360},
-							"maxres":   map[string]any{"url": "https://img/m.jpg", "width": 1280, "height": 720},
+							"default": map[string]any{"url": "https://img/d.jpg", "width": 120, "height": 90},
+							"high":    map[string]any{"url": "https://img/h.jpg", "width": 480, "height": 360},
+							"maxres":  map[string]any{"url": "https://img/m.jpg", "width": 1280, "height": 720},
 						},
 					},
 					"status": map[string]any{
@@ -867,6 +897,9 @@ func TestYouTubeVideosListJSONSerializesNonCoreParts(t *testing.T) {
 					"liveStreamingDetails": map[string]any{
 						"actualStartTime": "2026-01-01T00:00:00Z",
 					},
+					"paidProductPlacementDetails": map[string]any{
+						"hasPaidProductPlacement": true,
+					},
 				},
 			},
 		})
@@ -878,7 +911,7 @@ func TestYouTubeVideosListJSONSerializesNonCoreParts(t *testing.T) {
 	ctx := withYouTubeTestServices(newCmdRuntimeJSONOutputContext(t, &stdout, io.Discard), youtubeTestServices{
 		Account: fixedYouTubeTestService(svc),
 	})
-	err := runKong(t, &YouTubeVideosListCmd{}, []string{"--id", "vidRich", "--max", "1"}, ctx, &RootFlags{Account: "me@example.com", JSON: true})
+	err := runKong(t, &YouTubeVideosListCmd{}, []string{"--id", "vidRich", "--parts", "all", "--max", "1"}, ctx, &RootFlags{Account: "me@example.com", JSON: true})
 	if err != nil {
 		t.Fatalf("runKong: %v", err)
 	}
@@ -901,6 +934,9 @@ func TestYouTubeVideosListJSONSerializesNonCoreParts(t *testing.T) {
 			LiveStreamingDetails struct {
 				ActualStartTime string `json:"actualStartTime"`
 			} `json:"liveStreamingDetails"`
+			PaidProductPlacementDetails struct {
+				HasPaidProductPlacement bool `json:"hasPaidProductPlacement"`
+			} `json:"paidProductPlacementDetails"`
 		} `json:"items"`
 	}
 	if err := json.Unmarshal(stdout.Bytes(), &got); err != nil {
@@ -923,6 +959,9 @@ func TestYouTubeVideosListJSONSerializesNonCoreParts(t *testing.T) {
 	}
 	if item.LiveStreamingDetails.ActualStartTime == "" {
 		t.Fatalf("liveStreamingDetails.actualStartTime dropped: %s", stdout.String())
+	}
+	if !item.PaidProductPlacementDetails.HasPaidProductPlacement {
+		t.Fatalf("paidProductPlacementDetails.hasPaidProductPlacement dropped: %s", stdout.String())
 	}
 }
 
@@ -947,7 +986,7 @@ func TestYouTubeVideosListToleratesPartialParts(t *testing.T) {
 	ctx := withYouTubeTestServices(newCmdRuntimeJSONOutputContext(t, &stdout, io.Discard), youtubeTestServices{
 		Account: fixedYouTubeTestService(svc),
 	})
-	err := runKong(t, &YouTubeVideosListCmd{}, []string{"--id", "vidPlain", "--max", "1"}, ctx, &RootFlags{Account: "me@example.com", JSON: true})
+	err := runKong(t, &YouTubeVideosListCmd{}, []string{"--id", "vidPlain", "--parts", "all", "--max", "1"}, ctx, &RootFlags{Account: "me@example.com", JSON: true})
 	if err != nil {
 		t.Fatalf("runKong: %v", err)
 	}
