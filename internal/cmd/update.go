@@ -188,16 +188,16 @@ func updateClient(timeout time.Duration) *http.Client {
 	return &clone
 }
 
-func fetchLatestGitHubRelease(ctx context.Context, client *http.Client, url string) (githubRelease, error) {
+func fetchLatestGitHubRelease(ctx context.Context, client *http.Client, endpoint string) (githubRelease, error) {
 	var release githubRelease
-	apiErr := fetchUpdateJSON(ctx, client, url, &release)
+	apiErr := fetchUpdateJSON(ctx, client, endpoint, &release)
 	if apiErr == nil {
 		return release, nil
 	}
 
 	fallback, fallbackErr := fetchLatestGitHubReleaseRedirect(ctx, client, updateLatestWebURL)
 	if fallbackErr != nil {
-		return githubRelease{}, fmt.Errorf("fetch latest release: API: %v; web fallback: %w", apiErr, fallbackErr)
+		return githubRelease{}, fmt.Errorf("fetch latest release: API: %s; web fallback: %w", apiErr.Error(), fallbackErr)
 	}
 	return fallback, nil
 }
@@ -258,8 +258,8 @@ func updateReleaseAssetURL(tag string, assetName string) string {
 		url.PathEscape(tag) + "/" + url.PathEscape(assetName)
 }
 
-func fetchUpdateJSON(ctx context.Context, client *http.Client, url string, dst any) error {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+func fetchUpdateJSON(ctx context.Context, client *http.Client, endpoint string, dst any) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
 		return err
 	}
@@ -285,8 +285,8 @@ func fetchUpdateJSON(ctx context.Context, client *http.Client, url string, dst a
 	return nil
 }
 
-func fetchAssetChecksum(ctx context.Context, client *http.Client, url string, assetName string) (string, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+func fetchAssetChecksum(ctx context.Context, client *http.Client, endpoint string, assetName string) (string, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
 		return "", fmt.Errorf("fetch checksums.txt: %w", err)
 	}
