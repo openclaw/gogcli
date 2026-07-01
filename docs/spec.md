@@ -167,9 +167,19 @@ Environment:
 - `GOG_ACCOUNT=you@gmail.com` (email or alias; used when `--account` is not set; otherwise uses keyring default or a single stored token)
 - `GOG_CLIENT=work` (select OAuth client bucket; see `--client`)
 - `GOG_KEYRING_PASSWORD=...` (used when keyring falls back to encrypted file backend in non-interactive environments)
-- `GOG_KEYRING_BACKEND={auto|keychain|file}` (force backend; use `file` to avoid Keychain prompts and pair with `GOG_KEYRING_PASSWORD` for non-interactive)
+- `GOG_KEYRING_BACKEND={auto|keychain|file|1password}` (force backend; use `file` to avoid Keychain prompts and pair with `GOG_KEYRING_PASSWORD` for non-interactive; use `1password` with `GOG_1PASSWORD_ACCOUNT` for desktop-app auth or `OP_SERVICE_ACCOUNT_TOKEN` for service-account auth)
 - `GOG_KEYRING_SERVICE_NAME=...` (override keyring namespace/service name; default `gogcli`)
 - `GOG_KEYRING_OPEN_TIMEOUT=30s` (max time to wait for a keyring open/operation — e.g. a macOS Keychain permission prompt — before failing; Go duration, default `30s` on macOS and `10s` elsewhere)
+- `GOG_1PASSWORD_AUTH={auto|desktop|service-account}` (optional 1Password auth mode; default `auto`, which prefers `GOG_1PASSWORD_ACCOUNT` when set)
+- `GOG_1PASSWORD_ACCOUNT=...` (1Password desktop app account name or UUID when `GOG_KEYRING_BACKEND=1password`)
+- `OP_SERVICE_ACCOUNT_TOKEN=...` (1Password service account token for headless `GOG_KEYRING_BACKEND=1password` use)
+- `GOG_1PASSWORD_VAULT=...` (1Password vault ID for gog keyring items)
+- `GOG_1PASSWORD_ITEM_TITLE=...` (optional 1Password API Credential item title; default `gogcli-keyring`)
+- `GOG_1PASSWORD_TIMEOUT=10s` (optional per-operation timeout for the 1Password SDK backend)
+- The non-secret 1Password values above can also be set in `config.json` as
+  `onepassword_auth`, `onepassword_account`, `onepassword_vault`,
+  `onepassword_item_title`, and `onepassword_timeout`; environment variables
+  override config. `OP_SERVICE_ACCOUNT_TOKEN` remains environment-only.
 - `GOG_TIMEZONE=America/New_York` (default output timezone; IANA name or `UTC`; `local` forces local timezone)
 - `GOG_ENABLE_COMMANDS=calendar,tasks,gmail.search` (optional prefix allowlist; dot paths allowed; parent paths allow children)
 - `GOG_ENABLE_COMMANDS_EXACT=calendar.events,gmail.search` (optional exact allowlist; dot paths allowed; parent paths do not allow children)

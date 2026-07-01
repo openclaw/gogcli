@@ -178,10 +178,16 @@ Docs read/write configuration:
 }
 ```
 
-For headless services, set `GOG_KEYRING_BACKEND=file` and
-`GOG_KEYRING_PASSWORD` on the MCP client process or service unit. A successful
+For headless services, set either `GOG_KEYRING_BACKEND=file` with
+`GOG_KEYRING_PASSWORD`, or `GOG_KEYRING_BACKEND=1password` with
+`GOG_1PASSWORD_ACCOUNT` or config `onepassword_account` for local desktop-app auth or
+`OP_SERVICE_ACCOUNT_TOKEN` for service-account auth, plus
+`GOG_1PASSWORD_VAULT` or config `onepassword_vault`, on the MCP client process or service unit. A successful
 interactive shell check does not prove the MCP client inherited those
 variables; verify through the same process manager that launches the server.
+The default 1Password item title is `gogcli-keyring`; override it with
+`GOG_1PASSWORD_ITEM_TITLE` or config `onepassword_item_title` only when the MCP process should use a different
+set of API Credential items.
 
 ## mcporter examples
 
@@ -368,8 +374,9 @@ Tool missing in the client
 Auth works in Terminal but not in the MCP client
 
 : Compare `--account`, `--client`, `--home`, `GOG_HOME`,
-  `GOG_KEYRING_BACKEND`, and `GOG_KEYRING_PASSWORD` in the process that starts
-  the MCP server.
+  `GOG_KEYRING_BACKEND`, `GOG_KEYRING_PASSWORD`, `GOG_1PASSWORD_ACCOUNT`,
+  `OP_SERVICE_ACCOUNT_TOKEN`, `GOG_1PASSWORD_VAULT`, and the selected
+  `config.json` in the process that starts the MCP server.
 
 Large output is truncated
 

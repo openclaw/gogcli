@@ -156,6 +156,11 @@ func addKeyringEnvChecks(ctx context.Context, add func(string, string, string, s
 		add("keyring.backend_override", doctorWarn, "GOG_KEYRING_BACKEND overrides config.json keyring_backend", "make env and config agree before debugging stored tokens")
 	}
 
+	if backendInfo.Value == secrets.KeyringBackendOnePassword {
+		addOnePasswordEnvChecks(add, cfg)
+		return
+	}
+
 	layout, layoutErr := commandLayout(ctx, config.PathKindConfig, config.PathKindData)
 	keyringDir, dirErr := "", layoutErr
 	if layoutErr == nil {
@@ -168,7 +173,7 @@ func addKeyringEnvChecks(ctx context.Context, add func(string, string, string, s
 	}
 
 	password, passwordSet := os.LookupEnv("GOG_KEYRING_PASSWORD")
-	likelyFile := backendInfo.Value == strFile || (runtime.GOOS == "linux" && backendInfo.Value == "auto" && os.Getenv("DBUS_SESSION_BUS_ADDRESS") == "")
+	likelyFile := backendInfo.Value == strFile || (runtime.GOOS == "linux" && backendInfo.Value == literalAuto && os.Getenv("DBUS_SESSION_BUS_ADDRESS") == "")
 	if !likelyFile {
 		return
 	}
@@ -182,6 +187,76 @@ func addKeyringEnvChecks(ctx context.Context, add func(string, string, string, s
 		add("keyring.password", doctorError, "file keyring selected but GOG_KEYRING_PASSWORD is not set in a non-interactive process", "set GOG_KEYRING_PASSWORD or switch to a system keyring")
 	default:
 		add("keyring.password", doctorWarn, "file keyring selected and GOG_KEYRING_PASSWORD is not set", "interactive prompts work locally, but CI/ssh/agents need GOG_KEYRING_PASSWORD")
+	}
+}
+
+func addOnePasswordEnvChecks(add func(string, string, string, string), cfg config.File) {
+	vault, vaultSource := onePasswordConfigValue(secrets.OnePasswordVaultEnv, config.KeyOnePasswordVault.String(), cfg.OnePasswordVault)
+	if vault == "" {
+		add("keyring.1password.vault", doctorError, secrets.OnePasswordVaultEnv+" and config onepassword_vault are not set", "set the 1Password vault ID that stores gog items")
+	} else {
+		add("keyring.1password.vault", doctorOK, vaultSource+" is set", "")
+	}
+
+	authRaw, _ := onePasswordConfigValue(secrets.OnePasswordAuthEnv, config.KeyOnePasswordAuth.String(), cfg.OnePasswordAuth)
+	authMode := secrets.NormalizeOnePasswordAuthMode(authRaw)
+	account, accountSource := onePasswordConfigValue(secrets.OnePasswordAccountEnv, config.KeyOnePasswordAccount.String(), cfg.OnePasswordAccount)
+	token := strings.TrimSpace(os.Getenv(secrets.OnePasswordServiceAccountEnv))
+
+	switch authMode {
+	case "", "auto":
+		addOnePasswordAutoAuthCheck(add, account, accountSource, token)
+	case "desktop":
+		addOnePasswordDesktopAuthCheck(add, account, accountSource)
+	case "service-account":
+		addOnePasswordServiceAccountAuthCheck(add, token)
+	default:
+		add("keyring.1password.auth", doctorError, "invalid 1Password auth mode "+authRaw, "use auto, desktop, or service-account")
+	}
+
+	if raw, source := onePasswordConfigValue(secrets.OnePasswordOperationTimeoutEnv, config.KeyOnePasswordTimeout.String(), cfg.OnePasswordTimeout); raw != "" {
+		if timeout, err := time.ParseDuration(raw); err != nil || timeout <= 0 {
+			add("keyring.1password.timeout", doctorError, "invalid "+source, "use a positive duration such as 10s")
+		} else {
+			add("keyring.1password.timeout", doctorOK, source+"="+raw, "")
+		}
+	}
+}
+
+func onePasswordConfigValue(envName, key string, cfgValue string) (string, string) {
+	if value := strings.TrimSpace(os.Getenv(envName)); value != "" {
+		return value, envName
+	}
+	if value := strings.TrimSpace(cfgValue); value != "" {
+		return value, "config " + key
+	}
+	return "", ""
+}
+
+func addOnePasswordAutoAuthCheck(add func(string, string, string, string), account string, accountSource string, token string) {
+	switch {
+	case account != "":
+		add("keyring.1password.auth", doctorOK, "desktop app auth via "+accountSource, "keep the 1Password app running, unlocked, and configured to integrate with other apps")
+	case token != "":
+		add("keyring.1password.auth", doctorOK, "service-account auth via "+secrets.OnePasswordServiceAccountEnv, "")
+	default:
+		add("keyring.1password.auth", doctorError, "no 1Password auth source is set", "set "+secrets.OnePasswordAccountEnv+" or config onepassword_account for desktop app auth, or "+secrets.OnePasswordServiceAccountEnv+" for service-account auth")
+	}
+}
+
+func addOnePasswordDesktopAuthCheck(add func(string, string, string, string), account string, accountSource string) {
+	if account == "" {
+		add("keyring.1password.account", doctorError, secrets.OnePasswordAccountEnv+" and config onepassword_account are not set", "set the 1Password account name or UUID shown in the desktop app")
+	} else {
+		add("keyring.1password.account", doctorOK, accountSource+" is set", "keep the 1Password app running, unlocked, and configured to integrate with other apps")
+	}
+}
+
+func addOnePasswordServiceAccountAuthCheck(add func(string, string, string, string), token string) {
+	if token == "" {
+		add("keyring.1password.token", doctorError, secrets.OnePasswordServiceAccountEnv+" is not set", "set a 1Password service account token with read/write access to the vault")
+	} else {
+		add("keyring.1password.token", doctorOK, secrets.OnePasswordServiceAccountEnv+" is set", "")
 	}
 }
 

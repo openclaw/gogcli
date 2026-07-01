@@ -6,11 +6,12 @@ import (
 	"strings"
 
 	"github.com/steipete/gogcli/internal/outfmt"
+	"github.com/steipete/gogcli/internal/secrets"
 	"github.com/steipete/gogcli/internal/ui"
 )
 
 type AuthKeyringCmd struct {
-	Backend  string `arg:"" optional:"" name:"backend" help:"Keyring backend: auto|keychain|file"`
+	Backend  string `arg:"" optional:"" name:"backend" help:"Keyring backend: auto|keychain|file|1password"`
 	Backend2 string `arg:"" optional:"" name:"backend2" help:"(compat) Use: gog auth keyring set <backend>"`
 }
 
@@ -54,7 +55,7 @@ func (c *AuthKeyringCmd) Run(ctx context.Context, flags *RootFlags) error {
 		u.Out().Linef("path\t%s", path)
 		u.Out().Linef("keyring_backend\t%s", info.Value)
 		u.Out().Linef("source\t%s", info.Source)
-		u.Err().Println("Hint: gog auth keyring <auto|keychain|file>")
+		u.Err().Println("Hint: gog auth keyring <auto|keychain|file|1password>")
 		return nil
 	}
 
@@ -67,12 +68,13 @@ func (c *AuthKeyringCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 
 	allowed := map[string]struct{}{
-		literalAuto: {},
-		"keychain":  {},
-		strFile:     {},
+		literalAuto:                       {},
+		"keychain":                        {},
+		strFile:                           {},
+		secrets.KeyringBackendOnePassword: {},
 	}
 	if _, ok := allowed[backend]; !ok {
-		return usagef("invalid backend: %q (expected auto, keychain, or file)", c.Backend)
+		return usagef("invalid backend: %q (expected auto, keychain, file, or 1password)", c.Backend)
 	}
 
 	store, err := commandConfigStore(ctx)
@@ -116,7 +118,6 @@ func (c *AuthKeyringCmd) Run(ctx context.Context, flags *RootFlags) error {
 			u.Err().Linef("Hint: set %s for non-interactive use (CI/ssh)", keyringPasswordEnv)
 		}
 	}
-
 	if outfmt.IsJSON(ctx) {
 		return outfmt.WriteJSON(ctx, stdoutWriter(ctx), map[string]any{
 			"written":         true,

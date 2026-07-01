@@ -49,10 +49,11 @@ overrides, and legacy path compatibility.
 
 ## Headless agents and systemd
 
-For headless agents, configure `gog` with the encrypted file keyring and pass
-the same environment to the process that will actually invoke `gog`. A command
-working in your login shell only proves that shell has the password; it does
-not prove a systemd service, gateway, or agent subprocess inherited it.
+For headless agents, configure `gog` with the encrypted file keyring or the
+1Password backend and pass the same environment to the process that will
+actually invoke `gog`. A command working in your login shell only proves that
+shell has the required secret; it does not prove a systemd service, gateway, or
+agent subprocess inherited it.
 
 Use this as the minimum runtime environment:
 
@@ -62,6 +63,32 @@ Environment=GOG_KEYRING_PASSWORD=replace-with-secret-manager-injection
 Environment=GOG_HOME=/var/lib/gogcli
 Environment=HOME=/home/openclaw
 ```
+
+For headless 1Password-backed storage, replace the keyring lines with:
+
+```ini
+Environment=GOG_KEYRING_BACKEND=1password
+Environment=GOG_1PASSWORD_AUTH=service-account
+Environment=OP_SERVICE_ACCOUNT_TOKEN=replace-with-service-account-token
+Environment=GOG_1PASSWORD_VAULT=replace-with-vault-id
+```
+
+Desktop-app auth is for local interactive agents where the 1Password app is
+running, unlocked, and configured to integrate with other apps. Use
+`GOG_1PASSWORD_ACCOUNT` there instead of `OP_SERVICE_ACCOUNT_TOKEN`.
+For local agents, the non-secret 1Password selectors can also live in
+`config.json`:
+
+```bash
+gog auth keyring 1password
+gog config set onepassword_auth desktop
+gog config set onepassword_account buildkite.1password.com
+gog config set onepassword_vault replace-with-vault-id
+```
+
+Items are created as API Credential entries titled `gogcli-keyring` by default;
+set `Environment=GOG_1PASSWORD_ITEM_TITLE=...` only if you want a different
+title.
 
 Then reload and restart the service before testing from the same entrypoint the
 agent uses:
