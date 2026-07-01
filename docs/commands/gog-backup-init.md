@@ -41,7 +41,7 @@ gog backup init [flags]
 | `--remote` | `string` |  | Backup Git remote URL |
 | `--repo` | `string` |  | Local backup repository path |
 | `--results-only` | `bool` |  | In JSON mode, emit only the primary result (drops envelope fields like nextPageToken) |
-| `--select`<br>`--pick` | `string` |  | In JSON mode, select comma-separated fields (best-effort; supports dot paths). Desire path: use --fields for most commands. |
+| `--select`<br>`--pick`<br>`--project` | `string` |  | In JSON mode, select comma-separated fields (best-effort; supports dot paths). Desire path: use --fields for most commands. |
 | `-v`<br>`--verbose` | `bool` |  | Enable verbose logging |
 | `--version` | `kong.VersionFlag` |  | Print version and exit |
 | `--wrap-untrusted` | `bool` | false | In JSON/raw output, wrap fetched text fields in external untrusted-content markers |

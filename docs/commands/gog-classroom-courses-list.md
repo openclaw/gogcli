@@ -39,7 +39,7 @@ gog classroom (class) courses (course) list (ls) [flags]
 | `-p`<br>`--plain`<br>`--tsv` | `bool` | false | Output stable, parseable text to stdout (TSV; no colors) |
 | `--readonly` | `bool` | false | Block mutating API requests at runtime; auth add also requests read-only OAuth scopes |
 | `--results-only` | `bool` |  | In JSON mode, emit only the primary result (drops envelope fields like nextPageToken) |
-| `--select`<br>`--pick` | `string` |  | In JSON mode, select comma-separated fields (best-effort; supports dot paths). Desire path: use --fields for most commands. |
+| `--select`<br>`--pick`<br>`--project` | `string` |  | In JSON mode, select comma-separated fields (best-effort; supports dot paths). Desire path: use --fields for most commands. |
 | `--state` | `string` |  | Course states filter (comma-separated: ACTIVE,ARCHIVED,PROVISIONED,DECLINED) |
 | `--student` | `string` |  | Filter by student user ID or email |
 | `--teacher` | `string` |  | Filter by teacher user ID or email |

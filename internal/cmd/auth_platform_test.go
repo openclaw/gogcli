@@ -73,19 +73,19 @@ func TestAuthPlatformTestersAddWritesAndVerifies(t *testing.T) {
 	ctx = authclient.WithAccessToken(ctx, "token")
 	cmd := &AuthPlatformTestersAddCmd{
 		authPlatformProjectFlags: authPlatformProjectFlags{Project: "arc-forge-console", ProjectNumber: "35664692003"},
-		Email:                    "admin@horizonprodental.com.au",
+		Email:                    "added@example.com",
 	}
 	if err := cmd.Run(ctx, &RootFlags{AccessToken: "token", Force: true, JSON: true}); err != nil {
 		t.Fatalf("Run: %v", err)
 	}
-	if !containsEmailFold(state, "admin@horizonprodental.com.au") || !containsEmailFold(state, "existing@example.com") {
+	if !containsEmailFold(state, "added@example.com") || !containsEmailFold(state, "existing@example.com") {
 		t.Fatalf("state = %#v", state)
 	}
 	var parsed authPlatformTesterResult
 	if err := json.Unmarshal([]byte(out.String()), &parsed); err != nil {
 		t.Fatalf("json output: %v\n%s", err, out.String())
 	}
-	if !parsed.Changed || parsed.Email != "admin@horizonprodental.com.au" {
+	if !parsed.Changed || parsed.Email != "added@example.com" {
 		t.Fatalf("unexpected output: %#v", parsed)
 	}
 }

@@ -44,7 +44,7 @@ gog tasks (task) add (create) <tasklistId> [flags]
 | `--repeat-count` | `int` |  | Number of occurrences to create (requires --repeat, --recur, or --recur-rrule) |
 | `--repeat-until` | `string` |  | Repeat until date/time (RFC3339 or YYYY-MM-DD; requires --repeat, --recur, or --recur-rrule) |
 | `--results-only` | `bool` |  | In JSON mode, emit only the primary result (drops envelope fields like nextPageToken) |
-| `--select`<br>`--pick` | `string` |  | In JSON mode, select comma-separated fields (best-effort; supports dot paths). Desire path: use --fields for most commands. |
+| `--select`<br>`--pick`<br>`--project` | `string` |  | In JSON mode, select comma-separated fields (best-effort; supports dot paths). Desire path: use --fields for most commands. |
 | `--title` | `string` |  | Task title (required) |
 | `-v`<br>`--verbose` | `bool` |  | Enable verbose logging |
 | `--version` | `kong.VersionFlag` |  | Print version and exit |

@@ -65,9 +65,9 @@ Generated from `gog schema --json`.
       - [`gog auth tokens list`](commands/gog-auth-tokens-list.md) - List stored tokens (by key only)
   - [`gog auth-platform (oauth) <command> [flags]`](commands/gog-auth-platform.md) - Google Auth Platform operator commands
     - [`gog auth-platform (oauth) testers <command>`](commands/gog-auth-platform-testers.md) - Manage OAuth beta/test users
-      - [`gog auth-platform (oauth) testers add --project=STRING --email=STRING [flags]`](commands/gog-auth-platform-testers-add.md) - Add an OAuth beta/test user idempotently
-      - [`gog auth-platform (oauth) testers list --project=STRING [flags]`](commands/gog-auth-platform-testers-list.md) - List OAuth beta/test users
-      - [`gog auth-platform (oauth) testers remove --project=STRING --email=STRING [flags]`](commands/gog-auth-platform-testers-remove.md) - Remove an OAuth beta/test user idempotently
+      - [`gog auth-platform (oauth) testers add --cloud-project=STRING --email=STRING [flags]`](commands/gog-auth-platform-testers-add.md) - Add an OAuth beta/test user idempotently
+      - [`gog auth-platform (oauth) testers list --cloud-project=STRING [flags]`](commands/gog-auth-platform-testers-list.md) - List OAuth beta/test users
+      - [`gog auth-platform (oauth) testers remove --cloud-project=STRING --email=STRING [flags]`](commands/gog-auth-platform-testers-remove.md) - Remove an OAuth beta/test user idempotently
   - [`gog backup <command> [flags]`](commands/gog-backup.md) - Encrypted Google account backups
     - [`gog backup cat <shard> [flags]`](commands/gog-backup-cat.md) - Decrypt one backup shard to stdout
     - [`gog backup export [flags]`](commands/gog-backup-export.md) - Write a local plaintext export

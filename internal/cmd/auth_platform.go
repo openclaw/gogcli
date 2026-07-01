@@ -45,7 +45,8 @@ type AuthPlatformTestersCmd struct {
 }
 
 type authPlatformProjectFlags struct {
-	Project       string `name:"project" required:"" help:"Google Cloud project ID or number that owns the OAuth consent screen"`
+	// --cloud-project avoids colliding with the existing global --project JSON projection alias.
+	Project       string `name:"cloud-project" required:"" help:"Google Cloud project ID or number that owns the OAuth consent screen"`
 	ProjectNumber string `name:"project-number" help:"Google Cloud project number (skips Cloud Resource Manager lookup)"`
 }
 
@@ -231,7 +232,7 @@ func (c *authPlatformClient) resolveProjectNumber(ctx context.Context, project s
 		return override, nil
 	}
 	if project == "" {
-		return "", usage("missing --project")
+		return "", usage("missing --cloud-project")
 	}
 	if allDigits(project) {
 		return project, nil

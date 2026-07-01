@@ -43,7 +43,7 @@ gog auth import --email=STRING [flags]
 | `--refresh-token-file` | `string` |  | Read OAuth refresh token from file |
 | `--refresh-token-stdin` | `bool` |  | Read OAuth refresh token from stdin |
 | `--results-only` | `bool` |  | In JSON mode, emit only the primary result (drops envelope fields like nextPageToken) |
-| `--select`<br>`--pick` | `string` |  | In JSON mode, select comma-separated fields (best-effort; supports dot paths). Desire path: use --fields for most commands. |
+| `--select`<br>`--pick`<br>`--project` | `string` |  | In JSON mode, select comma-separated fields (best-effort; supports dot paths). Desire path: use --fields for most commands. |
 | `--services` | `string` |  | Comma-separated services to record on the token (informational; does not affect scopes) |
 | `-v`<br>`--verbose` | `bool` |  | Enable verbose logging |
 | `--version` | `kong.VersionFlag` |  | Print version and exit |

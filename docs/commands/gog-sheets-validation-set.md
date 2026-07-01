@@ -37,7 +37,7 @@ gog sheets (sheet) validation (data-validation,validations) set (add,create) --t
 | `-p`<br>`--plain`<br>`--tsv` | `bool` | false | Output stable, parseable text to stdout (TSV; no colors) |
 | `--readonly` | `bool` | false | Block mutating API requests at runtime; auth add also requests read-only OAuth scopes |
 | `--results-only` | `bool` |  | In JSON mode, emit only the primary result (drops envelope fields like nextPageToken) |
-| `--select`<br>`--pick` | `string` |  | In JSON mode, select comma-separated fields (best-effort; supports dot paths). Desire path: use --fields for most commands. |
+| `--select`<br>`--pick`<br>`--project` | `string` |  | In JSON mode, select comma-separated fields (best-effort; supports dot paths). Desire path: use --fields for most commands. |
 | `--show-custom-ui` | `bool` | true | Show dropdown or checkbox UI where supported |
 | `--strict` | `bool` |  | Reject invalid input instead of showing a warning |
 | `--type` | `string` |  | Condition type (e.g. ONE_OF_LIST, ONE_OF_RANGE, NUMBER_BETWEEN, DATE_AFTER, BOOLEAN) |

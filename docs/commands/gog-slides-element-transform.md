@@ -39,7 +39,7 @@ gog slides (slide) element transform (move,resize,rotate) <presentationId> <obje
 | `--rotate` | `*float64` |  | Clockwise rotation in degrees around the element origin |
 | `--scale-x` | `*float64` |  | X scale; omitted axis defaults to 1 |
 | `--scale-y` | `*float64` |  | Y scale; omitted axis defaults to 1 |
-| `--select`<br>`--pick` | `string` |  | In JSON mode, select comma-separated fields (best-effort; supports dot paths). Desire path: use --fields for most commands. |
+| `--select`<br>`--pick`<br>`--project` | `string` |  | In JSON mode, select comma-separated fields (best-effort; supports dot paths). Desire path: use --fields for most commands. |
 | `--shear-x` | `*float64` |  | X shear |
 | `--shear-y` | `*float64` |  | Y shear |
 | `--translate-x` | `*float64` |  | X translation |

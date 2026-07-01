@@ -55,7 +55,7 @@ gog backup push [flags]
 | `--remote` | `string` |  | Backup Git remote URL |
 | `--repo` | `string` |  | Local backup repository path |
 | `--results-only` | `bool` |  | In JSON mode, emit only the primary result (drops envelope fields like nextPageToken) |
-| `--select`<br>`--pick` | `string` |  | In JSON mode, select comma-separated fields (best-effort; supports dot paths). Desire path: use --fields for most commands. |
+| `--select`<br>`--pick`<br>`--project` | `string` |  | In JSON mode, select comma-separated fields (best-effort; supports dot paths). Desire path: use --fields for most commands. |
 | `--services` | `string` | gmail | Comma-separated services to back up |
 | `--shard-max-rows` | `int` | 1000 | Max rows per encrypted shard |
 | `-v`<br>`--verbose` | `bool` |  | Enable verbose logging |

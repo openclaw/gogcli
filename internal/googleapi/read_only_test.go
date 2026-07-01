@@ -1,6 +1,7 @@
 package googleapi
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -111,6 +112,34 @@ func TestReadOnlyPOSTAllowlist(t *testing.T) {
 
 	if ReadOnlyRequestAllowed(override) {
 		t.Error("POST with X-HTTP-Method-Override unexpectedly allowed")
+	}
+}
+
+func TestReadOnlyAuthPlatformPOSTRequiresExactReadOperation(t *testing.T) {
+	const endpoint = "https://cloudconsole-pa.clients6.google.com/v3/entityServices/OauthEntityService/schemas/OAUTH_GRAPHQL:batchGraphql"
+
+	allowedBody := []byte(`{"operationName":"GetTrustedUserList","querySignature":"2/MOTEiszs0jB3+r4gNdOqOHc6zxU1rHoLGwOZgzGJWNo=","query":"query GetTrustedUserList($projectNumber: Int64Value!) { getTrustedUserList(projectNumber: $projectNumber) { userAccount } }"}`)
+	allowed, err := http.NewRequestWithContext(context.Background(), http.MethodPost, endpoint, bytes.NewReader(allowedBody))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !ReadOnlyRequestAllowed(allowed) {
+		t.Fatal("exact Auth Platform read query unexpectedly blocked")
+	}
+
+	blockedBodies := [][]byte{
+		[]byte(`{"operationName":"SetTrustedUserList","querySignature":"2/7gA8JWHyqFx3hPWBgvLvbsZAwIBEI2HTpajRUpYPVZM=","query":"mutation SetTrustedUserList { setTrustedUserList { trustedUserList } }"}`),
+		[]byte(`{"operationName":"GetTrustedUserList","querySignature":"wrong","query":"query GetTrustedUserList($projectNumber: Int64Value!) { getTrustedUserList(projectNumber: $projectNumber) { userAccount } }"}`),
+		[]byte(`{"operationName":"GetTrustedUserList","querySignature":"2/MOTEiszs0jB3+r4gNdOqOHc6zxU1rHoLGwOZgzGJWNo=","query":"mutation GetTrustedUserList { setTrustedUserList { trustedUserList } }"}`),
+	}
+	for _, body := range blockedBodies {
+		request, requestErr := http.NewRequestWithContext(context.Background(), http.MethodPost, endpoint, bytes.NewReader(body))
+		if requestErr != nil {
+			t.Fatal(requestErr)
+		}
+		if ReadOnlyRequestAllowed(request) {
+			t.Fatalf("Auth Platform mutation or malformed query unexpectedly allowed: %s", body)
+		}
 	}
 }
 

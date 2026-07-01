@@ -40,7 +40,7 @@ gog calendar (cal) focus-time (focus) --from=STRING --to=STRING [<calendarId>] [
 | `--readonly` | `bool` | false | Block mutating API requests at runtime; auth add also requests read-only OAuth scopes |
 | `--results-only` | `bool` |  | In JSON mode, emit only the primary result (drops envelope fields like nextPageToken) |
 | `--rrule` | `[]string` |  | Recurrence rules. Can be repeated. |
-| `--select`<br>`--pick` | `string` |  | In JSON mode, select comma-separated fields (best-effort; supports dot paths). Desire path: use --fields for most commands. |
+| `--select`<br>`--pick`<br>`--project` | `string` |  | In JSON mode, select comma-separated fields (best-effort; supports dot paths). Desire path: use --fields for most commands. |
 | `--summary` | `string` | Focus Time | Focus time title |
 | `--to` | `string` |  | End time (RFC3339) |
 | `-v`<br>`--verbose` | `bool` |  | Enable verbose logging |

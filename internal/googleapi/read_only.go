@@ -2,8 +2,10 @@ package googleapi
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 )
@@ -113,7 +115,40 @@ func readOnlyPOSTRequest(request *http.Request) bool {
 			strings.HasSuffix(path, ":batchRunReports") ||
 			strings.HasSuffix(path, ":runPivotReport") ||
 			strings.HasSuffix(path, ":runRealtimeReport")
+	case "cloudconsole-pa.clients6.google.com":
+		return readOnlyAuthPlatformRequest(request)
 	default:
 		return false
 	}
+}
+
+func readOnlyAuthPlatformRequest(request *http.Request) bool {
+	const (
+		path      = "/v3/entityServices/OauthEntityService/schemas/OAUTH_GRAPHQL:batchGraphql"
+		operation = "GetTrustedUserList"
+		signature = "2/MOTEiszs0jB3+r4gNdOqOHc6zxU1rHoLGwOZgzGJWNo="
+	)
+
+	if request == nil || request.URL == nil || request.URL.Path != path || request.GetBody == nil {
+		return false
+	}
+
+	body, err := request.GetBody()
+	if err != nil {
+		return false
+	}
+	defer body.Close()
+
+	var payload struct {
+		OperationName  string `json:"operationName"`
+		QuerySignature string `json:"querySignature"`
+		Query          string `json:"query"`
+	}
+	if err = json.NewDecoder(io.LimitReader(body, 64<<10)).Decode(&payload); err != nil {
+		return false
+	}
+
+	return payload.OperationName == operation &&
+		payload.QuerySignature == signature &&
+		strings.HasPrefix(strings.TrimSpace(payload.Query), "query GetTrustedUserList(")
 }

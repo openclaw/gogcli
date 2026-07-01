@@ -48,7 +48,7 @@ gog forms (form) add-question (add-q,aq) --title=STRING <formId> [flags]
 | `--scale-high-label` | `string` |  | Label for high end of scale |
 | `--scale-low` | `int` | 1 | Scale minimum value: 0 or 1 |
 | `--scale-low-label` | `string` |  | Label for low end of scale |
-| `--select`<br>`--pick` | `string` |  | In JSON mode, select comma-separated fields (best-effort; supports dot paths). Desire path: use --fields for most commands. |
+| `--select`<br>`--pick`<br>`--project` | `string` |  | In JSON mode, select comma-separated fields (best-effort; supports dot paths). Desire path: use --fields for most commands. |
 | `--title` | `string` |  | Question title/text |
 | `--type` | `string` | text | Question type: text\|paragraph\|radio\|checkbox\|dropdown\|scale\|date\|time |
 | `-v`<br>`--verbose` | `bool` |  | Enable verbose logging |

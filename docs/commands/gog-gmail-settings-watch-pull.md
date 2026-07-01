@@ -44,7 +44,7 @@ gog gmail (mail,email) settings watch pull [flags]
 | `--readonly` | `bool` | false | Block mutating API requests at runtime; auth add also requests read-only OAuth scopes |
 | `--results-only` | `bool` |  | In JSON mode, emit only the primary result (drops envelope fields like nextPageToken) |
 | `--save-hook` | `bool` |  | Persist hook settings to watch state |
-| `--select`<br>`--pick` | `string` |  | In JSON mode, select comma-separated fields (best-effort; supports dot paths). Desire path: use --fields for most commands. |
+| `--select`<br>`--pick`<br>`--project` | `string` |  | In JSON mode, select comma-separated fields (best-effort; supports dot paths). Desire path: use --fields for most commands. |
 | `--subscription` | `string` |  | Pub/Sub pull subscription (projects/.../subscriptions/...) |
 | `-z`<br>`--timezone` | `string` |  | Output timezone (IANA name, e.g. America/New_York, UTC). Default: GOG_TIMEZONE, config, then local |
 | `-v`<br>`--verbose` | `bool` |  | Enable verbose logging |

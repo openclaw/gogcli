@@ -44,7 +44,7 @@ gog searchconsole (gsc,search-console,webmasters) searchanalytics (analytics) qu
 | `--readonly` | `bool` | false | Block mutating API requests at runtime; auth add also requests read-only OAuth scopes |
 | `--request` | `string` |  | SearchAnalyticsQueryRequest JSON spec. Accepts @file, a plain file path, -, or inline JSON. |
 | `--results-only` | `bool` |  | In JSON mode, emit only the primary result (drops envelope fields like nextPageToken) |
-| `--select`<br>`--pick` | `string` |  | In JSON mode, select comma-separated fields (best-effort; supports dot paths). Desire path: use --fields for most commands. |
+| `--select`<br>`--pick`<br>`--project` | `string` |  | In JSON mode, select comma-separated fields (best-effort; supports dot paths). Desire path: use --fields for most commands. |
 | `--to`<br>`--end` | `string` |  | End date (YYYY-MM-DD) |
 | `--type` | `string` | WEB | Search type (WEB,IMAGE,VIDEO,NEWS,DISCOVER,GOOGLE_NEWS) |
 | `-v`<br>`--verbose` | `bool` |  | Enable verbose logging |

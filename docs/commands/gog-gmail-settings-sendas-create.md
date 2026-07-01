@@ -37,7 +37,7 @@ gog gmail (mail,email) settings sendas create (add,new) <email> [flags]
 | `--readonly` | `bool` | false | Block mutating API requests at runtime; auth add also requests read-only OAuth scopes |
 | `--reply-to` | `string` |  | Reply-to address (optional) |
 | `--results-only` | `bool` |  | In JSON mode, emit only the primary result (drops envelope fields like nextPageToken) |
-| `--select`<br>`--pick` | `string` |  | In JSON mode, select comma-separated fields (best-effort; supports dot paths). Desire path: use --fields for most commands. |
+| `--select`<br>`--pick`<br>`--project` | `string` |  | In JSON mode, select comma-separated fields (best-effort; supports dot paths). Desire path: use --fields for most commands. |
 | `--signature` | `string` |  | HTML signature for emails sent from this alias |
 | `--treat-as-alias` | `bool` | true | Treat as alias (replies sent from Gmail web) |
 | `-v`<br>`--verbose` | `bool` |  | Enable verbose logging |

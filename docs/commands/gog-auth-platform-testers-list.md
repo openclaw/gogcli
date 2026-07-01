@@ -7,7 +7,7 @@ List OAuth beta/test users
 ## Usage
 
 ```bash
-gog auth-platform (oauth) testers list --project=STRING [flags]
+gog auth-platform (oauth) testers list --cloud-project=STRING [flags]
 ```
 
 ## Parent
@@ -21,6 +21,7 @@ gog auth-platform (oauth) testers list --project=STRING [flags]
 | `--access-token` | `string` |  | Use provided access token directly (bypasses stored refresh tokens; token expires in ~1h) |
 | `-a`<br>`--account`<br>`--acct` | `string` |  | Account email, alias, or auto for authenticated Google API commands |
 | `--client` | `string` |  | OAuth client name (selects stored credentials + token bucket) |
+| `--cloud-project` | `string` |  | Google Cloud project ID or number that owns the OAuth consent screen |
 | `--color` | `string` | auto | Color output: auto\|always\|never |
 | `--disable-commands` | `string` |  | Comma-separated list of disabled commands; dot paths allowed |
 | `-n`<br>`--dry-run`<br>`--dryrun`<br>`--noop`<br>`--preview` | `bool` |  | Do not make changes; print intended actions and exit successfully |
@@ -33,11 +34,10 @@ gog auth-platform (oauth) testers list --project=STRING [flags]
 | `-j`<br>`--json`<br>`--machine` | `bool` | false | Output JSON to stdout (best for scripting) |
 | `--no-input`<br>`--non-interactive`<br>`--noninteractive` | `bool` |  | Never prompt; fail instead (useful for CI) |
 | `-p`<br>`--plain`<br>`--tsv` | `bool` | false | Output stable, parseable text to stdout (TSV; no colors) |
-| `--project` | `string` |  | Google Cloud project ID or number that owns the OAuth consent screen |
 | `--project-number` | `string` |  | Google Cloud project number (skips Cloud Resource Manager lookup) |
 | `--readonly` | `bool` | false | Block mutating API requests at runtime; auth add also requests read-only OAuth scopes |
 | `--results-only` | `bool` |  | In JSON mode, emit only the primary result (drops envelope fields like nextPageToken) |
-| `--select`<br>`--pick` | `string` |  | In JSON mode, select comma-separated fields (best-effort; supports dot paths). Desire path: use --fields for most commands. |
+| `--select`<br>`--pick`<br>`--project` | `string` |  | In JSON mode, select comma-separated fields (best-effort; supports dot paths). Desire path: use --fields for most commands. |
 | `-v`<br>`--verbose` | `bool` |  | Enable verbose logging |
 | `--version` | `kong.VersionFlag` |  | Print version and exit |
 | `--wrap-untrusted` | `bool` | false | In JSON/raw output, wrap fetched text fields in external untrusted-content markers |

@@ -66,7 +66,7 @@ gog calendar (cal) update (edit,set) <calendarId> <eventId> [flags]
 | `--results-only` | `bool` |  | In JSON mode, emit only the primary result (drops envelope fields like nextPageToken) |
 | `--rrule` | `[]string` |  | Recurrence rules (e.g., 'RRULE:FREQ=MONTHLY;BYMONTHDAY=11'). Can be repeated. Set empty to clear. |
 | `--scope` | `string` | all | For recurring events: single, future, all |
-| `--select`<br>`--pick` | `string` |  | In JSON mode, select comma-separated fields (best-effort; supports dot paths). Desire path: use --fields for most commands. |
+| `--select`<br>`--pick`<br>`--project` | `string` |  | In JSON mode, select comma-separated fields (best-effort; supports dot paths). Desire path: use --fields for most commands. |
 | `--send-updates` | `string` |  | Notification mode: all, externalOnly, none (default: none) |
 | `--shared-prop` | `[]string` |  | Shared extended property (key=value, can be repeated) |
 | `--start-timezone`<br>`--from-timezone` | `string` |  | IANA timezone metadata for --from (e.g., Europe/Rome) |

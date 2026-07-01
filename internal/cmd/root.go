@@ -45,7 +45,7 @@ type RootFlags struct {
 	Plain               bool   `help:"Output stable, parseable text to stdout (TSV; no colors)" default:"${plain}" aliases:"tsv" short:"p"`
 	WrapUntrusted       bool   `name:"wrap-untrusted" help:"In JSON/raw output, wrap fetched text fields in external untrusted-content markers" default:"${wrap_untrusted}"`
 	ResultsOnly         bool   `name:"results-only" help:"In JSON mode, emit only the primary result (drops envelope fields like nextPageToken)"`
-	Select              string `name:"select" aliases:"pick" help:"In JSON mode, select comma-separated fields (best-effort; supports dot paths). Desire path: use --fields for most commands."`
+	Select              string `name:"select" aliases:"pick,project" help:"In JSON mode, select comma-separated fields (best-effort; supports dot paths). Desire path: use --fields for most commands."`
 	DryRun              bool   `help:"Do not make changes; print intended actions and exit successfully" aliases:"noop,preview,dryrun" short:"n"`
 	Force               bool   `help:"Skip confirmations for destructive commands" aliases:"yes,assume-yes" short:"y"`
 	NoInput             bool   `help:"Never prompt; fail instead (useful for CI)" aliases:"non-interactive,noninteractive"`
@@ -422,7 +422,7 @@ func preScanHomeArg(args []string) (string, bool) {
 
 func globalFlagTakesValue(flag string) bool {
 	switch flag {
-	case "--color", "--account", "--acct", "--client", "--access-token", "--enable-commands", "--enable-commands-exact", "--disable-commands", "--select", "--pick", "--home", "-a":
+	case "--color", "--account", "--acct", "--client", "--access-token", "--enable-commands", "--enable-commands-exact", "--disable-commands", "--select", "--pick", "--project", "--home", "-a":
 		return true
 	default:
 		return false

@@ -539,7 +539,7 @@ consent-screen beta/test users, use the narrow operator commands documented in
 [Google Auth Platform](docs/auth-platform.md), for example:
 
 ```bash
-gog auth-platform testers add --project arc-forge-console --email user@example.com --json
+gog auth-platform testers add --cloud-project my-project --email user@example.com --json
 ```
 
 There is no separate agent execution mode. The same CLI behavior serves
