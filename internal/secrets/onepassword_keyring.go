@@ -40,6 +40,7 @@ var (
 	errInvalidOnePasswordAuth    = errors.New("invalid 1Password auth mode")
 	errInvalidOnePasswordTimeout = errors.New("invalid 1Password timeout")
 	errMissingOnePasswordValue   = errors.New("missing 1Password keyring value")
+	errOnePasswordDesktopAuth    = errors.New("1Password desktop app auth is unavailable in this build")
 )
 
 // The github.com/99designs/keyring interface has no parent context parameter.
@@ -78,6 +79,10 @@ var newOnePasswordItemsClient = func(ctx context.Context, cfg onePasswordConfig)
 
 	switch cfg.authMode {
 	case onePasswordAuthDesktop:
+		if !OnePasswordDesktopAuthSupported() {
+			return nil, fmt.Errorf("%w: use service-account auth or a CGO-enabled gog build", errOnePasswordDesktopAuth)
+		}
+
 		opts = append(opts, onepassword.WithDesktopAppIntegration(cfg.accountName))
 	case onePasswordAuthServiceAccount:
 		opts = append(opts, onepassword.WithServiceAccountToken(cfg.serviceAccountToken))
@@ -91,6 +96,12 @@ var newOnePasswordItemsClient = func(ctx context.Context, cfg onePasswordConfig)
 	}
 
 	return client.Items(), nil
+}
+
+// OnePasswordDesktopAuthSupported reports whether this binary can use the
+// SDK's desktop app integration. Static macOS and Linux builds cannot.
+func OnePasswordDesktopAuthSupported() bool {
+	return onePasswordDesktopAuthSupported
 }
 
 func openOnePasswordKeyring(store *config.ConfigStore, serviceName string) (keyring.Keyring, error) {

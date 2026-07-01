@@ -671,9 +671,9 @@ gog calendar events --today
 
 By default `gog` uses the best OS keyring available. For headless or container
 runs, use the encrypted file backend and inject `GOG_KEYRING_PASSWORD` from the
-current shell or secret store. For local 1Password-backed storage, use the
-desktop app integration; for headless 1Password-backed storage, use a service
-account token.
+current shell or secret store. For local 1Password-backed storage, CGO-enabled
+builds can use the desktop app integration; for headless or static Linux builds,
+use a service account token.
 
 ```bash
 gog auth keyring
@@ -693,6 +693,12 @@ The equivalent `GOG_1PASSWORD_*` environment variables override config values.
 The 1Password backend stores each gog keyring entry as an API Credential item
 titled `gogcli-keyring`. The item `username` field stores the gog keyring key,
 and the concealed `credential` field stores the base64-encoded keyring payload.
+Switching backends does not migrate existing entries; export any tokens you
+need before switching, then import or re-authorize them in the new backend.
+
+Desktop app auth requires CGO on macOS and Linux. Standard macOS and Windows
+release binaries support it; the static Linux release archives do not. Use
+service-account auth with those archives, or build `gog` with CGO enabled.
 
 For systemd services, gateways, and coding agents, set the same variables on
 the service or agent process itself. A successful shell check does not mean the

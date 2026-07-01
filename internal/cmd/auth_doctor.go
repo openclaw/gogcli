@@ -236,6 +236,11 @@ func onePasswordConfigValue(envName, key string, cfgValue string) (string, strin
 func addOnePasswordAutoAuthCheck(add func(string, string, string, string), account string, accountSource string, token string) {
 	switch {
 	case account != "":
+		if !secrets.OnePasswordDesktopAuthSupported() {
+			add("keyring.1password.auth", doctorError, "desktop app auth is unavailable in this gog build", "use service-account auth or a CGO-enabled gog build")
+			return
+		}
+
 		add("keyring.1password.auth", doctorOK, "desktop app auth via "+accountSource, "keep the 1Password app running, unlocked, and configured to integrate with other apps")
 	case token != "":
 		add("keyring.1password.auth", doctorOK, "service-account auth via "+secrets.OnePasswordServiceAccountEnv, "")
@@ -245,6 +250,11 @@ func addOnePasswordAutoAuthCheck(add func(string, string, string, string), accou
 }
 
 func addOnePasswordDesktopAuthCheck(add func(string, string, string, string), account string, accountSource string) {
+	if !secrets.OnePasswordDesktopAuthSupported() {
+		add("keyring.1password.auth", doctorError, "desktop app auth is unavailable in this gog build", "use service-account auth or a CGO-enabled gog build")
+		return
+	}
+
 	if account == "" {
 		add("keyring.1password.account", doctorError, secrets.OnePasswordAccountEnv+" and config onepassword_account are not set", "set the 1Password account name or UUID shown in the desktop app")
 	} else {

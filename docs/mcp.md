@@ -180,14 +180,16 @@ Docs read/write configuration:
 
 For headless services, set either `GOG_KEYRING_BACKEND=file` with
 `GOG_KEYRING_PASSWORD`, or `GOG_KEYRING_BACKEND=1password` with
-`GOG_1PASSWORD_ACCOUNT` or config `onepassword_account` for local desktop-app auth or
-`OP_SERVICE_ACCOUNT_TOKEN` for service-account auth, plus
-`GOG_1PASSWORD_VAULT` or config `onepassword_vault`, on the MCP client process or service unit. A successful
-interactive shell check does not prove the MCP client inherited those
-variables; verify through the same process manager that launches the server.
+`GOG_1PASSWORD_ACCOUNT` or config `onepassword_account` for supported local
+desktop-app auth, or `OP_SERVICE_ACCOUNT_TOKEN` for service-account auth, plus
+`GOG_1PASSWORD_VAULT` or config `onepassword_vault`, on the MCP client process
+or service unit. Desktop auth requires CGO on macOS and Linux; static Linux
+release archives must use service-account auth. A successful interactive shell
+check does not prove the MCP client inherited those variables; verify through
+the same process manager that launches the server.
 The default 1Password item title is `gogcli-keyring`; override it with
-`GOG_1PASSWORD_ITEM_TITLE` or config `onepassword_item_title` only when the MCP process should use a different
-set of API Credential items.
+`GOG_1PASSWORD_ITEM_TITLE` or config `onepassword_item_title` only when the MCP
+process should use a different set of API Credential items.
 
 ## mcporter examples
 

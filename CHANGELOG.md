@@ -2,6 +2,8 @@
 
 ## 0.32.1 - Unreleased
 
+- Auth: add a 1Password SDK-backed keyring backend for storing gog tokens, defaults, and client secrets as API Credential items in a configured vault, with desktop-app and service-account auth modes. (#894) — thanks @lox.
+
 ## 0.32.0 - 2026-07-03
 
 - Docs: add `docs suggestions list` for read-only pending text insertions and deletions, including exact UTF-16 ranges, segment context, and tab selection. (#876)
@@ -25,7 +27,6 @@
 - Evals: add reproducible structural and live Codex/OpenClaw gog/gws comparisons with correctness assertions, token/tool/latency metrics, cache-counterbalanced repetitions, methodology, and CI coverage.
 - CLI: add `GOG_HELP=agent` compact root help with common read-only recipes and targeted schema guidance so agents can execute Gmail, Calendar, and Drive tasks without traversing multiple help levels.
 - Auth: add `auth setup` for guided Google Cloud project/API preparation, OAuth client installation, and optional browser authorization.
-- Auth: add a 1Password SDK-backed keyring backend for storing gog tokens, defaults, and client secrets as API Credential items in a configured 1Password vault, with desktop-app and service-account auth modes.
 - API: add Discovery-backed `api list`, `api describe`, and scoped `api call` access for Google methods outside the first-class command surface, with dry-run plans and explicit write opt-in.
 - Safety: add global `--readonly` / `GOG_READONLY=1` runtime enforcement that blocks mutating Google and Zoom API requests before dispatch while preserving read-only query POSTs and least-privilege OAuth setup.
 - Add schema-generated service skills and curated agent workflows for inbox triage, meeting prep, attachment archival, Drive audits, weekly digests, and contact cleanup.
