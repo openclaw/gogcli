@@ -13,12 +13,14 @@ import (
 func TestUpdateStatusCmdJSON(t *testing.T) {
 	oldClient := updateHTTPClient
 	oldLatestURL := updateLatestReleaseURL
+	oldLatestWebURL := updateLatestWebURL
 	oldVersion := version
 	oldCommit := commit
 	oldDate := date
 	defer func() {
 		updateHTTPClient = oldClient
 		updateLatestReleaseURL = oldLatestURL
+		updateLatestWebURL = oldLatestWebURL
 		version = oldVersion
 		commit = oldCommit
 		date = oldDate
@@ -43,7 +45,7 @@ func TestUpdateStatusCmdJSON(t *testing.T) {
 				]
 			}`, assetName, serverURL+"/download/"+assetName, serverURL+"/checksums.txt")
 		case "/checksums.txt":
-			_, _ = fmt.Fprintf(w, "0123456789abcdef  %s\n", assetName)
+			_, _ = fmt.Fprintf(w, "%s  %s\n", strings.Repeat("a", 64), assetName)
 		default:
 			http.NotFound(w, r)
 		}
@@ -77,7 +79,7 @@ func TestUpdateStatusCmdJSON(t *testing.T) {
 	if parsed.PlatformAsset != assetName {
 		t.Fatalf("platform_asset = %q, want %q", parsed.PlatformAsset, assetName)
 	}
-	if parsed.PlatformAssetSHA256 != "0123456789abcdef" {
+	if parsed.PlatformAssetSHA256 != strings.Repeat("a", 64) {
 		t.Fatalf("platform_asset_sha256 = %q", parsed.PlatformAssetSHA256)
 	}
 	if !parsed.ChecksumAvailable {
@@ -85,13 +87,59 @@ func TestUpdateStatusCmdJSON(t *testing.T) {
 	}
 }
 
+func TestFetchAssetChecksumRejectsMalformedDigest(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = fmt.Fprintln(w, "not-a-sha256  archive.tar.gz")
+	}))
+	defer server.Close()
+
+	_, err := fetchAssetChecksum(t.Context(), server.Client(), server.URL, "archive.tar.gz")
+	if err == nil || !strings.Contains(err.Error(), "invalid checksum") {
+		t.Fatalf("expected invalid checksum error, got %v", err)
+	}
+}
+
+func TestFetchLatestGitHubReleaseFallsBackToWebRedirect(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/latest":
+			http.Error(w, "rate limited", http.StatusForbidden)
+		case "/releases/latest":
+			http.Redirect(w, r, "https://github.com/openclaw/gogcli/releases/tag/v0.31.1", http.StatusFound)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	oldWebURL := updateLatestWebURL
+	updateLatestWebURL = server.URL + "/releases/latest"
+	t.Cleanup(func() { updateLatestWebURL = oldWebURL })
+
+	release, err := fetchLatestGitHubRelease(t.Context(), server.Client(), server.URL+"/api/latest")
+	if err != nil {
+		t.Fatalf("fetch latest release: %v", err)
+	}
+	if release.TagName != "v0.31.1" || !release.SyntheticAssets {
+		t.Fatalf("unexpected fallback release: %#v", release)
+	}
+	checksum, ok := findReleaseAsset(release.Assets, "checksums.txt")
+	if !ok || checksum.BrowserDownloadURL != "https://github.com/openclaw/gogcli/releases/download/v0.31.1/checksums.txt" {
+		t.Fatalf("unexpected checksum asset: %#v", checksum)
+	}
+}
+
 func TestUpdateStatusCheckAlias(t *testing.T) {
 	oldClient := updateHTTPClient
 	oldLatestURL := updateLatestReleaseURL
+	oldLatestWebURL := updateLatestWebURL
 	oldVersion := version
 	defer func() {
 		updateHTTPClient = oldClient
 		updateLatestReleaseURL = oldLatestURL
+		updateLatestWebURL = oldLatestWebURL
 		version = oldVersion
 	}()
 	version = "v0.31.1"

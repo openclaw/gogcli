@@ -3,10 +3,13 @@ package cmd
 import (
 	"bufio"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -20,12 +23,15 @@ import (
 
 const (
 	updateDefaultLatestReleaseURL = "https://api.github.com/repos/openclaw/gogcli/releases/latest"
+	updateDefaultLatestWebURL     = "https://github.com/openclaw/gogcli/releases/latest"
 	updateDefaultTimeout          = 10 * time.Second
+	updateInstallUnknown          = "unknown"
 )
 
 var (
 	updateHTTPClient       = http.DefaultClient
 	updateLatestReleaseURL = updateDefaultLatestReleaseURL
+	updateLatestWebURL     = updateDefaultLatestWebURL
 )
 
 type UpdateCmd struct {
@@ -51,15 +57,15 @@ type updateStatusReport struct {
 	PlatformAssetSHA256 string   `json:"platform_asset_sha256,omitempty"`
 	InstallMethod       string   `json:"install_method"`
 	Executable          string   `json:"executable,omitempty"`
-	SelfUpdateSupported bool     `json:"self_update_supported"`
 	Warnings            []string `json:"warnings,omitempty"`
 }
 
 type githubRelease struct {
-	TagName string               `json:"tag_name"`
-	Name    string               `json:"name"`
-	HTMLURL string               `json:"html_url"`
-	Assets  []githubReleaseAsset `json:"assets"`
+	TagName         string               `json:"tag_name"`
+	Name            string               `json:"name"`
+	HTMLURL         string               `json:"html_url"`
+	Assets          []githubReleaseAsset `json:"assets"`
+	SyntheticAssets bool                 `json:"-"`
 }
 
 type githubReleaseAsset struct {
@@ -84,14 +90,13 @@ func buildUpdateStatusReport(ctx context.Context, timeout time.Duration) (update
 	platform := runtime.GOOS + "/" + runtime.GOARCH
 	installMethod, executable, installWarnings := detectUpdateInstallMethod()
 	report := updateStatusReport{
-		CurrentVersion:      current,
-		CurrentCommit:       strings.TrimSpace(commit),
-		CurrentDate:         strings.TrimSpace(date),
-		Platform:            platform,
-		InstallMethod:       installMethod,
-		Executable:          executable,
-		SelfUpdateSupported: installMethod == "standalone",
-		Warnings:            installWarnings,
+		CurrentVersion: current,
+		CurrentCommit:  strings.TrimSpace(commit),
+		CurrentDate:    strings.TrimSpace(date),
+		Platform:       platform,
+		InstallMethod:  installMethod,
+		Executable:     executable,
+		Warnings:       installWarnings,
 	}
 
 	client := updateClient(timeout)
@@ -116,6 +121,8 @@ func buildUpdateStatusReport(ctx context.Context, timeout time.Duration) (update
 		report.PlatformAsset = assetName
 		if asset, ok := findReleaseAsset(release.Assets, assetName); ok {
 			report.PlatformAssetURL = asset.BrowserDownloadURL
+		} else if release.SyntheticAssets {
+			report.PlatformAssetURL = updateReleaseAssetURL(release.TagName, assetName)
 		} else {
 			report.Warnings = append(report.Warnings, "no release asset found for "+platform)
 		}
@@ -161,7 +168,6 @@ func writeUpdateStatusText(ctx context.Context, report updateStatusReport) {
 		u.Out().Linef("platform_asset_sha256\t%s", report.PlatformAssetSHA256)
 	}
 	u.Out().Linef("install_method\t%s", report.InstallMethod)
-	u.Out().Linef("self_update_supported\t%t", report.SelfUpdateSupported)
 	for _, warning := range report.Warnings {
 		u.Out().Linef("warning\t%s", warning)
 	}
@@ -184,10 +190,72 @@ func updateClient(timeout time.Duration) *http.Client {
 
 func fetchLatestGitHubRelease(ctx context.Context, client *http.Client, url string) (githubRelease, error) {
 	var release githubRelease
-	if err := fetchUpdateJSON(ctx, client, url, &release); err != nil {
-		return githubRelease{}, fmt.Errorf("fetch latest release: %w", err)
+	apiErr := fetchUpdateJSON(ctx, client, url, &release)
+	if apiErr == nil {
+		return release, nil
 	}
-	return release, nil
+
+	fallback, fallbackErr := fetchLatestGitHubReleaseRedirect(ctx, client, updateLatestWebURL)
+	if fallbackErr != nil {
+		return githubRelease{}, fmt.Errorf("fetch latest release: API: %v; web fallback: %w", apiErr, fallbackErr)
+	}
+	return fallback, nil
+}
+
+func fetchLatestGitHubReleaseRedirect(ctx context.Context, client *http.Client, latestURL string) (githubRelease, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, latestURL, nil)
+	if err != nil {
+		return githubRelease{}, err
+	}
+	req.Header.Set("User-Agent", "gogcli/"+resolvedVersion())
+
+	redirectClient := *client
+	redirectClient.CheckRedirect = func(_ *http.Request, _ []*http.Request) error {
+		return http.ErrUseLastResponse
+	}
+	resp, err := redirectClient.Do(req)
+	if err != nil {
+		return githubRelease{}, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 300 || resp.StatusCode >= 400 {
+		return githubRelease{}, fmt.Errorf("github returned %s", resp.Status)
+	}
+
+	location := strings.TrimSpace(resp.Header.Get("Location"))
+	if location == "" {
+		return githubRelease{}, fmt.Errorf("github redirect did not include Location")
+	}
+	resolved, err := req.URL.Parse(location)
+	if err != nil {
+		return githubRelease{}, fmt.Errorf("parse github redirect: %w", err)
+	}
+	if !strings.EqualFold(resolved.Hostname(), "github.com") {
+		return githubRelease{}, fmt.Errorf("unexpected github redirect host %q", resolved.Hostname())
+	}
+	const tagPath = "/openclaw/gogcli/releases/tag/"
+	if !strings.HasPrefix(resolved.EscapedPath(), tagPath) {
+		return githubRelease{}, fmt.Errorf("unexpected github release redirect path %q", resolved.EscapedPath())
+	}
+	tag, err := url.PathUnescape(strings.TrimPrefix(resolved.EscapedPath(), tagPath))
+	if err != nil || tag == "" || strings.Contains(tag, "/") {
+		return githubRelease{}, fmt.Errorf("invalid github release tag in redirect")
+	}
+
+	return githubRelease{
+		TagName:         tag,
+		HTMLURL:         resolved.String(),
+		SyntheticAssets: true,
+		Assets: []githubReleaseAsset{{
+			Name:               "checksums.txt",
+			BrowserDownloadURL: updateReleaseAssetURL(tag, "checksums.txt"),
+		}},
+	}, nil
+}
+
+func updateReleaseAssetURL(tag string, assetName string) string {
+	return "https://github.com/openclaw/gogcli/releases/download/" +
+		url.PathEscape(tag) + "/" + url.PathEscape(assetName)
 }
 
 func fetchUpdateJSON(ctx context.Context, client *http.Client, url string, dst any) error {
@@ -232,7 +300,7 @@ func fetchAssetChecksum(ctx context.Context, client *http.Client, url string, as
 		return "", fmt.Errorf("fetch checksums.txt: github returned %s", resp.Status)
 	}
 
-	scanner := bufio.NewScanner(resp.Body)
+	scanner := bufio.NewScanner(io.LimitReader(resp.Body, 1<<20))
 	for scanner.Scan() {
 		fields := strings.Fields(scanner.Text())
 		if len(fields) < 2 {
@@ -240,7 +308,12 @@ func fetchAssetChecksum(ctx context.Context, client *http.Client, url string, as
 		}
 		name := strings.TrimPrefix(fields[len(fields)-1], "*")
 		if name == assetName {
-			return fields[0], nil
+			sum := strings.ToLower(fields[0])
+			decoded, decodeErr := hex.DecodeString(sum)
+			if decodeErr != nil || len(decoded) != sha256.Size {
+				return "", fmt.Errorf("invalid checksum for %s in checksums.txt", assetName)
+			}
+			return sum, nil
 		}
 	}
 	if err := scanner.Err(); err != nil {
@@ -337,7 +410,7 @@ func releaseVersionParts(value string) ([]int, bool) {
 func detectUpdateInstallMethod() (method string, executable string, warnings []string) {
 	exe, err := os.Executable()
 	if err != nil {
-		return trackingUnknown, "", []string{"could not determine executable path: " + err.Error()}
+		return updateInstallUnknown, "", []string{"could not determine executable path: " + err.Error()}
 	}
 	resolved := exe
 	if resolvedExe, evalErr := filepath.EvalSymlinks(exe); evalErr == nil {

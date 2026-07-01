@@ -2,6 +2,7 @@
 
 ## 0.31.2 - Unreleased
 
+- CLI: add read-only `update status` / `update check` release metadata, platform asset, checksum, and install-method reporting. (#882) — thanks @titus7490.
 - Docs: add `docs format --spacing-mode` for setting paragraph spacing collapse behavior alongside `--space-above` and `--space-below`. (#885) — thanks @odyssey4me.
 
 ## 0.31.1 - 2026-06-26
