@@ -118,12 +118,15 @@ func newPersistingTokenSource(base oauth2.TokenSource, store secrets.Store, clie
 }
 
 func (p *persistingTokenSource) Token() (*oauth2.Token, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
 	t, err := p.base.Token()
 	if err != nil {
 		return nil, fmt.Errorf("base token source: %w", err)
 	}
 
-	return p.persistToken(t)
+	return p.persistTokenLocked(t)
 }
 
 func (p *persistingTokenSource) ForceRefresh(ctx context.Context) error {
@@ -132,25 +135,25 @@ func (p *persistingTokenSource) ForceRefresh(ctx context.Context) error {
 		return errBaseTokenSourceCannotForceRefresh
 	}
 
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
 	t, err := refresher.ForceRefresh(ctx)
 	if err != nil {
 		return fmt.Errorf("force token refresh: %w", err)
 	}
 
-	_, err = p.persistToken(t)
+	_, err = p.persistTokenLocked(t)
 
 	return err
 }
 
-func (p *persistingTokenSource) persistToken(t *oauth2.Token) (*oauth2.Token, error) {
+func (p *persistingTokenSource) persistTokenLocked(t *oauth2.Token) (*oauth2.Token, error) {
 	if t == nil {
 		return nil, errBaseTokenSourceReturnedNilToken
 	}
 
 	refreshToken := strings.TrimSpace(t.RefreshToken)
-
-	p.mu.Lock()
-	defer p.mu.Unlock()
 
 	updated := p.tok
 	changed := false
