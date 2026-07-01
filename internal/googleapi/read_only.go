@@ -140,8 +140,8 @@ func readOnlyAuthPlatformRequest(request *http.Request) bool {
 	defer body.Close()
 
 	var payload struct {
-		OperationName  string `json:"operationName"`
-		QuerySignature string `json:"querySignature"`
+		OperationName  string `json:"operationName"`  //nolint:tagliatelle // Google wire field.
+		QuerySignature string `json:"querySignature"` //nolint:tagliatelle // Google wire field.
 		Query          string `json:"query"`
 	}
 	if err = json.NewDecoder(io.LimitReader(body, 64<<10)).Decode(&payload); err != nil {

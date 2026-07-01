@@ -77,6 +77,7 @@ type authPlatformTesterResult struct {
 	Testers       []string `json:"testers"`
 	Changed       bool     `json:"changed,omitempty"`
 	Email         string   `json:"email,omitempty"`
+	Action        string   `json:"-"`
 }
 
 func (c *AuthPlatformTestersListCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -107,7 +108,7 @@ func (c *AuthPlatformTestersAddCmd) Run(ctx context.Context, flags *RootFlags) e
 	if googleapi.ReadOnly(ctx) {
 		return fmt.Errorf("%w: auth-platform testers add", googleapi.ErrReadOnly)
 	}
-	if err := dryRunExit(ctx, flags, "auth-platform.testers.add", map[string]any{
+	if err = dryRunExit(ctx, flags, "auth-platform.testers.add", map[string]any{
 		"project": c.Project,
 		"email":   email,
 	}); err != nil {
@@ -133,6 +134,7 @@ func (c *AuthPlatformTestersAddCmd) Run(ctx context.Context, flags *RootFlags) e
 			Testers:       sortedCopy(before),
 			Changed:       false,
 			Email:         email,
+			Action:        "add",
 		})
 	}
 	after := append(append([]string(nil), before...), email)
@@ -149,6 +151,7 @@ func (c *AuthPlatformTestersAddCmd) Run(ctx context.Context, flags *RootFlags) e
 		Testers:       sortedCopy(written),
 		Changed:       true,
 		Email:         email,
+		Action:        "add",
 	})
 }
 
@@ -160,13 +163,13 @@ func (c *AuthPlatformTestersRemoveCmd) Run(ctx context.Context, flags *RootFlags
 	if googleapi.ReadOnly(ctx) {
 		return fmt.Errorf("%w: auth-platform testers remove", googleapi.ErrReadOnly)
 	}
-	if err := dryRunExit(ctx, flags, "auth-platform.testers.remove", map[string]any{
+	if err = dryRunExit(ctx, flags, "auth-platform.testers.remove", map[string]any{
 		"project": c.Project,
 		"email":   email,
 	}); err != nil {
 		return err
 	}
-	if err := confirmDestructiveChecked(ctx, flagsWithoutDryRun(flags), "remove OAuth beta/test user "+email); err != nil {
+	if err = confirmDestructiveChecked(ctx, flagsWithoutDryRun(flags), "remove OAuth beta/test user "+email); err != nil {
 		return err
 	}
 
@@ -190,6 +193,7 @@ func (c *AuthPlatformTestersRemoveCmd) Run(ctx context.Context, flags *RootFlags
 			Testers:       sortedCopy(before),
 			Changed:       false,
 			Email:         email,
+			Action:        "remove",
 		})
 	}
 	written, err := client.setTesters(ctx, c.Project, projectNumber, after)
@@ -205,6 +209,7 @@ func (c *AuthPlatformTestersRemoveCmd) Run(ctx context.Context, flags *RootFlags
 		Testers:       sortedCopy(written),
 		Changed:       true,
 		Email:         email,
+		Action:        "remove",
 	})
 }
 
@@ -255,17 +260,15 @@ func (c *authPlatformClient) resolveProjectNumber(ctx context.Context, project s
 		return "", &googleapi.HTTPStatusError{Code: resp.StatusCode, Status: resp.Status, Err: fmt.Errorf("project lookup failed: %s", strings.TrimSpace(string(raw)))}
 	}
 	var parsed struct {
-		ProjectNumber json.Number `json:"projectNumber"`
+		ProjectNumber string `json:"projectNumber"`
 	}
-	dec := json.NewDecoder(bytes.NewReader(raw))
-	dec.UseNumber()
-	if err := dec.Decode(&parsed); err != nil {
+	if err := json.Unmarshal(raw, &parsed); err != nil {
 		return "", fmt.Errorf("decode project lookup response: %w", err)
 	}
-	if parsed.ProjectNumber.String() == "" {
+	if parsed.ProjectNumber == "" {
 		return "", fmt.Errorf("project lookup response did not include projectNumber")
 	}
-	return parsed.ProjectNumber.String(), nil
+	return parsed.ProjectNumber, nil
 }
 
 func (c *authPlatformClient) listTesters(ctx context.Context, project string, projectNumber string) ([]string, error) {
@@ -365,11 +368,11 @@ func (c *authPlatformClient) call(ctx context.Context, project string, operation
 	if len(envelope) == 0 || len(envelope[0].Results) == 0 {
 		return fmt.Errorf("auth-platform %s response did not include results", operation)
 	}
-	if len(envelope[0].Error) > 0 && string(envelope[0].Error) != "null" {
+	if len(envelope[0].Error) > 0 && string(envelope[0].Error) != jsonNullLiteral {
 		return fmt.Errorf("auth-platform %s error: %s", operation, string(envelope[0].Error))
 	}
 	result := envelope[0].Results[0]
-	if len(result.Error) > 0 && string(result.Error) != "null" {
+	if len(result.Error) > 0 && string(result.Error) != jsonNullLiteral {
 		return fmt.Errorf("auth-platform %s error: %s", operation, string(result.Error))
 	}
 	if err := json.Unmarshal(result.Data, out); err != nil {
@@ -472,7 +475,11 @@ func writeAuthPlatformTesterResult(ctx context.Context, result authPlatformTeste
 	}
 	if result.Email != "" {
 		if result.Changed {
-			fmt.Fprintf(stdoutWriter(ctx), "Updated OAuth beta/test users for %s; %s is present\n", result.Project, result.Email)
+			state := "present"
+			if result.Action == "remove" {
+				state = "absent"
+			}
+			fmt.Fprintf(stdoutWriter(ctx), "Updated OAuth beta/test users for %s; %s is %s\n", result.Project, result.Email, state)
 		} else {
 			fmt.Fprintf(stdoutWriter(ctx), "OAuth beta/test users for %s already matched requested state for %s\n", result.Project, result.Email)
 		}

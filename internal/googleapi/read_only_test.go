@@ -119,10 +119,12 @@ func TestReadOnlyAuthPlatformPOSTRequiresExactReadOperation(t *testing.T) {
 	const endpoint = "https://cloudconsole-pa.clients6.google.com/v3/entityServices/OauthEntityService/schemas/OAUTH_GRAPHQL:batchGraphql"
 
 	allowedBody := []byte(`{"operationName":"GetTrustedUserList","querySignature":"2/MOTEiszs0jB3+r4gNdOqOHc6zxU1rHoLGwOZgzGJWNo=","query":"query GetTrustedUserList($projectNumber: Int64Value!) { getTrustedUserList(projectNumber: $projectNumber) { userAccount } }"}`)
+
 	allowed, err := http.NewRequestWithContext(context.Background(), http.MethodPost, endpoint, bytes.NewReader(allowedBody))
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	if !ReadOnlyRequestAllowed(allowed) {
 		t.Fatal("exact Auth Platform read query unexpectedly blocked")
 	}
@@ -137,6 +139,7 @@ func TestReadOnlyAuthPlatformPOSTRequiresExactReadOperation(t *testing.T) {
 		if requestErr != nil {
 			t.Fatal(requestErr)
 		}
+
 		if ReadOnlyRequestAllowed(request) {
 			t.Fatalf("Auth Platform mutation or malformed query unexpectedly allowed: %s", body)
 		}

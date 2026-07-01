@@ -8,6 +8,8 @@ import (
 	"google.golang.org/api/calendar/v3"
 )
 
+const jsonNullLiteral = "null"
+
 type eventWithDays struct {
 	*calendar.Event
 	StartDayOfWeek string `json:"startDayOfWeek,omitempty"`
@@ -20,7 +22,7 @@ type eventWithDays struct {
 
 func (e *eventWithDays) MarshalJSON() ([]byte, error) {
 	if e == nil {
-		return []byte("null"), nil
+		return []byte(jsonNullLiteral), nil
 	}
 	return marshalCalendarEventWithFields(e.Event, map[string]string{
 		"startDayOfWeek": e.StartDayOfWeek,
@@ -180,7 +182,7 @@ func marshalCalendarEventWithFields(event *calendar.Event, fields map[string]str
 		if err != nil {
 			return nil, err
 		}
-		if string(data) != "null" {
+		if string(data) != jsonNullLiteral {
 			if err := json.Unmarshal(data, &raw); err != nil {
 				return nil, err
 			}

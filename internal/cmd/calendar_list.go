@@ -96,7 +96,7 @@ type eventWithCalendar struct {
 
 func (e *eventWithCalendar) MarshalJSON() ([]byte, error) {
 	if e == nil {
-		return []byte("null"), nil
+		return []byte(jsonNullLiteral), nil
 	}
 	return marshalCalendarEventWithFields(e.Event, map[string]string{
 		"CalendarID":     e.CalendarID,

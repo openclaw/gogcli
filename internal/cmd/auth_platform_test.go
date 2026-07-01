@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -95,7 +96,8 @@ func TestAuthPlatformTestersRemovePreservesOthers(t *testing.T) {
 	server := authPlatformTestServer(t, &state)
 	t.Setenv("GOG_AUTH_PLATFORM_BASE_URL", server.URL)
 
-	ctx := newCmdRuntimeOutputContext(t, io.Discard, io.Discard)
+	var out strings.Builder
+	ctx := newCmdRuntimeOutputContext(t, &out, io.Discard)
 	ctx = authclient.WithAccessToken(ctx, "token")
 	cmd := &AuthPlatformTestersRemoveCmd{
 		authPlatformProjectFlags: authPlatformProjectFlags{Project: "arc-forge-console", ProjectNumber: "35664692003"},
@@ -106,6 +108,26 @@ func TestAuthPlatformTestersRemovePreservesOthers(t *testing.T) {
 	}
 	if containsEmailFold(state, "remove@example.com") || !containsEmailFold(state, "existing@example.com") {
 		t.Fatalf("state = %#v", state)
+	}
+	if !strings.Contains(out.String(), "remove@example.com is absent") {
+		t.Fatalf("remove output = %q", out.String())
+	}
+}
+
+func TestAuthPlatformResolveProjectNumberString(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{"projectNumber":"150473031208"}`)
+	}))
+	t.Cleanup(server.Close)
+
+	client := &authPlatformClient{httpClient: server.Client(), crmBaseURL: server.URL}
+	got, err := client.resolveProjectNumber(context.Background(), "my-project", "")
+	if err != nil {
+		t.Fatalf("resolveProjectNumber: %v", err)
+	}
+	if got != "150473031208" {
+		t.Fatalf("project number = %q", got)
 	}
 }
 
