@@ -65,45 +65,42 @@ func newResettableOAuthTokenSource(newSource func(*oauth2.Token) oauth2.TokenSou
 
 func (r *resettableOAuthTokenSource) Token() (*oauth2.Token, error) {
 	r.mu.Lock()
-	source := r.source
-	r.mu.Unlock()
+	defer r.mu.Unlock()
 
-	t, err := source.Token()
+	t, err := r.source.Token()
 	if err != nil {
 		return nil, fmt.Errorf("resettable oauth token source: %w", err)
 	}
 
-	r.rememberRefreshToken(t)
+	r.rememberRefreshTokenLocked(t)
 
 	return t, nil
 }
 
 func (r *resettableOAuthTokenSource) ForceRefresh(context.Context) (*oauth2.Token, error) {
 	r.mu.Lock()
+	defer r.mu.Unlock()
+
 	refreshToken := r.refreshToken
 	r.source = r.newSource(&oauth2.Token{RefreshToken: refreshToken})
-	source := r.source
-	r.mu.Unlock()
 
-	t, err := source.Token()
+	t, err := r.source.Token()
 	if err != nil {
 		return nil, fmt.Errorf("resettable oauth token source refresh: %w", err)
 	}
 
-	r.rememberRefreshToken(t)
+	r.rememberRefreshTokenLocked(t)
 
 	return t, nil
 }
 
-func (r *resettableOAuthTokenSource) rememberRefreshToken(t *oauth2.Token) {
+func (r *resettableOAuthTokenSource) rememberRefreshTokenLocked(t *oauth2.Token) {
 	if t == nil {
 		return
 	}
 
 	if refreshToken := strings.TrimSpace(t.RefreshToken); refreshToken != "" {
-		r.mu.Lock()
 		r.refreshToken = refreshToken
-		r.mu.Unlock()
 	}
 }
 

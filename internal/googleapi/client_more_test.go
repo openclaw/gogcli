@@ -29,6 +29,12 @@ var (
 	errNope = errors.New("nope")
 )
 
+type tokenSourceFunc func() (*oauth2.Token, error)
+
+func (f tokenSourceFunc) Token() (*oauth2.Token, error) {
+	return f()
+}
+
 type stubStore struct {
 	lastClient string
 	lastEmail  string
@@ -400,6 +406,56 @@ func TestPersistingTokenSource_ConcurrentTokenCalls(t *testing.T) {
 
 	if store.setCalls != callers {
 		t.Fatalf("SetToken calls = %d, want %d", store.setCalls, callers)
+	}
+}
+
+func TestResettableOAuthTokenSourceSerializesRefreshWithTokenRead(t *testing.T) {
+	t.Parallel()
+
+	started := make(chan struct{})
+	release := make(chan struct{})
+	var newSourceCalls int
+	source := newResettableOAuthTokenSource(func(token *oauth2.Token) oauth2.TokenSource {
+		newSourceCalls++
+		if newSourceCalls == 1 {
+			return tokenSourceFunc(func() (*oauth2.Token, error) {
+				close(started)
+				<-release
+
+				return &oauth2.Token{AccessToken: "stale", RefreshToken: token.RefreshToken}, nil
+			})
+		}
+
+		return oauth2.StaticTokenSource(&oauth2.Token{AccessToken: "fresh", RefreshToken: token.RefreshToken})
+	}, &oauth2.Token{RefreshToken: "refresh"})
+
+	readDone := make(chan error, 1)
+	go func() {
+		_, err := source.Token()
+		readDone <- err
+	}()
+	<-started
+
+	refreshDone := make(chan error, 1)
+	go func() {
+		_, err := source.ForceRefresh(context.Background())
+		refreshDone <- err
+	}()
+
+	close(release)
+	if err := <-readDone; err != nil {
+		t.Fatalf("read token: %v", err)
+	}
+	if err := <-refreshDone; err != nil {
+		t.Fatalf("force refresh: %v", err)
+	}
+
+	token, err := source.Token()
+	if err != nil {
+		t.Fatalf("read refreshed token: %v", err)
+	}
+	if token.AccessToken != "fresh" {
+		t.Fatalf("access token = %q, want fresh", token.AccessToken)
 	}
 }
 

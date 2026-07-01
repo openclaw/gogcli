@@ -288,16 +288,26 @@ func responseIndicatesInsufficientScopes(resp *http.Response) (bool, error) {
 	}
 
 	bodyBytes, err := io.ReadAll(io.LimitReader(resp.Body, maxAuthRetryResponseBodyBytes+1))
-	_ = resp.Body.Close()
-	resp.Body = io.NopCloser(bytes.NewReader(bodyBytes))
-
 	if err != nil {
+		resp.Body = struct {
+			io.Reader
+			io.Closer
+		}{Reader: io.MultiReader(bytes.NewReader(bodyBytes), resp.Body), Closer: resp.Body}
+
 		return false, fmt.Errorf("read auth failure response: %w", err)
 	}
 
 	if int64(len(bodyBytes)) > maxAuthRetryResponseBodyBytes {
+		resp.Body = struct {
+			io.Reader
+			io.Closer
+		}{Reader: io.MultiReader(bytes.NewReader(bodyBytes), resp.Body), Closer: resp.Body}
+
 		return false, nil
 	}
+
+	_ = resp.Body.Close()
+	resp.Body = io.NopCloser(bytes.NewReader(bodyBytes))
 
 	text := strings.ToLower(string(bodyBytes))
 	normalized := strings.NewReplacer("_", " ", "-", " ").Replace(text)

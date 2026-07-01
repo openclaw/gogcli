@@ -394,6 +394,30 @@ func TestRetryTransportDoesNotRefreshAuthForNonReplayableInsufficientScope403(t 
 	}
 }
 
+func TestResponseIndicatesInsufficientScopesPreservesOversizedUnknownLengthBody(t *testing.T) {
+	want := strings.Repeat("x", int(maxAuthRetryResponseBodyBytes)+128)
+	resp := newTestResponse(http.StatusForbidden, want)
+	resp.ContentLength = -1
+
+	insufficient, err := responseIndicatesInsufficientScopes(resp)
+	if err != nil {
+		t.Fatalf("detect insufficient scopes: %v", err)
+	}
+	if insufficient {
+		t.Fatal("oversized response should not trigger an auth retry")
+	}
+
+	got, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("read preserved response: %v", err)
+	}
+	_ = resp.Body.Close()
+
+	if string(got) != want {
+		t.Fatalf("response body was not preserved: got %d bytes, want %d", len(got), len(want))
+	}
+}
+
 func TestRetryTransportCircuitBreakerOpen(t *testing.T) {
 	calls := 0
 	base := roundTripFunc(func(req *http.Request) (*http.Response, error) {
