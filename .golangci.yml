@@ -135,6 +135,12 @@ linters:
       - linters:
           - errcheck
         text: "Error return value of .*.Close"
+      # 1Password is reached through github.com/99designs/keyring, whose
+      # backend interface does not accept caller contexts. The adapter still
+      # bounds SDK calls with an operation timeout.
+      - linters:
+          - contextcheck
+        text: "openOnePasswordKeyring"
       - linters:
           - staticcheck
         text: "QF1001"

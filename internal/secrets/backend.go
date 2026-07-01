@@ -19,6 +19,17 @@ const (
 	keyringOpenTimeoutEnv = "GOG_KEYRING_OPEN_TIMEOUT"
 )
 
+const (
+	KeyringBackendOnePassword      = "1password"
+	OnePasswordServiceAccountEnv   = "OP_SERVICE_ACCOUNT_TOKEN" //nolint:gosec // env var name, not a credential value
+	OnePasswordAuthEnv             = "GOG_1PASSWORD_AUTH"
+	OnePasswordAccountEnv          = "GOG_1PASSWORD_ACCOUNT"
+	OnePasswordVaultEnv            = "GOG_1PASSWORD_VAULT"
+	OnePasswordItemTitleEnv        = "GOG_1PASSWORD_ITEM_TITLE"
+	OnePasswordOperationTimeoutEnv = "GOG_1PASSWORD_TIMEOUT"
+	onePasswordDefaultItemTitle    = "gogcli-keyring" //nolint:gosec // 1Password item title, not a credential
+)
+
 var (
 	errNoTTY                 = errors.New("no TTY available for keyring file backend password prompt")
 	errInvalidKeyringBackend = errors.New("invalid keyring backend")
@@ -119,7 +130,7 @@ func allowedBackends(info KeyringBackendInfo) ([]keyring.BackendType, error) {
 	case "file":
 		return []keyring.BackendType{keyring.FileBackend}, nil
 	default:
-		return nil, fmt.Errorf("%w: %q (expected %s, keychain, or file)", errInvalidKeyringBackend, info.Value, keyringBackendAuto)
+		return nil, fmt.Errorf("%w: %q (expected %s, %s, file, or %s)", errInvalidKeyringBackend, info.Value, keyringBackendAuto, keyringBackendKeychain, KeyringBackendOnePassword)
 	}
 }
 
@@ -232,17 +243,21 @@ func isFileKeyring(ring keyring.Keyring) bool {
 }
 
 func openKeyringWithOptions(options OpenOptions) (keyring.Keyring, error) {
+	backendInfo, err := ResolveKeyringBackendInfoWithOptions(options)
+	if err != nil {
+		return nil, err
+	}
+
+	if backendInfo.Value == KeyringBackendOnePassword {
+		return openOnePasswordKeyring(options.Config)
+	}
+
 	// On Linux/WSL/containers, OS keychains (secret-service/kwallet) may be unavailable.
 	// In that case github.com/99designs/keyring falls back to the "file" backend,
 	// which *requires* both a directory and a password prompt function.
 	keyringDir, err := options.Layout.EnsureKeyringDir()
 	if err != nil {
 		return nil, fmt.Errorf("ensure keyring dir: %w", err)
-	}
-
-	backendInfo, err := ResolveKeyringBackendInfoWithOptions(options)
-	if err != nil {
-		return nil, err
 	}
 
 	backends, err := allowedBackends(backendInfo)

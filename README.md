@@ -671,18 +671,34 @@ gog calendar events --today
 
 By default `gog` uses the best OS keyring available. For headless or container
 runs, use the encrypted file backend and inject `GOG_KEYRING_PASSWORD` from the
-current shell or secret store.
+current shell or secret store. For local 1Password-backed storage, use the
+desktop app integration; for headless 1Password-backed storage, use a service
+account token.
 
 ```bash
 gog auth keyring
 gog auth keyring file
 GOG_KEYRING_BACKEND=file GOG_KEYRING_PASSWORD=... gog auth list --check
+
+gog auth keyring 1password
+gog config set onepassword_auth desktop
+gog config set onepassword_account 'Your 1Password account name'
+gog config set onepassword_vault <vault-id>
+gog auth list --check
 ```
+
+The equivalent `GOG_1PASSWORD_*` environment variables override config values.
+`OP_SERVICE_ACCOUNT_TOKEN` is always read from the environment, not config.
+
+The 1Password backend stores each gog keyring entry as an API Credential item
+titled `gogcli-keyring`. The item `username` field stores the gog keyring key,
+and the concealed `credential` field stores the base64-encoded keyring payload.
 
 For systemd services, gateways, and coding agents, set the same variables on
 the service or agent process itself. A successful shell check does not mean the
-agent subprocess inherited `GOG_KEYRING_PASSWORD`; verify through the actual
-agent entrypoint with `gog auth doctor --check --no-input`.
+agent subprocess inherited `GOG_KEYRING_PASSWORD`, `GOG_1PASSWORD_ACCOUNT`, or
+`OP_SERVICE_ACCOUNT_TOKEN`; verify through the actual agent entrypoint with
+`gog auth doctor --check --no-input`.
 
 Use `GOG_HOME=/persist/gogcli` to keep config, data, state, and cache under one
 portable root, or set `GOG_CONFIG_DIR`, `GOG_DATA_DIR`, `GOG_STATE_DIR`, and

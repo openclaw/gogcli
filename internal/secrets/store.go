@@ -105,7 +105,17 @@ func (s *KeyringStore) withWriteLock(fn func() error) error {
 }
 
 func verifiedSet(ring keyring.Keyring, key string, data []byte, label string) error {
-	if err := ring.Set(keyringItem(key, data)); err != nil {
+	item := keyringItem(key, data)
+
+	if trusted, ok := ring.(trustedSetKeyring); ok {
+		if err := trusted.SetTrusted(item); err != nil {
+			return fmt.Errorf("set %s: %w", label, err)
+		}
+
+		return nil
+	}
+
+	if err := ring.Set(item); err != nil {
 		return fmt.Errorf("set %s: %w", label, err)
 	}
 
@@ -127,6 +137,10 @@ func verifiedSet(ring keyring.Keyring, key string, data []byte, label string) er
 	}
 
 	return nil
+}
+
+type trustedSetKeyring interface {
+	SetTrusted(keyring.Item) error
 }
 
 func verifiedSetAlias(ring keyring.Keyring, key string, data []byte, label string) error {

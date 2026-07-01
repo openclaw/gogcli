@@ -20,6 +20,7 @@ var (
 	errTestKeychain          = errors.New("test -25308 error")
 	errTestLegacyRead        = errors.New("legacy keychain denied access")
 	errTestReadBack          = errors.New("test read-back failure")
+	errTestPlainSet          = errors.New("plain set should not be called")
 )
 
 func TestKeyringStore_ListDeleteDefault(t *testing.T) {
@@ -775,6 +776,60 @@ func TestSetTokenVerifyCatchesReadBackError(t *testing.T) {
 
 	if !strings.Contains(err.Error(), "could not read back") {
 		t.Fatalf("expected read-back error detail, got: %v", err)
+	}
+}
+
+type trustedSetTestKeyring struct {
+	setTrustedCalls int
+	setCalls        int
+	getCalls        int
+	item            keyring.Item
+}
+
+func (t *trustedSetTestKeyring) SetTrusted(item keyring.Item) error {
+	t.setTrustedCalls++
+	t.item = item
+
+	return nil
+}
+
+func (t *trustedSetTestKeyring) Get(string) (keyring.Item, error) {
+	t.getCalls++
+
+	return keyring.Item{}, errTestReadBack
+}
+
+func (t *trustedSetTestKeyring) GetMetadata(string) (keyring.Metadata, error) {
+	return keyring.Metadata{}, errTestReadBack
+}
+
+func (t *trustedSetTestKeyring) Set(keyring.Item) error {
+	t.setCalls++
+
+	return errTestPlainSet
+}
+
+func (t *trustedSetTestKeyring) Remove(string) error {
+	return keyring.ErrKeyNotFound
+}
+
+func (t *trustedSetTestKeyring) Keys() ([]string, error) {
+	return nil, nil
+}
+
+func TestVerifiedSetTrustsBackendWriteAcknowledgement(t *testing.T) {
+	ring := &trustedSetTestKeyring{}
+
+	if err := verifiedSet(ring, "test/key", []byte("value"), "secret"); err != nil {
+		t.Fatalf("verifiedSet: %v", err)
+	}
+
+	if ring.setTrustedCalls != 1 || ring.setCalls != 0 || ring.getCalls != 0 {
+		t.Fatalf("unexpected calls: trusted=%d set=%d get=%d", ring.setTrustedCalls, ring.setCalls, ring.getCalls)
+	}
+
+	if ring.item.Key != "test/key" || !bytes.Equal(ring.item.Data, []byte("value")) || ring.item.Label != config.AppName {
+		t.Fatalf("unexpected trusted item: %#v", ring.item)
 	}
 }
 

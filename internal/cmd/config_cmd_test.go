@@ -122,6 +122,11 @@ func TestConfigCmd_InvalidInputIsUsageError(t *testing.T) {
 			args: []string{"config", "set", "gmail_no_send", "maybe"},
 			want: "invalid bool",
 		},
+		{
+			name: "set invalid onepassword timeout",
+			args: []string{"config", "set", "onepassword_timeout", "0s"},
+			want: "invalid onepassword_timeout",
+		},
 	}
 
 	for _, tt := range tests {

@@ -63,7 +63,7 @@ func ensureKeychainAccessIfNeeded(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("resolve keyring backend: %w", err)
 	}
-	if backendInfo.Value == strFile {
+	if backendInfo.Value == strFile || backendInfo.Value == secrets.KeyringBackendOnePassword {
 		return nil
 	}
 	if runtime, ok := app.FromContext(ctx); ok && runtime.Auth.EnsureKeychainAccess != nil {

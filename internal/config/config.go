@@ -12,16 +12,21 @@ import (
 )
 
 type File struct {
-	KeyringBackend  string            `json:"keyring_backend,omitempty"`
-	DefaultTimezone string            `json:"default_timezone,omitempty"`
-	YoutubeAPIKey   string            `json:"youtube_api_key,omitempty"`
-	PlacesAPIKey    string            `json:"places_api_key,omitempty"`
-	AccountAliases  map[string]string `json:"account_aliases,omitempty"`
-	AccountClients  map[string]string `json:"account_clients,omitempty"`
-	ClientDomains   map[string]string `json:"client_domains,omitempty"`
-	CalendarAliases map[string]string `json:"calendar_aliases,omitempty"`
-	GmailNoSend     bool              `json:"gmail_no_send,omitempty"`
-	NoSendAccounts  map[string]bool   `json:"no_send_accounts,omitempty"`
+	KeyringBackend       string            `json:"keyring_backend,omitempty"`
+	OnePasswordAuth      string            `json:"onepassword_auth,omitempty"`
+	OnePasswordAccount   string            `json:"onepassword_account,omitempty"`
+	OnePasswordVault     string            `json:"onepassword_vault,omitempty"`
+	OnePasswordItemTitle string            `json:"onepassword_item_title,omitempty"`
+	OnePasswordTimeout   string            `json:"onepassword_timeout,omitempty"`
+	DefaultTimezone      string            `json:"default_timezone,omitempty"`
+	YoutubeAPIKey        string            `json:"youtube_api_key,omitempty"`
+	PlacesAPIKey         string            `json:"places_api_key,omitempty"`
+	AccountAliases       map[string]string `json:"account_aliases,omitempty"`
+	AccountClients       map[string]string `json:"account_clients,omitempty"`
+	ClientDomains        map[string]string `json:"client_domains,omitempty"`
+	CalendarAliases      map[string]string `json:"calendar_aliases,omitempty"`
+	GmailNoSend          bool              `json:"gmail_no_send,omitempty"`
+	NoSendAccounts       map[string]bool   `json:"no_send_accounts,omitempty"`
 }
 
 var errConfigLockTimeout = errors.New("acquire config lock timeout")
