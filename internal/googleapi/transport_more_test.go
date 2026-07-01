@@ -403,6 +403,7 @@ func TestResponseIndicatesInsufficientScopesPreservesOversizedUnknownLengthBody(
 	if err != nil {
 		t.Fatalf("detect insufficient scopes: %v", err)
 	}
+
 	if insufficient {
 		t.Fatal("oversized response should not trigger an auth retry")
 	}

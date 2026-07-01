@@ -430,22 +430,27 @@ func TestResettableOAuthTokenSourceSerializesRefreshWithTokenRead(t *testing.T) 
 	}, &oauth2.Token{RefreshToken: "refresh"})
 
 	readDone := make(chan error, 1)
+
 	go func() {
 		_, err := source.Token()
 		readDone <- err
 	}()
+
 	<-started
 
 	refreshDone := make(chan error, 1)
+
 	go func() {
 		_, err := source.ForceRefresh(context.Background())
 		refreshDone <- err
 	}()
 
 	close(release)
+
 	if err := <-readDone; err != nil {
 		t.Fatalf("read token: %v", err)
 	}
+
 	if err := <-refreshDone; err != nil {
 		t.Fatalf("force refresh: %v", err)
 	}
@@ -454,6 +459,7 @@ func TestResettableOAuthTokenSourceSerializesRefreshWithTokenRead(t *testing.T) 
 	if err != nil {
 		t.Fatalf("read refreshed token: %v", err)
 	}
+
 	if token.AccessToken != "fresh" {
 		t.Fatalf("access token = %q, want fresh", token.AccessToken)
 	}
