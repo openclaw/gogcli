@@ -453,13 +453,16 @@ func TestPersistingTokenSourceSerializesTokenReadWithForceRefresh(t *testing.T) 
 	).(*persistingTokenSource)
 
 	readDone := make(chan error, 1)
+
 	go func() {
 		_, err := source.Token()
 		readDone <- err
 	}()
+
 	<-base.tokenStarted
 
 	refreshDone := make(chan error, 1)
+
 	go func() {
 		refreshDone <- source.ForceRefresh(context.Background())
 	}()
@@ -474,12 +477,15 @@ func TestPersistingTokenSourceSerializesTokenReadWithForceRefresh(t *testing.T) 
 	}
 
 	close(base.releaseToken)
+
 	if err := <-readDone; err != nil {
 		t.Fatalf("read token: %v", err)
 	}
+
 	if err := <-refreshDone; err != nil {
 		t.Fatalf("force refresh: %v", err)
 	}
+
 	if store.lastSet.AccessToken != "fresh" {
 		t.Fatalf("persisted access token = %q, want fresh", store.lastSet.AccessToken)
 	}
