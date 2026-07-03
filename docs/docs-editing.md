@@ -512,9 +512,11 @@ gog docs suggestions list <docId> --tab "Review" --json
 
 The command requests Google's inline suggestions view and reports each
 suggestion ID, insertion/deletion kind, UTF-16 range, text, and document
-segment. Contiguous runs for the same suggestion are combined. The current
-surface intentionally excludes style-only suggestions and accept/reject
-mutation. Google Docs API responses do not expose suggestion authors.
+segment. Contiguous runs for the same suggestion are combined, and structural
+suggestions on tables, rows, cells, and tables of contents are carried into
+their nested text. The current surface intentionally excludes style-only
+suggestions and accept/reject mutation. Google Docs API responses do not expose
+suggestion authors.
 
 Command page:
 

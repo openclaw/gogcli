@@ -145,8 +145,8 @@ func collectDocsSuggestionSegment(
 	content []*docs.StructuralElement,
 ) {
 	lastByKey := make(map[string]int)
-	var walk func([]*docs.StructuralElement)
-	walk = func(elements []*docs.StructuralElement) {
+	var walk func([]*docs.StructuralElement, []string, []string)
+	walk = func(elements []*docs.StructuralElement, insertionIDs, deletionIDs []string) {
 		for _, element := range elements {
 			if element == nil {
 				continue
@@ -156,22 +156,47 @@ func collectDocsSuggestionSegment(
 					if paragraphElement == nil || paragraphElement.TextRun == nil {
 						continue
 					}
-					appendDocsSuggestionRuns(items, lastByKey, segment, paragraphElement)
+					appendDocsSuggestionRuns(
+						items,
+						lastByKey,
+						segment,
+						paragraphElement,
+						insertionIDs,
+						deletionIDs,
+					)
 				}
 			}
 			if element.Table != nil {
+				tableInsertions := mergeDocsSuggestionIDs(insertionIDs, element.Table.SuggestedInsertionIds)
+				tableDeletions := mergeDocsSuggestionIDs(deletionIDs, element.Table.SuggestedDeletionIds)
 				for _, row := range element.Table.TableRows {
+					if row == nil {
+						continue
+					}
+					rowInsertions := mergeDocsSuggestionIDs(tableInsertions, row.SuggestedInsertionIds)
+					rowDeletions := mergeDocsSuggestionIDs(tableDeletions, row.SuggestedDeletionIds)
 					for _, cell := range row.TableCells {
-						walk(cell.Content)
+						if cell == nil {
+							continue
+						}
+						walk(
+							cell.Content,
+							mergeDocsSuggestionIDs(rowInsertions, cell.SuggestedInsertionIds),
+							mergeDocsSuggestionIDs(rowDeletions, cell.SuggestedDeletionIds),
+						)
 					}
 				}
 			}
 			if element.TableOfContents != nil {
-				walk(element.TableOfContents.Content)
+				walk(
+					element.TableOfContents.Content,
+					mergeDocsSuggestionIDs(insertionIDs, element.TableOfContents.SuggestedInsertionIds),
+					mergeDocsSuggestionIDs(deletionIDs, element.TableOfContents.SuggestedDeletionIds),
+				)
 			}
 		}
 	}
-	walk(content)
+	walk(content, nil, nil)
 }
 
 func appendDocsSuggestionRuns(
@@ -179,6 +204,8 @@ func appendDocsSuggestionRuns(
 	lastByKey map[string]int,
 	segment string,
 	element *docs.ParagraphElement,
+	inheritedInsertionIDs []string,
+	inheritedDeletionIDs []string,
 ) {
 	appendIDs := func(kind string, ids []string) {
 		for _, id := range sortedUniqueStrings(ids) {
@@ -200,8 +227,16 @@ func appendDocsSuggestionRuns(
 		}
 	}
 
-	appendIDs("insertion", element.TextRun.SuggestedInsertionIds)
-	appendIDs("deletion", element.TextRun.SuggestedDeletionIds)
+	appendIDs("insertion", mergeDocsSuggestionIDs(inheritedInsertionIDs, element.TextRun.SuggestedInsertionIds))
+	appendIDs("deletion", mergeDocsSuggestionIDs(inheritedDeletionIDs, element.TextRun.SuggestedDeletionIds))
+}
+
+func mergeDocsSuggestionIDs(groups ...[]string) []string {
+	var values []string
+	for _, group := range groups {
+		values = append(values, group...)
+	}
+	return sortedUniqueStrings(values)
 }
 
 func sortedUniqueStrings(values []string) []string {

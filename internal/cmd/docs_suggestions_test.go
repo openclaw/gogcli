@@ -15,7 +15,8 @@ import (
 func TestEnumerateDocsSuggestions(t *testing.T) {
 	t.Parallel()
 
-	tableCellContent := suggestionContent(10, 14, "cell", "table", nil)
+	tableCellContent := suggestionContent(10, 14, "cell", "table-run")
+	tocContent := suggestionContent(20, 23, "toc", "toc-run")
 	doc := &docs.Document{
 		Body: &docs.Body{Content: []*docs.StructuralElement{
 			{
@@ -35,14 +36,24 @@ func TestEnumerateDocsSuggestions(t *testing.T) {
 				}},
 			},
 			{
-				Table: &docs.Table{TableRows: []*docs.TableRow{{
-					TableCells: []*docs.TableCell{{Content: tableCellContent}},
+				Table: &docs.Table{SuggestedInsertionIds: []string{"table-structure"}, TableRows: []*docs.TableRow{{
+					SuggestedDeletionIds: []string{"row-structure"},
+					TableCells: []*docs.TableCell{{
+						Content:               tableCellContent,
+						SuggestedInsertionIds: []string{"cell-structure", "table-structure"},
+					}},
 				}}},
+			},
+			{
+				TableOfContents: &docs.TableOfContents{
+					Content:              tocContent,
+					SuggestedDeletionIds: []string{"toc-structure"},
+				},
 			},
 		}},
 		Headers: map[string]docs.Header{
-			"z": {Content: suggestionContent(3, 5, "zz", "header-z", nil)},
-			"a": {Content: suggestionContent(1, 3, "aa", "header-a", nil)},
+			"z": {Content: suggestionContent(3, 5, "zz", "header-z")},
+			"a": {Content: suggestionContent(1, 3, "aa", "header-a")},
 		},
 	}
 
@@ -51,7 +62,12 @@ func TestEnumerateDocsSuggestions(t *testing.T) {
 		{SuggestionID: "insert", Kind: "insertion", Segment: "body", StartIndex: 1, EndIndex: 6, Text: "hello"},
 		{SuggestionID: "nested", Kind: "insertion", Segment: "body", StartIndex: 1, EndIndex: 4, Text: "hel"},
 		{SuggestionID: "delete", Kind: "deletion", Segment: "body", StartIndex: 6, EndIndex: 7, Text: "!"},
-		{SuggestionID: "table", Kind: "insertion", Segment: "body", StartIndex: 10, EndIndex: 14, Text: "cell"},
+		{SuggestionID: "cell-structure", Kind: "insertion", Segment: "body", StartIndex: 10, EndIndex: 14, Text: "cell"},
+		{SuggestionID: "table-run", Kind: "insertion", Segment: "body", StartIndex: 10, EndIndex: 14, Text: "cell"},
+		{SuggestionID: "table-structure", Kind: "insertion", Segment: "body", StartIndex: 10, EndIndex: 14, Text: "cell"},
+		{SuggestionID: "row-structure", Kind: "deletion", Segment: "body", StartIndex: 10, EndIndex: 14, Text: "cell"},
+		{SuggestionID: "toc-run", Kind: "insertion", Segment: "body", StartIndex: 20, EndIndex: 23, Text: "toc"},
+		{SuggestionID: "toc-structure", Kind: "deletion", Segment: "body", StartIndex: 20, EndIndex: 23, Text: "toc"},
 		{SuggestionID: "header-a", Kind: "insertion", Segment: "header:a", StartIndex: 1, EndIndex: 3, Text: "aa"},
 		{SuggestionID: "header-z", Kind: "insertion", Segment: "header:z", StartIndex: 3, EndIndex: 5, Text: "zz"},
 	}
@@ -191,14 +207,13 @@ func TestDocsSuggestionsList_EmptyDocID(t *testing.T) {
 	}
 }
 
-func suggestionContent(start, end int64, text, insertionID string, deletionIDs []string) []*docs.StructuralElement {
+func suggestionContent(start, end int64, text, insertionID string) []*docs.StructuralElement {
 	run := &docs.ParagraphElement{
 		StartIndex: start,
 		EndIndex:   end,
 		TextRun: &docs.TextRun{
 			Content:               text,
 			SuggestedInsertionIds: []string{insertionID},
-			SuggestedDeletionIds:  deletionIDs,
 		},
 	}
 	return []*docs.StructuralElement{{Paragraph: &docs.Paragraph{Elements: []*docs.ParagraphElement{run}}}}
