@@ -76,6 +76,97 @@ func TestEnumerateDocsSuggestions(t *testing.T) {
 	}
 }
 
+func TestEnumerateDocsSuggestions_NonTextParagraphElements(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		element *docs.ParagraphElement
+	}{
+		{
+			name: "auto text",
+			element: &docs.ParagraphElement{AutoText: &docs.AutoText{
+				SuggestedInsertionIds: []string{"insert"}, SuggestedDeletionIds: []string{"delete"},
+			}},
+		},
+		{
+			name: "column break",
+			element: &docs.ParagraphElement{ColumnBreak: &docs.ColumnBreak{
+				SuggestedInsertionIds: []string{"insert"}, SuggestedDeletionIds: []string{"delete"},
+			}},
+		},
+		{
+			name: "date",
+			element: &docs.ParagraphElement{DateElement: &docs.DateElement{
+				SuggestedInsertionIds: []string{"insert"}, SuggestedDeletionIds: []string{"delete"},
+			}},
+		},
+		{
+			name: "equation",
+			element: &docs.ParagraphElement{Equation: &docs.Equation{
+				SuggestedInsertionIds: []string{"insert"}, SuggestedDeletionIds: []string{"delete"},
+			}},
+		},
+		{
+			name: "footnote reference",
+			element: &docs.ParagraphElement{FootnoteReference: &docs.FootnoteReference{
+				SuggestedInsertionIds: []string{"insert"}, SuggestedDeletionIds: []string{"delete"},
+			}},
+		},
+		{
+			name: "horizontal rule",
+			element: &docs.ParagraphElement{HorizontalRule: &docs.HorizontalRule{
+				SuggestedInsertionIds: []string{"insert"}, SuggestedDeletionIds: []string{"delete"},
+			}},
+		},
+		{
+			name: "inline object",
+			element: &docs.ParagraphElement{InlineObjectElement: &docs.InlineObjectElement{
+				SuggestedInsertionIds: []string{"insert"}, SuggestedDeletionIds: []string{"delete"},
+			}},
+		},
+		{
+			name: "page break",
+			element: &docs.ParagraphElement{PageBreak: &docs.PageBreak{
+				SuggestedInsertionIds: []string{"insert"}, SuggestedDeletionIds: []string{"delete"},
+			}},
+		},
+		{
+			name: "person chip",
+			element: &docs.ParagraphElement{Person: &docs.Person{
+				SuggestedInsertionIds: []string{"insert"}, SuggestedDeletionIds: []string{"delete"},
+			}},
+		},
+		{
+			name: "rich link chip",
+			element: &docs.ParagraphElement{RichLink: &docs.RichLink{
+				SuggestedInsertionIds: []string{"insert"}, SuggestedDeletionIds: []string{"delete"},
+			}},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			tt.element.StartIndex = 4
+			tt.element.EndIndex = 5
+			doc := &docs.Document{Body: &docs.Body{Content: []*docs.StructuralElement{{
+				Paragraph: &docs.Paragraph{Elements: []*docs.ParagraphElement{tt.element}},
+			}}}}
+
+			got := enumerateDocsSuggestions(doc)
+			want := []docsSuggestionListItem{
+				{SuggestionID: "insert", Kind: "insertion", Segment: "body", StartIndex: 4, EndIndex: 5},
+				{SuggestionID: "delete", Kind: "deletion", Segment: "body", StartIndex: 4, EndIndex: 5},
+			}
+			if !reflect.DeepEqual(got, want) {
+				t.Fatalf("suggestions mismatch\n got: %#v\nwant: %#v", got, want)
+			}
+		})
+	}
+}
+
 func TestDocsSuggestionsList_JSON(t *testing.T) {
 	t.Parallel()
 

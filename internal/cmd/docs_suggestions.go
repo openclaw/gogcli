@@ -153,10 +153,10 @@ func collectDocsSuggestionSegment(
 			}
 			if element.Paragraph != nil {
 				for _, paragraphElement := range element.Paragraph.Elements {
-					if paragraphElement == nil || paragraphElement.TextRun == nil {
+					if paragraphElement == nil {
 						continue
 					}
-					appendDocsSuggestionRuns(
+					appendDocsSuggestionElement(
 						items,
 						lastByKey,
 						segment,
@@ -199,7 +199,7 @@ func collectDocsSuggestionSegment(
 	walk(content, nil, nil)
 }
 
-func appendDocsSuggestionRuns(
+func appendDocsSuggestionElement(
 	items *[]docsSuggestionListItem,
 	lastByKey map[string]int,
 	segment string,
@@ -207,12 +207,17 @@ func appendDocsSuggestionRuns(
 	inheritedInsertionIDs []string,
 	inheritedDeletionIDs []string,
 ) {
+	text, insertionIDs, deletionIDs, ok := docsParagraphElementSuggestions(element)
+	if !ok {
+		return
+	}
+
 	appendIDs := func(kind string, ids []string) {
 		for _, id := range sortedUniqueStrings(ids) {
 			key := kind + "\x00" + id
 			if index, ok := lastByKey[key]; ok && (*items)[index].EndIndex == element.StartIndex {
 				(*items)[index].EndIndex = element.EndIndex
-				(*items)[index].Text += element.TextRun.Content
+				(*items)[index].Text += text
 				continue
 			}
 			*items = append(*items, docsSuggestionListItem{
@@ -221,14 +226,51 @@ func appendDocsSuggestionRuns(
 				Segment:      segment,
 				StartIndex:   element.StartIndex,
 				EndIndex:     element.EndIndex,
-				Text:         element.TextRun.Content,
+				Text:         text,
 			})
 			lastByKey[key] = len(*items) - 1
 		}
 	}
 
-	appendIDs("insertion", mergeDocsSuggestionIDs(inheritedInsertionIDs, element.TextRun.SuggestedInsertionIds))
-	appendIDs("deletion", mergeDocsSuggestionIDs(inheritedDeletionIDs, element.TextRun.SuggestedDeletionIds))
+	appendIDs("insertion", mergeDocsSuggestionIDs(inheritedInsertionIDs, insertionIDs))
+	appendIDs("deletion", mergeDocsSuggestionIDs(inheritedDeletionIDs, deletionIDs))
+}
+
+func docsParagraphElementSuggestions(element *docs.ParagraphElement) (
+	text string,
+	insertionIDs []string,
+	deletionIDs []string,
+	ok bool,
+) {
+	switch {
+	case element.TextRun != nil:
+		return element.TextRun.Content,
+			element.TextRun.SuggestedInsertionIds,
+			element.TextRun.SuggestedDeletionIds,
+			true
+	case element.AutoText != nil:
+		return "", element.AutoText.SuggestedInsertionIds, element.AutoText.SuggestedDeletionIds, true
+	case element.ColumnBreak != nil:
+		return "", element.ColumnBreak.SuggestedInsertionIds, element.ColumnBreak.SuggestedDeletionIds, true
+	case element.DateElement != nil:
+		return "", element.DateElement.SuggestedInsertionIds, element.DateElement.SuggestedDeletionIds, true
+	case element.Equation != nil:
+		return "", element.Equation.SuggestedInsertionIds, element.Equation.SuggestedDeletionIds, true
+	case element.FootnoteReference != nil:
+		return "", element.FootnoteReference.SuggestedInsertionIds, element.FootnoteReference.SuggestedDeletionIds, true
+	case element.HorizontalRule != nil:
+		return "", element.HorizontalRule.SuggestedInsertionIds, element.HorizontalRule.SuggestedDeletionIds, true
+	case element.InlineObjectElement != nil:
+		return "", element.InlineObjectElement.SuggestedInsertionIds, element.InlineObjectElement.SuggestedDeletionIds, true
+	case element.PageBreak != nil:
+		return "", element.PageBreak.SuggestedInsertionIds, element.PageBreak.SuggestedDeletionIds, true
+	case element.Person != nil:
+		return "", element.Person.SuggestedInsertionIds, element.Person.SuggestedDeletionIds, true
+	case element.RichLink != nil:
+		return "", element.RichLink.SuggestedInsertionIds, element.RichLink.SuggestedDeletionIds, true
+	default:
+		return "", nil, nil, false
+	}
 }
 
 func mergeDocsSuggestionIDs(groups ...[]string) []string {
