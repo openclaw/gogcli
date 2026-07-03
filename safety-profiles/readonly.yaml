@@ -144,6 +144,8 @@ docs:
   info: true
   cat: true
   list-tabs: true
+  suggestions:
+    list: true
   create: false
   copy: false
   write: false

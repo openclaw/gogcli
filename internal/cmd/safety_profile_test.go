@@ -164,6 +164,35 @@ func TestBundledSafetyProfilesExposeAutomationSchema(t *testing.T) {
 	}
 }
 
+func TestBundledSafetyProfilesAllowDocsSuggestions(t *testing.T) {
+	setTestConfigHome(t)
+
+	for _, profile := range []string{"agent-safe.yaml", "readonly.yaml"} {
+		profile := profile
+		t.Run(profile, func(t *testing.T) {
+			raw, err := os.ReadFile(filepath.Join("..", "..", "safety-profiles", profile))
+			if err != nil {
+				t.Fatalf("read %s: %v", profile, err)
+			}
+			withBakedSafetyProfile(t, string(raw))
+
+			out := captureStdout(t, func() {
+				_ = captureStderr(t, func() {
+					if err := Execute([]string{"docs", "suggestions", "list", "--help"}); err != nil {
+						t.Fatalf("Execute: %v", err)
+					}
+				})
+			})
+			if !strings.Contains(out, "List pending text insertions and deletions") {
+				t.Fatalf("expected docs suggestions help in %s profile, got: %q", profile, out)
+			}
+			if strings.Contains(out, "blocked by baked safety profile") {
+				t.Fatalf("expected docs suggestions to be allowed by %s profile, got: %q", profile, out)
+			}
+		})
+	}
+}
+
 func TestReadonlySafetyProfileFiltersHelp(t *testing.T) {
 	setTestConfigHome(t)
 	raw, err := os.ReadFile(filepath.Join("..", "..", "safety-profiles", "readonly.yaml"))
