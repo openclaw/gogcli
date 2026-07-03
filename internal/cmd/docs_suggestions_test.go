@@ -189,6 +189,92 @@ func TestEnumerateDocsSuggestions_SectionBreak(t *testing.T) {
 	}
 }
 
+func TestEnumerateDocsSuggestions_PositionedObjects(t *testing.T) {
+	t.Parallel()
+
+	doc := &docs.Document{
+		Body: &docs.Body{Content: []*docs.StructuralElement{{
+			StartIndex: 10,
+			EndIndex:   20,
+			Paragraph: &docs.Paragraph{
+				PositionedObjectIds: []string{"deleted"},
+				SuggestedPositionedObjectIds: map[string]docs.ObjectReferences{
+					"insert-suggestion": {ObjectIds: []string{"inserted"}},
+				},
+			},
+		}}},
+		PositionedObjects: map[string]docs.PositionedObject{
+			"inserted": {SuggestedInsertionId: "insert-suggestion"},
+			"deleted":  {SuggestedDeletionIds: []string{"delete-suggestion"}},
+		},
+	}
+
+	got := enumerateDocsSuggestions(doc)
+	want := []docsSuggestionListItem{
+		{SuggestionID: "delete-suggestion", Kind: "deletion", Segment: "body", StartIndex: 10, EndIndex: 10},
+		{SuggestionID: "insert-suggestion", Kind: "insertion", Segment: "body", StartIndex: 10, EndIndex: 10},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("suggestions mismatch\n got: %#v\nwant: %#v", got, want)
+	}
+}
+
+func TestEnumerateDocsSuggestions_InlineObjectMap(t *testing.T) {
+	t.Parallel()
+
+	doc := &docs.Document{
+		Body: &docs.Body{Content: []*docs.StructuralElement{{
+			Paragraph: &docs.Paragraph{Elements: []*docs.ParagraphElement{{
+				StartIndex:          4,
+				EndIndex:            5,
+				InlineObjectElement: &docs.InlineObjectElement{InlineObjectId: "image"},
+			}}},
+		}}},
+		InlineObjects: map[string]docs.InlineObject{
+			"image": {
+				SuggestedInsertionId: "insert",
+				SuggestedDeletionIds: []string{"delete"},
+			},
+		},
+	}
+
+	got := enumerateDocsSuggestions(doc)
+	want := []docsSuggestionListItem{
+		{SuggestionID: "insert", Kind: "insertion", Segment: "body", StartIndex: 4, EndIndex: 5},
+		{SuggestionID: "delete", Kind: "deletion", Segment: "body", StartIndex: 4, EndIndex: 5},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("suggestions mismatch\n got: %#v\nwant: %#v", got, want)
+	}
+}
+
+func TestEnumerateDocsSuggestions_ListMap(t *testing.T) {
+	t.Parallel()
+
+	doc := &docs.Document{
+		Body: &docs.Body{Content: []*docs.StructuralElement{{
+			StartIndex: 3,
+			EndIndex:   7,
+			Paragraph:  &docs.Paragraph{Bullet: &docs.Bullet{ListId: "list"}},
+		}}},
+		Lists: map[string]docs.List{
+			"list": {
+				SuggestedInsertionId: "insert",
+				SuggestedDeletionIds: []string{"delete"},
+			},
+		},
+	}
+
+	got := enumerateDocsSuggestions(doc)
+	want := []docsSuggestionListItem{
+		{SuggestionID: "insert", Kind: "insertion", Segment: "body", StartIndex: 3, EndIndex: 3},
+		{SuggestionID: "delete", Kind: "deletion", Segment: "body", StartIndex: 3, EndIndex: 3},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("suggestions mismatch\n got: %#v\nwant: %#v", got, want)
+	}
+}
+
 func TestDocsSuggestionsList_JSON(t *testing.T) {
 	t.Parallel()
 

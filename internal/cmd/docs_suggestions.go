@@ -107,18 +107,18 @@ func enumerateDocsSuggestions(doc *docs.Document) []docsSuggestionListItem {
 	}
 
 	items := make([]docsSuggestionListItem, 0)
-	collectDocsSuggestionSegment(&items, "body", bodyContent(doc.Body))
+	collectDocsSuggestionSegment(&items, doc, "body", bodyContent(doc.Body))
 	for _, id := range sortedDocsMapKeys(doc.Headers) {
 		header := doc.Headers[id]
-		collectDocsSuggestionSegment(&items, "header:"+id, header.Content)
+		collectDocsSuggestionSegment(&items, doc, "header:"+id, header.Content)
 	}
 	for _, id := range sortedDocsMapKeys(doc.Footers) {
 		footer := doc.Footers[id]
-		collectDocsSuggestionSegment(&items, "footer:"+id, footer.Content)
+		collectDocsSuggestionSegment(&items, doc, "footer:"+id, footer.Content)
 	}
 	for _, id := range sortedDocsMapKeys(doc.Footnotes) {
 		footnote := doc.Footnotes[id]
-		collectDocsSuggestionSegment(&items, "footnote:"+id, footnote.Content)
+		collectDocsSuggestionSegment(&items, doc, "footnote:"+id, footnote.Content)
 	}
 	return items
 }
@@ -141,6 +141,7 @@ func sortedDocsMapKeys[T any](values map[string]T) []string {
 
 func collectDocsSuggestionSegment(
 	items *[]docsSuggestionListItem,
+	doc *docs.Document,
 	segment string,
 	content []*docs.StructuralElement,
 ) {
@@ -164,6 +165,14 @@ func collectDocsSuggestionSegment(
 				)
 			}
 			if element.Paragraph != nil {
+				appendDocsParagraphMapSuggestions(
+					items,
+					lastByKey,
+					doc,
+					segment,
+					element.StartIndex,
+					element.Paragraph,
+				)
 				for _, paragraphElement := range element.Paragraph.Elements {
 					if paragraphElement == nil {
 						continue
@@ -173,6 +182,7 @@ func collectDocsSuggestionSegment(
 						lastByKey,
 						segment,
 						paragraphElement,
+						doc.InlineObjects,
 						insertionIDs,
 						deletionIDs,
 					)
@@ -211,15 +221,61 @@ func collectDocsSuggestionSegment(
 	walk(content, nil, nil)
 }
 
+func appendDocsParagraphMapSuggestions(
+	items *[]docsSuggestionListItem,
+	lastByKey map[string]int,
+	doc *docs.Document,
+	segment string,
+	anchorIndex int64,
+	paragraph *docs.Paragraph,
+) {
+	if paragraph.Bullet != nil {
+		if list, ok := doc.Lists[paragraph.Bullet.ListId]; ok {
+			appendDocsSuggestionRange(
+				items,
+				lastByKey,
+				segment,
+				anchorIndex,
+				anchorIndex,
+				"",
+				[]string{list.SuggestedInsertionId},
+				list.SuggestedDeletionIds,
+			)
+		}
+	}
+
+	objectIDs := append([]string(nil), paragraph.PositionedObjectIds...)
+	for _, suggestionID := range sortedDocsMapKeys(paragraph.SuggestedPositionedObjectIds) {
+		objectIDs = append(objectIDs, paragraph.SuggestedPositionedObjectIds[suggestionID].ObjectIds...)
+	}
+	for _, objectID := range sortedUniqueStrings(objectIDs) {
+		object, ok := doc.PositionedObjects[objectID]
+		if !ok {
+			continue
+		}
+		appendDocsSuggestionRange(
+			items,
+			lastByKey,
+			segment,
+			anchorIndex,
+			anchorIndex,
+			"",
+			[]string{object.SuggestedInsertionId},
+			object.SuggestedDeletionIds,
+		)
+	}
+}
+
 func appendDocsSuggestionElement(
 	items *[]docsSuggestionListItem,
 	lastByKey map[string]int,
 	segment string,
 	element *docs.ParagraphElement,
+	inlineObjects map[string]docs.InlineObject,
 	inheritedInsertionIDs []string,
 	inheritedDeletionIDs []string,
 ) {
-	text, insertionIDs, deletionIDs, ok := docsParagraphElementSuggestions(element)
+	text, insertionIDs, deletionIDs, ok := docsParagraphElementSuggestions(element, inlineObjects)
 	if !ok {
 		return
 	}
@@ -269,7 +325,10 @@ func appendDocsSuggestionRange(
 	appendIDs("deletion", deletionIDs)
 }
 
-func docsParagraphElementSuggestions(element *docs.ParagraphElement) (
+func docsParagraphElementSuggestions(
+	element *docs.ParagraphElement,
+	inlineObjects map[string]docs.InlineObject,
+) (
 	text string,
 	insertionIDs []string,
 	deletionIDs []string,
@@ -294,7 +353,13 @@ func docsParagraphElementSuggestions(element *docs.ParagraphElement) (
 	case element.HorizontalRule != nil:
 		return "", element.HorizontalRule.SuggestedInsertionIds, element.HorizontalRule.SuggestedDeletionIds, true
 	case element.InlineObjectElement != nil:
-		return "", element.InlineObjectElement.SuggestedInsertionIds, element.InlineObjectElement.SuggestedDeletionIds, true
+		insertionIDs := element.InlineObjectElement.SuggestedInsertionIds
+		deletionIDs := element.InlineObjectElement.SuggestedDeletionIds
+		if object, ok := inlineObjects[element.InlineObjectElement.InlineObjectId]; ok {
+			insertionIDs = mergeDocsSuggestionIDs(insertionIDs, []string{object.SuggestedInsertionId})
+			deletionIDs = mergeDocsSuggestionIDs(deletionIDs, object.SuggestedDeletionIds)
+		}
+		return "", insertionIDs, deletionIDs, true
 	case element.PageBreak != nil:
 		return "", element.PageBreak.SuggestedInsertionIds, element.PageBreak.SuggestedDeletionIds, true
 	case element.Person != nil:
