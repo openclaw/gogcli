@@ -167,6 +167,28 @@ func TestEnumerateDocsSuggestions_NonTextParagraphElements(t *testing.T) {
 	}
 }
 
+func TestEnumerateDocsSuggestions_SectionBreak(t *testing.T) {
+	t.Parallel()
+
+	doc := &docs.Document{Body: &docs.Body{Content: []*docs.StructuralElement{{
+		StartIndex: 8,
+		EndIndex:   9,
+		SectionBreak: &docs.SectionBreak{
+			SuggestedInsertionIds: []string{"insert"},
+			SuggestedDeletionIds:  []string{"delete"},
+		},
+	}}}}
+
+	got := enumerateDocsSuggestions(doc)
+	want := []docsSuggestionListItem{
+		{SuggestionID: "insert", Kind: "insertion", Segment: "body", StartIndex: 8, EndIndex: 9},
+		{SuggestionID: "delete", Kind: "deletion", Segment: "body", StartIndex: 8, EndIndex: 9},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("suggestions mismatch\n got: %#v\nwant: %#v", got, want)
+	}
+}
+
 func TestDocsSuggestionsList_JSON(t *testing.T) {
 	t.Parallel()
 

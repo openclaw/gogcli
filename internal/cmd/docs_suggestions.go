@@ -151,6 +151,18 @@ func collectDocsSuggestionSegment(
 			if element == nil {
 				continue
 			}
+			if element.SectionBreak != nil {
+				appendDocsSuggestionRange(
+					items,
+					lastByKey,
+					segment,
+					element.StartIndex,
+					element.EndIndex,
+					"",
+					mergeDocsSuggestionIDs(insertionIDs, element.SectionBreak.SuggestedInsertionIds),
+					mergeDocsSuggestionIDs(deletionIDs, element.SectionBreak.SuggestedDeletionIds),
+				)
+			}
 			if element.Paragraph != nil {
 				for _, paragraphElement := range element.Paragraph.Elements {
 					if paragraphElement == nil {
@@ -211,12 +223,33 @@ func appendDocsSuggestionElement(
 	if !ok {
 		return
 	}
+	appendDocsSuggestionRange(
+		items,
+		lastByKey,
+		segment,
+		element.StartIndex,
+		element.EndIndex,
+		text,
+		mergeDocsSuggestionIDs(inheritedInsertionIDs, insertionIDs),
+		mergeDocsSuggestionIDs(inheritedDeletionIDs, deletionIDs),
+	)
+}
 
+func appendDocsSuggestionRange(
+	items *[]docsSuggestionListItem,
+	lastByKey map[string]int,
+	segment string,
+	startIndex int64,
+	endIndex int64,
+	text string,
+	insertionIDs []string,
+	deletionIDs []string,
+) {
 	appendIDs := func(kind string, ids []string) {
 		for _, id := range sortedUniqueStrings(ids) {
 			key := kind + "\x00" + id
-			if index, ok := lastByKey[key]; ok && (*items)[index].EndIndex == element.StartIndex {
-				(*items)[index].EndIndex = element.EndIndex
+			if index, ok := lastByKey[key]; ok && (*items)[index].EndIndex == startIndex {
+				(*items)[index].EndIndex = endIndex
 				(*items)[index].Text += text
 				continue
 			}
@@ -224,16 +257,16 @@ func appendDocsSuggestionElement(
 				SuggestionID: id,
 				Kind:         kind,
 				Segment:      segment,
-				StartIndex:   element.StartIndex,
-				EndIndex:     element.EndIndex,
+				StartIndex:   startIndex,
+				EndIndex:     endIndex,
 				Text:         text,
 			})
 			lastByKey[key] = len(*items) - 1
 		}
 	}
 
-	appendIDs("insertion", mergeDocsSuggestionIDs(inheritedInsertionIDs, insertionIDs))
-	appendIDs("deletion", mergeDocsSuggestionIDs(inheritedDeletionIDs, deletionIDs))
+	appendIDs("insertion", insertionIDs)
+	appendIDs("deletion", deletionIDs)
 }
 
 func docsParagraphElementSuggestions(element *docs.ParagraphElement) (
