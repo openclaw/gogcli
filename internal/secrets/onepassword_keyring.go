@@ -11,8 +11,8 @@ import (
 	"strings"
 	"time"
 
-	onepassword "github.com/1password/onepassword-sdk-go"
 	"github.com/99designs/keyring"
+	onepassword "github.com/lox/onepassword-sdk-native-go"
 
 	"github.com/steipete/gogcli/internal/config"
 )
@@ -58,8 +58,8 @@ type onePasswordItemsClient interface {
 }
 
 // retainedOnePasswordItemsClient keeps the SDK's parent Client alive. Items()
-// returns an API handle that does not retain its Client, whose finalizer releases
-// the underlying client ID (see 1Password/onepassword-sdk-go#210).
+// returns an API handle that may not retain its Client, whose finalizer releases
+// the underlying client ID.
 type retainedOnePasswordItemsClient struct {
 	items  onePasswordItemsClient
 	client *onepassword.Client

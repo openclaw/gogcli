@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	onepassword "github.com/1password/onepassword-sdk-go"
 	"github.com/99designs/keyring"
+	onepassword "github.com/lox/onepassword-sdk-native-go"
 
 	"github.com/steipete/gogcli/internal/config"
 )
