@@ -650,6 +650,11 @@ func TestDryRunE2E_CommandsSkipAuthAPIAndFileWrites(t *testing.T) {
 			op:   "sheets.validation.clear",
 		},
 		{
+			name: "sheets filter set",
+			args: []string{"sheets", "filter", "set", "sheet123", "Sheet1!A1:D10"},
+			op:   "sheets.filter.set",
+		},
+		{
 			name: "sheets copy",
 			args: []string{"sheets", "copy", "sheet123", "SmokeSheet"},
 			op:   "sheets.copy",

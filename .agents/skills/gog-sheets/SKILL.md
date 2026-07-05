@@ -41,6 +41,7 @@ gog --readonly --account user@example.com sheets get SHEET_ID 'Sheet1!A1:D20' --
 | `delete-dimension` | Delete rows or columns while preserving intersecting tables |
 | `delete-tab` | Delete a tab/sheet from a spreadsheet (use --force to skip confirmation) |
 | `export` | Export a Google Sheet (pdf\|xlsx\|csv) via Drive |
+| `filter` | Manage basic filters |
 | `find-replace` | Find and replace text across a spreadsheet |
 | `format` | Apply cell formatting to a range |
 | `freeze` | Freeze rows and columns on a sheet |

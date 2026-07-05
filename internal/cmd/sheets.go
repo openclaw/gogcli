@@ -42,6 +42,7 @@ type SheetsCmd struct {
 	Conditional   SheetsConditionalCmd     `cmd:"" name:"conditional-format" aliases:"cf,conditional-formats" help:"Manage conditional formatting rules"`
 	Validation    SheetsValidationCmd      `cmd:"" name:"validation" aliases:"data-validation,validations" help:"Manage cell data validation rules"`
 	Banding       SheetsBandingCmd         `cmd:"" name:"banding" aliases:"banded-ranges" help:"Manage alternating color banding"`
+	Filter        SheetsFilterCmd          `cmd:"" name:"filter" aliases:"filters,basic-filter,basic-filters" help:"Manage basic filters"`
 	Merge         SheetsMergeCmd           `cmd:"" name:"merge" help:"Merge cells in a range"`
 	Unmerge       SheetsUnmergeCmd         `cmd:"" name:"unmerge" help:"Unmerge cells in a range"`
 	CopyPaste     SheetsCopyPasteCmd       `cmd:"" name:"copy-paste" aliases:"fill,copy-range" help:"Copy a range's values/formulas/format to another range (tiles to fill down/across)"`

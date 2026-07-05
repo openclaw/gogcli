@@ -29,6 +29,7 @@ gog sheets (sheet) <command> [flags]
 - [gog sheets delete-dimension](gog-sheets-delete-dimension.md) - Delete rows or columns while preserving intersecting tables
 - [gog sheets delete-tab](gog-sheets-delete-tab.md) - Delete a tab/sheet from a spreadsheet (use --force to skip confirmation)
 - [gog sheets export](gog-sheets-export.md) - Export a Google Sheet (pdf|xlsx|csv) via Drive
+- [gog sheets filter](gog-sheets-filter.md) - Manage basic filters
 - [gog sheets find-replace](gog-sheets-find-replace.md) - Find and replace text across a spreadsheet
 - [gog sheets format](gog-sheets-format.md) - Apply cell formatting to a range
 - [gog sheets freeze](gog-sheets-freeze.md) - Freeze rows and columns on a sheet
