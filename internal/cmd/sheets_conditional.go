@@ -1,7 +1,9 @@
 package cmd
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"strings"
@@ -21,13 +23,14 @@ type SheetsConditionalCmd struct {
 }
 
 type SheetsConditionalAddCmd struct {
-	SpreadsheetID string `arg:"" name:"spreadsheetId" help:"Spreadsheet ID"`
-	Range         string `arg:"" name:"range" help:"A1 range with sheet name (e.g. Sheet1!A2:J)"`
-	Type          string `name:"type" required:"" help:"Rule type: text-eq|text-contains|text-starts-with|text-ends-with|number-eq|number-gt|number-gte|number-lt|number-lte|blank|not-blank|custom-formula"`
-	Expr          string `name:"expr" help:"Expression value or custom formula (omit for blank/not-blank)"`
-	FormatJSON    string `name:"format-json" required:"" help:"CellFormat JSON (inline or @file)"`
-	FormatFields  string `name:"format-fields" help:"Format field mask for force-sending zero/false fields (e.g. backgroundColor,textFormat.bold)"`
-	Index         int64  `name:"index" help:"Insert rule at this priority index" default:"0"`
+	SpreadsheetID    string `arg:"" name:"spreadsheetId" help:"Spreadsheet ID"`
+	Range            string `arg:"" name:"range" help:"A1 range with sheet name (e.g. Sheet1!A2:J)"`
+	Type             string `name:"type" help:"Boolean rule type: text-eq|text-contains|text-starts-with|text-ends-with|number-eq|number-gt|number-gte|number-lt|number-lte|blank|not-blank|custom-formula"`
+	Expr             string `name:"expr" help:"Expression value or custom formula for boolean rules (omit for blank/not-blank)"`
+	FormatJSON       string `name:"format-json" help:"CellFormat JSON for boolean rules (inline or @file)"`
+	FormatFields     string `name:"format-fields" help:"Format field mask for force-sending zero/false fields in boolean rule formats (e.g. backgroundColor,textFormat.bold)"`
+	GradientRuleJSON string `name:"gradient-rule-json" help:"GradientRule JSON for gradient conditional formats (inline or @file)"`
+	Index            int64  `name:"index" help:"Insert rule at this priority index" default:"0"`
 }
 
 func (c *SheetsConditionalAddCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -48,23 +51,60 @@ func (c *SheetsConditionalAddCmd) Run(ctx context.Context, flags *RootFlags) err
 	if err != nil {
 		return err
 	}
-	format, formatFields, err := parseConditionalFormat(c.FormatJSON, c.FormatFields, stdinReader(ctx))
-	if err != nil {
-		return err
-	}
-	conditionType, values, err := sheetsconditional.BuildCondition(strings.TrimSpace(c.Type), strings.TrimSpace(c.Expr))
-	if err != nil {
-		return sheetsConditionalPlannerError(err)
+
+	input := stdinReader(ctx)
+	useGradient := strings.TrimSpace(c.GradientRuleJSON) != ""
+	var (
+		conditionType string
+		values        []*sheets.ConditionValue
+		format        *sheets.CellFormat
+		formatFields  string
+		gradientRule  *sheets.GradientRule
+	)
+
+	if useGradient {
+		if strings.TrimSpace(c.Type) != "" ||
+			strings.TrimSpace(c.Expr) != "" ||
+			strings.TrimSpace(c.FormatJSON) != "" ||
+			strings.TrimSpace(c.FormatFields) != "" {
+			return usage("use either --gradient-rule-json or boolean rule flags (--type, --expr, --format-json, --format-fields), not both")
+		}
+		gradientRule, err = parseConditionalGradientRule(c.GradientRuleJSON, input)
+		if err != nil {
+			return err
+		}
+	} else {
+		if strings.TrimSpace(c.Type) == "" {
+			return usage("provide --type or --gradient-rule-json")
+		}
+		if strings.TrimSpace(c.FormatJSON) == "" {
+			return usage("provide --format-json for boolean conditional format rules")
+		}
+		format, formatFields, err = parseConditionalFormat(c.FormatJSON, c.FormatFields, input)
+		if err != nil {
+			return err
+		}
+		conditionType, values, err = sheetsconditional.BuildCondition(strings.TrimSpace(c.Type), strings.TrimSpace(c.Expr))
+		if err != nil {
+			return sheetsConditionalPlannerError(err)
+		}
 	}
 
-	if dryErr := dryRunExit(ctx, flags, "sheets.conditional-format.add", map[string]any{
+	dryRunRequest := map[string]any{
 		"spreadsheet_id": spreadsheetID,
 		"range":          rangeSpec,
-		"type":           conditionType,
-		"values":         values,
-		"format_fields":  formatFields,
 		"index":          c.Index,
-	}); dryErr != nil {
+	}
+	if useGradient {
+		dryRunRequest["type"] = "GRADIENT_RULE"
+		dryRunRequest["gradient_rule"] = gradientRule
+	} else {
+		dryRunRequest["type"] = conditionType
+		dryRunRequest["values"] = values
+		dryRunRequest["format_fields"] = formatFields
+	}
+
+	if dryErr := dryRunExit(ctx, flags, "sheets.conditional-format.add", dryRunRequest); dryErr != nil {
 		return dryErr
 	}
 
@@ -86,9 +126,12 @@ func (c *SheetsConditionalAddCmd) Run(ctx context.Context, flags *RootFlags) err
 	}
 
 	req := &sheets.BatchUpdateSpreadsheetRequest{
-		Requests: []*sheets.Request{
-			sheetsconditional.BuildAddRequest(gridRange, conditionType, values, format, c.Index),
-		},
+		Requests: []*sheets.Request{nil},
+	}
+	if useGradient {
+		req.Requests[0] = sheetsconditional.BuildGradientAddRequest(gridRange, gradientRule, c.Index)
+	} else {
+		req.Requests[0] = sheetsconditional.BuildAddRequest(gridRange, conditionType, values, format, c.Index)
 	}
 
 	if err := applySheetsBatchUpdate(ctx, svc, spreadsheetID, req); err != nil {
@@ -99,7 +142,7 @@ func (c *SheetsConditionalAddCmd) Run(ctx context.Context, flags *RootFlags) err
 		return outfmt.WriteJSON(ctx, stdoutWriter(ctx), map[string]any{
 			"spreadsheetId": spreadsheetID,
 			"range":         rangeSpec,
-			"type":          conditionType,
+			"type":          conditionalFormatRuleType(useGradient, conditionType),
 			"index":         c.Index,
 		})
 	}
@@ -239,6 +282,43 @@ func parseConditionalFormat(formatJSON, formatMask string, input io.Reader) (*sh
 		}
 	}
 	return &format, formatFields, nil
+}
+
+func parseConditionalGradientRule(raw string, input io.Reader) (*sheets.GradientRule, error) {
+	b, err := resolveInlineOrFileBytes(raw, input)
+	if err != nil {
+		return nil, usagef("read --gradient-rule-json: %v", err)
+	}
+	if strings.TrimSpace(string(b)) == "" {
+		return nil, usage("empty --gradient-rule-json")
+	}
+
+	var rule sheets.GradientRule
+	dec := json.NewDecoder(bytes.NewReader(b))
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&rule); err != nil {
+		return nil, usagef("invalid --gradient-rule-json: %v", err)
+	}
+
+	var extra any
+	if err := dec.Decode(&extra); err != io.EOF {
+		if err == nil {
+			return nil, usage("invalid --gradient-rule-json: multiple JSON values")
+		}
+		return nil, usagef("invalid trailing --gradient-rule-json data: %v", err)
+	}
+	if rule.Minpoint == nil || rule.Maxpoint == nil {
+		return nil, usage("--gradient-rule-json must include minpoint and maxpoint")
+	}
+
+	return &rule, nil
+}
+
+func conditionalFormatRuleType(useGradient bool, conditionType string) string {
+	if useGradient {
+		return "GRADIENT_RULE"
+	}
+	return conditionType
 }
 
 func sheetsConditionalPlannerError(err error) error {

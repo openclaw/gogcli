@@ -55,6 +55,89 @@ func TestSheetsConditionalAddBuildsRule(t *testing.T) {
 	}
 }
 
+func TestSheetsConditionalAddBuildsGradientRule(t *testing.T) {
+	ctx, flags, requests, rawRequests, _, cleanup := newSheetsAdvancedTestContext(t, sheetsAdvancedTestState{})
+	defer cleanup()
+
+	if err := runKong(t, &SheetsConditionalAddCmd{}, []string{
+		"s1", "Sheet1!B2:B10",
+		"--gradient-rule-json", `{"minpoint":{"type":"MIN","color":{"red":1,"green":1,"blue":1}},"maxpoint":{"type":"MAX","color":{"red":0.2,"green":0.7,"blue":0.2}}}`,
+		"--index", "1",
+	}, ctx, flags); err != nil {
+		t.Fatalf("conditional add gradient: %v", err)
+	}
+
+	if len(*requests) != 1 || len((*requests)[0].Requests) != 1 {
+		t.Fatalf("requests = %#v", *requests)
+	}
+	add := (*requests)[0].Requests[0].AddConditionalFormatRule
+	if add == nil || add.Rule == nil || add.Rule.GradientRule == nil || add.Rule.BooleanRule != nil {
+		t.Fatalf("missing gradient addConditionalFormatRule: %#v", (*requests)[0].Requests[0])
+	}
+	if add.Index != 1 {
+		t.Fatalf("index = %d, want 1", add.Index)
+	}
+	if add.Rule.GradientRule.Minpoint.Type != "MIN" || add.Rule.GradientRule.Maxpoint.Type != "MAX" {
+		t.Fatalf("gradient rule = %#v", add.Rule.GradientRule)
+	}
+	if got := add.Rule.Ranges[0]; got.SheetId != 0 || got.StartRowIndex != 1 || got.EndRowIndex != 10 || got.StartColumnIndex != 1 || got.EndColumnIndex != 2 {
+		t.Fatalf("range = %#v", got)
+	}
+	if !strings.Contains((*rawRequests)[0], `"gradientRule"`) {
+		t.Fatalf("request missing gradientRule: %s", (*rawRequests)[0])
+	}
+}
+
+func TestSheetsConditionalAddGradientDryRun(t *testing.T) {
+	var output bytes.Buffer
+	ctx := newCmdRuntimeJSONOutputContext(t, &output, io.Discard)
+	flags := &RootFlags{DryRun: true}
+
+	err := runKong(t, &SheetsConditionalAddCmd{}, []string{
+		"s1", "Sheet1!B2:B10",
+		"--gradient-rule-json", `{"minpoint":{"type":"MIN","color":{"red":1}},"maxpoint":{"type":"MAX","color":{"green":1}}}`,
+	}, ctx, flags)
+	if got := ExitCode(err); got != 0 {
+		t.Fatalf("expected dry-run exit 0, got %d (err=%v)", got, err)
+	}
+
+	var payload struct {
+		DryRun  bool   `json:"dry_run"`
+		Op      string `json:"op"`
+		Request struct {
+			Type         string               `json:"type"`
+			GradientRule *sheets.GradientRule `json:"gradient_rule"`
+		} `json:"request"`
+	}
+	if err := json.Unmarshal(output.Bytes(), &payload); err != nil {
+		t.Fatalf("decode dry-run: %v\nout=%s", err, output.String())
+	}
+	if !payload.DryRun ||
+		payload.Op != "sheets.conditional-format.add" ||
+		payload.Request.Type != "GRADIENT_RULE" ||
+		payload.Request.GradientRule == nil ||
+		payload.Request.GradientRule.Minpoint.Type != "MIN" {
+		t.Fatalf("dry-run payload = %#v", payload)
+	}
+}
+
+func TestSheetsConditionalAddGradientRejectsBooleanFlags(t *testing.T) {
+	ctx := newCmdRuntimeOutputContext(t, io.Discard, io.Discard)
+	flags := &RootFlags{Account: "a@b.com", DryRun: true}
+
+	err := runKong(t, &SheetsConditionalAddCmd{}, []string{
+		"s1", "Sheet1!A1",
+		"--gradient-rule-json", `{"minpoint":{"type":"MIN"},"maxpoint":{"type":"MAX"}}`,
+		"--type", "text-eq",
+	}, ctx, flags)
+	if err == nil || !strings.Contains(err.Error(), "use either --gradient-rule-json") {
+		t.Fatalf("expected mixed flag usage error, got %v", err)
+	}
+	if got := ExitCode(err); got != 2 {
+		t.Fatalf("ExitCode = %d, want 2 (err=%v)", got, err)
+	}
+}
+
 func TestSheetsConditionalAdd_InvalidFormatFieldIsUsage(t *testing.T) {
 	ctx := newCmdRuntimeOutputContext(t, io.Discard, io.Discard)
 	flags := &RootFlags{Account: "a@b.com", DryRun: true}

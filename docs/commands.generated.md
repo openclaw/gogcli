@@ -555,7 +555,7 @@ Generated from `gog schema --json`.
       - [`gog sheets (sheet) chart (charts) update (edit,set) --spec-json=STRING <spreadsheetId> <chartId>`](commands/gog-sheets-chart-update.md) - Update a chart spec
     - [`gog sheets (sheet) clear <spreadsheetId> <range>`](commands/gog-sheets-clear.md) - Clear values in a range
     - [`gog sheets (sheet) conditional-format (cf,conditional-formats) <command>`](commands/gog-sheets-conditional-format.md) - Manage conditional formatting rules
-      - [`gog sheets (sheet) conditional-format (cf,conditional-formats) add (create,new) --type=STRING --format-json=STRING <spreadsheetId> <range> [flags]`](commands/gog-sheets-conditional-format-add.md) - Add a conditional formatting rule
+      - [`gog sheets (sheet) conditional-format (cf,conditional-formats) add (create,new) <spreadsheetId> <range> [flags]`](commands/gog-sheets-conditional-format-add.md) - Add a conditional formatting rule
       - [`gog sheets (sheet) conditional-format (cf,conditional-formats) clear (delete,rm,remove) --sheet=STRING <spreadsheetId> [flags]`](commands/gog-sheets-conditional-format-clear.md) - Remove conditional formatting rules
       - [`gog sheets (sheet) conditional-format (cf,conditional-formats) list <spreadsheetId> [flags]`](commands/gog-sheets-conditional-format-list.md) - List conditional formatting rules
     - [`gog sheets (sheet) copy (cp,duplicate) <spreadsheetId> <title> [flags]`](commands/gog-sheets-copy.md) - Copy a Google Sheet

@@ -75,6 +75,22 @@ func BuildAddRequest(
 	}
 }
 
+func BuildGradientAddRequest(
+	gridRange *sheets.GridRange,
+	gradientRule *sheets.GradientRule,
+	index int64,
+) *sheets.Request {
+	return &sheets.Request{
+		AddConditionalFormatRule: &sheets.AddConditionalFormatRuleRequest{
+			Rule: &sheets.ConditionalFormatRule{
+				GradientRule: gradientRule,
+				Ranges:       []*sheets.GridRange{gridRange},
+			},
+			Index: index,
+		},
+	}
+}
+
 func RuleItems(spreadsheet *sheets.Spreadsheet, onlySheet string) []RuleItem {
 	items := make([]RuleItem, 0)
 	if spreadsheet == nil {
@@ -111,6 +127,8 @@ func RuleItems(spreadsheet *sheets.Spreadsheet, onlySheet string) []RuleItem {
 							item.Values = append(item.Values, value.UserEnteredValue)
 						}
 					}
+				} else if rule.GradientRule != nil {
+					item.Type = "GRADIENT_RULE"
 				}
 			}
 

@@ -64,6 +64,26 @@ func TestBuildAddRequest(t *testing.T) {
 	}
 }
 
+func TestBuildGradientAddRequest(t *testing.T) {
+	gridRange := &sheets.GridRange{SheetId: 7, EndRowIndex: 4, EndColumnIndex: 2}
+	gradientRule := &sheets.GradientRule{
+		Minpoint: &sheets.InterpolationPoint{Type: "MIN"},
+		Maxpoint: &sheets.InterpolationPoint{Type: "MAX"},
+	}
+	request := BuildGradientAddRequest(gridRange, gradientRule, 3)
+
+	add := request.AddConditionalFormatRule
+	if add == nil ||
+		add.Index != 3 ||
+		add.Rule == nil ||
+		add.Rule.BooleanRule != nil ||
+		add.Rule.GradientRule != gradientRule ||
+		len(add.Rule.Ranges) != 1 ||
+		add.Rule.Ranges[0] != gridRange {
+		t.Fatalf("request = %#v", request)
+	}
+}
+
 func TestRuleItems(t *testing.T) {
 	spreadsheet := &sheets.Spreadsheet{
 		Sheets: []*sheets.Sheet{{
@@ -76,17 +96,27 @@ func TestRuleItems(t *testing.T) {
 						Values: []*sheets.ConditionValue{{UserEnteredValue: "done"}},
 					},
 				},
+			}, {
+				Ranges: []*sheets.GridRange{{SheetId: 7, StartColumnIndex: 1, EndColumnIndex: 2}},
+				GradientRule: &sheets.GradientRule{
+					Minpoint: &sheets.InterpolationPoint{Type: "MIN"},
+					Maxpoint: &sheets.InterpolationPoint{Type: "MAX"},
+				},
 			}},
 		}},
 	}
 
 	items := RuleItems(spreadsheet, "")
-	if len(items) != 1 ||
+	if len(items) != 2 ||
 		items[0].SheetTitle != "Data Set" ||
 		items[0].Type != "TEXT_EQ" ||
 		len(items[0].Values) != 1 ||
 		items[0].Ranges[0] != "'Data Set'!A1:A2" {
 		t.Fatalf("items = %#v", items)
+	}
+
+	if items[1].Type != "GRADIENT_RULE" || items[1].Ranges[0] != "'Data Set'!B:B" {
+		t.Fatalf("gradient item = %#v", items[1])
 	}
 }
 

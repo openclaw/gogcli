@@ -7,7 +7,7 @@ Add a conditional formatting rule
 ## Usage
 
 ```bash
-gog sheets (sheet) conditional-format (cf,conditional-formats) add (create,new) --type=STRING --format-json=STRING <spreadsheetId> <range> [flags]
+gog sheets (sheet) conditional-format (cf,conditional-formats) add (create,new) <spreadsheetId> <range> [flags]
 ```
 
 ## Parent
@@ -26,11 +26,12 @@ gog sheets (sheet) conditional-format (cf,conditional-formats) add (create,new) 
 | `-n`<br>`--dry-run`<br>`--dryrun`<br>`--noop`<br>`--preview` | `bool` |  | Do not make changes; print intended actions and exit successfully |
 | `--enable-commands` | `string` |  | Comma-separated list of enabled command prefixes; dot paths allowed (restricts CLI) |
 | `--enable-commands-exact` | `string` |  | Comma-separated list of exact enabled commands; dot paths allowed and parent commands do not enable children |
-| `--expr` | `string` |  | Expression value or custom formula (omit for blank/not-blank) |
+| `--expr` | `string` |  | Expression value or custom formula for boolean rules (omit for blank/not-blank) |
 | `-y`<br>`--force`<br>`--assume-yes`<br>`--yes` | `bool` |  | Skip confirmations for destructive commands |
-| `--format-fields` | `string` |  | Format field mask for force-sending zero/false fields (e.g. backgroundColor,textFormat.bold) |
-| `--format-json` | `string` |  | CellFormat JSON (inline or @file) |
+| `--format-fields` | `string` |  | Format field mask for force-sending zero/false fields in boolean rule formats (e.g. backgroundColor,textFormat.bold) |
+| `--format-json` | `string` |  | CellFormat JSON for boolean rules (inline or @file) |
 | `--gmail-no-send` | `bool` | false | Block Gmail send operations (agent safety) |
+| `--gradient-rule-json` | `string` |  | GradientRule JSON for gradient conditional formats (inline or @file) |
 | `-h`<br>`--help` | `kong.helpFlag` |  | Show context-sensitive help. |
 | `--home` | `string` |  | Override gogcli config/data/state/cache root (equivalent to GOG_HOME) |
 | `--index` | `int64` | 0 | Insert rule at this priority index |
@@ -40,7 +41,7 @@ gog sheets (sheet) conditional-format (cf,conditional-formats) add (create,new) 
 | `--readonly` | `bool` | false | Block mutating API requests at runtime; auth add also requests read-only OAuth scopes |
 | `--results-only` | `bool` |  | In JSON mode, emit only the primary result (drops envelope fields like nextPageToken) |
 | `--select`<br>`--pick`<br>`--project` | `string` |  | In JSON mode, select comma-separated fields (best-effort; supports dot paths). Desire path: use --fields for most commands. |
-| `--type` | `string` |  | Rule type: text-eq\|text-contains\|text-starts-with\|text-ends-with\|number-eq\|number-gt\|number-gte\|number-lt\|number-lte\|blank\|not-blank\|custom-formula |
+| `--type` | `string` |  | Boolean rule type: text-eq\|text-contains\|text-starts-with\|text-ends-with\|number-eq\|number-gt\|number-gte\|number-lt\|number-lte\|blank\|not-blank\|custom-formula |
 | `-v`<br>`--verbose` | `bool` |  | Enable verbose logging |
 | `--version` | `kong.VersionFlag` |  | Print version and exit |
 | `--wrap-untrusted` | `bool` | false | In JSON/raw output, wrap fetched text fields in external untrusted-content markers |
