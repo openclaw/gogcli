@@ -42,11 +42,12 @@ func TestOpenOptionsFromLookupCapturesEnvironment(t *testing.T) {
 	t.Parallel()
 
 	values := map[string]string{
-		keyringBackendEnv:          " file ",
-		keyringPasswordEnv:         "",
-		keyringServiceNameEnv:      " custom-gog ",
-		"DBUS_SESSION_BUS_ADDRESS": "unix:path=/tmp/dbus",
-		keyringLockTimeoutEnv:      "125ms",
+		keyringBackendEnv:           " file ",
+		keyringPasswordEnv:          "",
+		keyringServiceNameEnv:       " custom-gog ",
+		keychainTrustApplicationEnv: " TRUE ",
+		"DBUS_SESSION_BUS_ADDRESS":  "unix:path=/tmp/dbus",
+		keyringLockTimeoutEnv:       "125ms",
 	}
 	options := OpenOptionsFromLookup(
 		config.Layout{ConfigDir: "/config", DataDir: "/data"},
@@ -61,6 +62,10 @@ func TestOpenOptionsFromLookupCapturesEnvironment(t *testing.T) {
 
 	if options.Backend != " file " || options.ServiceName != "custom-gog" {
 		t.Fatalf("options = %#v", options)
+	}
+
+	if options.KeychainTrustApplication != " TRUE " {
+		t.Fatalf("keychain trust application = %q", options.KeychainTrustApplication)
 	}
 
 	if options.Password != "" || !options.PasswordSet {
@@ -174,6 +179,34 @@ func TestOpenUsesInjectedOptions(t *testing.T) {
 
 	if store.lock.timeout != 250*time.Millisecond {
 		t.Fatalf("lock timeout = %v", store.lock.timeout)
+	}
+}
+
+func TestOpenTrustsStableSignedApplicationForKeychain(t *testing.T) {
+	t.Parallel()
+
+	layout := config.Layout{ConfigDir: t.TempDir(), DataDir: t.TempDir()}
+	var opened keyring.Config
+	options := OpenOptions{
+		Layout:  layout,
+		Config:  config.NewConfigStore(layout),
+		Backend: "keychain",
+		GOOS:    "darwin",
+		codesignRunner: func(string) ([]byte, error) {
+			return []byte("Signature=Developer ID Application: Example\nTeamIdentifier=Y5PE65HELJ\n"), nil
+		},
+		openKeyringFn: func(cfg keyring.Config) (keyring.Keyring, error) {
+			opened = cfg
+			return keyring.NewArrayKeyring(nil), nil
+		},
+	}
+
+	if _, err := openKeyringWithOptions(options); err != nil {
+		t.Fatalf("openKeyringWithOptions: %v", err)
+	}
+
+	if !opened.KeychainTrustApplication {
+		t.Fatal("KeychainTrustApplication = false, want true")
 	}
 }
 

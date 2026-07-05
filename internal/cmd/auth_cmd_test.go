@@ -454,6 +454,41 @@ func TestAuthDoctor_JSON_ClassifiesFileKeyringIntegrity(t *testing.T) {
 	}
 }
 
+func TestAuthDoctor_JSON_ReportsForcedKeychainTrust(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+
+	runtime := runtimeWithAuthStore(newMemSecretsStore())
+	runtime.KeyringOptions.Backend = "keychain"
+	runtime.KeyringOptions.GOOS = "darwin"
+	runtime.KeyringOptions.KeychainTrustApplication = "true"
+
+	result := executeWithTestRuntime(t, []string{"--json", "auth", "doctor"}, runtime)
+	if result.err != nil {
+		t.Fatalf("Execute: %v", result.err)
+	}
+
+	var payload struct {
+		Checks []struct {
+			Name   string `json:"name"`
+			Status string `json:"status"`
+			Detail string `json:"detail"`
+		} `json:"checks"`
+	}
+	if err := json.Unmarshal([]byte(result.stdout), &payload); err != nil {
+		t.Fatalf("json parse: %v\nout=%q", err, result.stdout)
+	}
+	for _, check := range payload.Checks {
+		if check.Name == "keychain.trust" {
+			if check.Status != "ok" || check.Detail != "forced on via GOG_KEYCHAIN_TRUST_APPLICATION" {
+				t.Fatalf("keychain trust check = %#v", check)
+			}
+			return
+		}
+	}
+	t.Fatalf("missing keychain.trust check: %#v", payload.Checks)
+}
+
 func TestAuthList_JSON_ReportsUnreadableToken(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())

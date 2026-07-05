@@ -2,6 +2,8 @@
 
 ## 0.32.1 - Unreleased
 
+- Auth: trust Developer-ID-signed release binaries when creating macOS Keychain items so upgrades read tokens without repeated permission prompts, while leaving ad-hoc/source builds unchanged and allowing `GOG_KEYCHAIN_TRUST_APPLICATION` overrides.
+
 ## 0.32.0 - 2026-07-03
 
 - Docs: add `docs suggestions list` for read-only pending text insertions and deletions, including exact UTF-16 ranges, segment context, and tab selection. (#876)
