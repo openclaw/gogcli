@@ -27,10 +27,15 @@ func (c *SheetsFilterSetCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return usage("empty range")
 	}
 
-	return runSheetsMutation(ctx, flags, "sheets.filter.set", map[string]any{
+	dryRunPayload := map[string]any{
 		"spreadsheet_id": spreadsheetID,
 		"range":          rangeSpec,
-	}, func(ctx context.Context, svc *sheets.Service) (map[string]any, string, error) {
+	}
+	if dryRunErr := dryRunExit(ctx, flags, "sheets.filter.set", dryRunPayload); dryRunErr != nil {
+		return dryRunErr
+	}
+
+	return runSheetsMutation(ctx, flagsWithoutDryRun(flags), "sheets.filter.set", dryRunPayload, func(ctx context.Context, svc *sheets.Service) (map[string]any, string, error) {
 		catalog, err := fetchSpreadsheetRangeCatalogWithBasicFilters(ctx, svc, spreadsheetID)
 		if err != nil {
 			return nil, "", err
