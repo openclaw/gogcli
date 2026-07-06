@@ -394,3 +394,33 @@ func hasStringValue(values []string, value string) bool {
 	}
 	return false
 }
+
+func TestWrapEventWithDaysPrefersEventTimezone(t *testing.T) {
+	event := &calendar.Event{
+		Start: &calendar.EventDateTime{
+			DateTime: "2026-07-07T07:30:00+08:00",
+			TimeZone: "Asia/Seoul",
+		},
+		End: &calendar.EventDateTime{
+			DateTime: "2026-07-07T08:30:00+08:00",
+			TimeZone: "Asia/Seoul",
+		},
+	}
+
+	wrapped := wrapEventWithDaysWithTimezone(event, "Asia/Hong_Kong", nil)
+	if wrapped == nil {
+		t.Fatal("expected wrapped event")
+	}
+	if wrapped.Timezone != "Asia/Seoul" {
+		t.Fatalf("Timezone = %q, want Asia/Seoul", wrapped.Timezone)
+	}
+	if wrapped.EventTimezone != "" {
+		t.Fatalf("EventTimezone = %q, want empty when it matches display timezone", wrapped.EventTimezone)
+	}
+	if wrapped.StartLocal != "2026-07-07T08:30:00+09:00" {
+		t.Fatalf("StartLocal = %q, want Seoul local time", wrapped.StartLocal)
+	}
+	if wrapped.EndLocal != "2026-07-07T09:30:00+09:00" {
+		t.Fatalf("EndLocal = %q, want Seoul local time", wrapped.EndLocal)
+	}
+}

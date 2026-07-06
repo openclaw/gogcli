@@ -145,32 +145,33 @@ func loadEventLocation(tz string) (*time.Location, bool) {
 	return tryLoadTimezoneLocation(tz)
 }
 
-// resolveEventTimezone resolves the timezone and location for an event.
-// It tries the calendar timezone first, then falls back to the event's timezone.
-// Returns the resolved timezone name and location. If loc is already provided,
-// it will be used as-is (only calendarTimezone may be updated for display).
+// resolveEventTimezone resolves the timezone and location used for local
+// event display. Prefer the event's own timezone over the containing
+// calendar timezone: Google Calendar may return a DateTime rendered with the
+// calendar's UTC offset while also carrying the event timezone field. Showing
+// local fields in the calendar timezone makes conference/travel events look an
+// hour early/late (for example an Asia/Seoul event on an Asia/Hong_Kong
+// calendar). Fall back to the calendar timezone only when the event has none.
 func resolveEventTimezone(event *calendar.Event, calendarTimezone string, loc *time.Location) (string, *time.Location) {
 	calendarTimezone = strings.TrimSpace(calendarTimezone)
 	evTimezone := eventTimezone(event)
 
-	if loc == nil && calendarTimezone != "" {
+	if evTimezone != "" {
+		if loaded, ok := tryLoadTimezoneLocation(evTimezone); ok {
+			return evTimezone, loaded
+		}
+	}
+
+	if calendarTimezone != "" {
+		if loc != nil {
+			return calendarTimezone, loc
+		}
 		if loaded, ok := tryLoadTimezoneLocation(calendarTimezone); ok {
-			loc = loaded
-		} else {
-			calendarTimezone = ""
+			return calendarTimezone, loaded
 		}
 	}
-	if calendarTimezone == "" {
-		calendarTimezone = evTimezone
-		if loc == nil && calendarTimezone != "" {
-			if loaded, ok := tryLoadTimezoneLocation(calendarTimezone); ok {
-				loc = loaded
-			} else {
-				calendarTimezone = ""
-			}
-		}
-	}
-	return calendarTimezone, loc
+
+	return "", nil
 }
 
 func marshalCalendarEventWithFields(event *calendar.Event, fields map[string]string) ([]byte, error) {
