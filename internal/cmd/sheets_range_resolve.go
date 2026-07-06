@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"google.golang.org/api/googleapi"
 	"google.golang.org/api/sheets/v4"
 
 	"github.com/steipete/gogcli/internal/selectorutil"
@@ -12,15 +13,27 @@ import (
 )
 
 type spreadsheetRangeCatalog struct {
-	SheetIDsByTitle map[string]int64
-	SheetTitlesByID map[int64]string
-	NamedRanges     []*sheets.NamedRange
-	Sheets          []*sheets.SheetProperties
+	SheetIDsByTitle       map[string]int64
+	SheetTitlesByID       map[int64]string
+	BasicFiltersBySheetID map[int64]*sheets.BasicFilter
+	NamedRanges           []*sheets.NamedRange
+	Sheets                []*sheets.SheetProperties
 }
 
 func fetchSpreadsheetRangeCatalog(ctx context.Context, svc *sheets.Service, spreadsheetID string) (*spreadsheetRangeCatalog, error) {
-	call := svc.Spreadsheets.Get(spreadsheetID).
-		Fields("sheets(properties(sheetId,title,index,gridProperties(rowCount,columnCount))),namedRanges(namedRangeId,name,range)")
+	return fetchSpreadsheetRangeCatalogInternal(ctx, svc, spreadsheetID, false)
+}
+
+func fetchSpreadsheetRangeCatalogWithBasicFilters(ctx context.Context, svc *sheets.Service, spreadsheetID string) (*spreadsheetRangeCatalog, error) {
+	return fetchSpreadsheetRangeCatalogInternal(ctx, svc, spreadsheetID, true)
+}
+
+func fetchSpreadsheetRangeCatalogInternal(ctx context.Context, svc *sheets.Service, spreadsheetID string, includeBasicFilters bool) (*spreadsheetRangeCatalog, error) {
+	fields := googleapi.Field("sheets(properties(sheetId,title,index,gridProperties(rowCount,columnCount))),namedRanges(namedRangeId,name,range)")
+	if includeBasicFilters {
+		fields = googleapi.Field("sheets(properties(sheetId,title,index,gridProperties(rowCount,columnCount)),basicFilter(range)),namedRanges(namedRangeId,name,range)")
+	}
+	call := svc.Spreadsheets.Get(spreadsheetID).Fields(fields)
 	if ctx != nil {
 		call = call.Context(ctx)
 	}
@@ -31,6 +44,7 @@ func fetchSpreadsheetRangeCatalog(ctx context.Context, svc *sheets.Service, spre
 
 	idsByTitle := make(map[string]int64, len(resp.Sheets))
 	titlesByID := make(map[int64]string, len(resp.Sheets))
+	basicFiltersBySheetID := make(map[int64]*sheets.BasicFilter)
 	props := make([]*sheets.SheetProperties, 0, len(resp.Sheets))
 	for _, sh := range resp.Sheets {
 		if sh == nil || sh.Properties == nil {
@@ -44,13 +58,17 @@ func fetchSpreadsheetRangeCatalog(ctx context.Context, svc *sheets.Service, spre
 		}
 		idsByTitle[title] = sh.Properties.SheetId
 		titlesByID[sh.Properties.SheetId] = title
+		if sh.BasicFilter != nil {
+			basicFiltersBySheetID[sh.Properties.SheetId] = sh.BasicFilter
+		}
 	}
 
 	return &spreadsheetRangeCatalog{
-		SheetIDsByTitle: idsByTitle,
-		SheetTitlesByID: titlesByID,
-		NamedRanges:     resp.NamedRanges,
-		Sheets:          props,
+		SheetIDsByTitle:       idsByTitle,
+		SheetTitlesByID:       titlesByID,
+		BasicFiltersBySheetID: basicFiltersBySheetID,
+		NamedRanges:           resp.NamedRanges,
+		Sheets:                props,
 	}, nil
 }
 

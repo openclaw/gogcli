@@ -2,7 +2,7 @@
 
 > Generated from `gog schema --json`. Do not edit this page by hand; run `make docs-commands`.
 
-Create a basic filter on a range
+Set a basic filter on a range; replacing an existing filter requires confirmation (or --force)
 
 ## Usage
 

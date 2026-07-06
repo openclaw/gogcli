@@ -125,3 +125,47 @@ func TestSheetsFilterSetDryRunSkipsService(t *testing.T) {
 		t.Fatalf("unexpected dry-run payload: %#v", payload)
 	}
 }
+
+func TestSheetsFilterSetRequiresConfirmationToReplaceExistingFilter(t *testing.T) {
+	var batchUpdates int
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := strings.TrimPrefix(strings.TrimPrefix(r.URL.Path, "/sheets/v4"), "/v4")
+		switch {
+		case path == "/spreadsheets/s1" && r.Method == http.MethodGet:
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"spreadsheetId":"s1","sheets":[{"properties":{"sheetId":0,"title":"Sheet1","gridProperties":{"rowCount":1000,"columnCount":26}},"basicFilter":{"range":{"sheetId":0,"startRowIndex":0,"endRowIndex":10,"startColumnIndex":0,"endColumnIndex":3}}}]}`))
+		case path == "/spreadsheets/s1:batchUpdate" && r.Method == http.MethodPost:
+			batchUpdates++
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"spreadsheetId":"s1","replies":[{}]}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+
+	svc := newSheetsServiceFromServer(t, srv)
+	ctx := withSheetsTestService(newCmdRuntimeOutputContext(t, io.Discard, io.Discard), svc)
+	err := runKong(t, &SheetsFilterSetCmd{}, []string{"s1", "Sheet1!A1:D20"}, ctx, &RootFlags{Account: "a@b.com", NoInput: true})
+	if err == nil || !strings.Contains(err.Error(), "replace existing basic filter") {
+		t.Fatalf("expected existing-filter refusal, got %v", err)
+	}
+	if got := ExitCode(err); got != 2 {
+		t.Fatalf("ExitCode = %d, want 2 (err=%v)", got, err)
+	}
+	if batchUpdates != 0 {
+		t.Fatalf("batch updates = %d, want 0", batchUpdates)
+	}
+
+	var out bytes.Buffer
+	ctx = withSheetsTestService(newCmdRuntimeJSONOutputContext(t, &out, io.Discard), svc)
+	if err := runKong(t, &SheetsFilterSetCmd{}, []string{"s1", "Sheet1!A1:D20"}, ctx, &RootFlags{Account: "a@b.com", Force: true, NoInput: true}); err != nil {
+		t.Fatalf("forced filter replacement: %v", err)
+	}
+	if batchUpdates != 1 {
+		t.Fatalf("batch updates = %d, want 1", batchUpdates)
+	}
+	if !strings.Contains(out.String(), `"replaced": true`) {
+		t.Fatalf("replacement output = %s", out.String())
+	}
+}

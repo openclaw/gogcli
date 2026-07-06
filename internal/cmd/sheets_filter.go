@@ -9,7 +9,7 @@ import (
 )
 
 type SheetsFilterCmd struct {
-	Set SheetsFilterSetCmd `cmd:"" name:"set" aliases:"create,add" help:"Create a basic filter on a range"`
+	Set SheetsFilterSetCmd `cmd:"" name:"set" aliases:"create,add" help:"Set a basic filter on a range; replacing an existing filter requires confirmation (or --force)"`
 }
 
 type SheetsFilterSetCmd struct {
@@ -31,7 +31,7 @@ func (c *SheetsFilterSetCmd) Run(ctx context.Context, flags *RootFlags) error {
 		"spreadsheet_id": spreadsheetID,
 		"range":          rangeSpec,
 	}, func(ctx context.Context, svc *sheets.Service) (map[string]any, string, error) {
-		catalog, err := fetchSpreadsheetRangeCatalog(ctx, svc, spreadsheetID)
+		catalog, err := fetchSpreadsheetRangeCatalogWithBasicFilters(ctx, svc, spreadsheetID)
 		if err != nil {
 			return nil, "", err
 		}
@@ -39,6 +39,14 @@ func (c *SheetsFilterSetCmd) Run(ctx context.Context, flags *RootFlags) error {
 		if err != nil {
 			return nil, "", err
 		}
+		existingFilter := catalog.BasicFiltersBySheetID[gridRange.SheetId]
+		if existingFilter != nil {
+			sheetTitle := catalog.SheetTitlesByID[gridRange.SheetId]
+			if err := confirmDestructiveChecked(ctx, flagsWithoutDryRun(flags), fmt.Sprintf("replace existing basic filter on sheet %q", sheetTitle)); err != nil {
+				return nil, "", err
+			}
+		}
+
 		filter := &sheets.BasicFilter{Range: gridRange}
 		req := &sheets.BatchUpdateSpreadsheetRequest{
 			Requests: []*sheets.Request{{
@@ -54,6 +62,7 @@ func (c *SheetsFilterSetCmd) Run(ctx context.Context, flags *RootFlags) error {
 			"spreadsheetId": spreadsheetID,
 			"range":         rangeSpec,
 			"filter":        filter,
+			"replaced":      existingFilter != nil,
 		}, fmt.Sprintf("Set basic filter on %s", rangeSpec), nil
 	})
 }

@@ -618,7 +618,7 @@ Generated pages: 706.
     - [gog sheets delete-tab](gog-sheets-delete-tab.md) - Delete a tab/sheet from a spreadsheet (use --force to skip confirmation)
     - [gog sheets export](gog-sheets-export.md) - Export a Google Sheet (pdf|xlsx|csv) via Drive
     - [gog sheets filter](gog-sheets-filter.md) - Manage basic filters
-      - [gog sheets filter set](gog-sheets-filter-set.md) - Create a basic filter on a range
+      - [gog sheets filter set](gog-sheets-filter-set.md) - Set a basic filter on a range; replacing an existing filter requires confirmation (or --force)
     - [gog sheets find-replace](gog-sheets-find-replace.md) - Find and replace text across a spreadsheet
     - [gog sheets format](gog-sheets-format.md) - Apply cell formatting to a range
     - [gog sheets freeze](gog-sheets-freeze.md) - Freeze rows and columns on a sheet

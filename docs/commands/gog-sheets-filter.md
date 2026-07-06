@@ -16,7 +16,7 @@ gog sheets (sheet) filter (filters,basic-filter,basic-filters) <command>
 
 ## Subcommands
 
-- [gog sheets filter set](gog-sheets-filter-set.md) - Create a basic filter on a range
+- [gog sheets filter set](gog-sheets-filter-set.md) - Set a basic filter on a range; replacing an existing filter requires confirmation (or --force)
 
 ## Flags
 

@@ -2,6 +2,7 @@
 
 ## 0.32.1 - Unreleased
 
+- Sheets: add `sheets filter set` for creating basic filters, with guarded replacement of an existing sheet filter. (#902)
 - Auth: trust Developer-ID-signed release binaries when creating macOS Keychain items so upgrades read tokens without repeated permission prompts, while leaving ad-hoc/source builds unchanged and allowing `GOG_KEYCHAIN_TRUST_APPLICATION` overrides.
 
 ## 0.32.0 - 2026-07-03
