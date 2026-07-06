@@ -107,7 +107,7 @@ Create color-scale gradients with Sheets API `GradientRule` JSON:
 
 ```bash
 gog sheets conditional-format add "$spreadsheet_id" 'Sheet1!D2:D100' \
-  --gradient-rule-json '{"minpoint":{"type":"MIN","color":{"red":1,"green":1,"blue":1}},"maxpoint":{"type":"MAX","color":{"red":0.2,"green":0.7,"blue":0.2}}}'
+  --gradient-rule-json '{"minpoint":{"type":"MIN","colorStyle":{"rgbColor":{"red":1,"green":1,"blue":1}}},"maxpoint":{"type":"MAX","colorStyle":{"rgbColor":{"red":0.2,"green":0.7,"blue":0.2}}}}'
 ```
 
 `--gradient-rule-json` cannot be combined with boolean-rule flags such as

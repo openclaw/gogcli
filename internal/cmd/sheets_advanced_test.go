@@ -61,7 +61,7 @@ func TestSheetsConditionalAddBuildsGradientRule(t *testing.T) {
 
 	if err := runKong(t, &SheetsConditionalAddCmd{}, []string{
 		"s1", "Sheet1!B2:B10",
-		"--gradient-rule-json", `{"minpoint":{"type":"MIN","color":{"red":1,"green":1,"blue":1}},"maxpoint":{"type":"MAX","color":{"red":0.2,"green":0.7,"blue":0.2}}}`,
+		"--gradient-rule-json", `{"minpoint":{"type":"MIN","colorStyle":{"rgbColor":{"red":1,"green":1,"blue":1}}},"maxpoint":{"type":"MAX","colorStyle":{"rgbColor":{"red":0.2,"green":0.7,"blue":0.2}}}}`,
 		"--index", "1",
 	}, ctx, flags); err != nil {
 		t.Fatalf("conditional add gradient: %v", err)
@@ -86,6 +86,9 @@ func TestSheetsConditionalAddBuildsGradientRule(t *testing.T) {
 	if !strings.Contains((*rawRequests)[0], `"gradientRule"`) {
 		t.Fatalf("request missing gradientRule: %s", (*rawRequests)[0])
 	}
+	if !strings.Contains((*rawRequests)[0], `"colorStyle"`) {
+		t.Fatalf("request missing colorStyle: %s", (*rawRequests)[0])
+	}
 }
 
 func TestSheetsConditionalAddGradientDryRun(t *testing.T) {
@@ -95,7 +98,7 @@ func TestSheetsConditionalAddGradientDryRun(t *testing.T) {
 
 	err := runKong(t, &SheetsConditionalAddCmd{}, []string{
 		"s1", "Sheet1!B2:B10",
-		"--gradient-rule-json", `{"minpoint":{"type":"MIN","color":{"red":1}},"maxpoint":{"type":"MAX","color":{"green":1}}}`,
+		"--gradient-rule-json", `{"minpoint":{"type":"MIN","colorStyle":{"rgbColor":{"red":1}}},"maxpoint":{"type":"MAX","colorStyle":{"rgbColor":{"green":1}}}}`,
 	}, ctx, flags)
 	if got := ExitCode(err); got != 0 {
 		t.Fatalf("expected dry-run exit 0, got %d (err=%v)", got, err)
@@ -135,6 +138,34 @@ func TestSheetsConditionalAddGradientRejectsBooleanFlags(t *testing.T) {
 	}
 	if got := ExitCode(err); got != 2 {
 		t.Fatalf("ExitCode = %d, want 2 (err=%v)", got, err)
+	}
+}
+
+func TestSheetsConditionalAddGradientRejectsInvalidJSON(t *testing.T) {
+	ctx := newCmdRuntimeOutputContext(t, io.Discard, io.Discard)
+	flags := &RootFlags{Account: "a@b.com", DryRun: true}
+
+	for _, test := range []struct {
+		name string
+		raw  string
+		want string
+	}{
+		{name: "unknown field", raw: `{"minpoint":{"type":"MIN"},"maxpoint":{"type":"MAX"},"bogus":true}`, want: "unknown field"},
+		{name: "multiple values", raw: `{"minpoint":{"type":"MIN"},"maxpoint":{"type":"MAX"}} {}`, want: "multiple JSON values"},
+		{name: "missing maxpoint", raw: `{"minpoint":{"type":"MIN"}}`, want: "must include minpoint and maxpoint"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			err := runKong(t, &SheetsConditionalAddCmd{}, []string{
+				"s1", "Sheet1!A1",
+				"--gradient-rule-json", test.raw,
+			}, ctx, flags)
+			if err == nil || !strings.Contains(err.Error(), test.want) {
+				t.Fatalf("error = %v, want %q", err, test.want)
+			}
+			if got := ExitCode(err); got != 2 {
+				t.Fatalf("ExitCode = %d, want 2 (err=%v)", got, err)
+			}
+		})
 	}
 }
 
