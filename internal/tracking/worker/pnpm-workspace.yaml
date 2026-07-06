@@ -1,4 +1,9 @@
+allowBuilds:
+  esbuild: true
+  sharp: false
+  workerd: true
 overrides:
   esbuild: 0.28.1
   undici: 7.28.0
-  vite: 7.3.5
+  vite: 8.1.0
+  ws: 8.21.0

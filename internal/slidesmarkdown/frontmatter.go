@@ -5,7 +5,7 @@ import (
 	"regexp"
 	"strings"
 
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v3"
 )
 
 // slideBlock is the intermediate form between raw markdown and the parsed
