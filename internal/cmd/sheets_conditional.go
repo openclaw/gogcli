@@ -344,6 +344,9 @@ func decodeConditionalGradientRule(data []byte) (*sheets.GradientRule, error) {
 		}
 		return nil, err
 	}
+	if conditionalGradientHasAlpha(&wire) {
+		return nil, errors.New("Sheets gradient colors do not support alpha")
+	}
 
 	var rule sheets.GradientRule
 	if err := json.Unmarshal(data, &rule); err != nil {
@@ -369,9 +372,6 @@ func preserveConditionalGradientRGBFields(wire *conditionalGradientColorJSON, co
 	if wire == nil || color == nil {
 		return
 	}
-	if wire.Alpha != nil {
-		color.ForceSendFields = append(color.ForceSendFields, "Alpha")
-	}
 	if wire.Blue != nil {
 		color.ForceSendFields = append(color.ForceSendFields, "Blue")
 	}
@@ -381,6 +381,25 @@ func preserveConditionalGradientRGBFields(wire *conditionalGradientColorJSON, co
 	if wire.Red != nil {
 		color.ForceSendFields = append(color.ForceSendFields, "Red")
 	}
+}
+
+func conditionalGradientHasAlpha(rule *conditionalGradientRuleJSON) bool {
+	if rule == nil {
+		return false
+	}
+	return conditionalGradientPointHasAlpha(rule.Minpoint) ||
+		conditionalGradientPointHasAlpha(rule.Midpoint) ||
+		conditionalGradientPointHasAlpha(rule.Maxpoint)
+}
+
+func conditionalGradientPointHasAlpha(point *conditionalGradientPointJSON) bool {
+	if point == nil {
+		return false
+	}
+	if point.Color != nil && point.Color.Alpha != nil {
+		return true
+	}
+	return point.ColorStyle != nil && point.ColorStyle.RGBColor != nil && point.ColorStyle.RGBColor.Alpha != nil
 }
 
 func conditionalFormatRuleType(useGradient bool, conditionType string) string {
