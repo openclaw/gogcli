@@ -345,7 +345,7 @@ func decodeConditionalGradientRule(data []byte) (*sheets.GradientRule, error) {
 		return nil, err
 	}
 	if conditionalGradientHasAlpha(&wire) {
-		return nil, errors.New("Sheets gradient colors do not support alpha")
+		return nil, errors.New("sheets gradient colors do not support alpha")
 	}
 
 	var rule sheets.GradientRule
