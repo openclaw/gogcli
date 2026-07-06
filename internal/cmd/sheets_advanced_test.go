@@ -61,7 +61,7 @@ func TestSheetsConditionalAddBuildsGradientRule(t *testing.T) {
 
 	if err := runKong(t, &SheetsConditionalAddCmd{}, []string{
 		"s1", "Sheet1!B2:B10",
-		"--gradient-rule-json", `{"minpoint":{"type":"MIN","colorStyle":{"rgbColor":{"red":1,"green":1,"blue":1}}},"maxpoint":{"type":"MAX","colorStyle":{"rgbColor":{"red":0.2,"green":0.7,"blue":0.2}}}}`,
+		"--gradient-rule-json", `{"minpoint":{"type":"MIN","colorStyle":{"rgbColor":{"red":1,"green":1,"blue":1,"alpha":0}}},"maxpoint":{"type":"MAX","colorStyle":{"rgbColor":{"red":0.2,"green":0.7,"blue":0.2}}}}`,
 		"--index", "1",
 	}, ctx, flags); err != nil {
 		t.Fatalf("conditional add gradient: %v", err)
@@ -88,6 +88,9 @@ func TestSheetsConditionalAddBuildsGradientRule(t *testing.T) {
 	}
 	if !strings.Contains((*rawRequests)[0], `"colorStyle"`) {
 		t.Fatalf("request missing colorStyle: %s", (*rawRequests)[0])
+	}
+	if !strings.Contains((*rawRequests)[0], `"alpha":0`) {
+		t.Fatalf("request did not preserve explicit zero alpha: %s", (*rawRequests)[0])
 	}
 }
 

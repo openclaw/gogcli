@@ -349,7 +349,38 @@ func decodeConditionalGradientRule(data []byte) (*sheets.GradientRule, error) {
 	if err := json.Unmarshal(data, &rule); err != nil {
 		return nil, err
 	}
+	preserveConditionalGradientColorFields(wire.Minpoint, rule.Minpoint)
+	preserveConditionalGradientColorFields(wire.Midpoint, rule.Midpoint)
+	preserveConditionalGradientColorFields(wire.Maxpoint, rule.Maxpoint)
 	return &rule, nil
+}
+
+func preserveConditionalGradientColorFields(wire *conditionalGradientPointJSON, point *sheets.InterpolationPoint) {
+	if wire == nil || point == nil {
+		return
+	}
+	preserveConditionalGradientRGBFields(wire.Color, point.Color)
+	if wire.ColorStyle != nil && point.ColorStyle != nil {
+		preserveConditionalGradientRGBFields(wire.ColorStyle.RGBColor, point.ColorStyle.RgbColor)
+	}
+}
+
+func preserveConditionalGradientRGBFields(wire *conditionalGradientColorJSON, color *sheets.Color) {
+	if wire == nil || color == nil {
+		return
+	}
+	if wire.Alpha != nil {
+		color.ForceSendFields = append(color.ForceSendFields, "Alpha")
+	}
+	if wire.Blue != nil {
+		color.ForceSendFields = append(color.ForceSendFields, "Blue")
+	}
+	if wire.Green != nil {
+		color.ForceSendFields = append(color.ForceSendFields, "Green")
+	}
+	if wire.Red != nil {
+		color.ForceSendFields = append(color.ForceSendFields, "Red")
+	}
 }
 
 func conditionalFormatRuleType(useGradient bool, conditionType string) string {
