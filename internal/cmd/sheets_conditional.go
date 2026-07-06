@@ -293,24 +293,62 @@ func parseConditionalGradientRule(raw string, input io.Reader) (*sheets.Gradient
 		return nil, usage("empty --gradient-rule-json")
 	}
 
-	var rule sheets.GradientRule
-	dec := json.NewDecoder(bytes.NewReader(b))
-	dec.DisallowUnknownFields()
-	if err := dec.Decode(&rule); err != nil {
+	rule, err := decodeConditionalGradientRule(b)
+	if err != nil {
 		return nil, usagef("invalid --gradient-rule-json: %v", err)
-	}
-
-	var extra any
-	if err := dec.Decode(&extra); err != io.EOF {
-		if err == nil {
-			return nil, usage("invalid --gradient-rule-json: multiple JSON values")
-		}
-		return nil, usagef("invalid trailing --gradient-rule-json data: %v", err)
 	}
 	if rule.Minpoint == nil || rule.Maxpoint == nil {
 		return nil, usage("--gradient-rule-json must include minpoint and maxpoint")
 	}
 
+	return rule, nil
+}
+
+type conditionalGradientRuleJSON struct {
+	Minpoint *conditionalGradientPointJSON `json:"minpoint,omitempty"`
+	Midpoint *conditionalGradientPointJSON `json:"midpoint,omitempty"`
+	Maxpoint *conditionalGradientPointJSON `json:"maxpoint,omitempty"`
+}
+
+type conditionalGradientPointJSON struct {
+	Color      *conditionalGradientColorJSON      `json:"color,omitempty"`
+	ColorStyle *conditionalGradientColorStyleJSON `json:"colorStyle,omitempty"`
+	Type       string                             `json:"type,omitempty"`
+	Value      string                             `json:"value,omitempty"`
+}
+
+type conditionalGradientColorStyleJSON struct {
+	RGBColor   *conditionalGradientColorJSON `json:"rgbColor,omitempty"`
+	ThemeColor string                        `json:"themeColor,omitempty"`
+}
+
+type conditionalGradientColorJSON struct {
+	Alpha *float64 `json:"alpha,omitempty"`
+	Blue  *float64 `json:"blue,omitempty"`
+	Green *float64 `json:"green,omitempty"`
+	Red   *float64 `json:"red,omitempty"`
+}
+
+func decodeConditionalGradientRule(data []byte) (*sheets.GradientRule, error) {
+	dec := json.NewDecoder(bytes.NewReader(data))
+	dec.DisallowUnknownFields()
+
+	var wire conditionalGradientRuleJSON
+	if err := dec.Decode(&wire); err != nil {
+		return nil, err
+	}
+	var extra any
+	if err := dec.Decode(&extra); err != io.EOF {
+		if err == nil {
+			return nil, errors.New("multiple JSON values")
+		}
+		return nil, err
+	}
+
+	var rule sheets.GradientRule
+	if err := json.Unmarshal(data, &rule); err != nil {
+		return nil, err
+	}
 	return &rule, nil
 }
 

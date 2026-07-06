@@ -151,6 +151,7 @@ func TestSheetsConditionalAddGradientRejectsInvalidJSON(t *testing.T) {
 		want string
 	}{
 		{name: "unknown field", raw: `{"minpoint":{"type":"MIN"},"maxpoint":{"type":"MAX"},"bogus":true}`, want: "unknown field"},
+		{name: "unknown RGB field", raw: `{"minpoint":{"type":"MIN","colorStyle":{"rgbColor":{"gren":1}}},"maxpoint":{"type":"MAX"}}`, want: "unknown field"},
 		{name: "multiple values", raw: `{"minpoint":{"type":"MIN"},"maxpoint":{"type":"MAX"}} {}`, want: "multiple JSON values"},
 		{name: "missing maxpoint", raw: `{"minpoint":{"type":"MIN"}}`, want: "must include minpoint and maxpoint"},
 	} {
