@@ -33,6 +33,7 @@ type CalendarEventsCmd struct {
 	Location          bool     `name:"location" help:"Include event LOCATION column in table output"`
 	Sort              string   `name:"sort" help:"Sort events by start|end|summary|calendar (default: keep API order; with --all, start is recommended for chronological output)" enum:"start,end,summary,calendar," default:""`
 	Order             string   `name:"order" help:"Sort order" enum:"asc,desc" default:"asc"`
+	Timezone          string   `name:"timezone" aliases:"tz" help:"Display timezone for event times (IANA name, e.g. America/New_York, or 'local' for the system timezone). Default: each calendar's own timezone"`
 }
 
 func (c *CalendarEventsCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -61,6 +62,10 @@ func (c *CalendarEventsCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 	if calendarID != "" && len(calInputs) > 0 {
 		return usage("calendarId not allowed with --cal/--calendars")
+	}
+	displayTZ, err := displayTimezoneOverride(c.Timezone)
+	if err != nil {
+		return err
 	}
 
 	svc, err := calendarService(ctx, account)
@@ -95,7 +100,7 @@ func (c *CalendarEventsCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 
 	if c.All {
-		return listAllCalendarsEvents(ctx, svc, from, to, c.Max, c.Page, c.AllPages, c.FailEmpty, c.Query, c.PrivatePropFilter, c.SharedPropFilter, c.Fields, eventTypes, c.Weekday, c.Location, c.Sort, c.Order)
+		return listAllCalendarsEvents(ctx, svc, from, to, c.Max, c.Page, c.AllPages, c.FailEmpty, c.Query, c.PrivatePropFilter, c.SharedPropFilter, c.Fields, eventTypes, c.Weekday, c.Location, c.Sort, c.Order, displayTZ)
 	}
 	if len(calInputs) > 0 {
 		ids, err := resolveCalendarIDs(ctx, store, svc, calInputs)
@@ -105,9 +110,9 @@ func (c *CalendarEventsCmd) Run(ctx context.Context, flags *RootFlags) error {
 		if len(ids) == 0 {
 			return usage("no calendars specified")
 		}
-		return listSelectedCalendarsEvents(ctx, svc, ids, from, to, c.Max, c.Page, c.AllPages, c.FailEmpty, c.Query, c.PrivatePropFilter, c.SharedPropFilter, c.Fields, eventTypes, c.Weekday, c.Location, c.Sort, c.Order)
+		return listSelectedCalendarsEvents(ctx, svc, ids, from, to, c.Max, c.Page, c.AllPages, c.FailEmpty, c.Query, c.PrivatePropFilter, c.SharedPropFilter, c.Fields, eventTypes, c.Weekday, c.Location, c.Sort, c.Order, displayTZ)
 	}
-	return listCalendarEvents(ctx, svc, calendarID, from, to, c.Max, c.Page, c.AllPages, c.FailEmpty, c.Query, c.PrivatePropFilter, c.SharedPropFilter, c.Fields, eventTypes, c.Weekday, c.Location, c.Sort, c.Order)
+	return listCalendarEvents(ctx, svc, calendarID, from, to, c.Max, c.Page, c.AllPages, c.FailEmpty, c.Query, c.PrivatePropFilter, c.SharedPropFilter, c.Fields, eventTypes, c.Weekday, c.Location, c.Sort, c.Order, displayTZ)
 }
 
 func normalizeCalendarEventsArgs(args []string) (string, error) {
@@ -133,6 +138,7 @@ func normalizeCalendarEventsArgs(args []string) (string, error) {
 type CalendarEventCmd struct {
 	CalendarID string `arg:"" name:"calendarId" help:"Calendar ID"`
 	EventID    string `arg:"" name:"eventId" help:"Event ID"`
+	Timezone   string `name:"timezone" aliases:"tz" help:"Display timezone for event times (IANA name, e.g. America/New_York, or 'local' for the system timezone). Default: the calendar's own timezone"`
 }
 
 func (c *CalendarEventCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -159,12 +165,17 @@ func (c *CalendarEventCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
+	displayTZ, err := displayTimezoneOverride(c.Timezone)
+	if err != nil {
+		return err
+	}
+
 	event, err := svc.Events.Get(calendarID, eventID).Do()
 	if err != nil {
 		return err
 	}
 	redactCalendarEventForOutput(ctx, event)
-	tz, loc, _ := getCalendarLocation(ctx, svc, calendarID)
+	tz, loc := calendarDisplayTimezone(ctx, svc, calendarID, nil, displayTZ)
 	if outfmt.IsJSON(ctx) {
 		return outfmt.WriteJSON(ctx, stdoutWriter(ctx), map[string]any{"event": wrapEventWithDaysWithTimezone(event, tz, loc)})
 	}

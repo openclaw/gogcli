@@ -53,6 +53,7 @@ gog calendar (cal) events (list,ls) [<calendarId> ...] [flags]
 | `--select`<br>`--pick`<br>`--project` | `string` |  | In JSON mode, select comma-separated fields (best-effort; supports dot paths). Desire path: use --fields for most commands. |
 | `--shared-prop-filter` | `string` |  | Filter by shared extended property (key=value) |
 | `--sort` | `string` |  | Sort events by start\|end\|summary\|calendar (default: keep API order; with --all, start is recommended for chronological output) |
+| `--timezone`<br>`--tz` | `string` |  | Display timezone for event times (IANA name, e.g. America/New_York, or 'local' for the system timezone). Default: each calendar's own timezone |
 | `--to` | `string` |  | End time (RFC3339 with timezone, date, or relative: now, today, tomorrow, monday) |
 | `--today` | `bool` |  | Today only (timezone-aware) |
 | `--tomorrow` | `bool` |  | Tomorrow only (timezone-aware) |

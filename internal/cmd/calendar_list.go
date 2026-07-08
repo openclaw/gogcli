@@ -44,8 +44,8 @@ func calendarEventsListCall(ctx context.Context, svc *calendar.Service, calendar
 	return call
 }
 
-func listCalendarEvents(ctx context.Context, svc *calendar.Service, calendarID, from, to string, maxResults int64, page string, allPages bool, failEmpty bool, query, privatePropFilter, sharedPropFilter, fields string, eventTypes []string, showWeekday bool, showLocation bool, sortKey, sortOrder string) error {
-	calendarTimezone, loc := calendarDisplayTimezone(ctx, svc, calendarID, nil)
+func listCalendarEvents(ctx context.Context, svc *calendar.Service, calendarID, from, to string, maxResults int64, page string, allPages bool, failEmpty bool, query, privatePropFilter, sharedPropFilter, fields string, eventTypes []string, showWeekday bool, showLocation bool, sortKey, sortOrder string, displayTZ *calendarTimezoneHint) error {
+	calendarTimezone, loc := calendarDisplayTimezone(ctx, svc, calendarID, nil, displayTZ)
 	fetch := func(pageToken string) ([]*calendar.Event, string, error) {
 		resp, err := calendarEventsListCall(ctx, svc, calendarID, from, to, maxResults, query, privatePropFilter, sharedPropFilter, fields, eventTypes, pageToken).Do()
 		if err != nil {
@@ -114,7 +114,7 @@ type calendarTimezoneHint struct {
 	loc      *time.Location
 }
 
-func listAllCalendarsEvents(ctx context.Context, svc *calendar.Service, from, to string, maxResults int64, page string, allPages bool, failEmpty bool, query, privatePropFilter, sharedPropFilter, fields string, eventTypes []string, showWeekday bool, showLocation bool, sortKey, sortOrder string) error {
+func listAllCalendarsEvents(ctx context.Context, svc *calendar.Service, from, to string, maxResults int64, page string, allPages bool, failEmpty bool, query, privatePropFilter, sharedPropFilter, fields string, eventTypes []string, showWeekday bool, showLocation bool, sortKey, sortOrder string, displayTZ *calendarTimezoneHint) error {
 	u := ui.FromContext(ctx)
 
 	calendars, err := listCalendarList(ctx, svc)
@@ -138,14 +138,14 @@ func listAllCalendarsEvents(ctx context.Context, svc *calendar.Service, from, to
 		u.Err().Println("No calendars")
 		return nil
 	}
-	return listCalendarIDsEvents(ctx, svc, ids, from, to, maxResults, page, allPages, failEmpty, query, privatePropFilter, sharedPropFilter, fields, eventTypes, showWeekday, showLocation, calendarTimezoneHints(calendars), sortKey, sortOrder)
+	return listCalendarIDsEvents(ctx, svc, ids, from, to, maxResults, page, allPages, failEmpty, query, privatePropFilter, sharedPropFilter, fields, eventTypes, showWeekday, showLocation, calendarTimezoneHints(calendars), sortKey, sortOrder, displayTZ)
 }
 
-func listSelectedCalendarsEvents(ctx context.Context, svc *calendar.Service, calendarIDs []string, from, to string, maxResults int64, page string, allPages bool, failEmpty bool, query, privatePropFilter, sharedPropFilter, fields string, eventTypes []string, showWeekday bool, showLocation bool, sortKey, sortOrder string) error {
-	return listCalendarIDsEvents(ctx, svc, calendarIDs, from, to, maxResults, page, allPages, failEmpty, query, privatePropFilter, sharedPropFilter, fields, eventTypes, showWeekday, showLocation, nil, sortKey, sortOrder)
+func listSelectedCalendarsEvents(ctx context.Context, svc *calendar.Service, calendarIDs []string, from, to string, maxResults int64, page string, allPages bool, failEmpty bool, query, privatePropFilter, sharedPropFilter, fields string, eventTypes []string, showWeekday bool, showLocation bool, sortKey, sortOrder string, displayTZ *calendarTimezoneHint) error {
+	return listCalendarIDsEvents(ctx, svc, calendarIDs, from, to, maxResults, page, allPages, failEmpty, query, privatePropFilter, sharedPropFilter, fields, eventTypes, showWeekday, showLocation, nil, sortKey, sortOrder, displayTZ)
 }
 
-func listCalendarIDsEvents(ctx context.Context, svc *calendar.Service, calendarIDs []string, from, to string, maxResults int64, page string, allPages bool, failEmpty bool, query, privatePropFilter, sharedPropFilter, fields string, eventTypes []string, showWeekday bool, showLocation bool, timezoneHints map[string]calendarTimezoneHint, sortKey, sortOrder string) error {
+func listCalendarIDsEvents(ctx context.Context, svc *calendar.Service, calendarIDs []string, from, to string, maxResults int64, page string, allPages bool, failEmpty bool, query, privatePropFilter, sharedPropFilter, fields string, eventTypes []string, showWeekday bool, showLocation bool, timezoneHints map[string]calendarTimezoneHint, sortKey, sortOrder string, displayTZ *calendarTimezoneHint) error {
 	u := ui.FromContext(ctx)
 	all := []*eventWithCalendar{}
 	nextPages := []calendarEventsNextPage{}
@@ -154,7 +154,7 @@ func listCalendarIDsEvents(ctx context.Context, svc *calendar.Service, calendarI
 		if calID == "" {
 			continue
 		}
-		calendarTimezone, loc := calendarDisplayTimezone(ctx, svc, calID, timezoneHints)
+		calendarTimezone, loc := calendarDisplayTimezone(ctx, svc, calID, timezoneHints, displayTZ)
 		fetch := func(pageToken string) ([]*calendar.Event, string, error) {
 			resp, err := calendarEventsListCall(ctx, svc, calID, from, to, maxResults, query, privatePropFilter, sharedPropFilter, fields, eventTypes, pageToken).Do()
 			if err != nil {
@@ -299,7 +299,10 @@ func eventDisplayLocation(e *eventWithCalendar) string {
 	return loc
 }
 
-func calendarDisplayTimezone(ctx context.Context, svc *calendar.Service, calendarID string, hints map[string]calendarTimezoneHint) (string, *time.Location) {
+func calendarDisplayTimezone(ctx context.Context, svc *calendar.Service, calendarID string, hints map[string]calendarTimezoneHint, override *calendarTimezoneHint) (string, *time.Location) {
+	if override != nil {
+		return override.timezone, override.loc
+	}
 	if hint, ok := hints[calendarID]; ok {
 		return hint.timezone, hint.loc
 	}
@@ -308,6 +311,21 @@ func calendarDisplayTimezone(ctx context.Context, svc *calendar.Service, calenda
 		return "", nil
 	}
 	return tz, loc
+}
+
+// displayTimezoneOverride resolves the --timezone display flag into an
+// override applied to every calendar in the listing. An empty value returns
+// nil, which keeps the default behavior of rendering each calendar's events
+// in that calendar's own timezone.
+func displayTimezoneOverride(value string) (*calendarTimezoneHint, error) {
+	loc, ok, err := parseTimezoneValue(flagTimezoneLabel, value, true)
+	if err != nil {
+		return nil, newUsageError(err)
+	}
+	if !ok {
+		return nil, nil //nolint:nilnil // intentional: nil means no override, caller uses per-calendar timezones
+	}
+	return &calendarTimezoneHint{timezone: loc.String(), loc: loc}, nil
 }
 
 func calendarTimezoneHints(calendars []*calendar.CalendarListEntry) map[string]calendarTimezoneHint {

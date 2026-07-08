@@ -101,7 +101,7 @@ func (c *CalendarChangedCmd) resolveSince() (time.Time, error) {
 }
 
 func (c *CalendarChangedCmd) listChangedSingle(ctx context.Context, svc *calendar.Service, calendarID, since string) error {
-	calendarTimezone, loc := calendarDisplayTimezone(ctx, svc, calendarID, nil)
+	calendarTimezone, loc := calendarDisplayTimezone(ctx, svc, calendarID, nil, nil)
 
 	items, err := fetchChangedEvents(ctx, svc, calendarID, since)
 	if err != nil {
@@ -130,7 +130,7 @@ func (c *CalendarChangedCmd) listChangedMulti(ctx context.Context, svc *calendar
 		if calID == "" {
 			continue
 		}
-		calendarTimezone, loc := calendarDisplayTimezone(ctx, svc, calID, hints)
+		calendarTimezone, loc := calendarDisplayTimezone(ctx, svc, calID, hints, nil)
 		items, err := fetchChangedEvents(ctx, svc, calID, since)
 		if err != nil {
 			u.Err().Linef("calendar %s: %v", calID, err)

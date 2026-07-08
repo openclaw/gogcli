@@ -284,7 +284,7 @@ func TestListCalendarEventsJSONRedactsZoomDescription(t *testing.T) {
 
 	var output bytes.Buffer
 	ctx := newCmdRuntimeJSONOutputContext(t, &output, io.Discard)
-	if err := listCalendarEvents(ctx, svc, "cal1", "2026-05-18T00:00:00Z", "2026-05-19T00:00:00Z", 10, "", false, false, "", "", "", "", nil, false, false, "", ""); err != nil {
+	if err := listCalendarEvents(ctx, svc, "cal1", "2026-05-18T00:00:00Z", "2026-05-19T00:00:00Z", 10, "", false, false, "", "", "", "", nil, false, false, "", "", nil); err != nil {
 		t.Fatalf("listCalendarEvents: %v", err)
 	}
 	out := output.String()

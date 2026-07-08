@@ -93,7 +93,7 @@ Generated from `gog schema --json`.
     - [`gog calendar (cal) create-calendar (new-calendar) <summary> [flags]`](commands/gog-calendar-create-calendar.md) - Create a new secondary calendar
     - [`gog calendar (cal) delete (rm,del,remove) <calendarId> <eventId> [flags]`](commands/gog-calendar-delete.md) - Delete an event
     - [`gog calendar (cal) delete-calendar <calendarId>`](commands/gog-calendar-delete-calendar.md) - Delete an owned secondary calendar
-    - [`gog calendar (cal) event (get,info,show) <calendarId> <eventId>`](commands/gog-calendar-event.md) - Get event
+    - [`gog calendar (cal) event (get,info,show) <calendarId> <eventId> [flags]`](commands/gog-calendar-event.md) - Get event
     - [`gog calendar (cal) events (list,ls) [<calendarId> ...] [flags]`](commands/gog-calendar-events.md) - List events from a calendar or all calendars
     - [`gog calendar (cal) focus-time (focus) --from=STRING --to=STRING [<calendarId>] [flags]`](commands/gog-calendar-focus-time.md) - Create a Focus Time block
     - [`gog calendar (cal) freebusy [<calendarIds>] [flags]`](commands/gog-calendar-freebusy.md) - Get free/busy
