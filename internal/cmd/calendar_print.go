@@ -35,7 +35,7 @@ func printCalendarEventWithTimezone(u *ui.UI, event *calendar.Event, calendarTim
 	}
 
 	u.Out().Linef("start\t%s", eventStart(event))
-	startDay, endDay := eventDaysOfWeek(event)
+	startDay, endDay := eventDaysOfWeekInLocation(event, loc)
 	if startDay != "" {
 		u.Out().Linef("start-day-of-week\t%s", startDay)
 	}

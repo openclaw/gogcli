@@ -744,3 +744,49 @@ func TestCalendarEventsCmd_TimezoneFlag(t *testing.T) {
 		t.Fatalf("expected override timezone in output, got: %q", out)
 	}
 }
+
+func TestCalendarEventCmd_TimezoneOverrideCrossDateWeekday(t *testing.T) {
+	// 02:00Z on a Wednesday is 22:00 the previous day (Tuesday) in
+	// America/New_York; the plain printer must derive the weekday fields from
+	// the same display location as start-local/end-local.
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/users/me/calendarList" && r.Method == http.MethodGet:
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"items": []map[string]any{
+					{"id": "cal1", "summary": "Primary", "accessRole": "owner"},
+				},
+			})
+			return
+		case strings.Contains(r.URL.Path, "/calendars/cal1/events/e1") && r.Method == http.MethodGet:
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"id":      "e1",
+				"summary": "Late call",
+				"start":   map[string]any{"dateTime": "2026-07-08T02:00:00Z"},
+				"end":     map[string]any{"dateTime": "2026-07-08T03:00:00Z"},
+			})
+			return
+		default:
+			http.NotFound(w, r)
+			return
+		}
+	})
+	svc, closeServer := newCalendarServiceForTest(t, handler)
+	defer closeServer()
+
+	var output bytes.Buffer
+	ctx := withCalendarTestService(newCmdRuntimeOutputContext(t, &output, io.Discard), svc)
+	args := []string{"cal1", "e1", "--timezone", "America/New_York"}
+	if err := runKong(t, &CalendarEventCmd{}, args, ctx, &RootFlags{Account: "a@b.com"}); err != nil {
+		t.Fatalf("calendar event: %v", err)
+	}
+	out := output.String()
+	if !strings.Contains(out, "start-local\t2026-07-07T22:00:00-04:00") {
+		t.Fatalf("expected override-local start, got: %q", out)
+	}
+	if !strings.Contains(out, "start-day-of-week\tTuesday") || !strings.Contains(out, "end-day-of-week\tTuesday") {
+		t.Fatalf("expected weekday fields in the override timezone, got: %q", out)
+	}
+}
