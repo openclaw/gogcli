@@ -151,7 +151,7 @@ func buildQuestion(qType string, input *formsAddQuestionInput) (*formsapi.Questi
 			LowLabel:  input.ScaleLowLabel,
 			HighLabel: input.ScaleHighLabel,
 		}
-	case "date":
+	case strDate:
 		q.DateQuestion = &formsapi.DateQuestion{
 			IncludeTime: input.IncludeTime,
 			IncludeYear: input.IncludeYear,

@@ -23,6 +23,7 @@ type DocsCatCmd struct {
 	AllTabs  bool   `name:"all-tabs" help:"Show all tabs with headers"`
 	Raw      bool   `name:"raw" help:"Output the raw Google Docs API JSON response without modifications"`
 	Numbered bool   `name:"numbered" short:"N" help:"Prefix each paragraph with its number"`
+	Chips    bool   `name:"chips" help:"Render Google Docs smart chips inline in text output"`
 }
 
 func (c *DocsCatCmd) Run(ctx context.Context, kctx *kong.Context, flags *RootFlags) error {
@@ -92,7 +93,11 @@ func (c *DocsCatCmd) Run(ctx context.Context, kctx *kong.Context, flags *RootFla
 
 	text := docsPlainText(doc, c.MaxBytes)
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(ctx, stdoutWriter(ctx), map[string]any{"text": text})
+		return outfmt.WriteJSON(ctx, stdoutWriter(ctx), docsTextJSON(text, docsRenderedText(doc, c.MaxBytes, true)))
+	}
+	if c.Chips {
+		_, err = io.WriteString(stdoutWriter(ctx), docsRenderedText(doc, c.MaxBytes, false).Text)
+		return err
 	}
 	_, err = io.WriteString(stdoutWriter(ctx), text)
 	return err
@@ -121,7 +126,11 @@ func (c *DocsCatCmd) runWithTabs(ctx context.Context, svc *docs.Service, id stri
 		}
 		text := tabPlainText(tab, c.MaxBytes)
 		if outfmt.IsJSON(ctx) {
-			return outfmt.WriteJSON(ctx, stdoutWriter(ctx), map[string]any{"tab": tabJSON(tab, text)})
+			return outfmt.WriteJSON(ctx, stdoutWriter(ctx), map[string]any{"tab": tabJSON(tab, text, tabRenderedText(tab, c.MaxBytes, true))})
+		}
+		if c.Chips {
+			_, err = io.WriteString(stdoutWriter(ctx), tabRenderedText(tab, c.MaxBytes, false).Text)
+			return err
 		}
 		_, err = io.WriteString(stdoutWriter(ctx), text)
 		return err
@@ -131,7 +140,7 @@ func (c *DocsCatCmd) runWithTabs(ctx context.Context, svc *docs.Service, id stri
 		var out []map[string]any
 		for _, tab := range tabs {
 			text := tabPlainText(tab, c.MaxBytes)
-			out = append(out, tabJSON(tab, text))
+			out = append(out, tabJSON(tab, text, tabRenderedText(tab, c.MaxBytes, true)))
 		}
 		return outfmt.WriteJSON(ctx, stdoutWriter(ctx), map[string]any{"tabs": out})
 	}
@@ -148,6 +157,9 @@ func (c *DocsCatCmd) runWithTabs(ctx context.Context, svc *docs.Service, id stri
 			return err
 		}
 		text := tabPlainText(tab, c.MaxBytes)
+		if c.Chips {
+			text = tabRenderedText(tab, c.MaxBytes, false).Text
+		}
 		if _, err := io.WriteString(out, text); err != nil {
 			return err
 		}
@@ -300,6 +312,58 @@ func docsPlainText(doc *docs.Document, maxBytes int64) string {
 	return buf.String()
 }
 
+type docsTextResult struct {
+	Text  string
+	Chips []docsSmartChip
+}
+
+type docsSmartChip struct {
+	Type       string `json:"type"`
+	Text       string `json:"text,omitempty"`
+	StartIndex int64  `json:"startIndex,omitempty"`
+	EndIndex   int64  `json:"endIndex,omitempty"`
+	Name       string `json:"name,omitempty"`
+	Email      string `json:"email,omitempty"`
+	DateID     string `json:"dateId,omitempty"`
+	Display    string `json:"displayText,omitempty"`
+	Timestamp  string `json:"timestamp,omitempty"`
+	Title      string `json:"title,omitempty"`
+	URI        string `json:"uri,omitempty"`
+	MimeType   string `json:"mimeType,omitempty"`
+}
+
+func docsRenderedText(doc *docs.Document, maxBytes int64, collectChips bool) docsTextResult {
+	if doc == nil || doc.Body == nil {
+		return docsTextResult{}
+	}
+
+	var result docsTextResult
+	var buf bytes.Buffer
+	for _, el := range doc.Body.Content {
+		if !appendDocsElementRenderedText(&buf, maxBytes, el, collectChips, &result.Chips) {
+			break
+		}
+	}
+	result.Text = buf.String()
+	return result
+}
+
+func tabRenderedText(tab *docs.Tab, maxBytes int64, collectChips bool) docsTextResult {
+	if tab == nil || tab.DocumentTab == nil || tab.DocumentTab.Body == nil {
+		return docsTextResult{}
+	}
+
+	var result docsTextResult
+	var buf bytes.Buffer
+	for _, el := range tab.DocumentTab.Body.Content {
+		if !appendDocsElementRenderedText(&buf, maxBytes, el, collectChips, &result.Chips) {
+			break
+		}
+	}
+	result.Text = buf.String()
+	return result
+}
+
 func appendDocsElementText(buf *bytes.Buffer, maxBytes int64, el *docs.StructuralElement) bool {
 	if el == nil {
 		return true
@@ -342,6 +406,126 @@ func appendDocsElementText(buf *bytes.Buffer, maxBytes int64, el *docs.Structura
 	return true
 }
 
+func appendDocsElementRenderedText(buf *bytes.Buffer, maxBytes int64, el *docs.StructuralElement, collectChips bool, chips *[]docsSmartChip) bool {
+	if el == nil {
+		return true
+	}
+
+	switch {
+	case el.Paragraph != nil:
+		for _, p := range el.Paragraph.Elements {
+			if p.TextRun != nil {
+				if !appendLimited(buf, maxBytes, p.TextRun.Content) {
+					return false
+				}
+				continue
+			}
+			chip, ok := renderDocsSmartChip(p)
+			if !ok {
+				continue
+			}
+			if collectChips {
+				*chips = append(*chips, chip)
+			}
+			if !appendLimited(buf, maxBytes, chip.Text) {
+				return false
+			}
+		}
+	case el.Table != nil:
+		for rowIdx, row := range el.Table.TableRows {
+			if rowIdx > 0 && !appendLimited(buf, maxBytes, "\n") {
+				return false
+			}
+			for cellIdx, cell := range row.TableCells {
+				if cellIdx > 0 && !appendLimited(buf, maxBytes, "\t") {
+					return false
+				}
+				for _, content := range cell.Content {
+					if !appendDocsElementRenderedText(buf, maxBytes, content, collectChips, chips) {
+						return false
+					}
+				}
+			}
+		}
+	case el.TableOfContents != nil:
+		for _, content := range el.TableOfContents.Content {
+			if !appendDocsElementRenderedText(buf, maxBytes, content, collectChips, chips) {
+				return false
+			}
+		}
+	}
+
+	return true
+}
+
+func renderDocsSmartChip(p *docs.ParagraphElement) (docsSmartChip, bool) {
+	if p == nil {
+		return docsSmartChip{}, false
+	}
+
+	switch {
+	case p.Person != nil:
+		props := p.Person.PersonProperties
+		name, email := "", ""
+		if props != nil {
+			name = strings.TrimSpace(props.Name)
+			email = strings.TrimSpace(props.Email)
+		}
+		text := "@" + firstNonEmpty(name, email)
+		if name != "" && email != "" {
+			text = fmt.Sprintf("@%s <%s>", name, email)
+		}
+		return docsSmartChip{
+			Type:       "person",
+			Text:       text,
+			StartIndex: p.StartIndex,
+			EndIndex:   p.EndIndex,
+			Name:       name,
+			Email:      email,
+		}, text != "@"
+	case p.DateElement != nil:
+		props := p.DateElement.DateElementProperties
+		display, timestamp := "", ""
+		if props != nil {
+			display = strings.TrimSpace(props.DisplayText)
+			timestamp = strings.TrimSpace(props.Timestamp)
+		}
+		text := firstNonEmpty(display, timestamp)
+		return docsSmartChip{
+			Type:       "date",
+			Text:       text,
+			StartIndex: p.StartIndex,
+			EndIndex:   p.EndIndex,
+			DateID:     p.DateElement.DateId,
+			Display:    display,
+			Timestamp:  timestamp,
+		}, text != ""
+	case p.RichLink != nil:
+		props := p.RichLink.RichLinkProperties
+		title, uri, mimeType := "", "", ""
+		if props != nil {
+			title = strings.TrimSpace(props.Title)
+			uri = strings.TrimSpace(props.Uri)
+			mimeType = strings.TrimSpace(props.MimeType)
+		}
+		text := firstNonEmpty(title, uri)
+		if title != "" && uri != "" {
+			text = fmt.Sprintf("[%s](%s)", title, uri)
+		}
+		return docsSmartChip{
+			Type:       "richLink",
+			Text:       text,
+			StartIndex: p.StartIndex,
+			EndIndex:   p.EndIndex,
+			Title:      title,
+			URI:        uri,
+			MimeType:   mimeType,
+		}, text != ""
+	default:
+		return docsSmartChip{}, false
+	}
+}
+
 func appendLimited(buf *bytes.Buffer, maxBytes int64, s string) bool {
 	if maxBytes <= 0 {
 		_, _ = buf.WriteString(s)
@@ -372,8 +556,19 @@ func tabPlainText(tab *docs.Tab, maxBytes int64) string {
 	return buf.String()
 }
 
-func tabJSON(tab *docs.Tab, text string) map[string]any {
+func docsTextJSON(text string, rendered docsTextResult) map[string]any {
 	m := map[string]any{"text": text}
+	if rendered.Text != text {
+		m["renderedText"] = rendered.Text
+	}
+	if len(rendered.Chips) > 0 {
+		m["chips"] = rendered.Chips
+	}
+	return m
+}
+
+func tabJSON(tab *docs.Tab, text string, rendered docsTextResult) map[string]any {
+	m := docsTextJSON(text, rendered)
 	if tab.TabProperties != nil {
 		m["id"] = tab.TabProperties.TabId
 		m["title"] = tab.TabProperties.Title
