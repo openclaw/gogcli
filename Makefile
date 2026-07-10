@@ -3,7 +3,7 @@ SHELL := /bin/bash
 # `make` should build the binary by default.
 .DEFAULT_GOAL := build
 
-.PHONY: build build-safe gog gogcli gog-help gogcli-help help fmt fmt-check lint deadcode test ci tools pnpm-gate docs-commands docs-site docs-check agent-skills agent-skills-check
+.PHONY: build build-safe gog gogcli gog-help gogcli-help help fmt fmt-check lint deadcode test ci tools pnpm-gate docker-version-check docs-commands docs-site docs-check agent-skills agent-skills-check
 .PHONY: worker-ci eval-gws eval-gws-agents eval-gws-test
 
 BIN_DIR := $(CURDIR)/bin
@@ -136,6 +136,15 @@ pnpm-gate:
 		echo "pnpm gate skipped (no package.json)"; \
 	fi
 
+docker-version-check:
+	@set -e; \
+	go_version="$$(awk '$$1 == "go" { print $$2; exit }' go.mod)"; \
+	docker_version="$$(sed -n 's/^ARG GO_VERSION=//p' Dockerfile)"; \
+	if [ -z "$$go_version" ] || [ -z "$$docker_version" ] || [ "$$docker_version" != "$$go_version" ]; then \
+		printf 'Docker Go version %s must match go.mod version %s\n' "$$docker_version" "$$go_version" >&2; \
+		exit 1; \
+	fi
+
 test:
 	@go test $(GO_TEST_FLAGS) $(TEST_FLAGS) $(TEST_PKGS)
 	@node --test scripts/eval-gws.test.mjs scripts/eval-gws-agents.test.mjs
@@ -149,7 +158,7 @@ eval-gws-agents: build
 eval-gws-test:
 	@node --test scripts/eval-gws.test.mjs scripts/eval-gws-agents.test.mjs
 
-ci: pnpm-gate fmt-check lint deadcode test docs-check agent-skills-check
+ci: pnpm-gate docker-version-check fmt-check lint deadcode test docs-check agent-skills-check
 
 worker-ci:
 	@pnpm -C internal/tracking/worker lint
