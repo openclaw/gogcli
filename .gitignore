@@ -26,6 +26,8 @@ go.work.sum
 
 # env file
 .env
+.mac-release.env
+.release-state/
 
 # Editor/IDE
 # .idea/

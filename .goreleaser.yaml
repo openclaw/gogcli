@@ -3,19 +3,50 @@ version: 2
 project_name: gogcli
 
 changelog:
-  disable: true
+  # Required for --release-notes: disabling this pipe discards the file.
+  disable: false
+
+release:
+  draft: true
+  name_template: "{{ .Tag }}"
+  target_commitish: "{{ .Commit }}"
+
+snapshot:
+  version_template: '{{ if index .Env "GOG_PILOT_VERSION" }}{{ index .Env "GOG_PILOT_VERSION" }}{{ else }}{{ .Version }}-SNAPSHOT-{{ .ShortCommit }}{{ end }}'
 
 builds:
   - id: gog
     main: ./cmd/gog
     binary: gog
+    mod_timestamp: "{{ .CommitTimestamp }}"
+    flags:
+      - -trimpath
     ldflags: >-
       -s -w
       -X github.com/steipete/gogcli/internal/cmd.version={{ .Tag }}
-      -X github.com/steipete/gogcli/internal/cmd.commit={{ .ShortCommit }}
-      -X github.com/steipete/gogcli/internal/cmd.date={{ .Date }}
+      -X github.com/steipete/gogcli/internal/cmd.commit={{ if index .Env "GOG_COMMIT" }}{{ index .Env "GOG_COMMIT" }}{{ else }}{{ .ShortCommit }}{{ end }}
+      -X github.com/steipete/gogcli/internal/cmd.date={{ .CommitDate }}
     env:
       - CGO_ENABLED=0
+      - "GOCACHEPROG="
+      - "GODEBUG="
+      - GO111MODULE=on
+      - GOAUTH=off
+      - GOENV=off
+      - "GOEXPERIMENT="
+      - "GOFLAGS="
+      - GOFIPS140=off
+      - "GOINSECURE="
+      - GOAMD64=v1
+      - GOARM64=v8.0
+      - "GONOPROXY="
+      - "GONOSUMDB="
+      - "GOPRIVATE="
+      - GOPROXY=https://proxy.golang.org
+      - "GOROOT="
+      - GOSUMDB=sum.golang.org
+      - GOTOOLCHAIN=local
+      - GOWORK=off
     targets:
       - linux_amd64
       - linux_arm64
@@ -24,13 +55,45 @@ builds:
   - id: gog_darwin
     main: ./cmd/gog
     binary: gog
+    mod_timestamp: "{{ .CommitTimestamp }}"
+    flags:
+      - -trimpath
     ldflags: >-
       -s -w
       -X github.com/steipete/gogcli/internal/cmd.version={{ .Tag }}
-      -X github.com/steipete/gogcli/internal/cmd.commit={{ .ShortCommit }}
-      -X github.com/steipete/gogcli/internal/cmd.date={{ .Date }}
+      -X github.com/steipete/gogcli/internal/cmd.commit={{ if index .Env "GOG_COMMIT" }}{{ index .Env "GOG_COMMIT" }}{{ else }}{{ .ShortCommit }}{{ end }}
+      -X github.com/steipete/gogcli/internal/cmd.date={{ .CommitDate }}
     env:
+      - AR=/usr/bin/ar
+      - CC=/usr/bin/clang
+      - CXX=/usr/bin/clang++
+      - CGO_CFLAGS=-O2 -g
+      - "CGO_CPPFLAGS="
+      - CGO_CXXFLAGS=-O2 -g
       - CGO_ENABLED=1
+      - CGO_LDFLAGS=-O2 -g
+      - "GOCACHEPROG="
+      - "GODEBUG="
+      - GO111MODULE=on
+      - GOAUTH=off
+      - GOENV=off
+      - "GOEXPERIMENT="
+      - "GOFLAGS="
+      - GOFIPS140=off
+      - "GOINSECURE="
+      - GOAMD64=v1
+      - GOARM64=v8.0
+      - "GONOPROXY="
+      - "GONOSUMDB="
+      - "GOPRIVATE="
+      - GOPROXY=https://proxy.golang.org
+      - "GOROOT="
+      - GOSUMDB=sum.golang.org
+      - GOTOOLCHAIN=local
+      - GOWORK=off
+      - PKG_CONFIG=/usr/bin/false
+      - "PKG_CONFIG_LIBDIR="
+      - "PKG_CONFIG_PATH="
     targets:
       - darwin_amd64
       - darwin_arm64
@@ -42,6 +105,10 @@ archives:
   - ids:
       - gog
       - gog_darwin
+    builds_info:
+      mtime: "{{ .CommitDate }}"
+    files:
+      - "none*"
     formats:
       - tar.gz
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"

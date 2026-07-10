@@ -1,22 +1,18 @@
-name: release
+name: release-check
 
 on:
   push:
     tags:
       - "v*"
   workflow_dispatch:
-    inputs:
-      tag:
-        description: "Tag to (re)release (e.g. v0.1.0)"
-        required: true
-        type: string
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  goreleaser:
+  snapshot:
     runs-on: macos-15
+    timeout-minutes: 30
     steps:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -29,197 +25,16 @@ jobs:
           go-version-file: go.mod
           cache: true
 
-      - name: Stash GoReleaser config
-        run: cp .goreleaser.yaml /tmp/.goreleaser.yaml
-
-      - name: Validate release tag
-        if: ${{ github.event_name == 'workflow_dispatch' }}
-        env:
-          RELEASE_TAG: ${{ inputs.tag }}
+      - name: Test local release contract
         run: |
-          if ! echo "$RELEASE_TAG" | grep -qE '^v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$'; then
-            echo "::error::Invalid tag format: $RELEASE_TAG"
-            exit 1
-          fi
+          ./scripts/test-codesign-macos.sh
+          ./scripts/test-release-assets.sh
+          env -u GOTOOLCHAIN ./scripts/test-release-local.sh
+          ./scripts/test-start-next-release.sh
 
-      - name: Checkout release tag
-        if: ${{ github.event_name == 'workflow_dispatch' }}
-        env:
-          RELEASE_TAG: ${{ inputs.tag }}
-        run: git checkout "$RELEASE_TAG"
-
-      - name: Import macOS signing certificate
-        env:
-          MACOS_SIGNING_CERT_BASE64: ${{ secrets.MACOS_SIGNING_CERT_BASE64 }}
-          MACOS_SIGNING_CERT_PASSWORD: ${{ secrets.MACOS_SIGNING_CERT_PASSWORD }}
-          MACOS_CODESIGN_IDENTITY: ${{ secrets.MACOS_CODESIGN_IDENTITY }}
-        run: |
-          set -euo pipefail
-          if [ -z "$MACOS_SIGNING_CERT_BASE64" ] || [ -z "$MACOS_SIGNING_CERT_PASSWORD" ] || [ -z "$MACOS_CODESIGN_IDENTITY" ]; then
-            echo "::error::Set MACOS_SIGNING_CERT_BASE64, MACOS_SIGNING_CERT_PASSWORD, and MACOS_CODESIGN_IDENTITY before releasing signed macOS artifacts."
-            exit 1
-          fi
-
-          KEYCHAIN="build.keychain"
-          KEYCHAIN_PASSWORD="$(uuidgen)"
-
-          echo "$MACOS_SIGNING_CERT_BASE64" | base64 --decode > /tmp/codesign.p12
-
-          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
-          security set-keychain-settings -lut 21600 "$KEYCHAIN"
-          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
-          security default-keychain -s "$KEYCHAIN"
-          security list-keychains -d user -s "$KEYCHAIN"
-
-          security import /tmp/codesign.p12 -k "$KEYCHAIN" -P "$MACOS_SIGNING_CERT_PASSWORD" -T /usr/bin/codesign -T /usr/bin/security
-          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
-
-      - name: GoReleaser
+      - name: Snapshot release build
         uses: goreleaser/goreleaser-action@5daf1e915a5f0af01ddbcd89a43b8061ff4f1a89 # v7.2.2
         with:
           distribution: goreleaser
-          version: latest
-          args: release --clean --config /tmp/.goreleaser.yaml
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GOG_CODESIGN_IDENTITY: ${{ secrets.MACOS_CODESIGN_IDENTITY }}
-
-  update-homebrew-tap:
-    runs-on: ubuntu-latest
-    needs: goreleaser
-    steps:
-      - name: Resolve release tag
-        run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "RELEASE_TAG=${{ inputs.tag }}" >> "$GITHUB_ENV"
-          else
-            echo "RELEASE_TAG=${{ github.ref_name }}" >> "$GITHUB_ENV"
-          fi
-
-      - name: Dispatch tap formula update
-        env:
-          GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
-        run: |
-          if [ -z "$GH_TOKEN" ]; then
-            echo "::error::Set HOMEBREW_TAP_TOKEN with workflow access to openclaw/homebrew-tap"
-            exit 1
-          fi
-
-          request_id="gogcli-${RELEASE_TAG}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-          expected_title="Update gogcli for ${RELEASE_TAG} (${request_id})"
-          version="${RELEASE_TAG#v}"
-          formula_url="https://raw.githubusercontent.com/openclaw/homebrew-tap/main/Formula/gogcli.rb"
-          checksums_url="https://github.com/${{ github.repository }}/releases/download/${RELEASE_TAG}/checksums.txt"
-          checksums="$(curl -fsSL "$checksums_url")"
-
-          sha_for_asset() {
-            awk -v name="$1" '$2 == name {print $1}' <<<"$checksums"
-          }
-
-          darwin_amd64_sha="$(sha_for_asset "gogcli_${version}_darwin_amd64.tar.gz")"
-          darwin_arm64_sha="$(sha_for_asset "gogcli_${version}_darwin_arm64.tar.gz")"
-          linux_amd64_sha="$(sha_for_asset "gogcli_${version}_linux_amd64.tar.gz")"
-          linux_arm64_sha="$(sha_for_asset "gogcli_${version}_linux_arm64.tar.gz")"
-
-          if [ -z "$darwin_amd64_sha" ] || [ -z "$darwin_arm64_sha" ] ||
-             [ -z "$linux_amd64_sha" ] || [ -z "$linux_arm64_sha" ]; then
-            echo "::error::Missing expected checksums for ${RELEASE_TAG}"
-            exit 1
-          fi
-
-          dispatch_output="$(
-            gh workflow run update-formula.yml \
-              --repo openclaw/homebrew-tap \
-              --ref main \
-              -f formula=gogcli \
-              -f tag="$RELEASE_TAG" \
-              -f repository=${{ github.repository }} \
-              -f artifact_template="{formula}_{version}_{target}.tar.gz" \
-              -f request_id="$request_id"
-          )"
-          run_url="$(
-            grep -Eo 'https://github.com/openclaw/homebrew-tap/actions/runs/[0-9]+' \
-              <<<"$dispatch_output" | tail -n1 || true
-          )"
-
-          run_id=""
-          if [[ "$run_url" =~ ^https://github.com/openclaw/homebrew-tap/actions/runs/[0-9]+$ ]]; then
-            run_id="${run_url##*/}"
-          fi
-
-          tap_succeeded=false
-
-          formula_sha_for_asset() {
-            local remainder="${formula#*"$1"}"
-            remainder="${remainder#*sha256 \"}"
-            printf '%s\n' "${remainder%%\"*}"
-          }
-
-          for attempt in {1..90}; do
-            sleep_seconds=5
-            formula="$(curl -fsSL "${formula_url}?request_id=${request_id}&attempt=${attempt}" || true)"
-
-            if [ -z "$run_id" ]; then
-              : > /tmp/tap-run-status-error
-              run_id="$(
-                gh run list \
-                  --repo openclaw/homebrew-tap \
-                  --workflow update-formula.yml \
-                  --branch main \
-                  --event workflow_dispatch \
-                  --limit 20 \
-                  --json databaseId,displayTitle \
-                  --jq ".[] | select(.displayTitle == \"$expected_title\") | .databaseId" \
-                  2>/tmp/tap-run-status-error | head -n1 || true
-              )"
-
-              if [ -z "$run_id" ] && [ -s /tmp/tap-run-status-error ]; then
-                sleep_seconds=60
-                if [ "$attempt" -eq 1 ]; then
-                  cat /tmp/tap-run-status-error >&2
-                  echo "Tap workflow lookup unavailable; retrying until the API quota resets."
-                fi
-              fi
-            fi
-
-            if [ -n "$run_id" ] && ! "$tap_succeeded"; then
-              : > /tmp/tap-run-status-error
-              run_state="$(
-                gh api "repos/openclaw/homebrew-tap/actions/runs/${run_id}" \
-                  --jq '[.status, (.conclusion // "")] | @tsv' \
-                  2>/tmp/tap-run-status-error || true
-              )"
-
-              if [ -z "$run_state" ]; then
-                sleep_seconds=60
-                if [ "$attempt" -eq 1 ]; then
-                  cat /tmp/tap-run-status-error >&2
-                  echo "Tap workflow status unavailable; retrying until the API quota resets."
-                fi
-              else
-                IFS=$'\t' read -r run_status run_conclusion <<<"$run_state"
-                if [ "$run_status" = "completed" ]; then
-                  if [ "$run_conclusion" != "success" ]; then
-                    echo "::error::Homebrew tap workflow ended with conclusion: ${run_conclusion}"
-                    exit 1
-                  fi
-                  tap_succeeded=true
-                fi
-              fi
-            fi
-
-            if "$tap_succeeded" &&
-               grep -Fq "version \"${version}\"" <<<"$formula" &&
-               [ "$(formula_sha_for_asset "gogcli_${version}_darwin_amd64.tar.gz")" = "$darwin_amd64_sha" ] &&
-               [ "$(formula_sha_for_asset "gogcli_${version}_darwin_arm64.tar.gz")" = "$darwin_arm64_sha" ] &&
-               [ "$(formula_sha_for_asset "gogcli_${version}_linux_amd64.tar.gz")" = "$linux_amd64_sha" ] &&
-               [ "$(formula_sha_for_asset "gogcli_${version}_linux_arm64.tar.gz")" = "$linux_arm64_sha" ]; then
-              echo "Homebrew formula updated for ${RELEASE_TAG}"
-              exit 0
-            fi
-
-            sleep "$sleep_seconds"
-          done
-
-          echo "::error::Homebrew formula did not update for ${RELEASE_TAG}"
-          exit 1
+          version: "~> v2"
+          args: release --snapshot --clean --skip=publish --parallelism=2

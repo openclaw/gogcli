@@ -1,0 +1,1941 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+root=$(cd "$(dirname "$0")/.." && pwd)
+repository=openclaw/gogcli
+trusted_default_branch=
+trusted_default_commit=
+trusted_tag_object=
+trusted_tag_commit=
+trusted_tap_branch=
+trusted_tap_commit=
+trusted_tap_workflow_id=
+current_tap_branch=
+current_tap_commit=
+tap_contract_base=45b93a0b3de27e46b636a0cef819fb1ecef25bcd
+release_go_bin=
+release_goreleaser_bin=
+release_go_archive=
+release_go_archive_sha256=
+release_go_binary_sha256=
+release_goreleaser_archive=
+release_goreleaser_archive_sha256=
+release_goreleaser_binary_sha256=
+release_bridge_script=
+release_bridge_sha256=
+official_go_env=()
+cd "$root"
+
+usage() {
+  cat >&2 <<'EOF'
+usage:
+  scripts/release-local --check
+  scripts/release-local pilot vX.Y.Z
+  scripts/release-local draft
+  scripts/release-local verify-draft vX.Y.Z
+  scripts/release-local publish vX.Y.Z
+  scripts/release-local homebrew vX.Y.Z
+EOF
+  exit 2
+}
+
+validate_tag() {
+  [[ "$1" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]] || {
+    echo "release: invalid tag: $1" >&2
+    exit 2
+  }
+}
+
+require_tools() {
+  local command
+  for command in "$@"; do
+    command -v "$command" >/dev/null 2>&1 || {
+      echo "release: missing required command: $command" >&2
+      exit 1
+    }
+  done
+}
+
+github_api() {
+  command gh api --hostname github.com "$@"
+}
+
+github_api_without_tokens() (
+  unset GITHUB_TOKEN GH_TOKEN
+  github_api "$@"
+)
+
+github_auth_token() {
+  command gh auth token --hostname github.com
+}
+
+github_auth_token_without_tokens() (
+  unset GITHUB_TOKEN GH_TOKEN
+  github_auth_token
+)
+
+sanitize_git_environment() {
+  unset \
+    GIT_ALTERNATE_OBJECT_DIRECTORIES \
+    GIT_ATTR_SOURCE \
+    GIT_COMMON_DIR \
+    GIT_CONFIG \
+    GIT_CONFIG_PARAMETERS \
+    GIT_CONFIG_SYSTEM \
+    GIT_DIR \
+    GIT_EXEC_PATH \
+    GIT_INDEX_FILE \
+    GIT_NAMESPACE \
+    GIT_OBJECT_DIRECTORY \
+    GIT_REPLACE_REF_BASE \
+    GIT_SHALLOW_FILE \
+    GIT_TEMPLATE_DIR \
+    GIT_WORK_TREE
+  export GIT_CONFIG_COUNT=0
+  export GIT_CONFIG_GLOBAL=/dev/null
+  export GIT_CONFIG_NOSYSTEM=1
+  export GIT_NO_REPLACE_OBJECTS=1
+}
+
+trusted_git() (
+  sanitize_git_environment
+  command git "$@"
+)
+
+require_no_git_grafts() {
+  local repository_path=$1 label=$2 graft_path
+  graft_path=$(trusted_git -C "$repository_path" rev-parse --git-path info/grafts) || {
+    echo "release: cannot resolve $label Git graft path" >&2
+    exit 1
+  }
+  [[ -n "$graft_path" && "$graft_path" != *$'\n'* ]] || {
+    echo "release: $label Git graft path is invalid" >&2
+    exit 1
+  }
+  [[ "$graft_path" == /* ]] || graft_path="$repository_path/$graft_path"
+  [[ ! -e "$graft_path" && ! -L "$graft_path" ]] || {
+    echo "release: $label Git graft file is forbidden" >&2
+    exit 1
+  }
+}
+
+release_manifest_path() {
+  local manifest=${MAC_RELEASE_MANIFEST:-"$root/.mac-release.env"}
+  [[ "$manifest" == /* && -f "$manifest" && ! -L "$manifest" ]] || {
+    echo "release: MAC_RELEASE_MANIFEST must name an absolute regular file" >&2
+    exit 1
+  }
+  printf '%s\n' "$manifest"
+}
+
+download_pinned_release_archive() {
+  local url=$1 destination=$2 expected_sha256=$3 label=$4 actual_sha256
+
+  /usr/bin/env -i /usr/bin/curl \
+    --proto '=https' \
+    --proto-redir '=https' \
+    --tlsv1.2 \
+    --fail \
+    --silent \
+    --show-error \
+    --location \
+    --output "$destination" \
+    "$url"
+  actual_sha256=$(/usr/bin/shasum -a 256 "$destination" | /usr/bin/awk '{print $1}')
+  [[ "$actual_sha256" == "$expected_sha256" ]] || {
+    echo "release: pinned $label archive checksum mismatch" >&2
+    exit 1
+  }
+}
+
+require_pinned_release_tools_unchanged() {
+  local artifact path remainder expected_sha256 label actual_sha256
+
+  for artifact in \
+    "$release_go_archive:$release_go_archive_sha256:Go" \
+    "$release_goreleaser_archive:$release_goreleaser_archive_sha256:GoReleaser" \
+    "$release_go_bin:$release_go_binary_sha256:Go-binary" \
+    "$release_goreleaser_bin:$release_goreleaser_binary_sha256:GoReleaser-binary" \
+    "$release_bridge_script:$release_bridge_sha256:credential-bridge"; do
+    path=${artifact%%:*}
+    remainder=${artifact#*:}
+    expected_sha256=${remainder%%:*}
+    label=${remainder#*:}
+    [[ -f "$path" && ! -L "$path" ]] || {
+      echo "release: pinned $label artifact is missing or indirect" >&2
+      exit 1
+    }
+    actual_sha256=$(/usr/bin/shasum -a 256 "$path" | /usr/bin/awk '{print $1}')
+    [[ "$actual_sha256" == "$expected_sha256" ]] || {
+      echo "release: pinned $label artifact changed" >&2
+      exit 1
+    }
+  done
+}
+
+prepare_official_go_environment() {
+  local name expected_goarch goreleaser_arch go_version goreleaser_version
+  local go_root tool tool_root go_archive_name goreleaser_archive_name
+  local go_archive_expected goreleaser_archive_expected
+  local -a ambient_build_controls=(
+    AR
+    BASH_ENV
+    CC
+    CC_FOR_DARWIN_AMD64
+    CC_FOR_DARWIN_ARM64
+    CC_FOR_TARGET
+    CFLAGS
+    C_INCLUDE_PATH
+    CGO_CFLAGS
+    CGO_CPPFLAGS
+    CGO_CXXFLAGS
+    CGO_ENABLED
+    CGO_LDFLAGS
+    CPLUS_INCLUDE_PATH
+    CPATH
+    CXX
+    CXXFLAGS
+    CXX_FOR_DARWIN_AMD64
+    CXX_FOR_DARWIN_ARM64
+    CXX_FOR_TARGET
+    DEVELOPER_DIR
+    DYLD_FALLBACK_FRAMEWORK_PATH
+    DYLD_FALLBACK_LIBRARY_PATH
+    DYLD_FRAMEWORK_PATH
+    DYLD_INSERT_LIBRARIES
+    DYLD_LIBRARY_PATH
+    ENV
+    GOCACHE
+    GOCACHEPROG
+    GODEBUG
+    GO111MODULE
+    GOAUTH
+    GOENV
+    GOEXPERIMENT
+    GOFLAGS
+    GOFIPS140
+    GOINSECURE
+    GOAMD64
+    GOARCH
+    GOARM64
+    GOMODCACHE
+    GONOPROXY
+    GONOSUMDB
+    GOPRIVATE
+    GOPROXY
+    GOROOT
+    GOSUMDB
+    GOTOOLCHAIN
+    GOTMPDIR
+    GOOS
+    GOWORK
+    GORELEASER_CURRENT_TAG
+    GOG_COMMIT
+    GOG_OFFICIAL_RELEASE
+    GOG_PILOT_VERSION
+    LD_LIBRARY_PATH
+    LD_PRELOAD
+    LIBRARY_PATH
+    MACOSX_DEPLOYMENT_TARGET
+    OBJC_INCLUDE_PATH
+    PKG_CONFIG
+    PKG_CONFIG_LIBDIR
+    PKG_CONFIG_PATH
+    SDKROOT
+  )
+
+  for name in "${ambient_build_controls[@]}"; do
+    [[ -z "${!name-}" ]] || {
+      echo "release: ambient Go build control is forbidden: $name" >&2
+      exit 1
+    }
+  done
+  case "$(/usr/bin/uname -m)" in
+    arm64)
+      expected_goarch=arm64
+      goreleaser_arch=arm64
+      go_archive_expected=efb87ff28af9a188d0536ef5d42e63dd52ba8263cd7344a993cc48dd11dedb6a
+      goreleaser_archive_expected=58912a80159199c0fd5c8484e4c868bf87414129655d6d87cd1cd84ee645736c
+      ;;
+    x86_64)
+      expected_goarch=amd64
+      goreleaser_arch=x86_64
+      go_archive_expected=6231d8d3b8f5552ec6cbf6d685bdd5482e1e703214b120e89b3bf0d7bf1ef725
+      goreleaser_archive_expected=f37e89fb844ddfd23cffb97e30d91f972c42da68232a676bfba2beacea300543
+      ;;
+    *)
+      echo "release: unsupported Go release host architecture" >&2
+      exit 1
+      ;;
+  esac
+  for tool in \
+    /usr/bin/ar \
+    /usr/bin/awk \
+    /bin/chmod \
+    /bin/cp \
+    /usr/bin/clang \
+    /usr/bin/clang++ \
+    /usr/bin/curl \
+    /usr/bin/env \
+    /usr/bin/false \
+    /usr/bin/grep \
+    /bin/mkdir \
+    /usr/bin/python3 \
+    /usr/bin/shasum \
+    /usr/bin/bsdtar \
+    /usr/bin/uname; do
+    [[ -x "$tool" && ! -L "$tool" ]] || {
+      echo "release: required system build tool is unavailable or indirect: $tool" >&2
+      exit 1
+    }
+  done
+
+  tool_root="$work_dir/pinned-release-tools"
+  /bin/mkdir -p "$tool_root/goreleaser"
+  go_archive_name="go1.26.5.darwin-${expected_goarch}.tar.gz"
+  goreleaser_archive_name="goreleaser_Darwin_${goreleaser_arch}.tar.gz"
+  release_go_archive="$tool_root/$go_archive_name"
+  release_goreleaser_archive="$tool_root/$goreleaser_archive_name"
+  release_go_archive_sha256=$go_archive_expected
+  release_goreleaser_archive_sha256=$goreleaser_archive_expected
+  download_pinned_release_archive \
+    "https://go.dev/dl/$go_archive_name" \
+    "$release_go_archive" "$release_go_archive_sha256" Go
+  download_pinned_release_archive \
+    "https://github.com/goreleaser/goreleaser/releases/download/v2.17.0/$goreleaser_archive_name" \
+    "$release_goreleaser_archive" "$release_goreleaser_archive_sha256" GoReleaser
+  /usr/bin/bsdtar -xzf "$release_go_archive" -C "$tool_root"
+  /usr/bin/bsdtar -xzf "$release_goreleaser_archive" -C "$tool_root/goreleaser" goreleaser
+  release_go_bin="$tool_root/go/bin/go"
+  release_goreleaser_bin="$tool_root/goreleaser/goreleaser"
+  release_bridge_script="$tool_root/run-official-goreleaser.py"
+  /bin/cp "$root/scripts/run-official-goreleaser.py" "$release_bridge_script"
+  [[ -x "$release_go_bin" && ! -L "$release_go_bin" &&
+    -x "$release_goreleaser_bin" && ! -L "$release_goreleaser_bin" &&
+    -f "$release_bridge_script" && ! -L "$release_bridge_script" ]] || {
+    echo "release: pinned producer binaries are missing or indirect" >&2
+    exit 1
+  }
+  release_go_binary_sha256=$(/usr/bin/shasum -a 256 "$release_go_bin" | /usr/bin/awk '{print $1}')
+  release_goreleaser_binary_sha256=$(/usr/bin/shasum -a 256 "$release_goreleaser_bin" | /usr/bin/awk '{print $1}')
+  release_bridge_sha256=$(/usr/bin/shasum -a 256 "$release_bridge_script" | /usr/bin/awk '{print $1}')
+  /bin/chmod -R a-w "$tool_root"
+  require_pinned_release_tools_unchanged
+
+  go_version=$(/usr/bin/env -i GOROOT= GO111MODULE=on GOAUTH=off GOCACHEPROG= GOENV=off \
+    GOEXPERIMENT= GOFLAGS= GOFIPS140=off GOTOOLCHAIN=local \
+    "$release_go_bin" version)
+  [[ "$go_version" == "go version go1.26.5 darwin/$expected_goarch" ]] || {
+    echo "release: official builds require native Go 1.26.5" >&2
+    exit 1
+  }
+  goreleaser_version=$(/usr/bin/env -i "$release_goreleaser_bin" --version)
+  if ! /usr/bin/grep -Eq '^GitVersion:[[:space:]]+2\.17\.0$' <<<"$goreleaser_version" ||
+    ! /usr/bin/grep -Eq "^Platform:[[:space:]]+darwin/$expected_goarch$" <<<"$goreleaser_version"; then
+    echo "release: official builds require pinned GoReleaser 2.17.0" >&2
+    exit 1
+  fi
+
+  go_root="$work_dir/official-go"
+  /bin/mkdir -p "$go_root/cache" "$go_root/home" "$go_root/modcache" "$go_root/tmp"
+  official_go_env=(
+    "AR=/usr/bin/ar"
+    "BASH_ENV="
+    "BASHOPTS="
+    "CC=/usr/bin/clang"
+    "C_INCLUDE_PATH="
+    "CGO_CFLAGS=-O2 -g"
+    "CGO_CPPFLAGS="
+    "CGO_CXXFLAGS=-O2 -g"
+    "CGO_LDFLAGS=-O2 -g"
+    "CPLUS_INCLUDE_PATH="
+    "CPATH="
+    "CXX=/usr/bin/clang++"
+    "DEVELOPER_DIR="
+    "DYLD_FALLBACK_FRAMEWORK_PATH="
+    "DYLD_FALLBACK_LIBRARY_PATH="
+    "DYLD_FRAMEWORK_PATH="
+    "DYLD_INSERT_LIBRARIES="
+    "DYLD_LIBRARY_PATH="
+    "ENV="
+    "GIT_CONFIG_COUNT=0"
+    "GIT_CONFIG_GLOBAL=/dev/null"
+    "GIT_CONFIG_NOSYSTEM=1"
+    "GIT_NO_REPLACE_OBJECTS=1"
+    "GOCACHE=$go_root/cache"
+    "GOCACHEPROG="
+    "GODEBUG="
+    "GO111MODULE=on"
+    "GOAUTH=off"
+    "GOENV=off"
+    "GOEXPERIMENT="
+    "GOFLAGS="
+    "GOFIPS140=off"
+    "GOINSECURE="
+    "GOAMD64=v1"
+    "GOARM64=v8.0"
+    "GOMODCACHE=$go_root/modcache"
+    "GONOPROXY="
+    "GONOSUMDB="
+    "GOPRIVATE="
+    "GOPROXY=https://proxy.golang.org"
+    "GOROOT="
+    "GOSUMDB=sum.golang.org"
+    "GOTOOLCHAIN=local"
+    "GOWORK=off"
+    "HOME=$go_root/home"
+    "LIBRARY_PATH="
+    "LD_LIBRARY_PATH="
+    "LD_PRELOAD="
+    "LC_ALL=C"
+    "MACOSX_DEPLOYMENT_TARGET="
+    "OBJC_INCLUDE_PATH="
+    "PATH=${release_go_bin%/*}:/usr/bin:/bin:/usr/sbin:/sbin"
+    "PKG_CONFIG=/usr/bin/false"
+    "PKG_CONFIG_LIBDIR="
+    "PKG_CONFIG_PATH="
+    "SDKROOT="
+    "SHELLOPTS="
+    "TMPDIR=$go_root/tmp"
+    "TZ=UTC"
+  )
+}
+
+run_official_goreleaser() {
+  local release_helper=$1 release_manifest=$2 require_github_token=$3 assignment
+  shift 3
+  local -a goreleaser_bridge=(
+    /usr/bin/python3
+    -I
+    "$release_bridge_script"
+    goreleaser
+  )
+  local -a helper_bridge=(
+    /usr/bin/python3
+    -I
+    "$release_bridge_script"
+    helper
+    --manifest
+    "$release_manifest"
+  )
+
+  [[ "$require_github_token" == true || "$require_github_token" == false ]] || {
+    echo "release: invalid credential bridge token mode" >&2
+    exit 1
+  }
+  [[ -f "$release_bridge_script" && ! -L "$release_bridge_script" ]] || {
+    echo "release: official credential bridge is missing or indirect" >&2
+    exit 1
+  }
+  if [[ "$require_github_token" == true ]]; then
+    helper_bridge+=(--require-github-token)
+    goreleaser_bridge+=(--require-github-token)
+  fi
+  for assignment in "${official_go_env[@]}"; do
+    goreleaser_bridge+=(--env "$assignment")
+  done
+  while [[ "${1:-}" == --env ]]; do
+    [[ "$#" -ge 2 ]] || {
+      echo "release: credential bridge --env is missing its assignment" >&2
+      exit 1
+    }
+    goreleaser_bridge+=(--env "$2")
+    shift 2
+  done
+  [[ "${1:-}" == -- && "$#" -ge 2 ]] || {
+    echo "release: credential bridge command is missing" >&2
+    exit 1
+  }
+  shift
+  goreleaser_bridge+=(-- "$release_goreleaser_bin" "$@")
+  helper_bridge+=(-- "$release_helper" codesign-run --with-package-secrets --)
+  helper_bridge+=("${goreleaser_bridge[@]}")
+
+  "${helper_bridge[@]}"
+}
+
+require_current_default_head() {
+  local default_ref head_commit remote_default_commit repo_json api_default_branch
+  local encoded_branch branch_json api_default_commit index_flags replacement_refs
+
+  require_tools git gh jq
+  require_no_git_grafts "$root" "local release"
+
+  default_ref=$(trusted_git ls-remote --symref origin HEAD | awk '$1 == "ref:" && $3 == "HEAD" { print $2; exit }')
+  [[ "$default_ref" == refs/heads/* ]] || {
+    echo "release: origin has no valid default branch" >&2
+    exit 1
+  }
+  trusted_default_branch=${default_ref#refs/heads/}
+  [[ "$trusted_default_branch" =~ ^[A-Za-z0-9._/-]+$ ]] || {
+    echo "release: origin has an invalid default branch" >&2
+    exit 1
+  }
+
+  trusted_git fetch --quiet --no-tags origin "$default_ref:refs/remotes/origin/$trusted_default_branch"
+  head_commit=$(trusted_git rev-parse HEAD)
+  trusted_default_commit=$(trusted_git rev-parse "refs/remotes/origin/$trusted_default_branch")
+  remote_default_commit=$(trusted_git ls-remote --exit-code origin "$default_ref" | awk -v ref="$default_ref" '$2 == ref { print $1 }')
+  [[ "$trusted_default_commit" =~ ^[[:xdigit:]]{40}$ && "$remote_default_commit" == "$trusted_default_commit" ]] || {
+    echo "release: fetched origin/$trusted_default_branch is not current" >&2
+    exit 1
+  }
+
+  repo_json=$(github_api_without_tokens "repos/$repository")
+  api_default_branch=$(jq -r '.default_branch // empty' <<<"$repo_json")
+  [[ "$api_default_branch" == "$trusted_default_branch" ]] || {
+    echo "release: GitHub default branch does not match origin/$trusted_default_branch" >&2
+    exit 1
+  }
+  encoded_branch=$(jq -rn --arg branch "$trusted_default_branch" '$branch | @uri')
+  branch_json=$(github_api_without_tokens \
+    "repos/$repository/branches/$encoded_branch")
+  [[ "$(jq -r '.protected' <<<"$branch_json")" == true ]] || {
+    echo "release: GitHub default branch is not protected" >&2
+    exit 1
+  }
+  api_default_commit=$(jq -r '.commit.sha // empty' <<<"$branch_json")
+  [[ "$api_default_commit" == "$trusted_default_commit" ]] || {
+    echo "release: GitHub protected default branch moved" >&2
+    exit 1
+  }
+
+  [[ "$head_commit" == "$trusted_default_commit" ]] || {
+    echo "release: HEAD must exactly match current origin/$trusted_default_branch" >&2
+    exit 1
+  }
+  [[ "$(trusted_git branch --show-current)" == "$trusted_default_branch" ]] || {
+    echo "release: releases must run from the current default branch: $trusted_default_branch" >&2
+    exit 1
+  }
+  [[ -z "$(trusted_git status --porcelain --untracked-files=all)" ]] || {
+    echo "release: working tree must be clean" >&2
+    exit 1
+  }
+  index_flags=$(trusted_git ls-files -v | awk 'substr($0, 1, 1) != "H" { print; exit }')
+  [[ -z "$index_flags" ]] || {
+    echo "release: skip-worktree or assume-unchanged index state is forbidden" >&2
+    exit 1
+  }
+  replacement_refs=$(trusted_git for-each-ref --format='%(refname)' refs/replace/)
+  [[ -z "$replacement_refs" ]] || {
+    echo "release: local Git replacement refs are forbidden" >&2
+    exit 1
+  }
+}
+
+require_remote_signed_tag() {
+  local tag=$1 exact_default=${2:-false}
+  local tag_metadata extra local_tag_object
+
+  require_current_default_head
+  tag_metadata=$(
+    sanitize_git_environment
+    "$root/scripts/verify-release-tag.sh" "$tag"
+  )
+  read -r trusted_tag_object trusted_tag_commit extra <<<"$tag_metadata"
+  [[ "$trusted_tag_object" =~ ^[[:xdigit:]]{40}$ && "$trusted_tag_commit" =~ ^[[:xdigit:]]{40}$ && -z "${extra:-}" ]] || {
+    echo "release: trusted tag verifier returned invalid metadata" >&2
+    exit 1
+  }
+
+  if [[ "$exact_default" == true ]]; then
+    local_tag_object=$(trusted_git rev-parse "refs/tags/$tag" 2>/dev/null || true)
+    [[ "$trusted_tag_commit" == "$trusted_default_commit" && "$local_tag_object" == "$trusted_tag_object" ]] || {
+      echo "release: $tag must be the same signed tag object on current origin/$trusted_default_branch" >&2
+      exit 1
+    }
+  elif ! trusted_git merge-base --is-ancestor "$trusted_tag_commit" "$trusted_default_commit"; then
+    echo "release: $tag is not reachable from current origin/$trusted_default_branch" >&2
+    exit 1
+  fi
+}
+
+require_successful_tag_workflow() {
+  local tag=$1 expected_commit=$2 workflow_file=$3 label=$4
+  local workflow_json workflow_id runs_json latest_run
+
+  workflow_json=$(github_api "repos/$repository/actions/workflows/$workflow_file")
+  if ! workflow_id=$(jq -er --arg path ".github/workflows/$workflow_file" '
+    select(
+      (.id | type) == "number" and .id > 0 and .id == (.id | floor) and
+      .path == $path and
+      .state == "active"
+    ) | .id | tostring
+  ' <<<"$workflow_json"); then
+    echo "release: $label workflow identity is invalid" >&2
+    exit 1
+  fi
+
+  runs_json=$(github_api \
+    "repos/$repository/actions/workflows/$workflow_id/runs?event=push&branch=$tag&head_sha=$expected_commit&per_page=100")
+  if ! latest_run=$(jq -cer \
+    --arg tag "$tag" \
+    --arg commit "$expected_commit" \
+    --argjson workflow_id "$workflow_id" '
+      [
+        .workflow_runs[] |
+        select(
+          .workflow_id == $workflow_id and
+          .event == "push" and
+          .head_branch == $tag and
+          .head_sha == $commit and
+          (.id | type) == "number" and .id > 0 and
+          (.run_attempt | type) == "number" and .run_attempt > 0 and
+          (.created_at | type) == "string"
+        )
+      ] |
+      sort_by(.created_at, .id) |
+      last |
+      select(. != null)
+    ' <<<"$runs_json"); then
+    echo "release: no exact-tag $label run exists for $tag at $expected_commit" >&2
+    exit 1
+  fi
+  jq -e '.status == "completed" and .conclusion == "success"' \
+    <<<"$latest_run" >/dev/null || {
+    echo "release: latest exact-tag $label run is not successful" >&2
+    exit 1
+  }
+}
+
+require_successful_tag_checks() {
+  local tag=$1 expected_commit=$2
+  require_successful_tag_workflow "$tag" "$expected_commit" ci.yml CI
+  require_successful_tag_workflow "$tag" "$expected_commit" release.yml release-check
+}
+
+validate_release_record_file() {
+  local release_file=$1 tag=$2 expected_draft=$3 snapshot_file=$4
+  local expected_snapshot=${5:-}
+
+  extract_notes "$tag"
+  if [[ -n "$expected_snapshot" ]]; then
+    "$root/scripts/validate-release-record.sh" \
+      "$release_file" "$tag" "$expected_draft" "$trusted_tag_commit" \
+      "$release_body_file" "$expected_snapshot" > "$snapshot_file"
+  else
+    "$root/scripts/validate-release-record.sh" \
+      "$release_file" "$tag" "$expected_draft" "$trusted_tag_commit" \
+      "$release_body_file" > "$snapshot_file"
+  fi
+
+  release_id=$(jq -r '.id' "$release_file")
+  release_json=$(jq -c '[.]' "$release_file")
+  release_snapshot_file=$snapshot_file
+}
+
+release_record() {
+  local tag=$1 expected_draft=$2 expected_snapshot=${3:-}
+  local matches_file record_file snapshot_file
+
+  github_api --paginate "repos/$repository/releases?per_page=100" > "$work_dir/release-pages.json"
+  matches_file="$work_dir/release-matches.json"
+  jq -cs --arg tag "$tag" --argjson draft "$expected_draft" \
+    '[.[][] | select(.tag_name == $tag and .draft == $draft)]' \
+    "$work_dir/release-pages.json" > "$matches_file"
+  [[ "$(jq 'length' "$matches_file")" == 1 ]] || {
+    echo "release: expected exactly one release for $tag with draft=$expected_draft" >&2
+    exit 1
+  }
+
+  record_file="$work_dir/release-record.json"
+  snapshot_file="$work_dir/release-snapshot.json"
+  jq '.[0]' "$matches_file" > "$record_file"
+  validate_release_record_file \
+    "$record_file" "$tag" "$expected_draft" "$snapshot_file" "$expected_snapshot"
+}
+
+release_state_for_tag() {
+  local tag=$1 matches_file
+
+  github_api --paginate "repos/$repository/releases?per_page=100" > "$work_dir/release-state-pages.json"
+  matches_file="$work_dir/release-state-matches.json"
+  jq -cs --arg tag "$tag" \
+    '[.[][] | select(.tag_name == $tag)]' \
+    "$work_dir/release-state-pages.json" > "$matches_file"
+  [[ "$(jq 'length' "$matches_file")" == 1 ]] || {
+    echo "release: expected exactly one release record for $tag" >&2
+    exit 1
+  }
+  release_state=$(jq -r '
+    if .[0].draft == true then "draft"
+    elif .[0].draft == false then "published"
+    else "invalid"
+    end
+  ' "$matches_file")
+  [[ "$release_state" == draft || "$release_state" == published ]] || {
+    echo "release: $tag has an invalid draft state" >&2
+    exit 1
+  }
+}
+
+extract_notes() {
+  local tag=$1 version release_date release_heading tagged_version
+  local tagged_version_size
+  version=${tag#v}
+  notes_file="$work_dir/notes.md"
+  [[ "$trusted_tag_object" =~ ^[[:xdigit:]]{40}$ ]] || {
+    echo "release: trusted tag object is unavailable for release notes" >&2
+    exit 1
+  }
+  if ! trusted_git show "$trusted_tag_object:CHANGELOG.md" > "$work_dir/tagged-CHANGELOG.md"; then
+    echo "release: $tag has no CHANGELOG.md" >&2
+    exit 1
+  fi
+  if ! trusted_git show "$trusted_tag_object:internal/cmd/VERSION" > "$work_dir/tagged-VERSION"; then
+    echo "release: $tag has no internal/cmd/VERSION" >&2
+    exit 1
+  fi
+  tagged_version=$(<"$work_dir/tagged-VERSION")
+  tagged_version_size=$(wc -c < "$work_dir/tagged-VERSION" | tr -d ' ')
+  [[ "$tagged_version" == "$tag" && "$tagged_version_size" == $((${#tag} + 1)) ]] || {
+    echo "release: tagged internal/cmd/VERSION is not exactly $tag" >&2
+    exit 1
+  }
+  if ! release_date=$(awk -v prefix="## $version - " '
+    index($0, prefix) == 1 {
+      count++
+      candidate = substr($0, length(prefix) + 1)
+      if (candidate !~ /^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]$/) invalid = 1
+      release_date = candidate
+    }
+    END {
+      if (count != 1 || invalid) exit 1
+      print release_date
+    }
+  ' "$work_dir/tagged-CHANGELOG.md"); then
+    echo "release: $tag must have one dated changelog heading" >&2
+    exit 1
+  fi
+  release_heading="## $version - $release_date"
+  if ! awk -v heading="$release_heading" '
+    $0 == heading { found = 1; next }
+    found && /^## / { exit }
+    found { print }
+    END { if (!found) exit 1 }
+  ' "$work_dir/tagged-CHANGELOG.md" > "$notes_file"; then
+    echo "release: missing changelog section for $tag" >&2
+    exit 1
+  fi
+  if [[ ! -s "$notes_file" ]]; then
+    echo "release: empty changelog section for $tag" >&2
+    exit 1
+  fi
+  printf '\nFull changelog: https://github.com/openclaw/gogcli/blob/%s/CHANGELOG.md\n' "$tag" >> "$notes_file"
+
+  # GoReleaser v2.17 renders the loaded notes through its release body
+  # template, which appends one newline. Keep that byte-level producer
+  # behavior explicit so draft, publish, recovery, and verifier agree.
+  release_body_file="$work_dir/release-body.md"
+  {
+    cat "$notes_file"
+    printf '\n'
+  } > "$release_body_file"
+}
+
+verify_release_notes() {
+  local tag=$1 state=$2 actual_body
+  extract_notes "$tag"
+  actual_body="$work_dir/actual-release-body.md"
+  jq -rj '.[0].body // ""' <<<"$release_json" > "$actual_body"
+  cmp -s "$actual_body" "$release_body_file" || {
+    echo "release: $state notes do not match tagged CHANGELOG.md for $tag" >&2
+    exit 1
+  }
+}
+
+prepare_remote_source() {
+  local destination=$1 template_dir
+  template_dir="$work_dir/empty-git-template"
+  mkdir -p "$template_dir"
+  trusted_git clone --quiet --no-checkout --no-local --no-tags \
+    --template="$template_dir" "https://github.com/$repository.git" "$destination"
+  require_no_git_grafts "$destination" "fresh source"
+  [[ -z "$(trusted_git -C "$destination" for-each-ref --format='%(refname)' refs/replace/)" ]] || {
+    echo "release: fresh source clone contains replacement refs" >&2
+    exit 1
+  }
+}
+
+require_source_checkout_at() {
+  local destination=$1 expected_commit=$2 label=$3 index_flags replacement_refs
+  require_no_git_grafts "$destination" "$label source"
+  [[ "$(trusted_git -C "$destination" rev-parse HEAD)" == "$expected_commit" &&
+    -z "$(trusted_git -C "$destination" status --porcelain --untracked-files=all)" ]] || {
+    echo "release: $label source checkout changed" >&2
+    exit 1
+  }
+  index_flags=$(trusted_git -C "$destination" ls-files -v | awk 'substr($0, 1, 1) != "H" { print; exit }')
+  replacement_refs=$(trusted_git -C "$destination" for-each-ref --format='%(refname)' refs/replace/)
+  [[ -z "$index_flags" && -z "$replacement_refs" ]] || {
+    echo "release: $label source checkout has hidden Git state" >&2
+    exit 1
+  }
+}
+
+prepare_default_source() {
+  local destination=$1
+  prepare_remote_source "$destination"
+  trusted_git -C "$destination" fetch --quiet --force --no-tags origin \
+    "+refs/heads/$trusted_default_branch:refs/remotes/origin/$trusted_default_branch"
+  [[ "$(trusted_git -C "$destination" rev-parse "refs/remotes/origin/$trusted_default_branch")" == "$trusted_default_commit" ]] || {
+    echo "release: fresh source does not match the trusted protected default" >&2
+    exit 1
+  }
+  trusted_git -C "$destination" checkout --quiet --detach "$trusted_default_commit"
+  require_source_checkout_at "$destination" "$trusted_default_commit" "protected default"
+}
+
+prepare_rebuild_source() {
+  local tag=$1 destination=$2
+  prepare_remote_source "$destination"
+  trusted_git -C "$destination" fetch --quiet --force --no-tags origin \
+    "+refs/tags/$tag:refs/tags/$tag"
+  [[ "$(trusted_git -C "$destination" rev-parse "refs/tags/$tag")" == "$trusted_tag_object" &&
+    "$(trusted_git -C "$destination" rev-parse "refs/tags/$tag^{}")" == "$trusted_tag_commit" ]] || {
+    echo "release: rebuild source does not match the trusted signed tag" >&2
+    exit 1
+  }
+  trusted_git -C "$destination" checkout --quiet --detach "$trusted_tag_commit"
+  require_source_checkout_at "$destination" "$trusted_tag_commit" "signed tag"
+}
+
+load_tap_default() {
+  local repo_json branch_json encoded_branch
+  repo_json=$(github_api_without_tokens repos/openclaw/homebrew-tap)
+  current_tap_branch=$(jq -r '.default_branch // empty' <<<"$repo_json")
+  [[ "$current_tap_branch" =~ ^[A-Za-z0-9._/-]+$ ]] || {
+    echo "release: Homebrew tap has an invalid default branch" >&2
+    exit 1
+  }
+  encoded_branch=$(jq -rn --arg branch "$current_tap_branch" '$branch | @uri')
+  branch_json=$(github_api_without_tokens \
+    "repos/openclaw/homebrew-tap/branches/$encoded_branch")
+  [[ "$(jq -r '.protected' <<<"$branch_json")" == true ]] || {
+    echo "release: Homebrew tap default branch is not protected" >&2
+    exit 1
+  }
+  current_tap_commit=$(jq -r '.commit.sha // empty' <<<"$branch_json")
+  [[ "$current_tap_commit" =~ ^[[:xdigit:]]{40}$ ]] || {
+    echo "release: Homebrew tap default branch has an invalid commit" >&2
+    exit 1
+  }
+}
+
+require_tap_default_at() {
+  local expected_branch=$1 expected_commit=$2
+  load_tap_default
+  [[ "$current_tap_branch" == "$expected_branch" && "$current_tap_commit" == "$expected_commit" ]] || {
+    echo "release: protected Homebrew tap default branch moved" >&2
+    exit 1
+  }
+}
+
+require_tap_hash_contract_at() {
+  local expected_branch=$1 contract_commit=$2 expected_head=$3
+  local workflow_file workflow_json comparison contract_path current_file base_file ancestry
+  [[ "$contract_commit" =~ ^[[:xdigit:]]{40}$ && "$expected_head" =~ ^[[:xdigit:]]{40}$ ]] || {
+    echo "release: Homebrew tap contract commits are invalid" >&2
+    exit 1
+  }
+  load_tap_default
+  [[ "$current_tap_branch" == "$expected_branch" && "$current_tap_commit" == "$expected_head" ]] || {
+    echo "release: protected Homebrew tap default branch moved" >&2
+    exit 1
+  }
+  ancestry=$(github_api_without_tokens \
+    "repos/openclaw/homebrew-tap/compare/$contract_commit...$expected_head")
+  [[ "$(jq -r '.status // empty' <<<"$ancestry")" == identical ||
+    "$(jq -r '.status // empty' <<<"$ancestry")" == ahead ]] || {
+    echo "release: Homebrew workflow source is not in the protected default history" >&2
+    exit 1
+  }
+  workflow_json=$(github_api_without_tokens \
+    repos/openclaw/homebrew-tap/actions/workflows/update-formula.yml)
+  trusted_tap_workflow_id=$(jq -r '.id // empty' <<<"$workflow_json")
+  [[ "$trusted_tap_workflow_id" =~ ^[0-9]+$ &&
+    "$(jq -r '.path // empty' <<<"$workflow_json")" == .github/workflows/update-formula.yml &&
+    "$(jq -r '.state // empty' <<<"$workflow_json")" == active ]] || {
+    echo "release: Homebrew tap update workflow identity is invalid" >&2
+    exit 1
+  }
+  comparison=$(github_api_without_tokens \
+    "repos/openclaw/homebrew-tap/compare/$tap_contract_base...$contract_commit")
+  [[ "$(jq -r '.status // empty' <<<"$comparison")" == identical ||
+    "$(jq -r '.status // empty' <<<"$comparison")" == ahead ]] || {
+    echo "release: Homebrew tap default does not contain the frozen verified-hash contract" >&2
+    exit 1
+  }
+  for contract_path in \
+    .github/workflows/update-formula.yml \
+    .github/scripts/update_formula.py; do
+    current_file="$work_dir/tap-current-$(basename "$contract_path")"
+    base_file="$work_dir/tap-base-$(basename "$contract_path")"
+    github_api_without_tokens \
+      -H 'Accept: application/vnd.github.raw+json' \
+      "repos/openclaw/homebrew-tap/contents/$contract_path?ref=$contract_commit" \
+      > "$current_file"
+    github_api_without_tokens \
+      -H 'Accept: application/vnd.github.raw+json' \
+      "repos/openclaw/homebrew-tap/contents/$contract_path?ref=$tap_contract_base" \
+      > "$base_file"
+    cmp -s "$base_file" "$current_file" || {
+      echo "release: Homebrew tap verified-hash contract changed: $contract_path" >&2
+      exit 1
+    }
+  done
+  workflow_file="$work_dir/tap-update-formula.yml"
+  cp "$work_dir/tap-current-update-formula.yml" "$workflow_file"
+  grep -Fq '# verified-hashes-v1' "$workflow_file" || {
+    echo "release: Homebrew tap lacks the verified-hash handoff contract" >&2
+    exit 1
+  }
+  for input in \
+    darwin_amd64_sha256 \
+    darwin_arm64_sha256 \
+    linux_amd64_sha256 \
+    linux_arm64_sha256 \
+    source_tag_commit \
+    source_tag_object \
+    request_id; do
+    grep -Eq "^[[:space:]]{6}${input}:" "$workflow_file" || {
+      echo "release: Homebrew tap contract is missing input: $input" >&2
+      exit 1
+    }
+  done
+  require_tap_default_at "$expected_branch" "$expected_head"
+}
+
+require_tap_hash_contract() {
+  load_tap_default
+  trusted_tap_branch=$current_tap_branch
+  trusted_tap_commit=$current_tap_commit
+  require_tap_hash_contract_at \
+    "$trusted_tap_branch" "$trusted_tap_commit" "$trusted_tap_commit"
+}
+
+run_release_asset_download() {
+  local token=$1
+  shift
+  (
+    unset GITHUB_TOKEN
+    export GH_TOKEN="$token"
+    export GITHUB_REPOSITORY="$repository"
+    "$root/scripts/download-release-assets.sh" "$@"
+  )
+}
+
+download_and_verify_public_release() {
+  local tag=$1 destination=$2 source_dir=$3 native_goarch=$4 go_bin=$5 candidate_output=$6
+  local download_token go_dir native_archive version
+  local inventory_snapshot inventory_after candidate_snapshot
+  version=${tag#v}
+  go_dir=$(dirname "$go_bin")
+  download_token=$(github_auth_token_without_tokens)
+  if ! run_release_asset_download "$download_token" \
+    "$tag" "$native_goarch" false "$trusted_tag_commit" \
+    "$trusted_tag_object" "$destination"; then
+    unset download_token
+    return 1
+  fi
+  unset download_token
+
+  native_archive="$destination/gogcli_${version}_darwin_${native_goarch}.tar.gz"
+  inventory_snapshot="${candidate_output}.inventory.sha256"
+  inventory_after="${candidate_output}.inventory.after.sha256"
+  candidate_snapshot="${candidate_output}.sha256"
+  env -i PATH=/usr/bin:/bin:/usr/sbin:/sbin \
+    "$root/scripts/freeze-release-inventory.sh" \
+    "$tag" "$destination" > "$inventory_snapshot"
+  env -i PATH="$go_dir:/usr/bin:/bin:/usr/sbin:/sbin" \
+    "$root/scripts/verify-release-assets.sh" \
+    "$tag" "$native_archive" "$destination/checksums.txt" \
+    "$trusted_tag_commit" "$candidate_output"
+  shasum -a 256 "$candidate_output" | awk '{print $1}' > "$candidate_snapshot"
+  env -i \
+    PATH="$go_dir:/usr/bin:/bin:/usr/sbin:/sbin" \
+    GOG_RELEASE_GO="$go_bin" \
+    "$root/scripts/rebuild-release-assets.sh" \
+    "$tag" "$source_dir" "$destination" \
+    "$trusted_tag_commit" "$trusted_tag_object"
+  env -i PATH=/usr/bin:/bin:/usr/sbin:/sbin \
+    "$root/scripts/freeze-release-inventory.sh" \
+    "$tag" "$destination" > "$inventory_after"
+  cmp "$inventory_snapshot" "$inventory_after"
+  [[ "$(shasum -a 256 "$candidate_output" | awk '{print $1}')" == "$(<"$candidate_snapshot")" ]] || {
+    echo "release: verified native candidate changed during static verification" >&2
+    exit 1
+  }
+  assert_trusted_release_helpers_clean
+}
+
+assert_trusted_release_helpers_clean() {
+  local helper expected_hash actual_hash
+  require_no_git_grafts "$root" "trusted verifier"
+  [[ "$trusted_default_commit" =~ ^[[:xdigit:]]{40}$ &&
+    "$(trusted_git rev-parse HEAD)" == "$trusted_default_commit" &&
+    -z "$(trusted_git status --porcelain --untracked-files=all)" ]] || {
+    echo "release: trusted local verifier checkout changed" >&2
+    exit 1
+  }
+  for helper in \
+    .github/release-allowed-signers \
+    .goreleaser.yaml \
+    scripts/check-release-verifier.sh \
+    scripts/download-release-assets.sh \
+    scripts/freeze-release-inventory.sh \
+    scripts/rebuild-release-assets.sh \
+    scripts/release-local \
+    scripts/validate-release-record.sh \
+    scripts/validate-verifier-dispatch.sh \
+    scripts/verify-macos-binary.sh \
+    scripts/verify-release-assets.sh \
+    scripts/verify-release-tag.sh; do
+    expected_hash=$(trusted_git rev-parse "$trusted_default_commit:$helper")
+    actual_hash=$(trusted_git hash-object "$root/$helper")
+    [[ "$actual_hash" == "$expected_hash" ]] || {
+      echo "release: trusted local verifier helper changed: $helper" >&2
+      exit 1
+    }
+  done
+}
+
+verify_homebrew_formula() {
+  local formula_file=$1 version=$2
+  local darwin_amd64=$3 darwin_arm64=$4 linux_amd64=$5 linux_arm64=$6
+  local target hash template_url literal_url matches line_number next_line
+
+  [[ "$(grep -Fxc "  version \"$version\"" "$formula_file")" == 1 ]] || {
+    echo "release: Homebrew formula has the wrong version" >&2
+    exit 1
+  }
+  [[ "$(grep -Fc 'url "https://github.com/openclaw/gogcli/releases/download/' "$formula_file")" == 4 &&
+    "$(grep -Ec '^[[:space:]]+sha256 "[0-9a-f]{64}"$' "$formula_file")" == 4 &&
+    "$(grep -Fxc '    bin.install "gog"' "$formula_file")" == 1 &&
+    "$(grep -Fxc '    assert_match "Google CLI", shell_output("#{bin}/gog --help")' "$formula_file")" == 1 ]] || {
+    echo "release: Homebrew formula has an unexpected URL/checksum inventory" >&2
+    exit 1
+  }
+
+  for target_hash in \
+    "darwin_amd64:$darwin_amd64" \
+    "darwin_arm64:$darwin_arm64" \
+    "linux_amd64:$linux_amd64" \
+    "linux_arm64:$linux_arm64"; do
+    target=${target_hash%%:*}
+    hash=${target_hash#*:}
+    [[ "$hash" =~ ^[[:xdigit:]]{64}$ ]] || {
+      echo "release: invalid expected Homebrew hash for $target" >&2
+      exit 1
+    }
+    template_url="      url \"https://github.com/openclaw/gogcli/releases/download/v#{version}/gogcli_#{version}_${target}.tar.gz\""
+    literal_url="      url \"https://github.com/openclaw/gogcli/releases/download/v${version}/gogcli_${version}_${target}.tar.gz\""
+    matches=$(
+      grep -nFx "$template_url" "$formula_file" || true
+      grep -nFx "$literal_url" "$formula_file" || true
+    )
+    [[ -n "$matches" && "$matches" != *$'\n'* ]] || {
+      echo "release: Homebrew formula has an unexpected URL for $target" >&2
+      exit 1
+    }
+    line_number=${matches%%:*}
+    next_line=$(sed -n "$((line_number + 1))p" "$formula_file" | awk '{$1=$1; print}')
+    [[ "$next_line" == "sha256 \"$hash\"" ]] || {
+      echo "release: Homebrew formula hash does not match verified $target bytes" >&2
+      exit 1
+    }
+  done
+}
+
+resume_existing_homebrew_result() {
+  local tag=$1 observed_commit=$2 version=$3
+  local darwin_amd64=$4 darwin_arm64=$5 linux_amd64=$6 linux_arm64=$7
+  local formula_file commit_file comparison_file actual_message expected_message
+  local parent_commit request_prefix request_epoch
+
+  formula_file="$work_dir/resume-gogcli.rb"
+  if ! github_api_without_tokens -H 'Accept: application/vnd.github.raw+json' \
+    "repos/openclaw/homebrew-tap/contents/Formula/gogcli.rb?ref=$observed_commit" \
+    > "$formula_file"; then
+    echo "release: could not inspect the current Homebrew formula" >&2
+    exit 1
+  fi
+  if ! (
+    verify_homebrew_formula "$formula_file" "$version" \
+      "$darwin_amd64" "$darwin_arm64" "$linux_amd64" "$linux_arm64"
+  ) >/dev/null 2>&1; then
+    return 1
+  fi
+
+  commit_file="$work_dir/resume-tap-commit.json"
+  if ! github_api_without_tokens \
+    "repos/openclaw/homebrew-tap/git/commits/$observed_commit" > "$commit_file"; then
+    echo "release: could not inspect the matching Homebrew commit" >&2
+    exit 1
+  fi
+  actual_message=$(jq -r '.message // empty' "$commit_file")
+  parent_commit=$(jq -r 'select(.parents | length == 1) | .parents[0].sha // empty' "$commit_file")
+  request_id=$(sed -n 's/^Request-ID: //p' <<<"$actual_message")
+  request_prefix="gogcli-${tag}-${accepted_tag_object:0:12}-"
+  [[ "$(jq -r '.sha // empty' "$commit_file")" == "$observed_commit" &&
+    "$parent_commit" =~ ^[[:xdigit:]]{40}$ &&
+    "$request_id" == "$request_prefix"* ]] || {
+    echo "release: matching Homebrew formula lacks exact updater provenance" >&2
+    exit 1
+  }
+  request_epoch=${request_id#"$request_prefix"}
+  [[ "$request_epoch" =~ ^[0-9]{10,}$ ]] || {
+    echo "release: matching Homebrew formula has an invalid updater request ID" >&2
+    exit 1
+  }
+  printf -v expected_message \
+    'gogcli: update formula for %s\n\nSource-Repository: %s\nSource-Tag-Object: %s\nSource-Tag-Commit: %s\nRequest-ID: %s' \
+    "$tag" "$repository" "$accepted_tag_object" "$accepted_tag_commit" "$request_id"
+  [[ "$actual_message" == "$expected_message" ]] || {
+    echo "release: matching Homebrew formula has inconsistent updater provenance" >&2
+    exit 1
+  }
+
+  comparison_file="$work_dir/resume-tap-comparison.json"
+  if ! github_api_without_tokens \
+    "repos/openclaw/homebrew-tap/compare/$parent_commit...$observed_commit" \
+    > "$comparison_file"; then
+    echo "release: could not inspect the matching Homebrew commit delta" >&2
+    exit 1
+  fi
+  jq -e --arg parent "$parent_commit" --arg result "$observed_commit" '
+    .status == "ahead" and
+    .base_commit.sha == $parent and
+    .merge_base_commit.sha == $parent and
+    .ahead_by == 1 and .behind_by == 0 and .total_commits == 1 and
+    (.commits | length) == 1 and .commits[0].sha == $result and
+    (.files | length) == 1 and
+    .files[0].filename == "Formula/gogcli.rb" and
+    .files[0].status == "modified"
+  ' "$comparison_file" >/dev/null || {
+    echo "release: matching Homebrew result is not a formula-only updater commit" >&2
+    exit 1
+  }
+  require_tap_hash_contract_at \
+    "$trusted_tap_branch" "$parent_commit" "$observed_commit"
+  tap_source_commit=$parent_commit
+  completed_tap_commit=$observed_commit
+}
+
+require_homebrew_install_state_shape() {
+  local state_file=$1 tag=$2
+  [[ -f "$state_file" && ! -L "$state_file" ]] || {
+    echo "release: Homebrew install recovery state is missing or unsafe" >&2
+    exit 1
+  }
+  jq -e --arg repository "$repository" --arg tag "$tag" '
+    keys == [
+      "native_binary_sha256",
+      "release_snapshot_sha256",
+      "repository",
+      "schema",
+      "tag",
+      "tag_commit",
+      "tag_object",
+      "tap_commit"
+    ] and
+    .schema == 1 and .repository == $repository and .tag == $tag and
+    (.tag_commit | test("^[0-9a-f]{40}$")) and
+    (.tag_object | test("^[0-9a-f]{40}$")) and
+    (.tap_commit | test("^[0-9a-f]{40}$")) and
+    (.release_snapshot_sha256 | test("^[0-9a-f]{64}$")) and
+    (.native_binary_sha256 | test("^[0-9a-f]{64}$"))
+  ' "$state_file" >/dev/null || {
+    echo "release: Homebrew install recovery state is invalid" >&2
+    exit 1
+  }
+}
+
+ensure_homebrew_install_state() {
+  local state_file=$1 tag=$2 tag_object=$3 tag_commit=$4
+  local release_snapshot_sha256=$5 tap_commit=$6 native_binary_sha256=$7
+  local state_dir expected_file temporary_file
+
+  state_dir=$(dirname "$state_file")
+  expected_file="$work_dir/homebrew-install-state.expected.json"
+  jq -S -n \
+    --arg repository "$repository" \
+    --arg tag "$tag" \
+    --arg tag_object "$tag_object" \
+    --arg tag_commit "$tag_commit" \
+    --arg release_snapshot_sha256 "$release_snapshot_sha256" \
+    --arg tap_commit "$tap_commit" \
+    --arg native_binary_sha256 "$native_binary_sha256" \
+    '{
+      schema: 1,
+      repository: $repository,
+      tag: $tag,
+      tag_object: $tag_object,
+      tag_commit: $tag_commit,
+      release_snapshot_sha256: $release_snapshot_sha256,
+      tap_commit: $tap_commit,
+      native_binary_sha256: $native_binary_sha256
+    }' > "$expected_file"
+  if [[ -e "$state_file" || -L "$state_file" ]]; then
+    require_homebrew_install_state_shape "$state_file" "$tag"
+    cmp -s "$expected_file" "$state_file" || {
+      echo "release: Homebrew install recovery state does not match this handoff" >&2
+      exit 1
+    }
+    return
+  fi
+
+  [[ ! -e "$state_dir" && ! -L "$state_dir" || -d "$state_dir" && ! -L "$state_dir" ]] || {
+    echo "release: Homebrew install recovery directory is unsafe" >&2
+    exit 1
+  }
+  mkdir -p "$state_dir"
+  chmod 700 "$state_dir"
+  temporary_file="$state_dir/.homebrew-${tag}.$$.tmp"
+  [[ ! -e "$temporary_file" && ! -L "$temporary_file" ]] || {
+    echo "release: Homebrew install recovery temporary path exists" >&2
+    exit 1
+  }
+  (
+    umask 077
+    cp "$expected_file" "$temporary_file"
+  )
+  mv "$temporary_file" "$state_file"
+}
+
+revalidate_homebrew_source() {
+  local tag=$1 expected_tag_object=$2 expected_tag_commit=$3
+  local expected_release_snapshot=$4 expected_snapshot_hash=$5 actual_snapshot_hash
+
+  actual_snapshot_hash=$(shasum -a 256 "$expected_release_snapshot" | awk '{print $1}')
+  [[ "$actual_snapshot_hash" == "$expected_snapshot_hash" ]] || {
+    echo "release: accepted Homebrew release snapshot changed" >&2
+    exit 1
+  }
+  require_remote_signed_tag "$tag" false
+  [[ "$trusted_tag_object" == "$expected_tag_object" &&
+    "$trusted_tag_commit" == "$expected_tag_commit" ]] || {
+    echo "release: signed tag changed after Homebrew handoff acceptance" >&2
+    exit 1
+  }
+  release_record "$tag" false "$expected_release_snapshot"
+  verify_release_notes "$tag" published
+  verifier_run=$("$root/scripts/check-release-verifier.sh" \
+    "$tag" false "$expected_tag_commit" "$expected_tag_object")
+}
+
+revalidate_homebrew_handoff_snapshot() {
+  local tag=$1 expected_snapshot=$2
+
+  release_record "$tag" false "$expected_snapshot"
+  verify_release_notes "$tag" published
+}
+
+require_release_snapshot_matches_directory() {
+  local snapshot_file=$1 artifact_dir=$2 asset name expected_size expected_digest
+  local path actual_size actual_digest
+
+  [[ -f "$snapshot_file" && ! -L "$snapshot_file" && -d "$artifact_dir" ]] || {
+    echo "release: invalid release snapshot or artifact directory" >&2
+    exit 1
+  }
+  jq -e '.assets | type == "array" and length == 7' "$snapshot_file" >/dev/null || {
+    echo "release: accepted release snapshot has an invalid asset inventory" >&2
+    exit 1
+  }
+  while IFS= read -r asset; do
+    name=$(jq -r '.name' <<<"$asset")
+    expected_size=$(jq -r '.size' <<<"$asset")
+    expected_digest=$(jq -r '.digest | sub("^sha256:"; "")' <<<"$asset")
+    path="$artifact_dir/$name"
+    [[ -f "$path" && ! -L "$path" ]] || {
+      echo "release: accepted release asset is missing or unsafe: $name" >&2
+      exit 1
+    }
+    actual_size=$(wc -c < "$path" | tr -d ' ')
+    actual_digest=$(shasum -a 256 "$path" | awk '{print $1}')
+    [[ "$actual_size" == "$expected_size" && "$actual_digest" == "$expected_digest" ]] || {
+      echo "release: downloaded asset differs from the accepted release snapshot: $name" >&2
+      exit 1
+    }
+  done < <(jq -c '.assets[]' "$snapshot_file")
+}
+
+draft_release() {
+  local tag release_helper release_manifest auth source_dir
+
+  [[ "$(uname -s)" == Darwin ]] || {
+    echo "release: official releases require an authorized maintainer Mac" >&2
+    exit 1
+  }
+  require_tools git gh jq mkdir
+  release_manifest=$(release_manifest_path)
+  require_current_default_head
+  tag=$(trusted_git describe --tags --exact-match HEAD 2>/dev/null || true)
+  validate_tag "$tag"
+  release_helper=${MAC_RELEASE_HELPER:-}
+  if [[ "$release_helper" != /* || ! -f "$release_helper" || -L "$release_helper" || ! -x "$release_helper" ]]; then
+    echo "release: MAC_RELEASE_HELPER must name the absolute canonical release-mac-app helper" >&2
+    exit 1
+  fi
+  require_remote_signed_tag "$tag" true
+  require_successful_tag_checks "$tag" "$trusted_tag_commit"
+  extract_notes "$tag"
+  source_dir="$work_dir/official-tag-source"
+  prepare_rebuild_source "$tag" "$source_dir"
+  prepare_official_go_environment
+  if [[ -z "${GITHUB_TOKEN:-}" ]]; then
+    auth=$(github_auth_token)
+    GITHUB_TOKEN=$auth
+    export GITHUB_TOKEN
+    unset auth
+  fi
+  require_pinned_release_tools_unchanged
+
+  (
+    sanitize_git_environment
+    cd "$source_dir"
+    run_official_goreleaser "$release_helper" "$release_manifest" true \
+      --env "GOG_OFFICIAL_RELEASE=1" \
+      --env "GOG_COMMIT=${trusted_tag_commit:0:8}" \
+      -- \
+      release \
+      --config "$source_dir/.goreleaser.yaml" \
+      --draft --clean --parallelism=2 --release-notes "$notes_file"
+  )
+  require_pinned_release_tools_unchanged
+  require_source_checkout_at "$source_dir" "$trusted_tag_commit" "official signed tag"
+  [[ "$(trusted_git -C "$source_dir" rev-parse "refs/tags/$tag")" == "$trusted_tag_object" ]] || {
+    echo "release: official source tag changed during build" >&2
+    exit 1
+  }
+
+  release_record "$tag" true
+  verify_release_notes "$tag" draft
+  echo "release: created verified draft inventory for $tag; publication remains gated"
+}
+
+pilot_release() {
+  local tag=$1 version release_helper release_manifest revision source_dir
+  local arm_candidate amd_candidate native_candidate native_arch
+  validate_tag "$tag"
+  [[ "$(uname -s)" == Darwin ]] || {
+    echo "release: notarized pilots require an authorized maintainer Mac" >&2
+    exit 1
+  }
+  require_tools git mkdir
+  require_current_default_head
+  release_manifest=$(release_manifest_path)
+  release_helper=${MAC_RELEASE_HELPER:-}
+  if [[ "$release_helper" != /* || ! -f "$release_helper" || -L "$release_helper" || ! -x "$release_helper" ]]; then
+    echo "release: MAC_RELEASE_HELPER must name the absolute canonical release-mac-app helper" >&2
+    exit 1
+  fi
+  version=${tag#v}
+  revision=$trusted_default_commit
+  source_dir="$work_dir/official-default-source"
+  prepare_default_source "$source_dir"
+  prepare_official_go_environment
+  arm_candidate="$work_dir/pilot-darwin-arm64"
+  amd_candidate="$work_dir/pilot-darwin-amd64"
+  require_pinned_release_tools_unchanged
+  (
+    sanitize_git_environment
+    cd "$source_dir"
+    run_official_goreleaser "$release_helper" "$release_manifest" false \
+      --env "GOG_OFFICIAL_RELEASE=1" \
+      --env "GOG_COMMIT=${revision:0:8}" \
+      --env "GOG_PILOT_VERSION=$version" \
+      --env "GORELEASER_CURRENT_TAG=$tag" \
+      -- \
+      release \
+      --config "$source_dir/.goreleaser.yaml" \
+      --snapshot --clean --skip=publish --parallelism=2
+  )
+  require_pinned_release_tools_unchanged
+  require_source_checkout_at "$source_dir" "$trusted_default_commit" "official protected default"
+
+  env -i PATH="$PATH" \
+    "$source_dir/scripts/verify-release-assets.sh" "$tag" \
+    "$source_dir/dist/gogcli_${version}_darwin_arm64.tar.gz" \
+    "$source_dir/dist/checksums.txt" "$revision" "$arm_candidate"
+  env -i PATH="$PATH" \
+    "$source_dir/scripts/verify-release-assets.sh" "$tag" \
+    "$source_dir/dist/gogcli_${version}_darwin_amd64.tar.gz" \
+    "$source_dir/dist/checksums.txt" "$revision" "$amd_candidate"
+  case "$(uname -m)" in
+    arm64) native_candidate=$arm_candidate; native_arch=arm64 ;;
+    x86_64) native_candidate=$amd_candidate; native_arch=x86_64 ;;
+    *) exit 1 ;;
+  esac
+  env -i PATH=/usr/bin:/bin:/usr/sbin:/sbin \
+    "$source_dir/scripts/verify-macos-binary.sh" \
+    "$native_candidate" "$native_arch" "$version" execute
+  echo "release: local notarized pilot passed for $tag; no GitHub release was created"
+}
+
+dispatch_verifier() {
+  local tag=$1 expected_draft=$2 repo_json default_branch default_sha state run_title latest_asset_time run_id expected_tag_commit expected_tag_object
+  local workflow_json workflow_id run_query preexisting_run_ids dispatch_payload dispatch_response run_record run_record_ready validation_error checked_run
+  validate_tag "$tag"
+  [[ "$expected_draft" == true || "$expected_draft" == false ]] || {
+    echo "release: verifier draft state must be true or false" >&2
+    exit 2
+  }
+  require_tools git gh jq
+  require_remote_signed_tag "$tag" false
+  require_successful_tag_checks "$tag" "$trusted_tag_commit"
+  release_record "$tag" "$expected_draft"
+  latest_asset_time=$(jq -r '[.[0].assets[].updated_at] | max // empty' <<<"$release_json")
+  [[ "$latest_asset_time" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T ]] || {
+    echo "release: draft assets have invalid update times" >&2
+    exit 1
+  }
+  repo_json=$(github_api "repos/$repository")
+  default_branch=$(jq -r '.default_branch // empty' <<<"$repo_json")
+  default_sha=$(github_api "repos/$repository/commits/$default_branch" --jq '.sha')
+  [[ "$default_branch" == "$trusted_default_branch" && "$default_sha" == "$trusted_default_commit" ]] || {
+    echo "release: GitHub default branch does not match the fetched protected default" >&2
+    exit 1
+  }
+  require_remote_signed_tag "$tag" false
+  [[ "$default_branch" == "$trusted_default_branch" && "$default_sha" == "$trusted_default_commit" ]] || {
+    echo "release: protected default branch moved before verifier dispatch" >&2
+    exit 1
+  }
+  expected_tag_commit=$trusted_tag_commit
+  expected_tag_object=$trusted_tag_object
+  if [[ "$expected_draft" == true ]]; then state=draft; else state=published; fi
+  run_title="Verify $tag $state assets at $default_sha for $expected_tag_commit object $expected_tag_object"
+
+  workflow_json=$(github_api \
+    -H 'X-GitHub-Api-Version: 2026-03-10' \
+    "repos/$repository/actions/workflows/release-assets.yml")
+  workflow_id=$(jq -er '
+    select(
+      (.id | type) == "number" and .id > 0 and .id == (.id | floor) and
+      .path == ".github/workflows/release-assets.yml" and
+      .state == "active"
+    ) | .id | tostring
+  ' <<<"$workflow_json")
+  run_query="repos/$repository/actions/workflows/$workflow_id/runs?event=workflow_dispatch&branch=$default_branch&per_page=100"
+  preexisting_run_ids="$work_dir/preexisting-verifier-run-ids.json"
+  github_api --paginate \
+    -H 'X-GitHub-Api-Version: 2026-03-10' \
+    "$run_query" |
+    jq -s '[.[].workflow_runs[].id] | unique' > "$preexisting_run_ids"
+
+  dispatch_payload="$work_dir/verifier-dispatch-payload.json"
+  jq -n \
+    --arg ref "$default_branch" \
+    --arg tag "$tag" \
+    --arg draft "$expected_draft" \
+    --arg tag_commit "$expected_tag_commit" \
+    --arg tag_object "$expected_tag_object" \
+    '{ref:$ref, inputs:{tag:$tag, draft:$draft, tag_commit:$tag_commit, tag_object:$tag_object}}' \
+    > "$dispatch_payload"
+  dispatch_response="$work_dir/verifier-dispatch-response.json"
+  # REST version 2026-03-10 always returns the exact run identity in this body.
+  github_api --method POST \
+    -H 'Accept: application/vnd.github+json' \
+    -H 'X-GitHub-Api-Version: 2026-03-10' \
+    "repos/$repository/actions/workflows/$workflow_id/dispatches" \
+    --input "$dispatch_payload" > "$dispatch_response"
+  run_id=$(jq -er '
+    .workflow_run_id |
+    select(type == "number" and . > 0 and . == floor) |
+    tostring
+  ' "$dispatch_response")
+  run_record="$work_dir/verifier-dispatched-run.json"
+  validation_error="$work_dir/verifier-dispatch-validation-error.txt"
+  run_record_ready=false
+  for _ in {1..15}; do
+    if github_api \
+      -H 'X-GitHub-Api-Version: 2026-03-10' \
+      "repos/$repository/actions/runs/$run_id" > "$run_record" &&
+      checked_run=$("$root/scripts/validate-verifier-dispatch.sh" \
+        "$dispatch_response" "$preexisting_run_ids" "$run_record" \
+        "$workflow_id" "$run_title" "$default_branch" "$default_sha" \
+        "$latest_asset_time" 2> "$validation_error"); then
+      run_id=$checked_run
+      run_record_ready=true
+      break
+    fi
+    sleep 2
+  done
+  [[ "$run_record_ready" == true ]] || {
+    [[ ! -s "$validation_error" ]] || cat "$validation_error" >&2
+    echo "release: returned verifier run ID did not materialize as the protected request" >&2
+    exit 1
+  }
+  gh run watch "$run_id" --repo "github.com/$repository" --exit-status --interval 10
+  require_remote_signed_tag "$tag" false
+  checked_run=$("$root/scripts/check-release-verifier.sh" \
+    "$tag" "$expected_draft" "$trusted_tag_commit" "$trusted_tag_object")
+  [[ "$checked_run" == "$run_id" ]] || {
+    echo "release: newest verifier proof is not the run dispatched by this invocation" >&2
+    exit 1
+  }
+  echo "release: native $state verifier passed for $tag"
+}
+
+verify_draft() {
+  dispatch_verifier "$1" true
+}
+
+publish_release() {
+  local tag=$1 verifier_run accepted_release_id accepted_snapshot release_state
+  local accepted_tag_object accepted_tag_commit
+  local prepatch_record publish_payload patch_response published_record
+  validate_tag "$tag"
+  require_tools git gh jq
+  require_remote_signed_tag "$tag" false
+  require_successful_tag_checks "$tag" "$trusted_tag_commit"
+  release_state_for_tag "$tag"
+  if [[ "$release_state" == published ]]; then
+    release_record "$tag" false
+    verify_release_notes "$tag" published
+    accepted_tag_object=$trusted_tag_object
+    accepted_tag_commit=$trusted_tag_commit
+    accepted_snapshot="$work_dir/recovered-published-release.json"
+    cp "$release_snapshot_file" "$accepted_snapshot"
+
+    require_remote_signed_tag "$tag" false
+    [[ "$trusted_tag_object" == "$accepted_tag_object" &&
+      "$trusted_tag_commit" == "$accepted_tag_commit" ]] || {
+      echo "release: signed tag changed while recovering publication" >&2
+      exit 1
+    }
+    require_successful_tag_checks "$tag" "$accepted_tag_commit"
+    release_state_for_tag "$tag"
+    [[ "$release_state" == published ]] || {
+      echo "release: $tag stopped being published during recovery" >&2
+      exit 1
+    }
+    release_record "$tag" false "$accepted_snapshot"
+    verify_release_notes "$tag" published
+    dispatch_verifier "$tag" false
+    require_remote_signed_tag "$tag" false
+    [[ "$trusted_tag_object" == "$accepted_tag_object" &&
+      "$trusted_tag_commit" == "$accepted_tag_commit" ]] || {
+      echo "release: signed tag changed during published recovery verification" >&2
+      exit 1
+    }
+    release_record "$tag" false "$accepted_snapshot"
+    verify_release_notes "$tag" published
+    echo "release: $tag was already published with the exact record and a fresh native verifier"
+    return
+  fi
+
+  release_record "$tag" true
+  verify_release_notes "$tag" draft
+  verifier_run=$("$root/scripts/check-release-verifier.sh" "$tag" true "$trusted_tag_commit" "$trusted_tag_object")
+  require_remote_signed_tag "$tag" false
+  release_record "$tag" true
+  verify_release_notes "$tag" draft
+  verifier_run=$("$root/scripts/check-release-verifier.sh" "$tag" true "$trusted_tag_commit" "$trusted_tag_object")
+  accepted_tag_object=$trusted_tag_object
+  accepted_tag_commit=$trusted_tag_commit
+  accepted_release_id=$release_id
+  accepted_snapshot="$work_dir/verifier-accepted-release.json"
+  cp "$release_snapshot_file" "$accepted_snapshot"
+
+  # Freeze publication to the exact release record accepted by the draft
+  # verifier. Names alone do not detect an asset replacement.
+  require_remote_signed_tag "$tag" false
+  [[ "$trusted_tag_object" == "$accepted_tag_object" &&
+    "$trusted_tag_commit" == "$accepted_tag_commit" ]] || {
+    echo "release: signed tag changed after draft verifier acceptance" >&2
+    exit 1
+  }
+  require_successful_tag_checks "$tag" "$accepted_tag_commit"
+  release_state_for_tag "$tag"
+  [[ "$release_state" == draft ]] || {
+    echo "release: $tag draft state changed before publication" >&2
+    exit 1
+  }
+  prepatch_record="$work_dir/prepublish-release.json"
+  github_api "repos/$repository/releases/$accepted_release_id" > "$prepatch_record"
+  validate_release_record_file \
+    "$prepatch_record" "$tag" true "$work_dir/prepublish-snapshot.json" "$accepted_snapshot"
+  verify_release_notes "$tag" draft
+
+  # GitHub can rewrite a draft's tag_name to untagged-* for a partial PATCH.
+  # Send every canonical mutable release field together at publication.
+  publish_payload="$work_dir/publish-payload.json"
+  extract_notes "$tag"
+  jq -n \
+    --arg tag "$tag" \
+    --arg target_commitish "$accepted_tag_commit" \
+    --rawfile body "$release_body_file" \
+    '{
+      tag_name: $tag,
+      target_commitish: $target_commitish,
+      name: $tag,
+      body: $body,
+      draft: false,
+      prerelease: false
+    }' > "$publish_payload"
+  jq -e \
+    --arg tag "$tag" \
+    --arg target_commitish "$accepted_tag_commit" \
+    --rawfile body "$release_body_file" '
+      keys == ["body", "draft", "name", "prerelease", "tag_name", "target_commitish"] and
+      .tag_name == $tag and
+      .target_commitish == $target_commitish and
+      .name == $tag and
+      .body == $body and
+      .draft == false and
+      .prerelease == false
+    ' "$publish_payload" >/dev/null || {
+    echo "release: publication payload is not the canonical mutable release record" >&2
+    exit 1
+  }
+
+  patch_response="$work_dir/publish-response.json"
+  github_api --method PATCH "repos/$repository/releases/$accepted_release_id" \
+    --input "$publish_payload" > "$patch_response"
+  validate_release_record_file \
+    "$patch_response" "$tag" false "$work_dir/publish-response-snapshot.json" "$accepted_snapshot"
+  verify_release_notes "$tag" published
+
+  published_record="$work_dir/published-release.json"
+  github_api "repos/$repository/releases/$accepted_release_id" > "$published_record"
+  validate_release_record_file \
+    "$published_record" "$tag" false "$work_dir/published-snapshot.json" "$accepted_snapshot"
+  verify_release_notes "$tag" published
+
+  release_record "$tag" false "$accepted_snapshot"
+  verify_release_notes "$tag" published
+  release_state_for_tag "$tag"
+  [[ "$release_state" == published ]] || {
+    echo "release: $tag is not the sole published release after publication" >&2
+    exit 1
+  }
+  require_remote_signed_tag "$tag" false
+  [[ "$trusted_tag_object" == "$accepted_tag_object" &&
+    "$trusted_tag_commit" == "$accepted_tag_commit" ]] || {
+    echo "release: signed tag changed during publication" >&2
+    exit 1
+  }
+  echo "release: published $tag after native draft verifier run $verifier_run"
+}
+
+update_homebrew() {
+  local tag=$1 verifier_run request_id expected_title expected_tap_run_path run_id version
+  local public_dir handoff_dir source_dir go_bin native_goarch native_arch
+  local public_candidate handoff_candidate handoff_inventory_final
+  local accepted_tag_object accepted_tag_commit accepted_release_snapshot accepted_snapshot_hash
+  local verifier_release_snapshot
+  local darwin_amd64_sha256 darwin_arm64_sha256 linux_amd64_sha256 linux_arm64_sha256
+  local formula_file formula_info installed_prefix installed_binary install_state_file
+  local install_state_present gog_installed native_binary_sha256
+  local brew_bin brew_dir brew_home comparison comparison_status completed_tap_commit tap_run_json
+  local observed_tap_commit tap_source_commit resume_tap
+  local tap_commit_json expected_commit_message
+  local -a homebrew_env
+  validate_tag "$tag"
+  require_tools awk brew chmod cmp cp dirname git gh go grep jq lipo mkdir mv sed shasum tar
+  unset GH_TOKEN GITHUB_TOKEN
+  brew_bin=$(command -v brew)
+  brew_dir=$(dirname "$brew_bin")
+  brew_home="$work_dir/homebrew-home"
+  mkdir -p "$brew_home"
+  homebrew_env=(
+    "CI=1"
+    "GIT_CONFIG_GLOBAL=/dev/null"
+    "GIT_CONFIG_NOSYSTEM=1"
+    "GIT_TERMINAL_PROMPT=0"
+    "HOME=$brew_home"
+    "HOMEBREW_NO_AUTO_UPDATE=1"
+    "HOMEBREW_NO_ENV_HINTS=1"
+    "PATH=$brew_dir:/usr/bin:/bin:/usr/sbin:/sbin"
+  )
+  install_state_file="$root/.release-state/homebrew-${tag}.json"
+  install_state_present=false
+  if [[ -e "$install_state_file" || -L "$install_state_file" ]]; then
+    require_homebrew_install_state_shape "$install_state_file" "$tag"
+    install_state_present=true
+  fi
+  require_tap_hash_contract
+  observed_tap_commit=$trusted_tap_commit
+  if env -i "${homebrew_env[@]}" "$brew_bin" list --formula --versions gogcli 2>/dev/null | grep -q .; then
+    [[ "$install_state_present" == true ]] || {
+      echo "release: Homebrew clean-install proof requires gogcli to be absent" >&2
+      exit 1
+    }
+  fi
+  require_remote_signed_tag "$tag" false
+  release_record "$tag" false
+  verify_release_notes "$tag" published
+  dispatch_verifier "$tag" false
+  verifier_run=$("$root/scripts/check-release-verifier.sh" "$tag" false "$trusted_tag_commit" "$trusted_tag_object")
+
+  # The wait can be long enough for a tag, asset, or default branch to move.
+  # Revalidate every input immediately before dispatching the tap workflow.
+  require_remote_signed_tag "$tag" false
+  release_record "$tag" false
+  verify_release_notes "$tag" published
+  verifier_run=$("$root/scripts/check-release-verifier.sh" "$tag" false "$trusted_tag_commit" "$trusted_tag_object")
+
+  version=${tag#v}
+  public_dir="$work_dir/public-release-initial"
+  handoff_dir="$work_dir/public-release-handoff"
+  public_candidate="$work_dir/public-release-initial-candidate"
+  handoff_candidate="$work_dir/public-release-handoff-candidate"
+  case "$(uname -m)" in
+    arm64) native_goarch=arm64; native_arch=arm64 ;;
+    x86_64) native_goarch=amd64; native_arch=x86_64 ;;
+    *)
+      echo "release: unsupported Homebrew verification architecture" >&2
+      exit 1
+      ;;
+  esac
+  source_dir="$work_dir/rebuild-source"
+  prepare_rebuild_source "$tag" "$source_dir"
+  go_bin=$(command -v go)
+  download_and_verify_public_release \
+    "$tag" "$public_dir" "$source_dir" "$native_goarch" "$go_bin" "$public_candidate"
+
+  # The rebuild can take long enough for release inputs to move. Revalidate the
+  # exact public inventory and signed tag before a second authenticated fetch.
+  require_remote_signed_tag "$tag" false
+  release_record "$tag" false
+  verify_release_notes "$tag" published
+  verifier_run=$("$root/scripts/check-release-verifier.sh" "$tag" false "$trusted_tag_commit" "$trusted_tag_object")
+  require_tap_default_at "$trusted_tap_branch" "$observed_tap_commit"
+
+  # Never hand hashes from the earlier copy across a long verifier/rebuild wait.
+  # Fetch into a new directory and repeat every byte/signature proof immediately
+  # before deriving the values sent to the tap.
+  download_and_verify_public_release \
+    "$tag" "$handoff_dir" "$source_dir" "$native_goarch" "$go_bin" "$handoff_candidate"
+
+  require_remote_signed_tag "$tag" false
+  release_record "$tag" false
+  verify_release_notes "$tag" published
+  verifier_release_snapshot="$work_dir/homebrew-pre-verifier-release-snapshot.json"
+  cp "$release_snapshot_file" "$verifier_release_snapshot"
+  verifier_run=$("$root/scripts/check-release-verifier.sh" "$tag" false "$trusted_tag_commit" "$trusted_tag_object")
+  require_tap_default_at "$trusted_tap_branch" "$observed_tap_commit"
+  # The checker can run long enough for assets to be replaced. Require the
+  # numeric release record to remain byte-for-byte identical across that wait
+  # and the final tap-head check.
+  revalidate_homebrew_handoff_snapshot "$tag" "$verifier_release_snapshot"
+  accepted_tag_object=$trusted_tag_object
+  accepted_tag_commit=$trusted_tag_commit
+  accepted_release_snapshot="$work_dir/homebrew-handoff-release-snapshot.json"
+  cp "$release_snapshot_file" "$accepted_release_snapshot"
+  accepted_snapshot_hash=$(shasum -a 256 "$accepted_release_snapshot" | awk '{print $1}')
+  require_release_snapshot_matches_directory \
+    "$accepted_release_snapshot" "$handoff_dir"
+  darwin_amd64_sha256=$(shasum -a 256 "$handoff_dir/gogcli_${version}_darwin_amd64.tar.gz" | awk '{print $1}')
+  darwin_arm64_sha256=$(shasum -a 256 "$handoff_dir/gogcli_${version}_darwin_arm64.tar.gz" | awk '{print $1}')
+  linux_amd64_sha256=$(shasum -a 256 "$handoff_dir/gogcli_${version}_linux_amd64.tar.gz" | awk '{print $1}')
+  linux_arm64_sha256=$(shasum -a 256 "$handoff_dir/gogcli_${version}_linux_arm64.tar.gz" | awk '{print $1}')
+
+  tap_source_commit=$observed_tap_commit
+  resume_tap=false
+  if resume_existing_homebrew_result \
+    "$tag" "$observed_tap_commit" "$version" \
+    "$darwin_amd64_sha256" "$darwin_arm64_sha256" \
+    "$linux_amd64_sha256" "$linux_arm64_sha256"; then
+    resume_tap=true
+    echo "release: resuming exact Homebrew updater result at $completed_tap_commit"
+  else
+    request_id="gogcli-${tag}-${accepted_tag_object:0:12}-$(date +%s)"
+  fi
+  expected_title="Update gogcli for ${tag} (request-id=${request_id}; source-tag-object=${accepted_tag_object}; source-tag-commit=${accepted_tag_commit})"
+  expected_tap_run_path=".github/workflows/update-formula.yml"
+  if [[ "$resume_tap" == false ]]; then
+    require_tap_default_at "$trusted_tap_branch" "$observed_tap_commit"
+    env -u GITHUB_TOKEN -u GH_TOKEN gh workflow run update-formula.yml \
+      --repo github.com/openclaw/homebrew-tap \
+      --ref "$trusted_tap_branch" \
+      -f formula=gogcli \
+      -f tag="$tag" \
+      -f repository="$repository" \
+      -f description="Google CLI for Gmail, Calendar, Drive, Docs, Sheets, and more" \
+      -f artifact_template="{formula}_{version}_{target}.tar.gz" \
+      -f darwin_amd64_sha256="$darwin_amd64_sha256" \
+      -f darwin_arm64_sha256="$darwin_arm64_sha256" \
+      -f linux_amd64_sha256="$linux_amd64_sha256" \
+      -f linux_arm64_sha256="$linux_arm64_sha256" \
+      -f source_tag_commit="$accepted_tag_commit" \
+      -f source_tag_object="$accepted_tag_object" \
+      -f request_id="$request_id"
+  fi
+
+  run_id=
+  for _ in {1..30}; do
+    run_id=$(
+      github_api_without_tokens \
+        "repos/openclaw/homebrew-tap/actions/workflows/$trusted_tap_workflow_id/runs?event=workflow_dispatch&branch=$trusted_tap_branch&per_page=30" \
+        --jq ".workflow_runs | map(select(.display_title == \"$expected_title\" and .head_sha == \"$tap_source_commit\" and .head_branch == \"$trusted_tap_branch\")) | sort_by(.created_at) | last | .id // empty"
+    )
+    [[ -z "$run_id" ]] || break
+    sleep 5
+  done
+  [[ "$run_id" =~ ^[0-9]+$ ]] || {
+    echo "release: could not find Homebrew tap run: $expected_title" >&2
+    exit 1
+  }
+  tap_run_json=$(github_api_without_tokens \
+    "repos/openclaw/homebrew-tap/actions/runs/$run_id")
+  [[ "$(jq -r '.event' <<<"$tap_run_json")" == workflow_dispatch &&
+    "$(jq -r '.display_title' <<<"$tap_run_json")" == "$expected_title" &&
+    "$(jq -r '.head_branch' <<<"$tap_run_json")" == "$trusted_tap_branch" &&
+    "$(jq -r '.head_sha' <<<"$tap_run_json")" == "$tap_source_commit" &&
+    "$(jq -r '.workflow_id' <<<"$tap_run_json")" == "$trusted_tap_workflow_id" &&
+    "$(jq -r '.path' <<<"$tap_run_json")" == "$expected_tap_run_path" ]] || {
+    echo "release: Homebrew run is not bound to the protected workflow source" >&2
+    exit 1
+  }
+  env -u GITHUB_TOKEN -u GH_TOKEN gh run watch "$run_id" \
+    --repo github.com/openclaw/homebrew-tap --exit-status --interval 10
+  tap_run_json=$(github_api_without_tokens \
+    "repos/openclaw/homebrew-tap/actions/runs/$run_id")
+  [[ "$(jq -r '.status' <<<"$tap_run_json")" == completed &&
+    "$(jq -r '.conclusion' <<<"$tap_run_json")" == success &&
+    "$(jq -r '.head_sha' <<<"$tap_run_json")" == "$tap_source_commit" ]] || {
+    echo "release: Homebrew run completion does not match its protected source" >&2
+    exit 1
+  }
+
+  load_tap_default
+  [[ "$current_tap_branch" == "$trusted_tap_branch" ]] || {
+    echo "release: Homebrew tap default branch changed after workflow completion" >&2
+    exit 1
+  }
+  completed_tap_commit=$current_tap_commit
+  comparison=$(github_api_without_tokens \
+    "repos/openclaw/homebrew-tap/compare/$tap_source_commit...$completed_tap_commit")
+  comparison_status=$(jq -r '.status // empty' <<<"$comparison")
+  [[ "$comparison_status" == ahead && "$(jq -r '.ahead_by // 0' <<<"$comparison")" == 1 ]] || {
+    echo "release: Homebrew tap result is not one commit after its protected workflow source" >&2
+    exit 1
+  }
+
+  printf -v expected_commit_message \
+    'gogcli: update formula for %s\n\nSource-Repository: %s\nSource-Tag-Object: %s\nSource-Tag-Commit: %s\nRequest-ID: %s' \
+    "$tag" "$repository" "$accepted_tag_object" "$accepted_tag_commit" "$request_id"
+  tap_commit_json=$(github_api_without_tokens \
+    "repos/openclaw/homebrew-tap/git/commits/$completed_tap_commit")
+  [[ "$(jq -r '.sha // empty' <<<"$tap_commit_json")" == "$completed_tap_commit" &&
+    "$(jq -r '.message // empty' <<<"$tap_commit_json")" == "$expected_commit_message" &&
+    "$(jq -r '.parents | length' <<<"$tap_commit_json")" == 1 &&
+    "$(jq -r '.parents[0].sha // empty' <<<"$tap_commit_json")" == "$tap_source_commit" ]] || {
+    echo "release: Homebrew tap commit does not match the verified handoff contract" >&2
+    exit 1
+  }
+
+  revalidate_homebrew_source \
+    "$tag" "$accepted_tag_object" "$accepted_tag_commit" \
+    "$accepted_release_snapshot" "$accepted_snapshot_hash"
+  formula_file="$work_dir/gogcli.rb"
+  github_api_without_tokens -H 'Accept: application/vnd.github.raw+json' \
+    "repos/openclaw/homebrew-tap/contents/Formula/gogcli.rb?ref=$completed_tap_commit" \
+    > "$formula_file"
+  verify_homebrew_formula "$formula_file" "$version" \
+    "$darwin_amd64_sha256" "$darwin_arm64_sha256" \
+    "$linux_amd64_sha256" "$linux_arm64_sha256"
+
+  formula_info="$work_dir/formula-info.json"
+  env -i "${homebrew_env[@]}" "$brew_bin" info --json=v2 "$formula_file" > "$formula_info"
+  [[ "$(jq -r '.formulae | length' "$formula_info")" == 1 &&
+    "$(jq -r '.formulae[0].name // empty' "$formula_info")" == gogcli &&
+    "$(jq -r '.formulae[0].versions.stable // empty' "$formula_info")" == "$version" ]] || {
+    echo "release: Homebrew did not evaluate the verified formula as GogCLI $version" >&2
+    exit 1
+  }
+  gog_installed=false
+  if env -i "${homebrew_env[@]}" "$brew_bin" list --formula --versions gogcli 2>/dev/null | grep -q .; then
+    gog_installed=true
+    [[ "$install_state_present" == true ]] || {
+      echo "release: gogcli appeared outside this serialized Homebrew install" >&2
+      exit 1
+    }
+  fi
+  native_binary_sha256=$(<"$handoff_candidate.sha256")
+  ensure_homebrew_install_state \
+    "$install_state_file" "$tag" "$accepted_tag_object" "$accepted_tag_commit" \
+    "$accepted_snapshot_hash" "$completed_tap_commit" "$native_binary_sha256"
+  install_state_present=true
+  if [[ "$gog_installed" == false ]]; then
+    env -i "${homebrew_env[@]}" "$brew_bin" install --formula "$formula_file"
+  else
+    echo "release: resuming the exact recorded Homebrew install proof"
+  fi
+  installed_prefix=$(env -i "${homebrew_env[@]}" "$brew_bin" --prefix gogcli)
+  installed_binary="$installed_prefix/bin/gog"
+  handoff_inventory_final="$work_dir/public-release-handoff.inventory.final.sha256"
+  env -i PATH=/usr/bin:/bin:/usr/sbin:/sbin \
+    "$root/scripts/freeze-release-inventory.sh" \
+    "$tag" "$handoff_dir" > "$handoff_inventory_final"
+  cmp "$handoff_candidate.inventory.sha256" "$handoff_inventory_final"
+  [[ "$(shasum -a 256 "$handoff_candidate" | awk '{print $1}')" == "$(<"$handoff_candidate.sha256")" ]] || {
+    echo "release: verified Homebrew handoff candidate changed" >&2
+    exit 1
+  }
+  assert_trusted_release_helpers_clean
+  cmp -s "$handoff_candidate" "$installed_binary" || {
+    echo "release: installed Homebrew binary differs from the verified archive member" >&2
+    exit 1
+  }
+  env -i PATH=/usr/bin:/bin:/usr/sbin:/sbin \
+    "$root/scripts/verify-macos-binary.sh" \
+    "$installed_binary" "$native_arch" "$version" static
+  env -i "${homebrew_env[@]}" "$brew_bin" test gogcli
+  # Candidate execution cannot authorize later mutable helper bytes. Recheck the
+  # protected checkout first, then require the exact accepted public source and
+  # verifier proof to remain live before closeout.
+  assert_trusted_release_helpers_clean
+  revalidate_homebrew_source \
+    "$tag" "$accepted_tag_object" "$accepted_tag_commit" \
+    "$accepted_release_snapshot" "$accepted_snapshot_hash"
+  require_tap_default_at "$trusted_tap_branch" "$completed_tap_commit"
+  rm -f "$install_state_file"
+  rmdir "$(dirname "$install_state_file")" 2>/dev/null || true
+  echo "release: Homebrew formula and clean install passed after native published verifier run $verifier_run"
+}
+
+mode=${1:-}
+shift || true
+case "$mode" in
+  --check)
+    [[ "$#" -eq 0 ]] || usage
+    require_tools goreleaser
+    goreleaser check
+    "$root/scripts/test-codesign-macos.sh"
+    "$root/scripts/test-release-assets.sh"
+    "$root/scripts/test-release-local.sh"
+    "$root/scripts/test-start-next-release.sh"
+    ;;
+  draft)
+    [[ "$#" -eq 0 ]] || usage
+    ;;
+  pilot|verify-draft|publish|homebrew)
+    [[ "$#" -eq 1 ]] || usage
+    ;;
+  *) usage ;;
+esac
+
+[[ "$mode" == --check ]] && exit 0
+work_dir=$(mktemp -d "${TMPDIR:-/tmp}/gogcli-release.XXXXXX")
+cleanup_release_work_dir() {
+  chmod -R u+w "$work_dir" 2>/dev/null || true
+  rm -rf "$work_dir" 2>/dev/null || true
+}
+trap cleanup_release_work_dir EXIT
+release_json=
+release_id=
+release_snapshot_file=
+
+case "$mode" in
+  pilot) pilot_release "$1" ;;
+  draft) draft_release ;;
+  verify-draft) verify_draft "$1" ;;
+  publish) publish_release "$1" ;;
+  homebrew) update_homebrew "$1" ;;
+esac

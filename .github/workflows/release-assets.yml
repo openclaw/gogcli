@@ -1,0 +1,181 @@
+name: Release Assets
+run-name: Verify ${{ inputs.tag }} ${{ inputs.draft && 'draft' || 'published' }} assets at ${{ github.workflow_sha }} for ${{ inputs.tag_commit }} object ${{ inputs.tag_object }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to verify"
+        required: true
+        type: string
+      draft:
+        description: "Verify an unpublished draft release"
+        required: true
+        default: true
+        type: boolean
+      tag_commit:
+        description: "Trusted peeled commit for the signed release tag"
+        required: true
+        type: string
+      tag_object:
+        description: "Trusted annotated object for the signed release tag"
+        required: true
+        type: string
+
+permissions:
+  # GitHub returns draft releases only to identities with push access. The
+  # workflow injects this token only into the GET/download step and performs no
+  # writes. https://docs.github.com/en/rest/releases/releases#list-releases
+  contents: write
+
+jobs:
+  verify-macos-gogcli:
+    name: Verify notarized macOS archive (${{ matrix.arch }})
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      github.ref == format('refs/heads/{0}', github.event.repository.default_branch) &&
+      endsWith(github.workflow_ref, format('@refs/heads/{0}', github.event.repository.default_branch))
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runs-on: macos-15
+            arch: arm64
+            goarch: arm64
+          - runs-on: macos-15-intel
+            arch: x86_64
+            goarch: amd64
+    runs-on: ${{ matrix.runs-on }}
+    env:
+      RELEASE_TAG: ${{ inputs.tag }}
+      EXPECTED_TAG_COMMIT: ${{ inputs.tag_commit }}
+    steps:
+      - name: Check out trusted verifier from the current default branch
+        shell: bash
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          EXPECTED_TAG_OBJECT: ${{ inputs.tag_object }}
+          TRUSTED_SHA: ${{ github.workflow_sha }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REPOSITORY" = openclaw/gogcli
+          git init trusted
+          git -C trusted remote add origin "https://github.com/$GITHUB_REPOSITORY.git"
+          git -C trusted fetch --depth=1 --no-tags origin "refs/heads/$DEFAULT_BRANCH"
+          git -C trusted checkout --detach FETCH_HEAD
+          test "$(git -C trusted rev-parse HEAD)" = "$TRUSTED_SHA"
+          tag_metadata=$(trusted/scripts/verify-release-tag.sh \
+            "$RELEASE_TAG" "$EXPECTED_TAG_COMMIT")
+          read -r tag_object tag_commit extra <<<"$tag_metadata"
+          test -z "${extra:-}"
+          test "$tag_commit" = "$EXPECTED_TAG_COMMIT"
+          test "$tag_object" = "$EXPECTED_TAG_OBJECT"
+          proof_state="${{ inputs.draft && 'draft' || 'published' }}"
+          git -C trusted update-ref "refs/tags/$RELEASE_TAG" "$tag_object"
+          git clone --quiet --no-local --branch "$RELEASE_TAG" --single-branch \
+            trusted release-source
+          git -C release-source checkout --quiet --detach "$tag_commit"
+          test "$(git -C release-source rev-parse "refs/tags/$RELEASE_TAG")" = "$tag_object"
+          test "$(git -C release-source rev-parse HEAD)" = "$tag_commit"
+          test -z "$(git -C release-source status --porcelain --untracked-files=all)"
+          printf '%s\n' "$tag_object" > trusted-tag-object.txt
+          printf '%s\n' "$tag_commit" > trusted-tag-commit.txt
+          printf '%s\n' "$proof_state" > trusted-proof-state.txt
+
+      - name: Install exact release Go toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          case "$(uname -m)" in
+            arm64)
+              goarch=arm64
+              sha256=efb87ff28af9a188d0536ef5d42e63dd52ba8263cd7344a993cc48dd11dedb6a
+              ;;
+            x86_64)
+              goarch=amd64
+              sha256=6231d8d3b8f5552ec6cbf6d685bdd5482e1e703214b120e89b3bf0d7bf1ef725
+              ;;
+            *) exit 1 ;;
+          esac
+          archive="go1.26.5.darwin-${goarch}.tar.gz"
+          curl --fail --silent --show-error --location \
+            "https://go.dev/dl/$archive" --output "$archive"
+          test "$(shasum -a 256 "$archive" | awk '{print $1}')" = "$sha256"
+          mkdir release-go
+          tar -xzf "$archive" -C release-go
+          test "$(release-go/go/bin/go version)" = "go version go1.26.5 darwin/$goarch"
+
+      - name: Download exact release inventory
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          expected_draft="${{ inputs.draft }}"
+          expected_tag_object=$(<trusted-tag-object.txt)
+          test "$(<trusted-tag-commit.txt)" = "$EXPECTED_TAG_COMMIT"
+          trusted/scripts/download-release-assets.sh \
+            "$RELEASE_TAG" "${{ matrix.goarch }}" "$expected_draft" \
+            "$EXPECTED_TAG_COMMIT" "$expected_tag_object" artifacts
+
+      - name: Verify static release inventory and rebuild provenance
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${RELEASE_TAG#v}"
+          archive="artifacts/gogcli_${version}_darwin_${{ matrix.goarch }}.tar.gz"
+          expected_revision=$(<artifacts/tag-commit.txt)
+          expected_tag_object=$(<trusted-tag-object.txt)
+          go_bin="$PWD/release-go/go/bin/go"
+          go_dir=$(dirname "$go_bin")
+          mkdir verified-candidate
+          trusted/scripts/freeze-release-inventory.sh \
+            "$RELEASE_TAG" artifacts > release-inventory.sha256
+          env -i PATH="$go_dir:/usr/bin:/bin:/usr/sbin:/sbin" \
+            trusted/scripts/verify-release-assets.sh \
+            "$RELEASE_TAG" "$archive" artifacts/checksums.txt \
+            "$expected_revision" verified-candidate/gog
+          shasum -a 256 verified-candidate/gog | awk '{print $1}' \
+            > verified-candidate.sha256
+          env -i \
+            PATH="$go_dir:/usr/bin:/bin:/usr/sbin:/sbin" \
+            GOG_RELEASE_GO="$go_bin" \
+            trusted/scripts/rebuild-release-assets.sh \
+            "$RELEASE_TAG" release-source artifacts \
+            "$expected_revision" "$expected_tag_object"
+          trusted/scripts/freeze-release-inventory.sh \
+            "$RELEASE_TAG" artifacts > release-inventory.after.sha256
+          cmp release-inventory.sha256 release-inventory.after.sha256
+          test "$(shasum -a 256 verified-candidate/gog | awk '{print $1}')" \
+            = "$(<verified-candidate.sha256)"
+
+      - name: Execute verified candidate last
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${RELEASE_TAG#v}"
+          expected_revision=$(<artifacts/tag-commit.txt)
+          expected_tag_object=$(<trusted-tag-object.txt)
+          proof_state=$(<trusted-proof-state.txt)
+          trusted/scripts/freeze-release-inventory.sh \
+            "$RELEASE_TAG" artifacts > release-inventory.final.sha256
+          cmp release-inventory.sha256 release-inventory.final.sha256
+          test "$(shasum -a 256 verified-candidate/gog | awk '{print $1}')" \
+            = "$(<verified-candidate.sha256)"
+          test "$(git -C trusted rev-parse HEAD)" = "${{ github.workflow_sha }}"
+          test -z "$(git -C trusted status --porcelain --untracked-files=all)"
+          test -z "$(git -C release-source status --porcelain --untracked-files=all)"
+          for helper in \
+            scripts/freeze-release-inventory.sh \
+            scripts/rebuild-release-assets.sh \
+            scripts/verify-macos-binary.sh \
+            scripts/verify-release-assets.sh; do
+            test "$(git -C trusted hash-object "$helper")" \
+              = "$(git -C trusted rev-parse "HEAD:$helper")"
+          done
+          env -i PATH=/usr/bin:/bin:/usr/sbin:/sbin \
+            trusted/scripts/verify-macos-binary.sh \
+            verified-candidate/gog "${{ matrix.arch }}" "$version" execute
+          printf 'GOG_RELEASE_PROOF tag=%s object=%s commit=%s workflow=%s state=%s\n' \
+            "$RELEASE_TAG" "$expected_tag_object" "$expected_revision" \
+            "${{ github.workflow_sha }}" "$proof_state"
