@@ -1,6 +1,8 @@
 # Changelog
 
-## 0.33.1 - Unreleased
+## 0.33.1 - 2026-07-10
+
+- Release: sign and notarize macOS artifacts locally with the OpenClaw Foundation Developer ID while preserving the existing `com.steipete.gogcli.gog` identifier; ordinary builds and GitHub CI remain credential-free.
 
 ## 0.33.0 - 2026-07-06
 
