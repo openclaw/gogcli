@@ -33,6 +33,7 @@ type AuthorizeOptions struct {
 	ListenAddr                  string
 	RedirectURI                 string
 	RequireState                bool
+	LoginHint                   string
 	ManualStateStore            *ManualStateStore
 }
 
@@ -257,7 +258,7 @@ func authorizeServer(ctx context.Context, opts AuthorizeOptions, creds config.Cl
 	}()
 
 	codeVerifier := generateVerifierFn()
-	authURL := cfg.AuthCodeURL(state, pkceAuthURLParams(opts.ForceConsent, !opts.DisableIncludeGrantedScopes, codeVerifier)...)
+	authURL := cfg.AuthCodeURL(state, authorizeURLParams(opts, codeVerifier)...)
 
 	fmt.Fprintln(os.Stderr, "Opening browser for authorization…")
 	fmt.Fprintln(os.Stderr, "If the browser doesn't open, visit this URL:")
@@ -317,6 +318,19 @@ func authURLParams(forceConsent bool, includeGrantedScopes bool) []oauth2.AuthCo
 
 func pkceAuthURLParams(forceConsent bool, includeGrantedScopes bool, codeVerifier string) []oauth2.AuthCodeOption {
 	return append(authURLParams(forceConsent, includeGrantedScopes), oauth2.S256ChallengeOption(codeVerifier))
+}
+
+// authorizeURLParams builds the auth URL params for an authorize flow,
+// adding login_hint to pre-select the account when the expected email is
+// known (prevents the consent from silently completing as the browser's
+// default account).
+func authorizeURLParams(opts AuthorizeOptions, codeVerifier string) []oauth2.AuthCodeOption {
+	params := pkceAuthURLParams(opts.ForceConsent, !opts.DisableIncludeGrantedScopes, codeVerifier)
+	if opts.LoginHint != "" {
+		params = append(params, oauth2.SetAuthURLParam("login_hint", opts.LoginHint))
+	}
+
+	return params
 }
 
 func randomState() (string, error) {

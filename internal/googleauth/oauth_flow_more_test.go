@@ -208,3 +208,36 @@ func TestResolveServerRedirectURIUsesIPv6LoopbackListener(t *testing.T) {
 		t.Fatalf("expected IPv6 listener redirect, got %q", got)
 	}
 }
+
+func TestAuthorizeURLParamsLoginHint(t *testing.T) {
+	t.Parallel()
+
+	cfg := oauth2.Config{
+		ClientID:    "id",
+		Endpoint:    oauth2.Endpoint{AuthURL: "https://example.com/auth"},
+		RedirectURL: "http://localhost",
+		Scopes:      []string{"s1"},
+	}
+
+	withHint := cfg.AuthCodeURL("state", authorizeURLParams(AuthorizeOptions{LoginHint: "test@example.com"}, "verifier")...)
+
+	parsedHint, err := url.Parse(withHint)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+
+	if loginHint := parsedHint.Query().Get("login_hint"); loginHint != "test@example.com" {
+		t.Fatalf("expected login_hint=test@example.com, got %q", loginHint)
+	}
+
+	withoutHint := cfg.AuthCodeURL("state", authorizeURLParams(AuthorizeOptions{}, "verifier")...)
+
+	parsedNoHint, err := url.Parse(withoutHint)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+
+	if _, ok := parsedNoHint.Query()["login_hint"]; ok {
+		t.Fatalf("expected no login_hint param, got %q", parsedNoHint.Query().Get("login_hint"))
+	}
+}

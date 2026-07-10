@@ -172,6 +172,7 @@ func (c *AuthAddCmd) Run(ctx context.Context, flags *RootFlags) error {
 				DisableIncludeGrantedScopes: disableIncludeGrantedScopes,
 				Client:                      client,
 				RedirectURI:                 redirectURI,
+				LoginHint:                   strings.TrimSpace(c.Email),
 			})
 			if manualErr != nil {
 				return manualErr
@@ -238,6 +239,7 @@ func (c *AuthAddCmd) Run(ctx context.Context, flags *RootFlags) error {
 		ListenAddr:                  strings.TrimSpace(c.ListenAddr),
 		RedirectURI:                 redirectURI,
 		RequireState:                c.Remote,
+		LoginHint:                   strings.TrimSpace(c.Email),
 	})
 	if err != nil {
 		return err
