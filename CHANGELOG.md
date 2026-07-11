@@ -2,6 +2,8 @@
 
 ## 0.34.1 - Unreleased
 
+- MCP: add optional global and per-account capability ceilings in `config.json`, with narrow persistent write authorization, runtime-only restriction, and fail-closed selector validation. (#913) — thanks @mcaldas.
+
 ## 0.34.0 - 2026-07-11
 
 - Calendar: add `--timezone` / `--tz` display overrides to `calendar events` and `calendar event`, including uniform multi-calendar output without changing range parsing. (#908) — thanks @bxxd.

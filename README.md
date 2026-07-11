@@ -625,7 +625,8 @@ gog --account you@gmail.com \
 ```
 
 See [docs/mcp.md](docs/mcp.md) for client config, tool selection, safety
-behavior, mcporter examples, and troubleshooting.
+behavior, persistent global/per-account capability ceilings, mcporter examples,
+and troubleshooting.
 
 ## Auth and Accounts
 

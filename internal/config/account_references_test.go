@@ -1,6 +1,7 @@
 package config
 
 import (
+	"errors"
 	"sync"
 	"testing"
 )
@@ -16,6 +17,9 @@ func TestConfigStoreMigrateAccountEmailReferences(t *testing.T) {
 			"old@example.com":   "work-client",
 			"other@example.com": "default",
 		},
+		MCP: &MCPConfig{Accounts: map[string]MCPPolicy{
+			" Old@Example.com ": {AllowTools: []string{"docs.*"}, AllowWrite: true},
+		}},
 	}); err != nil {
 		t.Fatalf("Write: %v", err)
 	}
@@ -39,6 +43,40 @@ func TestConfigStoreMigrateAccountEmailReferences(t *testing.T) {
 
 	if _, ok := cfg.AccountClients["old@example.com"]; ok {
 		t.Fatalf("old account client retained: %#v", cfg.AccountClients)
+	}
+
+	if policy, ok := cfg.MCP.Accounts["new@example.com"]; !ok || !policy.AllowWrite {
+		t.Fatalf("MCP account policies = %#v", cfg.MCP.Accounts)
+	}
+
+	if _, ok := cfg.MCP.Accounts[" Old@Example.com "]; ok {
+		t.Fatalf("old MCP account policy retained: %#v", cfg.MCP.Accounts)
+	}
+}
+
+func TestConfigStoreMigrateAccountEmailReferencesRejectsMCPPolicyCollision(t *testing.T) {
+	store := NewConfigStore(Layout{ConfigDir: t.TempDir()})
+
+	original := File{MCP: &MCPConfig{Accounts: map[string]MCPPolicy{
+		"old@example.com": {AllowTools: []string{"docs.*"}, AllowWrite: true},
+		"new@example.com": {AllowTools: []string{"read"}},
+	}}}
+	if err := store.Write(original); err != nil {
+		t.Fatalf("Write: %v", err)
+	}
+
+	err := store.MigrateAccountEmailReferences("old@example.com", "new@example.com")
+	if !errors.Is(err, errMCPPolicyDestinationExists) {
+		t.Fatalf("migration collision error = %v", err)
+	}
+
+	cfg, readErr := store.Read()
+	if readErr != nil {
+		t.Fatalf("Read: %v", readErr)
+	}
+
+	if len(cfg.MCP.Accounts) != 2 || !cfg.MCP.Accounts["old@example.com"].AllowWrite {
+		t.Fatalf("collision changed MCP policies: %#v", cfg.MCP.Accounts)
 	}
 }
 

@@ -22,6 +22,17 @@ type File struct {
 	CalendarAliases map[string]string `json:"calendar_aliases,omitempty"`
 	GmailNoSend     bool              `json:"gmail_no_send,omitempty"`
 	NoSendAccounts  map[string]bool   `json:"no_send_accounts,omitempty"`
+	MCP             *MCPConfig        `json:"mcp,omitempty"`
+}
+
+type MCPConfig struct {
+	MCPPolicy
+	Accounts map[string]MCPPolicy `json:"accounts,omitempty"`
+}
+
+type MCPPolicy struct {
+	AllowTools []string `json:"allow_tools"`
+	AllowWrite bool     `json:"allow_write,omitempty"`
 }
 
 var errConfigLockTimeout = errors.New("acquire config lock timeout")

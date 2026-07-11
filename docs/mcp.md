@@ -46,6 +46,10 @@ gog --account you@example.com mcp \
 `--allow-write` is always required for write tools. A write tool that matches
 `--allow-tool` is still hidden until `--allow-write` is present.
 
+The exception is an explicit persistent MCP policy. It can authorize a narrow
+write surface without repeating `--allow-write` in every client definition;
+runtime flags can only reduce that configured surface.
+
 ## Why this is not `gog_exec`
 
 MCP clients are often LLM-driven. A generic "run this command" tool would expose
@@ -104,6 +108,48 @@ gog mcp --allow-tool calendar,sheets
 # All current write tools. Read tools are not included unless also selected.
 gog mcp --allow-write --allow-tool write
 ```
+
+## Persistent capability policy
+
+For several MCP clients or accounts, put the maximum registered tool surface in
+`config.json` instead of duplicating capability arguments. Without an `mcp`
+block, behavior is unchanged: all read tools are available, writes require
+`--allow-write`, and `--allow-tool` filters the result.
+
+```json5
+{
+  "mcp": {
+    "allow_tools": ["read"],
+    "allow_write": false,
+    "accounts": {
+      "personal@example.com": {
+        "allow_tools": ["read", "docs.*", "calendar.*"],
+        "allow_write": true
+      },
+      "work@example.com": {
+        "allow_tools": ["read"],
+        "allow_write": false
+      }
+    }
+  }
+}
+```
+
+An account entry is a complete replacement for the global policy, not a partial
+merge. Account keys are matched case-insensitively after aliases and automatic
+account selection are resolved, then that resolved account is pinned for every
+MCP child command. Per-account policies require stored account credentials;
+direct access tokens and ADC can use only the global policy because an account
+label does not prove the authenticated principal. An omitted `allow_tools` value defaults to
+`["read"]`; an explicitly empty list is rejected. `allow_write: true` requires
+an explicit tool list so a typo cannot accidentally expose every write tool.
+
+The configured policy is a ceiling. `--allow-tool` can intersect it with a
+smaller runtime set, `--readonly` removes all writes, and `--allow-write` cannot
+widen a read-only policy. Baked safety profiles remain the outer immutable
+ceiling. Unknown configured selectors and attempted write widening fail before
+the MCP server starts. Use `gog mcp --list-tools` with the same account and flags
+to inspect the final registered surface.
 
 ## Initial tools
 
