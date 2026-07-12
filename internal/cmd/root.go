@@ -167,6 +167,18 @@ func executeWithRuntime(args []string, runtime *app.Runtime) (err error) {
 	cli.authMode = googleapi.ParseAuthMode(os.Getenv("GOG_AUTH_MODE"))
 	applyExplicitOutputModePrecedence(kctx, &cli.RootFlags)
 
+	// Make config-backed account and alias resolution available to the
+	// pre-Run enforcement hooks below (enforceGmailNoSend resolves the
+	// target account). The context-backed resolver installed later
+	// replaces this with an equivalent one; both reduce to
+	// configureRuntimeConfig + runtime.Config.
+	cli.configStoreResolver = func() (*config.ConfigStore, error) {
+		if cfgErr := configureRuntimeConfig(runtime); cfgErr != nil {
+			return nil, cfgErr
+		}
+		return runtime.Config, nil
+	}
+
 	if err = enforceBakedSafetyProfile(kctx); err != nil {
 		return reportEarlyError(runtimeIO.Err, err)
 	}
