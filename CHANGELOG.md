@@ -3,7 +3,6 @@
 ## 0.34.1 - Unreleased
 
 - MCP: add optional global and per-account capability ceilings in `config.json`, with narrow persistent write authorization, runtime-only restriction, and fail-closed selector validation. (#913) — thanks @mcaldas.
-- Gmail: enforce per-account `config no-send` guards before the dry-run exit so `--dry-run` reports the block instead of `would gmail.send`, matching the `--gmail-no-send` and `gmail_no_send` layers; the same pre-dry-run enforcement now covers Discovery `api call` Gmail send methods, and account resolution is skipped entirely when no per-account guards are configured. (#915)
 
 ## 0.34.0 - 2026-07-11
 
