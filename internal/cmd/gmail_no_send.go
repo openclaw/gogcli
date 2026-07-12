@@ -43,9 +43,14 @@ func enforceGmailNoSend(kctx *kong.Context, flags *RootFlags, runtime *app.Runti
 	// Per-account guard, enforced at the same layer as the flag and the
 	// global config key so it also holds under --dry-run, which exits the
 	// command before the post-auth checkAccountNoSend call is reached.
-	// Account resolution failures are not errors here: commands own that
-	// failure mode, and checkAccountNoSend still covers real sends after
-	// auth resolves the account.
+	// Skip entirely when no per-account guards exist so a plain dry-run
+	// never resolves an account (default-account inference reads the
+	// keyring). Account resolution failures are not errors here: commands
+	// own that failure mode, and checkAccountNoSend still covers real
+	// sends after auth resolves the account.
+	if len(cfg.NoSendAccounts) == 0 {
+		return nil
+	}
 	if account, accountErr := requireAccount(flags); accountErr == nil {
 		blocked, blockedErr := runtime.Config.IsNoSendAccount(account)
 		if blockedErr != nil {

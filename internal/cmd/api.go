@@ -118,6 +118,11 @@ func (c *APICallCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if !read && !c.AllowWrite {
 		return usagef("method %s uses %s; pass --allow-write to opt in", method.ID, method.Spec.HttpMethod)
 	}
+	// Gmail send guards run before the dry-run exit so --dry-run reports
+	// the block, matching the first-class Gmail send commands.
+	if guardErr := checkDiscoveryGmailNoSend(ctx, flags, method.ID); guardErr != nil {
+		return guardErr
+	}
 	plan := map[string]any{"api": c.API, "version": c.Version, "method": method.ID, "http_method": method.Spec.HttpMethod, "url": requestURL, "has_body": len(body) > 0}
 	if dryRunErr := dryRunExit(ctx, flags, "api.call", plan); dryRunErr != nil {
 		return dryRunErr
@@ -138,8 +143,12 @@ func (c *APICallCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if err != nil {
 		return err
 	}
-	if guardErr := checkDiscoveryGmailNoSend(ctx, flags, account, method.ID); guardErr != nil {
-		return guardErr
+	// Defense-in-depth for the auth-resolved account, mirroring the
+	// first-class send commands.
+	if isDiscoveryGmailSendMethod(method.ID) {
+		if guardErr := checkAccountNoSend(ctx, account); guardErr != nil {
+			return guardErr
+		}
 	}
 	scopes, err := discoveryScopes(method.Spec.Scopes, c.Scope)
 	if err != nil {
@@ -249,8 +258,12 @@ func discoveryScopeScore(scope string) int {
 	}
 }
 
-func checkDiscoveryGmailNoSend(ctx context.Context, flags *RootFlags, account, methodID string) error {
-	if methodID != "gmail.users.messages.send" && methodID != "gmail.users.drafts.send" {
+func isDiscoveryGmailSendMethod(methodID string) bool {
+	return methodID == "gmail.users.messages.send" || methodID == "gmail.users.drafts.send"
+}
+
+func checkDiscoveryGmailNoSend(ctx context.Context, flags *RootFlags, methodID string) error {
+	if !isDiscoveryGmailSendMethod(methodID) {
 		return nil
 	}
 	if flags != nil && flags.GmailNoSend {
@@ -269,7 +282,16 @@ func checkDiscoveryGmailNoSend(ctx context.Context, flags *RootFlags, account, m
 		return usage("Gmail sending is blocked by config gmail_no_send")
 	}
 
-	return checkAccountNoSend(ctx, account)
+	// Same rules as enforceGmailNoSend: only resolve an account when a
+	// per-account guard could match (default-account inference reads the
+	// keyring), and leave resolution failures to the command itself.
+	if len(cfg.NoSendAccounts) == 0 {
+		return nil
+	}
+	if account, accountErr := requireAccount(flags); accountErr == nil {
+		return checkAccountNoSend(ctx, account)
+	}
+	return nil
 }
 
 func readDiscoveryBody(value string) (json.RawMessage, error) {

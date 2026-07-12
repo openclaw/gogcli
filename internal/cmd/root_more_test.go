@@ -449,6 +449,21 @@ func TestConfigNoSendAccountDoesNotOverblockDryRun(t *testing.T) {
 	}
 }
 
+func TestGmailSendDryRunWithoutGuardsSkipsAccountResolution(t *testing.T) {
+	t.Parallel()
+
+	// No per-account guards configured: dry-run must succeed without any
+	// account being resolvable (resolution would otherwise read the
+	// keyring before the dry-run exit).
+	store := config.NewConfigStore(config.Layout{ConfigDir: t.TempDir()})
+	runtime := &app.Runtime{Config: store}
+	args := []string{"gmail", "send", "--to", "a@example.com", "--subject", "S", "--body", "B", "--dry-run"}
+	result := executeWithTestRuntime(t, args, runtime)
+	if result.err != nil {
+		t.Fatalf("expected success for %v, got %v\nstderr=%q", args, result.err, result.stderr)
+	}
+}
+
 func TestConfigIndependentCommandsDoNotRequireHome(t *testing.T) {
 	t.Setenv("HOME", "")
 	t.Setenv("USERPROFILE", "")

@@ -10,6 +10,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/steipete/gogcli/internal/app"
+	"github.com/steipete/gogcli/internal/config"
 	"github.com/steipete/gogcli/internal/googleapi"
 	"github.com/steipete/gogcli/internal/outfmt"
 )
@@ -116,9 +118,35 @@ func TestValidateDiscoveryRedirect(t *testing.T) {
 }
 
 func TestDiscoveryGmailSendHonorsNoSendFlag(t *testing.T) {
-	err := checkDiscoveryGmailNoSend(context.Background(), &RootFlags{GmailNoSend: true}, "user@example.com", "gmail.users.messages.send")
+	err := checkDiscoveryGmailNoSend(context.Background(), &RootFlags{GmailNoSend: true}, "gmail.users.messages.send")
 	if err == nil || !strings.Contains(err.Error(), "--gmail-no-send") {
 		t.Fatalf("error = %v, want no-send policy", err)
+	}
+}
+
+func TestDiscoveryGmailSendHonorsPerAccountNoSend(t *testing.T) {
+	t.Parallel()
+
+	store := config.NewConfigStore(config.Layout{ConfigDir: t.TempDir()})
+	if err := store.Write(config.File{NoSendAccounts: map[string]bool{"blocked@example.com": true}}); err != nil {
+		t.Fatalf("WriteConfig: %v", err)
+	}
+	ctx := app.WithRuntime(context.Background(), &app.Runtime{Config: store})
+	flags := &RootFlags{Account: "blocked@example.com"}
+
+	err := checkDiscoveryGmailNoSend(ctx, flags, "gmail.users.messages.send")
+	if err == nil || !strings.Contains(err.Error(), "no-send") {
+		t.Fatalf("error = %v, want per-account no-send", err)
+	}
+	if err := checkDiscoveryGmailNoSend(ctx, flags, "gmail.users.drafts.send"); err == nil {
+		t.Fatalf("drafts.send: expected per-account no-send error")
+	}
+	// Non-send methods and non-guarded accounts are unaffected.
+	if err := checkDiscoveryGmailNoSend(ctx, flags, "gmail.users.labels.list"); err != nil {
+		t.Fatalf("non-send method: %v", err)
+	}
+	if err := checkDiscoveryGmailNoSend(ctx, &RootFlags{Account: "other@example.com"}, "gmail.users.messages.send"); err != nil {
+		t.Fatalf("non-guarded account: %v", err)
 	}
 }
 
