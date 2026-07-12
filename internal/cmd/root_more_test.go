@@ -396,6 +396,54 @@ func TestConfigGmailNoSendBlocksBeforeAuth(t *testing.T) {
 	}
 }
 
+func TestConfigNoSendAccountBlocksBeforeDryRun(t *testing.T) {
+	t.Parallel()
+
+	store := config.NewConfigStore(config.Layout{ConfigDir: t.TempDir()})
+	if err := store.Write(config.File{NoSendAccounts: map[string]bool{"blocked@example.com": true}}); err != nil {
+		t.Fatalf("WriteConfig: %v", err)
+	}
+	runtime := &app.Runtime{Config: store}
+	tests := [][]string{
+		{"gmail", "send", "--account", "blocked@example.com", "--to", "a@example.com", "--subject", "S", "--body", "B", "--dry-run"},
+		{"gmail", "autoreply", "from:a@example.com", "--account", "blocked@example.com", "--subject", "S", "--body", "B", "--dry-run"},
+		{"gmail", "forward", "msg-1", "--account", "blocked@example.com", "--to", "a@example.com", "--dry-run"},
+		{"gmail", "drafts", "send", "draft-1", "--account", "blocked@example.com", "--dry-run"},
+	}
+	for _, args := range tests {
+		result := executeWithTestRuntime(t, args, runtime)
+		err := result.err
+		if err == nil {
+			t.Fatalf("expected error for %v", args)
+		}
+		if !strings.Contains(err.Error(), "no-send") {
+			t.Fatalf("unexpected error for %v: %v", args, err)
+		}
+	}
+}
+
+func TestConfigNoSendAccountDoesNotOverblockDryRun(t *testing.T) {
+	t.Parallel()
+
+	store := config.NewConfigStore(config.Layout{ConfigDir: t.TempDir()})
+	if err := store.Write(config.File{NoSendAccounts: map[string]bool{"blocked@example.com": true}}); err != nil {
+		t.Fatalf("WriteConfig: %v", err)
+	}
+	runtime := &app.Runtime{Config: store}
+	tests := [][]string{
+		// Send from a different account is not blocked.
+		{"gmail", "send", "--account", "other@example.com", "--to", "a@example.com", "--subject", "S", "--body", "B", "--dry-run"},
+		// Non-send commands for the guarded account are not blocked.
+		{"gmail", "drafts", "create", "--account", "blocked@example.com", "--to", "a@example.com", "--subject", "S", "--body", "B", "--dry-run"},
+	}
+	for _, args := range tests {
+		result := executeWithTestRuntime(t, args, runtime)
+		if result.err != nil {
+			t.Fatalf("expected success for %v, got %v\nstderr=%q", args, result.err, result.stderr)
+		}
+	}
+}
+
 func TestConfigIndependentCommandsDoNotRequireHome(t *testing.T) {
 	t.Setenv("HOME", "")
 	t.Setenv("USERPROFILE", "")
