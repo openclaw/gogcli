@@ -181,7 +181,7 @@ Environment:
 - `config.json` can also set `places_api_key` (or use `GOG_PLACES_API_KEY` / `GOOGLE_PLACES_API_KEY`) for Calendar Places lookups.
 - `config.json` can also set `account_aliases` for `gog auth alias` (JSON5)
 - `config.json` can also set `account_clients` (email -> client) and `client_domains` (domain -> client)
-- `config.json` can also set `gmail_no_send` and `no_send_accounts` for send guards (both enforced before command execution, including under `--dry-run`)
+- `config.json` can also set `gmail_no_send` and `no_send_accounts` for send guards
 
 Flag aliases:
 - `--out` also accepts `--output`.
