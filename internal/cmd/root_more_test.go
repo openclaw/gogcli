@@ -475,7 +475,7 @@ func TestGmailSendDryRunWithInactiveGuardsSkipsAccountResolution(t *testing.T) {
 	runtime := &app.Runtime{Config: store}
 	runtime.Auth.OpenSecretsStore = func() (secrets.Store, error) {
 		t.Fatal("inactive no-send entries must not trigger account resolution")
-		return nil, nil
+		return nil, errors.New("unexpected account resolution")
 	}
 	args := []string{"gmail", "send", "--to", "a@example.com", "--subject", "S", "--body", "B", "--dry-run"}
 	result := executeWithTestRuntime(t, args, runtime)

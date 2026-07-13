@@ -162,7 +162,7 @@ func TestDiscoveryGmailSendWithInactiveGuardsSkipsAccountResolution(t *testing.T
 	flags := &RootFlags{authOperations: app.AuthOperations{
 		OpenSecretsStore: func() (secrets.Store, error) {
 			t.Fatal("inactive no-send entries must not trigger account resolution")
-			return nil, nil
+			return nil, errors.New("unexpected account resolution")
 		},
 	}}
 
