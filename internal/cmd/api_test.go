@@ -14,6 +14,7 @@ import (
 	"github.com/steipete/gogcli/internal/config"
 	"github.com/steipete/gogcli/internal/googleapi"
 	"github.com/steipete/gogcli/internal/outfmt"
+	"github.com/steipete/gogcli/internal/secrets"
 )
 
 func TestAPICallRequiresWriteOptIn(t *testing.T) {
@@ -147,6 +148,26 @@ func TestDiscoveryGmailSendHonorsPerAccountNoSend(t *testing.T) {
 	}
 	if err := checkDiscoveryGmailNoSend(ctx, &RootFlags{Account: "other@example.com"}, "gmail.users.messages.send"); err != nil {
 		t.Fatalf("non-guarded account: %v", err)
+	}
+}
+
+func TestDiscoveryGmailSendWithInactiveGuardsSkipsAccountResolution(t *testing.T) {
+	t.Parallel()
+
+	store := config.NewConfigStore(config.Layout{ConfigDir: t.TempDir()})
+	if err := store.Write(config.File{NoSendAccounts: map[string]bool{"inactive@example.com": false}}); err != nil {
+		t.Fatalf("WriteConfig: %v", err)
+	}
+	ctx := app.WithRuntime(context.Background(), &app.Runtime{Config: store})
+	flags := &RootFlags{authOperations: app.AuthOperations{
+		OpenSecretsStore: func() (secrets.Store, error) {
+			t.Fatal("inactive no-send entries must not trigger account resolution")
+			return nil, nil
+		},
+	}}
+
+	if err := checkDiscoveryGmailNoSend(ctx, flags, "gmail.users.messages.send"); err != nil {
+		t.Fatalf("inactive no-send entry: %v", err)
 	}
 }
 

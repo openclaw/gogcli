@@ -14,6 +14,7 @@ import (
 
 	"github.com/steipete/gogcli/internal/app"
 	"github.com/steipete/gogcli/internal/config"
+	"github.com/steipete/gogcli/internal/secrets"
 )
 
 func setTestConfigHome(t *testing.T) {
@@ -457,6 +458,25 @@ func TestGmailSendDryRunWithoutGuardsSkipsAccountResolution(t *testing.T) {
 	// keyring before the dry-run exit).
 	store := config.NewConfigStore(config.Layout{ConfigDir: t.TempDir()})
 	runtime := &app.Runtime{Config: store}
+	args := []string{"gmail", "send", "--to", "a@example.com", "--subject", "S", "--body", "B", "--dry-run"}
+	result := executeWithTestRuntime(t, args, runtime)
+	if result.err != nil {
+		t.Fatalf("expected success for %v, got %v\nstderr=%q", args, result.err, result.stderr)
+	}
+}
+
+func TestGmailSendDryRunWithInactiveGuardsSkipsAccountResolution(t *testing.T) {
+	t.Parallel()
+
+	store := config.NewConfigStore(config.Layout{ConfigDir: t.TempDir()})
+	if err := store.Write(config.File{NoSendAccounts: map[string]bool{"inactive@example.com": false}}); err != nil {
+		t.Fatalf("WriteConfig: %v", err)
+	}
+	runtime := &app.Runtime{Config: store}
+	runtime.Auth.OpenSecretsStore = func() (secrets.Store, error) {
+		t.Fatal("inactive no-send entries must not trigger account resolution")
+		return nil, nil
+	}
 	args := []string{"gmail", "send", "--to", "a@example.com", "--subject", "S", "--body", "B", "--dry-run"}
 	result := executeWithTestRuntime(t, args, runtime)
 	if result.err != nil {

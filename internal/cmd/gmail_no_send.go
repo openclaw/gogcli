@@ -48,7 +48,7 @@ func enforceGmailNoSend(kctx *kong.Context, flags *RootFlags, runtime *app.Runti
 	// keyring). Account resolution failures are not errors here: commands
 	// own that failure mode, and checkAccountNoSend still covers real
 	// sends after auth resolves the account.
-	if len(cfg.NoSendAccounts) == 0 {
+	if !hasActiveNoSendAccount(cfg.NoSendAccounts) {
 		return nil
 	}
 	if account, accountErr := requireAccount(flags); accountErr == nil {
@@ -61,6 +61,15 @@ func enforceGmailNoSend(kctx *kong.Context, flags *RootFlags, runtime *app.Runti
 		}
 	}
 	return nil
+}
+
+func hasActiveNoSendAccount(accounts map[string]bool) bool {
+	for _, blocked := range accounts {
+		if blocked {
+			return true
+		}
+	}
+	return false
 }
 
 func checkAccountNoSend(ctx context.Context, account string) error {

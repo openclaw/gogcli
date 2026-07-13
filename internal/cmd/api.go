@@ -285,7 +285,7 @@ func checkDiscoveryGmailNoSend(ctx context.Context, flags *RootFlags, methodID s
 	// Same rules as enforceGmailNoSend: only resolve an account when a
 	// per-account guard could match (default-account inference reads the
 	// keyring), and leave resolution failures to the command itself.
-	if len(cfg.NoSendAccounts) == 0 {
+	if !hasActiveNoSendAccount(cfg.NoSendAccounts) {
 		return nil
 	}
 	if account, accountErr := requireAccount(flags); accountErr == nil {
