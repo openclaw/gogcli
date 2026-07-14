@@ -386,6 +386,52 @@ func smartChipDocsContent() []any {
 
 func newSmartChipDocsTestServer(t *testing.T) (*docs.Service, func()) {
 	t.Helper()
+	return newDocsContentTestServer(t, "Smart chip doc", "Chips", smartChipDocsContent)
+}
+
+func linkedTextDocsContent() []any {
+	return []any{
+		map[string]any{"paragraph": map[string]any{"elements": []any{
+			map[string]any{"startIndex": 1, "endIndex": 7, "textRun": map[string]any{"content": "Intro "}},
+			map[string]any{"startIndex": 7, "endIndex": 21, "textRun": map[string]any{
+				"content":   "Ticket [draft]",
+				"textStyle": map[string]any{"link": map[string]any{"url": "https://tracker.example.com/a_(draft)"}},
+			}},
+			map[string]any{"startIndex": 21, "endIndex": 26, "textRun": map[string]any{"content": " and "}},
+			map[string]any{"startIndex": 26, "endIndex": 45, "textRun": map[string]any{
+				"content":   "https://example.com",
+				"textStyle": map[string]any{"link": map[string]any{"url": "https://example.com"}},
+			}},
+			map[string]any{"startIndex": 45, "endIndex": 52, "textRun": map[string]any{"content": " owner "}},
+			map[string]any{"startIndex": 52, "endIndex": 53, "person": map[string]any{
+				"personProperties": map[string]any{"name": "Sample Person", "email": "sample@example.com"},
+			}},
+			map[string]any{"startIndex": 53, "endIndex": 54, "textRun": map[string]any{"content": "\n"}},
+		}}},
+		map[string]any{"table": map[string]any{"tableRows": []any{
+			map[string]any{"tableCells": []any{
+				map[string]any{"content": []any{map[string]any{"paragraph": map[string]any{"elements": []any{
+					map[string]any{"startIndex": 55, "endIndex": 65, "textRun": map[string]any{
+						"content":   "Table link",
+						"textStyle": map[string]any{"link": map[string]any{"url": "https://example.com/table"}},
+					}},
+					map[string]any{"startIndex": 65, "endIndex": 66, "textRun": map[string]any{"content": "\n"}},
+				}}}}},
+				map[string]any{"content": []any{map[string]any{"paragraph": map[string]any{"elements": []any{
+					map[string]any{"startIndex": 67, "endIndex": 73, "textRun": map[string]any{"content": "Plain\n"}},
+				}}}}},
+			}},
+		}}},
+	}
+}
+
+func newLinkedTextDocsTestServer(t *testing.T) (*docs.Service, func()) {
+	t.Helper()
+	return newDocsContentTestServer(t, "Linked text doc", "Links", linkedTextDocsContent)
+}
+
+func newDocsContentTestServer(t *testing.T, title, tabTitle string, content func() []any) (*docs.Service, func()) {
+	t.Helper()
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !strings.HasPrefix(r.URL.Path, "/v1/documents/") || r.Method != http.MethodGet {
@@ -393,19 +439,14 @@ func newSmartChipDocsTestServer(t *testing.T) (*docs.Service, func()) {
 			return
 		}
 
-		response := map[string]any{
-			"documentId": "doc1",
-			"title":      "Smart chip doc",
-		}
+		response := map[string]any{"documentId": "doc1", "title": title}
 		if r.URL.Query().Get("includeTabsContent") == "true" {
 			response["tabs"] = []any{map[string]any{
-				"tabProperties": map[string]any{"tabId": "tab-1", "title": "Chips", "index": 0},
-				"documentTab": map[string]any{
-					"body": map[string]any{"content": smartChipDocsContent()},
-				},
+				"tabProperties": map[string]any{"tabId": "tab-1", "title": tabTitle, "index": 0},
+				"documentTab":   map[string]any{"body": map[string]any{"content": content()}},
 			}}
 		} else {
-			response["body"] = map[string]any{"content": smartChipDocsContent()}
+			response["body"] = map[string]any{"content": content()}
 		}
 
 		w.Header().Set("Content-Type", "application/json")
@@ -721,6 +762,87 @@ func TestDocsCat_SmartChipsAreOptInForTextOutput(t *testing.T) {
 	want := "Reviewer: @Sample Person <sample@example.com>\nDue: Jul 8, 2026\nFile: [Plan Doc](https://docs.google.com/document/d/plan)\n"
 	if result.stdout != want {
 		t.Fatalf("unexpected rendered chip text\n got: %q\nwant: %q", result.stdout, want)
+	}
+}
+
+func TestDocsCat_LinkedTextUsesRenderedPathAndJSONSidecar(t *testing.T) {
+	t.Parallel()
+
+	docSvc, cleanup := newLinkedTextDocsTestServer(t)
+	defer cleanup()
+
+	plain := "Intro Ticket [draft] and https://example.com owner \nTable link\n\tPlain\n"
+	rendered := "Intro [Ticket \\[draft\\]](https://tracker.example.com/a_\\(draft\\)) and https://example.com owner @Sample Person <sample@example.com>\n[Table link](https://example.com/table)\n\tPlain\n"
+
+	result := runDocsCatCommand(t, docSvc, []string{"doc1"}, false)
+	if result.err != nil {
+		t.Fatalf("cat: %v", result.err)
+	}
+	if result.stdout != plain {
+		t.Fatalf("default text changed\n got: %q\nwant: %q", result.stdout, plain)
+	}
+
+	result = runDocsCatCommand(t, docSvc, []string{"doc1", "--chips"}, false)
+	if result.err != nil {
+		t.Fatalf("cat --chips: %v", result.err)
+	}
+	if result.stdout != rendered {
+		t.Fatalf("unexpected rendered linked text\n got: %q\nwant: %q", result.stdout, rendered)
+	}
+
+	result = runDocsCatCommand(t, docSvc, []string{"doc1", "--tab", "Links", "--chips"}, false)
+	if result.err != nil {
+		t.Fatalf("cat --tab Links --chips: %v", result.err)
+	}
+	if result.stdout != rendered {
+		t.Fatalf("unexpected tab linked text\n got: %q\nwant: %q", result.stdout, rendered)
+	}
+
+	result = runDocsCatCommand(t, docSvc, []string{"doc1"}, true)
+	if result.err != nil {
+		t.Fatalf("cat --json: %v", result.err)
+	}
+	var out struct {
+		Text         string          `json:"text"`
+		RenderedText string          `json:"renderedText"`
+		Chips        []docsSmartChip `json:"chips"`
+		Links        []docsTextLink  `json:"links"`
+	}
+	if err := json.Unmarshal([]byte(result.stdout), &out); err != nil {
+		t.Fatalf("JSON parse: %v\nraw: %q", err, result.stdout)
+	}
+	if out.Text != plain || out.RenderedText != rendered {
+		t.Fatalf("unexpected JSON text: %#v", out)
+	}
+	if len(out.Chips) != 1 || out.Chips[0].Type != "person" {
+		t.Fatalf("unexpected mixed smart chips: %#v", out.Chips)
+	}
+	if len(out.Links) != 3 {
+		t.Fatalf("links length = %d, want 3: %#v", len(out.Links), out.Links)
+	}
+	if out.Links[0].Text != "Ticket [draft]" || out.Links[0].URL != "https://tracker.example.com/a_(draft)" || out.Links[0].StartIndex != 7 || out.Links[0].EndIndex != 21 {
+		t.Fatalf("unexpected first link: %#v", out.Links[0])
+	}
+	if out.Links[1].Text != "https://example.com" || out.Links[1].URL != out.Links[1].Text {
+		t.Fatalf("unexpected visible-URL link: %#v", out.Links[1])
+	}
+	if out.Links[2].Text != "Table link" || out.Links[2].URL != "https://example.com/table" {
+		t.Fatalf("unexpected table-cell link: %#v", out.Links[2])
+	}
+}
+
+func TestDocsCat_LinkedTextRespectsMaxBytesAtomically(t *testing.T) {
+	t.Parallel()
+
+	docSvc, cleanup := newLinkedTextDocsTestServer(t)
+	defer cleanup()
+
+	result := runDocsCatCommand(t, docSvc, []string{"doc1", "--chips", "--max-bytes", "20"}, false)
+	if result.err != nil {
+		t.Fatalf("cat --chips --max-bytes: %v", result.err)
+	}
+	if got, want := result.stdout, "Intro "; got != want {
+		t.Fatalf("link markdown should not be partially rendered\n got: %q\nwant: %q", got, want)
 	}
 }
 

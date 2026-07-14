@@ -145,6 +145,8 @@ func buildPersonChipRequest(email string, index int64) []*docs.Request {
 type ChipType int
 
 const (
+	chipTypePersonName = "person"
+
 	ChipTypeUnknown ChipType = iota
 	ChipTypePerson
 	ChipTypeDate
@@ -188,7 +190,7 @@ func parseChipURI(uri string) *ChipSpec {
 	spec := &ChipSpec{Value: value}
 
 	switch chipType {
-	case "person":
+	case chipTypePersonName:
 		spec.Type = ChipTypePerson
 	case strDate:
 		spec.Type = ChipTypeDate
