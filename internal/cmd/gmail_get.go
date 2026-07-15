@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"context"
-	"encoding/base64"
 	"strings"
 
 	"github.com/steipete/gogcli/internal/gmailcontent"
@@ -127,7 +126,7 @@ func (c *GmailGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 			u.Err().Println("Empty raw message")
 			return nil
 		}
-		decoded, err := base64.RawURLEncoding.DecodeString(msg.Raw)
+		decoded, err := decodeGmailRaw(msg.Raw)
 		if err != nil {
 			return err
 		}

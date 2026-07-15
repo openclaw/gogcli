@@ -322,6 +322,41 @@ func TestGmailGetCmd_Text_Metadata_WithAttachments(t *testing.T) {
 	}
 }
 
+func TestGmailGetCmd_RawAcceptsPaddedBase64URL(t *testing.T) {
+	rawMessage := "Subject: padded\r\nContent-Type: multipart/mixed\r\n\r\nbody!"
+	encoded := base64.URLEncoding.EncodeToString([]byte(rawMessage))
+	if !strings.HasSuffix(encoded, "=") {
+		t.Fatal("test fixture must include base64 padding")
+	}
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !strings.Contains(r.URL.Path, "/gmail/v1/users/me/messages/") {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"id":       "m1",
+			"threadId": "t1",
+			"labelIds": []string{"INBOX"},
+			"raw":      encoded,
+		})
+	}))
+	defer srv.Close()
+
+	result := executeWithGmailTestService(
+		t,
+		[]string{"--plain", "--account", "a@b.com", "gmail", "get", "m1", "--format", "raw"},
+		newGmailServiceFromServer(t, srv),
+	)
+	if result.err != nil {
+		t.Fatalf("execute: %v\nstderr=%q", result.err, result.stderr)
+	}
+	if !strings.Contains(result.stdout, rawMessage) {
+		t.Fatalf("expected decoded raw message, got: %q", result.stdout)
+	}
+}
+
 func TestGmailGetCmd_RawEmpty(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !strings.Contains(r.URL.Path, "/gmail/v1/users/me/messages/") {
