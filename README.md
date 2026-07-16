@@ -256,6 +256,10 @@ gog drive labels file list <fileId> --json
 gog drive labels file apply <fileId> <labelId> --text fieldId=value
 # Drive Labels requires a Google Workspace customer.
 
+# Recursively push local contents without deleting remote-only files.
+gog drive sync push ./backup --parent <folderId> --dry-run --json
+gog drive sync push ./backup --parent <folderId>
+
 # Ask Drive for non-default fields.
 gog drive get <fileId> --fields 'id,name,mimeType,size,owners,emailAddress' --json
 

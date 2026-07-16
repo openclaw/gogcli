@@ -51,6 +51,7 @@ gog --readonly --account user@example.com drive ls --max 20 --json --wrap-untrus
 | `search` | Full-text search across Drive |
 | `share` | Share a file or folder |
 | `shortcut` | Manage shortcuts to Drive files and folders |
+| `sync` | Reconcile local files with Drive |
 | `tree` | Print a read-only folder tree |
 | `unshare` | Remove a permission from a file |
 | `upload` | Upload a file |

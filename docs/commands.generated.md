@@ -366,6 +366,8 @@ Generated from `gog schema --json`.
     - [`gog drive (drv) share <fileId> [flags]`](commands/gog-drive-share.md) - Share a file or folder
     - [`gog drive (drv) shortcut (shortcuts) <command>`](commands/gog-drive-shortcut.md) - Manage shortcuts to Drive files and folders
       - [`gog drive (drv) shortcut (shortcuts) create (add,new) <targetId> [flags]`](commands/gog-drive-shortcut-create.md) - Create a shortcut to a Drive file or folder
+    - [`gog drive (drv) sync <command>`](commands/gog-drive-sync.md) - Reconcile local files with Drive
+      - [`gog drive (drv) sync push --parent=STRING <localDirectory> [flags]`](commands/gog-drive-sync-push.md) - Push a local directory's contents into a Drive folder (no remote deletes)
     - [`gog drive (drv) tree [flags]`](commands/gog-drive-tree.md) - Print a read-only folder tree
     - [`gog drive (drv) unshare <fileId> <permissionId>`](commands/gog-drive-unshare.md) - Remove a permission from a file
     - [`gog drive (drv) upload <localPath> [flags]`](commands/gog-drive-upload.md) - Upload a file

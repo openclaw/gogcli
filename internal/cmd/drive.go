@@ -64,6 +64,7 @@ type DriveCmd struct {
 	Download    DriveDownloadCmd    `cmd:"" name:"download" help:"Download a file (exports Google Docs formats)"`
 	Copy        DriveCopyCmd        `cmd:"" name:"copy" help:"Copy a file"`
 	Upload      DriveUploadCmd      `cmd:"" name:"upload" help:"Upload a file"`
+	Sync        DriveSyncCmd        `cmd:"" name:"sync" help:"Reconcile local files with Drive"`
 	Mkdir       DriveMkdirCmd       `cmd:"" name:"mkdir" help:"Create a folder"`
 	Delete      DriveDeleteCmd      `cmd:"" name:"delete" help:"Move a file to trash (use --permanent to delete forever)" aliases:"rm,del"`
 	Move        DriveMoveCmd        `cmd:"" name:"move" help:"Move a file to a different folder"`
@@ -222,7 +223,7 @@ func (c *DriveMkdirCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(ctx, stdoutWriter(ctx), map[string]any{"folder": created})
+		return outfmt.WriteJSON(ctx, stdoutWriter(ctx), map[string]any{strFolder: created})
 	}
 
 	u.Out().Linef("id\t%s", created.Id)
@@ -481,7 +482,7 @@ func escapeDriveQueryString(s string) string {
 func driveType(mimeType string) string {
 	switch mimeType {
 	case driveMimeFolder:
-		return "folder"
+		return strFolder
 	case driveMimeGoogleDoc:
 		return "doc"
 	case driveMimeGoogleSheet:
