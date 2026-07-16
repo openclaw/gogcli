@@ -92,7 +92,7 @@ func buildParagraphMapWithOptions(doc *docs.Document, tabID string, renderChips 
 			num++
 			text := paragraphText(el.Paragraph)
 			if renderChips {
-				text = paragraphTextWithChips(el.Paragraph)
+				text = paragraphTextWithChips(doc.DocumentId, el.Paragraph)
 			}
 			dp := docParagraph{
 				Num:        num,
@@ -127,7 +127,7 @@ func buildParagraphMapWithOptions(doc *docs.Document, tabID string, renderChips 
 			}
 			text := tablePreviewText(el.Table)
 			if renderChips {
-				text = tablePreviewTextWithChips(el.Table)
+				text = tablePreviewTextWithChips(doc.DocumentId, el.Table)
 			}
 			dp := docParagraph{
 				Num:        num,
@@ -160,20 +160,26 @@ func buildParagraphMapWithOptions(doc *docs.Document, tabID string, renderChips 
 
 // paragraphText extracts the plain text from a Paragraph element.
 func paragraphText(p *docs.Paragraph) string {
-	return paragraphTextWithOptions(p, false)
+	return paragraphTextWithOptions("", p, false)
 }
 
-func paragraphTextWithChips(p *docs.Paragraph) string {
-	return paragraphTextWithOptions(p, true)
+func paragraphTextWithChips(docID string, p *docs.Paragraph) string {
+	return paragraphTextWithOptions(docID, p, true)
 }
 
-func paragraphTextWithOptions(p *docs.Paragraph, renderChips bool) string {
+func paragraphTextWithOptions(docID string, p *docs.Paragraph, renderChips bool) string {
 	if p == nil {
 		return ""
 	}
 	var sb strings.Builder
 	for _, elem := range p.Elements {
 		if elem.TextRun != nil {
+			if renderChips {
+				if rendered, _, ok := renderDocsTextRunLink(docID, elem); ok {
+					sb.WriteString(rendered)
+					continue
+				}
+			}
 			sb.WriteString(elem.TextRun.Content)
 			continue
 		}
@@ -217,14 +223,14 @@ func fetchAndBuildMap(ctx context.Context, svc *docs.Service, docID, tabID strin
 
 // tablePreviewText returns a short preview of the table content.
 func tablePreviewText(t *docs.Table) string {
-	return tablePreviewTextWithOptions(t, false)
+	return tablePreviewTextWithOptions("", t, false)
 }
 
-func tablePreviewTextWithChips(t *docs.Table) string {
-	return tablePreviewTextWithOptions(t, true)
+func tablePreviewTextWithChips(docID string, t *docs.Table) string {
+	return tablePreviewTextWithOptions(docID, t, true)
 }
 
-func tablePreviewTextWithOptions(t *docs.Table, renderChips bool) string {
+func tablePreviewTextWithOptions(docID string, t *docs.Table, renderChips bool) string {
 	if t == nil || len(t.TableRows) == 0 {
 		return "[empty table]"
 	}
@@ -235,7 +241,7 @@ func tablePreviewTextWithOptions(t *docs.Table, renderChips bool) string {
 		for _, el := range cell.Content {
 			if el.Paragraph != nil {
 				if renderChips {
-					text.WriteString(paragraphTextWithChips(el.Paragraph))
+					text.WriteString(paragraphTextWithChips(docID, el.Paragraph))
 				} else {
 					text.WriteString(paragraphText(el.Paragraph))
 				}

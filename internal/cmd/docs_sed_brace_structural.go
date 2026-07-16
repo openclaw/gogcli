@@ -144,6 +144,8 @@ func buildPersonChipRequest(email string, index int64) []*docs.Request {
 // ChipType represents the type of smart chip to insert.
 type ChipType int
 
+const chipTypePersonName = "person"
+
 const (
 	ChipTypeUnknown ChipType = iota
 	ChipTypePerson
@@ -188,7 +190,7 @@ func parseChipURI(uri string) *ChipSpec {
 	spec := &ChipSpec{Value: value}
 
 	switch chipType {
-	case "person":
+	case chipTypePersonName:
 		spec.Type = ChipTypePerson
 	case strDate:
 		spec.Type = ChipTypeDate

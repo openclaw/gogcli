@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/url"
 	"strings"
 
 	"github.com/alecthomas/kong"
@@ -23,7 +24,7 @@ type DocsCatCmd struct {
 	AllTabs  bool   `name:"all-tabs" help:"Show all tabs with headers"`
 	Raw      bool   `name:"raw" help:"Output the raw Google Docs API JSON response without modifications"`
 	Numbered bool   `name:"numbered" short:"N" help:"Prefix each paragraph with its number"`
-	Chips    bool   `name:"chips" help:"Render Google Docs smart chips inline in text output"`
+	Chips    bool   `name:"chips" help:"Render Google Docs smart chips and text links inline in text output"`
 }
 
 func (c *DocsCatCmd) Run(ctx context.Context, kctx *kong.Context, flags *RootFlags) error {
@@ -126,10 +127,10 @@ func (c *DocsCatCmd) runWithTabs(ctx context.Context, svc *docs.Service, id stri
 		}
 		text := tabPlainText(tab, c.MaxBytes)
 		if outfmt.IsJSON(ctx) {
-			return outfmt.WriteJSON(ctx, stdoutWriter(ctx), map[string]any{"tab": tabJSON(tab, text, tabRenderedText(tab, c.MaxBytes, true))})
+			return outfmt.WriteJSON(ctx, stdoutWriter(ctx), map[string]any{"tab": tabJSON(tab, text, tabRenderedText(doc.DocumentId, tab, c.MaxBytes, true))})
 		}
 		if c.Chips {
-			_, err = io.WriteString(stdoutWriter(ctx), tabRenderedText(tab, c.MaxBytes, false).Text)
+			_, err = io.WriteString(stdoutWriter(ctx), tabRenderedText(doc.DocumentId, tab, c.MaxBytes, false).Text)
 			return err
 		}
 		_, err = io.WriteString(stdoutWriter(ctx), text)
@@ -140,7 +141,7 @@ func (c *DocsCatCmd) runWithTabs(ctx context.Context, svc *docs.Service, id stri
 		var out []map[string]any
 		for _, tab := range tabs {
 			text := tabPlainText(tab, c.MaxBytes)
-			out = append(out, tabJSON(tab, text, tabRenderedText(tab, c.MaxBytes, true)))
+			out = append(out, tabJSON(tab, text, tabRenderedText(doc.DocumentId, tab, c.MaxBytes, true)))
 		}
 		return outfmt.WriteJSON(ctx, stdoutWriter(ctx), map[string]any{"tabs": out})
 	}
@@ -158,7 +159,7 @@ func (c *DocsCatCmd) runWithTabs(ctx context.Context, svc *docs.Service, id stri
 		}
 		text := tabPlainText(tab, c.MaxBytes)
 		if c.Chips {
-			text = tabRenderedText(tab, c.MaxBytes, false).Text
+			text = tabRenderedText(doc.DocumentId, tab, c.MaxBytes, false).Text
 		}
 		if _, err := io.WriteString(out, text); err != nil {
 			return err
@@ -323,6 +324,7 @@ func docsPlainText(doc *docs.Document, maxBytes int64) string {
 type docsTextResult struct {
 	Text  string
 	Chips []docsSmartChip
+	Links []docsTextLink
 }
 
 type docsSmartChip struct {
@@ -340,7 +342,17 @@ type docsSmartChip struct {
 	MimeType   string `json:"mimeType,omitempty"`
 }
 
-func docsRenderedText(doc *docs.Document, maxBytes int64, collectChips bool) docsTextResult {
+type docsTextLink struct {
+	Text       string `json:"text"`
+	URL        string `json:"url,omitempty"`
+	BookmarkID string `json:"bookmarkId,omitempty"`
+	HeadingID  string `json:"headingId,omitempty"`
+	TabID      string `json:"tabId,omitempty"`
+	StartIndex int64  `json:"startIndex,omitempty"`
+	EndIndex   int64  `json:"endIndex,omitempty"`
+}
+
+func docsRenderedText(doc *docs.Document, maxBytes int64, collectMetadata bool) docsTextResult {
 	if doc == nil || doc.Body == nil {
 		return docsTextResult{}
 	}
@@ -348,7 +360,7 @@ func docsRenderedText(doc *docs.Document, maxBytes int64, collectChips bool) doc
 	var result docsTextResult
 	var buf bytes.Buffer
 	for _, el := range doc.Body.Content {
-		if !appendDocsElementRenderedText(&buf, maxBytes, el, collectChips, &result.Chips) {
+		if !appendDocsElementRenderedText(&buf, maxBytes, doc.DocumentId, el, collectMetadata, &result.Chips, &result.Links) {
 			break
 		}
 	}
@@ -356,7 +368,7 @@ func docsRenderedText(doc *docs.Document, maxBytes int64, collectChips bool) doc
 	return result
 }
 
-func tabRenderedText(tab *docs.Tab, maxBytes int64, collectChips bool) docsTextResult {
+func tabRenderedText(docID string, tab *docs.Tab, maxBytes int64, collectMetadata bool) docsTextResult {
 	if tab == nil || tab.DocumentTab == nil || tab.DocumentTab.Body == nil {
 		return docsTextResult{}
 	}
@@ -364,7 +376,7 @@ func tabRenderedText(tab *docs.Tab, maxBytes int64, collectChips bool) docsTextR
 	var result docsTextResult
 	var buf bytes.Buffer
 	for _, el := range tab.DocumentTab.Body.Content {
-		if !appendDocsElementRenderedText(&buf, maxBytes, el, collectChips, &result.Chips) {
+		if !appendDocsElementRenderedText(&buf, maxBytes, docID, el, collectMetadata, &result.Chips, &result.Links) {
 			break
 		}
 	}
@@ -414,7 +426,7 @@ func appendDocsElementText(buf *bytes.Buffer, maxBytes int64, el *docs.Structura
 	return true
 }
 
-func appendDocsElementRenderedText(buf *bytes.Buffer, maxBytes int64, el *docs.StructuralElement, collectChips bool, chips *[]docsSmartChip) bool {
+func appendDocsElementRenderedText(buf *bytes.Buffer, maxBytes int64, docID string, el *docs.StructuralElement, collectMetadata bool, chips *[]docsSmartChip, links *[]docsTextLink) bool {
 	if el == nil {
 		return true
 	}
@@ -423,6 +435,20 @@ func appendDocsElementRenderedText(buf *bytes.Buffer, maxBytes int64, el *docs.S
 	case el.Paragraph != nil:
 		for _, p := range el.Paragraph.Elements {
 			if p.TextRun != nil {
+				rendered, link, ok := renderDocsTextRunLink(docID, p)
+				if ok {
+					if rendered == p.TextRun.Content {
+						if !appendLimited(buf, maxBytes, rendered) {
+							return false
+						}
+					} else if !appendWholeLimited(buf, maxBytes, rendered) {
+						return false
+					}
+					if collectMetadata {
+						*links = append(*links, link)
+					}
+					continue
+				}
 				if !appendLimited(buf, maxBytes, p.TextRun.Content) {
 					return false
 				}
@@ -437,7 +463,7 @@ func appendDocsElementRenderedText(buf *bytes.Buffer, maxBytes int64, el *docs.S
 			if !appendWholeLimited(buf, maxBytes, chip.Text) {
 				return false
 			}
-			if collectChips {
+			if collectMetadata {
 				*chips = append(*chips, chip)
 			}
 		}
@@ -451,7 +477,7 @@ func appendDocsElementRenderedText(buf *bytes.Buffer, maxBytes int64, el *docs.S
 					return false
 				}
 				for _, content := range cell.Content {
-					if !appendDocsElementRenderedText(buf, maxBytes, content, collectChips, chips) {
+					if !appendDocsElementRenderedText(buf, maxBytes, docID, content, collectMetadata, chips, links) {
 						return false
 					}
 				}
@@ -459,13 +485,64 @@ func appendDocsElementRenderedText(buf *bytes.Buffer, maxBytes int64, el *docs.S
 		}
 	case el.TableOfContents != nil:
 		for _, content := range el.TableOfContents.Content {
-			if !appendDocsElementRenderedText(buf, maxBytes, content, collectChips, chips) {
+			if !appendDocsElementRenderedText(buf, maxBytes, docID, content, collectMetadata, chips, links) {
 				return false
 			}
 		}
 	}
 
 	return true
+}
+
+func renderDocsTextRunLink(docID string, p *docs.ParagraphElement) (string, docsTextLink, bool) {
+	if p == nil || p.TextRun == nil || p.TextRun.TextStyle == nil {
+		return "", docsTextLink{}, false
+	}
+	target := docsParagraphRunLinkFrom(p.TextRun.TextStyle.Link)
+	text := p.TextRun.Content
+	if target == nil || text == "" {
+		return text, docsTextLink{}, false
+	}
+
+	link := docsTextLink{
+		Text:       text,
+		URL:        strings.TrimSpace(target.URL),
+		BookmarkID: strings.TrimSpace(target.BookmarkID),
+		HeadingID:  strings.TrimSpace(target.HeadingID),
+		TabID:      strings.TrimSpace(target.TabID),
+		StartIndex: p.StartIndex,
+		EndIndex:   p.EndIndex,
+	}
+	targetURL := docsTextLinkTargetURL(docID, link)
+
+	rendered := text
+	if targetURL != "" && strings.TrimSpace(text) != targetURL {
+		rendered = fmt.Sprintf("[%s](%s)", escapeMarkdownLinkLabel(text), escapeMarkdownLinkDestination(targetURL))
+	}
+	return rendered, link, true
+}
+
+func docsTextLinkTargetURL(docID string, link docsTextLink) string {
+	if link.URL != "" {
+		return link.URL
+	}
+	base := docsWebViewLink(docID)
+	if base == "" {
+		return ""
+	}
+	if link.TabID != "" {
+		base += "?tab=" + url.QueryEscape(link.TabID)
+	}
+	switch {
+	case link.BookmarkID != "":
+		return base + "#bookmark=" + url.QueryEscape(link.BookmarkID)
+	case link.HeadingID != "":
+		return base + "#heading=" + url.QueryEscape(link.HeadingID)
+	case link.TabID != "":
+		return base
+	default:
+		return ""
+	}
 }
 
 func renderDocsSmartChip(p *docs.ParagraphElement) (docsSmartChip, bool) {
@@ -598,6 +675,9 @@ func docsTextJSON(text string, rendered docsTextResult) map[string]any {
 	}
 	if len(rendered.Chips) > 0 {
 		m["chips"] = rendered.Chips
+	}
+	if len(rendered.Links) > 0 {
+		m["links"] = rendered.Links
 	}
 	return m
 }

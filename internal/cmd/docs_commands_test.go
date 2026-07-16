@@ -384,7 +384,7 @@ func smartChipDocsContent() []any {
 	}}
 }
 
-func newSmartChipDocsTestServer(t *testing.T) (*docs.Service, func()) {
+func newDocsContentTestServer(t *testing.T, title, tabID, tabTitle string, content func() []any) (*docs.Service, func()) {
 	t.Helper()
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -395,17 +395,17 @@ func newSmartChipDocsTestServer(t *testing.T) (*docs.Service, func()) {
 
 		response := map[string]any{
 			"documentId": "doc1",
-			"title":      "Smart chip doc",
+			"title":      title,
 		}
 		if r.URL.Query().Get("includeTabsContent") == "true" {
 			response["tabs"] = []any{map[string]any{
-				"tabProperties": map[string]any{"tabId": "tab-1", "title": "Chips", "index": 0},
+				"tabProperties": map[string]any{"tabId": tabID, "title": tabTitle, "index": 0},
 				"documentTab": map[string]any{
-					"body": map[string]any{"content": smartChipDocsContent()},
+					"body": map[string]any{"content": content()},
 				},
 			}}
 		} else {
-			response["body"] = map[string]any{"content": smartChipDocsContent()}
+			response["body"] = map[string]any{"content": content()}
 		}
 
 		w.Header().Set("Content-Type", "application/json")
@@ -422,6 +422,72 @@ func newSmartChipDocsTestServer(t *testing.T) (*docs.Service, func()) {
 	}
 
 	return docSvc, srv.Close
+}
+
+func newSmartChipDocsTestServer(t *testing.T) (*docs.Service, func()) {
+	t.Helper()
+	return newDocsContentTestServer(t, "Smart chip doc", "tab-1", "Chips", smartChipDocsContent)
+}
+
+func linkedTextDocsContent() []any {
+	return []any{
+		map[string]any{
+			"startIndex": 1,
+			"endIndex":   68,
+			"paragraph": map[string]any{"elements": []any{
+				map[string]any{"startIndex": 1, "endIndex": 7, "textRun": map[string]any{"content": "Intro "}},
+				map[string]any{"startIndex": 7, "endIndex": 13, "textRun": map[string]any{
+					"content":   "Ticket",
+					"textStyle": map[string]any{"link": map[string]any{"url": "https://tracker.example.com/a_(draft)"}},
+				}},
+				map[string]any{"startIndex": 13, "endIndex": 18, "textRun": map[string]any{"content": " tab "}},
+				map[string]any{"startIndex": 18, "endIndex": 25, "textRun": map[string]any{
+					"content":   "Details",
+					"textStyle": map[string]any{"link": map[string]any{"tabId": "t.bbb"}},
+				}},
+				map[string]any{"startIndex": 25, "endIndex": 35, "textRun": map[string]any{"content": " bookmark "}},
+				map[string]any{"startIndex": 35, "endIndex": 43, "textRun": map[string]any{
+					"content":   "Bookmark",
+					"textStyle": map[string]any{"link": map[string]any{"bookmarkId": "bookmark-legacy"}},
+				}},
+				map[string]any{"startIndex": 43, "endIndex": 52, "textRun": map[string]any{"content": " heading "}},
+				map[string]any{"startIndex": 52, "endIndex": 59, "textRun": map[string]any{
+					"content": "Heading",
+					"textStyle": map[string]any{"link": map[string]any{
+						"heading": map[string]any{"id": "heading-modern", "tabId": "t.bbb"},
+					}},
+				}},
+				map[string]any{"startIndex": 59, "endIndex": 66, "textRun": map[string]any{"content": " owner "}},
+				map[string]any{"startIndex": 66, "endIndex": 67, "person": map[string]any{
+					"personProperties": map[string]any{"name": "Sample Person", "email": "sample@example.com"},
+				}},
+				map[string]any{"startIndex": 67, "endIndex": 68, "textRun": map[string]any{"content": "\n"}},
+			}},
+		},
+		map[string]any{
+			"startIndex": 68,
+			"endIndex":   86,
+			"table": map[string]any{"rows": 1, "columns": 2, "tableRows": []any{map[string]any{
+				"tableCells": []any{
+					map[string]any{"content": []any{map[string]any{"paragraph": map[string]any{"elements": []any{
+						map[string]any{"startIndex": 70, "endIndex": 80, "textRun": map[string]any{
+							"content":   "Table link",
+							"textStyle": map[string]any{"link": map[string]any{"url": "https://example.com/table"}},
+						}},
+						map[string]any{"startIndex": 80, "endIndex": 81, "textRun": map[string]any{"content": "\n"}},
+					}}}}},
+					map[string]any{"content": []any{map[string]any{"paragraph": map[string]any{"elements": []any{
+						map[string]any{"startIndex": 82, "endIndex": 87, "textRun": map[string]any{"content": "Plain\n"}},
+					}}}}},
+				},
+			}}},
+		},
+	}
+}
+
+func newLinkedTextDocsTestServer(t *testing.T) (*docs.Service, func()) {
+	t.Helper()
+	return newDocsContentTestServer(t, "Linked text doc", "t.aaa", "Links", linkedTextDocsContent)
 }
 
 func runDocsCatCommand(t *testing.T, svc *docs.Service, args []string, jsonMode bool) executeTestResult {
@@ -772,6 +838,109 @@ func TestDocsCat_JSONAddsSmartChipDataWithoutChangingText(t *testing.T) {
 	}
 	if out.Chips[2].Type != "richLink" || out.Chips[2].Title != "Plan Doc" || out.Chips[2].URI != "https://docs.google.com/document/d/plan" {
 		t.Fatalf("unexpected rich link chip: %#v", out.Chips[2])
+	}
+}
+
+func TestDocsCat_LinkedTextUsesRenderedPathAndJSONSidecar(t *testing.T) {
+	t.Parallel()
+
+	docSvc, cleanup := newLinkedTextDocsTestServer(t)
+	defer cleanup()
+
+	plain := "Intro Ticket tab Details bookmark Bookmark heading Heading owner \nTable link\n\tPlain\n"
+	rendered := "Intro [Ticket](https://tracker.example.com/a_\\(draft\\)) tab [Details](https://docs.google.com/document/d/doc1/edit?tab=t.bbb) bookmark [Bookmark](https://docs.google.com/document/d/doc1/edit#bookmark=bookmark-legacy) heading [Heading](https://docs.google.com/document/d/doc1/edit?tab=t.bbb#heading=heading-modern) owner @Sample Person <sample@example.com>\n[Table link](https://example.com/table)\n\tPlain\n"
+
+	result := runDocsCatCommand(t, docSvc, []string{"doc1"}, false)
+	if result.err != nil {
+		t.Fatalf("cat: %v", result.err)
+	}
+	if result.stdout != plain {
+		t.Fatalf("default text changed\n got: %q\nwant: %q", result.stdout, plain)
+	}
+
+	result = runDocsCatCommand(t, docSvc, []string{"doc1", "--chips"}, false)
+	if result.err != nil {
+		t.Fatalf("cat --chips: %v", result.err)
+	}
+	if result.stdout != rendered {
+		t.Fatalf("unexpected rendered linked text\n got: %q\nwant: %q", result.stdout, rendered)
+	}
+
+	result = runDocsCatCommand(t, docSvc, []string{"doc1", "--tab", "Links", "--chips"}, false)
+	if result.err != nil {
+		t.Fatalf("cat --tab Links --chips: %v", result.err)
+	}
+	if result.stdout != rendered {
+		t.Fatalf("unexpected tab linked text\n got: %q\nwant: %q", result.stdout, rendered)
+	}
+
+	result = runDocsCatCommand(t, docSvc, []string{"doc1"}, true)
+	if result.err != nil {
+		t.Fatalf("cat --json: %v", result.err)
+	}
+	var out struct {
+		Text         string          `json:"text"`
+		RenderedText string          `json:"renderedText"`
+		Chips        []docsSmartChip `json:"chips"`
+		Links        []docsTextLink  `json:"links"`
+	}
+	if err := json.Unmarshal([]byte(result.stdout), &out); err != nil {
+		t.Fatalf("JSON parse: %v\nraw: %q", err, result.stdout)
+	}
+	if out.Text != plain || out.RenderedText != rendered {
+		t.Fatalf("unexpected JSON text: %#v", out)
+	}
+	if len(out.Chips) != 1 || out.Chips[0].Type != "person" {
+		t.Fatalf("unexpected mixed smart chips: %#v", out.Chips)
+	}
+	if len(out.Links) != 5 {
+		t.Fatalf("links length = %d, want 5: %#v", len(out.Links), out.Links)
+	}
+	if out.Links[0].Text != "Ticket" || out.Links[0].URL != "https://tracker.example.com/a_(draft)" || out.Links[0].StartIndex != 7 || out.Links[0].EndIndex != 13 {
+		t.Fatalf("unexpected external link: %#v", out.Links[0])
+	}
+	if out.Links[1].Text != "Details" || out.Links[1].TabID != "t.bbb" {
+		t.Fatalf("unexpected tab link: %#v", out.Links[1])
+	}
+	if out.Links[2].BookmarkID != "bookmark-legacy" {
+		t.Fatalf("unexpected bookmark link: %#v", out.Links[2])
+	}
+	if out.Links[3].HeadingID != "heading-modern" || out.Links[3].TabID != "t.bbb" {
+		t.Fatalf("unexpected heading link: %#v", out.Links[3])
+	}
+	if out.Links[4].Text != "Table link" || out.Links[4].URL != "https://example.com/table" {
+		t.Fatalf("unexpected table-cell link: %#v", out.Links[4])
+	}
+}
+
+func TestDocsCat_LinkedTextWorksInNumberedOutput(t *testing.T) {
+	t.Parallel()
+
+	docSvc, cleanup := newLinkedTextDocsTestServer(t)
+	defer cleanup()
+
+	result := runDocsCatCommand(t, docSvc, []string{"doc1", "--numbered", "--chips"}, false)
+	if result.err != nil {
+		t.Fatalf("cat --numbered --chips: %v", result.err)
+	}
+	want := "[1] Intro [Ticket](https://tracker.example.com/a_\\(draft\\)) tab [Details](https://docs.google.com/document/d/doc1/edit?tab=t.bbb) bookmark [Bookmark](https://docs.google.com/document/d/doc1/edit#bookmark=bookmark-legacy) heading [Heading](https://docs.google.com/document/d/doc1/edit?tab=t.bbb#heading=heading-modern) owner @Sample Person <sample@example.com>\n[2] [table 1x2] [Table link](https://example.com/table) | Plain\n"
+	if result.stdout != want {
+		t.Fatalf("unexpected numbered linked text\n got: %q\nwant: %q", result.stdout, want)
+	}
+}
+
+func TestDocsCat_LinkedTextRespectsMaxBytesAtomically(t *testing.T) {
+	t.Parallel()
+
+	docSvc, cleanup := newLinkedTextDocsTestServer(t)
+	defer cleanup()
+
+	result := runDocsCatCommand(t, docSvc, []string{"doc1", "--chips", "--max-bytes", "12"}, false)
+	if result.err != nil {
+		t.Fatalf("cat --chips --max-bytes: %v", result.err)
+	}
+	if got, want := result.stdout, "Intro "; got != want {
+		t.Fatalf("link markdown should not be partially rendered\n got: %q\nwant: %q", got, want)
 	}
 }
 
