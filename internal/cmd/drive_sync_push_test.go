@@ -609,7 +609,7 @@ func TestListDriveSyncChildrenRejectsIncompleteSearch(t *testing.T) {
 func TestExecuteDriveSyncPushDryRunPlansWithoutWrites(t *testing.T) {
 	t.Parallel()
 
-	root := filepath.Join(t.TempDir(), " backup ")
+	root := filepath.Join(t.TempDir(), " backup")
 	if err := os.Mkdir(root, 0o755); err != nil {
 		t.Fatal(err)
 	}
