@@ -104,7 +104,7 @@ func (c *GmailThreadGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 		if msg == nil {
 			continue
 		}
-		u.Out().Linef("=== Message %d/%d: %s ===", i+1, len(thread.Messages), msg.Id)
+		u.Out().Linef("=== Message %d/%d: %s%s ===", i+1, len(thread.Messages), msg.Id, gmailHumanMessageStatusMarker(ctx, msg.LabelIds))
 		header := func(name string) string {
 			value := headerValue(msg.Payload, name)
 			if c.SanitizeContent {

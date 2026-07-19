@@ -11,6 +11,76 @@ import (
 	"testing"
 )
 
+func TestExecute_GmailThread_Text_DraftMarker(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !strings.Contains(r.URL.Path, "/gmail/v1/users/me/threads/t-thread-draft") {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"id": "t-thread-draft",
+			"messages": []map[string]any{
+				{
+					"id":       "m-inbound",
+					"labelIds": []string{"INBOX"},
+					"payload":  map[string]any{"headers": []map[string]any{}},
+				},
+				{
+					"id":       "m-draft",
+					"labelIds": []string{"DRAFT"},
+					"payload":  map[string]any{"headers": []map[string]any{}},
+				},
+			},
+		})
+	}))
+	defer srv.Close()
+
+	svc := newGmailServiceFromServer(t, srv)
+
+	t.Run("human output marks only the draft", func(t *testing.T) {
+		result := executeWithGmailTestService(t, []string{
+			"--account", "a@b.com", "gmail", "thread", "get", "t-thread-draft",
+		}, svc)
+		if result.err != nil {
+			t.Fatalf("Execute: %v\nstderr=%q", result.err, result.stderr)
+		}
+		if !strings.Contains(result.stdout, "=== Message 1/2: m-inbound ===") {
+			t.Fatalf("expected unchanged non-draft heading, got=%q", result.stdout)
+		}
+		if !strings.Contains(result.stdout, "=== Message 2/2: m-draft [DRAFT — NOT SENT] ===") {
+			t.Fatalf("expected marked draft heading, got=%q", result.stdout)
+		}
+		if strings.Count(result.stdout, gmailDraftNotSentMarker) != 1 {
+			t.Fatalf("expected exactly one draft marker, got=%q", result.stdout)
+		}
+	})
+
+	t.Run("plain output is unchanged", func(t *testing.T) {
+		result := executeWithGmailTestService(t, []string{
+			"--plain", "--account", "a@b.com", "gmail", "thread", "get", "t-thread-draft",
+		}, svc)
+		if result.err != nil {
+			t.Fatalf("Execute: %v\nstderr=%q", result.err, result.stderr)
+		}
+		if !strings.Contains(result.stdout, "=== Message 2/2: m-draft ===") || strings.Contains(result.stdout, gmailDraftNotSentMarker) {
+			t.Fatalf("expected unchanged plain heading, got=%q", result.stdout)
+		}
+	})
+
+	t.Run("JSON output is unchanged", func(t *testing.T) {
+		result := executeWithGmailTestService(t, []string{
+			"--json", "--account", "a@b.com", "gmail", "thread", "get", "t-thread-draft",
+		}, svc)
+		if result.err != nil {
+			t.Fatalf("Execute: %v\nstderr=%q", result.err, result.stderr)
+		}
+		if strings.Contains(result.stdout, gmailDraftNotSentMarker) || !strings.Contains(result.stdout, `"labelIds": [`) || !strings.Contains(result.stdout, `"DRAFT"`) {
+			t.Fatalf("expected unchanged JSON labels without display marker, got=%q", result.stdout)
+		}
+	})
+}
+
 func TestExecute_GmailThread_Text_Download(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	wd := t.TempDir()

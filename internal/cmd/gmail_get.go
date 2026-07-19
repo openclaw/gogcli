@@ -116,7 +116,7 @@ func (c *GmailGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return outfmt.WriteJSON(ctx, stdoutWriter(ctx), payload)
 	}
 
-	u.Out().Linef("id\t%s", msg.Id)
+	u.Out().Linef("id\t%s%s", msg.Id, gmailHumanMessageStatusMarker(ctx, msg.LabelIds))
 	u.Out().Linef("thread_id\t%s", msg.ThreadId)
 	u.Out().Linef("label_ids\t%s", strings.Join(msg.LabelIds, ","))
 

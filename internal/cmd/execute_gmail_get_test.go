@@ -9,6 +9,79 @@ import (
 	"testing"
 )
 
+func TestExecute_GmailGet_Text_DraftMarker(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var labels []string
+		switch {
+		case strings.Contains(r.URL.Path, "/gmail/v1/users/me/messages/m-draft"):
+			labels = []string{"DRAFT"}
+		case strings.Contains(r.URL.Path, "/gmail/v1/users/me/messages/m-inbound"):
+			labels = []string{"INBOX"}
+		default:
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"id":       strings.TrimPrefix(r.URL.Path, "/gmail/v1/users/me/messages/"),
+			"threadId": "t1",
+			"labelIds": labels,
+			"payload":  map[string]any{"headers": []map[string]any{}},
+		})
+	}))
+	defer srv.Close()
+
+	svc := newGmailServiceFromServer(t, srv)
+
+	t.Run("human output marks a draft", func(t *testing.T) {
+		result := executeWithGmailTestService(t, []string{
+			"--account", "a@b.com", "gmail", "get", "m-draft",
+		}, svc)
+		if result.err != nil {
+			t.Fatalf("Execute: %v\nstderr=%q", result.err, result.stderr)
+		}
+		if !strings.Contains(result.stdout, "id\tm-draft [DRAFT — NOT SENT]\n") {
+			t.Fatalf("expected marked draft heading, got=%q", result.stdout)
+		}
+	})
+
+	t.Run("human output leaves a non-draft unchanged", func(t *testing.T) {
+		result := executeWithGmailTestService(t, []string{
+			"--account", "a@b.com", "gmail", "get", "m-inbound",
+		}, svc)
+		if result.err != nil {
+			t.Fatalf("Execute: %v\nstderr=%q", result.err, result.stderr)
+		}
+		if !strings.Contains(result.stdout, "id\tm-inbound\n") || strings.Contains(result.stdout, gmailDraftNotSentMarker) {
+			t.Fatalf("expected unchanged non-draft heading, got=%q", result.stdout)
+		}
+	})
+
+	t.Run("plain output is unchanged", func(t *testing.T) {
+		result := executeWithGmailTestService(t, []string{
+			"--plain", "--account", "a@b.com", "gmail", "get", "m-draft",
+		}, svc)
+		if result.err != nil {
+			t.Fatalf("Execute: %v\nstderr=%q", result.err, result.stderr)
+		}
+		if !strings.Contains(result.stdout, "id\tm-draft\n") || strings.Contains(result.stdout, gmailDraftNotSentMarker) {
+			t.Fatalf("expected unchanged plain heading, got=%q", result.stdout)
+		}
+	})
+
+	t.Run("JSON output is unchanged", func(t *testing.T) {
+		result := executeWithGmailTestService(t, []string{
+			"--json", "--account", "a@b.com", "gmail", "get", "m-draft",
+		}, svc)
+		if result.err != nil {
+			t.Fatalf("Execute: %v\nstderr=%q", result.err, result.stderr)
+		}
+		if strings.Contains(result.stdout, gmailDraftNotSentMarker) || !strings.Contains(result.stdout, `"DRAFT"`) {
+			t.Fatalf("expected unchanged JSON labels without display marker, got=%q", result.stdout)
+		}
+	})
+}
+
 func TestExecute_GmailGet_Metadata_JSON(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !strings.Contains(r.URL.Path, "/gmail/v1/users/me/messages/m1") {
