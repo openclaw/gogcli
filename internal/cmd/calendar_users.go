@@ -35,7 +35,7 @@ func (c *CalendarUsersCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if err != nil {
 		if strings.Contains(err.Error(), "accessNotConfigured") ||
 			strings.Contains(err.Error(), "People API has not been used") {
-			return fmt.Errorf("people API is not enabled; enable it at: https://console.cloud.google.com/apis/library/people.googleapis.com (%w)", err)
+			return fmt.Errorf("people API is not enabled; enable it at: %s (%w)", peopleAPIEnableURL, err)
 		}
 		return err
 	}
@@ -56,7 +56,7 @@ func (c *CalendarUsersCmd) Run(ctx context.Context, flags *RootFlags) error {
 		if callErr != nil {
 			if strings.Contains(callErr.Error(), "accessNotConfigured") ||
 				strings.Contains(callErr.Error(), "People API has not been used") {
-				return nil, "", fmt.Errorf("people API is not enabled; enable it at: https://console.cloud.google.com/apis/library/people.googleapis.com (%w)", callErr)
+				return nil, "", fmt.Errorf("people API is not enabled; enable it at: %s (%w)", peopleAPIEnableURL, callErr)
 			}
 			return nil, "", callErr
 		}
