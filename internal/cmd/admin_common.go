@@ -116,7 +116,7 @@ func wrapAdminDirectoryErrorWithScopes(err error, account, scopes string) error 
 	errStr := err.Error()
 	if strings.Contains(errStr, "accessNotConfigured") ||
 		strings.Contains(errStr, "Admin SDK API has not been used") {
-		return errfmt.NewUserFacingError("Admin SDK API is not enabled; enable it at: https://console.developers.google.com/apis/api/admin.googleapis.com/overview", err)
+		return errfmt.NewUserFacingError("Admin SDK API is not enabled; enable it at: https://console.cloud.google.com/apis/library/admin.googleapis.com", err)
 	}
 	if strings.Contains(errStr, "insufficientPermissions") ||
 		strings.Contains(errStr, "insufficient authentication scopes") ||

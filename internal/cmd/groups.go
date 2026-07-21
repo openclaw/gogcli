@@ -169,7 +169,7 @@ func wrapCloudIdentityError(err error, account string) error {
 	errStr := err.Error()
 	if strings.Contains(errStr, "accessNotConfigured") ||
 		strings.Contains(errStr, "Cloud Identity API has not been used") {
-		return errfmt.NewUserFacingError("Cloud Identity API is not enabled; enable it at: https://console.developers.google.com/apis/api/cloudidentity.googleapis.com/overview", err)
+		return errfmt.NewUserFacingError("Cloud Identity API is not enabled; enable it at: https://console.cloud.google.com/apis/library/cloudidentity.googleapis.com", err)
 	}
 	if strings.Contains(errStr, "insufficientPermissions") ||
 		strings.Contains(errStr, "insufficient authentication scopes") {

@@ -20,7 +20,7 @@ func wrapMeetError(err error) error {
 	if strings.Contains(errStr, "accessNotConfigured") ||
 		strings.Contains(errStr, "Meet REST API has not been used") {
 		return errfmt.NewUserFacingError(
-			"Meet REST API is not enabled; enable it at: https://console.developers.google.com/apis/api/meet.googleapis.com/overview",
+			"Meet REST API is not enabled; enable it at: https://console.cloud.google.com/apis/library/meet.googleapis.com",
 			err,
 		)
 	}

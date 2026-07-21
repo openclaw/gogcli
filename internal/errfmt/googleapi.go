@@ -124,7 +124,7 @@ func googleAPIHintForAPI(api string) (googleAPIHint, bool) {
 }
 
 func googleAPIEnableURL(api string) string {
-	return "https://console.developers.google.com/apis/api/" + api + "/overview"
+	return "https://console.cloud.google.com/apis/library/" + api
 }
 
 func googleAPIEnableURLForError(gerr *ggoogleapi.Error, api string) string {
@@ -139,7 +139,11 @@ func googleAPIEnableURLForError(gerr *ggoogleapi.Error, api string) string {
 	for _, message := range messages {
 		for _, match := range apiEnableURLPattern.FindAllStringSubmatch(message, -1) {
 			if len(match) == 2 && strings.EqualFold(match[1], api) {
-				return strings.TrimRight(match[0], ".,)")
+				enableURL := googleAPIEnableURL(api)
+				if queryIndex := strings.IndexByte(match[0], '?'); queryIndex >= 0 {
+					enableURL += strings.TrimRight(match[0][queryIndex:], ".,)")
+				}
+				return enableURL
 			}
 		}
 	}

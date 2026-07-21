@@ -115,8 +115,11 @@ func TestFormat_GoogleAPIError_AccessNotConfiguredHint(t *testing.T) {
 		t.Fatalf("unexpected: %q", got)
 	}
 
-	if !strings.Contains(got, "overview?project=123") {
+	if !strings.Contains(got, "https://console.cloud.google.com/apis/library/drive.googleapis.com?project=123") {
 		t.Fatalf("expected project-scoped enable URL, got: %q", got)
+	}
+	if strings.Contains(got, "console.developers.google.com") {
+		t.Fatalf("must not return the legacy developer console URL, got: %q", got)
 	}
 
 	if strings.Contains(got, "Google API error") {
@@ -144,7 +147,7 @@ func TestFormat_GoogleAPIError_ServiceAccountOnlyDisabledAPI(t *testing.T) {
 			}
 
 			got := Format(err)
-			if !containsAll(got, "service-account set", "overview?project=123") {
+			if !containsAll(got, "service-account set", "/apis/library/"+tc.apiName+"?project=123") {
 				t.Fatalf("unexpected: %q", got)
 			}
 

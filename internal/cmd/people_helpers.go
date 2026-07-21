@@ -5,7 +5,7 @@ import (
 	"strings"
 )
 
-const peopleAPIEnableURL = "https://console.developers.google.com/apis/api/people.googleapis.com/overview"
+const peopleAPIEnableURL = "https://console.cloud.google.com/apis/library/people.googleapis.com"
 
 const peopleMeResource = "people/me"
 

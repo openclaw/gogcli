@@ -23,7 +23,7 @@ func TestWrapClassroomError(t *testing.T) {
 		{
 			name:     "accessNotConfigured wraps with enable link",
 			err:      errors.New("accessNotConfigured: Classroom API has not been used"),
-			contains: "console.developers.google.com",
+			contains: "console.cloud.google.com/apis/library/classroom.googleapis.com",
 		},
 		{
 			name:     "Classroom API has not been used wraps with enable link",
