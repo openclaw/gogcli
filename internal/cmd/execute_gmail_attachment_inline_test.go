@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -96,14 +97,17 @@ func TestExecute_GmailAttachment_Inline_SmallAttachment_ReturnsBase64(t *testing
 }
 
 func TestExecute_GmailAttachment_Inline_Oversized_FallsBackToPathWithReason(t *testing.T) {
-	data := bytes.Repeat([]byte("x"), maxInlineAttachmentBytes+1)
+	// The limit is configured artificially low; the property under test is only
+	// the boundary crossing (payload = limit+1), not any realistic size.
+	const inlineLimit = 8
+	data := bytes.Repeat([]byte("x"), inlineLimit+1)
 	svc := newGmailAttachmentTestService(t, data, "big.bin", "application/octet-stream")
 	outPath := tempFilePath(t, "big.bin")
 
 	parsed := executeGmailAttachmentJSON(t, svc,
 		"--json", "--account", "a@b.com",
 		"gmail", "attachment", "m1", "a1",
-		"--out", outPath, "--inline",
+		"--out", outPath, "--inline", "--inline-max-bytes", strconv.Itoa(inlineLimit),
 	)
 
 	if _, ok := parsed["contentBase64"]; ok {
