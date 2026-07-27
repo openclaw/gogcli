@@ -500,7 +500,7 @@ func wrapSearchConsoleError(err error) error {
 	message := strings.ToLower(apiErr.Message)
 	switch {
 	case strings.Contains(message, "accessnotconfigured"), strings.Contains(message, "api has not been used"):
-		return fmt.Errorf("search console API is not enabled for this OAuth project. Enable it at https://console.cloud.google.com/apis/api/searchconsole.googleapis.com")
+		return fmt.Errorf("search console API is not enabled for this OAuth project. Enable it at https://console.cloud.google.com/apis/library/searchconsole.googleapis.com")
 	case strings.Contains(message, "insufficientpermissions"), strings.Contains(message, "insufficient permission"):
 		return fmt.Errorf("insufficient permissions for Search Console API. Re-authorize with: gog auth add <email> --services searchconsole")
 	default:

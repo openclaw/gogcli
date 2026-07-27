@@ -7,8 +7,27 @@ import (
 	"strings"
 	"testing"
 
+	gapi "google.golang.org/api/googleapi"
+
 	"github.com/steipete/gogcli/internal/app"
 )
+
+func TestWrapSearchConsoleError_AccessNotConfiguredUsesAPILibrary(t *testing.T) {
+	err := wrapSearchConsoleError(&gapi.Error{
+		Code:    http.StatusForbidden,
+		Message: "accessNotConfigured: Search Console API has not been used",
+	})
+	if err == nil {
+		t.Fatal("expected wrapped error")
+	}
+	got := err.Error()
+	if !strings.Contains(got, "https://console.cloud.google.com/apis/library/searchconsole.googleapis.com") {
+		t.Fatalf("expected API Library URL, got %q", got)
+	}
+	if strings.Contains(got, "/apis/api/") {
+		t.Fatalf("must not return legacy API path, got %q", got)
+	}
+}
 
 func TestSearchConsoleQueryCmd_BuildRequest(t *testing.T) {
 	cmd := &SearchConsoleQueryCmd{
