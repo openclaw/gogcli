@@ -229,6 +229,45 @@ func TestRetryTransportRoundTripRetries5xx(t *testing.T) {
 	}
 }
 
+func TestRetryTransportRoundTripWithoutRetries(t *testing.T) {
+	for _, status := range []int{http.StatusTooManyRequests, http.StatusInternalServerError} {
+		t.Run(http.StatusText(status), func(t *testing.T) {
+			calls := 0
+			base := roundTripFunc(func(*http.Request) (*http.Response, error) {
+				calls++
+				return newTestResponse(status, "retryable failure"), nil
+			})
+			rt := &RetryTransport{
+				Base:          base,
+				MaxRetries429: 1,
+				MaxRetries5xx: 1,
+				BaseDelay:     0,
+			}
+
+			ctx := WithoutRetries(context.Background())
+
+			req, err := http.NewRequestWithContext(ctx, http.MethodPut, "http://example.com", strings.NewReader("payload"))
+			if err != nil {
+				t.Fatalf("new request: %v", err)
+			}
+
+			resp, err := rt.RoundTrip(req)
+			if err != nil {
+				t.Fatalf("round trip: %v", err)
+			}
+			_ = resp.Body.Close()
+
+			if resp.StatusCode != status {
+				t.Fatalf("status = %d, want %d", resp.StatusCode, status)
+			}
+
+			if calls != 1 {
+				t.Fatalf("calls = %d, want exactly 1", calls)
+			}
+		})
+	}
+}
+
 func TestRetryTransportRefreshesAuthOnceForInsufficientScope403(t *testing.T) {
 	tokenSource := &refreshableTestTokenSource{token: "stale-token"}
 	var gotBodies []string

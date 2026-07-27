@@ -29,6 +29,10 @@ func TestNewServicesWithStoredToken(t *testing.T) {
 		t.Fatalf("NewDrive: %v", err)
 	}
 
+	if _, err := NewDriveV2(ctx, "a@b.com"); err != nil {
+		t.Fatalf("NewDriveV2: %v", err)
+	}
+
 	if _, err := NewDocs(ctx, "a@b.com"); err != nil {
 		t.Fatalf("NewDocs: %v", err)
 	}

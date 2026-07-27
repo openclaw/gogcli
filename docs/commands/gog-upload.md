@@ -32,6 +32,7 @@ gog upload (up,put) <localPath> [flags]
 | `--gmail-no-send` | `bool` | false | Block Gmail send operations (agent safety) |
 | `-h`<br>`--help` | `kong.helpFlag` |  | Show context-sensitive help. |
 | `--home` | `string` |  | Override gogcli config/data/state/cache root (equivalent to GOG_HOME) |
+| `--if-version` | `*int64` |  | Replace only if the current Drive version matches; uses an atomic precondition and reports a conflict if the file changes (requires --replace; re-read and reapply on conflict) |
 | `-j`<br>`--json`<br>`--machine` | `bool` | false | Output JSON to stdout (best for scripting) |
 | `--keep-frontmatter` | `bool` |  | Keep YAML frontmatter (---) in Markdown when converting to a Google Doc (--convert or --convert-to doc; default: strip) |
 | `--keep-revision-forever` | `bool` |  | Keep the new head revision forever (binary files only) |
@@ -41,7 +42,7 @@ gog upload (up,put) <localPath> [flags]
 | `--parent` | `string` |  | Destination folder ID (create only) |
 | `-p`<br>`--plain`<br>`--tsv` | `bool` | false | Output stable, parseable text to stdout (TSV; no colors) |
 | `--readonly` | `bool` | false | Block mutating API requests at runtime; auth add also requests read-only OAuth scopes |
-| `--replace` | `string` |  | Replace the content of an existing Drive file ID (preserves shared link/permissions) |
+| `--replace` | `string` |  | Replace the content of an existing Drive file ID (preserves shared link/permissions; unconditional unless --if-version is set) |
 | `--results-only` | `bool` |  | In JSON mode, emit only the primary result (drops envelope fields like nextPageToken) |
 | `--select`<br>`--pick`<br>`--project` | `string` |  | In JSON mode, select comma-separated fields (best-effort; supports dot paths). Desire path: use --fields for most commands. |
 | `-v`<br>`--verbose` | `bool` |  | Enable verbose logging |

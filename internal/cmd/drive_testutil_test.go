@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	drivev2 "google.golang.org/api/drive/v2"
 	"google.golang.org/api/drive/v3"
 
 	"github.com/steipete/gogcli/internal/app"
@@ -36,6 +37,20 @@ func withDriveTestServiceFactory(ctx context.Context, factory app.DriveServiceFa
 		*runtime = *existing
 	}
 	runtime.Services.Drive = factory
+	return app.WithRuntime(ctx, runtime)
+}
+
+func withDriveV2TestService(ctx context.Context, svc *drivev2.Service) context.Context {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	runtime := &app.Runtime{}
+	if existing, ok := app.FromContext(ctx); ok {
+		*runtime = *existing
+	}
+	runtime.Services.DriveV2 = func(context.Context, string) (*drivev2.Service, error) {
+		return svc, nil
+	}
 	return app.WithRuntime(ctx, runtime)
 }
 

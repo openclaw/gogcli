@@ -6,6 +6,7 @@ import (
 	"google.golang.org/api/calendar/v3"
 	"google.golang.org/api/classroom/v1"
 	"google.golang.org/api/docs/v1"
+	drivev2 "google.golang.org/api/drive/v2"
 	"google.golang.org/api/drive/v3"
 	"google.golang.org/api/driveactivity/v2"
 	"google.golang.org/api/gmail/v1"
@@ -23,6 +24,10 @@ func requireDocsService(ctx context.Context, flags *RootFlags) (*docs.Service, e
 
 func requireDriveService(ctx context.Context, flags *RootFlags) (string, *drive.Service, error) {
 	return requireGoogleService(ctx, flags, driveService)
+}
+
+func requireDriveV2Service(ctx context.Context, flags *RootFlags) (string, *drivev2.Service, error) {
+	return requireGoogleService(ctx, flags, driveV2Service)
 }
 
 func requireDriveActivityService(ctx context.Context, flags *RootFlags) (string, *driveactivity.Service, error) {

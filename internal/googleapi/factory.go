@@ -12,6 +12,7 @@ import (
 	"google.golang.org/api/classroom/v1"
 	"google.golang.org/api/cloudidentity/v1"
 	"google.golang.org/api/docs/v1"
+	drivev2 "google.golang.org/api/drive/v2"
 	"google.golang.org/api/drive/v3"
 	driveactivity "google.golang.org/api/driveactivity/v2"
 	drivelabels "google.golang.org/api/drivelabels/v2"
@@ -99,6 +100,10 @@ func (f Factory) DocsHTTP(ctx context.Context, account string) (*http.Client, er
 
 func (f Factory) Drive(ctx context.Context, account string) (*drive.Service, error) {
 	return NewDrive(f.withAuth(ctx), account)
+}
+
+func (f Factory) DriveV2(ctx context.Context, account string) (*drivev2.Service, error) {
+	return NewDriveV2(f.withAuth(ctx), account)
 }
 
 func (f Factory) DriveActivity(ctx context.Context, account string) (*driveactivity.Service, error) {

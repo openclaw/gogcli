@@ -22,6 +22,24 @@ const (
 
 var errRequestBodyTooLarge = errors.New("request body too large to buffer for retry")
 
+type retriesDisabledContextKey struct{}
+
+// WithoutRetries marks requests made with ctx as single-attempt operations.
+// The configured base transport still handles authentication.
+func WithoutRetries(ctx context.Context) context.Context {
+	return context.WithValue(ctx, retriesDisabledContextKey{}, true)
+}
+
+func retriesDisabled(ctx context.Context) bool {
+	if ctx == nil {
+		return false
+	}
+
+	disabled, _ := ctx.Value(retriesDisabledContextKey{}).(bool)
+
+	return disabled
+}
+
 // RetryTransport wraps an http.RoundTripper with retry logic for
 // rate limits (429) and server errors (5xx).
 type RetryTransport struct {
@@ -53,6 +71,7 @@ func (t *RetryTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	if t.CircuitBreaker != nil && t.CircuitBreaker.IsOpen() {
 		return nil, &CircuitBreakerError{}
 	}
+	retryDisabled := retriesDisabled(req.Context())
 
 	replayable, err := ensureReplayableBody(req)
 	if err != nil {
@@ -94,7 +113,7 @@ func (t *RetryTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 
 		// Rate limit (429)
 		if resp.StatusCode == http.StatusTooManyRequests {
-			if retries429 >= t.MaxRetries429 || !replayable {
+			if retryDisabled || retries429 >= t.MaxRetries429 || !replayable {
 				return resp, nil // Return the 429 response after max retries
 			}
 
@@ -121,7 +140,7 @@ func (t *RetryTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 				t.CircuitBreaker.RecordFailure()
 			}
 
-			if retries5xx >= t.MaxRetries5xx || !replayable {
+			if retryDisabled || retries5xx >= t.MaxRetries5xx || !replayable {
 				return resp, nil
 			}
 
@@ -140,7 +159,7 @@ func (t *RetryTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 			continue
 		}
 
-		if resp.StatusCode == http.StatusForbidden && t.RefreshAuth != nil && !retriedAuth && replayable {
+		if resp.StatusCode == http.StatusForbidden && t.RefreshAuth != nil && !retriedAuth && replayable && !retryDisabled {
 			insufficientScopes, detectErr := responseIndicatesInsufficientScopes(resp)
 			if detectErr != nil {
 				slog.Debug("could not inspect auth failure response for retry", "err", detectErr)

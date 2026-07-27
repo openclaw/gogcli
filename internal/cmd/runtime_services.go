@@ -14,6 +14,7 @@ import (
 	"google.golang.org/api/classroom/v1"
 	"google.golang.org/api/cloudidentity/v1"
 	"google.golang.org/api/docs/v1"
+	drivev2 "google.golang.org/api/drive/v2"
 	"google.golang.org/api/drive/v3"
 	driveactivityapi "google.golang.org/api/driveactivity/v2"
 	drivelabelsapi "google.golang.org/api/drivelabels/v2"
@@ -75,6 +76,9 @@ func composeRuntimeGoogleServices(runtime *app.Runtime, factory googleapi.Factor
 	}
 	if services.Drive == nil {
 		services.Drive = factory.Drive
+	}
+	if services.DriveV2 == nil {
+		services.DriveV2 = factory.DriveV2
 	}
 	if services.DriveActivity == nil {
 		services.DriveActivity = factory.DriveActivity
@@ -267,6 +271,14 @@ func driveService(ctx context.Context, account string) (*drive.Service, error) {
 		return nil, serviceError(err, "drive")
 	}
 	return runtime.Services.Drive(ctx, account)
+}
+
+func driveV2Service(ctx context.Context, account string) (*drivev2.Service, error) {
+	runtime, err := runtimeWithService(ctx, "drive v2")
+	if err != nil || runtime.Services.DriveV2 == nil {
+		return nil, serviceError(err, "drive v2")
+	}
+	return runtime.Services.DriveV2(ctx, account)
 }
 
 func driveActivityService(ctx context.Context, account string) (*driveactivityapi.Service, error) {

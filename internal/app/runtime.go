@@ -14,6 +14,7 @@ import (
 	"google.golang.org/api/classroom/v1"
 	"google.golang.org/api/cloudidentity/v1"
 	"google.golang.org/api/docs/v1"
+	drivev2 "google.golang.org/api/drive/v2"
 	"google.golang.org/api/drive/v3"
 	"google.golang.org/api/driveactivity/v2"
 	"google.golang.org/api/drivelabels/v2"
@@ -54,6 +55,7 @@ type (
 	DocsServiceFactory           func(context.Context, string) (*docs.Service, error)
 	DocsHTTPClientFactory        func(context.Context, string) (*http.Client, error)
 	DriveServiceFactory          func(context.Context, string) (*drive.Service, error)
+	DriveV2ServiceFactory        func(context.Context, string) (*drivev2.Service, error)
 	DriveActivityServiceFactory  func(context.Context, string) (*driveactivity.Service, error)
 	DriveLabelsServiceFactory    func(context.Context, string) (*drivelabels.Service, error)
 	FormsServiceFactory          func(context.Context, string) (*forms.Service, error)
@@ -100,6 +102,7 @@ type Services struct {
 	Docs            DocsServiceFactory
 	DocsHTTP        DocsHTTPClientFactory
 	Drive           DriveServiceFactory
+	DriveV2         DriveV2ServiceFactory
 	DriveActivity   DriveActivityServiceFactory
 	DriveLabels     DriveLabelsServiceFactory
 	Forms           FormsServiceFactory
