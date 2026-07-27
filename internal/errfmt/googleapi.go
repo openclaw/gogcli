@@ -143,6 +143,7 @@ func googleAPIEnableURLForError(gerr *ggoogleapi.Error, api string) string {
 				if queryIndex := strings.IndexByte(match[0], '?'); queryIndex >= 0 {
 					enableURL += strings.TrimRight(match[0][queryIndex:], ".,)")
 				}
+
 				return enableURL
 			}
 		}

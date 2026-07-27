@@ -118,6 +118,7 @@ func TestFormat_GoogleAPIError_AccessNotConfiguredHint(t *testing.T) {
 	if !strings.Contains(got, "https://console.cloud.google.com/apis/library/drive.googleapis.com?project=123") {
 		t.Fatalf("expected project-scoped enable URL, got: %q", got)
 	}
+
 	if strings.Contains(got, "console.developers.google.com") {
 		t.Fatalf("must not return the legacy developer console URL, got: %q", got)
 	}
@@ -141,6 +142,7 @@ func TestFormat_GoogleAPIError_AccessNotConfiguredHintCloudLegacyPath(t *testing
 	if !strings.Contains(got, "https://console.cloud.google.com/apis/library/drive.googleapis.com?project=123") {
 		t.Fatalf("expected normalized API Library URL, got: %q", got)
 	}
+
 	if strings.Contains(got, "/apis/api/") {
 		t.Fatalf("must not return the legacy API overview path, got: %q", got)
 	}
