@@ -8,8 +8,11 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/steipete/gogcli/internal/outfmt"
 )
 
 type linksSetRecorder struct {
@@ -58,11 +61,23 @@ func linksSetHandler(recorder *linksSetRecorder) http.Handler {
 
 func newLinksSetTestContext(t *testing.T, recorder *linksSetRecorder) (context.Context, *bytes.Buffer) {
 	t.Helper()
+	return newLinksSetTestContextWithInput(t, recorder, strings.NewReader(""))
+}
+
+func newLinksSetTestContextWithInput(
+	t *testing.T,
+	recorder *linksSetRecorder,
+	input io.Reader,
+) (context.Context, *bytes.Buffer) {
+	t.Helper()
 	srv := httptest.NewServer(linksSetHandler(recorder))
 	t.Cleanup(srv.Close)
 	svc := newSheetsServiceFromServer(t, srv)
 	output := &bytes.Buffer{}
-	ctx := newCmdRuntimeJSONOutputContext(t, output, io.Discard)
+	ctx := outfmt.WithMode(
+		newCmdRuntimeIOContext(t, input, output, io.Discard),
+		outfmt.Mode{JSON: true},
+	)
 	return withSheetsTestService(ctx, svc), output
 }
 
@@ -222,6 +237,52 @@ func TestSheetsLinksSet_BatchCellsJSON(t *testing.T) {
 	}
 	if len(rec.requests) != 2 {
 		t.Fatalf("expected 2 requests, got %d", len(rec.requests))
+	}
+}
+
+func TestSheetsLinksSet_BatchCellsJSONFromFile(t *testing.T) {
+	rec := &linksSetRecorder{}
+	ctx, _ := newLinksSetTestContext(t, rec)
+
+	cellsPath := filepath.Join("testdata", "sheets_links_cells.json")
+	flags := &RootFlags{Account: "a@b.com"}
+	if err := runKong(
+		t,
+		&SheetsLinksSetCmd{},
+		[]string{"s1", "--cells-json", "@" + cellsPath},
+		ctx,
+		flags,
+	); err != nil {
+		t.Fatalf("links set from file: %v", err)
+	}
+	if len(rec.requests) != 2 {
+		t.Fatalf("expected 2 requests, got %d", len(rec.requests))
+	}
+}
+
+func TestSheetsLinksSet_BatchCellsJSONFromStdin(t *testing.T) {
+	rec := &linksSetRecorder{}
+	input := strings.NewReader(
+		`[{"cell":"Sheet1!D4","url":"https://stdin.test","text":"stdin"}]`,
+	)
+	ctx, _ := newLinksSetTestContextWithInput(t, rec, input)
+
+	flags := &RootFlags{Account: "a@b.com"}
+	if err := runKong(
+		t,
+		&SheetsLinksSetCmd{},
+		[]string{"s1", "--cells-json", "@-"},
+		ctx,
+		flags,
+	); err != nil {
+		t.Fatalf("links set from stdin: %v", err)
+	}
+	if len(rec.requests) != 1 {
+		t.Fatalf("expected 1 request, got %d", len(rec.requests))
+	}
+	cell := updateCellsCell(t, rec, 0)
+	if got := cell["userEnteredValue"].(map[string]any)["stringValue"]; got != "stdin" {
+		t.Fatalf("stringValue = %v, want stdin", got)
 	}
 }
 

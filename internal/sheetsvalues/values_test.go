@@ -46,6 +46,48 @@ func TestParseArgs(t *testing.T) {
 	}
 }
 
+func TestParseArgsForShapeSingleCellPreservesDelimiters(t *testing.T) {
+	values, err := ParseArgsForShape([]string{"text, with, commas | and pipes"}, 1, 1)
+	if err != nil {
+		t.Fatalf("ParseArgsForShape() error = %v", err)
+	}
+	if len(values) != 1 || len(values[0]) != 1 ||
+		values[0][0] != "text, with, commas | and pipes" {
+		t.Fatalf("values = %#v", values)
+	}
+}
+
+func TestParseArgsForShapeMatchesMultiCellRange(t *testing.T) {
+	values, err := ParseArgsForShape([]string{"a|b,c|d"}, 2, 2)
+	if err != nil {
+		t.Fatalf("ParseArgsForShape() error = %v", err)
+	}
+	if len(values) != 2 || len(values[0]) != 2 || len(values[1]) != 2 ||
+		values[0][0] != "a" || values[0][1] != "b" ||
+		values[1][0] != "c" || values[1][1] != "d" {
+		t.Fatalf("values = %#v", values)
+	}
+}
+
+func TestParseArgsForShapeRejectsMismatchedRange(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		values     []string
+		rows, cols int64
+		want       string
+	}{
+		{name: "rows", values: []string{"a,b,c"}, rows: 2, cols: 1, want: "3 rows"},
+		{name: "columns", values: []string{"a,b"}, rows: 2, cols: 2, want: "row 1 has 1 cells"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := ParseArgsForShape(tc.values, tc.rows, tc.cols)
+			if err == nil || !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("ParseArgsForShape() error = %v, want %q", err, tc.want)
+			}
+		})
+	}
+}
+
 func TestRequireRows(t *testing.T) {
 	if err := RequireRows(nil); err == nil || !strings.Contains(err.Error(), "at least one row") {
 		t.Fatalf("RequireRows() error = %v", err)

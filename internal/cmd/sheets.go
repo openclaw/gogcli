@@ -194,6 +194,8 @@ func (c *SheetsUpdateCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 
 	var values [][]interface{}
+	positionalValues := false
+	positionalRangeResolved := true
 	switch {
 	case strings.TrimSpace(c.ValuesJSON) != "":
 		b, err := resolveInlineOrFileBytes(c.ValuesJSON, stdinReader(ctx))
@@ -206,7 +208,12 @@ func (c *SheetsUpdateCmd) Run(ctx context.Context, flags *RootFlags) error {
 			return sheetsValuesPlannerError(err)
 		}
 	case len(c.Values) > 0:
-		values = sheetsvalues.ParseArgs(c.Values)
+		positionalValues = true
+		var err error
+		values, positionalRangeResolved, err = parseSheetsUpdatePositionalValues(rangeSpec, c.Values)
+		if err != nil {
+			return err
+		}
 	default:
 		return usage("provide values as args or via --values-json")
 	}
@@ -236,6 +243,25 @@ func (c *SheetsUpdateCmd) Run(ctx context.Context, flags *RootFlags) error {
 	svc, err := sheetsService(ctx, account)
 	if err != nil {
 		return err
+	}
+
+	if positionalValues && !positionalRangeResolved {
+		catalog, catalogErr := fetchSpreadsheetRangeCatalog(ctx, svc, spreadsheetID)
+		if catalogErr != nil {
+			return catalogErr
+		}
+		gridRange, rangeErr := resolveGridRangeWithCatalog(rangeSpec, catalog, "update")
+		if rangeErr != nil {
+			return rangeErr
+		}
+		values, err = sheetsvalues.ParseArgsForShape(
+			c.Values,
+			gridRangeDimensionSize(gridRange.StartRowIndex, gridRange.EndRowIndex),
+			gridRangeDimensionSize(gridRange.StartColumnIndex, gridRange.EndColumnIndex),
+		)
+		if err != nil {
+			return sheetsValuesPlannerError(err)
+		}
 	}
 
 	vr := &sheets.ValueRange{
@@ -295,6 +321,43 @@ func (c *SheetsUpdateCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return sheetsFormulaVerificationError(formulaErrors)
 	}
 	return nil
+}
+
+func parseSheetsUpdatePositionalValues(rangeSpec string, rawValues []string) ([][]interface{}, bool, error) {
+	parsedRange, err := sheetsa1.Parse(rangeSpec)
+	if err != nil {
+		// Named ranges need spreadsheet metadata to determine their shape.
+		// Keep the legacy parse for dry-run output, then resolve and validate
+		// the range after the Sheets service is available and before writing.
+		return sheetsvalues.ParseArgs(rawValues), false, nil
+	}
+
+	values, err := sheetsvalues.ParseArgsForShape(
+		rawValues,
+		a1RangeDimensionSize(parsedRange.StartRow, parsedRange.EndRow),
+		a1RangeDimensionSize(parsedRange.StartCol, parsedRange.EndCol),
+	)
+	if err != nil {
+		return nil, true, sheetsValuesPlannerError(err)
+	}
+	return values, true, nil
+}
+
+func a1RangeDimensionSize(start, end int) int64 {
+	if start <= 0 || end <= 0 {
+		return 0
+	}
+	return int64(end - start + 1)
+}
+
+func gridRangeDimensionSize(start, end int64) int64 {
+	if end == 0 {
+		return 0
+	}
+	if end <= start {
+		return -1
+	}
+	return end - start
 }
 
 type sheetsFormulaError struct {
