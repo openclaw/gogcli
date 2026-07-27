@@ -13,9 +13,11 @@ import (
 	"testing"
 	"time"
 
+	"golang.org/x/oauth2"
 	"google.golang.org/api/gmail/v1"
 	"google.golang.org/api/option"
 
+	"github.com/steipete/gogcli/internal/gmailwatch"
 	"github.com/steipete/gogcli/internal/googleapi"
 	"github.com/steipete/gogcli/internal/outfmt"
 	"github.com/steipete/gogcli/internal/ui"
@@ -283,6 +285,40 @@ func TestGmailWatchPullMessage_NacksGmailFailure(t *testing.T) {
 	server.handlePullMessage(context.Background(), msg)
 	if state.acked || !state.nacked {
 		t.Fatalf("gmail failure ack=%v nack=%v", state.acked, state.nacked)
+	}
+}
+
+func TestGmailWatchPullMessage_AcksTerminalAuthAndPreservesProgress(t *testing.T) {
+	store := newMemoryGmailWatchTestStore(gmailWatchState{
+		Account:           "a@b.com",
+		HistoryID:         "100",
+		LastPushMessageID: "before",
+	})
+	server := &gmailWatchServer{
+		cfg:   gmailWatchServeConfig{Account: "a@b.com"},
+		store: store,
+		newService: func(context.Context, string) (*gmail.Service, error) {
+			return nil, &oauth2.RetrieveError{
+				ErrorCode:        "invalid_grant",
+				ErrorDescription: "Token has been expired or revoked.",
+			}
+		},
+		logf:  func(string, ...any) {},
+		warnf: func(string, ...any) {},
+	}
+
+	msg, delivery := trackedPullMessage("push-1", []byte(`{"emailAddress":"a@b.com","historyId":"200"}`))
+	server.handlePullMessage(context.Background(), msg)
+
+	if !delivery.acked || delivery.nacked {
+		t.Fatalf("terminal auth ack=%v nack=%v", delivery.acked, delivery.nacked)
+	}
+	state := store.Get()
+	if state.HistoryID != "100" || state.LastPushMessageID != "before" {
+		t.Fatalf("state advanced after terminal auth failure: %#v", state)
+	}
+	if !state.AuthRecoveryPending || state.AuthFailureReason != gmailwatch.AuthFailureReasonReauthenticationRequired {
+		t.Fatalf("recovery state = %#v", state)
 	}
 }
 

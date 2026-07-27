@@ -14,6 +14,7 @@ import (
 	"google.golang.org/api/idtoken"
 
 	"github.com/steipete/gogcli/internal/authclient"
+	"github.com/steipete/gogcli/internal/gmailwatch"
 	"github.com/steipete/gogcli/internal/outfmt"
 	"github.com/steipete/gogcli/internal/ui"
 )
@@ -99,13 +100,13 @@ func (c *GmailWatchStartCmd) Run(ctx context.Context, kctx *kong.Context, flags 
 		return err
 	}
 	if err := store.Update(func(s *gmailWatchState) error {
-		*s = state
+		gmailwatch.ApplyWatchRegistration(s, state)
 		return nil
 	}); err != nil {
 		return err
 	}
 
-	return writeWatchState(ctx, state, false)
+	return writeWatchState(ctx, store.Get(), false)
 }
 
 type GmailWatchStatusCmd struct {
@@ -171,13 +172,13 @@ func (c *GmailWatchRenewCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 
 	if err := store.Update(func(s *gmailWatchState) error {
-		*s = updated
+		gmailwatch.ApplyWatchRegistration(s, updated)
 		return nil
 	}); err != nil {
 		return err
 	}
 
-	return writeWatchState(ctx, updated, false)
+	return writeWatchState(ctx, store.Get(), false)
 }
 
 type GmailWatchStopCmd struct{}
@@ -496,6 +497,15 @@ func writeWatchState(ctx context.Context, state gmailWatchState, showSecrets boo
 	}
 	if state.RateLimitedUntilMs > 0 {
 		u.Out().Linef("rate_limited_until\t%s", formatUnixMillis(state.RateLimitedUntilMs))
+	}
+	if state.AuthRecoveryPending {
+		u.Out().Linef("auth_recovery_pending\ttrue")
+	}
+	if state.AuthFailureAtMs > 0 {
+		u.Out().Linef("auth_failure_at\t%s", formatUnixMillis(state.AuthFailureAtMs))
+	}
+	if state.AuthFailureReason != "" {
+		u.Out().Linef("auth_failure_reason\t%s", state.AuthFailureReason)
 	}
 	return nil
 }

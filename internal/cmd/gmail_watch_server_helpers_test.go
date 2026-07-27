@@ -6,12 +6,14 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
 	"strings"
 	"testing"
 
+	"golang.org/x/oauth2"
 	"google.golang.org/api/gmail/v1"
 	"google.golang.org/api/googleapi"
 	"google.golang.org/api/idtoken"
@@ -337,6 +339,31 @@ func TestIsNotFoundAPIError(t *testing.T) {
 		},
 	}) {
 		t.Fatalf("expected non-notfound for forbidden")
+	}
+}
+
+func TestIsTerminalGmailAuthError(t *testing.T) {
+	typed := &oauth2.RetrieveError{
+		ErrorCode:        "invalid_grant",
+		ErrorDescription: "Token has been expired or revoked.",
+	}
+	if !isTerminalGmailAuthError(fmt.Errorf("refresh access token: %w", typed)) {
+		t.Fatal("expected wrapped invalid_grant to be terminal")
+	}
+
+	for _, message := range []string{
+		"refresh_token_reused",
+		"invalid refresh token",
+		"Token has been expired or revoked.",
+		"please sign in again",
+	} {
+		if !isTerminalGmailAuthError(errors.New(message)) {
+			t.Fatalf("expected terminal auth error: %q", message)
+		}
+	}
+
+	if isTerminalGmailAuthError(errors.New("temporary network timeout")) {
+		t.Fatal("temporary failure must remain retryable")
 	}
 }
 

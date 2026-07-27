@@ -276,6 +276,12 @@ func (s *gmailWatchServer) handlePullMessage(ctx context.Context, msg *gmailPubS
 		msg.Ack()
 		return
 	}
+	var authErr *gmailwatch.TerminalAuthError
+	if errors.As(err, &authErr) {
+		s.warnf("watch: Gmail authorization requires re-authentication; acknowledging pull without advancing history: %v", err)
+		msg.Ack()
+		return
+	}
 	var rateErr *gmailWatchRateLimitError
 	if errors.As(err, &rateErr) {
 		s.warnf("watch: Gmail rate limit circuit open: %v", err)

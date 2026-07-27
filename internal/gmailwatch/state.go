@@ -36,6 +36,9 @@ type State struct {
 	LastDeliveryStatusNote string   `json:"lastDeliveryStatusNote,omitempty"`
 	LastPushMessageID      string   `json:"lastPushMessageId,omitempty"`
 	RateLimitedUntilMs     int64    `json:"rateLimitedUntilMs,omitempty"`
+	AuthRecoveryPending    bool     `json:"authRecoveryPending,omitempty"`
+	AuthFailureAtMs        int64    `json:"authFailureAtMs,omitempty"`
+	AuthFailureReason      string   `json:"authFailureReason,omitempty"`
 }
 
 func ParseHistoryID(raw string) (uint64, error) {
@@ -86,9 +89,24 @@ func AdvanceHistory(state *State, historyID, pushMessageID string, now time.Time
 	if pushMessageID != "" {
 		state.LastPushMessageID = pushMessageID
 	}
+	state.AuthRecoveryPending = false
+	state.AuthFailureAtMs = 0
+	state.AuthFailureReason = ""
 	state.UpdatedAtMs = now.UnixMilli()
 
 	return nil
+}
+
+func ApplyWatchRegistration(state *State, registered State) {
+	if state.AuthRecoveryPending {
+		registered.HistoryID = state.HistoryID
+		registered.LastPushMessageID = state.LastPushMessageID
+		registered.AuthRecoveryPending = true
+		registered.AuthFailureAtMs = state.AuthFailureAtMs
+		registered.AuthFailureReason = state.AuthFailureReason
+	}
+
+	*state = registered
 }
 
 func RestoreProgress(state *State, before State, historyID, pushMessageID string) bool {

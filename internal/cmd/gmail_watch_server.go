@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/oauth2"
 	"google.golang.org/api/gmail/v1"
 	"google.golang.org/api/googleapi"
 	"google.golang.org/api/idtoken"
@@ -149,6 +150,21 @@ func isNotFoundAPIError(err error) bool {
 		return gerr.Code == http.StatusNotFound
 	}
 	return false
+}
+
+func isTerminalGmailAuthError(err error) bool {
+	var retrieveErr *oauth2.RetrieveError
+	if errors.As(err, &retrieveErr) && strings.EqualFold(strings.TrimSpace(retrieveErr.ErrorCode), "invalid_grant") {
+		return true
+	}
+
+	message := strings.ToLower(err.Error())
+	return strings.Contains(message, "invalid_grant") ||
+		strings.Contains(message, "refresh_token_reused") ||
+		strings.Contains(message, "invalid refresh token") ||
+		strings.Contains(message, "token has been expired or revoked") ||
+		strings.Contains(message, "sign in again") ||
+		strings.Contains(message, "signed in again")
 }
 
 func gmailWatchRateLimitUntil(err error, now time.Time) (time.Time, bool) {

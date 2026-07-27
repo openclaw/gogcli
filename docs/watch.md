@@ -137,6 +137,9 @@ Schema (v1):
   "providerExpirationMs": 1730000000000,
   "renewAfterMs": 1730000001000,
   "updatedAtMs": 1730000001000,
+  "authRecoveryPending": true,
+  "authFailureAtMs": 1730000001000,
+  "authFailureReason": "reauthentication_required",
   "hook": {
     "url": "http://127.0.0.1:18789/hooks/agent",
     "token": "...",
@@ -211,6 +214,19 @@ configured `--hook-url`.
 - Pull mode treats invalid Pub/Sub messages as poison messages: log and
   acknowledge them rather than redelivering forever. Wrong-account
   notifications are also terminal in both modes.
+- Expired or revoked Gmail OAuth credentials are terminal for the current
+  notification. Push and pull acknowledge `invalid_grant` failures only after
+  durably marking auth recovery as pending, without advancing the stored Gmail
+  history cursor. This prevents Pub/Sub redelivery storms without discarding the
+  catch-up position. If the recovery marker cannot be saved, the notification
+  remains retryable.
+- After re-authenticating, run `gog gmail watch renew` (or rerun `watch start`).
+  A successful watch registration preserves the last processed history ID while
+  recovery is pending. Gmail sends an immediate notification for the new watch,
+  which catches up from that retained cursor without waiting for another mailbox
+  change. Successful history processing clears the recovery marker. Use
+  `gog gmail watch status` to inspect `auth_recovery_pending`,
+  `auth_failure_at`, and `auth_failure_reason`.
 - Hook failures are retryable. `gog` records the hook failure status, preserves
   the pre-hook watch cursor, and returns a delivery failure to Pub/Sub. This
   lets Pub/Sub redeliver the notification after the downstream agent or gateway

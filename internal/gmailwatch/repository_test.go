@@ -309,3 +309,51 @@ func TestHistoryTransitions(t *testing.T) {
 		t.Fatal("older history was not stale")
 	}
 }
+
+func TestApplyWatchRegistrationPreservesPendingRecovery(t *testing.T) {
+	t.Parallel()
+
+	state := State{
+		Account:             "user@example.com",
+		Topic:               "projects/old/topics/old",
+		HistoryID:           "100",
+		LastPushMessageID:   "push-before",
+		AuthRecoveryPending: true,
+		AuthFailureAtMs:     123,
+		AuthFailureReason:   AuthFailureReasonReauthenticationRequired,
+	}
+	registered := State{
+		Account:      "user@example.com",
+		Topic:        "projects/new/topics/new",
+		HistoryID:    "300",
+		ExpirationMs: 456,
+	}
+
+	ApplyWatchRegistration(&state, registered)
+
+	if state.Topic != registered.Topic || state.ExpirationMs != registered.ExpirationMs {
+		t.Fatalf("registration fields not applied: %#v", state)
+	}
+
+	if state.HistoryID != "100" || state.LastPushMessageID != "push-before" {
+		t.Fatalf("recovery progress replaced: %#v", state)
+	}
+
+	if !state.AuthRecoveryPending || state.AuthFailureAtMs != 123 ||
+		state.AuthFailureReason != AuthFailureReasonReauthenticationRequired {
+		t.Fatalf("recovery marker replaced: %#v", state)
+	}
+}
+
+func TestApplyWatchRegistrationReplacesCompletedProgress(t *testing.T) {
+	t.Parallel()
+
+	state := State{HistoryID: "100", LastPushMessageID: "push-before"}
+	registered := State{HistoryID: "300", ExpirationMs: 456}
+
+	ApplyWatchRegistration(&state, registered)
+
+	if state.HistoryID != "300" || state.LastPushMessageID != "" || state.ExpirationMs != 456 {
+		t.Fatalf("registration state = %#v", state)
+	}
+}

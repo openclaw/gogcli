@@ -45,6 +45,18 @@ func (e *RateLimitError) Unwrap() error {
 	return e.Cause
 }
 
+type TerminalAuthError struct {
+	Cause error
+}
+
+func (e *TerminalAuthError) Error() string {
+	return fmt.Sprintf("gmail authorization requires re-authentication: %v", e.Cause)
+}
+
+func (e *TerminalAuthError) Unwrap() error {
+	return e.Cause
+}
+
 type DeliveryResult struct {
 	Status string
 	Note   string
@@ -77,6 +89,7 @@ type Processor struct {
 	Now                 func() time.Time
 	Sleep               func(context.Context, time.Duration) error
 	IsStaleHistoryError func(error) bool
+	IsTerminalAuthError func(error) bool
 	RateLimitUntil      func(error, time.Time) (time.Time, bool)
 	Logf                func(string, ...any)
 	Warnf               func(string, ...any)
@@ -163,7 +176,7 @@ func (p *Processor) Handle(ctx context.Context, notification Notification) (*Pay
 
 	source, err := p.NewSource(ctx)
 	if err != nil {
-		return nil, err
+		return nil, p.classifySourceError(err)
 	}
 
 	if source == nil {
@@ -176,7 +189,7 @@ func (p *Processor) Handle(ctx context.Context, notification Notification) (*Pay
 			return p.resync(ctx, source, notification)
 		}
 
-		return nil, p.openRateLimitCircuitIfNeeded(err)
+		return nil, p.classifySourceError(err)
 	}
 
 	nextHistoryID := notification.HistoryID
@@ -194,7 +207,7 @@ func (p *Processor) Handle(ctx context.Context, notification Notification) (*Pay
 
 	batch, err := source.FetchMessages(ctx, historyIDs.FetchIDs)
 	if err != nil {
-		return nil, p.openRateLimitCircuitIfNeeded(err)
+		return nil, p.classifySourceError(err)
 	}
 
 	p.advanceHistory(nextHistoryID, notification.MessageID, "watch: failed to update state: %v")
@@ -219,12 +232,12 @@ func (p *Processor) Handle(ctx context.Context, notification Notification) (*Pay
 func (p *Processor) resync(ctx context.Context, source Source, notification Notification) (*Payload, error) {
 	ids, err := source.ListRecentMessageIDs(ctx, p.Config.ResyncMax)
 	if err != nil {
-		return nil, p.openRateLimitCircuitIfNeeded(err)
+		return nil, p.classifySourceError(err)
 	}
 
 	batch, err := source.FetchMessages(ctx, ids)
 	if err != nil {
-		return nil, p.openRateLimitCircuitIfNeeded(err)
+		return nil, p.classifySourceError(err)
 	}
 
 	p.advanceHistory(notification.HistoryID, notification.MessageID, "watch: failed to update state after resync: %v")
@@ -320,6 +333,18 @@ func (p *Processor) openRateLimitCircuitIfNeeded(err error) error {
 	}
 
 	return &RateLimitError{Until: until, Cause: err}
+}
+
+func (p *Processor) classifySourceError(err error) error {
+	if p.IsTerminalAuthError != nil && p.IsTerminalAuthError(err) {
+		if updateErr := p.Repository.MarkAuthRecoveryPending(p.currentTime()); updateErr != nil {
+			return fmt.Errorf("persist terminal Gmail authorization failure: %w", errors.Join(err, updateErr))
+		}
+
+		return &TerminalAuthError{Cause: err}
+	}
+
+	return p.openRateLimitCircuitIfNeeded(err)
 }
 
 func (p *Processor) currentTime() time.Time {

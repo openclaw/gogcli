@@ -11,6 +11,7 @@ import (
 	"strings"
 	"testing"
 
+	"golang.org/x/oauth2"
 	"google.golang.org/api/gmail/v1"
 	"google.golang.org/api/option"
 
@@ -74,6 +75,50 @@ func TestGmailWatchServer_ServeHTTP_HandlePushError(t *testing.T) {
 	server.ServeHTTP(rr, req)
 	if rr.Code != http.StatusInternalServerError {
 		t.Fatalf("status: %d", rr.Code)
+	}
+}
+
+func TestGmailWatchServer_AcknowledgesTerminalAuthAndPreservesProgress(t *testing.T) {
+	store := newMemoryGmailWatchTestStore(gmailWatchState{
+		Account:           "a@b.com",
+		HistoryID:         "100",
+		LastPushMessageID: "before",
+	})
+	server := &gmailWatchServer{
+		cfg: gmailWatchServeConfig{
+			Account:     "a@b.com",
+			Path:        "/hook",
+			SharedToken: "tok",
+		},
+		store: store,
+		newService: func(context.Context, string) (*gmail.Service, error) {
+			return nil, &oauth2.RetrieveError{
+				ErrorCode:        "invalid_grant",
+				ErrorDescription: "Token has been expired or revoked.",
+			}
+		},
+		logf:  func(string, ...any) {},
+		warnf: func(string, ...any) {},
+	}
+
+	push := pubsubPushEnvelope{}
+	push.Message.Data = base64.StdEncoding.EncodeToString([]byte(`{"emailAddress":"a@b.com","historyId":"200"}`))
+	push.Message.MessageID = "push-1"
+	body, _ := json.Marshal(push)
+
+	response := httptest.NewRecorder()
+	request := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/hook?token=tok", bytes.NewReader(body))
+	server.ServeHTTP(response, request)
+
+	if response.Code != http.StatusAccepted {
+		t.Fatalf("status = %d", response.Code)
+	}
+	state := store.Get()
+	if state.HistoryID != "100" || state.LastPushMessageID != "before" {
+		t.Fatalf("state advanced after terminal auth failure: %#v", state)
+	}
+	if !state.AuthRecoveryPending || state.AuthFailureReason != gmailwatch.AuthFailureReasonReauthenticationRequired {
+		t.Fatalf("recovery state = %#v", state)
 	}
 }
 

@@ -28,6 +28,7 @@ func (s *gmailWatchServer) watchProcessor() *gmailwatch.Processor {
 		Now:                 s.currentTime,
 		Sleep:               s.sleep,
 		IsStaleHistoryError: isStaleHistoryError,
+		IsTerminalAuthError: isTerminalGmailAuthError,
 		RateLimitUntil:      gmailWatchRateLimitUntil,
 		Logf:                s.logf,
 		Warnf:               s.warnf,

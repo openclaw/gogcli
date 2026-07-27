@@ -77,6 +77,24 @@ func TestHTTPHandlerMapsNoMessagesAndRateLimit(t *testing.T) {
 	}
 }
 
+func TestHTTPHandlerAcknowledgesTerminalAuthFailure(t *testing.T) {
+	t.Parallel()
+
+	handler := &HTTPHandler{
+		Config: HTTPConfig{Path: "/hook", BodyLimit: 1024, HasHook: true},
+		Process: func(context.Context, Notification) (*ProcessedPayload, error) {
+			return nil, &TerminalAuthError{Cause: errors.New("invalid_grant")} //nolint:err113 // Test-only failure.
+		},
+	}
+
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, pushRequest(t, "", "200", "push-1"))
+
+	if response.Code != http.StatusAccepted {
+		t.Fatalf("status = %d", response.Code)
+	}
+}
+
 func TestHTTPHandlerReturnsPayloadWithoutHook(t *testing.T) {
 	t.Parallel()
 

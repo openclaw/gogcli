@@ -98,6 +98,63 @@ func TestGmailWatchStartCmd_JSON(t *testing.T) {
 	}
 }
 
+func TestGmailWatchStartPreservesPendingAuthRecovery(t *testing.T) {
+	setWatchTestConfigHome(t)
+
+	store := newGmailWatchTestStore(t, "a@b.com")
+	if err := store.Update(func(state *gmailWatchState) error {
+		*state = gmailWatchState{
+			Account:             "a@b.com",
+			Topic:               "projects/old/topics/old",
+			HistoryID:           "100",
+			LastPushMessageID:   "push-before",
+			AuthRecoveryPending: true,
+			AuthFailureAtMs:     123,
+			AuthFailureReason:   gmailwatch.AuthFailureReasonReauthenticationRequired,
+		}
+
+		return nil
+	}); err != nil {
+		t.Fatalf("seed state: %v", err)
+	}
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !strings.Contains(r.URL.Path, "/gmail/v1/users/me/watch") {
+			http.NotFound(w, r)
+
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"historyId":  "300",
+			"expiration": "1730000000000",
+		})
+	}))
+	defer srv.Close()
+
+	ctx := withGmailTestService(
+		newCmdRuntimeJSONOutputContext(t, io.Discard, io.Discard),
+		newGmailServiceFromServer(t, srv),
+	)
+	if err := runKong(t, &GmailWatchStartCmd{}, []string{
+		"--topic", "projects/new/topics/new",
+	}, ctx, &RootFlags{Account: "a@b.com"}); err != nil {
+		t.Fatalf("start: %v", err)
+	}
+
+	started := loadGmailWatchTestStore(t, "a@b.com").Get()
+	if started.Topic != "projects/new/topics/new" || started.ExpirationMs != 1730000000000 {
+		t.Fatalf("registration not updated: %#v", started)
+	}
+	if started.HistoryID != "100" || started.LastPushMessageID != "push-before" {
+		t.Fatalf("start replaced recovery progress: %#v", started)
+	}
+	if !started.AuthRecoveryPending || started.AuthFailureAtMs != 123 ||
+		started.AuthFailureReason != gmailwatch.AuthFailureReasonReauthenticationRequired {
+		t.Fatalf("start replaced recovery marker: %#v", started)
+	}
+}
+
 func TestGmailWatchServerServeHTTP_TruncateBody(t *testing.T) {
 	setWatchTestConfigHome(t)
 

@@ -3,6 +3,8 @@ package gmailwatch
 import "time"
 
 const (
+	AuthFailureReasonReauthenticationRequired = "reauthentication_required"
+
 	DeliveryStatusError     = "error"
 	DeliveryStatusHTTPError = "http_error"
 	DeliveryStatusOK        = "ok"
@@ -26,6 +28,17 @@ func (r *Repository) SetHook(hook *Hook, now time.Time) error {
 func (r *Repository) AdvanceHistory(historyID, pushMessageID string, now time.Time) error {
 	return r.Update(func(state *State) error {
 		return AdvanceHistory(state, historyID, pushMessageID, now)
+	})
+}
+
+func (r *Repository) MarkAuthRecoveryPending(now time.Time) error {
+	return r.Update(func(state *State) error {
+		state.AuthRecoveryPending = true
+		state.AuthFailureAtMs = now.UnixMilli()
+		state.AuthFailureReason = AuthFailureReasonReauthenticationRequired
+		state.UpdatedAtMs = now.UnixMilli()
+
+		return nil
 	})
 }
 

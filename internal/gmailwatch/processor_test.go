@@ -3,6 +3,8 @@ package gmailwatch
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
 	"reflect"
 	"testing"
 	"time"
@@ -183,6 +185,119 @@ func TestProcessorRateLimitCircuit(t *testing.T) {
 
 	if source.historyCalls != 1 {
 		t.Fatalf("history calls = %d", source.historyCalls)
+	}
+}
+
+func TestProcessorClassifiesTerminalAuthWithoutAdvancingHistory(t *testing.T) {
+	t.Parallel()
+
+	authFailure := errors.New("invalid_grant") //nolint:err113 // Test-only failure.
+	repository := NewMemory(State{HistoryID: "100", LastPushMessageID: "before"}, Options{})
+	source := &processorSource{historyErr: authFailure}
+	processor := newTestProcessor(repository, source, time.Unix(350, 0))
+	processor.IsTerminalAuthError = func(err error) bool {
+		return errors.Is(err, authFailure)
+	}
+
+	_, err := processor.Handle(context.Background(), Notification{HistoryID: "200", MessageID: "push-1"})
+
+	var authErr *TerminalAuthError
+	if !errors.As(err, &authErr) || !errors.Is(err, authFailure) {
+		t.Fatalf("terminal auth error = %#v", err)
+	}
+
+	state := repository.Get()
+	if state.HistoryID != "100" || state.LastPushMessageID != "before" {
+		t.Fatalf("state advanced after terminal auth failure: %#v", state)
+	}
+
+	if !state.AuthRecoveryPending || state.AuthFailureAtMs != time.Unix(350, 0).UnixMilli() ||
+		state.AuthFailureReason != AuthFailureReasonReauthenticationRequired {
+		t.Fatalf("recovery state = %#v", state)
+	}
+}
+
+func TestProcessorKeepsTerminalAuthRetryableWhenRecoveryStateCannotPersist(t *testing.T) {
+	t.Parallel()
+
+	authFailure := errors.New("invalid_grant")     //nolint:err113 // Test-only failure.
+	persistFailure := errors.New("persist failed") //nolint:err113 // Test-only failure.
+	failWrites := false
+
+	repository := New(filepath.Join(t.TempDir(), "watch.json"), Options{
+		WriteFile: func(path string, data []byte, mode os.FileMode) error {
+			if failWrites {
+				return persistFailure
+			}
+
+			return os.WriteFile(path, data, mode)
+		},
+	})
+	if err := repository.Update(func(state *State) error {
+		state.HistoryID = "100"
+
+		return nil
+	}); err != nil {
+		t.Fatalf("seed state: %v", err)
+	}
+	failWrites = true
+
+	processor := newTestProcessor(repository, &processorSource{historyErr: authFailure}, time.Unix(350, 0))
+	processor.IsTerminalAuthError = func(err error) bool {
+		return errors.Is(err, authFailure)
+	}
+
+	_, err := processor.Handle(context.Background(), Notification{HistoryID: "200", MessageID: "push-1"})
+
+	var authErr *TerminalAuthError
+	if errors.As(err, &authErr) {
+		t.Fatalf("persistence failure classified as terminal: %v", err)
+	}
+
+	if !errors.Is(err, authFailure) || !errors.Is(err, persistFailure) {
+		t.Fatalf("persistence error = %v", err)
+	}
+
+	if state := repository.Get(); state.AuthRecoveryPending || state.HistoryID != "100" {
+		t.Fatalf("state changed after persistence failure: %#v", state)
+	}
+}
+
+func TestProcessorCatchesUpPendingAuthRecovery(t *testing.T) {
+	t.Parallel()
+
+	repository := NewMemory(State{
+		HistoryID:           "100",
+		LastPushMessageID:   "push-before",
+		AuthRecoveryPending: true,
+		AuthFailureAtMs:     123,
+		AuthFailureReason:   AuthFailureReasonReauthenticationRequired,
+	}, Options{})
+	source := &processorSource{
+		history: HistoryPage{
+			HistoryID: "300",
+			Records:   []HistoryRecord{{Added: []string{"m1"}}},
+		},
+		messageBatches: []MessageBatch{{Messages: []Message{{ID: "m1"}}}},
+	}
+	processor := newTestProcessor(repository, source, time.Unix(400, 0))
+
+	payload, err := processor.Handle(context.Background(), Notification{HistoryID: "300", MessageID: "push-recovery"})
+	if err != nil {
+		t.Fatalf("Handle recovery notification: %v", err)
+	}
+
+	if payload.HistoryID != "300" || len(payload.Messages) != 1 {
+		t.Fatalf("recovery payload = %#v", payload)
+	}
+
+	state := repository.Get()
+	if state.HistoryID != "300" || state.LastPushMessageID != "push-recovery" {
+		t.Fatalf("recovered progress = %#v", state)
+	}
+
+	if state.AuthRecoveryPending || state.AuthFailureAtMs != 0 || state.AuthFailureReason != "" {
+		t.Fatalf("recovery marker not cleared: %#v", state)
 	}
 }
 

@@ -148,6 +148,14 @@ func (h *HTTPHandler) ServeHTTP(response http.ResponseWriter, request *http.Requ
 			return
 		}
 
+		var authErr *TerminalAuthError
+		if errors.As(err, &authErr) {
+			h.warnf("watch: Gmail authorization requires re-authentication; acknowledging push without advancing history: %v", err)
+			response.WriteHeader(http.StatusAccepted)
+
+			return
+		}
+
 		var rateErr *RateLimitError
 		if errors.As(err, &rateErr) {
 			if !rateErr.Until.IsZero() {

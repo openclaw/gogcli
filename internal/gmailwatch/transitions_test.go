@@ -119,3 +119,41 @@ func TestRepositoryRecordDelivery(t *testing.T) {
 		t.Fatalf("delivery state = %#v", state)
 	}
 }
+
+func TestRepositoryAuthRecoveryTransitions(t *testing.T) {
+	t.Parallel()
+
+	failureAt := time.Date(2026, 7, 19, 10, 0, 0, 0, time.UTC)
+	repository := NewMemory(State{
+		HistoryID:         "100",
+		LastPushMessageID: "push-before",
+	}, Options{})
+
+	if err := repository.MarkAuthRecoveryPending(failureAt); err != nil {
+		t.Fatalf("MarkAuthRecoveryPending: %v", err)
+	}
+
+	pending := repository.Get()
+	if !pending.AuthRecoveryPending || pending.AuthFailureAtMs != failureAt.UnixMilli() ||
+		pending.AuthFailureReason != AuthFailureReasonReauthenticationRequired {
+		t.Fatalf("pending state = %#v", pending)
+	}
+
+	if pending.HistoryID != "100" || pending.LastPushMessageID != "push-before" {
+		t.Fatalf("pending state changed progress: %#v", pending)
+	}
+
+	recoveredAt := failureAt.Add(time.Minute)
+	if err := repository.AdvanceHistory("300", "push-recovery", recoveredAt); err != nil {
+		t.Fatalf("AdvanceHistory: %v", err)
+	}
+
+	recovered := repository.Get()
+	if recovered.AuthRecoveryPending || recovered.AuthFailureAtMs != 0 || recovered.AuthFailureReason != "" {
+		t.Fatalf("recovery marker not cleared: %#v", recovered)
+	}
+
+	if recovered.HistoryID != "300" || recovered.LastPushMessageID != "push-recovery" {
+		t.Fatalf("recovered progress = %#v", recovered)
+	}
+}

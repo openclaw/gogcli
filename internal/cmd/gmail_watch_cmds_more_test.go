@@ -40,12 +40,16 @@ func TestGmailWatchRenewAndStop_JSON(t *testing.T) {
 	store := newGmailWatchTestStore(t, "a@b.com")
 	_ = store.Update(func(s *gmailWatchState) error {
 		*s = gmailWatchState{
-			Account:      "a@b.com",
-			Topic:        "projects/p/topics/t",
-			Labels:       []string{"INBOX"},
-			HistoryID:    "100",
-			RenewAfterMs: time.Now().Add(10 * time.Minute).UnixMilli(),
-			ExpirationMs: time.Now().Add(20 * time.Minute).UnixMilli(),
+			Account:             "a@b.com",
+			Topic:               "projects/p/topics/t",
+			Labels:              []string{"INBOX"},
+			HistoryID:           "100",
+			LastPushMessageID:   "push-before",
+			RenewAfterMs:        time.Now().Add(10 * time.Minute).UnixMilli(),
+			ExpirationMs:        time.Now().Add(20 * time.Minute).UnixMilli(),
+			AuthRecoveryPending: true,
+			AuthFailureAtMs:     123,
+			AuthFailureReason:   "reauthentication_required",
 		}
 		return nil
 	})
@@ -54,6 +58,13 @@ func TestGmailWatchRenewAndStop_JSON(t *testing.T) {
 	ctx := withGmailTestService(newCmdRuntimeJSONOutputContext(t, io.Discard, io.Discard), svc)
 	if err := runKong(t, &GmailWatchRenewCmd{}, []string{"--ttl", "3600"}, ctx, flags); err != nil {
 		t.Fatalf("renew: %v", err)
+	}
+	renewed := loadGmailWatchTestStore(t, "a@b.com").Get()
+	if renewed.HistoryID != "100" || renewed.LastPushMessageID != "push-before" || !renewed.AuthRecoveryPending {
+		t.Fatalf("renew replaced recovery progress: %#v", renewed)
+	}
+	if renewed.ExpirationMs != 1730000000000 {
+		t.Fatalf("renew did not update registration: %#v", renewed)
 	}
 	if err := runKong(t, &GmailWatchStopCmd{}, []string{}, ctx, flags); err != nil {
 		t.Fatalf("stop: %v", err)
@@ -70,10 +81,13 @@ func TestGmailWatchStatusAndStop_Text(t *testing.T) {
 	store := newGmailWatchTestStore(t, "a@b.com")
 	_ = store.Update(func(s *gmailWatchState) error {
 		*s = gmailWatchState{
-			Account:   "a@b.com",
-			Topic:     "projects/p/topics/t",
-			HistoryID: "100",
-			Hook:      &gmailWatchHook{URL: "http://example.com/hook"},
+			Account:             "a@b.com",
+			Topic:               "projects/p/topics/t",
+			HistoryID:           "100",
+			Hook:                &gmailWatchHook{URL: "http://example.com/hook"},
+			AuthRecoveryPending: true,
+			AuthFailureAtMs:     123,
+			AuthFailureReason:   "reauthentication_required",
 		}
 		return nil
 	})
@@ -98,7 +112,10 @@ func TestGmailWatchStatusAndStop_Text(t *testing.T) {
 	if err := runKong(t, &GmailWatchStopCmd{}, []string{}, ctx, flags); err != nil {
 		t.Fatalf("stop: %v", err)
 	}
-	if !strings.Contains(out.String(), "account") || !strings.Contains(out.String(), "stopped") {
+	if !strings.Contains(out.String(), "account") ||
+		!strings.Contains(out.String(), "auth_recovery_pending\ttrue") ||
+		!strings.Contains(out.String(), "auth_failure_reason\treauthentication_required") ||
+		!strings.Contains(out.String(), "stopped") {
 		t.Fatalf("unexpected output: %q", out.String())
 	}
 }
