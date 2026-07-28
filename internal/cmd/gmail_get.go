@@ -113,7 +113,7 @@ func (c *GmailGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 				payload["attachments"] = attachmentOutputs(attachments)
 			}
 		}
-		return outfmt.WriteJSON(ctx, stdoutWriter(ctx), payload)
+		return outfmt.WriteJSON(ctx, stdoutWriter(ctx), outfmt.PrimaryResult(payload))
 	}
 
 	u.Out().Linef("id\t%s%s", msg.Id, gmailHumanMessageStatusMarker(ctx, msg.LabelIds))
