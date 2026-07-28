@@ -316,6 +316,16 @@ func buildDraftMessage(ctx context.Context, svc *gmail.Service, account string, 
 	if err != nil {
 		return nil, "", nil, err
 	}
+	// Reply as the alias the original was addressed to, unless --from was explicit. The
+	// alias comes from the verified send-as list, so it can't be a bad From; a lookup
+	// error leaves the account default in place.
+	if strings.TrimSpace(input.From) == "" && sendAsErr == nil {
+		if alias := pickSendAsFromRecipients(info.ToAddrs, info.CcAddrs, sendAs); alias != "" {
+			if picked, pickErr := resolveComposeFrom(ctx, svc, account, alias, sendAs, sendAsErr); pickErr == nil {
+				from = picked
+			}
+		}
+	}
 	threadID := info.ThreadID
 	atts := attachmentsFromPaths(input.Attach)
 	atts = append(atts, input.PrebuiltAttachments...)

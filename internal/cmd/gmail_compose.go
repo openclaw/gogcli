@@ -135,6 +135,18 @@ func resolveComposeFrom(ctx context.Context, svc *gmail.Service, account, from s
 	return result, nil
 }
 
+// pickSendAsFromRecipients returns the first verified send-as alias among the
+// original recipients — To before Cc, first match wins — or "" if none match.
+// This lets a reply go out as the identity the sender actually wrote to.
+func pickSendAsFromRecipients(toAddrs, ccAddrs []string, sendAs []*gmail.SendAs) string {
+	for _, addr := range append(append([]string{}, toAddrs...), ccAddrs...) {
+		if sa := findSendAsByEmail(sendAs, addr); sa != nil && sendAsAllowedForFrom(sa) {
+			return sa.SendAsEmail
+		}
+	}
+	return ""
+}
+
 func primaryDisplayNameFromPeople(ctx context.Context, account string) string {
 	svc, err := peopleContactsService(ctx, account)
 	if err != nil {

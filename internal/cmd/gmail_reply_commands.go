@@ -132,6 +132,16 @@ func (c *GmailReplyOptions) run(ctx context.Context, flags *RootFlags, messageID
 	if err != nil {
 		return err
 	}
+	// Reply as the alias the original was addressed to, unless --from was explicit. The
+	// alias comes from the verified send-as list, so it can't be a bad From; a lookup
+	// error leaves the account default in place.
+	if strings.TrimSpace(c.From) == "" && sendAsErr == nil {
+		if alias := pickSendAsFromRecipients(info.ToAddrs, info.CcAddrs, sendAs); alias != "" {
+			if picked, pickErr := resolveComposeFrom(ctx, svc, account, alias, sendAs, sendAsErr); pickErr == nil {
+				from = picked
+			}
+		}
+	}
 	recipients, err := buildReplyRecipients(
 		info,
 		selfEmailsForReply(account, from.sendingEmail, sendAs),
