@@ -122,7 +122,30 @@ func TestSheetsUpdatePositionalNamedSingleCellPreservesCommas(t *testing.T) {
 	}
 }
 
-func TestSheetsUpdatePositionalMultiCellMismatchDoesNotWrite(t *testing.T) {
+func TestSheetsUpdatePositionalPartialMultiCellRangeWritesOneCell(t *testing.T) {
+	recorder := &sheetsUpdatePositionalRecorder{}
+	ctx := newSheetsUpdatePositionalTestContext(t, recorder)
+
+	err := runKong(
+		t,
+		&SheetsUpdateCmd{},
+		[]string{"s1", "Sheet1!A1:B2", "one"},
+		ctx,
+		&RootFlags{Account: "a@b.com"},
+	)
+	if err != nil {
+		t.Fatalf("update: %v", err)
+	}
+	if recorder.updateCalls != 1 {
+		t.Fatalf("update calls = %d, want 1", recorder.updateCalls)
+	}
+	if len(recorder.values) != 1 || len(recorder.values[0]) != 1 ||
+		recorder.values[0][0] != "one" {
+		t.Fatalf("values = %#v, want one-cell matrix", recorder.values)
+	}
+}
+
+func TestSheetsUpdatePositionalMultiCellExceedsRangeDoesNotWrite(t *testing.T) {
 	recorder := &sheetsUpdatePositionalRecorder{}
 	ctx := newSheetsUpdatePositionalTestContext(t, recorder)
 
@@ -133,8 +156,8 @@ func TestSheetsUpdatePositionalMultiCellMismatchDoesNotWrite(t *testing.T) {
 		ctx,
 		&RootFlags{Account: "a@b.com"},
 	)
-	if err == nil || !strings.Contains(err.Error(), "update range has 2 rows") {
-		t.Fatalf("error = %v, want range-shape mismatch", err)
+	if err == nil || !strings.Contains(err.Error(), "exceeds the update range maximum of 2 rows") {
+		t.Fatalf("error = %v, want range-bounds error", err)
 	}
 	if recorder.updateCalls != 0 {
 		t.Fatalf("update calls = %d, want 0", recorder.updateCalls)

@@ -69,15 +69,25 @@ func TestParseArgsForShapeMatchesMultiCellRange(t *testing.T) {
 	}
 }
 
-func TestParseArgsForShapeRejectsMismatchedRange(t *testing.T) {
+func TestParseArgsForShapeAllowsSmallerMatrix(t *testing.T) {
+	values, err := ParseArgsForShape([]string{"a"}, 2, 2)
+	if err != nil {
+		t.Fatalf("ParseArgsForShape() error = %v", err)
+	}
+	if len(values) != 1 || len(values[0]) != 1 || values[0][0] != "a" {
+		t.Fatalf("values = %#v, want one-cell matrix", values)
+	}
+}
+
+func TestParseArgsForShapeRejectsExceedingRangeBounds(t *testing.T) {
 	for _, tc := range []struct {
 		name       string
 		values     []string
 		rows, cols int64
 		want       string
 	}{
-		{name: "rows", values: []string{"a,b,c"}, rows: 2, cols: 1, want: "3 rows"},
-		{name: "columns", values: []string{"a,b"}, rows: 2, cols: 2, want: "row 1 has 1 cells"},
+		{name: "rows", values: []string{"a,b,c"}, rows: 2, cols: 1, want: "3 rows, which exceeds"},
+		{name: "columns", values: []string{"a|b|c"}, rows: 1, cols: 2, want: "3 cells, which exceeds"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			_, err := ParseArgsForShape(tc.values, tc.rows, tc.cols)

@@ -76,18 +76,18 @@ func ParseArgsForShape(values []string, rowCount, columnCount int64) ([][]interf
 	}
 
 	parsed := ParseArgs(values)
-	if rowCount > 0 && int64(len(parsed)) != rowCount {
+	if rowCount > 0 && int64(len(parsed)) > rowCount {
 		return nil, invalidf(
-			"positional values have %d rows, but the update range has %d rows",
+			"positional values have %d rows, which exceeds the update range maximum of %d rows",
 			len(parsed),
 			rowCount,
 		)
 	}
 	if columnCount > 0 {
 		for i, row := range parsed {
-			if int64(len(row)) != columnCount {
+			if int64(len(row)) > columnCount {
 				return nil, invalidf(
-					"positional values row %d has %d cells, but the update range has %d columns",
+					"positional values row %d has %d cells, which exceeds the update range maximum of %d columns",
 					i+1,
 					len(row),
 					columnCount,
