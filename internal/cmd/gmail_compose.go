@@ -179,14 +179,26 @@ func prepareComposeReply(ctx context.Context, svc *gmail.Service, replyToMessage
 	if err != nil {
 		return nil, "", "", err
 	}
-	if quote {
-		loc, locErr := mailDateLocation(ctx, stderrWriter(ctx))
-		if locErr != nil {
-			return nil, "", "", locErr
-		}
-		plainBody, htmlBody = applyQuoteToBodies(plainBody, htmlBody, quote, info, loc)
+	plainBody, htmlBody, err = applyReplyQuote(ctx, quote, info, plainBody, htmlBody)
+	if err != nil {
+		return nil, "", "", err
 	}
 	return info, plainBody, htmlBody, nil
+}
+
+// applyReplyQuote appends the quoted original below the reply bodies. Split out
+// so the reply path can pick the From alias and resolve its signature between
+// fetching the original and quoting it, keeping the signature above the quote.
+func applyReplyQuote(ctx context.Context, quote bool, info *replyInfo, plainBody, htmlBody string) (string, string, error) {
+	if !quote {
+		return plainBody, htmlBody, nil
+	}
+	loc, err := mailDateLocation(ctx, stderrWriter(ctx))
+	if err != nil {
+		return "", "", err
+	}
+	plainBody, htmlBody = applyQuoteToBodies(plainBody, htmlBody, quote, info, loc)
+	return plainBody, htmlBody, nil
 }
 
 func buildGmailMessage(ctx context.Context, opts sendMessageOptions, batch sendBatch, allowMissingTo bool) (*gmail.Message, error) {

@@ -116,6 +116,21 @@ func (c *GmailReplyOptions) run(ctx context.Context, flags *RootFlags, messageID
 	if err != nil {
 		return err
 	}
+	info, err := fetchReplyInfo(ctx, svc, messageID, "", !c.NoQuote)
+	if err != nil {
+		return err
+	}
+	// Reply as the alias the original was addressed to, unless --from was explicit. The
+	// alias comes from the verified send-as list, so it can't be a bad From; a lookup
+	// error leaves the account default in place. Done before signature resolution so the
+	// signature matches the identity actually sending.
+	if strings.TrimSpace(c.From) == "" && sendAsErr == nil {
+		if alias := pickSendAsFromRecipients(info.ToAddrs, info.CcAddrs, sendAs); alias != "" {
+			if picked, pickErr := resolveComposeFrom(ctx, svc, account, alias, sendAs, sendAsErr); pickErr == nil {
+				from = picked
+			}
+		}
+	}
 	if signatureCmd.signatureRequested() {
 		signature, source, sigErr := signatureCmd.resolveComposeSignature(ctx, svc, from.sendingEmail)
 		if sigErr != nil {
@@ -127,20 +142,9 @@ func (c *GmailReplyOptions) run(ctx context.Context, flags *RootFlags, messageID
 			body, htmlBody = appendComposeSignature(body, htmlBody, signature)
 		}
 	}
-
-	info, body, htmlBody, err := prepareComposeReply(ctx, svc, messageID, "", !c.NoQuote, body, htmlBody)
+	body, htmlBody, err = applyReplyQuote(ctx, !c.NoQuote, info, body, htmlBody)
 	if err != nil {
 		return err
-	}
-	// Reply as the alias the original was addressed to, unless --from was explicit. The
-	// alias comes from the verified send-as list, so it can't be a bad From; a lookup
-	// error leaves the account default in place.
-	if strings.TrimSpace(c.From) == "" && sendAsErr == nil {
-		if alias := pickSendAsFromRecipients(info.ToAddrs, info.CcAddrs, sendAs); alias != "" {
-			if picked, pickErr := resolveComposeFrom(ctx, svc, account, alias, sendAs, sendAsErr); pickErr == nil {
-				from = picked
-			}
-		}
 	}
 	recipients, err := buildReplyRecipients(
 		info,

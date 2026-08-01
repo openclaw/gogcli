@@ -303,6 +303,59 @@ func TestExecuteGmailReplyAutoSelectsFromAddressedAlias(t *testing.T) {
 	})
 }
 
+// TestExecuteGmailReplySignatureFollowsAutoSelectedAlias proves the signature is
+// resolved for the auto-selected alias, not the account default: the alias must be
+// chosen before the signature is fetched.
+func TestExecuteGmailReplySignatureFollowsAutoSelectedAlias(t *testing.T) {
+	var sigEmail, sentRaw string
+	svc, cleanup := newGmailServiceForTest(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/gmail/v1/users/me/settings/sendAs":
+			_ = json.NewEncoder(w).Encode(map[string]any{"sendAs": []map[string]any{
+				{"sendAsEmail": "me@example.com", "displayName": "Me Person", "isPrimary": true, "verificationStatus": "accepted"},
+				{"sendAsEmail": "alias@example.com", "displayName": "Alias", "verificationStatus": "accepted"},
+			}})
+		case r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, "/gmail/v1/users/me/settings/sendAs/"):
+			sigEmail = strings.TrimPrefix(r.URL.Path, "/gmail/v1/users/me/settings/sendAs/")
+			_ = json.NewEncoder(w).Encode(map[string]any{"sendAsEmail": sigEmail, "signature": "<div>sig for " + sigEmail + "</div>"})
+		case r.Method == http.MethodGet && r.URL.Path == "/gmail/v1/users/me/messages/msg-1":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"id": "msg-1", "threadId": "thread-1",
+				"payload": map[string]any{"headers": []map[string]any{
+					{"name": "Message-ID", "value": "<original@example.com>"},
+					{"name": "From", "value": "alice@example.com"},
+					{"name": "To", "value": "alias@example.com"},
+					{"name": "Subject", "value": "Hi"},
+				}},
+			})
+		case r.Method == http.MethodPost && r.URL.Path == "/gmail/v1/users/me/messages/send":
+			body, _ := io.ReadAll(r.Body)
+			var msg gmail.Message
+			_ = json.Unmarshal(body, &msg)
+			raw, _ := base64.RawURLEncoding.DecodeString(msg.Raw)
+			sentRaw = string(raw)
+			_ = json.NewEncoder(w).Encode(map[string]any{"id": "sent-1", "threadId": "thread-1"})
+		default:
+			http.NotFound(w, r)
+		}
+	})
+	defer cleanup()
+
+	result := executeWithGmailTestService(t, []string{
+		"--json", "--account", "me@example.com", "gmail", "reply", "msg-1", "--body", "ok", "--no-quote", "--signature",
+	}, svc)
+	if result.err != nil {
+		t.Fatalf("Execute: %v", result.err)
+	}
+	if sigEmail != "alias@example.com" {
+		t.Fatalf("signature fetched for %q, want alias@example.com", sigEmail)
+	}
+	if !strings.Contains(sentRaw, "sig for alias@example.com") {
+		t.Fatalf("sent body missing alias signature:\n%s", sentRaw)
+	}
+}
+
 func TestExecuteGmailReplyEditedSubjectStartsNewThread(t *testing.T) {
 	var sentThreadID string
 	svc, cleanup := newGmailServiceForTest(t, func(w http.ResponseWriter, r *http.Request) {
