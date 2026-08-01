@@ -382,7 +382,7 @@ after the bounded retry window, the command exits with retryable code `8`.
 - `gog gmail thread get <threadId> [--download]`
 - `gog gmail thread modify <threadId> [--add ...] [--remove ...]`
 - `gog gmail get <messageId> [--format full|metadata|raw] [--headers ...]`
-- `gog gmail attachment <messageId> <attachmentId> [--out PATH] [--name NAME] [--inline]`
+- `gog gmail attachment <messageId> <attachmentId> [--out PATH] [--name NAME] [--inline] [--inline-max-bytes BYTES]`
 - `gog gmail url <threadIds...>`
 - `gog gmail reply <messageId> [--body B|--body-file PATH|--body-html HTML|--body-html-file PATH] [--to ...] [--cc ...] [--bcc ...] [--remove ...] [--subject S] [--no-quote] [--from addr] [--signature|--signature-from addr|--signature-file path] [--attach <file>...]`
 - `gog gmail reply-all <messageId> [--body B|--body-file PATH|--body-html HTML|--body-html-file PATH] [--to ...] [--cc ...] [--bcc ...] [--remove ...] [--subject S] [--no-quote] [--from addr] [--signature|--signature-from addr|--signature-file path] [--attach <file>...]`

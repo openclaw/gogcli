@@ -31,6 +31,7 @@ gog gmail (mail,email) attachment <messageId> <attachmentId> [flags]
 | `-h`<br>`--help` | `kong.helpFlag` |  | Show context-sensitive help. |
 | `--home` | `string` |  | Override gogcli config/data/state/cache root (equivalent to GOG_HOME) |
 | `--inline` | `bool` |  | Also return the attachment content base64-encoded (contentBase64) in the response; attachments over the inline size limit fall back to the file path with an explanatory reason |
+| `--inline-max-bytes` | `int` | 3145728 | Maximum attachment size --inline embeds (bytes) |
 | `-j`<br>`--json`<br>`--machine` | `bool` | false | Output JSON to stdout (best for scripting) |
 | `--name` | `string` |  | Filename (used when --out is empty or points to a directory) |
 | `--no-input`<br>`--non-interactive`<br>`--noninteractive` | `bool` |  | Never prompt; fail instead (useful for CI) |

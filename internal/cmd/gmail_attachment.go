@@ -59,6 +59,9 @@ func (c *GmailAttachmentCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if messageID == "" || attachmentID == "" {
 		return usage("messageId/attachmentId required")
 	}
+	if c.InlineMaxBytes < 0 {
+		return usage("--inline-max-bytes must be non-negative")
+	}
 	defaultDir := ""
 	if strings.TrimSpace(c.Output.Path) == "" {
 		layout, err := commandLayout(ctx, config.PathKindConfig)

@@ -126,6 +126,20 @@ func TestExecute_GmailAttachment_Inline_Oversized_FallsBackToPathWithReason(t *t
 	}
 }
 
+func TestExecute_GmailAttachment_Inline_NegativeLimitRejected(t *testing.T) {
+	result := executeWithTestRuntime(t, []string{
+		"--json", "--account", "a@b.com",
+		"gmail", "attachment", "m1", "a1",
+		"--out", tempFilePath(t, "a.txt"), "--inline", "--inline-max-bytes=-1",
+	}, nil)
+	if result.err == nil {
+		t.Fatalf("negative --inline-max-bytes must error, got stdout=%q", result.stdout)
+	}
+	if !strings.Contains(result.err.Error(), "--inline-max-bytes must be non-negative") {
+		t.Fatalf("err=%v", result.err)
+	}
+}
+
 func TestExecute_GmailAttachment_Default_OutputUnchanged(t *testing.T) {
 	data := []byte("plain old download")
 	svc := newGmailAttachmentTestService(t, data, "a.txt", "text/plain")
