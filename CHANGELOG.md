@@ -2,6 +2,7 @@
 
 ## 0.34.2 - 2026-07-27
 
+- Dependencies: refresh the Google API, gRPC, Markdown, terminal, and email-tracking worker toolchains to their latest compatible releases.
 - Security: update gRPC-Go, PostCSS, and Sharp/libvips to patched releases, clearing three high-severity dependency alerts. (#940)
 - Drive: add opt-in `upload --replace --if-version` conflict protection using a fail-closed ETag precondition, without changing unconditional replacement. (#929) — thanks @karstenevers.
 - Gmail: acknowledge terminal watch OAuth failures only after durably recording reauthentication recovery state, preserving the last processed history cursor for catch-up after renewal. (#930) — thanks @litang9.
