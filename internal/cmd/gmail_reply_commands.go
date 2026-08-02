@@ -21,21 +21,22 @@ type GmailReplyAllCmd struct {
 }
 
 type GmailReplyOptions struct {
-	To            []string `name:"to" sep:"none" help:"Add or move recipients to To (repeatable)"`
-	Cc            []string `name:"cc" sep:"none" help:"Add or move recipients to Cc (repeatable)"`
-	Bcc           []string `name:"bcc" sep:"none" help:"Add or move recipients to Bcc (repeatable)"`
-	Remove        []string `name:"remove" sep:"none" help:"Remove recipients from all fields (repeatable)"`
-	Subject       string   `name:"subject" help:"Override reply subject (a changed subject starts a new Gmail thread)"`
-	Body          string   `name:"body" help:"Body (plain text; required unless --body-html is set)"`
-	BodyFile      string   `name:"body-file" help:"Body file path (plain text; '-' for stdin)"`
-	BodyHTML      string   `name:"body-html" help:"Body (HTML; optional)"`
-	BodyHTMLFile  string   `name:"body-html-file" help:"HTML body file path ('-' for stdin)"`
-	NoQuote       bool     `name:"no-quote" help:"Do not include the original message below the reply"`
-	Attach        []string `name:"attach" sep:"none" help:"Attachment file path (repeatable)"`
-	From          string   `name:"from" help:"Send from this email address (must be a verified send-as alias)"`
-	Signature     bool     `name:"signature" help:"Append the Gmail signature from the active send-as address"`
-	SignatureFrom string   `name:"signature-from" help:"Append the Gmail signature from this send-as email address"`
-	SignatureFile string   `name:"signature-file" help:"Append a local signature file (plain text or HTML)"`
+	To                     []string `name:"to" sep:"none" help:"Add or move recipients to To (repeatable)"`
+	Cc                     []string `name:"cc" sep:"none" help:"Add or move recipients to Cc (repeatable)"`
+	Bcc                    []string `name:"bcc" sep:"none" help:"Add or move recipients to Bcc (repeatable)"`
+	Remove                 []string `name:"remove" sep:"none" help:"Remove recipients from all fields (repeatable)"`
+	Subject                string   `name:"subject" help:"Override reply subject (a changed subject starts a new Gmail thread)"`
+	Body                   string   `name:"body" help:"Body (plain text; required unless --body-html is set)"`
+	BodyFile               string   `name:"body-file" help:"Body file path (plain text; '-' for stdin)"`
+	BodyHTML               string   `name:"body-html" help:"Body (HTML; optional)"`
+	BodyHTMLFile           string   `name:"body-html-file" help:"HTML body file path ('-' for stdin)"`
+	NoQuote                bool     `name:"no-quote" help:"Do not include the original message below the reply"`
+	Attach                 []string `name:"attach" sep:"none" help:"Attachment file path (repeatable)"`
+	From                   string   `name:"from" help:"Send from this email address (must be a verified send-as alias)"`
+	AutoFromAddressedAlias bool     `name:"auto-from-addressed-alias" help:"When --from is omitted, reply from the verified send-as alias addressed by the original message"`
+	Signature              bool     `name:"signature" help:"Append the Gmail signature from the active send-as address"`
+	SignatureFrom          string   `name:"signature-from" help:"Append the Gmail signature from this send-as email address"`
+	SignatureFile          string   `name:"signature-file" help:"Append a local signature file (plain text or HTML)"`
 }
 
 func (c *GmailReplyCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -88,20 +89,21 @@ func (c *GmailReplyOptions) run(ctx context.Context, flags *RootFlags, messageID
 	}
 
 	if dryRunErr := dryRunExit(ctx, flags, "gmail."+replyModeName(replyAll), map[string]any{
-		"message_id":       messageID,
-		"to_add":           c.To,
-		"cc_add":           c.Cc,
-		"bcc_add":          c.Bcc,
-		"remove":           c.Remove,
-		"subject_override": strings.TrimSpace(c.Subject),
-		"quote":            !c.NoQuote,
-		"from":             strings.TrimSpace(c.From),
-		"body_len":         len(body),
-		"body_html_len":    len(htmlBody),
-		"attachments":      attachPaths,
-		"signature":        c.Signature,
-		"signature_from":   strings.TrimSpace(c.SignatureFrom),
-		"signature_file":   strings.TrimSpace(c.SignatureFile),
+		"message_id":                messageID,
+		"to_add":                    c.To,
+		"cc_add":                    c.Cc,
+		"bcc_add":                   c.Bcc,
+		"remove":                    c.Remove,
+		"subject_override":          strings.TrimSpace(c.Subject),
+		"quote":                     !c.NoQuote,
+		"from":                      strings.TrimSpace(c.From),
+		"auto_from_addressed_alias": c.AutoFromAddressedAlias,
+		"body_len":                  len(body),
+		"body_html_len":             len(htmlBody),
+		"attachments":               attachPaths,
+		"signature":                 c.Signature,
+		"signature_from":            strings.TrimSpace(c.SignatureFrom),
+		"signature_file":            strings.TrimSpace(c.SignatureFile),
 	}); dryRunErr != nil {
 		return dryRunErr
 	}
@@ -116,6 +118,19 @@ func (c *GmailReplyOptions) run(ctx context.Context, flags *RootFlags, messageID
 	if err != nil {
 		return err
 	}
+	info, err := fetchReplyInfo(ctx, svc, messageID, "", !c.NoQuote)
+	if err != nil {
+		return err
+	}
+	// When requested, reply as the verified alias the original was addressed to. Do this
+	// before signature resolution so the signature matches the identity actually sending.
+	if c.AutoFromAddressedAlias && strings.TrimSpace(c.From) == "" && sendAsErr == nil {
+		if alias := pickSendAsFromRecipients(info.ToAddrs, info.CcAddrs, sendAs); alias != "" {
+			if picked, pickErr := resolveComposeFrom(ctx, svc, account, alias, sendAs, sendAsErr); pickErr == nil {
+				from = picked
+			}
+		}
+	}
 	if signatureCmd.signatureRequested() {
 		signature, source, sigErr := signatureCmd.resolveComposeSignature(ctx, svc, from.sendingEmail)
 		if sigErr != nil {
@@ -127,8 +142,7 @@ func (c *GmailReplyOptions) run(ctx context.Context, flags *RootFlags, messageID
 			body, htmlBody = appendComposeSignature(body, htmlBody, signature)
 		}
 	}
-
-	info, body, htmlBody, err := prepareComposeReply(ctx, svc, messageID, "", !c.NoQuote, body, htmlBody)
+	body, htmlBody, err = applyReplyQuote(ctx, !c.NoQuote, info, body, htmlBody)
 	if err != nil {
 		return err
 	}

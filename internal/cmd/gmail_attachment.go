@@ -19,17 +19,15 @@ import (
 )
 
 type GmailAttachmentCmd struct {
-	MessageID    string         `arg:"" name:"messageId" help:"Message ID"`
-	AttachmentID string         `arg:"" name:"attachmentId" help:"Attachment ID"`
-	Output       OutputPathFlag `embed:""`
-	Name         string         `name:"name" help:"Filename (used when --out is empty or points to a directory)"`
-	Inline       bool           `name:"inline" help:"Also return the attachment content base64-encoded (contentBase64) in the response; attachments over the inline size limit fall back to the file path with an explanatory reason"`
+	MessageID      string         `arg:"" name:"messageId" help:"Message ID"`
+	AttachmentID   string         `arg:"" name:"attachmentId" help:"Attachment ID"`
+	Output         OutputPathFlag `embed:""`
+	Name           string         `name:"name" help:"Filename (used when --out is empty or points to a directory)"`
+	Inline         bool           `name:"inline" help:"Also return the attachment content base64-encoded (contentBase64) in the response; attachments over the inline size limit fall back to the file path with an explanatory reason"`
+	InlineMaxBytes int            `name:"inline-max-bytes" default:"3145728" help:"Maximum attachment size --inline embeds (bytes)" env:"GOG_GMAIL_INLINE_MAX_BYTES"`
 }
 
 const defaultGmailAttachmentFilename = "attachment.bin"
-
-// maxInlineAttachmentBytes caps how much raw attachment content --inline embeds.
-const maxInlineAttachmentBytes = 3 << 20
 
 func printAttachmentDownloadResult(ctx context.Context, u *ui.UI, payload map[string]any) error {
 	if outfmt.IsJSON(ctx) {
@@ -61,6 +59,9 @@ func (c *GmailAttachmentCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if messageID == "" || attachmentID == "" {
 		return usage("messageId/attachmentId required")
 	}
+	if c.InlineMaxBytes < 0 {
+		return usage("--inline-max-bytes must be non-negative")
+	}
 	defaultDir := ""
 	if strings.TrimSpace(c.Output.Path) == "" {
 		layout, err := commandLayout(ctx, config.PathKindConfig)
@@ -76,10 +77,11 @@ func (c *GmailAttachmentCmd) Run(ctx context.Context, flags *RootFlags) error {
 
 	// Avoid touching auth/keyring and avoid writing files in dry-run mode.
 	if dryRunErr := dryRunExit(ctx, flags, "gmail.attachment.download", map[string]any{
-		"message_id":    messageID,
-		"attachment_id": attachmentID,
-		"path":          dest,
-		"inline":        c.Inline,
+		"message_id":       messageID,
+		"attachment_id":    attachmentID,
+		"path":             dest,
+		"inline":           c.Inline,
+		"inline_max_bytes": c.InlineMaxBytes,
 	}); dryRunErr != nil {
 		return dryRunErr
 	}
@@ -126,16 +128,16 @@ func (c *GmailAttachmentCmd) Run(ctx context.Context, flags *RootFlags) error {
 		}
 	}
 	if c.Inline {
-		addInlineContent(payload, data)
+		addInlineContent(payload, data, c.InlineMaxBytes)
 	}
 	return printAttachmentDownloadResult(ctx, u, payload)
 }
 
 // addInlineContent embeds the fetched bytes, avoiding a second read of the
 // caller-controlled destination path.
-func addInlineContent(payload map[string]any, data []byte) {
-	if len(data) > maxInlineAttachmentBytes {
-		payload["reason"] = fmt.Sprintf("attachment size %d bytes exceeds inline size limit (%d bytes); content written to path only", len(data), maxInlineAttachmentBytes)
+func addInlineContent(payload map[string]any, data []byte, maxBytes int) {
+	if len(data) > maxBytes {
+		payload["reason"] = fmt.Sprintf("attachment size %d bytes exceeds inline size limit (%d bytes); content written to path only", len(data), maxBytes)
 		return
 	}
 	payload["contentBase64"] = base64.StdEncoding.EncodeToString(data)

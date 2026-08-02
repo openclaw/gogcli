@@ -3,6 +3,12 @@
 ## 0.34.2 - 2026-07-27
 
 - Dependencies: refresh the Google API, gRPC, Markdown, terminal, and email-tracking worker toolchains to their latest compatible releases.
+- Gmail: add opt-in reply From alias selection for the verified send-as alias addressed by the original message. (#948) — thanks @ronny-rentner.
+- Gmail: add configurable inline attachment byte limits while retaining the 3 MiB default and path fallback. (#947) — thanks @ronny-rentner.
+- Gmail: preserve single-object result envelopes for attachment-bearing `--results-only` output. (#943) — thanks @hashtag1974.
+- Sheets: keep positional updates within the requested range, preserving comma-bearing single-cell values and accurate named-range dry runs. (#941) — thanks @cathrynlavery.
+- Gmail: add source-specific `internalDateIso` timestamps to message and thread listings while preserving the legacy sender-header `date`. (#945, #946) — thanks @chrischall.
+- Gmail: prevent standalone draft updates from acquiring self-referential reply headers, with explicit recovery for affected drafts. (#942, #944) — thanks @chrischall.
 - Security: update gRPC-Go, PostCSS, and Sharp/libvips to patched releases, clearing three high-severity dependency alerts. (#940)
 - Drive: add opt-in `upload --replace --if-version` conflict protection using a fail-closed ETag precondition, without changing unconditional replacement. (#929) — thanks @karstenevers.
 - Gmail: acknowledge terminal watch OAuth failures only after durably recording reauthentication recovery state, preserving the last processed history cursor for catch-up after renewal. (#930) — thanks @litang9.

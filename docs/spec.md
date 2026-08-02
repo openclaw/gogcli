@@ -382,10 +382,10 @@ after the bounded retry window, the command exits with retryable code `8`.
 - `gog gmail thread get <threadId> [--download]`
 - `gog gmail thread modify <threadId> [--add ...] [--remove ...]`
 - `gog gmail get <messageId> [--format full|metadata|raw] [--headers ...]`
-- `gog gmail attachment <messageId> <attachmentId> [--out PATH] [--name NAME] [--inline]`
+- `gog gmail attachment <messageId> <attachmentId> [--out PATH] [--name NAME] [--inline] [--inline-max-bytes BYTES]`
 - `gog gmail url <threadIds...>`
-- `gog gmail reply <messageId> [--body B|--body-file PATH|--body-html HTML|--body-html-file PATH] [--to ...] [--cc ...] [--bcc ...] [--remove ...] [--subject S] [--no-quote] [--from addr] [--signature|--signature-from addr|--signature-file path] [--attach <file>...]`
-- `gog gmail reply-all <messageId> [--body B|--body-file PATH|--body-html HTML|--body-html-file PATH] [--to ...] [--cc ...] [--bcc ...] [--remove ...] [--subject S] [--no-quote] [--from addr] [--signature|--signature-from addr|--signature-file path] [--attach <file>...]`
+- `gog gmail reply <messageId> [--body B|--body-file PATH|--body-html HTML|--body-html-file PATH] [--to ...] [--cc ...] [--bcc ...] [--remove ...] [--subject S] [--no-quote] [--from addr|--auto-from-addressed-alias] [--signature|--signature-from addr|--signature-file path] [--attach <file>...]`
+- `gog gmail reply-all <messageId> [--body B|--body-file PATH|--body-html HTML|--body-html-file PATH] [--to ...] [--cc ...] [--bcc ...] [--remove ...] [--subject S] [--no-quote] [--from addr|--auto-from-addressed-alias] [--signature|--signature-from addr|--signature-file path] [--attach <file>...]`
 - `gog gmail forward <messageId> --to a@b.com [--cc ...] [--bcc ...] [--note TEXT|--note-file PATH] [--from addr] [--skip-attachments]`
 - `gog gmail labels list`
 - `gog gmail labels get <labelIdOrName>`
@@ -395,8 +395,8 @@ after the bounded retry window, the command exits with retryable code `8`.
 - `gog gmail send --to a@b.com [--subject S] [--body B|--body-file PATH] [--body-html H|--body-html-file PATH] [--cc ...] [--bcc ...] [--reply-to-message-id <messageId>] [--reply-to addr] [--from addr] [--signature|--signature-from addr|--signature-file path] [--attach <file>...]`
 - `gog gmail drafts list [--max N] [--page TOKEN]`
 - `gog gmail drafts get <draftId> [--download]`
-- `gog gmail drafts create [--subject S] [--to a@b.com] [--body B] [--body-html H] [--cc ...] [--bcc ...] [--reply-to-message-id <messageId>|--thread-id <threadId>] [--reply-all] [--reply-to addr] [--attach <file>...]`
-- `gog gmail drafts update <draftId> [--subject S] [--to a@b.com] [--body B] [--body-html H] [--cc ...] [--bcc ...] [--reply-to-message-id <messageId>|--thread-id <threadId>] [--reply-all] [--reply-to addr] [--attach <file>...]`
+- `gog gmail drafts create [--subject S] [--to a@b.com] [--body B] [--body-html H] [--cc ...] [--bcc ...] [--reply-to-message-id <messageId>|--thread-id <threadId>] [--reply-all] [--reply-to addr] [--from addr|--auto-from-addressed-alias] [--attach <file>...]`
+- `gog gmail drafts update <draftId> [--subject S] [--to a@b.com] [--body B] [--body-html H] [--cc ...] [--bcc ...] [--reply-to-message-id <messageId>|--thread-id <threadId>] [--reply-all] [--reply-to addr] [--from addr|--auto-from-addressed-alias] [--attach <file>...]`
 - `gog gmail drafts send <draftId>`
 - `gog gmail drafts delete <draftId>`
 - `gog gmail watch start|status|renew|stop|serve`

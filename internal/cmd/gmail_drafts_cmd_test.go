@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"bytes"
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"io"
@@ -9,12 +10,14 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
 	"google.golang.org/api/gmail/v1"
 
 	"github.com/steipete/gogcli/internal/mailmime"
+	"github.com/steipete/gogcli/internal/outfmt"
 )
 
 type gmailQuoteSource struct {
@@ -321,6 +324,85 @@ func TestGmailDraftsCreateCmd_JSON(t *testing.T) {
 	}
 	if parsed.DraftID != "d1" {
 		t.Fatalf("unexpected json: %#v", parsed)
+	}
+}
+
+func TestGmailDraftsCreateCmd_JSON_ResultsOnlyPreservesCompleteAttachmentResult(t *testing.T) {
+	attachmentPath := filepath.Join(t.TempDir(), "fixture.txt")
+	if err := os.WriteFile(attachmentPath, []byte("fixture"), 0o600); err != nil {
+		t.Fatalf("write attachment: %v", err)
+	}
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.Contains(r.URL.Path, "/gmail/v1/users/me/drafts") && r.Method == http.MethodPost {
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"id": "d1",
+				"message": map[string]any{
+					"id":       "m1",
+					"threadId": "t1",
+				},
+			})
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer srv.Close()
+
+	run := func(resultsOnly bool) []byte {
+		t.Helper()
+		svc := newGmailServiceFromServer(t, srv)
+		flags := &RootFlags{Account: "synthetic@example.com"}
+		var jsonOut bytes.Buffer
+		ctx := withGmailTestService(newCmdRuntimeJSONOutputContext(t, &jsonOut, io.Discard), svc)
+		if resultsOnly {
+			ctx = outfmt.WithJSONTransform(ctx, outfmt.JSONTransform{ResultsOnly: true})
+		}
+		if err := runKong(t, &GmailDraftsCreateCmd{}, []string{
+			"--to", "recipient@example.com",
+			"--subject", "Synthetic subject",
+			"--body", "Synthetic body",
+			"--attach", attachmentPath,
+		}, ctx, flags); err != nil {
+			t.Fatalf("execute: %v", err)
+		}
+		return jsonOut.Bytes()
+	}
+
+	baseline := run(false)
+	got := run(true)
+	var wantValue any
+	if err := json.Unmarshal(baseline, &wantValue); err != nil {
+		t.Fatalf("baseline json parse: %v", err)
+	}
+	var gotValue any
+	if err := json.Unmarshal(got, &gotValue); err != nil {
+		t.Fatalf("results-only json parse: %v", err)
+	}
+	if !reflect.DeepEqual(gotValue, wantValue) {
+		t.Fatalf("--results-only changed the complete Gmail draft-create result:\ngot:\n%s\nwant:\n%s", got, baseline)
+	}
+
+	parsed, ok := gotValue.(map[string]any)
+	if !ok {
+		t.Fatalf("expected complete Gmail draft-create object, got %T: %s", gotValue, got)
+	}
+	expectedKeys := []string{
+		"draftId",
+		"message",
+		"threadId",
+		"attachments",
+		"inReplyTo",
+		"references",
+		"replyContextSource",
+	}
+	for _, key := range expectedKeys {
+		if _, ok := parsed[key]; !ok {
+			t.Fatalf("synthetic pre-transform shape is missing %q: %s", key, got)
+		}
+	}
+	if len(parsed) != len(expectedKeys) {
+		t.Fatalf("unexpected synthetic pre-transform keys: %s", got)
 	}
 }
 
@@ -1485,6 +1567,62 @@ func TestGmailDraftsCreateCmd_ReplyAllWithReplyToMessageID(t *testing.T) {
 		if strings.Contains(s, excluded) {
 			t.Fatalf("reply-all draft included self address %q:\n%s", excluded, s)
 		}
+	}
+}
+
+func TestBuildDraftMessageAutoSelectsFromAddressedAliasOnlyWhenRequested(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.URL.Path == "/gmail/v1/users/me/settings/sendAs" && r.Method == http.MethodGet:
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"sendAs": []map[string]any{
+					{"sendAsEmail": "me@example.com", "displayName": "Me Person", "isPrimary": true, "verificationStatus": "accepted"},
+					{"sendAsEmail": "alias@example.com", "displayName": "Alias", "verificationStatus": "accepted"},
+				},
+			})
+		case r.URL.Path == "/gmail/v1/users/me/messages/m1" && r.Method == http.MethodGet:
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"id": "m1", "threadId": "t1",
+				"payload": map[string]any{"headers": []map[string]any{
+					{"name": "Message-ID", "value": "<m1@example.com>"},
+					{"name": "From", "value": "sender@example.com"},
+					{"name": "To", "value": "alias@example.com"},
+					{"name": "Subject", "value": "Original"},
+				}},
+			})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+
+	svc := newGmailServiceFromServer(t, srv)
+	for _, tc := range []struct {
+		name       string
+		autoSelect bool
+		wantFrom   string
+	}{
+		{name: "default", wantFrom: "me@example.com"},
+		{name: "opt in", autoSelect: true, wantFrom: "alias@example.com"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			msg, _, _, err := buildDraftMessage(context.Background(), svc, "me@example.com", draftComposeInput{
+				Body:                   "Thanks",
+				ReplyToMessageID:       "m1",
+				AutoFromAddressedAlias: tc.autoSelect,
+			})
+			if err != nil {
+				t.Fatalf("buildDraftMessage: %v", err)
+			}
+			raw, err := base64.RawURLEncoding.DecodeString(msg.Raw)
+			if err != nil {
+				t.Fatalf("decode raw: %v", err)
+			}
+			if !strings.Contains(string(raw), tc.wantFrom) {
+				t.Fatalf("message missing From %q:\n%s", tc.wantFrom, raw)
+			}
+		})
 	}
 }
 

@@ -62,6 +62,12 @@ func fetchReplyInfo(ctx context.Context, svc *gmail.Service, replyToMessageID st
 		if err != nil {
 			return nil, err
 		}
+		// A draft has never been delivered, so nothing can thread against its
+		// Message-Id. Refuse rather than emit a reference to a message that
+		// does not exist for any recipient.
+		if msg != nil && hasLabel(msg.LabelIds, "DRAFT") {
+			return nil, fmt.Errorf("reply target message %s is a draft; cannot reply to an unsent message", replyToMessageID)
+		}
 		info := replyInfoFromMessage(msg, includeQuoteBodies)
 		if includeQuoteBodies {
 			info.InlineResources, err = preserveReferencedInlineResources(ctx, svc, msg.Id, msg.Payload, info.BodyHTML)
@@ -83,9 +89,11 @@ func fetchReplyInfo(ctx context.Context, svc *gmail.Service, replyToMessageID st
 		return nil, fmt.Errorf("thread %s has no messages", threadID)
 	}
 
-	msg := selectLatestThreadMessage(thread.Messages)
+	// Only sent or received messages are valid reply parents; a draft in the
+	// thread (including this draft's own previous revision) is not.
+	msg := selectLatestThreadMessage(nonDraftMessages(thread.Messages))
 	if msg == nil {
-		return nil, fmt.Errorf("thread %s has no messages", threadID)
+		return nil, fmt.Errorf("thread %s has no sent or received message to reply to (drafts cannot be reply targets)", threadID)
 	}
 	if includeQuoteBodies && msg.Id != "" {
 		fullMsg, fullErr := fetchMessageForReplyInfo(ctx, svc, msg.Id, true)
@@ -162,6 +170,19 @@ func replyInfoFromMessage(msg *gmail.Message, includeQuoteBodies bool) *replyInf
 		info.References = info.References + " " + messageID
 	}
 	return info
+}
+
+// nonDraftMessages drops draft messages from a thread. Reply headers may only
+// ever point at a message that was actually sent or received.
+func nonDraftMessages(messages []*gmail.Message) []*gmail.Message {
+	out := make([]*gmail.Message, 0, len(messages))
+	for _, msg := range messages {
+		if msg == nil || hasLabel(msg.LabelIds, "DRAFT") {
+			continue
+		}
+		out = append(out, msg)
+	}
+	return out
 }
 
 func selectLatestThreadMessage(messages []*gmail.Message) *gmail.Message {

@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -96,14 +97,17 @@ func TestExecute_GmailAttachment_Inline_SmallAttachment_ReturnsBase64(t *testing
 }
 
 func TestExecute_GmailAttachment_Inline_Oversized_FallsBackToPathWithReason(t *testing.T) {
-	data := bytes.Repeat([]byte("x"), maxInlineAttachmentBytes+1)
+	// The limit is configured artificially low; the property under test is only
+	// the boundary crossing (payload = limit+1), not any realistic size.
+	const inlineLimit = 8
+	data := bytes.Repeat([]byte("x"), inlineLimit+1)
 	svc := newGmailAttachmentTestService(t, data, "big.bin", "application/octet-stream")
 	outPath := tempFilePath(t, "big.bin")
 
 	parsed := executeGmailAttachmentJSON(t, svc,
 		"--json", "--account", "a@b.com",
 		"gmail", "attachment", "m1", "a1",
-		"--out", outPath, "--inline",
+		"--out", outPath, "--inline", "--inline-max-bytes", strconv.Itoa(inlineLimit),
 	)
 
 	if _, ok := parsed["contentBase64"]; ok {
@@ -119,6 +123,20 @@ func TestExecute_GmailAttachment_Inline_Oversized_FallsBackToPathWithReason(t *t
 	st, statErr := os.Stat(outPath)
 	if statErr != nil || st.Size() != int64(len(data)) {
 		t.Fatalf("file not written: %v size=%v", statErr, st)
+	}
+}
+
+func TestExecute_GmailAttachment_Inline_NegativeLimitRejected(t *testing.T) {
+	result := executeWithTestRuntime(t, []string{
+		"--json", "--account", "a@b.com",
+		"gmail", "attachment", "m1", "a1",
+		"--out", tempFilePath(t, "a.txt"), "--inline", "--inline-max-bytes=-1",
+	}, nil)
+	if result.err == nil {
+		t.Fatalf("negative --inline-max-bytes must error, got stdout=%q", result.stdout)
+	}
+	if !strings.Contains(result.err.Error(), "--inline-max-bytes must be non-negative") {
+		t.Fatalf("err=%v", result.err)
 	}
 }
 
@@ -187,7 +205,7 @@ func TestExecute_GmailAttachment_Inline_DryRunReportsMode(t *testing.T) {
 	result := executeWithTestRuntime(t, []string{
 		"--json", "--dry-run", "--account", "a@b.com",
 		"gmail", "attachment", "m1", "a1",
-		"--out", tempFilePath(t, "a.txt"), "--inline",
+		"--out", tempFilePath(t, "a.txt"), "--inline", "--inline-max-bytes", "42",
 	}, nil)
 	if result.err != nil {
 		t.Fatalf("Execute: %v\nstderr=%q", result.err, result.stderr)
@@ -199,7 +217,7 @@ func TestExecute_GmailAttachment_Inline_DryRunReportsMode(t *testing.T) {
 	if err := json.Unmarshal([]byte(result.stdout), &parsed); err != nil {
 		t.Fatalf("Unmarshal: %v\nstdout=%q", err, result.stdout)
 	}
-	if !parsed.DryRun || parsed.Request["inline"] != true {
+	if !parsed.DryRun || parsed.Request["inline"] != true || parsed.Request["inline_max_bytes"] != float64(42) {
 		t.Fatalf("unexpected dry-run output: %#v", parsed)
 	}
 }

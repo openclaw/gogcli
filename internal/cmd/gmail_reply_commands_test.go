@@ -234,6 +234,137 @@ func TestExecuteGmailReplyAllDefaultsAndInlineImages(t *testing.T) {
 	}
 }
 
+func TestExecuteGmailReplyAutoSelectsFromAddressedAlias(t *testing.T) {
+	sendReply := func(t *testing.T, originalTo string, autoSelect bool, extraArgs ...string) string {
+		t.Helper()
+		var sentRaw string
+		svc, cleanup := newGmailServiceForTest(t, func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			switch {
+			case r.Method == http.MethodGet && r.URL.Path == "/gmail/v1/users/me/settings/sendAs":
+				_ = json.NewEncoder(w).Encode(map[string]any{"sendAs": []map[string]any{
+					{"sendAsEmail": "me@example.com", "displayName": "Me Person", "isPrimary": true, "verificationStatus": "accepted"},
+					{"sendAsEmail": "alias@example.com", "displayName": "Alias", "verificationStatus": "accepted"},
+				}})
+			case r.Method == http.MethodGet && r.URL.Path == "/gmail/v1/users/me/messages/msg-1":
+				_ = json.NewEncoder(w).Encode(map[string]any{
+					"id": "msg-1", "threadId": "thread-1",
+					"payload": map[string]any{"headers": []map[string]any{
+						{"name": "Message-ID", "value": "<original@example.com>"},
+						{"name": "From", "value": "alice@example.com"},
+						{"name": "To", "value": originalTo},
+						{"name": "Subject", "value": "Hi"},
+					}},
+				})
+			case r.Method == http.MethodPost && r.URL.Path == "/gmail/v1/users/me/messages/send":
+				body, _ := io.ReadAll(r.Body)
+				var msg gmail.Message
+				_ = json.Unmarshal(body, &msg)
+				raw, _ := base64.RawURLEncoding.DecodeString(msg.Raw)
+				sentRaw = string(raw)
+				_ = json.NewEncoder(w).Encode(map[string]any{"id": "sent-1", "threadId": "thread-1"})
+			default:
+				http.NotFound(w, r)
+			}
+		})
+		defer cleanup()
+
+		args := []string{"--json", "--account", "me@example.com", "gmail", "reply", "msg-1", "--body", "ok", "--no-quote"}
+		if autoSelect {
+			args = append(args, "--auto-from-addressed-alias")
+		}
+		args = append(args, extraArgs...)
+		result := executeWithGmailTestService(t, args, svc)
+		if result.err != nil {
+			t.Fatalf("Execute: %v", result.err)
+		}
+		return sentRaw
+	}
+
+	fromAddr := func(raw string) string {
+		for _, line := range strings.Split(raw, "\n") {
+			if strings.HasPrefix(line, "From:") {
+				return line
+			}
+		}
+		return ""
+	}
+
+	t.Run("addressed to alias uses it as From", func(t *testing.T) {
+		if from := fromAddr(sendReply(t, "alias@example.com", true)); !strings.Contains(from, "alias@example.com") {
+			t.Fatalf("From is not the addressed alias: %q", from)
+		}
+	})
+	t.Run("no alias match falls back to account default", func(t *testing.T) {
+		if from := fromAddr(sendReply(t, "someone@else.com", true)); !strings.Contains(from, "me@example.com") {
+			t.Fatalf("From is not the account default: %q", from)
+		}
+	})
+	t.Run("explicit --from overrides auto-select", func(t *testing.T) {
+		if from := fromAddr(sendReply(t, "alias@example.com", true, "--from", "me@example.com")); !strings.Contains(from, "me@example.com") {
+			t.Fatalf("explicit --from not honored: %q", from)
+		}
+	})
+	t.Run("omitted flag keeps account default", func(t *testing.T) {
+		if from := fromAddr(sendReply(t, "alias@example.com", false)); !strings.Contains(from, "me@example.com") {
+			t.Fatalf("From is not the account default: %q", from)
+		}
+	})
+}
+
+// TestExecuteGmailReplySignatureFollowsAutoSelectedAlias proves the signature is
+// resolved for the auto-selected alias, not the account default: the alias must be
+// chosen before the signature is fetched.
+func TestExecuteGmailReplySignatureFollowsAutoSelectedAlias(t *testing.T) {
+	var sigEmail, sentRaw string
+	svc, cleanup := newGmailServiceForTest(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/gmail/v1/users/me/settings/sendAs":
+			_ = json.NewEncoder(w).Encode(map[string]any{"sendAs": []map[string]any{
+				{"sendAsEmail": "me@example.com", "displayName": "Me Person", "isPrimary": true, "verificationStatus": "accepted"},
+				{"sendAsEmail": "alias@example.com", "displayName": "Alias", "verificationStatus": "accepted"},
+			}})
+		case r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, "/gmail/v1/users/me/settings/sendAs/"):
+			sigEmail = strings.TrimPrefix(r.URL.Path, "/gmail/v1/users/me/settings/sendAs/")
+			_ = json.NewEncoder(w).Encode(map[string]any{"sendAsEmail": sigEmail, "signature": "<div>sig for " + sigEmail + "</div>"})
+		case r.Method == http.MethodGet && r.URL.Path == "/gmail/v1/users/me/messages/msg-1":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"id": "msg-1", "threadId": "thread-1",
+				"payload": map[string]any{"headers": []map[string]any{
+					{"name": "Message-ID", "value": "<original@example.com>"},
+					{"name": "From", "value": "alice@example.com"},
+					{"name": "To", "value": "alias@example.com"},
+					{"name": "Subject", "value": "Hi"},
+				}},
+			})
+		case r.Method == http.MethodPost && r.URL.Path == "/gmail/v1/users/me/messages/send":
+			body, _ := io.ReadAll(r.Body)
+			var msg gmail.Message
+			_ = json.Unmarshal(body, &msg)
+			raw, _ := base64.RawURLEncoding.DecodeString(msg.Raw)
+			sentRaw = string(raw)
+			_ = json.NewEncoder(w).Encode(map[string]any{"id": "sent-1", "threadId": "thread-1"})
+		default:
+			http.NotFound(w, r)
+		}
+	})
+	defer cleanup()
+
+	result := executeWithGmailTestService(t, []string{
+		"--json", "--account", "me@example.com", "gmail", "reply", "msg-1", "--body", "ok", "--no-quote", "--signature", "--auto-from-addressed-alias",
+	}, svc)
+	if result.err != nil {
+		t.Fatalf("Execute: %v", result.err)
+	}
+	if sigEmail != "alias@example.com" {
+		t.Fatalf("signature fetched for %q, want alias@example.com", sigEmail)
+	}
+	if !strings.Contains(sentRaw, "sig for alias@example.com") {
+		t.Fatalf("sent body missing alias signature:\n%s", sentRaw)
+	}
+}
+
 func TestExecuteGmailReplyEditedSubjectStartsNewThread(t *testing.T) {
 	var sentThreadID string
 	svc, cleanup := newGmailServiceForTest(t, func(w http.ResponseWriter, r *http.Request) {
