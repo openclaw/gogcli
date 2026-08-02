@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+echo "scripts/release-local is retired; dispatch .github/workflows/release-unified.yml" >&2
+exit 2
+
 root=$(cd "$(dirname "$0")/.." && pwd)
 repository=openclaw/gogcli
 trusted_default_branch=
