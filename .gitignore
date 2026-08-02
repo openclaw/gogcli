@@ -33,6 +33,9 @@ go.work.sum
 # .idea/
 # .vscode/
 
+# Local PR drafting
+/PR_DESCRIPTION.md
+
 # Local tools
 .tools/
 .clawpatch/
