@@ -2,6 +2,7 @@
 
 ## 0.34.2 - 2026-07-27
 
+- Sheets: keep positional updates within the requested range, preserving comma-bearing single-cell values and accurate named-range dry runs. (#941) — thanks @cathrynlavery.
 - Gmail: add source-specific `internalDateIso` timestamps to message and thread listings while preserving the legacy sender-header `date`. (#945, #946) — thanks @chrischall.
 - Gmail: prevent standalone draft updates from acquiring self-referential reply headers, with explicit recovery for affected drafts. (#942, #944) — thanks @chrischall.
 - Security: update gRPC-Go, PostCSS, and Sharp/libvips to patched releases, clearing three high-severity dependency alerts. (#940)
