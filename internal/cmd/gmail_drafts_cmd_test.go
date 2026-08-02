@@ -386,12 +386,21 @@ func TestGmailDraftsCreateCmd_JSON_ResultsOnlyPreservesCompleteAttachmentResult(
 	if !ok {
 		t.Fatalf("expected complete Gmail draft-create object, got %T: %s", gotValue, got)
 	}
-	for _, key := range []string{"draftId", "message", "threadId", "attachments"} {
+	expectedKeys := []string{
+		"draftId",
+		"message",
+		"threadId",
+		"attachments",
+		"inReplyTo",
+		"references",
+		"replyContextSource",
+	}
+	for _, key := range expectedKeys {
 		if _, ok := parsed[key]; !ok {
 			t.Fatalf("synthetic pre-transform shape is missing %q: %s", key, got)
 		}
 	}
-	if len(parsed) != 4 {
+	if len(parsed) != len(expectedKeys) {
 		t.Fatalf("unexpected synthetic pre-transform keys: %s", got)
 	}
 }
