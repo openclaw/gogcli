@@ -28,6 +28,7 @@ gog gmail (mail,email) drafts (draft) update (edit,set) <draftId> [flags]
 | `--body-html-file` | `string` |  | HTML body file path ('-' for stdin) |
 | `--cc` | `string` |  | CC recipients (comma-separated) |
 | `--clear-attachments` | `bool` |  | Remove all attachments from the draft. By default, omitting --attach preserves the draft's existing attachments. |
+| `--clear-reply-context` | `bool` |  | Strip In-Reply-To/References from the draft, making it a standalone message. By default an update preserves the draft's existing reply headers. |
 | `--client` | `string` |  | OAuth client name (selects stored credentials + token bucket) |
 | `--color` | `string` | auto | Color output: auto\|always\|never |
 | `--disable-commands` | `string` |  | Comma-separated list of disabled commands; dot paths allowed |
