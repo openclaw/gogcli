@@ -9,12 +9,14 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
 	"google.golang.org/api/gmail/v1"
 
 	"github.com/steipete/gogcli/internal/mailmime"
+	"github.com/steipete/gogcli/internal/outfmt"
 )
 
 type gmailQuoteSource struct {
@@ -321,6 +323,85 @@ func TestGmailDraftsCreateCmd_JSON(t *testing.T) {
 	}
 	if parsed.DraftID != "d1" {
 		t.Fatalf("unexpected json: %#v", parsed)
+	}
+}
+
+func TestGmailDraftsCreateCmd_JSON_ResultsOnlyPreservesCompleteAttachmentResult(t *testing.T) {
+	attachmentPath := filepath.Join(t.TempDir(), "fixture.txt")
+	if err := os.WriteFile(attachmentPath, []byte("fixture"), 0o600); err != nil {
+		t.Fatalf("write attachment: %v", err)
+	}
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.Contains(r.URL.Path, "/gmail/v1/users/me/drafts") && r.Method == http.MethodPost {
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"id": "d1",
+				"message": map[string]any{
+					"id":       "m1",
+					"threadId": "t1",
+				},
+			})
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer srv.Close()
+
+	run := func(resultsOnly bool) []byte {
+		t.Helper()
+		svc := newGmailServiceFromServer(t, srv)
+		flags := &RootFlags{Account: "synthetic@example.com"}
+		var jsonOut bytes.Buffer
+		ctx := withGmailTestService(newCmdRuntimeJSONOutputContext(t, &jsonOut, io.Discard), svc)
+		if resultsOnly {
+			ctx = outfmt.WithJSONTransform(ctx, outfmt.JSONTransform{ResultsOnly: true})
+		}
+		if err := runKong(t, &GmailDraftsCreateCmd{}, []string{
+			"--to", "recipient@example.com",
+			"--subject", "Synthetic subject",
+			"--body", "Synthetic body",
+			"--attach", attachmentPath,
+		}, ctx, flags); err != nil {
+			t.Fatalf("execute: %v", err)
+		}
+		return jsonOut.Bytes()
+	}
+
+	baseline := run(false)
+	got := run(true)
+	var wantValue any
+	if err := json.Unmarshal(baseline, &wantValue); err != nil {
+		t.Fatalf("baseline json parse: %v", err)
+	}
+	var gotValue any
+	if err := json.Unmarshal(got, &gotValue); err != nil {
+		t.Fatalf("results-only json parse: %v", err)
+	}
+	if !reflect.DeepEqual(gotValue, wantValue) {
+		t.Fatalf("--results-only changed the complete Gmail draft-create result:\ngot:\n%s\nwant:\n%s", got, baseline)
+	}
+
+	parsed, ok := gotValue.(map[string]any)
+	if !ok {
+		t.Fatalf("expected complete Gmail draft-create object, got %T: %s", gotValue, got)
+	}
+	expectedKeys := []string{
+		"draftId",
+		"message",
+		"threadId",
+		"attachments",
+		"inReplyTo",
+		"references",
+		"replyContextSource",
+	}
+	for _, key := range expectedKeys {
+		if _, ok := parsed[key]; !ok {
+			t.Fatalf("synthetic pre-transform shape is missing %q: %s", key, got)
+		}
+	}
+	if len(parsed) != len(expectedKeys) {
+		t.Fatalf("unexpected synthetic pre-transform keys: %s", got)
 	}
 }
 

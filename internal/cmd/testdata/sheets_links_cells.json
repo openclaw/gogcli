@@ -1,0 +1,4 @@
+[
+  {"cell":"Sheet1!B2","url":"https://file.test/b2","text":"B2"},
+  {"cell":"Sheet1!B3","runs":[{"text":"B3","uri":"https://file.test/b3"}]}
+]
