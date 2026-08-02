@@ -279,10 +279,20 @@ type draftComposeInput struct {
 	BodyHTML         string
 	ReplyToMessageID string
 	ReplyToThreadID  string
-	ReplyAll         bool
-	ReplyTo          string
-	Quote            bool
-	Attach           []string
+	// ThreadContinuityID keeps a rebuilt message in the thread it already
+	// belongs to. It is deliberately NOT a reply target: where a message lives
+	// says nothing about what it replies to. Only used when no reply target
+	// resolved a thread of its own.
+	ThreadContinuityID string
+	// InReplyTo/References carry a reply lineage that has already been
+	// resolved elsewhere — on update, the lineage the draft itself already
+	// stores. Applied verbatim, so repeated updates are idempotent.
+	InReplyTo  string
+	References string
+	ReplyAll   bool
+	ReplyTo    string
+	Quote      bool
+	Attach     []string
 	// PrebuiltAttachments carry already-resolved attachment bytes (e.g. existing
 	// draft attachments preserved across an update) alongside any --attach paths.
 	PrebuiltAttachments    []mailmime.Attachment
@@ -307,16 +317,42 @@ func (c draftComposeInput) validate() error {
 	return nil
 }
 
-func buildDraftMessage(ctx context.Context, svc *gmail.Service, account string, input draftComposeInput) (*gmail.Message, string, []mailmime.AttachmentMetadata, error) {
+func buildDraftMessage(ctx context.Context, svc *gmail.Service, account string, input draftComposeInput) (*gmail.Message, draftThreading, []mailmime.AttachmentMetadata, error) {
 	sendAs, sendAsErr := listSendAs(ctx, svc)
 	from, err := resolveComposeFrom(ctx, svc, account, input.From, sendAs, sendAsErr)
 	if err != nil {
-		return nil, "", nil, err
+		return nil, draftThreading{}, nil, err
 	}
 
 	info, body, htmlBody, err := prepareComposeReply(ctx, svc, input.ReplyToMessageID, input.ReplyToThreadID, input.Quote, input.Body, input.BodyHTML)
 	if err != nil {
-		return nil, "", nil, err
+		return nil, draftThreading{}, nil, err
+	}
+	replyContextSource := ""
+	if strings.TrimSpace(info.InReplyTo) != "" {
+		replyContextSource = replyContextCaller
+	}
+	// No reply target resolved a thread, so fall back to the thread the message
+	// already lives in. Thread continuity only — this must not populate
+	// In-Reply-To/References.
+	if strings.TrimSpace(info.ThreadID) == "" {
+		info.ThreadID = strings.TrimSpace(input.ThreadContinuityID)
+	}
+	// No reply target resolved a lineage either, so re-apply whatever lineage
+	// the caller carried in (an update preserving the draft's own headers).
+	if strings.TrimSpace(info.InReplyTo) == "" && strings.TrimSpace(input.InReplyTo) != "" {
+		info.InReplyTo = input.InReplyTo
+		info.References = input.References
+		if strings.TrimSpace(info.References) == "" {
+			info.References = input.InReplyTo
+		}
+		replyContextSource = replyContextCarried
+	}
+	threading := draftThreading{
+		ThreadID:   info.ThreadID,
+		InReplyTo:  strings.TrimSpace(info.InReplyTo),
+		References: strings.TrimSpace(info.References),
+		Source:     replyContextSource,
 	}
 	// When requested, reply as the verified alias the original was addressed to.
 	if input.AutoFromAddressedAlias && strings.TrimSpace(input.From) == "" && sendAsErr == nil {
@@ -326,13 +362,12 @@ func buildDraftMessage(ctx context.Context, svc *gmail.Service, account string, 
 			}
 		}
 	}
-	threadID := info.ThreadID
 	atts := attachmentsFromPaths(input.Attach)
 	atts = append(atts, input.PrebuiltAttachments...)
 	atts = append(atts, info.InlineResources...)
 	atts, attachmentMetadata, err := mailmime.PrepareAttachments(atts, os.ReadFile)
 	if err != nil {
-		return nil, "", nil, err
+		return nil, draftThreading{}, nil, err
 	}
 	subject := input.Subject
 	if strings.TrimSpace(subject) == "" {
@@ -353,7 +388,7 @@ func buildDraftMessage(ctx context.Context, svc *gmail.Service, account string, 
 			nil,
 		)
 		if recipientErr != nil {
-			return nil, "", nil, recipientErr
+			return nil, draftThreading{}, nil, recipientErr
 		}
 		toRecipients = formatMailboxes(recipients.To)
 		ccRecipients = formatMailboxes(recipients.Cc)
@@ -383,10 +418,10 @@ func buildDraftMessage(ctx context.Context, svc *gmail.Service, account string, 
 		Bcc: bccRecipients,
 	}, true)
 	if err != nil {
-		return nil, "", nil, err
+		return nil, draftThreading{}, nil, err
 	}
 
-	return msg, threadID, attachmentMetadata, nil
+	return msg, threading, attachmentMetadata, nil
 }
 
 // carryForwardDraftAttachments fetches the bytes of an existing draft message's
@@ -463,20 +498,55 @@ func fetchDraftAttachmentBytes(ctx context.Context, svc *gmail.Service, messageI
 	return gmailcontent.DecodeBase64URLBytes(body.Data)
 }
 
-func writeDraftResult(ctx context.Context, u *ui.UI, draft *gmail.Draft, threadID string, attachments []mailmime.AttachmentMetadata) error {
+// draftThreading is the threading actually written to a draft: where it lives
+// (ThreadID) and what it replies to (InReplyTo/References), reported back so a
+// caller can verify without re-fetching raw headers. Source records where the
+// reply lineage came from — "caller" (an explicit reply target) or "carried"
+// (preserved from the draft's own stored headers); empty when the draft has no
+// reply context at all, which reports as null alongside the headers themselves.
+type draftThreading struct {
+	ThreadID   string
+	InReplyTo  string
+	References string
+	Source     string
+}
+
+const (
+	replyContextCaller  = "caller"
+	replyContextCarried = "carried"
+)
+
+// nilIfEmpty reports a header as an explicit JSON null when unset, so callers
+// can distinguish "no reply context" from "field not reported".
+func nilIfEmpty(s string) any {
+	if strings.TrimSpace(s) == "" {
+		return nil
+	}
+	return s
+}
+
+func writeDraftResult(ctx context.Context, u *ui.UI, draft *gmail.Draft, threading draftThreading, attachments []mailmime.AttachmentMetadata) error {
+	threadID := threading.ThreadID
 	if threadID == "" && draft != nil && draft.Message != nil {
 		threadID = draft.Message.ThreadId
 	}
+	source := threading.Source
+	if source == replyContextCarried {
+		u.Err().Linef("Warning: reply headers preserved from the existing draft (In-Reply-To %s); pass --clear-reply-context to drop them", threading.InReplyTo)
+	}
 	if outfmt.IsJSON(ctx) {
 		result := map[string]any{
-			"draftId":  draft.Id,
-			"message":  draft.Message,
-			"threadId": threadID,
+			"draftId":            draft.Id,
+			"message":            draft.Message,
+			"threadId":           threadID,
+			"inReplyTo":          nilIfEmpty(threading.InReplyTo),
+			"references":         nilIfEmpty(threading.References),
+			"replyContextSource": nilIfEmpty(source),
 		}
 		if len(attachments) > 0 {
 			result["attachments"] = attachments
 		}
-		return outfmt.WriteJSON(ctx, stdoutWriter(ctx), result)
+		return outfmt.WriteJSON(ctx, stdoutWriter(ctx), outfmt.PrimaryResult(result))
 	}
 	u.Out().Linef("draft_id\t%s", draft.Id)
 	if draft.Message != nil && draft.Message.Id != "" {
@@ -484,6 +554,15 @@ func writeDraftResult(ctx context.Context, u *ui.UI, draft *gmail.Draft, threadI
 	}
 	if threadID != "" {
 		u.Out().Linef("thread_id\t%s", threadID)
+	}
+	if threading.InReplyTo != "" {
+		u.Out().Linef("in_reply_to\t%s", threading.InReplyTo)
+	}
+	if threading.References != "" {
+		u.Out().Linef("references\t%s", threading.References)
+	}
+	if source != "" {
+		u.Out().Linef("reply_context_source\t%s", source)
 	}
 	return nil
 }
@@ -643,7 +722,7 @@ func (c *GmailDraftsCreateCmd) Run(ctx context.Context, flags *RootFlags) error 
 		return err
 	}
 
-	msg, threadID, attachmentMetadata, err := buildDraftMessage(ctx, svc, account, input)
+	msg, threading, attachmentMetadata, err := buildDraftMessage(ctx, svc, account, input)
 	if err != nil {
 		return err
 	}
@@ -652,28 +731,30 @@ func (c *GmailDraftsCreateCmd) Run(ctx context.Context, flags *RootFlags) error 
 	if err != nil {
 		return err
 	}
-	return writeDraftResult(ctx, u, draft, threadID, attachmentMetadata)
+	return writeDraftResult(ctx, u, draft, threading, attachmentMetadata)
 }
 
 type GmailDraftsUpdateCmd struct {
-	DraftID                string   `arg:"" name:"draftId" help:"Draft ID"`
-	To                     *string  `name:"to" help:"Recipients (comma-separated; omit to keep existing)"`
-	Cc                     string   `name:"cc" help:"CC recipients (comma-separated)"`
-	Bcc                    string   `name:"bcc" help:"BCC recipients (comma-separated)"`
-	Subject                string   `name:"subject" help:"Subject (required)"`
-	Body                   string   `name:"body" help:"Body (plain text; required unless --body-html is set)"`
-	BodyFile               string   `name:"body-file" help:"Body file path (plain text; '-' for stdin)"`
-	BodyHTML               string   `name:"body-html" help:"Body (HTML; optional)"`
-	BodyHTMLFile           string   `name:"body-html-file" help:"HTML body file path ('-' for stdin)"`
-	ReplyToMessageID       string   `name:"reply-to-message-id" help:"Reply to Gmail message ID (sets In-Reply-To/References and thread)"`
-	ThreadID               string   `name:"thread-id" help:"Reply within a Gmail thread (uses latest message for headers); overrides the draft's existing thread"`
-	ReplyAll               bool     `name:"reply-all" help:"Auto-populate recipients from original message (requires --reply-to-message-id or --thread-id)"`
-	ReplyTo                string   `name:"reply-to" help:"Reply-To header address"`
-	Quote                  bool     `name:"quote" help:"Include quoted original message in reply"`
-	Attach                 []string `name:"attach" help:"Attachment file path (repeatable). Replaces existing attachments; omit to preserve them, or use --clear-attachments to remove all."`
-	ClearAttachments       bool     `name:"clear-attachments" help:"Remove all attachments from the draft. By default, omitting --attach preserves the draft's existing attachments."`
-	From                   string   `name:"from" help:"Send from this email address (must be a verified send-as alias)"`
-	AutoFromAddressedAlias bool     `name:"auto-from-addressed-alias" help:"When --from is omitted, reply from the verified send-as alias addressed by the original message"`
+	DraftID          string   `arg:"" name:"draftId" help:"Draft ID"`
+	To               *string  `name:"to" help:"Recipients (comma-separated; omit to keep existing)"`
+	Cc               string   `name:"cc" help:"CC recipients (comma-separated)"`
+	Bcc              string   `name:"bcc" help:"BCC recipients (comma-separated)"`
+	Subject          string   `name:"subject" help:"Subject (required)"`
+	Body             string   `name:"body" help:"Body (plain text; required unless --body-html is set)"`
+	BodyFile         string   `name:"body-file" help:"Body file path (plain text; '-' for stdin)"`
+	BodyHTML         string   `name:"body-html" help:"Body (HTML; optional)"`
+	BodyHTMLFile     string   `name:"body-html-file" help:"HTML body file path ('-' for stdin)"`
+	ReplyToMessageID string   `name:"reply-to-message-id" help:"Reply to Gmail message ID (sets In-Reply-To/References and thread)"`
+	ThreadID         string   `name:"thread-id" help:"Reply within a Gmail thread (uses latest message for headers); overrides the draft's existing thread"`
+	ReplyAll         bool     `name:"reply-all" help:"Auto-populate recipients from original message (requires --reply-to-message-id or --thread-id)"`
+	ReplyTo          string   `name:"reply-to" help:"Reply-To header address"`
+	Quote            bool     `name:"quote" help:"Include quoted original message in reply"`
+	Attach           []string `name:"attach" help:"Attachment file path (repeatable). Replaces existing attachments; omit to preserve them, or use --clear-attachments to remove all."`
+	ClearAttachments bool     `name:"clear-attachments" help:"Remove all attachments from the draft. By default, omitting --attach preserves the draft's existing attachments."`
+	//nolint:lll // flag help text
+	ClearReplyContext      bool   `name:"clear-reply-context" help:"Strip In-Reply-To/References from the draft, making it a standalone message. By default an update preserves the draft's existing reply headers."`
+	From                   string `name:"from" help:"Send from this email address (must be a verified send-as alias)"`
+	AutoFromAddressedAlias bool   `name:"auto-from-addressed-alias" help:"When --from is omitted, reply from the verified send-as alias addressed by the original message"`
 }
 
 func (c *GmailDraftsUpdateCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -698,6 +779,9 @@ func (c *GmailDraftsUpdateCmd) Run(ctx context.Context, flags *RootFlags) error 
 	threadID := normalizeGmailThreadID(c.ThreadID)
 	if replyToMessageID != "" && threadID != "" {
 		return usage("use only one of --reply-to-message-id or --thread-id")
+	}
+	if c.ClearReplyContext && (replyToMessageID != "" || threadID != "" || c.Quote) {
+		return usage("use only one of --clear-reply-context or --reply-to-message-id/--thread-id/--quote")
 	}
 
 	attachPaths, err := expandComposeAttachmentPaths(c.Attach)
@@ -754,6 +838,7 @@ func (c *GmailDraftsUpdateCmd) Run(ctx context.Context, flags *RootFlags) error 
 		"clear_attachments":         c.ClearAttachments,
 		"preserve_attachments":      preserveAttachments,
 		"thread_id":                 strings.TrimSpace(threadID),
+		"clear_reply_context":       c.ClearReplyContext,
 	}); dryRunErr != nil {
 		return dryRunErr
 	}
@@ -766,6 +851,8 @@ func (c *GmailDraftsUpdateCmd) Run(ctx context.Context, flags *RootFlags) error 
 	existingThreadID := ""
 	existingMessageID := ""
 	existingTo := ""
+	existingInReplyTo := ""
+	existingReferences := ""
 	var existingPayload *gmail.MessagePart
 	if (!toWasSet && !c.ReplyAll) || strings.TrimSpace(replyToMessageID) == "" || preserveAttachments {
 		existing, fetchErr := svc.Users.Drafts.Get("me", draftID).Format("full").Do()
@@ -776,6 +863,8 @@ func (c *GmailDraftsUpdateCmd) Run(ctx context.Context, flags *RootFlags) error 
 			existingThreadID = strings.TrimSpace(existing.Message.ThreadId)
 			existingMessageID = strings.TrimSpace(existing.Message.Id)
 			existingPayload = existing.Message.Payload
+			existingInReplyTo = strings.TrimSpace(headerValue(existing.Message.Payload, "In-Reply-To"))
+			existingReferences = strings.TrimSpace(headerValue(existing.Message.Payload, "References"))
 			if !toWasSet && !c.ReplyAll {
 				existingTo = strings.TrimSpace(headerValue(existing.Message.Payload, "To"))
 			}
@@ -785,9 +874,9 @@ func (c *GmailDraftsUpdateCmd) Run(ctx context.Context, flags *RootFlags) error 
 		to = existingTo
 	}
 
-	// A caller-provided --thread-id targets that thread for reply headers,
-	// overriding the draft's own existing thread; otherwise fall back to the
-	// existing draft thread as before.
+	// The thread the draft already lives in. Used for --quote target discovery
+	// (which skips drafts) and for thread continuity — never as a reply target.
+	// A caller-provided --thread-id overrides it and moves the draft.
 	targetThreadID := existingThreadID
 	if threadID != "" {
 		targetThreadID = threadID
@@ -811,18 +900,34 @@ func (c *GmailDraftsUpdateCmd) Run(ctx context.Context, flags *RootFlags) error 
 		}
 		replyToMessageID = resolvedMessageID
 	}
+	// Only a caller-supplied thread is a reply target. Anchoring to the draft's
+	// own thread would resolve In-Reply-To/References from the newest message
+	// in it — which, for a draft, is the draft's own previous revision: a
+	// message that was never sent and that no recipient can thread against.
 	if strings.TrimSpace(replyToMessageID) == "" {
-		replyToThreadID = targetThreadID
+		replyToThreadID = threadID
 	}
-	if c.Quote && strings.TrimSpace(replyToMessageID) == "" && strings.TrimSpace(replyToThreadID) == "" {
-		return usage("--quote requires --reply-to-message-id or --thread-id or existing draft thread")
+
+	// Reply lineage survives an update because it is carried forward from the
+	// draft's own stored headers, not re-derived. Applying the same values
+	// every time keeps repeated updates idempotent and stops References from
+	// accumulating. An explicit target re-resolves instead; --clear-reply-context
+	// drops the lineage entirely.
+	carriedInReplyTo := ""
+	carriedReferences := ""
+	if !c.ClearReplyContext && strings.TrimSpace(replyToMessageID) == "" && strings.TrimSpace(replyToThreadID) == "" {
+		carriedInReplyTo = existingInReplyTo
+		carriedReferences = existingReferences
 	}
 
 	input.To = to
 	input.ReplyToMessageID = replyToMessageID
 	input.ReplyToThreadID = replyToThreadID
+	input.ThreadContinuityID = targetThreadID
+	input.InReplyTo = carriedInReplyTo
+	input.References = carriedReferences
 
-	msg, threadID, attachmentMetadata, err := buildDraftMessage(ctx, svc, account, input)
+	msg, threading, attachmentMetadata, err := buildDraftMessage(ctx, svc, account, input)
 	if err != nil {
 		return err
 	}
@@ -831,5 +936,5 @@ func (c *GmailDraftsUpdateCmd) Run(ctx context.Context, flags *RootFlags) error 
 	if err != nil {
 		return err
 	}
-	return writeDraftResult(ctx, u, draft, threadID, attachmentMetadata)
+	return writeDraftResult(ctx, u, draft, threading, attachmentMetadata)
 }

@@ -44,7 +44,7 @@ type SheetsLinksSetCmd struct {
 	Text          string `arg:"" optional:"" name:"text" help:"Display text (defaults to the URL)."`
 
 	RunsJSON  string `name:"runs-json" help:"Multi-link cell: JSON array of runs, eg. [{\"text\":\"Act A\",\"uri\":\"https://a\"},{\"text\":\" / \"},{\"text\":\"Act B\",\"uri\":\"https://b\"}]. A run with an empty uri is plain text."`
-	CellsJSON string `name:"cells-json" help:"Batch: JSON array of {cell,url,text} or {cell,runs:[{text,uri}]} objects, written in one request."`
+	CellsJSON string `name:"cells-json" help:"Batch: JSON array, @file, or @- for stdin containing {cell,url,text} or {cell,runs:[{text,uri}]} objects, written in one request."`
 }
 
 func (c *SheetsLinksSetCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -55,7 +55,7 @@ func (c *SheetsLinksSetCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return usage("empty spreadsheetId")
 	}
 
-	specs, err := c.collectSpecs()
+	specs, err := c.collectSpecs(ctx)
 	if err != nil {
 		return err
 	}
@@ -153,13 +153,17 @@ func (c *SheetsLinksSetCmd) Run(ctx context.Context, flags *RootFlags) error {
 
 // collectSpecs builds the list of cells to write from either --cells-json
 // (batch) or the positional/single-cell form, rejecting a mix of the two.
-func (c *SheetsLinksSetCmd) collectSpecs() ([]linkCellSpec, error) {
+func (c *SheetsLinksSetCmd) collectSpecs(ctx context.Context) ([]linkCellSpec, error) {
 	if strings.TrimSpace(c.CellsJSON) != "" {
 		if c.Cell != "" || c.URL != "" || c.Text != "" || c.RunsJSON != "" {
 			return nil, usage("use either positional cell args or --cells-json, not both")
 		}
+		b, err := resolveInlineOrFileBytes(c.CellsJSON, stdinReader(ctx))
+		if err != nil {
+			return nil, usagef("read --cells-json: %v", err)
+		}
 		var specs []linkCellSpec
-		if err := json.Unmarshal([]byte(c.CellsJSON), &specs); err != nil {
+		if err := json.Unmarshal(b, &specs); err != nil {
 			return nil, usagef("parse --cells-json: %v", err)
 		}
 		if len(specs) == 0 {

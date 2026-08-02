@@ -8,8 +8,11 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/steipete/gogcli/internal/outfmt"
 )
 
 type linksSetRecorder struct {
@@ -58,11 +61,23 @@ func linksSetHandler(recorder *linksSetRecorder) http.Handler {
 
 func newLinksSetTestContext(t *testing.T, recorder *linksSetRecorder) (context.Context, *bytes.Buffer) {
 	t.Helper()
+	return newLinksSetTestContextWithInput(t, recorder, strings.NewReader(""))
+}
+
+func newLinksSetTestContextWithInput(
+	t *testing.T,
+	recorder *linksSetRecorder,
+	input io.Reader,
+) (context.Context, *bytes.Buffer) {
+	t.Helper()
 	srv := httptest.NewServer(linksSetHandler(recorder))
 	t.Cleanup(srv.Close)
 	svc := newSheetsServiceFromServer(t, srv)
 	output := &bytes.Buffer{}
-	ctx := newCmdRuntimeJSONOutputContext(t, output, io.Discard)
+	ctx := outfmt.WithMode(
+		newCmdRuntimeIOContext(t, input, output, io.Discard),
+		outfmt.Mode{JSON: true},
+	)
 	return withSheetsTestService(ctx, svc), output
 }
 
@@ -71,12 +86,12 @@ func linksSetCtx(t *testing.T) context.Context {
 	return newCmdRuntimeJSONOutputContext(t, io.Discard, io.Discard)
 }
 
-// updateCellsCell digs the single CellData map out of recorded request index i.
-func updateCellsCell(t *testing.T, rec *linksSetRecorder, i int) map[string]any {
+// updateCellsCell digs the single CellData map out of the recorded request.
+func updateCellsCell(t *testing.T, rec *linksSetRecorder) map[string]any {
 	t.Helper()
-	uc, ok := rec.requests[i]["updateCells"].(map[string]any)
+	uc, ok := rec.requests[0]["updateCells"].(map[string]any)
 	if !ok {
-		t.Fatalf("request %d not updateCells: %#v", i, rec.requests[i])
+		t.Fatalf("request not updateCells: %#v", rec.requests[0])
 	}
 	rows := uc["rows"].([]any)
 	values := rows[0].(map[string]any)["values"].([]any)
@@ -125,7 +140,7 @@ func TestSheetsLinksSet_SingleLink(t *testing.T) {
 	if len(rec.requests) != 1 {
 		t.Fatalf("expected 1 request, got %d", len(rec.requests))
 	}
-	cell := updateCellsCell(t, rec, 0)
+	cell := updateCellsCell(t, rec)
 	if got := cell["userEnteredValue"].(map[string]any)["stringValue"]; got != "Act A" {
 		t.Errorf("stringValue = %v, want Act A", got)
 	}
@@ -167,7 +182,7 @@ func TestSheetsLinksSet_DefaultTextIsURL(t *testing.T) {
 	if err := runKong(t, &SheetsLinksSetCmd{}, []string{"s1", "Sheet1!A1", "https://only.url/"}, ctx, flags); err != nil {
 		t.Fatalf("links set: %v", err)
 	}
-	cell := updateCellsCell(t, rec, 0)
+	cell := updateCellsCell(t, rec)
 	if got := cell["userEnteredValue"].(map[string]any)["stringValue"]; got != "https://only.url/" {
 		t.Errorf("stringValue = %v, want the url", got)
 	}
@@ -182,7 +197,7 @@ func TestSheetsLinksSet_MultiLinkRuns(t *testing.T) {
 	if err := runKong(t, &SheetsLinksSetCmd{}, []string{"s1", "Sheet1!C3", "--runs-json", runsJSON}, ctx, flags); err != nil {
 		t.Fatalf("links set: %v", err)
 	}
-	cell := updateCellsCell(t, rec, 0)
+	cell := updateCellsCell(t, rec)
 	if got := cell["userEnteredValue"].(map[string]any)["stringValue"]; got != "Act A / Act B" {
 		t.Errorf("stringValue = %q, want concat", got)
 	}
@@ -222,6 +237,52 @@ func TestSheetsLinksSet_BatchCellsJSON(t *testing.T) {
 	}
 	if len(rec.requests) != 2 {
 		t.Fatalf("expected 2 requests, got %d", len(rec.requests))
+	}
+}
+
+func TestSheetsLinksSet_BatchCellsJSONFromFile(t *testing.T) {
+	rec := &linksSetRecorder{}
+	ctx, _ := newLinksSetTestContext(t, rec)
+
+	cellsPath := filepath.Join("testdata", "sheets_links_cells.json")
+	flags := &RootFlags{Account: "a@b.com"}
+	if err := runKong(
+		t,
+		&SheetsLinksSetCmd{},
+		[]string{"s1", "--cells-json", "@" + cellsPath},
+		ctx,
+		flags,
+	); err != nil {
+		t.Fatalf("links set from file: %v", err)
+	}
+	if len(rec.requests) != 2 {
+		t.Fatalf("expected 2 requests, got %d", len(rec.requests))
+	}
+}
+
+func TestSheetsLinksSet_BatchCellsJSONFromStdin(t *testing.T) {
+	rec := &linksSetRecorder{}
+	input := strings.NewReader(
+		`[{"cell":"Sheet1!D4","url":"https://stdin.test","text":"stdin"}]`,
+	)
+	ctx, _ := newLinksSetTestContextWithInput(t, rec, input)
+
+	flags := &RootFlags{Account: "a@b.com"}
+	if err := runKong(
+		t,
+		&SheetsLinksSetCmd{},
+		[]string{"s1", "--cells-json", "@-"},
+		ctx,
+		flags,
+	); err != nil {
+		t.Fatalf("links set from stdin: %v", err)
+	}
+	if len(rec.requests) != 1 {
+		t.Fatalf("expected 1 request, got %d", len(rec.requests))
+	}
+	cell := updateCellsCell(t, rec)
+	if got := cell["userEnteredValue"].(map[string]any)["stringValue"]; got != "stdin" {
+		t.Fatalf("stringValue = %v, want stdin", got)
 	}
 }
 

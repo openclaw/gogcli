@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -269,6 +270,56 @@ func gmailGetAttachmentHandler(subject, body string) http.Handler {
 			},
 		})
 	})
+}
+
+func TestGmailGetCmd_JSON_ResultsOnlyPreservesCompleteAttachmentResult(t *testing.T) {
+	srv := httptest.NewServer(gmailGetAttachmentHandler("Synthetic attachment", "synthetic body"))
+	defer srv.Close()
+
+	run := func(resultsOnly bool) []byte {
+		t.Helper()
+		args := []string{"--json"}
+		if resultsOnly {
+			args = append(args, "--results-only")
+		}
+		args = append(args,
+			"--account", "synthetic@example.com",
+			"gmail", "get", "m1",
+			"--format", "full",
+		)
+		result := executeWithGmailTestService(t, args, newGmailServiceFromServer(t, srv))
+		if result.err != nil {
+			t.Fatalf("execute: %v\nstderr=%q", result.err, result.stderr)
+		}
+		return []byte(result.stdout)
+	}
+
+	baseline := run(false)
+	got := run(true)
+	var wantValue any
+	if err := json.Unmarshal(baseline, &wantValue); err != nil {
+		t.Fatalf("baseline json parse: %v", err)
+	}
+	var gotValue any
+	if err := json.Unmarshal(got, &gotValue); err != nil {
+		t.Fatalf("results-only json parse: %v", err)
+	}
+	if !reflect.DeepEqual(gotValue, wantValue) {
+		t.Fatalf("--results-only changed the complete Gmail get result:\ngot:\n%s\nwant:\n%s", got, baseline)
+	}
+
+	parsed, ok := gotValue.(map[string]any)
+	if !ok {
+		t.Fatalf("expected complete Gmail get object, got %T: %s", gotValue, got)
+	}
+	for _, key := range []string{"message", "headers", "body", "attachments"} {
+		if _, ok := parsed[key]; !ok {
+			t.Fatalf("synthetic pre-transform shape is missing %q: %s", key, got)
+		}
+	}
+	if len(parsed) != 4 {
+		t.Fatalf("unexpected synthetic pre-transform keys: %s", got)
+	}
 }
 
 func TestGmailGetCmd_Text_Full_WithAttachments(t *testing.T) {

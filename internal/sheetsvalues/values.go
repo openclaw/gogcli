@@ -62,6 +62,44 @@ func ParseArgs(values []string) [][]interface{} {
 	return parsed
 }
 
+// ParseArgsForShape parses positional update values while ensuring the
+// resulting payload cannot extend beyond a requested range. A zero row or
+// column count means that dimension is open-ended.
+func ParseArgsForShape(values []string, rowCount, columnCount int64) ([][]interface{}, error) {
+	if rowCount < 0 || columnCount < 0 {
+		return nil, invalidf("invalid update range shape")
+	}
+
+	rawValues := strings.TrimSpace(strings.Join(values, " "))
+	if rowCount == 1 && columnCount == 1 {
+		return [][]interface{}{{rawValues}}, nil
+	}
+
+	parsed := ParseArgs(values)
+	if rowCount > 0 && int64(len(parsed)) > rowCount {
+		return nil, invalidf(
+			"positional values have %d rows, which exceeds the update range maximum of %d rows",
+			len(parsed),
+			rowCount,
+		)
+	}
+
+	if columnCount > 0 {
+		for i, row := range parsed {
+			if int64(len(row)) > columnCount {
+				return nil, invalidf(
+					"positional values row %d has %d cells, which exceeds the update range maximum of %d columns",
+					i+1,
+					len(row),
+					columnCount,
+				)
+			}
+		}
+	}
+
+	return parsed, nil
+}
+
 func RequireRows(values [][]interface{}) error {
 	if len(values) == 0 {
 		return invalidf("provide at least one row")
