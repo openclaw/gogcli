@@ -205,7 +205,7 @@ func TestExecute_GmailAttachment_Inline_DryRunReportsMode(t *testing.T) {
 	result := executeWithTestRuntime(t, []string{
 		"--json", "--dry-run", "--account", "a@b.com",
 		"gmail", "attachment", "m1", "a1",
-		"--out", tempFilePath(t, "a.txt"), "--inline",
+		"--out", tempFilePath(t, "a.txt"), "--inline", "--inline-max-bytes", "42",
 	}, nil)
 	if result.err != nil {
 		t.Fatalf("Execute: %v\nstderr=%q", result.err, result.stderr)
@@ -217,7 +217,7 @@ func TestExecute_GmailAttachment_Inline_DryRunReportsMode(t *testing.T) {
 	if err := json.Unmarshal([]byte(result.stdout), &parsed); err != nil {
 		t.Fatalf("Unmarshal: %v\nstdout=%q", err, result.stdout)
 	}
-	if !parsed.DryRun || parsed.Request["inline"] != true {
+	if !parsed.DryRun || parsed.Request["inline"] != true || parsed.Request["inline_max_bytes"] != float64(42) {
 		t.Fatalf("unexpected dry-run output: %#v", parsed)
 	}
 }

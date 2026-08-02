@@ -77,10 +77,11 @@ func (c *GmailAttachmentCmd) Run(ctx context.Context, flags *RootFlags) error {
 
 	// Avoid touching auth/keyring and avoid writing files in dry-run mode.
 	if dryRunErr := dryRunExit(ctx, flags, "gmail.attachment.download", map[string]any{
-		"message_id":    messageID,
-		"attachment_id": attachmentID,
-		"path":          dest,
-		"inline":        c.Inline,
+		"message_id":       messageID,
+		"attachment_id":    attachmentID,
+		"path":             dest,
+		"inline":           c.Inline,
+		"inline_max_bytes": c.InlineMaxBytes,
 	}); dryRunErr != nil {
 		return dryRunErr
 	}
