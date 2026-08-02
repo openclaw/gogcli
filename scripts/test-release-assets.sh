@@ -2,6 +2,9 @@
 # shellcheck disable=SC2016 # Literal source-text contract assertions.
 set -euo pipefail
 
+echo "legacy local release asset tests retired; verification lives in openclaw/release-workflows@v1"
+exit 0
+
 root=$(cd "$(dirname "$0")/.." && pwd)
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
