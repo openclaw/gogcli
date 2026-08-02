@@ -222,6 +222,9 @@ func (c *SheetsUpdateCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if valueInputOption == "" {
 		valueInputOption = sheetsDefaultValueInputOption
 	}
+	if positionalValues && !positionalRangeResolved && flags != nil && flags.DryRun {
+		return usage("positional values for a named or unresolved range cannot be previewed offline; use A1 notation or --values-json")
+	}
 
 	if err := dryRunExit(ctx, flags, "sheets.update", map[string]any{
 		"spreadsheet_id":          spreadsheetID,
@@ -324,23 +327,24 @@ func (c *SheetsUpdateCmd) Run(ctx context.Context, flags *RootFlags) error {
 }
 
 func parseSheetsUpdatePositionalValues(rangeSpec string, rawValues []string) ([][]interface{}, bool, error) {
-	parsedRange, err := sheetsa1.Parse(rangeSpec)
-	if err != nil {
-		// Named ranges need spreadsheet metadata to determine their shape.
-		// Keep the legacy parse for dry-run output, then resolve and validate
-		// the range after the Sheets service is available and before writing.
-		return sheetsvalues.ParseArgs(rawValues), false, nil
+	parsedRange, parseErr := sheetsa1.Parse(rangeSpec)
+	if parseErr == nil {
+		values, err := sheetsvalues.ParseArgsForShape(
+			rawValues,
+			a1RangeDimensionSize(parsedRange.StartRow, parsedRange.EndRow),
+			a1RangeDimensionSize(parsedRange.StartCol, parsedRange.EndCol),
+		)
+		if err != nil {
+			return nil, true, sheetsValuesPlannerError(err)
+		}
+		return values, true, nil
 	}
 
-	values, err := sheetsvalues.ParseArgsForShape(
-		rawValues,
-		a1RangeDimensionSize(parsedRange.StartRow, parsedRange.EndRow),
-		a1RangeDimensionSize(parsedRange.StartCol, parsedRange.EndCol),
-	)
-	if err != nil {
-		return nil, true, sheetsValuesPlannerError(err)
-	}
-	return values, true, nil
+	// Named ranges need spreadsheet metadata to determine their shape. Keep the
+	// legacy parse until the Sheets service is available, then resolve and
+	// validate the range before writing. Offline dry-runs reject this form
+	// because they cannot produce an accurate payload preview.
+	return sheetsvalues.ParseArgs(rawValues), false, nil
 }
 
 func a1RangeDimensionSize(start, end int) int64 {

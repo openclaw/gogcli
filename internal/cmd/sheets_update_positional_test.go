@@ -122,6 +122,23 @@ func TestSheetsUpdatePositionalNamedSingleCellPreservesCommas(t *testing.T) {
 	}
 }
 
+func TestSheetsUpdatePositionalNamedRangeDryRunRejectsUnresolvedPreview(t *testing.T) {
+	ctx := newCmdRuntimeOutputContext(t, io.Discard, io.Discard)
+	err := runKong(
+		t,
+		&SheetsUpdateCmd{},
+		[]string{"s1", "NamedSingle", "named, cell, value"},
+		ctx,
+		&RootFlags{Account: "a@b.com", DryRun: true},
+	)
+	if err == nil || !strings.Contains(err.Error(), "cannot be previewed offline") {
+		t.Fatalf("dry-run error = %v, want unresolved-range guidance", err)
+	}
+	if ExitCode(err) != 2 {
+		t.Fatalf("dry-run exit code = %d, want 2", ExitCode(err))
+	}
+}
+
 func TestSheetsUpdatePositionalPartialMultiCellRangeWritesOneCell(t *testing.T) {
 	recorder := &sheetsUpdatePositionalRecorder{}
 	ctx := newSheetsUpdatePositionalTestContext(t, recorder)

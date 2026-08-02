@@ -83,6 +83,7 @@ func ParseArgsForShape(values []string, rowCount, columnCount int64) ([][]interf
 			rowCount,
 		)
 	}
+
 	if columnCount > 0 {
 		for i, row := range parsed {
 			if int64(len(row)) > columnCount {

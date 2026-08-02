@@ -51,6 +51,7 @@ func TestParseArgsForShapeSingleCellPreservesDelimiters(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ParseArgsForShape() error = %v", err)
 	}
+
 	if len(values) != 1 || len(values[0]) != 1 ||
 		values[0][0] != "text, with, commas | and pipes" {
 		t.Fatalf("values = %#v", values)
@@ -62,6 +63,7 @@ func TestParseArgsForShapeMatchesMultiCellRange(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ParseArgsForShape() error = %v", err)
 	}
+
 	if len(values) != 2 || len(values[0]) != 2 || len(values[1]) != 2 ||
 		values[0][0] != "a" || values[0][1] != "b" ||
 		values[1][0] != "c" || values[1][1] != "d" {
@@ -74,6 +76,7 @@ func TestParseArgsForShapeAllowsSmallerMatrix(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ParseArgsForShape() error = %v", err)
 	}
+
 	if len(values) != 1 || len(values[0]) != 1 || values[0][0] != "a" {
 		t.Fatalf("values = %#v, want one-cell matrix", values)
 	}
