@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"bytes"
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"io"
@@ -1485,6 +1486,62 @@ func TestGmailDraftsCreateCmd_ReplyAllWithReplyToMessageID(t *testing.T) {
 		if strings.Contains(s, excluded) {
 			t.Fatalf("reply-all draft included self address %q:\n%s", excluded, s)
 		}
+	}
+}
+
+func TestBuildDraftMessageAutoSelectsFromAddressedAliasOnlyWhenRequested(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.URL.Path == "/gmail/v1/users/me/settings/sendAs" && r.Method == http.MethodGet:
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"sendAs": []map[string]any{
+					{"sendAsEmail": "me@example.com", "displayName": "Me Person", "isPrimary": true, "verificationStatus": "accepted"},
+					{"sendAsEmail": "alias@example.com", "displayName": "Alias", "verificationStatus": "accepted"},
+				},
+			})
+		case r.URL.Path == "/gmail/v1/users/me/messages/m1" && r.Method == http.MethodGet:
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"id": "m1", "threadId": "t1",
+				"payload": map[string]any{"headers": []map[string]any{
+					{"name": "Message-ID", "value": "<m1@example.com>"},
+					{"name": "From", "value": "sender@example.com"},
+					{"name": "To", "value": "alias@example.com"},
+					{"name": "Subject", "value": "Original"},
+				}},
+			})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+
+	svc := newGmailServiceFromServer(t, srv)
+	for _, tc := range []struct {
+		name       string
+		autoSelect bool
+		wantFrom   string
+	}{
+		{name: "default", wantFrom: "me@example.com"},
+		{name: "opt in", autoSelect: true, wantFrom: "alias@example.com"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			msg, _, _, err := buildDraftMessage(context.Background(), svc, "me@example.com", draftComposeInput{
+				Body:                   "Thanks",
+				ReplyToMessageID:       "m1",
+				AutoFromAddressedAlias: tc.autoSelect,
+			})
+			if err != nil {
+				t.Fatalf("buildDraftMessage: %v", err)
+			}
+			raw, err := base64.RawURLEncoding.DecodeString(msg.Raw)
+			if err != nil {
+				t.Fatalf("decode raw: %v", err)
+			}
+			if !strings.Contains(string(raw), tc.wantFrom) {
+				t.Fatalf("message missing From %q:\n%s", tc.wantFrom, raw)
+			}
+		})
 	}
 }
 

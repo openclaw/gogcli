@@ -235,7 +235,7 @@ func TestExecuteGmailReplyAllDefaultsAndInlineImages(t *testing.T) {
 }
 
 func TestExecuteGmailReplyAutoSelectsFromAddressedAlias(t *testing.T) {
-	sendReply := func(t *testing.T, originalTo string, extraArgs ...string) string {
+	sendReply := func(t *testing.T, originalTo string, autoSelect bool, extraArgs ...string) string {
 		t.Helper()
 		var sentRaw string
 		svc, cleanup := newGmailServiceForTest(t, func(w http.ResponseWriter, r *http.Request) {
@@ -269,7 +269,11 @@ func TestExecuteGmailReplyAutoSelectsFromAddressedAlias(t *testing.T) {
 		})
 		defer cleanup()
 
-		args := append([]string{"--json", "--account", "me@example.com", "gmail", "reply", "msg-1", "--body", "ok", "--no-quote"}, extraArgs...)
+		args := []string{"--json", "--account", "me@example.com", "gmail", "reply", "msg-1", "--body", "ok", "--no-quote"}
+		if autoSelect {
+			args = append(args, "--auto-from-addressed-alias")
+		}
+		args = append(args, extraArgs...)
 		result := executeWithGmailTestService(t, args, svc)
 		if result.err != nil {
 			t.Fatalf("Execute: %v", result.err)
@@ -287,18 +291,23 @@ func TestExecuteGmailReplyAutoSelectsFromAddressedAlias(t *testing.T) {
 	}
 
 	t.Run("addressed to alias uses it as From", func(t *testing.T) {
-		if from := fromAddr(sendReply(t, "alias@example.com")); !strings.Contains(from, "alias@example.com") {
+		if from := fromAddr(sendReply(t, "alias@example.com", true)); !strings.Contains(from, "alias@example.com") {
 			t.Fatalf("From is not the addressed alias: %q", from)
 		}
 	})
 	t.Run("no alias match falls back to account default", func(t *testing.T) {
-		if from := fromAddr(sendReply(t, "someone@else.com")); !strings.Contains(from, "me@example.com") {
+		if from := fromAddr(sendReply(t, "someone@else.com", true)); !strings.Contains(from, "me@example.com") {
 			t.Fatalf("From is not the account default: %q", from)
 		}
 	})
 	t.Run("explicit --from overrides auto-select", func(t *testing.T) {
-		if from := fromAddr(sendReply(t, "alias@example.com", "--from", "me@example.com")); !strings.Contains(from, "me@example.com") {
+		if from := fromAddr(sendReply(t, "alias@example.com", true, "--from", "me@example.com")); !strings.Contains(from, "me@example.com") {
 			t.Fatalf("explicit --from not honored: %q", from)
+		}
+	})
+	t.Run("omitted flag keeps account default", func(t *testing.T) {
+		if from := fromAddr(sendReply(t, "alias@example.com", false)); !strings.Contains(from, "me@example.com") {
+			t.Fatalf("From is not the account default: %q", from)
 		}
 	})
 }
@@ -343,7 +352,7 @@ func TestExecuteGmailReplySignatureFollowsAutoSelectedAlias(t *testing.T) {
 	defer cleanup()
 
 	result := executeWithGmailTestService(t, []string{
-		"--json", "--account", "me@example.com", "gmail", "reply", "msg-1", "--body", "ok", "--no-quote", "--signature",
+		"--json", "--account", "me@example.com", "gmail", "reply", "msg-1", "--body", "ok", "--no-quote", "--signature", "--auto-from-addressed-alias",
 	}, svc)
 	if result.err != nil {
 		t.Fatalf("Execute: %v", result.err)

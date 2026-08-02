@@ -21,6 +21,7 @@ gog gmail (mail,email) drafts (draft) update (edit,set) <draftId> [flags]
 | `--access-token` | `string` |  | Use provided access token directly (bypasses stored refresh tokens; token expires in ~1h) |
 | `-a`<br>`--account`<br>`--acct` | `string` |  | Account email, alias, or auto for authenticated Google API commands |
 | `--attach` | `[]string` |  | Attachment file path (repeatable). Replaces existing attachments; omit to preserve them, or use --clear-attachments to remove all. |
+| `--auto-from-addressed-alias` | `bool` |  | When --from is omitted, reply from the verified send-as alias addressed by the original message |
 | `--bcc` | `string` |  | BCC recipients (comma-separated) |
 | `--body` | `string` |  | Body (plain text; required unless --body-html is set) |
 | `--body-file` | `string` |  | Body file path (plain text; '-' for stdin) |
