@@ -1,19 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-root=$(cd "$(dirname "$0")/.." && pwd)
-
-if [[ "${1:-}" == --check && "$#" -eq 1 ]]; then
-  exec "$root/scripts/release-local" --check
+version=${1:-}
+if [[ "$#" -ne 1 || ! "$version" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
+  echo "usage: scripts/release.sh <version>" >&2
+  exit 2
 fi
 
-cat >&2 <<'EOF'
-scripts/release.sh no longer tags or publishes.
-Use the serialized gates documented in docs/RELEASING.md:
-  scripts/release-local pilot vX.Y.Z
-  scripts/release-local draft
-  scripts/release-local verify-draft vX.Y.Z
-  scripts/release-local publish vX.Y.Z
-  scripts/release-local homebrew vX.Y.Z
-EOF
-exit 2
+exec gh workflow run release-unified.yml \
+  --repo openclaw/gogcli \
+  --ref main \
+  -f "version=${version#v}"

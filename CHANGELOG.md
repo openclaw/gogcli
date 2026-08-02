@@ -2,6 +2,7 @@
 
 ## 0.34.2 - 2026-08-02
 
+- Release: move tagging, signing, notarization, verification, and Homebrew handoff to the shared unified workflow.
 - Dependencies: refresh the Google API, gRPC, Markdown, terminal, and email-tracking worker toolchains to their latest compatible releases.
 - Gmail: add opt-in reply From alias selection for the verified send-as alias addressed by the original message. (#948) — thanks @ronny-rentner.
 - Gmail: add configurable inline attachment byte limits while retaining the 3 MiB default and path fallback. (#947) — thanks @ronny-rentner.

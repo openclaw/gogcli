@@ -846,7 +846,7 @@ scripts/live-test.sh --fast --account you@gmail.com
 GOG_IT_ACCOUNT=you@gmail.com go test -tags=integration ./internal/integration
 ```
 
-See [docs/RELEASING.md](docs/RELEASING.md) for the release checklist.
+See [docs/RELEASING.md](docs/RELEASING.md) for the unified release workflow.
 
 ## Credits
 

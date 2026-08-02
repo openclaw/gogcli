@@ -97,9 +97,6 @@ builds:
     targets:
       - darwin_amd64
       - darwin_arm64
-    hooks:
-      post:
-        - ./scripts/codesign-macos.sh "{{ .Path }}"
 
 archives:
   - ids:

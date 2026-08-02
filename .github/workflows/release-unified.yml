@@ -1,0 +1,56 @@
+name: Release (unified)
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: SemVer to release
+        required: true
+        type: string
+
+permissions: {}
+
+jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Validate GogCLI version metadata
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          release_version=${VERSION#v}
+          test "$(tr -d '\r\n' < internal/cmd/VERSION)" = "v${release_version}"
+
+  release:
+    needs: preflight
+    permissions:
+      actions: read
+      checks: read
+      contents: write
+      pull-requests: write
+      statuses: read
+    uses: openclaw/release-workflows/.github/workflows/release-go-cli.yml@v1
+    with:
+      version: ${{ inputs.version }}
+      repository-type: openclaw
+      homebrew-tap: openclaw/homebrew-tap
+      homebrew-formula: gogcli
+      checksum-filename: checksums.txt
+      nfpm: auto
+      build-runner: macos
+      stable-identifier: com.steipete.gogcli.gog
+      darwin-universal: disabled
+      reproducible-rebuild: non-darwin
+    secrets:
+      MACOS_SIGNING_P12: ${{ secrets.MACOS_SIGNING_P12 }}
+      MACOS_SIGNING_P12_PASSWORD: ${{ secrets.MACOS_SIGNING_P12_PASSWORD }}
+      ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+      ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+      ASC_PRIVATE_KEY_P8: ${{ secrets.ASC_PRIVATE_KEY_P8 }}
+      TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
