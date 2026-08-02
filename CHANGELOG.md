@@ -2,6 +2,7 @@
 
 ## 0.34.2 - 2026-07-27
 
+- Gmail: add opt-in reply From alias selection for the verified send-as alias addressed by the original message. (#948) — thanks @ronny-rentner.
 - Gmail: add configurable inline attachment byte limits while retaining the 3 MiB default and path fallback. (#947) — thanks @ronny-rentner.
 - Gmail: preserve single-object result envelopes for attachment-bearing `--results-only` output. (#943) — thanks @hashtag1974.
 - Sheets: keep positional updates within the requested range, preserving comma-bearing single-cell values and accurate named-range dry runs. (#941) — thanks @cathrynlavery.
