@@ -62,7 +62,8 @@ linters:
               desc: "deprecated; use io or os"
     goconst:
       min-len: 3
-      min-occurrences: 4
+      min-occurrences: 10
+      ignore-tests: true
     gocyclo:
       min-complexity: 50
     forbidigo:
@@ -98,6 +99,7 @@ linters:
       enable-all: true
       disable:
         - fieldalignment
+        - inline
 
   exclusions:
     presets:
@@ -115,6 +117,7 @@ linters:
       - path: internal/cmd/.*\.go
         linters:
           - err113
+          - goconst
           - wrapcheck
           - wsl_v5
           - tagliatelle

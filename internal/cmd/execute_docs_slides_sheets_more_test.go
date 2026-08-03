@@ -103,7 +103,7 @@ func TestExecute_DocsSlidesSheets_CopyCreateInfoCat_JSON(t *testing.T) {
 				"modifiedTime": "2025-12-26T00:00:00Z",
 			})
 			return
-		case r.Method == http.MethodPost && (strings.HasSuffix(drivePath, "/files")):
+		case r.Method == http.MethodPost && strings.HasSuffix(drivePath, "/files"):
 			atomic.AddInt32(&createCalls, 1)
 			var req map[string]any
 			_ = json.NewDecoder(r.Body).Decode(&req)

@@ -319,7 +319,7 @@ func (app *ManagerApplication) handleAuthUpgrade(w http.ResponseWriter, r *http.
 		append(pkceAuthURLParams(true, true, codeVerifier),
 			oauth2.SetAuthURLParam("login_hint", email))...)
 
-	http.Redirect(w, r, authURL, http.StatusFound)
+	http.Redirect(w, r, authURL, http.StatusFound) //nolint:gosec // provider URL is fixed; login_hint is query-escaped
 }
 
 func (app *ManagerApplication) handleOAuthCallback(w http.ResponseWriter, r *http.Request) {

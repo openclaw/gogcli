@@ -219,26 +219,26 @@ func (p *persistingTokenSource) persistTokenLocked(t *oauth2.Token) (*oauth2.Tok
 	}
 
 	if err := p.store.SetToken(p.client, persistEmail, updated); err != nil {
-		slog.Warn("persist refreshed token metadata failed", "email", persistEmail, "client", p.client, "err", err) //nolint:gosec // logged values are token metadata identifiers for auth diagnostics
+		slog.Warn("persist refreshed token metadata failed", "email", persistEmail, "client", p.client, "err", err)
 		return t, nil
 	}
 
 	if !strings.EqualFold(p.email, persistEmail) {
 		if err := googleauth.MigrateStoredEmailReferences(p.store, p.updateEmailReferences, p.client, p.email, persistEmail); err != nil {
-			slog.Warn("migrate renamed token email references failed", "old_email", p.email, "new_email", persistEmail, "client", p.client, "err", err) //nolint:gosec // logged values are token metadata identifiers for auth diagnostics
+			slog.Warn("migrate renamed token email references failed", "old_email", p.email, "new_email", persistEmail, "client", p.client, "err", err)
 		}
 
 		aliasDeleter, ok := p.store.(tokenAliasDeleter)
 		if !ok {
-			slog.Debug("token store cannot delete renamed email alias", "old_email", p.email, "new_email", persistEmail, "client", p.client) //nolint:gosec // logged values are token metadata identifiers for auth diagnostics
+			slog.Debug("token store cannot delete renamed email alias", "old_email", p.email, "new_email", persistEmail, "client", p.client)
 		} else if err := aliasDeleter.DeleteTokenAlias(p.client, p.email); err != nil {
-			slog.Warn("delete renamed token alias failed", "old_email", p.email, "new_email", persistEmail, "client", p.client, "err", err) //nolint:gosec // logged values are token metadata identifiers for auth diagnostics
+			slog.Warn("delete renamed token alias failed", "old_email", p.email, "new_email", persistEmail, "client", p.client, "err", err)
 		}
 	}
 
 	p.tok = updated
 	p.email = persistEmail
-	slog.Debug("persisted refreshed token metadata", "email", persistEmail, "client", p.client) //nolint:gosec // logged values are token metadata identifiers for auth diagnostics
+	slog.Debug("persisted refreshed token metadata", "email", persistEmail, "client", p.client)
 
 	return t, nil
 }

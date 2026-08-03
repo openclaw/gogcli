@@ -12,7 +12,6 @@ import (
 
 func lockFile(file *os.File) error {
 	// File descriptors are OS-assigned small integers; unix.Flock requires int.
-	//nolint:gosec
 	if err := unix.Flock(int(file.Fd()), unix.LOCK_EX|unix.LOCK_NB); err != nil {
 		return fmt.Errorf("flock: %w", err)
 	}
@@ -22,7 +21,6 @@ func lockFile(file *os.File) error {
 
 func unlockFile(file *os.File) error {
 	// File descriptors are OS-assigned small integers; unix.Flock requires int.
-	//nolint:gosec
 	if err := unix.Flock(int(file.Fd()), unix.LOCK_UN); err != nil {
 		return fmt.Errorf("unlock flock: %w", err)
 	}

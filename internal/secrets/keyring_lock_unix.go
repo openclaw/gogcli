@@ -17,7 +17,6 @@ func lockKeyringFile(file *os.File, exclusive bool) error {
 	}
 
 	// File descriptors are OS-assigned small integers; unix.Flock requires int.
-	//nolint:gosec
 	if err := unix.Flock(int(file.Fd()), op); err != nil {
 		return fmt.Errorf("flock: %w", err)
 	}
@@ -27,7 +26,6 @@ func lockKeyringFile(file *os.File, exclusive bool) error {
 
 func unlockKeyringFile(file *os.File) error {
 	// File descriptors are OS-assigned small integers; unix.Flock requires int.
-	//nolint:gosec
 	if err := unix.Flock(int(file.Fd()), unix.LOCK_UN); err != nil {
 		return fmt.Errorf("unlock flock: %w", err)
 	}

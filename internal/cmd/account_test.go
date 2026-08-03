@@ -30,7 +30,9 @@ func (s *fakeSecretsStore) SetToken(string, string, secrets.Token) error {
 func (s *fakeSecretsStore) GetToken(string, string) (secrets.Token, error) {
 	return secrets.Token{}, errors.New("not implemented")
 }
+
 func (s *fakeSecretsStore) DeleteToken(string, string) error { return errors.New("not implemented") }
+
 func (s *fakeSecretsStore) SetDefaultAccount(string, string) error {
 	return errors.New("not implemented")
 }
@@ -38,6 +40,7 @@ func (s *fakeSecretsStore) SetDefaultAccount(string, string) error {
 func (s *fakeSecretsStore) GetDefaultAccount(string) (string, error) {
 	return s.defaultAccount, s.errDefault
 }
+
 func (s *fakeSecretsStore) ListTokens() ([]secrets.Token, error) { return s.tokens, s.errListTokens }
 
 func TestRequireAccount_PrefersFlag(t *testing.T) {
