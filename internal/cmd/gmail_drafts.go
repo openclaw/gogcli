@@ -424,6 +424,24 @@ func buildDraftMessage(ctx context.Context, svc *gmail.Service, account string, 
 	return msg, threading, attachmentMetadata, nil
 }
 
+// draftHasHTMLBodyPart reports whether a draft message's stored payload carries
+// a text/html body part (a rich-text draft). Attachment parts (non-empty
+// filename) don't count, so an attached .html file is not a rich body.
+func draftHasHTMLBodyPart(payload *gmail.MessagePart) bool {
+	if payload == nil {
+		return false
+	}
+	if strings.EqualFold(payload.MimeType, "text/html") && payload.Filename == "" {
+		return true
+	}
+	for _, part := range payload.Parts {
+		if draftHasHTMLBodyPart(part) {
+			return true
+		}
+	}
+	return false
+}
+
 // carryForwardDraftAttachments fetches the bytes of an existing draft message's
 // attachments so they can be re-attached to a rebuilt draft on update. Returns
 // nil when the draft has no attachments. Mirrors the gmail forward reattach path.
@@ -872,6 +890,14 @@ func (c *GmailDraftsUpdateCmd) Run(ctx context.Context, flags *RootFlags) error 
 	}
 	if !toWasSet && !c.ReplyAll {
 		to = existingTo
+	}
+
+	// gmail drafts update rebuilds the whole message, so updating a rich-text
+	// draft with only a plain body silently drops its text/html part — Gmail
+	// then renders the stored hard-wrapped plain text literally. Warn on
+	// stderr; --quote is exempt because quoting regenerates an HTML part.
+	if strings.TrimSpace(htmlBody) == "" && !c.Quote && draftHasHTMLBodyPart(existingPayload) {
+		u.Err().Println("Warning: draft has an HTML body; this update replaces it with plain text only. Pass --body-html/--body-html-file to keep rich-text formatting.")
 	}
 
 	// The thread the draft already lives in. Used for --quote target discovery

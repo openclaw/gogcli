@@ -1002,6 +1002,87 @@ func TestGmailDraftsUpdateCmd_PreservesToWhenNotProvided(t *testing.T) {
 	}
 }
 
+func newRichDraftUpdateServer(t *testing.T) *httptest.Server {
+	t.Helper()
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case strings.Contains(r.URL.Path, "/gmail/v1/users/me/drafts/d1") && r.Method == http.MethodGet:
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"id": "d1",
+				"message": map[string]any{
+					"id":       "m1",
+					"threadId": "t1",
+					"payload": map[string]any{
+						"mimeType": "multipart/alternative",
+						"headers": []map[string]any{
+							{"name": "To", "value": "keep@example.com"},
+						},
+						"parts": []map[string]any{
+							{"mimeType": "text/plain", "body": map[string]any{"size": 10}},
+							{"mimeType": "text/html", "body": map[string]any{"size": 20}},
+						},
+					},
+				},
+			})
+			return
+		case strings.Contains(r.URL.Path, "/gmail/v1/users/me/drafts/d1") && r.Method == http.MethodPut:
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"id":      "d1",
+				"message": map[string]any{"id": "m2", "threadId": "t1"},
+			})
+			return
+		default:
+			http.NotFound(w, r)
+			return
+		}
+	}))
+}
+
+func TestGmailDraftsUpdateCmd_WarnsWhenPlainBodyReplacesHTMLDraft(t *testing.T) {
+	srv := newRichDraftUpdateServer(t)
+	defer srv.Close()
+
+	svc := newGmailServiceFromServer(t, srv)
+	flags := &RootFlags{Account: "a@b.com"}
+
+	var stderr bytes.Buffer
+	ctx := withGmailTestService(newCmdRuntimeJSONOutputContext(t, io.Discard, &stderr), svc)
+	if err := runKong(t, &GmailDraftsUpdateCmd{}, []string{
+		"d1",
+		"--subject", "Updated",
+		"--body", "Hello",
+	}, ctx, flags); err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+	if !strings.Contains(stderr.String(), "replaces it with plain text only") {
+		t.Fatalf("expected plain-text downgrade warning on stderr, got:\n%s", stderr.String())
+	}
+}
+
+func TestGmailDraftsUpdateCmd_NoWarnWhenHTMLBodyProvided(t *testing.T) {
+	srv := newRichDraftUpdateServer(t)
+	defer srv.Close()
+
+	svc := newGmailServiceFromServer(t, srv)
+	flags := &RootFlags{Account: "a@b.com"}
+
+	var stderr bytes.Buffer
+	ctx := withGmailTestService(newCmdRuntimeJSONOutputContext(t, io.Discard, &stderr), svc)
+	if err := runKong(t, &GmailDraftsUpdateCmd{}, []string{
+		"d1",
+		"--subject", "Updated",
+		"--body", "Hello",
+		"--body-html", "<p>Hello</p>",
+	}, ctx, flags); err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+	if strings.Contains(stderr.String(), "plain text only") {
+		t.Fatalf("unexpected downgrade warning with --body-html, got:\n%s", stderr.String())
+	}
+}
+
 func TestGmailDraftsUpdateCmd_WithQuoteFromExistingThread(t *testing.T) {
 	t.Setenv("GOG_TIMEZONE", "UTC")
 	originalPlain := "Original thread message"
