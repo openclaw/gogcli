@@ -1083,6 +1083,82 @@ func TestGmailDraftsUpdateCmd_NoWarnWhenHTMLBodyProvided(t *testing.T) {
 	}
 }
 
+// The fetch of the existing draft is skipped when --to, --reply-to-message-id
+// and --attach are all supplied. That path still replaces the body, so the
+// downgrade warning must still reach it.
+func TestGmailDraftsUpdateCmd_WarnsWhenAllFieldsUpdateSkipsFetchGuard(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case strings.Contains(r.URL.Path, "/gmail/v1/users/me/drafts/d1") && r.Method == http.MethodGet:
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"id": "d1",
+				"message": map[string]any{
+					"id":       "m1",
+					"threadId": "t1",
+					"payload": map[string]any{
+						"mimeType": "multipart/alternative",
+						"parts": []map[string]any{
+							{"mimeType": "text/plain", "body": map[string]any{"size": 10}},
+							{"mimeType": "text/html", "body": map[string]any{"size": 20}},
+						},
+					},
+				},
+			})
+			return
+		case strings.Contains(r.URL.Path, "/gmail/v1/users/me/messages/m9") && r.Method == http.MethodGet:
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"id":       "m9",
+				"threadId": "t1",
+				"payload": map[string]any{
+					"headers": []map[string]any{
+						{"name": "Message-ID", "value": "<m9@example.com>"},
+						{"name": "From", "value": "orig@example.com"},
+						{"name": "Subject", "value": "Original"},
+					},
+				},
+			})
+			return
+		case strings.Contains(r.URL.Path, "/gmail/v1/users/me/drafts/d1") && r.Method == http.MethodPut:
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"id":      "d1",
+				"message": map[string]any{"id": "m2", "threadId": "t1"},
+			})
+			return
+		default:
+			http.NotFound(w, r)
+			return
+		}
+	}))
+	defer srv.Close()
+
+	attachment := filepath.Join(t.TempDir(), "note.txt")
+	if err := os.WriteFile(attachment, []byte("hi"), 0o600); err != nil {
+		t.Fatalf("write attachment: %v", err)
+	}
+
+	svc := newGmailServiceFromServer(t, srv)
+	flags := &RootFlags{Account: "a@b.com"}
+
+	var stderr bytes.Buffer
+	ctx := withGmailTestService(newCmdRuntimeJSONOutputContext(t, io.Discard, &stderr), svc)
+	if err := runKong(t, &GmailDraftsUpdateCmd{}, []string{
+		"d1",
+		"--to", "someone@example.com",
+		"--reply-to-message-id", "m9",
+		"--attach", attachment,
+		"--subject", "Updated",
+		"--body", "Hello",
+	}, ctx, flags); err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+	if !strings.Contains(stderr.String(), "replaces it with plain text only") {
+		t.Fatalf("expected downgrade warning on the all-fields update path, got:\n%s", stderr.String())
+	}
+}
+
 func TestGmailDraftsUpdateCmd_WithQuoteFromExistingThread(t *testing.T) {
 	t.Setenv("GOG_TIMEZONE", "UTC")
 	originalPlain := "Original thread message"

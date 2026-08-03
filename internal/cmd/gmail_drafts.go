@@ -872,7 +872,13 @@ func (c *GmailDraftsUpdateCmd) Run(ctx context.Context, flags *RootFlags) error 
 	existingInReplyTo := ""
 	existingReferences := ""
 	var existingPayload *gmail.MessagePart
-	if (!toWasSet && !c.ReplyAll) || strings.TrimSpace(replyToMessageID) == "" || preserveAttachments {
+	// An update carrying no HTML body can silently drop the draft's stored one,
+	// so the warning below needs the existing payload. Without this the fetch is
+	// skipped whenever --to, --reply-to-message-id and --attach are all supplied,
+	// and that path would downgrade a rich-text draft unwarned. --quote is exempt
+	// because quoting regenerates an HTML part.
+	inspectForHTMLDowngrade := strings.TrimSpace(htmlBody) == "" && !c.Quote
+	if (!toWasSet && !c.ReplyAll) || strings.TrimSpace(replyToMessageID) == "" || preserveAttachments || inspectForHTMLDowngrade {
 		existing, fetchErr := svc.Users.Drafts.Get("me", draftID).Format("full").Do()
 		if fetchErr != nil {
 			return fetchErr
@@ -894,9 +900,8 @@ func (c *GmailDraftsUpdateCmd) Run(ctx context.Context, flags *RootFlags) error 
 
 	// gmail drafts update rebuilds the whole message, so updating a rich-text
 	// draft with only a plain body silently drops its text/html part — Gmail
-	// then renders the stored hard-wrapped plain text literally. Warn on
-	// stderr; --quote is exempt because quoting regenerates an HTML part.
-	if strings.TrimSpace(htmlBody) == "" && !c.Quote && draftHasHTMLBodyPart(existingPayload) {
+	// then renders the stored hard-wrapped plain text literally. Warn on stderr.
+	if inspectForHTMLDowngrade && draftHasHTMLBodyPart(existingPayload) {
 		u.Err().Println("Warning: draft has an HTML body; this update replaces it with plain text only. Pass --body-html/--body-html-file to keep rich-text formatting.")
 	}
 
