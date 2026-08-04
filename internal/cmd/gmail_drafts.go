@@ -872,18 +872,24 @@ func (c *GmailDraftsUpdateCmd) Run(ctx context.Context, flags *RootFlags) error 
 	existingInReplyTo := ""
 	existingReferences := ""
 	var existingPayload *gmail.MessagePart
+	// Recipients, reply lineage and attachment carry-forward are built from the
+	// stored draft, so those updates cannot proceed without it.
+	requireExistingDraft := (!toWasSet && !c.ReplyAll) || strings.TrimSpace(replyToMessageID) == "" || preserveAttachments
 	// An update carrying no HTML body can silently drop the draft's stored one,
 	// so the warning below needs the existing payload. Without this the fetch is
 	// skipped whenever --to, --reply-to-message-id and --attach are all supplied,
 	// and that path would downgrade a rich-text draft unwarned. --quote is exempt
 	// because quoting regenerates an HTML part.
 	inspectForHTMLDowngrade := strings.TrimSpace(htmlBody) == "" && !c.Quote
-	if (!toWasSet && !c.ReplyAll) || strings.TrimSpace(replyToMessageID) == "" || preserveAttachments || inspectForHTMLDowngrade {
+	if requireExistingDraft || inspectForHTMLDowngrade {
 		existing, fetchErr := svc.Users.Drafts.Get("me", draftID).Format("full").Do()
-		if fetchErr != nil {
+		// This read is advisory whenever nothing but the warning wants it: a
+		// failed inspection costs the warning, never the update the caller asked
+		// for. Only a read the rebuilt message actually depends on is fatal.
+		if fetchErr != nil && requireExistingDraft {
 			return fetchErr
 		}
-		if existing != nil && existing.Message != nil {
+		if fetchErr == nil && existing != nil && existing.Message != nil {
 			existingThreadID = strings.TrimSpace(existing.Message.ThreadId)
 			existingMessageID = strings.TrimSpace(existing.Message.Id)
 			existingPayload = existing.Message.Payload
