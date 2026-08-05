@@ -3,7 +3,7 @@
 ## Unreleased
 
 - Gmail: warn before a draft update replaces an existing rich-text body with plain text only, while keeping JSON stdout clean. (#955) — thanks @mcinteerj.
-- Dependencies: update the Go developer tools, pnpm, and email-tracking worker transitive pins to their latest releases.
+- Dependencies: update the Google API and OpenTelemetry stacks, Go developer tools, pnpm, and email-tracking worker toolchain to their latest policy-eligible releases.
 - Docs: rewrite the README as a concise front door and move task examples into a dedicated guide.
 
 ## 0.34.2 - 2026-08-02
