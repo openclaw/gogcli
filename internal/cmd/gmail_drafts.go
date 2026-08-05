@@ -424,6 +424,29 @@ func buildDraftMessage(ctx context.Context, svc *gmail.Service, account string, 
 	return msg, threading, attachmentMetadata, nil
 }
 
+// draftHasHTMLBodyPart reports whether a draft message's stored payload carries
+// a text/html body part (a rich-text draft). Attachment parts (non-empty
+// filename) don't count, so an attached .html file is not a rich body.
+func draftHasHTMLBodyPart(payload *gmail.MessagePart) bool {
+	if payload == nil {
+		return false
+	}
+	// A named MIME subtree is an attachment, including an attached message whose
+	// nested body may itself contain text/html.
+	if strings.TrimSpace(payload.Filename) != "" {
+		return false
+	}
+	if strings.EqualFold(payload.MimeType, "text/html") {
+		return true
+	}
+	for _, part := range payload.Parts {
+		if draftHasHTMLBodyPart(part) {
+			return true
+		}
+	}
+	return false
+}
+
 // carryForwardDraftAttachments fetches the bytes of an existing draft message's
 // attachments so they can be re-attached to a rebuilt draft on update. Returns
 // nil when the draft has no attachments. Mirrors the gmail forward reattach path.
@@ -854,12 +877,24 @@ func (c *GmailDraftsUpdateCmd) Run(ctx context.Context, flags *RootFlags) error 
 	existingInReplyTo := ""
 	existingReferences := ""
 	var existingPayload *gmail.MessagePart
-	if (!toWasSet && !c.ReplyAll) || strings.TrimSpace(replyToMessageID) == "" || preserveAttachments {
+	// Recipients, reply lineage and attachment carry-forward are built from the
+	// stored draft, so those updates cannot proceed without it.
+	requireExistingDraft := (!toWasSet && !c.ReplyAll) || strings.TrimSpace(replyToMessageID) == "" || preserveAttachments
+	// An update carrying no HTML body can silently drop the draft's stored one,
+	// so the warning below needs the existing payload. Without this the fetch is
+	// skipped whenever --to, --reply-to-message-id and --attach are all supplied,
+	// and that path would downgrade a rich-text draft unwarned. --quote is exempt
+	// because quoting regenerates an HTML part.
+	inspectForHTMLDowngrade := strings.TrimSpace(htmlBody) == "" && !c.Quote
+	if requireExistingDraft || inspectForHTMLDowngrade {
 		existing, fetchErr := svc.Users.Drafts.Get("me", draftID).Format("full").Do()
-		if fetchErr != nil {
+		// This read is advisory whenever nothing but the warning wants it: a
+		// failed inspection costs the warning, never the update the caller asked
+		// for. Only a read the rebuilt message actually depends on is fatal.
+		if fetchErr != nil && requireExistingDraft {
 			return fetchErr
 		}
-		if existing != nil && existing.Message != nil {
+		if fetchErr == nil && existing != nil && existing.Message != nil {
 			existingThreadID = strings.TrimSpace(existing.Message.ThreadId)
 			existingMessageID = strings.TrimSpace(existing.Message.Id)
 			existingPayload = existing.Message.Payload
@@ -872,6 +907,13 @@ func (c *GmailDraftsUpdateCmd) Run(ctx context.Context, flags *RootFlags) error 
 	}
 	if !toWasSet && !c.ReplyAll {
 		to = existingTo
+	}
+
+	// gmail drafts update rebuilds the whole message, so updating a rich-text
+	// draft with only a plain body silently drops its text/html part — Gmail
+	// then renders the stored hard-wrapped plain text literally. Warn on stderr.
+	if inspectForHTMLDowngrade && draftHasHTMLBodyPart(existingPayload) {
+		u.Err().Println("Warning: draft has an HTML body; this update replaces it with plain text only. Pass --body-html/--body-html-file to keep rich-text formatting.")
 	}
 
 	// The thread the draft already lives in. Used for --quote target discovery

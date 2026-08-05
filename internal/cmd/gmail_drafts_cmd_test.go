@@ -1002,6 +1002,297 @@ func TestGmailDraftsUpdateCmd_PreservesToWhenNotProvided(t *testing.T) {
 	}
 }
 
+func newRichDraftUpdateServer(t *testing.T) *httptest.Server {
+	t.Helper()
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case strings.Contains(r.URL.Path, "/gmail/v1/users/me/drafts/d1") && r.Method == http.MethodGet:
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"id": "d1",
+				"message": map[string]any{
+					"id":       "m1",
+					"threadId": "t1",
+					"payload": map[string]any{
+						"mimeType": "multipart/alternative",
+						"headers": []map[string]any{
+							{"name": "To", "value": "keep@example.com"},
+						},
+						"parts": []map[string]any{
+							{"mimeType": "text/plain", "body": map[string]any{"size": 10}},
+							{"mimeType": "text/html", "body": map[string]any{"size": 20}},
+						},
+					},
+				},
+			})
+			return
+		case strings.Contains(r.URL.Path, "/gmail/v1/users/me/drafts/d1") && r.Method == http.MethodPut:
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"id":      "d1",
+				"message": map[string]any{"id": "m2", "threadId": "t1"},
+			})
+			return
+		default:
+			http.NotFound(w, r)
+			return
+		}
+	}))
+}
+
+func TestDraftHasHTMLBodyPart_IgnoresAttachmentSubtrees(t *testing.T) {
+	payload := &gmail.MessagePart{
+		MimeType: "multipart/mixed",
+		Parts: []*gmail.MessagePart{
+			{MimeType: "text/plain"},
+			{
+				MimeType: "message/rfc822",
+				Filename: "attached.eml",
+				Parts: []*gmail.MessagePart{
+					{MimeType: "text/html"},
+				},
+			},
+		},
+	}
+
+	if draftHasHTMLBodyPart(payload) {
+		t.Fatal("HTML nested inside an attached message must not count as the draft body")
+	}
+}
+
+func TestGmailDraftsUpdateCmd_WarnsWhenPlainBodyReplacesHTMLDraft(t *testing.T) {
+	srv := newRichDraftUpdateServer(t)
+	defer srv.Close()
+
+	svc := newGmailServiceFromServer(t, srv)
+	flags := &RootFlags{Account: "a@b.com"}
+
+	var stderr bytes.Buffer
+	ctx := withGmailTestService(newCmdRuntimeJSONOutputContext(t, io.Discard, &stderr), svc)
+	if err := runKong(t, &GmailDraftsUpdateCmd{}, []string{
+		"d1",
+		"--subject", "Updated",
+		"--body", "Hello",
+	}, ctx, flags); err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+	if !strings.Contains(stderr.String(), "replaces it with plain text only") {
+		t.Fatalf("expected plain-text downgrade warning on stderr, got:\n%s", stderr.String())
+	}
+}
+
+func TestGmailDraftsUpdateCmd_NoWarnWhenHTMLBodyProvided(t *testing.T) {
+	srv := newRichDraftUpdateServer(t)
+	defer srv.Close()
+
+	svc := newGmailServiceFromServer(t, srv)
+	flags := &RootFlags{Account: "a@b.com"}
+
+	var stderr bytes.Buffer
+	ctx := withGmailTestService(newCmdRuntimeJSONOutputContext(t, io.Discard, &stderr), svc)
+	if err := runKong(t, &GmailDraftsUpdateCmd{}, []string{
+		"d1",
+		"--subject", "Updated",
+		"--body", "Hello",
+		"--body-html", "<p>Hello</p>",
+	}, ctx, flags); err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+	if strings.Contains(stderr.String(), "plain text only") {
+		t.Fatalf("unexpected downgrade warning with --body-html, got:\n%s", stderr.String())
+	}
+}
+
+// The fetch of the existing draft is skipped when --to, --reply-to-message-id
+// and --attach are all supplied. That path still replaces the body, so the
+// downgrade warning must still reach it.
+func TestGmailDraftsUpdateCmd_WarnsWhenAllFieldsUpdateSkipsFetchGuard(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case strings.Contains(r.URL.Path, "/gmail/v1/users/me/drafts/d1") && r.Method == http.MethodGet:
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"id": "d1",
+				"message": map[string]any{
+					"id":       "m1",
+					"threadId": "t1",
+					"payload": map[string]any{
+						"mimeType": "multipart/alternative",
+						"parts": []map[string]any{
+							{"mimeType": "text/plain", "body": map[string]any{"size": 10}},
+							{"mimeType": "text/html", "body": map[string]any{"size": 20}},
+						},
+					},
+				},
+			})
+			return
+		case strings.Contains(r.URL.Path, "/gmail/v1/users/me/messages/m9") && r.Method == http.MethodGet:
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"id":       "m9",
+				"threadId": "t1",
+				"payload": map[string]any{
+					"headers": []map[string]any{
+						{"name": "Message-ID", "value": "<m9@example.com>"},
+						{"name": "From", "value": "orig@example.com"},
+						{"name": "Subject", "value": "Original"},
+					},
+				},
+			})
+			return
+		case strings.Contains(r.URL.Path, "/gmail/v1/users/me/drafts/d1") && r.Method == http.MethodPut:
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"id":      "d1",
+				"message": map[string]any{"id": "m2", "threadId": "t1"},
+			})
+			return
+		default:
+			http.NotFound(w, r)
+			return
+		}
+	}))
+	defer srv.Close()
+
+	attachment := filepath.Join(t.TempDir(), "note.txt")
+	if err := os.WriteFile(attachment, []byte("hi"), 0o600); err != nil {
+		t.Fatalf("write attachment: %v", err)
+	}
+
+	svc := newGmailServiceFromServer(t, srv)
+	flags := &RootFlags{Account: "a@b.com"}
+
+	var stderr bytes.Buffer
+	ctx := withGmailTestService(newCmdRuntimeJSONOutputContext(t, io.Discard, &stderr), svc)
+	if err := runKong(t, &GmailDraftsUpdateCmd{}, []string{
+		"d1",
+		"--to", "someone@example.com",
+		"--reply-to-message-id", "m9",
+		"--attach", attachment,
+		"--subject", "Updated",
+		"--body", "Hello",
+	}, ctx, flags); err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+	if !strings.Contains(stderr.String(), "replaces it with plain text only") {
+		t.Fatalf("expected downgrade warning on the all-fields update path, got:\n%s", stderr.String())
+	}
+}
+
+// When --to, --reply-to-message-id and --attach are all supplied the existing
+// draft is read only to decide whether to warn. That read is advisory, so a
+// failure must not abort the update the caller asked for.
+func TestGmailDraftsUpdateCmd_AdvisoryFetchFailureStillUpdates(t *testing.T) {
+	var draftGets, draftPuts int
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case strings.Contains(r.URL.Path, "/gmail/v1/users/me/drafts/d1") && r.Method == http.MethodGet:
+			draftGets++
+			http.Error(w, "transient draft read failure", http.StatusServiceUnavailable)
+			return
+		case strings.Contains(r.URL.Path, "/gmail/v1/users/me/messages/m9") && r.Method == http.MethodGet:
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"id":       "m9",
+				"threadId": "t1",
+				"payload": map[string]any{
+					"headers": []map[string]any{
+						{"name": "Message-ID", "value": "<m9@example.com>"},
+						{"name": "From", "value": "orig@example.com"},
+						{"name": "Subject", "value": "Original"},
+					},
+				},
+			})
+			return
+		case strings.Contains(r.URL.Path, "/gmail/v1/users/me/drafts/d1") && r.Method == http.MethodPut:
+			draftPuts++
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"id":      "d1",
+				"message": map[string]any{"id": "m2", "threadId": "t1"},
+			})
+			return
+		default:
+			http.NotFound(w, r)
+			return
+		}
+	}))
+	defer srv.Close()
+
+	attachment := filepath.Join(t.TempDir(), "note.txt")
+	if err := os.WriteFile(attachment, []byte("hi"), 0o600); err != nil {
+		t.Fatalf("write attachment: %v", err)
+	}
+
+	svc := newGmailServiceFromServer(t, srv)
+	flags := &RootFlags{Account: "a@b.com"}
+
+	var stderr bytes.Buffer
+	ctx := withGmailTestService(newCmdRuntimeJSONOutputContext(t, io.Discard, &stderr), svc)
+	if err := runKong(t, &GmailDraftsUpdateCmd{}, []string{
+		"d1",
+		"--to", "someone@example.com",
+		"--reply-to-message-id", "m9",
+		"--attach", attachment,
+		"--subject", "Updated",
+		"--body", "Hello",
+	}, ctx, flags); err != nil {
+		t.Fatalf("advisory draft read failure must not abort the update: %v", err)
+	}
+	if draftGets == 0 {
+		t.Fatalf("expected the advisory draft read to be attempted")
+	}
+	if draftPuts != 1 {
+		t.Fatalf("expected the draft update to still be sent, got %d PUTs", draftPuts)
+	}
+	if strings.Contains(stderr.String(), "plain text only") {
+		t.Fatalf("no downgrade warning is possible when the inspection read failed, got:\n%s", stderr.String())
+	}
+}
+
+// A read the rebuilt message actually depends on stays fatal: without --to the
+// update needs the stored recipients, so a failed read must not silently drop
+// them.
+func TestGmailDraftsUpdateCmd_RequiredFetchFailureAborts(t *testing.T) {
+	var draftPuts int
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case strings.Contains(r.URL.Path, "/gmail/v1/users/me/drafts/d1") && r.Method == http.MethodGet:
+			http.Error(w, "transient draft read failure", http.StatusServiceUnavailable)
+			return
+		case strings.Contains(r.URL.Path, "/gmail/v1/users/me/drafts/d1") && r.Method == http.MethodPut:
+			draftPuts++
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"id":      "d1",
+				"message": map[string]any{"id": "m2", "threadId": "t1"},
+			})
+			return
+		default:
+			http.NotFound(w, r)
+			return
+		}
+	}))
+	defer srv.Close()
+
+	svc := newGmailServiceFromServer(t, srv)
+	flags := &RootFlags{Account: "a@b.com"}
+
+	var stderr bytes.Buffer
+	ctx := withGmailTestService(newCmdRuntimeJSONOutputContext(t, io.Discard, &stderr), svc)
+	err := runKong(t, &GmailDraftsUpdateCmd{}, []string{
+		"d1",
+		"--subject", "Updated",
+		"--body", "Hello",
+	}, ctx, flags)
+	if err == nil {
+		t.Fatalf("expected the required draft read failure to abort the update")
+	}
+	if draftPuts != 0 {
+		t.Fatalf("expected no draft update after a required read failure, got %d PUTs", draftPuts)
+	}
+}
+
 func TestGmailDraftsUpdateCmd_WithQuoteFromExistingThread(t *testing.T) {
 	t.Setenv("GOG_TIMEZONE", "UTC")
 	originalPlain := "Original thread message"

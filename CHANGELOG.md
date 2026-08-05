@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Gmail: warn before a draft update replaces an existing rich-text body with plain text only, while keeping JSON stdout clean. (#955) — thanks @mcinteerj.
 - Dependencies: update the Go developer tools, pnpm, and email-tracking worker transitive pins to their latest releases.
 - Docs: rewrite the README as a concise front door and move task examples into a dedicated guide.
 
