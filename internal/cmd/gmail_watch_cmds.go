@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -436,10 +437,13 @@ func (c *GmailWatchServeCmd) Run(ctx context.Context, kctx *kong.Context, flags 
 
 func writeWatchState(ctx context.Context, state gmailWatchState, showSecrets bool) error {
 	if outfmt.IsJSON(ctx) {
-		if !showSecrets && state.Hook != nil && state.Hook.Token != "" {
+		if !showSecrets && state.Hook != nil {
 			redacted := state
 			h := *state.Hook
-			h.Token = "[REDACTED]"
+			if h.Token != "" {
+				h.Token = "[REDACTED]"
+			}
+			h.URL = redactHookURL(h.URL)
 			redacted.Hook = &h
 			return outfmt.WriteJSON(ctx, stdoutWriter(ctx), map[string]any{"watch": redacted})
 		}
@@ -465,7 +469,11 @@ func writeWatchState(ctx context.Context, state gmailWatchState, showSecrets boo
 		u.Out().Linef("updated_at\t%s", formatUnixMillis(state.UpdatedAtMs))
 	}
 	if state.Hook != nil {
-		u.Out().Linef("hook_url\t%s", state.Hook.URL)
+		hookURL := state.Hook.URL
+		if !showSecrets {
+			hookURL = redactHookURL(hookURL)
+		}
+		u.Out().Linef("hook_url\t%s", hookURL)
 		if state.Hook.IncludeBody {
 			u.Out().Linef("hook_include_body\ttrue")
 		}
@@ -508,6 +516,44 @@ func writeWatchState(ctx context.Context, state gmailWatchState, showSecrets boo
 		u.Out().Linef("auth_failure_reason\t%s", state.AuthFailureReason)
 	}
 	return nil
+}
+
+// redactHookURL strips credentials that can be embedded in a webhook URL so the
+// hook URL can be shown in `gmail watch status` output without leaking secrets.
+// It removes userinfo (https://user:pass@host), query values (e.g. ?token=...),
+// and any fragment, while keeping the scheme, host, and path visible so the
+// destination stays recognizable. URLs without embedded credentials are returned
+// unchanged. Mirrors the git remote URL redaction used elsewhere in the CLI.
+func redactHookURL(raw string) string {
+	parsed, err := url.Parse(raw)
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+		return raw
+	}
+
+	redacted := false
+	if parsed.User != nil {
+		parsed.User = url.User("redacted")
+		redacted = true
+	}
+	if parsed.RawQuery != "" {
+		query := parsed.Query()
+		for key, values := range query {
+			for i := range values {
+				values[i] = "redacted"
+			}
+			query[key] = values
+		}
+		parsed.RawQuery = query.Encode()
+		redacted = true
+	}
+	if parsed.Fragment != "" {
+		parsed.Fragment = "redacted"
+		redacted = true
+	}
+	if !redacted {
+		return raw
+	}
+	return parsed.String()
 }
 
 func buildWatchState(account, topic string, labels []string, resp *gmail.WatchResponse, ttl time.Duration, hook *gmailWatchHook) (gmailWatchState, error) {
