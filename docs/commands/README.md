@@ -2,7 +2,7 @@
 
 Every `gog` command has a generated docs page. The source of truth is the live CLI schema; run `make docs-commands` after changing command names, flags, help text, aliases, or arguments.
 
-Generated pages: 708.
+Generated pages: 709.
 
 ## Top-level Commands
 
@@ -463,6 +463,7 @@ Generated pages: 708.
     - [gog gmail forward](gog-gmail-forward.md) - Forward a message to new recipients
     - [gog gmail get](gog-gmail-get.md) - Get a message (full|metadata|raw)
     - [gog gmail history](gog-gmail-history.md) - Gmail history
+    - [gog gmail import](gog-gmail-import.md) - Import an RFC822/EML message into Gmail
     - [gog gmail labels](gog-gmail-labels.md) - Label operations
       - [gog gmail labels create](gog-gmail-labels-create.md) - Create a new label
       - [gog gmail labels delete](gog-gmail-labels-delete.md) - Delete a label

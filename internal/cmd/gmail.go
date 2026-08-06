@@ -18,6 +18,7 @@ type GmailCmd struct {
 	Trash   GmailTrashMsgCmd `cmd:"" name:"trash" group:"Organize" help:"Move messages to trash"`
 
 	Send      GmailSendCmd      `cmd:"" name:"send" group:"Write" help:"Send an email"`
+	Import    GmailImportCmd    `cmd:"" name:"import" group:"Write" help:"Import an RFC822/EML message into Gmail"`
 	Reply     GmailReplyCmd     `cmd:"" name:"reply" group:"Write" help:"Reply to a message"`
 	ReplyAll  GmailReplyAllCmd  `cmd:"" name:"reply-all" aliases:"replyall" group:"Write" help:"Reply to all message participants"`
 	Forward   GmailForwardCmd   `cmd:"" name:"forward" aliases:"fwd" group:"Write" help:"Forward a message to new recipients"`

@@ -66,6 +66,27 @@ For account-specific send blocking, use the no-send config commands:
 - [`gog config no-send list`](commands/gog-config-no-send-list.md)
 - [`gog config no-send remove`](commands/gog-config-no-send-remove.md)
 
+## Import an RFC822 Message
+
+Import one existing RFC822/EML message from a file or stdin:
+
+```bash
+gog gmail import message.eml --label Imported --never-mark-spam
+cat message.eml | gog gmail import - --internal-date-source receivedTime
+```
+
+Use `--dry-run` to parse the message and report its source, byte count, key
+headers, labels, and import controls without authenticating or changing the
+mailbox. `--internal-date-source dateHeader` (the default) asks Gmail to use a
+valid `Date` header; `receivedTime` uses the import time. The optional
+`--process-for-calendar` flag lets Gmail process calendar invitations.
+
+This command imports one message through Gmail's normal delivery scanning and
+classification. It does not fetch from IMAP, synchronize mailboxes, or
+orchestrate bulk migrations.
+
+Command page: [`gog gmail import`](commands/gog-gmail-import.md).
+
 ## Reply and Reply All
 
 The Gmail API has no reply method. Clients fetch the original message, build a

@@ -1,44 +1,18 @@
-# `gog gmail`
+# `gog gmail import`
 
 > Generated from `gog schema --json`. Do not edit this page by hand; run `make docs-commands`.
 
-Gmail
+Import an RFC822/EML message into Gmail
 
 ## Usage
 
 ```bash
-gog gmail (mail,email) <command> [flags]
+gog gmail (mail,email) import <file> [flags]
 ```
 
 ## Parent
 
-- [gog](gog.md)
-
-## Subcommands
-
-- [gog gmail archive](gog-gmail-archive.md) - Archive messages or explicit threads (remove from inbox)
-- [gog gmail attachment](gog-gmail-attachment.md) - Download a single attachment
-- [gog gmail autoreply](gog-gmail-autoreply.md) - Reply once to matching messages
-- [gog gmail batch](gog-gmail-batch.md) - Batch operations (permanent delete requires broader Gmail scope; use gmail trash for normal trashing)
-- [gog gmail drafts](gog-gmail-drafts.md) - Draft operations
-- [gog gmail forward](gog-gmail-forward.md) - Forward a message to new recipients
-- [gog gmail get](gog-gmail-get.md) - Get a message (full|metadata|raw)
-- [gog gmail history](gog-gmail-history.md) - Gmail history
-- [gog gmail import](gog-gmail-import.md) - Import an RFC822/EML message into Gmail
-- [gog gmail labels](gog-gmail-labels.md) - Label operations
-- [gog gmail mark-read](gog-gmail-mark-read.md) - Mark messages as read
-- [gog gmail messages](gog-gmail-messages.md) - Message operations
-- [gog gmail raw](gog-gmail-raw.md) - Dump raw Gmail API response as JSON (Users.Messages.Get; lossless; for scripting and LLM consumption)
-- [gog gmail reply](gog-gmail-reply.md) - Reply to a message
-- [gog gmail reply-all](gog-gmail-reply-all.md) - Reply to all message participants
-- [gog gmail search](gog-gmail-search.md) - Search threads using Gmail query syntax
-- [gog gmail send](gog-gmail-send.md) - Send an email
-- [gog gmail settings](gog-gmail-settings.md) - Settings and admin
-- [gog gmail thread](gog-gmail-thread.md) - Thread operations (get, modify)
-- [gog gmail track](gog-gmail-track.md) - Email open tracking
-- [gog gmail trash](gog-gmail-trash.md) - Move messages to trash
-- [gog gmail unread](gog-gmail-unread.md) - Mark messages as unread
-- [gog gmail url](gog-gmail-url.md) - Print Gmail web URLs for threads
+- [gog gmail](gog-gmail.md)
 
 ## Flags
 
@@ -56,9 +30,13 @@ gog gmail (mail,email) <command> [flags]
 | `--gmail-no-send` | `bool` | false | Block Gmail send operations (agent safety) |
 | `-h`<br>`--help` | `kong.helpFlag` |  | Show context-sensitive help. |
 | `--home` | `string` |  | Override gogcli config/data/state/cache root (equivalent to GOG_HOME) |
+| `--internal-date-source` | `string` | dateHeader | Gmail internal date source: dateHeader or receivedTime |
 | `-j`<br>`--json`<br>`--machine` | `bool` | false | Output JSON to stdout (best for scripting) |
+| `--label` | `[]string` |  | Label ID or name to apply (repeatable) |
+| `--never-mark-spam` | `bool` |  | Never classify the imported message as spam |
 | `--no-input`<br>`--non-interactive`<br>`--noninteractive` | `bool` |  | Never prompt; fail instead (useful for CI) |
 | `-p`<br>`--plain`<br>`--tsv` | `bool` | false | Output stable, parseable text to stdout (TSV; no colors) |
+| `--process-for-calendar` | `bool` |  | Process calendar invitations in the imported message |
 | `--readonly` | `bool` | false | Block mutating API requests at runtime; auth add also requests read-only OAuth scopes |
 | `--results-only` | `bool` |  | In JSON mode, emit only the primary result (drops envelope fields like nextPageToken) |
 | `--select`<br>`--pick`<br>`--project` | `string` |  | In JSON mode, select comma-separated fields (best-effort; supports dot paths). Desire path: use --fields for most commands. |
@@ -68,5 +46,5 @@ gog gmail (mail,email) <command> [flags]
 
 ## See Also
 
-- [gog](gog.md)
+- [gog gmail](gog-gmail.md)
 - [Command index](README.md)

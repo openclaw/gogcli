@@ -53,6 +53,27 @@ run_gmail_tests() {
   run_required "gmail" "gmail labels list" gog gmail labels list --json >/dev/null
   run_required "gmail" "gmail labels get" gog gmail labels get INBOX --json >/dev/null
 
+  local import_eml import_subject import_json import_msg_id import_thread_id import_readback
+  import_eml="$LIVE_TMP/gmail-import-$TS.eml"
+  import_subject="gogcli synthetic import $TS"
+  printf 'From: gogcli live test <%s>\r\nTo: %s\r\nSubject: %s\r\nDate: Thu, 06 Aug 2026 12:34:56 +0000\r\nMessage-ID: <gogcli-import-%s@gogcli.test>\r\nMIME-Version: 1.0\r\nContent-Type: text/plain; charset=utf-8\r\n\r\nSynthetic RFC822 import proof.\r\n' \
+    "$ACCOUNT" "$ACCOUNT" "$import_subject" "$TS" >"$import_eml"
+  run_required "gmail-import" "gmail import dry-run" gog --dry-run gmail import "$import_eml" \
+    --label STARRED --internal-date-source dateHeader --never-mark-spam --process-for-calendar --json >/dev/null
+  import_json=$(gog gmail import "$import_eml" --label STARRED \
+    --internal-date-source dateHeader --never-mark-spam --process-for-calendar --json)
+  import_msg_id=$(extract_field "$import_json" messageId)
+  import_thread_id=$(extract_field "$import_json" threadId)
+  [ -n "$import_msg_id" ] || { echo "Failed to parse imported Gmail message id" >&2; exit 1; }
+  [ -n "$import_thread_id" ] || { echo "Failed to parse imported Gmail thread id" >&2; exit 1; }
+  register_gmail_thread_cleanup "$import_thread_id"
+  import_readback=$(gog gmail get "$import_msg_id" --format metadata --json)
+  "$PY" -c 'import json,sys
+obj=json.load(sys.stdin)
+assert obj.get("headers", {}).get("subject") == sys.argv[1]
+assert "STARRED" in obj.get("message", {}).get("labelIds", [])' \
+    "$import_subject" <<<"$import_readback"
+
   if ! skip "gmail-settings"; then
     local sendas_json sendas_email
     echo "==> gmail settings sendas list"

@@ -33,6 +33,7 @@ gmail:
   unread: false
   trash: false
   send: false
+  import: false
   autoreply: false
   track: false
   drafts:

@@ -410,6 +410,7 @@ Generated from `gog schema --json`.
     - [`gog gmail (mail,email) forward (fwd) --to=STRING <messageId> [flags]`](commands/gog-gmail-forward.md) - Forward a message to new recipients
     - [`gog gmail (mail,email) get (info,show) <messageId> [flags]`](commands/gog-gmail-get.md) - Get a message (full|metadata|raw)
     - [`gog gmail (mail,email) history [flags]`](commands/gog-gmail-history.md) - Gmail history
+    - [`gog gmail (mail,email) import <file> [flags]`](commands/gog-gmail-import.md) - Import an RFC822/EML message into Gmail
     - [`gog gmail (mail,email) labels (label) <command>`](commands/gog-gmail-labels.md) - Label operations
       - [`gog gmail (mail,email) labels (label) create (add,new) <name>`](commands/gog-gmail-labels-create.md) - Create a new label
       - [`gog gmail (mail,email) labels (label) delete (rm,del) <labelIdOrName>`](commands/gog-gmail-labels-delete.md) - Delete a label

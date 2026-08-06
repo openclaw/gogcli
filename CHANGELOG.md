@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Gmail: add guarded single-message RFC822/EML import from a file or stdin, with labels, internal-date, spam, calendar-processing, and parse-only dry-run controls. (#956) — thanks @holgergruenhagen.
 - Gmail: warn before a draft update replaces an existing rich-text body with plain text only, while keeping JSON stdout clean. (#955) — thanks @mcinteerj.
 - Dependencies: update the Google API and OpenTelemetry stacks, Go developer tools, pnpm, and email-tracking worker toolchain to their latest policy-eligible releases.
 - Docs: rewrite the README as a concise front door and move task examples into a dedicated guide.

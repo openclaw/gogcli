@@ -36,6 +36,7 @@ gog --readonly --account user@example.com gmail search 'newer_than:7d' --max 10 
 | `forward` | Forward a message to new recipients |
 | `get` | Get a message (full\|metadata\|raw) |
 | `history` | Gmail history |
+| `import` | Import an RFC822/EML message into Gmail |
 | `labels` | Label operations |
 | `mark-read` | Mark messages as read |
 | `messages` | Message operations |
