@@ -20,6 +20,16 @@ var (
 // appear here — internalDate backs internalDateIso.
 const gmailMessageSummaryFields = "id,threadId,labelIds,internalDate,payload(headers)"
 
+// gmailMessageAttachmentFields extends the summary mask with attachment part
+// metadata (filename, mimeType, size, attachmentId) but never body/data, nested
+// a few levels to reach attachments in typical multipart trees. Paired with
+// format=full, so --include-attachments lists attachments without pulling bodies.
+const (
+	gmailAttachmentPartFields    = "filename,mimeType,body(size,attachmentId)"
+	gmailMessageAttachmentFields = "id,threadId,labelIds,internalDate,payload(headers,parts(" +
+		gmailAttachmentPartFields + ",parts(" + gmailAttachmentPartFields + ",parts(" + gmailAttachmentPartFields + "))))"
+)
+
 func defaultGmailGetMetadataHeaders() []string {
 	headers := append([]string{}, gmailBasicMetadataHeaders...)
 	headers = append(headers, "Message-ID", "In-Reply-To", "References", "List-Unsubscribe")

@@ -34,6 +34,7 @@ gog gmail (mail,email) messages (message,msg,msgs) search (find,query,ls,list) <
 | `--gmail-no-send` | `bool` | false | Block Gmail send operations (agent safety) |
 | `-h`<br>`--help` | `kong.helpFlag` |  | Show context-sensitive help. |
 | `--home` | `string` |  | Override gogcli config/data/state/cache root (equivalent to GOG_HOME) |
+| `--include-attachments` | `bool` |  | Include each message's attachment metadata |
 | `--include-body` | `bool` |  | Include decoded message body (JSON is full; text output truncates only unusually large bodies) |
 | `-j`<br>`--json`<br>`--machine` | `bool` | false | Output JSON to stdout (best for scripting) |
 | `--local` | `bool` |  | Use local timezone (default behavior, useful to override --timezone) |
