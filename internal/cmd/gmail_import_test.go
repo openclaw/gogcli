@@ -126,8 +126,8 @@ func TestGmailImportUploadsMessageAndOptions(t *testing.T) {
 				return
 			}
 			var metadata gmail.Message
-			if err := json.NewDecoder(metadataPart).Decode(&metadata); err != nil {
-				t.Errorf("decode metadata: %v", err)
+			if decodeErr := json.NewDecoder(metadataPart).Decode(&metadata); decodeErr != nil {
+				t.Errorf("decode metadata: %v", decodeErr)
 				return
 			}
 			if len(metadata.LabelIds) != 1 || metadata.LabelIds[0] != "Label_42" {
