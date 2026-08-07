@@ -34,6 +34,7 @@ gog docs (doc) comments list (ls) <docId> [flags]
 | `--home` | `string` |  | Override gogcli config/data/state/cache root (equivalent to GOG_HOME) |
 | `--include-resolved`<br>`--resolved` | `bool` |  | Include resolved comments (default: open only) |
 | `-j`<br>`--json`<br>`--machine` | `bool` | false | Output JSON to stdout (best for scripting) |
+| `--locate` | `bool` |  | Attach each comment's tab and index ranges (one extra Docs fetch) |
 | `--max`<br>`--limit` | `int64` | 100 | Max results per page |
 | `--no-input`<br>`--non-interactive`<br>`--noninteractive` | `bool` |  | Never prompt; fail instead (useful for CI) |
 | `--page`<br>`--cursor` | `string` |  | Page token for pagination |
@@ -42,6 +43,7 @@ gog docs (doc) comments list (ls) <docId> [flags]
 | `--results-only` | `bool` |  | In JSON mode, emit only the primary result (drops envelope fields like nextPageToken) |
 | `--select`<br>`--pick`<br>`--project` | `string` |  | In JSON mode, select comma-separated fields (best-effort; supports dot paths). Desire path: use --fields for most commands. |
 | `--since` | `string` |  | Only return comments modified at or after this RFC3339 timestamp |
+| `--tab` | `string` |  | Only comments located in this tab by title or ID (implies --locate) |
 | `-v`<br>`--verbose` | `bool` |  | Enable verbose logging |
 | `--version` | `kong.VersionFlag` |  | Print version and exit |
 | `--wrap-untrusted` | `bool` | false | In JSON/raw output, wrap fetched text fields in external untrusted-content markers |

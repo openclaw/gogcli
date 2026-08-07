@@ -135,6 +135,25 @@ Use `--occurrence N` when an anchor is ambiguous and `--match-case` when case
 must be exact. `docs comments locate` applies the same matching rules to a
 comment's quoted text and reports its tab plus UTF-16 range.
 
+`docs comments list --locate` does the same for every listed comment from a
+single document fetch, adding a `location` object (`matches`, `orphaned`) and a
+`TAB` column. `--tab` implies `--locate`, adds the resolved tab to JSON output
+as a top-level `tab` (`{id, title}`), and keeps only the comments with at least
+one match in that tab:
+
+```bash
+gog docs comments list <docId> --tab "Planning" --all --json
+```
+
+Anything that resolves to no tab therefore drops out under `--tab`: comments
+whose quote was edited away (`orphaned`), and comments with no quoted text at
+all, such as ones attached to the whole document. Use `--locate` alone to see
+them - it reports every comment, orphaned or not.
+
+Both flags are opt-in: without them the command still reads Drive alone.
+`matches` always spans every tab, so a quote that appears more than once stays
+visible as ambiguous.
+
 `insert` and `update` both accept `--markdown` to convert the content (headings,
 fenced code blocks, lists, tables, images) before placing it at the resolved
 position. `insert --markdown` adds the block without deleting anything; `update

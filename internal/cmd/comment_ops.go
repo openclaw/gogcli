@@ -221,13 +221,26 @@ func writeDriveCommentList(ctx context.Context, u *ui.UI, opts driveCommentListO
 }
 
 func printExpandedCommentTable(ctx context.Context, comments []*drive.Comment) {
+	located := make([]*driveCommentWithLocation, 0, len(comments))
+	for _, comment := range comments {
+		located = append(located, &driveCommentWithLocation{Comment: comment})
+	}
+	printExpandedCommentRows(ctx, located, false)
+}
+
+func printExpandedCommentRows(ctx context.Context, located []*driveCommentWithLocation, showTab bool) {
 	w, flush := tableWriter(ctx)
 	defer flush()
-	fmt.Fprintln(w, "TYPE\tID\tAUTHOR\tQUOTED\tCONTENT\tCREATED\tRESOLVED\tACTION")
-	for _, comment := range comments {
-		if comment == nil {
+	header := "TYPE\tID\tAUTHOR\tQUOTED\tCONTENT\tCREATED\tRESOLVED\tACTION"
+	if showTab {
+		header += "\tTAB"
+	}
+	fmt.Fprintln(w, header)
+	for _, item := range located {
+		if item == nil || item.Comment == nil {
 			continue
 		}
+		comment := item.Comment
 		author := ""
 		if comment.Author != nil {
 			author = comment.Author.DisplayName
@@ -236,7 +249,7 @@ func printExpandedCommentTable(ctx context.Context, comments []*drive.Comment) {
 		if comment.QuotedFileContent != nil {
 			quoted = truncateString(oneLineTSV(comment.QuotedFileContent.Value), 30)
 		}
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%t\t%s\n",
+		row := fmt.Sprintf("%s\t%s\t%s\t%s\t%s\t%s\t%t\t%s",
 			"comment",
 			comment.Id,
 			oneLineTSV(author),
@@ -246,6 +259,10 @@ func printExpandedCommentTable(ctx context.Context, comments []*drive.Comment) {
 			comment.Resolved,
 			"",
 		)
+		if showTab {
+			row += "\t" + commentLocationTabCell(item)
+		}
+		fmt.Fprintln(w, row)
 		for _, reply := range comment.Replies {
 			if reply == nil {
 				continue
@@ -254,7 +271,7 @@ func printExpandedCommentTable(ctx context.Context, comments []*drive.Comment) {
 			if reply.Author != nil {
 				author = reply.Author.DisplayName
 			}
-			fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
+			row = fmt.Sprintf("%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s",
 				"reply",
 				reply.Id,
 				oneLineTSV(author),
@@ -264,8 +281,24 @@ func printExpandedCommentTable(ctx context.Context, comments []*drive.Comment) {
 				"",
 				oneLineTSV(reply.Action),
 			)
+			if showTab {
+				row += "\t"
+			}
+			fmt.Fprintln(w, row)
 		}
 	}
+}
+
+// commentLocationTabCell renders "-" for documents without tabs, where a
+// located comment still has no tab to name.
+func commentLocationTabCell(item *driveCommentWithLocation) string {
+	if item.Location != nil && item.Location.Orphaned {
+		return "(orphaned)"
+	}
+	if len(item.tabLabels) == 0 {
+		return "-"
+	}
+	return oneLineTSV(strings.Join(item.tabLabels, ", "))
 }
 
 func printCompactCommentTable(ctx context.Context, comments []*drive.Comment, includeQuoted bool) {
