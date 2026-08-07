@@ -183,7 +183,7 @@ func downloadAttachmentOutputs(ctx context.Context, svc *gmail.Service, messageI
 	}
 	out := make([]attachmentDownloadOutput, 0, len(attachments))
 	for _, a := range attachments {
-		outPath, cached, err := downloadAttachment(ctx, svc, messageID, a, dir)
+		outPath, cached, err := downloadAttachment(ctx, svc, messageID, a, dir, useIndexedAttachmentIDs)
 		if err != nil {
 			return nil, err
 		}
@@ -203,6 +203,28 @@ func collectAttachments(p *gmail.MessagePart) []attachmentInfo {
 		out[i].AttachmentIndex = i
 	}
 	return out
+}
+
+// rewriteAttachmentIDsToIndexes overwrites each attachment part's opaque
+// attachmentId with its 0-based index, in the same pre-order collectAttachments
+// numbers them. Applied to a raw message before it is serialized in indexed mode
+// so every attachmentId in the dump is the index the download resolves.
+func rewriteAttachmentIDsToIndexes(p *gmail.MessagePart) {
+	next := 0
+	var walk func(part *gmail.MessagePart)
+	walk = func(part *gmail.MessagePart) {
+		if part == nil {
+			return
+		}
+		if part.Body != nil && part.Body.AttachmentId != "" {
+			part.Body.AttachmentId = strconv.Itoa(next)
+			next++
+		}
+		for _, child := range part.Parts {
+			walk(child)
+		}
+	}
+	walk(p)
 }
 
 func collectAttachmentParts(p *gmail.MessagePart) []attachmentInfo {

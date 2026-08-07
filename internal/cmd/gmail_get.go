@@ -114,6 +114,11 @@ func (c *GmailGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 				payload["attachments"] = attachmentOutputs(attachments, c.UseIndexedAttachmentIDs)
 			}
 		}
+		// The raw message dump carries the opaque attachmentIds too; in indexed
+		// mode rewrite them so the whole payload references attachments by index.
+		if c.UseIndexedAttachmentIDs {
+			rewriteAttachmentIDsToIndexes(msg.Payload)
+		}
 		return outfmt.WriteJSON(ctx, stdoutWriter(ctx), outfmt.PrimaryResult(payload))
 	}
 

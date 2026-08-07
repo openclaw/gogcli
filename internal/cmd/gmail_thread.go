@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/url"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"google.golang.org/api/gmail/v1"
@@ -348,23 +349,28 @@ func (c *GmailURLCmd) Run(ctx context.Context, flags *RootFlags) error {
 	return nil
 }
 
-func downloadAttachment(ctx context.Context, svc *gmail.Service, messageID string, a attachmentInfo, dir string) (string, bool, error) {
+func downloadAttachment(ctx context.Context, svc *gmail.Service, messageID string, a attachmentInfo, dir string, useIndexedAttachmentIDs bool) (string, bool, error) {
 	if strings.TrimSpace(messageID) == "" || strings.TrimSpace(a.AttachmentID) == "" {
 		return "", false, errors.New("missing messageID/attachmentID")
 	}
 	if strings.TrimSpace(dir) == "" {
 		dir = "."
 	}
-	shortID := a.AttachmentID
-	if len(shortID) > 8 {
-		shortID = shortID[:8]
+	// Discriminator between a message's attachments in one dir: the 0-based index
+	// in indexed mode, else the opaque id truncated to 8 chars.
+	ref := a.AttachmentID
+	if len(ref) > 8 {
+		ref = ref[:8]
+	}
+	if useIndexedAttachmentIDs {
+		ref = strconv.Itoa(a.AttachmentIndex)
 	}
 	// Sanitize filename to prevent path traversal attacks
 	safeFilename := filepath.Base(a.Filename)
 	if safeFilename == "" || safeFilename == "." || safeFilename == ".." {
 		safeFilename = "attachment"
 	}
-	filename := fmt.Sprintf("%s_%s_%s", messageID, shortID, safeFilename)
+	filename := fmt.Sprintf("%s_%s_%s", messageID, ref, safeFilename)
 	outPath := filepath.Join(dir, filename)
 	path, cached, _, err := downloadAttachmentToPath(ctx, svc, messageID, a.AttachmentID, outPath, a.Size)
 	if err != nil {

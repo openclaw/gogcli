@@ -68,7 +68,7 @@ func TestCollectAttachmentsNil(t *testing.T) {
 }
 
 func TestDownloadAttachment_ErrorsAndSafeFilename(t *testing.T) {
-	if _, _, err := downloadAttachment(context.Background(), nil, "", attachmentInfo{AttachmentID: "a"}, "."); err == nil {
+	if _, _, err := downloadAttachment(context.Background(), nil, "", attachmentInfo{AttachmentID: "a"}, ".", false); err == nil {
 		t.Fatalf("expected missing messageID error")
 	}
 
@@ -83,7 +83,29 @@ func TestDownloadAttachment_ErrorsAndSafeFilename(t *testing.T) {
 	if err := os.WriteFile(expectedPath, []byte("data"), 0o600); err != nil {
 		t.Fatalf("WriteFile: %v", err)
 	}
-	path, cached, err := downloadAttachment(context.Background(), nil, "m1", att, dir)
+	path, cached, err := downloadAttachment(context.Background(), nil, "m1", att, dir, false)
+	if err != nil {
+		t.Fatalf("downloadAttachment: %v", err)
+	}
+	if path != expectedPath || !cached {
+		t.Fatalf("unexpected download result: path=%q cached=%v", path, cached)
+	}
+}
+
+func TestDownloadAttachment_IndexedFilenameUsesIndex(t *testing.T) {
+	dir := t.TempDir()
+	att := attachmentInfo{
+		Filename:        "report.pdf",
+		Size:            4,
+		AttachmentID:    "attachment1234567",
+		AttachmentIndex: 2,
+	}
+	// In indexed mode the saved filename embeds the 0-based index, not the id.
+	expectedPath := filepath.Join(dir, "m1_2_report.pdf")
+	if err := os.WriteFile(expectedPath, []byte("data"), 0o600); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	path, cached, err := downloadAttachment(context.Background(), nil, "m1", att, dir, true)
 	if err != nil {
 		t.Fatalf("downloadAttachment: %v", err)
 	}
@@ -112,7 +134,7 @@ func TestDownloadAttachment_ServiceError(t *testing.T) {
 		Size:         1,
 		AttachmentID: "att1",
 	}
-	if _, _, err := downloadAttachment(context.Background(), svc, "m1", att, t.TempDir()); err == nil {
+	if _, _, err := downloadAttachment(context.Background(), svc, "m1", att, t.TempDir(), false); err == nil {
 		t.Fatalf("expected error")
 	}
 }
