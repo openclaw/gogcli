@@ -1,5 +1,7 @@
 package cmd
 
+import "google.golang.org/api/googleapi"
+
 var (
 	gmailBasicMetadataHeaders = []string{"From", "To", "Cc", "Bcc", "Subject", "Date"}
 	gmailReplyMetadataHeaders = []string{"Message-ID", "Message-Id", "References", "In-Reply-To", "From", "Reply-To", "To", "Cc", "Date", "Subject"}
@@ -20,15 +22,24 @@ var (
 // appear here — internalDate backs internalDateIso.
 const gmailMessageSummaryFields = "id,threadId,labelIds,internalDate,payload(headers)"
 
-// gmailMessageAttachmentFields extends the summary mask with attachment part
-// metadata (filename, mimeType, size, attachmentId) but never body/data, nested
-// a few levels to reach attachments in typical multipart trees. Paired with
-// format=full, so --include-attachments lists attachments without pulling bodies.
-const (
-	gmailAttachmentPartFields    = "filename,mimeType,body(size,attachmentId)"
-	gmailMessageAttachmentFields = "id,threadId,labelIds,internalDate,payload(headers,parts(" +
-		gmailAttachmentPartFields + ",parts(" + gmailAttachmentPartFields + ",parts(" + gmailAttachmentPartFields + "))))"
-)
+// gmailAttachmentPartFields selects one MIME part's attachment metadata
+// (filename, mimeType, size, attachmentId) but never body/data.
+const gmailAttachmentPartFields = "filename,mimeType,body(size,attachmentId)"
+
+// gmailMessageAttachmentFields extends the summary mask with attachment metadata
+// at the payload root and every nested part. Gmail field masks can't recurse, so
+// the parts tree is expanded to a fixed depth deeper than real multipart mail
+// nests. Paired with format=full, so --include-attachments lists attachments
+// without pulling bodies.
+var gmailMessageAttachmentFields = googleapi.Field(buildGmailMessageAttachmentFields(8))
+
+func buildGmailMessageAttachmentFields(depth int) string {
+	parts := gmailAttachmentPartFields
+	for i := 0; i < depth; i++ {
+		parts = gmailAttachmentPartFields + ",parts(" + parts + ")"
+	}
+	return "id,threadId,labelIds,internalDate,payload(" + gmailAttachmentPartFields + ",headers,parts(" + parts + "))"
+}
 
 func defaultGmailGetMetadataHeaders() []string {
 	headers := append([]string{}, gmailBasicMetadataHeaders...)

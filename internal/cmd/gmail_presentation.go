@@ -29,7 +29,7 @@ func gmailLabelColumns() []outfmt.Column[*gmail.Label] {
 	}
 }
 
-func gmailMessageColumns(includeBody, full bool) []outfmt.Column[messageItem] {
+func gmailMessageColumns(includeBody, includeAttachments, full bool) []outfmt.Column[messageItem] {
 	columns := []outfmt.Column[messageItem]{
 		{Header: "ID", Value: func(item messageItem) string { return item.ID }},
 		{Header: "THREAD", Value: func(item messageItem) string { return item.ThreadID }},
@@ -44,7 +44,23 @@ func gmailMessageColumns(includeBody, full bool) []outfmt.Column[messageItem] {
 			Value:  func(item messageItem) string { return sanitizeMessageBody(item.Body, full) },
 		})
 	}
+	if includeAttachments {
+		columns = append(columns, outfmt.Column[messageItem]{
+			Header: "ATTACHMENTS",
+			Value:  func(item messageItem) string { return formatAttachmentsColumn(item.Attachments) },
+		})
+	}
 	return columns
+}
+
+// formatAttachmentsColumn renders each attachment as "filename (size)" for the
+// text table; the machine-readable attachmentId/index stays in JSON output only.
+func formatAttachmentsColumn(attachments []attachmentOutput) string {
+	parts := make([]string, len(attachments))
+	for i, a := range attachments {
+		parts[i] = fmt.Sprintf("%s (%s)", a.Filename, a.SizeHuman)
+	}
+	return strings.Join(parts, ", ")
 }
 
 func gmailThreadColumns() []outfmt.Column[threadItem] {

@@ -121,7 +121,7 @@ func (c *GmailMessagesSearchCmd) Run(ctx context.Context, flags *RootFlags) erro
 		ctx,
 		stdoutWriter(ctx),
 		items,
-		gmailMessageColumns(c.IncludeBody, c.Full),
+		gmailMessageColumns(c.IncludeBody, c.IncludeAttachments, c.Full),
 	); err != nil {
 		return err
 	}
