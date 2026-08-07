@@ -27,17 +27,18 @@ type GmailMessagesCmd struct {
 }
 
 type GmailMessagesSearchCmd struct {
-	Query              []string `arg:"" name:"query" help:"Search query"`
-	Max                int64    `name:"max" aliases:"limit" help:"Max results" default:"10"`
-	Page               string   `name:"page" aliases:"cursor" help:"Page token"`
-	All                bool     `name:"all" aliases:"all-pages,allpages" help:"Fetch all pages"`
-	FailEmpty          bool     `name:"fail-empty" aliases:"non-empty,require-results" help:"Exit with code 3 if no results"`
-	Timezone           string   `name:"timezone" short:"z" help:"Output timezone (IANA name, e.g. America/New_York, UTC). Default: GOG_TIMEZONE, config, then local"`
-	Local              bool     `name:"local" help:"Use local timezone (default behavior, useful to override --timezone)"`
-	IncludeBody        bool     `name:"include-body" help:"Include decoded message body (JSON is full; text output truncates only unusually large bodies)"`
-	BodyFormat         string   `name:"body-format" help:"Body format preference when --include-body is set: text or html" default:"text" enum:"text,html"`
-	Full               bool     `name:"full" help:"Show full message bodies without truncation (implies --include-body)"`
-	IncludeAttachments bool     `name:"include-attachments" env:"GOG_GMAIL_INCLUDE_ATTACHMENTS" help:"Include each message's attachment metadata"`
+	Query                   []string `arg:"" name:"query" help:"Search query"`
+	UseIndexedAttachmentIDs bool     `name:"use-indexed-attachment-ids" help:"Use 0-based indexes as attachment ids everywhere (output, the download argument, and saved filenames)" env:"GOG_GMAIL_USE_INDEXED_ATTACHMENT_IDS"`
+	Max                     int64    `name:"max" aliases:"limit" help:"Max results" default:"10"`
+	Page                    string   `name:"page" aliases:"cursor" help:"Page token"`
+	All                     bool     `name:"all" aliases:"all-pages,allpages" help:"Fetch all pages"`
+	FailEmpty               bool     `name:"fail-empty" aliases:"non-empty,require-results" help:"Exit with code 3 if no results"`
+	Timezone                string   `name:"timezone" short:"z" help:"Output timezone (IANA name, e.g. America/New_York, UTC). Default: GOG_TIMEZONE, config, then local"`
+	Local                   bool     `name:"local" help:"Use local timezone (default behavior, useful to override --timezone)"`
+	IncludeBody             bool     `name:"include-body" help:"Include decoded message body (JSON is full; text output truncates only unusually large bodies)"`
+	BodyFormat              string   `name:"body-format" help:"Body format preference when --include-body is set: text or html" default:"text" enum:"text,html"`
+	Full                    bool     `name:"full" help:"Show full message bodies without truncation (implies --include-body)"`
+	IncludeAttachments      bool     `name:"include-attachments" env:"GOG_GMAIL_INCLUDE_ATTACHMENTS" help:"Include each message's attachment metadata"`
 }
 
 func (c *GmailMessagesSearchCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -100,7 +101,7 @@ func (c *GmailMessagesSearchCmd) Run(ctx context.Context, flags *RootFlags) erro
 		return err
 	}
 
-	items, err := fetchMessageDetails(ctx, svc, messages, idToName, loc, c.IncludeBody, c.BodyFormat, c.IncludeAttachments)
+	items, err := fetchMessageDetails(ctx, svc, messages, idToName, loc, c.IncludeBody, c.BodyFormat, c.IncludeAttachments, c.UseIndexedAttachmentIDs)
 	if err != nil {
 		return err
 	}
@@ -210,7 +211,7 @@ type messageItem struct {
 	Attachments     []attachmentOutput `json:"attachments,omitempty"`
 }
 
-func fetchMessageDetails(ctx context.Context, svc *gmail.Service, messages []*gmail.Message, idToName map[string]string, loc *time.Location, includeBody bool, bodyFormat string, includeAttachments bool) ([]messageItem, error) {
+func fetchMessageDetails(ctx context.Context, svc *gmail.Service, messages []*gmail.Message, idToName map[string]string, loc *time.Location, includeBody bool, bodyFormat string, includeAttachments bool, useIndexedAttachmentIDs bool) ([]messageItem, error) {
 	preferHTML := bodyFormat == gmailMessageBodyFormatHTML
 	if len(messages) == 0 {
 		return nil, nil
@@ -281,7 +282,7 @@ func fetchMessageDetails(ctx context.Context, svc *gmail.Service, messages []*gm
 				}
 			}
 			if includeBody || includeAttachments {
-				item.Attachments = attachmentOutputs(collectAttachments(msg.Payload))
+				item.Attachments = attachmentOutputs(collectAttachments(msg.Payload), useIndexedAttachmentIDs)
 			}
 
 			if len(msg.LabelIds) > 0 {

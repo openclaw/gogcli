@@ -40,6 +40,7 @@ gog gmail (mail,email) thread (threads,read) get (info,show) <threadId> [flags]
 | `--results-only` | `bool` |  | In JSON mode, emit only the primary result (drops envelope fields like nextPageToken) |
 | `--sanitize-content`<br>`--safe`<br>`--sanitize` | `bool` |  | Emit agent-oriented sanitized content: strip HTML, remove HTTP(S) URLs, and omit raw Gmail payloads from JSON |
 | `--select`<br>`--pick`<br>`--project` | `string` |  | In JSON mode, select comma-separated fields (best-effort; supports dot paths). Desire path: use --fields for most commands. |
+| `--use-indexed-attachment-ids` | `bool` |  | Use 0-based indexes as attachment ids everywhere (output, the download argument, and saved filenames) |
 | `-v`<br>`--verbose` | `bool` |  | Enable verbose logging |
 | `--version` | `kong.VersionFlag` |  | Print version and exit |
 | `--wrap-untrusted` | `bool` | false | In JSON/raw output, wrap fetched text fields in external untrusted-content markers |

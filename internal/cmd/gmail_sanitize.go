@@ -113,7 +113,7 @@ func sanitizedGmailHeaders(p *gmail.MessagePart) map[string]string {
 	return headers
 }
 
-func sanitizedGmailMessage(msg *gmail.Message, includeBody bool) gmailSanitizedMessageOutput {
+func sanitizedGmailMessage(msg *gmail.Message, includeBody bool, useIndexedAttachmentIDs bool) gmailSanitizedMessageOutput {
 	if msg == nil {
 		return gmailSanitizedMessageOutput{Headers: map[string]string{}}
 	}
@@ -125,7 +125,7 @@ func sanitizedGmailMessage(msg *gmail.Message, includeBody bool) gmailSanitizedM
 		InternalDate: msg.InternalDate,
 		SizeEstimate: msg.SizeEstimate,
 		Headers:      sanitizedGmailHeaders(msg.Payload),
-		Attachments:  attachmentOutputs(collectAttachments(msg.Payload)),
+		Attachments:  attachmentOutputs(collectAttachments(msg.Payload), useIndexedAttachmentIDs),
 	}
 	if includeBody {
 		body, isHTML := gmailcontent.BestBodyForDisplay(msg.Payload)
@@ -134,7 +134,7 @@ func sanitizedGmailMessage(msg *gmail.Message, includeBody bool) gmailSanitizedM
 	return out
 }
 
-func sanitizedGmailThread(thread *gmail.Thread, includeBody bool) gmailSanitizedThreadOutput {
+func sanitizedGmailThread(thread *gmail.Thread, includeBody bool, useIndexedAttachmentIDs bool) gmailSanitizedThreadOutput {
 	if thread == nil {
 		return gmailSanitizedThreadOutput{Messages: []gmailSanitizedMessageOutput{}}
 	}
@@ -146,7 +146,7 @@ func sanitizedGmailThread(thread *gmail.Thread, includeBody bool) gmailSanitized
 		if msg == nil {
 			continue
 		}
-		out.Messages = append(out.Messages, sanitizedGmailMessage(msg, includeBody))
+		out.Messages = append(out.Messages, sanitizedGmailMessage(msg, includeBody, useIndexedAttachmentIDs))
 	}
 	return out
 }

@@ -19,15 +19,34 @@ import (
 )
 
 type GmailAttachmentCmd struct {
-	MessageID      string         `arg:"" name:"messageId" help:"Message ID"`
-	AttachmentID   string         `arg:"" name:"attachmentId" help:"Attachment ID"`
-	Output         OutputPathFlag `embed:""`
-	Name           string         `name:"name" help:"Filename (used when --out is empty or points to a directory)"`
-	Inline         bool           `name:"inline" help:"Also return the attachment content base64-encoded (contentBase64) in the response; attachments over the inline size limit fall back to the file path with an explanatory reason"`
-	InlineMaxBytes int            `name:"inline-max-bytes" default:"3145728" help:"Maximum attachment size --inline embeds (bytes)" env:"GOG_GMAIL_INLINE_MAX_BYTES"`
+	MessageID               string         `arg:"" name:"messageId" help:"Message ID"`
+	AttachmentID            string         `arg:"" name:"attachmentId" help:"Attachment ID, or a 0-based index with --use-indexed-attachment-ids"`
+	UseIndexedAttachmentIDs bool           `name:"use-indexed-attachment-ids" help:"Use 0-based indexes as attachment ids everywhere (output, the download argument, and saved filenames)" env:"GOG_GMAIL_USE_INDEXED_ATTACHMENT_IDS"`
+	Output                  OutputPathFlag `embed:""`
+	Name                    string         `name:"name" help:"Filename (used when --out is empty or points to a directory)"`
+	Inline                  bool           `name:"inline" help:"Also return the attachment content base64-encoded (contentBase64) in the response; attachments over the inline size limit fall back to the file path with an explanatory reason"`
+	InlineMaxBytes          int            `name:"inline-max-bytes" default:"3145728" help:"Maximum attachment size --inline embeds (bytes)" env:"GOG_GMAIL_INLINE_MAX_BYTES"`
 }
 
 const defaultGmailAttachmentFilename = "attachment.bin"
+
+// attachmentByIndex resolves a 0-based index into a message's attachments to the
+// attachment itself. The index is a stable, compact reference because a message's
+// MIME structure is fixed, unlike the long opaque attachmentId.
+func attachmentByIndex(ctx context.Context, svc *gmail.Service, messageID string, idx int) (attachmentInfo, error) {
+	if idx < 0 {
+		return attachmentInfo{}, usagef("attachment index must be >= 0, got %d", idx)
+	}
+	msg, err := svc.Users.Messages.Get("me", messageID).Format("full").Context(ctx).Do()
+	if err != nil {
+		return attachmentInfo{}, fmt.Errorf("resolve attachment index %d: %w", idx, err)
+	}
+	atts := collectAttachments(msg.Payload)
+	if idx >= len(atts) {
+		return attachmentInfo{}, usagef("attachment index %d out of range: message has %d attachment(s)", idx, len(atts))
+	}
+	return atts[idx], nil
+}
 
 func printAttachmentDownloadResult(ctx context.Context, u *ui.UI, payload map[string]any) error {
 	if outfmt.IsJSON(ctx) {
@@ -94,6 +113,21 @@ func (c *GmailAttachmentCmd) Run(ctx context.Context, flags *RootFlags) error {
 	svc, err := gmailService(ctx, account)
 	if err != nil {
 		return err
+	}
+
+	// In indexed mode the argument is a 0-based index; resolve it to the real id that
+	// drives the download, keeping the index-based dest computed above. Without the flag
+	// the argument is the attachmentId itself and is used unchanged.
+	if c.UseIndexedAttachmentIDs {
+		idx, atoiErr := strconv.Atoi(attachmentID)
+		if atoiErr != nil {
+			return usagef("with --use-indexed-attachment-ids, the attachment argument must be a 0-based index, got %q", attachmentID)
+		}
+		att, lookupErr := attachmentByIndex(ctx, svc, messageID, idx)
+		if lookupErr != nil {
+			return lookupErr
+		}
+		attachmentID = att.AttachmentID
 	}
 
 	expectedSize := int64(-1)

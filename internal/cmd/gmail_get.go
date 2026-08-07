@@ -10,10 +10,11 @@ import (
 )
 
 type GmailGetCmd struct {
-	MessageID       string `arg:"" name:"messageId" help:"Message ID"`
-	Format          string `name:"format" help:"Message format: full|metadata|raw" default:"full"`
-	Headers         string `name:"headers" help:"Metadata headers (comma-separated; only for --format=metadata)"`
-	SanitizeContent bool   `name:"sanitize-content" aliases:"sanitize,safe" help:"Emit agent-oriented sanitized content: strip HTML, remove HTTP(S) URLs, and omit raw Gmail payloads from JSON"`
+	MessageID               string `arg:"" name:"messageId" help:"Message ID"`
+	UseIndexedAttachmentIDs bool   `name:"use-indexed-attachment-ids" help:"Use 0-based indexes as attachment ids everywhere (output, the download argument, and saved filenames)" env:"GOG_GMAIL_USE_INDEXED_ATTACHMENT_IDS"`
+	Format                  string `name:"format" help:"Message format: full|metadata|raw" default:"full"`
+	Headers                 string `name:"headers" help:"Metadata headers (comma-separated; only for --format=metadata)"`
+	SanitizeContent         bool   `name:"sanitize-content" aliases:"sanitize,safe" help:"Emit agent-oriented sanitized content: strip HTML, remove HTTP(S) URLs, and omit raw Gmail payloads from JSON"`
 }
 
 const (
@@ -72,7 +73,7 @@ func (c *GmailGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 	unsubscribe := bestUnsubscribeLink(msg.Payload)
 	if outfmt.IsJSON(ctx) {
 		if c.SanitizeContent {
-			output := sanitizedGmailMessage(msg, format == gmailFormatFull)
+			output := sanitizedGmailMessage(msg, format == gmailFormatFull, c.UseIndexedAttachmentIDs)
 			payload := map[string]any{
 				"message": output,
 				"headers": output.Headers,
@@ -110,7 +111,7 @@ func (c *GmailGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 		if format == gmailFormatFull || format == gmailFormatMetadata {
 			attachments := collectAttachments(msg.Payload)
 			if len(attachments) > 0 {
-				payload["attachments"] = attachmentOutputs(attachments)
+				payload["attachments"] = attachmentOutputs(attachments, c.UseIndexedAttachmentIDs)
 			}
 		}
 		return outfmt.WriteJSON(ctx, stdoutWriter(ctx), outfmt.PrimaryResult(payload))
@@ -150,7 +151,7 @@ func (c *GmailGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 		if unsubscribe != "" && !c.SanitizeContent {
 			u.Out().Linef("unsubscribe\t%s", unsubscribe)
 		}
-		attachments := attachmentOutputs(collectAttachments(msg.Payload))
+		attachments := attachmentOutputs(collectAttachments(msg.Payload), c.UseIndexedAttachmentIDs)
 		if len(attachments) > 0 {
 			u.Out().Println("")
 			printAttachmentLines(u.Out(), attachments)

@@ -23,11 +23,12 @@ type GmailThreadCmd struct {
 }
 
 type GmailThreadGetCmd struct {
-	ThreadID        string        `arg:"" name:"threadId" help:"Thread ID"`
-	Download        bool          `name:"download" help:"Download attachments"`
-	Full            bool          `name:"full" help:"Show full message bodies without truncation"`
-	SanitizeContent bool          `name:"sanitize-content" aliases:"sanitize,safe" help:"Emit agent-oriented sanitized content: strip HTML, remove HTTP(S) URLs, and omit raw Gmail payloads from JSON"`
-	OutputDir       OutputDirFlag `embed:""`
+	ThreadID                string        `arg:"" name:"threadId" help:"Thread ID"`
+	UseIndexedAttachmentIDs bool          `name:"use-indexed-attachment-ids" help:"Use 0-based indexes as attachment ids everywhere (output, the download argument, and saved filenames)" env:"GOG_GMAIL_USE_INDEXED_ATTACHMENT_IDS"`
+	Download                bool          `name:"download" help:"Download attachments"`
+	Full                    bool          `name:"full" help:"Show full message bodies without truncation"`
+	SanitizeContent         bool          `name:"sanitize-content" aliases:"sanitize,safe" help:"Emit agent-oriented sanitized content: strip HTML, remove HTTP(S) URLs, and omit raw Gmail payloads from JSON"`
+	OutputDir               OutputDirFlag `embed:""`
 }
 
 func (c *GmailThreadGetCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -73,7 +74,7 @@ func (c *GmailThreadGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 				if msg == nil || msg.Id == "" {
 					continue
 				}
-				downloads, err := downloadAttachmentOutputs(ctx, svc, msg.Id, collectAttachments(msg.Payload), attachDir)
+				downloads, err := downloadAttachmentOutputs(ctx, svc, msg.Id, collectAttachments(msg.Payload), attachDir, c.UseIndexedAttachmentIDs)
 				if err != nil {
 					return err
 				}
@@ -82,7 +83,7 @@ func (c *GmailThreadGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 		}
 		if c.SanitizeContent {
 			return outfmt.WriteJSON(ctx, stdoutWriter(ctx), map[string]any{
-				"thread":     sanitizedGmailThread(thread, true),
+				"thread":     sanitizedGmailThread(thread, true, c.UseIndexedAttachmentIDs),
 				"downloaded": downloadedFiles,
 			})
 		}
@@ -135,10 +136,10 @@ func (c *GmailThreadGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 		}
 
 		attachments := collectAttachments(msg.Payload)
-		printAttachmentSection(u.Out(), attachments)
+		printAttachmentSection(u.Out(), attachments, c.UseIndexedAttachmentIDs)
 
 		if c.Download && len(attachments) > 0 {
-			downloads, err := downloadAttachmentOutputs(ctx, svc, msg.Id, attachments, attachDir)
+			downloads, err := downloadAttachmentOutputs(ctx, svc, msg.Id, attachments, attachDir, c.UseIndexedAttachmentIDs)
 			if err != nil {
 				return err
 			}
@@ -222,9 +223,10 @@ func (c *GmailThreadModifyCmd) Run(ctx context.Context, flags *RootFlags) error 
 
 // GmailThreadAttachmentsCmd lists all attachments in a thread.
 type GmailThreadAttachmentsCmd struct {
-	ThreadID  string        `arg:"" name:"threadId" help:"Thread ID"`
-	Download  bool          `name:"download" help:"Download all attachments"`
-	OutputDir OutputDirFlag `embed:""`
+	ThreadID                string        `arg:"" name:"threadId" help:"Thread ID"`
+	UseIndexedAttachmentIDs bool          `name:"use-indexed-attachment-ids" help:"Use 0-based indexes as attachment ids everywhere (output, the download argument, and saved filenames)" env:"GOG_GMAIL_USE_INDEXED_ATTACHMENT_IDS"`
+	Download                bool          `name:"download" help:"Download all attachments"`
+	OutputDir               OutputDirFlag `embed:""`
 }
 
 func (c *GmailThreadAttachmentsCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -280,14 +282,14 @@ func (c *GmailThreadAttachmentsCmd) Run(ctx context.Context, flags *RootFlags) e
 		}
 		attachments := collectAttachments(msg.Payload)
 		if c.Download {
-			downloads, err := downloadAttachmentOutputs(ctx, svc, msg.Id, attachments, attachDir)
+			downloads, err := downloadAttachmentOutputs(ctx, svc, msg.Id, attachments, attachDir, c.UseIndexedAttachmentIDs)
 			if err != nil {
 				return err
 			}
 			allAttachments = append(allAttachments, downloads...)
 			continue
 		}
-		allAttachments = append(allAttachments, attachmentDownloadOutputsFromInfo(msg.Id, attachments)...)
+		allAttachments = append(allAttachments, attachmentDownloadOutputsFromInfo(msg.Id, attachments, c.UseIndexedAttachmentIDs)...)
 	}
 
 	if outfmt.IsJSON(ctx) {
