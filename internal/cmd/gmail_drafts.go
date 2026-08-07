@@ -151,9 +151,10 @@ func (c *GmailDraftsGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 			out["downloaded"] = attachmentDownloadDraftOutputs(downloads)
 		}
 		// The raw draft dump carries the opaque attachmentIds too; in indexed mode
-		// rewrite them so the whole payload references attachments by index.
+		// strip them so the dump omits the long ids (the index is in the curated
+		// attachments output).
 		if c.UseIndexedAttachmentIDs {
-			rewriteAttachmentIDsToIndexes(msg.Payload)
+			stripAttachmentIDs(msg.Payload)
 		}
 		return outfmt.WriteJSON(ctx, stdoutWriter(ctx), out)
 	}

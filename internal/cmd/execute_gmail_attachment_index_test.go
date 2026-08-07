@@ -176,9 +176,9 @@ func TestExecute_GmailGet_IndexedAttachmentIDs(t *testing.T) {
 	if len(parsed.Attachments) != 1 || parsed.Attachments[0].AttachmentIndex == nil || *parsed.Attachments[0].AttachmentIndex != 0 {
 		t.Fatalf("gmail get should surface index in indexed mode: %#v", parsed.Attachments)
 	}
-	// The raw message dump must carry the index too, not the opaque id.
-	if len(parsed.Message.Payload.Parts) != 1 || parsed.Message.Payload.Parts[0].Body.AttachmentID != "0" {
-		t.Fatalf("raw message dump should use the index: %#v", parsed.Message.Payload.Parts)
+	// The raw message dump must omit the opaque id in indexed mode.
+	if len(parsed.Message.Payload.Parts) != 1 || parsed.Message.Payload.Parts[0].Body.AttachmentID != "" {
+		t.Fatalf("raw message dump should omit the attachmentId: %#v", parsed.Message.Payload.Parts)
 	}
 	if strings.Contains(result.stdout, "a1") {
 		t.Fatalf("indexed mode must not leak the opaque attachmentId anywhere: out=%q", result.stdout)

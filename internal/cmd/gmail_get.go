@@ -115,9 +115,10 @@ func (c *GmailGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 			}
 		}
 		// The raw message dump carries the opaque attachmentIds too; in indexed
-		// mode rewrite them so the whole payload references attachments by index.
+		// mode strip them so the dump omits the long ids (the index is in the
+		// curated attachments output).
 		if c.UseIndexedAttachmentIDs {
-			rewriteAttachmentIDsToIndexes(msg.Payload)
+			stripAttachmentIDs(msg.Payload)
 		}
 		return outfmt.WriteJSON(ctx, stdoutWriter(ctx), outfmt.PrimaryResult(payload))
 	}

@@ -205,20 +205,17 @@ func collectAttachments(p *gmail.MessagePart) []attachmentInfo {
 	return out
 }
 
-// rewriteAttachmentIDsToIndexes overwrites each attachment part's opaque
-// attachmentId with its 0-based index, in the same pre-order collectAttachments
-// numbers them. Applied to a raw message before it is serialized in indexed mode
-// so every attachmentId in the dump is the index the download resolves.
-func rewriteAttachmentIDsToIndexes(p *gmail.MessagePart) {
-	next := 0
+// stripAttachmentIDs blanks every attachment part's opaque attachmentId. Applied
+// to a raw message before it is serialized in indexed mode so the dump omits the
+// long ids; the index is carried only by the curated attachments output.
+func stripAttachmentIDs(p *gmail.MessagePart) {
 	var walk func(part *gmail.MessagePart)
 	walk = func(part *gmail.MessagePart) {
 		if part == nil {
 			return
 		}
-		if part.Body != nil && part.Body.AttachmentId != "" {
-			part.Body.AttachmentId = strconv.Itoa(next)
-			next++
+		if part.Body != nil {
+			part.Body.AttachmentId = ""
 		}
 		for _, child := range part.Parts {
 			walk(child)
