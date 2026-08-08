@@ -20,14 +20,6 @@ var (
 // appear here — internalDate backs internalDateIso.
 const gmailMessageSummaryFields = "id,threadId,labelIds,internalDate,payload(headers)"
 
-// gmailMessageAttachmentFields selects the whole message payload. A Gmail field
-// mask cannot recurse, so any bounded parts selector silently drops attachments
-// nested deeper than the bound — indistinguishable from having none. Requesting
-// the entire payload guarantees every MIME level is returned; collectAttachments
-// walks it all and reads only metadata, so the body data that rides along is
-// never rendered.
-const gmailMessageAttachmentFields = "id,threadId,labelIds,internalDate,payload"
-
 func defaultGmailGetMetadataHeaders() []string {
 	headers := append([]string{}, gmailBasicMetadataHeaders...)
 	headers = append(headers, "Message-ID", "In-Reply-To", "References", "List-Unsubscribe")

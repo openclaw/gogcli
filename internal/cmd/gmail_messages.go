@@ -246,15 +246,9 @@ func fetchMessageDetails(ctx context.Context, svc *gmail.Service, messages []*gm
 			}
 
 			call := svc.Users.Messages.Get("me", messageID)
-			switch {
-			case includeBody:
+			if includeBody || includeAttachments {
 				call = call.Format("full")
-			case includeAttachments:
-				// A Gmail field mask cannot recurse, so request the full payload to
-				// enumerate attachments at every nesting depth; the body data is
-				// fetched but never rendered.
-				call = call.Format("full").Fields(gmailMessageAttachmentFields)
-			default:
+			} else {
 				call = call.Format("metadata").
 					MetadataHeaders(gmailMessageSummaryMetadataHeaders...).
 					Fields(gmailMessageSummaryFields)

@@ -9,7 +9,7 @@ import (
 )
 
 func TestExecute_GmailMessagesSearch_IncludeAttachments(t *testing.T) {
-	var sawFieldsMask string
+	var sawFormat, sawFields string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := r.URL.Path
 		switch {
@@ -19,10 +19,10 @@ func TestExecute_GmailMessagesSearch_IncludeAttachments(t *testing.T) {
 				"messages": []map[string]any{{"id": "m1", "threadId": "t1"}},
 			})
 		case strings.Contains(path, "/users/me/messages/m1"):
-			sawFieldsMask = r.URL.Query().Get("fields")
+			sawFormat = r.URL.Query().Get("format")
+			sawFields = r.URL.Query().Get("fields")
 			w.Header().Set("Content-Type", "application/json")
-			// The attachment sits below a nested multipart/related, deeper than any
-			// bounded mask would reliably reach.
+			// invoice.pdf sits three MIME levels down, to exercise deep nesting.
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"id": "m1", "threadId": "t1", "labelIds": []string{"INBOX"},
 				"payload": map[string]any{
@@ -39,9 +39,12 @@ func TestExecute_GmailMessagesSearch_IncludeAttachments(t *testing.T) {
 						{
 							"mimeType": "multipart/related",
 							"parts": []map[string]any{{
-								"filename": "invoice.pdf",
-								"mimeType": "application/pdf",
-								"body":     map[string]any{"attachmentId": "att-pdf", "size": 4096},
+								"mimeType": "multipart/alternative",
+								"parts": []map[string]any{{
+									"filename": "invoice.pdf",
+									"mimeType": "application/pdf",
+									"body":     map[string]any{"attachmentId": "att-pdf", "size": 4096},
+								}},
 							}},
 						},
 					},
@@ -71,8 +74,7 @@ func TestExecute_GmailMessagesSearch_IncludeAttachments(t *testing.T) {
 		} `json:"messages"`
 	}
 
-	// --include-attachments lists attachments (fetching the full payload) but never
-	// renders the body.
+	// --include-attachments lists the attachments but does not render the body.
 	res := executeWithGmailTestService(t,
 		[]string{"--json", "--account", "a@b.com", "gmail", "messages", "search", "from:example.com", "--include-attachments"},
 		svc)
@@ -93,10 +95,10 @@ func TestExecute_GmailMessagesSearch_IncludeAttachments(t *testing.T) {
 	if parsed.Messages[0].Body != "" || strings.Contains(res.stdout, "secret body text") {
 		t.Fatalf("body must not be included with --include-attachments: %q", res.stdout)
 	}
-	// A Gmail field mask cannot recurse; a bounded parts() selector silently drops
-	// attachments nested past its depth. The fetch must request the whole payload.
-	if !strings.Contains(sawFieldsMask, "payload") || strings.Contains(sawFieldsMask, "parts(") {
-		t.Fatalf("include-attachments must request the full payload, not a bounded parts selector; got fields=%q", sawFieldsMask)
+	// Fetched as a complete format=full with no capping parts mask, which is what
+	// lets the attachment nested three levels down be listed at all.
+	if sawFormat != "full" || strings.Contains(sawFields, "parts(") {
+		t.Fatalf("include-attachments must fetch format=full without a capping parts mask; format=%q fields=%q", sawFormat, sawFields)
 	}
 
 	// Default search lists neither body nor attachments.
