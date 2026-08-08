@@ -45,14 +45,14 @@ func gmailMessageColumns(includeBody, includeAttachments, full bool) []outfmt.Co
 		})
 	}
 	if includeAttachments {
-		// filename, mimeType, size, and the short attachment id that also tags the
-		// saved filename, so a listed attachment maps to its downloaded file.
+		// No attachmentId: Gmail mints a fresh opaque token per fetch, so it's
+		// neither stable nor a usable text handle. The id lives in JSON output.
 		columns = append(columns, outfmt.Column[messageItem]{
 			Header: "ATTACHMENTS",
 			Value: func(item messageItem) string {
 				parts := make([]string, len(item.Attachments))
 				for i, a := range item.Attachments {
-					parts[i] = fmt.Sprintf("%s (%s, %s) %s", a.Filename, a.MimeType, a.SizeHuman, shortAttachmentID(a.AttachmentID))
+					parts[i] = fmt.Sprintf("%s (%s, %s)", a.Filename, a.MimeType, a.SizeHuman)
 				}
 				return strings.Join(parts, ", ")
 			},

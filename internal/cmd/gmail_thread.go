@@ -353,7 +353,10 @@ func downloadAttachment(ctx context.Context, svc *gmail.Service, messageID strin
 	if strings.TrimSpace(dir) == "" {
 		dir = "."
 	}
-	shortID := shortAttachmentID(a.AttachmentID)
+	shortID := a.AttachmentID
+	if len(shortID) > 8 {
+		shortID = shortID[:8]
+	}
 	// Sanitize filename to prevent path traversal attacks
 	safeFilename := filepath.Base(a.Filename)
 	if safeFilename == "" || safeFilename == "." || safeFilename == ".." {

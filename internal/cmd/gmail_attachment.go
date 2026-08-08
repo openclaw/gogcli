@@ -144,7 +144,10 @@ func addInlineContent(payload map[string]any, data []byte, maxBytes int) {
 }
 
 func resolveAttachmentDest(messageID, attachmentID, outPathFlag, name, defaultDir string) (string, error) {
-	shortID := shortAttachmentID(attachmentID)
+	shortID := attachmentID
+	if len(shortID) > 8 {
+		shortID = shortID[:8]
+	}
 	safeFilename := sanitizeAttachmentFilename(name, defaultGmailAttachmentFilename)
 
 	if strings.TrimSpace(outPathFlag) == "" {

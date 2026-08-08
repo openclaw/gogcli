@@ -68,16 +68,15 @@ func TestGmailPresentationSchemas(t *testing.T) {
 		got := renderPlainTable(t, []messageItem{{
 			ID: "m1",
 			Attachments: []attachmentOutput{
-				{Filename: "icon.png", MimeType: "image/png", SizeHuman: "1.2 KiB", AttachmentID: "ABCDEFGHIJKLMNOP"},
-				{Filename: "report.pdf", MimeType: "application/pdf", SizeHuman: "34 KiB", AttachmentID: "0123456789XYZ"},
+				{Filename: "icon.png", MimeType: "image/png", SizeHuman: "1.2 KiB"},
+				{Filename: "report.pdf", MimeType: "application/pdf", SizeHuman: "34 KiB"},
 			},
 		}}, gmailMessageColumns(false, true, false))
-		// The column shows the short id (first 8 chars), matching the saved filename.
 		assertTableOutput(
 			t,
 			got,
 			"ID\tTHREAD\tDATE\tFROM\tSUBJECT\tLABELS\tATTACHMENTS\n"+
-				"m1\t\t\t\t\t\ticon.png (image/png, 1.2 KiB) ABCDEFGH, report.pdf (application/pdf, 34 KiB) 01234567\n",
+				"m1\t\t\t\t\t\ticon.png (image/png, 1.2 KiB), report.pdf (application/pdf, 34 KiB)\n",
 		)
 	})
 
