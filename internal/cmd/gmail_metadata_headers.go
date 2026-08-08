@@ -1,7 +1,5 @@
 package cmd
 
-import "google.golang.org/api/googleapi"
-
 var (
 	gmailBasicMetadataHeaders = []string{"From", "To", "Cc", "Bcc", "Subject", "Date"}
 	gmailReplyMetadataHeaders = []string{"Message-ID", "Message-Id", "References", "In-Reply-To", "From", "Reply-To", "To", "Cc", "Date", "Subject"}
@@ -22,24 +20,13 @@ var (
 // appear here — internalDate backs internalDateIso.
 const gmailMessageSummaryFields = "id,threadId,labelIds,internalDate,payload(headers)"
 
-// gmailAttachmentPartFields selects one MIME part's attachment metadata
-// (filename, mimeType, size, attachmentId) but never body/data.
-const gmailAttachmentPartFields = "filename,mimeType,body(size,attachmentId)"
-
-// gmailMessageAttachmentFields extends the summary mask with attachment metadata
-// at the payload root and every nested part. Gmail field masks can't recurse, so
-// the parts tree is expanded to a fixed depth deeper than real multipart mail
-// nests. Paired with format=full, so --include-attachments lists attachments
-// without pulling bodies.
-var gmailMessageAttachmentFields = googleapi.Field(buildGmailMessageAttachmentFields(8))
-
-func buildGmailMessageAttachmentFields(depth int) string {
-	parts := gmailAttachmentPartFields
-	for i := 0; i < depth; i++ {
-		parts = gmailAttachmentPartFields + ",parts(" + parts + ")"
-	}
-	return "id,threadId,labelIds,internalDate,payload(" + gmailAttachmentPartFields + ",headers,parts(" + parts + "))"
-}
+// gmailMessageAttachmentFields selects the whole message payload. A Gmail field
+// mask cannot recurse, so any bounded parts selector silently drops attachments
+// nested deeper than the bound — indistinguishable from having none. Requesting
+// the entire payload guarantees every MIME level is returned; collectAttachments
+// walks it all and reads only metadata, so the body data that rides along is
+// never rendered.
+const gmailMessageAttachmentFields = "id,threadId,labelIds,internalDate,payload"
 
 func defaultGmailGetMetadataHeaders() []string {
 	headers := append([]string{}, gmailBasicMetadataHeaders...)

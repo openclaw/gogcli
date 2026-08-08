@@ -250,8 +250,9 @@ func fetchMessageDetails(ctx context.Context, svc *gmail.Service, messages []*gm
 			case includeBody:
 				call = call.Format("full")
 			case includeAttachments:
-				// format=full builds the part tree; the fields mask keeps only the
-				// attachment metadata and drops body/data, so no body is transferred.
+				// A Gmail field mask cannot recurse, so request the full payload to
+				// enumerate attachments at every nesting depth; the body data is
+				// fetched but never rendered.
 				call = call.Format("full").Fields(gmailMessageAttachmentFields)
 			default:
 				call = call.Format("metadata").

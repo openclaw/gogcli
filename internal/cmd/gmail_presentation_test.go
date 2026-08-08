@@ -68,15 +68,15 @@ func TestGmailPresentationSchemas(t *testing.T) {
 		got := renderPlainTable(t, []messageItem{{
 			ID: "m1",
 			Attachments: []attachmentOutput{
-				{Filename: "icon.png", SizeHuman: "1.2 KiB"},
-				{Filename: "report.pdf", SizeHuman: "34 KiB"},
+				{Filename: "icon.png", MimeType: "image/png", SizeHuman: "1.2 KiB", AttachmentID: "AID1"},
+				{Filename: "report.pdf", MimeType: "application/pdf", SizeHuman: "34 KiB", AttachmentID: "AID2"},
 			},
 		}}, gmailMessageColumns(false, true, false))
 		assertTableOutput(
 			t,
 			got,
 			"ID\tTHREAD\tDATE\tFROM\tSUBJECT\tLABELS\tATTACHMENTS\n"+
-				"m1\t\t\t\t\t\ticon.png (1.2 KiB), report.pdf (34 KiB)\n",
+				"m1\t\t\t\t\t\ticon.png (image/png, 1.2 KiB) AID1, report.pdf (application/pdf, 34 KiB) AID2\n",
 		)
 	})
 
