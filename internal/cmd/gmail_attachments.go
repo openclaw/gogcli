@@ -142,6 +142,16 @@ func attachmentLine(a attachmentOutput) string {
 	return fmt.Sprintf("attachment\t%s\t%s\t%s\t%s", a.Filename, a.SizeHuman, a.MimeType, a.AttachmentID)
 }
 
+// shortAttachmentID truncates the opaque attachmentId to its first 8 characters:
+// a compact, filename-safe reference used in saved filenames and text listings.
+// It identifies an attachment for a human; downloads still need the full id.
+func shortAttachmentID(id string) string {
+	if len(id) > 8 {
+		return id[:8]
+	}
+	return id
+}
+
 func printAttachmentLines(p *ui.Printer, attachments []attachmentOutput) {
 	for _, a := range attachments {
 		p.Println(attachmentLine(a))
