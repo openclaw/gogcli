@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -118,6 +119,37 @@ func TestExecute_GmailAttachment_IndexedModeRejectsNonIndex(t *testing.T) {
 	}, svc)
 	if result.err == nil || !strings.Contains(result.err.Error(), "must be a 0-based index") {
 		t.Fatalf("err = %v, want index-only rejection", result.err)
+	}
+}
+
+func TestExecute_GmailAttachment_IndexedDryRunValidatesLocally(t *testing.T) {
+	outPath := filepath.Join(t.TempDir(), "attachment.bin")
+	invalid := executeWithTestRuntime(t, []string{
+		"--json", "--dry-run", "gmail", "attachment", "--use-indexed-attachment-ids",
+		"m1", "not-an-index", "--out", outPath,
+	}, nil)
+	if invalid.err == nil || !strings.Contains(invalid.err.Error(), "must be a 0-based index") {
+		t.Fatalf("invalid dry-run err = %v, want index validation", invalid.err)
+	}
+
+	valid := executeWithTestRuntime(t, []string{
+		"--json", "--dry-run", "gmail", "attachment", "--use-indexed-attachment-ids",
+		"m1", "0", "--out", outPath,
+	}, nil)
+	if valid.err != nil {
+		t.Fatalf("valid dry-run: %v\nstderr=%q", valid.err, valid.stderr)
+	}
+	var plan struct {
+		Request struct {
+			AttachmentIndex *int   `json:"attachment_index"`
+			AttachmentID    string `json:"attachment_id"`
+		} `json:"request"`
+	}
+	if err := json.Unmarshal([]byte(valid.stdout), &plan); err != nil {
+		t.Fatalf("decode dry-run: %v\nout=%q", err, valid.stdout)
+	}
+	if plan.Request.AttachmentIndex == nil || *plan.Request.AttachmentIndex != 0 || plan.Request.AttachmentID != "" {
+		t.Fatalf("unexpected indexed dry-run plan: %#v", plan.Request)
 	}
 }
 

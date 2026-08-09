@@ -122,7 +122,7 @@ func (c *GmailMessagesSearchCmd) Run(ctx context.Context, flags *RootFlags) erro
 		ctx,
 		stdoutWriter(ctx),
 		items,
-		gmailMessageColumns(c.IncludeBody, c.Full),
+		gmailMessageColumns(c.IncludeBody, c.IncludeAttachments, c.Full),
 	); err != nil {
 		return err
 	}
@@ -247,14 +247,9 @@ func fetchMessageDetails(ctx context.Context, svc *gmail.Service, messages []*gm
 			}
 
 			call := svc.Users.Messages.Get("me", messageID)
-			switch {
-			case includeBody:
+			if includeBody || includeAttachments {
 				call = call.Format("full")
-			case includeAttachments:
-				// format=full builds the part tree; the fields mask keeps only the
-				// attachment metadata and drops body/data, so no body is transferred.
-				call = call.Format("full").Fields(gmailMessageAttachmentFields)
-			default:
+			} else {
 				call = call.Format("metadata").
 					MetadataHeaders(gmailMessageSummaryMetadataHeaders...).
 					Fields(gmailMessageSummaryFields)

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Gmail: add opt-in attachment metadata to message search in JSON and text output without rendering decoded bodies. (#962) — thanks @ronny-rentner.
+- Security: redact credentials embedded in Gmail watch hook URLs, including userinfo, path, query, and fragment components, unless `--show-secrets` is set. (#960) — thanks @bunlongheng.
 - Gmail: add guarded single-message RFC822/EML import from a file or stdin, with labels, internal-date, spam, calendar-processing, and parse-only dry-run controls. (#956) — thanks @holgergruenhagen.
 - Gmail: warn before a draft update replaces an existing rich-text body with plain text only, while keeping JSON stdout clean. (#955) — thanks @mcinteerj.
 - Dependencies: update the Google API and OpenTelemetry stacks, Go developer tools, pnpm, and email-tracking worker toolchain to their latest policy-eligible releases.

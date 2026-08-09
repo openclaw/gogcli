@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"strings"
+	"unicode"
 
 	"google.golang.org/api/gmail/v1"
 
@@ -29,7 +30,7 @@ func gmailLabelColumns() []outfmt.Column[*gmail.Label] {
 	}
 }
 
-func gmailMessageColumns(includeBody, full bool) []outfmt.Column[messageItem] {
+func gmailMessageColumns(includeBody, includeAttachments, full bool) []outfmt.Column[messageItem] {
 	columns := []outfmt.Column[messageItem]{
 		{Header: "ID", Value: func(item messageItem) string { return item.ID }},
 		{Header: "THREAD", Value: func(item messageItem) string { return item.ThreadID }},
@@ -44,7 +45,35 @@ func gmailMessageColumns(includeBody, full bool) []outfmt.Column[messageItem] {
 			Value:  func(item messageItem) string { return sanitizeMessageBody(item.Body, full) },
 		})
 	}
+	if includeAttachments {
+		// No attachmentId: Gmail mints a fresh opaque token per fetch, so it's
+		// neither stable nor a usable text handle. The id lives in JSON output.
+		columns = append(columns, outfmt.Column[messageItem]{
+			Header: "ATTACHMENTS",
+			Value: func(item messageItem) string {
+				parts := make([]string, len(item.Attachments))
+				for i, a := range item.Attachments {
+					parts[i] = fmt.Sprintf(
+						"%s (%s, %s)",
+						sanitizeGmailAttachmentTableValue(a.Filename),
+						sanitizeGmailAttachmentTableValue(a.MimeType),
+						a.SizeHuman,
+					)
+				}
+				return strings.Join(parts, ", ")
+			},
+		})
+	}
 	return columns
+}
+
+func sanitizeGmailAttachmentTableValue(value string) string {
+	return strings.Map(func(char rune) rune {
+		if unicode.IsControl(char) {
+			return ' '
+		}
+		return char
+	}, value)
 }
 
 func gmailThreadColumns() []outfmt.Column[threadItem] {

@@ -81,6 +81,17 @@ func (c *GmailAttachmentCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if c.InlineMaxBytes < 0 {
 		return usage("--inline-max-bytes must be non-negative")
 	}
+	attachmentIndex := -1
+	if c.UseIndexedAttachmentIDs {
+		parsedIndex, parseErr := strconv.Atoi(attachmentID)
+		if parseErr != nil {
+			return usagef("with --use-indexed-attachment-ids, the attachment argument must be a 0-based index, got %q", attachmentID)
+		}
+		attachmentIndex = parsedIndex
+		if attachmentIndex < 0 {
+			return usagef("attachment index must be >= 0, got %d", attachmentIndex)
+		}
+	}
 	defaultDir := ""
 	if strings.TrimSpace(c.Output.Path) == "" {
 		layout, err := commandLayout(ctx, config.PathKindConfig)
@@ -95,13 +106,18 @@ func (c *GmailAttachmentCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 
 	// Avoid touching auth/keyring and avoid writing files in dry-run mode.
-	if dryRunErr := dryRunExit(ctx, flags, "gmail.attachment.download", map[string]any{
+	plan := map[string]any{
 		"message_id":       messageID,
-		"attachment_id":    attachmentID,
 		"path":             dest,
 		"inline":           c.Inline,
 		"inline_max_bytes": c.InlineMaxBytes,
-	}); dryRunErr != nil {
+	}
+	if c.UseIndexedAttachmentIDs {
+		plan["attachment_index"] = attachmentIndex
+	} else {
+		plan["attachment_id"] = attachmentID
+	}
+	if dryRunErr := dryRunExit(ctx, flags, "gmail.attachment.download", plan); dryRunErr != nil {
 		return dryRunErr
 	}
 
@@ -119,11 +135,7 @@ func (c *GmailAttachmentCmd) Run(ctx context.Context, flags *RootFlags) error {
 	// drives the download, keeping the index-based dest computed above. Without the flag
 	// the argument is the attachmentId itself and is used unchanged.
 	if c.UseIndexedAttachmentIDs {
-		idx, atoiErr := strconv.Atoi(attachmentID)
-		if atoiErr != nil {
-			return usagef("with --use-indexed-attachment-ids, the attachment argument must be a 0-based index, got %q", attachmentID)
-		}
-		att, lookupErr := attachmentByIndex(ctx, svc, messageID, idx)
+		att, lookupErr := attachmentByIndex(ctx, svc, messageID, attachmentIndex)
 		if lookupErr != nil {
 			return lookupErr
 		}

@@ -88,10 +88,25 @@ func (c *GmailThreadGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 				"downloaded": downloadedFiles,
 			})
 		}
-		return outfmt.WriteJSON(ctx, stdoutWriter(ctx), map[string]any{
+		payload := map[string]any{
 			"thread":     thread,
 			"downloaded": downloadedFiles,
-		})
+		}
+		if c.UseIndexedAttachmentIDs {
+			attachments := make([]attachmentDownloadOutput, 0)
+			if thread != nil {
+				for _, msg := range thread.Messages {
+					if msg == nil || msg.Id == "" {
+						continue
+					}
+					messageAttachments := collectAttachments(msg.Payload)
+					attachments = append(attachments, attachmentDownloadOutputsFromInfo(msg.Id, messageAttachments, true)...)
+					stripAttachmentIDs(msg.Payload)
+				}
+			}
+			payload["attachments"] = attachments
+		}
+		return outfmt.WriteJSON(ctx, stdoutWriter(ctx), payload)
 	}
 	if thread == nil || len(thread.Messages) == 0 {
 		u.Err().Println("Empty thread")
