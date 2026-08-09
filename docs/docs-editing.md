@@ -152,7 +152,8 @@ them - it reports every comment, orphaned or not.
 
 Both flags are opt-in: without them the command still reads Drive alone.
 `matches` always spans every tab, so a quote that appears more than once stays
-visible as ambiguous.
+visible as ambiguous. An explicitly empty `--tab` value is rejected instead of
+silently falling back to an unfiltered listing.
 
 `insert` and `update` both accept `--markdown` to convert the content (headings,
 fenced code blocks, lists, tables, images) before placing it at the resolved
