@@ -33,7 +33,7 @@ type GmailReplyOptions struct {
 	NoQuote                bool     `name:"no-quote" help:"Do not include the original message below the reply"`
 	Attach                 []string `name:"attach" sep:"none" help:"Attachment file path (repeatable)"`
 	From                   string   `name:"from" help:"Send from this email address (must be a verified send-as alias)"`
-	AutoFromAddressedAlias bool     `name:"auto-from-addressed-alias" help:"When --from is omitted, reply from the verified send-as alias addressed by the original message"`
+	AutoFromAddressedAlias bool     `name:"auto-from-addressed-alias" help:"When --from is omitted, reply from the verified send-as alias addressed by the original message" env:"GOG_GMAIL_AUTO_FROM_ADDRESSED_ALIAS"`
 	Signature              bool     `name:"signature" help:"Append the Gmail signature from the active send-as address"`
 	SignatureFrom          string   `name:"signature-from" help:"Append the Gmail signature from this send-as email address"`
 	SignatureFile          string   `name:"signature-file" help:"Append a local signature file (plain text or HTML)"`

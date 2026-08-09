@@ -339,6 +339,20 @@ func TestDocsCommentsListTabUnknown(t *testing.T) {
 	}
 }
 
+func TestDocsCommentsListTabRejectsExplicitEmptyValues(t *testing.T) {
+	driveSvc := newDocsCommentsListService(t, docsCommentsListPage{})
+
+	for _, args := range [][]string{
+		{"doc1", "--tab", " "},
+		{"doc1", "--tab-id", " "},
+	} {
+		result := runDocsCommentsListJSON(t, driveSvc, nil, args...)
+		if result.err == nil || !strings.Contains(result.err.Error(), "--tab requires a non-empty tab title or ID") {
+			t.Fatalf("args %v: err = %v, want explicit-empty tab rejection", args, result.err)
+		}
+	}
+}
+
 func TestDocsCommentsListLocatePlainTable(t *testing.T) {
 	driveSvc := newDocsCommentsListService(t, docsCommentsListPage{comments: []map[string]any{
 		docsCommentFixture("c1", "first tab quote"),

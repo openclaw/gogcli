@@ -118,6 +118,29 @@ func TestGmailThreadGetAndAttachments_JSON(t *testing.T) {
 		t.Fatalf("expected downloaded file: %v", statErr)
 	}
 
+	indexedResult := executeWithGmailTestService(t, []string{
+		"--json", "--account", "a@b.com", "gmail", "thread", "get", "t1", "--use-indexed-attachment-ids",
+	}, svc)
+	if indexedResult.err != nil {
+		t.Fatalf("Execute indexed thread get: %v\nstderr=%q", indexedResult.err, indexedResult.stderr)
+	}
+	var indexedPayload struct {
+		Attachments []struct {
+			MessageID       string `json:"messageId"`
+			AttachmentIndex *int   `json:"attachmentIndex"`
+		} `json:"attachments"`
+	}
+	if err := json.Unmarshal([]byte(indexedResult.stdout), &indexedPayload); err != nil {
+		t.Fatalf("decode indexed thread json: %v", err)
+	}
+	if len(indexedPayload.Attachments) != 1 || indexedPayload.Attachments[0].MessageID != "m1" ||
+		indexedPayload.Attachments[0].AttachmentIndex == nil || *indexedPayload.Attachments[0].AttachmentIndex != 0 {
+		t.Fatalf("unexpected indexed thread attachments: %#v", indexedPayload.Attachments)
+	}
+	if strings.Contains(indexedResult.stdout, "att1") || strings.Contains(indexedResult.stdout, "attachmentId") {
+		t.Fatalf("indexed thread output leaked opaque id: %q", indexedResult.stdout)
+	}
+
 	attachmentsResult := executeWithGmailTestService(t, []string{"--json", "--account", "a@b.com", "gmail", "thread", "attachments", "t1"}, svc)
 	if attachmentsResult.err != nil {
 		t.Fatalf("Execute attachments: %v\nstderr=%q", attachmentsResult.err, attachmentsResult.stderr)

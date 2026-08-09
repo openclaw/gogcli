@@ -39,7 +39,7 @@ func TestGmailPresentationSchemas(t *testing.T) {
 			Subject:  "Receipt",
 			Labels:   []string{"INBOX", "Work"},
 		}
-		got := renderPlainTable(t, []messageItem{item}, gmailMessageColumns(false, false))
+		got := renderPlainTable(t, []messageItem{item}, gmailMessageColumns(false, false, false))
 		assertTableOutput(
 			t,
 			got,
@@ -54,12 +54,47 @@ func TestGmailPresentationSchemas(t *testing.T) {
 		got := renderPlainTable(t, []messageItem{{
 			ID:   "m1",
 			Body: body,
-		}}, gmailMessageColumns(true, false))
+		}}, gmailMessageColumns(true, false, false))
 		assertTableOutput(
 			t,
 			got,
 			"ID\tTHREAD\tDATE\tFROM\tSUBJECT\tLABELS\tBODY\n"+
 				"m1\t\t\t\t\t\t"+strings.Repeat("x", gmailDefaultTextBodyLimit)+gmailTextTruncationMarker+"\n",
+		)
+	})
+
+	t.Run("messages with attachments", func(t *testing.T) {
+		t.Parallel()
+		got := renderPlainTable(t, []messageItem{{
+			ID: "m1",
+			Attachments: []attachmentOutput{
+				{Filename: "icon.png", MimeType: "image/png", SizeHuman: "1.2 KiB"},
+				{Filename: "report.pdf", MimeType: "application/pdf", SizeHuman: "34 KiB"},
+			},
+		}}, gmailMessageColumns(false, true, false))
+		assertTableOutput(
+			t,
+			got,
+			"ID\tTHREAD\tDATE\tFROM\tSUBJECT\tLABELS\tATTACHMENTS\n"+
+				"m1\t\t\t\t\t\ticon.png (image/png, 1.2 KiB), report.pdf (application/pdf, 34 KiB)\n",
+		)
+	})
+
+	t.Run("attachment table values replace controls", func(t *testing.T) {
+		t.Parallel()
+		got := renderPlainTable(t, []messageItem{{
+			ID: "m1",
+			Attachments: []attachmentOutput{{
+				Filename:  "report\tQ1\n.pdf\x1b",
+				MimeType:  "application\r/pdf",
+				SizeHuman: "34 KiB",
+			}},
+		}}, gmailMessageColumns(false, true, false))
+		assertTableOutput(
+			t,
+			got,
+			"ID\tTHREAD\tDATE\tFROM\tSUBJECT\tLABELS\tATTACHMENTS\n"+
+				"m1\t\t\t\t\t\treport Q1 .pdf  (application /pdf, 34 KiB)\n",
 		)
 	})
 

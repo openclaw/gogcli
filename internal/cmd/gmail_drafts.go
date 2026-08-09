@@ -99,8 +99,9 @@ func (c *GmailDraftsListCmd) Run(ctx context.Context, flags *RootFlags) error {
 }
 
 type GmailDraftsGetCmd struct {
-	DraftID  string `arg:"" name:"draftId" help:"Draft ID"`
-	Download bool   `name:"download" help:"Download draft attachments"`
+	DraftID                 string `arg:"" name:"draftId" help:"Draft ID"`
+	UseIndexedAttachmentIDs bool   `name:"use-indexed-attachment-ids" help:"Use 0-based indexes as attachment ids everywhere (output, the download argument, and saved filenames)" env:"GOG_GMAIL_USE_INDEXED_ATTACHMENT_IDS"`
+	Download                bool   `name:"download" help:"Download draft attachments"`
 }
 
 func (c *GmailDraftsGetCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -142,12 +143,18 @@ func (c *GmailDraftsGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 		if c.Download {
 			var downloads []attachmentDownloadOutput
 			if attachDir != "" {
-				downloads, err = downloadAttachmentOutputs(ctx, svc, msg.Id, attachments, attachDir)
+				downloads, err = downloadAttachmentOutputs(ctx, svc, msg.Id, attachments, attachDir, c.UseIndexedAttachmentIDs)
 				if err != nil {
 					return err
 				}
 			}
 			out["downloaded"] = attachmentDownloadDraftOutputs(downloads)
+		}
+		// The raw draft dump carries the opaque attachmentIds too; in indexed mode
+		// expose a curated index mapping, then strip the long ids from the raw dump.
+		if c.UseIndexedAttachmentIDs {
+			out["attachments"] = attachmentOutputs(attachments, true)
+			stripAttachmentIDs(msg.Payload)
 		}
 		return outfmt.WriteJSON(ctx, stdoutWriter(ctx), out)
 	}
@@ -166,10 +173,10 @@ func (c *GmailDraftsGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 		u.Out().Println("")
 	}
 
-	printAttachmentSection(u.Out(), attachments)
+	printAttachmentSection(u.Out(), attachments, c.UseIndexedAttachmentIDs)
 
 	if attachDir != "" {
-		downloads, err := downloadAttachmentOutputs(ctx, svc, msg.Id, attachments, attachDir)
+		downloads, err := downloadAttachmentOutputs(ctx, svc, msg.Id, attachments, attachDir, c.UseIndexedAttachmentIDs)
 		if err != nil {
 			return err
 		}
@@ -267,7 +274,7 @@ type GmailDraftsCreateCmd struct {
 	Quote                  bool     `name:"quote" help:"Include quoted original message in reply (requires --reply-to-message-id or --thread-id)"`
 	Attach                 []string `name:"attach" help:"Attachment file path (repeatable)"`
 	From                   string   `name:"from" help:"Send from this email address (must be a verified send-as alias)"`
-	AutoFromAddressedAlias bool     `name:"auto-from-addressed-alias" help:"When --from is omitted, reply from the verified send-as alias addressed by the original message"`
+	AutoFromAddressedAlias bool     `name:"auto-from-addressed-alias" help:"When --from is omitted, reply from the verified send-as alias addressed by the original message" env:"GOG_GMAIL_AUTO_FROM_ADDRESSED_ALIAS"`
 }
 
 type draftComposeInput struct {
@@ -777,7 +784,7 @@ type GmailDraftsUpdateCmd struct {
 	//nolint:lll // flag help text
 	ClearReplyContext      bool   `name:"clear-reply-context" help:"Strip In-Reply-To/References from the draft, making it a standalone message. By default an update preserves the draft's existing reply headers."`
 	From                   string `name:"from" help:"Send from this email address (must be a verified send-as alias)"`
-	AutoFromAddressedAlias bool   `name:"auto-from-addressed-alias" help:"When --from is omitted, reply from the verified send-as alias addressed by the original message"`
+	AutoFromAddressedAlias bool   `name:"auto-from-addressed-alias" help:"When --from is omitted, reply from the verified send-as alias addressed by the original message" env:"GOG_GMAIL_AUTO_FROM_ADDRESSED_ALIAS"`
 }
 
 func (c *GmailDraftsUpdateCmd) Run(ctx context.Context, flags *RootFlags) error {

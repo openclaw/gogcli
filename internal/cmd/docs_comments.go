@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/alecthomas/kong"
 	"google.golang.org/api/docs/v1"
 	"google.golang.org/api/drive/v3"
 
@@ -40,7 +41,7 @@ type DocsCommentsListCmd struct {
 	TabID           string `name:"tab-id" hidden:"" help:"(deprecated) Use --tab"`
 }
 
-func (c *DocsCommentsListCmd) Run(ctx context.Context, flags *RootFlags) error {
+func (c *DocsCommentsListCmd) Run(ctx context.Context, kctx *kong.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
 	docID := normalizeGoogleID(strings.TrimSpace(c.DocID))
 	if docID == "" {
@@ -56,6 +57,9 @@ func (c *DocsCommentsListCmd) Run(ctx context.Context, flags *RootFlags) error {
 	tab, err := resolveTabArg(ctx, c.Tab, c.TabID)
 	if err != nil {
 		return err
+	}
+	if tab == "" && (flagProvided(kctx, "tab") || flagProvided(kctx, "tab-id")) {
+		return usage("--tab requires a non-empty tab title or ID")
 	}
 	c.Tab = tab
 

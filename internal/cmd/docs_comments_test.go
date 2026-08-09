@@ -524,10 +524,10 @@ func TestDocsComments_ValidationErrors(t *testing.T) {
 	ctx := ui.WithUI(context.Background(), u)
 	flags := &RootFlags{Account: "a@b.com"}
 
-	if err := (&DocsCommentsListCmd{}).Run(ctx, flags); err == nil {
+	if err := (&DocsCommentsListCmd{}).Run(ctx, nil, flags); err == nil {
 		t.Fatal("expected list missing docId error")
 	}
-	if err := (&DocsCommentsListCmd{DocID: "d1", Max: 1, Since: "2026-06-04T10:00:00"}).Run(ctx, flags); err == nil {
+	if err := (&DocsCommentsListCmd{DocID: "d1", Max: 1, Since: "2026-06-04T10:00:00"}).Run(ctx, nil, flags); err == nil {
 		t.Fatal("expected list invalid since error")
 	}
 	if err := (&DocsCommentsGetCmd{}).Run(ctx, flags); err == nil {
