@@ -2,7 +2,7 @@
 
 ## 0.35.1 - Unreleased
 
-- No unreleased changes.
+- Auth: re-authorize expired or revoked stored OAuth refresh tokens interactively, while preserving non-interactive recovery guidance. (#973) — thanks @inamiy.
 
 ## 0.35.0 - 2026-08-09
 
