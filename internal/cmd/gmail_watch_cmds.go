@@ -5,7 +5,7 @@ import (
 	"errors"
 	"net"
 	"net/http"
-	"net/url"
+	neturl "net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -525,7 +525,7 @@ func redactHookURL(raw string) string {
 	if strings.TrimSpace(raw) == "" {
 		return raw
 	}
-	parsed, err := url.Parse(raw)
+	parsed, err := neturl.Parse(raw)
 	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
 		return "[REDACTED]"
 	}
