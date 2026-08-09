@@ -79,7 +79,7 @@ func TestFetchMessageDetails_NoRetryOnError(t *testing.T) {
 	}
 
 	messages := []*gmail.Message{{Id: "m1"}, {Id: "m2"}}
-	_, err = fetchMessageDetails(context.Background(), svc, messages, map[string]string{}, time.UTC, false, gmailMessageBodyFormatText)
+	_, err = fetchMessageDetails(context.Background(), svc, messages, map[string]string{}, time.UTC, false, gmailMessageBodyFormatText, false, false)
 	if err == nil || !strings.Contains(err.Error(), "message m1") {
 		t.Fatalf("expected message error, got %v", err)
 	}

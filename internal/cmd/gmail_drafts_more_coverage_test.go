@@ -86,6 +86,49 @@ func TestGmailDraftsGet_JSON_DownloadNoAttachments(t *testing.T) {
 	}
 }
 
+func TestGmailDraftsGet_JSON_IndexedAttachments(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.Contains(r.URL.Path, "/gmail/v1/users/me/drafts/d1") && r.Method == http.MethodGet {
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"id": "d1",
+				"message": map[string]any{
+					"id": "m1",
+					"payload": map[string]any{"parts": []map[string]any{{
+						"filename": "note.txt",
+						"mimeType": "text/plain",
+						"body":     map[string]any{"attachmentId": "opaque-id", "size": 7},
+					}}},
+				},
+			})
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer srv.Close()
+
+	result := executeWithGmailTestService(t, []string{
+		"--json", "--account", "a@b.com", "gmail", "drafts", "get", "d1", "--use-indexed-attachment-ids",
+	}, newGmailServiceFromServer(t, srv))
+	if result.err != nil {
+		t.Fatalf("get: %v\nstderr=%q", result.err, result.stderr)
+	}
+	var payload struct {
+		Attachments []struct {
+			AttachmentIndex *int `json:"attachmentIndex"`
+		} `json:"attachments"`
+	}
+	if err := json.Unmarshal([]byte(result.stdout), &payload); err != nil {
+		t.Fatalf("decode: %v\nout=%q", err, result.stdout)
+	}
+	if len(payload.Attachments) != 1 || payload.Attachments[0].AttachmentIndex == nil || *payload.Attachments[0].AttachmentIndex != 0 {
+		t.Fatalf("unexpected indexed attachments: %#v", payload.Attachments)
+	}
+	if strings.Contains(result.stdout, "opaque-id") || strings.Contains(result.stdout, "attachmentId") {
+		t.Fatalf("indexed draft output leaked opaque id: %q", result.stdout)
+	}
+}
+
 func TestGmailDraftsSend_Text(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net"
 	"net/http"
+	neturl "net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -436,10 +437,13 @@ func (c *GmailWatchServeCmd) Run(ctx context.Context, kctx *kong.Context, flags 
 
 func writeWatchState(ctx context.Context, state gmailWatchState, showSecrets bool) error {
 	if outfmt.IsJSON(ctx) {
-		if !showSecrets && state.Hook != nil && state.Hook.Token != "" {
+		if !showSecrets && state.Hook != nil {
 			redacted := state
 			h := *state.Hook
-			h.Token = "[REDACTED]"
+			if h.Token != "" {
+				h.Token = "[REDACTED]"
+			}
+			h.URL = redactHookURL(h.URL)
 			redacted.Hook = &h
 			return outfmt.WriteJSON(ctx, stdoutWriter(ctx), map[string]any{"watch": redacted})
 		}
@@ -465,7 +469,11 @@ func writeWatchState(ctx context.Context, state gmailWatchState, showSecrets boo
 		u.Out().Linef("updated_at\t%s", formatUnixMillis(state.UpdatedAtMs))
 	}
 	if state.Hook != nil {
-		u.Out().Linef("hook_url\t%s", state.Hook.URL)
+		hookURL := state.Hook.URL
+		if !showSecrets {
+			hookURL = redactHookURL(hookURL)
+		}
+		u.Out().Linef("hook_url\t%s", hookURL)
 		if state.Hook.IncludeBody {
 			u.Out().Linef("hook_include_body\ttrue")
 		}
@@ -508,6 +516,24 @@ func writeWatchState(ctx context.Context, state gmailWatchState, showSecrets boo
 		u.Out().Linef("auth_failure_reason\t%s", state.AuthFailureReason)
 	}
 	return nil
+}
+
+// redactHookURL keeps only the origin of a webhook URL. Webhook providers place
+// credentials in userinfo, paths, queries, and fragments, so preserving any of
+// those components would make the default status output unsafe to share.
+func redactHookURL(raw string) string {
+	if strings.TrimSpace(raw) == "" {
+		return raw
+	}
+	parsed, err := neturl.Parse(raw)
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+		return "[REDACTED]"
+	}
+
+	if parsed.User == nil && parsed.Path == "" && parsed.RawQuery == "" && parsed.Fragment == "" {
+		return raw
+	}
+	return parsed.Scheme + "://" + parsed.Host + "/[REDACTED]"
 }
 
 func buildWatchState(account, topic string, labels []string, resp *gmail.WatchResponse, ttl time.Duration, hook *gmailWatchHook) (gmailWatchState, error) {

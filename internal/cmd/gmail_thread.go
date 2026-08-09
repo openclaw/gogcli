@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/url"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"google.golang.org/api/gmail/v1"
@@ -23,11 +24,12 @@ type GmailThreadCmd struct {
 }
 
 type GmailThreadGetCmd struct {
-	ThreadID        string        `arg:"" name:"threadId" help:"Thread ID"`
-	Download        bool          `name:"download" help:"Download attachments"`
-	Full            bool          `name:"full" help:"Show full message bodies without truncation"`
-	SanitizeContent bool          `name:"sanitize-content" aliases:"sanitize,safe" help:"Emit agent-oriented sanitized content: strip HTML, remove HTTP(S) URLs, and omit raw Gmail payloads from JSON"`
-	OutputDir       OutputDirFlag `embed:""`
+	ThreadID                string        `arg:"" name:"threadId" help:"Thread ID"`
+	UseIndexedAttachmentIDs bool          `name:"use-indexed-attachment-ids" help:"Use 0-based indexes as attachment ids everywhere (output, the download argument, and saved filenames)" env:"GOG_GMAIL_USE_INDEXED_ATTACHMENT_IDS"`
+	Download                bool          `name:"download" help:"Download attachments"`
+	Full                    bool          `name:"full" help:"Show full message bodies without truncation"`
+	SanitizeContent         bool          `name:"sanitize-content" aliases:"sanitize,safe" help:"Emit agent-oriented sanitized content: strip HTML, remove HTTP(S) URLs, and omit raw Gmail payloads from JSON"`
+	OutputDir               OutputDirFlag `embed:""`
 }
 
 func (c *GmailThreadGetCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -73,7 +75,7 @@ func (c *GmailThreadGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 				if msg == nil || msg.Id == "" {
 					continue
 				}
-				downloads, err := downloadAttachmentOutputs(ctx, svc, msg.Id, collectAttachments(msg.Payload), attachDir)
+				downloads, err := downloadAttachmentOutputs(ctx, svc, msg.Id, collectAttachments(msg.Payload), attachDir, c.UseIndexedAttachmentIDs)
 				if err != nil {
 					return err
 				}
@@ -82,14 +84,29 @@ func (c *GmailThreadGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 		}
 		if c.SanitizeContent {
 			return outfmt.WriteJSON(ctx, stdoutWriter(ctx), map[string]any{
-				"thread":     sanitizedGmailThread(thread, true),
+				"thread":     sanitizedGmailThread(thread, true, c.UseIndexedAttachmentIDs),
 				"downloaded": downloadedFiles,
 			})
 		}
-		return outfmt.WriteJSON(ctx, stdoutWriter(ctx), map[string]any{
+		payload := map[string]any{
 			"thread":     thread,
 			"downloaded": downloadedFiles,
-		})
+		}
+		if c.UseIndexedAttachmentIDs {
+			attachments := make([]attachmentDownloadOutput, 0)
+			if thread != nil {
+				for _, msg := range thread.Messages {
+					if msg == nil || msg.Id == "" {
+						continue
+					}
+					messageAttachments := collectAttachments(msg.Payload)
+					attachments = append(attachments, attachmentDownloadOutputsFromInfo(msg.Id, messageAttachments, true)...)
+					stripAttachmentIDs(msg.Payload)
+				}
+			}
+			payload["attachments"] = attachments
+		}
+		return outfmt.WriteJSON(ctx, stdoutWriter(ctx), payload)
 	}
 	if thread == nil || len(thread.Messages) == 0 {
 		u.Err().Println("Empty thread")
@@ -135,10 +152,10 @@ func (c *GmailThreadGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 		}
 
 		attachments := collectAttachments(msg.Payload)
-		printAttachmentSection(u.Out(), attachments)
+		printAttachmentSection(u.Out(), attachments, c.UseIndexedAttachmentIDs)
 
 		if c.Download && len(attachments) > 0 {
-			downloads, err := downloadAttachmentOutputs(ctx, svc, msg.Id, attachments, attachDir)
+			downloads, err := downloadAttachmentOutputs(ctx, svc, msg.Id, attachments, attachDir, c.UseIndexedAttachmentIDs)
 			if err != nil {
 				return err
 			}
@@ -222,9 +239,10 @@ func (c *GmailThreadModifyCmd) Run(ctx context.Context, flags *RootFlags) error 
 
 // GmailThreadAttachmentsCmd lists all attachments in a thread.
 type GmailThreadAttachmentsCmd struct {
-	ThreadID  string        `arg:"" name:"threadId" help:"Thread ID"`
-	Download  bool          `name:"download" help:"Download all attachments"`
-	OutputDir OutputDirFlag `embed:""`
+	ThreadID                string        `arg:"" name:"threadId" help:"Thread ID"`
+	UseIndexedAttachmentIDs bool          `name:"use-indexed-attachment-ids" help:"Use 0-based indexes as attachment ids everywhere (output, the download argument, and saved filenames)" env:"GOG_GMAIL_USE_INDEXED_ATTACHMENT_IDS"`
+	Download                bool          `name:"download" help:"Download all attachments"`
+	OutputDir               OutputDirFlag `embed:""`
 }
 
 func (c *GmailThreadAttachmentsCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -280,14 +298,14 @@ func (c *GmailThreadAttachmentsCmd) Run(ctx context.Context, flags *RootFlags) e
 		}
 		attachments := collectAttachments(msg.Payload)
 		if c.Download {
-			downloads, err := downloadAttachmentOutputs(ctx, svc, msg.Id, attachments, attachDir)
+			downloads, err := downloadAttachmentOutputs(ctx, svc, msg.Id, attachments, attachDir, c.UseIndexedAttachmentIDs)
 			if err != nil {
 				return err
 			}
 			allAttachments = append(allAttachments, downloads...)
 			continue
 		}
-		allAttachments = append(allAttachments, attachmentDownloadOutputsFromInfo(msg.Id, attachments)...)
+		allAttachments = append(allAttachments, attachmentDownloadOutputsFromInfo(msg.Id, attachments, c.UseIndexedAttachmentIDs)...)
 	}
 
 	if outfmt.IsJSON(ctx) {
@@ -346,23 +364,28 @@ func (c *GmailURLCmd) Run(ctx context.Context, flags *RootFlags) error {
 	return nil
 }
 
-func downloadAttachment(ctx context.Context, svc *gmail.Service, messageID string, a attachmentInfo, dir string) (string, bool, error) {
+func downloadAttachment(ctx context.Context, svc *gmail.Service, messageID string, a attachmentInfo, dir string, useIndexedAttachmentIDs bool) (string, bool, error) {
 	if strings.TrimSpace(messageID) == "" || strings.TrimSpace(a.AttachmentID) == "" {
 		return "", false, errors.New("missing messageID/attachmentID")
 	}
 	if strings.TrimSpace(dir) == "" {
 		dir = "."
 	}
-	shortID := a.AttachmentID
-	if len(shortID) > 8 {
-		shortID = shortID[:8]
+	// Discriminator between a message's attachments in one dir: the 0-based index
+	// in indexed mode, else the opaque id truncated to 8 chars.
+	ref := a.AttachmentID
+	if len(ref) > 8 {
+		ref = ref[:8]
+	}
+	if useIndexedAttachmentIDs {
+		ref = strconv.Itoa(a.AttachmentIndex)
 	}
 	// Sanitize filename to prevent path traversal attacks
 	safeFilename := filepath.Base(a.Filename)
 	if safeFilename == "" || safeFilename == "." || safeFilename == ".." {
 		safeFilename = "attachment"
 	}
-	filename := fmt.Sprintf("%s_%s_%s", messageID, shortID, safeFilename)
+	filename := fmt.Sprintf("%s_%s_%s", messageID, ref, safeFilename)
 	outPath := filepath.Join(dir, filename)
 	path, cached, _, err := downloadAttachmentToPath(ctx, svc, messageID, a.AttachmentID, outPath, a.Size)
 	if err != nil {

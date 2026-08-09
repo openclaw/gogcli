@@ -99,8 +99,9 @@ func (c *GmailDraftsListCmd) Run(ctx context.Context, flags *RootFlags) error {
 }
 
 type GmailDraftsGetCmd struct {
-	DraftID  string `arg:"" name:"draftId" help:"Draft ID"`
-	Download bool   `name:"download" help:"Download draft attachments"`
+	DraftID                 string `arg:"" name:"draftId" help:"Draft ID"`
+	UseIndexedAttachmentIDs bool   `name:"use-indexed-attachment-ids" help:"Use 0-based indexes as attachment ids everywhere (output, the download argument, and saved filenames)" env:"GOG_GMAIL_USE_INDEXED_ATTACHMENT_IDS"`
+	Download                bool   `name:"download" help:"Download draft attachments"`
 }
 
 func (c *GmailDraftsGetCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -142,12 +143,18 @@ func (c *GmailDraftsGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 		if c.Download {
 			var downloads []attachmentDownloadOutput
 			if attachDir != "" {
-				downloads, err = downloadAttachmentOutputs(ctx, svc, msg.Id, attachments, attachDir)
+				downloads, err = downloadAttachmentOutputs(ctx, svc, msg.Id, attachments, attachDir, c.UseIndexedAttachmentIDs)
 				if err != nil {
 					return err
 				}
 			}
 			out["downloaded"] = attachmentDownloadDraftOutputs(downloads)
+		}
+		// The raw draft dump carries the opaque attachmentIds too; in indexed mode
+		// expose a curated index mapping, then strip the long ids from the raw dump.
+		if c.UseIndexedAttachmentIDs {
+			out["attachments"] = attachmentOutputs(attachments, true)
+			stripAttachmentIDs(msg.Payload)
 		}
 		return outfmt.WriteJSON(ctx, stdoutWriter(ctx), out)
 	}
@@ -166,10 +173,10 @@ func (c *GmailDraftsGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 		u.Out().Println("")
 	}
 
-	printAttachmentSection(u.Out(), attachments)
+	printAttachmentSection(u.Out(), attachments, c.UseIndexedAttachmentIDs)
 
 	if attachDir != "" {
-		downloads, err := downloadAttachmentOutputs(ctx, svc, msg.Id, attachments, attachDir)
+		downloads, err := downloadAttachmentOutputs(ctx, svc, msg.Id, attachments, attachDir, c.UseIndexedAttachmentIDs)
 		if err != nil {
 			return err
 		}
