@@ -518,42 +518,22 @@ func writeWatchState(ctx context.Context, state gmailWatchState, showSecrets boo
 	return nil
 }
 
-// redactHookURL strips credentials that can be embedded in a webhook URL so the
-// hook URL can be shown in `gmail watch status` output without leaking secrets.
-// It removes userinfo (https://user:pass@host), query values (e.g. ?token=...),
-// and any fragment, while keeping the scheme, host, and path visible so the
-// destination stays recognizable. URLs without embedded credentials are returned
-// unchanged. Mirrors the git remote URL redaction used elsewhere in the CLI.
+// redactHookURL keeps only the origin of a webhook URL. Webhook providers place
+// credentials in userinfo, paths, queries, and fragments, so preserving any of
+// those components would make the default status output unsafe to share.
 func redactHookURL(raw string) string {
+	if strings.TrimSpace(raw) == "" {
+		return raw
+	}
 	parsed, err := url.Parse(raw)
 	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
-		return raw
+		return "[REDACTED]"
 	}
 
-	redacted := false
-	if parsed.User != nil {
-		parsed.User = url.User("redacted")
-		redacted = true
-	}
-	if parsed.RawQuery != "" {
-		query := parsed.Query()
-		for key, values := range query {
-			for i := range values {
-				values[i] = "redacted"
-			}
-			query[key] = values
-		}
-		parsed.RawQuery = query.Encode()
-		redacted = true
-	}
-	if parsed.Fragment != "" {
-		parsed.Fragment = "redacted"
-		redacted = true
-	}
-	if !redacted {
+	if parsed.User == nil && parsed.Path == "" && parsed.RawQuery == "" && parsed.Fragment == "" {
 		return raw
 	}
-	return parsed.String()
+	return parsed.Scheme + "://" + parsed.Host + "/[REDACTED]"
 }
 
 func buildWatchState(account, topic string, labels []string, resp *gmail.WatchResponse, ttl time.Duration, hook *gmailWatchHook) (gmailWatchState, error) {
