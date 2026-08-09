@@ -80,6 +80,24 @@ func TestGmailPresentationSchemas(t *testing.T) {
 		)
 	})
 
+	t.Run("attachment table values replace controls", func(t *testing.T) {
+		t.Parallel()
+		got := renderPlainTable(t, []messageItem{{
+			ID: "m1",
+			Attachments: []attachmentOutput{{
+				Filename:  "report\tQ1\n.pdf\x1b",
+				MimeType:  "application\r/pdf",
+				SizeHuman: "34 KiB",
+			}},
+		}}, gmailMessageColumns(false, true, false))
+		assertTableOutput(
+			t,
+			got,
+			"ID\tTHREAD\tDATE\tFROM\tSUBJECT\tLABELS\tATTACHMENTS\n"+
+				"m1\t\t\t\t\t\treport Q1 .pdf  (application /pdf, 34 KiB)\n",
+		)
+	})
+
 	t.Run("threads", func(t *testing.T) {
 		t.Parallel()
 		got := renderPlainTable(t, []threadItem{

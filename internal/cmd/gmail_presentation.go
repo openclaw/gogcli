@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"strings"
+	"unicode"
 
 	"google.golang.org/api/gmail/v1"
 
@@ -52,13 +53,27 @@ func gmailMessageColumns(includeBody, includeAttachments, full bool) []outfmt.Co
 			Value: func(item messageItem) string {
 				parts := make([]string, len(item.Attachments))
 				for i, a := range item.Attachments {
-					parts[i] = fmt.Sprintf("%s (%s, %s)", a.Filename, a.MimeType, a.SizeHuman)
+					parts[i] = fmt.Sprintf(
+						"%s (%s, %s)",
+						sanitizeGmailAttachmentTableValue(a.Filename),
+						sanitizeGmailAttachmentTableValue(a.MimeType),
+						a.SizeHuman,
+					)
 				}
 				return strings.Join(parts, ", ")
 			},
 		})
 	}
 	return columns
+}
+
+func sanitizeGmailAttachmentTableValue(value string) string {
+	return strings.Map(func(char rune) rune {
+		if unicode.IsControl(char) {
+			return ' '
+		}
+		return char
+	}, value)
 }
 
 func gmailThreadColumns() []outfmt.Column[threadItem] {
