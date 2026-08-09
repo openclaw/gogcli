@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.35.1 - Unreleased
+
+- No unreleased changes.
+
 ## 0.35.0 - 2026-08-09
 
 - Install: move the Go module to `github.com/openclaw/gogcli`; new releases install with `go install github.com/openclaw/gogcli/cmd/gog@latest` instead of the former `github.com/steipete/gogcli` path.
