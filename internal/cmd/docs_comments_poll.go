@@ -9,7 +9,7 @@ import (
 
 	"google.golang.org/api/drive/v3"
 
-	"github.com/steipete/gogcli/internal/outfmt"
+	"github.com/openclaw/gogcli/internal/outfmt"
 )
 
 type DocsCommentsPollCmd struct {

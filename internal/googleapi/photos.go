@@ -11,7 +11,7 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/steipete/gogcli/internal/googleauth"
+	"github.com/openclaw/gogcli/internal/googleauth"
 )
 
 const defaultPhotosBaseURL = "https://photoslibrary.googleapis.com/v1"

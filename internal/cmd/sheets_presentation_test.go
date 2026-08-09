@@ -6,8 +6,8 @@ import (
 
 	"google.golang.org/api/sheets/v4"
 
-	"github.com/steipete/gogcli/internal/sheetsbanding"
-	"github.com/steipete/gogcli/internal/sheetsconditional"
+	"github.com/openclaw/gogcli/internal/sheetsbanding"
+	"github.com/openclaw/gogcli/internal/sheetsconditional"
 )
 
 func TestSheetsPresentationSchemas(t *testing.T) {

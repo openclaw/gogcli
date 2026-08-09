@@ -16,9 +16,9 @@ import (
 
 	"google.golang.org/api/gmail/v1"
 
-	"github.com/steipete/gogcli/internal/app"
-	"github.com/steipete/gogcli/internal/googleapi"
-	"github.com/steipete/gogcli/internal/outfmt"
+	"github.com/openclaw/gogcli/internal/app"
+	"github.com/openclaw/gogcli/internal/googleapi"
+	"github.com/openclaw/gogcli/internal/outfmt"
 )
 
 const testImportEML = "From: Sender <sender@example.com>\r\n" +

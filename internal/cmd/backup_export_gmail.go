@@ -15,8 +15,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/steipete/gogcli/internal/backup"
-	"github.com/steipete/gogcli/internal/gmailcontent"
+	"github.com/openclaw/gogcli/internal/backup"
+	"github.com/openclaw/gogcli/internal/gmailcontent"
 )
 
 type gmailExportIndexEntry struct {

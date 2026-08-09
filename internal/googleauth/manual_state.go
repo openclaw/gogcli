@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/steipete/gogcli/internal/config"
+	"github.com/openclaw/gogcli/internal/config"
 )
 
 const (

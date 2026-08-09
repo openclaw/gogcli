@@ -3,7 +3,7 @@ package googleapi
 import (
 	"testing"
 
-	"github.com/steipete/gogcli/internal/secrets"
+	"github.com/openclaw/gogcli/internal/secrets"
 )
 
 type tasksStubStore struct {

@@ -5,7 +5,7 @@ import (
 
 	admin "google.golang.org/api/admin/directory/v1"
 
-	"github.com/steipete/gogcli/internal/outfmt"
+	"github.com/openclaw/gogcli/internal/outfmt"
 )
 
 func adminUserColumns() []outfmt.Column[*admin.User] {

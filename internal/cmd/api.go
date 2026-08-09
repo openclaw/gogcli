@@ -12,9 +12,9 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/steipete/gogcli/internal/discoveryapi"
-	"github.com/steipete/gogcli/internal/googleapi"
-	"github.com/steipete/gogcli/internal/outfmt"
+	"github.com/openclaw/gogcli/internal/discoveryapi"
+	"github.com/openclaw/gogcli/internal/googleapi"
+	"github.com/openclaw/gogcli/internal/outfmt"
 )
 
 const maxDiscoveryResponseBytes = 64 << 20

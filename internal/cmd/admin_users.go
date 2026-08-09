@@ -10,8 +10,8 @@ import (
 	admin "google.golang.org/api/admin/directory/v1"
 	ggoogleapi "google.golang.org/api/googleapi"
 
-	"github.com/steipete/gogcli/internal/outfmt"
-	"github.com/steipete/gogcli/internal/ui"
+	"github.com/openclaw/gogcli/internal/outfmt"
+	"github.com/openclaw/gogcli/internal/ui"
 )
 
 // AdminUsersCmd manages Workspace users.

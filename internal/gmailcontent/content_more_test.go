@@ -122,7 +122,7 @@ func TestFindPartBody_PreservesURLsWhenAlreadyDecoded(t *testing.T) {
 	// Gmail API sometimes returns already-decoded content even when
 	// Content-Transfer-Encoding header says quoted-printable.
 	// URLs with = should be preserved, not corrupted to U+FFFD.
-	// See: https://github.com/steipete/gogcli/issues/159
+	// See: https://github.com/openclaw/gogcli/issues/159
 	url := "https://example.com/auth?token_hash=ABCD12&type=magiclink"
 	encoded := base64.RawURLEncoding.EncodeToString([]byte(url))
 	part := &gmail.MessagePart{

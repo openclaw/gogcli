@@ -8,7 +8,7 @@ import (
 
 	scriptapi "google.golang.org/api/script/v1"
 
-	"github.com/steipete/gogcli/internal/app"
+	"github.com/openclaw/gogcli/internal/app"
 )
 
 func newAppScriptTestService(t *testing.T, srv *httptest.Server) *scriptapi.Service {

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/steipete/gogcli/internal/secrets"
+	"github.com/openclaw/gogcli/internal/secrets"
 )
 
 type EmailReferenceUpdater func(oldEmail, newEmail string) error

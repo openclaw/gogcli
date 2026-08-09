@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/api/docs/v1"
 
-	"github.com/steipete/gogcli/internal/docssed"
+	"github.com/openclaw/gogcli/internal/docssed"
 )
 
 // =============================================================================

@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/steipete/gogcli/internal/gmailcontent"
-	"github.com/steipete/gogcli/internal/ui"
+	"github.com/openclaw/gogcli/internal/gmailcontent"
+	"github.com/openclaw/gogcli/internal/ui"
 )
 
 type GmailForwardCmd struct {

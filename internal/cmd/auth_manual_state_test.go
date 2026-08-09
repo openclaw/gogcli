@@ -5,9 +5,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/steipete/gogcli/internal/app"
-	"github.com/steipete/gogcli/internal/config"
-	"github.com/steipete/gogcli/internal/googleauth"
+	"github.com/openclaw/gogcli/internal/app"
+	"github.com/openclaw/gogcli/internal/config"
+	"github.com/openclaw/gogcli/internal/googleauth"
 )
 
 func TestManualAuthOperationsUseRuntimeLayout(t *testing.T) {

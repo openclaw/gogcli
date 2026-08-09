@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/steipete/gogcli/internal/googleauth"
+	"github.com/openclaw/gogcli/internal/googleauth"
 )
 
 func TestMainUpdatesReadme(t *testing.T) {

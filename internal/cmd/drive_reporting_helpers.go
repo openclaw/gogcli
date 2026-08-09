@@ -4,7 +4,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/steipete/gogcli/internal/drivereport"
+	"github.com/openclaw/gogcli/internal/drivereport"
 )
 
 type driveDuSummary = drivereport.Summary

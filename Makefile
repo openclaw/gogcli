@@ -13,7 +13,7 @@ CMD := ./cmd/gog
 VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 COMMIT := $(shell git rev-parse --short=12 HEAD 2>/dev/null || echo "")
 DATE := $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
-LDFLAGS := -X github.com/steipete/gogcli/internal/cmd.version=$(VERSION) -X github.com/steipete/gogcli/internal/cmd.commit=$(COMMIT) -X github.com/steipete/gogcli/internal/cmd.date=$(DATE)
+LDFLAGS := -X github.com/openclaw/gogcli/internal/cmd.version=$(VERSION) -X github.com/openclaw/gogcli/internal/cmd.commit=$(COMMIT) -X github.com/openclaw/gogcli/internal/cmd.date=$(DATE)
 # `make lint` already covers vet-equivalent checks; skip duplicate work in `make test`.
 GO_TEST_FLAGS ?= -vet=off
 TEST_FLAGS ?=
@@ -98,14 +98,14 @@ tools:
 	fi
 
 fmt: tools
-	@$(GOIMPORTS) -local github.com/steipete/gogcli -w .
+	@$(GOIMPORTS) -local github.com/openclaw/gogcli -w .
 	@$(GOFUMPT) -w .
 
 fmt-check: tools
 	@set -e; \
 	tmp="$$(mktemp)"; \
 	trap 'rm -f "$$tmp"' EXIT; \
-	$(GOIMPORTS) -local github.com/steipete/gogcli -l . > "$$tmp"; \
+	$(GOIMPORTS) -local github.com/openclaw/gogcli -l . > "$$tmp"; \
 	$(GOFUMPT) -l . >> "$$tmp"; \
 	unformatted="$$(sort -u "$$tmp")"; \
 	if [ -n "$$unformatted" ]; then \

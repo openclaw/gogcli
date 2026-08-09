@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/steipete/gogcli/internal/docsformat"
+	"github.com/openclaw/gogcli/internal/docsformat"
 )
 
 func TestBuildWriteRequestsReplaceAndFormat(t *testing.T) {

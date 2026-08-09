@@ -11,8 +11,8 @@ import (
 	formsapi "google.golang.org/api/forms/v1"
 	"google.golang.org/api/option"
 
-	"github.com/steipete/gogcli/internal/app"
-	"github.com/steipete/gogcli/internal/ui"
+	"github.com/openclaw/gogcli/internal/app"
+	"github.com/openclaw/gogcli/internal/ui"
 )
 
 func newFormsTestService(t *testing.T, ctx context.Context, srv *httptest.Server) *formsapi.Service {

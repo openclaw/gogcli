@@ -9,7 +9,7 @@ import (
 
 	"google.golang.org/api/people/v1"
 
-	"github.com/steipete/gogcli/internal/ui"
+	"github.com/openclaw/gogcli/internal/ui"
 )
 
 const contactsExportReadMask = "names,nicknames,emailAddresses,phoneNumbers,addresses,birthdays,organizations,urls,biographies,memberships,userDefined,metadata"

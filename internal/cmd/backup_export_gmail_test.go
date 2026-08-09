@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/steipete/gogcli/internal/backup"
+	"github.com/openclaw/gogcli/internal/backup"
 )
 
 func TestDecodeGmailRawAcceptsBase64URLVariants(t *testing.T) {

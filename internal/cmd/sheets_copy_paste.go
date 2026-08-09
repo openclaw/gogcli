@@ -7,7 +7,7 @@ import (
 
 	"google.golang.org/api/sheets/v4"
 
-	"github.com/steipete/gogcli/internal/sheetsvalidation"
+	"github.com/openclaw/gogcli/internal/sheetsvalidation"
 )
 
 // pasteNormal is the default paste type / orientation keyword shared by the

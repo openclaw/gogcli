@@ -6,8 +6,8 @@ import (
 
 	"google.golang.org/api/meet/v2"
 
-	"github.com/steipete/gogcli/internal/outfmt"
-	"github.com/steipete/gogcli/internal/ui"
+	"github.com/openclaw/gogcli/internal/outfmt"
+	"github.com/openclaw/gogcli/internal/ui"
 )
 
 type MeetCmd struct {

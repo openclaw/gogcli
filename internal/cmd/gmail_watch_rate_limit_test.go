@@ -15,7 +15,7 @@ import (
 	"google.golang.org/api/gmail/v1"
 	"google.golang.org/api/option"
 
-	"github.com/steipete/gogcli/internal/gmailwatch"
+	"github.com/openclaw/gogcli/internal/gmailwatch"
 )
 
 func TestGmailWatchServer_History429OpensAccountCircuit(t *testing.T) {

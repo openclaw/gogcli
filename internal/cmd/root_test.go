@@ -8,7 +8,7 @@ import (
 
 	"google.golang.org/api/drive/v3"
 
-	"github.com/steipete/gogcli/internal/app"
+	"github.com/openclaw/gogcli/internal/app"
 )
 
 func TestEnvOr(t *testing.T) {

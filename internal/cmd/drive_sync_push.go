@@ -17,8 +17,8 @@ import (
 	"google.golang.org/api/drive/v3"
 	gapi "google.golang.org/api/googleapi"
 
-	"github.com/steipete/gogcli/internal/config"
-	"github.com/steipete/gogcli/internal/outfmt"
+	"github.com/openclaw/gogcli/internal/config"
+	"github.com/openclaw/gogcli/internal/outfmt"
 )
 
 const (

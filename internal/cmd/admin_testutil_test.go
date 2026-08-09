@@ -9,7 +9,7 @@ import (
 
 	admin "google.golang.org/api/admin/directory/v1"
 
-	"github.com/steipete/gogcli/internal/app"
+	"github.com/openclaw/gogcli/internal/app"
 )
 
 func newAdminTestService(t *testing.T, handler http.Handler) *admin.Service {

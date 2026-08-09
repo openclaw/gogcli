@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/steipete/gogcli/internal/safetyprofile"
+	"github.com/openclaw/gogcli/internal/safetyprofile"
 )
 
 func TestGenerateProducesParseableGoWithExpectedHashes(t *testing.T) {

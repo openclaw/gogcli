@@ -3,7 +3,7 @@ package cmd
 import (
 	"testing"
 
-	"github.com/steipete/gogcli/internal/docssed"
+	"github.com/openclaw/gogcli/internal/docssed"
 )
 
 func TestParseImageSyntax(t *testing.T) {

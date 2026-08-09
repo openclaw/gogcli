@@ -15,7 +15,7 @@ import (
 
 	"github.com/99designs/keyring"
 
-	"github.com/steipete/gogcli/internal/config"
+	"github.com/openclaw/gogcli/internal/config"
 )
 
 func TestKeyringLockForRingInDirUsesInjectedDirectory(t *testing.T) {

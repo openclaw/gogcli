@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/steipete/gogcli/internal/docssed"
+	"github.com/openclaw/gogcli/internal/docssed"
 )
 
 type (

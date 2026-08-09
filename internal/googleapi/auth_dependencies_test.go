@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/steipete/gogcli/internal/config"
+	"github.com/openclaw/gogcli/internal/config"
 )
 
 func TestStoredAuthRequiresDependencies(t *testing.T) {

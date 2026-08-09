@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	_ "github.com/steipete/gogcli/internal/tzembed" // Embed IANA timezone database for Windows test support
+	_ "github.com/openclaw/gogcli/internal/tzembed" // Embed IANA timezone database for Windows test support
 )
 
 func TestMain(m *testing.M) {

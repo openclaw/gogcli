@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/steipete/gogcli/internal/slidesmarkdown"
+	"github.com/openclaw/gogcli/internal/slidesmarkdown"
 )
 
 func TestSlideyFixture_ParsesAndRenders(t *testing.T) {

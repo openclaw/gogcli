@@ -11,7 +11,7 @@ import (
 	"github.com/alecthomas/kong"
 	"github.com/muesli/termenv"
 
-	"github.com/steipete/gogcli/internal/termutil"
+	"github.com/openclaw/gogcli/internal/termutil"
 )
 
 const (

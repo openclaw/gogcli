@@ -1,4 +1,4 @@
-module github.com/steipete/gogcli
+module github.com/openclaw/gogcli
 
 go 1.26.5
 

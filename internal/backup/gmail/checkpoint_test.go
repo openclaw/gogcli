@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/steipete/gogcli/internal/backup"
-	appconfig "github.com/steipete/gogcli/internal/config"
+	"github.com/openclaw/gogcli/internal/backup"
+	appconfig "github.com/openclaw/gogcli/internal/config"
 )
 
 func TestCheckpointerFlushesByRowsAndAtCompletion(t *testing.T) {

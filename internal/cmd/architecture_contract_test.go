@@ -13,7 +13,7 @@ import (
 	"testing"
 )
 
-const modulePath = "github.com/steipete/gogcli"
+const modulePath = "github.com/openclaw/gogcli"
 
 func TestInternalPackagesDoNotDependOnCommandLayer(t *testing.T) {
 	root := repositoryRoot(t)

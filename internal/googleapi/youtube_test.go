@@ -6,7 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/steipete/gogcli/internal/googleauth"
+	"github.com/openclaw/gogcli/internal/googleauth"
 )
 
 func TestYouTubeScopeContract(t *testing.T) {

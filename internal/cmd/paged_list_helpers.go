@@ -3,7 +3,7 @@ package cmd
 import (
 	"context"
 
-	"github.com/steipete/gogcli/internal/outfmt"
+	"github.com/openclaw/gogcli/internal/outfmt"
 )
 
 type pageFetchFunc[T any] func(pageToken string) ([]T, string, error)

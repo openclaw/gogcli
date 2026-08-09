@@ -13,7 +13,7 @@ import (
 	"google.golang.org/api/docs/v1"
 	"google.golang.org/api/option"
 
-	"github.com/steipete/gogcli/internal/ui"
+	"github.com/openclaw/gogcli/internal/ui"
 )
 
 // fullDocResponse returns a richer Document payload than DocsInfoCmd would

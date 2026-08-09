@@ -7,7 +7,7 @@ import (
 	analyticsadmin "google.golang.org/api/analyticsadmin/v1beta"
 	analyticsdata "google.golang.org/api/analyticsdata/v1beta"
 
-	"github.com/steipete/gogcli/internal/googleauth"
+	"github.com/openclaw/gogcli/internal/googleauth"
 )
 
 func NewAnalyticsAdmin(ctx context.Context, email string) (*analyticsadmin.Service, error) {

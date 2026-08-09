@@ -66,7 +66,7 @@ go run ./cmd/bake-safety-profile "$PROFILE" "$GEN_FILE"
 VERSION=$(git describe --tags --always --dirty 2>/dev/null || echo dev)
 COMMIT=$(git rev-parse --short=12 HEAD 2>/dev/null || echo "")
 DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-LDFLAGS="-X github.com/steipete/gogcli/internal/cmd.version=${VERSION}-safe -X github.com/steipete/gogcli/internal/cmd.commit=${COMMIT} -X github.com/steipete/gogcli/internal/cmd.date=${DATE}"
+LDFLAGS="-X github.com/openclaw/gogcli/internal/cmd.version=${VERSION}-safe -X github.com/openclaw/gogcli/internal/cmd.commit=${COMMIT} -X github.com/openclaw/gogcli/internal/cmd.date=${DATE}"
 
 mkdir -p "$(dirname "$OUTPUT")"
 go build -tags safety_profile -ldflags "$LDFLAGS" -o "$OUTPUT" ./cmd/gog

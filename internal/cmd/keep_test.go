@@ -13,7 +13,7 @@ import (
 
 	keepapi "google.golang.org/api/keep/v1"
 
-	"github.com/steipete/gogcli/internal/config"
+	"github.com/openclaw/gogcli/internal/config"
 )
 
 func writeKeepSA(t *testing.T) string {

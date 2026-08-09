@@ -5,7 +5,7 @@ import (
 
 	"google.golang.org/api/docs/v1"
 
-	"github.com/steipete/gogcli/internal/googleauth"
+	"github.com/openclaw/gogcli/internal/googleauth"
 )
 
 func NewDocs(ctx context.Context, email string) (*docs.Service, error) {

@@ -10,8 +10,8 @@ import (
 	nethtml "golang.org/x/net/html"
 	"google.golang.org/api/gmail/v1"
 
-	"github.com/steipete/gogcli/internal/config"
-	"github.com/steipete/gogcli/internal/gmailcontent"
+	"github.com/openclaw/gogcli/internal/config"
+	"github.com/openclaw/gogcli/internal/gmailcontent"
 )
 
 const maxComposeSignatureFileBytes = 1 << 20

@@ -16,8 +16,8 @@ import (
 
 	"google.golang.org/api/gmail/v1"
 
-	"github.com/steipete/gogcli/internal/mailmime"
-	"github.com/steipete/gogcli/internal/outfmt"
+	"github.com/openclaw/gogcli/internal/mailmime"
+	"github.com/openclaw/gogcli/internal/outfmt"
 )
 
 type gmailQuoteSource struct {

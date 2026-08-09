@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/steipete/gogcli/internal/backup"
+	"github.com/openclaw/gogcli/internal/backup"
 )
 
 func TestBuildMessageShardsFromMessagesBucketsSortsAndChunks(t *testing.T) {

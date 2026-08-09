@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/steipete/gogcli/internal/sheetsa1"
+	"github.com/openclaw/gogcli/internal/sheetsa1"
 )
 
 var (

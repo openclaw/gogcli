@@ -9,8 +9,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/steipete/gogcli/internal/config"
-	"github.com/steipete/gogcli/internal/filelock"
+	"github.com/openclaw/gogcli/internal/config"
+	"github.com/openclaw/gogcli/internal/filelock"
 )
 
 const defaultLockTimeout = 5 * time.Second

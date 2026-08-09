@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/steipete/gogcli/internal/config"
+	"github.com/openclaw/gogcli/internal/config"
 )
 
 const testBatchID = "018f47b5-7b5e-7cc0-9a78-4a5bb1886251"

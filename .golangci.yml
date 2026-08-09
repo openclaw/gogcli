@@ -84,9 +84,9 @@ linters:
           json: snake
           yaml: snake
         overrides:
-          - pkg: github.com/steipete/gogcli/internal/cmd
+          - pkg: github.com/openclaw/gogcli/internal/cmd
             ignore: true
-          - pkg: github.com/steipete/gogcli/internal/googleauth
+          - pkg: github.com/openclaw/gogcli/internal/googleauth
             ignore: true
     wsl_v5:
       allow-first-in-block: true
@@ -149,4 +149,4 @@ formatters:
   settings:
     goimports:
       local-prefixes:
-        - github.com/steipete/gogcli
+        - github.com/openclaw/gogcli

@@ -3,7 +3,7 @@ package cmd
 import (
 	"context"
 
-	"github.com/steipete/gogcli/internal/zoom"
+	"github.com/openclaw/gogcli/internal/zoom"
 )
 
 type zoomIncludePasswordsContextKey struct{}

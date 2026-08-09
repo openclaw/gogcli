@@ -7,7 +7,7 @@ import (
 	"google.golang.org/api/calendar/v3"
 	"google.golang.org/api/people/v1"
 
-	"github.com/steipete/gogcli/internal/outfmt"
+	"github.com/openclaw/gogcli/internal/outfmt"
 )
 
 type calendarAliasRow struct {

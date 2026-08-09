@@ -5,7 +5,7 @@ import (
 
 	admin "google.golang.org/api/admin/directory/v1"
 
-	"github.com/steipete/gogcli/internal/googleauth"
+	"github.com/openclaw/gogcli/internal/googleauth"
 )
 
 var adminOrgUnitScopes = []string{"https://www.googleapis.com/auth/admin.directory.orgunit"}

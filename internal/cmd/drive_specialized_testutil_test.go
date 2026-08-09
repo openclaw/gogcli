@@ -8,7 +8,7 @@ import (
 	"google.golang.org/api/driveactivity/v2"
 	"google.golang.org/api/drivelabels/v2"
 
-	"github.com/steipete/gogcli/internal/app"
+	"github.com/openclaw/gogcli/internal/app"
 )
 
 func fixedDriveActivityTestService(svc *driveactivity.Service) app.DriveActivityServiceFactory {

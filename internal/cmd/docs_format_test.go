@@ -9,9 +9,9 @@ import (
 
 	"google.golang.org/api/docs/v1"
 
-	"github.com/steipete/gogcli/internal/docsedit"
-	"github.com/steipete/gogcli/internal/docsformat"
-	"github.com/steipete/gogcli/internal/docssed"
+	"github.com/openclaw/gogcli/internal/docsedit"
+	"github.com/openclaw/gogcli/internal/docsformat"
+	"github.com/openclaw/gogcli/internal/docssed"
 )
 
 func TestDocsFormatFlagsBuildRequests(t *testing.T) {

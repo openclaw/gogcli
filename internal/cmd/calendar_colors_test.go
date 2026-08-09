@@ -11,7 +11,7 @@ import (
 	"google.golang.org/api/calendar/v3"
 	"google.golang.org/api/option"
 
-	"github.com/steipete/gogcli/internal/app"
+	"github.com/openclaw/gogcli/internal/app"
 )
 
 func executeCalendarColorsTest(t *testing.T, svc *calendar.Service, args ...string) executeTestResult {

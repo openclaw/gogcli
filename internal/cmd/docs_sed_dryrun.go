@@ -6,8 +6,8 @@ import (
 	"math"
 	"strings"
 
-	"github.com/steipete/gogcli/internal/docssed"
-	"github.com/steipete/gogcli/internal/ui"
+	"github.com/openclaw/gogcli/internal/docssed"
+	"github.com/openclaw/gogcli/internal/ui"
 )
 
 // runDryRun validates and classifies expressions without making API calls.

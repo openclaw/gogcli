@@ -324,7 +324,7 @@ if [[ "${MOCK_BAD_PLATFORM:-}" == "$goos-$goarch" ]]; then
   revision=3333333333333333333333333333333333333333
 fi
 printf '%s: %s\n' "$binary" "${MOCK_GO_TOOLCHAIN:-go1.26.5}"
-printf '\tpath\t%s\n' "${MOCK_MAIN_PACKAGE:-github.com/steipete/gogcli/cmd/gog}"
+printf '\tpath\t%s\n' "${MOCK_MAIN_PACKAGE:-github.com/openclaw/gogcli/cmd/gog}"
 printf '\tbuild\tvcs=%s\n' "${MOCK_VCS:-git}"
 printf '\tbuild\tGOARCH=%s\n' "${MOCK_GOARCH:-$goarch}"
 printf '\tbuild\tGOOS=%s\n' "${MOCK_GOOS:-$goos}"

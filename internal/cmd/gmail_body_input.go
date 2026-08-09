@@ -6,7 +6,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/steipete/gogcli/internal/config"
+	"github.com/openclaw/gogcli/internal/config"
 )
 
 func resolveBodyInput(ctx context.Context, body, bodyFile string) (string, error) {

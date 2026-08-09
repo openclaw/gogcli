@@ -9,7 +9,7 @@ import (
 
 	"google.golang.org/api/chat/v1"
 
-	"github.com/steipete/gogcli/internal/config"
+	"github.com/openclaw/gogcli/internal/config"
 )
 
 func normalizeSpace(resource string) (string, error) {

@@ -8,8 +8,8 @@ import (
 	"google.golang.org/api/googleapi"
 	"google.golang.org/api/sheets/v4"
 
-	"github.com/steipete/gogcli/internal/outfmt"
-	"github.com/steipete/gogcli/internal/ui"
+	"github.com/openclaw/gogcli/internal/outfmt"
+	"github.com/openclaw/gogcli/internal/ui"
 )
 
 func runSheetsMutation(

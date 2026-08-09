@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/steipete/gogcli/internal/ui"
+	"github.com/openclaw/gogcli/internal/ui"
 )
 
 func TestDocsSedCmd_RegexMatching(t *testing.T) {

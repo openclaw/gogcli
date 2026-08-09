@@ -10,7 +10,7 @@ import (
 
 	"google.golang.org/api/people/v1"
 
-	"github.com/steipete/gogcli/internal/app"
+	"github.com/openclaw/gogcli/internal/app"
 )
 
 func newPeopleSearchTestService(

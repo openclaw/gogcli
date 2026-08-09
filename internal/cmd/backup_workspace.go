@@ -13,7 +13,7 @@ import (
 	"google.golang.org/api/sheets/v4"
 	"google.golang.org/api/slides/v1"
 
-	"github.com/steipete/gogcli/internal/backup"
+	"github.com/openclaw/gogcli/internal/backup"
 )
 
 const (

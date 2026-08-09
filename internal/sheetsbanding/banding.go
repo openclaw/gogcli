@@ -9,7 +9,7 @@ import (
 
 	"google.golang.org/api/sheets/v4"
 
-	"github.com/steipete/gogcli/internal/sheetsa1"
+	"github.com/openclaw/gogcli/internal/sheetsa1"
 )
 
 var errMultipleJSONValues = errors.New("multiple JSON values")

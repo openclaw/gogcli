@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/steipete/gogcli/internal/safetyprofile"
+	"github.com/openclaw/gogcli/internal/safetyprofile"
 )
 
 const usage = `Usage: bake-safety-profile <profile.yaml> <output.go>` + "\n"

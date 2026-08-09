@@ -5,7 +5,7 @@ import (
 
 	"google.golang.org/api/drivelabels/v2"
 
-	"github.com/steipete/gogcli/internal/googleauth"
+	"github.com/openclaw/gogcli/internal/googleauth"
 )
 
 func NewDriveLabels(ctx context.Context, email string) (*drivelabels.Service, error) {

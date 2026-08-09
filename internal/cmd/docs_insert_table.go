@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/steipete/gogcli/internal/docsedit"
-	"github.com/steipete/gogcli/internal/outfmt"
-	"github.com/steipete/gogcli/internal/ui"
+	"github.com/openclaw/gogcli/internal/docsedit"
+	"github.com/openclaw/gogcli/internal/outfmt"
+	"github.com/openclaw/gogcli/internal/ui"
 )
 
 // DocsInsertTableCmd inserts a native Google Docs table at a specific

@@ -8,7 +8,7 @@ import (
 
 	"google.golang.org/api/calendar/v3"
 
-	"github.com/steipete/gogcli/internal/zoom"
+	"github.com/openclaw/gogcli/internal/zoom"
 )
 
 // Zoom info is attached to Calendar events via the event description rather

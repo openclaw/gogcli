@@ -6,7 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/steipete/gogcli/internal/docssed"
+	"github.com/openclaw/gogcli/internal/docssed"
 )
 
 func TestParseFullExpr_SCommands(t *testing.T) {

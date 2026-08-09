@@ -17,7 +17,7 @@ import (
 	"google.golang.org/api/drive/v3"
 	"google.golang.org/api/option"
 
-	"github.com/steipete/gogcli/internal/docsmarkdown"
+	"github.com/openclaw/gogcli/internal/docsmarkdown"
 )
 
 func TestDocsWrite_MarkdownReplaceUsesDriveUpdate(t *testing.T) {

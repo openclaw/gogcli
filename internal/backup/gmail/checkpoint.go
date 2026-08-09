@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/steipete/gogcli/internal/backup"
+	"github.com/openclaw/gogcli/internal/backup"
 )
 
 const (

@@ -9,7 +9,7 @@ import (
 	"google.golang.org/api/drive/v3"
 	gapi "google.golang.org/api/googleapi"
 
-	"github.com/steipete/gogcli/internal/backup"
+	"github.com/openclaw/gogcli/internal/backup"
 )
 
 type driveBackupFile struct {

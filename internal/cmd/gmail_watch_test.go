@@ -14,7 +14,7 @@ import (
 
 	"google.golang.org/api/gmail/v1"
 
-	"github.com/steipete/gogcli/internal/gmailwatch"
+	"github.com/openclaw/gogcli/internal/gmailwatch"
 )
 
 func TestGmailWatchStartCmd_JSON(t *testing.T) {

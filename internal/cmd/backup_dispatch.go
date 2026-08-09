@@ -4,7 +4,7 @@ import (
 	"context"
 	"strings"
 
-	"github.com/steipete/gogcli/internal/backup"
+	"github.com/openclaw/gogcli/internal/backup"
 )
 
 const backupSupportedServicesHelp = "all, admin, appscript, calendar, chat, classroom, contacts, drive, gmail, gmail-settings, groups, keep, tasks, workspace"

@@ -8,7 +8,7 @@ import (
 
 	keepapi "google.golang.org/api/keep/v1"
 
-	"github.com/steipete/gogcli/internal/app"
+	"github.com/openclaw/gogcli/internal/app"
 )
 
 func newKeepTestServiceFromServer(t *testing.T, srv *httptest.Server) *keepapi.Service {

@@ -28,7 +28,7 @@ import (
 	"google.golang.org/api/tasks/v1"
 	"google.golang.org/api/youtube/v3"
 
-	"github.com/steipete/gogcli/internal/googleauth"
+	"github.com/openclaw/gogcli/internal/googleauth"
 )
 
 type FactoryOptions struct {

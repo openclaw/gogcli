@@ -13,7 +13,7 @@ import (
 
 	"google.golang.org/api/docs/v1"
 
-	"github.com/steipete/gogcli/internal/docsmarkdown"
+	"github.com/openclaw/gogcli/internal/docsmarkdown"
 )
 
 func newDocsFindReplaceTestContext(t *testing.T, svc *docs.Service) context.Context {

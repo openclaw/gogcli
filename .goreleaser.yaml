@@ -23,9 +23,9 @@ builds:
       - -trimpath
     ldflags: >-
       -s -w
-      -X github.com/steipete/gogcli/internal/cmd.version={{ .Tag }}
-      -X github.com/steipete/gogcli/internal/cmd.commit={{ if index .Env "GOG_COMMIT" }}{{ index .Env "GOG_COMMIT" }}{{ else }}{{ .ShortCommit }}{{ end }}
-      -X github.com/steipete/gogcli/internal/cmd.date={{ .CommitDate }}
+      -X github.com/openclaw/gogcli/internal/cmd.version={{ .Tag }}
+      -X github.com/openclaw/gogcli/internal/cmd.commit={{ if index .Env "GOG_COMMIT" }}{{ index .Env "GOG_COMMIT" }}{{ else }}{{ .ShortCommit }}{{ end }}
+      -X github.com/openclaw/gogcli/internal/cmd.date={{ .CommitDate }}
     env:
       - CGO_ENABLED=0
       - "GOCACHEPROG="
@@ -60,9 +60,9 @@ builds:
       - -trimpath
     ldflags: >-
       -s -w
-      -X github.com/steipete/gogcli/internal/cmd.version={{ .Tag }}
-      -X github.com/steipete/gogcli/internal/cmd.commit={{ if index .Env "GOG_COMMIT" }}{{ index .Env "GOG_COMMIT" }}{{ else }}{{ .ShortCommit }}{{ end }}
-      -X github.com/steipete/gogcli/internal/cmd.date={{ .CommitDate }}
+      -X github.com/openclaw/gogcli/internal/cmd.version={{ .Tag }}
+      -X github.com/openclaw/gogcli/internal/cmd.commit={{ if index .Env "GOG_COMMIT" }}{{ index .Env "GOG_COMMIT" }}{{ else }}{{ .ShortCommit }}{{ end }}
+      -X github.com/openclaw/gogcli/internal/cmd.date={{ .CommitDate }}
     env:
       - AR=/usr/bin/ar
       - CC=/usr/bin/clang

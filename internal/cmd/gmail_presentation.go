@@ -7,7 +7,7 @@ import (
 
 	"google.golang.org/api/gmail/v1"
 
-	"github.com/steipete/gogcli/internal/outfmt"
+	"github.com/openclaw/gogcli/internal/outfmt"
 )
 
 func gmailDraftColumns() []outfmt.Column[*gmail.Draft] {

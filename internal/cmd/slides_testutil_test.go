@@ -10,7 +10,7 @@ import (
 	"google.golang.org/api/drive/v3"
 	"google.golang.org/api/slides/v1"
 
-	"github.com/steipete/gogcli/internal/app"
+	"github.com/openclaw/gogcli/internal/app"
 )
 
 func newSlidesImageDriveTestService(t *testing.T, fileID string, deleted *bool) *drive.Service {

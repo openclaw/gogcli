@@ -10,8 +10,8 @@ import (
 	"github.com/alecthomas/kong"
 	ggoogleapi "google.golang.org/api/googleapi"
 
-	"github.com/steipete/gogcli/internal/config"
-	gogapi "github.com/steipete/gogcli/internal/googleapi"
+	"github.com/openclaw/gogcli/internal/config"
+	gogapi "github.com/openclaw/gogcli/internal/googleapi"
 )
 
 func Format(err error) string {

@@ -9,10 +9,10 @@ import (
 
 	"google.golang.org/api/calendar/v3"
 
-	"github.com/steipete/gogcli/internal/app"
-	"github.com/steipete/gogcli/internal/config"
-	"github.com/steipete/gogcli/internal/googleapi"
-	"github.com/steipete/gogcli/internal/secrets"
+	"github.com/openclaw/gogcli/internal/app"
+	"github.com/openclaw/gogcli/internal/config"
+	"github.com/openclaw/gogcli/internal/googleapi"
+	"github.com/openclaw/gogcli/internal/secrets"
 )
 
 type fakeSecretsStore struct {

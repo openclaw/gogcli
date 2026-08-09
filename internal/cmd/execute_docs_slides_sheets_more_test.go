@@ -16,7 +16,7 @@ import (
 	"google.golang.org/api/option"
 	"google.golang.org/api/slides/v1"
 
-	"github.com/steipete/gogcli/internal/app"
+	"github.com/openclaw/gogcli/internal/app"
 )
 
 func TestExecute_DocsSlidesSheets_CopyCreateInfoCat_JSON(t *testing.T) {

@@ -10,7 +10,7 @@ import (
 
 	searchconsoleapi "google.golang.org/api/searchconsole/v1"
 
-	"github.com/steipete/gogcli/internal/config"
+	"github.com/openclaw/gogcli/internal/config"
 )
 
 const (

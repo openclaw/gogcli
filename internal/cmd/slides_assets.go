@@ -14,7 +14,7 @@ import (
 
 	"google.golang.org/api/drive/v3"
 
-	"github.com/steipete/gogcli/internal/slidesmarkdown"
+	"github.com/openclaw/gogcli/internal/slidesmarkdown"
 )
 
 // AssetMap pairs parsed AST references with uploaded Drive ImageRefs.

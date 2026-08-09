@@ -5,7 +5,7 @@ import (
 
 	searchconsoleapi "google.golang.org/api/searchconsole/v1"
 
-	"github.com/steipete/gogcli/internal/app"
+	"github.com/openclaw/gogcli/internal/app"
 )
 
 var searchConsoleTestServices = googleServiceTestSupport[searchconsoleapi.Service, app.SearchConsoleServiceFactory]{

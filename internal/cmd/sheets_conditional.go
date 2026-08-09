@@ -10,10 +10,10 @@ import (
 
 	"google.golang.org/api/sheets/v4"
 
-	"github.com/steipete/gogcli/internal/outfmt"
-	"github.com/steipete/gogcli/internal/sheetsconditional"
-	"github.com/steipete/gogcli/internal/sheetsformat"
-	"github.com/steipete/gogcli/internal/ui"
+	"github.com/openclaw/gogcli/internal/outfmt"
+	"github.com/openclaw/gogcli/internal/sheetsconditional"
+	"github.com/openclaw/gogcli/internal/sheetsformat"
+	"github.com/openclaw/gogcli/internal/ui"
 )
 
 type SheetsConditionalCmd struct {

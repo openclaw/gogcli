@@ -10,7 +10,7 @@ import (
 	httptransport "google.golang.org/api/transport/http"
 	youtube "google.golang.org/api/youtube/v3"
 
-	"github.com/steipete/gogcli/internal/googleauth"
+	"github.com/openclaw/gogcli/internal/googleauth"
 )
 
 var errYouTubeAPIKeyRequired = errors.New("youtube: API key required (config set youtube_api_key KEY or GOG_YOUTUBE_API_KEY)")

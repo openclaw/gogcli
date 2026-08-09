@@ -12,7 +12,7 @@ import (
 
 	"google.golang.org/api/gmail/v1"
 
-	"github.com/steipete/gogcli/internal/outfmt"
+	"github.com/openclaw/gogcli/internal/outfmt"
 )
 
 func runGmailBulkDryRun(t *testing.T, cmd any, args []string) map[string]any {

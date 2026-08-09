@@ -16,8 +16,8 @@ import (
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 
-	"github.com/steipete/gogcli/internal/authclient"
-	"github.com/steipete/gogcli/internal/config"
+	"github.com/openclaw/gogcli/internal/authclient"
+	"github.com/openclaw/gogcli/internal/config"
 )
 
 type AuthorizeOptions struct {

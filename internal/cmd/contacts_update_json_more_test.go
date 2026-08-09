@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/steipete/gogcli/internal/ui"
+	"github.com/openclaw/gogcli/internal/ui"
 )
 
 func TestContactsUpdate_FromFile_JSON_CanClearFields(t *testing.T) {

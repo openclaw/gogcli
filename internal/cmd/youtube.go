@@ -9,9 +9,9 @@ import (
 
 	youtube "google.golang.org/api/youtube/v3"
 
-	"github.com/steipete/gogcli/internal/errfmt"
-	"github.com/steipete/gogcli/internal/outfmt"
-	"github.com/steipete/gogcli/internal/ui"
+	"github.com/openclaw/gogcli/internal/errfmt"
+	"github.com/openclaw/gogcli/internal/outfmt"
+	"github.com/openclaw/gogcli/internal/ui"
 )
 
 const youtubeForceSSLOAuthScope = "https://www.googleapis.com/auth/youtube.force-ssl"

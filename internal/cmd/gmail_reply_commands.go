@@ -6,8 +6,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/steipete/gogcli/internal/mailmime"
-	"github.com/steipete/gogcli/internal/ui"
+	"github.com/openclaw/gogcli/internal/mailmime"
+	"github.com/openclaw/gogcli/internal/ui"
 )
 
 type GmailReplyCmd struct {

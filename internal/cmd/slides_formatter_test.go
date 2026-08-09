@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/api/slides/v1"
 
-	sm "github.com/steipete/gogcli/internal/slidesmarkdown"
+	sm "github.com/openclaw/gogcli/internal/slidesmarkdown"
 )
 
 func defaultGeometry() LayoutGeometry {

@@ -4,7 +4,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/steipete/gogcli/internal/gmailwatch"
+	"github.com/openclaw/gogcli/internal/gmailwatch"
 )
 
 const (

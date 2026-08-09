@@ -9,7 +9,7 @@ import (
 	"google.golang.org/api/docs/v1"
 	"google.golang.org/api/drive/v3"
 
-	"github.com/steipete/gogcli/internal/docsedit"
+	"github.com/openclaw/gogcli/internal/docsedit"
 )
 
 // docsCommentLocation is the per-comment attribution attached by --locate.

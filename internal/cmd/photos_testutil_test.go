@@ -6,8 +6,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/steipete/gogcli/internal/app"
-	"github.com/steipete/gogcli/internal/googleapi"
+	"github.com/openclaw/gogcli/internal/app"
+	"github.com/openclaw/gogcli/internal/googleapi"
 )
 
 type photosTestServices struct {

@@ -18,7 +18,7 @@ func TestEmbeddedTZData(t *testing.T) {
 		t.Fatalf("read main.go: %v", err)
 	}
 
-	if !strings.Contains(string(source), `_ "github.com/steipete/gogcli/internal/tzembed"`) {
+	if !strings.Contains(string(source), `_ "github.com/openclaw/gogcli/internal/tzembed"`) {
 		t.Fatalf("main.go must blank-import internal/tzembed")
 	}
 

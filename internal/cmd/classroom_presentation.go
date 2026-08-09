@@ -5,7 +5,7 @@ import (
 
 	"google.golang.org/api/classroom/v1"
 
-	"github.com/steipete/gogcli/internal/outfmt"
+	"github.com/openclaw/gogcli/internal/outfmt"
 )
 
 type classroomRosterRow struct {

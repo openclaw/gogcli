@@ -14,8 +14,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/steipete/gogcli/internal/config"
-	"github.com/steipete/gogcli/internal/outfmt"
+	"github.com/openclaw/gogcli/internal/config"
+	"github.com/openclaw/gogcli/internal/outfmt"
 )
 
 const pollStateVersion = 1

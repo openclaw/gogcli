@@ -6,7 +6,7 @@ import (
 
 	"google.golang.org/api/meet/v2"
 
-	"github.com/steipete/gogcli/internal/errfmt"
+	"github.com/openclaw/gogcli/internal/errfmt"
 )
 
 // wrapMeetError provides helpful error messages for common Meet API issues.

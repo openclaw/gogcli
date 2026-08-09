@@ -15,7 +15,7 @@ import (
 	"google.golang.org/api/gmail/v1"
 	"google.golang.org/api/option"
 
-	"github.com/steipete/gogcli/internal/gmailwatch"
+	"github.com/openclaw/gogcli/internal/gmailwatch"
 )
 
 type roundTripperFunc func(*http.Request) (*http.Response, error)

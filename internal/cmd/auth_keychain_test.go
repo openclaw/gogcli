@@ -6,7 +6,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/steipete/gogcli/internal/secrets"
+	"github.com/openclaw/gogcli/internal/secrets"
 )
 
 func TestAuthAddCmd_ChecksKeychainFirst(t *testing.T) {

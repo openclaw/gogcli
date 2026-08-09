@@ -6,7 +6,7 @@ import (
 
 	youtube "google.golang.org/api/youtube/v3"
 
-	"github.com/steipete/gogcli/internal/outfmt"
+	"github.com/openclaw/gogcli/internal/outfmt"
 )
 
 func youtubeActivityColumns() []outfmt.Column[*youtube.Activity] {

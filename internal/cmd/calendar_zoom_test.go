@@ -15,8 +15,8 @@ import (
 	"google.golang.org/api/calendar/v3"
 	"google.golang.org/api/option"
 
-	"github.com/steipete/gogcli/internal/app"
-	"github.com/steipete/gogcli/internal/zoom"
+	"github.com/openclaw/gogcli/internal/app"
+	"github.com/openclaw/gogcli/internal/zoom"
 )
 
 func newCalendarServiceFromZoomTestServer(t *testing.T, ctx context.Context, srv *httptest.Server) *calendar.Service {

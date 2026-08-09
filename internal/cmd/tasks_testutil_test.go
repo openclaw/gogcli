@@ -8,7 +8,7 @@ import (
 
 	"google.golang.org/api/tasks/v1"
 
-	"github.com/steipete/gogcli/internal/app"
+	"github.com/openclaw/gogcli/internal/app"
 )
 
 func newTasksServiceFromServer(t *testing.T, srv *httptest.Server) *tasks.Service {

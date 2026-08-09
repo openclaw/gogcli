@@ -11,9 +11,9 @@ import (
 
 	"google.golang.org/api/calendar/v3"
 
-	"github.com/steipete/gogcli/internal/app"
-	"github.com/steipete/gogcli/internal/ui"
-	"github.com/steipete/gogcli/internal/zoom"
+	"github.com/openclaw/gogcli/internal/app"
+	"github.com/openclaw/gogcli/internal/ui"
+	"github.com/openclaw/gogcli/internal/zoom"
 )
 
 const conferenceProviderOther = "other"

@@ -4,7 +4,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	appconfig "github.com/steipete/gogcli/internal/config"
+	appconfig "github.com/openclaw/gogcli/internal/config"
 )
 
 func testConfigStore(t *testing.T, configPath string) *ConfigStore {

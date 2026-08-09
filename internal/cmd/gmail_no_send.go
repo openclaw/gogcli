@@ -6,7 +6,7 @@ import (
 
 	"github.com/alecthomas/kong"
 
-	"github.com/steipete/gogcli/internal/app"
+	"github.com/openclaw/gogcli/internal/app"
 )
 
 var gmailSendCommandPaths = map[string]struct{}{

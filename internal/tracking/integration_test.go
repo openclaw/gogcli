@@ -8,9 +8,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/steipete/gogcli/internal/config"
-	"github.com/steipete/gogcli/internal/secrets"
-	"github.com/steipete/gogcli/internal/termutil"
+	"github.com/openclaw/gogcli/internal/config"
+	"github.com/openclaw/gogcli/internal/secrets"
+	"github.com/openclaw/gogcli/internal/termutil"
 )
 
 func TestIntegrationEncryptDecryptWithWorker(t *testing.T) {

@@ -3,7 +3,7 @@ package cmd
 import (
 	"fmt"
 
-	"github.com/steipete/gogcli/internal/docssed"
+	"github.com/openclaw/gogcli/internal/docssed"
 )
 
 func parseSedExpr(raw string) (pattern, replacement string, global bool, err error) {

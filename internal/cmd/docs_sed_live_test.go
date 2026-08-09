@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/api/docs/v1"
 
-	"github.com/steipete/gogcli/internal/googleapi"
+	"github.com/openclaw/gogcli/internal/googleapi"
 )
 
 // TestV10LiveVerification fetches the live test document and verifies

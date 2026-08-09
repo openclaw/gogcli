@@ -14,8 +14,8 @@ import (
 
 	"google.golang.org/api/gmail/v1"
 
-	"github.com/steipete/gogcli/internal/app"
-	"github.com/steipete/gogcli/internal/config"
+	"github.com/openclaw/gogcli/internal/app"
+	"github.com/openclaw/gogcli/internal/config"
 )
 
 func executeGmailAttachmentJSON(t *testing.T, svc *gmail.Service, args ...string) map[string]any {

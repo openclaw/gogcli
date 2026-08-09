@@ -8,8 +8,8 @@ import (
 	"google.golang.org/api/googleapi"
 	"google.golang.org/api/sheets/v4"
 
-	"github.com/steipete/gogcli/internal/selectorutil"
-	"github.com/steipete/gogcli/internal/sheetsa1"
+	"github.com/openclaw/gogcli/internal/selectorutil"
+	"github.com/openclaw/gogcli/internal/sheetsa1"
 )
 
 type spreadsheetRangeCatalog struct {

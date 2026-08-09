@@ -6,7 +6,7 @@ import (
 
 	"google.golang.org/api/people/v1"
 
-	"github.com/steipete/gogcli/internal/outfmt"
+	"github.com/openclaw/gogcli/internal/outfmt"
 )
 
 type contactsDedupeRow struct {

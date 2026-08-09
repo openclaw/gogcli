@@ -11,7 +11,7 @@ import (
 
 	"google.golang.org/api/gmail/v1"
 
-	"github.com/steipete/gogcli/internal/config"
+	"github.com/openclaw/gogcli/internal/config"
 )
 
 // mockOriginalMessage returns a gmail.Message JSON payload that looks like a

@@ -11,7 +11,7 @@ import (
 	"google.golang.org/api/docs/v1"
 	"google.golang.org/api/option"
 
-	"github.com/steipete/gogcli/internal/docsmarkdown"
+	"github.com/openclaw/gogcli/internal/docsmarkdown"
 )
 
 func TestRewriteMarkdownHeadingLinks_RewritesTableCellLinks(t *testing.T) {

@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/steipete/gogcli/internal/outfmt"
+	"github.com/openclaw/gogcli/internal/outfmt"
 )
 
 func TestSitesListAndSearchConstrainToGoogleSites(t *testing.T) {

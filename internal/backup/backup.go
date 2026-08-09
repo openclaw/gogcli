@@ -18,7 +18,7 @@ import (
 	"strings"
 	"time"
 
-	appconfig "github.com/steipete/gogcli/internal/config"
+	appconfig "github.com/openclaw/gogcli/internal/config"
 )
 
 const formatVersion = 1

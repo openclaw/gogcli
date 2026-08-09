@@ -11,8 +11,8 @@ import (
 	gapi "google.golang.org/api/googleapi"
 	searchconsoleapi "google.golang.org/api/searchconsole/v1"
 
-	"github.com/steipete/gogcli/internal/outfmt"
-	"github.com/steipete/gogcli/internal/ui"
+	"github.com/openclaw/gogcli/internal/outfmt"
+	"github.com/openclaw/gogcli/internal/ui"
 )
 
 type SearchConsoleCmd struct {

@@ -9,8 +9,8 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/steipete/gogcli/internal/config"
-	"github.com/steipete/gogcli/internal/gmailwatch"
+	"github.com/openclaw/gogcli/internal/config"
+	"github.com/openclaw/gogcli/internal/gmailwatch"
 )
 
 type (

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/steipete/gogcli/internal/config"
+	"github.com/openclaw/gogcli/internal/config"
 )
 
 func mcpEnabledToolsForRun(ctx context.Context, cmd McpCmd, flags *RootFlags) ([]mcpToolSpec, string, error) {

@@ -6,8 +6,8 @@ import (
 
 	"google.golang.org/api/docs/v1"
 
-	"github.com/steipete/gogcli/internal/docssed"
-	"github.com/steipete/gogcli/internal/ui"
+	"github.com/openclaw/gogcli/internal/docssed"
+	"github.com/openclaw/gogcli/internal/ui"
 )
 
 // fetchDoc creates a Docs service and fetches the document. Used by command implementations

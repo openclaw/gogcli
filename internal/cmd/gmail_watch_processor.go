@@ -3,7 +3,7 @@ package cmd
 import (
 	"context"
 
-	"github.com/steipete/gogcli/internal/gmailwatch"
+	"github.com/openclaw/gogcli/internal/gmailwatch"
 )
 
 func (s *gmailWatchServer) watchProcessor() *gmailwatch.Processor {

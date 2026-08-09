@@ -18,7 +18,7 @@ import (
 	"google.golang.org/api/gmail/v1"
 	"google.golang.org/api/people/v1"
 
-	"github.com/steipete/gogcli/internal/mailmime"
+	"github.com/openclaw/gogcli/internal/mailmime"
 )
 
 func runGmailSendJSON(t *testing.T, cmd *GmailSendCmd, gmailSvc *gmail.Service, peopleSvc *people.Service) string {

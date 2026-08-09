@@ -13,7 +13,7 @@ import (
 
 	"google.golang.org/api/sheets/v4"
 
-	"github.com/steipete/gogcli/internal/sheetsdimension"
+	"github.com/openclaw/gogcli/internal/sheetsdimension"
 )
 
 func TestSheetsDeleteDimensionCmdTableAwareRows(t *testing.T) {

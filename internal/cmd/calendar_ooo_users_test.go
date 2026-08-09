@@ -13,7 +13,7 @@ import (
 	"google.golang.org/api/option"
 	"google.golang.org/api/people/v1"
 
-	"github.com/steipete/gogcli/internal/ui"
+	"github.com/openclaw/gogcli/internal/ui"
 )
 
 func TestCalendarOOOCmd_JSON(t *testing.T) {

@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/steipete/gogcli/internal/outfmt"
+	"github.com/openclaw/gogcli/internal/outfmt"
 )
 
 func requireRawResponse[T any](response *T, notFoundMessage string) (*T, error) {

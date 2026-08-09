@@ -10,7 +10,7 @@ import (
 
 	"google.golang.org/api/docs/v1"
 
-	"github.com/steipete/gogcli/internal/outfmt"
+	"github.com/openclaw/gogcli/internal/outfmt"
 )
 
 func TestDocsTablesListNestedTabJSON(t *testing.T) {

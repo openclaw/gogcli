@@ -6,10 +6,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/steipete/gogcli/internal/app"
-	"github.com/steipete/gogcli/internal/config"
-	"github.com/steipete/gogcli/internal/googleauth"
-	"github.com/steipete/gogcli/internal/secrets"
+	"github.com/openclaw/gogcli/internal/app"
+	"github.com/openclaw/gogcli/internal/config"
+	"github.com/openclaw/gogcli/internal/googleauth"
+	"github.com/openclaw/gogcli/internal/secrets"
 )
 
 func openAuthSecretsStore(ctx context.Context) (secrets.Store, error) {

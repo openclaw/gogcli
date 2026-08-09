@@ -11,7 +11,7 @@ import (
 	"google.golang.org/api/people/v1"
 	"google.golang.org/api/tasks/v1"
 
-	"github.com/steipete/gogcli/internal/backup"
+	"github.com/openclaw/gogcli/internal/backup"
 )
 
 type calendarBackupEvent struct {

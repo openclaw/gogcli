@@ -9,7 +9,7 @@ import (
 
 	"google.golang.org/api/calendar/v3"
 
-	"github.com/steipete/gogcli/internal/app"
+	"github.com/openclaw/gogcli/internal/app"
 )
 
 func newCalendarServiceForTest(t *testing.T, h http.Handler) (*calendar.Service, func()) {

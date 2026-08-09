@@ -3,7 +3,7 @@ package cmd
 import (
 	"errors"
 
-	"github.com/steipete/gogcli/internal/sheetsvalues"
+	"github.com/openclaw/gogcli/internal/sheetsvalues"
 )
 
 func sheetsValuesPlannerError(err error) error {

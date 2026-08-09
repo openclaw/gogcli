@@ -9,7 +9,7 @@ import (
 
 	"golang.org/x/oauth2"
 
-	"github.com/steipete/gogcli/internal/authclient"
+	"github.com/openclaw/gogcli/internal/authclient"
 )
 
 var errCapturedADC = errors.New("captured ADC")

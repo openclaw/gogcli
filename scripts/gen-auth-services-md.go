@@ -5,7 +5,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/steipete/gogcli/internal/googleauth"
+	"github.com/openclaw/gogcli/internal/googleauth"
 )
 
 const (

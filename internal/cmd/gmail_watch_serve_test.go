@@ -15,7 +15,7 @@ import (
 	"google.golang.org/api/gmail/v1"
 	"google.golang.org/api/idtoken"
 
-	"github.com/steipete/gogcli/internal/authclient"
+	"github.com/openclaw/gogcli/internal/authclient"
 )
 
 func TestGmailWatchServeCmd_DryRunDoesNotTouchStateOrListen(t *testing.T) {

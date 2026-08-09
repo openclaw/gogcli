@@ -6,10 +6,10 @@ import (
 	"runtime/debug"
 	"time"
 
-	"github.com/steipete/gogcli/internal/backup"
-	gmailbackup "github.com/steipete/gogcli/internal/backup/gmail"
-	"github.com/steipete/gogcli/internal/config"
-	"github.com/steipete/gogcli/internal/ui"
+	"github.com/openclaw/gogcli/internal/backup"
+	gmailbackup "github.com/openclaw/gogcli/internal/backup/gmail"
+	"github.com/openclaw/gogcli/internal/config"
+	"github.com/openclaw/gogcli/internal/ui"
 )
 
 type gmailBackupOptions struct {

@@ -7,7 +7,7 @@ import (
 
 	"google.golang.org/api/drive/v3"
 
-	"github.com/steipete/gogcli/internal/app"
+	"github.com/openclaw/gogcli/internal/app"
 )
 
 func fixedSitesDriveTestService(svc *drive.Service) app.DriveServiceFactory {

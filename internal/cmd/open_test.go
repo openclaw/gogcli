@@ -5,7 +5,7 @@ import (
 	"io"
 	"testing"
 
-	"github.com/steipete/gogcli/internal/outfmt"
+	"github.com/openclaw/gogcli/internal/outfmt"
 )
 
 func TestBestEffortWebURLExplicitTypeRejectsUnsupportedURLs(t *testing.T) {

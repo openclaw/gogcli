@@ -12,13 +12,13 @@ import (
 
 	"google.golang.org/api/calendar/v3"
 
-	"github.com/steipete/gogcli/internal/authclient"
-	"github.com/steipete/gogcli/internal/config"
-	"github.com/steipete/gogcli/internal/googleapi"
-	"github.com/steipete/gogcli/internal/googleauth"
-	"github.com/steipete/gogcli/internal/oauthclient"
-	"github.com/steipete/gogcli/internal/secrets"
-	"github.com/steipete/gogcli/internal/termutil"
+	"github.com/openclaw/gogcli/internal/authclient"
+	"github.com/openclaw/gogcli/internal/config"
+	"github.com/openclaw/gogcli/internal/googleapi"
+	"github.com/openclaw/gogcli/internal/googleauth"
+	"github.com/openclaw/gogcli/internal/oauthclient"
+	"github.com/openclaw/gogcli/internal/secrets"
+	"github.com/openclaw/gogcli/internal/termutil"
 )
 
 func integrationAccount(t *testing.T, store secrets.Store) string {

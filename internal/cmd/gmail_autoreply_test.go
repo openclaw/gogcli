@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/steipete/gogcli/internal/mailmime"
+	"github.com/openclaw/gogcli/internal/mailmime"
 )
 
 func TestRunGmailAutoReply_RepliesAndArchives(t *testing.T) {

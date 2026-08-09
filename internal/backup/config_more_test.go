@@ -8,7 +8,7 @@ import (
 	"sync/atomic"
 	"testing"
 
-	appconfig "github.com/steipete/gogcli/internal/config"
+	appconfig "github.com/openclaw/gogcli/internal/config"
 )
 
 var errTestHomeUnavailable = errors.New("home unavailable")

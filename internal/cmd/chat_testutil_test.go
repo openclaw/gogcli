@@ -5,7 +5,7 @@ import (
 
 	"google.golang.org/api/chat/v1"
 
-	"github.com/steipete/gogcli/internal/app"
+	"github.com/openclaw/gogcli/internal/app"
 )
 
 var chatTestServices = googleServiceTestSupport[chat.Service, app.ChatServiceFactory]{

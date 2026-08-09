@@ -8,11 +8,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/steipete/gogcli/internal/input"
-	"github.com/steipete/gogcli/internal/outfmt"
-	"github.com/steipete/gogcli/internal/termutil"
-	"github.com/steipete/gogcli/internal/ui"
-	"github.com/steipete/gogcli/internal/zoom"
+	"github.com/openclaw/gogcli/internal/input"
+	"github.com/openclaw/gogcli/internal/outfmt"
+	"github.com/openclaw/gogcli/internal/termutil"
+	"github.com/openclaw/gogcli/internal/ui"
+	"github.com/openclaw/gogcli/internal/zoom"
 )
 
 type ZoomCmd struct {

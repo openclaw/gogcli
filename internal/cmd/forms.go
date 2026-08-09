@@ -7,8 +7,8 @@ import (
 
 	formsapi "google.golang.org/api/forms/v1"
 
-	"github.com/steipete/gogcli/internal/outfmt"
-	"github.com/steipete/gogcli/internal/ui"
+	"github.com/openclaw/gogcli/internal/outfmt"
+	"github.com/openclaw/gogcli/internal/ui"
 )
 
 type FormsCmd struct {

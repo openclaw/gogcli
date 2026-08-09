@@ -8,7 +8,7 @@ import (
 
 	"google.golang.org/api/meet/v2"
 
-	"github.com/steipete/gogcli/internal/app"
+	"github.com/openclaw/gogcli/internal/app"
 )
 
 func newTestMeetService(t *testing.T, handler http.Handler) *meet.Service {

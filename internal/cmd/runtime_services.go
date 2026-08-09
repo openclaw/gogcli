@@ -29,8 +29,8 @@ import (
 	"google.golang.org/api/slides/v1"
 	"google.golang.org/api/tasks/v1"
 
-	"github.com/steipete/gogcli/internal/app"
-	"github.com/steipete/gogcli/internal/googleapi"
+	"github.com/openclaw/gogcli/internal/app"
+	"github.com/openclaw/gogcli/internal/googleapi"
 )
 
 var errRuntimeServiceRequired = errors.New("runtime service is required")

@@ -9,7 +9,7 @@ import (
 
 	"google.golang.org/api/option"
 
-	"github.com/steipete/gogcli/internal/app"
+	"github.com/openclaw/gogcli/internal/app"
 )
 
 type googleTestServiceFactory[T any] func(context.Context, ...option.ClientOption) (*T, error)

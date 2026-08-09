@@ -5,7 +5,7 @@ import (
 
 	"google.golang.org/api/driveactivity/v2"
 
-	"github.com/steipete/gogcli/internal/googleauth"
+	"github.com/openclaw/gogcli/internal/googleauth"
 )
 
 func NewDriveActivity(ctx context.Context, email string) (*driveactivity.Service, error) {

@@ -8,7 +8,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/steipete/gogcli/internal/input"
+	"github.com/openclaw/gogcli/internal/input"
 )
 
 func confirmDestructive(ctx context.Context, flags *RootFlags, action string) error {

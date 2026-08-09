@@ -8,7 +8,7 @@ import (
 
 	"google.golang.org/api/docs/v1"
 
-	"github.com/steipete/gogcli/internal/docsmarkdown"
+	"github.com/openclaw/gogcli/internal/docsmarkdown"
 )
 
 // TableInserter handles multi-step table insertion for native Google Docs tables

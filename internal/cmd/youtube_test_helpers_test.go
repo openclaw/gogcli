@@ -7,7 +7,7 @@ import (
 
 	youtube "google.golang.org/api/youtube/v3"
 
-	"github.com/steipete/gogcli/internal/app"
+	"github.com/openclaw/gogcli/internal/app"
 )
 
 type youtubeTestServices struct {

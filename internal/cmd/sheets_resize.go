@@ -7,7 +7,7 @@ import (
 
 	"google.golang.org/api/sheets/v4"
 
-	"github.com/steipete/gogcli/internal/sheetsdimension"
+	"github.com/openclaw/gogcli/internal/sheetsdimension"
 )
 
 type SheetsResizeColumnsCmd struct {

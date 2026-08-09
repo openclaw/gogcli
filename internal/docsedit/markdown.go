@@ -3,7 +3,7 @@ package docsedit
 import (
 	"strings"
 
-	"github.com/steipete/gogcli/internal/docsmarkdown"
+	"github.com/openclaw/gogcli/internal/docsmarkdown"
 )
 
 type MarkdownWriteMode uint8

@@ -11,7 +11,7 @@ import (
 	drivev2 "google.golang.org/api/drive/v2"
 	"google.golang.org/api/drive/v3"
 
-	"github.com/steipete/gogcli/internal/app"
+	"github.com/openclaw/gogcli/internal/app"
 )
 
 func newDriveTestService(t *testing.T, h http.Handler) (*drive.Service, func()) {

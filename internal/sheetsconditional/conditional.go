@@ -8,7 +8,7 @@ import (
 
 	"google.golang.org/api/sheets/v4"
 
-	"github.com/steipete/gogcli/internal/sheetsa1"
+	"github.com/openclaw/gogcli/internal/sheetsa1"
 )
 
 var errEmptySpreadsheetMetadata = errors.New("empty spreadsheet metadata")

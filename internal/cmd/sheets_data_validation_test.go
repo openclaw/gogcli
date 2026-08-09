@@ -13,8 +13,8 @@ import (
 
 	"google.golang.org/api/sheets/v4"
 
-	"github.com/steipete/gogcli/internal/outfmt"
-	"github.com/steipete/gogcli/internal/sheetsvalidation"
+	"github.com/openclaw/gogcli/internal/outfmt"
+	"github.com/openclaw/gogcli/internal/sheetsvalidation"
 )
 
 func TestBuildDataValidationCondition(t *testing.T) {

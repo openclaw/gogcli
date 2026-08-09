@@ -19,7 +19,7 @@ import (
 	gapi "google.golang.org/api/googleapi"
 	"google.golang.org/api/option"
 
-	gogapi "github.com/steipete/gogcli/internal/googleapi"
+	gogapi "github.com/openclaw/gogcli/internal/googleapi"
 )
 
 func TestDriveUpload_Replace_JSON(t *testing.T) {

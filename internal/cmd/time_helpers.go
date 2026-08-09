@@ -11,7 +11,7 @@ import (
 	"google.golang.org/api/calendar/v3"
 	"google.golang.org/api/googleapi"
 
-	"github.com/steipete/gogcli/internal/timeparse"
+	"github.com/openclaw/gogcli/internal/timeparse"
 )
 
 // TimeRangeFlags provides common time range options for calendar commands.

@@ -28,6 +28,13 @@ brew install openclaw/tap/gogcli
 gog --version
 ```
 
+With Go:
+
+```bash
+go install github.com/openclaw/gogcli/cmd/gog@latest
+gog --version
+```
+
 Docker images, Windows archives, raw macOS/Linux binaries, and source builds
 are covered in the [install guide](docs/install.md).
 

@@ -13,9 +13,9 @@ import (
 	"google.golang.org/api/docs/v1"
 	gapi "google.golang.org/api/googleapi"
 
-	"github.com/steipete/gogcli/internal/authclient"
-	"github.com/steipete/gogcli/internal/config"
-	"github.com/steipete/gogcli/internal/docsbatch"
+	"github.com/openclaw/gogcli/internal/authclient"
+	"github.com/openclaw/gogcli/internal/config"
+	"github.com/openclaw/gogcli/internal/docsbatch"
 )
 
 const docsBatchBaseURLDefault = "https://docs.googleapis.com/v1"

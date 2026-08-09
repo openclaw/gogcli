@@ -5,7 +5,7 @@ import (
 
 	"google.golang.org/api/script/v1"
 
-	"github.com/steipete/gogcli/internal/googleauth"
+	"github.com/openclaw/gogcli/internal/googleauth"
 )
 
 func NewAppScript(ctx context.Context, email string) (*script.Service, error) {

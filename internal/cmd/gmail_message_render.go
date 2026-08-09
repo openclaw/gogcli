@@ -4,7 +4,7 @@ import (
 	"context"
 	"slices"
 
-	"github.com/steipete/gogcli/internal/outfmt"
+	"github.com/openclaw/gogcli/internal/outfmt"
 )
 
 const gmailDraftNotSentMarker = " [DRAFT — NOT SENT]"

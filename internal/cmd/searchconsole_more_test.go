@@ -9,7 +9,7 @@ import (
 
 	gapi "google.golang.org/api/googleapi"
 
-	"github.com/steipete/gogcli/internal/app"
+	"github.com/openclaw/gogcli/internal/app"
 )
 
 func TestWrapSearchConsoleError_AccessNotConfiguredUsesAPILibrary(t *testing.T) {

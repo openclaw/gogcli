@@ -12,7 +12,7 @@ import (
 	"google.golang.org/api/cloudidentity/v1"
 	"google.golang.org/api/option"
 
-	"github.com/steipete/gogcli/internal/app"
+	"github.com/openclaw/gogcli/internal/app"
 )
 
 func executeCalendarTeamTest(t *testing.T, args []string, calSvc *calendar.Service, cloudSvc *cloudidentity.Service) executeTestResult {

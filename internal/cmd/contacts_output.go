@@ -3,7 +3,7 @@ package cmd
 import (
 	"context"
 
-	"github.com/steipete/gogcli/internal/ui"
+	"github.com/openclaw/gogcli/internal/ui"
 )
 
 func writeDeleteResult(ctx context.Context, u *ui.UI, resourceName string) error {

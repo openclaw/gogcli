@@ -12,7 +12,7 @@ import (
 	"google.golang.org/api/drive/v3"
 	"google.golang.org/api/sheets/v4"
 
-	"github.com/steipete/gogcli/internal/app"
+	"github.com/openclaw/gogcli/internal/app"
 )
 
 type sheetsBatchUpdateCapture struct {

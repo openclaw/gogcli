@@ -7,7 +7,7 @@ import (
 
 	"google.golang.org/api/classroom/v1"
 
-	"github.com/steipete/gogcli/internal/app"
+	"github.com/openclaw/gogcli/internal/app"
 )
 
 func newClassroomTestService(t *testing.T, handler http.Handler) (*classroom.Service, func()) {

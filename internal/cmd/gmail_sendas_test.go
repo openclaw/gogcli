@@ -11,7 +11,7 @@ import (
 
 	"google.golang.org/api/gmail/v1"
 
-	"github.com/steipete/gogcli/internal/app"
+	"github.com/openclaw/gogcli/internal/app"
 )
 
 func TestGmailSendAsListCmd_JSON(t *testing.T) {

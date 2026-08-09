@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/steipete/gogcli/internal/config"
+	"github.com/openclaw/gogcli/internal/config"
 )
 
 func TestAuthServiceAccountSet_AndList_Text(t *testing.T) {

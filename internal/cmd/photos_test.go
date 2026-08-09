@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/steipete/gogcli/internal/googleapi"
+	"github.com/openclaw/gogcli/internal/googleapi"
 )
 
 func TestPhotosSearchBuildsReadOnlyRequest(t *testing.T) {

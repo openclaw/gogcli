@@ -33,11 +33,11 @@ import (
 	"google.golang.org/api/slides/v1"
 	youtubeapi "google.golang.org/api/youtube/v3"
 
-	"github.com/steipete/gogcli/internal/app"
-	"github.com/steipete/gogcli/internal/config"
-	"github.com/steipete/gogcli/internal/googleapi"
-	"github.com/steipete/gogcli/internal/googleauth"
-	"github.com/steipete/gogcli/internal/secrets"
+	"github.com/openclaw/gogcli/internal/app"
+	"github.com/openclaw/gogcli/internal/config"
+	"github.com/openclaw/gogcli/internal/googleapi"
+	"github.com/openclaw/gogcli/internal/googleauth"
+	"github.com/openclaw/gogcli/internal/secrets"
 )
 
 func TestDefaultRuntimeSnapshotsKeyringOptions(t *testing.T) {

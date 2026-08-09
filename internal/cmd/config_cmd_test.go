@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/steipete/gogcli/internal/app"
-	"github.com/steipete/gogcli/internal/config"
+	"github.com/openclaw/gogcli/internal/app"
+	"github.com/openclaw/gogcli/internal/config"
 )
 
 func TestConfigCmd_JSONParity(t *testing.T) {

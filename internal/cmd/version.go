@@ -7,7 +7,7 @@ import (
 	"runtime/debug"
 	"strings"
 
-	"github.com/steipete/gogcli/internal/outfmt"
+	"github.com/openclaw/gogcli/internal/outfmt"
 )
 
 //go:embed VERSION

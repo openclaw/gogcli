@@ -1,6 +1,6 @@
 package cmd
 
-import "github.com/steipete/gogcli/internal/docssed"
+import "github.com/openclaw/gogcli/internal/docssed"
 
 var (
 	parseBraceExpr        = docssed.ParseBraceExpression

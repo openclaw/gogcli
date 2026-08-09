@@ -6,7 +6,7 @@ import (
 
 	"google.golang.org/api/meet/v2"
 
-	"github.com/steipete/gogcli/internal/googleauth"
+	"github.com/openclaw/gogcli/internal/googleauth"
 )
 
 func NewMeet(ctx context.Context, email string) (*meet.Service, error) {

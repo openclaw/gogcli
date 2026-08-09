@@ -14,7 +14,7 @@ import (
 	"google.golang.org/api/googleapi"
 	"google.golang.org/api/idtoken"
 
-	"github.com/steipete/gogcli/internal/gmailwatch"
+	"github.com/openclaw/gogcli/internal/gmailwatch"
 )
 
 var errNoNewMessages = gmailwatch.ErrNoNewMessages

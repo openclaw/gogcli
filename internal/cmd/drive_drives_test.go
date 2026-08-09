@@ -12,7 +12,7 @@ import (
 
 	"google.golang.org/api/drive/v3"
 
-	"github.com/steipete/gogcli/internal/outfmt"
+	"github.com/openclaw/gogcli/internal/outfmt"
 )
 
 var errUnexpectedDriveServiceCall = errors.New("unexpected drive service call")

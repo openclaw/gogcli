@@ -6,7 +6,7 @@ import (
 	"math/big"
 	"strings"
 
-	"github.com/steipete/gogcli/internal/errfmt"
+	"github.com/openclaw/gogcli/internal/errfmt"
 )
 
 const (

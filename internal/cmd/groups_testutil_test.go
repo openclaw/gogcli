@@ -8,7 +8,7 @@ import (
 
 	"google.golang.org/api/cloudidentity/v1"
 
-	"github.com/steipete/gogcli/internal/app"
+	"github.com/openclaw/gogcli/internal/app"
 )
 
 func newCloudIdentityTestService(t *testing.T, handler http.Handler) *cloudidentity.Service {

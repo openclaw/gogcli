@@ -3,7 +3,7 @@ package cmd
 import (
 	"google.golang.org/api/chat/v1"
 
-	"github.com/steipete/gogcli/internal/outfmt"
+	"github.com/openclaw/gogcli/internal/outfmt"
 )
 
 func chatSpaceColumns() []outfmt.Column[*chat.Space] {

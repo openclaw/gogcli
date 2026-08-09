@@ -20,11 +20,11 @@ import (
 	"google.golang.org/api/drive/v3"
 	"google.golang.org/api/option"
 
-	"github.com/steipete/gogcli/internal/app"
-	"github.com/steipete/gogcli/internal/backup"
-	gmailbackup "github.com/steipete/gogcli/internal/backup/gmail"
-	appconfig "github.com/steipete/gogcli/internal/config"
-	"github.com/steipete/gogcli/internal/ui"
+	"github.com/openclaw/gogcli/internal/app"
+	"github.com/openclaw/gogcli/internal/backup"
+	gmailbackup "github.com/openclaw/gogcli/internal/backup/gmail"
+	appconfig "github.com/openclaw/gogcli/internal/config"
+	"github.com/openclaw/gogcli/internal/ui"
 )
 
 func TestBackupAccountHashStableAndOpaque(t *testing.T) {

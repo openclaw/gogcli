@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/steipete/gogcli/internal/googleapi"
-	"github.com/steipete/gogcli/internal/ui"
+	"github.com/openclaw/gogcli/internal/googleapi"
+	"github.com/openclaw/gogcli/internal/ui"
 )
 
 func TestGroupsMembers_ValidationErrors(t *testing.T) {

@@ -4,7 +4,7 @@ import (
 	"regexp"
 	"testing"
 
-	"github.com/steipete/gogcli/internal/docssed"
+	"github.com/openclaw/gogcli/internal/docssed"
 )
 
 func TestMatchImagesEdgeCases(t *testing.T) {

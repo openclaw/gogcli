@@ -9,7 +9,7 @@ import (
 	"google.golang.org/api/drive/v3"
 	"google.golang.org/api/slides/v1"
 
-	"github.com/steipete/gogcli/internal/slidesmarkdown"
+	"github.com/openclaw/gogcli/internal/slidesmarkdown"
 )
 
 const (

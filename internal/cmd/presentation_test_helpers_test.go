@@ -5,7 +5,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/steipete/gogcli/internal/outfmt"
+	"github.com/openclaw/gogcli/internal/outfmt"
 )
 
 func renderPlainTable[T any](t *testing.T, rows []T, columns []outfmt.Column[T]) string {

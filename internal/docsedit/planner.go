@@ -8,7 +8,7 @@ import (
 
 	"google.golang.org/api/docs/v1"
 
-	"github.com/steipete/gogcli/internal/docsformat"
+	"github.com/openclaw/gogcli/internal/docsformat"
 )
 
 type ValidationError string

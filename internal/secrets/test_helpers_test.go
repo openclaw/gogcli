@@ -5,8 +5,8 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/steipete/gogcli/internal/config"
-	"github.com/steipete/gogcli/internal/termutil"
+	"github.com/openclaw/gogcli/internal/config"
+	"github.com/openclaw/gogcli/internal/termutil"
 )
 
 func testSystemLayout(tb testing.TB, kinds ...config.PathKind) config.Layout {

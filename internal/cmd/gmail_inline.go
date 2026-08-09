@@ -11,8 +11,8 @@ import (
 	nethtml "golang.org/x/net/html"
 	"google.golang.org/api/gmail/v1"
 
-	"github.com/steipete/gogcli/internal/gmailcontent"
-	"github.com/steipete/gogcli/internal/mailmime"
+	"github.com/openclaw/gogcli/internal/gmailcontent"
+	"github.com/openclaw/gogcli/internal/mailmime"
 )
 
 var (

@@ -11,7 +11,7 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/steipete/gogcli/internal/googleauth"
+	"github.com/openclaw/gogcli/internal/googleauth"
 )
 
 const defaultPhotosPickerBaseURL = "https://photospicker.googleapis.com/v1"
