@@ -129,7 +129,7 @@ func TestWriteWatchState_TextAndJSON(t *testing.T) {
 	if !strings.Contains(textOut, "account\ta@b.com") {
 		t.Fatalf("expected account output")
 	}
-	if !strings.Contains(textOut, "hook_url\thttp://example.com/hook") {
+	if !strings.Contains(textOut, "hook_url\thttp://example.com/[REDACTED]") {
 		t.Fatalf("expected hook output")
 	}
 
@@ -150,8 +150,8 @@ func TestWriteWatchState_TextAndJSON(t *testing.T) {
 	if err := json.Unmarshal([]byte(jsonOut), &parsed); err != nil {
 		t.Fatalf("json parse: %v", err)
 	}
-	if parsed.Watch.Hook == nil || parsed.Watch.Hook.URL == "" {
-		t.Fatalf("expected hook in json")
+	if parsed.Watch.Hook == nil || parsed.Watch.Hook.URL != "http://example.com/[REDACTED]" {
+		t.Fatalf("expected redacted hook in json")
 	}
 }
 
