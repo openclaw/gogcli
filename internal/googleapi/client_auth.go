@@ -44,6 +44,26 @@ var (
 	errBaseTokenSourceReturnedNilToken   = errors.New("base token source returned nil token")
 )
 
+// isInvalidGrantError checks whether an OAuth2 token refresh error is an
+// invalid_grant failure, meaning the stored refresh token is no longer
+// usable and must be re-obtained via a full browser-based authorization.
+func isInvalidGrantError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	msg := strings.ToLower(err.Error())
+
+	// golang.org/x/oauth2 wraps the Google response in a *RetrieveError
+	// whose Error() contains the raw JSON body. Google's response for a
+	// revoked/expired refresh token is:
+	//   {"error":"invalid_grant","error_description":"Token has been expired or revoked."}
+	//
+	// We match on "invalid_grant" to catch all variants (expired, revoked,
+	// bad request) without being brittle to the exact error_description.
+	return strings.Contains(msg, "invalid_grant")
+}
+
 type resettableOAuthTokenSource struct {
 	mu           sync.Mutex
 	source       oauth2.TokenSource
@@ -93,6 +113,18 @@ func (r *resettableOAuthTokenSource) ForceRefresh(context.Context) (*oauth2.Toke
 	r.rememberRefreshTokenLocked(t)
 
 	return t, nil
+}
+
+// ResetRefreshToken replaces the stored refresh token and rebuilds the
+// underlying oauth2.TokenSource so the next Token() call uses the new
+// token. This is called after a successful auto-reauth to ensure the
+// retried request doesn't reuse the revoked refresh token.
+func (r *resettableOAuthTokenSource) ResetRefreshToken(refreshToken string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	r.refreshToken = strings.TrimSpace(refreshToken)
+	r.source = r.newSource(&oauth2.Token{RefreshToken: r.refreshToken})
 }
 
 func (r *resettableOAuthTokenSource) rememberRefreshTokenLocked(t *oauth2.Token) {
@@ -146,6 +178,20 @@ func (p *persistingTokenSource) ForceRefresh(ctx context.Context) error {
 	_, err = p.persistTokenLocked(t)
 
 	return err
+}
+
+// ResetRefreshToken delegates to the base token source to replace the
+// stored refresh token after a successful auto-reauth.
+func (p *persistingTokenSource) ResetRefreshToken(refreshToken string) {
+	if resetter, ok := p.base.(*resettableOAuthTokenSource); ok {
+		resetter.ResetRefreshToken(refreshToken)
+	}
+}
+
+// refreshTokenResetter is implemented by token sources that can replace
+// their stored refresh token at runtime (used after auto-reauth).
+type refreshTokenResetter interface {
+	ResetRefreshToken(refreshToken string)
 }
 
 func (p *persistingTokenSource) persistTokenLocked(t *oauth2.Token) (*oauth2.Token, error) {

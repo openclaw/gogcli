@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Auth: automatically re-authorize when the stored refresh token is expired or revoked (`invalid_grant`). In interactive sessions, `gog` opens a browser-based OAuth flow, persists the new refresh token to the keyring, resets the in-memory token source, and retries the original API request — mirroring `yup-oauth2`'s `InstalledFlowAuthenticator` fallback. The reauth preserves the original grant's full scope/service set (preventing silent grant narrowing) and verifies the authorized email matches. Suppressed under `--no-input` or non-TTY stdin so CI and piped runs surface a clear error with the manual `gog auth add` command instead. Excluded for ADC, service accounts, and direct access tokens.
+
 ## 0.35.0 - 2026-08-09
 
 - Install: move the Go module to `github.com/openclaw/gogcli`; new releases install with `go install github.com/openclaw/gogcli/cmd/gog@latest` instead of the former `github.com/steipete/gogcli` path.
