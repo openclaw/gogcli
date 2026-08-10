@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
@@ -27,6 +28,27 @@ type (
 	ServiceAccountTokenSourceFunc func(context.Context, []byte, string, []string) (oauth2.TokenSource, error)
 )
 
+// ReauthCoordinator serializes interactive recovery across every Google
+// service client created for one command invocation.
+type ReauthCoordinator struct {
+	mu sync.Mutex
+}
+
+func NewReauthCoordinator() *ReauthCoordinator {
+	return &ReauthCoordinator{}
+}
+
+func (c *ReauthCoordinator) run(fn func() error) error {
+	if c == nil {
+		return fn()
+	}
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	return fn()
+}
+
 // ReauthFunc attempts to re-authorize the given account by launching a
 // browser-based OAuth flow and persisting the new refresh token. It is
 // called automatically when the stored refresh token is expired or revoked
@@ -34,9 +56,9 @@ type (
 //
 // storedToken, if non-nil, carries the full scope/service set from the
 // original authorization so the reauth can preserve the grant width.
-// Returns the new refresh token so the caller can update any in-memory
-// token source that still holds the revoked token.
-type ReauthFunc func(ctx context.Context, email string, client string, services []string, scopes []string, storedToken *secrets.Token) (string, error)
+// Returns the replacement token metadata. The token-source owner persists it
+// and swaps the in-memory refresh token as one serialized operation.
+type ReauthFunc func(ctx context.Context, email string, client string, services []string, scopes []string, storedToken *secrets.Token) (secrets.Token, error)
 
 type AuthDependencies struct {
 	ResolveClient             authclient.ClientResolver
@@ -48,6 +70,7 @@ type AuthDependencies struct {
 	ADCTokenSource            ADCTokenSourceFunc
 	ServiceAccountTokenSource ServiceAccountTokenSourceFunc
 	Reauth                    ReauthFunc
+	ReauthCoordinator         *ReauthCoordinator
 }
 
 var (

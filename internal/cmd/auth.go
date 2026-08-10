@@ -2,15 +2,33 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io"
+	"os"
 	"strings"
 	"time"
 
 	"github.com/openclaw/gogcli/internal/app"
 	"github.com/openclaw/gogcli/internal/config"
 	"github.com/openclaw/gogcli/internal/googleauth"
+	"github.com/openclaw/gogcli/internal/input"
 	"github.com/openclaw/gogcli/internal/secrets"
 )
+
+func confirmReauthorization(ctx context.Context, email string) (bool, error) {
+	prompt := fmt.Sprintf("Refresh token for %s expired or was revoked. Re-authorize now? [y/N]: ", strings.TrimSpace(email))
+	line, err := input.PromptLineFrom(ctx, prompt, stdinReader(ctx))
+	if err != nil {
+		if errors.Is(err, io.EOF) || errors.Is(err, os.ErrClosed) {
+			return false, nil
+		}
+		return false, fmt.Errorf("read confirmation: %w", err)
+	}
+
+	answer := strings.ToLower(strings.TrimSpace(line))
+	return answer == "y" || answer == "yes", nil
+}
 
 func openAuthSecretsStore(ctx context.Context) (secrets.Store, error) {
 	if runtime, ok := app.FromContext(ctx); ok && runtime.Auth.OpenSecretsStore != nil {

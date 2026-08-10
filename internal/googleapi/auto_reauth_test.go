@@ -12,6 +12,12 @@ import (
 	"golang.org/x/oauth2"
 )
 
+var (
+	errAutoReauthNetworkTimeout      = errors.New("network timeout")
+	errAutoReauthUntypedInvalidGrant = errors.New(`oauth2: "invalid_grant" "Bad Request"`)
+	errAutoReauthBrowserNotOpen      = errors.New("browser did not open")
+)
+
 func TestIsInvalidGrantError(t *testing.T) {
 	tests := []struct {
 		name string
@@ -25,22 +31,22 @@ func TestIsInvalidGrantError(t *testing.T) {
 		},
 		{
 			name: "unrelated error",
-			err:  errors.New("network timeout"),
+			err:  errAutoReauthNetworkTimeout,
 			want: false,
 		},
 		{
 			name: `invalid_grant with "Token has been expired or revoked"`,
-			err:  errors.New(`oauth2: "invalid_grant" "Token has been expired or revoked."`),
+			err:  invalidGrantError(),
 			want: true,
 		},
 		{
-			name: "invalid_grant Bad Request",
-			err:  errors.New(`oauth2: "invalid_grant" "Bad Request"`),
-			want: true,
+			name: "untyped invalid_grant text",
+			err:  errAutoReauthUntypedInvalidGrant,
+			want: false,
 		},
 		{
 			name: "wrapped invalid_grant",
-			err:  fmt.Errorf("refresh access token: %w", errors.New(`oauth2: "invalid_grant" "Token has been expired or revoked."`)),
+			err:  fmt.Errorf("refresh access token: %w", invalidGrantError()),
 			want: true,
 		},
 	}
@@ -51,6 +57,13 @@ func TestIsInvalidGrantError(t *testing.T) {
 				t.Errorf("isInvalidGrantError() = %v, want %v", got, tt.want)
 			}
 		})
+	}
+}
+
+func invalidGrantError() error {
+	return &oauth2.RetrieveError{
+		ErrorCode:        "invalid_grant",
+		ErrorDescription: "Token has been expired or revoked.",
 	}
 }
 
@@ -73,7 +86,7 @@ func TestRetryTransportAutoReauthOnInvalidGrant(t *testing.T) {
 			// First call: the oauth2 transport will fail with invalid_grant
 			// because the refresh token is stale. We simulate this by
 			// returning an error from the base transport.
-			return nil, errors.New(`oauth2: "invalid_grant" "Token has been expired or revoked."`)
+			return nil, invalidGrantError()
 		case 2:
 			// After reauth, the token should be fresh.
 			if got := req.Header.Get("Authorization"); got != "Bearer fresh-token" {
@@ -135,13 +148,13 @@ func TestRetryTransportAutoReauthFailureSurfacesError(t *testing.T) {
 		calls++
 		_ = req.Body
 
-		return nil, errors.New(`oauth2: "invalid_grant" "Token has been expired or revoked."`)
+		return nil, invalidGrantError()
 	})
 
 	rt := &RetryTransport{
 		Base: base,
 		Reauth: func(context.Context) error {
-			return errors.New("browser did not open")
+			return errAutoReauthBrowserNotOpen
 		},
 	}
 
@@ -150,7 +163,11 @@ func TestRetryTransportAutoReauthFailureSurfacesError(t *testing.T) {
 		t.Fatalf("new request: %v", err)
 	}
 
-	_, err = rt.RoundTrip(req)
+	resp, err := rt.RoundTrip(req)
+	if resp != nil {
+		_ = resp.Body.Close()
+	}
+
 	if err == nil {
 		t.Fatalf("expected error")
 	}
@@ -173,12 +190,12 @@ func TestRetryTransportNoReauthWhenNil(t *testing.T) {
 
 	base := roundTripFunc(func(req *http.Request) (*http.Response, error) {
 		calls++
-		return nil, errors.New(`oauth2: "invalid_grant" "Token has been expired or revoked."`)
+		return nil, invalidGrantError()
 	})
 
 	rt := &RetryTransport{
-		Base:       base,
-		Reauth:     nil, // No reauth function
+		Base:   base,
+		Reauth: nil, // No reauth function
 	}
 
 	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "http://example.com", nil)
@@ -186,7 +203,11 @@ func TestRetryTransportNoReauthWhenNil(t *testing.T) {
 		t.Fatalf("new request: %v", err)
 	}
 
-	_, err = rt.RoundTrip(req)
+	resp, err := rt.RoundTrip(req)
+	if resp != nil {
+		_ = resp.Body.Close()
+	}
+
 	if err == nil {
 		t.Fatalf("expected error")
 	}
@@ -210,7 +231,7 @@ func TestRetryTransportNoReauthWhenRetriesDisabled(t *testing.T) {
 
 	base := roundTripFunc(func(req *http.Request) (*http.Response, error) {
 		calls++
-		return nil, errors.New(`oauth2: "invalid_grant" "Token has been expired or revoked."`)
+		return nil, invalidGrantError()
 	})
 
 	rt := &RetryTransport{
@@ -222,12 +243,17 @@ func TestRetryTransportNoReauthWhenRetriesDisabled(t *testing.T) {
 	}
 
 	ctx := WithoutRetries(context.Background())
+
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://example.com", nil)
 	if err != nil {
 		t.Fatalf("new request: %v", err)
 	}
 
-	_, err = rt.RoundTrip(req)
+	resp, err := rt.RoundTrip(req)
+	if resp != nil {
+		_ = resp.Body.Close()
+	}
+
 	if err == nil {
 		t.Fatalf("expected error")
 	}
@@ -257,7 +283,8 @@ func TestRetryTransportNoReauthForNonReplayableBody(t *testing.T) {
 		calls++
 		body, _ := io.ReadAll(req.Body)
 		_ = body
-		return nil, errors.New(`oauth2: "invalid_grant" "Token has been expired or revoked."`)
+
+		return nil, invalidGrantError()
 	})
 
 	rt := &RetryTransport{
@@ -275,7 +302,11 @@ func TestRetryTransportNoReauthForNonReplayableBody(t *testing.T) {
 	}
 	req.ContentLength = maxBufferedReplayBodyBytes + 1
 
-	_, err = rt.RoundTrip(req)
+	resp, err := rt.RoundTrip(req)
+	if resp != nil {
+		_ = resp.Body.Close()
+	}
+
 	if err == nil {
 		t.Fatalf("expected error")
 	}
@@ -300,7 +331,7 @@ func TestRetryTransportReauthOnlyOnce(t *testing.T) {
 	base := roundTripFunc(func(req *http.Request) (*http.Response, error) {
 		calls++
 		// Always return invalid_grant, even after reauth
-		return nil, errors.New(`oauth2: "invalid_grant" "Token has been expired or revoked."`)
+		return nil, invalidGrantError()
 	})
 
 	rt := &RetryTransport{
@@ -316,7 +347,11 @@ func TestRetryTransportReauthOnlyOnce(t *testing.T) {
 		t.Fatalf("new request: %v", err)
 	}
 
-	_, err = rt.RoundTrip(req)
+	resp, err := rt.RoundTrip(req)
+	if resp != nil {
+		_ = resp.Body.Close()
+	}
+
 	if err == nil {
 		t.Fatalf("expected error")
 	}
@@ -372,7 +407,7 @@ func TestRetryTransportReauthResetsTokenSource(t *testing.T) {
 		case 1:
 			// First call: the oauth2 transport tries to refresh using the
 			// revoked token and fails with invalid_grant.
-			return nil, errors.New(`oauth2: "invalid_grant" "Token has been expired or revoked."`)
+			return nil, invalidGrantError()
 		case 2:
 			// After reauth, the token source should have been reset.
 			// If it wasn't, this test would fail because the reauth
@@ -380,10 +415,12 @@ func TestRetryTransportReauthResetsTokenSource(t *testing.T) {
 			if source.refreshToken == "revoked-token" {
 				t.Fatal("token source was not reset after reauth; retried request would use revoked token")
 			}
+
 			return newTestResponse(http.StatusOK, "ok"), nil
 		default:
 			t.Fatalf("unexpected call %d", calls)
-			return nil, nil
+
+			return nil, errUnexpectedRequestBody
 		}
 	})
 
@@ -398,6 +435,7 @@ func TestRetryTransportReauthResetsTokenSource(t *testing.T) {
 			// persists it to the store. The critical step is resetting
 			// the in-memory token source.
 			source.ResetRefreshToken("new-refresh-token")
+
 			return nil
 		},
 	}
@@ -452,10 +490,15 @@ type oauth2TransportWrapper struct {
 func (w *oauth2TransportWrapper) RoundTrip(req *http.Request) (*http.Response, error) {
 	tok, err := w.source.Token()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("get OAuth token: %w", err)
 	}
 
 	req.Header.Set("Authorization", "Bearer "+tok.AccessToken)
 
-	return w.base.RoundTrip(req)
+	resp, err := w.base.RoundTrip(req)
+	if err != nil {
+		return nil, fmt.Errorf("base round trip: %w", err)
+	}
+
+	return resp, nil
 }

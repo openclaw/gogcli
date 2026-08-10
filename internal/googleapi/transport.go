@@ -115,10 +115,12 @@ func (t *RetryTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 
 					if reauthErr := t.Reauth(req.Context()); reauthErr != nil {
 						slog.Debug("auto-reauth failed", "err", reauthErr)
-						return nil, fmt.Errorf("refresh token expired or revoked: %w; re-authentication failed: %v; run 'gog auth add' to re-authorize manually", err, reauthErr)
+
+						return nil, fmt.Errorf("refresh token expired or revoked: %w; re-authentication failed: %w; run 'gog auth add' to re-authorize manually", err, reauthErr)
 					}
 
 					retriedReauth = true
+
 					continue
 				}
 

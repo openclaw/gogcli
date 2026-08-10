@@ -2,6 +2,7 @@ package googleauth
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -10,6 +11,16 @@ import (
 	"time"
 
 	"github.com/openclaw/gogcli/internal/secrets"
+)
+
+var (
+	errReauthEmailRequired        = errors.New("reauth: email is required")
+	errReauthClientRequired       = errors.New("reauth: client is required")
+	errReauthScopesRequired       = errors.New("reauth: scopes are required")
+	errReauthConfirmationRequired = errors.New("reauth: confirmation callback is required")
+	errReauthCancelled            = errors.New("reauth: cancelled")
+	errReauthIdentityEmailMissing = errors.New("reauth: authorized identity did not include an email")
+	errReauthAuthorizedAsMismatch = errors.New("reauth: authorized account does not match expected account")
 )
 
 // ReauthOptions configures an automatic re-authorization flow triggered
@@ -24,8 +35,6 @@ type ReauthOptions struct {
 	// for the re-authorization instead of the triggering request's narrower
 	// scopes, preventing silent grant narrowing.
 	StoredToken *secrets.Token
-	// OpenSecretsStore opens the token store for persisting the new token.
-	OpenSecretsStore func() (secrets.Store, error)
 	// EnsureKeychainAccess ensures the keychain is accessible for writes.
 	// May be nil if keychain access is not needed (e.g. file backend).
 	EnsureKeychainAccess func(context.Context) error
@@ -35,6 +44,9 @@ type ReauthOptions struct {
 	// FetchIdentityFunc fetches the authorized identity. If nil,
 	// googleauth.IdentityForRefreshToken is used.
 	FetchIdentityFunc func(context.Context, string, string, []string, time.Duration) (Identity, error)
+	// Confirm obtains explicit user consent before opening a browser. Auto-
+	// reauthorization fails closed when no confirmation callback is provided.
+	Confirm func(context.Context, string) (bool, error)
 	// Timeout for the browser flow. If zero, defaults to 2 minutes.
 	Timeout time.Duration
 	// Stderr is where progress messages are written. If nil, os.Stderr is used.
@@ -46,23 +58,26 @@ type ReauthOptions struct {
 // Reauth performs an automatic re-authorization when the stored refresh
 // token is expired or revoked (invalid_grant). It launches a browser-based
 // OAuth flow using the same client, services, and scopes as the original
-// authorization, then persists the new refresh token to the secret store.
+// authorization and returns replacement token metadata to the caller. The
+// token-source owner is responsible for persistence and the in-memory swap.
 //
-// It returns the new refresh token so the caller can update any in-memory
-// token source that still holds the revoked token.
+// It returns replacement token metadata so the caller can persist it and
+// update any in-memory token source that still holds the revoked token.
 //
 // This is the auto-reauth counterpart to `gog auth add`, designed to be
 // called from the retry transport when an invalid_grant error is detected
 // during an API call.
-func Reauth(ctx context.Context, opts ReauthOptions) (string, error) {
+func Reauth(ctx context.Context, opts ReauthOptions) (secrets.Token, error) {
 	if opts.Email == "" {
-		return "", fmt.Errorf("reauth: email is required")
+		return secrets.Token{}, errReauthEmailRequired
 	}
+
 	if opts.Client == "" {
-		return "", fmt.Errorf("reauth: client is required")
+		return secrets.Token{}, errReauthClientRequired
 	}
+
 	if len(opts.Scopes) == 0 {
-		return "", fmt.Errorf("reauth: scopes are required")
+		return secrets.Token{}, errReauthScopesRequired
 	}
 
 	stderr := opts.Stderr
@@ -85,9 +100,22 @@ func Reauth(ctx context.Context, opts ReauthOptions) (string, error) {
 		fetchIdentityFn = IdentityForRefreshToken
 	}
 
+	if opts.Confirm == nil {
+		return secrets.Token{}, errReauthConfirmationRequired
+	}
+
+	confirmed, err := opts.Confirm(ctx, opts.Email)
+	if err != nil {
+		return secrets.Token{}, fmt.Errorf("reauth: confirmation: %w", err)
+	}
+
+	if !confirmed {
+		return secrets.Token{}, errReauthCancelled
+	}
+
 	if opts.EnsureKeychainAccess != nil {
-		if err := opts.EnsureKeychainAccess(ctx); err != nil {
-			return "", fmt.Errorf("reauth: keychain access: %w", err)
+		if keychainErr := opts.EnsureKeychainAccess(ctx); keychainErr != nil {
+			return secrets.Token{}, fmt.Errorf("reauth: keychain access: %w", keychainErr)
 		}
 	}
 
@@ -95,11 +123,13 @@ func Reauth(ctx context.Context, opts ReauthOptions) (string, error) {
 	// token's full scope set to prevent silent grant narrowing (e.g. a
 	// calendar command narrowing a gmail+calendar+drive grant).
 	reauthScopes := opts.Scopes
+
 	reauthServices := opts.Services
 	if opts.StoredToken != nil {
 		if len(opts.StoredToken.Scopes) > 0 {
 			reauthScopes = opts.StoredToken.Scopes
 		}
+
 		if len(opts.StoredToken.Services) > 0 {
 			reauthServices = opts.StoredToken.Services
 		}
@@ -108,12 +138,14 @@ func Reauth(ctx context.Context, opts ReauthOptions) (string, error) {
 	// Convert service strings to Service types.
 	services := make([]Service, 0, len(reauthServices))
 	for _, s := range reauthServices {
-		svc, err := ParseService(s)
-		if err != nil {
+		svc, parseErr := ParseService(s)
+		if parseErr != nil {
 			// If we can't parse the service label, use the scopes directly.
-			slog.Debug("reauth: could not parse service label, using scopes only", "service", s, "err", err)
+			slog.Debug("reauth: could not parse service label, using scopes only", "service", s, "err", parseErr)
+
 			continue
 		}
+
 		services = append(services, svc)
 	}
 
@@ -122,7 +154,7 @@ func Reauth(ctx context.Context, opts ReauthOptions) (string, error) {
 		services = servicesFromScopes(reauthScopes)
 	}
 
-	fmt.Fprintln(stderr, "Refresh token expired or revoked. Re-authorizing…")
+	fmt.Fprintln(stderr, "Re-authorizing…")
 
 	authorizeOpts := AuthorizeOptions{
 		Services:     services,
@@ -134,55 +166,45 @@ func Reauth(ctx context.Context, opts ReauthOptions) (string, error) {
 
 	refreshToken, err := authorizeFn(ctx, authorizeOpts)
 	if err != nil {
-		return "", fmt.Errorf("reauth: authorization failed: %w", err)
+		return secrets.Token{}, fmt.Errorf("reauth: authorization failed: %w", err)
 	}
 
 	// Fetch the authorized identity to verify the email matches.
 	identity, err := fetchIdentityFn(ctx, opts.Client, refreshToken, reauthScopes, 15*time.Second)
 	if err != nil {
-		return "", fmt.Errorf("reauth: fetch authorized identity: %w", err)
+		return secrets.Token{}, fmt.Errorf("reauth: fetch authorized identity: %w", err)
 	}
 
-	authorizedEmail := identity.Email
+	authorizedEmail := strings.TrimSpace(identity.Email)
 	if authorizedEmail == "" {
-		authorizedEmail = opts.Email
+		return secrets.Token{}, errReauthIdentityEmailMissing
 	}
 
 	// Verify the authorized account matches the expected email.
 	if !strings.EqualFold(strings.TrimSpace(authorizedEmail), strings.TrimSpace(opts.Email)) {
-		return "", fmt.Errorf("reauth: authorized as %s, expected %s", authorizedEmail, opts.Email)
-	}
-
-	// Persist the new refresh token.
-	if opts.OpenSecretsStore == nil {
-		return "", fmt.Errorf("reauth: secret store opener is required")
-	}
-
-	store, err := opts.OpenSecretsStore()
-	if err != nil {
-		return "", fmt.Errorf("reauth: open secret store: %w", err)
+		return secrets.Token{}, fmt.Errorf("%w: authorized as %s, expected %s", errReauthAuthorizedAsMismatch, authorizedEmail, opts.Email)
 	}
 
 	serviceNames := make([]string, 0, len(services))
 	for _, svc := range services {
 		serviceNames = append(serviceNames, string(svc))
 	}
+
 	sort.Strings(serviceNames)
 
-	if err := store.SetToken(opts.Client, authorizedEmail, secrets.Token{
+	updated := secrets.Token{
 		Client:       opts.Client,
 		Subject:      identity.Subject,
 		Email:        authorizedEmail,
 		Services:     serviceNames,
 		Scopes:       reauthScopes,
+		CreatedAt:    time.Now().UTC(),
 		RefreshToken: refreshToken,
-	}); err != nil {
-		return "", fmt.Errorf("reauth: persist new refresh token: %w", err)
 	}
 
 	fmt.Fprintln(stderr, "Re-authorization successful. Retrying request…")
 
-	return refreshToken, nil
+	return updated, nil
 }
 
 // servicesFromScopes attempts to derive the service list from a set of
@@ -195,6 +217,7 @@ func servicesFromScopes(scopes []string) []Service {
 	}
 
 	var matched []Service
+
 	for _, svc := range serviceOrder {
 		info, ok := serviceInfoByService[svc]
 		if !ok || !info.user {
@@ -203,6 +226,7 @@ func servicesFromScopes(scopes []string) []Service {
 
 		// Check if all scopes for this service are present in the scope set.
 		allPresent := true
+
 		for _, svcScope := range info.scopes {
 			if _, ok := scopeSet[svcScope]; !ok {
 				allPresent = false

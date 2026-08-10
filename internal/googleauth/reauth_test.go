@@ -7,110 +7,52 @@ import (
 	"testing"
 	"time"
 
-	"github.com/openclaw/gogcli/internal/config"
 	"github.com/openclaw/gogcli/internal/secrets"
 )
 
-// mockSecretStore is a minimal secrets.Store for testing Reauth.
-type mockSecretStore struct {
-	tokens map[string]secrets.Token
-}
-
-func (s *mockSecretStore) GetToken(client string, email string) (secrets.Token, error) {
-	key := client + ":" + email
-	if tok, ok := s.tokens[key]; ok {
-		return tok, nil
-	}
-	return secrets.Token{}, errors.New("not found")
-}
-
-func (s *mockSecretStore) SetToken(client string, email string, token secrets.Token) error {
-	key := client + ":" + email
-	s.tokens[key] = token
-	return nil
-}
-
-func (s *mockSecretStore) DeleteToken(client string, email string) error {
-	key := client + ":" + email
-	delete(s.tokens, key)
-	return nil
-}
-
-
-
-func (s *mockSecretStore) ListTokens() ([]secrets.Token, error) {
-	var out []secrets.Token
-	for _, tok := range s.tokens {
-		out = append(out, tok)
-	}
-	return out, nil
-}
-
-func (s *mockSecretStore) Keys() ([]string, error) {
-	keys := make([]string, 0, len(s.tokens))
-	for k := range s.tokens {
-		keys = append(keys, k)
-	}
-	return keys, nil
-}
-
-func (s *mockSecretStore) GetDefaultAccount(string) (string, error) {
-	return "", errors.New("not implemented")
-}
-
-func (s *mockSecretStore) SetDefaultAccount(string, string) error {
-	return errors.New("not implemented")
-}
-
-func (s *mockSecretStore) Close() error { return nil }
+var (
+	errReauthTestUserDenied     = errors.New("user denied access")
+	errReauthTestKeychainLocked = errors.New("keychain locked")
+)
 
 func TestReauthSuccess(t *testing.T) {
-	origRead := readClientCredentials
-	origEndpoint := oauthEndpoint
-	t.Cleanup(func() {
-		readClientCredentials = origRead
-		oauthEndpoint = origEndpoint
-	})
-
-	readClientCredentials = func(string) (config.ClientCredentials, error) {
-		return config.ClientCredentials{ClientID: "id", ClientSecret: "secret"}, nil
-	}
-
-	store := &mockSecretStore{tokens: make(map[string]secrets.Token)}
-
 	authorizeCalled := false
 	identityCalled := false
 
 	opts := ReauthOptions{
-		Email:    "user@example.com",
-		Client:   "default",
-		Services: []string{"calendar"},
-		Scopes:   []string{"https://www.googleapis.com/auth/calendar"},
-		OpenSecretsStore: func() (secrets.Store, error) {
-			return store, nil
-		},
+		Email:                "user@example.com",
+		Client:               "default",
+		Services:             []string{"calendar"},
+		Scopes:               []string{"https://www.googleapis.com/auth/calendar"},
 		EnsureKeychainAccess: func(context.Context) error { return nil },
+		Confirm:              func(context.Context, string) (bool, error) { return true, nil },
 		AuthorizeFunc: func(ctx context.Context, authOpts AuthorizeOptions) (string, error) {
 			authorizeCalled = true
+
 			if authOpts.ForceConsent != true {
 				t.Fatalf("expected ForceConsent=true")
 			}
+
 			if authOpts.Client != "default" {
 				t.Fatalf("expected client 'default', got %q", authOpts.Client)
 			}
+
 			return "new-refresh-token", nil
 		},
 		FetchIdentityFunc: func(ctx context.Context, client string, refreshToken string, scopes []string, timeout time.Duration) (Identity, error) {
 			identityCalled = true
+
 			if refreshToken != "new-refresh-token" {
 				t.Fatalf("expected new-refresh-token, got %q", refreshToken)
 			}
+
 			return Identity{Subject: "sub123", Email: "user@example.com"}, nil
 		},
 		Stderr: &bytesBuffer{},
 	}
 
-	if _, err := Reauth(context.Background(), opts); err != nil {
+	tok, err := Reauth(context.Background(), opts)
+	if err != nil {
 		t.Fatalf("Reauth: %v", err)
 	}
 
@@ -120,12 +62,6 @@ func TestReauthSuccess(t *testing.T) {
 
 	if !identityCalled {
 		t.Fatal("FetchIdentityFunc was not called")
-	}
-
-	// Verify token was persisted
-	tok, err := store.GetToken("default", "user@example.com")
-	if err != nil {
-		t.Fatalf("GetToken: %v", err)
 	}
 
 	if tok.RefreshToken != "new-refresh-token" {
@@ -143,16 +79,14 @@ func TestReauthSuccess(t *testing.T) {
 
 func TestReauthAuthorizeFailure(t *testing.T) {
 	opts := ReauthOptions{
-		Email:    "user@example.com",
-		Client:   "default",
-		Services: []string{"calendar"},
-		Scopes:   []string{"https://www.googleapis.com/auth/calendar"},
-		OpenSecretsStore: func() (secrets.Store, error) {
-			return &mockSecretStore{tokens: make(map[string]secrets.Token)}, nil
-		},
+		Email:                "user@example.com",
+		Client:               "default",
+		Services:             []string{"calendar"},
+		Scopes:               []string{"https://www.googleapis.com/auth/calendar"},
 		EnsureKeychainAccess: func(context.Context) error { return nil },
+		Confirm:              func(context.Context, string) (bool, error) { return true, nil },
 		AuthorizeFunc: func(ctx context.Context, authOpts AuthorizeOptions) (string, error) {
-			return "", errors.New("user denied access")
+			return "", errReauthTestUserDenied
 		},
 		FetchIdentityFunc: func(context.Context, string, string, []string, time.Duration) (Identity, error) {
 			t.Fatal("FetchIdentityFunc should not be called on authorize failure")
@@ -171,13 +105,36 @@ func TestReauthAuthorizeFailure(t *testing.T) {
 	}
 }
 
+func TestReauthRequiresConfirmation(t *testing.T) {
+	opts := ReauthOptions{
+		Email:  "user@example.com",
+		Client: "default",
+		Scopes: []string{"scope"},
+	}
+	if _, err := Reauth(context.Background(), opts); err == nil || !strings.Contains(err.Error(), "confirmation callback is required") {
+		t.Fatalf("Reauth() error = %v, want missing confirmation error", err)
+	}
+
+	authorized := false
+	opts.Confirm = func(context.Context, string) (bool, error) { return false, nil }
+
+	opts.AuthorizeFunc = func(context.Context, AuthorizeOptions) (string, error) {
+		authorized = true
+		return "token", nil
+	}
+	if _, err := Reauth(context.Background(), opts); err == nil || !strings.Contains(err.Error(), "cancelled") {
+		t.Fatalf("Reauth() error = %v, want cancellation", err)
+	}
+
+	if authorized {
+		t.Fatal("authorization started after confirmation was declined")
+	}
+}
+
 func TestReauthMissingEmail(t *testing.T) {
 	opts := ReauthOptions{
-		Client:   "default",
-		Scopes:   []string{"scope"},
-		OpenSecretsStore: func() (secrets.Store, error) {
-			return &mockSecretStore{}, nil
-		},
+		Client: "default",
+		Scopes: []string{"scope"},
 	}
 
 	_, err := Reauth(context.Background(), opts)
@@ -190,9 +147,6 @@ func TestReauthMissingScopes(t *testing.T) {
 	opts := ReauthOptions{
 		Email:  "user@example.com",
 		Client: "default",
-		OpenSecretsStore: func() (secrets.Store, error) {
-			return &mockSecretStore{}, nil
-		},
 	}
 
 	_, err := Reauth(context.Background(), opts)
@@ -203,14 +157,12 @@ func TestReauthMissingScopes(t *testing.T) {
 
 func TestReauthKeychainAccessFailure(t *testing.T) {
 	opts := ReauthOptions{
-		Email:    "user@example.com",
-		Client:   "default",
-		Scopes:   []string{"scope"},
-		OpenSecretsStore: func() (secrets.Store, error) {
-			return &mockSecretStore{}, nil
-		},
+		Email:   "user@example.com",
+		Client:  "default",
+		Scopes:  []string{"scope"},
+		Confirm: func(context.Context, string) (bool, error) { return true, nil },
 		EnsureKeychainAccess: func(context.Context) error {
-			return errors.New("keychain locked")
+			return errReauthTestKeychainLocked
 		},
 	}
 
@@ -226,14 +178,12 @@ func TestReauthKeychainAccessFailure(t *testing.T) {
 
 func TestReauthEmailMismatch(t *testing.T) {
 	opts := ReauthOptions{
-		Email:    "user@example.com",
-		Client:   "default",
-		Services: []string{"calendar"},
-		Scopes:   []string{"https://www.googleapis.com/auth/calendar"},
-		OpenSecretsStore: func() (secrets.Store, error) {
-			return &mockSecretStore{tokens: make(map[string]secrets.Token)}, nil
-		},
+		Email:                "user@example.com",
+		Client:               "default",
+		Services:             []string{"calendar"},
+		Scopes:               []string{"https://www.googleapis.com/auth/calendar"},
 		EnsureKeychainAccess: func(context.Context) error { return nil },
+		Confirm:              func(context.Context, string) (bool, error) { return true, nil },
 		AuthorizeFunc: func(ctx context.Context, authOpts AuthorizeOptions) (string, error) {
 			return "new-refresh-token", nil
 		},
@@ -254,25 +204,35 @@ func TestReauthEmailMismatch(t *testing.T) {
 	}
 }
 
-func TestReauthPreservesStoredScopes(t *testing.T) {
-	store := &mockSecretStore{tokens: map[string]secrets.Token{
-		"default:user@example.com": {
-			Scopes: []string{
-				"https://www.googleapis.com/auth/calendar",
-				"https://www.googleapis.com/auth/gmail.modify",
-				"https://www.googleapis.com/auth/drive",
-			},
-			Services: []string{"calendar", "gmail", "drive"},
+func TestReauthRejectsIdentityWithoutEmail(t *testing.T) {
+	opts := ReauthOptions{
+		Email:    "user@example.com",
+		Client:   "default",
+		Services: []string{"calendar"},
+		Scopes:   []string{"https://www.googleapis.com/auth/calendar"},
+		Confirm:  func(context.Context, string) (bool, error) { return true, nil },
+		AuthorizeFunc: func(context.Context, AuthorizeOptions) (string, error) {
+			return "new-refresh-token", nil
 		},
-	}}
+		FetchIdentityFunc: func(context.Context, string, string, []string, time.Duration) (Identity, error) {
+			return Identity{Subject: "sub123"}, nil
+		},
+		Stderr: &bytesBuffer{},
+	}
 
+	if _, err := Reauth(context.Background(), opts); err == nil || !strings.Contains(err.Error(), "did not include an email") {
+		t.Fatalf("Reauth() error = %v, want missing email error", err)
+	}
+}
+
+func TestReauthPreservesStoredScopes(t *testing.T) {
 	var requestedScopes []string
 	var requestedServices []string
 
 	opts := ReauthOptions{
 		Email:    "user@example.com",
 		Client:   "default",
-		Services: []string{"calendar"}, // narrowed — only the triggering request's service
+		Services: []string{"calendar"},                                 // narrowed — only the triggering request's service
 		Scopes:   []string{"https://www.googleapis.com/auth/calendar"}, // narrowed
 		StoredToken: &secrets.Token{
 			Scopes: []string{
@@ -282,16 +242,16 @@ func TestReauthPreservesStoredScopes(t *testing.T) {
 			},
 			Services: []string{"calendar", "gmail", "drive"},
 		},
-		OpenSecretsStore: func() (secrets.Store, error) {
-			return store, nil
-		},
 		EnsureKeychainAccess: func(context.Context) error { return nil },
+		Confirm:              func(context.Context, string) (bool, error) { return true, nil },
 		AuthorizeFunc: func(ctx context.Context, authOpts AuthorizeOptions) (string, error) {
 			requestedScopes = authOpts.Scopes
 			requestedServices = make([]string, len(authOpts.Services))
+
 			for i, svc := range authOpts.Services {
 				requestedServices[i] = string(svc)
 			}
+
 			return "new-refresh-token", nil
 		},
 		FetchIdentityFunc: func(context.Context, string, string, []string, time.Duration) (Identity, error) {
@@ -300,7 +260,8 @@ func TestReauthPreservesStoredScopes(t *testing.T) {
 		Stderr: &bytesBuffer{},
 	}
 
-	if _, err := Reauth(context.Background(), opts); err != nil {
+	tok, err := Reauth(context.Background(), opts)
+	if err != nil {
 		t.Fatalf("Reauth: %v", err)
 	}
 
@@ -314,13 +275,8 @@ func TestReauthPreservesStoredScopes(t *testing.T) {
 		t.Fatalf("expected 3 services (preserved from stored token), got %d: %v", len(requestedServices), requestedServices)
 	}
 
-	// Verify persisted token has the full scope set
-	tok, err := store.GetToken("default", "user@example.com")
-	if err != nil {
-		t.Fatalf("GetToken: %v", err)
-	}
 	if len(tok.Scopes) != 3 {
-		t.Fatalf("persisted token should have 3 scopes, got %d: %v", len(tok.Scopes), tok.Scopes)
+		t.Fatalf("returned token should have 3 scopes, got %d: %v", len(tok.Scopes), tok.Scopes)
 	}
 }
 

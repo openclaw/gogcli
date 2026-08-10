@@ -130,7 +130,7 @@ func authenticatedTransportWithStoredScopeCheck(
 	requireStoredGrant bool,
 ) (http.RoundTripper, error) {
 	var ts oauth2.TokenSource
-	var isStoredOAuth bool
+	var storedOAuth *persistingTokenSource
 
 	if dependencies, ok := authDependenciesFromContext(ctx); ok && dependencies.Mode == AuthModeADC {
 		slog.Debug("using Application Default Credentials (GOG_AUTH_MODE=adc)", "serviceLabel", serviceLabel)
@@ -154,7 +154,7 @@ func authenticatedTransportWithStoredScopeCheck(
 		// (StaticTokenSource) and service-account sources never return
 		// invalid_grant through the refresh-token path, but even if they
 		// did, launching a user browser flow would be nonsensical.
-		_, isStoredOAuth = ts.(*persistingTokenSource)
+		storedOAuth, _ = ts.(*persistingTokenSource)
 	}
 
 	retryTransport := NewRetryTransport(&oauth2.Transport{
@@ -171,8 +171,8 @@ func authenticatedTransportWithStoredScopeCheck(
 	// Wire auto-reauth for invalid_grant (expired/revoked refresh token).
 	// Only enabled for stored OAuth (not ADC, not direct access tokens,
 	// not service accounts) and only when the session is interactive.
-	if isStoredOAuth && !NoInputFromContext(ctx) {
-		if reauthFn := reauthFunctionFromContext(ctx, serviceLabel, email, scopes, ts); reauthFn != nil {
+	if storedOAuth != nil && !NoInputFromContext(ctx) {
+		if reauthFn := reauthFunctionFromContext(ctx, serviceLabel, email, scopes, storedOAuth); reauthFn != nil {
 			retryTransport.Reauth = reauthFn
 		}
 	}
@@ -325,13 +325,11 @@ func newBaseTransport() *http.Transport {
 // The token source is captured so that after a successful reauth, the
 // in-memory token source can be reset with the new refresh token —
 // otherwise the retried request would reuse the revoked token.
-func reauthFunctionFromContext(ctx context.Context, serviceLabel string, email string, scopes []string, ts oauth2.TokenSource) func(context.Context) error {
+func reauthFunctionFromContext(ctx context.Context, serviceLabel string, email string, scopes []string, ts *persistingTokenSource) func(context.Context) error {
 	dependencies, ok := authDependenciesFromContext(ctx)
 	if !ok || dependencies.Reauth == nil {
 		return nil
 	}
-
-	resolvedEmail := email
 
 	// Derive the service list from the single service label when available.
 	var services []string
@@ -340,36 +338,10 @@ func reauthFunctionFromContext(ctx context.Context, serviceLabel string, email s
 	}
 
 	return func(ctx context.Context) error {
-		// Resolve the client at call time so it reflects the latest config.
-		client, err := dependencies.resolveClient(resolvedEmail, authclient.ClientOverrideFromContext(ctx))
-		if err != nil {
-			return fmt.Errorf("resolve client for reauth: %w", err)
-		}
-
-		// Load the stored token to preserve the full scope/service set
-		// from the original authorization, preventing silent grant narrowing.
-		var storedToken *secrets.Token
-		if store, storeErr := dependencies.openTokens(); storeErr == nil {
-			if tok, getErr := store.GetToken(client, resolvedEmail); getErr == nil {
-				storedToken = &tok
-			}
-		}
-
-		newRefreshToken, err := dependencies.Reauth(ctx, resolvedEmail, client, services, scopes, storedToken)
-		if err != nil {
-			return err
-		}
-
-		// Reset the in-memory token source so the retried request uses
-		// the new refresh token instead of the revoked one. Guard against
-		// an empty token to avoid rebuilding the source with no refresh
-		// token, which would produce a confusing refresh error.
-		if newRefreshToken != "" {
-			if resetter, ok := ts.(refreshTokenResetter); ok {
-				resetter.ResetRefreshToken(newRefreshToken)
-			}
-		}
-
-		return nil
+		return dependencies.ReauthCoordinator.run(func() error {
+			return ts.Reauthorize(ctx, func(ctx context.Context, storedToken secrets.Token) (secrets.Token, error) {
+				return dependencies.Reauth(ctx, email, ts.client, services, scopes, &storedToken)
+			})
+		})
 	}
 }
