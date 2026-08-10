@@ -26,8 +26,9 @@ minimumReleaseAgeExclude:
   - "@typescript/typescript-win32-x64@7.0.2"
   - typescript@7.0.2
 overrides:
-  esbuild: 0.28.1
-  postcss: 8.5.25
-  undici: 8.9.0
-  vite: 8.2.0
-  ws: 8.21.1
+  esbuild: 0.28.2
+  nanoid: 3.3.18
+  postcss: 8.5.26
+  undici: 8.10.0
+  vite: 8.2.1
+  ws: 8.21.3
