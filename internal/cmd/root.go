@@ -182,6 +182,9 @@ func executeWithRuntime(args []string, runtime *app.Runtime) (err error) {
 	if err = enforceBakedSafetyProfile(kctx); err != nil {
 		return reportEarlyError(runtimeIO.Err, err)
 	}
+	if err = enforceLockedFlags(kctx); err != nil {
+		return reportEarlyError(runtimeIO.Err, err)
+	}
 	if err = enforceEnabledCommands(kctx, cli.EnableCommands, cli.EnableCommandsExact); err != nil {
 		return reportEarlyError(runtimeIO.Err, err)
 	}
@@ -309,13 +312,13 @@ func executeWithRuntime(args []string, runtime *app.Runtime) (err error) {
 	err = stableExitCode(err)
 
 	if u := ui.FromContext(ctx); u != nil {
-		msg := strings.TrimSpace(errfmt.Format(err))
+		msg := errorMessage(err)
 		if msg != "" {
 			u.Err().Error(msg)
 		}
 		return err
 	}
-	msg := strings.TrimSpace(errfmt.Format(err))
+	msg := errorMessage(err)
 	if msg != "" {
 		_, _ = fmt.Fprintln(runtimeIO.Err, msg)
 	}
@@ -399,6 +402,22 @@ func reportEarlyError(w io.Writer, err error) error {
 		_, _ = fmt.Fprintln(w, msg)
 	}
 	return err
+}
+
+// errorMessage renders a command's error for display. Usage errors carry the
+// pinned-flag note, because a baked profile can supply a value the caller never
+// passed and the rejection then names a flag absent from their command line. The
+// pre-run enforcement errors skip it: those name the locked flag themselves.
+func errorMessage(err error) string {
+	msg := strings.TrimSpace(errfmt.Format(err))
+	if msg == "" || ExitCode(err) != 2 {
+		return msg
+	}
+	note := pinnedFlagsNote()
+	if note == "" {
+		return msg
+	}
+	return msg + "\n" + note
 }
 
 func isTerminalWriter(w io.Writer) bool {

@@ -1,7 +1,9 @@
 package cmd
 
 import (
+	"fmt"
 	"hash/fnv"
+	"sort"
 	"strings"
 
 	"github.com/alecthomas/kong"
@@ -39,6 +41,48 @@ func enforceBakedSafetyProfile(kctx *kong.Context) error {
 	}
 	if !profile.allowsCommandPath(path) {
 		return profile.commandPathError(path)
+	}
+	return nil
+}
+
+// enforceLockedFlags applies the profile's pinned flag values and refuses a command
+// line that sets one of them. The value is pinned rather than merely defaulted so it
+// holds without help from the environment, which the caller may not control.
+// pinnedFlagNames records the flags enforceLockedFlags set, so a command rejecting a
+// value it never received on the command line can say where that value came from.
+var pinnedFlagNames = map[string]bool{}
+
+// pinnedFlagsNote names the pinned flags for display beneath a usage error. A command
+// can reject a combination involving a value the caller never passed, so the note is
+// what explains where that value came from. Empty when nothing is pinned.
+func pinnedFlagsNote() string {
+	if len(pinnedFlagNames) == 0 {
+		return ""
+	}
+	names := make([]string, 0, len(pinnedFlagNames))
+	for name := range pinnedFlagNames {
+		names = append(names, "--"+name)
+	}
+	sort.Strings(names)
+	return fmt.Sprintf("note: %s pinned by baked safety profile %q", strings.Join(names, ", "), bakedSafetyProfileName())
+}
+
+func enforceLockedFlags(kctx *kong.Context) error {
+	if !bakedSafetyEnabled() {
+		return nil
+	}
+	for _, flag := range kctx.Flags() {
+		value, locked := bakedSafetyLockedFlag(flag.Name)
+		if !locked {
+			continue
+		}
+		if flagProvided(kctx, flag.Name) {
+			return usagef("flag --%s is locked by baked safety profile %q", flag.Name, bakedSafetyProfileName())
+		}
+		if err := flag.Value.Parse(kong.ScanFromTokens(kong.Token{Type: kong.FlagValueToken, Value: value}), flag.Value.Target); err != nil {
+			return usagef("locked flag --%s: %v", flag.Name, err)
+		}
+		pinnedFlagNames[flag.Name] = true
 	}
 	return nil
 }

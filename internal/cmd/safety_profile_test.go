@@ -33,6 +33,11 @@ func withBakedSafetyProfile(t *testing.T, raw string) {
 	bakedSafetyTestProfile.hasAllowRules = profile.AllowAll || len(profile.AllowRules) > 0
 	bakedSafetyTestProfile.allow = allow
 	bakedSafetyTestProfile.deny = deny
+	locked := make(map[string]string, len(profile.LockedFlags))
+	for _, f := range profile.LockedFlags {
+		locked[f.Name] = f.Value
+	}
+	bakedSafetyTestProfile.lockedFlags = locked
 	t.Cleanup(func() { bakedSafetyTestProfile = prev })
 }
 
