@@ -49,6 +49,11 @@ type RetryTransport struct {
 	BaseDelay      time.Duration
 	CircuitBreaker *CircuitBreaker
 	RefreshAuth    func(context.Context) error
+	// Reauth is called when the OAuth refresh token is expired or revoked
+	// (invalid_grant). It should launch a browser-based re-authorization
+	// flow, persist the new refresh token, and return nil on success.
+	// If Reauth is nil, invalid_grant errors are surfaced without retry.
+	Reauth func(context.Context) error
 }
 
 // NewRetryTransport creates a RetryTransport with sensible defaults.
@@ -82,6 +87,7 @@ func (t *RetryTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	retries429 := 0
 	retries5xx := 0
 	retriedAuth := false
+	retriedReauth := false
 
 	for {
 		// Reset body for retry
@@ -99,6 +105,31 @@ func (t *RetryTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 
 		resp, err = t.Base.RoundTrip(req)
 		if err != nil {
+			// Detect invalid_grant from the OAuth2 transport layer.
+			// This happens when the stored refresh token is expired or
+			// revoked. If a Reauth function is available and we haven't
+			// already retried, attempt auto-reauth and retry the request.
+			if isInvalidGrantError(err) {
+				if t.Reauth != nil && !retriedReauth && !retryDisabled && replayable {
+					slog.Debug("refresh token expired or revoked, attempting auto-reauth")
+
+					if reauthErr := t.Reauth(req.Context()); reauthErr != nil {
+						slog.Debug("auto-reauth failed", "err", reauthErr)
+
+						return nil, fmt.Errorf("refresh token expired or revoked: %w; re-authentication failed: %w; run 'gog auth add' to re-authorize manually", err, reauthErr)
+					}
+
+					retriedReauth = true
+
+					continue
+				}
+
+				// Reauth is not available (suppressed by --no-input, not
+				// stored OAuth, or already retried). Surface a clear,
+				// actionable error instead of the raw OAuth2 message.
+				return nil, fmt.Errorf("refresh token expired or revoked: %w; run 'gog auth add' to re-authorize", err)
+			}
+
 			return nil, fmt.Errorf("round trip: %w", err)
 		}
 

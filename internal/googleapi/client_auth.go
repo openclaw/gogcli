@@ -42,7 +42,23 @@ type forceRefreshTokenSource interface {
 var (
 	errBaseTokenSourceCannotForceRefresh = errors.New("base token source cannot force refresh")
 	errBaseTokenSourceReturnedNilToken   = errors.New("base token source returned nil token")
+	errBaseTokenSourceCannotReplaceToken = errors.New("base token source cannot replace refresh token")
+	errReauthEmptyRefreshToken           = errors.New("reauthorization returned an empty refresh token")
+	errReauthAccountMismatch             = errors.New("reauthorization returned a different account")
 )
+
+// isInvalidGrantError checks whether an OAuth2 token refresh error is an
+// invalid_grant failure, meaning the stored refresh token is no longer
+// usable and must be re-obtained via a full browser-based authorization.
+func isInvalidGrantError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	var retrieveErr *oauth2.RetrieveError
+
+	return errors.As(err, &retrieveErr) && strings.EqualFold(strings.TrimSpace(retrieveErr.ErrorCode), "invalid_grant")
+}
 
 type resettableOAuthTokenSource struct {
 	mu           sync.Mutex
@@ -93,6 +109,18 @@ func (r *resettableOAuthTokenSource) ForceRefresh(context.Context) (*oauth2.Toke
 	r.rememberRefreshTokenLocked(t)
 
 	return t, nil
+}
+
+// ResetRefreshToken replaces the stored refresh token and rebuilds the
+// underlying oauth2.TokenSource so the next Token() call uses the new
+// token. This is called after a successful auto-reauth to ensure the
+// retried request doesn't reuse the revoked refresh token.
+func (r *resettableOAuthTokenSource) ResetRefreshToken(refreshToken string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	r.refreshToken = strings.TrimSpace(refreshToken)
+	r.source = r.newSource(&oauth2.Token{RefreshToken: r.refreshToken})
 }
 
 func (r *resettableOAuthTokenSource) rememberRefreshTokenLocked(t *oauth2.Token) {
@@ -146,6 +174,75 @@ func (p *persistingTokenSource) ForceRefresh(ctx context.Context) error {
 	_, err = p.persistTokenLocked(t)
 
 	return err
+}
+
+// Reauthorize serializes account recovery with ordinary token refreshes. A
+// second caller rechecks the token after taking the lock, so concurrent API
+// requests cannot launch duplicate browser flows for the same revoked token.
+func (p *persistingTokenSource) Reauthorize(
+	ctx context.Context,
+	reauthorize func(context.Context, secrets.Token) (secrets.Token, error),
+) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	// Another request may have repaired the shared source while this request
+	// was waiting. In that case the token succeeds now and no browser is needed.
+	if t, err := p.base.Token(); err == nil {
+		_, persistErr := p.persistTokenLocked(t)
+		return persistErr
+	} else if !isInvalidGrantError(err) {
+		return fmt.Errorf("recheck refresh token before reauthorization: %w", err)
+	}
+
+	resetter, ok := p.base.(*resettableOAuthTokenSource)
+	if !ok {
+		return errBaseTokenSourceCannotReplaceToken
+	}
+
+	// A different service client may have completed reauthorization while this
+	// source waited on the command-wide coordinator. Adopt that stored token
+	// before deciding another browser flow is necessary.
+	if latest, storeErr := p.store.GetToken(p.client, p.email); storeErr == nil {
+		latestRefreshToken := strings.TrimSpace(latest.RefreshToken)
+		if latestRefreshToken != "" && latestRefreshToken != strings.TrimSpace(p.tok.RefreshToken) {
+			resetter.ResetRefreshToken(latestRefreshToken)
+			p.tok = latest
+
+			if t, tokenErr := p.base.Token(); tokenErr == nil {
+				_, persistErr := p.persistTokenLocked(t)
+				return persistErr
+			} else if !isInvalidGrantError(tokenErr) {
+				return fmt.Errorf("use concurrently reauthorized token: %w", tokenErr)
+			}
+		}
+	}
+
+	updated, err := reauthorize(ctx, p.tok)
+	if err != nil {
+		return err
+	}
+
+	updated.RefreshToken = strings.TrimSpace(updated.RefreshToken)
+	if updated.RefreshToken == "" {
+		return errReauthEmptyRefreshToken
+	}
+
+	persistEmail := strings.TrimSpace(p.email)
+	if updatedEmail := strings.TrimSpace(updated.Email); updatedEmail != "" && !strings.EqualFold(updatedEmail, persistEmail) {
+		return fmt.Errorf("%w: got %s, expected %s", errReauthAccountMismatch, updatedEmail, persistEmail)
+	}
+	updated.Client = p.client
+	updated.Email = persistEmail
+
+	if err := p.store.SetToken(p.client, persistEmail, updated); err != nil {
+		return fmt.Errorf("persist reauthorized token: %w", err)
+	}
+
+	resetter.ResetRefreshToken(updated.RefreshToken)
+	p.tok = updated
+
+	return nil
 }
 
 func (p *persistingTokenSource) persistTokenLocked(t *oauth2.Token) (*oauth2.Token, error) {

@@ -1,8 +1,14 @@
 # Changelog
 
-## Unreleased
+## 0.35.1 - Unreleased
+
+- Auth: offer one-time re-authorization for expired or revoked stored OAuth refresh tokens after interactive confirmation, while preserving non-interactive recovery guidance. (#973) — thanks @inamiy.
+- Dependencies: update Kong, Cloudflare Workers types, and pnpm to their latest releases.
+
+## 0.35.0 - 2026-08-09
 
 - Install: move the Go module to `github.com/openclaw/gogcli`; new releases install with `go install github.com/openclaw/gogcli/cmd/gog@latest` instead of the former `github.com/steipete/gogcli` path.
+- Security: carry forward the `golang.org/x/text` (GO-2026-5970) and gRPC-Go (GO-2026-6061) advisory remediations prepared for the tagged but unpublished 0.34.2 release.
 - Docs: add opt-in `--locate` and `--tab` to `docs comments list`, resolving all comment locations from one shared document fetch. (#961, #965) — thanks @ryo-touch.
 - Gmail: allow `GOG_GMAIL_AUTO_FROM_ADDRESSED_ALIAS` to enable the existing addressed-alias sender policy for replies and reply-context drafts. (#964) — thanks @ronny-rentner.
 - Gmail: add opt-in compact 0-based attachment references across search, message, thread, draft, and download workflows. (#963) — thanks @ronny-rentner.

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
@@ -27,6 +28,38 @@ type (
 	ServiceAccountTokenSourceFunc func(context.Context, []byte, string, []string) (oauth2.TokenSource, error)
 )
 
+// ReauthCoordinator serializes interactive recovery across every Google
+// service client created for one command invocation.
+type ReauthCoordinator struct {
+	mu sync.Mutex
+}
+
+func NewReauthCoordinator() *ReauthCoordinator {
+	return &ReauthCoordinator{}
+}
+
+func (c *ReauthCoordinator) run(fn func() error) error {
+	if c == nil {
+		return fn()
+	}
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	return fn()
+}
+
+// ReauthFunc attempts to re-authorize the given account by launching a
+// browser-based OAuth flow and persisting the new refresh token. It is
+// called automatically when the stored refresh token is expired or revoked
+// (invalid_grant) and the session is interactive.
+//
+// storedToken, if non-nil, carries the full scope/service set from the
+// original authorization so the reauth can preserve the grant width.
+// Returns the replacement token metadata. The token-source owner persists it
+// and swaps the in-memory refresh token as one serialized operation.
+type ReauthFunc func(ctx context.Context, email string, client string, services []string, scopes []string, storedToken *secrets.Token) (secrets.Token, error)
+
 type AuthDependencies struct {
 	ResolveClient             authclient.ClientResolver
 	ReadCredentials           authclient.CredentialsReader
@@ -36,6 +69,8 @@ type AuthDependencies struct {
 	Mode                      AuthMode
 	ADCTokenSource            ADCTokenSourceFunc
 	ServiceAccountTokenSource ServiceAccountTokenSourceFunc
+	Reauth                    ReauthFunc
+	ReauthCoordinator         *ReauthCoordinator
 }
 
 var (
@@ -182,4 +217,27 @@ func DefaultADCTokenSource(ctx context.Context, scopes ...string) (oauth2.TokenS
 	}
 
 	return tokenSource, nil
+}
+
+// noInputContextKey controls whether auto-reauth is suppressed. When
+// --no-input is set (or stdin is not a terminal), the auto-reauth fallback
+// must not launch a browser.
+type noInputContextKey struct{}
+
+// WithNoInput marks the context as non-interactive. Auto-reauth will be
+// suppressed and a clear error message with manual instructions is returned
+// instead.
+func WithNoInput(ctx context.Context) context.Context {
+	return context.WithValue(ctx, noInputContextKey{}, true)
+}
+
+// NoInputFromContext reports whether the context was marked non-interactive.
+func NoInputFromContext(ctx context.Context) bool {
+	if ctx == nil {
+		return false
+	}
+
+	enabled, _ := ctx.Value(noInputContextKey{}).(bool)
+
+	return enabled
 }

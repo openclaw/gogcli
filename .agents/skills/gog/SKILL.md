@@ -106,17 +106,69 @@ openclaw agent --agent main --message \
 If this fails with `keyring.password` while the same `gog auth doctor` works in
 the shell, fix the service or agent environment before reauthenticating.
 
-Remote Mac OAuth pattern:
+### Browser-Driven Reauth
 
-1. Start the OAuth flow in remote tmux on the target Mac, for example
-   `gog auth add user@example.com --services all-user --force-consent --timeout 15m`.
-2. Open the printed OAuth URL on that same Mac's Chrome with `open -a "Google Chrome"`.
-3. Drive the Google page on the target Mac with AppleScript/DOM clicks; keep the
-   browser on the target host unless the user explicitly asks for a tunnel/local
-   browser handoff.
-4. If tmux asks for the file-keyring passphrase, source it from the remote
-   login environment via `zsh -lc` and paste it into tmux without printing it.
-5. Verify through `zsh -lc 'gog auth list --check --json --no-input'`.
+An agent can complete this flow end to end when it can drive a signed-in
+browser. Consent still happens in a real browser; nothing here bypasses it.
+
+Run the CLI leg in a detached tmux session so it survives command boundaries:
+
+```bash
+tmux -L gog-auth new-session -d -s auth -x 200 -y 50
+tmux -L gog-auth send-keys -t auth \
+  "gog auth add user@example.com --services all-user --force-consent --timeout 15m" Enter
+```
+
+Capture the consent URL with `-J`:
+
+```bash
+tmux -L gog-auth capture-pane -t auth -p -J -S - \
+  | grep -oE 'https://accounts\.google\.com[^ ]+' | tail -1 > "$url_file"
+```
+
+**`-J` is mandatory.** `capture-pane` otherwise returns the URL hard-wrapped at
+the pane width. A truncated consent URL does not fail loudly: Google renders
+`Invalid OAuth Request` / `Invalid response_type: missing`, which reads like a
+client misconfiguration and sends you debugging the wrong thing. Verify the
+captured URL contains `response_type` before using it.
+
+Write the URL to a mode-0600 file and hand it to the browser by file reference
+(see `$browser-use`); never echo it. Appending `&login_hint=user@example.com`
+skips the account chooser and removes a whole class of wrong-account risk.
+
+Expect up to two interstitials when the OAuth client is unverified or in
+testing:
+
+1. **"Google hasn't verified this app."** `Continue` is a low-emphasis link on
+   one side; `Back to safety` is the prominent button. Activating the visually
+   obvious control aborts the flow. A developer-info control sits in the tab
+   order between them, so count focus stops deliberately instead of guessing.
+2. **"You're signing back in to \<app\>"** — confirm the displayed account is
+   the intended one, then `Continue`.
+
+The listener enforces `--timeout`. When it expires the tmux pane simply returns
+to a shell prompt, so a flow that "did nothing" is often an expired listener
+rather than a browser problem. Read the pane before re-driving the browser, and
+restart the CLI leg rather than reusing a stale URL. Complete the browser leg
+promptly; batch the navigate-and-activate steps instead of round-tripping.
+
+The browser does not have to run on the CLI's host. The callback targets
+`http://localhost:<port>`, so when they are separate machines, forward that port
+from the browser host to the host running the listener before opening the URL,
+and confirm the forward is live first. Keep the browser on the host whose
+profile holds the intended Google session.
+
+If tmux asks for the file-keyring passphrase, source it from that host's login
+environment via the login shell and paste it in without printing it.
+
+Verify, and require both the account and its scope breadth:
+
+```bash
+gog auth list --check --json --no-input
+```
+
+Confirm the target account reports valid and retains the expected service list;
+a successful login that silently narrowed scopes is a failed reauth.
 
 ## Common Reads
 

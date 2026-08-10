@@ -223,6 +223,9 @@ func executeWithRuntime(args []string, runtime *app.Runtime) (err error) {
 	ctx := context.Background()
 	ctx = app.WithRuntime(ctx, runtime)
 	ctx = googleapi.WithReadOnly(ctx, cli.ReadOnly)
+	if cli.NoInput || !stdinIsTerminal(ctx) {
+		ctx = googleapi.WithNoInput(ctx)
+	}
 	runtimeContext := ctx
 	serviceAccounts := func() (*config.ServiceAccountStore, error) {
 		return commandServiceAccountStore(runtimeContext)
@@ -250,6 +253,26 @@ func executeWithRuntime(args []string, runtime *app.Runtime) (err error) {
 	resolveClient := func(email string, override string) (string, error) {
 		return resolveRuntimeClient(runtime, email, override)
 	}
+
+	// reauthFn is the auto-reauth closure called when the stored refresh
+	// token is expired or revoked (invalid_grant). It launches a browser-
+	// based OAuth flow and persists the new token, mirroring `gog auth add`.
+	reauthFn := func(ctx context.Context, email string, client string, services []string, scopes []string, storedToken *secrets.Token) (secrets.Token, error) {
+		opts := googleauth.ReauthOptions{
+			Email:                email,
+			Client:               client,
+			Services:             services,
+			Scopes:               scopes,
+			StoredToken:          storedToken,
+			EnsureKeychainAccess: ensureKeychainAccessIfNeeded,
+			AuthorizeFunc:        authorizeGoogleAccount,
+			FetchIdentityFunc:    fetchAuthIdentity,
+			Confirm:              confirmReauthorization,
+			Stderr:               runtimeIO.Err,
+		}
+		return googleauth.Reauth(ctx, opts)
+	}
+
 	authDependencies := googleapi.AuthDependencies{
 		ResolveClient:             resolveClient,
 		ReadCredentials:           readCredentials,
@@ -259,6 +282,8 @@ func executeWithRuntime(args []string, runtime *app.Runtime) (err error) {
 		Mode:                      cli.authMode,
 		ADCTokenSource:            googleapi.DefaultADCTokenSource,
 		ServiceAccountTokenSource: googleapi.DefaultServiceAccountTokenSource,
+		Reauth:                    reauthFn,
+		ReauthCoordinator:         googleapi.NewReauthCoordinator(),
 	}
 	ctx = googleapi.WithAuthDependencies(ctx, authDependencies)
 	composeRuntimeGoogleServices(runtime, googleapi.NewFactory(authDependencies, googleapi.FactoryOptions{

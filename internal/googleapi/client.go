@@ -13,6 +13,7 @@ import (
 
 	"github.com/openclaw/gogcli/internal/authclient"
 	"github.com/openclaw/gogcli/internal/googleauth"
+	"github.com/openclaw/gogcli/internal/secrets"
 )
 
 const (
@@ -129,6 +130,7 @@ func authenticatedTransportWithStoredScopeCheck(
 	requireStoredGrant bool,
 ) (http.RoundTripper, error) {
 	var ts oauth2.TokenSource
+	var storedOAuth *persistingTokenSource
 
 	if dependencies, ok := authDependenciesFromContext(ctx); ok && dependencies.Mode == AuthModeADC {
 		slog.Debug("using Application Default Credentials (GOG_AUTH_MODE=adc)", "serviceLabel", serviceLabel)
@@ -146,6 +148,13 @@ func authenticatedTransportWithStoredScopeCheck(
 		if err != nil {
 			return nil, err
 		}
+
+		// Only stored OAuth tokens (wrapped in persistingTokenSource) can
+		// be auto-reauthorized via a browser flow. Direct access tokens
+		// (StaticTokenSource) and service-account sources never return
+		// invalid_grant through the refresh-token path, but even if they
+		// did, launching a user browser flow would be nonsensical.
+		storedOAuth, _ = ts.(*persistingTokenSource)
 	}
 
 	retryTransport := NewRetryTransport(&oauth2.Transport{
@@ -157,6 +166,15 @@ func authenticatedTransportWithStoredScopeCheck(
 		ForceRefresh(context.Context) error
 	}); ok {
 		retryTransport.RefreshAuth = refresher.ForceRefresh
+	}
+
+	// Wire auto-reauth for invalid_grant (expired/revoked refresh token).
+	// Only enabled for stored OAuth (not ADC, not direct access tokens,
+	// not service accounts) and only when the session is interactive.
+	if storedOAuth != nil && !NoInputFromContext(ctx) {
+		if reauthFn := reauthFunctionFromContext(ctx, serviceLabel, email, scopes, storedOAuth); reauthFn != nil {
+			retryTransport.Reauth = reauthFn
+		}
 	}
 
 	return readOnlyTransportFromContext(ctx, retryTransport), nil
@@ -297,4 +315,33 @@ func newBaseTransport() *http.Transport {
 	}
 
 	return transport
+}
+
+// reauthFunctionFromContext builds a Reauth closure from the auth
+// dependencies stored in the context. Returns nil if the dependencies are
+// not available or the Reauth function is not configured, in which case
+// auto-reauth is disabled and invalid_grant errors are surfaced directly.
+//
+// The token source is captured so that after a successful reauth, the
+// in-memory token source can be reset with the new refresh token —
+// otherwise the retried request would reuse the revoked token.
+func reauthFunctionFromContext(ctx context.Context, serviceLabel string, email string, scopes []string, ts *persistingTokenSource) func(context.Context) error {
+	dependencies, ok := authDependenciesFromContext(ctx)
+	if !ok || dependencies.Reauth == nil {
+		return nil
+	}
+
+	// Derive the service list from the single service label when available.
+	var services []string
+	if serviceLabel != "" {
+		services = []string{serviceLabel}
+	}
+
+	return func(ctx context.Context) error {
+		return dependencies.ReauthCoordinator.run(func() error {
+			return ts.Reauthorize(ctx, func(ctx context.Context, storedToken secrets.Token) (secrets.Token, error) {
+				return dependencies.Reauth(ctx, email, ts.client, services, scopes, &storedToken)
+			})
+		})
+	}
 }
