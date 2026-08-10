@@ -206,6 +206,14 @@ A locked flag behaves as follows:
   gives way silently, since an environment default is a preference rather than a
   request, while an explicit `--plain` is refused for asking output the profile
   forbids.
+- commands that build partial requests from which flags were given treat a locked
+  flag as given, so the locked value reaches the request.
+
+Two kinds of lock are refused rather than half-applied, because their value is
+consumed before locks run: `--home`, which the layout resolver reads straight from
+argv to choose config and credential roots, and any flag marked required, which Kong
+validates during parsing. A name matching no flag at all is refused too. In each case
+the binary declines to run instead of reporting a guarantee it does not have.
 
 Setting a locked flag fails before the command handler runs:
 

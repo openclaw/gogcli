@@ -181,6 +181,9 @@ func executeWithRuntime(args []string, runtime *app.Runtime) (err error) {
 	if err = enforceBakedSafetyProfile(kctx); err != nil {
 		return reportEarlyError(runtimeIO.Err, err)
 	}
+	if err = verifyLockedFlagsExist(kctx); err != nil {
+		return reportEarlyError(runtimeIO.Err, err)
+	}
 	if err = enforceLockedFlags(kctx); err != nil {
 		return reportEarlyError(runtimeIO.Err, err)
 	}
@@ -419,8 +422,8 @@ func applyExplicitOutputModePrecedence(kctx *kong.Context, flags *RootFlags) err
 
 	jsonLocked := lockedFlagNames["json"]
 	plainLocked := lockedFlagNames["plain"]
-	jsonSet := flagProvided(kctx, "json")
-	plainSet := flagProvided(kctx, "plain")
+	jsonSet := flagOnCommandLine(kctx, "json")
+	plainSet := flagOnCommandLine(kctx, "plain")
 	switch {
 	case jsonLocked && !plainLocked:
 		if plainSet {

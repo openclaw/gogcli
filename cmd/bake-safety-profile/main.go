@@ -71,11 +71,14 @@ func generate(profile *safetyprofile.Profile) []byte {
 }
 
 // writeLockedFlags emits the locked flag lookup. Names are hashed like the command
-// rules; the locked values are literals because the flag parser consumes them.
+// rules; the locked values are literals because the flag parser consumes them. The
+// count travels alongside so the runtime can tell that every lock matched a real
+// flag without the names being written down.
 func writeLockedFlags(out *bytes.Buffer, flags []safetyprofile.LockedFlag) {
 	out.WriteString("func bakedSafetyLockedFlag(name string) (string, bool) {\n")
 	if len(flags) == 0 {
 		out.WriteString("\treturn \"\", false\n}\n")
+		out.WriteString("\nfunc bakedSafetyLockedFlagCount() int { return 0 }\n")
 		return
 	}
 	out.WriteString("\tswitch bakedSafetyHashPath([]string{name}) {\n")
@@ -90,6 +93,7 @@ func writeLockedFlags(out *bytes.Buffer, flags []safetyprofile.LockedFlag) {
 		fmt.Fprintf(out, "\tcase 0x%016x:\n\t\treturn %s, true\n", h, strconv.Quote(flag.Value))
 	}
 	out.WriteString("\t}\n\treturn \"\", false\n}\n")
+	fmt.Fprintf(out, "\nfunc bakedSafetyLockedFlagCount() int { return %d }\n", len(flags))
 }
 
 func writeMatcher(out *bytes.Buffer, name string, rules []string, matchAll bool) {

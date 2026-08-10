@@ -236,3 +236,82 @@ version: true
 		t.Fatalf("expected plain output, got %q", result.stdout)
 	}
 }
+
+// A locked name that matches no flag locks nothing, so the binary must refuse to run
+// rather than report a guarantee it cannot keep.
+func TestLockedFlag_NonexistentNameRefusesToRun(t *testing.T) {
+	withBakedSafetyProfile(t, `
+name: locked
+locked-flags:
+  sanitize-contnet: true
+gmail:
+  get: true
+`)
+	result := executeWithTestRuntime(t, []string{
+		"--json", "--account", "a@b.com",
+		"gmail", "get", "m1",
+	}, nil)
+	if result.err == nil {
+		t.Fatalf("a misspelled locked flag must fail, got stdout=%q", result.stdout)
+	}
+	if !strings.Contains(result.err.Error(), "locks 1 flag(s) but only 0 exist") {
+		t.Fatalf("err = %v", result.err)
+	}
+}
+
+// Commands that build partial requests ask which flags were given, so a locked value
+// has to count as given or it never reaches the request. Lock enforcement asks the
+// narrower question and must not see itself as an override.
+func TestLockedFlag_CountsAsProvidedButNotAsTyped(t *testing.T) {
+	previous := lockedFlagNames
+	lockedFlagNames = map[string]bool{"summary": true}
+	t.Cleanup(func() { lockedFlagNames = previous })
+
+	if !flagProvided(nil, "summary") {
+		t.Fatal("a locked flag must count as provided")
+	}
+	if flagOnCommandLine(nil, "summary") {
+		t.Fatal("a locked flag must not count as typed on the command line")
+	}
+}
+
+// --home is read from argv before Kong parses, so a lock on it would leave the
+// caller's own config and credential roots in place while the profile claimed
+// otherwise. Refusing is the honest outcome.
+func TestLockedFlag_HomeIsRefused(t *testing.T) {
+	withBakedSafetyProfile(t, `
+name: locked
+locked-flags:
+  home: /tmp/locked-home
+version: true
+`)
+	result := executeWithTestRuntime(t, []string{"version"}, nil)
+	if result.err == nil {
+		t.Fatalf("locking --home must fail, got stdout=%q", result.stdout)
+	}
+	if !strings.Contains(result.err.Error(), "locks --home") {
+		t.Fatalf("err = %v", result.err)
+	}
+}
+
+// Kong validates required flags before locks run, so a locked required flag can
+// never be satisfied: omitted it fails parsing, supplied it is refused as an override.
+func TestLockedFlag_RequiredFlagIsRefused(t *testing.T) {
+	withBakedSafetyProfile(t, `
+name: locked
+locked-flags:
+  to: someone@example.com
+gmail:
+  send: true
+`)
+	result := executeWithTestRuntime(t, []string{
+		"--json", "--account", "a@b.com",
+		"gmail", "send", "--subject", "x", "--body", "y",
+	}, nil)
+	if result.err == nil {
+		t.Fatalf("locking a required flag must fail, got stdout=%q", result.stdout)
+	}
+	if !strings.Contains(result.err.Error(), "locks required flag") {
+		t.Fatalf("err = %v", result.err)
+	}
+}

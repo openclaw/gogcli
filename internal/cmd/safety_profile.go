@@ -64,6 +64,59 @@ func lockedFlagsNote() string {
 	return fmt.Sprintf("note: %s locked by baked safety profile %q", strings.Join(names, ", "), bakedSafetyProfileName())
 }
 
+// verifyLockedFlagsExist refuses to run when a locked name matches no flag in the
+// CLI. Enforcement only ever asks whether a given flag is locked, so a misspelled
+// name would lock nothing at all and the profile would claim a guarantee it does not
+// have. Counting the matches catches that without the names appearing in the binary.
+func verifyLockedFlagsExist(kctx *kong.Context) error {
+	want := bakedSafetyLockedFlagCount()
+	if want == 0 {
+		return nil
+	}
+	seen := map[string]bool{}
+	var unsupported error
+	var walk func(node *kong.Node)
+	walk = func(node *kong.Node) {
+		if node == nil {
+			return
+		}
+		for _, flag := range node.Flags {
+			if _, locked := bakedSafetyLockedFlag(flag.Name); !locked {
+				continue
+			}
+			seen[flag.Name] = true
+			if err := lockUnsupported(flag); err != nil && unsupported == nil {
+				unsupported = err
+			}
+		}
+		for _, child := range node.Children {
+			walk(child)
+		}
+	}
+	walk(kctx.Model.Node)
+	if len(seen) < want {
+		return usagef("baked safety profile %q locks %d flag(s) but only %d exist; check the locked-flags names", bakedSafetyProfileName(), want, len(seen))
+	}
+	return unsupported
+}
+
+// lockUnsupported names the flags a lock cannot reach, because their value is
+// consumed before locks are applied. Refusing them is honest: the alternative is a
+// profile that reports a guarantee the run never had.
+func lockUnsupported(flag *kong.Flag) error {
+	switch {
+	case flag.Name == "home":
+		// The layout resolver reads --home straight from argv before Kong parses, so
+		// config and credential roots are already chosen by the time locks run.
+		return usagef("baked safety profile %q locks --home, which is read before flags are parsed and cannot be locked", bakedSafetyProfileName())
+	case flag.Required:
+		// Kong rejects a missing required flag during parsing, so a locked one fails
+		// when omitted and is refused as an override when supplied.
+		return usagef("baked safety profile %q locks required flag --%s, which must be supplied on the command line", bakedSafetyProfileName(), flag.Name)
+	}
+	return nil
+}
+
 // enforceLockedFlags applies the profile's locked flag values and refuses a command
 // line that sets one of them. The value is locked rather than merely defaulted so it
 // holds without help from the environment, which the caller may not control.
@@ -79,7 +132,7 @@ func enforceLockedFlags(kctx *kong.Context) error {
 		if !locked {
 			continue
 		}
-		if flagProvided(kctx, flag.Name) {
+		if flagOnCommandLine(kctx, flag.Name) {
 			return usagef("flag --%s is locked by baked safety profile %q", flag.Name, bakedSafetyProfileName())
 		}
 		if err := flag.Value.Parse(kong.ScanFromTokens(kong.Token{Type: kong.FlagValueToken, Value: value}), flag.Value.Target); err != nil {

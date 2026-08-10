@@ -38,3 +38,7 @@ func bakedSafetyLockedFlag(name string) (string, bool) {
 	value, ok := bakedSafetyTestProfile.lockedFlags[name]
 	return value, ok
 }
+
+func bakedSafetyLockedFlagCount() int {
+	return len(bakedSafetyTestProfile.lockedFlags)
+}
