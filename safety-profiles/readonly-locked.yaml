@@ -1,13 +1,14 @@
-name: agent-safe-locked
-description: agent-safe plus pinned output flags. Same command rules; sanitized, marker-wrapped, non-interactive output that the command line cannot switch off. Kept separate so agent-safe keeps its current behaviour. Note that pinning sanitize-content makes `gmail get --format raw` unavailable, since that combination is rejected.
+name: readonly-locked
+description: readonly plus pinned output flags. Same command rules; sanitized, marker-wrapped, non-interactive output and runtime read-only enforcement that the command line cannot switch off. Kept separate so readonly keeps its current behaviour. Note that pinning sanitize-content makes `gmail get --format raw` unavailable, since that combination is rejected.
 
 # Pinned for every invocation. Setting one of these on the command line is an error
-# rather than an override, so a model driving this binary cannot ask for unsanitized
-# or unmarked output, nor leave the process waiting on a prompt nobody will answer.
+# rather than an override. readonly is pinned here as well as denied per command,
+# because it also rejects a mutating request made inside a command this profile allows.
 locked-flags:
   sanitize-content: true
   wrap-untrusted: true
   no-input: true
+  readonly: true
 
 version: true
 schema: true
@@ -15,28 +16,30 @@ schema: true
 gmail:
   search: true
   get: true
-  messages: true
+  messages:
+    search: true
+    modify: false
   attachment: true
   url: true
   history: true
   thread:
     get: true
-    modify: true
+    modify: false
     attachments: true
   labels:
     list: true
     get: true
-    create: true
-    rename: true
-    modify: true
+    create: false
+    rename: false
+    modify: false
     delete: false
-    style: true
+    style: false
   batch:
-    modify: true
+    modify: false
     delete: false
-  archive: true
-  mark-read: true
-  unread: true
+  archive: false
+  mark-read: false
+  unread: false
   trash: false
   send: false
   import: false
@@ -45,8 +48,8 @@ gmail:
   drafts:
     list: true
     get: true
-    create: true
-    update: true
+    create: false
+    update: false
     delete: false
     send: false
   settings: false
@@ -63,38 +66,41 @@ calendar:
   calendars: true
   subscribe: false
   acl: true
-  alias: true
+  alias:
+    list: true
+    set: false
+    unset: false
   events: true
   event: true
-  create: true
-  update: true
-  move: true
+  create: false
+  update: false
+  move: false
   delete: false
   freebusy: true
   respond: false
-  propose-time: true
+  propose-time: false
   colors: true
   conflicts: true
   search: true
   time: true
   users: true
   team: true
-  focus-time: true
+  focus-time: false
   out-of-office: false
   working-location: false
-  create-calendar: true
+  create-calendar: false
 
 drive:
   ls: true
   search: true
   get: true
   download: true
-  upload: true
-  mkdir: true
-  copy: true
+  upload: false
+  mkdir: false
+  copy: false
   delete: false
-  move: true
-  rename: true
+  move: false
+  rename: false
   share: false
   unshare: false
   permissions: true
@@ -103,10 +109,10 @@ drive:
   comments:
     list: true
     get: true
-    create: true
-    update: true
+    create: false
+    update: false
     delete: false
-    reply: true
+    reply: false
 
 sites:
   list: true
@@ -133,13 +139,13 @@ contacts:
 tasks:
   lists:
     list: true
-    create: true
+    create: false
   list: true
   get: true
-  add: true
-  update: true
-  done: true
-  undo: true
+  add: false
+  update: false
+  done: false
+  undo: false
   delete: false
   clear: false
 
@@ -177,8 +183,8 @@ docs:
   comments:
     list: true
     get: true
-    add: true
-    reply: true
+    add: false
+    reply: false
     resolve: false
     delete: false
 
@@ -216,14 +222,14 @@ sheets:
   find-replace: false
   create: false
   copy: false
-  add-tab: true
-  rename-tab: true
+  add-tab: false
+  rename-tab: false
   delete-tab: false
   chart:
     list: true
     get: true
-    create: true
-    update: true
+    create: false
+    update: false
     delete: false
 
 slides:
@@ -251,7 +257,7 @@ chat:
   messages:
     list: true
     send: false
-    react: true
+    react: false
     reactions: false
   threads:
     list: true
@@ -266,7 +272,7 @@ forms:
   publish: false
   add-question: false
   delete-question: false
-  move-question: true
+  move-question: false
   responses:
     list: true
     get: true
@@ -292,7 +298,7 @@ keep:
   list: true
   get: true
   search: true
-  create: true
+  create: false
   delete: false
   attachment: true
 
@@ -349,7 +355,7 @@ aliases:
   search: true
   open: true
   download: true
-  upload: true
+  upload: false
   login: false
   logout: false
   status: true
