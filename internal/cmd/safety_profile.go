@@ -68,6 +68,9 @@ func lockedFlagsNote() string {
 // line that sets one of them. The value is locked rather than merely defaulted so it
 // holds without help from the environment, which the caller may not control.
 func enforceLockedFlags(kctx *kong.Context) error {
+	// Rebuilt per parse: carrying names over would let one run's note describe a
+	// profile that is not in force.
+	lockedFlagNames = map[string]bool{}
 	if !bakedSafetyEnabled() {
 		return nil
 	}
