@@ -170,3 +170,52 @@ func TestLockedFlag_UnlockedProfileAllowsOverride(t *testing.T) {
 		t.Fatalf("unlocked profile must not reject the flag: %v", result.err)
 	}
 }
+
+const lockedJSONProfile = `
+name: locked
+locked-flags:
+  json: true
+version: true
+`
+
+// A locked output mode has to survive a competing one. --json and --plain are
+// mutually exclusive, and the loser is resolved before the command runs, so a lock
+// that lost would surface as a rejected invocation rather than the profile's mode.
+func TestLockedFlag_LockedJSONBeatsExplicitPlain(t *testing.T) {
+	withBakedSafetyProfile(t, lockedJSONProfile)
+	result := executeWithTestRuntime(t, []string{"--plain", "version"}, nil)
+	if result.err != nil {
+		t.Fatalf("locked json with --plain must not fail: %v (stderr=%q)", result.err, result.stderr)
+	}
+	if !strings.HasPrefix(strings.TrimSpace(result.stdout), "{") {
+		t.Fatalf("expected JSON output, got %q", result.stdout)
+	}
+}
+
+func TestLockedFlag_LockedJSONBeatsEnvironmentPlain(t *testing.T) {
+	t.Setenv("GOG_PLAIN", "1")
+	withBakedSafetyProfile(t, lockedJSONProfile)
+	result := executeWithTestRuntime(t, []string{"version"}, nil)
+	if result.err != nil {
+		t.Fatalf("locked json with GOG_PLAIN must not fail: %v (stderr=%q)", result.err, result.stderr)
+	}
+	if !strings.HasPrefix(strings.TrimSpace(result.stdout), "{") {
+		t.Fatalf("expected JSON output, got %q", result.stdout)
+	}
+}
+
+func TestLockedFlag_LockedPlainBeatsExplicitJSON(t *testing.T) {
+	withBakedSafetyProfile(t, `
+name: locked
+locked-flags:
+  plain: true
+version: true
+`)
+	result := executeWithTestRuntime(t, []string{"--json", "version"}, nil)
+	if result.err != nil {
+		t.Fatalf("locked plain with --json must not fail: %v (stderr=%q)", result.err, result.stderr)
+	}
+	if strings.HasPrefix(strings.TrimSpace(result.stdout), "{") {
+		t.Fatalf("expected plain output, got %q", result.stdout)
+	}
+}

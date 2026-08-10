@@ -165,7 +165,6 @@ func executeWithRuntime(args []string, runtime *app.Runtime) (err error) {
 	cli.diagnostics = runtimeIO.Err
 	cli.authOperations = runtime.Auth
 	cli.authMode = googleapi.ParseAuthMode(os.Getenv("GOG_AUTH_MODE"))
-	applyExplicitOutputModePrecedence(kctx, &cli.RootFlags)
 
 	// Make config-backed account and alias resolution available to the
 	// pre-Run enforcement hooks below (enforceGmailNoSend resolves the
@@ -185,6 +184,9 @@ func executeWithRuntime(args []string, runtime *app.Runtime) (err error) {
 	if err = enforceLockedFlags(kctx); err != nil {
 		return reportEarlyError(runtimeIO.Err, err)
 	}
+	// After the locks, so a locked output mode is what precedence resolves around
+	// rather than something a competing mode can leave in conflict.
+	applyExplicitOutputModePrecedence(kctx, &cli.RootFlags)
 	if err = enforceEnabledCommands(kctx, cli.EnableCommands, cli.EnableCommandsExact); err != nil {
 		return reportEarlyError(runtimeIO.Err, err)
 	}
@@ -408,9 +410,18 @@ func applyExplicitOutputModePrecedence(kctx *kong.Context, flags *RootFlags) {
 		return
 	}
 
+	// A locked mode outranks one the caller passed or the environment defaulted:
+	// the profile fixed it, so the competing mode gives way instead of leaving both
+	// set for outfmt.FromFlags to reject.
+	jsonLocked := lockedFlagNames["json"]
+	plainLocked := lockedFlagNames["plain"]
 	jsonSet := flagProvided(kctx, "json")
 	plainSet := flagProvided(kctx, "plain")
 	switch {
+	case jsonLocked && !plainLocked:
+		flags.Plain = false
+	case plainLocked && !jsonLocked:
+		flags.JSON = false
 	case jsonSet && !plainSet:
 		flags.Plain = false
 	case plainSet && !jsonSet:
