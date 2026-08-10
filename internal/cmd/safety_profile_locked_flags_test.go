@@ -178,17 +178,17 @@ locked-flags:
 version: true
 `
 
-// A locked output mode has to survive a competing one. --json and --plain are
-// mutually exclusive, and the loser is resolved before the command runs, so a lock
-// that lost would surface as a rejected invocation rather than the profile's mode.
-func TestLockedFlag_LockedJSONBeatsExplicitPlain(t *testing.T) {
+// --json and --plain are mutually exclusive, so asking for the competing mode is
+// asking for output the profile forbids. Refusing it rather than quietly producing
+// the locked mode keeps typing --plain as visible as typing the locked flag itself.
+func TestLockedFlag_LockedJSONRejectsExplicitPlain(t *testing.T) {
 	withBakedSafetyProfile(t, lockedJSONProfile)
 	result := executeWithTestRuntime(t, []string{"--plain", "version"}, nil)
-	if result.err != nil {
-		t.Fatalf("locked json with --plain must not fail: %v (stderr=%q)", result.err, result.stderr)
+	if result.err == nil {
+		t.Fatalf("--plain against a locked json must fail, got stdout=%q", result.stdout)
 	}
-	if !strings.HasPrefix(strings.TrimSpace(result.stdout), "{") {
-		t.Fatalf("expected JSON output, got %q", result.stdout)
+	if !strings.Contains(result.err.Error(), `--plain conflicts with --json, locked by baked safety profile "locked"`) {
+		t.Fatalf("err = %v", result.err)
 	}
 }
 
@@ -204,7 +204,7 @@ func TestLockedFlag_LockedJSONBeatsEnvironmentPlain(t *testing.T) {
 	}
 }
 
-func TestLockedFlag_LockedPlainBeatsExplicitJSON(t *testing.T) {
+func TestLockedFlag_LockedPlainRejectsExplicitJSON(t *testing.T) {
 	withBakedSafetyProfile(t, `
 name: locked
 locked-flags:
@@ -212,8 +212,25 @@ locked-flags:
 version: true
 `)
 	result := executeWithTestRuntime(t, []string{"--json", "version"}, nil)
+	if result.err == nil {
+		t.Fatalf("--json against a locked plain must fail, got stdout=%q", result.stdout)
+	}
+	if !strings.Contains(result.err.Error(), `--json conflicts with --plain, locked by baked safety profile "locked"`) {
+		t.Fatalf("err = %v", result.err)
+	}
+}
+
+// The locked mode still applies when nothing competes on the command line.
+func TestLockedFlag_LockedPlainAppliesWithoutCompetingFlag(t *testing.T) {
+	withBakedSafetyProfile(t, `
+name: locked
+locked-flags:
+  plain: true
+version: true
+`)
+	result := executeWithTestRuntime(t, []string{"version"}, nil)
 	if result.err != nil {
-		t.Fatalf("locked plain with --json must not fail: %v (stderr=%q)", result.err, result.stderr)
+		t.Fatalf("locked plain must apply: %v (stderr=%q)", result.err, result.stderr)
 	}
 	if strings.HasPrefix(strings.TrimSpace(result.stdout), "{") {
 		t.Fatalf("expected plain output, got %q", result.stdout)

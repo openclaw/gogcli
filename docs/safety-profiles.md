@@ -202,8 +202,10 @@ A locked flag behaves as follows:
 - aliases are covered, since the check is on the canonical flag name.
 - a locked flag that the selected command does not define is ignored rather than
   an error, so per-command flags can be locked without breaking other commands.
-- a locked output mode wins over the competing one. Locking `json` makes `--plain`
-  and `GOG_PLAIN` give way instead of failing as a conflicting mode.
+- a locked output mode wins over the competing one. With `json` locked, `GOG_PLAIN`
+  gives way silently, since an environment default is a preference rather than a
+  request, while an explicit `--plain` is refused for asking output the profile
+  forbids.
 
 Setting a locked flag fails before the command handler runs:
 

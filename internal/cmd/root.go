@@ -186,7 +186,9 @@ func executeWithRuntime(args []string, runtime *app.Runtime) (err error) {
 	}
 	// After the locks, so a locked output mode is what precedence resolves around
 	// rather than something a competing mode can leave in conflict.
-	applyExplicitOutputModePrecedence(kctx, &cli.RootFlags)
+	if err = applyExplicitOutputModePrecedence(kctx, &cli.RootFlags); err != nil {
+		return reportEarlyError(runtimeIO.Err, err)
+	}
 	if err = enforceEnabledCommands(kctx, cli.EnableCommands, cli.EnableCommandsExact); err != nil {
 		return reportEarlyError(runtimeIO.Err, err)
 	}
@@ -405,28 +407,37 @@ func validateJSONTransformFlags(mode outfmt.Mode, flags *RootFlags) error {
 	}
 }
 
-func applyExplicitOutputModePrecedence(kctx *kong.Context, flags *RootFlags) {
+// applyExplicitOutputModePrecedence settles --json against --plain, which cannot
+// both be set. A locked mode outranks the competing one: typing that competing flag
+// is refused the way setting the locked flag itself is, since the caller asked for
+// output the profile forbids, while an environment default gives way silently
+// because it is an ambient setting rather than a request about this invocation.
+func applyExplicitOutputModePrecedence(kctx *kong.Context, flags *RootFlags) error {
 	if flags == nil {
-		return
+		return nil
 	}
 
-	// A locked mode outranks one the caller passed or the environment defaulted:
-	// the profile fixed it, so the competing mode gives way instead of leaving both
-	// set for outfmt.FromFlags to reject.
 	jsonLocked := lockedFlagNames["json"]
 	plainLocked := lockedFlagNames["plain"]
 	jsonSet := flagProvided(kctx, "json")
 	plainSet := flagProvided(kctx, "plain")
 	switch {
 	case jsonLocked && !plainLocked:
+		if plainSet {
+			return usagef("flag --plain conflicts with --json, locked by baked safety profile %q", bakedSafetyProfileName())
+		}
 		flags.Plain = false
 	case plainLocked && !jsonLocked:
+		if jsonSet {
+			return usagef("flag --json conflicts with --plain, locked by baked safety profile %q", bakedSafetyProfileName())
+		}
 		flags.JSON = false
 	case jsonSet && !plainSet:
 		flags.Plain = false
 	case plainSet && !jsonSet:
 		flags.JSON = false
 	}
+	return nil
 }
 
 func reportEarlyError(w io.Writer, err error) error {
