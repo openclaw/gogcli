@@ -14,12 +14,12 @@ type Profile struct {
 	AllowAll   bool
 	AllowRules []string
 	DenyRules  []string
-	// LockedFlags pin a flag to a value the command line cannot change. Sorted by
+	// LockedFlags fix a flag to a value the command line cannot change. Sorted by
 	// name so the generated switch is stable across builds.
 	LockedFlags []LockedFlag
 }
 
-// LockedFlag is one pinned flag. Value is the literal the flag parses, in the same
+// LockedFlag is one locked flag. Value is the literal the flag parses, in the same
 // form an environment variable would supply.
 type LockedFlag struct {
 	Name  string

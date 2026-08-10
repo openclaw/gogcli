@@ -1,7 +1,7 @@
 name: agent-safe-locked
-description: agent-safe plus pinned output flags. Same command rules; sanitized, marker-wrapped, non-interactive output that the command line cannot switch off. Kept separate so agent-safe keeps its current behaviour. Note that pinning sanitize-content makes `gmail get --format raw` unavailable, since that combination is rejected.
+description: agent-safe plus locked output flags. Same command rules; sanitized, marker-wrapped, non-interactive output that the command line cannot switch off. Kept separate so agent-safe keeps its current behaviour. Note that locking sanitize-content makes `gmail get --format raw` unavailable, since that combination is rejected.
 
-# Pinned for every invocation. Setting one of these on the command line is an error
+# Locked for every invocation. Setting one of these on the command line is an error
 # rather than an override, so a model driving this binary cannot ask for unsanitized
 # or unmarked output, nor leave the process waiting on a prompt nobody will answer.
 locked-flags:

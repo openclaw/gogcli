@@ -45,28 +45,28 @@ func enforceBakedSafetyProfile(kctx *kong.Context) error {
 	return nil
 }
 
-// enforceLockedFlags applies the profile's pinned flag values and refuses a command
-// line that sets one of them. The value is pinned rather than merely defaulted so it
-// holds without help from the environment, which the caller may not control.
-// pinnedFlagNames records the flags enforceLockedFlags set, so a command rejecting a
+// lockedFlagNames records the flags enforceLockedFlags set, so a command rejecting a
 // value it never received on the command line can say where that value came from.
-var pinnedFlagNames = map[string]bool{}
+var lockedFlagNames = map[string]bool{}
 
-// pinnedFlagsNote names the pinned flags for display beneath a usage error. A command
+// lockedFlagsNote names the locked flags for display beneath a usage error. A command
 // can reject a combination involving a value the caller never passed, so the note is
-// what explains where that value came from. Empty when nothing is pinned.
-func pinnedFlagsNote() string {
-	if len(pinnedFlagNames) == 0 {
+// what explains where that value came from. Empty when nothing is locked.
+func lockedFlagsNote() string {
+	if len(lockedFlagNames) == 0 {
 		return ""
 	}
-	names := make([]string, 0, len(pinnedFlagNames))
-	for name := range pinnedFlagNames {
+	names := make([]string, 0, len(lockedFlagNames))
+	for name := range lockedFlagNames {
 		names = append(names, "--"+name)
 	}
 	sort.Strings(names)
-	return fmt.Sprintf("note: %s pinned by baked safety profile %q", strings.Join(names, ", "), bakedSafetyProfileName())
+	return fmt.Sprintf("note: %s locked by baked safety profile %q", strings.Join(names, ", "), bakedSafetyProfileName())
 }
 
+// enforceLockedFlags applies the profile's locked flag values and refuses a command
+// line that sets one of them. The value is locked rather than merely defaulted so it
+// holds without help from the environment, which the caller may not control.
 func enforceLockedFlags(kctx *kong.Context) error {
 	if !bakedSafetyEnabled() {
 		return nil
@@ -82,7 +82,7 @@ func enforceLockedFlags(kctx *kong.Context) error {
 		if err := flag.Value.Parse(kong.ScanFromTokens(kong.Token{Type: kong.FlagValueToken, Value: value}), flag.Value.Target); err != nil {
 			return usagef("locked flag --%s: %v", flag.Name, err)
 		}
-		pinnedFlagNames[flag.Name] = true
+		lockedFlagNames[flag.Name] = true
 	}
 	return nil
 }

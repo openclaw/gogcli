@@ -1,8 +1,8 @@
 name: readonly-locked
-description: readonly plus pinned output flags. Same command rules; sanitized, marker-wrapped, non-interactive output and runtime read-only enforcement that the command line cannot switch off. Kept separate so readonly keeps its current behaviour. Note that pinning sanitize-content makes `gmail get --format raw` unavailable, since that combination is rejected.
+description: readonly plus locked output flags. Same command rules; sanitized, marker-wrapped, non-interactive output and runtime read-only enforcement that the command line cannot switch off. Kept separate so readonly keeps its current behaviour. Note that locking sanitize-content makes `gmail get --format raw` unavailable, since that combination is rejected.
 
-# Pinned for every invocation. Setting one of these on the command line is an error
-# rather than an override. readonly is pinned here as well as denied per command,
+# Locked for every invocation. Setting one of these on the command line is an error
+# rather than an override. readonly is locked here as well as denied per command,
 # because it also rejects a mutating request made inside a command this profile allows.
 locked-flags:
   sanitize-content: true

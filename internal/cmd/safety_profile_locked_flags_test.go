@@ -41,25 +41,25 @@ func TestLockedFlag_RejectsAliasOverride(t *testing.T) {
 	}
 }
 
-// The pinned value must reach the command, not merely block overrides. gmail get
+// The locked value must reach the command, not merely block overrides. gmail get
 // refuses --format raw when sanitize is on, so that refusal proves the profile set
 // the flag even though the command line never mentioned it.
-func TestLockedFlag_PinnedValueReachesCommand(t *testing.T) {
+func TestLockedFlag_LockedValueReachesCommand(t *testing.T) {
 	withBakedSafetyProfile(t, lockedFlagsProfile)
 	result := executeWithTestRuntime(t, []string{
 		"--json", "--account", "a@b.com",
 		"gmail", "get", "m1", "--format", "raw",
 	}, nil)
 	if result.err == nil {
-		t.Fatalf("pinned sanitize-content must reject --format raw, got stdout=%q", result.stdout)
+		t.Fatalf("locked sanitize-content must reject --format raw, got stdout=%q", result.stdout)
 	}
 	if !strings.Contains(result.err.Error(), "cannot be used with --format raw") {
 		t.Fatalf("err = %v", result.err)
 	}
 	// The caller never passed the flag, so the printed message has to say where the
 	// value came from. The note is added at display time, not to the error itself.
-	if !strings.Contains(result.stderr, `note: --sanitize-content pinned by baked safety profile "locked"`) {
-		t.Fatalf("stderr lacks the pinned-flag note: %q", result.stderr)
+	if !strings.Contains(result.stderr, `note: --sanitize-content locked by baked safety profile "locked"`) {
+		t.Fatalf("stderr lacks the locked-flag note: %q", result.stderr)
 	}
 }
 

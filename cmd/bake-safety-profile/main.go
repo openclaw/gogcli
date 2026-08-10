@@ -70,8 +70,8 @@ func generate(profile *safetyprofile.Profile) []byte {
 	return out.Bytes()
 }
 
-// writeLockedFlags emits the pinned flag lookup. Names are hashed like the command
-// rules; the pinned values are literals because the flag parser consumes them.
+// writeLockedFlags emits the locked flag lookup. Names are hashed like the command
+// rules; the locked values are literals because the flag parser consumes them.
 func writeLockedFlags(out *bytes.Buffer, flags []safetyprofile.LockedFlag) {
 	out.WriteString("func bakedSafetyLockedFlag(name string) (string, bool) {\n")
 	if len(flags) == 0 {

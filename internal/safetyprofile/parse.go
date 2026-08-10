@@ -126,7 +126,7 @@ func addList(out map[string]bool, value any) error {
 	return nil
 }
 
-// addLockedFlags reads the locked-flags mapping of flag name to pinned value. Values
+// addLockedFlags reads the locked-flags mapping of flag name to locked value. Values
 // are rendered as the literal a flag parses, matching how Kong reads an envar.
 func addLockedFlags(out map[string]string, value any) error {
 	if value == nil {

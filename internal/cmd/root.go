@@ -430,7 +430,7 @@ func reportEarlyError(w io.Writer, err error) error {
 }
 
 // errorMessage renders a command's error for display. Usage errors carry the
-// pinned-flag note, because a baked profile can supply a value the caller never
+// locked-flag note, because a baked profile can supply a value the caller never
 // passed and the rejection then names a flag absent from their command line. The
 // pre-run enforcement errors skip it: those name the locked flag themselves.
 func errorMessage(err error) string {
@@ -438,7 +438,7 @@ func errorMessage(err error) string {
 	if msg == "" || ExitCode(err) != 2 {
 		return msg
 	}
-	note := pinnedFlagsNote()
+	note := lockedFlagsNote()
 	if note == "" {
 		return msg
 	}
