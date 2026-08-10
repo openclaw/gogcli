@@ -9,9 +9,9 @@ Runtime guards such as `--enable-commands`, `--disable-commands`, and
 stronger: the policy is compiled into the binary and cannot be changed with
 flags, environment variables, config files, or shell arguments.
 
-A profile controls which commands may run, and — through `locked-flags` — may also
-fix the value of individual flags, so settings such as sanitized output do not
-depend on the caller passing them. See [Locked Flags](#locked-flags).
+A profile controls which commands may run. Through `locked-flags` it can also fix
+the value of individual flags, so settings such as sanitized output do not depend
+on the caller passing them. See [Locked Flags](#locked-flags).
 
 ## Quick Start
 
@@ -118,11 +118,16 @@ Good for:
 `safety-profiles/agent-safe-locked.yaml` and `safety-profiles/readonly-locked.yaml`
 
 The same command rules as `agent-safe` and `readonly`, plus locked
-`sanitize-content`, `wrap-untrusted`, and `no-input` — and `readonly` on the
-read-only one, which also rejects a mutating request made inside an allowed
-command. Use these when the caller is a model that would otherwise be free to ask
-for unsanitized or unmarked output. Note that locking `sanitize-content` makes
-`gmail get --format raw` unavailable, since that combination is rejected.
+`sanitize-content`, `wrap-untrusted`, and `no-input`. The read-only one also locks
+`readonly`, which rejects a mutating request made inside an allowed command. Note
+that locking `sanitize-content` makes `gmail get --format raw` unavailable, since
+that combination is rejected.
+
+Good for:
+
+- agents that must not be able to request unsanitized or unmarked output
+- unattended jobs where a prompt would hang the caller
+- handing a binary to a caller whose command line you do not control
 
 `safety-profiles/full.yaml`
 
@@ -171,7 +176,7 @@ gmail:
 
 ## Locked Flags
 
-Command rules decide what may run. They cannot decide *how* it runs, so a setting
+Command rules decide what may run. They do not decide how it runs, so a setting
 like sanitized output stays a default that the command line overrides. When the
 command line is written by a model rather than a person, that distinction matters.
 
@@ -191,15 +196,16 @@ itself parses them.
 A locked flag behaves as follows:
 
 - the value is applied before the command runs, so the caller need not pass it.
-- setting that flag on the command line is an error, not an override:
+- setting that flag on the command line is an error, not an override.
+- aliases are covered, since the check is on the canonical flag name.
+- a locked flag that the selected command does not define is ignored rather than
+  an error, so per-command flags can be locked without breaking other commands.
+
+Setting a locked flag fails before the command handler runs:
 
 ```text
 flag --sanitize-content is locked by baked safety profile "agent-safe-locked"
 ```
-
-- aliases are covered, since the check is on the canonical flag name.
-- a locked flag that the selected command does not define is ignored rather than
-  an error, so per-command flags can be locked without breaking other commands.
 
 Because a locked value can make a command reject a combination the caller never
 asked for, usage errors name the locked flags:
@@ -210,27 +216,24 @@ note: --no-input, --sanitize-content, --wrap-untrusted locked by baked safety pr
 ```
 
 Lock deliberately. A flag that participates in a conflict or a requirement removes
-the command paths that contradict it.
+the command paths that contradict it. Locking `sanitize-content` makes
+`gmail get --format raw` unavailable, which is an acceptable trade for an agent
+profile because raw is the unsanitized dump.
 
-Locking `sanitize-content` makes `gmail get --format raw` unavailable, because the
-command rejects that combination — an acceptable trade for an agent profile, since
-raw is the unsanitized dump.
-
-Locking a flag that *requires* another one is the case to avoid. `--reply-all` needs
-a message or thread to reply to, so `locked-flags: {reply-all: true}` breaks every
+Locking a flag that requires another one is the case to avoid. `--reply-all` needs
+a message or thread to reply to, so `locked-flags: {reply-all: true}` breaks an
 ordinary draft:
 
 ```bash
 bin/gog-my-agent gmail drafts create --to you@example.com --subject Hi --body Hi
 ```
+
+The command is allowed by the profile and the caller passed nothing wrong, yet it
+fails because the locked flag demands an argument they had no reason to supply:
+
 ```text
 --reply-all requires --reply-to-message-id or --thread-id
 ```
-
-The command is allowed by the profile and the caller passed nothing wrong; it fails
-because the locked flag demands an argument they had no reason to supply. The same
-applies to `--markdown`, which requires `--replace` or `--append`, and to either half
-of a mutually exclusive pair such as `--all` and `--occurrence`.
 
 Flags that only shape output are the safe candidates.
 
