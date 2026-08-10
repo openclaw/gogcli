@@ -6,7 +6,7 @@ require (
 	cloud.google.com/go/pubsub/v2 v2.6.1
 	filippo.io/age v1.3.1
 	github.com/99designs/keyring v1.2.2
-	github.com/alecthomas/kong v1.16.0
+	github.com/alecthomas/kong v1.16.1
 	github.com/mark3labs/mcp-go v0.57.0
 	github.com/muesli/termenv v0.16.0
 	github.com/stretchr/testify v1.11.1
