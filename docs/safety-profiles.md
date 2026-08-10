@@ -176,9 +176,11 @@ gmail:
 
 ## Locked Flags
 
-Command rules decide what may run. They do not decide how it runs, so a setting
-like sanitized output stays a default that the command line overrides. When the
-command line is written by a model rather than a person, that distinction matters.
+Command rules decide what may run. They do not decide how it runs. Sanitized
+output, for example, happens only when the caller passes `--sanitize-content`,
+and a flag that does take its value from the environment is still overridden by
+the command line. When the command line is written by a model rather than a
+person, neither is a setting you can rely on.
 
 `locked-flags` fixes a flag's value in the profile:
 
