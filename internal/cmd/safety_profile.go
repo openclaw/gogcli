@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"hash/fnv"
+	"reflect"
 	"sort"
 	"strings"
 
@@ -68,7 +69,7 @@ func lockedFlagsNote() string {
 // CLI. Enforcement only ever asks whether a given flag is locked, so a misspelled
 // name would lock nothing at all and the profile would claim a guarantee it does not
 // have. Counting the matches catches that without the names appearing in the binary.
-func verifyLockedFlagsExist(kctx *kong.Context) error {
+func verifyLockedFlagsExist(root *kong.Node) error {
 	want := bakedSafetyLockedFlagCount()
 	if want == 0 {
 		return nil
@@ -93,7 +94,7 @@ func verifyLockedFlagsExist(kctx *kong.Context) error {
 			walk(child)
 		}
 	}
-	walk(kctx.Model.Node)
+	walk(root)
 	if len(seen) < want {
 		return usagef("baked safety profile %q locks %d flag(s) but only %d exist; check the locked-flags names", bakedSafetyProfileName(), want, len(seen))
 	}
@@ -109,6 +110,10 @@ func lockUnsupported(flag *kong.Flag) error {
 		// The layout resolver reads --home straight from argv before Kong parses, so
 		// config and credential roots are already chosen by the time locks run.
 		return usagef("baked safety profile %q locks --home, which is read before flags are parsed and cannot be locked", bakedSafetyProfileName())
+	case flag.Name == "help" || flag.Name == "version":
+		// Kong executes these flags from a BeforeReset hook and exits before normal
+		// defaults, validation, and locked-flag enforcement run.
+		return usagef("baked safety profile %q locks --%s, which runs before flags are parsed and cannot be locked", bakedSafetyProfileName(), flag.Name)
 	case flag.Required:
 		// Kong rejects a missing required flag during parsing, so a locked one fails
 		// when omitted and is refused as an override when supplied.
@@ -127,6 +132,7 @@ func enforceLockedFlags(kctx *kong.Context) error {
 	if !bakedSafetyEnabled() {
 		return nil
 	}
+	lockedPaths := make([]*kong.Path, 0, bakedSafetyLockedFlagCount())
 	for _, flag := range kctx.Flags() {
 		value, locked := bakedSafetyLockedFlag(flag.Name)
 		if !locked {
@@ -135,13 +141,39 @@ func enforceLockedFlags(kctx *kong.Context) error {
 		if flagOnCommandLine(kctx, flag.Name) {
 			return usagef("flag --%s is locked by baked safety profile %q", flag.Name, bakedSafetyProfileName())
 		}
-		if err := flag.Parse(kong.ScanFromTokens(kong.Token{Type: kong.FlagValueToken, Value: value}), flag.Target); err != nil {
+		// Decode into a zero target first. Kong has already resolved defaults and
+		// environment values into flag.Target; decoding there would append to slices
+		// and merge maps instead of replacing them with the locked value. Clear the
+		// shared Set bit while decoding too: Kong's file/path mappers use it to skip
+		// defaults after an explicit value and would otherwise skip the lock itself.
+		lockedTarget := reflect.New(flag.Target.Type()).Elem()
+		wasSet := flag.Set
+		flag.Set = false
+		if err := flag.Parse(kong.ScanFromTokens(kong.Token{Type: kong.FlagValueToken, Value: value}), lockedTarget); err != nil {
+			flag.Set = wasSet
 			// The value is compiled policy data. Do not echo it through parser errors:
 			// profiles can lock arbitrary strings, and the caller may not be allowed to
 			// learn the configured value even when the profile is malformed.
 			return usagef("locked flag --%s has a value that is invalid for that flag", flag.Name)
 		}
+		flag.Apply(lockedTarget)
 		lockedFlagNames[flag.Name] = true
+		lockedPaths = append(lockedPaths, &kong.Path{Flag: flag})
+	}
+	if len(lockedPaths) == 0 {
+		return nil
+	}
+
+	// Parsing a mapper is not the whole Kong contract. Revalidate enums, flag and
+	// command validators, required groups, and xor/and relationships with the locks
+	// represented as supplied flags. Restore the real command-line trace afterwards
+	// so override detection continues to mean "typed by the caller".
+	pathLen := len(kctx.Path)
+	kctx.Path = append(kctx.Path, lockedPaths...)
+	validationErr := kctx.Validate()
+	kctx.Path = kctx.Path[:pathLen]
+	if validationErr != nil {
+		return usagef("baked safety profile %q has locked flags that are invalid for the selected command", bakedSafetyProfileName())
 	}
 	return nil
 }

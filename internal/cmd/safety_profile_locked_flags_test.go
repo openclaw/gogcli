@@ -1,8 +1,12 @@
 package cmd
 
 import (
+	"os"
+	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/alecthomas/kong"
 )
 
 const lockedFlagsProfile = `
@@ -88,6 +92,97 @@ gmail:
 	}
 	if strings.Contains(result.err.Error(), lockedValue) || strings.Contains(result.stderr, lockedValue) {
 		t.Fatalf("locked value leaked through error: err=%v stderr=%q", result.err, result.stderr)
+	}
+}
+
+func TestLockedFlag_ReplacesResolvedSliceValue(t *testing.T) {
+	t.Setenv("LOCKED_FLAG_TEST_ITEMS", "ambient")
+	withBakedSafetyProfile(t, `
+name: locked
+locked-flags:
+  item: profile
+version: true
+`)
+	var cli struct {
+		Items []string `name:"item" env:"LOCKED_FLAG_TEST_ITEMS"`
+	}
+	parser, err := kong.New(&cli)
+	if err != nil {
+		t.Fatalf("new parser: %v", err)
+	}
+	kctx, err := parser.Parse(nil)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if err := enforceLockedFlags(kctx); err != nil {
+		t.Fatalf("enforceLockedFlags: %v", err)
+	}
+	if want := []string{"profile"}; !reflect.DeepEqual(cli.Items, want) {
+		t.Fatalf("locked slice = %#v, want %#v", cli.Items, want)
+	}
+}
+
+func TestLockedFlag_ReplacesStatefulMapperValue(t *testing.T) {
+	dir := t.TempDir()
+	ambient := dir + "/ambient.txt"
+	locked := dir + "/locked.txt"
+	if err := os.WriteFile(ambient, []byte("ambient"), 0o600); err != nil {
+		t.Fatalf("write ambient file: %v", err)
+	}
+	if err := os.WriteFile(locked, []byte("locked"), 0o600); err != nil {
+		t.Fatalf("write locked file: %v", err)
+	}
+	t.Setenv("LOCKED_FLAG_TEST_FILE", ambient)
+	withBakedSafetyProfile(t, `
+name: locked
+locked-flags:
+  file: `+locked+`
+version: true
+`)
+	var cli struct {
+		File string `name:"file" type:"existingfile" env:"LOCKED_FLAG_TEST_FILE"`
+	}
+	parser, err := kong.New(&cli)
+	if err != nil {
+		t.Fatalf("new parser: %v", err)
+	}
+	kctx, err := parser.Parse(nil)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if err := enforceLockedFlags(kctx); err != nil {
+		t.Fatalf("enforceLockedFlags: %v", err)
+	}
+	if cli.File != locked {
+		t.Fatalf("locked existingfile = %q, want %q", cli.File, locked)
+	}
+}
+
+func TestLockedFlag_RevalidatesInjectedValueWithoutLeakingIt(t *testing.T) {
+	const lockedValue = "private-invalid-mode"
+	withBakedSafetyProfile(t, `
+name: locked
+locked-flags:
+  mode: `+lockedValue+`
+version: true
+`)
+	var cli struct {
+		Mode string `name:"mode" enum:"safe,strict" default:"safe"`
+	}
+	parser, err := kong.New(&cli)
+	if err != nil {
+		t.Fatalf("new parser: %v", err)
+	}
+	kctx, err := parser.Parse(nil)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	err = enforceLockedFlags(kctx)
+	if err == nil {
+		t.Fatal("invalid locked enum must fail")
+	}
+	if strings.Contains(err.Error(), lockedValue) {
+		t.Fatalf("locked value leaked through validation error: %v", err)
 	}
 }
 
@@ -348,6 +443,32 @@ version: true
 	}
 	if !strings.Contains(result.err.Error(), "locks --home") {
 		t.Fatalf("err = %v", result.err)
+	}
+}
+
+func TestLockedFlag_PreParseFlagsAreRefusedBeforeTheyCanExit(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		args []string
+	}{
+		{name: "help", args: []string{"--help"}},
+		{name: "version", args: []string{"--version"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			withBakedSafetyProfile(t, `
+name: locked
+locked-flags:
+  `+tc.name+`: false
+version: true
+`)
+			result := executeWithTestRuntime(t, tc.args, nil)
+			if result.err == nil {
+				t.Fatalf("locking --%s must fail before Kong exits, got stdout=%q", tc.name, result.stdout)
+			}
+			if !strings.Contains(result.err.Error(), "runs before flags are parsed") {
+				t.Fatalf("err = %v", result.err)
+			}
+		})
 	}
 }
 

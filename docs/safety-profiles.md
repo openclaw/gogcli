@@ -197,11 +197,12 @@ A locked flag behaves as follows:
   flag as given, so the locked value reaches the request.
 - invalid locked values fail without printing the configured value.
 
-Two kinds of lock are refused rather than half-applied, because their value is
-consumed before locks run: `--home`, which the layout resolver reads straight from
-argv to choose config and credential roots, and any flag marked required, which Kong
-validates during parsing. A name matching no flag at all is refused too. In each case
-the binary declines to run instead of reporting a guarantee it does not have.
+Some locks are refused rather than half-applied: `--home`, which the layout resolver
+reads straight from argv; `--help` and `--version`, which Kong executes before normal
+parsing; and any flag marked required, which Kong validates during parsing. A name
+matching no flag at all is refused too. In each case the binary declines to run
+instead of reporting a guarantee it does not have. Other locked values are decoded
+from a clean state and pass through the same Kong validation as command-line values.
 
 Setting a locked flag fails before the command handler runs:
 
