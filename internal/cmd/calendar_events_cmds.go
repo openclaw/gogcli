@@ -17,7 +17,7 @@ type CalendarEventsCmd struct {
 	Today             bool     `name:"today" help:"Today only (timezone-aware)"`
 	Tomorrow          bool     `name:"tomorrow" help:"Tomorrow only (timezone-aware)"`
 	Week              bool     `name:"week" help:"This week (uses --week-start, default Mon)"`
-	Days              int      `name:"days" help:"Next N days (timezone-aware)" default:"0"`
+	Days              int      `name:"days" help:"Window length in days, measured from --from when given, otherwise from today (timezone-aware)" default:"0"`
 	WeekStart         string   `name:"week-start" help:"Week start day for --week (sun, mon, ...)" default:""`
 	Max               int64    `name:"max" aliases:"limit" help:"Max results" default:"10"`
 	Page              string   `name:"page" aliases:"cursor" help:"Page token"`

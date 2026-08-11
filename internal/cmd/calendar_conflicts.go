@@ -24,7 +24,7 @@ type CalendarConflictsCmd struct {
 	To        string   `name:"to" help:"End time (RFC3339, date, or relative)"`
 	Today     bool     `name:"today" help:"Today only (timezone-aware)"`
 	Week      bool     `name:"week" help:"This week (uses --week-start, default Mon)"`
-	Days      int      `name:"days" help:"Next N days (timezone-aware)" default:"0"`
+	Days      int      `name:"days" help:"Window length in days, measured from --from when given, otherwise from today (timezone-aware)" default:"0"`
 	WeekStart string   `name:"week-start" help:"Week start day for --week (sun, mon, ...)" default:""`
 	Cal       []string `name:"cal" help:"Calendar ID, name, or index (can be repeated)"`
 	Calendars string   `name:"calendars" help:"Comma-separated calendar IDs, names, or indices from 'calendar calendars'"`

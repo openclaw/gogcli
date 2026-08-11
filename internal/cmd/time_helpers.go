@@ -22,7 +22,7 @@ type TimeRangeFlags struct {
 	Today     bool   `name:"today" help:"Today only"`
 	Tomorrow  bool   `name:"tomorrow" help:"Tomorrow only"`
 	Week      bool   `name:"week" help:"This week (uses --week-start, default Mon)"`
-	Days      int    `name:"days" help:"Next N days" default:"0"`
+	Days      int    `name:"days" help:"Window length in days, measured from --from when given, otherwise from today" default:"0"`
 	WeekStart string `name:"week-start" help:"Week start day for --week (sun, mon, ...)" default:""`
 }
 
@@ -160,11 +160,65 @@ type TimeRangeDefaults struct {
 	ToFromOffset time.Duration
 }
 
+// validateTimeRangeFlags rejects window-flag combinations that have no single
+// honest reading, so that a discarded flag is a non-zero exit and a message on
+// stderr rather than a plausible, well-formed answer to a question the caller
+// did not ask.
+func validateTimeRangeFlags(flags TimeRangeFlags) error {
+	fixed := []struct {
+		name string
+		set  bool
+	}{
+		{"--today", flags.Today},
+		{"--tomorrow", flags.Tomorrow},
+		{"--week", flags.Week},
+	}
+
+	var active []string
+	for _, f := range fixed {
+		if f.set {
+			active = append(active, f.name)
+		}
+	}
+	if len(active) > 1 {
+		return usagef("%s and %s select different fixed windows; pass only one", active[0], active[1])
+	}
+
+	if len(active) == 1 {
+		preset := active[0]
+		for _, other := range []struct {
+			name string
+			set  bool
+		}{
+			{"--from", strings.TrimSpace(flags.From) != ""},
+			{"--to", strings.TrimSpace(flags.To) != ""},
+			{"--days", flags.Days != 0},
+		} {
+			if other.set {
+				return usagef("%s selects a fixed window and cannot be combined with %s; use --from/--to (or --from with --days) to describe an arbitrary window", preset, other.name)
+			}
+		}
+	}
+
+	if flags.Days < 0 {
+		return usagef("--days must be a positive number of days, got %d", flags.Days)
+	}
+	if flags.Days > 0 && strings.TrimSpace(flags.To) != "" {
+		return usagef("--days and --to both set the end of the window; pass --from with --days, or --from with --to, but not --days with --to")
+	}
+
+	return nil
+}
+
 // ResolveTimeRangeWithDefaults resolves the time range flags into absolute times,
 // using provided defaults when --from/--to are not set.
 func ResolveTimeRangeWithDefaults(ctx context.Context, svc *calendar.Service, flags TimeRangeFlags, defaults TimeRangeDefaults) (*TimeRange, error) {
 	loc, err := getUserTimezone(ctx, svc)
 	if err != nil {
+		return nil, err
+	}
+
+	if err := validateTimeRangeFlags(flags); err != nil {
 		return nil, err
 	}
 
@@ -176,7 +230,8 @@ func ResolveTimeRangeWithDefaults(ctx context.Context, svc *calendar.Service, fl
 		return nil, newUsageError(err)
 	}
 
-	// Handle convenience flags first
+	// The fixed-window presets describe a whole window on their own, so they
+	// are mutually exclusive with --from/--to/--days (enforced above).
 	switch {
 	case flags.Today:
 		from = startOfDay(now)
@@ -188,21 +243,27 @@ func ResolveTimeRangeWithDefaults(ctx context.Context, svc *calendar.Service, fl
 	case flags.Week:
 		from = startOfWeek(now, weekStart)
 		to = endOfWeek(now, weekStart)
-	case flags.Days > 0:
-		from = startOfDay(now)
-		to = endOfDay(now.AddDate(0, 0, flags.Days-1))
 	default:
-		// Parse --from and --to, or use defaults
-		if flags.From != "" {
+		// Parse --from and --to, or use defaults. --days is a window LENGTH,
+		// so it is measured from --from when one is given and from today
+		// otherwise. It must never silently replace an explicit --from: that
+		// returned a today-anchored window for a future request, at exit 0,
+		// with no way for the caller to notice.
+		switch {
+		case flags.From != "":
 			from, err = parseTimeExpr(flags.From, now, loc)
 			if err != nil {
 				return nil, usagef("invalid --from: %v", err)
 			}
-		} else {
+		case flags.Days > 0:
+			from = startOfDay(now)
+		default:
 			from = now.Add(defaults.FromOffset)
 		}
 
 		switch {
+		case flags.Days > 0:
+			to = endOfDay(from.AddDate(0, 0, flags.Days-1))
 		case flags.To != "":
 			to, err = parseTimeExprEndOfDay(flags.To, now, loc)
 			if err != nil {

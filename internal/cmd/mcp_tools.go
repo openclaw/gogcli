@@ -235,7 +235,7 @@ func mcpCalendarEventsTool() mcpToolSpec {
 			mcp.WithString("to", mcp.Description("End time: RFC3339, date, or relative value")),
 			mcp.WithBoolean("today", mcp.Description("Today only"), mcp.DefaultBool(false)),
 			mcp.WithBoolean("tomorrow", mcp.Description("Tomorrow only"), mcp.DefaultBool(false)),
-			mcp.WithInteger("days", mcp.Description("Next N days"), mcp.DefaultNumber(0), mcp.Min(0), mcp.Max(31)),
+			mcp.WithInteger("days", mcp.Description("Window length in days, measured from the from argument when given, otherwise from today"), mcp.DefaultNumber(0), mcp.Min(0), mcp.Max(31)),
 			mcp.WithInteger("max", mcp.Description("Maximum results"), mcp.DefaultNumber(10), mcp.Min(1), mcp.Max(250)),
 			mcp.WithString("query", mcp.Description("Free text search")),
 		},
