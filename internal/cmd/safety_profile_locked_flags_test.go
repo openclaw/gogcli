@@ -14,16 +14,15 @@ gmail:
   search: true
 `
 
-// A lock must hold whatever spelling reaches it, including the value it already
-// has: accepting a matching value would make the lock depend on what the caller
-// asked for.
-func TestLockedFlag_RejectsEveryFormOfSettingIt(t *testing.T) {
+// A lock must hold whatever spelling asks for a different value, aliases included.
+func TestLockedFlag_RejectsEveryFormOfOverridingIt(t *testing.T) {
 	for _, arg := range []string{
 		"--sanitize-content=false",
-		"--sanitize-content=true",
-		"--sanitize-content",
+		"--sanitize-content=0",
+		"--sanitize-content=FALSE",
+		"--sanitize-content=no",
 		"--sanitize=false",
-		"--safe",
+		"--safe=false",
 	} {
 		t.Run(arg, func(t *testing.T) {
 			withBakedSafetyProfile(t, lockedFlagsProfile)
@@ -38,6 +37,55 @@ func TestLockedFlag_RejectsEveryFormOfSettingIt(t *testing.T) {
 				t.Fatalf("%s: err = %v", arg, result.err)
 			}
 		})
+	}
+}
+
+// Every spelling of the locked value counts as matching, because the comparison is
+// between parsed booleans and not between the strings the caller and profile wrote.
+func TestLockedFlag_AcceptsTheLockedValue(t *testing.T) {
+	for _, arg := range []string{
+		"--sanitize-content",
+		"--sanitize-content=true",
+		"--sanitize-content=1",
+		"--sanitize-content=TRUE",
+		"--sanitize-content=yes",
+		"--safe",
+	} {
+		t.Run(arg, func(t *testing.T) {
+			withBakedSafetyProfile(t, lockedFlagsProfile)
+			result := executeWithTestRuntime(t, []string{
+				"--json", "--account", "a@b.com",
+				"gmail", "get", "m1", arg,
+			}, nil)
+			if result.err != nil && strings.Contains(result.err.Error(), "is locked") {
+				t.Fatalf("%s asks for the locked value and must not be refused: %v", arg, result.err)
+			}
+		})
+	}
+}
+
+func TestLockedFlag_OverrideRefusalOmitsTheNote(t *testing.T) {
+	withBakedSafetyProfile(t, lockedFlagsProfile)
+	result := executeWithTestRuntime(t, []string{
+		"--json", "--account", "a@b.com",
+		"gmail", "get", "m1", "--sanitize-content=false",
+	}, nil)
+	if result.err == nil {
+		t.Fatalf("override must fail, got stdout=%q", result.stdout)
+	}
+	if strings.Contains(result.stderr, "note:") {
+		t.Fatalf("refusal must not append the locked-flag note: %q", result.stderr)
+	}
+}
+
+func TestLockedFlag_UnrelatedErrorCarriesNoNote(t *testing.T) {
+	withBakedSafetyProfile(t, lockedFlagsProfile)
+	result := executeWithTestRuntime(t, []string{"--json", "gmail", "get", "m1"}, nil)
+	if result.err == nil {
+		t.Fatalf("missing account must fail, got stdout=%q", result.stdout)
+	}
+	if strings.Contains(result.stderr, "note:") {
+		t.Fatalf("unrelated error must not carry the locked-flag note: %q", result.stderr)
 	}
 }
 
@@ -299,7 +347,7 @@ version: true
 	if result.err == nil {
 		t.Fatalf("locking --home must fail, got stdout=%q", result.stdout)
 	}
-	if !strings.Contains(result.err.Error(), "locks --home") {
+	if !strings.Contains(result.err.Error(), "only boolean flags can be locked") {
 		t.Fatalf("err = %v", result.err)
 	}
 }

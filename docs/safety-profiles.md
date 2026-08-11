@@ -184,31 +184,19 @@ tokens, or other arbitrary configuration into a binary.
 A locked flag behaves as follows:
 
 - the value is applied before the command runs, so the caller need not pass it.
-- setting that flag on the command line is an error, not an override.
-- aliases are covered, since the check is on the canonical flag name.
-- a locked flag that the selected command does not define is ignored rather than
-  an error, so per-command flags can be locked without breaking other commands.
+- setting that flag to a different value is an error, not an override.
+- a lock matches the canonical flag name, so aliases are covered and it takes effect
+  wherever the selected command has a flag of that name.
 - a locked output mode wins over the competing one. With `json` locked, `GOG_PLAIN`
   gives way silently, since an environment default is a preference rather than a
   request, while an explicit `--plain` is refused for asking output the profile
   forbids.
-- commands that build partial requests from which flags were given treat a locked
-  flag as given, so the locked value reaches the request.
-- override errors name the flag and profile without printing the locked value.
 
-Non-boolean flags are refused. `--help` and `--version`, which Kong executes before
-normal parsing, are refused too, as are `--home`, required flags, and names matching
-no flag at all. In each case the binary declines to run instead of reporting a
-guarantee it does not have.
+A lock the binary cannot enforce is refused at build time rather than silently
+ignored.
 
-Setting a locked flag fails before the command handler runs:
-
-```text
-flag --sanitize-content is locked by baked safety profile "agent-safe-locked"
-```
-
-Because a locked value can make a command reject a combination the caller never
-asked for, usage errors name the locked flags:
+Because a locked value reaches the command without appearing on the command line, a
+usage error that names a locked flag carries a note saying where the value came from:
 
 ```text
 --sanitize-content cannot be used with --format raw
