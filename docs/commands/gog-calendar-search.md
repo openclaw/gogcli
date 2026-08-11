@@ -23,7 +23,7 @@ gog calendar (cal) search (find,query) <query> [flags]
 | `--calendar` | `string` | primary | Calendar ID |
 | `--client` | `string` |  | OAuth client name (selects stored credentials + token bucket) |
 | `--color` | `string` | auto | Color output: auto\|always\|never |
-| `--days` | `int` | 0 | Next N days |
+| `--days` | `int` | 0 | Window length in days, measured from --from when given, otherwise from today |
 | `--disable-commands` | `string` |  | Comma-separated list of disabled commands; dot paths allowed |
 | `-n`<br>`--dry-run`<br>`--dryrun`<br>`--noop`<br>`--preview` | `bool` |  | Do not make changes; print intended actions and exit successfully |
 | `--enable-commands` | `string` |  | Comma-separated list of enabled command prefixes; dot paths allowed (restricts CLI) |
