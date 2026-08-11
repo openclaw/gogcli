@@ -135,8 +135,11 @@ func enforceLockedFlags(kctx *kong.Context) error {
 		if flagOnCommandLine(kctx, flag.Name) {
 			return usagef("flag --%s is locked by baked safety profile %q", flag.Name, bakedSafetyProfileName())
 		}
-		if err := flag.Value.Parse(kong.ScanFromTokens(kong.Token{Type: kong.FlagValueToken, Value: value}), flag.Value.Target); err != nil {
-			return usagef("locked flag --%s: %v", flag.Name, err)
+		if err := flag.Parse(kong.ScanFromTokens(kong.Token{Type: kong.FlagValueToken, Value: value}), flag.Target); err != nil {
+			// The value is compiled policy data. Do not echo it through parser errors:
+			// profiles can lock arbitrary strings, and the caller may not be allowed to
+			// learn the configured value even when the profile is malformed.
+			return usagef("locked flag --%s has a value that is invalid for that flag", flag.Name)
 		}
 		lockedFlagNames[flag.Name] = true
 	}

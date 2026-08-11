@@ -115,20 +115,6 @@ Good for:
 - monitoring
 - read-only agent context gathering
 
-`safety-profiles/agent-safe-locked.yaml` and `safety-profiles/readonly-locked.yaml`
-
-The same command rules as `agent-safe` and `readonly`, plus locked
-`sanitize-content`, `wrap-untrusted`, and `no-input`. The read-only one also locks
-`readonly`, which rejects a mutating request made inside an allowed command. Note
-that locking `sanitize-content` makes `gmail get --format raw` unavailable, since
-that combination is rejected.
-
-Good for:
-
-- agents that must not be able to request unsanitized or unmarked output
-- unattended jobs where a prompt would hang the caller
-- handing a binary to a caller whose command line you do not control
-
 `safety-profiles/full.yaml`
 
 Allows everything. This is mostly useful for smoke testing the build path or for
@@ -193,7 +179,8 @@ locked-flags:
 ```
 
 Values may be booleans, integers, or strings, and are parsed exactly as the flag
-itself parses them.
+itself parses them. Locked values are compiled into the binary and are not secret
+storage; never use this mechanism for access tokens, passwords, or other credentials.
 
 A locked flag behaves as follows:
 
@@ -208,6 +195,7 @@ A locked flag behaves as follows:
   forbids.
 - commands that build partial requests from which flags were given treat a locked
   flag as given, so the locked value reaches the request.
+- invalid locked values fail without printing the configured value.
 
 Two kinds of lock are refused rather than half-applied, because their value is
 consumed before locks run: `--home`, which the layout resolver reads straight from
@@ -250,6 +238,10 @@ fails because the locked flag demands an argument they had no reason to supply:
 ```
 
 Flags that only shape output are the safe candidates.
+
+To make an existing preset stricter without changing its behavior for everyone,
+copy it and add the locks you need. For example, an agent-oriented copy commonly
+locks `sanitize-content`, `wrap-untrusted`, and `no-input` to `true`.
 
 ## Choosing A Profile
 

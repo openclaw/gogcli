@@ -68,10 +68,11 @@ func TestLockedFlag_IgnoredWithoutBakedProfile(t *testing.T) {
 // A value the flag cannot parse must fail loudly; silently skipping it would leave
 // the flag unlocked while the profile claims otherwise.
 func TestLockedFlag_UnparsableValueFails(t *testing.T) {
+	const lockedValue = "notabool-private-policy-value"
 	withBakedSafetyProfile(t, `
 name: locked
 locked-flags:
-  sanitize-content: notabool
+  sanitize-content: `+lockedValue+`
 gmail:
   get: true
 `)
@@ -84,6 +85,9 @@ gmail:
 	}
 	if !strings.Contains(result.err.Error(), "locked flag --sanitize-content") {
 		t.Fatalf("err = %v", result.err)
+	}
+	if strings.Contains(result.err.Error(), lockedValue) || strings.Contains(result.stderr, lockedValue) {
+		t.Fatalf("locked value leaked through error: err=%v stderr=%q", result.err, result.stderr)
 	}
 }
 
@@ -234,6 +238,59 @@ version: true
 	}
 	if strings.HasPrefix(strings.TrimSpace(result.stdout), "{") {
 		t.Fatalf("expected plain output, got %q", result.stdout)
+	}
+}
+
+func TestLockedFlag_FalseJSONAllowsPlain(t *testing.T) {
+	withBakedSafetyProfile(t, `
+name: locked
+locked-flags:
+  json: false
+version: true
+`)
+	result := executeWithTestRuntime(t, []string{"--plain", "version"}, nil)
+	if result.err != nil {
+		t.Fatalf("false json lock must allow plain: %v (stderr=%q)", result.err, result.stderr)
+	}
+	if strings.HasPrefix(strings.TrimSpace(result.stdout), "{") {
+		t.Fatalf("expected plain output, got %q", result.stdout)
+	}
+}
+
+func TestLockedFlag_FalsePlainAllowsJSON(t *testing.T) {
+	withBakedSafetyProfile(t, `
+name: locked
+locked-flags:
+  plain: false
+version: true
+`)
+	result := executeWithTestRuntime(t, []string{"--json", "version"}, nil)
+	if result.err != nil {
+		t.Fatalf("false plain lock must allow json: %v (stderr=%q)", result.err, result.stderr)
+	}
+	if !strings.HasPrefix(strings.TrimSpace(result.stdout), "{") {
+		t.Fatalf("expected JSON output, got %q", result.stdout)
+	}
+}
+
+func TestLockedFlag_FalseJSONOverridesEnvironmentDefaults(t *testing.T) {
+	for _, key := range []string{"GOG_JSON", "GOG_AUTO_JSON"} {
+		t.Run(key, func(t *testing.T) {
+			t.Setenv(key, "1")
+			withBakedSafetyProfile(t, `
+name: locked
+locked-flags:
+  json: false
+version: true
+`)
+			result := executeWithTestRuntime(t, []string{"version"}, nil)
+			if result.err != nil {
+				t.Fatalf("false json lock with %s must not fail: %v (stderr=%q)", key, result.err, result.stderr)
+			}
+			if strings.HasPrefix(strings.TrimSpace(result.stdout), "{") {
+				t.Fatalf("%s overrode locked json=false: %q", key, result.stdout)
+			}
+		})
 	}
 }
 

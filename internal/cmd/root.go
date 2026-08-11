@@ -178,6 +178,13 @@ func executeWithRuntime(args []string, runtime *app.Runtime) (err error) {
 		return runtime.Config, nil
 	}
 
+	// Treat automatic JSON as an ambient default, like the parser's environment
+	// and config-backed defaults. Locked flags run afterwards and therefore remain
+	// authoritative when a profile fixes json to false or plain to true.
+	if envBool("GOG_AUTO_JSON") && !cli.JSON && !cli.Plain && !isTerminalWriter(runtimeIO.Out) {
+		cli.JSON = true
+	}
+
 	if err = enforceBakedSafetyProfile(kctx); err != nil {
 		return reportEarlyError(runtimeIO.Err, err)
 	}
@@ -211,12 +218,6 @@ func executeWithRuntime(args []string, runtime *app.Runtime) (err error) {
 		Level: logLevel,
 	})))
 	defer slog.SetDefault(previousLogger)
-
-	// Optional automatic JSON output when stdout is piped/non-TTY.
-	// We intentionally do this after parsing so `--plain` can override it.
-	if envBool("GOG_AUTO_JSON") && !cli.JSON && !cli.Plain && !isTerminalWriter(runtimeIO.Out) {
-		cli.JSON = true
-	}
 
 	mode, err := outfmt.FromFlags(cli.JSON, cli.Plain)
 	if err != nil {
@@ -420,8 +421,8 @@ func applyExplicitOutputModePrecedence(kctx *kong.Context, flags *RootFlags) err
 		return nil
 	}
 
-	jsonLocked := lockedFlagNames["json"]
-	plainLocked := lockedFlagNames["plain"]
+	jsonLocked := lockedFlagNames["json"] && flags.JSON
+	plainLocked := lockedFlagNames["plain"] && flags.Plain
 	jsonSet := flagOnCommandLine(kctx, "json")
 	plainSet := flagOnCommandLine(kctx, "plain")
 	switch {
