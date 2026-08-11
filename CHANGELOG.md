@@ -3,7 +3,7 @@
 ## 0.35.1 - Unreleased
 
 - Auth: offer one-time re-authorization for expired or revoked stored OAuth refresh tokens after interactive confirmation, while preserving non-interactive recovery guidance. (#973) — thanks @inamiy.
-- Dependencies: update Kong, Cloudflare Workers types, and pnpm to their latest releases.
+- Dependencies: update Kong, Google protobuf/genproto, Cloudflare Workers types, and pnpm to their latest releases.
 
 ## 0.35.0 - 2026-08-09
 
