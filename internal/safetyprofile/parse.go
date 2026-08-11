@@ -3,7 +3,6 @@ package safetyprofile
 import (
 	"fmt"
 	"sort"
-	"strconv"
 	"strings"
 
 	"go.yaml.in/yaml/v3"
@@ -141,16 +140,11 @@ func addLockedFlags(out map[string]string, value any) error {
 		if flag == "" {
 			return fmt.Errorf("empty flag name")
 		}
-		switch typed := raw.(type) {
-		case bool:
-			out[flag] = strconv.FormatBool(typed)
-		case int:
-			out[flag] = strconv.Itoa(typed)
-		case string:
-			out[flag] = typed
-		default:
-			return fmt.Errorf("%s: expected bool, int or string value, got %T", flag, raw)
+		value, ok := raw.(bool)
+		if !ok {
+			return fmt.Errorf("%s: expected boolean value, got %T", flag, raw)
 		}
+		out[flag] = fmt.Sprintf("%t", value)
 	}
 	return nil
 }

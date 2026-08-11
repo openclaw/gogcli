@@ -71,7 +71,7 @@ func generate(profile *safetyprofile.Profile) []byte {
 }
 
 // writeLockedFlags emits the locked flag lookup. Names are hashed like the command
-// rules; the locked values are literals because the flag parser consumes them. The
+// rules; the locked boolean values are literals because the flag parser consumes them. The
 // count travels alongside so the runtime can tell that every lock matched a real
 // flag without the names being written down.
 func writeLockedFlags(out *bytes.Buffer, flags []safetyprofile.LockedFlag) {

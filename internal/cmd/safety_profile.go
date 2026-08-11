@@ -50,6 +50,10 @@ func enforceBakedSafetyProfile(kctx *kong.Context) error {
 // value it never received on the command line can say where that value came from.
 var lockedFlagNames = map[string]bool{}
 
+func resetLockedFlagState() {
+	lockedFlagNames = map[string]bool{}
+}
+
 // lockedFlagsNote names the locked flags for display beneath a usage error. A command
 // can reject a combination involving a value the caller never passed, so the note is
 // what explains where that value came from. Empty when nothing is locked.
@@ -118,6 +122,8 @@ func lockUnsupported(flag *kong.Flag) error {
 		// Kong rejects a missing required flag during parsing, so a locked one fails
 		// when omitted and is refused as an override when supplied.
 		return usagef("baked safety profile %q locks required flag --%s, which must be supplied on the command line", bakedSafetyProfileName(), flag.Name)
+	case !flag.IsBool():
+		return usagef("baked safety profile %q locks --%s, but only boolean flags can be locked", bakedSafetyProfileName(), flag.Name)
 	}
 	return nil
 }
@@ -128,7 +134,7 @@ func lockUnsupported(flag *kong.Flag) error {
 func enforceLockedFlags(kctx *kong.Context) error {
 	// Rebuilt per parse: carrying names over would let one run's note describe a
 	// profile that is not in force.
-	lockedFlagNames = map[string]bool{}
+	resetLockedFlagState()
 	if !bakedSafetyEnabled() {
 		return nil
 	}
@@ -141,20 +147,11 @@ func enforceLockedFlags(kctx *kong.Context) error {
 		if flagOnCommandLine(kctx, flag.Name) {
 			return usagef("flag --%s is locked by baked safety profile %q", flag.Name, bakedSafetyProfileName())
 		}
-		// Decode into a zero target first. Kong has already resolved defaults and
-		// environment values into flag.Target; decoding there would append to slices
-		// and merge maps instead of replacing them with the locked value. Clear the
-		// shared Set bit while decoding too: Kong's file/path mappers use it to skip
-		// defaults after an explicit value and would otherwise skip the lock itself.
+		// Decode into a zero target so the locked boolean replaces any environment or
+		// default value already resolved by Kong.
 		lockedTarget := reflect.New(flag.Target.Type()).Elem()
-		wasSet := flag.Set
-		flag.Set = false
 		if err := flag.Parse(kong.ScanFromTokens(kong.Token{Type: kong.FlagValueToken, Value: value}), lockedTarget); err != nil {
-			flag.Set = wasSet
-			// The value is compiled policy data. Do not echo it through parser errors:
-			// profiles can lock arbitrary strings, and the caller may not be allowed to
-			// learn the configured value even when the profile is malformed.
-			return usagef("locked flag --%s has a value that is invalid for that flag", flag.Name)
+			return usagef("locked boolean flag --%s could not be applied", flag.Name)
 		}
 		flag.Apply(lockedTarget)
 		lockedFlagNames[flag.Name] = true

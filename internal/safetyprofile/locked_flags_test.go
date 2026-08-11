@@ -7,8 +7,7 @@ func TestParse_LockedFlagsValues(t *testing.T) {
 name: locked
 locked-flags:
   sanitize-content: true
-  inline-max-bytes: 8388608
-  format: metadata
+  wrap-untrusted: false
 gmail:
   get: true
 `)
@@ -16,9 +15,8 @@ gmail:
 		t.Fatalf("Parse: %v", err)
 	}
 	want := []LockedFlag{
-		{Name: "format", Value: "metadata"},
-		{Name: "inline-max-bytes", Value: "8388608"},
 		{Name: "sanitize-content", Value: "true"},
+		{Name: "wrap-untrusted", Value: "false"},
 	}
 	if len(profile.LockedFlags) != len(want) {
 		t.Fatalf("locked flags = %#v", profile.LockedFlags)
@@ -27,6 +25,23 @@ gmail:
 		if profile.LockedFlags[i] != w {
 			t.Fatalf("locked flag %d = %#v, want %#v", i, profile.LockedFlags[i], w)
 		}
+	}
+}
+
+func TestParse_LockedFlagsRejectsNonBooleanValues(t *testing.T) {
+	for _, value := range []string{"1", "metadata"} {
+		t.Run(value, func(t *testing.T) {
+			_, err := Parse(`
+name: locked
+locked-flags:
+  format: ` + value + `
+gmail:
+  get: true
+`)
+			if err == nil {
+				t.Fatal("non-boolean locked value must be rejected")
+			}
+		})
 	}
 }
 

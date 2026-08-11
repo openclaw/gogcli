@@ -175,12 +175,11 @@ locked-flags:
   sanitize-content: true
   wrap-untrusted: true
   no-input: true
-  inline-max-bytes: 8388608
 ```
 
-Values may be booleans, integers, or strings, and are parsed exactly as the flag
-itself parses them. Locked values are compiled into the binary and are not secret
-storage; never use this mechanism for access tokens, passwords, or other credentials.
+Locked values and the flags they target must be boolean. This intentionally keeps
+the mechanism focused on safety policy rather than compiling account names, paths,
+tokens, or other arbitrary configuration into a binary.
 
 A locked flag behaves as follows:
 
@@ -195,14 +194,12 @@ A locked flag behaves as follows:
   forbids.
 - commands that build partial requests from which flags were given treat a locked
   flag as given, so the locked value reaches the request.
-- invalid locked values fail without printing the configured value.
+- override errors name the flag and profile without printing the locked value.
 
-Some locks are refused rather than half-applied: `--home`, which the layout resolver
-reads straight from argv; `--help` and `--version`, which Kong executes before normal
-parsing; and any flag marked required, which Kong validates during parsing. A name
-matching no flag at all is refused too. In each case the binary declines to run
-instead of reporting a guarantee it does not have. Other locked values are decoded
-from a clean state and pass through the same Kong validation as command-line values.
+Non-boolean flags are refused. `--help` and `--version`, which Kong executes before
+normal parsing, are refused too, as are `--home`, required flags, and names matching
+no flag at all. In each case the binary declines to run instead of reporting a
+guarantee it does not have.
 
 Setting a locked flag fails before the command handler runs:
 
@@ -223,7 +220,7 @@ the command paths that contradict it. Locking `sanitize-content` makes
 `gmail get --format raw` unavailable, which is an acceptable trade for an agent
 profile because raw is the unsanitized dump.
 
-Locking a flag that requires another one is the case to avoid. `--reply-all` needs
+Locking a boolean flag that requires another one is the case to avoid. `--reply-all` needs
 a message or thread to reply to, so `locked-flags: {reply-all: true}` breaks an
 ordinary draft:
 

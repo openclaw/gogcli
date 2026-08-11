@@ -19,8 +19,8 @@ type Profile struct {
 	LockedFlags []LockedFlag
 }
 
-// LockedFlag is one locked flag. Value is the literal the flag parses, in the same
-// form an environment variable would supply.
+// LockedFlag is one locked boolean flag. Value is "true" or "false" in the form
+// the flag parser consumes.
 type LockedFlag struct {
 	Name  string
 	Value string

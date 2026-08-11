@@ -2,7 +2,7 @@
 
 ## 0.35.1 - Unreleased
 
-- Safety: allow custom baked profiles to lock CLI flag values against command-line, environment, and config overrides without exposing invalid configured values in errors. (#976) — thanks @ronny-rentner.
+- Safety: allow custom baked profiles to lock boolean CLI flags against command-line, environment, and config overrides without echoing the locked value in override errors. (#976) — thanks @ronny-rentner.
 - Auth: offer one-time re-authorization for expired or revoked stored OAuth refresh tokens after interactive confirmation, while preserving non-interactive recovery guidance. (#973) — thanks @inamiy.
 - Dependencies: update Kong, Cloudflare Workers types, and pnpm to their latest releases.
 

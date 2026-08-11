@@ -1,12 +1,8 @@
 package cmd
 
 import (
-	"os"
-	"reflect"
 	"strings"
 	"testing"
-
-	"github.com/alecthomas/kong"
 )
 
 const lockedFlagsProfile = `
@@ -66,144 +62,6 @@ func TestLockedFlag_IgnoredWithoutBakedProfile(t *testing.T) {
 	}, nil)
 	if result.err != nil && strings.Contains(result.err.Error(), "is locked") {
 		t.Fatalf("lock applied without a baked profile: %v", result.err)
-	}
-}
-
-// A value the flag cannot parse must fail loudly; silently skipping it would leave
-// the flag unlocked while the profile claims otherwise.
-func TestLockedFlag_UnparsableValueFails(t *testing.T) {
-	const lockedValue = "notabool-private-policy-value"
-	withBakedSafetyProfile(t, `
-name: locked
-locked-flags:
-  sanitize-content: `+lockedValue+`
-gmail:
-  get: true
-`)
-	result := executeWithTestRuntime(t, []string{
-		"--json", "--account", "a@b.com",
-		"gmail", "get", "m1",
-	}, nil)
-	if result.err == nil {
-		t.Fatalf("unparsable locked value must fail, got stdout=%q", result.stdout)
-	}
-	if !strings.Contains(result.err.Error(), "locked flag --sanitize-content") {
-		t.Fatalf("err = %v", result.err)
-	}
-	if strings.Contains(result.err.Error(), lockedValue) || strings.Contains(result.stderr, lockedValue) {
-		t.Fatalf("locked value leaked through error: err=%v stderr=%q", result.err, result.stderr)
-	}
-}
-
-func TestLockedFlag_ReplacesResolvedSliceValue(t *testing.T) {
-	t.Setenv("LOCKED_FLAG_TEST_ITEMS", "ambient")
-	withBakedSafetyProfile(t, `
-name: locked
-locked-flags:
-  item: profile
-version: true
-`)
-	var cli struct {
-		Items []string `name:"item" env:"LOCKED_FLAG_TEST_ITEMS"`
-	}
-	parser, err := kong.New(&cli)
-	if err != nil {
-		t.Fatalf("new parser: %v", err)
-	}
-	kctx, err := parser.Parse(nil)
-	if err != nil {
-		t.Fatalf("parse: %v", err)
-	}
-	if err := enforceLockedFlags(kctx); err != nil {
-		t.Fatalf("enforceLockedFlags: %v", err)
-	}
-	if want := []string{"profile"}; !reflect.DeepEqual(cli.Items, want) {
-		t.Fatalf("locked slice = %#v, want %#v", cli.Items, want)
-	}
-}
-
-func TestLockedFlag_ReplacesStatefulMapperValue(t *testing.T) {
-	dir := t.TempDir()
-	ambient := dir + "/ambient.txt"
-	locked := dir + "/locked.txt"
-	if err := os.WriteFile(ambient, []byte("ambient"), 0o600); err != nil {
-		t.Fatalf("write ambient file: %v", err)
-	}
-	if err := os.WriteFile(locked, []byte("locked"), 0o600); err != nil {
-		t.Fatalf("write locked file: %v", err)
-	}
-	t.Setenv("LOCKED_FLAG_TEST_FILE", ambient)
-	withBakedSafetyProfile(t, `
-name: locked
-locked-flags:
-  file: `+locked+`
-version: true
-`)
-	var cli struct {
-		File string `name:"file" type:"existingfile" env:"LOCKED_FLAG_TEST_FILE"`
-	}
-	parser, err := kong.New(&cli)
-	if err != nil {
-		t.Fatalf("new parser: %v", err)
-	}
-	kctx, err := parser.Parse(nil)
-	if err != nil {
-		t.Fatalf("parse: %v", err)
-	}
-	if err := enforceLockedFlags(kctx); err != nil {
-		t.Fatalf("enforceLockedFlags: %v", err)
-	}
-	if cli.File != locked {
-		t.Fatalf("locked existingfile = %q, want %q", cli.File, locked)
-	}
-}
-
-func TestLockedFlag_RevalidatesInjectedValueWithoutLeakingIt(t *testing.T) {
-	const lockedValue = "private-invalid-mode"
-	withBakedSafetyProfile(t, `
-name: locked
-locked-flags:
-  mode: `+lockedValue+`
-version: true
-`)
-	var cli struct {
-		Mode string `name:"mode" enum:"safe,strict" default:"safe"`
-	}
-	parser, err := kong.New(&cli)
-	if err != nil {
-		t.Fatalf("new parser: %v", err)
-	}
-	kctx, err := parser.Parse(nil)
-	if err != nil {
-		t.Fatalf("parse: %v", err)
-	}
-	err = enforceLockedFlags(kctx)
-	if err == nil {
-		t.Fatal("invalid locked enum must fail")
-	}
-	if strings.Contains(err.Error(), lockedValue) {
-		t.Fatalf("locked value leaked through validation error: %v", err)
-	}
-}
-
-// Non-bool locks go through the same flag parser, so prove an int actually lands.
-func TestLockedFlag_NonBoolValueReachesCommand(t *testing.T) {
-	withBakedSafetyProfile(t, `
-name: locked
-locked-flags:
-  inline-max-bytes: -1
-gmail:
-  attachment: true
-`)
-	result := executeWithTestRuntime(t, []string{
-		"--json", "--account", "a@b.com",
-		"gmail", "attachment", "m1", "a1",
-	}, nil)
-	if result.err == nil {
-		t.Fatalf("locked inline-max-bytes must reach the command, got stdout=%q", result.stdout)
-	}
-	if !strings.Contains(result.err.Error(), "--inline-max-bytes must be non-negative") {
-		t.Fatalf("err = %v", result.err)
 	}
 }
 
@@ -434,7 +292,7 @@ func TestLockedFlag_HomeIsRefused(t *testing.T) {
 	withBakedSafetyProfile(t, `
 name: locked
 locked-flags:
-  home: /tmp/locked-home
+  home: false
 version: true
 `)
 	result := executeWithTestRuntime(t, []string{"version"}, nil)
@@ -442,6 +300,26 @@ version: true
 		t.Fatalf("locking --home must fail, got stdout=%q", result.stdout)
 	}
 	if !strings.Contains(result.err.Error(), "locks --home") {
+		t.Fatalf("err = %v", result.err)
+	}
+}
+
+func TestLockedFlag_NonBooleanFlagIsRefused(t *testing.T) {
+	withBakedSafetyProfile(t, `
+name: locked
+locked-flags:
+  format: true
+gmail:
+  get: true
+`)
+	result := executeWithTestRuntime(t, []string{
+		"--account", "nobody@example.invalid",
+		"gmail", "get", "m1",
+	}, nil)
+	if result.err == nil {
+		t.Fatal("locking non-boolean --format must fail")
+	}
+	if !strings.Contains(result.err.Error(), "only boolean flags can be locked") {
 		t.Fatalf("err = %v", result.err)
 	}
 }
@@ -469,27 +347,5 @@ version: true
 				t.Fatalf("err = %v", result.err)
 			}
 		})
-	}
-}
-
-// Kong validates required flags before locks run, so a locked required flag can
-// never be satisfied: omitted it fails parsing, supplied it is refused as an override.
-func TestLockedFlag_RequiredFlagIsRefused(t *testing.T) {
-	withBakedSafetyProfile(t, `
-name: locked
-locked-flags:
-  to: someone@example.com
-gmail:
-  send: true
-`)
-	result := executeWithTestRuntime(t, []string{
-		"--json", "--account", "a@b.com",
-		"gmail", "send", "--subject", "x", "--body", "y",
-	}, nil)
-	if result.err == nil {
-		t.Fatalf("locking a required flag must fail, got stdout=%q", result.stdout)
-	}
-	if !strings.Contains(result.err.Error(), "locks required flag") {
-		t.Fatalf("err = %v", result.err)
 	}
 }

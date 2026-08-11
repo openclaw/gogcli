@@ -119,6 +119,7 @@ func Execute(args []string) (err error) {
 }
 
 func executeWithRuntime(args []string, runtime *app.Runtime) (err error) {
+	resetLockedFlagState()
 	runtime = normalizedRuntime(runtime)
 	runtimeIO := runtime.IO
 
@@ -448,7 +449,7 @@ func reportEarlyError(w io.Writer, err error) error {
 	if err == nil {
 		return nil
 	}
-	msg := strings.TrimSpace(errfmt.Format(err))
+	msg := errorMessage(err)
 	if msg != "" {
 		_, _ = fmt.Fprintln(w, msg)
 	}
@@ -461,7 +462,10 @@ func reportEarlyError(w io.Writer, err error) error {
 // pre-run enforcement errors skip it: those name the locked flag themselves.
 func errorMessage(err error) string {
 	msg := strings.TrimSpace(errfmt.Format(err))
-	if msg == "" || ExitCode(err) != 2 {
+	if msg == "" {
+		return msg
+	}
+	if ExitCode(err) != 2 {
 		return msg
 	}
 	note := lockedFlagsNote()
