@@ -3,6 +3,7 @@
 ## 0.35.1 - Unreleased
 
 - Auth: offer one-time re-authorization for expired or revoked stored OAuth refresh tokens after interactive confirmation, while preserving non-interactive recovery guidance. (#973) — thanks @inamiy.
+- Calendar: anchor `--days` at an explicit `--from`, preserve calendar-day windows across DST, and reject conflicting window flags instead of silently discarding them. (#981) — thanks @frankhli843.
 - Dependencies: update Kong, Cloudflare Workers types, and pnpm to their latest releases.
 
 ## 0.35.0 - 2026-08-09

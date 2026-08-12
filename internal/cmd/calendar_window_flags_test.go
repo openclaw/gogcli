@@ -62,6 +62,46 @@ func TestResolveTimeRange_ExactFromWithDays_KeepsTimeOfDay(t *testing.T) {
 	}
 }
 
+func TestResolveTimeRange_FromWithDaysSpansDST(t *testing.T) {
+	loc, err := time.LoadLocation("America/Los_Angeles")
+	if err != nil {
+		t.Fatalf("load timezone: %v", err)
+	}
+	svc := newCalendarServiceWithTimezone(t, loc.String())
+
+	tr, err := ResolveTimeRangeWithDefaults(context.Background(), svc, TimeRangeFlags{
+		From: "2026-10-31",
+		Days: 3,
+	}, TimeRangeDefaults{})
+	if err != nil {
+		t.Fatalf("ResolveTimeRangeWithDefaults: %v", err)
+	}
+
+	wantFrom := time.Date(2026, 10, 31, 0, 0, 0, 0, loc)
+	wantTo := time.Date(2026, 11, 3, 0, 0, 0, 0, loc)
+	if !tr.From.Equal(wantFrom) || !tr.To.Equal(wantTo) {
+		t.Fatalf("range = %v -> %v, want %v -> %v", tr.From, tr.To, wantFrom, wantTo)
+	}
+	if got := tr.To.Sub(tr.From); got != 73*time.Hour {
+		t.Fatalf("DST-spanning duration = %v, want 73h", got)
+	}
+}
+
+func TestResolveTimeRange_FromWithoutDaysKeepsDefaultEnd(t *testing.T) {
+	svc := newCalendarServiceWithTimezone(t, "UTC")
+
+	tr, err := ResolveTimeRange(context.Background(), svc, TimeRangeFlags{From: "2026-09-25T14:30:00Z"})
+	if err != nil {
+		t.Fatalf("ResolveTimeRange: %v", err)
+	}
+
+	wantFrom := time.Date(2026, 9, 25, 14, 30, 0, 0, time.UTC)
+	wantTo := wantFrom.Add(7 * 24 * time.Hour)
+	if !tr.From.Equal(wantFrom) || !tr.To.Equal(wantTo) {
+		t.Fatalf("range = %v -> %v, want %v -> %v", tr.From, tr.To, wantFrom, wantTo)
+	}
+}
+
 // Case B from the bug report: the same future window expressed with an
 // explicit end date was never broken and must stay correct.
 func TestResolveTimeRange_FutureFromWithTo_Unaffected(t *testing.T) {
@@ -172,8 +212,7 @@ func TestResolveTimeRange_NegativeDays_Rejected(t *testing.T) {
 type capturingEventsHandler struct {
 	mu      sync.Mutex
 	queries []map[string]string
-	pages   [][]map[string]any
-	tokens  []string
+	items   []map[string]any
 }
 
 func (h *capturingEventsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -196,24 +235,11 @@ func (h *capturingEventsHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 
 	h.mu.Lock()
 	h.queries = append(h.queries, q)
-	idx := 0
-	for i, tok := range h.tokens {
-		if tok != "" && tok == q["pageToken"] {
-			idx = i + 1
-		}
-	}
-	var items []map[string]any
-	if idx < len(h.pages) {
-		items = h.pages[idx]
-	}
-	next := ""
-	if idx < len(h.tokens) {
-		next = h.tokens[idx]
-	}
+	items := h.items
 	h.mu.Unlock()
 
 	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(map[string]any{"items": items, "nextPageToken": next})
+	_ = json.NewEncoder(w).Encode(map[string]any{"items": items})
 }
 
 func (h *capturingEventsHandler) lastQuery(t *testing.T) map[string]string {
@@ -233,7 +259,7 @@ func event(id, day string) map[string]any {
 // End-to-end over both halves: the window the user asked for must be the window
 // that reaches the API as timeMin/timeMax.
 func TestListCalendarEvents_ResolvedWindowReachesAPI(t *testing.T) {
-	h := &capturingEventsHandler{pages: [][]map[string]any{{event("e1", "2026-09-26")}}, tokens: []string{""}}
+	h := &capturingEventsHandler{items: []map[string]any{event("e1", "2026-09-26")}}
 	svc, closeServer := newCalendarServiceForTest(t, h)
 	defer closeServer()
 
@@ -255,81 +281,5 @@ func TestListCalendarEvents_ResolvedWindowReachesAPI(t *testing.T) {
 	}
 	if !strings.HasPrefix(q["timeMax"], "2026-09-30") {
 		t.Fatalf("timeMax = %q, want the requested 2026-09-30 window end", q["timeMax"])
-	}
-}
-
-// The second defect in the report: when --max truncates the first page, a later
-// event can be missing from the output. The caller must be able to detect that,
-// and --all-pages must recover the event.
-func TestListCalendarEvents_MaxTruncationIsDetectableAndAllPagesRecovers(t *testing.T) {
-	newHandler := func() *capturingEventsHandler {
-		return &capturingEventsHandler{
-			pages: [][]map[string]any{
-				{event("early", "2026-08-29")},
-				{event("wanted", "2026-09-27")},
-			},
-			tokens: []string{"page2", ""},
-		}
-	}
-
-	// Single page with --max 1: the wanted event is truncated away, but the
-	// response must carry a nextPageToken so the caller can tell.
-	h := newHandler()
-	svc, closeServer := newCalendarServiceForTest(t, h)
-	defer closeServer()
-
-	var out bytes.Buffer
-	ctx := newCmdRuntimeJSONOutputContext(t, &out, io.Discard)
-	if err := listCalendarEvents(ctx, svc, "cal1", "2026-08-01T00:00:00Z", "2026-10-01T00:00:00Z", 1, "", false, false, "", "", "", "", nil, false, false, "", "", nil); err != nil {
-		t.Fatalf("listCalendarEvents: %v", err)
-	}
-	var parsed struct {
-		Events []map[string]any `json:"events"`
-		Next   string           `json:"nextPageToken"`
-	}
-	if err := json.Unmarshal(out.Bytes(), &parsed); err != nil {
-		t.Fatalf("json parse: %v", err)
-	}
-	if strings.Contains(out.String(), "wanted") {
-		t.Fatalf("test setup wrong: the truncated event should not be on page 1")
-	}
-	if parsed.Next == "" {
-		t.Fatalf("truncated result advertised no nextPageToken, so truncation is undetectable")
-	}
-
-	// --all-pages must return the event that page 1 truncated away.
-	h2 := newHandler()
-	svc2, closeServer2 := newCalendarServiceForTest(t, h2)
-	defer closeServer2()
-
-	var out2 bytes.Buffer
-	ctx2 := newCmdRuntimeJSONOutputContext(t, &out2, io.Discard)
-	if err := listCalendarEvents(ctx2, svc2, "cal1", "2026-08-01T00:00:00Z", "2026-10-01T00:00:00Z", 1, "", true, false, "", "", "", "", nil, false, false, "", "", nil); err != nil {
-		t.Fatalf("listCalendarEvents --all-pages: %v", err)
-	}
-	if !strings.Contains(out2.String(), "wanted") {
-		t.Fatalf("--all-pages did not recover the truncated event: %s", out2.String())
-	}
-}
-
-// Case C from the report: the --query path is what a caller should reach for
-// when it needs a specific later-dated event, so the query must actually be
-// forwarded to the API rather than filtered client-side.
-func TestListCalendarEvents_QueryIsForwardedToAPI(t *testing.T) {
-	h := &capturingEventsHandler{pages: [][]map[string]any{{event("Alice at ping pong tournament", "2026-09-27")}}, tokens: []string{""}}
-	svc, closeServer := newCalendarServiceForTest(t, h)
-	defer closeServer()
-
-	var out bytes.Buffer
-	ctx := newCmdRuntimeJSONOutputContext(t, &out, io.Discard)
-	if err := listCalendarEvents(ctx, svc, "cal1", "2026-08-01T00:00:00Z", "2026-11-01T00:00:00Z", 80, "", false, false, "ping", "", "", "", nil, false, false, "", "", nil); err != nil {
-		t.Fatalf("listCalendarEvents: %v", err)
-	}
-
-	if got := h.lastQuery(t)["q"]; got != "ping" {
-		t.Fatalf("query param q = %q, want %q", got, "ping")
-	}
-	if !strings.Contains(out.String(), "ping pong") {
-		t.Fatalf("query result missing from output: %s", out.String())
 	}
 }

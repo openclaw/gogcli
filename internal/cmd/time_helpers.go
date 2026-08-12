@@ -213,12 +213,12 @@ func validateTimeRangeFlags(flags TimeRangeFlags) error {
 // ResolveTimeRangeWithDefaults resolves the time range flags into absolute times,
 // using provided defaults when --from/--to are not set.
 func ResolveTimeRangeWithDefaults(ctx context.Context, svc *calendar.Service, flags TimeRangeFlags, defaults TimeRangeDefaults) (*TimeRange, error) {
-	loc, err := getUserTimezone(ctx, svc)
-	if err != nil {
+	if err := validateTimeRangeFlags(flags); err != nil {
 		return nil, err
 	}
 
-	if err := validateTimeRangeFlags(flags); err != nil {
+	loc, err := getUserTimezone(ctx, svc)
+	if err != nil {
 		return nil, err
 	}
 
