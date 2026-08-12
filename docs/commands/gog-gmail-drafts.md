@@ -18,8 +18,11 @@ gog gmail (mail,email) drafts (draft) <command>
 
 - [gog gmail drafts create](gog-gmail-drafts-create.md) - Create a draft
 - [gog gmail drafts delete](gog-gmail-drafts-delete.md) - Permanently delete a draft (not recoverable; drafts are not moved to Trash)
+- [gog gmail drafts forward](gog-gmail-drafts-forward.md) - Save a forward as a draft
 - [gog gmail drafts get](gog-gmail-drafts-get.md) - Get draft details
 - [gog gmail drafts list](gog-gmail-drafts-list.md) - List drafts
+- [gog gmail drafts reply](gog-gmail-drafts-reply.md) - Save a reply as a draft
+- [gog gmail drafts reply-all](gog-gmail-drafts-reply-all.md) - Save a reply-all as a draft
 - [gog gmail drafts send](gog-gmail-drafts-send.md) - Send a draft
 - [gog gmail drafts update](gog-gmail-drafts-update.md) - Update a draft
 

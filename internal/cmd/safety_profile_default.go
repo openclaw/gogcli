@@ -16,6 +16,7 @@ var bakedSafetyTestProfile struct {
 	allowAll      bool
 	allow         map[string]bool
 	deny          map[string]bool
+	lockedFlags   map[string]string
 }
 
 func bakedSafetyEnabled() bool       { return bakedSafetyTestProfile.enabled }
@@ -31,4 +32,13 @@ func bakedSafetyAllowMatch(path []string) bool {
 
 func bakedSafetyDenyMatch(path []string) bool {
 	return commandPathMatches(bakedSafetyTestProfile.deny, path)
+}
+
+func bakedSafetyLockedFlag(name string) (string, bool) {
+	value, ok := bakedSafetyTestProfile.lockedFlags[name]
+	return value, ok
+}
+
+func bakedSafetyLockedFlagCount() int {
+	return len(bakedSafetyTestProfile.lockedFlags)
 }

@@ -101,8 +101,8 @@ gog --account you@gmail.com \
 ```
 
 See [Automation](docs/automation.md) for output and exit-code contracts, and
-[Safety Profiles](docs/safety-profiles.md) for binaries with command policy
-baked in at build time.
+[Safety Profiles](docs/safety-profiles.md) for binaries with command policy and
+locked flag values baked in at build time.
 
 ## Accounts and authentication
 

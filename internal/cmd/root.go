@@ -119,6 +119,7 @@ func Execute(args []string) (err error) {
 }
 
 func executeWithRuntime(args []string, runtime *app.Runtime) (err error) {
+	resetLockedFlagState()
 	runtime = normalizedRuntime(runtime)
 	runtimeIO := runtime.IO
 
@@ -139,6 +140,9 @@ func executeWithRuntime(args []string, runtime *app.Runtime) (err error) {
 
 	parser, cli, err := newParserWithWriters(helpDescription(runtime), runtimeIO.Out, runtimeIO.Err)
 	if err != nil {
+		return reportEarlyError(runtimeIO.Err, err)
+	}
+	if err = verifyLockedFlagsExist(parser.Model.Node); err != nil {
 		return reportEarlyError(runtimeIO.Err, err)
 	}
 	args = rewriteDocsCellUpdateContentArgs(parser.Model, args)
@@ -165,7 +169,6 @@ func executeWithRuntime(args []string, runtime *app.Runtime) (err error) {
 	cli.diagnostics = runtimeIO.Err
 	cli.authOperations = runtime.Auth
 	cli.authMode = googleapi.ParseAuthMode(os.Getenv("GOG_AUTH_MODE"))
-	applyExplicitOutputModePrecedence(kctx, &cli.RootFlags)
 
 	// Make config-backed account and alias resolution available to the
 	// pre-Run enforcement hooks below (enforceGmailNoSend resolves the
@@ -179,7 +182,22 @@ func executeWithRuntime(args []string, runtime *app.Runtime) (err error) {
 		return runtime.Config, nil
 	}
 
+	// Treat automatic JSON as an ambient default, like the parser's environment
+	// and config-backed defaults. Locked flags run afterwards and therefore remain
+	// authoritative when a profile fixes json to false or plain to true.
+	if envBool("GOG_AUTO_JSON") && !cli.JSON && !cli.Plain && !isTerminalWriter(runtimeIO.Out) {
+		cli.JSON = true
+	}
+
 	if err = enforceBakedSafetyProfile(kctx); err != nil {
+		return reportEarlyError(runtimeIO.Err, err)
+	}
+	if err = enforceLockedFlags(kctx); err != nil {
+		return reportEarlyError(runtimeIO.Err, err)
+	}
+	// After the locks, so a locked output mode is what precedence resolves around
+	// rather than something a competing mode can leave in conflict.
+	if err = applyExplicitOutputModePrecedence(kctx, &cli.RootFlags); err != nil {
 		return reportEarlyError(runtimeIO.Err, err)
 	}
 	if err = enforceEnabledCommands(kctx, cli.EnableCommands, cli.EnableCommandsExact); err != nil {
@@ -201,12 +219,6 @@ func executeWithRuntime(args []string, runtime *app.Runtime) (err error) {
 		Level: logLevel,
 	})))
 	defer slog.SetDefault(previousLogger)
-
-	// Optional automatic JSON output when stdout is piped/non-TTY.
-	// We intentionally do this after parsing so `--plain` can override it.
-	if envBool("GOG_AUTO_JSON") && !cli.JSON && !cli.Plain && !isTerminalWriter(runtimeIO.Out) {
-		cli.JSON = true
-	}
 
 	mode, err := outfmt.FromFlags(cli.JSON, cli.Plain)
 	if err != nil {
@@ -334,13 +346,13 @@ func executeWithRuntime(args []string, runtime *app.Runtime) (err error) {
 	err = stableExitCode(err)
 
 	if u := ui.FromContext(ctx); u != nil {
-		msg := strings.TrimSpace(errfmt.Format(err))
+		msg := errorMessage(err)
 		if msg != "" {
 			u.Err().Error(msg)
 		}
 		return err
 	}
-	msg := strings.TrimSpace(errfmt.Format(err))
+	msg := errorMessage(err)
 	if msg != "" {
 		_, _ = fmt.Fprintln(runtimeIO.Err, msg)
 	}
@@ -400,30 +412,69 @@ func validateJSONTransformFlags(mode outfmt.Mode, flags *RootFlags) error {
 	}
 }
 
-func applyExplicitOutputModePrecedence(kctx *kong.Context, flags *RootFlags) {
+// applyExplicitOutputModePrecedence settles --json against --plain, which cannot
+// both be set. A locked mode outranks the competing one: typing that competing flag
+// is refused the way setting the locked flag itself is, since the caller asked for
+// output the profile forbids, while an environment default gives way silently
+// because it is an ambient setting rather than a request about this invocation.
+func applyExplicitOutputModePrecedence(kctx *kong.Context, flags *RootFlags) error {
 	if flags == nil {
-		return
+		return nil
 	}
 
-	jsonSet := flagProvided(kctx, "json")
-	plainSet := flagProvided(kctx, "plain")
+	jsonLocked := lockedFlagNames["json"] && flags.JSON
+	plainLocked := lockedFlagNames["plain"] && flags.Plain
+	jsonSet := flagOnCommandLine(kctx, "json")
+	plainSet := flagOnCommandLine(kctx, "plain")
 	switch {
+	case jsonLocked && !plainLocked:
+		if plainSet {
+			return usagef("flag --plain conflicts with --json, locked by baked safety profile %q", bakedSafetyProfileName())
+		}
+		flags.Plain = false
+	case plainLocked && !jsonLocked:
+		if jsonSet {
+			return usagef("flag --json conflicts with --plain, locked by baked safety profile %q", bakedSafetyProfileName())
+		}
+		flags.JSON = false
 	case jsonSet && !plainSet:
 		flags.Plain = false
 	case plainSet && !jsonSet:
 		flags.JSON = false
 	}
+	return nil
 }
 
 func reportEarlyError(w io.Writer, err error) error {
 	if err == nil {
 		return nil
 	}
-	msg := strings.TrimSpace(errfmt.Format(err))
+	msg := errorMessage(err)
 	if msg != "" {
 		_, _ = fmt.Fprintln(w, msg)
 	}
 	return err
+}
+
+// errorMessage formats err for display and appends a special locked-flag note to
+// errors that mention another locked flag, as when those flags are mutually exclusive.
+func errorMessage(err error) string {
+	msg := strings.TrimSpace(errfmt.Format(err))
+	if msg == "" {
+		return msg
+	}
+	if ExitCode(err) != 2 {
+		return msg
+	}
+	var refusal lockedFlagRefusal
+	if errors.As(err, &refusal) {
+		return msg
+	}
+	note := lockedFlagsNote(msg)
+	if note == "" {
+		return msg
+	}
+	return msg + "\n" + note
 }
 
 func isTerminalWriter(w io.Writer) bool {

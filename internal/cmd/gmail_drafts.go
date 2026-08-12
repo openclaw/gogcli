@@ -17,12 +17,15 @@ import (
 )
 
 type GmailDraftsCmd struct {
-	List   GmailDraftsListCmd   `cmd:"" name:"list" aliases:"ls" help:"List drafts"`
-	Get    GmailDraftsGetCmd    `cmd:"" name:"get" aliases:"info,show" help:"Get draft details"`
-	Delete GmailDraftsDeleteCmd `cmd:"" name:"delete" aliases:"rm,del,remove" help:"Permanently delete a draft (not recoverable; drafts are not moved to Trash)"`
-	Send   GmailDraftsSendCmd   `cmd:"" name:"send" aliases:"post" help:"Send a draft"`
-	Create GmailDraftsCreateCmd `cmd:"" name:"create" aliases:"add,new" help:"Create a draft"`
-	Update GmailDraftsUpdateCmd `cmd:"" name:"update" aliases:"edit,set" help:"Update a draft"`
+	List     GmailDraftsListCmd     `cmd:"" name:"list" aliases:"ls" help:"List drafts"`
+	Get      GmailDraftsGetCmd      `cmd:"" name:"get" aliases:"info,show" help:"Get draft details"`
+	Delete   GmailDraftsDeleteCmd   `cmd:"" name:"delete" aliases:"rm,del,remove" help:"Permanently delete a draft (not recoverable; drafts are not moved to Trash)"`
+	Send     GmailDraftsSendCmd     `cmd:"" name:"send" aliases:"post" help:"Send a draft"`
+	Create   GmailDraftsCreateCmd   `cmd:"" name:"create" aliases:"add,new" help:"Create a draft"`
+	Update   GmailDraftsUpdateCmd   `cmd:"" name:"update" aliases:"edit,set" help:"Update a draft"`
+	Reply    GmailDraftsReplyCmd    `cmd:"" name:"reply" help:"Save a reply as a draft"`
+	ReplyAll GmailDraftsReplyAllCmd `cmd:"" name:"reply-all" aliases:"replyall" help:"Save a reply-all as a draft"`
+	Forward  GmailDraftsForwardCmd  `cmd:"" name:"forward" aliases:"fwd" help:"Save a forward as a draft"`
 }
 
 type GmailDraftsListCmd struct {
@@ -302,7 +305,12 @@ type draftComposeInput struct {
 	Attach     []string
 	// PrebuiltAttachments carry already-resolved attachment bytes (e.g. existing
 	// draft attachments preserved across an update) alongside any --attach paths.
-	PrebuiltAttachments    []mailmime.Attachment
+	PrebuiltAttachments []mailmime.Attachment
+	// KeptToRecipients carries the existing draft's To recipients when an
+	// update omits --to (kept-existing). They bypass the strict flag parse:
+	// the header was already resolved by keptDraftRecipients, so a
+	// legacy-malformed header cannot fail a body-only edit.
+	KeptToRecipients       []string
 	From                   string
 	AutoFromAddressedAlias bool
 }
@@ -322,6 +330,22 @@ func (c draftComposeInput) validate() error {
 		return usage("required: --body, --body-file, --body-html, or --body-html-file")
 	}
 	return nil
+}
+
+// keptDraftRecipients converts an existing draft's To header into the
+// recipient list for a rebuild when an update omits --to. It prefers the
+// address-aware parse (display-name commas stay one recipient) but must not
+// reject a draft that predates strict parsing: on any parse failure it falls
+// back to splitCSV's verbatim fragments, so a body-only edit of a
+// legacy-malformed header (e.g. "alice@", or Outlook-style semicolon
+// separators) cannot fail. The kept fragments then render exactly as they
+// did before this parser: the MIME writer passes an unextractable value
+// through verbatim and normalizes one it can extract addresses from.
+func keptDraftRecipients(header string) []string {
+	if recipients, err := parseRecipientCSV("--to", header); err == nil {
+		return recipients
+	}
+	return splitCSV(header)
 }
 
 func buildDraftMessage(ctx context.Context, svc *gmail.Service, account string, input draftComposeInput) (*gmail.Message, draftThreading, []mailmime.AttachmentMetadata, error) {
@@ -381,9 +405,16 @@ func buildDraftMessage(ctx context.Context, svc *gmail.Service, account string, 
 		subject = autoReplySubject("", info.Subject)
 	}
 
-	toRecipients := splitCSV(input.To)
-	ccRecipients := splitCSV(input.Cc)
-	bccRecipients := splitCSV(input.Bcc)
+	toRecipients, ccRecipients, bccRecipients, err := parseComposeRecipients(input.To, input.Cc, input.Bcc)
+	if err != nil {
+		return nil, draftThreading{}, nil, err
+	}
+	// A kept-existing To (update without --to) was resolved leniently by
+	// keptDraftRecipients; input.To is empty then, so the parse above yields
+	// nil and the kept recipients take over.
+	if len(input.KeptToRecipients) > 0 {
+		toRecipients = input.KeptToRecipients
+	}
 	if input.ReplyAll {
 		recipients, recipientErr := buildReplyRecipients(
 			info,
@@ -397,17 +428,16 @@ func buildDraftMessage(ctx context.Context, svc *gmail.Service, account string, 
 		if recipientErr != nil {
 			return nil, draftThreading{}, nil, recipientErr
 		}
-		toRecipients = formatMailboxes(recipients.To)
-		ccRecipients = formatMailboxes(recipients.Cc)
-		bccRecipients = formatMailboxes(recipients.Bcc)
-		if strings.TrimSpace(input.To) != "" {
-			toRecipients = splitCSV(input.To)
+		// --reply-all auto-populates from the original message, but an explicit
+		// flag (parsed above) overrides the corresponding auto-populated field.
+		if strings.TrimSpace(input.To) == "" {
+			toRecipients = formatMailboxes(recipients.To)
 		}
-		if strings.TrimSpace(input.Cc) != "" {
-			ccRecipients = splitCSV(input.Cc)
+		if strings.TrimSpace(input.Cc) == "" {
+			ccRecipients = formatMailboxes(recipients.Cc)
 		}
-		if strings.TrimSpace(input.Bcc) != "" {
-			bccRecipients = splitCSV(input.Bcc)
+		if strings.TrimSpace(input.Bcc) == "" {
+			bccRecipients = formatMailboxes(recipients.Bcc)
 		}
 	}
 
@@ -728,10 +758,16 @@ func (c *GmailDraftsCreateCmd) Run(ctx context.Context, flags *RootFlags) error 
 		return headerErr
 	}
 
+	// Parsed identically in buildDraftMessage, so the dry-run reports the built lists.
+	toRecipients, ccRecipients, bccRecipients, err := parseComposeRecipients(input.To, input.Cc, input.Bcc)
+	if err != nil {
+		return err
+	}
+
 	if dryRunErr := dryRunExit(ctx, flags, "gmail.drafts.create", map[string]any{
-		"to":                        splitCSV(input.To),
-		"cc":                        splitCSV(input.Cc),
-		"bcc":                       splitCSV(input.Bcc),
+		"to":                        toRecipients,
+		"cc":                        ccRecipients,
+		"bcc":                       bccRecipients,
 		"subject":                   strings.TrimSpace(input.Subject),
 		"body_len":                  len(input.Body),
 		"body_html_len":             len(input.BodyHTML),
@@ -849,12 +885,20 @@ func (c *GmailDraftsUpdateCmd) Run(ctx context.Context, flags *RootFlags) error 
 		return headerErr
 	}
 
+	// Parsed identically in buildDraftMessage, so the dry-run reports the built
+	// lists. (A kept-existing To is empty here; it is resolved later from the
+	// draft's own header, leniently, via keptDraftRecipients.)
+	toRecipients, ccRecipients, bccRecipients, err := parseComposeRecipients(input.To, input.Cc, input.Bcc)
+	if err != nil {
+		return err
+	}
+
 	if dryRunErr := dryRunExit(ctx, flags, "gmail.drafts.update", map[string]any{
 		"draft_id":                  draftID,
 		"to_keep_existing":          !toWasSet && !input.ReplyAll,
-		"to":                        splitCSV(input.To),
-		"cc":                        splitCSV(input.Cc),
-		"bcc":                       splitCSV(input.Bcc),
+		"to":                        toRecipients,
+		"cc":                        ccRecipients,
+		"bcc":                       bccRecipients,
 		"subject":                   strings.TrimSpace(input.Subject),
 		"body_len":                  len(input.Body),
 		"body_html_len":             len(input.BodyHTML),
@@ -913,7 +957,7 @@ func (c *GmailDraftsUpdateCmd) Run(ctx context.Context, flags *RootFlags) error 
 		}
 	}
 	if !toWasSet && !c.ReplyAll {
-		to = existingTo
+		input.KeptToRecipients = keptDraftRecipients(existingTo)
 	}
 
 	// gmail drafts update rebuilds the whole message, so updating a rich-text
@@ -969,7 +1013,6 @@ func (c *GmailDraftsUpdateCmd) Run(ctx context.Context, flags *RootFlags) error 
 		carriedReferences = existingReferences
 	}
 
-	input.To = to
 	input.ReplyToMessageID = replyToMessageID
 	input.ReplyToThreadID = replyToThreadID
 	input.ThreadContinuityID = targetThreadID

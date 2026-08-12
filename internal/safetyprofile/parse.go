@@ -25,6 +25,10 @@ func Parse(raw string) (*Profile, error) {
 		Name:     parsed.name,
 		AllowAll: parsed.allow[literalAll] || parsed.allow["*"],
 	}
+	for name, value := range parsed.lockedFlags {
+		out.LockedFlags = append(out.LockedFlags, LockedFlag{Name: name, Value: value})
+	}
+	sort.Slice(out.LockedFlags, func(i, j int) bool { return out.LockedFlags[i].Name < out.LockedFlags[j].Name })
 	for k := range parsed.allow {
 		if k == literalAll || k == "*" {
 			continue
@@ -40,9 +44,10 @@ func Parse(raw string) (*Profile, error) {
 }
 
 type rawProfile struct {
-	name  string
-	allow map[string]bool
-	deny  map[string]bool
+	name        string
+	allow       map[string]bool
+	deny        map[string]bool
+	lockedFlags map[string]string
 }
 
 func parseRaw(raw string) (*rawProfile, error) {
@@ -52,9 +57,10 @@ func parseRaw(raw string) (*rawProfile, error) {
 	}
 
 	profile := &rawProfile{
-		name:  "unnamed",
-		allow: map[string]bool{},
-		deny:  map[string]bool{},
+		name:        "unnamed",
+		allow:       map[string]bool{},
+		deny:        map[string]bool{},
+		lockedFlags: map[string]string{},
 	}
 
 	if rawName, present := root["name"]; present {
@@ -70,10 +76,13 @@ func parseRaw(raw string) (*rawProfile, error) {
 	if err := addList(profile.deny, root["deny"]); err != nil {
 		return nil, fmt.Errorf("deny: %w", err)
 	}
+	if err := addLockedFlags(profile.lockedFlags, root["locked-flags"]); err != nil {
+		return nil, fmt.Errorf("locked-flags: %w", err)
+	}
 
 	for key, value := range root {
 		switch key {
-		case "name", "description", "allow", "deny":
+		case "name", "description", "allow", "deny", "locked-flags":
 			continue
 		}
 		prefix := []string{key}
@@ -112,6 +121,30 @@ func addList(out map[string]bool, value any) error {
 		if rule != "" {
 			out[rule] = true
 		}
+	}
+	return nil
+}
+
+// addLockedFlags reads the locked-flags mapping of flag name to locked value. Values
+// are rendered as the literal a flag parses, matching how Kong reads an envar.
+func addLockedFlags(out map[string]string, value any) error {
+	if value == nil {
+		return nil
+	}
+	entries, ok := value.(map[string]any)
+	if !ok {
+		return fmt.Errorf("expected mapping of flag name to value")
+	}
+	for name, raw := range entries {
+		flag := strings.TrimSpace(strings.ToLower(name))
+		if flag == "" {
+			return fmt.Errorf("empty flag name")
+		}
+		value, ok := raw.(bool)
+		if !ok {
+			return fmt.Errorf("%s: expected boolean value, got %T", flag, raw)
+		}
+		out[flag] = fmt.Sprintf("%t", value)
 	}
 	return nil
 }

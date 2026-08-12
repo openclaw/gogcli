@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -14,32 +15,35 @@ import (
 )
 
 type GmailSendCmd struct {
-	To               string   `name:"to" help:"Recipients (comma-separated; required unless --reply-all is used)"`
-	Cc               string   `name:"cc" help:"CC recipients (comma-separated)"`
-	Bcc              string   `name:"bcc" help:"BCC recipients (comma-separated)"`
-	Subject          string   `name:"subject" help:"Subject (required unless replying; inherited with Re: for replies)"`
-	Body             string   `name:"body" help:"Body (plain text; required unless --body-html is set)"`
-	BodyFile         string   `name:"body-file" help:"Body file path (plain text; '-' for stdin)"`
-	BodyHTML         string   `name:"body-html" help:"Body (HTML; optional)"`
-	BodyHTMLFile     string   `name:"body-html-file" help:"HTML body file path ('-' for stdin)"`
-	ReplyToMessageID string   `name:"reply-to-message-id" aliases:"in-reply-to" help:"Reply to Gmail message ID (sets In-Reply-To/References and thread)"`
-	ThreadID         string   `name:"thread-id" help:"Reply within a Gmail thread (uses latest message for headers)"`
-	ReplyAll         bool     `name:"reply-all" help:"Auto-populate recipients from original message (requires --reply-to-message-id or --thread-id)"`
-	ReplyTo          string   `name:"reply-to" help:"Reply-To header address"`
-	Attach           []string `name:"attach" help:"Attachment file path (repeatable)"`
-	From             string   `name:"from" help:"Send from this email address (must be a verified send-as alias)"`
-	Signature        bool     `name:"signature" help:"Append the Gmail signature from the active send-as address"`
-	SignatureFrom    string   `name:"signature-from" help:"Append the Gmail signature from this send-as email address"`
-	SignatureFile    string   `name:"signature-file" help:"Append a local signature file (plain text or HTML)"`
-	Track            bool     `name:"track" help:"Enable open tracking (requires tracking setup)"`
-	TrackSplit       bool     `name:"track-split" help:"Send tracked messages separately per recipient"`
-	Quote            bool     `name:"quote" help:"Include quoted original message in reply (requires --reply-to-message-id or --thread-id)"`
+	To                      string   `name:"to" help:"Recipients (comma-separated; required unless --reply-all is used)"`
+	Cc                      string   `name:"cc" help:"CC recipients (comma-separated)"`
+	Bcc                     string   `name:"bcc" help:"BCC recipients (comma-separated)"`
+	Subject                 string   `name:"subject" help:"Subject (required unless replying; inherited with Re: for replies)"`
+	Body                    string   `name:"body" help:"Body (plain text; required unless --body-html is set)"`
+	BodyFile                string   `name:"body-file" help:"Body file path (plain text; '-' for stdin)"`
+	BodyHTML                string   `name:"body-html" help:"Body (HTML; optional)"`
+	BodyHTMLFile            string   `name:"body-html-file" help:"HTML body file path ('-' for stdin)"`
+	ReplyToMessageID        string   `name:"reply-to-message-id" aliases:"in-reply-to" help:"Reply to Gmail message ID (sets In-Reply-To/References and thread)"`
+	ThreadID                string   `name:"thread-id" help:"Reply within a Gmail thread (uses latest message for headers)"`
+	ReplyAll                bool     `name:"reply-all" help:"Auto-populate recipients from original message (requires --reply-to-message-id or --thread-id)"`
+	ReplyTo                 string   `name:"reply-to" help:"Reply-To header address"`
+	Attach                  []string `name:"attach" help:"Attachment file path (repeatable)"`
+	From                    string   `name:"from" help:"Send from this email address (must be a verified send-as alias)"`
+	composeSignatureOptions `embed:""`
+	Track                   bool `name:"track" help:"Enable open tracking (requires tracking setup)"`
+	TrackSplit              bool `name:"track-split" help:"Send tracked messages separately per recipient"`
+	Quote                   bool `name:"quote" help:"Include quoted original message in reply (requires --reply-to-message-id or --thread-id)"`
 }
 
 type sendBatch struct {
-	To                []string
-	Cc                []string
-	Bcc               []string
+	To  []string
+	Cc  []string
+	Bcc []string
+	// TrackingRecipient, when set (only buildSendBatches sets it), is the bare
+	// email address — never a formatted "Name" <a@x.com> mailbox — so the
+	// identifier baked into the tracking pixel stays stable regardless of how
+	// the user typed the recipient. Batches built by the reply/forward/drafts
+	// paths leave it empty; sendGmailBatches normalizes defensively on read.
 	TrackingRecipient string
 }
 
@@ -112,15 +116,24 @@ func (c *GmailSendCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return headerErr
 	}
 
+	// Parse the recipient flags before the dry-run so it reports the lists the
+	// built message will carry and bad input fails without any API call. Under
+	// --reply-all the dry-run's to/cc report the explicit overrides only:
+	// auto-populated recipients are resolved later, post-dry-run, by design.
+	explicitTo, explicitCc, explicitBcc, err := parseComposeRecipients(c.To, c.Cc, c.Bcc)
+	if err != nil {
+		return err
+	}
+
 	attachPaths, err := expandComposeAttachmentPaths(c.Attach)
 	if err != nil {
 		return err
 	}
 
 	if dryRunErr := dryRunExit(ctx, flags, "gmail.send", map[string]any{
-		"to":                  splitCSV(c.To),
-		"cc":                  splitCSV(c.Cc),
-		"bcc":                 splitCSV(c.Bcc),
+		"to":                  explicitTo,
+		"cc":                  explicitCc,
+		"bcc":                 explicitBcc,
 		"subject":             subject,
 		"reply_to_message_id": replyToMessageID,
 		"thread_id":           threadID,
@@ -174,20 +187,22 @@ func (c *GmailSendCmd) Run(ctx context.Context, flags *RootFlags) error {
 		toRecipients, ccRecipients = buildReplyAllRecipients(replyInfo, from.sendingEmail)
 	}
 
-	// Explicit --to and --cc override (not merge with) auto-populated recipients
+	// Explicit --to and --cc override (not merge with) auto-populated
+	// recipients. Non-empty flags always parse to at least one recipient
+	// (parseMailboxValues rejects zero-parse input), so keying the override on
+	// the raw flag matches keying on the parsed list; the raw flag states the
+	// intent directly.
 	if strings.TrimSpace(c.To) != "" {
-		toRecipients = splitCSV(c.To)
+		toRecipients = explicitTo
 	}
 	if strings.TrimSpace(c.Cc) != "" {
-		ccRecipients = splitCSV(c.Cc)
+		ccRecipients = explicitCc
 	}
 
 	// Final validation: we must have at least one recipient
 	if len(toRecipients) == 0 {
 		return usage("no recipients: specify --to or use --reply-all with a message that has recipients")
 	}
-
-	bccRecipients := splitCSV(c.Bcc)
 
 	atts, attachmentMetadata, err := mailmime.PrepareAttachments(attachmentsFromPaths(attachPaths), os.ReadFile)
 	if err != nil {
@@ -197,13 +212,13 @@ func (c *GmailSendCmd) Run(ctx context.Context, flags *RootFlags) error {
 
 	var trackingCfg *tracking.Config
 	if c.Track {
-		trackingCfg, err = c.resolveTrackingConfig(ctx, account, toRecipients, ccRecipients, bccRecipients, htmlBody)
+		trackingCfg, err = c.resolveTrackingConfig(ctx, account, toRecipients, ccRecipients, explicitBcc, htmlBody)
 		if err != nil {
 			return err
 		}
 	}
 
-	batches := buildSendBatches(toRecipients, ccRecipients, bccRecipients, c.Track, c.TrackSplit)
+	batches := buildSendBatches(toRecipients, ccRecipients, explicitBcc, c.Track, c.TrackSplit)
 	results, err := sendGmailBatches(ctx, svc, sendMessageOptions{
 		FromAddr:    from.header,
 		ReplyTo:     c.ReplyTo,
@@ -294,6 +309,8 @@ func primaryDisplayNameFromSendAsList(sendAs []*gmail.SendAs, account string) st
 	return ""
 }
 
+// buildSendBatches splits a tracked multi-recipient send into per-recipient
+// batches (--track-split) or returns a single batch carrying all recipients.
 func buildSendBatches(toRecipients, ccRecipients, bccRecipients []string, track, trackSplit bool) []sendBatch {
 	totalRecipients := len(toRecipients) + len(ccRecipients) + len(bccRecipients)
 	if track && trackSplit && totalRecipients > 1 {
@@ -304,14 +321,14 @@ func buildSendBatches(toRecipients, ccRecipients, bccRecipients []string, track,
 		for _, recipient := range recipients {
 			batches = append(batches, sendBatch{
 				To:                []string{recipient},
-				TrackingRecipient: recipient,
+				TrackingRecipient: bareEmail(recipient),
 			})
 		}
 
 		return batches
 	}
 
-	trackingRecipient := firstRecipient(toRecipients, ccRecipients, bccRecipients)
+	trackingRecipient := bareEmail(firstRecipient(toRecipients, ccRecipients, bccRecipients))
 	return []sendBatch{{
 		To:                toRecipients,
 		Cc:                ccRecipients,
@@ -326,9 +343,12 @@ func sendGmailBatches(ctx context.Context, svc *gmail.Service, opts sendMessageO
 		htmlBody := opts.BodyHTML
 		trackingID := ""
 		if opts.Track {
-			recipient := strings.TrimSpace(batch.TrackingRecipient)
+			recipient := bareEmail(batch.TrackingRecipient)
 			if recipient == "" {
-				recipient = strings.TrimSpace(firstRecipient(batch.To, batch.Cc, batch.Bcc))
+				recipient = bareEmail(firstRecipient(batch.To, batch.Cc, batch.Bcc))
+			}
+			if recipient == "" {
+				return nil, errors.New("tracking requires a recipient")
 			}
 			pixelURL, blob, pixelErr := tracking.GeneratePixelURL(opts.TrackingCfg, recipient, opts.Subject)
 			if pixelErr != nil {
@@ -353,10 +373,9 @@ func sendGmailBatches(ctx context.Context, svc *gmail.Service, opts sendMessageO
 			return nil, err
 		}
 
-		resultRecipient := strings.TrimSpace(batch.TrackingRecipient)
-		if resultRecipient == "" {
-			resultRecipient = strings.TrimSpace(firstRecipient(batch.To, batch.Cc, batch.Bcc))
-		}
+		// Results report the mailbox as actually sent (possibly a formatted
+		// "Name" <a@x.com>); only the tracking identity above is bare.
+		resultRecipient := strings.TrimSpace(firstRecipient(batch.To, batch.Cc, batch.Bcc))
 		results = append(results, sendResult{
 			To:         resultRecipient,
 			MessageID:  sent.Id,

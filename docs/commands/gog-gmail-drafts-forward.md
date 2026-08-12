@@ -1,18 +1,18 @@
-# `gog gmail forward`
+# `gog gmail drafts forward`
 
 > Generated from `gog schema --json`. Do not edit this page by hand; run `make docs-commands`.
 
-Forward a message to new recipients
+Save a forward as a draft
 
 ## Usage
 
 ```bash
-gog gmail (mail,email) forward (fwd) <messageId> [flags]
+gog gmail (mail,email) drafts (draft) forward (fwd) <messageId> [flags]
 ```
 
 ## Parent
 
-- [gog gmail](gog-gmail.md)
+- [gog gmail drafts](gog-gmail-drafts.md)
 
 ## Flags
 
@@ -49,5 +49,5 @@ gog gmail (mail,email) forward (fwd) <messageId> [flags]
 
 ## See Also
 
-- [gog gmail](gog-gmail.md)
+- [gog gmail drafts](gog-gmail-drafts.md)
 - [Command index](README.md)

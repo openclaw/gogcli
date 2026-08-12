@@ -9,6 +9,10 @@ Runtime guards such as `--enable-commands`, `--disable-commands`, and
 stronger: the policy is compiled into the binary and cannot be changed with
 flags, environment variables, config files, or shell arguments.
 
+A profile controls which commands may run. Through `locked-flags` it can also fix
+the value of individual flags, so settings such as sanitized output do not depend
+on the caller passing them. See [Locked Flags](#locked-flags).
+
 ## Quick Start
 
 Build an agent-safe binary:
@@ -142,6 +146,7 @@ Rules:
 - unlisted commands are blocked when the profile has any allow rules.
 - command names are written as dot paths internally, such as `gmail.drafts.create`.
 - `aliases:` controls root shortcuts such as `send`, `ls`, `search`, and `upload`.
+- `locked-flags:` is not a command path; it locks flag values, see [Locked Flags](#locked-flags).
 
 Parent rules are prefix matches. For example, `drive: true` allows every `drive`
 subcommand unless a child is explicitly blocked. For restrictive profiles, prefer
@@ -154,6 +159,75 @@ gmail:
     search: true
     modify: false
 ```
+
+## Locked Flags
+
+Command rules decide what may run. They do not decide how it runs. Sanitized
+output, for example, happens only when the caller passes `--sanitize-content`,
+and a flag that does take its value from the environment is still overridden by
+the command line. When the command line is written by a model rather than a
+person, neither is a setting you can rely on.
+
+`locked-flags` fixes a flag's value in the profile:
+
+```yaml
+locked-flags:
+  sanitize-content: true
+  wrap-untrusted: true
+  no-input: true
+```
+
+Locked values and the flags they target must be boolean. This intentionally keeps
+the mechanism focused on safety policy rather than compiling account names, paths,
+tokens, or other arbitrary configuration into a binary.
+
+A locked flag behaves as follows:
+
+- the value is applied before the command runs, so the caller need not pass it.
+- setting that flag to a different value is an error, not an override.
+- a lock matches the canonical flag name, so aliases are covered and it takes effect
+  wherever the selected command has a flag of that name.
+- a locked output mode wins over the competing one. With `json` locked, `GOG_PLAIN`
+  gives way silently, since an environment default is a preference rather than a
+  request, while an explicit `--plain` is refused for asking output the profile
+  forbids.
+
+A lock the binary cannot enforce is refused at build time rather than silently
+ignored.
+
+Because a locked value reaches the command without appearing on the command line, a
+usage error that names a locked flag carries a note saying where the value came from:
+
+```text
+--sanitize-content cannot be used with --format raw
+note: --no-input, --sanitize-content, --wrap-untrusted locked by baked safety profile "agent-safe-locked"
+```
+
+Lock deliberately. A flag that participates in a conflict or a requirement removes
+the command paths that contradict it. Locking `sanitize-content` makes
+`gmail get --format raw` unavailable, which is an acceptable trade for an agent
+profile because raw is the unsanitized dump.
+
+Locking a boolean flag that requires another one is the case to avoid. `--reply-all` needs
+a message or thread to reply to, so `locked-flags: {reply-all: true}` breaks an
+ordinary draft:
+
+```bash
+bin/gog-my-agent gmail drafts create --to you@example.com --subject Hi --body Hi
+```
+
+The command is allowed by the profile and the caller passed nothing wrong, yet it
+fails because the locked flag demands an argument they had no reason to supply:
+
+```text
+--reply-all requires --reply-to-message-id or --thread-id
+```
+
+Flags that only shape output are the safe candidates.
+
+To make an existing preset stricter without changing its behavior for everyone,
+copy it and add the locks you need. For example, an agent-oriented copy commonly
+locks `sanitize-content`, `wrap-untrusted`, and `no-input` to `true`.
 
 ## Choosing A Profile
 

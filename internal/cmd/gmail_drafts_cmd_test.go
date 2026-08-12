@@ -412,41 +412,11 @@ func TestGmailDraftsCreateCmd_BodyHTMLFile(t *testing.T) {
 		t.Fatalf("write html: %v", err)
 	}
 
-	var rawCreated string
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if strings.Contains(r.URL.Path, "/gmail/v1/users/me/drafts") && r.Method == http.MethodPost {
-			var draft gmail.Draft
-			if err := json.NewDecoder(r.Body).Decode(&draft); err != nil {
-				t.Fatalf("decode draft: %v", err)
-			}
-			if draft.Message == nil {
-				t.Fatalf("expected message in create")
-			}
-			raw, err := base64.RawURLEncoding.DecodeString(draft.Message.Raw)
-			if err != nil {
-				t.Fatalf("decode raw: %v", err)
-			}
-			rawCreated = string(raw)
-			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(map[string]any{
-				"id":      "d-html",
-				"message": map[string]any{"id": "m-html"},
-			})
-			return
-		}
-		http.NotFound(w, r)
-	}))
-	defer srv.Close()
-
-	svc := newGmailServiceFromServer(t, srv)
-	ctx := withGmailTestService(newCmdRuntimeOutputContext(t, io.Discard, io.Discard), svc)
-	if err := runKong(t, &GmailDraftsCreateCmd{}, []string{
+	rawCreated := captureDraftCreateRaw(t, []string{
 		"--to", "a@example.com",
 		"--subject", "Hello",
 		"--body-html-file", htmlPath,
-	}, ctx, &RootFlags{Account: "a@b.com"}); err != nil {
-		t.Fatalf("execute: %v", err)
-	}
+	})
 
 	if !strings.Contains(rawCreated, "Content-Type: text/html") ||
 		!strings.Contains(rawCreated, "<h1>Hello</h1>") {
@@ -828,15 +798,28 @@ func TestGmailDraftsUpdateCmd_JSON(t *testing.T) {
 	}
 }
 
-func TestGmailDraftsUpdateCmd_BodyHTMLFileFromStdin(t *testing.T) {
-	var rawUpdated string
+// newDraftUpdateCaptureServer builds an httptest server for the drafts-update
+// path: GET draft/d1 returns a thread-bound draft (with existingTo as its To
+// header when non-empty), GET threads/t1 returns the thread's Message-ID, and
+// PUT draft/d1 captures the Raw of the updated message into the returned
+// pointer. It is the shared mock for update tests that only assert on the PUT
+// body.
+func newDraftUpdateCaptureServer(t *testing.T, existingTo string) (*httptest.Server, *string) {
+	t.Helper()
+	rawUpdated := new(string)
+	message := map[string]any{"id": "m1", "threadId": "t1"}
+	if existingTo != "" {
+		message["payload"] = map[string]any{
+			"headers": []map[string]any{{"name": "To", "value": existingTo}},
+		}
+	}
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case strings.Contains(r.URL.Path, "/gmail/v1/users/me/drafts/d1") && r.Method == http.MethodGet:
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"id":      "d1",
-				"message": map[string]any{"id": "m1", "threadId": "t1"},
+				"message": message,
 			})
 			return
 		case strings.Contains(r.URL.Path, "/gmail/v1/users/me/threads/t1") && r.Method == http.MethodGet:
@@ -868,7 +851,7 @@ func TestGmailDraftsUpdateCmd_BodyHTMLFileFromStdin(t *testing.T) {
 			if err != nil {
 				t.Fatalf("decode raw: %v", err)
 			}
-			rawUpdated = string(raw)
+			*rawUpdated = string(raw)
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"id":      "d1",
@@ -880,6 +863,11 @@ func TestGmailDraftsUpdateCmd_BodyHTMLFileFromStdin(t *testing.T) {
 			return
 		}
 	}))
+	return srv, rawUpdated
+}
+
+func TestGmailDraftsUpdateCmd_BodyHTMLFileFromStdin(t *testing.T) {
+	srv, rawUpdatedPtr := newDraftUpdateCaptureServer(t, "")
 	defer srv.Close()
 
 	svc := newGmailServiceFromServer(t, srv)
@@ -896,9 +884,9 @@ func TestGmailDraftsUpdateCmd_BodyHTMLFileFromStdin(t *testing.T) {
 		t.Fatalf("execute: %v", err)
 	}
 
-	if !strings.Contains(rawUpdated, "Content-Type: text/html") ||
-		!strings.Contains(rawUpdated, "<h1>Updated</h1>") {
-		t.Fatalf("expected HTML stdin body in updated draft, got:\n%s", rawUpdated)
+	if !strings.Contains(*rawUpdatedPtr, "Content-Type: text/html") ||
+		!strings.Contains(*rawUpdatedPtr, "<h1>Updated</h1>") {
+		t.Fatalf("expected HTML stdin body in updated draft, got:\n%s", *rawUpdatedPtr)
 	}
 }
 
@@ -2247,5 +2235,221 @@ func TestGmailDraftsUpdateCmd_AttachAndClearMutuallyExclusive(t *testing.T) {
 	}, ctx, flags)
 	if err == nil || !strings.Contains(err.Error(), "use only one of --attach or --clear-attachments") {
 		t.Fatalf("expected mutual-exclusion error, got %v", err)
+	}
+}
+
+// captureDraftCreateRaw runs gmail drafts create against a mock server and
+// returns the raw RFC822 of the created draft message.
+func captureDraftCreateRaw(t *testing.T, args []string) string {
+	t.Helper()
+	var raw string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.Contains(r.URL.Path, "/gmail/v1/users/me/drafts") && r.Method == http.MethodPost {
+			var draft gmail.Draft
+			if err := json.NewDecoder(r.Body).Decode(&draft); err != nil {
+				t.Fatalf("decode draft: %v", err)
+			}
+			if draft.Message == nil {
+				t.Fatalf("expected message in create")
+			}
+			decoded, err := base64.RawURLEncoding.DecodeString(draft.Message.Raw)
+			if err != nil {
+				t.Fatalf("decode raw: %v", err)
+			}
+			raw = string(decoded)
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{"id": "d1", "message": map[string]any{"id": "m1"}})
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer srv.Close()
+
+	svc := newGmailServiceFromServer(t, srv)
+	ctx := withGmailTestService(newCmdRuntimeOutputContext(t, io.Discard, io.Discard), svc)
+	if err := runKong(t, &GmailDraftsCreateCmd{}, args, ctx, &RootFlags{Account: "a@b.com"}); err != nil {
+		t.Fatalf("execute(%v): %v", args, err)
+	}
+	return raw
+}
+
+// TestGmailDraftsCreateCmd_CommaInDisplayName proves a recipient whose display
+// name contains a comma ("Doe, Jane" <jane@example.com>) stays a single
+// recipient instead of being naively split on the comma — across --to, --cc,
+// and --bcc.
+func TestGmailDraftsCreateCmd_CommaInDisplayName(t *testing.T) {
+	raw := captureDraftCreateRaw(t, []string{
+		"--to", `"Doe, Jane" <jane@example.com>, x@y.com`,
+		"--cc", `"Roe, Jane" <jane2@example.com>, z@y.com`,
+		"--bcc", `"Loe, Jane" <jane3@example.com>, w@y.com`,
+		"--subject", "Hi",
+		"--body", "Hello",
+	})
+
+	assertHeaderRecipients(t, raw, "To", []wantAddr{
+		{name: "Doe, Jane", address: "jane@example.com"},
+		{address: "x@y.com"},
+	})
+	assertHeaderRecipients(t, raw, "Cc", []wantAddr{
+		{name: "Roe, Jane", address: "jane2@example.com"},
+		{address: "z@y.com"},
+	})
+	assertHeaderRecipients(t, raw, "Bcc", []wantAddr{
+		{name: "Loe, Jane", address: "jane3@example.com"},
+		{address: "w@y.com"},
+	})
+}
+
+// TestGmailDraftsCreateCmd_OrdinaryMultiRecipient guards the regression case for
+// a plain comma-separated recipient list.
+func TestGmailDraftsCreateCmd_OrdinaryMultiRecipient(t *testing.T) {
+	raw := captureDraftCreateRaw(t, []string{
+		"--to", "a@x.com, b@y.com",
+		"--subject", "Hi",
+		"--body", "Hello",
+	})
+	assertHeaderRecipients(t, raw, "To", []wantAddr{{address: "a@x.com"}, {address: "b@y.com"}})
+}
+
+// TestGmailDraftsCreateCmd_MalformedRecipientNoAPICall proves a malformed
+// recipient on any of --to/--cc/--bcc surfaces a clear, flag-named error and
+// makes no Gmail API request.
+func TestGmailDraftsCreateCmd_MalformedRecipientNoAPICall(t *testing.T) {
+	for _, flag := range []string{"--to", "--cc", "--bcc"} {
+		t.Run(flag, func(t *testing.T) {
+			requests := 0
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				requests++
+				http.NotFound(w, r)
+			}))
+			defer srv.Close()
+
+			svc := newGmailServiceFromServer(t, srv)
+			ctx := withGmailTestService(newCmdRuntimeOutputContext(t, io.Discard, io.Discard), svc)
+			// A valid --to keeps the failure attributable to the flag under test.
+			err := runKong(t, &GmailDraftsCreateCmd{}, []string{
+				"--to", "recipient@example.com", flag, "not an address <<>",
+				"--subject", "Hi",
+				"--body", "Hello",
+			}, ctx, &RootFlags{Account: "a@b.com"})
+			if err == nil {
+				t.Fatalf("expected error for malformed %s", flag)
+			}
+			if !strings.Contains(err.Error(), flag) {
+				t.Fatalf("expected %s validation error, got: %v", flag, err)
+			}
+			if requests != 0 {
+				t.Fatalf("expected no Gmail API requests, got %d", requests)
+			}
+		})
+	}
+}
+
+// TestGmailDraftsUpdateCmd_CommaInDisplayName proves the update path (which
+// shares parseComposeRecipients) parses an explicit --to with a comma in the
+// display name address-aware: the PUT body's To header holds exactly two
+// recipients with the "Doe, Jane" display name intact.
+func TestGmailDraftsUpdateCmd_CommaInDisplayName(t *testing.T) {
+	srv, rawUpdatedPtr := newDraftUpdateCaptureServer(t, "")
+	defer srv.Close()
+
+	svc := newGmailServiceFromServer(t, srv)
+	ctx := withGmailTestService(newCmdRuntimeOutputContext(t, io.Discard, io.Discard), svc)
+	if err := runKong(t, &GmailDraftsUpdateCmd{}, []string{
+		"d1",
+		"--to", `"Doe, Jane" <jane@example.com>, x@y.com`,
+		"--subject", "Updated",
+		"--body", "Hello",
+	}, ctx, &RootFlags{Account: "a@b.com"}); err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+
+	assertHeaderRecipients(t, *rawUpdatedPtr, "To", []wantAddr{
+		{name: "Doe, Jane", address: "jane@example.com"},
+		{address: "x@y.com"},
+	})
+}
+
+// TestGmailDraftsUpdateCmd_KeepsLegacyMalformedTo proves a body-only update of
+// a draft whose existing To header predates strict parsing (e.g. "alice@",
+// creatable by older gogcli) succeeds and preserves the header verbatim,
+// instead of failing with a --to validation error for a flag the user never
+// passed.
+func TestGmailDraftsUpdateCmd_KeepsLegacyMalformedTo(t *testing.T) {
+	srv, rawUpdatedPtr := newDraftUpdateCaptureServer(t, "alice@")
+	defer srv.Close()
+
+	svc := newGmailServiceFromServer(t, srv)
+	ctx := withGmailTestService(newCmdRuntimeOutputContext(t, io.Discard, io.Discard), svc)
+	if err := runKong(t, &GmailDraftsUpdateCmd{}, []string{
+		"d1", "--subject", "S", "--body", "B",
+	}, ctx, &RootFlags{Account: "a@b.com"}); err != nil {
+		t.Fatalf("body-only update with legacy To: %v", err)
+	}
+	if !strings.Contains(*rawUpdatedPtr, "To: alice@\r\n") {
+		t.Fatalf("expected legacy To header preserved verbatim, got:\n%s", *rawUpdatedPtr)
+	}
+}
+
+// TestGmailDraftsCreateCmd_DryRunReportsParsedRecipients proves the create
+// dry-run dict reports --to parsed address-aware (no third element from the
+// display-name comma) and makes no API call.
+func TestGmailDraftsCreateCmd_DryRunReportsParsedRecipients(t *testing.T) {
+	requests := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests++
+		http.NotFound(w, r)
+	}))
+	defer srv.Close()
+
+	svc := newGmailServiceFromServer(t, srv)
+	var stdout bytes.Buffer
+	ctx := withGmailTestService(newCmdRuntimeJSONOutputContext(t, &stdout, io.Discard), svc)
+	err := runKong(t, &GmailDraftsCreateCmd{}, []string{
+		"--to", `"Smith, John" <john@example.com>, other@example.com`,
+		"--subject", "Hi",
+		"--body", "Hello",
+	}, ctx, &RootFlags{Account: "a@b.com", DryRun: true})
+	if code := ExitCode(err); code != 0 {
+		t.Fatalf("expected clean dry-run exit (code 0), got code %d: %v", code, err)
+	}
+	assertDryRunRequestList(t, stdout.String(), "to", []string{
+		`"Smith, John" <john@example.com>`,
+		"other@example.com",
+	})
+	if requests != 0 {
+		t.Fatalf("expected no Gmail API requests, got %d", requests)
+	}
+}
+
+// TestGmailDraftsUpdateCmd_DryRunReportsParsedRecipients proves the update
+// dry-run dict reports an explicit --to parsed address-aware and makes no API
+// call.
+func TestGmailDraftsUpdateCmd_DryRunReportsParsedRecipients(t *testing.T) {
+	requests := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests++
+		http.NotFound(w, r)
+	}))
+	defer srv.Close()
+
+	svc := newGmailServiceFromServer(t, srv)
+	var stdout bytes.Buffer
+	ctx := withGmailTestService(newCmdRuntimeJSONOutputContext(t, &stdout, io.Discard), svc)
+	err := runKong(t, &GmailDraftsUpdateCmd{}, []string{
+		"d1",
+		"--to", `"Smith, John" <john@example.com>, other@example.com`,
+		"--subject", "Hi",
+		"--body", "Hello",
+	}, ctx, &RootFlags{Account: "a@b.com", DryRun: true})
+	if code := ExitCode(err); code != 0 {
+		t.Fatalf("expected clean dry-run exit (code 0), got code %d: %v", code, err)
+	}
+	assertDryRunRequestList(t, stdout.String(), "to", []string{
+		`"Smith, John" <john@example.com>`,
+		"other@example.com",
+	})
+	if requests != 0 {
+		t.Fatalf("expected no Gmail API requests, got %d", requests)
 	}
 }

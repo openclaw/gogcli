@@ -147,8 +147,10 @@ func TestGmailForward_NoteFilePreservesTrailingNewlines(t *testing.T) {
 
 	cmd := &GmailForwardCmd{
 		MessageID: "msg1",
-		To:        "x@example.com",
-		NoteFile:  notePath,
+		Options: GmailForwardOptions{
+			To:       "x@example.com",
+			NoteFile: notePath,
+		},
 	}
 	req := runDryRunRequest(t, cmd.Run)
 	assertLen(t, req, "note_len", len(bodyFileWithTrailingNewlines))

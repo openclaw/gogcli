@@ -14,4 +14,14 @@ type Profile struct {
 	AllowAll   bool
 	AllowRules []string
 	DenyRules  []string
+	// LockedFlags fix a flag to a value the command line cannot change. Sorted by
+	// name so the generated switch is stable across builds.
+	LockedFlags []LockedFlag
+}
+
+// LockedFlag is one locked boolean flag. Value is "true" or "false" in the form
+// the flag parser consumes.
+type LockedFlag struct {
+	Name  string
+	Value string
 }

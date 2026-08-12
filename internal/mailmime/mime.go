@@ -410,10 +410,22 @@ func formatAddressHeader(value string) string {
 	}
 
 	if strings.TrimSpace(addr.Name) == "" {
-		return addr.Address
+		return bareAddressWireForm(addr)
 	}
 
 	return addr.String()
+}
+
+// bareAddressWireForm returns the wire form of a nameless address: the bare
+// address when it re-parses, addr.String() otherwise. A quoted local part
+// ("john smith"@example.com) is stored unquoted in addr.Address and is
+// invalid bare, so it must be re-quoted.
+func bareAddressWireForm(addr *mail.Address) string {
+	if _, err := mail.ParseAddress(addr.Address); err != nil {
+		return addr.String()
+	}
+
+	return addr.Address
 }
 
 func formatAddressHeaders(values []string) string {
@@ -436,7 +448,7 @@ func formatAddressHeaders(values []string) string {
 		formatted := make([]string, 0, len(addrs))
 		for _, addr := range addrs {
 			if strings.TrimSpace(addr.Name) == "" {
-				formatted = append(formatted, addr.Address)
+				formatted = append(formatted, bareAddressWireForm(addr))
 			} else {
 				formatted = append(formatted, addr.String())
 			}

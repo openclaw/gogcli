@@ -33,6 +33,11 @@ func withBakedSafetyProfile(t *testing.T, raw string) {
 	bakedSafetyTestProfile.hasAllowRules = profile.AllowAll || len(profile.AllowRules) > 0
 	bakedSafetyTestProfile.allow = allow
 	bakedSafetyTestProfile.deny = deny
+	locked := make(map[string]string, len(profile.LockedFlags))
+	for _, f := range profile.LockedFlags {
+		locked[f.Name] = f.Value
+	}
+	bakedSafetyTestProfile.lockedFlags = locked
 	t.Cleanup(func() { bakedSafetyTestProfile = prev })
 }
 
@@ -248,8 +253,13 @@ func TestAgentSafeProfileFiltersHelp(t *testing.T) {
 			}
 		})
 	})
-	if !strings.Contains(out, "\n  create") {
-		t.Fatalf("expected create in filtered help, got: %q", out)
+	// The drafts compose leaves must all be allowed: an unlisted leaf fails
+	// closed, which would reject drafts reply/reply-all/forward in the
+	// agent-safe build — the exact audience of those commands.
+	for _, want := range []string{"\n  create", "\n  reply", "\n  reply-all", "\n  forward"} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("expected %q in filtered agent-safe help, got: %q", want, out)
+		}
 	}
 	if strings.Contains(out, "\n  send ") {
 		t.Fatalf("expected send to be hidden from agent-safe help, got: %q", out)
