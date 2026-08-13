@@ -1,12 +1,16 @@
 # Changelog
 
-## 0.35.1 - Unreleased
+## v0.36.0 - 2026-08-13
 
-- Gmail: add opt-in exact-or-lower-bound match counts to thread and message searches without treating Gmail's result estimate as exact. (#983, #984) — thanks @chrischall.
+**Highlight:** Gmail grows full draft-side reply workflows — reply, reply-all,
+and forward compose real drafts (never auto-sending), with address-aware
+recipient validation.
+
 - Gmail: add draft-only reply, reply-all, and forward workflows with shared send-side composition, no-send compatibility, and address-aware recipient validation. (#977) — thanks @malob.
-- Safety: allow custom baked profiles to lock boolean CLI flags against command-line, environment, and config overrides without echoing the locked value in override errors. (#976) — thanks @ronny-rentner.
+- Gmail: add opt-in exact-or-lower-bound match counts to thread and message searches without treating Gmail's result estimate as exact. (#983, #984) — thanks @chrischall.
 - Auth: offer one-time re-authorization for expired or revoked stored OAuth refresh tokens after interactive confirmation, while preserving non-interactive recovery guidance. (#973) — thanks @inamiy.
 - Calendar: anchor `--days` at an explicit `--from`, preserve calendar-day windows across DST, and reject conflicting window flags instead of silently discarding them. (#981) — thanks @frankhli843.
+- Safety: allow custom baked profiles to lock boolean CLI flags against command-line, environment, and config overrides without echoing the locked value in override errors. (#976) — thanks @ronny-rentner.
 - Dependencies: update Kong, Google protobuf/genproto, Cloudflare Workers types, and pnpm to their latest releases.
 
 ## 0.35.0 - 2026-08-09
