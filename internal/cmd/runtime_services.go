@@ -122,6 +122,9 @@ func composeRuntimeGoogleServices(runtime *app.Runtime, factory googleapi.Factor
 	if services.Sheets == nil {
 		services.Sheets = factory.Sheets
 	}
+	if services.ConnectedSheets == nil {
+		services.ConnectedSheets = factory.ConnectedSheets
+	}
 	if services.SitesDrive == nil {
 		services.SitesDrive = factory.SitesDrive
 	}
@@ -383,6 +386,22 @@ func sheetsService(ctx context.Context, account string) (*sheets.Service, error)
 		return nil, serviceError(err, "sheets")
 	}
 	return runtime.Services.Sheets(ctx, account)
+}
+
+func connectedSheetsService(ctx context.Context, account string) (*sheets.Service, error) {
+	runtime, err := runtimeWithService(ctx, "Connected Sheets")
+	if err != nil {
+		return nil, serviceError(err, "Connected Sheets")
+	}
+	if runtime.Services.ConnectedSheets != nil {
+		return runtime.Services.ConnectedSheets(ctx, account)
+	}
+	// Tests and embedders predating the dedicated factory can inject the regular
+	// Sheets client. Production-managed runtimes always install ConnectedSheets.
+	if runtime.Services.Sheets != nil {
+		return runtime.Services.Sheets(ctx, account)
+	}
+	return nil, serviceError(nil, "Connected Sheets")
 }
 
 func sitesDriveService(ctx context.Context, account string) (*drive.Service, error) {

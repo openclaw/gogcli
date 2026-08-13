@@ -1,0 +1,134 @@
+{
+  "spreadsheetId": "connected1",
+  "properties": {
+    "title": "Connected Sheets fixture"
+  },
+  "dataSources": [
+    {
+      "dataSourceId": "ds-table",
+      "sheetId": 101,
+      "spec": {
+        "bigQuery": {
+          "projectId": "billing-project",
+          "tableSpec": {
+            "tableProjectId": "bigquery-public-data",
+            "datasetId": "samples",
+            "tableId": "shakespeare"
+          }
+        }
+      }
+    },
+    {
+      "dataSourceId": "ds-query",
+      "sheetId": 102,
+      "spec": {
+        "bigQuery": {
+          "projectId": "billing-project",
+          "querySpec": {
+            "rawQuery": "SELECT corpus, SUM(word_count) AS total FROM `bigquery-public-data.samples.shakespeare` GROUP BY corpus"
+          }
+        }
+      }
+    }
+  ],
+  "dataSourceSchedules": [
+    {
+      "enabled": true,
+      "refreshScope": "ALL_DATA_SOURCES",
+      "dailySchedule": {
+        "startTime": {"hours": 8}
+      }
+    }
+  ],
+  "sheets": [
+    {
+      "properties": {
+        "sheetId": 101,
+        "title": "Shakespeare Preview",
+        "index": 0,
+        "sheetType": "DATA_SOURCE",
+        "gridProperties": {
+          "rowCount": 500,
+          "columnCount": 4
+        },
+        "dataSourceSheetProperties": {
+          "dataSourceId": "ds-table",
+          "columns": [
+            {"reference": {"name": "word"}},
+            {"reference": {"name": "word_count"}},
+            {"reference": {"name": "corpus"}},
+            {"reference": {"name": "corpus_date"}}
+          ],
+          "dataExecutionStatus": {
+            "state": "SUCCEEDED",
+            "lastRefreshTime": "2026-08-13T16:30:00Z"
+          }
+        }
+      }
+    },
+    {
+      "properties": {
+        "sheetId": 102,
+        "title": "Query Preview",
+        "index": 1,
+        "sheetType": "DATA_SOURCE",
+        "gridProperties": {
+          "rowCount": 500,
+          "columnCount": 2
+        },
+        "dataSourceSheetProperties": {
+          "dataSourceId": "ds-query",
+          "columns": [
+            {"reference": {"name": "corpus"}},
+            {"reference": {"name": "total"}}
+          ],
+          "dataExecutionStatus": {
+            "state": "FAILED",
+            "lastRefreshTime": "2026-08-12T15:00:00Z",
+            "errorCode": "ENGINE",
+            "errorMessage": "fixture query failure"
+          }
+        }
+      }
+    },
+    {
+      "properties": {
+        "sheetId": 201,
+        "title": "Extracts",
+        "index": 2,
+        "sheetType": "GRID",
+        "gridProperties": {
+          "rowCount": 1000,
+          "columnCount": 26
+        }
+      },
+      "data": [
+        {
+          "startRow": 2,
+          "startColumn": 1,
+          "rowData": [
+            {
+              "values": [
+                {
+                  "dataSourceTable": {
+                    "dataSourceId": "ds-table",
+                    "columnSelectionType": "SELECTED",
+                    "columns": [
+                      {"name": "word"},
+                      {"name": "word_count"}
+                    ],
+                    "rowLimit": 5,
+                    "dataExecutionStatus": {
+                      "state": "SUCCEEDED",
+                      "lastRefreshTime": "2026-08-13T16:31:00Z"
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

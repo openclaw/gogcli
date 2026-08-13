@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Sheets: add read-only Connected Sheets discovery, full data-source descriptions and execution status, plus bounded reads for anchored data-source tables (extracts) behind an explicitly opted-in BigQuery scope. (#938) — thanks @ryo-touch.
+
 ## v0.36.0 - 2026-08-13
 
 **Highlight:** Gmail grows full draft-side reply workflows — reply, reply-all,

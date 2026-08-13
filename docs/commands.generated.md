@@ -567,6 +567,13 @@ Generated from `gog schema --json`.
     - [`gog sheets (sheet) copy (cp,duplicate) <spreadsheetId> <title> [flags]`](commands/gog-sheets-copy.md) - Copy a Google Sheet
     - [`gog sheets (sheet) copy-paste (fill,copy-range) <spreadsheetId> <source> <dest> [flags]`](commands/gog-sheets-copy-paste.md) - Copy a range's values/formulas/format to another range (tiles to fill down/across)
     - [`gog sheets (sheet) create (new) <title> [flags]`](commands/gog-sheets-create.md) - Create a new spreadsheet
+    - [`gog sheets (sheet) datasource (data-source,data-sources,connected-sheets) <command>`](commands/gog-sheets-datasource.md) - Inspect Connected Sheets data sources and extracts
+      - [`gog sheets (sheet) datasource (data-source,data-sources,connected-sheets) describe (get,show,info) <spreadsheetId> <dataSourceId>`](commands/gog-sheets-datasource-describe.md) - Describe a Connected Sheets data source
+      - [`gog sheets (sheet) datasource (data-source,data-sources,connected-sheets) list <spreadsheetId>`](commands/gog-sheets-datasource-list.md) - List Connected Sheets data sources
+      - [`gog sheets (sheet) datasource (data-source,data-sources,connected-sheets) table (tables,extract,extracts) <command>`](commands/gog-sheets-datasource-table.md) - Inspect Connected Sheets data-source tables (extracts)
+        - [`gog sheets (sheet) datasource (data-source,data-sources,connected-sheets) table (tables,extract,extracts) describe (get,show,info) <spreadsheetId> <anchor>`](commands/gog-sheets-datasource-table-describe.md) - Describe a data-source table at an anchor cell
+        - [`gog sheets (sheet) datasource (data-source,data-sources,connected-sheets) table (tables,extract,extracts) list <spreadsheetId> [flags]`](commands/gog-sheets-datasource-table-list.md) - List data-source tables (extracts)
+        - [`gog sheets (sheet) datasource (data-source,data-sources,connected-sheets) table (tables,extract,extracts) read (values) <spreadsheetId> <anchor> [flags]`](commands/gog-sheets-datasource-table-read.md) - Read values from a data-source table
     - [`gog sheets (sheet) delete-dimension (delete-dim) --dimension=STRING <spreadsheetId> <rangeOrSheet> [flags]`](commands/gog-sheets-delete-dimension.md) - Delete rows or columns while preserving intersecting tables
     - [`gog sheets (sheet) delete-tab (delete-sheet) <spreadsheetId> <tabName>`](commands/gog-sheets-delete-tab.md) - Delete a tab/sheet from a spreadsheet (use --force to skip confirmation)
     - [`gog sheets (sheet) export (download,dl) <spreadsheetId> [flags]`](commands/gog-sheets-export.md) - Export a Google Sheet (pdf|xlsx|csv) via Drive

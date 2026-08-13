@@ -53,6 +53,10 @@ func TestNewServicesWithStoredToken(t *testing.T) {
 		t.Fatalf("NewSheets: %v", err)
 	}
 
+	if _, err := NewConnectedSheets(ctx, "a@b.com"); err != nil {
+		t.Fatalf("NewConnectedSheets: %v", err)
+	}
+
 	if _, err := NewTasks(ctx, "a@b.com"); err != nil {
 		t.Fatalf("NewTasks: %v", err)
 	}
@@ -83,6 +87,42 @@ func TestNewServicesWithStoredToken(t *testing.T) {
 
 	if _, err := NewPeopleDirectory(ctx, "a@b.com"); err != nil {
 		t.Fatalf("NewPeopleDirectory: %v", err)
+	}
+}
+
+func TestNewConnectedSheetsRequestsReadOnlySheetsAndBigQueryScopes(t *testing.T) {
+	var gotScopes []string
+	ctx := WithAuthDependencies(context.Background(), AuthDependencies{
+		Mode: AuthModeADC,
+		ADCTokenSource: func(_ context.Context, scopes ...string) (oauth2.TokenSource, error) {
+			gotScopes = append([]string(nil), scopes...)
+			return oauth2.StaticTokenSource(&oauth2.Token{AccessToken: "adc-token"}), nil
+		},
+	})
+
+	if _, err := NewConnectedSheets(ctx, "adc"); err != nil {
+		t.Fatalf("NewConnectedSheets: %v", err)
+	}
+
+	want := map[string]bool{
+		scopeSpreadsheetsReadOnly: false,
+		scopeBigQueryReadOnly:     false,
+	}
+
+	for _, scope := range gotScopes {
+		if _, ok := want[scope]; ok {
+			want[scope] = true
+		}
+	}
+
+	for scope, found := range want {
+		if !found {
+			t.Fatalf("missing scope %q in %v", scope, gotScopes)
+		}
+	}
+
+	if len(gotScopes) != len(want) {
+		t.Fatalf("unexpected extra scopes: %v", gotScopes)
 	}
 }
 

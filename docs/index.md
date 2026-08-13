@@ -62,6 +62,7 @@ live binary.
 - **Selecting private Photos media.** [Photos Picker](photos-picker.md) keeps access limited to items the user explicitly chooses.
 - **Managing YouTube.** [YouTube](youtube.md) covers API-key reads, account OAuth, subscriptions, playlists, and mutation safety.
 - **Grouping Docs edits atomically.** [Google Docs request batches](docs-batch.md) covers persisted, revision-locked request queues and explicit recovery modes.
+- **Inspecting BigQuery-backed Sheets.** [Connected Sheets](sheets-connected.md) covers opt-in authorization, data-source status, and bounded extract reads.
 - **Verifying real API behavior.** [Live testing](live-testing.md) covers the dedicated-account smoke suite, cleanup, retries, and optional infrastructure.
 - **Looking up a flag.** The [Command Index](commands/) has a generated page for every subcommand.
 - **Comparing Discovery-driven CLIs.** Reproduce the [gog and gws evaluation](gws-comparison.md) instead of relying on a stale feature table.

@@ -117,6 +117,7 @@ type Services struct {
 	PhotosPicker    PhotosPickerServiceFactory
 	SearchConsole   SearchConsoleServiceFactory
 	Sheets          SheetsServiceFactory
+	ConnectedSheets SheetsServiceFactory
 	SitesDrive      DriveServiceFactory
 	Slides          SlidesServiceFactory
 	Tasks           TasksServiceFactory
