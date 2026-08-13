@@ -263,6 +263,50 @@ func TestGmailSearch_Count_ReportsZeroForNoMatches(t *testing.T) {
 	}
 }
 
+func TestGmailSearch_Count_EmptyPageStillCountsWholeQuery(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		resource string
+		args     []string
+	}{
+		{
+			name:     "threads",
+			resource: "threads",
+			args:     []string{"--json", "--account", "a@b.com", "gmail", "search", "invoice", "--page", "PAGE2", "--count"},
+		},
+		{
+			name:     "messages",
+			resource: "messages",
+			args:     []string{"--json", "--account", "a@b.com", "gmail", "messages", "search", "invoice", "--page", "PAGE2", "--count"},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			capture := &countProbeCapture{}
+			srv := httptest.NewServer(gmailCountTestHandler(t, capture, tc.resource,
+				nil, []string{"m1", "m2", "m3"}, ""))
+			defer srv.Close()
+
+			result := executeWithGmailTestService(t, tc.args, newGmailServiceFromServer(t, srv))
+			if result.err != nil {
+				t.Fatalf("Execute: %v\nstderr=%q", result.err, result.stderr)
+			}
+
+			var parsed struct {
+				TotalMatches *int64 `json:"totalMatches"`
+			}
+			if err := json.Unmarshal([]byte(result.stdout), &parsed); err != nil {
+				t.Fatalf("decode: %v (%s)", err, result.stdout)
+			}
+			if parsed.TotalMatches == nil || *parsed.TotalMatches != 3 {
+				t.Fatalf("totalMatches = %v, want whole-query count 3", parsed.TotalMatches)
+			}
+			if capture.calls != 1 {
+				t.Fatalf("empty displayed page still needs one whole-query probe; got %d", capture.calls)
+			}
+		})
+	}
+}
+
 func TestGmailSearch_Count_TextOutputNamesTheWholeSetOnStderr(t *testing.T) {
 	capture := &countProbeCapture{}
 	srv := httptest.NewServer(gmailCountTestHandler(t, capture, "threads",
@@ -335,6 +379,38 @@ func TestGmailSearch_Count_SkipsProbeWithAll(t *testing.T) {
 	}
 	if capture.calls != 0 {
 		t.Fatalf("--all already has the whole set; probe must not run, ran %d times", capture.calls)
+	}
+}
+
+func TestGmailSearch_Count_AllFromPageStillProbesWholeQuery(t *testing.T) {
+	capture := &countProbeCapture{}
+	// The --all walk starts at PAGE2 and returns only two remaining threads.
+	// The separate no-cursor probe returns 99, which is the whole-query count.
+	srv := httptest.NewServer(gmailAllCountTestHandler(t, capture, []string{"t1", "t2"}))
+	defer srv.Close()
+
+	result := executeWithGmailTestService(t,
+		[]string{"--json", "--account", "a@b.com", "gmail", "search", "invoice", "--all", "--page", "PAGE2", "--count"},
+		newGmailServiceFromServer(t, srv))
+	if result.err != nil {
+		t.Fatalf("Execute: %v\nstderr=%q", result.err, result.stderr)
+	}
+
+	var parsed struct {
+		Threads      []struct{} `json:"threads"`
+		TotalMatches *int64     `json:"totalMatches"`
+	}
+	if err := json.Unmarshal([]byte(result.stdout), &parsed); err != nil {
+		t.Fatalf("decode: %v (%s)", err, result.stdout)
+	}
+	if len(parsed.Threads) != 2 {
+		t.Fatalf("threads = %d, want remaining page suffix of 2", len(parsed.Threads))
+	}
+	if parsed.TotalMatches == nil || *parsed.TotalMatches != 99 {
+		t.Fatalf("totalMatches = %v, want whole-query count 99", parsed.TotalMatches)
+	}
+	if capture.calls != 1 {
+		t.Fatalf("--all from a cursor still needs one whole-query probe; got %d", capture.calls)
 	}
 }
 

@@ -93,9 +93,9 @@ func printGmailMatchCount(u *ui.UI, shown int, count gmailMatchCount) {
 //	                to drop the envelope and emit the bare result array — so
 //	                the number would be computed and then thrown away. Say so
 //	                on stderr instead of spending a request in silence.
-//	--all           The walk already exhausted every page, so the items in hand
-//	                ARE the whole set. Probing would ask Google a question we
-//	                just finished answering.
+//	--all           When the walk started at the beginning, the items in hand
+//	                ARE the whole set. A walk started with --page contains only
+//	                the suffix, so it still needs a whole-query probe.
 //	otherwise       Probe.
 //
 // The count is always for the WHOLE query, never the remainder after a
@@ -105,6 +105,7 @@ func printGmailMatchCount(u *ui.UI, shown int, count gmailMatchCount) {
 func resolveGmailMatchCount(
 	u *ui.UI,
 	resultsOnly, all bool,
+	page string,
 	shown int,
 	probe func() (gmailMatchCount, error),
 ) (gmailMatchCount, bool, error) {
@@ -112,7 +113,7 @@ func resolveGmailMatchCount(
 	case resultsOnly:
 		u.Err().Println("--count has no effect with --results-only: the count is an envelope field, and --results-only emits only the result array. Skipping the extra request.")
 		return gmailMatchCount{}, false, nil
-	case all:
+	case all && page == "":
 		return gmailMatchCount{Value: int64(shown), Exact: true}, true, nil
 	default:
 		count, err := probe()
