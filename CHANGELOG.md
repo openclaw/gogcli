@@ -1,5 +1,7 @@
 # Changelog
 
+## Unreleased
+
 ## v0.36.0 - 2026-08-13
 
 **Highlight:** Gmail grows full draft-side reply workflows — reply, reply-all,
