@@ -1,5 +1,7 @@
 # Changelog
 
+## Unreleased
+
 ## v0.37.0 - 2026-08-14
 
 - Gmail: emit sanitized message headers and bodies once in `gmail get --json --sanitize-content`, while retaining the `message` envelope and `--results-only` unwrapping. (#986) — thanks @ronny-rentner.
