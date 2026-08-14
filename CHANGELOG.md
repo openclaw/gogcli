@@ -1,10 +1,9 @@
 # Changelog
 
-## Unreleased
+## v0.37.0 - 2026-08-14
 
 - Gmail: emit sanitized message headers and bodies once in `gmail get --json --sanitize-content`, while retaining the `message` envelope and `--results-only` unwrapping. (#986) — thanks @ronny-rentner.
 - Sheets: add read-only Connected Sheets discovery, full data-source descriptions and execution status, plus bounded reads for anchored data-source tables (extracts) behind an explicitly opted-in BigQuery scope. (#938) — thanks @ryo-touch.
-
 ## v0.36.0 - 2026-08-13
 
 **Highlight:** Gmail grows full draft-side reply workflows — reply, reply-all,
