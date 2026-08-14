@@ -42,6 +42,12 @@ type replyInfo struct {
 	InlineResources []mailmime.Attachment
 }
 
+// hasQuotableText reports whether the original message carries any text that
+// can be quoted; an attachment-only original carries none.
+func (info *replyInfo) hasQuotableText() bool {
+	return info != nil && (info.Body != "" || info.BodyHTML != "")
+}
+
 func replyHeaders(ctx context.Context, svc *gmail.Service, replyToMessageID string) (inReplyTo string, references string, threadID string, err error) {
 	info, err := fetchReplyInfo(ctx, svc, replyToMessageID, "", false)
 	if err != nil {
@@ -62,10 +68,13 @@ func fetchReplyInfo(ctx context.Context, svc *gmail.Service, replyToMessageID st
 		if err != nil {
 			return nil, err
 		}
+		if msg == nil {
+			return nil, fmt.Errorf("fetch message %s: empty response", replyToMessageID)
+		}
 		// A draft has never been delivered, so nothing can thread against its
 		// Message-Id. Refuse rather than emit a reference to a message that
 		// does not exist for any recipient.
-		if msg != nil && hasLabel(msg.LabelIds, "DRAFT") {
+		if hasLabel(msg.LabelIds, "DRAFT") {
 			return nil, fmt.Errorf("reply target message %s is a draft; cannot reply to an unsent message", replyToMessageID)
 		}
 		info := replyInfoFromMessage(msg, includeQuoteBodies)
@@ -96,10 +105,16 @@ func fetchReplyInfo(ctx context.Context, svc *gmail.Service, replyToMessageID st
 		return nil, fmt.Errorf("thread %s has no sent or received message to reply to (drafts cannot be reply targets)", threadID)
 	}
 	if includeQuoteBodies && msg.Id != "" {
+		// The quote was requested; failing to fetch the body must abort the
+		// compose rather than silently proceed without the quote.
 		fullMsg, fullErr := fetchMessageForReplyInfo(ctx, svc, msg.Id, true)
-		if fullErr == nil && fullMsg != nil {
-			msg = fullMsg
+		if fullErr != nil {
+			return nil, fmt.Errorf("fetch message %s for quoting: %w", msg.Id, fullErr)
 		}
+		if fullMsg == nil {
+			return nil, fmt.Errorf("fetch message %s for quoting: empty response", msg.Id)
+		}
+		msg = fullMsg
 	}
 
 	info := replyInfoFromMessage(msg, includeQuoteBodies)
@@ -283,10 +298,7 @@ func escapeTextToHTML(value string) string {
 }
 
 func applyQuoteToBodies(plainBody string, htmlBody string, quote bool, info *replyInfo, loc *time.Location) (string, string) {
-	if !quote || info == nil {
-		return plainBody, htmlBody
-	}
-	if info.Body == "" && info.BodyHTML == "" {
+	if !quote || !info.hasQuotableText() {
 		return plainBody, htmlBody
 	}
 
