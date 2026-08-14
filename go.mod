@@ -1,6 +1,6 @@
 module github.com/openclaw/gogcli
 
-go 1.26.5
+go 1.26.6
 
 require (
 	cloud.google.com/go/pubsub/v2 v2.6.1

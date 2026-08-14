@@ -40,7 +40,7 @@ fresh_repo="$tmp/status-fresh-clone"
 "$real_git" init --quiet "$config_repo"
 "$real_git" -C "$config_repo" config user.name release-test
 "$real_git" -C "$config_repo" config user.email release-test@example.com
-printf '%s\n' 'module example.com/release-test' 'go 1.26.5' > "$config_repo/go.mod"
+printf '%s\n' 'module example.com/release-test' 'go 1.26.6' > "$config_repo/go.mod"
 printf '%s\n' 'package main' 'const buildSource = "trusted-commit"' 'func main() {}' > "$config_repo/main.go"
 "$real_git" -C "$config_repo" add go.mod main.go
 "$real_git" -C "$config_repo" -c commit.gpgsign=false commit --quiet -m initial
@@ -117,7 +117,7 @@ EOF
 cat > "$tmp/bin/go" <<'EOF'
 #!/usr/bin/env bash
 [[ "${1:-}" == version ]] || exit 2
-printf '%s\n' 'go version go1.26.5 darwin/arm64'
+printf '%s\n' 'go version go1.26.6 darwin/arm64'
 EOF
 
 cat > "$tmp/bin/git" <<'EOF'
@@ -412,7 +412,7 @@ jq -n \
   --arg replacement "$tmp/overlay/main.go" \
   '{Replace:{($source):$replacement}}' > "$tmp/overlay.json"
 cat > "$tmp/go.work" <<'EOF'
-go 1.26.5
+go 1.26.6
 
 use .
 EOF
@@ -898,7 +898,7 @@ if grep -Fv 'env -u GOTOOLCHAIN ./scripts/test-release-local.sh' <<<"$workflow_r
   echo "workflow invokes the local release test with ambient Go build controls" >&2
   exit 1
 fi
-grep -Fq 'go version go1.26.5 darwin/$expected_goarch' <<<"$prepare_go_function"
+grep -Fq 'go version go1.26.6 darwin/$expected_goarch' <<<"$prepare_go_function"
 grep -Fq 'GoReleaser 2.17.0' <<<"$prepare_go_function"
 grep -Fq 'GO111MODULE' <<<"$prepare_go_function"
 grep -Fq 'GOAUTH' <<<"$prepare_go_function"

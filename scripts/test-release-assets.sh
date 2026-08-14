@@ -287,7 +287,7 @@ cat > "$tmp/bin/go" <<'EOF'
 set -euo pipefail
 test_root=$(cd "$(dirname "$0")/.." && pwd)
 if [[ "${1:-}" == version && "${2:-}" != -m ]]; then
-  printf '%s\n' 'go version go1.26.5 darwin/arm64'
+  printf '%s\n' 'go version go1.26.6 darwin/arm64'
   exit 0
 fi
 if [[ "${1:-}" == build ]]; then
@@ -323,7 +323,7 @@ revision=${MOCK_VCS_REVISION:-2222222222222222222222222222222222222222}
 if [[ "${MOCK_BAD_PLATFORM:-}" == "$goos-$goarch" ]]; then
   revision=3333333333333333333333333333333333333333
 fi
-printf '%s: %s\n' "$binary" "${MOCK_GO_TOOLCHAIN:-go1.26.5}"
+printf '%s: %s\n' "$binary" "${MOCK_GO_TOOLCHAIN:-go1.26.6}"
 printf '\tpath\t%s\n' "${MOCK_MAIN_PACKAGE:-github.com/openclaw/gogcli/cmd/gog}"
 printf '\tbuild\tvcs=%s\n' "${MOCK_VCS:-git}"
 printf '\tbuild\tGOARCH=%s\n' "${MOCK_GOARCH:-$goarch}"

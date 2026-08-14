@@ -295,7 +295,7 @@ prepare_official_go_environment() {
 
   tool_root="$work_dir/pinned-release-tools"
   /bin/mkdir -p "$tool_root/goreleaser"
-  go_archive_name="go1.26.5.darwin-${expected_goarch}.tar.gz"
+  go_archive_name="go1.26.6.darwin-${expected_goarch}.tar.gz"
   goreleaser_archive_name="goreleaser_Darwin_${goreleaser_arch}.tar.gz"
   release_go_archive="$tool_root/$go_archive_name"
   release_goreleaser_archive="$tool_root/$goreleaser_archive_name"
@@ -328,8 +328,8 @@ prepare_official_go_environment() {
   go_version=$(/usr/bin/env -i GOROOT= GO111MODULE=on GOAUTH=off GOCACHEPROG= GOENV=off \
     GOEXPERIMENT= GOFLAGS= GOFIPS140=off GOTOOLCHAIN=local \
     "$release_go_bin" version)
-  [[ "$go_version" == "go version go1.26.5 darwin/$expected_goarch" ]] || {
-    echo "release: official builds require native Go 1.26.5" >&2
+  [[ "$go_version" == "go version go1.26.6 darwin/$expected_goarch" ]] || {
+    echo "release: official builds require native Go 1.26.6" >&2
     exit 1
   }
   goreleaser_version=$(/usr/bin/env -i "$release_goreleaser_bin" --version)
