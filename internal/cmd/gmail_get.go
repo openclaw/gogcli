@@ -74,14 +74,7 @@ func (c *GmailGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if outfmt.IsJSON(ctx) {
 		if c.SanitizeContent {
 			output := sanitizedGmailMessage(msg, format == gmailFormatFull, c.UseIndexedAttachmentIDs)
-			payload := map[string]any{
-				"message": output,
-				"headers": output.Headers,
-			}
-			if format == gmailFormatFull && output.Body != "" {
-				payload["body"] = output.Body
-			}
-			return outfmt.WriteJSON(ctx, stdoutWriter(ctx), payload)
+			return outfmt.WriteJSON(ctx, stdoutWriter(ctx), map[string]any{"message": output})
 		}
 		// Include a flattened headers map for easier querying
 		// (e.g., jq '.headers.to' instead of complex nested queries)

@@ -23,7 +23,9 @@ gog gmail thread get <threadId> --sanitize-content --json
 ```
 
 `--sanitize-content` strips unsafe/raw payload details while keeping useful
-message text for automation.
+message text for automation. Message JSON remains under the `message` key;
+add `--results-only` to emit that sanitized message directly. Both shapes emit
+the message headers and body once.
 
 ## Filters
 

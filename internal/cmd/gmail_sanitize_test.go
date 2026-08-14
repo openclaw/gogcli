@@ -97,21 +97,43 @@ func TestGmailGetCmd_SanitizeContent_JSONUsesSafeEnvelope(t *testing.T) {
 	if strings.Contains(result.stdout, "payload") || strings.Contains(result.stdout, "unsubscribe") {
 		t.Fatalf("sanitized JSON should not expose raw Gmail payload/unsubscribe: %s", result.stdout)
 	}
-	var parsed struct {
-		Body    string `json:"body"`
-		Message struct {
-			ID      string            `json:"id"`
-			Headers map[string]string `json:"headers"`
-		} `json:"message"`
+	var envelope map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(result.stdout), &envelope); err != nil {
+		t.Fatalf("decode JSON envelope: %v", err)
 	}
-	if err := json.Unmarshal([]byte(result.stdout), &parsed); err != nil {
-		t.Fatalf("decode JSON: %v", err)
+	if len(envelope) != 1 || envelope["message"] == nil {
+		t.Fatalf("sanitized JSON should contain the message once, got: %s", result.stdout)
+	}
+
+	var parsed struct {
+		ID      string            `json:"id"`
+		Headers map[string]string `json:"headers"`
+		Body    string            `json:"body"`
+	}
+	if err := json.Unmarshal(envelope["message"], &parsed); err != nil {
+		t.Fatalf("decode sanitized message: %v", err)
 	}
 	if parsed.Body != "Hello [url removed]" {
 		t.Fatalf("unexpected body: %q", parsed.Body)
 	}
-	if parsed.Message.Headers["subject"] != "Visit [url removed] now" {
-		t.Fatalf("unexpected sanitized subject: %#v", parsed.Message.Headers)
+	if parsed.Headers["subject"] != "Visit [url removed] now" {
+		t.Fatalf("unexpected sanitized subject: %#v", parsed.Headers)
+	}
+
+	result = executeWithGmailTestService(
+		t,
+		[]string{"--json", "--results-only", "--account", "a@b.com", "gmail", "get", "m1", "--sanitize-content"},
+		newGmailServiceFromServer(t, srv),
+	)
+	if result.err != nil {
+		t.Fatalf("Execute with --results-only: %v\nstderr=%q", result.err, result.stderr)
+	}
+	var direct gmailSanitizedMessageOutput
+	if err := json.Unmarshal([]byte(result.stdout), &direct); err != nil {
+		t.Fatalf("decode direct sanitized message: %v", err)
+	}
+	if direct.ID != parsed.ID || direct.Body != parsed.Body || direct.Headers["subject"] != parsed.Headers["subject"] {
+		t.Fatalf("--results-only did not unwrap the sanitized message: %s", result.stdout)
 	}
 }
 
