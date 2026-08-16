@@ -18,12 +18,15 @@ func TestNewOAuthCallbackServer_ReadTimeout(t *testing.T) {
 	if srv.ReadTimeout == 0 {
 		t.Fatal("ReadTimeout must be set")
 	}
+
 	if srv.ReadHeaderTimeout == 0 {
 		t.Fatal("ReadHeaderTimeout must be set")
 	}
+
 	if srv.IdleTimeout == 0 {
 		t.Fatal("IdleTimeout must be set")
 	}
+
 	if srv.MaxHeaderBytes == 0 {
 		t.Fatal("MaxHeaderBytes must be set")
 	}
