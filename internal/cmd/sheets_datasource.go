@@ -293,12 +293,12 @@ func (c *SheetsDataSourceTableReadCmd) Run(ctx context.Context, flags *RootFlags
 	if columnCount == 0 {
 		// The ranged lookup above only returns the sheets the anchor intersects,
 		// so a SYNC_ALL table's column list — which lives on its separate
-		// DATA_SOURCE sheet — is missing. Re-read sheet properties unranged.
-		snapshot, snapshotErr := fetchSheetsDataSourceSnapshot(ctx, svc, spreadsheetID)
-		if snapshotErr != nil {
-			return wrapConnectedSheetsReadError(snapshotErr, account)
+		// DATA_SOURCE sheet — is missing. Re-read those columns unranged.
+		allSheets, columnsErr := fetchSheetsDataSourceSheetColumns(ctx, svc, spreadsheetID)
+		if columnsErr != nil {
+			return wrapConnectedSheetsReadError(columnsErr, account)
 		}
-		columnCount = dataSourceColumnCount(snapshot.Sheets, item.DataSourceID)
+		columnCount = dataSourceColumnCount(allSheets, item.DataSourceID)
 	}
 	if columnCount == 0 {
 		return usagef("cannot determine columns for data-source table at %q", anchor)
@@ -365,6 +365,21 @@ func fetchSheetsDataSourceSnapshot(ctx context.Context, svc *sheets.Service, spr
 		Schedules:   resp.DataSourceSchedules,
 		Sheets:      resp.Sheets,
 	}, nil
+}
+
+// fetchSheetsDataSourceSheetColumns reads just the data-source sheet column
+// definitions, which a ranged lookup cannot return. Kept narrower than the full
+// snapshot mask so the extra request stays cheap.
+func fetchSheetsDataSourceSheetColumns(ctx context.Context, svc *sheets.Service, spreadsheetID string) ([]*sheets.Sheet, error) {
+	resp, err := svc.Spreadsheets.Get(spreadsheetID).
+		Fields(googleapi.Field("sheets(properties(sheetId,title,dataSourceSheetProperties(dataSourceId,columns)))")).
+		Context(ctx).
+		Do()
+	if err != nil {
+		return nil, err
+	}
+
+	return resp.Sheets, nil
 }
 
 func fetchSheetsDataSourceTables(ctx context.Context, svc *sheets.Service, spreadsheetID, anchor string) (*sheets.Spreadsheet, error) {
