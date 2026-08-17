@@ -396,6 +396,9 @@ func sheetsDataSourceToItem(source *sheets.DataSource, allSheets []*sheets.Sheet
 		}
 	}
 	if sheet := findSheetsDataSourceSheet(allSheets, source); sheet != nil && sheet.Properties != nil {
+		// Spreadsheet.dataSources[].sheetId is absent from live API responses, so
+		// the linked sheet's own properties are the authoritative id.
+		item.SheetID = sheet.Properties.SheetId
 		item.SheetTitle = sheet.Properties.Title
 		status := sheet.Properties.DataSourceSheetProperties
 		if status != nil {
@@ -418,15 +421,26 @@ func findSheetsDataSourceSheet(allSheets []*sheets.Sheet, source *sheets.DataSou
 	if source == nil {
 		return nil
 	}
+	// Match on the data source id first: live responses omit
+	// Spreadsheet.dataSources[].sheetId, and a zero value would otherwise claim
+	// any unrelated sheet that happens to have id 0.
 	for _, sheet := range allSheets {
 		if sheet == nil || sheet.Properties == nil {
 			continue
 		}
 		properties := sheet.Properties
-		if properties.SheetId == source.SheetId {
+		if properties.DataSourceSheetProperties != nil && properties.DataSourceSheetProperties.DataSourceId == source.DataSourceId {
 			return sheet
 		}
-		if properties.DataSourceSheetProperties != nil && properties.DataSourceSheetProperties.DataSourceId == source.DataSourceId {
+	}
+	if source.SheetId == 0 {
+		return nil
+	}
+	for _, sheet := range allSheets {
+		if sheet == nil || sheet.Properties == nil {
+			continue
+		}
+		if sheet.Properties.SheetId == source.SheetId {
 			return sheet
 		}
 	}

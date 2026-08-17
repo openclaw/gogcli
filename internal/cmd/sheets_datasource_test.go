@@ -28,6 +28,8 @@ func TestSheetsDataSourceListAndDescribe(t *testing.T) {
 		SpreadsheetID string `json:"spreadsheetId"`
 		DataSources   []struct {
 			DataSourceID string `json:"dataSourceId"`
+			SheetID      int64  `json:"sheetId"`
+			SheetTitle   string `json:"sheetTitle"`
 			Provider     string `json:"provider"`
 			Source       string `json:"source"`
 			State        string `json:"state"`
@@ -45,6 +47,15 @@ func TestSheetsDataSourceListAndDescribe(t *testing.T) {
 	}
 	if list.DataSources[1].Provider != "BIGQUERY" || list.DataSources[1].Source != "bigquery-public-data.samples.shakespeare" {
 		t.Fatalf("table data source summary = %#v", list.DataSources[1])
+	}
+	// Live responses omit Spreadsheet.dataSources[].sheetId, so both entries must
+	// resolve their linked sheet by data source id rather than latching onto the
+	// unrelated tab that happens to have sheet id 0.
+	if list.DataSources[0].SheetID != 102 || list.DataSources[0].SheetTitle != "Query Preview" {
+		t.Fatalf("query data source sheet identity = %#v", list.DataSources[0])
+	}
+	if list.DataSources[1].SheetID != 101 || list.DataSources[1].SheetTitle != "Shakespeare Preview" {
+		t.Fatalf("table data source sheet identity = %#v", list.DataSources[1])
 	}
 	if strings.Contains(listResult.stdout, "SELECT corpus") {
 		t.Fatalf("list output should not expose raw query text: %s", listResult.stdout)
