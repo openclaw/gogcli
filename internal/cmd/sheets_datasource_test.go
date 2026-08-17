@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"strings"
 	"testing"
@@ -135,6 +136,40 @@ func TestSheetsDataSourceTableListDescribeAndRead(t *testing.T) {
 	}
 }
 
+func TestSheetsDataSourceTableReadSyncAllExtract(t *testing.T) {
+	srv, _ := newConnectedSheetsFixtureServer(t)
+	defer srv.Close()
+	svc := newSheetsServiceFromServer(t, srv)
+
+	// A SYNC_ALL extract carries no inline column list, and the ranged
+	// spreadsheets.get that locates the anchor omits the DATA_SOURCE sheet that
+	// does, so the column count has to be recovered from an unranged read.
+	readResult := executeWithSheetsTestService(t, []string{
+		"--json", "--account", "services@openclaw.org",
+		"sheets", "datasource", "table", "read", "connected1", "Synced Extract!A1", "--max-rows", "3",
+	}, svc)
+	if readResult.err != nil {
+		t.Fatalf("read SYNC_ALL data-source table: %v", readResult.err)
+	}
+	var read struct {
+		Anchor       string `json:"anchor"`
+		Range        string `json:"range"`
+		DataSourceID string `json:"dataSourceId"`
+		Truncated    bool   `json:"truncated"`
+	}
+	if err := json.Unmarshal([]byte(readResult.stdout), &read); err != nil {
+		t.Fatalf("decode read JSON: %v\n%s", err, readResult.stdout)
+	}
+	// ds-query exposes two columns on its DATA_SOURCE sheet, so three data rows
+	// plus the header span A1:B4.
+	if read.Anchor != "'Synced Extract'!A1" || read.Range != "'Synced Extract'!A1:B4" {
+		t.Fatalf("unexpected SYNC_ALL read bounds: %#v", read)
+	}
+	if read.DataSourceID != "ds-query" || !read.Truncated {
+		t.Fatalf("unexpected SYNC_ALL read identity: %#v", read)
+	}
+}
+
 func TestSheetsDataSourceTableValidation(t *testing.T) {
 	for _, test := range []struct {
 		name   string
@@ -196,8 +231,12 @@ func newConnectedSheetsFixtureServer(t *testing.T) (*httptest.Server, *[]string)
 		path := strings.TrimPrefix(strings.TrimPrefix(r.URL.Path, "/sheets/v4"), "/v4")
 		switch {
 		case strings.Contains(path, "/spreadsheets/connected1/values/") && r.Method == http.MethodGet:
+			requested, err := url.PathUnescape(strings.TrimPrefix(path, "/spreadsheets/connected1/values/"))
+			if err != nil {
+				t.Fatalf("decode values range: %v", err)
+			}
 			_ = json.NewEncoder(w).Encode(map[string]any{
-				"range":          "Extracts!B3:C6",
+				"range":          requested,
 				"majorDimension": "ROWS",
 				"values": [][]any{
 					{"word", "word_count"},
@@ -207,10 +246,51 @@ func newConnectedSheetsFixtureServer(t *testing.T) (*httptest.Server, *[]string)
 				},
 			})
 		case strings.HasPrefix(path, "/spreadsheets/connected1") && r.Method == http.MethodGet:
-			_, _ = w.Write(fixture)
+			_, _ = w.Write(filterConnectedSheetsFixture(t, fixture, r.URL.Query()["ranges"]))
 		default:
 			http.NotFound(w, r)
 		}
 	}))
 	return srv, &queries
+}
+
+// filterConnectedSheetsFixture mirrors a live spreadsheets.get: when ranges are
+// supplied the response only carries the sheets those ranges intersect, so a
+// SYNC_ALL extract's column list on the separate DATA_SOURCE sheet disappears.
+func filterConnectedSheetsFixture(t *testing.T, fixture []byte, ranges []string) []byte {
+	t.Helper()
+	if len(ranges) == 0 {
+		return fixture
+	}
+	titles := make(map[string]bool, len(ranges))
+	for _, item := range ranges {
+		title := item
+		if idx := strings.LastIndex(item, "!"); idx >= 0 {
+			title = item[:idx]
+		}
+		titles[strings.Trim(title, "'")] = true
+	}
+
+	var payload map[string]any
+	if err := json.Unmarshal(fixture, &payload); err != nil {
+		t.Fatalf("decode Connected Sheets fixture: %v", err)
+	}
+	sheetsValue, _ := payload["sheets"].([]any)
+	kept := make([]any, 0, len(sheetsValue))
+	for _, sheet := range sheetsValue {
+		entry, _ := sheet.(map[string]any)
+		properties, _ := entry["properties"].(map[string]any)
+		title, _ := properties["title"].(string)
+		if titles[title] {
+			kept = append(kept, sheet)
+		}
+	}
+	payload["sheets"] = kept
+
+	filtered, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("encode filtered Connected Sheets fixture: %v", err)
+	}
+
+	return filtered
 }

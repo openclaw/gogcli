@@ -291,6 +291,16 @@ func (c *SheetsDataSourceTableReadCmd) Run(ctx context.Context, flags *RootFlags
 		columnCount = dataSourceColumnCount(resp.Sheets, item.DataSourceID)
 	}
 	if columnCount == 0 {
+		// The ranged lookup above only returns the sheets the anchor intersects,
+		// so a SYNC_ALL table's column list — which lives on its separate
+		// DATA_SOURCE sheet — is missing. Re-read sheet properties unranged.
+		snapshot, snapshotErr := fetchSheetsDataSourceSnapshot(ctx, svc, spreadsheetID)
+		if snapshotErr != nil {
+			return wrapConnectedSheetsReadError(snapshotErr, account)
+		}
+		columnCount = dataSourceColumnCount(snapshot.Sheets, item.DataSourceID)
+	}
+	if columnCount == 0 {
 		return usagef("cannot determine columns for data-source table at %q", anchor)
 	}
 

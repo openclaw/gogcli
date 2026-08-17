@@ -139,6 +139,40 @@
           ]
         }
       ]
+    },
+    {
+      "properties": {
+        "sheetId": 202,
+        "title": "Synced Extract",
+        "index": 4,
+        "sheetType": "GRID",
+        "gridProperties": {
+          "rowCount": 1000,
+          "columnCount": 26
+        }
+      },
+      "data": [
+        {
+          "startRow": 0,
+          "startColumn": 0,
+          "rowData": [
+            {
+              "values": [
+                {
+                  "dataSourceTable": {
+                    "dataSourceId": "ds-query",
+                    "columnSelectionType": "SYNC_ALL",
+                    "dataExecutionStatus": {
+                      "state": "SUCCEEDED",
+                      "lastRefreshTime": "2026-08-13T16:32:00Z"
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
     }
   ]
 }
