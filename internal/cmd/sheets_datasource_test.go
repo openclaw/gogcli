@@ -7,10 +7,11 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
 	"os"
 	"strings"
 	"testing"
+
+	"google.golang.org/api/sheets/v4"
 )
 
 func TestSheetsDataSourceListAndDescribe(t *testing.T) {
@@ -134,10 +135,32 @@ func TestSheetsDataSourceTableListDescribeAndRead(t *testing.T) {
 	if !strings.Contains(joinedQueries, "includeGridData=true") || !strings.Contains(joinedQueries, "dataSourceTable") {
 		t.Fatalf("table discovery did not request anchor definitions: %s", joinedQueries)
 	}
+	// A SELECTED table lists its own columns, so it must not pay for the
+	// unranged column lookup.
+	if got := countUnrangedColumnLookups(*queries); got != 0 {
+		t.Fatalf("unranged column lookups = %d, want 0: %#v", got, *queries)
+	}
+}
+
+// countUnrangedColumnLookups counts spreadsheets.get calls that carry neither
+// grid data nor value-range parameters, which is the shape of the unranged
+// column lookup used for SYNC_ALL extracts.
+func countUnrangedColumnLookups(queries []string) int {
+	count := 0
+	for _, query := range queries {
+		if strings.Contains(query, "includeGridData") || strings.Contains(query, "majorDimension") {
+			continue
+		}
+		if strings.Contains(query, "dataSourceSheetProperties") {
+			count++
+		}
+	}
+
+	return count
 }
 
 func TestSheetsDataSourceTableReadSyncAllExtract(t *testing.T) {
-	srv, _ := newConnectedSheetsFixtureServer(t)
+	srv, queries := newConnectedSheetsFixtureServer(t)
 	defer srv.Close()
 	svc := newSheetsServiceFromServer(t, srv)
 
@@ -167,6 +190,51 @@ func TestSheetsDataSourceTableReadSyncAllExtract(t *testing.T) {
 	}
 	if read.DataSourceID != "ds-query" || !read.Truncated {
 		t.Fatalf("unexpected SYNC_ALL read identity: %#v", read)
+	}
+	// Exactly one extra lookup: the ranged anchor fetch cannot supply the columns,
+	// and repeating it per read would multiply the request cost.
+	if got := countUnrangedColumnLookups(*queries); got != 1 {
+		t.Fatalf("unranged column lookups = %d, want 1: %#v", got, *queries)
+	}
+}
+
+func TestFindSheetsDataSourceSheet(t *testing.T) {
+	decoy := &sheets.Sheet{Properties: &sheets.SheetProperties{SheetId: 0, Title: "Unrelated First Tab"}}
+	linked := &sheets.Sheet{Properties: &sheets.SheetProperties{
+		SheetId:                   777,
+		Title:                     "Linked",
+		DataSourceSheetProperties: &sheets.DataSourceSheetProperties{DataSourceId: "ds-1"},
+	}}
+	byIDOnly := &sheets.Sheet{Properties: &sheets.SheetProperties{SheetId: 777, Title: "By Sheet Id"}}
+
+	for _, test := range []struct {
+		name      string
+		allSheets []*sheets.Sheet
+		source    *sheets.DataSource
+		want      *sheets.Sheet
+	}{{
+		// Live responses omit dataSources[].sheetId, so the zero value must not
+		// win against a sheet that actually declares the data source.
+		name:      "data source id wins over a sheet with id 0",
+		allSheets: []*sheets.Sheet{decoy, linked},
+		source:    &sheets.DataSource{DataSourceId: "ds-1"},
+		want:      linked,
+	}, {
+		name:      "falls back to a supplied sheet id",
+		allSheets: []*sheets.Sheet{decoy, byIDOnly},
+		source:    &sheets.DataSource{DataSourceId: "ds-1", SheetId: 777},
+		want:      byIDOnly,
+	}, {
+		name:      "no match without a usable sheet id",
+		allSheets: []*sheets.Sheet{decoy, byIDOnly},
+		source:    &sheets.DataSource{DataSourceId: "ds-1"},
+		want:      nil,
+	}} {
+		t.Run(test.name, func(t *testing.T) {
+			if got := findSheetsDataSourceSheet(test.allSheets, test.source); got != test.want {
+				t.Fatalf("findSheetsDataSourceSheet = %#v, want %#v", got, test.want)
+			}
+		})
 	}
 }
 
@@ -224,6 +292,12 @@ func newConnectedSheetsFixtureServer(t *testing.T) (*httptest.Server, *[]string)
 	if err != nil {
 		t.Fatalf("read Connected Sheets fixture: %v", err)
 	}
+	// Decode here rather than per request: an httptest handler runs on its own
+	// goroutine, where t.Fatalf is not allowed.
+	var parsed map[string]any
+	if err := json.Unmarshal(fixture, &parsed); err != nil {
+		t.Fatalf("decode Connected Sheets fixture: %v", err)
+	}
 	queries := make([]string, 0)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		queries = append(queries, r.URL.RawQuery)
@@ -231,12 +305,10 @@ func newConnectedSheetsFixtureServer(t *testing.T) (*httptest.Server, *[]string)
 		path := strings.TrimPrefix(strings.TrimPrefix(r.URL.Path, "/sheets/v4"), "/v4")
 		switch {
 		case strings.Contains(path, "/spreadsheets/connected1/values/") && r.Method == http.MethodGet:
-			requested, err := url.PathUnescape(strings.TrimPrefix(path, "/spreadsheets/connected1/values/"))
-			if err != nil {
-				t.Fatalf("decode values range: %v", err)
-			}
+			// net/http already decoded r.URL.Path, so the trimmed remainder is
+			// the requested A1 range.
 			_ = json.NewEncoder(w).Encode(map[string]any{
-				"range":          requested,
+				"range":          strings.TrimPrefix(path, "/spreadsheets/connected1/values/"),
 				"majorDimension": "ROWS",
 				"values": [][]any{
 					{"word", "word_count"},
@@ -246,7 +318,12 @@ func newConnectedSheetsFixtureServer(t *testing.T) (*httptest.Server, *[]string)
 				},
 			})
 		case strings.HasPrefix(path, "/spreadsheets/connected1") && r.Method == http.MethodGet:
-			_, _ = w.Write(filterConnectedSheetsFixture(t, fixture, r.URL.Query()["ranges"]))
+			body, err := connectedSheetsFixtureForRanges(parsed, fixture, r.URL.Query()["ranges"])
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			_, _ = w.Write(body)
 		default:
 			http.NotFound(w, r)
 		}
@@ -254,13 +331,12 @@ func newConnectedSheetsFixtureServer(t *testing.T) (*httptest.Server, *[]string)
 	return srv, &queries
 }
 
-// filterConnectedSheetsFixture mirrors a live spreadsheets.get: when ranges are
-// supplied the response only carries the sheets those ranges intersect, so a
+// connectedSheetsFixtureForRanges mirrors a live spreadsheets.get: when ranges
+// are supplied the response only carries the sheets those ranges intersect, so a
 // SYNC_ALL extract's column list on the separate DATA_SOURCE sheet disappears.
-func filterConnectedSheetsFixture(t *testing.T, fixture []byte, ranges []string) []byte {
-	t.Helper()
+func connectedSheetsFixtureForRanges(parsed map[string]any, full []byte, ranges []string) ([]byte, error) {
 	if len(ranges) == 0 {
-		return fixture
+		return full, nil
 	}
 	titles := make(map[string]bool, len(ranges))
 	for _, item := range ranges {
@@ -271,11 +347,7 @@ func filterConnectedSheetsFixture(t *testing.T, fixture []byte, ranges []string)
 		titles[strings.Trim(title, "'")] = true
 	}
 
-	var payload map[string]any
-	if err := json.Unmarshal(fixture, &payload); err != nil {
-		t.Fatalf("decode Connected Sheets fixture: %v", err)
-	}
-	sheetsValue, _ := payload["sheets"].([]any)
+	sheetsValue, _ := parsed["sheets"].([]any)
 	kept := make([]any, 0, len(sheetsValue))
 	for _, sheet := range sheetsValue {
 		entry, _ := sheet.(map[string]any)
@@ -285,12 +357,13 @@ func filterConnectedSheetsFixture(t *testing.T, fixture []byte, ranges []string)
 			kept = append(kept, sheet)
 		}
 	}
-	payload["sheets"] = kept
 
-	filtered, err := json.Marshal(payload)
-	if err != nil {
-		t.Fatalf("encode filtered Connected Sheets fixture: %v", err)
+	// Copy rather than mutate: the parsed fixture is shared across requests.
+	filtered := make(map[string]any, len(parsed))
+	for key, value := range parsed {
+		filtered[key] = value
 	}
+	filtered["sheets"] = kept
 
-	return filtered
+	return json.Marshal(filtered)
 }
