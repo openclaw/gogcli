@@ -99,6 +99,7 @@ func TestNewGmailServicesWithCustomEndpoint(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewGmail: %v", err)
 	}
+
 	if svc.BasePath != endpoint {
 		t.Fatalf("NewGmail BasePath = %q, want %q", svc.BasePath, endpoint)
 	}
@@ -107,6 +108,7 @@ func TestNewGmailServicesWithCustomEndpoint(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewGmailBatchDelete: %v", err)
 	}
+
 	if deleteSvc.BasePath != endpoint {
 		t.Fatalf("NewGmailBatchDelete BasePath = %q, want %q", deleteSvc.BasePath, endpoint)
 	}

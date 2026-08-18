@@ -294,9 +294,13 @@ func executeWithRuntime(args []string, runtime *app.Runtime) (err error) {
 		Reauth:                    reauthFn,
 		ReauthCoordinator:         googleapi.NewReauthCoordinator(),
 	}
+	gmailBaseURL, err := validateGmailBaseURL(os.Getenv("GOG_GMAIL_BASE_URL"))
+	if err != nil {
+		return err
+	}
 	ctx = googleapi.WithAuthDependencies(ctx, authDependencies)
 	composeRuntimeGoogleServices(runtime, googleapi.NewFactory(authDependencies, googleapi.FactoryOptions{
-		GmailBaseURL:        os.Getenv("GOG_GMAIL_BASE_URL"),
+		GmailBaseURL:        gmailBaseURL,
 		PhotosBaseURL:       os.Getenv("GOG_PHOTOS_BASE_URL"),
 		PhotosPickerBaseURL: os.Getenv("GOG_PHOTOS_PICKER_BASE_URL"),
 	}))

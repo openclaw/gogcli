@@ -8,6 +8,44 @@ import (
 	"github.com/openclaw/gogcli/internal/app"
 )
 
+func TestValidateGmailBaseURL(t *testing.T) {
+	tests := []struct {
+		name    string
+		value   string
+		wantErr bool
+	}{
+		{name: "unset"},
+		{name: "https", value: "https://proxy.example/gmail/"},
+		{name: "localhost http", value: "http://localhost:8080/"},
+		{name: "ipv4 loopback http", value: "http://127.0.0.1:8080/"},
+		{name: "ipv6 loopback http", value: "http://[::1]:8080/"},
+		{name: "remote http", value: "http://proxy.example/", wantErr: true},
+		{name: "non-loopback ipv4 http", value: "http://192.0.2.1/", wantErr: true},
+		{name: "localhost suffix", value: "http://localhost.example/", wantErr: true},
+		{name: "unsupported scheme", value: "ftp://localhost/", wantErr: true},
+		{name: "missing scheme", value: "proxy.example/", wantErr: true},
+		{name: "missing host", value: "https:///gmail/", wantErr: true},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got, err := validateGmailBaseURL(test.value)
+			if test.wantErr {
+				if err == nil {
+					t.Fatalf("validateGmailBaseURL(%q) = %q, want error", test.value, got)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("validateGmailBaseURL(%q): %v", test.value, err)
+			}
+			if got != test.value {
+				t.Fatalf("validateGmailBaseURL(%q) = %q", test.value, got)
+			}
+		})
+	}
+}
+
 func TestGmailBaseURLRoutesAuthenticatedCommands(t *testing.T) {
 	requests := make(chan *http.Request, 2)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

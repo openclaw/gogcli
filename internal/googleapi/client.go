@@ -53,6 +53,7 @@ func newGoogleServiceForAccount[T any](
 	if err != nil {
 		return nil, fmt.Errorf("%s options: %w", label, err)
 	}
+
 	opts = append(opts, additionalOptions...)
 
 	return newGoogleService(ctx, label, opts, factory)
@@ -87,6 +88,7 @@ func newGoogleServiceForRequiredScopes[T any](
 	if err != nil {
 		return nil, fmt.Errorf("%s options: %w", errorLabel, err)
 	}
+
 	opts = append(opts, additionalOptions...)
 
 	return newGoogleService(ctx, errorLabel, opts, factory)
