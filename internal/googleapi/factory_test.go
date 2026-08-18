@@ -19,6 +19,7 @@ func TestFactoryBuildsRepresentativeServices(t *testing.T) {
 
 	ctx := authclient.WithAccessToken(context.Background(), "test-token")
 	factory := NewFactory(AuthDependencies{}, FactoryOptions{
+		GmailBaseURL:        "https://gmail.example.test/",
 		PhotosBaseURL:       "https://photos.example.test/v1",
 		PhotosPickerBaseURL: "https://picker.example.test/v1",
 	})
@@ -29,6 +30,8 @@ func TestFactoryBuildsRepresentativeServices(t *testing.T) {
 
 	if svc, err := factory.Gmail(ctx, "user@example.com"); err != nil || svc == nil {
 		t.Fatalf("Gmail() = (%v, %v)", svc, err)
+	} else if svc.BasePath != "https://gmail.example.test/" {
+		t.Fatalf("Gmail BasePath = %q", svc.BasePath)
 	}
 
 	if svc, err := factory.Docs(ctx, "user@example.com"); err != nil || svc == nil {

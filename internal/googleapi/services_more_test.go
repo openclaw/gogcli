@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"golang.org/x/oauth2"
+	"google.golang.org/api/option"
 
 	"github.com/openclaw/gogcli/internal/authclient"
 	"github.com/openclaw/gogcli/internal/googleauth"
@@ -87,6 +88,27 @@ func TestNewServicesWithStoredToken(t *testing.T) {
 
 	if _, err := NewPeopleDirectory(ctx, "a@b.com"); err != nil {
 		t.Fatalf("NewPeopleDirectory: %v", err)
+	}
+}
+
+func TestNewGmailServicesWithCustomEndpoint(t *testing.T) {
+	ctx := testClientResolverContext(t)
+	const endpoint = "https://gmail.example.test/"
+
+	svc, err := NewGmail(ctx, "a@b.com", option.WithEndpoint(endpoint))
+	if err != nil {
+		t.Fatalf("NewGmail: %v", err)
+	}
+	if svc.BasePath != endpoint {
+		t.Fatalf("NewGmail BasePath = %q, want %q", svc.BasePath, endpoint)
+	}
+
+	deleteSvc, err := NewGmailBatchDelete(ctx, "a@b.com", option.WithEndpoint(endpoint))
+	if err != nil {
+		t.Fatalf("NewGmailBatchDelete: %v", err)
+	}
+	if deleteSvc.BasePath != endpoint {
+		t.Fatalf("NewGmailBatchDelete BasePath = %q, want %q", deleteSvc.BasePath, endpoint)
 	}
 }
 

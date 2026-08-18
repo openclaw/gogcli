@@ -47,11 +47,13 @@ func newGoogleServiceForAccount[T any](
 	service googleauth.Service,
 	label string,
 	factory googleServiceFactory[T],
+	additionalOptions ...option.ClientOption,
 ) (*T, error) {
 	opts, err := optionsForAccount(ctx, service, email)
 	if err != nil {
 		return nil, fmt.Errorf("%s options: %w", label, err)
 	}
+	opts = append(opts, additionalOptions...)
 
 	return newGoogleService(ctx, label, opts, factory)
 }
@@ -79,11 +81,13 @@ func newGoogleServiceForRequiredScopes[T any](
 	errorLabel string,
 	scopes []string,
 	factory googleServiceFactory[T],
+	additionalOptions ...option.ClientOption,
 ) (*T, error) {
 	opts, err := optionsForAccountScopesRequiringStoredGrant(ctx, serviceLabel, email, scopes)
 	if err != nil {
 		return nil, fmt.Errorf("%s options: %w", errorLabel, err)
 	}
+	opts = append(opts, additionalOptions...)
 
 	return newGoogleService(ctx, errorLabel, opts, factory)
 }

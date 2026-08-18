@@ -20,6 +20,7 @@ import (
 	"google.golang.org/api/gmail/v1"
 	"google.golang.org/api/keep/v1"
 	"google.golang.org/api/meet/v2"
+	"google.golang.org/api/option"
 	"google.golang.org/api/people/v1"
 	"google.golang.org/api/script/v1"
 	searchconsole "google.golang.org/api/searchconsole/v1"
@@ -32,12 +33,14 @@ import (
 )
 
 type FactoryOptions struct {
+	GmailBaseURL        string
 	PhotosBaseURL       string
 	PhotosPickerBaseURL string
 }
 
 type Factory struct {
 	auth                AuthDependencies
+	gmailBaseURL        string
 	photosBaseURL       string
 	photosPickerBaseURL string
 }
@@ -45,6 +48,7 @@ type Factory struct {
 func NewFactory(auth AuthDependencies, options FactoryOptions) Factory {
 	return Factory{
 		auth:                auth,
+		gmailBaseURL:        options.GmailBaseURL,
 		photosBaseURL:       options.PhotosBaseURL,
 		photosPickerBaseURL: options.PhotosPickerBaseURL,
 	}
@@ -119,11 +123,19 @@ func (f Factory) Forms(ctx context.Context, account string) (*forms.Service, err
 }
 
 func (f Factory) Gmail(ctx context.Context, account string) (*gmail.Service, error) {
-	return NewGmail(f.withAuth(ctx), account)
+	if f.gmailBaseURL == "" {
+		return NewGmail(f.withAuth(ctx), account)
+	}
+
+	return NewGmail(f.withAuth(ctx), account, option.WithEndpoint(f.gmailBaseURL))
 }
 
 func (f Factory) GmailDelete(ctx context.Context, account string) (*gmail.Service, error) {
-	return NewGmailBatchDelete(f.withAuth(ctx), account)
+	if f.gmailBaseURL == "" {
+		return NewGmailBatchDelete(f.withAuth(ctx), account)
+	}
+
+	return NewGmailBatchDelete(f.withAuth(ctx), account, option.WithEndpoint(f.gmailBaseURL))
 }
 
 func (f Factory) Keep(ctx context.Context, path, impersonate string) (*keep.Service, error) {

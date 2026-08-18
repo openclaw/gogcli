@@ -176,6 +176,7 @@ Environment:
 - `GOG_ENABLE_COMMANDS_EXACT=calendar.events,gmail.search` (optional exact allowlist; dot paths allowed; parent paths do not allow children)
 - `GOG_DISABLE_COMMANDS=gmail.send,gmail.drafts.send` (optional denylist; dot paths allowed)
 - `GOG_GMAIL_NO_SEND=1` (block Gmail send operations)
+- `GOG_GMAIL_BASE_URL=https://gmail-proxy.example/` (override the Gmail API endpoint; the endpoint receives OAuth bearer credentials and Gmail data, so use only a trusted HTTPS endpoint; plain HTTP is for loopback-only local development/testing)
 - `config.json` can also set `keyring_backend` (JSON5; env vars take precedence)
 - `config.json` can also set `default_timezone` (IANA name or `UTC`)
 - `config.json` can also set `places_api_key` (or use `GOG_PLACES_API_KEY` / `GOOGLE_PLACES_API_KEY`) for Calendar Places lookups.
