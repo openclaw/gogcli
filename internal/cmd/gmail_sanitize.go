@@ -60,11 +60,11 @@ type gmailLink struct {
 	fromText bool
 }
 
-// cleanedURL is the best guess at a text-matched URL without surrounding prose
-// punctuation, or "" when cleaning would change nothing. url stays the exact capture;
-// this derived field is where the guessing lives: trailing dots are dropped, and a
-// trailing ")" only while the parentheses in the URL are unbalanced (a balanced pair is
-// likely part of the path). An anchor href is byte-exact and never cleaned.
+// cleanedURL is the best guess at a text-matched URL without trailing prose
+// punctuation, or "" when cleaning changes nothing. url stays the exact capture; this
+// derived field is where the guessing lives: trailing sentence punctuation is dropped,
+// and a trailing ")" only while the URL's parentheses are unbalanced, since a balanced
+// pair is likely part of the path. An anchor href is byte-exact and never cleaned.
 func (l gmailLink) cleanedURL() string {
 	if !l.fromText {
 		return ""
@@ -72,13 +72,15 @@ func (l gmailLink) cleanedURL() string {
 	url := l.URL
 	for len(url) > 0 {
 		last := url[len(url)-1]
-		if last == '.' || (last == ')' && strings.Count(url, ")") > strings.Count(url, "(")) {
-			url = url[:len(url)-1]
-			continue
+		prose := strings.IndexByte(".,;:!?", last) >= 0 ||
+			(last == ')' && strings.Count(url, ")") > strings.Count(url, "("))
+		if !prose {
+			break
 		}
-		break
+		url = url[:len(url)-1]
 	}
-	if url == l.URL {
+	// A guess that ate everything after the scheme is no guess.
+	if url == l.URL || strings.HasSuffix(url, "://") {
 		return ""
 	}
 	return url

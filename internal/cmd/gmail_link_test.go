@@ -164,9 +164,12 @@ func TestGmailLinkCleanedURL(t *testing.T) {
 	}{
 		{name: "prose paren dropped", link: gmailLink{URL: "https://x.example/y)", fromText: true}, want: "https://x.example/y"},
 		{name: "sentence period dropped", link: gmailLink{URL: "https://x.example/y.", fromText: true}, want: "https://x.example/y"},
-		{name: "period then paren dropped", link: gmailLink{URL: "https://x.example/y.)", fromText: true}, want: "https://x.example/y"},
+		{name: "comma dropped", link: gmailLink{URL: "https://x.example/y,", fromText: true}, want: "https://x.example/y"},
+		{name: "mixed trailing run dropped", link: gmailLink{URL: "https://x.example/y.)!,", fromText: true}, want: "https://x.example/y"},
 		{name: "balanced parens kept", link: gmailLink{URL: "https://x.example/wiki/Foo_(bar)", fromText: true}, want: ""},
+		{name: "balanced parens then period", link: gmailLink{URL: "https://x.example/wiki/Foo_(bar).", fromText: true}, want: "https://x.example/wiki/Foo_(bar)"},
 		{name: "clean url untouched", link: gmailLink{URL: "https://x.example/y", fromText: true}, want: ""},
+		{name: "nothing left after scheme", link: gmailLink{URL: "https://...", fromText: true}, want: ""},
 		{name: "anchor href never cleaned", link: gmailLink{URL: "https://x.example/y."}, want: ""},
 	}
 	for _, tt := range tests {
