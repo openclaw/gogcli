@@ -103,6 +103,39 @@ func TestGmailLinkCmd_IndexParityWithSanitizedGet(t *testing.T) {
 	}
 }
 
+func TestGmailLinkCmd_EscapesControlCharactersInLineOutput(t *testing.T) {
+	// Entities in the href decode to a raw newline and tab in the captured URL.
+	htmlBody := base64.RawURLEncoding.EncodeToString([]byte(
+		`<p><a href="https://evil.example/a&#10;url&#9;forged">click</a></p>`,
+	))
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"id": "m1", "threadId": "t1",
+			"payload": map[string]any{
+				"mimeType": "text/html",
+				"body":     map[string]any{"data": htmlBody},
+			},
+		})
+	}))
+	defer srv.Close()
+
+	result := executeWithGmailTestService(
+		t,
+		[]string{"--account", "a@b.com", "gmail", "link", "m1", "0"},
+		newGmailServiceFromServer(t, srv),
+	)
+	if result.err != nil {
+		t.Fatalf("Execute: %v\nstderr=%q", result.err, result.stderr)
+	}
+	if !strings.Contains(result.stdout, `"https://evil.example/a\nurl\tforged"`) {
+		t.Fatalf("control characters should be quoted: %q", result.stdout)
+	}
+	if strings.Contains(result.stdout, "evil.example/a\nurl") {
+		t.Fatalf("raw control characters leaked to line output: %q", result.stdout)
+	}
+}
+
 func TestGmailLinkCmd_UsageErrors(t *testing.T) {
 	srv := newGmailLinkTestServer(t)
 	defer srv.Close()
