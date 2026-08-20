@@ -29,6 +29,13 @@ For JSON output projection, `--fields` is accepted as an alias for `--select` on
 commands that do not define their own API field-mask `--fields`; commands with a
 local field-mask flag keep that command-specific meaning.
 
+`--results-only` is applied before `--select`, so a projection runs against the
+unwrapped primary result. To project each element of a list response, select
+fields relative to a single element, such as `--results-only --select id`. Dot
+paths do not broadcast across the elements of a nested array, so an envelope
+path such as `--select items.id` selects nothing, and object paths that do not
+match are omitted rather than reported.
+
 Pick the account explicitly for API work:
 
 ```bash
