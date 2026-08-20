@@ -27,6 +27,13 @@ message text for automation. Message JSON remains under the `message` key;
 add `--results-only` to emit that sanitized message directly. Both shapes emit
 the message headers and body once.
 
+Sanitized bodies reference every link as a `[link:N]` marker next to its text
+instead of carrying the URL. Resolve a marker on demand:
+
+```bash
+gog gmail link <messageId> <index>
+```
+
 ## Filters
 
 Export filters as Gmail WebUI-compatible XML:

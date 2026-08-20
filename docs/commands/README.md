@@ -2,7 +2,7 @@
 
 Every `gog` command has a generated docs page. The source of truth is the live CLI schema; run `make docs-commands` after changing command names, flags, help text, aliases, or arguments.
 
-Generated pages: 719.
+Generated pages: 720.
 
 ## Top-level Commands
 
@@ -475,6 +475,7 @@ Generated pages: 719.
       - [gog gmail labels modify](gog-gmail-labels-modify.md) - Modify labels on threads
       - [gog gmail labels rename](gog-gmail-labels-rename.md) - Rename a label
       - [gog gmail labels style](gog-gmail-labels-style.md) - Change a user label color or visibility
+    - [gog gmail link](gog-gmail-link.md) - Resolve a [link:N] marker from sanitized output to its full URL
     - [gog gmail mark-read](gog-gmail-mark-read.md) - Mark messages as read
     - [gog gmail messages](gog-gmail-messages.md) - Message operations
       - [gog gmail messages modify](gog-gmail-messages-modify.md) - Modify labels on a single message

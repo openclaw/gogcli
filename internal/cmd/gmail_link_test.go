@@ -12,7 +12,7 @@ import (
 func newGmailLinkTestServer(t *testing.T) *httptest.Server {
 	t.Helper()
 	htmlBody := base64.RawURLEncoding.EncodeToString([]byte(
-		`<p>Pay <a href="https://pay.example/btn">Pay now</a> or visit https://info.example/page</p>`,
+		`<p>Click <a href="https://pay.example/btn">Pay now</a> or visit https://info.example/page</p>`,
 	))
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !strings.Contains(r.URL.Path, "/gmail/v1/users/me/messages/") {
@@ -98,7 +98,7 @@ func TestGmailLinkCmd_IndexParityWithSanitizedGet(t *testing.T) {
 	if err := json.Unmarshal([]byte(result.stdout), &envelope); err != nil {
 		t.Fatalf("decode JSON: %v", err)
 	}
-	if envelope.Message.Body != "Pay Pay now [link:0] or visit [link:1]" {
+	if envelope.Message.Body != "Click Pay now [link:0] or visit [link:1]" {
 		t.Fatalf("unexpected sanitized body: %q", envelope.Message.Body)
 	}
 }

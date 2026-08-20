@@ -422,6 +422,7 @@ Generated from `gog schema --json`.
       - [`gog gmail (mail,email) labels (label) modify (update,edit,set) <threadId> ... [flags]`](commands/gog-gmail-labels-modify.md) - Modify labels on threads
       - [`gog gmail (mail,email) labels (label) rename (mv) <labelIdOrName> <newName>`](commands/gog-gmail-labels-rename.md) - Rename a label
       - [`gog gmail (mail,email) labels (label) style (color,colour) <labelIdOrName> [flags]`](commands/gog-gmail-labels-style.md) - Change a user label color or visibility
+    - [`gog gmail (mail,email) link <messageId> <index>`](commands/gog-gmail-link.md) - Resolve a [link:N] marker from sanitized output to its full URL
     - [`gog gmail (mail,email) mark-read (read-messages) [<messageId> ...] [flags]`](commands/gog-gmail-mark-read.md) - Mark messages as read
     - [`gog gmail (mail,email) messages (message,msg,msgs) <command>`](commands/gog-gmail-messages.md) - Message operations
       - [`gog gmail (mail,email) messages (message,msg,msgs) modify (update,edit,set) <messageId> [flags]`](commands/gog-gmail-messages-modify.md) - Modify labels on a single message

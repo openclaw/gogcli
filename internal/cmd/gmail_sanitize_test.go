@@ -53,12 +53,12 @@ func TestSanitizeGmailBody(t *testing.T) {
 
 func TestSanitizeGmailBodyLinks(t *testing.T) {
 	body := `<script>fetch("https://tracker.example/open")</script>` +
-		`<p>Pay <a href="https://pay.example/btn">Pay now</a></p>` +
+		`<p>Click <a href="https://pay.example/btn">Pay now</a></p>` +
 		`<p>Visit https://info.example/page for details</p>` +
 		`<p>Again <a href="https://pay.example/btn">same target</a></p>` +
 		`<p>Write to <a href="mailto:billing@example.com">billing</a></p>`
 	text, links := sanitizeGmailBodyLinks(body, true)
-	want := "Pay Pay now [link:0] Visit [link:1] for details Again same target [link:0] Write to billing [link:2]"
+	want := "Click Pay now [link:0] Visit [link:1] for details Again same target [link:0] Write to billing [link:2]"
 	if text != want {
 		t.Fatalf("unexpected text:\n got %q\nwant %q", text, want)
 	}

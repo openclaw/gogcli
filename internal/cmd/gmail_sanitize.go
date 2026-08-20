@@ -17,7 +17,7 @@ var (
 	// A NUL-delimited anchor placeholder from extractSanitizedHTMLText, or a bare URL.
 	sanitizeLinkPattern = regexp.MustCompile("\x00[^\x00]*\x00|" + `https?://[^\s<>"'` + "`" + `\]\)]+`)
 	sanitizeWhitespace  = regexp.MustCompile(`\s+`)
-	sanitizeBlockTags  = map[string]bool{
+	sanitizeBlockTags   = map[string]bool{
 		"article": true, "blockquote": true, "br": true, "dd": true, "div": true,
 		"dl": true, "dt": true, "footer": true, "h1": true, "h2": true,
 		"h3": true, "h4": true, "h5": true, "h6": true, "header": true,
