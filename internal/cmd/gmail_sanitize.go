@@ -15,7 +15,11 @@ import (
 var (
 	sanitizeURLPattern = regexp.MustCompile(`https?://[^\s<>"'` + "`" + `\]\)]+`)
 	// A NUL-delimited anchor placeholder from extractSanitizedHTMLText, or a bare URL.
-	sanitizeLinkPattern = regexp.MustCompile("\x00[^\x00]*\x00|" + `https?://[^\s<>"'` + "`" + `\]\)]+`)
+	// Unlike sanitizeURLPattern, ")" stays in the URL: where a bare URL really ends is
+	// prose context no pattern can judge, and a resolved link must carry every captured
+	// character — the reader can drop a trailing ")" or "." it reads as punctuation,
+	// but nothing downstream can restore a character the pattern cut off.
+	sanitizeLinkPattern = regexp.MustCompile("\x00[^\x00]*\x00|" + `https?://[^\s<>"'` + "`" + `\]]+`)
 	sanitizeWhitespace  = regexp.MustCompile(`\s+`)
 	sanitizeBlockTags   = map[string]bool{
 		"article": true, "blockquote": true, "br": true, "dd": true, "div": true,
@@ -49,8 +53,24 @@ func sanitizeGmailText(value string) string {
 }
 
 type gmailLink struct {
-	URL  string `json:"url"`
-	Text string `json:"text,omitempty"`
+	URL  string
+	Text string
+	// True when the URL was matched in body text rather than read from an anchor
+	// href. Only then can its boundary be off: an href is byte-exact by construction.
+	fromText bool
+}
+
+// trailingProseNote flags the one boundary a pattern cannot judge: a text-matched URL
+// ending in a character that is URL-legal but also common sentence punctuation.
+func (l gmailLink) trailingProseNote() string {
+	if !l.fromText || l.URL == "" {
+		return ""
+	}
+	last := l.URL[len(l.URL)-1]
+	if last != '.' && last != ')' {
+		return ""
+	}
+	return "the URL was captured from body text and its trailing " + string(last) + " may be sentence punctuation rather than part of the URL"
 }
 
 // linkCollector numbers the links a body conversion keeps out of the text. Indexes are
@@ -65,12 +85,12 @@ func newLinkCollector() *linkCollector {
 	return &linkCollector{byURL: map[string]int{}}
 }
 
-func (c *linkCollector) add(url, text string) int {
+func (c *linkCollector) add(url, text string, fromText bool) int {
 	if idx, ok := c.byURL[url]; ok {
 		return idx
 	}
 	idx := len(c.links)
-	c.links = append(c.links, gmailLink{URL: url, Text: text})
+	c.links = append(c.links, gmailLink{URL: url, Text: text, fromText: fromText})
 	c.byURL[url] = idx
 	return idx
 }
@@ -101,12 +121,13 @@ func sanitizeGmailBodyLinks(body string, isHTML bool) (string, []gmailLink) {
 	// replaces it.
 	links := newLinkCollector()
 	text = sanitizeLinkPattern.ReplaceAllStringFunc(text, func(match string) string {
-		url, linkText := match, ""
+		url, linkText, fromText := match, "", true
 		if strings.HasPrefix(match, "\x00") {
 			url = strings.Trim(match, "\x00")
 			linkText = anchorTexts[url]
+			fromText = false
 		}
-		return "[link:" + strconv.Itoa(links.add(url, linkText)) + "]"
+		return "[link:" + strconv.Itoa(links.add(url, linkText, fromText)) + "]"
 	})
 	text = sanitizeWhitespace.ReplaceAllString(text, " ")
 	return strings.TrimSpace(text), links.links

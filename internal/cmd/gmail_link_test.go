@@ -103,6 +103,59 @@ func TestGmailLinkCmd_IndexParityWithSanitizedGet(t *testing.T) {
 	}
 }
 
+func TestGmailLinkCmd_NotesTrailingProsePunctuation(t *testing.T) {
+	htmlBody := base64.RawURLEncoding.EncodeToString([]byte(
+		`<p>Details (https://info.example/x) here, button: <a href="https://pay.example/a_(b)">Pay</a></p>`,
+	))
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"id": "m1", "threadId": "t1",
+			"payload": map[string]any{
+				"mimeType": "text/html",
+				"body":     map[string]any{"data": htmlBody},
+			},
+		})
+	}))
+	defer srv.Close()
+
+	// The bare URL captured its prose ")" and says so.
+	result := executeWithGmailTestService(
+		t,
+		[]string{"--json", "--account", "a@b.com", "gmail", "link", "m1", "0"},
+		newGmailServiceFromServer(t, srv),
+	)
+	if result.err != nil {
+		t.Fatalf("Execute: %v\nstderr=%q", result.err, result.stderr)
+	}
+	var resolved struct {
+		URL  string `json:"url"`
+		Note string `json:"note"`
+	}
+	if err := json.Unmarshal([]byte(result.stdout), &resolved); err != nil {
+		t.Fatalf("decode JSON: %v", err)
+	}
+	if resolved.URL != "https://info.example/x)" {
+		t.Fatalf("unexpected url: %q", resolved.URL)
+	}
+	if !strings.Contains(resolved.Note, "sentence punctuation") {
+		t.Fatalf("expected prose note, got: %q", resolved.Note)
+	}
+
+	// The anchor href is byte-exact, so its trailing ")" gets no note.
+	result = executeWithGmailTestService(
+		t,
+		[]string{"--json", "--account", "a@b.com", "gmail", "link", "m1", "1"},
+		newGmailServiceFromServer(t, srv),
+	)
+	if result.err != nil {
+		t.Fatalf("Execute: %v\nstderr=%q", result.err, result.stderr)
+	}
+	if strings.Contains(result.stdout, "note") {
+		t.Fatalf("anchor href should have no note: %s", result.stdout)
+	}
+}
+
 func TestGmailLinkCmd_EscapesControlCharactersInLineOutput(t *testing.T) {
 	// Entities in the href decode to a raw newline and tab in the captured URL.
 	htmlBody := base64.RawURLEncoding.EncodeToString([]byte(

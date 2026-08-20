@@ -64,8 +64,31 @@ func TestSanitizeGmailBodyLinks(t *testing.T) {
 	}
 	wantLinks := []gmailLink{
 		{URL: "https://pay.example/btn", Text: "Pay now"},
-		{URL: "https://info.example/page"},
+		{URL: "https://info.example/page", fromText: true},
 		{URL: "mailto:billing@example.com", Text: "billing"},
+	}
+	if len(links) != len(wantLinks) {
+		t.Fatalf("unexpected links: %#v", links)
+	}
+	for i, wantLink := range wantLinks {
+		if links[i] != wantLink {
+			t.Fatalf("link %d = %#v, want %#v", i, links[i], wantLink)
+		}
+	}
+}
+
+func TestSanitizeGmailBodyLinks_BareURLBoundaries(t *testing.T) {
+	body := "See https://en.wikipedia.org/wiki/Foo_(bar) and (https://info.example/x) for details"
+	text, links := sanitizeGmailBodyLinks(body, false)
+	want := "See [link:0] and ([link:1] for details"
+	if text != want {
+		t.Fatalf("unexpected text:\n got %q\nwant %q", text, want)
+	}
+	// Every captured character is kept: the balanced-paren path survives whole, and the
+	// prose paren after the second URL is captured rather than cut — the reader decides.
+	wantLinks := []gmailLink{
+		{URL: "https://en.wikipedia.org/wiki/Foo_(bar)", fromText: true},
+		{URL: "https://info.example/x)", fromText: true},
 	}
 	if len(links) != len(wantLinks) {
 		t.Fatalf("unexpected links: %#v", links)

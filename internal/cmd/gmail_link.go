@@ -62,11 +62,21 @@ func (c *GmailLinkCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(ctx, stdoutWriter(ctx), link)
+		payload := map[string]any{"url": link.URL}
+		if link.Text != "" {
+			payload["text"] = link.Text
+		}
+		if note := link.trailingProseNote(); note != "" {
+			payload["note"] = note
+		}
+		return outfmt.WriteJSON(ctx, stdoutWriter(ctx), payload)
 	}
 	u.Out().Linef("url\t%s", tsvSafeValue(link.URL))
 	if link.Text != "" {
 		u.Out().Linef("text\t%s", tsvSafeValue(link.Text))
+	}
+	if note := link.trailingProseNote(); note != "" {
+		u.Out().Linef("note\t%s", note)
 	}
 	return nil
 }
