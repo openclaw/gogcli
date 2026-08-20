@@ -16,6 +16,13 @@ type AppScriptCmd struct {
 	Content AppScriptContentCmd `cmd:"" name:"content" aliases:"cat" help:"Get Apps Script project content"`
 	Run     AppScriptRunCmd     `cmd:"" name:"run" help:"Run a deployed Apps Script function"`
 	Create  AppScriptCreateCmd  `cmd:"" name:"create" aliases:"new" help:"Create an Apps Script project"`
+
+	Push        AppScriptPushCmd        `cmd:"" name:"push" help:"Push a local directory into an Apps Script project (replaces every remote file)"`
+	Pull        AppScriptPullCmd        `cmd:"" name:"pull" help:"Pull an Apps Script project into a local directory"`
+	Deploy      AppScriptDeployCmd      `cmd:"" name:"deploy" help:"Create a version and deploy it (web app URL is printed)"`
+	Deployments AppScriptDeploymentsCmd `cmd:"" name:"deployments" aliases:"list-deployments" help:"List deployments"`
+	Undeploy    AppScriptUndeployCmd    `cmd:"" name:"undeploy" aliases:"delete-deployment" help:"Delete a deployment"`
+	Versions    AppScriptVersionsCmd    `cmd:"" name:"versions" aliases:"list-versions" help:"List versions"`
 }
 
 type AppScriptGetCmd struct {
@@ -97,13 +104,7 @@ func (c *AppScriptContentCmd) Run(ctx context.Context, flags *RootFlags) error {
 
 	u := ui.FromContext(ctx)
 	u.Out().Linef("script_id\t%s", content.ScriptId)
-	u.Out().Linef("files\t%d", len(content.Files))
-	for _, file := range content.Files {
-		if file == nil {
-			continue
-		}
-		u.Out().Linef("file\t%s\t%s", file.Name, file.Type)
-	}
+	printAppScriptFiles(u, content.Files)
 	return nil
 }
 
@@ -262,6 +263,16 @@ func parseExecutionError(status *scriptapi.Status) *scriptapi.ExecutionError {
 		return nil
 	}
 	return &detail
+}
+
+func printAppScriptFiles(u *ui.UI, files []*scriptapi.File) {
+	u.Out().Linef("files\t%d", len(files))
+	for _, file := range files {
+		if file == nil {
+			continue
+		}
+		u.Out().Linef("file\t%s\t%s", sanitizeTab(file.Name), file.Type)
+	}
 }
 
 func appScriptEditURL(scriptID string) string {

@@ -32,8 +32,14 @@ Generated from `gog schema --json`.
   - [`gog appscript (script,apps-script) <command> [flags]`](commands/gog-appscript.md) - Google Apps Script
     - [`gog appscript (script,apps-script) content (cat) <scriptId>`](commands/gog-appscript-content.md) - Get Apps Script project content
     - [`gog appscript (script,apps-script) create (new) --title=STRING [flags]`](commands/gog-appscript-create.md) - Create an Apps Script project
+    - [`gog appscript (script,apps-script) deploy <scriptId> [flags]`](commands/gog-appscript-deploy.md) - Create a version and deploy it (web app URL is printed)
+    - [`gog appscript (script,apps-script) deployments (list-deployments) <scriptId> [flags]`](commands/gog-appscript-deployments.md) - List deployments
     - [`gog appscript (script,apps-script) get (info,show) <scriptId>`](commands/gog-appscript-get.md) - Get Apps Script project metadata
+    - [`gog appscript (script,apps-script) pull <scriptId> <dir>`](commands/gog-appscript-pull.md) - Pull an Apps Script project into a local directory
+    - [`gog appscript (script,apps-script) push <scriptId> <dir>`](commands/gog-appscript-push.md) - Push a local directory into an Apps Script project (replaces every remote file)
     - [`gog appscript (script,apps-script) run <scriptId> <function> [flags]`](commands/gog-appscript-run.md) - Run a deployed Apps Script function
+    - [`gog appscript (script,apps-script) undeploy (delete-deployment) <scriptId> <deploymentId>`](commands/gog-appscript-undeploy.md) - Delete a deployment
+    - [`gog appscript (script,apps-script) versions (list-versions) <scriptId> [flags]`](commands/gog-appscript-versions.md) - List versions
   - [`gog auth <command> [flags]`](commands/gog-auth.md) - Auth and credentials
     - [`gog auth add <email> [flags]`](commands/gog-auth-add.md) - Authorize and store a refresh token
     - [`gog auth alias <command>`](commands/gog-auth-alias.md) - Manage account aliases

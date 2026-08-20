@@ -26,6 +26,10 @@ func TestDryRunE2E_CommandsSkipAuthAPIAndFileWrites(t *testing.T) {
 	if err := os.WriteFile(markdownPath, []byte("## Slide\nBody"), 0o600); err != nil {
 		t.Fatalf("write dry-run markdown: %v", err)
 	}
+	appScriptDryRunDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(appScriptDryRunDir, "appsscript.json"), []byte("{}"), 0o600); err != nil {
+		t.Fatalf("write dry-run appscript manifest: %v", err)
+	}
 	outputDir := t.TempDir()
 	outputPath := func(name string) string {
 		return filepath.Join(outputDir, name)
@@ -623,6 +627,27 @@ func TestDryRunE2E_CommandsSkipAuthAPIAndFileWrites(t *testing.T) {
 			name: "appscript create",
 			args: []string{"appscript", "create", "--title", "SmokeScript"},
 			op:   "appscript.create",
+		},
+		{
+			name: "appscript push",
+			args: []string{"appscript", "push", "script123", appScriptDryRunDir},
+			op:   "appscript.push",
+		},
+		{
+			name:    "appscript pull",
+			args:    []string{"appscript", "pull", "script123", outputPath("appscript-pull")},
+			op:      "appscript.pull",
+			outPath: outputPath("appscript-pull"),
+		},
+		{
+			name: "appscript deploy",
+			args: []string{"appscript", "deploy", "script123", "--description", "nightly"},
+			op:   "appscript.deploy",
+		},
+		{
+			name: "appscript undeploy",
+			args: []string{"appscript", "undeploy", "script123", "AKfyc123", "--force"},
+			op:   "appscript.undeploy",
 		},
 		{
 			name: "sheets banding clear all",

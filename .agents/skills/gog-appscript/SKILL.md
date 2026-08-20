@@ -30,8 +30,14 @@ gog --readonly --account user@example.com appscript --help
 | --- | --- |
 | `content` | Get Apps Script project content |
 | `create` | Create an Apps Script project |
+| `deploy` | Create a version and deploy it (web app URL is printed) |
+| `deployments` | List deployments |
 | `get` | Get Apps Script project metadata |
+| `pull` | Pull an Apps Script project into a local directory |
+| `push` | Push a local directory into an Apps Script project (replaces every remote file) |
 | `run` | Run a deployed Apps Script function |
+| `undeploy` | Delete a deployment |
+| `versions` | List versions |
 
 Run `gog appscript <command> --help` for flags and `gog schema appscript <command> --json`
 for the machine-readable contract. Do not guess command syntax.

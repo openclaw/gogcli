@@ -1,31 +1,18 @@
-# `gog appscript`
+# `gog appscript deploy`
 
 > Generated from `gog schema --json`. Do not edit this page by hand; run `make docs-commands`.
 
-Google Apps Script
+Create a version and deploy it (web app URL is printed)
 
 ## Usage
 
 ```bash
-gog appscript (script,apps-script) <command> [flags]
+gog appscript (script,apps-script) deploy <scriptId> [flags]
 ```
 
 ## Parent
 
-- [gog](gog.md)
-
-## Subcommands
-
-- [gog appscript content](gog-appscript-content.md) - Get Apps Script project content
-- [gog appscript create](gog-appscript-create.md) - Create an Apps Script project
-- [gog appscript deploy](gog-appscript-deploy.md) - Create a version and deploy it (web app URL is printed)
-- [gog appscript deployments](gog-appscript-deployments.md) - List deployments
-- [gog appscript get](gog-appscript-get.md) - Get Apps Script project metadata
-- [gog appscript pull](gog-appscript-pull.md) - Pull an Apps Script project into a local directory
-- [gog appscript push](gog-appscript-push.md) - Push a local directory into an Apps Script project (replaces every remote file)
-- [gog appscript run](gog-appscript-run.md) - Run a deployed Apps Script function
-- [gog appscript undeploy](gog-appscript-undeploy.md) - Delete a deployment
-- [gog appscript versions](gog-appscript-versions.md) - List versions
+- [gog appscript](gog-appscript.md)
 
 ## Flags
 
@@ -35,6 +22,8 @@ gog appscript (script,apps-script) <command> [flags]
 | `-a`<br>`--account`<br>`--acct` | `string` |  | Account email, alias, or auto for authenticated Google API commands |
 | `--client` | `string` |  | OAuth client name (selects stored credentials + token bucket) |
 | `--color` | `string` | auto | Color output: auto\|always\|never |
+| `--deployment-id` | `string` |  | Update this existing deployment instead of creating a new one (keeps the same URL) |
+| `--description` | `string` |  | Version and deployment description |
 | `--disable-commands` | `string` |  | Comma-separated list of disabled commands; dot paths allowed |
 | `-n`<br>`--dry-run`<br>`--dryrun`<br>`--noop`<br>`--preview` | `bool` |  | Do not make changes; print intended actions and exit successfully |
 | `--enable-commands` | `string` |  | Comma-separated list of enabled command prefixes; dot paths allowed (restricts CLI) |
@@ -55,5 +44,5 @@ gog appscript (script,apps-script) <command> [flags]
 
 ## See Also
 
-- [gog](gog.md)
+- [gog appscript](gog-appscript.md)
 - [Command index](README.md)

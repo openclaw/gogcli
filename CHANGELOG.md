@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Apps Script: add `push`, `pull`, `deploy`, `deployments`, `undeploy`, and `versions` so a project's source can be synced from a local directory and released to a web app without leaving the CLI.
 - Security: bound `gmail watch serve` and the local OAuth callback HTTP servers with read, idle, and header-size limits so a slow or oversized request cannot stall the listener.
 
 ## v0.37.0 - 2026-08-14

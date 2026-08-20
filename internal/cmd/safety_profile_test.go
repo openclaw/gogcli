@@ -124,6 +124,8 @@ func TestReadonlySafetyProfileBlocksNestedMutations(t *testing.T) {
 		{"gmail", "messages", "modify", "msg-1", "--add", "Label_1"},
 		{"calendar", "alias", "set", "work", "abc123@group.calendar.google.com"},
 		{"calendar", "alias", "unset", "work"},
+		{"appscript", "push", "script123", "."},
+		{"appscript", "undeploy", "script123", "AKfyc123", "--force"},
 	}
 	for _, args := range tests {
 		err := Execute(args)
