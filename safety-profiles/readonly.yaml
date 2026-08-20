@@ -11,6 +11,7 @@ gmail:
     search: true
     modify: false
   attachment: true
+  link: true
   url: true
   history: true
   thread:

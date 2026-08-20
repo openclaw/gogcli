@@ -9,6 +9,7 @@ gmail:
   get: true
   messages: true
   attachment: true
+  link: true
   url: true
   history: true
   thread:
