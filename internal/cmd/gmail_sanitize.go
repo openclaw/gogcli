@@ -60,12 +60,12 @@ type gmailLink struct {
 	fromText bool
 }
 
-// cleanedURL is the best guess at a text-matched URL without trailing prose
-// punctuation, or "" when cleaning changes nothing. url stays the exact capture; this
-// derived field is where the guessing lives: trailing sentence punctuation is dropped,
-// and a trailing ")" only while the URL's parentheses are unbalanced, since a balanced
-// pair is likely part of the path. An anchor href is byte-exact and never cleaned.
-func (l gmailLink) cleanedURL() string {
+// trimmedURL is the text-matched URL without trailing prose punctuation, or "" when
+// trimming changes nothing. It backs the --trim-punctuation flag; the untrimmed URL
+// stays the exact capture. Trailing sentence punctuation is dropped, and a trailing ")"
+// only while the URL's parentheses are unbalanced, since a balanced pair is likely part
+// of the path. An anchor href is byte-exact and never trimmed.
+func (l gmailLink) trimmedURL() string {
 	if !l.fromText {
 		return ""
 	}
@@ -79,7 +79,7 @@ func (l gmailLink) cleanedURL() string {
 		}
 		url = url[:len(url)-1]
 	}
-	// A guess that ate everything after the scheme is no guess.
+	// A trim that ate everything after the scheme is no guess worth returning.
 	if url == l.URL || strings.HasSuffix(url, "://") {
 		return ""
 	}

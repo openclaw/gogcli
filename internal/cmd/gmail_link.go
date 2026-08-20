@@ -14,8 +14,9 @@ import (
 )
 
 type GmailLinkCmd struct {
-	MessageID string `arg:"" name:"messageId" help:"Message ID"`
-	Index     string `arg:"" name:"index" help:"0-based link index from the sanitized body's [link:N] marker"`
+	MessageID       string `arg:"" name:"messageId" help:"Message ID"`
+	Index           string `arg:"" name:"index" help:"0-based link index from the sanitized body's [link:N] marker"`
+	TrimPunctuation bool   `name:"trim-punctuation" help:"Strip trailing sentence punctuation (and an unbalanced trailing parenthesis) that a bare URL likely captured from the prose around it; anchor hrefs are byte-exact and unaffected"`
 }
 
 // linkByIndex resolves a 0-based index from a sanitized body's [link:N] marker to the
@@ -61,22 +62,22 @@ func (c *GmailLinkCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if err != nil {
 		return err
 	}
+	url := link.URL
+	if c.TrimPunctuation {
+		if trimmed := link.trimmedURL(); trimmed != "" {
+			url = trimmed
+		}
+	}
 	if outfmt.IsJSON(ctx) {
-		payload := map[string]any{"url": link.URL}
+		payload := map[string]any{"url": url}
 		if link.Text != "" {
 			payload["text"] = link.Text
 		}
-		if cleaned := link.cleanedURL(); cleaned != "" {
-			payload["urlCleaned"] = cleaned
-		}
 		return outfmt.WriteJSON(ctx, stdoutWriter(ctx), payload)
 	}
-	u.Out().Linef("url\t%s", tsvSafeValue(link.URL))
+	u.Out().Linef("url\t%s", tsvSafeValue(url))
 	if link.Text != "" {
 		u.Out().Linef("text\t%s", tsvSafeValue(link.Text))
-	}
-	if cleaned := link.cleanedURL(); cleaned != "" {
-		u.Out().Linef("urlCleaned\t%s", tsvSafeValue(cleaned))
 	}
 	return nil
 }

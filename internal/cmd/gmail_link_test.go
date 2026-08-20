@@ -103,7 +103,7 @@ func TestGmailLinkCmd_IndexParityWithSanitizedGet(t *testing.T) {
 	}
 }
 
-func TestGmailLinkCmd_CleanedURLForProsePunctuation(t *testing.T) {
+func TestGmailLinkCmd_TrimPunctuation(t *testing.T) {
 	htmlBody := base64.RawURLEncoding.EncodeToString([]byte(
 		`<p>Details (https://info.example/x) here, button: <a href="https://pay.example/a_(b)">Pay</a></p>`,
 	))
@@ -119,7 +119,7 @@ func TestGmailLinkCmd_CleanedURLForProsePunctuation(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	// The bare URL keeps its captured prose ")" in url; urlCleaned carries the guess.
+	// Default: url is the exact capture, prose ")" included.
 	result := executeWithGmailTestService(
 		t,
 		[]string{"--json", "--account", "a@b.com", "gmail", "link", "m1", "0"},
@@ -129,8 +129,7 @@ func TestGmailLinkCmd_CleanedURLForProsePunctuation(t *testing.T) {
 		t.Fatalf("Execute: %v\nstderr=%q", result.err, result.stderr)
 	}
 	var resolved struct {
-		URL        string `json:"url"`
-		URLCleaned string `json:"urlCleaned"`
+		URL string `json:"url"`
 	}
 	if err := json.Unmarshal([]byte(result.stdout), &resolved); err != nil {
 		t.Fatalf("decode JSON: %v", err)
@@ -138,25 +137,41 @@ func TestGmailLinkCmd_CleanedURLForProsePunctuation(t *testing.T) {
 	if resolved.URL != "https://info.example/x)" {
 		t.Fatalf("unexpected url: %q", resolved.URL)
 	}
-	if resolved.URLCleaned != "https://info.example/x" {
-		t.Fatalf("unexpected urlCleaned: %q", resolved.URLCleaned)
-	}
 
-	// The anchor href is byte-exact; its balanced ")" is data, so no urlCleaned.
+	// --trim-punctuation strips the prose suffix from the text-captured URL.
 	result = executeWithGmailTestService(
 		t,
-		[]string{"--json", "--account", "a@b.com", "gmail", "link", "m1", "1"},
+		[]string{"--json", "--account", "a@b.com", "gmail", "link", "m1", "0", "--trim-punctuation"},
 		newGmailServiceFromServer(t, srv),
 	)
 	if result.err != nil {
 		t.Fatalf("Execute: %v\nstderr=%q", result.err, result.stderr)
 	}
-	if strings.Contains(result.stdout, "urlCleaned") {
-		t.Fatalf("anchor href should have no urlCleaned: %s", result.stdout)
+	if err := json.Unmarshal([]byte(result.stdout), &resolved); err != nil {
+		t.Fatalf("decode JSON: %v", err)
+	}
+	if resolved.URL != "https://info.example/x" {
+		t.Fatalf("unexpected trimmed url: %q", resolved.URL)
+	}
+
+	// The anchor href is byte-exact; its balanced ")" is data even with the flag.
+	result = executeWithGmailTestService(
+		t,
+		[]string{"--json", "--account", "a@b.com", "gmail", "link", "m1", "1", "--trim-punctuation"},
+		newGmailServiceFromServer(t, srv),
+	)
+	if result.err != nil {
+		t.Fatalf("Execute: %v\nstderr=%q", result.err, result.stderr)
+	}
+	if err := json.Unmarshal([]byte(result.stdout), &resolved); err != nil {
+		t.Fatalf("decode JSON: %v", err)
+	}
+	if resolved.URL != "https://pay.example/a_(b)" {
+		t.Fatalf("unexpected anchor url: %q", resolved.URL)
 	}
 }
 
-func TestGmailLinkCleanedURL(t *testing.T) {
+func TestGmailLinkTrimmedURL(t *testing.T) {
 	tests := []struct {
 		name string
 		link gmailLink
@@ -170,12 +185,12 @@ func TestGmailLinkCleanedURL(t *testing.T) {
 		{name: "balanced parens then period", link: gmailLink{URL: "https://x.example/wiki/Foo_(bar).", fromText: true}, want: "https://x.example/wiki/Foo_(bar)"},
 		{name: "clean url untouched", link: gmailLink{URL: "https://x.example/y", fromText: true}, want: ""},
 		{name: "nothing left after scheme", link: gmailLink{URL: "https://...", fromText: true}, want: ""},
-		{name: "anchor href never cleaned", link: gmailLink{URL: "https://x.example/y."}, want: ""},
+		{name: "anchor href never trimmed", link: gmailLink{URL: "https://x.example/y."}, want: ""},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := tt.link.cleanedURL(); got != tt.want {
-				t.Fatalf("cleanedURL() = %q, want %q", got, tt.want)
+			if got := tt.link.trimmedURL(); got != tt.want {
+				t.Fatalf("trimmedURL() = %q, want %q", got, tt.want)
 			}
 		})
 	}

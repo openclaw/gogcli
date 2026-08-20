@@ -7,7 +7,7 @@ Resolve a [link:N] marker from sanitized output to its full URL
 ## Usage
 
 ```bash
-gog gmail (mail,email) link <messageId> <index>
+gog gmail (mail,email) link <messageId> <index> [flags]
 ```
 
 ## Parent
@@ -36,6 +36,7 @@ gog gmail (mail,email) link <messageId> <index>
 | `--readonly` | `bool` | false | Block mutating API requests at runtime; auth add also requests read-only OAuth scopes |
 | `--results-only` | `bool` |  | In JSON mode, emit only the primary result (drops envelope fields like nextPageToken) |
 | `--select`<br>`--pick`<br>`--project` | `string` |  | In JSON mode, select comma-separated fields (best-effort; supports dot paths). Desire path: use --fields for most commands. |
+| `--trim-punctuation` | `bool` |  | Strip trailing sentence punctuation (and an unbalanced trailing parenthesis) that a bare URL likely captured from the prose around it; anchor hrefs are byte-exact and unaffected |
 | `-v`<br>`--verbose` | `bool` |  | Enable verbose logging |
 | `--version` | `kong.VersionFlag` |  | Print version and exit |
 | `--wrap-untrusted` | `bool` | false | In JSON/raw output, wrap fetched text fields in external untrusted-content markers |
