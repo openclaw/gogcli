@@ -103,7 +103,7 @@ func TestGmailLinkCmd_IndexParityWithSanitizedGet(t *testing.T) {
 	}
 }
 
-func TestGmailLinkCmd_NotesTrailingProsePunctuation(t *testing.T) {
+func TestGmailLinkCmd_CleanedURLForProsePunctuation(t *testing.T) {
 	htmlBody := base64.RawURLEncoding.EncodeToString([]byte(
 		`<p>Details (https://info.example/x) here, button: <a href="https://pay.example/a_(b)">Pay</a></p>`,
 	))
@@ -119,7 +119,7 @@ func TestGmailLinkCmd_NotesTrailingProsePunctuation(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	// The bare URL captured its prose ")" and says so.
+	// The bare URL keeps its captured prose ")" in url; urlCleaned carries the guess.
 	result := executeWithGmailTestService(
 		t,
 		[]string{"--json", "--account", "a@b.com", "gmail", "link", "m1", "0"},
@@ -129,8 +129,8 @@ func TestGmailLinkCmd_NotesTrailingProsePunctuation(t *testing.T) {
 		t.Fatalf("Execute: %v\nstderr=%q", result.err, result.stderr)
 	}
 	var resolved struct {
-		URL  string `json:"url"`
-		Note string `json:"note"`
+		URL        string `json:"url"`
+		URLCleaned string `json:"urlCleaned"`
 	}
 	if err := json.Unmarshal([]byte(result.stdout), &resolved); err != nil {
 		t.Fatalf("decode JSON: %v", err)
@@ -138,11 +138,11 @@ func TestGmailLinkCmd_NotesTrailingProsePunctuation(t *testing.T) {
 	if resolved.URL != "https://info.example/x)" {
 		t.Fatalf("unexpected url: %q", resolved.URL)
 	}
-	if !strings.Contains(resolved.Note, "sentence punctuation") {
-		t.Fatalf("expected prose note, got: %q", resolved.Note)
+	if resolved.URLCleaned != "https://info.example/x" {
+		t.Fatalf("unexpected urlCleaned: %q", resolved.URLCleaned)
 	}
 
-	// The anchor href is byte-exact, so its trailing ")" gets no note.
+	// The anchor href is byte-exact; its balanced ")" is data, so no urlCleaned.
 	result = executeWithGmailTestService(
 		t,
 		[]string{"--json", "--account", "a@b.com", "gmail", "link", "m1", "1"},
@@ -151,8 +151,30 @@ func TestGmailLinkCmd_NotesTrailingProsePunctuation(t *testing.T) {
 	if result.err != nil {
 		t.Fatalf("Execute: %v\nstderr=%q", result.err, result.stderr)
 	}
-	if strings.Contains(result.stdout, "note") {
-		t.Fatalf("anchor href should have no note: %s", result.stdout)
+	if strings.Contains(result.stdout, "urlCleaned") {
+		t.Fatalf("anchor href should have no urlCleaned: %s", result.stdout)
+	}
+}
+
+func TestGmailLinkCleanedURL(t *testing.T) {
+	tests := []struct {
+		name string
+		link gmailLink
+		want string
+	}{
+		{name: "prose paren dropped", link: gmailLink{URL: "https://x.example/y)", fromText: true}, want: "https://x.example/y"},
+		{name: "sentence period dropped", link: gmailLink{URL: "https://x.example/y.", fromText: true}, want: "https://x.example/y"},
+		{name: "period then paren dropped", link: gmailLink{URL: "https://x.example/y.)", fromText: true}, want: "https://x.example/y"},
+		{name: "balanced parens kept", link: gmailLink{URL: "https://x.example/wiki/Foo_(bar)", fromText: true}, want: ""},
+		{name: "clean url untouched", link: gmailLink{URL: "https://x.example/y", fromText: true}, want: ""},
+		{name: "anchor href never cleaned", link: gmailLink{URL: "https://x.example/y."}, want: ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.link.cleanedURL(); got != tt.want {
+				t.Fatalf("cleanedURL() = %q, want %q", got, tt.want)
+			}
+		})
 	}
 }
 

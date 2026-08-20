@@ -60,17 +60,28 @@ type gmailLink struct {
 	fromText bool
 }
 
-// trailingProseNote flags the one boundary a pattern cannot judge: a text-matched URL
-// ending in a character that is URL-legal but also common sentence punctuation.
-func (l gmailLink) trailingProseNote() string {
-	if !l.fromText || l.URL == "" {
+// cleanedURL is the best guess at a text-matched URL without surrounding prose
+// punctuation, or "" when cleaning would change nothing. url stays the exact capture;
+// this derived field is where the guessing lives: trailing dots are dropped, and a
+// trailing ")" only while the parentheses in the URL are unbalanced (a balanced pair is
+// likely part of the path). An anchor href is byte-exact and never cleaned.
+func (l gmailLink) cleanedURL() string {
+	if !l.fromText {
 		return ""
 	}
-	last := l.URL[len(l.URL)-1]
-	if last != '.' && last != ')' {
+	url := l.URL
+	for len(url) > 0 {
+		last := url[len(url)-1]
+		if last == '.' || (last == ')' && strings.Count(url, ")") > strings.Count(url, "(")) {
+			url = url[:len(url)-1]
+			continue
+		}
+		break
+	}
+	if url == l.URL {
 		return ""
 	}
-	return "the URL was captured from body text and its trailing " + string(last) + " may be sentence punctuation rather than part of the URL"
+	return url
 }
 
 // linkCollector numbers the links a body conversion keeps out of the text. Indexes are

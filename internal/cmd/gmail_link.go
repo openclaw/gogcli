@@ -66,8 +66,8 @@ func (c *GmailLinkCmd) Run(ctx context.Context, flags *RootFlags) error {
 		if link.Text != "" {
 			payload["text"] = link.Text
 		}
-		if note := link.trailingProseNote(); note != "" {
-			payload["note"] = note
+		if cleaned := link.cleanedURL(); cleaned != "" {
+			payload["urlCleaned"] = cleaned
 		}
 		return outfmt.WriteJSON(ctx, stdoutWriter(ctx), payload)
 	}
@@ -75,8 +75,8 @@ func (c *GmailLinkCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if link.Text != "" {
 		u.Out().Linef("text\t%s", tsvSafeValue(link.Text))
 	}
-	if note := link.trailingProseNote(); note != "" {
-		u.Out().Linef("note\t%s", note)
+	if cleaned := link.cleanedURL(); cleaned != "" {
+		u.Out().Linef("urlCleaned\t%s", tsvSafeValue(cleaned))
 	}
 	return nil
 }
