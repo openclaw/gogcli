@@ -17,22 +17,22 @@ func TestSanitizeGmailBody(t *testing.T) {
 		want   string
 	}{
 		{
-			name:   "html strips scripts and visible urls",
+			name:   "html strips scripts and marks visible urls",
 			body:   `<script>fetch("https://tracker.example/open")</script><p>Hello https://phish.example/login</p>`,
 			isHTML: true,
-			want:   "Hello [url removed]",
+			want:   "Hello [link:0]",
 		},
 		{
 			name:   "plain decodes entity-obfuscated url",
 			body:   `open &#104;ttps://evil.example/path now`,
 			isHTML: false,
-			want:   "open [url removed] now",
+			want:   "open [link:0] now",
 		},
 		{
-			name:   "html keeps link text but drops href target",
+			name:   "html keeps link text and marks its target",
 			body:   `<p>Click <a href="https://evil.example">here</a></p>`,
 			isHTML: true,
-			want:   "Click here",
+			want:   "Click here [link:0]",
 		},
 		{
 			name:   "style block removed",
@@ -48,6 +48,56 @@ func TestSanitizeGmailBody(t *testing.T) {
 				t.Fatalf("sanitizeGmailBody() = %q, want %q", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestSanitizeGmailBodyLinks(t *testing.T) {
+	body := `<script>fetch("https://tracker.example/open")</script>` +
+		`<p>Pay <a href="https://pay.example/btn">Pay now</a></p>` +
+		`<p>Visit https://info.example/page for details</p>` +
+		`<p>Again <a href="https://pay.example/btn">same target</a></p>` +
+		`<p>Write to <a href="mailto:billing@example.com">billing</a></p>`
+	text, links := sanitizeGmailBodyLinks(body, true)
+	want := "Pay Pay now [link:0] Visit [link:1] for details Again same target [link:0] Write to billing [link:2]"
+	if text != want {
+		t.Fatalf("unexpected text:\n got %q\nwant %q", text, want)
+	}
+	wantLinks := []gmailLink{
+		{URL: "https://pay.example/btn", Text: "Pay now"},
+		{URL: "https://info.example/page"},
+		{URL: "mailto:billing@example.com", Text: "billing"},
+	}
+	if len(links) != len(wantLinks) {
+		t.Fatalf("unexpected links: %#v", links)
+	}
+	for i, wantLink := range wantLinks {
+		if links[i] != wantLink {
+			t.Fatalf("link %d = %#v, want %#v", i, links[i], wantLink)
+		}
+	}
+}
+
+func TestSanitizeGmailBodyLinks_ImageAnchors(t *testing.T) {
+	body := `<p><a href="https://promo.example/go"><img src="hero.png" alt="Start now"></a></p>` +
+		`<p><a href="https://docs.example/x"><img src="icon.png"></a> then <a href="https://docs.example/x">read the docs</a></p>`
+	text, links := sanitizeGmailBodyLinks(body, true)
+	want := "[link:0] [link:1] then read the docs [link:1]"
+	if text != want {
+		t.Fatalf("unexpected text:\n got %q\nwant %q", text, want)
+	}
+	wantLinks := []gmailLink{
+		// No visible text: the wrapped image's alt stands in.
+		{URL: "https://promo.example/go", Text: "Start now"},
+		// The first site is textless; the second site's text names the link.
+		{URL: "https://docs.example/x", Text: "read the docs"},
+	}
+	if len(links) != len(wantLinks) {
+		t.Fatalf("unexpected links: %#v", links)
+	}
+	for i, wantLink := range wantLinks {
+		if links[i] != wantLink {
+			t.Fatalf("link %d = %#v, want %#v", i, links[i], wantLink)
+		}
 	}
 }
 
@@ -113,7 +163,7 @@ func TestGmailGetCmd_SanitizeContent_JSONUsesSafeEnvelope(t *testing.T) {
 	if err := json.Unmarshal(envelope["message"], &parsed); err != nil {
 		t.Fatalf("decode sanitized message: %v", err)
 	}
-	if parsed.Body != "Hello [url removed]" {
+	if parsed.Body != "Hello [link:0]" {
 		t.Fatalf("unexpected body: %q", parsed.Body)
 	}
 	if parsed.Headers["subject"] != "Visit [url removed] now" {
@@ -148,6 +198,9 @@ func TestGmailThreadGet_SanitizeContent_JSONUsesSafeEnvelope(t *testing.T) {
 	htmlBody := base64.RawURLEncoding.EncodeToString([]byte(
 		`<style>.x{background:url(https://tracker.example)}</style><p>Hello https://phish.example/login</p>`,
 	))
+	secondBody := base64.RawURLEncoding.EncodeToString([]byte(
+		`<p>Bye <a href="https://other.example/x">there</a></p>`,
+	))
 	threadResp := map[string]any{
 		"id": "t1",
 		"messages": []map[string]any{
@@ -164,6 +217,18 @@ func TestGmailThreadGet_SanitizeContent_JSONUsesSafeEnvelope(t *testing.T) {
 					},
 					"mimeType": "text/html",
 					"body":     map[string]any{"data": htmlBody},
+				},
+			},
+			{
+				"id":       "m2",
+				"threadId": "t1",
+				"payload": map[string]any{
+					"headers": []map[string]any{
+						{"name": "From", "value": "b@example.com"},
+						{"name": "Subject", "value": "Re: Check"},
+					},
+					"mimeType": "text/html",
+					"body":     map[string]any{"data": secondBody},
 				},
 			},
 		},
@@ -202,10 +267,14 @@ func TestGmailThreadGet_SanitizeContent_JSONUsesSafeEnvelope(t *testing.T) {
 	if err := json.Unmarshal([]byte(result.stdout), &parsed); err != nil {
 		t.Fatalf("decode JSON: %v", err)
 	}
-	if len(parsed.Thread.Messages) != 1 {
+	if len(parsed.Thread.Messages) != 2 {
 		t.Fatalf("unexpected messages: %#v", parsed.Thread.Messages)
 	}
-	if got := parsed.Thread.Messages[0].Body; got != "Hello [url removed]" {
+	if got := parsed.Thread.Messages[0].Body; got != "Hello [link:0]" {
 		t.Fatalf("unexpected body: %q", got)
+	}
+	// Marker numbering restarts per message.
+	if got := parsed.Thread.Messages[1].Body; got != "Bye there [link:0]" {
+		t.Fatalf("unexpected second body: %q", got)
 	}
 }
