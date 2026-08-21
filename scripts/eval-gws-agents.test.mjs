@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   agentEnvironment,
   allowedAgentArgs,
+  buildEvalSessionId,
   buildPrompt,
   compareAggregates,
   extractJson,
@@ -12,6 +13,19 @@ import {
   parseArgs,
   scoreAnswers,
 } from "./eval-gws-agents.mjs";
+
+test("buildEvalSessionId preserves the historical fixed-width session format", () => {
+  const sessionId = buildEvalSessionId(
+    "gog",
+    1_700_000_000_000,
+    (size) => {
+      assert.equal(size, 4);
+      return Buffer.from("01234567", "hex");
+    },
+  );
+  assert.equal(sessionId, "gog-eval-gog-1700000000000-01234567");
+  assert.match(sessionId, /^gog-eval-gog-\d+-[0-9a-f]{8}$/);
+});
 
 test("parseCodex counts legacy and current tool item types", () => {
   const events = [
