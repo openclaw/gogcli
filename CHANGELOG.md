@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Security: remove overflow-prone capacity arithmetic from untrusted-output maps and versioned tracking ciphertext construction while preserving their wire formats.
 - Security: restrict the CI workflow's `GITHUB_TOKEN` to read-only repository contents instead of inheriting broader organization or repository defaults.
 - Security: bound `gmail watch serve` and the local OAuth callback HTTP servers with read, idle, and header-size limits so a slow or oversized request cannot stall the listener.
 

@@ -168,7 +168,7 @@ func genericJSONValue(v any) (any, error) {
 func wrapUntrustedGenericValue(v any, opts UntrustedWrapOptions, path []string, key string) (any, bool) {
 	switch vv := v.(type) {
 	case map[string]any:
-		out := make(map[string]any, len(vv)+1)
+		out := make(map[string]any, len(vv))
 		wrappedAny := false
 
 		for k, value := range vv {

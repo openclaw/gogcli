@@ -70,9 +70,7 @@ func encryptPayload(payload *PixelPayload, keyBase64 string, version byte) (stri
 
 	prefix := nonce
 	if version > 0 {
-		prefix = make([]byte, 0, 1+len(nonce)+len(plaintext)+aead.Overhead())
-		prefix = append(prefix, version)
-		prefix = append(prefix, nonce...)
+		prefix = append([]byte{version}, nonce...)
 	}
 
 	ciphertext := aead.Seal(prefix, nonce, plaintext, nil)
