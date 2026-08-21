@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Security: restrict the CI workflow's `GITHUB_TOKEN` to read-only repository contents instead of inheriting broader organization or repository defaults.
 - Security: bound `gmail watch serve` and the local OAuth callback HTTP servers with read, idle, and header-size limits so a slow or oversized request cannot stall the listener.
 
 ## v0.37.0 - 2026-08-14
