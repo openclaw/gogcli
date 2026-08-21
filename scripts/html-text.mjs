@@ -4,7 +4,7 @@ function startsHtmlTag(value, index) {
 }
 
 export function stripHtmlTags(value) {
-  let text = "";
+  const text = [];
   let insideTag = false;
   let quote = "";
 
@@ -12,9 +12,10 @@ export function stripHtmlTags(value) {
     const character = value[index];
     if (!insideTag) {
       if (character === "<" && startsHtmlTag(value, index)) {
+        while (text.at(-1) === "<") text.pop();
         insideTag = true;
       } else {
-        text += character;
+        text.push(character);
       }
       continue;
     }
@@ -26,5 +27,5 @@ export function stripHtmlTags(value) {
       insideTag = false;
     }
   }
-  return text;
+  return text.join("");
 }

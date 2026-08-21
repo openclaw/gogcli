@@ -16,6 +16,7 @@ test("stripHtmlTags removes nested and unterminated markup in one pass", () => {
   assert.equal(stripHtmlTags("Heading <strong"), "Heading ");
   assert.equal(stripHtmlTags('<span title="1 > 0">Heading</span>'), "Heading");
   assert.equal(stripHtmlTags("1 < 2"), "1 < 2");
+  assert.equal(stripHtmlTags("<<<script>img>"), "img>");
 });
 
 test("headingAnchors ignores headings inside fenced code blocks", () => {
