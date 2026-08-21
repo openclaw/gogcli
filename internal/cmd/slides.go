@@ -25,7 +25,9 @@ type SlidesCmd struct {
 	NewSlide           SlidesNewSlideCmd           `cmd:"" name:"new-slide" help:"Create a native themed slide"`
 	DuplicateSlide     SlidesDuplicateSlideCmd     `cmd:"" name:"duplicate-slide" help:"Duplicate a slide by object ID"`
 	MoveSlide          SlidesMoveSlideCmd          `cmd:"" name:"move-slide" help:"Move a slide to a zero-based insertion index"`
-	ListSlides         SlidesListSlidesCmd         `cmd:"" name:"list-slides" help:"List all slides with their object IDs"`
+	SkipSlide          SlidesSkipSlideCmd          `cmd:"" name:"skip-slide" aliases:"hide-slide" help:"Skip a slide during presentation"`
+	UnskipSlide        SlidesUnskipSlideCmd        `cmd:"" name:"unskip-slide" aliases:"unhide-slide" help:"Include a skipped slide during presentation"`
+	ListSlides         SlidesListSlidesCmd         `cmd:"" name:"list-slides" help:"List all slides with their object IDs and skipped state"`
 	DeleteSlide        SlidesDeleteSlideCmd        `cmd:"" name:"delete-slide" help:"Delete a slide by object ID"`
 	ReadSlide          SlidesReadSlideCmd          `cmd:"" name:"read-slide" help:"Read slide content: speaker notes, text elements, and images"`
 	Locate             SlidesLocateCmd             `cmd:"" name:"locate" aliases:"find-element" help:"Locate text in shapes and table cells with object IDs and UTF-16 ranges"`

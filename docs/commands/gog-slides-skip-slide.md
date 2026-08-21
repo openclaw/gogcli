@@ -1,13 +1,13 @@
-# `gog slides list-slides`
+# `gog slides skip-slide`
 
 > Generated from `gog schema --json`. Do not edit this page by hand; run `make docs-commands`.
 
-List all slides with their object IDs and skipped state
+Skip a slide during presentation
 
 ## Usage
 
 ```bash
-gog slides (slide) list-slides <presentationId>
+gog slides (slide) skip-slide (hide-slide) <presentationId> <slideId>
 ```
 
 ## Parent

@@ -42,7 +42,7 @@ gog --readonly --account user@example.com slides --help
 | `insert-image` | Insert a local or public image at a position and size |
 | `insert-text` | Insert text into an existing page element (shape or table) by objectId |
 | `link` | Apply a hyperlink to a text range in one page element |
-| `list-slides` | List all slides with their object IDs |
+| `list-slides` | List all slides with their object IDs and skipped state |
 | `locate` | Locate text in shapes and table cells with object IDs and UTF-16 ranges |
 | `move-slide` | Move a slide to a zero-based insertion index |
 | `new-slide` | Create a native themed slide |
@@ -50,9 +50,11 @@ gog --readonly --account user@example.com slides --help
 | `read-slide` | Read slide content: speaker notes, text elements, and images |
 | `replace-slide` | Replace an existing slide image from a local file or public URL |
 | `replace-text` | Find-and-replace text in an explicit object, slide, or presentation scope |
+| `skip-slide` | Skip a slide during presentation |
 | `style-text` | Apply range-scoped text styling to one page element |
 | `table` | Create and update native tables |
 | `thumbnail` | Get or download a rendered thumbnail for a slide |
+| `unskip-slide` | Include a skipped slide during presentation |
 | `update-notes` | Update speaker notes on an existing slide |
 
 Run `gog slides <command> --help` for flags and `gog schema slides <command> --json`
