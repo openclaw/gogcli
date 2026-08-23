@@ -1,7 +1,9 @@
 package cmd
 
 import (
+	"encoding/json"
 	"io"
+	"strings"
 	"testing"
 
 	"github.com/alecthomas/kong"
@@ -72,8 +74,29 @@ func TestCalendarUpdatePatchClearsReminders(t *testing.T) {
 		t.Fatal("expected patch")
 		return
 	}
-	if patch.Reminders == nil || !patch.Reminders.UseDefault {
-		t.Fatalf("expected reminders.UseDefault=true, got %#v", patch.Reminders)
+	// Clearing reminders restores calendar defaults and explicitly nulls the
+	// existing override array so PATCH does not retain it.
+	if patch.Reminders == nil {
+		t.Fatalf("expected reminders set, got nil")
+	}
+	if !patch.Reminders.UseDefault {
+		t.Fatalf("expected reminders.UseDefault=true, got false")
+	}
+	if !hasForceSendField(patch.Reminders.NullFields, "Overrides") {
+		t.Fatalf("expected Overrides in NullFields, got %#v", patch.Reminders.NullFields)
+	}
+	if !hasForceSendField(patch.Reminders.ForceSendFields, "UseDefault") {
+		t.Fatalf("expected UseDefault in ForceSendFields, got %#v", patch.Reminders.ForceSendFields)
+	}
+	encoded, err := json.Marshal(patch.Reminders)
+	if err != nil {
+		t.Fatalf("marshal reminders: %v", err)
+	}
+	if !strings.Contains(string(encoded), `"overrides":null`) {
+		t.Fatalf("expected serialized overrides:null, got %s", encoded)
+	}
+	if !strings.Contains(string(encoded), `"useDefault":true`) {
+		t.Fatalf("expected serialized useDefault:true, got %s", encoded)
 	}
 	if !hasForceSendField(patch.ForceSendFields, "Reminders") {
 		t.Fatalf("expected Reminders in ForceSendFields")

@@ -264,7 +264,15 @@ func applyUpdateReminders(input calendarUpdateInput, fields calendarUpdateFields
 		return false, err
 	}
 	if reminders == nil {
-		patch.Reminders = &calendar.EventReminders{UseDefault: true}
+		// "Set empty to clear" restores the calendar's default reminders.
+		// A PATCH with only useDefault:true retains existing overrides, which the
+		// Calendar API rejects because overrides cannot coexist with useDefault.
+		// Explicitly nulling Overrides removes the stored overrides instead.
+		patch.Reminders = &calendar.EventReminders{
+			UseDefault:      true,
+			NullFields:      []string{"Overrides"},
+			ForceSendFields: []string{"UseDefault"},
+		}
 		patch.ForceSendFields = append(patch.ForceSendFields, "Reminders")
 	} else {
 		patch.Reminders = reminders
