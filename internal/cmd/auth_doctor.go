@@ -59,7 +59,9 @@ func (c *AuthDoctorCmd) Run(ctx context.Context, _ *RootFlags) error {
 		case exists:
 			add("config.path", doctorOK, configPath, "")
 		default:
-			add("config.path", doctorWarn, configPath+" (missing)", "run `gog auth credentials <credentials.json>` or another config-writing auth command")
+			// config.json is optional (docs/spec.md): it only carries overrides such as
+			// keyring_backend or account_aliases, and auth commands create it on demand.
+			add("config.path", doctorOK, configPath+" (missing; optional)", "")
 		}
 	}
 

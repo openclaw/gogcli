@@ -489,6 +489,39 @@ func TestAuthDoctor_JSON_ReportsForcedKeychainTrust(t *testing.T) {
 	t.Fatalf("missing keychain.trust check: %#v", payload.Checks)
 }
 
+func TestAuthDoctor_JSON_MissingConfigPathIsOptional(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+
+	runtime := runtimeWithAuthStore(newMemSecretsStore())
+	result := executeWithTestRuntime(t, []string{"--json", "auth", "doctor"}, runtime)
+	if result.err != nil {
+		t.Fatalf("Execute: %v", result.err)
+	}
+
+	var payload struct {
+		Status string `json:"status"`
+		Checks []struct {
+			Name   string `json:"name"`
+			Status string `json:"status"`
+			Detail string `json:"detail"`
+			Hint   string `json:"hint"`
+		} `json:"checks"`
+	}
+	if err := json.Unmarshal([]byte(result.stdout), &payload); err != nil {
+		t.Fatalf("json parse: %v\nout=%q", err, result.stdout)
+	}
+	for _, check := range payload.Checks {
+		if check.Name == "config.path" {
+			if check.Status != "ok" || !strings.Contains(check.Detail, "optional") || check.Hint != "" {
+				t.Fatalf("config.path check = %#v, want ok with optional detail and no hint", check)
+			}
+			return
+		}
+	}
+	t.Fatalf("missing config.path check: %#v", payload.Checks)
+}
+
 func TestAuthList_JSON_ReportsUnreadableToken(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
