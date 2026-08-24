@@ -16,6 +16,10 @@ type AppScriptCmd struct {
 	Content AppScriptContentCmd `cmd:"" name:"content" aliases:"cat" help:"Get Apps Script project content"`
 	Run     AppScriptRunCmd     `cmd:"" name:"run" help:"Run a deployed Apps Script function"`
 	Create  AppScriptCreateCmd  `cmd:"" name:"create" aliases:"new" help:"Create an Apps Script project"`
+
+	Pull        AppScriptPullCmd        `cmd:"" name:"pull" help:"Pull an Apps Script project into a local directory"`
+	Deployments AppScriptDeploymentsCmd `cmd:"" name:"deployments" aliases:"list-deployments" help:"List deployments"`
+	Versions    AppScriptVersionsCmd    `cmd:"" name:"versions" aliases:"list-versions" help:"List versions"`
 }
 
 type AppScriptGetCmd struct {

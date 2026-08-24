@@ -1,28 +1,18 @@
-# `gog appscript`
+# `gog appscript pull`
 
 > Generated from `gog schema --json`. Do not edit this page by hand; run `make docs-commands`.
 
-Google Apps Script
+Pull an Apps Script project into a local directory
 
 ## Usage
 
 ```bash
-gog appscript (script,apps-script) <command> [flags]
+gog appscript (script,apps-script) pull <scriptId> <dir>
 ```
 
 ## Parent
 
-- [gog](gog.md)
-
-## Subcommands
-
-- [gog appscript content](gog-appscript-content.md) - Get Apps Script project content
-- [gog appscript create](gog-appscript-create.md) - Create an Apps Script project
-- [gog appscript deployments](gog-appscript-deployments.md) - List deployments
-- [gog appscript get](gog-appscript-get.md) - Get Apps Script project metadata
-- [gog appscript pull](gog-appscript-pull.md) - Pull an Apps Script project into a local directory
-- [gog appscript run](gog-appscript-run.md) - Run a deployed Apps Script function
-- [gog appscript versions](gog-appscript-versions.md) - List versions
+- [gog appscript](gog-appscript.md)
 
 ## Flags
 
@@ -52,5 +42,5 @@ gog appscript (script,apps-script) <command> [flags]
 
 ## See Also
 
-- [gog](gog.md)
+- [gog appscript](gog-appscript.md)
 - [Command index](README.md)

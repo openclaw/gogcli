@@ -270,6 +270,9 @@ forms:
 appscript:
   get: true
   content: true
+  pull: true
+  deployments: true
+  versions: true
   run: false
   create: false
 

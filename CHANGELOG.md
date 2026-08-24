@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Apps Script: add `pull`, `deployments`, and `versions` so a project's source, releases, and cut versions can be read from the CLI.
+
 - Security: remove overflow-prone capacity arithmetic from untrusted-output maps and versioned tracking ciphertext construction while preserving their wire formats.
 - Security: restrict the CI workflow's `GITHUB_TOKEN` to read-only repository contents instead of inheriting broader organization or repository defaults.
 - Security: generate live agent-evaluation session IDs with cryptographically random suffixes while preserving their fixed-width format.

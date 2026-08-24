@@ -625,6 +625,12 @@ func TestDryRunE2E_CommandsSkipAuthAPIAndFileWrites(t *testing.T) {
 			op:   "appscript.create",
 		},
 		{
+			name:    "appscript pull",
+			args:    []string{"appscript", "pull", "script123", outputPath("appscript-pull")},
+			op:      "appscript.pull",
+			outPath: outputPath("appscript-pull"),
+		},
+		{
 			name: "sheets banding clear all",
 			args: []string{"sheets", "banding", "clear", "sheet123", "--sheet", "Sheet1", "--all"},
 			op:   "sheets.banding.clear",
