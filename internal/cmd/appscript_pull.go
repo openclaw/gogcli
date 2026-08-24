@@ -22,8 +22,9 @@ var appScriptExtByType = map[string]string{
 }
 
 type AppScriptPullCmd struct {
-	ScriptID string `arg:"" name:"scriptId" help:"Script ID"`
-	Dir      string `arg:"" name:"dir" help:"Local directory to write files into (created if missing)" type:"path"`
+	ScriptID  string `arg:"" name:"scriptId" help:"Script ID"`
+	Dir       string `arg:"" name:"dir" help:"Local directory to write files into (created if missing)" type:"path"`
+	Overwrite bool   `name:"overwrite" help:"Overwrite files that already exist in dir"`
 }
 
 func (c *AppScriptPullCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -54,10 +55,8 @@ func (c *AppScriptPullCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
-	if err := os.MkdirAll(dir, 0o700); err != nil {
-		return err
-	}
-
+	// File names come from the API; keep them from escaping dir.
+	targets := make([]*scriptapi.File, 0, len(content.Files))
 	written := make([]string, 0, len(content.Files))
 
 	for _, file := range content.Files {
@@ -65,17 +64,29 @@ func (c *AppScriptPullCmd) Run(ctx context.Context, flags *RootFlags) error {
 			continue
 		}
 
-		// File names come from the API; keep them from escaping dir.
-		name := sanitizeAttachmentFilename(appScriptFileName(file), "")
-		if name == "" {
-			continue
+		if name := sanitizeAttachmentFilename(appScriptFileName(file), ""); name != "" {
+			targets = append(targets, file)
+			written = append(written, name)
 		}
+	}
 
-		if err := writeFileAtomic(filepath.Join(dir, name), []byte(file.Source)); err != nil {
+	// Name every file that would be replaced before replacing any of them, so a
+	// pull into a working directory cannot quietly discard local edits.
+	if !c.Overwrite {
+		if clashes := existingAppScriptTargets(dir, written); len(clashes) > 0 {
+			return usagef("%s already contains %d of these file(s): %s (pass --overwrite to replace them)",
+				dir, len(clashes), strings.Join(clashes, ", "))
+		}
+	}
+
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return err
+	}
+
+	for i, file := range targets {
+		if err := writeAppScriptFile(filepath.Join(dir, written[i]), file.Source, c.Overwrite); err != nil {
 			return err
 		}
-
-		written = append(written, name)
 	}
 
 	if outfmt.IsJSON(ctx) {
@@ -95,6 +106,41 @@ func (c *AppScriptPullCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 
 	return nil
+}
+
+// existingAppScriptTargets reports which of names already exist in dir.
+func existingAppScriptTargets(dir string, names []string) []string {
+	var clashes []string
+
+	for _, name := range names {
+		if _, err := os.Lstat(filepath.Join(dir, name)); err == nil {
+			clashes = append(clashes, name)
+		}
+	}
+
+	return clashes
+}
+
+// writeAppScriptFile writes one pulled file through the shared output helper,
+// whose default is O_EXCL -- so the overwrite decision is enforced at open time
+// rather than trusted from the pre-flight check above.
+func writeAppScriptFile(path, source string, overwrite bool) error {
+	f, _, err := openUserOutputFile(path, outputFileOptions{
+		Overwrite: overwrite,
+		FileMode:  0o600,
+		DirMode:   0o700,
+	})
+	if err != nil {
+		return err
+	}
+
+	if _, writeErr := f.WriteString(source); writeErr != nil {
+		_ = f.Close()
+
+		return writeErr
+	}
+
+	return f.Close()
 }
 
 func expandAppScriptDir(dir string) (string, error) {

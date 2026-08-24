@@ -7,7 +7,7 @@ Pull an Apps Script project into a local directory
 ## Usage
 
 ```bash
-gog appscript (script,apps-script) pull <scriptId> <dir>
+gog appscript (script,apps-script) pull <scriptId> <dir> [flags]
 ```
 
 ## Parent
@@ -32,6 +32,7 @@ gog appscript (script,apps-script) pull <scriptId> <dir>
 | `--home` | `string` |  | Override gogcli config/data/state/cache root (equivalent to GOG_HOME) |
 | `-j`<br>`--json`<br>`--machine` | `bool` | false | Output JSON to stdout (best for scripting) |
 | `--no-input`<br>`--non-interactive`<br>`--noninteractive` | `bool` |  | Never prompt; fail instead (useful for CI) |
+| `--overwrite` | `bool` |  | Overwrite files that already exist in dir |
 | `-p`<br>`--plain`<br>`--tsv` | `bool` | false | Output stable, parseable text to stdout (TSV; no colors) |
 | `--readonly` | `bool` | false | Block mutating API requests at runtime; auth add also requests read-only OAuth scopes |
 | `--results-only` | `bool` |  | In JSON mode, emit only the primary result (drops envelope fields like nextPageToken) |
