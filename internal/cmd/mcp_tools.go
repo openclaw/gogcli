@@ -23,6 +23,84 @@ func mcpAllTools() []mcpToolSpec {
 		mcpCalendarEventsTool(),
 		mcpDocsWriteTool(),
 		mcpSheetsUpdateRangeTool(),
+		mcpGmailCreateReplyDraftTool(),
+		mcpGmailGetDraftTool(),
+	}
+}
+
+// mcpGmailCreateReplyDraftTool exposes exactly one existing CLI behaviour:
+// `gmail drafts reply --no-quote`, which saves an addressed reply draft on a
+// message that already exists. The dedicated reply command derives the
+// recipients from the original message the same way the send-side reply does,
+// so the saved draft is a real reply, not a recipientless body in a thread.
+//
+// The schema carries only the reply target and the body. Recipient overrides,
+// sender/alias selection, attachments, HTML bodies, quoting, subject changes,
+// and reply-all are absent, so a model cannot reach them: unknown fields are
+// rejected before execution, and nothing in BuildArgs can emit those flags.
+// Sending stays out of reach as well — this saves a draft and never sends, and
+// `gmail drafts send` remains its own command with no tool of its own.
+//
+// ExactOptIn: this tool appears only when named literally in an allowlist.
+// Existing configurations using `gmail`, `gmail.*`, `write`, `all`, or `*`
+// never gain it by upgrading.
+func mcpGmailCreateReplyDraftTool() mcpToolSpec {
+	return mcpToolSpec{
+		Name:        "gmail_create_reply_draft",
+		Service:     "gmail",
+		Risk:        mcpRiskWrite,
+		ExactOptIn:  true,
+		Description: "Save an addressed Gmail reply draft on an existing message. Recipients are derived from the original message; reply-all, recipient overrides, attachments, and HTML bodies are not available. Saves a draft only and never sends. Enabled only when named explicitly in the tool allowlist together with --allow-write.",
+		Options: []mcp.ToolOption{
+			mcp.WithString("reply_to_message_id", mcp.Description("Gmail message ID to reply to"), mcp.Required()),
+			mcp.WithString("body", mcp.Description("Plain text reply body"), mcp.Required()),
+		},
+		BuildArgs: func(req mcp.CallToolRequest) ([]string, error) {
+			messageID, err := requireMCPString(req, "reply_to_message_id")
+			if err != nil {
+				return nil, err
+			}
+			body, err := requireMCPText(req, "body")
+			if err != nil {
+				return nil, err
+			}
+			return []string{
+				"gmail", "drafts", "reply",
+				"--body", body,
+				"--no-quote",
+				"--", messageID,
+			}, nil
+		},
+	}
+}
+
+// mcpGmailGetDraftTool reads back one draft by ID. It is a read tool: it
+// cannot alter the draft, and it does not offer attachment download, so a
+// call can never write to the filesystem. Like the reply-draft tool it is
+// ExactOptIn, so existing selector-based configurations never gain it
+// silently.
+func mcpGmailGetDraftTool() mcpToolSpec {
+	return mcpToolSpec{
+		Name:        "gmail_get_draft",
+		Service:     "gmail",
+		Risk:        mcpRiskRead,
+		ExactOptIn:  true,
+		Description: "Get one Gmail draft. Provide draft_id to read a known draft, OR recover_reply_to_message_id to recover the single reply draft addressed to that message when its id was lost. Exactly one of the two is required. Enabled only when named explicitly in the tool allowlist.",
+		Options: []mcp.ToolOption{
+			mcp.WithString("draft_id", mcp.Description("Gmail draft ID")),
+			mcp.WithString("recover_reply_to_message_id", mcp.Description("Original Gmail message ID; recovers the single reply draft addressed to it")),
+		},
+		BuildArgs: func(req mcp.CallToolRequest) ([]string, error) {
+			draftID := strings.TrimSpace(req.GetString("draft_id", ""))
+			recoverID := strings.TrimSpace(req.GetString("recover_reply_to_message_id", ""))
+			if (draftID == "") == (recoverID == "") {
+				return nil, fmt.Errorf("exactly one of draft_id or recover_reply_to_message_id is required")
+			}
+			if recoverID != "" {
+				return []string{"gmail", "drafts", "find", "--reply-to-message-id", recoverID}, nil
+			}
+			return []string{"gmail", "drafts", "get", "--", draftID}, nil
+		},
 	}
 }
 

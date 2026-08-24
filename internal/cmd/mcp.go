@@ -37,8 +37,13 @@ type mcpToolSpec struct {
 	Service     string
 	Risk        mcpToolRisk
 	Description string
-	Options     []mcp.ToolOption
-	BuildArgs   func(mcp.CallToolRequest) ([]string, error)
+	// ExactOptIn hides the tool from every selector except its exact name.
+	// Service, service wildcard, risk, "all", and "*" selectors — and the
+	// default read set — never surface it, so adding such a tool can never
+	// silently widen an existing configuration's tool surface.
+	ExactOptIn bool
+	Options    []mcp.ToolOption
+	BuildArgs  func(mcp.CallToolRequest) ([]string, error)
 }
 
 type mcpCommandResult struct {
@@ -256,6 +261,9 @@ func mcpEnabledTools(cmd McpCmd) []mcpToolSpec {
 		if tool.Risk == mcpRiskWrite && !cmd.AllowWrite {
 			continue
 		}
+		if len(allow) == 0 && tool.ExactOptIn {
+			continue
+		}
 		if len(allow) > 0 && !mcpToolAllowed(tool, allow) {
 			continue
 		}
@@ -278,8 +286,14 @@ func splitCommaValues(values []string) []string {
 
 func mcpToolAllowed(tool mcpToolSpec, allow []string) bool {
 	for _, pattern := range allow {
+		if pattern == tool.Name {
+			return true
+		}
+		if tool.ExactOptIn {
+			continue
+		}
 		switch pattern {
-		case "*", literalAll, string(tool.Risk), tool.Name, tool.Service:
+		case "*", literalAll, string(tool.Risk), tool.Service:
 			return true
 		}
 		if strings.HasSuffix(pattern, ".*") && strings.TrimSuffix(pattern, ".*") == tool.Service {

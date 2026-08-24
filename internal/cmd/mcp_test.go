@@ -504,3 +504,213 @@ func mcpResultText(result *mcp.CallToolResult) string {
 	}
 	return text.String()
 }
+
+func TestMCPGmailDraftToolsAreExactOptIn(t *testing.T) {
+	write := findMCPTool(t, "gmail_create_reply_draft")
+	if write.Risk != mcpRiskWrite || !write.ExactOptIn {
+		t.Fatalf("gmail_create_reply_draft = risk %q optIn %v, want write/true", write.Risk, write.ExactOptIn)
+	}
+	read := findMCPTool(t, "gmail_get_draft")
+	if read.Risk != mcpRiskRead || !read.ExactOptIn {
+		t.Fatalf("gmail_get_draft = risk %q optIn %v, want read/true", read.Risk, read.ExactOptIn)
+	}
+	// No selector short of the literal tool name may surface either tool —
+	// upgrading gog must never widen an existing configuration's surface.
+	broad := [][]string{nil, {"gmail"}, {"gmail.*"}, {"write"}, {"read"}, {"all"}, {"*"}}
+	for _, allow := range broad {
+		tools := mcpEnabledTools(McpCmd{AllowWrite: true, AllowTool: allow})
+		for _, name := range []string{"gmail_create_reply_draft", "gmail_get_draft"} {
+			if hasMCPTool(tools, name) {
+				t.Fatalf("%s leaked through selector %#v", name, allow)
+			}
+		}
+	}
+	named := mcpEnabledTools(McpCmd{AllowWrite: true, AllowTool: []string{"gmail_create_reply_draft", "gmail_get_draft"}})
+	if !hasMCPTool(named, "gmail_create_reply_draft") || !hasMCPTool(named, "gmail_get_draft") {
+		t.Fatalf("exact names did not enable the draft tools: %#v", toolNames(named))
+	}
+	withoutWrite := mcpEnabledTools(McpCmd{AllowTool: []string{"gmail_create_reply_draft", "gmail_get_draft"}})
+	if hasMCPTool(withoutWrite, "gmail_create_reply_draft") {
+		t.Fatalf("draft create visible without --allow-write: %#v", toolNames(withoutWrite))
+	}
+	if !hasMCPTool(withoutWrite, "gmail_get_draft") {
+		t.Fatalf("draft get should not need --allow-write: %#v", toolNames(withoutWrite))
+	}
+	for _, forbidden := range []string{"gmail_send", "gmail_drafts_send", "gmail_delete_draft", "gmail_update_draft", "gmail_reply_all_draft"} {
+		if hasMCPTool(mcpEnabledTools(McpCmd{AllowWrite: true, AllowTool: []string{"*"}}), forbidden) {
+			t.Fatalf("%s must not exist as an MCP tool", forbidden)
+		}
+	}
+}
+
+func TestMCPGmailReplyDraftUsesDedicatedReplyCommand(t *testing.T) {
+	tool := findMCPTool(t, "gmail_create_reply_draft")
+	args, err := tool.BuildArgs(mcp.CallToolRequest{Params: mcp.CallToolParams{
+		Arguments: map[string]any{
+			"reply_to_message_id": "msg1",
+			"body":                "  ご確認ありがとうございます。\n",
+		},
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The dedicated reply command derives the recipients from the original
+	// message; a create with only thread headers would save a recipientless
+	// draft. --no-quote keeps the body exactly the approved text.
+	want := []string{"gmail", "drafts", "reply", "--body", "  ご確認ありがとうございます。\n", "--no-quote", "--", "msg1"}
+	if strings.Join(args, "\x00") != strings.Join(want, "\x00") {
+		t.Fatalf("args = %#v, want %#v", args, want)
+	}
+}
+
+func TestMCPGmailReplyDraftArgvHoldsOnlySchemaFields(t *testing.T) {
+	tool := findMCPTool(t, "gmail_create_reply_draft")
+	args, err := tool.BuildArgs(mcp.CallToolRequest{Params: mcp.CallToolParams{
+		Arguments: map[string]any{
+			"reply_to_message_id": "msg1",
+			"body":                "hello",
+			// None of the following are in the schema. The MCP server rejects
+			// them before the handler; even if a caller reached BuildArgs
+			// directly, none of them may surface in argv.
+			"reply_all": true,
+			"to":        "someone@example.com",
+			"cc":        "copy@example.com",
+			"bcc":       "hidden@example.com",
+			"attach":    []any{"/etc/passwd"},
+			"from":      "spoofed@example.com",
+			"quote":     true,
+			"args":      []any{"gmail", "drafts", "send", "draft1"},
+		},
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"gmail", "drafts", "reply", "--body", "hello", "--no-quote", "--", "msg1"}
+	if strings.Join(args, "\x00") != strings.Join(want, "\x00") {
+		t.Fatalf("args = %#v, want %#v", args, want)
+	}
+	for _, forbidden := range []string{"--reply-all", "--to", "--cc", "--bcc", "--attach", "--from", "--quote", "send"} {
+		for _, arg := range args {
+			if arg == forbidden {
+				t.Fatalf("%q leaked into draft argv: %#v", forbidden, args)
+			}
+		}
+	}
+}
+
+func TestMCPGmailDraftGetBuildsExactArgs(t *testing.T) {
+	if _, err := findMCPTool(t, "gmail_create_reply_draft").BuildArgs(mcp.CallToolRequest{Params: mcp.CallToolParams{
+		Arguments: map[string]any{"reply_to_message_id": "msg1", "body": "   "},
+	}}); err == nil {
+		t.Fatal("blank body accepted")
+	}
+	if _, err := findMCPTool(t, "gmail_get_draft").BuildArgs(mcp.CallToolRequest{Params: mcp.CallToolParams{
+		Arguments: map[string]any{},
+	}}); err == nil {
+		t.Fatal("missing draft_id accepted")
+	}
+	args, err := findMCPTool(t, "gmail_get_draft").BuildArgs(mcp.CallToolRequest{Params: mcp.CallToolParams{
+		Arguments: map[string]any{"draft_id": "draft1", "download": true},
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"gmail", "drafts", "get", "--", "draft1"}
+	if strings.Join(args, "\x00") != strings.Join(want, "\x00") {
+		t.Fatalf("args = %#v, want %#v", args, want)
+	}
+}
+
+func TestMCPServerRejectsUnknownReplyDraftFieldsBeforeHandler(t *testing.T) {
+	s := newMCPServer()
+	handlerCalls := 0
+	s.AddTool(newMCPTool(findMCPTool(t, "gmail_create_reply_draft")), func(context.Context, mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		handlerCalls++
+		return mcp.NewToolResultText("ok"), nil
+	})
+	client, err := mcpclient.NewInProcessClient(s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := client.Close(); err != nil {
+			t.Errorf("close client: %v", err)
+		}
+	})
+	if err := client.Start(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	initRequest := mcp.InitializeRequest{}
+	initRequest.Params.ProtocolVersion = mcp.LATEST_PROTOCOL_VERSION
+	initRequest.Params.ClientInfo = mcp.Implementation{Name: "gog-test", Version: "1"}
+	if _, err := client.Initialize(t.Context(), initRequest); err != nil {
+		t.Fatal(err)
+	}
+	tests := []struct {
+		name      string
+		arguments map[string]any
+		wantError bool
+	}{
+		{name: "recipient override", arguments: map[string]any{"reply_to_message_id": "msg1", "body": "hi", "to": "x@example.com"}, wantError: true},
+		{name: "reply_all", arguments: map[string]any{"reply_to_message_id": "msg1", "body": "hi", "reply_all": true}, wantError: true},
+		{name: "attachment", arguments: map[string]any{"reply_to_message_id": "msg1", "body": "hi", "attach": []any{"/etc/passwd"}}, wantError: true},
+		{name: "argv smuggling", arguments: map[string]any{"reply_to_message_id": "msg1", "body": "hi", "args": []any{"gmail", "drafts", "send"}}, wantError: true},
+		{name: "wrong type", arguments: map[string]any{"reply_to_message_id": "msg1", "body": 7}, wantError: true},
+		{name: "missing target", arguments: map[string]any{"body": "hi"}, wantError: true},
+		{name: "valid", arguments: map[string]any{"reply_to_message_id": "msg1", "body": "hi"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			before := handlerCalls
+			result, err := client.CallTool(t.Context(), mcp.CallToolRequest{
+				Params: mcp.CallToolParams{Name: "gmail_create_reply_draft", Arguments: tt.arguments},
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if result.IsError != tt.wantError {
+				t.Fatalf("IsError = %v, want %v: %#v", result.IsError, tt.wantError, result.Content)
+			}
+			if tt.wantError && handlerCalls != before {
+				t.Fatal("invalid arguments reached the tool handler")
+			}
+		})
+	}
+	if handlerCalls != 1 {
+		t.Fatalf("handler calls = %d, want 1", handlerCalls)
+	}
+}
+
+func TestMCPGmailGetDraftRecoveryModeIsExclusive(t *testing.T) {
+	tool := findMCPTool(t, "gmail_get_draft")
+	// draft_id -> drafts get
+	got, err := tool.BuildArgs(mcp.CallToolRequest{Params: mcp.CallToolParams{
+		Arguments: map[string]any{"draft_id": "d1"},
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Join(got, "\x00") != strings.Join([]string{"gmail", "drafts", "get", "--", "d1"}, "\x00") {
+		t.Fatalf("get args = %#v", got)
+	}
+	// recover -> bounded drafts find
+	rec, err := tool.BuildArgs(mcp.CallToolRequest{Params: mcp.CallToolParams{
+		Arguments: map[string]any{"recover_reply_to_message_id": "m1"},
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Join(rec, "\x00") != strings.Join([]string{"gmail", "drafts", "find", "--reply-to-message-id", "m1"}, "\x00") {
+		t.Fatalf("recover args = %#v", rec)
+	}
+	// neither -> error
+	if _, err := tool.BuildArgs(mcp.CallToolRequest{Params: mcp.CallToolParams{Arguments: map[string]any{}}}); err == nil {
+		t.Fatal("empty args accepted")
+	}
+	// both -> error (mutually exclusive)
+	if _, err := tool.BuildArgs(mcp.CallToolRequest{Params: mcp.CallToolParams{
+		Arguments: map[string]any{"draft_id": "d1", "recover_reply_to_message_id": "m1"},
+	}}); err == nil {
+		t.Fatal("both args accepted")
+	}
+}

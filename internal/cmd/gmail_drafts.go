@@ -23,6 +23,7 @@ type GmailDraftsCmd struct {
 	Send     GmailDraftsSendCmd     `cmd:"" name:"send" aliases:"post" help:"Send a draft"`
 	Create   GmailDraftsCreateCmd   `cmd:"" name:"create" aliases:"add,new" help:"Create a draft"`
 	Update   GmailDraftsUpdateCmd   `cmd:"" name:"update" aliases:"edit,set" help:"Update a draft"`
+	Find     GmailDraftsFindCmd     `cmd:"" name:"find" help:"Find the reply draft addressed to a message (bounded owner-side recovery)"`
 	Reply    GmailDraftsReplyCmd    `cmd:"" name:"reply" help:"Save a reply as a draft"`
 	ReplyAll GmailDraftsReplyAllCmd `cmd:"" name:"reply-all" aliases:"replyall" help:"Save a reply-all as a draft"`
 	Forward  GmailDraftsForwardCmd  `cmd:"" name:"forward" aliases:"fwd" help:"Save a forward as a draft"`
