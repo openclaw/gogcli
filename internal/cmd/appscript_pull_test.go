@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -49,7 +50,9 @@ func TestExecute_AppScriptPull_WritesFilesWithPrivatePermissions(t *testing.T) {
 	if err != nil {
 		t.Fatalf("stat manifest: %v", err)
 	}
-	if perm := info.Mode().Perm(); perm != 0o600 {
+	// Windows has no POSIX permission bits, so Go reports 0666 for any
+	// writable file there.
+	if perm := info.Mode().Perm(); runtime.GOOS != "windows" && perm != 0o600 {
 		t.Fatalf("expected 0600 manifest, got %o", perm)
 	}
 }
