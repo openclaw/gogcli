@@ -9,9 +9,9 @@ description: Inspect BigQuery and Looker data sources, execution status, and anc
 
 ## Authorize BigQuery access explicitly
 
-Google requires `https://www.googleapis.com/auth/bigquery.readonly` whenever a Sheets API response contains BigQuery Connected Sheets data. Ordinary `sheets` authorization intentionally does not request that scope.
+Google requires BigQuery read access whenever a Sheets API response contains BigQuery Connected Sheets data. `https://www.googleapis.com/auth/bigquery.readonly` is the least-privilege scope that grants it, so that is what the Connected Sheets client requests. Ordinary `sheets` authorization intentionally does not request it.
 
-Re-authorize the account with its existing service selection, append the scope, and force the consent screen. For a Sheets-only token:
+If the stored token does not already cover BigQuery read access, re-authorize the account with its existing service selection, append the scope, and force the consent screen. For a Sheets-only token:
 
 ```bash
 gog auth add you@example.com \
@@ -21,6 +21,8 @@ gog auth add you@example.com \
 ```
 
 If the account token covers more services, keep that existing `--services` selection instead of narrowing it to `sheets`. Domain-wide delegated service accounts must also have both the Sheets read-only and BigQuery read-only scopes approved by the Workspace administrator; the Connected Sheets client requests only those two scopes.
+
+gog does not compare the stored grant against those scopes before calling Google, so a request is authorized by Google against whatever the account's existing grant covers rather than against the literal scope strings above. An account already holding BigQuery read access therefore needs no further consent round. Which broader scopes qualify is Google's determination; `bigquery.readonly` stays the documented least-privilege default.
 
 Looker data sources reuse the account's existing Looker link, but the same commands and output shape apply.
 
