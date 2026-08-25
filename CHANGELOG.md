@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Sheets: refresh individual Connected Sheets data sources with scoped BigQuery authorization, dry-run safety, and structured execution status. (#938) — thanks @ryo-touch.
 - Chat: include user-mention annotations and emoji-reaction summaries in message-list JSON without changing existing text output. (#1000) — thanks @Ben-Living.
 - Apps Script: safely pull project source and list deployments and versions without mutating remote projects. (#1018) — thanks @haosdent.
 - Auth: explain Google Account requirements before OAuth while preserving existing services during reauthorization. (#1014)

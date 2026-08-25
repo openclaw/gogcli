@@ -166,6 +166,10 @@ func (f Factory) ConnectedSheets(ctx context.Context, account string) (*sheets.S
 	return NewConnectedSheets(f.withAuth(ctx), account)
 }
 
+func (f Factory) ConnectedSheetsWriter(ctx context.Context, account string) (*sheets.Service, error) {
+	return NewConnectedSheetsWriter(f.withAuth(ctx), account)
+}
+
 func (f Factory) SitesDrive(ctx context.Context, account string) (*drive.Service, error) {
 	return NewSitesDrive(f.withAuth(ctx), account)
 }

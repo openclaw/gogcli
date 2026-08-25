@@ -2,7 +2,7 @@
 
 Every `gog` command has a generated docs page. The source of truth is the live CLI schema; run `make docs-commands` after changing command names, flags, help text, aliases, or arguments.
 
-Generated pages: 724.
+Generated pages: 725.
 
 ## Top-level Commands
 
@@ -623,9 +623,10 @@ Generated pages: 724.
     - [gog sheets copy](gog-sheets-copy.md) - Copy a Google Sheet
     - [gog sheets copy-paste](gog-sheets-copy-paste.md) - Copy a range's values/formulas/format to another range (tiles to fill down/across)
     - [gog sheets create](gog-sheets-create.md) - Create a new spreadsheet
-    - [gog sheets datasource](gog-sheets-datasource.md) - Inspect Connected Sheets data sources and extracts
+    - [gog sheets datasource](gog-sheets-datasource.md) - Manage Connected Sheets data sources and extracts
       - [gog sheets datasource describe](gog-sheets-datasource-describe.md) - Describe a Connected Sheets data source
       - [gog sheets datasource list](gog-sheets-datasource-list.md) - List Connected Sheets data sources
+      - [gog sheets datasource refresh](gog-sheets-datasource-refresh.md) - Refresh one Connected Sheets data source
       - [gog sheets datasource table](gog-sheets-datasource-table.md) - Inspect Connected Sheets data-source tables (extracts)
         - [gog sheets datasource table describe](gog-sheets-datasource-table-describe.md) - Describe a data-source table at an anchor cell
         - [gog sheets datasource table list](gog-sheets-datasource-table-list.md) - List data-source tables (extracts)

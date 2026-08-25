@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"golang.org/x/oauth2"
+	"google.golang.org/api/sheets/v4"
 
 	"github.com/openclaw/gogcli/internal/authclient"
 	"github.com/openclaw/gogcli/internal/googleauth"
@@ -55,6 +56,10 @@ func TestNewServicesWithStoredToken(t *testing.T) {
 
 	if _, err := NewConnectedSheets(ctx, "a@b.com"); err != nil {
 		t.Fatalf("NewConnectedSheets: %v", err)
+	}
+
+	if _, err := NewConnectedSheetsWriter(ctx, "a@b.com"); err != nil {
+		t.Fatalf("NewConnectedSheetsWriter: %v", err)
 	}
 
 	if _, err := NewTasks(ctx, "a@b.com"); err != nil {
@@ -123,6 +128,25 @@ func TestNewConnectedSheetsRequestsReadOnlySheetsAndBigQueryScopes(t *testing.T)
 
 	if len(gotScopes) != len(want) {
 		t.Fatalf("unexpected extra scopes: %v", gotScopes)
+	}
+}
+
+func TestNewConnectedSheetsWriterRequestsWritableSheetsAndBigQueryScopes(t *testing.T) {
+	var gotScopes []string
+
+	ctx := WithAuthDependencies(context.Background(), AuthDependencies{
+		Mode: AuthModeADC,
+		ADCTokenSource: func(_ context.Context, scopes ...string) (oauth2.TokenSource, error) {
+			gotScopes = append([]string(nil), scopes...)
+			return oauth2.StaticTokenSource(&oauth2.Token{AccessToken: "adc-token"}), nil
+		},
+	})
+	if _, err := NewConnectedSheetsWriter(ctx, "adc"); err != nil {
+		t.Fatalf("NewConnectedSheetsWriter: %v", err)
+	}
+
+	if len(gotScopes) != 2 || gotScopes[0] != sheets.SpreadsheetsScope || gotScopes[1] != scopeBigQueryReadOnly {
+		t.Fatalf("writer scopes = %v, want only writable Sheets and BigQuery readonly", gotScopes)
 	}
 }
 

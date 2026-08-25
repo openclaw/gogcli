@@ -57,7 +57,7 @@ type SheetsCmd struct {
 	Links         SheetsLinksCmd           `cmd:"" name:"links" aliases:"hyperlinks" help:"Get or set cell hyperlinks"`
 	Named         SheetsNamedRangesCmd     `cmd:"" name:"named-ranges" aliases:"namedranges,nr" help:"Manage named ranges"`
 	Table         SheetsTableCmd           `cmd:"" name:"table" aliases:"tables" help:"Manage Google Sheets tables"`
-	DataSource    SheetsDataSourceCmd      `cmd:"" name:"datasource" aliases:"data-source,data-sources,connected-sheets" help:"Inspect Connected Sheets data sources and extracts"`
+	DataSource    SheetsDataSourceCmd      `cmd:"" name:"datasource" aliases:"data-source,data-sources,connected-sheets" help:"Manage Connected Sheets data sources and extracts"`
 	Metadata      SheetsMetadataCmd        `cmd:"" name:"metadata" aliases:"info" help:"Get spreadsheet metadata"`
 	Raw           SheetsRawCmd             `cmd:"" name:"raw" help:"Dump raw Google Sheets API response as JSON (Spreadsheets.Get; lossless; for scripting and LLM consumption)"`
 	Create        SheetsCreateCmd          `cmd:"" name:"create" aliases:"new" help:"Create a new spreadsheet"`

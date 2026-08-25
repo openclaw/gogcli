@@ -1,25 +1,18 @@
-# `gog sheets datasource`
+# `gog sheets datasource refresh`
 
 > Generated from `gog schema --json`. Do not edit this page by hand; run `make docs-commands`.
 
-Manage Connected Sheets data sources and extracts
+Refresh one Connected Sheets data source
 
 ## Usage
 
 ```bash
-gog sheets (sheet) datasource (data-source,data-sources,connected-sheets) <command>
+gog sheets (sheet) datasource (data-source,data-sources,connected-sheets) refresh <spreadsheetId> <dataSourceId> [flags]
 ```
 
 ## Parent
 
-- [gog sheets](gog-sheets.md)
-
-## Subcommands
-
-- [gog sheets datasource describe](gog-sheets-datasource-describe.md) - Describe a Connected Sheets data source
-- [gog sheets datasource list](gog-sheets-datasource-list.md) - List Connected Sheets data sources
-- [gog sheets datasource refresh](gog-sheets-datasource-refresh.md) - Refresh one Connected Sheets data source
-- [gog sheets datasource table](gog-sheets-datasource-table.md) - Inspect Connected Sheets data-source tables (extracts)
+- [gog sheets datasource](gog-sheets-datasource.md)
 
 ## Flags
 
@@ -34,6 +27,7 @@ gog sheets (sheet) datasource (data-source,data-sources,connected-sheets) <comma
 | `--enable-commands` | `string` |  | Comma-separated list of enabled command prefixes; dot paths allowed (restricts CLI) |
 | `--enable-commands-exact` | `string` |  | Comma-separated list of exact enabled commands; dot paths allowed and parent commands do not enable children |
 | `-y`<br>`--force`<br>`--assume-yes`<br>`--yes` | `bool` |  | Skip confirmations for destructive commands |
+| `--force-refresh` | `bool` |  | Refresh even when the previous execution failed |
 | `--gmail-no-send` | `bool` | false | Block Gmail send operations (agent safety) |
 | `-h`<br>`--help` | `kong.helpFlag` |  | Show context-sensitive help. |
 | `--home` | `string` |  | Override gogcli config/data/state/cache root (equivalent to GOG_HOME) |
@@ -49,5 +43,5 @@ gog sheets (sheet) datasource (data-source,data-sources,connected-sheets) <comma
 
 ## See Also
 
-- [gog sheets](gog-sheets.md)
+- [gog sheets datasource](gog-sheets-datasource.md)
 - [Command index](README.md)

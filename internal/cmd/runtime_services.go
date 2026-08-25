@@ -125,6 +125,9 @@ func composeRuntimeGoogleServices(runtime *app.Runtime, factory googleapi.Factor
 	if services.ConnectedSheets == nil {
 		services.ConnectedSheets = factory.ConnectedSheets
 	}
+	if services.ConnectedSheetsWriter == nil {
+		services.ConnectedSheetsWriter = factory.ConnectedSheetsWriter
+	}
 	if services.SitesDrive == nil {
 		services.SitesDrive = factory.SitesDrive
 	}
@@ -402,6 +405,17 @@ func connectedSheetsService(ctx context.Context, account string) (*sheets.Servic
 		return runtime.Services.Sheets(ctx, account)
 	}
 	return nil, serviceError(nil, "Connected Sheets")
+}
+
+func connectedSheetsWriterService(ctx context.Context, account string) (*sheets.Service, error) {
+	if googleapi.ReadOnly(ctx) {
+		return nil, fmt.Errorf("%w: Connected Sheets refresh is disabled", googleapi.ErrReadOnly)
+	}
+	runtime, err := runtimeWithService(ctx, "Connected Sheets writer")
+	if err != nil || runtime.Services.ConnectedSheetsWriter == nil {
+		return nil, serviceError(err, "Connected Sheets writer")
+	}
+	return runtime.Services.ConnectedSheetsWriter(ctx, account)
 }
 
 func sitesDriveService(ctx context.Context, account string) (*drive.Service, error) {

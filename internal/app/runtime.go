@@ -129,6 +129,8 @@ type Services struct {
 	DriveDownload   DriveDownloadFunc
 	DriveExport     DriveExportFunc
 	OpenURL         OpenURLFunc
+
+	ConnectedSheetsWriter SheetsServiceFactory
 }
 
 type AuthOperations struct {

@@ -38,7 +38,7 @@ gog --readonly --account user@example.com sheets get SHEET_ID 'Sheet1!A1:D20' --
 | `copy` | Copy a Google Sheet |
 | `copy-paste` | Copy a range's values/formulas/format to another range (tiles to fill down/across) |
 | `create` | Create a new spreadsheet |
-| `datasource` | Inspect Connected Sheets data sources and extracts |
+| `datasource` | Manage Connected Sheets data sources and extracts |
 | `delete-dimension` | Delete rows or columns while preserving intersecting tables |
 | `delete-tab` | Delete a tab/sheet from a spreadsheet (use --force to skip confirmation) |
 | `export` | Export a Google Sheet (pdf\|xlsx\|csv) via Drive |

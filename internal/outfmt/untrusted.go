@@ -268,6 +268,7 @@ var untrustedContentStringKeys = map[string]bool{
 	"description":        true,
 	"descriptionheading": true,
 	"displayname":        true,
+	"errormessage":       true,
 	"formattedaddress":   true,
 	"formattedvalue":     true,
 	"inputmessage":       true,

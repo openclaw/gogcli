@@ -1,11 +1,11 @@
 ---
 title: Connected Sheets
-description: Inspect BigQuery and Looker data sources, execution status, and anchored Connected Sheets extracts without mutating the spreadsheet.
+description: Inspect and refresh BigQuery and Looker data sources, execution status, and anchored Connected Sheets extracts.
 ---
 
 # Connected Sheets
 
-`gog sheets datasource` provides a read-only view of external data sources in a spreadsheet. It can list sources, return the complete source specification and execution status, discover anchored data-source tables (called extracts in the Sheets editor), and read a bounded number of extract rows.
+`gog sheets datasource` can inspect external data sources and refresh one explicitly selected source. Its read-only commands list sources, return the complete source specification and execution status, discover anchored data-source tables (called extracts in the Sheets editor), and read a bounded number of extract rows.
 
 ## Authorize BigQuery access explicitly
 
@@ -20,7 +20,7 @@ gog auth add you@example.com \
   --force-consent
 ```
 
-If the account token covers more services, keep that existing `--services` selection instead of narrowing it to `sheets`. Domain-wide delegated service accounts must also have both the Sheets read-only and BigQuery read-only scopes approved by the Workspace administrator; the Connected Sheets client requests only those two scopes.
+If the account token covers more services, keep that existing `--services` selection instead of narrowing it to `sheets`, including any narrower `--drive-scope` or `--gmail-scope` choices. Domain-wide delegated service accounts must also have both the Sheets read-only and BigQuery read-only scopes approved by the Workspace administrator; refresh instead requires writable Sheets authorization and the BigQuery read-only scope.
 
 Looker data sources reuse the account's existing Looker link, but the same commands and output shape apply.
 
@@ -35,6 +35,23 @@ gog --readonly --account you@example.com \
 ```
 
 `list` returns a compact source summary joined with its `DATA_SOURCE` sheet and current `DataExecutionStatus`. It deliberately does not print custom SQL. `describe` returns the complete API `DataSource`, associated sheet properties, execution status, and refresh schedules, so its JSON can include a BigQuery raw query and error messages.
+
+## Refresh one data source
+
+```bash
+gog --account you@example.com \
+  sheets datasource refresh <spreadsheetId> <dataSourceId> --dry-run --json
+
+gog --account you@example.com \
+  sheets datasource refresh <spreadsheetId> <dataSourceId> --json
+
+gog --account you@example.com \
+  sheets datasource refresh <spreadsheetId> <dataSourceId> --force-refresh --json
+```
+
+Refresh requires writable Sheets authorization plus the explicitly granted `bigquery.readonly` scope. Only the requested source is refreshed; the command never refreshes an entire spreadsheet and never automatically retries a potentially billable execution. Use `--force-refresh` when retrying a source already in an error state. `--readonly` blocks the operation, while `--dry-run` previews it without authentication or network access.
+
+Google starts refreshes asynchronously. JSON preserves the provider's native object references and execution statuses; an immediately `FAILED` status returns a nonzero exit code while retaining its structured JSON output. Poll `list` or `describe` until `state` is `SUCCEEDED` or `FAILED`.
 
 ## Discover and read extracts
 
@@ -56,4 +73,4 @@ Table discovery asks `spreadsheets.get` only for anchor definitions and related 
 
 An extract that syncs every column keeps its column list on the linked `DATA_SOURCE` sheet rather than on the anchor, and the anchor lookup is range-scoped, so `read` issues one additional `spreadsheets.get` for those column definitions. Add pacing when reading many extracts in a loop; back-to-back reads can reach the Sheets per-minute quota.
 
-These commands do not create, update, refresh, or delete data sources. Connected Sheets refresh remains asynchronous, and `list` or `describe` can be polled until `state` is `SUCCEEDED` or `FAILED`.
+These commands do not create, update, or delete data sources.

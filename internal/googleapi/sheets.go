@@ -51,3 +51,16 @@ func NewConnectedSheets(ctx context.Context, email string) (*sheets.Service, err
 
 	return svc, nil
 }
+
+// NewConnectedSheetsWriter keeps BigQuery authorization scoped to explicit
+// Connected Sheets mutations instead of broadening the ordinary Sheets client.
+func NewConnectedSheetsWriter(ctx context.Context, email string) (*sheets.Service, error) {
+	return newGoogleServiceForScopes(
+		ctx,
+		email,
+		string(googleauth.ServiceSheets),
+		"Connected Sheets writer",
+		[]string{sheets.SpreadsheetsScope, scopeBigQueryReadOnly},
+		sheets.NewService,
+	)
+}

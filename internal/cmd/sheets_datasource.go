@@ -21,6 +21,7 @@ const connectedSheetsBigQueryScope = "https://www.googleapis.com/auth/bigquery.r
 type SheetsDataSourceCmd struct {
 	List     SheetsDataSourceListCmd     `cmd:"" default:"withargs" help:"List Connected Sheets data sources"`
 	Describe SheetsDataSourceDescribeCmd `cmd:"" name:"describe" aliases:"get,show,info" help:"Describe a Connected Sheets data source"`
+	Refresh  SheetsDataSourceRefreshCmd  `cmd:"" name:"refresh" help:"Refresh one Connected Sheets data source"`
 	Table    SheetsDataSourceTableCmd    `cmd:"" name:"table" aliases:"tables,extract,extracts" help:"Inspect Connected Sheets data-source tables (extracts)"`
 }
 
@@ -583,19 +584,25 @@ func dataSourceColumnCount(allSheets []*sheets.Sheet, dataSourceID string) int {
 }
 
 func wrapConnectedSheetsReadError(err error, account string) error {
-	if err == nil {
-		return nil
-	}
-	errText := strings.ToLower(err.Error())
-	if !strings.Contains(errText, "insufficient authentication scopes") &&
-		!strings.Contains(errText, "access_token_scope_insufficient") &&
-		!strings.Contains(errText, "insufficientpermissions") {
+	if !isConnectedSheetsInsufficientScopeError(err) {
 		return err
 	}
 	return errfmt.NewUserFacingError(
 		fmt.Sprintf("Connected Sheets BigQuery reads require OAuth scope %s; re-authenticate while preserving this account's existing --services selection and append --extra-scopes %s --force-consent (for a Sheets-only token: gog auth add %s --services sheets --extra-scopes %s --force-consent)", connectedSheetsBigQueryScope, connectedSheetsBigQueryScope, account, connectedSheetsBigQueryScope),
 		err,
 	)
+}
+
+func isConnectedSheetsInsufficientScopeError(err error) bool {
+	if err == nil {
+		return false
+	}
+	errText := strings.ToLower(err.Error())
+	return strings.Contains(errText, "insufficient authentication scopes") ||
+		strings.Contains(errText, "access_token_scope_insufficient") ||
+		strings.Contains(errText, "insufficientpermissions") ||
+		strings.Contains(errText, "request scopes are not sufficient") ||
+		strings.Contains(errText, "please include bigquery.readonly scope")
 }
 
 func sheetsDataSourceColumns() []outfmt.Column[sheetsDataSourceItem] {

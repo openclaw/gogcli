@@ -67,6 +67,10 @@ func requireConnectedSheetsService(ctx context.Context, flags *RootFlags) (strin
 	return requireGoogleService(ctx, flags, connectedSheetsService)
 }
 
+func requireConnectedSheetsWriterService(ctx context.Context, flags *RootFlags) (string, *sheets.Service, error) {
+	return requireGoogleService(ctx, flags, connectedSheetsWriterService)
+}
+
 func requireGoogleService[T any](ctx context.Context, flags *RootFlags, newService func(context.Context, string) (*T, error)) (string, *T, error) {
 	account, err := requireAccount(flags)
 	if err != nil {
