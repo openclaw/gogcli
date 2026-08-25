@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Slides: add skip/unskip commands and expose slide visibility without changing existing plain-text output. (#1009) — thanks @marnunez.
+- Config: serialize concurrent updates with shared platform-native file locks, preventing intermittent access-denied failures on Windows.
 - Calendar: correctly clear custom reminder overrides when restoring calendar defaults. (#1016) — thanks @sorenisanerd.
 - Security: remove overflow-prone capacity arithmetic from untrusted-output maps and versioned tracking ciphertext construction while preserving their wire formats.
 - Security: restrict the CI workflow's `GITHUB_TOKEN` to read-only repository contents instead of inheriting broader organization or repository defaults.

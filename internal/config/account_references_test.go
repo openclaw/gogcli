@@ -105,7 +105,7 @@ func TestConfigStoreMigrateAccountEmailReferencesSerializesConcurrentUpdate(t *t
 
 		<-start
 
-		errs <- store.Update(func(cfg *File) error {
+		errs <- NewConfigStore(store.Layout()).Update(func(cfg *File) error {
 			cfg.DefaultTimezone = "UTC"
 			return nil
 		})
