@@ -60,28 +60,34 @@ func (s *ConfigStore) Path() string {
 	return s.layout.ConfigPath()
 }
 
-func (s *ConfigStore) ensureDir() (string, error) {
-	dir := s.layout.ConfigDir
-	if err := os.MkdirAll(dir, 0o700); err != nil {
-		return "", fmt.Errorf("ensure config dir: %w", err)
+func (s *ConfigStore) ensureDir() error {
+	if err := os.MkdirAll(s.layout.ConfigDir, 0o700); err != nil {
+		return fmt.Errorf("ensure config dir: %w", err)
 	}
 
-	return dir, nil
+	return nil
 }
 
-func (s *ConfigStore) Write(cfg File) error {
-	if _, err := s.ensureDir(); err != nil {
+func (s *ConfigStore) withLock(fn func() error) error {
+	if err := s.ensureDir(); err != nil {
 		return err
 	}
 
-	return s.lock.WithExclusive(func() error {
+	if err := s.lock.WithExclusive(fn); err != nil {
+		return fmt.Errorf("update config under lock: %w", err)
+	}
+
+	return nil
+}
+
+func (s *ConfigStore) Write(cfg File) error {
+	return s.withLock(func() error {
 		return s.write(cfg)
 	})
 }
 
 func (s *ConfigStore) write(cfg File) error {
-	_, err := s.ensureDir()
-	if err != nil {
+	if err := s.ensureDir(); err != nil {
 		return fmt.Errorf("ensure config dir: %w", err)
 	}
 
@@ -102,11 +108,7 @@ func (s *ConfigStore) write(cfg File) error {
 }
 
 func (s *ConfigStore) Update(update func(*File) error) error {
-	if _, err := s.ensureDir(); err != nil {
-		return err
-	}
-
-	return s.lock.WithExclusive(func() error {
+	return s.withLock(func() error {
 		cfg, err := s.Read()
 		if err != nil {
 			return err
