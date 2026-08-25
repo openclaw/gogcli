@@ -2,7 +2,15 @@
 
 ## Unreleased
 
+- Slides: add skip/unskip commands and expose slide visibility without changing existing plain-text output. (#1009) — thanks @marnunez.
+- Calendar: correctly clear custom reminder overrides when restoring calendar defaults. (#1016) — thanks @sorenisanerd.
+- Security: remove overflow-prone capacity arithmetic from untrusted-output maps and versioned tracking ciphertext construction while preserving their wire formats.
+- Security: restrict the CI workflow's `GITHUB_TOKEN` to read-only repository contents instead of inheriting broader organization or repository defaults.
+- Security: generate live agent-evaluation session IDs with cryptographically random suffixes while preserving their fixed-width format.
+- Security: replace docs heading and table-of-contents HTML sanitization regexes with one shared single-pass tag scanner so removed markup cannot reconstruct unsafe tags.
+- Auth: treat missing `config.json` as optional while diagnosing missing OAuth client credentials with client-specific repair commands. (#1015, #1017) — thanks @coeur-de-loup.
 - Security: bound `gmail watch serve` and the local OAuth callback HTTP servers with read, idle, and header-size limits so a slow or oversized request cannot stall the listener.
+- Calendar/Gmail: stop listing immediately when Google repeats a pagination token, including resumed Gmail backups. (#1004) — thanks @SebTardif.
 
 ## v0.37.0 - 2026-08-14
 

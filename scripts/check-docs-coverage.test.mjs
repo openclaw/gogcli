@@ -5,6 +5,19 @@ import path from "node:path";
 import test from "node:test";
 
 import { checkMarkdownLinks, headingAnchors } from "./check-docs-coverage.mjs";
+import { stripHtmlTags } from "./html-text.mjs";
+
+test("stripHtmlTags removes nested and unterminated markup in one pass", () => {
+  assert.equal(
+    stripHtmlTags('<a class="anchor" href="#heading">#</a><em>Heading</em>'),
+    "#Heading",
+  );
+  assert.equal(stripHtmlTags("<strong>broken"), "broken");
+  assert.equal(stripHtmlTags("Heading <strong"), "Heading ");
+  assert.equal(stripHtmlTags('<span title="1 > 0">Heading</span>'), "Heading");
+  assert.equal(stripHtmlTags("1 < 2"), "1 < 2");
+  assert.equal(stripHtmlTags("<<<script>img>"), "img>");
+});
 
 test("headingAnchors ignores headings inside fenced code blocks", () => {
   const anchors = headingAnchors(`# Real Heading
@@ -34,6 +47,7 @@ test("headingAnchors follows GitHub-style heading slugs", () => {
 ## foo
 ## foo
 ## foo-1
+## <em>HTML Heading</em>
 ## Heading ##
 `);
 
@@ -44,6 +58,7 @@ test("headingAnchors follows GitHub-style heading slugs", () => {
     "foo",
     "foo-1",
     "foo-1-1",
+    "html-heading",
     "heading",
   ]);
 });

@@ -6,7 +6,6 @@
   "dataSources": [
     {
       "dataSourceId": "ds-table",
-      "sheetId": 101,
       "spec": {
         "bigQuery": {
           "projectId": "billing-project",
@@ -20,7 +19,6 @@
     },
     {
       "dataSourceId": "ds-query",
-      "sheetId": 102,
       "spec": {
         "bigQuery": {
           "projectId": "billing-project",
@@ -43,9 +41,21 @@
   "sheets": [
     {
       "properties": {
+        "sheetId": 0,
+        "title": "Unrelated First Tab",
+        "index": 0,
+        "sheetType": "GRID",
+        "gridProperties": {
+          "rowCount": 100,
+          "columnCount": 10
+        }
+      }
+    },
+    {
+      "properties": {
         "sheetId": 101,
         "title": "Shakespeare Preview",
-        "index": 0,
+        "index": 1,
         "sheetType": "DATA_SOURCE",
         "gridProperties": {
           "rowCount": 500,
@@ -70,7 +80,7 @@
       "properties": {
         "sheetId": 102,
         "title": "Query Preview",
-        "index": 1,
+        "index": 2,
         "sheetType": "DATA_SOURCE",
         "gridProperties": {
           "rowCount": 500,
@@ -95,7 +105,7 @@
       "properties": {
         "sheetId": 201,
         "title": "Extracts",
-        "index": 2,
+        "index": 3,
         "sheetType": "GRID",
         "gridProperties": {
           "rowCount": 1000,
@@ -121,6 +131,40 @@
                     "dataExecutionStatus": {
                       "state": "SUCCEEDED",
                       "lastRefreshTime": "2026-08-13T16:31:00Z"
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "properties": {
+        "sheetId": 202,
+        "title": "Synced Extract",
+        "index": 4,
+        "sheetType": "GRID",
+        "gridProperties": {
+          "rowCount": 1000,
+          "columnCount": 26
+        }
+      },
+      "data": [
+        {
+          "startRow": 0,
+          "startColumn": 0,
+          "rowData": [
+            {
+              "values": [
+                {
+                  "dataSourceTable": {
+                    "dataSourceId": "ds-query",
+                    "columnSelectionType": "SYNC_ALL",
+                    "dataExecutionStatus": {
+                      "state": "SUCCEEDED",
+                      "lastRefreshTime": "2026-08-13T16:32:00Z"
                     }
                   }
                 }

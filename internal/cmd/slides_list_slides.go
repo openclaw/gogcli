@@ -60,9 +60,16 @@ func (c *SlidesListSlidesCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u.Out().Println("")
 
 	tw := tabwriter.NewWriter(stdoutWriter(ctx), 0, 4, 2, ' ', 0)
-	fmt.Fprintln(tw, "#\tOBJECT ID\tSKIPPED")
-	for i, s := range pres.Slides {
-		fmt.Fprintf(tw, "%d\t%s\t%t\n", i+1, s.ObjectId, slideIsSkipped(s))
+	if outfmt.IsPlain(ctx) {
+		fmt.Fprintln(tw, "#\tOBJECT ID")
+		for i, s := range pres.Slides {
+			fmt.Fprintf(tw, "%d\t%s\n", i+1, s.ObjectId)
+		}
+	} else {
+		fmt.Fprintln(tw, "#\tOBJECT ID\tSKIPPED")
+		for i, s := range pres.Slides {
+			fmt.Fprintf(tw, "%d\t%s\t%t\n", i+1, s.ObjectId, slideIsSkipped(s))
+		}
 	}
 	_ = tw.Flush()
 	return nil

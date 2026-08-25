@@ -4,6 +4,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { stripHtmlTags } from "./html-text.mjs";
+
 const root = process.cwd();
 const bin = process.env.GOG_BIN || path.join(root, "bin", "gog");
 const docsDir = path.join(root, "docs");
@@ -215,8 +217,7 @@ export function headingAnchors(markdown) {
 }
 
 function slugifyHeading(text) {
-  return text
-    .replace(/<[^>]*>/g, "")
+  return stripHtmlTags(text)
     .replace(/`/g, "")
     .toLowerCase()
     .replace(/[^\p{L}\p{M}\p{N}\p{Pc}\- ]/gu, "")

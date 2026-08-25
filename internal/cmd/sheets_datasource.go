@@ -291,6 +291,16 @@ func (c *SheetsDataSourceTableReadCmd) Run(ctx context.Context, flags *RootFlags
 		columnCount = dataSourceColumnCount(resp.Sheets, item.DataSourceID)
 	}
 	if columnCount == 0 {
+		// The ranged lookup above only returns the sheets the anchor intersects,
+		// so a SYNC_ALL table's column list — which lives on its separate
+		// DATA_SOURCE sheet — is missing. Re-read those columns unranged.
+		allSheets, columnsErr := fetchSheetsDataSourceSheetColumns(ctx, svc, spreadsheetID)
+		if columnsErr != nil {
+			return wrapConnectedSheetsReadError(columnsErr, account)
+		}
+		columnCount = dataSourceColumnCount(allSheets, item.DataSourceID)
+	}
+	if columnCount == 0 {
 		return usagef("cannot determine columns for data-source table at %q", anchor)
 	}
 
@@ -357,6 +367,21 @@ func fetchSheetsDataSourceSnapshot(ctx context.Context, svc *sheets.Service, spr
 	}, nil
 }
 
+// fetchSheetsDataSourceSheetColumns reads just the data-source sheet column
+// definitions, which a ranged lookup cannot return. Kept narrower than the full
+// snapshot mask so the extra request stays cheap.
+func fetchSheetsDataSourceSheetColumns(ctx context.Context, svc *sheets.Service, spreadsheetID string) ([]*sheets.Sheet, error) {
+	resp, err := svc.Spreadsheets.Get(spreadsheetID).
+		Fields(googleapi.Field("sheets(properties(sheetId,title,dataSourceSheetProperties(dataSourceId,columns)))")).
+		Context(ctx).
+		Do()
+	if err != nil {
+		return nil, err
+	}
+
+	return resp.Sheets, nil
+}
+
 func fetchSheetsDataSourceTables(ctx context.Context, svc *sheets.Service, spreadsheetID, anchor string) (*sheets.Spreadsheet, error) {
 	call := svc.Spreadsheets.Get(spreadsheetID).
 		IncludeGridData(true).
@@ -396,6 +421,9 @@ func sheetsDataSourceToItem(source *sheets.DataSource, allSheets []*sheets.Sheet
 		}
 	}
 	if sheet := findSheetsDataSourceSheet(allSheets, source); sheet != nil && sheet.Properties != nil {
+		// Spreadsheet.dataSources[].sheetId is absent from live API responses, so
+		// the linked sheet's own properties are the authoritative id.
+		item.SheetID = sheet.Properties.SheetId
 		item.SheetTitle = sheet.Properties.Title
 		status := sheet.Properties.DataSourceSheetProperties
 		if status != nil {
@@ -418,15 +446,26 @@ func findSheetsDataSourceSheet(allSheets []*sheets.Sheet, source *sheets.DataSou
 	if source == nil {
 		return nil
 	}
+	// Match on the data source id first: live responses omit
+	// Spreadsheet.dataSources[].sheetId, and a zero value would otherwise claim
+	// any unrelated sheet that happens to have id 0.
 	for _, sheet := range allSheets {
 		if sheet == nil || sheet.Properties == nil {
 			continue
 		}
 		properties := sheet.Properties
-		if properties.SheetId == source.SheetId {
+		if properties.DataSourceSheetProperties != nil && properties.DataSourceSheetProperties.DataSourceId == source.DataSourceId {
 			return sheet
 		}
-		if properties.DataSourceSheetProperties != nil && properties.DataSourceSheetProperties.DataSourceId == source.DataSourceId {
+	}
+	if source.SheetId == 0 {
+		return nil
+	}
+	for _, sheet := range allSheets {
+		if sheet == nil || sheet.Properties == nil {
+			continue
+		}
+		if sheet.Properties.SheetId == source.SheetId {
 			return sheet
 		}
 	}

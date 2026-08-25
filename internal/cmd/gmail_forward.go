@@ -161,6 +161,9 @@ func (c *GmailForwardOptions) buildForwardComposeMessage(ctx context.Context, sv
 	if err != nil {
 		return forwardComposeMessage{}, fmt.Errorf("fetch original message: %w", err)
 	}
+	if origMsg == nil {
+		return forwardComposeMessage{}, fmt.Errorf("fetch original message %s: empty response", inputs.messageID)
+	}
 
 	origFrom := headerValue(origMsg.Payload, "From")
 	origTo := headerValue(origMsg.Payload, "To")

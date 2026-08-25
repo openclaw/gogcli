@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"slices"
+	"strings"
 	"testing"
 
 	"google.golang.org/api/calendar/v3"
@@ -78,5 +79,26 @@ func TestCalendarEventsListCall_EventTypesFilter(t *testing.T) {
 				t.Fatalf("eventTypes query = %v, want %v", gotTypes, tc.want)
 			}
 		})
+	}
+}
+
+func TestListCalendarListRejectsRepeatedPageToken(t *testing.T) {
+	svc, cleanup := newTestCalendarService(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !(strings.Contains(r.URL.Path, "calendarList") && r.Method == http.MethodGet) {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"items": []map[string]any{
+				{"id": "c1", "summary": "One", "accessRole": "owner"},
+			},
+			"nextPageToken": "stuck",
+		})
+	}))
+	defer cleanup()
+	_, err := listCalendarList(context.Background(), svc)
+	if err == nil || !strings.Contains(err.Error(), "repeated page token") {
+		t.Fatalf("err = %v", err)
 	}
 }

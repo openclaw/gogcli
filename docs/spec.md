@@ -151,7 +151,7 @@ Scope selection note:
 
 - Base config dir: `$(os.UserConfigDir())/gogcli/`
 - Files:
-  - `config.json` (JSON5; comments and trailing commas allowed)
+  - `config.json` (optional preferences; JSON5; comments and trailing commas allowed)
   - `credentials.json` (OAuth client id/secret; default client)
   - `credentials-<client>.json` (OAuth client id/secret; named clients)
 - State:
@@ -201,7 +201,7 @@ Flag aliases:
 - `gog auth manage [--services ...] [--listen-addr HOST[:PORT]] [--redirect-host HOST] [--dry-run]` (interactive browser flow; real execution fails with usage exit code 2 under `--no-input`)
 - `gog auth keep <email> --key <service-account.json>` (Google Keep; Workspace only)
 - `gog auth list`
-- `gog auth doctor [--check]` (diagnose keyring/password drift and refresh-token failures)
+- `gog auth doctor [--check]` (diagnose missing OAuth client credentials, keyring/password drift, and refresh-token failures)
 - `gog auth alias list`
 - `gog auth alias set <alias> <email>`
 - `gog auth alias unset <alias>`

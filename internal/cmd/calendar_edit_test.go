@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"encoding/json"
 	"io"
 	"testing"
 
@@ -74,6 +75,13 @@ func TestCalendarUpdatePatchClearsReminders(t *testing.T) {
 	}
 	if patch.Reminders == nil || !patch.Reminders.UseDefault {
 		t.Fatalf("expected reminders.UseDefault=true, got %#v", patch.Reminders)
+	}
+	encoded, err := json.Marshal(patch.Reminders)
+	if err != nil {
+		t.Fatalf("marshal reminder patch: %v", err)
+	}
+	if string(encoded) != `{"overrides":null,"useDefault":true}` {
+		t.Fatalf("restore-default reminder payload = %s", encoded)
 	}
 	if !hasForceSendField(patch.ForceSendFields, "Reminders") {
 		t.Fatalf("expected Reminders in ForceSendFields")

@@ -264,7 +264,11 @@ func applyUpdateReminders(input calendarUpdateInput, fields calendarUpdateFields
 		return false, err
 	}
 	if reminders == nil {
-		patch.Reminders = &calendar.EventReminders{UseDefault: true}
+		// PATCH merges omitted fields, so remove old overrides before restoring defaults.
+		patch.Reminders = &calendar.EventReminders{
+			UseDefault: true,
+			NullFields: []string{"Overrides"},
+		}
 		patch.ForceSendFields = append(patch.ForceSendFields, "Reminders")
 	} else {
 		patch.Reminders = reminders

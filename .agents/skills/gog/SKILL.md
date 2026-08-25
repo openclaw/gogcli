@@ -29,6 +29,11 @@ For JSON output projection, `--fields` is accepted as an alias for `--select` on
 commands that do not define their own API field-mask `--fields`; commands with a
 local field-mask flag keep that command-specific meaning.
 
+`--results-only` unwraps the primary result before `--select` projects it. For
+lists, select item-relative fields: `--results-only --select id`. Dot paths do
+not broadcast through nested arrays (`--select items.id` selects nothing).
+Unmatched object fields are omitted.
+
 Pick the account explicitly for API work:
 
 ```bash

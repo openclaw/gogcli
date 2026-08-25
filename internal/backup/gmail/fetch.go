@@ -20,6 +20,7 @@ var (
 	errCacheRequired     = errors.New("gmail backup cache is required")
 	errFetchStopped      = errors.New("gmail backup fetch stopped before completion")
 	errMessageIDMismatch = errors.New("gmail backup source returned a different message ID")
+	errRepeatedPageToken = errors.New("repeated page token")
 )
 
 type CacheStore interface {
@@ -85,6 +86,7 @@ func ListMessageIDs(ctx context.Context, source Source, opts ListOptions) ([]str
 
 	ids := make([]string, 0)
 	seen := make(map[string]struct{})
+	seenTokens := map[string]struct{}{}
 	pageToken := ""
 	if opts.UseCache && !opts.Refresh {
 		state, found, err := opts.Cache.ReadListState(opts.Selection)
@@ -107,6 +109,9 @@ func ListMessageIDs(ctx context.Context, source Source, opts ListOptions) ([]str
 		}
 	}
 	emitEvent(opts.Progress, Event{Phase: EventPhaseList, Resume: "start", Done: len(ids)})
+	if initial := strings.TrimSpace(pageToken); initial != "" {
+		seenTokens[initial] = struct{}{}
+	}
 
 	for {
 		if err := ctx.Err(); err != nil {
@@ -134,9 +139,16 @@ func ListMessageIDs(ctx context.Context, source Source, opts ListOptions) ([]str
 		ids = appendUniqueIDs(ids, seen, page.IDs, opts.Selection.Max)
 		emitEvent(opts.Progress, Event{Phase: EventPhaseList, Done: len(ids)})
 
-		complete := strings.TrimSpace(page.NextPageToken) == "" || reachedSelectionMax(ids, opts.Selection.Max)
+		next := strings.TrimSpace(page.NextPageToken)
+		complete := next == "" || reachedSelectionMax(ids, opts.Selection.Max)
+		if !complete {
+			if _, exists := seenTokens[next]; exists {
+				return nil, fmt.Errorf("list Gmail backup messages: %w %q", errRepeatedPageToken, next)
+			}
+			seenTokens[next] = struct{}{}
+		}
 		if opts.UseCache {
-			nextToken := page.NextPageToken
+			nextToken := next
 			if complete {
 				nextToken = ""
 			}
@@ -147,7 +159,7 @@ func ListMessageIDs(ctx context.Context, source Source, opts ListOptions) ([]str
 		if complete {
 			break
 		}
-		pageToken = page.NextPageToken
+		pageToken = next
 	}
 	return ids, nil
 }

@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { spawn } from "node:child_process";
+import { randomBytes } from "node:crypto";
 import { constants as fsConstants } from "node:fs";
 import { access, chmod, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import net from "node:net";
@@ -554,12 +555,16 @@ export function agentEnvironment(environment, binDirectory) {
   return safe;
 }
 
+export function buildEvalSessionId(cli, now = Date.now(), randomBytesFn = randomBytes) {
+  return `gog-eval-${cli}-${now}-${randomBytesFn(4).toString("hex")}`;
+}
+
 async function runAgent(agent, cli, repetition, fixtures, options, environment) {
   const proxy = await startCliProxy(cli, options, environment);
   const runDirectory = await createRunDirectory(options, proxy.socketPath);
   const prompt = buildPrompt(options.driveName, runDirectory.wrapper);
   const env = agentEnvironment(environment, runDirectory.binDirectory);
-  const sessionId = `gog-eval-${cli}-${Date.now()}-${Math.random().toString(16).slice(2, 10)}`;
+  const sessionId = buildEvalSessionId(cli);
   const command = agent === "codex" ? "codex" : "openclaw";
   const args = agent === "codex"
     ? [

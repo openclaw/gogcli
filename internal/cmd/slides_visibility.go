@@ -7,7 +7,6 @@ import (
 
 	"google.golang.org/api/slides/v1"
 
-	"github.com/openclaw/gogcli/internal/outfmt"
 	"github.com/openclaw/gogcli/internal/ui"
 )
 
@@ -69,18 +68,11 @@ func runSlidesSetSkipped(
 		return fmt.Errorf("update slide skipped state: %w", err)
 	}
 
-	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(ctx, stdoutWriter(ctx), map[string]any{
-			"presentationId": presentationID,
-			"slideObjectId":  slideID,
-			"isSkipped":      isSkipped,
-		})
-	}
-
-	u.Out().Linef("slideObjectId\t%s", slideID)
-	u.Out().Linef("presentationId\t%s", presentationID)
-	u.Out().Linef("isSkipped\t%t", isSkipped)
-	return nil
+	return writeResult(ctx, u,
+		kv("slideObjectId", slideID),
+		kv("presentationId", presentationID),
+		kv("isSkipped", isSkipped),
+	)
 }
 
 func slidesVisibilityBatchUpdate(slideID string, isSkipped bool) *slides.BatchUpdatePresentationRequest {

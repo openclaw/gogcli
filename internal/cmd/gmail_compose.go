@@ -197,6 +197,12 @@ func applyReplyQuote(ctx context.Context, quote bool, info *replyInfo, plainBody
 	if err != nil {
 		return "", "", err
 	}
+	// applyQuoteToBodies below is a no-op without quotable text (attachment-only
+	// original, or a body the extractor rejects); say so rather than dropping a
+	// requested quote silently.
+	if !info.hasQuotableText() {
+		ui.FromContext(ctx).Err().Println("Warning: could not extract quotable text from the original message; composing without quote")
+	}
 	plainBody, htmlBody = applyQuoteToBodies(plainBody, htmlBody, quote, info, loc)
 	return plainBody, htmlBody, nil
 }

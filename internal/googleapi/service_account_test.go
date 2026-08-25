@@ -43,6 +43,13 @@ func TestTokenSourceForServiceAccountScopesUsesInjectedStore(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", filepath.Join(ambientHome, "xdg-config"))
 	t.Setenv("XDG_DATA_HOME", filepath.Join(ambientHome, "xdg-data"))
 
+	// GOG_* path overrides outrank HOME and XDG in the layout resolver; clear
+	// them so the ambient file below lands in this test's sandbox rather than
+	// a real gogcli data directory.
+	for _, name := range []string{"GOG_HOME", "GOG_CONFIG_DIR", "GOG_DATA_DIR", "GOG_STATE_DIR", "GOG_CACHE_DIR"} {
+		t.Setenv(name, "")
+	}
+
 	ambientLayout, err := config.NewSystemResolver("").Resolve(config.PathKindData)
 	if err != nil {
 		t.Fatalf("resolve ambient layout: %v", err)

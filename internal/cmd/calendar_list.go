@@ -361,28 +361,18 @@ func resolveCalendarIDs(ctx context.Context, store *config.ConfigStore, svc *cal
 }
 
 func listCalendarList(ctx context.Context, svc *calendar.Service) ([]*calendar.CalendarListEntry, error) {
-	var (
-		items     []*calendar.CalendarListEntry
-		pageToken string
-	)
-	for {
+	fetch := func(pageToken string) ([]*calendar.CalendarListEntry, string, error) {
 		call := svc.CalendarList.List().MaxResults(250).Context(ctx)
 		if pageToken != "" {
 			call = call.PageToken(pageToken)
 		}
 		resp, err := call.Do()
 		if err != nil {
-			return nil, err
+			return nil, "", err
 		}
-		if len(resp.Items) > 0 {
-			items = append(items, resp.Items...)
-		}
-		if resp.NextPageToken == "" {
-			break
-		}
-		pageToken = resp.NextPageToken
+		return resp.Items, resp.NextPageToken, nil
 	}
-	return items, nil
+	return collectAllPages("", fetch)
 }
 
 // sortEventsBy sorts events in place by the given key (start|end|summary|calendar).

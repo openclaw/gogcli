@@ -26,6 +26,23 @@ func TestMain(m *testing.M) {
 	_ = os.Setenv("HOME", home)
 	_ = os.Setenv("XDG_CONFIG_HOME", xdg)
 
+	// Ambient GOG_* path overrides and XDG data/state/cache directories escape
+	// this sandbox entirely: the layout resolver (internal/config/layout.go)
+	// honors them ahead of the HOME- and XDG_CONFIG_HOME-derived defaults set
+	// above, pointing tests at shared real directories. Unset rather than
+	// redirect: a single shared override directory still cross-contaminates
+	// tests. Per-test t.Setenv values are unaffected.
+	oldPathEnv := map[string]string{}
+	for _, name := range []string{
+		"GOG_HOME", "GOG_CONFIG_DIR", "GOG_DATA_DIR", "GOG_STATE_DIR", "GOG_CACHE_DIR",
+		"XDG_DATA_HOME", "XDG_STATE_HOME", "XDG_CACHE_HOME",
+	} {
+		if value, ok := os.LookupEnv(name); ok {
+			oldPathEnv[name] = value
+		}
+		_ = os.Unsetenv(name)
+	}
+
 	code := m.Run()
 
 	if oldHome == "" {
@@ -37,6 +54,10 @@ func TestMain(m *testing.M) {
 		_ = os.Unsetenv("XDG_CONFIG_HOME")
 	} else {
 		_ = os.Setenv("XDG_CONFIG_HOME", oldXDG)
+	}
+
+	for name, value := range oldPathEnv {
+		_ = os.Setenv(name, value)
 	}
 	_ = os.RemoveAll(root)
 	os.Exit(code)

@@ -15,6 +15,7 @@ import (
 
 	"github.com/openclaw/gogcli/internal/app"
 	"github.com/openclaw/gogcli/internal/config"
+	"github.com/openclaw/gogcli/internal/oauthclient"
 	"github.com/openclaw/gogcli/internal/secrets"
 )
 
@@ -487,6 +488,137 @@ func TestAuthDoctor_JSON_ReportsForcedKeychainTrust(t *testing.T) {
 		}
 	}
 	t.Fatalf("missing keychain.trust check: %#v", payload.Checks)
+}
+
+func TestAuthDoctor_JSON_MissingOptionalConfigIsHealthy(t *testing.T) {
+	t.Setenv("GOG_HOME", t.TempDir())
+	t.Setenv("GOG_KEYRING_BACKEND", "keychain")
+	layout, err := config.NewSystemResolver("").Resolve(config.PathKindConfig, config.PathKindData)
+	if err != nil {
+		t.Fatalf("resolve config layout: %v", err)
+	}
+	store := newMemSecretsStore()
+	credentials, err := oauthclient.NewCredentialsStore(config.NewClientCredentialsStore(layout), store)
+	if err != nil {
+		t.Fatalf("create OAuth credentials store: %v", err)
+	}
+	if err := credentials.Write(config.DefaultClientName, config.ClientCredentials{
+		ClientID:     "test-client.apps.googleusercontent.com",
+		ClientSecret: "fixture-client-secret",
+	}, false); err != nil {
+		t.Fatalf("write OAuth credentials: %v", err)
+	}
+	if err := store.SetToken(config.DefaultClientName, "user@example.com", secrets.Token{RefreshToken: "fixture-token"}); err != nil {
+		t.Fatalf("store fixture token: %v", err)
+	}
+	runtime := runtimeWithAuthStore(store)
+	runtime.KeyringOptions.Backend = "keychain"
+	result := executeWithTestRuntime(t, []string{"--json", "auth", "doctor"}, runtime)
+	if result.err != nil {
+		t.Fatalf("auth doctor: %v", result.err)
+	}
+	var payload struct {
+		Status string            `json:"status"`
+		Checks []authDoctorCheck `json:"checks"`
+	}
+	if err := json.Unmarshal([]byte(result.stdout), &payload); err != nil {
+		t.Fatalf("decode auth doctor output: %v", err)
+	}
+	if payload.Status != doctorOK {
+		t.Fatalf("status = %q, checks = %#v", payload.Status, payload.Checks)
+	}
+	foundConfig, foundCredentials := false, false
+	for _, check := range payload.Checks {
+		switch check.Name {
+		case "config.path":
+			if check.Status != doctorOK || check.Hint != "" || !strings.Contains(check.Detail, "optional") {
+				t.Fatalf("optional config check = %#v", check)
+			}
+			foundConfig = true
+		case "credentials.default":
+			if check.Status != doctorOK || check.Hint != "" {
+				t.Fatalf("OAuth credentials check = %#v", check)
+			}
+			foundCredentials = true
+		}
+	}
+	if !foundConfig || !foundCredentials {
+		t.Fatalf("missing config or OAuth credentials check: %#v", payload.Checks)
+	}
+	if strings.Contains(result.stdout, "fixture-client-secret") {
+		t.Fatal("auth doctor exposed the OAuth client secret")
+	}
+}
+
+func TestAuthDoctor_JSON_ReportsUnusableOAuthCredentials(t *testing.T) {
+	for _, test := range []struct {
+		name          string
+		client        string
+		writeMetadata bool
+		secondToken   bool
+		wantHint      string
+	}{
+		{name: "missing client metadata", wantHint: "gog auth credentials <credentials.json>"},
+		{name: "missing keyring secret", writeMetadata: true, wantHint: "gog auth credentials <credentials.json>"},
+		{name: "named client with multiple accounts", client: "work", secondToken: true, wantHint: "gog --client work auth credentials <credentials.json>"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Setenv("GOG_HOME", t.TempDir())
+			t.Setenv("GOG_KEYRING_BACKEND", "keychain")
+			layout, err := config.NewSystemResolver("").Resolve(config.PathKindConfig, config.PathKindData)
+			if err != nil {
+				t.Fatalf("resolve config layout: %v", err)
+			}
+			client := test.client
+			if client == "" {
+				client = config.DefaultClientName
+			}
+			if test.writeMetadata {
+				if err := config.NewClientCredentialsStore(layout).WriteMetadata(client, config.ClientCredentials{
+					ClientID: "test-client.apps.googleusercontent.com",
+				}); err != nil {
+					t.Fatalf("write OAuth credentials metadata: %v", err)
+				}
+			}
+			store := newMemSecretsStore()
+			if err := store.SetToken(client, "user@example.com", secrets.Token{RefreshToken: "fixture-token"}); err != nil {
+				t.Fatalf("store fixture token: %v", err)
+			}
+			if test.secondToken {
+				if err := store.SetToken(client, "another@example.com", secrets.Token{RefreshToken: "another-fixture-token"}); err != nil {
+					t.Fatalf("store second fixture token: %v", err)
+				}
+			}
+			runtime := runtimeWithAuthStore(store)
+			runtime.KeyringOptions.Backend = "keychain"
+			result := executeWithTestRuntime(t, []string{"--json", "auth", "doctor"}, runtime)
+			if result.err != nil {
+				t.Fatalf("auth doctor: %v", result.err)
+			}
+			var payload struct {
+				Status string            `json:"status"`
+				Checks []authDoctorCheck `json:"checks"`
+			}
+			if err := json.Unmarshal([]byte(result.stdout), &payload); err != nil {
+				t.Fatalf("decode auth doctor output: %v", err)
+			}
+			if payload.Status != doctorError {
+				t.Fatalf("status = %q, checks = %#v", payload.Status, payload.Checks)
+			}
+			credentialsChecks := 0
+			for _, check := range payload.Checks {
+				if check.Name == "credentials."+client {
+					credentialsChecks++
+					if check.Status != doctorError || !strings.Contains(check.Hint, test.wantHint) {
+						t.Fatalf("OAuth credentials check = %#v", check)
+					}
+				}
+			}
+			if credentialsChecks != 1 {
+				t.Fatalf("expected one OAuth credentials check, got %d: %#v", credentialsChecks, payload.Checks)
+			}
+		})
+	}
 }
 
 func TestAuthList_JSON_ReportsUnreadableToken(t *testing.T) {
