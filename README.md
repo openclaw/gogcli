@@ -19,6 +19,8 @@ gog --readonly calendar events --today --json
 gog --readonly drive audit sharing --parent <folderId> --json
 ```
 
+For a Gmail token that can read messages and send mail without modify or settings access, authorize with `gog auth add you@example.com --services gmail --gmail-scope read-send`.
+
 ## Install
 
 Homebrew is the shortest path on macOS and Linux:

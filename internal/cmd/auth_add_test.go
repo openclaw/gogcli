@@ -577,6 +577,64 @@ func TestAuthAddCmd_GmailScopeReadonly(t *testing.T) {
 	}
 }
 
+func TestAuthAddCmd_GmailScopeReadSend(t *testing.T) {
+	openSecretsStore, authorizeGoogle, ensureKeychainAccess, fetchAuthorizedIdentity := defaultAuthTestOperations()
+	execute := func(args []string) error {
+		return executeWithRuntime(args, runtimeWithAuthTestOperations(
+			openSecretsStore, authorizeGoogle, ensureKeychainAccess, fetchAuthorizedIdentity,
+		))
+	}
+
+	ensureKeychainAccess = func(context.Context) error { return nil }
+	openSecretsStore = func() (secrets.Store, error) { return newMemSecretsStore(), nil }
+
+	var gotOpts googleauth.AuthorizeOptions
+	authorizeGoogle = func(_ context.Context, opts googleauth.AuthorizeOptions) (string, error) {
+		gotOpts = opts
+		gotOpts.Scopes = append([]string(nil), opts.Scopes...)
+		return "rt", nil
+	}
+	fetchAuthorizedIdentity = func(context.Context, string, string, []string, time.Duration) (googleauth.Identity, error) {
+		return googleauth.Identity{Email: "user@example.com"}, nil
+	}
+
+	_ = captureStdout(t, func() {
+		_ = captureStderr(t, func() {
+			if err := execute([]string{
+				"auth", "add", "user@example.com",
+				"--services", "gmail", "--gmail-scope", "read-send",
+			}); err != nil {
+				t.Fatalf("Execute: %v", err)
+			}
+		})
+	})
+
+	for _, want := range []string{
+		"https://www.googleapis.com/auth/gmail.readonly",
+		"https://www.googleapis.com/auth/gmail.send",
+		"openid",
+		"email",
+		"https://www.googleapis.com/auth/userinfo.email",
+	} {
+		if !containsStringInSlice(gotOpts.Scopes, want) {
+			t.Fatalf("missing %q in %v", want, gotOpts.Scopes)
+		}
+	}
+	for _, unwanted := range []string{
+		"https://mail.google.com/",
+		"https://www.googleapis.com/auth/gmail.modify",
+		"https://www.googleapis.com/auth/gmail.settings.basic",
+		"https://www.googleapis.com/auth/gmail.settings.sharing",
+	} {
+		if containsStringInSlice(gotOpts.Scopes, unwanted) {
+			t.Fatalf("unexpected %q in %v", unwanted, gotOpts.Scopes)
+		}
+	}
+	if !gotOpts.DisableIncludeGrantedScopes {
+		t.Fatal("read-send auth must disable include_granted_scopes")
+	}
+}
+
 func TestAuthAddCmd_DriveScopeReadonly(t *testing.T) {
 	openSecretsStore, authorizeGoogle, ensureKeychainAccess, fetchAuthorizedIdentity := defaultAuthTestOperations()
 	execute := func(args []string) error {

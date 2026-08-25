@@ -228,6 +228,7 @@ func TestReauthRejectsIdentityWithoutEmail(t *testing.T) {
 func TestReauthPreservesStoredScopes(t *testing.T) {
 	var requestedScopes []string
 	var requestedServices []string
+	var disableIncludeGrantedScopes bool
 
 	opts := ReauthOptions{
 		Email:    "user@example.com",
@@ -246,6 +247,7 @@ func TestReauthPreservesStoredScopes(t *testing.T) {
 		Confirm:              func(context.Context, string) (bool, error) { return true, nil },
 		AuthorizeFunc: func(ctx context.Context, authOpts AuthorizeOptions) (string, error) {
 			requestedScopes = authOpts.Scopes
+			disableIncludeGrantedScopes = authOpts.DisableIncludeGrantedScopes
 			requestedServices = make([]string, len(authOpts.Services))
 
 			for i, svc := range authOpts.Services {
@@ -277,6 +279,10 @@ func TestReauthPreservesStoredScopes(t *testing.T) {
 
 	if len(tok.Scopes) != 3 {
 		t.Fatalf("returned token should have 3 scopes, got %d: %v", len(tok.Scopes), tok.Scopes)
+	}
+
+	if !disableIncludeGrantedScopes {
+		t.Fatal("stored-scope reauth must disable include_granted_scopes")
 	}
 }
 

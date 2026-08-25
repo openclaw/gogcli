@@ -2,6 +2,8 @@
 
 ## 0.38.1 - Unreleased
 
+- Auth: add `--gmail-scope read-send` for Gmail read-only access plus sending, and prevent reauthorization from silently restoring previously granted broader scopes.
+
 ## 0.38.0 - 2026-08-25
 
 - Sheets: add the full BigQuery Connected Sheets lifecycle—create, update, refresh, and safely delete data sources—with explicit billing and authorization, protected SQL previews, correct source matching, and reliable extract reads. (#938, #1001) — thanks @ryo-touch.

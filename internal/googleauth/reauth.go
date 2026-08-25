@@ -157,11 +157,12 @@ func Reauth(ctx context.Context, opts ReauthOptions) (secrets.Token, error) {
 	fmt.Fprintln(stderr, "Re-authorizing…")
 
 	authorizeOpts := AuthorizeOptions{
-		Services:     services,
-		Scopes:       reauthScopes,
-		ForceConsent: true, // Ensure Google returns a new refresh token
-		Timeout:      timeout,
-		Client:       opts.Client,
+		Services:                    services,
+		Scopes:                      reauthScopes,
+		ForceConsent:                true, // Ensure Google returns a new refresh token
+		DisableIncludeGrantedScopes: true, // Reauthorize with exactly the selected/stored scopes.
+		Timeout:                     timeout,
+		Client:                      opts.Client,
 	}
 
 	refreshToken, err := authorizeFn(ctx, authorizeOpts)

@@ -335,6 +335,32 @@ func TestScopesForManageWithOptions_GmailScopeReadonly(t *testing.T) {
 	}
 }
 
+func TestScopesForManageWithOptions_GmailScopeReadSend(t *testing.T) {
+	scopes, err := ScopesForManageWithOptions([]Service{ServiceGmail}, ScopeOptions{
+		GmailScope: GmailScopeReadSend,
+	})
+	if err != nil {
+		t.Fatalf("err: %v", err)
+	}
+
+	want := []string{
+		"https://www.googleapis.com/auth/gmail.readonly",
+		"https://www.googleapis.com/auth/gmail.send",
+		"openid",
+		"email",
+		"https://www.googleapis.com/auth/userinfo.email",
+	}
+	if len(scopes) != len(want) {
+		t.Fatalf("scopes = %v, want exactly %v", scopes, want)
+	}
+
+	for _, scope := range want {
+		if !containsScope(scopes, scope) {
+			t.Fatalf("missing %q in %v", scope, scopes)
+		}
+	}
+}
+
 func TestScopes_ServiceKeep_DefaultIsReadonly(t *testing.T) {
 	scopes, err := Scopes(ServiceKeep)
 	if err != nil {
