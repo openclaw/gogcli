@@ -6,6 +6,7 @@
 - Security: restrict the CI workflow's `GITHUB_TOKEN` to read-only repository contents instead of inheriting broader organization or repository defaults.
 - Security: generate live agent-evaluation session IDs with cryptographically random suffixes while preserving their fixed-width format.
 - Security: replace docs heading and table-of-contents HTML sanitization regexes with one shared single-pass tag scanner so removed markup cannot reconstruct unsafe tags.
+- Auth: treat missing `config.json` as optional while diagnosing missing OAuth client credentials with client-specific repair commands. (#1015, #1017) — thanks @coeur-de-loup.
 - Security: bound `gmail watch serve` and the local OAuth callback HTTP servers with read, idle, and header-size limits so a slow or oversized request cannot stall the listener.
 
 ## v0.37.0 - 2026-08-14
