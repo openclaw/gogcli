@@ -22,7 +22,7 @@ gog auth add you@example.com \
 
 If the account token covers more services, keep that existing `--services` selection instead of narrowing it to `sheets`. Domain-wide delegated service accounts must also have both the Sheets read-only and BigQuery read-only scopes approved by the Workspace administrator; the Connected Sheets client requests only those two scopes.
 
-gog does not compare the stored grant against those scopes before calling Google, so a request is authorized by Google against whatever the account's existing grant covers rather than against the literal scope strings above. An account already holding BigQuery read access therefore needs no further consent round. Which broader scopes qualify is Google's determination; `bigquery.readonly` stays the documented least-privilege default.
+For a stored user OAuth token, the Connected Sheets client does not compare the grant against those scopes before calling Google, so the request is authorized against whatever the account already holds rather than against the literal scope strings above. Such an account, if it already holds BigQuery read access, needs no further consent round. Which broader scopes qualify is Google's determination; `bigquery.readonly` stays the documented least-privilege default. Domain-wide delegation works the other way: the scopes are asserted in the signed JWT, so the administrator must have approved exactly those.
 
 Looker data sources reuse the account's existing Looker link, but the same commands and output shape apply.
 
