@@ -2,6 +2,8 @@
 
 ## 0.38.1 - Unreleased
 
+- Gmail: add guarded exact-byte RFC822 sending from a file or stdin, with optional thread binding, compose-mode isolation, and content-safe offline dry runs.
+
 ## 0.38.0 - 2026-08-25
 
 - Sheets: add the full BigQuery Connected Sheets lifecycle—create, update, refresh, and safely delete data sources—with explicit billing and authorization, protected SQL previews, correct source matching, and reliable extract reads. (#938, #1001) — thanks @ryo-touch.
