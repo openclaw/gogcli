@@ -1,11 +1,11 @@
 ---
 title: Connected Sheets
-description: Inspect, create, and refresh BigQuery and Looker data sources, execution status, and anchored Connected Sheets extracts.
+description: Inspect, create, update, and refresh BigQuery and Looker data sources, execution status, and anchored Connected Sheets extracts.
 ---
 
 # Connected Sheets
 
-`gog sheets datasource` can inspect external data sources, add BigQuery sources, and refresh one explicitly selected source. Its read-only commands list sources, return the complete source specification and execution status, discover anchored data-source tables (called extracts in the Sheets editor), and read a bounded number of extract rows.
+`gog sheets datasource` can inspect external data sources, add and update BigQuery sources, and refresh one explicitly selected source. Its read-only commands list sources, return the complete source specification and execution status, discover anchored data-source tables (called extracts in the Sheets editor), and read a bounded number of extract rows.
 
 ## Authorize BigQuery access explicitly
 
@@ -52,6 +52,20 @@ gog --account you@example.com sheets datasource add <spreadsheetId> \
 
 Adding a source creates its linked `DATA_SOURCE` sheet and immediately starts an asynchronous, potentially billable execution. Dry-run output identifies the billing project and query size but never echoes SQL; successful JSON reports only the new source ID, optional linked-sheet ID, and provider execution status. An immediate `FAILED` status preserves the new source ID in JSON and exits unsuccessfully so it can still be cleaned up.
 
+## Update one BigQuery data source
+
+```bash
+gog --account you@example.com sheets datasource update <spreadsheetId> <dataSourceId> \
+  --query 'SELECT 1 AS gog_probe' --dry-run --json
+
+gog --account you@example.com sheets datasource update <spreadsheetId> <dataSourceId> \
+  --billing-project <your-billing-enabled-project> --dataset replacement --table current --json
+```
+
+Only explicitly supplied fields are changed; the generated API field mask never overwrites an omitted billing project, query, dataset, table, or table project. SQL updates are allowed only for existing query sources, while native-table fields are allowed only for existing table sources. Query and table flags cannot be combined, and `--project` is rejected because it selects JSON output fields rather than the billing project.
+
+Google immediately starts an asynchronous, potentially billable execution after updating. Dry-run and successful JSON report the changed field mask and execution status without revealing SQL; an immediate provider failure retains structured JSON and returns a nonzero exit code.
+
 ## Refresh one data source
 
 ```bash
@@ -89,4 +103,4 @@ Table discovery asks `spreadsheets.get` only for anchor definitions and related 
 
 An extract that syncs every column keeps its column list on the linked `DATA_SOURCE` sheet rather than on the anchor, and the anchor lookup is range-scoped, so `read` issues one additional `spreadsheets.get` for those column definitions. Add pacing when reading many extracts in a loop; back-to-back reads can reach the Sheets per-minute quota.
 
-These commands do not update or delete data sources.
+These commands do not delete data sources.

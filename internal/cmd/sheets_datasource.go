@@ -24,6 +24,7 @@ type SheetsDataSourceCmd struct {
 	Describe SheetsDataSourceDescribeCmd `cmd:"" name:"describe" aliases:"get,show,info" help:"Describe a Connected Sheets data source"`
 	Refresh  SheetsDataSourceRefreshCmd  `cmd:"" name:"refresh" help:"Refresh one Connected Sheets data source"`
 	Table    SheetsDataSourceTableCmd    `cmd:"" name:"table" aliases:"tables,extract,extracts" help:"Inspect Connected Sheets data-source tables (extracts)"`
+	Update   SheetsDataSourceUpdateCmd   `cmd:"" name:"update" help:"Update one BigQuery Connected Sheets data source"`
 }
 
 type SheetsDataSourceTableCmd struct {

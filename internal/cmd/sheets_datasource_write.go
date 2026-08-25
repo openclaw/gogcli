@@ -11,19 +11,34 @@ import (
 )
 
 func executeConnectedSheetsWrite(ctx context.Context, flags *RootFlags, spreadsheetID string, request *sheets.BatchUpdateSpreadsheetRequest) (*sheets.BatchUpdateSpreadsheetResponse, error) {
-	if googleapi.ReadOnly(ctx) || flags.ReadOnly {
-		return nil, fmt.Errorf("%w: Connected Sheets mutations are disabled", googleapi.ErrReadOnly)
-	}
-	account, svc, err := requireConnectedSheetsWriterService(ctx, flags)
+	account, svc, err := prepareConnectedSheetsWrite(ctx, flags)
 	if err != nil {
 		return nil, err
 	}
+	return submitConnectedSheetsWrite(ctx, account, svc, spreadsheetID, request)
+}
+
+func prepareConnectedSheetsWrite(ctx context.Context, flags *RootFlags) (string, *sheets.Service, error) {
+	if googleapi.ReadOnly(ctx) || flags.ReadOnly {
+		return "", nil, fmt.Errorf("%w: Connected Sheets mutations are disabled", googleapi.ErrReadOnly)
+	}
+	return requireConnectedSheetsWriterService(ctx, flags)
+}
+
+func submitConnectedSheetsWrite(ctx context.Context, account string, svc *sheets.Service, spreadsheetID string, request *sheets.BatchUpdateSpreadsheetRequest) (*sheets.BatchUpdateSpreadsheetResponse, error) {
 	response, err := svc.Spreadsheets.BatchUpdate(spreadsheetID, request).
 		Context(googleapi.WithoutRetries(ctx)).Do()
 	if err == nil || !isConnectedSheetsInsufficientScopeError(err) {
 		return response, err
 	}
-	return nil, errfmt.NewUserFacingError(
+	return nil, connectedSheetsScopeError(err, account)
+}
+
+func connectedSheetsScopeError(err error, account string) error {
+	if !isConnectedSheetsInsufficientScopeError(err) {
+		return err
+	}
+	return errfmt.NewUserFacingError(
 		fmt.Sprintf("Connected Sheets mutations require writable Sheets authorization plus OAuth scope %s; re-authenticate while preserving this account's existing --services, --drive-scope, and --gmail-scope selections and append --extra-scopes %s --force-consent (for a Sheets-only token: gog auth add %s --services sheets --extra-scopes %s --force-consent)",
 			connectedSheetsBigQueryScope, connectedSheetsBigQueryScope, account, connectedSheetsBigQueryScope),
 		err,
