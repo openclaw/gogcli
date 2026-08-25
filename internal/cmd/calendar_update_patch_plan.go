@@ -256,10 +256,10 @@ func cloneEventDateTime(in *calendar.EventDateTime) *calendar.EventDateTime {
 }
 
 func applyUpdateReminders(input calendarUpdateInput, fields calendarUpdateFields, patch *calendar.Event) (bool, error) {
-	if !fields.Reminders {
+	if !fields.Reminders && !input.NoReminders {
 		return false, nil
 	}
-	reminders, err := buildReminders(input.Reminders)
+	reminders, err := buildReminders(input.Reminders, input.NoReminders)
 	if err != nil {
 		return false, err
 	}

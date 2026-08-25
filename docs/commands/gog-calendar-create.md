@@ -49,6 +49,7 @@ gog calendar (cal) create (add,new) <calendarId> [flags]
 | `--location` | `string` |  | Location |
 | `--location-search` | `string` |  | Resolve a Google Places text search and use the best match as event location |
 | `--no-input`<br>`--non-interactive`<br>`--noninteractive` | `bool` |  | Never prompt; fail instead (useful for CI) |
+| `--no-reminders` | `bool` |  | Disable all event reminders |
 | `--ooo-auto-decline` | `string` |  | Out of Office auto-decline mode: none, all, new |
 | `--ooo-decline-message` | `string` |  | Out of Office decline message |
 | `--place-id` | `string` |  | Resolve a Google Places ID and use it as event location |

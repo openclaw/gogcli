@@ -219,7 +219,17 @@ func parseReminder(s string) (string, int64, error) {
 }
 
 //nolint:nilnil // nil return is intentional: nil means "use calendar defaults"
-func buildReminders(reminders []string) (*calendar.EventReminders, error) {
+func buildReminders(reminders []string, noReminders bool) (*calendar.EventReminders, error) {
+	if noReminders {
+		if len(reminders) != 0 {
+			return nil, usage("cannot use both --reminder and --no-reminders")
+		}
+		return &calendar.EventReminders{
+			Overrides:       []*calendar.EventReminder{},
+			ForceSendFields: []string{"UseDefault", "Overrides"},
+		}, nil
+	}
+
 	if len(reminders) == 0 {
 		return nil, nil
 	}
