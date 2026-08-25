@@ -9,9 +9,9 @@ description: Inspect BigQuery and Looker data sources, execution status, and anc
 
 ## Authorize BigQuery access explicitly
 
-Google requires BigQuery read access whenever a Sheets API response contains BigQuery Connected Sheets data. `https://www.googleapis.com/auth/bigquery.readonly` is the least-privilege scope that grants it, so that is what the Connected Sheets client requests. Ordinary `sheets` authorization intentionally does not request it.
+Google's [Connected Sheets API guide](https://developers.google.com/workspace/sheets/api/guides/connected-sheets) requires `https://www.googleapis.com/auth/bigquery.readonly` in addition to Sheets API authorization whenever a response contains BigQuery Connected Sheets data. Ordinary `sheets` authorization intentionally does not request the BigQuery scope.
 
-If the stored token does not already cover BigQuery read access, re-authorize the account with its existing service selection, append the scope, and force the consent screen. For a Sheets-only token:
+If the stored account does not already have Sheets API authorization and the BigQuery read-only scope, re-authorize it with its existing service selection, append the BigQuery scope, and force the consent screen. For a Sheets-only token:
 
 ```bash
 gog auth add you@example.com \
@@ -21,8 +21,6 @@ gog auth add you@example.com \
 ```
 
 If the account token covers more services, keep that existing `--services` selection instead of narrowing it to `sheets`. Domain-wide delegated service accounts must also have both the Sheets read-only and BigQuery read-only scopes approved by the Workspace administrator; the Connected Sheets client requests only those two scopes.
-
-For a stored user OAuth token, the Connected Sheets client does not compare the grant against those scopes before calling Google, so the request is authorized against whatever the account already holds rather than against the literal scope strings above. Such an account, if it already holds BigQuery read access, needs no further consent round. Which broader scopes qualify is Google's determination; `bigquery.readonly` stays the documented least-privilege default. Domain-wide delegation works the other way: the scopes are asserted in the signed JWT, so the administrator must have approved exactly those.
 
 Looker data sources reuse the account's existing Looker link, but the same commands and output shape apply.
 
