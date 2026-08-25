@@ -1,7 +1,9 @@
 package cmd
 
 import (
+	"encoding/json"
 	"io"
+	"strings"
 	"testing"
 
 	"github.com/alecthomas/kong"
@@ -75,8 +77,63 @@ func TestCalendarUpdatePatchClearsReminders(t *testing.T) {
 	if patch.Reminders == nil || !patch.Reminders.UseDefault {
 		t.Fatalf("expected reminders.UseDefault=true, got %#v", patch.Reminders)
 	}
+	encoded, err := json.Marshal(patch.Reminders)
+	if err != nil {
+		t.Fatalf("marshal reminder patch: %v", err)
+	}
+	if string(encoded) != `{"overrides":null,"useDefault":true}` {
+		t.Fatalf("restore-default reminder payload = %s", encoded)
+	}
 	if !hasForceSendField(patch.ForceSendFields, "Reminders") {
 		t.Fatalf("expected Reminders in ForceSendFields")
+	}
+}
+
+func TestCalendarUpdatePatchDisablesReminders(t *testing.T) {
+	cmd := &CalendarUpdateCmd{}
+	kctx := parseKongContext(t, cmd, []string{"cal1", "evt1", "--no-reminders"})
+
+	patch, changed, err := buildCalendarUpdatePatch(calendarUpdateInputFromCommand(cmd), calendarUpdateFieldsFromKong(kctx))
+	if err != nil {
+		t.Fatalf("buildUpdatePatch: %v", err)
+	}
+	if !changed || patch.Reminders == nil || patch.Reminders.UseDefault || patch.Reminders.Overrides == nil {
+		t.Fatalf("expected explicitly disabled reminders, got changed=%t reminders=%#v", changed, patch.Reminders)
+	}
+	for _, field := range []string{"UseDefault", "Overrides"} {
+		if !hasForceSendField(patch.Reminders.ForceSendFields, field) {
+			t.Fatalf("expected %s in reminders ForceSendFields", field)
+		}
+	}
+}
+
+func TestCalendarReminderFlagsAreMutuallyExclusive(t *testing.T) {
+	for _, test := range []struct {
+		name string
+		args []string
+	}{
+		{
+			name: "create empty reminder",
+			args: []string{"--dry-run", "calendar", "create", "primary", "--summary", "test", "--from", "2030-01-01", "--to", "2030-01-02", "--all-day", "--reminder=", "--no-reminders"},
+		},
+		{
+			name: "update empty reminder",
+			args: []string{"--dry-run", "calendar", "update", "primary", "event", "--reminder=", "--no-reminders"},
+		},
+		{
+			name: "update custom reminder",
+			args: []string{"--dry-run", "calendar", "update", "primary", "event", "--reminder", "popup:30m", "--no-reminders"},
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			result := executeWithTestRuntime(t, test.args, nil)
+			if result.err == nil || !strings.Contains(result.err.Error(), "can't be used together") {
+				t.Fatalf("expected conflicting reminder flags, got %v", result.err)
+			}
+			if code := ExitCode(result.err); code != 2 {
+				t.Fatalf("expected usage exit code 2, got %d", code)
+			}
+		})
 	}
 }
 

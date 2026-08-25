@@ -42,6 +42,22 @@ matching the Slides API. An index can range from zero through the slide count.
 Use `--dry-run --json` to inspect the exact batch request without contacting
 Google, and `slides list-slides --json` to verify the resulting order.
 
+## Skip and unskip
+
+Exclude a slide from presentation mode without deleting it, or include it again:
+
+```bash
+gog slides skip-slide <presentationId> <slideId>
+gog slides unskip-slide <presentationId> <slideId>
+```
+
+`hide-slide` and `unhide-slide` are aliases for the same operations. The slide
+remains in the deck and can still be edited. `slides list-slides` reports the
+skipped state for every slide; JSON output uses the `isSkipped` field.
+
+Both commands support `--dry-run --json` to inspect the
+`updateSlideProperties` request before contacting Google.
+
 ## Native elements
 
 Create editable shapes and lines on an existing slide:

@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -138,6 +139,150 @@ func TestExecute_AppScriptPull_OverwriteReplacesExistingFiles(t *testing.T) {
 }
 
 // A server-supplied name must not be able to escape the target directory.
+func TestExecute_AppScriptPull_OverwriteRejectsSymlinkedOutput(t *testing.T) {
+	base := t.TempDir()
+	dir := filepath.Join(base, "project")
+	if err := os.Mkdir(dir, 0o700); err != nil {
+		t.Fatalf("create project directory: %v", err)
+	}
+	protected := filepath.Join(base, "protected.txt")
+	if err := os.WriteFile(protected, []byte("DO NOT REPLACE"), 0o600); err != nil {
+		t.Fatalf("seed protected file: %v", err)
+	}
+	if err := os.Symlink(protected, filepath.Join(dir, "Code.gs")); err != nil {
+		if runtime.GOOS == "windows" {
+			t.Skipf("symlink creation is unavailable: %v", err)
+		}
+		t.Fatalf("create output symlink: %v", err)
+	}
+
+	srv := httptest.NewServer(appScriptPullHandler())
+	defer srv.Close()
+
+	result := executeWithAppScriptTestService(t, []string{
+		"--account", "a@b.com",
+		"appscript", "pull", "script123", dir, "--overwrite",
+	}, newAppScriptTestService(t, srv))
+	if result.err == nil || !strings.Contains(result.err.Error(), "non-regular output file") {
+		t.Fatalf("unexpected err: %v", result.err)
+	}
+	content, err := os.ReadFile(protected)
+	if err != nil {
+		t.Fatalf("read protected file: %v", err)
+	}
+	if string(content) != "DO NOT REPLACE" {
+		t.Fatalf("symlink target was overwritten: %q", content)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "appsscript.json")); !os.IsNotExist(err) {
+		t.Fatalf("no project file should have been written: %v", err)
+	}
+}
+
+func TestExecute_AppScriptPull_RejectsSanitizedFilenameCollisions(t *testing.T) {
+	cases := []struct {
+		name      string
+		firstName string
+		otherName string
+	}{
+		{name: "sanitized traversal", firstName: "../Code", otherName: "Code"},
+		{name: "case-insensitive filesystem", firstName: "Code", otherName: "code"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if !strings.Contains(r.URL.Path, "projects/script123/content") {
+					http.NotFound(w, r)
+					return
+				}
+				w.Header().Set("Content-Type", "application/json")
+				_ = json.NewEncoder(w).Encode(map[string]any{
+					"scriptId": "script123",
+					"files": []map[string]any{
+						{"name": "First", "type": "SERVER_JS", "source": "first"},
+						{"name": tc.firstName, "type": "SERVER_JS", "source": "original"},
+						{"name": tc.otherName, "type": "SERVER_JS", "source": "collision"},
+					},
+				})
+			}))
+			defer srv.Close()
+
+			for _, overwrite := range []bool{false, true} {
+				t.Run(fmt.Sprintf("overwrite=%t", overwrite), func(t *testing.T) {
+					dir := t.TempDir()
+					args := []string{"--account", "a@b.com", "appscript", "pull", "script123", dir}
+					if overwrite {
+						args = append(args, "--overwrite")
+					}
+					result := executeWithAppScriptTestService(t, args, newAppScriptTestService(t, srv))
+					if result.err == nil || !strings.Contains(result.err.Error(), "multiple Apps Script files resolve") {
+						t.Fatalf("unexpected err: %v", result.err)
+					}
+					for _, name := range []string{"First.gs", "Code.gs", "code.gs"} {
+						if _, err := os.Stat(filepath.Join(dir, name)); !os.IsNotExist(err) {
+							t.Fatalf("%s should not have been written: %v", name, err)
+						}
+					}
+				})
+			}
+		})
+	}
+}
+
+func TestWriteAppScriptFile_RemainsWithinPinnedRootAfterDirectorySwap(t *testing.T) {
+	for _, overwrite := range []bool{false, true} {
+		t.Run(fmt.Sprintf("overwrite=%t", overwrite), func(t *testing.T) {
+			base := t.TempDir()
+			original := filepath.Join(base, "project")
+			outside := filepath.Join(base, "outside")
+			for _, dir := range []string{original, outside} {
+				if err := os.Mkdir(dir, 0o700); err != nil {
+					t.Fatalf("create directory %s: %v", dir, err)
+				}
+			}
+			protected := filepath.Join(outside, "Code.gs")
+			if err := os.WriteFile(protected, []byte("PROTECTED"), 0o600); err != nil {
+				t.Fatalf("seed external file: %v", err)
+			}
+			if overwrite {
+				if err := os.WriteFile(filepath.Join(original, "Code.gs"), []byte("old"), 0o600); err != nil {
+					t.Fatalf("seed project file: %v", err)
+				}
+			}
+
+			root, _, _, err := openDriveSyncRoot(original)
+			if err != nil {
+				t.Fatalf("pin project directory: %v", err)
+			}
+			defer root.Close()
+
+			moved := filepath.Join(base, "moved")
+			if err := os.Rename(original, moved); err != nil {
+				if runtime.GOOS == "windows" {
+					t.Skipf("renaming a pinned directory is unavailable: %v", err)
+				}
+				t.Fatalf("move pinned directory: %v", err)
+			}
+			if err := os.Symlink(outside, original); err != nil {
+				if runtime.GOOS == "windows" {
+					t.Skipf("symlink creation is unavailable: %v", err)
+				}
+				t.Fatalf("swap directory for symlink: %v", err)
+			}
+
+			if err := writeAppScriptFile(root, "Code.gs", "pulled", overwrite); err != nil {
+				t.Fatalf("write to pinned directory: %v", err)
+			}
+			if body, err := os.ReadFile(filepath.Join(moved, "Code.gs")); err != nil || string(body) != "pulled" {
+				t.Fatalf("pinned directory missing pulled file: body=%q err=%v", body, err)
+			}
+			if body, err := os.ReadFile(protected); err != nil || string(body) != "PROTECTED" {
+				t.Fatalf("outside file was modified: body=%q err=%v", body, err)
+			}
+		})
+	}
+}
+
 func TestExecute_AppScriptPull_ContainsTraversalNames(t *testing.T) {
 	base := t.TempDir()
 	dir := filepath.Join(base, "out")

@@ -2,6 +2,8 @@ package cmd
 
 import (
 	"context"
+	"crypto/rand"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -41,6 +43,7 @@ func (c *AppScriptPullCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if dryRunErr := dryRunExit(ctx, flags, "appscript.pull", map[string]any{
 		"script_id": scriptID,
 		"dir":       dir,
+		"overwrite": c.Overwrite,
 	}); dryRunErr != nil {
 		return dryRunErr
 	}
@@ -55,36 +58,60 @@ func (c *AppScriptPullCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
-	// File names come from the API; keep them from escaping dir.
+	if mkdirErr := os.MkdirAll(dir, 0o700); mkdirErr != nil {
+		return mkdirErr
+	}
+	root, _, _, err := openDriveSyncRoot(dir)
+	if err != nil {
+		return err
+	}
+	defer root.Close()
+
 	targets := make([]*scriptapi.File, 0, len(content.Files))
 	written := make([]string, 0, len(content.Files))
+	seenNames := make(map[string]struct{}, len(content.Files))
+	var clashes []string
 
 	for _, file := range content.Files {
 		if file == nil {
 			continue
 		}
 
-		if name := sanitizeAttachmentFilename(appScriptFileName(file), ""); name != "" {
-			targets = append(targets, file)
-			written = append(written, name)
+		// File names come from the API; contain traversal and reject collisions.
+		name := sanitizeAttachmentFilename(appScriptFileName(file), "")
+		if name == "" {
+			continue
 		}
+		nameKey := strings.ToLower(name)
+		if _, exists := seenNames[nameKey]; exists {
+			return usagef("multiple Apps Script files resolve to local path %q", name)
+		}
+		seenNames[nameKey] = struct{}{}
+
+		info, statErr := root.Lstat(name)
+		if statErr == nil {
+			if !info.Mode().IsRegular() {
+				return fmt.Errorf("refusing to overwrite non-regular output file %q", filepath.Join(dir, name))
+			}
+			if !c.Overwrite {
+				clashes = append(clashes, name)
+			}
+		} else if !os.IsNotExist(statErr) {
+			return statErr
+		}
+
+		targets = append(targets, file)
+		written = append(written, name)
 	}
 
-	// Name every file that would be replaced before replacing any of them, so a
-	// pull into a working directory cannot quietly discard local edits.
-	if !c.Overwrite {
-		if clashes := existingAppScriptTargets(dir, written); len(clashes) > 0 {
-			return usagef("%s already contains %d of these file(s): %s (pass --overwrite to replace them)",
-				dir, len(clashes), strings.Join(clashes, ", "))
-		}
-	}
-
-	if err := os.MkdirAll(dir, 0o700); err != nil {
-		return err
+	// Validate every target before writing so conflicts never leave partial pulls.
+	if len(clashes) > 0 {
+		return usagef("%s already contains %d of these file(s): %s (pass --overwrite to replace them)",
+			dir, len(clashes), strings.Join(clashes, ", "))
 	}
 
 	for i, file := range targets {
-		if err := writeAppScriptFile(filepath.Join(dir, written[i]), file.Source, c.Overwrite); err != nil {
+		if err := writeAppScriptFile(root, written[i], file.Source, c.Overwrite); err != nil {
 			return err
 		}
 	}
@@ -108,28 +135,15 @@ func (c *AppScriptPullCmd) Run(ctx context.Context, flags *RootFlags) error {
 	return nil
 }
 
-// existingAppScriptTargets reports which of names already exist in dir.
-func existingAppScriptTargets(dir string, names []string) []string {
-	var clashes []string
-
-	for _, name := range names {
-		if _, err := os.Lstat(filepath.Join(dir, name)); err == nil {
-			clashes = append(clashes, name)
-		}
+func writeAppScriptFile(root *os.Root, name, source string, overwrite bool) error {
+	outputName := name
+	if overwrite {
+		outputName = ".gog-appscript-" + rand.Text()
+		defer func() { _ = root.Remove(outputName) }()
 	}
 
-	return clashes
-}
-
-// writeAppScriptFile writes one pulled file through the shared output helper,
-// whose default is O_EXCL -- so the overwrite decision is enforced at open time
-// rather than trusted from the pre-flight check above.
-func writeAppScriptFile(path, source string, overwrite bool) error {
-	f, _, err := openUserOutputFile(path, outputFileOptions{
-		Overwrite: overwrite,
-		FileMode:  0o600,
-		DirMode:   0o700,
-	})
+	// Keep replacement rooted even if its original directory is swapped.
+	f, err := root.OpenFile(outputName, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
 	if err != nil {
 		return err
 	}
@@ -140,7 +154,14 @@ func writeAppScriptFile(path, source string, overwrite bool) error {
 		return writeErr
 	}
 
-	return f.Close()
+	if err := f.Close(); err != nil {
+		return err
+	}
+	if overwrite {
+		return root.Rename(outputName, name)
+	}
+
+	return nil
 }
 
 func expandAppScriptDir(dir string) (string, error) {

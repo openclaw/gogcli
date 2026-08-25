@@ -38,7 +38,7 @@ Generated from `gog schema --json`.
     - [`gog appscript (script,apps-script) run <scriptId> <function> [flags]`](commands/gog-appscript-run.md) - Run a deployed Apps Script function
     - [`gog appscript (script,apps-script) versions (list-versions) <scriptId> [flags]`](commands/gog-appscript-versions.md) - List versions
   - [`gog auth <command> [flags]`](commands/gog-auth.md) - Auth and credentials
-    - [`gog auth add <email> [flags]`](commands/gog-auth-add.md) - Authorize and store a refresh token
+    - [`gog auth add <email> [flags]`](commands/gog-auth-add.md) - Authorize a Google Account or Google Workspace account and store a refresh token
     - [`gog auth alias <command>`](commands/gog-auth-alias.md) - Manage account aliases
       - [`gog auth alias list`](commands/gog-auth-alias-list.md) - List account aliases
       - [`gog auth alias set <alias> <email>`](commands/gog-auth-alias-set.md) - Set an account alias
@@ -649,7 +649,7 @@ Generated from `gog schema --json`.
     - [`gog slides (slide) insert-image --width=FLOAT-64 <presentationId> <slideId> [<image>] [flags]`](commands/gog-slides-insert-image.md) - Insert a local or public image at a position and size
     - [`gog slides (slide) insert-text <presentationId> <objectId> <text> [flags]`](commands/gog-slides-insert-text.md) - Insert text into an existing page element (shape or table) by objectId
     - [`gog slides (slide) link --range=STRING <presentationId> <objectId> [flags]`](commands/gog-slides-link.md) - Apply a hyperlink to a text range in one page element
-    - [`gog slides (slide) list-slides <presentationId>`](commands/gog-slides-list-slides.md) - List all slides with their object IDs
+    - [`gog slides (slide) list-slides <presentationId>`](commands/gog-slides-list-slides.md) - List all slides with their object IDs and skipped state
     - [`gog slides (slide) locate (find-element) <presentationId> <text> [flags]`](commands/gog-slides-locate.md) - Locate text in shapes and table cells with object IDs and UTF-16 ranges
     - [`gog slides (slide) move-slide --to-index=TO-INDEX <presentationId> <slideId>`](commands/gog-slides-move-slide.md) - Move a slide to a zero-based insertion index
     - [`gog slides (slide) new-slide <presentationId> [flags]`](commands/gog-slides-new-slide.md) - Create a native themed slide
@@ -657,6 +657,7 @@ Generated from `gog schema --json`.
     - [`gog slides (slide) read-slide <presentationId> <slideId> [flags]`](commands/gog-slides-read-slide.md) - Read slide content: speaker notes, text elements, and images
     - [`gog slides (slide) replace-slide <presentationId> <slideId> [<image>] [flags]`](commands/gog-slides-replace-slide.md) - Replace an existing slide image from a local file or public URL
     - [`gog slides (slide) replace-text <presentationId> <find> <replacement> [flags]`](commands/gog-slides-replace-text.md) - Find-and-replace text in an explicit object, slide, or presentation scope
+    - [`gog slides (slide) skip-slide (hide-slide) <presentationId> <slideId>`](commands/gog-slides-skip-slide.md) - Skip a slide during presentation
     - [`gog slides (slide) style-text --range=STRING <presentationId> <objectId> [flags]`](commands/gog-slides-style-text.md) - Apply range-scoped text styling to one page element
     - [`gog slides (slide) table <command>`](commands/gog-slides-table.md) - Create and update native tables
       - [`gog slides (slide) table border <command>`](commands/gog-slides-table-border.md) - Style table borders
@@ -675,6 +676,7 @@ Generated from `gog schema --json`.
         - [`gog slides (slide) table row size --row=INT-64 --height=FLOAT-64 <presentationId> <tableObjectId>`](commands/gog-slides-table-row-size.md) - Set a row's minimum height
       - [`gog slides (slide) table unmerge (split) --row=INT-64 --col=INT-64 <presentationId> <tableObjectId> [flags]`](commands/gog-slides-table-unmerge.md) - Unmerge cells in a rectangular table range
     - [`gog slides (slide) thumbnail (thumb) <presentationId> <slideId> [flags]`](commands/gog-slides-thumbnail.md) - Get or download a rendered thumbnail for a slide
+    - [`gog slides (slide) unskip-slide (unhide-slide) <presentationId> <slideId>`](commands/gog-slides-unskip-slide.md) - Include a skipped slide during presentation
     - [`gog slides (slide) update-notes <presentationId> <slideId> [flags]`](commands/gog-slides-update-notes.md) - Update speaker notes on an existing slide
   - [`gog status (st) [flags]`](commands/gog-status.md) - Show auth/config status (alias for 'auth status')
   - [`gog tasks (task) <command> [flags]`](commands/gog-tasks.md) - Google Tasks

@@ -5,9 +5,11 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"google.golang.org/api/gmail/v1"
@@ -95,5 +97,47 @@ func TestNewServiceSourceRejectsNil(t *testing.T) {
 	t.Parallel()
 	if _, err := NewServiceSource(nil); err == nil {
 		t.Fatal("NewServiceSource(nil) succeeded")
+	}
+}
+
+func TestListMessageIDsRejectsRepeatedPageTokenFromServiceSource(t *testing.T) {
+	t.Parallel()
+	var requests atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet || !strings.HasSuffix(r.URL.Path, "/messages") {
+			http.NotFound(w, r)
+			return
+		}
+		request := requests.Add(1)
+		wantToken := ""
+		if request > 1 {
+			wantToken = "stuck"
+		}
+		if token := r.URL.Query().Get("pageToken"); token != wantToken {
+			t.Errorf("request %d page token = %q, want %q", request, token, wantToken)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"messages":      []map[string]string{{"id": "message"}},
+			"nextPageToken": "stuck",
+		})
+	}))
+	defer server.Close()
+
+	service, err := gmail.NewService(context.Background(),
+		option.WithoutAuthentication(),
+		option.WithHTTPClient(server.Client()),
+		option.WithEndpoint(server.URL+"/"),
+	)
+	if err != nil {
+		t.Fatalf("gmail.NewService: %v", err)
+	}
+	source, err := NewServiceSource(service)
+	if err != nil {
+		t.Fatalf("NewServiceSource: %v", err)
+	}
+	_, err = ListMessageIDs(context.Background(), source, ListOptions{})
+	if !errors.Is(err, errRepeatedPageToken) || requests.Load() != 2 {
+		t.Fatalf("repeated token detection: err=%v HTTP requests=%d", err, requests.Load())
 	}
 }

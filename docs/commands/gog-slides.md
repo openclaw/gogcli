@@ -30,7 +30,7 @@ gog slides (slide) <command> [flags]
 - [gog slides insert-image](gog-slides-insert-image.md) - Insert a local or public image at a position and size
 - [gog slides insert-text](gog-slides-insert-text.md) - Insert text into an existing page element (shape or table) by objectId
 - [gog slides link](gog-slides-link.md) - Apply a hyperlink to a text range in one page element
-- [gog slides list-slides](gog-slides-list-slides.md) - List all slides with their object IDs
+- [gog slides list-slides](gog-slides-list-slides.md) - List all slides with their object IDs and skipped state
 - [gog slides locate](gog-slides-locate.md) - Locate text in shapes and table cells with object IDs and UTF-16 ranges
 - [gog slides move-slide](gog-slides-move-slide.md) - Move a slide to a zero-based insertion index
 - [gog slides new-slide](gog-slides-new-slide.md) - Create a native themed slide
@@ -38,9 +38,11 @@ gog slides (slide) <command> [flags]
 - [gog slides read-slide](gog-slides-read-slide.md) - Read slide content: speaker notes, text elements, and images
 - [gog slides replace-slide](gog-slides-replace-slide.md) - Replace an existing slide image from a local file or public URL
 - [gog slides replace-text](gog-slides-replace-text.md) - Find-and-replace text in an explicit object, slide, or presentation scope
+- [gog slides skip-slide](gog-slides-skip-slide.md) - Skip a slide during presentation
 - [gog slides style-text](gog-slides-style-text.md) - Apply range-scoped text styling to one page element
 - [gog slides table](gog-slides-table.md) - Create and update native tables
 - [gog slides thumbnail](gog-slides-thumbnail.md) - Get or download a rendered thumbnail for a slide
+- [gog slides unskip-slide](gog-slides-unskip-slide.md) - Include a skipped slide during presentation
 - [gog slides update-notes](gog-slides-update-notes.md) - Update speaker notes on an existing slide
 
 ## Flags

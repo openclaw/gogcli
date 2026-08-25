@@ -1,6 +1,8 @@
 package cmd
 
 import (
+	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 
@@ -324,22 +326,22 @@ func TestParseReminder(t *testing.T) {
 }
 
 func TestBuildReminders(t *testing.T) {
-	got, err := buildReminders(nil)
+	got, err := buildReminders(nil, false)
 	if err != nil || got != nil {
 		t.Fatalf("expected (nil, nil), got (%#v, %v)", got, err)
 	}
 
-	got, err = buildReminders([]string{})
+	got, err = buildReminders([]string{}, false)
 	if err != nil || got != nil {
 		t.Fatalf("expected (nil, nil), got (%#v, %v)", got, err)
 	}
 
-	got, err = buildReminders([]string{"", "  "})
+	got, err = buildReminders([]string{"", "  "}, false)
 	if err != nil || got != nil {
 		t.Fatalf("expected (nil, nil), got (%#v, %v)", got, err)
 	}
 
-	got, err = buildReminders([]string{"popup:30m", "email:1d"})
+	got, err = buildReminders([]string{"popup:30m", "email:1d"}, false)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -356,7 +358,7 @@ func TestBuildReminders(t *testing.T) {
 		t.Fatalf("unexpected override[1]: %#v", got.Overrides[1])
 	}
 
-	got, err = buildReminders([]string{"popup:0m"})
+	got, err = buildReminders([]string{"popup:0m"}, false)
 	if err != nil {
 		t.Fatalf("unexpected error for 0-minute reminder: %v", err)
 	}
@@ -370,7 +372,7 @@ func TestBuildReminders(t *testing.T) {
 		t.Fatalf("expected Minutes to be force-sent for 0-minute reminder, got %#v", got.Overrides[0].ForceSendFields)
 	}
 
-	_, err = buildReminders([]string{"popup:1m", "popup:2m", "popup:3m", "popup:4m", "popup:5m", "popup:6m"})
+	_, err = buildReminders([]string{"popup:1m", "popup:2m", "popup:3m", "popup:4m", "popup:5m", "popup:6m"}, false)
 	if err == nil {
 		t.Fatalf("expected error for >5 reminders")
 	}
@@ -378,12 +380,34 @@ func TestBuildReminders(t *testing.T) {
 		t.Fatalf("expected usage exit code 2, got %d (err=%v)", got, err)
 	}
 
-	_, err = buildReminders([]string{"popup:30m", "invalid"})
+	_, err = buildReminders([]string{"popup:30m", "invalid"}, false)
 	if err == nil {
 		t.Fatalf("expected error for invalid reminder")
 	}
 	if got := ExitCode(err); got != 2 {
 		t.Fatalf("expected usage exit code 2, got %d (err=%v)", got, err)
+	}
+}
+
+func TestBuildRemindersDisabled(t *testing.T) {
+	got, err := buildReminders(nil, true)
+	if err != nil {
+		t.Fatalf("build disabled reminders: %v", err)
+	}
+	encoded, err := json.Marshal(got)
+	if err != nil {
+		t.Fatalf("marshal disabled reminders: %v", err)
+	}
+	if string(encoded) != `{"overrides":[],"useDefault":false}` {
+		t.Fatalf("disabled reminders payload = %s", encoded)
+	}
+
+	_, err = buildReminders([]string{"popup:30m"}, true)
+	if err == nil || !strings.Contains(err.Error(), "--reminder and --no-reminders") {
+		t.Fatalf("expected mutually exclusive reminder flags, got %v", err)
+	}
+	if got := ExitCode(err); got != 2 {
+		t.Fatalf("expected usage exit code 2, got %d", got)
 	}
 }
 

@@ -122,6 +122,42 @@ func TestListMessageIDsMarksMaxedPartialStateComplete(t *testing.T) {
 	}
 }
 
+func TestListMessageIDsRejectsRepeatedPageToken(t *testing.T) {
+	t.Parallel()
+	source := &fakeSource{listPages: map[string]ListPage{
+		"":      {IDs: []string{"m1"}, NextPageToken: "stuck"},
+		"stuck": {IDs: []string{"m1"}, NextPageToken: "stuck"},
+	}}
+	_, err := ListMessageIDs(context.Background(), source, ListOptions{})
+	if !errors.Is(err, errRepeatedPageToken) || len(source.listRequests) != 2 {
+		t.Fatalf("err = %v", err)
+	}
+}
+
+func TestListMessageIDsRejectsRepeatedResumeTokenBeforeCacheWrite(t *testing.T) {
+	t.Parallel()
+	cache := newPlannerCache(t)
+	selection := Selection{AccountHash: "accthash"}
+	if err := cache.WriteListState(selection, []string{"cached"}, "stuck", false); err != nil {
+		t.Fatalf("WriteListState: %v", err)
+	}
+	source := &fakeSource{listPages: map[string]ListPage{
+		"stuck": {IDs: []string{"new"}, NextPageToken: "stuck"},
+	}}
+	_, err := ListMessageIDs(context.Background(), source, ListOptions{
+		Selection: selection,
+		Cache:     cache,
+		UseCache:  true,
+	})
+	if !errors.Is(err, errRepeatedPageToken) || len(source.listRequests) != 1 {
+		t.Fatalf("err = %v, requests = %+v", err, source.listRequests)
+	}
+	state, found, err := cache.ReadListState(selection)
+	if err != nil || !found || fmt.Sprint(state.IDs) != "[cached]" || state.PageToken != "stuck" {
+		t.Fatalf("cache state changed after repeated token: state=%+v found=%t err=%v", state, found, err)
+	}
+}
+
 func TestFetchMessagesPreservesInputOrderAcrossWorkers(t *testing.T) {
 	t.Parallel()
 	source := &fakeSource{

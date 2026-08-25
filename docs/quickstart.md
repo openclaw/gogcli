@@ -88,6 +88,12 @@ refresh token in your OS keyring (Keychain on macOS, Secret Service on Linux,
 Credential Manager on Windows). Headless? Add `--manual` for a paste-the-URL
 flow, or `--remote --step 1`/`--step 2` for fully split server runs.
 
+The address must belong to a personal Google Account or a Google Workspace
+account; an ordinary mailbox outside Google cannot complete Google OAuth. Custom
+domains can still belong to either kind of Google account. If Google rejects
+consent, retry with an explicit `--services` list; preserve any existing
+services when reauthorizing an account.
+
 Installed-app authorization uses S256 PKCE. Complete a manual or remote flow
 with the same `gog` home and client that generated its URL. After upgrading
 from a pre-PKCE release, restart any unfinished flow at step 1.

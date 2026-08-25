@@ -42,6 +42,7 @@ type calendarCreateInput struct {
 	AllDay                bool
 	Recurrence            []string
 	Reminders             []string
+	NoReminders           bool
 	ColorID               string
 	Visibility            string
 	Transparency          string
@@ -146,6 +147,7 @@ type calendarUpdateInput struct {
 	AllDay                bool
 	Recurrence            []string
 	Reminders             []string
+	NoReminders           bool
 	ColorID               string
 	Visibility            string
 	Transparency          string
@@ -351,7 +353,7 @@ func buildCalendarCreatePlan(store *config.ConfigStore, input calendarCreateInpu
 	if err != nil {
 		return nil, err
 	}
-	reminders, err := buildReminders(input.Reminders)
+	reminders, err := buildReminders(input.Reminders, input.NoReminders)
 	if err != nil {
 		return nil, err
 	}

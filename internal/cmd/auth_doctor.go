@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/openclaw/gogcli/internal/app"
+	"github.com/openclaw/gogcli/internal/authclient"
 	"github.com/openclaw/gogcli/internal/config"
 	"github.com/openclaw/gogcli/internal/outfmt"
 	"github.com/openclaw/gogcli/internal/secrets"
@@ -59,7 +60,7 @@ func (c *AuthDoctorCmd) Run(ctx context.Context, _ *RootFlags) error {
 		case exists:
 			add("config.path", doctorOK, configPath, "")
 		default:
-			add("config.path", doctorWarn, configPath+" (missing)", "run `gog auth credentials <credentials.json>` or another config-writing auth command")
+			add("config.path", doctorOK, configPath+" (optional; not created)", "")
 		}
 	}
 
@@ -114,6 +115,27 @@ func (c *AuthDoctorCmd) Run(ctx context.Context, _ *RootFlags) error {
 		add("tokens", doctorWarn, "no OAuth tokens stored", "run `gog auth add <email>`")
 	} else {
 		add("tokens", doctorOK, pluralizeCount(len(tokens), "readable OAuth token")+" of "+pluralizeCount(tokenKeys, "stored token account"), "")
+	}
+
+	credentialClients := make(map[string]struct{})
+	for _, tok := range tokens {
+		client := strings.TrimSpace(tok.Client)
+		if client == "" {
+			client = config.DefaultClientName
+		}
+		if _, seen := credentialClients[client]; seen {
+			continue
+		}
+		credentialClients[client] = struct{}{}
+		if _, err := authclient.ReadCredentials(ctx, client); err != nil {
+			command := "gog auth credentials <credentials.json>"
+			if client != config.DefaultClientName {
+				command = "gog --client " + client + " auth credentials <credentials.json>"
+			}
+			add("credentials."+client, doctorError, err.Error(), "run `"+command+"`")
+			continue
+		}
+		add("credentials."+client, doctorOK, "OAuth client credentials available", "")
 	}
 
 	if c.Check {

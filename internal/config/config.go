@@ -2,13 +2,14 @@ package config
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"time"
 
 	"github.com/yosuke-furukawa/json5/encoding/json5"
+
+	"github.com/openclaw/gogcli/internal/filelock"
 )
 
 type File struct {
@@ -35,14 +36,16 @@ type MCPPolicy struct {
 	AllowWrite bool     `json:"allow_write,omitempty"`
 }
 
-var errConfigLockTimeout = errors.New("acquire config lock timeout")
-
 type ConfigStore struct {
 	layout Layout
+	lock   *filelock.Lock
 }
 
 func NewConfigStore(layout Layout) *ConfigStore {
-	return &ConfigStore{layout: layout}
+	return &ConfigStore{
+		layout: layout,
+		lock:   filelock.Shared(filepath.Join(layout.ConfigDir, "config.lock"), 2*time.Second),
+	}
 }
 
 func (s *ConfigStore) Layout() Layout {
@@ -57,66 +60,34 @@ func (s *ConfigStore) Path() string {
 	return s.layout.ConfigPath()
 }
 
-func (s *ConfigStore) ensureDir() (string, error) {
-	dir := s.layout.ConfigDir
-	if err := os.MkdirAll(dir, 0o700); err != nil {
-		return "", fmt.Errorf("ensure config dir: %w", err)
+func (s *ConfigStore) ensureDir() error {
+	if err := os.MkdirAll(s.layout.ConfigDir, 0o700); err != nil {
+		return fmt.Errorf("ensure config dir: %w", err)
 	}
 
-	return dir, nil
+	return nil
 }
 
-func (s *ConfigStore) lockPath() (string, error) {
-	dir, err := s.ensureDir()
-	if err != nil {
-		return "", fmt.Errorf("ensure config dir: %w", err)
+func (s *ConfigStore) withLock(fn func() error) error {
+	if err := s.ensureDir(); err != nil {
+		return err
 	}
 
-	return filepath.Join(dir, "config.lock"), nil
-}
-
-func (s *ConfigStore) acquireLock() (func(), error) {
-	path, err := s.lockPath()
-	if err != nil {
-		return nil, err
+	if err := s.lock.WithExclusive(fn); err != nil {
+		return fmt.Errorf("update config under lock: %w", err)
 	}
 
-	deadline := time.Now().Add(2 * time.Second)
-
-	for {
-		f, openErr := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600) //nolint:gosec // lock path is computed inside the config dir
-		if openErr == nil {
-			_, _ = fmt.Fprintf(f, "%d\n", os.Getpid())
-			_ = f.Close()
-
-			return func() { _ = os.Remove(path) }, nil
-		}
-
-		if !os.IsExist(openErr) {
-			return nil, fmt.Errorf("acquire config lock: %w", openErr)
-		}
-
-		if time.Now().After(deadline) {
-			return nil, fmt.Errorf("%w: %s", errConfigLockTimeout, path)
-		}
-
-		time.Sleep(10 * time.Millisecond)
-	}
+	return nil
 }
 
 func (s *ConfigStore) Write(cfg File) error {
-	unlock, err := s.acquireLock()
-	if err != nil {
-		return err
-	}
-	defer unlock()
-
-	return s.write(cfg)
+	return s.withLock(func() error {
+		return s.write(cfg)
+	})
 }
 
 func (s *ConfigStore) write(cfg File) error {
-	_, err := s.ensureDir()
-	if err != nil {
+	if err := s.ensureDir(); err != nil {
 		return fmt.Errorf("ensure config dir: %w", err)
 	}
 
@@ -137,22 +108,18 @@ func (s *ConfigStore) write(cfg File) error {
 }
 
 func (s *ConfigStore) Update(update func(*File) error) error {
-	unlock, err := s.acquireLock()
-	if err != nil {
-		return err
-	}
-	defer unlock()
+	return s.withLock(func() error {
+		cfg, err := s.Read()
+		if err != nil {
+			return err
+		}
 
-	cfg, err := s.Read()
-	if err != nil {
-		return err
-	}
+		if err := update(&cfg); err != nil {
+			return err
+		}
 
-	if err := update(&cfg); err != nil {
-		return err
-	}
-
-	return s.write(cfg)
+		return s.write(cfg)
+	})
 }
 
 // WriteFileAtomic writes data to path via a same-directory temp file and rename.

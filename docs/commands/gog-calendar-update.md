@@ -50,6 +50,7 @@ gog calendar (cal) update (edit,set) <calendarId> <eventId> [flags]
 | `--location` | `string` |  | New location (set empty to clear) |
 | `--location-search` | `string` |  | Resolve a Google Places text search and use the best match as event location |
 | `--no-input`<br>`--non-interactive`<br>`--noninteractive` | `bool` |  | Never prompt; fail instead (useful for CI) |
+| `--no-reminders` | `bool` |  | Disable all event reminders |
 | `--ooo-auto-decline` | `string` |  | Out of Office auto-decline mode: none, all, new |
 | `--ooo-decline-message` | `string` |  | Out of Office decline message (set empty to clear) |
 | `--original-start` | `string` |  | Original start time of instance (required for scope=single,future) |
@@ -61,7 +62,7 @@ gog calendar (cal) update (edit,set) <calendarId> <eventId> [flags]
 | `--readonly` | `bool` | false | Block mutating API requests at runtime; auth add also requests read-only OAuth scopes |
 | `--regenerate-meet` | `bool` |  | Replace the event's Google Meet video conference |
 | `--regenerate-zoom` | `bool` |  | Replace the event's Zoom video conference |
-| `--reminder` | `[]string` |  | Custom reminders as method:duration (e.g., popup:30m, email:1d). Can be repeated (max 5). Set empty to clear. |
+| `--reminder` | `[]string` |  | Custom reminders as method:duration (e.g., popup:30m, email:1d). Can be repeated (max 5). Set empty to restore calendar defaults. |
 | `--remove-zoom` | `bool` |  | Remove the event's Zoom video conference |
 | `--results-only` | `bool` |  | In JSON mode, emit only the primary result (drops envelope fields like nextPageToken) |
 | `--rrule` | `[]string` |  | Recurrence rules (e.g., 'RRULE:FREQ=MONTHLY;BYMONTHDAY=11'). Can be repeated. Set empty to clear. |

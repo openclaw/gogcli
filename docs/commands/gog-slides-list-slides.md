@@ -2,7 +2,7 @@
 
 > Generated from `gog schema --json`. Do not edit this page by hand; run `make docs-commands`.
 
-List all slides with their object IDs
+List all slides with their object IDs and skipped state
 
 ## Usage
 

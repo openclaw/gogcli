@@ -32,7 +32,8 @@ type CalendarCreateCmd struct {
 	Attendees             string   `name:"attendees" help:"Comma-separated attendee emails; modifiers: ;optional, ;resource, ;comment=TEXT"`
 	AllDay                bool     `name:"all-day" help:"All-day event (use date-only in --from/--to)"`
 	Recurrence            []string `name:"rrule" help:"Recurrence rules (e.g., 'RRULE:FREQ=MONTHLY;BYMONTHDAY=11'). Can be repeated." sep:"none"`
-	Reminders             []string `name:"reminder" help:"Custom reminders as method:duration (e.g., popup:30m, email:1d). Can be repeated (max 5)."`
+	Reminders             []string `name:"reminder" xor:"reminders" help:"Custom reminders as method:duration (e.g., popup:30m, email:1d). Can be repeated (max 5)."`
+	NoReminders           bool     `name:"no-reminders" xor:"reminders" help:"Disable all event reminders"`
 	ColorId               string   `name:"event-color" help:"Event color ID (1-11). Use 'gog calendar colors' to see available colors."`
 	Visibility            string   `name:"visibility" help:"Event visibility: default, public, private, confidential"`
 	Transparency          string   `name:"transparency" help:"Show as busy (opaque) or free (transparent). Aliases: busy, free"`
@@ -88,6 +89,7 @@ func calendarCreateInputFromCommand(c *CalendarCreateCmd) calendarCreateInput {
 		AllDay:                c.AllDay,
 		Recurrence:            c.Recurrence,
 		Reminders:             c.Reminders,
+		NoReminders:           c.NoReminders,
 		ColorID:               c.ColorId,
 		Visibility:            c.Visibility,
 		Transparency:          c.Transparency,
@@ -193,7 +195,8 @@ type CalendarUpdateCmd struct {
 	Attachments           []string `name:"attachment" help:"File attachment URL (can be repeated; replaces all; set empty to clear)"`
 	AllDay                bool     `name:"all-day" help:"All-day event (use date-only in --from/--to)"`
 	Recurrence            []string `name:"rrule" help:"Recurrence rules (e.g., 'RRULE:FREQ=MONTHLY;BYMONTHDAY=11'). Can be repeated. Set empty to clear." sep:"none"`
-	Reminders             []string `name:"reminder" help:"Custom reminders as method:duration (e.g., popup:30m, email:1d). Can be repeated (max 5). Set empty to clear."`
+	Reminders             []string `name:"reminder" xor:"reminders" help:"Custom reminders as method:duration (e.g., popup:30m, email:1d). Can be repeated (max 5). Set empty to restore calendar defaults."`
+	NoReminders           bool     `name:"no-reminders" xor:"reminders" help:"Disable all event reminders"`
 	ColorId               string   `name:"event-color" help:"Event color ID (1-11, or empty to clear)"`
 	Visibility            string   `name:"visibility" help:"Event visibility: default, public, private, confidential"`
 	Transparency          string   `name:"transparency" help:"Show as busy (opaque) or free (transparent). Aliases: busy, free"`
@@ -292,6 +295,7 @@ func calendarUpdateInputFromCommand(c *CalendarUpdateCmd) calendarUpdateInput {
 		AllDay:                c.AllDay,
 		Recurrence:            c.Recurrence,
 		Reminders:             c.Reminders,
+		NoReminders:           c.NoReminders,
 		ColorID:               c.ColorId,
 		Visibility:            c.Visibility,
 		Transparency:          c.Transparency,

@@ -256,15 +256,19 @@ func cloneEventDateTime(in *calendar.EventDateTime) *calendar.EventDateTime {
 }
 
 func applyUpdateReminders(input calendarUpdateInput, fields calendarUpdateFields, patch *calendar.Event) (bool, error) {
-	if !fields.Reminders {
+	if !fields.Reminders && !input.NoReminders {
 		return false, nil
 	}
-	reminders, err := buildReminders(input.Reminders)
+	reminders, err := buildReminders(input.Reminders, input.NoReminders)
 	if err != nil {
 		return false, err
 	}
 	if reminders == nil {
-		patch.Reminders = &calendar.EventReminders{UseDefault: true}
+		// PATCH merges omitted fields, so remove old overrides before restoring defaults.
+		patch.Reminders = &calendar.EventReminders{
+			UseDefault: true,
+			NullFields: []string{"Overrides"},
+		}
 		patch.ForceSendFields = append(patch.ForceSendFields, "Reminders")
 	} else {
 		patch.Reminders = reminders

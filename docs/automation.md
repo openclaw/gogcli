@@ -49,6 +49,12 @@ being silently ignored. Explicit output flags override `GOG_JSON` and
 that do not define their own API field-mask `--fields`; commands with a local
 field-mask flag keep that command-specific meaning.
 
+`--results-only` unwraps the primary result before `--select` projects it. For
+lists, select item-relative fields: `--results-only --select id`. Dot paths
+traverse object keys or numeric array indexes; they do not broadcast through
+nested arrays (`--select items.id` selects nothing). Unmatched object fields
+are omitted.
+
 Use `--no-input` in CI and unattended processes. Use `--wrap-untrusted` when
 Google-hosted free text will be consumed by an LLM or another instruction-aware
 system.
