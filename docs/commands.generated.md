@@ -571,6 +571,7 @@ Generated from `gog schema --json`.
     - [`gog sheets (sheet) copy-paste (fill,copy-range) <spreadsheetId> <source> <dest> [flags]`](commands/gog-sheets-copy-paste.md) - Copy a range's values/formulas/format to another range (tiles to fill down/across)
     - [`gog sheets (sheet) create (new) <title> [flags]`](commands/gog-sheets-create.md) - Create a new spreadsheet
     - [`gog sheets (sheet) datasource (data-source,data-sources,connected-sheets) <command>`](commands/gog-sheets-datasource.md) - Manage Connected Sheets data sources and extracts
+      - [`gog sheets (sheet) datasource (data-source,data-sources,connected-sheets) add <spreadsheetId> [flags]`](commands/gog-sheets-datasource-add.md) - Add one BigQuery Connected Sheets data source
       - [`gog sheets (sheet) datasource (data-source,data-sources,connected-sheets) describe (get,show,info) <spreadsheetId> <dataSourceId>`](commands/gog-sheets-datasource-describe.md) - Describe a Connected Sheets data source
       - [`gog sheets (sheet) datasource (data-source,data-sources,connected-sheets) list <spreadsheetId>`](commands/gog-sheets-datasource-list.md) - List Connected Sheets data sources
       - [`gog sheets (sheet) datasource (data-source,data-sources,connected-sheets) refresh <spreadsheetId> <dataSourceId> [flags]`](commands/gog-sheets-datasource-refresh.md) - Refresh one Connected Sheets data source

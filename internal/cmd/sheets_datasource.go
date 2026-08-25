@@ -19,6 +19,7 @@ import (
 const connectedSheetsBigQueryScope = "https://www.googleapis.com/auth/bigquery.readonly"
 
 type SheetsDataSourceCmd struct {
+	Add      SheetsDataSourceAddCmd      `cmd:"" name:"add" help:"Add one BigQuery Connected Sheets data source"`
 	List     SheetsDataSourceListCmd     `cmd:"" default:"withargs" help:"List Connected Sheets data sources"`
 	Describe SheetsDataSourceDescribeCmd `cmd:"" name:"describe" aliases:"get,show,info" help:"Describe a Connected Sheets data source"`
 	Refresh  SheetsDataSourceRefreshCmd  `cmd:"" name:"refresh" help:"Refresh one Connected Sheets data source"`

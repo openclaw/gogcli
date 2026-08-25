@@ -2,13 +2,10 @@ package cmd
 
 import (
 	"context"
-	"fmt"
 	"strings"
 
 	"google.golang.org/api/sheets/v4"
 
-	"github.com/openclaw/gogcli/internal/errfmt"
-	"github.com/openclaw/gogcli/internal/googleapi"
 	"github.com/openclaw/gogcli/internal/outfmt"
 	"github.com/openclaw/gogcli/internal/ui"
 )
@@ -45,18 +42,9 @@ func (c *SheetsDataSourceRefreshCmd) Run(ctx context.Context, flags *RootFlags) 
 	}); err != nil {
 		return err
 	}
-	if googleapi.ReadOnly(ctx) || flags.ReadOnly {
-		return fmt.Errorf("%w: Connected Sheets refresh is disabled", googleapi.ErrReadOnly)
-	}
-
-	account, svc, err := requireConnectedSheetsWriterService(ctx, flags)
+	response, err := executeConnectedSheetsWrite(ctx, flags, spreadsheetID, request)
 	if err != nil {
 		return err
-	}
-	response, err := svc.Spreadsheets.BatchUpdate(spreadsheetID, request).
-		Context(googleapi.WithoutRetries(ctx)).Do()
-	if err != nil {
-		return wrapConnectedSheetsRefreshError(err, account)
 	}
 
 	statuses := make([]*sheets.RefreshDataSourceObjectExecutionStatus, 0)
@@ -85,23 +73,5 @@ func (c *SheetsDataSourceRefreshCmd) Run(ctx context.Context, flags *RootFlags) 
 		ui.FromContext(ctx).Out().Linef("Refresh requested for data source %s", dataSourceID)
 	}
 
-	if failed != nil {
-		detail := failed.ErrorCode
-		if failed.ErrorMessage != "" {
-			detail += ": " + failed.ErrorMessage
-		}
-		return fmt.Errorf("refresh Connected Sheets data source: %s", detail)
-	}
-	return nil
-}
-
-func wrapConnectedSheetsRefreshError(err error, account string) error {
-	if !isConnectedSheetsInsufficientScopeError(err) {
-		return err
-	}
-	return errfmt.NewUserFacingError(
-		fmt.Sprintf("Connected Sheets refresh requires writable Sheets authorization plus OAuth scope %s; re-authenticate while preserving this account's existing --services, --drive-scope, and --gmail-scope selections and append --extra-scopes %s --force-consent (for a Sheets-only token: gog auth add %s --services sheets --extra-scopes %s --force-consent)",
-			connectedSheetsBigQueryScope, connectedSheetsBigQueryScope, account, connectedSheetsBigQueryScope),
-		err,
-	)
+	return connectedSheetsExecutionError("refresh", failed)
 }

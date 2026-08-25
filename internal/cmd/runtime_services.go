@@ -409,7 +409,7 @@ func connectedSheetsService(ctx context.Context, account string) (*sheets.Servic
 
 func connectedSheetsWriterService(ctx context.Context, account string) (*sheets.Service, error) {
 	if googleapi.ReadOnly(ctx) {
-		return nil, fmt.Errorf("%w: Connected Sheets refresh is disabled", googleapi.ErrReadOnly)
+		return nil, fmt.Errorf("%w: Connected Sheets mutations are disabled", googleapi.ErrReadOnly)
 	}
 	runtime, err := runtimeWithService(ctx, "Connected Sheets writer")
 	if err != nil || runtime.Services.ConnectedSheetsWriter == nil {

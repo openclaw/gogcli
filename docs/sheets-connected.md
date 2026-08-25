@@ -1,11 +1,11 @@
 ---
 title: Connected Sheets
-description: Inspect and refresh BigQuery and Looker data sources, execution status, and anchored Connected Sheets extracts.
+description: Inspect, create, and refresh BigQuery and Looker data sources, execution status, and anchored Connected Sheets extracts.
 ---
 
 # Connected Sheets
 
-`gog sheets datasource` can inspect external data sources and refresh one explicitly selected source. Its read-only commands list sources, return the complete source specification and execution status, discover anchored data-source tables (called extracts in the Sheets editor), and read a bounded number of extract rows.
+`gog sheets datasource` can inspect external data sources, add BigQuery sources, and refresh one explicitly selected source. Its read-only commands list sources, return the complete source specification and execution status, discover anchored data-source tables (called extracts in the Sheets editor), and read a bounded number of extract rows.
 
 ## Authorize BigQuery access explicitly
 
@@ -35,6 +35,22 @@ gog --readonly --account you@example.com \
 ```
 
 `list` returns a compact source summary joined with its `DATA_SOURCE` sheet and current `DataExecutionStatus`. It deliberately does not print custom SQL. `describe` returns the complete API `DataSource`, associated sheet properties, execution status, and refresh schedules, so its JSON can include a BigQuery raw query and error messages.
+
+## Add one BigQuery data source
+
+```bash
+gog --account you@example.com sheets datasource add <spreadsheetId> \
+  --billing-project <your-billing-enabled-project> \
+  --query 'SELECT 1 AS gog_probe' --dry-run --json
+
+gog --account you@example.com sheets datasource add <spreadsheetId> \
+  --billing-project <your-billing-enabled-project> \
+  --table-project bigquery-public-data --dataset samples --table shakespeare --json
+```
+
+`--billing-project` is always required and must identify a BigQuery-enabled Google Cloud project with billing attached. Never substitute the global `--project` option, which selects JSON output fields instead. Choose exactly one source: `--query` for custom SQL, or `--dataset` plus `--table` for a native table. Omit `--table-project` when the table belongs to the billing project.
+
+Adding a source creates its linked `DATA_SOURCE` sheet and immediately starts an asynchronous, potentially billable execution. Dry-run output identifies the billing project and query size but never echoes SQL; successful JSON reports only the new source ID, optional linked-sheet ID, and provider execution status. An immediate `FAILED` status preserves the new source ID in JSON and exits unsuccessfully so it can still be cleaned up.
 
 ## Refresh one data source
 
@@ -73,4 +89,4 @@ Table discovery asks `spreadsheets.get` only for anchor definitions and related 
 
 An extract that syncs every column keeps its column list on the linked `DATA_SOURCE` sheet rather than on the anchor, and the anchor lookup is range-scoped, so `read` issues one additional `spreadsheets.get` for those column definitions. Add pacing when reading many extracts in a loop; back-to-back reads can reach the Sheets per-minute quota.
 
-These commands do not create, update, or delete data sources.
+These commands do not update or delete data sources.
