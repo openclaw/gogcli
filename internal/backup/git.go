@@ -222,7 +222,7 @@ func gitError(args []string, err error, stderr string) error {
 	safeArgs := make([]string, len(args))
 	safeStderr := redactGitURLsInText(strings.TrimSpace(stderr))
 	for i, arg := range args {
-		safeArgs[i] = redactGitURL(arg)
+		safeArgs[i] = RedactGitURL(arg)
 		if safeArgs[i] != arg {
 			safeStderr = strings.ReplaceAll(safeStderr, arg, safeArgs[i])
 		}
@@ -234,10 +234,11 @@ func gitError(args []string, err error, stderr string) error {
 }
 
 func redactGitURLsInText(value string) string {
-	return gitURLPattern.ReplaceAllStringFunc(value, redactGitURL)
+	return gitURLPattern.ReplaceAllStringFunc(value, RedactGitURL)
 }
 
-func redactGitURL(value string) string {
+// RedactGitURL removes credentials, query values, and fragments from Git URLs.
+func RedactGitURL(value string) string {
 	parsed, err := url.Parse(value)
 	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
 		return value

@@ -105,14 +105,9 @@ func (c *AuthImportCmd) Run(ctx context.Context, flags *RootFlags) error {
 		if err != nil {
 			return err
 		}
-		cfg, err := configStore.Read()
-		if err != nil {
-			return err
-		}
-		if err := config.SetAccountClient(&cfg, email, client); err != nil {
-			return err
-		}
-		if err := configStore.Write(cfg); err != nil {
+		if err := configStore.Update(func(cfg *config.File) error {
+			return config.SetAccountClient(cfg, email, client)
+		}); err != nil {
 			return err
 		}
 	}

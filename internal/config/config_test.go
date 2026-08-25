@@ -1,6 +1,7 @@
 package config
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -137,5 +138,43 @@ func TestConfigStoreWriteAndUpdate(t *testing.T) {
 
 	if cfg.KeyringBackend != "file" || cfg.DefaultTimezone != "UTC" {
 		t.Fatalf("config = %#v", cfg)
+	}
+}
+
+func TestConfigStoreUpdateIfChanged(t *testing.T) {
+	t.Parallel()
+
+	store := NewConfigStore(Layout{ConfigDir: filepath.Join(t.TempDir(), "config")})
+	if err := store.UpdateIfChanged(func(*File) (bool, error) {
+		return false, nil
+	}); err != nil {
+		t.Fatalf("unchanged update: %v", err)
+	}
+
+	if _, err := os.Stat(store.Path()); !os.IsNotExist(err) {
+		t.Fatalf("unchanged update created config file: %v", err)
+	}
+
+	if err := store.UpdateIfChanged(func(cfg *File) (bool, error) {
+		cfg.DefaultTimezone = "UTC"
+		return true, nil
+	}); err != nil {
+		t.Fatalf("changed update: %v", err)
+	}
+
+	cfg, err := store.Read()
+	if err != nil {
+		t.Fatalf("read config: %v", err)
+	}
+
+	if cfg.DefaultTimezone != "UTC" {
+		t.Fatalf("timezone = %q, want UTC", cfg.DefaultTimezone)
+	}
+
+	wantErr := os.ErrInvalid
+	if err := store.UpdateIfChanged(func(*File) (bool, error) {
+		return true, wantErr
+	}); !errors.Is(err, wantErr) {
+		t.Fatalf("callback error = %v, want %v", err, wantErr)
 	}
 }

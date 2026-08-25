@@ -19,7 +19,7 @@ gog --readonly calendar events --today --json
 gog --readonly drive audit sharing --parent <folderId> --json
 ```
 
-For a Gmail token that can read messages and send mail without modify or settings access, authorize with `gog auth add you@example.com --services gmail --gmail-scope read-send`.
+For least-privilege Gmail authorization, use `gog auth add you@example.com --services gmail --gmail-scope send` for sending only, or `--gmail-scope read-send` to also read messages without mailbox-modification or settings-management permissions.
 
 ## Install
 

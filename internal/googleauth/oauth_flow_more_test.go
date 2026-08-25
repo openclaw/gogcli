@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"golang.org/x/oauth2"
+	"golang.org/x/oauth2/google"
 )
 
 func TestNewOAuthCallbackServer_ReadTimeout(t *testing.T) {
@@ -87,6 +88,39 @@ func TestAuthURLParams(t *testing.T) {
 
 	if includeScopes := parsed3.Query().Get("include_granted_scopes"); includeScopes != "" {
 		t.Fatalf("expected no include_granted_scopes, got: %q", includeScopes)
+	}
+}
+
+func TestLimitedGmailOAuthURLPreservesExactScopes(t *testing.T) {
+	t.Parallel()
+
+	for _, mode := range []GmailScopeMode{GmailScopeSend, GmailScopeReadSend} {
+		t.Run(string(mode), func(t *testing.T) {
+			t.Parallel()
+
+			scopes, err := ScopesForManageWithOptions([]Service{ServiceGmail}, ScopeOptions{GmailScope: mode})
+			if err != nil {
+				t.Fatalf("scopes: %v", err)
+			}
+
+			cfg := oauth2.Config{ClientID: "synthetic-client", Endpoint: google.Endpoint, Scopes: scopes}
+
+			authURL, err := url.Parse(cfg.AuthCodeURL("synthetic-state", pkceAuthURLParams(true, false, strings.Repeat("a", 43))...))
+			if err != nil {
+				t.Fatalf("parse OAuth URL: %v", err)
+			}
+
+			query := authURL.Query()
+			if authURL.Host != "accounts.google.com" || query.Get("access_type") != "offline" ||
+				query.Get("prompt") != "consent" || query.Get("code_challenge_method") != "S256" ||
+				query.Get("include_granted_scopes") != "" {
+				t.Fatalf("unexpected Google OAuth request: host=%q query=%v", authURL.Host, query)
+			}
+
+			if got := strings.Fields(query.Get("scope")); strings.Join(got, " ") != strings.Join(scopes, " ") {
+				t.Fatalf("OAuth scopes = %v, want exactly %v", got, scopes)
+			}
+		})
 	}
 }
 

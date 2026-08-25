@@ -108,14 +108,25 @@ func (s *ConfigStore) write(cfg File) error {
 }
 
 func (s *ConfigStore) Update(update func(*File) error) error {
+	return s.UpdateIfChanged(func(cfg *File) (bool, error) {
+		return true, update(cfg)
+	})
+}
+
+func (s *ConfigStore) UpdateIfChanged(update func(*File) (bool, error)) error {
 	return s.withLock(func() error {
 		cfg, err := s.Read()
 		if err != nil {
 			return err
 		}
 
-		if err := update(&cfg); err != nil {
+		changed, err := update(&cfg)
+		if err != nil {
 			return err
+		}
+
+		if !changed {
+			return nil
 		}
 
 		return s.write(cfg)

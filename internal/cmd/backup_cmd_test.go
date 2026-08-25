@@ -7,14 +7,221 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	"google.golang.org/api/gmail/v1"
+
+	"github.com/openclaw/gogcli/internal/app"
 	"github.com/openclaw/gogcli/internal/backup"
+	"github.com/openclaw/gogcli/internal/secrets"
 )
+
+func syntheticBackupRemote() string {
+	return (&url.URL{
+		Scheme:   "https",
+		User:     url.UserPassword("synthetic-user", "synthetic-password"),
+		Host:     "example.invalid",
+		Path:     "/backup.git",
+		RawQuery: url.Values{"access_token": {"synthetic-query"}}.Encode(),
+		Fragment: "synthetic-fragment",
+	}).String()
+}
+
+func TestBackupPushDryRunDoesNotAuthenticateOrWrite(t *testing.T) {
+	testCases := []struct {
+		name     string
+		command  []string
+		op       string
+		services string
+	}{
+		{
+			name:     "all-service push",
+			command:  []string{"backup", "push", "--services", "gmail,calendar"},
+			op:       "backup.push",
+			services: "gmail,calendar",
+		},
+		{
+			name:     "gmail push",
+			command:  []string{"backup", "gmail", "push"},
+			op:       "backup.gmail.push",
+			services: "gmail",
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			dir := t.TempDir()
+			home := filepath.Join(dir, "home")
+			repo := filepath.Join(dir, "repo")
+			identity := filepath.Join(dir, "age.key")
+			remote := syntheticBackupRemote()
+			authCalls := 0
+			gmailCalls := 0
+			runtime := &app.Runtime{
+				Auth: app.AuthOperations{
+					OpenSecretsStore: func() (secrets.Store, error) {
+						authCalls++
+						return nil, errors.New("dry-run opened authentication store")
+					},
+				},
+				Services: app.Services{
+					Gmail: func(context.Context, string) (*gmail.Service, error) {
+						gmailCalls++
+						return nil, errors.New("dry-run created Gmail service")
+					},
+				},
+			}
+			args := []string{
+				"--home", home,
+				"--account", "clawdbot@gmail.com",
+				"--json", "--no-input", "--gmail-no-send", "--readonly", "--dry-run",
+			}
+			args = append(args, testCase.command...)
+			args = append(args,
+				"--repo", repo,
+				"--remote", remote,
+				"--config", filepath.Join(dir, "backup.json"),
+				"--identity", identity,
+				"--recipient", "age1syntheticrecipient",
+				"--query", "newer_than:30d",
+				"--max", "2",
+				"--no-push",
+			)
+			result := executeWithTestRuntime(t, args, runtime)
+			if result.err != nil {
+				t.Fatalf("dry-run failed: %v\n%s", result.err, result.stderr)
+			}
+			if authCalls != 0 || gmailCalls != 0 {
+				t.Fatalf("dry-run touched auth/Gmail: auth=%d gmail=%d", authCalls, gmailCalls)
+			}
+			entries, readErr := os.ReadDir(dir)
+			if readErr != nil {
+				t.Fatalf("read dry-run directory: %v", readErr)
+			}
+			if len(entries) != 0 {
+				t.Fatalf("dry-run created local files or directories: %#v", entries)
+			}
+
+			var payload struct {
+				DryRun  bool   `json:"dry_run"`
+				Op      string `json:"op"`
+				Request struct {
+					Services         []string `json:"services"`
+					Repo             string   `json:"repo"`
+					Remote           string   `json:"remote"`
+					Identity         string   `json:"identity"`
+					Recipients       []string `json:"recipients"`
+					Push             bool     `json:"push"`
+					Query            string   `json:"query"`
+					Max              int64    `json:"max"`
+					IncludeSpamTrash bool     `json:"include_spam_trash"`
+					GmailCache       bool     `json:"gmail_cache"`
+					GmailCheckpoints bool     `json:"gmail_checkpoints"`
+				} `json:"request"`
+			}
+			if decodeErr := json.Unmarshal([]byte(result.stdout), &payload); decodeErr != nil {
+				t.Fatalf("decode dry-run output: %v\n%s", decodeErr, result.stdout)
+			}
+			if !payload.DryRun || payload.Op != testCase.op {
+				t.Fatalf("unexpected dry-run payload: %#v", payload)
+			}
+			request := payload.Request
+			if strings.Join(request.Services, ",") != testCase.services || request.Repo != repo ||
+				request.Remote != "https://redacted@example.invalid/backup.git?access_token=redacted#redacted" ||
+				request.Identity != identity || strings.Join(request.Recipients, ",") != "age1syntheticrecipient" ||
+				request.Push || request.Query != "newer_than:30d" || request.Max != 2 ||
+				!request.IncludeSpamTrash || !request.GmailCache || !request.GmailCheckpoints {
+				t.Fatalf("unexpected dry-run request: %#v", request)
+			}
+			for _, secret := range []string{"synthetic-user", "synthetic-password", "synthetic-query", "synthetic-fragment"} {
+				if strings.Contains(result.stdout, secret) || strings.Contains(result.stderr, secret) {
+					t.Fatalf("dry-run output exposed remote credential %q", secret)
+				}
+			}
+		})
+	}
+}
+
+func TestBackupPushDryRunResolvesDefaultDestinationWithoutWriting(t *testing.T) {
+	userHome, err := os.UserHomeDir()
+	if err != nil {
+		t.Fatalf("resolve user home: %v", err)
+	}
+	for _, command := range [][]string{
+		{"backup", "push", "--services", "gmail"},
+		{"backup", "gmail", "push"},
+	} {
+		t.Run(strings.Join(command, " "), func(t *testing.T) {
+			dir := t.TempDir()
+			args := []string{"--home", filepath.Join(dir, "home"), "--json", "--no-input", "--dry-run"}
+			args = append(args, command...)
+			result := executeWithTestRuntime(t, args, nil)
+			if result.err != nil {
+				t.Fatalf("dry-run failed: %v\n%s", result.err, result.stderr)
+			}
+			var payload struct {
+				Request struct {
+					Repo     string `json:"repo"`
+					Remote   string `json:"remote"`
+					Identity string `json:"identity"`
+					Push     bool   `json:"push"`
+				} `json:"request"`
+			}
+			if decodeErr := json.Unmarshal([]byte(result.stdout), &payload); decodeErr != nil {
+				t.Fatalf("decode dry-run output: %v", decodeErr)
+			}
+			request := payload.Request
+			if request.Repo != filepath.Join(userHome, "Projects", "backup-gog") ||
+				request.Remote != backup.DefaultConfig().Remote ||
+				request.Identity != filepath.Join(userHome, ".gog", "age.key") || !request.Push {
+				t.Fatalf("unexpected default destination: %#v", request)
+			}
+			entries, readErr := os.ReadDir(dir)
+			if readErr != nil || len(entries) != 0 {
+				t.Fatalf("dry-run created local files: entries=%#v err=%v", entries, readErr)
+			}
+		})
+	}
+}
+
+func TestBackupPushDryRunRejectsInvalidServicesWithoutSideEffects(t *testing.T) {
+	dir := t.TempDir()
+	gmailCalls := 0
+	runtime := &app.Runtime{
+		Services: app.Services{
+			Gmail: func(context.Context, string) (*gmail.Service, error) {
+				gmailCalls++
+				return nil, errors.New("dry-run created Gmail service")
+			},
+		},
+	}
+	result := executeWithTestRuntime(t, []string{
+		"--home", filepath.Join(dir, "home"),
+		"--account", "clawdbot@gmail.com",
+		"--json", "--no-input", "--dry-run",
+		"backup", "push", "--services", "gmail,nope",
+		"--repo", filepath.Join(dir, "repo"),
+	}, runtime)
+	if result.err == nil || ExitCode(result.err) != 2 ||
+		!strings.Contains(result.err.Error(), "unsupported backup service") {
+		t.Fatalf("expected unsupported-service usage error, got %v", result.err)
+	}
+	if gmailCalls != 0 {
+		t.Fatalf("dry-run created Gmail service %d times", gmailCalls)
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatalf("read dry-run directory: %v", err)
+	}
+	if len(entries) != 0 {
+		t.Fatalf("invalid dry-run created local files or directories: %#v", entries)
+	}
+}
 
 func TestBackupInitDryRunDoesNotWriteConfigOrRepo(t *testing.T) {
 	dir := t.TempDir()
@@ -57,6 +264,37 @@ func TestBackupInitDryRunDoesNotWriteConfigOrRepo(t *testing.T) {
 	}
 	if payload.Request["remote"] != "" {
 		t.Fatalf("dry-run --no-push should not use default remote: %#v", payload.Request)
+	}
+}
+
+func TestBackupInitDryRunRedactsRemoteCredentials(t *testing.T) {
+	dir := t.TempDir()
+	remote := syntheticBackupRemote()
+	var stdout bytes.Buffer
+	err := (&BackupInitCmd{
+		backupFlags: backupFlags{
+			Config:   filepath.Join(dir, "backup.json"),
+			Repo:     filepath.Join(dir, "repo"),
+			Remote:   remote,
+			Identity: filepath.Join(dir, "age.key"),
+			NoPush:   true,
+		},
+	}).Run(newCmdRuntimeJSONOutputContext(t, &stdout, io.Discard), &RootFlags{DryRun: true, NoInput: true})
+	var exitErr *ExitError
+	if !errors.As(err, &exitErr) || exitErr.Code != 0 {
+		t.Fatalf("expected dry-run exit 0, got %#v", err)
+	}
+	for _, secret := range []string{"synthetic-user", "synthetic-password", "synthetic-query", "synthetic-fragment"} {
+		if strings.Contains(stdout.String(), secret) {
+			t.Fatalf("dry-run output exposed remote credential %q", secret)
+		}
+	}
+	if !strings.Contains(stdout.String(), "https://redacted@example.invalid/backup.git?access_token=redacted#redacted") {
+		t.Fatalf("missing redacted destination: %s", stdout.String())
+	}
+	entries, readErr := os.ReadDir(dir)
+	if readErr != nil || len(entries) != 0 {
+		t.Fatalf("dry-run created local files: entries=%#v err=%v", entries, readErr)
 	}
 }
 
