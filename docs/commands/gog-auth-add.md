@@ -2,7 +2,7 @@
 
 > Generated from `gog schema --json`. Do not edit this page by hand; run `make docs-commands`.
 
-Authorize and store a refresh token
+Authorize a Google Account or Google Workspace account and store a refresh token
 
 ## Usage
 

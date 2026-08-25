@@ -16,7 +16,7 @@ gog auth <command> [flags]
 
 ## Subcommands
 
-- [gog auth add](gog-auth-add.md) - Authorize and store a refresh token
+- [gog auth add](gog-auth-add.md) - Authorize a Google Account or Google Workspace account and store a refresh token
 - [gog auth alias](gog-auth-alias.md) - Manage account aliases
 - [gog auth credentials](gog-auth-credentials.md) - Manage OAuth client credentials
 - [gog auth doctor](gog-auth-doctor.md) - Diagnose auth, keyring, and refresh-token issues

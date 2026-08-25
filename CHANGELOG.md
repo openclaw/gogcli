@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Auth: explain Google Account requirements before OAuth while preserving existing services during reauthorization. (#1014)
 - Calendar: add `--no-reminders` to event creation and updates so calendar-default reminders can be explicitly disabled. (#1002)
 - Slides: add skip/unskip commands and expose slide visibility without changing existing plain-text output. (#1009) — thanks @marnunez.
 - Config: serialize concurrent updates with shared platform-native file locks, preventing intermittent access-denied failures on Windows.

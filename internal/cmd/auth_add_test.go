@@ -116,6 +116,45 @@ func TestAuthAddCmd_JSON(t *testing.T) {
 	}
 }
 
+func TestAuthAddCmd_ExplainsGoogleAccountRequirementBeforeOAuth(t *testing.T) {
+	providerError := errors.New("provider rejected authorization")
+	authorizationStarted := false
+	runtime := runtimeWithAuthTestOperations(
+		nil,
+		func(context.Context, googleauth.AuthorizeOptions) (string, error) {
+			authorizationStarted = true
+			return "", providerError
+		},
+		func(context.Context) error { return nil },
+		nil,
+	)
+	result := executeWithTestRuntime(t, []string{
+		"--json", "auth", "add", "user@custom-domain.example", "--services", "gmail",
+	}, runtime)
+	if !authorizationStarted || !errors.Is(result.err, providerError) {
+		t.Fatalf("authorizationStarted = %t, err = %v", authorizationStarted, result.err)
+	}
+	for _, want := range []string{
+		"Google Account or Google Workspace account",
+		"--services",
+		"preserve existing services",
+	} {
+		if !strings.Contains(result.stderr, want) {
+			t.Fatalf("stderr = %q, want %q", result.stderr, want)
+		}
+	}
+	if result.stdout != "" {
+		t.Fatalf("authorization guidance leaked into JSON stdout: %q", result.stdout)
+	}
+}
+
+func TestAuthAddCmd_HelpDocumentsGoogleAccountRequirement(t *testing.T) {
+	result := executeWithTestRuntime(t, []string{"auth", "add", "--help"}, nil)
+	if result.err != nil || !strings.Contains(result.stdout, "Google Account or Google Workspace email") {
+		t.Fatalf("auth add help = %q, err = %v", result.stdout, result.err)
+	}
+}
+
 func TestAuthAddCmd_KeychainError(t *testing.T) {
 	t.Setenv("GOG_KEYRING_BACKEND", "keychain")
 
@@ -778,6 +817,9 @@ func TestAuthAddCmd_RemoteStep1_PrintsAuthURL(t *testing.T) {
 	}
 	if !strings.Contains(result.stderr, "Run again with the same root flags and --remote --step 2 --auth-url <redirect-url> --services gmail --readonly") {
 		t.Fatalf("expected step 2 guidance to preserve replay flags, got: %q", result.stderr)
+	}
+	if !strings.Contains(result.stderr, googleAccountAuthorizationHint) {
+		t.Fatalf("expected Google account guidance before remote OAuth, got: %q", result.stderr)
 	}
 }
 

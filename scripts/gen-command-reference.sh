@@ -14,7 +14,7 @@ if [ ! -x "$BIN" ]; then
   make -C "$ROOT_DIR" build >/dev/null
 fi
 
-schema_file="$(mktemp "${TMPDIR:-/tmp}/gog-schema-XXXXXX.json")"
+schema_file="$(mktemp "${TMPDIR:-/tmp}/gog-schema.XXXXXX")"
 schema_config_home="$(mktemp -d "${TMPDIR:-/tmp}/gog-schema-config-XXXXXX")"
 cleanup() {
   rm -f "$schema_file"

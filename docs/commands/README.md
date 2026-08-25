@@ -88,7 +88,7 @@ Generated pages: 721.
     - [gog appscript get](gog-appscript-get.md) - Get Apps Script project metadata
     - [gog appscript run](gog-appscript-run.md) - Run a deployed Apps Script function
   - [gog auth](gog-auth.md) - Auth and credentials
-    - [gog auth add](gog-auth-add.md) - Authorize and store a refresh token
+    - [gog auth add](gog-auth-add.md) - Authorize a Google Account or Google Workspace account and store a refresh token
     - [gog auth alias](gog-auth-alias.md) - Manage account aliases
       - [gog auth alias list](gog-auth-alias-list.md) - List account aliases
       - [gog auth alias set](gog-auth-alias-set.md) - Set an account alias

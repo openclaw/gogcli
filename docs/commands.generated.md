@@ -35,7 +35,7 @@ Generated from `gog schema --json`.
     - [`gog appscript (script,apps-script) get (info,show) <scriptId>`](commands/gog-appscript-get.md) - Get Apps Script project metadata
     - [`gog appscript (script,apps-script) run <scriptId> <function> [flags]`](commands/gog-appscript-run.md) - Run a deployed Apps Script function
   - [`gog auth <command> [flags]`](commands/gog-auth.md) - Auth and credentials
-    - [`gog auth add <email> [flags]`](commands/gog-auth-add.md) - Authorize and store a refresh token
+    - [`gog auth add <email> [flags]`](commands/gog-auth-add.md) - Authorize a Google Account or Google Workspace account and store a refresh token
     - [`gog auth alias <command>`](commands/gog-auth-alias.md) - Manage account aliases
       - [`gog auth alias list`](commands/gog-auth-alias-list.md) - List account aliases
       - [`gog auth alias set <alias> <email>`](commands/gog-auth-alias-set.md) - Set an account alias

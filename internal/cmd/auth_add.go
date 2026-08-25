@@ -16,7 +16,7 @@ import (
 )
 
 type AuthAddCmd struct {
-	Email        string        `arg:"" name:"email" help:"Email"`
+	Email        string        `arg:"" name:"email" help:"Google Account or Google Workspace email (ordinary non-Google mailboxes cannot authorize)"`
 	Manual       bool          `name:"manual" help:"Browserless auth flow (paste redirect URL)"`
 	Remote       bool          `name:"remote" help:"Remote/server-friendly manual flow (print URL, then exchange code)"`
 	Step         int           `name:"step" help:"Remote auth step: 1=print URL, 2=exchange code"`
@@ -32,6 +32,8 @@ type AuthAddCmd struct {
 	GmailScope   string        `name:"gmail-scope" help:"Gmail scope mode: full|readonly" enum:"full,readonly" default:"full"`
 	ExtraScopes  string        `name:"extra-scopes" help:"Comma-separated list of additional OAuth scope URIs to request (appended after service scopes)"`
 }
+
+const googleAccountAuthorizationHint = "Google sign-in requires a Google Account or Google Workspace account; if consent fails, retry with explicit --services and preserve existing services when reauthorizing."
 
 func formatRemoteStep2Instruction(services []googleauth.Service, c *AuthAddCmd, readonly bool) string {
 	parts := []string{"--remote", "--step", "2", "--auth-url", "<redirect-url>"}
@@ -164,6 +166,7 @@ func (c *AuthAddCmd) Run(ctx context.Context, flags *RootFlags) error {
 			if authURL != "" || authCode != "" {
 				return usage("remote step 1 does not accept --auth-url or --auth-code")
 			}
+			u.Err().Println(googleAccountAuthorizationHint)
 			result, manualErr := buildManualAuthURL(ctx, googleauth.AuthorizeOptions{
 				Services:                    services,
 				Scopes:                      scopes,
@@ -225,6 +228,7 @@ func (c *AuthAddCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return fmt.Errorf("keychain access: %w", keychainErr)
 	}
 
+	u.Err().Println(googleAccountAuthorizationHint)
 	refreshToken, err := authorizeGoogleAccount(ctx, googleauth.AuthorizeOptions{
 		Services:                    services,
 		Scopes:                      scopes,
