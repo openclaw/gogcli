@@ -98,23 +98,49 @@ func (c *ChatMessagesListCmd) Run(ctx context.Context, flags *RootFlags) error {
 
 	if outfmt.IsJSON(ctx) {
 		type item struct {
-			Resource   string `json:"resource"`
-			Sender     string `json:"sender,omitempty"`
-			Text       string `json:"text,omitempty"`
-			CreateTime string `json:"createTime,omitempty"`
-			Thread     string `json:"thread,omitempty"`
+			Resource               string                       `json:"resource"`
+			Sender                 string                       `json:"sender,omitempty"`
+			Text                   string                       `json:"text,omitempty"`
+			CreateTime             string                       `json:"createTime,omitempty"`
+			Thread                 string                       `json:"thread,omitempty"`
+			Annotations            []*chat.Annotation           `json:"annotations,omitempty"`
+			EmojiReactionSummaries []*chat.EmojiReactionSummary `json:"emojiReactionSummaries,omitempty"`
 		}
 		items := make([]item, 0, len(messages))
 		for _, msg := range messages {
 			if msg == nil {
 				continue
 			}
+			var mentions []*chat.Annotation
+			for _, annotation := range msg.Annotations {
+				if annotation != nil && annotation.Type == "USER_MENTION" && annotation.UserMention != nil {
+					mentions = append(mentions, &chat.Annotation{
+						Type:        annotation.Type,
+						StartIndex:  annotation.StartIndex,
+						Length:      annotation.Length,
+						UserMention: annotation.UserMention,
+					})
+				}
+			}
+			var reactions []*chat.EmojiReactionSummary
+			for _, summary := range msg.EmojiReactionSummaries {
+				if summary == nil || summary.Emoji == nil {
+					continue
+				}
+				emoji := &chat.Emoji{Unicode: summary.Emoji.Unicode}
+				if custom := summary.Emoji.CustomEmoji; custom != nil {
+					emoji.CustomEmoji = &chat.CustomEmoji{Name: custom.Name, EmojiName: custom.EmojiName, Uid: custom.Uid}
+				}
+				reactions = append(reactions, &chat.EmojiReactionSummary{Emoji: emoji, ReactionCount: summary.ReactionCount})
+			}
 			items = append(items, item{
-				Resource:   msg.Name,
-				Sender:     chatMessageSender(msg),
-				Text:       chatMessageText(msg),
-				CreateTime: msg.CreateTime,
-				Thread:     chatMessageThread(msg),
+				Resource:               msg.Name,
+				Sender:                 chatMessageSender(msg),
+				Text:                   chatMessageText(msg),
+				CreateTime:             msg.CreateTime,
+				Thread:                 chatMessageThread(msg),
+				Annotations:            mentions,
+				EmojiReactionSummaries: reactions,
 			})
 		}
 		if err := outfmt.WriteJSON(ctx, stdoutWriter(ctx), map[string]any{

@@ -358,6 +358,88 @@ func TestExecute_ChatMessagesList_Text_Unread(t *testing.T) {
 	}
 }
 
+func TestExecute_ChatMessagesList_JSONPreservesMentionAndReactionMetadata(t *testing.T) {
+	svc := useFakeChatService(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet || !strings.Contains(r.URL.Path, "/messages") {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"messages": []map[string]any{
+				{
+					"name": "spaces/aaa/messages/mentioned",
+					"text": "@Ada hello",
+					"annotations": []map[string]any{
+						{
+							"type": "USER_MENTION", "startIndex": 0, "length": 4,
+							"userMention":      map[string]any{"user": map[string]any{"name": "users/123", "displayName": "Ada"}},
+							"richLinkMetadata": map[string]any{"uri": "https://co-populated-attacker.example/"},
+						},
+						{"type": "RICH_LINK", "richLinkMetadata": map[string]any{"uri": "https://attacker.example/"}},
+					},
+					"emojiReactionSummaries": []map[string]any{{
+						"emoji": map[string]any{
+							"unicode": "📌",
+							"customEmoji": map[string]any{
+								"name": "customEmojis/123", "emojiName": ":pin:", "uid": "pin-123",
+								"temporaryImageUri": "https://emoji-attacker.example/",
+								"payload":           map[string]any{"fileContent": "hostile-image-payload"},
+							},
+						}, "reactionCount": 2,
+					}},
+				},
+				{"name": "spaces/aaa/messages/plain", "text": "plain"},
+			},
+		})
+	})
+	for _, wrapUntrusted := range []bool{false, true} {
+		args := []string{"--json", "--account", "a@b.com", "chat", "messages", "list", "spaces/aaa"}
+		if wrapUntrusted {
+			args = append(args, "--wrap-untrusted")
+		}
+		result := executeWithChatTestService(t, args, svc)
+		if result.err != nil {
+			t.Fatalf("Execute: %v", result.err)
+		}
+		if strings.Contains(result.stdout, "attacker.example") {
+			t.Fatalf("sender-controlled rich-link or emoji URI leaked into output: %s", result.stdout)
+		}
+		if strings.Contains(result.stdout, "hostile-image-payload") {
+			t.Fatalf("custom emoji payload leaked into output: %s", result.stdout)
+		}
+		var got struct {
+			Messages []struct {
+				Resource               string                       `json:"resource"`
+				Annotations            []*chat.Annotation           `json:"annotations"`
+				EmojiReactionSummaries []*chat.EmojiReactionSummary `json:"emojiReactionSummaries"`
+			} `json:"messages"`
+		}
+		if err := json.Unmarshal([]byte(result.stdout), &got); err != nil {
+			t.Fatalf("unmarshal messages: %v", err)
+		}
+		if len(got.Messages) != 2 || len(got.Messages[0].Annotations) != 1 || len(got.Messages[0].EmojiReactionSummaries) != 1 {
+			t.Fatalf("expected mention and reaction metadata, got %#v", got.Messages)
+		}
+		user := got.Messages[0].Annotations[0].UserMention.User
+		if user.Name != "users/123" {
+			t.Fatalf("mentioned user = %q", user.Name)
+		}
+		if wrapUntrusted && !strings.Contains(user.DisplayName, "EXTERNAL_UNTRUSTED_CONTENT") {
+			t.Fatalf("sender-controlled display name escaped wrapping: %q", user.DisplayName)
+		}
+		if summary := got.Messages[0].EmojiReactionSummaries[0]; summary.Emoji.Unicode != "📌" || summary.ReactionCount != 2 {
+			t.Fatalf("unexpected reaction: %#v", summary)
+		}
+		if custom := got.Messages[0].EmojiReactionSummaries[0].Emoji.CustomEmoji; custom == nil || custom.Name != "customEmojis/123" || custom.EmojiName != ":pin:" {
+			t.Fatalf("custom emoji identity was not preserved: %#v", custom)
+		}
+		if got.Messages[1].Annotations != nil || got.Messages[1].EmojiReactionSummaries != nil {
+			t.Fatalf("plain message unexpectedly contains metadata: %#v", got.Messages[1])
+		}
+	}
+}
+
 func TestExecute_ChatMessagesSend_JSON(t *testing.T) {
 	var gotText string
 	var gotThread string

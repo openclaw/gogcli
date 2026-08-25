@@ -408,6 +408,7 @@ after the bounded retry window, the command exits with retryable code `8`.
 - `gog chat spaces find <displayName> [--max N] [--exact]`
 - `gog chat spaces create <displayName> [--member email,...]`
 - `gog chat messages list <space> [--max N] [--page TOKEN] [--order ORDER] [--thread THREAD] [--unread]`
+  - JSON output includes user-mention annotations and emoji-reaction summaries when present; plain-text output is unchanged.
 - `gog chat messages send <space> --text TEXT [--thread THREAD]`
 - `gog chat threads list <space> [--max N] [--page TOKEN]`
 - `gog chat dm space <email>`

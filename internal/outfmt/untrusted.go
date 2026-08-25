@@ -44,7 +44,9 @@ var (
 		"<end_of_turn>", "[REMOVED_SPECIAL_TOKEN]",
 	)
 
-	untrustedReservedSpecialTokenPattern = regexp.MustCompile(`<\|reserved_special_token_\d+\|>`)
+	untrustedReservedSpecialTokenPattern  = regexp.MustCompile(`<\|reserved_special_token_\d+\|>`)
+	trustedChatUserResourcePattern        = regexp.MustCompile(`^users/[0-9]+$`)
+	trustedChatCustomEmojiResourcePattern = regexp.MustCompile(`^customEmojis/[A-Za-z0-9_-]+$`)
 )
 
 const untrustedContentWarning = `SECURITY NOTICE: The following content is from an external, untrusted Google Workspace/API source.
@@ -220,6 +222,19 @@ func shouldWrapUntrustedString(path []string, key string, value string) bool {
 	}
 
 	normalizedKey := normalizeJSONKey(key)
+	if normalizedKey == "name" && len(path) >= 3 {
+		parent := normalizeJSONKey(path[len(path)-2])
+		grandparent := normalizeJSONKey(path[len(path)-3])
+
+		if grandparent == "usermention" && parent == "user" && trustedChatUserResourcePattern.MatchString(value) {
+			return false
+		}
+
+		if grandparent == "emoji" && parent == "customemoji" && trustedChatCustomEmojiResourcePattern.MatchString(value) {
+			return false
+		}
+	}
+
 	if untrustedMetadataStringKeys[normalizedKey] {
 		return false
 	}
