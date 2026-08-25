@@ -2,7 +2,7 @@
 
 Every `gog` command has a generated docs page. The source of truth is the live CLI schema; run `make docs-commands` after changing command names, flags, help text, aliases, or arguments.
 
-Generated pages: 727.
+Generated pages: 728.
 
 ## Top-level Commands
 
@@ -625,6 +625,7 @@ Generated pages: 727.
     - [gog sheets create](gog-sheets-create.md) - Create a new spreadsheet
     - [gog sheets datasource](gog-sheets-datasource.md) - Manage Connected Sheets data sources and extracts
       - [gog sheets datasource add](gog-sheets-datasource-add.md) - Add one BigQuery Connected Sheets data source
+      - [gog sheets datasource delete](gog-sheets-datasource-delete.md) - Delete one Connected Sheets data source and its linked sheet
       - [gog sheets datasource describe](gog-sheets-datasource-describe.md) - Describe a Connected Sheets data source
       - [gog sheets datasource list](gog-sheets-datasource-list.md) - List Connected Sheets data sources
       - [gog sheets datasource refresh](gog-sheets-datasource-refresh.md) - Refresh one Connected Sheets data source

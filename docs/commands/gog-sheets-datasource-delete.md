@@ -1,28 +1,18 @@
-# `gog sheets datasource`
+# `gog sheets datasource delete`
 
 > Generated from `gog schema --json`. Do not edit this page by hand; run `make docs-commands`.
 
-Manage Connected Sheets data sources and extracts
+Delete one Connected Sheets data source and its linked sheet
 
 ## Usage
 
 ```bash
-gog sheets (sheet) datasource (data-source,data-sources,connected-sheets) <command>
+gog sheets (sheet) datasource (data-source,data-sources,connected-sheets) delete (rm,remove) <spreadsheetId> <dataSourceId>
 ```
 
 ## Parent
 
-- [gog sheets](gog-sheets.md)
-
-## Subcommands
-
-- [gog sheets datasource add](gog-sheets-datasource-add.md) - Add one BigQuery Connected Sheets data source
-- [gog sheets datasource delete](gog-sheets-datasource-delete.md) - Delete one Connected Sheets data source and its linked sheet
-- [gog sheets datasource describe](gog-sheets-datasource-describe.md) - Describe a Connected Sheets data source
-- [gog sheets datasource list](gog-sheets-datasource-list.md) - List Connected Sheets data sources
-- [gog sheets datasource refresh](gog-sheets-datasource-refresh.md) - Refresh one Connected Sheets data source
-- [gog sheets datasource table](gog-sheets-datasource-table.md) - Inspect Connected Sheets data-source tables (extracts)
-- [gog sheets datasource update](gog-sheets-datasource-update.md) - Update one BigQuery Connected Sheets data source
+- [gog sheets datasource](gog-sheets-datasource.md)
 
 ## Flags
 
@@ -52,5 +42,5 @@ gog sheets (sheet) datasource (data-source,data-sources,connected-sheets) <comma
 
 ## See Also
 
-- [gog sheets](gog-sheets.md)
+- [gog sheets datasource](gog-sheets-datasource.md)
 - [Command index](README.md)

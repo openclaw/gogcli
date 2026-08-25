@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Sheets: delete individual Connected Sheets data sources with explicit confirmation, linked-sheet impact warnings, and single-attempt safety. (#938) — thanks @ryo-touch.
 - Sheets: update individual BigQuery Connected Sheets sources with precise field masks, source-type verification, and SQL-safe execution previews. (#938) — thanks @ryo-touch.
 - Sheets: add explicitly billed BigQuery Connected Sheets data sources from SQL queries or native tables without exposing SQL in command output. (#938) — thanks @ryo-touch.
 - Sheets: refresh individual Connected Sheets data sources with scoped BigQuery authorization, dry-run safety, and structured execution status. (#938) — thanks @ryo-touch.

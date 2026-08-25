@@ -20,6 +20,7 @@ const connectedSheetsBigQueryScope = "https://www.googleapis.com/auth/bigquery.r
 
 type SheetsDataSourceCmd struct {
 	Add      SheetsDataSourceAddCmd      `cmd:"" name:"add" help:"Add one BigQuery Connected Sheets data source"`
+	Delete   SheetsDataSourceDeleteCmd   `cmd:"" name:"delete" aliases:"rm,remove" help:"Delete one Connected Sheets data source and its linked sheet"`
 	List     SheetsDataSourceListCmd     `cmd:"" default:"withargs" help:"List Connected Sheets data sources"`
 	Describe SheetsDataSourceDescribeCmd `cmd:"" name:"describe" aliases:"get,show,info" help:"Describe a Connected Sheets data source"`
 	Refresh  SheetsDataSourceRefreshCmd  `cmd:"" name:"refresh" help:"Refresh one Connected Sheets data source"`

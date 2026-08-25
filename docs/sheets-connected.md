@@ -1,11 +1,11 @@
 ---
 title: Connected Sheets
-description: Inspect, create, update, and refresh BigQuery and Looker data sources, execution status, and anchored Connected Sheets extracts.
+description: Inspect, create, update, refresh, and safely delete Connected Sheets data sources and extracts.
 ---
 
 # Connected Sheets
 
-`gog sheets datasource` can inspect external data sources, add and update BigQuery sources, and refresh one explicitly selected source. Its read-only commands list sources, return the complete source specification and execution status, discover anchored data-source tables (called extracts in the Sheets editor), and read a bounded number of extract rows.
+`gog sheets datasource` can inspect external data sources, add and update BigQuery sources, and refresh or delete one explicitly selected source. Its read-only commands list sources, return the complete source specification and execution status, discover anchored data-source tables (called extracts in the Sheets editor), and read a bounded number of extract rows.
 
 ## Authorize BigQuery access explicitly
 
@@ -83,6 +83,20 @@ Refresh requires writable Sheets authorization plus the explicitly granted `bigq
 
 Google starts refreshes asynchronously. JSON preserves the provider's native object references and execution statuses; an immediately `FAILED` status returns a nonzero exit code while retaining its structured JSON output. Poll `list` or `describe` until `state` is `SUCCEEDED` or `FAILED`.
 
+## Delete one data source
+
+```bash
+gog --account you@example.com sheets datasource delete \
+  <spreadsheetId> <dataSourceId> --dry-run --json
+
+gog --account you@example.com sheets datasource delete \
+  <spreadsheetId> <dataSourceId> --force --json
+```
+
+Deleting a source also deletes its linked `DATA_SOURCE` sheet and unlinks dependent extracts, charts, and pivot tables; it does not delete those dependent objects. Interactive use asks for confirmation, noninteractive use refuses without `--force`, and `--force` skips only that confirmation. It never bypasses readonly restrictions, authorization checks, explicit targeting, or provider errors.
+
+Dry-run output previews the exact one-source API request and its linked-object impact without authentication, prompts, or network access. The destructive request is never automatically retried.
+
 ## Discover and read extracts
 
 A data-source table has no standalone ID in the Sheets API. Its definition lives only on the table's top-left anchor cell, so the CLI identifies extracts with an A1 anchor that includes the sheet name.
@@ -102,5 +116,3 @@ gog --readonly --account you@example.com \
 Table discovery asks `spreadsheets.get` only for anchor definitions and related sheet metadata. `read` then uses the selected table's configured columns and row limit to construct a bounded `spreadsheets.values.get` request. The default is at most 1,000 data rows plus the header; JSON output reports `truncated: true` when the configured extract can contain more rows. Use `--render FORMULA` or `--render UNFORMATTED_VALUE` when formatted display values are not suitable.
 
 An extract that syncs every column keeps its column list on the linked `DATA_SOURCE` sheet rather than on the anchor, and the anchor lookup is range-scoped, so `read` issues one additional `spreadsheets.get` for those column definitions. Add pacing when reading many extracts in a loop; back-to-back reads can reach the Sheets per-minute quota.
-
-These commands do not delete data sources.
