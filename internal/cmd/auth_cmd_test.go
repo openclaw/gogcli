@@ -511,7 +511,9 @@ func TestAuthDoctor_JSON_MissingOptionalConfigIsHealthy(t *testing.T) {
 	if err := store.SetToken(config.DefaultClientName, "user@example.com", secrets.Token{RefreshToken: "fixture-token"}); err != nil {
 		t.Fatalf("store fixture token: %v", err)
 	}
-	result := executeWithTestRuntime(t, []string{"--json", "auth", "doctor"}, runtimeWithAuthStore(store))
+	runtime := runtimeWithAuthStore(store)
+	runtime.KeyringOptions.Backend = "keychain"
+	result := executeWithTestRuntime(t, []string{"--json", "auth", "doctor"}, runtime)
 	if result.err != nil {
 		t.Fatalf("auth doctor: %v", result.err)
 	}
@@ -587,7 +589,9 @@ func TestAuthDoctor_JSON_ReportsUnusableOAuthCredentials(t *testing.T) {
 					t.Fatalf("store second fixture token: %v", err)
 				}
 			}
-			result := executeWithTestRuntime(t, []string{"--json", "auth", "doctor"}, runtimeWithAuthStore(store))
+			runtime := runtimeWithAuthStore(store)
+			runtime.KeyringOptions.Backend = "keychain"
+			result := executeWithTestRuntime(t, []string{"--json", "auth", "doctor"}, runtime)
 			if result.err != nil {
 				t.Fatalf("auth doctor: %v", result.err)
 			}
