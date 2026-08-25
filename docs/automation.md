@@ -49,14 +49,11 @@ being silently ignored. Explicit output flags override `GOG_JSON` and
 that do not define their own API field-mask `--fields`; commands with a local
 field-mask flag keep that command-specific meaning.
 
-`--results-only` is applied before `--select`, so a projection runs against the
-unwrapped primary result. To project each element of a list response, select
-fields relative to a single element, such as `--results-only --select id`. Dot
-paths descend through object keys and numeric array indexes; they do not
-broadcast across every element of a nested array, so an envelope path such as
-`--select items.id` selects nothing. Object paths that do not match are omitted
-from the projection rather than reported, so a projection in which no path
-matches yields an empty object.
+`--results-only` unwraps the primary result before `--select` projects it. For
+lists, select item-relative fields: `--results-only --select id`. Dot paths
+traverse object keys or numeric array indexes; they do not broadcast through
+nested arrays (`--select items.id` selects nothing). Unmatched object fields
+are omitted.
 
 Use `--no-input` in CI and unattended processes. Use `--wrap-untrusted` when
 Google-hosted free text will be consumed by an LLM or another instruction-aware
