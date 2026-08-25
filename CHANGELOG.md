@@ -1,25 +1,20 @@
 # Changelog
 
-## Unreleased
+## 0.38.0 - 2026-08-25
 
-- Sheets: delete individual Connected Sheets data sources with explicit confirmation, linked-sheet impact warnings, and single-attempt safety. (#938) — thanks @ryo-touch.
-- Sheets: update individual BigQuery Connected Sheets sources with precise field masks, source-type verification, and SQL-safe execution previews. (#938) — thanks @ryo-touch.
-- Sheets: add explicitly billed BigQuery Connected Sheets data sources from SQL queries or native tables without exposing SQL in command output. (#938) — thanks @ryo-touch.
-- Sheets: refresh individual Connected Sheets data sources with scoped BigQuery authorization, dry-run safety, and structured execution status. (#938) — thanks @ryo-touch.
-- Chat: include user-mention annotations and emoji-reaction summaries in message-list JSON without changing existing text output. (#1000) — thanks @Ben-Living.
-- Apps Script: safely pull project source and list deployments and versions without mutating remote projects. (#1018) — thanks @haosdent.
-- Auth: explain Google Account requirements before OAuth while preserving existing services during reauthorization. (#1014)
-- Calendar: add `--no-reminders` to event creation and updates so calendar-default reminders can be explicitly disabled. (#1002)
-- Slides: add skip/unskip commands and expose slide visibility without changing existing plain-text output. (#1009) — thanks @marnunez.
-- Config: serialize concurrent updates with shared platform-native file locks, preventing intermittent access-denied failures on Windows.
-- Calendar: correctly clear custom reminder overrides when restoring calendar defaults. (#1016) — thanks @sorenisanerd.
-- Security: remove overflow-prone capacity arithmetic from untrusted-output maps and versioned tracking ciphertext construction while preserving their wire formats.
-- Security: restrict the CI workflow's `GITHUB_TOKEN` to read-only repository contents instead of inheriting broader organization or repository defaults.
-- Security: generate live agent-evaluation session IDs with cryptographically random suffixes while preserving their fixed-width format.
-- Security: replace docs heading and table-of-contents HTML sanitization regexes with one shared single-pass tag scanner so removed markup cannot reconstruct unsafe tags.
-- Auth: treat missing `config.json` as optional while diagnosing missing OAuth client credentials with client-specific repair commands. (#1015, #1017) — thanks @coeur-de-loup.
-- Security: bound `gmail watch serve` and the local OAuth callback HTTP servers with read, idle, and header-size limits so a slow or oversized request cannot stall the listener.
-- Calendar/Gmail: stop listing immediately when Google repeats a pagination token, including resumed Gmail backups. (#1004) — thanks @SebTardif.
+- Sheets: add the full BigQuery Connected Sheets lifecycle—create, update, refresh, and safely delete data sources—with explicit billing and authorization, protected SQL previews, correct source matching, and reliable extract reads. (#938, #1001) — thanks @ryo-touch.
+- Gmail: never silently drop a requested quoted message when sending, replying, forwarding, or creating drafts; surface fetch failures and warn when the original has no quotable text. (#996) — thanks @malob.
+- Calendar: add `--no-reminders` when creating or updating events and correctly clear custom overrides when restoring calendar-default reminders. (#1002, #1016) — thanks @sorenisanerd.
+- Gmail/Calendar: stop safely when Google repeats a pagination token, preventing stalled listings and resumed Gmail backups. (#1004) — thanks @SebTardif.
+- Apps Script: pull project source and inspect deployments and versions without mutating remote projects. (#1018) — thanks @haosdent.
+- Chat: include user mentions and emoji-reaction summaries in message-list JSON while preserving existing text output. (#1000) — thanks @Ben-Living.
+- Slides: skip and unskip slides and expose their visibility without changing existing plain-text output. (#1009) — thanks @marnunez.
+- Auth: explain Google Account and OAuth requirements, preserve enabled services during reauthorization, and provide client-specific repair guidance when credentials are missing. (#1014, #1015, #1017) — thanks @coeur-de-loup.
+- Config: prevent intermittent Windows access-denied errors by safely serializing concurrent configuration updates.
+- Output: clarify that `--results-only` unwraps command output before `--select` applies field projection. (#1007)
+- Security: bound Google HTTP clients, Gmail watch listeners, and local OAuth callbacks so stalled, slow, or oversized requests cannot hang the CLI. (#995, #998)
+- Security: harden HTML sanitization, untrusted-output allocation, tracking encryption, and live-evaluation session identifiers without changing public output formats. (#1011, #1012, #1013)
+- Security: restrict GitHub Actions repository tokens to the minimum read-only permissions required by CI. (#1010)
 
 ## v0.37.0 - 2026-08-14
 
