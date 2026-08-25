@@ -5,6 +5,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/openclaw/gogcli/internal/config"
 	"github.com/openclaw/gogcli/internal/outfmt"
 	"github.com/openclaw/gogcli/internal/ui"
 )
@@ -87,12 +88,10 @@ func (c *AuthKeyringCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return dryRunErr
 	}
 
-	cfg, err := store.Read()
-	if err != nil {
-		return err
-	}
-	cfg.KeyringBackend = backend
-	if err := store.Write(cfg); err != nil {
+	if err := store.Update(func(cfg *config.File) error {
+		cfg.KeyringBackend = backend
+		return nil
+	}); err != nil {
 		return err
 	}
 

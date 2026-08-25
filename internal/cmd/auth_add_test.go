@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -820,6 +821,135 @@ func TestAuthAddCmd_RemoteStep1_PrintsAuthURL(t *testing.T) {
 	}
 	if !strings.Contains(result.stderr, googleAccountAuthorizationHint) {
 		t.Fatalf("expected Google account guidance before remote OAuth, got: %q", result.stderr)
+	}
+}
+
+func TestAuthAddCmd_DryRunSkipsOAuthForEveryFlow(t *testing.T) {
+	const syntheticRedirect = "http://127.0.0.1:55555/oauth2/callback?code=synthetic-code&state=synthetic-state"
+
+	for _, test := range []struct {
+		name   string
+		flags  []string
+		remote bool
+		step   int
+	}{
+		{name: "remote implicit step one", flags: []string{"--remote"}, remote: true, step: 1},
+		{name: "remote explicit step one", flags: []string{"--remote", "--step", "1"}, remote: true, step: 1},
+		{name: "remote implicit step two", flags: []string{"--remote", "--auth-url", syntheticRedirect}, remote: true, step: 2},
+		{name: "remote explicit step two", flags: []string{"--remote", "--step", "2", "--auth-url", syntheticRedirect}, remote: true, step: 2},
+		{name: "manual", flags: []string{"--manual"}},
+		{name: "browser"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			stateDir := t.TempDir()
+			statePath := filepath.Join(stateDir, "oauth-manual-state-synthetic.json")
+			manualCalls, oauthCalls, keychainCalls, storeCalls := 0, 0, 0, 0
+			runtime := &app.Runtime{Auth: app.AuthOperations{
+				ManualAuthURL: func(context.Context, googleauth.AuthorizeOptions) (googleauth.ManualAuthURLResult, error) {
+					manualCalls++
+					if err := os.WriteFile(statePath, []byte("synthetic-pkce-state"), 0o600); err != nil {
+						return googleauth.ManualAuthURLResult{}, err
+					}
+					return googleauth.ManualAuthURLResult{
+						URL: "https://accounts.google.com/o/oauth2/v2/auth?client_id=synthetic-client&state=synthetic-state",
+					}, nil
+				},
+				AuthorizeGoogle: func(context.Context, googleauth.AuthorizeOptions) (string, error) {
+					oauthCalls++
+					return "", errors.New("OAuth must not start during dry-run")
+				},
+				EnsureKeychainAccess: func(context.Context) error {
+					keychainCalls++
+					return errors.New("keychain must not open during dry-run")
+				},
+				OpenSecretsStore: func() (secrets.Store, error) {
+					storeCalls++
+					return nil, errors.New("secrets store must not open during dry-run")
+				},
+			}}
+			args := []string{
+				"--json", "--dry-run", "--no-input", "--home", stateDir,
+				"auth", "add", "synthetic@example.com", "--services", "sheets",
+				"--extra-scopes", "https://www.googleapis.com/auth/bigquery.readonly",
+			}
+			args = append(args, test.flags...)
+			result := executeWithTestRuntime(t, args, runtime)
+			if result.err != nil {
+				t.Fatalf("dry-run: %v", result.err)
+			}
+			if manualCalls != 0 || oauthCalls != 0 || keychainCalls != 0 || storeCalls != 0 {
+				t.Fatalf("dry-run started OAuth side effects: manual=%d oauth=%d keychain=%d store=%d",
+					manualCalls, oauthCalls, keychainCalls, storeCalls)
+			}
+			if _, err := os.Stat(statePath); !os.IsNotExist(err) {
+				t.Fatalf("dry-run created OAuth state: %v", err)
+			}
+			if strings.Contains(result.stdout, "auth_url") || strings.Contains(result.stdout, "synthetic-code") ||
+				strings.Contains(result.stdout, "synthetic-state") || strings.Contains(result.stdout, "accounts.google.com") {
+				t.Fatalf("dry-run disclosed authorization material: %q", result.stdout)
+			}
+			if result.stderr != "" {
+				t.Fatalf("dry-run started authorization guidance: %q", result.stderr)
+			}
+
+			var got struct {
+				DryRun  bool   `json:"dry_run"`
+				Op      string `json:"op"`
+				Request struct {
+					Email  string `json:"email"`
+					Remote bool   `json:"remote"`
+					Step   int    `json:"step"`
+				} `json:"request"`
+			}
+			if err := json.Unmarshal([]byte(result.stdout), &got); err != nil {
+				t.Fatalf("decode safe dry-run JSON: %v\n%s", err, result.stdout)
+			}
+			if !got.DryRun || got.Op != "auth.add" || got.Request.Email != "synthetic@example.com" ||
+				got.Request.Remote != test.remote || got.Request.Step != test.step {
+				t.Fatalf("unexpected dry-run request: %#v", got)
+			}
+		})
+	}
+}
+
+func TestAuthAddCmd_RemoteDryRunPreservesStepValidation(t *testing.T) {
+	for _, test := range []struct {
+		name  string
+		flags []string
+		want  string
+	}{
+		{
+			name:  "step one rejects redirect URL",
+			flags: []string{"--remote", "--step", "1", "--auth-url", "http://127.0.0.1/callback?code=synthetic"},
+			want:  "remote step 1 does not accept --auth-url or --auth-code",
+		},
+		{
+			name:  "step two requires redirect URL",
+			flags: []string{"--remote", "--step", "2"},
+			want:  "remote step 2 requires --auth-url",
+		},
+		{
+			name:  "step two rejects unchecked authorization code",
+			flags: []string{"--remote", "--step", "2", "--auth-code", "synthetic"},
+			want:  "--auth-code is not valid with --remote",
+		},
+		{
+			name:  "step requires remote mode",
+			flags: []string{"--step", "1"},
+			want:  "--step requires --remote",
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			args := []string{"--json", "--dry-run", "--no-input", "auth", "add", "synthetic@example.com", "--services", "sheets"}
+			args = append(args, test.flags...)
+			result := executeWithTestRuntime(t, args, nil)
+			if result.err == nil || ExitCode(result.err) != 2 || !strings.Contains(result.err.Error(), test.want) {
+				t.Fatalf("error = %v, exit = %d, want usage error containing %q", result.err, ExitCode(result.err), test.want)
+			}
+			if result.stdout != "" {
+				t.Fatalf("invalid dry-run printed authorization material: %q", result.stdout)
+			}
+		})
 	}
 }
 

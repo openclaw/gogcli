@@ -70,6 +70,10 @@ gog backup export --no-pull --out ~/Library/CloudStorage/Dropbox/backup/gog --gm
 Use `--no-push` on `init` or `push` to commit locally without pushing to the
 remote.
 
+`backup push --dry-run` and `backup gmail push --dry-run` validate their options
+and print the intended backup plan without authenticating, contacting Google,
+accessing repositories, creating caches or checkpoints, or writing files.
+
 `status`, `verify`, `cat`, and `export` pull an existing repository or clone the
 configured remote before reading. Use `--no-pull` to read local state directly.
 Read commands never initialize a new Git repository when the repository is

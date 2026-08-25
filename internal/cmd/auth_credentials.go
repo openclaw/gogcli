@@ -61,23 +61,26 @@ func (c *AuthCredentialsSetCmd) Run(ctx context.Context, flags *RootFlags) error
 	}
 
 	domains := splitCommaList(c.Domains)
-	var (
-		configStore *config.ConfigStore
-		cfg         config.File
-	)
+	var configStore *config.ConfigStore
+	updateDomains := func(cfg *config.File) error {
+		for _, domain := range domains {
+			if domainErr := config.SetClientDomain(cfg, domain, client); domainErr != nil {
+				return domainErr
+			}
+		}
+		return nil
+	}
 	if len(domains) > 0 {
 		configStore, err = commandConfigStore(ctx)
 		if err != nil {
 			return err
 		}
-		cfg, err = configStore.Read()
-		if err != nil {
-			return err
+		cfg, readErr := configStore.Read()
+		if readErr != nil {
+			return readErr
 		}
-		for _, domain := range domains {
-			if setErr := config.SetClientDomain(&cfg, domain, client); setErr != nil {
-				return setErr
-			}
+		if domainErr := updateDomains(&cfg); domainErr != nil {
+			return domainErr
 		}
 	}
 
@@ -104,7 +107,7 @@ func (c *AuthCredentialsSetCmd) Run(ctx context.Context, flags *RootFlags) error
 		return err
 	}
 	if configStore != nil {
-		if err := configStore.Write(cfg); err != nil {
+		if err := configStore.Update(updateDomains); err != nil {
 			return err
 		}
 	}
@@ -436,26 +439,19 @@ func removeDomainMappings(ctx context.Context, client string) ([]string, error) 
 	if err != nil {
 		return nil, err
 	}
-	cfg, err := configStore.Read()
-	if err != nil {
+	var removed []string
+	if err := configStore.UpdateIfChanged(func(cfg *config.File) (bool, error) {
+		for domain, mapped := range cfg.ClientDomains {
+			normalized, err := config.NormalizeClientNameOrDefault(mapped)
+			if err == nil && normalized == client {
+				removed = append(removed, domain)
+				delete(cfg.ClientDomains, domain)
+			}
+		}
+		return len(removed) > 0, nil
+	}); err != nil {
 		return nil, err
 	}
-	var removed []string
-	for domain, mapped := range cfg.ClientDomains {
-		normalized, nerr := config.NormalizeClientNameOrDefault(mapped)
-		if nerr != nil {
-			continue
-		}
-		if normalized == client {
-			removed = append(removed, domain)
-			delete(cfg.ClientDomains, domain)
-		}
-	}
-	if len(removed) > 0 {
-		sort.Strings(removed)
-		if err := configStore.Write(cfg); err != nil {
-			return nil, err
-		}
-	}
+	sort.Strings(removed)
 	return removed, nil
 }

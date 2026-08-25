@@ -2,6 +2,10 @@
 
 ## 0.38.1 - Unreleased
 
+- Backup: honor dry-run for all backup push commands without authenticating, fetching Google data, creating local caches or checkpoints, or changing Git repositories.
+- Auth: make remote authorization dry runs side-effect-free instead of creating OAuth state or exposing authorization URLs.
+- Config: preserve concurrent account aliases, client mappings, and security settings by keeping every configuration update inside its shared file lock.
+
 ## 0.38.0 - 2026-08-25
 
 - Sheets: add the full BigQuery Connected Sheets lifecycle—create, update, refresh, and safely delete data sources—with explicit billing and authorization, protected SQL previews, correct source matching, and reliable extract reads. (#938, #1001) — thanks @ryo-touch.

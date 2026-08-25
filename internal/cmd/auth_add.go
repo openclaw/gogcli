@@ -151,44 +151,20 @@ func (c *AuthAddCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 
 	manual := c.isManualFlow(authURL, authCode)
-
+	remoteStep := c.Step
 	if c.Remote {
-		step := c.Step
-		if step == 0 {
+		if remoteStep == 0 {
 			if authURL != "" || authCode != "" {
-				step = 2
+				remoteStep = 2
 			} else {
-				step = 1
+				remoteStep = 1
 			}
 		}
-		switch step {
+		switch remoteStep {
 		case 1:
 			if authURL != "" || authCode != "" {
 				return usage("remote step 1 does not accept --auth-url or --auth-code")
 			}
-			u.Err().Println(googleAccountAuthorizationHint)
-			result, manualErr := buildManualAuthURL(ctx, googleauth.AuthorizeOptions{
-				Services:                    services,
-				Scopes:                      scopes,
-				Manual:                      true,
-				ForceConsent:                c.ForceConsent,
-				DisableIncludeGrantedScopes: disableIncludeGrantedScopes,
-				Client:                      client,
-				RedirectURI:                 redirectURI,
-			})
-			if manualErr != nil {
-				return manualErr
-			}
-			if outfmt.IsJSON(ctx) {
-				return outfmt.WriteJSON(ctx, stdoutWriter(ctx), map[string]any{
-					"auth_url":     result.URL,
-					"state_reused": result.StateReused,
-				})
-			}
-			u.Out().Linef("auth_url\t%s", result.URL)
-			u.Out().Linef("state_reused\t%t", result.StateReused)
-			u.Err().Linef("Run again with the same root flags and %s", formatRemoteStep2Instruction(services, c, readonly))
-			return nil
 		case 2:
 			if authCode != "" {
 				return usage("--auth-code is not valid with --remote (state check is mandatory)")
@@ -211,7 +187,7 @@ func (c *AuthAddCmd) Run(ctx context.Context, flags *RootFlags) error {
 		"scopes":        scopes,
 		"manual":        c.Manual,
 		"remote":        c.Remote,
-		"step":          c.Step,
+		"step":          remoteStep,
 		"listen_addr":   strings.TrimSpace(c.ListenAddr),
 		"redirect_host": strings.TrimSpace(c.RedirectHost),
 		"redirect_uri":  redirectURI,
@@ -222,6 +198,32 @@ func (c *AuthAddCmd) Run(ctx context.Context, flags *RootFlags) error {
 		"extra_scopes":  extraScopes,
 	}); dryRunErr != nil {
 		return dryRunErr
+	}
+
+	if c.Remote && remoteStep == 1 {
+		u.Err().Println(googleAccountAuthorizationHint)
+		result, manualErr := buildManualAuthURL(ctx, googleauth.AuthorizeOptions{
+			Services:                    services,
+			Scopes:                      scopes,
+			Manual:                      true,
+			ForceConsent:                c.ForceConsent,
+			DisableIncludeGrantedScopes: disableIncludeGrantedScopes,
+			Client:                      client,
+			RedirectURI:                 redirectURI,
+		})
+		if manualErr != nil {
+			return manualErr
+		}
+		if outfmt.IsJSON(ctx) {
+			return outfmt.WriteJSON(ctx, stdoutWriter(ctx), map[string]any{
+				"auth_url":     result.URL,
+				"state_reused": result.StateReused,
+			})
+		}
+		u.Out().Linef("auth_url\t%s", result.URL)
+		u.Out().Linef("state_reused\t%t", result.StateReused)
+		u.Err().Linef("Run again with the same root flags and %s", formatRemoteStep2Instruction(services, c, readonly))
+		return nil
 	}
 
 	if keychainErr := ensureKeychainAccessIfNeeded(ctx); keychainErr != nil {
@@ -297,14 +299,9 @@ func (c *AuthAddCmd) Run(ctx context.Context, flags *RootFlags) error {
 		if err != nil {
 			return err
 		}
-		cfg, err := configStore.Read()
-		if err != nil {
-			return err
-		}
-		if err := config.SetAccountClient(&cfg, authorizedEmail, client); err != nil {
-			return err
-		}
-		if err := configStore.Write(cfg); err != nil {
+		if err := configStore.Update(func(cfg *config.File) error {
+			return config.SetAccountClient(cfg, authorizedEmail, client)
+		}); err != nil {
 			return err
 		}
 	}
