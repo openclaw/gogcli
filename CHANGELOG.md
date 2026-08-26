@@ -1,16 +1,16 @@
 # Changelog
 
-## 0.38.1 - Unreleased
+## 0.38.1 - 2026-08-25
 
 - Gmail: send exact prebuilt RFC822 messages with verified sender/account guards, normalized thread IDs, and content-safe offline dry runs. (#1032, #1029) — thanks @higginz777.
-- Gmail: honor attachment-download dry runs for threads and drafts without opening account credentials, fetching messages, or writing files.
-- Downloads: honor explicit new output directories for Drive, Docs/Sheets/Slides exports, Docs tabs, Photos, and Photos Picker without changing existing defaults or overwrite protections.
 - Auth: add least-privilege Gmail `send` and `read-send` authorization, reject read-only/send conflicts, and preserve narrow Gmail grants during reauthorization. (#1033) — thanks @higginz777.
-- Security: redact authenticated Git remotes and configured API keys from backup/config command output and dry-run previews.
-- Sheets: reject missing Connected Sheets refresh replies without claiming success or retrying a potentially billable execution.
-- Backup: honor dry-run for all backup push commands without authenticating, fetching Google data, creating local caches or checkpoints, or changing Git repositories.
-- Auth: make remote authorization dry runs side-effect-free instead of creating OAuth state or exposing authorization URLs.
-- Config: preserve concurrent account aliases, client mappings, and security settings by keeping every configuration update inside its shared file lock.
+- Downloads: honor explicit new output directories for Drive, Docs/Sheets/Slides exports, Docs tabs, Photos, and Photos Picker without changing existing defaults or overwrite protections. (#1036)
+- Gmail: honor attachment-download dry runs for threads and drafts without opening account credentials, fetching messages, or writing files. (#1035)
+- Security: redact authenticated Git remotes and configured API keys from backup/config command output and dry-run previews. (#1035)
+- Sheets: reject missing Connected Sheets refresh replies without claiming success or retrying a potentially billable execution. (#1037)
+- Backup: honor dry-run for all backup push commands without authenticating, fetching Google data, creating local caches or checkpoints, or changing Git repositories. (#1034)
+- Auth: make remote authorization dry runs side-effect-free instead of creating OAuth state or exposing authorization URLs. (#1034)
+- Config: preserve concurrent account aliases, client mappings, and security settings by keeping every configuration update inside its shared file lock. (#1034)
 
 ## 0.38.0 - 2026-08-25
 
