@@ -81,7 +81,7 @@ gog --account you@example.com \
 
 Refresh requires writable Sheets authorization plus the explicitly granted `bigquery.readonly` scope. Only the requested source is refreshed; the command never refreshes an entire spreadsheet and never automatically retries a potentially billable execution. Use `--force-refresh` when retrying a source already in an error state. `--readonly` blocks the operation, while `--dry-run` previews it without authentication or network access.
 
-Google starts refreshes asynchronously. JSON preserves the provider's native object references and execution statuses; an immediately `FAILED` status returns a nonzero exit code while retaining its structured JSON output. Poll `list` or `describe` until `state` is `SUCCEEDED` or `FAILED`.
+Google starts refreshes asynchronously. JSON preserves the provider's native object references and execution statuses; an immediately `FAILED` status returns a nonzero exit code while retaining its structured JSON output. If Google returns no matching execution reply, the command fails without retrying because the potentially billable refresh may already have started; inspect the source before trying again. Poll `list` or `describe` until `state` is `SUCCEEDED` or `FAILED`.
 
 ## Delete one data source
 

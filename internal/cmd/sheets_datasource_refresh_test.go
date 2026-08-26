@@ -104,6 +104,63 @@ func TestSheetsDataSourceRefreshFailedStatusRetainsWrappedJSON(t *testing.T) {
 	}
 }
 
+func TestSheetsDataSourceRefreshRejectsMissingExecutionReply(t *testing.T) {
+	for _, body := range []string{
+		`null`,
+		`{}`,
+		`{"replies":[]}`,
+		`{"replies":[null]}`,
+		`{"replies":[{}]}`,
+		`{"replies":[{"updateDataSource":{}}]}`,
+		`{"replies":[{"refreshDataSource":null}]}`,
+	} {
+		t.Run(body, func(t *testing.T) {
+			var requests atomic.Int32
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				requests.Add(1)
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = w.Write([]byte(body))
+			}))
+			defer srv.Close()
+
+			result := executeWithConnectedSheetsWriter(t, []string{
+				"--json", "--account", "services@openclaw.org", "sheets", "datasource", "refresh", "connected1", "ds-query",
+			}, newSheetsServiceFromServer(t, srv))
+			if result.err == nil || !strings.Contains(result.err.Error(), "may have refreshed") ||
+				!strings.Contains(result.err.Error(), "inspect it before retrying") {
+				t.Fatalf("ambiguous refresh must fail with inspection guidance: %v", result.err)
+			}
+			if result.stdout != "" {
+				t.Fatalf("ambiguous refresh reported false success: %q", result.stdout)
+			}
+			if requests.Load() != 1 {
+				t.Fatalf("potentially billable refresh ran %d times, want 1", requests.Load())
+			}
+		})
+	}
+}
+
+func TestSheetsDataSourceRefreshAllowsEmptyExecutionStatuses(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"replies":[{"refreshDataSource":{}}]}`))
+	}))
+	defer srv.Close()
+
+	result := executeWithConnectedSheetsWriter(t, []string{
+		"--json", "--account", "services@openclaw.org", "sheets", "datasource", "refresh", "connected1", "ds-query",
+	}, newSheetsServiceFromServer(t, srv))
+	if result.err != nil {
+		t.Fatalf("provider reply without optional statuses must succeed: %v", result.err)
+	}
+	var got struct {
+		Statuses []json.RawMessage `json:"statuses"`
+	}
+	if err := json.Unmarshal([]byte(result.stdout), &got); err != nil || got.Statuses == nil || len(got.Statuses) != 0 {
+		t.Fatalf("optional execution statuses must remain an empty JSON array: %q, %v", result.stdout, err)
+	}
+}
+
 func TestSheetsDataSourceRefreshDryRunDoesNotRequireAuth(t *testing.T) {
 	result := executeWithTestRuntime(t, []string{
 		"--json", "--readonly", "--dry-run", "sheets", "datasource", "refresh",

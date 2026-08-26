@@ -7,6 +7,7 @@
 - Downloads: honor explicit new output directories for Drive, Docs/Sheets/Slides exports, Docs tabs, Photos, and Photos Picker without changing existing defaults or overwrite protections.
 - Auth: add least-privilege Gmail `send` and `read-send` authorization, reject read-only/send conflicts, and preserve narrow Gmail grants during reauthorization. (#1033) — thanks @higginz777.
 - Security: redact authenticated Git remotes and configured API keys from backup/config command output and dry-run previews.
+- Sheets: reject missing Connected Sheets refresh replies without claiming success or retrying a potentially billable execution.
 - Backup: honor dry-run for all backup push commands without authenticating, fetching Google data, creating local caches or checkpoints, or changing Git repositories.
 - Auth: make remote authorization dry runs side-effect-free instead of creating OAuth state or exposing authorization URLs.
 - Config: preserve concurrent account aliases, client mappings, and security settings by keeping every configuration update inside its shared file lock.

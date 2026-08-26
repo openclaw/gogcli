@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"google.golang.org/api/sheets/v4"
@@ -46,12 +47,13 @@ func (c *SheetsDataSourceRefreshCmd) Run(ctx context.Context, flags *RootFlags) 
 	if err != nil {
 		return err
 	}
-
-	statuses := make([]*sheets.RefreshDataSourceObjectExecutionStatus, 0)
-	if response != nil && len(response.Replies) > 0 && response.Replies[0] != nil &&
-		response.Replies[0].RefreshDataSource != nil {
-		statuses = append(statuses, response.Replies[0].RefreshDataSource.Statuses...)
+	if response == nil || len(response.Replies) == 0 || response.Replies[0] == nil ||
+		response.Replies[0].RefreshDataSource == nil {
+		return fmt.Errorf("provider may have refreshed data source %s without returning its execution reply; inspect it before retrying", dataSourceID)
 	}
+
+	statuses := make([]*sheets.RefreshDataSourceObjectExecutionStatus, 0, len(response.Replies[0].RefreshDataSource.Statuses))
+	statuses = append(statuses, response.Replies[0].RefreshDataSource.Statuses...)
 
 	var failed *sheets.DataExecutionStatus
 	for _, status := range statuses {
