@@ -1,5 +1,7 @@
 # Changelog
 
+## Unreleased
+
 ## 0.38.1 - 2026-08-25
 
 - Gmail: send exact prebuilt RFC822 messages with verified sender/account guards, normalized thread IDs, and content-safe offline dry runs. (#1032, #1029) — thanks @higginz777.
