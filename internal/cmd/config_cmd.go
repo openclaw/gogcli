@@ -75,13 +75,21 @@ func (c *ConfigSetCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return usage(err.Error())
 	}
 
-	if err := config.SetValue(&config.File{}, key, c.Value); err != nil {
+	if validationErr := config.SetValue(&config.File{}, key, c.Value); validationErr != nil {
+		return usage(validationErr.Error())
+	}
+	spec, err := config.KeySpecFor(key)
+	if err != nil {
 		return usage(err.Error())
+	}
+	displayValue := c.Value
+	if spec.Sensitive {
+		displayValue = "[REDACTED]"
 	}
 
 	if err := dryRunExit(ctx, flags, "config.set", map[string]any{
 		"key":   key.String(),
-		"value": c.Value,
+		"value": displayValue,
 	}); err != nil {
 		return err
 	}
@@ -93,11 +101,11 @@ func (c *ConfigSetCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 
 	if outfmt.IsJSON(ctx) {
-		payload := outfmt.KeyValuePayload(key.String(), c.Value)
+		payload := outfmt.KeyValuePayload(key.String(), displayValue)
 		payload["saved"] = true
 		return outfmt.WriteJSON(ctx, stdoutWriter(ctx), payload)
 	}
-	fmt.Fprintf(stdoutWriter(ctx), "Set %s = %s\n", c.Key, c.Value)
+	fmt.Fprintf(stdoutWriter(ctx), "Set %s = %s\n", c.Key, displayValue)
 	return nil
 }
 

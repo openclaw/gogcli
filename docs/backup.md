@@ -82,8 +82,9 @@ With `--no-input`, backup Git operations disable credential/UI prompts and SSH
 password prompts; failed read-side clones leave the configured path untouched.
 Pre-created empty repository directories are supported, including mounted
 paths; failed clones clean their partial contents while preserving the directory.
-Git errors redact credentials embedded in remote URLs before printing command
-arguments or captured diagnostics.
+Backup initialization output and Git errors redact credentials embedded in
+remote URLs before printing command arguments, saved destinations, or captured
+diagnostics; the configured remote retains its original authentication data.
 With `--dry-run`, all four read commands print their resolved repository/pull
 plan without cloning, pulling, decrypting, or writing plaintext output.
 

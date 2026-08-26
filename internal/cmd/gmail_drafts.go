@@ -114,6 +114,18 @@ func (c *GmailDraftsGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return usage("empty draftId")
 	}
 
+	attachDir := ""
+	if c.Download {
+		layout, err := commandLayout(ctx, config.PathKindConfig)
+		if err != nil {
+			return err
+		}
+		attachDir = layout.GmailAttachmentsDir()
+		if err := attachmentDownloadDryRun(ctx, flags, "gmail.drafts.get.download", "draft_id", draftID, attachDir, c.UseIndexedAttachmentIDs); err != nil {
+			return err
+		}
+	}
+
 	_, svc, err := requireGmailService(ctx, flags)
 	if err != nil {
 		return err
@@ -133,13 +145,8 @@ func (c *GmailDraftsGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 
 	msg := draft.Message
 	attachments := collectAttachments(msg.Payload)
-	attachDir := ""
-	if c.Download && msg.Id != "" && len(attachments) > 0 {
-		layout, layoutErr := commandLayout(ctx, config.PathKindConfig)
-		if layoutErr != nil {
-			return layoutErr
-		}
-		attachDir = layout.GmailAttachmentsDir()
+	if msg.Id == "" || len(attachments) == 0 {
+		attachDir = ""
 	}
 	if outfmt.IsJSON(ctx) {
 		out := map[string]any{"draft": draft}

@@ -18,6 +18,9 @@ gog config set youtube_api_key YOUR_API_KEY
 gog yt videos list --chart mostPopular --region US --max 5
 ```
 
+Configuration writes and dry-run previews redact API keys from their output
+while preserving the original stored value.
+
 Account reads use the default `youtube.readonly` scope:
 
 ```bash

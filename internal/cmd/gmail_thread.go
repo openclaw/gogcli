@@ -34,14 +34,27 @@ type GmailThreadGetCmd struct {
 
 func (c *GmailThreadGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
 	threadID := strings.TrimSpace(c.ThreadID)
 	threadID = normalizeGmailThreadID(threadID)
 	if threadID == "" {
 		return usage("empty threadId")
+	}
+
+	var attachDir string
+	if c.Download {
+		var err error
+		attachDir, err = resolveGmailThreadAttachmentDir(c.OutputDir.Dir)
+		if err != nil {
+			return err
+		}
+		if err := attachmentDownloadDryRun(ctx, flags, "gmail.thread.get.download", "thread_id", threadID, attachDir, c.UseIndexedAttachmentIDs); err != nil {
+			return err
+		}
+	}
+
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
 	}
 
 	svc, err := gmailService(ctx, account)
@@ -52,20 +65,6 @@ func (c *GmailThreadGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 	thread, err := svc.Users.Threads.Get("me", threadID).Format("full").Context(ctx).Do()
 	if err != nil {
 		return err
-	}
-
-	var attachDir string
-	if c.Download {
-		if strings.TrimSpace(c.OutputDir.Dir) == "" {
-			// Default: current directory, not gogcli config dir.
-			attachDir = "."
-		} else {
-			expanded, err := config.ExpandPath(c.OutputDir.Dir)
-			if err != nil {
-				return err
-			}
-			attachDir = filepath.Clean(expanded)
-		}
 	}
 
 	if outfmt.IsJSON(ctx) {
@@ -247,14 +246,27 @@ type GmailThreadAttachmentsCmd struct {
 
 func (c *GmailThreadAttachmentsCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
 	threadID := strings.TrimSpace(c.ThreadID)
 	threadID = normalizeGmailThreadID(threadID)
 	if threadID == "" {
 		return usage("empty threadId")
+	}
+
+	var attachDir string
+	if c.Download {
+		var err error
+		attachDir, err = resolveGmailThreadAttachmentDir(c.OutputDir.Dir)
+		if err != nil {
+			return err
+		}
+		if err := attachmentDownloadDryRun(ctx, flags, "gmail.thread.attachments.download", "thread_id", threadID, attachDir, c.UseIndexedAttachmentIDs); err != nil {
+			return err
+		}
+	}
+
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
 	}
 
 	svc, err := gmailService(ctx, account)
@@ -276,19 +288,6 @@ func (c *GmailThreadAttachmentsCmd) Run(ctx context.Context, flags *RootFlags) e
 		}
 		u.Err().Println("Empty thread")
 		return nil
-	}
-
-	var attachDir string
-	if c.Download {
-		if strings.TrimSpace(c.OutputDir.Dir) == "" {
-			attachDir = "."
-		} else {
-			expanded, err := config.ExpandPath(c.OutputDir.Dir)
-			if err != nil {
-				return err
-			}
-			attachDir = filepath.Clean(expanded)
-		}
 	}
 
 	allAttachments := make([]attachmentDownloadOutput, 0)
@@ -333,6 +332,26 @@ func (c *GmailThreadAttachmentsCmd) Run(ctx context.Context, flags *RootFlags) e
 	}
 	printAttachmentLines(u.Out(), attachmentOutputsFromDownloads(allAttachments))
 	return nil
+}
+
+func resolveGmailThreadAttachmentDir(value string) (string, error) {
+	if strings.TrimSpace(value) == "" {
+		return ".", nil
+	}
+	expanded, err := config.ExpandPath(value)
+	if err != nil {
+		return "", err
+	}
+	return filepath.Clean(expanded), nil
+}
+
+func attachmentDownloadDryRun(ctx context.Context, flags *RootFlags, op, idKey, id, outputDir string, indexed bool) error {
+	return dryRunExit(ctx, flags, op, map[string]any{
+		idKey:                        id,
+		"download":                   true,
+		"out_dir":                    outputDir,
+		"use_indexed_attachment_ids": indexed,
+	})
 }
 
 type GmailURLCmd struct {

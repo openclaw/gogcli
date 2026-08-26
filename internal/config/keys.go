@@ -24,6 +24,7 @@ type KeySpec struct {
 	Set       func(*File, string) error
 	Unset     func(*File)
 	EmptyHint func() string
+	Sensitive bool
 }
 
 var keyOrder = []Key{
@@ -94,7 +95,8 @@ var keySpecs = map[Key]KeySpec{
 		},
 	},
 	KeyYoutubeAPIKey: {
-		Key: KeyYoutubeAPIKey,
+		Key:       KeyYoutubeAPIKey,
+		Sensitive: true,
 		Get: func(cfg File) string {
 			if v := os.Getenv("GOG_YOUTUBE_API_KEY"); v != "" {
 				return v
@@ -114,7 +116,8 @@ var keySpecs = map[Key]KeySpec{
 		},
 	},
 	KeyPlacesAPIKey: {
-		Key: KeyPlacesAPIKey,
+		Key:       KeyPlacesAPIKey,
+		Sensitive: true,
 		Get: func(cfg File) string {
 			if v := os.Getenv("GOG_PLACES_API_KEY"); v != "" {
 				return v

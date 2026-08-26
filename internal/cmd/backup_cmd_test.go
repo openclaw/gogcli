@@ -18,6 +18,7 @@ import (
 
 	"github.com/openclaw/gogcli/internal/app"
 	"github.com/openclaw/gogcli/internal/backup"
+	"github.com/openclaw/gogcli/internal/outfmt"
 	"github.com/openclaw/gogcli/internal/secrets"
 )
 
@@ -329,11 +330,17 @@ func TestBackupInitNoPushUsesLocalRepoWithoutDefaultRemote(t *testing.T) {
 }
 
 func TestBackupInitNoPushPreservesConfiguredRemote(t *testing.T) {
-	for _, remote := range []string{
-		"git@example.com:private/backup.git",
-		"https://github.com/steipete/backup-gog.git",
+	for _, tc := range []struct {
+		name   string
+		remote string
+		json   bool
+	}{
+		{name: "SSH remote", remote: "git@example.com:private/backup.git", json: true},
+		{name: "HTTPS remote", remote: "https://github.com/steipete/backup-gog.git", json: true},
+		{name: "credentialed remote JSON", remote: syntheticBackupRemote(), json: true},
+		{name: "credentialed remote text", remote: syntheticBackupRemote()},
 	} {
-		t.Run(remote, func(t *testing.T) {
+		t.Run(tc.name, func(t *testing.T) {
 			dir := t.TempDir()
 			configPath := filepath.Join(dir, "backup.json")
 			repoPath := filepath.Join(dir, "repo")
@@ -347,18 +354,23 @@ func TestBackupInitNoPushPreservesConfiguredRemote(t *testing.T) {
 			store := backupOptionsForCmdTest(t, backup.Options{ConfigPath: configPath}).ConfigStore
 			if err := store.Save(configPath, backup.Config{
 				Repo:     repoPath,
-				Remote:   remote,
+				Remote:   tc.remote,
 				Identity: identityPath,
 			}); err != nil {
 				t.Fatalf("SaveConfig: %v", err)
 			}
 
+			var output bytes.Buffer
+			ctx := newCmdRuntimeOutputContext(t, &output, io.Discard)
+			if tc.json {
+				ctx = outfmt.WithMode(ctx, outfmt.Mode{JSON: true})
+			}
 			err := (&BackupInitCmd{
 				backupFlags: backupFlags{
 					Config: configPath,
 					NoPush: true,
 				},
-			}).Run(newCmdRuntimeJSONOutputContext(t, io.Discard, io.Discard), &RootFlags{NoInput: true})
+			}).Run(ctx, &RootFlags{NoInput: true})
 			if err != nil {
 				t.Fatalf("BackupInitCmd.Run: %v", err)
 			}
@@ -366,8 +378,16 @@ func TestBackupInitNoPushPreservesConfiguredRemote(t *testing.T) {
 			if loadErr != nil {
 				t.Fatalf("LoadConfig: %v", loadErr)
 			}
-			if cfg.Remote != remote {
+			if cfg.Remote != tc.remote {
 				t.Fatalf("--no-push init changed configured remote: %q", cfg.Remote)
+			}
+			if !strings.Contains(output.String(), backup.RedactGitURL(tc.remote)) {
+				t.Fatalf("output omitted sanitized configured remote: %q", output.String())
+			}
+			for _, secret := range []string{"synthetic-user", "synthetic-password", "synthetic-query", "synthetic-fragment"} {
+				if strings.Contains(output.String(), secret) {
+					t.Fatalf("backup init exposed remote credential %q", secret)
+				}
 			}
 		})
 	}

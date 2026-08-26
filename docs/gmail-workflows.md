@@ -27,6 +27,11 @@ message text for automation. Message JSON remains under the `message` key;
 add `--results-only` to emit that sanitized message directly. Both shapes emit
 the message headers and body once.
 
+Thread and draft attachment downloads honor `--dry-run` before opening account
+credentials, fetching messages, or writing files. Thread downloads keep their
+current-directory default or explicit `--out-dir`; draft downloads retain the
+existing configured attachment directory.
+
 ## Filters
 
 Export filters as Gmail WebUI-compatible XML:

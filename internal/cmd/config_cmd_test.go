@@ -281,6 +281,67 @@ func TestConfigCmd_DryRunLeavesConfigAndLockUntouched(t *testing.T) {
 	}
 }
 
+func TestConfigSetRedactsSensitiveValues(t *testing.T) {
+	t.Parallel()
+
+	for _, key := range []config.Key{config.KeyYoutubeAPIKey, config.KeyPlacesAPIKey} {
+		for _, tc := range []struct {
+			name   string
+			json   bool
+			dryRun bool
+		}{
+			{name: "JSON preview", json: true, dryRun: true},
+			{name: "plain preview", dryRun: true},
+			{name: "JSON saved", json: true},
+			{name: "plain saved"},
+		} {
+			t.Run(key.String()+" "+tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				configDir := filepath.Join(t.TempDir(), "config")
+				store := config.NewConfigStore(config.Layout{ConfigDir: configDir})
+				runtime := &app.Runtime{Config: store}
+				value := "synthetic-" + key.String() + "-value"
+				args := []string{}
+				if tc.json {
+					args = append(args, "--json")
+				} else {
+					args = append(args, "--plain")
+				}
+				if tc.dryRun {
+					args = append(args, "--dry-run")
+				}
+				args = append(args, "config", "set", key.String(), value)
+				result := executeWithTestRuntime(t, args, runtime)
+				if result.err != nil {
+					t.Fatalf("config set: %v\n%s", result.err, result.stderr)
+				}
+				if strings.Contains(result.stdout, value) || strings.Contains(result.stderr, value) ||
+					!strings.Contains(result.stdout, "[REDACTED]") {
+					t.Fatalf("sensitive value escaped output: stdout=%q stderr=%q", result.stdout, result.stderr)
+				}
+				if tc.dryRun {
+					if _, err := os.Stat(configDir); !os.IsNotExist(err) {
+						t.Fatalf("dry-run created configuration state: %v", err)
+					}
+					return
+				}
+				cfg, err := store.Read()
+				if err != nil {
+					t.Fatalf("read stored config: %v", err)
+				}
+				stored := cfg.YoutubeAPIKey
+				if key == config.KeyPlacesAPIKey {
+					stored = cfg.PlacesAPIKey
+				}
+				if stored != value {
+					t.Fatalf("stored value = %q, want the unchanged original", stored)
+				}
+			})
+		}
+	}
+}
+
 func TestRemoveDomainMappings_NoMatchLeavesConfigAbsent(t *testing.T) {
 	t.Parallel()
 

@@ -152,17 +152,18 @@ func (c *BackupInitCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if err != nil {
 		return err
 	}
+	remote := backup.RedactGitURL(cfg.Remote)
 	if outfmt.IsJSON(ctx) {
 		return outfmt.WriteJSON(ctx, stdoutWriter(ctx), map[string]any{
 			"repo":      cfg.Repo,
-			"remote":    cfg.Remote,
+			"remote":    remote,
 			"identity":  cfg.Identity,
 			"recipient": recipient,
 		})
 	}
 	u := ui.FromContext(ctx)
 	u.Out().Linef("repo\t%s", cfg.Repo)
-	u.Out().Linef("remote\t%s", cfg.Remote)
+	u.Out().Linef("remote\t%s", remote)
 	u.Out().Linef("identity\t%s", cfg.Identity)
 	u.Out().Linef("recipient\t%s", recipient)
 	return nil
