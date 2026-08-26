@@ -3,7 +3,6 @@ package cmd
 import (
 	"errors"
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 
@@ -49,7 +48,7 @@ func resolveDriveDownloadDestPath(meta *drive.File, outPathFlag, defaultDir stri
 		return filepath.Join(defaultDir, defaultName), nil
 	}
 
-	if st, err := os.Stat(destPath); err == nil && st.IsDir() {
+	if isDirIntent(outPathFlag, destPath) {
 		return filepath.Join(destPath, defaultName), nil
 	}
 	return destPath, nil

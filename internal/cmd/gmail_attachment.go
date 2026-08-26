@@ -222,20 +222,6 @@ func resolveAttachmentDest(messageID, attachmentID, outPathFlag, name, defaultDi
 	return filepath.Join(outPath, filename), nil
 }
 
-func isDirIntent(outPathFlag, expandedOutPath string) bool {
-	// Directory intent:
-	// - existing directory path
-	// - or explicit trailing slash for a (possibly non-existent) directory
-	flag := strings.TrimSpace(outPathFlag)
-	if strings.HasSuffix(flag, string(os.PathSeparator)) || strings.HasSuffix(flag, "/") || strings.HasSuffix(flag, "\\") {
-		return true
-	}
-	if st, statErr := os.Stat(expandedOutPath); statErr == nil && st.IsDir() {
-		return true
-	}
-	return false
-}
-
 func sanitizeAttachmentFilename(name, fallback string) string {
 	// Normalize Windows-style separators too; prevents "..\\..\\x" escapes when treating `--name` as a filename.
 	clean := strings.ReplaceAll(strings.TrimSpace(name), "\\", "/")

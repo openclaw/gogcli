@@ -187,7 +187,8 @@ func (c *PhotosPickerDownloadCmd) Run(ctx context.Context, flags *RootFlags) err
 	if mediaItemID == "" {
 		return usage("empty mediaItemId")
 	}
-	outPathFlag := strings.TrimSpace(c.Out)
+	rawOutPathFlag := strings.TrimSpace(c.Out)
+	outPathFlag := rawOutPathFlag
 	if outPathFlag != "" {
 		var expandErr error
 		outPathFlag, expandErr = appconfig.ExpandPath(outPathFlag)
@@ -235,7 +236,7 @@ func (c *PhotosPickerDownloadCmd) Run(ctx context.Context, flags *RootFlags) err
 	if item.MediaFile != nil {
 		filename = item.MediaFile.Filename
 	}
-	dest, err := resolvePhotosDownloadDestPathParts(item.ID, filename, outPathFlag, defaultDir)
+	dest, err := resolvePhotosDownloadDestPathParts(item.ID, filename, rawOutPathFlag, defaultDir)
 	if err != nil {
 		return err
 	}

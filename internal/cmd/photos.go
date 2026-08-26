@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -128,7 +127,8 @@ func (c *PhotosDownloadCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if mediaItemID == "" {
 		return usage("empty mediaItemId")
 	}
-	outPathFlag := strings.TrimSpace(c.Out)
+	rawOutPathFlag := strings.TrimSpace(c.Out)
+	outPathFlag := rawOutPathFlag
 	if outPathFlag != "" {
 		var expandErr error
 		outPathFlag, expandErr = config.ExpandPath(outPathFlag)
@@ -197,7 +197,7 @@ func (c *PhotosDownloadCmd) Run(ctx context.Context, flags *RootFlags) error {
 		_, err = io.Copy(stdoutWriter(ctx), resp.Body)
 		return err
 	}
-	dest, err := resolvePhotosDownloadDestPath(item, outPathFlag, defaultDir)
+	dest, err := resolvePhotosDownloadDestPath(item, rawOutPathFlag, defaultDir)
 	if err != nil {
 		return err
 	}
@@ -361,7 +361,7 @@ func resolvePhotosDownloadDestPathParts(itemID string, itemFilename string, outP
 		}
 		return filepath.Join(defaultDir, safeName), nil
 	}
-	if st, err := os.Stat(destPath); err == nil && st.IsDir() {
+	if isDirIntent(outPathFlag, destPath) {
 		return filepath.Join(destPath, safeName), nil
 	}
 	return destPath, nil

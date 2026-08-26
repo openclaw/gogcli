@@ -204,6 +204,12 @@ func TestDryRunE2E_CommandsSkipAuthAPIAndFileWrites(t *testing.T) {
 			outPath: outputPath("drive.bin"),
 		},
 		{
+			name:    "drive download new directory",
+			args:    []string{"drive", "download", "file123", "--out", outputPath("new-drive-dir") + string(os.PathSeparator)},
+			op:      "drive.download",
+			outPath: outputPath("new-drive-dir"),
+		},
+		{
 			name: "drive changes watch",
 			args: []string{"drive", "changes", "watch", "--token", "token123", "--webhook-url", "https://example.com/hook", "--channel-id", "channel123"},
 			op:   "drive.changes.watch",
@@ -742,10 +748,22 @@ func TestDryRunE2E_CommandsSkipAuthAPIAndFileWrites(t *testing.T) {
 			outPath: outputPath("photo.jpg"),
 		},
 		{
+			name:    "photos download new directory",
+			args:    []string{"photos", "download", "media123", "--out", outputPath("new-photos-dir") + string(os.PathSeparator)},
+			op:      "photos.download",
+			outPath: outputPath("new-photos-dir"),
+		},
+		{
 			name:    "photos picker download",
 			args:    []string{"photos", "picker", "download", "session123", "media123", "--out", outputPath("picked.jpg")},
 			op:      "photos.picker.download",
 			outPath: outputPath("picked.jpg"),
+		},
+		{
+			name:    "photos picker download new directory",
+			args:    []string{"photos", "picker", "download", "session123", "media123", "--out", outputPath("new-picker-dir") + string(os.PathSeparator)},
+			op:      "photos.picker.download",
+			outPath: outputPath("new-picker-dir"),
 		},
 	}
 

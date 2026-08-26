@@ -27,7 +27,7 @@ Exception: `gog docs export --tab <title-or-id>` exports a single Google Docs ta
 - Arg is always the Drive file id (Doc/Sheet/Slides id).
 - Type guard: compare `mimeType` and error with `file is not a <KindLabel> (mimeType="...")`.
 - `--out` defaults to `$(os.UserConfigDir())/gogcli/drive-downloads/` (via `internal/config:EnsureDriveDownloadsDir`).
-- `--out` can be dir or explicit file path (via `internal/cmd/drive_download_helpers.go:resolveDriveDownloadDestPath`).
+- `--out` can be an existing directory, a new directory ending in `/`, or an explicit file path (via `internal/cmd/drive_download_helpers.go:resolveDriveDownloadDestPath`); missing parent directories are created only when writing the download.
 - `--out -` writes export bytes to stdout; JSON mode rejects it to avoid mixing metadata with bytes.
 - Output
   - `--json`: `{ "path": "...", "size": <bytes> }`

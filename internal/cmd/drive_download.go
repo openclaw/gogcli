@@ -50,7 +50,8 @@ func (c *DriveDownloadCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return formatErr
 	}
 
-	outPathFlag := strings.TrimSpace(c.Output.Path)
+	rawOutPathFlag := strings.TrimSpace(c.Output.Path)
+	outPathFlag := rawOutPathFlag
 	if outPathFlag != "" {
 		expanded, expandErr := config.ExpandPath(outPathFlag)
 		if expandErr != nil {
@@ -104,7 +105,7 @@ func (c *DriveDownloadCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return fileFormatErr
 	}
 
-	destPath, err := resolveDriveDownloadDestPath(meta, outPathFlag, defaultDir)
+	destPath, err := resolveDriveDownloadDestPath(meta, rawOutPathFlag, defaultDir)
 	if err != nil {
 		return err
 	}

@@ -163,6 +163,20 @@ func TestPhotosPickerCommandWorkflow(t *testing.T) {
 		t.Fatalf("downloaded = %q", downloaded)
 	}
 
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	directoryDownload := runWithPhotosTestServices(t, services, func(ctx context.Context) error {
+		return (&PhotosPickerDownloadCmd{
+			SessionID: "session-1", MediaItemID: "photo-1", Out: "~/picker/nested/",
+		}).Run(ctx, flags)
+	})
+	if directoryDownload.err != nil {
+		t.Fatalf("directory download: %v", directoryDownload.err)
+	}
+	if data, err := os.ReadFile(filepath.Join(home, "picker", "nested", "picked.jpg")); err != nil || string(data) != "picked-photo" {
+		t.Fatalf("directory download = %q, %v", data, err)
+	}
+
 	deleteResult := runWithPhotosTestServices(t, services, func(ctx context.Context) error {
 		cmd := &PhotosPickerDeleteCmd{SessionID: "session-1"}
 		return cmd.Run(ctx, flags)

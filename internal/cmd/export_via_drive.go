@@ -35,7 +35,8 @@ func exportViaDrive(ctx context.Context, flags *RootFlags, opts exportViaDriveOp
 	}
 
 	// Avoid touching auth/keyring and avoid writing files in dry-run mode.
-	outPathFlag = strings.TrimSpace(outPathFlag)
+	rawOutPathFlag := strings.TrimSpace(outPathFlag)
+	outPathFlag = rawOutPathFlag
 	if outPathFlag != "" {
 		expanded, err := config.ExpandPath(outPathFlag)
 		if err != nil {
@@ -100,7 +101,7 @@ func exportViaDrive(ctx context.Context, flags *RootFlags, opts exportViaDriveOp
 		return fmt.Errorf("file is not a %s (mimeType=%q)", label, meta.MimeType)
 	}
 
-	destPath, err := resolveDriveDownloadDestPath(meta, outPathFlag, defaultDownloadsDir)
+	destPath, err := resolveDriveDownloadDestPath(meta, rawOutPathFlag, defaultDownloadsDir)
 	if err != nil {
 		return err
 	}

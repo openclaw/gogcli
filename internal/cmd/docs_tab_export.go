@@ -8,7 +8,6 @@ import (
 	"mime"
 	"net/http"
 	"net/url"
-	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -133,7 +132,7 @@ func tabExportOutPath(outFlag, docID, tabQuery, format, defaultDir string) (stri
 		if err != nil {
 			return "", err
 		}
-		if st, statErr := os.Stat(expanded); statErr == nil && st.IsDir() {
+		if isDirIntent(outFlag, expanded) {
 			return filepath.Join(expanded, defaultBase), nil
 		}
 		return expanded, nil

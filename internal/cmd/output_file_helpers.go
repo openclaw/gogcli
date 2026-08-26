@@ -28,6 +28,15 @@ func outputPathOrStdout(path string) string {
 	return path
 }
 
+func isDirIntent(outPathFlag, expandedOutPath string) bool {
+	flag := strings.TrimSpace(outPathFlag)
+	if strings.HasSuffix(flag, string(os.PathSeparator)) || strings.HasSuffix(flag, "/") || strings.HasSuffix(flag, "\\") {
+		return true
+	}
+	info, err := os.Stat(expandedOutPath)
+	return err == nil && info.IsDir()
+}
+
 func openUserOutputFile(path string, opts outputFileOptions) (*os.File, string, error) {
 	path = strings.TrimSpace(path)
 	if path == "" {
