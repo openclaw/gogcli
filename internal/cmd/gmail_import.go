@@ -91,34 +91,11 @@ func (c *GmailImportCmd) Run(ctx context.Context, flags *RootFlags) error {
 
 func (c *GmailImportCmd) readAndPlan(ctx context.Context) ([]byte, gmailImportPlan, error) {
 	source := strings.TrimSpace(c.File)
-	if source == "" {
-		return nil, gmailImportPlan{}, usage("RFC822/EML file is required")
-	}
-
-	var (
-		raw []byte
-		err error
-	)
-	if source == "-" {
-		raw, err = io.ReadAll(stdinReader(ctx))
-	} else {
-		path, expandErr := config.ExpandPath(source)
-		if expandErr != nil {
-			return nil, gmailImportPlan{}, expandErr
-		}
-		raw, err = os.ReadFile(path) //nolint:gosec // user-provided import path
-	}
+	raw, message, err := readRFC822Input(ctx, source)
 	if err != nil {
 		return nil, gmailImportPlan{}, err
 	}
-	if len(raw) == 0 {
-		return nil, gmailImportPlan{}, usage("RFC822/EML input is empty")
-	}
 
-	message, err := mail.ReadMessage(bytes.NewReader(raw))
-	if err != nil {
-		return nil, gmailImportPlan{}, usagef("invalid RFC822/EML input: %v", err)
-	}
 	plan := gmailImportPlan{
 		Source:             source,
 		Bytes:              len(raw),
@@ -133,6 +110,37 @@ func (c *GmailImportCmd) readAndPlan(ctx context.Context) ([]byte, gmailImportPl
 		ProcessForCalendar: c.ProcessForCalendar,
 	}
 	return raw, plan, nil
+}
+
+func readRFC822Input(ctx context.Context, source string) ([]byte, *mail.Message, error) {
+	if source == "" {
+		return nil, nil, usage("RFC822/EML file is required")
+	}
+
+	var raw []byte
+	var err error
+	if source == "-" {
+		raw, err = io.ReadAll(stdinReader(ctx))
+	} else {
+		path, expandErr := config.ExpandPath(source)
+		if expandErr != nil {
+			return nil, nil, expandErr
+		}
+		raw, err = os.ReadFile(path) //nolint:gosec // user-provided RFC822 message path
+	}
+	if err != nil {
+		return nil, nil, err
+	}
+	if len(raw) == 0 {
+		return nil, nil, usage("RFC822/EML input is empty")
+	}
+
+	message, err := mail.ReadMessage(bytes.NewReader(raw))
+	if err != nil {
+		return nil, nil, usagef("invalid RFC822/EML input: %v", err)
+	}
+
+	return raw, message, nil
 }
 
 func normalizedImportLabels(labels []string) []string {

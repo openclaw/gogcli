@@ -32,7 +32,7 @@ gog login <email> [flags]
 | `-y`<br>`--force`<br>`--assume-yes`<br>`--yes` | `bool` |  | Skip confirmations for destructive commands |
 | `--force-consent` | `bool` |  | Force consent screen to obtain a refresh token |
 | `--gmail-no-send` | `bool` | false | Block Gmail send operations (agent safety) |
-| `--gmail-scope` | `string` | full | Gmail scope mode: full\|readonly |
+| `--gmail-scope` | `string` | full | Gmail scope mode: full\|readonly\|send\|read-send |
 | `-h`<br>`--help` | `kong.helpFlag` |  | Show context-sensitive help. |
 | `--home` | `string` |  | Override gogcli config/data/state/cache root (equivalent to GOG_HOME) |
 | `-j`<br>`--json`<br>`--machine` | `bool` | false | Output JSON to stdout (best for scripting) |

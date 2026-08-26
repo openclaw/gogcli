@@ -1,6 +1,9 @@
 package googleauth
 
-import "testing"
+import (
+	"errors"
+	"testing"
+)
 
 func TestParseService(t *testing.T) {
 	tests := []struct {
@@ -332,6 +335,57 @@ func TestScopesForManageWithOptions_GmailScopeReadonly(t *testing.T) {
 
 	if !containsScope(scopes, "https://www.googleapis.com/auth/drive") {
 		t.Fatalf("missing drive in %v", scopes)
+	}
+}
+
+func TestScopesForManageWithOptions_GmailSendingScopes(t *testing.T) {
+	for _, tc := range []struct {
+		mode GmailScopeMode
+		read bool
+	}{
+		{mode: GmailScopeSend},
+		{mode: GmailScopeReadSend, read: true},
+	} {
+		t.Run(string(tc.mode), func(t *testing.T) {
+			scopes, err := ScopesForManageWithOptions([]Service{ServiceGmail}, ScopeOptions{GmailScope: tc.mode})
+			if err != nil {
+				t.Fatalf("scopes: %v", err)
+			}
+
+			want := []string{
+				"https://www.googleapis.com/auth/gmail.send",
+				"openid",
+				"email",
+				"https://www.googleapis.com/auth/userinfo.email",
+			}
+			if tc.read {
+				want = append(want, "https://www.googleapis.com/auth/gmail.readonly")
+			}
+
+			if len(scopes) != len(want) {
+				t.Fatalf("scopes = %v, want exactly %v", scopes, want)
+			}
+
+			for _, scope := range want {
+				if !containsScope(scopes, scope) {
+					t.Fatalf("missing %q in %v", scope, scopes)
+				}
+			}
+		})
+	}
+}
+
+func TestScopesForManageWithOptions_ReadonlyRejectsGmailSendingScopes(t *testing.T) {
+	for _, mode := range []GmailScopeMode{GmailScopeSend, GmailScopeReadSend} {
+		t.Run(string(mode), func(t *testing.T) {
+			_, err := ScopesForManageWithOptions([]Service{ServiceGmail}, ScopeOptions{
+				Readonly:   true,
+				GmailScope: mode,
+			})
+			if !errors.Is(err, errInvalidGmailScope) {
+				t.Fatalf("error = %v, want invalid Gmail scope", err)
+			}
+		})
 	}
 }
 

@@ -33,6 +33,10 @@ func TestReauthSuccess(t *testing.T) {
 				t.Fatalf("expected ForceConsent=true")
 			}
 
+			if authOpts.DisableIncludeGrantedScopes {
+				t.Fatal("reauth without stored scopes must preserve incremental grants")
+			}
+
 			if authOpts.Client != "default" {
 				t.Fatalf("expected client 'default', got %q", authOpts.Client)
 			}
@@ -228,6 +232,7 @@ func TestReauthRejectsIdentityWithoutEmail(t *testing.T) {
 func TestReauthPreservesStoredScopes(t *testing.T) {
 	var requestedScopes []string
 	var requestedServices []string
+	var disableIncludeGrantedScopes bool
 
 	opts := ReauthOptions{
 		Email:    "user@example.com",
@@ -246,6 +251,7 @@ func TestReauthPreservesStoredScopes(t *testing.T) {
 		Confirm:              func(context.Context, string) (bool, error) { return true, nil },
 		AuthorizeFunc: func(ctx context.Context, authOpts AuthorizeOptions) (string, error) {
 			requestedScopes = authOpts.Scopes
+			disableIncludeGrantedScopes = authOpts.DisableIncludeGrantedScopes
 			requestedServices = make([]string, len(authOpts.Services))
 
 			for i, svc := range authOpts.Services {
@@ -277,6 +283,76 @@ func TestReauthPreservesStoredScopes(t *testing.T) {
 
 	if len(tok.Scopes) != 3 {
 		t.Fatalf("returned token should have 3 scopes, got %d: %v", len(tok.Scopes), tok.Scopes)
+	}
+
+	if disableIncludeGrantedScopes {
+		t.Fatal("full-scope Gmail reauth must preserve incremental grants")
+	}
+}
+
+func TestReauthPreservesLimitedGmailGrants(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		scopes []string
+		exact  bool
+	}{
+		{name: "send only", scopes: []string{"https://www.googleapis.com/auth/gmail.send"}, exact: true},
+		{name: "read only", scopes: []string{"https://www.googleapis.com/auth/gmail.readonly"}, exact: true},
+		{name: "read and send", scopes: []string{"https://www.googleapis.com/auth/gmail.readonly", "https://www.googleapis.com/auth/gmail.send"}, exact: true},
+		{name: "read send and calendar", scopes: []string{"https://www.googleapis.com/auth/gmail.send", "https://www.googleapis.com/auth/calendar"}, exact: true},
+		{name: "full mailbox", scopes: []string{"https://www.googleapis.com/auth/gmail.send", "https://www.googleapis.com/auth/gmail.modify"}},
+		{name: "settings access", scopes: []string{"https://www.googleapis.com/auth/gmail.send", "https://www.googleapis.com/auth/gmail.settings.basic"}},
+		{name: "non Gmail", scopes: []string{"https://www.googleapis.com/auth/calendar"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			opts := ReauthOptions{
+				Email:       "user@example.com",
+				Client:      "default",
+				Services:    []string{"gmail"},
+				Scopes:      []string{"https://www.googleapis.com/auth/gmail.send"},
+				StoredToken: &secrets.Token{Services: []string{"gmail"}, Scopes: tc.scopes},
+				Confirm:     func(context.Context, string) (bool, error) { return true, nil },
+				AuthorizeFunc: func(_ context.Context, authOpts AuthorizeOptions) (string, error) {
+					if authOpts.DisableIncludeGrantedScopes != tc.exact {
+						t.Fatalf("disable incremental grants = %t, want %t", authOpts.DisableIncludeGrantedScopes, tc.exact)
+					}
+
+					return "new-refresh-token", nil
+				},
+				FetchIdentityFunc: func(context.Context, string, string, []string, time.Duration) (Identity, error) {
+					return Identity{Email: "user@example.com"}, nil
+				},
+				Stderr: &bytesBuffer{},
+			}
+			if _, err := Reauth(context.Background(), opts); err != nil {
+				t.Fatalf("reauth: %v", err)
+			}
+		})
+	}
+}
+
+func TestReauthPreservesIncrementalGrantsWhenStoredScopesAreMissing(t *testing.T) {
+	opts := ReauthOptions{
+		Email:       "user@example.com",
+		Client:      "default",
+		Services:    []string{"calendar"},
+		Scopes:      []string{"https://www.googleapis.com/auth/calendar"},
+		StoredToken: &secrets.Token{Services: []string{"gmail", "calendar"}},
+		Confirm:     func(context.Context, string) (bool, error) { return true, nil },
+		AuthorizeFunc: func(_ context.Context, authOpts AuthorizeOptions) (string, error) {
+			if authOpts.DisableIncludeGrantedScopes {
+				t.Fatal("incomplete stored scope metadata must preserve existing grants")
+			}
+
+			return "new-refresh-token", nil
+		},
+		FetchIdentityFunc: func(context.Context, string, string, []string, time.Duration) (Identity, error) {
+			return Identity{Email: "user@example.com"}, nil
+		},
+		Stderr: &bytesBuffer{},
+	}
+	if _, err := Reauth(context.Background(), opts); err != nil {
+		t.Fatalf("reauth: %v", err)
 	}
 }
 

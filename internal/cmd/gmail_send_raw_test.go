@@ -17,6 +17,7 @@ import (
 	"google.golang.org/api/gmail/v1"
 
 	"github.com/openclaw/gogcli/internal/app"
+	"github.com/openclaw/gogcli/internal/config"
 	"github.com/openclaw/gogcli/internal/googleapi"
 	"github.com/openclaw/gogcli/internal/outfmt"
 )
@@ -29,7 +30,7 @@ const testRawSendEML = "From: ScoutWave <scoutwave@example.com>\r\n" +
 	"body with trailing bytes\r\n\r\n"
 
 func TestGmailSendRawDryRunIsOfflineAndSafe(t *testing.T) {
-	path := writeRawSendEML(t, testRawSendEML)
+	path := writeRawSendEML(t)
 	result := executeWithTestRuntime(t, []string{"--dry-run", "--json", "gmail", "send", "--raw-file", path, "--thread-id", "thread-1"}, &app.Runtime{})
 	if result.err != nil {
 		t.Fatalf("dry-run: %v\nstderr=%s", result.err, result.stderr)
@@ -83,8 +84,13 @@ func TestGmailSendRawReadsStdinAndPreservesBytes(t *testing.T) {
 	if err != nil || string(decoded) != testRawSendEML || posted.ThreadId != "thread-1" {
 		t.Fatalf("raw bytes/thread changed: err=%v thread=%q raw=%q", err, posted.ThreadId, decoded)
 	}
-	if !strings.Contains(out.String(), `"messageId": "msg-1"`) || !strings.Contains(out.String(), `"threadId": "thread-1"`) {
-		t.Fatalf("provider IDs missing: %s", out.String())
+	var result map[string]any
+	if err := json.Unmarshal(out.Bytes(), &result); err != nil {
+		t.Fatalf("decode send result: %v", err)
+	}
+	if len(result) != 3 || result["messageId"] != "msg-1" || result["threadId"] != "thread-1" ||
+		result["from"] != "ScoutWave <scoutwave@example.com>" {
+		t.Fatalf("raw send broke the normal send output contract: %#v", result)
 	}
 }
 
@@ -94,6 +100,7 @@ func TestGmailSendRawRejectsInvalidBeforeAuth(t *testing.T) {
 		"no separator":      "From: a@example.com\r\nTo: b@example.com",
 		"malformed header":  "not a header\r\n\r\nbody",
 		"missing from":      "To: b@example.com\r\n\r\nbody",
+		"duplicate from":    "From: a@example.com\r\nFrom: b@example.com\r\nTo: c@example.com\r\n\r\nbody",
 		"missing recipient": "From: a@example.com\r\n\r\nbody",
 		"invalid recipient": "From: a@example.com\r\nTo: not-an-address\r\n\r\nbody",
 	} {
@@ -104,6 +111,101 @@ func TestGmailSendRawRejectsInvalidBeforeAuth(t *testing.T) {
 				t.Fatalf("error = %v", err)
 			}
 		})
+	}
+}
+
+func TestGmailSendRawNormalizesThreadURL(t *testing.T) {
+	path := writeRawSendEML(t)
+	result := executeWithTestRuntime(t, []string{
+		"--dry-run", "--json", "gmail", "send", "--raw-file", path,
+		"--thread-id", "https://mail.google.com/mail/u/0/#inbox/18abcdef123",
+	}, &app.Runtime{})
+	if result.err != nil {
+		t.Fatalf("dry-run: %v", result.err)
+	}
+	var got struct {
+		Request struct {
+			ThreadID string `json:"thread_id"`
+		} `json:"request"`
+	}
+	if err := json.Unmarshal([]byte(result.stdout), &got); err != nil || got.Request.ThreadID != "18abcdef123" {
+		t.Fatalf("normalized thread = %q, error = %v", got.Request.ThreadID, err)
+	}
+}
+
+func TestGmailSendRawValidatesAuthenticatedSender(t *testing.T) {
+	for _, tc := range []struct {
+		name        string
+		account     string
+		aliasStatus string
+		wantError   string
+		wantLookups int
+		wantSends   int
+	}{
+		{name: "primary avoids settings reads", account: "SCOUTWAVE@example.com", wantSends: 1},
+		{name: "verified alias", account: "owner@example.com", aliasStatus: "accepted", wantLookups: 1, wantSends: 1},
+		{name: "unverified alias", account: "owner@example.com", aliasStatus: "pending", wantError: "not verified", wantLookups: 1},
+		{name: "unknown alias", account: "owner@example.com", wantError: "not found", wantLookups: 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			lookups, sends := 0, 0
+			svc, cleanup := newGmailServiceForTest(t, func(w http.ResponseWriter, r *http.Request) {
+				switch r.URL.Path {
+				case "/gmail/v1/users/me/settings/sendAs":
+					lookups++
+					aliases := []map[string]any{}
+					if tc.aliasStatus != "" {
+						aliases = append(aliases, map[string]any{
+							"sendAsEmail": "scoutwave@example.com", "verificationStatus": tc.aliasStatus,
+						})
+					}
+					_ = json.NewEncoder(w).Encode(map[string]any{"sendAs": aliases})
+				case "/gmail/v1/users/me/messages/send":
+					sends++
+					_ = json.NewEncoder(w).Encode(map[string]string{"id": "msg-1", "threadId": "thread-1"})
+				default:
+					http.NotFound(w, r)
+				}
+			})
+			defer cleanup()
+
+			ctx := withGmailTestService(newCmdRuntimeIOContext(t, strings.NewReader(testRawSendEML), io.Discard, io.Discard), svc)
+			err := (&GmailSendCmd{RawFile: "-"}).Run(ctx, &RootFlags{Account: tc.account})
+			if tc.wantError == "" && err != nil || tc.wantError != "" && (err == nil || !strings.Contains(err.Error(), tc.wantError)) {
+				t.Fatalf("send error = %v, want %q", err, tc.wantError)
+			}
+			if lookups != tc.wantLookups || sends != tc.wantSends {
+				t.Fatalf("provider calls: lookups=%d sends=%d, want %d/%d", lookups, sends, tc.wantLookups, tc.wantSends)
+			}
+		})
+	}
+}
+
+func TestGmailSendRawDirectTokenRequiresConcreteAccount(t *testing.T) {
+	sends := 0
+	svc, cleanup := newGmailServiceForTest(t, func(w http.ResponseWriter, r *http.Request) {
+		sends++
+		http.Error(w, "unexpected request", http.StatusInternalServerError)
+	})
+	defer cleanup()
+	ctx := withGmailTestService(newCmdRuntimeIOContext(t, strings.NewReader(testRawSendEML), io.Discard, io.Discard), svc)
+	err := (&GmailSendCmd{RawFile: "-"}).Run(ctx, &RootFlags{AccessToken: "invalid-token"})
+	if err == nil || !strings.Contains(err.Error(), "explicit --account") || sends != 0 {
+		t.Fatalf("direct-token send: err=%v provider calls=%d", err, sends)
+	}
+}
+
+func TestGmailSendRawNoSendUsesMessageSenderBeforeDryRun(t *testing.T) {
+	store := config.NewConfigStore(config.Layout{ConfigDir: t.TempDir()})
+	if err := store.Write(config.File{NoSendAccounts: map[string]bool{"scoutwave@example.com": true}}); err != nil {
+		t.Fatalf("write account guard: %v", err)
+	}
+	path := writeRawSendEML(t)
+	result := executeWithTestRuntime(t, []string{
+		"--access-token", "invalid-token", "--dry-run", "gmail", "send", "--raw-file", path,
+	}, &app.Runtime{Config: store})
+	if result.err == nil || !strings.Contains(result.err.Error(), "no-send") {
+		t.Fatalf("blocked sender bypassed account guard: %v", result.err)
 	}
 }
 
@@ -147,7 +249,7 @@ func TestGmailSendRawRejectsEveryComposeMode(t *testing.T) {
 }
 
 func TestGmailSendRawSafetyAndAlias(t *testing.T) {
-	path := writeRawSendEML(t, testRawSendEML)
+	path := writeRawSendEML(t)
 	blocked := executeWithTestRuntime(t, []string{"--gmail-no-send", "--dry-run", "gmail", "send", "--raw-file", path}, &app.Runtime{})
 	if blocked.err == nil || !strings.Contains(blocked.err.Error(), "no-send") {
 		t.Fatalf("no-send error = %v", blocked.err)
@@ -163,10 +265,10 @@ func TestGmailSendRawSafetyAndAlias(t *testing.T) {
 	}
 }
 
-func writeRawSendEML(t *testing.T, contents string) string {
+func writeRawSendEML(t *testing.T) string {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "message.eml")
-	if err := os.WriteFile(path, []byte(contents), 0o600); err != nil {
+	if err := os.WriteFile(path, []byte(testRawSendEML), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	return path

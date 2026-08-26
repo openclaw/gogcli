@@ -29,7 +29,7 @@ type AuthAddCmd struct {
 	ForceConsent bool          `name:"force-consent" help:"Force consent screen to obtain a refresh token"`
 	ServicesCSV  string        `name:"services" help:"Services to authorize: user|all-user or comma-separated ${auth_services}; explicit opt-in: photospicker; all means all default user OAuth services. Workspace service-account-only services: admin, groups, keep" default:"user"`
 	DriveScope   string        `name:"drive-scope" help:"Drive scope mode: full|readonly|file" enum:"full,readonly,file" default:"full"`
-	GmailScope   string        `name:"gmail-scope" help:"Gmail scope mode: full|readonly" enum:"full,readonly" default:"full"`
+	GmailScope   string        `name:"gmail-scope" help:"Gmail scope mode: full|readonly|send|read-send" enum:"full,readonly,send,read-send" default:"full"`
 	ExtraScopes  string        `name:"extra-scopes" help:"Comma-separated list of additional OAuth scope URIs to request (appended after service scopes)"`
 }
 
@@ -79,6 +79,23 @@ func parseExtraScopesCSV(raw string) []string {
 	return scopes
 }
 
+func authScopeModes(readonly bool, rawDriveScope, rawGmailScope string) (string, string, bool, error) {
+	driveScope := strings.ToLower(strings.TrimSpace(rawDriveScope))
+	if readonly && driveScope == strFile {
+		return "", "", false, usage("cannot combine --readonly with --drive-scope=file (file is write-capable)")
+	}
+
+	gmailScope := strings.ToLower(strings.TrimSpace(rawGmailScope))
+	if readonly && (gmailScope == string(googleauth.GmailScopeSend) || gmailScope == string(googleauth.GmailScopeReadSend)) {
+		return "", "", false, usagef("cannot combine --readonly with --gmail-scope=%s (sending is write-capable)", gmailScope)
+	}
+
+	limitedGmailScope := gmailScope != "" && gmailScope != string(googleauth.GmailScopeFull)
+	disableIncremental := readonly || driveScope == "readonly" || driveScope == strFile || limitedGmailScope
+
+	return driveScope, gmailScope, disableIncremental, nil
+}
+
 func (c *AuthAddCmd) resolvedRedirectURI() (string, error) {
 	redirectURI := strings.TrimSpace(c.RedirectURI)
 	if strings.TrimSpace(c.RedirectHost) != "" && redirectURI != "" {
@@ -112,15 +129,10 @@ func (c *AuthAddCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return fmt.Errorf("no services selected")
 	}
 
-	driveScope := strings.ToLower(strings.TrimSpace(c.DriveScope))
-	if readonly && driveScope == strFile {
-		return usage("cannot combine --readonly with --drive-scope=file (file is write-capable)")
+	driveScope, gmailScope, disableIncludeGrantedScopes, err := authScopeModes(readonly, c.DriveScope, c.GmailScope)
+	if err != nil {
+		return err
 	}
-	gmailScope := strings.ToLower(strings.TrimSpace(c.GmailScope))
-	disableIncludeGrantedScopes := readonly ||
-		driveScope == "readonly" ||
-		driveScope == strFile ||
-		gmailScope == "readonly"
 
 	extraScopes := parseExtraScopesCSV(c.ExtraScopes)
 
@@ -151,44 +163,20 @@ func (c *AuthAddCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 
 	manual := c.isManualFlow(authURL, authCode)
-
+	remoteStep := c.Step
 	if c.Remote {
-		step := c.Step
-		if step == 0 {
+		if remoteStep == 0 {
 			if authURL != "" || authCode != "" {
-				step = 2
+				remoteStep = 2
 			} else {
-				step = 1
+				remoteStep = 1
 			}
 		}
-		switch step {
+		switch remoteStep {
 		case 1:
 			if authURL != "" || authCode != "" {
 				return usage("remote step 1 does not accept --auth-url or --auth-code")
 			}
-			u.Err().Println(googleAccountAuthorizationHint)
-			result, manualErr := buildManualAuthURL(ctx, googleauth.AuthorizeOptions{
-				Services:                    services,
-				Scopes:                      scopes,
-				Manual:                      true,
-				ForceConsent:                c.ForceConsent,
-				DisableIncludeGrantedScopes: disableIncludeGrantedScopes,
-				Client:                      client,
-				RedirectURI:                 redirectURI,
-			})
-			if manualErr != nil {
-				return manualErr
-			}
-			if outfmt.IsJSON(ctx) {
-				return outfmt.WriteJSON(ctx, stdoutWriter(ctx), map[string]any{
-					"auth_url":     result.URL,
-					"state_reused": result.StateReused,
-				})
-			}
-			u.Out().Linef("auth_url\t%s", result.URL)
-			u.Out().Linef("state_reused\t%t", result.StateReused)
-			u.Err().Linef("Run again with the same root flags and %s", formatRemoteStep2Instruction(services, c, readonly))
-			return nil
 		case 2:
 			if authCode != "" {
 				return usage("--auth-code is not valid with --remote (state check is mandatory)")
@@ -211,7 +199,7 @@ func (c *AuthAddCmd) Run(ctx context.Context, flags *RootFlags) error {
 		"scopes":        scopes,
 		"manual":        c.Manual,
 		"remote":        c.Remote,
-		"step":          c.Step,
+		"step":          remoteStep,
 		"listen_addr":   strings.TrimSpace(c.ListenAddr),
 		"redirect_host": strings.TrimSpace(c.RedirectHost),
 		"redirect_uri":  redirectURI,
@@ -222,6 +210,32 @@ func (c *AuthAddCmd) Run(ctx context.Context, flags *RootFlags) error {
 		"extra_scopes":  extraScopes,
 	}); dryRunErr != nil {
 		return dryRunErr
+	}
+
+	if c.Remote && remoteStep == 1 {
+		u.Err().Println(googleAccountAuthorizationHint)
+		result, manualErr := buildManualAuthURL(ctx, googleauth.AuthorizeOptions{
+			Services:                    services,
+			Scopes:                      scopes,
+			Manual:                      true,
+			ForceConsent:                c.ForceConsent,
+			DisableIncludeGrantedScopes: disableIncludeGrantedScopes,
+			Client:                      client,
+			RedirectURI:                 redirectURI,
+		})
+		if manualErr != nil {
+			return manualErr
+		}
+		if outfmt.IsJSON(ctx) {
+			return outfmt.WriteJSON(ctx, stdoutWriter(ctx), map[string]any{
+				"auth_url":     result.URL,
+				"state_reused": result.StateReused,
+			})
+		}
+		u.Out().Linef("auth_url\t%s", result.URL)
+		u.Out().Linef("state_reused\t%t", result.StateReused)
+		u.Err().Linef("Run again with the same root flags and %s", formatRemoteStep2Instruction(services, c, readonly))
+		return nil
 	}
 
 	if keychainErr := ensureKeychainAccessIfNeeded(ctx); keychainErr != nil {
@@ -297,14 +311,9 @@ func (c *AuthAddCmd) Run(ctx context.Context, flags *RootFlags) error {
 		if err != nil {
 			return err
 		}
-		cfg, err := configStore.Read()
-		if err != nil {
-			return err
-		}
-		if err := config.SetAccountClient(&cfg, authorizedEmail, client); err != nil {
-			return err
-		}
-		if err := configStore.Write(cfg); err != nil {
+		if err := configStore.Update(func(cfg *config.File) error {
+			return config.SetAccountClient(cfg, authorizedEmail, client)
+		}); err != nil {
 			return err
 		}
 	}

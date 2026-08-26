@@ -157,11 +157,12 @@ func Reauth(ctx context.Context, opts ReauthOptions) (secrets.Token, error) {
 	fmt.Fprintln(stderr, "Re-authorizing…")
 
 	authorizeOpts := AuthorizeOptions{
-		Services:     services,
-		Scopes:       reauthScopes,
-		ForceConsent: true, // Ensure Google returns a new refresh token
-		Timeout:      timeout,
-		Client:       opts.Client,
+		Services:                    services,
+		Scopes:                      reauthScopes,
+		ForceConsent:                true, // Ensure Google returns a new refresh token
+		DisableIncludeGrantedScopes: opts.StoredToken != nil && hasLimitedGmailGrant(opts.StoredToken.Scopes),
+		Timeout:                     timeout,
+		Client:                      opts.Client,
 	}
 
 	refreshToken, err := authorizeFn(ctx, authorizeOpts)
@@ -205,6 +206,26 @@ func Reauth(ctx context.Context, opts ReauthOptions) (secrets.Token, error) {
 	fmt.Fprintln(stderr, "Re-authorization successful. Retrying request…")
 
 	return updated, nil
+}
+
+func hasLimitedGmailGrant(scopes []string) bool {
+	const gmailPrefix = "https://www.googleapis.com/auth/gmail."
+	limited := false
+
+	for _, scope := range scopes {
+		switch scope {
+		case gmailPrefix + "send", gmailPrefix + "readonly":
+			limited = true
+		case "https://mail.google.com/", gmailPrefix + "modify", gmailPrefix + "compose":
+			return false
+		default:
+			if strings.HasPrefix(scope, gmailPrefix+"settings.") {
+				return false
+			}
+		}
+	}
+
+	return limited
 }
 
 // servicesFromScopes attempts to derive the service list from a set of

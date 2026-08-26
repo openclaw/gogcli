@@ -2,7 +2,11 @@
 
 ## 0.38.1 - Unreleased
 
-- Gmail: add guarded exact-byte RFC822 sending from a file or stdin, with optional thread binding, compose-mode isolation, and content-safe offline dry runs.
+- Gmail: send exact prebuilt RFC822 messages with verified sender/account guards, normalized thread IDs, and content-safe offline dry runs. (#1032, #1029) — thanks @higginz777.
+- Auth: add least-privilege Gmail `send` and `read-send` authorization, reject read-only/send conflicts, and preserve narrow Gmail grants during reauthorization. (#1033) — thanks @higginz777.
+- Backup: honor dry-run for all backup push commands without authenticating, fetching Google data, creating local caches or checkpoints, or changing Git repositories.
+- Auth: make remote authorization dry runs side-effect-free instead of creating OAuth state or exposing authorization URLs.
+- Config: preserve concurrent account aliases, client mappings, and security settings by keeping every configuration update inside its shared file lock.
 
 ## 0.38.0 - 2026-08-25
 

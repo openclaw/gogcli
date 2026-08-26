@@ -70,17 +70,12 @@ func (c *ConfigSetCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
-	cfg, err := store.Read()
-	if err != nil {
-		return err
-	}
-
 	key, err := config.ParseKey(c.Key)
 	if err != nil {
 		return usage(err.Error())
 	}
 
-	if err := config.SetValue(&cfg, key, c.Value); err != nil {
+	if err := config.SetValue(&config.File{}, key, c.Value); err != nil {
 		return usage(err.Error())
 	}
 
@@ -91,7 +86,9 @@ func (c *ConfigSetCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
-	if err := store.Write(cfg); err != nil {
+	if err := store.Update(func(cfg *config.File) error {
+		return config.SetValue(cfg, key, c.Value)
+	}); err != nil {
 		return err
 	}
 
@@ -114,17 +111,12 @@ func (c *ConfigUnsetCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
-	cfg, err := store.Read()
-	if err != nil {
-		return err
-	}
-
 	key, err := config.ParseKey(c.Key)
 	if err != nil {
 		return usage(err.Error())
 	}
 
-	if err := config.UnsetValue(&cfg, key); err != nil {
+	if err := config.UnsetValue(&config.File{}, key); err != nil {
 		return usage(err.Error())
 	}
 
@@ -134,7 +126,9 @@ func (c *ConfigUnsetCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
-	if err := store.Write(cfg); err != nil {
+	if err := store.Update(func(cfg *config.File) error {
+		return config.UnsetValue(cfg, key)
+	}); err != nil {
 		return err
 	}
 

@@ -139,13 +139,14 @@ Implementation: `internal/secrets/store.go`.
 - Refresh token issuance:
   - requests `access_type=offline`
   - supports `--force-consent` to force the consent prompt when Google doesn't return a refresh token
-  - uses `include_granted_scopes=true` to support incremental auth re-runs
+  - uses `include_granted_scopes=true` to support incremental auth re-runs for full-scope authorization
+  - omits `include_granted_scopes` for limited scope presets and reauthorization of known narrow Gmail grants so broader historical permissions are not silently restored
 
 Scope selection note:
 
 - The consent screen shows the scopes the CLI requested.
 - Users cannot selectively un-check individual requested scopes in the consent screen; they either approve all requested scopes or cancel.
-- To request fewer scopes, choose fewer services via `gog auth add --services ...` or use `gog auth add --readonly` where applicable.
+- To request fewer scopes, choose fewer services via `gog auth add --services ...`, use `gog auth add --readonly`, or select a limited service preset such as `--gmail-scope readonly|send|read-send`.
 
 ## Config layout
 
@@ -196,7 +197,7 @@ Flag aliases:
 - `gog auth credentials list`
 - `gog auth credentials remove [<client>|all]`
 - `gog --client <name> auth credentials <credentials.json|->`
-- `gog auth add <email> [--services user|all-user|all|gmail,calendar,chat,classroom,drive,driveactivity,drivelabels,docs,slides,contacts,tasks,sheets,people,forms,sites,meet,photos,photospicker,appscript,analytics,searchconsole,ads,youtube] [--readonly] [--drive-scope full|readonly|file] [--gmail-scope full|readonly] [--extra-scopes CSV] [--manual] [--remote] [--step 1|2] [--auth-url URL] [--listen-addr HOST[:PORT]] [--redirect-host HOST] [--timeout DURATION] [--force-consent]`
+- `gog auth add <email> [--services user|all-user|all|gmail,calendar,chat,classroom,drive,driveactivity,drivelabels,docs,slides,contacts,tasks,sheets,people,forms,sites,meet,photos,photospicker,appscript,analytics,searchconsole,ads,youtube] [--readonly] [--drive-scope full|readonly|file] [--gmail-scope full|readonly|send|read-send] [--extra-scopes CSV] [--manual] [--remote] [--step 1|2] [--auth-url URL] [--listen-addr HOST[:PORT]] [--redirect-host HOST] [--timeout DURATION] [--force-consent]`
 - `gog auth services [--markdown]`
 - `gog auth manage [--services ...] [--listen-addr HOST[:PORT]] [--redirect-host HOST] [--dry-run]` (interactive browser flow; real execution fails with usage exit code 2 under `--no-input`)
 - `gog auth keep <email> --key <service-account.json>` (Google Keep; Workspace only)

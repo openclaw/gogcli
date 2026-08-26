@@ -63,6 +63,8 @@ type GmailScopeMode string
 const (
 	GmailScopeFull     GmailScopeMode = "full"
 	GmailScopeReadonly GmailScopeMode = "readonly"
+	GmailScopeSend     GmailScopeMode = "send"
+	GmailScopeReadSend GmailScopeMode = "read-send"
 )
 
 type ScopeOptions struct {
@@ -561,6 +563,26 @@ func scopesForServicesWithOptions(services []Service, opts ScopeOptions) ([]stri
 	return out, nil
 }
 
+func gmailScopesWithOptions(opts ScopeOptions) ([]string, error) {
+	if opts.Readonly && (opts.GmailScope == GmailScopeSend || opts.GmailScope == GmailScopeReadSend) {
+		return nil, fmt.Errorf("%w %q: sending is incompatible with read-only access", errInvalidGmailScope, opts.GmailScope)
+	}
+
+	switch {
+	case opts.Readonly || opts.GmailScope == GmailScopeReadonly:
+		return []string{"https://www.googleapis.com/auth/gmail.readonly"}, nil
+	case opts.GmailScope == GmailScopeSend:
+		return []string{"https://www.googleapis.com/auth/gmail.send"}, nil
+	case opts.GmailScope == GmailScopeReadSend:
+		return []string{
+			"https://www.googleapis.com/auth/gmail.readonly",
+			"https://www.googleapis.com/auth/gmail.send",
+		}, nil
+	default:
+		return Scopes(ServiceGmail)
+	}
+}
+
 func scopesForServiceWithOptions(service Service, opts ScopeOptions) ([]string, error) {
 	driveScope := strings.TrimSpace(string(opts.DriveScope))
 	switch driveScope {
@@ -571,11 +593,10 @@ func scopesForServiceWithOptions(service Service, opts ScopeOptions) ([]string, 
 
 	gmailScope := strings.TrimSpace(string(opts.GmailScope))
 	switch gmailScope {
-	case "", string(GmailScopeFull), string(GmailScopeReadonly):
+	case "", string(GmailScopeFull), string(GmailScopeReadonly), string(GmailScopeSend), string(GmailScopeReadSend):
 	default:
-		return nil, fmt.Errorf("%w %q (expected full|readonly)", errInvalidGmailScope, opts.GmailScope)
+		return nil, fmt.Errorf("%w %q (expected full|readonly|send|read-send)", errInvalidGmailScope, opts.GmailScope)
 	}
-
 	driveScopeValue := func() string {
 		if opts.Readonly {
 			return "https://www.googleapis.com/auth/drive.readonly"
@@ -593,11 +614,7 @@ func scopesForServiceWithOptions(service Service, opts ScopeOptions) ([]string, 
 
 	switch service {
 	case ServiceGmail:
-		if opts.Readonly || opts.GmailScope == GmailScopeReadonly {
-			return []string{"https://www.googleapis.com/auth/gmail.readonly"}, nil
-		}
-
-		return Scopes(service)
+		return gmailScopesWithOptions(opts)
 	case ServiceCalendar:
 		if opts.Readonly {
 			return []string{"https://www.googleapis.com/auth/calendar.readonly"}, nil
