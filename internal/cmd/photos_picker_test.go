@@ -163,8 +163,7 @@ func TestPhotosPickerCommandWorkflow(t *testing.T) {
 		t.Fatalf("downloaded = %q", downloaded)
 	}
 
-	home := t.TempDir()
-	t.Setenv("HOME", home)
+	home := setDownloadTestHome(t)
 	directoryDownload := runWithPhotosTestServices(t, services, func(ctx context.Context) error {
 		return (&PhotosPickerDownloadCmd{
 			SessionID: "session-1", MediaItemID: "photo-1", Out: "~/picker/nested/",

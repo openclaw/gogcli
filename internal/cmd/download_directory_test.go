@@ -19,8 +19,7 @@ import (
 )
 
 func TestDownloadResolversHonorNewDirectoryIntent(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv("HOME", home)
+	home := setDownloadTestHome(t)
 
 	for _, test := range []struct {
 		name     string
@@ -70,8 +69,7 @@ func TestDownloadResolversHonorNewDirectoryIntent(t *testing.T) {
 }
 
 func TestDriveDownloadAndExportsHonorHomeDirectoryIntent(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv("HOME", home)
+	home := setDownloadTestHome(t)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fileID := filepath.Base(r.URL.Path)
 		mimeType := "text/plain"
@@ -135,8 +133,7 @@ func TestDriveDownloadAndExportsHonorHomeDirectoryIntent(t *testing.T) {
 }
 
 func TestPhotosDownloadHonorsHomeDirectoryIntent(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv("HOME", home)
+	home := setDownloadTestHome(t)
 	var srv *httptest.Server
 	srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
@@ -170,4 +167,12 @@ func TestPhotosDownloadHonorsHomeDirectoryIntent(t *testing.T) {
 	if data, err := os.ReadFile(want); err != nil || string(data) != "photo-proof" {
 		t.Fatalf("downloaded photo = %q, %v", data, err)
 	}
+}
+
+func setDownloadTestHome(t *testing.T) string {
+	t.Helper()
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	return home
 }
