@@ -47,7 +47,7 @@ jobs:
       - name: Enable Corepack (pnpm)
         run: |
           corepack enable
-          corepack prepare pnpm@11.21.0 --activate
+          corepack prepare pnpm@11.24.0 --activate
       - name: Install dependencies
         run: pnpm -C internal/tracking/worker install --frozen-lockfile
       - name: Lint

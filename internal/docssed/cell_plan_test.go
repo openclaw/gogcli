@@ -62,7 +62,7 @@ func TestPlanCellInsertionKeepsSedBackreferenceSyntaxLiteral(t *testing.T) {
 func TestPlanCellReplacementUsesUTF16CapturesAndGlobalSelection(t *testing.T) {
 	t.Parallel()
 	plan, err := PlanCellReplacement(CellInput{
-		Text:           "😀 ab ab\n",
+		Text:           "😀 ab ab\n", //nolint:dupword // Repetition verifies global replacement with UTF-16 offsets.
 		TextStartIndex: 20,
 		TextEndIndex:   29,
 	}, Expression{

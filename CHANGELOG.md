@@ -2,6 +2,8 @@
 
 ## 0.38.2 - Unreleased
 
+- Dependencies: update Go to 1.27, refresh Google and MCP SDKs, update tracking worker dependencies and Go tooling, and refresh Docker build actions.
+
 ## 0.38.1 - 2026-08-25
 
 - Gmail: send exact prebuilt RFC822 messages with verified sender/account guards, normalized thread IDs, and content-safe offline dry runs. (#1032, #1029) — thanks @higginz777.

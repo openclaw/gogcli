@@ -610,7 +610,7 @@ func TestRunManualInnerFormatsFinalRangesAfterLengthChanges(t *testing.T) {
 			Paragraph: &docs.Paragraph{Elements: []*docs.ParagraphElement{{
 				StartIndex: 1,
 				EndIndex:   9,
-				TextRun:    &docs.TextRun{Content: "foo foo\n"},
+				TextRun:    &docs.TextRun{Content: "foo foo\n"}, //nolint:dupword // Repetition verifies range shifts across multiple matches.
 			}}},
 		}}},
 	}
