@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -101,6 +102,79 @@ func TestSheetsDataSourceRefreshFailedStatusRetainsWrappedJSON(t *testing.T) {
 		got.Statuses[0].DataExecutionStatus.ErrorCode != "ENGINE" ||
 		!strings.Contains(got.Statuses[0].DataExecutionStatus.ErrorMessage, "EXTERNAL_UNTRUSTED_CONTENT") {
 		t.Fatalf("unexpected failed execution status: %#v", got.Statuses)
+	}
+}
+
+func TestSheetsDataSourceRefreshPreservesZeroCoordinates(t *testing.T) {
+	for _, state := range []string{"RUNNING", "FAILED"} {
+		t.Run(state, func(t *testing.T) {
+			references := make([]map[string]any, 0, 17)
+			for _, field := range []string{"dataSourceTableAnchorCell", "dataSourcePivotTableAnchorCell", "dataSourceFormulaCell"} {
+				for _, coordinate := range []map[string]int64{
+					{"sheetId": 0, "rowIndex": 0, "columnIndex": 0},
+					{"sheetId": 0, "rowIndex": 4, "columnIndex": 2},
+					{"sheetId": 12, "rowIndex": 0, "columnIndex": 2},
+					{"sheetId": 12, "rowIndex": 4, "columnIndex": 0},
+					{"sheetId": 12, "rowIndex": 4, "columnIndex": 2},
+				} {
+					references = append(references, map[string]any{field: coordinate})
+				}
+			}
+			references = append(references, map[string]any{"sheetId": "0"}, map[string]any{"chartId": 17})
+			statuses := make([]any, 0, len(references)+2)
+			for _, reference := range references {
+				statuses = append(statuses, map[string]any{
+					"reference": reference, "dataExecutionStatus": map[string]string{"state": state},
+				})
+			}
+			statuses = append(statuses, nil, map[string]any{"dataExecutionStatus": map[string]string{"state": state}})
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				// Use wire JSON, not SDK structs whose marshaler omits zero coordinates.
+				if err := json.NewEncoder(w).Encode(map[string]any{
+					"replies": []any{map[string]any{"refreshDataSource": map[string]any{"statuses": statuses}}},
+				}); err != nil {
+					t.Errorf("encode response: %v", err)
+				}
+			}))
+			defer srv.Close()
+
+			result := executeWithConnectedSheetsWriter(t, []string{
+				"--json", "--account", "a@example.com", "sheets", "datasource", "refresh", "connected1", "ds-query",
+			}, newSheetsServiceFromServer(t, srv))
+			if (result.err != nil) != (state == "FAILED") {
+				t.Fatalf("state %s: unexpected error %v", state, result.err)
+			}
+			var got struct {
+				Statuses []json.RawMessage `json:"statuses"`
+			}
+			if err := json.Unmarshal([]byte(result.stdout), &got); err != nil {
+				t.Fatalf("decode output: %v\n%s", err, result.stdout)
+			}
+			want, err := json.Marshal(statuses)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var wantStatuses []json.RawMessage
+			if err := json.Unmarshal(want, &wantStatuses); err != nil {
+				t.Fatal(err)
+			}
+			if len(got.Statuses) != len(wantStatuses) {
+				t.Fatalf("got %d statuses, want %d", len(got.Statuses), len(wantStatuses))
+			}
+			for i := range wantStatuses {
+				var actual, expected any
+				if err := json.Unmarshal(got.Statuses[i], &actual); err != nil {
+					t.Fatal(err)
+				}
+				if err := json.Unmarshal(wantStatuses[i], &expected); err != nil {
+					t.Fatal(err)
+				}
+				if !reflect.DeepEqual(actual, expected) {
+					t.Errorf("status %d lost provider fields: got %s, want %s", i, got.Statuses[i], wantStatuses[i])
+				}
+			}
+		})
 	}
 }
 

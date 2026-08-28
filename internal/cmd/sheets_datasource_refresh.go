@@ -64,6 +64,7 @@ func (c *SheetsDataSourceRefreshCmd) Run(ctx context.Context, flags *RootFlags) 
 	}
 
 	if outfmt.IsJSON(ctx) {
+		preserveRefreshCoordinates(statuses)
 		if err := outfmt.WriteJSON(ctx, stdoutWriter(ctx), map[string]any{
 			"spreadsheetId": spreadsheetID,
 			"dataSourceId":  dataSourceID,
@@ -76,4 +77,21 @@ func (c *SheetsDataSourceRefreshCmd) Run(ctx context.Context, flags *RootFlags) 
 	}
 
 	return connectedSheetsExecutionError("refresh", failed)
+}
+
+func preserveRefreshCoordinates(statuses []*sheets.RefreshDataSourceObjectExecutionStatus) {
+	for _, status := range statuses {
+		if status == nil || status.Reference == nil {
+			continue
+		}
+		ref := status.Reference
+		for _, coordinate := range []*sheets.GridCoordinate{
+			ref.DataSourceTableAnchorCell, ref.DataSourcePivotTableAnchorCell, ref.DataSourceFormulaCell,
+		} {
+			if coordinate != nil {
+				// SDK omitempty fields otherwise erase A1 and sheet 0 from output.
+				coordinate.ForceSendFields = append(coordinate.ForceSendFields, "SheetId", "RowIndex", "ColumnIndex")
+			}
+		}
+	}
 }
