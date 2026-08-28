@@ -139,15 +139,17 @@ pnpm-gate:
 docker-version-check:
 	@set -e; \
 	go_version="$$(awk '$$1 == "go" { print $$2; exit }' go.mod)"; \
+	toolchain_version="$$(awk '$$1 == "toolchain" && $$2 != "default" { sub(/^go/, "", $$2); print $$2; exit }' go.mod)"; \
+	build_version="$${toolchain_version:-$$go_version}"; \
 	docker_version="$$(sed -n 's/^ARG GO_VERSION=//p' Dockerfile)"; \
-	if [ -z "$$go_version" ] || [ -z "$$docker_version" ] || [ "$$docker_version" != "$$go_version" ]; then \
-		printf 'Docker Go version %s must match go.mod version %s\n' "$$docker_version" "$$go_version" >&2; \
+	if [ -z "$$go_version" ] || [ -z "$$docker_version" ] || [ "$$docker_version" != "$$build_version" ]; then \
+		printf 'Docker Go version %s must match go.mod build toolchain %s\n' "$$docker_version" "$$build_version" >&2; \
 		exit 1; \
 	fi
 
 test:
 	@go test $(GO_TEST_FLAGS) $(TEST_FLAGS) $(TEST_PKGS)
-	@node --test scripts/eval-gws.test.mjs scripts/eval-gws-agents.test.mjs
+	@node --test scripts/eval-gws.test.mjs scripts/eval-gws-agents.test.mjs scripts/check-docker-go-version.test.mjs
 
 eval-gws: build
 	@node scripts/eval-gws.mjs --gog $(BIN) --gws $${GWS_BIN:-gws} --out $${OUT:-/tmp/gog-gws-eval.json}

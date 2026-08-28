@@ -115,7 +115,7 @@ make
 ./bin/gog --version
 ```
 
-Source builds require the Go version declared in `go.mod`.
+Source builds require at least the `go` version declared in `go.mod` (Go 1.26.0). The `toolchain` directive recommends Go 1.27.0 for normal builds and CI; Docker uses the same preferred toolchain. Environments with `GOTOOLCHAIN=local`, including CodeQL default setup, can use their installed Go 1.26 toolchain.
 
 ## Safety-profile binaries
 

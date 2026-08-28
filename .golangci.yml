@@ -1,5 +1,9 @@
 version: "2"
 
+run:
+  # Analyze the minimum supported Go version, not the preferred toolchain.
+  go: "1.26.0"
+
 linters:
   default: none
   enable:

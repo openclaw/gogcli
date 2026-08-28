@@ -2,7 +2,7 @@
 
 ## 0.38.2 - Unreleased
 
-- Dependencies: update Go to 1.27, refresh Google and MCP SDKs, update tracking worker dependencies and Go tooling, and refresh Docker build actions.
+- Dependencies: prefer Go 1.27 while retaining Go 1.26 compatibility, refresh Google and MCP SDKs, update tracking worker dependencies and Go tooling, and refresh Docker build actions.
 
 ## 0.38.1 - 2026-08-25
 
