@@ -460,6 +460,48 @@ func TestGmailWatchServeCmd_PreservesClientOverrideForRequestContexts(t *testing
 	}
 }
 
+func TestGmailWatchServeCmd_PreservesDirectAccessTokenForRequestContexts(t *testing.T) {
+	origListen := listenAndServe
+	t.Cleanup(func() { listenAndServe = origListen })
+
+	setWatchTestConfigHome(t)
+
+	store := newGmailWatchTestStore(t, "a@b.com")
+	updateErr := store.Update(func(s *gmailWatchState) error {
+		s.Account = "a@b.com"
+		return nil
+	})
+	if updateErr != nil {
+		t.Fatalf("seed: %v", updateErr)
+	}
+
+	flags := &RootFlags{Account: "a@b.com"}
+	var got *gmailWatchServer
+	listenAndServe = func(srv *http.Server) error {
+		if gs, ok := srv.Handler.(*gmailWatchServer); ok {
+			got = gs
+		}
+		return nil
+	}
+
+	ctx := withGmailTestServiceFactory(newCmdRuntimeOutputContext(t, io.Discard, io.Discard), func(ctx context.Context, _ string) (*gmail.Service, error) {
+		if token := authclient.AccessTokenFromContext(ctx); token != "test-token" {
+			t.Fatalf("expected direct access token, got %q", token)
+		}
+		return &gmail.Service{}, nil
+	})
+	ctx = authclient.WithAccessToken(ctx, "test-token")
+	if execErr := runKong(t, &GmailWatchServeCmd{}, []string{"--port", "9999", "--path", "/hook"}, ctx, flags); execErr != nil {
+		t.Fatalf("execute: %v", execErr)
+	}
+	if got == nil {
+		t.Fatalf("expected server")
+	}
+	if _, callErr := got.newService(context.Background(), "a@b.com"); callErr != nil {
+		t.Fatalf("newService: %v", callErr)
+	}
+}
+
 func TestGmailWatchServeCmd_HTTPServerTimeouts(t *testing.T) {
 	origListen := listenAndServe
 	t.Cleanup(func() { listenAndServe = origListen })
