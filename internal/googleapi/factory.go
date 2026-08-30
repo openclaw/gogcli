@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	admin "google.golang.org/api/admin/directory/v1"
+	adsense "google.golang.org/api/adsense/v2"
 	analyticsadmin "google.golang.org/api/analyticsadmin/v1beta"
 	analyticsdata "google.golang.org/api/analyticsdata/v1beta"
 	"google.golang.org/api/calendar/v3"
@@ -60,6 +61,10 @@ func (f Factory) AdminDirectory(ctx context.Context, account string) (*admin.Ser
 
 func (f Factory) AdminOrgUnit(ctx context.Context, account string) (*admin.Service, error) {
 	return NewAdminDirectoryOrgUnit(f.withAuth(ctx), account)
+}
+
+func (f Factory) AdSense(ctx context.Context, account string) (*adsense.Service, error) {
+	return NewAdSense(f.withAuth(ctx), account)
 }
 
 func (f Factory) AppScript(ctx context.Context, account string) (*script.Service, error) {

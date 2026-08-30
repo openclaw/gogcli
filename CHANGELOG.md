@@ -4,6 +4,7 @@
 
 - Sheets: preserve zero-valued sheet, row, and column indexes in Connected Sheets refresh status references, keeping A1 anchors identifiable. (#938) — thanks @ryo-touch.
 - Dependencies: prefer Go 1.27 while retaining Go 1.26 compatibility, refresh Google and MCP SDKs, update tracking worker dependencies and Go tooling, and refresh Docker build actions.
+- AdSense: add read-only `gog adsense` support for accounts, ad clients, ad units, custom/URL channels, alerts, payments, policy issues, sites, and report generation (including saved reports).
 
 ## 0.38.1 - 2026-08-25
 

@@ -1,0 +1,4 @@
+interface:
+  display_name: "gog Google AdSense"
+  short_description: "Operate Google AdSense safely with gog"
+  default_prompt: "Use $gog-adsense to perform this Google AdSense task safely."

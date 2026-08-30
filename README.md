@@ -166,6 +166,7 @@ binary.
 | appscript | yes | Apps Script API | `https://www.googleapis.com/auth/script.projects`<br>`https://www.googleapis.com/auth/script.deployments`<br>`https://www.googleapis.com/auth/script.processes` |  |
 | analytics | yes | Analytics Admin API, Analytics Data API | `https://www.googleapis.com/auth/analytics.readonly` | GA4 account summaries + reporting |
 | searchconsole | yes | Search Console API | `https://www.googleapis.com/auth/webmasters` | Search Analytics + sitemap management |
+| adsense | yes | AdSense Management API | `https://www.googleapis.com/auth/adsense.readonly` | Read-only; the full `adsense` management scope requires Google approval and isn't used here |
 | ads | yes | Google Ads API | `https://www.googleapis.com/auth/adwords` | OAuth scope only |
 | groups | no | Cloud Identity API | `https://www.googleapis.com/auth/cloud-identity.groups.readonly` | Workspace only |
 | keep | no | Keep API | `https://www.googleapis.com/auth/keep` | Workspace only; service account (domain-wide delegation) |

@@ -12,13 +12,13 @@ const check = process.argv.includes("--check");
 const outputArg = process.argv.indexOf("--output");
 const destination = outputArg >= 0 ? resolve(process.argv[outputArg + 1]) : join(root, ".agents", "skills");
 const generatedServices = [
-  "admin", "analytics", "appscript", "calendar", "chat", "classroom", "contacts", "docs",
+  "admin", "adsense", "analytics", "appscript", "calendar", "chat", "classroom", "contacts", "docs",
   "drive", "forms", "gmail", "groups", "keep", "maps", "meet", "people", "photos",
   "searchconsole", "sheets", "sites", "slides", "tasks", "youtube",
 ];
 
 const titles = {
-  admin: "Workspace Admin", analytics: "Google Analytics", appscript: "Apps Script",
+  admin: "Workspace Admin", adsense: "Google AdSense", analytics: "Google Analytics", appscript: "Apps Script",
   calendar: "Google Calendar", chat: "Google Chat", classroom: "Google Classroom",
   contacts: "Google Contacts", docs: "Google Docs", drive: "Google Drive", forms: "Google Forms",
   gmail: "Gmail", groups: "Google Groups", keep: "Google Keep", maps: "Google Maps",
