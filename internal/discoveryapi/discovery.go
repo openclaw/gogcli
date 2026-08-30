@@ -32,6 +32,19 @@ type Client struct {
 	HTTP    *http.Client
 }
 
+type responseError struct {
+	statusCode int
+	body       string
+}
+
+func (e *responseError) Error() string {
+	return fmt.Sprintf("%s: HTTP %d: %s", ErrDiscoveryRequest, e.statusCode, e.body)
+}
+
+func (e *responseError) Unwrap() error {
+	return ErrDiscoveryRequest
+}
+
 type Method struct {
 	ID       string               `json:"id"`
 	Resource string               `json:"resource,omitempty"`
@@ -73,6 +86,14 @@ func (c Client) Description(ctx context.Context, api, version string) (*discover
 	u := c.baseURL() + "/apis/" + url.PathEscape(api) + "/" + url.PathEscape(version) + "/rest"
 
 	raw, err := c.get(ctx, u)
+
+	var responseErr *responseError
+	if err != nil && strings.TrimSpace(c.BaseURL) == "" && errors.As(err, &responseErr) && responseErr.statusCode == http.StatusNotFound {
+		if fallbackURL, ok := serviceHostedDescriptionURL(api, version); ok {
+			raw, err = c.get(ctx, fallbackURL)
+		}
+	}
+
 	if err != nil {
 		return nil, err
 	}
@@ -103,10 +124,32 @@ func (c Client) get(ctx context.Context, requestURL string) (json.RawMessage, er
 	}
 
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		return nil, fmt.Errorf("%w: HTTP %d: %s", ErrDiscoveryRequest, response.StatusCode, strings.TrimSpace(string(raw)))
+		return nil, &responseError{statusCode: response.StatusCode, body: strings.TrimSpace(string(raw))}
 	}
 
 	return raw, nil
+}
+
+func serviceHostedDescriptionURL(api, version string) (string, bool) {
+	service := strings.ToLower(strings.TrimSpace(api))
+	if service == "" || len(service) > 63 || service[0] == '-' || service[len(service)-1] == '-' {
+		return "", false
+	}
+
+	for _, character := range service {
+		if (character < 'a' || character > 'z') && (character < '0' || character > '9') && character != '-' {
+			return "", false
+		}
+	}
+
+	u := url.URL{
+		Scheme:   "https",
+		Host:     service + ".googleapis.com",
+		Path:     "/$discovery/rest",
+		RawQuery: url.Values{"version": {version}}.Encode(),
+	}
+
+	return u.String(), true
 }
 
 func Methods(description *discovery.RestDescription) []Method {
