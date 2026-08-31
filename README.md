@@ -83,6 +83,10 @@ points; the [examples](docs/examples.md) and generated
 | Workspace administration | `gog admin`, `gog groups`, `gog keep` |
 | Discovery API fallback | `gog api describe`, `gog api call` |
 
+Generic API commands support service-hosted Discovery documents such as Meet v2
+when the default central Directory returns 404. Explicit
+`GOG_DISCOVERY_BASE_URL` overrides retain their existing behavior.
+
 Consumer Google accounts work with user-facing APIs. Admin Directory, Cloud
 Identity Groups, Chat, Keep, and domain-wide delegation require a managed
 Google Workspace domain. The [Workspace Admin guide](docs/workspace-admin.md)
