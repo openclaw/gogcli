@@ -351,6 +351,16 @@ gog docs page-layout <docId> --layout pageless
 gog docs page-layout <docId> --layout pages
 ```
 
+Use a named page size when the target is a standard sheet:
+
+```bash
+gog docs page-layout <docId> --page-size A4
+gog docs page-layout <docId> --page-size A3
+```
+
+`--page-size` accepts `A3`, `A4`, `A5`, `Letter`, `Legal`, and `Tabloid`
+(case-insensitive) and cannot be combined with `--page-width` / `--page-height`.
+
 Use explicit page size and margin flags when the output width matters:
 
 ```bash
