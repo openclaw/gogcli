@@ -2,6 +2,7 @@
 
 ## 0.38.2 - Unreleased
 
+- Backup: update age encryption to reject headers larger than 2 MiB or containing more than 1024 recipient stanzas when reading encrypted shards.
 - Docs: validate page-layout sizes and margins before dry-run, and preview the resolved document-style request used for execution. (#1051) — thanks @ryo-touch.
 - HTTP: cap Google Retry-After delays at 60 seconds per retry, including numeric values that exceed integer or duration limits. (#1043) — thanks @SebTardif.
 - Sheets: preserve zero-valued sheet, row, and column indexes in Connected Sheets refresh status references, keeping A1 anchors identifiable. (#938) — thanks @ryo-touch.

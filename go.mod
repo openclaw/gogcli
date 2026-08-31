@@ -6,7 +6,7 @@ toolchain go1.27.0
 
 require (
 	cloud.google.com/go/pubsub/v2 v2.7.0
-	filippo.io/age v1.3.1
+	filippo.io/age v1.3.2
 	github.com/99designs/keyring v1.2.2
 	github.com/alecthomas/kong v1.16.1
 	github.com/google/uuid v1.6.0
@@ -21,7 +21,7 @@ require (
 	golang.org/x/sys v0.47.0
 	golang.org/x/term v0.45.0
 	golang.org/x/text v0.41.0
-	google.golang.org/api v0.294.0
+	google.golang.org/api v0.295.0
 )
 
 require (

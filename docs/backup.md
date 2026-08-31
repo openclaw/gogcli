@@ -232,6 +232,10 @@ checks the plaintext SHA-256 hash from the manifest, and verifies row counts.
 `gog backup cat` and `gog backup export` use the same verification path before
 returning plaintext.
 
+Encrypted shard headers are limited to 2 MiB and 1024 recipient stanzas. Reads
+reject shards exceeding either limit; this bounds header parsing without limiting
+the size of the encrypted backup contents.
+
 ## Security Boundary
 
 The encrypted shards protect Google content from GitHub and anyone else without
