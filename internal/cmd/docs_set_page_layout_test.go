@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -225,6 +226,79 @@ func TestDocsPageLayoutCmd_DryRun(t *testing.T) {
 	}
 	if !errors.As(err, &exitErr) || exitErr.Code != 0 {
 		t.Fatalf("expected dry-run exit 0, got %v", err)
+	}
+}
+
+func TestDocsPageLayoutCmd_ValidatesBeforeServiceOrDryRun(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name string
+		args []string
+		want string
+	}{
+		{"unknown preset", []string{"--page-size=A2"}, "--page-size must be one of"},
+		{"preset and width", []string{"--page-size=A4", "--page-width=100"}, "--page-size cannot be combined"},
+		{"preset and height", []string{"--page-size=A4", "--page-height=100"}, "--page-size cannot be combined"},
+		{"invalid width", []string{"--page-width=0"}, "invalid --page-width"},
+		{"invalid margin", []string{"--margin-left=-1"}, "invalid --margin-left"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			for _, dryRun := range []bool{false, true} {
+				var output bytes.Buffer
+				ctx := withDocsTestServiceFactory(newCmdRuntimeJSONOutputContext(t, &output, io.Discard), func(context.Context, string) (*docs.Service, error) {
+					t.Fatal("invalid layout must not create a Docs service")
+					return nil, errors.New("unexpected Docs service")
+				})
+				err := runKong(t, &DocsPageLayoutCmd{}, append([]string{"doc1"}, tc.args...), ctx, &RootFlags{DryRun: dryRun})
+				if err == nil || !strings.Contains(err.Error(), tc.want) {
+					t.Fatalf("dryRun=%v: got %v, want %q", dryRun, err, tc.want)
+				}
+				if output.Len() != 0 {
+					t.Fatalf("invalid layout emitted a preview: %s", output.String())
+				}
+			}
+		})
+	}
+}
+
+func TestDocsPageLayoutCmd_DryRunResolvedStyle(t *testing.T) {
+	t.Parallel()
+
+	var output bytes.Buffer
+	ctx := withDocsTestServiceFactory(newCmdRuntimeJSONOutputContext(t, &output, io.Discard), func(context.Context, string) (*docs.Service, error) {
+		t.Fatal("dry-run must not resolve tabs or create a Docs service")
+		return nil, errors.New("unexpected Docs service")
+	})
+	err := runKong(t, &DocsPageLayoutCmd{}, []string{"doc1", "--page-size=A4", "--margin-left=0", "--margin-top=1in", "--tab=Secondary"}, ctx, &RootFlags{DryRun: true})
+	var exitErr *ExitError
+	if !errors.As(err, &exitErr) || exitErr.Code != 0 {
+		t.Fatalf("expected dry-run exit 0, got %v", err)
+	}
+	var preview struct {
+		Request struct {
+			Tab      string                           `json:"tab"`
+			PageSize string                           `json:"pageSize"`
+			Update   *docs.UpdateDocumentStyleRequest `json:"updateDocumentStyle"`
+		} `json:"request"`
+	}
+	if err := json.Unmarshal(output.Bytes(), &preview); err != nil {
+		t.Fatal(err)
+	}
+	update := preview.Request.Update
+	if update == nil || update.DocumentStyle == nil || update.DocumentStyle.PageSize == nil {
+		t.Fatalf("missing resolved style: %s", output.String())
+	}
+	style := update.DocumentStyle
+	if style.PageSize.Width.Magnitude != 595.275 || style.PageSize.Height.Magnitude != 841.890 || style.PageSize.Width.Unit != "PT" || style.PageSize.Height.Unit != "PT" {
+		t.Fatalf("unexpected resolved size: %#v", style.PageSize)
+	}
+	if style.MarginLeft == nil || style.MarginLeft.Magnitude != 0 || style.MarginTop == nil || style.MarginTop.Magnitude != 72 || !strings.Contains(output.String(), `"magnitude": 0`) {
+		t.Fatalf("unexpected resolved margins: %s", output.String())
+	}
+	if update.Fields != "pageSize.width,pageSize.height,marginLeft,marginTop" || style.DocumentFormat != nil || update.TabId != "" || preview.Request.Tab != "Secondary" || preview.Request.PageSize != "A4" {
+		t.Fatalf("unexpected preview: %s", output.String())
 	}
 }
 

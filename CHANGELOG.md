@@ -2,6 +2,7 @@
 
 ## 0.38.2 - Unreleased
 
+- Docs: validate page-layout sizes and margins before dry-run, and preview the resolved document-style request used for execution. (#1051) — thanks @ryo-touch.
 - Sheets: preserve zero-valued sheet, row, and column indexes in Connected Sheets refresh status references, keeping A1 anchors identifiable. (#938) — thanks @ryo-touch.
 - Dependencies: prefer Go 1.27 while retaining Go 1.26 compatibility, refresh Google and MCP SDKs, update tracking worker dependencies and Go tooling, and refresh Docker build actions.
 

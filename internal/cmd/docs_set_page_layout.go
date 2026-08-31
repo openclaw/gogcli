@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/alecthomas/kong"
+	"google.golang.org/api/docs/v1"
 
 	"github.com/openclaw/gogcli/internal/outfmt"
 	"github.com/openclaw/gogcli/internal/ui"
@@ -47,8 +48,17 @@ func (c *DocsPageLayoutCmd) Run(ctx context.Context, kctx *kong.Context, flags *
 		return err
 	}
 
+	styleRequest, err := buildUpdateDocumentStyleRequest(docsDocumentStyleOptions{
+		Mode:            mode,
+		DocsLayoutFlags: c.LayoutFlags,
+	})
+	if err != nil {
+		return fmt.Errorf("set page layout: %w", err)
+	}
+
 	dryRunPayload := map[string]any{
-		"documentId": docID,
+		"documentId":          docID,
+		"updateDocumentStyle": styleRequest,
 	}
 	if mode != "" {
 		dryRunPayload["layout"] = c.Layout
@@ -77,11 +87,10 @@ func (c *DocsPageLayoutCmd) Run(ctx context.Context, kctx *kong.Context, flags *
 		}
 	}
 
-	if err := setDocumentStyle(ctx, svc, docID, docsDocumentStyleOptions{
-		Mode:            mode,
-		TabID:           tabID,
-		DocsLayoutFlags: c.LayoutFlags,
-	}); err != nil {
+	styleRequest.TabId = tabID
+	if _, err := svc.Documents.BatchUpdate(docID, &docs.BatchUpdateDocumentRequest{
+		Requests: []*docs.Request{{UpdateDocumentStyle: styleRequest}},
+	}).Context(ctx).Do(); err != nil {
 		if isDocsNotFound(err) {
 			return fmt.Errorf("doc not found or not a Google Doc (id=%s)", docID)
 		}

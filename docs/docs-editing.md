@@ -366,6 +366,12 @@ flags are supplied; pass `--layout` when you also want to toggle pageless/pages.
 `--pageless` preserves Google Docs' existing width unless `--page-width` is set
 explicitly.
 
+`docs page-layout --dry-run --json` validates page sizes, dimensions, and
+margins before accessing Google. Its `request.updateDocumentStyle` preview
+includes the resolved point dimensions and field mask used for execution;
+the original flag values remain available alongside it. A requested tab is
+shown by name and resolved only when the command executes.
+
 Command page:
 
 - [`gog docs page-layout`](commands/gog-docs-page-layout.md)
