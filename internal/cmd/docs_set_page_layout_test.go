@@ -209,6 +209,45 @@ func TestNormalizePageLayout(t *testing.T) {
 	}
 }
 
+func TestResolveDocsPageSize(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name       string
+		pageSize   string
+		pageWidth  string
+		pageHeight string
+		wantWidth  string
+		wantHeight string
+		wantErr    bool
+	}{
+		{name: "empty passes dimensions through", pageWidth: "960", pageHeight: "540", wantWidth: "960", wantHeight: "540"},
+		{name: "a3", pageSize: "A3", wantWidth: "841.890pt", wantHeight: "1190.551pt"},
+		{name: "a3 lowercase", pageSize: "a3", wantWidth: "841.890pt", wantHeight: "1190.551pt"},
+		{name: "a3 padded", pageSize: "  A3  ", wantWidth: "841.890pt", wantHeight: "1190.551pt"},
+		{name: "a4", pageSize: "A4", wantWidth: "595.275pt", wantHeight: "841.890pt"},
+		{name: "unknown name", pageSize: "A2", wantErr: true},
+		{name: "combined with width", pageSize: "A3", pageWidth: "960", wantErr: true},
+		{name: "combined with height", pageSize: "A3", pageHeight: "540", wantErr: true},
+	}
+	for _, tc := range cases {
+		gotWidth, gotHeight, err := resolveDocsPageSize(tc.pageSize, tc.pageWidth, tc.pageHeight)
+		if tc.wantErr {
+			if err == nil {
+				t.Errorf("%s: expected error, got %q x %q", tc.name, gotWidth, gotHeight)
+			}
+			continue
+		}
+		if err != nil {
+			t.Errorf("%s: unexpected error: %v", tc.name, err)
+			continue
+		}
+		if gotWidth != tc.wantWidth || gotHeight != tc.wantHeight {
+			t.Errorf("%s: got %q x %q, want %q x %q", tc.name, gotWidth, gotHeight, tc.wantWidth, tc.wantHeight)
+		}
+	}
+}
+
 func TestDocsPageLayoutCmd_DryRun(t *testing.T) {
 	t.Parallel()
 
@@ -347,6 +386,56 @@ func TestDocsPageLayoutCmd_PageSizeAndMargins(t *testing.T) {
 	}
 	if style.MarginLeft.Magnitude != 36 || style.MarginRight.Magnitude != 36 {
 		t.Fatalf("unexpected margins: left=%#v right=%#v", style.MarginLeft, style.MarginRight)
+	}
+}
+
+func TestDocsPageLayoutCmd_NamedPageSizeA3(t *testing.T) {
+	t.Parallel()
+
+	var batchRequests [][]*docs.Request
+
+	docSvc, cleanup := newDocsServiceForTest(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodPost && strings.Contains(r.URL.Path, ":batchUpdate"):
+			var req docs.BatchUpdateDocumentRequest
+			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+				t.Fatalf("decode: %v", err)
+			}
+			batchRequests = append(batchRequests, req.Requests)
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{"documentId": "doc1"})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer cleanup()
+
+	flags := &RootFlags{Account: "a@b.com"}
+	ctx := withDocsTestService(newCmdRuntimeOutputContext(t, io.Discard, io.Discard), docSvc)
+
+	if err := runKong(t, &DocsPageLayoutCmd{}, []string{"doc1", "--page-size=A3"}, ctx, flags); err != nil {
+		t.Fatalf("page-layout A3: %v", err)
+	}
+
+	if len(batchRequests) != 1 || len(batchRequests[0]) != 1 {
+		t.Fatalf("expected 1 batch request with 1 op, got %#v", batchRequests)
+	}
+	upd := batchRequests[0][0].UpdateDocumentStyle
+	if upd == nil || upd.DocumentStyle == nil {
+		t.Fatalf("expected UpdateDocumentStyle, got %#v", batchRequests[0][0])
+	}
+	if upd.Fields != "pageSize.width,pageSize.height" {
+		t.Fatalf("fields = %q", upd.Fields)
+	}
+	if upd.DocumentStyle.DocumentFormat != nil {
+		t.Fatalf("unexpected document mode update: %#v", upd.DocumentStyle.DocumentFormat)
+	}
+	size := upd.DocumentStyle.PageSize
+	if size.Width.Magnitude != 841.890 || size.Height.Magnitude != 1190.551 {
+		t.Fatalf("unexpected A3 page size: %#v", size)
+	}
+	if size.Width.Unit != "PT" || size.Height.Unit != "PT" {
+		t.Fatalf("unexpected units: %#v", size)
 	}
 }
 
