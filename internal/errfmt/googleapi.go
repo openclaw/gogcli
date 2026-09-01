@@ -43,6 +43,11 @@ var (
 
 func formatGoogleAPIError(gerr *ggoogleapi.Error) string {
 	reason := googleAPIErrorReason(gerr)
+	if googleAPIRequiresQuotaProject(gerr) {
+		return googleAPIGenericError(gerr, reason) +
+			"\nSet a quota project with --quota-project <project-id> or GOG_QUOTA_PROJECT. The API must be enabled on that project."
+	}
+
 	if googleAPIIsDisabled(gerr, reason) {
 		if hint, ok := googleAPIHintForError(gerr); ok {
 			tail := fmt.Sprintf("Then retry the command. If you enabled it on a different OAuth client, re-authenticate with: gog auth add <account> --services %s", hint.Service)
@@ -59,11 +64,28 @@ func formatGoogleAPIError(gerr *ggoogleapi.Error) string {
 		}
 	}
 
+	return googleAPIGenericError(gerr, reason)
+}
+
+func googleAPIGenericError(gerr *ggoogleapi.Error, reason string) string {
 	if reason != "" {
 		return fmt.Sprintf("Google API error (%d %s): %s", gerr.Code, reason, gerr.Message)
 	}
 
 	return fmt.Sprintf("Google API error (%d): %s", gerr.Code, gerr.Message)
+}
+
+func googleAPIRequiresQuotaProject(gerr *ggoogleapi.Error) bool {
+	if gerr == nil || gerr.Code != 403 {
+		return false
+	}
+
+	message := strings.ToLower(gerr.Message)
+	for _, item := range gerr.Errors {
+		message += " " + strings.ToLower(item.Message)
+	}
+
+	return strings.Contains(message, "requires a quota project")
 }
 
 func googleAPIErrorReason(gerr *ggoogleapi.Error) string {

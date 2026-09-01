@@ -213,6 +213,9 @@ func mcpParentRootArgs(flags *RootFlags) []string {
 	if s := strings.TrimSpace(flags.Client); s != "" {
 		args = append(args, "--client", s)
 	}
+	if s := strings.TrimSpace(flags.QuotaProject); s != "" {
+		args = append(args, "--quota-project", s)
+	}
 	if flags.ResultsOnly {
 		args = append(args, "--results-only")
 	}

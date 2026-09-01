@@ -157,10 +157,7 @@ func authenticatedTransportWithStoredScopeCheck(
 		storedOAuth, _ = ts.(*persistingTokenSource)
 	}
 
-	retryTransport := NewRetryTransport(&oauth2.Transport{
-		Source: ts,
-		Base:   newBaseTransport(),
-	})
+	retryTransport := newAuthenticatedRetryTransport(ctx, ts)
 
 	if refresher, ok := ts.(interface {
 		ForceRefresh(context.Context) error
@@ -227,11 +224,17 @@ func optionsForServiceAccountScopes(ctx context.Context, serviceLabel string, em
 
 func tokenSourceClientOptions(ctx context.Context, ts oauth2.TokenSource) []option.ClientOption {
 	return []option.ClientOption{option.WithHTTPClient(&http.Client{
-		Transport: readOnlyTransportFromContext(ctx, NewRetryTransport(&oauth2.Transport{
-			Source: ts,
-			Base:   newBaseTransport(),
-		})),
+		Transport: readOnlyTransportFromContext(ctx, newAuthenticatedRetryTransport(ctx, ts)),
 	})}
+}
+
+// Context-driven layers (such as the quota project header) must be wired
+// here so every credential path gets them.
+func newAuthenticatedRetryTransport(ctx context.Context, ts oauth2.TokenSource) *RetryTransport {
+	return NewRetryTransport(&oauth2.Transport{
+		Source: ts,
+		Base:   quotaProjectTransportFromContext(ctx, newBaseTransport()),
+	})
 }
 
 func optionsForAccountScopesWithStoredScopeCheck(

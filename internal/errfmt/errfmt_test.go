@@ -100,6 +100,47 @@ func TestFormat_GoogleAPIError(t *testing.T) {
 	}
 }
 
+func TestFormat_GoogleAPIError_QuotaProjectRequiredHint(t *testing.T) {
+	tests := []struct {
+		name    string
+		message string
+	}{
+		{
+			// Sheets is in the enablement-hint table; the quota-project hint
+			// must win over the misleading "not enabled" advice.
+			name: "hinted API",
+			message: "Your application is authenticating by using local Application Default Credentials. " +
+				"The sheets.googleapis.com API requires a quota project, which is not set by default.",
+		},
+		{
+			name: "unhinted API",
+			message: "Your application is authenticating by using local Application Default Credentials. " +
+				"The calendar-json.googleapis.com API requires a quota project, which is not set by default. " +
+				"To learn how to set your quota project, see https://cloud.google.com/docs/authentication/adc-troubleshooting/user-creds .",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			err := &ggoogleapi.Error{
+				Code:    403,
+				Message: test.message,
+				Errors: []ggoogleapi.ErrorItem{
+					{Reason: "accessNotConfigured"},
+				},
+			}
+
+			got := Format(err)
+			if !containsAll(got, "--quota-project", "GOG_QUOTA_PROJECT", test.message) {
+				t.Fatalf("expected quota project hint, got: %q", got)
+			}
+
+			if strings.Contains(got, "is not enabled for this OAuth project") || strings.Contains(got, "gog auth add") {
+				t.Fatalf("must not suggest API enablement for quota project errors: %q", got)
+			}
+		})
+	}
+}
+
 func TestFormat_GoogleAPIError_AccessNotConfiguredHint(t *testing.T) {
 	err := &ggoogleapi.Error{
 		Code: 403,

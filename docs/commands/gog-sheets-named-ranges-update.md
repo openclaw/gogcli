@@ -34,6 +34,7 @@ gog sheets (sheet) named-ranges (namedranges,nr) update (edit,set) <spreadsheetI
 | `--name` | `string` |  | New name |
 | `--no-input`<br>`--non-interactive`<br>`--noninteractive` | `bool` |  | Never prompt; fail instead (useful for CI) |
 | `-p`<br>`--plain`<br>`--tsv` | `bool` | false | Output stable, parseable text to stdout (TSV; no colors) |
+| `--quota-project` | `string` |  | Google Cloud project to bill for API usage (sent as X-Goog-User-Project; some APIs require it with --access-token or ADC) |
 | `--range` | `string` |  | New A1 range (must include sheet name; e.g. Sheet1!A1:B2 or Sheet1!A:C) |
 | `--readonly` | `bool` | false | Block mutating API requests at runtime; auth add also requests read-only OAuth scopes |
 | `--results-only` | `bool` |  | In JSON mode, emit only the primary result (drops envelope fields like nextPageToken) |

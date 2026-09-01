@@ -41,6 +41,7 @@ gog searchconsole (gsc,search-console,webmasters) searchanalytics (analytics) qu
 | `--no-input`<br>`--non-interactive`<br>`--noninteractive` | `bool` |  | Never prompt; fail instead (useful for CI) |
 | `--offset`<br>`--start-row` | `int64` | 0 | Row offset for pagination |
 | `-p`<br>`--plain`<br>`--tsv` | `bool` | false | Output stable, parseable text to stdout (TSV; no colors) |
+| `--quota-project` | `string` |  | Google Cloud project to bill for API usage (sent as X-Goog-User-Project; some APIs require it with --access-token or ADC) |
 | `--readonly` | `bool` | false | Block mutating API requests at runtime; auth add also requests read-only OAuth scopes |
 | `--request` | `string` |  | SearchAnalyticsQueryRequest JSON spec. Accepts @file, a plain file path, -, or inline JSON. |
 | `--results-only` | `bool` |  | In JSON mode, emit only the primary result (drops envelope fields like nextPageToken) |

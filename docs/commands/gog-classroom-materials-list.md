@@ -38,6 +38,7 @@ gog classroom (class) materials (material) list (ls) <courseId> [flags]
 | `--order-by` | `string` |  | Order by (e.g., updateTime desc) |
 | `--page`<br>`--cursor` | `string` |  | Page token |
 | `-p`<br>`--plain`<br>`--tsv` | `bool` | false | Output stable, parseable text to stdout (TSV; no colors) |
+| `--quota-project` | `string` |  | Google Cloud project to bill for API usage (sent as X-Goog-User-Project; some APIs require it with --access-token or ADC) |
 | `--readonly` | `bool` | false | Block mutating API requests at runtime; auth add also requests read-only OAuth scopes |
 | `--results-only` | `bool` |  | In JSON mode, emit only the primary result (drops envelope fields like nextPageToken) |
 | `--scan-pages` | `int` | 3 | Pages to scan when filtering by topic |

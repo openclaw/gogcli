@@ -47,6 +47,7 @@ gog drive (drv) changes serve --state-file=STRING [flags]
 | `--on-change` | `string` |  | Trusted local shell command run for each non-empty change batch; event JSON is provided on stdin |
 | `--path` | `string` | /drive-changes | Notification handler path |
 | `-p`<br>`--plain`<br>`--tsv` | `bool` | false | Output stable, parseable text to stdout (TSV; no colors) |
+| `--quota-project` | `string` |  | Google Cloud project to bill for API usage (sent as X-Goog-User-Project; some APIs require it with --access-token or ADC) |
 | `--readonly` | `bool` | false | Block mutating API requests at runtime; auth add also requests read-only OAuth scopes |
 | `--renew-before` | `time.Duration` | 10m | Renew this long before channel expiration |
 | `--results-only` | `bool` |  | In JSON mode, emit only the primary result (drops envelope fields like nextPageToken) |

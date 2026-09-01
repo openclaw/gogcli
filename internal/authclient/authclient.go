@@ -13,6 +13,7 @@ import (
 type (
 	contextKey               struct{}
 	accessTokenKey           struct{}
+	quotaProjectKey          struct{}
 	resolverKey              struct{}
 	emailReferenceUpdaterKey struct{}
 	credentialsReaderKey     struct{}
@@ -71,6 +72,29 @@ func AccessTokenFromContext(ctx context.Context) string {
 	}
 
 	if v := ctx.Value(accessTokenKey{}); v != nil {
+		if s, ok := v.(string); ok {
+			return s
+		}
+	}
+
+	return ""
+}
+
+func WithQuotaProject(ctx context.Context, project string) context.Context {
+	project = strings.TrimSpace(project)
+	if project == "" {
+		return ctx
+	}
+
+	return context.WithValue(ctx, quotaProjectKey{}, project)
+}
+
+func QuotaProjectFromContext(ctx context.Context) string {
+	if ctx == nil {
+		return ""
+	}
+
+	if v := ctx.Value(quotaProjectKey{}); v != nil {
 		if s, ok := v.(string); ok {
 			return s
 		}

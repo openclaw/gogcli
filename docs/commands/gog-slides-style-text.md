@@ -39,6 +39,7 @@ gog slides (slide) style-text --range=STRING <presentationId> <objectId> [flags]
 | `--no-italic` | `bool` |  | Clear italic |
 | `--no-underline` | `bool` |  | Clear underline |
 | `-p`<br>`--plain`<br>`--tsv` | `bool` | false | Output stable, parseable text to stdout (TSV; no colors) |
+| `--quota-project` | `string` |  | Google Cloud project to bill for API usage (sent as X-Goog-User-Project; some APIs require it with --access-token or ADC) |
 | `--range` | `string` |  | UTF-16 text range as start:end |
 | `--readonly` | `bool` | false | Block mutating API requests at runtime; auth add also requests read-only OAuth scopes |
 | `--results-only` | `bool` |  | In JSON mode, emit only the primary result (drops envelope fields like nextPageToken) |

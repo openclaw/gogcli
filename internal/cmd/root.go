@@ -36,6 +36,7 @@ type RootFlags struct {
 	Account             string `help:"Account email, alias, or auto for authenticated Google API commands" aliases:"acct" short:"a"`
 	Client              string `help:"OAuth client name (selects stored credentials + token bucket)" default:"${client}"`
 	AccessToken         string `help:"Use provided access token directly (bypasses stored refresh tokens; token expires in ~1h)" env:"GOG_ACCESS_TOKEN"`
+	QuotaProject        string `help:"Google Cloud project to bill for API usage (sent as X-Goog-User-Project; some APIs require it with --access-token or ADC)" env:"GOG_QUOTA_PROJECT,GOOGLE_CLOUD_QUOTA_PROJECT"`
 	EnableCommands      string `help:"Comma-separated list of enabled command prefixes; dot paths allowed (restricts CLI)" default:"${enabled_commands}"`
 	EnableCommandsExact string `name:"enable-commands-exact" help:"Comma-separated list of exact enabled commands; dot paths allowed and parent commands do not enable children" default:"${enabled_commands_exact}"`
 	DisableCommands     string `help:"Comma-separated list of disabled commands; dot paths allowed" default:"${disabled_commands}"`
@@ -316,6 +317,7 @@ func executeWithRuntime(args []string, runtime *app.Runtime) (err error) {
 	}
 	ctx = authclient.WithClient(ctx, cli.Client)
 	ctx = authclient.WithAccessToken(ctx, directAccessToken(&cli.RootFlags))
+	ctx = authclient.WithQuotaProject(ctx, cli.QuotaProject)
 
 	uiColor := cli.Color
 	if outfmt.IsJSON(ctx) || outfmt.IsPlain(ctx) {
@@ -509,7 +511,7 @@ func preScanHomeArg(args []string) (string, bool) {
 
 func globalFlagTakesValue(flag string) bool {
 	switch flag {
-	case "--color", "--account", "--acct", "--client", "--access-token", "--enable-commands", "--enable-commands-exact", "--disable-commands", "--select", "--pick", "--project", "--home", "-a":
+	case "--color", "--account", "--acct", "--client", "--access-token", "--quota-project", "--enable-commands", "--enable-commands-exact", "--disable-commands", "--select", "--pick", "--project", "--home", "-a":
 		return true
 	default:
 		return false

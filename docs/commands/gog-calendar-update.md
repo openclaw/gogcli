@@ -59,6 +59,7 @@ gog calendar (cal) update (edit,set) <calendarId> <eventId> [flags]
 | `--place-region` | `string` |  | Places API region code for location lookup |
 | `-p`<br>`--plain`<br>`--tsv` | `bool` | false | Output stable, parseable text to stdout (TSV; no colors) |
 | `--private-prop` | `[]string` |  | Private extended property (key=value, can be repeated) |
+| `--quota-project` | `string` |  | Google Cloud project to bill for API usage (sent as X-Goog-User-Project; some APIs require it with --access-token or ADC) |
 | `--readonly` | `bool` | false | Block mutating API requests at runtime; auth add also requests read-only OAuth scopes |
 | `--regenerate-meet` | `bool` |  | Replace the event's Google Meet video conference |
 | `--regenerate-zoom` | `bool` |  | Replace the event's Zoom video conference |

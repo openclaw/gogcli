@@ -38,6 +38,7 @@ gog backup cat <shard> [flags]
 | `--out` | `string` |  | Write decrypted JSONL to this file instead of stdout |
 | `-p`<br>`--plain`<br>`--tsv` | `bool` | false | Output stable, parseable text to stdout (TSV; no colors) |
 | `--pretty` | `bool` |  | Pretty-print each JSONL row |
+| `--quota-project` | `string` |  | Google Cloud project to bill for API usage (sent as X-Goog-User-Project; some APIs require it with --access-token or ADC) |
 | `--readonly` | `bool` | false | Block mutating API requests at runtime; auth add also requests read-only OAuth scopes |
 | `--remote` | `string` |  | Backup Git remote URL |
 | `--repo` | `string` |  | Local backup repository path |

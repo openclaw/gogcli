@@ -193,6 +193,7 @@ func TestMCPParentArgsPreserveContextAndSafety(t *testing.T) {
 		Home:                "/tmp/gog-home",
 		Account:             "bot@example.com",
 		Client:              "test-client",
+		QuotaProject:        "quota-proj",
 		ResultsOnly:         true,
 		Select:              "messages",
 		DryRun:              true,
@@ -203,7 +204,7 @@ func TestMCPParentArgsPreserveContextAndSafety(t *testing.T) {
 		DisableCommands:     "drive.delete",
 	}
 	base := strings.Join(mcpParentRootArgs(flags), "\x00")
-	for _, want := range []string{"--json", "--wrap-untrusted", "--no-input", "--color=never", "--home\x00/tmp/gog-home", "--account\x00bot@example.com", "--client\x00test-client", "--results-only", "--select\x00messages", "--dry-run"} {
+	for _, want := range []string{"--json", "--wrap-untrusted", "--no-input", "--color=never", "--home\x00/tmp/gog-home", "--account\x00bot@example.com", "--client\x00test-client", "--quota-project\x00quota-proj", "--results-only", "--select\x00messages", "--dry-run"} {
 		if !strings.Contains(base, want) {
 			t.Fatalf("base args missing %q in %#v", want, mcpParentRootArgs(flags))
 		}

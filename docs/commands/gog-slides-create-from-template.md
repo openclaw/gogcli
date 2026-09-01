@@ -35,6 +35,7 @@ gog slides (slide) create-from-template <templateId> <title> [flags]
 | `--no-input`<br>`--non-interactive`<br>`--noninteractive` | `bool` |  | Never prompt; fail instead (useful for CI) |
 | `--parent` | `string` |  | Destination folder ID |
 | `-p`<br>`--plain`<br>`--tsv` | `bool` | false | Output stable, parseable text to stdout (TSV; no colors) |
+| `--quota-project` | `string` |  | Google Cloud project to bill for API usage (sent as X-Goog-User-Project; some APIs require it with --access-token or ADC) |
 | `--readonly` | `bool` | false | Block mutating API requests at runtime; auth add also requests read-only OAuth scopes |
 | `--replace` | `[]string` |  | Text replacement in format 'key=value' (repeatable) |
 | `--replacements` | `string` |  | JSON file containing replacements |

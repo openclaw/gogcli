@@ -43,6 +43,7 @@ gog slides (slide) table cell style --row=INT-64 --col=INT-64 <presentationId> <
 | `--no-italic` | `bool` |  | Clear cell text italic |
 | `--no-underline` | `bool` |  | Clear cell text underline |
 | `-p`<br>`--plain`<br>`--tsv` | `bool` | false | Output stable, parseable text to stdout (TSV; no colors) |
+| `--quota-project` | `string` |  | Google Cloud project to bill for API usage (sent as X-Goog-User-Project; some APIs require it with --access-token or ADC) |
 | `--range` | `string` |  | Optional UTF-16 text range as start:end; defaults to all cell text |
 | `--readonly` | `bool` | false | Block mutating API requests at runtime; auth add also requests read-only OAuth scopes |
 | `--results-only` | `bool` |  | In JSON mode, emit only the primary result (drops envelope fields like nextPageToken) |

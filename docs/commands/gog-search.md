@@ -38,6 +38,7 @@ gog search (find) <query> ... [flags]
 | `--page`<br>`--cursor` | `string` |  | Page token |
 | `--parent` | `string` |  | Scope search to direct children of a specific folder or shared drive. Wraps the query with "'<parentId>' in parents". |
 | `-p`<br>`--plain`<br>`--tsv` | `bool` | false | Output stable, parseable text to stdout (TSV; no colors) |
+| `--quota-project` | `string` |  | Google Cloud project to bill for API usage (sent as X-Goog-User-Project; some APIs require it with --access-token or ADC) |
 | `--raw-query`<br>`--raw` | `bool` |  | Treat query as Drive query language (pass through; may error if invalid) |
 | `--readonly` | `bool` | false | Block mutating API requests at runtime; auth add also requests read-only OAuth scopes |
 | `--results-only` | `bool` |  | In JSON mode, emit only the primary result (drops envelope fields like nextPageToken) |

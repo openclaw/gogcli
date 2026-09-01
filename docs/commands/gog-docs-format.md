@@ -62,6 +62,7 @@ gog docs (doc) format <docId> [flags]
 | `--no-underline` | `bool` |  | Clear underline |
 | `--ordered` | `bool` |  | Create a numbered list with the default decimal preset |
 | `-p`<br>`--plain`<br>`--tsv` | `bool` | false | Output stable, parseable text to stdout (TSV; no colors) |
+| `--quota-project` | `string` |  | Google Cloud project to bill for API usage (sent as X-Goog-User-Project; some APIs require it with --access-token or ADC) |
 | `--readonly` | `bool` | false | Block mutating API requests at runtime; auth add also requests read-only OAuth scopes |
 | `--results-only` | `bool` |  | In JSON mode, emit only the primary result (drops envelope fields like nextPageToken) |
 | `--segment` | `string` |  | Target an exact header, footer, or footnote segment ID |

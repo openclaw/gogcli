@@ -46,6 +46,7 @@ gog contacts (contact) update (edit,set) <resourceName> [flags]
 | `--org` | `string` |  | Organization/company name (empty clears) |
 | `--phone` | `string` |  | Phone number (empty clears) |
 | `-p`<br>`--plain`<br>`--tsv` | `bool` | false | Output stable, parseable text to stdout (TSV; no colors) |
+| `--quota-project` | `string` |  | Google Cloud project to bill for API usage (sent as X-Goog-User-Project; some APIs require it with --access-token or ADC) |
 | `--readonly` | `bool` | false | Block mutating API requests at runtime; auth add also requests read-only OAuth scopes |
 | `--relation` | `[]string` |  | Relation as type=person (can be repeated; empty clears all) |
 | `--results-only` | `bool` |  | In JSON mode, emit only the primary result (drops envelope fields like nextPageToken) |

@@ -70,6 +70,32 @@ Shows stored credential files plus any configured domain mappings.
 - Manual or remote authorization started before v0.24.0 cannot be completed
   after upgrading. Run step 1 again to generate a PKCE-bound URL.
 
+## Quota project
+
+Some Google APIs (Calendar and other non-Cloud APIs) reject credentials that
+carry no quota project, returning `403 accessNotConfigured` even when the API
+is enabled. This affects `--access-token` values minted by
+`gcloud auth print-access-token` and `GOG_AUTH_MODE=adc` credentials; stored
+OAuth tokens are unaffected because the OAuth client's own project provides
+quota.
+
+Pass `--quota-project <project-id>` (or set `GOG_QUOTA_PROJECT`) to bill API
+usage to a project you control. The standard `GOOGLE_CLOUD_QUOTA_PROJECT`
+variable is honored when `GOG_QUOTA_PROJECT` is not set. `gog` then sends
+`X-Goog-User-Project` on every authenticated request:
+
+```bash
+GOG_AUTH_MODE=adc GOG_QUOTA_PROJECT=my-project gog calendar events list
+```
+
+The target API must be enabled on that project, and the authenticated
+principal needs the `serviceusage.services.use` permission there (included
+in `roles/serviceusage.serviceUsageConsumer`). ADC must also be granted the
+scopes gog requests — for example `https://www.googleapis.com/auth/calendar`
+for calendar commands, via `gcloud auth application-default login
+--scopes=...` — or requests fail with `403 insufficientPermissions` before
+the quota project matters.
+
 ## Workspace service accounts
 
 Workspace Admin, group, org-unit, and Keep automation commonly run through a

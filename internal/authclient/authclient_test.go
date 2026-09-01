@@ -46,6 +46,26 @@ func TestAccessTokenFromContext_NilContext(t *testing.T) {
 	}
 }
 
+func TestWithQuotaProject_EmptyProject(t *testing.T) {
+	ctx := context.Background()
+	if got := QuotaProjectFromContext(WithQuotaProject(ctx, "")); got != "" {
+		t.Fatalf("expected empty quota project, got %q", got)
+	}
+}
+
+func TestWithQuotaProject_TrimsWhitespace(t *testing.T) {
+	ctx := context.Background()
+	if got := QuotaProjectFromContext(WithQuotaProject(ctx, "  my-project  ")); got != "my-project" {
+		t.Fatalf("expected trimmed quota project, got %q", got)
+	}
+}
+
+func TestQuotaProjectFromContext_NilContext(t *testing.T) {
+	if got := QuotaProjectFromContext(nil); got != "" { //nolint:staticcheck // intentional nil regression coverage
+		t.Fatalf("expected empty quota project, got %q", got)
+	}
+}
+
 func TestResolveClientUsesContextResolver(t *testing.T) {
 	t.Parallel()
 
