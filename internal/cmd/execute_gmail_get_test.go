@@ -166,7 +166,7 @@ func TestExecute_GmailGet_Metadata_DefaultHeadersIncludeThreading(t *testing.T) 
 		}
 		want := []string{
 			"From", "To", "Cc", "Bcc", "Subject", "Date",
-			"Message-ID", "In-Reply-To", "References", "List-Unsubscribe",
+			"Reply-To", "Message-ID", "In-Reply-To", "References", "List-Unsubscribe",
 		}
 		if gotHeaders := r.URL.Query()["metadataHeaders"]; !containsAll(gotHeaders, want) {
 			t.Errorf("metadataHeaders=%#v missing one of %v", gotHeaders, want)
@@ -179,6 +179,7 @@ func TestExecute_GmailGet_Metadata_DefaultHeadersIncludeThreading(t *testing.T) 
 			"threadId": "t1",
 			"payload": map[string]any{
 				"headers": []map[string]any{
+					{"name": "Reply-To", "value": "reply@example.com"},
 					{"name": "Message-ID", "value": "<orig@id>"},
 					{"name": "In-Reply-To", "value": "<parent@id>"},
 					{"name": "References", "value": "<parent@id> <orig@id>"},
@@ -197,7 +198,7 @@ func TestExecute_GmailGet_Metadata_DefaultHeadersIncludeThreading(t *testing.T) 
 	if result.err != nil {
 		t.Fatalf("Execute: %v\nstderr=%q", result.err, result.stderr)
 	}
-	if !strings.Contains(result.stdout, "<orig@id>") || !strings.Contains(result.stdout, "<parent@id>") {
+	if !strings.Contains(result.stdout, "reply@example.com") || !strings.Contains(result.stdout, "<orig@id>") || !strings.Contains(result.stdout, "<parent@id>") {
 		t.Fatalf("expected threading headers in metadata JSON, got: %q", result.stdout)
 	}
 }

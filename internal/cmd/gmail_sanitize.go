@@ -96,6 +96,7 @@ func extractSanitizedHTMLText(value string) string {
 func sanitizedGmailHeaders(p *gmail.MessagePart) map[string]string {
 	headers := map[string]string{
 		"from":        sanitizeGmailText(headerValue(p, "From")),
+		"reply_to":    sanitizeGmailText(headerValue(p, "Reply-To")),
 		"to":          sanitizeGmailText(headerValue(p, "To")),
 		"cc":          sanitizeGmailText(headerValue(p, "Cc")),
 		"bcc":         sanitizeGmailText(headerValue(p, "Bcc")),

@@ -27,6 +27,7 @@ func TestGmailGetCmd_JSON_Full(t *testing.T) {
 				"body":     map[string]any{"data": bodyData},
 				"headers": []map[string]any{
 					{"name": "From", "value": "a@example.com"},
+					{"name": "Reply-To", "value": "reply@example.com"},
 					{"name": "To", "value": "b@example.com"},
 					{"name": "Cc", "value": "c@example.com"},
 					{"name": "Bcc", "value": "d@example.com"},
@@ -67,6 +68,9 @@ func TestGmailGetCmd_JSON_Full(t *testing.T) {
 	}
 	if headers["bcc"] != "d@example.com" {
 		t.Fatalf("unexpected bcc header: %v", headers["bcc"])
+	}
+	if headers["reply_to"] != "reply@example.com" {
+		t.Fatalf("unexpected reply_to header: %v", headers["reply_to"])
 	}
 }
 

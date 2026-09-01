@@ -72,6 +72,7 @@ func TestGmailGetCmd_SanitizeContent_JSONUsesSafeEnvelope(t *testing.T) {
 				"body":     map[string]any{"data": htmlBody},
 				"headers": []map[string]any{
 					{"name": "From", "value": "a@example.com"},
+					{"name": "Reply-To", "value": "reply@example.com"},
 					{"name": "To", "value": "b@example.com"},
 					{"name": "Subject", "value": "Visit https://evil.example now"},
 					{"name": "Date", "value": "Fri, 26 Dec 2025 10:00:00 +0000"},
@@ -118,6 +119,9 @@ func TestGmailGetCmd_SanitizeContent_JSONUsesSafeEnvelope(t *testing.T) {
 	}
 	if parsed.Headers["subject"] != "Visit [url removed] now" {
 		t.Fatalf("unexpected sanitized subject: %#v", parsed.Headers)
+	}
+	if parsed.Headers["reply_to"] != "reply@example.com" {
+		t.Fatalf("unexpected sanitized reply_to: %#v", parsed.Headers)
 	}
 
 	result = executeWithGmailTestService(
