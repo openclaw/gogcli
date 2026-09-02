@@ -419,7 +419,7 @@ func TestExecute_ChatMessagesSearch_JSON_AllPages(t *testing.T) {
 	})
 
 	result := executeWithChatTestService(t, []string{
-		"--json", "--account", "a@b.com", "chat", "messages", "search", "project", "one",
+		"--json", "--wrap-untrusted", "--account", "a@b.com", "chat", "messages", "search", "project", "one",
 		"--max", "2", "--all", "--order", "create_time desc", "--view", "full", "--markup", "markdown",
 	}, svc)
 	if result.err != nil {
@@ -437,6 +437,9 @@ func TestExecute_ChatMessagesSearch_JSON_AllPages(t *testing.T) {
 	}
 	if got.Results[0].Space != "spaces/aaa" || got.Results[0].Read == nil || *got.Results[0].Read {
 		t.Fatalf("unexpected first result: %#v", got.Results[0])
+	}
+	if !strings.Contains(got.Results[0].FormattedText, "EXTERNAL_UNTRUSTED_CONTENT") || !strings.Contains(got.Results[0].FormattedText, "**project one** decision") {
+		t.Fatalf("formatted text was not wrapped as untrusted content: %q", got.Results[0].FormattedText)
 	}
 	if got.Results[1].Space != "spaces/bbb" || got.Results[1].Read == nil || !*got.Results[1].Read || got.Results[1].SpaceMuteSetting != "MUTED" {
 		t.Fatalf("unexpected second result: %#v", got.Results[1])
