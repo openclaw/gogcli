@@ -1,5 +1,7 @@
 # Changelog
 
+## Unreleased
+
 ## 0.38.2 - 2026-09-02
 
 - Gmail: preserve direct `--access-token` / `GOG_ACCESS_TOKEN` authentication in `gmail watch serve` push handlers without requiring stored OAuth credentials; token expiry and refresh behavior remain unchanged. (#1042) — thanks @bill-starfoundry.
