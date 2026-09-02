@@ -1,8 +1,11 @@
 package cmd
 
 import (
+	"io"
 	"strings"
 	"testing"
+
+	"github.com/alecthomas/kong"
 )
 
 const lockedFlagsProfile = `
@@ -321,15 +324,44 @@ gmail:
 // has to count as given or it never reaches the request. Lock enforcement asks the
 // narrower question and must not see itself as an override.
 func TestLockedFlag_CountsAsProvidedButNotAsTyped(t *testing.T) {
-	previous := lockedFlagNames
-	lockedFlagNames = map[string]bool{"summary": true}
-	t.Cleanup(func() { lockedFlagNames = previous })
+	withBakedSafetyProfile(t, lockedFlagsProfile)
+	parse := func(args ...string) *kong.Context {
+		t.Helper()
+		parser, _, err := newParserWithWriters("test", io.Discard, io.Discard)
+		if err != nil {
+			t.Fatal(err)
+		}
+		kctx, err := parser.Parse(args)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := enforceLockedFlags(kctx); err != nil {
+			t.Fatal(err)
+		}
+		return kctx
+	}
 
-	if !flagProvided(nil, "summary") {
+	first := parse("gmail", "get", "m1")
+	if !flagProvided(first, "sanitize-content") {
 		t.Fatal("a locked flag must count as provided")
 	}
-	if flagOnCommandLine(nil, "summary") {
+	if flagOnCommandLine(first, "sanitize-content") {
 		t.Fatal("a locked flag must not count as typed on the command line")
+	}
+
+	second := parse("version")
+	if !flagProvided(first, "sanitize-content") {
+		t.Fatal("a second parse cleared the first parse's locked flags")
+	}
+	if flagProvided(second, "sanitize-content") || flagProvided(nil, "sanitize-content") || flagProvided(&kong.Context{}, "sanitize-content") {
+		t.Fatal("a locked flag leaked to an unrelated parse")
+	}
+	message := usage("--sanitize-content is incompatible with this request")
+	if !strings.Contains(errorMessage(first, message), `locked by baked safety profile "locked"`) {
+		t.Fatal("a second parse cleared the first parse's locked-flag note")
+	}
+	if strings.Contains(errorMessage(second, message), "note:") || strings.Contains(errorMessage(nil, message), "note:") {
+		t.Fatal("a locked-flag note leaked to an unrelated parse")
 	}
 }
 

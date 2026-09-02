@@ -195,6 +195,9 @@ A locked flag behaves as follows:
 A lock the binary cannot enforce is refused at build time rather than silently
 ignored.
 
+Lock presence, output-mode precedence, and diagnostic notes belong to each parsed
+invocation; they are not shared between command executions.
+
 Because a locked value reaches the command without appearing on the command line, a
 usage error that names a locked flag carries a note saying where the value came from:
 

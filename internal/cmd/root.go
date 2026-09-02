@@ -119,7 +119,7 @@ func Execute(args []string) (err error) {
 }
 
 func executeWithRuntime(args []string, runtime *app.Runtime) (err error) {
-	resetLockedFlagState()
+	var kctx *kong.Context
 	runtime = normalizedRuntime(runtime)
 	runtimeIO := runtime.IO
 
@@ -130,20 +130,20 @@ func executeWithRuntime(args []string, runtime *app.Runtime) (err error) {
 
 	home, homeProvided := preScanHomeArg(args)
 	if bindErr := bindRuntimeLayoutResolver(runtime, home); bindErr != nil {
-		return reportEarlyError(runtimeIO.Err, newUsageError(bindErr))
+		return reportEarlyError(kctx, runtimeIO.Err, newUsageError(bindErr))
 	}
 	if homeProvided {
 		if validateErr := runtime.LayoutResolver.ValidateHomeOverride(); validateErr != nil {
-			return reportEarlyError(runtimeIO.Err, newUsageError(validateErr))
+			return reportEarlyError(kctx, runtimeIO.Err, newUsageError(validateErr))
 		}
 	}
 
 	parser, cli, err := newParserWithWriters(helpDescription(runtime), runtimeIO.Out, runtimeIO.Err)
 	if err != nil {
-		return reportEarlyError(runtimeIO.Err, err)
+		return reportEarlyError(kctx, runtimeIO.Err, err)
 	}
 	if err = verifyLockedFlagsExist(parser.Model.Node); err != nil {
-		return reportEarlyError(runtimeIO.Err, err)
+		return reportEarlyError(kctx, runtimeIO.Err, err)
 	}
 	args = rewriteDocsCellUpdateContentArgs(parser.Model, args)
 	args = rewriteDesirePathArgs(parser.Model, args)
@@ -162,9 +162,9 @@ func executeWithRuntime(args []string, runtime *app.Runtime) (err error) {
 		}
 	}()
 
-	kctx, err := parser.Parse(args)
+	kctx, err = parser.Parse(args)
 	if err != nil {
-		return reportEarlyError(runtimeIO.Err, wrapParseError(err))
+		return reportEarlyError(kctx, runtimeIO.Err, wrapParseError(err))
 	}
 	cli.diagnostics = runtimeIO.Err
 	cli.authOperations = runtime.Auth
@@ -190,24 +190,24 @@ func executeWithRuntime(args []string, runtime *app.Runtime) (err error) {
 	}
 
 	if err = enforceBakedSafetyProfile(kctx); err != nil {
-		return reportEarlyError(runtimeIO.Err, err)
+		return reportEarlyError(kctx, runtimeIO.Err, err)
 	}
 	if err = enforceLockedFlags(kctx); err != nil {
-		return reportEarlyError(runtimeIO.Err, err)
+		return reportEarlyError(kctx, runtimeIO.Err, err)
 	}
 	// After the locks, so a locked output mode is what precedence resolves around
 	// rather than something a competing mode can leave in conflict.
 	if err = applyExplicitOutputModePrecedence(kctx, &cli.RootFlags); err != nil {
-		return reportEarlyError(runtimeIO.Err, err)
+		return reportEarlyError(kctx, runtimeIO.Err, err)
 	}
 	if err = enforceEnabledCommands(kctx, cli.EnableCommands, cli.EnableCommandsExact); err != nil {
-		return reportEarlyError(runtimeIO.Err, err)
+		return reportEarlyError(kctx, runtimeIO.Err, err)
 	}
 	if err = enforceDisabledCommands(kctx, cli.DisableCommands); err != nil {
-		return reportEarlyError(runtimeIO.Err, err)
+		return reportEarlyError(kctx, runtimeIO.Err, err)
 	}
 	if err = enforceGmailNoSend(kctx, &cli.RootFlags, runtime); err != nil {
-		return reportEarlyError(runtimeIO.Err, err)
+		return reportEarlyError(kctx, runtimeIO.Err, err)
 	}
 
 	logLevel := slog.LevelWarn
@@ -222,11 +222,11 @@ func executeWithRuntime(args []string, runtime *app.Runtime) (err error) {
 
 	mode, err := outfmt.FromFlags(cli.JSON, cli.Plain)
 	if err != nil {
-		return reportEarlyError(runtimeIO.Err, newUsageError(err))
+		return reportEarlyError(kctx, runtimeIO.Err, newUsageError(err))
 	}
 	err = validateJSONTransformFlags(mode, &cli.RootFlags)
 	if err != nil {
-		return reportEarlyError(runtimeIO.Err, err)
+		return reportEarlyError(kctx, runtimeIO.Err, err)
 	}
 
 	ctx := context.Background()
@@ -328,7 +328,7 @@ func executeWithRuntime(args []string, runtime *app.Runtime) (err error) {
 		Color:  uiColor,
 	})
 	if err != nil {
-		return reportEarlyError(runtimeIO.Err, newUsageError(err))
+		return reportEarlyError(kctx, runtimeIO.Err, newUsageError(err))
 	}
 	ctx = ui.WithUI(ctx, u)
 
@@ -346,13 +346,13 @@ func executeWithRuntime(args []string, runtime *app.Runtime) (err error) {
 	err = stableExitCode(err)
 
 	if u := ui.FromContext(ctx); u != nil {
-		msg := errorMessage(err)
+		msg := errorMessage(kctx, err)
 		if msg != "" {
 			u.Err().Error(msg)
 		}
 		return err
 	}
-	msg := errorMessage(err)
+	msg := errorMessage(kctx, err)
 	if msg != "" {
 		_, _ = fmt.Fprintln(runtimeIO.Err, msg)
 	}
@@ -422,19 +422,20 @@ func applyExplicitOutputModePrecedence(kctx *kong.Context, flags *RootFlags) err
 		return nil
 	}
 
-	jsonLocked := lockedFlagNames["json"] && flags.JSON
-	plainLocked := lockedFlagNames["plain"] && flags.Plain
+	locked := lockedFlagStateFor(kctx)
+	jsonLocked := locked.has("json") && flags.JSON
+	plainLocked := locked.has("plain") && flags.Plain
 	jsonSet := flagOnCommandLine(kctx, "json")
 	plainSet := flagOnCommandLine(kctx, "plain")
 	switch {
 	case jsonLocked && !plainLocked:
 		if plainSet {
-			return usagef("flag --plain conflicts with --json, locked by baked safety profile %q", bakedSafetyProfileName())
+			return usagef("flag --plain conflicts with --json, locked by baked safety profile %q", locked.profileName)
 		}
 		flags.Plain = false
 	case plainLocked && !jsonLocked:
 		if jsonSet {
-			return usagef("flag --json conflicts with --plain, locked by baked safety profile %q", bakedSafetyProfileName())
+			return usagef("flag --json conflicts with --plain, locked by baked safety profile %q", locked.profileName)
 		}
 		flags.JSON = false
 	case jsonSet && !plainSet:
@@ -445,11 +446,11 @@ func applyExplicitOutputModePrecedence(kctx *kong.Context, flags *RootFlags) err
 	return nil
 }
 
-func reportEarlyError(w io.Writer, err error) error {
+func reportEarlyError(kctx *kong.Context, w io.Writer, err error) error {
 	if err == nil {
 		return nil
 	}
-	msg := errorMessage(err)
+	msg := errorMessage(kctx, err)
 	if msg != "" {
 		_, _ = fmt.Fprintln(w, msg)
 	}
@@ -458,7 +459,7 @@ func reportEarlyError(w io.Writer, err error) error {
 
 // errorMessage formats err for display and appends a special locked-flag note to
 // errors that mention another locked flag, as when those flags are mutually exclusive.
-func errorMessage(err error) string {
+func errorMessage(kctx *kong.Context, err error) string {
 	msg := strings.TrimSpace(errfmt.Format(err))
 	if msg == "" {
 		return msg
@@ -470,7 +471,7 @@ func errorMessage(err error) string {
 	if errors.As(err, &refusal) {
 		return msg
 	}
-	note := lockedFlagsNote(msg)
+	note := lockedFlagsNote(kctx, msg)
 	if note == "" {
 		return msg
 	}

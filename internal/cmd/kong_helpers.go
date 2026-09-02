@@ -7,7 +7,7 @@ import "github.com/alecthomas/kong"
 // flags were given would otherwise drop a locked value on the floor, leaving the
 // lock set on the struct but absent from the request.
 func flagProvided(kctx *kong.Context, name string) bool {
-	return flagOnCommandLine(kctx, name) || lockedFlagNames[name]
+	return flagOnCommandLine(kctx, name) || lockedFlagStateFor(kctx).has(name)
 }
 
 // flagOnCommandLine reports only what the caller typed. Lock enforcement and
