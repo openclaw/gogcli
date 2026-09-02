@@ -441,6 +441,9 @@ func TestExecute_ChatMessagesSearch_JSON_AllPages(t *testing.T) {
 	if !strings.Contains(got.Results[0].FormattedText, "EXTERNAL_UNTRUSTED_CONTENT") || !strings.Contains(got.Results[0].FormattedText, "**project one** decision") {
 		t.Fatalf("formatted text was not wrapped as untrusted content: %q", got.Results[0].FormattedText)
 	}
+	if !strings.Contains(got.Results[0].Sender, "EXTERNAL_UNTRUSTED_CONTENT") || !strings.Contains(got.Results[0].Sender, "Ada") {
+		t.Fatalf("sender was not wrapped as untrusted content: %q", got.Results[0].Sender)
+	}
 	if got.Results[1].Space != "spaces/bbb" || got.Results[1].Read == nil || !*got.Results[1].Read || got.Results[1].SpaceMuteSetting != "MUTED" {
 		t.Fatalf("unexpected second result: %#v", got.Results[1])
 	}
