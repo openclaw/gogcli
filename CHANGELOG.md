@@ -1,12 +1,16 @@
 # Changelog
 
-## 0.38.2 - Unreleased
+## 0.38.2 - 2026-09-02
 
-- Backup: update age encryption to reject headers larger than 2 MiB or containing more than 1024 recipient stanzas when reading encrypted shards.
-- Docs: validate page-layout sizes and margins before dry-run, and preview the resolved document-style request used for execution. (#1051) — thanks @ryo-touch.
+- Gmail: preserve direct `--access-token` / `GOG_ACCESS_TOKEN` authentication in `gmail watch serve` push handlers without requiring stored OAuth credentials; token expiry and refresh behavior remain unchanged. (#1042) — thanks @bill-starfoundry.
+- Gmail: stop `--from-contact` fallback lookup with a clear error when Google repeats a page token, while preserving exact-match and ambiguity checks across all pages. (#1045) — thanks @SebTardif.
+- People/Contacts: stop raw email-identifier lookup when Google repeats a page token, preserving unique-resource matching and ambiguity checks without partial output. (#1044) — thanks @SebTardif.
+- Contacts: stop contact exports safely when group listings repeat a page token, preserving vCard categories across all pages without writing a partial export. (#1046) — thanks @SebTardif.
+- Backup: update age encryption to reject headers larger than 2 MiB or containing more than 1024 recipient stanzas when reading encrypted shards. (#1053)
+- Docs: validate page-layout sizes and margins before dry-run, and preview the resolved document-style request used for execution. (#1052, #1051) — thanks @ryo-touch.
 - HTTP: cap Google Retry-After delays at 60 seconds per retry, including numeric values that exceed integer or duration limits. (#1043) — thanks @SebTardif.
-- Sheets: preserve zero-valued sheet, row, and column indexes in Connected Sheets refresh status references, keeping A1 anchors identifiable. (#938) — thanks @ryo-touch.
-- Dependencies: prefer Go 1.27 while retaining Go 1.26 compatibility, refresh Google and MCP SDKs, update tracking worker dependencies and Go tooling, and refresh Docker build actions.
+- Sheets: preserve zero-valued sheet, row, and column indexes in Connected Sheets refresh status references, keeping A1 anchors identifiable. (#1041, #938) — thanks @ryo-touch.
+- Dependencies: prefer Go 1.27 while retaining Go 1.26 compatibility, refresh Google and MCP SDKs, update tracking worker dependencies and Go tooling, and refresh Docker build actions. (#1040, #1053)
 - API: resolve service-hosted Discovery documents such as Meet v2 after a default-directory 404, preserving explicit overrides and Google request-host safeguards. (#1049, #1048) — thanks @goutamadwant.
 
 ## 0.38.1 - 2026-08-25
