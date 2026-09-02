@@ -457,6 +457,7 @@ func TestExecute_ChatMessagesSearch_Text(t *testing.T) {
 					"text":       "decision\nwith context",
 					"createTime": "2026-08-31T12:00:00Z",
 					"sender":     map[string]any{"displayName": "Ada"},
+					"thread":     map[string]any{"name": "spaces/aaa/threads/thread1"},
 				},
 			}},
 			"nextPageToken": "next",
@@ -467,11 +468,13 @@ func TestExecute_ChatMessagesSearch_Text(t *testing.T) {
 	if result.err != nil {
 		t.Fatalf("Execute: %v", result.err)
 	}
-	if !strings.Contains(result.stdout, "RESOURCE") || !strings.Contains(result.stdout, "SPACE") || !strings.Contains(result.stdout, "decision with context") {
+	if !strings.Contains(result.stdout, "RESOURCE") || !strings.Contains(result.stdout, "SPACE") || !strings.Contains(result.stdout, "THREAD") || !strings.Contains(result.stdout, "spaces/aaa/threads/thread1") || !strings.Contains(result.stdout, "decision with context") {
 		t.Fatalf("unexpected stdout: %q", result.stdout)
 	}
-	if strings.Contains(result.stdout, "READ") {
-		t.Fatalf("basic view unexpectedly rendered READ column: %q", result.stdout)
+	for _, column := range strings.Fields(strings.SplitN(result.stdout, "\n", 2)[0]) {
+		if column == "READ" {
+			t.Fatalf("basic view unexpectedly rendered READ column: %q", result.stdout)
+		}
 	}
 	if !strings.Contains(result.stderr, "--page next") {
 		t.Fatalf("unexpected stderr: %q", result.stderr)

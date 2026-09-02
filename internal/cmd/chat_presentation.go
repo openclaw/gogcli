@@ -35,6 +35,7 @@ func chatMessageSearchColumns(includeRead bool) []outfmt.Column[*chatMessageSear
 	columns := []outfmt.Column[*chatMessageSearchItem]{
 		{Header: "RESOURCE", Value: func(item *chatMessageSearchItem) string { return item.Resource }},
 		{Header: "SPACE", Value: func(item *chatMessageSearchItem) string { return item.Space }},
+		{Header: "THREAD", Value: func(item *chatMessageSearchItem) string { return item.Thread }},
 		{Header: "SENDER", Value: func(item *chatMessageSearchItem) string { return sanitizeTab(item.Sender) }},
 		{Header: "TIME", Value: func(item *chatMessageSearchItem) string { return sanitizeTab(item.CreateTime) }},
 		{Header: "TEXT", Value: func(item *chatMessageSearchItem) string { return sanitizeChatText(item.Text) }},
