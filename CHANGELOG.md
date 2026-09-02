@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Backup: stop Chat and Classroom pagination loops while preserving already-fetched Classroom child rows when a later ordinary API request fails. (#1063) — thanks @SebTardif.
+- Drive: reject repeated page tokens during `drive sync push` scans before writing files or emitting a partial plan. (#1065) — thanks @SebTardif.
+- Drive: stop permission audits and bulk permission preflights on repeated page tokens without partial audit output or permission writes. (#1066) — thanks @SebTardif.
+- CLI: isolate baked safety-profile locked flags, output precedence, and diagnostic notes per command invocation, fixing shared locked-flag state races. (#1067)
+- Gmail: document the HTML-body workaround for drafts that Gmail web rewraps when sending, without changing MIME defaults. (#1064, #1058) — thanks @daveotero.
+
 ## 0.38.2 - 2026-09-02
 
 - Gmail: preserve direct `--access-token` / `GOG_ACCESS_TOKEN` authentication in `gmail watch serve` push handlers without requiring stored OAuth credentials; token expiry and refresh behavior remain unchanged. (#1042) — thanks @bill-starfoundry.
