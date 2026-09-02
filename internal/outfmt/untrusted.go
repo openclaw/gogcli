@@ -280,6 +280,7 @@ var untrustedContentStringKeys = map[string]bool{
 	"question":           true,
 	"quote":              true,
 	"raw":                true,
+	"replyto":            true,
 	"renderedtext":       true,
 	"sheet":              true,
 	"snippet":            true,
