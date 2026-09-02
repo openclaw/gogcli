@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"errors"
+	"os"
 	"strings"
 	"testing"
 
@@ -242,58 +243,56 @@ func TestExecute_AccessTokenWarningUsesRuntimeStderr(t *testing.T) {
 
 func TestExecute_QuotaProjectReachesCommandContext(t *testing.T) {
 	stopErr := errors.New("stop after context inspection")
-	var gotQuotaProject string
-	result := executeWithTestRuntime(t, []string{
-		"--access-token", "ya29.test-token",
-		"--quota-project", "my-quota-project",
-		"drive", "ls",
-	}, &app.Runtime{Services: app.Services{
-		Drive: func(ctx context.Context, _ string) (*drive.Service, error) {
-			gotQuotaProject = authclient.QuotaProjectFromContext(ctx)
-			return nil, stopErr
-		},
-	}})
-	if !errors.Is(result.err, stopErr) {
-		t.Fatalf("Execute error = %v, want %v", result.err, stopErr)
-	}
-	if gotQuotaProject != "my-quota-project" {
-		t.Fatalf("quota project = %q, want my-quota-project", gotQuotaProject)
-	}
-}
-
-func TestExecute_QuotaProjectHonorsStandardGoogleEnv(t *testing.T) {
-	stopErr := errors.New("stop after context inspection")
 
 	tests := []struct {
-		name string
-		env  map[string]string
-		want string
+		name            string
+		flagProject     string
+		gogProject      string
+		standardProject string
+		want            string
 	}{
 		{
-			name: "GOOGLE_CLOUD_QUOTA_PROJECT fallback",
-			env:  map[string]string{"GOOGLE_CLOUD_QUOTA_PROJECT": "std-project"},
-			want: "std-project",
+			name:        "explicit flag",
+			flagProject: "flag-project",
+			want:        "flag-project",
 		},
 		{
-			name: "GOG_QUOTA_PROJECT wins over standard env",
-			env: map[string]string{
-				"GOG_QUOTA_PROJECT":          "gog-project",
-				"GOOGLE_CLOUD_QUOTA_PROJECT": "std-project",
-			},
-			want: "gog-project",
+			name:            "GOG_QUOTA_PROJECT",
+			gogProject:      "gog-project",
+			standardProject: "std-project",
+			want:            "gog-project",
+		},
+		{
+			name:            "flag overrides environment",
+			flagProject:     "flag-project",
+			gogProject:      "gog-project",
+			standardProject: "std-project",
+			want:            "flag-project",
+		},
+		{
+			name:            "standard environment alone ignored",
+			standardProject: "std-project",
 		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			for key, value := range test.env {
-				t.Setenv(key, value)
+			t.Setenv("GOG_QUOTA_PROJECT", test.gogProject)
+			t.Setenv("GOOGLE_CLOUD_QUOTA_PROJECT", test.standardProject)
+			if test.gogProject == "" {
+				// An empty-but-present value masks lower-priority env fallbacks.
+				if err := os.Unsetenv("GOG_QUOTA_PROJECT"); err != nil {
+					t.Fatal(err)
+				}
 			}
 
+			args := []string{"--access-token", "ya29.test-token"}
+			if test.flagProject != "" {
+				args = append(args, "--quota-project", test.flagProject)
+			}
+			args = append(args, "drive", "ls")
+
 			var gotQuotaProject string
-			result := executeWithTestRuntime(t, []string{
-				"--access-token", "ya29.test-token",
-				"drive", "ls",
-			}, &app.Runtime{Services: app.Services{
+			result := executeWithTestRuntime(t, args, &app.Runtime{Services: app.Services{
 				Drive: func(ctx context.Context, _ string) (*drive.Service, error) {
 					gotQuotaProject = authclient.QuotaProjectFromContext(ctx)
 					return nil, stopErr

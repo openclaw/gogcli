@@ -72,29 +72,34 @@ Shows stored credential files plus any configured domain mappings.
 
 ## Quota project
 
-Some Google APIs (Calendar and other non-Cloud APIs) reject credentials that
-carry no quota project, returning `403 accessNotConfigured` even when the API
-is enabled. This affects `--access-token` values minted by
-`gcloud auth print-access-token` and `GOG_AUTH_MODE=adc` credentials; stored
-OAuth tokens are unaffected because the OAuth client's own project provides
-quota.
-
-Pass `--quota-project <project-id>` (or set `GOG_QUOTA_PROJECT`) to bill API
-usage to a project you control. The standard `GOOGLE_CLOUD_QUOTA_PROJECT`
-variable is honored when `GOG_QUOTA_PROJECT` is not set. `gog` then sends
-`X-Goog-User-Project` on every authenticated request:
+Some Google APIs reject ADC or direct access tokens when they cannot identify
+a quota project, even if the API is enabled in a project you control. Set
+`--quota-project <project-id>` or `GOG_QUOTA_PROJECT` to send that project in
+the `X-Goog-User-Project` header on authenticated Google API requests:
 
 ```bash
-GOG_AUTH_MODE=adc GOG_QUOTA_PROJECT=my-project gog calendar events list
+GOG_AUTH_MODE=adc gog --readonly --quota-project my-project calendar events
+GOG_AUTH_MODE=adc GOG_QUOTA_PROJECT=my-project gog --readonly calendar events
 ```
 
-The target API must be enabled on that project, and the authenticated
-principal needs the `serviceusage.services.use` permission there (included
-in `roles/serviceusage.serviceUsageConsumer`). ADC must also be granted the
-scopes gog requests — for example `https://www.googleapis.com/auth/calendar`
-for calendar commands, via `gcloud auth application-default login
---scopes=...` — or requests fail with `403 insufficientPermissions` before
-the quota project matters.
+The flag takes precedence over `GOG_QUOTA_PROJECT`. When both are unset, gog
+adds no quota-project header and existing authentication behavior is unchanged.
+`GOOGLE_CLOUD_QUOTA_PROJECT` and an ADC file's `quota_project_id` do not activate
+this setting; configure the flag or gog-specific variable explicitly.
+
+The setting applies to stored OAuth, direct-token, ADC, and delegated
+service-account clients. A request's existing `X-Goog-User-Project` header takes
+precedence. Gmail watch request clients and MCP commands retain the selected
+project. API-key-only requests are unchanged.
+
+The target API must be enabled on the project, and the authenticated principal
+needs `serviceusage.services.use` there, such as through
+`roles/serviceusage.serviceUsageConsumer`. See Google's
+[quota-project requirements](https://docs.cloud.google.com/docs/quotas/set-quota-project).
+This option does not grant IAM permissions or OAuth scopes, enable APIs, or
+configure billing. Credentials still need the command's API scopes; for example,
+ADC Calendar credentials need an appropriate Calendar scope independently of the
+quota project.
 
 ## Workspace service accounts
 

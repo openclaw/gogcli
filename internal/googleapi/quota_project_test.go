@@ -5,7 +5,9 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"golang.org/x/oauth2"
 	"google.golang.org/api/option"
@@ -14,42 +16,82 @@ import (
 	"github.com/openclaw/gogcli/internal/authclient"
 )
 
-func TestNewHTTPClientForScopes_SetsQuotaProjectHeader(t *testing.T) {
-	var gotQuotaProject, gotAuthorization string
+func TestQuotaProjectClients_SetHeader(t *testing.T) {
+	for _, tt := range []struct {
+		name      string
+		generated bool
+		adc       bool
+	}{
+		{name: "raw_direct_token"},
+		{name: "generated_direct_token", generated: true},
+		{name: "generated_adc", generated: true, adc: true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			var requests atomic.Int32
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		gotQuotaProject = r.Header.Get("X-Goog-User-Project")
-		gotAuthorization = r.Header.Get("Authorization")
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				requests.Add(1)
 
-		w.WriteHeader(http.StatusOK)
-	}))
-	defer srv.Close()
+				if got := r.Header.Get("X-Goog-User-Project"); got != "my-quota-project" {
+					t.Errorf("X-Goog-User-Project = %q, want my-quota-project", got)
+				}
 
-	ctx := authclient.WithAccessToken(context.Background(), "ya29.test-access-token")
-	ctx = authclient.WithQuotaProject(ctx, "my-quota-project")
+				if got := r.Header.Get("Authorization"); got != "Bearer quota-test-token" {
+					t.Errorf("Authorization = %q, want Bearer quota-test-token", got)
+				}
 
-	client, err := NewHTTPClientForScopes(ctx, "svc", "a@b.com", []string{"s1"})
-	if err != nil {
-		t.Fatalf("NewHTTPClientForScopes: %v", err)
-	}
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = w.Write([]byte(`{}`))
+			}))
+			defer srv.Close()
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL, nil)
-	if err != nil {
-		t.Fatalf("new request: %v", err)
-	}
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
 
-	resp, err := client.Do(req)
-	if err != nil {
-		t.Fatalf("do request: %v", err)
-	}
-	defer resp.Body.Close()
+			ctx = authclient.WithQuotaProject(ctx, "my-quota-project")
+			if tt.adc {
+				ctx = WithAuthDependencies(ctx, AuthDependencies{
+					Mode: AuthModeADC,
+					ADCTokenSource: func(context.Context, ...string) (oauth2.TokenSource, error) {
+						return oauth2.StaticTokenSource(&oauth2.Token{AccessToken: "quota-test-token"}), nil
+					},
+				})
+			} else {
+				ctx = authclient.WithAccessToken(ctx, "quota-test-token")
+			}
 
-	if gotQuotaProject != "my-quota-project" {
-		t.Fatalf("X-Goog-User-Project = %q, want my-quota-project", gotQuotaProject)
-	}
+			if tt.generated {
+				svc, err := NewTasks(ctx, "a@b.com")
+				if err != nil {
+					t.Fatalf("NewTasks: %v", err)
+				}
 
-	if gotAuthorization == "" {
-		t.Fatal("expected Authorization header alongside quota project header")
+				svc.BasePath = srv.URL + "/"
+				if _, err := svc.Tasklists.List().Context(ctx).Do(); err != nil {
+					t.Fatalf("tasklists list: %v", err)
+				}
+			} else {
+				client, err := NewHTTPClientForScopes(ctx, "svc", "a@b.com", []string{"s1"})
+				if err != nil {
+					t.Fatalf("NewHTTPClientForScopes: %v", err)
+				}
+
+				req, err := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL, nil)
+				if err != nil {
+					t.Fatalf("new request: %v", err)
+				}
+
+				resp, err := client.Do(req)
+				if err != nil {
+					t.Fatalf("do request: %v", err)
+				}
+				_ = resp.Body.Close()
+			}
+
+			if got := requests.Load(); got != 1 {
+				t.Fatalf("requests = %d, want 1", got)
+			}
+		})
 	}
 }
 
@@ -90,26 +132,118 @@ func TestOptionsForServiceAccountScopes_ADCModeSetsQuotaProjectHeader(t *testing
 	}
 }
 
-func TestQuotaProjectTransport_PassesBaseErrorThroughUnchanged(t *testing.T) {
+func TestQuotaProjectTransport_ClonesRequestAndPreservesBaseError(t *testing.T) {
 	ctx := authclient.WithQuotaProject(context.Background(), "my-quota-project")
-	transport := quotaProjectTransportFromContext(ctx, &mockTransport{errors: []error{errBoom}})
+	var forwarded *http.Request
+
+	transport := quotaProjectTransportFromContext(ctx, roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		forwarded = req
+		req.Header.Set("X-Test", "changed")
+
+		return nil, errBoom
+	}))
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "https://example.invalid", nil)
 	if err != nil {
 		t.Fatalf("new request: %v", err)
 	}
 
+	req.Header.Set("X-Test", "original")
+
 	resp, err := transport.RoundTrip(req)
 	if resp != nil {
 		_ = resp.Body.Close()
 	}
 
-	if !errors.Is(err, errBoom) {
-		t.Fatalf("error = %v, want base error", err)
+	if err != errBoom { //nolint:err113,errorlint // Verify exact error identity, not just an unwrap match.
+		t.Fatalf("error = %v, want unchanged base error", err)
 	}
 
-	if err.Error() != errBoom.Error() {
-		t.Fatalf("error message = %q, want %q unchanged", err.Error(), errBoom.Error())
+	if forwarded == nil || forwarded == req {
+		t.Fatal("expected a cloned request at the base transport")
+	}
+
+	if forwarded.Context() != req.Context() {
+		t.Fatal("request context changed")
+	}
+
+	if got := forwarded.Header.Get("X-Goog-User-Project"); got != "my-quota-project" {
+		t.Fatalf("forwarded X-Goog-User-Project = %q, want my-quota-project", got)
+	}
+
+	if got := req.Header.Get("X-Goog-User-Project"); got != "" {
+		t.Fatalf("original request gained X-Goog-User-Project = %q", got)
+	}
+
+	if got := req.Header.Get("X-Test"); got != "original" {
+		t.Fatalf("original request header changed to %q", got)
+	}
+}
+
+func TestNewHTTPClientForScopes_QuotaProjectPreservesRetryAndReadOnly(t *testing.T) {
+	var requests atomic.Int32
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		attempt := requests.Add(1)
+
+		if got := r.Header.Get("X-Goog-User-Project"); got != "my-quota-project" {
+			t.Errorf("X-Goog-User-Project = %q, want my-quota-project", got)
+		}
+
+		if attempt == 1 {
+			w.Header().Set("Retry-After", "0")
+			w.WriteHeader(http.StatusTooManyRequests)
+
+			return
+		}
+
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	ctx = authclient.WithAccessToken(ctx, "quota-test-token")
+	ctx = authclient.WithQuotaProject(ctx, "my-quota-project")
+	ctx = WithReadOnly(ctx, true)
+
+	client, err := NewHTTPClientForScopes(ctx, "svc", "a@b.com", []string{"s1"})
+	if err != nil {
+		t.Fatalf("NewHTTPClientForScopes: %v", err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL, nil)
+	if err != nil {
+		t.Fatalf("new request: %v", err)
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatalf("do request: %v", err)
+	}
+	_ = resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK || requests.Load() != 2 {
+		t.Fatalf("status = %d, requests = %d, want 200 after 2 attempts", resp.StatusCode, requests.Load())
+	}
+
+	req, err = http.NewRequestWithContext(ctx, http.MethodDelete, srv.URL, nil)
+	if err != nil {
+		t.Fatalf("new request: %v", err)
+	}
+
+	resp, err = client.Do(req)
+	if resp != nil {
+		_ = resp.Body.Close()
+	}
+
+	if !errors.Is(err, ErrReadOnly) {
+		t.Fatalf("DELETE error = %v, want ErrReadOnly", err)
+	}
+
+	if got := requests.Load(); got != 2 {
+		t.Fatalf("requests = %d, want 2; read-only DELETE reached the server", got)
 	}
 }
 

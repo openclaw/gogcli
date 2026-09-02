@@ -2,7 +2,6 @@
 
 ## 0.38.2 - Unreleased
 
-- Auth: add a global `--quota-project` flag (`GOG_QUOTA_PROJECT`, with `GOOGLE_CLOUD_QUOTA_PROJECT` as fallback) that sends `X-Goog-User-Project` on authenticated requests, so APIs that require a quota project (such as Calendar) work with `--access-token` and `GOG_AUTH_MODE=adc` credentials; the "requires a quota project" 403 now points at the flag. (#1056, #1055)
 - Backup: update age encryption to reject headers larger than 2 MiB or containing more than 1024 recipient stanzas when reading encrypted shards.
 - Docs: validate page-layout sizes and margins before dry-run, and preview the resolved document-style request used for execution. (#1051) — thanks @ryo-touch.
 - HTTP: cap Google Retry-After delays at 60 seconds per retry, including numeric values that exceed integer or duration limits. (#1043) — thanks @SebTardif.
