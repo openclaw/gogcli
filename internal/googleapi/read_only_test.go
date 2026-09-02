@@ -69,6 +69,7 @@ func TestReadOnlyPOSTAllowlist(t *testing.T) {
 		"https://searchconsole.googleapis.com/webmasters/v3/sites/example/searchAnalytics/query",
 		"https://searchconsole.googleapis.com/v1/urlInspection/index:inspect",
 		"https://photoslibrary.googleapis.com/v1/mediaItems:search",
+		"https://chat.googleapis.com/v1/spaces/-/messages:search",
 		"https://sheets.googleapis.com/v4/spreadsheets/id/values:batchGetByDataFilter",
 		"https://driveactivity.googleapis.com/v2/activity:query",
 		"https://analyticsdata.googleapis.com/v1beta/properties/1:runReport",
@@ -89,6 +90,9 @@ func TestReadOnlyPOSTAllowlist(t *testing.T) {
 		"https://example.test/calendar/v3/freeBusy",
 		"https://www.googleapis.com/v2/activity:query",
 		"https://driveactivity.googleapis.com/v2/items:query",
+		"http://chat.googleapis.com/v1/spaces/-/messages:search",
+		"https://chat.googleapis.com/v1/spaces/abc/messages:search",
+		"https://chat.googleapis.com/v1/spaces/abc/messages",
 		"https://sheets.googleapis.com/v4/spreadsheets/id:batchUpdate",
 	}
 	for _, requestURL := range blocked {

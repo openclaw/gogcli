@@ -2,7 +2,7 @@
 
 Every `gog` command has a generated docs page. The source of truth is the live CLI schema; run `make docs-commands` after changing command names, flags, help text, aliases, or arguments.
 
-Generated pages: 728.
+Generated pages: 729.
 
 ## Top-level Commands
 
@@ -177,6 +177,7 @@ Generated pages: 728.
         - [gog chat messages reactions create](gog-chat-messages-reactions-create.md) - Add an emoji reaction to a message
         - [gog chat messages reactions delete](gog-chat-messages-reactions-delete.md) - Delete a reaction
         - [gog chat messages reactions list](gog-chat-messages-reactions-list.md) - List reactions on a message
+      - [gog chat messages search](gog-chat-messages-search.md) - Search messages across Chat
       - [gog chat messages send](gog-chat-messages-send.md) - Send a message
     - [gog chat spaces](gog-chat-spaces.md) - Chat spaces
       - [gog chat spaces create](gog-chat-spaces-create.md) - Create a space

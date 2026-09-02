@@ -358,6 +358,146 @@ func TestExecute_ChatMessagesList_Text_Unread(t *testing.T) {
 	}
 }
 
+func TestExecute_ChatMessagesSearch_JSON_AllPages(t *testing.T) {
+	requestCount := 0
+	svc := useFakeChatService(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost || !strings.HasSuffix(r.URL.Path, "/spaces/-/messages:search") {
+			http.NotFound(w, r)
+			return
+		}
+		var req chat.SearchMessagesRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			t.Fatalf("decode request: %v", err)
+		}
+		if req.Filter != "project one" || req.PageSize != 2 || req.OrderBy != "create_time desc" {
+			t.Fatalf("unexpected request: %#v", req)
+		}
+		if req.View != "SEARCH_MESSAGES_VIEW_FULL" || req.MarkupSyntax != "MARKUP_SYNTAX_MARKDOWN" {
+			t.Fatalf("unexpected view/markup: %#v", req)
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		requestCount++
+		switch requestCount {
+		case 1:
+			if req.PageToken != "" {
+				t.Fatalf("first page token = %q", req.PageToken)
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"results": []map[string]any{{
+					"message": map[string]any{
+						"name":          "spaces/aaa/messages/msg1",
+						"text":          "project one decision",
+						"formattedText": "**project one** decision",
+						"createTime":    "2026-08-30T12:00:00Z",
+						"sender":        map[string]any{"displayName": "Ada"},
+						"thread":        map[string]any{"name": "spaces/aaa/threads/t1"},
+					},
+					"read": false,
+				}},
+				"nextPageToken": "p2",
+			})
+		case 2:
+			if req.PageToken != "p2" {
+				t.Fatalf("second page token = %q", req.PageToken)
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"results": []map[string]any{{
+					"message": map[string]any{
+						"name":       "spaces/bbb/messages/msg2",
+						"text":       "another decision",
+						"createTime": "2026-08-31T12:00:00Z",
+						"space":      map[string]any{"name": "spaces/bbb"},
+					},
+					"read":             true,
+					"spaceMuteSetting": "MUTED",
+				}},
+			})
+		default:
+			t.Fatalf("unexpected request %d", requestCount)
+		}
+	})
+
+	result := executeWithChatTestService(t, []string{
+		"--json", "--account", "a@b.com", "chat", "messages", "search", "project", "one",
+		"--max", "2", "--all", "--order", "create_time desc", "--view", "full", "--markup", "markdown",
+	}, svc)
+	if result.err != nil {
+		t.Fatalf("Execute: %v", result.err)
+	}
+	var got struct {
+		Results       []*chatMessageSearchItem `json:"results"`
+		NextPageToken string                   `json:"nextPageToken"`
+	}
+	if err := json.Unmarshal([]byte(result.stdout), &got); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if requestCount != 2 || got.NextPageToken != "" || len(got.Results) != 2 {
+		t.Fatalf("unexpected result: requests=%d payload=%#v", requestCount, got)
+	}
+	if got.Results[0].Space != "spaces/aaa" || got.Results[0].Read == nil || *got.Results[0].Read {
+		t.Fatalf("unexpected first result: %#v", got.Results[0])
+	}
+	if got.Results[1].Space != "spaces/bbb" || got.Results[1].Read == nil || !*got.Results[1].Read || got.Results[1].SpaceMuteSetting != "MUTED" {
+		t.Fatalf("unexpected second result: %#v", got.Results[1])
+	}
+}
+
+func TestExecute_ChatMessagesSearch_Text(t *testing.T) {
+	svc := useFakeChatService(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost || !strings.HasSuffix(r.URL.Path, "/spaces/-/messages:search") {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"results": []map[string]any{{
+				"message": map[string]any{
+					"name":       "spaces/aaa/messages/msg1",
+					"text":       "decision\nwith context",
+					"createTime": "2026-08-31T12:00:00Z",
+					"sender":     map[string]any{"displayName": "Ada"},
+				},
+			}},
+			"nextPageToken": "next",
+		})
+	})
+
+	result := executeWithChatTestService(t, []string{"--account", "a@b.com", "chat", "messages", "search", "decision"}, svc)
+	if result.err != nil {
+		t.Fatalf("Execute: %v", result.err)
+	}
+	if !strings.Contains(result.stdout, "RESOURCE") || !strings.Contains(result.stdout, "SPACE") || !strings.Contains(result.stdout, "decision with context") {
+		t.Fatalf("unexpected stdout: %q", result.stdout)
+	}
+	if strings.Contains(result.stdout, "READ") {
+		t.Fatalf("basic view unexpectedly rendered READ column: %q", result.stdout)
+	}
+	if !strings.Contains(result.stderr, "--page next") {
+		t.Fatalf("unexpected stderr: %q", result.stderr)
+	}
+}
+
+func TestExecute_ChatMessagesSearch_ValidatesBeforeService(t *testing.T) {
+	cases := []struct {
+		name string
+		args []string
+		want string
+	}{
+		{name: "missing query", args: []string{"--account", "a@b.com", "chat", "messages", "search"}, want: "<query>"},
+		{name: "zero max", args: []string{"--account", "a@b.com", "chat", "messages", "search", "decision", "--max", "0"}, want: "max must be between 1 and 100"},
+		{name: "oversized max", args: []string{"--account", "a@b.com", "chat", "messages", "search", "decision", "--max", "101"}, want: "max must be between 1 and 100"},
+	}
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			result := executeWithChatTestServiceFactory(t, tt.args, unexpectedChatTestService(t, "unexpected chat service call"))
+			if ExitCode(result.err) != 2 || !strings.Contains(result.err.Error(), tt.want) {
+				t.Fatalf("unexpected error: %v", result.err)
+			}
+		})
+	}
+}
+
 func TestExecute_ChatMessagesList_JSONPreservesMentionAndReactionMetadata(t *testing.T) {
 	svc := useFakeChatService(t, func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet || !strings.Contains(r.URL.Path, "/messages") {

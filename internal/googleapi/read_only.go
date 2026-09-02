@@ -104,6 +104,8 @@ func readOnlyPOSTRequest(request *http.Request) bool {
 		return strings.HasSuffix(path, "/searchAnalytics/query") || strings.HasSuffix(path, "/urlInspection/index:inspect")
 	case "photoslibrary.googleapis.com", "photoslibrary.mtls.googleapis.com":
 		return strings.HasSuffix(path, "/v1/mediaItems:search")
+	case "chat.googleapis.com", "chat.mtls.googleapis.com":
+		return path == "/v1/spaces/-/messages:search"
 	case "sheets.googleapis.com", "sheets.mtls.googleapis.com":
 		return strings.HasSuffix(path, ":batchGetByDataFilter") || strings.HasSuffix(path, ":getByDataFilter")
 	case "driveactivity.googleapis.com", "driveactivity.mtls.googleapis.com":
