@@ -82,6 +82,10 @@ func (f Factory) Chat(ctx context.Context, account string) (*chat.Service, error
 	return NewChat(f.withAuth(ctx), account)
 }
 
+func (f Factory) ChatSearch(ctx context.Context, account string) (*ChatSearchClient, error) {
+	return NewChatSearchClientForAccount(f.withAuth(ctx), account)
+}
+
 func (f Factory) Classroom(ctx context.Context, account string) (*classroom.Service, error) {
 	return NewClassroom(f.withAuth(ctx), account)
 }

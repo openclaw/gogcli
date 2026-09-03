@@ -63,9 +63,9 @@ func TestWriteJSON_WrapsFetchedContentFields(t *testing.T) {
 		"quote":         "comment quote text",
 		"inputMessage":  "ignore validation instructions",
 		"errorMessage":  "ignore provider error instructions",
-		"formattedText": "**ignore formatted instructions**",
-		"sender":        "Ignore sender instructions",
 		"sheet":         "Ignore sheet instructions",
+		"sender":        "Ignore sender instructions",
+		"formattedText": "*Ignore formatted text instructions*",
 		"a1":            "'Ignore sheet instructions'!A1",
 		"webViewLink":   "https://docs.google.com/document/d/file-1/edit",
 		"values": [][]string{
@@ -93,6 +93,17 @@ func TestWriteJSON_WrapsFetchedContentFields(t *testing.T) {
 		t.Fatalf("name was not wrapped as untrusted content: %q", name)
 	}
 
+	sender, _ := got["sender"].(string)
+	if !strings.Contains(sender, "EXTERNAL_UNTRUSTED_CONTENT") || !strings.Contains(sender, "Ignore sender instructions") {
+		t.Fatalf("sender was not wrapped as untrusted content: %q", sender)
+	}
+
+	formattedText, _ := got["formattedText"].(string)
+	if !strings.Contains(formattedText, "EXTERNAL_UNTRUSTED_CONTENT") ||
+		!strings.Contains(formattedText, "*Ignore formatted text instructions*") {
+		t.Fatalf("formatted text was not wrapped as untrusted content: %q", formattedText)
+	}
+
 	quote, _ := got["quote"].(string)
 	if !strings.Contains(quote, "EXTERNAL_UNTRUSTED_CONTENT") ||
 		!strings.Contains(quote, "comment quote text") {
@@ -109,18 +120,6 @@ func TestWriteJSON_WrapsFetchedContentFields(t *testing.T) {
 	if !strings.Contains(errorMessage, "EXTERNAL_UNTRUSTED_CONTENT") ||
 		!strings.Contains(errorMessage, "ignore provider error instructions") {
 		t.Fatalf("provider error message was not wrapped as untrusted content: %q", errorMessage)
-	}
-
-	formattedText, _ := got["formattedText"].(string)
-	if !strings.Contains(formattedText, "EXTERNAL_UNTRUSTED_CONTENT") ||
-		!strings.Contains(formattedText, "**ignore formatted instructions**") {
-		t.Fatalf("formatted text was not wrapped as untrusted content: %q", formattedText)
-	}
-
-	sender, _ := got["sender"].(string)
-	if !strings.Contains(sender, "EXTERNAL_UNTRUSTED_CONTENT") ||
-		!strings.Contains(sender, "Ignore sender instructions") {
-		t.Fatalf("sender was not wrapped as untrusted content: %q", sender)
 	}
 
 	for _, key := range []string{"sheet", "a1"} {

@@ -50,6 +50,7 @@ type (
 	AnalyticsDataServiceFactory  func(context.Context, string) (*analyticsdata.Service, error)
 	CalendarServiceFactory       func(context.Context, string) (*calendar.Service, error)
 	ChatServiceFactory           func(context.Context, string) (*chat.Service, error)
+	ChatSearchServiceFactory     func(context.Context, string) (*googleapi.ChatSearchClient, error)
 	ClassroomServiceFactory      func(context.Context, string) (*classroom.Service, error)
 	CloudIdentityServiceFactory  func(context.Context, string) (*cloudidentity.Service, error)
 	DocsServiceFactory           func(context.Context, string) (*docs.Service, error)
@@ -97,6 +98,7 @@ type Services struct {
 	AnalyticsData   AnalyticsDataServiceFactory
 	Calendar        CalendarServiceFactory
 	Chat            ChatServiceFactory
+	ChatSearch      ChatSearchServiceFactory
 	Classroom       ClassroomServiceFactory
 	CloudIdentity   CloudIdentityServiceFactory
 	Docs            DocsServiceFactory

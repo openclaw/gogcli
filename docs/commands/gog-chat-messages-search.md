@@ -36,7 +36,7 @@ gog chat messages search (find,query) <query> ... [flags]
 | `--markup` | `string` |  | Formatted text syntax: chat or markdown |
 | `--max`<br>`--limit` | `int64` | 25 | Max results per page |
 | `--no-input`<br>`--non-interactive`<br>`--noninteractive` | `bool` |  | Never prompt; fail instead (useful for CI) |
-| `--order` | `string` |  | Order by: create_time desc or relevance desc |
+| `--order` | `string` |  | Order by: create_time desc or relevance desc (Developer Preview) |
 | `--page`<br>`--cursor` | `string` |  | Page token |
 | `-p`<br>`--plain`<br>`--tsv` | `bool` | false | Output stable, parseable text to stdout (TSV; no colors) |
 | `--readonly` | `bool` | false | Block mutating API requests at runtime; auth add also requests read-only OAuth scopes |

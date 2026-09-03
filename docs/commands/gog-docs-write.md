@@ -65,7 +65,7 @@ gog docs (doc) write <docId> [flags]
 | `--no-underline` | `bool` |  | Clear underline |
 | `--ordered` | `bool` |  | Create a numbered list with the default decimal preset |
 | `--page-height` | `string` |  | Set page height (points by default; supports pt, in, cm, mm) |
-| `--page-size` | `string` |  | Named page size: A4, A5, Letter, Legal, Tabloid |
+| `--page-size` | `string` |  | Named page size: A3, A4, A5, Letter, Legal, Tabloid |
 | `--page-width` | `string` |  | Set page width (points by default; supports pt, in, cm, mm) |
 | `--pageless` | `bool` |  | Set document to pageless mode |
 | `-p`<br>`--plain`<br>`--tsv` | `bool` | false | Output stable, parseable text to stdout (TSV; no colors) |

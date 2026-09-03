@@ -7,6 +7,7 @@ import (
 
 	"google.golang.org/api/chat/v1"
 
+	"github.com/openclaw/gogcli/internal/googleapi"
 	"github.com/openclaw/gogcli/internal/outfmt"
 	"github.com/openclaw/gogcli/internal/ui"
 )
@@ -25,7 +26,7 @@ type ChatMessagesSearchCmd struct {
 	Page      string   `name:"page" aliases:"cursor" help:"Page token"`
 	All       bool     `name:"all" aliases:"all-pages,allpages" help:"Fetch all pages"`
 	FailEmpty bool     `name:"fail-empty" aliases:"non-empty,require-results" help:"Exit with code 3 if no results"`
-	Order     string   `name:"order" help:"Order by: create_time desc or relevance desc" enum:"create_time desc,relevance desc," default:""`
+	Order     string   `name:"order" help:"Order by: create_time desc or relevance desc (Developer Preview)" enum:"create_time desc,relevance desc," default:""`
 	View      string   `name:"view" help:"Result view: basic or full" enum:"basic,full" default:"basic"`
 	Markup    string   `name:"markup" help:"Formatted text syntax: chat or markdown" enum:"chat,markdown," default:""`
 }
@@ -47,7 +48,7 @@ func (c *ChatMessagesSearchCmd) Run(ctx context.Context, flags *RootFlags) error
 		return err
 	}
 
-	svc, err := chatService(ctx, account)
+	svc, err := chatSearchService(ctx, account)
 	if err != nil {
 		return err
 	}
@@ -64,7 +65,7 @@ func (c *ChatMessagesSearchCmd) Run(ctx context.Context, flags *RootFlags) error
 		markup = "MARKUP_SYNTAX_MARKDOWN"
 	}
 
-	fetch := func(pageToken string) ([]*chat.SearchMessageResult, string, error) {
+	fetch := func(pageToken string) ([]*googleapi.ChatSearchResult, string, error) {
 		req := &chat.SearchMessagesRequest{
 			Filter:       query,
 			MarkupSyntax: markup,
@@ -73,7 +74,7 @@ func (c *ChatMessagesSearchCmd) Run(ctx context.Context, flags *RootFlags) error
 			PageToken:    strings.TrimSpace(pageToken),
 			View:         view,
 		}
-		resp, callErr := svc.Spaces.Messages.Search("spaces/-", req).Context(ctx).Do()
+		resp, callErr := svc.Search(ctx, req)
 		if callErr != nil {
 			return nil, "", callErr
 		}
@@ -116,7 +117,7 @@ type chatMessageSearchItem struct {
 	SpaceMuteSetting string `json:"spaceMuteSetting,omitempty"`
 }
 
-func compactChatSearchRows(results []*chat.SearchMessageResult, includeRead bool) []*chatMessageSearchItem {
+func compactChatSearchRows(results []*googleapi.ChatSearchResult, includeRead bool) []*chatMessageSearchItem {
 	items := make([]*chatMessageSearchItem, 0, len(results))
 	for _, result := range results {
 		if result == nil || result.Message == nil {
@@ -134,8 +135,7 @@ func compactChatSearchRows(results []*chat.SearchMessageResult, includeRead bool
 			SpaceMuteSetting: result.SpaceMuteSetting,
 		}
 		if includeRead {
-			read := result.Read
-			item.Read = &read
+			item.Read = result.Read
 		}
 		items = append(items, item)
 	}
