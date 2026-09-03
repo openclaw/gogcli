@@ -1,11 +1,143 @@
 package discoveryapi
 
 import (
+	"context"
+	"errors"
+	"io"
+	"net/http"
 	"strings"
 	"testing"
 
 	discovery "google.golang.org/api/discovery/v1"
 )
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (fn roundTripFunc) RoundTrip(request *http.Request) (*http.Response, error) {
+	return fn(request)
+}
+
+func TestDescriptionFallsBackToServiceHostedDiscovery(t *testing.T) {
+	var requests []string
+	client := Client{HTTP: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		requests = append(requests, request.URL.String())
+		status := http.StatusNotFound
+		body := `{"error":"not found"}`
+
+		if request.URL.String() == "https://meet.googleapis.com/$discovery/rest?version=v2" {
+			status = http.StatusOK
+			body = `{
+				"name":"meet",
+				"version":"v2",
+				"rootUrl":"https://meet.googleapis.com/",
+				"servicePath":"v2/",
+				"resources":{"conferenceRecords":{"methods":{"list":{
+					"id":"meet.conferenceRecords.list",
+					"httpMethod":"GET",
+					"path":"conferenceRecords"
+				}}}}
+			}`
+		}
+
+		return &http.Response{
+			StatusCode: status,
+			Body:       io.NopCloser(strings.NewReader(body)),
+			Header:     make(http.Header),
+		}, nil
+	})}}
+
+	description, err := client.Description(context.Background(), "meet", "v2")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	method, err := FindMethod(description, "meet.conferenceRecords.list")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	requestURL, err := BuildURL(description, method, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if requestURL != "https://meet.googleapis.com/v2/conferenceRecords" {
+		t.Fatalf("URL = %q", requestURL)
+	}
+
+	wantRequests := []string{
+		"https://www.googleapis.com/discovery/v1/apis/meet/v2/rest",
+		"https://meet.googleapis.com/$discovery/rest?version=v2",
+	}
+	if strings.Join(requests, "\n") != strings.Join(wantRequests, "\n") {
+		t.Fatalf("requests = %q, want %q", requests, wantRequests)
+	}
+}
+
+func TestDescriptionDoesNotFallbackForCustomBaseURL(t *testing.T) {
+	for _, baseURL := range []string{"https://discovery.example.test/root", DefaultBaseURL} {
+		t.Run(baseURL, func(t *testing.T) {
+			requestCount := 0
+			client := Client{
+				BaseURL: baseURL,
+				HTTP: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+					requestCount++
+
+					return &http.Response{
+						StatusCode: http.StatusNotFound,
+						Body:       io.NopCloser(strings.NewReader(`{"error":"not found"}`)),
+						Header:     make(http.Header),
+					}, nil
+				})},
+			}
+
+			_, err := client.Description(context.Background(), "meet", "v2")
+			if err == nil {
+				t.Fatal("Description unexpectedly succeeded")
+			}
+
+			if !errors.Is(err, ErrDiscoveryRequest) {
+				t.Fatalf("error = %v, want ErrDiscoveryRequest", err)
+			}
+
+			if requestCount != 1 {
+				t.Fatalf("request count = %d, want 1", requestCount)
+			}
+		})
+	}
+}
+
+func TestDescriptionFallbackRequiresDefaultNotFoundAndSafeServiceName(t *testing.T) {
+	for _, test := range []struct {
+		name       string
+		api        string
+		statusCode int
+	}{
+		{name: "server error", api: "meet", statusCode: http.StatusInternalServerError},
+		{name: "unsafe service name", api: "meet.example", statusCode: http.StatusNotFound},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			requestCount := 0
+			client := Client{HTTP: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+				requestCount++
+
+				return &http.Response{
+					StatusCode: test.statusCode,
+					Body:       io.NopCloser(strings.NewReader(`{"error":"request failed"}`)),
+					Header:     make(http.Header),
+				}, nil
+			})}}
+
+			if _, err := client.Description(context.Background(), test.api, "v2"); err == nil {
+				t.Fatal("Description unexpectedly succeeded")
+			}
+
+			if requestCount != 1 {
+				t.Fatalf("request count = %d, want 1", requestCount)
+			}
+		})
+	}
+}
 
 func TestMethodsAndBuildURL(t *testing.T) {
 	description := &discovery.RestDescription{

@@ -78,6 +78,8 @@ gog drive labels file list <fileId> --json
 gog drive labels file apply <fileId> <labelId> --text fieldId=value
 
 # Recursively push local contents without deleting remote-only files.
+# Listing errors, repeated page tokens, and page-limit failures stop preflight.
+# Remote writes begin only after the complete recursive plan succeeds.
 gog drive sync push ./backup --parent <folderId> --dry-run --json
 gog drive sync push ./backup --parent <folderId>
 
@@ -154,6 +156,11 @@ gog contacts dedupe --apply
 gog contacts dedupe --resource people/123 --resource people/456 \
   --apply --force --json
 ```
+
+Contact exports include user-defined group names as vCard categories. Group
+names are collected from all pages before output is written. If Google repeats
+a group page token or a group page fails, the command returns an error without
+writing a partial export.
 
 ## Docs
 

@@ -37,14 +37,8 @@ go install github.com/openclaw/gogcli/cmd/gog@latest
 gog --version
 ```
 
-The module path moved from `github.com/steipete/gogcli` to
-`github.com/openclaw/gogcli`. Until the first release tagged after that move is
-published, `@latest` still selects an older tag that declares the previous path
-and fails; install a specific version from the old path in the meantime:
-
-```bash
-go install github.com/steipete/gogcli/cmd/gog@v0.34.2
-```
+Install scripts using the former `github.com/steipete/gogcli` module path should
+switch to `github.com/openclaw/gogcli` as shown above.
 
 Docker images, Windows archives, raw macOS/Linux binaries, and source builds
 are covered in the [install guide](docs/install.md).
@@ -82,6 +76,10 @@ points; the [examples](docs/examples.md) and generated
 | Analytics and publishing | `gog analytics`, `gog searchconsole`, `gog youtube` |
 | Workspace administration | `gog admin`, `gog groups`, `gog keep` |
 | Discovery API fallback | `gog api describe`, `gog api call` |
+
+Generic API commands support service-hosted Discovery documents such as Meet v2
+when the default central Directory returns 404. Explicit
+`GOG_DISCOVERY_BASE_URL` overrides retain their existing behavior.
 
 Consumer Google accounts work with user-facing APIs. Admin Directory, Cloud
 Identity Groups, Chat, Keep, and domain-wide delegation require a managed

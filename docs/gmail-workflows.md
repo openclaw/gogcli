@@ -15,6 +15,12 @@ gog gmail get <messageId> --json
 gog gmail thread get <threadId> --json
 ```
 
+Use `--from-contact 'Ada Lovelace'` with `gmail search` to resolve a contact
+into a sender query. If contact search misses, the fallback scans connections
+page by page and retains only exact name or email matches. Multiple matching
+contacts require a more specific selector; a repeated page token stops with a
+pagination error instead of leaving the command stuck.
+
 For agents, logs, or issue reports, prefer sanitized content:
 
 ```bash
@@ -52,6 +58,26 @@ Command pages:
 - [`gog gmail settings filters list`](commands/gog-gmail-settings-filters-list.md)
 - [`gog gmail settings filters create`](commands/gog-gmail-settings-filters-create.md)
 - [`gog gmail settings filters delete`](commands/gog-gmail-settings-filters-delete.md)
+
+## Drafts Sent from Gmail Web
+
+gog preserves long logical lines when building a plain-text draft from `--body`
+or `--body-file`. Gmail web has been reported to insert hard line breaks when
+it opens and sends such a draft without edits; see the
+[before/after MIME comparison in #1058](https://github.com/openclaw/gogcli/issues/1058#issuecomment-5501187051).
+
+For drafts you intend to review and send in Gmail web, the reported workaround
+is to supply HTML paragraphs through `--body-html` or `--body-html-file`:
+
+```bash
+gog --account you@example.com gmail drafts create \
+  --to recipient@example.com --subject "Draft for review" \
+  --body-html '<p>One continuous paragraph that can reflow.</p><p>Another paragraph.</p>'
+```
+
+This creates an HTML draft; it does not change plain-text MIME behavior. Check
+the draft and recipient-client rendering before relying on the workaround for
+a particular workflow.
 
 ## Send Guardrails
 

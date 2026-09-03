@@ -18,6 +18,9 @@ import (
 const (
 	maxBufferedReplayBodyBytes    = int64(16 << 20)
 	maxAuthRetryResponseBodyBytes = int64(1 << 20)
+	// maxRetryAfter caps Retry-After waits. Google may send delta-seconds
+	// or an HTTP-date far in the future; CLI contexts often have no deadline.
+	maxRetryAfter = 60 * time.Second
 )
 
 var errRequestBodyTooLarge = errors.New("request body too large to buffer for retry")
@@ -219,12 +222,25 @@ func (t *RetryTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	}
 }
 
+func capRetryAfter(wait time.Duration) time.Duration {
+	if wait > maxRetryAfter {
+		return maxRetryAfter
+	}
+
+	return wait
+}
+
 func (t *RetryTransport) calculateBackoff(attempt int, resp *http.Response) time.Duration {
 	// Check Retry-After header
 	if retryAfter := resp.Header.Get("Retry-After"); retryAfter != "" {
-		if seconds, err := strconv.Atoi(retryAfter); err == nil {
+		if seconds, err := strconv.ParseInt(retryAfter, 10, 64); err == nil || errors.Is(err, strconv.ErrRange) {
 			if seconds < 0 {
 				return 0
+			}
+
+			// Bound seconds before converting to a duration to avoid overflow.
+			if seconds >= int64(maxRetryAfter/time.Second) {
+				return maxRetryAfter
 			}
 
 			return time.Duration(seconds) * time.Second
@@ -236,7 +252,7 @@ func (t *RetryTransport) calculateBackoff(attempt int, resp *http.Response) time
 				return 0
 			}
 
-			return d
+			return capRetryAfter(d)
 		}
 	}
 

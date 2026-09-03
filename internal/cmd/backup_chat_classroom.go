@@ -94,7 +94,10 @@ func buildClassroomBackupSnapshot(ctx context.Context, flags *RootFlags, shardMa
 	if err != nil {
 		return backup.Snapshot{}, err
 	}
-	topics, announcements, coursework, materials, submissions := fetchBackupClassroomChildren(ctx, svc, courses)
+	topics, announcements, coursework, materials, submissions, err := fetchBackupClassroomChildren(ctx, svc, courses)
+	if err != nil {
+		return backup.Snapshot{}, err
+	}
 	shards := make([]backup.PlainShard, 0, 6)
 	courseShard, err := backup.NewJSONLShard(backupServiceClassroom, "courses", accountHash, fmt.Sprintf("data/classroom/%s/courses.jsonl.gz.age", accountHash), courses)
 	if err != nil {
@@ -133,22 +136,20 @@ func buildClassroomBackupSnapshot(ctx context.Context, flags *RootFlags, shardMa
 }
 
 func fetchBackupChatSpaces(ctx context.Context, svc *chat.Service) ([]*chat.Space, error) {
-	var out []*chat.Space
-	pageToken := ""
-	for {
+	fetch := func(pageToken string) ([]*chat.Space, string, error) {
 		call := svc.Spaces.List().PageSize(1000).Context(ctx)
 		if pageToken != "" {
 			call = call.PageToken(pageToken)
 		}
 		resp, err := call.Do()
 		if err != nil {
-			return nil, err
+			return nil, "", err
 		}
-		out = append(out, resp.Spaces...)
-		if resp.NextPageToken == "" {
-			break
-		}
-		pageToken = resp.NextPageToken
+		return resp.Spaces, resp.NextPageToken, nil
+	}
+	out, err := collectAllPages("", fetch)
+	if err != nil {
+		return nil, err
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
 	return out, nil
@@ -160,51 +161,49 @@ func fetchBackupChatMessages(ctx context.Context, svc *chat.Service, spaces []*c
 		if space == nil || strings.TrimSpace(space.Name) == "" {
 			continue
 		}
-		pageToken := ""
-		for {
+		fetch := func(pageToken string) ([]*chat.Message, string, error) {
 			call := svc.Spaces.Messages.List(space.Name).PageSize(1000).Context(ctx)
 			if pageToken != "" {
 				call = call.PageToken(pageToken)
 			}
 			resp, err := call.Do()
 			if err != nil {
-				return nil, fmt.Errorf("chat messages %s: %w", space.Name, err)
+				return nil, "", fmt.Errorf("chat messages %s: %w", space.Name, err)
 			}
-			for _, message := range resp.Messages {
-				out = append(out, chatBackupMessage{SpaceName: space.Name, Message: message})
-			}
-			if resp.NextPageToken == "" {
-				break
-			}
-			pageToken = resp.NextPageToken
+			return resp.Messages, resp.NextPageToken, nil
+		}
+		messages, err := collectAllPages("", fetch)
+		if err != nil {
+			return nil, err
+		}
+		for _, message := range messages {
+			out = append(out, chatBackupMessage{SpaceName: space.Name, Message: message})
 		}
 	}
 	return out, nil
 }
 
 func fetchBackupClassroomCourses(ctx context.Context, svc *classroom.Service) ([]*classroom.Course, error) {
-	var out []*classroom.Course
-	pageToken := ""
-	for {
+	fetch := func(pageToken string) ([]*classroom.Course, string, error) {
 		call := svc.Courses.List().PageSize(100).Context(ctx)
 		if pageToken != "" {
 			call = call.PageToken(pageToken)
 		}
 		resp, err := call.Do()
 		if err != nil {
-			return nil, err
+			return nil, "", err
 		}
-		out = append(out, resp.Courses...)
-		if resp.NextPageToken == "" {
-			break
-		}
-		pageToken = resp.NextPageToken
+		return resp.Courses, resp.NextPageToken, nil
+	}
+	out, err := collectAllPages("", fetch)
+	if err != nil {
+		return nil, err
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Id < out[j].Id })
 	return out, nil
 }
 
-func fetchBackupClassroomChildren(ctx context.Context, svc *classroom.Service, courses []*classroom.Course) ([]classroomBackupTopic, []classroomBackupAnnouncement, []classroomBackupCourseWork, []classroomBackupMaterial, []classroomBackupSubmission) {
+func fetchBackupClassroomChildren(ctx context.Context, svc *classroom.Service, courses []*classroom.Course) ([]classroomBackupTopic, []classroomBackupAnnouncement, []classroomBackupCourseWork, []classroomBackupMaterial, []classroomBackupSubmission, error) {
 	var topics []classroomBackupTopic
 	var announcements []classroomBackupAnnouncement
 	var coursework []classroomBackupCourseWork
@@ -215,19 +214,39 @@ func fetchBackupClassroomChildren(ctx context.Context, svc *classroom.Service, c
 			continue
 		}
 		courseID := course.Id
-		for _, topic := range fetchClassroomTopicsBestEffort(ctx, svc, courseID) {
+		courseTopics, err := fetchClassroomTopicsBestEffort(ctx, svc, courseID)
+		if err != nil {
+			return nil, nil, nil, nil, nil, err
+		}
+		for _, topic := range courseTopics {
 			topics = append(topics, classroomBackupTopic{CourseID: courseID, Topic: topic})
 		}
-		for _, announcement := range fetchClassroomAnnouncementsBestEffort(ctx, svc, courseID) {
+		courseAnnouncements, err := fetchClassroomAnnouncementsBestEffort(ctx, svc, courseID)
+		if err != nil {
+			return nil, nil, nil, nil, nil, err
+		}
+		for _, announcement := range courseAnnouncements {
 			announcements = append(announcements, classroomBackupAnnouncement{CourseID: courseID, Announcement: announcement})
 		}
-		for _, work := range fetchClassroomCourseWorkBestEffort(ctx, svc, courseID) {
+		courseWork, err := fetchClassroomCourseWorkBestEffort(ctx, svc, courseID)
+		if err != nil {
+			return nil, nil, nil, nil, nil, err
+		}
+		for _, work := range courseWork {
 			coursework = append(coursework, classroomBackupCourseWork{CourseID: courseID, CourseWork: work})
 		}
-		for _, material := range fetchClassroomMaterialsBestEffort(ctx, svc, courseID) {
+		courseMaterials, err := fetchClassroomMaterialsBestEffort(ctx, svc, courseID)
+		if err != nil {
+			return nil, nil, nil, nil, nil, err
+		}
+		for _, material := range courseMaterials {
 			materials = append(materials, classroomBackupMaterial{CourseID: courseID, Material: material})
 		}
-		for _, submission := range fetchClassroomSubmissionsBestEffort(ctx, svc, courseID) {
+		courseSubmissions, err := fetchClassroomSubmissionsBestEffort(ctx, svc, courseID)
+		if err != nil {
+			return nil, nil, nil, nil, nil, err
+		}
+		for _, submission := range courseSubmissions {
 			courseWorkID := ""
 			if submission != nil {
 				courseWorkID = submission.CourseWorkId
@@ -235,85 +254,55 @@ func fetchBackupClassroomChildren(ctx context.Context, svc *classroom.Service, c
 			submissions = append(submissions, classroomBackupSubmission{CourseID: courseID, CourseWorkID: courseWorkID, Submission: submission})
 		}
 	}
-	return topics, announcements, coursework, materials, submissions
+	return topics, announcements, coursework, materials, submissions, nil
 }
 
-func fetchClassroomTopicsBestEffort(ctx context.Context, svc *classroom.Service, courseID string) []*classroom.Topic {
-	var out []*classroom.Topic
-	pageToken := ""
-	for {
+func fetchClassroomTopicsBestEffort(ctx context.Context, svc *classroom.Service, courseID string) ([]*classroom.Topic, error) {
+	return collectAllPages("", func(pageToken string) ([]*classroom.Topic, string, error) {
 		resp, err := svc.Courses.Topics.List(courseID).PageSize(100).PageToken(pageToken).Context(ctx).Do()
 		if err != nil {
-			return out
+			return nil, "", nil //nolint:nilerr // End best-effort listing without losing earlier pages.
 		}
-		out = append(out, resp.Topic...)
-		if resp.NextPageToken == "" {
-			return out
-		}
-		pageToken = resp.NextPageToken
-	}
+		return resp.Topic, resp.NextPageToken, nil
+	})
 }
 
-func fetchClassroomAnnouncementsBestEffort(ctx context.Context, svc *classroom.Service, courseID string) []*classroom.Announcement {
-	var out []*classroom.Announcement
-	pageToken := ""
-	for {
+func fetchClassroomAnnouncementsBestEffort(ctx context.Context, svc *classroom.Service, courseID string) ([]*classroom.Announcement, error) {
+	return collectAllPages("", func(pageToken string) ([]*classroom.Announcement, string, error) {
 		resp, err := svc.Courses.Announcements.List(courseID).PageSize(100).PageToken(pageToken).Context(ctx).Do()
 		if err != nil {
-			return out
+			return nil, "", nil //nolint:nilerr // End best-effort listing without losing earlier pages.
 		}
-		out = append(out, resp.Announcements...)
-		if resp.NextPageToken == "" {
-			return out
-		}
-		pageToken = resp.NextPageToken
-	}
+		return resp.Announcements, resp.NextPageToken, nil
+	})
 }
 
-func fetchClassroomCourseWorkBestEffort(ctx context.Context, svc *classroom.Service, courseID string) []*classroom.CourseWork {
-	var out []*classroom.CourseWork
-	pageToken := ""
-	for {
+func fetchClassroomCourseWorkBestEffort(ctx context.Context, svc *classroom.Service, courseID string) ([]*classroom.CourseWork, error) {
+	return collectAllPages("", func(pageToken string) ([]*classroom.CourseWork, string, error) {
 		resp, err := svc.Courses.CourseWork.List(courseID).PageSize(100).PageToken(pageToken).Context(ctx).Do()
 		if err != nil {
-			return out
+			return nil, "", nil //nolint:nilerr // End best-effort listing without losing earlier pages.
 		}
-		out = append(out, resp.CourseWork...)
-		if resp.NextPageToken == "" {
-			return out
-		}
-		pageToken = resp.NextPageToken
-	}
+		return resp.CourseWork, resp.NextPageToken, nil
+	})
 }
 
-func fetchClassroomMaterialsBestEffort(ctx context.Context, svc *classroom.Service, courseID string) []*classroom.CourseWorkMaterial {
-	var out []*classroom.CourseWorkMaterial
-	pageToken := ""
-	for {
+func fetchClassroomMaterialsBestEffort(ctx context.Context, svc *classroom.Service, courseID string) ([]*classroom.CourseWorkMaterial, error) {
+	return collectAllPages("", func(pageToken string) ([]*classroom.CourseWorkMaterial, string, error) {
 		resp, err := svc.Courses.CourseWorkMaterials.List(courseID).PageSize(100).PageToken(pageToken).Context(ctx).Do()
 		if err != nil {
-			return out
+			return nil, "", nil //nolint:nilerr // End best-effort listing without losing earlier pages.
 		}
-		out = append(out, resp.CourseWorkMaterial...)
-		if resp.NextPageToken == "" {
-			return out
-		}
-		pageToken = resp.NextPageToken
-	}
+		return resp.CourseWorkMaterial, resp.NextPageToken, nil
+	})
 }
 
-func fetchClassroomSubmissionsBestEffort(ctx context.Context, svc *classroom.Service, courseID string) []*classroom.StudentSubmission {
-	var out []*classroom.StudentSubmission
-	pageToken := ""
-	for {
+func fetchClassroomSubmissionsBestEffort(ctx context.Context, svc *classroom.Service, courseID string) ([]*classroom.StudentSubmission, error) {
+	return collectAllPages("", func(pageToken string) ([]*classroom.StudentSubmission, string, error) {
 		resp, err := svc.Courses.CourseWork.StudentSubmissions.List(courseID, "-").PageSize(100).PageToken(pageToken).Context(ctx).Do()
 		if err != nil {
-			return out
+			return nil, "", nil //nolint:nilerr // End best-effort listing without losing earlier pages.
 		}
-		out = append(out, resp.StudentSubmissions...)
-		if resp.NextPageToken == "" {
-			return out
-		}
-		pageToken = resp.NextPageToken
-	}
+		return resp.StudentSubmissions, resp.NextPageToken, nil
+	})
 }

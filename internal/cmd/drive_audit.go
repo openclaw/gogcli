@@ -233,9 +233,7 @@ func driveAuditItems(ctx context.Context, svc *drive.Service, fileIDRaw, parentR
 }
 
 func listDrivePermissionsForAudit(ctx context.Context, svc *drive.Service, fileID string) ([]*drive.Permission, error) {
-	out := make([]*drive.Permission, 0, 8)
-	var pageToken string
-	for {
+	fetch := func(pageToken string) ([]*drive.Permission, string, error) {
 		call := svc.Permissions.List(fileID).
 			SupportsAllDrives(true).
 			PageSize(100).
@@ -246,14 +244,11 @@ func listDrivePermissionsForAudit(ctx context.Context, svc *drive.Service, fileI
 		}
 		resp, err := call.Do()
 		if err != nil {
-			return nil, err
+			return nil, "", err
 		}
-		out = append(out, resp.Permissions...)
-		if resp.NextPageToken == "" {
-			return out, nil
-		}
-		pageToken = resp.NextPageToken
+		return resp.Permissions, resp.NextPageToken, nil
 	}
+	return collectAllPages("", fetch)
 }
 
 func driveSharingFinding(item driveTreeItem, perm *drive.Permission, internalDomains map[string]struct{}) (driveSharingAuditFinding, bool) {

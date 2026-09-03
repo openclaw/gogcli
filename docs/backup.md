@@ -232,6 +232,10 @@ checks the plaintext SHA-256 hash from the manifest, and verifies row counts.
 `gog backup cat` and `gog backup export` use the same verification path before
 returning plaintext.
 
+Encrypted shard headers are limited to 2 MiB and 1024 recipient stanzas. Reads
+reject shards exceeding either limit; this bounds header parsing without limiting
+the size of the encrypted backup contents.
+
 ## Security Boundary
 
 The encrypted shards protect Google content from GitHub and anyone else without
@@ -352,6 +356,12 @@ recovery. The Apps Script adapter discovers script projects through Drive and
 stores project metadata plus source content. Chat and Classroom adapters
 enumerate data visible to the authenticated account; personal/permission-limited
 accounts may produce encrypted error shards under `--best-effort`.
+
+Chat and Classroom stop a listing if a continuation token repeats or more than
+10,000 pages would be needed. Under the default `--best-effort`, these collection
+errors become encrypted error shards and other services can continue;
+`--no-best-effort` returns the error. Classroom child lists still retain pages
+already fetched when a later ordinary API request fails.
 
 ## Adding Services
 
