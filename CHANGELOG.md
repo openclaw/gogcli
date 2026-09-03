@@ -1,5 +1,7 @@
 # Changelog
 
+## Unreleased
+
 ## 0.38.3 - 2026-09-02
 
 - Chat: wrap flattened sender display names in message and thread listings when `--wrap-untrusted` is enabled, preserving ordinary JSON output. (#1069) — thanks @wrgrant.
