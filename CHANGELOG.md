@@ -1,7 +1,10 @@
 # Changelog
 
-## Unreleased
+## 0.38.3 - 2026-09-02
 
+- Chat: wrap flattened sender display names in message and thread listings when `--wrap-untrusted` is enabled, preserving ordinary JSON output. (#1069) — thanks @wrgrant.
+- Releases: reject an existing generic `Unreleased` section before the post-release helper changes the changelog or development version.
+- Build: update the preferred Go toolchain and pinned Docker builder to Go 1.27.1 while retaining Go 1.26 compatibility.
 - Backup: stop Chat and Classroom pagination loops while preserving already-fetched Classroom child rows when a later ordinary API request fails. (#1063) — thanks @SebTardif.
 - Drive: reject repeated page tokens during `drive sync push` scans before writing files or emitting a partial plan. (#1065) — thanks @SebTardif.
 - Drive: stop permission audits and bulk permission preflights on repeated page tokens without partial audit output or permission writes. (#1066) — thanks @SebTardif.

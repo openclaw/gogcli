@@ -281,6 +281,7 @@ var untrustedContentStringKeys = map[string]bool{
 	"quote":              true,
 	"raw":                true,
 	"renderedtext":       true,
+	"sender":             true,
 	"sheet":              true,
 	"snippet":            true,
 	"subject":            true,

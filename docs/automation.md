@@ -57,7 +57,8 @@ are omitted.
 
 Use `--no-input` in CI and unattended processes. Use `--wrap-untrusted` when
 Google-hosted free text will be consumed by an LLM or another instruction-aware
-system.
+system. Chat message and thread listings also wrap flattened sender display
+names; without the flag, their ordinary JSON strings remain unchanged.
 
 Use `--readonly` (or `GOG_READONLY=1`) as a runtime backstop. It permits GET,
 HEAD, OPTIONS, and the small allowlist of Google APIs whose query operations use

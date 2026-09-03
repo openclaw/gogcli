@@ -63,4 +63,4 @@ Before declaring the release complete, verify:
 - both native macOS verifier jobs passed signature, Team ID, stable identifier, hardened-runtime, timestamp, architecture, and online notarization checks;
 - the Homebrew handoff succeeded and `Formula/gogcli.rb` contains the verified version, archive names, and hashes.
 
-Finally, land the next patch `Unreleased` changelog section and set `internal/cmd/VERSION` to the released version with the `-dev` suffix. The reusable workflow may open this closeout PR; review and merge that exact change rather than creating a competing transition.
+Finally, land the next patch `Unreleased` changelog section and set `internal/cmd/VERSION` to the released version with the `-dev` suffix. The reusable workflow may open a closeout PR containing only the changelog heading; add the development-version change to that exact PR, then review and merge it rather than creating a competing transition. Keep exactly one `Unreleased` section.
