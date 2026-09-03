@@ -166,7 +166,7 @@ func TestExecute_GmailGet_Metadata_DefaultHeadersIncludeThreading(t *testing.T) 
 		}
 		want := []string{
 			"From", "To", "Cc", "Bcc", "Subject", "Date",
-			"Message-ID", "In-Reply-To", "References", "List-Unsubscribe",
+			"Reply-To", "Message-ID", "In-Reply-To", "References", "List-Unsubscribe",
 		}
 		if gotHeaders := r.URL.Query()["metadataHeaders"]; !containsAll(gotHeaders, want) {
 			t.Errorf("metadataHeaders=%#v missing one of %v", gotHeaders, want)
@@ -179,6 +179,7 @@ func TestExecute_GmailGet_Metadata_DefaultHeadersIncludeThreading(t *testing.T) 
 			"threadId": "t1",
 			"payload": map[string]any{
 				"headers": []map[string]any{
+					{"name": "Reply-To", "value": "reply@example.com"},
 					{"name": "Message-ID", "value": "<orig@id>"},
 					{"name": "In-Reply-To", "value": "<parent@id>"},
 					{"name": "References", "value": "<parent@id> <orig@id>"},
@@ -196,6 +197,17 @@ func TestExecute_GmailGet_Metadata_DefaultHeadersIncludeThreading(t *testing.T) 
 	}, newGmailServiceFromServer(t, srv))
 	if result.err != nil {
 		t.Fatalf("Execute: %v\nstderr=%q", result.err, result.stderr)
+	}
+	var parsed map[string]any
+	if err := json.Unmarshal([]byte(result.stdout), &parsed); err != nil {
+		t.Fatalf("metadata JSON parse: %v", err)
+	}
+	headers, ok := parsed["headers"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected flattened headers map, got: %T", parsed["headers"])
+	}
+	if headers["reply_to"] != "reply@example.com" {
+		t.Fatalf("unexpected flattened reply_to header: %v", headers["reply_to"])
 	}
 	if !strings.Contains(result.stdout, "<orig@id>") || !strings.Contains(result.stdout, "<parent@id>") {
 		t.Fatalf("expected threading headers in metadata JSON, got: %q", result.stdout)

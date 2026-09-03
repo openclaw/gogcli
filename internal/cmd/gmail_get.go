@@ -80,6 +80,7 @@ func (c *GmailGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 		// (e.g., jq '.headers.to' instead of complex nested queries)
 		headers := map[string]string{
 			"from":        headerValue(msg.Payload, "From"),
+			"reply_to":    headerValue(msg.Payload, "Reply-To"),
 			"to":          headerValue(msg.Payload, "To"),
 			"cc":          headerValue(msg.Payload, "Cc"),
 			"bcc":         headerValue(msg.Payload, "Bcc"),
