@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Chat: wrap `formattedText` in existing raw Chat and Discovery API JSON responses when `--wrap-untrusted` is enabled, preserving ordinary JSON output. (#1069) — thanks @wrgrant.
+
 ## 0.38.3 - 2026-09-02
 
 - Chat: wrap flattened sender display names in message and thread listings when `--wrap-untrusted` is enabled, preserving ordinary JSON output. (#1069) — thanks @wrgrant.
