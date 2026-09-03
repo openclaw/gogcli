@@ -215,6 +215,16 @@ func TestFormat_GoogleAPIError_AnalyticsAdminHint(t *testing.T) {
 	}
 }
 
+func TestFormat_GoogleAPIError_AdSenseHint(t *testing.T) {
+	got := Format(&ggoogleapi.Error{
+		Code: 403, Message: "AdSense Management API has not been used in project 123 before",
+		Errors: []ggoogleapi.ErrorItem{{Reason: "accessNotConfigured"}},
+	})
+	if !containsAll(got, "AdSense Management API is not enabled", "https://console.cloud.google.com/apis/library/adsense.googleapis.com", "--services adsense") {
+		t.Fatalf("unexpected hint: %q", got)
+	}
+}
+
 func TestFormat_KongParseError_UnknownFlag(t *testing.T) {
 	// Use real Kong parser to generate a parse error
 	type TestCmd struct {

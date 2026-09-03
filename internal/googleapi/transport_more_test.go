@@ -601,6 +601,24 @@ func TestRetryTransportCalculateBackoffRetryAfter(t *testing.T) {
 	}
 }
 
+func TestRetryTransportCalculateBackoffRetryAfterCaps(t *testing.T) {
+	rt := &RetryTransport{BaseDelay: time.Second}
+
+	for _, header := range []string{"60", "3600", "2147483648", "9223372036854775807", "9999999999999999999999999999999999999999"} {
+		resp := &http.Response{Header: http.Header{"Retry-After": []string{header}}}
+		if got := rt.calculateBackoff(0, resp); got != 60*time.Second {
+			t.Fatalf("Retry-After %s = %s, want 60s", header, got)
+		}
+	}
+
+	date := time.Now().Add(24 * time.Hour).UTC().Format(http.TimeFormat)
+	resp := &http.Response{Header: http.Header{"Retry-After": []string{date}}}
+
+	if got := rt.calculateBackoff(0, resp); got != 60*time.Second {
+		t.Fatalf("Retry-After HTTP-date +24h = %s, want 60s", got)
+	}
+}
+
 func TestRetryTransportCalculateBackoffDefault(t *testing.T) {
 	rt := &RetryTransport{BaseDelay: time.Nanosecond}
 	resp := &http.Response{Header: http.Header{}}

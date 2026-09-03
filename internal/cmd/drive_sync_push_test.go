@@ -14,7 +14,9 @@ import (
 	"runtime"
 	"sort"
 	"strings"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"google.golang.org/api/drive/v3"
 
@@ -603,6 +605,170 @@ func TestListDriveSyncChildrenRejectsIncompleteSearch(t *testing.T) {
 	_, err := listDriveSyncChildren(context.Background(), svc, "parent", "")
 	if err == nil || !strings.Contains(err.Error(), "incomplete child listing") {
 		t.Fatalf("error = %v", err)
+	}
+}
+
+func TestListDriveSyncChildrenRejectsRepeatedPageToken(t *testing.T) {
+	t.Parallel()
+
+	var listCalls atomic.Int32
+	svc, closeServer := newDriveTestService(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet || !strings.HasSuffix(r.URL.Path, "/files") {
+			http.NotFound(w, r)
+			return
+		}
+		n := listCalls.Add(1)
+		if n > 2 {
+			http.Error(w, "unexpected extra page request", http.StatusBadRequest)
+			return
+		}
+		wantToken := ""
+		if n == 2 {
+			wantToken = "stuck"
+		}
+		requireQuery(t, r, "pageToken", wantToken)
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"files": []any{
+				map[string]any{"id": "child-1", "name": "a.txt"},
+			},
+			"nextPageToken": "stuck",
+		})
+	}))
+	defer closeServer()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	files, err := listDriveSyncChildren(ctx, svc, "parent", "")
+	if err == nil || !strings.Contains(err.Error(), "repeated page token") {
+		t.Fatalf("err = %v after %d list calls", err, listCalls.Load())
+	}
+	if got := listCalls.Load(); got != 2 {
+		t.Fatalf("list calls = %d, want 2", got)
+	}
+	if files != nil {
+		t.Fatalf("unexpected partial children: %#v", files)
+	}
+	t.Logf("err = %v after %d list calls", err, listCalls.Load())
+}
+
+func TestListDriveSyncChildrenLaterPages(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		apiError   bool
+		incomplete bool
+		wantError  string
+	}{
+		{name: "complete"},
+		{name: "API error", apiError: true, wantError: "403"},
+		{name: "incomplete search", incomplete: true, wantError: "incomplete child listing"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			var calls atomic.Int32
+			svc, closeServer := newDriveTestService(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Method != http.MethodGet || !strings.HasSuffix(r.URL.Path, "/files") {
+					http.NotFound(w, r)
+					return
+				}
+				n := calls.Add(1)
+				if n > 2 {
+					http.Error(w, "unexpected extra page request", http.StatusBadRequest)
+					return
+				}
+				wantToken := ""
+				if n == 2 {
+					wantToken = "page-2"
+				}
+				requireQuery(t, r, "pageToken", wantToken)
+				if n == 2 && tc.apiError {
+					http.Error(w, "permission denied", http.StatusForbidden)
+					return
+				}
+				response := map[string]any{
+					"files": []any{map[string]any{"id": fmt.Sprintf("child-%d", n), "name": fmt.Sprintf("%d.txt", n)}},
+				}
+				if n == 1 {
+					response["nextPageToken"] = "page-2"
+				} else if tc.incomplete {
+					response["incompleteSearch"] = true
+				}
+				w.Header().Set("Content-Type", "application/json")
+				_ = json.NewEncoder(w).Encode(response)
+			}))
+			defer closeServer()
+
+			ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+			defer cancel()
+			files, err := listDriveSyncChildren(ctx, svc, "parent", "")
+			if calls.Load() != 2 {
+				t.Fatalf("list calls = %d, want 2", calls.Load())
+			}
+			if tc.wantError != "" {
+				if err == nil || !strings.Contains(err.Error(), tc.wantError) || files != nil {
+					t.Fatalf("files = %#v, error = %v; want no partial children and %q", files, err, tc.wantError)
+				}
+				return
+			}
+			if err != nil || len(files) != 2 || files[0].Id != "child-1" || files[1].Id != "child-2" {
+				t.Fatalf("files = %#v, error = %v; want both pages in order", files, err)
+			}
+		})
+	}
+}
+
+func TestExecuteDriveSyncPushPaginationErrorDoesNotWrite(t *testing.T) {
+	t.Parallel()
+
+	root := writeDriveSyncFixture(t)
+	var listCalls, writes atomic.Int32
+	svc, closeServer := newDriveTestService(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			writes.Add(1)
+			http.Error(w, "unexpected write", http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		if strings.HasSuffix(r.URL.Path, "/files/parent") {
+			_ = json.NewEncoder(w).Encode(map[string]any{"id": "parent", "name": "parent", "mimeType": driveMimeFolder})
+			return
+		}
+		if strings.HasSuffix(r.URL.Path, "/files") {
+			if strings.Contains(r.URL.Query().Get("q"), "'parent' in parents") {
+				_ = json.NewEncoder(w).Encode(map[string]any{
+					"files": []any{map[string]any{"id": "nested", "name": "nested", "mimeType": driveMimeFolder}},
+				})
+				return
+			}
+			if strings.Contains(r.URL.Query().Get("q"), "'nested' in parents") {
+				if listCalls.Add(1) > 2 {
+					http.Error(w, "unexpected extra nested page", http.StatusBadRequest)
+					return
+				}
+				_ = json.NewEncoder(w).Encode(map[string]any{"files": []any{}, "nextPageToken": "stuck"})
+				return
+			}
+		}
+		http.NotFound(w, r)
+	}))
+	defer closeServer()
+
+	result := executeWithDriveTestService(t, []string{
+		"--account", "test@example.com", "--json",
+		"drive", "sync", "push", root, "--parent", "parent",
+	}, svc)
+	if result.err == nil || !strings.Contains(result.err.Error(), "repeated page token") {
+		t.Fatalf("execute: %v; stderr: %s", result.err, result.stderr)
+	}
+	if listCalls.Load() != 2 || writes.Load() != 0 {
+		t.Fatalf("nested list calls = %d, writes = %d; want two reads and no writes", listCalls.Load(), writes.Load())
+	}
+	if strings.TrimSpace(result.stdout) != "" {
+		t.Fatalf("unexpected success output: %s", result.stdout)
 	}
 }
 

@@ -57,7 +57,9 @@ are omitted.
 
 Use `--no-input` in CI and unattended processes. Use `--wrap-untrusted` when
 Google-hosted free text will be consumed by an LLM or another instruction-aware
-system.
+system. Chat message and thread listings also wrap flattened sender display
+names. Raw Chat JSON responses, including those from `gog api call`, wrap
+`formattedText` too. Without the flag, ordinary JSON strings remain unchanged.
 
 Use `--readonly` (or `GOG_READONLY=1`) as a runtime backstop. It permits GET,
 HEAD, OPTIONS, and the small allowlist of Google APIs whose query operations use
@@ -133,6 +135,10 @@ gog auth doctor --check --json --no-input
 ```
 
 ## Exit codes
+
+Google API rate-limit retries honor `Retry-After` delays up to 60 seconds per
+retry, including numeric seconds and HTTP dates. Cancelling the command also
+cancels a pending retry wait.
 
 | Code | Name | Meaning |
 | ---: | --- | --- |

@@ -11,7 +11,7 @@ import (
 )
 
 type DocsLayoutFlags struct {
-	PageSize     string `name:"page-size" help:"Named page size: A4, A5, Letter, Legal, Tabloid"`
+	PageSize     string `name:"page-size" help:"Named page size: A3, A4, A5, Letter, Legal, Tabloid"`
 	PageWidth    string `name:"page-width" help:"Set page width (points by default; supports pt, in, cm, mm)"`
 	PageHeight   string `name:"page-height" help:"Set page height (points by default; supports pt, in, cm, mm)"`
 	MarginLeft   string `name:"margin-left" help:"Set left page margin (points by default; supports pt, in, cm, mm)"`
@@ -155,6 +155,7 @@ type docsPageSizePreset struct {
 }
 
 var docsPageSizePresets = map[string]docsPageSizePreset{
+	"a3":      {widthPt: 841.890, heightPt: 1190.551},
 	"a4":      {widthPt: 595.275, heightPt: 841.890},
 	"a5":      {widthPt: 419.528, heightPt: 595.275},
 	"letter":  {widthPt: 612, heightPt: 792},
@@ -172,7 +173,7 @@ func resolveDocsPageSize(pageSize, pageWidth, pageHeight string) (string, string
 	}
 	preset, ok := docsPageSizePresets[strings.ToLower(pageSize)]
 	if !ok {
-		return "", "", usage("--page-size must be one of A4, A5, Letter, Legal, Tabloid")
+		return "", "", usage("--page-size must be one of A3, A4, A5, Letter, Legal, Tabloid")
 	}
 	return fmt.Sprintf("%.3fpt", preset.widthPt), fmt.Sprintf("%.3fpt", preset.heightPt), nil
 }

@@ -40,30 +40,20 @@ func TestNormalizeAdSenseAccount(t *testing.T) {
 	}
 }
 
-func TestWrapAdSenseError_AccessNotConfiguredUsesAPILibrary(t *testing.T) {
-	err := wrapAdSenseError(&gapi.Error{
-		Code:    http.StatusForbidden,
-		Message: "accessNotConfigured: AdSense Management API has not been used",
-	})
-	if err == nil {
-		t.Fatal("expected wrapped error")
-	}
-	got := err.Error()
-	if !strings.Contains(got, "https://console.cloud.google.com/apis/library/adsense.googleapis.com") {
-		t.Fatalf("expected API Library URL, got %q", got)
-	}
-}
-
-func TestWrapAdSenseError_InsufficientPermissions(t *testing.T) {
-	err := wrapAdSenseError(&gapi.Error{
-		Code:    http.StatusForbidden,
-		Message: "insufficientPermissions",
-	})
-	if err == nil {
-		t.Fatal("expected wrapped error")
-	}
-	if !strings.Contains(err.Error(), "gog auth add <email> --services adsense") {
-		t.Fatalf("unexpected message: %q", err.Error())
+func TestExecute_AdSensePreservesPermissionErrors(t *testing.T) {
+	for _, message := range []string{"AdSense Management API has not been used", "insufficientPermissions"} {
+		t.Run(message, func(t *testing.T) {
+			svc := newAdSenseTestService(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusForbidden)
+				_ = json.NewEncoder(w).Encode(map[string]any{"error": map[string]any{"code": 403, "message": message}})
+			}))
+			result := executeWithAdSenseTestService(t, []string{"--account", "a@b.com", "adsense", "accounts", "list"}, svc)
+			var apiErr *gapi.Error
+			if !errors.As(result.err, &apiErr) || apiErr.Code != 403 || ExitCode(stableExitCode(result.err)) != 6 {
+				t.Fatalf("lost permission error identity/classification: %v", result.err)
+			}
+		})
 	}
 }
 
@@ -339,5 +329,36 @@ func TestExecute_AdSenseAccountsList_ServiceError(t *testing.T) {
 	)
 	if result.err == nil || !strings.Contains(result.err.Error(), "adsense service down") {
 		t.Fatalf("unexpected err: %v", result.err)
+	}
+}
+
+func TestExecute_AdSenseReportTimezones(t *testing.T) {
+	for _, saved := range []bool{false, true} {
+		for _, timezone := range []string{"", "ACCOUNT_TIME_ZONE", "google_time_zone", "America/Los_Angeles"} {
+			args := []string{"--json", "--account", "a@b.com", "adsense", "reports"}
+			if saved {
+				args = append(args, "saved", "query", "accounts/pub-123/reports/report-1")
+			} else {
+				args = append(args, "query", "pub-123")
+			}
+			args = append(args, "--timezone", timezone)
+			if timezone == "America/Los_Angeles" {
+				result := executeWithAdSenseTestServiceFactory(t, args, unexpectedAdSenseTestService(t, "invalid timezone must fail before auth"))
+				if ExitCode(result.err) != 2 || !strings.Contains(result.err.Error(), "--timezone must be") {
+					t.Fatalf("expected timezone usage error, got %v", result.err)
+				}
+				continue
+			}
+			svc := newAdSenseTestService(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Method != http.MethodGet || !strings.Contains(r.URL.Path, "generate") || r.URL.Query().Get("reportingTimeZone") != strings.ToUpper(timezone) {
+					t.Errorf("unexpected report request: %s %s", r.Method, r.URL)
+				}
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = w.Write([]byte(`{"rows":[]}`))
+			}))
+			if result := executeWithAdSenseTestService(t, args, svc); result.err != nil {
+				t.Fatalf("report timezone %q (saved=%t): %v", timezone, saved, result.err)
+			}
+		}
 	}
 }

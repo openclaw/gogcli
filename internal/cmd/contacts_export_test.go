@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"google.golang.org/api/people/v1"
@@ -16,7 +17,8 @@ func TestContactsExport_AllVCF_PaginatesAndIncludesCategories(t *testing.T) {
 		switch {
 		case strings.Contains(r.URL.Path, "people/me/connections") && r.Method == http.MethodGet:
 			if got := r.URL.Query().Get("personFields"); !strings.Contains(got, "memberships") || !strings.Contains(got, "birthdays") {
-				t.Fatalf("missing export fields: %q", got)
+				http.Error(w, "missing export fields: "+got, http.StatusBadRequest)
+				return
 			}
 			if r.URL.Query().Get("pageToken") == "" {
 				_ = json.NewEncoder(w).Encode(map[string]any{
@@ -26,9 +28,10 @@ func TestContactsExport_AllVCF_PaginatesAndIncludesCategories(t *testing.T) {
 						"emailAddresses": []map[string]any{
 							{"value": "ada@example.com", "type": "work"},
 						},
-						"memberships": []map[string]any{{
-							"contactGroupMembership": map[string]any{"contactGroupResourceName": "contactGroups/friends"},
-						}},
+						"memberships": []map[string]any{
+							{"contactGroupMembership": map[string]any{"contactGroupResourceName": "contactGroups/friends"}},
+							{"contactGroupMembership": map[string]any{"contactGroupResourceName": "contactGroups/family"}},
+						},
 					}},
 					"nextPageToken": "next",
 				})
@@ -42,12 +45,25 @@ func TestContactsExport_AllVCF_PaginatesAndIncludesCategories(t *testing.T) {
 				}},
 			})
 		case strings.Contains(r.URL.Path, "contactGroups") && r.Method == http.MethodGet:
-			_ = json.NewEncoder(w).Encode(map[string]any{
-				"contactGroups": []map[string]any{
-					{"resourceName": "contactGroups/friends", "name": "Friends, Work", "groupType": "USER_CONTACT_GROUP"},
-					{"resourceName": "contactGroups/myContacts", "name": "Contacts", "groupType": "SYSTEM_CONTACT_GROUP"},
-				},
-			})
+			switch r.URL.Query().Get("pageToken") {
+			case "":
+				_ = json.NewEncoder(w).Encode(map[string]any{
+					"contactGroups": []map[string]any{
+						nil,
+						{"resourceName": "contactGroups/friends", "name": "Friends, Work", "groupType": "USER_CONTACT_GROUP"},
+						{"resourceName": "contactGroups/myContacts", "name": "Contacts", "groupType": "SYSTEM_CONTACT_GROUP"},
+					},
+					"nextPageToken": "groups-next",
+				})
+			case "groups-next":
+				_ = json.NewEncoder(w).Encode(map[string]any{
+					"contactGroups": []map[string]any{
+						{"resourceName": "contactGroups/family", "name": "Family", "groupType": "USER_CONTACT_GROUP"},
+					},
+				})
+			default:
+				http.Error(w, "unexpected group page token", http.StatusBadRequest)
+			}
 		default:
 			http.NotFound(w, r)
 		}
@@ -67,7 +83,7 @@ func TestContactsExport_AllVCF_PaginatesAndIncludesCategories(t *testing.T) {
 		"FN:Ada Lovelace\r\n",
 		"N:Lovelace;Ada;;;\r\n",
 		"EMAIL;TYPE=work:ada@example.com\r\n",
-		"CATEGORIES:Friends\\, Work\r\n",
+		"CATEGORIES:Family,Friends\\, Work\r\n",
 		"FN:Grace Hopper\r\n",
 		"BDAY:--1209\r\n",
 	} {
@@ -77,6 +93,97 @@ func TestContactsExport_AllVCF_PaginatesAndIncludesCategories(t *testing.T) {
 	}
 	if got := strings.Count(out, "BEGIN:VCARD"); got != 2 {
 		t.Fatalf("expected 2 cards, got %d:\n%s", got, out)
+	}
+}
+
+func TestContactsExport_GroupListingRejectsRepeatedPageToken(t *testing.T) {
+	var groupListCalls atomic.Int32
+	svc, closeSrv := newPeopleService(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case strings.Contains(r.URL.Path, "people/me/connections") && r.Method == http.MethodGet:
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"connections": []map[string]any{{
+					"resourceName":   "people/c1",
+					"names":          []map[string]any{{"displayName": "Ada Lovelace"}},
+					"emailAddresses": []map[string]any{{"value": "ada@example.com"}},
+					"memberships": []map[string]any{{
+						"contactGroupMembership": map[string]any{"contactGroupResourceName": "contactGroups/friends"},
+					}},
+				}},
+			})
+		case strings.Contains(r.URL.Path, "contactGroups") && r.Method == http.MethodGet:
+			if groupListCalls.Add(1) > 2 {
+				http.Error(w, "unexpected extra group page request", http.StatusBadRequest)
+				return
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"contactGroups": []map[string]any{
+					{"resourceName": "contactGroups/friends", "name": "Friends", "groupType": "USER_CONTACT_GROUP"},
+				},
+				"nextPageToken": "stuck",
+			})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(closeSrv)
+
+	result := executeWithPeopleTestServices(t, []string{"--account", "a@b.com", "contacts", "export", "--all", "--out", "-"}, peopleTestServices{
+		Contacts: fixedPeopleTestService(svc),
+	})
+	if result.err == nil || !strings.Contains(result.err.Error(), "repeated page token") {
+		t.Fatalf("err = %v after %d list calls", result.err, groupListCalls.Load())
+	}
+	if got := groupListCalls.Load(); got != 2 {
+		t.Fatalf("group list calls = %d, want 2", got)
+	}
+	if result.stdout != "" {
+		t.Fatalf("unexpected partial export: %q", result.stdout)
+	}
+	t.Logf("err = %v after %d list calls", result.err, groupListCalls.Load())
+}
+
+func TestContactsExport_LaterGroupPageErrorDoesNotWritePartialExport(t *testing.T) {
+	person := fullPersonResponse()
+	person["memberships"] = []map[string]any{{
+		"contactGroupMembership": map[string]any{"contactGroupResourceName": "contactGroups/friends"},
+	}}
+	svc, closeSrv := newPeopleService(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case strings.Contains(r.URL.Path, "people/me/connections") && r.Method == http.MethodGet:
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"connections": []map[string]any{person},
+			})
+		case strings.Contains(r.URL.Path, "contactGroups") && r.Method == http.MethodGet:
+			switch r.URL.Query().Get("pageToken") {
+			case "":
+				_ = json.NewEncoder(w).Encode(map[string]any{
+					"contactGroups": []map[string]any{
+						{"resourceName": "contactGroups/friends", "name": "Friends", "groupType": "USER_CONTACT_GROUP"},
+					},
+					"nextPageToken": "groups-next",
+				})
+			case "groups-next":
+				http.Error(w, "later group page failed", http.StatusBadRequest)
+			default:
+				http.Error(w, "unexpected group page token", http.StatusBadRequest)
+			}
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(closeSrv)
+
+	result := executeWithPeopleTestServices(t, []string{"--account", "a@b.com", "contacts", "export", "--all", "--out", "-"}, peopleTestServices{
+		Contacts: fixedPeopleTestService(svc),
+	})
+	if result.err == nil || !strings.HasPrefix(result.err.Error(), "list contact groups:") || !strings.Contains(result.err.Error(), "later group page failed") {
+		t.Fatalf("expected wrapped group page error, got %v", result.err)
+	}
+	if result.stdout != "" {
+		t.Fatalf("unexpected partial export: %q", result.stdout)
 	}
 }
 

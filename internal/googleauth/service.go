@@ -270,9 +270,9 @@ var serviceInfoByService = map[Service]serviceInfo{
 	},
 	ServiceAdSense: {
 		scopes: []string{"https://www.googleapis.com/auth/adsense.readonly"},
-		user:   true,
+		user:   false,
 		apis:   []string{"AdSense Management API"},
-		note:   "Read-only; the full `adsense` management scope requires Google approval and isn't used here",
+		note:   "Consumer OAuth; explicit opt-in with --services adsense; read-only",
 	},
 	ServiceAds: {
 		scopes: []string{"https://www.googleapis.com/auth/adwords"},

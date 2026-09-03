@@ -458,6 +458,27 @@ func TestDocsWrite_PageSizeAndMargins(t *testing.T) {
 	}
 }
 
+func TestDocsWrite_NamedPageSizeA3(t *testing.T) {
+	t.Parallel()
+
+	var batchRequests [][]*docs.Request
+	docSvc := newDocsBatchUpdateRecordingTestService(t, docsBodyWithEndIndex(2), &batchRequests, nil, nil)
+	ctx := withDocsTestService(newCmdRuntimeJSONOutputContext(t, io.Discard, io.Discard), docSvc)
+	if err := runKong(t, &DocsWriteCmd{}, []string{"doc1", "--text", "hello", "--page-size", "a3"}, ctx, &RootFlags{Account: "a@b.com"}); err != nil {
+		t.Fatalf("write A3: %v", err)
+	}
+	if len(batchRequests) != 2 || len(batchRequests[1]) != 1 {
+		t.Fatalf("expected write and style batches, got %#v", batchRequests)
+	}
+	upd := batchRequests[1][0].UpdateDocumentStyle
+	if upd == nil || upd.Fields != "pageSize.width,pageSize.height" || upd.DocumentStyle.DocumentFormat != nil {
+		t.Fatalf("expected only page-size fields, got %#v", upd)
+	}
+	if got := upd.DocumentStyle.PageSize; got.Width.Magnitude != 841.890 || got.Height.Magnitude != 1190.551 || got.Width.Unit != "PT" || got.Height.Unit != "PT" {
+		t.Fatalf("unexpected A3 dimensions: %#v", got)
+	}
+}
+
 func TestDocsWrite_InvalidLayoutValueFailsBeforeMutation(t *testing.T) {
 	t.Parallel()
 

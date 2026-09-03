@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -83,13 +82,13 @@ func runAdSenseList[T any](ctx context.Context, p adSenseListPage[T]) error {
 	if p.all {
 		all, collectErr := collectAllPages(p.page, fetch)
 		if collectErr != nil {
-			return wrapAdSenseError(collectErr)
+			return collectErr
 		}
 		items = all
 	} else {
 		items, nextPageToken, err = fetch(p.page)
 		if err != nil {
-			return wrapAdSenseError(err)
+			return err
 		}
 	}
 
@@ -149,7 +148,7 @@ func runAdSenseGet[T any](
 	}
 	item, err := fetch(svc, name)
 	if err != nil {
-		return wrapAdSenseError(err)
+		return err
 	}
 
 	if outfmt.IsJSON(ctx) {
@@ -674,7 +673,7 @@ func (c *AdSenseAlertsListCmd) Run(ctx context.Context, flags *RootFlags) error 
 	}
 	resp, err := call.Do()
 	if err != nil {
-		return wrapAdSenseError(err)
+		return err
 	}
 
 	rows := resp.Alerts
@@ -738,7 +737,7 @@ func (c *AdSensePaymentsListCmd) Run(ctx context.Context, flags *RootFlags) erro
 	}
 	resp, err := svc.Accounts.Payments.List(parent).Context(ctx).Do()
 	if err != nil {
-		return wrapAdSenseError(err)
+		return err
 	}
 
 	rows := resp.Payments
@@ -974,24 +973,4 @@ func adSensePolicyTopics(topics []*adsenseapi.PolicyTopic) string {
 		parts = append(parts, topic.Topic)
 	}
 	return strings.Join(parts, ",")
-}
-
-func wrapAdSenseError(err error) error {
-	var apiErr *gapi.Error
-	if !errors.As(err, &apiErr) {
-		return err
-	}
-	if apiErr.Code != 403 {
-		return err
-	}
-
-	message := strings.ToLower(apiErr.Message)
-	switch {
-	case strings.Contains(message, "accessnotconfigured"), strings.Contains(message, "api has not been used"):
-		return fmt.Errorf("AdSense API is not enabled for this OAuth project. Enable it at https://console.cloud.google.com/apis/library/adsense.googleapis.com")
-	case strings.Contains(message, "insufficientpermissions"), strings.Contains(message, "insufficient permission"):
-		return fmt.Errorf("insufficient permissions for AdSense API. Re-authorize with: gog auth add <email> --services adsense")
-	default:
-		return err
-	}
 }

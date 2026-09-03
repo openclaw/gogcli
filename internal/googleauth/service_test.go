@@ -96,7 +96,7 @@ func TestAllServices(t *testing.T) {
 
 func TestUserServices(t *testing.T) {
 	svcs := UserServices()
-	if len(svcs) != 23 {
+	if len(svcs) != 22 {
 		t.Fatalf("unexpected: %v", svcs)
 	}
 
@@ -109,10 +109,12 @@ func TestUserServices(t *testing.T) {
 			seenDocs = true
 		case ServiceSlides:
 			seenSlides = true
-		case ServiceDriveActivity, ServiceDriveLabels, ServiceForms, ServiceSites, ServiceMeet, ServiceAppScript, ServiceAnalytics, ServiceSearchConsole, ServiceAdSense, ServiceAds, ServiceYouTube, ServicePhotos:
+		case ServiceDriveActivity, ServiceDriveLabels, ServiceForms, ServiceSites, ServiceMeet, ServiceAppScript, ServiceAnalytics, ServiceSearchConsole, ServiceAds, ServiceYouTube, ServicePhotos:
 			// expected user services
 		case ServiceKeep:
 			t.Fatalf("unexpected keep in user services")
+		case ServiceAdSense:
+			t.Fatal("AdSense must remain explicitly opted in")
 		}
 	}
 
@@ -126,7 +128,7 @@ func TestUserServices(t *testing.T) {
 }
 
 func TestUserServiceCSV(t *testing.T) {
-	want := "gmail,calendar,chat,classroom,drive,driveactivity,drivelabels,docs,slides,contacts,tasks,sheets,people,forms,sites,meet,appscript,analytics,searchconsole,adsense,ads,youtube,photos"
+	want := "gmail,calendar,chat,classroom,drive,driveactivity,drivelabels,docs,slides,contacts,tasks,sheets,people,forms,sites,meet,appscript,analytics,searchconsole,ads,youtube,photos"
 	if got := UserServiceCSV(); got != want {
 		t.Fatalf("unexpected user services csv: %q", got)
 	}

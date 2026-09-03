@@ -28,7 +28,7 @@ type AdSenseReportsQueryCmd struct {
 	OrderBy    []string `name:"order-by" help:"Sort order, repeatable (e.g. -DATE for descending)"`
 	Currency   string   `name:"currency" help:"Currency code override (e.g. USD)"`
 	Language   string   `name:"language" help:"Language code for headers (e.g. en-US)"`
-	Timezone   string   `name:"timezone" help:"Reporting timezone (e.g. America/Los_Angeles)"`
+	Timezone   string   `name:"timezone" help:"Reporting timezone: ACCOUNT_TIME_ZONE (default) or GOOGLE_TIME_ZONE (America/Los_Angeles)"`
 	Max        int64    `name:"max" aliases:"limit" help:"Max rows to return"`
 	FailEmpty  bool     `name:"fail-empty" aliases:"non-empty,require-results" help:"Exit with code 3 if no rows"`
 }
@@ -89,7 +89,7 @@ func (c *AdSenseReportsQueryCmd) Run(ctx context.Context, flags *RootFlags) erro
 
 	resp, err := call.Do()
 	if err != nil {
-		return wrapAdSenseError(err)
+		return err
 	}
 
 	return writeAdSenseReportResult(ctx, u, plan.Account, plan.Dimensions, plan.Metrics, resp, c.FailEmpty)
@@ -253,7 +253,7 @@ type AdSenseReportsSavedQueryCmd struct {
 	DateRange string `name:"date-range" help:"Named date range (TODAY,YESTERDAY,MONTH_TO_DATE,YEAR_TO_DATE,LAST_7_DAYS,LAST_30_DAYS); ignored if --from/--to set" default:"LAST_7_DAYS"`
 	Currency  string `name:"currency" help:"Currency code override (e.g. USD)"`
 	Language  string `name:"language" help:"Language code for headers (e.g. en-US)"`
-	Timezone  string `name:"timezone" help:"Reporting timezone (e.g. America/Los_Angeles)"`
+	Timezone  string `name:"timezone" help:"Reporting timezone: ACCOUNT_TIME_ZONE (default) or GOOGLE_TIME_ZONE (America/Los_Angeles)"`
 	FailEmpty bool   `name:"fail-empty" aliases:"non-empty,require-results" help:"Exit with code 3 if no rows"`
 }
 
@@ -270,6 +270,11 @@ func (c *AdSenseReportsSavedQueryCmd) Run(ctx context.Context, flags *RootFlags)
 	}
 
 	dateRangePlan, err := newAdSenseDateRangePlan(c.From, c.To, c.DateRange)
+	if err != nil {
+		return err
+	}
+
+	timezone, err := normalizeAdSenseReportingTimezone(c.Timezone)
 	if err != nil {
 		return err
 	}
@@ -293,13 +298,13 @@ func (c *AdSenseReportsSavedQueryCmd) Run(ctx context.Context, flags *RootFlags)
 	if v := strings.TrimSpace(c.Language); v != "" {
 		call = call.LanguageCode(v)
 	}
-	if v := strings.TrimSpace(c.Timezone); v != "" {
-		call = call.ReportingTimeZone(v)
+	if timezone != "" {
+		call = call.ReportingTimeZone(timezone)
 	}
 
 	resp, err := call.Do()
 	if err != nil {
-		return wrapAdSenseError(err)
+		return err
 	}
 
 	return writeAdSenseReportResult(ctx, u, name, nil, nil, resp, c.FailEmpty)

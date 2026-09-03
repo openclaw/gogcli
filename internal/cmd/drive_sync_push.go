@@ -793,9 +793,7 @@ func (c *googleDriveSyncClient) Children(ctx context.Context, parentID string) (
 
 func listDriveSyncChildren(ctx context.Context, svc *drive.Service, parentID, driveID string) ([]*drive.File, error) {
 	query := buildDriveListQuery(parentID, "")
-	files := make([]*drive.File, 0, 64)
-	var pageToken string
-	for {
+	fetch := func(pageToken string) ([]*drive.File, string, error) {
 		call := svc.Files.List().
 			Q(query).
 			PageSize(driveDefaultPageSize).
@@ -814,17 +812,14 @@ func listDriveSyncChildren(ctx context.Context, svc *drive.Service, parentID, dr
 			gapi.Field("files("+driveSyncFields+")"),
 		).Context(ctx).Do()
 		if err != nil {
-			return nil, err
+			return nil, "", err
 		}
 		if response.IncompleteSearch {
-			return nil, fmt.Errorf("drive returned an incomplete child listing for parent %q", parentID)
+			return nil, "", fmt.Errorf("drive returned an incomplete child listing for parent %q", parentID)
 		}
-		files = append(files, response.Files...)
-		if response.NextPageToken == "" {
-			return files, nil
-		}
-		pageToken = response.NextPageToken
+		return response.Files, response.NextPageToken, nil
 	}
+	return collectAllPages("", fetch)
 }
 
 func (c *googleDriveSyncClient) CreateFolder(ctx context.Context, name, parentID string) (*drive.File, error) {

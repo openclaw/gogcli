@@ -24,6 +24,7 @@ const sections = [
   ["Gmail", ["gmail-workflows.md", "gmail-autoreply.md", "watch.md", "email-tracking.md", "email-tracking-worker.md"]],
   ["Drive & Files", ["drive-audits.md", "raw-api.md", "raw-audit.md"]],
   ["Photos", ["photos-picker.md"]],
+  ["AdSense", ["adsense.md"]],
   ["YouTube", ["youtube.md"]],
   ["Docs, Sheets, Slides", ["docs-editing.md", "docs-batch.md", "sedmat.md", "sheets-batch-update.md", "sheets-tables.md", "sheets-formatting.md", "slides-markdown.md", "slides-template-replacement.md", "slides-introspection.md", "slides-text-editing.md", "slides-tables.md", "slides-structure.md"]],
   ["Contacts", ["contacts-dedupe.md", "contacts-json-update.md"]],

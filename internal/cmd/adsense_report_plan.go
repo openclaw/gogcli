@@ -52,6 +52,11 @@ func newAdSenseReportPlan(input adSenseReportInput) (adSenseReportPlan, error) {
 		return adSenseReportPlan{}, err
 	}
 
+	timezone, err := normalizeAdSenseReportingTimezone(input.Timezone)
+	if err != nil {
+		return adSenseReportPlan{}, err
+	}
+
 	metrics := adSenseUpperList(splitCommaList(input.Metrics))
 	if len(metrics) == 0 {
 		return adSenseReportPlan{}, usage("empty --metrics")
@@ -71,9 +76,19 @@ func newAdSenseReportPlan(input adSenseReportInput) (adSenseReportPlan, error) {
 		OrderBy:    trimmedStrings(input.OrderBy),
 		Currency:   strings.TrimSpace(input.Currency),
 		Language:   strings.TrimSpace(input.Language),
-		Timezone:   strings.TrimSpace(input.Timezone),
+		Timezone:   timezone,
 		Max:        input.Max,
 	}, nil
+}
+
+func normalizeAdSenseReportingTimezone(value string) (string, error) {
+	value = strings.ToUpper(strings.TrimSpace(value))
+	switch value {
+	case "", "ACCOUNT_TIME_ZONE", "GOOGLE_TIME_ZONE":
+		return value, nil
+	default:
+		return "", usage("--timezone must be ACCOUNT_TIME_ZONE or GOOGLE_TIME_ZONE (not an IANA timezone name)")
+	}
 }
 
 type adSenseDateRangePlan struct {

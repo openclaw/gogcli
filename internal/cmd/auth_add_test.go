@@ -396,6 +396,26 @@ func TestAuthAddCmd_DefaultServices_UserPreset(t *testing.T) {
 	}
 }
 
+func TestAuthServicesAdSenseExplicitOptIn(t *testing.T) {
+	for _, preset := range []string{"", "user", "all-user", "all", "adsense"} {
+		services, err := parseAuthServices(preset)
+		if err != nil {
+			t.Fatal(err)
+		}
+		found := false
+		for _, service := range services {
+			found = found || service == googleauth.ServiceAdSense
+		}
+		if found != (preset == "adsense") {
+			t.Fatalf("unexpected AdSense enrollment for %q: %v", preset, services)
+		}
+	}
+	scopes, err := googleauth.Scopes(googleauth.ServiceAdSense)
+	if err != nil || len(scopes) != 1 || scopes[0] != "https://www.googleapis.com/auth/adsense.readonly" {
+		t.Fatalf("unexpected AdSense scopes: %v, %v", scopes, err)
+	}
+}
+
 func TestAuthAddCmd_KeepRejected(t *testing.T) {
 	authorizeCalled := false
 	authorizeGoogle := func(context.Context, googleauth.AuthorizeOptions) (string, error) {
