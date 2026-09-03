@@ -1,14 +1,24 @@
 # Changelog
 
-## Unreleased
+## 0.39.0 - 2026-09-03
 
-- Docs: preserve underscores in enum values and environment-variable names in rendered command references instead of treating them as emphasis. (#1047)
-- Auth: explicitly select a Google Cloud quota project with `--quota-project` or `GOG_QUOTA_PROJECT`, preserving default auth behavior and forwarding the setting through Gmail watch and MCP requests. (#1056, #1055) — thanks @prateek.
+### Highlights
+
 - AdSense: add explicitly opted-in read-only account, inventory, and report commands, including saved reports and validated reporting timezones. (#1047) — thanks @ptz0n.
 - Chat: search messages across Workspace spaces with paging, formatted text, optional read-state metadata, and read-only/untrusted-output support; unavailable read state stays unknown. (#1069, #1068) — thanks @wrgrant.
+- Auth: explicitly select a Google Cloud quota project with `--quota-project` or `GOG_QUOTA_PROJECT`, preserving default auth behavior and forwarding the setting through Gmail watch and MCP requests. (#1056, #1055) — thanks @prateek.
 - Gmail: expose flattened `reply_to` in message JSON and default metadata reads, including sanitized messages and threads, with untrusted-content wrapping support. (#1057) — thanks @hashtag1974.
 - Docs: accept the A3 page-size preset in `docs page-layout` and `docs write`, preserving the current page mode unless explicitly changed. (#1050) — thanks @ryo-touch.
+
+### Fixes and maintenance
+
 - Chat: wrap `formattedText` in existing raw Chat and Discovery API JSON responses when `--wrap-untrusted` is enabled, preserving ordinary JSON output. (#1069) — thanks @wrgrant.
+- Docs: preserve underscores in enum values and environment-variable names in rendered command references instead of treating them as emphasis. (#1073)
+- Dependencies: refresh Google API clients, Goldmark, and Go cryptography dependencies while retaining Go 1.26 compatibility.
+
+### Validation notes
+
+- Live-tested Docs A3, Gmail Reply-To output, and quota-project opt-in boundaries with existing account grants. Successful Workspace Chat search, AdSense publisher reports, and valid quota-project requests remain unverified; their local regression coverage and expected account/scope failures were checked.
 
 ## 0.38.3 - 2026-09-02
 
