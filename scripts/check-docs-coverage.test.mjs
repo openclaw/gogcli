@@ -1,11 +1,34 @@
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
 
 import { checkMarkdownLinks, headingAnchors } from "./check-docs-coverage.mjs";
 import { stripHtmlTags } from "./html-text.mjs";
+
+test("docs rendering preserves intraword underscores and ordinary emphasis", (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "gog-doc-emphasis-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  fs.mkdirSync(path.join(dir, "docs"));
+  fs.writeFileSync(path.join(dir, "docs", "quickstart.md"), "# Quickstart\n");
+  fs.writeFileSync(path.join(dir, "docs", "install.md"), "# Install\n");
+  fs.writeFileSync(path.join(dir, "docs", "index.md"), `# Reference
+
+ACCOUNT_TIME_ZONE GOOGLE_CLOUD_QUOTA_PROJECT foo_2_bar α_β_γ; _emphasis_ and *asterisk*.
+
+| Flag | Help |
+| --- | --- |
+| --timezone | Reporting timezone: ACCOUNT_TIME_ZONE or GOOGLE_TIME_ZONE |
+`);
+
+  execFileSync(process.execPath, [fileURLToPath(new URL("./build-docs-site.mjs", import.meta.url))], { cwd: dir });
+  const html = fs.readFileSync(path.join(dir, "dist", "docs-site", "index.html"), "utf8");
+  assert.ok(html.includes("<p>ACCOUNT_TIME_ZONE GOOGLE_CLOUD_QUOTA_PROJECT foo_2_bar α_β_γ; <em>emphasis</em> and <em>asterisk</em>.</p>"));
+  assert.ok(html.includes("<td>Reporting timezone: ACCOUNT_TIME_ZONE or GOOGLE_TIME_ZONE</td>"));
+});
 
 test("stripHtmlTags removes nested and unterminated markup in one pass", () => {
   assert.equal(
