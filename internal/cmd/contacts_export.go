@@ -231,9 +231,7 @@ func contactsHaveGroupMemberships(contacts []*people.Person) bool {
 }
 
 func fetchExportContactGroups(ctx context.Context, svc *people.Service) (map[string]string, error) {
-	out := map[string]string{}
-	pageToken := ""
-	for {
+	fetch := func(pageToken string) ([]*people.ContactGroup, string, error) {
 		call := svc.ContactGroups.List().
 			PageSize(1000).
 			GroupFields("groupType,metadata,name").
@@ -243,20 +241,22 @@ func fetchExportContactGroups(ctx context.Context, svc *people.Service) (map[str
 		}
 		resp, err := call.Do()
 		if err != nil {
-			return nil, err
+			return nil, "", err
 		}
-		for _, group := range resp.ContactGroups {
-			if group == nil || group.GroupType != "USER_CONTACT_GROUP" || group.Name == "" {
-				continue
-			}
-			if group.ResourceName != "" {
-				out[group.ResourceName] = group.Name
-			}
+		return resp.ContactGroups, resp.NextPageToken, nil
+	}
+	groups, err := collectAllPages("", fetch)
+	if err != nil {
+		return nil, err
+	}
+	out := map[string]string{}
+	for _, group := range groups {
+		if group == nil || group.GroupType != "USER_CONTACT_GROUP" || group.Name == "" {
+			continue
 		}
-		if resp.NextPageToken == "" {
-			break
+		if group.ResourceName != "" {
+			out[group.ResourceName] = group.Name
 		}
-		pageToken = resp.NextPageToken
 	}
 	return out, nil
 }

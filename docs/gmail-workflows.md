@@ -15,6 +15,12 @@ gog gmail get <messageId> --json
 gog gmail thread get <threadId> --json
 ```
 
+Use `--from-contact 'Ada Lovelace'` with `gmail search` to resolve a contact
+into a sender query. If contact search misses, the fallback scans connections
+page by page and retains only exact name or email matches. Multiple matching
+contacts require a more specific selector; a repeated page token stops with a
+pagination error instead of leaving the command stuck.
+
 For agents, logs, or issue reports, prefer sanitized content:
 
 ```bash
@@ -26,6 +32,22 @@ gog gmail thread get <threadId> --sanitize-content --json
 message text for automation. Message JSON remains under the `message` key;
 add `--results-only` to emit that sanitized message directly. Both shapes emit
 the message headers and body once.
+
+Message JSON exposes Reply-To as `headers.reply_to` in both full and default
+metadata reads. With `--sanitize-content`, use `message.headers.reply_to` (or
+`headers.reply_to` with `--results-only`); sanitized thread reads expose it in
+each `thread.messages[].headers.reply_to`. Custom metadata `--headers` lists
+remain explicit: include `Reply-To` when you need it.
+
+```bash
+gog gmail get <messageId> --format metadata --json --select headers.reply_to
+gog gmail get <messageId> --sanitize-content --wrap-untrusted --json
+```
+
+`--wrap-untrusted` marks this externally supplied header as untrusted content,
+including in sanitized thread output. A missing header is empty in ordinary
+message JSON and omitted in sanitized output. Reading Reply-To does not change
+reply routing or send a message.
 
 Thread and draft attachment downloads honor `--dry-run` before opening account
 credentials, fetching messages, or writing files. Thread downloads keep their
@@ -52,6 +74,26 @@ Command pages:
 - [`gog gmail settings filters list`](commands/gog-gmail-settings-filters-list.md)
 - [`gog gmail settings filters create`](commands/gog-gmail-settings-filters-create.md)
 - [`gog gmail settings filters delete`](commands/gog-gmail-settings-filters-delete.md)
+
+## Drafts Sent from Gmail Web
+
+gog preserves long logical lines when building a plain-text draft from `--body`
+or `--body-file`. Gmail web has been reported to insert hard line breaks when
+it opens and sends such a draft without edits; see the
+[before/after MIME comparison in #1058](https://github.com/openclaw/gogcli/issues/1058#issuecomment-5501187051).
+
+For drafts you intend to review and send in Gmail web, the reported workaround
+is to supply HTML paragraphs through `--body-html` or `--body-html-file`:
+
+```bash
+gog --account you@example.com gmail drafts create \
+  --to recipient@example.com --subject "Draft for review" \
+  --body-html '<p>One continuous paragraph that can reflow.</p><p>Another paragraph.</p>'
+```
+
+This creates an HTML draft; it does not change plain-text MIME behavior. Check
+the draft and recipient-client rendering before relying on the workaround for
+a particular workflow.
 
 ## Send Guardrails
 

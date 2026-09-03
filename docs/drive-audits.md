@@ -102,6 +102,11 @@ gog drive bulk remove-public --parent <folderId> --dry-run
 gog drive bulk update-role --parent <folderId> --from writer --to reader --target contractor@example.com --dry-run
 ```
 
+Permission paging must finish for every file included in the scan. API failures,
+repeated page tokens, and page-limit errors fail without partial audit success
+output. Bulk operations complete this permission scan before writing changes, so
+a listing failure prevents writes; this does not roll back later write failures.
+
 ## Shared Drives
 
 The audit commands include shared drives by default where the underlying Drive

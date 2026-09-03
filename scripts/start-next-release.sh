@@ -32,7 +32,7 @@ cd "$root"
   echo "next release: released changelog heading is missing or ambiguous" >&2
   exit 1
 }
-if grep -Eq '^## [0-9]+\.[0-9]+\.[0-9]+ - Unreleased$' CHANGELOG.md; then
+if grep -Eq '^## (Unreleased|[0-9]+\.[0-9]+\.[0-9]+ - Unreleased)$' CHANGELOG.md; then
   echo "next release: an Unreleased section already exists" >&2
   exit 1
 fi

@@ -181,6 +181,15 @@ Schema (v1):
 - `--max-bytes`: hard cap on body bytes (default `20000`).
 - If over cap: truncate + set `bodyTruncated=true`.
 
+## Gmail API authentication
+
+`gog gmail watch serve` preserves the selected OAuth client and any direct
+`--access-token` (or `GOG_ACCESS_TOKEN`) when handling incoming push requests.
+Direct-token mode does not require stored OAuth client credentials or a refresh
+token. The token remains static and expires normally; restart the server with a
+fresh token when needed. This is separate from authenticating the push sender
+below.
+
 ## Auth (push)
 
 Preferred:
