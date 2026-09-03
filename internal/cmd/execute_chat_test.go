@@ -11,6 +11,9 @@ import (
 	"testing"
 
 	"google.golang.org/api/chat/v1"
+
+	"github.com/openclaw/gogcli/internal/app"
+	"github.com/openclaw/gogcli/internal/googleapi"
 )
 
 func useFakeChatService(t *testing.T, handler http.HandlerFunc) *chat.Service {
@@ -355,6 +358,204 @@ func TestExecute_ChatMessagesList_Text_Unread(t *testing.T) {
 	}
 	if !strings.Contains(gotFilter, "thread.name = \"spaces/aaa/threads/t1\"") {
 		t.Fatalf("unexpected thread filter: %q", gotFilter)
+	}
+}
+
+func TestExecute_ChatMessagesSearch_JSON_AllPages(t *testing.T) {
+	requestCount := 0
+	svc := newChatSearchTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost || !strings.HasSuffix(r.URL.Path, "/spaces/-/messages:search") {
+			http.NotFound(w, r)
+			return
+		}
+		var req chat.SearchMessagesRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			t.Fatalf("decode request: %v", err)
+		}
+		if req.Filter != "project one" || req.PageSize != 2 || req.OrderBy != "create_time desc" {
+			t.Fatalf("unexpected request: %#v", req)
+		}
+		if req.View != "SEARCH_MESSAGES_VIEW_FULL" || req.MarkupSyntax != "MARKUP_SYNTAX_MARKDOWN" {
+			t.Fatalf("unexpected view/markup: %#v", req)
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		requestCount++
+		switch requestCount {
+		case 1:
+			if req.PageToken != "" {
+				t.Fatalf("first page token = %q", req.PageToken)
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"results": []map[string]any{{
+					"message": map[string]any{
+						"name":          "spaces/aaa/messages/msg1",
+						"text":          "project one decision",
+						"formattedText": "**project one** decision",
+						"createTime":    "2026-08-30T12:00:00Z",
+						"sender":        map[string]any{"displayName": "Ada"},
+						"thread":        map[string]any{"name": "spaces/aaa/threads/t1"},
+					},
+					"read": false,
+				}},
+				"nextPageToken": "p2",
+			})
+		case 2:
+			if req.PageToken != "p2" {
+				t.Fatalf("second page token = %q", req.PageToken)
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"results": []map[string]any{{
+					"message": map[string]any{
+						"name":       "spaces/bbb/messages/msg2",
+						"text":       "another decision",
+						"createTime": "2026-08-31T12:00:00Z",
+						"space":      map[string]any{"name": "spaces/bbb"},
+					},
+					"read":             true,
+					"spaceMuteSetting": "UNMUTED",
+				}, {
+					"message": map[string]any{"name": "spaces/bbb/messages/msg3", "text": "unknown read state"},
+				}},
+			})
+		default:
+			t.Fatalf("unexpected request %d", requestCount)
+		}
+	})
+
+	result := executeWithChatSearchTestService(t, []string{
+		"--json", "--wrap-untrusted", "--account", "a@b.com", "chat", "messages", "search", "project", "one",
+		"--max", "2", "--all", "--order", "create_time desc", "--view", "full", "--markup", "markdown",
+	}, svc)
+	if result.err != nil {
+		t.Fatalf("Execute: %v", result.err)
+	}
+	var got struct {
+		Results       []*chatMessageSearchItem `json:"results"`
+		NextPageToken string                   `json:"nextPageToken"`
+	}
+	if err := json.Unmarshal([]byte(result.stdout), &got); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if requestCount != 2 || got.NextPageToken != "" || len(got.Results) != 3 {
+		t.Fatalf("unexpected result: requests=%d payload=%#v", requestCount, got)
+	}
+	if got.Results[0].Space != "spaces/aaa" || got.Results[0].Read == nil || *got.Results[0].Read {
+		t.Fatalf("unexpected first result: %#v", got.Results[0])
+	}
+	if !strings.Contains(got.Results[0].FormattedText, "EXTERNAL_UNTRUSTED_CONTENT") || !strings.Contains(got.Results[0].FormattedText, "**project one** decision") {
+		t.Fatalf("formatted text was not wrapped as untrusted content: %q", got.Results[0].FormattedText)
+	}
+	if !strings.Contains(got.Results[0].Sender, "EXTERNAL_UNTRUSTED_CONTENT") || !strings.Contains(got.Results[0].Sender, "Ada") {
+		t.Fatalf("sender was not wrapped as untrusted content: %q", got.Results[0].Sender)
+	}
+	if got.Results[1].Space != "spaces/bbb" || got.Results[1].Read == nil || !*got.Results[1].Read || got.Results[1].SpaceMuteSetting != "UNMUTED" {
+		t.Fatalf("unexpected second result: %#v", got.Results[1])
+	}
+	if got.Results[2].Read != nil {
+		t.Fatalf("missing provider read state must stay unknown: %#v", got.Results[2])
+	}
+}
+
+func TestExecute_ChatMessagesSearch_Text(t *testing.T) {
+	svc := newChatSearchTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost || !strings.HasSuffix(r.URL.Path, "/spaces/-/messages:search") {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"results": []map[string]any{{
+				"message": map[string]any{
+					"name":       "spaces/aaa/messages/msg1",
+					"text":       "decision\nwith context",
+					"createTime": "2026-08-31T12:00:00Z",
+					"sender":     map[string]any{"displayName": "Ada"},
+					"thread":     map[string]any{"name": "spaces/aaa/threads/thread1"},
+				},
+			}},
+			"nextPageToken": "next",
+		})
+	})
+
+	result := executeWithChatSearchTestService(t, []string{"--account", "a@b.com", "chat", "messages", "search", "decision"}, svc)
+	if result.err != nil {
+		t.Fatalf("Execute: %v", result.err)
+	}
+	if !strings.Contains(result.stdout, "RESOURCE") || !strings.Contains(result.stdout, "SPACE") || !strings.Contains(result.stdout, "THREAD") || !strings.Contains(result.stdout, "spaces/aaa/threads/thread1") || !strings.Contains(result.stdout, "decision with context") {
+		t.Fatalf("unexpected stdout: %q", result.stdout)
+	}
+	for _, column := range strings.Fields(strings.SplitN(result.stdout, "\n", 2)[0]) {
+		if column == "READ" {
+			t.Fatalf("basic view unexpectedly rendered READ column: %q", result.stdout)
+		}
+	}
+	if !strings.Contains(result.stderr, "--page next") {
+		t.Fatalf("unexpected stderr: %q", result.stderr)
+	}
+}
+
+func TestExecute_ChatMessagesSearch_OptionalReadState(t *testing.T) {
+	svc := newChatSearchTestClient(t, func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"results":[{"message":{"name":"spaces/a/messages/unknown","text":"unknown"}},{"message":{"name":"spaces/a/messages/unread","text":"unread"},"read":false},{"message":{"name":"spaces/a/messages/read","text":"read"},"read":true}]}`))
+	})
+	for _, view := range []string{"basic", "full"} {
+		t.Run(view, func(t *testing.T) {
+			args := []string{"--account", "a@b.com", "chat", "messages", "search", "decision", "--view", view}
+			result := executeWithChatSearchTestService(t, append([]string{"--json"}, args...), svc)
+			if result.err != nil {
+				t.Fatal(result.err)
+			}
+			var output struct {
+				Results []map[string]any `json:"results"`
+			}
+			if err := json.Unmarshal([]byte(result.stdout), &output); err != nil || len(output.Results) != 3 {
+				t.Fatalf("invalid output: err=%v output=%s", err, result.stdout)
+			}
+			for i, row := range output.Results {
+				value, present := row["read"]
+				if view == "basic" || i == 0 {
+					if present {
+						t.Fatalf("unexpected read field: %#v", row)
+					}
+				} else if !present || value != (i == 2) {
+					t.Fatalf("incorrect known read state: %#v", row)
+				}
+			}
+			if view == "full" {
+				text := executeWithChatSearchTestService(t, args, svc)
+				if text.err != nil {
+					t.Fatal(text.err)
+				}
+				lines := strings.Split(strings.TrimSpace(text.stdout), "\n")
+				if len(lines) != 4 || !strings.HasSuffix(strings.TrimSpace(lines[0]), "READ") || !strings.HasSuffix(strings.TrimSpace(lines[1]), "unknown") || !strings.HasSuffix(strings.TrimSpace(lines[2]), "false") || !strings.HasSuffix(strings.TrimSpace(lines[3]), "true") {
+					t.Fatalf("expected blank/false/true READ cells: %s", text.stdout)
+				}
+			}
+		})
+	}
+}
+
+func TestExecute_ChatMessagesSearch_ValidatesBeforeService(t *testing.T) {
+	cases := []struct {
+		name string
+		args []string
+		want string
+	}{
+		{name: "missing query", args: []string{"--account", "a@b.com", "chat", "messages", "search"}, want: "<query>"},
+		{name: "zero max", args: []string{"--account", "a@b.com", "chat", "messages", "search", "decision", "--max", "0"}, want: "max must be between 1 and 100"},
+		{name: "oversized max", args: []string{"--account", "a@b.com", "chat", "messages", "search", "decision", "--max", "101"}, want: "max must be between 1 and 100"},
+	}
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			result := executeWithTestRuntime(t, tt.args, &app.Runtime{Services: app.Services{
+				ChatSearch: unexpectedGoogleTestService[googleapi.ChatSearchClient](t, "unexpected chat search client"),
+			}})
+			if ExitCode(result.err) != 2 || !strings.Contains(result.err.Error(), tt.want) {
+				t.Fatalf("unexpected error: %v", result.err)
+			}
+		})
 	}
 }
 

@@ -116,6 +116,7 @@ func TestComposeRuntimeGoogleServicesPreservesOverrides(t *testing.T) {
 	if runtime.Services.Gmail == nil ||
 		runtime.Services.Docs == nil ||
 		runtime.Services.Calendar == nil ||
+		runtime.Services.ChatSearch == nil ||
 		runtime.Services.Photos == nil ||
 		runtime.Services.AdSense == nil ||
 		runtime.Services.YouTubeWrite == nil {

@@ -43,6 +43,10 @@ func TestFactoryBuildsRepresentativeServices(t *testing.T) {
 		t.Fatalf("Calendar() = (%v, %v)", svc, err)
 	}
 
+	if svc, err := factory.ChatSearch(ctx, "user@example.com"); err != nil || svc == nil {
+		t.Fatalf("ChatSearch() = (%v, %v)", svc, err)
+	}
+
 	if svc, err := factory.Sheets(ctx, "user@example.com"); err != nil || svc == nil {
 		t.Fatalf("Sheets() = (%v, %v)", svc, err)
 	}

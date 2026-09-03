@@ -161,6 +161,7 @@ Generated from `gog schema --json`.
         - [`gog chat messages reactions (reaction) create (add) <message> <emoji> [flags]`](commands/gog-chat-messages-reactions-create.md) - Add an emoji reaction to a message
         - [`gog chat messages reactions (reaction) delete (remove,rm) <reaction>`](commands/gog-chat-messages-reactions-delete.md) - Delete a reaction
         - [`gog chat messages reactions (reaction) list (ls) <message> [flags]`](commands/gog-chat-messages-reactions-list.md) - List reactions on a message
+      - [`gog chat messages search (find,query) <query> ... [flags]`](commands/gog-chat-messages-search.md) - Search messages across Chat
       - [`gog chat messages send (create,post) <space> [flags]`](commands/gog-chat-messages-send.md) - Send a message
     - [`gog chat spaces <command>`](commands/gog-chat-spaces.md) - Chat spaces
       - [`gog chat spaces create (add,new) <displayName> [flags]`](commands/gog-chat-spaces-create.md) - Create a space

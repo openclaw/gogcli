@@ -184,6 +184,20 @@ func chatMessageThread(msg *chat.Message) string {
 	return msg.Thread.Name
 }
 
+func chatMessageSpace(msg *chat.Message) string {
+	if msg == nil {
+		return ""
+	}
+	if msg.Space != nil && msg.Space.Name != "" {
+		return msg.Space.Name
+	}
+	parts := strings.Split(msg.Name, "/")
+	if len(parts) >= 2 && parts[0] == "spaces" && parts[1] != "" {
+		return strings.Join(parts[:2], "/")
+	}
+	return ""
+}
+
 func sanitizeChatText(s string) string {
 	replacer := strings.NewReplacer("\t", " ", "\n", " ", "\r", " ")
 	return replacer.Replace(s)

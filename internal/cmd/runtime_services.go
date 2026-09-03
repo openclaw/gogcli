@@ -66,6 +66,9 @@ func composeRuntimeGoogleServices(runtime *app.Runtime, factory googleapi.Factor
 	if services.Chat == nil {
 		services.Chat = factory.Chat
 	}
+	if services.ChatSearch == nil {
+		services.ChatSearch = factory.ChatSearch
+	}
 	if services.Classroom == nil {
 		services.Classroom = factory.Classroom
 	}
@@ -225,6 +228,14 @@ func chatService(ctx context.Context, account string) (*chat.Service, error) {
 		return nil, serviceError(err, "chat")
 	}
 	return runtime.Services.Chat(ctx, account)
+}
+
+func chatSearchService(ctx context.Context, account string) (*googleapi.ChatSearchClient, error) {
+	runtime, err := runtimeWithService(ctx, "chat search")
+	if err != nil || runtime.Services.ChatSearch == nil {
+		return nil, serviceError(err, "chat search")
+	}
+	return runtime.Services.ChatSearch(ctx, account)
 }
 
 func classroomService(ctx context.Context, account string) (*classroom.Service, error) {
