@@ -1,6 +1,8 @@
 package cmd
 
 import (
+	"fmt"
+
 	"google.golang.org/api/chat/v1"
 
 	"github.com/openclaw/gogcli/internal/outfmt"
@@ -27,6 +29,29 @@ func chatMessageColumns() []outfmt.Column[*chat.Message] {
 			return sanitizeChatText(chatMessageText(message))
 		}},
 	}
+}
+
+func chatMessageSearchColumns(includeRead bool) []outfmt.Column[*chatMessageSearchItem] {
+	columns := []outfmt.Column[*chatMessageSearchItem]{
+		{Header: "RESOURCE", Value: func(item *chatMessageSearchItem) string { return item.Resource }},
+		{Header: "SPACE", Value: func(item *chatMessageSearchItem) string { return item.Space }},
+		{Header: "THREAD", Value: func(item *chatMessageSearchItem) string { return item.Thread }},
+		{Header: "SENDER", Value: func(item *chatMessageSearchItem) string { return sanitizeTab(item.Sender) }},
+		{Header: "TIME", Value: func(item *chatMessageSearchItem) string { return sanitizeTab(item.CreateTime) }},
+		{Header: "TEXT", Value: func(item *chatMessageSearchItem) string { return sanitizeChatText(item.Text) }},
+	}
+	if includeRead {
+		columns = append(columns, outfmt.Column[*chatMessageSearchItem]{
+			Header: "READ",
+			Value: func(item *chatMessageSearchItem) string {
+				if item.Read == nil {
+					return ""
+				}
+				return fmt.Sprintf("%t", *item.Read)
+			},
+		})
+	}
+	return columns
 }
 
 func chatThreadColumns() []outfmt.Column[*chatMessageThreadItem] {

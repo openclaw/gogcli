@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	admin "google.golang.org/api/admin/directory/v1"
+	adsenseapi "google.golang.org/api/adsense/v2"
 	analyticsadmin "google.golang.org/api/analyticsadmin/v1beta"
 	analyticsdata "google.golang.org/api/analyticsdata/v1beta"
 	"google.golang.org/api/calendar/v3"
@@ -47,6 +48,9 @@ func composeRuntimeGoogleServices(runtime *app.Runtime, factory googleapi.Factor
 	if services.AdminOrgUnit == nil {
 		services.AdminOrgUnit = factory.AdminOrgUnit
 	}
+	if services.AdSense == nil {
+		services.AdSense = factory.AdSense
+	}
 	if services.AppScript == nil {
 		services.AppScript = factory.AppScript
 	}
@@ -61,6 +65,9 @@ func composeRuntimeGoogleServices(runtime *app.Runtime, factory googleapi.Factor
 	}
 	if services.Chat == nil {
 		services.Chat = factory.Chat
+	}
+	if services.ChatSearch == nil {
+		services.ChatSearch = factory.ChatSearch
 	}
 	if services.Classroom == nil {
 		services.Classroom = factory.Classroom
@@ -175,6 +182,14 @@ func adminOrgUnitDirectoryService(ctx context.Context, account string) (*admin.S
 	return runtime.Services.AdminOrgUnit(ctx, account)
 }
 
+func adSenseService(ctx context.Context, account string) (*adsenseapi.Service, error) {
+	runtime, err := runtimeWithService(ctx, "adsense")
+	if err != nil || runtime.Services.AdSense == nil {
+		return nil, serviceError(err, "adsense")
+	}
+	return runtime.Services.AdSense(ctx, account)
+}
+
 func appScriptService(ctx context.Context, account string) (*scriptapi.Service, error) {
 	runtime, err := runtimeWithService(ctx, "app script")
 	if err != nil || runtime.Services.AppScript == nil {
@@ -213,6 +228,14 @@ func chatService(ctx context.Context, account string) (*chat.Service, error) {
 		return nil, serviceError(err, "chat")
 	}
 	return runtime.Services.Chat(ctx, account)
+}
+
+func chatSearchService(ctx context.Context, account string) (*googleapi.ChatSearchClient, error) {
+	runtime, err := runtimeWithService(ctx, "chat search")
+	if err != nil || runtime.Services.ChatSearch == nil {
+		return nil, serviceError(err, "chat search")
+	}
+	return runtime.Services.ChatSearch(ctx, account)
 }
 
 func classroomService(ctx context.Context, account string) (*classroom.Service, error) {

@@ -7,15 +7,139 @@ import (
 
 	"google.golang.org/api/chat/v1"
 
+	"github.com/openclaw/gogcli/internal/googleapi"
 	"github.com/openclaw/gogcli/internal/outfmt"
 	"github.com/openclaw/gogcli/internal/ui"
 )
 
 type ChatMessagesCmd struct {
 	List      ChatMessagesListCmd      `cmd:"" name:"list" aliases:"ls" help:"List messages"`
+	Search    ChatMessagesSearchCmd    `cmd:"" name:"search" aliases:"find,query" help:"Search messages across Chat"`
 	Send      ChatMessagesSendCmd      `cmd:"" name:"send" aliases:"create,post" help:"Send a message"`
 	React     ChatMessagesReactCmd     `cmd:"" name:"react" help:"Add an emoji reaction to a message"`
 	Reactions ChatMessagesReactionsCmd `cmd:"" name:"reactions" aliases:"reaction" help:"Manage emoji reactions on a message"`
+}
+
+type ChatMessagesSearchCmd struct {
+	Query     []string `arg:"" name:"query" help:"Search query using Google Chat filter syntax"`
+	Max       int64    `name:"max" aliases:"limit" help:"Max results per page" default:"25"`
+	Page      string   `name:"page" aliases:"cursor" help:"Page token"`
+	All       bool     `name:"all" aliases:"all-pages,allpages" help:"Fetch all pages"`
+	FailEmpty bool     `name:"fail-empty" aliases:"non-empty,require-results" help:"Exit with code 3 if no results"`
+	Order     string   `name:"order" help:"Order by: create_time desc or relevance desc (Developer Preview)" enum:"create_time desc,relevance desc," default:""`
+	View      string   `name:"view" help:"Result view: basic or full" enum:"basic,full" default:"basic"`
+	Markup    string   `name:"markup" help:"Formatted text syntax: chat or markdown" enum:"chat,markdown," default:""`
+}
+
+func (c *ChatMessagesSearchCmd) Run(ctx context.Context, flags *RootFlags) error {
+	u := ui.FromContext(ctx)
+	query := strings.TrimSpace(strings.Join(c.Query, " "))
+	if query == "" {
+		return usage("missing query")
+	}
+	if c.Max <= 0 || c.Max > 100 {
+		return usage("max must be between 1 and 100")
+	}
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
+	}
+	if err = requireWorkspaceAccount(account); err != nil {
+		return err
+	}
+
+	svc, err := chatSearchService(ctx, account)
+	if err != nil {
+		return err
+	}
+
+	view := "SEARCH_MESSAGES_VIEW_BASIC"
+	if c.View == "full" {
+		view = "SEARCH_MESSAGES_VIEW_FULL"
+	}
+	markup := ""
+	switch c.Markup {
+	case "chat":
+		markup = "MARKUP_SYNTAX_CHAT"
+	case "markdown":
+		markup = "MARKUP_SYNTAX_MARKDOWN"
+	}
+
+	fetch := func(pageToken string) ([]*googleapi.ChatSearchResult, string, error) {
+		req := &chat.SearchMessagesRequest{
+			Filter:       query,
+			MarkupSyntax: markup,
+			OrderBy:      strings.TrimSpace(c.Order),
+			PageSize:     c.Max,
+			PageToken:    strings.TrimSpace(pageToken),
+			View:         view,
+		}
+		resp, callErr := svc.Search(ctx, req)
+		if callErr != nil {
+			return nil, "", callErr
+		}
+		return resp.Results, resp.NextPageToken, nil
+	}
+
+	results, nextPageToken, err := loadPagedItems(c.Page, c.All, fetch)
+	if err != nil {
+		return err
+	}
+	items := compactChatSearchRows(results, c.View == "full")
+
+	if outfmt.IsJSON(ctx) {
+		return writePagedJSONResult(ctx, map[string]any{
+			"results":       items,
+			"nextPageToken": nextPageToken,
+		}, len(items), c.FailEmpty)
+	}
+
+	if len(items) == 0 {
+		u.Err().Println("No results")
+		return failEmptyExit(c.FailEmpty)
+	}
+	if err := outfmt.WriteTable(ctx, stdoutWriter(ctx), items, chatMessageSearchColumns(c.View == "full")); err != nil {
+		return err
+	}
+	printNextPageHintWithAll(u, nextPageToken, "--all/--all-pages")
+	return nil
+}
+
+type chatMessageSearchItem struct {
+	Resource         string `json:"resource"`
+	Space            string `json:"space,omitempty"`
+	Sender           string `json:"sender,omitempty"`
+	Text             string `json:"text,omitempty"`
+	FormattedText    string `json:"formattedText,omitempty"`
+	CreateTime       string `json:"createTime,omitempty"`
+	Thread           string `json:"thread,omitempty"`
+	Read             *bool  `json:"read,omitempty"`
+	SpaceMuteSetting string `json:"spaceMuteSetting,omitempty"`
+}
+
+func compactChatSearchRows(results []*googleapi.ChatSearchResult, includeRead bool) []*chatMessageSearchItem {
+	items := make([]*chatMessageSearchItem, 0, len(results))
+	for _, result := range results {
+		if result == nil || result.Message == nil {
+			continue
+		}
+		msg := result.Message
+		item := &chatMessageSearchItem{
+			Resource:         msg.Name,
+			Space:            chatMessageSpace(msg),
+			Sender:           chatMessageSender(msg),
+			Text:             chatMessageText(msg),
+			FormattedText:    msg.FormattedText,
+			CreateTime:       msg.CreateTime,
+			Thread:           chatMessageThread(msg),
+			SpaceMuteSetting: result.SpaceMuteSetting,
+		}
+		if includeRead {
+			item.Read = result.Read
+		}
+		items = append(items, item)
+	}
+	return items
 }
 
 type ChatMessagesListCmd struct {

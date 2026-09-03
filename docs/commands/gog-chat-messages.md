@@ -19,6 +19,7 @@ gog chat messages <command>
 - [gog chat messages list](gog-chat-messages-list.md) - List messages
 - [gog chat messages react](gog-chat-messages-react.md) - Add an emoji reaction to a message
 - [gog chat messages reactions](gog-chat-messages-reactions.md) - Manage emoji reactions on a message
+- [gog chat messages search](gog-chat-messages-search.md) - Search messages across Chat
 - [gog chat messages send](gog-chat-messages-send.md) - Send a message
 
 ## Flags

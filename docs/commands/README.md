@@ -2,11 +2,12 @@
 
 Every `gog` command has a generated docs page. The source of truth is the live CLI schema; run `make docs-commands` after changing command names, flags, help text, aliases, or arguments.
 
-Generated pages: 728.
+Generated pages: 766.
 
 ## Top-level Commands
 
 - [gog admin](gog-admin.md) - Google Workspace Admin (Directory API) - requires domain-wide delegation
+- [gog adsense](gog-adsense.md) - Google AdSense Management API
 - [gog analytics](gog-analytics.md) - Google Analytics
 - [gog api](gog-api.md) - Google Discovery APIs and generic method calls
 - [gog appscript](gog-appscript.md) - Google Apps Script
@@ -75,6 +76,43 @@ Generated pages: 728.
       - [gog admin users get](gog-admin-users-get.md) - Get user details
       - [gog admin users list](gog-admin-users-list.md) - List users in a domain
       - [gog admin users suspend](gog-admin-users-suspend.md) - Suspend a user account
+  - [gog adsense](gog-adsense.md) - Google AdSense Management API
+    - [gog adsense accounts](gog-adsense-accounts.md) - List/get AdSense accounts
+      - [gog adsense accounts children](gog-adsense-accounts-children.md) - List child accounts of a manager account
+      - [gog adsense accounts get](gog-adsense-accounts-get.md) - Get a specific AdSense account
+      - [gog adsense accounts list](gog-adsense-accounts-list.md) - List accessible AdSense accounts
+    - [gog adsense adclients](gog-adsense-adclients.md) - List/get ad clients
+      - [gog adsense adclients adcode](gog-adsense-adclients-adcode.md) - Get the ad code snippet for an ad client
+      - [gog adsense adclients get](gog-adsense-adclients-get.md) - Get a specific ad client
+      - [gog adsense adclients list](gog-adsense-adclients-list.md) - List ad clients for an account
+    - [gog adsense adunits](gog-adsense-adunits.md) - List/get ad units
+      - [gog adsense adunits adcode](gog-adsense-adunits-adcode.md) - Get the ad code snippet for an ad unit
+      - [gog adsense adunits get](gog-adsense-adunits-get.md) - Get a specific ad unit
+      - [gog adsense adunits linkedcustomchannels](gog-adsense-adunits-linkedcustomchannels.md) - List custom channels linked to an ad unit
+      - [gog adsense adunits list](gog-adsense-adunits-list.md) - List ad units for an ad client
+    - [gog adsense alerts](gog-adsense-alerts.md) - List account alerts
+      - [gog adsense alerts list](gog-adsense-alerts-list.md) - List account alerts
+    - [gog adsense customchannels](gog-adsense-customchannels.md) - List/get custom channels
+      - [gog adsense customchannels get](gog-adsense-customchannels-get.md) - Get a specific custom channel
+      - [gog adsense customchannels linkedadunits](gog-adsense-customchannels-linkedadunits.md) - List ad units linked to a custom channel
+      - [gog adsense customchannels list](gog-adsense-customchannels-list.md) - List custom channels for an ad client
+    - [gog adsense payments](gog-adsense-payments.md) - List account payments
+      - [gog adsense payments list](gog-adsense-payments-list.md) - List account payments
+    - [gog adsense policyissues](gog-adsense-policyissues.md) - List/get policy issues
+      - [gog adsense policyissues get](gog-adsense-policyissues-get.md) - Get a specific policy issue
+      - [gog adsense policyissues list](gog-adsense-policyissues-list.md) - List policy issues for an account
+    - [gog adsense reports](gog-adsense-reports.md) - Generate AdSense reports
+      - [gog adsense reports query](gog-adsense-reports-query.md) - Run an AdSense report
+      - [gog adsense reports saved](gog-adsense-reports-saved.md) - Saved report operations
+        - [gog adsense reports saved get](gog-adsense-reports-saved-get.md) - Get saved report metadata
+        - [gog adsense reports saved list](gog-adsense-reports-saved-list.md) - List saved reports for an account
+        - [gog adsense reports saved query](gog-adsense-reports-saved-query.md) - Run a saved report
+    - [gog adsense sites](gog-adsense-sites.md) - List/get AdSense sites
+      - [gog adsense sites get](gog-adsense-sites-get.md) - Get a specific AdSense site
+      - [gog adsense sites list](gog-adsense-sites-list.md) - List AdSense sites for an account
+    - [gog adsense urlchannels](gog-adsense-urlchannels.md) - List/get URL channels
+      - [gog adsense urlchannels get](gog-adsense-urlchannels-get.md) - Get a specific URL channel
+      - [gog adsense urlchannels list](gog-adsense-urlchannels-list.md) - List URL channels for an ad client
   - [gog analytics](gog-analytics.md) - Google Analytics
     - [gog analytics accounts](gog-analytics-accounts.md) - List GA4 account summaries
     - [gog analytics report](gog-analytics-report.md) - Run a GA4 report (Analytics Data API)
@@ -177,6 +215,7 @@ Generated pages: 728.
         - [gog chat messages reactions create](gog-chat-messages-reactions-create.md) - Add an emoji reaction to a message
         - [gog chat messages reactions delete](gog-chat-messages-reactions-delete.md) - Delete a reaction
         - [gog chat messages reactions list](gog-chat-messages-reactions-list.md) - List reactions on a message
+      - [gog chat messages search](gog-chat-messages-search.md) - Search messages across Chat
       - [gog chat messages send](gog-chat-messages-send.md) - Send a message
     - [gog chat spaces](gog-chat-spaces.md) - Chat spaces
       - [gog chat spaces create](gog-chat-spaces-create.md) - Create a space

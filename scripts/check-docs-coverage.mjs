@@ -26,6 +26,7 @@ const requiredFeatureDocs = [
   "contacts-dedupe.md",
   "contacts-json-update.md",
   "photos-picker.md",
+  "adsense.md",
   "docs-editing.md",
   "docs-batch.md",
   "sheets-batch-update.md",

@@ -73,7 +73,7 @@ points; the [examples](docs/examples.md) and generated
 | Docs, Sheets, Slides, and Forms | `gog docs`, `gog sheets`, `gog slides`, `gog forms` |
 | Contacts and tasks | `gog contacts`, `gog tasks` |
 | Meetings and chat | `gog meet`, `gog chat`, `gog zoom` |
-| Analytics and publishing | `gog analytics`, `gog searchconsole`, `gog youtube` |
+| Analytics and publishing | `gog analytics`, `gog searchconsole`, `gog adsense`, `gog youtube` |
 | Workspace administration | `gog admin`, `gog groups`, `gog keep` |
 | Discovery API fallback | `gog api describe`, `gog api call` |
 
@@ -164,6 +164,7 @@ binary.
 | appscript | yes | Apps Script API | `https://www.googleapis.com/auth/script.projects`<br>`https://www.googleapis.com/auth/script.deployments`<br>`https://www.googleapis.com/auth/script.processes` |  |
 | analytics | yes | Analytics Admin API, Analytics Data API | `https://www.googleapis.com/auth/analytics.readonly` | GA4 account summaries + reporting |
 | searchconsole | yes | Search Console API | `https://www.googleapis.com/auth/webmasters` | Search Analytics + sitemap management |
+| adsense | no | AdSense Management API | `https://www.googleapis.com/auth/adsense.readonly` | Consumer OAuth; explicit opt-in with --services adsense; read-only |
 | ads | yes | Google Ads API | `https://www.googleapis.com/auth/adwords` | OAuth scope only |
 | groups | no | Cloud Identity API | `https://www.googleapis.com/auth/cloud-identity.groups.readonly` | Workspace only |
 | keep | no | Keep API | `https://www.googleapis.com/auth/keep` | Workspace only; service account (domain-wide delegation) |
@@ -180,6 +181,7 @@ binary.
 - [Command index](docs/commands/README.md)
 - [Gmail workflows](docs/gmail-workflows.md)
 - [Drive audits](docs/drive-audits.md)
+- [AdSense accounts and reports](docs/adsense.md)
 - [Docs, Sheets, and Slides guides](docs/index.md#pick-your-path)
 - [Changelog](CHANGELOG.md)
 

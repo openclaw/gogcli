@@ -29,6 +29,7 @@ func TestParseService(t *testing.T) {
 		{"appscript", ServiceAppScript},
 		{"analytics", ServiceAnalytics},
 		{"searchconsole", ServiceSearchConsole},
+		{"adsense", ServiceAdSense},
 		{"ads", ServiceAds},
 		{"groups", ServiceGroups},
 		{"keep", ServiceKeep},
@@ -77,7 +78,7 @@ func TestExtractCodeAndState_Errors(t *testing.T) {
 
 func TestAllServices(t *testing.T) {
 	svcs := AllServices()
-	if len(svcs) != 26 {
+	if len(svcs) != 27 {
 		t.Fatalf("unexpected: %v", svcs)
 	}
 	seen := make(map[Service]bool)
@@ -86,7 +87,7 @@ func TestAllServices(t *testing.T) {
 		seen[s] = true
 	}
 
-	for _, want := range []Service{ServiceGmail, ServiceCalendar, ServiceChat, ServiceClassroom, ServiceDrive, ServiceDriveActivity, ServiceDriveLabels, ServiceDocs, ServiceSlides, ServiceContacts, ServiceTasks, ServicePeople, ServiceSheets, ServiceForms, ServiceSites, ServiceMeet, ServiceAppScript, ServiceAnalytics, ServiceSearchConsole, ServiceAds, ServiceGroups, ServiceKeep, ServiceAdmin, ServiceYouTube, ServicePhotos, ServicePhotosPicker} {
+	for _, want := range []Service{ServiceGmail, ServiceCalendar, ServiceChat, ServiceClassroom, ServiceDrive, ServiceDriveActivity, ServiceDriveLabels, ServiceDocs, ServiceSlides, ServiceContacts, ServiceTasks, ServicePeople, ServiceSheets, ServiceForms, ServiceSites, ServiceMeet, ServiceAppScript, ServiceAnalytics, ServiceSearchConsole, ServiceAdSense, ServiceAds, ServiceGroups, ServiceKeep, ServiceAdmin, ServiceYouTube, ServicePhotos, ServicePhotosPicker} {
 		if !seen[want] {
 			t.Fatalf("missing %q", want)
 		}
@@ -112,6 +113,8 @@ func TestUserServices(t *testing.T) {
 			// expected user services
 		case ServiceKeep:
 			t.Fatalf("unexpected keep in user services")
+		case ServiceAdSense:
+			t.Fatal("AdSense must remain explicitly opted in")
 		}
 	}
 

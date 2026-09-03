@@ -35,8 +35,16 @@ func TestFactoryBuildsRepresentativeServices(t *testing.T) {
 		t.Fatalf("Docs() = (%v, %v)", svc, err)
 	}
 
+	if svc, err := factory.AdSense(ctx, "user@example.com"); err != nil || svc == nil {
+		t.Fatalf("AdSense() = (%v, %v)", svc, err)
+	}
+
 	if svc, err := factory.Calendar(ctx, "user@example.com"); err != nil || svc == nil {
 		t.Fatalf("Calendar() = (%v, %v)", svc, err)
+	}
+
+	if svc, err := factory.ChatSearch(ctx, "user@example.com"); err != nil || svc == nil {
+		t.Fatalf("ChatSearch() = (%v, %v)", svc, err)
 	}
 
 	if svc, err := factory.Sheets(ctx, "user@example.com"); err != nil || svc == nil {

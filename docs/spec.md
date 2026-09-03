@@ -410,6 +410,13 @@ after the bounded retry window, the command exits with retryable code `8`.
 - `gog chat spaces create <displayName> [--member email,...]`
 - `gog chat messages list <space> [--max N] [--page TOKEN] [--order ORDER] [--thread THREAD] [--unread]`
   - JSON output includes user-mention annotations and emoji-reaction summaries when present; plain-text output is unchanged.
+- `gog chat messages search <query> [--max N] [--page TOKEN] [--all] [--order "create_time desc"|"relevance desc"] [--view basic|full] [--markup chat|markdown]`
+  - Searches messages available to the authenticated Workspace user across direct messages and spaces, subject to Google Chat API search exclusions such as muted spaces. The query uses Google Chat filter syntax and may include keywords, sender, space, date, mention, unread, link, or attachment filters.
+  - This is a read-only search, not an exhaustive export. `--max` accepts 1–100 per page; `--all` follows page tokens. `--order "relevance desc"` requires Google's Developer Preview access.
+  - JSON contains `results` and `nextPageToken`. Each result includes resource, space, thread, sender, text, and formatted text when available. `--wrap-untrusted` wraps externally supplied text and sender names without changing resource identifiers.
+  - `--view full` requests optional metadata: `read` needs `chat.users.readstate` or `chat.users.readstate.readonly`, and `spaceMuteSetting` needs `chat.users.spacesettings`. Missing read metadata is omitted from JSON and displayed as a blank READ cell, not `false`. Explicit `false` means unread. Basic view omits read state.
+  - Optional filters can require additional scopes; see [Google's search reference](https://developers.google.com/workspace/chat/api/reference/rest/v1/spaces.messages/search). The command does not expand an existing OAuth grant.
+  - Examples: `gog --readonly chat messages search 'project decision' --all --json` and `gog --readonly chat messages search 'project decision' --view full --markup markdown --wrap-untrusted --json`.
 - `gog chat messages send <space> --text TEXT [--thread THREAD]`
 - `gog chat threads list <space> [--max N] [--page TOKEN]`
 - `gog chat dm space <email>`

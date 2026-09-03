@@ -7,6 +7,7 @@ import (
 	"time"
 
 	admin "google.golang.org/api/admin/directory/v1"
+	adsense "google.golang.org/api/adsense/v2"
 	analyticsadmin "google.golang.org/api/analyticsadmin/v1beta"
 	analyticsdata "google.golang.org/api/analyticsdata/v1beta"
 	"google.golang.org/api/calendar/v3"
@@ -45,11 +46,13 @@ type IO struct {
 
 type (
 	AdminDirectoryServiceFactory func(context.Context, string) (*admin.Service, error)
+	AdSenseServiceFactory        func(context.Context, string) (*adsense.Service, error)
 	AppScriptServiceFactory      func(context.Context, string) (*script.Service, error)
 	AnalyticsAdminServiceFactory func(context.Context, string) (*analyticsadmin.Service, error)
 	AnalyticsDataServiceFactory  func(context.Context, string) (*analyticsdata.Service, error)
 	CalendarServiceFactory       func(context.Context, string) (*calendar.Service, error)
 	ChatServiceFactory           func(context.Context, string) (*chat.Service, error)
+	ChatSearchServiceFactory     func(context.Context, string) (*googleapi.ChatSearchClient, error)
 	ClassroomServiceFactory      func(context.Context, string) (*classroom.Service, error)
 	CloudIdentityServiceFactory  func(context.Context, string) (*cloudidentity.Service, error)
 	DocsServiceFactory           func(context.Context, string) (*docs.Service, error)
@@ -92,11 +95,13 @@ type ZoomMeetingClient interface {
 type Services struct {
 	AdminDirectory  AdminDirectoryServiceFactory
 	AdminOrgUnit    AdminDirectoryServiceFactory
+	AdSense         AdSenseServiceFactory
 	AppScript       AppScriptServiceFactory
 	AnalyticsAdmin  AnalyticsAdminServiceFactory
 	AnalyticsData   AnalyticsDataServiceFactory
 	Calendar        CalendarServiceFactory
 	Chat            ChatServiceFactory
+	ChatSearch      ChatSearchServiceFactory
 	Classroom       ClassroomServiceFactory
 	CloudIdentity   CloudIdentityServiceFactory
 	Docs            DocsServiceFactory

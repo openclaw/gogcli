@@ -61,6 +61,7 @@ live binary.
 - **Backing up an account.** [Backup](backup.md) before pointing `gog backup push` at a busy mailbox.
 - **Selecting private Photos media.** [Photos Picker](photos-picker.md) keeps access limited to items the user explicitly chooses.
 - **Managing YouTube.** [YouTube](youtube.md) covers API-key reads, account OAuth, subscriptions, playlists, and mutation safety.
+- **Reading publisher reports.** [AdSense](adsense.md) covers explicit readonly authorization, publisher selection, reporting timezones, and saved reports.
 - **Grouping Docs edits atomically.** [Google Docs request batches](docs-batch.md) covers persisted, revision-locked request queues and explicit recovery modes.
 - **Managing BigQuery-backed Sheets.** [Connected Sheets](sheets-connected.md) covers opt-in authorization, source creation and status, targeted refreshes, and bounded extract reads.
 - **Verifying real API behavior.** [Live testing](live-testing.md) covers the dedicated-account smoke suite, cleanup, retries, and optional infrastructure.

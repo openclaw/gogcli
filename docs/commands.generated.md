@@ -22,6 +22,43 @@ Generated from `gog schema --json`.
       - [`gog admin users get (info,show) <userEmail>`](commands/gog-admin-users-get.md) - Get user details
       - [`gog admin users list (ls) [flags]`](commands/gog-admin-users-list.md) - List users in a domain
       - [`gog admin users suspend <userEmail>`](commands/gog-admin-users-suspend.md) - Suspend a user account
+  - [`gog adsense <command> [flags]`](commands/gog-adsense.md) - Google AdSense Management API
+    - [`gog adsense accounts (account) <command>`](commands/gog-adsense-accounts.md) - List/get AdSense accounts
+      - [`gog adsense accounts (account) children (list-children) <parent> [flags]`](commands/gog-adsense-accounts-children.md) - List child accounts of a manager account
+      - [`gog adsense accounts (account) get (info,show) <account>`](commands/gog-adsense-accounts-get.md) - Get a specific AdSense account
+      - [`gog adsense accounts (account) list (ls) [flags]`](commands/gog-adsense-accounts-list.md) - List accessible AdSense accounts
+    - [`gog adsense adclients (adclient) <command>`](commands/gog-adsense-adclients.md) - List/get ad clients
+      - [`gog adsense adclients (adclient) adcode <name>`](commands/gog-adsense-adclients-adcode.md) - Get the ad code snippet for an ad client
+      - [`gog adsense adclients (adclient) get (info,show) <name>`](commands/gog-adsense-adclients-get.md) - Get a specific ad client
+      - [`gog adsense adclients (adclient) list (ls) <account> [flags]`](commands/gog-adsense-adclients-list.md) - List ad clients for an account
+    - [`gog adsense adunits (adunit) <command>`](commands/gog-adsense-adunits.md) - List/get ad units
+      - [`gog adsense adunits (adunit) adcode <name>`](commands/gog-adsense-adunits-adcode.md) - Get the ad code snippet for an ad unit
+      - [`gog adsense adunits (adunit) get (info,show) <name>`](commands/gog-adsense-adunits-get.md) - Get a specific ad unit
+      - [`gog adsense adunits (adunit) linkedcustomchannels (customchannels) <adunit> [flags]`](commands/gog-adsense-adunits-linkedcustomchannels.md) - List custom channels linked to an ad unit
+      - [`gog adsense adunits (adunit) list (ls) <adclient> [flags]`](commands/gog-adsense-adunits-list.md) - List ad units for an ad client
+    - [`gog adsense alerts <command>`](commands/gog-adsense-alerts.md) - List account alerts
+      - [`gog adsense alerts list (ls) <account> [flags]`](commands/gog-adsense-alerts-list.md) - List account alerts
+    - [`gog adsense customchannels (customchannel) <command>`](commands/gog-adsense-customchannels.md) - List/get custom channels
+      - [`gog adsense customchannels (customchannel) get (info,show) <name>`](commands/gog-adsense-customchannels-get.md) - Get a specific custom channel
+      - [`gog adsense customchannels (customchannel) linkedadunits (adunits) <customchannel> [flags]`](commands/gog-adsense-customchannels-linkedadunits.md) - List ad units linked to a custom channel
+      - [`gog adsense customchannels (customchannel) list (ls) <adclient> [flags]`](commands/gog-adsense-customchannels-list.md) - List custom channels for an ad client
+    - [`gog adsense payments <command>`](commands/gog-adsense-payments.md) - List account payments
+      - [`gog adsense payments list (ls) <account> [flags]`](commands/gog-adsense-payments-list.md) - List account payments
+    - [`gog adsense policyissues (policyissue) <command>`](commands/gog-adsense-policyissues.md) - List/get policy issues
+      - [`gog adsense policyissues (policyissue) get (info,show) <name>`](commands/gog-adsense-policyissues-get.md) - Get a specific policy issue
+      - [`gog adsense policyissues (policyissue) list (ls) <account> [flags]`](commands/gog-adsense-policyissues-list.md) - List policy issues for an account
+    - [`gog adsense reports (report) <command>`](commands/gog-adsense-reports.md) - Generate AdSense reports
+      - [`gog adsense reports (report) query (run,generate) <account> [flags]`](commands/gog-adsense-reports-query.md) - Run an AdSense report
+      - [`gog adsense reports (report) saved <command>`](commands/gog-adsense-reports-saved.md) - Saved report operations
+        - [`gog adsense reports (report) saved get (info,show) <name>`](commands/gog-adsense-reports-saved-get.md) - Get saved report metadata
+        - [`gog adsense reports (report) saved list (ls) <account> [flags]`](commands/gog-adsense-reports-saved-list.md) - List saved reports for an account
+        - [`gog adsense reports (report) saved query (run,generate) <name> [flags]`](commands/gog-adsense-reports-saved-query.md) - Run a saved report
+    - [`gog adsense sites <command>`](commands/gog-adsense-sites.md) - List/get AdSense sites
+      - [`gog adsense sites get (info,show) <name>`](commands/gog-adsense-sites-get.md) - Get a specific AdSense site
+      - [`gog adsense sites list (ls) <account> [flags]`](commands/gog-adsense-sites-list.md) - List AdSense sites for an account
+    - [`gog adsense urlchannels (urlchannel) <command>`](commands/gog-adsense-urlchannels.md) - List/get URL channels
+      - [`gog adsense urlchannels (urlchannel) get (info,show) <name>`](commands/gog-adsense-urlchannels-get.md) - Get a specific URL channel
+      - [`gog adsense urlchannels (urlchannel) list (ls) <adclient> [flags]`](commands/gog-adsense-urlchannels-list.md) - List URL channels for an ad client
   - [`gog analytics (ga) <command> [flags]`](commands/gog-analytics.md) - Google Analytics
     - [`gog analytics (ga) accounts (list,ls) [flags]`](commands/gog-analytics-accounts.md) - List GA4 account summaries
     - [`gog analytics (ga) report <property> [flags]`](commands/gog-analytics-report.md) - Run a GA4 report (Analytics Data API)
@@ -124,6 +161,7 @@ Generated from `gog schema --json`.
         - [`gog chat messages reactions (reaction) create (add) <message> <emoji> [flags]`](commands/gog-chat-messages-reactions-create.md) - Add an emoji reaction to a message
         - [`gog chat messages reactions (reaction) delete (remove,rm) <reaction>`](commands/gog-chat-messages-reactions-delete.md) - Delete a reaction
         - [`gog chat messages reactions (reaction) list (ls) <message> [flags]`](commands/gog-chat-messages-reactions-list.md) - List reactions on a message
+      - [`gog chat messages search (find,query) <query> ... [flags]`](commands/gog-chat-messages-search.md) - Search messages across Chat
       - [`gog chat messages send (create,post) <space> [flags]`](commands/gog-chat-messages-send.md) - Send a message
     - [`gog chat spaces <command>`](commands/gog-chat-spaces.md) - Chat spaces
       - [`gog chat spaces create (add,new) <displayName> [flags]`](commands/gog-chat-spaces-create.md) - Create a space

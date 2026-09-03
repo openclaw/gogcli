@@ -15,6 +15,7 @@ import (
 	"time"
 
 	admin "google.golang.org/api/admin/directory/v1"
+	adsenseapi "google.golang.org/api/adsense/v2"
 	analyticsadmin "google.golang.org/api/analyticsadmin/v1beta"
 	analyticsdata "google.golang.org/api/analyticsdata/v1beta"
 	"google.golang.org/api/chat/v1"
@@ -115,7 +116,9 @@ func TestComposeRuntimeGoogleServicesPreservesOverrides(t *testing.T) {
 	if runtime.Services.Gmail == nil ||
 		runtime.Services.Docs == nil ||
 		runtime.Services.Calendar == nil ||
+		runtime.Services.ChatSearch == nil ||
 		runtime.Services.Photos == nil ||
+		runtime.Services.AdSense == nil ||
 		runtime.Services.YouTubeWrite == nil {
 		t.Fatalf("representative factory services missing: %#v", runtime.Services)
 	}
@@ -747,6 +750,31 @@ func TestAnalyticsDataServiceUsesRuntimeFactory(t *testing.T) {
 	}
 	if got != want {
 		t.Fatalf("analyticsDataService() = %p, want %p", got, want)
+	}
+	if gotAccount != "test@example.com" {
+		t.Fatalf("factory account = %q, want test@example.com", gotAccount)
+	}
+}
+
+func TestAdSenseServiceUsesRuntimeFactory(t *testing.T) {
+	t.Parallel()
+
+	want := &adsenseapi.Service{}
+	var gotAccount string
+	runtime := &app.Runtime{Services: app.Services{
+		AdSense: func(_ context.Context, account string) (*adsenseapi.Service, error) {
+			gotAccount = account
+			return want, nil
+		},
+	}}
+	ctx := app.WithRuntime(context.Background(), runtime)
+
+	got, err := adSenseService(ctx, "test@example.com")
+	if err != nil {
+		t.Fatalf("adSenseService() error = %v", err)
+	}
+	if got != want {
+		t.Fatalf("adSenseService() = %p, want %p", got, want)
 	}
 	if gotAccount != "test@example.com" {
 		t.Fatalf("factory account = %q, want test@example.com", gotAccount)

@@ -29,6 +29,7 @@ const (
 	ServiceAppScript     Service = "appscript"
 	ServiceAnalytics     Service = "analytics"
 	ServiceSearchConsole Service = "searchconsole"
+	ServiceAdSense       Service = "adsense"
 	ServiceAds           Service = "ads"
 	ServiceGroups        Service = "groups"
 	ServiceKeep          Service = "keep"
@@ -101,6 +102,7 @@ var serviceOrder = []Service{
 	ServiceAppScript,
 	ServiceAnalytics,
 	ServiceSearchConsole,
+	ServiceAdSense,
 	ServiceAds,
 	ServiceGroups,
 	ServiceKeep,
@@ -266,6 +268,12 @@ var serviceInfoByService = map[Service]serviceInfo{
 		apis:   []string{"Search Console API"},
 		note:   "Search Analytics + sitemap management",
 	},
+	ServiceAdSense: {
+		scopes: []string{"https://www.googleapis.com/auth/adsense.readonly"},
+		user:   false,
+		apis:   []string{"AdSense Management API"},
+		note:   "Consumer OAuth; explicit opt-in with --services adsense; read-only",
+	},
 	ServiceAds: {
 		scopes: []string{"https://www.googleapis.com/auth/adwords"},
 		user:   true,
@@ -334,6 +342,7 @@ var apiServiceIDsByService = map[Service][]string{
 	ServiceAppScript:     {"script.googleapis.com"},
 	ServiceAnalytics:     {"analyticsadmin.googleapis.com", "analyticsdata.googleapis.com"},
 	ServiceSearchConsole: {"searchconsole.googleapis.com"},
+	ServiceAdSense:       {"adsense.googleapis.com"},
 	ServiceAds:           {"googleads.googleapis.com"},
 	ServiceGroups:        {"cloudidentity.googleapis.com"},
 	ServiceKeep:          {"keep.googleapis.com"},
@@ -730,6 +739,8 @@ func scopesForServiceWithOptions(service Service, opts ScopeOptions) ([]string, 
 			return []string{"https://www.googleapis.com/auth/webmasters.readonly"}, nil
 		}
 
+		return Scopes(service)
+	case ServiceAdSense:
 		return Scopes(service)
 	case ServiceAds:
 		return Scopes(service)
