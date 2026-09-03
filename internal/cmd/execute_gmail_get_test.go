@@ -198,7 +198,18 @@ func TestExecute_GmailGet_Metadata_DefaultHeadersIncludeThreading(t *testing.T) 
 	if result.err != nil {
 		t.Fatalf("Execute: %v\nstderr=%q", result.err, result.stderr)
 	}
-	if !strings.Contains(result.stdout, "reply@example.com") || !strings.Contains(result.stdout, "<orig@id>") || !strings.Contains(result.stdout, "<parent@id>") {
+	var parsed map[string]any
+	if err := json.Unmarshal([]byte(result.stdout), &parsed); err != nil {
+		t.Fatalf("metadata JSON parse: %v", err)
+	}
+	headers, ok := parsed["headers"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected flattened headers map, got: %T", parsed["headers"])
+	}
+	if headers["reply_to"] != "reply@example.com" {
+		t.Fatalf("unexpected flattened reply_to header: %v", headers["reply_to"])
+	}
+	if !strings.Contains(result.stdout, "<orig@id>") || !strings.Contains(result.stdout, "<parent@id>") {
 		t.Fatalf("expected threading headers in metadata JSON, got: %q", result.stdout)
 	}
 }
