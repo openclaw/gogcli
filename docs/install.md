@@ -20,11 +20,14 @@ gog --version
 
 ## Docker / GHCR
 
-Release tags publish a non-root GitHub Container Registry image:
+The separate Docker workflow publishes a non-root GitHub Container Registry
+image. Tags created by the unified release workflow do not trigger it
+automatically; maintainers [dispatch Docker after release publication](RELEASING.md#docker-closeout).
+Once the Docker workflow succeeds:
 
 ```bash
 docker run --rm ghcr.io/openclaw/gogcli:latest version
-docker run --rm ghcr.io/openclaw/gogcli:v0.15.0 version
+docker run --rm ghcr.io/openclaw/gogcli:v0.38.2 version
 ```
 
 Authenticated container runs should mount a persistent `GOG_HOME` directory and

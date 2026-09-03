@@ -22,6 +22,6 @@ const gmailMessageSummaryFields = "id,threadId,labelIds,internalDate,payload(hea
 
 func defaultGmailGetMetadataHeaders() []string {
 	headers := append([]string{}, gmailBasicMetadataHeaders...)
-	headers = append(headers, "Message-ID", "In-Reply-To", "References", "List-Unsubscribe")
+	headers = append(headers, "Reply-To", "Message-ID", "In-Reply-To", "References", "List-Unsubscribe")
 	return headers
 }

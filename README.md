@@ -37,14 +37,8 @@ go install github.com/openclaw/gogcli/cmd/gog@latest
 gog --version
 ```
 
-The module path moved from `github.com/steipete/gogcli` to
-`github.com/openclaw/gogcli`. Until the first release tagged after that move is
-published, `@latest` still selects an older tag that declares the previous path
-and fails; install a specific version from the old path in the meantime:
-
-```bash
-go install github.com/steipete/gogcli/cmd/gog@v0.34.2
-```
+Install scripts using the former `github.com/steipete/gogcli` module path should
+switch to `github.com/openclaw/gogcli` as shown above.
 
 Docker images, Windows archives, raw macOS/Linux binaries, and source builds
 are covered in the [install guide](docs/install.md).

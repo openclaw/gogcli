@@ -35,6 +35,7 @@
 - Group related changes; avoid bundling unrelated refactors.
 - PRs should summarize scope, note testing performed, and mention any user-facing changes or new flags.
 - PR review flow: when given a PR link, review via `gh pr view` / `gh pr diff` and do not change branches.
+- Maintain `CHANGELOG.md`: add user-visible changes to `Unreleased` as fixes and features land, with PR/issue references and contributor thanks. Finalize that section at release; do not put later work under an already published version. The release-time-only changelog exception for `openclaw/openclaw` does not apply to this repository.
 
 ### PR Workflow (Review vs Land)
 

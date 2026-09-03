@@ -46,21 +46,39 @@ func enforceBakedSafetyProfile(kctx *kong.Context) error {
 	return nil
 }
 
-// lockedFlagNames records the locked flags in force for this parse, so a command
-// rejecting a value it never received on the command line can say where it came from.
-var lockedFlagNames = map[string]bool{}
+type lockedFlagState struct {
+	names       map[string]bool
+	profileName string
+}
 
-func resetLockedFlagState() {
-	lockedFlagNames = map[string]bool{}
+func (s *lockedFlagState) has(name string) bool {
+	return s != nil && s.names[name]
+}
+
+func lockedFlagStateFor(kctx *kong.Context) *lockedFlagState {
+	if kctx == nil || kctx.Kong == nil {
+		return nil
+	}
+	var state *lockedFlagState
+	// Context bindings override the typed nil default. Keeping this on the parse,
+	// not the parser or package, prevents another invocation from clearing its locks.
+	if _, err := kctx.Call(func(bound *lockedFlagState) { state = bound }, (*lockedFlagState)(nil)); err != nil {
+		panic(err)
+	}
+	return state
 }
 
 // lockedFlagsNote names the locked flags for display beneath a usage error that
 // mentions one of them: a command can reject a combination involving a value that
 // never appeared on the command line, and the note is what explains where it came from.
-func lockedFlagsNote(msg string) string {
-	names := make([]string, 0, len(lockedFlagNames))
+func lockedFlagsNote(kctx *kong.Context, msg string) string {
+	state := lockedFlagStateFor(kctx)
+	if state == nil {
+		return ""
+	}
+	names := make([]string, 0, len(state.names))
 	mentioned := false
-	for name := range lockedFlagNames {
+	for name := range state.names {
 		names = append(names, "--"+name)
 		mentioned = mentioned || strings.Contains(msg, "--"+name)
 	}
@@ -68,7 +86,7 @@ func lockedFlagsNote(msg string) string {
 		return ""
 	}
 	sort.Strings(names)
-	return fmt.Sprintf("note: %s locked by baked safety profile %q", strings.Join(names, ", "), bakedSafetyProfileName())
+	return fmt.Sprintf("note: %s locked by baked safety profile %q", strings.Join(names, ", "), state.profileName)
 }
 
 // verifyLockedFlagsExist refuses to run when a locked name matches no flag in the
@@ -137,9 +155,11 @@ func (e lockedFlagRefusal) Unwrap() error { return e.error }
 // merely defaulted so it holds without help from the environment, which the caller
 // may not control.
 func enforceLockedFlags(kctx *kong.Context) error {
-	// Rebuilt per parse: carrying names over would let one run's note describe a
-	// profile that is not in force.
-	resetLockedFlagState()
+	state := &lockedFlagState{
+		names:       make(map[string]bool),
+		profileName: bakedSafetyProfileName(),
+	}
+	kctx.Bind(state)
 	if !bakedSafetyEnabled() {
 		return nil
 	}
@@ -151,7 +171,7 @@ func enforceLockedFlags(kctx *kong.Context) error {
 		}
 		// Recorded before anything here can fail, so the note names the profile's locks
 		// instead of however many the loop applied before it stopped.
-		lockedFlagNames[flag.Name] = true
+		state.names[flag.Name] = true
 		// Decode into a zero target so the locked boolean replaces any environment or
 		// default value already resolved by Kong.
 		lockedTarget := reflect.New(flag.Target.Type()).Elem()
@@ -161,7 +181,7 @@ func enforceLockedFlags(kctx *kong.Context) error {
 		// Requesting the value the profile already locks is not an override: refusing it
 		// would break every caller that asks for the safe setting while protecting nothing.
 		if flagOnCommandLine(kctx, flag.Name) && !reflect.DeepEqual(flag.Target.Interface(), lockedTarget.Interface()) {
-			return lockedFlagRefusal{usagef("flag --%s is locked to %s by baked safety profile %q", flag.Name, value, bakedSafetyProfileName())}
+			return lockedFlagRefusal{usagef("flag --%s is locked to %s by baked safety profile %q", flag.Name, value, state.profileName)}
 		}
 		flag.Apply(lockedTarget)
 		lockedPaths = append(lockedPaths, &kong.Path{Flag: flag})
@@ -179,7 +199,7 @@ func enforceLockedFlags(kctx *kong.Context) error {
 	validationErr := kctx.Validate()
 	kctx.Path = kctx.Path[:pathLen]
 	if validationErr != nil {
-		return usagef("baked safety profile %q has locked flags that are invalid for the selected command", bakedSafetyProfileName())
+		return usagef("baked safety profile %q has locked flags that are invalid for the selected command", state.profileName)
 	}
 	return nil
 }

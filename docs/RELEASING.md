@@ -39,6 +39,19 @@ gh workflow run release-unified.yml \
 
 `scripts/release.sh X.Y.Z` is the equivalent convenience wrapper. Watch the exact returned workflow run through completion. Retrying the same version reuses the immutable annotated tag; the workflow never moves it.
 
+## Docker closeout
+
+After the GitHub Release is public and its tag is verified, publish the Docker image separately unless an exact-tag Docker run has already succeeded. The unified workflow creates the tag with `GITHUB_TOKEN`, which does not trigger Docker's tag-push workflow.
+
+```sh
+gh workflow run docker.yml \
+  --repo openclaw/gogcli \
+  --ref vX.Y.Z \
+  -f tag=vX.Y.Z
+```
+
+Use the release tag for both `--ref` and `tag`: checkout follows the input, but build commit metadata comes from the dispatch's `GITHUB_SHA`. Dispatching from `main` can label a tagged build with a newer commit. Verify the resulting run's head SHA matches the frozen release commit and wait for success before treating the GHCR version tag (and `latest` for stable releases) as published.
+
 ## Verify and close out
 
 Before declaring the release complete, verify:
@@ -50,4 +63,4 @@ Before declaring the release complete, verify:
 - both native macOS verifier jobs passed signature, Team ID, stable identifier, hardened-runtime, timestamp, architecture, and online notarization checks;
 - the Homebrew handoff succeeded and `Formula/gogcli.rb` contains the verified version, archive names, and hashes.
 
-Finally, land the next patch `Unreleased` changelog section and set `internal/cmd/VERSION` to the released version with the `-dev` suffix. The reusable workflow may open this closeout PR; review and merge that exact change rather than creating a competing transition.
+Finally, land the next patch `Unreleased` changelog section and set `internal/cmd/VERSION` to the released version with the `-dev` suffix. The reusable workflow may open a closeout PR containing only the changelog heading; add the development-version change to that exact PR, then review and merge it rather than creating a competing transition. Keep exactly one `Unreleased` section.

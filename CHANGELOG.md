@@ -1,12 +1,34 @@
 # Changelog
 
-## 0.38.2 - Unreleased
+## Unreleased
 
-- Backup: update age encryption to reject headers larger than 2 MiB or containing more than 1024 recipient stanzas when reading encrypted shards.
-- Docs: validate page-layout sizes and margins before dry-run, and preview the resolved document-style request used for execution. (#1051) — thanks @ryo-touch.
+- Auth: explicitly select a Google Cloud quota project with `--quota-project` or `GOG_QUOTA_PROJECT`, preserving default auth behavior and forwarding the setting through Gmail watch and MCP requests. (#1056, #1055) — thanks @prateek.
+- Gmail: expose flattened `reply_to` in message JSON and default metadata reads, including sanitized messages and threads, with untrusted-content wrapping support. (#1057) — thanks @hashtag1974.
+- Docs: accept the A3 page-size preset in `docs page-layout` and `docs write`, preserving the current page mode unless explicitly changed. (#1050) — thanks @ryo-touch.
+- Chat: wrap `formattedText` in existing raw Chat and Discovery API JSON responses when `--wrap-untrusted` is enabled, preserving ordinary JSON output. (#1069) — thanks @wrgrant.
+
+## 0.38.3 - 2026-09-02
+
+- Chat: wrap flattened sender display names in message and thread listings when `--wrap-untrusted` is enabled, preserving ordinary JSON output. (#1069) — thanks @wrgrant.
+- Releases: reject an existing generic `Unreleased` section before the post-release helper changes the changelog or development version.
+- Build: update the preferred Go toolchain and pinned Docker builder to Go 1.27.1 while retaining Go 1.26 compatibility.
+- Backup: stop Chat and Classroom pagination loops while preserving already-fetched Classroom child rows when a later ordinary API request fails. (#1063) — thanks @SebTardif.
+- Drive: reject repeated page tokens during `drive sync push` scans before writing files or emitting a partial plan. (#1065) — thanks @SebTardif.
+- Drive: stop permission audits and bulk permission preflights on repeated page tokens without partial audit output or permission writes. (#1066) — thanks @SebTardif.
+- CLI: isolate baked safety-profile locked flags, output precedence, and diagnostic notes per command invocation, fixing shared locked-flag state races. (#1067)
+- Gmail: document the HTML-body workaround for drafts that Gmail web rewraps when sending, without changing MIME defaults. (#1064, #1058) — thanks @daveotero.
+
+## 0.38.2 - 2026-09-02
+
+- Gmail: preserve direct `--access-token` / `GOG_ACCESS_TOKEN` authentication in `gmail watch serve` push handlers without requiring stored OAuth credentials; token expiry and refresh behavior remain unchanged. (#1042) — thanks @bill-starfoundry.
+- Gmail: stop `--from-contact` fallback lookup with a clear error when Google repeats a page token, while preserving exact-match and ambiguity checks across all pages. (#1045) — thanks @SebTardif.
+- People/Contacts: stop raw email-identifier lookup when Google repeats a page token, preserving unique-resource matching and ambiguity checks without partial output. (#1044) — thanks @SebTardif.
+- Contacts: stop contact exports safely when group listings repeat a page token, preserving vCard categories across all pages without writing a partial export. (#1046) — thanks @SebTardif.
+- Backup: update age encryption to reject headers larger than 2 MiB or containing more than 1024 recipient stanzas when reading encrypted shards. (#1053)
+- Docs: validate page-layout sizes and margins before dry-run, and preview the resolved document-style request used for execution. (#1052, #1051) — thanks @ryo-touch.
 - HTTP: cap Google Retry-After delays at 60 seconds per retry, including numeric values that exceed integer or duration limits. (#1043) — thanks @SebTardif.
-- Sheets: preserve zero-valued sheet, row, and column indexes in Connected Sheets refresh status references, keeping A1 anchors identifiable. (#938) — thanks @ryo-touch.
-- Dependencies: prefer Go 1.27 while retaining Go 1.26 compatibility, refresh Google and MCP SDKs, update tracking worker dependencies and Go tooling, and refresh Docker build actions.
+- Sheets: preserve zero-valued sheet, row, and column indexes in Connected Sheets refresh status references, keeping A1 anchors identifiable. (#1041, #938) — thanks @ryo-touch.
+- Dependencies: prefer Go 1.27 while retaining Go 1.26 compatibility, refresh Google and MCP SDKs, update tracking worker dependencies and Go tooling, and refresh Docker build actions. (#1040, #1053)
 - API: resolve service-hosted Discovery documents such as Meet v2 after a default-directory 404, preserving explicit overrides and Google request-host safeguards. (#1049, #1048) — thanks @goutamadwant.
 
 ## 0.38.1 - 2026-08-25

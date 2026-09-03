@@ -72,6 +72,9 @@ Shows stored credential files plus any configured domain mappings.
 
 ## Quota project
 
+This selects request quota/billing attribution; it does not switch the Google
+login, grant IAM access, enable an API, or change a project's billing setup.
+
 Some Google APIs reject ADC or direct access tokens when they cannot identify
 a quota project, even if the API is enabled in a project you control. Set
 `--quota-project <project-id>` or `GOG_QUOTA_PROJECT` to send that project in

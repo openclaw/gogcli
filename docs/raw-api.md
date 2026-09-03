@@ -40,6 +40,12 @@ legacy top-level `Document` fields such as `body`, `lists`, and
 populates its recursive `tabs` tree. Without either flag, the command keeps the
 existing first-tab response.
 
+`gog people raw` and `gog contacts raw` also accept email identifiers. They
+scan contact pages before selecting a unique resource: repeated records for
+the same resource count once, while distinct contacts sharing an email are
+ambiguous. If Google repeats a page token, lookup stops with a pagination
+error instead of paging indefinitely.
+
 Use service-native field masks when available:
 
 ```bash

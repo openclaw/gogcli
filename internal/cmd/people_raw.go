@@ -63,11 +63,8 @@ func runPeopleRaw(ctx context.Context, flags *RootFlags, id, fields string, pret
 
 	resource := normalizePeopleResource(identifier)
 	if strings.Contains(identifier, "@") && !strings.HasPrefix(identifier, "people/") {
-		matches := make([]string, 0, 1)
 		seen := make(map[string]bool)
-
-		pageToken := ""
-		for {
+		fetch := func(pageToken string) ([]string, string, error) {
 			call := svc.People.Connections.List(peopleMeResource).
 				PersonFields("names,emailAddresses,metadata").
 				PageSize(1000).
@@ -77,8 +74,9 @@ func runPeopleRaw(ctx context.Context, flags *RootFlags, id, fields string, pret
 			}
 			connections, listErr := call.Do()
 			if listErr != nil {
-				return wrapPeopleAPIError(listErr)
+				return nil, "", wrapPeopleAPIError(listErr)
 			}
+			var matches []string
 			for _, person := range connections.Connections {
 				if person == nil || !personHasEmail(person, identifier) || person.ResourceName == "" || seen[person.ResourceName] {
 					continue
@@ -86,10 +84,11 @@ func runPeopleRaw(ctx context.Context, flags *RootFlags, id, fields string, pret
 				seen[person.ResourceName] = true
 				matches = append(matches, person.ResourceName)
 			}
-			if connections.NextPageToken == "" {
-				break
-			}
-			pageToken = connections.NextPageToken
+			return matches, connections.NextPageToken, nil
+		}
+		matches, listErr := collectAllPages("", fetch)
+		if listErr != nil {
+			return listErr
 		}
 		switch len(matches) {
 		case 0:

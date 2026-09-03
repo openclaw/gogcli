@@ -2,7 +2,7 @@ module github.com/openclaw/gogcli
 
 go 1.26.0
 
-toolchain go1.27.0
+toolchain go1.27.1
 
 require (
 	cloud.google.com/go/pubsub/v2 v2.7.0
