@@ -4,6 +4,14 @@ set -euo pipefail
 
 run_workspace_tests() {
   if is_consumer_account "$ACCOUNT"; then
+    echo "==> chat messages search (skipped; Workspace only)"
+  elif skip "chat"; then
+    echo "==> chat messages search (skipped)"
+  else
+    run_chat_search_tests
+  fi
+
+  if is_consumer_account "$ACCOUNT"; then
     echo "==> chat attachment (skipped; Workspace only)"
   elif [ -n "${GOG_LIVE_CHAT_SPACE:-}" ]; then
     local chat_attachment

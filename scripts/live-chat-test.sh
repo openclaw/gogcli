@@ -17,6 +17,7 @@ Options:
 
 Env:
   GOG_LIVE_CHAT_SPACE=spaces/<id>        Existing space to use for list/send
+  GOG_LIVE_CHAT_SEARCH_QUERY='text'      Query known to match at least one message
   GOG_LIVE_CHAT_THREAD=<id|resource>    Thread id or resource for sends
   GOG_LIVE_CHAT_DM=user@domain          DM target (workspace user)
   GOG_LIVE_CHAT_DM_THREAD=<id|resource> Thread id for DM send
@@ -116,10 +117,12 @@ gog() {
 }
 
 TS=$(date +%Y%m%d%H%M%S)
+source "$ROOT_DIR/scripts/live-tests/chat-search.sh"
 
 echo "Using account: $ACCOUNT"
 echo "==> chat spaces list"
 gog chat spaces list --json --max 1 >/dev/null
+run_chat_search_tests
 
 if [ -n "${GOG_LIVE_CHAT_SPACE:-}" ]; then
   echo "==> chat messages list"

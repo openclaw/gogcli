@@ -37,6 +37,7 @@ Skip keys (base):
 Env:
   GOG_LIVE_EMAIL_TEST=steipete+gogtest@gmail.com
   GOG_LIVE_CHAT_SPACE=spaces/...
+  GOG_LIVE_CHAT_SEARCH_QUERY='known matching text'
   GOG_LIVE_GROUP_EMAIL=<group@domain>
   GOG_LIVE_CLASSROOM_COURSE=<courseId>
   GOG_LIVE_CLASSROOM_CREATE=1
@@ -161,6 +162,7 @@ source "$ROOT_DIR/scripts/live-tests/calendar.sh"
 source "$ROOT_DIR/scripts/live-tests/tasks.sh"
 source "$ROOT_DIR/scripts/live-tests/contacts.sh"
 source "$ROOT_DIR/scripts/live-tests/people.sh"
+source "$ROOT_DIR/scripts/live-tests/chat-search.sh"
 source "$ROOT_DIR/scripts/live-tests/workspace.sh"
 source "$ROOT_DIR/scripts/live-tests/classroom.sh"
 source "$ROOT_DIR/scripts/live-tests/meet.sh"
