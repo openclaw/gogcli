@@ -29,6 +29,6 @@ overrides:
   esbuild: 0.28.2
   nanoid: 3.3.18
   postcss: 8.5.26
-  undici: 8.10.0
+  undici: 8.10.1
   vite: 8.2.2
   ws: 8.21.3

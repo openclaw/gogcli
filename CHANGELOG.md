@@ -2,6 +2,8 @@
 
 ## 0.39.1 - Unreleased
 
+- Dependencies: refresh Google API support modules, tracking worker tooling and Undici, pnpm, and the Pages deployment action while retaining Go 1.26 compatibility.
+
 ## 0.39.0 - 2026-09-03
 
 ### Highlights
