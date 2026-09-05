@@ -152,6 +152,7 @@ func TestChatSearchLiveHarnessRejectsNonAdvancingPage(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("bash live-test harness is not supported on Windows")
 	}
+
 	root, err := filepath.Abs("..")
 	if err != nil {
 		t.Fatal(err)
@@ -168,6 +169,7 @@ gog() {
 }
 run_chat_search_tests
 `
+
 	output, err := exec.CommandContext(t.Context(), "bash", "-c", script, "bash", root).CombinedOutput()
 	if err == nil || !strings.Contains(string(output), "explicit page repeated a previous result") {
 		t.Fatalf("expected unchanged-page rejection, got %v:\n%s", err, output)
@@ -178,6 +180,7 @@ func TestChatSearchLiveHarnessRejectsInvalidFullReadMetadata(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("bash live-test harness is not supported on Windows")
 	}
+
 	root, err := filepath.Abs("..")
 	if err != nil {
 		t.Fatal(err)
@@ -188,6 +191,7 @@ source "$1/scripts/live-tests/chat-search.sh"
 assert_chat_search_json "$2" full
 `
 	payload := `{"results":[{"resource":"spaces/a/messages/one","read":"yes"}]}`
+
 	output, err := exec.CommandContext(t.Context(), "bash", "-c", script, "bash", root, payload).CombinedOutput()
 	if err == nil || !strings.Contains(string(output), "read metadata must be boolean when present") {
 		t.Fatalf("expected invalid read metadata rejection, got %v:\n%s", err, output)
