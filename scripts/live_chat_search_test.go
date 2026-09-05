@@ -81,6 +81,8 @@ func TestChatSearchLiveHarnessSkipsWithoutQuery(t *testing.T) {
 		t.Skip("bash live-test harness is not supported on Windows")
 	}
 
+	t.Setenv("GOG_LIVE_CHAT_SEARCH_QUERY", "")
+
 	root, err := filepath.Abs("..")
 	if err != nil {
 		t.Fatalf("resolve repository root: %v", err)
