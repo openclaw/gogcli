@@ -2,7 +2,8 @@
 
 ## 0.39.1 - Unreleased
 
-- Dependencies: update MCP-Go to 1.0, refresh Google API support modules, tracking worker tooling and Undici, pnpm, and the Pages deployment action while retaining Go 1.26 compatibility.
+- Dependencies: refresh Google API support modules, tracking worker tooling and Undici, pnpm, and the Pages deployment action while retaining Go 1.26 compatibility.
+- MCP: update the protocol SDK to 1.0 while preserving existing stdio clients.
 
 ## 0.39.0 - 2026-09-03
 
