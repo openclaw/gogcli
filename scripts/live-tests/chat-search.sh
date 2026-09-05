@@ -17,7 +17,8 @@ run_chat_search_tests() {
     --order "create_time desc" --view basic)
   assert_chat_search_json "$basic_json" basic
 
-  echo "==> chat messages search (full Markdown)"
+  # Smoke-check option acceptance and result shape, not Markdown rendering.
+  echo "==> chat messages search (full Markdown options)"
   full_json=$(gog chat messages search "$query" --readonly --json --max 1 \
     --order "create_time desc" --view full --markup markdown --wrap-untrusted)
   assert_chat_search_json "$full_json" full
@@ -29,6 +30,7 @@ run_chat_search_tests() {
       --page "$page_token" --order "create_time desc" --view full \
       --markup markdown --wrap-untrusted)
     assert_chat_search_json "$page_json" full
+    assert_chat_search_advanced "$full_json" "$page_json"
   else
     echo "==> chat messages search explicit page (skipped; query has one result page)"
   fi
@@ -46,6 +48,16 @@ run_chat_search_tests() {
     echo "chat search --fail-empty returned $empty_rc, want 3" >&2
     return 1
   fi
+}
+
+assert_chat_search_advanced() {
+  $PY -c 'import json,sys
+first=json.loads(sys.argv[1])
+page=json.load(sys.stdin)
+previous={item["resource"] for item in first["results"]}
+if any(item["resource"] in previous for item in page["results"]):
+    raise SystemExit("chat search explicit page repeated a previous result")
+' "$1" <<<"$2"
 }
 
 chat_search_next_page_token() {
@@ -71,6 +83,9 @@ if not isinstance(obj.get("nextPageToken", ""), str):
     raise SystemExit("chat search nextPageToken must be a string")
 if view == "basic" and any("read" in item for item in results):
     raise SystemExit("basic chat search result unexpectedly includes read")
+# Full-view read state is optional: unavailable metadata stays unknown.
+if view == "full" and any("read" in item and not isinstance(item["read"], bool) for item in results):
+    raise SystemExit("full chat search read metadata must be boolean when present")
 if any(not isinstance(item.get("resource"), str) or not item["resource"] for item in results):
     raise SystemExit("chat search result is missing resource")
 ' "$view" <<<"$value"

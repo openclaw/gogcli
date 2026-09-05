@@ -34,7 +34,7 @@ available services. Recent-feature coverage includes:
 - Drive shortcuts, revisions, and persisted changes polling.
 - Gmail thread-aware drafts, attachment metadata preservation/clearing, and
   explicit thread archive semantics.
-- Chat cross-space message search with basic/full output, formatted text,
+- Chat cross-space message search with basic/full result envelopes,
   explicit cursor continuation, and empty-result exit behavior when configured.
 - Contacts duplicate merge dry-run, apply, merged-field readback, and cleanup.
 - CLI schema exit codes, Git-style help, output-mode precedence, and early
@@ -69,9 +69,15 @@ requires a configured Pub/Sub subscription. The suite reports these as skipped
 instead of treating unavailable infrastructure as a product failure.
 
 `GOG_LIVE_CHAT_SEARCH_QUERY` must match at least one message available to the
-test account. The Chat search smoke path is read-only and checks basic/full JSON,
-Markdown-formatted output, one explicit page token when available, and the
-stable `--fail-empty` exit contract. It uses Google's documented
+test account. The read-only smoke path checks basic/full result envelopes,
+cursor advancement, and the stable `--fail-empty` exit contract. It requests
+Markdown and untrusted-wrapping options to check that the API accepts them;
+it does not compare rendered text or validate the wrapping transformation.
+Cursor continuation must return a different message resource, so silently
+repeating the first page fails the check.
+Full-view read state may be unavailable; when present it must be a boolean.
+The smoke test does not require full and basic results to differ in that case.
+It uses Google's documented
 [`POST spaces.messages.search`](https://developers.google.com/workspace/chat/api/reference/rest/v1/spaces.messages/search)
 method; Developer Preview relevance ordering is intentionally excluded.
 

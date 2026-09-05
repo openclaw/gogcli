@@ -63,7 +63,7 @@ cat "$TRACE_FILE"
 	for _, want := range []string{
 		"chat messages search (basic)",
 		"--view basic",
-		"chat messages search (full Markdown)",
+		"chat messages search (full Markdown options)",
 		"--view full --markup markdown --wrap-untrusted",
 		"chat messages search (explicit page)",
 		"--page next",
@@ -134,6 +134,7 @@ source "$ROOT_DIR/scripts/live-tests/chat-search.sh"
 gog() {
   printf '{"results":[{"resource":"spaces/a/messages/one","read":false}],"nextPageToken":""}\n'
 }
+
 run_chat_search_tests
 `
 
@@ -144,5 +145,51 @@ run_chat_search_tests
 
 	if !strings.Contains(string(output), "basic chat search result unexpectedly includes read") {
 		t.Fatalf("output missing validation failure:\n%s", output)
+	}
+}
+
+func TestChatSearchLiveHarnessRejectsNonAdvancingPage(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("bash live-test harness is not supported on Windows")
+	}
+	root, err := filepath.Abs("..")
+	if err != nil {
+		t.Fatal(err)
+	}
+	script := `
+set -euo pipefail
+ROOT_DIR="$1"
+PY=python3
+TS=20260903000000
+GOG_LIVE_CHAT_SEARCH_QUERY=project
+source "$ROOT_DIR/scripts/live-tests/chat-search.sh"
+gog() {
+  printf '{"results":[{"resource":"spaces/a/messages/one"}],"nextPageToken":"next"}\n'
+}
+run_chat_search_tests
+`
+	output, err := exec.CommandContext(t.Context(), "bash", "-c", script, "bash", root).CombinedOutput()
+	if err == nil || !strings.Contains(string(output), "explicit page repeated a previous result") {
+		t.Fatalf("expected unchanged-page rejection, got %v:\n%s", err, output)
+	}
+}
+
+func TestChatSearchLiveHarnessRejectsInvalidFullReadMetadata(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("bash live-test harness is not supported on Windows")
+	}
+	root, err := filepath.Abs("..")
+	if err != nil {
+		t.Fatal(err)
+	}
+	script := `set -euo pipefail
+PY=python3
+source "$1/scripts/live-tests/chat-search.sh"
+assert_chat_search_json "$2" full
+`
+	payload := `{"results":[{"resource":"spaces/a/messages/one","read":"yes"}]}`
+	output, err := exec.CommandContext(t.Context(), "bash", "-c", script, "bash", root, payload).CombinedOutput()
+	if err == nil || !strings.Contains(string(output), "read metadata must be boolean when present") {
+		t.Fatalf("expected invalid read metadata rejection, got %v:\n%s", err, output)
 	}
 }
