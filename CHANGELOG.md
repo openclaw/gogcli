@@ -2,6 +2,10 @@
 
 ## 0.39.2 - Unreleased
 
+### Fixes and maintenance
+
+- Docs: use the account manager, rather than the reserved `default` alias, to persist a default account. (#1092) — thanks @gianpaj.
+
 ## 0.39.1 - 2026-09-05
 
 ### Highlights

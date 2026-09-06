@@ -109,8 +109,8 @@ gog auth doctor --check
 
 ```bash
 export GOG_ACCOUNT=you@gmail.com
-# or persist a default with gog auth alias
-gog auth alias set default you@gmail.com
+# or choose a persistent default in the interactive account manager
+gog auth manage
 ```
 
 Now you can drop `--account` from every command.
