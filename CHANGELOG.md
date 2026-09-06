@@ -2,6 +2,10 @@
 
 ## 0.39.2 - Unreleased
 
+### Highlights
+
+- Apps Script: push a local directory into a project with `appscript push`. The default merge leaves remote-only files alone; `--prune` (alias `--delete`) is the only way to remove them, and it names every file it will drop before the call that drops it. Reads are pinned to the requested directory with `os.Root`, so a symlink cannot upload a file from outside it.
+
 ## 0.39.1 - 2026-09-05
 
 ### Highlights

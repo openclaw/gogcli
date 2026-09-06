@@ -280,6 +280,7 @@ appscript:
   versions: true
   run: false
   create: false
+  push: false
 
 people:
   me: true

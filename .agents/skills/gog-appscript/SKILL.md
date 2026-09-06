@@ -33,6 +33,7 @@ gog --readonly --account user@example.com appscript --help
 | `deployments` | List deployments |
 | `get` | Get Apps Script project metadata |
 | `pull` | Pull an Apps Script project into a local directory |
+| `push` | Push a local directory into an Apps Script project (keeps remote-only files unless --prune) |
 | `run` | Run a deployed Apps Script function |
 | `versions` | List versions |
 

@@ -17,6 +17,7 @@ type AppScriptCmd struct {
 	Run     AppScriptRunCmd     `cmd:"" name:"run" help:"Run a deployed Apps Script function"`
 	Create  AppScriptCreateCmd  `cmd:"" name:"create" aliases:"new" help:"Create an Apps Script project"`
 
+	Push        AppScriptPushCmd        `cmd:"" name:"push" help:"Push a local directory into an Apps Script project (keeps remote-only files unless --prune)"`
 	Pull        AppScriptPullCmd        `cmd:"" name:"pull" help:"Pull an Apps Script project into a local directory"`
 	Deployments AppScriptDeploymentsCmd `cmd:"" name:"deployments" aliases:"list-deployments" help:"List deployments"`
 	Versions    AppScriptVersionsCmd    `cmd:"" name:"versions" aliases:"list-versions" help:"List versions"`
@@ -101,14 +102,21 @@ func (c *AppScriptContentCmd) Run(ctx context.Context, flags *RootFlags) error {
 
 	u := ui.FromContext(ctx)
 	u.Out().Linef("script_id\t%s", content.ScriptId)
-	u.Out().Linef("files\t%d", len(content.Files))
-	for _, file := range content.Files {
+	printAppScriptFiles(u, content.Files)
+	return nil
+}
+
+// printAppScriptFiles renders a project's file list as the tab-separated rows
+// both content and push report. Names come from the API, so they go through
+// sanitizeTab like every other tab-separated writer here.
+func printAppScriptFiles(u *ui.UI, files []*scriptapi.File) {
+	u.Out().Linef("files\t%d", len(files))
+	for _, file := range files {
 		if file == nil {
 			continue
 		}
-		u.Out().Linef("file\t%s\t%s", file.Name, file.Type)
+		u.Out().Linef("file\t%s\t%s", sanitizeTab(file.Name), file.Type)
 	}
-	return nil
 }
 
 type AppScriptRunCmd struct {
