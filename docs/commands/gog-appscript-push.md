@@ -1,29 +1,18 @@
-# `gog appscript`
+# `gog appscript push`
 
 > Generated from `gog schema --json`. Do not edit this page by hand; run `make docs-commands`.
 
-Google Apps Script
+Push a local directory into an Apps Script project (keeps remote-only files unless --prune)
 
 ## Usage
 
 ```bash
-gog appscript (script,apps-script) <command> [flags]
+gog appscript (script,apps-script) push <scriptId> <dir> [flags]
 ```
 
 ## Parent
 
-- [gog](gog.md)
-
-## Subcommands
-
-- [gog appscript content](gog-appscript-content.md) - Get Apps Script project content
-- [gog appscript create](gog-appscript-create.md) - Create an Apps Script project
-- [gog appscript deployments](gog-appscript-deployments.md) - List deployments
-- [gog appscript get](gog-appscript-get.md) - Get Apps Script project metadata
-- [gog appscript pull](gog-appscript-pull.md) - Pull an Apps Script project into a local directory
-- [gog appscript push](gog-appscript-push.md) - Push a local directory into an Apps Script project (keeps remote-only files unless --prune)
-- [gog appscript run](gog-appscript-run.md) - Run a deployed Apps Script function
-- [gog appscript versions](gog-appscript-versions.md) - List versions
+- [gog appscript](gog-appscript.md)
 
 ## Flags
 
@@ -44,6 +33,7 @@ gog appscript (script,apps-script) <command> [flags]
 | `-j`<br>`--json`<br>`--machine` | `bool` | false | Output JSON to stdout (best for scripting) |
 | `--no-input`<br>`--non-interactive`<br>`--noninteractive` | `bool` |  | Never prompt; fail instead (useful for CI) |
 | `-p`<br>`--plain`<br>`--tsv` | `bool` | false | Output stable, parseable text to stdout (TSV; no colors) |
+| `--prune`<br>`--delete` | `bool` |  | Delete remote files that dir does not provide (default: keep them) |
 | `--quota-project` | `string` |  | Google Cloud project to bill for API usage (sent as X-Goog-User-Project; some APIs require it with --access-token or ADC) |
 | `--readonly` | `bool` | false | Block mutating API requests at runtime; auth add also requests read-only OAuth scopes |
 | `--results-only` | `bool` |  | In JSON mode, emit only the primary result (drops envelope fields like nextPageToken) |
@@ -54,5 +44,5 @@ gog appscript (script,apps-script) <command> [flags]
 
 ## See Also
 
-- [gog](gog.md)
+- [gog appscript](gog-appscript.md)
 - [Command index](README.md)

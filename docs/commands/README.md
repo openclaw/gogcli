@@ -2,7 +2,7 @@
 
 Every `gog` command has a generated docs page. The source of truth is the live CLI schema; run `make docs-commands` after changing command names, flags, help text, aliases, or arguments.
 
-Generated pages: 766.
+Generated pages: 767.
 
 ## Top-level Commands
 
@@ -126,6 +126,7 @@ Generated pages: 766.
     - [gog appscript deployments](gog-appscript-deployments.md) - List deployments
     - [gog appscript get](gog-appscript-get.md) - Get Apps Script project metadata
     - [gog appscript pull](gog-appscript-pull.md) - Pull an Apps Script project into a local directory
+    - [gog appscript push](gog-appscript-push.md) - Push a local directory into an Apps Script project (keeps remote-only files unless --prune)
     - [gog appscript run](gog-appscript-run.md) - Run a deployed Apps Script function
     - [gog appscript versions](gog-appscript-versions.md) - List versions
   - [gog auth](gog-auth.md) - Auth and credentials

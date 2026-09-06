@@ -27,6 +27,10 @@ func TestDryRunE2E_CommandsSkipAuthAPIAndFileWrites(t *testing.T) {
 		t.Fatalf("write dry-run markdown: %v", err)
 	}
 	outputDir := t.TempDir()
+	appScriptDryRunDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(appScriptDryRunDir, "appsscript.json"), []byte("{}"), 0o600); err != nil {
+		t.Fatalf("write dry-run appscript manifest: %v", err)
+	}
 	outputPath := func(name string) string {
 		return filepath.Join(outputDir, name)
 	}
@@ -629,6 +633,11 @@ func TestDryRunE2E_CommandsSkipAuthAPIAndFileWrites(t *testing.T) {
 			name: "appscript create",
 			args: []string{"appscript", "create", "--title", "SmokeScript"},
 			op:   "appscript.create",
+		},
+		{
+			name: "appscript push",
+			args: []string{"appscript", "push", "script123", appScriptDryRunDir},
+			op:   "appscript.push",
 		},
 		{
 			name:    "appscript pull",
