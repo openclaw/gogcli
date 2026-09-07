@@ -2,7 +2,7 @@
 
 Every `gog` command has a generated docs page. The source of truth is the live CLI schema; run `make docs-commands` after changing command names, flags, help text, aliases, or arguments.
 
-Generated pages: 766.
+Generated pages: 767.
 
 ## Top-level Commands
 
@@ -628,6 +628,7 @@ Generated pages: 766.
   - [gog schema](gog-schema.md) - Machine-readable command/flag schema
   - [gog search](gog-search.md) - Search Drive files (alias for 'drive search')
   - [gog searchconsole](gog-searchconsole.md) - Google Search Console
+    - [gog searchconsole inspect](gog-searchconsole-inspect.md) - Inspect URL index status (URL Inspection API)
     - [gog searchconsole query](gog-searchconsole-query.md) - Run a Search Analytics query
     - [gog searchconsole searchanalytics](gog-searchconsole-searchanalytics.md) - Search Analytics queries
       - [gog searchconsole searchanalytics query](gog-searchconsole-searchanalytics-query.md) - Run a Search Analytics query

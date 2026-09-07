@@ -28,6 +28,7 @@ gog --readonly --account user@example.com searchconsole --help
 
 | Command | Purpose |
 | --- | --- |
+| `inspect` | Inspect URL index status (URL Inspection API) |
 | `query` | Run a Search Analytics query |
 | `searchanalytics` | Search Analytics queries |
 | `sitemaps` | List/get/submit/delete sitemaps |

@@ -2,6 +2,8 @@
 
 ## 0.39.2 - Unreleased
 
+- Search Console: add `searchconsole inspect` for per-URL index status via the URL Inspection API (coverage state, indexing/page-fetch/robots.txt state, canonical, sitemaps, last crawl time), using the existing `webmasters` OAuth scope. (#1094) — thanks @laihenyi.
+
 ## 0.39.1 - 2026-09-05
 
 ### Highlights

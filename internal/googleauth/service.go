@@ -266,7 +266,7 @@ var serviceInfoByService = map[Service]serviceInfo{
 		scopes: []string{"https://www.googleapis.com/auth/webmasters"},
 		user:   true,
 		apis:   []string{"Search Console API"},
-		note:   "Search Analytics + sitemap management",
+		note:   "Search Analytics + sitemap management + URL Inspection",
 	},
 	ServiceAdSense: {
 		scopes: []string{"https://www.googleapis.com/auth/adsense.readonly"},

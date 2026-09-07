@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -8,6 +9,7 @@ import (
 	"testing"
 
 	gapi "google.golang.org/api/googleapi"
+	searchconsoleapi "google.golang.org/api/searchconsole/v1"
 
 	"github.com/openclaw/gogcli/internal/app"
 )
@@ -286,5 +288,125 @@ func TestExecute_SearchConsoleSitemaps_InvalidFeedPathIsUsageBeforeDryRun(t *tes
 				t.Fatalf("unexpected err: %v", result.err)
 			}
 		})
+	}
+}
+
+func TestExecute_SearchConsoleInspect_JSON(t *testing.T) {
+	svc := newSearchConsoleTestService(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !(r.Method == http.MethodPost && strings.Contains(r.URL.Path, "/urlInspection/index:inspect")) {
+			http.NotFound(w, r)
+			return
+		}
+		var req map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			t.Fatalf("decode request: %v", err)
+		}
+		if req["siteUrl"] != "sc-domain:example.com" || req["inspectionUrl"] != "https://example.com/docs" || req["languageCode"] != "en-US" {
+			t.Fatalf("unexpected request payload: %#v", req)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"inspectionResult": map[string]any{
+				"inspectionResultLink": "https://search.google.com/search-console/inspect?resource_id=sc-domain:example.com",
+				"indexStatusResult": map[string]any{
+					"verdict":        "NEUTRAL",
+					"coverageState":  "Discovered - currently not indexed",
+					"indexingState":  "INDEXING_ALLOWED",
+					"pageFetchState": "SUCCESSFUL",
+					"robotsTxtState": "ALLOWED",
+					"lastCrawlTime":  "2026-08-01T00:00:00Z",
+				},
+			},
+		})
+	}))
+	result := executeWithSearchConsoleTestService(t, []string{
+		"--json",
+		"--account", "a@b.com",
+		"searchconsole", "inspect", "sc-domain:example.com", "https://example.com/docs",
+	}, svc)
+	if result.err != nil {
+		t.Fatalf("Execute: %v", result.err)
+	}
+
+	var parsed struct {
+		SiteURL string `json:"site_url"`
+		URL     string `json:"inspection_url"`
+		Result  struct {
+			InspectionResultLink string `json:"inspectionResultLink"`
+			IndexStatusResult    struct {
+				Verdict       string `json:"verdict"`
+				CoverageState string `json:"coverageState"`
+			} `json:"indexStatusResult"`
+		} `json:"inspectionResult"`
+	}
+	if err := json.Unmarshal([]byte(result.stdout), &parsed); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if parsed.SiteURL != "sc-domain:example.com" || parsed.URL != "https://example.com/docs" {
+		t.Fatalf("unexpected payload: %#v", parsed)
+	}
+	if parsed.Result.IndexStatusResult.Verdict != "NEUTRAL" || parsed.Result.IndexStatusResult.CoverageState != "Discovered - currently not indexed" {
+		t.Fatalf("unexpected index status: %#v", parsed.Result.IndexStatusResult)
+	}
+}
+
+func TestExecute_SearchConsoleInspect_Text(t *testing.T) {
+	svc := newSearchConsoleTestService(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !(r.Method == http.MethodPost && strings.Contains(r.URL.Path, "/urlInspection/index:inspect")) {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"inspectionResult": map[string]any{
+				"indexStatusResult": map[string]any{
+					"verdict":       "PASS",
+					"coverageState": "Submitted and indexed",
+				},
+			},
+		})
+	}))
+	result := executeWithSearchConsoleTestService(t, []string{
+		"--account", "a@b.com",
+		"searchconsole", "inspect", "sc-domain:example.com", "https://example.com/docs",
+	}, svc)
+	if result.err != nil {
+		t.Fatalf("Execute: %v", result.err)
+	}
+	if !strings.Contains(result.stdout, "verdict") || !strings.Contains(result.stdout, "PASS") || !strings.Contains(result.stdout, "coverage_state") || !strings.Contains(result.stdout, "Submitted and indexed") {
+		t.Fatalf("unexpected out=%q", result.stdout)
+	}
+}
+
+func TestExecute_SearchConsoleInspect_EmptyArgsAreUsageBeforeServiceCall(t *testing.T) {
+	testCases := [][]string{
+		{"--account", "a@b.com", "searchconsole", "inspect", " ", "https://example.com/docs"},
+		{"--account", "a@b.com", "searchconsole", "inspect", "sc-domain:example.com", " "},
+	}
+	for _, args := range testCases {
+		t.Run(strings.Join(args[3:], "_"), func(t *testing.T) {
+			result := executeWithSearchConsoleTestServiceFactory(
+				t,
+				args,
+				unexpectedSearchConsoleTestService(t, "expected validation to fail before creating search console service"),
+			)
+			var exitErr *ExitError
+			if !errors.As(result.err, &exitErr) || exitErr.Code != 2 {
+				t.Fatalf("unexpected err: %v", result.err)
+			}
+		})
+	}
+}
+
+func TestExecute_SearchConsoleInspect_ServiceError(t *testing.T) {
+	result := executeWithSearchConsoleTestServiceFactory(
+		t,
+		[]string{"--account", "a@b.com", "searchconsole", "inspect", "sc-domain:example.com", "https://example.com/docs"},
+		func(context.Context, string) (*searchconsoleapi.Service, error) {
+			return nil, errors.New("search console service down")
+		},
+	)
+	if result.err == nil || !strings.Contains(result.err.Error(), "search console service down") {
+		t.Fatalf("unexpected err: %v", result.err)
 	}
 }

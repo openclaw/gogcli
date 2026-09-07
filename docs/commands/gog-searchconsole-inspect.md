@@ -1,26 +1,18 @@
-# `gog searchconsole`
+# `gog searchconsole inspect`
 
 > Generated from `gog schema --json`. Do not edit this page by hand; run `make docs-commands`.
 
-Google Search Console
+Inspect URL index status (URL Inspection API)
 
 ## Usage
 
 ```bash
-gog searchconsole (gsc,search-console,webmasters) <command> [flags]
+gog searchconsole (gsc,search-console,webmasters) inspect <siteUrl> <url> [flags]
 ```
 
 ## Parent
 
-- [gog](gog.md)
-
-## Subcommands
-
-- [gog searchconsole inspect](gog-searchconsole-inspect.md) - Inspect URL index status (URL Inspection API)
-- [gog searchconsole query](gog-searchconsole-query.md) - Run a Search Analytics query
-- [gog searchconsole searchanalytics](gog-searchconsole-searchanalytics.md) - Search Analytics queries
-- [gog searchconsole sitemaps](gog-searchconsole-sitemaps.md) - List/get/submit/delete sitemaps
-- [gog searchconsole sites](gog-searchconsole-sites.md) - List and inspect Search Console sites
+- [gog searchconsole](gog-searchconsole.md)
 
 ## Flags
 
@@ -39,6 +31,7 @@ gog searchconsole (gsc,search-console,webmasters) <command> [flags]
 | `-h`<br>`--help` | `kong.helpFlag` |  | Show context-sensitive help. |
 | `--home` | `string` |  | Override gogcli config/data/state/cache root (equivalent to GOG_HOME) |
 | `-j`<br>`--json`<br>`--machine` | `bool` | false | Output JSON to stdout (best for scripting) |
+| `--language` | `string` | en-US | BCP-47 language for issue messages (e.g. zh-TW) |
 | `--no-input`<br>`--non-interactive`<br>`--noninteractive` | `bool` |  | Never prompt; fail instead (useful for CI) |
 | `-p`<br>`--plain`<br>`--tsv` | `bool` | false | Output stable, parseable text to stdout (TSV; no colors) |
 | `--quota-project` | `string` |  | Google Cloud project to bill for API usage (sent as X-Goog-User-Project; some APIs require it with --access-token or ADC) |
@@ -51,5 +44,5 @@ gog searchconsole (gsc,search-console,webmasters) <command> [flags]
 
 ## See Also
 
-- [gog](gog.md)
+- [gog searchconsole](gog-searchconsole.md)
 - [Command index](README.md)
