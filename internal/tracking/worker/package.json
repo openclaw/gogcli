@@ -13,7 +13,7 @@
     "test": "vitest run"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^5.20260904.1",
+    "@cloudflare/workers-types": "^5.20260906.1",
     "@typescript/native": "npm:typescript@^7.0.2",
     "oxfmt": "^0.66.0",
     "oxlint": "^1.81.0",
