@@ -5,7 +5,7 @@
 **Highlights:** The quickstart now explains how to save a default account and how shell overrides affect it.
 
 - Docs: replace the reserved `default` alias command with the account manager's **Set default** action and explain account-selection precedence. (#1092, #1093) — thanks @gianpaj and @goutamadwant.
-- Dependencies: refresh Cloudflare Workers types while retaining the existing runtime, package manager, and 24-hour release-age policy.
+- Dependencies: refresh Cloudflare Workers types to 5.20260907.1 while retaining the existing runtime, package manager, and 24-hour release-age policy.
 
 ## 0.39.1 - 2026-09-05
 
