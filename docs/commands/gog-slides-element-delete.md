@@ -2,12 +2,12 @@
 
 > Generated from `gog schema --json`. Do not edit this page by hand; run `make docs-commands`.
 
-Delete one page element
+Delete one or more page elements
 
 ## Usage
 
 ```bash
-gog slides (slide) element delete (rm) <presentationId> <objectId>
+gog slides (slide) element delete (rm) <presentationId> <objectId> ...
 ```
 
 ## Parent

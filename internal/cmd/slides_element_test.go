@@ -204,7 +204,7 @@ func TestSlidesElementStructuralRequests(t *testing.T) {
 	t.Run("delete", func(t *testing.T) {
 		request := captureSlidesElementRequest(t, &SlidesElementDeleteCmd{
 			PresentationID: "pres1",
-			ObjectID:       "shape1",
+			ObjectIDs:      []string{"shape1"},
 		}, &RootFlags{Account: "a@b.com", Force: true})
 		if request.DeleteObject == nil || request.DeleteObject.ObjectId != "shape1" {
 			t.Fatalf("unexpected delete request: %+v", request)
@@ -270,5 +270,66 @@ func TestSlidesElementValidation(t *testing.T) {
 				t.Fatalf("ExitCode = %d, want 2", ExitCode(err))
 			}
 		})
+	}
+}
+
+func TestSlidesElementDeleteMultiple(t *testing.T) {
+	var captured []*slides.Request
+	srv := mockSlidesBatchUpdateServer(t, &captured, map[string]any{})
+	defer srv.Close()
+	var output bytes.Buffer
+	ctx := withSlidesTestService(newCmdRuntimeJSONOutputContext(t, &output, io.Discard), newSlidesServiceFromServer(t, srv))
+	if err := runKong(t, &SlidesElementDeleteCmd{}, []string{"pres1", "shape1", "wordart1"}, ctx, &RootFlags{Account: "a@b.com", Force: true}); err != nil {
+		t.Fatal(err)
+	}
+	if len(captured) != 2 || captured[0].DeleteObject.ObjectId != "shape1" || captured[1].DeleteObject.ObjectId != "wordart1" {
+		t.Fatalf("unexpected delete batch: %+v", captured)
+	}
+	var result struct {
+		ObjectIDs []string `json:"objectIds"`
+		Deleted   bool     `json:"deleted"`
+	}
+	if err := json.Unmarshal(output.Bytes(), &result); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Join(result.ObjectIDs, ",") != "shape1,wordart1" || !result.Deleted {
+		t.Fatalf("unexpected output: %s", output.String())
+	}
+}
+
+func TestSlidesElementDeleteSingleOutput(t *testing.T) {
+	var captured []*slides.Request
+	srv := mockSlidesBatchUpdateServer(t, &captured, map[string]any{})
+	defer srv.Close()
+	var output bytes.Buffer
+	ctx := withSlidesTestService(newCmdRuntimeJSONOutputContext(t, &output, io.Discard), newSlidesServiceFromServer(t, srv))
+	if err := runKong(t, &SlidesElementDeleteCmd{}, []string{"pres1", "shape1"}, ctx, &RootFlags{Account: "a@b.com", Force: true}); err != nil {
+		t.Fatal(err)
+	}
+	var result map[string]any
+	if err := json.Unmarshal(output.Bytes(), &result); err != nil {
+		t.Fatal(err)
+	}
+	if result["objectId"] != "shape1" || result["deleted"] != true || result["objectIds"] != nil {
+		t.Fatalf("single-ID contract changed: %s", output.String())
+	}
+}
+
+func TestSlidesElementDeleteGuards(t *testing.T) {
+	ctx := withSlidesTestServiceFactory(newCmdRuntimeOutputContext(t, io.Discard, io.Discard), func(context.Context, string) (*slides.Service, error) {
+		t.Fatal("service must not be created")
+		return nil, context.Canceled
+	})
+	for _, args := range [][]string{{"pres1", "shape1", "shape1"}, {"pres1", "shape1", ""}} {
+		if err := runKong(t, &SlidesElementDeleteCmd{}, args, ctx, &RootFlags{Force: true}); err == nil {
+			t.Fatalf("expected invalid IDs to fail: %v", args)
+		}
+	}
+	args := []string{"pres1", "shape1", "shape2"}
+	if err := runKong(t, &SlidesElementDeleteCmd{}, args, ctx, &RootFlags{NoInput: true}); err == nil {
+		t.Fatal("expected confirmation refusal")
+	}
+	if err := runKong(t, &SlidesElementDeleteCmd{}, args, ctx, &RootFlags{DryRun: true, NoInput: true}); err != nil && ExitCode(err) != 0 {
+		t.Fatal(err)
 	}
 }

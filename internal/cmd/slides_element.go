@@ -22,7 +22,7 @@ type SlidesElementCmd struct {
 	Group       SlidesElementGroupCmd       `cmd:"" name:"group" help:"Group two or more elements"`
 	Ungroup     SlidesElementUngroupCmd     `cmd:"" name:"ungroup" help:"Ungroup one or more element groups"`
 	AltText     SlidesElementAltTextCmd     `cmd:"" name:"alt-text" help:"Set or clear element accessibility text"`
-	Delete      SlidesElementDeleteCmd      `cmd:"" name:"delete" aliases:"rm" help:"Delete one page element"`
+	Delete      SlidesElementDeleteCmd      `cmd:"" name:"delete" aliases:"rm" help:"Delete one or more page elements"`
 }
 
 const (
@@ -395,26 +395,37 @@ func (c *SlidesElementAltTextCmd) Run(ctx context.Context, flags *RootFlags) err
 }
 
 type SlidesElementDeleteCmd struct {
-	PresentationID string `arg:"" name:"presentationId" help:"Presentation ID"`
-	ObjectID       string `arg:"" name:"objectId" help:"Page element object ID"`
+	PresentationID string   `arg:"" name:"presentationId" help:"Presentation ID"`
+	ObjectIDs      []string `arg:"" name:"objectId" help:"One or more page element object IDs"`
 }
 
 func (c *SlidesElementDeleteCmd) Run(ctx context.Context, flags *RootFlags) error {
-	presentationID, objectID, err := slidesElementTarget(c.PresentationID, c.ObjectID)
+	presentationID, objectIDs, err := slidesElementTargets(c.PresentationID, c.ObjectIDs, 1)
 	if err != nil {
 		return err
 	}
-	request := &slides.Request{DeleteObject: &slides.DeleteObjectRequest{ObjectId: objectID}}
-	return runSlidesElementMutation(ctx, flags, slidesElementMutation{
+	requests := make([]*slides.Request, 0, len(objectIDs))
+	for _, objectID := range objectIDs {
+		requests = append(requests, &slides.Request{DeleteObject: &slides.DeleteObjectRequest{ObjectId: objectID}})
+	}
+	mutation := slidesElementMutation{
 		Op:             "slides.element.delete",
-		Action:         "delete element",
+		Action:         "delete elements",
 		PresentationID: presentationID,
-		Request:        request,
-		Payload:        map[string]any{"object_id": objectID},
-		Output:         map[string]any{"presentationId": presentationID, "objectId": objectID, "deleted": true},
-		Text:           fmt.Sprintf("Deleted element %s", objectID),
-		Destructive:    fmt.Sprintf("delete element %s from presentation %s", objectID, presentationID),
-	})
+		Payload:        map[string]any{"object_ids": objectIDs},
+		Output:         map[string]any{"presentationId": presentationID, "objectIds": objectIDs, "deleted": true},
+		Text:           fmt.Sprintf("Deleted %d elements", len(objectIDs)),
+		Destructive:    fmt.Sprintf("delete elements %s from presentation %s", strings.Join(objectIDs, ", "), presentationID),
+	}
+	if len(objectIDs) == 1 {
+		objectID := objectIDs[0]
+		mutation.Action = "delete element"
+		mutation.Payload = map[string]any{"object_id": objectID}
+		mutation.Output = map[string]any{"presentationId": presentationID, "objectId": objectID, "deleted": true}
+		mutation.Text = fmt.Sprintf("Deleted element %s", objectID)
+		mutation.Destructive = fmt.Sprintf("delete element %s from presentation %s", objectID, presentationID)
+	}
+	return runSlidesElementBatchMutation(ctx, flags, mutation, &slides.BatchUpdatePresentationRequest{Requests: requests})
 }
 
 type slidesElementMutation struct {
@@ -430,6 +441,10 @@ type slidesElementMutation struct {
 
 func runSlidesElementMutation(ctx context.Context, flags *RootFlags, mutation slidesElementMutation) error {
 	body := &slides.BatchUpdatePresentationRequest{Requests: []*slides.Request{mutation.Request}}
+	return runSlidesElementBatchMutation(ctx, flags, mutation, body)
+}
+
+func runSlidesElementBatchMutation(ctx context.Context, flags *RootFlags, mutation slidesElementMutation, body *slides.BatchUpdatePresentationRequest) error {
 	payload := mutation.Payload
 	if payload == nil {
 		payload = make(map[string]any)

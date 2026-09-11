@@ -108,6 +108,7 @@ gog slides element ungroup <presentationId> <groupId>...
 gog slides element alt-text <presentationId> <objectId> \
   --title "Chart" --description "Quarterly revenue by region"
 gog slides element delete <presentationId> <objectId> --force
+gog slides element delete <presentationId> <objectId1> <objectId2> --force
 ```
 
 `z-order` targets must share one slide and must not be grouped. `group` needs at
@@ -115,3 +116,9 @@ least two ungrouped elements on one slide; Slides does not permit every element
 kind to be grouped. Passing an empty `--title=` or `--description=` clears that
 alt-text field. Element deletion is destructive and requires confirmation or
 `--force` in non-interactive use. Every mutation supports `--dry-run --json`.
+
+Multiple deletion targets are submitted together in one atomic API batch;
+duplicate IDs are rejected before submission. A single target retains the
+existing `objectId` JSON field; multiple targets return `objectIds` instead.
+Text replacement does not edit WordArt text. To replace a WordArt heading,
+delete its element and create a text box with the desired text.

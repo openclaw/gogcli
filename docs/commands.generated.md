@@ -680,7 +680,7 @@ Generated from `gog schema --json`.
       - [`gog slides (slide) element alt-text <presentationId> <objectId> [flags]`](commands/gog-slides-element-alt-text.md) - Set or clear element accessibility text
       - [`gog slides (slide) element create-line <presentationId> <slideId> [flags]`](commands/gog-slides-element-create-line.md) - Create a native line on a slide
       - [`gog slides (slide) element create-shape <presentationId> <slideId> [flags]`](commands/gog-slides-element-create-shape.md) - Create a native shape on a slide
-      - [`gog slides (slide) element delete (rm) <presentationId> <objectId>`](commands/gog-slides-element-delete.md) - Delete one page element
+      - [`gog slides (slide) element delete (rm) <presentationId> <objectId> ...`](commands/gog-slides-element-delete.md) - Delete one or more page elements
       - [`gog slides (slide) element group <presentationId> <objectId> ... [flags]`](commands/gog-slides-element-group.md) - Group two or more elements
       - [`gog slides (slide) element style <presentationId> <objectId> [flags]`](commands/gog-slides-element-style.md) - Style a shape fill/outline or a line
       - [`gog slides (slide) element transform (move,resize,rotate) <presentationId> <objectId> [flags]`](commands/gog-slides-element-transform.md) - Move, resize, rotate, or replace an element transform
