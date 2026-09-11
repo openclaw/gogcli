@@ -1,5 +1,12 @@
 # Slides text editing
 
+`insert-text --replace` inserts before removing the old text so replacement
+text inherits the leading visible text's style, including template inheritance.
+An empty target receives only an insertion. The command reads the target first
+and pins its revision for the atomic update. Google-stripped control/private-use
+characters are removed before calculating UTF-16 deletion offsets; an empty
+replacement clears the target. Dry runs remain auth-free previews.
+
 Slides text ranges use UTF-16 code-unit indexes. Find exact element IDs and
 ranges before changing a deck:
 

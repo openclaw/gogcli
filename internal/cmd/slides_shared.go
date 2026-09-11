@@ -226,18 +226,19 @@ func slidesTextContentHasDeletableText(content *slides.TextContent) bool {
 	if content == nil {
 		return false
 	}
+	var text strings.Builder
 	for _, textElement := range content.TextElements {
 		if textElement == nil {
 			continue
 		}
-		if textElement.TextRun != nil && strings.TrimRight(textElement.TextRun.Content, "\r\n") != "" {
-			return true
+		if textElement.TextRun != nil {
+			text.WriteString(textElement.TextRun.Content)
 		}
-		if textElement.AutoText != nil && strings.TrimRight(textElement.AutoText.Content, "\r\n") != "" {
-			return true
+		if textElement.AutoText != nil {
+			text.WriteString(textElement.AutoText.Content)
 		}
 	}
-	return false
+	return strings.TrimSuffix(strings.TrimSuffix(text.String(), "\n"), "\r") != ""
 }
 
 func buildSlidesReplaceTextRequests(objectID string, text string, hasExistingText bool) []*slides.Request {
@@ -267,10 +268,6 @@ func buildSlidesReplaceTextRequestsAt(objectID string, text string, hasExistingT
 		})
 	}
 	return requests
-}
-
-func buildSlidesClearAndInsertTextRequestsAt(objectID string, text string, cell *slides.TableCellLocation) []*slides.Request {
-	return buildSlidesReplaceTextRequestsAt(objectID, text, true, cell)
 }
 
 func slidesTableCellLocation(row, col int64) *slides.TableCellLocation {

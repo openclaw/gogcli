@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"slices"
 	"strings"
 
 	"google.golang.org/api/slides/v1"
@@ -14,13 +15,13 @@ import (
 
 // SlidesInsertTextCmd inserts text into an existing text-capable page element.
 // It is a thin wrapper around presentations.batchUpdate with an InsertTextRequest
-// (optionally preceded by a DeleteText request when --replace is set).
+// (with a style-preserving replacement batch when --replace is set).
 type SlidesInsertTextCmd struct {
 	PresentationID string `arg:"" name:"presentationId" help:"Presentation ID"`
 	ObjectID       string `arg:"" name:"objectId" help:"Page element object ID (shape or table) to insert text into"`
 	Text           string `arg:"" name:"text" help:"Text to insert (use '-' to read from stdin)"`
 	InsertionIndex int64  `name:"insertion-index" help:"Zero-based index where text is inserted within the element's existing text" default:"0"`
-	Replace        bool   `name:"replace" help:"Clear existing text in the element before inserting (emits DeleteText + InsertText in the same batch)"`
+	Replace        bool   `name:"replace" help:"Replace existing text while inheriting its leading text style (revision-checked atomic batch)"`
 	Row            *int64 `name:"row" help:"0-based table row index for cell-targeted text; requires --col"`
 	Col            *int64 `name:"col" help:"0-based table column index for cell-targeted text; requires --row"`
 }
@@ -70,7 +71,7 @@ func (c *SlidesInsertTextCmd) Run(ctx context.Context, flags *RootFlags) error {
 	// Build the batchUpdate request body.
 	var requests []*slides.Request
 	if c.Replace {
-		requests = buildSlidesClearAndInsertTextRequestsAt(objectID, text, cellLocation)
+		requests = buildSlidesInsertTextReplacement(objectID, text, true, cellLocation)
 	} else {
 		requests = append(requests, &slides.Request{
 			InsertText: &slides.InsertTextRequest{
@@ -107,16 +108,34 @@ func (c *SlidesInsertTextCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
-	if c.Replace && cellLocation != nil {
+	if c.Replace {
 		pres, getErr := slidesSvc.Presentations.Get(presentationID).Context(ctx).Do()
 		if getErr != nil {
 			return fmt.Errorf("get presentation: %w", getErr)
 		}
-		found, hasExistingText := slidesTableCellTextState(pres, objectID, *c.Row, *c.Col)
-		if !found {
-			return fmt.Errorf("table cell %s[%d,%d] not found", objectID, *c.Row, *c.Col)
+		pages := slices.Concat(pres.Slides, pres.Layouts, pres.Masters)
+		pages = append(pages, pres.NotesMaster)
+		for _, page := range pres.Slides {
+			if page != nil && page.SlideProperties != nil {
+				pages = append(pages, page.SlideProperties.NotesPage)
+			}
 		}
-		body.Requests = buildSlidesReplaceTextRequestsAt(objectID, text, hasExistingText, cellLocation)
+		lookup := &slides.Presentation{Slides: pages}
+		var found, hasExistingText bool
+		if cellLocation != nil {
+			found, hasExistingText = slidesTableCellTextState(lookup, objectID, *c.Row, *c.Col)
+		} else {
+			var content *slides.TextContent
+			content, found, _ = slidesShapeTextContentByObjectID(lookup, objectID)
+			hasExistingText = slidesTextContentHasDeletableText(content)
+		}
+		if !found {
+			if cellLocation != nil {
+				return fmt.Errorf("table cell %s[%d,%d] not found", objectID, *c.Row, *c.Col)
+			}
+			return fmt.Errorf("object %s not found", objectID)
+		}
+		body.Requests = buildSlidesInsertTextReplacement(objectID, text, hasExistingText, cellLocation)
 		if pres.RevisionId != "" {
 			body.WriteControl = &slides.WriteControl{RequiredRevisionId: pres.RevisionId}
 		}
@@ -142,6 +161,27 @@ func (c *SlidesInsertTextCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return outfmt.WriteJSON(ctx, stdoutWriter(ctx), resp)
 	}
 	return writeSlidesInsertTextResult(ctx, u, presentationID, revisionID, replies)
+}
+
+func buildSlidesInsertTextReplacement(objectID, text string, hasExistingText bool, cell *slides.TableCellLocation) []*slides.Request {
+	// Slides strips these characters before insertion; offsets must count the
+	// normalized UTF-16 text or suffix deletion can remove the wrong characters.
+	text = strings.Map(func(r rune) rune {
+		if r <= 0x08 || (r >= 0x0c && r <= 0x1f) || (r >= 0xe000 && r <= 0xf8ff) {
+			return -1
+		}
+		return r
+	}, text)
+	if text == "" || !hasExistingText {
+		return buildSlidesReplaceTextRequestsAt(objectID, text, hasExistingText, cell)
+	}
+	// Inserting before deletion inherits the visible leading run instead of the
+	// final newline's style, which can differ in copied templates.
+	start := utf16Len(text)
+	return []*slides.Request{
+		{InsertText: &slides.InsertTextRequest{ObjectId: objectID, CellLocation: cell, Text: text}},
+		{DeleteText: &slides.DeleteTextRequest{ObjectId: objectID, CellLocation: cell, TextRange: &slides.Range{Type: "FROM_START_INDEX", StartIndex: &start}}},
+	}
 }
 
 func writeSlidesInsertTextResult(ctx context.Context, u *ui.UI, presentationID, revisionID string, replies int) error {

@@ -152,40 +152,28 @@ func TestSlidesInsertText(t *testing.T) {
 	}
 }
 
-func TestSlidesInsertText_ReplaceEmitsDeleteThenInsert(t *testing.T) {
-	var captured []*slides.Request
-	srv := mockSlidesBatchUpdateServer(t, &captured, map[string]any{
-		"presentationId": "pres1",
-		"replies":        []any{map[string]any{}, map[string]any{}},
-	})
+func TestSlidesInsertText_ReplaceInheritsLeadingStyle(t *testing.T) {
+	var captured slides.BatchUpdatePresentationRequest
+	pres := slidesPresentationWithShapeText("old\n")
+	srv := mockSlidesPresentationBatchUpdateServer(t, &captured, pres, map[string]any{})
 	defer srv.Close()
-
-	svc := newSlidesServiceFromServer(t, srv)
-	flags := &RootFlags{Account: "a@b.com"}
-	ctx := withSlidesTestService(newCmdRuntimeOutputContext(t, io.Discard, io.Discard), svc)
-
-	cmd := &SlidesInsertTextCmd{
-		PresentationID: "pres1",
-		ObjectID:       "shape_1",
-		Text:           "replacement",
-		Replace:        true,
+	ctx := withSlidesTestService(newCmdRuntimeOutputContext(t, io.Discard, io.Discard), newSlidesServiceFromServer(t, srv))
+	cmd := &SlidesInsertTextCmd{PresentationID: "pres1", ObjectID: "shape_1", Text: "replacement", Replace: true}
+	if err := cmd.Run(ctx, &RootFlags{Account: "a@b.com"}); err != nil {
+		t.Fatal(err)
 	}
-	if err := cmd.Run(ctx, flags); err != nil && ExitCode(err) != 0 {
-		t.Fatalf("Run: %v", err)
+	if len(captured.Requests) != 2 || captured.Requests[0].InsertText == nil || captured.Requests[1].DeleteText == nil {
+		t.Fatalf("expected insert then delete: %+v", captured.Requests)
 	}
-
-	if len(captured) != 2 {
-		t.Fatalf("expected 2 requests (DeleteText + InsertText), got %d", len(captured))
+	if captured.Requests[0].InsertText.Text != "replacement" {
+		t.Fatal("wrong replacement")
 	}
-	if captured[0].DeleteText == nil {
-		t.Error("expected first request to be DeleteText")
-	} else if captured[0].DeleteText.TextRange == nil || captured[0].DeleteText.TextRange.Type != "ALL" {
-		t.Errorf("expected DeleteText TextRange.Type=ALL, got %+v", captured[0].DeleteText.TextRange)
+	span := captured.Requests[1].DeleteText.TextRange
+	if span.Type != "FROM_START_INDEX" || span.StartIndex == nil || *span.StartIndex != 11 {
+		t.Fatalf("wrong suffix deletion: %+v", span)
 	}
-	if captured[1].InsertText == nil {
-		t.Error("expected second request to be InsertText")
-	} else if captured[1].InsertText.Text != "replacement" {
-		t.Errorf("expected inserted text %q, got %q", "replacement", captured[1].InsertText.Text)
+	if captured.WriteControl == nil || captured.WriteControl.RequiredRevisionId != "rev1" {
+		t.Fatal("missing revision guard")
 	}
 }
 
@@ -262,17 +250,17 @@ func TestSlidesInsertText_CellReplaceEmitsCellDeleteThenInsert(t *testing.T) {
 	if captured.WriteControl == nil || captured.WriteControl.RequiredRevisionId != "rev1" {
 		t.Fatalf("write control = %+v, want required revision rev1", captured.WriteControl)
 	}
-	if captured.Requests[0].DeleteText == nil || captured.Requests[0].DeleteText.CellLocation == nil {
-		t.Fatalf("expected cell-targeted DeleteText, got %+v", captured.Requests[0])
+	if captured.Requests[1].DeleteText == nil || captured.Requests[1].DeleteText.CellLocation == nil {
+		t.Fatalf("expected cell-targeted DeleteText, got %+v", captured.Requests[1])
 	}
-	if captured.Requests[0].DeleteText.CellLocation.RowIndex != 1 || captured.Requests[0].DeleteText.CellLocation.ColumnIndex != 0 {
-		t.Fatalf("unexpected delete cell location: %+v", captured.Requests[0].DeleteText.CellLocation)
+	if captured.Requests[1].DeleteText.CellLocation.RowIndex != 1 || captured.Requests[1].DeleteText.CellLocation.ColumnIndex != 0 {
+		t.Fatalf("unexpected delete cell location: %+v", captured.Requests[1].DeleteText.CellLocation)
 	}
-	if captured.Requests[1].InsertText == nil || captured.Requests[1].InsertText.CellLocation == nil {
-		t.Fatalf("expected cell-targeted InsertText, got %+v", captured.Requests[1])
+	if captured.Requests[0].InsertText == nil || captured.Requests[0].InsertText.CellLocation == nil {
+		t.Fatalf("expected cell-targeted InsertText, got %+v", captured.Requests[0])
 	}
-	if captured.Requests[1].InsertText.CellLocation.RowIndex != 1 || captured.Requests[1].InsertText.CellLocation.ColumnIndex != 0 {
-		t.Fatalf("unexpected insert cell location: %+v", captured.Requests[1].InsertText.CellLocation)
+	if captured.Requests[0].InsertText.CellLocation.RowIndex != 1 || captured.Requests[0].InsertText.CellLocation.ColumnIndex != 0 {
+		t.Fatalf("unexpected insert cell location: %+v", captured.Requests[0].InsertText.CellLocation)
 	}
 }
 
@@ -376,8 +364,8 @@ func TestSlidesInsertText_CellReplaceRejectsMissingCell(t *testing.T) {
 }
 
 func TestSlidesInsertText_ReplaceEmptyClearsOnly(t *testing.T) {
-	var captured []*slides.Request
-	srv := mockSlidesBatchUpdateServer(t, &captured, map[string]any{
+	var body slides.BatchUpdatePresentationRequest
+	srv := mockSlidesPresentationBatchUpdateServer(t, &body, slidesPresentationWithShapeText("old\n"), map[string]any{
 		"presentationId": "pres1",
 		"replies":        []any{map[string]any{}},
 	})
@@ -397,6 +385,7 @@ func TestSlidesInsertText_ReplaceEmptyClearsOnly(t *testing.T) {
 		t.Fatalf("Run: %v", err)
 	}
 
+	captured := body.Requests
 	if len(captured) != 1 {
 		t.Fatalf("expected 1 DeleteText request, got %d", len(captured))
 	}
@@ -474,8 +463,8 @@ func TestSlidesInsertText_DryRunNoAPICall(t *testing.T) {
 	if len(body.Requests) != 2 {
 		t.Fatalf("expected 2 requests in dry-run body, got %d", len(body.Requests))
 	}
-	if body.Requests[0].DeleteText == nil || body.Requests[1].InsertText == nil {
-		t.Errorf("expected DeleteText then InsertText in dry-run body, got %+v", body.Requests)
+	if body.Requests[0].InsertText == nil || body.Requests[1].DeleteText == nil {
+		t.Errorf("expected InsertText then DeleteText in dry-run body, got %+v", body.Requests)
 	}
 }
 
@@ -609,5 +598,84 @@ func TestSlidesInsertText_EmptyObjectID(t *testing.T) {
 	err := cmd.Run(ctx, flags)
 	if err == nil || !strings.Contains(err.Error(), "empty objectId") {
 		t.Fatalf("expected empty objectId error, got: %v", err)
+	}
+}
+
+func slidesPresentationWithShapeText(text string) *slides.Presentation {
+	return &slides.Presentation{RevisionId: "rev1", Slides: []*slides.Page{{PageElements: []*slides.PageElement{{ObjectId: "shape_1", Shape: &slides.Shape{Text: &slides.TextContent{TextElements: []*slides.TextElement{{TextRun: &slides.TextRun{Content: text}}}}}}}}}}
+}
+
+func TestSlidesInsertTextReplacementBoundaries(t *testing.T) {
+	for _, tc := range []struct {
+		name, text, want string
+		existing         bool
+		requests         int
+	}{
+		{"unicode", "😀\tA\x01B\rC\ue000D\nZ", "😀\tABCD\nZ", true, 2},
+		{"stripped", "\x01\r\ue000", "", true, 1},
+		{"empty", "", "", true, 1},
+		{"new", "😀 first", "😀 first", false, 1},
+		{"empty-noop", "", "", false, 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cell := slidesTableCellLocation(0, 1)
+			reqs := buildSlidesInsertTextReplacement("target", tc.text, tc.existing, cell)
+			if len(reqs) != tc.requests {
+				t.Fatalf("requests=%+v", reqs)
+			}
+			if tc.want != "" {
+				if reqs[0].InsertText == nil || reqs[0].InsertText.Text != tc.want || reqs[0].InsertText.CellLocation != cell {
+					t.Fatalf("insert=%+v", reqs[0])
+				}
+			}
+			if len(reqs) == 2 {
+				span := reqs[1].DeleteText.TextRange
+				if span.StartIndex == nil || *span.StartIndex != utf16Len(tc.want) || span.Type != "FROM_START_INDEX" {
+					t.Fatalf("delete=%+v", span)
+				}
+			}
+		})
+	}
+}
+
+func TestSlidesInsertText_EmptyShapeAndPageKinds(t *testing.T) {
+	for _, location := range []string{"slide", "layout", "master", "notes"} {
+		t.Run(location, func(t *testing.T) {
+			var body slides.BatchUpdatePresentationRequest
+			pres := slidesPresentationWithShapeText("\n")
+			switch location {
+			case "layout":
+				pres.Layouts = pres.Slides
+				pres.Slides = nil
+			case "master":
+				pres.Masters = pres.Slides
+				pres.Slides = nil
+			case "notes":
+				pres.NotesMaster = pres.Slides[0]
+				pres.Slides = nil
+			}
+			srv := mockSlidesPresentationBatchUpdateServer(t, &body, pres, map[string]any{})
+			defer srv.Close()
+			ctx := withSlidesTestService(newCmdRuntimeOutputContext(t, io.Discard, io.Discard), newSlidesServiceFromServer(t, srv))
+			err := (&SlidesInsertTextCmd{PresentationID: "pres1", ObjectID: "shape_1", Text: "first", Replace: true}).Run(ctx, &RootFlags{Account: "a@b.com"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(body.Requests) != 1 || body.Requests[0].InsertText == nil {
+				t.Fatalf("empty shape requires insert only: %+v", body.Requests)
+			}
+		})
+	}
+}
+
+func TestSlidesTextContentBlankParagraphs(t *testing.T) {
+	for _, tc := range []struct {
+		text string
+		want bool
+	}{{"", false}, {"\n", false}, {"\n\n", true}, {"x", true}, {"x\n", true}} {
+		pres := slidesPresentationWithShapeText(tc.text)
+		if got := slidesTextContentHasDeletableText(pres.Slides[0].PageElements[0].Shape.Text); got != tc.want {
+			t.Fatalf("text %q: got %v", tc.text, got)
+		}
 	}
 }
