@@ -192,6 +192,7 @@ See [batch updates](sheets-batch-update.md), [tables](sheets-tables.md), and
 
 ```bash
 gog sheets get <spreadsheetId> 'Sheet1!A1:D20' --json
+gog sheets duplicate-tab <spreadsheetId> Sheet1 "Sheet1 backup" --json
 gog sheets update <spreadsheetId> 'Sheet1!B13' \
   --values-json @formula.json --fail-on-formula-error --json
 gog sheets batch-update <spreadsheetId> --data-json @updates.json --json

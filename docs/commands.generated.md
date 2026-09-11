@@ -621,6 +621,7 @@ Generated from `gog schema --json`.
       - [`gog sheets (sheet) datasource (data-source,data-sources,connected-sheets) update <spreadsheetId> <dataSourceId> [flags]`](commands/gog-sheets-datasource-update.md) - Update one BigQuery Connected Sheets data source
     - [`gog sheets (sheet) delete-dimension (delete-dim) --dimension=STRING <spreadsheetId> <rangeOrSheet> [flags]`](commands/gog-sheets-delete-dimension.md) - Delete rows or columns while preserving intersecting tables
     - [`gog sheets (sheet) delete-tab (delete-sheet) <spreadsheetId> <tabName>`](commands/gog-sheets-delete-tab.md) - Delete a tab/sheet from a spreadsheet (use --force to skip confirmation)
+    - [`gog sheets (sheet) duplicate-tab <spreadsheetId> <sourceTab> <newName> [flags]`](commands/gog-sheets-duplicate-tab.md) - Duplicate a tab within a spreadsheet
     - [`gog sheets (sheet) export (download,dl) <spreadsheetId> [flags]`](commands/gog-sheets-export.md) - Export a Google Sheet (pdf|xlsx|csv) via Drive
     - [`gog sheets (sheet) filter (filters,basic-filter,basic-filters) <command>`](commands/gog-sheets-filter.md) - Manage basic filters
       - [`gog sheets (sheet) filter (filters,basic-filter,basic-filters) set (create,add) <spreadsheetId> <range>`](commands/gog-sheets-filter-set.md) - Set a basic filter on a range; replacing an existing filter requires confirmation (or --force)

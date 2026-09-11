@@ -2,7 +2,7 @@
 
 Every `gog` command has a generated docs page. The source of truth is the live CLI schema; run `make docs-commands` after changing command names, flags, help text, aliases, or arguments.
 
-Generated pages: 766.
+Generated pages: 767.
 
 ## Top-level Commands
 
@@ -675,6 +675,7 @@ Generated pages: 766.
       - [gog sheets datasource update](gog-sheets-datasource-update.md) - Update one BigQuery Connected Sheets data source
     - [gog sheets delete-dimension](gog-sheets-delete-dimension.md) - Delete rows or columns while preserving intersecting tables
     - [gog sheets delete-tab](gog-sheets-delete-tab.md) - Delete a tab/sheet from a spreadsheet (use --force to skip confirmation)
+    - [gog sheets duplicate-tab](gog-sheets-duplicate-tab.md) - Duplicate a tab within a spreadsheet
     - [gog sheets export](gog-sheets-export.md) - Export a Google Sheet (pdf|xlsx|csv) via Drive
     - [gog sheets filter](gog-sheets-filter.md) - Manage basic filters
       - [gog sheets filter set](gog-sheets-filter-set.md) - Set a basic filter on a range; replacing an existing filter requires confirmation (or --force)

@@ -65,6 +65,7 @@ type SheetsCmd struct {
 	Export        SheetsExportCmd          `cmd:"" name:"export" aliases:"download,dl" help:"Export a Google Sheet (pdf|xlsx|csv) via Drive"`
 	Chart         SheetsChartCmd           `cmd:"" name:"chart" aliases:"charts" help:"Manage spreadsheet charts"`
 	AddTab        SheetsAddTabCmd          `cmd:"" name:"add-tab" aliases:"add-sheet" help:"Add a new tab/sheet to a spreadsheet"`
+	DuplicateTab  SheetsDuplicateTabCmd    `cmd:"" name:"duplicate-tab" help:"Duplicate a tab within a spreadsheet"`
 	RenameTab     SheetsRenameTabCmd       `cmd:"" name:"rename-tab" aliases:"rename-sheet" help:"Rename a tab/sheet in a spreadsheet"`
 	DeleteTab     SheetsDeleteTabCmd       `cmd:"" name:"delete-tab" aliases:"delete-sheet" help:"Delete a tab/sheet from a spreadsheet (use --force to skip confirmation)"`
 	ReorderTab    SheetsReorderTabCmd      `cmd:"" name:"reorder-tab" aliases:"move-tab,reorder-sheet,move-sheet" help:"Move a tab/sheet to a specific 0-based position in the spreadsheet"`

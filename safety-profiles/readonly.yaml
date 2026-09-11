@@ -217,6 +217,7 @@ sheets:
   create: false
   copy: false
   add-tab: false
+  duplicate-tab: false
   rename-tab: false
   delete-tab: false
   chart:

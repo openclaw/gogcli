@@ -29,6 +29,7 @@ gog sheets (sheet) <command> [flags]
 - [gog sheets datasource](gog-sheets-datasource.md) - Manage Connected Sheets data sources and extracts
 - [gog sheets delete-dimension](gog-sheets-delete-dimension.md) - Delete rows or columns while preserving intersecting tables
 - [gog sheets delete-tab](gog-sheets-delete-tab.md) - Delete a tab/sheet from a spreadsheet (use --force to skip confirmation)
+- [gog sheets duplicate-tab](gog-sheets-duplicate-tab.md) - Duplicate a tab within a spreadsheet
 - [gog sheets export](gog-sheets-export.md) - Export a Google Sheet (pdf|xlsx|csv) via Drive
 - [gog sheets filter](gog-sheets-filter.md) - Manage basic filters
 - [gog sheets find-replace](gog-sheets-find-replace.md) - Find and replace text across a spreadsheet
