@@ -2,10 +2,15 @@
 
 ## 0.39.2 - Unreleased
 
-**Highlights:** The quickstart now explains how to save a default account and how shell overrides affect it.
+**Highlights:** Duplicate spreadsheet tabs before editing, inspect one tab at a time, and choose how Drive files are sorted.
 
+- Sheets: duplicate a tab within its spreadsheet, with an explicit destination name and optional insertion index. (#1102, #1116) — thanks @gurgeous.
+- Sheets: filter raw API reads by exact tab title with `--sheet`, including A1-like names and apostrophes, while retaining spreadsheet metadata and the grid-data opt-in. (#1104, #1115) — thanks @gurgeous.
+- Drive: add opt-in `ls --sort` and `--order` controls while preserving the existing modification-time default and native pagination. (#1105, #1117) — thanks @gurgeous.
+- Slides: delete several page elements in one guarded API batch, retain single-element output compatibility, and document replacing WordArt elements. (#1109) — thanks @sebsnyk.
+- Sheets: preserve zero-valued dimension indices so inserting before the first row or column succeeds. (#1107, #1114) — thanks @gurgeous.
 - Docs: replace the reserved `default` alias command with the account manager's **Set default** action and explain account-selection precedence. (#1092, #1093) — thanks @gianpaj and @goutamadwant.
-- Dependencies: refresh Cloudflare Workers types to 5.20260907.1 while retaining the existing runtime, package manager, and 24-hour release-age policy.
+- Dependencies: refresh Go networking, authentication and cryptography modules and tracking-worker tooling, including the patched Sharp dependency, while retaining Go 1.26 compatibility and the worker's 24-hour release-age policy.
 
 ## 0.39.1 - 2026-09-05
 
