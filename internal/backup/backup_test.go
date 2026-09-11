@@ -275,6 +275,10 @@ func TestPushSnapshotCanReferenceExistingCheckpointShard(t *testing.T) {
 }
 
 func TestAsyncCheckpointPushDrainsBeforeFinalSnapshot(t *testing.T) {
+	// Keep maintenance attached so temporary-repo cleanup cannot race its writes.
+	t.Setenv("GIT_CONFIG_COUNT", "1")
+	t.Setenv("GIT_CONFIG_KEY_0", "maintenance.autoDetach")
+	t.Setenv("GIT_CONFIG_VALUE_0", "false")
 	ctx := context.Background()
 	dir := t.TempDir()
 	repo := filepath.Join(dir, "repo")
@@ -283,6 +287,10 @@ func TestAsyncCheckpointPushDrainsBeforeFinalSnapshot(t *testing.T) {
 	identity := filepath.Join(dir, "age.key")
 	if err := git(ctx, "", "init", "--bare", "--initial-branch=main", remote); err != nil {
 		t.Fatalf("init remote: %v", err)
+	}
+	// Local transport clears command-scope Git configuration for receive-pack.
+	if err := git(ctx, remote, "config", "maintenance.autoDetach", "false"); err != nil {
+		t.Fatalf("configure remote maintenance: %v", err)
 	}
 	recipient, err := EnsureIdentity(identity)
 	if err != nil {
