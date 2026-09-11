@@ -2,7 +2,7 @@
 
 Every `gog` command has a generated docs page. The source of truth is the live CLI schema; run `make docs-commands` after changing command names, flags, help text, aliases, or arguments.
 
-Generated pages: 767.
+Generated pages: 768.
 
 ## Top-level Commands
 
@@ -750,6 +750,7 @@ Generated pages: 767.
     - [gog slides locate](gog-slides-locate.md) - Locate text in shapes and table cells with object IDs and UTF-16 ranges
     - [gog slides move-slide](gog-slides-move-slide.md) - Move a slide to a zero-based insertion index
     - [gog slides new-slide](gog-slides-new-slide.md) - Create a native themed slide
+    - [gog slides paragraph-style](gog-slides-paragraph-style.md) - Set paragraph alignment, spacing, indentation, or direction
     - [gog slides raw](gog-slides-raw.md) - Dump raw Google Slides API response as JSON (Presentations.Get; lossless; for scripting and LLM consumption)
     - [gog slides read-slide](gog-slides-read-slide.md) - Read slide content: speaker notes, text elements, and images
     - [gog slides replace-slide](gog-slides-replace-slide.md) - Replace an existing slide image from a local file or public URL

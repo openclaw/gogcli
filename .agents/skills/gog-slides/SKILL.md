@@ -46,6 +46,7 @@ gog --readonly --account user@example.com slides --help
 | `locate` | Locate text in shapes and table cells with object IDs and UTF-16 ranges |
 | `move-slide` | Move a slide to a zero-based insertion index |
 | `new-slide` | Create a native themed slide |
+| `paragraph-style` | Set paragraph alignment, spacing, indentation, or direction |
 | `raw` | Dump raw Google Slides API response as JSON (Presentations.Get; lossless; for scripting and LLM consumption) |
 | `read-slide` | Read slide content: speaker notes, text elements, and images |
 | `replace-slide` | Replace an existing slide image from a local file or public URL |

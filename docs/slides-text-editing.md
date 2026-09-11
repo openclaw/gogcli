@@ -29,6 +29,22 @@ auth or API access.
 
 ## Replace text safely
 
+`paragraph-style` formats all paragraphs in one shape, or the paragraphs
+intersecting an optional UTF-16 range. It also supports one table cell:
+
+```bash
+gog slides paragraph-style <presentationId> <objectId> --align START --line-spacing 120
+gog slides paragraph-style <presentationId> <objectId> --range 0:20 --space-above 0 --space-below 8
+gog slides paragraph-style <presentationId> <objectId> --indent-start 18 --indent-first-line 0
+gog slides paragraph-style <presentationId> <tableId> --row 0 --col 1 --align CENTER
+```
+
+Spacing and indentation are in points; line spacing is a percentage (100 is
+normal). Only supplied fields are changed, including explicit zero values.
+Use `--direction LEFT_TO_RIGHT` or `RIGHT_TO_LEFT` for paragraph direction.
+Table cells are validated against the current presentation and updated with
+revision protection. Dry runs require no authentication.
+
 `replace-text` requires an explicit scope:
 
 ```bash

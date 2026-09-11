@@ -39,6 +39,7 @@ type SlidesCmd struct {
 	Table              SlidesTableCmd              `cmd:"" name:"table" help:"Create and update native tables"`
 	Element            SlidesElementCmd            `cmd:"" name:"element" help:"Create and manipulate native page elements"`
 	StyleText          SlidesStyleTextCmd          `cmd:"" name:"style-text" help:"Apply range-scoped text styling to one page element"`
+	ParagraphStyle     SlidesParagraphStyleCmd     `cmd:"" name:"paragraph-style" help:"Set paragraph alignment, spacing, indentation, or direction"`
 	Link               SlidesLinkCmd               `cmd:"" name:"link" help:"Apply a hyperlink to a text range in one page element"`
 	Bullets            SlidesBulletsCmd            `cmd:"" name:"bullets" help:"Turn paragraph bullets on or off in one page element"`
 	ReplaceText        SlidesReplaceTextCmd        `cmd:"" name:"replace-text" help:"Find-and-replace text in an explicit object, slide, or presentation scope"`

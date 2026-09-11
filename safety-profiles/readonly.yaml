@@ -242,6 +242,7 @@ slides:
   update-notes: false
   replace-slide: false
   insert-text: false
+  paragraph-style: false
   replace-text: false
 
 chat:

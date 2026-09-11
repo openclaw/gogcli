@@ -696,6 +696,7 @@ Generated from `gog schema --json`.
     - [`gog slides (slide) locate (find-element) <presentationId> <text> [flags]`](commands/gog-slides-locate.md) - Locate text in shapes and table cells with object IDs and UTF-16 ranges
     - [`gog slides (slide) move-slide --to-index=TO-INDEX <presentationId> <slideId>`](commands/gog-slides-move-slide.md) - Move a slide to a zero-based insertion index
     - [`gog slides (slide) new-slide <presentationId> [flags]`](commands/gog-slides-new-slide.md) - Create a native themed slide
+    - [`gog slides (slide) paragraph-style <presentationId> <objectId> [flags]`](commands/gog-slides-paragraph-style.md) - Set paragraph alignment, spacing, indentation, or direction
     - [`gog slides (slide) raw <presentationId> [flags]`](commands/gog-slides-raw.md) - Dump raw Google Slides API response as JSON (Presentations.Get; lossless; for scripting and LLM consumption)
     - [`gog slides (slide) read-slide <presentationId> <slideId> [flags]`](commands/gog-slides-read-slide.md) - Read slide content: speaker notes, text elements, and images
     - [`gog slides (slide) replace-slide <presentationId> <slideId> [<image>] [flags]`](commands/gog-slides-replace-slide.md) - Replace an existing slide image from a local file or public URL
