@@ -1,5 +1,7 @@
 # Changelog
 
+## Unreleased
+
 ## 0.40.0 - 2026-09-11
 
 **Highlights:** Preserve Slides styling, format paragraphs, and reuse cached Discovery documents; duplicate or inspect individual spreadsheet tabs and sort Drive files.
