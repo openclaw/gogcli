@@ -687,6 +687,7 @@ func (c *SheetsClearCmd) Run(ctx context.Context, flags *RootFlags) error {
 // Go type: https://pkg.go.dev/google.golang.org/api/sheets/v4#Spreadsheet
 type SheetsRawCmd struct {
 	SpreadsheetID   string `arg:"" name:"spreadsheetId" help:"Spreadsheet ID"`
+	Sheet           string `name:"sheet" help:"Return only this sheet (exact tab title); spreadsheet-level metadata remains included"`
 	IncludeGridData bool   `name:"include-grid-data" help:"Include cell-level grid data in the response (off by default; payloads can be large and may contain secrets in formulas)"`
 	Pretty          bool   `name:"pretty" help:"Pretty-print JSON (default: compact single-line)"`
 }
@@ -704,6 +705,10 @@ func (c *SheetsRawCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 
 	call := svc.Spreadsheets.Get(spreadsheetID).Context(ctx)
+	if c.Sheet != "" {
+		// Always quote the title so A1-like names cannot resolve to cell ranges.
+		call = call.Ranges("'" + strings.ReplaceAll(c.Sheet, "'", "''") + "'")
+	}
 	if c.IncludeGridData {
 		call = call.IncludeGridData(true)
 		u.Err().Println("warning: --include-grid-data may expose cell-level formulas that contain API keys or hardcoded secrets")

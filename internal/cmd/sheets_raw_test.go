@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -97,6 +98,49 @@ func TestSheetsRaw_HappyPath_NoGridDataByDefault(t *testing.T) {
 	}
 	if _, ok := got["sheets"]; !ok {
 		t.Fatalf("expected sheets in raw output")
+	}
+}
+
+func TestSheetsRaw_SheetSelection(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		want string
+	}{
+		{"Data", "'Data'"},
+		{"A1", "'A1'"},
+		{"O'Brien! Data", "'O''Brien! Data'"},
+		{" Data ", "' Data '"},
+	} {
+		for _, grid := range []bool{false, true} {
+			t.Run(tc.name+"/grid="+strconv.FormatBool(grid), func(t *testing.T) {
+				srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					if got := r.URL.Query().Get("ranges"); got != tc.want {
+						t.Errorf("ranges = %q, want %q", got, tc.want)
+					}
+					if got := r.URL.Query().Get("includeGridData") == "true"; got != grid {
+						t.Errorf("includeGridData = %v, want %v", got, grid)
+					}
+					_ = json.NewEncoder(w).Encode(fullSheetResponse("s1"))
+				}))
+				defer srv.Close()
+				var output bytes.Buffer
+				ctx := newSheetsRawTestContext(t, srv, &output, io.Discard)
+				args := []string{"s1", "--sheet", tc.name}
+				if grid {
+					args = append(args, "--include-grid-data")
+				}
+				if err := runKong(t, &SheetsRawCmd{}, args, ctx, &RootFlags{Account: "a@b.com"}); err != nil {
+					t.Fatal(err)
+				}
+				var got map[string]any
+				if err := json.Unmarshal(output.Bytes(), &got); err != nil {
+					t.Fatal(err)
+				}
+				if got["spreadsheetId"] != "s1" || got["properties"] == nil {
+					t.Fatalf("raw response metadata lost: %v", got)
+				}
+			})
+		}
 	}
 }
 

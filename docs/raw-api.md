@@ -32,7 +32,14 @@ gog docs raw <docId> --tab "Notes" --pretty
 gog docs raw <docId> --all-tabs --json > doc-tabs-api.json
 gog gmail raw <messageId> --format metadata --json
 gog sheets raw <spreadsheetId> --include-grid-data --json
+gog sheets raw <spreadsheetId> --sheet "Quarterly Data" --include-grid-data --json
 ```
+
+`gog sheets raw --sheet` selects one exact tab title on the server, reducing
+the response before it is downloaded. Titles such as `A1` and titles containing
+apostrophes are treated as tab names. Spreadsheet-level metadata remains in
+the raw response; grid data still requires `--include-grid-data`. Omitting
+`--sheet` returns every tab as before.
 
 `gog docs raw --tab` resolves a tab title or ID and projects that tab into the
 legacy top-level `Document` fields such as `body`, `lists`, and
