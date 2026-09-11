@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"testing"
 
@@ -20,6 +21,9 @@ func TestDriveLsCmd_TextAndJSON(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.Method == http.MethodGet && (r.URL.Path == "/drive/v3/files" || r.URL.Path == "/files"):
+			if got := r.URL.Query().Get("orderBy"); got != "modifiedTime desc" {
+				t.Errorf("default orderBy = %q", got)
+			}
 			if errMsg := driveAllDrivesQueryError(r, true); errMsg != "" {
 				http.Error(w, errMsg, http.StatusBadRequest)
 				return
@@ -184,5 +188,48 @@ func TestDriveLsCmd_NoAllDrives(t *testing.T) {
 	cmd := &DriveLsCmd{}
 	if execErr := runKong(t, cmd, []string{"--no-all-drives"}, ctx, flags); execErr != nil {
 		t.Fatalf("execute: %v", execErr)
+	}
+}
+
+func TestDriveLsCmd_Sort(t *testing.T) {
+	for _, tc := range []struct {
+		args []string
+		want string
+	}{
+		{[]string{"--sort", "modifiedByMeTime"}, "modifiedByMeTime desc"},
+		{[]string{"--sort", "name_natural", "--order", "asc"}, "name_natural"},
+		{[]string{"--order", "asc"}, "modifiedTime"},
+	} {
+		t.Run(tc.want, func(t *testing.T) {
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if got := r.URL.Query().Get("orderBy"); got != tc.want {
+					t.Errorf("orderBy = %q, want %q", got, tc.want)
+				}
+				if got := r.URL.Query().Get("pageToken"); got != "next-page" {
+					t.Errorf("pageToken = %q", got)
+				}
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = io.WriteString(w, `{"files":[]}`)
+			}))
+			defer srv.Close()
+			svc, err := drive.NewService(context.Background(), option.WithoutAuthentication(), option.WithHTTPClient(srv.Client()), option.WithEndpoint(srv.URL+"/"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			ctx := withDriveTestService(newCmdRuntimeOutputContext(t, io.Discard, io.Discard), svc)
+			args := slices.Clone(tc.args)
+			args = append(args, "--page", "next-page")
+			if err := runKong(t, &DriveLsCmd{}, args, ctx, &RootFlags{Account: "a@b.com"}); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
+
+func TestDriveLsCmd_InvalidSort(t *testing.T) {
+	for _, args := range [][]string{{"--sort", "unknown"}, {"--order", "sideways"}} {
+		if err := runKong(t, &DriveLsCmd{}, args, context.Background(), &RootFlags{}); err == nil {
+			t.Fatalf("expected invalid sort options to fail: %v", args)
+		}
 	}
 }

@@ -19,6 +19,7 @@ type driveFileListOptions struct {
 	allDrives bool
 	driveID   string
 	fields    string // optional field mask override
+	orderBy   string
 }
 
 func (c *DriveLsCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -43,6 +44,10 @@ func (c *DriveLsCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if c.All {
 		query = buildDriveAllListQuery(c.Query)
 	}
+	orderBy := c.Sort
+	if c.Order == "desc" {
+		orderBy += " desc"
+	}
 
 	resp, err := listDriveFiles(ctx, svc, driveFileListOptions{
 		query:     query,
@@ -50,6 +55,7 @@ func (c *DriveLsCmd) Run(ctx context.Context, flags *RootFlags) error {
 		page:      c.Page,
 		allDrives: c.AllDrives,
 		fields:    c.Fields,
+		orderBy:   orderBy,
 	})
 	if err != nil {
 		return err
@@ -101,11 +107,15 @@ func (c *DriveSearchCmd) Run(ctx context.Context, flags *RootFlags) error {
 }
 
 func listDriveFiles(ctx context.Context, svc *drive.Service, opts driveFileListOptions) (*drive.FileList, error) {
+	orderBy := strings.TrimSpace(opts.orderBy)
+	if orderBy == "" {
+		orderBy = "modifiedTime desc"
+	}
 	call := svc.Files.List().
 		Q(opts.query).
 		PageSize(opts.max).
 		PageToken(opts.page).
-		OrderBy("modifiedTime desc")
+		OrderBy(orderBy)
 	call = driveFilesListCallWithDriveSupport(call, opts.allDrives, opts.driveID)
 	mask := driveFileListFields
 	if strings.TrimSpace(opts.fields) != "" {

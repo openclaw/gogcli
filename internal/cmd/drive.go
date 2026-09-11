@@ -93,6 +93,8 @@ type DriveLsCmd struct {
 	All       bool   `name:"all" aliases:"global" help:"List all accessible files (mutually exclusive with --parent)"`
 	AllDrives bool   `name:"all-drives" help:"Include shared drives (default: true; use --no-all-drives for My Drive only)" default:"true" negatable:"_"`
 	Fields    string `name:"fields" help:"Drive API field mask (overrides the default set; e.g. 'files(id,name,thumbnailLink),nextPageToken')"`
+	Sort      string `name:"sort" default:"modifiedTime" enum:"createdTime,folder,modifiedByMeTime,modifiedTime,name,name_natural,quotaBytesUsed,recency,sharedWithMeTime,starred,viewedByMeTime" help:"Drive API sort key"`
+	Order     string `name:"order" default:"desc" enum:"asc,desc" help:"Sort direction"`
 }
 
 type DriveSearchCmd struct {

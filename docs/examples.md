@@ -66,6 +66,8 @@ See [Drive audits](drive-audits.md), [polling](polling.md), and
 
 ```bash
 # Read-only folder audits.
+gog drive ls --sort modifiedByMeTime --order desc
+gog drive ls --sort name_natural --order asc
 gog drive tree --parent <folderId> --depth 2
 gog drive du --parent <folderId> --max 20 --json
 gog drive inventory --parent <folderId> --json
