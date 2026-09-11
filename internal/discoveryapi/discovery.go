@@ -28,8 +28,9 @@ var (
 )
 
 type Client struct {
-	BaseURL string
-	HTTP    *http.Client
+	BaseURL  string
+	HTTP     *http.Client
+	CacheDir string
 }
 
 type responseError struct {
@@ -85,6 +86,17 @@ func (c Client) Description(ctx context.Context, api, version string) (*discover
 
 	u := c.baseURL() + "/apis/" + url.PathEscape(api) + "/" + url.PathEscape(version) + "/rest"
 
+	cacheKey := c.descriptionCacheKey(u)
+	if c.CacheDir != "" {
+		if err := ctx.Err(); err != nil {
+			return nil, fmt.Errorf("load Discovery document: %w", err)
+		}
+
+		if description := c.cachedDescription(cacheKey); description != nil {
+			return description, nil
+		}
+	}
+
 	raw, err := c.get(ctx, u)
 
 	var responseErr *responseError
@@ -101,6 +113,10 @@ func (c Client) Description(ctx context.Context, api, version string) (*discover
 	var description discovery.RestDescription
 	if err := json.Unmarshal(raw, &description); err != nil {
 		return nil, fmt.Errorf("decode Discovery document: %w", err)
+	}
+
+	if ctx.Err() == nil {
+		c.cacheDescription(cacheKey, raw)
 	}
 
 	return &description, nil

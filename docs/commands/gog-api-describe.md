@@ -7,7 +7,7 @@ Describe a Discovery API or method
 ## Usage
 
 ```bash
-gog api describe <api> <version> [<method>]
+gog api describe <api> <version> [<method>] [flags]
 ```
 
 ## Parent
@@ -31,6 +31,7 @@ gog api describe <api> <version> [<method>]
 | `-h`<br>`--help` | `kong.helpFlag` |  | Show context-sensitive help. |
 | `--home` | `string` |  | Override gogcli config/data/state/cache root (equivalent to GOG_HOME) |
 | `-j`<br>`--json`<br>`--machine` | `bool` | false | Output JSON to stdout (best for scripting) |
+| `--no-cache` | `bool` |  | Fetch the Discovery document without reading or writing the 24-hour disk cache |
 | `--no-input`<br>`--non-interactive`<br>`--noninteractive` | `bool` |  | Never prompt; fail instead (useful for CI) |
 | `-p`<br>`--plain`<br>`--tsv` | `bool` | false | Output stable, parseable text to stdout (TSV; no colors) |
 | `--quota-project` | `string` |  | Google Cloud project to bill for API usage (sent as X-Goog-User-Project; some APIs require it with --access-token or ADC) |

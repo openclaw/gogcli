@@ -6,9 +6,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/openclaw/gogcli/internal/app"
@@ -48,6 +50,7 @@ func TestAPICallReadOnlyBlocksWriteBeforeAuth(t *testing.T) {
 }
 
 func TestAPICallReadOnlyAllowsQueryPOSTDryRun(t *testing.T) {
+	t.Setenv("GOG_CACHE_DIR", t.TempDir())
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = fmt.Fprint(w, `{"rootUrl":"https://www.googleapis.com/","servicePath":"calendar/v3/","resources":{"freebusy":{"methods":{"query":{"id":"calendar.freebusy.query","httpMethod":"POST","path":"freeBusy","scopes":["scope"]}}}}}`)
@@ -244,5 +247,47 @@ func TestDiscoveryScopesSelectsNarrowestAlternative(t *testing.T) {
 	}
 	if _, err := discoveryScopes(available, "invalid"); err == nil {
 		t.Fatal("expected invalid override error")
+	}
+}
+
+func TestDiscoveryCommandCacheAndBypass(t *testing.T) {
+	var calls atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls.Add(1)
+		_, _ = fmt.Fprint(w, `{"name":"drive","version":"v3","rootUrl":"https://www.googleapis.com/","servicePath":"drive/v3/","methods":{"list":{"id":"drive.files.list","httpMethod":"GET","path":"files","scopes":["https://www.googleapis.com/auth/drive.readonly"]}}}`)
+	}))
+	defer server.Close()
+	t.Setenv("GOG_DISCOVERY_BASE_URL", server.URL)
+	cache := t.TempDir()
+	ctx := withTestRuntime(newCmdRuntimeJSONOutputContext(t, io.Discard, io.Discard), func(r *app.Runtime) { r.Layout.CacheDir = cache })
+	for range 2 {
+		if err := runKong(t, &APIDescribeCmd{}, []string{"drive", "v3"}, ctx, &RootFlags{}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if calls.Load() != 1 {
+		t.Fatal("describe missed warm cache")
+	}
+	call := &APICallCmd{API: "drive", Version: "v3", Method: "drive.files.list"}
+	if err := call.Run(ctx, &RootFlags{DryRun: true}); err != nil && ExitCode(err) != 0 {
+		t.Fatal(err)
+	}
+	if calls.Load() != 1 {
+		t.Fatal("call did not share description cache")
+	}
+	if err := call.Run(ctx, &RootFlags{DryRun: true, DisableCommands: "api.drive.files.list"}); err == nil || !strings.Contains(err.Error(), "disabled") {
+		t.Fatalf("cached command bypassed policy: %v", err)
+	}
+	for range 2 {
+		if err := runKong(t, &APIDescribeCmd{}, []string{"drive", "v3", "--no-cache"}, ctx, &RootFlags{}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	call.NoCache = true
+	if err := call.Run(ctx, &RootFlags{DryRun: true}); err != nil && ExitCode(err) != 0 {
+		t.Fatal(err)
+	}
+	if calls.Load() != 4 {
+		t.Fatalf("bypass fetch count=%d, want 4", calls.Load())
 	}
 }

@@ -187,6 +187,20 @@ fi
 
 New classifications may be added. Keep a generic non-zero fallback.
 
+## Discovery document cache
+
+`gog api call` and `gog api describe` share a 24-hour on-disk cache of
+Discovery documents under the configured cache directory's `discovery`
+subdirectory. It keeps at most 32 documents and 64 MiB, evicting the oldest
+documents; individual documents are limited to 16 MiB. API versions, endpoint
+overrides and service-hosted fallback behavior use separate cache keys.
+
+Pass `--no-cache` to either command to fetch without reading or writing this
+cache. Missing, expired or corrupt entries are fetched again. Cache failures
+do not prevent network access, and failed fetches are not cached. `api list`
+and actual API responses remain uncached; authorization and command-policy
+checks still run on every call.
+
 ## MCP discovery
 
 MCP uses its standard `tools/list` request for client-side tool discovery. To

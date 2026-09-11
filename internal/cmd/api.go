@@ -9,9 +9,11 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"unicode/utf8"
 
+	"github.com/openclaw/gogcli/internal/config"
 	"github.com/openclaw/gogcli/internal/discoveryapi"
 	"github.com/openclaw/gogcli/internal/googleapi"
 	"github.com/openclaw/gogcli/internal/outfmt"
@@ -35,6 +37,7 @@ type APIDescribeCmd struct {
 	API     string `arg:"" name:"api" help:"Discovery API name (for example gmail)"`
 	Version string `arg:"" name:"version" help:"Discovery API version (for example v1)"`
 	Method  string `arg:"" optional:"" name:"method" help:"Optional Discovery method ID"`
+	NoCache bool   `name:"no-cache" help:"Fetch the Discovery document without reading or writing the 24-hour disk cache"`
 }
 
 type APICallCmd struct {
@@ -45,10 +48,21 @@ type APICallCmd struct {
 	BodyJSON   string `name:"body" help:"JSON request body or @file"`
 	Scope      string `name:"scope" help:"OAuth scope override (default: narrowest Discovery-listed scope)"`
 	AllowWrite bool   `name:"allow-write" help:"Allow non-read HTTP methods (also requires confirmation or --force)"`
+	NoCache    bool   `name:"no-cache" help:"Fetch the Discovery document without reading or writing the 24-hour disk cache"`
 }
 
 func discoveryClient() discoveryapi.Client {
 	return discoveryapi.Client{BaseURL: os.Getenv("GOG_DISCOVERY_BASE_URL")}
+}
+
+func discoveryDescriptionClient(ctx context.Context, noCache bool) discoveryapi.Client {
+	client := discoveryClient()
+	if !noCache {
+		if layout, err := commandLayout(ctx, config.PathKindCache); err == nil && layout.CacheDir != "" {
+			client.CacheDir = filepath.Join(layout.CacheDir, "discovery")
+		}
+	}
+	return client
 }
 
 func (c *APIListCmd) Run(ctx context.Context) error {
@@ -61,7 +75,7 @@ func (c *APIListCmd) Run(ctx context.Context) error {
 }
 
 func (c *APIDescribeCmd) Run(ctx context.Context) error {
-	description, err := discoveryClient().Description(ctx, c.API, c.Version)
+	description, err := discoveryDescriptionClient(ctx, c.NoCache).Description(ctx, c.API, c.Version)
 	if err != nil {
 		return err
 	}
@@ -81,7 +95,7 @@ func (c *APIDescribeCmd) Run(ctx context.Context) error {
 }
 
 func (c *APICallCmd) Run(ctx context.Context, flags *RootFlags) error {
-	description, err := discoveryClient().Description(ctx, c.API, c.Version)
+	description, err := discoveryDescriptionClient(ctx, c.NoCache).Description(ctx, c.API, c.Version)
 	if err != nil {
 		return err
 	}
