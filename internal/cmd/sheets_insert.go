@@ -98,16 +98,18 @@ func (c *SheetsInsertCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return usagef("unknown sheet %q", sheetName)
 	}
 
+	dimRange := &sheets.DimensionRange{
+		SheetId:    sheetID,
+		Dimension:  apiDimension,
+		StartIndex: startIndex,
+		EndIndex:   endIndex,
+	}
+	forceSendDimensionRangeZeroes(dimRange)
 	req := &sheets.BatchUpdateSpreadsheetRequest{
 		Requests: []*sheets.Request{
 			{
 				InsertDimension: &sheets.InsertDimensionRequest{
-					Range: &sheets.DimensionRange{
-						SheetId:    sheetID,
-						Dimension:  apiDimension,
-						StartIndex: startIndex,
-						EndIndex:   endIndex,
-					},
+					Range:             dimRange,
 					InheritFromBefore: inheritFromBefore,
 				},
 			},

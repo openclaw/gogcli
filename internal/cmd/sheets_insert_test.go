@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -10,6 +11,31 @@ import (
 
 	"google.golang.org/api/sheets/v4"
 )
+
+func TestSheetsInsertCmd_FirstPositionSendsZeroes(t *testing.T) {
+	for _, sheetID := range []int64{0, 7} {
+		for _, dimension := range []string{"rows", "cols"} {
+			t.Run(fmt.Sprintf("%s/sheet%d", dimension, sheetID), func(t *testing.T) {
+				capture := &sheetsBatchUpdateCapture{}
+				svc := newSheetsBatchUpdateTestService(t, map[string]any{
+					"sheets": []map[string]any{{"properties": map[string]any{"sheetId": sheetID, "title": "Data"}}},
+				}, capture)
+				ctx := withSheetsTestService(newCmdRuntimeOutputContext(t, io.Discard, io.Discard), svc)
+				if err := runKong(t, &SheetsInsertCmd{}, []string{"s1", "Data", dimension, "1"}, ctx, &RootFlags{Account: "a@b.com"}); err != nil {
+					t.Fatal(err)
+				}
+				requests := capture.Body["requests"].([]any)
+				insert := requests[0].(map[string]any)["insertDimension"].(map[string]any)
+				rng := insert["range"].(map[string]any)
+				for key, want := range map[string]float64{"sheetId": float64(sheetID), "startIndex": 0, "endIndex": 1} {
+					if got, ok := rng[key]; !ok || got != want {
+						t.Errorf("expected %s=%v in serialized range, got %#v", key, want, rng)
+					}
+				}
+			})
+		}
+	}
+}
 
 func TestSheetsInsertCmd(t *testing.T) {
 	var gotInsert *sheets.InsertDimensionRequest
