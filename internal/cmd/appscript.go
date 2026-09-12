@@ -106,7 +106,7 @@ func (c *AppScriptContentCmd) Run(ctx context.Context, flags *RootFlags) error {
 		if file == nil {
 			continue
 		}
-		u.Out().Linef("file\t%s\t%s", file.Name, file.Type)
+		u.Out().Linef("file\t%s\t%s", oneLine(file.Name), oneLine(file.Type))
 	}
 	return nil
 }

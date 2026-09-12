@@ -2,6 +2,7 @@
 
 ## 0.40.1 - Unreleased
 
+- Apps Script: keep file names within one TSV field in `appscript content`, escaping line breaks instead of splitting output rows. (#1091) — thanks @haosdent.
 - Search Console: add `searchconsole inspect` for per-URL index status via the URL Inspection API (coverage state, indexing/page-fetch/robots.txt state, canonical, sitemaps, last crawl time), using the existing `webmasters` OAuth scope. (#1094) — thanks @laihenyi.
 - Search Console: preserve permission-denied exit codes when adding API setup or scope guidance. (#1094)
 - Dependencies and CI: refresh Google protocol modules and tracking-worker tooling within release-age limits; test the Go 1.26 minimum, check worker types and generated skills, and avoid duplicate pull-request test runs. (#1131)

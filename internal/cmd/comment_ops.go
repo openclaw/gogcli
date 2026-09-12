@@ -525,11 +525,7 @@ func filterOpenComments(comments []*drive.Comment) []*drive.Comment {
 }
 
 func oneLineTSV(s string) string {
-	s = strings.ReplaceAll(s, "\r\n", "\n")
-	s = strings.ReplaceAll(s, "\r", "\n")
-	s = strings.ReplaceAll(s, "\t", " ")
-	s = strings.ReplaceAll(s, "\n", "\\n")
-	return strings.TrimSpace(s)
+	return strings.TrimSpace(oneLine(s))
 }
 
 func truncateString(s string, maxLen int) string {

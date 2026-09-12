@@ -97,12 +97,3 @@ func (c *SheetsNotesCmd) Run(ctx context.Context, flags *RootFlags) error {
 
 	return outfmt.WriteTable(ctx, stdoutWriter(ctx), notes, sheetsNoteColumns())
 }
-
-func oneLine(s string) string {
-	s = strings.ReplaceAll(s, "\r\n", "\n")
-	s = strings.ReplaceAll(s, "\r", "\n")
-	// Keep output parseable in tables/TSV.
-	s = strings.ReplaceAll(s, "\t", " ")
-	s = strings.ReplaceAll(s, "\n", "\\n")
-	return s
-}

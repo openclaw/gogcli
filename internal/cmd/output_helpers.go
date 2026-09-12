@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"io"
+	"strings"
 	"text/tabwriter"
 
 	"github.com/openclaw/gogcli/internal/outfmt"
@@ -61,4 +62,13 @@ func printNextPageHintWithAll(u *ui.UI, nextPageToken string, allFlag string) {
 		return
 	}
 	u.Err().Linef("# More results: use %s to fetch every page, or --page %s for the next page", allFlag, nextPageToken)
+}
+
+func oneLine(s string) string {
+	s = strings.ReplaceAll(s, "\r\n", "\n")
+	s = strings.ReplaceAll(s, "\r", "\n")
+	// Keep output parseable in tables/TSV.
+	s = strings.ReplaceAll(s, "\t", " ")
+	s = strings.ReplaceAll(s, "\n", "\\n")
+	return s
 }
