@@ -37,10 +37,11 @@ func newDefaultRuntime() *app.Runtime {
 			Err: os.Stderr,
 		},
 		Services: app.Services{
-			Zoom:          newZoomMeetingClient,
-			DriveDownload: driveDownload,
-			DriveExport:   driveExportDownload,
-			OpenURL:       openPhotosPickerBrowser,
+			Zoom:              newZoomMeetingClient,
+			DriveDownload:     driveDownload,
+			DriveExport:       driveExportDownload,
+			OpenURL:           openPhotosPickerBrowser,
+			PublicImageAspect: readPublicImageAspectRatio,
 		},
 		Auth: app.AuthOperations{
 			AuthorizeGoogle:         googleauth.Authorize,
@@ -104,6 +105,9 @@ func normalizeManagedRuntimeServices(runtime *app.Runtime, defaults *app.Runtime
 	}
 	if runtime.Services.OpenURL == nil {
 		runtime.Services.OpenURL = defaults.Services.OpenURL
+	}
+	if runtime.Services.PublicImageAspect == nil {
+		runtime.Services.PublicImageAspect = defaults.Services.PublicImageAspect
 	}
 }
 

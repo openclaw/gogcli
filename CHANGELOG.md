@@ -2,6 +2,7 @@
 
 ## 0.40.1 - Unreleased
 
+- Slides: derive either missing image dimension from local files or anonymously readable public HTTPS images, preserving explicit size pairs and documenting the public-fetch requirement. (#1112) — thanks @sebsnyk.
 - Apps Script: keep file names within one TSV field in `appscript content`, escaping line breaks instead of splitting output rows. (#1091) — thanks @haosdent.
 - Search Console: add `searchconsole inspect` for per-URL index status via the URL Inspection API (coverage state, indexing/page-fetch/robots.txt state, canonical, sitemaps, last crawl time), using the existing `webmasters` OAuth scope. (#1094) — thanks @laihenyi.
 - Search Console: preserve permission-denied exit codes when adding API setup or scope guidance. (#1094)

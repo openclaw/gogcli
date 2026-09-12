@@ -77,6 +77,7 @@ type (
 	DriveDownloadFunc            func(context.Context, *drive.Service, string) (*http.Response, error)
 	DriveExportFunc              func(context.Context, *drive.Service, string, string) (*http.Response, error)
 	OpenURLFunc                  func(context.Context, string) error
+	PublicImageAspectFunc        func(context.Context, string) (float64, error)
 	OpenSecretsStoreFunc         func() (secrets.Store, error)
 	OpenSecretStoreFunc          func() (secrets.SecretStore, error)
 	AuthorizeGoogleFunc          func(context.Context, googleauth.AuthorizeOptions) (string, error)
@@ -93,47 +94,48 @@ type ZoomMeetingClient interface {
 }
 
 type Services struct {
-	AdminDirectory  AdminDirectoryServiceFactory
-	AdminOrgUnit    AdminDirectoryServiceFactory
-	AdSense         AdSenseServiceFactory
-	AppScript       AppScriptServiceFactory
-	AnalyticsAdmin  AnalyticsAdminServiceFactory
-	AnalyticsData   AnalyticsDataServiceFactory
-	Calendar        CalendarServiceFactory
-	Chat            ChatServiceFactory
-	ChatSearch      ChatSearchServiceFactory
-	Classroom       ClassroomServiceFactory
-	CloudIdentity   CloudIdentityServiceFactory
-	Docs            DocsServiceFactory
-	DocsHTTP        DocsHTTPClientFactory
-	Drive           DriveServiceFactory
-	DriveV2         DriveV2ServiceFactory
-	DriveActivity   DriveActivityServiceFactory
-	DriveLabels     DriveLabelsServiceFactory
-	Forms           FormsServiceFactory
-	Gmail           GmailServiceFactory
-	GmailDelete     GmailServiceFactory
-	Keep            KeepServiceAccountFactory
-	Meet            MeetServiceFactory
-	PeopleContacts  PeopleServiceFactory
-	PeopleDirectory PeopleServiceFactory
-	PeopleOther     PeopleServiceFactory
-	Photos          PhotosServiceFactory
-	PhotosPicker    PhotosPickerServiceFactory
-	SearchConsole   SearchConsoleServiceFactory
-	Sheets          SheetsServiceFactory
-	ConnectedSheets SheetsServiceFactory
-	SitesDrive      DriveServiceFactory
-	Slides          SlidesServiceFactory
-	Tasks           TasksServiceFactory
-	YouTubeAPIKey   YouTubeServiceFactory
-	YouTubeAccount  YouTubeServiceFactory
-	YouTubeComments YouTubeServiceFactory
-	YouTubeWrite    YouTubeServiceFactory
-	Zoom            ZoomMeetingClientFactory
-	DriveDownload   DriveDownloadFunc
-	DriveExport     DriveExportFunc
-	OpenURL         OpenURLFunc
+	AdminDirectory    AdminDirectoryServiceFactory
+	AdminOrgUnit      AdminDirectoryServiceFactory
+	AdSense           AdSenseServiceFactory
+	AppScript         AppScriptServiceFactory
+	AnalyticsAdmin    AnalyticsAdminServiceFactory
+	AnalyticsData     AnalyticsDataServiceFactory
+	Calendar          CalendarServiceFactory
+	Chat              ChatServiceFactory
+	ChatSearch        ChatSearchServiceFactory
+	Classroom         ClassroomServiceFactory
+	CloudIdentity     CloudIdentityServiceFactory
+	Docs              DocsServiceFactory
+	DocsHTTP          DocsHTTPClientFactory
+	Drive             DriveServiceFactory
+	DriveV2           DriveV2ServiceFactory
+	DriveActivity     DriveActivityServiceFactory
+	DriveLabels       DriveLabelsServiceFactory
+	Forms             FormsServiceFactory
+	Gmail             GmailServiceFactory
+	GmailDelete       GmailServiceFactory
+	Keep              KeepServiceAccountFactory
+	Meet              MeetServiceFactory
+	PeopleContacts    PeopleServiceFactory
+	PeopleDirectory   PeopleServiceFactory
+	PeopleOther       PeopleServiceFactory
+	Photos            PhotosServiceFactory
+	PhotosPicker      PhotosPickerServiceFactory
+	SearchConsole     SearchConsoleServiceFactory
+	Sheets            SheetsServiceFactory
+	ConnectedSheets   SheetsServiceFactory
+	SitesDrive        DriveServiceFactory
+	Slides            SlidesServiceFactory
+	Tasks             TasksServiceFactory
+	YouTubeAPIKey     YouTubeServiceFactory
+	YouTubeAccount    YouTubeServiceFactory
+	YouTubeComments   YouTubeServiceFactory
+	YouTubeWrite      YouTubeServiceFactory
+	Zoom              ZoomMeetingClientFactory
+	DriveDownload     DriveDownloadFunc
+	DriveExport       DriveExportFunc
+	OpenURL           OpenURLFunc
+	PublicImageAspect PublicImageAspectFunc
 
 	ConnectedSheetsWriter SheetsServiceFactory
 }

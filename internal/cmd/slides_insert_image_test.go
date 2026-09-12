@@ -16,6 +16,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/openclaw/gogcli/internal/app"
+
 	"google.golang.org/api/drive/v3"
 	"google.golang.org/api/option"
 	"google.golang.org/api/slides/v1"
@@ -218,23 +220,6 @@ func TestSlidesInsertImage_URLSkipsDrive(t *testing.T) {
 	}
 }
 
-func TestSlidesInsertImage_URLRequiresHeight(t *testing.T) {
-	t.Parallel()
-
-	err := (&SlidesInsertImageCmd{
-		PresentationID: "pres1",
-		SlideID:        "slide1",
-		URL:            "https://example.com/image.png",
-		Width:          120,
-	}).Run(newCmdRuntimeOutputContext(t, io.Discard, io.Discard), &RootFlags{Account: "a@b.com"})
-	if err == nil || !strings.Contains(err.Error(), "--height is required with --url") {
-		t.Fatalf("expected URL height error, got %v", err)
-	}
-	if ExitCode(err) != 2 {
-		t.Fatalf("expected usage exit code 2, got %d", ExitCode(err))
-	}
-}
-
 func TestSlidesInsertImage_URLDryRunSkipsServices(t *testing.T) {
 	t.Parallel()
 
@@ -381,5 +366,41 @@ func TestImageAspectRatio(t *testing.T) {
 	}
 	if ar != 0.5 {
 		t.Errorf("expected aspect ratio 0.5, got %v", ar)
+	}
+}
+
+func TestSlidesInsertImageURLDerivesMissingDimension(t *testing.T) {
+	for _, tc := range []struct {
+		name          string
+		args          []string
+		width, height float64
+		wantReads     int
+	}{
+		{name: "width only", args: []string{"--width", "200"}, width: 200, height: 100, wantReads: 1},
+		{name: "height only", args: []string{"--height", "100"}, width: 200, height: 100, wantReads: 1},
+		{name: "explicit pair", args: []string{"--width", "200", "--height", "75"}, width: 200, height: 75},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var stdout, stderr bytes.Buffer
+			reads := 0
+			ctx := withTestRuntime(newCmdRuntimeJSONOutputContext(t, &stdout, &stderr), func(runtime *app.Runtime) {
+				runtime.Services.PublicImageAspect = func(context.Context, string) (float64, error) { reads++; return 0.5, nil }
+			})
+			args := append([]string{"pres1", "slide1", "--url", "https://example.com/image.png"}, tc.args...)
+			err := runKong(t, &SlidesInsertImageCmd{}, args, ctx, &RootFlags{DryRun: true, NoInput: true})
+			var exitErr *ExitError
+			if !errors.As(err, &exitErr) || exitErr.Code != 0 {
+				t.Fatalf("dry run: %v", err)
+			}
+			var output struct {
+				Request struct{ Width, Height float64 } `json:"request"`
+			}
+			if err := json.Unmarshal(stdout.Bytes(), &output); err != nil {
+				t.Fatal(err)
+			}
+			if output.Request.Width != tc.width || output.Request.Height != tc.height || reads != tc.wantReads {
+				t.Fatalf("size = %v x %v, reads = %d", output.Request.Width, output.Request.Height, reads)
+			}
+		})
 	}
 }

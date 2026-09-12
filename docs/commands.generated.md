@@ -690,7 +690,7 @@ Generated from `gog schema --json`.
       - [`gog slides (slide) element z-order --operation=STRING <presentationId> <objectId> ...`](commands/gog-slides-element-z-order.md) - Change element stacking order
     - [`gog slides (slide) export (download,dl) <presentationId> [flags]`](commands/gog-slides-export.md) - Export a Google Slides deck (pdf|pptx)
     - [`gog slides (slide) info (get,show) <presentationId>`](commands/gog-slides-info.md) - Get Google Slides presentation metadata
-    - [`gog slides (slide) insert-image --width=FLOAT-64 <presentationId> <slideId> [<image>] [flags]`](commands/gog-slides-insert-image.md) - Insert a local or public image at a position and size
+    - [`gog slides (slide) insert-image <presentationId> <slideId> [<image>] [flags]`](commands/gog-slides-insert-image.md) - Insert a local or public image at a position and size
     - [`gog slides (slide) insert-text <presentationId> <objectId> <text> [flags]`](commands/gog-slides-insert-text.md) - Insert text into an existing page element (shape or table) by objectId
     - [`gog slides (slide) link --range=STRING <presentationId> <objectId> [flags]`](commands/gog-slides-link.md) - Apply a hyperlink to a text range in one page element
     - [`gog slides (slide) list-slides <presentationId>`](commands/gog-slides-list-slides.md) - List all slides with their object IDs and skipped state

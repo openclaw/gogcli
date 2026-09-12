@@ -122,3 +122,22 @@ duplicate IDs are rejected before submission. A single target retains the
 existing `objectId` JSON field; multiple targets return `objectIds` instead.
 Text replacement does not edit WordArt text. To replace a WordArt heading,
 delete its element and create a text box with the desired text.
+
+## Image proportions
+
+Provide either `--width` or `--height` when inserting a local image or a public
+HTTPS image. The omitted dimension follows the source aspect ratio; supplying
+both keeps the explicit size override.
+
+```bash
+gog slides insert-image <presentationId> <slideId> --url https://example.com/chart.png --width 400
+gog slides insert-image <presentationId> <slideId> chart.png --height 200
+```
+
+Google Slides must be able to fetch a URL image anonymously. Automatic sizing
+also needs an anonymous header fetch from the machine running `gog`, including
+in dry-run mode. That fetch is limited to 1 MiB and 15 seconds and rejects
+private or special-use network destinations. Metadata reads connect directly
+and ignore proxy environment variables so destination checks cannot be bypassed.
+Supply both dimensions to skip the local header fetch when the source or
+network cannot support it.

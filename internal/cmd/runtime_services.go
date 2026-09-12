@@ -465,6 +465,14 @@ func slidesService(ctx context.Context, account string) (*slides.Service, error)
 	return runtime.Services.Slides(ctx, account)
 }
 
+func publicImageAspect(ctx context.Context, imageURL string) (float64, error) {
+	runtime, err := runtimeWithService(ctx, "public image metadata")
+	if err != nil || runtime.Services.PublicImageAspect == nil {
+		return 0, serviceError(err, "public image metadata")
+	}
+	return runtime.Services.PublicImageAspect(ctx, imageURL)
+}
+
 func zoomMeetingClient(ctx context.Context, alias string) (app.ZoomMeetingClient, error) {
 	if googleapi.ReadOnly(ctx) {
 		return nil, fmt.Errorf("%w: Zoom meeting mutations are disabled", googleapi.ErrReadOnly)

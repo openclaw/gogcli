@@ -3,11 +3,6 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"image"
-	_ "image/gif"  // register GIF decoder for aspect detection
-	_ "image/jpeg" // register JPEG decoder for aspect detection
-	_ "image/png"  // register PNG decoder for aspect detection
-	"os"
 	"strings"
 	"time"
 
@@ -22,16 +17,17 @@ import (
 // slide), this places a sized element on a slide you already have, so callers
 // can build native decks via the Slides API and still drop in a logo, chart,
 // or badge at a precise location. Local files use the same temporary Drive
-// upload flow as add-slide; public HTTPS URLs are passed directly to Slides.
+// upload flow as add-slide. URL images remain remote; missing dimensions require
+// an anonymous header read before the URL is passed to Slides.
 type SlidesInsertImageCmd struct {
 	PresentationID string  `arg:"" name:"presentationId" help:"Presentation ID"`
 	SlideID        string  `arg:"" name:"slideId" help:"Slide object ID to place the image on"`
 	Image          string  `arg:"" optional:"" name:"image" help:"Local image file (PNG/JPG/GIF)" type:"existingfile"`
-	URL            string  `name:"url" help:"Public HTTPS image URL to insert directly"`
+	URL            string  `name:"url" help:"HTTPS image URL that Slides can fetch anonymously"`
 	X              float64 `name:"x" default:"0" help:"Left position of the image, in --unit"`
 	Y              float64 `name:"y" default:"0" help:"Top position of the image, in --unit"`
-	Width          float64 `name:"width" required:"" help:"Image width, in --unit"`
-	Height         float64 `name:"height" default:"0" help:"Image height, in --unit; required with --url, local files preserve aspect ratio when omitted"`
+	Width          float64 `name:"width" default:"0" help:"Image width, in --unit; derived from the source aspect ratio when only height is given"`
+	Height         float64 `name:"height" default:"0" help:"Image height, in --unit; derived from the source aspect ratio when only width is given"`
 	Unit           string  `name:"unit" enum:"PT,EMU" default:"PT" help:"Measurement unit for x/y/width/height (PT or EMU)"`
 }
 
@@ -46,11 +42,8 @@ func (c *SlidesInsertImageCmd) Run(ctx context.Context, flags *RootFlags) error 
 	if slideID == "" {
 		return usage("empty slideId")
 	}
-	if c.Width <= 0 {
-		return usage("--width must be greater than 0")
-	}
-	if c.Height < 0 {
-		return usage("--height cannot be negative")
+	if err := validateSlidesImageDimensions(c.Width, c.Height); err != nil {
+		return err
 	}
 
 	source, err := resolveSlidesImageSource(c.Image, c.URL)
@@ -58,17 +51,9 @@ func (c *SlidesInsertImageCmd) Run(ctx context.Context, flags *RootFlags) error 
 		return err
 	}
 
-	// Resolve height from the image's aspect ratio when not supplied.
-	height := c.Height
-	if height == 0 {
-		if source.imageURL != "" {
-			return usage("--height is required with --url")
-		}
-		ar, aspectErr := imageAspectRatio(source.localPath)
-		if aspectErr != nil {
-			return fmt.Errorf("determine image aspect ratio (pass --height to skip): %w", aspectErr)
-		}
-		height = c.Width * ar
+	width, height, err := resolveSlidesImageDimensions(ctx, source, c.Width, c.Height)
+	if err != nil {
+		return err
 	}
 
 	dryRunPayload := map[string]any{
@@ -76,7 +61,7 @@ func (c *SlidesInsertImageCmd) Run(ctx context.Context, flags *RootFlags) error 
 		"slide_id":        slideID,
 		"x":               c.X,
 		"y":               c.Y,
-		"width":           c.Width,
+		"width":           width,
 		"height":          height,
 		"unit":            c.Unit,
 	}
@@ -127,7 +112,7 @@ func (c *SlidesInsertImageCmd) Run(ctx context.Context, flags *RootFlags) error 
 					ElementProperties: &slides.PageElementProperties{
 						PageObjectId: slideID,
 						Size: &slides.Size{
-							Width:  &slides.Dimension{Magnitude: c.Width, Unit: c.Unit},
+							Width:  &slides.Dimension{Magnitude: width, Unit: c.Unit},
 							Height: &slides.Dimension{Magnitude: height, Unit: c.Unit},
 						},
 						Transform: &slides.AffineTransform{
@@ -160,22 +145,4 @@ func (c *SlidesInsertImageCmd) Run(ctx context.Context, flags *RootFlags) error 
 	u.Out().Linef("image\t%s", imageID)
 	u.Out().Linef("link\t%s", link)
 	return nil
-}
-
-// imageAspectRatio returns height/width for the given image file.
-func imageAspectRatio(path string) (float64, error) {
-	f, err := os.Open(path) //nolint:gosec // user-provided local image path is the command input.
-	if err != nil {
-		return 0, fmt.Errorf("open image: %w", err)
-	}
-	defer f.Close()
-
-	cfg, _, err := image.DecodeConfig(f)
-	if err != nil {
-		return 0, fmt.Errorf("decode image config: %w", err)
-	}
-	if cfg.Width <= 0 {
-		return 0, fmt.Errorf("image has zero width")
-	}
-	return float64(cfg.Height) / float64(cfg.Width), nil
 }

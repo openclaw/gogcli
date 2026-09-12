@@ -7,7 +7,7 @@ Insert a local or public image at a position and size
 ## Usage
 
 ```bash
-gog slides (slide) insert-image --width=FLOAT-64 <presentationId> <slideId> [<image>] [flags]
+gog slides (slide) insert-image <presentationId> <slideId> [<image>] [flags]
 ```
 
 ## Parent
@@ -28,7 +28,7 @@ gog slides (slide) insert-image --width=FLOAT-64 <presentationId> <slideId> [<im
 | `--enable-commands-exact` | `string` |  | Comma-separated list of exact enabled commands; dot paths allowed and parent commands do not enable children |
 | `-y`<br>`--force`<br>`--assume-yes`<br>`--yes` | `bool` |  | Skip confirmations for destructive commands |
 | `--gmail-no-send` | `bool` | false | Block Gmail send operations (agent safety) |
-| `--height` | `float64` | 0 | Image height, in --unit; required with --url, local files preserve aspect ratio when omitted |
+| `--height` | `float64` | 0 | Image height, in --unit; derived from the source aspect ratio when only width is given |
 | `-h`<br>`--help` | `kong.helpFlag` |  | Show context-sensitive help. |
 | `--home` | `string` |  | Override gogcli config/data/state/cache root (equivalent to GOG_HOME) |
 | `-j`<br>`--json`<br>`--machine` | `bool` | false | Output JSON to stdout (best for scripting) |
@@ -39,10 +39,10 @@ gog slides (slide) insert-image --width=FLOAT-64 <presentationId> <slideId> [<im
 | `--results-only` | `bool` |  | In JSON mode, emit only the primary result (drops envelope fields like nextPageToken) |
 | `--select`<br>`--pick`<br>`--project` | `string` |  | In JSON mode, select comma-separated fields (best-effort; supports dot paths). Desire path: use --fields for most commands. |
 | `--unit` | `string` | PT | Measurement unit for x/y/width/height (PT or EMU) |
-| `--url` | `string` |  | Public HTTPS image URL to insert directly |
+| `--url` | `string` |  | HTTPS image URL that Slides can fetch anonymously |
 | `-v`<br>`--verbose` | `bool` |  | Enable verbose logging |
 | `--version` | `kong.VersionFlag` |  | Print version and exit |
-| `--width` | `float64` |  | Image width, in --unit |
+| `--width` | `float64` | 0 | Image width, in --unit; derived from the source aspect ratio when only height is given |
 | `--wrap-untrusted` | `bool` | false | In JSON/raw output, wrap fetched text fields in external untrusted-content markers |
 | `--x` | `float64` | 0 | Left position of the image, in --unit |
 | `--y` | `float64` | 0 | Top position of the image, in --unit |
