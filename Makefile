@@ -164,5 +164,6 @@ ci: pnpm-gate docker-version-check fmt-check lint deadcode test docs-check agent
 
 worker-ci:
 	@pnpm -C internal/tracking/worker lint
+	@pnpm -C internal/tracking/worker typecheck
 	@pnpm -C internal/tracking/worker build
 	@pnpm -C internal/tracking/worker test

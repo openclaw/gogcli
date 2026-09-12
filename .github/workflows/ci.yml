@@ -2,6 +2,8 @@ name: ci
 
 on:
   push:
+    branches:
+      - main
   pull_request:
 
 permissions:
@@ -34,8 +36,23 @@ jobs:
         run: make lint
       - name: Deadcode
         run: make deadcode
-      - name: Docs check
-        run: make docs-check
+      - name: Docs, skills, and Docker version checks
+        run: make docs-check agent-skills-check docker-version-check
+
+  minimum-go:
+    runs-on: ubuntu-latest
+    env:
+      GOTOOLCHAIN: local
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: "1.26.8"
+          cache: true
+      - name: Test minimum supported Go series
+        run: go test ./...
+      - name: Build
+        run: go build ./cmd/gog
 
   worker:
     runs-on: ubuntu-latest
@@ -47,11 +64,13 @@ jobs:
       - name: Enable Corepack (pnpm)
         run: |
           corepack enable
-          corepack prepare pnpm@11.25.0 --activate
+          corepack prepare pnpm@11.26.0 --activate
       - name: Install dependencies
         run: pnpm -C internal/tracking/worker install --frozen-lockfile
       - name: Lint
         run: pnpm -C internal/tracking/worker lint
+      - name: Typecheck
+        run: pnpm -C internal/tracking/worker typecheck
       - name: Build
         run: pnpm -C internal/tracking/worker build
       - name: Test

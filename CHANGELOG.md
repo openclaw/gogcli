@@ -2,6 +2,8 @@
 
 ## 0.40.1 - Unreleased
 
+- Dependencies and CI: refresh Google protocol modules and tracking-worker tooling within release-age limits; test the Go 1.26 minimum, check worker types and generated skills, and avoid duplicate pull-request test runs.
+
 ## 0.40.0 - 2026-09-11
 
 **Highlights:** Preserve Slides styling, format paragraphs, and reuse cached Discovery documents; duplicate or inspect individual spreadsheet tabs and sort Drive files.
