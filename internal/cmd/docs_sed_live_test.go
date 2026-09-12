@@ -3,18 +3,14 @@
 package cmd
 
 import (
-	"context"
 	"fmt"
 	"os"
-	"os/exec"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/api/docs/v1"
-
-	"github.com/openclaw/gogcli/internal/googleapi"
 )
 
 // TestV10LiveVerification fetches the live test document and verifies
@@ -23,7 +19,8 @@ import (
 //
 // Prerequisites:
 //   - Run v10 seed + test against the doc first
-//   - Set GOG_LIVE_DOC_ID and GOG_LIVE_ACCOUNT env vars
+//   - Set GOG_TEST_DOC_ID and GOG_TEST_ACCOUNT env vars
+//   - Set GOG_LIVE_HOME to the authenticated home when TestMain isolates HOME
 //
 // Run: go test ./internal/cmd/ -tags live -run TestV10Live -v -count=1
 func TestV10LiveVerification(t *testing.T) {
@@ -36,49 +33,15 @@ func TestV10LiveVerification(t *testing.T) {
 		t.Skip("GOG_TEST_ACCOUNT not set; skipping live test")
 	}
 
-	// Fetch raw document JSON via gog binary (has OAuth tokens configured)
-	// TestMain overrides HOME to a temp dir; restore real HOME so
-	// both the gog subprocess and the direct API can find credentials.
-	if realHome := os.Getenv("GOG_LIVE_HOME"); realHome != "" {
-		prev := os.Getenv("HOME")
-		os.Setenv("HOME", realHome)
-		t.Cleanup(func() { os.Setenv("HOME", prev) })
+	// TestMain isolates HOME and XDG_CONFIG_HOME. Opt in to the default
+	// authenticated layout under the supplied home only for this
+	// explicitly configured live test, and restore it before other tests run.
+	if liveHome := os.Getenv("GOG_LIVE_HOME"); liveHome != "" {
+		t.Setenv("HOME", liveHome)
+		t.Setenv("XDG_CONFIG_HOME", "")
 	}
 
-	gogBin := os.Getenv("GOG_BIN")
-	if gogBin == "" {
-		gogBin = "gog"
-	}
-
-	ctx := context.Background()
-	_ = ctx
-
-	cmd := exec.Command(gogBin, "docs", "cat", docID, "-a", account, "-j")
-	out, err := cmd.Output()
-	if err != nil {
-		// Fall back: try direct API
-		docsSvc, err2 := googleapi.NewDocs(context.Background(), account)
-		if err2 != nil {
-			t.Fatalf("can't fetch doc: gog failed (%v) and direct API failed (%v)", err, err2)
-		}
-		doc, err2 := docsSvc.Documents.Get(docID).Context(context.Background()).Do()
-		require.NoError(t, err2, "fetch document")
-		require.NotNil(t, doc.Body)
-		_ = doc
-		t.Skip("gog cat -j not available, need raw doc JSON")
-		return
-	}
-
-	// gog docs cat -j returns plain text, not the doc structure.
-	// We need the raw API response. Let's use direct API with proper auth setup.
-	// For now, use a helper binary to dump the doc.
-	_ = out
-
-	// Actually, let's just build a small helper that uses the gog OAuth tokens
-	docsSvc, err := newDocsServiceFromConfig(account)
-	require.NoError(t, err, "create docs service")
-
-	doc, err := docsSvc.Documents.Get(docID).Context(context.Background()).Do()
+	doc, err := readLiveVerificationDocument(account, docID, newDefaultRuntime())
 	require.NoError(t, err, "fetch document")
 	require.NotNil(t, doc.Body, "document body")
 
@@ -606,10 +569,4 @@ func colorClose(a, b float64) bool {
 		diff = -diff
 	}
 	return diff < 0.05
-}
-
-// newDocsServiceFromConfig creates a Google Docs service using stored OAuth
-// credentials for the given account (used by live tests only).
-func newDocsServiceFromConfig(account string) (*docs.Service, error) {
-	return googleapi.NewDocs(context.Background(), account)
 }
