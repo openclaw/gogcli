@@ -33,7 +33,7 @@ wrapper and shared deprecated-tab flag resolution. See
 
 Whole-document Docs, Sheets, and Slides exports share
 `internal/cmd/export_via_drive.go`. The experimental single-tab Docs export
-uses the Docs web endpoint instead; see [export conventions](refactor/exports.md).
+uses the Docs web endpoint instead; see [export conventions](https://github.com/openclaw/gogcli/blob/main/docs/refactor/exports.md).
 
 The generic Discovery API surface has its own request validation, host guards,
 and bounded document cache in `internal/discoveryapi`. See [Raw API](raw-api.md)
@@ -57,7 +57,7 @@ The detailed contracts live in:
 - [OAuth clients](auth-clients.md): account/client routing, scopes, service accounts.
 - [Paths and state](paths.md): overrides, XDG layout, and legacy reads.
 - [Quickstart](quickstart.md): OAuth setup and authorization.
-- The generated OAuth service table in [README](../README.md#supported-oauth-services).
+- The generated [OAuth service table](https://github.com/openclaw/gogcli#supported-oauth-services).
 
 ## Output and safety
 
