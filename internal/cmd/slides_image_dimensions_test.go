@@ -40,9 +40,9 @@ func TestPublicImageAddressPolicy(t *testing.T) {
 }
 
 func TestPublicImageRedirectPolicy(t *testing.T) {
-	redirect, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "https://cdn.example.com/image", nil)
-	if err != nil {
-		t.Fatal(err)
+	redirect, requestErr := http.NewRequestWithContext(context.Background(), http.MethodGet, "https://cdn.example.com/image", nil)
+	if requestErr != nil {
+		t.Fatal(requestErr)
 	}
 	redirect.Header.Set("Referer", "https://example.com/image?signature=private-marker")
 	if err := checkPublicImageRedirect(redirect, nil); err != nil {
