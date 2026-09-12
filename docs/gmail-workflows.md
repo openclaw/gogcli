@@ -99,6 +99,66 @@ This creates an HTML draft; it does not change plain-text MIME behavior. Check
 the draft and recipient-client rendering before relying on the workaround for
 a particular workflow.
 
+## Stage an exact RFC822 message as a draft
+
+Use the same prebuilt MIME file as `gmail send --raw-file` to stage a draft
+without rebuilding its headers, multipart alternatives, or CID inline images:
+
+```bash
+gog --account you@example.com --gmail-no-send gmail drafts create --raw-file approved.eml --json
+gog --account you@example.com --gmail-no-send gmail drafts update DRAFT_ID --raw-file approved.eml --json
+gog --account you@example.com --gmail-no-send gmail drafts create --raw-file - < approved.eml
+```
+
+Raw create and update submit the input bytes unchanged. Raw update replaces the
+entire message: it does not merge the old recipients, attachments, thread ID, or
+reply headers. The draft ID stays stable, but Gmail replaces the nested message
+ID. JSON retains the normal `draftId`, `message`, `threadId`, `inReplyTo`,
+`references`, and `replyContextSource` fields. Text output includes `draft_id`
+and `message_id`.
+
+Rules:
+
+- Supply a non-empty, parseable RFC822 message with exactly one valid `From`
+  address matching the account or a verified send-as alias. The caller's
+  display name is not replaced. Alias validation requires Gmail settings access.
+- Recipients may be omitted for a draft; any supplied recipient addresses must
+  be valid. Direct access tokens and ADC require an explicit `--account`.
+- Compose flags cannot be combined with raw input, including body, recipient,
+  attachment, sender, reply, quote, and update's clear flags. If
+  `GOG_GMAIL_AUTO_FROM_ADDRESSED_ALIAS` is enabled, disable it for raw mode with
+  `--auto-from-addressed-alias=false`.
+- Optional `--thread-id` sets only `message.threadId`; it does not fetch a reply
+  target or rewrite headers. Gmail thread URLs are accepted. To join a thread,
+  the raw message must also contain suitable `In-Reply-To` and `References`
+  headers and a matching subject.
+- Input is limited to 36,700,160 bytes (35 MiB), before the outer base64url
+  encoding. Files and stdin are bounded; oversize inputs fail before any API
+  call. Gmail can still reject messages for other server-side limits.
+- Global and per-account no-send policies permit draft create and update.
+  `--readonly` blocks these mutations before authentication. `--dry-run` works
+  offline, even with `--readonly`, and reports only the source, byte count,
+  SHA-256, optional thread ID, and update's draft ID, never message content.
+- Draft writes need `gmail.compose`, `gmail.modify`, or `mail.google.com` OAuth
+  scope. A token with only `gmail.send` cannot create or update drafts.
+
+Retrieve the stored MIME for verification:
+
+```bash
+gog --account you@example.com --readonly gmail drafts get DRAFT_ID --format raw --plain > stored.eml
+gog --account you@example.com --readonly gmail drafts get DRAFT_ID --format raw --json
+```
+
+Raw text output contains only the decoded RFC822 bytes, without a heading or
+added newline. JSON retains the `draft` envelope with `draft.message.raw` in
+base64url form. The default `--format full` is unchanged. Raw retrieval cannot
+be combined with `--download` or `--use-indexed-attachment-ids`. Omit
+`--wrap-untrusted` when comparing bytes, since text wrapping changes output.
+
+The CLI guarantees unchanged bytes at submission, not unchanged Gmail storage
+or Gmail web editing. Compare the retrieved MIME and inspect the draft in the
+intended mail client before relying on it as a review artifact.
+
 ## Send Guardrails
 
 Block send operations globally for one run:
@@ -138,6 +198,7 @@ can send only from its own account. Direct access tokens and ADC require an
 explicit `--account`. Read-only and global/per-account no-send policies still
 apply. A dry-run validates the RFC822 structure without authentication and
 reports only the source, byte count, SHA-256 digest, and optional thread ID.
+Raw send uses the same 35 MiB input bound as raw drafts.
 
 Command page: [`gog gmail send`](commands/gog-gmail-send.md).
 

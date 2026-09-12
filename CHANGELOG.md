@@ -2,6 +2,7 @@
 
 ## 0.40.1 - Unreleased
 
+- Gmail: stage and replace raw RFC822 drafts, retrieve their MIME, and preview safely offline; bound raw draft/send input to 35 MiB while preserving no-send policies. (#1126) — thanks @darkamenosa.
 - Apps Script: keep file names within one TSV field in `appscript content`, escaping line breaks instead of splitting output rows. (#1091) — thanks @haosdent.
 - Search Console: add `searchconsole inspect` for per-URL index status via the URL Inspection API (coverage state, indexing/page-fetch/robots.txt state, canonical, sitemaps, last crawl time), using the existing `webmasters` OAuth scope. (#1094) — thanks @laihenyi.
 - Search Console: preserve permission-denied exit codes when adding API setup or scope guidance. (#1094)

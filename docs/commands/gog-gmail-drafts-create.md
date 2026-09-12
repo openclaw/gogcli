@@ -44,6 +44,7 @@ gog gmail (mail,email) drafts (draft) create (add,new) [flags]
 | `-p`<br>`--plain`<br>`--tsv` | `bool` | false | Output stable, parseable text to stdout (TSV; no colors) |
 | `--quota-project` | `string` |  | Google Cloud project to bill for API usage (sent as X-Goog-User-Project; some APIs require it with --access-token or ADC) |
 | `--quote` | `bool` |  | Include quoted original message in reply (requires --reply-to-message-id or --thread-id) |
+| `--raw-file` | `string` |  | Create a draft from an exact RFC822 message file, or '-' for stdin (cannot be combined with compose flags) |
 | `--readonly` | `bool` | false | Block mutating API requests at runtime; auth add also requests read-only OAuth scopes |
 | `--reply-all` | `bool` |  | Auto-populate recipients from original message (requires --reply-to-message-id or --thread-id) |
 | `--reply-to` | `string` |  | Reply-To header address |
@@ -51,7 +52,7 @@ gog gmail (mail,email) drafts (draft) create (add,new) [flags]
 | `--results-only` | `bool` |  | In JSON mode, emit only the primary result (drops envelope fields like nextPageToken) |
 | `--select`<br>`--pick`<br>`--project` | `string` |  | In JSON mode, select comma-separated fields (best-effort; supports dot paths). Desire path: use --fields for most commands. |
 | `--subject` | `string` |  | Subject (required) |
-| `--thread-id` | `string` |  | Reply within a Gmail thread (uses latest message for headers) |
+| `--thread-id` | `string` |  | Reply within a Gmail thread (uses latest message for headers; raw mode sets only the thread ID) |
 | `--to` | `string` |  | Recipients (comma-separated) |
 | `-v`<br>`--verbose` | `bool` |  | Enable verbose logging |
 | `--version` | `kong.VersionFlag` |  | Print version and exit |
