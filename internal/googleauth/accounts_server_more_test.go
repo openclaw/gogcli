@@ -52,12 +52,12 @@ func TestHandleAccountsPage(t *testing.T) {
 	}
 }
 
-func TestFetchUserEmailDefault(t *testing.T) {
-	if _, err := fetchUserEmailDefault(context.TODO(), nil); err == nil {
+func TestFetchUserIdentity_DefaultSource(t *testing.T) {
+	if _, err := FetchUserIdentity(context.TODO(), nil); err == nil {
 		t.Fatalf("expected missing token error")
 	}
 
-	if _, err := fetchUserEmailDefault(context.TODO(), &oauth2.Token{}); err == nil {
+	if _, err := FetchUserIdentity(context.TODO(), &oauth2.Token{}); err == nil {
 		t.Fatalf("expected missing access token error")
 	}
 
@@ -66,13 +66,13 @@ func TestFetchUserEmailDefault(t *testing.T) {
 	tok := &oauth2.Token{AccessToken: "access"}
 	tok = tok.WithExtra(map[string]any{"id_token": idToken})
 
-	email, err := fetchUserEmailDefault(context.TODO(), tok)
+	identity, err := FetchUserIdentity(context.TODO(), tok)
 	if err != nil {
-		t.Fatalf("fetchUserEmailDefault: %v", err)
+		t.Fatalf("FetchUserIdentity: %v", err)
 	}
 
-	if email != "a@b.com" {
-		t.Fatalf("unexpected email: %q", email)
+	if identity.Email != "a@b.com" {
+		t.Fatalf("unexpected email: %q", identity.Email)
 	}
 }
 
@@ -88,9 +88,9 @@ func TestReadHTTPBodySnippet(t *testing.T) {
 	}
 }
 
-func TestRenderSuccessPageWithDetails_More(t *testing.T) {
+func TestManagerRenderSuccessPage_Email(t *testing.T) {
 	rec := httptest.NewRecorder()
-	renderSuccessPageWithDetails(rec, "a@b.com", []string{"gmail"})
+	newTestManagerApplication(t, ManagerOptions{}, ManagerDependencies{}).renderSuccessPage(rec, "a@b.com", []string{"gmail"})
 
 	if !strings.Contains(rec.Body.String(), "a@b.com") {
 		t.Fatalf("expected email in success page")
@@ -224,7 +224,7 @@ func TestStartManageServerOpenStoreError(t *testing.T) {
 	}
 }
 
-func TestManageCredentialsReaderUsesContext(t *testing.T) {
+func TestReadOAuthClientCredentialsUsesContext(t *testing.T) {
 	origRead := readClientCredentials
 
 	t.Cleanup(func() { readClientCredentials = origRead })
@@ -238,7 +238,7 @@ func TestManageCredentialsReaderUsesContext(t *testing.T) {
 		return config.ClientCredentials{ClientID: "id", ClientSecret: "secret"}, nil
 	})
 
-	credentials, err := manageCredentialsReader(ctx, nil)("work")
+	credentials, err := readOAuthClientCredentials(ctx, "work")
 	if err != nil {
 		t.Fatalf("read credentials: %v", err)
 	}
@@ -250,12 +250,14 @@ func TestManageCredentialsReaderUsesContext(t *testing.T) {
 
 func TestManageCredentialsReaderPreservesOverride(t *testing.T) {
 	called := false
-	reader := manageCredentialsReader(context.Background(), func(client string) (config.ClientCredentials, error) {
-		called = true
-		return config.ClientCredentials{ClientID: client}, nil
+	app := newTestManagerApplication(t, ManagerOptions{}, ManagerDependencies{
+		ReadCredentials: func(client string) (config.ClientCredentials, error) {
+			called = true
+			return config.ClientCredentials{ClientID: client}, nil
+		},
 	})
 
-	credentials, err := reader("custom")
+	credentials, err := app.deps.ReadCredentials("custom")
 	if err != nil {
 		t.Fatalf("read credentials: %v", err)
 	}

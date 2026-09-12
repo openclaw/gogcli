@@ -688,11 +688,9 @@ func TestManageServer_HandleListAccounts_Error(t *testing.T) {
 	}
 }
 
-func TestGenerateCSRFToken(t *testing.T) {
-	token, err := generateCSRFToken()
-	if err != nil {
-		t.Fatalf("generateCSRFToken: %v", err)
-	}
+func TestManagerCSRFToken(t *testing.T) {
+	app := newTestManagerApplication(t, ManagerOptions{}, ManagerDependencies{})
+	token := app.csrfToken
 
 	if len(token) != 64 {
 		t.Fatalf("unexpected token length: %d", len(token))
@@ -703,9 +701,9 @@ func TestGenerateCSRFToken(t *testing.T) {
 	}
 }
 
-func TestRenderSuccessPageWithDetails(t *testing.T) {
+func TestManagerRenderSuccessPage_Details(t *testing.T) {
 	rr := httptest.NewRecorder()
-	renderSuccessPageWithDetails(rr, "me@example.com", []string{"gmail", "drive"})
+	newTestManagerApplication(t, ManagerOptions{}, ManagerDependencies{}).renderSuccessPage(rr, "me@example.com", []string{"gmail", "drive"})
 
 	if body := rr.Body.String(); !strings.Contains(body, "me@example.com") {
 		t.Fatalf("expected email in body")
@@ -1184,7 +1182,7 @@ func TestManageServer_HandleOAuthCallback_Success_IDTokenEmail(t *testing.T) {
 	}
 }
 
-func TestFetchUserEmail(t *testing.T) {
+func TestFetchUserIdentity_Userinfo(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if auth := r.Header.Get("Authorization"); auth != "Bearer test-token" {
@@ -1196,13 +1194,13 @@ func TestFetchUserEmail(t *testing.T) {
 		}))
 		defer srv.Close()
 
-		email, err := fetchUserEmailWithURL(context.Background(), "test-token", srv.URL)
+		identity, err := fetchUserIdentityWithURL(context.Background(), "test-token", srv.URL)
 		if err != nil {
-			t.Fatalf("fetchUserEmail: %v", err)
+			t.Fatalf("fetchUserIdentity: %v", err)
 		}
 
-		if email != "user@test.com" {
-			t.Fatalf("expected user@test.com, got %q", email)
+		if identity.Email != "user@test.com" {
+			t.Fatalf("expected user@test.com, got %q", identity.Email)
 		}
 	})
 
@@ -1213,7 +1211,7 @@ func TestFetchUserEmail(t *testing.T) {
 		}))
 		defer srv.Close()
 
-		_, err := fetchUserEmailWithURL(context.Background(), "test-token", srv.URL)
+		_, err := fetchUserIdentityWithURL(context.Background(), "test-token", srv.URL)
 		if err == nil {
 			t.Fatal("expected error for empty email")
 		}
@@ -1229,7 +1227,7 @@ func TestFetchUserEmail(t *testing.T) {
 		}))
 		defer srv.Close()
 
-		_, err := fetchUserEmailWithURL(context.Background(), "test-token", srv.URL)
+		_, err := fetchUserIdentityWithURL(context.Background(), "test-token", srv.URL)
 		if err == nil {
 			t.Fatal("expected error for 401")
 		}
@@ -1246,29 +1244,20 @@ func TestFetchUserEmail(t *testing.T) {
 		}))
 		defer srv.Close()
 
-		_, err := fetchUserEmailWithURL(context.Background(), "test-token", srv.URL)
+		_, err := fetchUserIdentityWithURL(context.Background(), "test-token", srv.URL)
 		if err == nil {
 			t.Fatal("expected error for invalid json")
 		}
 	})
 }
 
-func TestEmailFromIDToken(t *testing.T) {
+func TestIdentityFromIDToken_Claims(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		idToken := strings.Join([]string{
 			base64.RawURLEncoding.EncodeToString([]byte(`{"alg":"none"}`)),
 			base64.RawURLEncoding.EncodeToString([]byte(`{"sub":"sub-123","email":"me@example.com"}`)),
 			"",
 		}, ".")
-
-		email, err := emailFromIDToken(idToken)
-		if err != nil {
-			t.Fatalf("emailFromIDToken: %v", err)
-		}
-
-		if email != "me@example.com" {
-			t.Fatalf("expected me@example.com, got %q", email)
-		}
 
 		identity, err := IdentityFromIDToken(idToken)
 		if err != nil {
@@ -1281,7 +1270,7 @@ func TestEmailFromIDToken(t *testing.T) {
 	})
 
 	t.Run("invalid token", func(t *testing.T) {
-		_, err := emailFromIDToken("nope")
+		_, err := IdentityFromIDToken("nope")
 		if err == nil {
 			t.Fatal("expected error")
 		}
@@ -1298,7 +1287,7 @@ func TestEmailFromIDToken(t *testing.T) {
 			"",
 		}, ".")
 
-		_, err := emailFromIDToken(idToken)
+		_, err := IdentityFromIDToken(idToken)
 		if err == nil {
 			t.Fatal("expected error")
 		}

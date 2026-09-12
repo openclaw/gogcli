@@ -63,8 +63,3 @@ func parseRedirectURL(rawURL string) (code string, state string, redirectURI str
 
 	return code, state, redirectURI, nil
 }
-
-func extractCodeAndState(rawURL string) (code string, state string, err error) {
-	code, state, _, err = parseRedirectURL(rawURL)
-	return code, state, err
-}

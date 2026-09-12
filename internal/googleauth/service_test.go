@@ -55,8 +55,8 @@ func TestParseService_Invalid(t *testing.T) {
 	}
 }
 
-func TestExtractCodeAndState(t *testing.T) {
-	code, state, err := extractCodeAndState("http://127.0.0.1:55555/oauth2/callback?code=abc&state=xyz")
+func TestParseRedirectURL(t *testing.T) {
+	code, state, _, err := parseRedirectURL("http://127.0.0.1:55555/oauth2/callback?code=abc&state=xyz")
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
@@ -66,12 +66,12 @@ func TestExtractCodeAndState(t *testing.T) {
 	}
 }
 
-func TestExtractCodeAndState_Errors(t *testing.T) {
-	if _, _, err := extractCodeAndState("not a url"); err == nil {
+func TestParseRedirectURL_Errors(t *testing.T) {
+	if _, _, _, err := parseRedirectURL("not a url"); err == nil {
 		t.Fatalf("expected error")
 	}
 
-	if _, _, err := extractCodeAndState("http://127.0.0.1:55555/oauth2/callback?state=xyz"); err == nil {
+	if _, _, _, err := parseRedirectURL("http://127.0.0.1:55555/oauth2/callback?state=xyz"); err == nil {
 		t.Fatalf("expected error")
 	}
 }

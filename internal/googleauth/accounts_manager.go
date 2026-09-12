@@ -2,7 +2,6 @@ package googleauth
 
 import (
 	"context"
-	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
@@ -658,28 +657,6 @@ func FetchUserIdentity(ctx context.Context, tok *oauth2.Token) (Identity, error)
 	return fetchUserIdentityWithURL(ctx, tok.AccessToken, userinfoURL)
 }
 
-func fetchUserEmailDefault(ctx context.Context, tok *oauth2.Token) (string, error) {
-	identity, err := FetchUserIdentity(ctx, tok)
-	if err != nil {
-		return "", err
-	}
-
-	return identity.Email, nil
-}
-
-// fetchUserEmailWithURL retrieves the user's email from the specified userinfo URL.
-// This is separated for testability.
-//
-//nolint:unparam // retained for email-only tests and package callers.
-func fetchUserEmailWithURL(ctx context.Context, accessToken string, url string) (string, error) {
-	identity, err := fetchUserIdentityWithURL(ctx, accessToken, url)
-	if err != nil {
-		return "", err
-	}
-
-	return identity.Email, nil
-}
-
 func fetchUserIdentityWithURL(ctx context.Context, accessToken string, url string) (Identity, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
@@ -726,15 +703,6 @@ func fetchUserIdentityWithURL(ctx context.Context, accessToken string, url strin
 	}
 
 	return Identity{Subject: subject, Email: email}, nil
-}
-
-func emailFromIDToken(idToken string) (string, error) {
-	identity, err := IdentityFromIDToken(idToken)
-	if err != nil {
-		return "", err
-	}
-
-	return identity.Email, nil
 }
 
 func IdentityFromIDToken(idToken string) (Identity, error) {
@@ -784,10 +752,6 @@ func readHTTPBodySnippet(r io.Reader, limit int64) string {
 	return s
 }
 
-func generateCSRFToken() (string, error) {
-	return generateRandomHex(rand.Reader, 32)
-}
-
 func generateRandomHex(random io.Reader, size int) (string, error) {
 	b := make([]byte, size)
 	if _, err := io.ReadFull(random, b); err != nil {
@@ -815,21 +779,6 @@ func writeJSONError(w http.ResponseWriter, msg string, status int) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(map[string]any{"error": msg})
-}
-
-// renderSuccessPageWithDetails renders the success template with email and services
-func renderSuccessPageWithDetails(w http.ResponseWriter, email string, services []string) {
-	renderSuccessPageWithDetailsAndCSRF(w, email, services, "")
-}
-
-func renderSuccessPageWithDetailsAndCSRF(w http.ResponseWriter, email string, services []string, csrfToken string) {
-	tmpl, err := template.New("success").Parse(successTemplate)
-	if err != nil {
-		_, _ = w.Write([]byte("Success! You can close this window."))
-		return
-	}
-
-	renderSuccessTemplate(w, tmpl, email, services, csrfToken)
 }
 
 func (app *ManagerApplication) renderSuccessPage(w http.ResponseWriter, email string, services []string) {
