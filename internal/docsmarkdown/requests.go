@@ -296,10 +296,8 @@ func MarkdownToDocsRequests(elements []MarkdownElement, baseIndex int64, tabID s
 				continue
 			}
 
-			rows := len(el.TableCells)
-
 			cols := len(el.TableCells[0])
-			if rows == 0 || cols == 0 {
+			if cols == 0 {
 				continue
 			}
 
