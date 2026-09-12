@@ -11,8 +11,8 @@ Goal: one implementation for “export Google *Thing* via Drive”.
 
 ## Current pattern
 
-- Shared builder: `internal/cmd/export_via_drive.go:newExportViaDriveCmd`
-- Shared download: `internal/cmd/drive.go:downloadDriveFile` (handles Drive “native” exports + normal files)
+- Shared orchestration: `internal/cmd/export_via_drive.go:exportViaDrive`
+- Shared download: `internal/cmd/drive_download.go:downloadDriveFile` (handles Drive “native” exports + normal files)
 
 Each service command is a thin wrapper:
 
@@ -26,7 +26,7 @@ Exception: `gog docs export --tab <title-or-id>` exports a single Google Docs ta
 
 - Arg is always the Drive file id (Doc/Sheet/Slides id).
 - Type guard: compare `mimeType` and error with `file is not a <KindLabel> (mimeType="...")`.
-- `--out` defaults to `$(os.UserConfigDir())/gogcli/drive-downloads/` (via `internal/config:EnsureDriveDownloadsDir`).
+- `--out` defaults to `$(os.UserConfigDir())/gogcli/drive-downloads/` (via the resolved config layout).
 - `--out` can be an existing directory, a new directory ending in `/`, or an explicit file path (via `internal/cmd/drive_download_helpers.go:resolveDriveDownloadDestPath`); missing parent directories are created only when writing the download.
 - `--out -` writes export bytes to stdout; JSON mode rejects it to avoid mixing metadata with bytes.
 - Output
@@ -37,5 +37,5 @@ Exception: `gog docs export --tab <title-or-id>` exports a single Google Docs ta
 ## Add a new export command
 
 1) Pick expected Drive mime type + allowed formats.
-2) Add a new `newXExportCmd` calling `newExportViaDriveCmd(...)`.
+2) Add a Kong command struct whose `Run` method calls `exportViaDrive` with `exportViaDriveOptions`.
 3) Add/extend tests in `internal/cmd/execute_drive_*_test.go` style (fake Drive server).

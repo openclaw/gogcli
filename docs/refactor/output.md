@@ -13,7 +13,7 @@ Goal: kill copy/paste; keep output consistent.
 
 Use `internal/cmd/output_helpers.go:tableWriter(ctx)`:
 
-- `--plain`: `os.Stdout` (no alignment, TSV-friendly)
+- `--plain`: the invocation stdout writer (no alignment, TSV-friendly)
 - default: `tabwriter.Writer` (aligned columns)
 
 Call pattern:

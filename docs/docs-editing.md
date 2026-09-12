@@ -18,7 +18,7 @@ gog docs write <docId> --append --markdown --text '## Status'
 Replace the document body with Markdown from a file:
 
 ```bash
-gog docs write <docId> --replace --markdown --content-file README.md
+gog docs write <docId> --replace --markdown --file README.md
 ```
 
 The local Markdown renderer keeps headings adjacent to their following body,

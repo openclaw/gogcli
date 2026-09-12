@@ -1,19 +1,17 @@
 ---
-summary: "Refactor notes (implementation status + next wins)"
+summary: "Shared implementation patterns"
 read_when:
   - Touching exports/output/templates
   - Planning cleanup work
 ---
 
-# Refactor notes
+# Shared implementation patterns
 
-Shipped (today)
+These notes describe existing code to reuse when changing adjacent commands:
 
-- `exports.md`: Drive-backed export command pattern (`docs|slides|sheets`).
-- `output.md`: shared table + paging helpers.
-- `templates.md`: googleauth HTML templates via `//go:embed`.
+- [Exports](exports.md): Drive-backed Docs, Slides, and Sheets downloads.
+- [Output](output.md): invocation-aware table, result, and paging output.
+- [Templates](templates.md): embedded Google authorization HTML.
+- [Ownership](options.md): service setup, pagination, and retry boundaries.
 
-Backlog / next wins
-
-- `options.md`: ideas; pick + execute when touching adjacent code.
-
+See [Architecture and contracts](../spec.md) for the command and package layout.

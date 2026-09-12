@@ -1,25 +1,26 @@
 ---
-summary: "Refactor options (next wins)"
+summary: "Shared command helpers and ownership boundaries"
 read_when:
   - Planning cleanup work
   - Touching retry/logging/output plumbing
 ---
 
-# Refactor options (next wins)
+# Shared command helpers
 
-Small wins
+Before adding a helper, check the existing owner:
 
-- “List + page” helper: generic wrapper for `--max/--page` + `nextPageToken` output.
-- Standardize list headers: consistent column naming (ID/NAME/EMAIL/etc).
-- “Output row” helpers: centralize `sanitizeTab` use for tabular output.
+- `internal/cmd/service_helpers.go` selects accounts and initializes services.
+- `internal/cmd/paging.go` collects bounded or unbounded result pages;
+  `paging_guard.go` rejects repeated tokens for command-specific loops.
+- `internal/cmd/output_helpers.go` routes table and result output through the
+  invocation context and prints pagination hints on stderr.
+- `internal/cmd/drive_download.go` resolves Drive export formats;
+  `export_via_drive.go` orchestrates typed document exports.
+- `internal/googleapi/transport.go` handles HTTP retries and replayable bodies.
+  `WithoutRetries` is available for operations whose callers require a single
+  attempt; do not add a second generic retry loop around it.
 
-Medium wins
-
-- Drive “export format” registry: single map for docs/sheets/slides format help + validation.
-- Shared “service bootstrap” helpers: reduce per-command boilerplate for `requireAccount` + `newXService`.
-- Test harness helpers: one fake Google API server util (Drive/Gmail/Calendar/Tasks) with common JSON assertions.
-
-Bigger wins
-
-- API client retry unification: one retry stack (transport vs explicit); delete the other; push logs behind `--verbose`.
-- Command grouping / UX: consolidate “download/export” story; ensure help text + flags match across services.
+Keep service-specific pagination limits, partial-result rules, and output
+shapes at the command boundary. Share mechanics without silently changing
+those contracts. Existing fake-server tests next to the affected commands
+provide request and response examples.

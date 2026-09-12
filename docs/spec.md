@@ -1,597 +1,90 @@
-# gogcli spec
-
-## Goal
-
-Build a single, clean, modern Go CLI that talks to:
-
-- Gmail API
-- Google Calendar API
-- Google Chat API
-- Google Classroom API
-- Google Drive API
-- Google Drive Labels API
-- Google Docs API
-- Google Sheets API
-- Google Forms API
-- Google Maps Places API
-- Google Photos Library API
-- Google Photos Picker API
-- Apps Script API
-- Google Tasks API
-- Cloud Identity API (Groups)
-- Google People API (Contacts + directory)
-- Google Keep API (Workspace-only, service account)
-
-This replaces the existing separate CLIs (`gmcli`, `gccli`, `gdcli`) and the Python contacts server conceptually, but:
-
-- no backwards compatibility
-- no migration tooling
-
-## Non-goals
-
-- Preserving legacy command names/flags/output formats
-- Importing existing `~/.gmcli`, `~/.gccli`, `~/.gdcli` state
-- Exposing the whole CLI through a generic MCP command-execution bridge
-
-## MCP server
-
-`gog mcp` runs a typed MCP server over stdio for agent clients that need a
-permissioned Google Workspace tool surface. It intentionally does not expose a
-generic shell/argv bridge. Each MCP tool has a fixed schema and maps to a
-specific `gog` operation.
-
-MCP defaults are read-only. Write tools are hidden unless the server is started
-with `--allow-write`, and `--allow-tool` can further narrow the registered tool
-set by tool name or service prefix. Parent root context such as `--account`,
-`--home`, output mode, `--no-input`, untrusted wrapping, and command safety
-flags is preserved for subprocess calls.
-
-## Language/runtime
-
-- Go `1.26` (see `go.mod`)
-
-## CLI framework
-
-- `github.com/alecthomas/kong`
-- Root command: `gog`
-- Global flag:
-  - `--color=auto|always|never` (default `auto`)
-  - `--json` (JSON output to stdout)
-  - `--plain` (TSV output to stdout; stable/parseable; disables colors)
-  - `--force` (skip confirmations for destructive commands)
-  - `--no-input` (never prompt; fail instead)
-  - `--version` (print version)
-
-Notes:
-
-- We run `SilenceUsage: true` and print errors ourselves (colored when possible).
-- `NO_COLOR` is respected.
-
-Environment:
-
-- `GOG_COLOR=auto|always|never` (default `auto`, overridden by `--color`)
-- `GOG_JSON=1` (default JSON output; overridden by flags)
-- `GOG_PLAIN=1` (default plain output; overridden by flags)
-
-## Output (TTY-aware colors)
-
-- `github.com/muesli/termenv` is used to detect rich TTY capabilities and render colored output.
-- Colors are enabled when:
-  - output is a rich terminal and `--color=auto`, and `NO_COLOR` is not set; or
-  - `--color=always`
-- Colors are disabled when:
-  - `--color=never`; or
-  - `NO_COLOR` is set
-
-Implementation: `internal/ui/ui.go`.
-
-## Auth + secret storage
-
-### OAuth client credentials (non-secret-ish)
-
-- Stored on disk in the per-user config directory:
-  - `$(os.UserConfigDir())/gogcli/credentials.json` (default client)
-  - `$(os.UserConfigDir())/gogcli/credentials-<client>.json` (named clients)
-- Written with mode `0600`.
-- Command:
-  - `gog auth credentials <credentials.json>`
-  - `gog --client <name> auth credentials <credentials.json>`
-  - `gog auth credentials list`
-  - `gog auth credentials remove [<client>|all]`
-- Supports Google’s downloaded JSON format:
-  - `installed.client_id/client_secret` or `web.client_id/client_secret`
-
-Implementation: `internal/config/*`.
-
-### Refresh tokens (secrets)
-
-- Stored in OS credential store via `github.com/99designs/keyring`.
-- Key namespace is `gogcli` by default (keyring `ServiceName`); override with `GOG_KEYRING_SERVICE_NAME`.
-- Key format: `token:<client>:<email>` (default client uses `token:default:<email>`)
-- Canonical identity key format for new tokens with an OIDC subject: `token-sub:<client>:<sub>`. Email-keyed entries remain as compatibility lookup keys.
-- Legacy key format: `token:<email>` (migrated on first read)
-- Stored payload is JSON (refresh token + metadata like OIDC subject, current email, selected services/scopes).
-- Email is treated as display/contact state; Google's OIDC `sub` is used to detect the same account after an email rename and migrate aliases/defaults/client mappings on reauthorization.
-- Keyring operations are bounded by a timeout (default `30s` on macOS and `10s` elsewhere, configurable via `GOG_KEYRING_OPEN_TIMEOUT`) so non-surfacing permission prompts and unresponsive backends return actionable guidance instead of hanging indefinitely.
-- Fallback: if no OS credential store is available, keyring may use its encrypted "file" backend:
-  - Directory: `$(os.UserConfigDir())/gogcli/keyring/` (one file per key; gog-managed key names are encoded for portable filenames)
-  - Password: prompts on TTY; for non-interactive runs set `GOG_KEYRING_PASSWORD`
-
-Current minimal management commands (implemented):
-
-- `gog auth tokens list` (keys only; does not decrypt token payloads)
-- `gog auth tokens delete <email>`
-- `gog auth list` reports unreadable token entries instead of failing the whole listing, so one bad file-keyring entry does not hide other accounts.
-
-Implementation: `internal/secrets/store.go`.
-
-### OAuth flow
-
-- Desktop OAuth 2.0 flow using local HTTP redirect on an ephemeral port.
-- Supports a browserless/manual flow (paste redirect URL) for headless environments.
-- Supports a remote/server-friendly 2-step manual flow:
-  - Step 1 prints an auth URL (`gog auth add ... --remote --step 1`)
-  - Step 2 exchanges the pasted redirect URL and requires `state` validation (`--remote --step 2 --auth-url ...`)
-  - Browser, manual, remote, and account-manager flows bind authorization
-    requests and token exchanges with S256 PKCE.
-  - Remote steps must share the same config home and OAuth client. Unfinished
-    pre-v0.24.0 flows must restart at step 1.
-- Refresh token issuance:
-  - requests `access_type=offline`
-  - supports `--force-consent` to force the consent prompt when Google doesn't return a refresh token
-  - uses `include_granted_scopes=true` to support incremental auth re-runs for full-scope authorization
-  - omits `include_granted_scopes` for limited scope presets and reauthorization of known narrow Gmail grants so broader historical permissions are not silently restored
-
-Scope selection note:
-
-- The consent screen shows the scopes the CLI requested.
-- Users cannot selectively un-check individual requested scopes in the consent screen; they either approve all requested scopes or cancel.
-- To request fewer scopes, choose fewer services via `gog auth add --services ...`, use `gog auth add --readonly`, or select a limited service preset such as `--gmail-scope readonly|send|read-send`.
-
-## Config layout
-
-- Base config dir: `$(os.UserConfigDir())/gogcli/`
-- Files:
-  - `config.json` (optional preferences; JSON5; comments and trailing commas allowed)
-  - `credentials.json` (OAuth client id/secret; default client)
-  - `credentials-<client>.json` (OAuth client id/secret; named clients)
-- State:
-  - `state/gmail-watch/<account>.json` (Gmail watch state)
-  - `oauth-manual-state-<state>.json` (temporary manual OAuth state and PKCE verifier cache; expires quickly; no tokens)
-- Secrets:
-  - refresh tokens in keyring
-
-We intentionally avoid storing refresh tokens in plain JSON on disk.
-
-Environment:
-
-- `GOG_ACCOUNT=you@gmail.com` (email or alias; used when `--account` is not set; otherwise uses keyring default or a single stored token)
-- `GOG_CLIENT=work` (select OAuth client bucket; see `--client`)
-- `GOG_KEYRING_PASSWORD=...` (used when keyring falls back to encrypted file backend in non-interactive environments)
-- `GOG_KEYRING_BACKEND={auto|keychain|file}` (force backend; use `file` to avoid Keychain prompts and pair with `GOG_KEYRING_PASSWORD` for non-interactive)
-- `GOG_KEYCHAIN_TRUST_APPLICATION={auto|true|false}` (control macOS Keychain application trust; auto enables it only for a stably signed binary)
-- `GOG_KEYRING_SERVICE_NAME=...` (override keyring namespace/service name; default `gogcli`)
-- `GOG_KEYRING_OPEN_TIMEOUT=30s` (max time to wait for a keyring open/operation — e.g. a macOS Keychain permission prompt — before failing; Go duration, default `30s` on macOS and `10s` elsewhere)
-- `GOG_TIMEZONE=America/New_York` (default output timezone; IANA name or `UTC`; `local` forces local timezone)
-- `GOG_ENABLE_COMMANDS=calendar,tasks,gmail.search` (optional prefix allowlist; dot paths allowed; parent paths allow children)
-- `GOG_ENABLE_COMMANDS_EXACT=calendar.events,gmail.search` (optional exact allowlist; dot paths allowed; parent paths do not allow children)
-- `GOG_DISABLE_COMMANDS=gmail.send,gmail.drafts.send` (optional denylist; dot paths allowed)
-- `GOG_GMAIL_NO_SEND=1` (block Gmail send operations)
-- `config.json` can also set `keyring_backend` (JSON5; env vars take precedence)
-- `config.json` can also set `default_timezone` (IANA name or `UTC`)
-- `config.json` can also set `places_api_key` (or use `GOG_PLACES_API_KEY` / `GOOGLE_PLACES_API_KEY`) for Calendar Places lookups.
-- `config.json` can also set `account_aliases` for `gog auth alias` (JSON5)
-- `config.json` can also set `account_clients` (email -> client) and `client_domains` (domain -> client)
-- `config.json` can also set `gmail_no_send` and `no_send_accounts` for send guards
-
-Flag aliases:
-- `--out` also accepts `--output`.
-- `--out-dir` also accepts `--output-dir` (Gmail thread attachment downloads).
-- Drive download/export commands accept `--out -` to write file bytes to stdout; `--json --out -` is rejected.
-
-## Commands (current + planned)
-
-### Implemented
-
-- `gog auth credentials <credentials.json|->`
-- `gog auth credentials list`
-- `gog auth credentials remove [<client>|all]`
-- `gog --client <name> auth credentials <credentials.json|->`
-- `gog auth add <email> [--services user|all-user|all|gmail,calendar,chat,classroom,drive,driveactivity,drivelabels,docs,slides,contacts,tasks,sheets,people,forms,sites,meet,photos,photospicker,appscript,analytics,searchconsole,ads,youtube] [--readonly] [--drive-scope full|readonly|file] [--gmail-scope full|readonly|send|read-send] [--extra-scopes CSV] [--manual] [--remote] [--step 1|2] [--auth-url URL] [--listen-addr HOST[:PORT]] [--redirect-host HOST] [--timeout DURATION] [--force-consent]`
-- `gog auth services [--markdown]`
-- `gog auth manage [--services ...] [--listen-addr HOST[:PORT]] [--redirect-host HOST] [--dry-run]` (interactive browser flow; real execution fails with usage exit code 2 under `--no-input`)
-- `gog auth keep <email> --key <service-account.json>` (Google Keep; Workspace only)
-- `gog auth list`
-- `gog auth doctor [--check]` (diagnose missing OAuth client credentials, keyring/password drift, and refresh-token failures)
-- `gog auth alias list`
-- `gog auth alias set <alias> <email>`
-- `gog auth alias unset <alias>`
-- `gog auth status`
-- `gog auth remove <email>`
-- `gog auth tokens list`
-- `gog auth tokens delete <email>`
-- `gog config get <key>`
-- `gog config keys`
-- `gog config list`
-- `gog config path`
-- `gog config set <key> <value>`
-- `gog config unset <key>`
-- `gog version`
-- `gog drive ls [--all] [--parent ID] [--max N] [--page TOKEN] [--query Q] [--[no-]all-drives]` (`--all` and `--parent` are mutually exclusive)
-- `gog drive search <text> [--raw-query] [--max N] [--page TOKEN] [--[no-]all-drives]`
-- `gog drive get <fileId>`
-- `gog drive download <fileId> [--out PATH|-] [--format F]` (`--format` only applies to Google Workspace files; `--format md` exports a Google Doc as Markdown)
-- `gog drive upload <localPath> [--name N] [--parent ID] [--convert] [--convert-to doc|sheet|slides] [--keep-frontmatter]` (Markdown → Google Doc with `--convert` or `--convert-to doc`: leading `---`/`---` frontmatter is stripped before upload unless `--keep-frontmatter`; delimiter-based, not a full YAML parse; large non-JSON uploads print progress to stderr)
-- `gog drive sync push <localDirectory> --parent ID [--dry-run] [--[no-]all-drives]` (recursively reconciles local contents without deleting remote-only files; duplicate names, wrong types, Google-native files, and local symlinks fail before mutation)
-- `gog drive mkdir <name> [--parent ID]`
-- `gog drive delete <fileId> [--permanent]`
-- `gog drive move <fileId> --parent ID`
-- `gog drive rename <fileId> <newName>`
-- `gog drive shortcut create <targetId> --parent ID [--name N]`
-- `gog drive share <fileId> --to anyone|user|domain [--email addr] [--domain example.com] [--role reader|writer|commenter] [--discoverable]`
-- `gog drive permissions <fileId> [--max N] [--page TOKEN]`
-- `gog drive unshare <fileId> <permissionId>`
-- `gog drive url <fileIds...>`
-- `gog drive drives [--max N] [--page TOKEN] [--query Q]`
-- `gog drive changes start-token [--drive DRIVE_ID]`
-- `gog drive changes list --token TOKEN [--max N] [--all] [--drive DRIVE_ID]`
-- `gog drive changes poll --state-file PATH [--interval DURATION] [--on-change COMMAND] [--filter-file FILE_ID] [--drive DRIVE_ID]`
-- `gog drive changes serve --state-file PATH (--channel-token TOKEN|--channel-token-file PATH) [--listen ADDR] [--notification-timeout DURATION] [--on-change COMMAND] [--filter-file FILE_ID] [--auto-renew --webhook-url HTTPS_URL]`
-- `gog drive changes watch --token TOKEN --webhook-url URL [--channel-id ID] [--channel-token TOKEN]`
-- `gog drive changes stop <channelId> <resourceId>`
-- `gog drive activity query [--file FILE_ID|--folder FOLDER_ID] [--actions edit,share] [--from RFC3339] [--to RFC3339] [--filter FILTER]`
-- `gog drive audit sharing [--file FILE_ID|--parent FOLDER_ID] [--depth N] [--max N] [--internal-domain DOMAIN] [--public-only|--external-only] [--fail-found]`
-- `gog drive audit user <email> [--file FILE_ID|--parent FOLDER_ID] [--depth N] [--max N] [--fail-found]`
-- `gog drive bulk remove-public [--file FILE_ID|--parent FOLDER_ID] [--depth N] [--dry-run] [--force]`
-- `gog drive bulk update-role --from reader|commenter|writer --to reader|commenter|writer [--file FILE_ID|--parent FOLDER_ID] [--type user|group|domain|anyone] [--target EMAIL_OR_DOMAIN] [--dry-run] [--force]`
-- `gog drive labels list [--max N] [--page TOKEN] [--customer CUSTOMERS_ID] [--published-only]` (requires a Google Workspace customer)
-- `gog drive labels get <labelId|labels/ID> [--view basic|full]` (requires a Google Workspace customer)
-- `gog drive labels file list <fileId> [--max N] [--page TOKEN]`
-- `gog drive labels file apply <fileId> <labelId> [--text FIELD=VALUE] [--selection FIELD=CHOICE[,CHOICE]] [--integer FIELD=N] [--date FIELD=YYYY-MM-DD] [--user FIELD=email] [--unset FIELD] [--fields-json JSON]`
-- `gog drive labels file remove <fileId> <labelId>`
-
-Drive hierarchy semantics:
-
-- Files and folders are identified by stable opaque IDs, not paths.
-- New files have one parent folder. The API still returns `parents` as an array
-  so legacy My Drive records with multiple parents can be read; `drive move`
-  removes every old parent and installs exactly the requested parent.
-- An item visible from another folder is represented by a separate shortcut
-  file with its own ID, name, parent, and permissions. Shortcut metadata exposes
-  `shortcutDetails.targetId`, `targetMimeType`, and `targetResourceKey`.
-- Mutations apply to the exact ID passed. Commands do not silently dereference
-  shortcut IDs to their targets.
-- `drive tree`, `drive inventory`, and `drive du` treat shortcuts as leaves,
-  including shortcuts whose targets are folders.
-- Tree and inventory output one row per discovered placement. Size summaries
-  aggregate each placement independently, even when legacy parent links expose
-  the same folder ID through multiple paths.
-- Folder scans reject an ancestor cycle instead of following it indefinitely.
-
-- `gog slides thumbnail <presentationId> <slideId> [--size small|medium|large] [--format png|jpeg] [--out PATH]`
-- `gog slides element <create-shape|create-line|transform|style|z-order|group|ungroup|alt-text|delete> ...` (native page-element lifecycle; exact batch payloads available with `--dry-run --json`)
-- `gog calendar calendars`
-- `gog calendar subscribe <calendarId>`
-- `gog calendar unsubscribe <calendarId>`
-- `gog calendar create-calendar <summary> [--description D] [--timezone TZ] [--location L]`
-- `gog calendar delete-calendar <ownedSecondaryCalendarId>`
-- `gog calendar acl <calendarId>`
-- `gog calendar events <calendarId> [--cal ID_OR_NAME] [--calendars CSV] [--all] [--from RFC3339] [--to RFC3339] [--max N] [--page TOKEN] [--query Q] [--event-types TYPES] [--weekday]`
-  - `--event-types` filters to one or more event types (repeatable or comma-separated): `default`, `birthday`, `focus-time`, `from-gmail`, `out-of-office`, `working-location`. Unset returns all types (the API default).
-- `gog calendar event|get <calendarId> <eventId>`
-- `GOG_CALENDAR_WEEKDAY=1` defaults `--weekday` for `gog calendar events`
-- `gog calendar create <calendarId> --summary S --from DT --to DT [--timezone TZ] [--start-timezone TZ] [--end-timezone TZ] [--description D] [--location L|--location-search Q|--place-id ID] [--place-language LANG] [--place-region REGION] [--attendees a@b.com,c@d.com] [--all-day] [--event-type TYPE]`
-- `gog calendar update <calendarId> <eventId> [--summary S] [--from DT] [--to DT] [--start-timezone TZ] [--end-timezone TZ] [--description D] [--location L|--location-search Q|--place-id ID] [--place-language LANG] [--place-region REGION] [--attendees ...] [--add-attendee ...] [--attachment URL ...] [--all-day] [--with-meet|--regenerate-meet] [--event-type TYPE]`
-- `gog calendar delete <calendarId> <eventId>`
-- `gog calendar freebusy [calendarIds] [--cal ID_OR_NAME] [--calendars CSV] [--all] --from RFC3339 --to RFC3339`
-- `gog calendar conflicts [--cal ID_OR_NAME] [--calendars CSV] [--all] [--from RFC3339|date|relative] [--to RFC3339|date|relative] [--today|--week|--days N]`
-- `gog calendar respond <calendarId> <eventId> --status accepted|declined|tentative [--send-updates all|none|externalOnly]`
-
-`calendar unsubscribe` removes only the selected entry from the caller's
-calendar list. `calendar delete-calendar` permanently deletes an owned
-secondary calendar; Google may briefly retain a stale calendar-list row after
-the authoritative calendar resource is gone.
-
-Google Calendar appointment schedules are not exposed by the Calendar API, so
-the CLI cannot list or manage them.
-
-- `gog maps places search <query> [--language LANG] [--region REGION] [--fields FIELD_MASK] [--max N]`
-- `gog maps places details <placeId> [--language LANG] [--region REGION] [--fields FIELD_MASK]`
-- `gog maps directions --origin ORIGIN --destination DESTINATION [--mode driving|walking|bicycling|transit] [--language LANG] [--region REGION]`
-- `gog maps distance --origins CSV --destinations CSV [--mode driving|walking|bicycling|transit] [--units metric|imperial] [--language LANG] [--region REGION]`
-- `gog maps geocode <address...> [--language LANG] [--region REGION]`
-- `gog maps reverse-geocode --lat FLOAT --lng FLOAT [--language LANG] [--region REGION]`
-- `gog photos list [--max N] [--page TOKEN]`
-- `gog photos search [--album ALBUM_ID] [--media-type PHOTO|VIDEO|ALL_MEDIA] [--from YYYY-MM-DD] [--to YYYY-MM-DD] [--include-archived] [--max N] [--page TOKEN]`
-- `gog photos get <mediaItemId>`
-- `gog photos download <mediaItemId> [--out PATH|-] [--video]`
-- `gog photos picker create [--max-items N] [--open]`
-- `gog photos picker get <sessionId>`
-- `gog photos picker wait <sessionId> [--timeout DURATION]`
-- `gog photos picker list <sessionId> [--max N] [--page TOKEN] [--all]`
-- `gog photos picker download <sessionId> <mediaItemId> [--out PATH|-] [--overwrite]`
-- `gog photos picker delete <sessionId>`
-- `gog time now [--timezone TZ]`
-- `gog classroom courses [--state ...] [--max N] [--page TOKEN]`
-- `gog classroom courses get <courseId>`
-- `gog classroom courses create --name NAME [--owner me] [--state ACTIVE|...]`
-- `gog classroom courses update <courseId> [--name ...] [--state ...]`
-- `gog classroom courses delete <archivedCourseId>`
-- `gog classroom courses archive <courseId>`
-- `gog classroom courses unarchive <courseId>`
-- `gog classroom courses join <courseId> [--role student|teacher] [--user me]`
-- `gog classroom courses leave <courseId> [--role student|teacher] [--user me]`
-- `gog classroom courses url <courseId...>`
-
-Course state mutations wait for the requested state to become visible through
-the Classroom API before returning success. If Google still serves stale state
-after the bounded retry window, the command exits with retryable code `8`.
-
-- `gog classroom students <courseId> [--max N] [--page TOKEN]`
-- `gog classroom students get <courseId> <userId>`
-- `gog classroom students add <courseId> <userId> [--enrollment-code CODE]`
-- `gog classroom students remove <courseId> <userId>`
-- `gog classroom teachers <courseId> [--max N] [--page TOKEN]`
-- `gog classroom teachers get <courseId> <userId>`
-- `gog classroom teachers add <courseId> <userId>`
-- `gog classroom teachers remove <courseId> <userId>`
-- `gog classroom roster <courseId> [--students] [--teachers]`
-- `gog classroom coursework <courseId> [--state ...] [--topic TOPIC_ID] [--scan-pages N] [--max N] [--page TOKEN]`
-- `gog classroom coursework get <courseId> <courseworkId>`
-- `gog classroom coursework create <courseId> --title TITLE [--type ASSIGNMENT|...]`
-- `gog classroom coursework update <courseId> <courseworkId> [--title ...]`
-- `gog classroom coursework delete <courseId> <courseworkId>`
-- `gog classroom coursework assignees <courseId> <courseworkId> [--mode ...] [--add-student ...]`
-- `gog classroom materials <courseId> [--state ...] [--topic TOPIC_ID] [--scan-pages N] [--max N] [--page TOKEN]`
-- `gog classroom materials get <courseId> <materialId>`
-- `gog classroom materials create <courseId> --title TITLE`
-- `gog classroom materials update <courseId> <materialId> [--title ...]`
-- `gog classroom materials delete <courseId> <materialId>`
-- `gog classroom submissions <courseId> <courseworkId> [--state ...] [--max N] [--page TOKEN]`
-- `gog classroom submissions get <courseId> <courseworkId> <submissionId>`
-- `gog classroom submissions turn-in <courseId> <courseworkId> <submissionId>`
-- `gog classroom submissions reclaim <courseId> <courseworkId> <submissionId>`
-- `gog classroom submissions return <courseId> <courseworkId> <submissionId>`
-- `gog classroom submissions grade <courseId> <courseworkId> <submissionId> [--draft N] [--assigned N]`
-- `gog classroom announcements <courseId> [--state ...] [--max N] [--page TOKEN]`
-- `gog classroom announcements get <courseId> <announcementId>`
-- `gog classroom announcements create <courseId> --text TEXT`
-- `gog classroom announcements update <courseId> <announcementId> [--text ...]`
-- `gog classroom announcements delete <courseId> <announcementId>`
-- `gog classroom announcements assignees <courseId> <announcementId> [--mode ...]`
-- `gog classroom topics <courseId> [--max N] [--page TOKEN]`
-- `gog classroom topics get <courseId> <topicId>`
-- `gog classroom topics create <courseId> --name NAME`
-- `gog classroom topics update <courseId> <topicId> --name NAME`
-- `gog classroom topics delete <courseId> <topicId>`
-- `gog classroom invitations [--course ID] [--user ID]`
-- `gog classroom invitations get <invitationId>`
-- `gog classroom invitations create <courseId> <userId> --role STUDENT|TEACHER|OWNER`
-- `gog classroom invitations accept <invitationId>`
-- `gog classroom invitations delete <invitationId>`
-- `gog classroom guardians <studentId> [--max N] [--page TOKEN]`
-- `gog classroom guardians get <studentId> <guardianId>`
-- `gog classroom guardians delete <studentId> <guardianId>`
-- `gog classroom guardian-invitations <studentId> [--state ...] [--max N] [--page TOKEN]`
-- `gog classroom guardian-invitations get <studentId> <invitationId>`
-- `gog classroom guardian-invitations create <studentId> --email EMAIL`
-- `gog classroom profile [userId]`
-- `gog contacts dedupe [--match email,phone,name] [--max N] [--resource people/...] [--apply]`
-- `gog gmail search <query> [--max N] [--page TOKEN]`
-- `gog gmail messages search <query> [--max N] [--page TOKEN] [--include-body] [--body-format text|html] [--full]`
-- `gog gmail autoreply <query> [--max N] [--subject S] [--body B|--body-file PATH|--body-html HTML] [--from addr] [--reply-to addr] [--label L] [--archive] [--mark-read] [--skip-bulk] [--allow-self]`
-- `gog gmail thread get <threadId> [--download]`
-- `gog gmail thread modify <threadId> [--add ...] [--remove ...]`
-- `gog gmail get <messageId> [--format full|metadata|raw] [--headers ...]`
-- `gog gmail attachment <messageId> <attachmentId> [--out PATH] [--name NAME] [--inline] [--inline-max-bytes BYTES]`
-- `gog gmail url <threadIds...>`
-- `gog gmail reply <messageId> [--body B|--body-file PATH|--body-html HTML|--body-html-file PATH] [--to ...] [--cc ...] [--bcc ...] [--remove ...] [--subject S] [--no-quote] [--from addr|--auto-from-addressed-alias] [--signature|--signature-from addr|--signature-file path] [--attach <file>...]`
-- `gog gmail reply-all <messageId> [--body B|--body-file PATH|--body-html HTML|--body-html-file PATH] [--to ...] [--cc ...] [--bcc ...] [--remove ...] [--subject S] [--no-quote] [--from addr|--auto-from-addressed-alias] [--signature|--signature-from addr|--signature-file path] [--attach <file>...]`
-- `gog gmail forward <messageId> --to a@b.com [--cc ...] [--bcc ...] [--note TEXT|--note-file PATH] [--from addr] [--skip-attachments]`
-- `gog gmail labels list`
-- `gog gmail labels get <labelIdOrName>`
-- `gog gmail labels create <name>`
-- `gog gmail labels rename <labelIdOrName> <newName>`
-- `gog gmail labels modify <threadIds...> [--add ...] [--remove ...]`
-- `gog gmail send --to a@b.com [--subject S] [--body B|--body-file PATH] [--body-html H|--body-html-file PATH] [--cc ...] [--bcc ...] [--reply-to-message-id <messageId>] [--reply-to addr] [--from addr] [--signature|--signature-from addr|--signature-file path] [--attach <file>...]`
-- `gog gmail drafts list [--max N] [--page TOKEN]`
-- `gog gmail drafts get <draftId> [--download]`
-- `gog gmail drafts create [--subject S] [--to a@b.com] [--body B] [--body-html H] [--cc ...] [--bcc ...] [--reply-to-message-id <messageId>|--thread-id <threadId>] [--reply-all] [--reply-to addr] [--from addr|--auto-from-addressed-alias] [--attach <file>...]`
-- `gog gmail drafts update <draftId> [--subject S] [--to a@b.com] [--body B] [--body-html H] [--cc ...] [--bcc ...] [--reply-to-message-id <messageId>|--thread-id <threadId>] [--reply-all] [--reply-to addr] [--from addr|--auto-from-addressed-alias] [--attach <file>...]`
-- `gog gmail drafts reply <messageId> [--body B|--body-file PATH|--body-html HTML|--body-html-file PATH] [--to ...] [--cc ...] [--bcc ...] [--remove ...] [--subject S] [--no-quote] [--from addr|--auto-from-addressed-alias] [--signature|--signature-from addr|--signature-file path] [--attach <file>...]` (same flags as `gmail reply`, but saves a draft instead of sending; works under no-send)
-- `gog gmail drafts reply-all <messageId> [--body B|--body-file PATH|--body-html HTML|--body-html-file PATH] [--to ...] [--cc ...] [--bcc ...] [--remove ...] [--subject S] [--no-quote] [--from addr|--auto-from-addressed-alias] [--signature|--signature-from addr|--signature-file path] [--attach <file>...]` (same flags as `gmail reply-all`, but saves a draft; works under no-send)
-- `gog gmail drafts forward <messageId> [--to a@b.com] [--cc ...] [--bcc ...] [--note TEXT|--note-file PATH] [--from addr] [--skip-attachments]` (same flags as `gmail forward`, but saves a draft; `--to` is optional for a draft; works under no-send)
-- `gog gmail drafts send <draftId>`
-- `gog gmail drafts delete <draftId>`
-- `gog gmail watch start|status|renew|stop|serve`
-- `gog gmail history --since <historyId>`
-- `gog chat spaces list [--max N] [--page TOKEN]`
-- `gog chat spaces find <displayName> [--max N] [--exact]`
-- `gog chat spaces create <displayName> [--member email,...]`
-- `gog chat messages list <space> [--max N] [--page TOKEN] [--order ORDER] [--thread THREAD] [--unread]`
-  - JSON output includes user-mention annotations and emoji-reaction summaries when present; plain-text output is unchanged.
-- `gog chat messages search <query> [--max N] [--page TOKEN] [--all] [--order "create_time desc"|"relevance desc"] [--view basic|full] [--markup chat|markdown]`
-  - Searches messages available to the authenticated Workspace user across direct messages and spaces, subject to Google Chat API search exclusions such as muted spaces. The query uses Google Chat filter syntax and may include keywords, sender, space, date, mention, unread, link, or attachment filters.
-  - This is a read-only search, not an exhaustive export. `--max` accepts 1–100 per page; `--all` follows page tokens. `--order "relevance desc"` requires Google's Developer Preview access.
-  - JSON contains `results` and `nextPageToken`. Each result includes resource, space, thread, sender, text, and formatted text when available. `--wrap-untrusted` wraps externally supplied text and sender names without changing resource identifiers.
-  - `--view full` requests optional metadata: `read` needs `chat.users.readstate` or `chat.users.readstate.readonly`, and `spaceMuteSetting` needs `chat.users.spacesettings`. Missing read metadata is omitted from JSON and displayed as a blank READ cell, not `false`. Explicit `false` means unread. Basic view omits read state.
-  - Optional filters can require additional scopes; see [Google's search reference](https://developers.google.com/workspace/chat/api/reference/rest/v1/spaces.messages/search). The command does not expand an existing OAuth grant.
-  - Examples: `gog --readonly chat messages search 'project decision' --all --json` and `gog --readonly chat messages search 'project decision' --view full --markup markdown --wrap-untrusted --json`.
-- `gog chat messages send <space> --text TEXT [--thread THREAD]`
-- `gog chat threads list <space> [--max N] [--page TOKEN]`
-- `gog chat dm space <email>`
-- `gog chat dm send <email> --text TEXT [--thread THREAD]`
-- `gog tasks lists [--max N] [--page TOKEN]`
-- `gog tasks lists create <title>`
-- `gog tasks list <tasklistId> [--max N] [--page TOKEN]`
-- `gog tasks get <tasklistId> <taskId>`
-- `gog tasks add <tasklistId> --title T [--notes N] [--due RFC3339|YYYY-MM-DD] [--repeat daily|weekly|monthly|yearly] [--repeat-count N] [--repeat-until DT] [--parent ID] [--previous ID]`
-- `gog tasks update <tasklistId> <taskId> [--title T] [--notes N] [--due RFC3339|YYYY-MM-DD] [--status needsAction|completed]`
-- `gog tasks done <tasklistId> <taskId>`
-- `gog tasks undo <tasklistId> <taskId>`
-- `gog tasks delete <tasklistId> <taskId>`
-- `gog tasks clear <tasklistId>`
-- `gog contacts search <query> [--max N]`
-- `gog contacts list [--max N] [--page TOKEN]`
-- `gog contacts get <people/...|email>`
-- `gog contacts export <people/...|email|name> [--out PATH|-]`
-- `gog contacts export --query <query> [--max N] [--out PATH|-]`
-- `gog contacts export --all [--page-size N] [--page TOKEN] [--out PATH|-]`
-- `gog contacts create --given NAME [--family NAME] [--email addr] [--phone num] [--relation type=person]`
-- `gog contacts update <people/...> [--given NAME] [--family NAME] [--email addr] [--phone num] [--birthday YYYY-MM-DD] [--notes TEXT] [--relation type=person] [--from-file PATH|-] [--ignore-etag]`
-- `gog contacts delete <people/...>`
-- `gog contacts directory list [--max N] [--page TOKEN]`
-- `gog contacts directory search <query> [--max N] [--page TOKEN]`
-- `gog contacts other list [--max N] [--page TOKEN]`
-- `gog contacts other search <query> [--max N]`
-- `gog people me`
-- `gog people get <people/...|userId>`
-- `gog people search <query> [--max N] [--page TOKEN]`
-- `gog people relations [<people/...|userId>] [--type TYPE]`
-
-Date/time input conventions (shared parser):
-
-- Date-only: `YYYY-MM-DD`
-- Datetime: `RFC3339` / `RFC3339Nano` / `YYYY-MM-DDTHH:MM[:SS]` / `YYYY-MM-DD HH:MM[:SS]`
-- Numeric timezone offset accepted: `YYYY-MM-DDTHH:MM:SS-0800`
-- Calendar range flags also accept relatives: `now`, `today`, `tomorrow`, `yesterday`, weekday names (`monday`, `next friday`)
-- Tracking `--since` also accepts durations like `24h`
-
-### Planned high-level command tree
-
-- `gog auth …`
-  - `gog auth credentials <credentials.json>`
-  - `gog auth credentials list`
-  - `gog --client <name> auth credentials <credentials.json>`
-- `gog gmail …`
-- `gog chat …`
-- `gog calendar …`
-- `gog drive …`
-- `gog contacts …`
-- `gog tasks …`
-- `gog people …`
-
-Planned service identifiers (canonical):
-
-- `gmail`
-- `calendar`
-- `chat`
-- `drive`
-- `contacts`
-- `tasks`
-- `people`
-
-## Google API dependencies (planned)
-
-- `golang.org/x/oauth2`
-- `golang.org/x/oauth2/google`
-- `google.golang.org/api/option`
-- `google.golang.org/api/gmail/v1`
-- `google.golang.org/api/calendar/v3`
-- `google.golang.org/api/chat/v1`
-- `google.golang.org/api/drive/v3`
-- `google.golang.org/api/people/v1`
-- `google.golang.org/api/tasks/v1`
-
-## Scopes (planned)
-
-We store a single refresh token per Google account email.
-
-- `gog auth add` requests a union of scopes based on `--services`.
-- Each API client refreshes an access token for the subset of scopes needed for that service.
-- If you later want additional services, re-run `gog auth add <email> --services ...` (may require `--force-consent` to mint a new refresh token).
-
-- Gmail: `https://mail.google.com/` (or narrower scopes if we decide later)
-- Calendar: `https://www.googleapis.com/auth/calendar`
-- Chat:
-  - `https://www.googleapis.com/auth/chat.spaces`
-  - `https://www.googleapis.com/auth/chat.messages`
-  - `https://www.googleapis.com/auth/chat.memberships`
-  - `https://www.googleapis.com/auth/chat.users.readstate.readonly`
-- Drive: `https://www.googleapis.com/auth/drive`
-- Drive Labels: `https://www.googleapis.com/auth/drive.labels.readonly`
-- Contacts/Directory:
-  - `https://www.googleapis.com/auth/contacts`
-  - `https://www.googleapis.com/auth/contacts.other.readonly`
-  - `https://www.googleapis.com/auth/directory.readonly`
-- People:
-  - `profile` (OIDC)
-- YouTube:
-  - `https://www.googleapis.com/auth/youtube.readonly` for normal account reads
-  - `https://www.googleapis.com/auth/youtube.force-ssl` as an explicit extra scope for comments and mutations
-- Photos: `https://www.googleapis.com/auth/photoslibrary.readonly.appcreateddata`
-- Photos Picker: `https://www.googleapis.com/auth/photospicker.mediaitems.readonly` (explicit opt-in)
-
-## Output formats
-
-Default: human-friendly tables (stdlib `text/tabwriter`).
-
-- Parseable stdout:
-  - `--json`: JSON objects/arrays suitable for scripting
-  - `--plain`: stable TSV (tabs preserved; no alignment; no colors)
-- Human-facing hints/progress are written to stderr so stdout can be safely captured.
-- Colors are only used for human-facing output and are disabled automatically for `--json` and `--plain`.
-
-We avoid heavy table deps unless we decide we need them.
-
-## Code layout (current)
-
-- `cmd/gog/main.go` — binary entrypoint
-- `internal/cmd/*` — kong command structs
-- `internal/ui/*` — color + printing
-- `internal/config/*` — config paths + credential parsing/writing
-- `internal/secrets/*` — keyring store
-
-## Formatting, linting, tests
-
-### Formatting
-
-Pinned tools, installed into local `.tools/` via `make tools`:
-
-- `mvdan.cc/gofumpt@v0.7.0`
-- `golang.org/x/tools/cmd/goimports@v0.38.0`
-- `github.com/golangci/golangci-lint/cmd/golangci-lint@v1.62.2`
-
-Commands:
-
-- `make fmt` — applies `goimports` + `gofumpt`
-- `make fmt-check` — formats and fails if Go files or `go.mod/go.sum` change
-
-### Lint
-
-- `golangci-lint` with config in `.golangci.yml`
-- `make lint`
-
-### Tests
-
-- stdlib `testing` (+ `httptest` when we add OAuth/API tests)
-- `make test`
-
-### Integration tests (local only)
-
-There is an opt-in integration test suite guarded by build tags (not run in CI).
-
-- Requires:
-  - stored `credentials.json` (or `credentials-<client>.json`) via `gog auth credentials ...`
-  - refresh token in keyring via `gog auth add <email>`
-- Run:
-  - `GOG_IT_ACCOUNT=you@gmail.com go test -tags=integration ./internal/integration`
-  - optional: `GOG_CLIENT=work` to select a non-default OAuth client
-
-## CI (GitHub Actions)
-
-Workflow: `.github/workflows/ci.yml`
-
-- runs on push + PR
-- uses `actions/setup-go` with `go-version-file: go.mod`
-- runs:
-  - `make tools`
-  - `make fmt-check`
-  - `go test ./...`
-  - `golangci-lint` (pinned `v1.62.2`)
-
-## Next implementation steps
-
-- Expand Gmail further (labels by name everywhere, richer body rendering, compose edge cases).
-- Improve People updates (multi-field + richer contact data).
-- Harden UX (consistent output formats, retries/backoff on specific transient errors).
+# Architecture and contracts
+
+`gog` is a Go CLI for Google Workspace and related APIs. The command tree is
+built with Kong in `internal/cmd`; `cmd/gog` is the process entrypoint. The Go
+minimum and preferred toolchain are declared in `go.mod`.
+
+The running command tree is the source of truth for command names, arguments,
+flags, and aliases:
+
+```bash
+gog schema --json
+gog schema gmail search --json
+gog help docs write
+```
+
+Generated [command references](commands/README.md) and
+[agent skills](agent-skills.md) come from that schema. Update command structs
+first, then regenerate with `make docs-commands` and `make agent-skills`.
+
+## Command boundaries
+
+Commands validate local inputs before creating API clients or mutating state.
+Shared service helpers select the account and construct authenticated clients;
+request planners in packages such as `docsedit`, `docssed`, and `sheetsdimension`
+keep API request construction separate from command orchestration.
+
+Docs editing commands are grouped by operation in `internal/cmd/docs_write.go`,
+`docs_write_markdown.go`, `docs_update.go`, `docs_insert.go`, `docs_delete.go`,
+and `docs_find_replace.go`. `docs_edit.go` retains the `docs edit` command
+wrapper and shared deprecated-tab flag resolution. See
+[Docs editing](docs-editing.md) for the user-facing behavior and
+[persisted batches](docs-batch.md) for revision and commit semantics.
+
+Whole-document Docs, Sheets, and Slides exports share
+`internal/cmd/export_via_drive.go`. The experimental single-tab Docs export
+uses the Docs web endpoint instead; see [export conventions](refactor/exports.md).
+
+The generic Discovery API surface has its own request validation, host guards,
+and bounded document cache in `internal/discoveryapi`. See [Raw API](raw-api.md)
+and [Automation](automation.md#discovery-document-cache).
+
+## Authentication and storage
+
+`internal/googleauth` owns OAuth flows, service scopes, and account selection;
+`internal/googleapi` constructs service clients and owns the shared retry
+transport. Browser, manual, remote, and account-manager authorization use S256
+PKCE. Stored tokens track Google's OIDC subject when available and preserve
+legacy email-keyed lookup compatibility.
+
+`internal/config` resolves configuration, data, state, and cache paths.
+`internal/secrets` owns platform keyring and encrypted file storage. Do not
+introduce a separate plaintext token store or bypass the existing keyring
+locking and timeout behavior.
+
+The detailed contracts live in:
+
+- [OAuth clients](auth-clients.md): account/client routing, scopes, service accounts.
+- [Paths and state](paths.md): overrides, XDG layout, and legacy reads.
+- [Quickstart](quickstart.md): OAuth setup and authorization.
+- The generated OAuth service table in [README](../README.md#supported-oauth-services).
+
+## Output and safety
+
+`internal/outfmt` and the command output helpers keep JSON and TSV on stdout;
+`internal/ui` sends progress and diagnostics to stderr. Use the invocation's
+context writer so embedded commands and tests preserve output routing.
+
+[Automation](automation.md) defines JSON projection, output precedence, exit
+codes, retries, dry runs, and read-only behavior. [Safety profiles](safety-profiles.md)
+define baked command policy and locked flags. Existing CLI flags, aliases,
+configuration keys, and storage formats are compatibility contracts.
+
+The [MCP server](mcp.md) exposes a typed stdio tool surface with read-only
+defaults and explicit write authorization. It does not expose arbitrary shell
+or argv execution.
+
+## Development gates
+
+`Makefile` owns development-tool pins and local gates; `.golangci.yml` configures
+linting against the minimum Go version. `make fmt` applies goimports and
+gofumpt; `make fmt-check` reports formatting differences without editing files.
+
+Run `make ci` for formatting, lint, deadcode, Go and script tests, Docker
+version consistency, documentation coverage, and generated agent skills. The
+tracking worker has a separate pnpm workspace and `make worker-ci` gate.
+GitHub workflows under `.github/workflows` define the platform matrix.
+
+Tests live beside the implementation. Google API behavior is normally covered
+with `httptest`; [live testing](live-testing.md) describes the opt-in test-account
+suite and resource cleanup. [Releasing](RELEASING.md) documents publication.
