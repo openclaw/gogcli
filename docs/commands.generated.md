@@ -574,6 +574,7 @@ Generated from `gog schema --json`.
   - [`gog schema (help-json,helpjson) [<command> ...] [flags]`](commands/gog-schema.md) - Machine-readable command/flag schema
   - [`gog search (find) <query> ... [flags]`](commands/gog-search.md) - Search Drive files (alias for 'drive search')
   - [`gog searchconsole (gsc,search-console,webmasters) <command> [flags]`](commands/gog-searchconsole.md) - Google Search Console
+    - [`gog searchconsole (gsc,search-console,webmasters) inspect <siteUrl> <url> [flags]`](commands/gog-searchconsole-inspect.md) - Inspect URL index status (URL Inspection API)
     - [`gog searchconsole (gsc,search-console,webmasters) query (report) <siteUrl> [flags]`](commands/gog-searchconsole-query.md) - Run a Search Analytics query
     - [`gog searchconsole (gsc,search-console,webmasters) searchanalytics (analytics) <command>`](commands/gog-searchconsole-searchanalytics.md) - Search Analytics queries
       - [`gog searchconsole (gsc,search-console,webmasters) searchanalytics (analytics) query (run) <siteUrl> [flags]`](commands/gog-searchconsole-searchanalytics-query.md) - Run a Search Analytics query

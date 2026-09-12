@@ -11,6 +11,7 @@ import (
 	gapi "google.golang.org/api/googleapi"
 	searchconsoleapi "google.golang.org/api/searchconsole/v1"
 
+	"github.com/openclaw/gogcli/internal/errfmt"
 	"github.com/openclaw/gogcli/internal/outfmt"
 	"github.com/openclaw/gogcli/internal/ui"
 )
@@ -20,6 +21,7 @@ type SearchConsoleCmd struct {
 	SearchAnalytics SearchConsoleSearchAnalyticsCmd `cmd:"" name:"searchanalytics" aliases:"analytics" help:"Search Analytics queries"`
 	Query           SearchConsoleQueryCmd           `cmd:"" name:"query" aliases:"report" help:"Run a Search Analytics query"`
 	Sitemaps        SearchConsoleSitemapsCmd        `cmd:"" name:"sitemaps" help:"List/get/submit/delete sitemaps"`
+	Inspect         SearchConsoleInspectCmd         `cmd:"" help:"Inspect URL index status (URL Inspection API)"`
 }
 
 type SearchConsoleSitesCmd struct {
@@ -500,9 +502,9 @@ func wrapSearchConsoleError(err error) error {
 	message := strings.ToLower(apiErr.Message)
 	switch {
 	case strings.Contains(message, "accessnotconfigured"), strings.Contains(message, "api has not been used"):
-		return fmt.Errorf("search console API is not enabled for this OAuth project. Enable it at https://console.cloud.google.com/apis/library/searchconsole.googleapis.com")
+		return errfmt.NewUserFacingError("search console API is not enabled for this OAuth project. Enable it at https://console.cloud.google.com/apis/library/searchconsole.googleapis.com", err)
 	case strings.Contains(message, "insufficientpermissions"), strings.Contains(message, "insufficient permission"):
-		return fmt.Errorf("insufficient permissions for Search Console API. Re-authorize with: gog auth add <email> --services searchconsole")
+		return errfmt.NewUserFacingError("insufficient permissions for Search Console API. Re-authorize with: gog auth add <email> --services searchconsole", err)
 	default:
 		return err
 	}
