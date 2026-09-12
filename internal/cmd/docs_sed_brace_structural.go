@@ -1,4 +1,3 @@
-// Package cmd provides CLI commands for Google Docs operations.
 package cmd
 
 import (
@@ -65,41 +64,6 @@ func buildCheckboxRequests(be *braceExpr, start, end int64) []*docs.Request {
 			},
 		},
 	}
-}
-
-// buildTOCRequest creates requests to insert a Table of Contents.
-// Google Docs API does NOT support InsertTableOfContents via batchUpdate.
-// This is a documented API limitation — TOC must be inserted manually via the UI.
-//
-// TODO: When Google adds InsertTableOfContentsRequest to the API, implement it here.
-// For now, this function returns nil and the limitation is documented.
-func buildTOCRequest(be *braceExpr, _ int64) []*docs.Request { //nolint:unparam // placeholder for future API support
-	if be == nil || !be.HasTOC {
-		return nil
-	}
-
-	// Google Docs API limitation: No InsertTableOfContentsRequest exists.
-	// The API can read TOC elements but cannot create them programmatically.
-	// Return nil and document as unsupported.
-	return nil
-}
-
-// buildCommentRequest creates requests to add a comment/annotation to text.
-// Google Docs batchUpdate API does NOT support creating comments.
-// Comments must be created via the Drive Comments API (drive.comments.create).
-//
-// TODO: Implement via Drive API separately if needed.
-// For now, this function returns nil and the limitation is documented.
-func buildCommentRequest(be *braceExpr, _, _ int64) []*docs.Request { //nolint:unparam // placeholder for future API support
-	if be == nil || be.Comment == "" {
-		return nil
-	}
-
-	// Google Docs API limitation: Comments are not supported in batchUpdate.
-	// The Drive API (v3) supports comments via drive.comments.create,
-	// but that requires a separate API call outside of batchUpdate.
-	// Return nil and document as unsupported in this flow.
-	return nil
 }
 
 // buildBookmarkRequest creates a NamedRange (bookmark) at the matched text.

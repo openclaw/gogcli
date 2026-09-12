@@ -549,15 +549,15 @@ func TestLiteralReplacement(t *testing.T) {
 // --- buildTOCRequest / buildCommentRequest ---
 
 func TestBuildTOCRequest(t *testing.T) {
-	assert.Nil(t, buildTOCRequest(nil, 0))
-	assert.Nil(t, buildTOCRequest(&braceExpr{HasTOC: false, Indent: indentNotSet}, 0))
-	assert.Nil(t, buildTOCRequest(&braceExpr{HasTOC: true, Indent: indentNotSet}, 0)) // API limitation
+	assertNoStructuralRequests(t, nil)
+	assertNoStructuralRequests(t, &braceExpr{HasTOC: false, Indent: indentNotSet})
+	assertNoStructuralRequests(t, &braceExpr{HasTOC: true, Indent: indentNotSet}) // API limitation
 }
 
 func TestBuildCommentRequest(t *testing.T) {
-	assert.Nil(t, buildCommentRequest(nil, 0, 0))
-	assert.Nil(t, buildCommentRequest(&braceExpr{Comment: "", Indent: indentNotSet}, 0, 10))
-	assert.Nil(t, buildCommentRequest(&braceExpr{Comment: "test", Indent: indentNotSet}, 0, 10)) // API limitation
+	assertNoStructuralRequests(t, nil)
+	assertNoStructuralRequests(t, &braceExpr{Comment: "", Indent: indentNotSet})
+	assertNoStructuralRequests(t, &braceExpr{Comment: "test", Indent: indentNotSet}) // API limitation
 }
 
 // --- parseFullExpr extended coverage for brace formatting paths ---

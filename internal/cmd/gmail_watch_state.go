@@ -7,7 +7,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"unicode"
 
 	"github.com/openclaw/gogcli/internal/config"
 	"github.com/openclaw/gogcli/internal/gmailwatch"
@@ -62,10 +61,6 @@ func sanitizeAccountForPath(account string) string {
 			builder.WriteRune(char)
 		case char >= '0' && char <= '9':
 			builder.WriteRune(char)
-		case char == '.' || char == '-' || char == '_' || char == '@':
-			builder.WriteRune('_')
-		case char > unicode.MaxASCII:
-			builder.WriteRune('_')
 		default:
 			builder.WriteRune('_')
 		}

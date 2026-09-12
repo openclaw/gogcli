@@ -21,13 +21,6 @@ func buildAttendees(csv string) []*calendar.EventAttendee {
 	return out
 }
 
-// mergeAttendees preserves existing attendees (with all their metadata like responseStatus)
-// and adds new attendees from the CSV string. Duplicates (by email) are skipped.
-func mergeAttendees(existing []*calendar.EventAttendee, addCSV string) []*calendar.EventAttendee {
-	out, _ := mergeAttendeesWithChange(existing, addCSV)
-	return out
-}
-
 // mergeAttendeesWithChange returns the merged attendees and whether at least one attendee was added.
 func mergeAttendeesWithChange(existing []*calendar.EventAttendee, addCSV string) ([]*calendar.EventAttendee, bool) {
 	newAttendees := buildAttendees(addCSV)

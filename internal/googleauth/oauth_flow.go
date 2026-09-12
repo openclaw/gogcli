@@ -369,12 +369,3 @@ func renderCancelledPage(w http.ResponseWriter) {
 	}
 	_ = tmpl.Execute(w, nil)
 }
-
-// waitPostSuccess waits for the specified duration or until the context is
-// cancelled (e.g., via Ctrl+C). Kept for tests and potential future UX tweaks.
-func waitPostSuccess(ctx context.Context, d time.Duration) {
-	select {
-	case <-time.After(d):
-	case <-ctx.Done():
-	}
-}

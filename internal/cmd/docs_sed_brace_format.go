@@ -286,11 +286,6 @@ func buildBraceBreakRequests(be *braceExpr, insertIdx int64) []*docs.Request {
 	return requests
 }
 
-// hasBraceTextFormat checks if braceExpr has formatting that requires text styling.
-func hasBraceTextFormat(be *braceExpr) bool {
-	return braceExprHasTextFormat(be)
-}
-
 // hasBraceParagraphFormat checks if braceExpr has formatting that requires paragraph styling.
 func hasBraceParagraphFormat(be *braceExpr) bool {
 	if be == nil {
@@ -299,5 +294,3 @@ func hasBraceParagraphFormat(be *braceExpr) bool {
 	return be.Heading != "" || be.Align != "" || be.Indent >= 0 ||
 		be.Leading > 0 || be.SpacingSet
 }
-
-// (Legacy attrsTobraceExpr removed — sedAttrs no longer exists)

@@ -55,9 +55,9 @@ func TestMergeAttendees(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := mergeAttendees(tt.existing, tt.addCSV)
+			got, _ := mergeAttendeesWithChange(tt.existing, tt.addCSV)
 			if len(got) != tt.wantLen {
-				t.Errorf("mergeAttendees() returned %d attendees, want %d", len(got), tt.wantLen)
+				t.Errorf("mergeAttendeesWithChange() returned %d attendees, want %d", len(got), tt.wantLen)
 			}
 
 			if tt.name == "preserve existing metadata" && len(got) > 0 {
@@ -85,7 +85,7 @@ func TestMergeAttendeesNewHaveNeedsAction(t *testing.T) {
 	existing := []*calendar.EventAttendee{
 		{Email: "existing@test.com", ResponseStatus: "accepted"},
 	}
-	got := mergeAttendees(existing, "new@test.com")
+	got, _ := mergeAttendeesWithChange(existing, "new@test.com")
 
 	for _, a := range got {
 		if a.Email == "new@test.com" {
@@ -99,7 +99,7 @@ func TestMergeAttendeesNewHaveNeedsAction(t *testing.T) {
 }
 
 func TestMergeAttendeesPreservesNewAttendeeModifiers(t *testing.T) {
-	got := mergeAttendees(nil, "room@resource.calendar.google.com;resource;optional;comment=Project room")
+	got, _ := mergeAttendeesWithChange(nil, "room@resource.calendar.google.com;resource;optional;comment=Project room")
 	if len(got) != 1 {
 		t.Fatalf("expected 1 attendee, got %d", len(got))
 	}

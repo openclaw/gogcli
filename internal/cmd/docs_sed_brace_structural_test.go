@@ -85,15 +85,13 @@ func TestBuildCheckboxRequests_NilExpr(t *testing.T) {
 func TestBuildTOCRequest_Limitation(t *testing.T) {
 	// TOC is not supported via API — should return nil
 	be := &braceExpr{HasTOC: true, TOC: 3, Indent: indentNotSet}
-	reqs := buildTOCRequest(be, 10)
-	assert.Nil(t, reqs, "TOC should return nil due to API limitation")
+	assertNoStructuralRequests(t, be)
 }
 
 func TestBuildCommentRequest_Limitation(t *testing.T) {
 	// Comments are not supported via batchUpdate — should return nil
 	be := &braceExpr{Comment: "needs review", Indent: indentNotSet}
-	reqs := buildCommentRequest(be, 1, 10)
-	assert.Nil(t, reqs, "Comment should return nil due to API limitation")
+	assertNoStructuralRequests(t, be)
 }
 
 func TestBuildBookmarkRequest(t *testing.T) {
@@ -511,4 +509,13 @@ func TestBuildStructuralRequests(t *testing.T) {
 		assert.Nil(t, anchorReqs)
 		assert.Nil(t, chipReqs)
 	})
+}
+
+func assertNoStructuralRequests(t *testing.T, be *braceExpr) {
+	t.Helper()
+	columns, bullets, anchors, chips := buildStructuralRequests(be, 1, 10, 1, 10)
+	assert.Nil(t, columns)
+	assert.Nil(t, bullets)
+	assert.Nil(t, anchors)
+	assert.Nil(t, chips)
 }

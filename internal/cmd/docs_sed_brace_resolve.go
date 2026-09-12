@@ -24,10 +24,6 @@ func resolveHeading(h string) string {
 	if mapped, ok := headingMap[h]; ok {
 		return mapped
 	}
-	// Check for numeric string
-	if len(h) == 1 && h[0] >= '1' && h[0] <= '6' {
-		return fmt.Sprintf("HEADING_%s", h)
-	}
 	return h
 }
 

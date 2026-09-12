@@ -539,7 +539,7 @@ func TestHasBraceTextFormat(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := hasBraceTextFormat(tt.expr)
+			got := braceExprHasTextFormat(tt.expr)
 			assert.Equal(t, tt.want, got)
 		})
 	}
