@@ -113,23 +113,38 @@ func (c *GmailImportCmd) readAndPlan(ctx context.Context) ([]byte, gmailImportPl
 }
 
 func readRFC822Input(ctx context.Context, source string) ([]byte, *mail.Message, error) {
+	return readRFC822InputWithLimit(ctx, source, 0)
+}
+
+// A zero limit retains the import path's existing behavior. Raw send and draft
+// inputs use a bounded reader, including for stdin and non-regular files.
+func readRFC822InputWithLimit(ctx context.Context, source string, limit int64) ([]byte, *mail.Message, error) {
 	if source == "" {
 		return nil, nil, usage("RFC822/EML file is required")
 	}
 
-	var raw []byte
-	var err error
-	if source == "-" {
-		raw, err = io.ReadAll(stdinReader(ctx))
-	} else {
+	reader := stdinReader(ctx)
+	if source != "-" {
 		path, expandErr := config.ExpandPath(source)
 		if expandErr != nil {
 			return nil, nil, expandErr
 		}
-		raw, err = os.ReadFile(path) //nolint:gosec // user-provided RFC822 message path
+		file, err := os.Open(path) //nolint:gosec // user-provided RFC822 message path
+		if err != nil {
+			return nil, nil, err
+		}
+		defer file.Close()
+		reader = file
 	}
+	if limit > 0 {
+		reader = io.LimitReader(reader, limit+1)
+	}
+	raw, err := io.ReadAll(reader)
 	if err != nil {
 		return nil, nil, err
+	}
+	if limit > 0 && int64(len(raw)) > limit {
+		return nil, nil, usagef("RFC822/EML input exceeds maximum size of %d bytes (35 MiB)", limit)
 	}
 	if len(raw) == 0 {
 		return nil, nil, usage("RFC822/EML input is empty")
@@ -137,7 +152,9 @@ func readRFC822Input(ctx context.Context, source string) ([]byte, *mail.Message,
 
 	message, err := mail.ReadMessage(bytes.NewReader(raw))
 	if err != nil {
-		return nil, nil, usagef("invalid RFC822/EML input: %v", err)
+		// Parser errors may quote entire header lines. Never expose message
+		// content through diagnostics, including failed offline previews.
+		return nil, nil, usage("invalid RFC822/EML input: malformed message headers")
 	}
 
 	return raw, message, nil

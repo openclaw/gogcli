@@ -103,6 +103,7 @@ func (c *GmailDraftsListCmd) Run(ctx context.Context, flags *RootFlags) error {
 
 type GmailDraftsGetCmd struct {
 	DraftID                 string `arg:"" name:"draftId" help:"Draft ID"`
+	Format                  string `name:"format" help:"Draft format: full|raw (raw emits RFC822 bytes in text mode)" default:"full" enum:"full,raw"`
 	UseIndexedAttachmentIDs bool   `name:"use-indexed-attachment-ids" help:"Use 0-based indexes as attachment ids everywhere (output, the download argument, and saved filenames)" env:"GOG_GMAIL_USE_INDEXED_ATTACHMENT_IDS"`
 	Download                bool   `name:"download" help:"Download draft attachments"`
 }
@@ -115,6 +116,16 @@ func (c *GmailDraftsGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 
 	attachDir := ""
+	format := strings.TrimSpace(c.Format)
+	if format == "" {
+		format = gmailFormatFull
+	}
+	if format != gmailFormatFull && format != gmailFormatRaw {
+		return usagef("invalid --format: %q (expected full|raw)", format)
+	}
+	if format == gmailFormatRaw && (c.Download || c.UseIndexedAttachmentIDs) {
+		return usage("--format raw cannot be combined with --download or --use-indexed-attachment-ids")
+	}
 	if c.Download {
 		layout, err := commandLayout(ctx, config.PathKindConfig)
 		if err != nil {
@@ -131,7 +142,7 @@ func (c *GmailDraftsGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
-	draft, err := svc.Users.Drafts.Get("me", draftID).Format("full").Do()
+	draft, err := svc.Users.Drafts.Get("me", draftID).Format(format).Context(ctx).Do()
 	if err != nil {
 		return err
 	}
@@ -144,6 +155,21 @@ func (c *GmailDraftsGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 
 	msg := draft.Message
+	if format == gmailFormatRaw {
+		if outfmt.IsJSON(ctx) {
+			return outfmt.WriteJSON(ctx, stdoutWriter(ctx), map[string]any{"draft": draft})
+		}
+		decoded, decodeErr := decodeGmailRaw(msg.Raw)
+		if decodeErr != nil {
+			return decodeErr
+		}
+		if opts, wrap := outfmt.UntrustedWrapperFromContext(ctx); wrap {
+			_, err = fmt.Fprint(stdoutWriter(ctx), outfmt.WrapUntrustedContent(string(decoded), opts))
+		} else {
+			_, err = stdoutWriter(ctx).Write(decoded)
+		}
+		return err
+	}
 	attachments := collectAttachments(msg.Payload)
 	if msg.Id == "" || len(attachments) == 0 {
 		attachDir = ""
@@ -269,6 +295,7 @@ func (c *GmailDraftsSendCmd) Run(ctx context.Context, flags *RootFlags) error {
 }
 
 type GmailDraftsCreateCmd struct {
+	RawFile                string   `name:"raw-file" help:"Create a draft from an exact RFC822 message file, or '-' for stdin (cannot be combined with compose flags)"`
 	To                     string   `name:"to" help:"Recipients (comma-separated)"`
 	Cc                     string   `name:"cc" help:"CC recipients (comma-separated)"`
 	Bcc                    string   `name:"bcc" help:"BCC recipients (comma-separated)"`
@@ -278,7 +305,7 @@ type GmailDraftsCreateCmd struct {
 	BodyHTML               string   `name:"body-html" help:"Body (HTML; optional)"`
 	BodyHTMLFile           string   `name:"body-html-file" help:"HTML body file path ('-' for stdin)"`
 	ReplyToMessageID       string   `name:"reply-to-message-id" help:"Reply to Gmail message ID (sets In-Reply-To/References and thread)"`
-	ThreadID               string   `name:"thread-id" help:"Reply within a Gmail thread (uses latest message for headers)"`
+	ThreadID               string   `name:"thread-id" help:"Reply within a Gmail thread (uses latest message for headers; raw mode sets only the thread ID)"`
 	ReplyAll               bool     `name:"reply-all" help:"Auto-populate recipients from original message (requires --reply-to-message-id or --thread-id)"`
 	ReplyTo                string   `name:"reply-to" help:"Reply-To header address"`
 	Quote                  bool     `name:"quote" help:"Include quoted original message in reply (requires --reply-to-message-id or --thread-id)"`
@@ -722,6 +749,12 @@ func messageFromMatchesAccount(msg *gmail.Message, account string) bool {
 }
 
 func (c *GmailDraftsCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
+	if strings.TrimSpace(c.RawFile) != "" {
+		if conflict := c.rawModeConflict(); conflict != "" {
+			return usagef("--raw-file cannot be combined with %s", conflict)
+		}
+		return runRawGmailDraft(ctx, flags, c.RawFile, c.ThreadID, "")
+	}
 	u := ui.FromContext(ctx)
 
 	body, htmlBody, err := resolveComposeBodyInputs(ctx, c.Body, c.BodyFile, c.BodyHTML, c.BodyHTMLFile)
@@ -809,6 +842,7 @@ func (c *GmailDraftsCreateCmd) Run(ctx context.Context, flags *RootFlags) error 
 
 type GmailDraftsUpdateCmd struct {
 	DraftID          string   `arg:"" name:"draftId" help:"Draft ID"`
+	RawFile          string   `name:"raw-file" help:"Replace the entire draft with an exact RFC822 message file, or '-' for stdin (cannot be combined with compose flags)"`
 	To               *string  `name:"to" help:"Recipients (comma-separated; omit to keep existing)"`
 	Cc               string   `name:"cc" help:"CC recipients (comma-separated)"`
 	Bcc              string   `name:"bcc" help:"BCC recipients (comma-separated)"`
@@ -818,7 +852,7 @@ type GmailDraftsUpdateCmd struct {
 	BodyHTML         string   `name:"body-html" help:"Body (HTML; optional)"`
 	BodyHTMLFile     string   `name:"body-html-file" help:"HTML body file path ('-' for stdin)"`
 	ReplyToMessageID string   `name:"reply-to-message-id" help:"Reply to Gmail message ID (sets In-Reply-To/References and thread)"`
-	ThreadID         string   `name:"thread-id" help:"Reply within a Gmail thread (uses latest message for headers); overrides the draft's existing thread"`
+	ThreadID         string   `name:"thread-id" help:"Reply within a Gmail thread (raw mode sets only the thread ID); overrides the draft's existing thread"`
 	ReplyAll         bool     `name:"reply-all" help:"Auto-populate recipients from original message (requires --reply-to-message-id or --thread-id)"`
 	ReplyTo          string   `name:"reply-to" help:"Reply-To header address"`
 	Quote            bool     `name:"quote" help:"Include quoted original message in reply"`
@@ -831,12 +865,18 @@ type GmailDraftsUpdateCmd struct {
 }
 
 func (c *GmailDraftsUpdateCmd) Run(ctx context.Context, flags *RootFlags) error {
+	if strings.TrimSpace(c.RawFile) != "" {
+		return c.runRaw(ctx, flags)
+	}
+	return c.runCompose(ctx, flags)
+}
+
+func (c *GmailDraftsUpdateCmd) runCompose(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
 	draftID := strings.TrimSpace(c.DraftID)
 	if draftID == "" {
 		return usage("empty draftId")
 	}
-
 	to := ""
 	toWasSet := false
 	if c.To != nil {
