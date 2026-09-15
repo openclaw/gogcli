@@ -77,6 +77,10 @@ func NewRetryTransport(base http.RoundTripper) *RetryTransport {
 // RoundTrip implements http.RoundTripper with retry logic.
 func (t *RetryTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	if t.CircuitBreaker != nil && t.CircuitBreaker.IsOpen() {
+		if req.Body != nil {
+			_ = req.Body.Close()
+		}
+
 		return nil, &CircuitBreakerError{}
 	}
 	retryDisabled := retriesDisabled(req.Context())
@@ -320,6 +324,10 @@ func ensureReplayableBody(req *http.Request) (bool, error) {
 		return false, nil
 	}
 
+	// Once buffering starts, this transport owns closing the original body,
+	// including when reading or enforcing the replay limit fails.
+	defer req.Body.Close()
+
 	bodyBytes, err := io.ReadAll(io.LimitReader(req.Body, maxBufferedReplayBodyBytes+1))
 	if err != nil {
 		return false, fmt.Errorf("read request body: %w", err)
@@ -328,8 +336,6 @@ func ensureReplayableBody(req *http.Request) (bool, error) {
 	if int64(len(bodyBytes)) > maxBufferedReplayBodyBytes {
 		return false, fmt.Errorf("%w: %d bytes exceeds %d bytes", errRequestBodyTooLarge, len(bodyBytes), maxBufferedReplayBodyBytes)
 	}
-	_ = req.Body.Close()
-
 	req.GetBody = func() (io.ReadCloser, error) {
 		return io.NopCloser(bytes.NewReader(bodyBytes)), nil
 	}

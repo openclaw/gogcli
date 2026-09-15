@@ -2,6 +2,7 @@
 
 ## 0.40.1 - Unreleased
 
+- API: close upload bodies when the circuit breaker rejects a request or retry buffering fails, preventing leaked files and streams.
 - Dependencies: refresh Google protocol modules, gofumpt, Node 26/Corepack, the Dockerfile frontend, and tracking-worker Vite, PostCSS, Undici, and Nano ID pins.
 - Gmail: stage and replace raw RFC822 drafts, retrieve their MIME, and preview safely offline; bound raw draft/send input to 35 MiB while preserving no-send policies. (#1126) — thanks @darkamenosa.
 - Slides: derive either missing image dimension from local files or anonymously readable public HTTPS images, preserving explicit size pairs and documenting the public-fetch requirement. (#1112) — thanks @sebsnyk.

@@ -138,7 +138,9 @@ gog auth doctor --check --json --no-input
 
 Google API rate-limit retries honor `Retry-After` delays up to 60 seconds per
 retry, including numeric seconds and HTTP dates. Cancelling the command also
-cancels a pending retry wait.
+cancels a pending retry wait. Upload bodies are closed even when a request is
+rejected by the circuit breaker or cannot be buffered for retry, so those
+failures release the associated file or stream resources.
 
 | Code | Name | Meaning |
 | ---: | --- | --- |
