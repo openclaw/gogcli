@@ -1,5 +1,7 @@
 # Changelog
 
+## Unreleased
+
 ## 0.41.0 - 2026-09-22
 
 **Highlights:** Raw RFC822 drafts, Search Console URL inspection, automatic Slides image sizing, and fixes for lost Gmail results, cancellation, and Sheets crashes.
