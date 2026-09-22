@@ -1,24 +1,26 @@
 # Changelog
 
-## 0.40.1 - Unreleased
+## 0.41.0 - 2026-09-22
 
-- Dependencies: retain patched gRPC 1.83.2 with Google API 0.298 to avoid GHSA-2v4p-qf9q-27wj; gog does not use the affected xDS server.
+**Highlights:** Raw RFC822 drafts, Search Console URL inspection, automatic Slides image sizing, and fixes for lost Gmail results, cancellation, and Sheets crashes.
+
+- Dependencies: retain patched gRPC 1.83.2 with Google API 0.298 to avoid GHSA-2v4p-qf9q-27wj; gog does not use the affected xDS server. (#1150)
+- Gmail: stage and replace raw RFC822 drafts, retrieve their MIME, and preview safely offline; bound raw draft/send input to 35 MiB while preserving no-send policies. (#1126) — thanks @darkamenosa.
+- Search Console: add `searchconsole inspect` for per-URL index status via the URL Inspection API (coverage state, indexing/page-fetch/robots.txt state, canonical, sitemaps, last crawl time), using the existing `webmasters` OAuth scope. (#1094) — thanks @laihenyi.
+- Slides: derive either missing image dimension from local files or anonymously readable public HTTPS images, preserving explicit size pairs and documenting the public-fetch requirement. (#1112) — thanks @sebsnyk.
+- Sheets: return an error instead of crashing when append responses omit update metadata, without retrying the potentially completed write. (#1142) — thanks @SebTardif.
+- Calendar: show failed Zoom meeting cleanup alongside a failed Calendar write, preserving both causes through CLI error formatting. (#1144) — thanks @SebTardif.
+- Gmail: fail thread searches when a detail fetch fails instead of silently returning partial results after a discarded retry. (#1138) — thanks @SebTardif.
 - Gmail: accumulate repeated `--add` and `--remove` label flags across thread, message, batch, and label modifications while preserving literal comma/backslash splitting and normalization. (#1139) — thanks @ShacharBialick.
 - Gmail: inspect Pub/Sub notifications matching the saved watch cursor so pending history changes can reach the hook. (#1140) — thanks @kazuyuki-eguchi.
-- API: honor `api list --plain` with stable, sanitized TSV columns while preserving default and JSON catalog responses. (#1141, #1146) — thanks @postoso and @goutamadwant.
 - API: honor in-flight command cancellation in YouTube, Chat unread lookups and sends, and People profile and relation requests. (#1145) — thanks @SebTardif.
-- Calendar: show failed Zoom meeting cleanup alongside a failed Calendar write, preserving both causes through CLI error formatting. (#1144) — thanks @SebTardif.
-- Sheets: return an error instead of crashing when append responses omit update metadata, without retrying the potentially completed write. (#1142) — thanks @SebTardif.
-- Docs: identify the queued batch UUID in revision-mismatch errors so it can be inspected or aborted. (#1143) — thanks @SebTardif.
-- Gmail: fail thread searches when a detail fetch fails instead of silently returning partial results after a discarded retry. (#1138) — thanks @SebTardif.
+- API: honor `api list --plain` with stable, sanitized TSV columns while preserving default and JSON catalog responses. (#1141, #1146) — thanks @postoso and @goutamadwant.
 - API: close upload bodies when the circuit breaker rejects a request or retry buffering fails, preventing leaked files and streams. (#1136)
-- Dependencies: refresh Google protocol modules, gofumpt, Node 26/Corepack, the Dockerfile frontend, and tracking-worker Vite, PostCSS, Undici, and Nano ID pins.
-- Gmail: stage and replace raw RFC822 drafts, retrieve their MIME, and preview safely offline; bound raw draft/send input to 35 MiB while preserving no-send policies. (#1126) — thanks @darkamenosa.
-- Slides: derive either missing image dimension from local files or anonymously readable public HTTPS images, preserving explicit size pairs and documenting the public-fetch requirement. (#1112) — thanks @sebsnyk.
 - Apps Script: keep file names within one TSV field in `appscript content`, escaping line breaks instead of splitting output rows. (#1091) — thanks @haosdent.
-- Search Console: add `searchconsole inspect` for per-URL index status via the URL Inspection API (coverage state, indexing/page-fetch/robots.txt state, canonical, sitemaps, last crawl time), using the existing `webmasters` OAuth scope. (#1094) — thanks @laihenyi.
+- Docs: identify the queued batch UUID in revision-mismatch errors so it can be inspected or aborted. (#1143) — thanks @SebTardif.
 - Search Console: preserve permission-denied exit codes when adding API setup or scope guidance. (#1094)
-- Dependencies and CI: refresh Google protocol modules and tracking-worker tooling within release-age limits; test the Go 1.26 minimum, check worker types and generated skills, and avoid duplicate pull-request test runs. (#1131)
+- Dependencies: refresh Google/MCP clients and protocol modules, gofumpt, Node 26/Corepack, pnpm 11, Docker build pins, and tracking-worker Vite, PostCSS, Undici, Nano ID, and tooling pins while retaining Go 1.26 compatibility and release-age limits. (#1134, #1148)
+- CI: verify the Go 1.26 minimum, worker types, and generated skills; avoid duplicate pull-request test runs and repair remote validation setup. (#1131, #1147)
 
 ## 0.40.0 - 2026-09-11
 
