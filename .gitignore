@@ -37,6 +37,7 @@ go.work.sum
 /PR_DESCRIPTION.md
 
 # Local tools
+.crabbox/
 .tools/
 .clawpatch/
 

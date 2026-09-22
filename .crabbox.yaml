@@ -24,7 +24,7 @@ actions:
   ephemeral: true
 aws:
   region: eu-west-1
-  rootGB: 160
+  rootGB: 400
 sync:
   delete: true
   checksum: false

@@ -3,7 +3,7 @@ SHELL := /bin/bash
 # `make` should build the binary by default.
 .DEFAULT_GOAL := build
 
-.PHONY: build build-safe gog gogcli gog-help gogcli-help help fmt fmt-check lint deadcode test ci tools pnpm-gate docker-version-check docs-commands docs-site docs-check agent-skills agent-skills-check
+.PHONY: build build-safe gog gogcli gog-help gogcli-help help fmt fmt-check lint deadcode test ci tools docker-version-check docs-commands docs-site docs-check agent-skills agent-skills-check
 .PHONY: worker-ci eval-gws eval-gws-agents eval-gws-test
 
 BIN_DIR := $(CURDIR)/bin
@@ -129,13 +129,6 @@ deadcode: tools
 		exit 1; \
 	fi
 
-pnpm-gate:
-	@if [ -f package.json ] || [ -f package.json5 ] || [ -f package.yaml ]; then \
-		pnpm lint && pnpm build && pnpm test; \
-	else \
-		echo "pnpm gate skipped (no package.json)"; \
-	fi
-
 docker-version-check:
 	@set -e; \
 	go_version="$$(awk '$$1 == "go" { print $$2; exit }' go.mod)"; \
@@ -160,7 +153,7 @@ eval-gws-agents: build
 eval-gws-test:
 	@node --test scripts/eval-gws.test.mjs scripts/eval-gws-agents.test.mjs
 
-ci: pnpm-gate docker-version-check fmt-check lint deadcode test docs-check agent-skills-check
+ci: docker-version-check fmt-check lint deadcode test docs-check agent-skills-check
 
 worker-ci:
 	@pnpm -C internal/tracking/worker lint

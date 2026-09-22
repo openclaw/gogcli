@@ -5,14 +5,16 @@
 - `cmd/gog/`: CLI entrypoint.
 - `internal/`: implementation (`cmd/`, Google API/OAuth, config/secrets, output/UI).
 - Tests: `*_test.go` next to code; opt-in integration suite in `internal/integration/` (build-tagged).
-- `bin/`: build outputs; `docs/`: specs/releasing; `scripts/`: release helpers + `scripts/gog.mjs`.
+- `bin/`: build outputs; `docs/`: specs/releasing; `scripts/`: release helpers.
 
 ## Build, Test, and Development Commands
 
 - `make` / `make build`: build `bin/gog`.
 - `make tools`: install pinned dev tools into `.tools/`.
 - `make fmt` / `make lint` / `make test` / `make ci`: format, lint, test, full local gate.
-- Optional: `pnpm gog …`: build + run in one step.
+- Run from source: `make gog -- …` builds and runs in one step.
+- Tracking worker: `pnpm -C internal/tracking/worker install --frozen-lockfile`, then `make worker-ci`.
+- Remote checks: after `crabbox warmup --keep --timing-json`, hydrate this repository with `crabbox actions hydrate --id <id> --github-runner`; its workflow uses Actions cache semantics that the local adapter does not support. Run `crabbox run --id <id> --timing-json --shell -- "make ci"`, reuse the lease across checks, and stop it when finished with `crabbox stop <id>`.
 - Hooks: `lefthook install` enables pre-commit/pre-push checks.
 
 ## Coding Style & Naming Conventions
