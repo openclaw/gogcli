@@ -3,7 +3,7 @@
 ARG GO_VERSION=1.27.1
 ARG ALPINE_VERSION=3.24
 
-FROM golang:${GO_VERSION}-alpine@sha256:cf6fca6641884b8433441b2b0652976f975e1d0fdd26d177eaaf8596087f3125 AS build
+FROM golang:${GO_VERSION}-alpine@sha256:8a5910f31396cd4d89662f56c68b3ae31d374308270a1c3bd96672ee5ed43414 AS build
 
 RUN apk add --no-cache ca-certificates git tzdata
 
