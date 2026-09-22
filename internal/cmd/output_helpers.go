@@ -2,9 +2,11 @@ package cmd
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"strings"
 	"text/tabwriter"
+	"unicode"
 
 	"github.com/openclaw/gogcli/internal/outfmt"
 	"github.com/openclaw/gogcli/internal/ui"
@@ -71,4 +73,24 @@ func oneLine(s string) string {
 	s = strings.ReplaceAll(s, "\t", " ")
 	s = strings.ReplaceAll(s, "\n", "\\n")
 	return s
+}
+
+func escapeTerminalControls(value string) string {
+	var output strings.Builder
+	output.Grow(len(value))
+	for _, current := range value {
+		if unicode.IsControl(current) || unicode.Is(unicode.Cf, current) {
+			switch {
+			case current <= 0xff:
+				fmt.Fprintf(&output, "\\x%02x", current)
+			case current <= 0xffff:
+				fmt.Fprintf(&output, "\\u%04x", current)
+			default:
+				fmt.Fprintf(&output, "\\U%08x", current)
+			}
+			continue
+		}
+		output.WriteRune(current)
+	}
+	return output.String()
 }

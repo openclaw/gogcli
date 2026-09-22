@@ -34,6 +34,67 @@ func TestAPICallRequiresWriteOptIn(t *testing.T) {
 	}
 }
 
+func TestAPIListPlainWritesStableTSV(t *testing.T) {
+	requested := make(chan string, 1)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requested <- r.URL.String()
+		_, _ = fmt.Fprint(w, `{"discoveryVersion":"v1","items":[{"id":"drive:v3","name":"drive","version":"v3","title":"Drive \u001b[31mAPI\u001b[0m","description":"Store\tand\nshare \u202efiles","preferred":true}]}`)
+	}))
+	t.Cleanup(server.Close)
+	t.Setenv("GOG_DISCOVERY_BASE_URL", server.URL)
+
+	var stdout bytes.Buffer
+	ctx := outfmt.WithMode(newCmdRuntimeOutputContext(t, &stdout, &bytes.Buffer{}), outfmt.Mode{Plain: true})
+	if err := (&APIListCmd{}).Run(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if got := <-requested; got != "/apis?preferred=true" {
+		t.Fatalf("request URL = %q, want /apis?preferred=true", got)
+	}
+
+	const want = "NAME\tVERSION\tTITLE\tDESCRIPTION\tPREFERRED\n" +
+		"drive\tv3\tDrive \\x1b[31mAPI\\x1b[0m\tStore and\\nshare \\u202efiles\ttrue\n"
+	if got := stdout.String(); got != want {
+		t.Fatalf("output = %q, want %q", got, want)
+	}
+}
+
+func TestAPIListPlainRejectsMalformedResponse(t *testing.T) {
+	var stdout bytes.Buffer
+	ctx := outfmt.WithMode(newCmdRuntimeOutputContext(t, &stdout, &bytes.Buffer{}), outfmt.Mode{Plain: true})
+
+	err := writeAPIListPlain(ctx, json.RawMessage(`{"items":`))
+	if err == nil || !strings.Contains(err.Error(), "decode Discovery API list") {
+		t.Fatalf("error = %v, want decode error", err)
+	}
+	if stdout.Len() != 0 {
+		t.Fatalf("output = %q, want none", stdout.String())
+	}
+}
+
+func TestAPIListJSONPreservesRawResponse(t *testing.T) {
+	const response = `{"discoveryVersion":"v1","items":[{"name":"drive","version":"v3"}]}`
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = fmt.Fprint(w, response)
+	}))
+	t.Cleanup(server.Close)
+	t.Setenv("GOG_DISCOVERY_BASE_URL", server.URL)
+
+	var stdout bytes.Buffer
+	ctx := newCmdRuntimeJSONOutputContext(t, &stdout, &bytes.Buffer{})
+	if err := (&APIListCmd{}).Run(ctx); err != nil {
+		t.Fatal(err)
+	}
+
+	var got map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &got); err != nil {
+		t.Fatalf("decode output: %v", err)
+	}
+	if got["discoveryVersion"] != "v1" {
+		t.Fatalf("output = %#v, want raw Discovery response", got)
+	}
+}
+
 func TestAPICallReadOnlyBlocksWriteBeforeAuth(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")

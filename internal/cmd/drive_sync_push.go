@@ -11,7 +11,6 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
-	"unicode"
 	"unicode/utf8"
 
 	"google.golang.org/api/drive/v3"
@@ -879,10 +878,10 @@ func writeDriveSyncPlan(ctx context.Context, localDir, parentID string, dryRun b
 		),
 	})
 	return outfmt.WriteTable(ctx, stdoutWriter(ctx), rows, []outfmt.Column[driveSyncAction]{
-		{Header: "ACTION", Value: func(row driveSyncAction) string { return driveSyncOutputField(row.Action) }},
-		{Header: "PATH", Value: func(row driveSyncAction) string { return driveSyncOutputField(row.Path) }},
-		{Header: "ID", Value: func(row driveSyncAction) string { return driveSyncOutputField(row.FileID) }},
-		{Header: "REASON", Value: func(row driveSyncAction) string { return driveSyncOutputField(row.Reason) }},
+		{Header: "ACTION", Value: func(row driveSyncAction) string { return escapeTerminalControls(row.Action) }},
+		{Header: "PATH", Value: func(row driveSyncAction) string { return escapeTerminalControls(row.Path) }},
+		{Header: "ID", Value: func(row driveSyncAction) string { return escapeTerminalControls(row.FileID) }},
+		{Header: "REASON", Value: func(row driveSyncAction) string { return escapeTerminalControls(row.Reason) }},
 	})
 }
 
@@ -901,24 +900,4 @@ func summarizeDriveSyncActions(actions []driveSyncAction) driveSyncSummary {
 		}
 	}
 	return summary
-}
-
-func driveSyncOutputField(value string) string {
-	var output strings.Builder
-	output.Grow(len(value))
-	for _, current := range value {
-		if unicode.IsControl(current) || unicode.Is(unicode.Cf, current) {
-			switch {
-			case current <= 0xff:
-				fmt.Fprintf(&output, "\\x%02x", current)
-			case current <= 0xffff:
-				fmt.Fprintf(&output, "\\u%04x", current)
-			default:
-				fmt.Fprintf(&output, "\\U%08x", current)
-			}
-			continue
-		}
-		output.WriteRune(current)
-	}
-	return output.String()
 }

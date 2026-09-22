@@ -210,6 +210,11 @@ do not prevent network access, and failed fetches are not cached. `api list`
 and actual API responses remain uncached; authorization and command-policy
 checks still run on every call.
 
+`gog api list --plain` emits TSV columns `NAME`, `VERSION`, `TITLE`,
+`DESCRIPTION`, and `PREFERRED`. Embedded line breaks and terminal controls are
+normalized or escaped so each API occupies one row. Default output and `--json`
+preserve the full Discovery catalog response, including its metadata.
+
 ## MCP discovery
 
 MCP uses its standard `tools/list` request for client-side tool discovery. To

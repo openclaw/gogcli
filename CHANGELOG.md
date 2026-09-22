@@ -2,6 +2,7 @@
 
 ## 0.40.1 - Unreleased
 
+- API: honor `api list --plain` with stable, sanitized TSV columns while preserving default and JSON catalog responses. (#1141, #1146) — thanks @postoso and @goutamadwant.
 - API: honor in-flight command cancellation in YouTube, Chat unread lookups and sends, and People profile and relation requests. (#1145) — thanks @SebTardif.
 - Calendar: show failed Zoom meeting cleanup alongside a failed Calendar write, preserving both causes through CLI error formatting. (#1144) — thanks @SebTardif.
 - Sheets: return an error instead of crashing when append responses omit update metadata, without retrying the potentially completed write. (#1142) — thanks @SebTardif.

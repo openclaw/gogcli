@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"unicode/utf8"
 
@@ -71,7 +72,38 @@ func (c *APIListCmd) Run(ctx context.Context) error {
 		return err
 	}
 
+	if outfmt.IsPlain(ctx) {
+		return writeAPIListPlain(ctx, raw)
+	}
+
 	return writeDiscoveryRaw(ctx, raw)
+}
+
+type apiDirectoryList struct {
+	Items []apiDirectoryItem `json:"items"`
+}
+
+type apiDirectoryItem struct {
+	Name        string `json:"name"`
+	Version     string `json:"version"`
+	Title       string `json:"title"`
+	Description string `json:"description"`
+	Preferred   bool   `json:"preferred"`
+}
+
+func writeAPIListPlain(ctx context.Context, raw json.RawMessage) error {
+	var directory apiDirectoryList
+	if err := json.Unmarshal(raw, &directory); err != nil {
+		return fmt.Errorf("decode Discovery API list: %w", err)
+	}
+
+	return outfmt.WriteTable(ctx, stdoutWriter(ctx), directory.Items, []outfmt.Column[apiDirectoryItem]{
+		{Header: "NAME", Value: func(item apiDirectoryItem) string { return escapeTerminalControls(oneLine(item.Name)) }},
+		{Header: "VERSION", Value: func(item apiDirectoryItem) string { return escapeTerminalControls(oneLine(item.Version)) }},
+		{Header: "TITLE", Value: func(item apiDirectoryItem) string { return escapeTerminalControls(oneLine(item.Title)) }},
+		{Header: "DESCRIPTION", Value: func(item apiDirectoryItem) string { return escapeTerminalControls(oneLine(item.Description)) }},
+		{Header: "PREFERRED", Value: func(item apiDirectoryItem) string { return strconv.FormatBool(item.Preferred) }},
+	})
 }
 
 func (c *APIDescribeCmd) Run(ctx context.Context) error {
