@@ -2,6 +2,7 @@
 
 ## 0.40.1 - Unreleased
 
+- Dependencies: retain patched gRPC 1.83.2 with Google API 0.298 to avoid GHSA-2v4p-qf9q-27wj; gog does not use the affected xDS server.
 - Gmail: accumulate repeated `--add` and `--remove` label flags across thread, message, batch, and label modifications while preserving literal comma/backslash splitting and normalization. (#1139) — thanks @ShacharBialick.
 - Gmail: inspect Pub/Sub notifications matching the saved watch cursor so pending history changes can reach the hook. (#1140) — thanks @kazuyuki-eguchi.
 - API: honor `api list --plain` with stable, sanitized TSV columns while preserving default and JSON catalog responses. (#1141, #1146) — thanks @postoso and @goutamadwant.
