@@ -2,7 +2,7 @@
 
 ## 0.41.1 - Unreleased
 
-- Auth: return the documented `auth_required` exit code (`4`) for expired or revoked OAuth grants, preserving reauthorization advice in unattended and read-only commands.
+- Auth: return the documented `auth_required` exit code (`4`) for expired or revoked OAuth grants, preserving reauthorization advice in unattended and read-only commands. (#1152)
 
 ## 0.41.0 - 2026-09-22
 
