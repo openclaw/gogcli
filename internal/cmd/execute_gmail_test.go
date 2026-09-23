@@ -1,11 +1,63 @@
 package cmd
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
+	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"golang.org/x/oauth2"
+	"google.golang.org/api/gmail/v1"
+	"google.golang.org/api/option"
+
+	gogapi "github.com/openclaw/gogcli/internal/googleapi"
 )
+
+func TestExecute_GmailExpiredToken(t *testing.T) {
+	setTestConfigHome(t)
+	tokenCalls := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost || r.URL.Path != "/token" {
+			t.Errorf("unexpected API request: %s %s", r.Method, r.URL.Path)
+			http.NotFound(w, r)
+			return
+		}
+		tokenCalls++
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte(`{"error":"invalid_grant","error_description":"Token has been expired or revoked."}`))
+	}))
+	defer srv.Close()
+
+	ctx := context.Background()
+	cfg := &oauth2.Config{Endpoint: oauth2.Endpoint{TokenURL: srv.URL + "/token", AuthStyle: oauth2.AuthStyleInParams}}
+	client := &http.Client{Transport: gogapi.NewRetryTransport(&oauth2.Transport{
+		Source: cfg.TokenSource(ctx, &oauth2.Token{RefreshToken: "revoked-test-token"}),
+	})}
+	svc, err := gmail.NewService(ctx, option.WithHTTPClient(client), option.WithEndpoint(srv.URL+"/"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	result := executeWithGmailTestService(t, []string{
+		"--readonly", "--no-input", "--json", "--account", "test@example.com", "gmail", "labels", "list",
+	}, svc)
+	if got := ExitCode(result.err); got != exitCodeAuthRequired {
+		t.Fatalf("exit code = %d, want %d; error: %v", got, exitCodeAuthRequired, result.err)
+	}
+	var retrieveErr *oauth2.RetrieveError
+	if !errors.As(result.err, &retrieveErr) || retrieveErr.ErrorCode != "invalid_grant" {
+		t.Fatalf("missing OAuth cause: %v", result.err)
+	}
+	if !strings.Contains(result.err.Error(), "run 'gog auth add' to re-authorize") {
+		t.Fatalf("missing recovery advice: %v", result.err)
+	}
+	if result.stdout != "" || tokenCalls != 1 {
+		t.Fatalf("stdout = %q; token requests = %d, want empty output and one attempt", result.stdout, tokenCalls)
+	}
+}
 
 func TestExecute_GmailSearch_JSON(t *testing.T) {
 	srv := httptest.NewServer(gmailSearchTestHandler())

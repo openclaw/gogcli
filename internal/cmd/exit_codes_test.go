@@ -3,9 +3,13 @@ package cmd
 import (
 	"context"
 	"errors"
+	"fmt"
+	"net/http"
+	"net/url"
 	"testing"
 
 	"github.com/99designs/keyring"
+	"golang.org/x/oauth2"
 	ggoogleapi "google.golang.org/api/googleapi"
 
 	"github.com/openclaw/gogcli/internal/config"
@@ -28,6 +32,43 @@ func TestStableExitCode_AuthRequired(t *testing.T) {
 	out := stableExitCode(in)
 	if got := ExitCode(out); got != exitCodeAuthRequired {
 		t.Fatalf("expected exit code %d, got %d", exitCodeAuthRequired, got)
+	}
+}
+
+func TestStableExitCode_OAuthRetrieveError(t *testing.T) {
+	invalidGrant := &oauth2.RetrieveError{ErrorCode: "invalid_grant", ErrorDescription: "Token has been expired or revoked."}
+	wrappedGrant := &url.Error{
+		Op:  "Get",
+		URL: "https://www.googleapis.com/calendar/v3/users/me/calendarList",
+		Err: fmt.Errorf("read-only transport: refresh token expired or revoked: %w; run 'gog auth add' to re-authorize", invalidGrant),
+	}
+	for _, tt := range []struct {
+		name string
+		err  error
+		want int
+	}{
+		{name: "invalid grant", err: invalidGrant, want: exitCodeAuthRequired},
+		{name: "wrapped invalid grant", err: wrappedGrant, want: exitCodeAuthRequired},
+		{name: "normalized code", err: &oauth2.RetrieveError{ErrorCode: " INVALID_GRANT "}, want: exitCodeAuthRequired},
+		{name: "other oauth error", err: &oauth2.RetrieveError{ErrorCode: "invalid_client"}, want: 1},
+		{name: "provider failure", err: &oauth2.RetrieveError{Response: &http.Response{StatusCode: 503, Status: "503 Service Unavailable"}}, want: 1},
+		{name: "description only", err: &oauth2.RetrieveError{Response: &http.Response{StatusCode: 400, Status: "400 Bad Request"}, ErrorDescription: "invalid_grant"}, want: 1},
+		{name: "untyped message", err: errors.New(`oauth2: "invalid_grant" "Bad Request"`), want: 1},
+		{name: "cancelled reauth", err: errors.Join(invalidGrant, context.Canceled), want: exitCodeCancelled},
+		{name: "explicit exit code", err: &ExitError{Code: 10, Err: invalidGrant}, want: exitCodeConfig},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			out := stableExitCode(tt.err)
+			if got := ExitCode(out); got != tt.want {
+				t.Fatalf("exit code = %d, want %d", got, tt.want)
+			}
+			if !errors.Is(out, tt.err) {
+				t.Fatal("original error is missing from the error chain")
+			}
+			if out.Error() != tt.err.Error() {
+				t.Fatalf("error text changed: %q", out.Error())
+			}
+		})
 	}
 }
 

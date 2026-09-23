@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/99designs/keyring"
+	"golang.org/x/oauth2"
 	ggoogleapi "google.golang.org/api/googleapi"
 
 	"github.com/openclaw/gogcli/internal/config"
@@ -69,6 +70,11 @@ func stableExitCode(err error) error {
 
 	var authErr *gogapi.AuthRequiredError
 	if errors.As(err, &authErr) {
+		return &ExitError{Code: exitCodeAuthRequired, Err: err}
+	}
+
+	var retrieveErr *oauth2.RetrieveError
+	if errors.As(err, &retrieveErr) && strings.EqualFold(strings.TrimSpace(retrieveErr.ErrorCode), "invalid_grant") {
 		return &ExitError{Code: exitCodeAuthRequired, Err: err}
 	}
 

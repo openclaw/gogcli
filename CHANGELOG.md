@@ -2,6 +2,8 @@
 
 ## 0.41.1 - Unreleased
 
+- Auth: return the documented `auth_required` exit code (`4`) for expired or revoked OAuth grants, preserving reauthorization advice in unattended and read-only commands.
+
 ## 0.41.0 - 2026-09-22
 
 **Highlights:** Raw RFC822 drafts, Search Console URL inspection, automatic Slides image sizing, and fixes for lost Gmail results, cancellation, and Sheets crashes.

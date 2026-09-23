@@ -168,6 +168,10 @@ Malformed local payloads, such as invalid token-import JSON or timestamps, use
 `usage` (`2`). Commands that cannot run because their required local setup is
 absent or incomplete use `config` (`10`).
 
+If Google rejects an OAuth token refresh with `invalid_grant`, the command exits
+with `auth_required` (`4`) and retains its reauthorization advice, including in
+`--no-input` and `--readonly` runs.
+
 The same classifications apply to direct HTTP integrations such as Photos
 Library, Photos Picker, and Places. For example, an expired or deleted Picker
 session returns `not_found` (`5`) instead of a generic error.
