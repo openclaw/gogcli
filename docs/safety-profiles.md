@@ -71,6 +71,13 @@ bin/gog-readonly --enable-commands gmail.send gmail send \
 The command still fails because the baked policy is checked before runtime
 allowlists.
 
+Raw structural Sheets batches require an explicit `sheets.batch-request` allow
+rule. A parent `sheets` grant, a deny-only profile, or an allow-all profile with
+any deny rules does not grant this capability. An unrestricted full profile
+still allows it. The explicit capability authorizes the whole structural
+endpoint, including deletion; restrictions on individual Sheets commands do not
+filter its request payload. See [structural batches](sheets-batch-update.md#structural-batch-requests).
+
 ## Tamper Resistance
 
 The generator emits the allow and deny rule sets as `switch` statements on the

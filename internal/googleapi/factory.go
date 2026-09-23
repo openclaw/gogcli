@@ -171,6 +171,10 @@ func (f Factory) Sheets(ctx context.Context, account string) (*sheets.Service, e
 	return NewSheets(f.withAuth(ctx), account)
 }
 
+func (f Factory) SheetsHTTP(ctx context.Context, account string) (*http.Client, error) {
+	return NewHTTPClient(f.withAuth(ctx), googleauth.ServiceSheets, account)
+}
+
 func (f Factory) ConnectedSheets(ctx context.Context, account string) (*sheets.Service, error) {
 	return NewConnectedSheets(f.withAuth(ctx), account)
 }

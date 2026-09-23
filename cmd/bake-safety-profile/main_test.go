@@ -115,6 +115,25 @@ func TestGenerateEmptyAllowEmitsConstantFalse(t *testing.T) {
 	}
 }
 
+func TestGenerateExactMatcherDoesNotInheritPrefixesOrRestrictedWildcard(t *testing.T) {
+	for _, allowAll := range []bool{false, true} {
+		profile := &safetyprofile.Profile{
+			Name:       "restricted",
+			AllowAll:   allowAll,
+			AllowRules: []string{"sheets", "sheets.batch-request"},
+			DenyRules:  []string{"sheets.delete-tab"},
+		}
+		out := generate(profile)
+		if _, err := parser.ParseFile(token.NewFileSet(), "gen.go", out, parser.AllErrors); err != nil {
+			t.Fatal(err)
+		}
+		matcher := extractFunc(t, string(out), "bakedSafetyAllowExactMatch")
+		if !strings.Contains(matcher, "switch bakedSafetyHashPath(path)") || strings.Contains(matcher, "for ") {
+			t.Fatalf("exact matcher must inspect the complete path only:\n%s", matcher)
+		}
+	}
+}
+
 func extractFunc(t *testing.T, src, name string) string {
 	t.Helper()
 	start := strings.Index(src, "func "+name+"(")

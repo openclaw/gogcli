@@ -129,6 +129,9 @@ func composeRuntimeGoogleServices(runtime *app.Runtime, factory googleapi.Factor
 	if services.Sheets == nil {
 		services.Sheets = factory.Sheets
 	}
+	if services.SheetsHTTP == nil {
+		services.SheetsHTTP = factory.SheetsHTTP
+	}
 	if services.ConnectedSheets == nil {
 		services.ConnectedSheets = factory.ConnectedSheets
 	}

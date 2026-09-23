@@ -34,6 +34,7 @@ type SheetsCmd struct {
 	Get           SheetsGetCmd             `cmd:"" name:"get" aliases:"read,show" help:"Get values from a range"`
 	Update        SheetsUpdateCmd          `cmd:"" name:"update" aliases:"edit,set" help:"Update values in a range"`
 	BatchUpdate   SheetsBatchUpdateCmd     `cmd:"" name:"batch-update" aliases:"batch" help:"Update values in multiple ranges with one API request"`
+	BatchRequest  SheetsBatchRequestCmd    `cmd:"" name:"batch-request" help:"Submit an atomic structural request array (requires confirmation or --force)"`
 	Append        SheetsAppendCmd          `cmd:"" name:"append" aliases:"add" help:"Append values to a range"`
 	Insert        SheetsInsertCmd          `cmd:"" name:"insert" help:"Insert empty rows or columns into a sheet"`
 	DeleteDim     SheetsDeleteDimensionCmd `cmd:"" name:"delete-dimension" aliases:"delete-dim" help:"Delete rows or columns while preserving intersecting tables"`

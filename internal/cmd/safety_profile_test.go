@@ -112,6 +112,44 @@ allow:
 	}
 }
 
+func TestBakedSheetsBatchRequestRequiresExplicitPermission(t *testing.T) {
+	setTestConfigHome(t)
+	for _, test := range []struct {
+		name    string
+		profile string
+		allow   bool
+	}{
+		{name: "parent", profile: "allow: [sheets]"},
+		{name: "parent with deny", profile: "allow: [sheets]\ndeny: [sheets.delete-tab]"},
+		{name: "deny only", profile: "deny: [sheets.delete-tab]"},
+		{name: "wildcard with deny", profile: "allow: ['*']\ndeny: [sheets.delete-tab]"},
+		{name: "unrestricted wildcard", profile: "allow: ['*']", allow: true},
+		{name: "explicit", profile: "allow: [sheets.batch-request]\ndeny: [sheets.delete-tab]", allow: true},
+		{name: "denied", profile: "allow: [sheets.batch-request]\ndeny: [sheets]"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			withBakedSafetyProfile(t, "name: batch-test\n"+test.profile+"\n")
+			result := executeWithTestRuntime(t, []string{
+				"--enable-commands", "sheets.batch-request", "--dry-run", "--force", "sheets", "batch-request", "sheet-1", "--requests-json", `[{"deleteSheet":{"sheetId":0}}]`,
+			}, nil)
+			if test.allow {
+				if result.err != nil {
+					t.Fatal(result.err)
+				}
+			} else if ExitCode(result.err) != 2 || !strings.Contains(result.err.Error(), "baked safety profile") {
+				t.Fatalf("expected baked refusal despite runtime grant: %v", result.err)
+			}
+			profile, err := loadBakedSafetyProfile()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := profile.allowsCommandPath([]string{"sheets", "batch-request"}); got != test.allow {
+				t.Fatalf("visibility decision = %v, want %v", got, test.allow)
+			}
+		})
+	}
+}
+
 func TestReadonlySafetyProfileBlocksNestedMutations(t *testing.T) {
 	setTestConfigHome(t)
 	raw, err := os.ReadFile(filepath.Join("..", "..", "safety-profiles", "readonly.yaml"))

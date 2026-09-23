@@ -2,6 +2,8 @@
 
 package cmd
 
+import "strings"
+
 // bakedSafetyTestProfile is the test-only override that backs the
 // bakedSafety* package-level functions in non-safety builds. Production
 // safety_profile builds compile safety_profile_baked_gen.go instead, which
@@ -32,6 +34,13 @@ func bakedSafetyAllowMatch(path []string) bool {
 
 func bakedSafetyDenyMatch(path []string) bool {
 	return commandPathMatches(bakedSafetyTestProfile.deny, path)
+}
+
+func bakedSafetyAllowExactMatch(path []string) bool {
+	if bakedSafetyTestProfile.allowAll && len(bakedSafetyTestProfile.deny) == 0 {
+		return true
+	}
+	return bakedSafetyTestProfile.allow[strings.Join(path, ".")]
 }
 
 func bakedSafetyLockedFlag(name string) (string, bool) {

@@ -61,9 +61,11 @@ func generate(profile *safetyprofile.Profile) []byte {
 	out.WriteString("func bakedSafetyProfileName() string { return bakedSafetyProfileNameConst }\n")
 	fmt.Fprintf(&out, "func bakedSafetyHasAllowRules() bool { return %t }\n\n", hasAllowRules)
 
-	writeMatcher(&out, "bakedSafetyAllowMatch", profile.AllowRules, profile.AllowAll)
+	writeMatcher(&out, "bakedSafetyAllowMatch", profile.AllowRules, profile.AllowAll, false)
 	out.WriteString("\n")
-	writeMatcher(&out, "bakedSafetyDenyMatch", profile.DenyRules, false)
+	writeMatcher(&out, "bakedSafetyDenyMatch", profile.DenyRules, false, false)
+	out.WriteString("\n")
+	writeMatcher(&out, "bakedSafetyAllowExactMatch", profile.AllowRules, profile.AllowAll && len(profile.DenyRules) == 0, true)
 	out.WriteString("\n")
 	writeLockedFlags(&out, profile.LockedFlags)
 
@@ -96,7 +98,7 @@ func writeLockedFlags(out *bytes.Buffer, flags []safetyprofile.LockedFlag) {
 	fmt.Fprintf(out, "\nfunc bakedSafetyLockedFlagCount() int { return %d }\n", len(flags))
 }
 
-func writeMatcher(out *bytes.Buffer, name string, rules []string, matchAll bool) {
+func writeMatcher(out *bytes.Buffer, name string, rules []string, matchAll, exact bool) {
 	fmt.Fprintf(out, "func %s(path []string) bool {\n", name)
 	if matchAll {
 		out.WriteString("\treturn true\n}\n")
@@ -108,8 +110,12 @@ func writeMatcher(out *bytes.Buffer, name string, rules []string, matchAll bool)
 	}
 
 	out.WriteString("\tif len(path) == 0 {\n\t\treturn false\n\t}\n")
-	out.WriteString("\tfor i := 1; i <= len(path); i++ {\n")
-	out.WriteString("\t\tswitch bakedSafetyHashPath(path[:i]) {\n")
+	if exact {
+		out.WriteString("\tswitch bakedSafetyHashPath(path) {\n")
+	} else {
+		out.WriteString("\tfor i := 1; i <= len(path); i++ {\n")
+		out.WriteString("\t\tswitch bakedSafetyHashPath(path[:i]) {\n")
+	}
 	out.WriteString("\t\tcase ")
 
 	cases := make([]string, 0, len(rules))
@@ -138,6 +144,9 @@ func writeMatcher(out *bytes.Buffer, name string, rules []string, matchAll bool)
 		}
 	}
 	out.WriteString(":\n\t\t\treturn true\n")
-	out.WriteString("\t\t}\n\t}\n")
+	out.WriteString("\t}\n")
+	if !exact {
+		out.WriteString("\t}\n")
+	}
 	out.WriteString("\treturn false\n}\n")
 }

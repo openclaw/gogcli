@@ -234,6 +234,9 @@ func (p bakedSafetyProfile) allowsCommandPath(path []string) bool {
 	if bakedSafetyDenyMatch(path) {
 		return false
 	}
+	if len(path) == 2 && path[0] == "sheets" && path[1] == "batch-request" {
+		return bakedSafetyAllowExactMatch(path)
+	}
 	if !bakedSafetyHasAllowRules() {
 		return true
 	}

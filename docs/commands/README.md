@@ -2,7 +2,7 @@
 
 Every `gog` command has a generated docs page. The source of truth is the live CLI schema; run `make docs-commands` after changing command names, flags, help text, aliases, or arguments.
 
-Generated pages: 769.
+Generated pages: 770.
 
 ## Top-level Commands
 
@@ -648,6 +648,7 @@ Generated pages: 769.
       - [gog sheets banding clear](gog-sheets-banding-clear.md) - Remove alternating color banding
       - [gog sheets banding list](gog-sheets-banding-list.md) - List alternating color banded ranges
       - [gog sheets banding set](gog-sheets-banding-set.md) - Apply alternating colors to a range
+    - [gog sheets batch-request](gog-sheets-batch-request.md) - Submit an atomic structural request array (requires confirmation or --force)
     - [gog sheets batch-update](gog-sheets-batch-update.md) - Update values in multiple ranges with one API request
     - [gog sheets chart](gog-sheets-chart.md) - Manage spreadsheet charts
       - [gog sheets chart create](gog-sheets-chart-create.md) - Create a chart from a JSON spec

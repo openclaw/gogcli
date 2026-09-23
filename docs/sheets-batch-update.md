@@ -53,6 +53,58 @@ Related command reference:
 - [`gog sheets batch-update`](commands/gog-sheets-batch-update.md)
 - [`gog sheets update`](commands/gog-sheets-update.md)
 
+## Structural batch requests
+
+Use `gog sheets batch-request` to submit formatting, tab, dimension, and other
+structural operations together through `spreadsheets.batchUpdate`. The existing
+`batch-update` command and `batch` alias continue to update values only.
+
+Supply a nonempty JSON array of Google Sheets request objects, inline, from a
+file, or from stdin with `@-`:
+
+```json
+[
+  {
+    "updateSheetProperties": {
+      "properties": {"sheetId": 0, "gridProperties": {"frozenRowCount": 1}},
+      "fields": "gridProperties.frozenRowCount"
+    }
+  },
+  {
+    "repeatCell": {
+      "range": {"sheetId": 0, "startRowIndex": 0, "endRowIndex": 1},
+      "cell": {"userEnteredFormat": {"textFormat": {"bold": false}}},
+      "fields": "userEnteredFormat.textFormat.bold"
+    }
+  }
+]
+```
+
+```bash
+gog sheets batch-request "$spreadsheet_id" --requests-json @requests.json --dry-run --json
+gog sheets batch-request "$spreadsheet_id" --requests-json @requests.json --force --json
+```
+
+The dry run prints the complete request array without authentication or a write.
+Execution requires confirmation, or `--force` in automation, because the raw
+endpoint can delete data. Explicit zero, false, empty-string, and null values
+are preserved. Google validates operations and applies the ordered batch
+atomically: if any request is invalid, none of its changes are applied.
+`--json` returns the complete Google response, including ordered `replies`.
+
+With command restrictions, explicitly allow `sheets.batch-request`; a parent
+`sheets` grant or a wildcard combined with deny rules is insufficient. Baked
+profiles use the same explicit grant and cannot be widened by runtime flags.
+The bundled restricted profiles do not grant this command. An explicit grant
+authorizes the entire structural endpoint, including deletion: denying a sibling
+command such as `sheets.delete-tab` does not filter the raw request array.
+`--readonly` always blocks execution, and `--force` never bypasses policy.
+
+The command makes one submission, with no automatic retries, redirects, or
+splitting. A network or server error can follow a completed write; inspect the
+spreadsheet before retrying. This command does not persist a queued batch or
+provide revision locking.
+
 ## Single-range formula verification
 
 For a single updated range, `--values-json` accepts inline JSON, `@file`, or

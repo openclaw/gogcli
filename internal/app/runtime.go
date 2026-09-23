@@ -70,6 +70,7 @@ type (
 	PhotosPickerServiceFactory   func(context.Context, string) (*googleapi.PhotosPickerClient, error)
 	SearchConsoleServiceFactory  func(context.Context, string) (*searchconsole.Service, error)
 	SheetsServiceFactory         func(context.Context, string) (*sheets.Service, error)
+	SheetsHTTPClientFactory      func(context.Context, string) (*http.Client, error)
 	SlidesServiceFactory         func(context.Context, string) (*slides.Service, error)
 	TasksServiceFactory          func(context.Context, string) (*tasks.Service, error)
 	YouTubeServiceFactory        func(context.Context, string) (*youtube.Service, error)
@@ -123,6 +124,7 @@ type Services struct {
 	PhotosPicker      PhotosPickerServiceFactory
 	SearchConsole     SearchConsoleServiceFactory
 	Sheets            SheetsServiceFactory
+	SheetsHTTP        SheetsHTTPClientFactory
 	ConnectedSheets   SheetsServiceFactory
 	SitesDrive        DriveServiceFactory
 	Slides            SlidesServiceFactory
