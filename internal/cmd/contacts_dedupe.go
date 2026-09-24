@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"sort"
 	"strings"
 
@@ -81,7 +82,7 @@ func (c *ContactsDedupeCmd) Run(ctx context.Context, flags *RootFlags) error {
 
 	result, err := applyContactsDedupePlans(ctx, svc, len(contacts), plans)
 	if err != nil {
-		return err
+		return errors.Join(err, writeContactsDedupeApplyResult(ctx, u, result))
 	}
 	return writeContactsDedupeApplyResult(ctx, u, result)
 }

@@ -2,6 +2,8 @@
 
 `gog contacts update` supports JSON input via `--from-file`, so you can update People API fields without adding new CLI flags.
 
+For multiple contacts, see [native Contacts batches](contacts-batch.md).
+
 ## Usage
 
 Update from a file:

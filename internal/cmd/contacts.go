@@ -12,6 +12,7 @@ import (
 )
 
 type ContactsCmd struct {
+	Batch     ContactsBatchCmd     `cmd:"" name:"batch" help:"Read, create, update, or delete contacts in native People API batches"`
 	Search    ContactsSearchCmd    `cmd:"" name:"search" help:"Search contacts by name/email/phone"`
 	List      ContactsListCmd      `cmd:"" name:"list" aliases:"ls" help:"List contacts"`
 	Get       ContactsGetCmd       `cmd:"" name:"get" aliases:"info,show" help:"Get a contact"`

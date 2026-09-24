@@ -10,6 +10,7 @@ import (
 
 	"google.golang.org/api/people/v1"
 
+	"github.com/openclaw/gogcli/internal/googleapi"
 	"github.com/openclaw/gogcli/internal/outfmt"
 	"github.com/openclaw/gogcli/internal/ui"
 )
@@ -51,10 +52,11 @@ type contactsDedupeApplyPlan struct {
 }
 
 type contactsDedupeApplyResult struct {
-	Scanned         int
-	Plans           []contactsDedupeApplyPlan
-	GroupsMerged    int
-	ContactsDeleted int
+	Scanned              int
+	Plans                []contactsDedupeApplyPlan
+	GroupsMerged         int
+	ContactsDeleted      int
+	UnconfirmedDeletions []string
 }
 
 func contactsDedupeApplyReadMask() string {
@@ -116,7 +118,7 @@ func buildContactsDedupeApplyPlan(group contactsDedupeGroup) (contactsDedupeAppl
 	if group.Primary == nil {
 		return contactsDedupeApplyPlan{}, fmt.Errorf("duplicate group has no primary contact")
 	}
-	if contactSourceETag(group.Primary) == "" {
+	if contactsBatchContactSource(group.Primary) == nil {
 		return contactsDedupeApplyPlan{}, fmt.Errorf("primary contact %s is missing a contact-source etag", contactsDedupeResource(group.Primary))
 	}
 
@@ -134,7 +136,7 @@ func buildContactsDedupeApplyPlan(group contactsDedupeGroup) (contactsDedupeAppl
 				contactsDedupeResource(member),
 			)
 		}
-		if contactSourceETag(member) == "" {
+		if contactsBatchContactSource(member) == nil {
 			return contactsDedupeApplyPlan{}, fmt.Errorf("contact %s is missing a contact-source etag", contactsDedupeResource(member))
 		}
 	}
@@ -386,44 +388,56 @@ func applyContactsDedupePlans(
 			UpdatePersonFields(strings.Join(plan.UpdateFields, ",")).
 			PersonFields("metadata").
 			Sources(contactsDedupeContactSource).
-			Context(ctx).
+			Context(googleapi.WithoutRetries(ctx)).
 			Do(); err != nil {
-			return result, fmt.Errorf(
+			return result, contactsBatchMutationError(fmt.Errorf(
 				"contacts dedupe apply stopped after %d/%d groups and %d deletions: update primary %s: %w",
 				result.GroupsMerged, len(plans), result.ContactsDeleted, resource, wrapPeopleAPIError(err),
-			)
+			))
 		}
 
-		for _, redundant := range plan.Delete {
-			redundantResource := contactsDedupeResource(redundant)
-			latest, err := svc.People.Get(redundantResource).
-				PersonFields("metadata").
-				Sources(contactsDedupeContactSource).
-				Context(ctx).
-				Do()
+		for start := 0; start < len(plan.Delete); start += contactsBatchReadLimit {
+			chunk := plan.Delete[start:min(start+contactsBatchReadLimit, len(plan.Delete))]
+			resources, err := recheckContactsDedupeDelete(ctx, svc, chunk)
 			if err != nil {
-				return result, fmt.Errorf(
-					"contacts dedupe apply stopped in group %d/%d after %d deletions: recheck %s: %w",
-					index+1, len(plans), result.ContactsDeleted, redundantResource, wrapPeopleAPIError(err),
-				)
+				return result, fmt.Errorf("contacts dedupe apply stopped in group %d/%d after %d deletions: %w",
+					index+1, len(plans), result.ContactsDeleted, err)
 			}
-			if contactSourceETag(latest) != contactSourceETag(redundant) {
-				return result, fmt.Errorf(
-					"contacts dedupe apply stopped in group %d/%d after %d deletions: contact %s changed after preview and was not deleted; rerun the command",
-					index+1, len(plans), result.ContactsDeleted, redundantResource,
-				)
+			if _, err := svc.People.BatchDeleteContacts(&people.BatchDeleteContactsRequest{ResourceNames: resources}).
+				Context(googleapi.WithoutRetries(ctx)).Do(); err != nil {
+				result.UnconfirmedDeletions = resources
+				return result, contactsBatchMutationError(fmt.Errorf("contacts dedupe apply stopped in group %d/%d after %d confirmed deletions: delete batch: %w",
+					index+1, len(plans), result.ContactsDeleted, wrapPeopleAPIError(err)))
 			}
-			if _, err := svc.People.DeleteContact(redundantResource).Context(ctx).Do(); err != nil {
-				return result, fmt.Errorf(
-					"contacts dedupe apply stopped in group %d/%d after %d deletions: delete %s: %w",
-					index+1, len(plans), result.ContactsDeleted, redundantResource, wrapPeopleAPIError(err),
-				)
-			}
-			result.ContactsDeleted++
+			result.ContactsDeleted += len(resources)
 		}
 		result.GroupsMerged++
 	}
 	return result, nil
+}
+
+func recheckContactsDedupeDelete(ctx context.Context, svc *people.Service, contacts []*people.Person) ([]string, error) {
+	resources := make([]string, 0, len(contacts))
+	for _, contact := range contacts {
+		resources = append(resources, contactsDedupeResource(contact))
+	}
+	response, err := svc.People.GetBatchGet().ResourceNames(resources...).PersonFields("metadata").
+		Sources(contactsDedupeContactSource).Context(ctx).Do()
+	if err != nil {
+		return nil, fmt.Errorf("recheck redundant contacts: %w", wrapPeopleAPIError(err))
+	}
+	latest, err := validateContactsBatchGet(resources, response)
+	if err != nil {
+		return nil, fmt.Errorf("recheck redundant contacts: %w", err)
+	}
+	for _, contact := range contacts {
+		name := contactsDedupeResource(contact)
+		before, after := contactsBatchContactSource(contact), contactsBatchContactSource(latest[name])
+		if before == nil || after == nil || before.Etag != after.Etag {
+			return nil, fmt.Errorf("contact %s changed after preview and was not deleted; no contacts in this batch were deleted; rerun the command", name)
+		}
+	}
+	return resources, nil
 }
 
 func contactsDedupeDeleteCount(plans []contactsDedupeApplyPlan) int {
@@ -464,20 +478,38 @@ func contactsDedupeApplyPayload(scanned int, plans []contactsDedupeApplyPlan) ma
 func writeContactsDedupeApplyResult(ctx context.Context, u *ui.UI, result contactsDedupeApplyResult) error {
 	payload := contactsDedupeApplyPayload(result.Scanned, result.Plans)
 	payload["applied"] = true
+	payload["complete"] = result.GroupsMerged == len(result.Plans)
 	payload["groups_merged"] = result.GroupsMerged
 	payload["contacts_deleted"] = result.ContactsDeleted
+	if len(result.UnconfirmedDeletions) > 0 {
+		payload["unconfirmed_deletions"] = result.UnconfirmedDeletions
+	}
 	if outfmt.IsJSON(ctx) {
+		if result.GroupsMerged != len(result.Plans) {
+			return outfmt.WriteJSON(ctx, stdoutWriter(ctx), outfmt.PrimaryResult(payload))
+		}
 		return outfmt.WriteJSON(ctx, stdoutWriter(ctx), payload)
 	}
 	if outfmt.IsPlain(ctx) {
 		out := stdoutWriter(ctx)
 		fmt.Fprintf(out, "applied\ttrue\n")
+		fmt.Fprintf(out, "complete\t%t\n", result.GroupsMerged == len(result.Plans))
 		fmt.Fprintf(out, "groups_merged\t%d\n", result.GroupsMerged)
 		fmt.Fprintf(out, "contacts_deleted\t%d\n", result.ContactsDeleted)
+		for _, resource := range result.UnconfirmedDeletions {
+			fmt.Fprintf(out, "unconfirmed_deletion\t%s\n", resource)
+		}
 		return nil
 	}
 	if u != nil {
-		u.Out().Successf("Merged %d duplicate contact group(s); deleted %d redundant contact(s)", result.GroupsMerged, result.ContactsDeleted)
+		if result.GroupsMerged == len(result.Plans) {
+			u.Out().Successf("Merged %d duplicate contact group(s); deleted %d redundant contact(s)", result.GroupsMerged, result.ContactsDeleted)
+		} else {
+			u.Out().Linef("Stopped after %d/%d complete merges and %d confirmed deletions", result.GroupsMerged, len(result.Plans), result.ContactsDeleted)
+			if len(result.UnconfirmedDeletions) > 0 {
+				u.Out().Linef("Unconfirmed deletions: %s", strings.Join(result.UnconfirmedDeletions, ", "))
+			}
+		}
 	}
 	return nil
 }

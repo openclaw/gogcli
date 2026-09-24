@@ -1,33 +1,25 @@
-# `gog contacts`
+# `gog contacts batch`
 
 > Generated from `gog schema --json`. Do not edit this page by hand; run `make docs-commands`.
 
-Google Contacts
+Read, create, update, or delete contacts in native People API batches
 
 ## Usage
 
 ```bash
-gog contacts (contact) <command> [flags]
+gog contacts (contact) batch <command>
 ```
 
 ## Parent
 
-- [gog](gog.md)
+- [gog contacts](gog-contacts.md)
 
 ## Subcommands
 
-- [gog contacts batch](gog-contacts-batch.md) - Read, create, update, or delete contacts in native People API batches
-- [gog contacts create](gog-contacts-create.md) - Create a contact
-- [gog contacts dedupe](gog-contacts-dedupe.md) - Find likely duplicate contacts and optionally merge them
-- [gog contacts delete](gog-contacts-delete.md) - Delete a contact
-- [gog contacts directory](gog-contacts-directory.md) - Directory contacts
-- [gog contacts export](gog-contacts-export.md) - Export contacts as vCard (.vcf)
-- [gog contacts get](gog-contacts-get.md) - Get a contact
-- [gog contacts list](gog-contacts-list.md) - List contacts
-- [gog contacts other](gog-contacts-other.md) - Other contacts
-- [gog contacts raw](gog-contacts-raw.md) - Dump raw People API response as JSON (People.Get; lossless; for scripting and LLM consumption)
-- [gog contacts search](gog-contacts-search.md) - Search contacts by name/email/phone
-- [gog contacts update](gog-contacts-update.md) - Update a contact
+- [gog contacts batch create](gog-contacts-batch-create.md) - Create contacts from a JSON array, in batches of up to 200
+- [gog contacts batch delete](gog-contacts-batch-delete.md) - Delete exact contact resources in batches of up to 500 (requires confirmation)
+- [gog contacts batch get](gog-contacts-batch-get.md) - Get exact contact resources in batches of up to 200
+- [gog contacts batch update](gog-contacts-batch-update.md) - Update contacts from a JSON resource map, preserving supplied CONTACT etags
 
 ## Flags
 
@@ -58,5 +50,5 @@ gog contacts (contact) <command> [flags]
 
 ## See Also
 
-- [gog](gog.md)
+- [gog contacts](gog-contacts.md)
 - [Command index](README.md)

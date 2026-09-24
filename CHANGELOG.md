@@ -6,6 +6,7 @@
 - Docs: reject explicitly empty or whitespace-only `--batch` values before input or authentication, preventing accidental immediate edits when a batch variable is empty. (#1156)
 - Docs: return a nonzero exit status when `batch end --continue-on-error` retains failed requests, while preserving its result summary and successfully applied edits. (#1154)
 - Sheets: submit atomic structural request arrays with `sheets batch-request`, preserving explicit JSON values, previewing exact requests, and requiring explicit grants in restricted command policies. (#1108) — thanks @gurgeous.
+- Contacts: add native batch get/create/update/delete commands with etag-checked field-specific updates, offline previews, and explicit partial progress; batch dedupe deletion while retaining changed-contact guards. (#1101) — thanks @sebsnyk.
 - Sheets: preserve zero IDs, false flags, empty and null values, and unknown fields in lossless `sheets raw` output, including pretty and wrapped output. (#1155)
 - CLI: reject comma-only runtime command lists instead of silently treating malformed allowlists as unrestricted access; preserve empty overrides and valid CSV lists. (#1157)
 - Auth: return the documented `auth_required` exit code (`4`) for expired or revoked OAuth grants, preserving reauthorization advice in unattended and read-only commands. (#1152)

@@ -1,7 +1,10 @@
 package cmd
 
 import (
+	"bytes"
+	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"reflect"
 	"strings"
@@ -9,7 +12,86 @@ import (
 	"testing"
 
 	"google.golang.org/api/people/v1"
+
+	"github.com/openclaw/gogcli/internal/outfmt"
 )
+
+func TestContactsDedupeBatchedDeletionProgress(t *testing.T) {
+	primary := testDedupeApplyPerson("people/primary", "original", "Fixture", "fixture@example.com", "")
+	plan := contactsDedupeApplyPlan{Merged: primary, UpdateFields: []string{"names"}}
+	for _, name := range contactsBatchTestNames(201) {
+		plan.Delete = append(plan.Delete, &people.Person{ResourceName: name, Metadata: contactMetadata("original")})
+	}
+	var operations []string
+	svc, closeServer := newPeopleService(t, func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/v1/people/primary:updateContact":
+			operations = append(operations, "update")
+			writeDedupePerson(t, w, primary)
+		case "/v1/people:batchGet":
+			names := r.URL.Query()["resourceNames"]
+			operations = append(operations, fmt.Sprintf("recheck-%d", len(names)))
+			contacts := make([]*people.Person, 0, len(names))
+			for _, name := range names {
+				contacts = append(contacts, &people.Person{ResourceName: name, Metadata: contactMetadata("original")})
+			}
+			writeContactsBatchGetTestResponse(t, w, contacts)
+		case "/v1/people:batchDeleteContacts":
+			var request people.BatchDeleteContactsRequest
+			if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+				t.Error(err)
+			}
+			operations = append(operations, fmt.Sprintf("delete-%d", len(request.ResourceNames)))
+			if len(request.ResourceNames) == 1 {
+				w.WriteHeader(http.StatusServiceUnavailable)
+				_, _ = w.Write([]byte(`{"error":{"code":503,"message":"unknown outcome"}}`))
+				return
+			}
+			_, _ = w.Write([]byte(`{}`))
+		default:
+			http.NotFound(w, r)
+		}
+	})
+	defer closeServer()
+	result, err := applyContactsDedupePlans(context.Background(), svc, 202, []contactsDedupeApplyPlan{plan})
+	if ExitCode(err) != 1 || result.ContactsDeleted != 200 || result.GroupsMerged != 0 || !reflect.DeepEqual(result.UnconfirmedDeletions, []string{"people/c0200"}) {
+		t.Fatalf("result=%+v error=%v", result, err)
+	}
+	if !reflect.DeepEqual(operations, []string{"update", "recheck-200", "delete-200", "recheck-1", "delete-1"}) {
+		t.Fatalf("unsafe operation ordering: %v", operations)
+	}
+	var output, diagnostics bytes.Buffer
+	ctx := newCmdRuntimeJSONOutputContext(t, &output, &diagnostics)
+	ctx = outfmt.WithJSONTransform(ctx, outfmt.JSONTransform{ResultsOnly: true})
+	if err := writeContactsDedupeApplyResult(ctx, nil, result); err != nil {
+		t.Fatal(err)
+	}
+	var payload struct {
+		Complete        bool     `json:"complete"`
+		ContactsDeleted int      `json:"contacts_deleted"`
+		Unconfirmed     []string `json:"unconfirmed_deletions"`
+	}
+	if err := json.Unmarshal(output.Bytes(), &payload); err != nil {
+		t.Fatalf("--results-only discarded recovery envelope: %v; output=%s", err, output.String())
+	}
+	if payload.Complete || payload.ContactsDeleted != 200 || !reflect.DeepEqual(payload.Unconfirmed, []string{"people/c0200"}) {
+		t.Fatalf("recovery details lost: %+v", payload)
+	}
+}
+
+func TestContactsDedupeSuccessfulResultsOnlyKeepsGroupProjection(t *testing.T) {
+	var output, diagnostics bytes.Buffer
+	ctx := newCmdRuntimeJSONOutputContext(t, &output, &diagnostics)
+	ctx = outfmt.WithJSONTransform(ctx, outfmt.JSONTransform{ResultsOnly: true})
+	result := contactsDedupeApplyResult{GroupsMerged: 1, Plans: []contactsDedupeApplyPlan{{}}}
+	if err := writeContactsDedupeApplyResult(ctx, nil, result); err != nil {
+		t.Fatal(err)
+	}
+	var groups []map[string]any
+	if err := json.Unmarshal(output.Bytes(), &groups); err != nil || len(groups) != 1 {
+		t.Fatalf("successful --results-only projection changed: %v; output=%s", err, output.String())
+	}
+}
 
 func TestBuildContactsDedupeApplyPlanMergesFields(t *testing.T) {
 	primary := testDedupeApplyPerson("people/1", "etag-1", "Ada", "ada@example.com", "+1 555 0100")
@@ -103,11 +185,15 @@ func TestContactsDedupeApplyExecuteJSON(t *testing.T) {
 				t.Fatalf("decode update: %v", err)
 			}
 			writeDedupePerson(t, w, &people.Person{ResourceName: "people/1", Metadata: contactMetadata("etag-updated")})
-		case r.Method == http.MethodGet && r.URL.Path == "/v1/people/2":
-			writeDedupePerson(t, w, &people.Person{ResourceName: "people/2", Metadata: contactMetadata("etag-2")})
-		case r.Method == http.MethodDelete && r.URL.Path == "/v1/people/2:deleteContact":
+		case r.Method == http.MethodGet && r.URL.Path == "/v1/people:batchGet":
+			writeContactsBatchGetTestResponse(t, w, []*people.Person{{ResourceName: "people/2", Metadata: contactMetadata("etag-2")}})
+		case r.Method == http.MethodPost && r.URL.Path == "/v1/people:batchDeleteContacts":
+			var request people.BatchDeleteContactsRequest
+			if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+				t.Error(err)
+			}
 			mu.Lock()
-			deleted = append(deleted, "people/2")
+			deleted = append(deleted, request.ResourceNames...)
 			mu.Unlock()
 			_, _ = w.Write([]byte(`{}`))
 		default:
@@ -208,9 +294,9 @@ func TestContactsDedupeApplyRetainsChangedContact(t *testing.T) {
 			writeDedupePerson(t, w, testDedupeApplyPerson("people/2", "etag-2", "Ada", "ADA@example.com", "+1 555 0200"))
 		case r.Method == http.MethodPatch && r.URL.Path == "/v1/people/1:updateContact":
 			writeDedupePerson(t, w, &people.Person{ResourceName: "people/1", Metadata: contactMetadata("etag-updated")})
-		case r.Method == http.MethodGet && r.URL.Path == "/v1/people/2":
-			writeDedupePerson(t, w, &people.Person{ResourceName: "people/2", Metadata: contactMetadata("etag-changed")})
-		case r.Method == http.MethodDelete:
+		case r.Method == http.MethodGet && r.URL.Path == "/v1/people:batchGet":
+			writeContactsBatchGetTestResponse(t, w, []*people.Person{{ResourceName: "people/2", Metadata: contactMetadata("etag-changed")}})
+		case r.Method == http.MethodPost && r.URL.Path == "/v1/people:batchDeleteContacts":
 			deleted = true
 			_, _ = w.Write([]byte(`{}`))
 		default:
@@ -221,7 +307,7 @@ func TestContactsDedupeApplyRetainsChangedContact(t *testing.T) {
 
 	result := executeWithPeopleTestServices(
 		t,
-		[]string{"--account", "a@example.com", "--force", "contacts", "dedupe", "--apply"},
+		[]string{"--json", "--results-only", "--account", "a@example.com", "--force", "contacts", "dedupe", "--apply"},
 		peopleTestServices{Contacts: fixedPeopleTestService(svc)},
 	)
 	if result.err == nil || !strings.Contains(result.err.Error(), "changed after preview and was not deleted") {
@@ -229,6 +315,9 @@ func TestContactsDedupeApplyRetainsChangedContact(t *testing.T) {
 	}
 	if deleted {
 		t.Fatal("changed contact was deleted")
+	}
+	if !strings.Contains(result.stdout, `"complete": false`) || !strings.Contains(result.stdout, `"contacts_deleted": 0`) {
+		t.Fatalf("--results-only discarded partial progress: %s", result.stdout)
 	}
 }
 

@@ -1,33 +1,18 @@
-# `gog contacts`
+# `gog contacts batch create`
 
 > Generated from `gog schema --json`. Do not edit this page by hand; run `make docs-commands`.
 
-Google Contacts
+Create contacts from a JSON array, in batches of up to 200
 
 ## Usage
 
 ```bash
-gog contacts (contact) <command> [flags]
+gog contacts (contact) batch create --from-file=STRING
 ```
 
 ## Parent
 
-- [gog](gog.md)
-
-## Subcommands
-
-- [gog contacts batch](gog-contacts-batch.md) - Read, create, update, or delete contacts in native People API batches
-- [gog contacts create](gog-contacts-create.md) - Create a contact
-- [gog contacts dedupe](gog-contacts-dedupe.md) - Find likely duplicate contacts and optionally merge them
-- [gog contacts delete](gog-contacts-delete.md) - Delete a contact
-- [gog contacts directory](gog-contacts-directory.md) - Directory contacts
-- [gog contacts export](gog-contacts-export.md) - Export contacts as vCard (.vcf)
-- [gog contacts get](gog-contacts-get.md) - Get a contact
-- [gog contacts list](gog-contacts-list.md) - List contacts
-- [gog contacts other](gog-contacts-other.md) - Other contacts
-- [gog contacts raw](gog-contacts-raw.md) - Dump raw People API response as JSON (People.Get; lossless; for scripting and LLM consumption)
-- [gog contacts search](gog-contacts-search.md) - Search contacts by name/email/phone
-- [gog contacts update](gog-contacts-update.md) - Update a contact
+- [gog contacts batch](gog-contacts-batch.md)
 
 ## Flags
 
@@ -42,6 +27,7 @@ gog contacts (contact) <command> [flags]
 | `--enable-commands` | `string` |  | Comma-separated list of enabled command prefixes; dot paths allowed (restricts CLI) |
 | `--enable-commands-exact` | `string` |  | Comma-separated list of exact enabled commands; dot paths allowed and parent commands do not enable children |
 | `-y`<br>`--force`<br>`--assume-yes`<br>`--yes` | `bool` |  | Skip confirmations for destructive commands |
+| `--from-file` | `string` |  | JSON array of Person objects; - reads stdin (maximum 32 MiB) |
 | `--gmail-no-send` | `bool` | false | Block Gmail send operations (agent safety) |
 | `-h`<br>`--help` | `kong.helpFlag` |  | Show context-sensitive help. |
 | `--home` | `string` |  | Override gogcli config/data/state/cache root (equivalent to GOG_HOME) |
@@ -58,5 +44,5 @@ gog contacts (contact) <command> [flags]
 
 ## See Also
 
-- [gog](gog.md)
+- [gog contacts batch](gog-contacts-batch.md)
 - [Command index](README.md)

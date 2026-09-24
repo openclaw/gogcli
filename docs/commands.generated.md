@@ -254,6 +254,11 @@ Generated from `gog schema --json`.
     - [`gog config set (add,update) <key> <value>`](commands/gog-config-set.md) - Set a config value
     - [`gog config unset (rm,del,remove) <key>`](commands/gog-config-unset.md) - Unset a config value
   - [`gog contacts (contact) <command> [flags]`](commands/gog-contacts.md) - Google Contacts
+    - [`gog contacts (contact) batch <command>`](commands/gog-contacts-batch.md) - Read, create, update, or delete contacts in native People API batches
+      - [`gog contacts (contact) batch create --from-file=STRING`](commands/gog-contacts-batch-create.md) - Create contacts from a JSON array, in batches of up to 200
+      - [`gog contacts (contact) batch delete <resourceName> ...`](commands/gog-contacts-batch-delete.md) - Delete exact contact resources in batches of up to 500 (requires confirmation)
+      - [`gog contacts (contact) batch get <resourceName> ...`](commands/gog-contacts-batch-get.md) - Get exact contact resources in batches of up to 200
+      - [`gog contacts (contact) batch update --from-file=STRING`](commands/gog-contacts-batch-update.md) - Update contacts from a JSON resource map, preserving supplied CONTACT etags
     - [`gog contacts (contact) create (add,new) [flags]`](commands/gog-contacts-create.md) - Create a contact
     - [`gog contacts (contact) dedupe [flags]`](commands/gog-contacts-dedupe.md) - Find likely duplicate contacts and optionally merge them
     - [`gog contacts (contact) delete (rm,del,remove) <resourceName>`](commands/gog-contacts-delete.md) - Delete a contact

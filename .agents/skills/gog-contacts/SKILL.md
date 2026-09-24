@@ -28,6 +28,7 @@ gog --readonly --account user@example.com contacts search alice --json --wrap-un
 
 | Command | Purpose |
 | --- | --- |
+| `batch` | Read, create, update, or delete contacts in native People API batches |
 | `create` | Create a contact |
 | `dedupe` | Find likely duplicate contacts and optionally merge them |
 | `delete` | Delete a contact |
