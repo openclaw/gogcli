@@ -50,6 +50,11 @@ The exception is an explicit persistent MCP policy. It can authorize a narrow
 write surface without repeating `--allow-write` in every client definition;
 runtime flags can only reduce that configured surface.
 
+Gmail sending additionally requires `--allow-gmail-send`. Permanent message
+and draft deletion additionally require `--allow-gmail-delete`; real deletion
+also needs the operator's root `--force` flag. Existing `gmail`, `gmail.*`,
+`write`, and wildcard grants never authorize either capability on their own.
+
 ## Why this is not `gog_exec`
 
 MCP clients are often LLM-driven. A generic "run this command" tool would expose
@@ -75,7 +80,8 @@ server startup.
 By default, all read tools are registered and write tools are hidden.
 
 Use `--allow-tool` to narrow the registered set. Values can be comma-separated
-or repeated:
+or repeated. An explicitly empty, whitespace-only, or comma-only list is rejected;
+omit the flag to use the defaults or configured policy:
 
 ```bash
 gog mcp --allow-tool gmail_search --allow-tool docs_get
@@ -105,8 +111,15 @@ gog mcp --allow-write --allow-tool 'docs.*'
 # Read-only server, but only Calendar and Sheets reads.
 gog mcp --allow-tool calendar,sheets
 
-# All current write tools. Read tools are not included unless also selected.
+# Ordinary write tools. Read tools and gated Gmail send/delete are not included.
 gog mcp --allow-write --allow-tool write
+
+# Compose drafts and organize the mailbox, with sending blocked.
+gog --gmail-no-send mcp --allow-write --allow-tool gmail
+
+# Send only through the two explicitly selected typed tools.
+gog mcp --allow-write --allow-gmail-send \
+  --allow-tool gmail_send_message,gmail_send_draft
 ```
 
 ## Persistent capability policy
@@ -144,6 +157,30 @@ label does not prove the authenticated principal. An omitted `allow_tools` value
 `["read"]`; an explicitly empty list is rejected. `allow_write: true` requires
 an explicit tool list so a typo cannot accidentally expose every write tool.
 
+The optional policy keys `allow_gmail_send` and `allow_gmail_delete` default to
+false and each requires `allow_write: true`. They apply to the selected account
+policy, or to the global policy when no account override matches. For example:
+
+```json5
+{
+  "mcp": {
+    "allow_tools": ["read"],
+    "accounts": {
+      "assistant@example.com": {
+        "allow_tools": ["gmail_create_draft", "gmail_send_draft"],
+        "allow_write": true,
+        "allow_gmail_send": true
+      }
+    }
+  }
+}
+```
+
+This account can create and send drafts, but cannot delete drafts or messages.
+An account override does not inherit global send/delete permissions. Runtime
+`--allow-gmail-send` and `--allow-gmail-delete` cannot widen a configured policy.
+An exact send/delete tool selector still needs its corresponding capability.
+
 The configured policy is a ceiling. `--allow-tool` can intersect it with a
 smaller runtime set, `--readonly` removes all writes, and `--allow-write` cannot
 widen a read-only policy. Baked safety profiles remain the outer immutable
@@ -160,6 +197,9 @@ Read tools:
 | `gmail_search` | Search Gmail messages with Gmail query syntax. |
 | `gmail_get_message` | Read one Gmail message by ID. Sanitized content is on by default. |
 | `gmail_get_thread` | Read one Gmail thread by ID. Sanitized content is on by default. |
+| `gmail_list_drafts` | List draft, message, and thread IDs with bounded pagination. |
+| `gmail_get_draft` | Read one draft's MIME payload without downloading attachments. |
+| `gmail_list_labels` | List label names and case-sensitive IDs. |
 | `drive_search` | Search Drive files by text or Drive query language. |
 | `drive_get` | Read Drive file metadata by ID. |
 | `docs_get` | Read a Google Doc as wrapped text, optionally one tab or all tabs. |
@@ -172,6 +212,57 @@ Write tools, hidden unless `--allow-write`:
 | --- | --- |
 | `docs_write` | Append or replace Google Docs text, optionally as Markdown. |
 | `sheets_update_range` | Update values in a Sheets range from a literal JSON 2D array. |
+| `gmail_create_draft` | Compose a draft from literal plain text and/or HTML. |
+| `gmail_update_draft` | Replace a draft's subject and body. |
+| `gmail_create_label` | Create a label. |
+| `gmail_modify_messages` | Add/remove labels on 1–1000 explicit message IDs. |
+| `gmail_modify_thread` | Add/remove labels on every message in an explicit thread. |
+| `gmail_mark_read`, `gmail_mark_unread` | Change read state for explicit messages. |
+| `gmail_archive_messages` | Remove `INBOX` from explicit messages. |
+| `gmail_trash_messages` | Add `TRASH` and remove `INBOX` from explicit messages. |
+| `gmail_restore_messages` | Remove `TRASH`; this does not add `INBOX`. |
+
+Additional gated write tools:
+
+| Tool | Additional authorization |
+| --- | --- |
+| `gmail_send_message`, `gmail_send_draft` | `--allow-gmail-send` or configured `allow_gmail_send`. |
+| `gmail_delete_draft`, `gmail_delete_messages` | `--allow-gmail-delete` or configured `allow_gmail_delete`, plus root `--force` for real deletion. |
+
+All message-list mutations take explicit IDs, with at most 1000 per call;
+they do not accept a search query. Search first, review the IDs, then mutate.
+Label arrays accept literal names or case-sensitive IDs. Each entry is one label,
+including any commas or backslashes, and each add/remove array is limited to 100
+entries. The corresponding `gmail batch modify` and `gmail thread modify` CLI
+commands accept repeatable `--add-label` and `--remove-label` literal flags;
+their existing `--add` and `--remove` comma-separated syntax is unchanged.
+
+Compose tools accept literal `body` and/or `body_html`, recipients, subject,
+verified send-as aliases, and reply context. They cannot read attachment paths,
+raw message files, body files, or signature files. Draft creation allows omitted
+recipients. Sending requires recipients or a reply-all target.
+
+`gmail_update_draft` replaces the subject and body, rather than patching them.
+Omit `to` to keep existing To recipients, or pass `"to": ""` to clear them.
+Omitted Cc/Bcc are cleared. Existing attachments and reply headers are preserved
+unless `clear_attachments` or `clear_reply_context` is true. Supply `body_html`
+when retaining HTML: a plain-only update replaces the draft's HTML body and
+reports the existing CLI warning.
+
+Draft deletion is permanent, with no Trash or restore path. Message deletion
+also requires the broader `https://mail.google.com/` OAuth scope, which is not
+part of the default Gmail grant. Tool authorization never changes OAuth scopes.
+For example, this explicitly authorized server exposes only draft deletion:
+
+```bash
+gog --account you@example.com --force mcp \
+  --allow-write --allow-gmail-delete --allow-tool gmail_delete_draft
+```
+
+There is no model-supplied `force` or confirmation argument. Without root
+`--force`, destructive calls fail non-interactively; `--dry-run` still previews
+them. Send tools retain all global, account-specific, and runtime no-send
+restrictions. `--readonly` hides all writes, including send and delete.
 
 The generated command reference for the server itself is
 [`gog mcp`](commands/gog-mcp.md).
@@ -310,6 +401,7 @@ The server also preserves selected parent root flags:
 - `--client`
 - `--home`
 - `--dry-run`
+- `--force` for explicitly authorized permanent-deletion tools only
 - `--results-only`
 - `--select`
 - direct access tokens
@@ -360,6 +452,10 @@ omitted.
 
 If the child command exits non-zero, the MCP result is marked as an error and
 includes the same structured fields with `exit_code` and `stderr`.
+
+Send and permanent-deletion tool listings and results also include
+`"capability": "gmail_send"` or `"capability": "gmail_delete"`. Their risk remains
+`write`, so existing clients can keep using the read/write classification.
 
 ## Limits and timeouts
 

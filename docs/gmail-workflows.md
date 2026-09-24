@@ -226,6 +226,22 @@ orchestrate bulk migrations.
 
 Command page: [`gog gmail import`](commands/gog-gmail-import.md).
 
+## Modify Labels
+
+`gmail batch modify` and `gmail thread modify` accept repeated literal label
+names or IDs with `--add-label` and `--remove-label`. Commas and backslashes stay
+inside each label name:
+
+```bash
+gog gmail batch modify <messageId> --add-label 'Status, important'
+gog gmail thread modify <threadId> --remove-label 'Projects\Review'
+gog gmail batch modify <messageId> --add INBOX,UNREAD --add-label 'Status, important'
+```
+
+The existing `--add` and `--remove` flags still split comma-separated values.
+Both forms can be repeated and combined. Label IDs remain case-sensitive;
+label names use normal name lookup.
+
 ## Reply and Reply All
 
 The Gmail API has no reply method. Clients fetch the original message, build a

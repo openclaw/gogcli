@@ -20,6 +20,8 @@ gog mcp [flags]
 | --- | --- | --- | --- |
 | `--access-token` | `string` |  | Use provided access token directly (bypasses stored refresh tokens; token expires in ~1h) |
 | `-a`<br>`--account`<br>`--acct` | `string` |  | Account email, alias, or auto for authenticated Google API commands |
+| `--allow-gmail-delete` | `bool` |  | Allow permanent Gmail deletion in addition to write authorization and tool selection; execution also requires --force |
+| `--allow-gmail-send` | `bool` |  | Allow Gmail sending in addition to write authorization and tool selection |
 | `--allow-tool`<br>`--tool` | `[]string` |  | Tool or service allowlist (default: all read-only tools). Examples: gmail.*,docs_get,sheets |
 | `--allow-write` | `bool` |  | Expose write tools. Write tools must also match --allow-tool when that flag is set. |
 | `--client` | `string` |  | OAuth client name (selects stored credentials + token bucket) |

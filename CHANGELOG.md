@@ -9,6 +9,7 @@
 - Sheets: preserve zero IDs, false flags, empty and null values, and unknown fields in lossless `sheets raw` output, including pretty and wrapped output. (#1155)
 - CLI: reject comma-only runtime command lists instead of silently treating malformed allowlists as unrestricted access; preserve empty overrides and valid CSV lists. (#1157)
 - Auth: return the documented `auth_required` exit code (`4`) for expired or revoked OAuth grants, preserving reauthorization advice in unattended and read-only commands. (#1152)
+- MCP: add typed Gmail draft and mailbox tools with literal label entries, reject empty runtime tool allowlists, and require separate send and permanent-delete opt-ins that preserve account policies, no-send restrictions, and destructive confirmations. (#1137) — thanks @alex-strattab.
 - Comments: clarify that quoted Drive API comments are unanchored in Google editors and warn on stderr, including dry runs, while preserving payloads and machine-readable output. (#1160) — thanks @ignacioreyna.
 - Raw JSON: preserve explicit values and unknown fields across Docs, Slides, Drive, Gmail, Calendar, Forms, Tasks, and People/Contacts; retain Drive redaction and lossless Docs tab projection. (#1158)
 

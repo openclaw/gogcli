@@ -15,7 +15,7 @@ import (
 )
 
 func TestMCPEnabledToolsDefaultReadOnly(t *testing.T) {
-	tools := mcpEnabledTools(McpCmd{})
+	tools := mcpEnabledTools(McpCmd{}, nil)
 	if len(tools) == 0 {
 		t.Fatal("expected default tools")
 	}
@@ -33,7 +33,7 @@ func TestMCPEnabledToolsDefaultReadOnly(t *testing.T) {
 }
 
 func TestMCPEnabledToolsAllowWriteAndFilter(t *testing.T) {
-	tools := mcpEnabledTools(McpCmd{AllowWrite: true, AllowTool: []string{"docs.*"}})
+	tools := mcpEnabledTools(McpCmd{AllowWrite: true, AllowTool: []string{"docs.*"}}, nil)
 	if !hasMCPTool(tools, "docs_get") || !hasMCPTool(tools, "docs_write") {
 		t.Fatalf("expected docs read and write tools, got %#v", toolNames(tools))
 	}

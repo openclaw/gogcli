@@ -173,9 +173,11 @@ func (c *GmailThreadGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 }
 
 type GmailThreadModifyCmd struct {
-	ThreadID string   `arg:"" name:"threadId" help:"Thread ID"`
-	Add      []string `name:"add" sep:"none" help:"Labels to add (comma-separated or repeated; name or ID)"`
-	Remove   []string `name:"remove" sep:"none" help:"Labels to remove (comma-separated or repeated; name or ID)"`
+	ThreadID     string   `arg:"" name:"threadId" help:"Thread ID"`
+	Add          []string `name:"add" sep:"none" help:"Labels to add (comma-separated or repeated; name or ID)"`
+	Remove       []string `name:"remove" sep:"none" help:"Labels to remove (comma-separated or repeated; name or ID)"`
+	AddLabels    []string `name:"add-label" sep:"none" help:"Literal label name or ID to add (repeatable; commas and backslashes are preserved)"`
+	RemoveLabels []string `name:"remove-label" sep:"none" help:"Literal label name or ID to remove (repeatable; commas and backslashes are preserved)"`
 }
 
 func (c *GmailThreadModifyCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -186,10 +188,10 @@ func (c *GmailThreadModifyCmd) Run(ctx context.Context, flags *RootFlags) error 
 		return usage("empty threadId")
 	}
 
-	addLabels := splitCSVAllRaw(c.Add)
-	removeLabels := splitCSVAllRaw(c.Remove)
+	addLabels := append(splitCSVAllRaw(c.Add), trimmedStrings(c.AddLabels)...)
+	removeLabels := append(splitCSVAllRaw(c.Remove), trimmedStrings(c.RemoveLabels)...)
 	if len(addLabels) == 0 && len(removeLabels) == 0 {
-		return usage("must specify --add and/or --remove")
+		return usage("must specify --add and/or --remove (or literal --add-label/--remove-label)")
 	}
 
 	if err := dryRunExit(ctx, flags, "gmail.thread.modify", map[string]any{

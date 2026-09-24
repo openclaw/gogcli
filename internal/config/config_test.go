@@ -75,6 +75,8 @@ func TestReadConfig_MCPPolicy(t *testing.T) {
       "personal@example.com": {
         allow_tools: ["docs.*"],
         allow_write: true,
+        allow_gmail_send: true,
+        allow_gmail_delete: true,
       },
     },
   },
@@ -93,7 +95,7 @@ func TestReadConfig_MCPPolicy(t *testing.T) {
 	}
 
 	personal := cfg.MCP.Accounts["personal@example.com"]
-	if !personal.AllowWrite || len(personal.AllowTools) != 1 || personal.AllowTools[0] != "docs.*" {
+	if !personal.AllowWrite || !personal.AllowGmailSend || !personal.AllowGmailDelete || len(personal.AllowTools) != 1 || personal.AllowTools[0] != "docs.*" {
 		t.Fatalf("personal MCP policy = %#v", personal)
 	}
 }

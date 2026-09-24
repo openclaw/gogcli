@@ -68,9 +68,11 @@ func (c *GmailBatchDeleteCmd) Run(ctx context.Context, flags *RootFlags) error {
 }
 
 type GmailBatchModifyCmd struct {
-	MessageIDs []string `arg:"" name:"messageId" help:"Message IDs"`
-	Add        []string `name:"add" sep:"none" help:"Labels to add (comma-separated or repeated; name or ID)"`
-	Remove     []string `name:"remove" sep:"none" help:"Labels to remove (comma-separated or repeated; name or ID)"`
+	MessageIDs   []string `arg:"" name:"messageId" help:"Message IDs"`
+	Add          []string `name:"add" sep:"none" help:"Labels to add (comma-separated or repeated; name or ID)"`
+	Remove       []string `name:"remove" sep:"none" help:"Labels to remove (comma-separated or repeated; name or ID)"`
+	AddLabels    []string `name:"add-label" sep:"none" help:"Literal label name or ID to add (repeatable; commas and backslashes are preserved)"`
+	RemoveLabels []string `name:"remove-label" sep:"none" help:"Literal label name or ID to remove (repeatable; commas and backslashes are preserved)"`
 }
 
 func (c *GmailBatchModifyCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -86,10 +88,10 @@ func (c *GmailBatchModifyCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if len(ids) == 0 {
 		return usage("missing messageId")
 	}
-	addLabels := splitCSVAllRaw(c.Add)
-	removeLabels := splitCSVAllRaw(c.Remove)
+	addLabels := append(splitCSVAllRaw(c.Add), trimmedStrings(c.AddLabels)...)
+	removeLabels := append(splitCSVAllRaw(c.Remove), trimmedStrings(c.RemoveLabels)...)
 	if len(addLabels) == 0 && len(removeLabels) == 0 {
-		return usage("must specify --add and/or --remove")
+		return usage("must specify --add and/or --remove (or literal --add-label/--remove-label)")
 	}
 
 	if err := dryRunExit(ctx, flags, "gmail.batch.modify", map[string]any{

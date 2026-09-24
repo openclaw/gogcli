@@ -18,36 +18,44 @@ import (
 )
 
 type McpCmd struct {
-	AllowTool      []string `name:"allow-tool" aliases:"tool" sep:"," help:"Tool or service allowlist (default: all read-only tools). Examples: gmail.*,docs_get,sheets"`
-	AllowWrite     bool     `name:"allow-write" help:"Expose write tools. Write tools must also match --allow-tool when that flag is set."`
-	ListTools      bool     `name:"list-tools" help:"Print enabled MCP tools as JSON and exit"`
-	TimeoutSeconds int      `name:"timeout-seconds" help:"Per-tool subprocess timeout" default:"60"`
-	MaxOutputBytes int      `name:"max-output-bytes" help:"Max stdout/stderr bytes captured per tool call" default:"102400"`
+	AllowTool        []string `name:"allow-tool" aliases:"tool" sep:"none" help:"Tool or service allowlist (default: all read-only tools). Examples: gmail.*,docs_get,sheets"`
+	AllowWrite       bool     `name:"allow-write" help:"Expose write tools. Write tools must also match --allow-tool when that flag is set."`
+	AllowGmailSend   bool     `name:"allow-gmail-send" help:"Allow Gmail sending in addition to write authorization and tool selection"`
+	AllowGmailDelete bool     `name:"allow-gmail-delete" help:"Allow permanent Gmail deletion in addition to write authorization and tool selection; execution also requires --force"`
+	ListTools        bool     `name:"list-tools" help:"Print enabled MCP tools as JSON and exit"`
+	TimeoutSeconds   int      `name:"timeout-seconds" help:"Per-tool subprocess timeout" default:"60"`
+	MaxOutputBytes   int      `name:"max-output-bytes" help:"Max stdout/stderr bytes captured per tool call" default:"102400"`
 }
 
 type mcpToolRisk string
 
+type mcpToolCapability string
+
 const (
-	mcpRiskRead  mcpToolRisk = "read"
-	mcpRiskWrite mcpToolRisk = "write"
+	mcpRiskRead              mcpToolRisk       = "read"
+	mcpRiskWrite             mcpToolRisk       = "write"
+	mcpCapabilityGmailSend   mcpToolCapability = "gmail_send"
+	mcpCapabilityGmailDelete mcpToolCapability = "gmail_delete"
 )
 
 type mcpToolSpec struct {
 	Name        string
 	Service     string
 	Risk        mcpToolRisk
+	Capability  mcpToolCapability
 	Description string
 	Options     []mcp.ToolOption
 	BuildArgs   func(mcp.CallToolRequest) ([]string, error)
 }
 
 type mcpCommandResult struct {
-	Tool     string `json:"tool"`
-	Service  string `json:"service"`
-	Risk     string `json:"risk"`
-	ExitCode int    `json:"exit_code"`
-	Stdout   any    `json:"stdout,omitempty"`
-	Stderr   string `json:"stderr,omitempty"`
+	Tool       string `json:"tool"`
+	Service    string `json:"service"`
+	Risk       string `json:"risk"`
+	Capability string `json:"capability,omitempty"`
+	ExitCode   int    `json:"exit_code"`
+	Stdout     any    `json:"stdout,omitempty"`
+	Stderr     string `json:"stderr,omitempty"`
 }
 
 func (c *McpCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -100,6 +108,7 @@ func (c *McpCmd) Run(ctx context.Context, flags *RootFlags) error {
 				timeout:        timeout,
 				maxOutputBytes: maxOutputBytes,
 				accessToken:    directAccessToken(flags),
+				force:          flags != nil && flags.Force,
 			}), nil
 		})
 	}
@@ -136,6 +145,7 @@ type mcpRunOptions struct {
 	timeout        time.Duration
 	maxOutputBytes int
 	accessToken    string
+	force          bool
 }
 
 func mcpRunGogTool(reqCtx context.Context, opts mcpRunOptions) *mcp.CallToolResult {
@@ -145,6 +155,10 @@ func mcpRunGogTool(reqCtx context.Context, opts mcpRunOptions) *mcp.CallToolResu
 	args := make([]string, 0, len(opts.baseArgs)+len(opts.commandArgs)+len(opts.safetySuffix))
 	args = append(args, opts.baseArgs...)
 	args = append(args, opts.safetySuffix...)
+	// Only the server operator can authorize non-interactive deletion.
+	if opts.force && opts.tool.Capability == mcpCapabilityGmailDelete {
+		args = append(args, "--force")
+	}
 	args = append(args, opts.commandArgs...)
 
 	//nolint:gosec // argv comes from typed tool schemas, not model-supplied shell text.
@@ -171,12 +185,13 @@ func mcpRunGogTool(reqCtx context.Context, opts mcpRunOptions) *mcp.CallToolResu
 	}
 
 	result := mcpCommandResult{
-		Tool:     opts.tool.Name,
-		Service:  opts.tool.Service,
-		Risk:     string(opts.tool.Risk),
-		ExitCode: exitCode,
-		Stdout:   parseMCPStdout(stdoutBuf.String()),
-		Stderr:   stderrBuf.String(),
+		Tool:       opts.tool.Name,
+		Service:    opts.tool.Service,
+		Risk:       string(opts.tool.Risk),
+		Capability: string(opts.tool.Capability),
+		ExitCode:   exitCode,
+		Stdout:     parseMCPStdout(stdoutBuf.String()),
+		Stderr:     stderrBuf.String(),
 	}
 	callResult := mcp.NewToolResultStructuredOnly(result)
 	if exitCode != 0 {
@@ -251,22 +266,6 @@ func mcpParentSafetyArgs(flags *RootFlags) []string {
 	return out
 }
 
-func mcpEnabledTools(cmd McpCmd) []mcpToolSpec {
-	all := mcpAllTools()
-	allow := splitCommaValues(cmd.AllowTool)
-	out := make([]mcpToolSpec, 0, len(all))
-	for _, tool := range all {
-		if tool.Risk == mcpRiskWrite && !cmd.AllowWrite {
-			continue
-		}
-		if len(allow) > 0 && !mcpToolAllowed(tool, allow) {
-			continue
-		}
-		out = append(out, tool)
-	}
-	return out
-}
-
 func splitCommaValues(values []string) []string {
 	var out []string
 	for _, value := range values {
@@ -295,12 +294,16 @@ func mcpToolAllowed(tool mcpToolSpec, allow []string) bool {
 func mcpPrintTools(output io.Writer, tools []mcpToolSpec) error {
 	items := make([]map[string]string, 0, len(tools))
 	for _, tool := range tools {
-		items = append(items, map[string]string{
+		item := map[string]string{
 			"name":        tool.Name,
 			"service":     tool.Service,
 			"risk":        string(tool.Risk),
 			"description": tool.Description,
-		})
+		}
+		if tool.Capability != "" {
+			item["capability"] = string(tool.Capability)
+		}
+		items = append(items, item)
 	}
 	enc := json.NewEncoder(output)
 	enc.SetIndent("", "  ")

@@ -32,8 +32,10 @@ type MCPConfig struct {
 }
 
 type MCPPolicy struct {
-	AllowTools []string `json:"allow_tools"`
-	AllowWrite bool     `json:"allow_write,omitempty"`
+	AllowTools       []string `json:"allow_tools"`
+	AllowWrite       bool     `json:"allow_write,omitempty"`
+	AllowGmailSend   bool     `json:"allow_gmail_send,omitempty"`
+	AllowGmailDelete bool     `json:"allow_gmail_delete,omitempty"`
 }
 
 type ConfigStore struct {

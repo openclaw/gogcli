@@ -12,7 +12,7 @@ import (
 )
 
 func mcpAllTools() []mcpToolSpec {
-	return []mcpToolSpec{
+	return append([]mcpToolSpec{
 		mcpGmailSearchTool(),
 		mcpGmailGetMessageTool(),
 		mcpGmailGetThreadTool(),
@@ -23,7 +23,7 @@ func mcpAllTools() []mcpToolSpec {
 		mcpCalendarEventsTool(),
 		mcpDocsWriteTool(),
 		mcpSheetsUpdateRangeTool(),
-	}
+	}, mcpGmailMutationTools()...)
 }
 
 func mcpGmailSearchTool() mcpToolSpec {
