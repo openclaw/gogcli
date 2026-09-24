@@ -255,7 +255,7 @@ func (c *SheetsValidationClearCmd) Run(ctx context.Context, flags *RootFlags) er
 			return nil, "", usage("clearing table-managed dropdown validation requires --filtered-rows-included")
 		}
 		ordinaryRanges := sheetsvalidation.SubtractSpans(gridRange, tableSpans)
-		requests := make([]*sheets.Request, 0, len(ordinaryRanges)+len(tableRequests))
+		requests := make([]*sheets.Request, 0, len(ordinaryRanges))
 		for _, ordinaryRange := range ordinaryRanges {
 			requests = append(requests, &sheets.Request{
 				SetDataValidation: &sheets.SetDataValidationRequest{

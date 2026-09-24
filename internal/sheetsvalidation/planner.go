@@ -342,7 +342,7 @@ func SubtractSpans(target *sheets.GridRange, spans []Span) []*sheets.GridRange {
 			EndColumnIndex:   span.EndCol,
 		}
 
-		next := make([]*sheets.GridRange, 0, len(ranges)+3)
+		next := make([]*sheets.GridRange, 0, len(ranges))
 		for _, current := range ranges {
 			next = append(next, SubtractRange(current, cut)...)
 		}

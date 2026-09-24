@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 
 	"google.golang.org/api/googleapi"
@@ -110,10 +111,7 @@ func resolveGridRangeWithCatalog(input string, catalog *spreadsheetRangeCatalog,
 			}
 		}
 		if needSheetID {
-			fs := make([]string, len(gr.ForceSendFields), len(gr.ForceSendFields)+1)
-			copy(fs, gr.ForceSendFields)
-			fs = append(fs, "SheetId")
-			gr.ForceSendFields = fs
+			gr.ForceSendFields = append(slices.Clone(gr.ForceSendFields), "SheetId")
 		}
 		return &gr, nil
 	}
