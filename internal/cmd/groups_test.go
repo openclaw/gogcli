@@ -76,21 +76,18 @@ func TestTruncate(t *testing.T) {
 }
 
 func TestSearchTransitiveGroupsQuery(t *testing.T) {
-	got := searchTransitiveGroupsQuery("person@example.com")
-	if !strings.Contains(got, "member_key_id == 'person@example.com'") {
-		t.Fatalf("missing member_key_id clause: %q", got)
-	}
-	if !strings.Contains(got, "'"+groupLabelDiscussionForum+"' in labels") {
-		t.Fatalf("missing discussion label clause: %q", got)
-	}
-	if !strings.Contains(got, "'"+groupLabelDynamic+"' in labels") {
-		t.Fatalf("missing dynamic label clause: %q", got)
-	}
-}
-
-func TestSearchTransitiveGroupsQuery_EscapesSingleQuote(t *testing.T) {
-	got := searchTransitiveGroupsQuery("o'connor@example.com")
-	if !strings.Contains(got, "member_key_id == 'o\\'connor@example.com'") {
-		t.Fatalf("expected escaped single quote: %q", got)
+	for _, tc := range []struct{ input, escaped string }{
+		{input: "person@example.com", escaped: "person@example.com"},
+		{input: " \tPerson@Example.com\n", escaped: "Person@Example.com"},
+		{input: "o'connor@example.com", escaped: `o\'connor@example.com`},
+		{input: `o\'connor@example.com`, escaped: `o\\\'connor@example.com`},
+	} {
+		t.Run(tc.input, func(t *testing.T) {
+			got := searchTransitiveGroupsQuery(tc.input)
+			want := "member_key_id == '" + tc.escaped + "' && 'cloudidentity.googleapis.com/groups.discussion_forum' in labels"
+			if got != want {
+				t.Fatalf("query = %q, want %q", got, want)
+			}
+		})
 	}
 }

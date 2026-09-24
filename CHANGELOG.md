@@ -2,6 +2,7 @@
 
 ## 0.41.1 - Unreleased
 
+- Groups: use the documented single-label membership query in listings and backups, preserving native pagination and escaping member identities correctly. (#1059) — thanks @hengshan.
 - Docs: reject explicitly empty or whitespace-only `--batch` values before input or authentication, preventing accidental immediate edits when a batch variable is empty. (#1156)
 - Docs: return a nonzero exit status when `batch end --continue-on-error` retains failed requests, while preserving its result summary and successfully applied edits. (#1154)
 - Sheets: submit atomic structural request arrays with `sheets batch-request`, preserving explicit JSON values, previewing exact requests, and requiring explicit grants in restricted command policies. (#1108) — thanks @gurgeous.

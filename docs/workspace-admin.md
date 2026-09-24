@@ -150,7 +150,20 @@ gog --account admin@example.com admin orgunits delete Eng --force
 
 ## Groups
 
-Group commands share the same Admin SDK setup:
+To list your direct and indirect Cloud Identity memberships:
+
+```bash
+gog --account admin@example.com groups list --all --json
+```
+
+This requires eligible Workspace/Cloud Identity access, the Groups read-only
+scope, and permission to view the memberships. See Google's
+[transitive-membership requirements](https://docs.cloud.google.com/identity/docs/how-to/query-memberships).
+The command uses Google's documented query for all direct and indirect group
+memberships, excluding Cloud Search identity-mapped groups.
+`--page` continues from Google's opaque page token, and `--all` follows every page.
+
+The `admin groups` commands use the Admin SDK setup:
 
 ```bash
 gog --account admin@example.com admin groups list --domain example.com

@@ -19,7 +19,6 @@ const (
 	groupRoleMember  = "MEMBER"
 
 	groupLabelDiscussionForum = "cloudidentity.googleapis.com/groups.discussion_forum"
-	groupLabelDynamic         = "cloudidentity.googleapis.com/groups.dynamic"
 	groupReadonlyScope        = "https://www.googleapis.com/auth/cloud-identity.groups.readonly"
 
 	groupsWorkspaceRequiredMessage = "Cloud Identity Groups require a Google Workspace/Cloud Identity account; consumer accounts (gmail.com/googlemail.com) are not supported."
@@ -207,12 +206,13 @@ func wrapCloudIdentityError(err error, account string) error {
 }
 
 func searchTransitiveGroupsQuery(memberKeyID string) string {
-	memberKeyID = strings.ReplaceAll(strings.TrimSpace(memberKeyID), "'", "\\'")
+	memberKeyID = strings.ReplaceAll(strings.TrimSpace(memberKeyID), "\\", "\\\\")
+	memberKeyID = strings.ReplaceAll(memberKeyID, "'", "\\'")
+	// Follow Google's documented query for direct and indirect group memberships.
 	return fmt.Sprintf(
-		"member_key_id == '%s' && ('%s' in labels || '%s' in labels)",
+		"member_key_id == '%s' && '%s' in labels",
 		memberKeyID,
 		groupLabelDiscussionForum,
-		groupLabelDynamic,
 	)
 }
 
