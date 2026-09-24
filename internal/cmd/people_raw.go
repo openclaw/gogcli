@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"strings"
 )
 
@@ -100,13 +101,14 @@ func runPeopleRaw(ctx context.Context, flags *RootFlags, id, fields string, pret
 		}
 	}
 
-	person, err := svc.People.Get(resource).PersonFields(mask).Context(ctx).Do()
+	client, err := peopleContactsHTTPClient(ctx, account)
 	if err != nil {
 		return wrapPeopleAPIError(err)
 	}
-	person, err = requireRawResponse(person, "person not found")
+	endpoint := "https://people.googleapis.com/v1/people/" + url.PathEscape(strings.TrimPrefix(resource, "people/"))
+	person, err := readRawObject(ctx, client, endpoint, url.Values{"personFields": {mask}}, "person")
 	if err != nil {
-		return err
+		return wrapPeopleAPIError(err)
 	}
 
 	return writeRawJSON(ctx, person, pretty)

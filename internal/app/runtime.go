@@ -51,6 +51,7 @@ type (
 	AnalyticsAdminServiceFactory func(context.Context, string) (*analyticsadmin.Service, error)
 	AnalyticsDataServiceFactory  func(context.Context, string) (*analyticsdata.Service, error)
 	CalendarServiceFactory       func(context.Context, string) (*calendar.Service, error)
+	HTTPClientFactory            func(context.Context, string) (*http.Client, error)
 	ChatServiceFactory           func(context.Context, string) (*chat.Service, error)
 	ChatSearchServiceFactory     func(context.Context, string) (*googleapi.ChatSearchClient, error)
 	ClassroomServiceFactory      func(context.Context, string) (*classroom.Service, error)
@@ -140,6 +141,14 @@ type Services struct {
 	PublicImageAspect PublicImageAspectFunc
 
 	ConnectedSheetsWriter SheetsServiceFactory
+
+	CalendarHTTP       HTTPClientFactory
+	DriveHTTP          HTTPClientFactory
+	FormsHTTP          HTTPClientFactory
+	GmailHTTP          HTTPClientFactory
+	PeopleContactsHTTP HTTPClientFactory
+	SlidesHTTP         HTTPClientFactory
+	TasksHTTP          HTTPClientFactory
 }
 
 type AuthOperations struct {

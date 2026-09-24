@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"strings"
 	"testing"
 
@@ -35,10 +36,12 @@ func readLiveVerificationDocument(account, docID string, runtime *app.Runtime) (
 func TestLiveVerificationDocumentRead(t *testing.T) {
 	want := &docs.Document{DocumentId: "fixture", Body: &docs.Body{Content: []*docs.StructuralElement{{StartIndex: 1, Paragraph: &docs.Paragraph{Elements: []*docs.ParagraphElement{{TextRun: &docs.TextRun{Content: "proof\n"}}}}}}}}
 	svc := newDocsDocumentTestService(t, want, nil)
-	runtime := &app.Runtime{KeyringOptions: testKeyringOptions(), Services: app.Services{Docs: func(ctx context.Context, account string) (*docs.Service, error) {
+	client, err := docsHTTPClient(withRawTestHTTP(t, t.Context(), svc.BasePath), "proof@example.com")
+	require.NoError(t, err)
+	runtime := &app.Runtime{KeyringOptions: testKeyringOptions(), Services: app.Services{DocsHTTP: func(ctx context.Context, account string) (*http.Client, error) {
 		require.True(t, googleapi.ReadOnly(ctx))
 		require.Equal(t, "proof@example.com", account)
-		return svc, nil
+		return client, nil
 	}}}
 	got, err := readLiveVerificationDocument("proof@example.com", "fixture", runtime)
 	require.NoError(t, err)
@@ -47,7 +50,7 @@ func TestLiveVerificationDocumentRead(t *testing.T) {
 
 func TestLiveVerificationReadFailure(t *testing.T) {
 	want := errors.New("fixture read failed")
-	runtime := &app.Runtime{KeyringOptions: testKeyringOptions(), Services: app.Services{Docs: func(context.Context, string) (*docs.Service, error) { return nil, want }}}
+	runtime := &app.Runtime{KeyringOptions: testKeyringOptions(), Services: app.Services{DocsHTTP: func(context.Context, string) (*http.Client, error) { return nil, want }}}
 	doc, err := readLiveVerificationDocument("proof@example.com", "fixture", runtime)
 	require.ErrorIs(t, err, want)
 	require.Nil(t, doc)

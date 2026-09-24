@@ -35,7 +35,7 @@ func newPeopleRawTestServer(t *testing.T, status int, body map[string]any) *http
 func withMockPeopleContactsService(t *testing.T, ctx context.Context, srv *httptest.Server) context.Context {
 	t.Helper()
 	svc := newGoogleTestServiceWithEndpoint(t, srv.Client(), srv.URL+"/", people.NewService)
-	return withPeopleContactsTestService(ctx, svc)
+	return withRawTestHTTP(t, withPeopleContactsTestService(ctx, svc), srv.URL)
 }
 
 func fullPersonResponse() map[string]any {

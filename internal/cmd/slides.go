@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"strings"
 
@@ -68,16 +69,12 @@ func (c *SlidesRawCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if err != nil {
 		return err
 	}
-	svc, err := slidesService(ctx, account)
+	client, err := slidesHTTPClient(ctx, account)
 	if err != nil {
 		return err
 	}
 
-	pres, err := svc.Presentations.Get(id).Context(ctx).Do()
-	if err != nil {
-		return err
-	}
-	pres, err = requireRawResponse(pres, "presentation not found")
+	pres, err := readRawObject(ctx, client, "https://slides.googleapis.com/v1/presentations/"+url.PathEscape(id), nil, "presentation")
 	if err != nil {
 		return err
 	}

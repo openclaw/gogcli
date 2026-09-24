@@ -83,6 +83,10 @@ func (f Factory) Calendar(ctx context.Context, account string) (*calendar.Servic
 	return NewCalendar(f.withAuth(ctx), account)
 }
 
+func (f Factory) CalendarHTTP(ctx context.Context, account string) (*http.Client, error) {
+	return NewHTTPClient(f.withAuth(ctx), googleauth.ServiceCalendar, account)
+}
+
 func (f Factory) Chat(ctx context.Context, account string) (*chat.Service, error) {
 	return NewChat(f.withAuth(ctx), account)
 }
@@ -111,6 +115,10 @@ func (f Factory) Drive(ctx context.Context, account string) (*drive.Service, err
 	return NewDrive(f.withAuth(ctx), account)
 }
 
+func (f Factory) DriveHTTP(ctx context.Context, account string) (*http.Client, error) {
+	return NewHTTPClient(f.withAuth(ctx), googleauth.ServiceDrive, account)
+}
+
 func (f Factory) DriveV2(ctx context.Context, account string) (*drivev2.Service, error) {
 	return NewDriveV2(f.withAuth(ctx), account)
 }
@@ -127,8 +135,16 @@ func (f Factory) Forms(ctx context.Context, account string) (*forms.Service, err
 	return NewForms(f.withAuth(ctx), account)
 }
 
+func (f Factory) FormsHTTP(ctx context.Context, account string) (*http.Client, error) {
+	return NewHTTPClient(f.withAuth(ctx), googleauth.ServiceForms, account)
+}
+
 func (f Factory) Gmail(ctx context.Context, account string) (*gmail.Service, error) {
 	return NewGmail(f.withAuth(ctx), account)
+}
+
+func (f Factory) GmailHTTP(ctx context.Context, account string) (*http.Client, error) {
+	return NewHTTPClient(f.withAuth(ctx), googleauth.ServiceGmail, account)
 }
 
 func (f Factory) GmailDelete(ctx context.Context, account string) (*gmail.Service, error) {
@@ -145,6 +161,10 @@ func (f Factory) Meet(ctx context.Context, account string) (*meet.Service, error
 
 func (f Factory) PeopleContacts(ctx context.Context, account string) (*people.Service, error) {
 	return NewPeopleContacts(f.withAuth(ctx), account)
+}
+
+func (f Factory) PeopleContactsHTTP(ctx context.Context, account string) (*http.Client, error) {
+	return NewHTTPClientForScopes(f.withAuth(ctx), "contacts", account, []string{scopeContactsWrite})
 }
 
 func (f Factory) PeopleDirectory(ctx context.Context, account string) (*people.Service, error) {
@@ -191,8 +211,16 @@ func (f Factory) Slides(ctx context.Context, account string) (*slides.Service, e
 	return NewSlides(f.withAuth(ctx), account)
 }
 
+func (f Factory) SlidesHTTP(ctx context.Context, account string) (*http.Client, error) {
+	return NewHTTPClient(f.withAuth(ctx), googleauth.ServiceSlides, account)
+}
+
 func (f Factory) Tasks(ctx context.Context, account string) (*tasks.Service, error) {
 	return NewTasks(f.withAuth(ctx), account)
+}
+
+func (f Factory) TasksHTTP(ctx context.Context, account string) (*http.Client, error) {
+	return NewHTTPClient(f.withAuth(ctx), googleauth.ServiceTasks, account)
 }
 
 func (f Factory) YouTubeAPIKey(ctx context.Context, apiKey string) (*youtube.Service, error) {

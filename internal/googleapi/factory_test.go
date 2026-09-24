@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 
 	"golang.org/x/oauth2"
@@ -13,6 +14,23 @@ import (
 )
 
 var errCapturedADC = errors.New("captured ADC")
+
+func TestPeopleContactsHTTPPreservesContactOnlyScope(t *testing.T) {
+	t.Parallel()
+	var captured []string
+	factory := NewFactory(AuthDependencies{
+		Mode: AuthModeADC,
+		ADCTokenSource: func(_ context.Context, scopes ...string) (oauth2.TokenSource, error) {
+			captured = append([]string(nil), scopes...)
+			return nil, errCapturedADC
+		},
+	}, FactoryOptions{})
+
+	_, err := factory.PeopleContactsHTTP(context.Background(), "user@example.com")
+	if !errors.Is(err, errCapturedADC) || !reflect.DeepEqual(captured, []string{"https://www.googleapis.com/auth/contacts"}) {
+		t.Fatalf("error=%v, scopes=%v", err, captured)
+	}
+}
 
 func TestFactoryBuildsRepresentativeServices(t *testing.T) {
 	t.Parallel()

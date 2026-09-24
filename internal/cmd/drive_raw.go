@@ -4,9 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"strings"
-
-	gapi "google.golang.org/api/googleapi"
 )
 
 // driveRawSensitiveFields is the set of top-level File fields redacted from
@@ -47,7 +46,7 @@ func (c *DriveRawCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if err != nil {
 		return err
 	}
-	svc, err := driveService(ctx, account)
+	client, err := driveHTTPClient(ctx, account)
 	if err != nil {
 		return err
 	}
@@ -58,38 +57,49 @@ func (c *DriveRawCmd) Run(ctx context.Context, flags *RootFlags) error {
 		mask = c.Fields
 	}
 
-	f, err := svc.Files.Get(fileID).
-		SupportsAllDrives(true).
-		Fields(gapi.Field(mask)).
-		Context(ctx).
-		Do()
+	m, err := readRawObject(ctx, client, "https://www.googleapis.com/drive/v3/files/"+url.PathEscape(fileID), url.Values{
+		"supportsAllDrives": {"true"}, "fields": {mask},
+	}, "file")
 	if err != nil {
 		return err
-	}
-	f, err = requireRawResponse(f, "file not found")
-	if err != nil {
-		return err
-	}
-
-	raw, err := json.Marshal(f)
-	if err != nil {
-		return fmt.Errorf("marshal drive file: %w", err)
-	}
-	var m map[string]any
-	if err := json.Unmarshal(raw, &m); err != nil {
-		return fmt.Errorf("unmarshal drive file: %w", err)
 	}
 
 	if !userSetFields {
 		for _, key := range driveRawSensitiveFields {
 			delete(m, key)
 		}
-		if hints, ok := m["contentHints"].(map[string]any); ok {
-			if thumb, ok := hints["thumbnail"].(map[string]any); ok {
-				delete(thumb, "image")
-			}
+		if err := redactDriveRawThumbnail(m); err != nil {
+			return err
 		}
 	}
 
 	return writeRawJSON(ctx, m, c.Pretty)
+}
+
+func redactDriveRawThumbnail(fields map[string]json.RawMessage) error {
+	if len(fields["contentHints"]) == 0 {
+		return nil
+	}
+	var hints map[string]json.RawMessage
+	if err := json.Unmarshal(fields["contentHints"], &hints); err != nil {
+		return fmt.Errorf("decode drive content hints: %w", err)
+	}
+	if len(hints["thumbnail"]) == 0 {
+		return nil
+	}
+	var thumbnail map[string]json.RawMessage
+	if err := json.Unmarshal(hints["thumbnail"], &thumbnail); err != nil {
+		return fmt.Errorf("decode drive thumbnail: %w", err)
+	}
+	if _, ok := thumbnail["image"]; !ok {
+		return nil
+	}
+	delete(thumbnail, "image")
+	var err error
+	hints["thumbnail"], err = json.Marshal(thumbnail)
+	if err != nil {
+		return err
+	}
+	fields["contentHints"], err = json.Marshal(hints)
+	return err
 }

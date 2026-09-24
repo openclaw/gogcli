@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"net/url"
 )
 
 // CalendarRawCmd dumps the full Events.Get response as JSON, using the
@@ -40,11 +41,12 @@ func (c *CalendarRawCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
-	event, err := svc.Events.Get(calendarID, eventID).Context(ctx).Do()
+	client, err := calendarHTTPClient(ctx, account)
 	if err != nil {
 		return err
 	}
-	event, err = requireRawResponse(event, "event not found")
+	endpoint := "https://www.googleapis.com/calendar/v3/calendars/" + url.PathEscape(calendarID) + "/events/" + url.PathEscape(eventID)
+	event, err := readRawObject(ctx, client, endpoint, nil, "event")
 	if err != nil {
 		return err
 	}

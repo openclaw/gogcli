@@ -3,14 +3,9 @@ package cmd
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
-	"io"
-	"net/http"
 	"net/url"
 	"strings"
-
-	gapi "google.golang.org/api/googleapi"
 
 	"github.com/openclaw/gogcli/internal/ui"
 )
@@ -49,31 +44,10 @@ func (c *SheetsRawCmd) Run(ctx context.Context, flags *RootFlags) error {
 		query.Set("includeGridData", "true")
 		u.Err().Println("warning: --include-grid-data may expose cell-level formulas that contain API keys or hardcoded secrets")
 	}
-	endpoint := sheetsRawBaseURL + "/spreadsheets/" + url.PathEscape(spreadsheetID) + "?" + query.Encode()
-	request, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	endpoint := sheetsRawBaseURL + "/spreadsheets/" + url.PathEscape(spreadsheetID)
+	fields, err := readRawObject(ctx, client, endpoint, query, "spreadsheet")
 	if err != nil {
-		return fmt.Errorf("create Sheets read request: %w", err)
-	}
-	readClient := *client
-	readClient.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
-	response, err := readClient.Do(request)
-	if err != nil {
-		return fmt.Errorf("get spreadsheet: %w", err)
-	}
-	defer response.Body.Close()
-	if checkErr := gapi.CheckResponse(response); checkErr != nil {
-		return checkErr
-	}
-	raw, err := io.ReadAll(response.Body)
-	if err != nil {
-		return fmt.Errorf("read spreadsheet response: %w", err)
-	}
-	var fields map[string]json.RawMessage
-	if err := json.Unmarshal(raw, &fields); err != nil {
-		return fmt.Errorf("decode spreadsheet response: %w", err)
-	}
-	if fields == nil {
-		return errors.New("spreadsheet not found")
+		return err
 	}
 	if metadata, ok := fields["developerMetadata"]; ok {
 		var entries []json.RawMessage
@@ -84,5 +58,5 @@ func (c *SheetsRawCmd) Run(ctx context.Context, flags *RootFlags) error {
 			u.Err().Println("warning: response contains developerMetadata which may hold third-party app secrets")
 		}
 	}
-	return writeRawJSON(ctx, json.RawMessage(raw), c.Pretty)
+	return writeRawJSON(ctx, fields, c.Pretty)
 }

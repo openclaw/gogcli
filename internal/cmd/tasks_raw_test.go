@@ -40,7 +40,7 @@ func tasksRawTestContext(t *testing.T, srv *httptest.Server) (context.Context, *
 	t.Helper()
 	output := &bytes.Buffer{}
 	ctx := withTasksTestService(newCmdRuntimeOutputContext(t, output, io.Discard), newTasksServiceFromServer(t, srv))
-	return ctx, output
+	return withRawTestHTTP(t, ctx, srv.URL), output
 }
 
 func fullTaskResponse(id string) map[string]any {

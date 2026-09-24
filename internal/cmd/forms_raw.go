@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"net/url"
 	"strings"
 )
 
@@ -24,16 +25,12 @@ func (c *FormsRawCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if err != nil {
 		return err
 	}
-	svc, err := formsService(ctx, account)
+	client, err := formsHTTPClient(ctx, account)
 	if err != nil {
 		return err
 	}
 
-	form, err := svc.Forms.Get(formID).Context(ctx).Do()
-	if err != nil {
-		return err
-	}
-	form, err = requireRawResponse(form, "form not found")
+	form, err := readRawObject(ctx, client, "https://forms.googleapis.com/v1/forms/"+url.PathEscape(formID), nil, "form")
 	if err != nil {
 		return err
 	}

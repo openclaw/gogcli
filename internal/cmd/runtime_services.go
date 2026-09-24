@@ -63,6 +63,9 @@ func composeRuntimeGoogleServices(runtime *app.Runtime, factory googleapi.Factor
 	if services.Calendar == nil {
 		services.Calendar = factory.Calendar
 	}
+	if services.CalendarHTTP == nil {
+		services.CalendarHTTP = factory.CalendarHTTP
+	}
 	if services.Chat == nil {
 		services.Chat = factory.Chat
 	}
@@ -84,6 +87,9 @@ func composeRuntimeGoogleServices(runtime *app.Runtime, factory googleapi.Factor
 	if services.Drive == nil {
 		services.Drive = factory.Drive
 	}
+	if services.DriveHTTP == nil {
+		services.DriveHTTP = factory.DriveHTTP
+	}
 	if services.DriveV2 == nil {
 		services.DriveV2 = factory.DriveV2
 	}
@@ -96,8 +102,14 @@ func composeRuntimeGoogleServices(runtime *app.Runtime, factory googleapi.Factor
 	if services.Forms == nil {
 		services.Forms = factory.Forms
 	}
+	if services.FormsHTTP == nil {
+		services.FormsHTTP = factory.FormsHTTP
+	}
 	if services.Gmail == nil {
 		services.Gmail = factory.Gmail
+	}
+	if services.GmailHTTP == nil {
+		services.GmailHTTP = factory.GmailHTTP
 	}
 	if services.GmailDelete == nil {
 		services.GmailDelete = factory.GmailDelete
@@ -110,6 +122,9 @@ func composeRuntimeGoogleServices(runtime *app.Runtime, factory googleapi.Factor
 	}
 	if services.PeopleContacts == nil {
 		services.PeopleContacts = factory.PeopleContacts
+	}
+	if services.PeopleContactsHTTP == nil {
+		services.PeopleContactsHTTP = factory.PeopleContactsHTTP
 	}
 	if services.PeopleDirectory == nil {
 		services.PeopleDirectory = factory.PeopleDirectory
@@ -144,8 +159,14 @@ func composeRuntimeGoogleServices(runtime *app.Runtime, factory googleapi.Factor
 	if services.Slides == nil {
 		services.Slides = factory.Slides
 	}
+	if services.SlidesHTTP == nil {
+		services.SlidesHTTP = factory.SlidesHTTP
+	}
 	if services.Tasks == nil {
 		services.Tasks = factory.Tasks
+	}
+	if services.TasksHTTP == nil {
+		services.TasksHTTP = factory.TasksHTTP
 	}
 	if services.YouTubeAPIKey == nil {
 		services.YouTubeAPIKey = factory.YouTubeAPIKey
@@ -167,6 +188,62 @@ func runtimeWithService(ctx context.Context, name string) (*app.Runtime, error) 
 		return nil, fmt.Errorf("%w: %s", errRuntimeServiceRequired, name)
 	}
 	return runtime, nil
+}
+
+func calendarHTTPClient(ctx context.Context, account string) (*http.Client, error) {
+	runtime, err := runtimeWithService(ctx, "calendar HTTP")
+	if err != nil || runtime.Services.CalendarHTTP == nil {
+		return nil, serviceError(err, "calendar HTTP")
+	}
+	return runtime.Services.CalendarHTTP(ctx, account)
+}
+
+func driveHTTPClient(ctx context.Context, account string) (*http.Client, error) {
+	runtime, err := runtimeWithService(ctx, "drive HTTP")
+	if err != nil || runtime.Services.DriveHTTP == nil {
+		return nil, serviceError(err, "drive HTTP")
+	}
+	return runtime.Services.DriveHTTP(ctx, account)
+}
+
+func formsHTTPClient(ctx context.Context, account string) (*http.Client, error) {
+	runtime, err := runtimeWithService(ctx, "forms HTTP")
+	if err != nil || runtime.Services.FormsHTTP == nil {
+		return nil, serviceError(err, "forms HTTP")
+	}
+	return runtime.Services.FormsHTTP(ctx, account)
+}
+
+func gmailHTTPClient(ctx context.Context, account string) (*http.Client, error) {
+	runtime, err := runtimeWithService(ctx, "gmail HTTP")
+	if err != nil || runtime.Services.GmailHTTP == nil {
+		return nil, serviceError(err, "gmail HTTP")
+	}
+	return runtime.Services.GmailHTTP(ctx, account)
+}
+
+func peopleContactsHTTPClient(ctx context.Context, account string) (*http.Client, error) {
+	runtime, err := runtimeWithService(ctx, "contacts HTTP")
+	if err != nil || runtime.Services.PeopleContactsHTTP == nil {
+		return nil, serviceError(err, "contacts HTTP")
+	}
+	return runtime.Services.PeopleContactsHTTP(ctx, account)
+}
+
+func slidesHTTPClient(ctx context.Context, account string) (*http.Client, error) {
+	runtime, err := runtimeWithService(ctx, "slides HTTP")
+	if err != nil || runtime.Services.SlidesHTTP == nil {
+		return nil, serviceError(err, "slides HTTP")
+	}
+	return runtime.Services.SlidesHTTP(ctx, account)
+}
+
+func tasksHTTPClient(ctx context.Context, account string) (*http.Client, error) {
+	runtime, err := runtimeWithService(ctx, "tasks HTTP")
+	if err != nil || runtime.Services.TasksHTTP == nil {
+		return nil, serviceError(err, "tasks HTTP")
+	}
+	return runtime.Services.TasksHTTP(ctx, account)
 }
 
 func adminDirectoryService(ctx context.Context, account string) (*admin.Service, error) {

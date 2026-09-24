@@ -68,7 +68,7 @@ func executeWithFormsTestServiceFactory(t *testing.T, args []string, factory app
 func formsRawTestContext(t *testing.T, svc *formsapi.Service) (context.Context, *bytes.Buffer) {
 	t.Helper()
 	output := &bytes.Buffer{}
-	return withFormsTestService(newCmdRuntimeOutputContext(t, output, io.Discard), svc), output
+	return withRawTestHTTP(t, newCmdRuntimeOutputContext(t, output, io.Discard), svc.BasePath), output
 }
 
 func newQuietUIContext(t *testing.T) context.Context {

@@ -69,6 +69,7 @@ func TestSlidesRaw_HappyPath(t *testing.T) {
 		newCmdRuntimeOutputContext(t, &out, io.Discard),
 		newMockSlidesService(t, srv),
 	)
+	ctx = withRawTestHTTP(t, ctx, srv.URL)
 	flags := &RootFlags{Account: "a@b.com"}
 	if err := runKong(t, &SlidesRawCmd{}, []string{"p1"}, ctx, flags); err != nil {
 		t.Fatalf("run: %v", err)
@@ -94,6 +95,7 @@ func TestSlidesRaw_APIError(t *testing.T) {
 		newCmdRuntimeOutputContext(t, io.Discard, io.Discard),
 		newMockSlidesService(t, srv),
 	)
+	ctx = withRawTestHTTP(t, ctx, srv.URL)
 	flags := &RootFlags{Account: "a@b.com"}
 	if err := runKong(t, &SlidesRawCmd{}, []string{"p1"}, ctx, flags); err == nil {
 		t.Fatalf("expected error on 500")
@@ -108,6 +110,7 @@ func TestSlidesRaw_NotFound(t *testing.T) {
 		newCmdRuntimeOutputContext(t, io.Discard, io.Discard),
 		newMockSlidesService(t, srv),
 	)
+	ctx = withRawTestHTTP(t, ctx, srv.URL)
 	flags := &RootFlags{Account: "a@b.com"}
 	if err := runKong(t, &SlidesRawCmd{}, []string{"p1"}, ctx, flags); err == nil {
 		t.Fatalf("expected error on 404")

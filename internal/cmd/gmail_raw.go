@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"net/url"
 	"strings"
 )
 
@@ -42,16 +43,12 @@ func (c *GmailRawCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if err != nil {
 		return err
 	}
-	svc, err := gmailService(ctx, account)
+	client, err := gmailHTTPClient(ctx, account)
 	if err != nil {
 		return err
 	}
 
-	msg, err := svc.Users.Messages.Get("me", messageID).Format(format).Context(ctx).Do()
-	if err != nil {
-		return err
-	}
-	msg, err = requireRawResponse(msg, "message not found")
+	msg, err := readRawObject(ctx, client, "https://gmail.googleapis.com/gmail/v1/users/me/messages/"+url.PathEscape(messageID), url.Values{"format": {format}}, "message")
 	if err != nil {
 		return err
 	}

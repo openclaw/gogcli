@@ -2,8 +2,10 @@ package cmd
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"strings"
 
@@ -98,39 +100,89 @@ func (c *DocsRawCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return usage("--tab and --all-tabs cannot be used together")
 	}
 
-	svc, err := requireDocsService(ctx, flags)
+	account, err := requireAccount(flags)
 	if err != nil {
 		return err
 	}
-
-	getCall := svc.Documents.Get(id).Context(ctx)
-	if strings.TrimSpace(c.Tab) != "" || c.AllTabs {
-		getCall = getCall.IncludeTabsContent(true)
+	client, err := docsHTTPClient(ctx, account)
+	if err != nil {
+		return err
 	}
-	doc, err := getCall.Do()
+	query := make(url.Values)
+	if strings.TrimSpace(c.Tab) != "" || c.AllTabs {
+		query.Set("includeTabsContent", "true")
+	}
+	doc, err := readRawObject(ctx, client, "https://docs.googleapis.com/v1/documents/"+url.PathEscape(id), query, "doc")
 	if err != nil {
 		if isDocsNotFound(err) {
 			return fmt.Errorf("doc not found or not a Google Doc (id=%s)", id)
 		}
 		return err
 	}
-	doc, err = requireRawResponse(doc, "doc not found")
-	if err != nil {
-		return err
-	}
-
 	if strings.TrimSpace(c.Tab) != "" {
-		tab, tabErr := findTab(flattenTabs(doc.Tabs), c.Tab)
-		if tabErr != nil {
-			return tabErr
-		}
-		doc, err = projectRawDocumentTab(doc, tab)
+		doc, err = projectRawDocumentJSONTab(doc, c.Tab)
 		if err != nil {
 			return err
 		}
 	}
 
 	return writeRawJSON(ctx, doc, c.Pretty)
+}
+
+type rawDocumentTab struct {
+	TabProperties *docs.TabProperties        `json:"tabProperties"`
+	DocumentTab   map[string]json.RawMessage `json:"documentTab"`
+	ChildTabs     []*rawDocumentTab          `json:"childTabs"`
+}
+
+func projectRawDocumentJSONTab(doc map[string]json.RawMessage, query string) (map[string]json.RawMessage, error) {
+	var rawTabs []*rawDocumentTab
+	if raw := doc["tabs"]; len(raw) > 0 {
+		if err := json.Unmarshal(raw, &rawTabs); err != nil {
+			return nil, fmt.Errorf("decode document tabs: %w", err)
+		}
+	}
+	var tabs []*docs.Tab
+	content := make(map[*docs.Tab]map[string]json.RawMessage)
+	var collect func([]*rawDocumentTab)
+	collect = func(rawTabs []*rawDocumentTab) {
+		for _, rawTab := range rawTabs {
+			if rawTab == nil {
+				continue
+			}
+			tab := &docs.Tab{TabProperties: rawTab.TabProperties}
+			tabs = append(tabs, tab)
+			content[tab] = rawTab.DocumentTab
+			collect(rawTab.ChildTabs)
+		}
+	}
+	collect(rawTabs)
+	tab, err := findTab(tabs, query)
+	if err != nil {
+		return nil, err
+	}
+	if content[tab] == nil {
+		return nil, errors.New("selected tab has no document content")
+	}
+	identity := make(map[string]json.RawMessage)
+	for _, key := range []string{"documentId", "title", "revisionId", "suggestionsViewMode"} {
+		identity[key] = doc[key]
+	}
+	// Clear the first tab's legacy fields before projecting the selected tab.
+	for _, key := range []string{"tabs", "body", "documentStyle", "footers", "footnotes", "headers", "inlineObjects", "lists", "namedRanges", "namedStyles", "positionedObjects", "suggestedDocumentStyleChanges", "suggestedNamedStylesChanges"} {
+		delete(doc, key)
+	}
+	for key, value := range content[tab] {
+		doc[key] = value
+	}
+	for key, value := range identity {
+		if len(value) == 0 {
+			delete(doc, key)
+		} else {
+			doc[key] = value
+		}
+	}
+	return doc, nil
 }
 
 func projectRawDocumentTab(doc *docs.Document, tab *docs.Tab) (*docs.Document, error) {

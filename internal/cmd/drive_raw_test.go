@@ -10,8 +10,6 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
-
-	"google.golang.org/api/drive/v3"
 )
 
 type driveRawHit struct {
@@ -43,8 +41,7 @@ func newDriveRawTestServer(t *testing.T, status int, body map[string]any, hit *d
 
 func driveRawTestContext(t *testing.T, srv *httptest.Server, stdout io.Writer) context.Context {
 	t.Helper()
-	svc := newGoogleTestServiceWithEndpoint(t, srv.Client(), srv.URL+"/", drive.NewService)
-	return withDriveTestService(newCmdRuntimeOutputContext(t, stdout, io.Discard), svc)
+	return withRawTestHTTP(t, newCmdRuntimeOutputContext(t, stdout, io.Discard), srv.URL)
 }
 
 // sensitiveDriveFile returns a File response containing every sensitive

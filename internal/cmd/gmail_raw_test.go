@@ -63,6 +63,7 @@ func TestGmailRaw_HappyPath_DefaultFormatFull(t *testing.T) {
 		newCmdRuntimeOutputContext(t, &out, io.Discard),
 		newGmailServiceFromServer(t, srv),
 	)
+	ctx = withRawTestHTTP(t, ctx, srv.URL)
 	flags := &RootFlags{Account: "a@b.com"}
 	if err := runKong(t, &GmailRawCmd{}, []string{"m1"}, ctx, flags); err != nil {
 		t.Fatalf("run: %v", err)
@@ -96,6 +97,7 @@ func TestGmailRaw_FormatPropagation(t *testing.T) {
 				newCmdRuntimeOutputContext(t, io.Discard, io.Discard),
 				newGmailServiceFromServer(t, srv),
 			)
+			ctx = withRawTestHTTP(t, ctx, srv.URL)
 			flags := &RootFlags{Account: "a@b.com"}
 			if err := runKong(t, &GmailRawCmd{}, []string{"m1", "--format", fmt}, ctx, flags); err != nil {
 				t.Fatalf("run: %v", err)
@@ -127,6 +129,7 @@ func TestGmailRaw_APIError(t *testing.T) {
 		newCmdRuntimeOutputContext(t, io.Discard, io.Discard),
 		newGmailServiceFromServer(t, srv),
 	)
+	ctx = withRawTestHTTP(t, ctx, srv.URL)
 	flags := &RootFlags{Account: "a@b.com"}
 	if err := runKong(t, &GmailRawCmd{}, []string{"m1"}, ctx, flags); err == nil {
 		t.Fatalf("expected error on 500")
@@ -141,6 +144,7 @@ func TestGmailRaw_NotFound(t *testing.T) {
 		newCmdRuntimeOutputContext(t, io.Discard, io.Discard),
 		newGmailServiceFromServer(t, srv),
 	)
+	ctx = withRawTestHTTP(t, ctx, srv.URL)
 	flags := &RootFlags{Account: "a@b.com"}
 	if err := runKong(t, &GmailRawCmd{}, []string{"m1"}, ctx, flags); err == nil {
 		t.Fatalf("expected error on 404")

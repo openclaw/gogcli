@@ -41,10 +41,13 @@ apostrophes are treated as tab names. Spreadsheet-level metadata remains in
 the raw response; grid data still requires `--include-grid-data`. Omitting
 `--sheet` returns every tab as before.
 
-Sheets raw output preserves Google's JSON fields directly, including explicit
+Raw output preserves Google's JSON fields directly, including explicit
 zero IDs and indexes, false flags, empty values, nulls, and fields added after
 gog's Google SDK version. Pretty printing retains that structure, and
 untrusted-content wrapping marks fetched text without dropping API fields.
+Drive still applies its documented default redaction, and selecting one Docs
+tab projects that tab's content into the legacy document shape. These operations
+also preserve explicit values and unknown fields in the retained content.
 
 `gog docs raw --tab` resolves a tab title or ID and projects that tab into the
 legacy top-level `Document` fields such as `body`, `lists`, and

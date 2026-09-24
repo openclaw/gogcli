@@ -166,7 +166,7 @@ func rawTestContext(t *testing.T) context.Context {
 func docsRawTestContext(t *testing.T, svc *docs.Service) (context.Context, *bytes.Buffer) {
 	t.Helper()
 	output := &bytes.Buffer{}
-	return withDocsTestService(newCmdRuntimeOutputContext(t, output, io.Discard), svc), output
+	return withRawTestHTTP(t, newCmdRuntimeOutputContext(t, output, io.Discard), svc.BasePath), output
 }
 
 func TestDocsRaw_HappyPath(t *testing.T) {

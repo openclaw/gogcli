@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"net/url"
 	"strings"
 )
 
@@ -38,11 +39,12 @@ func (c *TasksRawCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
-	task, err := svc.Tasks.Get(tasklistID, taskID).Context(ctx).Do()
+	client, err := tasksHTTPClient(ctx, account)
 	if err != nil {
 		return err
 	}
-	task, err = requireRawResponse(task, "task not found")
+	endpoint := "https://tasks.googleapis.com/tasks/v1/lists/" + url.PathEscape(tasklistID) + "/tasks/" + url.PathEscape(taskID)
+	task, err := readRawObject(ctx, client, endpoint, nil, "task")
 	if err != nil {
 		return err
 	}
