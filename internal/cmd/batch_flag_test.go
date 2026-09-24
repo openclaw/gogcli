@@ -14,6 +14,13 @@ import (
 
 func TestExecuteRejectsEmptyBatchFlag(t *testing.T) {
 	commands := [][]string{
+		{"forms", "add-question", "form1", "--title", "Question"},
+		{"forms", "delete-question", "form1", "0"},
+		{"forms", "move-question", "form1", "0", "1"},
+		{"forms", "update", "form1", "--quiz=false"},
+		{"forms", "questions", "add", "form1", "--title", "Question"},
+		{"forms", "questions", "delete", "form1", "0"},
+		{"forms", "questions", "move", "form1", "0", "1"},
 		{"docs", "write", "doc1", "--text", "text"},
 		{"docs", "update", "doc1", "--text", "text"},
 		{"docs", "insert", "doc1", "text", "--index", "1"},

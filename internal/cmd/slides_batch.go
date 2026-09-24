@@ -1,17 +1,14 @@
 package cmd
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"maps"
-	"net/http"
 	"net/url"
 	"strings"
 
-	gapi "google.golang.org/api/googleapi"
 	"google.golang.org/api/slides/v1"
 
 	"github.com/openclaw/gogcli/internal/authclient"
@@ -48,30 +45,10 @@ func submitSlidesBatch(ctx context.Context, state *docsbatch.State, entries []do
 	if err != nil {
 		return "", err
 	}
-	payload, err := json.Marshal(slidesBatchWirePayload(state, entries))
-	if err != nil {
-		return "", fmt.Errorf("encode Slides batch: %w", err)
-	}
-	request, err := http.NewRequestWithContext(googleapi.WithoutRetries(ctx), http.MethodPost,
-		slidesBatchBaseURL+"/presentations/"+url.PathEscape(state.PresentationID)+":batchUpdate", bytes.NewReader(payload))
-	if err != nil {
-		return "", fmt.Errorf("create Slides batch request: %w", err)
-	}
-	request.Header.Set("Content-Type", "application/json")
-	// Never replay a possibly completed mutation, including through an HTTP redirect.
-	batchClient := *client
-	batchClient.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
-	response, err := batchClient.Do(request)
-	if err != nil {
-		return "", fmt.Errorf("submit Slides batch: %w", err)
-	}
-	defer response.Body.Close()
-	if err := gapi.CheckResponse(response); err != nil {
-		return "", err
-	}
 	var result slides.BatchUpdatePresentationResponse
-	if err := json.NewDecoder(response.Body).Decode(&result); err != nil {
-		return "", fmt.Errorf("decode Slides batch response: %w", err)
+	endpoint := slidesBatchBaseURL + "/presentations/" + url.PathEscape(state.PresentationID) + ":batchUpdate"
+	if err := postBatchUpdate(ctx, client, "Slides", endpoint, slidesBatchWirePayload(state, entries), &result); err != nil {
+		return "", err
 	}
 	if result.WriteControl == nil {
 		return "", nil

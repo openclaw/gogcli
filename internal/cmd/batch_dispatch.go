@@ -27,18 +27,26 @@ func batchSubmissionAllowed(flags *RootFlags, profile bakedSafetyProfile) bool {
 func validateBatchSubmission(flags *RootFlags, state *docsbatch.State) error {
 	switch state.Service {
 	case docsbatch.ServiceDocs:
-		if strings.TrimSpace(state.DocumentID) == "" || state.PresentationID != "" {
+		if strings.TrimSpace(state.DocumentID) == "" || state.PresentationID != "" || state.FormID != "" {
 			return usage("invalid stored Docs batch target")
 		}
 		return nil
 	case docsbatch.ServiceSlides:
-		if strings.TrimSpace(state.PresentationID) == "" || state.DocumentID != "" {
+		if strings.TrimSpace(state.PresentationID) == "" || state.DocumentID != "" || state.FormID != "" {
 			return usage("invalid stored Slides batch target")
 		}
 		if strings.TrimSpace(state.Account) == "" || strings.TrimSpace(state.Client) == "" || strings.TrimSpace(state.RequiredRevisionID) == "" {
 			return usage("Slides batch is missing its bound account, OAuth client, or revision")
 		}
 		return enforceExplicitCommandPermission(flags, []string{"slides", "batch-submit"})
+	case docsbatch.ServiceForms:
+		if strings.TrimSpace(state.FormID) == "" || state.DocumentID != "" || state.PresentationID != "" {
+			return usage("invalid stored Forms batch target")
+		}
+		if strings.TrimSpace(state.Account) == "" || strings.TrimSpace(state.Client) == "" || strings.TrimSpace(state.RequiredRevisionID) == "" || state.InitialFormItems == nil || *state.InitialFormItems < 0 {
+			return usage("Forms batch is missing its bound account, OAuth client, revision, or initial item count")
+		}
+		return enforceExplicitCommandPermission(flags, []string{"forms", "batch-submit"})
 	default:
 		return usagef("unsupported stored batch service %q", state.Service)
 	}
@@ -47,6 +55,9 @@ func validateBatchSubmission(flags *RootFlags, state *docsbatch.State) error {
 func batchWirePayload(state *docsbatch.State, entries []docsbatch.RequestEntry) any {
 	if state.Service == docsbatch.ServiceSlides {
 		return slidesBatchWirePayload(state, entries)
+	}
+	if state.Service == docsbatch.ServiceForms {
+		return formsBatchWirePayload(state, entries)
 	}
 	return docsBatchWirePayload(state, entries)
 }
@@ -58,11 +69,13 @@ func submitPersistedBatch(ctx context.Context, state *docsbatch.State, entries [
 		return docsBatchResponseRevision(result), err
 	case docsbatch.ServiceSlides:
 		return submitSlidesBatch(ctx, state, entries)
+	case docsbatch.ServiceForms:
+		return submitFormsBatch(ctx, state, entries)
 	default:
 		return "", fmt.Errorf("unsupported batch service %q", state.Service)
 	}
 }
 
 func batchUsesRevisions(service string) bool {
-	return service == docsbatch.ServiceDocs || service == docsbatch.ServiceSlides
+	return service == docsbatch.ServiceDocs || service == docsbatch.ServiceSlides || service == docsbatch.ServiceForms
 }

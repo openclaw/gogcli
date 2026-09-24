@@ -94,16 +94,18 @@ func TestSlidesBatchSubmissionPermissions(t *testing.T) {
 	}
 }
 
-func TestSlidesBatchSchemaPermissions(t *testing.T) {
+func TestBatchSchemaPermissions(t *testing.T) {
 	for _, test := range []struct {
-		flags        []string
-		docs, slides bool
+		flags               []string
+		docs, slides, forms bool
 	}{
-		{nil, true, true},
-		{[]string{"--enable-commands", "schema,batch"}, true, false},
-		{[]string{"--enable-commands", "schema,batch,slides.batch-submit"}, true, true},
-		{[]string{"--readonly"}, false, false},
-		{[]string{"--enable-commands", "schema,slides.batch-submit"}, false, false},
+		{nil, true, true, true},
+		{[]string{"--enable-commands", "schema,batch"}, true, false, false},
+		{[]string{"--enable-commands", "schema,batch,slides.batch-submit"}, true, true, false},
+		{[]string{"--enable-commands", "schema,batch,forms.batch-submit"}, true, false, true},
+		{[]string{"--readonly"}, false, false, false},
+		{[]string{"--enable-commands", "schema,slides.batch-submit"}, false, false, false},
+		{[]string{"--enable-commands", "schema,forms.batch-submit"}, false, false, false},
 	} {
 		t.Run(strings.Join(test.flags, " "), func(t *testing.T) {
 			setTestConfigHome(t)
@@ -118,6 +120,9 @@ func TestSlidesBatchSchemaPermissions(t *testing.T) {
 			services := doc.Automation.Safety.BatchServices
 			if services["docs"].SubmissionAllowed != test.docs || services["slides"].SubmissionAllowed != test.slides || services["slides"].AdditionalPermission != "slides.batch-submit" {
 				t.Fatalf("unexpected batch capabilities: %+v", services)
+			}
+			if services["forms"].SubmissionAllowed != test.forms || services["forms"].AdditionalPermission != "forms.batch-submit" {
+				t.Fatalf("unexpected Forms capability: %+v", services["forms"])
 			}
 		})
 	}

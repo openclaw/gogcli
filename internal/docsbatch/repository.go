@@ -19,6 +19,7 @@ import (
 const (
 	ServiceDocs        = "docs"
 	ServiceSlides      = "slides"
+	ServiceForms       = "forms"
 	defaultLockTimeout = 5 * time.Second
 )
 
@@ -45,6 +46,8 @@ type State struct {
 	Service            string         `json:"service"`
 	DocumentID         string         `json:"doc_id,omitempty"`
 	PresentationID     string         `json:"presentation_id,omitempty"`
+	FormID             string         `json:"form_id,omitempty"`
+	InitialFormItems   *int           `json:"initial_form_items,omitempty"`
 	Account            string         `json:"account"`
 	Client             string         `json:"client"`
 	CreatedAt          time.Time      `json:"created_at"`
@@ -59,6 +62,7 @@ type Summary struct {
 	Service        string    `json:"service"`
 	DocumentID     string    `json:"doc_id,omitempty"`
 	PresentationID string    `json:"presentation_id,omitempty"`
+	FormID         string    `json:"form_id,omitempty"`
 	Account        string    `json:"account"`
 	Client         string    `json:"client"`
 	CreatedAt      time.Time `json:"created_at"`
@@ -70,6 +74,7 @@ type Identity struct {
 	Service        string
 	DocumentID     string
 	PresentationID string
+	FormID         string
 	Account        string
 	Client         string
 }
@@ -383,6 +388,8 @@ func ValidateIdentity(state *State, identity Identity) error {
 		return fmt.Errorf("batch targets doc %s, not %s: %w", state.DocumentID, identity.DocumentID, ErrIdentityMismatch)
 	case state.PresentationID != identity.PresentationID:
 		return fmt.Errorf("batch targets presentation %s, not %s: %w", state.PresentationID, identity.PresentationID, ErrIdentityMismatch)
+	case state.FormID != identity.FormID:
+		return fmt.Errorf("batch targets form %s, not %s: %w", state.FormID, identity.FormID, ErrIdentityMismatch)
 	case !strings.EqualFold(state.Account, identity.Account):
 		return fmt.Errorf("batch uses account %s, not %s: %w", state.Account, identity.Account, ErrIdentityMismatch)
 	case state.Client != identity.Client:
@@ -399,6 +406,7 @@ func summarize(state *State) Summary {
 		Service:        state.Service,
 		DocumentID:     state.DocumentID,
 		PresentationID: state.PresentationID,
+		FormID:         state.FormID,
 		Account:        state.Account,
 		Client:         state.Client,
 		CreatedAt:      state.CreatedAt,

@@ -7,7 +7,7 @@ Move a question to a new position
 ## Usage
 
 ```bash
-gog forms (form) questions move <formId> <oldIndex> <newIndex>
+gog forms (form) questions move <formId> <oldIndex> <newIndex> [flags]
 ```
 
 ## Parent
@@ -20,6 +20,7 @@ gog forms (form) questions move <formId> <oldIndex> <newIndex>
 | --- | --- | --- | --- |
 | `--access-token` | `string` |  | Use provided access token directly (bypasses stored refresh tokens; token expires in ~1h) |
 | `-a`<br>`--account`<br>`--acct` | `string` |  | Account email, alias, or auto for authenticated Google API commands |
+| `--batch` | `string` |  | Queue requests in a Forms batch instead of submitting |
 | `--client` | `string` |  | OAuth client name (selects stored credentials + token bucket) |
 | `--color` | `string` | auto | Color output: auto\|always\|never |
 | `--disable-commands` | `string` |  | Comma-separated list of disabled commands; dot paths allowed |

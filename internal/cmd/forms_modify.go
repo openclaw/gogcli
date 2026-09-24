@@ -14,6 +14,7 @@ import (
 // FormsAddQuestionCmd adds a question to an existing form via batchUpdate.
 type FormsAddQuestionCmd struct {
 	FormID   string   `arg:"" name:"formId" help:"Form ID"`
+	Batch    string   `name:"batch" help:"Queue requests in a Forms batch instead of submitting"`
 	Title    string   `name:"title" help:"Question title/text" required:""`
 	Type     string   `name:"type" help:"Question type: text|paragraph|radio|checkbox|dropdown|scale|date|time" default:"text"`
 	Required bool     `name:"required" help:"Whether an answer is required"`
@@ -58,9 +59,17 @@ func (c *FormsAddQuestionCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if err != nil {
 		return err
 	}
+	if batchErr := validateOptionalFormsBatch(c.Batch); batchErr != nil {
+		return batchErr
+	}
 
-	if dryRunErr := dryRunExit(ctx, flags, "forms.add-question", plan.dryRunPayload()); dryRunErr != nil {
+	if dryRunErr := dryRunExit(ctx, flags, "forms.add-question", formsBatchPreview(c.Batch, plan.dryRunPayload())); dryRunErr != nil {
 		return dryRunErr
+	}
+	if queued, queueErr := queueFormsBatchRequests(ctx, flags, c.Batch, plan.FormID, "forms.add-question", func(count int) ([]*formsapi.Request, error) {
+		return plan.batchRequest(count).Requests, nil
+	}); queued {
+		return queueErr
 	}
 
 	account, err := requireAccount(flags)
@@ -219,6 +228,7 @@ func cleanedStrings(values []string) []string {
 type FormsDeleteQuestionCmd struct {
 	FormID string `arg:"" name:"formId" help:"Form ID"`
 	Index  int    `arg:"" name:"index" help:"Question index (0-based)"`
+	Batch  string `name:"batch" help:"Queue requests in a Forms batch instead of submitting"`
 }
 
 func (c *FormsDeleteQuestionCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -229,12 +239,26 @@ func (c *FormsDeleteQuestionCmd) Run(ctx context.Context, flags *RootFlags) erro
 	if c.Index < 0 {
 		return usage("index must be >= 0")
 	}
+	if err := validateOptionalFormsBatch(c.Batch); err != nil {
+		return err
+	}
 
-	if dryRunErr := dryRunExit(ctx, flags, "forms.delete-question", map[string]any{
+	if dryRunErr := dryRunExit(ctx, flags, "forms.delete-question", formsBatchPreview(c.Batch, map[string]any{
 		"form_id": formID,
 		"index":   c.Index,
-	}); dryRunErr != nil {
+	})); dryRunErr != nil {
 		return dryRunErr
+	}
+	if queued, queueErr := queueFormsBatchRequests(ctx, flags, c.Batch, formID, "forms.delete-question", func(count int) ([]*formsapi.Request, error) {
+		if c.Index >= count {
+			return nil, usagef("question index %d out of range (queued form has %d items)", c.Index, count)
+		}
+		if err := confirmDestructiveChecked(ctx, flagsWithoutDryRun(flags), fmt.Sprintf("queue deletion of question %d from form %s", c.Index, formID)); err != nil {
+			return nil, err
+		}
+		return []*formsapi.Request{{DeleteItem: &formsapi.DeleteItemRequest{Location: formLocationIndex(c.Index)}}}, nil
+	}); queued {
+		return queueErr
 	}
 
 	account, err := requireAccount(flags)
@@ -293,6 +317,7 @@ type FormsMoveQuestionCmd struct {
 	FormID   string `arg:"" name:"formId" help:"Form ID"`
 	OldIndex int    `arg:"" name:"oldIndex" help:"Current question index (0-based)"`
 	NewIndex int    `arg:"" name:"newIndex" help:"Target question index (0-based)"`
+	Batch    string `name:"batch" help:"Queue requests in a Forms batch instead of submitting"`
 }
 
 func (c *FormsMoveQuestionCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -303,13 +328,23 @@ func (c *FormsMoveQuestionCmd) Run(ctx context.Context, flags *RootFlags) error 
 	if c.OldIndex < 0 || c.NewIndex < 0 {
 		return usage("indices must be >= 0")
 	}
+	if err := validateOptionalFormsBatch(c.Batch); err != nil {
+		return err
+	}
 
-	if dryRunErr := dryRunExit(ctx, flags, "forms.move-question", map[string]any{
+	if dryRunErr := dryRunExit(ctx, flags, "forms.move-question", formsBatchPreview(c.Batch, map[string]any{
 		"form_id":   formID,
 		"old_index": c.OldIndex,
 		"new_index": c.NewIndex,
-	}); dryRunErr != nil {
+	})); dryRunErr != nil {
 		return dryRunErr
+	}
+	if queued, queueErr := queueFormsBatchRequests(ctx, flags, c.Batch, formID, "forms.move-question", func(int) ([]*formsapi.Request, error) {
+		return []*formsapi.Request{{MoveItem: &formsapi.MoveItemRequest{
+			OriginalLocation: formLocationIndex(c.OldIndex), NewLocation: formLocationIndex(c.NewIndex),
+		}}}, nil
+	}); queued {
+		return queueErr
 	}
 
 	account, err := requireAccount(flags)
@@ -365,12 +400,16 @@ func formLocationIndex(index int) *formsapi.Location {
 // FormsUpdateCmd modifies form title, description, or settings.
 type FormsUpdateCmd struct {
 	FormID      string `arg:"" name:"formId" help:"Form ID"`
+	Batch       string `name:"batch" help:"Queue requests in a Forms batch instead of submitting"`
 	Title       string `name:"title" help:"New form title"`
 	Description string `name:"description" help:"New form description"`
 	IsQuiz      string `name:"quiz" help:"Enable quiz mode (true/false)"`
 }
 
 func (c *FormsUpdateCmd) Run(ctx context.Context, flags *RootFlags) error {
+	if err := validateOptionalFormsBatch(c.Batch); err != nil {
+		return err
+	}
 	plan, err := newFormsUpdatePlan(formsUpdateInput{
 		FormID:      c.FormID,
 		Title:       c.Title,
@@ -381,8 +420,13 @@ func (c *FormsUpdateCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
-	if dryRunErr := dryRunExit(ctx, flags, "forms.update", plan.dryRunPayload()); dryRunErr != nil {
+	if dryRunErr := dryRunExit(ctx, flags, "forms.update", formsBatchPreview(c.Batch, plan.dryRunPayload())); dryRunErr != nil {
 		return dryRunErr
+	}
+	if queued, queueErr := queueFormsBatchRequests(ctx, flags, c.Batch, plan.FormID, "forms.update", func(int) ([]*formsapi.Request, error) {
+		return plan.Request.Requests, nil
+	}); queued {
+		return queueErr
 	}
 
 	account, err := requireAccount(flags)

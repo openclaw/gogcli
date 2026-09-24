@@ -25,21 +25,31 @@ type BatchCmd struct {
 }
 
 type BatchBeginCmd struct {
-	Service        string `name:"service" help:"Google API service: docs or slides (inferred from target)"`
-	DocID          string `name:"doc" help:"Google Doc ID; mutually exclusive with --presentation"`
-	PresentationID string `name:"presentation" help:"Google Slides presentation ID; mutually exclusive with --doc"`
+	Service        string `name:"service" help:"Google API service: docs, slides, or forms (inferred from target)"`
+	DocID          string `name:"doc" help:"Google Doc ID; choose exactly one batch target"`
+	PresentationID string `name:"presentation" help:"Google Slides presentation ID; choose exactly one batch target"`
+	FormID         string `name:"form" help:"Google Form ID or URL; choose exactly one batch target"`
 	Name           string `name:"name" help:"Optional batch label"`
 }
 
 func (c *BatchBeginCmd) Run(ctx context.Context, flags *RootFlags) error {
 	documentID := strings.TrimSpace(c.DocID)
 	presentationID := strings.TrimSpace(c.PresentationID)
-	if (documentID == "") == (presentationID == "") {
-		return usage("provide exactly one of --doc or --presentation")
+	formID := strings.TrimSpace(normalizeGoogleID(c.FormID))
+	targets := 0
+	for _, target := range []string{documentID, presentationID, formID} {
+		if target != "" {
+			targets++
+		}
+	}
+	if targets != 1 {
+		return usage("provide exactly one of --doc, --presentation, or --form")
 	}
 	service := docsbatch.ServiceDocs
 	if presentationID != "" {
 		service = docsbatch.ServiceSlides
+	} else if formID != "" {
+		service = docsbatch.ServiceForms
 	}
 	if c.Service != "" && c.Service != service {
 		return usagef("--service %s does not match the %s target", c.Service, service)
@@ -48,10 +58,13 @@ func (c *BatchBeginCmd) Run(ctx context.Context, flags *RootFlags) error {
 		"service": service,
 		"name":    strings.TrimSpace(c.Name),
 	}
-	if service == docsbatch.ServiceDocs {
+	switch service {
+	case docsbatch.ServiceDocs:
 		preview["doc_id"] = documentID
-	} else {
+	case docsbatch.ServiceSlides:
 		preview["presentation_id"] = presentationID
+	case docsbatch.ServiceForms:
+		preview["form_id"] = formID
 	}
 	if err := dryRunExit(ctx, flags, "batch.begin", preview); err != nil {
 		return err
@@ -73,6 +86,7 @@ func (c *BatchBeginCmd) Run(ctx context.Context, flags *RootFlags) error {
 		Service:        service,
 		DocumentID:     documentID,
 		PresentationID: presentationID,
+		FormID:         formID,
 		Account:        account,
 		Client:         client,
 	})
@@ -106,8 +120,11 @@ func (c *BatchListCmd) Run(ctx context.Context) error {
 	out := ui.FromContext(ctx).Out()
 	for _, batch := range batches {
 		targetID := batch.DocumentID
-		if batch.Service == docsbatch.ServiceSlides {
+		switch batch.Service {
+		case docsbatch.ServiceSlides:
 			targetID = batch.PresentationID
+		case docsbatch.ServiceForms:
+			targetID = batch.FormID
 		}
 		out.Linef("%s\t%s\t%s\t%d\t%s", batch.BatchID, batch.Service, targetID, batch.Requests, batch.UpdatedAt.Format(time.RFC3339))
 	}
@@ -249,6 +266,9 @@ func (c *BatchEndCmd) Run(ctx context.Context, flags *RootFlags) error {
 		if len(state.Requests) == 0 {
 			return errors.New("batch has no requests")
 		}
+		if err := c.validateFormsMode(state); err != nil {
+			return err
+		}
 		if err := validateBatchSubmission(flags, state); err != nil {
 			return err
 		}
@@ -269,6 +289,9 @@ func (c *BatchEndCmd) Run(ctx context.Context, flags *RootFlags) error {
 	var result docsBatchEndResult
 	err = store.WithState(batchID, func(transaction *docsbatch.Transaction) error {
 		state := transaction.State()
+		if modeErr := c.validateFormsMode(state); modeErr != nil {
+			return modeErr
+		}
 		if validationErr := validateBatchSubmission(flags, state); validationErr != nil {
 			return validationErr
 		}
@@ -307,6 +330,19 @@ func (c *BatchEndCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 	if result.Failed > 0 {
 		return fmt.Errorf("%d of %d requests failed; batch %s retains the failed requests", result.Failed, result.Requests, result.BatchID)
+	}
+	return nil
+}
+
+func (c *BatchEndCmd) validateFormsMode(state *docsbatch.State) error {
+	if state.Service != docsbatch.ServiceForms {
+		return nil
+	}
+	if c.AutoSplit || c.ContinueOnError {
+		return usage("Forms batches support atomic submission only; omit --auto-split and --continue-on-error")
+	}
+	if len(state.Requests) > persistedBatchRequestCap {
+		return usagef("Forms batch has %d requests; gog submits at most %d per atomic update", len(state.Requests), persistedBatchRequestCap)
 	}
 	return nil
 }
