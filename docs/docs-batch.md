@@ -56,6 +56,8 @@ gog batch end "$BATCH_ID" --continue-on-error
 
 `--auto-split` and `--continue-on-error` are explicit non-atomic modes and cannot be combined. Failed default submissions leave the complete batch intact. Split submissions persist remaining requests after every successful chunk.
 
+When individual recovery finishes, `--continue-on-error` prints its result summary and exits with code `1` if any requests failed. The summary includes the original request count, successful submissions (`chunks`), and retained failures (`failed`). Exit code `0` means every request succeeded; continuing after a failure does not hide it from automation.
+
 Use `batch abort <batchId>` to discard a batch and `batch prune --older-than 72h` to remove stale batches.
 
 ## Local state

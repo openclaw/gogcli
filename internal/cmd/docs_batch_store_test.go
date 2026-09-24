@@ -20,6 +20,7 @@ import (
 	"github.com/openclaw/gogcli/internal/app"
 	"github.com/openclaw/gogcli/internal/config"
 	"github.com/openclaw/gogcli/internal/docsbatch"
+	"github.com/openclaw/gogcli/internal/outfmt"
 )
 
 func TestBatchEndAtomicSubmitsExactPayloadAndDeletesState(t *testing.T) {
@@ -114,36 +115,92 @@ func TestBatchEndAutoSplitPersistsProgressBeforeMissingRevisionError(t *testing.
 	}
 }
 
-func TestBatchEndContinueOnErrorRetainsFailedRequests(t *testing.T) {
-	store, state, ctx := prepareDocsBatchEndTest(t, 2)
+func TestBatchEndContinueOnErrorReportsOutcome(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		failed   int
+		exitCode int
+	}{
+		{name: "mixed failures", failed: 1, exitCode: 1},
+		{name: "all requests fail", failed: 2, exitCode: 1},
+		{name: "successful recovery", failed: 0, exitCode: 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			store, state, ctx := prepareDocsBatchEndTest(t, 2)
+			var output bytes.Buffer
+			ctx = outfmt.WithMode(ctx, outfmt.Mode{JSON: true})
+			ctx = withTestRuntime(ctx, func(runtime *app.Runtime) {
+				runtime.IO.Out = &output
+			})
 
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var body docsBatchWireBody
-		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-			t.Errorf("decode body: %v", err)
-		}
-		if len(body.Requests) == 2 || bytes.Contains(body.Requests[0], []byte(`"text":"request-1"`)) {
-			w.WriteHeader(http.StatusBadRequest)
-			_, _ = fmt.Fprint(w, `{"error":{"code":400,"message":"invalid request","status":"INVALID_ARGUMENT"}}`)
-			return
-		}
-		_, _ = fmt.Fprint(w, `{"documentId":"doc1","writeControl":{"requiredRevisionId":"rev2"}}`)
-	}))
-	defer server.Close()
-	ctx = withDocsBatchHTTPTest(t, ctx, server)
+			calls := 0
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				calls++
+				var body docsBatchWireBody
+				if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+					t.Errorf("decode body: %v", err)
+					return
+				}
+				if len(body.Requests) == 0 {
+					t.Error("empty request list")
+					return
+				}
+				failLast := tc.failed == 1 && bytes.Contains(body.Requests[0], []byte(`"text":"request-1"`))
+				if len(body.Requests) == 2 || tc.failed == 2 || failLast {
+					w.WriteHeader(http.StatusBadRequest)
+					_, _ = fmt.Fprint(w, `{"error":{"code":400,"message":"invalid request","status":"INVALID_ARGUMENT"}}`)
+					return
+				}
+				_, _ = fmt.Fprint(w, `{"documentId":"doc1","writeControl":{"requiredRevisionId":"rev2"}}`)
+			}))
+			defer server.Close()
+			ctx = withDocsBatchHTTPTest(t, ctx, server)
 
-	if err := (&BatchEndCmd{BatchID: state.BatchID, ContinueOnError: true}).Run(ctx, &RootFlags{}); err != nil {
-		t.Fatalf("end continue: %v", err)
-	}
-	loaded, err := store.Get(state.BatchID)
-	if err != nil {
-		t.Fatalf("get retained state: %v", err)
-	}
-	if len(loaded.Requests) != 1 || !compactJSONContains(t, loaded.Requests[0].Request, `"text":"request-1"`) {
-		t.Fatalf("retained requests = %#v", loaded.Requests)
-	}
-	if loaded.RequiredRevisionID != "rev2" {
-		t.Fatalf("revision = %q, want rev2", loaded.RequiredRevisionID)
+			err := (&BatchEndCmd{BatchID: state.BatchID, ContinueOnError: true}).Run(ctx, &RootFlags{})
+			if got := ExitCode(err); got != tc.exitCode {
+				t.Fatalf("exit code = %d, want %d (error = %v)", got, tc.exitCode, err)
+			}
+			if tc.failed > 0 && (err == nil || !strings.Contains(err.Error(), state.BatchID)) {
+				t.Fatalf("failure error must identify retained batch: %v", err)
+			}
+			if calls != 3 {
+				t.Fatalf("API calls = %d, want atomic attempt plus two individual requests", calls)
+			}
+
+			var result docsBatchEndResult
+			if decodeErr := json.Unmarshal(output.Bytes(), &result); decodeErr != nil {
+				t.Fatalf("decode summary %q: %v", output.String(), decodeErr)
+			}
+			if result.BatchID != state.BatchID || result.Requests != 2 || result.Chunks != 2-tc.failed || result.Failed != tc.failed || result.Atomic {
+				t.Fatalf("unexpected recovery summary: %#v", result)
+			}
+
+			loaded, err := store.Get(state.BatchID)
+			if tc.failed == 0 {
+				if !errors.Is(err, docsbatch.ErrNotFound) {
+					t.Fatalf("completed batch still exists: %v", err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("get retained state: %v", err)
+			}
+			if len(loaded.Requests) != tc.failed {
+				t.Fatalf("retained requests = %d, want %d", len(loaded.Requests), tc.failed)
+			}
+			for index, entry := range loaded.Requests {
+				if !compactJSONContains(t, entry.Request, fmt.Sprintf(`"text":"request-%d"`, 2-tc.failed+index)) {
+					t.Fatalf("unexpected retained request: %s", entry.Request)
+				}
+			}
+			wantRevision := "rev2"
+			if tc.failed == 2 {
+				wantRevision = "rev1"
+			}
+			if loaded.RequiredRevisionID != wantRevision {
+				t.Fatalf("revision = %q, want %s", loaded.RequiredRevisionID, wantRevision)
+			}
+		})
 	}
 }
 

@@ -275,7 +275,13 @@ func (c *BatchEndCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
-	return writeDocsBatchEndResult(ctx, result)
+	if err := writeDocsBatchEndResult(ctx, result); err != nil {
+		return err
+	}
+	if result.Failed > 0 {
+		return fmt.Errorf("%d of %d requests failed; batch %s retains the failed requests", result.Failed, result.Requests, result.BatchID)
+	}
+	return nil
 }
 
 func (c *BatchEndCmd) submitSplit(
