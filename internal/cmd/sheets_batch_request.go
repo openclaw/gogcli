@@ -54,11 +54,7 @@ func (c *SheetsBatchRequestCmd) Run(ctx context.Context, flags *RootFlags) error
 	if err != nil {
 		return err
 	}
-	runtime, err := runtimeWithService(ctx, "sheets HTTP")
-	if err != nil || runtime.Services.SheetsHTTP == nil {
-		return serviceError(err, "sheets HTTP")
-	}
-	client, err := runtime.Services.SheetsHTTP(ctx, account)
+	client, err := sheetsHTTPClient(ctx, account)
 	if err != nil {
 		return err
 	}

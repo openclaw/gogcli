@@ -7,10 +7,14 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strconv"
 	"strings"
 	"sync/atomic"
 	"testing"
+
+	"github.com/openclaw/gogcli/internal/app"
+	"github.com/openclaw/gogcli/internal/outfmt"
 )
 
 type sheetsRawHit struct {
@@ -43,8 +47,18 @@ func newSheetsRawTestServer(t *testing.T, status int, body map[string]any, hit *
 
 func newSheetsRawTestContext(t *testing.T, srv *httptest.Server, stdout, stderr io.Writer) context.Context {
 	t.Helper()
-	svc := newSheetsServiceFromServer(t, srv)
-	return withSheetsTestService(newCmdRuntimeOutputContext(t, stdout, stderr), svc)
+	previous := sheetsRawBaseURL
+	sheetsRawBaseURL = srv.URL + "/v4"
+	t.Cleanup(func() { sheetsRawBaseURL = previous })
+	ctx := newCmdRuntimeOutputContext(t, stdout, stderr)
+	runtime := &app.Runtime{}
+	if existing, ok := app.FromContext(ctx); ok {
+		*runtime = *existing
+	}
+	runtime.Services.SheetsHTTP = func(context.Context, string) (*http.Client, error) {
+		return srv.Client(), nil
+	}
+	return app.WithRuntime(ctx, runtime)
 }
 
 func fullSheetResponse(id string) map[string]any {
@@ -195,5 +209,140 @@ func TestSheetsRaw_EmptyID(t *testing.T) {
 	flags := &RootFlags{Account: "a@b.com"}
 	if err := (&SheetsRawCmd{}).Run(ctx, flags); err == nil {
 		t.Fatalf("expected error on empty id")
+	}
+}
+
+func TestSheetsRaw_PreservesResponseValues(t *testing.T) {
+	const payload = `{"spreadsheetId":"s1","properties":{"title":"Raw title"},"sheets":[{"properties":{"sheetId":0,"index":0,"hidden":false,"rightToLeft":false,"title":""},"data":[{"startRow":0,"startColumn":0,"rowData":[]}],"futureField":{"flag":false,"value":null}}],"namedRanges":[],"futureRoot":{"integer":9007199254740993,"value":null,"text":""}}`
+	for _, pretty := range []bool{false, true} {
+		t.Run(strconv.FormatBool(pretty), func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = io.WriteString(w, payload)
+			}))
+			defer server.Close()
+			var output bytes.Buffer
+			ctx := newSheetsRawTestContext(t, server, &output, io.Discard)
+			ctx = outfmt.WithJSONTransform(ctx, outfmt.JSONTransform{Select: []string{"spreadsheetId"}})
+			if err := (&SheetsRawCmd{SpreadsheetID: "s1", Pretty: pretty}).Run(ctx, &RootFlags{Account: "a@b.com"}); err != nil {
+				t.Fatal(err)
+			}
+			decode := func(raw string) any {
+				t.Helper()
+				var value any
+				decoder := json.NewDecoder(strings.NewReader(raw))
+				decoder.UseNumber()
+				if err := decoder.Decode(&value); err != nil {
+					t.Fatal(err)
+				}
+				return value
+			}
+			if !reflect.DeepEqual(decode(output.String()), decode(payload)) {
+				t.Fatalf("raw response changed:\n%s", output.String())
+			}
+			if !strings.HasSuffix(output.String(), "\n") || (!pretty && strings.Count(output.String(), "\n") != 1) {
+				t.Fatalf("unexpected raw formatting: %q", output.String())
+			}
+		})
+	}
+}
+
+func TestSheetsRaw_WrappingPreservesStructuredValues(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = io.WriteString(w, `{"spreadsheetId":"s1","properties":{"title":"Raw title"},"sheets":[{"properties":{"sheetId":0,"hidden":false},"data":[{"rowData":[{"values":[{"note":"Raw note"}]}]}]}],"future":{"integer":9007199254740993,"nullable":null}}`)
+	}))
+	defer server.Close()
+	var output bytes.Buffer
+	ctx := newSheetsRawTestContext(t, server, &output, io.Discard)
+	ctx = outfmt.WithUntrustedWrapper(ctx, outfmt.UntrustedWrapOptions{Enabled: true})
+	if err := (&SheetsRawCmd{SpreadsheetID: "s1"}).Run(ctx, &RootFlags{Account: "a@b.com"}); err != nil {
+		t.Fatal(err)
+	}
+	var got struct {
+		SpreadsheetID string                 `json:"spreadsheetId"`
+		Properties    struct{ Title string } `json:"properties"`
+		Sheets        []struct {
+			Properties map[string]json.RawMessage `json:"properties"`
+		} `json:"sheets"`
+		Future map[string]json.RawMessage `json:"future"`
+	}
+	if err := json.Unmarshal(output.Bytes(), &got); err != nil {
+		t.Fatal(err)
+	}
+	if got.SpreadsheetID != "s1" || !strings.Contains(got.Properties.Title, "EXTERNAL_UNTRUSTED_CONTENT") || !strings.Contains(got.Properties.Title, "Raw title") {
+		t.Fatalf("unexpected wrapped identity/title: %s", output.String())
+	}
+	if len(got.Sheets) != 1 || string(got.Sheets[0].Properties["sheetId"]) != "0" || string(got.Sheets[0].Properties["hidden"]) != "false" || string(got.Future["integer"]) != "9007199254740993" || string(got.Future["nullable"]) != "null" {
+		t.Fatalf("structured values changed: %s", output.String())
+	}
+}
+
+func TestSheetsRaw_InvalidResponseHasNoOutput(t *testing.T) {
+	for _, body := range []string{"null", "[]", "true", "not json", "{} {}"} {
+		t.Run(body, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				_, _ = io.WriteString(w, body)
+			}))
+			defer server.Close()
+			var output bytes.Buffer
+			ctx := newSheetsRawTestContext(t, server, &output, io.Discard)
+			if err := (&SheetsRawCmd{SpreadsheetID: "s1"}).Run(ctx, &RootFlags{Account: "a@b.com"}); err == nil || output.Len() != 0 {
+				t.Fatalf("error = %v, output = %q", err, output.String())
+			}
+		})
+	}
+}
+
+func TestSheetsRaw_PreservesHTTPFailureCodes(t *testing.T) {
+	for code, want := range map[int]int{403: 6, 404: 5, 429: 7, 503: 8} {
+		t.Run(strconv.Itoa(code), func(t *testing.T) {
+			server := newSheetsRawTestServer(t, code, nil, nil)
+			defer server.Close()
+			var output bytes.Buffer
+			ctx := newSheetsRawTestContext(t, server, &output, io.Discard)
+			err := (&SheetsRawCmd{SpreadsheetID: "s1"}).Run(ctx, &RootFlags{Account: "a@b.com"})
+			if got := ExitCode(stableExitCode(err)); got != want || output.Len() != 0 {
+				t.Fatalf("exit = %d, want %d; error = %v, output = %q", got, want, err, output.String())
+			}
+		})
+	}
+}
+
+func TestSheetsRaw_DeveloperMetadataWarning(t *testing.T) {
+	for _, metadata := range []string{"null", "[]", `[{"metadataId":0,"metadataKey":"synthetic"}]`} {
+		t.Run(metadata, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				_, _ = io.WriteString(w, `{"spreadsheetId":"s1","developerMetadata":`+metadata+`}`)
+			}))
+			defer server.Close()
+			var output, warnings bytes.Buffer
+			ctx := newSheetsRawTestContext(t, server, &output, &warnings)
+			if err := (&SheetsRawCmd{SpreadsheetID: "s1"}).Run(ctx, &RootFlags{Account: "a@b.com"}); err != nil {
+				t.Fatal(err)
+			}
+			if want := strings.HasPrefix(metadata, "[{"); strings.Contains(warnings.String(), "developerMetadata") != want {
+				t.Fatalf("warning = %q, expected warning = %v", warnings.String(), want)
+			}
+		})
+	}
+}
+
+func TestSheetsRaw_RefusesRedirect(t *testing.T) {
+	var calls atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls.Add(1)
+		if r.URL.Path == "/redirected" {
+			t.Error("followed authenticated redirect")
+			_, _ = io.WriteString(w, `{"spreadsheetId":"s1"}`)
+			return
+		}
+		w.Header().Set("Location", "/redirected")
+		w.WriteHeader(http.StatusTemporaryRedirect)
+	}))
+	defer server.Close()
+	var output bytes.Buffer
+	ctx := newSheetsRawTestContext(t, server, &output, io.Discard)
+	if err := (&SheetsRawCmd{SpreadsheetID: "s1"}).Run(ctx, &RootFlags{Account: "a@b.com"}); err == nil || calls.Load() != 1 || output.Len() != 0 {
+		t.Fatalf("error = %v, requests = %d, output = %q", err, calls.Load(), output.String())
 	}
 }

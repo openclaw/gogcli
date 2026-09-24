@@ -41,6 +41,11 @@ apostrophes are treated as tab names. Spreadsheet-level metadata remains in
 the raw response; grid data still requires `--include-grid-data`. Omitting
 `--sheet` returns every tab as before.
 
+Sheets raw output preserves Google's JSON fields directly, including explicit
+zero IDs and indexes, false flags, empty values, nulls, and fields added after
+gog's Google SDK version. Pretty printing retains that structure, and
+untrusted-content wrapping marks fetched text without dropping API fields.
+
 `gog docs raw --tab` resolves a tab title or ID and projects that tab into the
 legacy top-level `Document` fields such as `body`, `lists`, and
 `inlineObjects`. `--all-tabs` keeps the canonical `Documents.Get` response and

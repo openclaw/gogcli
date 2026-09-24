@@ -417,6 +417,14 @@ func sheetsService(ctx context.Context, account string) (*sheets.Service, error)
 	return runtime.Services.Sheets(ctx, account)
 }
 
+func sheetsHTTPClient(ctx context.Context, account string) (*http.Client, error) {
+	runtime, err := runtimeWithService(ctx, "sheets HTTP")
+	if err != nil || runtime.Services.SheetsHTTP == nil {
+		return nil, serviceError(err, "sheets HTTP")
+	}
+	return runtime.Services.SheetsHTTP(ctx, account)
+}
+
 func connectedSheetsService(ctx context.Context, account string) (*sheets.Service, error) {
 	runtime, err := runtimeWithService(ctx, "Connected Sheets")
 	if err != nil {

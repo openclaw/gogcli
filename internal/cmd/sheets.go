@@ -683,58 +683,6 @@ func (c *SheetsClearCmd) Run(ctx context.Context, flags *RootFlags) error {
 	return nil
 }
 
-// SheetsRawCmd dumps the full Spreadsheets.Get response as JSON, with no
-// Fields restriction. `--include-grid-data` opts into returning cell-level
-// data; it is off by default because grid payloads can be multi-MB and are
-// the primary leakage vector (formulas may embed API keys or tokens).
-//
-// REST reference: https://developers.google.com/sheets/api/reference/rest/v4/spreadsheets/get
-// Go type: https://pkg.go.dev/google.golang.org/api/sheets/v4#Spreadsheet
-type SheetsRawCmd struct {
-	SpreadsheetID   string `arg:"" name:"spreadsheetId" help:"Spreadsheet ID"`
-	Sheet           string `name:"sheet" help:"Return only this sheet (exact tab title); spreadsheet-level metadata remains included"`
-	IncludeGridData bool   `name:"include-grid-data" help:"Include cell-level grid data in the response (off by default; payloads can be large and may contain secrets in formulas)"`
-	Pretty          bool   `name:"pretty" help:"Pretty-print JSON (default: compact single-line)"`
-}
-
-func (c *SheetsRawCmd) Run(ctx context.Context, flags *RootFlags) error {
-	u := ui.FromContext(ctx)
-	spreadsheetID := normalizeGoogleID(strings.TrimSpace(c.SpreadsheetID))
-	if spreadsheetID == "" {
-		return usage("empty spreadsheetId")
-	}
-
-	_, svc, err := requireSheetsService(ctx, flags)
-	if err != nil {
-		return err
-	}
-
-	call := svc.Spreadsheets.Get(spreadsheetID).Context(ctx)
-	if c.Sheet != "" {
-		// Always quote the title so A1-like names cannot resolve to cell ranges.
-		call = call.Ranges("'" + strings.ReplaceAll(c.Sheet, "'", "''") + "'")
-	}
-	if c.IncludeGridData {
-		call = call.IncludeGridData(true)
-		u.Err().Println("warning: --include-grid-data may expose cell-level formulas that contain API keys or hardcoded secrets")
-	}
-
-	resp, err := call.Do()
-	if err != nil {
-		return err
-	}
-	resp, err = requireRawResponse(resp, "spreadsheet not found")
-	if err != nil {
-		return err
-	}
-
-	if len(resp.DeveloperMetadata) > 0 {
-		u.Err().Println("warning: response contains developerMetadata which may hold third-party app secrets")
-	}
-
-	return writeRawJSON(ctx, resp, c.Pretty)
-}
-
 type SheetsMetadataCmd struct {
 	SpreadsheetID string `arg:"" name:"spreadsheetId" help:"Spreadsheet ID"`
 }
