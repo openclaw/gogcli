@@ -146,6 +146,73 @@ func TestEnableCommandsExactEnvDefault(t *testing.T) {
 	}
 }
 
+func TestExecuteRejectsMalformedCommandLists(t *testing.T) {
+	for _, flag := range []string{"enable-commands", "enable-commands-exact", "disable-commands"} {
+		for _, value := range []string{",", " , , \t"} {
+			for _, fromEnv := range []bool{false, true} {
+				name := flag + "/" + value
+				if fromEnv {
+					name += "/env"
+				}
+				t.Run(name, func(t *testing.T) {
+					t.Setenv("GOG_ENABLE_COMMANDS", "")
+					t.Setenv("GOG_ENABLE_COMMANDS_EXACT", "")
+					t.Setenv("GOG_DISABLE_COMMANDS", "")
+					args := []string{"version"}
+					if fromEnv {
+						t.Setenv("GOG_"+strings.ToUpper(strings.ReplaceAll(flag, "-", "_")), value)
+					} else {
+						args = append([]string{"--" + flag, value}, args...)
+					}
+					result := executeWithTestRuntime(t, args, nil)
+					if ExitCode(result.err) != 2 || !strings.Contains(result.stderr, "--"+flag+" must contain at least one command") {
+						t.Fatalf("error = %v; stderr = %q", result.err, result.stderr)
+					}
+					if result.stdout != "" {
+						t.Fatalf("command executed: %q", result.stdout)
+					}
+				})
+			}
+		}
+	}
+}
+
+func TestEnforceEnabledCommandsValidListDoesNotHideMalformedList(t *testing.T) {
+	kctx := parseEnabledCommandTestContext(t, "version")
+	for _, valid := range []string{"version", "*", "all"} {
+		for _, lists := range [][2]string{{",", valid}, {valid, ","}} {
+			if err := enforceEnabledCommands(kctx, lists[0], lists[1]); ExitCode(err) != 2 {
+				t.Errorf("enforceEnabledCommands(%q, %q) = %v; want usage error", lists[0], lists[1], err)
+			}
+		}
+	}
+}
+
+func TestExecuteCommandListsPreserveEmptyOverridesAndValidCSV(t *testing.T) {
+	for _, flag := range []string{"enable-commands", "enable-commands-exact", "disable-commands"} {
+		values := []string{"", " \t", ", VERSION, ,", "*", "all"}
+		if flag == "disable-commands" {
+			values = []string{"", " \t", ", Gmail, ,"}
+		}
+		for _, value := range values {
+			t.Run(flag+"/"+value, func(t *testing.T) {
+				t.Setenv("GOG_ENABLE_COMMANDS", "")
+				t.Setenv("GOG_ENABLE_COMMANDS_EXACT", "")
+				t.Setenv("GOG_DISABLE_COMMANDS", "")
+				blocked := "gmail"
+				if flag == "disable-commands" {
+					blocked = "version"
+				}
+				t.Setenv("GOG_"+strings.ToUpper(strings.ReplaceAll(flag, "-", "_")), blocked)
+				result := executeWithTestRuntime(t, []string{"--" + flag + "=" + value, "version"}, nil)
+				if result.err != nil || result.stdout == "" {
+					t.Fatalf("error = %v; stdout = %q; stderr = %q", result.err, result.stdout, result.stderr)
+				}
+			})
+		}
+	}
+}
+
 func parseEnabledCommandTestContext(t *testing.T, args ...string) *kong.Context {
 	t.Helper()
 	parser, _, err := newParser("test")

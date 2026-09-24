@@ -79,6 +79,12 @@ installation.
 
 ## Schema automation metadata
 
+Runtime command lists (`--enable-commands`, `--enable-commands-exact`, and
+`--disable-commands`, including their environment defaults) reject nonblank
+values containing only commas and whitespace with usage exit code `2`. Empty
+values still clear that runtime list; omit a list or pass an empty value to leave
+it unset. Extra commas around actual command names are accepted.
+
 The top-level `automation` object has three parts:
 
 | Field | Meaning |

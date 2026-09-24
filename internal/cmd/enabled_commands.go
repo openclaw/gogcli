@@ -15,8 +15,11 @@ func enforceEnabledCommands(kctx *kong.Context, enabled string, enabledExact str
 
 	allow := parseEnabledCommands(enabled)
 	exactAllow := parseEnabledCommands(enabledExact)
-	if len(allow) == 0 && len(exactAllow) == 0 {
-		return nil
+	if enabled != "" && len(allow) == 0 {
+		return usage("--enable-commands must contain at least one command or be empty")
+	}
+	if enabledExact != "" && len(exactAllow) == 0 {
+		return usage("--enable-commands-exact must contain at least one command or be empty")
 	}
 	if allow["*"] || allow["all"] || exactAllow["*"] || exactAllow["all"] {
 		return nil
@@ -40,7 +43,7 @@ func enforceDisabledCommands(kctx *kong.Context, disabled string) error {
 	}
 	deny := parseEnabledCommands(disabled)
 	if len(deny) == 0 {
-		return nil
+		return usage("--disable-commands must contain at least one command or be empty")
 	}
 	path := commandPath(kctx.Command())
 	if len(path) == 0 {
