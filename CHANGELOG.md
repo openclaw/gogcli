@@ -3,7 +3,7 @@
 ## 0.41.1 - Unreleased
 
 - Sheets: submit atomic structural request arrays with `sheets batch-request`, preserving explicit JSON values, previewing exact requests, and requiring explicit grants in restricted command policies. (#1108) — thanks @gurgeous.
-- Sheets: preserve zero IDs, false flags, empty and null values, and unknown fields in lossless `sheets raw` output, including pretty and wrapped output.
+- Sheets: preserve zero IDs, false flags, empty and null values, and unknown fields in lossless `sheets raw` output, including pretty and wrapped output. (#1155)
 - Auth: return the documented `auth_required` exit code (`4`) for expired or revoked OAuth grants, preserving reauthorization advice in unattended and read-only commands. (#1152)
 
 ## 0.41.0 - 2026-09-22
