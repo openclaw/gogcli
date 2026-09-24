@@ -126,6 +126,65 @@ func TestMCPGmailStartupAndDiscovery(t *testing.T) {
 	}
 }
 
+func TestMCPLegacyPolicyUpgradeThroughCLI(t *testing.T) {
+	for _, selector := range []string{"gmail", "gmail.*", "write", "*", "all"} {
+		for _, accountPolicy := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%s/account=%v", selector, accountPolicy), func(t *testing.T) {
+				home := t.TempDir()
+				layout, err := config.NewResolver(config.Env{HomeOverride: home}, config.UserDirs{}).Resolve(config.PathKindConfig)
+				if err != nil {
+					t.Fatal(err)
+				}
+				// These are the pre-upgrade serialized policy fields, without new capability grants.
+				policyJSON := fmt.Sprintf(`{"allow_tools":[%q],"allow_write":true}`, selector)
+				configJSON := `{"mcp":` + policyJSON + `}`
+				if accountPolicy {
+					configJSON = `{"mcp":{"allow_tools":["read"],"accounts":{"legacy@example.com":` + policyJSON + `}}}`
+				}
+				if err := os.MkdirAll(layout.ConfigDir, 0o700); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(layout.ConfigPath(), []byte(configJSON), 0o600); err != nil {
+					t.Fatal(err)
+				}
+				result := executeWithTestRuntime(t, []string{
+					"--home", home, "--account", "legacy@example.com", "mcp", "--list-tools",
+				}, nil)
+				if result.err != nil {
+					t.Fatalf("legacy CLI policy: %v; stderr=%q", result.err, result.stderr)
+				}
+				var output struct {
+					Tools []struct{ Name, Capability string }
+				}
+				if err := json.Unmarshal([]byte(result.stdout), &output); err != nil {
+					t.Fatal(err)
+				}
+				enabled := make(map[string]bool, len(output.Tools))
+				for _, tool := range output.Tools {
+					enabled[tool.Name] = true
+					if tool.Capability != "" {
+						t.Fatalf("legacy policy gained sensitive capability %q through %s", tool.Capability, tool.Name)
+					}
+				}
+				for _, name := range []string{
+					"gmail_create_draft", "gmail_update_draft", "gmail_create_label",
+					"gmail_modify_messages", "gmail_modify_thread", "gmail_mark_read", "gmail_mark_unread",
+					"gmail_archive_messages", "gmail_trash_messages", "gmail_restore_messages",
+				} {
+					if !enabled[name] {
+						t.Errorf("legacy broad write selector did not expose ordinary tool %s", name)
+					}
+				}
+				for _, name := range []string{"gmail_send_message", "gmail_send_draft", "gmail_delete_draft", "gmail_delete_messages"} {
+					if enabled[name] {
+						t.Errorf("legacy broad write selector exposed gated tool %s", name)
+					}
+				}
+			})
+		}
+	}
+}
+
 func TestMCPRuntimeSelectorsRejectEmptyNarrowing(t *testing.T) {
 	for _, configured := range []bool{false, true} {
 		t.Run(fmt.Sprintf("configured=%v", configured), func(t *testing.T) {

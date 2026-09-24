@@ -181,6 +181,14 @@ An account override does not inherit global send/delete permissions. Runtime
 `--allow-gmail-send` and `--allow-gmail-delete` cannot widen a configured policy.
 An exact send/delete tool selector still needs its corresponding capability.
 
+On upgrade, existing saved policies with `allow_write: true` and `gmail`,
+`gmail.*`, `write`, `*`, or `all` intentionally gain the ordinary Gmail draft
+and mailbox tools under the existing read/write selector contract. Sending and
+permanent deletion remain unavailable without their separate grants. To retain
+a narrower reviewed set across upgrades, pin exact tool names in `allow_tools`;
+for the former Gmail read surface, use `gmail_search`, `gmail_get_message`, and
+`gmail_get_thread` alongside any explicitly authorized tools from other services.
+
 The configured policy is a ceiling. `--allow-tool` can intersect it with a
 smaller runtime set, `--readonly` removes all writes, and `--allow-write` cannot
 widen a read-only policy. Baked safety profiles remain the outer immutable
