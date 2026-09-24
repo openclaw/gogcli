@@ -20,6 +20,7 @@ gog slides (slide) table row insert (add) --row=INT-64 <presentationId> <tableOb
 | --- | --- | --- | --- |
 | `--access-token` | `string` |  | Use provided access token directly (bypasses stored refresh tokens; token expires in ~1h) |
 | `-a`<br>`--account`<br>`--acct` | `string` |  | Account email, alias, or auto for authenticated Google API commands |
+| `--batch` | `string` |  | Append requests to a persisted Slides batch instead of submitting |
 | `--below` | `bool` |  | Insert below the reference row instead of above |
 | `--client` | `string` |  | OAuth client name (selects stored credentials + token bucket) |
 | `--color` | `string` | auto | Color output: auto\|always\|never |

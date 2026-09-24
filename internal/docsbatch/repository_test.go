@@ -421,3 +421,56 @@ func testIdentity(documentID string) Identity {
 		Client:     "default",
 	}
 }
+
+func TestTransactionAppendUsesQueuedStateAndEnforcesIdentity(t *testing.T) {
+	t.Parallel()
+
+	repository := testRepository(t, nil)
+
+	state, err := repository.Create(State{
+		Service: ServiceSlides, PresentationID: "deck1", Account: "user@example.com", Client: "default",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	identity := Identity{Service: ServiceSlides, PresentationID: "deck1", Account: "user@example.com", Client: "default"}
+
+	err = repository.WithState(state.BatchID, func(tx *Transaction) error {
+		for range 2 {
+			count := len(tx.State().Requests)
+			options := AppendOptions{
+				BatchID: state.BatchID, Identity: identity, RevisionID: "rev1", Command: "slides.insert-text",
+				Requests: []json.RawMessage{json.RawMessage(`{"insertText":{"objectId":"shape1","text":"hello"}}`)},
+			}
+
+			total, appendErr := tx.Append(options)
+			if appendErr != nil {
+				return appendErr
+			}
+
+			if total != count+1 {
+				t.Fatalf("total=%d, previous=%d", total, count)
+			}
+		}
+
+		_, appendErr := tx.Append(AppendOptions{BatchID: "other", Identity: identity, RevisionID: "rev1"})
+		if !errors.Is(appendErr, ErrIdentityMismatch) {
+			t.Fatalf("different transaction target accepted: %v", appendErr)
+		}
+
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	stored, err := repository.Get(state.BatchID)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if stored.PresentationID != "deck1" || len(stored.Requests) != 2 || stored.RequiredRevisionID != "rev1" {
+		t.Fatalf("stored state = %+v", stored)
+	}
+}

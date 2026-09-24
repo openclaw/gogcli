@@ -7,6 +7,10 @@ description: "Build revision-locked Google Docs edits locally, inspect the exact
 
 `gog batch` persists Google Docs API requests locally, then submits them with one revision-locked `documents.batchUpdate` call. The default `batch end` path is atomic: either every request is accepted or none is applied.
 
+The same lifecycle supports [Google Slides batches](slides-batch.md) using
+`batch begin --presentation <presentationId>`. Existing Docs batch files and
+`--doc` commands continue to work unchanged.
+
 ## Basic flow
 
 ```bash

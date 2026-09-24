@@ -7,7 +7,7 @@ Delete the row containing a zero-based table cell
 ## Usage
 
 ```bash
-gog slides (slide) table row delete (rm,remove,del) --row=INT-64 <presentationId> <tableObjectId>
+gog slides (slide) table row delete (rm,remove,del) --row=INT-64 <presentationId> <tableObjectId> [flags]
 ```
 
 ## Parent
@@ -20,6 +20,7 @@ gog slides (slide) table row delete (rm,remove,del) --row=INT-64 <presentationId
 | --- | --- | --- | --- |
 | `--access-token` | `string` |  | Use provided access token directly (bypasses stored refresh tokens; token expires in ~1h) |
 | `-a`<br>`--account`<br>`--acct` | `string` |  | Account email, alias, or auto for authenticated Google API commands |
+| `--batch` | `string` |  | Append requests to a persisted Slides batch instead of submitting |
 | `--client` | `string` |  | OAuth client name (selects stored credentials + token bucket) |
 | `--color` | `string` | auto | Color output: auto\|always\|never |
 | `--disable-commands` | `string` |  | Comma-separated list of disabled commands; dot paths allowed |

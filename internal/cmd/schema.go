@@ -30,13 +30,19 @@ type schemaAutomation struct {
 }
 
 type schemaSafetyState struct {
-	DryRun        bool               `json:"dry_run"`
-	NoInput       bool               `json:"no_input"`
-	WrapUntrusted bool               `json:"wrap_untrusted"`
-	GmailNoSend   bool               `json:"gmail_no_send"`
-	ReadOnly      bool               `json:"readonly"`
-	BakedProfile  schemaBakedProfile `json:"baked_profile"`
-	CommandRules  schemaCommandRules `json:"command_rules"`
+	DryRun        bool                          `json:"dry_run"`
+	NoInput       bool                          `json:"no_input"`
+	WrapUntrusted bool                          `json:"wrap_untrusted"`
+	GmailNoSend   bool                          `json:"gmail_no_send"`
+	ReadOnly      bool                          `json:"readonly"`
+	BakedProfile  schemaBakedProfile            `json:"baked_profile"`
+	CommandRules  schemaCommandRules            `json:"command_rules"`
+	BatchServices map[string]schemaBatchService `json:"batch_services"`
+}
+
+type schemaBatchService struct {
+	AdditionalPermission string `json:"additional_permission,omitempty"`
+	SubmissionAllowed    bool   `json:"submission_allowed"`
 }
 
 type schemaBakedProfile struct {
@@ -159,6 +165,14 @@ func buildSchemaAutomation(ctx context.Context, flags *RootFlags, profile bakedS
 		safety.CommandRules.EnabledPrefixes = sortedCommandRules(flags.EnableCommands)
 		safety.CommandRules.EnabledExact = sortedCommandRules(flags.EnableCommandsExact)
 		safety.CommandRules.Disabled = sortedCommandRules(flags.DisableCommands)
+	}
+	canSubmitBatch := batchSubmissionAllowed(flags, profile)
+	safety.BatchServices = map[string]schemaBatchService{
+		"docs": {SubmissionAllowed: canSubmitBatch},
+		"slides": {
+			AdditionalPermission: "slides.batch-submit",
+			SubmissionAllowed:    canSubmitBatch && enforceExplicitCommandPermission(flags, []string{"slides", "batch-submit"}) == nil,
+		},
 	}
 
 	store, err := commandConfigStore(ctx)

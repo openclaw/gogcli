@@ -7,7 +7,7 @@ Set a column's width
 ## Usage
 
 ```bash
-gog slides (slide) table column (col) size --col=INT-64 --width=FLOAT-64 <presentationId> <tableObjectId>
+gog slides (slide) table column (col) size --col=INT-64 --width=FLOAT-64 <presentationId> <tableObjectId> [flags]
 ```
 
 ## Parent
@@ -20,6 +20,7 @@ gog slides (slide) table column (col) size --col=INT-64 --width=FLOAT-64 <presen
 | --- | --- | --- | --- |
 | `--access-token` | `string` |  | Use provided access token directly (bypasses stored refresh tokens; token expires in ~1h) |
 | `-a`<br>`--account`<br>`--acct` | `string` |  | Account email, alias, or auto for authenticated Google API commands |
+| `--batch` | `string` |  | Append requests to a persisted Slides batch instead of submitting |
 | `--client` | `string` |  | OAuth client name (selects stored credentials + token bucket) |
 | `--col` | `int64` |  | Zero-based column |
 | `--color` | `string` | auto | Color output: auto\|always\|never |

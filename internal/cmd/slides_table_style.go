@@ -19,6 +19,7 @@ type SlidesTableBorderCmd struct {
 }
 
 type SlidesTableRowSizeCmd struct {
+	Batch          string  `name:"batch" help:"Append requests to a persisted Slides batch instead of submitting"`
 	PresentationID string  `arg:"" name:"presentationId" help:"Presentation ID"`
 	TableObjectID  string  `arg:"" name:"tableObjectId" help:"Table object ID"`
 	Row            int64   `name:"row" required:"" help:"Zero-based row"`
@@ -26,6 +27,7 @@ type SlidesTableRowSizeCmd struct {
 }
 
 type SlidesTableColumnSizeCmd struct {
+	Batch          string  `name:"batch" help:"Append requests to a persisted Slides batch instead of submitting"`
 	PresentationID string  `arg:"" name:"presentationId" help:"Presentation ID"`
 	TableObjectID  string  `arg:"" name:"tableObjectId" help:"Table object ID"`
 	Col            int64   `name:"col" required:"" help:"Zero-based column"`
@@ -33,6 +35,7 @@ type SlidesTableColumnSizeCmd struct {
 }
 
 type SlidesTableCellStyleCmd struct {
+	Batch           string  `name:"batch" help:"Append requests to a persisted Slides batch instead of submitting"`
 	PresentationID  string  `arg:"" name:"presentationId" help:"Presentation ID"`
 	TableObjectID   string  `arg:"" name:"tableObjectId" help:"Table object ID"`
 	Row             int64   `name:"row" required:"" help:"Zero-based row"`
@@ -53,6 +56,7 @@ type SlidesTableCellStyleCmd struct {
 }
 
 type SlidesTableBorderStyleCmd struct {
+	Batch          string   `name:"batch" help:"Append requests to a persisted Slides batch instead of submitting"`
 	PresentationID string   `arg:"" name:"presentationId" help:"Presentation ID"`
 	TableObjectID  string   `arg:"" name:"tableObjectId" help:"Table object ID"`
 	Row            int64    `name:"row" required:"" help:"Zero-based starting row"`
@@ -86,6 +90,7 @@ func (c *SlidesTableRowSizeCmd) Run(ctx context.Context, flags *RootFlags) error
 		Fields: "minRowHeight",
 	}}
 	return runSlidesTableMutation(ctx, flags, slidesTableMutation{
+		Batch:          c.Batch,
 		Op:             "slides.table.row.size",
 		Action:         "size table row",
 		PresentationID: presentationID,
@@ -120,6 +125,7 @@ func (c *SlidesTableColumnSizeCmd) Run(ctx context.Context, flags *RootFlags) er
 		Fields: "columnWidth",
 	}}
 	return runSlidesTableMutation(ctx, flags, slidesTableMutation{
+		Batch:          c.Batch,
 		Op:             "slides.table.column.size",
 		Action:         "size table column",
 		PresentationID: presentationID,
@@ -218,6 +224,7 @@ func (c *SlidesTableCellStyleCmd) Run(ctx context.Context, flags *RootFlags) err
 	}
 
 	return runSlidesTableMutation(ctx, flags, slidesTableMutation{
+		Batch:          c.Batch,
 		Op:             "slides.table.cell.style",
 		Action:         "style table cell",
 		PresentationID: presentationID,
@@ -294,6 +301,7 @@ func (c *SlidesTableBorderStyleCmd) Run(ctx context.Context, flags *RootFlags) e
 		Fields:                strings.Join(fields, ","),
 	}}
 	return runSlidesTableMutation(ctx, flags, slidesTableMutation{
+		Batch:          c.Batch,
 		Op:             "slides.table.border.style",
 		Action:         "style table borders",
 		PresentationID: presentationID,

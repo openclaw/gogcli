@@ -28,6 +28,15 @@ func TestExecuteRejectsEmptyBatchFlag(t *testing.T) {
 		{"docs", "insert-section-break", "doc1", "--index", "1"},
 		{"docs", "insert-horizontal-rule", "doc1", "--index", "1"},
 		{"docs", "section-columns", "doc1", "--count", "2"},
+		{"slides", "new-slide", "deck1"},
+		{"slides", "element", "create-shape", "deck1", "slide1"},
+		{"slides", "element", "delete", "deck1", "shape1"},
+		{"slides", "insert-text", "deck1", "shape1", "text"},
+		{"slides", "style-text", "deck1", "shape1", "--range", "0:4", "--bold"},
+		{"slides", "paragraph-style", "deck1", "shape1", "--align", "CENTER"},
+		{"slides", "table", "create", "deck1", "slide1", "--rows", "2", "--cols", "2"},
+		{"slides", "table", "cell", "style", "deck1", "table1", "--row", "0", "--col", "0", "--bold"},
+		{"slides", "table", "merge", "deck1", "table1", "--row", "0", "--col", "0", "--col-span", "2"},
 	}
 	for _, command := range commands {
 		for _, batchFlag := range [][]string{{"--batch", ""}, {"--batch="}, {"--batch", " \t\n"}} {

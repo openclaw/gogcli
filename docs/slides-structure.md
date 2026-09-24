@@ -1,5 +1,8 @@
 # Slides structure
 
+`new-slide` and all `element` mutations support [persisted Slides batches](slides-batch.md),
+including references to objects created earlier in the same batch.
+
 Create native, editable slides without rendering an image first:
 
 ```bash

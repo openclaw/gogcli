@@ -17,6 +17,7 @@ import (
 // It is a thin wrapper around presentations.batchUpdate with an InsertTextRequest
 // (with a style-preserving replacement batch when --replace is set).
 type SlidesInsertTextCmd struct {
+	Batch          string `name:"batch" help:"Append requests to a persisted Slides batch instead of submitting"`
 	PresentationID string `arg:"" name:"presentationId" help:"Presentation ID"`
 	ObjectID       string `arg:"" name:"objectId" help:"Page element object ID (shape or table) to insert text into"`
 	Text           string `arg:"" name:"text" help:"Text to insert (use '-' to read from stdin)"`
@@ -29,6 +30,9 @@ type SlidesInsertTextCmd struct {
 // Run executes the insert-text command.
 func (c *SlidesInsertTextCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
+	if strings.TrimSpace(c.Batch) != "" && c.Replace {
+		return usage("--replace cannot be combined with --batch; replacement requires current text to preserve its style")
+	}
 
 	presentationID := strings.TrimSpace(c.PresentationID)
 	if presentationID == "" {
@@ -96,6 +100,10 @@ func (c *SlidesInsertTextCmd) Run(ctx context.Context, flags *RootFlags) error {
 		"batch_update":    body,
 	}); err != nil {
 		return err
+	}
+
+	if queued, queueErr := queueSlidesBatchRequests(ctx, flags, c.Batch, presentationID, "slides.insert-text", body.Requests, map[string]any{"presentationId": presentationID, "objectId": objectID}); queued || queueErr != nil {
+		return queueErr
 	}
 
 	account, err := requireAccount(flags)

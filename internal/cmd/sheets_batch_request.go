@@ -29,7 +29,7 @@ type sheetsBatchRequestBody struct {
 }
 
 func (c *SheetsBatchRequestCmd) Run(ctx context.Context, flags *RootFlags) error {
-	if err := enforceSheetsBatchRequestPolicy(flags); err != nil {
+	if err := enforceExplicitCommandPermission(flags, []string{"sheets", "batch-request"}); err != nil {
 		return err
 	}
 	id := normalizeGoogleID(strings.TrimSpace(c.SpreadsheetID))
@@ -110,34 +110,4 @@ func parseSheetsBatchRequests(source string, input io.Reader) ([]json.RawMessage
 		}
 	}
 	return requests, nil
-}
-
-func enforceSheetsBatchRequestPolicy(flags *RootFlags) error {
-	path := []string{"sheets", "batch-request"}
-	profile, err := loadBakedSafetyProfile()
-	if err != nil {
-		return err
-	}
-	if !profile.allowsCommandPath(path) {
-		return profile.commandPathError(path)
-	}
-	if flags == nil {
-		return nil
-	}
-	allow := parseEnabledCommands(flags.EnableCommands)
-	exact := parseEnabledCommands(flags.EnableCommandsExact)
-	deny := parseEnabledCommands(flags.DisableCommands)
-	if commandPathMatches(deny, path) {
-		return usage("sheets batch-request is disabled by command policy")
-	}
-	if len(allow) == 0 && len(exact) == 0 && len(deny) == 0 {
-		return nil
-	}
-	if allow["sheets.batch-request"] || exact["sheets.batch-request"] {
-		return nil
-	}
-	if len(deny) == 0 && (allow["*"] || allow["all"] || exact["*"] || exact["all"]) {
-		return nil
-	}
-	return usage("sheets batch-request requires explicit command-policy permission; add sheets.batch-request to --enable-commands or --enable-commands-exact")
 }

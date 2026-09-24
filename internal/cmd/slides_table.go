@@ -22,6 +22,7 @@ type SlidesTableCmd struct {
 }
 
 type SlidesTableCreateCmd struct {
+	Batch          string `name:"batch" help:"Append requests to a persisted Slides batch instead of submitting"`
 	PresentationID string `arg:"" name:"presentationId" help:"Presentation ID"`
 	SlideID        string `arg:"" name:"slideId" help:"Slide object ID to place the table on"`
 	ObjectID       string `name:"object-id" help:"Optional table object ID to assign"`
@@ -41,6 +42,13 @@ func (c *SlidesTableCreateCmd) Run(ctx context.Context, flags *RootFlags) error 
 		return usage("empty slideId")
 	}
 	objectID := strings.TrimSpace(c.ObjectID)
+	if strings.TrimSpace(c.Batch) != "" {
+		var err error
+		objectID, err = slidesElementObjectID(objectID, "gogTable")
+		if err != nil {
+			return err
+		}
+	}
 	if c.Rows < 1 {
 		return usage("--rows must be >= 1")
 	}
@@ -60,6 +68,12 @@ func (c *SlidesTableCreateCmd) Run(ctx context.Context, flags *RootFlags) error 
 		"batch_update":    body,
 	}); err != nil {
 		return err
+	}
+
+	if queued, queueErr := queueSlidesBatchRequests(ctx, flags, c.Batch, presentationID, "slides.table.create", body.Requests, map[string]any{
+		"presentationId": presentationID, "slideObjectId": slideID, "tableObjectId": objectID, "rows": c.Rows, "cols": c.Cols,
+	}); queued || queueErr != nil {
+		return queueErr
 	}
 
 	account, err := requireAccount(flags)

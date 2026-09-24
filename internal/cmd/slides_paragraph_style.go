@@ -10,6 +10,7 @@ import (
 )
 
 type SlidesParagraphStyleCmd struct {
+	Batch           string   `name:"batch" help:"Append requests to a persisted Slides batch instead of submitting"`
 	PresentationID  string   `arg:"" name:"presentationId" help:"Presentation ID"`
 	ObjectID        string   `arg:"" name:"objectId" help:"Shape or table object ID"`
 	Range           string   `name:"range" help:"UTF-16 range as start:end (default: all text); styles every intersecting paragraph"`
@@ -58,13 +59,15 @@ func (c *SlidesParagraphStyleCmd) Run(ctx context.Context, flags *RootFlags) err
 		payload["row"], payload["col"] = *c.Row, *c.Col
 		output["row"], output["col"] = *c.Row, *c.Col
 		return runSlidesTableMutation(ctx, flags, slidesTableMutation{
-			Op: "slides.paragraph-style", Action: "style paragraphs", PresentationID: presentationID,
+			Batch: c.Batch,
+			Op:    "slides.paragraph-style", Action: "style paragraphs", PresentationID: presentationID,
 			TableObjectID: objectID, Request: request, Payload: payload, Output: output, Text: message,
 			Validate: func(table *slides.Table) error { return validateSlidesTableAnchor(table, *c.Row, *c.Col) },
 		})
 	}
 	return runSlidesElementMutation(ctx, flags, slidesElementMutation{
-		Op: "slides.paragraph-style", Action: "style paragraphs", PresentationID: presentationID,
+		Batch: c.Batch,
+		Op:    "slides.paragraph-style", Action: "style paragraphs", PresentationID: presentationID,
 		Request: request, Payload: payload, Output: output, Text: message,
 	})
 }

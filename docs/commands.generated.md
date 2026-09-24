@@ -112,9 +112,9 @@ Generated from `gog schema --json`.
     - [`gog backup push [flags]`](commands/gog-backup-push.md) - Export services into encrypted backup shards
     - [`gog backup status [flags]`](commands/gog-backup-status.md) - Inspect backup manifest without decrypting shards
     - [`gog backup verify [flags]`](commands/gog-backup-verify.md) - Decrypt and verify all backup shards
-  - [`gog batch <command> [flags]`](commands/gog-batch.md) - Build and submit persisted Google Docs request batches
+  - [`gog batch <command> [flags]`](commands/gog-batch.md) - Build and submit persisted Google Docs and Slides request batches
     - [`gog batch abort (rm,delete) <batchId>`](commands/gog-batch-abort.md) - Delete a request batch without submitting
-    - [`gog batch begin --doc=STRING [flags]`](commands/gog-batch-begin.md) - Begin a persisted request batch
+    - [`gog batch begin [flags]`](commands/gog-batch-begin.md) - Begin a persisted request batch
     - [`gog batch end (submit) <batchId> [flags]`](commands/gog-batch-end.md) - Submit and remove a request batch
     - [`gog batch list (ls)`](commands/gog-batch-list.md) - List persisted request batches
     - [`gog batch prune [flags]`](commands/gog-batch-prune.md) - Delete stale request batches
@@ -688,12 +688,12 @@ Generated from `gog schema --json`.
       - [`gog slides (slide) element alt-text <presentationId> <objectId> [flags]`](commands/gog-slides-element-alt-text.md) - Set or clear element accessibility text
       - [`gog slides (slide) element create-line <presentationId> <slideId> [flags]`](commands/gog-slides-element-create-line.md) - Create a native line on a slide
       - [`gog slides (slide) element create-shape <presentationId> <slideId> [flags]`](commands/gog-slides-element-create-shape.md) - Create a native shape on a slide
-      - [`gog slides (slide) element delete (rm) <presentationId> <objectId> ...`](commands/gog-slides-element-delete.md) - Delete one or more page elements
+      - [`gog slides (slide) element delete (rm) <presentationId> <objectId> ... [flags]`](commands/gog-slides-element-delete.md) - Delete one or more page elements
       - [`gog slides (slide) element group <presentationId> <objectId> ... [flags]`](commands/gog-slides-element-group.md) - Group two or more elements
       - [`gog slides (slide) element style <presentationId> <objectId> [flags]`](commands/gog-slides-element-style.md) - Style a shape fill/outline or a line
       - [`gog slides (slide) element transform (move,resize,rotate) <presentationId> <objectId> [flags]`](commands/gog-slides-element-transform.md) - Move, resize, rotate, or replace an element transform
-      - [`gog slides (slide) element ungroup <presentationId> <groupId> ...`](commands/gog-slides-element-ungroup.md) - Ungroup one or more element groups
-      - [`gog slides (slide) element z-order --operation=STRING <presentationId> <objectId> ...`](commands/gog-slides-element-z-order.md) - Change element stacking order
+      - [`gog slides (slide) element ungroup <presentationId> <groupId> ... [flags]`](commands/gog-slides-element-ungroup.md) - Ungroup one or more element groups
+      - [`gog slides (slide) element z-order --operation=STRING <presentationId> <objectId> ... [flags]`](commands/gog-slides-element-z-order.md) - Change element stacking order
     - [`gog slides (slide) export (download,dl) <presentationId> [flags]`](commands/gog-slides-export.md) - Export a Google Slides deck (pdf|pptx)
     - [`gog slides (slide) info (get,show) <presentationId>`](commands/gog-slides-info.md) - Get Google Slides presentation metadata
     - [`gog slides (slide) insert-image <presentationId> <slideId> [<image>] [flags]`](commands/gog-slides-insert-image.md) - Insert a local or public image at a position and size
@@ -716,15 +716,15 @@ Generated from `gog schema --json`.
       - [`gog slides (slide) table cell <command>`](commands/gog-slides-table-cell.md) - Style table cells
         - [`gog slides (slide) table cell style --row=INT-64 --col=INT-64 <presentationId> <tableObjectId> [flags]`](commands/gog-slides-table-cell-style.md) - Style one zero-based table cell
       - [`gog slides (slide) table column (col) <command>`](commands/gog-slides-table-column.md) - Insert, delete, or size table columns
-        - [`gog slides (slide) table column (col) delete (rm,remove,del) --col=INT-64 <presentationId> <tableObjectId>`](commands/gog-slides-table-column-delete.md) - Delete the column containing a zero-based table cell
+        - [`gog slides (slide) table column (col) delete (rm,remove,del) --col=INT-64 <presentationId> <tableObjectId> [flags]`](commands/gog-slides-table-column-delete.md) - Delete the column containing a zero-based table cell
         - [`gog slides (slide) table column (col) insert (add) --col=INT-64 <presentationId> <tableObjectId> [flags]`](commands/gog-slides-table-column-insert.md) - Insert columns left or right of a zero-based column
-        - [`gog slides (slide) table column (col) size --col=INT-64 --width=FLOAT-64 <presentationId> <tableObjectId>`](commands/gog-slides-table-column-size.md) - Set a column's width
+        - [`gog slides (slide) table column (col) size --col=INT-64 --width=FLOAT-64 <presentationId> <tableObjectId> [flags]`](commands/gog-slides-table-column-size.md) - Set a column's width
       - [`gog slides (slide) table create (add) --rows=INT-64 --cols=INT-64 <presentationId> <slideId> [flags]`](commands/gog-slides-table-create.md) - Create an auto-sized native table on a slide
       - [`gog slides (slide) table merge --row=INT-64 --col=INT-64 <presentationId> <tableObjectId> [flags]`](commands/gog-slides-table-merge.md) - Merge a rectangular table cell range
       - [`gog slides (slide) table row <command>`](commands/gog-slides-table-row.md) - Insert, delete, or size table rows
-        - [`gog slides (slide) table row delete (rm,remove,del) --row=INT-64 <presentationId> <tableObjectId>`](commands/gog-slides-table-row-delete.md) - Delete the row containing a zero-based table cell
+        - [`gog slides (slide) table row delete (rm,remove,del) --row=INT-64 <presentationId> <tableObjectId> [flags]`](commands/gog-slides-table-row-delete.md) - Delete the row containing a zero-based table cell
         - [`gog slides (slide) table row insert (add) --row=INT-64 <presentationId> <tableObjectId> [flags]`](commands/gog-slides-table-row-insert.md) - Insert rows above or below a zero-based row
-        - [`gog slides (slide) table row size --row=INT-64 --height=FLOAT-64 <presentationId> <tableObjectId>`](commands/gog-slides-table-row-size.md) - Set a row's minimum height
+        - [`gog slides (slide) table row size --row=INT-64 --height=FLOAT-64 <presentationId> <tableObjectId> [flags]`](commands/gog-slides-table-row-size.md) - Set a row's minimum height
       - [`gog slides (slide) table unmerge (split) --row=INT-64 --col=INT-64 <presentationId> <tableObjectId> [flags]`](commands/gog-slides-table-unmerge.md) - Unmerge cells in a rectangular table range
     - [`gog slides (slide) thumbnail (thumb) <presentationId> <slideId> [flags]`](commands/gog-slides-thumbnail.md) - Get or download a rendered thumbnail for a slide
     - [`gog slides (slide) unskip-slide (unhide-slide) <presentationId> <slideId>`](commands/gog-slides-unskip-slide.md) - Include a skipped slide during presentation

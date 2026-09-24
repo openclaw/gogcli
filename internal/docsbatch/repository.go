@@ -18,6 +18,7 @@ import (
 
 const (
 	ServiceDocs        = "docs"
+	ServiceSlides      = "slides"
 	defaultLockTimeout = 5 * time.Second
 )
 
@@ -42,7 +43,8 @@ type State struct {
 	BatchID            string         `json:"batch_id"`
 	Name               string         `json:"name,omitempty"`
 	Service            string         `json:"service"`
-	DocumentID         string         `json:"doc_id"`
+	DocumentID         string         `json:"doc_id,omitempty"`
+	PresentationID     string         `json:"presentation_id,omitempty"`
 	Account            string         `json:"account"`
 	Client             string         `json:"client"`
 	CreatedAt          time.Time      `json:"created_at"`
@@ -52,22 +54,24 @@ type State struct {
 }
 
 type Summary struct {
-	BatchID    string    `json:"batch_id"`
-	Name       string    `json:"name,omitempty"`
-	Service    string    `json:"service"`
-	DocumentID string    `json:"doc_id"`
-	Account    string    `json:"account"`
-	Client     string    `json:"client"`
-	CreatedAt  time.Time `json:"created_at"`
-	UpdatedAt  time.Time `json:"updated_at"`
-	Requests   int       `json:"requests"`
+	BatchID        string    `json:"batch_id"`
+	Name           string    `json:"name,omitempty"`
+	Service        string    `json:"service"`
+	DocumentID     string    `json:"doc_id,omitempty"`
+	PresentationID string    `json:"presentation_id,omitempty"`
+	Account        string    `json:"account"`
+	Client         string    `json:"client"`
+	CreatedAt      time.Time `json:"created_at"`
+	UpdatedAt      time.Time `json:"updated_at"`
+	Requests       int       `json:"requests"`
 }
 
 type Identity struct {
-	Service    string
-	DocumentID string
-	Account    string
-	Client     string
+	Service        string
+	DocumentID     string
+	PresentationID string
+	Account        string
+	Client         string
 }
 
 type AppendOptions struct {
@@ -199,56 +203,65 @@ func (r *Repository) Get(batchID string) (*State, error) {
 func (r *Repository) Append(options AppendOptions) (int, error) {
 	total := 0
 
-	err := r.lock.WithExclusive(func() error {
-		state, err := r.readUnlocked(options.BatchID)
-		if err != nil {
-			return err
-		}
+	err := r.WithState(options.BatchID, func(transaction *Transaction) error {
+		var err error
+		total, err = transaction.Append(options)
 
-		if err := ValidateIdentity(state, options.Identity); err != nil {
-			return err
-		}
-
-		if options.RevisionID == "" {
-			return ErrEmptyRevision
-		}
-
-		if state.RequiredRevisionID != "" && state.RequiredRevisionID != options.RevisionID {
-			return fmt.Errorf(
-				"document revision changed since the first request was queued (batch=%s current=%s): %w",
-				state.BatchID,
-				options.RevisionID,
-				ErrRevisionChanged,
-			)
-		}
-
-		if options.RequireEmpty && len(state.Requests) > 0 {
-			return fmt.Errorf("this operation must be the first request in a batch: %w", ErrRequireEmpty)
-		}
-
-		now := r.now().UTC()
-		for _, request := range options.Requests {
-			state.Requests = append(state.Requests, RequestEntry{
-				AppendedAt: now,
-				Command:    options.Command,
-				Request:    append(json.RawMessage(nil), request...),
-			})
-		}
-		state.RequiredRevisionID = options.RevisionID
-		state.UpdatedAt = now
-
-		if err := r.writeUnlocked(state); err != nil {
-			return err
-		}
-		total = len(state.Requests)
-
-		return nil
+		return err
 	})
 	if err != nil {
 		return 0, fmt.Errorf("append batch: %w", err)
 	}
 
 	return total, nil
+}
+
+// Append lets a caller resolve requests against queued state under the same lock.
+func (t *Transaction) Append(options AppendOptions) (int, error) {
+	if t.deleted {
+		return 0, ErrTransactionDeleted
+	}
+
+	state := t.state
+	if options.BatchID != state.BatchID {
+		return 0, fmt.Errorf("append targets a different batch: %w", ErrIdentityMismatch)
+	}
+
+	if err := ValidateIdentity(state, options.Identity); err != nil {
+		return 0, err
+	}
+
+	if options.RevisionID == "" {
+		return 0, ErrEmptyRevision
+	}
+
+	if state.RequiredRevisionID != "" && state.RequiredRevisionID != options.RevisionID {
+		return 0, fmt.Errorf(
+			"document revision changed since the first request was queued (batch=%s current=%s): %w",
+			state.BatchID, options.RevisionID, ErrRevisionChanged,
+		)
+	}
+
+	if options.RequireEmpty && len(state.Requests) > 0 {
+		return 0, fmt.Errorf("this operation must be the first request in a batch: %w", ErrRequireEmpty)
+	}
+
+	now := t.repository.now().UTC()
+	for _, request := range options.Requests {
+		state.Requests = append(state.Requests, RequestEntry{
+			AppendedAt: now,
+			Command:    options.Command,
+			Request:    append(json.RawMessage(nil), request...),
+		})
+	}
+	state.RequiredRevisionID = options.RevisionID
+
+	state.UpdatedAt = now
+	if err := t.repository.writeUnlocked(state); err != nil {
+		return 0, err
+	}
+
+	return len(state.Requests), nil
 }
 
 func (r *Repository) Delete(batchID string) (*State, error) {
@@ -368,6 +381,8 @@ func ValidateIdentity(state *State, identity Identity) error {
 		return fmt.Errorf("batch service is %s, not %s: %w", state.Service, identity.Service, ErrIdentityMismatch)
 	case state.DocumentID != identity.DocumentID:
 		return fmt.Errorf("batch targets doc %s, not %s: %w", state.DocumentID, identity.DocumentID, ErrIdentityMismatch)
+	case state.PresentationID != identity.PresentationID:
+		return fmt.Errorf("batch targets presentation %s, not %s: %w", state.PresentationID, identity.PresentationID, ErrIdentityMismatch)
 	case !strings.EqualFold(state.Account, identity.Account):
 		return fmt.Errorf("batch uses account %s, not %s: %w", state.Account, identity.Account, ErrIdentityMismatch)
 	case state.Client != identity.Client:
@@ -379,15 +394,16 @@ func ValidateIdentity(state *State, identity Identity) error {
 
 func summarize(state *State) Summary {
 	return Summary{
-		BatchID:    state.BatchID,
-		Name:       state.Name,
-		Service:    state.Service,
-		DocumentID: state.DocumentID,
-		Account:    state.Account,
-		Client:     state.Client,
-		CreatedAt:  state.CreatedAt,
-		UpdatedAt:  state.UpdatedAt,
-		Requests:   len(state.Requests),
+		BatchID:        state.BatchID,
+		Name:           state.Name,
+		Service:        state.Service,
+		DocumentID:     state.DocumentID,
+		PresentationID: state.PresentationID,
+		Account:        state.Account,
+		Client:         state.Client,
+		CreatedAt:      state.CreatedAt,
+		UpdatedAt:      state.UpdatedAt,
+		Requests:       len(state.Requests),
 	}
 }
 

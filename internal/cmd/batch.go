@@ -25,21 +25,35 @@ type BatchCmd struct {
 }
 
 type BatchBeginCmd struct {
-	Service string `name:"service" help:"Google API service" enum:"docs" default:"docs"`
-	DocID   string `name:"doc" required:"" help:"Google Doc ID"`
-	Name    string `name:"name" help:"Optional batch label"`
+	Service        string `name:"service" help:"Google API service: docs or slides (inferred from target)"`
+	DocID          string `name:"doc" help:"Google Doc ID; mutually exclusive with --presentation"`
+	PresentationID string `name:"presentation" help:"Google Slides presentation ID; mutually exclusive with --doc"`
+	Name           string `name:"name" help:"Optional batch label"`
 }
 
 func (c *BatchBeginCmd) Run(ctx context.Context, flags *RootFlags) error {
 	documentID := strings.TrimSpace(c.DocID)
-	if documentID == "" {
-		return usage("empty --doc")
+	presentationID := strings.TrimSpace(c.PresentationID)
+	if (documentID == "") == (presentationID == "") {
+		return usage("provide exactly one of --doc or --presentation")
 	}
-	if err := dryRunExit(ctx, flags, "batch.begin", map[string]any{
-		"service": c.Service,
-		"doc_id":  documentID,
+	service := docsbatch.ServiceDocs
+	if presentationID != "" {
+		service = docsbatch.ServiceSlides
+	}
+	if c.Service != "" && c.Service != service {
+		return usagef("--service %s does not match the %s target", c.Service, service)
+	}
+	preview := map[string]any{
+		"service": service,
 		"name":    strings.TrimSpace(c.Name),
-	}); err != nil {
+	}
+	if service == docsbatch.ServiceDocs {
+		preview["doc_id"] = documentID
+	} else {
+		preview["presentation_id"] = presentationID
+	}
+	if err := dryRunExit(ctx, flags, "batch.begin", preview); err != nil {
 		return err
 	}
 	account, err := requireAccount(flags)
@@ -55,11 +69,12 @@ func (c *BatchBeginCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 	state, err := store.Create(docsbatch.State{
-		Name:       strings.TrimSpace(c.Name),
-		Service:    c.Service,
-		DocumentID: documentID,
-		Account:    account,
-		Client:     client,
+		Name:           strings.TrimSpace(c.Name),
+		Service:        service,
+		DocumentID:     documentID,
+		PresentationID: presentationID,
+		Account:        account,
+		Client:         client,
 	})
 	if err != nil {
 		return err
@@ -90,7 +105,11 @@ func (c *BatchListCmd) Run(ctx context.Context) error {
 
 	out := ui.FromContext(ctx).Out()
 	for _, batch := range batches {
-		out.Linef("%s\t%s\t%s\t%d\t%s", batch.BatchID, batch.Service, batch.DocumentID, batch.Requests, batch.UpdatedAt.Format(time.RFC3339))
+		targetID := batch.DocumentID
+		if batch.Service == docsbatch.ServiceSlides {
+			targetID = batch.PresentationID
+		}
+		out.Linef("%s\t%s\t%s\t%d\t%s", batch.BatchID, batch.Service, targetID, batch.Requests, batch.UpdatedAt.Format(time.RFC3339))
 	}
 
 	return nil
@@ -115,7 +134,7 @@ func (c *BatchShowCmd) Run(ctx context.Context) error {
 	}
 	payload := map[string]any{
 		"batch":   state,
-		"payload": docsBatchWirePayload(state, state.Requests),
+		"payload": batchWirePayload(state, state.Requests),
 	}
 	if outfmt.IsJSON(ctx) {
 		return outfmt.WriteJSON(ctx, stdoutWriter(ctx), payload)
@@ -198,6 +217,8 @@ type BatchEndCmd struct {
 	AutoSplit       bool   `name:"auto-split" help:"Submit batches over 500 requests as ordered chunks (non-atomic)"`
 }
 
+const persistedBatchRequestCap = 500
+
 type docsBatchEndResult struct {
 	BatchID  string `json:"batch_id"`
 	Requests int    `json:"requests"`
@@ -228,13 +249,16 @@ func (c *BatchEndCmd) Run(ctx context.Context, flags *RootFlags) error {
 		if len(state.Requests) == 0 {
 			return errors.New("batch has no requests")
 		}
+		if err := validateBatchSubmission(flags, state); err != nil {
+			return err
+		}
 
 		return writeDocsBatchEndResult(ctx, docsBatchEndResult{
 			BatchID:  state.BatchID,
 			Requests: len(state.Requests),
 			Atomic:   !c.AutoSplit,
 			DryRun:   true,
-			Payload:  docsBatchWirePayload(state, state.Requests),
+			Payload:  batchWirePayload(state, state.Requests),
 		})
 	}
 	store, err := newDocsBatchStore(ctx)
@@ -245,20 +269,23 @@ func (c *BatchEndCmd) Run(ctx context.Context, flags *RootFlags) error {
 	var result docsBatchEndResult
 	err = store.WithState(batchID, func(transaction *docsbatch.Transaction) error {
 		state := transaction.State()
+		if validationErr := validateBatchSubmission(flags, state); validationErr != nil {
+			return validationErr
+		}
 		if len(state.Requests) == 0 {
 			return errors.New("batch has no requests")
 		}
 		result.BatchID = state.BatchID
 		result.Requests = len(state.Requests)
 		result.Atomic = !c.AutoSplit
-		if len(state.Requests) > docsBatchUpdateRequestCap && !c.AutoSplit {
-			return usagef("batch has %d requests; Docs allows at most %d per atomic update (use --auto-split for non-atomic submission)", len(state.Requests), docsBatchUpdateRequestCap)
+		if len(state.Requests) > persistedBatchRequestCap && !c.AutoSplit {
+			return usagef("batch has %d requests; gog submits at most %d per atomic update (use --auto-split for non-atomic submission)", len(state.Requests), persistedBatchRequestCap)
 		}
 		if c.AutoSplit {
 			return c.submitSplit(ctx, transaction, state, &result)
 		}
 
-		_, submitErr := submitDocsBatch(ctx, state, state.Requests)
+		_, submitErr := submitPersistedBatch(ctx, state, state.Requests)
 		if submitErr == nil {
 			result.Chunks = 1
 			state.Requests = nil
@@ -292,16 +319,15 @@ func (c *BatchEndCmd) submitSplit(
 ) error {
 	result.Atomic = false
 	for len(state.Requests) > 0 {
-		count := min(len(state.Requests), docsBatchUpdateRequestCap)
-		response, err := submitDocsBatch(ctx, state, state.Requests[:count])
+		count := min(len(state.Requests), persistedBatchRequestCap)
+		revision, err := submitPersistedBatch(ctx, state, state.Requests[:count])
 		if err != nil {
 			return err
 		}
 		result.Chunks++
 		state.Requests = state.Requests[count:]
 		missingRevision := false
-		if len(state.Requests) > 0 {
-			revision := docsBatchResponseRevision(response)
+		if len(state.Requests) > 0 && batchUsesRevisions(state.Service) {
 			if revision == "" {
 				missingRevision = true
 			} else {
@@ -312,7 +338,7 @@ func (c *BatchEndCmd) submitSplit(
 			return err
 		}
 		if missingRevision {
-			return errors.New("docs response omitted the revision required to continue split submission")
+			return fmt.Errorf("%s response omitted the revision required to continue split submission", state.Service)
 		}
 	}
 
@@ -331,15 +357,14 @@ func (c *BatchEndCmd) submitIndividually(
 	for index := 0; len(pending) > 0; index++ {
 		entry := pending[0]
 		pending = pending[1:]
-		response, err := submitDocsBatch(ctx, state, []docsbatch.RequestEntry{entry})
+		revision, err := submitPersistedBatch(ctx, state, []docsbatch.RequestEntry{entry})
 		missingRevision := false
 		if err != nil {
 			failed = append(failed, entry)
 			ui.FromContext(ctx).Err().Linef("batch request %d failed: %v", index+1, err)
 		} else {
 			result.Chunks++
-			revision := docsBatchResponseRevision(response)
-			if (len(failed) > 0 || len(pending) > 0) && revision == "" {
+			if (len(failed) > 0 || len(pending) > 0) && batchUsesRevisions(state.Service) && revision == "" {
 				missingRevision = true
 			} else if revision != "" {
 				state.RequiredRevisionID = revision
@@ -352,7 +377,7 @@ func (c *BatchEndCmd) submitIndividually(
 			return err
 		}
 		if missingRevision {
-			return errors.New("docs response omitted the revision required to continue individual submission")
+			return fmt.Errorf("%s response omitted the revision required to continue individual submission", state.Service)
 		}
 	}
 

@@ -13,6 +13,7 @@ import (
 )
 
 type SlidesNewSlideCmd struct {
+	Batch          string  `name:"batch" help:"Append requests to a persisted Slides batch instead of submitting"`
 	PresentationID string  `arg:"" name:"presentationId" help:"Presentation ID"`
 	Layout         *string `name:"layout" enum:"BLANK,CAPTION_ONLY,TITLE,TITLE_AND_BODY,TITLE_AND_TWO_COLUMNS,TITLE_ONLY,SECTION_HEADER,SECTION_TITLE_AND_DESCRIPTION,ONE_COLUMN_TEXT,MAIN_POINT,BIG_NUMBER" help:"Predefined slide layout; defaults to BLANK"`
 	LayoutID       string  `name:"layout-id" help:"Exact presentation layout object ID from 'slides info --json'; mutually exclusive with --layout"`
@@ -69,6 +70,11 @@ func (c *SlidesNewSlideCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 	if err := dryRunExit(ctx, flags, "slides.new-slide", payload); err != nil {
 		return err
+	}
+	if queued, queueErr := queueSlidesBatchRequests(ctx, flags, c.Batch, presentationID, "slides.new-slide", body.Requests, map[string]any{
+		"presentationId": presentationID, "slideObjectId": slideID,
+	}); queued || queueErr != nil {
+		return queueErr
 	}
 
 	account, err := requireAccount(flags)

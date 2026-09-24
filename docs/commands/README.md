@@ -13,7 +13,7 @@ Generated pages: 775.
 - [gog appscript](gog-appscript.md) - Google Apps Script
 - [gog auth](gog-auth.md) - Auth and credentials
 - [gog backup](gog-backup.md) - Encrypted Google account backups
-- [gog batch](gog-batch.md) - Build and submit persisted Google Docs request batches
+- [gog batch](gog-batch.md) - Build and submit persisted Google Docs and Slides request batches
 - [gog calendar](gog-calendar.md) - Google Calendar
 - [gog chat](gog-chat.md) - Google Chat
 - [gog classroom](gog-classroom.md) - Google Classroom
@@ -166,7 +166,7 @@ Generated pages: 775.
     - [gog backup push](gog-backup-push.md) - Export services into encrypted backup shards
     - [gog backup status](gog-backup-status.md) - Inspect backup manifest without decrypting shards
     - [gog backup verify](gog-backup-verify.md) - Decrypt and verify all backup shards
-  - [gog batch](gog-batch.md) - Build and submit persisted Google Docs request batches
+  - [gog batch](gog-batch.md) - Build and submit persisted Google Docs and Slides request batches
     - [gog batch abort](gog-batch-abort.md) - Delete a request batch without submitting
     - [gog batch begin](gog-batch-begin.md) - Begin a persisted request batch
     - [gog batch end](gog-batch-end.md) - Submit and remove a request batch

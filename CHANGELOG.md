@@ -2,6 +2,7 @@
 
 ## 0.41.1 - Unreleased
 
+- Slides: queue native slides, elements, text, and table edits across commands with `--batch`, then submit one revision-locked atomic update while preserving generated IDs and explicit service permissions. (#1097) — thanks @sebsnyk.
 - Groups: use the documented single-label membership query in listings and backups, preserving native pagination and escaping member identities correctly. (#1059) — thanks @hengshan.
 - Docs: reject explicitly empty or whitespace-only `--batch` values before input or authentication, preventing accidental immediate edits when a batch variable is empty. (#1156)
 - Docs: return a nonzero exit status when `batch end --continue-on-error` retains failed requests, while preserving its result summary and successfully applied edits. (#1154)

@@ -21,6 +21,7 @@ gog slides (slide) paragraph-style <presentationId> <objectId> [flags]
 | `--access-token` | `string` |  | Use provided access token directly (bypasses stored refresh tokens; token expires in ~1h) |
 | `-a`<br>`--account`<br>`--acct` | `string` |  | Account email, alias, or auto for authenticated Google API commands |
 | `--align` | `string` |  | Paragraph alignment: START, CENTER, END, JUSTIFIED |
+| `--batch` | `string` |  | Append requests to a persisted Slides batch instead of submitting |
 | `--client` | `string` |  | OAuth client name (selects stored credentials + token bucket) |
 | `--col` | `*int64` |  | Zero-based table column; requires --row |
 | `--color` | `string` | auto | Color output: auto\|always\|never |

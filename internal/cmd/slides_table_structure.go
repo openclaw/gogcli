@@ -24,6 +24,7 @@ type SlidesTableColumnCmd struct {
 }
 
 type SlidesTableRowInsertCmd struct {
+	Batch          string `name:"batch" help:"Append requests to a persisted Slides batch instead of submitting"`
 	PresentationID string `arg:"" name:"presentationId" help:"Presentation ID"`
 	TableObjectID  string `arg:"" name:"tableObjectId" help:"Table object ID"`
 	Row            int64  `name:"row" required:"" help:"Zero-based reference row"`
@@ -32,12 +33,14 @@ type SlidesTableRowInsertCmd struct {
 }
 
 type SlidesTableRowDeleteCmd struct {
+	Batch          string `name:"batch" help:"Append requests to a persisted Slides batch instead of submitting"`
 	PresentationID string `arg:"" name:"presentationId" help:"Presentation ID"`
 	TableObjectID  string `arg:"" name:"tableObjectId" help:"Table object ID"`
 	Row            int64  `name:"row" required:"" help:"Zero-based row to delete"`
 }
 
 type SlidesTableColumnInsertCmd struct {
+	Batch          string `name:"batch" help:"Append requests to a persisted Slides batch instead of submitting"`
 	PresentationID string `arg:"" name:"presentationId" help:"Presentation ID"`
 	TableObjectID  string `arg:"" name:"tableObjectId" help:"Table object ID"`
 	Col            int64  `name:"col" required:"" help:"Zero-based reference column"`
@@ -46,12 +49,14 @@ type SlidesTableColumnInsertCmd struct {
 }
 
 type SlidesTableColumnDeleteCmd struct {
+	Batch          string `name:"batch" help:"Append requests to a persisted Slides batch instead of submitting"`
 	PresentationID string `arg:"" name:"presentationId" help:"Presentation ID"`
 	TableObjectID  string `arg:"" name:"tableObjectId" help:"Table object ID"`
 	Col            int64  `name:"col" required:"" help:"Zero-based column to delete"`
 }
 
 type SlidesTableMergeCmd struct {
+	Batch          string `name:"batch" help:"Append requests to a persisted Slides batch instead of submitting"`
 	PresentationID string `arg:"" name:"presentationId" help:"Presentation ID"`
 	TableObjectID  string `arg:"" name:"tableObjectId" help:"Table object ID"`
 	Row            int64  `name:"row" required:"" help:"Zero-based starting row"`
@@ -61,6 +66,7 @@ type SlidesTableMergeCmd struct {
 }
 
 type SlidesTableUnmergeCmd struct {
+	Batch          string `name:"batch" help:"Append requests to a persisted Slides batch instead of submitting"`
 	PresentationID string `arg:"" name:"presentationId" help:"Presentation ID"`
 	TableObjectID  string `arg:"" name:"tableObjectId" help:"Table object ID"`
 	Row            int64  `name:"row" required:"" help:"Zero-based starting row"`
@@ -85,6 +91,7 @@ func (c *SlidesTableRowInsertCmd) Run(ctx context.Context, flags *RootFlags) err
 		ForceSendFields: []string{"InsertBelow"},
 	}}
 	return runSlidesTableMutation(ctx, flags, slidesTableMutation{
+		Batch:          c.Batch,
 		Op:             "slides.table.row.insert",
 		Action:         "insert table rows",
 		PresentationID: presentationID,
@@ -112,6 +119,7 @@ func (c *SlidesTableRowDeleteCmd) Run(ctx context.Context, flags *RootFlags) err
 		CellLocation:  slidesTableCellLocation(c.Row, 0),
 	}}
 	return runSlidesTableMutation(ctx, flags, slidesTableMutation{
+		Batch:          c.Batch,
 		Op:             "slides.table.row.delete",
 		Action:         "delete table row",
 		PresentationID: presentationID,
@@ -143,6 +151,7 @@ func (c *SlidesTableColumnInsertCmd) Run(ctx context.Context, flags *RootFlags) 
 		ForceSendFields: []string{"InsertRight"},
 	}}
 	return runSlidesTableMutation(ctx, flags, slidesTableMutation{
+		Batch:          c.Batch,
 		Op:             "slides.table.column.insert",
 		Action:         "insert table columns",
 		PresentationID: presentationID,
@@ -170,6 +179,7 @@ func (c *SlidesTableColumnDeleteCmd) Run(ctx context.Context, flags *RootFlags) 
 		CellLocation:  slidesTableCellLocation(0, c.Col),
 	}}
 	return runSlidesTableMutation(ctx, flags, slidesTableMutation{
+		Batch:          c.Batch,
 		Op:             "slides.table.column.delete",
 		Action:         "delete table column",
 		PresentationID: presentationID,
@@ -190,6 +200,7 @@ func (c *SlidesTableMergeCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return usage("merge range must span more than one cell")
 	}
 	return runSlidesTableRangeCommand(ctx, flags, slidesTableRangeCommand{
+		batch:          c.Batch,
 		presentationID: c.PresentationID,
 		tableObjectID:  c.TableObjectID,
 		row:            c.Row,
@@ -202,6 +213,7 @@ func (c *SlidesTableMergeCmd) Run(ctx context.Context, flags *RootFlags) error {
 
 func (c *SlidesTableUnmergeCmd) Run(ctx context.Context, flags *RootFlags) error {
 	return runSlidesTableRangeCommand(ctx, flags, slidesTableRangeCommand{
+		batch:          c.Batch,
 		presentationID: c.PresentationID,
 		tableObjectID:  c.TableObjectID,
 		row:            c.Row,
@@ -212,6 +224,7 @@ func (c *SlidesTableUnmergeCmd) Run(ctx context.Context, flags *RootFlags) error
 }
 
 type slidesTableRangeCommand struct {
+	batch          string
 	presentationID string
 	tableObjectID  string
 	row            int64
@@ -252,6 +265,7 @@ func runSlidesTableRangeCommand(ctx context.Context, flags *RootFlags, command s
 		request = &slides.Request{MergeTableCells: &slides.MergeTableCellsRequest{ObjectId: tableID, TableRange: tableRange}}
 	}
 	return runSlidesTableMutation(ctx, flags, slidesTableMutation{
+		Batch:          command.batch,
 		Op:             "slides.table." + op,
 		Action:         action,
 		PresentationID: presentationID,
@@ -267,6 +281,7 @@ func runSlidesTableRangeCommand(ctx context.Context, flags *RootFlags, command s
 }
 
 type slidesTableMutation struct {
+	Batch          string
 	Op             string
 	Action         string
 	PresentationID string
@@ -304,6 +319,10 @@ func runSlidesTableMutation(ctx context.Context, flags *RootFlags, mutation slid
 	}
 	if err != nil {
 		return err
+	}
+
+	if queued, queueErr := queueSlidesBatchRequests(ctx, flags, mutation.Batch, mutation.PresentationID, mutation.Op, requests, mutation.Output); queued || queueErr != nil {
+		return queueErr
 	}
 
 	account, err := requireAccount(flags)

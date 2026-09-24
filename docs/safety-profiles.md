@@ -78,6 +78,15 @@ still allows it. The explicit capability authorizes the whole structural
 endpoint, including deletion; restrictions on individual Sheets commands do not
 filter its request payload. See [structural batches](sheets-batch-update.md#structural-batch-requests).
 
+Persisted Slides submission through `batch end` additionally requires the exact
+`slides.batch-submit` capability under restricted policies. It follows the same
+explicit-grant rules as `sheets.batch-request`; existing `batch` or `slides`
+parent grants do not add this capability. The grant permits the complete Slides
+batch endpoint, including deletion. Recorded request command names are metadata,
+not a filter over editable local payloads. Docs submission permissions are
+unchanged. `schema` exposes effective submission permissions under
+`automation.safety.batch_services`.
+
 ## Tamper Resistance
 
 The generator emits the allow and deny rule sets as `switch` statements on the

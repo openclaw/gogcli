@@ -1,5 +1,9 @@
 # Slides text editing
 
+Text insertion, styling, links, bullets, and paragraph styles support
+[persisted Slides batches](slides-batch.md). `insert-text --replace` requires
+current text state and cannot be combined with `--batch`.
+
 `insert-text --replace` inserts before removing the old text so replacement
 text inherits the leading visible text's style, including template inheritance.
 An empty target receives only an insertion. The command reads the target first

@@ -31,6 +31,7 @@ const (
 )
 
 type SlidesElementCreateShapeCmd struct {
+	Batch          string  `name:"batch" help:"Append requests to a persisted Slides batch instead of submitting"`
 	PresentationID string  `arg:"" name:"presentationId" help:"Presentation ID"`
 	SlideID        string  `arg:"" name:"slideId" help:"Slide object ID"`
 	Type           string  `name:"type" default:"RECTANGLE" help:"Slides shape type (for example RECTANGLE, TEXT_BOX, ELLIPSE)"`
@@ -71,6 +72,7 @@ func (c *SlidesElementCreateShapeCmd) Run(ctx context.Context, flags *RootFlags)
 		ElementProperties: slidesElementProperties(slideID, c.X, c.Y, c.Width, c.Height, unit),
 	}}
 	return runSlidesElementMutation(ctx, flags, slidesElementMutation{
+		Batch:          c.Batch,
 		Op:             "slides.element.create-shape",
 		Action:         "create shape",
 		PresentationID: presentationID,
@@ -91,6 +93,7 @@ func (c *SlidesElementCreateShapeCmd) Run(ctx context.Context, flags *RootFlags)
 }
 
 type SlidesElementCreateLineCmd struct {
+	Batch          string  `name:"batch" help:"Append requests to a persisted Slides batch instead of submitting"`
 	PresentationID string  `arg:"" name:"presentationId" help:"Presentation ID"`
 	SlideID        string  `arg:"" name:"slideId" help:"Slide object ID"`
 	Category       string  `name:"category" default:"STRAIGHT" enum:"STRAIGHT,BENT,CURVED" help:"Line category"`
@@ -128,6 +131,7 @@ func (c *SlidesElementCreateLineCmd) Run(ctx context.Context, flags *RootFlags) 
 		ElementProperties: slidesElementProperties(slideID, c.X, c.Y, c.Width, c.Height, unit),
 	}}
 	return runSlidesElementMutation(ctx, flags, slidesElementMutation{
+		Batch:          c.Batch,
 		Op:             "slides.element.create-line",
 		Action:         "create line",
 		PresentationID: presentationID,
@@ -148,6 +152,7 @@ func (c *SlidesElementCreateLineCmd) Run(ctx context.Context, flags *RootFlags) 
 }
 
 type SlidesElementTransformCmd struct {
+	Batch          string   `name:"batch" help:"Append requests to a persisted Slides batch instead of submitting"`
 	PresentationID string   `arg:"" name:"presentationId" help:"Presentation ID"`
 	ObjectID       string   `arg:"" name:"objectId" help:"Page element object ID"`
 	ScaleX         *float64 `name:"scale-x" help:"X scale; omitted axis defaults to 1"`
@@ -208,6 +213,7 @@ func (c *SlidesElementTransformCmd) Run(ctx context.Context, flags *RootFlags) e
 		Transform: transform,
 	}}
 	return runSlidesElementMutation(ctx, flags, slidesElementMutation{
+		Batch:          c.Batch,
 		Op:             "slides.element.transform",
 		Action:         "transform element",
 		PresentationID: presentationID,
@@ -219,6 +225,7 @@ func (c *SlidesElementTransformCmd) Run(ctx context.Context, flags *RootFlags) e
 }
 
 type SlidesElementStyleCmd struct {
+	Batch              string   `name:"batch" help:"Append requests to a persisted Slides batch instead of submitting"`
 	PresentationID     string   `arg:"" name:"presentationId" help:"Presentation ID"`
 	ObjectID           string   `arg:"" name:"objectId" help:"Shape or line object ID"`
 	Kind               string   `name:"kind" default:"shape" enum:"shape,line" help:"Element kind"`
@@ -266,6 +273,7 @@ func (c *SlidesElementStyleCmd) Run(ctx context.Context, flags *RootFlags) error
 		return err
 	}
 	return runSlidesElementMutation(ctx, flags, slidesElementMutation{
+		Batch:          c.Batch,
 		Op:             "slides.element.style",
 		Action:         "style element",
 		PresentationID: presentationID,
@@ -277,6 +285,7 @@ func (c *SlidesElementStyleCmd) Run(ctx context.Context, flags *RootFlags) error
 }
 
 type SlidesElementZOrderCmd struct {
+	Batch          string   `name:"batch" help:"Append requests to a persisted Slides batch instead of submitting"`
 	PresentationID string   `arg:"" name:"presentationId" help:"Presentation ID"`
 	ObjectIDs      []string `arg:"" name:"objectId" help:"One or more page element object IDs"`
 	Operation      string   `name:"operation" required:"" enum:"BRING_TO_FRONT,BRING_FORWARD,SEND_BACKWARD,SEND_TO_BACK" help:"Stacking operation"`
@@ -293,6 +302,7 @@ func (c *SlidesElementZOrderCmd) Run(ctx context.Context, flags *RootFlags) erro
 		Operation:            operation,
 	}}
 	return runSlidesElementMutation(ctx, flags, slidesElementMutation{
+		Batch:          c.Batch,
 		Op:             "slides.element.z-order",
 		Action:         "change element z-order",
 		PresentationID: presentationID,
@@ -304,6 +314,7 @@ func (c *SlidesElementZOrderCmd) Run(ctx context.Context, flags *RootFlags) erro
 }
 
 type SlidesElementGroupCmd struct {
+	Batch          string   `name:"batch" help:"Append requests to a persisted Slides batch instead of submitting"`
 	PresentationID string   `arg:"" name:"presentationId" help:"Presentation ID"`
 	ObjectIDs      []string `arg:"" name:"objectId" help:"Two or more page element object IDs"`
 	GroupID        string   `name:"group-id" help:"Optional stable group object ID"`
@@ -323,6 +334,7 @@ func (c *SlidesElementGroupCmd) Run(ctx context.Context, flags *RootFlags) error
 		GroupObjectId:     groupID,
 	}}
 	return runSlidesElementMutation(ctx, flags, slidesElementMutation{
+		Batch:          c.Batch,
 		Op:             "slides.element.group",
 		Action:         "group elements",
 		PresentationID: presentationID,
@@ -334,6 +346,7 @@ func (c *SlidesElementGroupCmd) Run(ctx context.Context, flags *RootFlags) error
 }
 
 type SlidesElementUngroupCmd struct {
+	Batch          string   `name:"batch" help:"Append requests to a persisted Slides batch instead of submitting"`
 	PresentationID string   `arg:"" name:"presentationId" help:"Presentation ID"`
 	GroupIDs       []string `arg:"" name:"groupId" help:"One or more top-level group object IDs"`
 }
@@ -345,6 +358,7 @@ func (c *SlidesElementUngroupCmd) Run(ctx context.Context, flags *RootFlags) err
 	}
 	request := &slides.Request{UngroupObjects: &slides.UngroupObjectsRequest{ObjectIds: groupIDs}}
 	return runSlidesElementMutation(ctx, flags, slidesElementMutation{
+		Batch:          c.Batch,
 		Op:             "slides.element.ungroup",
 		Action:         "ungroup elements",
 		PresentationID: presentationID,
@@ -356,6 +370,7 @@ func (c *SlidesElementUngroupCmd) Run(ctx context.Context, flags *RootFlags) err
 }
 
 type SlidesElementAltTextCmd struct {
+	Batch          string  `name:"batch" help:"Append requests to a persisted Slides batch instead of submitting"`
 	PresentationID string  `arg:"" name:"presentationId" help:"Presentation ID"`
 	ObjectID       string  `arg:"" name:"objectId" help:"Page element object ID"`
 	Title          *string `name:"title" help:"Accessibility title; pass an empty value to clear"`
@@ -384,6 +399,7 @@ func (c *SlidesElementAltTextCmd) Run(ctx context.Context, flags *RootFlags) err
 	}
 	request := &slides.Request{UpdatePageElementAltText: update}
 	return runSlidesElementMutation(ctx, flags, slidesElementMutation{
+		Batch:          c.Batch,
 		Op:             "slides.element.alt-text",
 		Action:         "update element alt text",
 		PresentationID: presentationID,
@@ -395,6 +411,7 @@ func (c *SlidesElementAltTextCmd) Run(ctx context.Context, flags *RootFlags) err
 }
 
 type SlidesElementDeleteCmd struct {
+	Batch          string   `name:"batch" help:"Append requests to a persisted Slides batch instead of submitting"`
 	PresentationID string   `arg:"" name:"presentationId" help:"Presentation ID"`
 	ObjectIDs      []string `arg:"" name:"objectId" help:"One or more page element object IDs"`
 }
@@ -409,6 +426,7 @@ func (c *SlidesElementDeleteCmd) Run(ctx context.Context, flags *RootFlags) erro
 		requests = append(requests, &slides.Request{DeleteObject: &slides.DeleteObjectRequest{ObjectId: objectID}})
 	}
 	mutation := slidesElementMutation{
+		Batch:          c.Batch,
 		Op:             "slides.element.delete",
 		Action:         "delete elements",
 		PresentationID: presentationID,
@@ -429,6 +447,7 @@ func (c *SlidesElementDeleteCmd) Run(ctx context.Context, flags *RootFlags) erro
 }
 
 type slidesElementMutation struct {
+	Batch          string
 	Op             string
 	Action         string
 	PresentationID string
@@ -459,6 +478,10 @@ func runSlidesElementBatchMutation(ctx context.Context, flags *RootFlags, mutati
 	}
 	if err != nil {
 		return err
+	}
+
+	if queued, queueErr := queueSlidesBatchRequests(ctx, flags, mutation.Batch, mutation.PresentationID, mutation.Op, body.Requests, mutation.Output); queued || queueErr != nil {
+		return queueErr
 	}
 
 	account, err := requireAccount(flags)

@@ -20,6 +20,7 @@ gog slides (slide) table border style --row=INT-64 --col=INT-64 <presentationId>
 | --- | --- | --- | --- |
 | `--access-token` | `string` |  | Use provided access token directly (bypasses stored refresh tokens; token expires in ~1h) |
 | `-a`<br>`--account`<br>`--acct` | `string` |  | Account email, alias, or auto for authenticated Google API commands |
+| `--batch` | `string` |  | Append requests to a persisted Slides batch instead of submitting |
 | `--border-color` | `string` |  | Border color as #RGB or #RRGGBB |
 | `--client` | `string` |  | OAuth client name (selects stored credentials + token bucket) |
 | `--col` | `int64` |  | Zero-based starting column |

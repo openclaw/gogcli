@@ -63,6 +63,7 @@ live binary.
 - **Managing YouTube.** [YouTube](youtube.md) covers API-key reads, account OAuth, subscriptions, playlists, and mutation safety.
 - **Reading publisher reports.** [AdSense](adsense.md) covers explicit readonly authorization, publisher selection, reporting timezones, and saved reports.
 - **Grouping Docs edits atomically.** [Google Docs request batches](docs-batch.md) covers persisted, revision-locked request queues and explicit recovery modes.
+- **Building Slides with fewer writes.** [Google Slides request batches](slides-batch.md) queues shapes, text, and tables across CLI invocations for one atomic submission.
 - **Working with many contacts.** [Contacts batches](contacts-batch.md) covers native bulk reads and writes, etags, field masks, and partial-progress recovery.
 - **Managing BigQuery-backed Sheets.** [Connected Sheets](sheets-connected.md) covers opt-in authorization, source creation and status, targeted refreshes, and bounded extract reads.
 - **Verifying real API behavior.** [Live testing](live-testing.md) covers the dedicated-account smoke suite, cleanup, retries, and optional infrastructure.

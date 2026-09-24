@@ -1,5 +1,9 @@
 # Slides tables
 
+These commands also support [persisted Slides batches](slides-batch.md).
+With `--batch`, table bounds and queued object references are validated by Google
+at submission; direct commands retain their live dimension checks.
+
 Create a native table on an existing slide:
 
 ```bash

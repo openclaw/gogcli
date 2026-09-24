@@ -13,6 +13,7 @@ import (
 )
 
 type SlidesStyleTextCmd struct {
+	Batch          string  `name:"batch" help:"Append requests to a persisted Slides batch instead of submitting"`
 	PresentationID string  `arg:"" name:"presentationId" help:"Presentation ID"`
 	ObjectID       string  `arg:"" name:"objectId" help:"Page element object ID containing the text"`
 	Range          string  `name:"range" required:"" help:"UTF-16 text range as start:end"`
@@ -47,7 +48,7 @@ func (c *SlidesStyleTextCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 	body := &slides.BatchUpdatePresentationRequest{Requests: []*slides.Request{{UpdateTextStyle: req}}}
-	return runSlidesTextBatch(ctx, flags, "slides.style-text", presentationID, body, map[string]any{
+	return runSlidesTextBatch(ctx, flags, c.Batch, "slides.style-text", presentationID, body, map[string]any{
 		"presentation_id": presentationID,
 		"object_id":       objectID,
 		"range":           c.Range,
@@ -57,6 +58,7 @@ func (c *SlidesStyleTextCmd) Run(ctx context.Context, flags *RootFlags) error {
 }
 
 type SlidesLinkCmd struct {
+	Batch          string `name:"batch" help:"Append requests to a persisted Slides batch instead of submitting"`
 	PresentationID string `arg:"" name:"presentationId" help:"Presentation ID"`
 	ObjectID       string `arg:"" name:"objectId" help:"Page element object ID containing the text"`
 	Range          string `name:"range" required:"" help:"UTF-16 text range as start:end"`
@@ -85,7 +87,7 @@ func (c *SlidesLinkCmd) Run(ctx context.Context, flags *RootFlags) error {
 			Fields:    "link",
 		},
 	}}}
-	return runSlidesTextBatch(ctx, flags, "slides.link", presentationID, body, map[string]any{
+	return runSlidesTextBatch(ctx, flags, c.Batch, "slides.link", presentationID, body, map[string]any{
 		"presentation_id": presentationID,
 		"object_id":       objectID,
 		"range":           c.Range,
@@ -96,6 +98,7 @@ func (c *SlidesLinkCmd) Run(ctx context.Context, flags *RootFlags) error {
 }
 
 type SlidesBulletsCmd struct {
+	Batch          string `name:"batch" help:"Append requests to a persisted Slides batch instead of submitting"`
 	PresentationID string `arg:"" name:"presentationId" help:"Presentation ID"`
 	ObjectID       string `arg:"" name:"objectId" help:"Page element object ID containing the text"`
 	Range          string `name:"range" required:"" help:"UTF-16 paragraph range as start:end"`
@@ -136,7 +139,7 @@ func (c *SlidesBulletsCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 
 	body := &slides.BatchUpdatePresentationRequest{Requests: requests}
-	return runSlidesTextBatch(ctx, flags, "slides.bullets", presentationID, body, map[string]any{
+	return runSlidesTextBatch(ctx, flags, c.Batch, "slides.bullets", presentationID, body, map[string]any{
 		"presentation_id": presentationID,
 		"object_id":       objectID,
 		"range":           c.Range,
@@ -290,9 +293,12 @@ func slidesOptionalColor(r, g, b float64) *slides.OptionalColor {
 	}
 }
 
-func runSlidesTextBatch(ctx context.Context, flags *RootFlags, op string, presentationID string, body *slides.BatchUpdatePresentationRequest, dryRun map[string]any) error {
+func runSlidesTextBatch(ctx context.Context, flags *RootFlags, batchID, op string, presentationID string, body *slides.BatchUpdatePresentationRequest, dryRun map[string]any) error {
 	if err := dryRunExit(ctx, flags, op, dryRun); err != nil {
 		return err
+	}
+	if queued, queueErr := queueSlidesBatchRequests(ctx, flags, batchID, presentationID, op, body.Requests, nil); queued || queueErr != nil {
+		return queueErr
 	}
 
 	account, err := requireAccount(flags)
