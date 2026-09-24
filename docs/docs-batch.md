@@ -58,6 +58,8 @@ gog batch end "$BATCH_ID" --continue-on-error
 
 When individual recovery finishes, `--continue-on-error` prints its result summary and exits with code `1` if any requests failed. The summary includes the original request count, successful submissions (`chunks`), and retained failures (`failed`). Exit code `0` means every request succeeded; continuing after a failure does not hide it from automation.
 
+Scripts that intentionally tolerate partial completion should handle exit code `1` explicitly and inspect `failed` in the JSON summary. Scripts using `set -e` will now stop on retained failures unless they handle that status. Successfully applied edits remain applied; inspect the retained batch before retrying.
+
 Use `batch abort <batchId>` to discard a batch and `batch prune --older-than 72h` to remove stale batches.
 
 ## Local state
