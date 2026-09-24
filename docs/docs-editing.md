@@ -135,6 +135,16 @@ Use `--occurrence N` when an anchor is ambiguous and `--match-case` when case
 must be exact. `docs comments locate` applies the same matching rules to a
 comment's quoted text and reports its tab plus UTF-16 range.
 
+`docs comments add --quoted` and `drive comments create --quoted` store quoted
+text with a Drive API comment. They do not create a native editor anchor:
+[Google Docs, Sheets, and Slides treat Drive API comments as unanchored](https://developers.google.com/workspace/drive/api/guides/manage-comments).
+Both commands warn on stderr when quoted text is supplied, including in dry runs;
+stdout and the comment payload are unchanged. `docs comments add --anchor`
+passes advanced Drive anchor JSON but does not overcome that editor limitation.
+For a comment anchored in the Docs UI, create it in the editor. Omit `--quoted`
+when a document-level comment is sufficient. `comments locate` only computes
+text matches; it does not attach an editor anchor.
+
 By default, `docs comments list` skips resolved-only pages until it finds open
 comments or reaches the end. A repeated page token stops the scan with a
 pagination error instead of hanging or reporting an incomplete result.

@@ -220,8 +220,8 @@ func (c *DocsCommentsGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 type DocsCommentsAddCmd struct {
 	DocID   string `arg:"" name:"docId" help:"Google Doc ID or URL"`
 	Content string `arg:"" name:"content" help:"Comment text"`
-	Quoted  string `name:"quoted" help:"Quoted text to attach to the comment (shown in UIs when available)"`
-	Anchor  string `name:"anchor" help:"Anchor JSON string (advanced; editor UIs may still treat as unanchored)"`
+	Quoted  string `name:"quoted" help:"Quoted text stored with the comment; does not anchor it in Google Docs, Sheets, or Slides"`
+	Anchor  string `name:"anchor" help:"Drive anchor JSON (advanced; Google Docs does not render Drive API comments anchored to content)"`
 }
 
 func (c *DocsCommentsAddCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -239,6 +239,7 @@ func (c *DocsCommentsAddCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if err := validateDocsCommentAnchor(anchor); err != nil {
 		return err
 	}
+	warnDriveQuotedComment(u, quoted)
 
 	if err := dryRunExit(ctx, flags, "docs.comments.add", map[string]any{
 		"doc_id":  docID,

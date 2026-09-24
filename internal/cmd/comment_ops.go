@@ -400,6 +400,12 @@ func writeDriveCommentDetail(ctx context.Context, u *ui.UI, comment *drive.Comme
 	return nil
 }
 
+func warnDriveQuotedComment(u *ui.UI, quoted string) {
+	if quoted != "" {
+		u.Err().Println("warning: --quoted stores text with the comment; Google Docs, Sheets, and Slides do not render Drive API comments anchored to content")
+	}
+}
+
 func createDriveComment(ctx context.Context, svc *drive.Service, fileID, content, quoted, anchor string) (*drive.Comment, error) {
 	comment := &drive.Comment{Content: content}
 	if quoted != "" {

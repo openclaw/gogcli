@@ -104,7 +104,7 @@ func (c *DriveCommentsGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 type DriveCommentsCreateCmd struct {
 	FileID  string `arg:"" name:"fileId" help:"File ID"`
 	Content string `arg:"" name:"content" help:"Comment text"`
-	Quoted  string `name:"quoted" help:"Text to anchor the comment to (for Google Docs)"`
+	Quoted  string `name:"quoted" help:"Quoted text stored with the comment; does not anchor it in Google Docs, Sheets, or Slides"`
 }
 
 func (c *DriveCommentsCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -118,6 +118,7 @@ func (c *DriveCommentsCreateCmd) Run(ctx context.Context, flags *RootFlags) erro
 	if content == "" {
 		return usage("empty content")
 	}
+	warnDriveQuotedComment(u, quoted)
 
 	if err := dryRunExit(ctx, flags, "drive.comments.create", map[string]any{
 		"file_id": fileID,
