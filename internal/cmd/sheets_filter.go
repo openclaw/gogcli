@@ -13,6 +13,7 @@ type SheetsFilterCmd struct {
 }
 
 type SheetsFilterSetCmd struct {
+	Batch         string `name:"batch" help:"Append requests to a persisted Sheets batch instead of submitting"`
 	SpreadsheetID string `arg:"" name:"spreadsheetId" help:"Spreadsheet ID"`
 	Range         string `arg:"" name:"range" help:"Range (A1 notation with sheet name or named range name)"`
 }
@@ -31,11 +32,11 @@ func (c *SheetsFilterSetCmd) Run(ctx context.Context, flags *RootFlags) error {
 		"spreadsheet_id": spreadsheetID,
 		"range":          rangeSpec,
 	}
-	if dryRunErr := dryRunExit(ctx, flags, "sheets.filter.set", dryRunPayload); dryRunErr != nil {
+	if dryRunErr := sheetsMutationDryRun(ctx, flags, c.Batch, "sheets.filter.set", dryRunPayload); dryRunErr != nil {
 		return dryRunErr
 	}
 
-	return runSheetsMutation(ctx, flagsWithoutDryRun(flags), "sheets.filter.set", dryRunPayload, func(ctx context.Context, svc *sheets.Service) (map[string]any, string, error) {
+	return runSheetsMutation(ctx, flagsWithoutDryRun(flags), c.Batch, spreadsheetID, "sheets.filter.set", dryRunPayload, func(ctx context.Context, svc *sheets.Service) (map[string]any, string, error) {
 		catalog, err := fetchSpreadsheetRangeCatalogWithBasicFilters(ctx, svc, spreadsheetID)
 		if err != nil {
 			return nil, "", err
@@ -47,7 +48,7 @@ func (c *SheetsFilterSetCmd) Run(ctx context.Context, flags *RootFlags) error {
 		existingFilter := catalog.BasicFiltersBySheetID[gridRange.SheetId]
 		if existingFilter != nil {
 			sheetTitle := catalog.SheetTitlesByID[gridRange.SheetId]
-			if err := confirmDestructiveChecked(ctx, flagsWithoutDryRun(flags), fmt.Sprintf("replace existing basic filter on sheet %q", sheetTitle)); err != nil {
+			if err := confirmSheetsMutation(ctx, flagsWithoutDryRun(flags), c.Batch, fmt.Sprintf("replace existing basic filter on sheet %q", sheetTitle)); err != nil {
 				return nil, "", err
 			}
 		}

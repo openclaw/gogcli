@@ -11,6 +11,7 @@ import (
 )
 
 type SheetsResizeColumnsCmd struct {
+	Batch         string `name:"batch" help:"Append requests to a persisted Sheets batch instead of submitting"`
 	SpreadsheetID string `arg:"" name:"spreadsheetId" help:"Spreadsheet ID"`
 	Columns       string `arg:"" name:"columns" help:"Columns range (eg. Sheet1!A:C)"`
 	Width         int64  `name:"width" help:"Column width in pixels"`
@@ -18,7 +19,7 @@ type SheetsResizeColumnsCmd struct {
 }
 
 func (c *SheetsResizeColumnsCmd) Run(ctx context.Context, flags *RootFlags) error {
-	return runSheetsResize(ctx, flags, c.SpreadsheetID, c.Columns, c.Width, c.Auto, sheetsResizeAxis{
+	return runSheetsResize(ctx, flags, c.Batch, c.SpreadsheetID, c.Columns, c.Width, c.Auto, sheetsResizeAxis{
 		op:        "sheets.resize-columns",
 		label:     "columns",
 		sizeLabel: "width",
@@ -28,6 +29,7 @@ func (c *SheetsResizeColumnsCmd) Run(ctx context.Context, flags *RootFlags) erro
 }
 
 type SheetsResizeRowsCmd struct {
+	Batch         string `name:"batch" help:"Append requests to a persisted Sheets batch instead of submitting"`
 	SpreadsheetID string `arg:"" name:"spreadsheetId" help:"Spreadsheet ID"`
 	Rows          string `arg:"" name:"rows" help:"Rows range (eg. Sheet1!1:10)"`
 	Height        int64  `name:"height" help:"Row height in pixels"`
@@ -35,7 +37,7 @@ type SheetsResizeRowsCmd struct {
 }
 
 func (c *SheetsResizeRowsCmd) Run(ctx context.Context, flags *RootFlags) error {
-	return runSheetsResize(ctx, flags, c.SpreadsheetID, c.Rows, c.Height, c.Auto, sheetsResizeAxis{
+	return runSheetsResize(ctx, flags, c.Batch, c.SpreadsheetID, c.Rows, c.Height, c.Auto, sheetsResizeAxis{
 		op:        "sheets.resize-rows",
 		label:     "rows",
 		sizeLabel: "height",
@@ -55,6 +57,7 @@ type sheetsResizeAxis struct {
 func runSheetsResize(
 	ctx context.Context,
 	flags *RootFlags,
+	batchID string,
 	rawSpreadsheetID string,
 	rawRange string,
 	size int64,
@@ -91,7 +94,7 @@ func runSheetsResize(
 		axis.sizeLabel:   size,
 	}
 
-	return runSheetsMutation(ctx, flags, axis.op, dryRunPayload, func(ctx context.Context, svc *sheets.Service) (map[string]any, string, error) {
+	return runSheetsMutation(ctx, flags, batchID, spreadsheetID, axis.op, dryRunPayload, func(ctx context.Context, svc *sheets.Service) (map[string]any, string, error) {
 		sheetID, resolvedSheet, err := resolveSheetIDByNameOrFirst(ctx, svc, spreadsheetID, span.SheetName)
 		if err != nil {
 			return nil, "", err

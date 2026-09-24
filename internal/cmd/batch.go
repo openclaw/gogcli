@@ -11,6 +11,7 @@ import (
 	"google.golang.org/api/docs/v1"
 
 	"github.com/openclaw/gogcli/internal/docsbatch"
+	"github.com/openclaw/gogcli/internal/googleapi"
 	"github.com/openclaw/gogcli/internal/outfmt"
 	"github.com/openclaw/gogcli/internal/ui"
 )
@@ -25,10 +26,11 @@ type BatchCmd struct {
 }
 
 type BatchBeginCmd struct {
-	Service        string `name:"service" help:"Google API service: docs, slides, or forms (inferred from target)"`
+	Service        string `name:"service" help:"Google API service: docs, slides, forms, or sheets (inferred from target)"`
 	DocID          string `name:"doc" help:"Google Doc ID; choose exactly one batch target"`
 	PresentationID string `name:"presentation" help:"Google Slides presentation ID; choose exactly one batch target"`
 	FormID         string `name:"form" help:"Google Form ID or URL; choose exactly one batch target"`
+	SpreadsheetID  string `name:"spreadsheet" help:"Google Sheets spreadsheet ID; choose exactly one batch target"`
 	Name           string `name:"name" help:"Optional batch label"`
 }
 
@@ -36,20 +38,24 @@ func (c *BatchBeginCmd) Run(ctx context.Context, flags *RootFlags) error {
 	documentID := strings.TrimSpace(c.DocID)
 	presentationID := strings.TrimSpace(c.PresentationID)
 	formID := strings.TrimSpace(normalizeGoogleID(c.FormID))
+	spreadsheetID := normalizeGoogleID(strings.TrimSpace(c.SpreadsheetID))
 	targets := 0
-	for _, target := range []string{documentID, presentationID, formID} {
+	for _, target := range []string{documentID, presentationID, formID, spreadsheetID} {
 		if target != "" {
 			targets++
 		}
 	}
 	if targets != 1 {
-		return usage("provide exactly one of --doc, --presentation, or --form")
+		return usage("provide exactly one of --doc, --presentation, --form, or --spreadsheet")
 	}
 	service := docsbatch.ServiceDocs
 	if presentationID != "" {
 		service = docsbatch.ServiceSlides
 	} else if formID != "" {
 		service = docsbatch.ServiceForms
+	}
+	if spreadsheetID != "" {
+		service = docsbatch.ServiceSheets
 	}
 	if c.Service != "" && c.Service != service {
 		return usagef("--service %s does not match the %s target", c.Service, service)
@@ -65,6 +71,8 @@ func (c *BatchBeginCmd) Run(ctx context.Context, flags *RootFlags) error {
 		preview["presentation_id"] = presentationID
 	case docsbatch.ServiceForms:
 		preview["form_id"] = formID
+	case docsbatch.ServiceSheets:
+		preview["spreadsheet_id"] = spreadsheetID
 	}
 	if err := dryRunExit(ctx, flags, "batch.begin", preview); err != nil {
 		return err
@@ -87,6 +95,7 @@ func (c *BatchBeginCmd) Run(ctx context.Context, flags *RootFlags) error {
 		DocumentID:     documentID,
 		PresentationID: presentationID,
 		FormID:         formID,
+		SpreadsheetID:  spreadsheetID,
 		Account:        account,
 		Client:         client,
 	})
@@ -125,6 +134,8 @@ func (c *BatchListCmd) Run(ctx context.Context) error {
 			targetID = batch.PresentationID
 		case docsbatch.ServiceForms:
 			targetID = batch.FormID
+		case docsbatch.ServiceSheets:
+			targetID = batch.SpreadsheetID
 		}
 		out.Linef("%s\t%s\t%s\t%d\t%s", batch.BatchID, batch.Service, targetID, batch.Requests, batch.UpdatedAt.Format(time.RFC3339))
 	}
@@ -304,6 +315,14 @@ func (c *BatchEndCmd) Run(ctx context.Context, flags *RootFlags) error {
 		if len(state.Requests) > persistedBatchRequestCap && !c.AutoSplit {
 			return usagef("batch has %d requests; gog submits at most %d per atomic update (use --auto-split for non-atomic submission)", len(state.Requests), persistedBatchRequestCap)
 		}
+		if state.Service == docsbatch.ServiceSheets {
+			if googleapi.ReadOnly(ctx) || (flags != nil && flags.ReadOnly) {
+				return googleapi.ErrReadOnly
+			}
+			if confirmErr := confirmDestructive(ctx, flags, "submit Sheets batch (may delete data)"); confirmErr != nil {
+				return confirmErr
+			}
+		}
 		if c.AutoSplit {
 			return c.submitSplit(ctx, transaction, state, &result)
 		}
@@ -409,8 +428,11 @@ func (c *BatchEndCmd) submitIndividually(
 
 		state.Requests = append(append([]docsbatch.RequestEntry(nil), failed...), pending...)
 		result.Failed = len(failed)
-		if err := transaction.PersistOrDelete(); err != nil {
-			return err
+		if persistErr := transaction.PersistOrDelete(); persistErr != nil {
+			return persistErr
+		}
+		if state.Service == docsbatch.ServiceSheets && err != nil && !isDocsBatchBadRequest(err) {
+			return fmt.Errorf("sheets batch stopped; inspect the spreadsheet before retrying retained requests: %w", err)
 		}
 		if missingRevision {
 			return fmt.Errorf("%s response omitted the revision required to continue individual submission", state.Service)

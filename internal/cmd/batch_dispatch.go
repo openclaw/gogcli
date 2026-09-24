@@ -27,12 +27,12 @@ func batchSubmissionAllowed(flags *RootFlags, profile bakedSafetyProfile) bool {
 func validateBatchSubmission(flags *RootFlags, state *docsbatch.State) error {
 	switch state.Service {
 	case docsbatch.ServiceDocs:
-		if strings.TrimSpace(state.DocumentID) == "" || state.PresentationID != "" || state.FormID != "" {
+		if strings.TrimSpace(state.DocumentID) == "" || state.PresentationID != "" || state.FormID != "" || state.SpreadsheetID != "" {
 			return usage("invalid stored Docs batch target")
 		}
 		return nil
 	case docsbatch.ServiceSlides:
-		if strings.TrimSpace(state.PresentationID) == "" || state.DocumentID != "" || state.FormID != "" {
+		if strings.TrimSpace(state.PresentationID) == "" || state.DocumentID != "" || state.FormID != "" || state.SpreadsheetID != "" {
 			return usage("invalid stored Slides batch target")
 		}
 		if strings.TrimSpace(state.Account) == "" || strings.TrimSpace(state.Client) == "" || strings.TrimSpace(state.RequiredRevisionID) == "" {
@@ -40,19 +40,27 @@ func validateBatchSubmission(flags *RootFlags, state *docsbatch.State) error {
 		}
 		return enforceExplicitCommandPermission(flags, []string{"slides", "batch-submit"})
 	case docsbatch.ServiceForms:
-		if strings.TrimSpace(state.FormID) == "" || state.DocumentID != "" || state.PresentationID != "" {
+		if strings.TrimSpace(state.FormID) == "" || state.DocumentID != "" || state.PresentationID != "" || state.SpreadsheetID != "" {
 			return usage("invalid stored Forms batch target")
 		}
 		if strings.TrimSpace(state.Account) == "" || strings.TrimSpace(state.Client) == "" || strings.TrimSpace(state.RequiredRevisionID) == "" || state.InitialFormItems == nil || *state.InitialFormItems < 0 {
 			return usage("Forms batch is missing its bound account, OAuth client, revision, or initial item count")
 		}
 		return enforceExplicitCommandPermission(flags, []string{"forms", "batch-submit"})
+	case docsbatch.ServiceSheets:
+		if err := validateSheetsBatchState(state); err != nil {
+			return err
+		}
+		return enforceExplicitCommandPermission(flags, []string{"sheets", "batch-request"})
 	default:
 		return usagef("unsupported stored batch service %q", state.Service)
 	}
 }
 
 func batchWirePayload(state *docsbatch.State, entries []docsbatch.RequestEntry) any {
+	if state.Service == docsbatch.ServiceSheets {
+		return sheetsBatchWirePayload(entries)
+	}
 	if state.Service == docsbatch.ServiceSlides {
 		return slidesBatchWirePayload(state, entries)
 	}
@@ -71,6 +79,8 @@ func submitPersistedBatch(ctx context.Context, state *docsbatch.State, entries [
 		return submitSlidesBatch(ctx, state, entries)
 	case docsbatch.ServiceForms:
 		return submitFormsBatch(ctx, state, entries)
+	case docsbatch.ServiceSheets:
+		return "", submitSheetsBatch(ctx, state, entries)
 	default:
 		return "", fmt.Errorf("unsupported batch service %q", state.Service)
 	}

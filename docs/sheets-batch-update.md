@@ -100,10 +100,115 @@ authorizes the entire structural endpoint, including deletion: denying a sibling
 command such as `sheets.delete-tab` does not filter the raw request array.
 `--readonly` always blocks execution, and `--force` never bypasses policy.
 
-The command makes one submission, with no automatic retries, redirects, or
-splitting. A network or server error can follow a completed write; inspect the
-spreadsheet before retrying. This command does not persist a queued batch or
-provide revision locking.
+Without `--batch`, the command makes one submission, with no automatic retries,
+redirects, or splitting. A network or server error can follow a completed write;
+inspect the spreadsheet before retrying. Sheets does not provide revision locking.
+
+## Persisted structural batches
+
+Queue structural edits across CLI invocations, inspect them, and submit one
+atomic `spreadsheets.batchUpdate`:
+
+```bash
+BATCH_ID="$(gog --account you@example.com batch begin --spreadsheet "$spreadsheet_id")"
+gog --account you@example.com sheets format "$spreadsheet_id" 'Report!A1:H1' \
+  --format-json '{"textFormat":{"bold":true}}' --batch "$BATCH_ID"
+gog --account you@example.com sheets freeze "$spreadsheet_id" --sheet Report \
+  --rows 1 --batch "$BATCH_ID"
+gog --account you@example.com sheets resize-columns "$spreadsheet_id" 'Report!A:H' \
+  --width 120 --batch "$BATCH_ID"
+gog batch show "$BATCH_ID" --json
+gog batch end "$BATCH_ID" --dry-run --json
+gog batch end "$BATCH_ID" --force --json
+```
+
+Use exactly one target: `--spreadsheet`, `--doc`, `--presentation`, or `--form`.
+`--service sheets` is optional and must match the target. `begin` binds the
+spreadsheet, selected account, and OAuth client without contacting Google.
+Submissions use that stored identity. Direct-token and ADC modes still use the
+active credential; account labels do not verify its principal.
+
+`--batch` is supported by `format`, `number-format`, `conditional-format add`,
+`merge`, `unmerge`, `freeze`, `resize-columns`, `resize-rows`, `filter set`,
+`update-note`, `links set`, `chart create/update/delete`,
+`named-ranges add/update/delete`, `add-tab`, `rename-tab`, `delete-tab`,
+`find-replace`, `banding set/clear`, `table create/delete`, and `insert`.
+It is also supported by `batch-request` for a complete raw request array.
+Omitting the flag keeps immediate behavior. An explicitly empty flag is rejected
+before input or authentication; malformed UUIDs are rejected even in dry runs.
+
+Queueing returns `batch_id`, the number `queued`, and total `requests`.
+It does not claim that edits were applied or return IDs/counts that only Google
+can assign. Destructive execution is confirmed once at `batch end`, or authorized
+with `--force`; semantic guards such as `table delete --discard-data` still apply
+while queueing. `--readonly` permits local preparation and blocks submission.
+
+### One immutable base metadata snapshot
+
+The first typed command needing name/range resolution captures a narrow metadata
+snapshot under the batch's account, client, and spreadsheet binding. Later CLI
+invocations reuse it, so 120 formatting commands require one metadata read rather
+than 120. The snapshot includes existing sheet titles/IDs/grid bounds, named
+ranges, filter ranges, and chart, banding, and table identities. It contains no
+cell values, formulas, chart specifications, or table column definitions.
+Raw-only batches and commands needing no lookup do not capture metadata.
+
+Typed names and ranges always resolve against this original base. The snapshot
+is never refreshed, and queued edits are not replayed locally. A queued rename
+does not change subsequent name lookup; a queued new tab cannot be resolved by
+title. Use raw requests with explicit IDs for dependencies on queued changes:
+
+```bash
+gog sheets batch-request "$spreadsheet_id" --batch "$BATCH_ID" --requests-json \
+  '[{"addSheet":{"properties":{"sheetId":123456,"title":"New report"}}},
+    {"repeatCell":{"range":{"sheetId":123456},"cell":{"note":"Queued together"},"fields":"note"}}]'
+```
+
+Raw request JSON preserves zero, false, empty, null, large numeric, and unknown
+fields through queueing and submission. The caller is responsible for explicit
+IDs and ordered dependencies. Choose a new batch to capture newer metadata.
+
+`conditional-format clear`, `delete-dimension`, `reorder-tab`, `duplicate-tab`,
+`validation set/clear`, and `copy-paste` do not accept `--batch`: their convenience
+logic derives rule indexes, tab positions, or table repairs from live state that
+earlier queued changes could invalidate. Their underlying Sheets requests remain
+available through `batch-request --batch`. Values operations (including table
+append/clear), reads, file creation/copy/export, and Connected Sheets operations
+remain outside this structural queue.
+
+### Submission guarantees and recovery
+
+Sheets validates the ordered request array and applies it atomically by default.
+It has no Docs/Slides revision precondition: the captured base is a lookup aid,
+not a concurrency lock. Collaborator changes can affect the result. No synthetic
+revision, Drive version, or ETag is used to suggest stronger protection.
+
+Submitting a Sheets batch requires the explicit `sheets.batch-request` capability
+under runtime or baked command restrictions, in addition to permission for
+`batch end`. An existing `batch` or parent `sheets` grant does not grant the raw
+endpoint. This permission covers all structural requests, including deletion;
+sibling deny rules do not filter the stored JSON. `--force` cannot bypass it.
+
+`gog` limits one persisted atomic submission to 500 requests. `--auto-split`
+explicitly opts into ordered chunks of at most 500. `--continue-on-error` opts into
+individual recovery only after Google rejects the atomic batch with HTTP 400.
+These modes cannot be combined and are non-atomic. Use individual recovery only
+for independent requests: skipping a failed earlier insert/delete can change
+the meaning of later positional edits. Prefer repairing the atomic batch when
+requests depend on each other.
+
+Successful chunks/requests are removed from local state; confirmed individual
+HTTP 400 failures remain, and retained failures produce a nonzero exit code.
+An individual transport, server, or response-decoding failure stops recovery
+immediately, retaining earlier failures, the uncertain request, and untouched
+remaining requests. Inspect the spreadsheet before manually retrying: a lost
+response can follow a successful write. Submissions never retry automatically
+or follow redirects.
+
+Dry runs validate local inputs and print the planned batch target without
+authentication, metadata reads, or state writes. Typed previews use the supplied
+names/ranges; `batch show` and `batch end --dry-run` expose the exact queued wire
+payload. `batch abort` and `batch prune` retain their existing local lifecycle.
 
 ## Single-range formula verification
 

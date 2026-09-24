@@ -33,11 +33,7 @@ func fetchSpreadsheetRangeCatalogInternal(ctx context.Context, svc *sheets.Servi
 	if includeBasicFilters {
 		fields = googleapi.Field("sheets(properties(sheetId,title,index,gridProperties(rowCount,columnCount)),basicFilter(range)),namedRanges(namedRangeId,name,range)")
 	}
-	call := svc.Spreadsheets.Get(spreadsheetID).Fields(fields)
-	if ctx != nil {
-		call = call.Context(ctx)
-	}
-	resp, err := call.Do()
+	resp, err := fetchSheetsMutationMetadata(ctx, svc, spreadsheetID, fields)
 	if err != nil {
 		return nil, fmt.Errorf("get spreadsheet metadata: %w", err)
 	}

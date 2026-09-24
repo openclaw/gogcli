@@ -11,6 +11,7 @@ import (
 )
 
 type SheetsInsertCmd struct {
+	Batch         string `name:"batch" help:"Append requests to a persisted Sheets batch instead of submitting"`
 	SpreadsheetID string `arg:"" name:"spreadsheetId" help:"Spreadsheet ID"`
 	Sheet         string `arg:"" name:"sheet" help:"Sheet name (eg. Sheet1)"`
 	Dimension     string `arg:"" name:"dimension" help:"Dimension to insert: rows or cols"`
@@ -70,7 +71,7 @@ func (c *SheetsInsertCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return usagef("cannot inherit from the previous %s when inserting at position 1", dimLabel)
 	}
 
-	if dryRunErr := dryRunExit(ctx, flags, "sheets.insert", map[string]any{
+	if dryRunErr := sheetsMutationDryRun(ctx, flags, c.Batch, "sheets.insert", map[string]any{
 		"spreadsheet_id":      spreadsheetID,
 		"sheet":               sheetName,
 		"dimension":           apiDimension,
@@ -84,7 +85,7 @@ func (c *SheetsInsertCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return dryRunErr
 	}
 
-	_, svc, err := requireSheetsService(ctx, flags)
+	ctx, svc, err := prepareSheetsMutation(ctx, flags, c.Batch, spreadsheetID, "sheets.insert")
 	if err != nil {
 		return err
 	}
@@ -116,6 +117,9 @@ func (c *SheetsInsertCmd) Run(ctx context.Context, flags *RootFlags) error {
 		},
 	}
 
+	if queued, queueErr := queueSheetsBatchRequests(ctx, req.Requests); queued || queueErr != nil {
+		return queueErr
+	}
 	if _, err := svc.Spreadsheets.BatchUpdate(spreadsheetID, req).Do(); err != nil {
 		return err
 	}

@@ -27,8 +27,9 @@ gog batch end "$BATCH_ID" --dry-run --json
 gog batch end "$BATCH_ID"
 ```
 
-Use exactly one target: `--presentation` for Slides, `--doc` for Docs, or
-`--form` for [Forms](forms-batch.md).
+Use exactly one target: `--presentation` for Slides, `--doc` for Docs,
+`--form` for [Forms](forms-batch.md), or
+`--spreadsheet` for [Sheets structural batches](sheets-batch-update.md#persisted-structural-batches).
 `--service slides` is optional and must match the target when provided.
 `begin` records the target, selected account, and OAuth client without reading
 Google. The first queued mutation reads and pins the presentation revision.

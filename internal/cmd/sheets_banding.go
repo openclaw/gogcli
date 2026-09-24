@@ -19,6 +19,7 @@ type SheetsBandingCmd struct {
 }
 
 type SheetsBandingSetCmd struct {
+	Batch                string `name:"batch" help:"Append requests to a persisted Sheets batch instead of submitting"`
 	SpreadsheetID        string `arg:"" name:"spreadsheetId" help:"Spreadsheet ID"`
 	Range                string `arg:"" name:"range" help:"A1 range with sheet name (e.g. Sheet1!A1:H20)"`
 	RowPropertiesJSON    string `name:"row-properties-json" help:"Sheets API BandingProperties JSON for row colors"`
@@ -44,7 +45,7 @@ func (c *SheetsBandingSetCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
-	if dryErr := dryRunExit(ctx, flags, "sheets.banding.set", map[string]any{
+	if dryErr := sheetsMutationDryRun(ctx, flags, c.Batch, "sheets.banding.set", map[string]any{
 		"spreadsheet_id":    spreadsheetID,
 		"range":             rangeSpec,
 		"row_properties":    rowProps,
@@ -53,11 +54,7 @@ func (c *SheetsBandingSetCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return dryErr
 	}
 
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
-	svc, err := sheetsService(ctx, account)
+	ctx, svc, err := prepareSheetsMutation(ctx, flags, c.Batch, spreadsheetID, "sheets.banding.set")
 	if err != nil {
 		return err
 	}
@@ -74,6 +71,9 @@ func (c *SheetsBandingSetCmd) Run(ctx context.Context, flags *RootFlags) error {
 		Requests: []*sheets.Request{
 			sheetsbanding.BuildAddRequest(gridRange, rowProps, colProps),
 		},
+	}
+	if queued, queueErr := queueSheetsBatchRequests(ctx, req.Requests); queued || queueErr != nil {
+		return queueErr
 	}
 	resp, err := svc.Spreadsheets.BatchUpdate(spreadsheetID, req).Context(ctx).Do()
 	if err != nil {
@@ -115,6 +115,7 @@ func (c *SheetsBandingListCmd) Run(ctx context.Context, flags *RootFlags) error 
 }
 
 type SheetsBandingClearCmd struct {
+	Batch         string `name:"batch" help:"Append requests to a persisted Sheets batch instead of submitting"`
 	SpreadsheetID string `arg:"" name:"spreadsheetId" help:"Spreadsheet ID"`
 	BandedRangeID int64  `name:"id" help:"Banded range ID to remove"`
 	Sheet         string `name:"sheet" help:"Sheet name for --all"`
@@ -147,7 +148,11 @@ func (c *SheetsBandingClearCmd) Run(ctx context.Context, flags *RootFlags) error
 		if c.BandedRangeID > 0 {
 			request["removed"] = 1
 		}
-		return dryRunAndConfirmDestructive(ctx, flags, "sheets.banding.clear", request, "remove banding")
+		return sheetsMutationDryRun(ctx, flags, c.Batch, "sheets.banding.clear", request)
+	}
+	ctx, err := prepareSheetsBatch(ctx, flags, c.Batch, spreadsheetID, "sheets.banding.clear")
+	if err != nil {
+		return err
 	}
 
 	requests := []*sheets.Request{}
@@ -156,20 +161,17 @@ func (c *SheetsBandingClearCmd) Run(ctx context.Context, flags *RootFlags) error
 		requests = append(requests, sheetsbanding.DeleteRequest(c.BandedRangeID))
 		removed = 1
 	} else {
-		account, err := requireAccount(flags)
-		if err != nil {
-			return err
+		account, accountErr := requireAccount(flags)
+		if accountErr != nil {
+			return accountErr
 		}
-		svc, err := sheetsService(ctx, account)
-		if err != nil {
-			return err
+		svc, serviceErr := sheetsMutationService(ctx, account)
+		if serviceErr != nil {
+			return serviceErr
 		}
-		resp, err := svc.Spreadsheets.Get(spreadsheetID).
-			Fields("sheets(properties(title),bandedRanges(bandedRangeId))").
-			Context(ctx).
-			Do()
-		if err != nil {
-			return err
+		resp, readErr := fetchSheetsMutationMetadata(ctx, svc, spreadsheetID, "sheets(properties(title),bandedRanges(bandedRangeId))")
+		if readErr != nil {
+			return readErr
 		}
 		ids, found := sheetsbanding.IDsForSheet(resp, sheetName)
 		if !found {
@@ -189,14 +191,17 @@ func (c *SheetsBandingClearCmd) Run(ctx context.Context, flags *RootFlags) error
 		return nil
 	}
 
-	if err := dryRunAndConfirmDestructive(ctx, flags, "sheets.banding.clear", map[string]any{
+	if queued, queueErr := queueSheetsBatchRequests(ctx, requests); queued || queueErr != nil {
+		return queueErr
+	}
+	if confirmErr := dryRunAndConfirmDestructive(ctx, flags, "sheets.banding.clear", map[string]any{
 		"spreadsheet_id":  spreadsheetID,
 		"banded_range_id": c.BandedRangeID,
 		"sheet":           sheetName,
 		"all":             c.All,
 		"removed":         removed,
-	}, "remove banding"); err != nil {
-		return err
+	}, "remove banding"); confirmErr != nil {
+		return confirmErr
 	}
 
 	account, err := requireAccount(flags)

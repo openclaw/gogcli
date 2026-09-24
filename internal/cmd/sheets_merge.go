@@ -9,6 +9,7 @@ import (
 )
 
 type SheetsMergeCmd struct {
+	Batch         string `name:"batch" help:"Append requests to a persisted Sheets batch instead of submitting"`
 	SpreadsheetID string `arg:"" name:"spreadsheetId" help:"Spreadsheet ID"`
 	Range         string `arg:"" name:"range" help:"Range (eg. Sheet1!A1:B2)"`
 	Type          string `name:"type" help:"Merge type: MERGE_ALL, MERGE_COLUMNS, MERGE_ROWS" default:"MERGE_ALL"`
@@ -34,7 +35,7 @@ func (c *SheetsMergeCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
-	return runSheetsMutation(ctx, flags, "sheets.merge", map[string]any{
+	return runSheetsMutation(ctx, flags, c.Batch, spreadsheetID, "sheets.merge", map[string]any{
 		"spreadsheet_id": spreadsheetID,
 		"range":          rangeSpec,
 		"type":           mergeType,
@@ -66,6 +67,7 @@ func (c *SheetsMergeCmd) Run(ctx context.Context, flags *RootFlags) error {
 }
 
 type SheetsUnmergeCmd struct {
+	Batch         string `name:"batch" help:"Append requests to a persisted Sheets batch instead of submitting"`
 	SpreadsheetID string `arg:"" name:"spreadsheetId" help:"Spreadsheet ID"`
 	Range         string `arg:"" name:"range" help:"Range (eg. Sheet1!A1:B2)"`
 }
@@ -85,7 +87,7 @@ func (c *SheetsUnmergeCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
-	return runSheetsMutation(ctx, flags, "sheets.unmerge", map[string]any{
+	return runSheetsMutation(ctx, flags, c.Batch, spreadsheetID, "sheets.unmerge", map[string]any{
 		"spreadsheet_id": spreadsheetID,
 		"range":          rangeSpec,
 	}, func(ctx context.Context, svc *sheets.Service) (map[string]any, string, error) {

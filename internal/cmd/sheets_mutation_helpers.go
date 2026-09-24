@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -15,25 +16,33 @@ import (
 func runSheetsMutation(
 	ctx context.Context,
 	flags *RootFlags,
+	batchID, spreadsheetID string,
 	op string,
 	dryRunPayload map[string]any,
 	run func(context.Context, *sheets.Service) (map[string]any, string, error),
 ) error {
 	u := ui.FromContext(ctx)
-	if dryRunErr := dryRunExit(ctx, flags, op, dryRunPayload); dryRunErr != nil {
+	if dryRunErr := sheetsMutationDryRun(ctx, flags, batchID, op, dryRunPayload); dryRunErr != nil {
 		return dryRunErr
 	}
 
+	ctx, err := prepareSheetsBatch(ctx, flags, batchID, spreadsheetID, op)
+	if err != nil {
+		return err
+	}
 	account, err := requireAccount(flags)
 	if err != nil {
 		return err
 	}
-	svc, err := sheetsService(ctx, account)
+	svc, err := sheetsMutationService(ctx, account)
 	if err != nil {
 		return err
 	}
 
 	jsonPayload, text, err := run(ctx, svc)
+	if errors.Is(err, errSheetsMutationQueued) {
+		return nil
+	}
 	if err != nil {
 		return err
 	}
@@ -119,6 +128,12 @@ func resolveSheetIDByNameOrFirstWithCatalog(catalog *spreadsheetRangeCatalog, sh
 }
 
 func applySheetsBatchUpdate(ctx context.Context, svc *sheets.Service, spreadsheetID string, req *sheets.BatchUpdateSpreadsheetRequest) error {
+	if queued, err := queueSheetsBatchRequests(ctx, req.Requests); queued || err != nil {
+		if err != nil {
+			return err
+		}
+		return errSheetsMutationQueued
+	}
 	if _, err := svc.Spreadsheets.BatchUpdate(spreadsheetID, req).Context(ctx).Do(); err != nil {
 		return err
 	}

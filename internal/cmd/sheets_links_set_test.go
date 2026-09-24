@@ -12,6 +12,8 @@ import (
 	"strings"
 	"testing"
 
+	"google.golang.org/api/sheets/v4"
+
 	"github.com/openclaw/gogcli/internal/outfmt"
 )
 
@@ -155,6 +157,35 @@ func TestSheetsLinksSet_SingleLink(t *testing.T) {
 	start := rec.requests[0]["updateCells"].(map[string]any)["start"].(map[string]any)
 	if start["rowIndex"] != float64(1) || start["columnIndex"] != float64(1) {
 		t.Errorf("start = %#v, want row1/col1", start)
+	}
+}
+
+func TestSheetsLinksSetPreservesMutationContext(t *testing.T) {
+	type contextKey struct{}
+	var output bytes.Buffer
+	ctx := context.WithValue(newCmdRuntimeJSONOutputContext(t, &output, io.Discard), contextKey{}, "caller")
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	posted := false
+	client := &http.Client{Transport: roundTripperFunc(func(request *http.Request) (*http.Response, error) {
+		if request.Method == http.MethodGet {
+			return &http.Response{StatusCode: 200, Header: make(http.Header), Body: io.NopCloser(strings.NewReader(`{"sheets":[{"properties":{"sheetId":0,"title":"Sheet1"}}]}`)), Request: request}, nil
+		}
+		posted = true
+		if request.Context().Value(contextKey{}) != "caller" {
+			t.Error("mutation lost the caller context")
+		}
+		cancel()
+		if !errors.Is(request.Context().Err(), context.Canceled) {
+			t.Error("mutation did not observe caller cancellation")
+		}
+		return nil, context.Canceled
+	})}
+	svc := newGoogleTestServiceWithEndpoint(t, client, "https://sheets.example.test/", sheets.NewService)
+	ctx = withSheetsTestService(ctx, svc)
+	err := (&SheetsLinksSetCmd{SpreadsheetID: "s1", Cell: "Sheet1!A1", URL: "https://example.com"}).Run(ctx, &RootFlags{Account: "test@example.com"})
+	if !posted || !errors.Is(err, context.Canceled) || output.Len() != 0 {
+		t.Fatalf("posted=%v error=%v output=%q", posted, err, output.String())
 	}
 }
 

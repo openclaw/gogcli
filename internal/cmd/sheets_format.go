@@ -13,6 +13,7 @@ import (
 )
 
 type SheetsFormatCmd struct {
+	Batch         string `name:"batch" help:"Append requests to a persisted Sheets batch instead of submitting"`
 	SpreadsheetID string `arg:"" name:"spreadsheetId" help:"Spreadsheet ID"`
 	Range         string `arg:"" name:"range" help:"Range (A1 notation with sheet name, or named range name; e.g. Sheet1!A1:B2 or MyNamedRange)"`
 	FormatJSON    string `name:"format-json" help:"Cell format as JSON (Sheets API CellFormat)"`
@@ -64,7 +65,7 @@ func (c *SheetsFormatCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return usage(err.Error())
 	}
 
-	if dryRunErr := dryRunExit(ctx, flags, "sheets.format", map[string]any{
+	if dryRunErr := sheetsMutationDryRun(ctx, flags, c.Batch, "sheets.format", map[string]any{
 		"spreadsheet_id": spreadsheetID,
 		"range":          rangeSpec,
 		"fields":         formatFields,
@@ -73,12 +74,7 @@ func (c *SheetsFormatCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return dryRunErr
 	}
 
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
-
-	svc, err := sheetsService(ctx, account)
+	ctx, svc, err := prepareSheetsMutation(ctx, flags, c.Batch, spreadsheetID, "sheets.format")
 	if err != nil {
 		return err
 	}
@@ -106,6 +102,9 @@ func (c *SheetsFormatCmd) Run(ctx context.Context, flags *RootFlags) error {
 		},
 	}
 
+	if queued, queueErr := queueSheetsBatchRequests(ctx, req.Requests); queued || queueErr != nil {
+		return queueErr
+	}
 	if _, err := svc.Spreadsheets.BatchUpdate(spreadsheetID, req).Do(); err != nil {
 		return err
 	}

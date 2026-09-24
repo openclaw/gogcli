@@ -112,7 +112,7 @@ Generated from `gog schema --json`.
     - [`gog backup push [flags]`](commands/gog-backup-push.md) - Export services into encrypted backup shards
     - [`gog backup status [flags]`](commands/gog-backup-status.md) - Inspect backup manifest without decrypting shards
     - [`gog backup verify [flags]`](commands/gog-backup-verify.md) - Decrypt and verify all backup shards
-  - [`gog batch <command> [flags]`](commands/gog-batch.md) - Build and submit persisted Google Docs and Slides request batches
+  - [`gog batch <command> [flags]`](commands/gog-batch.md) - Build and submit persisted Google Docs, Slides, Forms, and Sheets request batches
     - [`gog batch abort (rm,delete) <batchId>`](commands/gog-batch-abort.md) - Delete a request batch without submitting
     - [`gog batch begin [flags]`](commands/gog-batch-begin.md) - Begin a persisted request batch
     - [`gog batch end (submit) <batchId> [flags]`](commands/gog-batch-end.md) - Submit and remove a request batch
@@ -599,14 +599,14 @@ Generated from `gog schema --json`.
       - [`gog sheets (sheet) banding (banded-ranges) clear (delete,rm,remove) <spreadsheetId> [flags]`](commands/gog-sheets-banding-clear.md) - Remove alternating color banding
       - [`gog sheets (sheet) banding (banded-ranges) list <spreadsheetId> [flags]`](commands/gog-sheets-banding-list.md) - List alternating color banded ranges
       - [`gog sheets (sheet) banding (banded-ranges) set (add,create) <spreadsheetId> <range> [flags]`](commands/gog-sheets-banding-set.md) - Apply alternating colors to a range
-    - [`gog sheets (sheet) batch-request --requests-json=STRING <spreadsheetId>`](commands/gog-sheets-batch-request.md) - Submit an atomic structural request array (requires confirmation or --force)
+    - [`gog sheets (sheet) batch-request --requests-json=STRING <spreadsheetId> [flags]`](commands/gog-sheets-batch-request.md) - Submit an atomic structural request array (requires confirmation or --force)
     - [`gog sheets (sheet) batch-update (batch) --data-json=STRING <spreadsheetId> [flags]`](commands/gog-sheets-batch-update.md) - Update values in multiple ranges with one API request
     - [`gog sheets (sheet) chart (charts) <command>`](commands/gog-sheets-chart.md) - Manage spreadsheet charts
       - [`gog sheets (sheet) chart (charts) create (add,new) --spec-json=STRING <spreadsheetId> [flags]`](commands/gog-sheets-chart-create.md) - Create a chart from a JSON spec
-      - [`gog sheets (sheet) chart (charts) delete (rm,remove,del) <spreadsheetId> <chartId>`](commands/gog-sheets-chart-delete.md) - Delete a chart
+      - [`gog sheets (sheet) chart (charts) delete (rm,remove,del) <spreadsheetId> <chartId> [flags]`](commands/gog-sheets-chart-delete.md) - Delete a chart
       - [`gog sheets (sheet) chart (charts) get (show,info) <spreadsheetId> <chartId>`](commands/gog-sheets-chart-get.md) - Get full chart definition (spec + position)
       - [`gog sheets (sheet) chart (charts) list <spreadsheetId>`](commands/gog-sheets-chart-list.md) - List charts in a spreadsheet
-      - [`gog sheets (sheet) chart (charts) update (edit,set) --spec-json=STRING <spreadsheetId> <chartId>`](commands/gog-sheets-chart-update.md) - Update a chart spec
+      - [`gog sheets (sheet) chart (charts) update (edit,set) --spec-json=STRING <spreadsheetId> <chartId> [flags]`](commands/gog-sheets-chart-update.md) - Update a chart spec
     - [`gog sheets (sheet) clear <spreadsheetId> <range>`](commands/gog-sheets-clear.md) - Clear values in a range
     - [`gog sheets (sheet) conditional-format (cf,conditional-formats) <command>`](commands/gog-sheets-conditional-format.md) - Manage conditional formatting rules
       - [`gog sheets (sheet) conditional-format (cf,conditional-formats) add (create,new) <spreadsheetId> <range> [flags]`](commands/gog-sheets-conditional-format-add.md) - Add a conditional formatting rule
@@ -627,11 +627,11 @@ Generated from `gog schema --json`.
         - [`gog sheets (sheet) datasource (data-source,data-sources,connected-sheets) table (tables,extract,extracts) read (values) <spreadsheetId> <anchor> [flags]`](commands/gog-sheets-datasource-table-read.md) - Read values from a data-source table
       - [`gog sheets (sheet) datasource (data-source,data-sources,connected-sheets) update <spreadsheetId> <dataSourceId> [flags]`](commands/gog-sheets-datasource-update.md) - Update one BigQuery Connected Sheets data source
     - [`gog sheets (sheet) delete-dimension (delete-dim) --dimension=STRING <spreadsheetId> <rangeOrSheet> [flags]`](commands/gog-sheets-delete-dimension.md) - Delete rows or columns while preserving intersecting tables
-    - [`gog sheets (sheet) delete-tab (delete-sheet) <spreadsheetId> <tabName>`](commands/gog-sheets-delete-tab.md) - Delete a tab/sheet from a spreadsheet (use --force to skip confirmation)
+    - [`gog sheets (sheet) delete-tab (delete-sheet) <spreadsheetId> <tabName> [flags]`](commands/gog-sheets-delete-tab.md) - Delete a tab/sheet from a spreadsheet (use --force to skip confirmation)
     - [`gog sheets (sheet) duplicate-tab <spreadsheetId> <sourceTab> <newName> [flags]`](commands/gog-sheets-duplicate-tab.md) - Duplicate a tab within a spreadsheet
     - [`gog sheets (sheet) export (download,dl) <spreadsheetId> [flags]`](commands/gog-sheets-export.md) - Export a Google Sheet (pdf|xlsx|csv) via Drive
     - [`gog sheets (sheet) filter (filters,basic-filter,basic-filters) <command>`](commands/gog-sheets-filter.md) - Manage basic filters
-      - [`gog sheets (sheet) filter (filters,basic-filter,basic-filters) set (create,add) <spreadsheetId> <range>`](commands/gog-sheets-filter-set.md) - Set a basic filter on a range; replacing an existing filter requires confirmation (or --force)
+      - [`gog sheets (sheet) filter (filters,basic-filter,basic-filters) set (create,add) <spreadsheetId> <range> [flags]`](commands/gog-sheets-filter-set.md) - Set a basic filter on a range; replacing an existing filter requires confirmation (or --force)
     - [`gog sheets (sheet) find-replace <spreadsheetId> <find> <replace> [flags]`](commands/gog-sheets-find-replace.md) - Find and replace text across a spreadsheet
     - [`gog sheets (sheet) format <spreadsheetId> <range> [flags]`](commands/gog-sheets-format.md) - Apply cell formatting to a range
     - [`gog sheets (sheet) freeze <spreadsheetId> [flags]`](commands/gog-sheets-freeze.md) - Freeze rows and columns on a sheet
@@ -643,8 +643,8 @@ Generated from `gog schema --json`.
     - [`gog sheets (sheet) merge <spreadsheetId> <range> [flags]`](commands/gog-sheets-merge.md) - Merge cells in a range
     - [`gog sheets (sheet) metadata (info) <spreadsheetId>`](commands/gog-sheets-metadata.md) - Get spreadsheet metadata
     - [`gog sheets (sheet) named-ranges (namedranges,nr) <command>`](commands/gog-sheets-named-ranges.md) - Manage named ranges
-      - [`gog sheets (sheet) named-ranges (namedranges,nr) add (create,new) <spreadsheetId> <name> <range>`](commands/gog-sheets-named-ranges-add.md) - Add a named range
-      - [`gog sheets (sheet) named-ranges (namedranges,nr) delete (rm,remove,del) <spreadsheetId> <nameOrId>`](commands/gog-sheets-named-ranges-delete.md) - Delete a named range
+      - [`gog sheets (sheet) named-ranges (namedranges,nr) add (create,new) <spreadsheetId> <name> <range> [flags]`](commands/gog-sheets-named-ranges-add.md) - Add a named range
+      - [`gog sheets (sheet) named-ranges (namedranges,nr) delete (rm,remove,del) <spreadsheetId> <nameOrId> [flags]`](commands/gog-sheets-named-ranges-delete.md) - Delete a named range
       - [`gog sheets (sheet) named-ranges (namedranges,nr) get (show,info) <spreadsheetId> <nameOrId>`](commands/gog-sheets-named-ranges-get.md) - Get a named range
       - [`gog sheets (sheet) named-ranges (namedranges,nr) list <spreadsheetId>`](commands/gog-sheets-named-ranges-list.md) - List named ranges
       - [`gog sheets (sheet) named-ranges (namedranges,nr) update (edit,set) <spreadsheetId> <nameOrId> [flags]`](commands/gog-sheets-named-ranges-update.md) - Update a named range
@@ -652,18 +652,18 @@ Generated from `gog schema --json`.
     - [`gog sheets (sheet) number-format <spreadsheetId> <range> [flags]`](commands/gog-sheets-number-format.md) - Apply number format to a range
     - [`gog sheets (sheet) raw <spreadsheetId> [flags]`](commands/gog-sheets-raw.md) - Dump raw Google Sheets API response as JSON (Spreadsheets.Get; lossless; for scripting and LLM consumption)
     - [`gog sheets (sheet) read-format (get-format,format-read) <spreadsheetId> <range> [flags]`](commands/gog-sheets-read-format.md) - Read cell formatting from a range
-    - [`gog sheets (sheet) rename-tab (rename-sheet) <spreadsheetId> <oldName> <newName>`](commands/gog-sheets-rename-tab.md) - Rename a tab/sheet in a spreadsheet
+    - [`gog sheets (sheet) rename-tab (rename-sheet) <spreadsheetId> <oldName> <newName> [flags]`](commands/gog-sheets-rename-tab.md) - Rename a tab/sheet in a spreadsheet
     - [`gog sheets (sheet) reorder-tab (move-tab,reorder-sheet,move-sheet) --tab=STRING --to=TO <spreadsheetId>`](commands/gog-sheets-reorder-tab.md) - Move a tab/sheet to a specific 0-based position in the spreadsheet
     - [`gog sheets (sheet) resize-columns <spreadsheetId> <columns> [flags]`](commands/gog-sheets-resize-columns.md) - Resize sheet columns
     - [`gog sheets (sheet) resize-rows <spreadsheetId> <rows> [flags]`](commands/gog-sheets-resize-rows.md) - Resize sheet rows
     - [`gog sheets (sheet) table (tables) <command>`](commands/gog-sheets-table.md) - Manage Google Sheets tables
       - [`gog sheets (sheet) table (tables) append (add-row,add-rows) <spreadsheetId> <tableId> [<values> ...] [flags]`](commands/gog-sheets-table-append.md) - Append rows to a table
       - [`gog sheets (sheet) table (tables) clear (clear-rows) <spreadsheetId> <tableId>`](commands/gog-sheets-table-clear.md) - Clear table data rows
-      - [`gog sheets (sheet) table (tables) create (add,new) --name=STRING --columns-json=STRING <spreadsheetId> <range>`](commands/gog-sheets-table-create.md) - Create a table
+      - [`gog sheets (sheet) table (tables) create (add,new) --name=STRING --columns-json=STRING <spreadsheetId> <range> [flags]`](commands/gog-sheets-table-create.md) - Create a table
       - [`gog sheets (sheet) table (tables) delete (rm,remove,del) <spreadsheetId> <tableId> [flags]`](commands/gog-sheets-table-delete.md) - Delete a table
       - [`gog sheets (sheet) table (tables) get (show,info) <spreadsheetId> <tableId>`](commands/gog-sheets-table-get.md) - Get a table
       - [`gog sheets (sheet) table (tables) list <spreadsheetId>`](commands/gog-sheets-table-list.md) - List tables in a spreadsheet
-    - [`gog sheets (sheet) unmerge <spreadsheetId> <range>`](commands/gog-sheets-unmerge.md) - Unmerge cells in a range
+    - [`gog sheets (sheet) unmerge <spreadsheetId> <range> [flags]`](commands/gog-sheets-unmerge.md) - Unmerge cells in a range
     - [`gog sheets (sheet) update (edit,set) <spreadsheetId> <range> [<values> ...] [flags]`](commands/gog-sheets-update.md) - Update values in a range
     - [`gog sheets (sheet) update-note (set-note) <spreadsheetId> <range> [flags]`](commands/gog-sheets-update-note.md) - Set or clear a cell note
     - [`gog sheets (sheet) validation (data-validation,validations) <command>`](commands/gog-sheets-validation.md) - Manage cell data validation rules

@@ -20,18 +20,20 @@ const (
 	ServiceDocs        = "docs"
 	ServiceSlides      = "slides"
 	ServiceForms       = "forms"
+	ServiceSheets      = "sheets"
 	defaultLockTimeout = 5 * time.Second
 )
 
 var (
-	ErrEmptyRevision      = errors.New("document revision is empty")
-	ErrRevisionChanged    = errors.New("document revision changed")
-	ErrRequireEmpty       = errors.New("operation requires an empty batch")
-	ErrTransactionDeleted = errors.New("batch transaction is already deleted")
-	ErrInvalidID          = errors.New("invalid batch ID")
-	ErrIdentityMismatch   = errors.New("batch identity mismatch")
-	ErrNotFound           = errors.New("batch not found")
-	ErrStoredIDMismatch   = errors.New("stored batch ID does not match filename")
+	ErrEmptyRevision       = errors.New("document revision is empty")
+	ErrUnsupportedRevision = errors.New("service does not support revision locking")
+	ErrRevisionChanged     = errors.New("document revision changed")
+	ErrRequireEmpty        = errors.New("operation requires an empty batch")
+	ErrTransactionDeleted  = errors.New("batch transaction is already deleted")
+	ErrInvalidID           = errors.New("invalid batch ID")
+	ErrIdentityMismatch    = errors.New("batch identity mismatch")
+	ErrNotFound            = errors.New("batch not found")
+	ErrStoredIDMismatch    = errors.New("stored batch ID does not match filename")
 )
 
 type RequestEntry struct {
@@ -41,19 +43,21 @@ type RequestEntry struct {
 }
 
 type State struct {
-	BatchID            string         `json:"batch_id"`
-	Name               string         `json:"name,omitempty"`
-	Service            string         `json:"service"`
-	DocumentID         string         `json:"doc_id,omitempty"`
-	PresentationID     string         `json:"presentation_id,omitempty"`
-	FormID             string         `json:"form_id,omitempty"`
-	InitialFormItems   *int           `json:"initial_form_items,omitempty"`
-	Account            string         `json:"account"`
-	Client             string         `json:"client"`
-	CreatedAt          time.Time      `json:"created_at"`
-	UpdatedAt          time.Time      `json:"updated_at"`
-	RequiredRevisionID string         `json:"required_revision_id,omitempty"`
-	Requests           []RequestEntry `json:"requests"`
+	BatchID            string          `json:"batch_id"`
+	Name               string          `json:"name,omitempty"`
+	Service            string          `json:"service"`
+	DocumentID         string          `json:"doc_id,omitempty"`
+	PresentationID     string          `json:"presentation_id,omitempty"`
+	FormID             string          `json:"form_id,omitempty"`
+	InitialFormItems   *int            `json:"initial_form_items,omitempty"`
+	SpreadsheetID      string          `json:"spreadsheet_id,omitempty"`
+	SheetsBaseMetadata json.RawMessage `json:"sheets_base_metadata,omitempty"`
+	Account            string          `json:"account"`
+	Client             string          `json:"client"`
+	CreatedAt          time.Time       `json:"created_at"`
+	UpdatedAt          time.Time       `json:"updated_at"`
+	RequiredRevisionID string          `json:"required_revision_id,omitempty"`
+	Requests           []RequestEntry  `json:"requests"`
 }
 
 type Summary struct {
@@ -63,6 +67,7 @@ type Summary struct {
 	DocumentID     string    `json:"doc_id,omitempty"`
 	PresentationID string    `json:"presentation_id,omitempty"`
 	FormID         string    `json:"form_id,omitempty"`
+	SpreadsheetID  string    `json:"spreadsheet_id,omitempty"`
 	Account        string    `json:"account"`
 	Client         string    `json:"client"`
 	CreatedAt      time.Time `json:"created_at"`
@@ -75,6 +80,7 @@ type Identity struct {
 	DocumentID     string
 	PresentationID string
 	FormID         string
+	SpreadsheetID  string
 	Account        string
 	Client         string
 }
@@ -236,7 +242,11 @@ func (t *Transaction) Append(options AppendOptions) (int, error) {
 		return 0, err
 	}
 
-	if options.RevisionID == "" {
+	if state.Service == ServiceSheets && (options.RevisionID != "" || state.RequiredRevisionID != "") {
+		return 0, fmt.Errorf("sheets batch: %w", ErrUnsupportedRevision)
+	}
+
+	if options.RevisionID == "" && state.Service != ServiceSheets {
 		return 0, ErrEmptyRevision
 	}
 
@@ -364,6 +374,14 @@ func (t *Transaction) PersistOrDelete() error {
 		return nil
 	}
 
+	return t.Persist()
+}
+
+// Persist retains an empty batch, including metadata captured before its first append.
+func (t *Transaction) Persist() error {
+	if t.deleted {
+		return ErrTransactionDeleted
+	}
 	t.state.UpdatedAt = t.repository.now().UTC()
 
 	return t.repository.writeUnlocked(t.state)
@@ -390,6 +408,8 @@ func ValidateIdentity(state *State, identity Identity) error {
 		return fmt.Errorf("batch targets presentation %s, not %s: %w", state.PresentationID, identity.PresentationID, ErrIdentityMismatch)
 	case state.FormID != identity.FormID:
 		return fmt.Errorf("batch targets form %s, not %s: %w", state.FormID, identity.FormID, ErrIdentityMismatch)
+	case state.SpreadsheetID != identity.SpreadsheetID:
+		return fmt.Errorf("batch targets spreadsheet %s, not %s: %w", state.SpreadsheetID, identity.SpreadsheetID, ErrIdentityMismatch)
 	case !strings.EqualFold(state.Account, identity.Account):
 		return fmt.Errorf("batch uses account %s, not %s: %w", state.Account, identity.Account, ErrIdentityMismatch)
 	case state.Client != identity.Client:
@@ -407,6 +427,7 @@ func summarize(state *State) Summary {
 		DocumentID:     state.DocumentID,
 		PresentationID: state.PresentationID,
 		FormID:         state.FormID,
+		SpreadsheetID:  state.SpreadsheetID,
 		Account:        state.Account,
 		Client:         state.Client,
 		CreatedAt:      state.CreatedAt,

@@ -9,6 +9,7 @@ import (
 )
 
 type SheetsNumberFormatCmd struct {
+	Batch         string `name:"batch" help:"Append requests to a persisted Sheets batch instead of submitting"`
 	SpreadsheetID string `arg:"" name:"spreadsheetId" help:"Spreadsheet ID"`
 	Range         string `arg:"" name:"range" help:"Range (eg. Sheet1!A1:B2)"`
 	Type          string `name:"type" help:"Number format type: NUMBER, CURRENCY, PERCENT, DATE, TIME, DATE_TIME, SCIENTIFIC, TEXT" default:"NUMBER"`
@@ -36,7 +37,7 @@ func (c *SheetsNumberFormatCmd) Run(ctx context.Context, flags *RootFlags) error
 		return err
 	}
 
-	return runSheetsMutation(ctx, flags, "sheets.number-format", map[string]any{
+	return runSheetsMutation(ctx, flags, c.Batch, spreadsheetID, "sheets.number-format", map[string]any{
 		"spreadsheet_id": spreadsheetID,
 		"range":          rangeSpec,
 		"type":           numberType,

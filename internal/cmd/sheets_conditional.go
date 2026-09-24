@@ -23,6 +23,7 @@ type SheetsConditionalCmd struct {
 }
 
 type SheetsConditionalAddCmd struct {
+	Batch            string `name:"batch" help:"Append requests to a persisted Sheets batch instead of submitting"`
 	SpreadsheetID    string `arg:"" name:"spreadsheetId" help:"Spreadsheet ID"`
 	Range            string `arg:"" name:"range" help:"A1 range with sheet name (e.g. Sheet1!A2:J)"`
 	Type             string `name:"type" help:"Boolean rule type: text-eq|text-contains|text-starts-with|text-ends-with|number-eq|number-gt|number-gte|number-lt|number-lte|blank|not-blank|custom-formula"`
@@ -104,15 +105,11 @@ func (c *SheetsConditionalAddCmd) Run(ctx context.Context, flags *RootFlags) err
 		dryRunRequest["format_fields"] = formatFields
 	}
 
-	if dryErr := dryRunExit(ctx, flags, "sheets.conditional-format.add", dryRunRequest); dryErr != nil {
+	if dryErr := sheetsMutationDryRun(ctx, flags, c.Batch, "sheets.conditional-format.add", dryRunRequest); dryErr != nil {
 		return dryErr
 	}
 
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
-	svc, err := sheetsService(ctx, account)
+	ctx, svc, err := prepareSheetsMutation(ctx, flags, c.Batch, spreadsheetID, "sheets.conditional-format.add")
 	if err != nil {
 		return err
 	}
@@ -134,6 +131,9 @@ func (c *SheetsConditionalAddCmd) Run(ctx context.Context, flags *RootFlags) err
 		req.Requests[0] = sheetsconditional.BuildAddRequest(gridRange, conditionType, values, format, c.Index)
 	}
 
+	if queued, queueErr := queueSheetsBatchRequests(ctx, req.Requests); queued || queueErr != nil {
+		return queueErr
+	}
 	if err := applySheetsBatchUpdate(ctx, svc, spreadsheetID, req); err != nil {
 		return err
 	}

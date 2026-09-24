@@ -13,6 +13,7 @@ import (
 )
 
 type SheetsUpdateNoteCmd struct {
+	Batch         string  `name:"batch" help:"Append requests to a persisted Sheets batch instead of submitting"`
 	SpreadsheetID string  `arg:"" name:"spreadsheetId" help:"Spreadsheet ID"`
 	Range         string  `arg:"" name:"range" help:"A1 cell or range (eg. Sheet1!A1 or Sheet1!A1:B2)"`
 	Note          *string `name:"note" help:"Note text to set (use --note '' to clear notes)"`
@@ -55,7 +56,7 @@ func (c *SheetsUpdateNoteCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
-	if dryRunErr := dryRunExit(ctx, flags, "sheets.update-note", map[string]any{
+	if dryRunErr := sheetsMutationDryRun(ctx, flags, c.Batch, "sheets.update-note", map[string]any{
 		"spreadsheet_id": spreadsheetID,
 		"range":          rangeSpec,
 		"note":           noteText,
@@ -63,12 +64,7 @@ func (c *SheetsUpdateNoteCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return dryRunErr
 	}
 
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
-
-	svc, err := sheetsService(ctx, account)
+	ctx, svc, err := prepareSheetsMutation(ctx, flags, c.Batch, spreadsheetID, "sheets.update-note")
 	if err != nil {
 		return err
 	}
@@ -102,6 +98,9 @@ func (c *SheetsUpdateNoteCmd) Run(ctx context.Context, flags *RootFlags) error {
 		},
 	}
 
+	if queued, queueErr := queueSheetsBatchRequests(ctx, batchReq.Requests); queued || queueErr != nil {
+		return queueErr
+	}
 	if _, err := svc.Spreadsheets.BatchUpdate(spreadsheetID, batchReq).Do(); err != nil {
 		return fmt.Errorf("update note: %w", err)
 	}

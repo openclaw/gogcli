@@ -119,6 +119,7 @@ func (c *SheetsTableGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 }
 
 type SheetsTableCreateCmd struct {
+	Batch         string `name:"batch" help:"Append requests to a persisted Sheets batch instead of submitting"`
 	SpreadsheetID string `arg:"" name:"spreadsheetId" help:"Spreadsheet ID"`
 	Range         string `arg:"" name:"range" help:"Table range (A1 notation with sheet name, or named range name; e.g. Sheet1!A1:C10 or MyNamedRange)"`
 	Name          string `name:"name" help:"Table name" required:""`
@@ -145,7 +146,7 @@ func (c *SheetsTableCreateCmd) Run(ctx context.Context, flags *RootFlags) error 
 		return err
 	}
 
-	if dryRunErr := dryRunExit(ctx, flags, "sheets.table.create", map[string]any{
+	if dryRunErr := sheetsMutationDryRun(ctx, flags, c.Batch, "sheets.table.create", map[string]any{
 		"spreadsheet_id": spreadsheetID,
 		"range":          rangeSpec,
 		"name":           name,
@@ -154,12 +155,7 @@ func (c *SheetsTableCreateCmd) Run(ctx context.Context, flags *RootFlags) error 
 		return dryRunErr
 	}
 
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
-
-	svc, err := sheetsService(ctx, account)
+	ctx, svc, err := prepareSheetsMutation(ctx, flags, c.Batch, spreadsheetID, "sheets.table.create")
 	if err != nil {
 		return err
 	}
@@ -186,6 +182,9 @@ func (c *SheetsTableCreateCmd) Run(ctx context.Context, flags *RootFlags) error 
 		},
 	}
 
+	if queued, queueErr := queueSheetsBatchRequests(ctx, req.Requests); queued || queueErr != nil {
+		return queueErr
+	}
 	resp, err := svc.Spreadsheets.BatchUpdate(spreadsheetID, req).Do()
 	if err != nil {
 		return err
@@ -208,6 +207,7 @@ func (c *SheetsTableCreateCmd) Run(ctx context.Context, flags *RootFlags) error 
 }
 
 type SheetsTableDeleteCmd struct {
+	Batch         string `name:"batch" help:"Append requests to a persisted Sheets batch instead of submitting"`
 	SpreadsheetID string `arg:"" name:"spreadsheetId" help:"Spreadsheet ID"`
 	TableID       string `arg:"" name:"tableId" help:"Table ID or table name"`
 	DiscardData   bool   `name:"discard-data" help:"Delete the table and every cell in its range (required)"`
@@ -224,7 +224,7 @@ func (c *SheetsTableDeleteCmd) Run(ctx context.Context, flags *RootFlags) error 
 		return usage("empty tableId")
 	}
 
-	if dryRunErr := dryRunExit(ctx, flags, "sheets.table.delete", map[string]any{
+	if dryRunErr := sheetsMutationDryRun(ctx, flags, c.Batch, "sheets.table.delete", map[string]any{
 		"spreadsheet_id":         spreadsheetID,
 		"table_id_or_name":       in,
 		"discard_data":           c.DiscardData,
@@ -237,11 +237,7 @@ func (c *SheetsTableDeleteCmd) Run(ctx context.Context, flags *RootFlags) error 
 		return usage("sheets table delete also deletes every cell in the table range; pass --discard-data to confirm intentional data deletion")
 	}
 
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
-	svc, err := sheetsService(ctx, account)
+	ctx, svc, err := prepareSheetsMutation(ctx, flags, c.Batch, spreadsheetID, "sheets.table.delete")
 	if err != nil {
 		return err
 	}
@@ -258,7 +254,7 @@ func (c *SheetsTableDeleteCmd) Run(ctx context.Context, flags *RootFlags) error 
 		return usagef("unknown table %q", in)
 	}
 
-	if err := confirmDestructiveChecked(ctx, flagsWithoutDryRun(flags), "delete table "+table.Name); err != nil {
+	if err := confirmSheetsMutation(ctx, flagsWithoutDryRun(flags), c.Batch, "delete table "+table.Name); err != nil {
 		return err
 	}
 
@@ -268,6 +264,9 @@ func (c *SheetsTableDeleteCmd) Run(ctx context.Context, flags *RootFlags) error 
 				DeleteTable: &sheets.DeleteTableRequest{TableId: table.TableID},
 			},
 		},
+	}
+	if queued, queueErr := queueSheetsBatchRequests(ctx, req.Requests); queued || queueErr != nil {
+		return queueErr
 	}
 	if _, err := svc.Spreadsheets.BatchUpdate(spreadsheetID, req).Do(); err != nil {
 		return err
@@ -305,12 +304,10 @@ type sheetsTableColumnItem struct {
 }
 
 func fetchSpreadsheetTables(ctx context.Context, svc *sheets.Service, spreadsheetID string) ([]sheetsTableItem, error) {
-	call := svc.Spreadsheets.Get(spreadsheetID).
-		Fields("sheets(properties(sheetId,title),tables(tableId,name,range,rowsProperties(footerColorStyle),columnProperties(columnIndex,columnName,columnType,dataValidationRule)))")
-	if ctx != nil {
-		call = call.Context(ctx)
-	}
-	resp, err := call.Do()
+	// Only queued table deletion uses the captured ID/name/range subset. Read and
+	// value commands never install a batch context and retain their full live read.
+	resp, err := fetchSheetsMutationMetadata(ctx, svc, spreadsheetID,
+		"sheets(properties(sheetId,title),tables(tableId,name,range,rowsProperties(footerColorStyle),columnProperties(columnIndex,columnName,columnType,dataValidationRule)))")
 	if err != nil {
 		return nil, fmt.Errorf("get spreadsheet tables: %w", err)
 	}

@@ -12,6 +12,7 @@ import (
 )
 
 type SheetsAddTabCmd struct {
+	Batch         string `name:"batch" help:"Append requests to a persisted Sheets batch instead of submitting"`
 	SpreadsheetID string `arg:"" name:"spreadsheetId" help:"Spreadsheet ID"`
 	TabName       string `arg:"" name:"tabName" help:"Name for the new tab/sheet"`
 	Index         *int64 `name:"index" help:"Zero-based tab index for the new tab"`
@@ -36,16 +37,11 @@ func (c *SheetsAddTabCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if c.Index != nil {
 		payload["index"] = *c.Index
 	}
-	if err := dryRunExit(ctx, flags, "sheets.add-tab", payload); err != nil {
+	if err := sheetsMutationDryRun(ctx, flags, c.Batch, "sheets.add-tab", payload); err != nil {
 		return err
 	}
 
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
-
-	svc, err := sheetsService(ctx, account)
+	ctx, svc, err := prepareSheetsMutation(ctx, flags, c.Batch, spreadsheetID, "sheets.add-tab")
 	if err != nil {
 		return err
 	}
@@ -66,6 +62,9 @@ func (c *SheetsAddTabCmd) Run(ctx context.Context, flags *RootFlags) error {
 		},
 	}
 
+	if queued, queueErr := queueSheetsBatchRequests(ctx, req.Requests); queued || queueErr != nil {
+		return queueErr
+	}
 	resp, err := svc.Spreadsheets.BatchUpdate(spreadsheetID, req).Do()
 	if err != nil {
 		return err
@@ -103,6 +102,7 @@ func (c *SheetsAddTabCmd) Run(ctx context.Context, flags *RootFlags) error {
 }
 
 type SheetsRenameTabCmd struct {
+	Batch         string `name:"batch" help:"Append requests to a persisted Sheets batch instead of submitting"`
 	SpreadsheetID string `arg:"" name:"spreadsheetId" help:"Spreadsheet ID"`
 	OldName       string `arg:"" name:"oldName" help:"Current tab name"`
 	NewName       string `arg:"" name:"newName" help:"New tab name"`
@@ -124,7 +124,7 @@ func (c *SheetsRenameTabCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return usage("empty newName")
 	}
 
-	if err := dryRunExit(ctx, flags, "sheets.rename-tab", map[string]any{
+	if err := sheetsMutationDryRun(ctx, flags, c.Batch, "sheets.rename-tab", map[string]any{
 		"spreadsheet_id": spreadsheetID,
 		"old_name":       oldName,
 		"new_name":       newName,
@@ -132,12 +132,7 @@ func (c *SheetsRenameTabCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
-
-	svc, err := sheetsService(ctx, account)
+	ctx, svc, err := prepareSheetsMutation(ctx, flags, c.Batch, spreadsheetID, "sheets.rename-tab")
 	if err != nil {
 		return err
 	}
@@ -165,6 +160,9 @@ func (c *SheetsRenameTabCmd) Run(ctx context.Context, flags *RootFlags) error {
 		},
 	}
 
+	if queued, queueErr := queueSheetsBatchRequests(ctx, req.Requests); queued || queueErr != nil {
+		return queueErr
+	}
 	if _, err := svc.Spreadsheets.BatchUpdate(spreadsheetID, req).Do(); err != nil {
 		return err
 	}
@@ -185,6 +183,7 @@ func (c *SheetsRenameTabCmd) Run(ctx context.Context, flags *RootFlags) error {
 }
 
 type SheetsDeleteTabCmd struct {
+	Batch         string `name:"batch" help:"Append requests to a persisted Sheets batch instead of submitting"`
 	SpreadsheetID string `arg:"" name:"spreadsheetId" help:"Spreadsheet ID"`
 	TabName       string `arg:"" name:"tabName" help:"Tab name to delete"`
 }
@@ -201,19 +200,14 @@ func (c *SheetsDeleteTabCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return usage("empty tabName")
 	}
 
-	if err := dryRunExit(ctx, flags, "sheets.delete-tab", map[string]any{
+	if err := sheetsMutationDryRun(ctx, flags, c.Batch, "sheets.delete-tab", map[string]any{
 		"spreadsheet_id": spreadsheetID,
 		"tab_name":       tabName,
 	}); err != nil {
 		return err
 	}
 
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
-
-	svc, err := sheetsService(ctx, account)
+	ctx, svc, err := prepareSheetsMutation(ctx, flags, c.Batch, spreadsheetID, "sheets.delete-tab")
 	if err != nil {
 		return err
 	}
@@ -227,7 +221,7 @@ func (c *SheetsDeleteTabCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return usagef("unknown tab %q", tabName)
 	}
 
-	if err := confirmDestructiveChecked(ctx, flags, fmt.Sprintf("delete sheet tab %s", tabName)); err != nil {
+	if err := confirmSheetsMutation(ctx, flags, c.Batch, fmt.Sprintf("delete sheet tab %s", tabName)); err != nil {
 		return err
 	}
 
@@ -241,6 +235,9 @@ func (c *SheetsDeleteTabCmd) Run(ctx context.Context, flags *RootFlags) error {
 		},
 	}
 
+	if queued, queueErr := queueSheetsBatchRequests(ctx, req.Requests); queued || queueErr != nil {
+		return queueErr
+	}
 	if _, err := svc.Spreadsheets.BatchUpdate(spreadsheetID, req).Do(); err != nil {
 		return err
 	}

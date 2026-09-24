@@ -1,6 +1,8 @@
 package cmd
 
 import (
+	"context"
+
 	"google.golang.org/api/sheets/v4"
 )
 
@@ -9,10 +11,8 @@ type chartSheetResolution struct {
 	HasSheetIDZero bool
 }
 
-func firstSheetResolution(svc *sheets.Service, spreadsheetID string) (chartSheetResolution, error) {
-	resp, err := svc.Spreadsheets.Get(spreadsheetID).
-		Fields("sheets(properties(sheetId,title))").
-		Do()
+func firstSheetResolution(ctx context.Context, svc *sheets.Service, spreadsheetID string) (chartSheetResolution, error) {
+	resp, err := fetchSheetsMutationMetadata(ctx, svc, spreadsheetID, "sheets(properties(sheetId,title))")
 	if err != nil {
 		return chartSheetResolution{}, err
 	}
@@ -37,10 +37,8 @@ func firstSheetResolution(svc *sheets.Service, spreadsheetID string) (chartSheet
 	return chartSheetResolution{}, usage("spreadsheet has no sheets")
 }
 
-func findChartSheetResolution(svc *sheets.Service, spreadsheetID string, chartID int64) (chartSheetResolution, error) {
-	resp, err := svc.Spreadsheets.Get(spreadsheetID).
-		Fields("sheets(properties(sheetId,title),charts(chartId))").
-		Do()
+func findChartSheetResolution(ctx context.Context, svc *sheets.Service, spreadsheetID string, chartID int64) (chartSheetResolution, error) {
+	resp, err := fetchSheetsMutationMetadata(ctx, svc, spreadsheetID, "sheets(properties(sheetId,title),charts(chartId))")
 	if err != nil {
 		return chartSheetResolution{}, err
 	}
@@ -67,14 +65,12 @@ func findChartSheetResolution(svc *sheets.Service, spreadsheetID string, chartID
 	return chartSheetResolution{}, usagef("chart %d not found", chartID)
 }
 
-func resolveChartSheetResolution(svc *sheets.Service, spreadsheetID, sheetName string) (chartSheetResolution, error) {
+func resolveChartSheetResolution(ctx context.Context, svc *sheets.Service, spreadsheetID, sheetName string) (chartSheetResolution, error) {
 	if sheetName == "" {
-		return firstSheetResolution(svc, spreadsheetID)
+		return firstSheetResolution(ctx, svc, spreadsheetID)
 	}
 
-	resp, err := svc.Spreadsheets.Get(spreadsheetID).
-		Fields("sheets(properties(sheetId,title))").
-		Do()
+	resp, err := fetchSheetsMutationMetadata(ctx, svc, spreadsheetID, "sheets(properties(sheetId,title))")
 	if err != nil {
 		return chartSheetResolution{}, err
 	}

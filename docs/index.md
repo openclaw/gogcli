@@ -65,6 +65,7 @@ live binary.
 - **Grouping Docs edits atomically.** [Google Docs request batches](docs-batch.md) covers persisted, revision-locked request queues and explicit recovery modes.
 - **Building Slides with fewer writes.** [Google Slides request batches](slides-batch.md) queues shapes, text, and tables across CLI invocations for one atomic submission.
 - **Building Forms atomically.** [Google Forms request batches](forms-batch.md) queues questions, ordering changes, and settings with a revision guard.
+- **Formatting Sheets with fewer calls.** [Persisted structural batches](sheets-batch-update.md#persisted-structural-batches) reuse one base metadata snapshot and submit queued edits atomically.
 - **Working with many contacts.** [Contacts batches](contacts-batch.md) covers native bulk reads and writes, etags, field masks, and partial-progress recovery.
 - **Managing BigQuery-backed Sheets.** [Connected Sheets](sheets-connected.md) covers opt-in authorization, source creation and status, targeted refreshes, and bounded extract reads.
 - **Verifying real API behavior.** [Live testing](live-testing.md) covers the dedicated-account smoke suite, cleanup, retries, and optional infrastructure.

@@ -10,6 +10,7 @@ import (
 )
 
 type SheetsFreezeCmd struct {
+	Batch         string `name:"batch" help:"Append requests to a persisted Sheets batch instead of submitting"`
 	SpreadsheetID string `arg:"" name:"spreadsheetId" help:"Spreadsheet ID"`
 	Rows          int64  `name:"rows" help:"Number of rows to freeze (0 to unfreeze)" default:"-1"`
 	Cols          int64  `name:"cols" help:"Number of columns to freeze (0 to unfreeze)" default:"-1"`
@@ -34,7 +35,7 @@ func (c *SheetsFreezeCmd) Run(ctx context.Context, kctx *kong.Context, flags *Ro
 	}
 
 	requestedSheet := strings.TrimSpace(c.Sheet)
-	return runSheetsMutation(ctx, flags, "sheets.freeze", map[string]any{
+	return runSheetsMutation(ctx, flags, c.Batch, spreadsheetID, "sheets.freeze", map[string]any{
 		"spreadsheet_id": spreadsheetID,
 		"sheet":          requestedSheet,
 		"rows":           c.Rows,

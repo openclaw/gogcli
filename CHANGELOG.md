@@ -3,6 +3,8 @@
 ## 0.41.1 - Unreleased
 
 - Forms: queue questions, moves, deletions, and settings with `--batch`, project append positions under the queue lock, and submit one revision-locked atomic update with explicit service permissions. (#1100) — thanks @sebsnyk.
+- Sheets: queue structural edits across commands with `--batch`, reuse one captured metadata snapshot, and submit an atomic update with explicit endpoint permission and guarded non-atomic recovery. (#1099) — thanks @sebsnyk.
+- Sheets: preserve caller cancellation when immediately submitting `links set` updates. (#1099)
 - Slides: queue native slides, elements, text, and table edits across commands with `--batch`, then submit one revision-locked atomic update while preserving generated IDs and explicit service permissions. (#1097) — thanks @sebsnyk.
 - Groups: use the documented single-label membership query in listings and backups, preserving native pagination and escaping member identities correctly. (#1059) — thanks @hengshan.
 - Docs: reject explicitly empty or whitespace-only `--batch` values before input or authentication, preventing accidental immediate edits when a batch variable is empty. (#1156)

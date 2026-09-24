@@ -11,6 +11,7 @@ import (
 )
 
 type SheetsFindReplaceCmd struct {
+	Batch         string `name:"batch" help:"Append requests to a persisted Sheets batch instead of submitting"`
 	SpreadsheetID string `arg:"" name:"spreadsheetId" help:"Spreadsheet ID"`
 	Find          string `arg:"" name:"find" help:"Text to find"`
 	Replace       string `arg:"" name:"replace" help:"Replacement text"`
@@ -33,7 +34,7 @@ func (c *SheetsFindReplaceCmd) Run(ctx context.Context, flags *RootFlags) error 
 	}
 
 	sheetName := strings.TrimSpace(c.Sheet)
-	if dryRunErr := dryRunExit(ctx, flags, "sheets.find-replace", map[string]any{
+	if dryRunErr := sheetsMutationDryRun(ctx, flags, c.Batch, "sheets.find-replace", map[string]any{
 		"spreadsheet_id":   spreadsheetID,
 		"find":             c.Find,
 		"replace":          c.Replace,
@@ -46,7 +47,7 @@ func (c *SheetsFindReplaceCmd) Run(ctx context.Context, flags *RootFlags) error 
 		return dryRunErr
 	}
 
-	_, svc, err := requireSheetsService(ctx, flags)
+	ctx, svc, err := prepareSheetsMutation(ctx, flags, c.Batch, spreadsheetID, "sheets.find-replace")
 	if err != nil {
 		return err
 	}
@@ -77,9 +78,11 @@ func (c *SheetsFindReplaceCmd) Run(ctx context.Context, flags *RootFlags) error 
 		findReq.AllSheets = true
 	}
 
-	resp, err := svc.Spreadsheets.BatchUpdate(spreadsheetID, &sheets.BatchUpdateSpreadsheetRequest{
-		Requests: []*sheets.Request{{FindReplace: findReq}},
-	}).Do()
+	requests := []*sheets.Request{{FindReplace: findReq}}
+	if queued, queueErr := queueSheetsBatchRequests(ctx, requests); queued || queueErr != nil {
+		return queueErr
+	}
+	resp, err := svc.Spreadsheets.BatchUpdate(spreadsheetID, &sheets.BatchUpdateSpreadsheetRequest{Requests: requests}).Do()
 	if err != nil {
 		return err
 	}

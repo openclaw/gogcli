@@ -7,7 +7,7 @@ Set a basic filter on a range; replacing an existing filter requires confirmatio
 ## Usage
 
 ```bash
-gog sheets (sheet) filter (filters,basic-filter,basic-filters) set (create,add) <spreadsheetId> <range>
+gog sheets (sheet) filter (filters,basic-filter,basic-filters) set (create,add) <spreadsheetId> <range> [flags]
 ```
 
 ## Parent
@@ -20,6 +20,7 @@ gog sheets (sheet) filter (filters,basic-filter,basic-filters) set (create,add) 
 | --- | --- | --- | --- |
 | `--access-token` | `string` |  | Use provided access token directly (bypasses stored refresh tokens; token expires in ~1h) |
 | `-a`<br>`--account`<br>`--acct` | `string` |  | Account email, alias, or auto for authenticated Google API commands |
+| `--batch` | `string` |  | Append requests to a persisted Sheets batch instead of submitting |
 | `--client` | `string` |  | OAuth client name (selects stored credentials + token bucket) |
 | `--color` | `string` | auto | Color output: auto\|always\|never |
 | `--disable-commands` | `string` |  | Comma-separated list of disabled commands; dot paths allowed |

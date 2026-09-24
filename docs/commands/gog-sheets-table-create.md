@@ -7,7 +7,7 @@ Create a table
 ## Usage
 
 ```bash
-gog sheets (sheet) table (tables) create (add,new) --name=STRING --columns-json=STRING <spreadsheetId> <range>
+gog sheets (sheet) table (tables) create (add,new) --name=STRING --columns-json=STRING <spreadsheetId> <range> [flags]
 ```
 
 ## Parent
@@ -20,6 +20,7 @@ gog sheets (sheet) table (tables) create (add,new) --name=STRING --columns-json=
 | --- | --- | --- | --- |
 | `--access-token` | `string` |  | Use provided access token directly (bypasses stored refresh tokens; token expires in ~1h) |
 | `-a`<br>`--account`<br>`--acct` | `string` |  | Account email, alias, or auto for authenticated Google API commands |
+| `--batch` | `string` |  | Append requests to a persisted Sheets batch instead of submitting |
 | `--client` | `string` |  | OAuth client name (selects stored credentials + token bucket) |
 | `--color` | `string` | auto | Color output: auto\|always\|never |
 | `--columns-json` | `string` |  | Column definitions as JSON array or @file (columnName + optional columnType; valid types include TEXT, DOUBLE, BOOLEAN, DATE, DROPDOWN) |

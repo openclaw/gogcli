@@ -38,6 +38,7 @@ type resolvedCell struct {
 }
 
 type SheetsLinksSetCmd struct {
+	Batch         string `name:"batch" help:"Append requests to a persisted Sheets batch instead of submitting"`
 	SpreadsheetID string `arg:"" name:"spreadsheetId" help:"Spreadsheet ID"`
 	Cell          string `arg:"" optional:"" name:"cell" help:"Target cell (eg. Sheet1!B2). Omit when using --cells-json."`
 	URL           string `arg:"" optional:"" name:"url" help:"URL to link to."`
@@ -71,18 +72,14 @@ func (c *SheetsLinksSetCmd) Run(ctx context.Context, flags *RootFlags) error {
 		resolved = append(resolved, rc)
 	}
 
-	if dryRunErr := dryRunExit(ctx, flags, "sheets.links.set", map[string]any{
+	if dryRunErr := sheetsMutationDryRun(ctx, flags, c.Batch, "sheets.links.set", map[string]any{
 		"spreadsheet_id": spreadsheetID,
 		"cells":          summarizeResolved(resolved),
 	}); dryRunErr != nil {
 		return dryRunErr
 	}
 
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
-	svc, err := sheetsService(ctx, account)
+	ctx, svc, err := prepareSheetsMutation(ctx, flags, c.Batch, spreadsheetID, "sheets.links.set")
 	if err != nil {
 		return err
 	}
@@ -131,7 +128,10 @@ func (c *SheetsLinksSetCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 
 	batchReq := &sheets.BatchUpdateSpreadsheetRequest{Requests: requests}
-	if _, err := svc.Spreadsheets.BatchUpdate(spreadsheetID, batchReq).Do(); err != nil {
+	if queued, queueErr := queueSheetsBatchRequests(ctx, batchReq.Requests); queued || queueErr != nil {
+		return queueErr
+	}
+	if _, err := svc.Spreadsheets.BatchUpdate(spreadsheetID, batchReq).Context(ctx).Do(); err != nil {
 		return fmt.Errorf("set links: %w", err)
 	}
 

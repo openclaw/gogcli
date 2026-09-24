@@ -22,7 +22,7 @@ gog batch end "$BATCH_ID" --dry-run --json
 gog batch end "$BATCH_ID"
 ```
 
-Choose exactly one target: `--form`, `--doc`, or `--presentation`. Forms accept
+Choose exactly one target: `--form`, `--doc`, `--presentation`, or `--spreadsheet`. Forms accept
 an ID or edit URL; optional `--service forms` must match the selected target.
 `begin` records the target, account, and OAuth client without contacting Google.
 The first queued mutation reads the form revision and initial item count.

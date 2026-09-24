@@ -126,6 +126,7 @@ func (c *SheetsNamedRangesGetCmd) Run(ctx context.Context, flags *RootFlags) err
 }
 
 type SheetsNamedRangesAddCmd struct {
+	Batch         string `name:"batch" help:"Append requests to a persisted Sheets batch instead of submitting"`
 	SpreadsheetID string `arg:"" name:"spreadsheetId" help:"Spreadsheet ID"`
 	Name          string `arg:"" name:"name" help:"Named range name"`
 	Range         string `arg:"" name:"range" help:"A1 range (must include sheet name; e.g. Sheet1!A1:B2 or Sheet1!A:C)"`
@@ -149,7 +150,7 @@ func (c *SheetsNamedRangesAddCmd) Run(ctx context.Context, flags *RootFlags) err
 		return err
 	}
 
-	if dryRunErr := dryRunExit(ctx, flags, "sheets.named-ranges.add", map[string]any{
+	if dryRunErr := sheetsMutationDryRun(ctx, flags, c.Batch, "sheets.named-ranges.add", map[string]any{
 		"spreadsheet_id": spreadsheetID,
 		"name":           name,
 		"range":          rangeSpec,
@@ -157,12 +158,7 @@ func (c *SheetsNamedRangesAddCmd) Run(ctx context.Context, flags *RootFlags) err
 		return dryRunErr
 	}
 
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
-
-	svc, err := sheetsService(ctx, account)
+	ctx, svc, err := prepareSheetsMutation(ctx, flags, c.Batch, spreadsheetID, "sheets.named-ranges.add")
 	if err != nil {
 		return err
 	}
@@ -194,6 +190,9 @@ func (c *SheetsNamedRangesAddCmd) Run(ctx context.Context, flags *RootFlags) err
 		},
 	}
 
+	if queued, queueErr := queueSheetsBatchRequests(ctx, req.Requests); queued || queueErr != nil {
+		return queueErr
+	}
 	resp, err := svc.Spreadsheets.BatchUpdate(spreadsheetID, req).Do()
 	if err != nil {
 		return err
@@ -216,6 +215,7 @@ func (c *SheetsNamedRangesAddCmd) Run(ctx context.Context, flags *RootFlags) err
 }
 
 type SheetsNamedRangesUpdateCmd struct {
+	Batch         string `name:"batch" help:"Append requests to a persisted Sheets batch instead of submitting"`
 	SpreadsheetID string `arg:"" name:"spreadsheetId" help:"Spreadsheet ID"`
 	NameOrID      string `arg:"" name:"nameOrId" help:"Named range name or ID"`
 	NewName       string `name:"name" help:"New name"`
@@ -243,7 +243,7 @@ func (c *SheetsNamedRangesUpdateCmd) Run(ctx context.Context, flags *RootFlags) 
 		}
 	}
 
-	if dryRunErr := dryRunExit(ctx, flags, "sheets.named-ranges.update", map[string]any{
+	if dryRunErr := sheetsMutationDryRun(ctx, flags, c.Batch, "sheets.named-ranges.update", map[string]any{
 		"spreadsheet_id": spreadsheetID,
 		"name_or_id":     in,
 		"name":           newName,
@@ -252,12 +252,7 @@ func (c *SheetsNamedRangesUpdateCmd) Run(ctx context.Context, flags *RootFlags) 
 		return dryRunErr
 	}
 
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
-
-	svc, err := sheetsService(ctx, account)
+	ctx, svc, err := prepareSheetsMutation(ctx, flags, c.Batch, spreadsheetID, "sheets.named-ranges.update")
 	if err != nil {
 		return err
 	}
@@ -306,6 +301,9 @@ func (c *SheetsNamedRangesUpdateCmd) Run(ctx context.Context, flags *RootFlags) 
 		},
 	}
 
+	if queued, queueErr := queueSheetsBatchRequests(ctx, req.Requests); queued || queueErr != nil {
+		return queueErr
+	}
 	if _, batchErr := svc.Spreadsheets.BatchUpdate(spreadsheetID, req).Do(); batchErr != nil {
 		return batchErr
 	}
@@ -334,6 +332,7 @@ func (c *SheetsNamedRangesUpdateCmd) Run(ctx context.Context, flags *RootFlags) 
 }
 
 type SheetsNamedRangesDeleteCmd struct {
+	Batch         string `name:"batch" help:"Append requests to a persisted Sheets batch instead of submitting"`
 	SpreadsheetID string `arg:"" name:"spreadsheetId" help:"Spreadsheet ID"`
 	NameOrID      string `arg:"" name:"nameOrId" help:"Named range name or ID"`
 }
@@ -349,19 +348,14 @@ func (c *SheetsNamedRangesDeleteCmd) Run(ctx context.Context, flags *RootFlags) 
 		return usage("empty nameOrId")
 	}
 
-	if dryRunErr := dryRunExit(ctx, flags, "sheets.named-ranges.delete", map[string]any{
+	if dryRunErr := sheetsMutationDryRun(ctx, flags, c.Batch, "sheets.named-ranges.delete", map[string]any{
 		"spreadsheet_id": spreadsheetID,
 		"name_or_id":     in,
 	}); dryRunErr != nil {
 		return dryRunErr
 	}
 
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
-
-	svc, err := sheetsService(ctx, account)
+	ctx, svc, err := prepareSheetsMutation(ctx, flags, c.Batch, spreadsheetID, "sheets.named-ranges.delete")
 	if err != nil {
 		return err
 	}
@@ -387,6 +381,9 @@ func (c *SheetsNamedRangesDeleteCmd) Run(ctx context.Context, flags *RootFlags) 
 		},
 	}
 
+	if queued, queueErr := queueSheetsBatchRequests(ctx, req.Requests); queued || queueErr != nil {
+		return queueErr
+	}
 	if _, err := svc.Spreadsheets.BatchUpdate(spreadsheetID, req).Do(); err != nil {
 		return err
 	}

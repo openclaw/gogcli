@@ -6,11 +6,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"net/http"
 	"net/url"
 	"strings"
-
-	gapi "google.golang.org/api/googleapi"
 
 	"github.com/openclaw/gogcli/internal/googleapi"
 	"github.com/openclaw/gogcli/internal/outfmt"
@@ -20,6 +17,7 @@ import (
 var sheetsBatchRequestBaseURL = "https://sheets.googleapis.com/v4"
 
 type SheetsBatchRequestCmd struct {
+	Batch         string `name:"batch" help:"Append requests to a persisted Sheets batch instead of submitting"`
 	SpreadsheetID string `arg:"" name:"spreadsheetId" help:"Spreadsheet ID"`
 	RequestsJSON  string `name:"requests-json" required:"" help:"Structural requests as a JSON array, or @file/@-"`
 }
@@ -41,6 +39,16 @@ func (c *SheetsBatchRequestCmd) Run(ctx context.Context, flags *RootFlags) error
 		return err
 	}
 	body := sheetsBatchRequestBody{Requests: requests}
+	if c.Batch != "" {
+		if previewErr := sheetsMutationDryRun(ctx, flags, c.Batch, "sheets.batch-request", map[string]any{"spreadsheet_id": id, "requests": requests}); previewErr != nil {
+			return previewErr
+		}
+		ctx, err = prepareSheetsBatch(ctx, flags, c.Batch, id, "sheets.batch-request")
+		if err != nil {
+			return err
+		}
+		return queueSheetsRawBatchRequests(ctx, requests)
+	}
 	if confirmErr := dryRunAndConfirmDestructive(ctx, flags, "sheets.batch-request", map[string]any{
 		"spreadsheet_id": id,
 		"requests":       requests,
@@ -54,41 +62,28 @@ func (c *SheetsBatchRequestCmd) Run(ctx context.Context, flags *RootFlags) error
 	if err != nil {
 		return err
 	}
-	client, err := sheetsHTTPClient(ctx, account)
+	result, err := submitSheetsStructuralRequests(ctx, account, id, body)
 	if err != nil {
 		return err
-	}
-	payload, err := json.Marshal(body)
-	if err != nil {
-		return fmt.Errorf("encode Sheets batch: %w", err)
-	}
-	// A lost response can follow a successful insert/delete. Never replay a raw batch.
-	request, err := http.NewRequestWithContext(googleapi.WithoutRetries(ctx), http.MethodPost,
-		sheetsBatchRequestBaseURL+"/spreadsheets/"+url.PathEscape(id)+":batchUpdate", bytes.NewReader(payload))
-	if err != nil {
-		return fmt.Errorf("create Sheets batch request: %w", err)
-	}
-	request.Header.Set("Content-Type", "application/json")
-	// Redirects can replay the POST and move the authenticated request to another host.
-	batchClient := *client
-	batchClient.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
-	response, err := batchClient.Do(request)
-	if err != nil {
-		return fmt.Errorf("submit Sheets batch: %w", err)
-	}
-	defer response.Body.Close()
-	if err := gapi.CheckResponse(response); err != nil {
-		return err
-	}
-	var result json.RawMessage
-	if err := json.NewDecoder(response.Body).Decode(&result); err != nil {
-		return fmt.Errorf("decode Sheets batch response: %w", err)
 	}
 	if outfmt.IsJSON(ctx) {
 		return outfmt.WriteJSON(ctx, stdoutWriter(ctx), result)
 	}
 	ui.FromContext(ctx).Out().Linef("Applied %d structural requests to %s", len(requests), id)
 	return nil
+}
+
+func submitSheetsStructuralRequests(ctx context.Context, account, id string, body sheetsBatchRequestBody) (json.RawMessage, error) {
+	if googleapi.ReadOnly(ctx) {
+		return nil, googleapi.ErrReadOnly
+	}
+	client, err := sheetsHTTPClient(ctx, account)
+	if err != nil {
+		return nil, err
+	}
+	var result json.RawMessage
+	err = postBatchUpdate(ctx, client, "Sheets", sheetsBatchRequestBaseURL+"/spreadsheets/"+url.PathEscape(id)+":batchUpdate", body, &result)
+	return result, err
 }
 
 func parseSheetsBatchRequests(source string, input io.Reader) ([]json.RawMessage, error) {

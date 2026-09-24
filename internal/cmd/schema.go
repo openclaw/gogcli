@@ -177,6 +177,10 @@ func buildSchemaAutomation(ctx context.Context, flags *RootFlags, profile bakedS
 			AdditionalPermission: "forms.batch-submit",
 			SubmissionAllowed:    canSubmitBatch && enforceExplicitCommandPermission(flags, []string{"forms", "batch-submit"}) == nil,
 		},
+		"sheets": {
+			AdditionalPermission: "sheets.batch-request",
+			SubmissionAllowed:    canSubmitBatch && enforceExplicitCommandPermission(flags, []string{"sheets", "batch-request"}) == nil,
+		},
 	}
 
 	store, err := commandConfigStore(ctx)

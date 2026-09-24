@@ -54,7 +54,7 @@ func (c *SheetsCopyPasteCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
-	return runSheetsMutation(ctx, flags, "sheets.copy-paste", map[string]any{
+	return runSheetsMutation(ctx, flags, "", spreadsheetID, "sheets.copy-paste", map[string]any{
 		"spreadsheet_id": spreadsheetID,
 		"source":         source,
 		"dest":           dest,

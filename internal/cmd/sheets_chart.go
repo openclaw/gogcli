@@ -160,6 +160,7 @@ func (c *SheetsChartGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 // ---------- create ----------
 
 type SheetsChartCreateCmd struct {
+	Batch         string `name:"batch" help:"Append requests to a persisted Sheets batch instead of submitting"`
 	SpreadsheetID string `arg:"" name:"spreadsheetId" help:"Spreadsheet ID"`
 	SpecJSON      string `name:"spec-json" required:"" help:"ChartSpec or EmbeddedChart JSON (inline or @file)"`
 	Sheet         string `name:"sheet" help:"Sheet name for anchor (resolved to sheetId)"`
@@ -200,7 +201,7 @@ func (c *SheetsChartCreateCmd) Run(ctx context.Context, flags *RootFlags) error 
 		}
 	}
 
-	if dryErr := dryRunExit(ctx, flags, "sheets.chart.create", map[string]any{
+	if dryErr := sheetsMutationDryRun(ctx, flags, c.Batch, "sheets.chart.create", map[string]any{
 		"spreadsheet_id": spreadsheetID,
 		"sheet":          c.Sheet,
 		"anchor":         c.Anchor,
@@ -210,12 +211,7 @@ func (c *SheetsChartCreateCmd) Run(ctx context.Context, flags *RootFlags) error 
 		return dryErr
 	}
 
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
-
-	svc, err := sheetsService(ctx, account)
+	ctx, svc, err := prepareSheetsMutation(ctx, flags, c.Batch, spreadsheetID, "sheets.chart.create")
 	if err != nil {
 		return err
 	}
@@ -224,7 +220,7 @@ func (c *SheetsChartCreateCmd) Run(ctx context.Context, flags *RootFlags) error 
 	var sheet chartSheetResolution
 	if needsSheetResolution {
 		var posErr error
-		sheet, posErr = resolveChartSheetResolution(svc, spreadsheetID, c.Sheet)
+		sheet, posErr = resolveChartSheetResolution(ctx, svc, spreadsheetID, c.Sheet)
 		if posErr != nil {
 			return posErr
 		}
@@ -246,6 +242,9 @@ func (c *SheetsChartCreateCmd) Run(ctx context.Context, flags *RootFlags) error 
 		},
 	}
 
+	if queued, queueErr := queueSheetsBatchRequests(ctx, req.Requests); queued || queueErr != nil {
+		return queueErr
+	}
 	resp, err := svc.Spreadsheets.BatchUpdate(spreadsheetID, req).Do()
 	if err != nil {
 		return err
@@ -270,6 +269,7 @@ func (c *SheetsChartCreateCmd) Run(ctx context.Context, flags *RootFlags) error 
 // ---------- update ----------
 
 type SheetsChartUpdateCmd struct {
+	Batch         string `name:"batch" help:"Append requests to a persisted Sheets batch instead of submitting"`
 	SpreadsheetID string `arg:"" name:"spreadsheetId" help:"Spreadsheet ID"`
 	ChartID       int64  `arg:"" name:"chartId" help:"Chart ID to update"`
 	SpecJSON      string `name:"spec-json" required:"" help:"ChartSpec or EmbeddedChart JSON (inline or @file)"`
@@ -299,24 +299,19 @@ func (c *SheetsChartUpdateCmd) Run(ctx context.Context, flags *RootFlags) error 
 		return usagef("invalid --spec-json: %v", err)
 	}
 
-	if dryErr := dryRunExit(ctx, flags, "sheets.chart.update", map[string]any{
+	if dryErr := sheetsMutationDryRun(ctx, flags, c.Batch, "sheets.chart.update", map[string]any{
 		"spreadsheet_id": spreadsheetID,
 		"chart_id":       c.ChartID,
 	}); dryErr != nil {
 		return dryErr
 	}
 
-	account, err := requireAccount(flags)
+	ctx, svc, err := prepareSheetsMutation(ctx, flags, c.Batch, spreadsheetID, "sheets.chart.update")
 	if err != nil {
 		return err
 	}
 
-	svc, err := sheetsService(ctx, account)
-	if err != nil {
-		return err
-	}
-
-	sheet, err := findChartSheetResolution(svc, spreadsheetID, c.ChartID)
+	sheet, err := findChartSheetResolution(ctx, svc, spreadsheetID, c.ChartID)
 	if err != nil {
 		return err
 	}
@@ -333,6 +328,9 @@ func (c *SheetsChartUpdateCmd) Run(ctx context.Context, flags *RootFlags) error 
 		},
 	}
 
+	if queued, queueErr := queueSheetsBatchRequests(ctx, req.Requests); queued || queueErr != nil {
+		return queueErr
+	}
 	if _, err := svc.Spreadsheets.BatchUpdate(spreadsheetID, req).Do(); err != nil {
 		return err
 	}
@@ -351,6 +349,7 @@ func (c *SheetsChartUpdateCmd) Run(ctx context.Context, flags *RootFlags) error 
 // ---------- delete ----------
 
 type SheetsChartDeleteCmd struct {
+	Batch         string `name:"batch" help:"Append requests to a persisted Sheets batch instead of submitting"`
 	SpreadsheetID string `arg:"" name:"spreadsheetId" help:"Spreadsheet ID"`
 	ChartID       int64  `arg:"" name:"chartId" help:"Chart ID to delete"`
 }
@@ -366,19 +365,16 @@ func (c *SheetsChartDeleteCmd) Run(ctx context.Context, flags *RootFlags) error 
 		return usage("chartId must be greater than 0")
 	}
 
-	if err := dryRunAndConfirmDestructive(ctx, flags, "sheets.chart.delete", map[string]any{
+	if err := sheetsMutationDryRun(ctx, flags, c.Batch, "sheets.chart.delete", map[string]any{
 		"spreadsheet_id": spreadsheetID,
 		"chart_id":       c.ChartID,
-	}, "delete chart "+strconv.FormatInt(c.ChartID, 10)); err != nil {
+	}); err != nil {
 		return err
 	}
-
-	account, err := requireAccount(flags)
-	if err != nil {
+	if err := confirmSheetsMutation(ctx, flags, c.Batch, "delete chart "+strconv.FormatInt(c.ChartID, 10)); err != nil {
 		return err
 	}
-
-	svc, err := sheetsService(ctx, account)
+	ctx, svc, err := prepareSheetsMutation(ctx, flags, c.Batch, spreadsheetID, "sheets.chart.delete")
 	if err != nil {
 		return err
 	}
@@ -393,6 +389,9 @@ func (c *SheetsChartDeleteCmd) Run(ctx context.Context, flags *RootFlags) error 
 		},
 	}
 
+	if queued, queueErr := queueSheetsBatchRequests(ctx, req.Requests); queued || queueErr != nil {
+		return queueErr
+	}
 	if _, err := svc.Spreadsheets.BatchUpdate(spreadsheetID, req).Do(); err != nil {
 		return err
 	}
