@@ -175,7 +175,7 @@ func primaryDisplayNameFromPerson(person *people.Person) string {
 }
 
 func prepareComposeReply(ctx context.Context, svc *gmail.Service, replyToMessageID, threadID string, quote bool, plainBody, htmlBody string) (*replyInfo, string, string, error) {
-	info, err := fetchReplyInfo(ctx, svc, replyToMessageID, threadID, quote)
+	info, err := fetchReplyInfo(ctx, svc, replyToMessageID, threadID, quote, "")
 	if err != nil {
 		return nil, "", "", err
 	}

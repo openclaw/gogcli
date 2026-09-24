@@ -40,6 +40,7 @@ gog gmail (mail,email) drafts (draft) reply-all (replyall) <messageId> [flags]
 | `-h`<br>`--help` | `kong.helpFlag` |  | Show context-sensitive help. |
 | `--home` | `string` |  | Override gogcli config/data/state/cache root (equivalent to GOG_HOME) |
 | `-j`<br>`--json`<br>`--machine` | `bool` | false | Output JSON to stdout (best for scripting) |
+| `--missing-inline-images` | `string` | error | Missing quoted CID images: error or visible placeholders (drafts only) |
 | `--no-input`<br>`--non-interactive`<br>`--noninteractive` | `bool` |  | Never prompt; fail instead (useful for CI) |
 | `--no-quote` | `bool` |  | Do not include the original message below the reply |
 | `-p`<br>`--plain`<br>`--tsv` | `bool` | false | Output stable, parseable text to stdout (TSV; no colors) |

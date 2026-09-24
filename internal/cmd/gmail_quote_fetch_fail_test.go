@@ -55,7 +55,7 @@ func TestFetchReplyInfo_ThreadIDQuote_FullFetchFailurePropagates(t *testing.T) {
 	svc, cleanup := newGmailServiceForTest(t, newQuoteFetchFailHandler(t))
 	defer cleanup()
 
-	_, err := fetchReplyInfo(context.Background(), svc, "", "t1", true)
+	_, err := fetchReplyInfo(context.Background(), svc, "", "t1", true, "")
 	if err == nil {
 		t.Fatal("expected error when full-format fetch fails")
 	}
@@ -110,7 +110,7 @@ func TestFetchReplyInfo_Quote_NullResponseFailsClosed(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			_, err := fetchReplyInfo(context.Background(), svc, tc.messageID, tc.threadID, true)
+			_, err := fetchReplyInfo(context.Background(), svc, tc.messageID, tc.threadID, true, "")
 			if err == nil || !strings.Contains(err.Error(), "empty response") {
 				t.Fatalf("expected empty-response error, got %v", err)
 			}

@@ -9,19 +9,18 @@ import (
 	"github.com/openclaw/gogcli/internal/ui"
 )
 
-// GmailDraftsReplyCmd saves a reply as a draft. It mirrors GmailReplyCmd exactly
-// (same positional arg + embedded GmailReplyOptions) so it inherits every flag
-// and ergonomic of the send-side reply; the only difference is that it creates a
-// draft instead of sending.
+// GmailDraftsReplyCmd saves a reply with an optional draft-only degradation policy.
 type GmailDraftsReplyCmd struct {
-	MessageID string            `arg:"" name:"messageId" help:"Gmail message ID to reply to"`
-	Options   GmailReplyOptions `embed:""`
+	MessageID           string            `arg:"" name:"messageId" help:"Gmail message ID to reply to"`
+	Options             GmailReplyOptions `embed:""`
+	MissingInlineImages string            `name:"missing-inline-images" enum:"error,placeholder" default:"error" help:"Missing quoted CID images: error or visible placeholders (drafts only)"`
 }
 
 // GmailDraftsReplyAllCmd saves a reply-all as a draft. Mirrors GmailReplyAllCmd.
 type GmailDraftsReplyAllCmd struct {
-	MessageID string            `arg:"" name:"messageId" help:"Gmail message ID to reply to"`
-	Options   GmailReplyOptions `embed:""`
+	MessageID           string            `arg:"" name:"messageId" help:"Gmail message ID to reply to"`
+	Options             GmailReplyOptions `embed:""`
+	MissingInlineImages string            `name:"missing-inline-images" enum:"error,placeholder" default:"error" help:"Missing quoted CID images: error or visible placeholders (drafts only)"`
 }
 
 // GmailDraftsForwardCmd saves a forward as a draft. Mirrors GmailForwardCmd.
@@ -31,29 +30,31 @@ type GmailDraftsForwardCmd struct {
 }
 
 func (c *GmailDraftsReplyCmd) Run(ctx context.Context, flags *RootFlags) error {
-	return c.Options.runDraft(ctx, flags, c.MessageID, false)
+	return c.Options.runDraft(ctx, flags, c.MessageID, false, c.MissingInlineImages)
 }
 
 func (c *GmailDraftsReplyAllCmd) Run(ctx context.Context, flags *RootFlags) error {
-	return c.Options.runDraft(ctx, flags, c.MessageID, true)
+	return c.Options.runDraft(ctx, flags, c.MessageID, true, c.MissingInlineImages)
 }
 
 func (c *GmailDraftsForwardCmd) Run(ctx context.Context, flags *RootFlags) error {
 	return c.Options.runDraft(ctx, flags, c.MessageID)
 }
 
-// runDraft is the draft-saving counterpart to GmailReplyOptions.run. It reuses
-// the shared resolve/build helpers verbatim and differs only in the dry-run
-// action name, the service gate (the non-send gate, since saving a draft is not
-// a send), and the finalize/report step (Drafts.Create + writeDraftResult
-// instead of Messages.Send + writeGmailMessageResults).
-func (c *GmailReplyOptions) runDraft(ctx context.Context, flags *RootFlags, messageID string, replyAll bool) error {
+// runDraft shares reply composition, with an optional missing-image policy and
+// the non-send service gate. Only the caller chooses how to dispatch a message.
+func (c *GmailReplyOptions) runDraft(ctx context.Context, flags *RootFlags, messageID string, replyAll bool, missingInlineImages string) error {
 	u := ui.FromContext(ctx)
+	policy, err := validateMissingInlineImagesPolicy(missingInlineImages, c.NoQuote)
+	if err != nil {
+		return err
+	}
 
 	inputs, err := c.resolveReplyInputs(ctx, messageID)
 	if err != nil {
 		return err
 	}
+	inputs.missingInlineImages = policy
 
 	if dryRunErr := dryRunExit(ctx, flags, "gmail.drafts."+replyModeName(replyAll), c.dryRunFields(inputs)); dryRunErr != nil {
 		return dryRunErr
@@ -79,7 +80,7 @@ func (c *GmailReplyOptions) runDraft(ctx context.Context, flags *RootFlags, mess
 		return fmt.Errorf("create reply draft: %w", err)
 	}
 
-	return writeDraftResult(ctx, u, draft, built.threading, built.attachmentMetadata)
+	return writeDraftResult(ctx, u, draft, built.threading, built.attachmentMetadata, built.inlineImageWarnings)
 }
 
 // runDraft is the draft-saving counterpart to GmailForwardCmd.Run. Like the
@@ -118,5 +119,5 @@ func (c *GmailForwardOptions) runDraft(ctx context.Context, flags *RootFlags, me
 	// stay consistent with the send path. A forward starts a new thread and
 	// carries no reply headers, so the threading is empty; writeDraftResult then
 	// falls back to the thread id Gmail assigns on the Drafts.Create response.
-	return writeDraftResult(ctx, u, draft, draftThreading{}, nil)
+	return writeDraftResult(ctx, u, draft, draftThreading{}, nil, nil)
 }

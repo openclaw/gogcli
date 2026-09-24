@@ -131,5 +131,5 @@ func runRawGmailDraft(ctx context.Context, flags *RootFlags, source, threadID, d
 		threading.Source = replyContextCaller
 	}
 	// Report the API's actual thread, which can differ from the requested one.
-	return writeDraftResult(ctx, ui.FromContext(ctx), draft, threading, nil)
+	return writeDraftResult(ctx, ui.FromContext(ctx), draft, threading, nil, nil)
 }

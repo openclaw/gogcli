@@ -265,14 +265,53 @@ Gmail's thread-matching requirement, so gog keeps the RFC reply headers but
 does not force the original `threadId`; Gmail creates a new conversation.
 
 To stage a reply for review instead of sending it, use the draft-side
-counterparts. They accept the same flags and build the same message; only the
-finalize step differs (the draft is saved, not sent), so they work under
-no-send guardrails:
+counterparts. By default they build the same message from the same composition
+flags, saving it as a draft instead of sending, so they work under no-send
+guardrails:
 
 ```bash
 gog gmail drafts reply <messageId> --body-file reply.txt
 gog gmail drafts reply-all <messageId> --body "Thanks all"
 ```
+
+### Drafts with missing inline images
+
+Missing quoted CID resources still fail by default. For a reviewable draft, opt
+in to replacing an unambiguously missing `<img src="cid:...">` with a visible
+text placeholder:
+
+```bash
+gog --gmail-no-send gmail drafts reply <messageId> --body "Thanks" \
+  --missing-inline-images=placeholder --json
+```
+
+This policy is available only on `drafts reply` and `drafts reply-all`, and cannot
+be combined with `--no-quote`. It preserves the remaining quoted HTML and valid
+inline resources. Placeholders include the missing Content-ID and image alt
+text; the plain alternative retains its original text plus corresponding
+markers, or is derived from the repaired HTML when no plain text exists.
+
+Successful replacement exits zero, warns on stderr, and adds metadata to the
+normal draft result (also retained with `--results-only`):
+
+```json
+{"degraded":true,"warnings":[{"code":"missing_inline_image","sourceMessageId":"source-id","contentId":"missing@example.test","occurrences":1,"replacement":"placeholder"}]}
+```
+
+Have the calling workflow require human review of degraded drafts. Unaffected
+results omit these fields. Dry runs remain offline: they report the requested
+policy without inspecting the source or claiming that degradation will occur.
+
+Only genuinely absent image parts qualify. Missing references in CSS, SVG,
+`srcset`, `<picture>`, or other resource-bearing contexts remain errors, as do
+ambiguous image attributes and complex image styles. Duplicate MIME IDs,
+malformed multipart boundaries, invalid transfer encoding, unavailable body
+data, and failed attachment downloads are never converted to placeholders.
+Before replacing an image, gog fetches the original raw MIME to validate its
+structure and confirm that the part is absent there too. This check accepts
+ordinary mixed/alternative/related MIME, limits the source to 35 MiB, 64 nested
+levels, 1,000 parts, and 64 KiB of headers per part, and rejects embedded messages
+and other multipart types. Messages without missing images need no extra raw fetch.
 
 ## Forward
 

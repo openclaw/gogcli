@@ -85,7 +85,7 @@ func TestFetchReplyInfoFromThread(t *testing.T) {
 	})
 	defer cleanup()
 
-	info, err := fetchReplyInfo(context.Background(), svc, "", "t1", false)
+	info, err := fetchReplyInfo(context.Background(), svc, "", "t1", false, "")
 	if err != nil {
 		t.Fatalf("fetchReplyInfo: %v", err)
 	}
@@ -118,7 +118,7 @@ func TestFetchReplyInfoNoMessageIDFails(t *testing.T) {
 	})
 	defer cleanup()
 
-	_, err := fetchReplyInfo(context.Background(), svc, "m0", "", false)
+	_, err := fetchReplyInfo(context.Background(), svc, "m0", "", false, "")
 	if err == nil {
 		t.Fatal("expected error when reply target lacks Message-ID")
 	}

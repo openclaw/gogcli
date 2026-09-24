@@ -26,20 +26,21 @@ func buildReplyAllRecipients(info *replyInfo, selfEmail string) (to, cc []string
 
 // replyInfo contains all information extracted from the original message for replying.
 type replyInfo struct {
-	InReplyTo       string
-	References      string
-	ThreadID        string
-	FromAddr        string
-	ReplyToAddr     string
-	ToHeader        string
-	CcHeader        string
-	ToAddrs         []string
-	CcAddrs         []string
-	Date            string
-	Subject         string
-	Body            string
-	BodyHTML        string
-	InlineResources []mailmime.Attachment
+	InReplyTo           string
+	References          string
+	ThreadID            string
+	FromAddr            string
+	ReplyToAddr         string
+	ToHeader            string
+	CcHeader            string
+	ToAddrs             []string
+	CcAddrs             []string
+	Date                string
+	Subject             string
+	Body                string
+	BodyHTML            string
+	InlineResources     []mailmime.Attachment
+	InlineImageWarnings []inlineImageWarning
 }
 
 // hasQuotableText reports whether the original message carries any text that
@@ -49,14 +50,14 @@ func (info *replyInfo) hasQuotableText() bool {
 }
 
 func replyHeaders(ctx context.Context, svc *gmail.Service, replyToMessageID string) (inReplyTo string, references string, threadID string, err error) {
-	info, err := fetchReplyInfo(ctx, svc, replyToMessageID, "", false)
+	info, err := fetchReplyInfo(ctx, svc, replyToMessageID, "", false, "")
 	if err != nil {
 		return "", "", "", err
 	}
 	return info.InReplyTo, info.References, info.ThreadID, nil
 }
 
-func fetchReplyInfo(ctx context.Context, svc *gmail.Service, replyToMessageID string, threadID string, includeQuoteBodies bool) (*replyInfo, error) {
+func fetchReplyInfo(ctx context.Context, svc *gmail.Service, replyToMessageID string, threadID string, includeQuoteBodies bool, missingInlineImages string) (*replyInfo, error) {
 	replyToMessageID = strings.TrimSpace(replyToMessageID)
 	threadID = strings.TrimSpace(threadID)
 	if replyToMessageID == "" && threadID == "" {
@@ -79,7 +80,7 @@ func fetchReplyInfo(ctx context.Context, svc *gmail.Service, replyToMessageID st
 		}
 		info := replyInfoFromMessage(msg, includeQuoteBodies)
 		if includeQuoteBodies {
-			info.InlineResources, err = preserveReferencedInlineResources(ctx, svc, msg.Id, msg.Payload, info.BodyHTML)
+			err = prepareReplyInlineResources(ctx, svc, msg, info, missingInlineImages)
 			if err != nil {
 				return nil, fmt.Errorf("preserve quoted inline images: %w", err)
 			}
@@ -119,7 +120,7 @@ func fetchReplyInfo(ctx context.Context, svc *gmail.Service, replyToMessageID st
 
 	info := replyInfoFromMessage(msg, includeQuoteBodies)
 	if includeQuoteBodies {
-		info.InlineResources, err = preserveReferencedInlineResources(ctx, svc, msg.Id, msg.Payload, info.BodyHTML)
+		err = prepareReplyInlineResources(ctx, svc, msg, info, missingInlineImages)
 		if err != nil {
 			return nil, fmt.Errorf("preserve quoted inline images: %w", err)
 		}

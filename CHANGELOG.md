@@ -9,6 +9,7 @@
 - CLI: reject comma-only runtime command lists instead of silently treating malformed allowlists as unrestricted access; preserve empty overrides and valid CSV lists. (#1157)
 - Auth: return the documented `auth_required` exit code (`4`) for expired or revoked OAuth grants, preserving reauthorization advice in unattended and read-only commands. (#1152)
 - Raw JSON: preserve explicit values and unknown fields across Docs, Slides, Drive, Gmail, Calendar, Forms, Tasks, and People/Contacts; retain Drive redaction and lossless Docs tab projection. (#1158)
+- Gmail: optionally replace genuinely missing quoted inline images with visible placeholders in reply drafts, preserving strict defaults and valid resources and reporting degradation for review. (#1113) — thanks @hashtag1974.
 
 ## 0.41.0 - 2026-09-22
 

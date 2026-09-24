@@ -619,7 +619,7 @@ func nilIfEmpty(s string) any {
 	return s
 }
 
-func writeDraftResult(ctx context.Context, u *ui.UI, draft *gmail.Draft, threading draftThreading, attachments []mailmime.AttachmentMetadata) error {
+func writeDraftResult(ctx context.Context, u *ui.UI, draft *gmail.Draft, threading draftThreading, attachments []mailmime.AttachmentMetadata, warnings []inlineImageWarning) error {
 	threadID := threading.ThreadID
 	if threadID == "" && draft != nil && draft.Message != nil {
 		threadID = draft.Message.ThreadId
@@ -627,6 +627,9 @@ func writeDraftResult(ctx context.Context, u *ui.UI, draft *gmail.Draft, threadi
 	source := threading.Source
 	if source == replyContextCarried {
 		u.Err().Linef("Warning: reply headers preserved from the existing draft (In-Reply-To %s); pass --clear-reply-context to drop them", threading.InReplyTo)
+	}
+	for _, warning := range warnings {
+		u.Err().Linef("warning: draft contains placeholders for missing inline image %q (%d references); review before sending", warning.ContentID, warning.Occurrences)
 	}
 	if outfmt.IsJSON(ctx) {
 		result := map[string]any{
@@ -639,6 +642,10 @@ func writeDraftResult(ctx context.Context, u *ui.UI, draft *gmail.Draft, threadi
 		}
 		if len(attachments) > 0 {
 			result["attachments"] = attachments
+		}
+		if len(warnings) > 0 {
+			result["degraded"] = true
+			result["warnings"] = warnings
 		}
 		return outfmt.WriteJSON(ctx, stdoutWriter(ctx), outfmt.PrimaryResult(result))
 	}
@@ -837,7 +844,7 @@ func (c *GmailDraftsCreateCmd) Run(ctx context.Context, flags *RootFlags) error 
 	if err != nil {
 		return err
 	}
-	return writeDraftResult(ctx, u, draft, threading, attachmentMetadata)
+	return writeDraftResult(ctx, u, draft, threading, attachmentMetadata, nil)
 }
 
 type GmailDraftsUpdateCmd struct {
@@ -1075,5 +1082,5 @@ func (c *GmailDraftsUpdateCmd) runCompose(ctx context.Context, flags *RootFlags)
 	if err != nil {
 		return err
 	}
-	return writeDraftResult(ctx, u, draft, threading, attachmentMetadata)
+	return writeDraftResult(ctx, u, draft, threading, attachmentMetadata, nil)
 }

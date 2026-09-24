@@ -51,19 +51,21 @@ func (c *GmailReplyAllCmd) Run(ctx context.Context, flags *RootFlags) error {
 // compose. Body/HTML inputs are resolved exactly once here because '-' reads
 // stdin, which cannot be read twice.
 type replyComposeInputs struct {
-	messageID   string
-	body        string
-	htmlBody    string
-	attachPaths []string
+	messageID           string
+	body                string
+	htmlBody            string
+	attachPaths         []string
+	missingInlineImages string
 }
 
 // replyComposeMessage carries the built reply message plus the metadata the
 // caller needs to record results.
 type replyComposeMessage struct {
-	message            *gmail.Message
-	fromHeader         string
-	to                 []string
-	attachmentMetadata []mailmime.AttachmentMetadata
+	message             *gmail.Message
+	fromHeader          string
+	to                  []string
+	attachmentMetadata  []mailmime.AttachmentMetadata
+	inlineImageWarnings []inlineImageWarning
 	// threading records the reply headers the message was built with, for the
 	// draft path's result report. The send path reports the sent message's
 	// thread instead and ignores it.
@@ -106,11 +108,9 @@ func (c *GmailReplyOptions) run(ctx context.Context, flags *RootFlags, messageID
 	}})
 }
 
-// dryRunFields builds the dry-run request dictionary shared by the send-side
-// reply/reply-all and the draft-side reply/reply-all, so both report the same
-// fields and only the action name differs.
+// dryRunFields shares compose previews and includes the draft-only policy when opted in.
 func (c *GmailReplyOptions) dryRunFields(inputs replyComposeInputs) map[string]any {
-	return map[string]any{
+	fields := map[string]any{
 		"message_id":                inputs.messageID,
 		"to_add":                    c.To,
 		"cc_add":                    c.Cc,
@@ -127,6 +127,10 @@ func (c *GmailReplyOptions) dryRunFields(inputs replyComposeInputs) map[string]a
 		"signature_from":            strings.TrimSpace(c.SignatureFrom),
 		"signature_file":            strings.TrimSpace(c.SignatureFile),
 	}
+	if inputs.missingInlineImages == missingInlineImagesPlaceholder {
+		fields["missing_inline_images"] = inputs.missingInlineImages
+	}
+	return fields
 }
 
 // resolveReplyInputs normalizes the message ID, resolves body/HTML inputs, and
@@ -188,7 +192,7 @@ func (c *GmailReplyOptions) buildReplyComposeMessage(ctx context.Context, svc *g
 	if err != nil {
 		return replyComposeMessage{}, err
 	}
-	info, err := fetchReplyInfo(ctx, svc, inputs.messageID, "", !c.NoQuote)
+	info, err := fetchReplyInfo(ctx, svc, inputs.messageID, "", !c.NoQuote, inputs.missingInlineImages)
 	if err != nil {
 		return replyComposeMessage{}, err
 	}
@@ -274,10 +278,11 @@ func (c *GmailReplyOptions) buildReplyComposeMessage(ctx context.Context, svc *g
 	}
 
 	return replyComposeMessage{
-		message:            msg,
-		fromHeader:         from.header,
-		to:                 toRecipients,
-		attachmentMetadata: attachmentMetadata,
-		threading:          threading,
+		message:             msg,
+		fromHeader:          from.header,
+		to:                  toRecipients,
+		attachmentMetadata:  attachmentMetadata,
+		inlineImageWarnings: info.InlineImageWarnings,
+		threading:           threading,
 	}, nil
 }
