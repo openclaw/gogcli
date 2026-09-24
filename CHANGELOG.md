@@ -2,6 +2,7 @@
 
 ## 0.41.1 - Unreleased
 
+- Docs: reject explicitly empty or whitespace-only `--batch` values before input or authentication, preventing accidental immediate edits when a batch variable is empty.
 - Docs: return a nonzero exit status when `batch end --continue-on-error` retains failed requests, while preserving its result summary and successfully applied edits. (#1154)
 - Sheets: submit atomic structural request arrays with `sheets batch-request`, preserving explicit JSON values, previewing exact requests, and requiring explicit grants in restricted command policies. (#1108) — thanks @gurgeous.
 - Sheets: preserve zero IDs, false flags, empty and null values, and unknown fields in lossless `sheets raw` output, including pretty and wrapped output. (#1155)

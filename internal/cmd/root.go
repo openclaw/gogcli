@@ -168,6 +168,9 @@ func executeWithRuntime(args []string, runtime *app.Runtime) (err error) {
 	if err != nil {
 		return reportEarlyError(kctx, runtimeIO.Err, wrapParseError(err))
 	}
+	if err = validateExplicitBatchFlag(kctx); err != nil {
+		return reportEarlyError(kctx, runtimeIO.Err, err)
+	}
 	cli.diagnostics = runtimeIO.Err
 	cli.authOperations = runtime.Auth
 	cli.authMode = googleapi.ParseAuthMode(os.Getenv("GOG_AUTH_MODE"))

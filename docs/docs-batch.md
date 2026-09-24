@@ -24,6 +24,8 @@ gog batch end "$BATCH_ID"
 
 A revision-mismatch error identifies the queued batch with `batch=<UUID>` and the incoming document revision with `current=<revision>`. Use that batch UUID with `gog batch show` or `gog batch abort`.
 
+Omit `--batch` to submit an edit immediately. An explicitly empty or whitespace-only value, such as `--batch=` or `--batch "$BATCH_ID"` when the variable is empty, returns usage exit code `2` before reading input or authenticating. It never falls back to an immediate edit.
+
 ## Supported mutations
 
 The `--batch` flag is available on directly composable Docs mutations:
