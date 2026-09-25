@@ -1,23 +1,25 @@
 # Changelog
 
-## 0.41.1 - Unreleased
+## 0.42.0 - 2026-09-25
 
-- Forms: queue questions, moves, deletions, and settings with `--batch`, project append positions under the queue lock, and submit one revision-locked atomic update with explicit service permissions. (#1100) — thanks @sebsnyk.
+**Highlights:** Batch editing across Sheets, Docs, Slides, and Forms; native Contacts batch commands; typed Gmail MCP tools; `auth_required` exit code, allowlist rejection, and correct `batch end --continue-on-error` exit status.
+
 - Sheets: queue structural edits across commands with `--batch`, reuse one captured metadata snapshot, and submit an atomic update with explicit endpoint permission and guarded non-atomic recovery. (#1099) — thanks @sebsnyk.
-- Sheets: preserve caller cancellation when immediately submitting `links set` updates. (#1099)
+- Sheets: submit atomic structural request arrays with `sheets batch-request`, preserving explicit JSON values, previewing exact requests, and requiring explicit grants in restricted command policies. (#1108) — thanks @gurgeous.
 - Slides: queue native slides, elements, text, and table edits across commands with `--batch`, then submit one revision-locked atomic update while preserving generated IDs and explicit service permissions. (#1097) — thanks @sebsnyk.
-- Groups: use the documented single-label membership query in listings and backups, preserving native pagination and escaping member identities correctly. (#1059) — thanks @hengshan.
+- Forms: queue questions, moves, deletions, and settings with `--batch`, project append positions under the queue lock, and submit one revision-locked atomic update with explicit service permissions. (#1100) — thanks @sebsnyk.
+- Contacts: add native batch get/create/update/delete commands with etag-checked field-specific updates, offline previews, and explicit partial progress; batch dedupe deletion while retaining changed-contact guards. (#1101) — thanks @sebsnyk.
+- MCP: add typed Gmail draft and mailbox tools with literal label entries, reject empty runtime tool allowlists, and require separate send and permanent-delete opt-ins that preserve account policies, no-send restrictions, and destructive confirmations. (#1137) — thanks @alex-strattab.
+- Gmail: optionally replace genuinely missing quoted inline images with visible placeholders in reply drafts, preserving strict defaults and valid resources and reporting degradation for review. (#1113) — thanks @hashtag1974.
+- Auth: return the documented `auth_required` exit code (`4`) for expired or revoked OAuth grants, preserving reauthorization advice in unattended and read-only commands. (#1152)
+- CLI: reject comma-only runtime command lists instead of silently treating malformed allowlists as unrestricted access; preserve empty overrides and valid CSV lists. (#1157)
 - Docs: reject explicitly empty or whitespace-only `--batch` values before input or authentication, preventing accidental immediate edits when a batch variable is empty. (#1156)
 - Docs: return a nonzero exit status when `batch end --continue-on-error` retains failed requests, while preserving its result summary and successfully applied edits. (#1154)
-- Sheets: submit atomic structural request arrays with `sheets batch-request`, preserving explicit JSON values, previewing exact requests, and requiring explicit grants in restricted command policies. (#1108) — thanks @gurgeous.
-- Contacts: add native batch get/create/update/delete commands with etag-checked field-specific updates, offline previews, and explicit partial progress; batch dedupe deletion while retaining changed-contact guards. (#1101) — thanks @sebsnyk.
+- Groups: use the documented single-label membership query in listings and backups, preserving native pagination and escaping member identities correctly. (#1059) — thanks @hengshan.
+- Sheets: preserve caller cancellation when immediately submitting `links set` updates. (#1099)
 - Sheets: preserve zero IDs, false flags, empty and null values, and unknown fields in lossless `sheets raw` output, including pretty and wrapped output. (#1155)
-- CLI: reject comma-only runtime command lists instead of silently treating malformed allowlists as unrestricted access; preserve empty overrides and valid CSV lists. (#1157)
-- Auth: return the documented `auth_required` exit code (`4`) for expired or revoked OAuth grants, preserving reauthorization advice in unattended and read-only commands. (#1152)
-- MCP: add typed Gmail draft and mailbox tools with literal label entries, reject empty runtime tool allowlists, and require separate send and permanent-delete opt-ins that preserve account policies, no-send restrictions, and destructive confirmations. (#1137) — thanks @alex-strattab.
-- Comments: clarify that quoted Drive API comments are unanchored in Google editors and warn on stderr, including dry runs, while preserving payloads and machine-readable output. (#1160) — thanks @ignacioreyna.
 - Raw JSON: preserve explicit values and unknown fields across Docs, Slides, Drive, Gmail, Calendar, Forms, Tasks, and People/Contacts; retain Drive redaction and lossless Docs tab projection. (#1158)
-- Gmail: optionally replace genuinely missing quoted inline images with visible placeholders in reply drafts, preserving strict defaults and valid resources and reporting degradation for review. (#1113) — thanks @hashtag1974.
+- Comments: clarify that quoted Drive API comments are unanchored in Google editors and warn on stderr, including dry runs, while preserving payloads and machine-readable output. (#1160) — thanks @ignacioreyna.
 
 ## 0.41.0 - 2026-09-22
 
