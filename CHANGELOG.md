@@ -18,6 +18,7 @@
 
 - Auth: direct doctor recovery hints to preserve recorded services, scope modes, extra scopes, and the OAuth client instead of requesting the default grant. (#1196) — thanks @coygeek.
 - Docs: select gog skills explicitly during installation and identify the separate maintainer-only Crabbox skill. (#1194) — thanks @coygeek.
+- Auth: add keyless domain-wide delegation with `gog auth service-account set --signjwt <service-account-email>`, signing the JWT assertion through the IAM Credentials `signJwt` API with Application Default Credentials so no service-account private key is stored; tokens refresh automatically.
 
 ## 0.43.0 - 2026-09-30
 

@@ -18,6 +18,26 @@ gog auth service-account set admin@example.com --key ~/Downloads/service-account
 gog auth service-account status admin@example.com
 ```
 
+### Keyless domain-wide delegation
+
+To avoid storing a service-account private key, let Google sign the delegation
+JWT with the [IAM Credentials `signJwt`](https://cloud.google.com/iam/docs/reference/credentials/rest/v1/projects.serviceAccounts/signJwt)
+API instead. `gog` then stores only the service-account email and signs with
+Application Default Credentials:
+
+```bash
+gcloud auth application-default login
+gog auth service-account set admin@example.com \
+  --signjwt gog-admin@my-project.iam.gserviceaccount.com
+```
+
+The ADC identity needs `iam.serviceAccounts.signJwt` on the service account
+(for example `roles/iam.serviceAccountTokenCreator`), and the IAM Credentials
+API must be enabled in the service account's project. Domain-wide delegation
+is configured exactly as for a key. Access tokens are minted per hour and
+refreshed automatically; when ADC is user credentials, the Google Cloud session
+length still applies to them.
+
 The service account must be delegated the Admin SDK scopes listed by:
 
 ```bash

@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/openclaw/gogcli/internal/config"
+	"github.com/openclaw/gogcli/internal/googleapi"
 	"github.com/openclaw/gogcli/internal/outfmt"
 	"github.com/openclaw/gogcli/internal/ui"
 )
@@ -22,9 +23,17 @@ type AuthServiceAccountCmd struct {
 type serviceAccountJSONInfo struct {
 	ClientEmail string
 	ClientID    string
+	Keyless     bool
 }
 
 func parseServiceAccountJSON(data []byte) (serviceAccountJSONInfo, error) {
+	if sa, ok, err := googleapi.ParseSignJWTServiceAccount(data); ok {
+		if err != nil {
+			return serviceAccountJSONInfo{}, usagef("invalid service account descriptor: %v", err)
+		}
+		return serviceAccountJSONInfo{ClientEmail: sa.ClientEmail, Keyless: true}, nil
+	}
+
 	var saJSON map[string]any
 	if err := json.Unmarshal(data, &saJSON); err != nil {
 		return serviceAccountJSONInfo{}, usagef("invalid service account JSON: %v", err)
@@ -48,6 +57,7 @@ type AuthServiceAccountSetCmd struct {
 	Key      string `name:"key" help:"Path to service account JSON key file, or '-' for stdin"`
 	KeyStdin bool   `name:"key-stdin" help:"Read service account JSON key from stdin"`
 	KeyEnv   string `name:"key-env" help:"Read service account JSON key from the named environment variable"`
+	SignJWT  string `name:"signjwt" help:"Keyless: store no key and sign JWTs as this service account email via the IAM Credentials signJwt API, using Application Default Credentials (needs roles/iam.serviceAccountTokenCreator on the service account)"`
 }
 
 func (c *AuthServiceAccountSetCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -95,6 +105,7 @@ func (c *AuthServiceAccountSetCmd) Run(ctx context.Context, flags *RootFlags) er
 			"path":         destPath,
 			"client_email": info.ClientEmail,
 			"client_id":    info.ClientID,
+			"keyless":      info.Keyless,
 		})
 	}
 	u.Out().Linef("email\t%s", email)
@@ -112,8 +123,12 @@ func (c *AuthServiceAccountSetCmd) Run(ctx context.Context, flags *RootFlags) er
 func (c *AuthServiceAccountSetCmd) resolveServiceAccountKey(ctx context.Context) ([]byte, string, error) {
 	keyPath := strings.TrimSpace(c.Key)
 	keyEnv := strings.TrimSpace(c.KeyEnv)
+	signJWT := strings.TrimSpace(c.SignJWT)
 
 	sources := 0
+	if signJWT != "" {
+		sources++
+	}
 	if keyPath != "" {
 		sources++
 	}
@@ -124,13 +139,20 @@ func (c *AuthServiceAccountSetCmd) resolveServiceAccountKey(ctx context.Context)
 		sources++
 	}
 	if sources == 0 {
-		return nil, "", usage("provide service account key with --key, --key=-, --key-stdin, or --key-env")
+		return nil, "", usage("provide service account key with --key, --key=-, --key-stdin, or --key-env, or use --signjwt <service-account-email>")
 	}
 	if sources > 1 {
 		return nil, "", usage("provide exactly one service account key source")
 	}
 
 	switch {
+	case signJWT != "":
+		data, err := googleapi.NewSignJWTServiceAccountJSON(signJWT)
+		if err != nil {
+			return nil, "", usagef("invalid --signjwt: %v", err)
+		}
+
+		return data, "signjwt", nil
 	case c.KeyStdin || keyPath == "-":
 		data, err := io.ReadAll(stdinReader(ctx))
 		if err != nil {
@@ -252,6 +274,7 @@ func (c *AuthServiceAccountStatusCmd) Run(ctx context.Context) error {
 			"stored":       true,
 			"client_email": info.ClientEmail,
 			"client_id":    info.ClientID,
+			"keyless":      info.Keyless,
 		})
 	}
 	kvs := []resultKV{
@@ -265,6 +288,9 @@ func (c *AuthServiceAccountStatusCmd) Run(ctx context.Context) error {
 	}
 	if info.ClientID != "" {
 		kvs = append(kvs, kv("client_id", info.ClientID))
+	}
+	if info.Keyless {
+		kvs = append(kvs, kv("keyless", true))
 	}
 	return writeResult(ctx, u, kvs...)
 }

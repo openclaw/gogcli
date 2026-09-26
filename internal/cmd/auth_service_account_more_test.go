@@ -313,3 +313,51 @@ func TestAuthStatus_ShowsServiceAccountPreferred(t *testing.T) {
 		t.Fatalf("unexpected status output: %q", out)
 	}
 }
+
+func TestAuthServiceAccountSet_SignJWTStoresKeylessDescriptor(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, "xdg-config"))
+
+	out := captureStdout(t, func() {
+		_ = captureStderr(t, func() {
+			if err := Execute([]string{"auth", "service-account", "set", "admin@example.com", "--signjwt", "svc@proj.iam.gserviceaccount.com"}); err != nil {
+				t.Fatalf("Execute --signjwt: %v", err)
+			}
+		})
+	})
+	if !strings.Contains(out, "client_email\tsvc@proj.iam.gserviceaccount.com") {
+		t.Fatalf("unexpected output: %q", out)
+	}
+
+	storedPath := defaultLayoutForTest(t, config.PathKindData).ServiceAccountPath("admin@example.com")
+	stored, err := os.ReadFile(storedPath)
+	if err != nil {
+		t.Fatalf("read stored descriptor: %v", err)
+	}
+	if !strings.Contains(string(stored), `"signjwt_service_account"`) || strings.Contains(string(stored), "private_key") {
+		t.Fatalf("stored descriptor is not keyless: %s", stored)
+	}
+
+	statusOut := captureStdout(t, func() {
+		_ = captureStderr(t, func() {
+			if err := Execute([]string{"auth", "service-account", "status", "admin@example.com"}); err != nil {
+				t.Fatalf("status: %v", err)
+			}
+		})
+	})
+	if !strings.Contains(statusOut, "keyless\ttrue") {
+		t.Fatalf("status does not report keyless: %q", statusOut)
+	}
+}
+
+func TestAuthServiceAccountSet_SignJWTConflictsWithKey(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, "xdg-config"))
+	t.Setenv("SA_JSON", `{"type":"service_account"}`)
+
+	if err := Execute([]string{"auth", "service-account", "set", "conflict@example.com", "--signjwt", "svc@proj.iam.gserviceaccount.com", "--key-env", "SA_JSON"}); err == nil {
+		t.Fatal("expected conflicting key source error")
+	}
+}
