@@ -2,6 +2,8 @@
 
 ## 0.42.1 - Unreleased
 
+- Gmail: clarify full-payload versus raw MIME reads, quote source selection, and the limits of offline reply previews. (#1173) — thanks @hashtag1974.
+
 ## 0.42.0 - 2026-09-25
 
 **Highlights:** Batch editing across Sheets, Docs, Slides, and Forms; native Contacts batch commands; typed Gmail MCP tools; `auth_required` exit code, allowlist rejection, and correct `batch end --continue-on-error` exit status.

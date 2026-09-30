@@ -18,6 +18,41 @@ gog gmail thread get <threadId> --json
 Thread searches fail if any thread detail cannot be fetched, without emitting a
 partial result list. Retry the search after resolving the reported API error.
 
+### Full payloads and raw MIME
+
+`gmail get --format full --json` exposes Gmail's parsed message under `message`;
+`gmail thread get --json` exposes parsed messages under `thread.messages`.
+Nested `payload.parts[].body.data` and `body.size` values come from Gmail: gog
+does not rewrite the encoded data or recalculate its declared size. Base64url
+decoding `body.data` is distinct from reading gog's top-level `body`, which
+selects a text part and applies transfer-encoding and charset handling.
+
+For the RFC822 representation stored by Gmail, retrieve raw MIME:
+
+```bash
+gog --readonly gmail get <messageId> --format raw --json
+```
+
+Base64url-decode `message.raw`, parse the MIME structure, and apply each part's
+`Content-Transfer-Encoding` once. Use that representation when checking the
+stored MIME, rather than rebuilding it from the parsed full payload. The normal
+text output of `gmail get --format raw` includes headings, so use JSON for byte
+comparisons. Omit `--sanitize-content` and `--wrap-untrusted` when comparing
+source representations.
+
+A difference between decoded full-payload length, `body.size`, and decoded raw
+MIME length does not by itself identify the cause. Compare the actual bytes,
+line endings, and charset conversions; do not truncate data to `body.size` or
+assume a length delta proves harmless normalization.
+
+Native quoted replies read `format=full` and decode its text parts; they do not
+generally choose the raw MIME body or reconcile the two representations. Reply
+`--dry-run` is offline and does not fetch or validate the original quote. There
+is currently no native read-only command that builds and verifies the complete
+outgoing quote before a draft write. A workflow requiring full/raw equivalence
+must stop on an unexplained mismatch. The missing-inline-image validation
+described below is narrower and does not establish body equivalence.
+
 Use `--from-contact 'Ada Lovelace'` with `gmail search` to resolve a contact
 into a sender query. If contact search misses, the fallback scans connections
 page by page and retains only exact name or email matches. Multiple matching
