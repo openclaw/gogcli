@@ -92,6 +92,7 @@ func TestReadRepoCloneFailureDoesNotInitializeRepo(t *testing.T) {
 }
 
 func TestReadRepoClonesIntoExistingEmptyDirectory(t *testing.T) {
+	keepTestGitMaintenanceAttached(t)
 	dir := t.TempDir()
 	remote := filepath.Join(dir, "remote.git")
 	repo := filepath.Join(dir, "repo")

@@ -125,6 +125,7 @@ func TestVerifyReportsManifestCountsForSemanticCollisions(t *testing.T) {
 }
 
 func TestCommitChangesIgnoresGlobalCommitSigning(t *testing.T) {
+	keepTestGitMaintenanceAttached(t)
 	ctx := context.Background()
 	dir := t.TempDir()
 	repo := filepath.Join(dir, "repo")
@@ -275,10 +276,7 @@ func TestPushSnapshotCanReferenceExistingCheckpointShard(t *testing.T) {
 }
 
 func TestAsyncCheckpointPushDrainsBeforeFinalSnapshot(t *testing.T) {
-	// Keep maintenance attached so temporary-repo cleanup cannot race its writes.
-	t.Setenv("GIT_CONFIG_COUNT", "1")
-	t.Setenv("GIT_CONFIG_KEY_0", "maintenance.autoDetach")
-	t.Setenv("GIT_CONFIG_VALUE_0", "false")
+	keepTestGitMaintenanceAttached(t)
 	ctx := context.Background()
 	dir := t.TempDir()
 	repo := filepath.Join(dir, "repo")
@@ -913,8 +911,17 @@ func TestEncryptDecryptRoundTripMultipleRecipients(t *testing.T) {
 	}
 }
 
+func keepTestGitMaintenanceAttached(t *testing.T) {
+	t.Helper()
+	// Temporary-repo cleanup must wait for Git's maintenance writes to finish.
+	t.Setenv("GIT_CONFIG_COUNT", "1")
+	t.Setenv("GIT_CONFIG_KEY_0", "maintenance.autoDetach")
+	t.Setenv("GIT_CONFIG_VALUE_0", "false")
+}
+
 func initTestBackup(t *testing.T) (context.Context, string, string, string) {
 	t.Helper()
+	keepTestGitMaintenanceAttached(t)
 	ctx := context.Background()
 	dir := t.TempDir()
 	repo := filepath.Join(dir, "repo")
