@@ -3,7 +3,7 @@
 ## 0.42.1 - Unreleased
 
 - Gmail: clarify full-payload versus raw MIME reads, quote source selection, and the limits of offline reply previews. (#1173) — thanks @hashtag1974.
-- Dependencies: refresh Google API/authentication, MCP and gRPC clients, golangci-lint, pnpm 11, and tracking-worker tooling while retaining Go 1.26 compatibility and the worker's 24-hour release-age policy.
+- Dependencies: refresh Google API/authentication, MCP and gRPC clients, golangci-lint, pnpm 11, and tracking-worker tooling while retaining Go 1.26 compatibility and the worker's 24-hour release-age policy. (#1175)
 
 ## 0.42.0 - 2026-09-25
 
