@@ -96,6 +96,32 @@ credentials, fetching messages, or writing files. Thread downloads keep their
 current-directory default or explicit `--out-dir`; draft downloads retain the
 existing configured attachment directory.
 
+### Exact byte exports and compact enumeration
+
+Use the export commands when an exact decoded byte stream is needed:
+
+```bash
+gog --readonly gmail export raw MESSAGE_ID --out message.eml --json
+gog --readonly gmail export attachment MESSAGE_ID ATTACHMENT_ID --out attachment.bin --json
+gog --readonly gmail thread ids THREAD_ID --json
+gog --readonly gmail search 'in:inbox' --compact --max 100 --json
+```
+
+Exports decode provider base64url without changing MIME encoding, line endings,
+NULs or arbitrary attachment bytes. They atomically write a private destination
+and print metadata (IDs and byte count), never the bytes, on stdout. MCP exports
+include SHA-256 integrity metadata for chunk reassembly.
+`--max-bytes` defaults to 50 MiB and cannot exceed that limit. Invalid encoding,
+attachment size mismatch, response overflow or disk failure leaves the previous
+destination intact. These are readonly provider operations; `--dry-run` does
+not create an output file.
+
+`thread ids` requests metadata-only rows in provider order, with text truncation
+markers and optional untrusted wrapping. `search --compact` uses one page,
+at most two detail workers, and bounded text/labels; it rejects `--all`, `--count`
+and contact expansion. Continue with the returned provider page token. For
+bounded snapshot/chunk downloads through MCP, see [MCP server](mcp.md).
+
 ## Filters
 
 Export filters as Gmail WebUI-compatible XML:

@@ -6,7 +6,22 @@ import (
 	"github.com/alecthomas/kong"
 )
 
-func enforceEnabledCommands(kctx *kong.Context, enabled string, enabledExact string) error {
+func enforceEnabledCommands(kctx *kong.Context, enabled string, exact string) error {
+	return enforceCommandPathEnabled(commandPath(kctx.Command()), enabled, exact)
+}
+
+func enforceDisabledCommands(kctx *kong.Context, disabled string) error {
+	return enforceCommandPathDisabled(commandPath(kctx.Command()), disabled)
+}
+
+func enforceCommandPathPolicy(path []string, enabled, exact, disabled string) error {
+	if err := enforceCommandPathEnabled(path, enabled, exact); err != nil {
+		return err
+	}
+	return enforceCommandPathDisabled(path, disabled)
+}
+
+func enforceCommandPathEnabled(path []string, enabled string, enabledExact string) error {
 	enabled = strings.TrimSpace(enabled)
 	enabledExact = strings.TrimSpace(enabledExact)
 	if enabled == "" && enabledExact == "" {
@@ -25,7 +40,6 @@ func enforceEnabledCommands(kctx *kong.Context, enabled string, enabledExact str
 		return nil
 	}
 
-	path := commandPath(kctx.Command())
 	if len(path) == 0 {
 		return nil
 	}
@@ -36,7 +50,7 @@ func enforceEnabledCommands(kctx *kong.Context, enabled string, enabledExact str
 	return usagef("command %q is not enabled (set --enable-commands or --enable-commands-exact to allow it)", strings.Join(path, " "))
 }
 
-func enforceDisabledCommands(kctx *kong.Context, disabled string) error {
+func enforceCommandPathDisabled(path []string, disabled string) error {
 	disabled = strings.TrimSpace(disabled)
 	if disabled == "" {
 		return nil
@@ -45,7 +59,6 @@ func enforceDisabledCommands(kctx *kong.Context, disabled string) error {
 	if len(deny) == 0 {
 		return usage("--disable-commands must contain at least one command or be empty")
 	}
-	path := commandPath(kctx.Command())
 	if len(path) == 0 {
 		return nil
 	}

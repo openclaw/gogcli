@@ -33,6 +33,7 @@ gog --readonly --account user@example.com gmail search 'newer_than:7d' --max 10 
 | `autoreply` | Reply once to matching messages |
 | `batch` | Batch operations (permanent delete requires broader Gmail scope; use gmail trash for normal trashing) |
 | `drafts` | Draft operations |
+| `export` | Export bounded exact message or attachment bytes |
 | `forward` | Forward a message to new recipients |
 | `get` | Get a message (full\|metadata\|raw) |
 | `history` | Gmail history |

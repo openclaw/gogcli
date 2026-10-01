@@ -32,10 +32,13 @@ type MCPConfig struct {
 }
 
 type MCPPolicy struct {
-	AllowTools       []string `json:"allow_tools"`
-	AllowWrite       bool     `json:"allow_write,omitempty"`
-	AllowGmailSend   bool     `json:"allow_gmail_send,omitempty"`
-	AllowGmailDelete bool     `json:"allow_gmail_delete,omitempty"`
+	AllowTools               []string `json:"allow_tools"`
+	AllowWrite               bool     `json:"allow_write,omitempty"`
+	AllowGmailSend           bool     `json:"allow_gmail_send,omitempty"`
+	AllowGmailDelete         bool     `json:"allow_gmail_delete,omitempty"`
+	AllowCalendarNotify      bool     `json:"allow_calendar_notify,omitempty"`
+	AllowCalendarDelete      bool     `json:"allow_calendar_delete,omitempty"`
+	AllowGmailSettingsDelete bool     `json:"allow_gmail_settings_delete,omitempty"`
 }
 
 type ConfigStore struct {

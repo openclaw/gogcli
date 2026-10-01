@@ -21,8 +21,11 @@ gog calendar (cal) update (edit,set) <calendarId> <eventId> [flags]
 | `--access-token` | `string` |  | Use provided access token directly (bypasses stored refresh tokens; token expires in ~1h) |
 | `-a`<br>`--account`<br>`--acct` | `string` |  | Account email, alias, or auto for authenticated Google API commands |
 | `--add-attendee` | `string` |  | Comma-separated attendee emails to add (preserves existing attendees); modifiers: ;optional, ;resource, ;comment=TEXT |
+| `--add-attendee-entry` | `[]string` |  | Literal attendee to add (repeatable; commas preserved) |
 | `--all-day` | `bool` |  | All-day event (use date-only in --from/--to) |
 | `--attachment` | `[]string` |  | File attachment URL (can be repeated; replaces all; set empty to clear) |
+| `--attachment-url` | `[]string` |  | Literal attachment URL (repeatable; commas preserved) |
+| `--attendee-entry` | `[]string` |  | Literal attendee email with optional modifiers (repeatable; commas preserved) |
 | `--attendees` | `string` |  | Comma-separated attendee emails (replaces all; set empty to clear); modifiers: ;optional, ;resource, ;comment=TEXT |
 | `--client` | `string` |  | OAuth client name (selects stored credentials + token bucket) |
 | `--color` | `string` | auto | Color output: auto\|always\|never |
@@ -64,6 +67,7 @@ gog calendar (cal) update (edit,set) <calendarId> <eventId> [flags]
 | `--regenerate-meet` | `bool` |  | Replace the event's Google Meet video conference |
 | `--regenerate-zoom` | `bool` |  | Replace the event's Zoom video conference |
 | `--reminder` | `[]string` |  | Custom reminders as method:duration (e.g., popup:30m, email:1d). Can be repeated (max 5). Set empty to restore calendar defaults. |
+| `--reminder-entry` | `[]string` |  | Literal reminder method:duration (repeatable; max 5) |
 | `--remove-zoom` | `bool` |  | Remove the event's Zoom video conference |
 | `--results-only` | `bool` |  | In JSON mode, emit only the primary result (drops envelope fields like nextPageToken) |
 | `--rrule` | `[]string` |  | Recurrence rules (e.g., 'RRULE:FREQ=MONTHLY;BYMONTHDAY=11'). Can be repeated. Set empty to clear. |
@@ -71,6 +75,8 @@ gog calendar (cal) update (edit,set) <calendarId> <eventId> [flags]
 | `--select`<br>`--pick`<br>`--project` | `string` |  | In JSON mode, select comma-separated fields (best-effort; supports dot paths). Desire path: use --fields for most commands. |
 | `--send-updates` | `string` |  | Notification mode: all, externalOnly, none (default: none) |
 | `--shared-prop` | `[]string` |  | Shared extended property (key=value, can be repeated) |
+| `--source-title` | `string` |  | New source title (set empty to clear title) |
+| `--source-url` | `string` |  | New source URL (set empty to clear source) |
 | `--start-timezone`<br>`--from-timezone` | `string` |  | IANA timezone metadata for --from (e.g., Europe/Rome) |
 | `--summary` | `string` |  | New summary/title (set empty to clear) |
 | `--to` | `string` |  | New end time (RFC3339; set empty to clear) |

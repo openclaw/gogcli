@@ -48,7 +48,11 @@ func (m *calendarMutationContext) insertEvent(ctx context.Context, event *calend
 	if opts.supportsAttachments {
 		call = call.SupportsAttachments(true)
 	}
-	return call.Do()
+	event, err := call.Do()
+	if err == nil && event != nil {
+		recordMCPMutationID(ctx, event.Id)
+	}
+	return event, err
 }
 
 func (m *calendarMutationContext) patchEvent(ctx context.Context, eventID string, patch *calendar.Event, sendUpdates string) (*calendar.Event, error) {
@@ -62,7 +66,11 @@ func (m *calendarMutationContext) patchEvent(ctx context.Context, eventID string
 	if patchHasAttachmentsMutation(patch) {
 		call = call.SupportsAttachments(true)
 	}
-	return call.Do()
+	event, err := call.Do()
+	if err == nil && event != nil {
+		recordMCPMutationID(ctx, event.Id)
+	}
+	return event, err
 }
 
 func patchHasAttachmentsMutation(patch *calendar.Event) bool {
@@ -85,7 +93,11 @@ func (m *calendarMutationContext) deleteEvent(ctx context.Context, eventID, send
 	if sendUpdates != "" {
 		call = call.SendUpdates(sendUpdates)
 	}
-	return call.Do()
+	err := call.Do()
+	if err == nil {
+		recordMCPMutationID(ctx, eventID)
+	}
+	return err
 }
 
 func (m *calendarMutationContext) moveEvent(ctx context.Context, eventID, destinationCalendarID, sendUpdates string) (*calendar.Event, error) {
@@ -93,7 +105,11 @@ func (m *calendarMutationContext) moveEvent(ctx context.Context, eventID, destin
 	if sendUpdates != "" {
 		call = call.SendUpdates(sendUpdates)
 	}
-	return call.Do()
+	event, err := call.Do()
+	if err == nil && event != nil {
+		recordMCPMutationID(ctx, event.Id)
+	}
+	return event, err
 }
 
 func (m *calendarMutationContext) writeEvent(ctx context.Context, event *calendar.Event) error {

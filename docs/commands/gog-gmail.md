@@ -21,6 +21,7 @@ gog gmail (mail,email) <command> [flags]
 - [gog gmail autoreply](gog-gmail-autoreply.md) - Reply once to matching messages
 - [gog gmail batch](gog-gmail-batch.md) - Batch operations (permanent delete requires broader Gmail scope; use gmail trash for normal trashing)
 - [gog gmail drafts](gog-gmail-drafts.md) - Draft operations
+- [gog gmail export](gog-gmail-export.md) - Export bounded exact message or attachment bytes
 - [gog gmail forward](gog-gmail-forward.md) - Forward a message to new recipients
 - [gog gmail get](gog-gmail-get.md) - Get a message (full|metadata|raw)
 - [gog gmail history](gog-gmail-history.md) - Gmail history

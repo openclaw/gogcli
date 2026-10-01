@@ -11,10 +11,11 @@ import (
 )
 
 type CalendarRespondCmd struct {
-	CalendarID string `arg:"" name:"calendarId" help:"Calendar ID"`
-	EventID    string `arg:"" name:"eventId" help:"Event ID"`
-	Status     string `name:"status" help:"Response status (accepted, declined, tentative, needsAction)"`
-	Comment    string `name:"comment" help:"Optional comment/note to include with response"`
+	CalendarID  string `arg:"" name:"calendarId" help:"Calendar ID"`
+	EventID     string `arg:"" name:"eventId" help:"Event ID"`
+	Status      string `name:"status" help:"Response status (accepted, declined, tentative, needsAction)"`
+	SendUpdates string `name:"send-updates" help:"Notification mode: all, externalOnly, none"`
+	Comment     string `name:"comment" help:"Optional comment/note to include with response"`
 }
 
 func (c *CalendarRespondCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -48,11 +49,16 @@ func (c *CalendarRespondCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return usagef("invalid status %q; must be one of: %s", status, strings.Join(validStatuses, ", "))
 	}
 
+	sendUpdates, err := validateSendUpdates(c.SendUpdates)
+	if err != nil {
+		return err
+	}
 	if dryRunErr := dryRunExit(ctx, flags, "calendar.respond", map[string]any{
-		"calendar_id": calendarID,
-		"event_id":    eventID,
-		"status":      status,
-		"comment":     strings.TrimSpace(c.Comment),
+		"calendar_id":  calendarID,
+		"event_id":     eventID,
+		"status":       status,
+		"comment":      strings.TrimSpace(c.Comment),
+		"send_updates": sendUpdates,
 	}); dryRunErr != nil {
 		return dryRunErr
 	}
@@ -96,7 +102,7 @@ func (c *CalendarRespondCmd) Run(ctx context.Context, flags *RootFlags) error {
 	patch := &calendar.Event{
 		Attendees: event.Attendees,
 	}
-	updated, err := mutation.patchEvent(ctx, eventID, patch, "")
+	updated, err := mutation.patchEvent(ctx, eventID, patch, sendUpdates)
 	if err != nil {
 		return err
 	}

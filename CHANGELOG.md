@@ -2,6 +2,9 @@
 
 ## 0.43.1 - Unreleased
 
+- MCP: add bounded exact Gmail exports, compact paged thread reads, typed Calendar and Gmail settings tools, independent notification/settings-delete/Calendar-delete gates, private snapshots and non-retryable mutation receipts. Add a verified export client example and migration guidance. (#1181) — thanks @salmonumbrella.
+- Gmail/Calendar: add atomic exact-byte exports, metadata-only thread enumeration, compact search, literal array flags, Calendar search pagination and explicit source PATCH fields. (#1181) — thanks @salmonumbrella.
+
 ## 0.43.0 - 2026-09-30
 
 **Highlights:** JSON error envelopes and page metadata, a default auth/config status view, and clearer Gmail MIME guidance.

@@ -22,6 +22,8 @@ gog calendar (cal) create (add,new) <calendarId> [flags]
 | `-a`<br>`--account`<br>`--acct` | `string` |  | Account email, alias, or auto for authenticated Google API commands |
 | `--all-day` | `bool` |  | All-day event (use date-only in --from/--to) |
 | `--attachment` | `[]string` |  | File attachment URL (can be repeated) |
+| `--attachment-url` | `[]string` |  | Literal attachment URL (repeatable; commas preserved) |
+| `--attendee-entry` | `[]string` |  | Literal attendee email with optional modifiers (repeatable; commas preserved) |
 | `--attendees` | `string` |  | Comma-separated attendee emails; modifiers: ;optional, ;resource, ;comment=TEXT |
 | `--client` | `string` |  | OAuth client name (selects stored credentials + token bucket) |
 | `--color` | `string` | auto | Color output: auto\|always\|never |
@@ -60,6 +62,7 @@ gog calendar (cal) create (add,new) <calendarId> [flags]
 | `--quota-project` | `string` |  | Google Cloud project to bill for API usage (sent as X-Goog-User-Project; some APIs require it with --access-token or ADC) |
 | `--readonly` | `bool` | false | Block mutating API requests at runtime; auth add also requests read-only OAuth scopes |
 | `--reminder` | `[]string` |  | Custom reminders as method:duration (e.g., popup:30m, email:1d). Can be repeated (max 5). |
+| `--reminder-entry` | `[]string` |  | Literal reminder method:duration (repeatable; max 5) |
 | `--results-only` | `bool` |  | In JSON mode, emit only the primary result (drops envelope fields like nextPageToken) |
 | `--rrule` | `[]string` |  | Recurrence rules (e.g., 'RRULE:FREQ=MONTHLY;BYMONTHDAY=11'). Can be repeated. |
 | `--select`<br>`--pick`<br>`--project` | `string` |  | In JSON mode, select comma-separated fields (best-effort; supports dot paths). Desire path: use --fields for most commands. |
