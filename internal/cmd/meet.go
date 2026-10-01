@@ -21,9 +21,10 @@ type MeetCmd struct {
 
 // MeetCreateCmd creates a new meeting space.
 type MeetCreateCmd struct {
-	Access     string `name:"access" aliases:"access-type" help:"Access type: open, trusted, or restricted" default:"trusted"`
-	EntryPoint string `name:"entry-point" aliases:"entry-point-access" help:"Entry point access: all or creator-only" default:"all" hidden:""`
-	Open       bool   `name:"open" aliases:"browser" help:"Open the meeting in a browser after creation"`
+	Access     string               `name:"access" aliases:"access-type" help:"Access type: open, trusted, or restricted" default:"trusted"`
+	EntryPoint string               `name:"entry-point" aliases:"entry-point-access" help:"Entry point access: all or creator-only" default:"all" hidden:""`
+	Open       bool                 `name:"open" aliases:"browser" help:"Open the meeting in a browser after creation"`
+	Config     MeetSpaceConfigFlags `embed:""`
 }
 
 func (c *MeetCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -37,9 +38,21 @@ func (c *MeetCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
+	space := &meet.Space{
+		Config: &meet.SpaceConfig{
+			AccessType:       accessType,
+			EntryPointAccess: entryPointAccess,
+		},
+	}
+
+	if _, err = c.Config.apply(space.Config); err != nil {
+		return err
+	}
+
 	if dryRunErr := dryRunExit(ctx, flags, "meet.spaces.create", map[string]any{
 		"access_type":        accessType,
 		"entry_point_access": entryPointAccess,
+		"config":             space.Config,
 	}); dryRunErr != nil {
 		return dryRunErr
 	}
@@ -47,13 +60,6 @@ func (c *MeetCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
 	_, svc, err := requireMeetService(ctx, flags)
 	if err != nil {
 		return wrapMeetError(err)
-	}
-
-	space := &meet.Space{
-		Config: &meet.SpaceConfig{
-			AccessType:       accessType,
-			EntryPointAccess: entryPointAccess,
-		},
 	}
 
 	created, err := svc.Spaces.Create(space).Context(ctx).Do()
@@ -127,6 +133,7 @@ func printMeetSpace(u *ui.UI, space *meet.Space) {
 
 	if space.Config != nil {
 		u.Out().Linef("access\t%s", strings.ToLower(space.Config.AccessType))
+		printMeetSpaceConfig(u, space.Config)
 	}
 
 	if space.ActiveConference != nil && space.ActiveConference.ConferenceRecord != "" {

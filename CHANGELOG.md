@@ -2,6 +2,8 @@
 
 ## 0.43.1 - Unreleased
 
+- Meet: add `--[no-]recording`, `--[no-]transcription`, `--[no-]smart-notes`, `--[no-]attendance-report`, `--[no-]moderation`, `--[no-]restrict-chat`, `--[no-]restrict-present`, `--[no-]restrict-reactions`, and `--[no-]join-as-viewer` to `meet create` and `meet update`; unset flags keep account defaults, updates send per-field masks, and restriction flags enable moderation. (#1182)
+
 ## 0.43.0 - 2026-09-30
 
 **Highlights:** JSON error envelopes and page metadata, a default auth/config status view, and clearer Gmail MIME guidance.

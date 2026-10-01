@@ -23,6 +23,9 @@ run_meet_tests() {
 
   run_required "meet" "meet get" gog meet get "$meeting_code" --json >/dev/null
   run_required "meet" "meet update" gog meet update "$meeting_code" --access open --json >/dev/null
+  local artifacts_json
+  artifacts_json=$(gog meet update "$meeting_code" --no-recording --no-transcription --no-smart-notes --json)
+  echo "$artifacts_json" | "$PY" -c 'import json,sys; a=json.load(sys.stdin)["config"]["artifactConfig"]; assert a["recordingConfig"]["autoRecordingGeneration"]=="OFF"; assert a["transcriptionConfig"]["autoTranscriptionGeneration"]=="OFF"; assert a["smartNotesConfig"]["autoSmartNotesGeneration"]=="OFF"'
   local history_json participants_json
   history_json=$(gog meet history "$meeting_code" --json --max 1)
   echo "$history_json" | "$PY" -c 'import json,sys; value=json.load(sys.stdin)["conferences"]; assert isinstance(value,list)'
