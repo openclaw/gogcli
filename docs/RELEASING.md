@@ -61,6 +61,7 @@ Before declaring the release complete, verify:
 - the GitHub Release is published and its body matches the tagged changelog section;
 - the published checksum and inventory controls cover every asset;
 - both native macOS verifier jobs passed signature, Team ID, stable identifier, hardened-runtime, timestamp, architecture, and online notarization checks;
+- both native macOS binaries report `minos 15.0` in `otool -l`, matching the macOS 15 minimum documented in the install guide;
 - the Homebrew handoff succeeded and `Formula/gogcli.rb` contains the verified version, archive names, and hashes.
 
 Finally, land the next patch `Unreleased` changelog section and set `internal/cmd/VERSION` to the released version with the `-dev` suffix. The reusable workflow may open a closeout PR containing only the changelog heading; add the development-version change to that exact PR, then review and merge it rather than creating a competing transition. Keep exactly one `Unreleased` section.

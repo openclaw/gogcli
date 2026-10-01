@@ -5,6 +5,8 @@ release builds use the tag, while local builds use `git describe`.
 
 ## Homebrew (macOS, Linux)
 
+Prebuilt macOS binaries require macOS 15 or later on both Apple Silicon and Intel.
+
 ```bash
 brew install openclaw/tap/gogcli
 gog --version
@@ -27,7 +29,7 @@ Once the Docker workflow succeeds:
 
 ```bash
 docker run --rm ghcr.io/openclaw/gogcli:latest version
-docker run --rm ghcr.io/openclaw/gogcli:v0.38.2 version
+docker run --rm ghcr.io/openclaw/gogcli:v0.43.0 version
 ```
 
 Authenticated container runs should mount a persistent `GOG_HOME` directory and
@@ -118,7 +120,7 @@ make
 ./bin/gog --version
 ```
 
-Source builds require at least the `go` version declared in `go.mod` (Go 1.26.0). The `toolchain` directive recommends Go 1.27.0 for normal builds and CI; Docker uses the same preferred toolchain. Environments with `GOTOOLCHAIN=local`, including CodeQL default setup, can use their installed Go 1.26 toolchain.
+Source builds require at least the `go` version declared in `go.mod` (Go 1.26.0). The `toolchain` directive recommends Go 1.27.1 for normal builds and CI; Docker uses the same preferred toolchain. Environments with `GOTOOLCHAIN=local`, including CodeQL default setup, can use their installed Go 1.26 toolchain.
 
 ## Safety-profile binaries
 

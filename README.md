@@ -23,7 +23,8 @@ For least-privilege Gmail authorization, use `gog auth add you@example.com --ser
 
 ## Install
 
-Homebrew is the shortest path on macOS and Linux:
+Homebrew is the shortest path on macOS and Linux. Prebuilt macOS binaries
+require macOS 15 or later:
 
 ```bash
 brew install openclaw/tap/gogcli
