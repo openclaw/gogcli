@@ -1,13 +1,13 @@
 # Changelog
 
-## 0.42.1 - Unreleased
+## 0.43.0 - 2026-09-30
 
-- Dependencies: update Wrangler and Cloudflare Workers types to their latest releases eligible under the tracking worker’s 24-hour cooldown; retain the pnpm 11 and Go 1.26 floors. (#1178)
+**Highlights:** JSON error envelopes and page metadata, a default auth/config status view, and clearer Gmail MIME guidance.
 
-- CLI: show executable, description, and auth/config status when invoked without arguments; use `gog --help` for the command overview. Preserve JSON-only status output and command policies. (#1172) — thanks @amiruluniten.
 - Output: add stable JSON error envelopes without appending a second document after command results, and include returned-row `count` and `has_more` in common paged lists and Drive file listings. (#1172) — thanks @amiruluniten.
-
+- CLI: show executable, description, and auth/config status when invoked without arguments; use `gog --help` for the command overview. Preserve JSON-only status output and command policies. (#1172) — thanks @amiruluniten.
 - Gmail: clarify full-payload versus raw MIME reads, quote source selection, and the limits of offline reply previews. (#1173) — thanks @hashtag1974.
+- Dependencies: update Wrangler and Cloudflare Workers types to their latest releases eligible under the tracking worker’s 24-hour cooldown; retain the pnpm 11 and Go 1.26 floors. (#1178)
 - Dependencies: refresh Google API/authentication, MCP and gRPC clients, golangci-lint, pnpm 11, and tracking-worker tooling while retaining Go 1.26 compatibility and the worker's 24-hour release-age policy. (#1175)
 
 ## 0.42.0 - 2026-09-25
