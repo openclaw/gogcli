@@ -231,10 +231,13 @@ func tokenSourceClientOptions(ctx context.Context, ts oauth2.TokenSource) []opti
 // Context-driven layers (such as the quota project header) must be wired
 // here so every credential path gets them.
 func newAuthenticatedRetryTransport(ctx context.Context, ts oauth2.TokenSource) *RetryTransport {
-	return NewRetryTransport(&oauth2.Transport{
+	transport := NewRetryTransport(&oauth2.Transport{
 		Source: ts,
-		Base:   quotaProjectTransportFromContext(ctx, newBaseTransport()),
+		Base:   quotaProjectTransportFromContext(ctx, responseLimitedTransportFromContext(ctx, mutationObserverTransportFromContext(ctx, newBaseTransport()))),
 	})
+	transport.SingleAttemptWrites = mutationObserverFromContext(ctx) != nil
+
+	return transport
 }
 
 func optionsForAccountScopesWithStoredScopeCheck(

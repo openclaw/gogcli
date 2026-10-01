@@ -2,7 +2,7 @@
 
 Every `gog` command has a generated docs page. The source of truth is the live CLI schema; run `make docs-commands` after changing command names, flags, help text, aliases, or arguments.
 
-Generated pages: 775.
+Generated pages: 779.
 
 ## Top-level Commands
 
@@ -510,6 +510,9 @@ Generated pages: 775.
       - [gog gmail drafts reply-all](gog-gmail-drafts-reply-all.md) - Save a reply-all as a draft
       - [gog gmail drafts send](gog-gmail-drafts-send.md) - Send a draft
       - [gog gmail drafts update](gog-gmail-drafts-update.md) - Update a draft
+    - [gog gmail export](gog-gmail-export.md) - Export bounded exact message or attachment bytes
+      - [gog gmail export attachment](gog-gmail-export-attachment.md) - Export exact attachment bytes to a file
+      - [gog gmail export raw](gog-gmail-export-raw.md) - Export exact raw message bytes to a file
     - [gog gmail forward](gog-gmail-forward.md) - Forward a message to new recipients
     - [gog gmail get](gog-gmail-get.md) - Get a message (full|metadata|raw)
     - [gog gmail history](gog-gmail-history.md) - Gmail history
@@ -571,6 +574,7 @@ Generated pages: 775.
     - [gog gmail thread](gog-gmail-thread.md) - Thread operations (get, modify)
       - [gog gmail thread attachments](gog-gmail-thread-attachments.md) - List all attachments in a thread
       - [gog gmail thread get](gog-gmail-thread-get.md) - Get a thread with all messages (optionally download attachments)
+      - [gog gmail thread ids](gog-gmail-thread-ids.md) - Read bounded ordered message metadata without bodies or attachments
       - [gog gmail thread modify](gog-gmail-thread-modify.md) - Modify labels on all messages in a thread
     - [gog gmail track](gog-gmail-track.md) - Email open tracking
       - [gog gmail track key](gog-gmail-track-key.md) - Manage tracking encryption keys

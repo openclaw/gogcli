@@ -16,6 +16,7 @@ type CalendarSearchCmd struct {
 	TimeRangeFlags
 	CalendarID string `name:"calendar" help:"Calendar ID" default:"primary"`
 	Max        int64  `name:"max" aliases:"limit" help:"Max results" default:"25"`
+	Page       string `name:"page" aliases:"cursor" help:"Provider page token"`
 }
 
 func (c *CalendarSearchCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -57,6 +58,9 @@ func (c *CalendarSearchCmd) Run(ctx context.Context, flags *RootFlags) error {
 		MaxResults(c.Max).
 		SingleEvents(true).
 		OrderBy("startTime")
+	if c.Page != "" {
+		call = call.PageToken(c.Page)
+	}
 
 	resp, err := call.Do()
 	if err != nil {
@@ -66,8 +70,9 @@ func (c *CalendarSearchCmd) Run(ctx context.Context, flags *RootFlags) error {
 
 	if outfmt.IsJSON(ctx) {
 		return outfmt.WriteJSON(ctx, stdoutWriter(ctx), map[string]any{
-			"events": wrapEventsWithDays(resp.Items),
-			"query":  query,
+			"events":        wrapEventsWithDays(resp.Items),
+			"query":         query,
+			"nextPageToken": resp.NextPageToken,
 		})
 	}
 

@@ -15,6 +15,26 @@ func buildCalendarUpdatePatch(input calendarUpdateInput, fields calendarUpdateFi
 		return nil, false, err
 	}
 
+	if fields.SourceURL || fields.SourceTitle {
+		changed = true
+		if fields.SourceURL && strings.TrimSpace(input.SourceURL) == "" {
+			if strings.TrimSpace(input.SourceTitle) != "" {
+				return nil, false, usage("cannot set source title while clearing source URL")
+			}
+			patch.NullFields = append(patch.NullFields, "Source")
+		} else {
+			patch.Source = &calendar.EventSource{}
+			if fields.SourceURL {
+				patch.Source.Url = strings.TrimSpace(input.SourceURL)
+			}
+			if fields.SourceTitle {
+				patch.Source.Title = strings.TrimSpace(input.SourceTitle)
+				if patch.Source.Title == "" {
+					patch.Source.ForceSendFields = append(patch.Source.ForceSendFields, "Title")
+				}
+			}
+		}
+	}
 	if applyUpdateTextFields(input, fields, patch) {
 		changed = true
 	}
@@ -93,6 +113,9 @@ func applyUpdateTextFields(input calendarUpdateInput, fields calendarUpdateField
 	changed := false
 	if fields.Summary {
 		patch.Summary = strings.TrimSpace(input.Summary)
+		if patch.Summary == "" {
+			patch.ForceSendFields = appendForceSendField(patch.ForceSendFields, "Summary")
+		}
 		changed = true
 	}
 	if fields.Description {
@@ -104,6 +127,9 @@ func applyUpdateTextFields(input calendarUpdateInput, fields calendarUpdateField
 	}
 	if fields.Location {
 		patch.Location = strings.TrimSpace(input.Location)
+		if patch.Location == "" {
+			patch.ForceSendFields = appendForceSendField(patch.ForceSendFields, "Location")
+		}
 		changed = true
 	}
 	if input.ResolvedPlace != nil {
@@ -169,7 +195,11 @@ func applyUpdateAttendees(input calendarUpdateInput, fields calendarUpdateFields
 	if !fields.Attendees {
 		return false
 	}
-	patch.Attendees = buildAttendees(input.Attendees)
+	patch.Attendees = append(buildAttendees(input.Attendees), buildLiteralAttendees(input.LiteralAttendees)...)
+	if len(patch.Attendees) == 0 {
+		patch.Attendees = []*calendar.EventAttendee{}
+		patch.ForceSendFields = appendForceSendField(patch.ForceSendFields, "Attendees")
+	}
 	return true
 }
 

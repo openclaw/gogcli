@@ -151,7 +151,7 @@ func (c *GmailFiltersCreateCmd) validate() (string, error) {
 	if c.From == "" && c.To == "" && c.Subject == "" && c.Query == "" && !c.HasAttachment {
 		return "", errors.New("must specify at least one criteria flag (--from, --to, --subject, --query, or --has-attachment)")
 	}
-	if c.AddLabel == "" && c.RemoveLabel == "" && !c.Archive && !c.MarkRead && !c.Star && forwardTarget == "" && !c.Trash && !c.NeverSpam && !c.Important {
+	if c.AddLabel == "" && c.RemoveLabel == "" && len(c.AddLabels) == 0 && len(c.RemoveLabels) == 0 && !c.Archive && !c.MarkRead && !c.Star && forwardTarget == "" && !c.Trash && !c.NeverSpam && !c.Important {
 		return "", errors.New("must specify at least one action flag (--add-label, --remove-label, --archive, --mark-read, --star, --forward, --trash, --never-spam, or --important)")
 	}
 	if forwardTarget != "" {
@@ -172,8 +172,8 @@ func (c *GmailFiltersCreateCmd) dryRunPayload(forwardTarget string) map[string]a
 			"has_attachment": c.HasAttachment,
 		},
 		"actions": map[string]any{
-			"add_label":    splitCSV(c.AddLabel),
-			"remove_label": splitCSV(c.RemoveLabel),
+			"add_label":    append(splitCSV(c.AddLabel), c.AddLabels...),
+			"remove_label": append(splitCSV(c.RemoveLabel), c.RemoveLabels...),
 			"archive":      c.Archive,
 			"mark_read":    c.MarkRead,
 			"star":         c.Star,
@@ -223,18 +223,18 @@ func (c *GmailFiltersCreateCmd) buildAction(svc *gmail.Service, forwardTarget st
 		err      error
 		labelMap map[string]string
 	)
-	if c.AddLabel != "" || c.RemoveLabel != "" {
+	if c.AddLabel != "" || c.RemoveLabel != "" || len(c.AddLabels) > 0 || len(c.RemoveLabels) > 0 {
 		labelMap, err = fetchLabelNameToID(svc)
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	if c.AddLabel != "" {
-		action.AddLabelIds = resolveLabelIDs(splitCSV(c.AddLabel), labelMap)
+	if c.AddLabel != "" || len(c.AddLabels) > 0 {
+		action.AddLabelIds = resolveLabelIDs(append(splitCSV(c.AddLabel), c.AddLabels...), labelMap)
 	}
-	if c.RemoveLabel != "" {
-		action.RemoveLabelIds = resolveLabelIDs(splitCSV(c.RemoveLabel), labelMap)
+	if c.RemoveLabel != "" || len(c.RemoveLabels) > 0 {
+		action.RemoveLabelIds = resolveLabelIDs(append(splitCSV(c.RemoveLabel), c.RemoveLabels...), labelMap)
 	}
 	if c.Archive {
 		action.RemoveLabelIds = append(action.RemoveLabelIds, "INBOX")
@@ -262,6 +262,9 @@ func (c *GmailFiltersCreateCmd) buildAction(svc *gmail.Service, forwardTarget st
 }
 
 func createGmailFilterWithRetry(ctx context.Context, svc *gmail.Service, filter *gmail.Filter) (*gmail.Filter, error) {
+	if mcpMutationFromContext(ctx) != nil {
+		return svc.Users.Settings.Filters.Create("me", filter).Context(ctx).Do()
+	}
 	var lastErr error
 
 	for attempt := 0; attempt <= gmailFilterCreateMaxRetries; attempt++ {

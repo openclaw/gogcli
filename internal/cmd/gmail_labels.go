@@ -172,6 +172,9 @@ func (c *GmailLabelsRenameCmd) Run(ctx context.Context, flags *RootFlags) error 
 	if err != nil {
 		return mapLabelCreateError(err, newName)
 	}
+	if updated != nil {
+		recordMCPMutationID(ctx, updated.Id)
+	}
 
 	if outfmt.IsJSON(ctx) {
 		return outfmt.WriteJSON(ctx, stdoutWriter(ctx), map[string]any{"label": updated})
@@ -461,6 +464,7 @@ func (c *GmailLabelsDeleteCmd) Run(ctx context.Context, flags *RootFlags) error 
 	if err := svc.Users.Labels.Delete("me", label.Id).Context(ctx).Do(); err != nil {
 		return err
 	}
+	recordMCPMutationID(ctx, label.Id)
 
 	return writeResult(ctx, u,
 		kv("deleted", true),

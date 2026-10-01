@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -51,6 +52,8 @@ type RootFlags struct {
 	Force               bool   `help:"Skip confirmations for destructive commands" aliases:"yes,assume-yes" short:"y"`
 	NoInput             bool   `help:"Never prompt; fail instead (useful for CI)" aliases:"non-interactive,noninteractive"`
 	Verbose             bool   `help:"Enable verbose logging" short:"v"`
+	MCPReceipt          bool   `name:"mcp-receipt" hidden:"" help:"Internal bounded MCP mutation receipt mode"`
+	MCPBoundedRead      bool   `name:"mcp-bounded-read" hidden:"" help:"Internal bounded MCP provider response mode"`
 	diagnostics         io.Writer
 	authOperations      app.AuthOperations
 	configStoreResolver func() (*config.ConfigStore, error)
@@ -247,14 +250,24 @@ func executeWithRuntime(args []string, runtime *app.Runtime) (err error) {
 		return reportEarlyError(kctx, runtimeIO.Err, err)
 	}
 
+	var receipt *mcpMutationRecorder
+	if cli.MCPReceipt {
+		receipt = &mcpMutationRecorder{}
+		jsonErrors = false
+		runtimeCopy := *runtime
+		runtime = &runtimeCopy
+		runtime.IO.Out = io.Discard
+		defer func() { _ = json.NewEncoder(runtimeIO.Out).Encode(receipt.receipt(err, cli.DryRun)) }()
+	}
 	if mode.JSON {
-		output = &errorOutputWriter{Writer: runtimeIO.Out}
+		output = &errorOutputWriter{Writer: runtime.IO.Out}
 		runtimeCopy := *runtime
 		runtime = &runtimeCopy
 		runtime.IO.Out = output
 	}
 
 	ctx := context.Background()
+	ctx = mcpExecutionContext(ctx, &cli.RootFlags, receipt)
 	ctx = app.WithRuntime(ctx, runtime)
 	ctx = googleapi.WithReadOnly(ctx, cli.ReadOnly)
 	if cli.NoInput || !stdinIsTerminal(ctx) {
