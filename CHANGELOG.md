@@ -1,5 +1,7 @@
 # Changelog
 
+## Unreleased
+
 ## 0.43.0 - 2026-09-30
 
 **Highlights:** JSON error envelopes and page metadata, a default auth/config status view, and clearer Gmail MIME guidance.
