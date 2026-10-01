@@ -2,7 +2,7 @@
 
 ## 0.42.1 - Unreleased
 
-- Dependencies: update Wrangler and Cloudflare Workers types to their latest releases eligible under the tracking worker’s 24-hour cooldown; retain the pnpm 11 and Go 1.26 floors.
+- Dependencies: update Wrangler and Cloudflare Workers types to their latest releases eligible under the tracking worker’s 24-hour cooldown; retain the pnpm 11 and Go 1.26 floors. (#1178)
 
 - CLI: show executable, description, and auth/config status when invoked without arguments; use `gog --help` for the command overview. Preserve JSON-only status output and command policies. (#1172) — thanks @amiruluniten.
 - Output: add stable JSON error envelopes without appending a second document after command results, and include returned-row `count` and `has_more` in common paged lists and Drive file listings. (#1172) — thanks @amiruluniten.
