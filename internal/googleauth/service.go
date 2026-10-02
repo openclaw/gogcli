@@ -46,9 +46,10 @@ const (
 )
 
 var (
-	errUnknownService    = errors.New("unknown service")
-	errInvalidDriveScope = errors.New("invalid drive scope")
-	errInvalidGmailScope = errors.New("invalid gmail scope")
+	errUnknownService     = errors.New("unknown service")
+	errInvalidDriveScope  = errors.New("invalid drive scope")
+	errInvalidGmailScope  = errors.New("invalid gmail scope")
+	errInvalidPhotosScope = errors.New("invalid photos scope")
 )
 
 type DriveScopeMode string
@@ -57,6 +58,20 @@ const (
 	DriveScopeFull     DriveScopeMode = "full"
 	DriveScopeReadonly DriveScopeMode = "readonly"
 	DriveScopeFile     DriveScopeMode = "file"
+)
+
+type PhotosScopeMode string
+
+// Photos upload is opt-in: the default stays read-only (app-created media), and
+// --photos-scope=append adds photoslibrary.appendonly for upload/album create.
+const (
+	PhotosScopeReadonly PhotosScopeMode = "readonly"
+	PhotosScopeAppend   PhotosScopeMode = "append"
+)
+
+const (
+	photosScopeReadonlyAppCreated = "https://www.googleapis.com/auth/photoslibrary.readonly.appcreateddata"
+	photosScopeAppendOnly         = "https://www.googleapis.com/auth/photoslibrary.appendonly"
 )
 
 type GmailScopeMode string
@@ -72,6 +87,7 @@ type ScopeOptions struct {
 	Readonly    bool
 	DriveScope  DriveScopeMode
 	GmailScope  GmailScopeMode
+	PhotosScope PhotosScopeMode
 	ExtraScopes []string
 }
 
@@ -312,7 +328,7 @@ var serviceInfoByService = map[Service]serviceInfo{
 		scopes: []string{"https://www.googleapis.com/auth/photoslibrary.readonly.appcreateddata"},
 		user:   true,
 		apis:   []string{"Photos Library API"},
-		note:   "Read-only app-created media only after Google Photos Library API scope changes",
+		note:   "Read-only app-created media only after Google Photos Library API scope changes; --photos-scope=append adds upload and album create",
 	},
 	ServicePhotosPicker: {
 		scopes: []string{"https://www.googleapis.com/auth/photospicker.mediaitems.readonly"},
@@ -592,6 +608,23 @@ func gmailScopesWithOptions(opts ScopeOptions) ([]string, error) {
 	}
 }
 
+// photosScopesWithOptions keeps upload opt-in: read-only app-created media by
+// default, plus photoslibrary.appendonly only for --photos-scope=append.
+func photosScopesWithOptions(opts ScopeOptions) ([]string, error) {
+	switch strings.TrimSpace(string(opts.PhotosScope)) {
+	case "", string(PhotosScopeReadonly):
+		return []string{photosScopeReadonlyAppCreated}, nil
+	case string(PhotosScopeAppend):
+		if opts.Readonly {
+			return nil, fmt.Errorf("%w %q: upload is incompatible with read-only access", errInvalidPhotosScope, opts.PhotosScope)
+		}
+
+		return []string{photosScopeReadonlyAppCreated, photosScopeAppendOnly}, nil
+	default:
+		return nil, fmt.Errorf("%w %q (expected readonly|append)", errInvalidPhotosScope, opts.PhotosScope)
+	}
+}
+
 func scopesForServiceWithOptions(service Service, opts ScopeOptions) ([]string, error) {
 	driveScope := strings.TrimSpace(string(opts.DriveScope))
 	switch driveScope {
@@ -751,7 +784,7 @@ func scopesForServiceWithOptions(service Service, opts ScopeOptions) ([]string, 
 	case ServiceYouTube:
 		return Scopes(service)
 	case ServicePhotos:
-		return Scopes(service)
+		return photosScopesWithOptions(opts)
 	case ServicePhotosPicker:
 		return Scopes(service)
 	default:

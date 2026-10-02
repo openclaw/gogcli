@@ -39,6 +39,7 @@ gog login <email> [flags]
 | `--listen-addr` | `string` |  | Address to listen on for OAuth callback (for example 0.0.0.0 or 0.0.0.0:8080) |
 | `--manual` | `bool` |  | Browserless auth flow (paste redirect URL) |
 | `--no-input`<br>`--non-interactive`<br>`--noninteractive` | `bool` |  | Never prompt; fail instead (useful for CI) |
+| `--photos-scope` | `string` | readonly | Photos scope mode: readonly\|append (append adds upload and app-created album create) |
 | `-p`<br>`--plain`<br>`--tsv` | `bool` | false | Output stable, parseable text to stdout (TSV; no colors) |
 | `--quota-project` | `string` |  | Google Cloud project to bill for API usage (sent as X-Goog-User-Project; some APIs require it with --access-token or ADC) |
 | `--readonly` | `bool` | false | Block mutating API requests at runtime; auth add also requests read-only OAuth scopes |

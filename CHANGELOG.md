@@ -2,6 +2,8 @@
 
 ## 0.43.1 - Unreleased
 
+- Photos: add `photos upload` (optionally into an app-created album, with a description) and `photos albums list|create` for app-created albums. Upload is opt-in: `auth add --photos-scope=append` adds `photoslibrary.appendonly`; the default stays read-only. Only photo and video file types are sent.
+
 ## 0.43.0 - 2026-09-30
 
 **Highlights:** JSON error envelopes and page metadata, a default auth/config status view, and clearer Gmail MIME guidance.

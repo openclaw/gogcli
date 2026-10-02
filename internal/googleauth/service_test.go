@@ -664,3 +664,34 @@ func TestScopes_UnknownService(t *testing.T) {
 		t.Fatalf("expected error")
 	}
 }
+
+func TestScopesForPhotosAppendIsOptIn(t *testing.T) {
+	const ro = "https://www.googleapis.com/auth/photoslibrary.readonly.appcreateddata"
+	const ap = "https://www.googleapis.com/auth/photoslibrary.appendonly"
+
+	def, err := scopesForServiceWithOptions(ServicePhotos, ScopeOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(def) != 1 || def[0] != ro {
+		t.Fatalf("default photos scopes = %v, want read-only only", def)
+	}
+
+	app, err := scopesForServiceWithOptions(ServicePhotos, ScopeOptions{PhotosScope: PhotosScopeAppend})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !containsScope(app, ro) || !containsScope(app, ap) || len(app) != 2 {
+		t.Fatalf("append photos scopes = %v", app)
+	}
+
+	if _, err := scopesForServiceWithOptions(ServicePhotos, ScopeOptions{Readonly: true, PhotosScope: PhotosScopeAppend}); err == nil {
+		t.Fatal("expected error combining --readonly with --photos-scope=append")
+	}
+
+	if _, err := scopesForServiceWithOptions(ServicePhotos, ScopeOptions{PhotosScope: "write"}); err == nil {
+		t.Fatal("expected error for unknown photos scope")
+	}
+}

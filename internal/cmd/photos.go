@@ -21,6 +21,8 @@ type PhotosCmd struct {
 	Search   PhotosSearchCmd   `cmd:"" name:"search" aliases:"find" help:"Search app-created media items"`
 	Get      PhotosGetCmd      `cmd:"" name:"get" aliases:"info,show" help:"Get an app-created media item"`
 	Download PhotosDownloadCmd `cmd:"" name:"download" aliases:"dl" help:"Download an app-created media item"`
+	Upload   PhotosUploadCmd   `cmd:"" name:"upload" aliases:"up" help:"Upload photos or videos, optionally into an app-created album"`
+	Albums   PhotosAlbumsCmd   `cmd:"" name:"albums" help:"List or create app-created albums"`
 	Picker   PhotosPickerCmd   `cmd:"" name:"picker" help:"Access user-selected media with the Photos Picker API"`
 }
 
