@@ -16,11 +16,13 @@ gog photos (photo) <command> [flags]
 
 ## Subcommands
 
+- [gog photos albums](gog-photos-albums.md) - List or create app-created albums
 - [gog photos download](gog-photos-download.md) - Download an app-created media item
 - [gog photos get](gog-photos-get.md) - Get an app-created media item
 - [gog photos list](gog-photos-list.md) - List app-created media items
 - [gog photos picker](gog-photos-picker.md) - Access user-selected media with the Photos Picker API
 - [gog photos search](gog-photos-search.md) - Search app-created media items
+- [gog photos upload](gog-photos-upload.md) - Upload photos or videos, optionally into an app-created album
 
 ## Flags
 

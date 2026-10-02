@@ -2,7 +2,7 @@
 
 Every `gog` command has a generated docs page. The source of truth is the live CLI schema; run `make docs-commands` after changing command names, flags, help text, aliases, or arguments.
 
-Generated pages: 775.
+Generated pages: 779.
 
 ## Top-level Commands
 
@@ -619,6 +619,9 @@ Generated pages: 775.
     - [gog people relations](gog-people-relations.md) - Get user relations
     - [gog people search](gog-people-search.md) - Search the Workspace directory
   - [gog photos](gog-photos.md) - Google Photos Library and Picker APIs
+    - [gog photos albums](gog-photos-albums.md) - List or create app-created albums
+      - [gog photos albums create](gog-photos-albums-create.md) - Create an app-created album (uploads can only target these)
+      - [gog photos albums list](gog-photos-albums-list.md) - List app-created albums
     - [gog photos download](gog-photos-download.md) - Download an app-created media item
     - [gog photos get](gog-photos-get.md) - Get an app-created media item
     - [gog photos list](gog-photos-list.md) - List app-created media items
@@ -630,6 +633,7 @@ Generated pages: 775.
       - [gog photos picker list](gog-photos-picker-list.md) - List media selected in a session
       - [gog photos picker wait](gog-photos-picker-wait.md) - Wait until the user finishes picking media
     - [gog photos search](gog-photos-search.md) - Search app-created media items
+    - [gog photos upload](gog-photos-upload.md) - Upload photos or videos, optionally into an app-created album
   - [gog schema](gog-schema.md) - Machine-readable command/flag schema
   - [gog search](gog-search.md) - Search Drive files (alias for 'drive search')
   - [gog searchconsole](gog-searchconsole.md) - Google Search Console

@@ -565,6 +565,9 @@ Generated from `gog schema --json`.
     - [`gog people (person) relations [<userId>] [flags]`](commands/gog-people-relations.md) - Get user relations
     - [`gog people (person) search (find,query) <query> ... [flags]`](commands/gog-people-search.md) - Search the Workspace directory
   - [`gog photos (photo) <command> [flags]`](commands/gog-photos.md) - Google Photos Library and Picker APIs
+    - [`gog photos (photo) albums <command>`](commands/gog-photos-albums.md) - List or create app-created albums
+      - [`gog photos (photo) albums create <title>`](commands/gog-photos-albums-create.md) - Create an app-created album (uploads can only target these)
+      - [`gog photos (photo) albums list (ls) [flags]`](commands/gog-photos-albums-list.md) - List app-created albums
     - [`gog photos (photo) download (dl) <mediaItemId> [flags]`](commands/gog-photos-download.md) - Download an app-created media item
     - [`gog photos (photo) get (info,show) <mediaItemId>`](commands/gog-photos-get.md) - Get an app-created media item
     - [`gog photos (photo) list (ls) [flags]`](commands/gog-photos-list.md) - List app-created media items
@@ -576,6 +579,7 @@ Generated from `gog schema --json`.
       - [`gog photos (photo) picker list (ls,items) <sessionId> [flags]`](commands/gog-photos-picker-list.md) - List media selected in a session
       - [`gog photos (photo) picker wait (poll) <sessionId> [flags]`](commands/gog-photos-picker-wait.md) - Wait until the user finishes picking media
     - [`gog photos (photo) search (find) [flags]`](commands/gog-photos-search.md) - Search app-created media items
+    - [`gog photos (photo) upload (up) <file> ... [flags]`](commands/gog-photos-upload.md) - Upload photos or videos, optionally into an app-created album
   - [`gog schema (help-json,helpjson) [<command> ...] [flags]`](commands/gog-schema.md) - Machine-readable command/flag schema
   - [`gog search (find) <query> ... [flags]`](commands/gog-search.md) - Search Drive files (alias for 'drive search')
   - [`gog searchconsole (gsc,search-console,webmasters) <command> [flags]`](commands/gog-searchconsole.md) - Google Search Console

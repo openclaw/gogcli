@@ -28,11 +28,13 @@ gog --readonly --account user@example.com photos --help
 
 | Command | Purpose |
 | --- | --- |
+| `albums` | List or create app-created albums |
 | `download` | Download an app-created media item |
 | `get` | Get an app-created media item |
 | `list` | List app-created media items |
 | `picker` | Access user-selected media with the Photos Picker API |
 | `search` | Search app-created media items |
+| `upload` | Upload photos or videos, optionally into an app-created album |
 
 Run `gog photos <command> --help` for flags and `gog schema photos <command> --json`
 for the machine-readable contract. Do not guess command syntax.
