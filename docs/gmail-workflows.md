@@ -15,6 +15,15 @@ gog gmail get <messageId> --json
 gog gmail thread get <threadId> --json
 ```
 
+Gmail queries beginning with `-`, such as `-in:inbox`, require the option
+delimiter `--` even when quoted. Put every command flag, including `--max` and
+`--json`, before `--`; everything after it is treated as positional query text.
+
+```bash
+gog gmail search --max 2 --json -- '-in:inbox newer_than:7d'
+gog gmail messages search --max 2 --json -- '-in:inbox newer_than:7d'
+```
+
 Thread searches fail if any thread detail cannot be fetched, without emitting a
 partial result list. Retry the search after resolving the reported API error.
 

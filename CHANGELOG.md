@@ -2,6 +2,8 @@
 
 ## 0.43.1 - Unreleased
 
+- Gmail: document the option delimiter for search queries beginning with `-`, with thread and message examples and flags-before-delimiter guidance. (#1184) — thanks @postoso.
+
 ## 0.43.0 - 2026-09-30
 
 **Highlights:** JSON error envelopes and page metadata, a default auth/config status view, and clearer Gmail MIME guidance.

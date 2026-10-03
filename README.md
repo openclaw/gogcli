@@ -57,6 +57,9 @@ gog auth doctor --check
 gog gmail search 'newer_than:7d' --max 10
 ```
 
+For Gmail queries beginning with `-`, place all flags before `--`; see
+[Search and Read](docs/gmail-workflows.md#search-and-read).
+
 The [five-minute quickstart](docs/quickstart.md) covers API enablement, the OAuth
 consent screen, weekly-token-expiry avoidance, headless authorization, and
 account defaults.
