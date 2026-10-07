@@ -12,9 +12,10 @@ import (
 
 // MeetUpdateCmd updates the configuration of a meeting space.
 type MeetUpdateCmd struct {
-	MeetingCode string `arg:"" name:"meeting-code" help:"Meeting code (e.g. abc-defg-hij)"`
-	Access      string `name:"access" aliases:"access-type" help:"Access type: open, trusted, or restricted"`
-	EntryPoint  string `name:"entry-point" aliases:"entry-point-access" help:"Entry point access: all or creator-only" hidden:""`
+	MeetingCode string               `arg:"" name:"meeting-code" help:"Meeting code (e.g. abc-defg-hij)"`
+	Access      string               `name:"access" aliases:"access-type" help:"Access type: open, trusted, or restricted"`
+	EntryPoint  string               `name:"entry-point" aliases:"entry-point-access" help:"Entry point access: all or creator-only" hidden:""`
+	Config      MeetSpaceConfigFlags `embed:""`
 }
 
 func (c *MeetUpdateCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -46,8 +47,15 @@ func (c *MeetUpdateCmd) Run(ctx context.Context, flags *RootFlags) error {
 		updateMask = append(updateMask, "config.entryPointAccess")
 	}
 
+	configMask, err := c.Config.apply(patch.Config)
+	if err != nil {
+		return err
+	}
+
+	updateMask = append(updateMask, configMask...)
+
 	if len(updateMask) == 0 {
-		return usage("at least one of --access or --entry-point is required")
+		return usage("at least one setting is required (e.g. --access, --recording, --transcription, --moderation)")
 	}
 
 	if dryRunErr := dryRunExit(ctx, flags, "meet.spaces.patch", map[string]any{

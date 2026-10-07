@@ -551,6 +551,11 @@ func TestDryRunE2E_CommandsSkipAuthAPIAndFileWrites(t *testing.T) {
 			op:   "meet.spaces.patch",
 		},
 		{
+			name: "meet update space config",
+			args: []string{"meet", "update", "abc-defg-hij", "--no-recording", "--restrict-chat"},
+			op:   "meet.spaces.patch",
+		},
+		{
 			name: "meet end",
 			args: []string{"meet", "end", "abc-defg-hij"},
 			op:   "meet.end",
