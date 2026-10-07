@@ -100,6 +100,12 @@ including in sanitized thread output. A missing header is empty in ordinary
 message JSON and omitted in sanitized output. Reading Reply-To does not change
 reply routing or send a message.
 
+With `--wrap-untrusted`, standard field names such as `From`, `Subject`, and
+`Reply-To` stay unchanged in Gmail `payload.headers` arrays, including nested
+MIME parts, so scripts can still select headers by name. Header values and
+custom or malformed field names remain wrapped. Flattened From, To, Cc, and
+Bcc values are also wrapped because their display names are sender-controlled.
+
 Thread and draft attachment downloads honor `--dry-run` before opening account
 credentials, fetching messages, or writing files. Thread downloads keep their
 current-directory default or explicit `--out-dir`; draft downloads retain the

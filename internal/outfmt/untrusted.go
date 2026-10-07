@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"unicode"
 )
 
 const (
@@ -222,6 +223,17 @@ func shouldWrapUntrustedString(path []string, key string, value string) bool {
 	}
 
 	normalizedKey := normalizeJSONKey(key)
+	if normalizedKey == "name" && isGmailPayloadHeaderPath(path) && isStandardMailHeader(value) {
+		return false
+	}
+
+	if len(path) >= 2 && path[len(path)-2] == "headers" {
+		switch normalizedKey {
+		case "from", "to", "cc", "bcc":
+			return true
+		}
+	}
+
 	if normalizedKey == "name" && len(path) >= 3 {
 		parent := normalizeJSONKey(path[len(path)-2])
 		grandparent := normalizeJSONKey(path[len(path)-3])
@@ -250,6 +262,40 @@ func shouldWrapUntrustedString(path []string, key string, value string) bool {
 	}
 
 	return false
+}
+
+func isGmailPayloadHeaderPath(path []string) bool {
+	if len(path) < 3 || path[len(path)-2] != "headers" {
+		return false
+	}
+
+	i := len(path) - 3
+	for i > 0 && path[i] == "parts" {
+		i--
+	}
+
+	return path[i] == "payload"
+}
+
+func isStandardMailHeader(name string) bool {
+	for _, r := range name {
+		if r > unicode.MaxASCII {
+			return false
+		}
+	}
+
+	// Only fixed identifiers bypass wrapping, never arbitrary sender-chosen names.
+	switch strings.ToLower(name) {
+	case "from", "to", "cc", "bcc", "sender", "reply-to", "subject", "date",
+		"message-id", "in-reply-to", "references", "return-path", "received",
+		"resent-date", "resent-from", "resent-sender", "resent-to", "resent-cc", "resent-bcc", "resent-message-id",
+		"mime-version", "content-type", "content-transfer-encoding", "content-disposition", "content-id", "content-description",
+		"list-id", "list-help", "list-unsubscribe", "list-unsubscribe-post", "list-subscribe", "list-post", "list-owner", "list-archive",
+		"authentication-results", "dkim-signature", "arc-authentication-results", "arc-message-signature", "arc-seal":
+		return true
+	default:
+		return false
+	}
 }
 
 func normalizeJSONKey(key string) string {
