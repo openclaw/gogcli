@@ -140,6 +140,26 @@ gog auth list --check --json --no-input
 gog auth doctor --check --json --no-input
 ```
 
+These commands treat failed checks as diagnostic results. If they emit the
+report successfully, they can exit `0` even when authentication is unhealthy.
+For an OAuth-token preflight, require `auth doctor` top-level `status` to be
+`ok` before continuing:
+
+```bash
+doctor_json="$(gog --no-input --json auth doctor --check)" &&
+  printf '%s\n' "$doctor_json" | jq -se 'length == 1 and .[0].status == "ok"' >/dev/null &&
+  run_next_command
+```
+
+The assignment stops the chain if `gog` fails, while `jq -se` requires exactly
+one result and rejects empty or malformed output and any `warn` or `error`
+status. For `auth list --check`, inspect each account's `valid` and `error`
+fields. A service-account row with `valid: true` and
+`error: "service account (not checked)"` only confirms local configuration; it
+does not prove provider access. Service accounts, Application Default
+Credentials, and `GOG_ACCESS_TOKEN` should instead be validated with a
+least-privilege read against the intended service.
+
 ## Exit codes
 
 Google API rate-limit retries honor `Retry-After` delays up to 60 seconds per
@@ -174,9 +194,10 @@ Malformed local payloads, such as invalid token-import JSON or timestamps, use
 `usage` (`2`). Commands that cannot run because their required local setup is
 absent or incomplete use `config` (`10`).
 
-If Google rejects an OAuth token refresh with `invalid_grant`, the command exits
-with `auth_required` (`4`) and retains its reauthorization advice, including in
-`--no-input` and `--readonly` runs.
+If Google rejects an OAuth token refresh with `invalid_grant`, ordinary service
+commands exit with `auth_required` (`4`) and retain their reauthorization
+advice, including in `--no-input` and `--readonly` runs. The diagnostic
+commands above instead report the failed check in their structured result.
 
 The same classifications apply to direct HTTP integrations such as Photos
 Library, Photos Picker, and Places. For example, an expired or deleted Picker

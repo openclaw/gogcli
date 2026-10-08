@@ -68,8 +68,8 @@ Environment=GOG_HOME=/var/lib/gogcli
 Environment=HOME=/home/openclaw
 ```
 
-Then reload and restart the service before testing from the same entrypoint the
-agent uses:
+Then reload and restart the service before testing the OAuth-backed file-keyring
+setup from the same entrypoint the agent uses:
 
 ```bash
 systemctl --user daemon-reload
@@ -79,12 +79,19 @@ systemctl --user show openclaw-gateway.service \
   --property=Environment
 
 openclaw agent --agent main --message \
-  'Run: gog auth doctor --check --no-input && gog gmail search "newer_than:1d" --max 1 --json'
+  'Run: doctor_json="$(gog --no-input --json auth doctor --check)" &&
+  printf "%s\n" "$doctor_json" | jq -se "length == 1 and .[0].status == \"ok\"" >/dev/null &&
+  gog gmail search "newer_than:1d" --max 1 --json'
 ```
 
 If the shell command succeeds but the agent still reports `keyring.password`,
 fix the agent or service environment first. Re-authenticating usually does not
 help when `gog auth doctor --check` already shows readable tokens in the shell.
+The JSON predicate is required for gating: `auth doctor` exits successfully
+when it emits a diagnostic report, even if that report has failed checks.
+For service accounts, Application Default Credentials, or `GOG_ACCESS_TOKEN`,
+use a least-privilege service read instead; doctor does not validate those
+authentication routes.
 
 ## Windows
 
