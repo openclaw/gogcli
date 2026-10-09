@@ -2,6 +2,7 @@
 
 ## 0.43.1 - Unreleased
 
+- Docker: pre-create `/persist/gogcli` owned by the non-root `gog` user so the documented named-volume `GOG_HOME` is writable on first run, and document the one-time ownership step for bind mounts and pre-existing volumes. (#1197) — thanks @wstock.
 - Dependencies: refresh Google API and telemetry modules, tracking-worker packages, pnpm 11, and x/tools while retaining the Go 1.26 floor and worker release cooldown.
 - Gmail: include recipient headers and optionally sanitize message-search content through CLI and MCP; preserve untrusted sender/recipient wrapping across JSON projection. (#1188) — thanks @kendrickkester.
 - Photos: upload media and list/create app-created albums with an explicit append-scope opt-in; preserve read-only defaults and narrowed grants during reauthorization. (#1185) — thanks @beyondzero.

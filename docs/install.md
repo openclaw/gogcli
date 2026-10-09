@@ -47,6 +47,20 @@ docker run --rm -it \
   auth add you@gmail.com --services gmail,calendar,drive
 ```
 
+The image pre-creates `/persist/gogcli` owned by its non-root `gog` user
+(uid 10001), and Docker seeds an empty named volume from the image, so the
+volume is writable on the first run. Two cases keep their existing ownership
+and need a one-time fix before authenticating: a bind-mounted host directory,
+and a non-empty volume that was first used with an image older than this
+change. Give the whole tree to the runtime user (swap in `-v /path/on/host:/persist/gogcli`
+for a bind mount):
+
+```bash
+docker run --rm --user 0 --entrypoint chown \
+  -v gogcli-state:/persist/gogcli \
+  ghcr.io/openclaw/gogcli:latest -R 10001:10001 /persist/gogcli
+```
+
 Keep `GOG_KEYRING_PASSWORD` in the shell session or your CI secret store. Do
 not bake it into images, scripts, or checked-in profiles.
 See [Paths and State](paths.md) for `GOG_HOME`, per-kind `GOG_*_DIR`
