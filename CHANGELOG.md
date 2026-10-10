@@ -8,7 +8,7 @@
 - Meet: configure recording, transcription, smart notes, attendance reports, and moderation through explicit create/update flags; preserve omitted settings with per-field update masks. (#1182) — thanks @regaw-leinad.
 - Gmail: preserve standard payload header identifiers under `--wrap-untrusted`, keep custom names and values wrapped, and wrap flattened sender/recipient display text. (#1183) — thanks @postoso.
 - Gmail: document the option delimiter for search queries beginning with `-`, with thread and message examples and flags-before-delimiter guidance. (#1184) — thanks @postoso.
-- Auth: make the documented doctor preflight inspect diagnostic status before continuing, and clarify diagnostic exit semantics. (#1195) — thanks @coygeek.
+- Auth: make the documented doctor preflight inspect diagnostic status before continuing, and clarify diagnostic exit semantics. (#1195, #1198) — thanks @coygeek and @goutamadwant.
 
 ## 0.43.0 - 2026-09-30
 
