@@ -80,3 +80,15 @@ func TestGmailSend_ExplicitEmptyBodyWithAttachment(t *testing.T) {
 		assertGmailComposeFailsFast(t, args, "--body", "required")
 	}
 }
+
+func TestGmailSend_EmptyBodyAttachmentKeepsExplicitSignature(t *testing.T) {
+	attachment := writeTempFile(t, "document.pdf", "synthetic attachment bytes")
+	signature := writeTempFile(t, "signature.txt", "Requested signature")
+	raw, _ := captureComposeRaw(t, []string{
+		"--account", "me@example.com", "gmail", "send", "--to", "printer@example.com",
+		"--subject", "Print", "--body", "", "--attach", attachment, "--signature-file", signature,
+	}, "/gmail/v1/users/me/messages/send", mockReplySourceMessage)
+	if !strings.Contains(raw, "Requested signature") {
+		t.Fatal("attachment-only send discarded its explicit signature")
+	}
+}

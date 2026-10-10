@@ -104,10 +104,11 @@ func readComposeSignatureFile(path string) (composeSignature, error) {
 }
 
 func appendComposeSignature(plainBody, htmlBody string, signature composeSignature) (string, string) {
-	if strings.TrimSpace(signature.Plain) != "" && strings.TrimSpace(plainBody) != "" {
+	signatureOnly := strings.TrimSpace(plainBody) == "" && strings.TrimSpace(htmlBody) == ""
+	if strings.TrimSpace(signature.Plain) != "" && (strings.TrimSpace(plainBody) != "" || signatureOnly) {
 		plainBody = appendBodyBlock(plainBody, "--\n"+strings.TrimSpace(signature.Plain))
 	}
-	if strings.TrimSpace(signature.HTML) != "" && strings.TrimSpace(htmlBody) != "" {
+	if strings.TrimSpace(signature.HTML) != "" && (strings.TrimSpace(htmlBody) != "" || signatureOnly) {
 		htmlBody = appendBodyBlock(htmlBody, `<div class="gmail_signature">`+strings.TrimSpace(signature.HTML)+`</div>`)
 	}
 	return plainBody, htmlBody
