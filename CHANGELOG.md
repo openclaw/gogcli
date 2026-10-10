@@ -4,6 +4,7 @@
 
 - Docker: pre-create `/persist/gogcli` owned by the non-root `gog` user so the documented named-volume `GOG_HOME` is writable on first run, and document the one-time ownership step for bind mounts and pre-existing volumes. (#1197) — thanks @wstock.
 - Dependencies: refresh Google API and telemetry modules, tracking-worker packages, pnpm 11, and x/tools while retaining the Go 1.26 floor and worker release cooldown.
+- Dependencies: update Google API/auth, MCP, networking and cryptography modules, Wrangler, Workers types, Vite, and patched Sharp 0.35.5 (GHSA-wq5f-xc86-pv6w) while retaining Go 1.26, pnpm 11, and the worker's 24-hour release cooldown.
 - Gmail: include recipient headers and optionally sanitize message-search content through CLI and MCP; preserve untrusted sender/recipient wrapping across JSON projection. (#1188) — thanks @kendrickkester.
 - Photos: upload media and list/create app-created albums with an explicit append-scope opt-in; preserve read-only defaults and narrowed grants during reauthorization. (#1185) — thanks @beyondzero.
 - Meet: configure recording, transcription, smart notes, attendance reports, and moderation through explicit create/update flags; preserve omitted settings with per-field update masks. (#1182) — thanks @regaw-leinad.
