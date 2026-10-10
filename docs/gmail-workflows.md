@@ -182,6 +182,18 @@ This creates an HTML draft; it does not change plain-text MIME behavior. Check
 the draft and recipient-client rendering before relying on the workaround for
 a particular workflow.
 
+## Signatures on drafts
+
+`gmail drafts create` and `gmail drafts update` accept the same `--signature`,
+`--signature-from`, and `--signature-file` flags as `gmail send`. Gmail does not
+add a signature to drafts created through the API, so these flags append it,
+above any `--quote`. When `--auto-from-addressed-alias` picks the sender,
+`--signature` uses that alias. `drafts update` appends the signature to the body
+given in that call.
+
+An HTML signature adds an HTML alternative when the supplied body is plain text,
+preserving image-only signatures and escaping the original body text.
+
 ## Stage an exact RFC822 message as a draft
 
 Use the same prebuilt MIME file as `gmail send --raw-file` to stage a draft
@@ -208,7 +220,7 @@ Rules:
 - Recipients may be omitted for a draft; any supplied recipient addresses must
   be valid. Direct access tokens and ADC require an explicit `--account`.
 - Compose flags cannot be combined with raw input, including body, recipient,
-  attachment, sender, reply, quote, and update's clear flags. If
+  attachment, sender, reply, quote, signature, and update's clear flags. If
   `GOG_GMAIL_AUTO_FROM_ADDRESSED_ALIAS` is enabled, disable it for raw mode with
   `--auto-from-addressed-alias=false`.
 - Optional `--thread-id` sets only `message.threadId`; it does not fetch a reply
@@ -424,6 +436,14 @@ gog gmail drafts forward <messageId> --note "FYI"
 
 Remote HTTP images remain remote references. Only MIME parts referenced with
 `cid:` are copied into the outgoing message.
+
+`gmail forward` and `gmail drafts forward` accept the same `--signature`,
+`--signature-from`, and `--signature-file` flags as `gmail send`. Gmail does not
+add a signature to messages created through the API, so these flags append it
+between the `--note` and the forwarded message. When the original has only a
+plain-text body, or no body text at all, and the signature has HTML, the forward
+also gets an HTML part with the escaped original text, so an image-only
+signature is not lost.
 
 `gmail send --reply-to-message-id` remains available as lower-level
 composition. It now inherits an omitted subject, but its explicit `--to` and

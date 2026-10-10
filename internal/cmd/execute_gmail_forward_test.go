@@ -316,6 +316,7 @@ func TestStripForwardPrefix(t *testing.T) {
 func TestFormatForwardedMessage(t *testing.T) {
 	result := formatForwardedMessage(
 		"See below",
+		composeSignature{},
 		"Alice <alice@example.com>",
 		"Mon, 10 Mar 2026 09:00:00 -0400",
 		"Test Subject",
@@ -344,7 +345,7 @@ func TestFormatForwardedMessage(t *testing.T) {
 }
 
 func TestFormatForwardedMessage_NoNote(t *testing.T) {
-	result := formatForwardedMessage("", "from@x.com", "", "Subj", "to@x.com", "", "Body.", time.UTC)
+	result := formatForwardedMessage("", composeSignature{}, "from@x.com", "", "Subj", "to@x.com", "", "Body.", time.UTC)
 	if strings.HasPrefix(result, "\n\n------") {
 		// Should not have leading blank lines when note is empty.
 		t.Errorf("expected no leading blank lines when note is empty")
@@ -357,6 +358,7 @@ func TestFormatForwardedMessage_NoNote(t *testing.T) {
 func TestFormatForwardedMessageHTML(t *testing.T) {
 	result := formatForwardedMessageHTML(
 		"Check this out",
+		composeSignature{},
 		"Alice <alice@example.com>",
 		"Mon, 10 Mar 2026 09:00:00 -0400",
 		"Test",

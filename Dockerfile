@@ -27,8 +27,14 @@ LABEL org.opencontainers.image.source="https://github.com/openclaw/gogcli"
 LABEL org.opencontainers.image.description="Google services CLI for terminal automation"
 LABEL org.opencontainers.image.licenses="MIT"
 
+# /persist/gogcli is the documented persistent GOG_HOME (docs/install.md). A
+# fresh named volume mounted there is seeded from the image, ownership
+# included, so pre-creating it owned by gog keeps the non-root runtime able to
+# initialise its state directories on first run (#1197).
 RUN apk add --no-cache ca-certificates tzdata \
-    && adduser -D -u 10001 -h /home/gog gog
+    && adduser -D -u 10001 -h /home/gog gog \
+    && mkdir -p /persist/gogcli \
+    && chown gog:gog /persist/gogcli
 
 ENV HOME=/home/gog
 WORKDIR /home/gog

@@ -34,7 +34,7 @@ func validateRawDraftFlagPresence(kctx *kong.Context, source string) error {
 	}
 	for _, flag := range []string{
 		"to", "cc", "bcc", "subject", "body", "body-file", "body-html", "body-html-file",
-		"attach", "from", "reply-to", "reply-to-message-id",
+		"attach", "from", "reply-to", "reply-to-message-id", "signature-from", "signature-file",
 	} {
 		if flagProvided(kctx, flag) {
 			return usagef("--raw-file cannot be combined with --%s", flag)
@@ -52,6 +52,7 @@ func (c *GmailDraftsCreateCmd) rawModeConflict() string {
 		Body: c.Body, BodyFile: c.BodyFile, BodyHTML: c.BodyHTML, BodyHTMLFile: c.BodyHTMLFile,
 		ReplyToMessageID: c.ReplyToMessageID, ReplyAll: c.ReplyAll, ReplyTo: c.ReplyTo,
 		Attach: c.Attach, From: c.From, Quote: c.Quote,
+		composeSignatureOptions: c.composeSignatureOptions,
 	}
 	return compose.rawModeConflict()
 }
@@ -71,6 +72,7 @@ func (c *GmailDraftsUpdateCmd) rawModeConflict() string {
 		Body: c.Body, BodyFile: c.BodyFile, BodyHTML: c.BodyHTML, BodyHTMLFile: c.BodyHTMLFile,
 		ReplyToMessageID: c.ReplyToMessageID, ReplyAll: c.ReplyAll, ReplyTo: c.ReplyTo,
 		Attach: c.Attach, From: c.From, Quote: c.Quote, AutoFromAddressedAlias: c.AutoFromAddressedAlias,
+		composeSignatureOptions: c.composeSignatureOptions,
 	}
 	return compose.rawModeConflict()
 }

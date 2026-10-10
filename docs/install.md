@@ -47,6 +47,20 @@ docker run --rm -it \
   auth add you@gmail.com --services gmail,calendar,drive
 ```
 
+The image pre-creates `/persist/gogcli` owned by its non-root `gog` user
+(uid 10001), and Docker seeds an empty named volume from the image, so the
+volume is writable on the first run. Two cases keep their existing ownership
+and need a one-time fix before authenticating: a bind-mounted host directory,
+and a non-empty volume that was first used with an image older than this
+change. Give the whole tree to the runtime user (swap in `-v /path/on/host:/persist/gogcli`
+for a bind mount):
+
+```bash
+docker run --rm --user 0 --entrypoint chown \
+  -v gogcli-state:/persist/gogcli \
+  ghcr.io/openclaw/gogcli:latest -R 10001:10001 /persist/gogcli
+```
+
 Keep `GOG_KEYRING_PASSWORD` in the shell session or your CI secret store. Do
 not bake it into images, scripts, or checked-in profiles.
 See [Paths and State](paths.md) for `GOG_HOME`, per-kind `GOG_*_DIR`
@@ -68,8 +82,8 @@ Environment=GOG_HOME=/var/lib/gogcli
 Environment=HOME=/home/openclaw
 ```
 
-Then reload and restart the service before testing from the same entrypoint the
-agent uses:
+Then reload and restart the service before testing the OAuth-backed file-keyring
+setup from the same entrypoint the agent uses:
 
 ```bash
 systemctl --user daemon-reload
@@ -79,12 +93,19 @@ systemctl --user show openclaw-gateway.service \
   --property=Environment
 
 openclaw agent --agent main --message \
-  'Run: gog auth doctor --check --no-input && gog gmail search "newer_than:1d" --max 1 --json'
+  'Run: doctor_json="$(gog --no-input --json auth doctor --check)" &&
+  printf "%s\n" "$doctor_json" | jq -se "length == 1 and .[0].status == \"ok\"" >/dev/null &&
+  gog gmail search "newer_than:1d" --max 1 --json'
 ```
 
 If the shell command succeeds but the agent still reports `keyring.password`,
 fix the agent or service environment first. Re-authenticating usually does not
 help when `gog auth doctor --check` already shows readable tokens in the shell.
+The JSON predicate is required for gating: `auth doctor` exits successfully
+when it emits a diagnostic report, even if that report has failed checks.
+For service accounts, Application Default Credentials, or `GOG_ACCESS_TOKEN`,
+use a least-privilege service read instead; doctor does not validate those
+authentication routes.
 
 ## Windows
 

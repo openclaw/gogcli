@@ -175,17 +175,11 @@ func (c *GmailSendCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if err != nil {
 		return err
 	}
-	if c.signatureRequested() {
-		signature, source, sigErr := c.resolveComposeSignature(ctx, svc, from.sendingEmail)
-		if sigErr != nil {
-			return sigErr
-		}
-		if signature.empty() {
-			u.Err().Linef("Warning: no signature configured for %s", source)
-		} else {
-			body, htmlBodyInput = appendComposeSignature(body, htmlBodyInput, signature)
-		}
+	signature, err := c.requestedSignature(ctx, svc, from.sendingEmail)
+	if err != nil {
+		return err
 	}
+	body, htmlBodyInput = appendComposeSignature(body, htmlBodyInput, signature)
 	replyInfo, body, htmlBody, err := prepareComposeReply(ctx, svc, replyToMessageID, threadID, c.Quote, body, htmlBodyInput)
 	if err != nil {
 		return err

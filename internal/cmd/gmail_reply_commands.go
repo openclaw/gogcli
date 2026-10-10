@@ -184,7 +184,6 @@ func (c *GmailReplyOptions) resolveReplyInputs(ctx context.Context, messageID st
 // builds the reply recipients and body, and returns the message without sending
 // so the caller controls how it is dispatched.
 func (c *GmailReplyOptions) buildReplyComposeMessage(ctx context.Context, svc *gmail.Service, account string, inputs replyComposeInputs, replyAll bool) (replyComposeMessage, error) {
-	u := ui.FromContext(ctx)
 	body, htmlBody := inputs.body, inputs.htmlBody
 
 	sendAs, sendAsErr := listSendAs(ctx, svc)
@@ -205,17 +204,11 @@ func (c *GmailReplyOptions) buildReplyComposeMessage(ctx context.Context, svc *g
 			}
 		}
 	}
-	if c.signatureRequested() {
-		signature, source, sigErr := c.resolveComposeSignature(ctx, svc, from.sendingEmail)
-		if sigErr != nil {
-			return replyComposeMessage{}, sigErr
-		}
-		if signature.empty() {
-			u.Err().Linef("Warning: no signature configured for %s", source)
-		} else {
-			body, htmlBody = appendComposeSignature(body, htmlBody, signature)
-		}
+	signature, err := c.requestedSignature(ctx, svc, from.sendingEmail)
+	if err != nil {
+		return replyComposeMessage{}, err
 	}
+	body, htmlBody = appendComposeSignature(body, htmlBody, signature)
 	body, htmlBody, err = applyReplyQuote(ctx, !c.NoQuote, info, body, htmlBody)
 	if err != nil {
 		return replyComposeMessage{}, err
