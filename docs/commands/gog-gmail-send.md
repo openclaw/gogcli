@@ -22,7 +22,7 @@ gog gmail (mail,email) send [flags]
 | `-a`<br>`--account`<br>`--acct` | `string` |  | Account email, alias, or auto for authenticated Google API commands |
 | `--attach` | `[]string` |  | Attachment file path (repeatable) |
 | `--bcc` | `string` |  | BCC recipients (comma-separated) |
-| `--body` | `string` |  | Body (plain text; required unless --body-html is set) |
+| `--body` | `string` |  | Body (plain text; explicitly empty allowed with attachments) |
 | `--body-file` | `string` |  | Body file path (plain text; '-' for stdin) |
 | `--body-html` | `string` |  | Body (HTML; optional) |
 | `--body-html-file` | `string` |  | HTML body file path ('-' for stdin) |

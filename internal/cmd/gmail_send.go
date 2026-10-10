@@ -8,6 +8,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/alecthomas/kong"
 	"google.golang.org/api/gmail/v1"
 
 	"github.com/openclaw/gogcli/internal/googleapi"
@@ -21,7 +22,7 @@ type GmailSendCmd struct {
 	Cc                      string   `name:"cc" help:"CC recipients (comma-separated)"`
 	Bcc                     string   `name:"bcc" help:"BCC recipients (comma-separated)"`
 	Subject                 string   `name:"subject" help:"Subject (required unless replying; inherited with Re: for replies)"`
-	Body                    string   `name:"body" help:"Body (plain text; required unless --body-html is set)"`
+	Body                    string   `name:"body" help:"Body (plain text; explicitly empty allowed with attachments)"`
 	BodyFile                string   `name:"body-file" help:"Body file path (plain text; '-' for stdin)"`
 	BodyHTML                string   `name:"body-html" help:"Body (HTML; optional)"`
 	BodyHTMLFile            string   `name:"body-html-file" help:"HTML body file path ('-' for stdin)"`
@@ -36,6 +37,12 @@ type GmailSendCmd struct {
 	Track                   bool `name:"track" help:"Enable open tracking (requires tracking setup)"`
 	TrackSplit              bool `name:"track-split" help:"Send tracked messages separately per recipient"`
 	Quote                   bool `name:"quote" help:"Include quoted original message in reply (requires --reply-to-message-id or --thread-id)"`
+	bodyProvided            bool
+}
+
+func (c *GmailSendCmd) AfterApply(kctx *kong.Context) error {
+	c.bodyProvided = flagProvided(kctx, "body") || flagProvided(kctx, "body-html")
+	return nil
 }
 
 type sendBatch struct {
@@ -106,7 +113,8 @@ func (c *GmailSendCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if subject == "" && replyToMessageID == "" && threadID == "" {
 		return usage("required: --subject")
 	}
-	if strings.TrimSpace(body) == "" && strings.TrimSpace(htmlBodyInput) == "" {
+	bodyProvided := c.bodyProvided || c.BodyFile != "" || c.BodyHTMLFile != ""
+	if strings.TrimSpace(body) == "" && strings.TrimSpace(htmlBodyInput) == "" && !(bodyProvided && len(c.Attach) > 0) {
 		return usage("required: --body, --body-file, --body-html, or --body-html-file")
 	}
 	if c.TrackSplit && !c.Track {

@@ -18,6 +18,8 @@ func (c *GmailDraftsCreateCmd) AfterApply(kctx *kong.Context) error {
 }
 
 func (c *GmailDraftsUpdateCmd) AfterApply(kctx *kong.Context) error {
+	c.ccProvided = flagProvided(kctx, "cc")
+	c.bccProvided = flagProvided(kctx, "bcc")
 	return validateRawDraftFlagPresence(kctx, c.RawFile)
 }
 

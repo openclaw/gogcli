@@ -146,6 +146,22 @@ Command pages:
 - [`gog gmail settings filters create`](commands/gog-gmail-settings-filters-create.md)
 - [`gog gmail settings filters delete`](commands/gog-gmail-settings-filters-delete.md)
 
+## Attachment-only messages and draft edits
+
+To send attachments without a cover message, explicitly provide an empty body
+or an empty body file. Omitting body input still fails validation.
+
+```bash
+gog gmail send --to printer@example.com --subject "Print" --body '' --attach document.pdf
+```
+
+`gmail drafts update` preserves existing To, Cc, and Bcc recipients when their
+flags are omitted. Use `--cc ''` or `--bcc ''` to clear that header, or supply
+replacement addresses. With `--reply-all`, omitted recipient flags are instead
+derived from the original message; explicit values, including empty ones,
+override that selection. Dry-run output reports which headers will be kept
+without fetching the draft.
+
 ## Drafts Sent from Gmail Web
 
 gog preserves long logical lines when building a plain-text draft from `--body`

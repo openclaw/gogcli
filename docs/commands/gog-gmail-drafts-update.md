@@ -22,12 +22,12 @@ gog gmail (mail,email) drafts (draft) update (edit,set) <draftId> [flags]
 | `-a`<br>`--account`<br>`--acct` | `string` |  | Account email, alias, or auto for authenticated Google API commands |
 | `--attach` | `[]string` |  | Attachment file path (repeatable). Replaces existing attachments; omit to preserve them, or use --clear-attachments to remove all. |
 | `--auto-from-addressed-alias` | `bool` |  | When --from is omitted, reply from the verified send-as alias addressed by the original message |
-| `--bcc` | `string` |  | BCC recipients (comma-separated) |
+| `--bcc` | `string` |  | BCC recipients (comma-separated; omit to keep existing, empty to clear) |
 | `--body` | `string` |  | Body (plain text; required unless --body-html is set) |
 | `--body-file` | `string` |  | Body file path (plain text; '-' for stdin) |
 | `--body-html` | `string` |  | Body (HTML; optional) |
 | `--body-html-file` | `string` |  | HTML body file path ('-' for stdin) |
-| `--cc` | `string` |  | CC recipients (comma-separated) |
+| `--cc` | `string` |  | CC recipients (comma-separated; omit to keep existing, empty to clear) |
 | `--clear-attachments` | `bool` |  | Remove all attachments from the draft. By default, omitting --attach preserves the draft's existing attachments. |
 | `--clear-reply-context` | `bool` |  | Strip In-Reply-To/References from the draft, making it a standalone message. By default an update preserves the draft's existing reply headers. |
 | `--client` | `string` |  | OAuth client name (selects stored credentials + token bucket) |

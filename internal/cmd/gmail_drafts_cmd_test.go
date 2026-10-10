@@ -1220,6 +1220,8 @@ func TestGmailDraftsUpdateCmd_AdvisoryFetchFailureStillUpdates(t *testing.T) {
 	if err := runKong(t, &GmailDraftsUpdateCmd{}, []string{
 		"d1",
 		"--to", "someone@example.com",
+		"--cc", "",
+		"--bcc", "",
 		"--reply-to-message-id", "m9",
 		"--attach", attachment,
 		"--subject", "Updated",

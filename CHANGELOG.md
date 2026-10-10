@@ -2,6 +2,8 @@
 
 ## 0.43.1 - Unreleased
 
+- Gmail: preserve omitted Cc/Bcc recipients when updating drafts and allow explicit empty values to clear them. (#1186) — thanks @karyandrew.
+- Gmail: allow explicitly empty bodies with attachments while still rejecting omitted message content. (#1189) — thanks @jaysonsantos.
 - Dependencies: refresh Google API and telemetry modules, tracking-worker packages, pnpm 11, and x/tools while retaining the Go 1.26 floor and worker release cooldown.
 - Gmail: include recipient headers and optionally sanitize message-search content through CLI and MCP; preserve untrusted sender/recipient wrapping across JSON projection. (#1188) — thanks @kendrickkester.
 - Photos: upload media and list/create app-created albums with an explicit append-scope opt-in; preserve read-only defaults and narrowed grants during reauthorization. (#1185) — thanks @beyondzero.
