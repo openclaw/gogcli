@@ -11,6 +11,9 @@
 - Gmail: document the option delimiter for search queries beginning with `-`, with thread and message examples and flags-before-delimiter guidance. (#1184) — thanks @postoso.
 - Auth: make the documented doctor preflight inspect diagnostic status before continuing, and clarify diagnostic exit semantics. (#1195, #1198) — thanks @coygeek and @goutamadwant.
 
+- Auth: direct doctor recovery hints to preserve recorded services, scope modes, extra scopes, and the OAuth client instead of requesting the default grant. (#1196) — thanks @coygeek.
+- Docs: select gog skills explicitly during installation and identify the separate maintainer-only Crabbox skill. (#1194) — thanks @coygeek.
+
 ## 0.43.0 - 2026-09-30
 
 **Highlights:** JSON error envelopes and page metadata, a default auth/config status view, and clearer Gmail MIME guidance.

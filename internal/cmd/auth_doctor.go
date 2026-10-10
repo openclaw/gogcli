@@ -33,6 +33,8 @@ const (
 	doctorOK    = "ok"
 	doctorWarn  = "warn"
 	doctorError = literalError
+	// A flagless auth add would replace a recorded grant with the defaults.
+	doctorReauthHint = "inspect `gog auth list --json` for the recorded services and scopes; re-run `gog auth add` for the same account and OAuth client with matching --services, --gmail-scope, --drive-scope, --photos-scope, and --extra-scopes, plus --force-consent"
 )
 
 func (c *AuthDoctorCmd) Run(ctx context.Context, _ *RootFlags) error {
@@ -276,9 +278,9 @@ func classifyAuthDoctorError(err error) (status string, hint string) {
 	case strings.Contains(msg, "aes.keyunwrap") || strings.Contains(msg, "integrity check failed"):
 		return doctorError, "file keyring password mismatch or corrupted entry; make every GOG_KEYRING_PASSWORD definition match, then re-run `gog auth doctor --check`"
 	case strings.Contains(msg, "invalid_rapt"):
-		return doctorError, "Google requires recent Workspace reauthentication; for automation prefer Workspace service-account domain-wide delegation, or re-run `gog auth add <email> --force-consent`"
+		return doctorError, "Google requires recent Workspace reauthentication; for automation prefer Workspace service-account domain-wide delegation, or " + doctorReauthHint
 	case strings.Contains(msg, "invalid_grant"):
-		return doctorError, "refresh token was revoked, expired, or blocked by OAuth app policy; re-run `gog auth add <email> --force-consent` and verify the OAuth consent app is published for long-lived use"
+		return doctorError, "refresh token was revoked, expired, or blocked by OAuth app policy; " + doctorReauthHint + "; verify the OAuth consent app is published for long-lived use"
 	case strings.Contains(msg, "no tty") || strings.Contains(msg, "gog_keyring_password"):
 		return doctorError, "file keyring needs GOG_KEYRING_PASSWORD in non-interactive shells, services, CI, and agents"
 	case errors.Is(err, context.DeadlineExceeded):

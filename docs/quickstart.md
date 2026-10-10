@@ -94,6 +94,13 @@ domains can still belong to either kind of Google account. If Google rejects
 consent, retry with an explicit `--services` list; preserve any existing
 services when reauthorizing an account.
 
+Before following an `auth doctor` reauthorization hint, inspect
+`gog auth list --json` and preserve the account's OAuth client, recorded services,
+scope modes, and any extra scopes. A bare `auth add --force-consent` uses the
+default service selection; it does not automatically restore the previous
+grant. For example, a Gmail read-only grant needs `--services gmail
+--gmail-scope readonly --force-consent`.
+
 Installed-app authorization uses S256 PKCE. Complete a manual or remote flow
 with the same `gog` home and client that generated its URL. After upgrading
 from a pre-PKCE release, restart any unfinished flow at step 1.

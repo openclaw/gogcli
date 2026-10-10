@@ -12,11 +12,17 @@ and cleanup require judgment.
 
 ## Install
 
-Install the repository's skills with any Agent Skills-compatible client:
+Install the core skill and the services your agent needs with an Agent
+Skills-compatible client. For example, install the core and Gmail skills:
 
 ```bash
-npx skills add https://github.com/openclaw/gogcli
+npx skills add https://github.com/openclaw/gogcli --skill gog gog-gmail
 ```
+
+Add other `gog-*` service or workflow names to that selection as needed. Use
+`npx skills add https://github.com/openclaw/gogcli --list` to inspect the names
+before installing. An unfiltered repository install also includes `crabbox`,
+which is an OpenClaw maintainer validation skill, not a skill for using gog.
 
 For OpenClaw, copy or symlink selected directories from `.agents/skills/` into the
 configured skills directory. Start with `gog`, then add only the services and workflows
