@@ -1,5 +1,7 @@
 # Changelog
 
+## Unreleased
+
 ## 0.44.0 - 2026-10-11
 
 **Highlights:** Upload Photos media, configure Meet settings, and add Gmail signatures, with Go security fixes and dependency updates.
