@@ -12,7 +12,7 @@ permissions: {}
 
 jobs:
   preflight:
-    runs-on: ubuntu-latest
+    runs-on: macos-15
     permissions:
       contents: read
     steps:
@@ -26,6 +26,21 @@ jobs:
           set -euo pipefail
           release_version=${VERSION#v}
           test "$(tr -d '\r\n' < internal/cmd/VERSION)" = "v${release_version}"
+
+      - name: Preflight Apple notarization access
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_PRIVATE_KEY_P8: ${{ secrets.ASC_PRIVATE_KEY_P8 }}
+        run: |
+          set -euo pipefail
+          umask 077
+          key=$(mktemp "$RUNNER_TEMP/notary-key.XXXXXX")
+          trap 'rm -f "$key"' EXIT
+          printf '%s' "$ASC_PRIVATE_KEY_P8" > "$key"
+          xcrun notarytool history --key "$key" --key-id "$ASC_KEY_ID" \
+            --issuer "$ASC_ISSUER_ID" --output-format json > "$RUNNER_TEMP/notary-history.json"
+          jq -e '.history | type == "array"' "$RUNNER_TEMP/notary-history.json"
 
   release:
     needs: preflight

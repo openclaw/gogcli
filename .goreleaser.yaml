@@ -91,12 +91,16 @@ builds:
       - GOSUMDB=sum.golang.org
       - GOTOOLCHAIN=local
       - GOWORK=off
+      - MACOSX_DEPLOYMENT_TARGET=15.0
       - PKG_CONFIG=/usr/bin/false
       - "PKG_CONFIG_LIBDIR="
       - "PKG_CONFIG_PATH="
     targets:
       - darwin_amd64
       - darwin_arm64
+    hooks:
+      post:
+        - cmd: ./scripts/check-darwin-minos.sh "{{ .Path }}"
 
 archives:
   - ids:
