@@ -58,6 +58,77 @@ Existing installs are read-compatible:
 New writes use the new path for the selected kind. `auth credentials remove`
 and service-account removal clean up both new and legacy locations where safe.
 
+## Changing the Keyring Password
+
+`gog auth rekey <outdir>` reads the file keyring with the current password and
+writes a verified copy encrypted with the new password to the separate output
+directory given as its argument:
+
+```bash
+GOG_KEYRING_PASSWORD='current password' \
+GOG_KEYRING_NEW_PASSWORD='new password' \
+gog auth rekey /path/to/new-keyring
+```
+
+Credential files are read-only: their contents, permissions and password remain
+untouched on success, failure or interruption. Rekey holds the shared store lock
+through reading, writing, verification and publication, blocking credential writes
+until it finishes. It may create the normal `.lock` bookkeeping file. Rekey never
+installs the output into the live keyring.
+
+The output directory receives the source directory's permissions. It must be
+outside the live directory and cannot be that directory or one of its ancestors,
+including aliases through symlinks. Existing empty output is accepted. Nonempty
+output is refused unless you explicitly pass `--force`, which replaces the whole
+output directory and reports the names replaced; it never merges files. It writes
+into a private sibling directory, verifies every entry, flushes ciphertext files
+and directory metadata, then atomically exchanges the complete directories on
+Linux and macOS. A write or verification failure leaves previous output intact;
+a publication sync failure rolls back. If rollback also fails, the error identifies
+the retained previous output for recovery. Interruption can leave a hidden
+`.gog-rekey-*` sibling; inspect it before removing it. On filesystems without atomic
+directory exchange, and on Windows, choose a fresh output path: existing output is
+refused unchanged. Windows flushes ciphertext files but cannot fsync directories.
+
+Before reporting success, rekey independently opens the output with the new
+password and reads every item back, comparing its data and metadata. Output
+contains only this run's entries: no password verifier or internal lock file is
+created. An empty keyring produces empty output and explicitly reports that no
+password was changed or established.
+
+Inspect the output and any reported unreadable keys before installing it. The
+command prints the exact move command for your paths (a shell command on Linux
+and macOS, a PowerShell command on Windows). Stop running `gog` processes before
+moving directories so their subsequent writes are not lost. For example:
+
+```bash
+test ! -e '/path/to/keyring.old' && test ! -L '/path/to/keyring.old' && mv -- '/path/to/keyring' '/path/to/keyring.old' && mv -- '/path/to/new-keyring' '/path/to/keyring'
+```
+
+Keep the old directory until the new keyring is proven. After installing the
+output, update `GOG_KEYRING_PASSWORD` in the shell, services and CI that use it,
+and test your normal commands. The command refuses to overwrite an existing
+`.old` directory. These installation steps are the user's action, separate from
+rekey.
+
+Passwords come from the environment or a no-echo TTY prompt, never from argv.
+The interactive new-password prompt asks twice and preserves whitespace.
+Paths, counts and key names can appear in output; payloads and passwords cannot.
+
+- Undecryptable entries abort before output is replaced. With
+  `--skip-unreadable`, they are omitted from output and their keys are reported;
+  their live copies remain untouched. A password that opens no entry is always
+  an error, even with this flag. Inspect omissions before installing the output.
+- Only the file backend qualifies. `auto` qualifies on headless Linux without a
+  D-Bus session, where `gog` forces the file backend. Other `auto` configurations
+  are refused without opening an OS keychain or creating a live directory; use
+  `gog auth keyring file` if the file backend is your intended store.
+- Legacy filenames are read without modification and written encoded in the
+  output. Conflicting legacy and encoded copies of a key abort rather than
+  silently discarding one.
+- The lock gives rekey a consistent snapshot. Credentials can change after it
+  releases the lock, so stop other `gog` processes before installing the output.
+
 ## Containers and Agents
 
 For a single persistent root:
