@@ -90,6 +90,7 @@ Generated from `gog schema --json`.
     - [`gog auth keyring [<backend> [<backend2>]]`](commands/gog-auth-keyring.md) - Configure keyring backend
     - [`gog auth list [flags]`](commands/gog-auth-list.md) - List stored accounts
     - [`gog auth manage (login) [flags]`](commands/gog-auth-manage.md) - Open interactive accounts manager in browser
+    - [`gog auth rekey <outdir> [flags]`](commands/gog-auth-rekey.md) - Write a verified copy of the file keyring to <outdir> using GOG_KEYRING_NEW_PASSWORD; leave the live keyring untouched
     - [`gog auth remove <email>`](commands/gog-auth-remove.md) - Remove a stored refresh token
     - [`gog auth service-account <command>`](commands/gog-auth-service-account.md) - Configure service account (Workspace only; domain-wide delegation)
       - [`gog auth service-account set <email> [flags]`](commands/gog-auth-service-account-set.md) - Store a service account key for impersonation

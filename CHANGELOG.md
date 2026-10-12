@@ -2,6 +2,7 @@
 
 ## 0.45.1 - Unreleased
 
+- Auth: add `gog auth rekey <outdir>` to write and verify a separate re-encrypted directory while leaving the live keyring untouched; `--force` explicitly replaces nonempty output, reports completed removals even if replacement fails, and results include installation commands that retain the old directory. (#1224) — thanks @sorenisanerd.
 - Dependencies: update Vitest and Cloudflare Workers types within the worker’s 24-hour release cooldown.
 - Gmail: add `--note-html` and `--note-html-file` to forwards and preserve plain-note line breaks in HTML output. (#1215) — thanks @malob.
 

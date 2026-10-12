@@ -2,7 +2,7 @@
 
 Every `gog` command has a generated docs page. The source of truth is the live CLI schema; run `make docs-commands` after changing command names, flags, help text, aliases, or arguments.
 
-Generated pages: 779.
+Generated pages: 780.
 
 ## Top-level Commands
 
@@ -144,6 +144,7 @@ Generated pages: 779.
     - [gog auth keyring](gog-auth-keyring.md) - Configure keyring backend
     - [gog auth list](gog-auth-list.md) - List stored accounts
     - [gog auth manage](gog-auth-manage.md) - Open interactive accounts manager in browser
+    - [gog auth rekey](gog-auth-rekey.md) - Write a verified copy of the file keyring to <outdir> using GOG_KEYRING_NEW_PASSWORD; leave the live keyring untouched
     - [gog auth remove](gog-auth-remove.md) - Remove a stored refresh token
     - [gog auth service-account](gog-auth-service-account.md) - Configure service account (Workspace only; domain-wide delegation)
       - [gog auth service-account set](gog-auth-service-account-set.md) - Store a service account key for impersonation
