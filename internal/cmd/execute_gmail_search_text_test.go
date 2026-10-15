@@ -96,3 +96,39 @@ func TestExecute_GmailSearch_AppliesSystemLabelFilters(t *testing.T) {
 	}
 	assertSameStrings(t, gotLabels, []string{"SPAM", "UNREAD"})
 }
+
+func TestExecute_GmailSearch_LeavesNegatedSystemLabelsToGmail(t *testing.T) {
+	var gotQuery string
+	var gotLabels []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := r.URL.Path
+		switch {
+		case strings.Contains(path, "/users/me/threads") && !strings.Contains(path, "/users/me/threads/"):
+			gotQuery = r.URL.Query().Get("q")
+			gotLabels = r.URL.Query()["labelIds"]
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"threads": []map[string]any{},
+			})
+			return
+		default:
+			http.NotFound(w, r)
+			return
+		}
+	}))
+	defer srv.Close()
+
+	result := executeWithGmailTestService(
+		t,
+		[]string{"--plain", "--account", "a@b.com", "gmail", "search", "in:sent NOT in:inbox", "--max", "1000"},
+		newGmailServiceFromServer(t, srv),
+	)
+	if result.err != nil {
+		t.Fatalf("Execute: %v\nstderr=%q", result.err, result.stderr)
+	}
+
+	if gotQuery != "in:sent NOT in:inbox" {
+		t.Fatalf("unexpected query: %q", gotQuery)
+	}
+	assertSameStrings(t, gotLabels, []string{"SENT"})
+}

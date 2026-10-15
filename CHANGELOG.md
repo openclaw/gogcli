@@ -2,6 +2,8 @@
 
 ## 0.44.1 - Unreleased
 
+- Gmail: derive `labelIds` only from system-label terms that hold for every result; a term under `NOT` or `-`, inside a negated group, or in a query with `OR`, `|` or `{…}` is left to Gmail, so `search`, `--count`, `archive`, `trash`, `mark-read`, `unread` and `autoreply` no longer silently narrow such queries. (#1212) — thanks @wstock.
+
 ## 0.44.0 - 2026-10-11
 
 **Highlights:** Upload Photos media, configure Meet settings, and add Gmail signatures, with Go security fixes and dependency updates.
