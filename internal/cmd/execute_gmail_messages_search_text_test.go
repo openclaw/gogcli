@@ -327,6 +327,7 @@ func TestExecute_GmailMessagesSearch_LeavesNegatedAndDisjoinedSystemLabelsToGmai
 		{name: "complete inline NOT group keeps the next positive term", query: "in:spam NOT(in:inbox) is:unread", wantLabels: []string{"SPAM", "UNREAD"}},
 		{name: "quoted word not is a search word", query: `in:spam "not" is:unread`, wantLabels: []string{"SPAM", "UNREAD"}},
 		{name: "quoted word OR is a search word", query: `in:spam is:unread "OR"`, wantLabels: []string{"SPAM", "UNREAD"}},
+		{name: "negated group closed by an inline NOT keeps the next positive term", query: "in:spam -(foo NOT(bar)) is:unread", wantLabels: []string{"SPAM", "UNREAD"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

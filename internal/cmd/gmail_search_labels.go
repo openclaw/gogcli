@@ -95,24 +95,24 @@ func gmailQuerySystemLabelIDs(query string) []string {
 			default:
 				// NOT(in:inbox): the operand is complete in this field.
 			}
-			depth += opens - closes
-			continue
-		}
-
-		token := strings.ToLower(strings.Trim(field.text, gmailQueryBracketChars))
-		negated := negateNext || negatedDepth >= 0 || strings.HasPrefix(token, "-")
-		negateNext = false
-		if negated && negatedDepth < 0 && opens > closes {
-			negatedDepth = depth
-		}
-		depth += opens - closes
-
-		if !negated {
-			if labelID := gmailQuerySystemLabelID(token); labelID != "" && !seen[labelID] {
-				seen[labelID] = true
-				labels = append(labels, labelID)
+		} else {
+			token := strings.ToLower(strings.Trim(field.text, gmailQueryBracketChars))
+			negated := negateNext || negatedDepth >= 0 || strings.HasPrefix(token, "-")
+			negateNext = false
+			if negated && negatedDepth < 0 && opens > closes {
+				negatedDepth = depth
+			}
+			if !negated {
+				if labelID := gmailQuerySystemLabelID(token); labelID != "" && !seen[labelID] {
+					seen[labelID] = true
+					labels = append(labels, labelID)
+				}
 			}
 		}
+
+		// Brackets closed by this field, whether it was a term or an inline NOT, may end
+		// the negated group: `-(foo NOT(bar)) is:unread` lifts UNREAD.
+		depth += opens - closes
 		if negatedDepth >= 0 && depth <= negatedDepth {
 			negatedDepth = -1
 		}
