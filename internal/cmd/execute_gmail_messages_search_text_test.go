@@ -324,6 +324,9 @@ func TestExecute_GmailMessagesSearch_LeavesNegatedAndDisjoinedSystemLabelsToGmai
 		{name: "negated group", query: "-(zzqx in:inbox) in:sent", wantLabels: []string{"SENT"}},
 		{name: "pipe disjunction", query: "in:sent | in:inbox", wantLabels: nil},
 		{name: "OR against a bracket", query: "in:sent OR(in:inbox)", wantLabels: nil},
+		{name: "complete inline NOT group keeps the next positive term", query: "in:spam NOT(in:inbox) is:unread", wantLabels: []string{"SPAM", "UNREAD"}},
+		{name: "quoted word not is a search word", query: `in:spam "not" is:unread`, wantLabels: []string{"SPAM", "UNREAD"}},
+		{name: "quoted word OR is a search word", query: `in:spam is:unread "OR"`, wantLabels: []string{"SPAM", "UNREAD"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
