@@ -121,6 +121,12 @@ beside the account you want to use:
 gog auth manage
 ```
 
+`gog auth login` is an alias of this browser-based account manager. For account
+authorization without automatically opening a browser, use
+`gog auth add you@gmail.com --manual` (consent still happens in a browser).
+Use `gog auth doctor --check --no-input` for unattended health checks instead
+of piping an interactive login flow through `head`.
+
 The stored default applies when neither `--account` nor `GOG_ACCOUNT` is set.
 If you previously exported `GOG_ACCOUNT`, run `unset GOG_ACCOUNT` to use the
 stored default.

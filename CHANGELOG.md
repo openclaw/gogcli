@@ -2,6 +2,9 @@
 
 ## 0.44.1 - Unreleased
 
+- Output: warn on stderr when a `--select` path matches no objects in a nonempty result, preserving JSON output and exit status. (#1210) — thanks @postoso.
+- Auth: clarify that `auth login` opens the browser account manager, and document manual authorization and unattended health checks. (#1214) — thanks @jingtying.
+
 - Gmail: derive `labelIds` only from system-label terms that hold for every result; a term under `NOT` or `-`, inside a negated group, or in a query with `OR`, `|` or `{…}` is left to Gmail, so `search`, `--count`, `archive`, `trash`, `mark-read`, `unread` and `autoreply` no longer silently narrow such queries. (#1212) — thanks @wstock.
 - Gmail: render the reply attribution line the way Gmail Web does in both text and HTML: no comma after the date, `Name <email>` (or `<email>`) with the address linked in HTML, and a narrow no-break space before AM/PM (also in forwarded `Date:` lines). (#1213) — thanks @malob.
 

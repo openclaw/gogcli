@@ -332,6 +332,7 @@ func executeWithRuntime(args []string, runtime *app.Runtime) (err error) {
 	ctx = outfmt.WithJSONTransform(ctx, outfmt.JSONTransform{
 		ResultsOnly: cli.ResultsOnly,
 		Select:      splitCommaList(cli.Select),
+		Warnings:    runtimeIO.Err,
 	})
 	if cli.WrapUntrusted {
 		ctx = outfmt.WithUntrustedWrapper(ctx, outfmt.UntrustedWrapOptions{

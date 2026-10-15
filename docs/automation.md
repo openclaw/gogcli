@@ -53,7 +53,9 @@ field-mask flag keep that command-specific meaning.
 lists, select item-relative fields: `--results-only --select id`. Dot paths
 traverse object keys or numeric array indexes; they do not broadcast through
 nested arrays (`--select items.id` selects nothing). Unmatched object fields
-are omitted.
+are omitted. If a selected path matches no objects in a nonempty result, gog
+warns once on stderr while preserving JSON output and the exit status. A field
+present as `null` counts as a match; empty results do not produce this warning.
 
 Use `--no-input` in CI and unattended processes. Use `--wrap-untrusted` when
 Google-hosted free text will be consumed by an LLM or another instruction-aware

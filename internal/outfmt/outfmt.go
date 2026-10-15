@@ -68,6 +68,8 @@ type JSONTransform struct {
 	// Select projects objects to only the requested fields (comma-separated; supports dot paths).
 	// When applied to a list, it projects each element.
 	Select []string
+	// Warnings receives diagnostics without changing the JSON result or exit status.
+	Warnings io.Writer
 }
 
 type jsonTransformKey struct{}
@@ -157,7 +159,7 @@ func applyJSONTransform(v any, t JSONTransform) (any, error) {
 	}
 
 	if len(t.Select) > 0 {
-		anyV = selectFields(anyV, t.Select)
+		anyV = selectFields(anyV, t.Select, t.Warnings)
 	}
 
 	return anyV, nil
@@ -256,21 +258,42 @@ func unwrapPrimary(v any) any {
 	return v
 }
 
-func selectFields(v any, fields []string) any {
+func selectFields(v any, fields []string, warnings io.Writer) any {
+	matched := make(map[string]bool, len(fields))
+	inspected := false
+	project := func(item any) any {
+		if _, ok := item.(map[string]any); ok {
+			inspected = true
+		}
+
+		return selectFieldsFromItem(item, fields, matched)
+	}
+	var result any
+
 	switch vv := v.(type) {
 	case []any:
 		out := make([]any, 0, len(vv))
 		for _, it := range vv {
-			out = append(out, selectFieldsFromItem(it, fields))
+			out = append(out, project(it))
 		}
-
-		return out
+		result = out
 	default:
-		return selectFieldsFromItem(v, fields)
+		result = project(v)
 	}
+
+	if inspected && warnings != nil {
+		for _, field := range fields {
+			if !matched[field] {
+				_, _ = fmt.Fprintf(warnings, "warning: --select path %q matched no objects in this result\n", field)
+				matched[field] = true
+			}
+		}
+	}
+
+	return result
 }
 
-func selectFieldsFromItem(v any, fields []string) any {
+func selectFieldsFromItem(v any, fields []string, matched map[string]bool) any {
 	m, ok := v.(map[string]any)
 	if !ok {
 		return v
@@ -280,6 +303,7 @@ func selectFieldsFromItem(v any, fields []string) any {
 	for _, f := range fields {
 		if val, ok := getAtPath(m, f); ok {
 			out[f] = val
+			matched[f] = true
 		}
 	}
 
