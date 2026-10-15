@@ -8,7 +8,7 @@ import (
 )
 
 func TestFormatQuoteMailboxHTMLEscapesNameAndAddress(t *testing.T) {
-	got := formatQuoteMailboxHTML(`"<b>Eve</b>" <"x\"onclick=\"alert(1)"@example.com>`)
+	got := formatQuoteMailboxHTML(`"<b>Eve</b>" <"x\"onclick=\"alert(1)"@example.com>`, plainName)
 	want := `&lt;b&gt;Eve&lt;/b&gt; &lt;<a href="mailto:%22x%5C%22onclick%3D%5C%22alert%281%29%22@example.com">&#34;x\&#34;onclick=\&#34;alert(1)&#34;@example.com</a>&gt;`
 	if got != want {
 		t.Fatalf("formatQuoteMailboxHTML:\n got %q\nwant %q", got, want)

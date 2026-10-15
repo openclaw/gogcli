@@ -7,36 +7,7 @@ import (
 	"testing"
 )
 
-// forwardCommands are the two commands that share GmailForwardOptions.
-var forwardCommands = []struct {
-	name         string
-	verb         []string
-	finalizePath string
-}{
-	{name: "send", verb: []string{"gmail", "forward"}, finalizePath: "/gmail/v1/users/me/messages/send"},
-	{name: "draft", verb: []string{"gmail", "drafts", "forward"}, finalizePath: "/gmail/v1/users/me/drafts"},
-}
-
-const forwardedPlainMarker = "---------- Forwarded message"
-
 const forwardedHTMLMarker = `<div class="gmail_quote">`
-
-// forwardArgs builds a forward of orig-msg-1 to one recipient, plus flags.
-func forwardArgs(verb []string, flags ...string) []string {
-	args := append([]string{"--account", "me@example.com"}, verb...)
-	args = append(args, "orig-msg-1", "--to", "recipient@example.com")
-	return append(args, flags...)
-}
-
-// forwardTextParts runs a forward and returns its decoded text/plain and
-// text/html parts with LF line endings. It fails if either part is missing.
-func forwardTextParts(t *testing.T, args []string, finalizePath string, source func() map[string]any) (plain, html string) {
-	t.Helper()
-	raw, _ := captureForwardRaw(t, args, finalizePath, source)
-	plain = strings.ReplaceAll(rawTextPart(t, raw, "text/plain"), "\r\n", "\n")
-	html = strings.ReplaceAll(rawTextPart(t, raw, "text/html"), "\r\n", "\n")
-	return plain, html
-}
 
 // noteRegion returns the part of a forward body above the forwarded message.
 func noteRegion(t *testing.T, body, marker string) string {
@@ -55,7 +26,7 @@ func TestGmailForward_PlainNoteKeepsLineBreaksInHTML(t *testing.T) {
 		t.Run(cmd.name, func(t *testing.T) {
 			plain, html := forwardTextParts(t, forwardArgs(cmd.verb, "--note", note), cmd.finalizePath, mockForwardSourceMessage)
 
-			if got := strings.TrimSpace(noteRegion(t, plain, forwardedPlainMarker)); got != note {
+			if got := strings.TrimSpace(noteRegion(t, plain, forwardedSeparator)); got != note {
 				t.Errorf("plain note = %q, want %q", got, note)
 			}
 			const wantHTML = "First paragraph.<br>\n<br>\nSecond paragraph, with &lt;tags&gt; &amp; ampersands."
@@ -109,7 +80,7 @@ func TestGmailForward_HTMLNote(t *testing.T) {
 			t.Run(cmd.name+"/"+tc.name, func(t *testing.T) {
 				plain, html := forwardTextParts(t, forwardArgs(cmd.verb, tc.flags...), cmd.finalizePath, tc.source)
 
-				if got := strings.TrimSpace(noteRegion(t, plain, forwardedPlainMarker)); got != tc.wantPlain {
+				if got := strings.TrimSpace(noteRegion(t, plain, forwardedSeparator)); got != tc.wantPlain {
 					t.Errorf("plain note = %q, want %q", got, tc.wantPlain)
 				}
 				htmlNote := noteRegion(t, html, forwardedHTMLMarker)
@@ -132,7 +103,7 @@ func TestGmailForward_WithoutNoteKeepsPlainPart(t *testing.T) {
 	for _, cmd := range forwardCommands {
 		t.Run(cmd.name, func(t *testing.T) {
 			plain, _ := forwardTextParts(t, forwardArgs(cmd.verb), cmd.finalizePath, mockForwardSourceMessage)
-			if !strings.HasPrefix(plain, forwardedPlainMarker) || !strings.Contains(plain, "Hello, this is the body.") {
+			if !strings.HasPrefix(plain, forwardedSeparator) || !strings.Contains(plain, "Hello, this is the body.") {
 				t.Errorf("plain part should be the forwarded message alone:\n%s", plain)
 			}
 		})
@@ -147,7 +118,7 @@ func TestGmailForward_WhitespaceOnlyHTMLNoteCountsAsMissing(t *testing.T) {
 	for _, cmd := range forwardCommands {
 		t.Run(cmd.name+"/alone", func(t *testing.T) {
 			plain, html := forwardTextParts(t, forwardArgs(cmd.verb, "--note-html-file", blank), cmd.finalizePath, mockForwardSourceMessage)
-			if !strings.HasPrefix(plain, forwardedPlainMarker) {
+			if !strings.HasPrefix(plain, forwardedSeparator) {
 				t.Errorf("plain part should be the forwarded message alone:\n%s", plain)
 			}
 			if got := noteRegion(t, html, forwardedHTMLMarker); got != "" {
@@ -156,7 +127,7 @@ func TestGmailForward_WhitespaceOnlyHTMLNoteCountsAsMissing(t *testing.T) {
 		})
 		t.Run(cmd.name+"/beside a plain note", func(t *testing.T) {
 			plain, html := forwardTextParts(t, forwardArgs(cmd.verb, "--note", "FYI", "--note-html-file", blank), cmd.finalizePath, mockForwardSourceMessage)
-			if got := strings.TrimSpace(noteRegion(t, plain, forwardedPlainMarker)); got != "FYI" {
+			if got := strings.TrimSpace(noteRegion(t, plain, forwardedSeparator)); got != "FYI" {
 				t.Errorf("plain note = %q, want %q", got, "FYI")
 			}
 			if got := noteRegion(t, html, forwardedHTMLMarker); got != "<div>FYI</div><br>" {
@@ -180,8 +151,8 @@ func TestGmailForward_ImageOnlyHTMLNote(t *testing.T) {
 	}{
 		{name: "no signature"},
 		{name: "image signature", signature: `<img src="https://example.com/sig.png">`},
-		{name: "text signature", signature: "<div>Kind regards</div>", wantPlain: "--\nKind regards\n\n" + forwardedPlainMarker},
-		{name: "plain note too", plainNote: "Plain twin.", wantPlain: "Plain twin.\n\n" + forwardedPlainMarker},
+		{name: "text signature", signature: "<div>Kind regards</div>", wantPlain: "--\nKind regards\n\n" + forwardedSeparator},
+		{name: "plain note too", plainNote: "Plain twin.", wantPlain: "Plain twin.\n\n" + forwardedSeparator},
 	}
 	for _, cmd := range forwardCommands {
 		for _, tc := range cases {
@@ -228,7 +199,7 @@ func TestGmailForward_HTMLNoteSitsAboveSignature(t *testing.T) {
 			}
 
 			plain := strings.ReplaceAll(rawTextPart(t, got.raw, "text/plain"), "\r\n", "\n")
-			if want := "See below.\n\n--\nKind regards\n\n" + forwardedPlainMarker; !strings.Contains(plain, want) {
+			if want := "See below.\n\n--\nKind regards\n\n" + forwardedSeparator; !strings.Contains(plain, want) {
 				t.Errorf("plain part not note, signature, forward; want %q in:\n%s", want, plain)
 			}
 			html := rawTextPart(t, got.raw, "text/html")

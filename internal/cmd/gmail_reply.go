@@ -350,7 +350,7 @@ func formatQuotedMessage(from, date, body string, loc *time.Location) string {
 }
 
 func formatQuotedMessageHTMLWithContent(from, date, htmlContent string, loc *time.Location) string {
-	attribution := formatQuoteAttribution(html.EscapeString(formatQuoteDate(date, loc)), formatQuoteMailboxHTML(from))
+	attribution := formatQuoteAttribution(html.EscapeString(formatQuoteDate(date, loc)), formatQuoteMailboxHTML(from, plainName))
 	return fmt.Sprintf(`<br><br><div class="gmail_quote"><div class="gmail_attr">%s</div><blockquote class="gmail_quote" style="margin:0 0 0 .8ex;border-left:1px #ccc solid;padding-left:1ex">%s</blockquote></div>`,
 		attribution,
 		htmlContent)

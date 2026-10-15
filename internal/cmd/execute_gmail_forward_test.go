@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"strings"
 	"testing"
-	"time"
 
 	"google.golang.org/api/gmail/v1"
 
@@ -60,85 +59,34 @@ func mockOriginalMessage(withAttachment bool) map[string]any {
 	}
 }
 
-func TestExecute_GmailForward_Basic(t *testing.T) {
-	t.Setenv("GOG_TIMEZONE", "UTC")
-	var sentRaw string
-	var sentThreadID string
-
-	svc, cleanup := newGmailServiceForTest(t, func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		switch {
-		case r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/gmail/v1/users/me/messages/orig-msg-1"):
-			_ = json.NewEncoder(w).Encode(mockOriginalMessage(false))
-
-		case r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/gmail/v1/users/me/settings/sendAs"):
-			_ = json.NewEncoder(w).Encode(map[string]any{
-				"sendAs": []map[string]any{
-					{"sendAsEmail": "me@example.com", "displayName": "Me", "isPrimary": true, "verificationStatus": "accepted"},
-				},
-			})
-
-		case r.Method == http.MethodPost && strings.Contains(r.URL.Path, "/gmail/v1/users/me/messages/send"):
-			body, _ := io.ReadAll(r.Body)
-			var msg gmail.Message
-			_ = json.Unmarshal(body, &msg)
-			raw, _ := base64.RawURLEncoding.DecodeString(msg.Raw)
-			sentRaw = string(raw)
-			sentThreadID = msg.ThreadId
-			_ = json.NewEncoder(w).Encode(map[string]any{"id": "sent-1", "threadId": "thread-1"})
-
-		default:
-			http.NotFound(w, r)
-		}
-	})
-	defer cleanup()
-	result := executeWithGmailTestService(t, []string{
-		"--json",
-		"--account", "me@example.com",
-		"gmail", "forward", "orig-msg-1",
-		"--to", "recipient@example.com",
-		"--note", "FYI see below",
-	}, svc)
-	if result.err != nil {
-		t.Fatalf("Execute: %v", result.err)
-	}
-
-	// Verify subject.
-	if !strings.Contains(sentRaw, "Subject: Fwd: Original Subject") {
-		t.Errorf("expected Fwd: subject, got:\n%s", sentRaw)
-	}
-
-	// Verify forward separator.
-	if !strings.Contains(sentRaw, "---------- Forwarded message ---------") {
-		t.Errorf("expected forwarded message separator in body")
-	}
-
-	// Verify original headers in body.
-	if !strings.Contains(sentRaw, "From: Alice <alice@example.com>") {
-		t.Errorf("expected original From in forwarded body")
-	}
-	// Original Date (09:00 -0400) reformatted to Gmail style in UTC.
-	if !strings.Contains(rawTextPart(t, sentRaw, "text/plain"), "Date: Tue, Mar 10, 2026 at 1:00\u202fPM") {
-		t.Errorf("expected reformatted original Date in forwarded body")
-	}
-
-	// Verify note text.
-	if !strings.Contains(sentRaw, "FYI see below") {
-		t.Errorf("expected note text in body")
-	}
-
-	// Verify original body content.
-	if !strings.Contains(sentRaw, "Hello, this is the body.") {
-		t.Errorf("expected original body content in forwarded message")
-	}
-
-	// A forward changes the subject, so it must not claim the original Gmail
-	// thread or stamp reply headers.
-	if sentThreadID != "" {
-		t.Errorf("expected no threadId for forward, got %q", sentThreadID)
-	}
-	if strings.Contains(sentRaw, "In-Reply-To:") || strings.Contains(sentRaw, "References:") {
-		t.Errorf("forward unexpectedly contains reply headers")
+// TestGmailForward_SubjectNoteAndNoThreading checks what both forward commands
+// build around the forwarded block (gmail_forward_header_test.go checks the
+// block itself): a Fwd: subject, the note and the original's body, and no claim
+// on the original's thread.
+func TestGmailForward_SubjectNoteAndNoThreading(t *testing.T) {
+	for _, cmd := range forwardCommands {
+		t.Run(cmd.name, func(t *testing.T) {
+			raw, threadID := captureForwardRaw(t, forwardArgs(cmd.verb, "--note", "FYI see below"), cmd.finalizePath, mockForwardSourceMessage)
+			if got := rawMessageHeader(t, raw, "Subject"); got != "Fwd: Original Subject" {
+				t.Errorf("Subject = %q, want %q", got, "Fwd: Original Subject")
+			}
+			plain := rawTextPart(t, raw, "text/plain")
+			for _, want := range []string{"FYI see below", "Hello, this is the body."} {
+				if !strings.Contains(plain, want) {
+					t.Errorf("text/plain missing %q:\n%s", want, plain)
+				}
+			}
+			// A forward changes the subject, so it must not claim the original
+			// Gmail thread or stamp reply headers.
+			if threadID != "" {
+				t.Errorf("forward claims thread %q, want none", threadID)
+			}
+			for _, h := range []string{"In-Reply-To:", "References:"} {
+				if strings.Contains(raw, h) {
+					t.Errorf("forward has a %s header:\n%s", h, raw)
+				}
+			}
+		})
 	}
 }
 
@@ -310,79 +258,6 @@ func TestStripForwardPrefix(t *testing.T) {
 				t.Errorf("stripForwardPrefix(%q) = %q, want %q", tt.input, got, tt.want)
 			}
 		})
-	}
-}
-
-func TestFormatForwardedMessage(t *testing.T) {
-	result := formatForwardedMessage(
-		"See below",
-		composeSignature{},
-		"Alice <alice@example.com>",
-		"Mon, 10 Mar 2026 09:00:00 -0400",
-		"Test Subject",
-		"bob@example.com",
-		"carol@example.com",
-		"Body text here.",
-		time.UTC,
-	)
-
-	checks := []string{
-		"See below",
-		"---------- Forwarded message ---------",
-		"From: Alice <alice@example.com>",
-		// 09:00 -0400 rendered in UTC; weekday is recomputed (Mar 10 2026 is a Tue).
-		"Date: Tue, Mar 10, 2026 at 1:00\u202fPM",
-		"Subject: Test Subject",
-		"To: bob@example.com",
-		"Cc: carol@example.com",
-		"Body text here.",
-	}
-	for _, want := range checks {
-		if !strings.Contains(result, want) {
-			t.Errorf("formatForwardedMessage missing %q, got:\n%s", want, result)
-		}
-	}
-}
-
-func TestFormatForwardedMessage_NoNote(t *testing.T) {
-	result := formatForwardedMessage("", composeSignature{}, "from@x.com", "", "Subj", "to@x.com", "", "Body.", time.UTC)
-	if strings.HasPrefix(result, "\n\n------") {
-		// Should not have leading blank lines when note is empty.
-		t.Errorf("expected no leading blank lines when note is empty")
-	}
-	if !strings.HasPrefix(result, "---------- Forwarded message") {
-		t.Errorf("expected message to start with separator when no note")
-	}
-}
-
-func TestFormatForwardedMessageHTML(t *testing.T) {
-	result := formatForwardedMessageHTML(
-		"Check this out",
-		composeSignature{},
-		"Alice <alice@example.com>",
-		"Mon, 10 Mar 2026 09:00:00 -0400",
-		"Test",
-		"bob@example.com",
-		"",
-		"<p>Original content</p>",
-		time.UTC,
-	)
-
-	if !strings.Contains(result, "Check this out") {
-		t.Error("missing note in HTML")
-	}
-	// Date (09:00 -0400) reformatted to Gmail style in UTC.
-	if !strings.Contains(result, "Tue, Mar 10, 2026 at 1:00\u202fPM") {
-		t.Errorf("missing reformatted date in HTML, got:\n%s", result)
-	}
-	if !strings.Contains(result, "Forwarded message") {
-		t.Error("missing forward separator in HTML")
-	}
-	if !strings.Contains(result, "Alice") {
-		t.Error("missing sender name in HTML")
-	}
-	if !strings.Contains(result, "<p>Original content</p>") {
-		t.Error("missing original HTML content")
 	}
 }
 
