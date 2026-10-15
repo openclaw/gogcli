@@ -7,6 +7,10 @@ on:
         description: SemVer to release
         required: true
         type: string
+      dry_run:
+        description: Build and verify without creating tags or publishing
+        type: boolean
+        default: false
 
 permissions: {}
 
@@ -22,10 +26,16 @@ jobs:
       - name: Validate GogCLI version metadata
         env:
           VERSION: ${{ inputs.version }}
+          DRY_RUN: ${{ inputs.dry_run }}
         run: |
           set -euo pipefail
           release_version=${VERSION#v}
-          test "$(tr -d '\r\n' < internal/cmd/VERSION)" = "v${release_version}"
+          source_version=$(tr -d '\r\n' < internal/cmd/VERSION)
+          source_version=${source_version#v}
+          if [[ "$DRY_RUN" == true ]]; then
+            source_version=${source_version%-dev}
+          fi
+          test "$source_version" = "$release_version"
 
       - name: Preflight Apple notarization access
         env:
@@ -53,6 +63,7 @@ jobs:
     uses: openclaw/release-workflows/.github/workflows/release-go-cli.yml@v1
     with:
       version: ${{ inputs.version }}
+      dry-run: ${{ inputs.dry_run }}
       repository-type: openclaw
       homebrew-tap: openclaw/homebrew-tap
       homebrew-formula: gogcli

@@ -41,6 +41,14 @@ gh workflow run release-unified.yml \
 
 `scripts/release.sh X.Y.Z` is the equivalent convenience wrapper. Watch the exact returned workflow run through completion. Retrying the same version reuses the immutable annotated tag; the workflow never moves it.
 
+To validate the pipeline without creating a tag, release, or tap update, dispatch
+the same workflow with `-f dry_run=true` and the numeric version recorded in
+`internal/cmd/VERSION`, omitting its development suffix (for example, `0.44.0`
+for `v0.44.0-dev`). This version must have a dated changelog section. The dry run
+builds the current protected `main` head, signs, and verifies its artifacts;
+it does not rebuild the older release tag. A real release still requires an
+exact version match without the development suffix.
+
 ## Docker closeout
 
 After the GitHub Release is public and its tag is verified, publish the Docker image separately unless an exact-tag Docker run has already succeeded. The unified workflow creates the tag with `GITHUB_TOKEN`, which does not trigger Docker's tag-push workflow.
