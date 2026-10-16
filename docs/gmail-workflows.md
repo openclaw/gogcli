@@ -334,6 +334,10 @@ The existing `--add` and `--remove` flags still split comma-separated values.
 Both forms can be repeated and combined. Label IDs remain case-sensitive;
 label names use normal name lookup.
 
+`gmail batch modify` sends at most 1,000 message IDs per API request. If a later
+request fails, the error reports the offset of that batch; earlier batches have
+already been applied. A successful result reports all requested IDs.
+
 ## Reply and Reply All
 
 The Gmail API has no reply method. Clients fetch the original message, build a

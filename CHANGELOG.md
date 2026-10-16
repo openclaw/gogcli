@@ -2,6 +2,8 @@
 
 ## 0.45.1 - Unreleased
 
+- Gmail: chunk `batch modify` requests at 1,000 message IDs and report partial progress if a later batch fails. (#1209, #1199) — thanks @i098.
+
 - Auth: accept `gog auth <email>` as shorthand for `gog auth add <email>`; bare `gog auth` and mistyped subcommands keep their existing errors. (#1221)
 
 ## 0.45.0 - 2026-10-16
