@@ -2,12 +2,34 @@ package cmd
 
 import (
 	"context"
+	"fmt"
+	"slices"
 
 	"google.golang.org/api/gmail/v1"
 
+	"github.com/openclaw/gogcli/internal/errfmt"
 	"github.com/openclaw/gogcli/internal/outfmt"
 	"github.com/openclaw/gogcli/internal/ui"
 )
+
+// gmailBatchMaxIDs is the Gmail API limit on message IDs per batchModify request.
+const gmailBatchMaxIDs = 1000
+
+// batchModifyInChunks calls do for consecutive chunks of at most gmailBatchMaxIDs IDs.
+// A failure after the first chunk reports the offset, since earlier chunks were already applied.
+func batchModifyInChunks(ids []string, do func(chunk []string) error) error {
+	offset := 0
+	for chunk := range slices.Chunk(ids, gmailBatchMaxIDs) {
+		if err := do(chunk); err != nil {
+			if offset == 0 {
+				return err
+			}
+			return errfmt.NewUserFacingError(fmt.Sprintf("batch modify failed at offset %d: %s", offset, errfmt.Format(err)), err)
+		}
+		offset += len(chunk)
+	}
+	return nil
+}
 
 type GmailBatchCmd struct {
 	Delete GmailBatchDeleteCmd `cmd:"" name:"delete" aliases:"rm,del,remove" help:"Permanently delete messages; requires https://mail.google.com/ OAuth scope (use 'gmail trash' with the default scope)"`
@@ -117,11 +139,13 @@ func (c *GmailBatchModifyCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
-	err = svc.Users.Messages.BatchModify("me", &gmail.BatchModifyMessagesRequest{
-		Ids:            ids,
-		AddLabelIds:    addIDs,
-		RemoveLabelIds: removeIDs,
-	}).Do()
+	err = batchModifyInChunks(ids, func(chunk []string) error {
+		return svc.Users.Messages.BatchModify("me", &gmail.BatchModifyMessagesRequest{
+			Ids:            chunk,
+			AddLabelIds:    addIDs,
+			RemoveLabelIds: removeIDs,
+		}).Context(ctx).Do()
+	})
 	if err != nil {
 		return err
 	}
