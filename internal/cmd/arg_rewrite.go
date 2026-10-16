@@ -7,6 +7,9 @@ import (
 )
 
 func rewriteAuthEmailArgs(model *kong.Application, args []string) []string {
+	// `gog auth you@example.com` is a common slip for `gog auth add you@example.com`.
+	// Only an @-containing non-subcommand token is rewritten, so bare `gog auth` and
+	// mistyped subcommands keep Kong's errors instead of starting an OAuth flow.
 	if model == nil || model.Node == nil {
 		return args
 	}
