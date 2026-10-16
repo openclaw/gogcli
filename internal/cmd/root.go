@@ -158,6 +158,7 @@ func executeWithRuntime(args []string, runtime *app.Runtime) (err error) {
 	}
 	args = rewriteDocsCellUpdateContentArgs(parser.Model, args)
 	args = rewriteDesirePathArgs(parser.Model, args)
+	args = rewriteAuthEmailArgs(parser.Model, args)
 
 	defer func() {
 		if r := recover(); r != nil {

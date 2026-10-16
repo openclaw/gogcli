@@ -57,6 +57,8 @@ gog auth doctor --check
 gog gmail search 'newer_than:7d' --max 10
 ```
 
+`gog auth you@gmail.com` is shorthand for `gog auth add you@gmail.com`, with the same flags.
+
 For Gmail queries beginning with `-`, place all flags before `--`; see
 [Search and Read](docs/gmail-workflows.md#search-and-read).
 
