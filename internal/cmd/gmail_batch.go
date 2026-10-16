@@ -24,7 +24,7 @@ func batchModifyInChunks(ids []string, do func(chunk []string) error) error {
 			if offset == 0 {
 				return err
 			}
-			return errfmt.NewUserFacingError(fmt.Sprintf("batch modify failed at offset %d: %s", offset, errfmt.Format(err)), err)
+			return errfmt.NewUserFacingError(fmt.Sprintf("batch modify failed at offset %d: first %d IDs already applied; resolve the error and retry only the remaining IDs: %s", offset, offset, errfmt.Format(err)), err)
 		}
 		offset += len(chunk)
 	}

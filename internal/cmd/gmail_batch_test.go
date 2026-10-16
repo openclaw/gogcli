@@ -122,6 +122,11 @@ func TestGmailBatchModifyCmd_LaterChunkFailureReportsOffset(t *testing.T) {
 	if !strings.Contains(errfmt.Format(result.err), "offset 1000") || !strings.Contains(errfmt.Format(result.err), "backend down") {
 		t.Fatalf("unexpected error: %v", result.err)
 	}
+	for _, hint := range []string{"first 1000 IDs already applied", "retry only the remaining IDs"} {
+		if !strings.Contains(errfmt.Format(result.err), hint) {
+			t.Fatalf("missing recovery hint %q: %v", hint, result.err)
+		}
+	}
 	if len(*requests) != 1 {
 		t.Fatalf("got %d accepted requests, want 1", len(*requests))
 	}
