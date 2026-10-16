@@ -12,7 +12,7 @@ import (
 )
 
 func mcpAllTools() []mcpToolSpec {
-	return append([]mcpToolSpec{
+	tools := append([]mcpToolSpec{
 		mcpGmailSearchTool(),
 		mcpGmailGetMessageTool(),
 		mcpGmailGetThreadTool(),
@@ -24,6 +24,12 @@ func mcpAllTools() []mcpToolSpec {
 		mcpDocsWriteTool(),
 		mcpSheetsUpdateRangeTool(),
 	}, mcpGmailMutationTools()...)
+	tools = append(tools, mcpExportTools()...)
+	tools = append(tools, mcpGmailThreadIDsTool(), mcpGmailSearchThreadsTool())
+	tools = append(tools, mcpCalendarReadTools()...)
+	tools = append(tools, mcpGmailSettingsTools()...)
+	tools = append(tools, mcpCalendarWriteTools()...)
+	return append(tools, mcpNewDeleteTools()...)
 }
 
 func mcpGmailSearchTool() mcpToolSpec {

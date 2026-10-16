@@ -456,6 +456,9 @@ Generated from `gog schema --json`.
       - [`gog gmail (mail,email) drafts (draft) reply-all (replyall) <messageId> [flags]`](commands/gog-gmail-drafts-reply-all.md) - Save a reply-all as a draft
       - [`gog gmail (mail,email) drafts (draft) send (post) <draftId>`](commands/gog-gmail-drafts-send.md) - Send a draft
       - [`gog gmail (mail,email) drafts (draft) update (edit,set) <draftId> [flags]`](commands/gog-gmail-drafts-update.md) - Update a draft
+    - [`gog gmail (mail,email) export <command>`](commands/gog-gmail-export.md) - Export bounded exact message or attachment bytes
+      - [`gog gmail (mail,email) export attachment --out=STRING <messageId> <attachmentId> [flags]`](commands/gog-gmail-export-attachment.md) - Export exact attachment bytes to a file
+      - [`gog gmail (mail,email) export raw --out=STRING <messageId> [flags]`](commands/gog-gmail-export-raw.md) - Export exact raw message bytes to a file
     - [`gog gmail (mail,email) forward (fwd) <messageId> [flags]`](commands/gog-gmail-forward.md) - Forward a message to new recipients
     - [`gog gmail (mail,email) get (info,show) <messageId> [flags]`](commands/gog-gmail-get.md) - Get a message (full|metadata|raw)
     - [`gog gmail (mail,email) history [flags]`](commands/gog-gmail-history.md) - Gmail history
@@ -517,6 +520,7 @@ Generated from `gog schema --json`.
     - [`gog gmail (mail,email) thread (threads,read) <command>`](commands/gog-gmail-thread.md) - Thread operations (get, modify)
       - [`gog gmail (mail,email) thread (threads,read) attachments (files) <threadId> [flags]`](commands/gog-gmail-thread-attachments.md) - List all attachments in a thread
       - [`gog gmail (mail,email) thread (threads,read) get (info,show) <threadId> [flags]`](commands/gog-gmail-thread-get.md) - Get a thread with all messages (optionally download attachments)
+      - [`gog gmail (mail,email) thread (threads,read) ids <threadId>`](commands/gog-gmail-thread-ids.md) - Read bounded ordered message metadata without bodies or attachments
       - [`gog gmail (mail,email) thread (threads,read) modify (update,edit,set) <threadId> [flags]`](commands/gog-gmail-thread-modify.md) - Modify labels on all messages in a thread
     - [`gog gmail (mail,email) track <command>`](commands/gog-gmail-track.md) - Email open tracking
       - [`gog gmail (mail,email) track key <command>`](commands/gog-gmail-track-key.md) - Manage tracking encryption keys

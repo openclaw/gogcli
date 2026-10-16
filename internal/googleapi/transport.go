@@ -57,6 +57,9 @@ type RetryTransport struct {
 	// flow, persist the new refresh token, and return nil on success.
 	// If Reauth is nil, invalid_grant errors are surfaced without retry.
 	Reauth func(context.Context) error
+	// SingleAttemptWrites preserves read retries while preventing ambiguous
+	// mutations from being replayed, even for SDK calls without Context().
+	SingleAttemptWrites bool
 }
 
 // NewRetryTransport creates a RetryTransport with sensible defaults.
@@ -83,7 +86,7 @@ func (t *RetryTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 
 		return nil, &CircuitBreakerError{}
 	}
-	retryDisabled := retriesDisabled(req.Context())
+	retryDisabled := retriesDisabled(req.Context()) || (t.SingleAttemptWrites && req.Method != http.MethodGet && req.Method != http.MethodHead)
 
 	replayable, err := ensureReplayableBody(req)
 	if err != nil {

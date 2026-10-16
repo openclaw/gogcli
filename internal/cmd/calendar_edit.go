@@ -30,9 +30,11 @@ type CalendarCreateCmd struct {
 	PlaceID               string   `name:"place-id" help:"Resolve a Google Places ID and use it as event location"`
 	PlaceLanguage         string   `name:"place-language" help:"Places API language code for location lookup"`
 	PlaceRegion           string   `name:"place-region" help:"Places API region code for location lookup"`
+	AttendeeEntries       []string `name:"attendee-entry" sep:"none" help:"Literal attendee email with optional modifiers (repeatable; commas preserved)"`
 	Attendees             string   `name:"attendees" help:"Comma-separated attendee emails; modifiers: ;optional, ;resource, ;comment=TEXT"`
 	AllDay                bool     `name:"all-day" help:"All-day event (use date-only in --from/--to)"`
 	Recurrence            []string `name:"rrule" help:"Recurrence rules (e.g., 'RRULE:FREQ=MONTHLY;BYMONTHDAY=11'). Can be repeated." sep:"none"`
+	ReminderEntries       []string `name:"reminder-entry" sep:"none" xor:"reminders" help:"Literal reminder method:duration (repeatable; max 5)"`
 	Reminders             []string `name:"reminder" xor:"reminders" help:"Custom reminders as method:duration (e.g., popup:30m, email:1d). Can be repeated (max 5)."`
 	NoReminders           bool     `name:"no-reminders" xor:"reminders" help:"Disable all event reminders"`
 	ColorId               string   `name:"event-color" help:"Event color ID (1-11). Use 'gog calendar colors' to see available colors."`
@@ -47,6 +49,7 @@ type CalendarCreateCmd struct {
 	IncludePasswords      bool     `name:"include-passwords" help:"Do not redact Zoom meeting passwords in output" env:"GOG_ZOOM_INCLUDE_PASSWORDS"`
 	SourceUrl             string   `name:"source-url" help:"URL where event was created/imported from"`
 	SourceTitle           string   `name:"source-title" help:"Title of the source"`
+	AttachmentEntries     []string `name:"attachment-url" sep:"none" help:"Literal attachment URL (repeatable; commas preserved)"`
 	Attachments           []string `name:"attachment" help:"File attachment URL (can be repeated)"`
 	PrivateProps          []string `name:"private-prop" help:"Private extended property (key=value, can be repeated)"`
 	SharedProps           []string `name:"shared-prop" help:"Shared extended property (key=value, can be repeated)"`
@@ -87,9 +90,10 @@ func calendarCreateInputFromCommand(c *CalendarCreateCmd) calendarCreateInput {
 		Description:           c.Description,
 		Location:              c.Location,
 		Attendees:             c.Attendees,
+		LiteralAttendees:      c.AttendeeEntries,
 		AllDay:                c.AllDay,
 		Recurrence:            c.Recurrence,
-		Reminders:             c.Reminders,
+		Reminders:             append(append([]string{}, c.Reminders...), c.ReminderEntries...),
 		NoReminders:           c.NoReminders,
 		ColorID:               c.ColorId,
 		Visibility:            c.Visibility,
@@ -102,7 +106,7 @@ func calendarCreateInputFromCommand(c *CalendarCreateCmd) calendarCreateInput {
 		WithZoom:              c.WithZoom,
 		SourceURL:             c.SourceUrl,
 		SourceTitle:           c.SourceTitle,
-		Attachments:           c.Attachments,
+		Attachments:           append(append([]string{}, c.Attachments...), c.AttachmentEntries...),
 		PrivateProps:          c.PrivateProps,
 		SharedProps:           c.SharedProps,
 		EventType:             c.EventType,
@@ -188,17 +192,23 @@ type CalendarUpdateCmd struct {
 	To                    string   `name:"to" help:"New end time (RFC3339; set empty to clear)"`
 	StartTimezone         string   `name:"start-timezone" aliases:"from-timezone" help:"IANA timezone metadata for --from (e.g., Europe/Rome)"`
 	EndTimezone           string   `name:"end-timezone" aliases:"to-timezone" help:"IANA timezone metadata for --to (e.g., America/New_York)"`
+	SourceUrl             string   `name:"source-url" help:"New source URL (set empty to clear source)"`
+	SourceTitle           string   `name:"source-title" help:"New source title (set empty to clear title)"`
 	Description           string   `name:"description" help:"New description (set empty to clear)"`
 	Location              string   `name:"location" help:"New location (set empty to clear)"`
 	LocationSearch        string   `name:"location-search" help:"Resolve a Google Places text search and use the best match as event location"`
 	PlaceID               string   `name:"place-id" help:"Resolve a Google Places ID and use it as event location"`
 	PlaceLanguage         string   `name:"place-language" help:"Places API language code for location lookup"`
 	PlaceRegion           string   `name:"place-region" help:"Places API region code for location lookup"`
+	AttendeeEntries       []string `name:"attendee-entry" sep:"none" help:"Literal attendee email with optional modifiers (repeatable; commas preserved)"`
 	Attendees             string   `name:"attendees" help:"Comma-separated attendee emails (replaces all; set empty to clear); modifiers: ;optional, ;resource, ;comment=TEXT"`
+	AddAttendeeEntries    []string `name:"add-attendee-entry" sep:"none" help:"Literal attendee to add (repeatable; commas preserved)"`
 	AddAttendee           string   `name:"add-attendee" help:"Comma-separated attendee emails to add (preserves existing attendees); modifiers: ;optional, ;resource, ;comment=TEXT"`
+	AttachmentEntries     []string `name:"attachment-url" sep:"none" help:"Literal attachment URL (repeatable; commas preserved)"`
 	Attachments           []string `name:"attachment" help:"File attachment URL (can be repeated; replaces all; set empty to clear)"`
 	AllDay                bool     `name:"all-day" help:"All-day event (use date-only in --from/--to)"`
 	Recurrence            []string `name:"rrule" help:"Recurrence rules (e.g., 'RRULE:FREQ=MONTHLY;BYMONTHDAY=11'). Can be repeated. Set empty to clear." sep:"none"`
+	ReminderEntries       []string `name:"reminder-entry" sep:"none" xor:"reminders" help:"Literal reminder method:duration (repeatable; max 5)"`
 	Reminders             []string `name:"reminder" xor:"reminders" help:"Custom reminders as method:duration (e.g., popup:30m, email:1d). Can be repeated (max 5). Set empty to restore calendar defaults."`
 	NoReminders           bool     `name:"no-reminders" xor:"reminders" help:"Disable all event reminders"`
 	ColorId               string   `name:"event-color" help:"Event color ID (1-11, or empty to clear)"`
@@ -236,21 +246,22 @@ type CalendarUpdateCmd struct {
 
 func calendarUpdateFieldsFromKong(kctx *kong.Context) calendarUpdateFields {
 	return calendarUpdateFields{
-		Summary:               flagProvided(kctx, "summary"),
-		Description:           flagProvided(kctx, "description"),
-		Location:              flagProvided(kctx, "location"),
-		LocationSearch:        flagProvided(kctx, "location-search"),
-		PlaceID:               flagProvided(kctx, "place-id"),
-		From:                  flagProvided(kctx, "from"),
-		To:                    flagProvided(kctx, "to"),
-		StartTimezone:         flagProvided(kctx, "start-timezone"),
-		EndTimezone:           flagProvided(kctx, "end-timezone"),
-		AllDay:                flagProvided(kctx, "all-day"),
-		Attendees:             flagProvided(kctx, "attendees"),
-		AddAttendee:           flagProvided(kctx, "add-attendee"),
-		Attachments:           flagProvided(kctx, "attachment"),
+		Summary:        flagProvided(kctx, "summary"),
+		Description:    flagProvided(kctx, "description"),
+		Location:       flagProvided(kctx, "location"),
+		LocationSearch: flagProvided(kctx, "location-search"),
+		PlaceID:        flagProvided(kctx, "place-id"),
+		From:           flagProvided(kctx, "from"),
+		To:             flagProvided(kctx, "to"),
+		StartTimezone:  flagProvided(kctx, "start-timezone"),
+		EndTimezone:    flagProvided(kctx, "end-timezone"),
+		AllDay:         flagProvided(kctx, "all-day"),
+		Attendees:      flagProvided(kctx, "attendees") || flagProvided(kctx, "attendee-entry"),
+		AddAttendee:    flagProvided(kctx, "add-attendee") || flagProvided(kctx, "add-attendee-entry"),
+		SourceURL:      flagProvided(kctx, "source-url"), SourceTitle: flagProvided(kctx, "source-title"),
+		Attachments:           flagProvided(kctx, "attachment") || flagProvided(kctx, "attachment-url"),
 		Recurrence:            flagProvided(kctx, "rrule"),
-		Reminders:             flagProvided(kctx, "reminder"),
+		Reminders:             flagProvided(kctx, "reminder") || flagProvided(kctx, "reminder-entry"),
 		ColorID:               flagProvided(kctx, "event-color"),
 		Visibility:            flagProvided(kctx, "visibility"),
 		Transparency:          flagProvided(kctx, "transparency"),
@@ -280,25 +291,28 @@ func calendarUpdateFieldsFromKong(kctx *kong.Context) calendarUpdateFields {
 
 func calendarUpdateInputFromCommand(c *CalendarUpdateCmd) calendarUpdateInput {
 	return calendarUpdateInput{
-		CalendarID:            c.CalendarID,
-		EventID:               c.EventID,
-		Summary:               c.Summary,
-		From:                  c.From,
-		To:                    c.To,
-		StartTimezone:         c.StartTimezone,
-		EndTimezone:           c.EndTimezone,
-		Description:           c.Description,
-		Location:              c.Location,
-		LocationSearch:        c.LocationSearch,
-		PlaceID:               c.PlaceID,
-		PlaceLanguage:         c.PlaceLanguage,
-		PlaceRegion:           c.PlaceRegion,
-		Attendees:             c.Attendees,
-		AddAttendee:           c.AddAttendee,
-		Attachments:           c.Attachments,
+		CalendarID:          c.CalendarID,
+		EventID:             c.EventID,
+		Summary:             c.Summary,
+		From:                c.From,
+		To:                  c.To,
+		StartTimezone:       c.StartTimezone,
+		EndTimezone:         c.EndTimezone,
+		Description:         c.Description,
+		Location:            c.Location,
+		LocationSearch:      c.LocationSearch,
+		PlaceID:             c.PlaceID,
+		PlaceLanguage:       c.PlaceLanguage,
+		PlaceRegion:         c.PlaceRegion,
+		Attendees:           c.Attendees,
+		LiteralAttendees:    c.AttendeeEntries,
+		AddAttendee:         c.AddAttendee,
+		LiteralAddAttendees: c.AddAttendeeEntries,
+		SourceURL:           c.SourceUrl, SourceTitle: c.SourceTitle,
+		Attachments:           append(append([]string{}, c.Attachments...), c.AttachmentEntries...),
 		AllDay:                c.AllDay,
 		Recurrence:            c.Recurrence,
-		Reminders:             c.Reminders,
+		Reminders:             append(append([]string{}, c.Reminders...), c.ReminderEntries...),
 		NoReminders:           c.NoReminders,
 		ColorID:               c.ColorId,
 		Visibility:            c.Visibility,
@@ -365,7 +379,7 @@ func (c *CalendarUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *
 		if getErr != nil {
 			return fmt.Errorf("failed to fetch current event: %w", getErr)
 		}
-		merged, attendeesChanged := mergeAttendeesWithChange(existing.Attendees, plan.AddAttendee)
+		merged, attendeesChanged := mergeAttendeeLists(existing.Attendees, append(buildAttendees(plan.AddAttendee), buildLiteralAttendees(plan.LiteralAddAttendees)...))
 		if attendeesChanged {
 			patch.Attendees = merged
 			changed = true
@@ -423,6 +437,9 @@ func (c *CalendarUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *
 		}
 	}
 
+	if plan.Scope == scopeFuture {
+		expectMCPMutationWrites(ctx)
+	}
 	updated, err := mutation.patchEvent(ctx, targetEventID, patch, plan.SendUpdates)
 	if err != nil {
 		if c.createdZoomMeetingID != "" {
@@ -582,6 +599,9 @@ func truncateParentRecurrence(ctx context.Context, svc *calendar.Service, calend
 		call = call.SendUpdates(sendUpdates)
 	}
 	_, err = call.Do()
+	if err == nil {
+		recordMCPMutationID(ctx, eventID)
+	}
 	return err
 }
 
@@ -662,6 +682,9 @@ func (c *CalendarDeleteCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
+	if scope == scopeFuture {
+		expectMCPMutationWrites(ctx)
+	}
 	if err := mutation.deleteEvent(ctx, resolution.TargetEventID, sendUpdates); err != nil {
 		return err
 	}

@@ -22,6 +22,7 @@ gog calendar (cal) freebusy [<calendarIds>] [flags]
 | `-a`<br>`--account`<br>`--acct` | `string` |  | Account email, alias, or auto for authenticated Google API commands |
 | `--all` | `bool` |  | Query all calendars |
 | `--cal` | `[]string` |  | Calendar ID, name, or index (can be repeated) |
+| `--calendar-id` | `[]string` |  | Literal calendar selector; commas are preserved (repeatable) |
 | `--client` | `string` |  | OAuth client name (selects stored credentials + token bucket) |
 | `--color` | `string` | auto | Color output: auto\|always\|never |
 | `--disable-commands` | `string` |  | Comma-separated list of disabled commands; dot paths allowed |

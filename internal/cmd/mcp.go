@@ -18,13 +18,16 @@ import (
 )
 
 type McpCmd struct {
-	AllowTool        []string `name:"allow-tool" aliases:"tool" sep:"none" help:"Tool or service allowlist (default: all read-only tools). Examples: gmail.*,docs_get,sheets"`
-	AllowWrite       bool     `name:"allow-write" help:"Expose write tools. Write tools must also match --allow-tool when that flag is set."`
-	AllowGmailSend   bool     `name:"allow-gmail-send" help:"Allow Gmail sending in addition to write authorization and tool selection"`
-	AllowGmailDelete bool     `name:"allow-gmail-delete" help:"Allow permanent Gmail deletion in addition to write authorization and tool selection; execution also requires --force"`
-	ListTools        bool     `name:"list-tools" help:"Print enabled MCP tools as JSON and exit"`
-	TimeoutSeconds   int      `name:"timeout-seconds" help:"Per-tool subprocess timeout" default:"60"`
-	MaxOutputBytes   int      `name:"max-output-bytes" help:"Max stdout/stderr bytes captured per tool call" default:"102400"`
+	AllowTool                []string `name:"allow-tool" aliases:"tool" sep:"none" help:"Tool or service allowlist (default: all read-only tools). Examples: gmail.*,docs_get,sheets"`
+	AllowWrite               bool     `name:"allow-write" help:"Expose write tools. Write tools must also match --allow-tool when that flag is set."`
+	AllowGmailSend           bool     `name:"allow-gmail-send" help:"Allow Gmail sending in addition to write authorization and tool selection"`
+	AllowGmailDelete         bool     `name:"allow-gmail-delete" help:"Allow permanent Gmail deletion in addition to write authorization and tool selection; execution also requires --force"`
+	AllowCalendarNotify      bool     `name:"allow-calendar-notify" help:"Allow Calendar attendee notifications and RSVP in addition to write authorization; independent of Gmail sending"`
+	AllowCalendarDelete      bool     `name:"allow-calendar-delete" help:"Allow Calendar cancellation in addition to writes; execution also requires startup --force"`
+	AllowGmailSettingsDelete bool     `name:"allow-gmail-settings-delete" help:"Allow Gmail label/filter deletion in addition to writes; execution also requires startup --force"`
+	ListTools                bool     `name:"list-tools" help:"Print enabled MCP tools as JSON and exit"`
+	TimeoutSeconds           int      `name:"timeout-seconds" help:"Per-tool subprocess timeout" default:"60"`
+	MaxOutputBytes           int      `name:"max-output-bytes" help:"Max stdout/stderr bytes captured per tool call" default:"102400"`
 }
 
 type mcpToolRisk string
@@ -32,20 +35,28 @@ type mcpToolRisk string
 type mcpToolCapability string
 
 const (
-	mcpRiskRead              mcpToolRisk       = "read"
-	mcpRiskWrite             mcpToolRisk       = "write"
-	mcpCapabilityGmailSend   mcpToolCapability = "gmail_send"
-	mcpCapabilityGmailDelete mcpToolCapability = "gmail_delete"
+	mcpRiskRead                      mcpToolRisk       = "read"
+	mcpRiskWrite                     mcpToolRisk       = "write"
+	mcpCapabilityGmailSend           mcpToolCapability = "gmail_send"
+	mcpCapabilityGmailDelete         mcpToolCapability = "gmail_delete"
+	mcpCapabilityCalendarNotify      mcpToolCapability = "calendar_notify"
+	mcpCapabilityCalendarDelete      mcpToolCapability = "calendar_delete"
+	mcpCapabilityGmailSettingsDelete mcpToolCapability = "gmail_settings_delete"
 )
 
 type mcpToolSpec struct {
-	Name        string
-	Service     string
-	Risk        mcpToolRisk
-	Capability  mcpToolCapability
-	Description string
-	Options     []mcp.ToolOption
-	BuildArgs   func(mcp.CallToolRequest) ([]string, error)
+	Name                 string
+	Service              string
+	Risk                 mcpToolRisk
+	Capability           mcpToolCapability
+	Description          string
+	Options              []mcp.ToolOption
+	BuildArgs            func(mcp.CallToolRequest) ([]string, error)
+	Handle               func(context.Context, mcp.CallToolRequest, *mcpToolRuntime) *mcp.CallToolResult
+	CommandPath          []string
+	NeedsSnapshot        bool
+	Bounded              bool
+	RequiredCapabilities []mcpToolCapability
 }
 
 type mcpCommandResult struct {
@@ -70,7 +81,7 @@ func (c *McpCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return usage("--max-output-bytes must be greater than zero")
 	}
 
-	tools, resolvedAccount, err := mcpEnabledToolsForRun(ctx, *c, flags)
+	tools, resolvedAccount, policy, err := mcpEnabledToolsForRun(ctx, *c, flags)
 	if err != nil {
 		return err
 	}
@@ -83,9 +94,21 @@ func (c *McpCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if c.ListTools {
 		return mcpPrintTools(stdoutWriter(ctx), tools)
 	}
+	if catalogErr := validateMCPCatalog(tools); catalogErr != nil {
+		return catalogErr
+	}
+	runtime, err := newMCPToolRuntime(ctx, self, c, flags, policy)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if runtime.store != nil {
+			_ = runtime.store.Close()
+		}
+	}()
 
-	baseArgs := mcpParentRootArgs(flags)
-	safetySuffix := mcpParentSafetyArgs(flags)
+	baseArgs := mcpParentRootArgs(&runtime.flags)
+	safetySuffix := mcpParentSafetyArgs(&runtime.flags)
 	timeout := time.Duration(c.TimeoutSeconds) * time.Second
 	maxOutputBytes := c.MaxOutputBytes
 
@@ -93,6 +116,9 @@ func (c *McpCmd) Run(ctx context.Context, flags *RootFlags) error {
 	for _, spec := range tools {
 		tool := spec
 		s.AddTool(newMCPTool(tool), func(reqCtx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			if tool.Bounded {
+				return runtime.runSpecial(reqCtx, tool, req), nil
+			}
 			childCommandArgs, buildErr := tool.BuildArgs(req)
 			if buildErr != nil {
 				result := mcp.NewToolResultError(buildErr.Error())

@@ -38,6 +38,7 @@ type calendarCreateInput struct {
 	Timezone              string
 	Description           string
 	Location              string
+	LiteralAttendees      []string
 	Attendees             string
 	AllDay                bool
 	Recurrence            []string
@@ -97,6 +98,8 @@ type calendarUpdateFields struct {
 	EndTimezone           bool
 	AllDay                bool
 	Attendees             bool
+	SourceURL             bool
+	SourceTitle           bool
 	AddAttendee           bool
 	Attachments           bool
 	Recurrence            bool
@@ -141,7 +144,11 @@ type calendarUpdateInput struct {
 	PlaceID               string
 	PlaceLanguage         string
 	PlaceRegion           string
+	LiteralAttendees      []string
 	Attendees             string
+	LiteralAddAttendees   []string
+	SourceURL             string
+	SourceTitle           string
 	AddAttendee           string
 	Attachments           []string
 	AllDay                bool
@@ -175,18 +182,19 @@ type calendarUpdateInput struct {
 }
 
 type calendarUpdatePlan struct {
-	CalendarID         string
-	EventID            string
-	Scope              string
-	OriginalStartTime  string
-	SendUpdates        string
-	AddAttendee        string
-	WantsAddAttendee   bool
-	RecurrenceProvided bool
-	Fields             calendarUpdateFields
-	PlaceLookup        *calendarPlaceLookupRequest
-	Patch              *calendar.Event
-	Changed            bool
+	CalendarID          string
+	EventID             string
+	Scope               string
+	OriginalStartTime   string
+	SendUpdates         string
+	LiteralAddAttendees []string
+	AddAttendee         string
+	WantsAddAttendee    bool
+	RecurrenceProvided  bool
+	Fields              calendarUpdateFields
+	PlaceLookup         *calendarPlaceLookupRequest
+	Patch               *calendar.Event
+	Changed             bool
 }
 
 func (f calendarUpdateFields) focusEventType() bool {
@@ -259,7 +267,7 @@ func buildCalendarUpdatePlan(store *config.ConfigStore, input calendarUpdateInpu
 	}
 
 	addAttendee := strings.TrimSpace(input.AddAttendee)
-	if fields.AddAttendee && addAttendee == "" {
+	if fields.AddAttendee && addAttendee == "" && len(input.LiteralAddAttendees) == 0 {
 		return nil, usage("empty --add-attendee")
 	}
 	if !changed && !fields.AddAttendee && placeLookup == nil {
@@ -267,18 +275,19 @@ func buildCalendarUpdatePlan(store *config.ConfigStore, input calendarUpdateInpu
 	}
 
 	return &calendarUpdatePlan{
-		CalendarID:         calendarID,
-		EventID:            eventID,
-		Scope:              scope,
-		OriginalStartTime:  strings.TrimSpace(input.OriginalStartTime),
-		SendUpdates:        sendUpdates,
-		AddAttendee:        addAttendee,
-		WantsAddAttendee:   fields.AddAttendee,
-		RecurrenceProvided: fields.Recurrence,
-		Fields:             fields,
-		PlaceLookup:        placeLookup,
-		Patch:              patch,
-		Changed:            changed,
+		CalendarID:          calendarID,
+		EventID:             eventID,
+		Scope:               scope,
+		OriginalStartTime:   strings.TrimSpace(input.OriginalStartTime),
+		SendUpdates:         sendUpdates,
+		AddAttendee:         addAttendee,
+		LiteralAddAttendees: input.LiteralAddAttendees,
+		WantsAddAttendee:    fields.AddAttendee,
+		RecurrenceProvided:  fields.Recurrence,
+		Fields:              fields,
+		PlaceLookup:         placeLookup,
+		Patch:               patch,
+		Changed:             changed,
 	}, nil
 }
 
@@ -380,7 +389,7 @@ func buildCalendarCreatePlan(store *config.ConfigStore, input calendarCreateInpu
 		Location:           strings.TrimSpace(input.Location),
 		Start:              start,
 		End:                end,
-		Attendees:          buildAttendees(input.Attendees),
+		Attendees:          append(buildAttendees(input.Attendees), buildLiteralAttendees(input.LiteralAttendees)...),
 		Recurrence:         buildRecurrence(input.Recurrence),
 		Reminders:          reminders,
 		ColorId:            colorID,

@@ -18,6 +18,7 @@ gog gmail (mail,email) thread (threads,read) <command>
 
 - [gog gmail thread attachments](gog-gmail-thread-attachments.md) - List all attachments in a thread
 - [gog gmail thread get](gog-gmail-thread-get.md) - Get a thread with all messages (optionally download attachments)
+- [gog gmail thread ids](gog-gmail-thread-ids.md) - Read bounded ordered message metadata without bodies or attachments
 - [gog gmail thread modify](gog-gmail-thread-modify.md) - Modify labels on all messages in a thread
 
 ## Flags

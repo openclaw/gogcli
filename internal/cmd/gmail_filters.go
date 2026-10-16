@@ -56,20 +56,22 @@ func (c *GmailFiltersGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 }
 
 type GmailFiltersCreateCmd struct {
-	From          string `name:"from" help:"Match messages from this sender"`
-	To            string `name:"to" help:"Match messages to this recipient"`
-	Subject       string `name:"subject" help:"Match messages with this subject"`
-	Query         string `name:"query" help:"Advanced Gmail search query for matching"`
-	HasAttachment bool   `name:"has-attachment" help:"Match messages with attachments"`
-	AddLabel      string `name:"add-label" help:"Label(s) to add to matching messages (comma-separated, name or ID)"`
-	RemoveLabel   string `name:"remove-label" help:"Label(s) to remove from matching messages (comma-separated, name or ID)"`
-	Archive       bool   `name:"archive" help:"Archive matching messages (skip inbox)"`
-	MarkRead      bool   `name:"mark-read" help:"Mark matching messages as read"`
-	Star          bool   `name:"star" help:"Star matching messages"`
-	Forward       string `name:"forward" help:"Forward to this email address"`
-	Trash         bool   `name:"trash" help:"Move matching messages to trash"`
-	NeverSpam     bool   `name:"never-spam" help:"Never mark as spam"`
-	Important     bool   `name:"important" help:"Mark as important"`
+	From          string   `name:"from" help:"Match messages from this sender"`
+	To            string   `name:"to" help:"Match messages to this recipient"`
+	Subject       string   `name:"subject" help:"Match messages with this subject"`
+	Query         string   `name:"query" help:"Advanced Gmail search query for matching"`
+	HasAttachment bool     `name:"has-attachment" help:"Match messages with attachments"`
+	AddLabel      string   `name:"add-label" help:"Label(s) to add to matching messages (comma-separated, name or ID)"`
+	AddLabels     []string `name:"add-label-entry" sep:"none" help:"Literal label name or ID to add (repeatable; commas preserved)"`
+	RemoveLabel   string   `name:"remove-label" help:"Label(s) to remove from matching messages (comma-separated, name or ID)"`
+	RemoveLabels  []string `name:"remove-label-entry" sep:"none" help:"Literal label name or ID to remove (repeatable; commas preserved)"`
+	Archive       bool     `name:"archive" help:"Archive matching messages (skip inbox)"`
+	MarkRead      bool     `name:"mark-read" help:"Mark matching messages as read"`
+	Star          bool     `name:"star" help:"Star matching messages"`
+	Forward       string   `name:"forward" help:"Forward to this email address"`
+	Trash         bool     `name:"trash" help:"Move matching messages to trash"`
+	NeverSpam     bool     `name:"never-spam" help:"Never mark as spam"`
+	Important     bool     `name:"important" help:"Mark as important"`
 }
 
 func (c *GmailFiltersCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -101,6 +103,9 @@ func (c *GmailFiltersCreateCmd) Run(ctx context.Context, flags *RootFlags) error
 	if err != nil {
 		return err
 	}
+	if created != nil {
+		recordMCPMutationID(ctx, created.Id)
+	}
 	return writeCreatedGmailFilter(ctx, created)
 }
 
@@ -129,6 +134,7 @@ func (c *GmailFiltersDeleteCmd) Run(ctx context.Context, flags *RootFlags) error
 	if err != nil {
 		return err
 	}
+	recordMCPMutationID(ctx, filterID)
 
 	if outfmt.IsJSON(ctx) {
 		return outfmt.WriteJSON(ctx, stdoutWriter(ctx), map[string]any{

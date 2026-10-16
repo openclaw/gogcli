@@ -196,7 +196,7 @@ ceiling. Unknown configured selectors and attempted write widening fail before
 the MCP server starts. Use `gog mcp --list-tools` with the same account and flags
 to inspect the final registered surface.
 
-## Initial tools
+## Typed tools
 
 Read tools:
 
@@ -278,6 +278,155 @@ The generated command reference for the server itself is
 MCP clients discover the registered surface through the protocol's standard
 `tools/list` request. For shell-side inspection before starting the server, use
 `gog mcp --list-tools`; no model-callable discovery tool is added.
+
+## Exact exports and compact Gmail reads
+
+| Tool | Contract |
+| --- | --- |
+| `gmail_get_raw` | Exact decoded RFC822 bytes for `message_id`, in base64 chunks. |
+| `gmail_get_attachment` | Exact attachment bytes for `message_id` and `attachment_id`. |
+| `gmail_thread_message_ids` | Ordered metadata-only message IDs, up to 128 whole rows per page. |
+| `gmail_search_threads` | One compact Gmail search page, default 20 and maximum 100 threads. |
+
+Export arguments are `offset` (default 0), `length` (default 32768, maximum
+262144), and optional `snapshot_id`. The first response includes object IDs,
+`snapshot_id`, decoded `size`, SHA-256, `expires_at`, actual `offset` and `length`,
+`complete`, and standard `data_base64`. Raw exports include the provider's
+thread ID when available. This is decoded RFC822 data, not a Unicode conversion
+or reserialization of Gmail's full payload.
+
+Pin the snapshot and all integrity metadata. Repeat the same object IDs and
+`snapshot_id` on every later request, advancing by the returned length, which
+may be smaller than requested to fit the output budget. Nonzero offsets require
+a snapshot. An offset exactly at EOF returns an empty completed chunk. Handles
+expire 900 seconds after publication and are invalid after restart. A failed or
+expired transfer requires an explicit fresh download; never append a different
+snapshot to an existing partial file. Verify final byte count and SHA-256 before
+publishing a destination.
+
+The transport-neutral Python example at
+[`scripts/examples/mcp-gmail-export.py`](https://github.com/openclaw/gogcli/blob/main/scripts/examples/mcp-gmail-export.py)
+accepts an authenticated `call_tool(name, args)` callable, checks every native
+MCP envelope and chunk, and atomically replaces the destination only after
+integrity verification. It creates a private sibling temporary file, cleans it
+on errors or cancellation, and works with structured content or the native text
+envelope. Transport, account routing and authentication belong to the caller.
+
+`gmail_thread_message_ids` takes `thread_id`, `max`, and `cursor`. Its signed
+`next_cursor` pins the same immutable metadata snapshot; all message IDs remain
+whole and ordered. Follow pages until `complete`. Headers and snippets are
+explicitly wrapped as untrusted content, with `truncated_fields` for text limits.
+It fetches no message bodies or attachments. At most 10000 messages and 8 MiB of
+metadata are retained per snapshot.
+
+`gmail_search_threads` takes literal `query`, `max`, and opaque provider `page`.
+Follow `nextPageToken`; `count` counts this page and `complete` means no next
+page. Search pages are not a mailbox snapshot. Detail reads use at most two
+workers; text and labels carry explicit truncation metadata. An oversized page
+is refetched with fewer rows instead of clipping identifiers or dropping its
+continuation token. Neither search tool reads local paths or accepts `--all`.
+
+## Calendar and Gmail settings tools
+
+| Tool | Purpose / additional gate |
+| --- | --- |
+| `calendar_list_calendars` | One provider page, with `max` and `page`. |
+| `calendar_get_event` | Read `calendar_id` (default `primary`) and `event_id`. |
+| `calendar_search_events` | One query page with date window, `max`, and `page`; native -30/+90 day default. |
+| `calendar_freebusy` | Busy intervals and per-calendar errors for at most 50 literal calendar IDs. |
+| `gmail_list_filters` | List native Gmail settings filters. |
+| `calendar_create_event`, `calendar_update_event` | Typed native event creation and PATCH updates; ordinary write grant. |
+| `calendar_move_event` | Move to a literal destination calendar; ordinary write grant. |
+| `calendar_respond` | RSVP; always requires `calendar_notify`. |
+| `gmail_rename_label`, `gmail_create_filter` | Rename labels or create literal criteria/actions; ordinary write grant. |
+| `calendar_cancel_event` | Requires `calendar_delete` and operator startup `--force`. |
+| `gmail_delete_label`, `gmail_delete_filter` | Require `gmail_settings_delete` and operator startup `--force`. |
+
+The three additional capability flags are `--allow-calendar-notify`,
+`--allow-calendar-delete` and `--allow-gmail-settings-delete`. Matching persistent
+policy keys use underscores, for example `allow_calendar_notify`. They default
+to false, require write authorization, and never follow from `calendar.*`,
+`gmail.*`, `write`, or `*` alone. Account overrides replace these grants too;
+runtime flags cannot widen a configured policy. `--readonly` hides every write.
+No tool accepts model-supplied `force`.
+
+Calendar writes default `send_updates` to `none`. `all` and `externalOnly`
+require the notification grant in addition to the write/delete grant. RSVP can
+notify the organizer even with `none`, so it always requires notification
+permission. `--gmail-no-send` governs Gmail and does not block Calendar
+invitations or reminders. Reminder emails to the acting user are possible;
+select exact tools and review event reminder settings where that matters.
+
+Event schemas include literal attendee, recurrence, reminder and attachment-URL
+arrays, endpoint timezones, source URL/title, guest permissions, visibility,
+color, transparency, Meet controls and recurrence scope. They never accept local
+files. Commas remain inside array entries. For updates, omission preserves a
+field, while supported empty strings/arrays explicitly clear it and false guest
+permissions remain false. A shared update `timezone` requires both `start` and
+`end`; `single`/`future` scope requires RFC3339 `original_start`, or a
+`YYYY-MM-DD` instance date for all-day events. Filter creation
+accepts literal criteria and label arrays, without forwarding or file input.
+
+New ordinary tools are included by existing broad write selectors on upgrade.
+Pin exact tool names to preserve a previously reviewed surface. Existing Gmail
+send/delete gates and native draft semantics remain unchanged.
+
+### Bounded mutation receipts
+
+The new Calendar and Gmail settings writes return a bounded receipt. Successful
+writes have `outcome`, `known_steps`, `attempted_steps`, bounded confirmed `ids`,
+`metadata_omitted`, and `retry_safe: false`. Outcomes are `committed`, `partial`,
+`failed`, `outcome_unknown`, or `not_attempted` for a dry run or successful no-op.
+A failure has `stdout.error.code` and `stdout.receipt`, with MCP `isError` and a
+nonzero native `exit_code`. Provider error bodies and tokens are not included.
+
+A multi-step operation can partially commit. Missing or malformed child output,
+timeout, response overflow or uncertain transport failure returns
+`outcome_unknown`; it never replays the write to reconstruct output. Metadata
+can be omitted to preserve a complete receipt within the budget. These new
+mutations disable automatic write retries. Inspect confirmed IDs and provider
+state before deciding any subsequent action. Existing tools retain their
+established output contracts.
+
+### Snapshot and output limits
+
+New tools require `--max-output-bytes` of at least 4096 and cap the complete
+serialized MCP result at the smaller of that setting and 1 MiB, including text
+and structured content. Below the minimum, these tools are omitted from the
+catalog. `--results-only` and `--select` are rejected for them before provider
+access, including cached ranges. They return complete JSON or a bounded error.
+Legacy tools keep their existing capture behavior.
+
+Decoded exports are limited to 50 MiB each; provider bodies are bounded before
+JSON/base64 allocation (72 MiB for exports, 12 MiB for metadata/action reads).
+Private snapshot storage allows 256 MiB including pending reservations,
+128 entries and two concurrent fetch jobs. Unexpired handles are retained;
+capacity exhaustion fails without evicting them. Eight new tool calls can be
+active at once, with immediate `resource_exhausted` errors beyond that bound. Storage is
+removed at shutdown; UNIX files are mode 0600 in mode 0700 directories, and
+Windows files/directories use protected owner-user DACLs.
+
+Account/client selection and the capability policy are resolved at startup;
+handles are private to that process/account partition. Command deny/exact
+allowlists, readonly and output rules are checked on every call, including
+snapshot hits. OAuth permissions remain independent of tool grants.
+
+### Migrating feature sidecars
+
+Choose one owner for each tool name. Suppress sidecar copies of native
+`gmail_list_labels` and `gmail_list_drafts`, and update callers to native schemas
+rather than advertising duplicates. Native draft recipient strings and clear
+semantics differ from some sidecar arrays. Use `gmail_trash_messages` for native
+Trash operations. Native permanent draft deletion requires its existing Gmail
+delete grant and startup force; ordinary write permission is insufficient.
+
+Adapt clients to the native structured/text envelope and chunk integrity
+contract before removing export hooks. Keep deployment-specific account routing,
+HTTP proxies, keyring packaging and update policies until they have their own
+verified replacement. Validate catalogs, schemas, policy negatives, paging,
+expiry, concurrent transfers and independent hashes in fixtures. Deployment
+rollout is separate from tool availability; keep the previous image and client
+configuration available for rollback without recreating credentials.
 
 ## Client configuration
 
@@ -395,7 +544,9 @@ read arbitrary local files or stdin.
 
 ## Safety model
 
-Tool calls run as subprocesses of the same `gog` executable. The server adds a
+Most tool calls run as subprocesses of the same `gog` executable. Exact exports
+are read from private snapshots; thread-ID enumeration uses the native Gmail
+client with the same pinned account and safety context. The server adds a
 non-interactive, agent-oriented root context to every child command:
 
 - `--json`

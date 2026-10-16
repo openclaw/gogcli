@@ -8,11 +8,13 @@ import (
 	"google.golang.org/api/gmail/v1"
 	"google.golang.org/api/people/v1"
 
+	api "github.com/openclaw/gogcli/internal/googleapi"
 	"github.com/openclaw/gogcli/internal/outfmt"
 	"github.com/openclaw/gogcli/internal/ui"
 )
 
 type GmailSearchCmd struct {
+	Compact     bool     `name:"compact" help:"Bound metadata and detail concurrency for one-page agent reads (no --all or --count)"`
 	Query       []string `arg:"" name:"query" help:"Search query"`
 	FromContact string   `name:"from-contact" help:"Resolve a Google Contact and add from:(email OR email) to the Gmail query"`
 	Max         int64    `name:"max" aliases:"limit" help:"Max results" default:"10"`
@@ -26,6 +28,13 @@ type GmailSearchCmd struct {
 }
 
 func (c *GmailSearchCmd) Run(ctx context.Context, flags *RootFlags) error {
+	if c.Compact {
+		if c.All || c.Count || c.FromContact != "" || c.Max < 1 || c.Max > 100 {
+			return usage("--compact requires a single page with --max 1..100 and no --count/--from-contact")
+		}
+		ctx = withGmailCompactSearch(ctx)
+		ctx = api.WithResponseByteLimit(ctx, 12<<20)
+	}
 	u := ui.FromContext(ctx)
 	if err := validateGmailMaxResults(c.Max); err != nil {
 		return err
@@ -112,6 +121,9 @@ func (c *GmailSearchCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 
 	if outfmt.IsJSON(ctx) {
+		if c.Compact {
+			items = wrapCompactGmailThreadItems(ctx, items)
+		}
 		payload := map[string]any{
 			"threads":       items,
 			"nextPageToken": nextPageToken,

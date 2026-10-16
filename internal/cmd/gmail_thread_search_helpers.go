@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"fmt"
 	"regexp"
 	"strings"
 	"sync"
@@ -207,6 +208,7 @@ type threadItem struct {
 	Subject         string   `json:"subject,omitempty"`
 	Labels          []string `json:"labels,omitempty"`
 	MessageCount    int      `json:"messageCount,omitempty"`
+	TruncatedFields []string `json:"truncated_fields,omitempty"`
 }
 
 func fetchThreadDetails(ctx context.Context, svc *gmail.Service, threads []*gmail.Thread, idToName map[string]string, oldest bool, loc *time.Location) ([]threadItem, error) {
@@ -214,7 +216,23 @@ func fetchThreadDetails(ctx context.Context, svc *gmail.Service, threads []*gmai
 		return nil, nil
 	}
 
-	const maxConcurrency = 10
+	if gmailCompactSearch(ctx) {
+		seen := map[string]bool{}
+		if len(threads) > 100 {
+			return nil, fmt.Errorf("compact provider page exceeds row limit")
+		}
+		for _, thread := range threads {
+			if thread == nil || !gmailExportIDValid(thread.Id) || seen[thread.Id] {
+				return nil, fmt.Errorf("compact provider page has invalid or duplicate identities")
+			}
+			seen[thread.Id] = true
+		}
+	}
+
+	maxConcurrency := 10
+	if gmailCompactSearch(ctx) {
+		maxConcurrency = 2
+	}
 	sem := make(chan struct{}, maxConcurrency)
 
 	type result struct {
@@ -253,6 +271,10 @@ func fetchThreadDetails(ctx context.Context, svc *gmail.Service, threads []*gmai
 				return
 			}
 
+			if gmailCompactSearch(ctx) && (fullThread == nil || fullThread.Id != threadID) {
+				results <- result{index: idx, err: fmt.Errorf("compact provider thread identity mismatch")}
+				return
+			}
 			item := threadItem{ID: threadID, MessageCount: len(fullThread.Messages)}
 			if first := firstMessage(fullThread); first != nil {
 				item.From = sanitizeTab(headerValue(first.Payload, "From"))
@@ -279,6 +301,9 @@ func fetchThreadDetails(ctx context.Context, svc *gmail.Service, threads []*gmai
 				item.InternalDateISO = formatGmailDateISO(dateMsg.InternalDate, loc)
 			}
 
+			if gmailCompactSearch(ctx) {
+				item = compactGmailThreadItem(item)
+			}
 			results <- result{index: idx, item: item}
 		}(i, thread.Id)
 	}

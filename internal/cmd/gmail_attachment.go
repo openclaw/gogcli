@@ -354,6 +354,10 @@ func fetchAttachmentBytes(ctx context.Context, svc *gmail.Service, messageID, at
 }
 
 func writeFileAtomic(outPath string, data []byte) error {
+	return writeFileAtomicWithPrivacy(outPath, data, nil)
+}
+
+func writeFileAtomicWithPrivacy(outPath string, data []byte, private func(string) error) error {
 	dir := filepath.Dir(outPath)
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return err
@@ -366,7 +370,11 @@ func writeFileAtomic(outPath string, data []byte) error {
 	tmp := f.Name()
 	defer func() { _ = os.Remove(tmp) }()
 
-	if err := f.Chmod(0o600); err != nil {
+	privacyErr := f.Chmod(0o600)
+	if private != nil {
+		privacyErr = private(tmp)
+	}
+	if err := privacyErr; err != nil {
 		_ = f.Close()
 		return err
 	}

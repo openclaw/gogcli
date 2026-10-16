@@ -14,6 +14,7 @@ import (
 type CalendarFreeBusyCmd struct {
 	CalendarIDs string   `arg:"" optional:"" name:"calendarIds" help:"Comma-separated calendar IDs, names, or indices from 'calendar calendars'"`
 	Cal         []string `name:"cal" help:"Calendar ID, name, or index (can be repeated)"`
+	LiteralCal  []string `name:"calendar-id" sep:"none" help:"Literal calendar selector; commas are preserved (repeatable)"`
 	All         bool     `name:"all" help:"Query all calendars"`
 	From        string   `name:"from" help:"Start time (RFC3339 with timezone, date, or relative: now, today, tomorrow, monday)"`
 	To          string   `name:"to" help:"End time (RFC3339 with timezone, date, or relative: now, today, tomorrow, monday)"`
@@ -34,7 +35,8 @@ func (c *CalendarFreeBusyCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
-	calendarIDs, err := resolveSelectedCalendarIDs(ctx, store, svc, c.Cal, c.CalendarIDs, c.All, true)
+	selectors := append(append([]string{}, c.Cal...), c.LiteralCal...)
+	calendarIDs, err := resolveSelectedCalendarIDs(ctx, store, svc, selectors, c.CalendarIDs, c.All, true)
 	if err != nil {
 		return err
 	}

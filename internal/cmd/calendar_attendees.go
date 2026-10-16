@@ -23,7 +23,20 @@ func buildAttendees(csv string) []*calendar.EventAttendee {
 
 // mergeAttendeesWithChange returns the merged attendees and whether at least one attendee was added.
 func mergeAttendeesWithChange(existing []*calendar.EventAttendee, addCSV string) ([]*calendar.EventAttendee, bool) {
-	newAttendees := buildAttendees(addCSV)
+	return mergeAttendeeLists(existing, buildAttendees(addCSV))
+}
+
+func buildLiteralAttendees(entries []string) []*calendar.EventAttendee {
+	out := make([]*calendar.EventAttendee, 0, len(entries))
+	for _, entry := range entries {
+		if attendee := parseAttendee(entry); attendee != nil {
+			out = append(out, attendee)
+		}
+	}
+	return out
+}
+
+func mergeAttendeeLists(existing, newAttendees []*calendar.EventAttendee) ([]*calendar.EventAttendee, bool) {
 	if len(newAttendees) == 0 {
 		return existing, false
 	}

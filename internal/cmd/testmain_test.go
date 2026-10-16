@@ -9,6 +9,9 @@ import (
 )
 
 func TestMain(m *testing.M) {
+	if mode := os.Getenv("GOG_TEST_MCP_RUNTIME_EXPORT"); mode != "" {
+		os.Exit(runMCPExportRuntimeFixture(mode))
+	}
 	contactsSearchWarmupDelay = 0
 
 	root, err := os.MkdirTemp("", "gogcli-tests-*")
