@@ -6,6 +6,8 @@
 
 - Auth: accept `gog auth <email>` as shorthand for `gog auth add <email>`; bare `gog auth` and mistyped subcommands keep their existing errors. (#1221)
 
+- Drive: keep requested top-level boolean fields in `drive get --json` output when they are false, so `--fields id,trashed` returns `"trashed": false` instead of omitting the key; the default field set's `starred` and `hasThumbnail` now show `false` too. `shared`, `ownedByMe`, `writersCanShare` and `hasAugmentedPermissions` stay omitted when absent, since Drive leaves them out for items they don't apply to.
+
 ## 0.45.0 - 2026-10-16
 
 **Highlights:** Preserve Gmail search results for negated and OR queries, warn about unmatched JSON selections, and improve reply formatting.
