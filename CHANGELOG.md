@@ -2,6 +2,8 @@
 
 ## 0.45.1 - Unreleased
 
+- Dependencies: update Vitest and Cloudflare Workers types within the worker’s 24-hour release cooldown.
+
 - Auth: accept `gog auth <email>` as shorthand for `gog auth add <email>`; bare `gog auth` and mistyped subcommands keep their existing errors. (#1221)
 
 ## 0.45.0 - 2026-10-16
