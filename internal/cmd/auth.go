@@ -118,6 +118,7 @@ type AuthCmd struct {
 	Aliases     AuthAliasCmd          `cmd:"" name:"alias" help:"Manage account aliases"`
 	Status      AuthStatusCmd         `cmd:"" name:"status" help:"Show auth configuration and keyring backend"`
 	Keyring     AuthKeyringCmd        `cmd:"" name:"keyring" help:"Configure keyring backend"`
+	Rekey       AuthRekeyCmd          `cmd:"" name:"rekey" help:"Write a verified copy of the file keyring to <outdir> using GOG_KEYRING_NEW_PASSWORD; leave the live keyring untouched"`
 	Remove      AuthRemoveCmd         `cmd:"" name:"remove" help:"Remove a stored refresh token"`
 	Tokens      AuthTokensCmd         `cmd:"" name:"tokens" help:"Manage stored refresh tokens"`
 	Manage      AuthManageCmd         `cmd:"" name:"manage" help:"Open interactive accounts manager in browser" aliases:"login"`
