@@ -97,7 +97,7 @@ jobs:
         shell: bash
       - name: Test
         # Skip tests that depend on macOS Keychain / Linux keyring or Unix path semantics.
-        # These are covered by ubuntu-latest and macos-15 jobs.
+        # These are covered by ubuntu-latest and xcode-27 jobs.
         # See https://github.com/openclaw/gogcli/issues/395
         run: make test
         shell: bash
@@ -111,7 +111,9 @@ jobs:
         run: go build ./cmd/gog
 
   darwin-cgo-build:
-    runs-on: macos-15
+    runs-on: xcode-27
+    env:
+      MACOSX_DEPLOYMENT_TARGET: "15.0"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
@@ -122,3 +124,5 @@ jobs:
         run: make test
       - name: Build (Keychain / cgo)
         run: CGO_ENABLED=1 go build ./cmd/gog
+      - name: Verify macOS deployment target
+        run: ./scripts/check-darwin-minos.sh ./gog

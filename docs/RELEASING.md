@@ -15,7 +15,7 @@ Release authorization is repository Actions write access combined with a protect
 3. Set `internal/cmd/VERSION` to `vX.Y.Z`.
 4. Run `make ci`, review the complete diff, and land it on protected `main` with required checks green.
 
-The workflow first runs a read-only `xcrun notarytool history` preflight. The Darwin build pins `MACOSX_DEPLOYMENT_TARGET=15.0` and checks every binary slice with `otool` before signing or publication.
+The workflow first runs a read-only `xcrun notarytool history` preflight on the `xcode-27` runner. The Darwin CI and release builds pin `MACOSX_DEPLOYMENT_TARGET=15.0` and check every binary slice with `otool` before signing or publication.
 
 The workflow freezes the protected `main` commit, creates or reuses its immutable annotated version tag, builds from that commit, signs and notarizes the native Darwin binaries with organization secrets, verifies the complete asset inventory independently on arm64 and Intel runners, publishes the GitHub Release, and updates `openclaw/homebrew-tap/Formula/gogcli.rb` from verifier-bound asset hashes.
 
