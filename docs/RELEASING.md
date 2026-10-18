@@ -17,7 +17,7 @@ Release authorization is repository Actions write access combined with a protect
 
 The workflow first runs a read-only `xcrun notarytool history` preflight on the `xcode-27` runner. The Darwin CI and release builds pin `MACOSX_DEPLOYMENT_TARGET=15.0`, include `-mmacosx-version-min=15.0` in the cgo compiler/linker flags so cached objects use the same target, and check every binary slice with `otool` before signing or publication.
 
-The workflow freezes the protected `main` commit, creates or reuses its immutable annotated version tag, builds from that commit, signs and notarizes the native Darwin binaries with organization secrets, verifies the complete asset inventory independently on arm64 and Intel runners, publishes the GitHub Release, and updates `openclaw/homebrew-tap/Formula/gogcli.rb` from verifier-bound asset hashes.
+The workflow freezes the protected `main` commit, creates or reuses its immutable annotated version tag, builds from that commit, signs and notarizes the native Darwin binaries with organization secrets, verifies the complete asset inventory independently for arm64 and x86_64 (running Intel binaries under Rosetta on Apple Silicon), publishes the GitHub Release, and updates `openclaw/homebrew-tap/Formula/gogcli.rb` from verifier-bound asset hashes.
 
 The caller preserves GogCLI's public artifact contract where applicable:
 
