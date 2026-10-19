@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -92,9 +93,17 @@ func (c *DocsFetchCmd) Run(ctx context.Context, flags *RootFlags) error {
 		}
 		name := id + ".json"
 		result := docsFetchResult{DocumentID: id, File: name}
-		if !c.Refresh && validDocsFetchCache(root, name, id, account, client) {
+		info, statErr := root.Lstat(name)
+		exists := !errors.Is(statErr, os.ErrNotExist)
+		matching := statErr == nil && info.Mode().IsRegular() && validDocsFetchCache(root, name, id, account, client)
+		switch {
+		case exists && !matching:
+			failed++
+			result.File = ""
+			result.Error = "snapshot destination already exists and cannot be verified as owned by this document, account, and client; use another output directory"
+		case !c.Refresh && matching:
 			result.Cached = true
-		} else {
+		default:
 			if svc == nil {
 				svc, err = requireDocsService(ctx, flags)
 				if err != nil {
@@ -104,7 +113,7 @@ func (c *DocsFetchCmd) Run(ctx context.Context, flags *RootFlags) error {
 			doc, fetchErr := svc.Documents.Get(id).IncludeTabsContent(true).Context(ctx).Do()
 			if fetchErr == nil {
 				snapshot := makeDocsFetchSnapshot(doc, id, account, client)
-				fetchErr = saveDocsFetchSnapshot(root, name, snapshot)
+				fetchErr = saveDocsFetchSnapshot(root, name, snapshot, exists && matching && c.Refresh)
 			}
 			if fetchErr != nil {
 				failed++
@@ -177,13 +186,18 @@ func validDocsFetchCache(root *os.Root, name, id, account, client string) bool {
 	}
 	defer func() { _ = f.Close() }()
 	var snapshot docsFetchedSnapshot
-	if err := json.NewDecoder(io.LimitReader(f, 32<<20)).Decode(&snapshot); err != nil {
+	decoder := json.NewDecoder(io.LimitReader(f, 32<<20))
+	if err := decoder.Decode(&snapshot); err != nil {
+		return false
+	}
+	var extra any
+	if err := decoder.Decode(&extra); err != io.EOF {
 		return false
 	}
 	return snapshot.DocumentID == id && snapshot.Account == account && snapshot.Client == client && snapshot.FetchedAt != "" && len(snapshot.Tabs) > 0
 }
 
-func saveDocsFetchSnapshot(root *os.Root, name string, snapshot docsFetchedSnapshot) error {
+func saveDocsFetchSnapshot(root *os.Root, name string, snapshot docsFetchedSnapshot, replace bool) error {
 	tmp := ".fetch-" + rand.Text()
 	f, err := root.OpenFile(tmp, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
 	if err != nil {
@@ -198,5 +212,8 @@ func saveDocsFetchSnapshot(root *os.Root, name string, snapshot docsFetchedSnaps
 	if closeErr != nil {
 		return closeErr
 	}
-	return root.Rename(tmp, name)
+	if replace {
+		return root.Rename(tmp, name)
+	}
+	return root.Link(tmp, name)
 }

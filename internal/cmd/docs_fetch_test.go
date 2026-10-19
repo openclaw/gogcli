@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -39,7 +40,7 @@ func TestDocsFetchSnapshotAllTabsAndCacheIdentity(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer func() { _ = root.Close() }()
-	if saveErr := saveDocsFetchSnapshot(root, "test-doc.json", snapshot); saveErr != nil {
+	if saveErr := saveDocsFetchSnapshot(root, "test-doc.json", snapshot, false); saveErr != nil {
 		t.Fatal(saveErr)
 	}
 	if !validDocsFetchCache(root, "test-doc.json", "test-doc", "a@example.com", "default") || validDocsFetchCache(root, "test-doc.json", "test-doc", "b@example.com", "default") {
@@ -88,5 +89,56 @@ func TestDocsFetchResumesSuccessAndRetriesFailure(t *testing.T) {
 	}
 	if requests["good-doc"] != 1 || requests["bad-doc"] != 2 {
 		t.Fatalf("requests: %v", requests)
+	}
+}
+
+func TestDocsFetchPreservesUnownedDestination(t *testing.T) {
+	for _, refresh := range []bool{false, true} {
+		t.Run(fmt.Sprint(refresh), func(t *testing.T) {
+			svc, cleanup := newDocsServiceForTest(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				t.Error("conflict should not fetch")
+				_, _ = io.WriteString(w, `{"title":"new"}`)
+			}))
+			defer cleanup()
+			dir := t.TempDir()
+			ids := filepath.Join(t.TempDir(), "ids.txt")
+			if err := os.WriteFile(ids, []byte("test-doc\n"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			path := filepath.Join(dir, "test-doc.json")
+			original := []byte(`{"unrelated":"keep"}`)
+			if err := os.WriteFile(path, original, 0o600); err != nil {
+				t.Fatal(err)
+			}
+			var out bytes.Buffer
+			ctx := withDocsTestService(newCmdRuntimeJSONOutputContext(t, &out, io.Discard), svc)
+			err := (&DocsFetchCmd{IDsFile: ids, OutputDir: dir, Refresh: refresh}).Run(ctx, &RootFlags{Account: "test@example.com", Client: "default"})
+			got, readErr := os.ReadFile(path)
+			if err == nil || readErr != nil || !bytes.Equal(got, original) {
+				t.Fatalf("err=%v read=%v contents=%s", err, readErr, got)
+			}
+		})
+	}
+}
+
+func TestDocsFetchSnapshotNoClobberAndExplicitRefresh(t *testing.T) {
+	root, err := os.OpenRoot(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = root.Close() }()
+	snapshot := docsFetchedSnapshot{DocumentID: "doc", Account: "a", Client: "default", FetchedAt: "then", Tabs: []docsFetchedTab{{Text: "old"}}}
+	if err := saveDocsFetchSnapshot(root, "doc.json", snapshot, false); err != nil {
+		t.Fatal(err)
+	}
+	snapshot.Tabs[0].Text = "new"
+	if err := saveDocsFetchSnapshot(root, "doc.json", snapshot, false); err == nil {
+		t.Fatal("overwrote existing snapshot")
+	}
+	if err := saveDocsFetchSnapshot(root, "doc.json", snapshot, true); err != nil {
+		t.Fatal(err)
+	}
+	if !validDocsFetchCache(root, "doc.json", "doc", "a", "default") {
+		t.Fatal("refresh unreadable")
 	}
 }
