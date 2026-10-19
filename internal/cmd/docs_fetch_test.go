@@ -95,6 +95,13 @@ func TestDocsFetchResumesSuccessAndRetriesFailure(t *testing.T) {
 	}
 }
 
+func TestDocsFetchReportsPhysicalLine(t *testing.T) {
+	_, err := readDocsFetchIDs(strings.NewReader(strings.Join([]string{"test-doc", "", "test-doc", "../escape"}, "\n")))
+	if err == nil || !strings.Contains(err.Error(), "line 4") {
+		t.Fatalf("%v", err)
+	}
+}
+
 func TestDocsFetchPreservesUnownedDestination(t *testing.T) {
 	for _, refresh := range []bool{false, true} {
 		t.Run(fmt.Sprint(refresh), func(t *testing.T) {

@@ -143,14 +143,16 @@ func readDocsFetchIDs(reader io.Reader) ([]string, error) {
 	ids := []string{}
 	seen := map[string]bool{}
 	scanner := bufio.NewScanner(reader)
+	lineNumber := 0
 	for scanner.Scan() {
+		lineNumber++
 		line := strings.TrimSpace(scanner.Text())
 		if line == "" {
 			continue
 		}
 		id := normalizeGoogleID(line)
 		if !docsFetchIDPattern.MatchString(id) {
-			return nil, fmt.Errorf("invalid Doc ID or URL on line %d", len(ids)+1)
+			return nil, fmt.Errorf("invalid Doc ID or URL on line %d", lineNumber)
 		}
 		if !seen[id] {
 			ids = append(ids, id)
