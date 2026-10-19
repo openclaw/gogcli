@@ -98,3 +98,11 @@ func TestSheetsUpsertDryRunAndDrift(t *testing.T) {
 		})
 	}
 }
+
+func TestSheetsUpsertWritesExplicitFormulaLikeLiteral(t *testing.T) {
+	r, _ := sheetsa1.Parse("Data!A1:B2")
+	plan, err := planSheetsUpsert(r, [][]any{{"id", "value"}, {"001", "=1+1"}}, []map[string]any{{"id": "001", "value": "=1+1"}}, "id", []string{"value"})
+	if err != nil || len(plan.Updates) != 1 {
+		t.Fatalf("%+v %v", plan, err)
+	}
+}

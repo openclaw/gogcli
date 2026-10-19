@@ -181,13 +181,7 @@ func planSheetsUpsert(r sheetsa1.Range, current [][]any, rows []map[string]any, 
 				continue
 			}
 			column := headers[name]
-			var old any = ""
-			if found && column < len(current[index]) {
-				old = current[index][column]
-			}
-			if !reflect.DeepEqual(old, v) {
-				add(index, column, v)
-			}
+			add(index, column, v)
 		}
 	}
 	return plan, nil
