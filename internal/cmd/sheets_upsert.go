@@ -42,8 +42,8 @@ func (c *SheetsUpsertCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 	var rows []map[string]any
-	if err := json.Unmarshal(b, &rows); err != nil {
-		return usagef("invalid rows JSON: %v", err)
+	if decodeErr := json.Unmarshal(b, &rows); decodeErr != nil {
+		return usagef("invalid rows JSON: %v", decodeErr)
 	}
 	if len(rows) == 0 {
 		return usage("rows must not be empty")
