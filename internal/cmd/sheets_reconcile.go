@@ -34,8 +34,8 @@ func (c *SheetsReconcileCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if err != nil {
 		return err
 	}
-	if err := validateSheetsReconcileRanges(data); err != nil {
-		return usage(err.Error())
+	if validationErr := validateSheetsReconcileRanges(data); validationErr != nil {
+		return usage(validationErr.Error())
 	}
 	account, err := requireAccount(flags)
 	if err != nil {
