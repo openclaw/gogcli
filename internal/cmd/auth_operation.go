@@ -130,13 +130,14 @@ func (c *AuthCheckOperationCmd) Run(ctx context.Context, kctx *kong.Context, fla
 			_, svc, driveErr := requireDriveService(ctx, flags)
 			if driveErr == nil {
 				file, readErr := svc.Files.Get(normalizeGoogleID(c.Resource)).SupportsAllDrives(true).Fields("capabilities/canEdit").Context(ctx).Do()
-				if readErr != nil {
+				switch {
+				case readErr != nil:
 					driveErr = readErr
-				} else if file.Capabilities == nil {
+				case file.Capabilities == nil:
 					add("resource_edit", "unknown", "Drive did not return edit capability", "")
-				} else if file.Capabilities.CanEdit {
+				case file.Capabilities.CanEdit:
 					add("resource_edit", "reported_allowed", "Drive reports canEdit=true", "protected ranges, operation-specific policies, and write execution remain unverified")
-				} else {
+				default:
 					add("resource_edit", "blocked", "Drive reports canEdit=false", "")
 				}
 			}
