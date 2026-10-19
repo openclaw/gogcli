@@ -141,7 +141,7 @@ func (c *DocsSyncCmd) Run(ctx context.Context, flags *RootFlags) error {
 }
 
 func readDocsSyncManifest(name string) ([]docsSyncInput, []string, error) {
-	b, err := os.ReadFile(name)
+	b, err := os.ReadFile(name) // #nosec G304 -- The manifest path is explicitly selected by the CLI caller.
 	if err != nil {
 		return nil, nil, err
 	}
@@ -163,7 +163,7 @@ func readDocsSyncManifest(name string) ([]docsSyncInput, []string, error) {
 		if !filepath.IsAbs(path) {
 			path = filepath.Join(filepath.Dir(name), path)
 		}
-		content, readErr := os.ReadFile(path)
+		content, readErr := os.ReadFile(path) // #nosec G304 -- Source paths come from the caller's local manifest, not Google content.
 		if readErr != nil {
 			return nil, nil, readErr
 		}
@@ -177,7 +177,7 @@ func readDocsSyncManifest(name string) ([]docsSyncInput, []string, error) {
 
 func readDocsSyncState(path, id, account, client string) (docsSyncState, error) {
 	state := docsSyncState{DocumentID: id, Account: account, Client: client, Entries: map[string]docsSyncEntry{}}
-	b, err := os.ReadFile(path)
+	b, err := os.ReadFile(path) // #nosec G304 -- The state path is an explicitly selected local file.
 	if errors.Is(err, os.ErrNotExist) {
 		return state, nil
 	}
