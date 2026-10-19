@@ -2,7 +2,7 @@
 
 Every `gog` command has a generated docs page. The source of truth is the live CLI schema; run `make docs-commands` after changing command names, flags, help text, aliases, or arguments.
 
-Generated pages: 779.
+Generated pages: 780.
 
 ## Top-level Commands
 
@@ -694,6 +694,7 @@ Generated pages: 779.
     - [gog sheets format](gog-sheets-format.md) - Apply cell formatting to a range
     - [gog sheets freeze](gog-sheets-freeze.md) - Freeze rows and columns on a sheet
     - [gog sheets get](gog-sheets-get.md) - Get values from a range
+    - [gog sheets import](gog-sheets-import.md) - Import CSV or TSV into an existing sheet (literal text by default)
     - [gog sheets insert](gog-sheets-insert.md) - Insert empty rows or columns into a sheet
     - [gog sheets links](gog-sheets-links.md) - Get or set cell hyperlinks
       - [gog sheets links get](gog-sheets-links-get.md) - Get cell hyperlinks from a range

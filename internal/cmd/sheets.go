@@ -31,6 +31,7 @@ func cleanRange(r string) string {
 }
 
 type SheetsCmd struct {
+	Import        SheetsImportCmd          `cmd:"" name:"import" help:"Import CSV or TSV into an existing sheet (literal text by default)"`
 	Get           SheetsGetCmd             `cmd:"" name:"get" aliases:"read,show" help:"Get values from a range"`
 	Update        SheetsUpdateCmd          `cmd:"" name:"update" aliases:"edit,set" help:"Update values in a range"`
 	BatchUpdate   SheetsBatchUpdateCmd     `cmd:"" name:"batch-update" aliases:"batch" help:"Update values in multiple ranges with one API request"`
