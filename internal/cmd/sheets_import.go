@@ -23,7 +23,7 @@ type SheetsImportCmd struct {
 }
 
 func (c *SheetsImportCmd) Run(ctx context.Context, flags *RootFlags) error {
-	r, err := sheetsa1.Parse(c.Range)
+	r, err := sheetsa1.Parse(cleanRange(c.Range))
 	if err != nil || r.SheetName == "" || r.StartRow < 1 || r.EndRow < 1 || r.StartCol < 1 || r.EndCol < 1 {
 		return usage("range must be a bounded A1 rectangle with a sheet name")
 	}

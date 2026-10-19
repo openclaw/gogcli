@@ -20,6 +20,9 @@ func TestSheetsImportLiteralTextAndHeaderMapping(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		if r.Method == http.MethodGet {
+			if !strings.HasSuffix(r.URL.Path, "/values/Data!A1:C1") {
+				t.Errorf("wrong header range: %s", r.URL.Path)
+			}
 			_, _ = io.WriteString(w, `{"values":[["id","human note","value"]]}`)
 			return
 		}
@@ -35,7 +38,7 @@ func TestSheetsImportLiteralTextAndHeaderMapping(t *testing.T) {
 	}
 	var out bytes.Buffer
 	ctx := withSheetsTestService(newCmdRuntimeJSONOutputContext(t, &out, io.Discard), newSheetsServiceFromServer(t, srv))
-	err := runKong(t, &SheetsImportCmd{}, []string{"sheet-test", "Data!A1:C10", "--file", f, "--match-headers"}, ctx, &RootFlags{Account: "test@example.com"})
+	err := runKong(t, &SheetsImportCmd{}, []string{"sheet-test", `Data\!A1:C10`, "--file", f, "--match-headers"}, ctx, &RootFlags{Account: "test@example.com"})
 	if err != nil {
 		t.Fatal(err)
 	}

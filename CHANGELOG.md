@@ -2,7 +2,7 @@
 
 ## 0.45.1 - Unreleased
 
-- Sheets: import quoted CSV/TSV into bounded existing ranges as literal text, with optional header matching. ([#1229](https://github.com/openclaw/gogcli/pull/1229)) — thanks @ryo-touch.
+- Sheets: import quoted CSV/TSV into bounded existing ranges as literal text, with optional header matching. Normalize escaped destination ranges before header matching. ([#1229](https://github.com/openclaw/gogcli/pull/1229)) — thanks @ryo-touch.
 
 - CI: use macOS 27 runners for Darwin checks and release preflight while enforcing the macOS 15.0 deployment target.
 - Dependencies: update Vitest and Cloudflare Workers types within the worker’s 24-hour release cooldown.
