@@ -68,7 +68,7 @@ func (c *SheetsUpsertCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if err != nil {
 		return err
 	}
-	plan, err := planSheetsUpsert(r, current, rows, c.Key, splitCommaList(c.Columns))
+	plan, err := planSheetsUpsert(r, current, rows, c.Key, strings.Split(c.Columns, ","))
 	if err != nil {
 		return usage(err.Error())
 	}
