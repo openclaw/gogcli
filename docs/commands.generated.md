@@ -670,6 +670,7 @@ Generated from `gog schema --json`.
     - [`gog sheets (sheet) unmerge <spreadsheetId> <range> [flags]`](commands/gog-sheets-unmerge.md) - Unmerge cells in a range
     - [`gog sheets (sheet) update (edit,set) <spreadsheetId> <range> [<values> ...] [flags]`](commands/gog-sheets-update.md) - Update values in a range
     - [`gog sheets (sheet) update-note (set-note) <spreadsheetId> <range> [flags]`](commands/gog-sheets-update-note.md) - Set or clear a cell note
+    - [`gog sheets (sheet) upsert --key=STRING --columns=STRING --rows-json=STRING <spreadsheetId> <range>`](commands/gog-sheets-upsert.md) - Match string keys and update only explicitly selected columns
     - [`gog sheets (sheet) validation (data-validation,validations) <command>`](commands/gog-sheets-validation.md) - Manage cell data validation rules
       - [`gog sheets (sheet) validation (data-validation,validations) clear (delete,remove,rm) <spreadsheetId> <range> [flags]`](commands/gog-sheets-validation-clear.md) - Clear data validation rules; fully selected table dropdown columns become text columns
       - [`gog sheets (sheet) validation (data-validation,validations) get (list,show) <spreadsheetId> <range>`](commands/gog-sheets-validation-get.md) - Get data validation rules from a range
