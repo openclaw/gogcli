@@ -66,6 +66,7 @@ gog --readonly --account user@example.com sheets get SHEET_ID 'Sheet1!A1:D20' --
 | `unmerge` | Unmerge cells in a range |
 | `update` | Update values in a range |
 | `update-note` | Set or clear a cell note |
+| `upsert` | Match string keys and update only explicitly selected columns |
 | `validation` | Manage cell data validation rules |
 
 Run `gog sheets <command> --help` for flags and `gog schema sheets <command> --json`

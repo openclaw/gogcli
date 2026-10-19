@@ -2,7 +2,7 @@
 
 Every `gog` command has a generated docs page. The source of truth is the live CLI schema; run `make docs-commands` after changing command names, flags, help text, aliases, or arguments.
 
-Generated pages: 779.
+Generated pages: 780.
 
 ## Top-level Commands
 
@@ -724,6 +724,7 @@ Generated pages: 779.
     - [gog sheets unmerge](gog-sheets-unmerge.md) - Unmerge cells in a range
     - [gog sheets update](gog-sheets-update.md) - Update values in a range
     - [gog sheets update-note](gog-sheets-update-note.md) - Set or clear a cell note
+    - [gog sheets upsert](gog-sheets-upsert.md) - Match string keys and update only explicitly selected columns
     - [gog sheets validation](gog-sheets-validation.md) - Manage cell data validation rules
       - [gog sheets validation clear](gog-sheets-validation-clear.md) - Clear data validation rules; fully selected table dropdown columns become text columns
       - [gog sheets validation get](gog-sheets-validation-get.md) - Get data validation rules from a range

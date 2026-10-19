@@ -54,6 +54,7 @@ gog sheets (sheet) <command> [flags]
 - [gog sheets unmerge](gog-sheets-unmerge.md) - Unmerge cells in a range
 - [gog sheets update](gog-sheets-update.md) - Update values in a range
 - [gog sheets update-note](gog-sheets-update-note.md) - Set or clear a cell note
+- [gog sheets upsert](gog-sheets-upsert.md) - Match string keys and update only explicitly selected columns
 - [gog sheets validation](gog-sheets-validation.md) - Manage cell data validation rules
 
 ## Flags
