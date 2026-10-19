@@ -38,8 +38,8 @@ func TestDocsFetchSnapshotAllTabsAndCacheIdentity(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer func() { _ = root.Close() }()
-	if err := saveDocsFetchSnapshot(root, "test-doc.json", snapshot); err != nil {
-		t.Fatal(err)
+	if saveErr := saveDocsFetchSnapshot(root, "test-doc.json", snapshot); saveErr != nil {
+		t.Fatal(saveErr)
 	}
 	if !validDocsFetchCache(root, "test-doc.json", "test-doc", "a@example.com", "default") || validDocsFetchCache(root, "test-doc.json", "test-doc", "b@example.com", "default") {
 		t.Fatal("cache identity mismatch")

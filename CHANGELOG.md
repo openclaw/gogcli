@@ -2,7 +2,7 @@
 
 ## 0.45.1 - Unreleased
 
-- Docs: add resumable all-tab JSON snapshots from ID/URL lists, with private atomic files and per-document failure reporting. — thanks @ryo-touch.
+- Docs: add resumable all-tab JSON snapshots from ID/URL lists, with private atomic files and per-document failure reporting. ([#1232](https://github.com/openclaw/gogcli/pull/1232)) — thanks @ryo-touch.
 
 - CI: use macOS 27 runners for Darwin checks and release preflight while enforcing the macOS 15.0 deployment target.
 - Dependencies: update Vitest and Cloudflare Workers types within the worker’s 24-hour release cooldown.

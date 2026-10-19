@@ -64,8 +64,8 @@ func (c *DocsFetchCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if err != nil {
 		return usage(err.Error())
 	}
-	if err := dryRunExit(ctx, flags, "docs.fetch", map[string]any{"documentIds": ids, "output_dir": c.OutputDir, "refresh": c.Refresh}); err != nil {
-		return err
+	if previewErr := dryRunExit(ctx, flags, "docs.fetch", map[string]any{"documentIds": ids, "output_dir": c.OutputDir, "refresh": c.Refresh}); previewErr != nil {
+		return previewErr
 	}
 	account, err := requireAccount(flags)
 	if err != nil {
@@ -75,8 +75,8 @@ func (c *DocsFetchCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if err != nil {
 		return err
 	}
-	if err := os.MkdirAll(c.OutputDir, 0o700); err != nil {
-		return err
+	if mkdirErr := os.MkdirAll(c.OutputDir, 0o700); mkdirErr != nil {
+		return mkdirErr
 	}
 	root, err := os.OpenRoot(c.OutputDir)
 	if err != nil {
@@ -87,8 +87,8 @@ func (c *DocsFetchCmd) Run(ctx context.Context, flags *RootFlags) error {
 	failed := 0
 	var svc *docs.Service
 	for _, id := range ids {
-		if err := ctx.Err(); err != nil {
-			return err
+		if contextErr := ctx.Err(); contextErr != nil {
+			return contextErr
 		}
 		name := id + ".json"
 		result := docsFetchResult{DocumentID: id, File: name}
