@@ -33,11 +33,11 @@ func authOperationSpecification(operation string) (authOperationSpec, bool) {
 	var spec authOperationSpec
 	switch operation {
 	case "docs.cat":
-		spec = authOperationSpec{scopes: append([]string{scope + "documents.readonly"}, writeDocs...), probe: "docs"}
+		spec = authOperationSpec{scopes: append([]string{scope + "documents.readonly", scope + "drive.readonly"}, writeDocs...), probe: "docs"}
 	case "docs.write":
 		spec = authOperationSpec{scopes: writeDocs, write: true, probe: "docs"}
 	case "sheets.get":
-		spec = authOperationSpec{scopes: append([]string{scope + "spreadsheets.readonly"}, writeSheets...), probe: "sheets"}
+		spec = authOperationSpec{scopes: append([]string{scope + "spreadsheets.readonly", scope + "drive.readonly"}, writeSheets...), probe: "sheets"}
 	case "sheets.update":
 		spec = authOperationSpec{scopes: writeSheets, write: true, probe: "sheets"}
 	case "sheets.datasource.refresh":

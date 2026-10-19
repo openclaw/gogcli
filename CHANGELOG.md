@@ -2,7 +2,7 @@
 
 ## 0.45.1 - Unreleased
 
-- Auth: add operation-specific policy and scope diagnostics with opt-in metadata probes that never execute the requested write. ([#1234](https://github.com/openclaw/gogcli/pull/1234)) — thanks @ryo-touch.
+- Auth: add operation-specific policy and scope diagnostics with opt-in metadata probes that never execute the requested write. Recognize Drive read-only grants for Docs and Sheets reads. ([#1234](https://github.com/openclaw/gogcli/pull/1234)) — thanks @ryo-touch.
 
 - CI: use macOS 27 runners for Darwin checks and release preflight while enforcing the macOS 15.0 deployment target.
 - Dependencies: update Vitest and Cloudflare Workers types within the worker’s 24-hour release cooldown.

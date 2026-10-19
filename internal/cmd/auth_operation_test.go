@@ -118,3 +118,12 @@ func TestAuthOperationRecordedScopesAndDirectTokens(t *testing.T) {
 		}
 	}
 }
+
+func TestAuthOperationDriveReadonlyForReadsOnly(t *testing.T) {
+	for _, op := range []string{"docs.cat", "sheets.get", "docs.write", "sheets.update", "sheets.datasource.refresh"} {
+		spec, ok := authOperationSpecification(op)
+		if !ok || authOperationHasScope([]string{"https://www.googleapis.com/auth/drive.readonly"}, spec.scopes) == spec.write {
+			t.Errorf("incorrect read-only grant for %s", op)
+		}
+	}
+}
