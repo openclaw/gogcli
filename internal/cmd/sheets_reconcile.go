@@ -137,16 +137,56 @@ func readSheetsReconcile(ctx context.Context, svc *sheets.Service, id string, da
 	for i, vr := range data {
 		ranges[i] = vr.Range
 	}
-	response, err := svc.Spreadsheets.Values.BatchGet(id).Ranges(ranges...).ValueRenderOption("UNFORMATTED_VALUE").DateTimeRenderOption("SERIAL_NUMBER").Context(ctx).Do()
+	response, err := svc.Spreadsheets.Get(id).Ranges(ranges...).IncludeGridData(true).
+		Fields("sheets(properties(title),data(startRow,startColumn,rowData(values(effectiveValue))))").Context(ctx).Do()
 	if err != nil {
 		return nil, err
 	}
-	if len(response.ValueRanges) != len(data) {
-		return nil, fmt.Errorf("expected %d ranges, got %d", len(data), len(response.ValueRanges))
-	}
 	values := make([][][]any, len(data))
-	for i, vr := range response.ValueRanges {
-		values[i] = vr.Values
+	for n, vr := range data {
+		r, _ := sheetsa1.Parse(vr.Range)
+		values[n] = make([][]any, len(vr.Values))
+		for i, row := range vr.Values {
+			values[n][i] = make([]any, len(row))
+		}
+		foundSheet := false
+		for _, sheet := range response.Sheets {
+			if sheet == nil || sheet.Properties == nil || sheet.Properties.Title != r.SheetName {
+				continue
+			}
+			foundSheet = true
+			for _, grid := range sheet.Data {
+				if grid == nil {
+					continue
+				}
+				for i, row := range grid.RowData {
+					ri := int(grid.StartRow) + i + 1 - r.StartRow
+					if row == nil || ri < 0 || ri >= len(values[n]) {
+						continue
+					}
+					for j, cell := range row.Values {
+						ci := int(grid.StartColumn) + j + 1 - r.StartCol
+						if cell == nil || ci < 0 || ci >= len(values[n][ri]) || cell.EffectiveValue == nil {
+							continue
+						}
+						v := cell.EffectiveValue
+						switch {
+						case v.ErrorValue != nil:
+							values[n][ri][ci] = v.ErrorValue
+						case v.StringValue != nil:
+							values[n][ri][ci] = *v.StringValue
+						case v.NumberValue != nil:
+							values[n][ri][ci] = *v.NumberValue
+						case v.BoolValue != nil:
+							values[n][ri][ci] = *v.BoolValue
+						}
+					}
+				}
+			}
+		}
+		if !foundSheet {
+			return nil, fmt.Errorf("readback is missing sheet %q", r.SheetName)
+		}
 	}
 	return values, nil
 }
