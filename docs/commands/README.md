@@ -2,7 +2,7 @@
 
 Every `gog` command has a generated docs page. The source of truth is the live CLI schema; run `make docs-commands` after changing command names, flags, help text, aliases, or arguments.
 
-Generated pages: 779.
+Generated pages: 780.
 
 ## Top-level Commands
 
@@ -134,6 +134,7 @@ Generated pages: 779.
       - [gog auth alias list](gog-auth-alias-list.md) - List account aliases
       - [gog auth alias set](gog-auth-alias-set.md) - Set an account alias
       - [gog auth alias unset](gog-auth-alias-unset.md) - Remove an account alias
+    - [gog auth check-operation](gog-auth-check-operation.md) - Inspect an operation's policy, recorded scopes, and optional read-only resource probes
     - [gog auth credentials](gog-auth-credentials.md) - Manage OAuth client credentials
       - [gog auth credentials list](gog-auth-credentials-list.md) - List stored OAuth client credentials
       - [gog auth credentials remove](gog-auth-credentials-remove.md) - Remove stored OAuth client credentials
