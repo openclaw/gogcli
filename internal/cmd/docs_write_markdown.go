@@ -371,6 +371,9 @@ func (c *DocsWriteCmd) replaceMarkdownLocally(
 		insertResult.RequestCount += count
 	}
 
+	if c.quiet {
+		return nil
+	}
 	if outfmt.IsJSON(ctx) {
 		payload := map[string]any{
 			"documentId": docID,

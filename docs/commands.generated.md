@@ -339,6 +339,7 @@ Generated from `gog schema --json`.
     - [`gog docs (doc) structure (struct) <docId> [flags]`](commands/gog-docs-structure.md) - Show document structure with numbered paragraphs
     - [`gog docs (doc) suggestions <command>`](commands/gog-docs-suggestions.md) - List pending text suggestions
       - [`gog docs (doc) suggestions list (ls) <docId> [flags]`](commands/gog-docs-suggestions-list.md) - List pending text insertions and deletions
+    - [`gog docs (doc) sync --manifest=STRING <docId> [flags]`](commands/gog-docs-sync.md) - Synchronize a Markdown manifest with explicitly managed document tabs
     - [`gog docs (doc) table-column <command>`](commands/gog-docs-table-column.md) - Insert or delete native table columns
       - [`gog docs (doc) table-column delete (rm,remove,del) --col=INT <docId> [flags]`](commands/gog-docs-table-column-delete.md) - Delete a native table column
       - [`gog docs (doc) table-column insert (add,append) <docId> [flags]`](commands/gog-docs-table-column-insert.md) - Insert a native table column
