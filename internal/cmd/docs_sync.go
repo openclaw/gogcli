@@ -248,6 +248,15 @@ func hashDocsSyncTab(tab *docs.Tab) string {
 		return ""
 	}
 	b, _ := json.Marshal(tab.DocumentTab)
+	var content any
+	_ = json.Unmarshal(b, &content)
+	normalizeDocsSyncImages(content)
+	b, _ = json.Marshal(content)
+	if tab.DocumentTab != nil {
+		var normalized docs.DocumentTab
+		_ = json.Unmarshal(b, &normalized)
+		b, _ = json.Marshal(&normalized)
+	}
 	return hashDocsSyncBytes(b)
 }
 
@@ -268,4 +277,23 @@ func saveDocsSyncState(path string, state docsSyncState) error {
 		return closeErr
 	}
 	return os.Rename(f.Name(), path)
+}
+
+// ContentUri is a temporary provider URL, not a content or formatting change.
+func normalizeDocsSyncImages(value any) {
+	switch v := value.(type) {
+	case map[string]any:
+		for key, child := range v {
+			if key == "imageProperties" {
+				if image, ok := child.(map[string]any); ok {
+					delete(image, "contentUri")
+				}
+			}
+			normalizeDocsSyncImages(child)
+		}
+	case []any:
+		for _, child := range v {
+			normalizeDocsSyncImages(child)
+		}
+	}
 }

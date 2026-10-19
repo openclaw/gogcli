@@ -146,3 +146,49 @@ func TestDocsSyncApplyThenRerunSkipsWrites(t *testing.T) {
 		t.Fatal("human tab changed")
 	}
 }
+
+func TestDocsSyncImageURLRotation(t *testing.T) {
+	for _, positioned := range []bool{false, true} {
+		tab := syncTestTab("managed", "Managed", "text")
+		image := &docs.ImageProperties{ContentUri: "https://example.test/old", SourceUri: "https://example.test/source"}
+		embedded := &docs.EmbeddedObject{ImageProperties: image}
+		if positioned {
+			tab.DocumentTab.PositionedObjects = map[string]docs.PositionedObject{"image": {PositionedObjectProperties: &docs.PositionedObjectProperties{EmbeddedObject: embedded}}}
+		} else {
+			tab.DocumentTab.InlineObjects = map[string]docs.InlineObject{"image": {InlineObjectProperties: &docs.InlineObjectProperties{EmbeddedObject: embedded}}}
+		}
+		hash := hashDocsSyncTab(tab)
+		image.ContentUri = "https://example.test/rotated"
+		if hashDocsSyncTab(tab) != hash {
+			t.Fatal("temporary URL changes fingerprint")
+		}
+		if image.ContentUri != "https://example.test/rotated" {
+			t.Fatal("hash mutated input")
+		}
+		image.SourceUri = "https://example.test/changed-source"
+		if hashDocsSyncTab(tab) == hash {
+			t.Fatal("source change ignored")
+		}
+	}
+}
+
+func TestDocsSyncCompleteExistingStateRetainsTextBaseline(t *testing.T) {
+	tab := syncTestTab("managed", "Managed", "existing text")
+	b, err := json.Marshal(tab.DocumentTab)
+	if err != nil {
+		t.Fatal(err)
+	}
+	previous := docsSyncState{DocumentID: "doc", Account: "a@example.com", Client: "default", Entries: map[string]docsSyncEntry{"managed": {SourceHash: hashDocsSyncBytes([]byte("# source")), RemoteHash: hashDocsSyncBytes(b)}}}
+	path := filepath.Join(t.TempDir(), "state.json")
+	if saveErr := saveDocsSyncState(path, previous); saveErr != nil {
+		t.Fatal(saveErr)
+	}
+	state, err := readDocsSyncState(path, "doc", "a@example.com", "default")
+	if err != nil {
+		t.Fatal(err)
+	}
+	actions, err := planDocsSync(&docs.Document{Tabs: []*docs.Tab{tab}}, []docsSyncInput{{File: "source.md", Tab: "managed"}}, []string{"# source"}, state, false, false)
+	if err != nil || len(actions) != 1 || actions[0].Action != "skip" {
+		t.Fatalf("%v %v", actions, err)
+	}
+}
