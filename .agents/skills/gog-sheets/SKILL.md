@@ -58,6 +58,7 @@ gog --readonly --account user@example.com sheets get SHEET_ID 'Sheet1!A1:D20' --
 | `number-format` | Apply number format to a range |
 | `raw` | Dump raw Google Sheets API response as JSON (Spreadsheets.Get; lossless; for scripting and LLM consumption) |
 | `read-format` | Read cell formatting from a range |
+| `reconcile` | Preview cell differences, optionally apply literal values and verify them |
 | `rename-tab` | Rename a tab/sheet in a spreadsheet |
 | `reorder-tab` | Move a tab/sheet to a specific 0-based position in the spreadsheet |
 | `resize-columns` | Resize sheet columns |

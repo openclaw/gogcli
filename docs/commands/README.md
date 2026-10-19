@@ -2,7 +2,7 @@
 
 Every `gog` command has a generated docs page. The source of truth is the live CLI schema; run `make docs-commands` after changing command names, flags, help text, aliases, or arguments.
 
-Generated pages: 779.
+Generated pages: 780.
 
 ## Top-level Commands
 
@@ -710,6 +710,7 @@ Generated pages: 779.
     - [gog sheets number-format](gog-sheets-number-format.md) - Apply number format to a range
     - [gog sheets raw](gog-sheets-raw.md) - Dump raw Google Sheets API response as JSON (Spreadsheets.Get; lossless; for scripting and LLM consumption)
     - [gog sheets read-format](gog-sheets-read-format.md) - Read cell formatting from a range
+    - [gog sheets reconcile](gog-sheets-reconcile.md) - Preview cell differences, optionally apply literal values and verify them
     - [gog sheets rename-tab](gog-sheets-rename-tab.md) - Rename a tab/sheet in a spreadsheet
     - [gog sheets reorder-tab](gog-sheets-reorder-tab.md) - Move a tab/sheet to a specific 0-based position in the spreadsheet
     - [gog sheets resize-columns](gog-sheets-resize-columns.md) - Resize sheet columns
