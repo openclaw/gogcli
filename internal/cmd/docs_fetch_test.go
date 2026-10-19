@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -45,7 +46,7 @@ func TestDocsFetchSnapshotAllTabsAndCacheIdentity(t *testing.T) {
 		t.Fatal("cache identity mismatch")
 	}
 	info, err := root.Stat("test-doc.json")
-	if err != nil || info.Mode().Perm() != 0o600 {
+	if err != nil || (runtime.GOOS != "windows" && info.Mode().Perm() != 0o600) {
 		t.Fatalf("private snapshot: %v %v", info, err)
 	}
 }

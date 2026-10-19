@@ -5,7 +5,7 @@ gog docs fetch --ids-file docs.txt --output-dir snapshots --json
 gog docs fetch --ids-file docs.txt --output-dir snapshots --refresh --json
 ```
 
-Put one document ID or Google Docs URL per line; blank lines and duplicate IDs are ignored. Use `--ids-file -` for stdin. Each successful GET requests all tab content and atomically saves `<documentId>.json` with mode 0600. Newly created directories use mode 0700.
+Put one document ID or Google Docs URL per line; blank lines and duplicate IDs are ignored. Use `--ids-file -` for stdin. Each successful GET requests all tab content and atomically saves `<documentId>.json`. On Unix, files use mode 0600 and newly created directories use mode 0700. On Windows, access follows the output directory's inherited ACLs; select a directory private to your user.
 
 Snapshots contain source URL, account, OAuth client, document title, revision, fetch time, and every tab's ID, title, and plain text, including nested tabs. The command prints a compact per-document result instead of document bodies. It does not perform text analysis.
 
