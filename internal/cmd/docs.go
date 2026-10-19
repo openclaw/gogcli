@@ -18,6 +18,7 @@ import (
 )
 
 type DocsCmd struct {
+	Fetch            DocsFetchCmd            `cmd:"" name:"fetch" help:"Fetch a list of Docs into resumable, private JSON snapshots (all tabs)"`
 	Export           DocsExportCmd           `cmd:"" name:"export" aliases:"download,dl" help:"Export a Google Doc (pdf|docx|txt|md|html)"`
 	Info             DocsInfoCmd             `cmd:"" name:"info" aliases:"get,show" help:"Get Google Doc metadata"`
 	Create           DocsCreateCmd           `cmd:"" name:"create" aliases:"add,new" help:"Create a Google Doc"`
