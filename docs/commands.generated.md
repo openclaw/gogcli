@@ -656,6 +656,7 @@ Generated from `gog schema --json`.
     - [`gog sheets (sheet) number-format <spreadsheetId> <range> [flags]`](commands/gog-sheets-number-format.md) - Apply number format to a range
     - [`gog sheets (sheet) raw <spreadsheetId> [flags]`](commands/gog-sheets-raw.md) - Dump raw Google Sheets API response as JSON (Spreadsheets.Get; lossless; for scripting and LLM consumption)
     - [`gog sheets (sheet) read-format (get-format,format-read) <spreadsheetId> <range> [flags]`](commands/gog-sheets-read-format.md) - Read cell formatting from a range
+    - [`gog sheets (sheet) reconcile --data-json=STRING <spreadsheetId> [flags]`](commands/gog-sheets-reconcile.md) - Preview cell differences, optionally apply literal values and verify them
     - [`gog sheets (sheet) rename-tab (rename-sheet) <spreadsheetId> <oldName> <newName> [flags]`](commands/gog-sheets-rename-tab.md) - Rename a tab/sheet in a spreadsheet
     - [`gog sheets (sheet) reorder-tab (move-tab,reorder-sheet,move-sheet) --tab=STRING --to=TO <spreadsheetId>`](commands/gog-sheets-reorder-tab.md) - Move a tab/sheet to a specific 0-based position in the spreadsheet
     - [`gog sheets (sheet) resize-columns <spreadsheetId> <columns> [flags]`](commands/gog-sheets-resize-columns.md) - Resize sheet columns
