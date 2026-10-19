@@ -18,6 +18,7 @@ gog auth <command> [flags]
 
 - [gog auth add](gog-auth-add.md) - Authorize a Google Account or Google Workspace account and store a refresh token
 - [gog auth alias](gog-auth-alias.md) - Manage account aliases
+- [gog auth check-operation](gog-auth-check-operation.md) - Inspect an operation's policy, recorded scopes, and optional read-only resource probes
 - [gog auth credentials](gog-auth-credentials.md) - Manage OAuth client credentials
 - [gog auth doctor](gog-auth-doctor.md) - Diagnose auth, keyring, and refresh-token issues
 - [gog auth import](gog-auth-import.md) - Import a required refresh token and optional current access token non-interactively

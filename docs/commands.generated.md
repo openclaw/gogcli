@@ -80,6 +80,7 @@ Generated from `gog schema --json`.
       - [`gog auth alias list`](commands/gog-auth-alias-list.md) - List account aliases
       - [`gog auth alias set <alias> <email>`](commands/gog-auth-alias-set.md) - Set an account alias
       - [`gog auth alias unset <alias>`](commands/gog-auth-alias-unset.md) - Remove an account alias
+    - [`gog auth check-operation <operation> [flags]`](commands/gog-auth-check-operation.md) - Inspect an operation's policy, recorded scopes, and optional read-only resource probes
     - [`gog auth credentials <command>`](commands/gog-auth-credentials.md) - Manage OAuth client credentials
       - [`gog auth credentials list`](commands/gog-auth-credentials-list.md) - List stored OAuth client credentials
       - [`gog auth credentials remove [<client>]`](commands/gog-auth-credentials-remove.md) - Remove stored OAuth client credentials
