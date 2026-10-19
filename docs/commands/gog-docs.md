@@ -28,6 +28,7 @@ gog docs (doc) <command> [flags]
 - [gog docs delete-tab](gog-docs-delete-tab.md) - Delete a tab from a Google Doc
 - [gog docs edit](gog-docs-edit.md) - Find and replace text in a Google Doc
 - [gog docs export](gog-docs-export.md) - Export a Google Doc (pdf|docx|txt|md|html)
+- [gog docs fetch](gog-docs-fetch.md) - Fetch a list of Docs into resumable, private JSON snapshots (all tabs)
 - [gog docs find-range](gog-docs-find-range.md) - Find text and print Docs API UTF-16 index ranges
 - [gog docs find-replace](gog-docs-find-replace.md) - Find and replace text. Supports plain text or markdown with images; use --first for a single occurrence.
 - [gog docs footer](gog-docs-footer.md) - List, create, or delete document footers

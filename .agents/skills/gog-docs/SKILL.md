@@ -40,6 +40,7 @@ gog --readonly --account user@example.com docs cat DOCUMENT_ID --json --wrap-unt
 | `delete-tab` | Delete a tab from a Google Doc |
 | `edit` | Find and replace text in a Google Doc |
 | `export` | Export a Google Doc (pdf\|docx\|txt\|md\|html) |
+| `fetch` | Fetch a list of Docs into resumable, private JSON snapshots (all tabs) |
 | `find-range` | Find text and print Docs API UTF-16 index ranges |
 | `find-replace` | Find and replace text. Supports plain text or markdown with images; use --first for a single occurrence. |
 | `footer` | List, create, or delete document footers |
