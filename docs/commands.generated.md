@@ -640,6 +640,7 @@ Generated from `gog schema --json`.
     - [`gog sheets (sheet) format <spreadsheetId> <range> [flags]`](commands/gog-sheets-format.md) - Apply cell formatting to a range
     - [`gog sheets (sheet) freeze <spreadsheetId> [flags]`](commands/gog-sheets-freeze.md) - Freeze rows and columns on a sheet
     - [`gog sheets (sheet) get (read,show) <spreadsheetId> <range> [flags]`](commands/gog-sheets-get.md) - Get values from a range
+    - [`gog sheets (sheet) import --file=STRING <spreadsheetId> <range> [flags]`](commands/gog-sheets-import.md) - Import CSV or TSV into an existing sheet (literal text by default)
     - [`gog sheets (sheet) insert <spreadsheetId> <sheet> <dimension> <start> [flags]`](commands/gog-sheets-insert.md) - Insert empty rows or columns into a sheet
     - [`gog sheets (sheet) links (hyperlinks) <command>`](commands/gog-sheets-links.md) - Get or set cell hyperlinks
       - [`gog sheets (sheet) links (hyperlinks) get (list,show) <spreadsheetId> <range>`](commands/gog-sheets-links-get.md) - Get cell hyperlinks from a range

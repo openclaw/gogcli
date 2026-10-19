@@ -49,6 +49,7 @@ gog --readonly --account user@example.com sheets get SHEET_ID 'Sheet1!A1:D20' --
 | `format` | Apply cell formatting to a range |
 | `freeze` | Freeze rows and columns on a sheet |
 | `get` | Get values from a range |
+| `import` | Import CSV or TSV into an existing sheet (literal text by default) |
 | `insert` | Insert empty rows or columns into a sheet |
 | `links` | Get or set cell hyperlinks |
 | `merge` | Merge cells in a range |
