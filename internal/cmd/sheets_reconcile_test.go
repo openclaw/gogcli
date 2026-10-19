@@ -11,6 +11,8 @@ import (
 	"testing"
 
 	"google.golang.org/api/sheets/v4"
+
+	"github.com/openclaw/gogcli/internal/outfmt"
 )
 
 func TestSheetsReconcileApplyAndVerify(t *testing.T) {
@@ -112,6 +114,25 @@ func TestSheetsReconcileFormulaErrorIsNotLiteral(t *testing.T) {
 	err := runKong(t, &SheetsReconcileCmd{}, []string{"test-sheet", "--data-json", `[{"range":"Data!A1","values":[["#DIV/0!"]]}]`, "--apply"}, ctx, &RootFlags{Account: "test@example.com"})
 	if err != nil || writes != 1 || !strings.Contains(out.String(), `"verified": true`) {
 		t.Fatalf("err=%v writes=%d %s", err, writes, &out)
+	}
+}
+
+func TestSheetsReconcileTextIncludesReadbackMismatches(t *testing.T) {
+	for _, plain := range []bool{false, true} {
+		var out bytes.Buffer
+		ctx := newCmdRuntimeOutputContext(t, &out, io.Discard)
+		if plain {
+			ctx = outfmt.WithMode(ctx, outfmt.Mode{Plain: true})
+		}
+		result := map[string]any{"changes": []sheetsCellChange{{Range: "Data!A1", Before: "old", After: "new"}}, "mismatches": []sheetsCellChange{{Range: "Data!B1", Before: "human edit", After: "expected"}}, "verified": false}
+		if err := writeSheetsReconcileResult(ctx, result, 1, true); err != nil {
+			t.Fatal(err)
+		}
+		for _, want := range []string{"Data!B1", "human edit", "expected", "preview"} {
+			if !strings.Contains(out.String(), want) {
+				t.Errorf("missing %q: %s", want, &out)
+			}
+		}
 	}
 }
 

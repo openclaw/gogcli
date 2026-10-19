@@ -84,7 +84,7 @@ func (c *SheetsReconcileCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 	if len(mismatches) > 0 {
-		return fmt.Errorf("readback differs in %d cells; changes were already submitted", len(mismatches))
+		return fmt.Errorf("readback differs in %d cells; changes were already submitted; preview again before retrying", len(mismatches))
 	}
 	return nil
 }
@@ -222,6 +222,12 @@ func writeSheetsReconcileResult(ctx context.Context, result map[string]any, coun
 	}
 	for _, change := range result["changes"].([]sheetsCellChange) {
 		ui.FromContext(ctx).Out().Linef("%s\t%v\t%v", change.Range, change.Before, change.After)
+	}
+	if mismatches, ok := result["mismatches"].([]sheetsCellChange); ok && len(mismatches) > 0 {
+		for _, change := range mismatches {
+			ui.FromContext(ctx).Out().Linef("mismatch\t%s\tactual=%v\tdesired=%v", change.Range, change.Before, change.After)
+		}
+		ui.FromContext(ctx).Out().Linef("Changes were already submitted; preview again before retrying.")
 	}
 	ui.FromContext(ctx).Out().Linef("changes\t%d\napplied\t%t\nverified\t%v", count, applied, result["verified"])
 	return nil

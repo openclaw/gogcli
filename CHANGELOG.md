@@ -2,7 +2,7 @@
 
 ## 0.45.1 - Unreleased
 
-- Sheets: add live cell-difference previews with optional RAW apply, drift checks, and explicit readback mismatch reporting. ([#1231](https://github.com/openclaw/gogcli/pull/1231)) — thanks @ryo-touch.
+- Sheets: add live cell-difference previews with optional RAW apply, drift checks, and explicit readback mismatch reporting. Compare typed formula errors separately from literal strings and show readback mismatches. ([#1231](https://github.com/openclaw/gogcli/pull/1231)) — thanks @ryo-touch.
 
 - CI: use macOS 27 runners for Darwin checks and release preflight while enforcing the macOS 15.0 deployment target.
 - Dependencies: update Vitest and Cloudflare Workers types within the worker’s 24-hour release cooldown.
