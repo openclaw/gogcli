@@ -2,6 +2,7 @@
 
 ## 0.45.1 - Unreleased
 
+- Drive: preserve requested top-level false booleans in `drive get --json`, including the default `starred` and `hasThumbnail` fields; keep conditionally absent fields omitted. (#1223) — thanks @postoso.
 - CI: use macOS 27 runners for Darwin checks and release preflight while enforcing the macOS 15.0 deployment target.
 - Dependencies: update Vitest and Cloudflare Workers types within the worker’s 24-hour release cooldown.
 - Gmail: add `--note-html` and `--note-html-file` to forwards and preserve plain-note line breaks in HTML output. (#1215) — thanks @malob.

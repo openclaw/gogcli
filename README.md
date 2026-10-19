@@ -187,6 +187,12 @@ binary.
 
 ## Documentation
 
+`gog drive get <fileId> --fields id,trashed --json` preserves `"trashed": false`.
+The default metadata also includes false `starred` and `hasThumbnail` values.
+Conditionally absent fields (`shared`, `ownedByMe`, `writersCanShare`, and
+`hasAugmentedPermissions`) and nested booleans retain the SDK's omission behavior;
+use `gog drive raw` when you need the exact API response.
+
 - [Overview and guides](https://gogcli.sh/)
 - [Examples](docs/examples.md)
 - [Command index](docs/commands/README.md)
