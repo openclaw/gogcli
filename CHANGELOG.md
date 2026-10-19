@@ -2,7 +2,7 @@
 
 ## 0.45.1 - Unreleased
 
-- Sheets: add bounded key-based upserts that preserve unselected human columns and reject ambiguous keys. ([#1230](https://github.com/openclaw/gogcli/pull/1230)) — thanks @ryo-touch.
+- Sheets: add bounded key-based upserts that preserve unselected human columns and reject ambiguous keys. Preserve spaced headers, submit explicit RAW fields, and show exact dry-run cell plans. ([#1230](https://github.com/openclaw/gogcli/pull/1230)) — thanks @ryo-touch.
 
 - CI: use macOS 27 runners for Darwin checks and release preflight while enforcing the macOS 15.0 deployment target.
 - Dependencies: update Vitest and Cloudflare Workers types within the worker’s 24-hour release cooldown.

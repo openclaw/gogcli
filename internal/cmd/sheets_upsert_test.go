@@ -106,3 +106,26 @@ func TestSheetsUpsertWritesExplicitFormulaLikeLiteral(t *testing.T) {
 		t.Fatalf("%+v %v", plan, err)
 	}
 }
+
+func TestSheetsUpsertSpacedColumnAndEscapedRange(t *testing.T) {
+	gets := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			t.Error("dry run wrote")
+			return
+		}
+		gets++
+		if !strings.HasSuffix(r.URL.Path, "/values/Data!A1:C10") {
+			t.Errorf("escaped range sent: %s", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{"values":[["id","note","Order Status"],["001","human","old"]]}`)
+	}))
+	defer srv.Close()
+	var out bytes.Buffer
+	ctx := withSheetsTestService(newCmdRuntimeOutputContext(t, &out, io.Discard), newSheetsServiceFromServer(t, srv))
+	err := runKong(t, &SheetsUpsertCmd{}, []string{"test-sheet", `Data\!A1:C10`, "--key", "id", "--columns", "Order Status", "--rows-json", `[{"id":"001","Order Status":"new"}]`}, ctx, &RootFlags{Account: "test@example.com", DryRun: true})
+	if ExitCode(err) != 0 || gets != 1 || !strings.Contains(out.String(), "Data!C2") || !strings.Contains(out.String(), "new") {
+		t.Fatalf("%v %s gets=%d", err, &out, gets)
+	}
+}

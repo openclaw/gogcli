@@ -73,6 +73,9 @@ func (c *SheetsUpsertCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return usage(err.Error())
 	}
 	dryRun := flags != nil && flags.DryRun
+	if dryRun && !outfmt.IsJSON(ctx) {
+		return dryRunExit(ctx, flags, "sheets.upsert", plan)
+	}
 	if !dryRun && len(plan.Updates) > 0 {
 		latest, readErr := read()
 		if readErr != nil {
