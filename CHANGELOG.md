@@ -5,6 +5,7 @@
 - CI: use macOS 27 runners for Darwin checks and release preflight while enforcing the macOS 15.0 deployment target.
 - Dependencies: update Vitest and Cloudflare Workers types within the worker’s 24-hour release cooldown.
 - Gmail: add `--note-html` and `--note-html-file` to forwards and preserve plain-note line breaks in HTML output. (#1215) — thanks @malob.
+- Gmail: lay out the forwarded-message header block the way Gmail Web does: plain text with the sender's name in bold, `Name <email>` (or `<email>`) for the sender and each recipient with addresses linked in HTML, and two blank lines before the original body. (#1236) — thanks @malob.
 
 - Auth: accept `gog auth <email>` as shorthand for `gog auth add <email>`; bare `gog auth` and mistyped subcommands keep their existing errors. (#1221)
 
