@@ -14,6 +14,7 @@ import (
 )
 
 type DocsWriteCmd struct {
+	quiet        bool
 	DocID        string          `arg:"" name:"docId" help:"Doc ID"`
 	Text         string          `name:"text" help:"Text to write"`
 	File         string          `name:"file" help:"Text file path ('-' for stdin)"`

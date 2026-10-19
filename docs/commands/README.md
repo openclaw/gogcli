@@ -2,7 +2,7 @@
 
 Every `gog` command has a generated docs page. The source of truth is the live CLI schema; run `make docs-commands` after changing command names, flags, help text, aliases, or arguments.
 
-Generated pages: 779.
+Generated pages: 780.
 
 ## Top-level Commands
 
@@ -393,6 +393,7 @@ Generated pages: 779.
     - [gog docs structure](gog-docs-structure.md) - Show document structure with numbered paragraphs
     - [gog docs suggestions](gog-docs-suggestions.md) - List pending text suggestions
       - [gog docs suggestions list](gog-docs-suggestions-list.md) - List pending text insertions and deletions
+    - [gog docs sync](gog-docs-sync.md) - Synchronize a Markdown manifest with explicitly managed document tabs
     - [gog docs table-column](gog-docs-table-column.md) - Insert or delete native table columns
       - [gog docs table-column delete](gog-docs-table-column-delete.md) - Delete a native table column
       - [gog docs table-column insert](gog-docs-table-column-insert.md) - Insert a native table column

@@ -18,6 +18,7 @@ import (
 )
 
 type DocsCmd struct {
+	Sync             DocsSyncCmd             `cmd:"" name:"sync" help:"Synchronize a Markdown manifest with explicitly managed document tabs"`
 	Export           DocsExportCmd           `cmd:"" name:"export" aliases:"download,dl" help:"Export a Google Doc (pdf|docx|txt|md|html)"`
 	Info             DocsInfoCmd             `cmd:"" name:"info" aliases:"get,show" help:"Get Google Doc metadata"`
 	Create           DocsCreateCmd           `cmd:"" name:"create" aliases:"add,new" help:"Create a Google Doc"`
