@@ -87,14 +87,18 @@ func (c *AuthCheckOperationCmd) Run(ctx context.Context, kctx *kong.Context, fla
 	if clientErr != nil {
 		return clientErr
 	}
-	store, storeErr := openAuthSecretsStore(ctx)
 	var recorded []string
-	if storeErr == nil && (flags == nil || strings.TrimSpace(flags.AccessToken) == "") {
-		token, tokenErr := store.GetToken(client, account)
-		if tokenErr == nil {
-			recorded = token.Scopes
-		} else {
-			storeErr = tokenErr
+	var storeErr error
+	if flags == nil || strings.TrimSpace(flags.AccessToken) == "" {
+		store, openErr := openAuthSecretsStore(ctx)
+		storeErr = openErr
+		if openErr == nil {
+			token, tokenErr := store.GetToken(client, account)
+			if tokenErr == nil {
+				recorded = token.Scopes
+			} else {
+				storeErr = tokenErr
+			}
 		}
 	}
 	if storeErr != nil || len(recorded) == 0 {

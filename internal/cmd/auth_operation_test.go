@@ -86,7 +86,12 @@ func TestAuthOperationRecordedScopesAndDirectTokens(t *testing.T) {
 		if err := store.SetToken("default", "test@example.com", secrets.Token{Scopes: []string{"https://www.googleapis.com/auth/spreadsheets"}, RefreshToken: "fixture-secret-must-not-appear"}); err != nil {
 			t.Fatal(err)
 		}
-		runtime.Auth.OpenSecretsStore = func() (secrets.Store, error) { return store, nil }
+		runtime.Auth.OpenSecretsStore = func() (secrets.Store, error) {
+			if direct {
+				t.Fatal("direct-token diagnostics must not open the keyring")
+			}
+			return store, nil
+		}
 		parser, _, err := newParserWithWriters("test", &out, io.Discard)
 		if err != nil {
 			t.Fatal(err)
