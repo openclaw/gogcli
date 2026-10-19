@@ -33,7 +33,8 @@ func (c *SheetsUpsertCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if id == "" {
 		return usage("empty spreadsheetId")
 	}
-	r, err := sheetsa1.Parse(c.Range)
+	tableRange := cleanRange(c.Range)
+	r, err := sheetsa1.Parse(tableRange)
 	if err != nil || r.SheetName == "" || r.StartRow < 1 || r.EndRow < 1 || r.StartCol < 1 || r.EndCol < 1 {
 		return usage("range must be a bounded A1 rectangle including the header row and sheet name")
 	}
@@ -57,7 +58,7 @@ func (c *SheetsUpsertCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 	read := func() ([][]any, error) {
-		vr, readErr := svc.Spreadsheets.Values.Get(id, c.Range).ValueRenderOption("FORMULA").Context(ctx).Do()
+		vr, readErr := svc.Spreadsheets.Values.Get(id, tableRange).ValueRenderOption("FORMULA").Context(ctx).Do()
 		if readErr != nil {
 			return nil, readErr
 		}
