@@ -2,7 +2,7 @@
 
 ## 0.45.1 - Unreleased
 
-- Docs: sync explicit Markdown-to-tab manifests with previews, unchanged-content skipping, and remote-edit conflict detection. ([#1233](https://github.com/openclaw/gogcli/pull/1233)) — thanks @ryo-touch.
+- Docs: sync explicit Markdown-to-tab manifests with previews, unchanged-content skipping, and remote-edit conflict detection. Ignore temporary image URLs in fingerprints and reject incomplete sync baselines. ([#1233](https://github.com/openclaw/gogcli/pull/1233)) — thanks @ryo-touch.
 
 - CI: use macOS 27 runners for Darwin checks and release preflight while enforcing the macOS 15.0 deployment target.
 - Dependencies: update Vitest and Cloudflare Workers types within the worker’s 24-hour release cooldown.

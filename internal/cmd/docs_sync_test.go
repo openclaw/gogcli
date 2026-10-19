@@ -147,6 +147,18 @@ func TestDocsSyncApplyThenRerunSkipsWrites(t *testing.T) {
 	}
 }
 
+func TestDocsSyncRejectsIncompleteState(t *testing.T) {
+	for _, content := range []string{`{}`, `{"unrelated":true}`, `{"documentId":"doc","account":"a","client":"default"}`, `{"documentId":"doc","account":"a","client":"default","entries":{"tab":{}}}`} {
+		path := filepath.Join(t.TempDir(), "state.json")
+		if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := readDocsSyncState(path, "doc", "a", "default"); err == nil {
+			t.Fatalf("accepted %s", content)
+		}
+	}
+}
+
 func TestDocsSyncImageURLRotation(t *testing.T) {
 	for _, positioned := range []bool{false, true} {
 		tab := syncTestTab("managed", "Managed", "text")

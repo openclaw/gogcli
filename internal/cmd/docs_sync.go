@@ -176,10 +176,10 @@ func readDocsSyncManifest(name string) ([]docsSyncInput, []string, error) {
 }
 
 func readDocsSyncState(path, id, account, client string) (docsSyncState, error) {
-	state := docsSyncState{DocumentID: id, Account: account, Client: client, Entries: map[string]docsSyncEntry{}}
+	var state docsSyncState
 	b, err := os.ReadFile(path) // #nosec G304 -- The state path is an explicitly selected local file.
 	if errors.Is(err, os.ErrNotExist) {
-		return state, nil
+		return docsSyncState{DocumentID: id, Account: account, Client: client, Entries: map[string]docsSyncEntry{}}, nil
 	}
 	if err != nil {
 		return state, err
@@ -189,6 +189,11 @@ func readDocsSyncState(path, id, account, client string) (docsSyncState, error) 
 	}
 	if state.DocumentID != id || state.Account != account || state.Client != client || state.Entries == nil {
 		return state, fmt.Errorf("sync state belongs to a different document, account, or client")
+	}
+	for tab, entry := range state.Entries {
+		if tab == "" || entry.SourceHash == "" || entry.RemoteHash == "" {
+			return state, fmt.Errorf("invalid sync state: incomplete baseline for tab %q", tab)
+		}
 	}
 	return state, nil
 }
