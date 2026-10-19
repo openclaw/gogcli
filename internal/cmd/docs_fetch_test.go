@@ -12,6 +12,9 @@ import (
 	"testing"
 
 	"google.golang.org/api/docs/v1"
+
+	"github.com/openclaw/gogcli/internal/config"
+	"github.com/openclaw/gogcli/internal/googleapi"
 )
 
 func TestDocsFetchIDsRejectPathsAndDeduplicate(t *testing.T) {
@@ -118,6 +121,44 @@ func TestDocsFetchPreservesUnownedDestination(t *testing.T) {
 				t.Fatalf("err=%v read=%v contents=%s", err, readErr, got)
 			}
 		})
+	}
+}
+
+func TestDocsFetchUnresolvedIdentityDoesNotReuseOrReplace(t *testing.T) {
+	for _, flags := range []*RootFlags{
+		{Account: accessTokenPlaceholderAccount, Client: "default", AccessToken: "fake-test-token"},
+		{Account: "label@example.com", Client: "default", AccessToken: "fake-test-token"},
+		{Account: adcPlaceholderAccount, Client: "default", authMode: googleapi.AuthModeADC},
+		{Account: "label@example.com", Client: "default", authMode: googleapi.AuthModeADC},
+	} {
+		flags.configStoreResolver = func() (*config.ConfigStore, error) { return defaultConfigStoreForTest(t), nil }
+		count := 0
+		svc, cleanup := newDocsServiceForTest(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			count++
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = io.WriteString(w, `{"title":"test"}`)
+		}))
+		dir := t.TempDir()
+		ids := filepath.Join(t.TempDir(), "ids.txt")
+		if err := os.WriteFile(ids, []byte("test-doc"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		var out bytes.Buffer
+		ctx := withDocsTestService(newCmdRuntimeJSONOutputContext(t, &out, io.Discard), svc)
+		cmd := DocsFetchCmd{IDsFile: ids, OutputDir: dir}
+		if err := runKong(t, &cmd, []string{"--ids-file", ids, "--output-dir", dir}, ctx, flags); err != nil {
+			t.Fatal(err)
+		}
+		for _, refresh := range []bool{false, true} {
+			cmd.Refresh = refresh
+			if err := runKong(t, &cmd, []string{}, ctx, flags); err == nil {
+				t.Fatal("unverified identity reused destination")
+			}
+		}
+		if count != 1 {
+			t.Fatalf("requests=%d", count)
+		}
+		cleanup()
 	}
 }
 

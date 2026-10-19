@@ -95,7 +95,8 @@ func (c *DocsFetchCmd) Run(ctx context.Context, flags *RootFlags) error {
 		result := docsFetchResult{DocumentID: id, File: name}
 		info, statErr := root.Lstat(name)
 		exists := !errors.Is(statErr, os.ErrNotExist)
-		matching := statErr == nil && info.Mode().IsRegular() && validDocsFetchCache(root, name, id, account, client)
+		trustedIdentity := !hasDirectAccessToken(flags) && !isADCAuthMode(flags) && account != accessTokenPlaceholderAccount && account != adcPlaceholderAccount
+		matching := statErr == nil && info.Mode().IsRegular() && trustedIdentity && validDocsFetchCache(root, name, id, account, client)
 		switch {
 		case exists && !matching:
 			failed++
