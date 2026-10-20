@@ -368,10 +368,12 @@ func peekResponseBody(resp *http.Response) (body []byte, ok bool, err error) {
 
 	bodyBytes, err := io.ReadAll(io.LimitReader(resp.Body, maxInspectedResponseBodyBytes+1))
 	if err != nil {
+		// The caller reads the bytes already consumed, then the same error:
+		// the body must not turn into a cleanly terminated prefix.
 		resp.Body = struct {
 			io.Reader
 			io.Closer
-		}{Reader: io.MultiReader(bytes.NewReader(bodyBytes), resp.Body), Closer: resp.Body}
+		}{Reader: io.MultiReader(bytes.NewReader(bodyBytes), failingReader{err: err}), Closer: resp.Body}
 
 		return nil, false, fmt.Errorf("read error response: %w", err)
 	}
@@ -390,6 +392,11 @@ func peekResponseBody(resp *http.Response) (body []byte, ok bool, err error) {
 
 	return bodyBytes, true, nil
 }
+
+// failingReader replays a body read error on every read.
+type failingReader struct{ err error }
+
+func (r failingReader) Read([]byte) (int, error) { return 0, r.err }
 
 // responseIndicatesRateLimit reports whether resp is a 403 whose Google error
 // reason is a rate limit. Google documents these as retryable with

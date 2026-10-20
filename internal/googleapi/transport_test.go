@@ -596,3 +596,53 @@ func TestRetryTransport_Forbidden_NoRetry(t *testing.T) {
 		})
 	}
 }
+
+// prefixThenErrorReader returns its prefix with err on the first read and a
+// clean EOF afterwards, like a body whose connection broke mid-response.
+type prefixThenErrorReader struct {
+	prefix string
+	err    error
+	done   bool
+}
+
+func (r *prefixThenErrorReader) Read(p []byte) (int, error) {
+	if r.done {
+		return 0, io.EOF
+	}
+
+	r.done = true
+
+	return copy(p, r.prefix), r.err
+}
+
+func TestRetryTransport_Forbidden_KeepsBodyReadError(t *testing.T) {
+	mock := &mockTransport{
+		responses: []*http.Response{{
+			StatusCode: http.StatusForbidden,
+			Body:       io.NopCloser(&prefixThenErrorReader{prefix: `{"error":{"errors":[{"reas`, err: io.ErrUnexpectedEOF}),
+		}},
+	}
+
+	rt := NewRetryTransport(mock)
+
+	req, _ := http.NewRequestWithContext(context.Background(), "GET", "https://example.com", nil)
+
+	resp, err := rt.RoundTrip(req)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if !errors.Is(err, io.ErrUnexpectedEOF) {
+		t.Fatalf("read error = %v, want io.ErrUnexpectedEOF preserved for the caller", err)
+	}
+
+	if string(body) != `{"error":{"errors":[{"reas` {
+		t.Fatalf("body = %q, want the bytes read before the error", body)
+	}
+
+	if mock.calls != 1 {
+		t.Errorf("expected 1 call (a truncated body is not a rate limit), got %d", mock.calls)
+	}
+}
