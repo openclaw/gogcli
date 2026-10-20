@@ -114,8 +114,10 @@ func Rekey(opts RekeyOptions) (RekeyResult, error) {
 	err = lock.withReadLock(func() error {
 		var rekeyErr error
 		res, rekeyErr = rekeyLocked(opts, dir, out)
+
 		return rekeyErr
 	})
+
 	return res, err
 }
 
@@ -134,27 +136,33 @@ func rekeyLocked(opts RekeyOptions, dir, out string) (RekeyResult, error) {
 
 	mode := info.Mode() & (os.ModePerm | os.ModeSetuid | os.ModeSetgid | os.ModeSticky)
 	res := RekeyResult{Dir: dir, OutDir: out, Unreadable: unreadable}
+
 	entries, err := os.ReadDir(out)
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return res, fmt.Errorf("read output directory: %w", err)
 	}
+
 	if len(entries) > 0 && !opts.Force {
 		return res, errRekeyOutputNotEmpty
 	}
-	if err := os.MkdirAll(filepath.Dir(out), 0o700); err != nil {
+
+	if err = os.MkdirAll(filepath.Dir(out), 0o700); err != nil {
 		return res, fmt.Errorf("create output parent: %w", err)
 	}
+
 	stage, err := os.MkdirTemp(filepath.Dir(out), ".gog-rekey-*")
 	if err != nil {
 		return res, fmt.Errorf("create staging directory: %w", err)
 	}
+
 	cleanupStage := true
 	defer func() {
 		if cleanupStage {
 			_ = os.RemoveAll(stage)
 		}
 	}()
-	if err := os.Chmod(stage, mode); err != nil {
+
+	if err = os.Chmod(stage, mode); err != nil {
 		return res, fmt.Errorf("set output permissions: %w", err)
 	}
 
@@ -177,14 +185,18 @@ func rekeyLocked(opts RekeyOptions, dir, out string) (RekeyResult, error) {
 	if err != nil {
 		return res, err
 	}
+
 	if err := syncRekeyOutput(stage); err != nil {
 		return res, err
 	}
+
 	if err := publishRekeyOutput(stage, out); err != nil {
 		var recovery *rekeyRecoveryError
 		cleanupStage = !errors.As(err, &recovery)
+
 		return res, err
 	}
+
 	for _, entry := range entries {
 		res.Replaced = append(res.Replaced, entry.Name())
 	}
@@ -217,6 +229,7 @@ func verifyRekeyOutput(open func(string, string) (keyring.Keyring, error), out, 
 		got, getErr := verify.Get(item.Key)
 		matches := reflect.DeepEqual(got, item)
 		clear(got.Data)
+
 		if getErr != nil || !matches {
 			return nil, fmt.Errorf("%w: output item %q failed verification", errRekeyContentMismatch, item.Key)
 		}
@@ -246,6 +259,7 @@ func readRekeyItems(dir, password string, skip bool) ([]keyring.Item, []string, 
 		return nil, nil, fmt.Errorf("read live keyring directory: %w", err)
 	}
 	items := make(map[string]keyring.Item)
+
 	transferred := false
 	defer func() {
 		if !transferred {
@@ -281,10 +295,12 @@ func readRekeyItems(dir, password string, skip bool) ([]keyring.Item, []string, 
 		decoded := []byte(payload)
 		unmarshalErr := json.Unmarshal(decoded, &item)
 		clear(decoded)
-		payload = ""
+
 		if decodeErr != nil || unmarshalErr != nil {
 			clear(item.Data)
+
 			unreadable = append(unreadable, key)
+
 			continue
 		}
 
@@ -294,6 +310,7 @@ func readRekeyItems(dir, password string, skip bool) ([]keyring.Item, []string, 
 				clear(item.Data)
 				return nil, nil, fmt.Errorf("%w: conflicting live copies of %q", errRekeyContentMismatch, key)
 			}
+
 			clear(previous.Data)
 		}
 		items[key] = item
@@ -319,6 +336,7 @@ func readRekeyItems(dir, password string, skip bool) ([]keyring.Item, []string, 
 	slices.SortFunc(result, func(a, b keyring.Item) int { return strings.Compare(a.Key, b.Key) })
 
 	transferred = true
+
 	return result, unreadable, nil
 }
 
@@ -407,17 +425,20 @@ func syncRekeyOutput(dir string) error {
 	if err != nil {
 		return fmt.Errorf("read staged output: %w", err)
 	}
+
 	for _, entry := range entries {
-		file, err := os.OpenFile(filepath.Join(dir, entry.Name()), os.O_RDWR, 0)
+		file, err := os.OpenFile(filepath.Join(dir, entry.Name()), os.O_RDWR, 0) //nolint:gosec // private staged directory and name from ReadDir
 		if err != nil {
 			return fmt.Errorf("open staged item: %w", err)
 		}
 		syncErr := file.Sync()
+
 		closeErr := file.Close()
 		if err := errors.Join(syncErr, closeErr); err != nil {
 			return fmt.Errorf("sync staged item: %w", err)
 		}
 	}
+
 	return syncRekeyDir(dir)
 }
 
@@ -429,10 +450,12 @@ func publishRekeyOutput(stage, out string) error {
 
 func publishRekeyOutputWith(stage, out string, exchange func(string, string) error, syncDir func(string) error) error {
 	_, err := os.Lstat(out)
+
 	existed := err == nil
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return fmt.Errorf("stat output: %w", err)
 	}
+
 	if existed {
 		if err := exchange(stage, out); err != nil {
 			return fmt.Errorf("exchange output: %w", err)
@@ -440,6 +463,7 @@ func publishRekeyOutputWith(stage, out string, exchange func(string, string) err
 	} else if err := renameRekeyDir(stage, out); err != nil {
 		return fmt.Errorf("publish output: %w", err)
 	}
+
 	if err := syncDir(filepath.Dir(out)); err != nil {
 		var rollbackErr error
 		if existed {
@@ -447,11 +471,14 @@ func publishRekeyOutputWith(stage, out string, exchange func(string, string) err
 		} else {
 			rollbackErr = renameRekeyDir(out, stage)
 		}
+
 		if rollbackErr != nil {
 			return &rekeyRecoveryError{err: fmt.Errorf("sync output: %w; rollback: %w; recovery required: inspect output %s and retained staging %s", err, rollbackErr, out, stage)}
 		}
+
 		return fmt.Errorf("sync output (rolled back): %w", errors.Join(err, syncDir(filepath.Dir(out))))
 	}
+
 	return nil
 }
 

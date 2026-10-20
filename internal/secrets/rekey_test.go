@@ -32,6 +32,7 @@ func newRekeyTestLayout(tb testing.TB) (config.Layout, string) {
 	if err := os.WriteFile(filepath.Join(dir, keyringLockFilename), nil, 0o600); err != nil {
 		tb.Fatal(err)
 	}
+
 	return layout, dir
 }
 

@@ -1,7 +1,15 @@
 package secrets
 
-import "golang.org/x/sys/unix"
+import (
+	"fmt"
+
+	"golang.org/x/sys/unix"
+)
 
 func exchangeRekeyDirs(a, b string) error {
-	return unix.RenamexNp(a, b, unix.RENAME_SWAP)
+	if err := unix.RenamexNp(a, b, unix.RENAME_SWAP); err != nil {
+		return fmt.Errorf("exchange keyring directories: %w", err)
+	}
+
+	return nil
 }

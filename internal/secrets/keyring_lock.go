@@ -107,7 +107,7 @@ func (l *keyringLock) withWriteLock(fn func() error) error {
 }
 
 func (l *keyringLock) withFileLock(exclusive bool, fn func() error) error {
-	file, err := os.OpenFile(l.path, os.O_CREATE|os.O_RDWR, 0o600)
+	file, err := os.OpenFile(l.path, os.O_CREATE|os.O_RDWR, 0o600) //nolint:gosec // lock path is inside the user-selected keyring directory
 	if err != nil {
 		return fmt.Errorf("open keyring lock: %w", err)
 	}
