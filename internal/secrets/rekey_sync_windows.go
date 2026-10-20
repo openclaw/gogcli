@@ -15,6 +15,7 @@ func renameRekeyDir(from, to string) error {
 	if err != nil {
 		return fmt.Errorf("encode keyring path: %w", err)
 	}
+
 	target, err := windows.UTF16PtrFromString(to)
 	if err != nil {
 		return fmt.Errorf("encode keyring path: %w", err)
