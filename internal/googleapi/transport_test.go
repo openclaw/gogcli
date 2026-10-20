@@ -449,3 +449,150 @@ func TestEnsureReplayableBody(t *testing.T) {
 		t.Fatalf("unexpected body replay: %q %q", string(first), string(second))
 	}
 }
+
+func rateLimit403Body(reason string) io.ReadCloser {
+	return io.NopCloser(strings.NewReader(`{"error":{"code":403,"message":"User-rate limit exceeded.","errors":[{"message":"User-rate limit exceeded.","domain":"usageLimits","reason":"` + reason + `"}],"status":"PERMISSION_DENIED"}}`))
+}
+
+func TestRetryTransport_RateLimit403_Retry(t *testing.T) {
+	for _, reason := range []string{"rateLimitExceeded", "userRateLimitExceeded"} {
+		t.Run(reason, func(t *testing.T) {
+			mock := &mockTransport{
+				responses: []*http.Response{
+					{StatusCode: http.StatusForbidden, Body: rateLimit403Body(reason)},
+					{StatusCode: 200, Body: io.NopCloser(strings.NewReader("ok"))},
+				},
+			}
+
+			rt := NewRetryTransport(mock)
+			rt.BaseDelay = time.Millisecond
+
+			req, _ := http.NewRequestWithContext(context.Background(), "GET", "https://example.com", nil)
+
+			resp, err := rt.RoundTrip(req)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			defer resp.Body.Close()
+
+			if resp.StatusCode != 200 {
+				t.Errorf("expected 200 after retry, got %d", resp.StatusCode)
+			}
+
+			if mock.calls != 2 {
+				t.Errorf("expected 2 calls (1 retry), got %d", mock.calls)
+			}
+		})
+	}
+}
+
+func TestRetryTransport_RateLimit403_RetryAfterHeader(t *testing.T) {
+	mock := &mockTransport{
+		responses: []*http.Response{
+			{
+				StatusCode: http.StatusForbidden,
+				Header:     http.Header{"Retry-After": []string{"1"}},
+				Body:       rateLimit403Body("rateLimitExceeded"),
+			},
+			{StatusCode: 200, Body: io.NopCloser(strings.NewReader("ok"))},
+		},
+	}
+
+	rt := NewRetryTransport(mock)
+	rt.BaseDelay = 1 * time.Hour // Would be very long without Retry-After
+
+	start := time.Now()
+	req, _ := http.NewRequestWithContext(context.Background(), "GET", "https://example.com", nil)
+
+	resp, err := rt.RoundTrip(req)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	defer resp.Body.Close()
+	elapsed := time.Since(start)
+
+	if resp.StatusCode != 200 {
+		t.Errorf("expected 200, got %d", resp.StatusCode)
+	}
+
+	if elapsed < 900*time.Millisecond || elapsed > 2*time.Second {
+		t.Errorf("expected ~1s delay from Retry-After, got %v", elapsed)
+	}
+}
+
+func TestRetryTransport_RateLimit403_MaxRetriesKeepsBody(t *testing.T) {
+	mock := &mockTransport{
+		responses: []*http.Response{
+			{StatusCode: http.StatusForbidden, Body: rateLimit403Body("rateLimitExceeded")},
+			{StatusCode: http.StatusForbidden, Body: rateLimit403Body("rateLimitExceeded")},
+			{StatusCode: http.StatusForbidden, Body: rateLimit403Body("rateLimitExceeded")},
+		},
+	}
+
+	rt := NewRetryTransport(mock)
+	rt.BaseDelay = time.Millisecond
+	rt.MaxRetries429 = 2
+
+	req, _ := http.NewRequestWithContext(context.Background(), "GET", "https://example.com", nil)
+
+	resp, err := rt.RoundTrip(req)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusForbidden {
+		t.Errorf("expected 403 after max retries, got %d", resp.StatusCode)
+	}
+
+	if mock.calls != 3 {
+		t.Errorf("expected 3 calls, got %d", mock.calls)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("read body: %v", err)
+	}
+
+	if !strings.Contains(string(body), `"reason":"rateLimitExceeded"`) {
+		t.Errorf("rate-limit body not preserved for the caller: %q", body)
+	}
+}
+
+func TestRetryTransport_Forbidden_NoRetry(t *testing.T) {
+	for _, reason := range []string{"forbidden", "dailyLimitExceeded", "quotaExceeded"} {
+		t.Run(reason, func(t *testing.T) {
+			mock := &mockTransport{
+				responses: []*http.Response{{StatusCode: http.StatusForbidden, Body: rateLimit403Body(reason)}},
+			}
+
+			rt := NewRetryTransport(mock)
+			rt.BaseDelay = time.Millisecond
+
+			req, _ := http.NewRequestWithContext(context.Background(), "GET", "https://example.com", nil)
+
+			resp, err := rt.RoundTrip(req)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			defer resp.Body.Close()
+
+			if resp.StatusCode != http.StatusForbidden {
+				t.Errorf("expected 403, got %d", resp.StatusCode)
+			}
+
+			if mock.calls != 1 {
+				t.Errorf("expected 1 call (no retry for %s), got %d", reason, mock.calls)
+			}
+
+			body, err := io.ReadAll(resp.Body)
+			if err != nil {
+				t.Fatalf("read body: %v", err)
+			}
+
+			if !strings.Contains(string(body), reason) {
+				t.Errorf("403 body not preserved for the caller: %q", body)
+			}
+		})
+	}
+}

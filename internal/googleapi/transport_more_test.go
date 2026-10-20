@@ -521,7 +521,7 @@ func TestResponseIndicatesInsufficientScopesRecognizesGoogleVariants(t *testing.
 }
 
 func TestResponseIndicatesInsufficientScopesPreservesOversizedUnknownLengthBody(t *testing.T) {
-	want := strings.Repeat("x", int(maxAuthRetryResponseBodyBytes)+128)
+	want := strings.Repeat("x", int(maxInspectedResponseBodyBytes)+128)
 	resp := newTestResponse(http.StatusForbidden, want)
 	resp.ContentLength = -1
 

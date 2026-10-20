@@ -164,8 +164,10 @@ least-privilege read against the intended service.
 
 ## Exit codes
 
-Google API rate-limit retries honor `Retry-After` delays up to 60 seconds per
-retry, including numeric seconds and HTTP dates. Cancelling the command also
+Google API rate-limit retries cover HTTP 429 and HTTP 403 responses whose
+reason is `rateLimitExceeded` or `userRateLimitExceeded`. They honor
+`Retry-After` delays up to 60 seconds per retry, including numeric seconds and
+HTTP dates. Cancelling the command also
 cancels a pending retry wait. Upload bodies are closed even when a request is
 rejected by the circuit breaker or cannot be buffered for retry, so those
 failures release the associated file or stream resources.

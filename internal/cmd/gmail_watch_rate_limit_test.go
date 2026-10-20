@@ -66,6 +66,46 @@ func TestGmailWatchServer_History429OpensAccountCircuit(t *testing.T) {
 	}
 }
 
+func TestGmailWatchServer_History403RateLimitOpensAccountCircuit(t *testing.T) {
+	setWatchTestConfigHome(t)
+
+	store := newRateLimitWatchStore(t)
+	var historyCalls int
+	gsvc := newRateLimitGmailService(t, func(w http.ResponseWriter, r *http.Request) {
+		if strings.Contains(r.URL.Path, "/gmail/v1/users/me/history") {
+			historyCalls++
+			writeGmailRateLimit(t, w, http.StatusForbidden, "")
+			return
+		}
+		http.NotFound(w, r)
+	})
+
+	server := &gmailWatchServer{
+		cfg:        gmailWatchServeConfig{Account: "a@b.com", HistoryMax: 10},
+		store:      store,
+		newService: func(context.Context, string) (*gmail.Service, error) { return gsvc, nil },
+		logf:       func(string, ...any) {},
+		warnf:      func(string, ...any) {},
+	}
+
+	_, err := server.handlePush(context.Background(), gmailPushPayload{EmailAddress: "a@b.com", HistoryID: "200"})
+	var rateErr *gmailWatchRateLimitError
+	if !errors.As(err, &rateErr) {
+		t.Fatalf("expected rate limit error, got %v", err)
+	}
+	if state := store.Get(); state.RateLimitedUntilMs <= time.Now().UnixMilli() {
+		t.Fatalf("expected future rate limit timestamp, got %d", state.RateLimitedUntilMs)
+	}
+
+	_, err = server.handlePush(context.Background(), gmailPushPayload{EmailAddress: "a@b.com", HistoryID: "201"})
+	if !errors.As(err, &rateErr) {
+		t.Fatalf("expected open circuit error, got %v", err)
+	}
+	if historyCalls != 1 {
+		t.Fatalf("open circuit made Gmail calls: history=%d", historyCalls)
+	}
+}
+
 func TestGmailWatchServer_Message429OpensAccountCircuit(t *testing.T) {
 	setWatchTestConfigHome(t)
 
@@ -206,12 +246,19 @@ func newRateLimitGmailService(t *testing.T, handler http.HandlerFunc) *gmail.Ser
 
 func writeGmail429(t *testing.T, w http.ResponseWriter, retryAfter string) {
 	t.Helper()
+	writeGmailRateLimit(t, w, http.StatusTooManyRequests, retryAfter)
+}
+
+func writeGmailRateLimit(t *testing.T, w http.ResponseWriter, status int, retryAfter string) {
+	t.Helper()
 	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Retry-After", retryAfter)
-	w.WriteHeader(http.StatusTooManyRequests)
+	if retryAfter != "" {
+		w.Header().Set("Retry-After", retryAfter)
+	}
+	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(map[string]any{
 		"error": map[string]any{
-			"code":    http.StatusTooManyRequests,
+			"code":    status,
 			"message": "User-rate limit exceeded",
 			"errors": []map[string]any{
 				{"reason": "rateLimitExceeded", "message": "User-rate limit exceeded"},
