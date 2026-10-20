@@ -8,6 +8,7 @@ import (
 
 	"google.golang.org/api/calendar/v3"
 
+	"github.com/openclaw/gogcli/internal/errfmt"
 	"github.com/openclaw/gogcli/internal/outfmt"
 	"github.com/openclaw/gogcli/internal/timeparse"
 	"github.com/openclaw/gogcli/internal/ui"
@@ -133,7 +134,7 @@ func (c *CalendarChangedCmd) listChangedMulti(ctx context.Context, svc *calendar
 		calendarTimezone, loc := calendarDisplayTimezone(ctx, svc, calID, hints, nil)
 		items, err := fetchChangedEvents(ctx, svc, calID, since)
 		if err != nil {
-			u.Err().Linef("calendar %s: %v", calID, err)
+			u.Err().Linef("calendar %s: %v", calID, errfmt.Format(err))
 			continue
 		}
 		for _, item := range items {

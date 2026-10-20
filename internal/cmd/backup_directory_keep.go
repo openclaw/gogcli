@@ -11,6 +11,7 @@ import (
 	keepapi "google.golang.org/api/keep/v1"
 
 	"github.com/openclaw/gogcli/internal/backup"
+	"github.com/openclaw/gogcli/internal/errfmt"
 )
 
 type groupsBackupMember struct {
@@ -171,7 +172,7 @@ func fetchBackupCloudIdentityGroupMembers(ctx context.Context, svc *cloudidentit
 		}
 		groupName, err := lookupGroupByEmail(ctx, svc, groupEmail)
 		if err != nil {
-			out = append(out, groupsBackupMember{GroupEmail: groupEmail, Error: err.Error()})
+			out = append(out, groupsBackupMember{GroupEmail: groupEmail, Error: errfmt.Format(err)})
 			continue
 		}
 		pageToken := ""
@@ -188,7 +189,7 @@ func fetchBackupCloudIdentityGroupMembers(ctx context.Context, svc *cloudidentit
 			}
 			resp, err := call.Do()
 			if err != nil {
-				out = append(out, groupsBackupMember{GroupEmail: groupEmail, Error: err.Error()})
+				out = append(out, groupsBackupMember{GroupEmail: groupEmail, Error: errfmt.Format(err)})
 				break
 			}
 			for _, member := range resp.Memberships {
@@ -260,7 +261,7 @@ func fetchBackupAdminGroupMembers(ctx context.Context, svc *admin.Service, group
 		}
 		members, err := fetchAllBackupAdminGroupMembers(ctx, svc, group.Email)
 		if err != nil {
-			out = append(out, adminBackupMember{GroupEmail: group.Email, Error: err.Error()})
+			out = append(out, adminBackupMember{GroupEmail: group.Email, Error: errfmt.Format(err)})
 			continue
 		}
 		for _, member := range members {

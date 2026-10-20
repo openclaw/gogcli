@@ -10,6 +10,7 @@ import (
 	gapi "google.golang.org/api/googleapi"
 
 	"github.com/openclaw/gogcli/internal/config"
+	"github.com/openclaw/gogcli/internal/errfmt"
 	"github.com/openclaw/gogcli/internal/outfmt"
 	"github.com/openclaw/gogcli/internal/ui"
 )
@@ -166,7 +167,7 @@ func listCalendarIDsEvents(ctx context.Context, svc *calendar.Service, calendarI
 
 		events, nextPageToken, err := loadPagedItems(page, allPages, fetch)
 		if err != nil {
-			u.Err().Linef("calendar %s: %v", calID, err)
+			u.Err().Linef("calendar %s: %v", calID, errfmt.Format(err))
 			continue
 		}
 		if nextPageToken != "" {

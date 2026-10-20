@@ -12,6 +12,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/openclaw/gogcli/internal/errfmt"
 )
 
 var (
@@ -150,7 +152,7 @@ func (h *HTTPHandler) ServeHTTP(response http.ResponseWriter, request *http.Requ
 
 		var authErr *TerminalAuthError
 		if errors.As(err, &authErr) {
-			h.warnf("watch: Gmail authorization requires re-authentication; acknowledging push without advancing history: %v", err)
+			h.warnf("watch: Gmail authorization requires re-authentication; acknowledging push without advancing history: %v", errfmt.Format(err))
 			response.WriteHeader(http.StatusAccepted)
 
 			return
@@ -162,13 +164,13 @@ func (h *HTTPHandler) ServeHTTP(response http.ResponseWriter, request *http.Requ
 				response.Header().Set("Retry-After", RetryAfterSeconds(h.currentTime(), rateErr.Until))
 			}
 
-			h.warnf("watch: Gmail rate limit circuit open: %v", err)
+			h.warnf("watch: Gmail rate limit circuit open: %v", errfmt.Format(err))
 			response.WriteHeader(http.StatusServiceUnavailable)
 
 			return
 		}
 
-		h.warnf("watch: handle push failed: %v", err)
+		h.warnf("watch: handle push failed: %v", errfmt.Format(err))
 		response.WriteHeader(http.StatusInternalServerError)
 
 		return

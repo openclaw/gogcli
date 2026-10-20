@@ -7,6 +7,7 @@ import (
 
 	"google.golang.org/api/gmail/v1"
 
+	"github.com/openclaw/gogcli/internal/errfmt"
 	"github.com/openclaw/gogcli/internal/outfmt"
 	"github.com/openclaw/gogcli/internal/ui"
 )
@@ -368,9 +369,9 @@ func (c *GmailLabelsModifyCmd) Run(ctx context.Context, flags *RootFlags) error 
 			RemoveLabelIds: removeIDs,
 		}).Context(ctx).Do()
 		if err != nil {
-			results = append(results, result{ThreadID: tid, Success: false, Error: err.Error()})
+			results = append(results, result{ThreadID: tid, Success: false, Error: errfmt.Format(err)})
 			if !outfmt.IsJSON(ctx) {
-				u.Err().Errorf("%s: %s", tid, err.Error())
+				u.Err().Errorf("%s: %s", tid, errfmt.Format(err))
 			}
 			continue
 		}

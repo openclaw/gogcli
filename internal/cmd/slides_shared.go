@@ -13,6 +13,7 @@ import (
 	gapi "google.golang.org/api/googleapi"
 	"google.golang.org/api/slides/v1"
 
+	"github.com/openclaw/gogcli/internal/errfmt"
 	"github.com/openclaw/gogcli/internal/ui"
 )
 
@@ -88,7 +89,7 @@ func prepareSlidesImageURL(ctx context.Context, account string, source slidesIma
 
 	cleanup := func() {
 		if err := driveSvc.Files.Delete(driveFile.Id).Context(context.WithoutCancel(ctx)).Do(); err != nil {
-			ui.FromContext(ctx).Err().Linef("Warning: failed to delete temporary Drive image %s; it may remain publicly readable until removed: %v", driveFile.Id, err)
+			ui.FromContext(ctx).Err().Linef("Warning: failed to delete temporary Drive image %s; it may remain publicly readable until removed: %v", driveFile.Id, errfmt.Format(err))
 		}
 	}
 	if _, err := driveSvc.Permissions.Create(driveFile.Id, &drive.Permission{

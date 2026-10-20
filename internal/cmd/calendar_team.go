@@ -10,6 +10,7 @@ import (
 
 	"google.golang.org/api/calendar/v3"
 
+	"github.com/openclaw/gogcli/internal/errfmt"
 	"github.com/openclaw/gogcli/internal/outfmt"
 	"github.com/openclaw/gogcli/internal/ui"
 )
@@ -172,7 +173,7 @@ func (c *CalendarTeamCmd) runEvents(ctx context.Context, svc *calendar.Service, 
 			resp, err := call.Do()
 			if err != nil {
 				mu.Lock()
-				errors = append(errors, fmt.Sprintf("%s: %v", email, err))
+				errors = append(errors, fmt.Sprintf("%s: %v", email, errfmt.Format(err)))
 				mu.Unlock()
 				return
 			}

@@ -8,6 +8,7 @@ import (
 	"google.golang.org/api/gmail/v1"
 
 	"github.com/openclaw/gogcli/internal/backup"
+	"github.com/openclaw/gogcli/internal/errfmt"
 )
 
 type gmailSettingsBackup struct {
@@ -64,7 +65,7 @@ func fetchGmailSettingsBackup(ctx context.Context, svc *gmail.Service) gmailSett
 		if err == nil {
 			return
 		}
-		out.Errors = append(out.Errors, gmailSettingsBackupError{Kind: kind, Error: err.Error()})
+		out.Errors = append(out.Errors, gmailSettingsBackupError{Kind: kind, Error: errfmt.Format(err)})
 	}
 	if resp, err := svc.Users.Settings.Filters.List("me").Context(ctx).Do(); err == nil {
 		out.Filters = resp.Filter

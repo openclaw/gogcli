@@ -6,11 +6,41 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
+
+	"golang.org/x/oauth2"
 )
+
+func TestHTTPHandlerOAuthDiagnostic(t *testing.T) {
+	for _, terminal := range []bool{false, true} {
+		t.Run(fmt.Sprint(terminal), func(t *testing.T) {
+			const secret = "synthetic-oauth-provider-detail"
+			var cause error = &oauth2.RetrieveError{ErrorCode: "invalid_grant", ErrorDescription: secret}
+			wantStatus := http.StatusInternalServerError
+			if terminal {
+				cause = &TerminalAuthError{Cause: cause}
+				wantStatus = http.StatusAccepted
+			}
+			var warning string
+			handler := &HTTPHandler{
+				Config:    HTTPConfig{Path: "/hook", Account: "reader@example.invalid", BodyLimit: 1024, HasHook: true},
+				Authorize: func(*http.Request) bool { return true },
+				Process:   func(context.Context, Notification) (*ProcessedPayload, error) { return nil, cause },
+				Warnf:     func(format string, args ...any) { warning = fmt.Sprintf(format, args...) },
+			}
+			response := httptest.NewRecorder()
+			handler.ServeHTTP(response, pushRequest(t, "reader@example.invalid", "200", "synthetic-push"))
+			if response.Code != wantStatus || strings.Contains(warning, secret) || !strings.Contains(warning, "invalid_grant") {
+				t.Fatalf("status = %d; warning = %q", response.Code, warning)
+			}
+		})
+	}
+}
 
 func TestHTTPHandlerProcessesPush(t *testing.T) {
 	t.Parallel()

@@ -9,6 +9,8 @@ import (
 
 	"google.golang.org/api/drive/v3"
 	gapi "google.golang.org/api/googleapi"
+
+	"github.com/openclaw/gogcli/internal/errfmt"
 )
 
 type driveBackupCollaboration struct {
@@ -121,7 +123,7 @@ func fetchBackupDriveFileCollaboration(ctx context.Context, svc *drive.Service, 
 	var out driveBackupCollaboration
 	permissions, err := fetchBackupDrivePermissions(ctx, svc, fileID)
 	if err != nil {
-		out.Permissions = append(out.Permissions, driveBackupPermission{FileID: fileID, Error: err.Error()})
+		out.Permissions = append(out.Permissions, driveBackupPermission{FileID: fileID, Error: errfmt.Format(err)})
 	} else {
 		for _, permission := range permissions {
 			out.Permissions = append(out.Permissions, driveBackupPermission{FileID: fileID, Permission: permission})
@@ -129,7 +131,7 @@ func fetchBackupDriveFileCollaboration(ctx context.Context, svc *drive.Service, 
 	}
 	comments, err := fetchBackupDriveComments(ctx, svc, fileID)
 	if err != nil {
-		out.Comments = append(out.Comments, driveBackupComment{FileID: fileID, Error: err.Error()})
+		out.Comments = append(out.Comments, driveBackupComment{FileID: fileID, Error: errfmt.Format(err)})
 	} else {
 		for _, comment := range comments {
 			out.Comments = append(out.Comments, driveBackupComment{FileID: fileID, Comment: comment})
@@ -137,7 +139,7 @@ func fetchBackupDriveFileCollaboration(ctx context.Context, svc *drive.Service, 
 	}
 	revisions, err := fetchBackupDriveRevisions(ctx, svc, fileID)
 	if err != nil {
-		out.Revisions = append(out.Revisions, driveBackupRevision{FileID: fileID, Error: err.Error()})
+		out.Revisions = append(out.Revisions, driveBackupRevision{FileID: fileID, Error: errfmt.Format(err)})
 	} else {
 		for _, revision := range revisions {
 			out.Revisions = append(out.Revisions, driveBackupRevision{FileID: fileID, Revision: revision})

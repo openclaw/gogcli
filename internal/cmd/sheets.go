@@ -9,6 +9,7 @@ import (
 	"google.golang.org/api/drive/v3"
 	"google.golang.org/api/sheets/v4"
 
+	"github.com/openclaw/gogcli/internal/errfmt"
 	"github.com/openclaw/gogcli/internal/outfmt"
 	"github.com/openclaw/gogcli/internal/sheetsa1"
 	"github.com/openclaw/gogcli/internal/sheetsvalues"
@@ -810,8 +811,8 @@ func (c *SheetsCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
 			}
 		}
 		if driveErr != nil {
-			moveError = driveErr.Error()
-			u.Err().Errorf("failed to move spreadsheet to folder: %v", driveErr)
+			moveError = errfmt.Format(driveErr)
+			u.Err().Errorf("failed to move spreadsheet to folder: %v", errfmt.Format(driveErr))
 			u.Err().Println("Spreadsheet created in Drive root. Move to desired folder if needed.")
 		} else {
 			movedToParent = true

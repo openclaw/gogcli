@@ -11,6 +11,7 @@ import (
 	"google.golang.org/api/docs/v1"
 
 	"github.com/openclaw/gogcli/internal/docsbatch"
+	"github.com/openclaw/gogcli/internal/errfmt"
 	"github.com/openclaw/gogcli/internal/googleapi"
 	"github.com/openclaw/gogcli/internal/outfmt"
 	"github.com/openclaw/gogcli/internal/ui"
@@ -416,7 +417,7 @@ func (c *BatchEndCmd) submitIndividually(
 		missingRevision := false
 		if err != nil {
 			failed = append(failed, entry)
-			ui.FromContext(ctx).Err().Linef("batch request %d failed: %v", index+1, err)
+			ui.FromContext(ctx).Err().Linef("batch request %d failed: %v", index+1, errfmt.Format(err))
 		} else {
 			result.Chunks++
 			if (len(failed) > 0 || len(pending) > 0) && batchUsesRevisions(state.Service) && revision == "" {
