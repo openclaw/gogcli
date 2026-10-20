@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"path"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -303,8 +304,8 @@ func TestFetchThreadDetails_ConcurrentError(t *testing.T) {
 	if items != nil {
 		t.Fatalf("expected nil items on error, got %d", len(items))
 	}
-	if got := calls.Load(); got != 3 {
-		t.Errorf("expected 3 concurrent calls and no sequential retry, got %d", got)
+	if got := calls.Load(); got > 3 {
+		t.Errorf("expected at most 3 concurrent calls and no sequential retry, got %d", got)
 	}
 }
 
@@ -339,5 +340,68 @@ func TestFetchThreadDetails_ContextCanceled(t *testing.T) {
 	_, err := fetchThreadDetails(ctx, svc, threads, nil, false, time.UTC)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("error = %v, want context.Canceled", err)
+	}
+}
+
+// newFirstRequestFailsGmailService serves Gmail detail requests. The first one
+// fails with 403 rateLimitExceeded; later ones stay in flight until the client
+// cancels them, or succeed after a short delay if it never does.
+func newFirstRequestFailsGmailService(t *testing.T) (*gmail.Service, *atomic.Int32) {
+	t.Helper()
+
+	var calls atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if calls.Add(1) == 1 {
+			w.WriteHeader(http.StatusForbidden)
+			_, _ = io.WriteString(w, `{"error":{"code":403,"message":"User-rate limit exceeded.","errors":[{"domain":"usageLimits","reason":"rateLimitExceeded"}]}}`)
+			return
+		}
+		select {
+		case <-r.Context().Done():
+			return
+		case <-time.After(time.Second):
+		}
+		id := path.Base(r.URL.Path)
+		_, _ = fmt.Fprintf(w, `{"id":%q,"threadId":%q,"messages":[]}`, id, id)
+	}))
+	t.Cleanup(server.Close)
+
+	return newGoogleTestServiceWithEndpoint(t, server.Client(), server.URL+"/", gmail.NewService), &calls
+}
+
+func TestFetchThreadDetails_StopsAfterFirstError(t *testing.T) {
+	svc, calls := newFirstRequestFailsGmailService(t)
+	threads := make([]*gmail.Thread, 30)
+	for i := range threads {
+		threads[i] = &gmail.Thread{Id: fmt.Sprintf("thread-%02d", i)}
+	}
+
+	_, err := fetchThreadDetails(context.Background(), svc, threads, nil, false, time.UTC)
+	var apiErr *googleapi.Error
+	if !errors.As(err, &apiErr) || apiErr.Code != http.StatusForbidden {
+		t.Fatalf("error = %v, want the thread detail HTTP 403", err)
+	}
+	// At most the 10 requests in flight, plus one that took the failed request's slot.
+	if got := calls.Load(); got > 11 {
+		t.Fatalf("fetched %d of 30 threads after the search had failed, want at most 11", got)
+	}
+}
+
+func TestFetchMessageDetails_StopsAfterFirstError(t *testing.T) {
+	svc, calls := newFirstRequestFailsGmailService(t)
+	messages := make([]*gmail.Message, 30)
+	for i := range messages {
+		messages[i] = &gmail.Message{Id: fmt.Sprintf("message-%02d", i)}
+	}
+
+	_, err := fetchMessageDetails(context.Background(), svc, messages, map[string]string{}, time.UTC, false, gmailMessageBodyFormatText, false, false, false, false)
+	var apiErr *googleapi.Error
+	if !errors.As(err, &apiErr) || apiErr.Code != http.StatusForbidden {
+		t.Fatalf("error = %v, want the message detail HTTP 403", err)
+	}
+	// At most the 10 requests in flight, plus one that took the failed request's slot.
+	if got := calls.Load(); got > 11 {
+		t.Fatalf("fetched %d of 30 messages after the search had failed, want at most 11", got)
 	}
 }

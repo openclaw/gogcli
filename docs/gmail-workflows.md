@@ -25,7 +25,8 @@ gog gmail messages search --max 2 --json -- '-in:inbox newer_than:7d'
 ```
 
 Thread searches fail if any thread detail cannot be fetched, without emitting a
-partial result list. Retry the search after resolving the reported API error.
+partial result list, and stop the detail requests still pending. Retry the
+search after resolving the reported API error.
 
 ### Full payloads and raw MIME
 

@@ -3,6 +3,7 @@
 ## 0.45.1 - Unreleased
 
 - API: retry HTTP 403 `rateLimitExceeded` and `userRateLimitExceeded` responses with the same backoff and `Retry-After` handling as 429, and let them open the Gmail watch rate-limit circuit.
+- Gmail: stop the remaining thread and message detail requests once one fails, instead of fetching results the failed search discards.
 - Dependencies: refresh the Google API client, golangci-lint, Cloudflare Workers types, Wrangler, PostCSS, and Undici while retaining Go 1.26, pnpm 11, and the worker’s 24-hour release cooldown.
 - Drive: preserve requested top-level false booleans in `drive get --json`, including the default `starred` and `hasThumbnail` fields; keep conditionally absent fields omitted. (#1223) — thanks @postoso.
 - CI: use macOS 27 runners for Darwin checks and release preflight while enforcing the macOS 15.0 deployment target.
