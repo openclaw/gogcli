@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Auth: omit OAuth provider error details from CLI and MCP diagnostics while preserving error classification and reauthorization guidance.
+
 ## 0.45.0 - 2026-10-16
 
 **Highlights:** Preserve Gmail search results for negated and OR queries, warn about unmatched JSON selections, and improve reply formatting.

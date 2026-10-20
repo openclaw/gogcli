@@ -8,6 +8,7 @@ import (
 
 	"github.com/99designs/keyring"
 	"github.com/alecthomas/kong"
+	"golang.org/x/oauth2"
 	ggoogleapi "google.golang.org/api/googleapi"
 
 	"github.com/openclaw/gogcli/internal/config"
@@ -17,6 +18,18 @@ import (
 func Format(err error) string {
 	if err == nil {
 		return ""
+	}
+
+	// OAuth errors can contain provider-controlled descriptions, URIs, and
+	// response bodies, including echoed credentials. Never render their text
+	// or wrapper messages, which may already include those details. Keep the
+	// original error untouched so callers can still classify its cause.
+	var retrieveErr *oauth2.RetrieveError
+	if errors.As(err, &retrieveErr) {
+		if strings.EqualFold(strings.TrimSpace(retrieveErr.ErrorCode), "invalid_grant") {
+			return "OAuth token expired or revoked (invalid_grant); run 'gog auth add' to re-authorize."
+		}
+		return "OAuth token request failed."
 	}
 
 	var userErr *UserFacingError

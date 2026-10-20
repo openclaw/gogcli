@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/alecthomas/kong"
+	"golang.org/x/oauth2"
 
 	"github.com/openclaw/gogcli/internal/app"
 	"github.com/openclaw/gogcli/internal/authclient"
@@ -235,6 +236,13 @@ func executeWithRuntime(args []string, runtime *app.Runtime) (err error) {
 	previousLogger := slog.Default()
 	slog.SetDefault(slog.New(slog.NewTextHandler(runtimeIO.Err, &slog.HandlerOptions{
 		Level: logLevel,
+		ReplaceAttr: func(_ []string, attr slog.Attr) slog.Attr {
+			var retrieveErr *oauth2.RetrieveError
+			if err, ok := attr.Value.Any().(error); ok && errors.As(err, &retrieveErr) {
+				return slog.String(attr.Key, errfmt.Format(err))
+			}
+			return attr
+		},
 	})))
 	defer slog.SetDefault(previousLogger)
 
