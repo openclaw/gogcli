@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/openclaw/gogcli/internal/errfmt"
 	"github.com/openclaw/gogcli/internal/input"
 	"github.com/openclaw/gogcli/internal/outfmt"
 	"github.com/openclaw/gogcli/internal/termutil"
@@ -140,7 +141,7 @@ func (c *ZoomAuthDoctorCmd) Run(ctx context.Context, _ *RootFlags) error {
 		return writeZoomDoctorResult(ctx, u, checks)
 	}
 	if validateErr := client.Validate(ctx); validateErr != nil {
-		add("zoom.validate", doctorError, validateErr.Error(), "verify account ID, client ID, client secret, and scopes")
+		add("zoom.validate", doctorError, errfmt.Format(validateErr), "verify account ID, client ID, client secret, and scopes")
 	} else {
 		add("zoom.validate", doctorOK, "Zoom /users/me succeeded", "")
 	}

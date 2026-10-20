@@ -524,7 +524,7 @@ func (c *CalendarUpdateCmd) prepareZoomConferencePatch(
 		if meetingID, ok := extractZoomMeetingID(existing); ok {
 			if err := cancelZoomMeeting(ctx, meetingID, "delete"); err != nil && !errors.Is(err, zoom.ErrMeetingNotFound) {
 				if mutation.u != nil {
-					mutation.u.Err().Linef("warning\tfailed to delete Zoom meeting %s: %v", meetingID, err)
+					mutation.u.Err().Linef("warning\tfailed to delete Zoom meeting %s: %v", meetingID, errfmt.Format(err))
 				}
 			}
 		} else {

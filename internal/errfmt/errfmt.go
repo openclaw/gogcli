@@ -13,6 +13,7 @@ import (
 
 	"github.com/openclaw/gogcli/internal/config"
 	gogapi "github.com/openclaw/gogcli/internal/googleapi"
+	"github.com/openclaw/gogcli/internal/zoom"
 )
 
 func Format(err error) string {
@@ -29,6 +30,9 @@ func Format(err error) string {
 		if strings.EqualFold(strings.TrimSpace(retrieveErr.ErrorCode), "invalid_grant") {
 			return "OAuth token expired or revoked (invalid_grant); run 'gog auth add' to re-authorize."
 		}
+		return "OAuth token request failed."
+	}
+	if errors.Is(err, zoom.ErrZoomTokenRequestFailed) {
 		return "OAuth token request failed."
 	}
 

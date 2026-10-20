@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"google.golang.org/api/drive/v3"
+
+	"github.com/openclaw/gogcli/internal/errfmt"
 )
 
 var (
@@ -75,7 +77,7 @@ func (s *driveChangesServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusNoContent)
 			return
 		}
-		s.warnf("drive changes serve: notification failed: %v", err)
+		s.warnf("drive changes serve: notification failed: %v", errfmt.Format(err))
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}

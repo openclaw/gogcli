@@ -7,6 +7,8 @@ import (
 	"testing"
 
 	"golang.org/x/oauth2"
+
+	"github.com/openclaw/gogcli/internal/zoom"
 )
 
 func TestFormat_OAuthProviderDetails(t *testing.T) {
@@ -39,6 +41,18 @@ func TestFormat_OAuthProviderDetails(t *testing.T) {
 					t.Fatal("formatting must preserve original cause")
 				}
 			})
+		}
+	}
+}
+
+func TestFormat_ZoomOAuthProviderDetails(t *testing.T) {
+	cause := fmt.Errorf("%w: synthetic-provider-status: synthetic-provider-body", zoom.ErrZoomTokenRequestFailed)
+	for _, err := range []error{cause, fmt.Errorf("request: %w", cause), errors.Join(errors.New("synthetic-sibling"), cause), NewUserFacingError(cause.Error(), cause)} {
+		if got := Format(err); got != "OAuth token request failed." {
+			t.Fatalf("Format() = %q", got)
+		}
+		if !errors.Is(err, cause) || !errors.Is(err, zoom.ErrZoomTokenRequestFailed) {
+			t.Fatal("formatting must preserve the Zoom OAuth cause and sentinel")
 		}
 	}
 }

@@ -22,6 +22,7 @@ import (
 	"github.com/openclaw/gogcli/internal/secrets"
 	"github.com/openclaw/gogcli/internal/termutil"
 	"github.com/openclaw/gogcli/internal/ui"
+	"github.com/openclaw/gogcli/internal/zoom"
 )
 
 const (
@@ -238,7 +239,7 @@ func executeWithRuntime(args []string, runtime *app.Runtime) (err error) {
 		Level: logLevel,
 		ReplaceAttr: func(_ []string, attr slog.Attr) slog.Attr {
 			var retrieveErr *oauth2.RetrieveError
-			if err, ok := attr.Value.Any().(error); ok && errors.As(err, &retrieveErr) {
+			if err, ok := attr.Value.Any().(error); ok && (errors.As(err, &retrieveErr) || errors.Is(err, zoom.ErrZoomTokenRequestFailed)) {
 				return slog.String(attr.Key, errfmt.Format(err))
 			}
 			return attr

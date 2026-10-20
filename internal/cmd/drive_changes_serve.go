@@ -17,6 +17,7 @@ import (
 	"google.golang.org/api/drive/v3"
 
 	"github.com/openclaw/gogcli/internal/config"
+	"github.com/openclaw/gogcli/internal/errfmt"
 	"github.com/openclaw/gogcli/internal/ui"
 )
 
@@ -473,7 +474,7 @@ func (s *driveChangesServer) ensureChannel(ctx context.Context) (time.Duration, 
 	pendingStopFailed := false
 	if err := s.stopPreviousChannel(ctx); err != nil {
 		pendingStopFailed = true
-		s.warnf("drive changes serve: stop previous channel failed: %v", err)
+		s.warnf("drive changes serve: stop previous channel failed: %v", errfmt.Format(err))
 	}
 
 	s.mu.Lock()
@@ -561,7 +562,7 @@ func (s *driveChangesServer) ensureChannel(ctx context.Context) (time.Duration, 
 	s.mu.Unlock()
 
 	if err := s.stopPreviousChannel(ctx); err != nil {
-		s.warnf("drive changes serve: stop previous channel failed: %v", err)
+		s.warnf("drive changes serve: stop previous channel failed: %v", errfmt.Format(err))
 	}
 
 	s.mu.Lock()
@@ -667,7 +668,7 @@ func (s *driveChangesServer) runRenewLoop(ctx context.Context, delay time.Durati
 		}
 		nextDelay, err := s.ensureChannel(ctx)
 		if err != nil {
-			s.warnf("drive changes serve: channel renewal failed: %v", err)
+			s.warnf("drive changes serve: channel renewal failed: %v", errfmt.Format(err))
 			delay = driveChangesRenewRetry
 			continue
 		}
