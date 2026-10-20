@@ -112,9 +112,11 @@ func TestCalendarZoomOAuthCleanupOutput(t *testing.T) {
 	srv := httptest.NewServer(withPrimaryCalendar(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := strings.TrimPrefix(r.URL.Path, "/calendar/v3")
 		switch {
-		case r.Method == http.MethodGet && path == "/calendars/synthetic-calendar/events/ev":
+		case r.Method == http.MethodGet && path == "/calendars/synthetic-calendar@example.invalid":
+			_ = json.NewEncoder(w).Encode(map[string]any{"id": "synthetic-calendar@example.invalid", "timeZone": "UTC"})
+		case r.Method == http.MethodGet && path == "/calendars/synthetic-calendar@example.invalid/events/ev":
 			_ = json.NewEncoder(w).Encode(zoomEventJSON("ev", "999"))
-		case r.Method == http.MethodPatch && path == "/calendars/synthetic-calendar/events/ev":
+		case r.Method == http.MethodPatch && path == "/calendars/synthetic-calendar@example.invalid/events/ev":
 			patched.Store(true)
 			_ = json.NewEncoder(w).Encode(map[string]any{"id": "ev"})
 		default:
@@ -126,7 +128,7 @@ func TestCalendarZoomOAuthCleanupOutput(t *testing.T) {
 	svc := newCalendarServiceFromZoomTestServer(t, t.Context(), srv)
 	var output, warnings bytes.Buffer
 	ctx := withFakeZoomClient(withCalendarTestService(newCmdRuntimeJSONOutputContext(t, &output, &warnings), svc), zoomClient)
-	if err := runKong(t, &CalendarUpdateCmd{}, []string{"synthetic-calendar", "ev", "--remove-zoom"}, ctx, &RootFlags{Account: "reader@example.invalid"}); err != nil {
+	if err := runKong(t, &CalendarUpdateCmd{}, []string{"synthetic-calendar@example.invalid", "ev", "--remove-zoom"}, ctx, &RootFlags{Account: "reader@example.invalid"}); err != nil {
 		t.Fatal(err)
 	}
 	if !patched.Load() || len(zoomClient.deleted) != 1 || zoomClient.deleted[0] != "999" {
