@@ -58,6 +58,9 @@ type RetryTransport struct {
 	// flow, persist the new refresh token, and return nil on success.
 	// If Reauth is nil, invalid_grant errors are surfaced without retry.
 	Reauth func(context.Context) error
+
+	// sleepFn replaces the backoff wait in tests.
+	sleepFn func(context.Context, time.Duration) error
 }
 
 // NewRetryTransport creates a RetryTransport with sensible defaults.
@@ -302,6 +305,10 @@ func randomDurationBelow(upperBound time.Duration) (time.Duration, error) {
 }
 
 func (t *RetryTransport) sleep(ctx context.Context, d time.Duration) error {
+	if t.sleepFn != nil {
+		return t.sleepFn(ctx, d)
+	}
+
 	if d <= 0 {
 		return nil
 	}

@@ -344,12 +344,15 @@ func TestFetchThreadDetails_ContextCanceled(t *testing.T) {
 }
 
 // newFirstRequestFailsGmailService serves Gmail detail requests. The first one
-// fails with 403 rateLimitExceeded; later ones stay in flight until the client
-// cancels them, or succeed after a short delay if it never does.
+// fails with 403 rateLimitExceeded; every later one stays in flight until the
+// client cancels it, so no slot is freed by anything but the fan-out itself.
+// The handlers are released at cleanup, which lets a fan-out that never
+// cancels finish after its test has failed.
 func newFirstRequestFailsGmailService(t *testing.T) (*gmail.Service, *atomic.Int32) {
 	t.Helper()
 
 	var calls atomic.Int32
+	release := make(chan struct{})
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		if calls.Add(1) == 1 {
@@ -360,14 +363,34 @@ func newFirstRequestFailsGmailService(t *testing.T) (*gmail.Service, *atomic.Int
 		select {
 		case <-r.Context().Done():
 			return
-		case <-time.After(time.Second):
+		case <-release:
 		}
 		id := path.Base(r.URL.Path)
 		_, _ = fmt.Fprintf(w, `{"id":%q,"threadId":%q,"messages":[]}`, id, id)
 	}))
-	t.Cleanup(server.Close)
+	t.Cleanup(func() {
+		close(release)
+		server.Close()
+	})
 
 	return newGoogleTestServiceWithEndpoint(t, server.Client(), server.URL+"/", gmail.NewService), &calls
+}
+
+// awaitFanOut fails the test when fetch is still running after the first
+// failure has had ample time to cancel it; it never decides a passing run.
+func awaitFanOut(t *testing.T, fetch func() error) error {
+	t.Helper()
+
+	done := make(chan error, 1)
+	go func() { done <- fetch() }()
+
+	select {
+	case err := <-done:
+		return err
+	case <-time.After(10 * time.Second):
+		t.Fatal("the fan-out kept waiting on detail requests after its first failure")
+		return nil
+	}
 }
 
 func TestFetchThreadDetails_StopsAfterFirstError(t *testing.T) {
@@ -377,12 +400,16 @@ func TestFetchThreadDetails_StopsAfterFirstError(t *testing.T) {
 		threads[i] = &gmail.Thread{Id: fmt.Sprintf("thread-%02d", i)}
 	}
 
-	_, err := fetchThreadDetails(context.Background(), svc, threads, nil, false, time.UTC)
+	err := awaitFanOut(t, func() error {
+		_, err := fetchThreadDetails(context.Background(), svc, threads, nil, false, time.UTC)
+		return err
+	})
 	var apiErr *googleapi.Error
 	if !errors.As(err, &apiErr) || apiErr.Code != http.StatusForbidden {
 		t.Fatalf("error = %v, want the thread detail HTTP 403", err)
 	}
-	// At most the 10 requests in flight, plus one that took the failed request's slot.
+	// Only the failed request frees a slot before cancellation: at most the
+	// 10 requests in flight plus one that took that slot ever reach the server.
 	if got := calls.Load(); got > 11 {
 		t.Fatalf("fetched %d of 30 threads after the search had failed, want at most 11", got)
 	}
@@ -395,12 +422,16 @@ func TestFetchMessageDetails_StopsAfterFirstError(t *testing.T) {
 		messages[i] = &gmail.Message{Id: fmt.Sprintf("message-%02d", i)}
 	}
 
-	_, err := fetchMessageDetails(context.Background(), svc, messages, map[string]string{}, time.UTC, false, gmailMessageBodyFormatText, false, false, false, false)
+	err := awaitFanOut(t, func() error {
+		_, err := fetchMessageDetails(context.Background(), svc, messages, map[string]string{}, time.UTC, false, gmailMessageBodyFormatText, false, false, false, false)
+		return err
+	})
 	var apiErr *googleapi.Error
 	if !errors.As(err, &apiErr) || apiErr.Code != http.StatusForbidden {
 		t.Fatalf("error = %v, want the message detail HTTP 403", err)
 	}
-	// At most the 10 requests in flight, plus one that took the failed request's slot.
+	// Only the failed request frees a slot before cancellation: at most the
+	// 10 requests in flight plus one that took that slot ever reach the server.
 	if got := calls.Load(); got > 11 {
 		t.Fatalf("fetched %d of 30 messages after the search had failed, want at most 11", got)
 	}

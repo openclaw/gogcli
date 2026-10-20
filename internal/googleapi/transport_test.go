@@ -454,6 +454,31 @@ func rateLimit403Body(reason string) io.ReadCloser {
 	return io.NopCloser(strings.NewReader(`{"error":{"code":403,"message":"User-rate limit exceeded.","errors":[{"message":"User-rate limit exceeded.","domain":"usageLimits","reason":"` + reason + `"}],"status":"PERMISSION_DENIED"}}`))
 }
 
+// recordBackoff replaces the transport's backoff wait and returns the delays
+// it was asked to wait, so retry timing is asserted without real sleeps.
+func recordBackoff(rt *RetryTransport) *[]time.Duration {
+	delays := &[]time.Duration{}
+	rt.sleepFn = func(_ context.Context, d time.Duration) error {
+		*delays = append(*delays, d)
+		return nil
+	}
+
+	return delays
+}
+
+func roundTrip(t *testing.T, rt *RetryTransport) *http.Response {
+	t.Helper()
+
+	req, _ := http.NewRequestWithContext(context.Background(), "GET", "https://example.com", nil)
+
+	resp, err := rt.RoundTrip(req)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	return resp
+}
+
 func TestRetryTransport_RateLimit403_Retry(t *testing.T) {
 	for _, reason := range []string{"rateLimitExceeded", "userRateLimitExceeded"} {
 		t.Run(reason, func(t *testing.T) {
@@ -465,14 +490,10 @@ func TestRetryTransport_RateLimit403_Retry(t *testing.T) {
 			}
 
 			rt := NewRetryTransport(mock)
-			rt.BaseDelay = time.Millisecond
+			rt.BaseDelay = time.Second
+			delays := recordBackoff(rt)
 
-			req, _ := http.NewRequestWithContext(context.Background(), "GET", "https://example.com", nil)
-
-			resp, err := rt.RoundTrip(req)
-			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
-			}
+			resp := roundTrip(t, rt)
 			defer resp.Body.Close()
 
 			if resp.StatusCode != 200 {
@@ -481,6 +502,11 @@ func TestRetryTransport_RateLimit403_Retry(t *testing.T) {
 
 			if mock.calls != 2 {
 				t.Errorf("expected 2 calls (1 retry), got %d", mock.calls)
+			}
+
+			// Exponential backoff with up to 50% jitter: 1s..1.5s for the first retry.
+			if len(*delays) != 1 || (*delays)[0] < time.Second || (*delays)[0] >= 1500*time.Millisecond {
+				t.Errorf("backoff delays = %v, want one delay in [1s, 1.5s)", *delays)
 			}
 		})
 	}
@@ -491,7 +517,7 @@ func TestRetryTransport_RateLimit403_RetryAfterHeader(t *testing.T) {
 		responses: []*http.Response{
 			{
 				StatusCode: http.StatusForbidden,
-				Header:     http.Header{"Retry-After": []string{"1"}},
+				Header:     http.Header{"Retry-After": []string{"7"}},
 				Body:       rateLimit403Body("rateLimitExceeded"),
 			},
 			{StatusCode: 200, Body: io.NopCloser(strings.NewReader("ok"))},
@@ -499,24 +525,18 @@ func TestRetryTransport_RateLimit403_RetryAfterHeader(t *testing.T) {
 	}
 
 	rt := NewRetryTransport(mock)
-	rt.BaseDelay = 1 * time.Hour // Would be very long without Retry-After
+	rt.BaseDelay = time.Hour // Exponential backoff would ask for at least an hour.
+	delays := recordBackoff(rt)
 
-	start := time.Now()
-	req, _ := http.NewRequestWithContext(context.Background(), "GET", "https://example.com", nil)
-
-	resp, err := rt.RoundTrip(req)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	resp := roundTrip(t, rt)
 	defer resp.Body.Close()
-	elapsed := time.Since(start)
 
 	if resp.StatusCode != 200 {
 		t.Errorf("expected 200, got %d", resp.StatusCode)
 	}
 
-	if elapsed < 900*time.Millisecond || elapsed > 2*time.Second {
-		t.Errorf("expected ~1s delay from Retry-After, got %v", elapsed)
+	if len(*delays) != 1 || (*delays)[0] != 7*time.Second {
+		t.Errorf("backoff delays = %v, want [7s] from Retry-After", *delays)
 	}
 }
 
@@ -530,23 +550,18 @@ func TestRetryTransport_RateLimit403_MaxRetriesKeepsBody(t *testing.T) {
 	}
 
 	rt := NewRetryTransport(mock)
-	rt.BaseDelay = time.Millisecond
 	rt.MaxRetries429 = 2
+	delays := recordBackoff(rt)
 
-	req, _ := http.NewRequestWithContext(context.Background(), "GET", "https://example.com", nil)
-
-	resp, err := rt.RoundTrip(req)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	resp := roundTrip(t, rt)
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusForbidden {
 		t.Errorf("expected 403 after max retries, got %d", resp.StatusCode)
 	}
 
-	if mock.calls != 3 {
-		t.Errorf("expected 3 calls, got %d", mock.calls)
+	if mock.calls != 3 || len(*delays) != 2 {
+		t.Errorf("calls = %d, backoff delays = %v; want 3 calls and 2 waits", mock.calls, *delays)
 	}
 
 	body, err := io.ReadAll(resp.Body)
@@ -559,39 +574,82 @@ func TestRetryTransport_RateLimit403_MaxRetriesKeepsBody(t *testing.T) {
 	}
 }
 
+func TestRetryTransport_RateLimit403And429ShareOneBudget(t *testing.T) {
+	t.Run("mixed responses retry until success", func(t *testing.T) {
+		mock := &mockTransport{
+			responses: []*http.Response{
+				{StatusCode: http.StatusTooManyRequests, Body: io.NopCloser(strings.NewReader("rate limited"))},
+				{StatusCode: http.StatusForbidden, Body: rateLimit403Body("userRateLimitExceeded")},
+				{StatusCode: 200, Body: io.NopCloser(strings.NewReader("ok"))},
+			},
+		}
+
+		rt := NewRetryTransport(mock)
+		delays := recordBackoff(rt)
+
+		resp := roundTrip(t, rt)
+		defer resp.Body.Close()
+
+		if resp.StatusCode != 200 || mock.calls != 3 || len(*delays) != 2 {
+			t.Errorf("status = %d, calls = %d, delays = %v; want 200 after 3 calls and 2 waits", resp.StatusCode, mock.calls, *delays)
+		}
+	})
+
+	t.Run("the budget counts both kinds", func(t *testing.T) {
+		mock := &mockTransport{
+			responses: []*http.Response{
+				{StatusCode: http.StatusForbidden, Body: rateLimit403Body("rateLimitExceeded")},
+				{StatusCode: http.StatusTooManyRequests, Body: io.NopCloser(strings.NewReader("rate limited"))},
+				{StatusCode: http.StatusForbidden, Body: rateLimit403Body("rateLimitExceeded")},
+				{StatusCode: 200, Body: io.NopCloser(strings.NewReader("ok"))},
+			},
+		}
+
+		rt := NewRetryTransport(mock)
+		rt.MaxRetries429 = 2
+		delays := recordBackoff(rt)
+
+		resp := roundTrip(t, rt)
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusForbidden || mock.calls != 3 || len(*delays) != 2 {
+			t.Errorf("status = %d, calls = %d, delays = %v; want the third response (403) after 2 waits", resp.StatusCode, mock.calls, *delays)
+		}
+	})
+}
+
 func TestRetryTransport_Forbidden_NoRetry(t *testing.T) {
-	for _, reason := range []string{"forbidden", "dailyLimitExceeded", "quotaExceeded"} {
-		t.Run(reason, func(t *testing.T) {
+	bodies := map[string]string{
+		"forbidden":          `{"error":{"code":403,"errors":[{"reason":"forbidden"}]}}`,
+		"dailyLimitExceeded": `{"error":{"code":403,"errors":[{"reason":"dailyLimitExceeded"}]}}`,
+		"quotaExceeded":      `{"error":{"code":403,"errors":[{"reason":"quotaExceeded"}]}}`,
+		"non-JSON body":      `rateLimitExceeded`,
+		"truncated JSON":     `{"error":{"code":403,"errors":[{"reason":"rateLimitExceeded"`,
+	}
+
+	for name, body := range bodies {
+		t.Run(name, func(t *testing.T) {
 			mock := &mockTransport{
-				responses: []*http.Response{{StatusCode: http.StatusForbidden, Body: rateLimit403Body(reason)}},
+				responses: []*http.Response{{StatusCode: http.StatusForbidden, Body: io.NopCloser(strings.NewReader(body))}},
 			}
 
 			rt := NewRetryTransport(mock)
-			rt.BaseDelay = time.Millisecond
+			delays := recordBackoff(rt)
 
-			req, _ := http.NewRequestWithContext(context.Background(), "GET", "https://example.com", nil)
-
-			resp, err := rt.RoundTrip(req)
-			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
-			}
+			resp := roundTrip(t, rt)
 			defer resp.Body.Close()
 
-			if resp.StatusCode != http.StatusForbidden {
-				t.Errorf("expected 403, got %d", resp.StatusCode)
+			if resp.StatusCode != http.StatusForbidden || mock.calls != 1 || len(*delays) != 0 {
+				t.Errorf("status = %d, calls = %d, delays = %v; want the 403 once, without retry", resp.StatusCode, mock.calls, *delays)
 			}
 
-			if mock.calls != 1 {
-				t.Errorf("expected 1 call (no retry for %s), got %d", reason, mock.calls)
-			}
-
-			body, err := io.ReadAll(resp.Body)
+			got, err := io.ReadAll(resp.Body)
 			if err != nil {
 				t.Fatalf("read body: %v", err)
 			}
 
-			if !strings.Contains(string(body), reason) {
-				t.Errorf("403 body not preserved for the caller: %q", body)
+			if string(got) != body {
+				t.Errorf("403 body = %q, want %q preserved for the caller", got, body)
 			}
 		})
 	}
@@ -624,13 +682,10 @@ func TestRetryTransport_Forbidden_KeepsBodyReadError(t *testing.T) {
 	}
 
 	rt := NewRetryTransport(mock)
+	// With RefreshAuth the insufficient-scope check inspects the body as well.
+	rt.RefreshAuth = func(context.Context) error { return nil }
 
-	req, _ := http.NewRequestWithContext(context.Background(), "GET", "https://example.com", nil)
-
-	resp, err := rt.RoundTrip(req)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	resp := roundTrip(t, rt)
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
