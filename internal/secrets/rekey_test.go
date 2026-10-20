@@ -450,6 +450,7 @@ func TestRekey_Unreadable(t *testing.T) {
 		t.Fatal("unreadable input replaced output")
 	}
 	opts.SkipUnreadable = true
+	opts.OutDir = filepath.Join(t.TempDir(), "output")
 
 	res, err := Rekey(opts)
 	if err != nil || res.Items != 1 || !reflect.DeepEqual(res.Unreadable, []string{"unreadable"}) {
