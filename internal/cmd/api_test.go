@@ -14,6 +14,7 @@ import (
 	"testing"
 
 	"github.com/openclaw/gogcli/internal/app"
+	"github.com/openclaw/gogcli/internal/authclient"
 	"github.com/openclaw/gogcli/internal/config"
 	"github.com/openclaw/gogcli/internal/googleapi"
 	"github.com/openclaw/gogcli/internal/outfmt"
@@ -350,5 +351,39 @@ func TestDiscoveryCommandCacheAndBypass(t *testing.T) {
 	}
 	if calls.Load() != 4 {
 		t.Fatalf("bypass fetch count=%d, want 4", calls.Load())
+	}
+}
+
+func TestAPICallSendsGoogleAPIRequestToBaseURL(t *testing.T) {
+	var gotPath, gotQuery, gotForwardedHost, gotAuth string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if strings.HasPrefix(r.URL.Path, "/discovery/") {
+			_, _ = fmt.Fprint(w, `{"rootUrl":"https://gmail.googleapis.com/","servicePath":"gmail/v1/users/","resources":{"messages":{"methods":{"get":{"id":"gmail.users.messages.get","httpMethod":"GET","path":"{userId}/messages/{id}","parameters":{"userId":{"location":"path","required":true},"id":{"location":"path","required":true},"format":{"location":"query"}},"scopes":["https://www.googleapis.com/auth/gmail.readonly"]}}}}}`)
+			return
+		}
+		if !strings.HasSuffix(r.URL.Path, "/moved") {
+			http.Redirect(w, r, "http://"+r.Host+r.URL.Path+"/moved?"+r.URL.RawQuery, http.StatusFound)
+			return
+		}
+		gotPath, gotQuery = r.URL.Path, r.URL.Query().Get("format")
+		gotForwardedHost, gotAuth = r.Header.Get("X-Forwarded-Host"), r.Header.Get("Authorization")
+		_, _ = fmt.Fprint(w, `{"id":"m1"}`)
+	}))
+	t.Cleanup(server.Close)
+	t.Setenv("GOG_DISCOVERY_BASE_URL", server.URL+"/discovery")
+
+	ctx := authclient.WithAccessToken(newCmdRuntimeJSONOutputContext(t, io.Discard, io.Discard), "test-token")
+	ctx, err := googleapi.WithAPIBaseURL(ctx, server.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	call := &APICallCmd{API: "gmail", Version: "v1", Method: "gmail.users.messages.get", ParamsJSON: `{"userId":"me","id":"m1","format":"full"}`, NoCache: true}
+	if err := call.Run(ctx, &RootFlags{Account: "a@b.com"}); err != nil {
+		t.Fatal(err)
+	}
+	if gotPath != "/gmail/v1/users/me/messages/m1/moved" || gotQuery != "full" || gotForwardedHost != "gmail.googleapis.com" || gotAuth != "" {
+		t.Fatalf("relayed request path=%q format=%q host=%q auth=%q", gotPath, gotQuery, gotForwardedHost, gotAuth)
 	}
 }

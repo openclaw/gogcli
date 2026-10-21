@@ -6,6 +6,51 @@ import (
 	"github.com/alecthomas/kong"
 )
 
+func rewriteAuthEmailArgs(model *kong.Application, args []string) []string {
+	// `gog auth you@example.com` is a common slip for `gog auth add you@example.com`.
+	// Only an @-containing non-subcommand token is rewritten, so bare `gog auth` and
+	// mistyped subcommands keep Kong's errors instead of starting an OAuth flow.
+	if model == nil || model.Node == nil {
+		return args
+	}
+
+	node := model.Node
+	authIndex := -1
+	for i := 0; i < len(args); i++ {
+		arg := args[i]
+		if arg == "--" {
+			break
+		}
+		if strings.HasPrefix(arg, "-") {
+			if flag := commandFlag(node, arg); flag != nil &&
+				!strings.Contains(arg, "=") &&
+				!flag.IsBool() &&
+				!flag.IsCounter() &&
+				i+1 < len(args) {
+				i++
+			}
+			continue
+		}
+
+		if authIndex >= 0 {
+			if commandChild(node, arg) != nil || !strings.Contains(arg, "@") {
+				return args
+			}
+			out := make([]string, 0, len(args)+1)
+			out = append(out, args[:authIndex+1]...)
+			out = append(out, "add")
+			return append(out, args[authIndex+1:]...)
+		}
+		if child := commandChild(node, arg); child != nil {
+			if node == model.Node && child.Name == "auth" {
+				authIndex = i
+			}
+			node = child
+		}
+	}
+	return args
+}
+
 func rewriteDesirePathArgs(model *kong.Application, args []string) []string {
 	// Some commands use `--fields` for API field masks. Agents also frequently
 	// guess `--fields` to mean "select output fields", so we squat it everywhere

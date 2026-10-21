@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/openclaw/gogcli/internal/config"
+	"github.com/openclaw/gogcli/internal/googleapi"
 )
 
 func mcpEnabledToolsForRun(ctx context.Context, cmd McpCmd, flags *RootFlags) ([]mcpToolSpec, string, error) {
@@ -29,7 +30,7 @@ func mcpEnabledToolsForRun(ctx context.Context, cmd McpCmd, flags *RootFlags) ([
 
 	account := ""
 	if len(cfg.MCP.Accounts) > 0 {
-		account, err = resolveMCPPolicyAccount(flags)
+		account, err = resolveMCPPolicyAccount(ctx, flags)
 		if err != nil {
 			return nil, "", fmt.Errorf("resolve account for MCP policy: %w", err)
 		}
@@ -42,8 +43,8 @@ func mcpEnabledToolsForRun(ctx context.Context, cmd McpCmd, flags *RootFlags) ([
 	return tools, account, err
 }
 
-func resolveMCPPolicyAccount(flags *RootFlags) (string, error) {
-	if hasDirectAccessToken(flags) || isADCAuthMode(flags) {
+func resolveMCPPolicyAccount(ctx context.Context, flags *RootFlags) (string, error) {
+	if hasDirectAccessToken(flags) || isADCAuthMode(flags) || googleapi.APIBaseURLEnabled(ctx) {
 		// Account values are only labels in these modes, so they must never select
 		// a per-account authorization policy. The global policy still applies.
 		return "", nil

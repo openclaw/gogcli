@@ -16,6 +16,7 @@ import (
 
 	"github.com/openclaw/gogcli/internal/authclient"
 	"github.com/openclaw/gogcli/internal/gmailwatch"
+	"github.com/openclaw/gogcli/internal/googleapi"
 	"github.com/openclaw/gogcli/internal/outfmt"
 	"github.com/openclaw/gogcli/internal/ui"
 )
@@ -403,6 +404,7 @@ func (c *GmailWatchServeCmd) Run(ctx context.Context, kctx *kong.Context, flags 
 	quotaProject := authclient.QuotaProjectFromContext(ctx)
 	selectedClient := strings.TrimSpace(flags.Client)
 	directToken := authclient.AccessTokenFromContext(ctx)
+	commandCtx := ctx
 	gmailFactory, err := gmailServiceFactory(ctx)
 	if err != nil {
 		return err
@@ -417,6 +419,7 @@ func (c *GmailWatchServeCmd) Run(ctx context.Context, kctx *kong.Context, flags 
 		if quotaProject != "" {
 			ctx = authclient.WithQuotaProject(ctx, quotaProject)
 		}
+		ctx = googleapi.WithAPIBaseURLFrom(ctx, commandCtx)
 		return gmailFactory(ctx, account)
 	}
 

@@ -6,6 +6,7 @@ import (
 	youtube "google.golang.org/api/youtube/v3"
 
 	"github.com/openclaw/gogcli/internal/config"
+	"github.com/openclaw/gogcli/internal/googleapi"
 )
 
 func getYouTubeAPIKey(ctx context.Context) (string, error) {
@@ -22,7 +23,7 @@ func getYouTubeAPIKey(ctx context.Context) (string, error) {
 
 func getYouTubeServiceWithAPIKey(ctx context.Context) (*youtube.Service, error) {
 	key, err := getYouTubeAPIKey(ctx)
-	if err != nil {
+	if err != nil && !googleapi.APIBaseURLEnabled(ctx) {
 		return nil, err
 	}
 	runtime, serviceErr := runtimeWithService(ctx, "youtube API key")

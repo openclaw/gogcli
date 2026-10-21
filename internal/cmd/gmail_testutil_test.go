@@ -128,6 +128,33 @@ func captureComposeRaw(t *testing.T, args []string, finalizePath string, source 
 	return raw, threadID
 }
 
+// forwardCommands are the two commands that share GmailForwardOptions.
+var forwardCommands = []struct {
+	name         string
+	verb         []string
+	finalizePath string
+}{
+	{name: "send", verb: []string{"gmail", "forward"}, finalizePath: "/gmail/v1/users/me/messages/send"},
+	{name: "draft", verb: []string{"gmail", "drafts", "forward"}, finalizePath: "/gmail/v1/users/me/drafts"},
+}
+
+// forwardArgs builds a forward of orig-msg-1 to one recipient, plus flags.
+func forwardArgs(verb []string, flags ...string) []string {
+	args := append([]string{"--account", "me@example.com"}, verb...)
+	args = append(args, "orig-msg-1", "--to", "recipient@example.com")
+	return append(args, flags...)
+}
+
+// forwardTextParts runs a forward and returns its decoded text/plain and
+// text/html parts with LF line endings. It fails if either part is missing.
+func forwardTextParts(t *testing.T, args []string, finalizePath string, source func() map[string]any) (plain, html string) {
+	t.Helper()
+	raw, _ := captureForwardRaw(t, args, finalizePath, source)
+	plain = strings.ReplaceAll(rawTextPart(t, raw, "text/plain"), "\r\n", "\n")
+	html = strings.ReplaceAll(rawTextPart(t, raw, "text/html"), "\r\n", "\n")
+	return plain, html
+}
+
 // captureForwardRaw runs a forward-style command and returns the raw RFC822 and
 // stamped ThreadId. source supplies the original-message payload; when it
 // references attachmentIds (e.g. mockOriginalMessage(true)), the attachment

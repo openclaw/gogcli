@@ -14,15 +14,21 @@ func resolveBodyInput(ctx context.Context, body, bodyFile string) (string, error
 }
 
 func resolveComposeBodyInputs(ctx context.Context, body, bodyFile, bodyHTML, bodyHTMLFile string) (string, string, error) {
-	if strings.TrimSpace(bodyFile) == "-" && strings.TrimSpace(bodyHTMLFile) == "-" {
-		return "", "", usage("use stdin for only one of --body-file or --body-html-file")
+	return resolveTextAndHTMLInputs(ctx, "--body", body, bodyFile, bodyHTML, bodyHTMLFile)
+}
+
+// resolveTextAndHTMLInputs resolves a flag family named flag, flag-file,
+// flag-html and flag-html-file (--body…, --note…) into its plain and HTML text.
+func resolveTextAndHTMLInputs(ctx context.Context, flag, text, textFile, textHTML, textHTMLFile string) (string, string, error) {
+	if strings.TrimSpace(textFile) == "-" && strings.TrimSpace(textHTMLFile) == "-" {
+		return "", "", usage("use stdin for only one of " + flag + "-file or " + flag + "-html-file")
 	}
 
-	plain, err := resolveBodyInput(ctx, body, bodyFile)
+	plain, err := resolveBodyFileInput(ctx, text, textFile, flag, flag+"-file")
 	if err != nil {
 		return "", "", err
 	}
-	html, err := resolveBodyFileInput(ctx, bodyHTML, bodyHTMLFile, "--body-html", "--body-html-file")
+	html, err := resolveBodyFileInput(ctx, textHTML, textHTMLFile, flag+"-html", flag+"-html-file")
 	if err != nil {
 		return "", "", err
 	}

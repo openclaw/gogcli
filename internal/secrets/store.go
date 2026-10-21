@@ -79,13 +79,19 @@ func (s *KeyringStore) keysNoLock() ([]string, error) {
 func withoutInternalKeyringKeys(keys []string) []string {
 	out := keys[:0]
 	for _, key := range keys {
-		if key == keyringLockFilename {
+		if isInternalKeyringKey(key) {
 			continue
 		}
 		out = append(out, key)
 	}
 
 	return out
+}
+
+// isInternalKeyringKey reports whether key is bookkeeping the keyring owns
+// rather than a credential the user asked for.
+func isInternalKeyringKey(key string) bool {
+	return key == keyringLockFilename || key == keyringVerifierKey
 }
 
 func (s *KeyringStore) withReadLock(fn func() error) error {

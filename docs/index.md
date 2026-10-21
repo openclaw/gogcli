@@ -55,7 +55,7 @@ live binary.
 - **Serving MCP tools.** [MCP server](mcp.md) exposes typed, allowlisted tools for agent clients without a generic command bridge.
 - **Discovering runtime contracts.** [Automation](automation.md) explains root help, schema metadata, safety controls, and stable exit codes.
 - **Polling local events.** [Drive and Docs polling](polling.md) persists cursors and optionally invokes trusted shell hooks.
-- **Persisting auth and state.** [Paths and State](paths.md) covers `GOG_HOME`, per-kind directories, XDG paths, and legacy compatibility.
+- **Persisting auth and state.** [Paths and State](paths.md) covers `GOG_HOME`, per-kind directories, XDG paths, legacy compatibility, and rotating the file keyring password without re-authorizing accounts.
 - **Running Workspace at scale.** [Auth Clients](auth-clients.md) for service accounts, named OAuth clients, and domain-wide delegation.
 - **Managing Workspace.** [Workspace Admin](workspace-admin.md) covers user creation, cleanup, organizational units, and group administration.
 - **Backing up an account.** [Backup](backup.md) before pointing `gog backup push` at a busy mailbox.

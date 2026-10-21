@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"html"
-	"net/mail"
 	"strings"
 	"time"
 
@@ -25,6 +24,8 @@ type GmailForwardOptions struct {
 	Bcc                     string `name:"bcc" help:"BCC recipients (comma-separated)"`
 	Note                    string `name:"note" aliases:"intro" help:"Introductory text above the forwarded message"`
 	NoteFile                string `name:"note-file" help:"Note file path (plain text; '-' for stdin)"`
+	NoteHTML                string `name:"note-html" help:"Introductory HTML above the forwarded message"`
+	NoteHTMLFile            string `name:"note-html-file" help:"HTML note file path ('-' for stdin)"`
 	From                    string `name:"from" help:"Send from this email address (must be a verified send-as alias)"`
 	SkipAttachments         bool   `name:"skip-attachments" help:"Do not include original attachments"`
 	composeSignatureOptions `embed:""`
@@ -45,6 +46,7 @@ const (
 type forwardComposeInputs struct {
 	messageID     string
 	note          string
+	noteHTML      string
 	toRecipients  []string
 	ccRecipients  []string
 	bccRecipients []string
@@ -106,6 +108,7 @@ func (c *GmailForwardOptions) dryRunFields(inputs forwardComposeInputs) map[stri
 		"bcc":              inputs.bccRecipients,
 		"from":             strings.TrimSpace(c.From),
 		"note_len":         len(inputs.note),
+		"note_html_len":    len(inputs.noteHTML),
 		"skip_attachments": c.SkipAttachments,
 		"signature":        c.Signature,
 		"signature_from":   strings.TrimSpace(c.SignatureFrom),
@@ -138,8 +141,9 @@ func (c *GmailForwardOptions) resolveForwardInputs(ctx context.Context, messageI
 	}
 
 	// Resolve the note after the required-recipient check so a missing --to on
-	// the send path fails fast without consuming stdin (--note-file -).
-	note, err := resolveBodyInput(ctx, c.Note, c.NoteFile)
+	// the send path fails fast without consuming stdin (--note-file - or
+	// --note-html-file -).
+	note, noteHTML, err := resolveTextAndHTMLInputs(ctx, "--note", c.Note, c.NoteFile, c.NoteHTML, c.NoteHTMLFile)
 	if err != nil {
 		return forwardComposeInputs{}, err
 	}
@@ -147,6 +151,7 @@ func (c *GmailForwardOptions) resolveForwardInputs(ctx context.Context, messageI
 	return forwardComposeInputs{
 		messageID:      messageID,
 		note:           note,
+		noteHTML:       noteHTML,
 		toRecipients:   toRecipients,
 		ccRecipients:   ccRecipients,
 		bccRecipients:  bccRecipients,
@@ -196,19 +201,32 @@ func (c *GmailForwardOptions) buildForwardComposeMessage(ctx context.Context, sv
 		return forwardComposeMessage{}, err
 	}
 
-	// Build forwarded body (plain text).
-	fwdPlain := formatForwardedMessage(inputs.note, signature, origFrom, origDate, origSubject, origTo, origCc, origPlain, loc)
+	// The note fills in its missing form the way a reply body does.
+	note := composeText{plain: inputs.note, html: inputs.noteHTML}
+
+	// The original's header lines, rendered once for both parts.
+	headers := forwardedMessageHeaders(origFrom, origDate, origSubject, origTo, origCc, loc)
+
+	// Build forwarded body (plain text). A note with no plain rendering (an
+	// image, say) leaves the plain part out rather than send one without the
+	// note, as an image-only reply does. A reply's body already includes its
+	// signature when it makes that check; the note doesn't, so a signature with
+	// text keeps the plain part here.
+	var fwdPlain string
+	if !note.htmlOnlyWithoutText() || signature.plainBlock() != "" {
+		fwdPlain = formatForwardedMessage(note.plainVersion(), signature, headers, origPlain)
+	}
 
 	// Build forwarded body (HTML) if the original had HTML. An original with
 	// only plain text, or no body text at all, still gets one when the
-	// signature has HTML, so the signature is not lost.
+	// signature or the note has HTML, so neither is lost.
 	var fwdHTML string
-	if origHTML != "" || signature.htmlBlock() != "" {
+	if origHTML != "" || signature.htmlBlock() != "" || note.hasHTML() {
 		htmlContent := origHTML
 		if htmlContent == "" {
 			htmlContent = escapeTextToHTML(origPlain)
 		}
-		fwdHTML = formatForwardedMessageHTML(inputs.note, signature, origFrom, origDate, origSubject, origTo, origCc, htmlContent, loc)
+		fwdHTML = formatForwardedMessageHTML(note.htmlVersion(), signature, headers, htmlContent)
 	}
 
 	// Preserve CID-backed inline resources required by the forwarded HTML and,
@@ -242,19 +260,53 @@ func (c *GmailForwardOptions) buildForwardComposeMessage(ctx context.Context, sv
 	}, nil
 }
 
+// forwardedSeparator opens the forwarded-message header block in both parts,
+// in Gmail's words.
+const forwardedSeparator = "---------- Forwarded message ---------"
+
+// forwardedHeader is one line of the forwarded-message header block, with its
+// value rendered for each MIME part.
 type forwardedHeader struct {
 	label string
-	value string
+	plain string
+	html  string
 }
 
+// forwardedMessageHeaders renders the original's headers in line with Gmail
+// Web's forwards: the sender and each recipient as "Name <email>" or
+// "<email>", with each address linked and the sender's name in bold in HTML; a
+// value that doesn't parse is shown as is, unlinked. A blank header gets no
+// line. A To or Cc that renders empty keeps an empty line, as Gmail Web does
+// for a To of only "undisclosed-recipients:;".
 func forwardedMessageHeaders(from, date, subject, to, cc string, loc *time.Location) []forwardedHeader {
-	return []forwardedHeader{
-		{"From", from},
-		{"Date", formatQuoteDate(date, loc)},
-		{"Subject", subject},
-		{"To", to},
-		{"Cc", cc},
+	headers := make([]forwardedHeader, 0, 5)
+	add := func(label, value string, render func(string) (string, string)) {
+		if strings.TrimSpace(value) != "" {
+			plain, htmlValue := render(value)
+			headers = append(headers, forwardedHeader{label, plain, htmlValue})
+		}
 	}
+	add("From", from, forwardedSender)
+	add("Date", formatQuoteDate(date, loc), forwardedText)
+	add("Subject", subject, forwardedText)
+	add("To", to, forwardedRecipients)
+	add("Cc", cc, forwardedRecipients)
+	return headers
+}
+
+// forwardedSender renders the From value, with the name in bold in HTML.
+func forwardedSender(from string) (plain, htmlValue string) {
+	return formatQuoteMailbox(from), formatQuoteMailboxHTML(from, boldName)
+}
+
+// forwardedRecipients renders a To or Cc value.
+func forwardedRecipients(value string) (plain, htmlValue string) {
+	return formatQuoteMailboxList(value), formatQuoteMailboxListHTML(value)
+}
+
+// forwardedText renders a plain-text value: as is, and escaped for HTML.
+func forwardedText(value string) (plain, htmlValue string) {
+	return value, html.EscapeString(value)
 }
 
 // buildForwardSubject prepends "Fwd: " to the subject, avoiding duplication.
@@ -287,7 +339,7 @@ func stripForwardPrefix(subject string) string {
 }
 
 // formatForwardedMessage builds the plain-text forwarded body.
-func formatForwardedMessage(note string, signature composeSignature, from, date, subject, to, cc, body string, loc *time.Location) string {
+func formatForwardedMessage(note string, signature composeSignature, headers []forwardedHeader, body string) string {
 	var sb strings.Builder
 
 	if strings.TrimSpace(note) != "" {
@@ -299,15 +351,14 @@ func formatForwardedMessage(note string, signature composeSignature, from, date,
 		sb.WriteString("\n\n")
 	}
 
-	sb.WriteString("---------- Forwarded message ---------\n")
-	for _, h := range forwardedMessageHeaders(from, date, subject, to, cc, loc) {
-		if h.value != "" {
-			fmt.Fprintf(&sb, "%s: %s\n", h.label, h.value)
-		}
+	sb.WriteString(forwardedSeparator + "\n")
+	for _, h := range headers {
+		fmt.Fprintf(&sb, "%s: %s\n", h.label, h.plain)
 	}
-	sb.WriteString("\n")
 
+	// Gmail leaves two blank lines between the headers and the body.
 	if body != "" {
+		sb.WriteString("\n\n")
 		sb.WriteString(body)
 		if !strings.HasSuffix(body, "\n") {
 			sb.WriteString("\n")
@@ -317,13 +368,14 @@ func formatForwardedMessage(note string, signature composeSignature, from, date,
 	return sb.String()
 }
 
-// formatForwardedMessageHTML builds the HTML forwarded body.
-func formatForwardedMessageHTML(note string, signature composeSignature, from, date, subject, to, cc, htmlContent string, loc *time.Location) string {
+// formatForwardedMessageHTML builds the HTML forwarded body. noteHTML is
+// written unescaped; a plain note goes through composeText.htmlVersion first.
+func formatForwardedMessageHTML(noteHTML string, signature composeSignature, headers []forwardedHeader, htmlContent string) string {
 	var sb strings.Builder
 
-	if strings.TrimSpace(note) != "" {
+	if strings.TrimSpace(noteHTML) != "" {
 		sb.WriteString("<div>")
-		sb.WriteString(html.EscapeString(strings.TrimSpace(note)))
+		sb.WriteString(strings.TrimSpace(noteHTML))
 		sb.WriteString("</div><br>")
 	}
 	if block := signature.htmlBlock(); block != "" {
@@ -331,27 +383,21 @@ func formatForwardedMessageHTML(note string, signature composeSignature, from, d
 		sb.WriteString("<br>")
 	}
 
-	sb.WriteString(`<div class="gmail_quote">`)
-	sb.WriteString(`<div style="margin:0 0 10px 0;color:#777">---------- Forwarded message ---------</div>`)
-	sb.WriteString(`<div style="margin:0 0 10px 0;color:#777">`)
-
-	for _, h := range forwardedMessageHeaders(from, date, subject, to, cc, loc) {
-		if h.value != "" {
-			displayName := html.EscapeString(h.value)
-			// Format the From address more nicely if it has a name part.
-			if h.label == "From" {
-				if addr, err := mail.ParseAddress(h.value); err == nil && addr.Name != "" {
-					displayName = html.EscapeString(addr.Name) + " &lt;" + html.EscapeString(addr.Address) + "&gt;"
-				}
-			}
-			fmt.Fprintf(&sb, "<b>%s:</b> %s<br>", h.label, displayName)
-		}
+	// Like Gmail's, the header block has no inline styles and its labels aren't
+	// bold; only the sender's name is (see nameStyle). Bold labels would come
+	// out as *From:* in the text part Gmail rebuilds on send.
+	sb.WriteString(`<div class="gmail_quote"><div>` + forwardedSeparator + "<br>")
+	for _, h := range headers {
+		fmt.Fprintf(&sb, "%s: %s<br>", h.label, h.html)
 	}
 	sb.WriteString("</div>")
 
-	sb.WriteString(`<div style="margin:10px 0 0 0">`)
-	sb.WriteString(htmlContent)
-	sb.WriteString("</div></div>")
+	// Gmail leaves two blank lines between the headers and the body.
+	if htmlContent != "" {
+		sb.WriteString("<br><br>")
+		sb.WriteString(htmlContent)
+	}
+	sb.WriteString("</div>")
 
 	return sb.String()
 }

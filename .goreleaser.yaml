@@ -67,11 +67,11 @@ builds:
       - AR=/usr/bin/ar
       - CC=/usr/bin/clang
       - CXX=/usr/bin/clang++
-      - CGO_CFLAGS=-O2 -g
+      - CGO_CFLAGS=-O2 -g -mmacosx-version-min=15.0
       - "CGO_CPPFLAGS="
-      - CGO_CXXFLAGS=-O2 -g
+      - CGO_CXXFLAGS=-O2 -g -mmacosx-version-min=15.0
       - CGO_ENABLED=1
-      - CGO_LDFLAGS=-O2 -g
+      - CGO_LDFLAGS=-O2 -g -mmacosx-version-min=15.0
       - "GOCACHEPROG="
       - "GODEBUG="
       - GO111MODULE=on

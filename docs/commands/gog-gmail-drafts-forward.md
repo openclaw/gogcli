@@ -37,6 +37,8 @@ gog gmail (mail,email) drafts (draft) forward (fwd) <messageId> [flags]
 | `--no-input`<br>`--non-interactive`<br>`--noninteractive` | `bool` |  | Never prompt; fail instead (useful for CI) |
 | `--note`<br>`--intro` | `string` |  | Introductory text above the forwarded message |
 | `--note-file` | `string` |  | Note file path (plain text; '-' for stdin) |
+| `--note-html` | `string` |  | Introductory HTML above the forwarded message |
+| `--note-html-file` | `string` |  | HTML note file path ('-' for stdin) |
 | `-p`<br>`--plain`<br>`--tsv` | `bool` | false | Output stable, parseable text to stdout (TSV; no colors) |
 | `--quota-project` | `string` |  | Google Cloud project to bill for API usage (sent as X-Goog-User-Project; some APIs require it with --access-token or ADC) |
 | `--readonly` | `bool` | false | Block mutating API requests at runtime; auth add also requests read-only OAuth scopes |

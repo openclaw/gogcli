@@ -9,6 +9,7 @@ import (
 	keepapi "google.golang.org/api/keep/v1"
 
 	"github.com/openclaw/gogcli/internal/config"
+	"github.com/openclaw/gogcli/internal/googleapi"
 	"github.com/openclaw/gogcli/internal/outfmt"
 	"github.com/openclaw/gogcli/internal/ui"
 )
@@ -427,6 +428,10 @@ func getKeepService(ctx context.Context, flags *RootFlags, keepCmd *KeepCmd) (*k
 	account, err := requireAccount(flags)
 	if err != nil {
 		return nil, err
+	}
+	// The relay behind the base URL authenticates; no key file is read.
+	if googleapi.APIBaseURLEnabled(ctx) {
+		return keepServiceWithServiceAccount(ctx, "", account)
 	}
 
 	serviceAccounts, err := commandServiceAccountStore(ctx)

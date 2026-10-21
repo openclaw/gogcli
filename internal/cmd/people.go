@@ -6,6 +6,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/openclaw/gogcli/internal/googleapi"
+
 	"github.com/99designs/keyring"
 	gapi "google.golang.org/api/googleapi"
 	"google.golang.org/api/people/v1"
@@ -44,7 +46,9 @@ func (c *PeopleMeCmd) Run(ctx context.Context, flags *RootFlags) error {
 		PersonFields("names,emailAddresses,photos").
 		Do()
 	if err != nil {
-		if !isPeopleAccessNotConfigured(err) {
+		// The fallback reads the stored refresh token, which must not be used
+		// while the relay behind GOG_GOOGLE_API_BASE_URL authenticates.
+		if !isPeopleAccessNotConfigured(err) || googleapi.APIBaseURLEnabled(ctx) {
 			return err
 		}
 		person, err = fallbackPeopleMeProfile(ctx, account)

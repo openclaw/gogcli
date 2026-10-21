@@ -1,5 +1,7 @@
 self-hosted-runner:
   labels:
+    # GitHub-hosted macOS 27 is not in actionlint's runner catalog yet.
+    - xcode-27
     - blacksmith-16vcpu-ubuntu-2404
     - blacksmith-16vcpu-windows-2025
     - crabbox

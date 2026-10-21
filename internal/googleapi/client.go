@@ -129,6 +129,10 @@ func authenticatedTransportWithStoredScopeCheck(
 	scopes []string,
 	requireStoredGrant bool,
 ) (http.RoundTripper, error) {
+	if client, ok := apiBaseURLHTTPClient(ctx); ok {
+		return client.Transport, nil
+	}
+
 	var ts oauth2.TokenSource
 	var storedOAuth *persistingTokenSource
 
@@ -186,6 +190,10 @@ func optionsForAccountScopesRequiringStoredGrant(ctx context.Context, serviceLab
 }
 
 func optionsForServiceAccountScopes(ctx context.Context, serviceLabel string, email string, scopes []string) ([]option.ClientOption, error) {
+	if client, ok := apiBaseURLHTTPClient(ctx); ok {
+		return []option.ClientOption{option.WithHTTPClient(client)}, nil
+	}
+
 	if dependencies, ok := authDependenciesFromContext(ctx); ok && dependencies.Mode == AuthModeADC {
 		slog.Debug("using Application Default Credentials (GOG_AUTH_MODE=adc)", "serviceLabel", serviceLabel)
 

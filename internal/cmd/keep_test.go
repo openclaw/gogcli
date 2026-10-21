@@ -14,6 +14,7 @@ import (
 	keepapi "google.golang.org/api/keep/v1"
 
 	"github.com/openclaw/gogcli/internal/config"
+	"github.com/openclaw/gogcli/internal/googleapi"
 )
 
 func writeKeepSA(t *testing.T) string {
@@ -49,6 +50,29 @@ func TestGetKeepService_NoServiceAccountConfigured(t *testing.T) {
 	}
 	if called {
 		t.Fatalf("expected no service account usage")
+	}
+}
+
+func TestGetKeepService_APIBaseURLNeedsNoServiceAccount(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, "xdg-config"))
+
+	var gotPath string
+	ctx := withKeepTestServiceFactory(context.Background(), func(_ context.Context, path, _ string) (*keepapi.Service, error) {
+		gotPath = path
+		return &keepapi.Service{}, nil
+	})
+	ctx, err := googleapi.WithAPIBaseURL(ctx, "http://127.0.0.1:18080")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := getKeepService(ctx, &RootFlags{Account: "a@b.com"}, &KeepCmd{}); err != nil {
+		t.Fatalf("getKeepService: %v", err)
+	}
+	if gotPath != "" {
+		t.Fatalf("service account path = %q, want none", gotPath)
 	}
 }
 

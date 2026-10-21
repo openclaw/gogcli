@@ -57,6 +57,8 @@ gog auth doctor --check
 gog gmail search 'newer_than:7d' --max 10
 ```
 
+`gog auth you@gmail.com` is shorthand for `gog auth add you@gmail.com`, with the same flags.
+
 For Gmail queries beginning with `-`, place all flags before `--`; see
 [Search and Read](docs/gmail-workflows.md#search-and-read).
 
@@ -84,6 +86,21 @@ points; the [examples](docs/examples.md) and generated
 Generic API commands support service-hosted Discovery documents such as Meet v2
 when the default central Directory returns 404. Explicit
 `GOG_DISCOVERY_BASE_URL` overrides retain their existing behavior.
+
+`GOG_GOOGLE_API_BASE_URL=http(s)://host[:port]` sends Google API requests for
+`https://googleapis.com` and `https://*.googleapis.com` to a test server,
+emulator, proxy, or relay that adds credentials outside gog. Path and query are
+kept and the original host is sent as `X-Forwarded-Host`. While it is set, gog
+attaches no credentials to Google API requests (no OAuth, ADC, service-account,
+`--access-token`, or API-key credentials), does not need stored tokens, and
+refuses cross-origin redirects, so the relay handles any upstream redirects.
+`--account` still selects the account label. Use https for endpoints that are
+not on loopback.
+Discovery documents still use `GOG_DISCOVERY_BASE_URL`; gRPC clients such as
+the Pub/Sub pull used by `gmail watch pull`, Maps/Places API-key calls, and
+downloads from non-googleapis.com URLs are not redirected, and `gog auth` commands
+still talk to Google directly. Invalid values fail
+with a usage error.
 
 Consumer Google accounts work with user-facing APIs. Admin Directory, Cloud
 Identity Groups, Chat, Keep, and domain-wide delegation require a managed
@@ -184,6 +201,12 @@ binary.
 <!-- auth-services:end -->
 
 ## Documentation
+
+`gog drive get <fileId> --fields id,trashed --json` preserves `"trashed": false`.
+The default metadata also includes false `starred` and `hasThumbnail` values.
+Conditionally absent fields (`shared`, `ownedByMe`, `writersCanShare`, and
+`hasAugmentedPermissions`) and nested booleans retain the SDK's omission behavior;
+use `gog drive raw` when you need the exact API response.
 
 - [Overview and guides](https://gogcli.sh/)
 - [Examples](docs/examples.md)

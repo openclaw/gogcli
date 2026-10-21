@@ -152,8 +152,8 @@ An account entry is a complete replacement for the global policy, not a partial
 merge. Account keys are matched case-insensitively after aliases and automatic
 account selection are resolved, then that resolved account is pinned for every
 MCP child command. Per-account policies require stored account credentials;
-direct access tokens and ADC can use only the global policy because an account
-label does not prove the authenticated principal. An omitted `allow_tools` value defaults to
+direct access tokens, ADC, and `GOG_GOOGLE_API_BASE_URL` can use only the global
+policy because an account label does not prove the authenticated principal. An omitted `allow_tools` value defaults to
 `["read"]`; an explicitly empty list is rejected. `allow_write: true` requires
 an explicit tool list so a typo cannot accidentally expose every write tool.
 

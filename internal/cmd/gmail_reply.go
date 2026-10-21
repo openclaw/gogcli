@@ -303,19 +303,15 @@ func applyQuoteToBodies(plainBody string, htmlBody string, quote bool, info *rep
 		return plainBody, htmlBody
 	}
 
-	userPlain := plainBody
-	hasHTMLReply := strings.TrimSpace(htmlBody) != ""
-	if strings.TrimSpace(userPlain) == "" && hasHTMLReply {
-		userPlain = htmlToPlainText(htmlBody)
-	}
+	reply := composeText{plain: plainBody, html: htmlBody}
 
 	quotedPlain := info.Body
 	if strings.TrimSpace(quotedPlain) == "" && strings.TrimSpace(info.BodyHTML) != "" {
 		quotedPlain = htmlToPlainText(info.BodyHTML)
 	}
 
-	outPlain := userPlain
-	if quotedPlain != "" && (!hasHTMLReply || strings.TrimSpace(userPlain) != "") {
+	outPlain := reply.plainVersion()
+	if quotedPlain != "" && !reply.htmlOnlyWithoutText() {
 		outPlain += formatQuotedMessage(info.FromAddr, info.Date, quotedPlain, loc)
 	}
 
@@ -329,14 +325,7 @@ func applyQuoteToBodies(plainBody string, htmlBody string, quote bool, info *rep
 
 	quoteHTML := formatQuotedMessageHTMLWithContent(info.FromAddr, info.Date, quoteContent, loc)
 
-	outHTML := htmlBody
-	if strings.TrimSpace(outHTML) == "" {
-		outHTML = escapeTextToHTML(strings.TrimSpace(userPlain)) + quoteHTML
-	} else {
-		outHTML += quoteHTML
-	}
-
-	return outPlain, outHTML
+	return outPlain, reply.htmlVersion() + quoteHTML
 }
 
 // formatQuotedMessage formats the original message as a quoted reply.
@@ -347,7 +336,7 @@ func formatQuotedMessage(from, date, body string, loc *time.Location) string {
 
 	var sb strings.Builder
 	sb.WriteString("\n\n")
-	sb.WriteString(formatQuoteAttribution(formatQuoteDate(date, loc), formatQuoteSender(from)))
+	sb.WriteString(formatQuoteAttribution(formatQuoteDate(date, loc), formatQuoteMailbox(from)))
 	sb.WriteString("\n")
 
 	lines := strings.Split(body, "\n")
@@ -361,7 +350,7 @@ func formatQuotedMessage(from, date, body string, loc *time.Location) string {
 }
 
 func formatQuotedMessageHTMLWithContent(from, date, htmlContent string, loc *time.Location) string {
-	attribution := formatQuoteAttribution(html.EscapeString(formatQuoteDate(date, loc)), formatQuoteSenderHTML(from))
+	attribution := formatQuoteAttribution(html.EscapeString(formatQuoteDate(date, loc)), formatQuoteMailboxHTML(from, plainName))
 	return fmt.Sprintf(`<br><br><div class="gmail_quote"><div class="gmail_attr">%s</div><blockquote class="gmail_quote" style="margin:0 0 0 .8ex;border-left:1px #ccc solid;padding-left:1ex">%s</blockquote></div>`,
 		attribution,
 		htmlContent)
@@ -381,81 +370,4 @@ func formatQuoteAttribution(date, sender string) string {
 	default:
 		return "Original message:"
 	}
-}
-
-// parseQuoteSender splits a From header into its display name and address.
-// ok is false when the value is not a single parseable mailbox.
-func parseQuoteSender(from string) (name, address string, ok bool) {
-	addr, err := mail.ParseAddress(strings.TrimSpace(from))
-	if err != nil {
-		return "", "", false
-	}
-	// ParseAddress unquotes a quoted local part ("john smith"@example.com). A
-	// nameless Address's String is "<addr-spec>" with the local part re-quoted
-	// where needed, so trimming the brackets leaves a valid addr-spec.
-	address = strings.TrimSuffix(strings.TrimPrefix((&mail.Address{Address: addr.Address}).String(), "<"), ">")
-	return strings.TrimSpace(addr.Name), address, true
-}
-
-// formatQuoteSender renders a From header the way Gmail shows a sender in a
-// quote attribution: "Name <email>" with a display name, "<email>" without
-// one. A value that is not a single parseable mailbox is returned trimmed and
-// otherwise unchanged.
-func formatQuoteSender(from string) string {
-	name, address, ok := parseQuoteSender(from)
-	if !ok {
-		return strings.TrimSpace(from)
-	}
-	if name == "" {
-		return "<" + address + ">"
-	}
-	return name + " <" + address + ">"
-}
-
-// formatQuoteSenderHTML is formatQuoteSender for HTML: the same text, escaped,
-// with a parsed address linked via mailto:. A value that does not parse is
-// escaped but not linked.
-func formatQuoteSenderHTML(from string) string {
-	name, address, ok := parseQuoteSender(from)
-	if !ok {
-		return html.EscapeString(strings.TrimSpace(from))
-	}
-	link := `&lt;<a href="` + html.EscapeString(mailtoURI(address)) + `">` + html.EscapeString(address) + `</a>&gt;`
-	if name == "" {
-		return link
-	}
-	return html.EscapeString(name) + " " + link
-}
-
-// mailtoURI returns a mailto: URI for an addr-spec (RFC 6068). Both sides of
-// the final "@" are percent-encoded except for unreserved characters and "+".
-// Otherwise characters that are valid in a mailbox would change the link: "?"
-// would start header fields, "#" a fragment that cuts the address short, and
-// "," or a quoted "@" would split it. "+" stays raw so plus-addressed hrefs
-// remain readable.
-func mailtoURI(addrSpec string) string {
-	at := strings.LastIndexByte(addrSpec, '@')
-	if at < 0 {
-		// A parsed addr-spec always has an "@"; escape anything else whole
-		// rather than slicing at -1.
-		return "mailto:" + mailtoEscape(addrSpec)
-	}
-	return "mailto:" + mailtoEscape(addrSpec[:at]) + "@" + mailtoEscape(addrSpec[at+1:])
-}
-
-func mailtoEscape(s string) string {
-	const hexDigits = "0123456789ABCDEF"
-	var b strings.Builder
-	for i := 0; i < len(s); i++ {
-		c := s[i]
-		switch {
-		case 'a' <= c && c <= 'z', 'A' <= c && c <= 'Z', '0' <= c && c <= '9', strings.IndexByte("-._~+", c) >= 0:
-			b.WriteByte(c)
-		default:
-			b.WriteByte('%')
-			b.WriteByte(hexDigits[c>>4])
-			b.WriteByte(hexDigits[c&0x0f])
-		}
-	}
-	return b.String()
 }

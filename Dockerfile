@@ -1,9 +1,9 @@
 # syntax=docker/dockerfile:1.27.0
 
-ARG GO_VERSION=1.27.2
+ARG GO_VERSION=1.27.3
 ARG ALPINE_VERSION=3.24
 
-FROM golang:${GO_VERSION}-alpine@sha256:f92b6ef800e499660581efdabdf25d9d817a9d124eaf900924f0504e7e27e12d AS build
+FROM golang:${GO_VERSION}-alpine@sha256:f2c872bcee949b7be9c490efd02b48a8a2fbf947cdf533f1c58525ec9d8170fd AS build
 
 RUN apk add --no-cache ca-certificates git tzdata
 

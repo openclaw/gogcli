@@ -541,6 +541,50 @@ func TestGmailWatchServeCmd_PreservesClientOverrideForRequestContexts(t *testing
 	}
 }
 
+func TestGmailWatchServeCmd_PreservesAPIBaseURLForRequestContexts(t *testing.T) {
+	origListen := listenAndServe
+	t.Cleanup(func() { listenAndServe = origListen })
+
+	setWatchTestConfigHome(t)
+
+	store := newGmailWatchTestStore(t, "a@b.com")
+	updateErr := store.Update(func(s *gmailWatchState) error {
+		s.Account = "a@b.com"
+		return nil
+	})
+	if updateErr != nil {
+		t.Fatalf("seed: %v", updateErr)
+	}
+
+	var got *gmailWatchServer
+	listenAndServe = func(srv *http.Server) error {
+		if gs, ok := srv.Handler.(*gmailWatchServer); ok {
+			got = gs
+		}
+		return nil
+	}
+
+	ctx := withGmailTestServiceFactory(newCmdRuntimeOutputContext(t, io.Discard, io.Discard), func(ctx context.Context, _ string) (*gmail.Service, error) {
+		if !googleapi.APIBaseURLEnabled(ctx) {
+			t.Fatal("request context lost GOG_GOOGLE_API_BASE_URL")
+		}
+		return &gmail.Service{}, nil
+	})
+	ctx, err := googleapi.WithAPIBaseURL(ctx, "http://127.0.0.1:18080")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if execErr := runKong(t, &GmailWatchServeCmd{}, []string{"--port", "9999", "--path", "/hook"}, ctx, &RootFlags{Account: "a@b.com"}); execErr != nil {
+		t.Fatalf("execute: %v", execErr)
+	}
+	if got == nil {
+		t.Fatal("expected server")
+	}
+	if _, callErr := got.newService(context.Background(), "a@b.com"); callErr != nil {
+		t.Fatalf("newService: %v", callErr)
+	}
+}
+
 func TestGmailWatchServeCmd_PreservesDirectAccessTokenForRequestContexts(t *testing.T) {
 	origListen := listenAndServe
 	t.Cleanup(func() { listenAndServe = origListen })

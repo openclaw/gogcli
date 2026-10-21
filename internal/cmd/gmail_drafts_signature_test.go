@@ -293,7 +293,7 @@ func TestGmailDraftsForward_SignatureFromAlias(t *testing.T) {
 	if result.err != nil {
 		t.Fatalf("drafts forward: %v", result.err)
 	}
-	if !strings.Contains(got.raw, "FYI\r\n\r\n--\r\nalias sig\r\n\r\n---------- Forwarded message") || strings.Contains(got.raw, "primary sig") {
+	if !strings.Contains(got.raw, "FYI\r\n\r\n--\r\nalias sig\r\n\r\n"+forwardedSeparator) || strings.Contains(got.raw, "primary sig") {
 		t.Fatalf("expected only the alias signature:\n%s", got.raw)
 	}
 }
@@ -312,7 +312,7 @@ func TestGmailDraftsForward_ImageOnlySignatureLeavesNoLoneSeparator(t *testing.T
 	if result.err != nil {
 		t.Fatalf("drafts forward: %v", result.err)
 	}
-	if strings.Contains(got.raw, "--\r\n\r\n---------- Forwarded message") || strings.Contains(got.raw, "\r\n--\r\n") {
+	if strings.Contains(got.raw, "--\r\n\r\n"+forwardedSeparator) || strings.Contains(got.raw, "\r\n--\r\n") {
 		t.Fatalf("plain part has a lone signature separator:\n%s", got.raw)
 	}
 	if !strings.Contains(got.raw, `<div class="gmail_signature"><img src="https://example.com/logo.png"></div>`) {
@@ -351,7 +351,7 @@ func TestGmailDraftsForward_SignatureBetweenNoteAndForwardedMessage(t *testing.T
 	if result.err != nil {
 		t.Fatalf("drafts forward: %v", result.err)
 	}
-	if !strings.Contains(got.raw, "FYI\r\n\r\n--\r\nKind regards\r\nMe Person\r\n\r\n---------- Forwarded message ---------") {
+	if !strings.Contains(got.raw, "FYI\r\n\r\n--\r\nKind regards\r\nMe Person\r\n\r\n"+forwardedSeparator) {
 		t.Fatalf("plain signature not between note and forwarded message:\n%s", got.raw)
 	}
 	if !strings.Contains(got.raw, `<div>FYI</div><br><div class="gmail_signature"><div>Kind regards<br>Me Person</div></div><br><div class="gmail_quote">`) {
@@ -371,7 +371,7 @@ func TestGmailForward_SignatureBetweenNoteAndForwardedMessage(t *testing.T) {
 	if result.err != nil {
 		t.Fatalf("forward: %v", result.err)
 	}
-	if !strings.Contains(got.raw, "FYI\r\n\r\n--\r\nKind regards\r\nMe Person\r\n\r\n---------- Forwarded message ---------") {
+	if !strings.Contains(got.raw, "FYI\r\n\r\n--\r\nKind regards\r\nMe Person\r\n\r\n"+forwardedSeparator) {
 		t.Fatalf("plain signature not between note and forwarded message:\n%s", got.raw)
 	}
 	if !strings.Contains(got.raw, `<div>FYI</div><br><div class="gmail_signature"><div>Kind regards<br>Me Person</div></div><br><div class="gmail_quote">`) {
@@ -391,7 +391,7 @@ func TestGmailDraftsForward_SignatureWithoutNote(t *testing.T) {
 	if result.err != nil {
 		t.Fatalf("drafts forward: %v", result.err)
 	}
-	if !strings.Contains(got.raw, "--\r\nKind regards\r\nMe Person\r\n\r\n---------- Forwarded message ---------") {
+	if !strings.Contains(got.raw, "--\r\nKind regards\r\nMe Person\r\n\r\n"+forwardedSeparator) {
 		t.Fatalf("plain signature missing above forwarded message:\n%s", got.raw)
 	}
 	if !strings.Contains(got.raw, `<div class="gmail_signature"><div>Kind regards<br>Me Person</div></div><br><div class="gmail_quote">`) {

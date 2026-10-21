@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"google.golang.org/api/keep/v1"
+	"google.golang.org/api/option"
 
 	"github.com/openclaw/gogcli/internal/googleauth"
 )
@@ -24,6 +25,10 @@ func newKeepWithServiceAccount(
 	impersonateEmail string,
 	tokenSourceFactory ServiceAccountTokenSourceFunc,
 ) (*keep.Service, error) {
+	if client, ok := apiBaseURLHTTPClient(ctx); ok {
+		return newGoogleService(ctx, "keep", []option.ClientOption{option.WithHTTPClient(client)}, keep.NewService)
+	}
+
 	data, err := os.ReadFile(serviceAccountPath) //nolint:gosec // user-provided path (or stored config file)
 	if err != nil {
 		return nil, fmt.Errorf("read service account file: %w", err)

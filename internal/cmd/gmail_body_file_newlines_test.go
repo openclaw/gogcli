@@ -144,14 +144,17 @@ func TestGmailAutoReply_BodyFilePreservesTrailingNewlines(t *testing.T) {
 
 func TestGmailForward_NoteFilePreservesTrailingNewlines(t *testing.T) {
 	notePath := writeTempFile(t, "note.txt", bodyFileWithTrailingNewlines)
+	htmlPath := writeTempFile(t, "note.html", htmlFileWithTrailingNewlines)
 
 	cmd := &GmailForwardCmd{
 		MessageID: "msg1",
 		Options: GmailForwardOptions{
-			To:       "x@example.com",
-			NoteFile: notePath,
+			To:           "x@example.com",
+			NoteFile:     notePath,
+			NoteHTMLFile: htmlPath,
 		},
 	}
 	req := runDryRunRequest(t, cmd.Run)
 	assertLen(t, req, "note_len", len(bodyFileWithTrailingNewlines))
+	assertLen(t, req, "note_html_len", len(htmlFileWithTrailingNewlines))
 }

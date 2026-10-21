@@ -139,3 +139,48 @@ func TestExecute_PeopleMe_FallsBackWhenPeopleAPIDisabled(t *testing.T) {
 		t.Fatalf("unexpected out=%q", result.stdout)
 	}
 }
+
+func TestExecute_PeopleMe_NoTokenFallbackWithAPIBaseURL(t *testing.T) {
+	origFallback := fallbackPeopleMeProfile
+	t.Cleanup(func() { fallbackPeopleMeProfile = origFallback })
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !(strings.Contains(r.URL.Path, "/people/me") && r.Method == http.MethodGet) {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusForbidden)
+		_ = json.NewEncoder(w).Encode(&gapi.Error{
+			Code:    http.StatusForbidden,
+			Message: "People API has not been used in project before or it is disabled.",
+			Errors: []gapi.ErrorItem{{
+				Reason: "accessNotConfigured",
+			}},
+		})
+	}))
+	defer srv.Close()
+
+	svc, err := people.NewService(context.Background(),
+		option.WithoutAuthentication(),
+		option.WithHTTPClient(srv.Client()),
+		option.WithEndpoint(srv.URL+"/"),
+	)
+	if err != nil {
+		t.Fatalf("NewService: %v", err)
+	}
+	t.Setenv("GOG_GOOGLE_API_BASE_URL", "http://127.0.0.1:18080")
+	called := false
+	fallbackPeopleMeProfile = func(context.Context, string) (*people.Person, error) {
+		called = true
+		return &people.Person{}, nil
+	}
+
+	result := executeWithPeopleContactsTestService(t, []string{"--account", "a@b.com", "whoami"}, svc)
+	if result.err == nil || !strings.Contains(result.err.Error(), "accessNotConfigured") {
+		t.Fatalf("error = %v, want the People API error", result.err)
+	}
+	if called {
+		t.Fatal("token fallback ran with GOG_GOOGLE_API_BASE_URL set")
+	}
+}

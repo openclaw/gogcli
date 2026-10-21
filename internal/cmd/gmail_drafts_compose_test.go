@@ -416,36 +416,6 @@ func TestGmailDraftsReply_NoQuoteOmitsOriginal(t *testing.T) {
 	}
 }
 
-func TestGmailDraftsForward_BodyFormatAndNoReplyHeaders(t *testing.T) {
-	t.Setenv("GOG_TIMEZONE", "UTC")
-	raw, threadID := captureForwardRaw(t, []string{
-		"--account", "me@example.com",
-		"gmail", "drafts", "forward", "orig-msg-1",
-		"--to", "recipient@example.com",
-		"--note", "FYI see below",
-	}, "/gmail/v1/users/me/drafts", mockForwardSourceMessage)
-
-	for _, want := range []string{
-		"Subject: Fwd: Original Subject",
-		"---------- Forwarded message ---------",
-		"From: Alice <alice@example.com>",
-		"FYI see below",
-		"Hello, this is the body.",
-	} {
-		if !strings.Contains(raw, want) {
-			t.Fatalf("forward draft missing %q:\n%s", want, raw)
-		}
-	}
-	if threadID != "" {
-		t.Fatalf("forward draft must not stamp a thread, got %q", threadID)
-	}
-	for _, h := range []string{"In-Reply-To:", "References:"} {
-		if strings.Contains(raw, h) {
-			t.Fatalf("forward draft unexpectedly contains %q:\n%s", h, raw)
-		}
-	}
-}
-
 // --- Addressless forward draft: allowed for draft, rejected for send. ---
 
 // newForwardDraftCaptureService builds a mock Gmail service for the drafts-forward

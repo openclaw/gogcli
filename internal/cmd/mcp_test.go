@@ -154,7 +154,7 @@ func TestMCPPolicyAccountResolutionPinsAliasAndRejectsUnverifiableIdentity(t *te
 			return store, nil
 		},
 	}
-	account, err := resolveMCPPolicyAccount(flags)
+	account, err := resolveMCPPolicyAccount(context.Background(), flags)
 	if err != nil {
 		t.Fatalf("resolveMCPPolicyAccount: %v", err)
 	}
@@ -166,10 +166,18 @@ func TestMCPPolicyAccountResolutionPinsAliasAndRejectsUnverifiableIdentity(t *te
 		{AccessToken: "token", Account: "label@example.com"},
 		{authMode: googleapi.AuthModeADC, Account: "label@example.com"},
 	} {
-		account, err := resolveMCPPolicyAccount(unverifiable)
+		account, err := resolveMCPPolicyAccount(context.Background(), unverifiable)
 		if err != nil || account != "" {
 			t.Fatalf("unverifiable identity resolution = %q, %v", account, err)
 		}
+	}
+
+	relayCtx, ctxErr := googleapi.WithAPIBaseURL(context.Background(), "http://127.0.0.1:18080")
+	if ctxErr != nil {
+		t.Fatal(ctxErr)
+	}
+	if account, err := resolveMCPPolicyAccount(relayCtx, flags); err != nil || account != "" {
+		t.Fatalf("base URL identity resolution = %q, %v", account, err)
 	}
 }
 

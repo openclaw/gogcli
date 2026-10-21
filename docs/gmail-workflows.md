@@ -434,16 +434,36 @@ gog gmail forward <messageId> --to colleague@example.com --note "FYI"
 gog gmail drafts forward <messageId> --note "FYI"
 ```
 
+The forwarded-message block lists whichever of the original's From, Date,
+Subject, To and Cc it has, in line with Gmail's forwards: the sender and each
+recipient as `Name <email>`, or `<email>` without a name, with the addresses
+linked in the HTML part. A group lists only its members, so a To of only
+`undisclosed-recipients:;` is left empty, and a value that isn't a valid
+address list is shown as it appears in the original.
+
 Remote HTTP images remain remote references. Only MIME parts referenced with
 `cid:` are copied into the outgoing message.
+
+The note above the forwarded message takes the same forms as a reply body:
+plain text through `--note` or `--note-file`, HTML through `--note-html` or
+`--note-html-file`. One of the two files may be `-` for stdin. A plain note
+keeps its line breaks in the HTML part, an HTML-only note also gets a
+plain-text version, and when both are given each goes to its own part:
+
+```bash
+gog gmail drafts forward <messageId> --note-html '<p>FYI, <b>see below</b>.</p>'
+```
+
+An HTML note with no text, such as a lone image, leaves the forward without a
+plain part unless the signature has text.
 
 `gmail forward` and `gmail drafts forward` accept the same `--signature`,
 `--signature-from`, and `--signature-file` flags as `gmail send`. Gmail does not
 add a signature to messages created through the API, so these flags append it
-between the `--note` and the forwarded message. When the original has only a
-plain-text body, or no body text at all, and the signature has HTML, the forward
-also gets an HTML part with the escaped original text, so an image-only
-signature is not lost.
+between the note and the forwarded message. When the original has only a
+plain-text body, or no body text at all, and the note or the signature has HTML,
+the forward also gets an HTML part with the escaped original text, so an HTML
+note or an image-only signature is not lost.
 
 `gmail send --reply-to-message-id` remains available as lower-level
 composition. It now inherits an omitted subject, but its explicit `--to` and
