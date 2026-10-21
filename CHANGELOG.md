@@ -1,5 +1,7 @@
 # Changelog
 
+## Unreleased
+
 ## 0.46.0 - 2026-10-20
 
 **Highlights:** Safely re-encrypt auth stores, route Google API calls through credential-free relays, and compose richer Gmail forwards, with Go security fixes.
