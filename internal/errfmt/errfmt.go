@@ -38,7 +38,7 @@ func Format(err error) string {
 		case "invalid_grant":
 			return "OAuth token expired or revoked (invalid_grant); run 'gog auth add <email>' to re-authorize."
 		case "invalid_client":
-			return "OAuth client rejected (invalid_client); check client credentials with 'gog auth credentials <credentials.json>', then run 'gog auth add <email>' to re-authorize."
+			return "OAuth token request failed (invalid_client); check client credentials with 'gog auth credentials <credentials.json>', then run 'gog auth add <email>' to re-authorize."
 		default:
 			return "OAuth token request failed. Run 'gog auth doctor' to check client configuration, then 'gog auth add <email>' to re-authorize."
 		}

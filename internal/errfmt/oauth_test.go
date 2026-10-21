@@ -35,7 +35,7 @@ func TestFormat_OAuthProviderDetails(t *testing.T) {
 					want = "OAuth token expired or revoked (invalid_grant); run 'gog auth add <email>' to re-authorize."
 				}
 				if code == "invalid_client" {
-					want = "OAuth client rejected (invalid_client); check client credentials with 'gog auth credentials <credentials.json>', then run 'gog auth add <email>' to re-authorize."
+					want = "OAuth token request failed (invalid_client); check client credentials with 'gog auth credentials <credentials.json>', then run 'gog auth add <email>' to re-authorize."
 				}
 				if got := Format(err); got != want {
 					t.Fatalf("Format() = %q, want %q", got, want)
