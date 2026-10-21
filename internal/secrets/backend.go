@@ -319,11 +319,22 @@ func prepareKeyring(
 	keychainTrustApplication bool,
 	options OpenOptions,
 ) keyring.Keyring {
-	if wrapFileKeys || isFileKeyring(ring) {
-		ring = newFileSafeKeyring(ring)
+	fileBacked := isFileKeyring(ring)
+
+	if wrapFileKeys || fileBacked {
+		dir := ""
+		if fileBacked {
+			dir = options.Layout.KeyringDir()
+		}
+
+		ring = newFileSafeKeyringIn(ring, dir)
 	}
 
-	if shouldUseKeyringOperationTimeout(options.GOOS, backendInfo, options.DBusAddress) {
+	// Not for a real file backend: the timeout runs the operation in a goroutine
+	// that cannot be stopped, so a timed-out write continues after its caller has
+	// returned — and after the lock it held is released, allowing concurrent
+	// operations on the same entry.
+	if !fileBacked && shouldUseKeyringOperationTimeout(options.GOOS, backendInfo, options.DBusAddress) {
 		timeout := options.OpenTimeout
 		if timeout <= 0 {
 			timeout = defaultKeyringOpenTimeout(options.GOOS)

@@ -5,22 +5,37 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 
 	"github.com/99designs/keyring"
 )
 
-const fileKeyPrefix = "_gogcli_key_v1_"
+const (
+	fileKeyPrefix = "_gogcli_key_v1_"
+	// keyringVerifierKey names bookkeeping written by the abandoned in-place
+	// rekey. Output-only rekey never writes or consults a verifier, but a live
+	// keyring may still carry one from an older release, so reads skip it.
+	keyringVerifierKey = ".gogcli-password-verifier"
+)
 
 var isInvalidFileKeyError = defaultIsInvalidFileKeyError
 
 type fileSafeKeyring struct {
 	inner keyring.Keyring
+	// dir is where the file backend stores entries, when the caller knows it.
+	// It lets Keys omit directories from the upstream file listing.
+	dir string
 }
 
 func newFileSafeKeyring(inner keyring.Keyring) keyring.Keyring {
 	return &fileSafeKeyring{inner: inner}
+}
+
+func newFileSafeKeyringIn(inner keyring.Keyring, dir string) keyring.Keyring {
+	return &fileSafeKeyring{inner: inner, dir: dir}
 }
 
 func fileKeyringBackendOnly(backends []keyring.BackendType) bool {
@@ -142,6 +157,20 @@ func (k *fileSafeKeyring) Keys() ([]string, error) {
 	seen := make(map[string]struct{}, len(keys))
 	for _, key := range keys {
 		decoded := decodeFileSafeKey(key)
+		if isInternalKeyringKey(decoded) {
+			// Bookkeeping the keyring owns, not one of the user's credentials.
+			continue
+		}
+
+		// The library lists every directory entry, so a subdirectory is reported
+		// here as though it were a stored item. Rekey would then call it an
+		// undecryptable credential and suggest skipping it.
+		if k.dir != "" {
+			if info, statErr := os.Lstat(filepath.Join(k.dir, key)); statErr == nil && info.IsDir() {
+				continue
+			}
+		}
+
 		if _, ok := seen[decoded]; ok {
 			continue
 		}

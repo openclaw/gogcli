@@ -435,6 +435,13 @@ gog gmail forward <messageId> --to colleague@example.com --note "FYI"
 gog gmail drafts forward <messageId> --note "FYI"
 ```
 
+The forwarded-message block lists whichever of the original's From, Date,
+Subject, To and Cc it has, in line with Gmail's forwards: the sender and each
+recipient as `Name <email>`, or `<email>` without a name, with the addresses
+linked in the HTML part. A group lists only its members, so a To of only
+`undisclosed-recipients:;` is left empty, and a value that isn't a valid
+address list is shown as it appears in the original.
+
 Remote HTTP images remain remote references. Only MIME parts referenced with
 `cid:` are copied into the outgoing message.
 
