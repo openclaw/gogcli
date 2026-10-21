@@ -138,3 +138,46 @@ func TestCalendarZoomOAuthCleanupOutput(t *testing.T) {
 		t.Fatalf("unsafe or missing cleanup diagnostic: %s", warnings.String())
 	}
 }
+
+func TestCalendarZoomOAuthRollbackOutput(t *testing.T) {
+	for _, operation := range []string{"create", "update"} {
+		t.Run(operation, func(t *testing.T) {
+			zoomClient := &fakeZoomCalendarClient{deleteErr: fmt.Errorf("%w: %s", zoom.ErrZoomTokenRequestFailed, oauthOutputSecret)}
+			srv := httptest.NewServer(withPrimaryCalendar(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				path := strings.TrimPrefix(r.URL.Path, "/calendar/v3")
+				switch {
+				case r.Method == http.MethodGet && path == "/calendars/cal@example.com/events/ev":
+					_ = json.NewEncoder(w).Encode(map[string]any{"id": "ev", "summary": "Existing"})
+				case (r.Method == http.MethodPost && path == "/calendars/cal@example.com/events") || (r.Method == http.MethodPatch && path == "/calendars/cal@example.com/events/ev"):
+					w.Header().Set("Content-Type", "application/json")
+					w.WriteHeader(http.StatusBadRequest)
+					_, _ = fmt.Fprint(w, `{"error":{"code":400,"message":"synthetic calendar write denied"}}`)
+				default:
+					t.Errorf("unexpected fixture request: %s %s", r.Method, r.URL.Path)
+					http.NotFound(w, r)
+				}
+			})))
+			defer srv.Close()
+			svc := newCalendarServiceFromZoomTestServer(t, t.Context(), srv)
+			ctx := newZoomCalendarTestJSONContext(t, svc, zoomClient)
+			var err error
+			if operation == "create" {
+				err = runKong(t, &CalendarCreateCmd{}, []string{"cal@example.com", "--summary", "Zoom", "--from", "2026-10-22T10:00:00Z", "--to", "2026-10-22T11:00:00Z", "--with-zoom"}, ctx, &RootFlags{Account: "reader@example.invalid"})
+			} else {
+				err = runKong(t, &CalendarUpdateCmd{}, []string{"cal@example.com", "ev", "--with-zoom"}, ctx, &RootFlags{Account: "reader@example.invalid"})
+			}
+			message := errorMessage(nil, err)
+			for _, want := range []string{"Zoom meeting rollback failed", "synthetic calendar write denied", "OAuth token request failed.", "gog zoom auth setup"} {
+				if !strings.Contains(message, want) {
+					t.Errorf("formatted error missing %q: %s", want, message)
+				}
+			}
+			if strings.Contains(message, oauthOutputSecret) {
+				t.Fatalf("provider detail leaked: %s", message)
+			}
+			if !errors.Is(err, zoomClient.deleteErr) || zoomClient.created != 1 || len(zoomClient.deleted) != 1 {
+				t.Fatalf("rollback cause or execution lost: created=%d deleted=%v", zoomClient.created, zoomClient.deleted)
+			}
+		})
+	}
+}

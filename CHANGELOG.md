@@ -2,7 +2,7 @@
 
 ## 0.46.1 - Unreleased
 
-- Auth: omit OAuth provider error details from CLI/MCP diagnostics, partial-result errors, and backup error records while preserving error classification and reauthorization guidance.
+- Auth: omit OAuth provider error details from CLI/MCP diagnostics, partial-result errors, and backup error records while preserving error classification, actionable recovery guidance, and Calendar/Zoom rollback diagnostics. (#1243) — thanks @pkyIntelligence.
 
 ## 0.46.0 - 2026-10-20
 
