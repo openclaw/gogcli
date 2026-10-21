@@ -52,8 +52,14 @@ func TestFormat_OAuthProviderDetails(t *testing.T) {
 func TestFormat_ZoomOAuthProviderDetails(t *testing.T) {
 	cause := fmt.Errorf("%w: synthetic-provider-status: synthetic-provider-body", zoom.ErrZoomTokenRequestFailed)
 	for _, err := range []error{cause, fmt.Errorf("request: %w", cause), errors.Join(errors.New("synthetic-sibling"), cause), NewUserFacingError(cause.Error(), cause)} {
-		if got := Format(err); got != "Zoom OAuth token request failed. Verify the Server-to-Server OAuth app is active and its account ID, client ID, client secret, and scopes; run 'gog zoom auth setup --force' to update credentials, then 'gog zoom auth doctor'." {
-			t.Fatalf("Format() = %q", got)
+		got := Format(err)
+		for _, want := range []string{"Zoom OAuth token request failed.", "gog zoom auth setup --alias <alias> --force", "gog zoom auth doctor --alias <alias>", "failing alias (default if none was selected)"} {
+			if !strings.Contains(got, want) {
+				t.Errorf("missing diagnostic/recovery %q: %s", want, got)
+			}
+		}
+		if strings.Contains(got, "synthetic-") {
+			t.Fatalf("unsafe Zoom diagnostic: %s", got)
 		}
 		if !errors.Is(err, cause) || !errors.Is(err, zoom.ErrZoomTokenRequestFailed) {
 			t.Fatal("formatting must preserve the Zoom OAuth cause and sentinel")

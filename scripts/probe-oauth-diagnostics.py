@@ -81,8 +81,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 # A short-lived token lets creation succeed, then forces a token
                 # request during compensating deletion (Zoom's 60-second skew).
                 self.reply(200, {"access_token": "synthetic-access", "expires_in": 1})
+            elif scenario == "zoom-alias-success":
+                self.reply(200, {"access_token": "synthetic-access", "expires_in": 3600})
             else:
                 self.reply(401, {"error": "invalid_client", "reason": MARKER})
+        elif host == "api.zoom.us" and path == "/v2/users/me" and self.command == "GET" and scenario == "zoom-alias-success":
+            self.server.calls["zoom.validate"] += 1
+            self.reply(200, {"id": "synthetic-user"})
         elif host == "api.zoom.us" and path == "/v2/users/me/meetings" and self.command == "POST" and scenario.startswith("rollback-"):
             self.server.calls["zoom.create"] += 1
             self.reply(201, {"id": 1001, "join_url": "https://example.invalid/meeting"})
@@ -111,6 +116,86 @@ class Handler(http.server.BaseHTTPRequestHandler):
     do_GET = do_POST = do_PATCH = do_DELETE = route
 
 
+def probe_zoom_alias_recovery(binary, base_env, server, home):
+    """Follow printed recovery argv, then compare with an explicit-alias control."""
+    failures = []
+    for label in ("printed-repair", "explicit-alias-control"):
+        directory = home / label
+        directory.mkdir(parents=True)
+        env = dict(base_env)
+        for key in ("GOG_ZOOM_ACCOUNT_ID", "GOG_ZOOM_CLIENT_ID", "GOG_ZOOM_CLIENT_SECRET"):
+            env.pop(key)
+        env.update(HOME=str(directory), GOG_HOME=str(directory / "gog"))
+        for kind in ("CONFIG", "DATA", "STATE", "CACHE"):
+            env["XDG_" + kind + "_HOME"] = str(directory / kind.lower())
+
+        def run(args):
+            return subprocess.run([str(binary), "--no-input", *args], env=env,
+                                  text=True, capture_output=True, timeout=30)
+
+        def credentials(account):
+            return ["--account-id", account, "--client-id", account + "-client",
+                    "--client-secret", "synthetic-secret"]
+
+        def stored_accounts():
+            # Read only synthetic metadata beneath this attempt's fresh home.
+            records = [json.loads(p.read_text()) for p in Path(env["GOG_HOME"]).rglob("zoom/*.json")]
+            return {record["alias"]: record["account_id"] for record in records}
+
+        for alias in ("default", "work"):
+            seeded = run(["zoom", "auth", "setup", "--alias", alias, "--skip-validate",
+                          *credentials("synthetic-" + alias + "-old")])
+            if seeded.returncode:
+                raise RuntimeError("synthetic alias setup failed")
+        before = stored_accounts()
+        if before != {"default": "synthetic-default-old", "work": "synthetic-work-old"}:
+            raise RuntimeError("synthetic alias metadata not seeded")
+        server.scenario = "zoom-alias-failure"
+        server.calls.clear()
+        server.unexpected.clear()
+        result = run(["--json", "zoom", "auth", "doctor", "--alias", "work"])
+        detail = next(check["detail"] for check in json.loads(result.stdout)["checks"]
+                      if check["name"] == "zoom.validate")
+        # The quoted commands are fixed application guidance. Execute those
+        # argv after replacing the documented placeholder with the selected alias.
+        commands = [shlex.split(part) for part in detail.split("'")[1::2]]
+        setup = next((argv[1:] for argv in commands if argv[:4] == ["gog", "zoom", "auth", "setup"]), None)
+        doctor = next((argv[1:] for argv in commands if argv[:4] == ["gog", "zoom", "auth", "doctor"]), None)
+        if label == "explicit-alias-control":
+            setup = ["zoom", "auth", "setup", "--alias", "work", "--force"]
+            doctor = ["zoom", "auth", "doctor", "--alias", "work"]
+        if setup is None or doctor is None:
+            print("\nZoom non-default alias:", label)
+            print("doctor --alias work diagnostic:", detail)
+            print("FAIL complete recovery commands present")
+            failures.append(label + ": complete recovery commands present")
+            continue
+        setup = ["work" if arg == "<alias>" else arg for arg in setup]
+        doctor = ["work" if arg == "<alias>" else arg for arg in doctor]
+        server.scenario = "zoom-alias-success"
+        repaired = run([*setup, *credentials("synthetic-work-new")])
+        checked = run(["--json", *doctor])
+        after = stored_accounts()
+        print("\nZoom non-default alias:", label, "(no Zoom credential environment overrides)")
+        print("doctor --alias work diagnostic:", detail)
+        print("repair argv: gog --no-input", shlex.join(setup), "[synthetic credential flags]")
+        print("verify argv: gog --no-input --json", shlex.join(doctor))
+        print("repair/verify exits:", repaired.returncode, checked.returncode)
+        print("stored accounts before:", json.dumps(before, sort_keys=True))
+        print("stored accounts after:", json.dumps(after, sort_keys=True))
+        print("fixture calls:", json.dumps(dict(server.calls), sort_keys=True))
+        checks = {"failing alias retained in both commands": setup == ["zoom", "auth", "setup", "--alias", "work", "--force"] and doctor == ["zoom", "auth", "doctor", "--alias", "work"],
+                  "work replaced and default preserved": after == {"default": "synthetic-default-old", "work": "synthetic-work-new"},
+                  "normal synthetic validation succeeded": repaired.returncode == 0 and checked.returncode == 0 and json.loads(checked.stdout)["status"] == "ok" and server.calls["zoom.token"] == 2 and server.calls["zoom.validate"] == 2,
+                  "expected requests only": not server.unexpected,
+                  "provider marker omitted": MARKER not in detail + repaired.stdout + repaired.stderr + checked.stdout + checked.stderr}
+        for name, passed in checks.items():
+            print(("PASS " if passed else "FAIL ") + name)
+            if not passed:
+                failures.append(label + ": " + name)
+    return failures
+
+
 def main():
     binary = Path(sys.argv[1]).resolve(strict=True)
     print("Binary SHA-256:", hashlib.sha256(binary.read_bytes()).hexdigest())
@@ -130,7 +215,7 @@ def main():
         thread = threading.Thread(target=server.serve_forever, daemon=True)
         thread.start()
         try:
-            for scenario in ("google-grant", "google-client", "google-partial", "zoom-doctor", "rollback-create", "rollback-update", "rollback-google-create"):
+            for scenario in ("google-grant", "google-client", "google-partial", "zoom-doctor", "rollback-create", "rollback-update", "rollback-google-create", "zoom-alias-repair"):
                 home = root / scenario
                 home.mkdir()
                 env = {"PATH": os.defpath, "HOME": str(home), "GOG_HOME": str(home / "gog"),
@@ -145,6 +230,10 @@ def main():
                 def run(args):
                     return subprocess.run([str(binary), "--no-input", *args], env=env,
                                           text=True, capture_output=True, timeout=30)
+
+                if scenario == "zoom-alias-repair":
+                    failures.extend(probe_zoom_alias_recovery(binary, env, server, home))
+                    continue
 
                 creds = home / "client.json"
                 creds.write_text(json.dumps({"installed": {"client_id": "synthetic-client", "client_secret": "synthetic-secret"}}))
@@ -207,7 +296,7 @@ def main():
                         checks["exit preserved"] = result.returncode == (1 if scenario == "google-client" else 4)
                 elif scenario == "zoom-doctor":
                     checks["Zoom token response reached"] = server.calls["zoom.token"] == 1
-                    checks["Zoom recovery"] = "gog zoom auth setup --force" in output and "gog zoom auth doctor" in output
+                    checks["Zoom recovery"] = "gog zoom auth setup --alias <alias> --force" in output and "gog zoom auth doctor --alias <alias>" in output
                     print("existing alias setup control exits (without/with --force, validation skipped for replacement):", refused.returncode, replaced.returncode)
                     checks["existing alias repair accepted"] = refused.returncode == 2 and replaced.returncode == 0
                     checks["doctor status retained"] = result.returncode == 0 and json.loads(result.stdout)["status"] == "error"
