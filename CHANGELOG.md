@@ -15,6 +15,7 @@
 - Dependencies: refresh the Google API client and generated API definitions while retaining the Go 1.26 minimum and the tracking worker's 24-hour release cooldown.
 - Dependencies: refresh the Google API client, golangci-lint, Cloudflare Workers types, Wrangler, PostCSS, and Undici while retaining Go 1.26, pnpm 11, and the worker’s 24-hour release cooldown.
 - Dependencies: update Vitest and Cloudflare Workers types within the worker’s 24-hour release cooldown.
+- Dependencies: refresh Wrangler, Cloudflare Workers types, Oxlint, and Oxfmt within the tracking worker's 24-hour release cooldown.
 
 ## 0.45.0 - 2026-10-16
 
