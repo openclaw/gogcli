@@ -2,6 +2,7 @@
 
 ## 0.45.1 - Unreleased
 
+- Security: build release binaries and Docker images with Go 1.27.3 and test the minimum series with Go 1.26.10 to address the crypto/x509 vulnerability GO-2026-6809, while preserving the Go 1.26 minimum.
 - Dependencies: refresh the Google API client, golangci-lint, Cloudflare Workers types, Wrangler, PostCSS, and Undici while retaining Go 1.26, pnpm 11, and the worker’s 24-hour release cooldown.
 - Drive: preserve requested top-level false booleans in `drive get --json`, including the default `starred` and `hasThumbnail` fields; keep conditionally absent fields omitted. (#1223) — thanks @postoso.
 - CI: use macOS 27 runners for Darwin checks and release preflight while enforcing the macOS 15.0 deployment target.
