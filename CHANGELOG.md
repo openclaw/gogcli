@@ -1,19 +1,20 @@
 # Changelog
 
-## 0.45.1 - Unreleased
+## 0.46.0 - 2026-10-20
 
-- Security: build release binaries and Docker images with Go 1.27.3 and test the minimum series with Go 1.26.10 to address the crypto/x509 vulnerability GO-2026-6809, while preserving the Go 1.26 minimum.
-- Dependencies: refresh the Google API client and generated API definitions while retaining the Go 1.26 minimum and the tracking worker's 24-hour release cooldown.
-- Dependencies: refresh the Google API client, golangci-lint, Cloudflare Workers types, Wrangler, PostCSS, and Undici while retaining Go 1.26, pnpm 11, and the worker’s 24-hour release cooldown.
-- Drive: preserve requested top-level false booleans in `drive get --json`, including the default `starred` and `hasThumbnail` fields; keep conditionally absent fields omitted. (#1223) — thanks @postoso.
-- CI: use macOS 27 runners for Darwin checks and release preflight while enforcing the macOS 15.0 deployment target.
+**Highlights:** Safely re-encrypt auth stores, route Google API calls through credential-free relays, and compose richer Gmail forwards, with Go security fixes.
+
 - Auth: add `gog auth rekey <outdir>` to write and verify a separate re-encrypted directory while leaving the live keyring untouched; hold the store lock throughout, publish only complete fsynced output, and retain the old directory during installation. (#1224) — thanks @sorenisanerd.
-- Dependencies: update Vitest and Cloudflare Workers types within the worker’s 24-hour release cooldown.
 - Google APIs: add `GOG_GOOGLE_API_BASE_URL` to send `*.googleapis.com` requests to a test server, emulator, proxy, or relay that adds credentials outside gog; requests keep path and query, pass the original host as `X-Forwarded-Host`, carry no gog credentials, and refuse cross-origin redirects. (#1225, #1226) — thanks @km-tr.
 - Gmail: add `--note-html` and `--note-html-file` to forwards and preserve plain-note line breaks in HTML output. (#1215) — thanks @malob.
-- Gmail: lay out the forwarded-message header block the way Gmail Web does: plain text with the sender's name in bold, `Name <email>` (or `<email>`) for the sender and each recipient with addresses linked in HTML, and two blank lines before the original body. (#1236) — thanks @malob.
-
 - Auth: accept `gog auth <email>` as shorthand for `gog auth add <email>`; bare `gog auth` and mistyped subcommands keep their existing errors. (#1221)
+- Gmail: lay out the forwarded-message header block the way Gmail Web does: plain text with the sender's name in bold, `Name <email>` (or `<email>`) for the sender and each recipient with addresses linked in HTML, and two blank lines before the original body. (#1236) — thanks @malob.
+- Drive: preserve requested top-level false booleans in `drive get --json`, including the default `starred` and `hasThumbnail` fields; keep conditionally absent fields omitted. (#1223) — thanks @postoso.
+- Security: build release binaries and Docker images with Go 1.27.3 and test the minimum series with Go 1.26.10 to address the crypto/x509 vulnerability GO-2026-6809, while preserving the Go 1.26 minimum.
+- CI: use macOS 27 runners for Darwin checks and release preflight while enforcing the macOS 15.0 deployment target.
+- Dependencies: refresh the Google API client and generated API definitions while retaining the Go 1.26 minimum and the tracking worker's 24-hour release cooldown.
+- Dependencies: refresh the Google API client, golangci-lint, Cloudflare Workers types, Wrangler, PostCSS, and Undici while retaining Go 1.26, pnpm 11, and the worker’s 24-hour release cooldown.
+- Dependencies: update Vitest and Cloudflare Workers types within the worker’s 24-hour release cooldown.
 
 ## 0.45.0 - 2026-10-16
 
