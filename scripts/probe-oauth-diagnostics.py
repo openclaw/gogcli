@@ -159,6 +159,15 @@ def main():
                     setup = run(args)
                     if setup.returncode:
                         raise RuntimeError("synthetic credential setup failed: " + setup.stdout + setup.stderr)
+                if scenario == "zoom-doctor":
+                    configured = run(["zoom", "auth", "setup", "--skip-validate"])
+                    if configured.returncode:
+                        raise RuntimeError("synthetic Zoom setup failed")
+                    # The printed repair must work for an existing alias.
+                    # Skip validation only for this local storage/flag control;
+                    # the following doctor drives the actual token failure.
+                    refused = run(["zoom", "auth", "setup"])
+                    replaced = run(["zoom", "auth", "setup", "--force", "--skip-validate"])
                 server.scenario = scenario
                 server.calls.clear()
                 server.unexpected.clear()
@@ -198,7 +207,9 @@ def main():
                         checks["exit preserved"] = result.returncode == (1 if scenario == "google-client" else 4)
                 elif scenario == "zoom-doctor":
                     checks["Zoom token response reached"] = server.calls["zoom.token"] == 1
-                    checks["Zoom recovery"] = "gog zoom auth setup" in output and "gog zoom auth doctor" in output
+                    checks["Zoom recovery"] = "gog zoom auth setup --force" in output and "gog zoom auth doctor" in output
+                    print("existing alias setup control exits (without/with --force, validation skipped for replacement):", refused.returncode, replaced.returncode)
+                    checks["existing alias repair accepted"] = refused.returncode == 2 and replaced.returncode == 0
                     checks["doctor status retained"] = result.returncode == 0 and json.loads(result.stdout)["status"] == "error"
                 else:
                     checks["create/rollback refresh reached"] = server.calls["zoom.create"] == 1 and server.calls["zoom.token"] == 2

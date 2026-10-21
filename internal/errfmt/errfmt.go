@@ -44,7 +44,7 @@ func Format(err error) string {
 		}
 	}
 	if errors.Is(err, zoom.ErrZoomTokenRequestFailed) {
-		return "Zoom OAuth token request failed. Verify the Server-to-Server OAuth app is active and its account ID, client ID, client secret, and scopes; run 'gog zoom auth setup' to update credentials, then 'gog zoom auth doctor'."
+		return "Zoom OAuth token request failed. Verify the Server-to-Server OAuth app is active and its account ID, client ID, client secret, and scopes; run 'gog zoom auth setup --force' to update credentials, then 'gog zoom auth doctor'."
 	}
 
 	var userErr *UserFacingError
