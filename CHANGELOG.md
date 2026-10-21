@@ -2,8 +2,8 @@
 
 ## 0.46.1 - Unreleased
 
-- API: retry HTTP 403 `rateLimitExceeded` and `userRateLimitExceeded` responses with the same backoff and `Retry-After` handling as 429, and let them open the Gmail watch rate-limit circuit.
-- Gmail: stop the remaining thread and message detail requests once one fails, instead of fetching results the failed search discards.
+- API: retry HTTP 403 `rateLimitExceeded` and `userRateLimitExceeded` responses with the same backoff and `Retry-After` handling as 429, and let them open the Gmail watch rate-limit circuit. (#1242) — thanks @xyrolle.
+- Gmail: stop the remaining thread and message detail requests once one fails, instead of fetching results the failed search discards. (#1242) — thanks @xyrolle.
 
 ## 0.46.0 - 2026-10-20
 
