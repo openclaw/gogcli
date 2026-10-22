@@ -224,3 +224,89 @@ func TestDriveGet_JSONKeepsRequestedFalseBools(t *testing.T) {
 		})
 	}
 }
+
+// TestDriveLs_JSONKeepsRequestedFalseBools proves list JSON keeps requested
+// false bools. The list mask wraps file fields in files(...), so the get-path
+// top-level scan does not see them.
+func TestDriveLs_JSONKeepsRequestedFalseBools(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name    string
+		args    []string
+		body    map[string]any
+		want    map[string]bool
+		notWant []string
+	}{
+		{
+			name: "default fields",
+			args: nil,
+			body: map[string]any{
+				"id":           "f1",
+				"name":         "photo.png",
+				"hasThumbnail": false,
+				"trashed":      false,
+			},
+			want:    map[string]bool{"hasThumbnail": false},
+			notWant: []string{"trashed"},
+		},
+		{
+			name: "files mask",
+			args: []string{"--fields", "files(id,trashed)"},
+			body: map[string]any{
+				"id":           "f1",
+				"trashed":      false,
+				"hasThumbnail": false,
+			},
+			want:    map[string]bool{"trashed": false},
+			notWant: []string{"hasThumbnail"},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			srv := newDriveFieldsTestServer(t, func(r *http.Request) map[string]any {
+				path := strings.TrimPrefix(r.URL.Path, "/drive/v3")
+				if path != "/files" {
+					return nil
+				}
+				return map[string]any{"files": []map[string]any{tc.body}}
+			}, nil)
+			defer srv.Close()
+			svc := newGoogleTestServiceWithEndpoint(t, srv.Client(), srv.URL+"/", drive.NewService)
+
+			var stdout bytes.Buffer
+			ctx := newCmdRuntimeJSONOutputContext(t, &stdout, io.Discard)
+			ctx = withDriveTestService(ctx, svc)
+			flags := &RootFlags{Account: "a@b.com"}
+
+			if err := runKong(t, &DriveLsCmd{}, tc.args, ctx, flags); err != nil {
+				t.Fatalf("run: %v", err)
+			}
+			var envelope struct {
+				Files []map[string]any `json:"files"`
+			}
+			if err := json.Unmarshal(stdout.Bytes(), &envelope); err != nil {
+				t.Fatalf("invalid JSON: %v\nraw: %s", err, stdout.String())
+			}
+			if len(envelope.Files) != 1 {
+				t.Fatalf("files = %s", stdout.String())
+			}
+			file := envelope.Files[0]
+			for key, want := range tc.want {
+				got, ok := file[key]
+				if !ok {
+					t.Fatalf("missing %q in output: %s", key, stdout.String())
+				}
+				if got != want {
+					t.Fatalf("%q = %v, want %v", key, got, want)
+				}
+			}
+			for _, key := range tc.notWant {
+				if _, ok := file[key]; ok {
+					t.Fatalf("unexpected %q in output: %s", key, stdout.String())
+				}
+			}
+		})
+	}
+}

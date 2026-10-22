@@ -69,7 +69,7 @@ func (c *SitesListCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if err != nil {
 		return err
 	}
-	return writeDriveFileList(ctx, resp, "No sites")
+	return writeDriveFileList(ctx, resp, "No sites", "")
 }
 
 func (c *SitesSearchCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -98,7 +98,7 @@ func (c *SitesSearchCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if err != nil {
 		return err
 	}
-	return writeDriveFileList(ctx, resp, "No sites")
+	return writeDriveFileList(ctx, resp, "No sites", "")
 }
 
 func (c *SitesGetCmd) Run(ctx context.Context, flags *RootFlags) error {

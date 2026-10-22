@@ -22,6 +22,71 @@ var driveFileConditionalBools = map[string]bool{
 	"WritersCanShare":         true,
 }
 
+// driveListRequestFields returns the Files.list mask for this request.
+// An empty override keeps the default list mask.
+func driveListRequestFields(override string) string {
+	if strings.TrimSpace(override) != "" {
+		return override
+	}
+	return driveFileListFields
+}
+
+// driveFileListItemMask returns the field list inside a top-level files(...)
+// group. A list mask names the file object as `files`, so the get-path
+// top-level scan only sees that name.
+func driveFileListItemMask(mask string) string {
+	depth := 0
+	for i := 0; i < len(mask); {
+		switch mask[i] {
+		case '(':
+			depth++
+			i++
+		case ')':
+			if depth > 0 {
+				depth--
+			}
+			i++
+		case ',':
+			i++
+		default:
+			if depth != 0 {
+				i++
+				continue
+			}
+			start := i
+			for i < len(mask) && mask[i] != ',' && mask[i] != '(' && mask[i] != ')' {
+				i++
+			}
+			name := strings.TrimSpace(mask[start:i])
+			if name != "files" {
+				continue
+			}
+			for i < len(mask) && (mask[i] == ' ' || mask[i] == '\t') {
+				i++
+			}
+			if i >= len(mask) || mask[i] != '(' {
+				continue
+			}
+			i++
+			inner := i
+			innerDepth := 1
+			for i < len(mask) && innerDepth > 0 {
+				switch mask[i] {
+				case '(':
+					innerDepth++
+				case ')':
+					innerDepth--
+				}
+				if innerDepth > 0 {
+					i++
+				}
+			}
+			return mask[inner:i]
+		}
+	}
+	return ""
+}
+
 // forceRequestedDriveFileBools keeps top-level boolean fields named in mask in
 // JSON output. drive.File tags them omitempty, so a requested `trashed: false`
 // would otherwise disappear.
