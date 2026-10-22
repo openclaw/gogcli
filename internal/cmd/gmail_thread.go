@@ -130,6 +130,11 @@ func (c *GmailThreadGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 		}
 		u.Out().Linef("From: %s", header("From"))
 		u.Out().Linef("To: %s", header("To"))
+		for _, name := range []string{"Cc", "Bcc"} {
+			if value := header(name); value != "" {
+				u.Out().Linef("%s: %s", name, value)
+			}
+		}
 		u.Out().Linef("Subject: %s", header("Subject"))
 		u.Out().Linef("Date: %s", header("Date"))
 		u.Out().Println("")
