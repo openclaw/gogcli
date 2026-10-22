@@ -2,6 +2,8 @@
 
 ## 0.46.1 - Unreleased
 
+- Drive: keep requested false booleans in list JSON. `drive ls --json` includes `hasThumbnail:false` on the default mask, and `files(id,trashed)` includes `trashed:false`. Sites list uses the same writer. (#1246), thanks @SebTardif.
+
 ## 0.46.0 - 2026-10-20
 
 **Highlights:** Safely re-encrypt auth stores, route Google API calls through credential-free relays, and compose richer Gmail forwards, with Go security fixes.
