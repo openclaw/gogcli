@@ -12,6 +12,8 @@ import (
 	"github.com/openclaw/gogcli/internal/zoom"
 )
 
+var errSyntheticOAuthSibling = errors.New("synthetic-secret-sibling")
+
 func TestFormat_OAuthProviderDetails(t *testing.T) {
 	for _, code := range []string{"invalid_grant", " INVALID_GRANT ", "invalid_client", "synthetic-secret-code", ""} {
 		for _, wrap := range []string{"direct", "wrapped", "joined", "user-facing"} {
@@ -22,24 +24,28 @@ func TestFormat_OAuthProviderDetails(t *testing.T) {
 					ErrorDescription: "synthetic-secret-description", ErrorURI: "https://example.invalid/synthetic-secret-uri",
 				}
 				var err error = cause
+
 				switch wrap {
 				case "wrapped":
 					err = fmt.Errorf("synthetic-secret-context: %w", cause)
 				case "joined":
-					err = errors.Join(errors.New("synthetic-secret-sibling"), cause)
+					err = errors.Join(errSyntheticOAuthSibling, cause)
 				case "user-facing":
 					err = NewUserFacingError(cause.Error(), cause)
 				}
+
 				want := "OAuth token request failed. Run 'gog auth doctor' to check client configuration, then 'gog auth add <email>' to re-authorize."
 				if code == "invalid_grant" || code == " INVALID_GRANT " {
 					want = "OAuth token expired or revoked (invalid_grant); run 'gog auth add <email>' to re-authorize."
 				}
+
 				if code == "invalid_client" {
 					want = "OAuth token request failed (invalid_client); check client credentials with 'gog auth credentials <credentials.json>', then run 'gog auth add <email>' to re-authorize."
 				}
 				if got := Format(err); got != want {
 					t.Fatalf("Format() = %q, want %q", got, want)
 				}
+
 				var retrieved *oauth2.RetrieveError
 				if !errors.As(err, &retrieved) || retrieved != cause || !errors.Is(err, cause) {
 					t.Fatal("formatting must preserve original cause")
@@ -51,13 +57,14 @@ func TestFormat_OAuthProviderDetails(t *testing.T) {
 
 func TestFormat_ZoomOAuthProviderDetails(t *testing.T) {
 	cause := fmt.Errorf("%w: synthetic-provider-status: synthetic-provider-body", zoom.ErrZoomTokenRequestFailed)
-	for _, err := range []error{cause, fmt.Errorf("request: %w", cause), errors.Join(errors.New("synthetic-sibling"), cause), NewUserFacingError(cause.Error(), cause)} {
+	for _, err := range []error{cause, fmt.Errorf("request: %w", cause), errors.Join(errSyntheticOAuthSibling, cause), NewUserFacingError(cause.Error(), cause)} {
 		got := Format(err)
 		for _, want := range []string{"Zoom OAuth token request failed.", "gog zoom auth setup --alias <alias> --force", "gog zoom auth doctor --alias <alias>", "failing alias (default if none was selected)"} {
 			if !strings.Contains(got, want) {
 				t.Errorf("missing diagnostic/recovery %q: %s", want, got)
 			}
 		}
+
 		if strings.Contains(got, "synthetic-") {
 			t.Fatalf("unsafe Zoom diagnostic: %s", got)
 		}
@@ -70,6 +77,7 @@ func TestFormat_ZoomOAuthProviderDetails(t *testing.T) {
 func TestFormat_ContextErrorOAuthCauses(t *testing.T) {
 	googleErr := &oauth2.RetrieveError{ErrorCode: "invalid_grant", ErrorDescription: "synthetic-secret-description"}
 	zoomErr := fmt.Errorf("%w: synthetic-secret-body", zoom.ErrZoomTokenRequestFailed)
+
 	err := NewContextError("calendar write and Zoom rollback failed", fmt.Errorf("synthetic-secret-wrapper: %w", googleErr), zoomErr)
 	for _, wrapped := range []error{err, fmt.Errorf("synthetic-secret-outer: %w", err), NewUserFacingError("synthetic-secret-message", err)} {
 		got := Format(wrapped)

@@ -237,14 +237,8 @@ func executeWithRuntime(args []string, runtime *app.Runtime) (err error) {
 	}
 	previousLogger := slog.Default()
 	slog.SetDefault(slog.New(slog.NewTextHandler(runtimeIO.Err, &slog.HandlerOptions{
-		Level: logLevel,
-		ReplaceAttr: func(_ []string, attr slog.Attr) slog.Attr {
-			var retrieveErr *oauth2.RetrieveError
-			if err, ok := attr.Value.Any().(error); ok && (errors.As(err, &retrieveErr) || errors.Is(err, zoom.ErrZoomTokenRequestFailed)) {
-				return slog.String(attr.Key, errfmt.Format(err))
-			}
-			return attr
-		},
+		Level:       logLevel,
+		ReplaceAttr: formatLogError,
 	})))
 	defer slog.SetDefault(previousLogger)
 
@@ -488,6 +482,14 @@ func applyExplicitOutputModePrecedence(kctx *kong.Context, flags *RootFlags) err
 		flags.JSON = false
 	}
 	return nil
+}
+
+func formatLogError(_ []string, attr slog.Attr) slog.Attr {
+	var retrieveErr *oauth2.RetrieveError
+	if logErr, ok := attr.Value.Any().(error); ok && (errors.As(logErr, &retrieveErr) || errors.Is(logErr, zoom.ErrZoomTokenRequestFailed)) {
+		return slog.String(attr.Key, errfmt.Format(logErr))
+	}
+	return attr
 }
 
 func reportEarlyError(kctx *kong.Context, w io.Writer, err error) error {

@@ -25,10 +25,6 @@ import (
 
 const oauthOutputSecret = "synthetic-oauth-output-secret"
 
-type oauthOutputTokenSourceFunc func() (*oauth2.Token, error)
-
-func (f oauthOutputTokenSourceFunc) Token() (*oauth2.Token, error) { return f() }
-
 func executeOAuthOutputFixture(t *testing.T, args []string, body string) executeTestResult {
 	t.Helper()
 	setTestConfigHome(t)

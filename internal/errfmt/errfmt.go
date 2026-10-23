@@ -43,6 +43,7 @@ func Format(err error) string {
 			return "OAuth token request failed. Run 'gog auth doctor' to check client configuration, then 'gog auth add <email>' to re-authorize."
 		}
 	}
+
 	if errors.Is(err, zoom.ErrZoomTokenRequestFailed) {
 		return "Zoom OAuth token request failed. Verify the Server-to-Server OAuth app is active and its account ID, client ID, client secret, and scopes; run 'gog zoom auth setup --alias <alias> --force' to update credentials, then 'gog zoom auth doctor --alias <alias>'. Replace <alias> with the failing alias (default if none was selected)."
 	}
