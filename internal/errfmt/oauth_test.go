@@ -68,6 +68,7 @@ func TestFormat_ZoomOAuthProviderDetails(t *testing.T) {
 		if strings.Contains(got, "synthetic-") {
 			t.Fatalf("unsafe Zoom diagnostic: %s", got)
 		}
+
 		if !errors.Is(err, cause) || !errors.Is(err, zoom.ErrZoomTokenRequestFailed) {
 			t.Fatal("formatting must preserve the Zoom OAuth cause and sentinel")
 		}
@@ -86,9 +87,11 @@ func TestFormat_ContextErrorOAuthCauses(t *testing.T) {
 				t.Errorf("missing context/cause %q: %s", want, got)
 			}
 		}
+
 		if strings.Contains(got, "synthetic-secret") {
 			t.Fatalf("unsafe context diagnostic: %s", got)
 		}
+
 		if !errors.Is(wrapped, googleErr) || !errors.Is(wrapped, zoom.ErrZoomTokenRequestFailed) {
 			t.Fatal("context formatting must retain both original causes")
 		}
