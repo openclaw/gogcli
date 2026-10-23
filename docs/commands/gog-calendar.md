@@ -41,6 +41,7 @@ gog calendar (cal) <command> [flags]
 - [gog calendar time](gog-calendar-time.md) - Show server time
 - [gog calendar unsubscribe](gog-calendar-unsubscribe.md) - Remove a calendar from your calendar list
 - [gog calendar update](gog-calendar-update.md) - Update an event
+- [gog calendar update-calendar](gog-calendar-update-calendar.md) - Update calendar-level settings (summary, description, location, timezone)
 - [gog calendar users](gog-calendar-users.md) - List workspace users (use their email as calendar ID)
 - [gog calendar working-location](gog-calendar-working-location.md) - Set working location (home/office/custom)
 

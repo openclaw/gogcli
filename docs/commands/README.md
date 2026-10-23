@@ -2,7 +2,7 @@
 
 Every `gog` command has a generated docs page. The source of truth is the live CLI schema; run `make docs-commands` after changing command names, flags, help text, aliases, or arguments.
 
-Generated pages: 780.
+Generated pages: 781.
 
 ## Top-level Commands
 
@@ -203,6 +203,7 @@ Generated pages: 780.
     - [gog calendar time](gog-calendar-time.md) - Show server time
     - [gog calendar unsubscribe](gog-calendar-unsubscribe.md) - Remove a calendar from your calendar list
     - [gog calendar update](gog-calendar-update.md) - Update an event
+    - [gog calendar update-calendar](gog-calendar-update-calendar.md) - Update calendar-level settings (summary, description, location, timezone)
     - [gog calendar users](gog-calendar-users.md) - List workspace users (use their email as calendar ID)
     - [gog calendar working-location](gog-calendar-working-location.md) - Set working location (home/office/custom)
   - [gog chat](gog-chat.md) - Google Chat

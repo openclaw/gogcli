@@ -5,6 +5,7 @@ type CalendarCmd struct {
 	Subscribe       CalendarSubscribeCmd       `cmd:"" name:"subscribe" aliases:"sub,add-calendar" help:"Add a calendar to your calendar list"`
 	Unsubscribe     CalendarUnsubscribeCmd     `cmd:"" name:"unsubscribe" aliases:"unsub" help:"Remove a calendar from your calendar list"`
 	CreateCalendar  CalendarCreateCalendarCmd  `cmd:"" name:"create-calendar" aliases:"new-calendar" help:"Create a new secondary calendar"`
+	UpdateCalendar  CalendarUpdateCalendarCmd  `cmd:"" name:"update-calendar" aliases:"edit-calendar,set-calendar" help:"Update calendar-level settings (summary, description, location, timezone)"`
 	DeleteCalendar  CalendarDeleteCalendarCmd  `cmd:"" name:"delete-calendar" help:"Delete an owned secondary calendar"`
 	ACL             CalendarAclCmd             `cmd:"" name:"acl" aliases:"permissions,perms" help:"List calendar ACL"`
 	Alias           CalendarAliasCmd           `cmd:"" name:"alias" help:"Manage calendar aliases"`

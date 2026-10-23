@@ -50,6 +50,8 @@ gog calendar create primary --summary "Client sync" \
   --with-zoom
 gog calendar move primary <eventId> team-calendar@example.com
 gog calendar create-calendar "Project calendar" --timezone Europe/London
+gog calendar update-calendar <calendarId> --timezone America/Los_Angeles
+gog calendar update-calendar <calendarId> --check
 gog calendar delete-calendar <calendarId> --force
 gog calendar subscribe en.uk#holiday@group.v.calendar.google.com
 gog calendar unsubscribe en.uk#holiday@group.v.calendar.google.com --force
@@ -58,6 +60,19 @@ gog calendar unsubscribe en.uk#holiday@group.v.calendar.google.com --force
 Repeated `--attachment` values replace all attachments; an empty value clears
 them. Google Calendar appointment schedules are not exposed by the Calendar
 API, so `gog` cannot list or manage them.
+
+A calendar's own default timezone (`calendars.get.timeZone`, owner-only)
+decides the UTC offset the API serialises for every event on it, so a stale
+default makes events report a `dateTime` offset that contradicts their own
+`timeZone`. `gog calendar update-calendar` patches the calendar resource, and
+`--check` reports its timezone next to your read-only calendar-list copy
+without writing anything.
+
+Calendar setting updates require a nonempty name and a valid timezone when those
+fields are supplied. Omit a flag to preserve its field; use `--description ''`
+or `--location ''` to clear those optional fields. `--dry-run --json` previews the
+exact patch without authentication or API requests; `--check` is a separate
+read-only inspection and cannot be combined with setting flags.
 
 ## Drive
 

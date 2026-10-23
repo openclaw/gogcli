@@ -53,6 +53,7 @@ gog --readonly --account user@example.com calendar events --today --json --wrap-
 | `time` | Show server time |
 | `unsubscribe` | Remove a calendar from your calendar list |
 | `update` | Update an event |
+| `update-calendar` | Update calendar-level settings (summary, description, location, timezone) |
 | `users` | List workspace users (use their email as calendar ID) |
 | `working-location` | Set working location (home/office/custom) |
 

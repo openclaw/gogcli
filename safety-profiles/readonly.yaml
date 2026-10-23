@@ -83,6 +83,7 @@ calendar:
   out-of-office: false
   working-location: false
   create-calendar: false
+  update-calendar: false
 
 drive:
   ls: true

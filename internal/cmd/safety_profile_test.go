@@ -150,6 +150,39 @@ func TestBakedSheetsBatchRequestRequiresExplicitPermission(t *testing.T) {
 	}
 }
 
+func TestBundledSafetyProfilesClassifyCalendarUpdateCalendar(t *testing.T) {
+	setTestConfigHome(t)
+
+	// Unlisted leaves fail closed, so a new mutating command that is missing
+	// from a bundled profile silently disappears from that shipped binary.
+	// Calendar settings are recoverable (patch the previous values back), which
+	// is the line agent-safe draws for create-calendar.
+	cases := []struct {
+		profile string
+		allow   bool
+	}{
+		{profile: "agent-safe.yaml", allow: true},
+		{profile: "readonly.yaml", allow: false},
+	}
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.profile, func(t *testing.T) {
+			raw, err := os.ReadFile(filepath.Join("..", "..", "safety-profiles", tc.profile))
+			if err != nil {
+				t.Fatalf("read %s: %v", tc.profile, err)
+			}
+			withBakedSafetyProfile(t, string(raw))
+			profile, err := loadBakedSafetyProfile()
+			if err != nil {
+				t.Fatalf("loadBakedSafetyProfile: %v", err)
+			}
+			if got := profile.allowsCommandPath([]string{"calendar", "update-calendar"}); got != tc.allow {
+				t.Fatalf("%s allows calendar update-calendar = %v, want %v", tc.profile, got, tc.allow)
+			}
+		})
+	}
+}
+
 func TestReadonlySafetyProfileBlocksNestedMutations(t *testing.T) {
 	setTestConfigHome(t)
 	raw, err := os.ReadFile(filepath.Join("..", "..", "safety-profiles", "readonly.yaml"))

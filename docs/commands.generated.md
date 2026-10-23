@@ -149,6 +149,7 @@ Generated from `gog schema --json`.
     - [`gog calendar (cal) time [flags]`](commands/gog-calendar-time.md) - Show server time
     - [`gog calendar (cal) unsubscribe (unsub) <calendarId>`](commands/gog-calendar-unsubscribe.md) - Remove a calendar from your calendar list
     - [`gog calendar (cal) update (edit,set) <calendarId> <eventId> [flags]`](commands/gog-calendar-update.md) - Update an event
+    - [`gog calendar (cal) update-calendar (edit-calendar,set-calendar) <calendarId> [flags]`](commands/gog-calendar-update-calendar.md) - Update calendar-level settings (summary, description, location, timezone)
     - [`gog calendar (cal) users [flags]`](commands/gog-calendar-users.md) - List workspace users (use their email as calendar ID)
     - [`gog calendar (cal) working-location (wl) --from=STRING --to=STRING --type=STRING [<calendarId>] [flags]`](commands/gog-calendar-working-location.md) - Set working location (home/office/custom)
   - [`gog chat <command> [flags]`](commands/gog-chat.md) - Google Chat
