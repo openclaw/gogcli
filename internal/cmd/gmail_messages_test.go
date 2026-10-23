@@ -52,18 +52,19 @@ func TestSanitizeMessageBody_StripsHTML(t *testing.T) {
 }
 
 func TestFetchMessageDetails_NoRetryOnError(t *testing.T) {
-	var calls int32
+	var m1Calls, m2Calls int32
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !strings.Contains(r.URL.Path, "/users/me/messages/") {
 			http.NotFound(w, r)
 			return
 		}
-		atomic.AddInt32(&calls, 1)
 		if strings.Contains(r.URL.Path, "/users/me/messages/m1") {
+			atomic.AddInt32(&m1Calls, 1)
 			http.Error(w, "boom", http.StatusInternalServerError)
 			return
 		}
+		atomic.AddInt32(&m2Calls, 1)
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"id":"m2","threadId":"t2","payload":{"headers":[{"name":"From","value":"me@example.com"}]}}`))
 	}))
@@ -83,7 +84,12 @@ func TestFetchMessageDetails_NoRetryOnError(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "message m1") {
 		t.Fatalf("expected message error, got %v", err)
 	}
-	if got := atomic.LoadInt32(&calls); got != 2 {
-		t.Fatalf("expected 2 calls, got %d", got)
+	// The failed message is not retried. The first failure cancels the
+	// remaining fetches, so m2 may or may not have been requested by then.
+	if got := atomic.LoadInt32(&m1Calls); got != 1 {
+		t.Fatalf("expected 1 call for m1, got %d", got)
+	}
+	if got := atomic.LoadInt32(&m2Calls); got > 1 {
+		t.Fatalf("expected at most 1 call for m2, got %d", got)
 	}
 }
