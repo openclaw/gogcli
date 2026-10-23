@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/openclaw/gogcli/internal/config"
+	"github.com/openclaw/gogcli/internal/errfmt"
 	"github.com/openclaw/gogcli/internal/googleapi"
 	"github.com/openclaw/gogcli/internal/outfmt"
 	"github.com/openclaw/gogcli/internal/ui"
@@ -111,7 +112,7 @@ func uploadPhotosBatch(
 		results[i] = photosUploadResult{File: p, Status: "error"}
 		token, err := uploadPhotosFile(ctx, client, p)
 		if err != nil {
-			results[i].Error = photosScopeHint(err.Error())
+			results[i].Error = photosScopeHint(errfmt.FormatDiagnostic(err))
 			continue
 		}
 		items = append(items, googleapi.PhotosNewMediaItem{
@@ -127,7 +128,7 @@ func uploadPhotosBatch(
 	resp, err := client.BatchCreateMediaItems(ctx, albumID, items)
 	if err != nil {
 		for _, i := range index {
-			results[i].Error = err.Error()
+			results[i].Error = errfmt.FormatDiagnostic(err)
 		}
 		return results, err
 	}

@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"golang.org/x/oauth2"
+	ggoogleapi "google.golang.org/api/googleapi"
 
 	"github.com/openclaw/gogcli/internal/zoom"
 )
@@ -95,6 +96,29 @@ func TestFormat_ContextErrorOAuthCauses(t *testing.T) {
 
 		if !errors.Is(wrapped, googleErr) || !errors.Is(wrapped, zoom.ErrZoomTokenRequestFailed) {
 			t.Fatal("context formatting must retain both original causes")
+		}
+	}
+}
+
+func TestFormatDiagnostic(t *testing.T) {
+	for _, err := range []error{nil, errNope, &ggoogleapi.Error{Code: 403, Message: "denied"}} {
+		want := ""
+		if err != nil {
+			want = err.Error()
+		}
+
+		if got := FormatDiagnostic(err); got != want {
+			t.Fatalf("ordinary diagnostic changed: got %q, want %q", got, want)
+		}
+	}
+
+	for _, err := range []error{
+		&oauth2.RetrieveError{ErrorCode: "invalid_grant", ErrorDescription: "synthetic-secret"},
+		fmt.Errorf("%w: synthetic-secret", zoom.ErrZoomTokenRequestFailed),
+	} {
+		got := FormatDiagnostic(err)
+		if strings.Contains(got, "synthetic-secret") || !strings.Contains(got, "OAuth token") {
+			t.Fatalf("unsafe or missing token diagnostic: %q", got)
 		}
 	}
 }

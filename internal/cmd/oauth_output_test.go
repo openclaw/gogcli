@@ -10,10 +10,12 @@ import (
 	"net/http/httptest"
 	"os"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"golang.org/x/oauth2"
+	"google.golang.org/api/drive/v3"
 	"google.golang.org/api/gmail/v1"
 	"google.golang.org/api/option"
 
@@ -24,6 +26,10 @@ import (
 )
 
 const oauthOutputSecret = "synthetic-oauth-output-secret"
+
+type oauthOutputTokenSourceFunc func() (*oauth2.Token, error)
+
+func (f oauthOutputTokenSourceFunc) Token() (*oauth2.Token, error) { return f() }
 
 func executeOAuthOutputFixture(t *testing.T, args []string, body string) executeTestResult {
 	t.Helper()
@@ -160,5 +166,144 @@ func TestExecute_OAuthLogOutput(t *testing.T) {
 	}})
 	if ExitCode(result.err) != exitCodeAuthRequired || !strings.Contains(result.stderr, "synthetic auth refresh failure") || strings.Contains(result.stdout+result.stderr, oauthOutputSecret) {
 		t.Fatalf("unexpected OAuth log output: %s%s", result.stdout, result.stderr)
+	}
+}
+
+func TestExecute_OAuthPerItemOutput(t *testing.T) {
+	for _, command := range []string{"archive", "labels"} {
+		for _, mode := range []string{"text", "plain", "json"} {
+			t.Run(command+"/"+mode, func(t *testing.T) {
+				setTestConfigHome(t)
+				var tokenCalls, labelCalls atomic.Int32
+				srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					w.Header().Set("Content-Type", "application/json")
+					switch {
+					case r.Method == http.MethodPost && r.URL.Path == "/token":
+						tokenCalls.Add(1)
+						w.WriteHeader(http.StatusBadRequest)
+						_, _ = fmt.Fprintf(w, `{"error":"invalid_grant","error_description":%q}`, oauthOutputSecret)
+					case r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/users/me/labels"):
+						labelCalls.Add(1)
+						_, _ = fmt.Fprint(w, `{"labels":[{"id":"INBOX","name":"INBOX"}]}`)
+					default:
+						t.Errorf("unexpected API request: %s %s", r.Method, r.URL.Path)
+						http.NotFound(w, r)
+					}
+				}))
+				defer srv.Close()
+				cfg := &oauth2.Config{Endpoint: oauth2.Endpoint{TokenURL: srv.URL + "/token", AuthStyle: oauth2.AuthStyleInParams}}
+				refresh := cfg.TokenSource(t.Context(), &oauth2.Token{RefreshToken: "synthetic-refresh-token"})
+				// Labels modification resolves label names before iterating threads.
+				// Permit that first request, then drive real refresh failures for
+				// each item through oauth2.Transport and RetryTransport.
+				first := true
+				source := oauthOutputTokenSourceFunc(func() (*oauth2.Token, error) {
+					if first && command == "labels" {
+						first = false
+						return &oauth2.Token{AccessToken: "synthetic-access-token"}, nil
+					}
+					return refresh.Token()
+				})
+				client := &http.Client{Transport: gogapi.NewRetryTransport(&oauth2.Transport{Source: source})}
+				svc, err := gmail.NewService(t.Context(), option.WithHTTPClient(client), option.WithEndpoint(srv.URL+"/"))
+				if err != nil {
+					t.Fatal(err)
+				}
+				args := []string{"--no-input", "--account", "reader@example.invalid", "gmail"}
+				wantCode := 0
+				if command == "archive" {
+					args = append(args, "archive", "--thread", "t1", "t2")
+					wantCode = 1 // Preserve the existing partial-failure summary.
+				} else {
+					args = append(args, "labels", "modify", "t1", "t2", "--remove", "INBOX")
+				}
+				if mode != "text" {
+					args = append([]string{"--" + mode}, args...)
+				}
+				result := executeWithGmailTestService(t, args, svc)
+				if got := ExitCode(result.err); got != wantCode {
+					t.Fatalf("exit code = %d, want %d; error: %v", got, wantCode, result.err)
+				}
+				output := result.stdout + result.stderr
+				if strings.Contains(output, oauthOutputSecret) || strings.Count(output, "invalid_grant") != 2 {
+					t.Fatalf("unsafe or missing per-item diagnostics: %s", output)
+				}
+				if tokenCalls.Load() != 2 || (command == "labels" && labelCalls.Load() != 1) {
+					t.Fatalf("unexpected token/label calls: %d/%d", tokenCalls.Load(), labelCalls.Load())
+				}
+				if mode == "json" {
+					var decoded struct {
+						Results []struct {
+							ThreadID string `json:"threadId"`
+							Success  bool   `json:"success"`
+							Error    string `json:"error"`
+						} `json:"results"`
+					}
+					if err := json.Unmarshal([]byte(result.stdout), &decoded); err != nil {
+						t.Fatal(err)
+					}
+					if len(decoded.Results) != 2 {
+						t.Fatalf("result count = %d, want 2", len(decoded.Results))
+					}
+					for i, row := range decoded.Results {
+						if row.ThreadID != fmt.Sprintf("t%d", i+1) || row.Success || !strings.Contains(row.Error, "invalid_grant") {
+							t.Fatalf("unexpected per-item result: %+v", row)
+						}
+					}
+				}
+			})
+		}
+	}
+}
+
+func TestBackup_OAuthPerItemOutput(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost || r.URL.Path != "/token" {
+			t.Errorf("unexpected API request: %s %s", r.Method, r.URL.Path)
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = fmt.Fprintf(w, `{"error":"invalid_grant","error_description":%q}`, oauthOutputSecret)
+	}))
+	defer srv.Close()
+	cfg := &oauth2.Config{Endpoint: oauth2.Endpoint{TokenURL: srv.URL + "/token", AuthStyle: oauth2.AuthStyleInParams}}
+	client := &http.Client{Transport: gogapi.NewRetryTransport(&oauth2.Transport{
+		Source: cfg.TokenSource(t.Context(), &oauth2.Token{RefreshToken: "synthetic-refresh-token"}),
+	})}
+	svc, err := drive.NewService(t.Context(), option.WithHTTPClient(client), option.WithEndpoint(srv.URL+"/"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	rows := fetchBackupDriveFileCollaboration(t.Context(), svc, "synthetic-file")
+	if len(rows.Permissions) != 1 || len(rows.Comments) != 1 || len(rows.Revisions) != 1 {
+		t.Fatalf("missing backup error rows: %+v", rows)
+	}
+	encoded, err := json.Marshal(rows)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(encoded), oauthOutputSecret) || strings.Count(string(encoded), "invalid_grant") != 3 {
+		t.Fatalf("unsafe or missing backup diagnostics: %s", encoded)
+	}
+	_, callErr := svc.Files.Get("synthetic-file").Context(t.Context()).Do()
+	if callErr == nil {
+		t.Fatal("expected refresh failure")
+	}
+	snapshot, err := buildBackupServiceErrorSnapshot("drive", "synthetic-account", callErr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(snapshot.Shards) != 1 || snapshot.Shards[0].Rows != 1 {
+		t.Fatal("missing service failure snapshot")
+	}
+	text := string(snapshot.Shards[0].Plaintext)
+	if strings.Contains(text, oauthOutputSecret) || !strings.Contains(text, "invalid_grant") {
+		t.Fatalf("unsafe or missing service failure diagnostic: %s", text)
+	}
+	var cause *oauth2.RetrieveError
+	if !errors.As(callErr, &cause) || cause.ErrorDescription != oauthOutputSecret {
+		t.Fatal("snapshot formatting changed the original cause")
 	}
 }

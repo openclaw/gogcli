@@ -14,6 +14,7 @@ import (
 	"google.golang.org/api/gmail/v1"
 
 	"github.com/openclaw/gogcli/internal/authclient"
+	"github.com/openclaw/gogcli/internal/errfmt"
 	"github.com/openclaw/gogcli/internal/gmailwatch"
 	"github.com/openclaw/gogcli/internal/googleapi"
 	"github.com/openclaw/gogcli/internal/ui"
@@ -278,17 +279,17 @@ func (s *gmailWatchServer) handlePullMessage(ctx context.Context, msg *gmailPubS
 	}
 	var authErr *gmailwatch.TerminalAuthError
 	if errors.As(err, &authErr) {
-		s.warnf("watch: Gmail authorization requires re-authentication; acknowledging pull without advancing history: %v", err)
+		s.warnf("watch: Gmail authorization requires re-authentication; acknowledging pull without advancing history: %v", errfmt.FormatDiagnostic(err))
 		msg.Ack()
 		return
 	}
 	var rateErr *gmailWatchRateLimitError
 	if errors.As(err, &rateErr) {
-		s.warnf("watch: Gmail rate limit circuit open: %v", err)
+		s.warnf("watch: Gmail rate limit circuit open: %v", errfmt.FormatDiagnostic(err))
 		msg.Nack()
 		return
 	}
-	s.warnf("watch: handle pull failed: %v", err)
+	s.warnf("watch: handle pull failed: %v", errfmt.FormatDiagnostic(err))
 	msg.Nack()
 }
 

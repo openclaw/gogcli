@@ -7,6 +7,7 @@ import (
 
 	"google.golang.org/api/gmail/v1"
 
+	"github.com/openclaw/gogcli/internal/errfmt"
 	"github.com/openclaw/gogcli/internal/outfmt"
 	"github.com/openclaw/gogcli/internal/ui"
 )
@@ -73,10 +74,10 @@ func gmailArchiveThreads(ctx context.Context, flags *RootFlags, rawIDs []string,
 			RemoveLabelIds: []string{"INBOX"},
 		}).Context(ctx).Do()
 		if err != nil {
-			results = append(results, archiveResult{ThreadID: threadID, Error: err.Error()})
+			results = append(results, archiveResult{ThreadID: threadID, Error: errfmt.FormatDiagnostic(err)})
 			failed++
 			if !outfmt.IsJSON(ctx) {
-				u.Err().Errorf("%s: %s", threadID, err.Error())
+				u.Err().Errorf("%s: %s", threadID, errfmt.FormatDiagnostic(err))
 			}
 			continue
 		}

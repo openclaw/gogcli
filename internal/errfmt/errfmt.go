@@ -104,6 +104,21 @@ func Format(err error) string {
 	return err.Error()
 }
 
+// FormatDiagnostic preserves existing diagnostic text except for recognized
+// token failures, whose provider-controlled details must use the shared formatter.
+func FormatDiagnostic(err error) string {
+	if err == nil {
+		return ""
+	}
+
+	var retrieveErr *oauth2.RetrieveError
+	if errors.As(err, &retrieveErr) || errors.Is(err, zoom.ErrZoomTokenRequestFailed) {
+		return Format(err)
+	}
+
+	return err.Error()
+}
+
 func isServiceAccountOnlyAuthService(service string) bool {
 	switch strings.ToLower(strings.TrimSpace(service)) {
 	case "admin", "admin directory", "admin orgunits", "groups", "keep":

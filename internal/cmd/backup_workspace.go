@@ -14,6 +14,7 @@ import (
 	"google.golang.org/api/slides/v1"
 
 	"github.com/openclaw/gogcli/internal/backup"
+	"github.com/openclaw/gogcli/internal/errfmt"
 )
 
 const (
@@ -71,7 +72,7 @@ func buildWorkspaceBackupSnapshot(ctx context.Context, flags *RootFlags, opts wo
 	}
 	formsRows, formResponses, formsErr := fetchFormsBackupRows(ctx, account, driveSvc)
 	if formsErr != nil {
-		formsRows = []formsBackupForm{{Error: formsErr.Error()}}
+		formsRows = []formsBackupForm{{Error: errfmt.FormatDiagnostic(formsErr)}}
 	}
 	var shards []backup.PlainShard
 	for _, part := range []struct {
@@ -123,13 +124,13 @@ func buildAppScriptBackupSnapshot(ctx context.Context, flags *RootFlags, shardMa
 		if project, getErr := scriptSvc.Projects.Get(file.Id).Context(ctx).Do(); getErr == nil {
 			row.Project = project
 		} else {
-			row.Error = getErr.Error()
+			row.Error = errfmt.FormatDiagnostic(getErr)
 		}
 		if row.Error == "" {
 			if content, contentErr := scriptSvc.Projects.GetContent(file.Id).Context(ctx).Do(); contentErr == nil {
 				row.Content = content
 			} else {
-				row.Error = contentErr.Error()
+				row.Error = errfmt.FormatDiagnostic(contentErr)
 			}
 		}
 		rows = append(rows, row)
@@ -162,7 +163,7 @@ func fetchFormsBackupRows(ctx context.Context, account string, driveSvc *drive.S
 		if form, getErr := formsSvc.Forms.Get(file.Id).Context(ctx).Do(); getErr == nil {
 			row.Form = form
 		} else {
-			row.Error = getErr.Error()
+			row.Error = errfmt.FormatDiagnostic(getErr)
 		}
 		if row.Error == "" {
 			responses, responsesErr := fetchBackupFormResponses(ctx, formsSvc, file.Id)
@@ -170,7 +171,7 @@ func fetchFormsBackupRows(ctx context.Context, account string, driveSvc *drive.S
 				row.Responses = responses
 				responseCount += len(responses)
 			} else {
-				row.Error = responsesErr.Error()
+				row.Error = errfmt.FormatDiagnostic(responsesErr)
 			}
 		}
 		rows = append(rows, row)
@@ -216,7 +217,7 @@ func fetchWorkspaceNativeRows(ctx context.Context, flags *RootFlags, driveSvc *d
 		} else if doc, getErr := docsSvc.Documents.Get(file.Id).IncludeTabsContent(true).Context(ctx).Do(); getErr == nil {
 			row.Document = doc
 		} else {
-			row.Error = getErr.Error()
+			row.Error = errfmt.FormatDiagnostic(getErr)
 		}
 		docRows = append(docRows, row)
 	}
@@ -230,7 +231,7 @@ func fetchWorkspaceNativeRows(ctx context.Context, flags *RootFlags, driveSvc *d
 		} else if sheet, getErr := sheetsSvc.Spreadsheets.Get(file.Id).IncludeGridData(true).Context(ctx).Do(); getErr == nil {
 			row.Spreadsheet = sheet
 		} else {
-			row.Error = getErr.Error()
+			row.Error = errfmt.FormatDiagnostic(getErr)
 		}
 		sheetRows = append(sheetRows, row)
 	}
@@ -244,7 +245,7 @@ func fetchWorkspaceNativeRows(ctx context.Context, flags *RootFlags, driveSvc *d
 		} else if presentation, getErr := slidesSvc.Presentations.Get(file.Id).Context(ctx).Do(); getErr == nil {
 			row.Presentation = presentation
 		} else {
-			row.Error = getErr.Error()
+			row.Error = errfmt.FormatDiagnostic(getErr)
 		}
 		slideRows = append(slideRows, row)
 	}

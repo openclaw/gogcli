@@ -14,6 +14,7 @@ import (
 
 	"google.golang.org/api/drive/v3"
 
+	"github.com/openclaw/gogcli/internal/errfmt"
 	"github.com/openclaw/gogcli/internal/slidesmarkdown"
 )
 
@@ -228,7 +229,7 @@ func (p *AssetPipeline) Resolve(ctx context.Context, slides []slidesmarkdown.Sli
 			if p.Config.Strict {
 				return am, err
 			}
-			fmt.Fprintf(stderrWriter(ctx), "warning: skipping FA icon :%s-%s: upload: %v\n", ref.Style, ref.Name, err)
+			fmt.Fprintf(stderrWriter(ctx), "warning: skipping FA icon :%s-%s: upload: %v\n", ref.Style, ref.Name, errfmt.FormatDiagnostic(err))
 			continue
 		}
 		am.Icons[ref] = ir
@@ -256,7 +257,7 @@ func (p *AssetPipeline) Resolve(ctx context.Context, slides []slidesmarkdown.Sli
 			if p.Config.Strict {
 				return am, err
 			}
-			fmt.Fprintf(stderrWriter(ctx), "warning: skipping mermaid diagram %s: upload: %v\n", blockID, err)
+			fmt.Fprintf(stderrWriter(ctx), "warning: skipping mermaid diagram %s: upload: %v\n", blockID, errfmt.FormatDiagnostic(err))
 			continue
 		}
 		am.Diagrams[blockID] = ir

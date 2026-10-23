@@ -9,6 +9,7 @@ import (
 	"google.golang.org/api/drive/v3"
 	"google.golang.org/api/slides/v1"
 
+	"github.com/openclaw/gogcli/internal/errfmt"
 	"github.com/openclaw/gogcli/internal/slidesmarkdown"
 )
 
@@ -402,7 +403,7 @@ func CreatePresentationFromMarkdownV2(ctx context.Context, opts CreatePresentati
 	}
 	defer func() {
 		if cleanupErr := pipeline.Cleanup(ctx); cleanupErr != nil {
-			fmt.Fprintf(stderrWriter(ctx), "warning: asset cleanup: %v\n", cleanupErr)
+			fmt.Fprintf(stderrWriter(ctx), "warning: asset cleanup: %v\n", errfmt.FormatDiagnostic(cleanupErr))
 		}
 	}()
 

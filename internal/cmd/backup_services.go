@@ -12,6 +12,7 @@ import (
 	"google.golang.org/api/tasks/v1"
 
 	"github.com/openclaw/gogcli/internal/backup"
+	"github.com/openclaw/gogcli/internal/errfmt"
 )
 
 type calendarBackupEvent struct {
@@ -71,7 +72,7 @@ func buildBackupServiceErrorSnapshot(service, accountHash string, serviceErr err
 	row := backupServiceError{
 		Service: service,
 		Time:    time.Now().UTC().Format(time.RFC3339),
-		Error:   serviceErr.Error(),
+		Error:   errfmt.FormatDiagnostic(serviceErr),
 	}
 	shard, err := backup.NewJSONLShard(service, "errors", accountHash, fmt.Sprintf("data/%s/%s/errors.jsonl.gz.age", service, accountHash), []backupServiceError{row})
 	if err != nil {
@@ -223,7 +224,7 @@ func fetchBackupCalendarACLRules(ctx context.Context, svc *calendar.Service, cal
 			}
 			resp, err := call.Do()
 			if err != nil {
-				out = append(out, calendarBackupACLRule{CalendarID: cal.Id, Error: err.Error()})
+				out = append(out, calendarBackupACLRule{CalendarID: cal.Id, Error: errfmt.FormatDiagnostic(err)})
 				break
 			}
 			for _, rule := range resp.Items {

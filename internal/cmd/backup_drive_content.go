@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"google.golang.org/api/drive/v3"
+
+	"github.com/openclaw/gogcli/internal/errfmt"
 )
 
 const (
@@ -61,7 +63,7 @@ func fetchBackupDriveContents(ctx context.Context, svc *drive.Service, files []d
 			}
 			content, err := downloadDriveBackupContent(ctx, svc, row.File, plan, opts.ContentTimeout)
 			if err != nil {
-				out = append(out, driveContentErrorRow(row.File, plan, err.Error()))
+				out = append(out, driveContentErrorRow(row.File, plan, errfmt.FormatDiagnostic(err)))
 				counts["drive.contents.errors"]++
 				continue
 			}

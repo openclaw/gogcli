@@ -11,6 +11,7 @@ import (
 	"google.golang.org/api/drive/v3"
 	"google.golang.org/api/slides/v1"
 
+	"github.com/openclaw/gogcli/internal/errfmt"
 	"github.com/openclaw/gogcli/internal/outfmt"
 	"github.com/openclaw/gogcli/internal/ui"
 )
@@ -110,7 +111,7 @@ func (c *SlidesCreateFromTemplateCmd) Run(ctx context.Context, flags *RootFlags)
 		Requests: requests,
 	}).Context(ctx).Do()
 	if err != nil {
-		u.Err().Linef("Warning: presentation created but text replacement failed: %v", err)
+		u.Err().Linef("Warning: presentation created but text replacement failed: %v", errfmt.FormatDiagnostic(err))
 		u.Err().Linef("Presentation ID: %s", presentationID)
 		u.Err().Linef("You may need to manually edit or delete this presentation")
 		return fmt.Errorf("text replacement failed: %w", err)

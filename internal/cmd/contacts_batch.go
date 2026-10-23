@@ -11,6 +11,7 @@ import (
 	gapi "google.golang.org/api/googleapi"
 	"google.golang.org/api/people/v1"
 
+	"github.com/openclaw/gogcli/internal/errfmt"
 	"github.com/openclaw/gogcli/internal/googleapi"
 	"github.com/openclaw/gogcli/internal/outfmt"
 	"github.com/openclaw/gogcli/internal/ui"
@@ -197,7 +198,7 @@ func runContactsBatch(ctx context.Context, flags *RootFlags, operation string, p
 		outcome.Response = response
 		if callErr != nil {
 			outcome.State = contactsBatchUnconfirmed
-			outcome.Error = &contactsBatchError{Message: callErr.Error()}
+			outcome.Error = &contactsBatchError{Message: errfmt.FormatDiagnostic(callErr)}
 			var apiErr *gapi.Error
 			if errors.As(callErr, &apiErr) {
 				outcome.Error.Code = apiErr.Code
