@@ -1,5 +1,7 @@
 # Changelog
 
+## Unreleased
+
 ## 0.47.0 - 2026-10-23
 
 **Highlights:** Opt-in HTML Gmail bodies, selected search headers, and calendar settings updates, with OAuth error redaction and certificate trust fixes.
