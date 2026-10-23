@@ -1,25 +1,21 @@
 # Changelog
 
-## 0.46.1 - Unreleased
+## 0.47.0 - 2026-10-23
 
-- Calendar: add `update-calendar` to inspect or patch calendar-level names, descriptions, locations, and timezones, with field validation, offline previews, and explicit optional-field clearing. (#1245) — thanks @sorenisanerd.
-
-- Gmail: expose up to 50 selected headers in message-search JSON and MCP with `--headers`, reusing existing reads and preserving sanitization and untrusted-content wrapping. (#1190, #1249) — thanks @obokaman-com.
+**Highlights:** Opt-in HTML Gmail bodies, selected search headers, and calendar settings updates, with OAuth error redaction and certificate trust fixes.
 
 - Gmail: add opt-in `--html-from-text` (or `GOG_GMAIL_HTML_FROM_TEXT`) to generate an escaped HTML alternative for plain send, reply, and draft bodies; preserve plain-text defaults and explicit HTML. (#1251) — thanks @mathieu-ships.
-
+- Gmail: expose up to 50 selected headers in message-search JSON and MCP with `--headers`, reusing existing reads and preserving sanitization and untrusted-content wrapping. (#1190, #1249) — thanks @obokaman-com.
+- Calendar: add `update-calendar` to inspect or patch calendar-level names, descriptions, locations, and timezones, with field validation, offline previews, and explicit optional-field clearing. (#1245) — thanks @sorenisanerd.
+- Auth: omit OAuth provider descriptions, URLs, and response bodies from command errors, per-item results, backup diagnostics, health checks, and watch/verbose logs; retain fixed recovery guidance, authentication exit codes, and both Calendar/Zoom rollback causes. (#1243) — thanks @pkyIntelligence.
+- Security: upgrade Alpine's default CA packages in Docker image build and runtime stages to reject the compromised eMudhra certificate chains. (#1244) — thanks @joshavant.
 - Auth: make Google Ads (`ads`) an explicit opt-in instead of part of the default `user`/`all-user` set; Google can gate the Ads scope behind mandatory passkey enrollment, which blocked ordinary reauth. Request it with `--services user,ads`.
 - Dependencies: update Pub/Sub, Google API and x/tools plus Cloudflare Workers types and Wrangler; retain Go 1.26 and the tracking worker’s 24-hour release cooldown.
-
 - Gmail: retry 403 rate limits with the existing bounded backoff and stop remaining detail fetches when a search fails; preserve error bodies and open the watch circuit on 403 rate limits. (#1241, #1242) — thanks @xyrolle.
 - Gmail: leave quoted search operators to Gmail instead of silently narrowing results with label filters. (#1247) — thanks @SebTardif.
 - Gmail: include nonempty Cc and Bcc headers in thread text output. (#1248) — thanks @alexpriest.
 - Gmail: preserve the direction of reply and forward headers beside right-to-left text, and add Gmail's quote classes without altering plain text or quoted content. (#1250) — thanks @malob.
 - Drive: preserve requested false booleans in list/search JSON, including grouped fields, slash paths, and wildcards; keep conditionally absent fields omitted. (#1246) — thanks @SebTardif.
-
-- Auth: omit OAuth provider descriptions, URLs, and response bodies from command errors, per-item results, backup diagnostics, health checks, and watch/verbose logs; retain fixed recovery guidance, authentication exit codes, and both Calendar/Zoom rollback causes. (#1243) — thanks @pkyIntelligence.
-
-- Security: upgrade Alpine's default CA packages in Docker image build and runtime stages to reject the compromised eMudhra certificate chains. (#1244) — thanks @joshavant.
 
 ## 0.46.0 - 2026-10-20
 
