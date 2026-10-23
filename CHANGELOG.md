@@ -2,6 +2,8 @@
 
 ## 0.46.1 - Unreleased
 
+- Calendar: add `update-calendar` to inspect or patch calendar-level names, descriptions, locations, and timezones, with field validation, offline previews, and explicit optional-field clearing. (#1245) — thanks @sorenisanerd.
+
 - Gmail: expose up to 50 selected headers in message-search JSON and MCP with `--headers`, reusing existing reads and preserving sanitization and untrusted-content wrapping. (#1190, #1249) — thanks @obokaman-com.
 
 - Gmail: add opt-in `--html-from-text` (or `GOG_GMAIL_HTML_FROM_TEXT`) to generate an escaped HTML alternative for plain send, reply, and draft bodies; preserve plain-text defaults and explicit HTML. (#1251) — thanks @mathieu-ships.
