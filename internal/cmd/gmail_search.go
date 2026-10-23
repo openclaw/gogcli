@@ -20,6 +20,7 @@ type GmailSearchCmd struct {
 	All         bool     `name:"all" aliases:"all-pages,allpages" help:"Fetch all pages"`
 	FailEmpty   bool     `name:"fail-empty" aliases:"non-empty,require-results" help:"Exit with code 3 if no results"`
 	Count       bool     `name:"count" help:"Report the whole-query count as totalMatches (exact) or totalMatchesAtLeast (lower bound); free with --all unless --page is set; unavailable with --results-only"`
+	IDsOnly     bool     `name:"ids-only" help:"Return only thread IDs from the list call, skipping the per-thread fetch (one API call per page; use --max 500 for the largest pages)"`
 	Oldest      bool     `name:"oldest" help:"Show first message date instead of last"`
 	Timezone    string   `name:"timezone" short:"z" help:"Output timezone (IANA name, e.g. America/New_York, UTC). Default: GOG_TIMEZONE, config, then local"`
 	Local       bool     `name:"local" help:"Use local timezone (default behavior, useful to override --timezone)"`
@@ -27,6 +28,9 @@ type GmailSearchCmd struct {
 
 func (c *GmailSearchCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
+	if c.IDsOnly && c.Oldest {
+		return usage("--ids-only cannot be used with --oldest")
+	}
 	if err := validateGmailMaxResults(c.Max); err != nil {
 		return err
 	}
@@ -96,19 +100,14 @@ func (c *GmailSearchCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return failEmptyExit(c.FailEmpty)
 	}
 
-	idToName, err := fetchLabelIDToName(svc)
-	if err != nil {
-		return err
-	}
-
-	loc, err := resolveOutputLocation(ctx, c.Timezone, c.Local, stderrWriter(ctx))
-	if err != nil {
-		return err
-	}
-
-	items, err := fetchThreadDetails(ctx, svc, threads, idToName, c.Oldest, loc)
-	if err != nil {
-		return err
+	var items []threadItem
+	if c.IDsOnly {
+		items = threadIDItems(threads)
+	} else {
+		items, err = c.fetchDetails(ctx, svc, threads)
+		if err != nil {
+			return err
+		}
 	}
 
 	if outfmt.IsJSON(ctx) {
@@ -127,7 +126,11 @@ func (c *GmailSearchCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return failEmptyExit(c.FailEmpty)
 	}
 
-	if err := outfmt.WriteTable(ctx, stdoutWriter(ctx), items, gmailThreadColumns()); err != nil {
+	columns := gmailThreadColumns()
+	if c.IDsOnly {
+		columns = gmailThreadIDColumns()
+	}
+	if err := outfmt.WriteTable(ctx, stdoutWriter(ctx), items, columns); err != nil {
 		return err
 	}
 	// stderr, so the table on stdout stays parseable.
@@ -136,6 +139,29 @@ func (c *GmailSearchCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 	printNextPageHintWithAll(u, nextPageToken, "--all/--all-pages")
 	return nil
+}
+
+func (c *GmailSearchCmd) fetchDetails(ctx context.Context, svc *gmail.Service, threads []*gmail.Thread) ([]threadItem, error) {
+	idToName, err := fetchLabelIDToName(svc)
+	if err != nil {
+		return nil, err
+	}
+	loc, err := resolveOutputLocation(ctx, c.Timezone, c.Local, stderrWriter(ctx))
+	if err != nil {
+		return nil, err
+	}
+	return fetchThreadDetails(ctx, svc, threads, idToName, c.Oldest, loc)
+}
+
+func threadIDItems(threads []*gmail.Thread) []threadItem {
+	items := make([]threadItem, 0, len(threads))
+	for _, t := range threads {
+		if t == nil || t.Id == "" {
+			continue
+		}
+		items = append(items, threadItem{ID: t.Id})
+	}
+	return items
 }
 
 func gmailFromContactQuery(ctx context.Context, account, selector string) (string, error) {

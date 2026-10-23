@@ -36,6 +36,7 @@ gog gmail (mail,email) messages (message,msg,msgs) search (find,query,ls,list) <
 | `--headers` | `string` |  | Include up to 50 headers in JSON output under headers (comma-separated, max 256 bytes per name; canonical keys, e.g. Message-ID becomes Message-Id; first value if repeated; no extra API calls) |
 | `-h`<br>`--help` | `kong.helpFlag` |  | Show context-sensitive help. |
 | `--home` | `string` |  | Override gogcli config/data/state/cache root (equivalent to GOG_HOME) |
+| `--ids-only` | `bool` |  | Return only message and thread IDs from the list call, skipping the per-message fetch (one API call per page; use --max 500 for the largest pages) |
 | `--include-attachments` | `bool` |  | Include each message's attachment metadata |
 | `--include-body` | `bool` |  | Include decoded message body (JSON is full; text output truncates only unusually large bodies) |
 | `--include-recipients` | `bool` |  | Include To, Cc, and Bcc in JSON output (no extra API calls) |

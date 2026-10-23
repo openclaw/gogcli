@@ -24,6 +24,19 @@ gog gmail search --max 2 --json -- '-in:inbox newer_than:7d'
 gog gmail messages search --max 2 --json -- '-in:inbox newer_than:7d'
 ```
 
+Both searches fetch each result's headers and labels with one extra API call
+per result. For bulk jobs that only need IDs, `--ids-only` returns what Gmail's
+list call already holds (`id` and `threadId` for messages, `id` for threads) and
+makes one call per page. Combine it with `--all --max 500`, Gmail's largest page,
+and pipe the IDs into `gmail batch modify`, which takes up to 1,000 IDs per call:
+
+```bash
+gog gmail messages search 'list:example.com' --all --max 500 --ids-only --json --results-only --select id
+```
+
+`--ids-only` rejects `--include-body`, `--full`, `--include-attachments`,
+`--include-recipients`, `--headers`, `--sanitize-content`, and, for `gmail search`, `--oldest`.
+
 Thread searches fail if any thread detail cannot be fetched, without emitting a
 partial result list, and stop the detail requests still pending. Retry the
 search after resolving the reported API error.
