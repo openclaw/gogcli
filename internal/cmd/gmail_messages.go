@@ -36,7 +36,7 @@ type GmailMessagesSearchCmd struct {
 	All                     bool     `name:"all" aliases:"all-pages,allpages" help:"Fetch all pages"`
 	FailEmpty               bool     `name:"fail-empty" aliases:"non-empty,require-results" help:"Exit with code 3 if no results"`
 	Count                   bool     `name:"count" help:"Report the whole-query count as totalMatches (exact) or totalMatchesAtLeast (lower bound); free with --all unless --page is set; unavailable with --results-only"`
-	IDsOnly                 bool     `name:"ids-only" help:"Return only message and thread IDs from the list call, skipping the per-message fetch (one API call per page; use --max 500 for the largest pages)"`
+	IDsOnly                 bool     `name:"ids-only" help:"Return only message and thread IDs from the list call, skipping the label lookup and per-message fetch (use --max 500 for the largest pages)"`
 	Timezone                string   `name:"timezone" short:"z" help:"Output timezone (IANA name, e.g. America/New_York, UTC). Default: GOG_TIMEZONE, config, then local"`
 	Local                   bool     `name:"local" help:"Use local timezone (default behavior, useful to override --timezone)"`
 	IncludeBody             bool     `name:"include-body" help:"Include decoded message body (JSON is full; text output truncates only unusually large bodies)"`

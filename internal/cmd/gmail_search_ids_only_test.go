@@ -103,6 +103,17 @@ func TestExecute_GmailMessagesSearch_IDsOnlyRejectsContentFlags(t *testing.T) {
 	}
 }
 
+func TestExecute_GmailSearch_IDsOnlyRejectsOldest(t *testing.T) {
+	result := executeWithGmailTestService(
+		t,
+		[]string{"--json", "--account", "a@b.com", "gmail", "search", "list:example.com", "--ids-only", "--oldest"},
+		nil,
+	)
+	if result.err == nil || !strings.Contains(result.err.Error(), "--ids-only cannot be used with --oldest") {
+		t.Fatalf("expected --ids-only usage error, got %v", result.err)
+	}
+}
+
 func TestExecute_GmailSearch_IDsOnlySkipsThreadFetches(t *testing.T) {
 	srv, unexpected := idsOnlyGmailServer(t, "threads")
 

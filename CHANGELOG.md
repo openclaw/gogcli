@@ -29,7 +29,7 @@
 - Dependencies: update Pub/Sub, Google API and x/tools plus Cloudflare Workers types and Wrangler; retain Go 1.26 and the tracking worker’s 24-hour release cooldown.
 - Gmail: retry 403 rate limits with the existing bounded backoff and stop remaining detail fetches when a search fails; preserve error bodies and open the watch circuit on 403 rate limits. (#1241, #1242) — thanks @xyrolle.
 - Gmail: add `--ids-only` to `gmail messages search` and `gmail search` to return IDs from the list call without one detail request per result, for bulk jobs that pipe into `gmail batch modify`.
-- Google APIs: raise the rate-limit retry budget from three to six backoffs (63-94s in total) so per-minute quotas such as Gmail's "Units per minute per user" can refill before a command fails.
+- Google APIs: raise the rate-limit retry budget from three to six backoffs (63s to just under 94.5s in total) so per-minute quotas such as Gmail's "Units per minute per user" can refill before a command fails.
 - Gmail: leave quoted search operators to Gmail instead of silently narrowing results with label filters. (#1247) — thanks @SebTardif.
 - Gmail: include nonempty Cc and Bcc headers in thread text output. (#1248) — thanks @alexpriest.
 - Gmail: preserve the direction of reply and forward headers beside right-to-left text, and add Gmail's quote classes without altering plain text or quoted content. (#1250) — thanks @malob.

@@ -34,7 +34,7 @@ gog gmail (mail,email) search (find,query,ls,list) <query> ... [flags]
 | `--gmail-no-send` | `bool` | false | Block Gmail send operations (agent safety) |
 | `-h`<br>`--help` | `kong.helpFlag` |  | Show context-sensitive help. |
 | `--home` | `string` |  | Override gogcli config/data/state/cache root (equivalent to GOG_HOME) |
-| `--ids-only` | `bool` |  | Return only thread IDs from the list call, skipping the per-thread fetch (one API call per page; use --max 500 for the largest pages) |
+| `--ids-only` | `bool` |  | Return only thread IDs from the list call, skipping the label lookup and per-thread fetch (use --max 500 for the largest pages) |
 | `-j`<br>`--json`<br>`--machine` | `bool` | false | Output JSON to stdout (best for scripting) |
 | `--local` | `bool` |  | Use local timezone (default behavior, useful to override --timezone) |
 | `--max`<br>`--limit` | `int64` | 10 | Max results |
