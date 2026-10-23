@@ -34,6 +34,7 @@ type GmailMessagesSearchCmd struct {
 	All                     bool     `name:"all" aliases:"all-pages,allpages" help:"Fetch all pages"`
 	FailEmpty               bool     `name:"fail-empty" aliases:"non-empty,require-results" help:"Exit with code 3 if no results"`
 	Count                   bool     `name:"count" help:"Report the whole-query count as totalMatches (exact) or totalMatchesAtLeast (lower bound); free with --all unless --page is set; unavailable with --results-only"`
+	IDsOnly                 bool     `name:"ids-only" help:"Return only message and thread IDs from the list call, skipping the label lookup and per-message fetch (use --max 500 for the largest pages)"`
 	Timezone                string   `name:"timezone" short:"z" help:"Output timezone (IANA name, e.g. America/New_York, UTC). Default: GOG_TIMEZONE, config, then local"`
 	Local                   bool     `name:"local" help:"Use local timezone (default behavior, useful to override --timezone)"`
 	IncludeBody             bool     `name:"include-body" help:"Include decoded message body (JSON is full; text output truncates only unusually large bodies)"`
@@ -50,6 +51,9 @@ func (c *GmailMessagesSearchCmd) Run(ctx context.Context, flags *RootFlags) erro
 	}
 	if c.SanitizeContent && c.IncludeBody && c.BodyFormat == gmailMessageBodyFormatHTML {
 		return usage("--sanitize-content cannot be used with --body-format html")
+	}
+	if c.IDsOnly && (c.IncludeBody || c.IncludeAttachments || c.IncludeRecipients || c.SanitizeContent) {
+		return usage("--ids-only cannot be used with --include-body, --full, --include-attachments, --include-recipients, or --sanitize-content")
 	}
 	u := ui.FromContext(ctx)
 	if err := validateGmailMaxResults(c.Max); err != nil {
@@ -116,19 +120,14 @@ func (c *GmailMessagesSearchCmd) Run(ctx context.Context, flags *RootFlags) erro
 		return failEmptyExit(c.FailEmpty)
 	}
 
-	idToName, err := fetchLabelIDToName(svc)
-	if err != nil {
-		return err
-	}
-
-	loc, err := resolveOutputLocation(ctx, c.Timezone, c.Local, stderrWriter(ctx))
-	if err != nil {
-		return err
-	}
-
-	items, err := fetchMessageDetails(ctx, svc, messages, idToName, loc, c.IncludeBody, c.BodyFormat, c.IncludeAttachments, c.UseIndexedAttachmentIDs, c.IncludeRecipients, c.SanitizeContent)
-	if err != nil {
-		return err
+	var items []messageItem
+	if c.IDsOnly {
+		items = messageIDItems(messages)
+	} else {
+		items, err = c.fetchDetails(ctx, svc, messages)
+		if err != nil {
+			return err
+		}
 	}
 
 	if outfmt.IsJSON(ctx) {
@@ -148,11 +147,15 @@ func (c *GmailMessagesSearchCmd) Run(ctx context.Context, flags *RootFlags) erro
 		return failEmptyExit(c.FailEmpty)
 	}
 
+	columns := gmailMessageColumns(c.IncludeBody, c.IncludeAttachments, c.Full)
+	if c.IDsOnly {
+		columns = gmailMessageIDColumns()
+	}
 	if err := outfmt.WriteTable(
 		ctx,
 		stdoutWriter(ctx),
 		items,
-		gmailMessageColumns(c.IncludeBody, c.IncludeAttachments, c.Full),
+		columns,
 	); err != nil {
 		return err
 	}
@@ -162,6 +165,29 @@ func (c *GmailMessagesSearchCmd) Run(ctx context.Context, flags *RootFlags) erro
 	}
 	printNextPageHintWithAll(u, nextPageToken, "--all/--all-pages")
 	return nil
+}
+
+func (c *GmailMessagesSearchCmd) fetchDetails(ctx context.Context, svc *gmail.Service, messages []*gmail.Message) ([]messageItem, error) {
+	idToName, err := fetchLabelIDToName(svc)
+	if err != nil {
+		return nil, err
+	}
+	loc, err := resolveOutputLocation(ctx, c.Timezone, c.Local, stderrWriter(ctx))
+	if err != nil {
+		return nil, err
+	}
+	return fetchMessageDetails(ctx, svc, messages, idToName, loc, c.IncludeBody, c.BodyFormat, c.IncludeAttachments, c.UseIndexedAttachmentIDs, c.IncludeRecipients, c.SanitizeContent)
+}
+
+func messageIDItems(messages []*gmail.Message) []messageItem {
+	items := make([]messageItem, 0, len(messages))
+	for _, m := range messages {
+		if m == nil || m.Id == "" {
+			continue
+		}
+		items = append(items, messageItem{ID: m.Id, ThreadID: m.ThreadId})
+	}
+	return items
 }
 
 type GmailMessagesModifyCmd struct {

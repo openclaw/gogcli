@@ -76,6 +76,19 @@ func sanitizeGmailTableValue(value string) string {
 	}, value)
 }
 
+func gmailMessageIDColumns() []outfmt.Column[messageItem] {
+	return []outfmt.Column[messageItem]{
+		{Header: "ID", Value: func(item messageItem) string { return item.ID }},
+		{Header: "THREAD", Value: func(item messageItem) string { return item.ThreadID }},
+	}
+}
+
+func gmailThreadIDColumns() []outfmt.Column[threadItem] {
+	return []outfmt.Column[threadItem]{
+		{Header: "ID", Value: func(item threadItem) string { return item.ID }},
+	}
+}
+
 func gmailThreadColumns() []outfmt.Column[threadItem] {
 	return []outfmt.Column[threadItem]{
 		{Header: "ID", Value: func(item threadItem) string { return item.ID }},
