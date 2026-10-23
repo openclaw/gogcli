@@ -701,3 +701,32 @@ func TestRetryTransport_Forbidden_KeepsBodyReadError(t *testing.T) {
 		t.Errorf("expected 1 call (a truncated body is not a rate limit), got %d", mock.calls)
 	}
 }
+
+func TestRetryTransport_RateLimit403_DefaultBudgetOutlastsPerMinuteQuota(t *testing.T) {
+	// mockTransport answers 200 once its scripted responses run out.
+	mock := &mockTransport{responses: make([]*http.Response, MaxRateLimitRetries)}
+	for i := range mock.responses {
+		mock.responses[i] = &http.Response{StatusCode: http.StatusForbidden, Body: rateLimit403Body("rateLimitExceeded")}
+	}
+
+	rt := NewRetryTransport(mock)
+	delays := recordBackoff(rt)
+
+	resp := roundTrip(t, rt)
+	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		t.Fatalf("expected 200 after retries, got %d", resp.StatusCode)
+	}
+
+	var total time.Duration
+	for _, d := range *delays {
+		total += d
+	}
+
+	// Gmail's "Units per minute per user" quota refills over a minute, so the
+	// default budget has to keep backing off for at least that long.
+	if total < time.Minute {
+		t.Errorf("total backoff = %v over %d retries, want at least 1m", total, len(*delays))
+	}
+}
