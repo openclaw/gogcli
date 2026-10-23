@@ -82,6 +82,7 @@ func TestRunGmailAutoReply_RepliesAndArchives(t *testing.T) {
 		Query:    "to:security@openclaw.ai in:inbox -label:SecurityAutoReplied",
 		Max:      10,
 		Body:     "please use GitHub private reporting",
+		BodyHTML: "<p>please use <b>GitHub</b> private reporting</p>",
 		Label:    "SecurityAutoReplied",
 		Archive:  true,
 		MarkRead: true,
@@ -92,6 +93,9 @@ func TestRunGmailAutoReply_RepliesAndArchives(t *testing.T) {
 	}
 	if summary.Replied != 1 || summary.Skipped != 0 {
 		t.Fatalf("unexpected summary: %#v", summary)
+	}
+	if html := composedHTML(t, sentRaw); html != `<div dir="auto"><p>please use <b>GitHub</b> private reporting</p></div>` {
+		t.Fatalf("expected the HTML body in a dir=auto div, got: %s", html)
 	}
 	if !strings.Contains(sentRaw, "To: reporter@example.com") {
 		t.Fatalf("expected reply recipient, got raw: %s", sentRaw)

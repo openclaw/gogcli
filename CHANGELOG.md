@@ -9,6 +9,7 @@
 - Gmail: leave quoted search operators to Gmail instead of silently narrowing results with label filters. (#1247) — thanks @SebTardif.
 - Gmail: include nonempty Cc and Bcc headers in thread text output. (#1248) — thanks @alexpriest.
 - Gmail: preserve the direction of reply and forward headers beside right-to-left text, and add Gmail's quote classes without altering plain text or quoted content. (#1250) — thanks @malob.
+- Gmail: give the author's own text its direction in HTML (`dir="auto"` on each line of converted plain text, once around given HTML, and on the signature) so right-to-left text reads correctly and English keeps its direction when a right-to-left reply quotes it; whole HTML documents go in as given. (#1255) — thanks @malob.
 - Drive: preserve requested false booleans in list/search JSON, including grouped fields, slash paths, and wildcards; keep conditionally absent fields omitted. (#1246) — thanks @SebTardif.
 
 - Auth: omit OAuth provider descriptions, URLs, and response bodies from command errors, per-item results, backup diagnostics, health checks, and watch/verbose logs; retain fixed recovery guidance, authentication exit codes, and both Calendar/Zoom rollback causes. (#1243) — thanks @pkyIntelligence.

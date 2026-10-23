@@ -207,45 +207,6 @@ func applyReplyQuote(ctx context.Context, quote bool, info *replyInfo, plainBody
 	return plainBody, htmlBody, nil
 }
 
-// composeText is the user's text above a quote or a forwarded message (a quoted
-// reply's body, which by then includes any signature, or a forward's note) in
-// whichever forms were given. A form that was given comes back as given; a
-// missing one is filled in from the other and trimmed. Whitespace-only counts
-// as missing.
-type composeText struct {
-	plain string
-	html  string
-}
-
-// hasHTML reports whether HTML was given.
-func (t composeText) hasHTML() bool {
-	return strings.TrimSpace(t.html) != ""
-}
-
-// plainVersion returns the plain text, derived from the HTML when only HTML
-// was given.
-func (t composeText) plainVersion() string {
-	if strings.TrimSpace(t.plain) == "" && t.hasHTML() {
-		return htmlToPlainText(t.html)
-	}
-	return t.plain
-}
-
-// htmlVersion returns the HTML, or the plain text escaped with its line breaks
-// kept when only plain text was given.
-func (t composeText) htmlVersion() string {
-	if !t.hasHTML() {
-		return escapeTextToHTML(strings.TrimSpace(t.plain))
-	}
-	return t.html
-}
-
-// htmlOnlyWithoutText reports whether the text was given only as HTML with no
-// plain-text rendering, such as a lone image, so a plain part could not carry it.
-func (t composeText) htmlOnlyWithoutText() bool {
-	return t.hasHTML() && strings.TrimSpace(t.plainVersion()) == ""
-}
-
 func buildGmailMessage(ctx context.Context, opts sendMessageOptions, batch sendBatch, allowMissingTo bool) (*gmail.Message, error) {
 	reply := replyInfo{}
 	if opts.ReplyInfo != nil {

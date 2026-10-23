@@ -201,7 +201,7 @@ func (c *GmailForwardOptions) buildForwardComposeMessage(ctx context.Context, sv
 	}
 
 	// The note fills in its missing form the way a reply body does.
-	note := composeText{plain: inputs.note, html: inputs.noteHTML}
+	note := composeText{plain: inputs.note, html: directedHTML(inputs.noteHTML)}
 
 	// The original's header lines, rendered once for both parts.
 	headers := forwardedMessageHeaders(origFrom, origDate, origSubject, origTo, origCc, loc)
@@ -370,15 +370,15 @@ func formatForwardedMessage(note string, signature composeSignature, headers []f
 	return sb.String()
 }
 
-// formatForwardedMessageHTML builds the HTML forwarded body. noteHTML is
-// written unescaped; a plain note goes through composeText.htmlVersion first.
+// formatForwardedMessageHTML builds the HTML forwarded body. noteHTML is the
+// note as composeText.htmlVersion returns it, written trimmed and with no
+// wrapper of its own.
 func formatForwardedMessageHTML(noteHTML string, signature composeSignature, headers []forwardedHeader, htmlContent string) string {
 	var sb strings.Builder
 
-	if strings.TrimSpace(noteHTML) != "" {
-		sb.WriteString("<div>")
-		sb.WriteString(strings.TrimSpace(noteHTML))
-		sb.WriteString("</div><br>")
+	if note := strings.TrimSpace(noteHTML); note != "" {
+		sb.WriteString(note)
+		sb.WriteString(breakAfter(note))
 	}
 	if block := signature.htmlBlock(); block != "" {
 		sb.WriteString(block)

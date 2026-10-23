@@ -184,7 +184,7 @@ func (c *GmailReplyOptions) resolveReplyInputs(ctx context.Context, messageID st
 // builds the reply recipients and body, and returns the message without sending
 // so the caller controls how it is dispatched.
 func (c *GmailReplyOptions) buildReplyComposeMessage(ctx context.Context, svc *gmail.Service, account string, inputs replyComposeInputs, replyAll bool) (replyComposeMessage, error) {
-	body, htmlBody := inputs.body, inputs.htmlBody
+	body, htmlBody := inputs.body, directedHTML(inputs.htmlBody)
 
 	sendAs, sendAsErr := listSendAs(ctx, svc)
 	from, err := resolveComposeFrom(ctx, svc, account, c.From, sendAs, sendAsErr)

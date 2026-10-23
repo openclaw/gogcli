@@ -179,7 +179,7 @@ func (c *GmailSendCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if err != nil {
 		return err
 	}
-	body, htmlBodyInput = appendComposeSignature(body, htmlBodyInput, signature)
+	body, htmlBodyInput = appendComposeSignature(body, directedHTML(htmlBodyInput), signature)
 	replyInfo, body, htmlBody, err := prepareComposeReply(ctx, svc, replyToMessageID, threadID, c.Quote, body, htmlBodyInput)
 	if err != nil {
 		return err
