@@ -2,6 +2,8 @@
 
 ## 0.46.1 - Unreleased
 
+- Dependencies: update Pub/Sub, Google API and x/tools plus Cloudflare Workers types and Wrangler; retain Go 1.26 and the tracking worker’s 24-hour release cooldown.
+
 - Gmail: retry 403 rate limits with the existing bounded backoff and stop remaining detail fetches when a search fails; preserve error bodies and open the watch circuit on 403 rate limits. (#1241, #1242) — thanks @xyrolle.
 - Gmail: leave quoted search operators to Gmail instead of silently narrowing results with label filters. (#1247) — thanks @SebTardif.
 - Gmail: include nonempty Cc and Bcc headers in thread text output. (#1248) — thanks @alexpriest.
