@@ -2,6 +2,12 @@
 
 ## 0.46.1 - Unreleased
 
+- Gmail: retry 403 rate limits with the existing bounded backoff and stop remaining detail fetches when a search fails; preserve error bodies and open the watch circuit on 403 rate limits. (#1241, #1242) — thanks @xyrolle.
+- Gmail: leave quoted search operators to Gmail instead of silently narrowing results with label filters. (#1247) — thanks @SebTardif.
+- Gmail: include nonempty Cc and Bcc headers in thread text output. (#1248) — thanks @alexpriest.
+- Gmail: preserve the direction of reply and forward headers beside right-to-left text, and add Gmail's quote classes without altering plain text or quoted content. (#1250) — thanks @malob.
+- Drive: preserve requested false booleans in list/search JSON, including grouped fields, slash paths, and wildcards; keep conditionally absent fields omitted. (#1246) — thanks @SebTardif.
+
 - Auth: omit OAuth provider descriptions, URLs, and response bodies from command errors, per-item results, backup diagnostics, health checks, and watch/verbose logs; retain fixed recovery guidance, authentication exit codes, and both Calendar/Zoom rollback causes. (#1243) — thanks @pkyIntelligence.
 
 - Security: upgrade Alpine's default CA packages in Docker image build and runtime stages to reject the compromised eMudhra certificate chains. (#1244) — thanks @joshavant.

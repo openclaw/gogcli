@@ -96,7 +96,9 @@ func gmailQuerySystemLabelIDs(query string) []string {
 				// NOT(in:inbox): the operand is complete in this field.
 			}
 		} else {
-			token := strings.ToLower(strings.Trim(field.text, gmailQueryBracketChars))
+			// Quoted spans are already gone from unquoted. Trimming quotes off
+			// the raw field turned `"is:unread"` into the label UNREAD.
+			token := strings.ToLower(strings.Trim(field.unquoted, gmailQueryBracketChars))
 			negated := negateNext || negatedDepth >= 0 || strings.HasPrefix(token, "-")
 			negateNext = false
 			if negated && negatedDepth < 0 && opens > closes {

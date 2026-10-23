@@ -142,6 +142,14 @@ func IsInsufficientScopeError(err error) bool {
 	return errors.As(err, &e)
 }
 
+// IsRateLimitReason reports whether a Google API error reason is a short-term
+// rate limit, which Google may return with HTTP 403 and asks clients to retry
+// with exponential backoff. Daily-limit and quota reasons are excluded: they
+// do not clear within a retry window.
+func IsRateLimitReason(reason string) bool {
+	return reason == "rateLimitExceeded" || reason == "userRateLimitExceeded"
+}
+
 // IsRateLimitError checks if the error is a rate limit error
 func IsRateLimitError(err error) bool {
 	var e *RateLimitError

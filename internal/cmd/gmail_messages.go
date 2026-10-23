@@ -254,6 +254,10 @@ func fetchMessageDetails(ctx context.Context, svc *gmail.Service, messages []*gm
 		return nil, nil
 	}
 
+	// The first failure fails the whole listing, so stop the remaining fetches.
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
 	const maxConcurrency = 10
 	sem := make(chan struct{}, maxConcurrency)
 
@@ -364,6 +368,7 @@ func fetchMessageDetails(ctx context.Context, svc *gmail.Service, messages []*gm
 		if r.err != nil {
 			if firstErr == nil {
 				firstErr = r.err
+				cancel()
 			}
 			ordered[r.index] = messageItem{}
 			continue

@@ -354,7 +354,7 @@ func TestGmailDraftsForward_SignatureBetweenNoteAndForwardedMessage(t *testing.T
 	if !strings.Contains(got.raw, "FYI\r\n\r\n--\r\nKind regards\r\nMe Person\r\n\r\n"+forwardedSeparator) {
 		t.Fatalf("plain signature not between note and forwarded message:\n%s", got.raw)
 	}
-	if !strings.Contains(got.raw, `<div>FYI</div><br><div class="gmail_signature"><div>Kind regards<br>Me Person</div></div><br><div class="gmail_quote">`) {
+	if !strings.Contains(got.raw, `<div>FYI</div><br><div class="gmail_signature"><div>Kind regards<br>Me Person</div></div><br>`+gmailQuoteOpen) {
 		t.Fatalf("html signature not between note and forwarded message:\n%s", got.raw)
 	}
 }
@@ -374,7 +374,7 @@ func TestGmailForward_SignatureBetweenNoteAndForwardedMessage(t *testing.T) {
 	if !strings.Contains(got.raw, "FYI\r\n\r\n--\r\nKind regards\r\nMe Person\r\n\r\n"+forwardedSeparator) {
 		t.Fatalf("plain signature not between note and forwarded message:\n%s", got.raw)
 	}
-	if !strings.Contains(got.raw, `<div>FYI</div><br><div class="gmail_signature"><div>Kind regards<br>Me Person</div></div><br><div class="gmail_quote">`) {
+	if !strings.Contains(got.raw, `<div>FYI</div><br><div class="gmail_signature"><div>Kind regards<br>Me Person</div></div><br>`+gmailQuoteOpen) {
 		t.Fatalf("html signature not between note and forwarded message:\n%s", got.raw)
 	}
 }
@@ -394,7 +394,7 @@ func TestGmailDraftsForward_SignatureWithoutNote(t *testing.T) {
 	if !strings.Contains(got.raw, "--\r\nKind regards\r\nMe Person\r\n\r\n"+forwardedSeparator) {
 		t.Fatalf("plain signature missing above forwarded message:\n%s", got.raw)
 	}
-	if !strings.Contains(got.raw, `<div class="gmail_signature"><div>Kind regards<br>Me Person</div></div><br><div class="gmail_quote">`) {
+	if !strings.Contains(got.raw, `<div class="gmail_signature"><div>Kind regards<br>Me Person</div></div><br>`+gmailQuoteOpen) {
 		t.Fatalf("html signature missing above forwarded message:\n%s", got.raw)
 	}
 }
@@ -447,11 +447,11 @@ func TestGmailForward_PlainOnlyOriginalKeepsHTMLSignature(t *testing.T) {
 		note      string
 		wantSig   string
 	}{
-		{"drafts image no note", imageSig, []string{"drafts", "forward"}, "", `<div class="gmail_signature">` + imageSig + `</div><br><div class="gmail_quote">`},
-		{"drafts image with note", imageSig, []string{"drafts", "forward"}, "FYI", `<div>FYI</div><br><div class="gmail_signature">` + imageSig + `</div><br><div class="gmail_quote">`},
-		{"send image no note", imageSig, []string{"forward"}, "", `<div class="gmail_signature">` + imageSig + `</div><br><div class="gmail_quote">`},
-		{"send image with note", imageSig, []string{"forward"}, "FYI", `<div>FYI</div><br><div class="gmail_signature">` + imageSig + `</div><br><div class="gmail_quote">`},
-		{"drafts text signature", textSig, []string{"drafts", "forward"}, "", `<div class="gmail_signature">` + textSig + `</div><br><div class="gmail_quote">`},
+		{"drafts image no note", imageSig, []string{"drafts", "forward"}, "", `<div class="gmail_signature">` + imageSig + `</div><br>` + gmailQuoteOpen},
+		{"drafts image with note", imageSig, []string{"drafts", "forward"}, "FYI", `<div>FYI</div><br><div class="gmail_signature">` + imageSig + `</div><br>` + gmailQuoteOpen},
+		{"send image no note", imageSig, []string{"forward"}, "", `<div class="gmail_signature">` + imageSig + `</div><br>` + gmailQuoteOpen},
+		{"send image with note", imageSig, []string{"forward"}, "FYI", `<div>FYI</div><br><div class="gmail_signature">` + imageSig + `</div><br>` + gmailQuoteOpen},
+		{"drafts text signature", textSig, []string{"drafts", "forward"}, "", `<div class="gmail_signature">` + textSig + `</div><br>` + gmailQuoteOpen},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -513,7 +513,7 @@ func TestGmailForward_BodylessOriginalKeepsHTMLSignature(t *testing.T) {
 			if result := executeWithGmailTestService(t, args, svc); result.err != nil {
 				t.Fatalf("forward: %v", result.err)
 			}
-			if !strings.Contains(got.raw, `<div class="gmail_signature">`+imageSig+`</div><br><div class="gmail_quote">`) {
+			if !strings.Contains(got.raw, `<div class="gmail_signature">`+imageSig+`</div><br>`+gmailQuoteOpen) {
 				t.Fatalf("image signature lost for a bodyless original:\n%s", got.raw)
 			}
 		})

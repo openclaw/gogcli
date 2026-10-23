@@ -15,6 +15,7 @@ import (
 	"google.golang.org/api/idtoken"
 
 	"github.com/openclaw/gogcli/internal/gmailwatch"
+	gogapi "github.com/openclaw/gogcli/internal/googleapi"
 )
 
 var errNoNewMessages = gmailwatch.ErrNoNewMessages
@@ -169,13 +170,28 @@ func isTerminalGmailAuthError(err error) bool {
 
 func gmailWatchRateLimitUntil(err error, now time.Time) (time.Time, bool) {
 	var gerr *googleapi.Error
-	if !errors.As(err, &gerr) || gerr.Code != http.StatusTooManyRequests {
+	if !errors.As(err, &gerr) || !isGmailRateLimitError(gerr) {
 		return time.Time{}, false
 	}
 	if until, ok := parseRetryAfterUntil(gerr.Header.Get("Retry-After"), now); ok {
 		return until, true
 	}
 	return now.Add(time.Minute), true
+}
+
+func isGmailRateLimitError(gerr *googleapi.Error) bool {
+	if gerr.Code == http.StatusTooManyRequests {
+		return true
+	}
+	if gerr.Code != http.StatusForbidden {
+		return false
+	}
+	for _, item := range gerr.Errors {
+		if gogapi.IsRateLimitReason(item.Reason) {
+			return true
+		}
+	}
+	return false
 }
 
 func parseRetryAfterUntil(raw string, now time.Time) (time.Time, bool) {

@@ -22,6 +22,49 @@ var driveFileConditionalBools = map[string]bool{
 	"WritersCanShare":         true,
 }
 
+// driveListRequestFields returns the Files.list mask for this request.
+// An empty override keeps the default list mask.
+func driveListRequestFields(override string) string {
+	if strings.TrimSpace(override) != "" {
+		return override
+	}
+	return driveFileListFields
+}
+
+// driveFileListItemMask extracts file selectors from a Files.list mask,
+// including grouped fields, slash paths, and whole-object wildcards.
+func driveFileListItemMask(mask string) string {
+	var fields []string
+	add := func(part string) {
+		part = strings.TrimSpace(part)
+		name, group, grouped := strings.Cut(part, "(")
+		switch {
+		case part == "*" || part == "files":
+			fields = append(fields, "*")
+		case strings.HasPrefix(part, "files/"):
+			fields = append(fields, strings.TrimPrefix(part, "files/"))
+		case grouped && strings.TrimSpace(name) == "files" && strings.HasSuffix(group, ")"):
+			fields = append(fields, strings.TrimSuffix(group, ")"))
+		}
+	}
+	depth, start := 0, 0
+	for i, r := range mask {
+		switch r {
+		case '(':
+			depth++
+		case ')':
+			depth--
+		case ',':
+			if depth == 0 {
+				add(mask[start:i])
+				start = i + 1
+			}
+		}
+	}
+	add(mask[start:])
+	return strings.Join(fields, ",")
+}
+
 // forceRequestedDriveFileBools keeps top-level boolean fields named in mask in
 // JSON output. drive.File tags them omitempty, so a requested `trashed: false`
 // would otherwise disappear.

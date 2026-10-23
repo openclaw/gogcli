@@ -7,8 +7,6 @@ import (
 	"testing"
 )
 
-const forwardedHTMLMarker = `<div class="gmail_quote">`
-
 // noteRegion returns the part of a forward body above the forwarded message.
 func noteRegion(t *testing.T, body, marker string) string {
 	t.Helper()
@@ -30,7 +28,7 @@ func TestGmailForward_PlainNoteKeepsLineBreaksInHTML(t *testing.T) {
 				t.Errorf("plain note = %q, want %q", got, note)
 			}
 			const wantHTML = "First paragraph.<br>\n<br>\nSecond paragraph, with &lt;tags&gt; &amp; ampersands."
-			if got := noteRegion(t, html, forwardedHTMLMarker); !strings.Contains(got, wantHTML) {
+			if got := noteRegion(t, html, gmailQuoteOpen); !strings.Contains(got, wantHTML) {
 				t.Errorf("HTML note lost its line breaks or escaping; want %q in:\n%s", wantHTML, got)
 			}
 		})
@@ -83,7 +81,7 @@ func TestGmailForward_HTMLNote(t *testing.T) {
 				if got := strings.TrimSpace(noteRegion(t, plain, forwardedSeparator)); got != tc.wantPlain {
 					t.Errorf("plain note = %q, want %q", got, tc.wantPlain)
 				}
-				htmlNote := noteRegion(t, html, forwardedHTMLMarker)
+				htmlNote := noteRegion(t, html, gmailQuoteOpen)
 				if !strings.Contains(htmlNote, tc.wantHTML) {
 					t.Errorf("HTML note missing %q:\n%s", tc.wantHTML, htmlNote)
 				}
@@ -121,7 +119,7 @@ func TestGmailForward_WhitespaceOnlyHTMLNoteCountsAsMissing(t *testing.T) {
 			if !strings.HasPrefix(plain, forwardedSeparator) {
 				t.Errorf("plain part should be the forwarded message alone:\n%s", plain)
 			}
-			if got := noteRegion(t, html, forwardedHTMLMarker); got != "" {
+			if got := noteRegion(t, html, gmailQuoteOpen); got != "" {
 				t.Errorf("HTML note = %q, want none", got)
 			}
 		})
@@ -130,7 +128,7 @@ func TestGmailForward_WhitespaceOnlyHTMLNoteCountsAsMissing(t *testing.T) {
 			if got := strings.TrimSpace(noteRegion(t, plain, forwardedSeparator)); got != "FYI" {
 				t.Errorf("plain note = %q, want %q", got, "FYI")
 			}
-			if got := noteRegion(t, html, forwardedHTMLMarker); got != "<div>FYI</div><br>" {
+			if got := noteRegion(t, html, gmailQuoteOpen); got != "<div>FYI</div><br>" {
 				t.Errorf("HTML note = %q, want the plain note escaped", got)
 			}
 		})
@@ -179,7 +177,7 @@ func TestGmailForward_ImageOnlyHTMLNote(t *testing.T) {
 						t.Errorf("plain part should open with %q; got:\n%s", tc.wantPlain, plain)
 					}
 				}
-				if html := rawTextPart(t, got.raw, "text/html"); !strings.Contains(noteRegion(t, html, forwardedHTMLMarker), image) {
+				if html := rawTextPart(t, got.raw, "text/html"); !strings.Contains(noteRegion(t, html, gmailQuoteOpen), image) {
 					t.Errorf("image note missing above the forwarded message:\n%s", html)
 				}
 			})
@@ -203,7 +201,7 @@ func TestGmailForward_HTMLNoteSitsAboveSignature(t *testing.T) {
 				t.Errorf("plain part not note, signature, forward; want %q in:\n%s", want, plain)
 			}
 			html := rawTextPart(t, got.raw, "text/html")
-			if want := `<div><p>See <b>below</b>.</p></div><br><div class="gmail_signature"><div>Kind regards</div></div><br>` + forwardedHTMLMarker; !strings.Contains(html, want) {
+			if want := `<div><p>See <b>below</b>.</p></div><br><div class="gmail_signature"><div>Kind regards</div></div><br>` + gmailQuoteOpen; !strings.Contains(html, want) {
 				t.Errorf("HTML part not note, signature, forward; want %q in:\n%s", want, html)
 			}
 		})

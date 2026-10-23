@@ -51,7 +51,7 @@ func TestWriteDriveListAggregatesAndProjection(t *testing.T) {
 		ctx := outfmt.WithMode(context.Background(), outfmt.Mode{JSON: true})
 		ctx = app.WithRuntime(ctx, &app.Runtime{IO: app.IO{Out: &buf}})
 		ctx = outfmt.WithJSONTransform(ctx, outfmt.JSONTransform{ResultsOnly: resultsOnly})
-		err := writeDriveFileList(ctx, &drive.FileList{Files: []*drive.File{{Id: "one"}}, NextPageToken: "two"}, "empty")
+		err := writeDriveFileList(ctx, &drive.FileList{Files: []*drive.File{{Id: "one"}}, NextPageToken: "two"}, "empty", "")
 		if err != nil {
 			t.Fatal(err)
 		}

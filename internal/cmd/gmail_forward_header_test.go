@@ -41,20 +41,18 @@ func TestForwardedHeaderLines(t *testing.T) {
 				"Cc: Dave, Encoded <dave@example.com>, <erin@example.com>",
 			},
 			wantHTML: []string{
-				`From: <strong class="gmail_sendername">Sender, Example</strong> &lt;<a href="mailto:sender@example.com">sender@example.com</a>&gt;`,
-				`To: Alice Example &lt;<a href="mailto:alice@example.com">alice@example.com</a>&gt;, &lt;<a href="mailto:bob@example.com">bob@example.com</a>&gt;, Carol, Quoted &lt;<a href="mailto:carol@example.org">carol@example.org</a>&gt;`,
-				`Cc: Dave, Encoded &lt;<a href="mailto:dave@example.com">dave@example.com</a>&gt;, &lt;<a href="mailto:erin@example.com">erin@example.com</a>&gt;`,
+				"From: " + forwardSenderNameHTML("Sender, Example") + " " + quoteAddressHTML("sender@example.com"),
+				"To: " + isolatedHTML("Alice Example") + " " + quoteAddressHTML("alice@example.com") + ", " +
+					quoteAddressHTML("bob@example.com") + ", " + isolatedHTML("Carol, Quoted") + " " + quoteAddressHTML("carol@example.org"),
+				"Cc: " + isolatedHTML("Dave, Encoded") + " " + quoteAddressHTML("dave@example.com") + ", " + quoteAddressHTML("erin@example.com"),
 			},
 		},
 		{
 			name: "nameless sender, no Cc",
 			from: "sender@example.com", subject: subject, to: "recipient@example.com",
 			wantPlain: []string{"From: <sender@example.com>", "To: <recipient@example.com>"},
-			wantHTML: []string{
-				`From: &lt;<a href="mailto:sender@example.com">sender@example.com</a>&gt;`,
-				`To: &lt;<a href="mailto:recipient@example.com">recipient@example.com</a>&gt;`,
-			},
-			absent: []string{"Cc"},
+			wantHTML:  []string{"From: " + quoteAddressHTML("sender@example.com"), "To: " + quoteAddressHTML("recipient@example.com")},
+			absent:    []string{"Cc"},
 		},
 		{
 			name: "groups list their members, as in Gmail",
@@ -66,8 +64,8 @@ func TestForwardedHeaderLines(t *testing.T) {
 				"Cc: John Smith <john@example.com>",
 			},
 			wantHTML: []string{
-				`To: &lt;<a href="mailto:a@example.com">a@example.com</a>&gt;, &lt;<a href="mailto:b@example.com">b@example.com</a>&gt;, &lt;<a href="mailto:c@example.com">c@example.com</a>&gt;`,
-				`Cc: John Smith &lt;<a href="mailto:john@example.com">john@example.com</a>&gt;`,
+				"To: " + quoteAddressHTML("a@example.com") + ", " + quoteAddressHTML("b@example.com") + ", " + quoteAddressHTML("c@example.com"),
+				"Cc: " + isolatedHTML("John Smith") + " " + quoteAddressHTML("john@example.com"),
 			},
 		},
 		{
@@ -89,8 +87,8 @@ func TestForwardedHeaderLines(t *testing.T) {
 				"To: Evil, Name <evil@example.com>, other@example.com",
 			},
 			wantHTML: []string{
-				"From: Evil, Name &lt;evil@example.com&gt;",
-				"To: Evil, Name &lt;evil@example.com&gt;, other@example.com",
+				"From: " + isolatedHTML("Evil, Name &lt;evil@example.com&gt;"),
+				"To: " + isolatedHTML("Evil, Name &lt;evil@example.com&gt;, other@example.com"),
 			},
 		},
 		{
@@ -105,20 +103,18 @@ func TestForwardedHeaderLines(t *testing.T) {
 				`To: <"john smith"@example.com>, R&D <Team> <user?bcc=x@example.com>`,
 			},
 			wantHTML: []string{
-				`From: <strong class="gmail_sendername">&lt;b&gt;Eve&lt;/b&gt;</strong> &lt;<a href="mailto:eve@example.com">eve@example.com</a>&gt;`,
-				"Date: &lt;b&gt;soon&lt;/b&gt; &amp; later",
-				"Subject: &lt;i&gt;Hi&lt;/i&gt; &amp; co",
-				`To: &lt;<a href="mailto:%22john%20smith%22@example.com">&#34;john smith&#34;@example.com</a>&gt;, R&amp;D &lt;Team&gt; &lt;<a href="mailto:user%3Fbcc%3Dx@example.com">user?bcc=x@example.com</a>&gt;`,
+				"From: " + forwardSenderNameHTML("&lt;b&gt;Eve&lt;/b&gt;") + " " + quoteAddressHTML("eve@example.com"),
+				"Date: " + isolatedHTML("&lt;b&gt;soon&lt;/b&gt; &amp; later"),
+				"Subject: " + isolatedHTML("&lt;i&gt;Hi&lt;/i&gt; &amp; co"),
+				"To: " + isolatedHTML(`&lt;<a href="mailto:%22john%20smith%22@example.com">&#34;john smith&#34;@example.com</a>&gt;`) + ", " +
+					isolatedHTML("R&amp;D &lt;Team&gt;") + " " + isolatedHTML(`&lt;<a href="mailto:user%3Fbcc%3Dx@example.com">user?bcc=x@example.com</a>&gt;`),
 			},
 		},
 		{
 			name: "a blank display name counts as none",
 			from: `" " <sender@example.com>`, subject: subject, to: `" " <recipient@example.com>`,
 			wantPlain: []string{"From: <sender@example.com>", "To: <recipient@example.com>"},
-			wantHTML: []string{
-				`From: &lt;<a href="mailto:sender@example.com">sender@example.com</a>&gt;`,
-				`To: &lt;<a href="mailto:recipient@example.com">recipient@example.com</a>&gt;`,
-			},
+			wantHTML:  []string{"From: " + quoteAddressHTML("sender@example.com"), "To: " + quoteAddressHTML("recipient@example.com")},
 		},
 	}
 	for _, tc := range cases {
@@ -163,21 +159,22 @@ func TestForwardedHeaderLayout(t *testing.T) {
 			t.Errorf("text/plain wants two blank lines between the headers and the body:\n%q", plain)
 		}
 
-		const open = `<div class="gmail_quote">`
-		block, body, found := strings.Cut(strings.TrimPrefix(html, open), "</div>")
-		if !strings.HasPrefix(html, open) || !found {
+		// The block runs from the quote's opening markup to the first </div>.
+		block, body, found := strings.Cut(html, "</div>")
+		if !found {
 			t.Fatalf("text/html has no header block:\n%s", html)
 		}
-		if !strings.HasPrefix(block, "<div>"+forwardedSeparator+"<br>From: ") {
+		if !strings.HasPrefix(block, gmailQuoteOpen+forwardedSeparator+"<br>From: ") {
 			t.Errorf("text/html separator is not followed by the From line:\n%s", block)
 		}
-		// Check only the header block: the original's own markup may be bold or styled.
+		// Check only the header block (opening markup included): the
+		// original's own markup may be bold or styled.
 		for _, markup := range []string{"<b>", "style=", "color"} {
 			if strings.Contains(block, markup) {
 				t.Errorf("text/html header block contains %q:\n%s", markup, block)
 			}
 		}
-		if strings.Count(block, "<strong") != 1 || !strings.Contains(block, `From: <strong class="gmail_sendername">Alice</strong> &lt;`) {
+		if strings.Count(block, "<strong") != 1 || !strings.Contains(block, "From: "+forwardSenderNameHTML("Alice")+" ") {
 			t.Errorf("text/html wants only the sender's name in bold:\n%s", block)
 		}
 		if body != "<br><br><p>Body.</p></div>" {
@@ -191,7 +188,7 @@ func TestForwardedHeaderLayout(t *testing.T) {
 		if plain, want := formatForwardedMessage("", composeSignature{}, headers, ""), forwardedSeparator+"\nFrom: <a@example.com>\nSubject: Subject\n"; plain != want {
 			t.Errorf("text/plain = %q, want %q", plain, want)
 		}
-		if html := formatForwardedMessageHTML("", composeSignature{}, headers, ""); !strings.HasSuffix(html, "Subject: Subject<br></div></div>") {
+		if html := formatForwardedMessageHTML("", composeSignature{}, headers, ""); !strings.HasSuffix(html, "Subject: "+isolatedHTML("Subject")+"<br></div></div>") {
 			t.Errorf("text/html ends with blank lines: %q", html)
 		}
 	})
@@ -223,11 +220,11 @@ func TestGmailForward_HeaderBlockLikeGmail(t *testing.T) {
 		"Cc: Carol, Quoted <carol@example.org>\n\n\n" +
 		"Hello, this is the body."
 	wantHTML := []string{
-		`From: <strong class="gmail_sendername">Sender, Example</strong> &lt;<a href="mailto:sender@example.com">sender@example.com</a>&gt;`,
-		"Date: Tue, Mar 10, 2026 at 1:00\u202fPM",
-		"Subject: Original Subject",
-		`To: Alice Example &lt;<a href="mailto:alice@example.com">alice@example.com</a>&gt;, &lt;<a href="mailto:bob@example.com">bob@example.com</a>&gt;`,
-		`Cc: Carol, Quoted &lt;<a href="mailto:carol@example.org">carol@example.org</a>&gt;`,
+		"From: " + forwardSenderNameHTML("Sender, Example") + " " + quoteAddressHTML("sender@example.com"),
+		"Date: " + isolatedHTML("Tue, Mar 10, 2026 at 1:00\u202fPM"),
+		"Subject: " + isolatedHTML("Original Subject"),
+		"To: " + isolatedHTML("Alice Example") + " " + quoteAddressHTML("alice@example.com") + ", " + quoteAddressHTML("bob@example.com"),
+		"Cc: " + isolatedHTML("Carol, Quoted") + " " + quoteAddressHTML("carol@example.org"),
 	}
 	for _, cmd := range forwardCommands {
 		t.Run(cmd.name, func(t *testing.T) {
@@ -235,7 +232,7 @@ func TestGmailForward_HeaderBlockLikeGmail(t *testing.T) {
 			if !strings.Contains(plain, wantPlain) {
 				t.Errorf("text/plain header block:\n got %q\nwant %q", plain, wantPlain)
 			}
-			_, rest, found := strings.Cut(html, "<div>"+forwardedSeparator)
+			_, rest, found := strings.Cut(html, gmailQuoteOpen+forwardedSeparator)
 			block, after, closed := strings.Cut(rest, "</div>")
 			if !found || !closed {
 				t.Fatalf("text/html has no header block:\n%s", html)

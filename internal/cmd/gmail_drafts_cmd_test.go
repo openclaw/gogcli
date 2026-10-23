@@ -583,14 +583,11 @@ func TestGmailDraftsCreateCmd_WithQuote(t *testing.T) {
 			if plain := rawTextPart(t, s, "text/plain"); !strings.Contains(plain, "On Mon, Jan 1, 2024 at 12:00\u202fAM Alice <alice@example.com> wrote:") {
 				t.Fatalf("missing quoted attribution in text/plain part:\n%s", plain)
 			}
-			if htmlPart := rawTextPart(t, s, "text/html"); !strings.Contains(htmlPart, `On Mon, Jan 1, 2024 at 12:00`+"\u202f"+`AM Alice &lt;<a href="mailto:alice@example.com">alice@example.com</a>&gt; wrote:`) {
-				t.Fatalf("missing linked HTML attribution in text/html part:\n%s", htmlPart)
+			if htmlPart := rawTextPart(t, s, "text/html"); !strings.Contains(htmlPart, gmailQuoteOpen+"On "+isolatedHTML("Mon, Jan 1, 2024 at 12:00\u202fAM")+" "+isolatedHTML("Alice")+" "+quoteAddressHTML("alice@example.com")+" wrote:</div>") {
+				t.Fatalf("missing quoted HTML block with linked attribution in text/html part:\n%s", htmlPart)
 			}
 			if !strings.Contains(s, "> Original plain line") {
 				t.Fatalf("missing quoted plain body in raw:\n%s", s)
-			}
-			if !strings.Contains(s, "gmail_quote") {
-				t.Fatalf("missing quoted html block in raw:\n%s", s)
 			}
 			writeGmailDraftResponse(w)
 			return
@@ -1418,8 +1415,8 @@ func TestGmailDraftsUpdateCmd_WithQuoteFromExistingThread(t *testing.T) {
 			if !strings.Contains(s, "> Original thread message") {
 				t.Fatalf("missing quoted plain body in raw:\n%s", s)
 			}
-			if !strings.Contains(s, "gmail_quote") {
-				t.Fatalf("missing quoted html block in raw:\n%s", s)
+			if htmlPart := rawTextPart(t, s, "text/html"); !strings.Contains(htmlPart, gmailQuoteOpen) {
+				t.Fatalf("missing quoted html block in text/html part:\n%s", htmlPart)
 			}
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(map[string]any{
@@ -1559,6 +1556,9 @@ func TestGmailDraftsUpdateCmd_WithQuoteAndReplyToMessageID(t *testing.T) {
 			}
 			if !strings.Contains(s, "> Quoted from explicit message id") {
 				t.Fatalf("missing quoted plain body in raw:\n%s", s)
+			}
+			if htmlPart := rawTextPart(t, s, "text/html"); !strings.Contains(htmlPart, gmailQuoteOpen) {
+				t.Fatalf("missing quoted html block in text/html part:\n%s", htmlPart)
 			}
 			writeGmailDraftResponse(w)
 			return

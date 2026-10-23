@@ -25,7 +25,10 @@ gog gmail messages search --max 2 --json -- '-in:inbox newer_than:7d'
 ```
 
 Thread searches fail if any thread detail cannot be fetched, without emitting a
-partial result list. Retry the search after resolving the reported API error.
+partial result list, and stop the detail requests still pending. Retry the
+search after resolving the reported API error.
+
+Quoted operators such as `"is:unread"` are literal phrases and are passed to Gmail without adding a label filter. `gmail thread get` includes nonempty Cc and Bcc headers in its text output.
 
 ### Full payloads and raw MIME
 
@@ -435,11 +438,15 @@ gog gmail drafts forward <messageId> --note "FYI"
 ```
 
 The forwarded-message block lists whichever of the original's From, Date,
-Subject, To and Cc it has, in line with Gmail's forwards: the sender and each
-recipient as `Name <email>`, or `<email>` without a name, with the addresses
-linked in the HTML part. A group lists only its members, so a To of only
-`undisclosed-recipients:;` is left empty, and a value that isn't a valid
-address list is shown as it appears in the original.
+Subject, To and Cc it has that aren't blank, in line with Gmail's forwards: the
+sender and each recipient as `Name <email>`, or `<email>` without a name, with
+the addresses linked in the HTML part. A group lists only its members, so a To
+of only `undisclosed-recipients:;` is left empty, and a value that isn't a
+valid address list is shown as it appears in the original. In the HTML part
+this block and a reply's "On … wrote:" line are marked left-to-right, since gog
+writes them in English, and each value taken from the original (a name, an
+address, the subject, the date) keeps its own direction, so a Hebrew or Arabic
+name doesn't reorder the line around it.
 
 Remote HTTP images remain remote references. Only MIME parts referenced with
 `cid:` are copied into the outgoing message.

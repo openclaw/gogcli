@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	cryptorand "crypto/rand"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -17,7 +18,7 @@ import (
 
 const (
 	maxBufferedReplayBodyBytes    = int64(16 << 20)
-	maxAuthRetryResponseBodyBytes = int64(1 << 20)
+	maxInspectedResponseBodyBytes = int64(1 << 20)
 	// maxRetryAfter caps Retry-After waits. Google may send delta-seconds
 	// or an HTTP-date far in the future; CLI contexts often have no deadline.
 	maxRetryAfter = 60 * time.Second
@@ -44,7 +45,7 @@ func retriesDisabled(ctx context.Context) bool {
 }
 
 // RetryTransport wraps an http.RoundTripper with retry logic for
-// rate limits (429) and server errors (5xx).
+// rate limits (429, or 403 with a rate-limit reason) and server errors (5xx).
 type RetryTransport struct {
 	Base           http.RoundTripper
 	MaxRetries429  int
@@ -57,6 +58,9 @@ type RetryTransport struct {
 	// flow, persist the new refresh token, and return nil on success.
 	// If Reauth is nil, invalid_grant errors are surfaced without retry.
 	Reauth func(context.Context) error
+
+	// sleepFn replaces the backoff wait in tests.
+	sleepFn func(context.Context, time.Duration) error
 }
 
 // NewRetryTransport creates a RetryTransport with sensible defaults.
@@ -149,14 +153,15 @@ func (t *RetryTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 			return resp, nil
 		}
 
-		// Rate limit (429)
-		if resp.StatusCode == http.StatusTooManyRequests {
+		// Rate limit (429, or 403 with a rate-limit reason)
+		if resp.StatusCode == http.StatusTooManyRequests || responseIndicatesRateLimit(resp) {
 			if retryDisabled || retries429 >= t.MaxRetries429 || !replayable {
-				return resp, nil // Return the 429 response after max retries
+				return resp, nil // Return the rate-limit response after max retries
 			}
 
 			delay := t.calculateBackoff(retries429, resp)
 			slog.Debug("rate limited, retrying",
+				"status", resp.StatusCode,
 				"delay", delay,
 				"attempt", retries429+1,
 				"max_retries", t.MaxRetries429)
@@ -300,6 +305,10 @@ func randomDurationBelow(upperBound time.Duration) (time.Duration, error) {
 }
 
 func (t *RetryTransport) sleep(ctx context.Context, d time.Duration) error {
+	if t.sleepFn != nil {
+		return t.sleepFn(ctx, d)
+	}
+
 	if d <= 0 {
 		return nil
 	}
@@ -352,36 +361,93 @@ func drainAndClose(body io.ReadCloser) {
 	_ = body.Close()
 }
 
-func responseIndicatesInsufficientScopes(resp *http.Response) (bool, error) {
+// peekResponseBody reads a small response body and puts an identical body
+// back on resp, so the caller still receives the original response. It
+// returns ok=false for bodies too large to inspect.
+func peekResponseBody(resp *http.Response) (body []byte, ok bool, err error) {
 	if resp == nil || resp.Body == nil {
-		return false, nil
+		return nil, false, nil
 	}
 
-	if resp.ContentLength > maxAuthRetryResponseBodyBytes {
-		return false, nil
+	if resp.ContentLength > maxInspectedResponseBodyBytes {
+		return nil, false, nil
 	}
 
-	bodyBytes, err := io.ReadAll(io.LimitReader(resp.Body, maxAuthRetryResponseBodyBytes+1))
+	bodyBytes, err := io.ReadAll(io.LimitReader(resp.Body, maxInspectedResponseBodyBytes+1))
 	if err != nil {
+		// The caller reads the bytes already consumed, then the same error:
+		// the body must not turn into a cleanly terminated prefix.
 		resp.Body = struct {
 			io.Reader
 			io.Closer
-		}{Reader: io.MultiReader(bytes.NewReader(bodyBytes), resp.Body), Closer: resp.Body}
+		}{Reader: io.MultiReader(bytes.NewReader(bodyBytes), failingReader{err: err}), Closer: resp.Body}
 
-		return false, fmt.Errorf("read auth failure response: %w", err)
+		return nil, false, fmt.Errorf("read error response: %w", err)
 	}
 
-	if int64(len(bodyBytes)) > maxAuthRetryResponseBodyBytes {
+	if int64(len(bodyBytes)) > maxInspectedResponseBodyBytes {
 		resp.Body = struct {
 			io.Reader
 			io.Closer
 		}{Reader: io.MultiReader(bytes.NewReader(bodyBytes), resp.Body), Closer: resp.Body}
 
-		return false, nil
+		return nil, false, nil
 	}
 
 	_ = resp.Body.Close()
 	resp.Body = io.NopCloser(bytes.NewReader(bodyBytes))
+
+	return bodyBytes, true, nil
+}
+
+// failingReader replays a body read error on every read.
+type failingReader struct{ err error }
+
+func (r failingReader) Read([]byte) (int, error) { return 0, r.err }
+
+// responseIndicatesRateLimit reports whether resp is a 403 whose Google error
+// reason is a rate limit. Google documents these as retryable with
+// exponential backoff, like 429.
+func responseIndicatesRateLimit(resp *http.Response) bool {
+	if resp.StatusCode != http.StatusForbidden {
+		return false
+	}
+
+	bodyBytes, ok, err := peekResponseBody(resp)
+	if err != nil {
+		slog.Debug("could not inspect forbidden response for rate limit", "err", err)
+		return false
+	}
+
+	if !ok {
+		return false
+	}
+
+	var payload struct {
+		Error struct {
+			Errors []struct {
+				Reason string `json:"reason"`
+			} `json:"errors"`
+		} `json:"error"`
+	}
+	if json.Unmarshal(bodyBytes, &payload) != nil {
+		return false
+	}
+
+	for _, item := range payload.Error.Errors {
+		if IsRateLimitReason(item.Reason) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func responseIndicatesInsufficientScopes(resp *http.Response) (bool, error) {
+	bodyBytes, ok, err := peekResponseBody(resp)
+	if err != nil || !ok {
+		return false, err
+	}
 
 	text := strings.ToLower(string(bodyBytes))
 	normalized := strings.NewReplacer("_", " ", "-", " ").Replace(text)

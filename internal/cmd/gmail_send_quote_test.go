@@ -41,23 +41,30 @@ func TestQuoteAttribution(t *testing.T) {
 			from:      `"Example Sender" <sender@example.com>`,
 			date:      date,
 			wantPlain: "On Fri, Aug 14, 2026 at 4:01\u202fPM Example Sender <sender@example.com> wrote:",
-			wantHTML:  `On Fri, Aug 14, 2026 at 4:01` + "\u202f" + `PM Example Sender &lt;<a href="mailto:sender@example.com">sender@example.com</a>&gt; wrote:`,
+			wantHTML:  "On " + isolatedHTML("Fri, Aug 14, 2026 at 4:01\u202fPM") + " " + isolatedHTML("Example Sender") + " " + quoteAddressHTML("sender@example.com") + " wrote:",
 		},
 		{
 			name:      "nameless sender",
 			from:      "sender@example.com",
 			date:      date,
 			wantPlain: "On Fri, Aug 14, 2026 at 4:01\u202fPM <sender@example.com> wrote:",
-			wantHTML:  `On Fri, Aug 14, 2026 at 4:01` + "\u202f" + `PM &lt;<a href="mailto:sender@example.com">sender@example.com</a>&gt; wrote:`,
+			wantHTML:  "On " + isolatedHTML("Fri, Aug 14, 2026 at 4:01\u202fPM") + " " + quoteAddressHTML("sender@example.com") + " wrote:",
 		},
 		{
 			name:      "no date",
 			from:      "Example Sender <sender@example.com>",
 			wantPlain: "Example Sender <sender@example.com> wrote:",
-			wantHTML:  `Example Sender &lt;<a href="mailto:sender@example.com">sender@example.com</a>&gt; wrote:`,
+			wantHTML:  isolatedHTML("Example Sender") + " " + quoteAddressHTML("sender@example.com") + " wrote:",
 		},
 		{
 			name:      "no sender",
+			date:      date,
+			wantPlain: "Original message:",
+			wantHTML:  "Original message:",
+		},
+		{
+			name:      "blank sender",
+			from:      "  ",
 			date:      date,
 			wantPlain: "Original message:",
 			wantHTML:  "Original message:",
@@ -67,14 +74,22 @@ func TestQuoteAttribution(t *testing.T) {
 			from:      `Alice <"john smith"@example.com>`,
 			date:      date,
 			wantPlain: "On Fri, Aug 14, 2026 at 4:01\u202fPM Alice <\"john smith\"@example.com> wrote:",
-			wantHTML:  `On Fri, Aug 14, 2026 at 4:01` + "\u202f" + `PM Alice &lt;<a href="mailto:%22john%20smith%22@example.com">&#34;john smith&#34;@example.com</a>&gt; wrote:`,
+			wantHTML: "On " + isolatedHTML("Fri, Aug 14, 2026 at 4:01\u202fPM") + " " + isolatedHTML("Alice") + " " +
+				isolatedHTML(`&lt;<a href="mailto:%22john%20smith%22@example.com">&#34;john smith&#34;@example.com</a>&gt;`) + " wrote:",
 		},
 		{
 			name:      "unparseable sender shown as is, unlinked",
 			from:      "Example Sender, Team <sender@example.com>",
 			date:      date,
 			wantPlain: "On Fri, Aug 14, 2026 at 4:01\u202fPM Example Sender, Team <sender@example.com> wrote:",
-			wantHTML:  `On Fri, Aug 14, 2026 at 4:01` + "\u202f" + `PM Example Sender, Team &lt;sender@example.com&gt; wrote:`,
+			wantHTML:  "On " + isolatedHTML("Fri, Aug 14, 2026 at 4:01\u202fPM") + " " + isolatedHTML("Example Sender, Team &lt;sender@example.com&gt;") + " wrote:",
+		},
+		{
+			name:      "markup in an unparseable sender and date is escaped",
+			from:      `"><script>alert(1)</script>`,
+			date:      "<b>bad</b>",
+			wantPlain: `On <b>bad</b> "><script>alert(1)</script> wrote:`,
+			wantHTML:  "On " + isolatedHTML("&lt;b&gt;bad&lt;/b&gt;") + " " + isolatedHTML("&#34;&gt;&lt;script&gt;alert(1)&lt;/script&gt;") + " wrote:",
 		},
 	}
 	for _, tc := range cases {
@@ -83,7 +98,7 @@ func TestQuoteAttribution(t *testing.T) {
 			if got := formatQuotedMessage(tc.from, tc.date, "body", la); !strings.Contains(got, "\n"+tc.wantPlain+"\n") {
 				t.Errorf("plain attribution:\n got %q\nwant line %q", got, tc.wantPlain)
 			}
-			if got := formatQuotedMessageHTMLWithContent(tc.from, tc.date, "<p>body</p>", la); !strings.Contains(got, `<div class="gmail_attr">`+tc.wantHTML+`</div>`) {
+			if got := formatQuotedMessageHTMLWithContent(tc.from, tc.date, "<p>body</p>", la); !strings.Contains(got, gmailQuoteOpen+tc.wantHTML+"</div>") {
 				t.Errorf("HTML attribution:\n got %q\nwant line %q", got, tc.wantHTML)
 			}
 		})
@@ -113,27 +128,6 @@ func TestFormatQuoteDate(t *testing.T) {
 	// A nil loc falls back to time.Local rather than panicking.
 	if got := formatQuoteDate("Wed, 17 Jun 2026 00:29:51 +0000", nil); got == "" {
 		t.Fatal("formatQuoteDate with nil loc returned empty")
-	}
-}
-
-func TestFormatQuotedMessageHTMLWithContent_EscapesHeader_NotBody(t *testing.T) {
-	out := formatQuotedMessageHTMLWithContent(`"><script>alert(1)</script>`, `<b>bad</b>`, `<b>ok</b>`, time.UTC)
-	if strings.Contains(out, "<script>") {
-		t.Fatalf("expected script tag to be escaped, got %q", out)
-	}
-	if strings.Contains(out, "<b>bad</b>") {
-		t.Fatalf("expected date to be escaped, got %q", out)
-	}
-	if !strings.Contains(out, "<b>ok</b>") {
-		t.Fatalf("expected htmlContent to be preserved, got %q", out)
-	}
-}
-
-func TestFormatQuotedMessageHTMLWithContent_Date(t *testing.T) {
-	// A parseable date is reformatted to Gmail style, converted into loc.
-	out := formatQuotedMessageHTMLWithContent("Alice <a@example.com>", "Wed, 17 Jun 2026 00:29:51 +0000", "<p>body</p>", time.UTC)
-	if !strings.Contains(out, "On Wed, Jun 17, 2026 at 12:29\u202fAM Alice &lt;") {
-		t.Fatalf("expected reformatted attribution date, got %q", out)
 	}
 }
 
@@ -193,7 +187,7 @@ func TestApplyQuoteToBodiesDerivesPlainReplyFromHTML(t *testing.T) {
 	if !strings.Contains(plain, "> Original plain") {
 		t.Fatalf("plain body omitted quoted original: %q", plain)
 	}
-	if !strings.Contains(html, "<p>HTML <strong>reply</strong></p>") || !strings.Contains(html, "gmail_quote") {
+	if !strings.Contains(html, "<p>HTML <strong>reply</strong></p>") || !strings.Contains(html, gmailQuoteOpen) {
 		t.Fatalf("HTML body missing reply or quote: %q", html)
 	}
 }
@@ -255,7 +249,7 @@ func TestApplyQuoteToBodiesKeepsImageOnlyReplyHTMLOnly(t *testing.T) {
 	if strings.TrimSpace(plain) != "" {
 		t.Fatalf("image-only HTML reply produced quote-only plain alternative: %q", plain)
 	}
-	if !strings.Contains(html, `cid:reply-image`) || !strings.Contains(html, "gmail_quote") {
+	if !strings.Contains(html, `cid:reply-image`) || !strings.Contains(html, gmailQuoteOpen) {
 		t.Fatalf("HTML body missing reply image or quote: %q", html)
 	}
 }

@@ -22,6 +22,7 @@ func TestGmailThreadGetAndAttachments_JSON(t *testing.T) {
 					"headers": []map[string]any{
 						{"name": "From", "value": "a@example.com"},
 						{"name": "To", "value": "b@example.com"},
+						{"name": "Cc", "value": "c@example.com"},
 						{"name": "Subject", "value": "Hi"},
 						{"name": "Date", "value": "Mon, 1 Jan 2025 00:00:00 +0000"},
 					},
@@ -204,6 +205,12 @@ func TestGmailThreadGetAndAttachments_JSON(t *testing.T) {
 	}
 	if !strings.Contains(plainResult.stdout, "Thread contains") {
 		t.Fatalf("unexpected plain output: %q", plainResult.stdout)
+	}
+	if !strings.Contains(plainResult.stdout, "Cc: c@example.com") {
+		t.Fatalf("plain thread output missing Cc header: %q", plainResult.stdout)
+	}
+	if strings.Contains(plainResult.stdout, "Bcc:") {
+		t.Fatalf("plain thread output printed empty Bcc header: %q", plainResult.stdout)
 	}
 
 	emptyResult := executeWithGmailTestService(t, []string{"--plain", "--account", "a@b.com", "gmail", "thread", "get", "empty"}, svc)

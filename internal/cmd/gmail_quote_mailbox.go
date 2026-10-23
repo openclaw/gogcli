@@ -43,11 +43,12 @@ func formatQuoteMailbox(value string) string {
 
 // formatQuoteMailboxHTML is formatQuoteMailbox for HTML: the same text,
 // escaped, with a parsed address linked via mailto: and the name bold or not,
-// per style. A value that does not parse is escaped but not linked.
+// per style. A value that does not parse is escaped but not linked, and keeps
+// its own direction as a whole.
 func formatQuoteMailboxHTML(value string, style nameStyle) string {
 	name, address, ok := parseQuoteMailbox(value)
 	if !ok {
-		return html.EscapeString(strings.TrimSpace(value))
+		return isolateTextDirection(strings.TrimSpace(value))
 	}
 	return quoteMailboxHTML(name, address, style)
 }
@@ -71,11 +72,12 @@ func formatQuoteMailboxList(value string) string {
 
 // formatQuoteMailboxListHTML is formatQuoteMailboxList for HTML: each mailbox
 // as formatQuoteMailboxHTML renders one, with the name not bold. A value that
-// does not parse is escaped but not linked.
+// does not parse is escaped but not linked, and keeps its own direction as a
+// whole.
 func formatQuoteMailboxListHTML(value string) string {
 	addrs, err := mail.ParseAddressList(value)
 	if err != nil {
-		return html.EscapeString(strings.TrimSpace(value))
+		return isolateTextDirection(strings.TrimSpace(value))
 	}
 	mailboxes := make([]string, len(addrs))
 	for i, addr := range addrs {
@@ -108,17 +110,20 @@ const (
 )
 
 // quoteMailboxHTML is quoteMailboxText for HTML: the name escaped and bold or
-// not, per style, the address linked via mailto:.
+// not, per style, the address linked via mailto:. The name and the bracketed
+// address each keep their own direction (see isolateDirection); a bold name
+// carries dir="auto" on its <strong>. Gmail Web marks only a forward's sender
+// this way; gog marks every name and address.
 func quoteMailboxHTML(name, address string, style nameStyle) string {
-	link := `&lt;<a href="` + html.EscapeString(mailtoURI(address)) + `">` + html.EscapeString(address) + `</a>&gt;`
-	if name == "" {
+	link := isolateDirection(`&lt;<a href="` + html.EscapeString(mailtoURI(address)) + `">` + html.EscapeString(address) + `</a>&gt;`)
+	switch {
+	case name == "":
 		return link
+	case style == boldName:
+		return `<strong class="gmail_sendername" dir="auto">` + html.EscapeString(name) + "</strong> " + link
+	default:
+		return isolateTextDirection(name) + " " + link
 	}
-	name = html.EscapeString(name)
-	if style == boldName {
-		name = `<strong class="gmail_sendername">` + name + "</strong>"
-	}
-	return name + " " + link
 }
 
 // mailtoURI returns a mailto: URI for an addr-spec (RFC 6068). Both sides of

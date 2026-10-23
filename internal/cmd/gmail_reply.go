@@ -349,18 +349,23 @@ func formatQuotedMessage(from, date, body string, loc *time.Location) string {
 	return sb.String()
 }
 
+// formatQuotedMessageHTMLWithContent renders a reply's HTML quote: the
+// attribution line, then htmlContent unchanged inside Gmail's blockquote.
+// Gmail Web keeps one gmail_quote_container per message, its outermost, and
+// removes the class from a message it quotes; a nested one renders the same,
+// so the original's markup is left as it came.
 func formatQuotedMessageHTMLWithContent(from, date, htmlContent string, loc *time.Location) string {
-	attribution := formatQuoteAttribution(html.EscapeString(formatQuoteDate(date, loc)), formatQuoteMailboxHTML(from, plainName))
-	return fmt.Sprintf(`<br><br><div class="gmail_quote"><div class="gmail_attr">%s</div><blockquote class="gmail_quote" style="margin:0 0 0 .8ex;border-left:1px #ccc solid;padding-left:1ex">%s</blockquote></div>`,
-		attribution,
-		htmlContent)
+	attribution := formatQuoteAttribution(isolateTextDirection(formatQuoteDate(date, loc)), formatQuoteMailboxHTML(from, plainName))
+	return "<br><br>" + gmailQuoteOpen + attribution + "</div>" +
+		`<blockquote class="gmail_quote" style="margin:0 0 0 .8ex;border-left:1px #ccc solid;padding-left:1ex">` +
+		htmlContent + "</blockquote></div>"
 }
 
 // formatQuoteAttribution renders the line that introduces a quoted reply. With
 // both a date and a sender it is Gmail Web's "On " + date + " " + sender +
 // " wrote:"; without a date it falls back to sender + " wrote:", and without a
 // sender to "Original message:". date and sender arrive already rendered (and
-// escaped, for HTML).
+// escaped and direction-isolated, for HTML), with a missing value empty.
 func formatQuoteAttribution(date, sender string) string {
 	switch {
 	case date != "" && sender != "":

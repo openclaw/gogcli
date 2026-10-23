@@ -61,7 +61,7 @@ func (c *DriveLsCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
-	return writeDriveFileList(ctx, resp, "No files")
+	return writeDriveFileList(ctx, resp, "No files", c.Fields)
 }
 
 func (c *DriveSearchCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -103,7 +103,7 @@ func (c *DriveSearchCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
-	return writeDriveFileList(ctx, resp, "No results")
+	return writeDriveFileList(ctx, resp, "No results", "")
 }
 
 func listDriveFiles(ctx context.Context, svc *drive.Service, opts driveFileListOptions) (*drive.FileList, error) {
@@ -117,16 +117,17 @@ func listDriveFiles(ctx context.Context, svc *drive.Service, opts driveFileListO
 		PageToken(opts.page).
 		OrderBy(orderBy)
 	call = driveFilesListCallWithDriveSupport(call, opts.allDrives, opts.driveID)
-	mask := driveFileListFields
-	if strings.TrimSpace(opts.fields) != "" {
-		mask = opts.fields
-	}
+	mask := driveListRequestFields(opts.fields)
 	return call.Fields(gapi.Field(mask)).Context(ctx).Do()
 }
 
-func writeDriveFileList(ctx context.Context, resp *drive.FileList, emptyMessage string) error {
+func writeDriveFileList(ctx context.Context, resp *drive.FileList, emptyMessage, fields string) error {
 	u := ui.FromContext(ctx)
 	if outfmt.IsJSON(ctx) {
+		itemMask := driveFileListItemMask(driveListRequestFields(fields))
+		for _, f := range resp.Files {
+			forceRequestedDriveFileBools(f, itemMask)
+		}
 		return outfmt.WriteJSON(ctx, stdoutWriter(ctx), map[string]any{
 			"files":         resp.Files,
 			"count":         len(resp.Files),

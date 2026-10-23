@@ -3,7 +3,6 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"html"
 	"strings"
 	"time"
 
@@ -275,9 +274,10 @@ type forwardedHeader struct {
 // forwardedMessageHeaders renders the original's headers in line with Gmail
 // Web's forwards: the sender and each recipient as "Name <email>" or
 // "<email>", with each address linked and the sender's name in bold in HTML; a
-// value that doesn't parse is shown as is, unlinked. A blank header gets no
-// line. A To or Cc that renders empty keeps an empty line, as Gmail Web does
-// for a To of only "undisclosed-recipients:;".
+// value that doesn't parse is shown as is, unlinked. In HTML every value taken
+// from the original keeps its own direction (see isolateDirection). A blank
+// header gets no line. A To or Cc that renders empty keeps an empty line, as
+// Gmail Web does for a To of only "undisclosed-recipients:;".
 func forwardedMessageHeaders(from, date, subject, to, cc string, loc *time.Location) []forwardedHeader {
 	headers := make([]forwardedHeader, 0, 5)
 	add := func(label, value string, render func(string) (string, string)) {
@@ -304,9 +304,11 @@ func forwardedRecipients(value string) (plain, htmlValue string) {
 	return formatQuoteMailboxList(value), formatQuoteMailboxListHTML(value)
 }
 
-// forwardedText renders a plain-text value: as is, and escaped for HTML.
+// forwardedText renders the Date or Subject value: as is, and escaped for
+// HTML, where it keeps its own direction (see isolateDirection). A subject can
+// be in any script, and a Date that doesn't parse is shown as it came.
 func forwardedText(value string) (plain, htmlValue string) {
-	return value, html.EscapeString(value)
+	return value, isolateTextDirection(value)
 }
 
 // buildForwardSubject prepends "Fwd: " to the subject, avoiding duplication.
@@ -386,7 +388,7 @@ func formatForwardedMessageHTML(noteHTML string, signature composeSignature, hea
 	// Like Gmail's, the header block has no inline styles and its labels aren't
 	// bold; only the sender's name is (see nameStyle). Bold labels would come
 	// out as *From:* in the text part Gmail rebuilds on send.
-	sb.WriteString(`<div class="gmail_quote"><div>` + forwardedSeparator + "<br>")
+	sb.WriteString(gmailQuoteOpen + forwardedSeparator + "<br>")
 	for _, h := range headers {
 		fmt.Fprintf(&sb, "%s: %s<br>", h.label, h.html)
 	}
