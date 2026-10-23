@@ -231,45 +231,38 @@ func TestDriveGet_JSONKeepsRequestedFalseBools(t *testing.T) {
 func TestDriveLs_JSONKeepsRequestedFalseBools(t *testing.T) {
 	t.Parallel()
 
-	cases := []struct {
+	type testCase struct {
 		name    string
 		args    []string
 		body    map[string]any
 		want    map[string]bool
 		notWant []string
-	}{
-		{
-			name: "default fields",
-			args: nil,
-			body: map[string]any{
-				"id":           "f1",
-				"name":         "photo.png",
-				"hasThumbnail": false,
-				"trashed":      false,
-			},
-			want:    map[string]bool{"hasThumbnail": false},
-			notWant: []string{"trashed"},
-		},
-		{
-			name: "files mask",
-			args: []string{"--fields", "files(id,trashed)"},
-			body: map[string]any{
-				"id":           "f1",
-				"trashed":      false,
-				"hasThumbnail": false,
-			},
-			want:    map[string]bool{"trashed": false},
-			notWant: []string{"hasThumbnail"},
-		},
 	}
+	cases := make([]testCase, 0, 7)
+	cases = append(cases, testCase{
+		name: "default fields",
+		args: nil,
+		body: map[string]any{
+			"id":           "f1",
+			"name":         "photo.png",
+			"hasThumbnail": false,
+			"trashed":      false,
+		},
+		want:    map[string]bool{"hasThumbnail": false},
+		notWant: []string{"trashed"},
+	}, testCase{
+		name: "files mask",
+		args: []string{"--fields", "files(id,trashed)"},
+		body: map[string]any{
+			"id":           "f1",
+			"trashed":      false,
+			"hasThumbnail": false,
+		},
+		want:    map[string]bool{"trashed": false},
+		notWant: []string{"hasThumbnail"},
+	})
 	for _, mask := range []string{"files/trashed", "files(id),files(trashed)", "files", "files/*", "*"} {
-		cases = append(cases, struct {
-			name    string
-			args    []string
-			body    map[string]any
-			want    map[string]bool
-			notWant []string
-		}{
+		cases = append(cases, testCase{
 			name:    mask,
 			args:    []string{"--fields", mask},
 			body:    map[string]any{"id": "f1", "trashed": false},
