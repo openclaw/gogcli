@@ -91,6 +91,11 @@ account's existing `services`. When replacing an expired or revoked token, do
 not silently reduce scope; prefer `--services all-user --force-consent` unless
 the user explicitly asks for narrower scopes.
 
+`all-user` excludes Google Ads (`ads`). Google can require passkey enrollment
+before granting the Ads scope, which blocks the whole consent flow, so do not
+add `ads` to a routine reauth even when the old token had it. Request it only
+when the user needs Google Ads access, with `--services all-user,ads`.
+
 Use narrow services only for throwaway/test accounts, service-specific bot
 accounts, explicit user requests, or scoped security experiments. Safety should
 normally be enforced at command time with `--enable-commands`,

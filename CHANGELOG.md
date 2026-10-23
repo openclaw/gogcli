@@ -2,6 +2,7 @@
 
 ## 0.46.1 - Unreleased
 
+- Auth: make Google Ads (`ads`) an explicit opt-in instead of part of the default `user`/`all-user` set; Google can gate the Ads scope behind mandatory passkey enrollment, which blocked ordinary reauth. Request it with `--services user,ads`.
 - Dependencies: update Pub/Sub, Google API and x/tools plus Cloudflare Workers types and Wrangler; retain Go 1.26 and the tracking worker’s 24-hour release cooldown.
 
 - Gmail: retry 403 rate limits with the existing bounded backoff and stop remaining detail fetches when a search fails; preserve error bodies and open the watch circuit on 403 rate limits. (#1241, #1242) — thanks @xyrolle.

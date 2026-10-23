@@ -136,6 +136,17 @@ func parseAuthServices(servicesCSV string) ([]googleauth.Service, error) {
 	seen := make(map[googleauth.Service]struct{})
 	out := make([]googleauth.Service, 0, len(parts))
 	for _, p := range parts {
+		// A preset inside a list expands to the default set, so opt-ins compose: "user,ads".
+		switch strings.ToLower(strings.TrimSpace(p)) {
+		case "user", "all-user", literalAll:
+			for _, svc := range googleauth.UserServices() {
+				if _, ok := seen[svc]; !ok {
+					seen[svc] = struct{}{}
+					out = append(out, svc)
+				}
+			}
+			continue
+		}
 		svc, err := googleauth.ParseService(p)
 		if err != nil {
 			return nil, usage(err.Error())

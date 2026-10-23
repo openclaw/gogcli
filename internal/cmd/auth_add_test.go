@@ -416,6 +416,30 @@ func TestAuthServicesAdSenseExplicitOptIn(t *testing.T) {
 	}
 }
 
+func TestAuthServicesAdsExplicitOptIn(t *testing.T) {
+	// Google can gate the Ads scope behind mandatory passkey enrollment, so presets exclude it.
+	for _, preset := range []string{"", "user", "all-user", "all", "ads", "user,ads", "all-user,ads,gmail"} {
+		services, err := parseAuthServices(preset)
+		if err != nil {
+			t.Fatal(err)
+		}
+		found := false
+		for _, service := range services {
+			found = found || service == googleauth.ServiceAds
+		}
+		if found != strings.Contains(preset, "ads") {
+			t.Fatalf("unexpected Google Ads enrollment for %q: %v", preset, services)
+		}
+	}
+	services, err := parseAuthServices("user,ads,gmail")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := len(googleauth.UserServices()) + 1; len(services) != want {
+		t.Fatalf("user,ads,gmail = %d services, want %d: %v", len(services), want, services)
+	}
+}
+
 func TestAuthAddCmd_KeepRejected(t *testing.T) {
 	authorizeCalled := false
 	authorizeGoogle := func(context.Context, googleauth.AuthorizeOptions) (string, error) {

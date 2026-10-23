@@ -168,6 +168,11 @@ The generated table below records the user OAuth and Workspace service-account
 surface. `gog auth services` reports the same information from the installed
 binary.
 
+The default `user`/`all-user` set excludes `ads`. Google treats authorizing an
+app for Google Ads as a sensitive action and can block consent behind a
+mandatory passkey enrollment. Add it only when you need it:
+`gog auth add you@example.com --services user,ads`.
+
 <!-- auth-services:start -->
 | Service | User | APIs | Scopes | Notes |
 | --- | --- | --- | --- | --- |
@@ -191,7 +196,7 @@ binary.
 | analytics | yes | Analytics Admin API, Analytics Data API | `https://www.googleapis.com/auth/analytics.readonly` | GA4 account summaries + reporting |
 | searchconsole | yes | Search Console API | `https://www.googleapis.com/auth/webmasters` | Search Analytics + sitemap management + URL Inspection |
 | adsense | no | AdSense Management API | `https://www.googleapis.com/auth/adsense.readonly` | Consumer OAuth; explicit opt-in with --services adsense; read-only |
-| ads | yes | Google Ads API | `https://www.googleapis.com/auth/adwords` | OAuth scope only |
+| ads | no | Google Ads API | `https://www.googleapis.com/auth/adwords` | Explicit opt-in with --services ads; Google may require a passkey to authorize Google Ads access |
 | groups | no | Cloud Identity API | `https://www.googleapis.com/auth/cloud-identity.groups.readonly` | Workspace only |
 | keep | no | Keep API | `https://www.googleapis.com/auth/keep` | Workspace only; service account (domain-wide delegation) |
 | admin | no | Admin SDK Directory API | `https://www.googleapis.com/auth/admin.directory.user`<br>`https://www.googleapis.com/auth/admin.directory.group`<br>`https://www.googleapis.com/auth/admin.directory.group.member` | Workspace only; service account with domain-wide delegation required |
