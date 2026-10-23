@@ -17,6 +17,8 @@
 - Gmail: preserve the direction of reply and forward headers beside right-to-left text, and add Gmail's quote classes without altering plain text or quoted content. (#1250) — thanks @malob.
 - Drive: preserve requested false booleans in list/search JSON, including grouped fields, slash paths, and wildcards; keep conditionally absent fields omitted. (#1246) — thanks @SebTardif.
 
+- Gmail: chunk `batch modify` requests at 1,000 message IDs and report partial progress if a later batch fails. (#1209, #1199) — thanks @i098.
+
 ## 0.46.0 - 2026-10-20
 
 **Highlights:** Safely re-encrypt auth stores, route Google API calls through credential-free relays, and compose richer Gmail forwards, with Go security fixes.
