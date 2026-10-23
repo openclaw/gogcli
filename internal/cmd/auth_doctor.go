@@ -12,6 +12,7 @@ import (
 	"github.com/openclaw/gogcli/internal/app"
 	"github.com/openclaw/gogcli/internal/authclient"
 	"github.com/openclaw/gogcli/internal/config"
+	"github.com/openclaw/gogcli/internal/errfmt"
 	"github.com/openclaw/gogcli/internal/outfmt"
 	"github.com/openclaw/gogcli/internal/secrets"
 	"github.com/openclaw/gogcli/internal/ui"
@@ -148,7 +149,7 @@ func (c *AuthDoctorCmd) Run(ctx context.Context, _ *RootFlags) error {
 				continue
 			}
 			_, hint := classifyAuthDoctorError(err)
-			add(authDoctorTokenCheckName("refresh", tok.Client, tok.Email), doctorError, err.Error(), hint)
+			add(authDoctorTokenCheckName("refresh", tok.Client, tok.Email), doctorError, errfmt.Format(err), hint)
 		}
 	}
 

@@ -38,6 +38,10 @@ gog --client work auth credentials ~/Downloads/work.json --domain example.com
 
 This writes `client_domains` into `config.json` so any `@example.com` account selects the `work` client.
 
+## Token errors
+
+Command errors, `auth list --check`, `auth doctor --check`, and verbose error logs omit OAuth provider descriptions, URLs, and response bodies. Recognized errors retain their code and recovery steps. For `invalid_grant`, reauthorize the same account and client with `gog --client <client> auth add <email>`, preserving the services and scopes shown by `gog auth list --json`.
+
 ## Listing stored credentials
 
 ```

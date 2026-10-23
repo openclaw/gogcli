@@ -64,6 +64,8 @@ zoom-account/default/client-secret
 zoom-account/default/access-token
 ```
 
+Token failures omit Zoom's response body. To replace invalid credentials, run `gog zoom auth setup --alias <alias> --force`, then `gog zoom auth doctor --alias <alias>`, using the failing alias (`default` when none was selected).
+
 ## Environment Overrides
 
 For CI or ephemeral automation, you can skip stored credentials and set:

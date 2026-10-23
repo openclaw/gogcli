@@ -171,8 +171,7 @@ func (c *CalendarCreateCmd) Run(ctx context.Context, flags *RootFlags, kctx *kon
 	if err != nil {
 		if zoomMeeting != nil {
 			if cancelErr := cancelZoomMeeting(ctx, zoomMeetingID(zoomMeeting), "delete"); cancelErr != nil {
-				rollbackErr := fmt.Errorf("calendar insert failed and Zoom meeting rollback failed: %w", errors.Join(err, cancelErr))
-				return errfmt.NewUserFacingError(rollbackErr.Error(), rollbackErr)
+				return errfmt.NewContextError("calendar insert failed and Zoom meeting rollback failed; a Zoom meeting may remain. Inspect Zoom and remove it if needed:", err, cancelErr)
 			}
 		}
 		return err
@@ -427,8 +426,7 @@ func (c *CalendarUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *
 	if err != nil {
 		if c.createdZoomMeetingID != "" {
 			if cancelErr := cancelZoomMeeting(ctx, c.createdZoomMeetingID, "delete"); cancelErr != nil {
-				rollbackErr := fmt.Errorf("calendar update failed and Zoom meeting rollback failed: %w", errors.Join(err, cancelErr))
-				return errfmt.NewUserFacingError(rollbackErr.Error(), rollbackErr)
+				return errfmt.NewContextError("calendar update failed and Zoom meeting rollback failed; a Zoom meeting may remain. Inspect Zoom and remove it if needed:", err, cancelErr)
 			}
 		}
 		return err
@@ -524,7 +522,7 @@ func (c *CalendarUpdateCmd) prepareZoomConferencePatch(
 		if meetingID, ok := extractZoomMeetingID(existing); ok {
 			if err := cancelZoomMeeting(ctx, meetingID, "delete"); err != nil && !errors.Is(err, zoom.ErrMeetingNotFound) {
 				if mutation.u != nil {
-					mutation.u.Err().Linef("warning\tfailed to delete Zoom meeting %s: %v", meetingID, err)
+					mutation.u.Err().Linef("warning\tfailed to delete Zoom meeting %s: %v", meetingID, errfmt.Format(err))
 				}
 			}
 		} else {

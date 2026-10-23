@@ -2,6 +2,8 @@
 
 ## 0.46.1 - Unreleased
 
+- Auth: omit OAuth provider descriptions, URLs, and response bodies from command errors, health checks, and verbose error logs; retain fixed recovery guidance, authentication exit codes, and both Calendar/Zoom rollback causes. (#1243) — thanks @pkyIntelligence.
+
 - Security: upgrade Alpine's default CA packages in Docker image build and runtime stages to reject the compromised eMudhra certificate chains. (#1244) — thanks @joshavant.
 
 ## 0.46.0 - 2026-10-20

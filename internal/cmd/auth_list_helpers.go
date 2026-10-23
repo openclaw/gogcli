@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/openclaw/gogcli/internal/config"
+	"github.com/openclaw/gogcli/internal/errfmt"
 	"github.com/openclaw/gogcli/internal/outfmt"
 	"github.com/openclaw/gogcli/internal/secrets"
 	"github.com/openclaw/gogcli/internal/ui"
@@ -245,7 +246,7 @@ func (c *AuthListCmd) annotateAuthListCheck(ctx context.Context, e authListEntry
 		valid := err == nil
 		it.Valid = &valid
 		if err != nil {
-			it.Error = err.Error()
+			it.Error = errfmt.Format(err)
 		}
 	}
 }
@@ -288,7 +289,7 @@ func (c *AuthListCmd) writeAuthListCheckRow(ctx context.Context, u *ui.UI, e aut
 		valid := err == nil
 		msg := ""
 		if err != nil {
-			msg = err.Error()
+			msg = errfmt.Format(err)
 		}
 		u.Out().Linef("%s\t%s\t%s\t%s\t%t\t%s\t%s", e.Email, client, servicesCSV, created, valid, msg, e.authType())
 	}

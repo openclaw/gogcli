@@ -8,15 +8,43 @@ import (
 
 	"github.com/99designs/keyring"
 	"github.com/alecthomas/kong"
+	"golang.org/x/oauth2"
 	ggoogleapi "google.golang.org/api/googleapi"
 
 	"github.com/openclaw/gogcli/internal/config"
 	gogapi "github.com/openclaw/gogcli/internal/googleapi"
+	"github.com/openclaw/gogcli/internal/zoom"
 )
 
 func Format(err error) string {
 	if err == nil {
 		return ""
+	}
+
+	// Structured application context is safe to retain because each cause is
+	// formatted separately; arbitrary wrapper messages below are still omitted.
+	var contextErr *contextError
+	if errors.As(err, &contextErr) {
+		return contextErr.Error()
+	}
+
+	// OAuth errors can contain provider-controlled descriptions, URIs, and
+	// response bodies, including echoed credentials. Never render their text
+	// or wrapper messages, which may already include those details. Keep the
+	// original error untouched so callers can still classify its cause.
+	var retrieveErr *oauth2.RetrieveError
+	if errors.As(err, &retrieveErr) {
+		switch strings.ToLower(strings.TrimSpace(retrieveErr.ErrorCode)) {
+		case "invalid_grant":
+			return "OAuth token expired or revoked (invalid_grant); run 'gog auth add <email>' to re-authorize."
+		case "invalid_client":
+			return "OAuth token request failed (invalid_client); check client credentials with 'gog auth credentials <credentials.json>', then run 'gog auth add <email>' to re-authorize."
+		default:
+			return "OAuth token request failed. Run 'gog auth doctor' to check client configuration, then 'gog auth add <email>' to re-authorize."
+		}
+	}
+	if errors.Is(err, zoom.ErrZoomTokenRequestFailed) {
+		return "Zoom OAuth token request failed. Verify the Server-to-Server OAuth app is active and its account ID, client ID, client secret, and scopes; run 'gog zoom auth setup --alias <alias> --force' to update credentials, then 'gog zoom auth doctor --alias <alias>'. Replace <alias> with the failing alias (default if none was selected)."
 	}
 
 	var userErr *UserFacingError
@@ -83,6 +111,31 @@ func isServiceAccountOnlyAuthService(service string) bool {
 		return false
 	}
 }
+
+// NewContextError retains application-authored context and formats each cause
+// separately. The message must not contain provider error text; pass errors as
+// causes instead. Unwrap preserves every original cause for classification.
+func NewContextError(message string, causes ...error) error {
+	return &contextError{message: message, causes: causes}
+}
+
+type contextError struct {
+	message string
+	causes  []error
+}
+
+func (e *contextError) Error() string {
+	parts := []string{e.message}
+	for _, cause := range e.causes {
+		if cause != nil {
+			parts = append(parts, Format(cause))
+		}
+	}
+
+	return strings.Join(parts, "\n")
+}
+
+func (e *contextError) Unwrap() []error { return e.causes }
 
 // UserFacingError forces a specific message, while preserving the underlying cause.
 type UserFacingError struct {
