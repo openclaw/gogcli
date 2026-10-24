@@ -23,6 +23,10 @@ denied-values:
     send-updates: [all, externalonly]
   calendar.move:
     send-updates: [all, externalonly]
+  # --auto-decline defaults to all; declining a conflicting invitation notifies
+  # its organizer, so focus time needs an explicit --auto-decline none.
+  calendar.focus-time:
+    auto-decline: [all, new]
 
 gmail:
   search: true

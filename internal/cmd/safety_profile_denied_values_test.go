@@ -251,6 +251,9 @@ func TestAgentSafeProfileDeniesDestructiveAndNotifyingValues(t *testing.T) {
 		"calendar.create --send-updates":  notify,
 		"calendar.update --send-updates":  notify,
 		"calendar.move --send-updates":    notify,
+		// --auto-decline defaults to all, and declining a conflicting invitation
+		// notifies its organizer, so only an explicit --auto-decline none passes.
+		"calendar.focus-time --auto-decline": {"all", "new"},
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("agent-safe denied-values = %#v, want %#v", got, want)
