@@ -120,6 +120,24 @@ func TestDeniedValues_MatchesWholeValuesOnly(t *testing.T) {
 	requireNotDenied(t, threadModify("--add", "NOT-SPAM"))
 }
 
+// --add-label takes a label name literally, commas included, so a denied value
+// containing a comma must match the whole value and not only its parts.
+func TestDeniedValues_MatchesADeniedValueContainingAComma(t *testing.T) {
+	withBakedSafetyProfile(t, `
+name: denied
+denied-values:
+  gmail.thread.modify:
+    add-label: ["Archive, Old"]
+gmail:
+  thread:
+    modify: true
+`)
+	result := executeWithTestRuntime(t, threadModify("--add-label", "archive, old"), nil)
+	if result.err == nil || !strings.Contains(result.err.Error(), `flag --add-label value "archive, old" is denied`) {
+		t.Fatalf("a denied value containing a comma must be refused, got err=%v stdout=%q", result.err, result.stdout)
+	}
+}
+
 // The rule is keyed to a command path, so another command with a flag of the same
 // name is untouched.
 func TestDeniedValues_InertOnOtherCommands(t *testing.T) {
