@@ -4,6 +4,26 @@ description: Agent workflow profile. Allows reading, drafting, organizing, and r
 version: true
 schema: true
 
+# Allowed label commands must not move mail to the trash or spam, and allowed
+# calendar writes must not email the guests.
+denied-values:
+  gmail.messages.modify:
+    add: [TRASH, SPAM]
+  gmail.thread.modify:
+    add: [TRASH, SPAM]
+    add-label: [TRASH, SPAM]
+  gmail.labels.modify:
+    add: [TRASH, SPAM]
+  gmail.batch.modify:
+    add: [TRASH, SPAM]
+    add-label: [TRASH, SPAM]
+  calendar.create:
+    send-updates: [all, externalonly]
+  calendar.update:
+    send-updates: [all, externalonly]
+  calendar.move:
+    send-updates: [all, externalonly]
+
 gmail:
   search: true
   get: true
@@ -67,7 +87,7 @@ calendar:
   delete: false
   freebusy: true
   respond: false
-  propose-time: true
+  propose-time: false
   colors: true
   conflicts: true
   search: true
@@ -99,10 +119,10 @@ drive:
   comments:
     list: true
     get: true
-    create: true
-    update: true
+    create: false
+    update: false
     delete: false
-    reply: true
+    reply: false
 
 sites:
   list: true
@@ -173,8 +193,8 @@ docs:
   comments:
     list: true
     get: true
-    add: true
-    reply: true
+    add: false
+    reply: false
     resolve: false
     delete: false
 
