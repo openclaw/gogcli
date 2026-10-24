@@ -276,7 +276,9 @@ func verifyDeniedValueRulesExist(root *kong.Node) error {
 // enforceDeniedValues refuses a command line that gives a flag one of the values the
 // profile denies for the selected command. It runs after parsing and before the command,
 // so --dry-run is refused too. Values are split on commas and compared case-insensitively,
-// more aggressively than some commands split them, which can only over-deny.
+// more aggressively than some commands split them, which can only over-deny. A denied
+// value of "*" refuses any value typed on the command line, empty included, and any
+// non-empty value from elsewhere.
 func enforceDeniedValues(kctx *kong.Context) error {
 	if !bakedSafetyEnabled() || bakedSafetyDeniedValueRuleCount() == 0 {
 		return nil
@@ -290,7 +292,14 @@ func enforceDeniedValues(kctx *kong.Context) error {
 		if len(denied) == 0 {
 			continue
 		}
+		anyValue := slices.Contains(denied, "*")
 		for _, raw := range flagStringValues(flag.Target) {
+			// "*" refuses any value as typed, with no comma splitting. An empty value
+			// counts when typed: a command may treat a supplied but empty flag as
+			// supplied, as calendar update does when it infers an event type.
+			if trimmed := strings.TrimSpace(raw); anyValue && (trimmed != "" || flagOnCommandLine(kctx, flag.Name)) {
+				return usagef("flag --%s value %q is denied for %q by baked safety profile %q", flag.Name, trimmed, strings.Join(path, " "), bakedSafetyProfileName())
+			}
 			for _, value := range splitCSV(raw) {
 				if slices.Contains(denied, strings.ToLower(value)) {
 					return usagef("flag --%s value %q is denied for %q by baked safety profile %q", flag.Name, value, strings.Join(path, " "), bakedSafetyProfileName())

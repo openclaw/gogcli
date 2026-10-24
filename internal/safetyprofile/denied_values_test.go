@@ -63,6 +63,34 @@ func TestParse_DeniedValuesRejectsMalformedRules(t *testing.T) {
 	}
 }
 
+func TestParse_DeniedValuesAnyValue(t *testing.T) {
+	profile, err := Parse(`
+name: denied
+denied-values:
+  calendar.create:
+    focus-chat-status: ["*"]
+calendar:
+  create: true
+`)
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+	want := []DeniedValue{{Path: "calendar.create", Flag: "focus-chat-status", Values: []string{"*"}}}
+	if !reflect.DeepEqual(profile.DeniedValues, want) {
+		t.Fatalf("denied values = %#v, want %#v", profile.DeniedValues, want)
+	}
+}
+
+// "*" means any value, so listing other values beside it is ambiguous.
+func TestParse_DeniedValuesAnyValueMustStandAlone(t *testing.T) {
+	for _, list := range []string{`["*", all]`, `[all, "*"]`, `[" * ", x]`} {
+		_, err := Parse("name: denied\ncalendar:\n  create: true\ndenied-values:\n  calendar.create:\n    send-updates: " + list + "\n")
+		if err == nil || !strings.HasPrefix(err.Error(), "denied-values: ") {
+			t.Fatalf("%s must be rejected by the denied-values parser, got %v", list, err)
+		}
+	}
+}
+
 // denied-values must not be flattened into command rules the way other top-level
 // keys are.
 func TestParse_DeniedValuesAreNotCommandRules(t *testing.T) {
