@@ -66,7 +66,7 @@ The backup changes in #1303 and #1304 preserve existing saved remotes and Git or
 
 - Dependencies: update Google IAM, GAX, enterprise certificate support, Workers types, Wrangler, and oxlint-tsgolint while retaining Go 1.26 and the tracking worker’s 24-hour release cooldown.
 
-- Safety profiles: add `denied-values` to refuse specific values of string and list flags on named commands, and use it in `agent-safe` to refuse the `TRASH` and `SPAM` labels on Gmail modify commands and `--send-updates all|externalOnly` on calendar create, update and move; `agent-safe` also blocks `calendar propose-time` and Drive and Docs comments, which notify other people. (#TBD)
+- Safety profiles: add `denied-values` to refuse specific values of string and list flags on named commands, and use it in `agent-safe` to refuse the `TRASH` and `SPAM` labels on Gmail modify commands and `--send-updates all|externalOnly` on calendar create, update and move; `agent-safe` also blocks `calendar propose-time` and Drive and Docs comments, which notify other people. (#1263)
 
 ## 0.47.0 - 2026-10-23
 
