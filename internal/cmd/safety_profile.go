@@ -300,7 +300,9 @@ func enforceDeniedValues(kctx *kong.Context) error {
 			if trimmed := strings.TrimSpace(raw); anyValue && (trimmed != "" || flagOnCommandLine(kctx, flag.Name)) {
 				return usagef("flag --%s value %q is denied for %q by baked safety profile %q", flag.Name, trimmed, strings.Join(path, " "), bakedSafetyProfileName())
 			}
-			for _, value := range splitCSV(raw) {
+			// The whole value is checked as well as its comma-separated parts, so a
+			// denied value that itself contains a comma still matches.
+			for _, value := range append([]string{strings.TrimSpace(raw)}, splitCSV(raw)...) {
 				if slices.Contains(denied, strings.ToLower(value)) {
 					return usagef("flag --%s value %q is denied for %q by baked safety profile %q", flag.Name, value, strings.Join(path, " "), bakedSafetyProfileName())
 				}
