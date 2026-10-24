@@ -17,10 +17,28 @@ denied-values:
   gmail.batch.modify:
     add: [TRASH, SPAM]
     add-label: [TRASH, SPAM]
+  # create and update also write focus-time and out-of-office events, whose
+  # auto-decline defaults to all, by --event-type or by type inference from any
+  # focus or out-of-office flag. Only an explicit auto-decline none passes.
   calendar.create:
     send-updates: [all, externalonly]
+    event-type: [focus, focus-time, focus_time, focustime, ooo, out-of-office, out_of_office, outofoffice]
+    focus-auto-decline: [all, new]
+    ooo-auto-decline: [all, new]
+    focus-decline-message: ["*"]
+    focus-chat-status: ["*"]
+    ooo-decline-message: ["*"]
   calendar.update:
     send-updates: [all, externalonly]
+    event-type: [focus, focus-time, focus_time, focustime, ooo, out-of-office, out_of_office, outofoffice]
+    # update infers the type from any supplied focus or out-of-office flag, even
+    # with an empty value, and an empty auto-decline defaults to all. Every use of
+    # these flags is refused, including an explicit none.
+    focus-auto-decline: ["*"]
+    ooo-auto-decline: ["*"]
+    focus-decline-message: ["*"]
+    focus-chat-status: ["*"]
+    ooo-decline-message: ["*"]
   calendar.move:
     send-updates: [all, externalonly]
   # --auto-decline defaults to all; declining a conflicting invitation notifies

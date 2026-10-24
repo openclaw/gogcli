@@ -10,6 +10,9 @@ import (
 
 const literalAll = "all"
 
+// anyValue as the sole entry of a denied-values list refuses every non-empty value.
+const anyValue = "*"
+
 // Parse validates the YAML form of a safety profile and returns the Profile
 // the generator emits as code. Allow and deny lists are sorted and
 // deduplicated; "all" / "*" entries on the allow side collapse into the
@@ -175,6 +178,7 @@ func addLockedFlags(out map[string]string, value any) error {
 // addDeniedValues reads the denied-values mapping of command path to flag name to a
 // list of refused values. Paths are normalized like command rules, flag names and
 // values are lowercased and trimmed so the runtime compares case-insensitively.
+// A list holding only "*" refuses any non-empty value of the flag.
 func addDeniedValues(out map[string]map[string]map[string]bool, value any) error {
 	if value == nil {
 		return nil
@@ -223,6 +227,9 @@ func addDeniedValues(out map[string]map[string]map[string]bool, value any) error
 					return fmt.Errorf("%s.%s: empty value", path, flag)
 				}
 				out[path][flag][s] = true
+			}
+			if out[path][flag][anyValue] && len(out[path][flag]) > 1 {
+				return fmt.Errorf("%s.%s: %q denies every value and cannot be combined with others", path, flag, anyValue)
 			}
 		}
 	}

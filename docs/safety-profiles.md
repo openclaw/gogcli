@@ -110,8 +110,11 @@ Allows reading, searching, drafting, labeling, archiving, organizing files, and
 other low-risk recoverable actions. Blocks sends, deletes, sharing changes, admin
 operations, and auth writes. Refuses the `TRASH` and `SPAM` labels on the Gmail
 modify commands, `--send-updates all|externalOnly` on calendar create, update
-and move, and any `calendar focus-time` that auto-declines (it defaults to
-`--auto-decline all`, so pass `--auto-decline none`), and blocks `calendar propose-time` and Drive and Docs comments, because
+and move, any `calendar focus-time` that auto-declines (it defaults to
+`--auto-decline all`, so pass `--auto-decline none`), and focus-time or
+out-of-office events written through `calendar create` and `calendar update`
+(`--event-type`, the focus and out-of-office flags, and on update any use of
+them), and blocks `calendar propose-time` and Drive and Docs comments, because
 those notify other people. See [Denied Flag Values](#denied-flag-values). Keeps
 `schema` available for command, exit-code, and effective safety-policy discovery.
 
@@ -294,6 +297,17 @@ flag --add value "TRASH" is denied for "gmail thread modify" by baked safety pro
 
 - Gmail label IDs are case-sensitive, but a denied value matches any casing, so a
   user label spelled `Trash` is refused as well. That fails closed.
+- a list holding only `"*"` refuses every value of the flag, as typed with no comma
+  splitting. An empty value counts when it is typed on the command line, because a
+  command can treat a supplied but empty flag as supplied: `calendar update` infers
+  an event type from one, and an empty auto-decline then defaults to `all`. A flag
+  left off the command line is allowed. `"*"` must be the only entry in its list.
+
+```yaml
+denied-values:
+  calendar.update:
+    focus-chat-status: ["*"]
+```
 
 Rules the binary cannot enforce are refused when it starts. Every path and flag
 must exist on that command itself, and the flag must hold a string or a list of
