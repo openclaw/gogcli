@@ -109,8 +109,9 @@ error messages can reference it.
 Allows reading, searching, drafting, labeling, archiving, organizing files, and
 other low-risk recoverable actions. Blocks sends, deletes, sharing changes, admin
 operations, and auth writes. Refuses the `TRASH` and `SPAM` labels on the Gmail
-modify commands and `--send-updates all|externalOnly` on calendar create, update
-and move, and blocks `calendar propose-time` and Drive and Docs comments, because
+modify commands, `--send-updates all|externalOnly` on calendar create, update
+and move, and any `calendar focus-time` that auto-declines (it defaults to
+`--auto-decline all`, so pass `--auto-decline none`), and blocks `calendar propose-time` and Drive and Docs comments, because
 those notify other people. See [Denied Flag Values](#denied-flag-values). Keeps
 `schema` available for command, exit-code, and effective safety-policy discovery.
 
