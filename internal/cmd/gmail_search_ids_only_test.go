@@ -93,13 +93,17 @@ func TestExecute_GmailMessagesSearch_IDsOnlyPlainPrintsIDColumns(t *testing.T) {
 }
 
 func TestExecute_GmailMessagesSearch_IDsOnlyRejectsContentFlags(t *testing.T) {
-	result := executeWithGmailTestService(
-		t,
-		[]string{"--json", "--account", "a@b.com", "gmail", "messages", "search", "list:example.com", "--ids-only", "--include-body"},
-		nil,
-	)
-	if result.err == nil || !strings.Contains(result.err.Error(), "--ids-only cannot be used with") {
-		t.Fatalf("expected --ids-only usage error, got %v", result.err)
+	for _, flag := range []string{"--include-body", "--headers=List-Id"} {
+		t.Run(flag, func(t *testing.T) {
+			result := executeWithGmailTestService(
+				t,
+				[]string{"--json", "--account", "a@b.com", "gmail", "messages", "search", "list:example.com", "--ids-only", flag},
+				nil,
+			)
+			if result.err == nil || !strings.Contains(result.err.Error(), "--ids-only cannot be used with") {
+				t.Fatalf("expected --ids-only usage error, got %v", result.err)
+			}
+		})
 	}
 }
 
