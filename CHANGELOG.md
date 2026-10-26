@@ -2,6 +2,8 @@
 
 ## 0.47.1 - Unreleased
 
+- Dependencies: update Google IAM, GAX, enterprise certificate support, Workers types, Wrangler, and oxlint-tsgolint while retaining Go 1.26 and the tracking worker’s 24-hour release cooldown.
+
 - Gmail: give the author's own text its direction in HTML (`dir="auto"` on each line of converted plain text, once around given HTML, and on the signature) so right-to-left text reads correctly and English keeps its direction when a right-to-left reply quotes it; whole HTML documents go in as given. (#1255) — thanks @malob.
 
 - Auth: use the encrypted file backend on headless Linux when D-Bus is explicitly disabled, instead of falling through to an uninitialized password store. (#1258) — thanks @pkyIntelligence.
