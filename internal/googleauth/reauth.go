@@ -156,10 +156,10 @@ func Reauth(ctx context.Context, opts ReauthOptions) (secrets.Token, error) {
 
 	fmt.Fprintln(stderr, "Re-authorizing…")
 
-	// A grant narrowed to read-only (limited Gmail, or Photos without append) must
+	// A narrowed Gmail, Calendar, or Photos grant must
 	// not ask Google to include previously granted scopes, or wider access returns.
 	narrowed := opts.StoredToken != nil &&
-		(hasLimitedGmailGrant(opts.StoredToken.Scopes) || hasLimitedPhotosGrant(opts.StoredToken.Scopes))
+		(hasLimitedGmailGrant(opts.StoredToken.Scopes) || hasLimitedCalendarGrant(opts.StoredToken.Scopes) || hasLimitedPhotosGrant(opts.StoredToken.Scopes))
 
 	authorizeOpts := AuthorizeOptions{
 		Services:                    services,
@@ -229,6 +229,22 @@ func hasLimitedPhotosGrant(scopes []string) bool {
 	}
 
 	return readonly
+}
+
+func hasLimitedCalendarGrant(scopes []string) bool {
+	const calendarScope = "https://www.googleapis.com/auth/calendar"
+	limited := false
+
+	for _, scope := range scopes {
+		switch scope {
+		case calendarScope:
+			return false
+		case calendarScope + ".readonly":
+			limited = true
+		}
+	}
+
+	return limited
 }
 
 func hasLimitedGmailGrant(scopes []string) bool {

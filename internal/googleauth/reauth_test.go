@@ -3,9 +3,12 @@ package googleauth
 import (
 	"context"
 	"errors"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
+
+	"golang.org/x/oauth2"
 
 	"github.com/openclaw/gogcli/internal/secrets"
 )
@@ -318,6 +321,56 @@ func TestReauthPreservesLimitedGmailGrants(t *testing.T) {
 					}
 
 					return "new-refresh-token", nil
+				},
+				FetchIdentityFunc: func(context.Context, string, string, []string, time.Duration) (Identity, error) {
+					return Identity{Email: "user@example.com"}, nil
+				},
+				Stderr: &bytesBuffer{},
+			}
+			if _, err := Reauth(context.Background(), opts); err != nil {
+				t.Fatalf("reauth: %v", err)
+			}
+		})
+	}
+}
+
+func TestReauthPreservesLimitedCalendarGrants(t *testing.T) {
+	const calendar = "https://www.googleapis.com/auth/calendar"
+	for _, tc := range []struct {
+		name   string
+		scopes []string
+		exact  bool
+	}{
+		{name: "read only", scopes: []string{"openid", calendar + ".readonly"}, exact: true},
+		{name: "read only with event writes", scopes: []string{calendar + ".readonly", calendar + ".events"}, exact: true},
+		{name: "read only with full Gmail", scopes: []string{calendar + ".readonly", "https://www.googleapis.com/auth/gmail.modify"}, exact: true},
+		{name: "full calendar", scopes: []string{calendar}},
+		{name: "full calendar with readonly", scopes: []string{calendar + ".readonly", calendar}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			opts := ReauthOptions{
+				Email:       "user@example.com",
+				Client:      "default",
+				Scopes:      []string{calendar},
+				StoredToken: &secrets.Token{Services: []string{"calendar"}, Scopes: tc.scopes},
+				Confirm:     func(context.Context, string) (bool, error) { return true, nil },
+				AuthorizeFunc: func(_ context.Context, authOpts AuthorizeOptions) (string, error) {
+					cfg := oauth2.Config{Endpoint: oauth2.Endpoint{AuthURL: "https://example.invalid/auth"}, Scopes: authOpts.Scopes}
+
+					authURL, err := url.Parse(cfg.AuthCodeURL("state", authURLParams(authOpts.ForceConsent, !authOpts.DisableIncludeGrantedScopes)...))
+					if err != nil {
+						t.Fatal(err)
+					}
+
+					if got := authURL.Query().Get("include_granted_scopes"); (got == "") != tc.exact {
+						t.Fatalf("include_granted_scopes = %q, want exact grant %t", got, tc.exact)
+					}
+
+					if got := authURL.Query().Get("scope"); got != strings.Join(tc.scopes, " ") {
+						t.Fatalf("scopes = %q, want stored scopes %v", got, tc.scopes)
+					}
+
+					return "synthetic-refresh-token", nil
 				},
 				FetchIdentityFunc: func(context.Context, string, string, []string, time.Duration) (Identity, error) {
 					return Identity{Email: "user@example.com"}, nil

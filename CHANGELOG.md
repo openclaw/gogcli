@@ -2,6 +2,8 @@
 
 ## 0.47.1 - Unreleased
 
+- Auth: preserve Calendar read-only scope selections during automatic reauthorization instead of requesting previously granted broader access. (#1259) — thanks @pkyIntelligence.
+
 ## 0.47.0 - 2026-10-23
 
 **Highlights:** Opt-in HTML Gmail bodies, selected search headers, and calendar settings updates, with OAuth error redaction and certificate trust fixes.

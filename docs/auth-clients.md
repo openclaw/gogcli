@@ -42,6 +42,12 @@ This writes `client_domains` into `config.json` so any `@example.com` account se
 
 Command errors, per-item results, backup diagnostics, `auth list --check`, `auth doctor --check`, and watch/verbose error logs omit OAuth provider descriptions, URLs, and response bodies. Recognized errors retain their code and recovery steps. For `invalid_grant`, reauthorize the same account and client with `gog --client <client> auth add <email>`, preserving the services and scopes shown by `gog auth list --json`.
 
+Automatic reauthorization preserves stored scope selections. Limited Gmail,
+Calendar read-only, and Photos read-only grants omit incremental authorization
+so Google does not add permissions from an earlier, broader grant. A Calendar
+read-only grant remains narrowed when combined with extra event-write scopes;
+a stored full Calendar grant retains incremental authorization.
+
 ## Listing stored credentials
 
 ```
