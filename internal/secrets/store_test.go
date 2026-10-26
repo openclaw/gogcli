@@ -382,6 +382,14 @@ func TestKeyringDbusGuards(t *testing.T) {
 			wantTimeout: false,
 		},
 		{
+			name:        "linux auto explicitly disabled dbus",
+			goos:        "linux",
+			backend:     "auto",
+			dbusAddr:    "disabled:",
+			wantForce:   true,
+			wantTimeout: false,
+		},
+		{
 			name:        "linux auto with dbus",
 			goos:        "linux",
 			backend:     "auto",
@@ -424,6 +432,12 @@ func TestKeyringDbusGuards(t *testing.T) {
 
 			if got := shouldUseKeyringTimeout(tt.goos, info, tt.dbusAddr); got != tt.wantTimeout {
 				t.Fatalf("shouldUseKeyringTimeout=%v, want %v", got, tt.wantTimeout)
+			}
+
+			if tt.goos == "linux" {
+				if got := shouldUseKeyringOperationTimeout(tt.goos, info, tt.dbusAddr); got != tt.wantTimeout {
+					t.Fatalf("shouldUseKeyringOperationTimeout=%v, want %v", got, tt.wantTimeout)
+				}
 			}
 		})
 	}
@@ -501,13 +515,26 @@ func TestOpenKeyring_NoDBus_ForcesFileBackend(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, "xdg-config"))
 	t.Setenv("GOG_KEYRING_BACKEND", "")        // auto
 	t.Setenv("GOG_KEYRING_PASSWORD", "testpw") // for file backend
-	t.Setenv("DBUS_SESSION_BUS_ADDRESS", "")   // no D-Bus
 
-	// Should succeed using file backend (not hang on D-Bus)
-	store := openSystemTestStore(t)
+	for _, address := range []string{"", "disabled:"} {
+		t.Run("address="+address, func(t *testing.T) {
+			t.Setenv("DBUS_SESSION_BUS_ADDRESS", address)
 
-	if store == nil {
-		t.Fatal("expected non-nil store")
+			store := openSystemTestStore(t)
+			if store == nil {
+				t.Fatal("expected non-nil store")
+			}
+
+			token := Token{RefreshToken: "synthetic-refresh-token"}
+			if err := store.SetToken(config.DefaultClientName, "fixture@example.invalid", token); err != nil {
+				t.Fatal(err)
+			}
+
+			got, err := store.GetToken(config.DefaultClientName, "fixture@example.invalid")
+			if err != nil || got.RefreshToken != token.RefreshToken {
+				t.Fatalf("token roundtrip: got %v, err %v", got.RefreshToken == token.RefreshToken, err)
+			}
+		})
 	}
 }
 

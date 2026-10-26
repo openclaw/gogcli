@@ -131,6 +131,13 @@ Paths, counts and key names can appear in output; payloads and passwords cannot.
 
 ## Containers and Agents
 
+On headless Linux, set `DBUS_SESSION_BUS_ADDRESS=disabled:` to prevent the
+keyring dependency from trying to launch a session bus at process startup.
+With that setting, `GOG_KEYRING_BACKEND=auto` uses the encrypted file backend;
+provide `GOG_KEYRING_PASSWORD` through your secret manager for unattended use.
+Existing desktop session-bus addresses retain their normal backend selection
+and timeouts. An unreachable desktop bus is not treated as explicitly disabled.
+
 For a single persistent root:
 
 ```bash

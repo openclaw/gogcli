@@ -202,11 +202,15 @@ func parseKeyringOpenTimeout(raw, goos string) time.Duration {
 }
 
 func shouldForceFileBackend(goos string, backendInfo KeyringBackendInfo, dbusAddr string) bool {
-	return goos == goosLinux && backendInfo.Value == keyringBackendAuto && dbusAddr == ""
+	return goos == goosLinux && backendInfo.Value == keyringBackendAuto && !hasEnabledDBusAddress(dbusAddr)
 }
 
 func shouldUseKeyringTimeout(goos string, backendInfo KeyringBackendInfo, dbusAddr string) bool {
-	return goos == goosLinux && backendInfo.Value == keyringBackendAuto && dbusAddr != ""
+	return goos == goosLinux && backendInfo.Value == keyringBackendAuto && hasEnabledDBusAddress(dbusAddr)
+}
+
+func hasEnabledDBusAddress(address string) bool {
+	return address != "" && address != "disabled:"
 }
 
 func shouldUseKeyringOperationTimeout(goos string, backendInfo KeyringBackendInfo, dbusAddr string) bool {
@@ -214,7 +218,7 @@ func shouldUseKeyringOperationTimeout(goos string, backendInfo KeyringBackendInf
 		return backendInfo.Value == keyringBackendAuto || backendInfo.Value == keyringBackendKeychain
 	}
 
-	return goos == goosLinux && backendInfo.Value == keyringBackendAuto && dbusAddr != ""
+	return goos == goosLinux && backendInfo.Value == keyringBackendAuto && hasEnabledDBusAddress(dbusAddr)
 }
 
 func keyringTimeoutHint(goos string) string {

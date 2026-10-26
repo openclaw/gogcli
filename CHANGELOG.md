@@ -2,6 +2,8 @@
 
 ## 0.47.1 - Unreleased
 
+- Auth: use the encrypted file backend on headless Linux when D-Bus is explicitly disabled, instead of falling through to an uninitialized password store. (#1258) — thanks @pkyIntelligence.
+
 - Auth: preserve Calendar read-only scope selections during automatic reauthorization instead of requesting previously granted broader access. (#1259) — thanks @pkyIntelligence.
 
 ## 0.47.0 - 2026-10-23
