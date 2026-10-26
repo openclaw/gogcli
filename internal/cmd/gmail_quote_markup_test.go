@@ -28,7 +28,7 @@ func TestQuoteLinesKeepTheirDirection(t *testing.T) {
 
 	t.Run("reply", func(t *testing.T) {
 		html := formatQuotedMessageHTMLWithContent(sender, date, quoted, la)
-		want := `<br><br>` + open + "On " + dateHTML + " " + name + " " + address + ` wrote:</div><blockquote class="gmail_quote" style="margin:0 0 0 .8ex;border-left:1px #ccc solid;padding-left:1ex">` + quoted + `</blockquote></div>`
+		want := open + "On " + dateHTML + " " + name + " " + address + ` wrote:</div><blockquote class="gmail_quote" style="margin:0 0 0 .8ex;border-left:1px #ccc solid;padding-left:1ex">` + quoted + `</blockquote></div>`
 		if html != want {
 			t.Errorf("reply quote:\n got %q\nwant %q", html, want)
 		}

@@ -27,9 +27,9 @@ func TestGmailForward_PlainNoteKeepsLineBreaksInHTML(t *testing.T) {
 			if got := strings.TrimSpace(noteRegion(t, plain, forwardedSeparator)); got != note {
 				t.Errorf("plain note = %q, want %q", got, note)
 			}
-			const wantHTML = "First paragraph.<br>\n<br>\nSecond paragraph, with &lt;tags&gt; &amp; ampersands."
-			if got := noteRegion(t, html, gmailQuoteOpen); !strings.Contains(got, wantHTML) {
-				t.Errorf("HTML note lost its line breaks or escaping; want %q in:\n%s", wantHTML, got)
+			const wantHTML = "<div dir=\"auto\">First paragraph.</div>\n<div dir=\"auto\"><br></div>\n<div dir=\"auto\">Second paragraph, with &lt;tags&gt; &amp; ampersands.</div><br>"
+			if got := noteRegion(t, html, gmailQuoteOpen); got != wantHTML {
+				t.Errorf("HTML note = %q, want each line escaped in its own div:\n%q", got, wantHTML)
 			}
 		})
 	}
@@ -128,7 +128,7 @@ func TestGmailForward_WhitespaceOnlyHTMLNoteCountsAsMissing(t *testing.T) {
 			if got := strings.TrimSpace(noteRegion(t, plain, forwardedSeparator)); got != "FYI" {
 				t.Errorf("plain note = %q, want %q", got, "FYI")
 			}
-			if got := noteRegion(t, html, gmailQuoteOpen); got != "<div>FYI</div><br>" {
+			if got := noteRegion(t, html, gmailQuoteOpen); got != `<div dir="auto">FYI</div><br>` {
 				t.Errorf("HTML note = %q, want the plain note escaped", got)
 			}
 		})
@@ -201,8 +201,24 @@ func TestGmailForward_HTMLNoteSitsAboveSignature(t *testing.T) {
 				t.Errorf("plain part not note, signature, forward; want %q in:\n%s", want, plain)
 			}
 			html := rawTextPart(t, got.raw, "text/html")
-			if want := `<div><p>See <b>below</b>.</p></div><br><div class="gmail_signature"><div>Kind regards</div></div><br>` + gmailQuoteOpen; !strings.Contains(html, want) {
+			if want := `<div dir="auto"><p>See <b>below</b>.</p></div><br>` + gmailSignatureOpen + `<div>Kind regards</div></div><br>` + gmailQuoteOpen; !strings.Contains(html, want) {
 				t.Errorf("HTML part not note, signature, forward; want %q in:\n%s", want, html)
+			}
+		})
+	}
+}
+
+// A note given as a whole HTML document goes in as given, with two <br> after
+// it: a document may end inline, where one would leave no blank line above the
+// forwarded message.
+func TestGmailForward_HTMLDocumentNote(t *testing.T) {
+	t.Setenv("GOG_TIMEZONE", "UTC")
+	const note = "<!DOCTYPE html><html><body>FYI</body></html>"
+	for _, cmd := range forwardCommands {
+		t.Run(cmd.name, func(t *testing.T) {
+			_, html := forwardTextParts(t, forwardArgs(cmd.verb, "--note-html", note), cmd.finalizePath, mockForwardSourceMessage)
+			if got := noteRegion(t, html, gmailQuoteOpen); got != note+"<br><br>" {
+				t.Errorf("HTML note = %q, want the document as given and two <br>", got)
 			}
 		})
 	}
@@ -257,7 +273,7 @@ func TestGmailDraftsForward_NoteHTMLFileStdin(t *testing.T) {
 	if !*created {
 		t.Fatal("expected Drafts.Create to be called")
 	}
-	if html := rawTextPart(t, *rawPtr, "text/html"); !strings.Contains(html, "<div><p>Note from <b>stdin</b></p></div>") {
+	if html := rawTextPart(t, *rawPtr, "text/html"); !strings.Contains(html, `<div dir="auto"><p>Note from <b>stdin</b></p></div>`) {
 		t.Fatalf("expected stdin HTML note in the HTML part:\n%s", html)
 	}
 	if plain := rawTextPart(t, *rawPtr, "text/plain"); !strings.Contains(plain, "Note from stdin") {

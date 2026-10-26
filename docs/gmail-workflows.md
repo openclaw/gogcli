@@ -241,6 +241,25 @@ given in that call.
 An HTML signature adds an HTML alternative when the supplied body is plain text,
 preserving image-only signatures and escaping the original body text.
 
+## Text direction in HTML messages
+
+In the HTML part of a message gog sends or saves as a draft, the author's text
+is marked `dir="auto"`, so it takes the direction of its first letter, and
+English text keeps its direction when a reply written right to left quotes it.
+When gog turns plain text into HTML (`--html-from-text`, a `--body` above a quote or beside a
+draft's signature, a `--note`, a plain-text `--signature-file`), each line gets
+a `<div dir="auto">` of its own, as Gmail's mobile apps write it, so a Hebrew
+or Arabic line reads right to left among English ones. HTML given through
+`--body-html` or `--note-html` (or their `-file` forms) goes into one
+`<div dir="auto">`, which follows its first letter as a whole; `dir` attributes
+inside it still apply, so mark the paragraphs of a mixed-language message, or a
+layout table, yourself. A whole HTML document, or HTML that opens with what
+belongs in a document's head (a `<base>`, `<link>`, `<meta>`, `<style>` or
+`<title>`), goes in as given. A signature in a block of its own is marked too;
+with a plain-text reply body, the signature's text is converted along with the
+body. Plain text you give is unchanged, a message with no HTML part has nothing
+to mark, and a `--raw-file` message, sent or saved as a draft, goes as it is.
+
 ## Stage an exact RFC822 message as a draft
 
 Use the same prebuilt MIME file as `gmail send --raw-file` to stage a draft

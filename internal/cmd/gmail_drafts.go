@@ -420,7 +420,7 @@ func buildDraftMessage(ctx context.Context, svc *gmail.Service, account string, 
 	if err != nil {
 		return nil, draftThreading{}, nil, err
 	}
-	body, htmlBody := input.Body, input.BodyHTML
+	body, htmlBody := input.Body, directedHTML(input.BodyHTML)
 	replyContextSource := ""
 	if strings.TrimSpace(info.InReplyTo) != "" {
 		replyContextSource = replyContextCaller
@@ -462,7 +462,7 @@ func buildDraftMessage(ctx context.Context, svc *gmail.Service, account string, 
 		return nil, draftThreading{}, nil, err
 	}
 	if htmlBody == "" && signature.htmlBlock() != "" {
-		htmlBody = escapeTextToHTML(body)
+		htmlBody = directedTextToHTML(strings.TrimSpace(body))
 	}
 	body, htmlBody = appendComposeSignature(body, htmlBody, signature)
 	body, htmlBody, err = applyReplyQuote(ctx, input.Quote, info, body, htmlBody)

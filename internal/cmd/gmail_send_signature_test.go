@@ -37,7 +37,7 @@ func TestGmailSendCmd_Run_WithSendAsSignature(t *testing.T) {
 	if !strings.Contains(raw, "Body\r\n\r\n--\r\nKind regards\r\nPrimary User") {
 		t.Fatalf("plain signature missing from raw message:\n%s", raw)
 	}
-	if !strings.Contains(raw, `<div class="gmail_signature"><div>Kind regards<br>Primary User</div></div>`) {
+	if !strings.Contains(raw, gmailSignatureOpen+`<div>Kind regards<br>Primary User</div></div>`) {
 		t.Fatalf("html signature missing from raw message:\n%s", raw)
 	}
 }
@@ -99,7 +99,7 @@ func TestGmailSendCmd_Run_WithSignatureFile(t *testing.T) {
 	if !strings.Contains(raw, "Body\r\n\r\n--\r\nLocal Sig\r\nhttps://example.com") {
 		t.Fatalf("plain file signature missing from raw message:\n%s", raw)
 	}
-	if !strings.Contains(raw, "Local Sig<br>\r\nhttps://example.com") {
+	if !strings.Contains(raw, gmailSignatureOpen+`<div dir="auto">Local Sig</div>`+"\r\n"+`<div dir="auto">https://example.com</div></div>`) {
 		t.Fatalf("html file signature missing from raw message:\n%s", raw)
 	}
 }

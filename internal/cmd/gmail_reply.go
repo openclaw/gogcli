@@ -3,7 +3,6 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"html"
 	"net/mail"
 	"strings"
 	"time"
@@ -293,11 +292,6 @@ func deduplicateAddresses(addresses []string) []string {
 	return result
 }
 
-func escapeTextToHTML(value string) string {
-	value = html.EscapeString(value)
-	return strings.ReplaceAll(value, "\n", "<br>\n")
-}
-
 func applyQuoteToBodies(plainBody string, htmlBody string, quote bool, info *replyInfo, loc *time.Location) (string, string) {
 	if !quote || !info.hasQuotableText() {
 		return plainBody, htmlBody
@@ -325,7 +319,8 @@ func applyQuoteToBodies(plainBody string, htmlBody string, quote bool, info *rep
 
 	quoteHTML := formatQuotedMessageHTMLWithContent(info.FromAddr, info.Date, quoteContent, loc)
 
-	return outPlain, reply.htmlVersion() + quoteHTML
+	replyHTML := reply.htmlVersion()
+	return outPlain, replyHTML + breakAfter(replyHTML) + quoteHTML
 }
 
 // formatQuotedMessage formats the original message as a quoted reply.
@@ -356,7 +351,7 @@ func formatQuotedMessage(from, date, body string, loc *time.Location) string {
 // so the original's markup is left as it came.
 func formatQuotedMessageHTMLWithContent(from, date, htmlContent string, loc *time.Location) string {
 	attribution := formatQuoteAttribution(isolateTextDirection(formatQuoteDate(date, loc)), formatQuoteMailboxHTML(from, plainName))
-	return "<br><br>" + gmailQuoteOpen + attribution + "</div>" +
+	return gmailQuoteOpen + attribution + "</div>" +
 		`<blockquote class="gmail_quote" style="margin:0 0 0 .8ex;border-left:1px #ccc solid;padding-left:1ex">` +
 		htmlContent + "</blockquote></div>"
 }

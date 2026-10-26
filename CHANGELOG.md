@@ -2,6 +2,8 @@
 
 ## 0.47.1 - Unreleased
 
+- Gmail: give the author's own text its direction in HTML (`dir="auto"` on each line of converted plain text, once around given HTML, and on the signature) so right-to-left text reads correctly and English keeps its direction when a right-to-left reply quotes it; whole HTML documents go in as given. (#1255) — thanks @malob.
+
 - Auth: use the encrypted file backend on headless Linux when D-Bus is explicitly disabled, instead of falling through to an uninitialized password store. (#1258) — thanks @pkyIntelligence.
 
 - Auth: preserve Calendar read-only scope selections during automatic reauthorization instead of requesting previously granted broader access. (#1259) — thanks @pkyIntelligence.

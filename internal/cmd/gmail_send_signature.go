@@ -3,11 +3,9 @@ package cmd
 import (
 	"context"
 	"fmt"
-	stdhtml "html"
 	"os"
 	"strings"
 
-	nethtml "golang.org/x/net/html"
 	"google.golang.org/api/gmail/v1"
 
 	"github.com/openclaw/gogcli/internal/config"
@@ -54,12 +52,17 @@ func (s composeSignature) plainBlock() string {
 	return "--\n" + strings.TrimSpace(s.Plain)
 }
 
+// gmailSignatureOpen opens the block that holds a signature in an HTML body,
+// with Gmail's class. dir="auto" gives the signature the direction of its own
+// first letter, whatever the body's.
+const gmailSignatureOpen = `<div dir="auto" class="gmail_signature">`
+
 // htmlBlock is the signature as appended to an HTML body, or "" when empty.
 func (s composeSignature) htmlBlock() string {
 	if strings.TrimSpace(s.HTML) == "" {
 		return ""
 	}
-	return `<div class="gmail_signature">` + strings.TrimSpace(s.HTML) + `</div>`
+	return gmailSignatureOpen + strings.TrimSpace(s.HTML) + `</div>`
 }
 
 // requestedSignature resolves the signature the signature flags ask for. It
@@ -135,7 +138,7 @@ func readComposeSignatureFile(path string) (composeSignature, error) {
 	}
 	return composeSignature{
 		Plain: value,
-		HTML:  escapeTextToHTML(value),
+		HTML:  directedTextToHTML(value),
 	}, nil
 }
 
@@ -153,111 +156,4 @@ func appendComposeSignature(plainBody, htmlBody string, signature composeSignatu
 func appendBodyBlock(body, block string) string {
 	body = strings.TrimRight(body, "\r\n")
 	return body + "\n\n" + block
-}
-
-func htmlToPlainText(value string) string {
-	value = strings.TrimSpace(value)
-	if value == "" {
-		return ""
-	}
-	doc, err := nethtml.Parse(strings.NewReader(value))
-	if err != nil {
-		return gmailcontent.StripHTMLTags(value)
-	}
-
-	var out strings.Builder
-	var walk func(*nethtml.Node)
-	walk = func(n *nethtml.Node) {
-		if n == nil {
-			return
-		}
-		switch n.Type {
-		case nethtml.TextNode:
-			out.WriteString(n.Data)
-		case nethtml.ElementNode:
-			if hiddenHTMLElement(n) {
-				return
-			}
-			switch strings.ToLower(n.Data) {
-			case "head", literalStyle, "script", "template", "noscript", literalTitle:
-				return
-			case "br":
-				writeHTMLNewline(&out)
-				return
-			case "div", "p", "li":
-				writeHTMLNewline(&out)
-				for child := n.FirstChild; child != nil; child = child.NextSibling {
-					walk(child)
-				}
-				writeHTMLNewline(&out)
-				return
-			}
-		}
-		for child := n.FirstChild; child != nil; child = child.NextSibling {
-			walk(child)
-		}
-	}
-	walk(doc)
-
-	lines := strings.Split(stdhtml.UnescapeString(out.String()), "\n")
-	kept := make([]string, 0, len(lines))
-	for _, line := range lines {
-		if trimmed := strings.TrimSpace(line); trimmed != "" {
-			kept = append(kept, trimmed)
-		}
-	}
-	return strings.Join(kept, "\n")
-}
-
-func hiddenHTMLElement(n *nethtml.Node) bool {
-	for _, attr := range n.Attr {
-		switch strings.ToLower(attr.Key) {
-		case "hidden":
-			return true
-		case "aria-hidden":
-			if strings.EqualFold(strings.TrimSpace(attr.Val), "true") {
-				return true
-			}
-		case "type":
-			if strings.EqualFold(n.Data, "input") && strings.EqualFold(strings.TrimSpace(attr.Val), "hidden") {
-				return true
-			}
-		case literalStyle:
-			if hiddenInlineStyle(attr.Val) {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-func hiddenInlineStyle(value string) bool {
-	for declaration := range strings.SplitSeq(value, ";") {
-		property, setting, ok := strings.Cut(declaration, ":")
-		if !ok {
-			continue
-		}
-		property = strings.ToLower(strings.TrimSpace(property))
-		setting = strings.ToLower(strings.TrimSpace(setting))
-		switch property {
-		case "display", "visibility":
-			if strings.HasPrefix(setting, "none") || strings.HasPrefix(setting, "hidden") {
-				return true
-			}
-		case "mso-hide":
-			if strings.HasPrefix(setting, "all") {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-func writeHTMLNewline(out *strings.Builder) {
-	if out.Len() == 0 {
-		return
-	}
-	if !strings.HasSuffix(out.String(), "\n") {
-		out.WriteByte('\n')
-	}
 }

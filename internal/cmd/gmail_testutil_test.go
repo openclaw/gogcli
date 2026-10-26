@@ -220,6 +220,13 @@ func rawTextPart(t *testing.T, raw, mediaType string) string {
 	return body
 }
 
+// composedHTML is a composed message's HTML part with LF line endings, less
+// the line break that ends the MIME part.
+func composedHTML(t *testing.T, raw string) string {
+	t.Helper()
+	return strings.TrimSuffix(strings.ReplaceAll(rawTextPart(t, raw, "text/html"), "\r\n", "\n"), "\n")
+}
+
 func findTextPart(header textproto.MIMEHeader, body io.Reader, want string) (string, bool) {
 	mediaType, params, err := mime.ParseMediaType(header.Get("Content-Type"))
 	if err != nil {

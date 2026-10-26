@@ -17,10 +17,10 @@ type composeTextHTMLOptions struct {
 
 // withTextHTML returns htmlBody unchanged unless --html-from-text is set, no
 // HTML body was given, and the plain body has text. Then it returns the plain
-// body as escaped HTML that keeps its line breaks.
+// body as escaped HTML with each line's own text direction.
 func (c composeTextHTMLOptions) withTextHTML(plainBody, htmlBody string) string {
 	if !c.HTMLFromText || strings.TrimSpace(htmlBody) != "" || strings.TrimSpace(plainBody) == "" {
 		return htmlBody
 	}
-	return escapeTextToHTML(plainBody)
+	return directedTextToHTML(plainBody)
 }

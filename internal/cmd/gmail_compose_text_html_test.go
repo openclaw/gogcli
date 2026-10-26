@@ -26,7 +26,8 @@ func TestComposeTextHTMLOptions_WithTextHTML(t *testing.T) {
 		want  string
 	}{
 		{"off keeps plain-only", composeTextHTMLOptions{}, "Hi,\n\nOne paragraph.", "", ""},
-		{"on builds escaped html with line breaks", on, "Hi,\n\nA & <b> line.", "", "Hi,<br>\n<br>\nA &amp; &lt;b&gt; line."},
+		{"on builds escaped html with line breaks", on, "Hi,\n\nA & <b> line.", "", "<div dir=\"auto\">Hi,</div>\n<div dir=\"auto\"><br></div>\n<div dir=\"auto\">A &amp; &lt;b&gt; line.</div>"},
+		{"on directs mixed-language lines", on, "Hello\nשלום", "", "<div dir=\"auto\">Hello</div>\n<div dir=\"auto\">שלום</div>"},
 		{"on keeps a given html body", on, "Hi", "<p>Hi</p>", "<p>Hi</p>"},
 		{"on ignores an empty plain body", on, " \n", "", ""},
 	}
@@ -78,8 +79,8 @@ func TestGmailSendCmd_HTMLFromTextAddsHTMLAlternative(t *testing.T) {
 		!strings.Contains(raw, "Content-Type: text/html") {
 		t.Fatalf("expected text/plain and text/html alternatives, got:\n%s", raw)
 	}
-	if !strings.Contains(raw, "One long paragraph that should reflow in Gmail web instead of breaking every seventy characters.<br>") {
-		t.Fatalf("expected the paragraph as one HTML line ending in <br>, got:\n%s", raw)
+	if !strings.Contains(raw, "One long paragraph that should reflow in Gmail web instead of breaking every seventy characters.</div>") {
+		t.Fatalf("expected the paragraph as one directed HTML line, got:\n%s", raw)
 	}
 }
 
@@ -94,7 +95,7 @@ func TestGmailDraftsCreateCmd_HTMLFromTextFlagAndEnv(t *testing.T) {
 	raw := captureDraftCreateRaw(t, []string{
 		"--to", "a@example.com", "--subject", "Hello", "--body", "Hi,\n\nA draft paragraph.", "--html-from-text",
 	})
-	if !strings.Contains(raw, "Content-Type: text/html") || !strings.Contains(raw, "Hi,<br>") {
+	if !strings.Contains(raw, "Content-Type: text/html") || !strings.Contains(raw, `<div dir="auto">Hi,</div>`) {
 		t.Fatalf("expected an HTML alternative from --html-from-text, got:\n%s", raw)
 	}
 
@@ -156,7 +157,7 @@ func TestExecuteGmailReplyHTMLFromText(t *testing.T) {
 	}
 	if !strings.Contains(rawSent, "multipart/alternative") ||
 		!strings.Contains(rawSent, "Content-Type: text/html") ||
-		!strings.Contains(rawSent, "Thanks,<br>") {
+		!strings.Contains(rawSent, `<div dir="auto">Thanks,</div>`) {
 		t.Fatalf("expected the reply to carry an HTML alternative, got:\n%s", rawSent)
 	}
 }
@@ -191,10 +192,11 @@ func TestGmailDraftsUpdate_HTMLFromTextPreservesPlainBody(t *testing.T) {
 			defer srv.Close()
 			ctx := withGmailTestService(newCmdRuntimeIOContext(t, nil, io.Discard, io.Discard), newGmailServiceFromServer(t, srv))
 			args := []string{"d1", "--subject", "Updated", "--body", body, "--html-from-text"}
-			wantHTML := escapeTextToHTML(body)
+			wantHTML := directedHTML(directedTextToHTML(body))
 			if explicit {
-				wantHTML = "<p>Explicit HTML</p>"
-				args = append(args, "--body-html", wantHTML)
+				const explicitHTML = "<p>Explicit HTML</p>"
+				wantHTML = directedHTML(explicitHTML)
+				args = append(args, "--body-html", explicitHTML)
 			}
 			if err := runKong(t, &GmailDraftsUpdateCmd{}, args, ctx, &RootFlags{Account: "a@b.com"}); err != nil {
 				t.Fatal(err)

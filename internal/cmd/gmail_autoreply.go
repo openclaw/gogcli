@@ -243,7 +243,7 @@ func runGmailAutoReply(ctx context.Context, svc *gmail.Service, account string, 
 			ReplyTo:   input.ReplyTo,
 			Subject:   autoReplySubject(input.Subject, headerValue(msg.Payload, "Subject")),
 			Body:      input.Body,
-			BodyHTML:  input.BodyHTML,
+			BodyHTML:  directedHTML(input.BodyHTML),
 			ReplyInfo: replyMeta,
 			Headers: map[string]string{
 				"Auto-Submitted":           "auto-replied",
