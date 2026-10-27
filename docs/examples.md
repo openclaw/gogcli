@@ -43,6 +43,7 @@ gog calendar update primary <eventId> --with-meet
 gog calendar update primary <eventId> \
   --attachment 'https://drive.google.com/open?id=<fileId>'
 gog calendar update primary <eventId> --attachment ''
+gog calendar update primary <eventId> --location '' --attendees ''
 gog zoom auth setup
 gog calendar create primary --summary "Client sync" \
   --from "2026-05-06T11:00:00+02:00" \
@@ -56,6 +57,9 @@ gog calendar delete-calendar <calendarId> --force
 gog calendar subscribe en.uk#holiday@group.v.calendar.google.com
 gog calendar unsubscribe en.uk#holiday@group.v.calendar.google.com --force
 ```
+
+For event updates, an empty `--summary`, `--description`, or `--location` clears
+that field, and `--attendees ''` removes all attendees. Omitted fields stay unchanged.
 
 Repeated `--attachment` values replace all attachments; an empty value clears
 them. Google Calendar appointment schedules are not exposed by the Calendar

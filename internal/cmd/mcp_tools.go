@@ -35,6 +35,7 @@ func mcpGmailSearchTool() mcpToolSpec {
 		Options: []mcp.ToolOption{
 			mcp.WithString("query", mcp.Description("Gmail search query, e.g. newer_than:7d from:person@example.com"), mcp.Required()),
 			mcp.WithInteger("max", mcp.Description("Maximum results"), mcp.DefaultNumber(10), mcp.Min(1), mcp.Max(100)),
+			mcp.WithString("page", mcp.Description("Page token returned by a previous call; keep the same query")),
 			mcp.WithBoolean("include_body", mcp.Description("Include decoded message body"), mcp.DefaultBool(false)),
 			mcp.WithBoolean("include_recipients", mcp.Description("Include To, Cc, and Bcc headers"), mcp.DefaultBool(false)),
 			mcp.WithArray("headers", mcp.Description("Header names, e.g. List-Id and Sender. Each result gets a headers object keyed by canonical name (list-id becomes List-Id, Message-ID becomes Message-Id); missing headers are empty and repeated ones give the first value"), mcp.WithStringItems(), mcp.MaxItems(50)),
@@ -46,6 +47,9 @@ func mcpGmailSearchTool() mcpToolSpec {
 				return nil, err
 			}
 			args := []string{"gmail", "messages", "search", "--max", strconv.Itoa(clampMCPInt(req.GetInt("max", 10), 1, 100))}
+			if page := req.GetString("page", ""); page != "" {
+				args = append(args, "--page="+page)
+			}
 			if req.GetBool("include_body", false) {
 				args = append(args, "--include-body")
 			}
@@ -255,10 +259,14 @@ func mcpCalendarEventsTool() mcpToolSpec {
 			mcp.WithBoolean("tomorrow", mcp.Description("Tomorrow only"), mcp.DefaultBool(false)),
 			mcp.WithInteger("days", mcp.Description("Window length in days, measured from the from argument when given, otherwise from today"), mcp.DefaultNumber(0), mcp.Min(0), mcp.Max(31)),
 			mcp.WithInteger("max", mcp.Description("Maximum results"), mcp.DefaultNumber(10), mcp.Min(1), mcp.Max(250)),
+			mcp.WithString("page", mcp.Description("Page token returned by a previous call; keep the same calendar and time window")),
 			mcp.WithString("query", mcp.Description("Free text search")),
 		},
 		BuildArgs: func(req mcp.CallToolRequest) ([]string, error) {
 			args := []string{"calendar", "events"}
+			if page := req.GetString("page", ""); page != "" {
+				args = append(args, "--page="+page)
+			}
 			calendarID := strings.TrimSpace(req.GetString("calendar_id", ""))
 			for _, pair := range [][2]string{{"from", "--from"}, {"to", "--to"}, {"query", "--query"}} {
 				if v := strings.TrimSpace(req.GetString(pair[0], "")); v != "" {

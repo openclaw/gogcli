@@ -93,6 +93,9 @@ func applyUpdateTextFields(input calendarUpdateInput, fields calendarUpdateField
 	changed := false
 	if fields.Summary {
 		patch.Summary = strings.TrimSpace(input.Summary)
+		if patch.Summary == "" {
+			patch.ForceSendFields = appendForceSendField(patch.ForceSendFields, "Summary")
+		}
 		changed = true
 	}
 	if fields.Description {
@@ -104,6 +107,9 @@ func applyUpdateTextFields(input calendarUpdateInput, fields calendarUpdateField
 	}
 	if fields.Location {
 		patch.Location = strings.TrimSpace(input.Location)
+		if patch.Location == "" {
+			patch.ForceSendFields = appendForceSendField(patch.ForceSendFields, "Location")
+		}
 		changed = true
 	}
 	if input.ResolvedPlace != nil {
@@ -170,6 +176,10 @@ func applyUpdateAttendees(input calendarUpdateInput, fields calendarUpdateFields
 		return false
 	}
 	patch.Attendees = buildAttendees(input.Attendees)
+	if len(patch.Attendees) == 0 {
+		patch.Attendees = []*calendar.EventAttendee{}
+		patch.ForceSendFields = appendForceSendField(patch.ForceSendFields, "Attendees")
+	}
 	return true
 }
 

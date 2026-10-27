@@ -6,6 +6,10 @@
 
 - Google APIs: raise the rate-limit retry budget from three to six backoffs (63s to just under 94.5s in total) so per-minute quotas such as Gmail's "Units per minute per user" can refill before a command fails. (#1257) — thanks @jatinbansal1998.
 
+- Calendar: honor explicitly empty event summaries, locations, and attendee lists in update requests, while preserving omitted fields. (#1268) — thanks @pkyIntelligence.
+
+- MCP: add optional `page` continuation tokens to `gmail_search` and `calendar_events`, preserving bounded reads and existing CLI pagination. (#1269, #1270) — thanks @pkyIntelligence.
+
 ## 0.47.1 - 2026-10-26
 
 **Highlights:** Preserve Gmail text direction and narrowed Calendar grants, fix headless Linux authentication, and reject compromised certificates in the tracking worker.

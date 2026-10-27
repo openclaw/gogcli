@@ -14,6 +14,11 @@ The server registers a small set of typed tools such as `gmail_search`,
 specific `gog` operation, and returns a structured result containing the tool
 name, service, risk level, exit code, parsed stdout, and stderr.
 
+`gmail_search` and `calendar_events` return one bounded page. Pass the returned
+`nextPageToken` as the optional `page` argument to continue, keeping the same
+query, calendar, and time window. Omit `page` for the first request. Paging does
+not require write permission or change the maximum results per call.
+
 ## Quick start
 
 Start a read-only server for one account:
