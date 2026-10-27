@@ -4,9 +4,9 @@ summary: "Unified GitHub Actions release process for GogCLI"
 
 # Releasing `gogcli`
 
-Official releases run only through `.github/workflows/release-unified.yml`, which calls the fleet-standard `openclaw/release-workflows` Go CLI pipeline at `@v1`. Do not create or push release tags locally, and do not use local signing or notarization credentials.
+Official releases run only through `.github/workflows/release-unified.yml`, which calls the fleet-standard `openclaw/release-workflows` Go CLI pipeline at `@v1`. Binary signing, notarization, and publication stay in Actions. After a successful dry run, create and verify the release tag with the fleet release SSH key before dispatching publication.
 
-Release authorization is repository Actions write access combined with a protected, required-check-green `main` commit and the organization-scoped signing, notarization, and tap credentials. The shared workflow creates the immutable annotated tag; GogCLI intentionally has no separate local tag-signer authorization step.
+Release authorization is repository Actions write access combined with a protected, required-check-green `main` commit and the organization-scoped signing, notarization, and tap credentials. The shared workflow reuses the immutable signed annotated tag, verifies its target, and never moves it. Use only the fleet release SSH key (fingerprint `SHA256:WmI9lVtd7F2c5XyRHbZVO3yYYJzwsSNzcZQMPT147HI`), not the local default signing key. Verify the signature before pushing; if the local allowlist does not trust that key, use a task-local allowed-signers file without changing trust settings.
 
 ## Prepare the release
 
@@ -30,7 +30,7 @@ The caller preserves GogCLI's public artifact contract where applicable:
 
 ## Dispatch
 
-From current protected `main`, dispatch the workflow with a SemVer version without a leading `v`:
+First run the dry run described below on the protected release-prep merge commit. Once it succeeds, create the fleet-signed annotated `vX.Y.Z` tag at that exact commit, verify it, and push it. From current protected `main`, dispatch the workflow with a SemVer version without a leading `v`:
 
 ```sh
 gh workflow run release-unified.yml \
@@ -51,7 +51,7 @@ exact version match without the development suffix.
 
 ## Docker closeout
 
-After the GitHub Release is public and its tag is verified, publish the Docker image separately unless an exact-tag Docker run has already succeeded. The unified workflow creates the tag with `GITHUB_TOKEN`, which does not trigger Docker's tag-push workflow.
+After the GitHub Release is public and its tag is verified, publish the Docker image separately unless an exact-tag Docker run has already succeeded. A signed tag pushed by the release operator normally triggers Docker's tag-push workflow; tags created with `GITHUB_TOKEN` do not.
 
 ```sh
 gh workflow run docker.yml \
