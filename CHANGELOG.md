@@ -1,5 +1,7 @@
 # Changelog
 
+## Unreleased
+
 ## 0.47.1 - 2026-10-26
 
 **Highlights:** Preserve Gmail text direction and narrowed Calendar grants, fix headless Linux authentication, and reject compromised certificates in the tracking worker.
