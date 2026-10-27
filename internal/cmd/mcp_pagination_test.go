@@ -30,8 +30,8 @@ func TestMCPReadPagination(t *testing.T) {
 					if q := r.URL.Query().Get("q"); q != "synthetic" {
 						t.Errorf("query=%q", q)
 					}
-					if max := r.URL.Query().Get("maxResults"); max != "1" {
-						t.Errorf("max=%q", max)
+					if maxResults := r.URL.Query().Get("maxResults"); maxResults != "1" {
+						t.Errorf("max=%q", maxResults)
 					}
 					next := `,"nextPageToken":"--opaque+/="`
 					id := "first"
