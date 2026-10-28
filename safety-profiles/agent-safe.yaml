@@ -4,6 +4,48 @@ description: Agent workflow profile. Allows reading, drafting, organizing, and r
 version: true
 schema: true
 
+# Allowed label commands must not move mail to the trash or spam, and allowed
+# calendar writes must not email the guests.
+denied-values:
+  gmail.messages.modify:
+    add: [TRASH, SPAM]
+  gmail.thread.modify:
+    add: [TRASH, SPAM]
+    add-label: [TRASH, SPAM]
+  gmail.labels.modify:
+    add: [TRASH, SPAM]
+  gmail.batch.modify:
+    add: [TRASH, SPAM]
+    add-label: [TRASH, SPAM]
+  # create and update also write focus-time and out-of-office events, whose
+  # auto-decline defaults to all, by --event-type or by type inference from any
+  # focus or out-of-office flag. Only an explicit auto-decline none passes.
+  calendar.create:
+    send-updates: [all, externalonly]
+    event-type: [focus, focus-time, focus_time, focustime, ooo, out-of-office, out_of_office, outofoffice]
+    focus-auto-decline: [all, new]
+    ooo-auto-decline: [all, new]
+    focus-decline-message: ["*"]
+    focus-chat-status: ["*"]
+    ooo-decline-message: ["*"]
+  calendar.update:
+    send-updates: [all, externalonly]
+    event-type: [focus, focus-time, focus_time, focustime, ooo, out-of-office, out_of_office, outofoffice]
+    # update infers the type from any supplied focus or out-of-office flag, even
+    # with an empty value, and an empty auto-decline defaults to all. Every use of
+    # these flags is refused, including an explicit none.
+    focus-auto-decline: ["*"]
+    ooo-auto-decline: ["*"]
+    focus-decline-message: ["*"]
+    focus-chat-status: ["*"]
+    ooo-decline-message: ["*"]
+  calendar.move:
+    send-updates: [all, externalonly]
+  # --auto-decline defaults to all; declining a conflicting invitation notifies
+  # its organizer, so focus time needs an explicit --auto-decline none.
+  calendar.focus-time:
+    auto-decline: [all, new]
+
 gmail:
   search: true
   get: true
@@ -67,7 +109,7 @@ calendar:
   delete: false
   freebusy: true
   respond: false
-  propose-time: true
+  propose-time: false
   colors: true
   conflicts: true
   search: true
@@ -99,10 +141,10 @@ drive:
   comments:
     list: true
     get: true
-    create: true
-    update: true
+    create: false
+    update: false
     delete: false
-    reply: true
+    reply: false
 
 sites:
   list: true
@@ -173,8 +215,8 @@ docs:
   comments:
     list: true
     get: true
-    add: true
-    reply: true
+    add: false
+    reply: false
     resolve: false
     delete: false
 

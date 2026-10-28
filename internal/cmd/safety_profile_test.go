@@ -38,6 +38,14 @@ func withBakedSafetyProfile(t *testing.T, raw string) {
 		locked[f.Name] = f.Value
 	}
 	bakedSafetyTestProfile.lockedFlags = locked
+	denied := make(map[string]map[string][]string, len(profile.DeniedValues))
+	for _, rule := range profile.DeniedValues {
+		if denied[rule.Path] == nil {
+			denied[rule.Path] = map[string][]string{}
+		}
+		denied[rule.Path][rule.Flag] = rule.Values
+	}
+	bakedSafetyTestProfile.deniedValues = denied
 	t.Cleanup(func() { bakedSafetyTestProfile = prev })
 }
 

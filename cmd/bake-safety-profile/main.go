@@ -68,8 +68,42 @@ func generate(profile *safetyprofile.Profile) []byte {
 	writeMatcher(&out, "bakedSafetyAllowExactMatch", profile.AllowRules, profile.AllowAll && len(profile.DenyRules) == 0, true)
 	out.WriteString("\n")
 	writeLockedFlags(&out, profile.LockedFlags)
+	out.WriteString("\n")
+	writeDeniedValues(&out, profile.DeniedValues)
 
 	return out.Bytes()
+}
+
+// writeDeniedValues emits the denied value lookup. The command path and flag name are
+// hashed together like a command rule; the refused values are literals because the
+// runtime compares user input against them. The count travels alongside so the
+// runtime can tell that every rule matched a real flag without the names being
+// written down.
+func writeDeniedValues(out *bytes.Buffer, rules []safetyprofile.DeniedValue) {
+	out.WriteString("func bakedSafetyDeniedValues(path []string, flag string) []string {\n")
+	if len(rules) == 0 {
+		out.WriteString("\treturn nil\n}\n")
+		out.WriteString("\nfunc bakedSafetyDeniedValueRuleCount() int { return 0 }\n")
+		return
+	}
+	out.WriteString("\tswitch bakedSafetyHashPath(append(append([]string(nil), path...), flag)) {\n")
+	seen := make(map[uint64]string, len(rules))
+	for _, rule := range rules {
+		key := rule.Path + "." + rule.Flag
+		h := safetyprofile.HashRule(key)
+		if existing, dup := seen[h]; dup {
+			fmt.Fprintf(os.Stderr, "bake-safety-profile: hash collision between denied value rules %q and %q (FNV-64a=%#x)\n", existing, key, h)
+			os.Exit(1)
+		}
+		seen[h] = key
+		quoted := make([]string, len(rule.Values))
+		for i, value := range rule.Values {
+			quoted[i] = strconv.Quote(value)
+		}
+		fmt.Fprintf(out, "\tcase 0x%016x:\n\t\treturn []string{%s}\n", h, strings.Join(quoted, ", "))
+	}
+	out.WriteString("\t}\n\treturn nil\n}\n")
+	fmt.Fprintf(out, "\nfunc bakedSafetyDeniedValueRuleCount() int { return %d }\n", len(rules))
 }
 
 // writeLockedFlags emits the locked flag lookup. Names are hashed like the command

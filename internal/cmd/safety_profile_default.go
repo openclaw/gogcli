@@ -19,6 +19,8 @@ var bakedSafetyTestProfile struct {
 	allow         map[string]bool
 	deny          map[string]bool
 	lockedFlags   map[string]string
+	// deniedValues maps a dotted command path to a flag name to its refused values.
+	deniedValues map[string]map[string][]string
 }
 
 func bakedSafetyEnabled() bool       { return bakedSafetyTestProfile.enabled }
@@ -50,4 +52,16 @@ func bakedSafetyLockedFlag(name string) (string, bool) {
 
 func bakedSafetyLockedFlagCount() int {
 	return len(bakedSafetyTestProfile.lockedFlags)
+}
+
+func bakedSafetyDeniedValues(path []string, flag string) []string {
+	return bakedSafetyTestProfile.deniedValues[strings.Join(path, ".")][flag]
+}
+
+func bakedSafetyDeniedValueRuleCount() int {
+	count := 0
+	for _, flags := range bakedSafetyTestProfile.deniedValues {
+		count += len(flags)
+	}
+	return count
 }
