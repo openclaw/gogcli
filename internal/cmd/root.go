@@ -292,25 +292,6 @@ func executeWithRuntime(args []string, runtime *app.Runtime) (err error) {
 		return resolveRuntimeClient(runtime, email, override)
 	}
 
-	// reauthFn is the auto-reauth closure called when the stored refresh
-	// token is expired or revoked (invalid_grant). It launches a browser-
-	// based OAuth flow and persists the new token, mirroring `gog auth add`.
-	reauthFn := func(ctx context.Context, email string, client string, services []string, scopes []string, storedToken *secrets.Token) (secrets.Token, error) {
-		opts := googleauth.ReauthOptions{
-			Email:                email,
-			Client:               client,
-			Services:             services,
-			Scopes:               scopes,
-			StoredToken:          storedToken,
-			EnsureKeychainAccess: ensureKeychainAccessIfNeeded,
-			AuthorizeFunc:        authorizeGoogleAccount,
-			FetchIdentityFunc:    fetchAuthIdentity,
-			Confirm:              confirmReauthorization,
-			Stderr:               runtimeIO.Err,
-		}
-		return googleauth.Reauth(ctx, opts)
-	}
-
 	authDependencies := googleapi.AuthDependencies{
 		ResolveClient:             resolveClient,
 		ReadCredentials:           readCredentials,
@@ -320,9 +301,9 @@ func executeWithRuntime(args []string, runtime *app.Runtime) (err error) {
 		Mode:                      cli.authMode,
 		ADCTokenSource:            googleapi.DefaultADCTokenSource,
 		ServiceAccountTokenSource: googleapi.DefaultServiceAccountTokenSource,
-		Reauth:                    reauthFn,
 		ReauthCoordinator:         googleapi.NewReauthCoordinator(),
 	}
+	authDependencies.Reauth = commandReauthorizer(runtime, authDependencies)
 	ctx = googleapi.WithAuthDependencies(ctx, authDependencies)
 	composeRuntimeGoogleServices(runtime, googleapi.NewFactory(authDependencies, googleapi.FactoryOptions{
 		PhotosBaseURL:       os.Getenv("GOG_PHOTOS_BASE_URL"),

@@ -10,7 +10,9 @@ import (
 	"time"
 
 	"github.com/openclaw/gogcli/internal/app"
+	"github.com/openclaw/gogcli/internal/authclient"
 	"github.com/openclaw/gogcli/internal/config"
+	"github.com/openclaw/gogcli/internal/googleapi"
 	"github.com/openclaw/gogcli/internal/googleauth"
 	"github.com/openclaw/gogcli/internal/input"
 	"github.com/openclaw/gogcli/internal/secrets"
@@ -182,4 +184,27 @@ func splitCommaList(raw string) []string {
 		out = append(out, f)
 	}
 	return out
+}
+
+func commandReauthorizer(runtime *app.Runtime, dependencies googleapi.AuthDependencies) googleapi.ReauthFunc {
+	return func(ctx context.Context, email string, client string, services []string, scopes []string, storedToken *secrets.Token) (secrets.Token, error) {
+		ctx = app.WithRuntime(ctx, runtime)
+		ctx = authclient.WithCredentialsReader(ctx, dependencies.ReadCredentials)
+		ctx = authclient.WithSecretsStoreOpener(ctx, dependencies.OpenTokens)
+		ctx = authclient.WithEmailReferenceUpdater(ctx, authclient.EmailReferenceUpdater(dependencies.UpdateEmailReferences))
+		ctx = authclient.WithClientResolver(ctx, dependencies.ResolveClient)
+		opts := googleauth.ReauthOptions{
+			Email:                email,
+			Client:               client,
+			Services:             services,
+			Scopes:               scopes,
+			StoredToken:          storedToken,
+			EnsureKeychainAccess: ensureKeychainAccessIfNeeded,
+			AuthorizeFunc:        authorizeGoogleAccount,
+			FetchIdentityFunc:    fetchAuthIdentity,
+			Confirm:              confirmReauthorization,
+			Stderr:               runtime.IO.Err,
+		}
+		return googleauth.Reauth(ctx, opts)
+	}
 }
