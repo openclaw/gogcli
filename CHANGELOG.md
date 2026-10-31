@@ -10,7 +10,7 @@
 
 - Calendar: honor explicitly empty event summaries, locations, and attendee lists in update requests, while preserving omitted fields. (#1268) — thanks @pkyIntelligence.
 
-- Calendar: sort all-day event start and end dates at midnight in their containing calendar timezone, independent of display timezone overrides. (#1284)
+- Calendar: sort all-day event start and end dates at midnight in their containing calendar timezone, independent of display timezone overrides. (#1284) — thanks @goutamadwant.
 
 - MCP: add optional `page` continuation tokens to `gmail_search` and `calendar_events`, preserving bounded reads and existing CLI pagination. (#1269, #1270) — thanks @pkyIntelligence.
 
