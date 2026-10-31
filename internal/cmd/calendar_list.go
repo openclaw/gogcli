@@ -148,6 +148,20 @@ func listSelectedCalendarsEvents(ctx context.Context, svc *calendar.Service, cal
 }
 
 func listCalendarIDsEvents(ctx context.Context, svc *calendar.Service, calendarIDs []string, from, to string, maxResults int64, page string, allPages bool, failEmpty bool, query, privatePropFilter, sharedPropFilter, fields string, eventTypes []string, showWeekday bool, showLocation bool, timezoneHints map[string]calendarTimezoneHint, sortKey, sortOrder string, displayTZ *calendarTimezoneHint) error {
+	if strings.TrimSpace(page) != "" {
+		seen := make(map[string]struct{}, len(calendarIDs))
+		for _, calendarID := range calendarIDs {
+			calendarID = strings.TrimSpace(calendarID)
+			if calendarID == "" {
+				continue
+			}
+			seen[calendarID] = struct{}{}
+			if len(seen) > 1 {
+				return usage("--page/--cursor can only be used with one calendar; select one calendar or omit it and use --all-pages")
+			}
+		}
+	}
+
 	u := ui.FromContext(ctx)
 	all := []*eventWithCalendar{}
 	nextPages := []calendarEventsNextPage{}

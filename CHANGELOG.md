@@ -10,6 +10,8 @@
 
 - Calendar: honor explicitly empty event summaries, locations, and attendee lists in update requests, while preserving omitted fields. (#1268) — thanks @pkyIntelligence.
 
+- Calendar: reject calendar-specific `--page`/`--cursor` tokens when events are requested from multiple calendars, instead of reusing one token across every calendar and returning incomplete results. (#1281)
+
 - MCP: add optional `page` continuation tokens to `gmail_search` and `calendar_events`, preserving bounded reads and existing CLI pagination. (#1269, #1270) — thanks @pkyIntelligence.
 
 ## 0.47.1 - 2026-10-26
