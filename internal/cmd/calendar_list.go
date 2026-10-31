@@ -47,10 +47,18 @@ func calendarEventsListCall(ctx context.Context, svc *calendar.Service, calendar
 
 func listCalendarEvents(ctx context.Context, svc *calendar.Service, calendarID, from, to string, maxResults int64, page string, allPages bool, failEmpty bool, query, privatePropFilter, sharedPropFilter, fields string, eventTypes []string, showWeekday bool, showLocation bool, sortKey, sortOrder string, displayTZ *calendarTimezoneHint) error {
 	calendarTimezone, loc := calendarDisplayTimezone(ctx, svc, calendarID, nil, displayTZ)
+	fields = calendarEventsFieldsForSort(fields, sortKey)
+	sortTimezone := calendarTimezone
+	if displayTZ != nil {
+		sortTimezone = ""
+	}
 	fetch := func(pageToken string) ([]*calendar.Event, string, error) {
 		resp, err := calendarEventsListCall(ctx, svc, calendarID, from, to, maxResults, query, privatePropFilter, sharedPropFilter, fields, eventTypes, pageToken).Do()
 		if err != nil {
 			return nil, "", err
+		}
+		if tz := strings.TrimSpace(resp.TimeZone); tz != "" {
+			sortTimezone = tz
 		}
 		return resp.Items, resp.NextPageToken, nil
 	}
@@ -63,7 +71,9 @@ func listCalendarEvents(ctx context.Context, svc *calendar.Service, calendarID, 
 	forceDisplayTimezone := displayTZ != nil
 	for _, item := range items {
 		redactCalendarEventForOutput(ctx, item)
-		events = append(events, wrapEventWithCalendarOverride(item, "", calendarTimezone, loc, forceDisplayTimezone))
+		wrapped := wrapEventWithCalendarOverride(item, "", calendarTimezone, loc, forceDisplayTimezone)
+		wrapped.calendarTimezone = sortTimezone
+		events = append(events, wrapped)
 	}
 	sortEventsBy(events, sortKey, sortOrder)
 	if outfmt.IsJSON(ctx) {
@@ -87,13 +97,14 @@ func listCalendarEvents(ctx context.Context, svc *calendar.Service, calendarID, 
 
 type eventWithCalendar struct {
 	*calendar.Event
-	CalendarID     string
-	StartDayOfWeek string `json:"startDayOfWeek,omitempty"`
-	EndDayOfWeek   string `json:"endDayOfWeek,omitempty"`
-	Timezone       string `json:"timezone,omitempty"`
-	EventTimezone  string `json:"eventTimezone,omitempty"`
-	StartLocal     string `json:"startLocal,omitempty"`
-	EndLocal       string `json:"endLocal,omitempty"`
+	CalendarID       string
+	calendarTimezone string
+	StartDayOfWeek   string `json:"startDayOfWeek,omitempty"`
+	EndDayOfWeek     string `json:"endDayOfWeek,omitempty"`
+	Timezone         string `json:"timezone,omitempty"`
+	EventTimezone    string `json:"eventTimezone,omitempty"`
+	StartLocal       string `json:"startLocal,omitempty"`
+	EndLocal         string `json:"endLocal,omitempty"`
 }
 
 func (e *eventWithCalendar) MarshalJSON() ([]byte, error) {
@@ -149,6 +160,7 @@ func listSelectedCalendarsEvents(ctx context.Context, svc *calendar.Service, cal
 
 func listCalendarIDsEvents(ctx context.Context, svc *calendar.Service, calendarIDs []string, from, to string, maxResults int64, page string, allPages bool, failEmpty bool, query, privatePropFilter, sharedPropFilter, fields string, eventTypes []string, showWeekday bool, showLocation bool, timezoneHints map[string]calendarTimezoneHint, sortKey, sortOrder string, displayTZ *calendarTimezoneHint) error {
 	u := ui.FromContext(ctx)
+	fields = calendarEventsFieldsForSort(fields, sortKey)
 	all := []*eventWithCalendar{}
 	nextPages := []calendarEventsNextPage{}
 	for _, calID := range calendarIDs {
@@ -157,10 +169,20 @@ func listCalendarIDsEvents(ctx context.Context, svc *calendar.Service, calendarI
 			continue
 		}
 		calendarTimezone, loc := calendarDisplayTimezone(ctx, svc, calID, timezoneHints, displayTZ)
+		sortTimezone := calendarTimezone
+		if displayTZ != nil {
+			sortTimezone = ""
+			if hint, ok := timezoneHints[calID]; ok {
+				sortTimezone = hint.timezone
+			}
+		}
 		fetch := func(pageToken string) ([]*calendar.Event, string, error) {
 			resp, err := calendarEventsListCall(ctx, svc, calID, from, to, maxResults, query, privatePropFilter, sharedPropFilter, fields, eventTypes, pageToken).Do()
 			if err != nil {
 				return nil, "", err
+			}
+			if tz := strings.TrimSpace(resp.TimeZone); tz != "" {
+				sortTimezone = tz
 			}
 			return resp.Items, resp.NextPageToken, nil
 		}
@@ -179,7 +201,9 @@ func listCalendarIDsEvents(ctx context.Context, svc *calendar.Service, calendarI
 
 		for _, e := range events {
 			redactCalendarEventForOutput(ctx, e)
-			all = append(all, wrapEventWithCalendarOverride(e, calID, calendarTimezone, loc, displayTZ != nil))
+			wrapped := wrapEventWithCalendarOverride(e, calID, calendarTimezone, loc, displayTZ != nil)
+			wrapped.calendarTimezone = sortTimezone
+			all = append(all, wrapped)
 		}
 	}
 
@@ -202,6 +226,45 @@ func listCalendarIDsEvents(ctx context.Context, svc *calendar.Service, calendarI
 	}
 	printCalendarEventsNextPageHint(u, len(calendarIDs), nextPages)
 	return nil
+}
+
+func calendarEventsFieldsForSort(fields, sortKey string) string {
+	fields = strings.TrimSpace(fields)
+	if fields == "" {
+		return ""
+	}
+	switch strings.ToLower(strings.TrimSpace(sortKey)) {
+	case "start", "end":
+		if !hasTopLevelCalendarField(fields, "timeZone") {
+			return fields + ",timeZone"
+		}
+	}
+	return fields
+}
+
+func hasTopLevelCalendarField(fields, target string) bool {
+	depth := 0
+	start := 0
+	for i, r := range fields {
+		switch r {
+		case '(':
+			depth++
+		case ')':
+			if depth > 0 {
+				depth--
+			}
+		case ',':
+			if depth == 0 {
+				field := strings.TrimSpace(fields[start:i])
+				if field == target || field == "*" {
+					return true
+				}
+				start = i + 1
+			}
+		}
+	}
+	field := strings.TrimSpace(fields[start:])
+	return field == target || field == "*"
 }
 
 type calendarEventsNextPage struct {
@@ -255,14 +318,15 @@ func wrapEventWithCalendarOverride(event *calendar.Event, calendarID string, cal
 		return &eventWithCalendar{Event: event, CalendarID: calendarID}
 	}
 	return &eventWithCalendar{
-		Event:          event,
-		CalendarID:     calendarID,
-		StartDayOfWeek: wrapped.StartDayOfWeek,
-		EndDayOfWeek:   wrapped.EndDayOfWeek,
-		Timezone:       wrapped.Timezone,
-		EventTimezone:  wrapped.EventTimezone,
-		StartLocal:     wrapped.StartLocal,
-		EndLocal:       wrapped.EndLocal,
+		Event:            event,
+		CalendarID:       calendarID,
+		calendarTimezone: calendarTimezone,
+		StartDayOfWeek:   wrapped.StartDayOfWeek,
+		EndDayOfWeek:     wrapped.EndDayOfWeek,
+		Timezone:         wrapped.Timezone,
+		EventTimezone:    wrapped.EventTimezone,
+		StartLocal:       wrapped.StartLocal,
+		EndLocal:         wrapped.EndLocal,
 	}
 }
 
@@ -444,30 +508,32 @@ func eventCalendarID(e *eventWithCalendar) string {
 }
 
 // eventStartInstant returns the start time as an absolute instant.
-// All-day events fall back to midnight UTC, which is consistent enough for
-// ordering within a single result set.
 func eventStartInstant(e *eventWithCalendar) time.Time {
 	if e == nil || e.Event == nil || e.Start == nil {
 		return time.Time{}
 	}
-	return eventDatePointInstant(e.Start)
+	return eventDatePointInstant(e.Start, e.calendarTimezone)
 }
 
 func eventEndInstant(e *eventWithCalendar) time.Time {
 	if e == nil || e.Event == nil || e.End == nil {
 		return time.Time{}
 	}
-	return eventDatePointInstant(e.End)
+	return eventDatePointInstant(e.End, e.calendarTimezone)
 }
 
-func eventDatePointInstant(dt *calendar.EventDateTime) time.Time {
+func eventDatePointInstant(dt *calendar.EventDateTime, calendarTimezone string) time.Time {
 	if dt == nil {
 		return time.Time{}
 	}
 	if t, ok := parseEventTime(dt.DateTime, dt.TimeZone); ok {
 		return t
 	}
-	if t, ok := parseEventDate(dt.Date, dt.TimeZone); ok {
+	dateTimezone := strings.TrimSpace(dt.TimeZone)
+	if dateTimezone == "" {
+		dateTimezone = calendarTimezone
+	}
+	if t, ok := parseEventDate(dt.Date, dateTimezone); ok {
 		return t
 	}
 	return time.Time{}
