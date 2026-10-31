@@ -699,6 +699,60 @@ func TestListSelectedCalendarsEvents_TimezoneOverrideSkipsCalendarLookups(t *tes
 	}
 }
 
+func TestListCalendarEvents_TimezoneOverrideDoesNotChangeAllDaySort(t *testing.T) {
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !strings.Contains(r.URL.Path, "/calendars/cal1/events") || r.Method != http.MethodGet {
+			http.NotFound(w, r)
+			return
+		}
+		if got := r.URL.Query().Get("fields"); got != "items(id,start,end),timeZone" {
+			t.Errorf("fields = %q, want items(id,start,end),timeZone", got)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"timeZone": "Asia/Tokyo",
+			"items": []map[string]any{
+				{"id": "timed", "start": map[string]any{"dateTime": "2026-11-03T08:00:00+09:00"}},
+				{"id": "all-day", "start": map[string]any{"date": "2026-11-03"}},
+			},
+		})
+	})
+	svc, closeServer := newCalendarServiceForTest(t, handler)
+	defer closeServer()
+
+	override, err := displayTimezoneOverride("America/New_York")
+	if err != nil {
+		t.Fatalf("displayTimezoneOverride: %v", err)
+	}
+
+	var output bytes.Buffer
+	ctx := newCmdRuntimeJSONOutputContext(t, &output, io.Discard)
+	if err := listCalendarEvents(ctx, svc, "cal1", "2026-11-03T00:00:00+09:00", "2026-11-04T00:00:00+09:00", 10, "", false, false, "", "", "", "items(id,start,end)", nil, false, false, "start", "asc", override); err != nil {
+		t.Fatalf("listCalendarEvents: %v", err)
+	}
+
+	var parsed struct {
+		Events []struct {
+			ID       string `json:"id"`
+			Timezone string `json:"timezone"`
+		} `json:"events"`
+	}
+	if err := json.Unmarshal(output.Bytes(), &parsed); err != nil {
+		t.Fatalf("json parse: %v", err)
+	}
+	if len(parsed.Events) != 2 {
+		t.Fatalf("unexpected events: %#v", parsed.Events)
+	}
+	if parsed.Events[0].ID != "all-day" || parsed.Events[1].ID != "timed" {
+		t.Fatalf("event order = %#v, want all-day then timed", parsed.Events)
+	}
+	for _, event := range parsed.Events {
+		if event.Timezone != "America/New_York" {
+			t.Fatalf("display timezone = %q, want America/New_York", event.Timezone)
+		}
+	}
+}
+
 func TestDisplayTimezoneOverride_InvalidAndEmpty(t *testing.T) {
 	_, err := displayTimezoneOverride("Not/AZone")
 	if err == nil {
