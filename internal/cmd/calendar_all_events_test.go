@@ -81,6 +81,16 @@ func TestListAllCalendarsEvents_JSON(t *testing.T) {
 	if len(parsed.NextPageTokens) != 1 || parsed.NextPageTokens[0].CalendarID != "cal1" || parsed.NextPageTokens[0].NextPageToken != "cal1-next" {
 		t.Fatalf("unexpected nextPageTokens: %#v", parsed.NextPageTokens)
 	}
+	want := map[string]string{"e1": "cal1", "e2": "cal2"}
+	for _, ev := range parsed.Events {
+		id, _ := ev["id"].(string)
+		if got, _ := ev["calendarId"].(string); got != want[id] {
+			t.Errorf("event %s: calendarId = %q, want %q", id, got, want[id])
+		}
+		if got, _ := ev["CalendarID"].(string); got != want[id] {
+			t.Errorf("event %s: legacy CalendarID = %q, want %q", id, got, want[id])
+		}
+	}
 }
 
 // TestListAllCalendarsEvents_SortByStart verifies that --sort=start orders

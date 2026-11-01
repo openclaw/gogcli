@@ -12,6 +12,8 @@
 
 - MCP: add optional `page` continuation tokens to `gmail_search` and `calendar_events`, preserving bounded reads and existing CLI pagination. (#1269, #1270) — thanks @pkyIntelligence.
 
+- Calendar: emit `calendarId` on each event in multi-calendar JSON so event identity matches `nextPageTokens`; keep `CalendarID` as an alias. (#1282)
+
 ## 0.47.1 - 2026-10-26
 
 **Highlights:** Preserve Gmail text direction and narrowed Calendar grants, fix headless Linux authentication, and reject compromised certificates in the tracking worker.

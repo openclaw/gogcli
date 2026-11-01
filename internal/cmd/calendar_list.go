@@ -100,7 +100,9 @@ func (e *eventWithCalendar) MarshalJSON() ([]byte, error) {
 	if e == nil {
 		return []byte("null"), nil
 	}
+	// calendarId matches nextPageTokens; CalendarID stays for existing consumers.
 	return marshalCalendarEventWithFields(e.Event, map[string]string{
+		"calendarId":     e.CalendarID,
 		"CalendarID":     e.CalendarID,
 		"startDayOfWeek": e.StartDayOfWeek,
 		"endDayOfWeek":   e.EndDayOfWeek,
