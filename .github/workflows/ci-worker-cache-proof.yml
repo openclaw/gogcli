@@ -1,0 +1,116 @@
+name: Worker cache economics proof
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: worker-cache-proof-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  cold:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        variant: [baseline, candidate]
+    env:
+      SOURCE_SHA: 82e7fd6005d4ed29f8edfa2a44475e08fe3051a0
+      VARIANT: ${{ matrix.variant }}
+      PHASE: cold
+      CI: 'true'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          path: harness
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: 82e7fd6005d4ed29f8edfa2a44475e08fe3051a0
+          path: source
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: '26.12.1'
+      - name: Native Corepack provisioning and isolated store
+        run: |
+          npm install --global corepack@0.36.0
+          corepack enable
+          corepack prepare pnpm@11.28.5 --activate
+          test ! -e "$RUNNER_TEMP/proof-store"
+          echo "npm_config_store_dir=$RUNNER_TEMP/proof-store" >> "$GITHUB_ENV"
+      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        if: matrix.variant == 'candidate'
+        id: store
+        with:
+          path: ${{ runner.temp }}/proof-store
+          key: worker-proof-${{ github.run_id }}-${{ runner.os }}-${{ runner.arch }}-node26.12.1-pnpm11.28.5-${{ hashFiles('source/internal/tracking/worker/package.json', 'source/internal/tracking/worker/pnpm-lock.yaml', 'source/internal/tracking/worker/pnpm-workspace.yaml') }}
+      - name: Actual cold install and all Worker gates
+        run: node harness/scripts/ci-worker-cache-proof.mjs source
+      - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        if: matrix.variant == 'candidate' && success() && steps.store.outputs.cache-hit != 'true'
+        with:
+          path: ${{ runner.temp }}/proof-store
+          key: ${{ steps.store.outputs.cache-primary-key }}
+
+  fresh:
+    needs: cold
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        variant: [baseline, candidate]
+    env:
+      SOURCE_SHA: 82e7fd6005d4ed29f8edfa2a44475e08fe3051a0
+      VARIANT: ${{ matrix.variant }}
+      PHASE: fresh
+      CI: 'true'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          path: harness
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: 82e7fd6005d4ed29f8edfa2a44475e08fe3051a0
+          path: source
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: '26.12.1'
+      - name: Native Corepack provisioning and isolated store
+        run: |
+          npm install --global corepack@0.36.0
+          corepack enable
+          corepack prepare pnpm@11.28.5 --activate
+          test ! -e "$RUNNER_TEMP/proof-store"
+          echo "npm_config_store_dir=$RUNNER_TEMP/proof-store" >> "$GITHUB_ENV"
+      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        if: matrix.variant == 'candidate'
+        id: wrong
+        with:
+          path: ${{ runner.temp }}/wrong-store
+          key: worker-proof-${{ github.run_id }}-wrong-platform-and-lock
+      - name: Reject wrong cache key
+        if: matrix.variant == 'candidate'
+        env:
+          CACHE_HIT: ${{ steps.wrong.outputs.cache-hit }}
+        run: test "$CACHE_HIT" != true
+      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        if: matrix.variant == 'candidate'
+        id: store
+        with:
+          path: ${{ runner.temp }}/proof-store
+          key: worker-proof-${{ github.run_id }}-${{ runner.os }}-${{ runner.arch }}-node26.12.1-pnpm11.28.5-${{ hashFiles('source/internal/tracking/worker/package.json', 'source/internal/tracking/worker/pnpm-lock.yaml', 'source/internal/tracking/worker/pnpm-workspace.yaml') }}
+      - name: Require exact restored hit
+        if: matrix.variant == 'candidate'
+        env:
+          CACHE_HIT: ${{ steps.store.outputs.cache-hit }}
+        run: test "$CACHE_HIT" = true
+      - name: Actual fresh and interleaved hot behavior with negative controls
+        run: node harness/scripts/ci-worker-cache-proof.mjs source
