@@ -45,7 +45,7 @@ jobs:
           corepack enable
           corepack prepare pnpm@11.28.5 --activate
           test ! -e "$RUNNER_TEMP/proof-store"
-          echo "npm_config_store_dir=$RUNNER_TEMP/proof-store" >> "$GITHUB_ENV"
+          echo "pnpm_config_store_dir=$RUNNER_TEMP/proof-store" >> "$GITHUB_ENV"
       - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         if: matrix.variant == 'candidate'
         id: store
@@ -92,7 +92,7 @@ jobs:
           corepack enable
           corepack prepare pnpm@11.28.5 --activate
           test ! -e "$RUNNER_TEMP/proof-store"
-          echo "npm_config_store_dir=$RUNNER_TEMP/proof-store" >> "$GITHUB_ENV"
+          echo "pnpm_config_store_dir=$RUNNER_TEMP/proof-store" >> "$GITHUB_ENV"
       - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         if: matrix.variant == 'candidate'
         id: wrong
