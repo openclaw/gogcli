@@ -1,7 +1,7 @@
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { copyFileSync, existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import { existsSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs';
+import { join, resolve } from 'node:path';
 import { performance } from 'node:perf_hooks';
 
 const source = resolve(process.argv[2]);
@@ -49,17 +49,16 @@ const runPipeline = (directory, label) => {
 const initial = runPipeline(worker, `${variant}-${phase}`);
 const result = { source: head, variant, phase, versions, inputSha256, initial, hot: [], controls: [] };
 if (variant === 'candidate' && phase === 'fresh') {
-  const hotRoots = {};
-  for (const name of ['baseline', 'candidate']) {
-    const target = join(process.env.RUNNER_TEMP, `hot-${name}`);
-    for (const path of tracked) {
-      const relative = path.slice('internal/tracking/worker/'.length);
-      const destination = join(target, relative);
-      mkdirSync(dirname(destination), { recursive: true });
-      copyFileSync(join(source, path), destination);
-    }
-    hotRoots[name] = target;
-    requireSuccess(command('pnpm', ['-C', target, 'install', '--frozen-lockfile']), `${name} hot prime`);
+  const candidateSource = resolve(process.env.HOT_CANDIDATE_SOURCE);
+  const candidateHead = requireSuccess(command('git', ['rev-parse', 'HEAD'], candidateSource), 'hot source identity').output.trim();
+  if (candidateHead !== expected) throw new Error('Unexpected hot source revision');
+  const candidateDigest = createHash('sha256');
+  for (const path of tracked) candidateDigest.update(path).update(readFileSync(join(candidateSource, path)));
+  if (candidateDigest.digest('hex') !== inputSha256) throw new Error('Hot source differs');
+  const hotRoots = { baseline: worker, candidate: join(candidateSource, 'internal/tracking/worker') };
+  if (existsSync(join(hotRoots.candidate, 'node_modules'))) throw new Error('Hot candidate is not fresh');
+  for (const [name, directory] of Object.entries(hotRoots)) {
+    requireSuccess(command('pnpm', ['-C', directory, 'install', '--frozen-lockfile']), `${name} hot prime`);
   }
   for (let round = 0; round < 3; round += 1) {
     for (const name of round % 2 === 0 ? ['baseline', 'candidate'] : ['candidate', 'baseline']) {

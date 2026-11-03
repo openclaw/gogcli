@@ -86,6 +86,12 @@ jobs:
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
         with:
           node-version: '26.12.1'
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        if: matrix.variant == 'candidate'
+        with:
+          ref: 82e7fd6005d4ed29f8edfa2a44475e08fe3051a0
+          path: hot-candidate
+          persist-credentials: false
       - name: Native Corepack provisioning and isolated store
         run: |
           npm install --global corepack@0.36.0
@@ -116,4 +122,6 @@ jobs:
           CACHE_HIT: ${{ steps.store.outputs.cache-hit }}
         run: test "$CACHE_HIT" = true
       - name: Actual fresh and interleaved hot behavior with negative controls
+        env:
+          HOT_CANDIDATE_SOURCE: hot-candidate
         run: node harness/scripts/ci-worker-cache-proof.mjs source
