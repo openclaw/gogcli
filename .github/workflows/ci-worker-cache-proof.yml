@@ -2,6 +2,9 @@ name: Worker cache economics proof
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - investigate/ci-worker-cache-20261102
 
 permissions:
   contents: read
