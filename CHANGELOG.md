@@ -2,6 +2,8 @@
 
 ## 0.47.2 - Unreleased
 
+- CI: run CodeQL weekly and on pull requests or manual dispatch, retaining Actions, Go, and JavaScript analysis without duplicate scans on every main push.
+
 - Dependencies: refresh MCP, Google API/gRPC and networking libraries plus tracking-worker tooling; retain the documented Go minimum, patched build toolchain, release cooldown, and security overrides. (#1274)
 
 - Gmail: add `--ids-only` to `gmail messages search` and `gmail search` to return IDs from the list call without one detail request per result, for bulk jobs that pipe into `gmail batch modify`. (#1257) — thanks @jatinbansal1998.
