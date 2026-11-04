@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"hash/fnv"
 	"reflect"
+	"slices"
 	"sort"
 	"strings"
 
@@ -200,6 +201,128 @@ func enforceLockedFlags(kctx *kong.Context) error {
 	kctx.Path = kctx.Path[:pathLen]
 	if validationErr != nil {
 		return usagef("baked safety profile %q has locked flags that are invalid for the selected command", state.profileName)
+	}
+	return nil
+}
+
+// verifyBakedFlagPolicyExists checks, before parsing, that every flag rule in the
+// profile names something the CLI has.
+func verifyBakedFlagPolicyExists(root *kong.Node) error {
+	if err := verifyLockedFlagsExist(root); err != nil {
+		return err
+	}
+	return verifyDeniedValueRulesExist(root)
+}
+
+// enforceBakedFlagPolicy applies the profile's flag rules to a parsed command line:
+// locked flag values first, then denied values on what remains.
+func enforceBakedFlagPolicy(kctx *kong.Context) error {
+	if err := enforceLockedFlags(kctx); err != nil {
+		return err
+	}
+	return enforceDeniedValues(kctx)
+}
+
+// deniedValueFlagSupported reports whether a flag holds a string or a list of strings,
+// the only shapes enforceDeniedValues knows how to read.
+func deniedValueFlagSupported(flag *kong.Flag) bool {
+	if flag.IsBool() {
+		return false
+	}
+	target := flag.Target.Type()
+	return target.Kind() == reflect.String || (target.Kind() == reflect.Slice && target.Elem().Kind() == reflect.String)
+}
+
+// verifyDeniedValueRulesExist refuses to run when a denied-values rule names a command
+// or flag the CLI does not have. Enforcement only ever asks whether the selected
+// command's flag has denied values, so a misspelled path or flag would deny nothing
+// and the profile would claim a guarantee it does not have. As with locked flags the
+// names are hashed in the binary, so matches are counted against the rule count.
+func verifyDeniedValueRulesExist(root *kong.Node) error {
+	want := bakedSafetyDeniedValueRuleCount()
+	if want == 0 {
+		return nil
+	}
+	seen := 0
+	var unsupported error
+	var walk func(node *kong.Node)
+	walk = func(node *kong.Node) {
+		if node == nil {
+			return
+		}
+		if node.Type == kong.CommandNode {
+			path := commandNodePath(node)
+			for _, flag := range node.Flags {
+				if len(bakedSafetyDeniedValues(path, flag.Name)) == 0 {
+					continue
+				}
+				seen++
+				if !deniedValueFlagSupported(flag) && unsupported == nil {
+					unsupported = usagef("baked safety profile %q denies values of --%s on %q, but only string and list flags can have denied values", bakedSafetyProfileName(), flag.Name, strings.Join(path, " "))
+				}
+			}
+		}
+		for _, child := range node.Children {
+			walk(child)
+		}
+	}
+	walk(root)
+	if seen < want {
+		return usagef("baked safety profile %q denies values for %d flag(s) but only %d exist; check the denied-values paths and flag names", bakedSafetyProfileName(), want, seen)
+	}
+	return unsupported
+}
+
+// enforceDeniedValues refuses a command line that gives a flag one of the values the
+// profile denies for the selected command. It runs after parsing and before the command,
+// so --dry-run is refused too. Values are split on commas and compared case-insensitively,
+// more aggressively than some commands split them, which can only over-deny. A denied
+// value of "*" refuses any value typed on the command line, empty included, and any
+// non-empty value from elsewhere.
+func enforceDeniedValues(kctx *kong.Context) error {
+	if !bakedSafetyEnabled() || bakedSafetyDeniedValueRuleCount() == 0 {
+		return nil
+	}
+	path := commandPath(kctx.Command())
+	if len(path) == 0 {
+		return nil
+	}
+	for _, flag := range kctx.Flags() {
+		denied := bakedSafetyDeniedValues(path, flag.Name)
+		if len(denied) == 0 {
+			continue
+		}
+		anyValue := slices.Contains(denied, "*")
+		for _, raw := range flagStringValues(flag.Target) {
+			// "*" refuses any value as typed, with no comma splitting. An empty value
+			// counts when typed: a command may treat a supplied but empty flag as
+			// supplied, as calendar update does when it infers an event type.
+			if trimmed := strings.TrimSpace(raw); anyValue && (trimmed != "" || flagOnCommandLine(kctx, flag.Name)) {
+				return usagef("flag --%s value %q is denied for %q by baked safety profile %q", flag.Name, trimmed, strings.Join(path, " "), bakedSafetyProfileName())
+			}
+			// The whole value is checked as well as its comma-separated parts, so a
+			// denied value that itself contains a comma still matches.
+			for _, value := range append([]string{strings.TrimSpace(raw)}, splitCSV(raw)...) {
+				if slices.Contains(denied, strings.ToLower(value)) {
+					return usagef("flag --%s value %q is denied for %q by baked safety profile %q", flag.Name, value, strings.Join(path, " "), bakedSafetyProfileName())
+				}
+			}
+		}
+	}
+	return nil
+}
+
+// flagStringValues returns the strings a string or []string flag target holds.
+func flagStringValues(target reflect.Value) []string {
+	switch target.Kind() {
+	case reflect.String:
+		return []string{target.String()}
+	case reflect.Slice:
+		out := make([]string, 0, target.Len())
+		for i := range target.Len() {
+			out = append(out, target.Index(i).String())
+		}
+		return out
 	}
 	return nil
 }
