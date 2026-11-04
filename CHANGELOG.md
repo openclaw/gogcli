@@ -14,6 +14,8 @@
 
 - Calendar: honor explicitly empty event summaries, locations, and attendee lists in update requests, while preserving omitted fields. (#1268) — thanks @pkyIntelligence.
 
+- Calendar: accept `primary` and email-like calendar IDs in `--cal` and `--calendars`, including mixed selections with names and indices. (#1283) — thanks @privatenumber.
+
 - MCP: add optional `page` continuation tokens to `gmail_search` and `calendar_events`, preserving bounded reads and existing CLI pagination. (#1269, #1270) — thanks @pkyIntelligence.
 
 ## 0.47.1 - 2026-10-26
