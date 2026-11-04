@@ -2,6 +2,8 @@
 
 ## 0.47.2 - Unreleased
 
+- Release: require SSH-signed annotated tags authorized by the committed signer policy before builds and publication; preserve tagless dry runs.
+
 - CI: run CodeQL weekly and on pull requests or manual dispatch, retaining Actions, Go, and JavaScript analysis without duplicate scans on every main push.
 
 - Dependencies: refresh MCP, Google API/gRPC and networking libraries plus tracking-worker tooling; retain the documented Go minimum, patched build toolchain, release cooldown, and security overrides. (#1274)
