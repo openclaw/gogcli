@@ -350,6 +350,23 @@ gmail:
 	}
 }
 
+// Leaving a flag off allows it under "*" only when its default is empty.
+func TestDeniedValues_AnyValueRefusesANonEmptyDefault(t *testing.T) {
+	withBakedSafetyProfile(t, `
+name: denied
+denied-values:
+  calendar.focus-time:
+    auto-decline: ["*"]
+calendar:
+  focus-time: true
+`)
+	args := []string{"--json", "--account", "a@b.com", "--dry-run", "calendar", "focus-time", "--from", "2026-11-01T10:00:00Z", "--to", "2026-11-01T11:00:00Z"}
+	result := executeWithTestRuntime(t, args, nil)
+	if result.err == nil || !strings.Contains(result.err.Error(), `flag --auto-decline value "all" is denied for "calendar focus-time"`) {
+		t.Fatalf("omitted --auto-decline defaults to all and must be refused, got err=%v stdout=%q", result.err, result.stdout)
+	}
+}
+
 func agentSafeProfile(t *testing.T) {
 	t.Helper()
 	setTestConfigHome(t)
