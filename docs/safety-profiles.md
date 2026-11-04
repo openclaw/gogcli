@@ -286,8 +286,9 @@ A denied value behaves as follows:
 
 - the check runs after parsing and before the command, so `--dry-run` is refused too.
 - comparison is case-insensitive. Each flag value, and each element of a repeated
-  flag, is split on commas and trimmed, so `trash`, ` Trash ` and `INBOX,TRASH`
-  all match `TRASH`. Splitting more aggressively than a command does can only
+  flag, is compared whole and then split on commas and trimmed, so `trash`,
+  ` Trash ` and `INBOX,TRASH` all match `TRASH`, and a denied value that itself
+  contains a comma still matches. Splitting more aggressively than a command does can only
   deny more, never less.
 - the refusal is a usage error (exit 2) that echoes the value as typed:
 
@@ -301,7 +302,9 @@ flag --add value "TRASH" is denied for "gmail thread modify" by baked safety pro
   splitting. An empty value counts when it is typed on the command line, because a
   command can treat a supplied but empty flag as supplied: `calendar update` infers
   an event type from one, and an empty auto-decline then defaults to `all`. A flag
-  left off the command line is allowed. `"*"` must be the only entry in its list.
+  left off the command line is allowed only when its default is empty: with
+  `calendar.focus-time: {auto-decline: ["*"]}`, omitting `--auto-decline` still
+  yields the default `all` and is refused. `"*"` must be the only entry in its list.
 
 ```yaml
 denied-values:
