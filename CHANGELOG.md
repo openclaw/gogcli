@@ -16,6 +16,8 @@
 
 - MCP: add optional `page` continuation tokens to `gmail_search` and `calendar_events`, preserving bounded reads and existing CLI pagination. (#1269, #1270) — thanks @pkyIntelligence.
 
+- Safety profiles: add `denied-values` to refuse specific values of string and list flags on named commands, and use it in `agent-safe` to refuse the `TRASH` and `SPAM` labels on Gmail modify commands and `--send-updates all|externalOnly` on calendar create, update and move, auto-declining `calendar focus-time` (pass `--auto-decline none`), and focus-time or out-of-office events written through `calendar create` and `calendar update`; a `"*"` entry refuses any value of a flag; `agent-safe` also blocks `calendar propose-time` and Drive and Docs comments, which notify other people. (#1263) — thanks @bautrey.
+
 ## 0.47.1 - 2026-10-26
 
 **Highlights:** Preserve Gmail text direction and narrowed Calendar grants, fix headless Linux authentication, and reject compromised certificates in the tracking worker.
@@ -29,8 +31,6 @@
 - Security: update the tracking worker's workerd runtime to reject compromised eMudhra certificate chains. (#1264) — thanks @joshavant.
 
 - Dependencies: update Google IAM, GAX, enterprise certificate support, Workers types, Wrangler, and oxlint-tsgolint while retaining Go 1.26 and the tracking worker’s 24-hour release cooldown.
-
-- Safety profiles: add `denied-values` to refuse specific values of string and list flags on named commands, and use it in `agent-safe` to refuse the `TRASH` and `SPAM` labels on Gmail modify commands and `--send-updates all|externalOnly` on calendar create, update and move, auto-declining `calendar focus-time` (pass `--auto-decline none`), and focus-time or out-of-office events written through `calendar create` and `calendar update`; a `"*"` entry refuses any value of a flag; `agent-safe` also blocks `calendar propose-time` and Drive and Docs comments, which notify other people. (#1263) — thanks @bautrey.
 
 ## 0.47.0 - 2026-10-23
 
