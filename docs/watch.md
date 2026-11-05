@@ -60,9 +60,16 @@ gog gmail watch serve \
   --bind 127.0.0.1 \
   --port 8788 \
   --path /gmail-pubsub \
-  --token <shared> \
-  --hook-url http://127.0.0.1:18789/hooks/agent
+  --token-env GOG_WATCH_PUSH_TOKEN \
+  --hook-url http://127.0.0.1:18789/hooks/agent \
+  --hook-token-env GOG_WATCH_HOOK_TOKEN
 ```
+
+Have your service manager or secret store supply `GOG_WATCH_PUSH_TOKEN` and
+`GOG_WATCH_HOOK_TOKEN` in the process environment. The flags name the variables,
+so neither token value needs to appear in the command line. The hook token is
+sent as a bearer token to the configured hook URL. Environment values remain
+accessible to the process owner and privileged users.
 
 ## CLI surface
 
@@ -75,8 +82,8 @@ gog gmail watch stop
 gog gmail watch serve \
   --bind 127.0.0.1 --port 8788 --path /gmail-pubsub \
   [--verify-oidc] [--oidc-email <svc@...>] [--oidc-audience <aud>] \
-  [--token <shared>] \
-  [--hook-url <url>] [--hook-token <token>] \
+  [--token <shared> | --token-env <var>] \
+  [--hook-url <url>] [--hook-token <token> | --hook-token-env <var>] \
   [--fetch-delay <sec|duration>] \
   [--include-body] [--max-bytes <n>] [--exclude-labels <id,id,...>] \
   [--history-types <type>...] [--save-hook]
@@ -104,6 +111,15 @@ Notes:
 - `watch pull` needs Google credentials that can consume the Pub/Sub
   subscription.
 - `watch serve` needs an HTTP endpoint reachable by Pub/Sub.
+- `watch serve --token-env` and `--hook-token-env` read named environment
+  variables once at startup. Each conflicts with its corresponding literal
+  flag, including an explicitly empty literal. An empty variable name or an
+  unset, empty, or whitespace-only value is a usage error; accepted token values
+  are preserved exactly. Without these flags there is no environment lookup.
+- With a stored hook URL, `watch serve --hook-token-env` overrides the stored
+  token while keeping the other stored defaults. `--save-hook` explicitly
+  persists the resolved hook token in the existing private watch state file;
+  otherwise the override is used only for that run. The push token is not saved.
 - `watch serve --dry-run` validates flags and prints a secret-free listen/auth/
   hook plan. It may read existing atomic watch state to resolve stored hook
   settings, but does not create/lock/update state, create clients, or open a

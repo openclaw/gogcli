@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/http"
 	neturl "net/url"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -231,8 +232,10 @@ type GmailWatchServeCmd struct {
 	OIDCEmail     string   `name:"oidc-email" help:"Expected service account email"`
 	OIDCAudience  string   `name:"oidc-audience" help:"Expected OIDC audience"`
 	SharedToken   string   `name:"token" help:"Shared token for x-gog-token or ?token="`
+	TokenEnv      string   `name:"token-env" help:"Read shared token from the named environment variable"`
 	HookURL       string   `name:"hook-url" help:"Webhook URL to forward messages"`
 	HookToken     string   `name:"hook-token" help:"Webhook bearer token"`
+	HookTokenEnv  string   `name:"hook-token-env" help:"Read webhook bearer token from the named environment variable"`
 	IncludeBody   bool     `name:"include-body" help:"Include text/plain body in hook payload"`
 	MaxBytes      int      `name:"max-bytes" help:"Max bytes of body to include" default:"20000"`
 	HistoryTypes  []string `name:"history-types" help:"History types to include (repeatable, comma-separated: messageAdded,messageDeleted,labelAdded,labelRemoved). Default: messageAdded"`
@@ -252,7 +255,15 @@ func (c *GmailWatchServeCmd) Run(ctx context.Context, kctx *kong.Context, flags 
 	if c.Port <= 0 {
 		return usage("--port must be > 0")
 	}
-	if !c.VerifyOIDC && c.SharedToken == "" && !isLoopbackHost(c.Bind) {
+	sharedToken, err := resolveWatchToken(kctx, c.SharedToken, c.TokenEnv, "token")
+	if err != nil {
+		return err
+	}
+	hookToken, err := resolveWatchToken(kctx, c.HookToken, c.HookTokenEnv, "hook-token")
+	if err != nil {
+		return err
+	}
+	if !c.VerifyOIDC && sharedToken == "" && !isLoopbackHost(c.Bind) {
 		return usage("--verify-oidc or --token required when binding non-loopback")
 	}
 	if c.OIDCEmail != "" && !c.VerifyOIDC {
@@ -285,10 +296,11 @@ func (c *GmailWatchServeCmd) Run(ctx context.Context, kctx *kong.Context, flags 
 			return stateErr
 		}
 		dryRunHook, hookErr := resolveWatchHookFromFlags(kctx, dryRunState, watchHookFlagValues{
-			URL:         c.HookURL,
-			Token:       c.HookToken,
-			IncludeBody: c.IncludeBody,
-			MaxBytes:    c.MaxBytes,
+			URL:           c.HookURL,
+			Token:         hookToken,
+			TokenProvided: c.HookTokenEnv != "",
+			IncludeBody:   c.IncludeBody,
+			MaxBytes:      c.MaxBytes,
 		}, true)
 		if hookErr != nil {
 			if !errors.Is(hookErr, errNoHookConfigured) {
@@ -304,7 +316,7 @@ func (c *GmailWatchServeCmd) Run(ctx context.Context, kctx *kong.Context, flags 
 		}
 		maxBodyBytes := defaultHookMaxBytes
 		includeBody := c.IncludeBody
-		hookTokenSet := c.HookToken != ""
+		hookTokenSet := hookToken != ""
 		if dryRunHook != nil {
 			includeBody = dryRunHook.IncludeBody
 			hookTokenSet = dryRunHook.Token != ""
@@ -320,7 +332,7 @@ func (c *GmailWatchServeCmd) Run(ctx context.Context, kctx *kong.Context, flags 
 				"verify_oidc":       c.VerifyOIDC,
 				"oidc_email_set":    strings.TrimSpace(c.OIDCEmail) != "",
 				"oidc_audience_set": strings.TrimSpace(c.OIDCAudience) != "",
-				"shared_token_set":  c.SharedToken != "",
+				"shared_token_set":  sharedToken != "",
 			},
 			"hook": map[string]any{
 				"source":       hookSource,
@@ -344,10 +356,11 @@ func (c *GmailWatchServeCmd) Run(ctx context.Context, kctx *kong.Context, flags 
 	state := store.Get()
 
 	hook, err := resolveWatchHookFromFlags(kctx, state, watchHookFlagValues{
-		URL:         c.HookURL,
-		Token:       c.HookToken,
-		IncludeBody: c.IncludeBody,
-		MaxBytes:    c.MaxBytes,
+		URL:           c.HookURL,
+		Token:         hookToken,
+		TokenProvided: c.HookTokenEnv != "",
+		IncludeBody:   c.IncludeBody,
+		MaxBytes:      c.MaxBytes,
 	}, true)
 	if err != nil {
 		if !errors.Is(err, errNoHookConfigured) {
@@ -377,7 +390,7 @@ func (c *GmailWatchServeCmd) Run(ctx context.Context, kctx *kong.Context, flags 
 		VerifyOIDC:    c.VerifyOIDC,
 		OIDCEmail:     c.OIDCEmail,
 		OIDCAudience:  c.OIDCAudience,
-		SharedToken:   c.SharedToken,
+		SharedToken:   sharedToken,
 		HookTimeout:   defaultHookRequestTimeoutSec * time.Second,
 		HistoryMax:    defaultHistoryMaxResults,
 		ResyncMax:     defaultHistoryResyncMax,
@@ -608,11 +621,31 @@ func hookFromFlags(url, token string, includeBody bool, maxBytes int, maxBytesCh
 	}, nil
 }
 
+func resolveWatchToken(kctx *kong.Context, literal, envName, flagName string) (string, error) {
+	envFlag := flagName + "-env"
+	if envName == "" && !flagProvided(kctx, envFlag) {
+		return literal, nil
+	}
+	if literal != "" || flagProvided(kctx, flagName) {
+		return "", usagef("--%s and --%s are mutually exclusive", flagName, envFlag)
+	}
+	envName = strings.TrimSpace(envName)
+	if envName == "" {
+		return "", usagef("--%s requires a non-empty environment variable name", envFlag)
+	}
+	token, ok := os.LookupEnv(envName)
+	if !ok || strings.TrimSpace(token) == "" {
+		return "", usagef("--%s requires a non-empty environment variable", envFlag)
+	}
+	return token, nil
+}
+
 type watchHookFlagValues struct {
-	URL         string
-	Token       string
-	IncludeBody bool
-	MaxBytes    int
+	URL           string
+	Token         string
+	TokenProvided bool
+	IncludeBody   bool
+	MaxBytes      int
 }
 
 func resolveWatchHookFromFlags(kctx *kong.Context, state gmailWatchState, values watchHookFlagValues, allowNoHook bool) (*gmailWatchHook, error) {
@@ -623,7 +656,7 @@ func resolveWatchHookFromFlags(kctx *kong.Context, state gmailWatchState, values
 
 	if hookURL == "" && state.Hook != nil {
 		hookURL = state.Hook.URL
-		if !flagProvided(kctx, "hook-token") {
+		if !values.TokenProvided && !flagProvided(kctx, "hook-token") {
 			hookToken = state.Hook.Token
 		}
 		if !flagProvided(kctx, "include-body") {

@@ -35,6 +35,7 @@ gog gmail (mail,email) settings watch serve [flags]
 | `--history-types` | `[]string` |  | History types to include (repeatable, comma-separated: messageAdded,messageDeleted,labelAdded,labelRemoved). Default: messageAdded |
 | `--home` | `string` |  | Override gogcli config/data/state/cache root (equivalent to GOG_HOME) |
 | `--hook-token` | `string` |  | Webhook bearer token |
+| `--hook-token-env` | `string` |  | Read webhook bearer token from the named environment variable |
 | `--hook-url` | `string` |  | Webhook URL to forward messages |
 | `--include-body` | `bool` |  | Include text/plain body in hook payload |
 | `-j`<br>`--json`<br>`--machine` | `bool` | false | Output JSON to stdout (best for scripting) |
@@ -53,6 +54,7 @@ gog gmail (mail,email) settings watch serve [flags]
 | `--select`<br>`--pick`<br>`--project` | `string` |  | In JSON mode, select comma-separated fields (best-effort; supports dot paths). Desire path: use --fields for most commands. |
 | `-z`<br>`--timezone` | `string` |  | Output timezone (IANA name, e.g. America/New_York, UTC). Default: GOG_TIMEZONE, config, then local |
 | `--token` | `string` |  | Shared token for x-gog-token or ?token= |
+| `--token-env` | `string` |  | Read shared token from the named environment variable |
 | `-v`<br>`--verbose` | `bool` |  | Enable verbose logging |
 | `--verify-oidc` | `bool` |  | Verify Pub/Sub OIDC tokens |
 | `--version` | `kong.VersionFlag` |  | Print version and exit |

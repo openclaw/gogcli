@@ -2,6 +2,8 @@
 
 ## 0.47.2 - Unreleased
 
+- Gmail: add `watch serve --token-env` and `--hook-token-env` to read tokens from named environment variables, preserving literal flags and stored-hook defaults. (#1292) — thanks @mmaps.
+
 - Release: require SSH-signed annotated tags authorized by the committed signer policy before builds and publication; preserve tagless dry runs.
 
 - CI: run CodeQL weekly and on pull requests or manual dispatch, retaining Actions, Go, and JavaScript analysis without duplicate scans on every main push.
