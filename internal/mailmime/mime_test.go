@@ -1,8 +1,14 @@
 package mailmime
 
 import (
+	"bytes"
+	"errors"
 	"io"
+	"mime"
+	"mime/multipart"
 	"mime/quotedprintable"
+	"net/mail"
+	"net/textproto"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -175,6 +181,108 @@ func TestBuildRFC822WithInlineResource(t *testing.T) {
 	} {
 		if !strings.Contains(s, want) {
 			t.Fatalf("missing %q:\n%s", want, s)
+		}
+	}
+}
+
+// Inspect generated MIME independently of contributor-reported Gmail web behavior.
+func TestBuildRFC822GivesEveryAttachmentUniqueID(t *testing.T) {
+	raw, buildErr := buildRFC822(mailOptions{
+		From:     "a@b.com",
+		To:       []string{"c@d.com"},
+		Subject:  "Re: Hi",
+		Body:     "Plain",
+		BodyHTML: `<p>Reply</p><blockquote><img src="cid:logo@example.com"></blockquote>`,
+		Attachments: []mailAttachment{
+			{Filename: "logo.png", MIMEType: "image/png", Data: []byte("png"), DataSet: true, Inline: true, ContentID: "logo@example.com"},
+			{Filename: "a.pdf", MIMEType: "application/pdf", Data: []byte("a"), DataSet: true},
+			{Filename: "b.pdf", MIMEType: "application/pdf", Data: []byte("b"), DataSet: true},
+			{Filename: "c.docx", MIMEType: "application/octet-stream", Data: []byte("c"), DataSet: true},
+		},
+	}, nil)
+	if buildErr != nil {
+		t.Fatalf("buildRFC822: %v", buildErr)
+	}
+
+	msg, readErr := mail.ReadMessage(bytes.NewReader(raw))
+	if readErr != nil {
+		t.Fatalf("read message: %v", readErr)
+	}
+
+	type leaf struct {
+		filename, contentID, attachmentID string
+	}
+
+	var leaves []leaf
+
+	var walk func(header textproto.MIMEHeader, body io.Reader)
+	walk = func(header textproto.MIMEHeader, body io.Reader) {
+		mediaType, params, err := mime.ParseMediaType(header.Get("Content-Type"))
+		if err != nil {
+			t.Fatalf("parse Content-Type %q: %v", header.Get("Content-Type"), err)
+		}
+
+		if strings.HasPrefix(mediaType, "multipart/") {
+			reader := multipart.NewReader(body, params["boundary"])
+
+			for {
+				part, partErr := reader.NextRawPart()
+				if errors.Is(partErr, io.EOF) {
+					return
+				}
+
+				if partErr != nil {
+					t.Fatalf("next part: %v", partErr)
+				}
+
+				walk(part.Header, part)
+			}
+		}
+
+		if strings.HasPrefix(mediaType, "text/") {
+			return
+		}
+
+		_, dispParams, _ := mime.ParseMediaType(header.Get("Content-Disposition"))
+		leaves = append(leaves, leaf{
+			filename:     dispParams["filename"],
+			contentID:    header.Get("Content-ID"),
+			attachmentID: header.Get("X-Attachment-Id"),
+		})
+	}
+	walk(textproto.MIMEHeader(msg.Header), msg.Body)
+
+	if len(leaves) != 4 {
+		t.Fatalf("got %d attachment parts, want 4:\n%s", len(leaves), raw)
+	}
+
+	seenAttachmentIDs := map[string]bool{}
+	seenContentIDs := map[string]bool{}
+
+	for _, l := range leaves {
+		if l.attachmentID == "" {
+			t.Fatalf("%s: missing X-Attachment-Id:\n%s", l.filename, raw)
+		}
+
+		if seenAttachmentIDs[l.attachmentID] {
+			t.Fatalf("%s: duplicate X-Attachment-Id %q", l.filename, l.attachmentID)
+		}
+		seenAttachmentIDs[l.attachmentID] = true
+
+		if seenContentIDs[l.contentID] {
+			t.Fatalf("%s: duplicate Content-ID %q", l.filename, l.contentID)
+		}
+		seenContentIDs[l.contentID] = true
+
+		switch l.filename {
+		case "logo.png":
+			if l.contentID != "<logo@example.com>" {
+				t.Fatalf("quoted image Content-ID = %q, want original <logo@example.com>", l.contentID)
+			}
+		default:
+			if l.contentID != "<"+l.attachmentID+">" {
+				t.Fatalf("%s: Content-ID = %q, want <%s>", l.filename, l.contentID, l.attachmentID)
+			}
 		}
 	}
 }
@@ -600,5 +708,53 @@ func TestFormatAddressHeadersParsesCommaSeparatedList(t *testing.T) {
 
 	if !strings.Contains(parts[0], "a@b.com") || !strings.Contains(parts[1], "b@c.com") {
 		t.Fatalf("expected both addresses in output, got %q", got)
+	}
+}
+
+func TestAttachmentIDsStableAcrossMIMEBuilds(t *testing.T) {
+	opts := mailOptions{
+		From: "a@example.invalid", To: []string{"b@example.invalid"}, Subject: "Stable attachment IDs", Body: "message",
+		Attachments: []mailAttachment{
+			{Filename: "duplicate.txt", MIMEType: "text/plain", Data: []byte("same"), DataSet: true},
+			{Filename: "duplicate.txt", MIMEType: "text/plain", Data: []byte("same"), DataSet: true},
+			{Filename: "logo.png", MIMEType: "image/png", Data: []byte("image"), DataSet: true, Inline: true, ContentID: "original@example.invalid"},
+		},
+	}
+
+	ids := regexp.MustCompile(`(?m)^X-Attachment-Id: ([^\r\n]+)`)
+
+	var first []string
+
+	for build := 0; build < 2; build++ {
+		raw, err := buildRFC822(opts, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		matches := ids.FindAllSubmatch(raw, -1)
+		if len(matches) != 3 {
+			t.Fatalf("got %d IDs", len(matches))
+		}
+
+		seen := map[string]bool{}
+
+		for i, m := range matches {
+			id := string(m[1])
+			if seen[id] {
+				t.Fatalf("duplicate ID %q", id)
+			}
+
+			seen[id] = true
+
+			if build == 0 {
+				first = append(first, id)
+			} else if id != first[i] {
+				t.Fatalf("ID changed between builds: %q != %q", id, first[i])
+			}
+		}
+
+		if !bytes.Contains(raw, []byte("Content-ID: <original@example.invalid>")) {
+			t.Fatal("inline Content-ID changed")
+		}
 	}
 }

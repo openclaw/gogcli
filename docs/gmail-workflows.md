@@ -561,6 +561,11 @@ Official behavior references:
 - [RFC 2387: multipart/related](https://www.rfc-editor.org/rfc/rfc2387.html)
 - [RFC 2392: Content-ID URLs](https://www.rfc-editor.org/rfc/rfc2392)
 
+Outgoing attachment and inline MIME parts each receive a distinct
+`X-Attachment-Id`, stable when the same ordered attachments are rebuilt. Regular
+attachments also receive a matching `Content-ID`; quoted inline images preserve
+their original Content-IDs so existing `cid:` references continue to resolve.
+
 ## Attachment Confirmation
 
 `gmail send --json`, `gmail drafts create|update --json`, and
