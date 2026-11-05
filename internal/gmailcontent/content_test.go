@@ -164,6 +164,51 @@ func TestBestBodyForDisplay(t *testing.T) {
 	}
 }
 
+func TestBestBodyWhitespacePlainFallsBackToHTML(t *testing.T) {
+	p := &gmail.MessagePart{
+		MimeType: "multipart/alternative",
+		Parts: []*gmail.MessagePart{
+			{
+				MimeType: "text/plain",
+				Body: &gmail.MessagePartBody{
+					Data: encodeBase64URL("\r\n\r\n \t\r\n"),
+				},
+			},
+			{
+				MimeType: "text/html",
+				Body: &gmail.MessagePartBody{
+					Data: encodeBase64URL("<p>html body</p>"),
+				},
+			},
+		},
+	}
+
+	if got := BestBodyText(p); got != "<p>html body</p>" {
+		t.Fatalf("BestBodyText: expected html body, got %q", got)
+	}
+
+	body, isHTML := BestBodyForDisplay(p)
+	if body != "<p>html body</p>" || !isHTML {
+		t.Fatalf("BestBodyForDisplay: expected html body, got %q (html=%v)", body, isHTML)
+	}
+
+	plainOnly := &gmail.MessagePart{
+		MimeType: "text/plain",
+		Body: &gmail.MessagePartBody{
+			Data: encodeBase64URL("\r\n\r\n"),
+		},
+	}
+
+	if got := BestBodyText(plainOnly); got != "\r\n\r\n" {
+		t.Fatalf("BestBodyText without html: expected plain body, got %q", got)
+	}
+
+	body, isHTML = BestBodyForDisplay(plainOnly)
+	if body != "\r\n\r\n" || isHTML {
+		t.Fatalf("BestBodyForDisplay without html: expected plain body, got %q (html=%v)", body, isHTML)
+	}
+}
+
 func encodeBase64URL(value string) string {
 	return base64.RawURLEncoding.EncodeToString([]byte(value))
 }

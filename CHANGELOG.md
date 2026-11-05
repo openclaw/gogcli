@@ -2,6 +2,8 @@
 
 ## 0.47.2 - Unreleased
 
+- Gmail: treat a whitespace-only `text/plain` part as missing when choosing a message body, so `gmail get`, `gmail thread get` and `--sanitize-content` output fall back to the HTML part instead of returning an empty body (seen in Meetup notifications). (#1279) — thanks @Flamefork.
+
 - Release: require SSH-signed annotated tags authorized by the committed signer policy before builds and publication; preserve tagless dry runs.
 
 - CI: run CodeQL weekly and on pull requests or manual dispatch, retaining Actions, Go, and JavaScript analysis without duplicate scans on every main push.

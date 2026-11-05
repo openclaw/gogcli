@@ -33,18 +33,23 @@ func StripHTMLTags(value string) string {
 	return strings.TrimSpace(value)
 }
 
-// BestBodyText prefers a plain body and falls back to HTML.
+// BestBodyText prefers a plain body and falls back to HTML. A whitespace-only
+// plain body counts as missing when an HTML body exists.
 func BestBodyText(part *gmail.MessagePart) string {
 	if part == nil {
 		return ""
 	}
 
 	plain := FindPartBody(part, "text/plain")
-	if plain != "" {
+	if strings.TrimSpace(plain) != "" {
 		return plain
 	}
 
-	return FindPartBody(part, "text/html")
+	if html := FindPartBody(part, "text/html"); html != "" {
+		return html
+	}
+
+	return plain
 }
 
 // BestBodyHTML prefers an HTML body and falls back to plain text.
@@ -62,22 +67,22 @@ func BestBodyHTML(part *gmail.MessagePart) string {
 }
 
 // BestBodyForDisplay returns the preferred display body and whether it is HTML.
+// A whitespace-only plain body counts as missing when an HTML body exists.
 func BestBodyForDisplay(part *gmail.MessagePart) (string, bool) {
 	if part == nil {
 		return "", false
 	}
 
 	plain := FindPartBody(part, "text/plain")
-	if plain != "" {
+	if strings.TrimSpace(plain) != "" {
 		return plain, LooksLikeHTML(plain)
 	}
 
-	html := FindPartBody(part, "text/html")
-	if html == "" {
-		return "", false
+	if html := FindPartBody(part, "text/html"); html != "" {
+		return html, true
 	}
 
-	return html, true
+	return plain, false
 }
 
 // FindPartBody finds and decodes the first nested part matching mimeType.
