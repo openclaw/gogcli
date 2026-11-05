@@ -16,6 +16,8 @@ DATE := $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
 LDFLAGS := -X github.com/openclaw/gogcli/internal/cmd.version=$(VERSION) -X github.com/openclaw/gogcli/internal/cmd.commit=$(COMMIT) -X github.com/openclaw/gogcli/internal/cmd.date=$(DATE)
 # `make lint` already covers vet-equivalent checks; skip duplicate work in `make test`.
 GO_TEST_FLAGS ?= -vet=off
+# The command package's complete suite can exceed Go's default ten-minute limit.
+GO_TEST_TIMEOUT ?= 20m
 TEST_FLAGS ?=
 TEST_PKGS ?= ./...
 
@@ -141,7 +143,7 @@ docker-version-check:
 	fi
 
 test:
-	@go test $(GO_TEST_FLAGS) $(TEST_FLAGS) $(TEST_PKGS)
+	@go test -timeout=$(GO_TEST_TIMEOUT) $(GO_TEST_FLAGS) $(TEST_FLAGS) $(TEST_PKGS)
 	@node --test scripts/eval-gws.test.mjs scripts/eval-gws-agents.test.mjs scripts/check-docker-go-version.test.mjs
 
 eval-gws: build
