@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"os"
 	"sort"
 	"strconv"
@@ -121,6 +122,21 @@ func backupCommandContext(ctx context.Context, flags *RootFlags) context.Context
 	return ctx
 }
 
+func prepareBackupPush(ctx context.Context, opts *backup.Options) error {
+	if !opts.Push {
+		return nil
+	}
+	cfg, err := backup.ResolveOptions(*opts)
+	if err != nil {
+		return err
+	}
+	if strings.TrimSpace(cfg.Remote) == "" && !backup.HasRemote(ctx, cfg.Repo) {
+		opts.Push = false
+		fmt.Fprintln(stderrWriter(ctx), "No backup remote configured; committing locally only. Configure a remote with gog backup init --remote <URL> to enable pushing.")
+	}
+	return nil
+}
+
 type BackupInitCmd struct {
 	backupFlags
 }
@@ -130,9 +146,6 @@ func (c *BackupInitCmd) Run(ctx context.Context, flags *RootFlags) error {
 	opts := c.options()
 	if err := bindBackupConfigStore(ctx, &opts); err != nil {
 		return err
-	}
-	if c.NoPush && strings.TrimSpace(c.Remote) == "" {
-		opts.SuppressDefaultRemote = true
 	}
 	if flags != nil && flags.DryRun {
 		cfg, err := backup.ResolveOptions(opts)
@@ -148,6 +161,9 @@ func (c *BackupInitCmd) Run(ctx context.Context, flags *RootFlags) error {
 		})
 	}
 
+	if err := prepareBackupPush(ctx, &opts); err != nil {
+		return err
+	}
 	cfg, recipient, err := backup.Init(ctx, opts)
 	if err != nil {
 		return err
@@ -228,6 +244,9 @@ func (c *BackupPushCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 	backupOpts := c.options()
 	if err := bindBackupConfigStore(ctx, &backupOpts); err != nil {
+		return err
+	}
+	if err := prepareBackupPush(ctx, &backupOpts); err != nil {
 		return err
 	}
 	backupOpts.AsyncPush = c.GmailCheckpoints
@@ -320,6 +339,9 @@ func (c *BackupGmailPushCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 	backupOpts := c.options()
 	if err := bindBackupConfigStore(ctx, &backupOpts); err != nil {
+		return err
+	}
+	if err := prepareBackupPush(ctx, &backupOpts); err != nil {
 		return err
 	}
 	backupOpts.AsyncPush = c.Checkpoints

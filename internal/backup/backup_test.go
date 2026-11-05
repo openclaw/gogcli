@@ -1025,3 +1025,49 @@ func readFile(t *testing.T, path string) []byte {
 	}
 	return data
 }
+
+func TestBackupLocalDefaultAndPushWithoutRemote(t *testing.T) {
+	if got := DefaultConfig().Remote; got != "" {
+		t.Fatalf("unexpected default remote: %q", got)
+	}
+	ctx, repo, config, _ := initTestBackup(t)
+	result, err := PushSnapshot(ctx, Snapshot{Services: []string{"gmail"}}, testOptions(t, Options{ConfigPath: config, Push: true}))
+	if err != nil {
+		t.Fatalf("local snapshot with push enabled: %v", err)
+	}
+	if !result.Changed {
+		t.Fatal("local snapshot was not committed")
+	}
+	if HasRemote(ctx, repo) {
+		t.Fatal("local backup acquired a remote")
+	}
+	if _, err := PushCheckpoint(ctx, Snapshot{Services: []string{"gmail"}}, Checkpoint{RunID: "local", Service: "gmail", Done: 1, Total: 2}, testOptions(t, Options{ConfigPath: config, Push: true})); err != nil {
+		t.Fatalf("local checkpoint: %v", err)
+	}
+}
+
+func TestBackupExistingOriginPreservedAndPushed(t *testing.T) {
+	ctx, repo, config, _ := initTestBackup(t)
+	remote := filepath.Join(t.TempDir(), "remote.git")
+	if err := git(ctx, "", "init", "--bare", remote); err != nil {
+		t.Fatal(err)
+	}
+	if err := git(ctx, repo, "remote", "add", "origin", remote); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := PushSnapshot(ctx, Snapshot{Services: []string{"gmail"}}, testOptions(t, Options{ConfigPath: config, Push: true})); err != nil {
+		t.Fatal(err)
+	}
+	got, err := gitOutput(ctx, repo, "remote", "get-url", "origin")
+	if err != nil || strings.TrimSpace(got) != remote {
+		t.Fatalf("origin changed: %q %v", got, err)
+	}
+	localHead, err := gitOutput(ctx, repo, "rev-parse", "HEAD")
+	if err != nil {
+		t.Fatal(err)
+	}
+	remoteHead, err := gitOutput(ctx, remote, "rev-parse", strings.TrimSpace(localHead))
+	if err != nil || localHead != remoteHead {
+		t.Fatalf("snapshot not pushed: %q %v", remoteHead, err)
+	}
+}

@@ -3,26 +3,34 @@ summary: "Encrypted Google account backups"
 read_when:
   - Adding a new gog backup service adapter
   - Changing encrypted backup layout, manifest fields, or age identity handling
-  - Debugging backup-gog push, status, or verify
+  - Debugging backup push, status, or verify
 ---
 
 # Encrypted Backups
 
 `gog backup` writes Google account data into a Git repository as age-encrypted
-JSONL gzip shards. The intended repository is private, for example
-`https://github.com/steipete/backup-gog`, but service payloads are encrypted
-before Git sees them.
+JSONL gzip shards. Backups stay local by default: there is no built-in remote.
+Service payloads are encrypted before Git sees them. Choose a private repository
+you control if you want to push backups.
 
 ## Commands
 
-Initialize local config, create an age identity if needed, seed the backup repo,
-and print the public recipient:
+Initialize local config, create an age identity if needed, seed the local backup
+repo, and print the public recipient:
 
 ```bash
-gog backup init \
-  --repo ~/Projects/backup-gog \
-  --remote https://github.com/steipete/backup-gog.git
+gog backup init --repo ~/Projects/backup-gog
 ```
+
+To enable pushing, explicitly configure your own remote:
+
+```bash
+gog backup init --remote https://github.com/your-account/your-private-backup.git
+```
+
+`init` and `push` commit locally and explain that no upload happened when no
+remote is configured. Explicitly saved remotes and existing Git `origin` URLs
+continue to work without rewriting them. Checkpoint pushes follow the same rule.
 
 Back up all supported services:
 

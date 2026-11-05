@@ -2,6 +2,8 @@
 
 ## 0.47.2 - Unreleased
 
+- Backup: keep new backups local until a remote is configured; preserve saved remotes and existing Git origins, and explain local-only operation. (#1287) — thanks @NasAndNora.
+
 - Gmail: treat a whitespace-only `text/plain` part as missing when choosing a message body, so `gmail get`, `gmail thread get` and `--sanitize-content` output fall back to the HTML part instead of returning an empty body (seen in Meetup notifications). (#1279) — thanks @Flamefork.
 
 - Release: require SSH-signed annotated tags authorized by the committed signer policy before builds and publication; preserve tagless dry runs.

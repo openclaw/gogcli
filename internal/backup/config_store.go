@@ -30,8 +30,7 @@ type ConfigStore struct {
 }
 
 type configDocument struct {
-	config         Config
-	remoteExplicit bool
+	config Config
 }
 
 func NewConfigStore(layout appconfig.Layout, resolveHome func() (string, error)) (*ConfigStore, error) {
@@ -98,9 +97,6 @@ func (s *ConfigStore) ResolveOptions(opts Options) (Config, error) {
 	if strings.TrimSpace(opts.Remote) != "" {
 		cfg.Remote = opts.Remote
 	}
-	if opts.SuppressDefaultRemote && !doc.remoteExplicit && cfg.Remote == defaultRemote {
-		cfg.Remote = ""
-	}
 	if strings.TrimSpace(opts.Identity) != "" {
 		cfg.Identity = opts.Identity
 	}
@@ -159,11 +155,7 @@ func (s *ConfigStore) loadDocument(path string) (configDocument, error) {
 	if unmarshalErr := json.Unmarshal(data, &cfg); unmarshalErr != nil {
 		return configDocument{}, fmt.Errorf("read backup config: %w", unmarshalErr)
 	}
-	remoteExplicit, err := jsonObjectHasKey(data, "remote")
-	if err != nil {
-		return configDocument{}, err
-	}
-	return configDocument{config: cfg, remoteExplicit: remoteExplicit}, nil
+	return configDocument{config: cfg}, nil
 }
 
 func (s *ConfigStore) resolvePath(path string) (string, bool, error) {
@@ -214,13 +206,4 @@ func (s *ConfigStore) home() (string, error) {
 		}
 	})
 	return s.userHome, s.homeErr
-}
-
-func jsonObjectHasKey(data []byte, key string) (bool, error) {
-	var raw map[string]json.RawMessage
-	if err := json.Unmarshal(data, &raw); err != nil {
-		return false, fmt.Errorf("read backup config: %w", err)
-	}
-	_, ok := raw[key]
-	return ok, nil
 }

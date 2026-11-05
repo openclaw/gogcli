@@ -77,7 +77,7 @@ func TestConfigStoreLoadsLegacyConfigAndExpandsPaths(t *testing.T) {
 		t.Fatalf("NewConfigStore: %v", err)
 	}
 
-	cfg, err := store.ResolveOptions(Options{SuppressDefaultRemote: true})
+	cfg, err := store.ResolveOptions(Options{})
 	if err != nil {
 		t.Fatalf("ResolveOptions: %v", err)
 	}
@@ -146,7 +146,7 @@ func TestConfigStoreSuppressesOnlyImplicitDefaultRemote(t *testing.T) {
 		t.Fatalf("NewConfigStore: %v", err)
 	}
 
-	cfg, err := store.ResolveOptions(Options{SuppressDefaultRemote: true})
+	cfg, err := store.ResolveOptions(Options{})
 	if err != nil {
 		t.Fatalf("ResolveOptions default: %v", err)
 	}
@@ -155,16 +155,16 @@ func TestConfigStoreSuppressesOnlyImplicitDefaultRemote(t *testing.T) {
 		t.Fatalf("implicit default remote = %q", cfg.Remote)
 	}
 
-	if saveErr := store.Save("", Config{Repo: "~/repo", Remote: defaultRemote, Identity: "~/.gog/age.key"}); saveErr != nil {
+	if saveErr := store.Save("", Config{Repo: "~/repo", Remote: "https://github.com/steipete/backup-gog.git", Identity: "~/.gog/age.key"}); saveErr != nil {
 		t.Fatalf("Save: %v", saveErr)
 	}
 
-	cfg, err = store.ResolveOptions(Options{SuppressDefaultRemote: true})
+	cfg, err = store.ResolveOptions(Options{})
 	if err != nil {
 		t.Fatalf("ResolveOptions explicit: %v", err)
 	}
 
-	if cfg.Remote != defaultRemote {
+	if cfg.Remote != "https://github.com/steipete/backup-gog.git" {
 		t.Fatalf("explicit default remote = %q", cfg.Remote)
 	}
 }
