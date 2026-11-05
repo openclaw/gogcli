@@ -29,8 +29,9 @@ gog backup init --remote https://github.com/your-account/your-private-backup.git
 ```
 
 `init` and `push` commit locally and explain that no upload happened when no
-remote is configured. Explicitly saved remotes and existing Git `origin` URLs
-continue to work without rewriting them. Configuring a remote after local
+remote is configured. Existing backup configurations keep working after an
+upgrade: explicitly saved remotes and existing Git `origin` URLs continue to
+work without rewriting them. Configuring a remote after local
 initialization adds `origin` only when it is missing. Checkpoint pushes follow
 the same rule.
 

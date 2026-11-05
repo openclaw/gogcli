@@ -1,18 +1,22 @@
 # Changelog
 
-## 0.47.2 - Unreleased
+## 0.48.0 - 2026-11-05
+
+**Highlights:** New backups stay local until you configure a remote; existing configurations keep working. Store service-account keys in the keyring, search Gmail IDs efficiently, and use environment-backed watch tokens, with Calendar fixes and security dependency updates.
+
+The backup changes in #1303 and #1304 preserve existing saved remotes and Git origins. Gmail attachment behavior after delivery (#1300) is contributor-reported; local MIME regression tests pass. Automatic reauthorization (#1278) has synthetic regression coverage but was not tested with a live consent flow.
+
+- Backup: keep new backups local until a remote is configured; preserve saved remotes and existing Git origins, and explain local-only operation. (#1287) — thanks @NasAndNora.
 
 - Backup: allow a locally initialized backup to acquire its first configured remote without replacing an existing origin. (#1287) — thanks @NasAndNora.
+
+- Auth: add optional `auth service-account set --keyring` storage with migration back to files, isolated configuration references, and cleanup on rotation or unset; existing key files remain supported. (#1294) — thanks @tommyjoseph.
 
 - Gmail: give every outgoing attachment a unique, stable `X-Attachment-Id`, including duplicate files, while preserving inline Content-ID references. (#1299, #1300) — thanks @zupolgec.
 
 - Auth: retain the command runtime and OAuth client dependencies during automatic reauthorization, preserving cancellation and the stored service/scope grant. (#1277, #1278) — thanks @TheAngryPit.
 
-- Auth: add optional `auth service-account set --keyring` storage with migration back to files, isolated configuration references, and cleanup on rotation or unset; existing key files remain supported. (#1294) — thanks @tommyjoseph.
-
 - Calendar: reject empty or inverted time windows before querying, keep successful historical search ranges unchanged, and extend far-future searches from their explicit start. (#1280, #1298) — thanks @remote-controlled-man and @privatenumber.
-
-- Backup: keep new backups local until a remote is configured; preserve saved remotes and existing Git origins, and explain local-only operation. (#1287) — thanks @NasAndNora.
 
 - Gmail: treat a whitespace-only `text/plain` part as missing when choosing a message body, so `gmail get`, `gmail thread get` and `--sanitize-content` output fall back to the HTML part instead of returning an empty body (seen in Meetup notifications). (#1279) — thanks @Flamefork.
 
@@ -33,8 +37,11 @@
 - Calendar: honor explicitly empty event summaries, locations, and attendee lists in update requests, while preserving omitted fields. (#1268) — thanks @pkyIntelligence.
 
 - Calendar: accept `primary` and unlisted email-like IDs in `--cal` and `--calendars` while retaining named-calendar resolution. (#1283, #1297) — thanks @goutamadwant.
+
 - Calendar: reject a single page token across multiple calendars before fetching events; retain single-calendar continuation and `--all-pages`. (#1281, #1285) — thanks @goutamadwant.
+
 - Calendar: sort all-day events in their calendar timezone, including partial responses and display-timezone overrides. (#1284, #1286) — thanks @goutamadwant.
+
 - Calendar: include camelCase `calendarId` on multi-calendar JSON events while retaining the existing `CalendarID` key for scripts. (#1282, #1290) — thanks @i098.
 
 - MCP: add optional `page` continuation tokens to `gmail_search` and `calendar_events`, preserving bounded reads and existing CLI pagination. (#1269, #1270) — thanks @pkyIntelligence.
