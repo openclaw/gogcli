@@ -42,8 +42,9 @@ func (c *CalendarSearchCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 
 	timeRange, err := ResolveTimeRangeWithDefaults(ctx, svc, c.TimeRangeFlags, TimeRangeDefaults{
-		FromOffset: -30 * 24 * time.Hour,
-		ToOffset:   90 * 24 * time.Hour,
+		FromOffset:            -30 * 24 * time.Hour,
+		ToOffset:              90 * 24 * time.Hour,
+		ToFromOffsetIfInvalid: 90 * 24 * time.Hour,
 	})
 	if err != nil {
 		return err

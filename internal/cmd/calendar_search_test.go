@@ -232,49 +232,19 @@ func TestCalendarSearchCmd_WithTimeRange(t *testing.T) {
 }
 
 func TestCalendarSearchCmd_FromOnly_DefaultsTo90Days(t *testing.T) {
-	srv := httptest.NewServer(withPrimaryCalendar(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if strings.Contains(r.URL.Path, "/events") && r.Method == http.MethodGet {
-			timeMin := r.URL.Query().Get("timeMin")
-			timeMax := r.URL.Query().Get("timeMax")
-			minTime, err := time.Parse(time.RFC3339, timeMin)
-			if err != nil {
-				t.Errorf("invalid timeMin: %v", err)
-			}
-			maxTime, err := time.Parse(time.RFC3339, timeMax)
-			if err != nil {
-				t.Errorf("invalid timeMax: %v", err)
-			}
-			if !maxTime.After(minTime) {
-				t.Errorf("expected timeMax after timeMin, got %s <= %s", timeMax, timeMin)
-			}
-			diff := maxTime.Sub(minTime)
-			if diff < 85*24*time.Hour || diff > 100*24*time.Hour {
-				t.Errorf("unexpected range: %s (min %s max %s)", diff, timeMin, timeMax)
-			}
-
-			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(map[string]any{
-				"items": []map[string]any{},
-			})
-			return
+	svc := newCalendarSearchTestService(t, func(r *http.Request) {
+		if got := r.URL.Query().Get("timeMin"); got != "2099-01-01T00:00:00Z" {
+			t.Errorf("unexpected timeMin: %q", got)
 		}
-		http.NotFound(w, r)
-	})))
-	defer srv.Close()
-
-	svc, err := calendar.NewService(context.Background(),
-		option.WithoutAuthentication(),
-		option.WithHTTPClient(srv.Client()),
-		option.WithEndpoint(srv.URL+"/"),
-	)
-	if err != nil {
-		t.Fatalf("NewService: %v", err)
-	}
+		if got := r.URL.Query().Get("timeMax"); got != "2099-04-01T00:00:00Z" {
+			t.Errorf("unexpected timeMax: %q", got)
+		}
+	}, nil)
 	result := executeWithCalendarTestService(t, []string{
 		"--json",
 		"--account", "a@b.com",
 		"calendar", "search", "meeting",
-		"--from", "today",
+		"--from", "2099-01-01T00:00:00Z",
 	}, svc)
 	if result.err != nil {
 		t.Fatalf("Execute: %v", result.err)
@@ -360,5 +330,22 @@ func TestCalendarSearchCmd_MaxResults(t *testing.T) {
 	}
 	if len(parsed.Events) != 2 {
 		t.Fatalf("expected 2 events, got %d", len(parsed.Events))
+	}
+}
+
+func TestCalendarSearchCmd_PreservesHistoricalOpenEndedWindow(t *testing.T) {
+	before := time.Now().Add(90 * 24 * time.Hour).Truncate(time.Second)
+	svc := newCalendarSearchTestService(t, func(r *http.Request) {
+		if got := r.URL.Query().Get("timeMin"); got != "2000-01-01T00:00:00Z" {
+			t.Errorf("historical start changed: %q", got)
+		}
+		got, err := time.Parse(time.RFC3339, r.URL.Query().Get("timeMax"))
+		if err != nil || got.Before(before) || got.After(time.Now().Add(90*24*time.Hour)) {
+			t.Errorf("historical end must remain now + 90 days: %v %v", got, err)
+		}
+	}, nil)
+	result := executeWithCalendarTestService(t, []string{"--account", "a@b.com", "calendar", "search", "meeting", "--from", "2000-01-01T00:00:00Z"}, svc)
+	if result.err != nil {
+		t.Fatalf("historical search: %v", result.err)
 	}
 }

@@ -87,6 +87,7 @@ func (c *CalendarTeamCmd) Run(ctx context.Context, flags *RootFlags) error {
 }
 
 func (c *CalendarTeamCmd) runFreeBusy(ctx context.Context, svc *calendar.Service, emails []string, tr *TimeRange) error {
+	from, to := tr.FormatRFC3339()
 	// Build FreeBusy request
 	items := make([]*calendar.FreeBusyRequestItem, len(emails))
 	for i, email := range emails {
@@ -94,8 +95,8 @@ func (c *CalendarTeamCmd) runFreeBusy(ctx context.Context, svc *calendar.Service
 	}
 
 	resp, err := svc.Freebusy.Query(&calendar.FreeBusyRequest{
-		TimeMin: tr.From.Format(time.RFC3339),
-		TimeMax: tr.To.Format(time.RFC3339),
+		TimeMin: from,
+		TimeMax: to,
 		Items:   items,
 	}).Context(ctx).Do()
 	if err != nil {
@@ -134,8 +135,8 @@ func (c *CalendarTeamCmd) runFreeBusy(ctx context.Context, svc *calendar.Service
 	if outfmt.IsJSON(ctx) {
 		return outfmt.WriteJSON(ctx, stdoutWriter(ctx), map[string]any{
 			"group":    c.GroupEmail,
-			"timeMin":  tr.From.Format(time.RFC3339),
-			"timeMax":  tr.To.Format(time.RFC3339),
+			"timeMin":  from,
+			"timeMax":  to,
 			"timezone": tr.Location.String(),
 			"freebusy": results,
 		})
@@ -145,6 +146,7 @@ func (c *CalendarTeamCmd) runFreeBusy(ctx context.Context, svc *calendar.Service
 }
 
 func (c *CalendarTeamCmd) runEvents(ctx context.Context, svc *calendar.Service, u *ui.UI, emails []string, tr *TimeRange) error {
+	from, to := tr.FormatRFC3339()
 	var (
 		mu     sync.Mutex
 		events []teamEvent
@@ -164,8 +166,8 @@ func (c *CalendarTeamCmd) runEvents(ctx context.Context, svc *calendar.Service, 
 
 			call := svc.Events.List(email).
 				SingleEvents(true).
-				TimeMin(tr.From.Format(time.RFC3339)).
-				TimeMax(tr.To.Format(time.RFC3339)).
+				TimeMin(from).
+				TimeMax(to).
 				MaxResults(c.Max).
 				OrderBy("startTime").
 				Context(ctx)
@@ -249,8 +251,8 @@ func (c *CalendarTeamCmd) runEvents(ctx context.Context, svc *calendar.Service, 
 	if outfmt.IsJSON(ctx) {
 		return outfmt.WriteJSON(ctx, stdoutWriter(ctx), map[string]any{
 			"group":    c.GroupEmail,
-			"timeMin":  tr.From.Format(time.RFC3339),
-			"timeMax":  tr.To.Format(time.RFC3339),
+			"timeMin":  from,
+			"timeMax":  to,
 			"timezone": tr.Location.String(),
 			"events":   events,
 		})

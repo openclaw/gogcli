@@ -207,6 +207,70 @@ func TestResolveTimeRange_NegativeDays_Rejected(t *testing.T) {
 	}
 }
 
+func TestCalendarEventsCmd_InvalidWindowIsUsage(t *testing.T) {
+	cases := []struct {
+		name string
+		args []string
+	}{
+		{"past end with default start", []string{"--to", "yesterday"}},
+		{"equal bounds", []string{"--from", "2026-09-25T14:30:00Z", "--to", "2026-09-25T14:30:00Z"}},
+		{"bounds within one API second", []string{"--from", "2026-09-25T14:30:00.1Z", "--to", "2026-09-25T14:30:00.9Z"}},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			svc, closeServer := newCalendarServiceForTest(t, withPrimaryCalendar(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if !strings.HasSuffix(r.URL.Path, "/events") {
+					http.NotFound(w, r)
+					return
+				}
+				t.Errorf("unexpected calendar data request: %s", r.URL)
+				http.Error(w, "timeRangeEmpty", http.StatusBadRequest)
+			})))
+			defer closeServer()
+
+			args := append([]string{"--account", "a@b.com", "calendar", "events"}, tc.args...)
+			result := executeWithCalendarTestService(t, args, svc)
+			if result.err == nil || ExitCode(result.err) != 2 {
+				t.Fatalf("expected usage error, got %v", result.err)
+			}
+			if msg := result.err.Error(); !strings.Contains(msg, "--from") || !strings.Contains(msg, "--to") {
+				t.Errorf("expected both time bounds in the error, got %q", msg)
+			}
+		})
+	}
+}
+
+func TestCalendarEventsCmd_HistoricalTimezoneKeepsRequestBounds(t *testing.T) {
+	svc, closeServer := newCalendarServiceForTest(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/users/me/calendarList/primary":
+			_, _ = io.WriteString(w, `{"id":"primary","timeZone":"Europe/Paris"}`)
+		case "/calendars/primary/events":
+			q := r.URL.Query()
+			if got := q.Get("timeMin"); got != "1900-01-01T23:50:39Z" {
+				t.Errorf("unexpected timeMin: %q", got)
+			}
+			if got := q.Get("timeMax"); got != "1900-01-01T23:50:45Z" {
+				t.Errorf("unexpected timeMax: %q", got)
+			}
+			_, _ = io.WriteString(w, `{"items":[]}`)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer closeServer()
+
+	result := executeWithCalendarTestService(t, []string{
+		"--account", "a@b.com", "calendar", "events",
+		"--from", "1900-01-02T00:00:00", "--to", "1900-01-01T23:50:45Z",
+	}, svc)
+	if result.err != nil {
+		t.Fatalf("Execute: %v", result.err)
+	}
+}
+
 // capturingEventsHandler records the query parameters the events list call
 // actually sends, and serves pages so pagination behaviour can be asserted.
 type capturingEventsHandler struct {

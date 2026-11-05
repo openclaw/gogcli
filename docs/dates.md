@@ -24,6 +24,17 @@ Calendar range flags (`--from` / `--to`) also accept:
 - `now`, `today`, `tomorrow`, `yesterday`
 - Weekday names: `monday`, `next friday`
 
+## Calendar windows
+
+Calendar range commands reject equal or reversed bounds as usage errors before
+requesting events. Bounds must span at least one second at the API's precision.
+Date-only `--to` values include that whole day.
+
+`calendar search` defaults to 30 days before now through 90 days after now. A
+historical `--from` with no `--to` keeps the end at now + 90 days. If an explicit
+start would meet or exceed that default end, the search instead ends 90 days
+after the start. Pass both bounds for an exact window.
+
 ## Duration forms
 
 Tracking `--since` also accepts `time.ParseDuration` values such as:

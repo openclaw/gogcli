@@ -155,9 +155,10 @@ func ResolveTimeRange(ctx context.Context, svc *calendar.Service, flags TimeRang
 
 // TimeRangeDefaults controls the default window when flags are missing.
 type TimeRangeDefaults struct {
-	FromOffset   time.Duration
-	ToOffset     time.Duration
-	ToFromOffset time.Duration
+	FromOffset            time.Duration
+	ToOffset              time.Duration
+	ToFromOffset          time.Duration
+	ToFromOffsetIfInvalid time.Duration
 }
 
 // validateTimeRangeFlags rejects window-flag combinations that have no single
@@ -273,7 +274,15 @@ func ResolveTimeRangeWithDefaults(ctx context.Context, svc *calendar.Service, fl
 			to = from.Add(defaults.ToFromOffset)
 		default:
 			to = now.Add(defaults.ToOffset)
+			if flags.From != "" && defaults.ToFromOffsetIfInvalid > 0 && !from.Truncate(time.Second).Before(to.Truncate(time.Second)) {
+				to = from.Add(defaults.ToFromOffsetIfInvalid)
+			}
 		}
+	}
+
+	// Calendar requests serialize both bounds at second precision.
+	if !from.Truncate(time.Second).Before(to.Truncate(time.Second)) {
+		return nil, usagef("--from (%s) must be before --to (%s)", formatCalendarRequestTime(from), formatCalendarRequestTime(to))
 	}
 
 	return &TimeRange{
@@ -361,7 +370,15 @@ func endOfWeek(t time.Time, weekStart time.Weekday) time.Time {
 
 // FormatRFC3339 formats a time as RFC3339 for API calls.
 func (tr *TimeRange) FormatRFC3339() (from, to string) {
-	return tr.From.Format(time.RFC3339), tr.To.Format(time.RFC3339)
+	return formatCalendarRequestTime(tr.From), formatCalendarRequestTime(tr.To)
+}
+
+func formatCalendarRequestTime(t time.Time) string {
+	// RFC3339 cannot represent a zone offset with a seconds component.
+	if _, offset := t.Zone(); offset%60 != 0 {
+		t = t.UTC()
+	}
+	return t.Format(time.RFC3339)
 }
 
 // FormatHuman returns a human-readable description of the time range.

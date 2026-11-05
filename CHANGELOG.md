@@ -2,6 +2,8 @@
 
 ## 0.47.2 - Unreleased
 
+- Calendar: reject empty or inverted time windows before querying, keep successful historical search ranges unchanged, and extend far-future searches from their explicit start. (#1280, #1298) — thanks @remote-controlled-man and @privatenumber.
+
 - Backup: keep new backups local until a remote is configured; preserve saved remotes and existing Git origins, and explain local-only operation. (#1287) — thanks @NasAndNora.
 
 - Gmail: treat a whitespace-only `text/plain` part as missing when choosing a message body, so `gmail get`, `gmail thread get` and `--sanitize-content` output fall back to the HTML part instead of returning an empty body (seen in Meetup notifications). (#1279) — thanks @Flamefork.
