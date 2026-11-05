@@ -55,7 +55,7 @@ func (c *DocsCatCmd) Run(ctx context.Context, kctx *kong.Context, flags *RootFla
 		doc, rawErr := call.Do()
 		if rawErr != nil {
 			if isDocsNotFound(rawErr) {
-				return fmt.Errorf("doc not found or not a Google Doc (id=%s)", id)
+				return docsNotFoundError(id, rawErr)
 			}
 			return rawErr
 		}
@@ -80,7 +80,7 @@ func (c *DocsCatCmd) Run(ctx context.Context, kctx *kong.Context, flags *RootFla
 	doc, err := svc.Documents.Get(id).Context(ctx).Do()
 	if err != nil {
 		if isDocsNotFound(err) {
-			return fmt.Errorf("doc not found or not a Google Doc (id=%s)", id)
+			return docsNotFoundError(id, err)
 		}
 		return err
 	}
@@ -108,7 +108,7 @@ func (c *DocsCatCmd) runWithTabs(ctx context.Context, svc *docs.Service, id stri
 	doc, err := svc.Documents.Get(id).IncludeTabsContent(true).Context(ctx).Do()
 	if err != nil {
 		if isDocsNotFound(err) {
-			return fmt.Errorf("doc not found or not a Google Doc (id=%s)", id)
+			return docsNotFoundError(id, err)
 		}
 		return err
 	}
@@ -192,7 +192,7 @@ func (c *DocsListTabsCmd) Run(ctx context.Context, flags *RootFlags) error {
 	doc, err := svc.Documents.Get(id).IncludeTabsContent(true).Context(ctx).Do()
 	if err != nil {
 		if isDocsNotFound(err) {
-			return fmt.Errorf("doc not found or not a Google Doc (id=%s)", id)
+			return docsNotFoundError(id, err)
 		}
 		return err
 	}
@@ -242,7 +242,7 @@ func (c *DocsStructureCmd) Run(ctx context.Context, flags *RootFlags) error {
 	doc, err := getCall.Context(ctx).Do()
 	if err != nil {
 		if isDocsNotFound(err) {
-			return fmt.Errorf("doc not found or not a Google Doc (id=%s)", id)
+			return docsNotFoundError(id, err)
 		}
 		return err
 	}

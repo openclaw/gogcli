@@ -110,7 +110,7 @@ func resolveTabID(ctx context.Context, docsSvc *docs.Service, docID, tabQuery st
 		Do()
 	if err != nil {
 		if isDocsNotFound(err) {
-			return "", fmt.Errorf("doc not found or not a Google Doc (id=%s)", docID)
+			return "", docsNotFoundError(docID, err)
 		}
 		return "", fmt.Errorf("resolve tab: %w", err)
 	}

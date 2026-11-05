@@ -2,6 +2,8 @@
 
 ## 0.47.2 - Unreleased
 
+- Docs: preserve API 404 causes so missing documents exit with the documented `not_found` code 5 while keeping the existing error message. (#1288, #1289) — thanks @HardMax71.
+
 - Release: require SSH-signed annotated tags authorized by the committed signer policy before builds and publication; preserve tagless dry runs.
 
 - CI: run CodeQL weekly and on pull requests or manual dispatch, retaining Actions, Go, and JavaScript analysis without duplicate scans on every main push.

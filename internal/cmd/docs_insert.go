@@ -177,7 +177,7 @@ func (c *DocsInsertCmd) runMarkdown(
 	)
 	if err != nil {
 		if isDocsNotFound(err) {
-			return fmt.Errorf("doc not found or not a Google Doc (id=%s)", docID)
+			return docsNotFoundError(docID, err)
 		}
 		return err
 	}

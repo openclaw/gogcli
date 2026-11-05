@@ -408,6 +408,9 @@ func TestDocsRaw_NotFound(t *testing.T) {
 	if !strings.Contains(err.Error(), "not found") {
 		t.Fatalf("expected 'not found' in error, got: %v", err)
 	}
+	if got := ExitCode(stableExitCode(err)); got != exitCodeNotFound {
+		t.Fatalf("expected exit code %d, got %d", exitCodeNotFound, got)
+	}
 }
 
 func TestDocsRaw_EmptyDocID(t *testing.T) {

@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"context"
-	"fmt"
 	"strings"
 
 	"google.golang.org/api/docs/v1"
@@ -210,7 +209,7 @@ func (c *DocsFormatCmd) Run(ctx context.Context, flags *RootFlags) error {
 	resp, err := svc.Documents.BatchUpdate(id, &docs.BatchUpdateDocumentRequest{Requests: reqs}).Context(ctx).Do()
 	if err != nil {
 		if isDocsNotFound(err) {
-			return fmt.Errorf("doc not found or not a Google Doc (id=%s)", id)
+			return docsNotFoundError(id, err)
 		}
 		return err
 	}
@@ -534,7 +533,7 @@ func (f DocsFormatFlags) withResolvedLink(ctx context.Context, svc *docs.Service
 	doc, err := getCall.Do()
 	if err != nil {
 		if isDocsNotFound(err) {
-			return f, fmt.Errorf("doc not found or not a Google Doc (id=%s)", docID)
+			return f, docsNotFoundError(docID, err)
 		}
 		return f, err
 	}

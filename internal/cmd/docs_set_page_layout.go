@@ -92,7 +92,7 @@ func (c *DocsPageLayoutCmd) Run(ctx context.Context, kctx *kong.Context, flags *
 		Requests: []*docs.Request{{UpdateDocumentStyle: styleRequest}},
 	}).Context(ctx).Do(); err != nil {
 		if isDocsNotFound(err) {
-			return fmt.Errorf("doc not found or not a Google Doc (id=%s)", docID)
+			return docsNotFoundError(docID, err)
 		}
 		return fmt.Errorf("set page layout: %w", err)
 	}

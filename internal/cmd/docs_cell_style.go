@@ -138,7 +138,7 @@ func (c *DocsCellStyleCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}).Context(ctx).Do()
 	if err != nil {
 		if isDocsNotFound(err) {
-			return fmt.Errorf("doc not found or not a Google Doc (id=%s)", docID)
+			return docsNotFoundError(docID, err)
 		}
 		return fmt.Errorf("cell style: %w", err)
 	}

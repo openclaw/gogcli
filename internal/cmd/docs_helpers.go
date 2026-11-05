@@ -14,6 +14,7 @@ import (
 	gapi "google.golang.org/api/googleapi"
 
 	"github.com/openclaw/gogcli/internal/config"
+	"github.com/openclaw/gogcli/internal/errfmt"
 )
 
 const docsAtIndexEnd = "end"
@@ -133,7 +134,7 @@ func docsTargetEndIndexAndTabID(ctx context.Context, svc *docs.Service, docID, t
 	doc, err := getCall.Do()
 	if err != nil {
 		if isDocsNotFound(err) {
-			return 0, "", fmt.Errorf("doc not found or not a Google Doc (id=%s)", docID)
+			return 0, "", docsNotFoundError(docID, err)
 		}
 		return 0, "", err
 	}
@@ -165,4 +166,8 @@ func isDocsNotFound(err error) bool {
 		return false
 	}
 	return apiErr.Code == http.StatusNotFound
+}
+
+func docsNotFoundError(id string, err error) error {
+	return errfmt.NewUserFacingError(fmt.Sprintf("doc not found or not a Google Doc (id=%s)", id), err)
 }
