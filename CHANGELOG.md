@@ -2,6 +2,8 @@
 
 ## 0.47.2 - Unreleased
 
+- Auth: retain the command runtime and OAuth client dependencies during automatic reauthorization, preserving cancellation and the stored service/scope grant. (#1277, #1278) — thanks @TheAngryPit.
+
 - Auth: add optional `auth service-account set --keyring` storage with migration back to files, isolated configuration references, and cleanup on rotation or unset; existing key files remain supported. (#1294) — thanks @tommyjoseph.
 
 - Calendar: reject empty or inverted time windows before querying, keep successful historical search ranges unchanged, and extend far-future searches from their explicit start. (#1280, #1298) — thanks @remote-controlled-man and @privatenumber.
