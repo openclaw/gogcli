@@ -2,7 +2,9 @@ package mailmime
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -29,6 +31,7 @@ var (
 
 // Attachment describes an RFC822 attachment from bytes or a file path.
 type Attachment struct {
+	attachmentID    string
 	Path            string
 	Filename        string
 	MIMEType        string
@@ -183,6 +186,13 @@ func BuildRFC822(opts Options, cfg Config) ([]byte, error) {
 	if prepareErr != nil {
 		return nil, prepareErr
 	}
+
+	for i := range attachments {
+		// The index distinguishes duplicate files; content keeps IDs stable across MIME rebuilds.
+		digest := sha256.Sum256(attachments[i].Data)
+		attachments[i].attachmentID = fmt.Sprintf("f_%016x%s", i, hex.EncodeToString(digest[:16]))
+	}
+
 	inlineAttachments, regularAttachments := splitInlineAttachments(attachments)
 
 	switch {
@@ -311,6 +321,11 @@ func writeAttachmentEntity(b *bytes.Buffer, attachment Attachment) error {
 	fmt.Fprintf(b, "Content-Type: %s\r\n", attachment.MIMEType)
 	b.WriteString("Content-Transfer-Encoding: base64\r\n")
 
+	// Give Gmail a part identity while preserving original inline Content-IDs.
+	attachmentID := attachment.attachmentID
+
+	fmt.Fprintf(b, "X-Attachment-Id: %s\r\n", attachmentID)
+
 	if attachment.Inline {
 		contentID := normalizeContentID(attachment.ContentID)
 
@@ -334,6 +349,7 @@ func writeAttachmentEntity(b *bytes.Buffer, attachment Attachment) error {
 
 		fmt.Fprintf(b, "Content-Disposition: inline; %s\r\n\r\n", contentDispositionFilename(attachment.Filename))
 	} else {
+		fmt.Fprintf(b, "Content-ID: <%s>\r\n", attachmentID)
 		fmt.Fprintf(b, "Content-Disposition: attachment; %s\r\n\r\n", contentDispositionFilename(attachment.Filename))
 	}
 

@@ -2,6 +2,8 @@
 
 ## 0.47.2 - Unreleased
 
+- Gmail: give every outgoing attachment a unique, stable `X-Attachment-Id`, including duplicate files, while preserving inline Content-ID references. (#1299, #1300) — thanks @zupolgec.
+
 - Auth: retain the command runtime and OAuth client dependencies during automatic reauthorization, preserving cancellation and the stored service/scope grant. (#1277, #1278) — thanks @TheAngryPit.
 
 - Auth: add optional `auth service-account set --keyring` storage with migration back to files, isolated configuration references, and cleanup on rotation or unset; existing key files remain supported. (#1294) — thanks @tommyjoseph.
