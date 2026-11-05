@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	"google.golang.org/api/calendar/v3"
 )
@@ -80,6 +81,16 @@ func TestListAllCalendarsEvents_JSON(t *testing.T) {
 	}
 	if len(parsed.NextPageTokens) != 1 || parsed.NextPageTokens[0].CalendarID != "cal1" || parsed.NextPageTokens[0].NextPageToken != "cal1-next" {
 		t.Fatalf("unexpected nextPageTokens: %#v", parsed.NextPageTokens)
+	}
+	want := map[string]string{"e1": "cal1", "e2": "cal2"}
+	for _, ev := range parsed.Events {
+		id, _ := ev["id"].(string)
+		if got, _ := ev["calendarId"].(string); got != want[id] {
+			t.Errorf("event %s: calendarId = %q, want %q", id, got, want[id])
+		}
+		if got, _ := ev["CalendarID"].(string); got != want[id] {
+			t.Errorf("event %s: legacy CalendarID = %q, want %q", id, got, want[id])
+		}
 	}
 }
 
@@ -189,5 +200,71 @@ func TestSortEventsBy_Summary(t *testing.T) {
 		if got[i] != want[i] {
 			t.Fatalf("summary desc: got %v want %v", got, want)
 		}
+	}
+}
+
+func TestSortEventsBy_AllDayUsesCalendarTimezone(t *testing.T) {
+	tokyo, err := time.LoadLocation("Asia/Tokyo")
+	if err != nil {
+		t.Fatalf("load Asia/Tokyo: %v", err)
+	}
+
+	t.Run("start", func(t *testing.T) {
+		events := []*eventWithCalendar{
+			wrapEventWithCalendar(&calendar.Event{
+				Id:    "timed",
+				Start: &calendar.EventDateTime{DateTime: "2026-11-03T08:00:00+09:00"},
+			}, "cal", "Asia/Tokyo", tokyo),
+			wrapEventWithCalendar(&calendar.Event{
+				Id:    "all-day",
+				Start: &calendar.EventDateTime{Date: "2026-11-03"},
+			}, "cal", "Asia/Tokyo", tokyo),
+		}
+
+		sortEventsBy(events, "start", "asc")
+		if got := events[0].Id; got != "all-day" {
+			t.Fatalf("first event = %q, want all-day", got)
+		}
+	})
+
+	t.Run("end", func(t *testing.T) {
+		events := []*eventWithCalendar{
+			wrapEventWithCalendar(&calendar.Event{
+				Id:  "timed",
+				End: &calendar.EventDateTime{DateTime: "2026-11-03T08:00:00+09:00"},
+			}, "cal", "Asia/Tokyo", tokyo),
+			wrapEventWithCalendar(&calendar.Event{
+				Id:  "all-day",
+				End: &calendar.EventDateTime{Date: "2026-11-03"},
+			}, "cal", "Asia/Tokyo", tokyo),
+		}
+
+		sortEventsBy(events, "end", "asc")
+		if got := events[0].Id; got != "all-day" {
+			t.Fatalf("first event = %q, want all-day", got)
+		}
+	})
+}
+
+func TestCalendarEventsFieldsForSort(t *testing.T) {
+	tests := []struct {
+		name    string
+		fields  string
+		sortKey string
+		want    string
+	}{
+		{name: "empty", sortKey: "start", want: ""},
+		{name: "non-time sort", fields: "items(id)", sortKey: "summary", want: "items(id)"},
+		{name: "append top-level timezone", fields: "items(id,start,end)", sortKey: "start", want: "items(id,start,end),timeZone"},
+		{name: "nested timezone does not count", fields: "items(id,timeZone)", sortKey: "end", want: "items(id,timeZone),timeZone"},
+		{name: "existing top-level timezone", fields: "items(id),timeZone", sortKey: "start", want: "items(id),timeZone"},
+		{name: "wildcard", fields: "*", sortKey: "start", want: "*"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := calendarEventsFieldsForSort(tt.fields, tt.sortKey); got != tt.want {
+				t.Fatalf("calendarEventsFieldsForSort(%q, %q) = %q, want %q", tt.fields, tt.sortKey, got, tt.want)
+			}
+		})
 	}
 }

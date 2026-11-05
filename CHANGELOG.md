@@ -2,6 +2,11 @@
 
 ## 0.47.2 - Unreleased
 
+- Calendar: accept `primary` and unlisted email-like IDs in `--cal` and `--calendars` while retaining named-calendar resolution. (#1283, #1297) — thanks @goutamadwant.
+- Calendar: reject a single page token across multiple calendars before fetching events; retain single-calendar continuation and `--all-pages`. (#1281, #1285) — thanks @goutamadwant.
+- Calendar: sort all-day events in their calendar timezone, including partial responses and display-timezone overrides. (#1284, #1286) — thanks @goutamadwant.
+- Calendar: include camelCase `calendarId` on multi-calendar JSON events while retaining the existing `CalendarID` key for scripts. (#1282, #1290) — thanks @i098.
+
 - Release: require SSH-signed annotated tags authorized by the committed signer policy before builds and publication; preserve tagless dry runs.
 
 - CI: run CodeQL weekly and on pull requests or manual dispatch, retaining Actions, Go, and JavaScript analysis without duplicate scans on every main push.
