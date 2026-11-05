@@ -21,6 +21,8 @@ import (
 )
 
 func TestGmailWatchServeCmd_DryRunDoesNotTouchStateOrListen(t *testing.T) {
+	t.Setenv("TEST_WATCH_PUSH", "shared-secret")
+	t.Setenv("TEST_WATCH_HOOK", "hook-secret")
 	origListen := listenAndServe
 	origOIDC := newOIDCValidator
 	t.Cleanup(func() {
@@ -50,9 +52,9 @@ func TestGmailWatchServeCmd_DryRunDoesNotTouchStateOrListen(t *testing.T) {
 		"--verify-oidc",
 		"--oidc-email", "push@example.com",
 		"--oidc-audience", "https://example.com/hook?secret=value",
-		"--token", "shared-secret",
+		"--token-env", "TEST_WATCH_PUSH",
 		"--hook-url", "https://example.com/downstream?secret=value",
-		"--hook-token", "hook-secret",
+		"--hook-token-env", "TEST_WATCH_HOOK",
 		"--include-body",
 		"--max-bytes", "42",
 		"--history-types", "messageAdded,labelRemoved",
@@ -129,6 +131,7 @@ func TestGmailWatchServeCmd_DryRunDoesNotTouchStateOrListen(t *testing.T) {
 }
 
 func TestGmailWatchServeCmd_DryRunReadsStoredHookWithoutLocking(t *testing.T) {
+	t.Setenv("TEST_WATCH_HOOK", "override-secret")
 	setWatchTestConfigHome(t)
 	layout := gmailWatchTestLayout(t)
 	statePath := filepath.Join(layout.GmailWatchDir(), sanitizeAccountForPath("a@b.com")+".json")
@@ -140,7 +143,7 @@ func TestGmailWatchServeCmd_DryRunReadsStoredHookWithoutLocking(t *testing.T) {
 		HistoryID: "100",
 		Hook: &gmailWatchHook{
 			URL:         "https://example.com/hook",
-			Token:       "stored-secret",
+			Token:       "",
 			IncludeBody: false,
 			MaxBytes:    123,
 		},
@@ -162,7 +165,7 @@ func TestGmailWatchServeCmd_DryRunReadsStoredHookWithoutLocking(t *testing.T) {
 
 	var stdout bytes.Buffer
 	ctx = newCmdRuntimeJSONOutputContext(t, &stdout, io.Discard)
-	if runErr := runKong(t, &GmailWatchServeCmd{}, nil, ctx, &RootFlags{Account: "a@b.com", DryRun: true, NoInput: true}); ExitCode(runErr) != 0 {
+	if runErr := runKong(t, &GmailWatchServeCmd{}, []string{"--hook-token-env", "TEST_WATCH_HOOK"}, ctx, &RootFlags{Account: "a@b.com", DryRun: true, NoInput: true}); ExitCode(runErr) != 0 {
 		t.Fatalf("stored-hook dry-run: %v", runErr)
 	}
 	var got struct {
@@ -179,6 +182,9 @@ func TestGmailWatchServeCmd_DryRunReadsStoredHookWithoutLocking(t *testing.T) {
 	}
 	if got.Request.Hook.Source != "stored" || !got.Request.Hook.TokenSet || got.Request.Hook.MaxBytes != 123 {
 		t.Fatalf("unexpected stored hook plan: %#v", got.Request.Hook)
+	}
+	if bytes.Contains(stdout.Bytes(), []byte("override-secret")) {
+		t.Fatal("dry-run exposed the environment hook token")
 	}
 	if _, statErr := os.Stat(filepath.Join(filepath.Dir(statePath), ".lock")); !os.IsNotExist(statErr) {
 		t.Fatalf("dry-run created watch lock: %v", statErr)

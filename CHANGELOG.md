@@ -12,6 +12,8 @@
 
 - Gmail: add `--ids-only` to `gmail messages search` and `gmail search` to return IDs from the list call without one detail request per result, for bulk jobs that pipe into `gmail batch modify`. (#1257) — thanks @jatinbansal1998.
 
+- Gmail: add `watch serve --token-env` and `--hook-token-env` to read tokens from named environment variables, preserving literal flags and stored-hook defaults. (#1292) — thanks @mmaps.
+
 - Google APIs: raise the rate-limit retry budget from three to six backoffs (63s to just under 94.5s in total) so per-minute quotas such as Gmail's "Units per minute per user" can refill before a command fails. (#1257) — thanks @jatinbansal1998.
 
 - Calendar: honor explicitly empty event summaries, locations, and attendee lists in update requests, while preserving omitted fields. (#1268) — thanks @pkyIntelligence.

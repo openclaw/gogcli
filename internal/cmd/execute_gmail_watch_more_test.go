@@ -1,14 +1,117 @@
 package cmd
 
 import (
+	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
+	"time"
+
+	"google.golang.org/api/gmail/v1"
 )
+
+func TestExecute_GmailWatchServeEnvTokens(t *testing.T) {
+	for _, command := range [][]string{{"gmail", "watch", "serve"}, {"gmail", "settings", "watch", "serve"}} {
+		for _, save := range []bool{false, true} {
+			name := strings.Join(command, " ")
+			if save {
+				name += " save-hook"
+			}
+			t.Run(name, func(t *testing.T) {
+				setWatchTestConfigHome(t)
+				t.Setenv("GOG_ACCOUNT", "a@b.com")
+				t.Setenv("TEST_WATCH_PUSH", "synthetic-push-secret")
+				t.Setenv("TEST_WATCH_HOOK", "synthetic-hook-secret")
+				hookCalls := 0
+				hook := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					hookCalls++
+					if r.Header.Get("Authorization") != "Bearer synthetic-hook-secret" {
+						t.Error("hook did not receive the environment token")
+					}
+					w.WriteHeader(http.StatusNoContent)
+				}))
+				defer hook.Close()
+				store := newGmailWatchTestStore(t, "a@b.com")
+				if err := store.SetHook(&gmailWatchHook{
+					URL: hook.URL, Token: "stored-token", IncludeBody: true, MaxBytes: 123,
+				}, time.Now()); err != nil {
+					t.Fatal(err)
+				}
+				before, err := os.ReadFile(store.Path())
+				if err != nil {
+					t.Fatal(err)
+				}
+				origListen := listenAndServe
+				t.Cleanup(func() { listenAndServe = origListen })
+				listened := false
+				listenAndServe = func(srv *http.Server) error {
+					listened = true
+					server, ok := srv.Handler.(*gmailWatchServer)
+					if !ok {
+						t.Fatal("unexpected watch handler")
+					}
+					if server.cfg.SharedToken != "synthetic-push-secret" || server.cfg.HookToken != "synthetic-hook-secret" {
+						t.Fatal("environment tokens did not reach the server")
+					}
+					if server.cfg.HookURL != hook.URL || !server.cfg.IncludeBody || server.cfg.MaxBodyBytes != 123 {
+						t.Fatal("stored hook defaults were lost")
+					}
+					for _, token := range []string{"", "wrong-token", "synthetic-push-secret"} {
+						request := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/gmail-pubsub", nil)
+						request.Header.Set("x-gog-token", token)
+						if server.authorize(request) != (token == "synthetic-push-secret") {
+							t.Fatal("push authentication did not use the environment token")
+						}
+					}
+					return server.deliverHook(context.Background(), &gmailHookPayload{}).Err
+				}
+				args := append([]string{}, command...)
+				args = append(args, "--bind", "0.0.0.0", "--token-env", "TEST_WATCH_PUSH", "--hook-token-env", "TEST_WATCH_HOOK")
+				if save {
+					args = append(args, "--save-hook")
+				}
+				result := executeWithGmailTestService(t, args, &gmail.Service{})
+				if result.err != nil {
+					t.Fatal(result.err)
+				}
+				if !listened || hookCalls != 1 {
+					t.Fatal("watch server and hook delivery were not exercised")
+				}
+				for _, secret := range []string{"synthetic-push-secret", "synthetic-hook-secret"} {
+					if strings.Contains(result.stdout+result.stderr, secret) || strings.Contains(strings.Join(args, " "), secret) {
+						t.Fatal("secret appeared in output or arguments")
+					}
+				}
+				after, err := os.ReadFile(store.Path())
+				if err != nil {
+					t.Fatal(err)
+				}
+				if !save && !bytes.Equal(before, after) {
+					t.Fatal("hook settings changed without --save-hook")
+				}
+				if save {
+					state := loadGmailWatchTestStore(t, "a@b.com").Get()
+					if state.Hook == nil || state.Hook.Token != "synthetic-hook-secret" {
+						t.Fatal("resolved hook token was not saved")
+					}
+					info, statErr := os.Stat(store.Path())
+					if statErr != nil || (runtime.GOOS != "windows" && info.Mode().Perm() != 0o600) {
+						t.Fatal("saved hook state is not mode 0600")
+					}
+				}
+				if strings.Contains(string(after), "synthetic-push-secret") || strings.Contains(string(after), "TEST_WATCH_") {
+					t.Fatal("watch state contains a push token or environment source name")
+				}
+			})
+		}
+	}
+}
 
 func TestExecute_GmailWatch_MoreCommands(t *testing.T) {
 	setWatchTestConfigHome(t)
