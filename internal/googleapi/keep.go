@@ -8,6 +8,7 @@ import (
 	"google.golang.org/api/keep/v1"
 	"google.golang.org/api/option"
 
+	"github.com/openclaw/gogcli/internal/config"
 	"github.com/openclaw/gogcli/internal/googleauth"
 )
 
@@ -32,6 +33,24 @@ func newKeepWithServiceAccount(
 	data, err := os.ReadFile(serviceAccountPath) //nolint:gosec // user-provided path (or stored config file)
 	if err != nil {
 		return nil, fmt.Errorf("read service account file: %w", err)
+	}
+
+	// A file written with --keyring holds only a reference; the key is in the keyring.
+	if config.IsServiceAccountKeyringReference(data) {
+		dependencies, depErr := requireAuthDependencies(ctx)
+		if depErr != nil {
+			return nil, depErr
+		}
+
+		store, storeErr := dependencies.serviceAccountStore()
+		if storeErr != nil {
+			return nil, storeErr
+		}
+
+		data, err = store.ResolveKey(data)
+		if err != nil {
+			return nil, fmt.Errorf("resolve service account key: %w", err)
+		}
 	}
 
 	scopes, err := googleauth.Scopes(googleauth.ServiceKeep)

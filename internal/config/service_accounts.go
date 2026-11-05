@@ -1,7 +1,9 @@
 package config
 
 import (
+	"crypto/rand"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -9,9 +11,28 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/99designs/keyring"
 )
 
-var errIncompleteServiceAccountLayout = errors.New("incomplete service account layout")
+var (
+	errIncompleteServiceAccountLayout = errors.New("incomplete service account layout")
+	errServiceAccountSecretsMissing   = errors.New("service account key is stored in the keyring, but no keyring is available")
+)
+
+const serviceAccountKeyringKeyPrefix = "service-account/"
+
+// ServiceAccountSecrets is the keyring a service account key can be stored in instead of the plain file.
+type ServiceAccountSecrets interface {
+	SetSecret(key string, value []byte) error
+	GetSecret(key string) ([]byte, error)
+	DeleteSecret(key string) error
+}
+
+// serviceAccountKeyringRef is what the service account file holds when the key itself is in the keyring.
+type serviceAccountKeyringRef struct {
+	KeyringKey string `json:"gog_keyring_key"`
+}
 
 type ServiceAccountFile struct {
 	Path         string
@@ -21,11 +42,19 @@ type ServiceAccountFile struct {
 }
 
 type ServiceAccountStore struct {
-	layout Layout
+	layout      Layout
+	openSecrets func() (ServiceAccountSecrets, error)
 }
 
 func NewServiceAccountStore(layout Layout) *ServiceAccountStore {
 	return &ServiceAccountStore{layout: layout}
+}
+
+// WithSecrets sets the keyring used by WriteKeyring and by reads of a key stored there.
+func (s *ServiceAccountStore) WithSecrets(open func() (ServiceAccountSecrets, error)) *ServiceAccountStore {
+	s.openSecrets = open
+
+	return s
 }
 
 func (s *ServiceAccountStore) Layout() Layout {
@@ -54,8 +83,68 @@ func (s *ServiceAccountStore) Write(email string, data []byte) (string, error) {
 	}
 
 	path := s.Path(email)
+	oldKey, hadKeyringCopy := s.keyringKeyAt(path)
+
 	if err := WriteFileAtomic(path, data, 0o600); err != nil {
 		return "", fmt.Errorf("write service account: %w", err)
+	}
+
+	// Back to file storage: the key the old reference named leaves the keyring.
+	if hadKeyringCopy {
+		if err := s.deleteKeyringKey(oldKey); err != nil {
+			return "", err
+		}
+	}
+
+	return path, nil
+}
+
+// WriteKeyring stores the key in the keyring. The service account file keeps only a reference to it,
+// and a plain copy at the legacy path is removed.
+func (s *ServiceAccountStore) WriteKeyring(email string, data []byte) (string, error) {
+	if err := s.validateLayout(false); err != nil {
+		return "", err
+	}
+
+	store, err := s.secrets()
+	if err != nil {
+		return "", err
+	}
+
+	if dirErr := s.ensureDataDir(); dirErr != nil {
+		return "", dirErr
+	}
+	path := s.Path(email)
+	oldKey, hadKeyringCopy := s.keyringKeyAt(path)
+	// A fresh key keeps failed writes and separate layouts from replacing a live credential.
+	key := serviceAccountKeyringKeyPrefix + strings.ToLower(strings.TrimSpace(email)) + "/" + rand.Text()
+	if setErr := store.SetSecret(key, data); setErr != nil {
+		return "", fmt.Errorf("store service account key in keyring: %w", setErr)
+	}
+
+	ref, err := json.Marshal(serviceAccountKeyringRef{KeyringKey: key})
+	if err != nil {
+		return "", fmt.Errorf("encode service account keyring reference: %w", err)
+	}
+
+	if err := WriteFileAtomic(path, ref, 0o600); err != nil {
+		cleanupErr := store.DeleteSecret(key)
+		return "", errors.Join(fmt.Errorf("write service account: %w", err), cleanupErr)
+	}
+
+	if hadKeyringCopy {
+		if err := s.deleteKeyringKey(oldKey); err != nil {
+			return "", err
+		}
+	}
+
+	if !s.layout.ExplicitData {
+		legacy := s.layout.ServiceAccountLegacyPath(email)
+		if filepath.Clean(legacy) != filepath.Clean(path) {
+			if err := os.Remove(legacy); err != nil && !os.IsNotExist(err) {
+				return "", fmt.Errorf("remove plain service account file: %w", err)
+			}
+		}
 	}
 
 	return path, nil
@@ -134,6 +223,12 @@ func (s *ServiceAccountStore) Read(email string, includeKeepFallback bool) (Serv
 
 		return ServiceAccountFile{}, false, fmt.Errorf("read service account key: %w", err)
 	}
+
+	data, err = s.ResolveKey(data)
+	if err != nil {
+		return ServiceAccountFile{}, false, err
+	}
+
 	file.Data = data
 
 	return file, true, nil
@@ -148,6 +243,10 @@ func (s *ServiceAccountStore) Remove(email string) (bool, error) {
 	removed := false
 
 	for _, candidate := range candidates {
+		if err := s.removeKeyringCopy(candidate.Path); err != nil {
+			return removed, err
+		}
+
 		if err := os.Remove(candidate.Path); err != nil {
 			if os.IsNotExist(err) {
 				continue
@@ -201,6 +300,94 @@ func (s *ServiceAccountStore) ListEmails() ([]string, error) {
 	sort.Strings(out)
 
 	return out, nil
+}
+
+func (s *ServiceAccountStore) secrets() (ServiceAccountSecrets, error) {
+	if s.openSecrets == nil {
+		return nil, errServiceAccountSecretsMissing
+	}
+
+	store, err := s.openSecrets()
+	if err != nil {
+		return nil, fmt.Errorf("open keyring: %w", err)
+	}
+
+	if store == nil {
+		return nil, errServiceAccountSecretsMissing
+	}
+
+	return store, nil
+}
+
+// ResolveKey returns the key JSON for the contents of a service account file: the contents themselves,
+// or the key in the keyring when the file holds only a reference to it.
+func (s *ServiceAccountStore) ResolveKey(data []byte) ([]byte, error) {
+	key, ok := keyringKeyFromServiceAccountFile(data)
+	if !ok {
+		return data, nil
+	}
+
+	store, err := s.secrets()
+	if err != nil {
+		return nil, err
+	}
+
+	data, err = store.GetSecret(key)
+	if err != nil {
+		return nil, fmt.Errorf("read service account key from keyring: %w", err)
+	}
+
+	return data, nil
+}
+
+// IsServiceAccountKeyringReference reports whether service account file contents are a keyring reference.
+func IsServiceAccountKeyringReference(data []byte) bool {
+	_, ok := keyringKeyFromServiceAccountFile(data)
+
+	return ok
+}
+
+// keyringKeyAt returns the keyring key named by the file at path; a missing or unreadable file names none.
+func (s *ServiceAccountStore) keyringKeyAt(path string) (string, bool) {
+	data, err := os.ReadFile(path) //nolint:gosec // path is one of the store's own candidates
+	if err != nil {
+		return "", false
+	}
+
+	return keyringKeyFromServiceAccountFile(data)
+}
+
+func (s *ServiceAccountStore) removeKeyringCopy(path string) error {
+	key, ok := s.keyringKeyAt(path)
+	if !ok {
+		return nil
+	}
+
+	return s.deleteKeyringKey(key)
+}
+
+func (s *ServiceAccountStore) deleteKeyringKey(key string) error {
+	store, err := s.secrets()
+	if err != nil {
+		return err
+	}
+
+	if err := store.DeleteSecret(key); err != nil && !errors.Is(err, keyring.ErrKeyNotFound) {
+		return fmt.Errorf("delete service account key from keyring: %w", err)
+	}
+
+	return nil
+}
+
+func keyringKeyFromServiceAccountFile(data []byte) (string, bool) {
+	var ref serviceAccountKeyringRef
+	if err := json.Unmarshal(data, &ref); err != nil {
+		return "", false
+	}
+
+	key := strings.TrimSpace(ref.KeyringKey)
+
+	return key, strings.HasPrefix(key, serviceAccountKeyringKeyPrefix)
 }
 
 func (s *ServiceAccountStore) ensureDataDir() error {

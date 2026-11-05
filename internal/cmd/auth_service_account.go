@@ -48,6 +48,7 @@ type AuthServiceAccountSetCmd struct {
 	Key      string `name:"key" help:"Path to service account JSON key file, or '-' for stdin"`
 	KeyStdin bool   `name:"key-stdin" help:"Read service account JSON key from stdin"`
 	KeyEnv   string `name:"key-env" help:"Read service account JSON key from the named environment variable"`
+	Keyring  bool   `name:"keyring" help:"Store the key in gog's keyring; the service account file keeps only a reference to it"`
 }
 
 func (c *AuthServiceAccountSetCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -74,17 +75,24 @@ func (c *AuthServiceAccountSetCmd) Run(ctx context.Context, flags *RootFlags) er
 	}
 	destPath := store.Path(email)
 
-	if err := dryRunExit(ctx, flags, "auth.service-account.set", map[string]any{
+	if dryRunErr := dryRunExit(ctx, flags, "auth.service-account.set", map[string]any{
 		"email":        email,
 		"key_source":   keySource,
+		"keyring":      c.Keyring,
 		"dest_path":    destPath,
 		"client_email": info.ClientEmail,
 		"client_id":    info.ClientID,
-	}); err != nil {
-		return err
+	}); dryRunErr != nil {
+		return dryRunErr
 	}
 
-	if _, err := store.Write(email, data); err != nil {
+	if c.Keyring {
+		_, err = store.WriteKeyring(email, data)
+	} else {
+		_, err = store.Write(email, data)
+	}
+
+	if err != nil {
 		return err
 	}
 
