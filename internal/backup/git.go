@@ -157,9 +157,15 @@ func pullRepo(ctx context.Context, repo string) error {
 	return pullErr
 }
 
+// HasRemote reports whether the repository has an origin without exposing its URL.
+func HasRemote(ctx context.Context, repo string) bool {
+	remote, err := gitOutput(ctx, repo, "remote", "get-url", "origin")
+	return err == nil && strings.TrimSpace(remote) != ""
+}
+
 func commitAndPush(ctx context.Context, cfg Config, message string, push bool) (bool, error) {
 	changed, _, err := commitChanges(ctx, cfg, message)
-	if err != nil || !changed || !push {
+	if err != nil || !changed || !push || !HasRemote(ctx, cfg.Repo) {
 		return changed, err
 	}
 	if err := git(ctx, cfg.Repo, "push", "-u", "origin", "HEAD"); err != nil {
@@ -189,6 +195,10 @@ func commitChanges(ctx context.Context, cfg Config, message string) (bool, strin
 }
 
 func pushCommit(ctx context.Context, cfg Config, sha string) error {
+	if !HasRemote(ctx, cfg.Repo) {
+		return nil
+	}
+
 	branch, err := gitOutput(ctx, cfg.Repo, "symbolic-ref", "--quiet", "--short", "HEAD")
 	if err != nil || strings.TrimSpace(branch) == "" {
 		branch = "main"

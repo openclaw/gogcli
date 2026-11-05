@@ -595,3 +595,14 @@ func TestBackupExportReportsManifestCountsForSemanticCollisions(t *testing.T) {
 		}
 	}
 }
+
+func TestBackupInitDefaultsToLocalOnly(t *testing.T) {
+	dir := t.TempDir()
+	result := executeWithTestRuntime(t, []string{"--home", filepath.Join(dir, "home"), "backup", "init", "--repo", filepath.Join(dir, "repo"), "--identity", filepath.Join(dir, "age.key")}, nil)
+	if result.err != nil {
+		t.Fatalf("init: %v; %s", result.err, result.stderr)
+	}
+	if !strings.Contains(result.stderr, "committing locally only") {
+		t.Fatalf("missing local-only explanation: %s", result.stderr)
+	}
+}
