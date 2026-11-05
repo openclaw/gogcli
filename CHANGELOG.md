@@ -8,6 +8,8 @@
 
 - Dependencies: refresh MCP, Google API/gRPC and networking libraries plus tracking-worker tooling; retain the documented Go minimum, patched build toolchain, release cooldown, and security overrides. (#1274)
 
+- Dependencies: refresh Google clients, MCP, Kong, Markdown/YAML libraries, and tracking-worker tools; update the workerd security pin while retaining Go 1.26, the patched build toolchain, and the 24-hour worker cooldown.
+
 - Gmail: add `--ids-only` to `gmail messages search` and `gmail search` to return IDs from the list call without one detail request per result, for bulk jobs that pipe into `gmail batch modify`. (#1257) — thanks @jatinbansal1998.
 
 - Google APIs: raise the rate-limit retry budget from three to six backoffs (63s to just under 94.5s in total) so per-minute quotas such as Gmail's "Units per minute per user" can refill before a command fails. (#1257) — thanks @jatinbansal1998.
