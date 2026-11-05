@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -311,5 +312,57 @@ func TestAuthStatus_ShowsServiceAccountPreferred(t *testing.T) {
 	})
 	if !strings.Contains(out, "auth_preferred\tservice_account") {
 		t.Fatalf("unexpected status output: %q", out)
+	}
+}
+
+func TestAuthServiceAccountSet_KeyringStoresNoKeyOnDisk(t *testing.T) {
+	store := newMemSecretsStore()
+	runtime := runtimeWithAuthStore(store)
+
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, "xdg-config"))
+
+	keyPath := filepath.Join(t.TempDir(), "sa.json")
+	key := `{"type":"service_account","client_email":"svc@example.com","client_id":"123","private_key":"FAKE-PRIVATE-KEY"}`
+	if err := os.WriteFile(keyPath, []byte(key), 0o600); err != nil {
+		t.Fatalf("write key: %v", err)
+	}
+
+	_ = captureStdout(t, func() {
+		_ = captureStderr(t, func() {
+			if err := executeWithRuntime([]string{"auth", "service-account", "set", "user@example.com", "--key", keyPath, "--keyring"}, runtime); err != nil {
+				t.Fatalf("Execute: %v", err)
+			}
+		})
+	})
+
+	storedPath := defaultLayoutForTest(t, config.PathKindData).ServiceAccountPath("user@example.com")
+	onDisk, err := os.ReadFile(storedPath)
+	if err != nil {
+		t.Fatalf("read stored file: %v", err)
+	}
+	if strings.Contains(string(onDisk), "FAKE-PRIVATE-KEY") {
+		t.Fatalf("stored file holds the key: %s", onDisk)
+	}
+	var ref struct {
+		Key string `json:"gog_keyring_key"`
+	}
+	if err := json.Unmarshal(onDisk, &ref); err != nil {
+		t.Fatal(err)
+	}
+	if got := string(store.secrets[ref.Key]); got != key {
+		t.Fatalf("keyring did not retain the key")
+	}
+
+	out := captureStdout(t, func() {
+		_ = captureStderr(t, func() {
+			if err := executeWithRuntime([]string{"auth", "service-account", "status", "user@example.com"}, runtime); err != nil {
+				t.Fatalf("status: %v", err)
+			}
+		})
+	})
+	if !strings.Contains(out, "client_email\tsvc@example.com") {
+		t.Fatalf("status does not read the key from the keyring: %q", out)
 	}
 }

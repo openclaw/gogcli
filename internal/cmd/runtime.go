@@ -340,7 +340,13 @@ func commandServiceAccountStore(ctx context.Context) (*config.ServiceAccountStor
 		if err := configureRuntimeLayout(runtime, config.PathKindConfig, config.PathKindData); err != nil {
 			return nil, err
 		}
-		runtime.ServiceAccounts = config.NewServiceAccountStore(runtime.Layout)
+		runtime.ServiceAccounts = config.NewServiceAccountStore(runtime.Layout).WithSecrets(func() (config.ServiceAccountSecrets, error) {
+			if runtime.Auth.OpenSecretStore == nil {
+				return nil, errRuntimeRequired
+			}
+
+			return runtime.Auth.OpenSecretStore()
+		})
 		return runtime.ServiceAccounts, nil
 	}
 

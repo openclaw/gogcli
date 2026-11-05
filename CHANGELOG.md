@@ -2,6 +2,8 @@
 
 ## 0.47.2 - Unreleased
 
+- Auth: add optional `auth service-account set --keyring` storage with migration back to files, isolated configuration references, and cleanup on rotation or unset; existing key files remain supported. (#1294) — thanks @tommyjoseph.
+
 - Calendar: reject empty or inverted time windows before querying, keep successful historical search ranges unchanged, and extend far-future searches from their explicit start. (#1280, #1298) — thanks @remote-controlled-man and @privatenumber.
 
 - Backup: keep new backups local until a remote is configured; preserve saved remotes and existing Git origins, and explain local-only operation. (#1287) — thanks @NasAndNora.

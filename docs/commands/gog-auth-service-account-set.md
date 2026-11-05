@@ -34,6 +34,7 @@ gog auth service-account set <email> [flags]
 | `--key` | `string` |  | Path to service account JSON key file, or '-' for stdin |
 | `--key-env` | `string` |  | Read service account JSON key from the named environment variable |
 | `--key-stdin` | `bool` |  | Read service account JSON key from stdin |
+| `--keyring` | `bool` |  | Store the key in gog's keyring; the service account file keeps only a reference to it |
 | `--no-input`<br>`--non-interactive`<br>`--noninteractive` | `bool` |  | Never prompt; fail instead (useful for CI) |
 | `-p`<br>`--plain`<br>`--tsv` | `bool` | false | Output stable, parseable text to stdout (TSV; no colors) |
 | `--quota-project` | `string` |  | Google Cloud project to bill for API usage (sent as X-Goog-User-Project; some APIs require it with --access-token or ADC) |
