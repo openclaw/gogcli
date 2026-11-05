@@ -292,7 +292,7 @@ func loadDocsEnumeratorDocumentWithService(
 	doc, err := call.Do()
 	if err != nil {
 		if isDocsNotFound(err) {
-			return nil, "", fmt.Errorf("doc not found or not a Google Doc (id=%s)", id)
+			return nil, "", docsNotFoundError(id, err)
 		}
 		return nil, "", err
 	}

@@ -70,7 +70,7 @@ func (c *DocsAddTabCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}).Context(ctx).Do()
 	if err != nil {
 		if isDocsNotFound(err) {
-			return fmt.Errorf("doc not found or not a Google Doc (id=%s)", docID)
+			return docsNotFoundError(docID, err)
 		}
 		return err
 	}
@@ -159,7 +159,7 @@ func (c *DocsRenameTabCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}).Context(ctx).Do()
 	if err != nil {
 		if isDocsNotFound(err) {
-			return fmt.Errorf("doc not found or not a Google Doc (id=%s)", docID)
+			return docsNotFoundError(docID, err)
 		}
 		return err
 	}
@@ -223,7 +223,7 @@ func (c *DocsDeleteTabCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}).Context(ctx).Do()
 	if err != nil {
 		if isDocsNotFound(err) {
-			return fmt.Errorf("doc not found or not a Google Doc (id=%s)", docID)
+			return docsNotFoundError(docID, err)
 		}
 		return err
 	}
@@ -256,7 +256,7 @@ func docsResolveTab(ctx context.Context, svc *docs.Service, docID, query string)
 	doc, err := svc.Documents.Get(docID).IncludeTabsContent(true).Context(ctx).Do()
 	if err != nil {
 		if isDocsNotFound(err) {
-			return nil, fmt.Errorf("doc not found or not a Google Doc (id=%s)", docID)
+			return nil, docsNotFoundError(docID, err)
 		}
 		return nil, err
 	}

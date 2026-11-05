@@ -210,7 +210,7 @@ func fetchAndBuildMap(ctx context.Context, svc *docs.Service, docID, tabID strin
 	doc, err := getCall.Context(ctx).Do()
 	if err != nil {
 		if isDocsNotFound(err) {
-			return nil, fmt.Errorf("doc not found or not a Google Doc (id=%s)", docID)
+			return nil, docsNotFoundError(docID, err)
 		}
 		return nil, err
 	}

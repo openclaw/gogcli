@@ -200,7 +200,7 @@ func (c *DocsWriteCmd) appendMarkdown(
 	insertResult, err := insertPreparedDocsMarkdownAt(ctx, svc, docID, insertIndex, markdown, c.Tab, true)
 	if err != nil {
 		if isDocsNotFound(err) {
-			return fmt.Errorf("doc not found or not a Google Doc (id=%s)", docID)
+			return docsNotFoundError(docID, err)
 		}
 		return err
 	}
@@ -343,7 +343,7 @@ func (c *DocsWriteCmd) replaceMarkdownLocally(
 			}},
 		}).Context(ctx).Do(); derr != nil {
 			if isDocsNotFound(derr) {
-				return fmt.Errorf("doc not found or not a Google Doc (id=%s)", docID)
+				return docsNotFoundError(docID, derr)
 			}
 			return fmt.Errorf("clear tab content: %w", derr)
 		}
@@ -352,7 +352,7 @@ func (c *DocsWriteCmd) replaceMarkdownLocally(
 	insertResult, err := insertPreparedDocsMarkdownAt(ctx, svc, docID, 1, markdown, tabID, true)
 	if err != nil {
 		if isDocsNotFound(err) {
-			return fmt.Errorf("doc not found or not a Google Doc (id=%s)", docID)
+			return docsNotFoundError(docID, err)
 		}
 		return err
 	}

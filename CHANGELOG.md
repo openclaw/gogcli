@@ -25,6 +25,8 @@
 
 - MCP: add optional `page` continuation tokens to `gmail_search` and `calendar_events`, preserving bounded reads and existing CLI pagination. (#1269, #1270) — thanks @pkyIntelligence.
 
+- Docs: preserve API 404 causes so missing documents exit with the documented `not_found` code 5 while keeping the existing error message. (#1288, #1289) — thanks @HardMax71.
+
 ## 0.47.1 - 2026-10-26
 
 **Highlights:** Preserve Gmail text direction and narrowed Calendar grants, fix headless Linux authentication, and reject compromised certificates in the tracking worker.

@@ -115,7 +115,7 @@ func (c *DocsRawCmd) Run(ctx context.Context, flags *RootFlags) error {
 	doc, err := readRawObject(ctx, client, "https://docs.googleapis.com/v1/documents/"+url.PathEscape(id), query, "doc")
 	if err != nil {
 		if isDocsNotFound(err) {
-			return fmt.Errorf("doc not found or not a Google Doc (id=%s)", id)
+			return docsNotFoundError(id, err)
 		}
 		return err
 	}
@@ -259,7 +259,7 @@ func (c *DocsInfoCmd) Run(ctx context.Context, flags *RootFlags) error {
 		Do()
 	if err != nil {
 		if isDocsNotFound(err) {
-			return fmt.Errorf("doc not found or not a Google Doc (id=%s)", id)
+			return docsNotFoundError(id, err)
 		}
 		return err
 	}

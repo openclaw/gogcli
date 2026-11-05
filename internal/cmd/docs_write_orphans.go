@@ -41,7 +41,7 @@ func findDocsWriteMarkdownOrphans(
 	doc, err := docsSvc.Documents.Get(docID).Context(ctx).IncludeTabsContent(true).Do()
 	if err != nil {
 		if isDocsNotFound(err) {
-			return nil, "", fmt.Errorf("doc not found or not a Google Doc (id=%s)", docID)
+			return nil, "", docsNotFoundError(docID, err)
 		}
 		return nil, "", err
 	}

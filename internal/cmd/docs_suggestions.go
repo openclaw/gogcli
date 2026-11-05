@@ -50,7 +50,7 @@ func (c *DocsSuggestionsListCmd) Run(ctx context.Context, flags *RootFlags) erro
 	doc, err := call.Do()
 	if err != nil {
 		if isDocsNotFound(err) {
-			return fmt.Errorf("doc not found or not a Google Doc (id=%s)", id)
+			return docsNotFoundError(id, err)
 		}
 		return err
 	}

@@ -215,7 +215,7 @@ func (c *DocsReplaceImageCmd) replaceImageURL(
 	}
 	if _, err := svc.Documents.BatchUpdate(docID, request).Context(ctx).Do(); err != nil {
 		if isDocsNotFound(err) {
-			return docsReplaceImageResult{}, fmt.Errorf("doc not found or not a Google Doc (id=%s)", docID)
+			return docsReplaceImageResult{}, docsNotFoundError(docID, err)
 		}
 		return docsReplaceImageResult{}, fmt.Errorf("replace image: %w", err)
 	}

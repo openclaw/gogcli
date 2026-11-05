@@ -45,7 +45,7 @@ func loadDocsTargetSegment(ctx context.Context, svc *docs.Service, docID, tabQue
 	doc, err := getCall.Do()
 	if err != nil {
 		if isDocsNotFound(err) {
-			return nil, fmt.Errorf("doc not found or not a Google Doc (id=%s)", docID)
+			return nil, docsNotFoundError(docID, err)
 		}
 		return nil, err
 	}
