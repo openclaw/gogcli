@@ -2,11 +2,6 @@
 
 ## 0.47.2 - Unreleased
 
-- Calendar: accept `primary` and unlisted email-like IDs in `--cal` and `--calendars` while retaining named-calendar resolution. (#1283, #1297) — thanks @goutamadwant.
-- Calendar: reject a single page token across multiple calendars before fetching events; retain single-calendar continuation and `--all-pages`. (#1281, #1285) — thanks @goutamadwant.
-- Calendar: sort all-day events in their calendar timezone, including partial responses and display-timezone overrides. (#1284, #1286) — thanks @goutamadwant.
-- Calendar: include camelCase `calendarId` on multi-calendar JSON events while retaining the existing `CalendarID` key for scripts. (#1282, #1290) — thanks @i098.
-
 - Release: require SSH-signed annotated tags authorized by the committed signer policy before builds and publication; preserve tagless dry runs.
 
 - CI: run CodeQL weekly and on pull requests or manual dispatch, retaining Actions, Go, and JavaScript analysis without duplicate scans on every main push.
@@ -18,6 +13,11 @@
 - Google APIs: raise the rate-limit retry budget from three to six backoffs (63s to just under 94.5s in total) so per-minute quotas such as Gmail's "Units per minute per user" can refill before a command fails. (#1257) — thanks @jatinbansal1998.
 
 - Calendar: honor explicitly empty event summaries, locations, and attendee lists in update requests, while preserving omitted fields. (#1268) — thanks @pkyIntelligence.
+
+- Calendar: accept `primary` and unlisted email-like IDs in `--cal` and `--calendars` while retaining named-calendar resolution. (#1283, #1297) — thanks @goutamadwant.
+- Calendar: reject a single page token across multiple calendars before fetching events; retain single-calendar continuation and `--all-pages`. (#1281, #1285) — thanks @goutamadwant.
+- Calendar: sort all-day events in their calendar timezone, including partial responses and display-timezone overrides. (#1284, #1286) — thanks @goutamadwant.
+- Calendar: include camelCase `calendarId` on multi-calendar JSON events while retaining the existing `CalendarID` key for scripts. (#1282, #1290) — thanks @i098.
 
 - MCP: add optional `page` continuation tokens to `gmail_search` and `calendar_events`, preserving bounded reads and existing CLI pagination. (#1269, #1270) — thanks @pkyIntelligence.
 
