@@ -2,7 +2,7 @@
 
 ## 0.48.1 - Unreleased
 
-- Sites: preserve requested false booleans in `sites get` JSON. The default mask keeps `starred` and `hasThumbnail` when they are false, and a custom mask that names `trashed` keeps `trashed` when it is false.
+- Sites: preserve requested false booleans in `sites get` JSON. The default mask keeps `starred` and `hasThumbnail` when they are false, and a custom mask that names `trashed` keeps `trashed` when it is false. (#1308) — thanks @SebTardif.
 
 ## 0.48.0 - 2026-11-05
 
