@@ -1071,3 +1071,39 @@ func TestBackupExistingOriginPreservedAndPushed(t *testing.T) {
 		t.Fatalf("snapshot not pushed: %q %v", remoteHead, err)
 	}
 }
+
+func TestInitAddsConfiguredRemoteToLocalRepository(t *testing.T) {
+	ctx, repo, config, _ := initTestBackup(t)
+	remote := filepath.Join(t.TempDir(), "remote.git")
+	if err := git(ctx, "", "init", "--bare", remote); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, initErr := Init(ctx, testOptions(t, Options{ConfigPath: config, Remote: remote, Push: true})); initErr != nil {
+		t.Fatal(initErr)
+	}
+	origin, err := gitOutput(ctx, repo, "remote", "get-url", "origin")
+	if err != nil || strings.TrimSpace(origin) != remote {
+		t.Fatalf("configured origin missing: %q %v", origin, err)
+	}
+	if _, pushErr := PushSnapshot(ctx, Snapshot{Services: []string{"gmail"}}, testOptions(t, Options{ConfigPath: config, Push: true})); pushErr != nil {
+		t.Fatal(pushErr)
+	}
+	localHead, err := gitOutput(ctx, repo, "rev-parse", "HEAD")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, hasErr := gitOutput(ctx, remote, "cat-file", "-e", strings.TrimSpace(localHead)); hasErr != nil {
+		t.Fatalf("configured backup was not pushed: %v", hasErr)
+	}
+	otherRemote := filepath.Join(t.TempDir(), "other.git")
+	if remoteErr := git(ctx, "", "init", "--bare", otherRemote); remoteErr != nil {
+		t.Fatal(remoteErr)
+	}
+	if _, _, initErr := Init(ctx, testOptions(t, Options{ConfigPath: config, Remote: otherRemote})); initErr != nil {
+		t.Fatal(initErr)
+	}
+	origin, err = gitOutput(ctx, repo, "remote", "get-url", "origin")
+	if err != nil || strings.TrimSpace(origin) != remote {
+		t.Fatalf("existing origin was rewritten: %q %v", origin, err)
+	}
+}

@@ -28,6 +28,11 @@ func ensureRepo(ctx context.Context, cfg Config) error {
 		return fmt.Errorf("backup repo path is required")
 	}
 	if _, err := os.Stat(filepath.Join(cfg.Repo, ".git")); err == nil {
+		if strings.TrimSpace(cfg.Remote) != "" && !HasRemote(ctx, cfg.Repo) {
+			if addErr := git(ctx, cfg.Repo, "remote", "add", "origin", cfg.Remote); addErr != nil {
+				return addErr
+			}
+		}
 		return pullRepo(ctx, cfg.Repo)
 	}
 	if strings.TrimSpace(cfg.Remote) != "" {
