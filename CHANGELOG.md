@@ -2,6 +2,8 @@
 
 ## 0.47.2 - Unreleased
 
+- Backup: allow a locally initialized backup to acquire its first configured remote without replacing an existing origin. (#1287) — thanks @NasAndNora.
+
 - Gmail: give every outgoing attachment a unique, stable `X-Attachment-Id`, including duplicate files, while preserving inline Content-ID references. (#1299, #1300) — thanks @zupolgec.
 
 - Auth: retain the command runtime and OAuth client dependencies during automatic reauthorization, preserving cancellation and the stored service/scope grant. (#1277, #1278) — thanks @TheAngryPit.
