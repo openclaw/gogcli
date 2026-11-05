@@ -2,6 +2,8 @@
 
 ## 0.48.1 - Unreleased
 
+- Sites: preserve requested false booleans in `sites get` JSON. The default mask keeps `starred` and `hasThumbnail` when they are false, and a custom mask that names `trashed` keeps `trashed` when it is false. (#1308) — thanks @SebTardif.
+
 ## 0.48.0 - 2026-11-05
 
 **Highlights:** New backups stay local until you configure a remote; existing configurations keep working. Store service-account keys in the keyring, search Gmail IDs efficiently, and use environment-backed watch tokens, with Calendar fixes and security dependency updates.
