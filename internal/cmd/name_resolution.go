@@ -170,6 +170,10 @@ func resolveCalendarInputs(ctx context.Context, svc *calendar.Service, inputs []
 		if input.raw == "" {
 			continue
 		}
+		if strings.EqualFold(input.raw, primaryCalendarID) {
+			appendUniqueCalendarID(&out, seen, primaryCalendarID)
+			continue
+		}
 
 		if input.kind == calendarSelectionIndex && opts.allowIndex {
 			idx := input.index
@@ -197,6 +201,11 @@ func resolveCalendarInputs(ctx context.Context, svc *calendar.Service, inputs []
 				appendUniqueCalendarID(&out, seen, id)
 				continue
 			}
+		}
+
+		if strings.Contains(input.raw, "@") {
+			appendUniqueCalendarID(&out, seen, input.raw)
+			continue
 		}
 
 		if !opts.strict {

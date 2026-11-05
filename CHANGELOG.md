@@ -16,6 +16,11 @@
 
 - Calendar: honor explicitly empty event summaries, locations, and attendee lists in update requests, while preserving omitted fields. (#1268) — thanks @pkyIntelligence.
 
+- Calendar: accept `primary` and unlisted email-like IDs in `--cal` and `--calendars` while retaining named-calendar resolution. (#1283, #1297) — thanks @goutamadwant.
+- Calendar: reject a single page token across multiple calendars before fetching events; retain single-calendar continuation and `--all-pages`. (#1281, #1285) — thanks @goutamadwant.
+- Calendar: sort all-day events in their calendar timezone, including partial responses and display-timezone overrides. (#1284, #1286) — thanks @goutamadwant.
+- Calendar: include camelCase `calendarId` on multi-calendar JSON events while retaining the existing `CalendarID` key for scripts. (#1282, #1290) — thanks @i098.
+
 - MCP: add optional `page` continuation tokens to `gmail_search` and `calendar_events`, preserving bounded reads and existing CLI pagination. (#1269, #1270) — thanks @pkyIntelligence.
 
 ## 0.47.1 - 2026-10-26

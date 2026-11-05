@@ -30,8 +30,15 @@ permanent deletion is intentional.
 See the [`gog calendar`](commands/gog-calendar.md) reference and
 [Zoom setup](zoom-auth-setup.md).
 
+Calendar selectors accept names, `primary`, and calendar email IDs. A `--page`
+(or `--cursor`) token belongs to one calendar; use `--all-pages` when reading
+several calendars. Time sorting interprets all-day dates in the calendar’s
+timezone, independently of a display `--timezone` override. Multi-calendar JSON
+includes `calendarId` and retains `CalendarID` for existing scripts.
+
 ```bash
 gog calendar events --today
+gog calendar events --cal primary --cal colleague@example.com --all-pages --sort start
 gog calendar create --summary "Review" \
   --from "2026-05-06T10:00:00+02:00" \
   --to "2026-05-06T10:30:00+02:00"

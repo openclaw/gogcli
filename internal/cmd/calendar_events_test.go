@@ -447,6 +447,60 @@ func TestCalendarEventsCmd_ListSelectors(t *testing.T) {
 	}
 }
 
+func TestCalendarEventsCmd_MixedLiteralFlagSelectors(t *testing.T) {
+	var mu sync.Mutex
+	requested := make(map[string]bool)
+	handler := withPrimaryCalendar(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/users/me/calendarList" && r.Method == http.MethodGet:
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"items": []map[string]any{{"id": "c1", "summary": "Work"}},
+			})
+		case strings.HasSuffix(r.URL.Path, "/events") && r.Method == http.MethodGet:
+			calendarID := strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, "/calendars/"), "/events")
+			mu.Lock()
+			requested[calendarID] = true
+			mu.Unlock()
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"items": []map[string]any{{"id": "e-" + calendarID, "summary": "Event"}},
+			})
+		case strings.HasPrefix(r.URL.Path, "/calendars/") && r.Method == http.MethodGet:
+			calendarID := strings.TrimPrefix(r.URL.Path, "/calendars/")
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{"id": calendarID, "timeZone": "UTC"})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	svc, closeServer := newCalendarServiceForTest(t, handler)
+	t.Cleanup(closeServer)
+
+	var output bytes.Buffer
+	ctx := withCalendarTestService(newCmdRuntimeJSONOutputContext(t, &output, io.Discard), svc)
+	err := runKong(t, &CalendarEventsCmd{}, []string{
+		"list",
+		"--cal", "primary",
+		"--cal", "colleague@example.com",
+		"--cal", "Work",
+		"--from", "2025-01-01T00:00:00Z",
+		"--to", "2025-01-02T00:00:00Z",
+	}, ctx, &RootFlags{Account: "a@b.com"})
+	if err != nil {
+		t.Fatalf("calendar events list: %v", err)
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+	want := []string{"primary", "colleague@example.com", "c1"}
+	for _, calendarID := range want {
+		if !requested[calendarID] {
+			t.Errorf("calendar %q was not requested; got %v", calendarID, requested)
+		}
+	}
+}
+
 func TestResolveCalendarIDs_IndexOutOfRange(t *testing.T) {
 	svc, closeServer := newCalendarServiceForTest(t, withPrimaryCalendar(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.Contains(r.URL.Path, "/calendarList") &&
@@ -559,6 +613,69 @@ func TestResolveCalendarIDs_UnrecognizedName(t *testing.T) {
 	}
 	if len(ids) != 2 || ids[0] != "c1" || ids[1] != "c2" {
 		t.Fatalf("unexpected ids: %v", ids)
+	}
+}
+
+func TestResolveCalendarIDs_LiteralIDsWithName(t *testing.T) {
+	svc, closeServer := newTestCalendarService(t, withPrimaryCalendar(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.Contains(r.URL.Path, "/calendarList") &&
+			!strings.Contains(r.URL.Path, "/calendarList/primary") &&
+			r.Method == http.MethodGet {
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"items": []map[string]any{{"id": "c1", "summary": "Work"}},
+			})
+			return
+		}
+		http.NotFound(w, r)
+	})))
+	defer closeServer()
+
+	ids, err := resolveCalendarIDs(
+		context.Background(),
+		defaultConfigStoreForTest(t),
+		svc,
+		[]string{"primary", "colleague@example.com", "Work"},
+	)
+	if err != nil {
+		t.Fatalf("resolve calendar IDs: %v", err)
+	}
+	want := []string{"primary", "colleague@example.com", "c1"}
+	if !slices.Equal(ids, want) {
+		t.Fatalf("unexpected ids: got %v, want %v", ids, want)
+	}
+}
+
+func TestResolveCalendarIDs_KnownEmailSelectors(t *testing.T) {
+	svc, closeServer := newTestCalendarService(t, withPrimaryCalendar(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.Contains(r.URL.Path, "/calendarList") &&
+			!strings.Contains(r.URL.Path, "/calendarList/primary") &&
+			r.Method == http.MethodGet {
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"items": []map[string]any{
+					{"id": "work@example.com", "summary": "Work"},
+					{"id": "team-calendar-id", "summary": "team@example.com"},
+				},
+			})
+			return
+		}
+		http.NotFound(w, r)
+	})))
+	defer closeServer()
+
+	ids, err := resolveCalendarIDs(
+		context.Background(),
+		defaultConfigStoreForTest(t),
+		svc,
+		[]string{"WORK@example.com", "Work", "team@example.com"},
+	)
+	if err != nil {
+		t.Fatalf("resolve calendar IDs: %v", err)
+	}
+	want := []string{"work@example.com", "team-calendar-id"}
+	if !slices.Equal(ids, want) {
+		t.Fatalf("unexpected ids: got %v, want %v", ids, want)
 	}
 }
 
@@ -695,6 +812,60 @@ func TestListSelectedCalendarsEvents_TimezoneOverrideSkipsCalendarLookups(t *tes
 	for _, event := range parsed.Events {
 		if !wantStarts[event.StartLocal] || event.Timezone != "America/New_York" {
 			t.Fatalf("unexpected localized fields: %#v", event)
+		}
+	}
+}
+
+func TestListCalendarEvents_TimezoneOverrideDoesNotChangeAllDaySort(t *testing.T) {
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !strings.Contains(r.URL.Path, "/calendars/cal1/events") || r.Method != http.MethodGet {
+			http.NotFound(w, r)
+			return
+		}
+		if got := r.URL.Query().Get("fields"); got != "items(id,start,end),timeZone" {
+			t.Errorf("fields = %q, want items(id,start,end),timeZone", got)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"timeZone": "Asia/Tokyo",
+			"items": []map[string]any{
+				{"id": "timed", "start": map[string]any{"dateTime": "2026-11-03T08:00:00+09:00"}},
+				{"id": "all-day", "start": map[string]any{"date": "2026-11-03"}},
+			},
+		})
+	})
+	svc, closeServer := newCalendarServiceForTest(t, handler)
+	defer closeServer()
+
+	override, err := displayTimezoneOverride("America/New_York")
+	if err != nil {
+		t.Fatalf("displayTimezoneOverride: %v", err)
+	}
+
+	var output bytes.Buffer
+	ctx := newCmdRuntimeJSONOutputContext(t, &output, io.Discard)
+	if err := listCalendarEvents(ctx, svc, "cal1", "2026-11-03T00:00:00+09:00", "2026-11-04T00:00:00+09:00", 10, "", false, false, "", "", "", "items(id,start,end)", nil, false, false, "start", "asc", override); err != nil {
+		t.Fatalf("listCalendarEvents: %v", err)
+	}
+
+	var parsed struct {
+		Events []struct {
+			ID       string `json:"id"`
+			Timezone string `json:"timezone"`
+		} `json:"events"`
+	}
+	if err := json.Unmarshal(output.Bytes(), &parsed); err != nil {
+		t.Fatalf("json parse: %v", err)
+	}
+	if len(parsed.Events) != 2 {
+		t.Fatalf("unexpected events: %#v", parsed.Events)
+	}
+	if parsed.Events[0].ID != "all-day" || parsed.Events[1].ID != "timed" {
+		t.Fatalf("event order = %#v, want all-day then timed", parsed.Events)
+	}
+	for _, event := range parsed.Events {
+		if event.Timezone != "America/New_York" {
+			t.Fatalf("display timezone = %q, want America/New_York", event.Timezone)
 		}
 	}
 }
