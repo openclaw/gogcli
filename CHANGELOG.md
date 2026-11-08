@@ -2,7 +2,7 @@
 
 ## 0.48.1 - Unreleased
 
-- Tasks: keep monthly and yearly `tasks add --repeat` series on one task per period. A series due on the 31st now uses the last day of shorter months (January 31 is followed by February 28, March 31 and April 30), and a February 29 series falls on February 28 in common years, instead of skipping February and creating two March tasks.
+- Tasks: keep monthly and yearly `tasks add --repeat` series on one task per period. A series due on the 31st now uses the last day of shorter months (January 31 is followed by February 28, March 31 and April 30), and a February 29 series falls on February 28 in common years, instead of skipping February and creating two March tasks. (#1309)
 
 ## 0.48.0 - 2026-11-05
 
