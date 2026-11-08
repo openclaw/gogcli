@@ -2,7 +2,7 @@
 
 ## 0.48.1 - Unreleased
 
-- Drive: `drive download` of a shortcut now downloads or exports the file the shortcut points to, instead of asking Drive to export the shortcut itself, which always failed. A shortcut whose target is gone or unreadable reports that target with the target's error, so a deleted target exits `not_found` (`5`). — thanks @saariuslystoned.
+- Drive: `drive download` of a shortcut now downloads or exports the file the shortcut points to, instead of asking Drive to export the shortcut itself, which always failed. A shortcut whose target is gone or unreadable reports that target with the target's error, so a deleted target exits `not_found` (`5`). (#1315) — thanks @saariuslystoned.
 
 ## 0.48.0 - 2026-11-05
 
