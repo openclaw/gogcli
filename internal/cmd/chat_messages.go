@@ -229,6 +229,7 @@ func (c *ChatMessagesListCmd) Run(ctx context.Context, flags *RootFlags) error {
 			Thread                 string                       `json:"thread,omitempty"`
 			Annotations            []*chat.Annotation           `json:"annotations,omitempty"`
 			EmojiReactionSummaries []*chat.EmojiReactionSummary `json:"emojiReactionSummaries,omitempty"`
+			Attachments            []*chatAttachmentItem        `json:"attachments,omitempty"`
 		}
 		items := make([]item, 0, len(messages))
 		for _, msg := range messages {
@@ -265,6 +266,7 @@ func (c *ChatMessagesListCmd) Run(ctx context.Context, flags *RootFlags) error {
 				Thread:                 chatMessageThread(msg),
 				Annotations:            mentions,
 				EmojiReactionSummaries: reactions,
+				Attachments:            compactChatAttachments(msg.Attachment),
 			})
 		}
 		if err := outfmt.WriteJSON(ctx, stdoutWriter(ctx), map[string]any{

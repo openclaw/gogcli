@@ -16,6 +16,7 @@ gog chat <command> [flags]
 
 ## Subcommands
 
+- [gog chat attachments](gog-chat-attachments.md) - Message attachments (read-only download)
 - [gog chat dm](gog-chat-dm.md) - Direct messages
 - [gog chat messages](gog-chat-messages.md) - Chat messages
 - [gog chat spaces](gog-chat-spaces.md) - Chat spaces

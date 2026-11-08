@@ -2,6 +2,8 @@
 
 ## 0.48.1 - Unreleased
 
+- Chat: include attachment metadata (`name`, `contentName`, `contentType`, `source`, data reference) in `chat messages list --json`, and add read-only `chat attachments download` for uploaded attachments; Drive attachments point to `gog drive download`. (#1320) — thanks @voska.
+
 ## 0.48.0 - 2026-11-05
 
 **Highlights:** New backups stay local until you configure a remote; existing configurations keep working. Store service-account keys in the keyring, search Gmail IDs efficiently, and use environment-backed watch tokens, with Calendar fixes and security dependency updates.
