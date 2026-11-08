@@ -47,6 +47,9 @@ func TestCalendarFreeBusyCmd_WarnsWhenACalendarHasErrors(t *testing.T) {
 	if !strings.Contains(stderr, "c@example.com") || !strings.Contains(stderr, "notFound") {
 		t.Fatalf("stderr = %q, want a warning naming c@example.com and notFound", stderr)
 	}
+	if !strings.Contains(stderr, "shared with this account") {
+		t.Fatalf("stderr = %q, want a next step for notFound", stderr)
+	}
 	if strings.Contains(stderr, "a@example.com") || strings.Contains(stderr, "b@example.com") {
 		t.Fatalf("stderr = %q, warned about calendars without errors", stderr)
 	}
@@ -80,5 +83,19 @@ func TestCalendarFreeBusyCmd_JSONKeepsErrors(t *testing.T) {
 	}
 	if got := parsed.Calendars["c@example.com"].Errors; len(got) != 1 || got[0].Reason != "notFound" {
 		t.Fatalf("errors = %#v", got)
+	}
+}
+
+func TestCalendarFreeBusyErrorHint(t *testing.T) {
+	t.Parallel()
+	for reasons, want := range map[string]string{
+		"notFound":                  "shared with this account",
+		"tooManyCalendarsRequested": "fewer calendars",
+		"groupTooBig":               "fewer calendars",
+		"internalError":             "Retry",
+	} {
+		if got := calendarFreeBusyErrorHint([]string{reasons}); !strings.Contains(got, want) {
+			t.Fatalf("hint(%s) = %q, want %q", reasons, got, want)
+		}
 	}
 }

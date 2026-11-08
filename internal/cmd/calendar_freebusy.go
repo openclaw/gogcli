@@ -71,11 +71,25 @@ func (c *CalendarFreeBusyCmd) Run(ctx context.Context, flags *RootFlags) error {
 	// periods, which a table of busy rows would show as free.
 	for _, calendarID := range calendarFreeBusyOrder(resp.Calendars, calendarIDs) {
 		if reasons := calendarFreeBusyErrorReasons(resp.Calendars[calendarID]); len(reasons) > 0 {
-			u.Err().Linef("Warning: no free/busy data for %s (%s); its busy times are unknown, not free", calendarID, strings.Join(reasons, ", "))
+			u.Err().Linef("Warning: no free/busy data for %s (%s); its busy times are unknown, not free. %s", calendarID, strings.Join(reasons, ", "), calendarFreeBusyErrorHint(reasons))
 		}
 	}
 
 	return outfmt.WriteTable(ctx, stdoutWriter(ctx), calendarFreeBusyRows(resp.Calendars, calendarIDs), calendarFreeBusyColumns())
+}
+
+// calendarFreeBusyErrorHint suggests a next step for the reasons Google
+// documents for freeBusy calendar errors.
+func calendarFreeBusyErrorHint(reasons []string) string {
+	for _, reason := range reasons {
+		switch reason {
+		case "notFound":
+			return "Check the calendar ID and that the calendar is shared with this account."
+		case "tooManyCalendarsRequested", "groupTooBig":
+			return "Query fewer calendars at a time."
+		}
+	}
+	return "Retry before relying on its availability."
 }
 
 func calendarFreeBusyErrorReasons(data calendar.FreeBusyCalendar) []string {
