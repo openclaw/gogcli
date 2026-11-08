@@ -168,11 +168,12 @@ func addRepeat(t time.Time, unit repeatUnit, n int) time.Time {
 // addMonthsClamped adds n calendar months and keeps the day of month, using
 // the target month's last day when it is shorter. time.AddDate would carry the
 // overflow into the next month, so a monthly series from January 31 would skip
-// February and create two March tasks.
+// February and create two March tasks. The target month is found in UTC, so a
+// daylight-saving gap at midnight in t's location cannot move it.
 func addMonthsClamped(t time.Time, n int) time.Time {
 	year, month, day := t.Date()
 	hour, minute, sec := t.Clock()
-	first := time.Date(year, month+time.Month(n), 1, hour, minute, sec, t.Nanosecond(), t.Location())
+	first := time.Date(year, month+time.Month(n), 1, 0, 0, 0, 0, time.UTC)
 	if last := first.AddDate(0, 1, -1).Day(); day > last {
 		day = last
 	}

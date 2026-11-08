@@ -10,6 +10,7 @@ import (
 	"slices"
 	"sync/atomic"
 	"testing"
+	"time"
 )
 
 type tasksRepeatTestResult struct {
@@ -185,5 +186,25 @@ func TestParseRepeatRRule(t *testing.T) {
 				t.Fatalf("got unit=%v interval=%d want unit=%v interval=%d", gotUnit, gotInterval, tc.wantUnit, tc.wantInterval)
 			}
 		})
+	}
+}
+
+func TestAddMonthsClampedIgnoresMidnightDSTGap(t *testing.T) {
+	t.Parallel()
+	// Paraguay started daylight saving at midnight on 2023-10-01, so that
+	// day has no 00:00. A local --due such as "2023-09-15 00:00" parses in
+	// time.Local, and the next month must still be October.
+	loc, err := time.LoadLocation("America/Asuncion")
+	if err != nil {
+		t.Skipf("tzdata: %v", err)
+	}
+	start := time.Date(2023, time.September, 15, 0, 0, 0, 0, loc)
+	got := addMonthsClamped(start, 1)
+	if got.Year() != 2023 || got.Month() != time.October || got.Day() != 15 {
+		t.Fatalf("addMonthsClamped(%s, 1) = %s, want 2023-10-15", start, got)
+	}
+	end := time.Date(2023, time.August, 31, 0, 30, 0, 0, loc)
+	if got := addMonthsClamped(end, 1); got.Month() != time.September || got.Day() != 30 {
+		t.Fatalf("addMonthsClamped(%s, 1) = %s, want 2023-09-30", end, got)
 	}
 }
