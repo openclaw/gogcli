@@ -80,3 +80,38 @@ func TestSheetsMetadataCmd_PlainOutputTSV(t *testing.T) {
 		t.Errorf("metadata table header missing tab delimiters in plain mode: %q", got)
 	}
 }
+
+// TestSheetsGetCmd_PlainKeepsMultilineCellsOnOneRow verifies that a cell with
+// line breaks or tabs stays in its own row and column, as the other Sheets
+// cell tables (links, notes, format) already do through oneLine.
+func TestSheetsGetCmd_PlainKeepsMultilineCellsOnOneRow(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"range": "Sheet1!A1:C2",
+			"values": [][]string{
+				{"Name", "Address", "Note"},
+				{"Alice", "1 Main St\nBerlin", "a\tb"},
+			},
+		})
+	}))
+	defer srv.Close()
+
+	svc := newSheetsServiceFromServer(t, srv)
+	result := executeWithSheetsTestService(t, []string{"--plain", "--account", "a@b.com", "sheets", "get", "spreadsheet1", "Sheet1!A1:C2"}, svc)
+	if result.err != nil {
+		t.Fatalf("execute: %v", result.err)
+	}
+	want := "Name\tAddress\tNote\nAlice\t1 Main St\\nBerlin\ta b\n"
+	if result.stdout != want {
+		t.Fatalf("stdout = %q, want %q", result.stdout, want)
+	}
+}
+
+func TestSheetsValueRowLine(t *testing.T) {
+	t.Parallel()
+	got := sheetsValueRowLine([]interface{}{"a\r\nb", 3.5, true, "c\td", ""})
+	if want := "a\\nb\t3.5\ttrue\tc d\t"; got != want {
+		t.Fatalf("sheetsValueRowLine = %q, want %q", got, want)
+	}
+}

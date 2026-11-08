@@ -2,6 +2,8 @@
 
 ## 0.48.1 - Unreleased
 
+- Sheets: keep each sheet row on one line in `sheets get` and `sheets datasource table read` text and `--plain` output. Line breaks inside a cell are written as `\n` and tabs as spaces, as the links, notes and format tables already do, so a multi-line cell no longer splits its row. JSON output is unchanged. — thanks @saariuslystoned.
+
 ## 0.48.0 - 2026-11-05
 
 **Highlights:** New backups stay local until you configure a remote; existing configurations keep working. Store service-account keys in the keyring, search Gmail IDs efficiently, and use environment-backed watch tokens, with Calendar fixes and security dependency updates.

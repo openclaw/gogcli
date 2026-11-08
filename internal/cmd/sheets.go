@@ -166,13 +166,20 @@ func (c *SheetsGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 	w, flush := tableWriter(ctx)
 	defer flush()
 	for _, row := range resp.Values {
-		cells := make([]string, len(row))
-		for i, cell := range row {
-			cells[i] = fmt.Sprintf("%v", cell)
-		}
-		fmt.Fprintln(w, strings.Join(cells, "\t"))
+		fmt.Fprintln(w, sheetsValueRowLine(row))
 	}
 	return nil
+}
+
+// sheetsValueRowLine joins one row of cell values with tabs. Line breaks and
+// tabs inside a cell are escaped with oneLine so each sheet row stays one
+// output row, as in the other Sheets cell tables.
+func sheetsValueRowLine(row []interface{}) string {
+	cells := make([]string, len(row))
+	for i, cell := range row {
+		cells[i] = oneLine(fmt.Sprintf("%v", cell))
+	}
+	return strings.Join(cells, "\t")
 }
 
 type SheetsUpdateCmd struct {
