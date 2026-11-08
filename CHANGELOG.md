@@ -2,7 +2,7 @@
 
 ## 0.48.1 - Unreleased
 
-- Gmail: carry the original body in the plain-text part of `gmail forward` and `gmail drafts forward` when the original has only HTML or a blank plain-text part, converting the HTML to text as a reply's plain quote already does. The plain part previously held the forwarded headers and no body. — thanks @saariuslystoned.
+- Gmail: carry the original body in the plain-text part of `gmail forward` and `gmail drafts forward` when the original has only HTML or a blank plain-text part, converting the HTML to text as a reply's plain quote already does. The plain part previously held the forwarded headers and no body. (#1321) — thanks @saariuslystoned.
 
 ## 0.48.0 - 2026-11-05
 
