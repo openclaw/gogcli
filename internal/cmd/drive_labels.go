@@ -96,11 +96,11 @@ func (c *DriveLabelsFileListCmd) Run(ctx context.Context, flags *RootFlags) erro
 type DriveLabelsFileApplyCmd struct {
 	FileID     string   `arg:"" name:"fileId" help:"Drive file ID"`
 	LabelID    string   `arg:"" name:"labelId" help:"Label ID or labels/{id}"`
-	Text       []string `name:"text" help:"Set text field as field=value (repeatable)"`
-	Selection  []string `name:"selection" help:"Set selection field as field=choiceId[,choiceId] (repeatable)"`
-	Integer    []string `name:"integer" help:"Set integer field as field=123[,456] (repeatable)"`
-	Date       []string `name:"date" help:"Set date field as field=YYYY-MM-DD[,YYYY-MM-DD] (repeatable)"`
-	User       []string `name:"user" help:"Set user field as field=email[,email] (repeatable)"`
+	Text       []string `name:"text" sep:"none" help:"Set text field as field=value (repeatable)"`
+	Selection  []string `name:"selection" sep:"none" help:"Set selection field as field=choiceId[,choiceId] (repeatable)"`
+	Integer    []string `name:"integer" sep:"none" help:"Set integer field as field=123[,456] (repeatable)"`
+	Date       []string `name:"date" sep:"none" help:"Set date field as field=YYYY-MM-DD[,YYYY-MM-DD] (repeatable)"`
+	User       []string `name:"user" sep:"none" help:"Set user field as field=email[,email] (repeatable)"`
 	Unset      []string `name:"unset" help:"Unset field ID (repeatable)"`
 	FieldsJSON string   `name:"fields-json" help:"Simple JSON object of fieldId to string/number/bool/string-array values (strings become text fields)"`
 }
@@ -339,11 +339,13 @@ func driveLabelFieldMods(c *DriveLabelsFileApplyCmd) ([]*drive.LabelFieldModific
 		}
 		return nil
 	}
-	if err := add(c.Text, func(m *drive.LabelFieldModification, values []string) error {
-		m.SetTextValues = values
-		return nil
-	}); err != nil {
-		return nil, err
+	// A text field holds one value, so a comma in it is part of the text.
+	for _, item := range c.Text {
+		field, value, ok := strings.Cut(strings.TrimSpace(item), "=")
+		if !ok || strings.TrimSpace(field) == "" {
+			return nil, usage("label field assignments must be field=value")
+		}
+		mods = append(mods, &drive.LabelFieldModification{FieldId: strings.TrimSpace(field), SetTextValues: []string{strings.TrimSpace(value)}})
 	}
 	if err := add(c.Selection, func(m *drive.LabelFieldModification, values []string) error {
 		m.SetSelectionValues = values

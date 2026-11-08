@@ -2,6 +2,8 @@
 
 ## 0.48.1 - Unreleased
 
+- Drive: accept commas in `drive labels file apply` field flags. The CLI split each `--text`, `--selection`, `--integer`, `--date` and `--user` value on commas before gog parsed it, so the documented `field=a,b` forms and any text value containing a comma failed with "label field assignments must be field=value". Text values now keep their commas, and the other fields take comma-separated values as documented. — thanks @saariuslystoned.
+
 ## 0.48.0 - 2026-11-05
 
 **Highlights:** New backups stay local until you configure a remote; existing configurations keep working. Store service-account keys in the keyring, search Gmail IDs efficiently, and use environment-backed watch tokens, with Calendar fixes and security dependency updates.
