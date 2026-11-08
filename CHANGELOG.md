@@ -2,7 +2,7 @@
 
 ## 0.48.1 - Unreleased
 
-- Calendar: warn on stderr when `calendar freebusy` gets no data for a calendar (for example `notFound` for a calendar you cannot see), instead of printing nothing for it as if it were free, and list text and `--plain` rows in the requested calendar order instead of a random order. Stdout columns and JSON output are unchanged.
+- Calendar: warn on stderr when `calendar freebusy` gets no data for a calendar (for example `notFound` for a calendar you cannot see), instead of printing nothing for it as if it were free, and list text and `--plain` rows in the requested calendar order instead of a random order. Stdout columns and JSON output are unchanged. (#1311) — thanks @saariuslystoned.
 
 ## 0.48.0 - 2026-11-05
 
