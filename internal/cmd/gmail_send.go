@@ -173,7 +173,8 @@ func (c *GmailSendCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
-	from, err := resolveComposeSender(ctx, svc, account, c.From)
+	sendAs, sendAsErr := listSendAs(ctx, svc)
+	from, err := resolveComposeFrom(ctx, svc, account, c.From, sendAs, sendAsErr)
 	if err != nil {
 		return err
 	}
@@ -194,7 +195,8 @@ func (c *GmailSendCmd) Run(ctx context.Context, flags *RootFlags) error {
 	var toRecipients, ccRecipients []string
 	if c.ReplyAll {
 		// Auto-populate recipients from original message
-		toRecipients, ccRecipients = buildReplyAllRecipients(replyInfo, from.sendingEmail)
+		// Leave out the account and every send-as alias, as gmail reply-all does.
+		toRecipients, ccRecipients = buildReplyAllRecipients(replyInfo, selfEmailsForReply(account, from.sendingEmail, sendAs)...)
 	}
 
 	// Explicit --to and --cc override (not merge with) auto-populated

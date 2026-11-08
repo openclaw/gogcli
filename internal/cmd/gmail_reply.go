@@ -13,10 +13,11 @@ import (
 	"github.com/openclaw/gogcli/internal/mailmime"
 )
 
-// buildReplyAllRecipients constructs To and Cc lists for a reply-all.
+// buildReplyAllRecipients constructs To and Cc lists for a reply-all,
+// leaving out every one of selfEmails.
 // Per RFC 5322: if Reply-To header is present, use it instead of From.
-func buildReplyAllRecipients(info *replyInfo, selfEmail string) (to, cc []string) {
-	recipients, err := buildReplyRecipients(info, []string{selfEmail}, true, nil, nil, nil, nil)
+func buildReplyAllRecipients(info *replyInfo, selfEmails ...string) (to, cc []string) {
+	recipients, err := buildReplyRecipients(info, selfEmails, true, nil, nil, nil, nil)
 	if err != nil {
 		return nil, nil
 	}

@@ -2,6 +2,8 @@
 
 ## 0.48.1 - Unreleased
 
+- Gmail: leave the account and every send-as alias out of `gmail send --reply-all` recipients, as `gmail reply-all` and `gmail drafts create --reply-all` already do. Only the sending address was excluded, so a reply-all to a message sent to one of your aliases copied that alias, and with `--from <alias>` it copied your primary address. — thanks @saariuslystoned.
+
 ## 0.48.0 - 2026-11-05
 
 **Highlights:** New backups stay local until you configure a remote; existing configurations keep working. Store service-account keys in the keyring, search Gmail IDs efficiently, and use environment-backed watch tokens, with Calendar fixes and security dependency updates.
