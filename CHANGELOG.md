@@ -2,6 +2,8 @@
 
 ## 0.48.1 - Unreleased
 
+- Drive: `drive download` of a shortcut now downloads or exports the file the shortcut points to, instead of asking Drive to export the shortcut itself, which always failed. A shortcut whose target is gone or unreadable reports that target with the target's error, so a deleted target exits `not_found` (`5`). — thanks @saariuslystoned.
+
 ## 0.48.0 - 2026-11-05
 
 **Highlights:** New backups stay local until you configure a remote; existing configurations keep working. Store service-account keys in the keyring, search Gmail IDs efficiently, and use environment-backed watch tokens, with Calendar fixes and security dependency updates.
