@@ -64,7 +64,7 @@ func TestCalendarPresentationSchemas(t *testing.T) {
 					{Start: "2026-06-12T10:00:00Z", End: "2026-06-12T11:00:00Z"},
 				},
 			},
-		})
+		}, nil)
 		got := renderPlainTable(t, rows, calendarFreeBusyColumns())
 		assertTableOutput(
 			t,

@@ -2,6 +2,8 @@
 
 ## 0.48.1 - Unreleased
 
+- Calendar: warn on stderr when `calendar freebusy` gets no data for a calendar (for example `notFound` for a calendar you cannot see), instead of printing nothing for it as if it were free, and list text and `--plain` rows in the requested calendar order instead of a random order. Stdout columns and JSON output are unchanged.
+
 ## 0.48.0 - 2026-11-05
 
 **Highlights:** New backups stay local until you configure a remote; existing configurations keep working. Store service-account keys in the keyring, search Gmail IDs efficiently, and use environment-backed watch tokens, with Calendar fixes and security dependency updates.

@@ -67,7 +67,30 @@ func (c *CalendarFreeBusyCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return nil
 	}
 
-	return outfmt.WriteTable(ctx, stdoutWriter(ctx), calendarFreeBusyRows(resp.Calendars), calendarFreeBusyColumns())
+	// A calendar Google could not read comes back with errors and no busy
+	// periods, which a table of busy rows would show as free.
+	for _, calendarID := range calendarFreeBusyOrder(resp.Calendars, calendarIDs) {
+		if reasons := calendarFreeBusyErrorReasons(resp.Calendars[calendarID]); len(reasons) > 0 {
+			u.Err().Linef("Warning: no free/busy data for %s (%s); its busy times are unknown, not free", calendarID, strings.Join(reasons, ", "))
+		}
+	}
+
+	return outfmt.WriteTable(ctx, stdoutWriter(ctx), calendarFreeBusyRows(resp.Calendars, calendarIDs), calendarFreeBusyColumns())
+}
+
+func calendarFreeBusyErrorReasons(data calendar.FreeBusyCalendar) []string {
+	reasons := make([]string, 0, len(data.Errors))
+	for _, e := range data.Errors {
+		if e == nil {
+			continue
+		}
+		reason := strings.TrimSpace(e.Reason)
+		if reason == "" {
+			reason = "error"
+		}
+		reasons = append(reasons, reason)
+	}
+	return reasons
 }
 
 func (c *CalendarFreeBusyCmd) resolveFreeBusyRange(ctx context.Context, svc *calendar.Service) (string, string, error) {
