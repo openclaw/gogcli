@@ -2,7 +2,7 @@
 
 ## 0.48.1 - Unreleased
 
-- Calendar: make `calendar update --scope future` end the original series when given an instance ID, such as one from `calendar events` or `calendar search`, as `calendar delete --scope future` already does. It previously sent the series truncation to the instance itself and exited 0, so the original series kept every later occurrence. — thanks @saariuslystoned.
+- Calendar: make `calendar update --scope future` end the original series when given an instance ID, such as one from `calendar events` or `calendar search`, as `calendar delete --scope future` already does. It previously sent the series truncation to the instance itself and exited 0, so the original series kept every later occurrence. (#1317) — thanks @saariuslystoned.
 
 ## 0.48.0 - 2026-11-05
 
