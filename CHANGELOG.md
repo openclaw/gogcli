@@ -2,7 +2,7 @@
 
 ## 0.48.1 - Unreleased
 
-- Drive: accept commas in `drive labels file apply` field flags. The CLI split each `--text`, `--selection`, `--integer`, `--date` and `--user` value on commas before gog parsed it, so the documented `field=a,b` forms and any text value containing a comma failed with "label field assignments must be field=value". Text values now keep their commas, and the other fields take comma-separated values as documented. — thanks @saariuslystoned.
+- Drive: accept commas in `drive labels file apply` field flags. The CLI split each `--text`, `--selection`, `--integer`, `--date` and `--user` value on commas before gog parsed it, so the documented `field=a,b` forms and any text value containing a comma failed with "label field assignments must be field=value". Text values now keep their commas, and the other fields take comma-separated values as documented. (#1319) — thanks @saariuslystoned.
 
 ## 0.48.0 - 2026-11-05
 
