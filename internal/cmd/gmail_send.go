@@ -76,6 +76,8 @@ type sendMessageOptions struct {
 	Attachments []mailmime.Attachment
 	Track       bool
 	TrackingCfg *tracking.Config
+	// AllowMissingTo lets a message go out with only Cc or Bcc recipients.
+	AllowMissingTo bool
 }
 
 func (c *GmailSendCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -211,8 +213,11 @@ func (c *GmailSendCmd) Run(ctx context.Context, flags *RootFlags) error {
 		ccRecipients = explicitCc
 	}
 
-	// Final validation: we must have at least one recipient
-	if len(toRecipients) == 0 {
+	// Final validation: we must have at least one recipient. A reply-all may
+	// leave only Cc recipients once the user's own addresses are dropped, which
+	// gmail reply-all also sends.
+	allowMissingTo := c.ReplyAll && strings.TrimSpace(c.To) == "" && len(ccRecipients)+len(explicitBcc) > 0
+	if len(toRecipients) == 0 && !allowMissingTo {
 		return usage("no recipients: specify --to or use --reply-all with a message that has recipients")
 	}
 
@@ -241,6 +246,8 @@ func (c *GmailSendCmd) Run(ctx context.Context, flags *RootFlags) error {
 		Attachments: atts,
 		Track:       c.Track,
 		TrackingCfg: trackingCfg,
+
+		AllowMissingTo: allowMissingTo,
 	}, batches)
 	if err != nil {
 		return err
@@ -444,7 +451,7 @@ func sendGmailBatches(ctx context.Context, svc *gmail.Service, opts sendMessageO
 
 		messageOpts := opts
 		messageOpts.BodyHTML = htmlBody
-		msg, err := buildGmailMessage(ctx, messageOpts, batch, false)
+		msg, err := buildGmailMessage(ctx, messageOpts, batch, opts.AllowMissingTo)
 		if err != nil {
 			return nil, err
 		}

@@ -26,6 +26,11 @@ func headerLine(raw, name string) string {
 // whichever command sends it.
 func sendReplyAllViaCommand(t *testing.T, args ...string) string {
 	t.Helper()
+	return sendReplyAllWithHeaders(t, "alice@example.com", "me@example.com, alias@example.com, bob@example.com", "", args...)
+}
+
+func sendReplyAllWithHeaders(t *testing.T, from, to, cc string, args ...string) string {
+	t.Helper()
 	var sentRaw string
 	svc, cleanup := newGmailServiceForTest(t, func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -40,8 +45,9 @@ func sendReplyAllViaCommand(t *testing.T, args ...string) string {
 				"id": "msg-1", "threadId": "thread-1",
 				"payload": map[string]any{"headers": []map[string]any{
 					{"name": "Message-ID", "value": "<original@example.com>"},
-					{"name": "From", "value": "alice@example.com"},
-					{"name": "To", "value": "me@example.com, alias@example.com, bob@example.com"},
+					{"name": "From", "value": from},
+					{"name": "To", "value": to},
+					{"name": "Cc", "value": cc},
 					{"name": "Subject", "value": "Plans"},
 				}},
 			})
@@ -80,6 +86,30 @@ func TestGmailSendReplyAllExcludesSendAsAliases(t *testing.T) {
 			if !strings.Contains(recipients, "alice@example.com") || !strings.Contains(recipients, "bob@example.com") {
 				t.Fatalf("recipients %q, want alice and bob", recipients)
 			}
+			if strings.Contains(recipients, "alias@example.com") || strings.Contains(recipients, "me@example.com") {
+				t.Fatalf("recipients %q include the sender's own address", recipients)
+			}
+		})
+	}
+}
+
+// A message the user sent from an alias to their own primary address, copying
+// bob: once both self addresses are left out, bob remains only in Cc. That is
+// still a valid reply, as gmail reply-all already treats it.
+func TestGmailSendReplyAllKeepsCcOnlyRecipients(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		args []string
+	}{
+		{name: "gmail reply-all (control)", args: []string{"gmail", "reply-all", "msg-1", "--body", "ok", "--no-quote"}},
+		{name: "gmail send --reply-all", args: []string{"gmail", "send", "--reply-to-message-id", "msg-1", "--reply-all", "--body", "ok"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			raw := sendReplyAllWithHeaders(t, "alias@example.com", "me@example.com", "bob@example.com", tc.args...)
+			if got := headerLine(raw, "Cc"); !strings.Contains(got, "bob@example.com") {
+				t.Fatalf("Cc %q, want bob", got)
+			}
+			recipients := headerLine(raw, "To") + " " + headerLine(raw, "Cc")
 			if strings.Contains(recipients, "alias@example.com") || strings.Contains(recipients, "me@example.com") {
 				t.Fatalf("recipients %q include the sender's own address", recipients)
 			}

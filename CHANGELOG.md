@@ -2,7 +2,7 @@
 
 ## 0.48.1 - Unreleased
 
-- Gmail: leave the account and every send-as alias out of `gmail send --reply-all` recipients, as `gmail reply-all` and `gmail drafts create --reply-all` already do. Only the sending address was excluded, so a reply-all to a message sent to one of your aliases copied that alias, and with `--from <alias>` it copied your primary address. — thanks @saariuslystoned.
+- Gmail: leave the account and every send-as alias out of `gmail send --reply-all` recipients, as `gmail reply-all` and `gmail drafts create --reply-all` already do. Only the sending address was excluded, so a reply-all to a message sent to one of your aliases copied that alias, and with `--from <alias>` it copied your primary address. A reply-all whose only remaining recipients are in Cc is still sent, as `gmail reply-all` sends it. (#1318) — thanks @saariuslystoned.
 
 ## 0.48.0 - 2026-11-05
 
