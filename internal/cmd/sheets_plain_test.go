@@ -88,30 +88,23 @@ func TestSheetsGetCmd_PlainKeepsMultilineCellsOnOneRow(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]any{
-			"range": "Sheet1!A1:C2",
-			"values": [][]string{
+			"range": "Sheet1!A1:D3",
+			"values": [][]any{
 				{"Name", "Address", "Note"},
 				{"Alice", "1 Main St\nBerlin", "a\tb"},
+				{"Bob", "2 High St\r\nParis", 3.5, true},
 			},
 		})
 	}))
 	defer srv.Close()
 
 	svc := newSheetsServiceFromServer(t, srv)
-	result := executeWithSheetsTestService(t, []string{"--plain", "--account", "a@b.com", "sheets", "get", "spreadsheet1", "Sheet1!A1:C2"}, svc)
+	result := executeWithSheetsTestService(t, []string{"--plain", "--account", "a@b.com", "sheets", "get", "spreadsheet1", "Sheet1!A1:D3"}, svc)
 	if result.err != nil {
 		t.Fatalf("execute: %v", result.err)
 	}
-	want := "Name\tAddress\tNote\nAlice\t1 Main St\\nBerlin\ta b\n"
+	want := "Name\tAddress\tNote\nAlice\t1 Main St\\nBerlin\ta b\nBob\t2 High St\\nParis\t3.5\ttrue\n"
 	if result.stdout != want {
 		t.Fatalf("stdout = %q, want %q", result.stdout, want)
-	}
-}
-
-func TestSheetsValueRowLine(t *testing.T) {
-	t.Parallel()
-	got := sheetsValueRowLine([]interface{}{"a\r\nb", 3.5, true, "c\td", ""})
-	if want := "a\\nb\t3.5\ttrue\tc d\t"; got != want {
-		t.Fatalf("sheetsValueRowLine = %q, want %q", got, want)
 	}
 }
