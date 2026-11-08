@@ -105,6 +105,9 @@ Notes:
 - `watch renew` reuses stored topic/labels.
 - Push and pull inspect notifications whose history ID equals the saved cursor;
   lower IDs remain stale. Duplicate Pub/Sub message IDs are still ignored.
+- Push and pull read every page of Gmail history after the saved cursor and
+  advance the cursor only after the last page, so bursts of more than one page
+  of changes are delivered instead of skipped.
 - `watch stop` calls Gmail stop + clears state.
 - `watch serve` and `watch pull` use stored hook config if `--hook-url` is not
   provided.

@@ -2,6 +2,8 @@
 
 ## 0.48.1 - Unreleased
 
+- Gmail: make `watch serve` and `watch pull` read every page of `users.history.list` before advancing the saved history cursor. They previously read only the first 100 history records of a notification and then stored the mailbox's current history ID, so changes past the first page (a burst of mail, bulk label edits, or a catch-up after downtime) were never delivered to the hook. — thanks @saariuslystoned.
+
 ## 0.48.0 - 2026-11-05
 
 **Highlights:** New backups stay local until you configure a remote; existing configurations keep working. Store service-account keys in the keyring, search Gmail IDs efficiently, and use environment-backed watch tokens, with Calendar fixes and security dependency updates.
