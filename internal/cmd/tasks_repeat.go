@@ -157,12 +157,26 @@ func addRepeat(t time.Time, unit repeatUnit, n int) time.Time {
 	case repeatWeekly:
 		return t.AddDate(0, 0, 7*n)
 	case repeatMonthly:
-		return t.AddDate(0, n, 0)
+		return addMonthsClamped(t, n)
 	case repeatYearly:
-		return t.AddDate(n, 0, 0)
+		return addMonthsClamped(t, 12*n)
 	default:
 		return t
 	}
+}
+
+// addMonthsClamped adds n calendar months and keeps the day of month, using
+// the target month's last day when it is shorter. time.AddDate would carry the
+// overflow into the next month, so a monthly series from January 31 would skip
+// February and create two March tasks.
+func addMonthsClamped(t time.Time, n int) time.Time {
+	year, month, day := t.Date()
+	hour, minute, sec := t.Clock()
+	first := time.Date(year, month+time.Month(n), 1, hour, minute, sec, t.Nanosecond(), t.Location())
+	if last := first.AddDate(0, 1, -1).Day(); day > last {
+		day = last
+	}
+	return time.Date(first.Year(), first.Month(), day, hour, minute, sec, t.Nanosecond(), t.Location())
 }
 
 func formatTaskDue(t time.Time, hasTime bool) string {

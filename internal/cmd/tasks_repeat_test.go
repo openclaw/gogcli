@@ -89,6 +89,21 @@ func TestTasksAddCmd_RecurRRuleIntervalCreatesMultiple(t *testing.T) {
 	assertTaskDueOrder(t, result.due, []string{"2025-01-01T00:00:00Z", "2025-01-03T00:00:00Z", "2025-01-05T00:00:00Z"})
 }
 
+func TestTasksAddCmd_RepeatMonthlyKeepsMonthEnd(t *testing.T) {
+	result := runTasksRepeatTest(t, "--due", "2026-01-31", "--repeat", "monthly", "--repeat-count", "4")
+	assertTaskDueOrder(t, result.due, []string{"2026-01-31T00:00:00Z", "2026-02-28T00:00:00Z", "2026-03-31T00:00:00Z", "2026-04-30T00:00:00Z"})
+}
+
+func TestTasksAddCmd_RepeatMonthlyUntilKeepsOneTaskPerMonth(t *testing.T) {
+	result := runTasksRepeatTest(t, "--due", "2026-01-31T09:00:00Z", "--recur-rrule", "FREQ=MONTHLY", "--repeat-until", "2026-04-30")
+	assertTaskDueOrder(t, result.due, []string{"2026-01-31T09:00:00Z", "2026-02-28T09:00:00Z", "2026-03-31T09:00:00Z", "2026-04-30T09:00:00Z"})
+}
+
+func TestTasksAddCmd_RepeatYearlyFromLeapDay(t *testing.T) {
+	result := runTasksRepeatTest(t, "--due", "2028-02-29", "--repeat", "yearly", "--repeat-count", "3")
+	assertTaskDueOrder(t, result.due, []string{"2028-02-29T00:00:00Z", "2029-02-28T00:00:00Z", "2030-02-28T00:00:00Z"})
+}
+
 func assertTaskDueOrder(t *testing.T, got, want []string) {
 	t.Helper()
 	if !slices.Equal(got, want) {
