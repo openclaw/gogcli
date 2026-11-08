@@ -47,3 +47,9 @@ Tracking `--since` also accepts `time.ParseDuration` values such as:
 - Generate RFC3339 for all datetime fields by default.
 - Use date-only for fields explicitly documented as dates.
 - For local scheduling, pass an explicit offset (or timezone-aware RFC3339) to avoid ambiguity.
+- Recurring Calendar events repeat in one IANA time zone. When `calendar create`
+  or `calendar focus-time` gets `--rrule` with times that carry only an offset,
+  gog uses the calendar's time zone if it has that offset at the given time, so
+  the series keeps its local time across daylight saving changes. Other offsets
+  keep a fixed `Etc/GMT` zone, and UTC times stay in UTC. Pass `--timezone` to
+  choose the zone yourself.

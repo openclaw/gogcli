@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"time"
 
 	"google.golang.org/api/calendar/v3"
 
@@ -13,6 +14,20 @@ type calendarMutationContext struct {
 	u          *ui.UI
 	svc        *calendar.Service
 	calendarID string
+
+	timezoneLoaded bool
+	timezone       string
+	location       *time.Location
+}
+
+// calendarLocation returns the calendar's time zone, fetched once per command.
+// An empty zone and nil location mean the lookup failed.
+func (m *calendarMutationContext) calendarLocation(ctx context.Context) (string, *time.Location) {
+	if !m.timezoneLoaded {
+		m.timezone, m.location, _ = getCalendarLocation(ctx, m.svc, m.calendarID)
+		m.timezoneLoaded = true
+	}
+	return m.timezone, m.location
 }
 
 type calendarInsertOptions struct {
@@ -98,7 +113,7 @@ func (m *calendarMutationContext) moveEvent(ctx context.Context, eventID, destin
 
 func (m *calendarMutationContext) writeEvent(ctx context.Context, event *calendar.Event) error {
 	redactCalendarEventForOutput(ctx, event)
-	tz, loc, _ := getCalendarLocation(ctx, m.svc, m.calendarID)
+	tz, loc := m.calendarLocation(ctx)
 	if outfmt.IsJSON(ctx) {
 		return outfmt.WriteJSON(ctx, stdoutWriter(ctx), map[string]any{"event": wrapEventWithDaysWithTimezone(event, tz, loc)})
 	}

@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"regexp"
 	"strconv"
@@ -101,6 +102,61 @@ func extractTimezone(value string) string {
 		return tz
 	}
 	return ""
+}
+
+// applyRecurringCalendarTimezone sets the zone Google expands a recurring
+// series in when --from or --to carries only a UTC offset. An offset alone maps
+// to a fixed Etc/GMT zone, which keeps the series on that offset across
+// daylight saving changes, and half-hour offsets have no Etc/GMT zone at all.
+// The calendar's own zone is used when it has the same offset at that time.
+// Explicit timezones, UTC times and all-day dates are kept as given. When
+// timezoneFlag is set, an offset that still has no zone is a usage error that
+// names the flag, instead of a request Google rejects.
+func applyRecurringCalendarTimezone(ctx context.Context, mutation *calendarMutationContext, event *calendar.Event, startTimezone, endTimezone, timezoneFlag string) error {
+	if event == nil || len(event.Recurrence) == 0 {
+		return nil
+	}
+	start := recurringZoneFromOffset(event.Start, startTimezone)
+	end := recurringZoneFromOffset(event.End, endTimezone)
+	if !start && !end {
+		return nil
+	}
+	calendarTimezone, calendarLoc := mutation.calendarLocation(ctx)
+	if start {
+		if err := applyCalendarZoneForOffset(event.Start, calendarTimezone, calendarLoc, "--from", timezoneFlag); err != nil {
+			return err
+		}
+	}
+	if end {
+		if err := applyCalendarZoneForOffset(event.End, calendarTimezone, calendarLoc, "--to", timezoneFlag); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func recurringZoneFromOffset(dt *calendar.EventDateTime, explicitTimezone string) bool {
+	return dt != nil && strings.TrimSpace(explicitTimezone) == "" &&
+		strings.TrimSpace(dt.DateTime) != "" && dt.TimeZone != tzUTC
+}
+
+func applyCalendarZoneForOffset(dt *calendar.EventDateTime, calendarTimezone string, calendarLoc *time.Location, flagName, timezoneFlag string) error {
+	t, parseErr := time.Parse(time.RFC3339, strings.TrimSpace(dt.DateTime))
+	if parseErr != nil {
+		// Not an RFC3339 instant: leave the zone to the existing handling.
+		return nil //nolint:nilerr // an unparsable time is not this helper's error to report
+	}
+	_, offset := t.Zone()
+	if calendarLoc != nil {
+		if _, calendarOffset := t.In(calendarLoc).Zone(); calendarOffset == offset {
+			dt.TimeZone = calendarTimezone
+			return nil
+		}
+	}
+	if dt.TimeZone == "" && timezoneFlag != "" {
+		return usagef("recurring events need an IANA time zone: %s offset %s has no fixed-offset zone and does not match the calendar's time zone; pass %s with an IANA zone name", flagName, t.Format("-07:00"), timezoneFlag)
+	}
+	return nil
 }
 
 type conferenceChoice struct {

@@ -153,6 +153,13 @@ func (c *CalendarCreateCmd) Run(ctx context.Context, flags *RootFlags, kctx *kon
 	if err != nil {
 		return err
 	}
+	startTimezone, endTimezone := c.StartTimezone, c.EndTimezone
+	if strings.TrimSpace(c.Timezone) != "" {
+		startTimezone, endTimezone = c.Timezone, c.Timezone
+	}
+	if tzErr := applyRecurringCalendarTimezone(ctx, mutation, plan.Event, startTimezone, endTimezone, flagTimezone); tzErr != nil {
+		return tzErr
+	}
 
 	var zoomMeeting *zoom.Meeting
 	if plan.WithZoom {

@@ -68,6 +68,9 @@ func (c *CalendarFocusTimeCmd) Run(ctx context.Context, flags *RootFlags) error 
 	if err != nil {
 		return err
 	}
+	if tzErr := applyRecurringCalendarTimezone(ctx, mutation, event, "", "", ""); tzErr != nil {
+		return tzErr
+	}
 
 	created, err := mutation.insertEvent(ctx, event, calendarInsertOptions{})
 	if err != nil {
