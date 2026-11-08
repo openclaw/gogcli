@@ -2,7 +2,7 @@
 
 ## 0.48.1 - Unreleased
 
-- Tasks: make `tasks update --notes ''` and `--title ''` clear the field as their help says, instead of sending an empty PATCH that changed nothing, and reject `--status ''` with a usage error because a task is always `needsAction` or `completed`. — thanks @saariuslystoned.
+- Tasks: make `tasks update --notes ''` and `--title ''` clear the field as their help says, instead of sending an empty PATCH that changed nothing, and reject `--status ''` with a usage error because a task is always `needsAction` or `completed`. (#1313) — thanks @saariuslystoned.
 
 ## 0.48.0 - 2026-11-05
 
