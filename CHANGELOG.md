@@ -2,6 +2,8 @@
 
 ## 0.48.1 - Unreleased
 
+- Calendar: make `calendar update --scope future` end the original series when given an instance ID, such as one from `calendar events` or `calendar search`, as `calendar delete --scope future` already does. It previously sent the series truncation to the instance itself and exited 0, so the original series kept every later occurrence. — thanks @saariuslystoned.
+
 ## 0.48.0 - 2026-11-05
 
 **Highlights:** New backups stay local until you configure a remote; existing configurations keep working. Store service-account keys in the keyring, search Gmail IDs efficiently, and use environment-backed watch tokens, with Calendar fixes and security dependency updates.

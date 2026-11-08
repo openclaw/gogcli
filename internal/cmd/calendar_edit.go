@@ -399,10 +399,11 @@ func (c *CalendarUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *
 		}
 	}
 
-	targetEventID, parentRecurrence, err := applyUpdateScope(ctx, mutation.svc, mutation.calendarID, plan.EventID, plan.Scope, plan.OriginalStartTime, patch)
+	scoped, err := applyUpdateScope(ctx, mutation.svc, mutation.calendarID, plan.EventID, plan.Scope, plan.OriginalStartTime, patch)
 	if err != nil {
 		return err
 	}
+	targetEventID := scoped.TargetEventID
 	if patch.ConferenceData != nil && !fields.RegenerateMeet && !fields.zoomMutation() {
 		existing, getErr := mutation.svc.Events.Get(mutation.calendarID, targetEventID).Context(ctx).Do()
 		if getErr != nil {
@@ -432,7 +433,7 @@ func (c *CalendarUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *
 		return err
 	}
 	if plan.Scope == scopeFuture {
-		if err := truncateParentRecurrence(ctx, mutation.svc, mutation.calendarID, plan.EventID, parentRecurrence, plan.OriginalStartTime, plan.SendUpdates); err != nil {
+		if err := truncateParentRecurrence(ctx, mutation.svc, mutation.calendarID, scoped.ParentEventID, scoped.ParentRecurrence, plan.OriginalStartTime, plan.SendUpdates); err != nil {
 			return err
 		}
 	}
@@ -545,10 +546,13 @@ func (c *CalendarUpdateCmd) prepareZoomConferencePatch(
 	return patch, changed, nil
 }
 
-func applyUpdateScope(ctx context.Context, svc *calendar.Service, calendarID, eventID, scope, originalStartTime string, patch *calendar.Event) (string, []string, error) {
+// applyUpdateScope resolves which event a scoped update patches and, for
+// scope=future, which series it truncates. eventID may be a series ID or an
+// instance ID from a listing; ParentEventID is the series either way.
+func applyUpdateScope(ctx context.Context, svc *calendar.Service, calendarID, eventID, scope, originalStartTime string, patch *calendar.Event) (recurringScopeResolution, error) {
 	resolution, err := resolveRecurringScopeResolution(ctx, svc, calendarID, eventID, scope, originalStartTime)
 	if err != nil {
-		return "", nil, err
+		return recurringScopeResolution{}, err
 	}
 
 	if scope == scopeFuture {
@@ -567,7 +571,7 @@ func applyUpdateScope(ctx context.Context, svc *calendar.Service, calendarID, ev
 		}
 	}
 
-	return resolution.TargetEventID, resolution.ParentRecurrence, nil
+	return resolution, nil
 }
 
 func truncateParentRecurrence(ctx context.Context, svc *calendar.Service, calendarID, eventID string, parentRecurrence []string, originalStartTime, sendUpdates string) error {
