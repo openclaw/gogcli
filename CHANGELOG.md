@@ -2,7 +2,7 @@
 
 ## 0.48.1 - Unreleased
 
-- Sheets: keep each sheet row on one line in `sheets get` and `sheets datasource table read` text and `--plain` output. Line breaks inside a cell are written as `\n` and tabs as spaces, as the links, notes and format tables already do, so a multi-line cell no longer splits its row. JSON output is unchanged. — thanks @saariuslystoned.
+- Sheets: keep each sheet row on one line in `sheets get` and `sheets datasource table read` text and `--plain` output. Line breaks inside a cell are written as `\n` and tabs as spaces, as the links, notes and format tables already do, so a multi-line cell no longer splits its row. JSON output is unchanged. (#1316) — thanks @saariuslystoned.
 
 ## 0.48.0 - 2026-11-05
 
