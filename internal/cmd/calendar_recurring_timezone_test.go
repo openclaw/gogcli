@@ -145,3 +145,60 @@ func TestCalendarFocusTimeCmd_RecurringOffsetUsesMatchingCalendarTimezone(t *tes
 	}
 	assertRecurringZones(t, result.event, "America/Los_Angeles", "America/Los_Angeles")
 }
+
+func TestCalendarCreateCmd_DryRunDeclaresRecurringTimezoneLookup(t *testing.T) {
+	result := executeWithTestRuntime(t, []string{
+		"--json", "--dry-run", "calendar", "create", "primary",
+		"--summary", "Standup",
+		"--from", "2026-11-10T09:00:00-08:00",
+		"--to", "2026-11-10T09:30:00-08:00",
+		"--rrule", "RRULE:FREQ=WEEKLY",
+	}, nil)
+	if result.err != nil {
+		t.Fatalf("dry-run: %v", result.err)
+	}
+	var got struct {
+		Request map[string]any `json:"request"`
+	}
+	if err := json.Unmarshal([]byte(result.stdout), &got); err != nil {
+		t.Fatalf("json: %v (%q)", err, result.stdout)
+	}
+	lookup, ok := got.Request["recurring_timezone_lookup"].(map[string]any)
+	if !ok {
+		t.Fatalf("request = %#v, want recurring_timezone_lookup", got.Request)
+	}
+	start, _ := lookup["start"].(map[string]any)
+	if start["offset"] != "-08:00" || start["fallback_timezone"] != "Etc/GMT+8" {
+		t.Fatalf("start lookup = %#v", start)
+	}
+
+	single := executeWithTestRuntime(t, []string{
+		"--json", "--dry-run", "calendar", "create", "primary",
+		"--summary", "Standup",
+		"--from", "2026-11-10T09:00:00-08:00",
+		"--to", "2026-11-10T09:30:00-08:00",
+		"--timezone", "America/Los_Angeles",
+		"--rrule", "RRULE:FREQ=WEEKLY",
+	}, nil)
+	if single.err != nil {
+		t.Fatalf("dry-run: %v", single.err)
+	}
+	if strings.Contains(single.stdout, "recurring_timezone_lookup") {
+		t.Fatalf("explicit --timezone should need no lookup: %s", single.stdout)
+	}
+}
+
+func TestCalendarFocusTimeCmd_DryRunDeclaresRecurringTimezoneLookup(t *testing.T) {
+	result := executeWithTestRuntime(t, []string{
+		"--json", "--dry-run", "calendar", "focus-time", "primary",
+		"--from", "2026-11-10T09:00:00+05:30",
+		"--to", "2026-11-10T11:00:00+05:30",
+		"--rrule", "RRULE:FREQ=DAILY",
+	}, nil)
+	if result.err != nil {
+		t.Fatalf("dry-run: %v", result.err)
+	}
+	if !strings.Contains(result.stdout, `"recurring_timezone_lookup"`) || !strings.Contains(result.stdout, `"no time zone is sent"`) {
+		t.Fatalf("dry-run output lacks the timezone lookup: %s", result.stdout)
+	}
+}

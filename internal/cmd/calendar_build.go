@@ -135,6 +135,43 @@ func applyRecurringCalendarTimezone(ctx context.Context, mutation *calendarMutat
 	return nil
 }
 
+// recurringTimezoneLookupPlan describes, for --dry-run, the calendar time zone
+// lookup applyRecurringCalendarTimezone makes when the command runs. Dry runs
+// stay offline, so the event they show carries the fallback zone.
+func recurringTimezoneLookupPlan(event *calendar.Event, startTimezone, endTimezone, unmatched string) map[string]any {
+	if event == nil || len(event.Recurrence) == 0 {
+		return nil
+	}
+	out := map[string]any{}
+	for _, side := range []struct {
+		key      string
+		dt       *calendar.EventDateTime
+		explicit string
+	}{{"start", event.Start, startTimezone}, {"end", event.End, endTimezone}} {
+		if !recurringZoneFromOffset(side.dt, side.explicit) {
+			continue
+		}
+		t, err := time.Parse(time.RFC3339, strings.TrimSpace(side.dt.DateTime))
+		if err != nil {
+			continue
+		}
+		entry := map[string]any{
+			"offset": t.Format("-07:00"),
+			"rule":   "use the calendar's time zone if it has this offset at dateTime",
+		}
+		if side.dt.TimeZone != "" {
+			entry["fallback_timezone"] = side.dt.TimeZone
+		} else {
+			entry["fallback"] = unmatched
+		}
+		out[side.key] = entry
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
 func recurringZoneFromOffset(dt *calendar.EventDateTime, explicitTimezone string) bool {
 	return dt != nil && strings.TrimSpace(explicitTimezone) == "" &&
 		strings.TrimSpace(dt.DateTime) != "" && dt.TimeZone != tzUTC

@@ -83,6 +83,10 @@ type calendarCreatePlan struct {
 	WithZoom    bool
 	PlaceLookup *calendarPlaceLookupRequest
 	Event       *calendar.Event
+	// StartTimezone and EndTimezone are the explicit timezone flags in effect
+	// (--timezone applies to both); empty means the zone came from the offset.
+	StartTimezone string
+	EndTimezone   string
 }
 
 type calendarUpdateFields struct {
@@ -415,12 +419,14 @@ func buildCalendarCreatePlan(store *config.ConfigStore, input calendarCreateInpu
 	}
 
 	return &calendarCreatePlan{
-		CalendarID:  calendarID,
-		SendUpdates: sendUpdates,
-		WithMeet:    input.WithMeet,
-		WithZoom:    input.WithZoom,
-		PlaceLookup: placeLookup,
-		Event:       event,
+		CalendarID:    calendarID,
+		SendUpdates:   sendUpdates,
+		WithMeet:      input.WithMeet,
+		WithZoom:      input.WithZoom,
+		PlaceLookup:   placeLookup,
+		Event:         event,
+		StartTimezone: startTZ,
+		EndTimezone:   endTZ,
 	}, nil
 }
 
@@ -437,6 +443,9 @@ func (p *calendarCreatePlan) dryRunRequest() map[string]any {
 	}
 	if p.PlaceLookup != nil {
 		request["place_lookup"] = p.PlaceLookup.dryRunPayload()
+	}
+	if lookup := recurringTimezoneLookupPlan(p.Event, p.StartTimezone, p.EndTimezone, "usage error asking for --timezone"); lookup != nil {
+		request["recurring_timezone_lookup"] = lookup
 	}
 	return request
 }

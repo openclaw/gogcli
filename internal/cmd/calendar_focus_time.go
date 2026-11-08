@@ -57,10 +57,14 @@ func (c *CalendarFocusTimeCmd) Run(ctx context.Context, flags *RootFlags) error 
 		Recurrence: buildRecurrence(c.Recurrence),
 	}
 
-	if dryRunErr := dryRunExit(ctx, flags, "calendar.focus-time", map[string]any{
+	dryRun := map[string]any{
 		"calendar_id": calendarID,
 		"event":       event,
-	}); dryRunErr != nil {
+	}
+	if lookup := recurringTimezoneLookupPlan(event, "", "", "no time zone is sent"); lookup != nil {
+		dryRun["recurring_timezone_lookup"] = lookup
+	}
+	if dryRunErr := dryRunExit(ctx, flags, "calendar.focus-time", dryRun); dryRunErr != nil {
 		return dryRunErr
 	}
 
