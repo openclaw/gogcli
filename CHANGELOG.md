@@ -2,7 +2,7 @@
 
 ## 0.48.1 - Unreleased
 
-- Chat: include attachment metadata (`name`, `contentName`, `contentType`, `source`, data reference) in `chat messages list --json`, and add read-only `chat attachments download` for uploaded attachments; Drive attachments point to `gog drive download`. — thanks @voska.
+- Chat: include attachment metadata (`name`, `contentName`, `contentType`, `source`, data reference) in `chat messages list --json`, and add read-only `chat attachments download` for uploaded attachments; Drive attachments point to `gog drive download`. (#1320) — thanks @voska.
 
 ## 0.48.0 - 2026-11-05
 
