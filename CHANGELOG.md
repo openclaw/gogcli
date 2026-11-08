@@ -2,6 +2,8 @@
 
 ## 0.48.1 - Unreleased
 
+- Sheets: return an empty `notes` or `links` array from `sheets notes --json` and `sheets links --json` when the range has none, instead of `null`. With `--results-only`, empty notes now print `[]` instead of `null`, and empty links print `[]` instead of the whole envelope. — thanks @saariuslystoned.
+
 ## 0.48.0 - 2026-11-05
 
 **Highlights:** New backups stay local until you configure a remote; existing configurations keep working. Store service-account keys in the keyring, search Gmail IDs efficiently, and use environment-backed watch tokens, with Calendar fixes and security dependency updates.

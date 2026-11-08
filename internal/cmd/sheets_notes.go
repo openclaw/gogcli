@@ -40,7 +40,7 @@ func (c *SheetsNotesCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
-	var notes []sheetsCellNote
+	notes := []sheetsCellNote{}
 
 	for _, sheet := range resp.Sheets {
 		if sheet == nil {
