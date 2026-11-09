@@ -11,7 +11,7 @@ import (
 // own warnings reach JSON output; table and --plain output must not drop them.
 func TestExecute_AdSenseReportsQuery_TableShowsTruncationAndWarnings(t *testing.T) {
 	svc := newAdSenseTestService(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !(r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/reports:generate")) {
+		if !(r.Method == http.MethodGet && strings.Contains(r.URL.Path, ":generate")) {
 			http.NotFound(w, r)
 			return
 		}
@@ -75,5 +75,28 @@ func TestExecute_AdSenseReportsQuery_EmptyTableStillShowsWarnings(t *testing.T) 
 		if !strings.Contains(result.stderr, "Data for this date range is not available yet.") || !strings.Contains(result.stderr, "No AdSense report rows") {
 			t.Fatalf("%q: want the warning and the empty-report note on stderr, got %q", mode, result.stderr)
 		}
+	}
+}
+
+// Saved reports have no --max flag, so their truncation note must not suggest one.
+func TestExecute_AdSenseSavedReportTruncationHintHasNoMaxFlag(t *testing.T) {
+	svc := newAdSenseTestService(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !strings.Contains(r.URL.Path, "/saved:generate") {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"headers":          []map[string]any{{"name": "DATE", "type": "DIMENSION"}},
+			"rows":             []map[string]any{{"cells": []map[string]any{{"value": "2026-02-01"}}}},
+			"totalMatchedRows": "250000",
+		})
+	}))
+	result := executeWithAdSenseTestService(t, []string{"--plain", "--account", "a@b.com", "adsense", "reports", "saved", "query", "accounts/pub-123/reports/report-1"}, svc)
+	if result.err != nil {
+		t.Fatalf("Execute: %v", result.err)
+	}
+	if !strings.Contains(result.stderr, "1 of 250000") || strings.Contains(result.stderr, "--max") {
+		t.Fatalf("want a truncation note without --max, got %q", result.stderr)
 	}
 }
