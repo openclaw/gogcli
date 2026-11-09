@@ -2,6 +2,8 @@
 
 ## 0.48.1 - Unreleased
 
+- AdSense: show the report's API warnings and a "showing N of M matched rows" note on stderr in `adsense reports query` table and `--plain` output, as JSON output already includes them. A report cut short by `--max` or by the 100,000-row limit previously looked complete. — thanks @saariuslystoned.
+
 ## 0.48.0 - 2026-11-05
 
 **Highlights:** New backups stay local until you configure a remote; existing configurations keep working. Store service-account keys in the keyring, search Gmail IDs efficiently, and use environment-backed watch tokens, with Calendar fixes and security dependency updates.
