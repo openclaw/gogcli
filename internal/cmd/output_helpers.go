@@ -94,3 +94,12 @@ func escapeTerminalControls(value string) string {
 	}
 	return output.String()
 }
+
+// nonNilSlice returns s, or an empty slice when s is nil. Google omits empty
+// list fields, and JSON output should still encode an empty list as [].
+func nonNilSlice[T any](s []T) []T {
+	if s == nil {
+		return []T{}
+	}
+	return s
+}

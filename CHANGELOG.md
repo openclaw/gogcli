@@ -2,6 +2,8 @@
 
 ## 0.48.1 - Unreleased
 
+- Drive/Docs: return `[]` instead of `null` from `drive labels list`, `drive labels file list`, `drive comments list` and `docs comments list` with `--json` when there is nothing to list, including with `--results-only`. Google omits empty list fields, so these printed `null`. — thanks @saariuslystoned.
+
 ## 0.48.0 - 2026-11-05
 
 **Highlights:** New backups stay local until you configure a remote; existing configurations keep working. Store service-account keys in the keyring, search Gmail IDs efficiently, and use environment-backed watch tokens, with Calendar fixes and security dependency updates.

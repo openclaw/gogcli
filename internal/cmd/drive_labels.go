@@ -74,7 +74,7 @@ func (c *DriveLabelsFileListCmd) Run(ctx context.Context, flags *RootFlags) erro
 	}
 	if outfmt.IsJSON(ctx) {
 		return outfmt.WriteJSON(ctx, stdoutWriter(ctx), map[string]any{
-			"labels":        resp.Labels,
+			"labels":        nonNilSlice(resp.Labels),
 			"labelCount":    len(resp.Labels),
 			"nextPageToken": resp.NextPageToken,
 		})
@@ -227,7 +227,7 @@ func (c *DriveLabelsListCmd) Run(ctx context.Context, flags *RootFlags) error {
 
 	if outfmt.IsJSON(ctx) {
 		return outfmt.WriteJSON(ctx, stdoutWriter(ctx), map[string]any{
-			"labels":        resp.Labels,
+			"labels":        nonNilSlice(resp.Labels),
 			"labelCount":    len(resp.Labels),
 			"nextPageToken": resp.NextPageToken,
 		})
