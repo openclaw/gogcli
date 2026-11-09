@@ -52,3 +52,28 @@ func TestExecute_AdSenseReportsQuery_TableShowsTruncationAndWarnings(t *testing.
 		}
 	}
 }
+
+// An empty report can still carry API warnings, which explain why no rows came back.
+func TestExecute_AdSenseReportsQuery_EmptyTableStillShowsWarnings(t *testing.T) {
+	svc := newAdSenseTestService(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"headers":  []map[string]any{{"name": "ESTIMATED_EARNINGS", "type": "METRIC_CURRENCY"}},
+			"rows":     []any{},
+			"warnings": []string{"Data for this date range is not available yet."},
+		})
+	}))
+	for _, mode := range []string{"--plain", ""} {
+		args := []string{"--account", "a@b.com", "adsense", "reports", "query", "pub-123", "--metrics", "estimated_earnings"}
+		if mode != "" {
+			args = append([]string{mode}, args...)
+		}
+		result := executeWithAdSenseTestService(t, args, svc)
+		if result.err != nil {
+			t.Fatalf("%q: Execute: %v", mode, result.err)
+		}
+		if !strings.Contains(result.stderr, "Data for this date range is not available yet.") || !strings.Contains(result.stderr, "No AdSense report rows") {
+			t.Fatalf("%q: want the warning and the empty-report note on stderr, got %q", mode, result.stderr)
+		}
+	}
+}

@@ -133,11 +133,6 @@ func writeAdSenseReportResult(
 		return nil
 	}
 
-	if len(resp.Rows) == 0 {
-		u.Err().Println("No AdSense report rows")
-		return failEmptyExit(failEmpty)
-	}
-
 	// JSON carries these fields; keep them visible here too, on stderr so
 	// stdout stays parseable.
 	for _, warning := range resp.Warnings {
@@ -147,6 +142,11 @@ func writeAdSenseReportResult(
 	}
 	if resp.TotalMatchedRows > int64(len(resp.Rows)) {
 		u.Err().Linef("# Showing %d of %d matched rows; raise --max (up to 100000) or narrow the report to see more", len(resp.Rows), resp.TotalMatchedRows)
+	}
+
+	if len(resp.Rows) == 0 {
+		u.Err().Println("No AdSense report rows")
+		return failEmptyExit(failEmpty)
 	}
 
 	headers := adSenseReportHeaderNames(resp.Headers, dimensions, metrics)
