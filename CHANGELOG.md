@@ -2,6 +2,8 @@
 
 ## 0.48.1 - Unreleased
 
+- Contacts: default `contacts search` and `contacts other search` to `--max 30`, the most results Google returns for these searches, and say so on stderr when a larger `--max` is given. Both previously asked for 50 and showed at most 30 with no sign the list was cut short. — thanks @saariuslystoned.
+
 ## 0.48.0 - 2026-11-05
 
 **Highlights:** New backups stay local until you configure a remote; existing configurations keep working. Store service-account keys in the keyring, search Gmail IDs efficiently, and use environment-backed watch tokens, with Calendar fixes and security dependency updates.

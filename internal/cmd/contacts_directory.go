@@ -305,7 +305,7 @@ func (c *ContactsOtherListCmd) Run(ctx context.Context, flags *RootFlags) error 
 
 type ContactsOtherSearchCmd struct {
 	Query []string `arg:"" name:"query" help:"Search query"`
-	Max   int64    `name:"max" aliases:"limit" help:"Max results" default:"50"`
+	Max   int64    `name:"max" aliases:"limit" help:"Max results (Google returns at most 30)" default:"30"`
 }
 
 func (c *ContactsOtherSearchCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -328,7 +328,7 @@ func (c *ContactsOtherSearchCmd) Run(ctx context.Context, flags *RootFlags) erro
 	resp, err := svc.OtherContacts.Search().
 		Query(query).
 		ReadMask(contactsOtherReadMask).
-		PageSize(c.Max).
+		PageSize(peopleSearchPageSize(u, c.Max)).
 		Do()
 	if err != nil {
 		return err
