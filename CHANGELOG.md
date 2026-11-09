@@ -2,7 +2,7 @@
 
 ## 0.48.1 - Unreleased
 
-- Gmail: leave every send-as alias out of `gmail autoreply` recipients, so a message sent from another of your aliases is skipped unless `--allow-self` is set. — thanks @saariuslystoned.
+- Gmail: leave every send-as alias out of `gmail autoreply` recipients, so messages sent from your own addresses are skipped even with an external Reply-To unless `--allow-self` is set, and the command now stops if it can't read your send-as list. — thanks @saariuslystoned.
 
 ## 0.48.0 - 2026-11-05
 
