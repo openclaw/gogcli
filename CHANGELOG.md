@@ -2,7 +2,7 @@
 
 ## 0.48.1 - Unreleased
 
-- Drive/Docs: return `[]` instead of `null` from `drive labels list`, `drive labels file list`, `drive comments list` and `docs comments list` with `--json` when there is nothing to list, including with `--results-only`. Google omits empty list fields, so these printed `null`. — thanks @saariuslystoned.
+- Drive/Docs: return `[]` instead of `null` from `drive labels list`, `drive labels file list`, `drive comments list` and `docs comments list` with `--json` when there is nothing to list, including with `--results-only`. Google omits empty list fields, so these printed `null`. (#1326) — thanks @saariuslystoned.
 
 ## 0.48.0 - 2026-11-05
 
