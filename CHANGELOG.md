@@ -2,6 +2,8 @@
 
 ## 0.48.1 - Unreleased
 
+- Calendar: make `calendar search` and `calendar team` read further `events.list` pages until they have `--max` events, instead of returning only the first page. Google may return fewer events than `maxResults` per page together with a `nextPageToken`, so matches past the first page were silently missing. `calendar search` now notes on stderr when more matches remain beyond `--max`. — thanks @saariuslystoned.
+
 ## 0.48.0 - 2026-11-05
 
 **Highlights:** New backups stay local until you configure a remote; existing configurations keep working. Store service-account keys in the keyring, search Gmail IDs efficiently, and use environment-backed watch tokens, with Calendar fixes and security dependency updates.

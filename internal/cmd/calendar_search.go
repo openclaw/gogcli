@@ -7,6 +7,8 @@ import (
 	"text/tabwriter"
 	"time"
 
+	"google.golang.org/api/calendar/v3"
+
 	"github.com/openclaw/gogcli/internal/outfmt"
 	"github.com/openclaw/gogcli/internal/ui"
 )
@@ -51,35 +53,37 @@ func (c *CalendarSearchCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 	from, to := timeRange.FormatRFC3339()
 
-	call := svc.Events.List(calendarID).
-		Q(query).
-		TimeMin(from).
-		TimeMax(to).
-		MaxResults(c.Max).
-		SingleEvents(true).
-		OrderBy("startTime")
-
-	resp, err := call.Do()
+	items, more, err := listCalendarEventsUpTo(ctx, func() *calendar.EventsListCall {
+		return svc.Events.List(calendarID).
+			Q(query).
+			TimeMin(from).
+			TimeMax(to).
+			SingleEvents(true).
+			OrderBy("startTime")
+	}, c.Max)
 	if err != nil {
 		return err
 	}
-	redactCalendarEventsForOutput(ctx, resp.Items)
+	redactCalendarEventsForOutput(ctx, items)
+	if more {
+		u.Err().Linef("# More results: raise --max (currently %d) to see more matching events", c.Max)
+	}
 
 	if outfmt.IsJSON(ctx) {
 		return outfmt.WriteJSON(ctx, stdoutWriter(ctx), map[string]any{
-			"events": wrapEventsWithDays(resp.Items),
+			"events": wrapEventsWithDays(items),
 			"query":  query,
 		})
 	}
 
-	if len(resp.Items) == 0 {
+	if len(items) == 0 {
 		u.Err().Println("No events found")
 		return nil
 	}
 
 	tw := tabwriter.NewWriter(stdoutWriter(ctx), 0, 4, 2, ' ', 0)
 	fmt.Fprintln(tw, "ID\tSTART\tEND\tSUMMARY")
-	for _, e := range resp.Items {
+	for _, e := range items {
 		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\n", e.Id, eventStart(e), eventEnd(e), e.Summary)
 	}
 	_ = tw.Flush()
