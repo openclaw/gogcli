@@ -2,7 +2,7 @@
 
 ## 0.48.1 - Unreleased
 
-- Calendar: make `calendar search` and `calendar team` read further `events.list` pages until they have `--max` events, instead of returning only the first page. Google may return fewer events than `maxResults` per page together with a `nextPageToken`, so matches past the first page were silently missing. `calendar search` now notes on stderr when more matches remain beyond `--max`. — thanks @saariuslystoned.
+- Calendar: make `calendar search` and `calendar team` read further `events.list` pages until they have `--max` events, instead of returning only the first page. Google may return fewer events than `maxResults` per page together with a `nextPageToken`, so matches past the first page were silently missing. `calendar search` now notes on stderr when more matches remain beyond `--max`. (#1322) — thanks @saariuslystoned.
 
 ## 0.48.0 - 2026-11-05
 
