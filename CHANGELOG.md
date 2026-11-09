@@ -2,7 +2,7 @@
 
 ## 0.48.1 - Unreleased
 
-- AdSense: show the report's API warnings and a "showing N of M matched rows" note on stderr in `adsense reports query` table and `--plain` output, as JSON output already includes them. A report cut short by `--max` or by the 100,000-row limit previously looked complete. — thanks @saariuslystoned.
+- AdSense: show the report's API warnings and a "showing N of M matched rows" note on stderr in `adsense reports query` table and `--plain` output, as JSON output already includes them. A report cut short by `--max` or by the 100,000-row limit previously looked complete. (#1324) — thanks @saariuslystoned.
 
 ## 0.48.0 - 2026-11-05
 
