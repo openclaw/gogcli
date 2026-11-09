@@ -132,6 +132,19 @@ func TestExecuteGmailAutoReplySendAsAlias(t *testing.T) {
 			t.Fatalf("exit code = %d, want %d", ExitCode(err), exitCodePermissionDenied)
 		}
 	})
+
+	// --allow-self already permits replies to the user's own addresses, so a
+	// failed send-as lookup keeps the previous sender fallback instead of
+	// stopping the run.
+	t.Run("send-as forbidden with allow-self", func(t *testing.T) {
+		sendCalls, summary, err := executeGmailAutoReplyFrom(t, "alice@example.com", "", true, http.StatusForbidden)
+		if err != nil {
+			t.Fatalf("Execute: %v", err)
+		}
+		if sendCalls != 1 || summary.Replied != 1 {
+			t.Fatalf("sendCalls = %d, summary = %#v, want one reply", sendCalls, summary)
+		}
+	})
 }
 
 // executeGmailAutoReplyFrom runs `gmail autoreply` through Execute against an
@@ -221,7 +234,7 @@ func executeGmailAutoReplyFrom(t *testing.T, from, replyTo string, allowSelf boo
 	if sendAsGets != 1 {
 		t.Fatalf("GET settings/sendAs calls = %d, want 1", sendAsGets)
 	}
-	if sendAsStatus != 0 && (sendCalls != 0 || followupCalls != 0) {
+	if sendAsStatus != 0 && !allowSelf && (sendCalls != 0 || followupCalls != 0) {
 		t.Fatalf("send-as failure continued: send=%d followup=%d err=%v", sendCalls, followupCalls, result.err)
 	}
 	if result.err != nil {

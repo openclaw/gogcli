@@ -165,7 +165,10 @@ func runGmailAutoReply(ctx context.Context, svc *gmail.Service, account string, 
 	}
 
 	sendAs, sendAsErr := listSendAs(ctx, svc)
-	if sendAsErr != nil {
+	// Without --allow-self the alias list is what keeps replies away from the
+	// user's own addresses, so a failed lookup must stop the run. With
+	// --allow-self those replies are allowed, so keep the previous fallback.
+	if sendAsErr != nil && !input.AllowSelf {
 		return summary, fmt.Errorf("list send-as aliases to exclude your own addresses: %w", sendAsErr)
 	}
 	from, err := resolveComposeFrom(ctx, svc, account, input.From, sendAs, sendAsErr)
