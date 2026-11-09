@@ -164,7 +164,8 @@ func runGmailAutoReply(ctx context.Context, svc *gmail.Service, account string, 
 		Label: input.Label,
 	}
 
-	from, err := resolveComposeSender(ctx, svc, account, input.From)
+	sendAs, sendAsErr := listSendAs(ctx, svc)
+	from, err := resolveComposeFrom(ctx, svc, account, input.From, sendAs, sendAsErr)
 	if err != nil {
 		return summary, err
 	}
@@ -183,10 +184,7 @@ func runGmailAutoReply(ctx context.Context, svc *gmail.Service, account string, 
 		return summary, nil
 	}
 
-	selfAddrs := []string{account}
-	if from.sendingEmail != "" && !strings.EqualFold(from.sendingEmail, account) {
-		selfAddrs = append(selfAddrs, from.sendingEmail)
-	}
+	selfAddrs := selfEmailsForReply(account, from.sendingEmail, sendAs)
 
 	for _, messageID := range messageIDs {
 		msg, err := fetchMessageForAutoReply(ctx, svc, messageID)
