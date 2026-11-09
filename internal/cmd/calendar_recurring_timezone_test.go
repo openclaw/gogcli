@@ -103,6 +103,27 @@ func TestCalendarCreateCmd_RecurringUnresolvableOffsetIsUsageError(t *testing.T)
 	}
 }
 
+// With one endpoint's zone given through --start-timezone, the guidance for
+// the other endpoint must name a flag that can be combined with it:
+// --timezone cannot be used together with --start-timezone or --end-timezone.
+func TestCalendarCreateCmd_RecurringUnresolvedEndSuggestsGranularFlag(t *testing.T) {
+	result := runRecurringCalendarCreate(t, "UTC",
+		"--from", "2026-11-10T09:00:00+05:30",
+		"--to", "2026-11-10T09:30:00+05:30",
+		"--start-timezone", "Asia/Kolkata",
+		"--rrule", "RRULE:FREQ=DAILY")
+	var exitErr *ExitError
+	if !errors.As(result.err, &exitErr) || exitErr.Code != 2 {
+		t.Fatalf("err = %v, want usage error", result.err)
+	}
+	if msg := result.err.Error(); !strings.Contains(msg, "--to offset") || !strings.Contains(msg, "--end-timezone") || strings.Contains(msg, "pass --timezone") {
+		t.Fatalf("err = %v, want --end-timezone guidance for --to", result.err)
+	}
+	if result.inserts != 0 {
+		t.Fatalf("inserted %d events before rejecting", result.inserts)
+	}
+}
+
 func TestCalendarCreateCmd_RecurringKeepsUTCAndExplicitTimezones(t *testing.T) {
 	utc := runRecurringCalendarCreate(t, "Europe/London",
 		"--from", "2026-11-10T09:00:00Z",

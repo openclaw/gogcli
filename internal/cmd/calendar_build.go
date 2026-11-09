@@ -122,13 +122,19 @@ func applyRecurringCalendarTimezone(ctx context.Context, mutation *calendarMutat
 		return nil
 	}
 	calendarTimezone, calendarLoc := mutation.calendarLocation(ctx)
+	// --timezone cannot be combined with the per-endpoint flags, so once one
+	// endpoint has its own zone, point the other at its own flag.
+	startFlag, endFlag := timezoneFlag, timezoneFlag
+	if timezoneFlag != "" && (strings.TrimSpace(startTimezone) != "" || strings.TrimSpace(endTimezone) != "") {
+		startFlag, endFlag = "--start-timezone", "--end-timezone"
+	}
 	if start {
-		if err := applyCalendarZoneForOffset(event.Start, calendarTimezone, calendarLoc, "--from", timezoneFlag); err != nil {
+		if err := applyCalendarZoneForOffset(event.Start, calendarTimezone, calendarLoc, "--from", startFlag); err != nil {
 			return err
 		}
 	}
 	if end {
-		if err := applyCalendarZoneForOffset(event.End, calendarTimezone, calendarLoc, "--to", timezoneFlag); err != nil {
+		if err := applyCalendarZoneForOffset(event.End, calendarTimezone, calendarLoc, "--to", endFlag); err != nil {
 			return err
 		}
 	}

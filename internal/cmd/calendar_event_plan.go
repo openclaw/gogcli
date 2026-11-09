@@ -444,7 +444,11 @@ func (p *calendarCreatePlan) dryRunRequest() map[string]any {
 	if p.PlaceLookup != nil {
 		request["place_lookup"] = p.PlaceLookup.dryRunPayload()
 	}
-	if lookup := recurringTimezoneLookupPlan(p.Event, p.StartTimezone, p.EndTimezone, "usage error asking for --timezone"); lookup != nil {
+	unmatched := "usage error asking for --timezone"
+	if strings.TrimSpace(p.StartTimezone) != "" || strings.TrimSpace(p.EndTimezone) != "" {
+		unmatched = "usage error asking for --start-timezone or --end-timezone"
+	}
+	if lookup := recurringTimezoneLookupPlan(p.Event, p.StartTimezone, p.EndTimezone, unmatched); lookup != nil {
 		request["recurring_timezone_lookup"] = lookup
 	}
 	return request

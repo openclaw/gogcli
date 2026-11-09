@@ -2,7 +2,7 @@
 
 ## 0.48.1 - Unreleased
 
-- Calendar: give recurring `calendar create` and `calendar focus-time` events the calendar's time zone when `--from`/`--to` carry only an offset that matches it, so a weekly `-08:00` series stays at its local time after daylight saving starts instead of following a fixed `Etc/GMT+8` zone, and a `+05:30` series is accepted instead of failing with "Missing time zone definition". Offsets that match no zone the calendar uses keep their previous handling; an unmatched half-hour offset in `calendar create` now asks for `--timezone` before the event is created. (#1310) — thanks @saariuslystoned.
+- Calendar: give recurring `calendar create` and `calendar focus-time` events the calendar's time zone when `--from`/`--to` carry only an offset that matches it, so a weekly `-08:00` series stays at its local time after daylight saving starts instead of following a fixed `Etc/GMT+8` zone, and a `+05:30` series is accepted instead of failing with "Missing time zone definition". Offsets that match no zone the calendar uses keep their previous handling; an unmatched half-hour offset in `calendar create` now asks for `--timezone` (or `--start-timezone`/`--end-timezone` when one endpoint already has its own zone) before the event is created. (#1310) — thanks @saariuslystoned.
 
 ## 0.48.0 - 2026-11-05
 
