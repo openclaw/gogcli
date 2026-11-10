@@ -2,6 +2,9 @@ package cmd
 
 import (
 	"encoding/base64"
+	"math/big"
+	"slices"
+	"strconv"
 	"strings"
 	"unicode"
 )
@@ -14,6 +17,9 @@ func normalizeGmailThreadID(input string) string {
 
 	u := parseMaybeURL(s)
 	if u == nil {
+		if id, ok := decodeGmailViewToken(s, gmailThreadTokenPrefixes); ok {
+			return id
+		}
 		return s
 	}
 
@@ -45,6 +51,9 @@ func normalizeGmailThreadID(input string) string {
 	if looksLikeHexID(last) {
 		return last
 	}
+	if id, ok := decodeGmailViewToken(last, gmailThreadTokenPrefixes); ok {
+		return id
+	}
 	return s
 }
 
@@ -56,6 +65,9 @@ func normalizeGmailMessageID(input string) string {
 
 	u := parseMaybeURL(s)
 	if u == nil {
+		if id, ok := decodeGmailViewToken(s, gmailMessageTokenPrefixes); ok {
+			return id
+		}
 		return s
 	}
 
@@ -83,7 +95,71 @@ func normalizeGmailMessageID(input string) string {
 		}
 	}
 
+	frag := strings.SplitN(strings.TrimSpace(u.Fragment), "?", 2)[0]
+	if parts := strings.Split(strings.Trim(frag, "/"), "/"); len(parts) > 0 {
+		if id, ok := decodeGmailViewToken(parts[len(parts)-1], gmailMessageTokenPrefixes); ok {
+			return id
+		}
+	}
+
 	return s
+}
+
+const (
+	gmailViewTokenAlphabet = "BCDFGHJKLMNPQRSTVWXZbcdfghjklmnpqrstvwxz"
+	base64StdAlphabet      = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+)
+
+var (
+	gmailThreadTokenPrefixes  = []string{"f:", "thread-f:"}
+	gmailMessageTokenPrefixes = []string{"msg-f:"}
+)
+
+// decodeGmailViewToken resolves the opaque token of current Gmail web URLs
+// (e.g. #inbox/FMfcgz...) to a hex API ID. The token is a base64 string
+// re-encoded in a consonant-only base-40 alphabet; its payload is
+// "<prefix><decimal id>".
+func decodeGmailViewToken(token string, prefixes []string) (string, bool) {
+	token = strings.TrimSpace(token)
+	if len(token) < 16 || looksLikeHexID(token) {
+		return "", false
+	}
+
+	n := new(big.Int)
+	base := big.NewInt(int64(len(gmailViewTokenAlphabet)))
+	for _, r := range token {
+		i := strings.IndexRune(gmailViewTokenAlphabet, r)
+		if i < 0 {
+			return "", false
+		}
+		n.Mul(n, base).Add(n, big.NewInt(int64(i)))
+	}
+
+	var b64 []byte
+	sixtyFour := big.NewInt(64)
+	rem := new(big.Int)
+	for n.Sign() > 0 {
+		n.DivMod(n, sixtyFour, rem)
+		b64 = append(b64, base64StdAlphabet[rem.Int64()])
+	}
+	slices.Reverse(b64)
+	payload, err := base64.RawStdEncoding.DecodeString(string(b64))
+	if err != nil {
+		return "", false
+	}
+
+	for _, prefix := range prefixes {
+		dec, ok := strings.CutPrefix(string(payload), prefix)
+		if !ok {
+			continue
+		}
+		id, err := strconv.ParseUint(dec, 10, 64)
+		if err != nil {
+			return "", false
+		}
+		return strconv.FormatUint(id, 16), true
+	}
+	return "", false
 }
 
 func normalizeCalendarEventID(input string) string {

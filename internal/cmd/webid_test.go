@@ -17,6 +17,12 @@ func TestNormalizeGmailThreadID(t *testing.T) {
 		{in: "https://mail.google.com/mail/u/0/#inbox/" + threadID, want: threadID},
 		{in: "mail.google.com/mail/u/0/#all/" + threadID, want: threadID},
 		{in: "https://mail.google.com/mail/u/0/?ui=2&th=" + threadID + "&view=pt", want: threadID},
+		{in: "FMfcgzGwHpVzSvQjBWlWNGBCZqCPPPMN", want: threadID},
+		{in: "https://mail.google.com/mail/u/0/#inbox/FMfcgzGwHpVzSvQjBWlWNGBCZqCPPPMN", want: threadID},
+		{in: "https://mail.google.com/mail/u/0/#label/Work/FMfcgzGwHpVzSvQjBWlWNGBCZqCPPPMN?compose=new", want: threadID},
+		{in: "https://mail.google.com/mail/u/0/#inbox/NHgvNZFVxQXXXjLLhpJGtLNblRdNVlnCmwXMpqZCGBq", want: threadID},
+		{in: "https://mail.google.com/mail/u/0/#inbox/CXKnWZngLGgsFlmgWhRHbMZsQZlckVHtjxwfbCL", want: "https://mail.google.com/mail/u/0/#inbox/CXKnWZngLGgsFlmgWhRHbMZsQZlckVHtjxwfbCL"},
+		{in: "BCDFGHJKLMNPQRSTVWXZbcdf", want: "BCDFGHJKLMNPQRSTVWXZbcdf"},
 		{in: "https://example.com/not-gmail/" + threadID, want: "https://example.com/not-gmail/" + threadID},
 	}
 
@@ -38,6 +44,9 @@ func TestNormalizeGmailMessageID(t *testing.T) {
 		{in: msgID, want: msgID},
 		{in: "https://mail.google.com/mail/u/0/?ui=2&message_id=" + msgID + "&view=pt", want: msgID},
 		{in: "https://mail.google.com/mail/u/0/?ui=2&permmsgid=msg-f:" + msgID + "&view=pt", want: msgID},
+		{in: "CXKnWZngLGgsFlmgWhRHbMZsQZlckVHtjxwfbCL", want: msgID},
+		{in: "https://mail.google.com/mail/u/0/#inbox/CXKnWZngLGgsFlmgWhRHbMZsQZlckVHtjxwfbCL", want: msgID},
+		{in: "FMfcgzGwHpVzSvQjBWlWNGBCZqCPPPMP", want: "FMfcgzGwHpVzSvQjBWlWNGBCZqCPPPMP"},
 	}
 
 	for _, tt := range tests {
