@@ -2,7 +2,7 @@
 
 ## 0.48.1 - Unreleased
 
-- Gmail: accept the opaque view tokens of current Gmail web URLs (`#inbox/FMfcgz…`, `msg-f` tokens) wherever thread or message IDs are taken, decoding them offline to the hex API ID.
+- Gmail: accept the opaque view tokens of current Gmail web URLs (`#inbox/FMfcgz…`, `msg-f` tokens) wherever thread or message IDs are taken, decoding them offline to the hex API ID. (#1327)
 
 ## 0.48.0 - 2026-11-05
 
