@@ -2,6 +2,8 @@
 
 ## 0.48.1 - Unreleased
 
+- Gmail: accept the opaque view tokens of current Gmail web URLs (`#inbox/FMfcgz…`, `msg-f` tokens) wherever thread or message IDs are taken, decoding them offline to the hex API ID. (#1327)
+
 ## 0.48.0 - 2026-11-05
 
 **Highlights:** New backups stay local until you configure a remote; existing configurations keep working. Store service-account keys in the keyring, search Gmail IDs efficiently, and use environment-backed watch tokens, with Calendar fixes and security dependency updates.
