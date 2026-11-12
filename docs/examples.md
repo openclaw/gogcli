@@ -98,7 +98,7 @@ gog drive tree --parent <folderId> --depth 2
 gog drive du --parent <folderId> --max 20 --json
 gog drive inventory --parent <folderId> --json
 gog drive audit sharing --parent <folderId> --internal-domain example.com --json
-gog drive audit user clawdbot@gmail.com --parent <folderId> --json
+gog drive audit user user@example.com --parent <folderId> --json
 gog drive bulk remove-public --parent <folderId> --dry-run
 gog drive share <fileId> --to user --email person@example.com --notify --dry-run
 gog drive labels list --json

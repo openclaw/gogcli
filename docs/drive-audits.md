@@ -94,7 +94,7 @@ gog drive audit sharing --parent <folderId> --public-only --fail-found
 Find files shared with a specific user:
 
 ```bash
-gog drive audit user clawdbot@gmail.com --parent <folderId> --json
+gog drive audit user user@example.com --parent <folderId> --json
 ```
 
 Bulk permission operations are intentionally separate from audits and require a

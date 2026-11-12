@@ -6,11 +6,11 @@ description: "Run broad Google API smoke tests against a dedicated account, incl
 # Live Testing
 
 The repository's live suite exercises real Google APIs and cleans up disposable
-resources. Use a dedicated test account:
+resources. Replace `bot@example.com` with your authenticated dedicated test account:
 
 ```bash
 make build
-scripts/live-test.sh --account clawdbot@gmail.com
+scripts/live-test.sh --account bot@example.com
 ```
 
 The account name must look like a test, bot, sandbox, QA, staging, or development
