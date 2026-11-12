@@ -15,8 +15,11 @@ Use it on a schedule with `launchd`, cron, or another runner when Gmail's native
 
 Reply once to mail sent to `security@openclaw.ai`, add a dedupe label, then archive:
 
+Replace `bot@example.com` with the authenticated Google account that receives
+mail sent to `security@openclaw.ai`.
+
 ```bash
-gog -a clawdbot@gmail.com gmail autoreply \
+gog -a bot@example.com gmail autoreply \
   'to:security@openclaw.ai in:inbox -label:SecurityAutoReplied' \
   --body-file ./security-autoreply.txt \
   --label SecurityAutoReplied \
