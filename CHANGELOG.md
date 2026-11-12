@@ -2,7 +2,7 @@
 
 ## 0.48.1 - Unreleased
 
-- Docs: use placeholder accounts in Gmail auto-reply, Drive audit, and live-testing examples.
+- Docs: use placeholder accounts in Gmail auto-reply, Drive audit, and live-testing examples. (#1332) — thanks @vyctorbrzezowski.
 
 ## 0.48.0 - 2026-11-05
 
