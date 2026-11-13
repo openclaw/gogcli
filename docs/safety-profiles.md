@@ -94,7 +94,10 @@ FNV-64a hash of each dotted command path, not as raw YAML. The compiled rule
 table never contains the rule strings themselves, so to re-enable a blocked
 command an attacker has to patch compiled machine code rather than flip ASCII
 bytes in a YAML blob; the cost goes from a one-line `sed` invocation to
-disassembly-level work.
+disassembly-level work. Denied values are compiled the same way: each refused
+value is hashed together with its command path and flag, and the runtime hashes
+the value it was given before comparing, so no denied value is stored as a
+string either.
 
 Note that command names may still appear in the binary from unrelated metadata
 (API URLs, error message format strings, Kong help text). What this hardening

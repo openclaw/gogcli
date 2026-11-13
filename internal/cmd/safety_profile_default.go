@@ -2,7 +2,10 @@
 
 package cmd
 
-import "strings"
+import (
+	"slices"
+	"strings"
+)
 
 // bakedSafetyTestProfile is the test-only override that backs the
 // bakedSafety* package-level functions in non-safety builds. Production
@@ -54,8 +57,17 @@ func bakedSafetyLockedFlagCount() int {
 	return len(bakedSafetyTestProfile.lockedFlags)
 }
 
-func bakedSafetyDeniedValues(path []string, flag string) []string {
-	return bakedSafetyTestProfile.deniedValues[strings.Join(path, ".")][flag]
+func bakedSafetyDeniedValueRule(path []string, flag string) (bool, bool) {
+	values, ok := bakedSafetyTestProfile.deniedValues[strings.Join(path, ".")][flag]
+	return ok, len(values) == 1 && values[0] == "*"
+}
+
+func bakedSafetyDeniedValueMatch(path []string, flag, value string) bool {
+	exists, anyValue := bakedSafetyDeniedValueRule(path, flag)
+	if !exists || anyValue {
+		return false
+	}
+	return slices.Contains(bakedSafetyTestProfile.deniedValues[strings.Join(path, ".")][flag], value)
 }
 
 func bakedSafetyDeniedValueRuleCount() int {

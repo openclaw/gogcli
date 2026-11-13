@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"hash/fnv"
 	"reflect"
-	"slices"
 	"sort"
 	"strings"
 
@@ -25,6 +24,15 @@ type bakedSafetyProfile struct {
 func bakedSafetyHashPath(parts []string) uint64 {
 	h := fnv.New64a()
 	_, _ = h.Write([]byte(strings.Join(parts, ".")))
+	return h.Sum64()
+}
+
+// bakedSafetyDeniedValueHash returns the hash the generated denied-value switch is keyed
+// by, matching internal/safetyprofile.DeniedValueKey. TestSafetyProfileDeniedValueHashAgreement
+// asserts the two agree.
+func bakedSafetyDeniedValueHash(path []string, flag, value string) uint64 {
+	h := fnv.New64a()
+	_, _ = h.Write([]byte(strings.Join(path, ".") + "." + flag + "\x00" + value))
 	return h.Sum64()
 }
 
@@ -253,7 +261,7 @@ func verifyDeniedValueRulesExist(root *kong.Node) error {
 		if node.Type == kong.CommandNode {
 			path := commandNodePath(node)
 			for _, flag := range node.Flags {
-				if len(bakedSafetyDeniedValues(path, flag.Name)) == 0 {
+				if exists, _ := bakedSafetyDeniedValueRule(path, flag.Name); !exists {
 					continue
 				}
 				seen++
@@ -288,11 +296,10 @@ func enforceDeniedValues(kctx *kong.Context) error {
 		return nil
 	}
 	for _, flag := range kctx.Flags() {
-		denied := bakedSafetyDeniedValues(path, flag.Name)
-		if len(denied) == 0 {
+		exists, anyValue := bakedSafetyDeniedValueRule(path, flag.Name)
+		if !exists {
 			continue
 		}
-		anyValue := slices.Contains(denied, "*")
 		for _, raw := range flagStringValues(flag.Target) {
 			// "*" refuses any value as typed, with no comma splitting. An empty value
 			// counts when typed: a command may treat a supplied but empty flag as
@@ -303,7 +310,7 @@ func enforceDeniedValues(kctx *kong.Context) error {
 			// The whole value is checked as well as its comma-separated parts, so a
 			// denied value that itself contains a comma still matches.
 			for _, value := range append([]string{strings.TrimSpace(raw)}, splitCSV(raw)...) {
-				if slices.Contains(denied, strings.ToLower(value)) {
+				if bakedSafetyDeniedValueMatch(path, flag.Name, strings.ToLower(value)) {
 					return usagef("flag --%s value %q is denied for %q by baked safety profile %q", flag.Name, value, strings.Join(path, " "), bakedSafetyProfileName())
 				}
 			}
