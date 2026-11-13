@@ -4,6 +4,8 @@
 
 - Docs: use placeholder accounts in Gmail auto-reply, Drive audit, and live-testing examples. (#1332) — thanks @vyctorbrzezowski.
 
+- Safety profiles: add `denied-values` to refuse specific values of string and list flags on named commands, and use it in `agent-safe` to refuse the `TRASH` and `SPAM` labels on Gmail modify commands and `--send-updates all|externalOnly` on calendar create, update and move, auto-declining `calendar focus-time` (pass `--auto-decline none`), and focus-time or out-of-office events written through `calendar create` and `calendar update`; a `"*"` entry refuses any value of a flag; `agent-safe` also blocks `calendar propose-time` and Drive and Docs comments, which notify other people. (#1263) — thanks @bautrey.
+
 ## 0.48.0 - 2026-11-05
 
 **Highlights:** New backups stay local until you configure a remote; existing configurations keep working. Store service-account keys in the keyring, search Gmail IDs efficiently, and use environment-backed watch tokens, with Calendar fixes and security dependency updates.

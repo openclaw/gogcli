@@ -2,7 +2,10 @@
 
 package cmd
 
-import "strings"
+import (
+	"slices"
+	"strings"
+)
 
 // bakedSafetyTestProfile is the test-only override that backs the
 // bakedSafety* package-level functions in non-safety builds. Production
@@ -19,6 +22,8 @@ var bakedSafetyTestProfile struct {
 	allow         map[string]bool
 	deny          map[string]bool
 	lockedFlags   map[string]string
+	// deniedValues maps a dotted command path to a flag name to its refused values.
+	deniedValues map[string]map[string][]string
 }
 
 func bakedSafetyEnabled() bool       { return bakedSafetyTestProfile.enabled }
@@ -50,4 +55,25 @@ func bakedSafetyLockedFlag(name string) (string, bool) {
 
 func bakedSafetyLockedFlagCount() int {
 	return len(bakedSafetyTestProfile.lockedFlags)
+}
+
+func bakedSafetyDeniedValueRule(path []string, flag string) (bool, bool) {
+	values, ok := bakedSafetyTestProfile.deniedValues[strings.Join(path, ".")][flag]
+	return ok, len(values) == 1 && values[0] == "*"
+}
+
+func bakedSafetyDeniedValueMatch(path []string, flag, value string) bool {
+	exists, anyValue := bakedSafetyDeniedValueRule(path, flag)
+	if !exists || anyValue {
+		return false
+	}
+	return slices.Contains(bakedSafetyTestProfile.deniedValues[strings.Join(path, ".")][flag], value)
+}
+
+func bakedSafetyDeniedValueRuleCount() int {
+	count := 0
+	for _, flags := range bakedSafetyTestProfile.deniedValues {
+		count += len(flags)
+	}
+	return count
 }

@@ -17,6 +17,18 @@ type Profile struct {
 	// LockedFlags fix a flag to a value the command line cannot change. Sorted by
 	// name so the generated switch is stable across builds.
 	LockedFlags []LockedFlag
+	// DeniedValues refuse specific values of string flags on specific commands.
+	// Sorted by path then flag so the generated switch is stable across builds.
+	DeniedValues []DeniedValue
+}
+
+// DeniedValue is one flag of one command and the values it may not be given.
+// Path is the canonical dotted command path, Flag the canonical flag name, and
+// Values the lowercased, deduplicated, sorted values to refuse.
+type DeniedValue struct {
+	Path   string
+	Flag   string
+	Values []string
 }
 
 // LockedFlag is one locked boolean flag. Value is "true" or "false" in the form

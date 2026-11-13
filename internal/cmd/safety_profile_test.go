@@ -38,6 +38,14 @@ func withBakedSafetyProfile(t *testing.T, raw string) {
 		locked[f.Name] = f.Value
 	}
 	bakedSafetyTestProfile.lockedFlags = locked
+	denied := make(map[string]map[string][]string, len(profile.DeniedValues))
+	for _, rule := range profile.DeniedValues {
+		if denied[rule.Path] == nil {
+			denied[rule.Path] = map[string][]string{}
+		}
+		denied[rule.Path][rule.Flag] = rule.Values
+	}
+	bakedSafetyTestProfile.deniedValues = denied
 	t.Cleanup(func() { bakedSafetyTestProfile = prev })
 }
 
@@ -59,6 +67,32 @@ func TestSafetyProfileHashAgreement(t *testing.T) {
 		if runtime != codegen {
 			t.Fatalf("hash mismatch for %v / %q: runtime=%#x codegen=%#x", c.path, c.rule, runtime, codegen)
 		}
+	}
+}
+
+// The generated denied-value switch is keyed by DeniedValueKey hashes, and the runtime
+// looks values up with bakedSafetyDeniedValueHash, so the two must agree exactly.
+func TestSafetyProfileDeniedValueHashAgreement(t *testing.T) {
+	cases := []struct {
+		path        []string
+		flag, value string
+	}{
+		{[]string{"gmail", "thread", "modify"}, "add", "trash"},
+		{[]string{"calendar", "create"}, "send-updates", "all"},
+		{[]string{"drive", "upload"}, "name", "private,report.txt"},
+		{[]string{"drive", "upload"}, "name", "a.b"},
+	}
+	for _, c := range cases {
+		runtime := bakedSafetyDeniedValueHash(c.path, c.flag, c.value)
+		codegen := safetyprofile.HashRule(safetyprofile.DeniedValueKey(strings.Join(c.path, "."), c.flag, c.value))
+		if runtime != codegen {
+			t.Fatalf("hash mismatch for %v %s %q: runtime=%#x codegen=%#x", c.path, c.flag, c.value, runtime, codegen)
+		}
+	}
+	// The value is set apart from the flag, so a rule for one flag cannot collide
+	// with a rule for a dotted flag-and-value spelling of another.
+	if bakedSafetyDeniedValueHash([]string{"a"}, "b", "c.d") == bakedSafetyDeniedValueHash([]string{"a", "b"}, "c", "d") {
+		t.Fatalf("denied value keys for distinct rules must differ")
 	}
 }
 
