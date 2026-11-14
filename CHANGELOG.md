@@ -2,6 +2,9 @@
 
 ## 0.48.1 - Unreleased
 
+- Security: build with Go 1.27.4 and test the minimum series on Go 1.26.11 to address GO-2026-6859, preserving the Go 1.26.0 source minimum.
+- Dependencies: refresh Google clients, networking libraries, and tracking-worker tools while retaining the 24-hour worker cooldown and security overrides.
+
 - Calendar: reject empty or inverted RFC3339 free/busy windows, resolve calendar names containing `@` consistently, and reject malformed nonblank attendee clears. (#1328, #1329, #1330) — thanks @privatenumber and @pkyIntelligence.
 - Calendar: read search and team event pages up to `--max`, truncate the parent series for future-instance updates, and warn about unavailable free/busy calendars with stable row ordering. (#1311, #1317, #1322) — thanks @saariuslystoned.
 - Gmail: exclude all send-as aliases from reply-all and default auto-replies; stop default auto-replies when alias discovery fails, and preserve Cc-only reply-all recipients. (#1318, #1325) — thanks @saariuslystoned.

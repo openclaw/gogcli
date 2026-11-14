@@ -13,14 +13,14 @@
     "test": "vitest run"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^5.20261104.1",
+    "@cloudflare/workers-types": "^5.20261113.1",
     "@typescript/native": "npm:typescript@^7.0.2",
-    "oxfmt": "^0.76.0",
-    "oxlint": "^1.91.0",
-    "oxlint-tsgolint": "^7.0.2005",
+    "oxfmt": "^0.78.0",
+    "oxlint": "^1.93.0",
+    "oxlint-tsgolint": "^7.0.2007",
     "typescript": "npm:@typescript/typescript6@^6.0.2",
     "vitest": "^5.1.0",
-    "wrangler": "^4.157.0"
+    "wrangler": "^4.161.0"
   },
   "packageManager": "pnpm@11.28.5"
 }
