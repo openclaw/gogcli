@@ -67,11 +67,53 @@ func (c *CalendarFreeBusyCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return nil
 	}
 
-	return outfmt.WriteTable(ctx, stdoutWriter(ctx), calendarFreeBusyRows(resp.Calendars), calendarFreeBusyColumns())
+	// A calendar Google could not read comes back with errors and no busy
+	// periods, which a table of busy rows would show as free.
+	for _, calendarID := range calendarFreeBusyOrder(resp.Calendars, calendarIDs) {
+		if reasons := calendarFreeBusyErrorReasons(resp.Calendars[calendarID]); len(reasons) > 0 {
+			u.Err().Linef("Warning: no free/busy data for %s (%s); its busy times are unknown, not free. %s", calendarID, strings.Join(reasons, ", "), calendarFreeBusyErrorHint(reasons))
+		}
+	}
+
+	return outfmt.WriteTable(ctx, stdoutWriter(ctx), calendarFreeBusyRows(resp.Calendars, calendarIDs), calendarFreeBusyColumns())
+}
+
+// calendarFreeBusyErrorHint suggests a next step for the reasons Google
+// documents for freeBusy calendar errors.
+func calendarFreeBusyErrorHint(reasons []string) string {
+	for _, reason := range reasons {
+		switch reason {
+		case "notFound":
+			return "Check the calendar ID and that the calendar is shared with this account."
+		case "tooManyCalendarsRequested", "groupTooBig":
+			return "Query fewer calendars at a time."
+		}
+	}
+	return "Retry before relying on its availability."
+}
+
+func calendarFreeBusyErrorReasons(data calendar.FreeBusyCalendar) []string {
+	reasons := make([]string, 0, len(data.Errors))
+	for _, e := range data.Errors {
+		if e == nil {
+			continue
+		}
+		reason := strings.TrimSpace(e.Reason)
+		if reason == "" {
+			reason = "error"
+		}
+		reasons = append(reasons, reason)
+	}
+	return reasons
 }
 
 func (c *CalendarFreeBusyCmd) resolveFreeBusyRange(ctx context.Context, svc *calendar.Service) (string, string, error) {
 	if isRFC3339Instant(c.From) && isRFC3339Instant(c.To) {
+		from, _ := time.Parse(time.RFC3339Nano, strings.TrimSpace(c.From))
+		to, _ := time.Parse(time.RFC3339Nano, strings.TrimSpace(c.To))
+		if !from.Before(to) {
+			return "", "", usagef("--from (%s) must be before --to (%s)", c.From, c.To)
+		}
 		return c.From, c.To, nil
 	}
 

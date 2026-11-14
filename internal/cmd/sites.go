@@ -129,6 +129,7 @@ func (c *SitesGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 
 	if outfmt.IsJSON(ctx) {
+		forceRequestedDriveFileBools(f, mask)
 		return outfmt.WriteJSON(ctx, stdoutWriter(ctx), map[string]any{"site": f})
 	}
 

@@ -1,6 +1,6 @@
 ---
 name: gog-analytics
-description: "Google Analytics operations through gog."
+description: "Google Analytics through gog. Use for Google Analytics account summaries and GA4 reports."
 ---
 
 # Google Analytics

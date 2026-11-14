@@ -1,6 +1,6 @@
 ---
 name: gog-searchconsole
-description: "Google Search Console operations through gog."
+description: "Google Search Console through gog. Use for Search Console sites, search analytics, sitemaps, and URL inspection."
 ---
 
 # Google Search Console

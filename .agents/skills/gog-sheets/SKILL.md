@@ -1,6 +1,6 @@
 ---
 name: gog-sheets
-description: "Google Sheets operations through gog."
+description: "Google Sheets through gog. Use for spreadsheet cells, formulas, formatting, notes, validation, and sheet structure."
 ---
 
 # Google Sheets

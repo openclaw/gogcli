@@ -1,6 +1,6 @@
 ---
 name: gog-classroom
-description: "Google Classroom operations through gog."
+description: "Google Classroom through gog. Use for Classroom courses, rosters, coursework, submissions, and announcements."
 ---
 
 # Google Classroom

@@ -1,6 +1,6 @@
 ---
 name: gog-adsense
-description: "Google AdSense operations through gog."
+description: "Google AdSense through gog. Use for AdSense accounts, sites, payments, and earnings reports."
 ---
 
 # Google AdSense

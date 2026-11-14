@@ -119,6 +119,14 @@ type driveCommentListOptions struct {
 }
 
 func listDriveComments(ctx context.Context, svc *drive.Service, fileID string, opts driveCommentListOptions) ([]*drive.Comment, string, error) {
+	comments, nextPageToken, err := listDriveCommentPages(ctx, svc, fileID, opts)
+	if err != nil {
+		return nil, "", err
+	}
+	return nonNilSlice(comments), nextPageToken, nil
+}
+
+func listDriveCommentPages(ctx context.Context, svc *drive.Service, fileID string, opts driveCommentListOptions) ([]*drive.Comment, string, error) {
 	fetch := func(pageToken string) ([]*drive.Comment, string, error) {
 		return fetchDriveCommentsPage(ctx, svc, fileID, opts.max, pageToken, opts.since, driveCommentFieldsForList(opts))
 	}

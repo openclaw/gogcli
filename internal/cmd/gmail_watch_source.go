@@ -35,17 +35,35 @@ func newGmailWatchSource(service *gmail.Service, cfg gmailWatchServeConfig, excl
 	}
 }
 
+// ListHistory reads every page of history after startID. The returned
+// historyId is the mailbox's current one, which is only a safe cursor once no
+// nextPageToken remains; storing it after the first page would skip the rest.
 func (s *gmailWatchSource) ListHistory(ctx context.Context, startID uint64, maxResults int64, historyTypes []string) (gmailwatch.HistoryPage, error) {
-	call := s.service.Users.History.List("me").StartHistoryId(startID).MaxResults(maxResults)
-	if len(historyTypes) > 0 {
-		call.HistoryTypes(historyTypes...)
-	}
-	response, err := call.Context(ctx).Do()
+	historyID := ""
+	records, err := collectAllPages("", func(pageToken string) ([]gmailwatch.HistoryRecord, string, error) {
+		call := s.service.Users.History.List("me").StartHistoryId(startID).MaxResults(maxResults)
+		if len(historyTypes) > 0 {
+			call.HistoryTypes(historyTypes...)
+		}
+		if pageToken != "" {
+			call.PageToken(pageToken)
+		}
+		response, callErr := call.Context(ctx).Do()
+		if callErr != nil {
+			return nil, "", callErr
+		}
+		page := historyPageFromGmail(response)
+		historyID = page.HistoryID
+		if response == nil {
+			return page.Records, "", nil
+		}
+		return page.Records, response.NextPageToken, nil
+	})
 	if err != nil {
 		return gmailwatch.HistoryPage{}, err
 	}
 
-	return historyPageFromGmail(response), nil
+	return gmailwatch.HistoryPage{HistoryID: historyID, Records: records}, nil
 }
 
 func (s *gmailWatchSource) ListRecentMessageIDs(ctx context.Context, maxResults int64) ([]string, error) {

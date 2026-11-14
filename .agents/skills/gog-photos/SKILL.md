@@ -1,6 +1,6 @@
 ---
 name: gog-photos
-description: "Google Photos operations through gog."
+description: "Google Photos through gog. Use for Google Photos media and albums available to the app, including uploads and the picker."
 ---
 
 # Google Photos

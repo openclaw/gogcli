@@ -1,6 +1,6 @@
 ---
 name: gog-sites
-description: "Google Sites operations through gog."
+description: "Google Sites through gog. Use for finding Google Sites in Drive, reading site metadata, and printing editor URLs; use gog-drive for file sharing."
 ---
 
 # Google Sites

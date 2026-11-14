@@ -1,6 +1,6 @@
 ---
 name: gog-maps
-description: "Google Maps operations through gog."
+description: "Google Maps through gog. Use for Maps place search, place details, directions, and geocoding."
 ---
 
 # Google Maps

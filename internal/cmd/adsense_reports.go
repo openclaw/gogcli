@@ -92,7 +92,7 @@ func (c *AdSenseReportsQueryCmd) Run(ctx context.Context, flags *RootFlags) erro
 		return err
 	}
 
-	return writeAdSenseReportResult(ctx, u, plan.Account, plan.Dimensions, plan.Metrics, resp, c.FailEmpty)
+	return writeAdSenseReportResult(ctx, u, plan.Account, plan.Dimensions, plan.Metrics, resp, c.FailEmpty, "raise --max (up to 100000) or narrow the report")
 }
 
 func applyAdSenseReportDateRange(call *adsenseapi.AccountsReportsGenerateCall, plan adSenseReportPlan) *adsenseapi.AccountsReportsGenerateCall {
@@ -112,6 +112,7 @@ func writeAdSenseReportResult(
 	metrics []string,
 	resp *adsenseapi.ReportResult,
 	failEmpty bool,
+	moreRowsHint string,
 ) error {
 	if outfmt.IsJSON(ctx) {
 		if err := outfmt.WriteJSON(ctx, stdoutWriter(ctx), map[string]any{
@@ -131,6 +132,17 @@ func writeAdSenseReportResult(
 			return failEmptyExit(failEmpty)
 		}
 		return nil
+	}
+
+	// JSON carries these fields; keep them visible here too, on stderr so
+	// stdout stays parseable.
+	for _, warning := range resp.Warnings {
+		if warning = strings.TrimSpace(warning); warning != "" {
+			u.Err().Linef("# Warning: %s", warning)
+		}
+	}
+	if resp.TotalMatchedRows > int64(len(resp.Rows)) {
+		u.Err().Linef("# Showing %d of %d matched rows; %s to see more", len(resp.Rows), resp.TotalMatchedRows, moreRowsHint)
 	}
 
 	if len(resp.Rows) == 0 {
@@ -307,5 +319,5 @@ func (c *AdSenseReportsSavedQueryCmd) Run(ctx context.Context, flags *RootFlags)
 		return err
 	}
 
-	return writeAdSenseReportResult(ctx, u, name, nil, nil, resp, c.FailEmpty)
+	return writeAdSenseReportResult(ctx, u, name, nil, nil, resp, c.FailEmpty, "narrow the saved report, for example its date range")
 }

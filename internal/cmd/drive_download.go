@@ -92,11 +92,17 @@ func (c *DriveDownloadCmd) Run(ctx context.Context, flags *RootFlags) error {
 
 	meta, err := svc.Files.Get(fileID).
 		SupportsAllDrives(true).
-		Fields("id, name, mimeType").
+		Fields("id, name, mimeType, shortcutDetails(targetId)").
 		Context(ctx).
 		Do()
 	if err != nil {
 		return err
+	}
+	if meta.MimeType == driveMimeShortcut {
+		meta, err = driveShortcutTarget(ctx, svc, meta)
+		if err != nil {
+			return err
+		}
 	}
 	if meta.Name == "" {
 		return errors.New("file has no name")
@@ -128,6 +134,25 @@ func (c *DriveDownloadCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u.Out().Linef("path\t%s", downloadedPath)
 	u.Out().Linef("size\t%s", formatDriveSize(size))
 	return nil
+}
+
+// driveShortcutTarget returns the metadata of the file a shortcut points to.
+// A shortcut has no content of its own, and Drive exports only Docs Editors
+// files, so downloading the shortcut itself cannot succeed.
+func driveShortcutTarget(ctx context.Context, svc *drive.Service, shortcut *drive.File) (*drive.File, error) {
+	if shortcut.ShortcutDetails == nil || strings.TrimSpace(shortcut.ShortcutDetails.TargetId) == "" {
+		return nil, fmt.Errorf("shortcut %s has no target", shortcut.Id)
+	}
+	targetID := strings.TrimSpace(shortcut.ShortcutDetails.TargetId)
+	target, err := svc.Files.Get(targetID).
+		SupportsAllDrives(true).
+		Fields("id, name, mimeType").
+		Context(ctx).
+		Do()
+	if err != nil {
+		return nil, fmt.Errorf("shortcut %s points to %s, which could not be read: %w", shortcut.Id, targetID, err)
+	}
+	return target, nil
 }
 
 func downloadDriveFile(ctx context.Context, svc *drive.Service, meta *drive.File, destPath string, format string, overwrite bool) (string, int64, error) {

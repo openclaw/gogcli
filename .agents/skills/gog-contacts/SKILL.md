@@ -1,6 +1,6 @@
 ---
 name: gog-contacts
-description: "Google Contacts operations through gog."
+description: "Google Contacts through gog. Use for personal contacts, contact groups, and other contacts, with directory lookup also available; use gog-people for the caller profile or Workspace directory profiles."
 ---
 
 # Google Contacts

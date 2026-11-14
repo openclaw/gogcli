@@ -63,7 +63,8 @@ func TestApplyUpdateScopeFuture_UsesParentRecurrence(t *testing.T) {
 	}
 
 	patch := &calendar.Event{Summary: "updated"}
-	targetID, parentRecurrence, err := applyUpdateScope(context.Background(), svc, "cal", "ev", scopeFuture, originalStart, patch)
+	scoped, err := applyUpdateScope(context.Background(), svc, "cal", "ev", scopeFuture, originalStart, patch)
+	targetID, parentRecurrence := scoped.TargetEventID, scoped.ParentRecurrence
 	if err != nil {
 		t.Fatalf("applyUpdateScope: %v", err)
 	}
@@ -109,7 +110,7 @@ func TestApplyUpdateScopeFuture_NonRecurring(t *testing.T) {
 	}
 
 	patch := &calendar.Event{Summary: "updated"}
-	if _, _, err := applyUpdateScope(context.Background(), svc, "cal", "ev", scopeFuture, "2025-01-02T10:00:00Z", patch); err == nil {
+	if _, err := applyUpdateScope(context.Background(), svc, "cal", "ev", scopeFuture, "2025-01-02T10:00:00Z", patch); err == nil {
 		t.Fatalf("expected error for non-recurring event")
 	}
 }
@@ -160,7 +161,11 @@ func TestApplyUpdateScopeFuture_RecurringInstanceID(t *testing.T) {
 	}
 
 	patch := &calendar.Event{Summary: "updated"}
-	targetID, parentRecurrence, err := applyUpdateScope(context.Background(), svc, "cal", "ev_instance", scopeFuture, originalStart, patch)
+	scoped, err := applyUpdateScope(context.Background(), svc, "cal", "ev_instance", scopeFuture, originalStart, patch)
+	targetID, parentRecurrence := scoped.TargetEventID, scoped.ParentRecurrence
+	if scoped.ParentEventID != "ev_master" {
+		t.Fatalf("ParentEventID = %q, want ev_master", scoped.ParentEventID)
+	}
 	if err != nil {
 		t.Fatalf("applyUpdateScope: %v", err)
 	}

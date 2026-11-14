@@ -1,6 +1,6 @@
 ---
 name: gog-keep
-description: "Google Keep operations through gog."
+description: "Google Keep through gog. Use for Google Keep notes and attachments."
 ---
 
 # Google Keep
