@@ -164,15 +164,13 @@ func (c *CalendarTeamCmd) runEvents(ctx context.Context, svc *calendar.Service, 
 			sem <- struct{}{}
 			defer func() { <-sem }()
 
-			call := svc.Events.List(email).
-				SingleEvents(true).
-				TimeMin(from).
-				TimeMax(to).
-				MaxResults(c.Max).
-				OrderBy("startTime").
-				Context(ctx)
-
-			resp, err := call.Do()
+			items, _, err := listCalendarEventsUpTo(ctx, func() *calendar.EventsListCall {
+				return svc.Events.List(email).
+					SingleEvents(true).
+					TimeMin(from).
+					TimeMax(to).
+					OrderBy("startTime")
+			}, c.Max)
 			if err != nil {
 				mu.Lock()
 				errors = append(errors, fmt.Sprintf("%s: %v", email, errfmt.FormatDiagnostic(err)))
@@ -180,7 +178,7 @@ func (c *CalendarTeamCmd) runEvents(ctx context.Context, svc *calendar.Service, 
 				return
 			}
 
-			for _, ev := range resp.Items {
+			for _, ev := range items {
 				if ev == nil {
 					continue
 				}

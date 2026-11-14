@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"errors"
+	"net/mail"
 	"strings"
 
 	"google.golang.org/api/calendar/v3"
@@ -114,7 +115,8 @@ func resolveSelectedCalendarIDs(ctx context.Context, store *config.ConfigStore, 
 		if input == "" {
 			continue
 		}
-		if strings.EqualFold(input, primaryCalendarID) || strings.Contains(input, "@") {
+		address, parseErr := mail.ParseAddress(input)
+		if strings.EqualFold(input, primaryCalendarID) || (parseErr == nil && address.Address == input) {
 			continue
 		}
 		if isDigits(input) {

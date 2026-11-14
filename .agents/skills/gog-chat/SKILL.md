@@ -1,6 +1,6 @@
 ---
 name: gog-chat
-description: "Google Chat operations through gog."
+description: "Google Chat through gog. Use for Google Chat spaces, messages, threads, and members."
 ---
 
 # Google Chat

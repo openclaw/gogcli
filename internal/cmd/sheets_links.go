@@ -50,7 +50,7 @@ func (c *SheetsLinksGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
-	var links []sheetsCellLink
+	links := []sheetsCellLink{}
 
 	for _, sheet := range resp.Sheets {
 		if sheet == nil {

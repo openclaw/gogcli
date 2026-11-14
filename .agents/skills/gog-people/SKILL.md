@@ -1,6 +1,6 @@
 ---
 name: gog-people
-description: "Google People operations through gog."
+description: "Google People through gog. Use for the caller profile, a person profile, or Workspace directory search; use gog-contacts to manage personal contacts and contact groups."
 ---
 
 # Google People

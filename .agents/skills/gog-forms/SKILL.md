@@ -1,6 +1,6 @@
 ---
 name: gog-forms
-description: "Google Forms operations through gog."
+description: "Google Forms through gog. Use for Google Forms structure, questions, responses, and watches."
 ---
 
 # Google Forms

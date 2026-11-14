@@ -1,6 +1,6 @@
 ---
 name: gog-groups
-description: "Google Groups operations through gog."
+description: "Google Groups through gog. Use for listing Cloud Identity groups and members; use gog-admin to manage Workspace Admin Directory groups."
 ---
 
 # Google Groups

@@ -53,12 +53,20 @@ func newTasksUpdatePlan(input tasksUpdateInput, fields tasksUpdateFields) (tasks
 	}
 
 	changed := false
+	// Title and Notes are omitempty in the API struct; force an explicit empty
+	// value into the PATCH so "set empty to clear" clears instead of sending {}.
 	if fields.Title {
 		plan.Patch.Title = strings.TrimSpace(input.Title)
+		if plan.Patch.Title == "" {
+			plan.Patch.ForceSendFields = append(plan.Patch.ForceSendFields, "Title")
+		}
 		changed = true
 	}
 	if fields.Notes {
 		plan.Patch.Notes = strings.TrimSpace(input.Notes)
+		if plan.Patch.Notes == "" {
+			plan.Patch.ForceSendFields = append(plan.Patch.ForceSendFields, "Notes")
+		}
 		changed = true
 	}
 	if fields.Due {
@@ -81,7 +89,8 @@ func newTasksUpdatePlan(input tasksUpdateInput, fields tasksUpdateFields) (tasks
 	if !changed {
 		return tasksUpdatePlan{}, usage("no fields to update (set at least one of: --title, --notes, --due, --status)")
 	}
-	if fields.Status && plan.Patch.Status != "" && plan.Patch.Status != taskStatusNeedsAction && plan.Patch.Status != taskStatusCompleted {
+	// A task is always needsAction or completed; there is no empty status to set.
+	if fields.Status && plan.Patch.Status != taskStatusNeedsAction && plan.Patch.Status != taskStatusCompleted {
 		return tasksUpdatePlan{}, usage("invalid --status (expected needsAction or completed)")
 	}
 	return plan, nil

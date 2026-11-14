@@ -1,6 +1,6 @@
 ---
 name: gog-admin
-description: "Workspace Admin operations through gog."
+description: "Workspace Admin through gog. Use for Workspace Admin Directory users, groups, and organizational units; use gog-groups for Cloud Identity group membership lookup."
 ---
 
 # Workspace Admin

@@ -87,10 +87,10 @@ func calendarFreeBusyColumns() []outfmt.Column[calendarFreeBusyRow] {
 	}
 }
 
-func calendarFreeBusyRows(calendars map[string]calendar.FreeBusyCalendar) []calendarFreeBusyRow {
+func calendarFreeBusyRows(calendars map[string]calendar.FreeBusyCalendar, requested []string) []calendarFreeBusyRow {
 	rows := make([]calendarFreeBusyRow, 0)
-	for calendarID, data := range calendars {
-		for _, busy := range data.Busy {
+	for _, calendarID := range calendarFreeBusyOrder(calendars, requested) {
+		for _, busy := range calendars[calendarID].Busy {
 			if busy != nil {
 				rows = append(rows, calendarFreeBusyRow{
 					CalendarID: calendarID,
@@ -101,6 +101,27 @@ func calendarFreeBusyRows(calendars map[string]calendar.FreeBusyCalendar) []cale
 		}
 	}
 	return rows
+}
+
+// calendarFreeBusyOrder lists the response's calendars in the order they were
+// requested, then any others sorted by ID, so output does not follow map order.
+func calendarFreeBusyOrder(calendars map[string]calendar.FreeBusyCalendar, requested []string) []string {
+	order := make([]string, 0, len(calendars))
+	seen := make(map[string]bool, len(calendars))
+	for _, calendarID := range requested {
+		if _, ok := calendars[calendarID]; ok && !seen[calendarID] {
+			seen[calendarID] = true
+			order = append(order, calendarID)
+		}
+	}
+	rest := make([]string, 0, len(calendars)-len(order))
+	for calendarID := range calendars {
+		if !seen[calendarID] {
+			rest = append(rest, calendarID)
+		}
+	}
+	sort.Strings(rest)
+	return append(order, rest...)
 }
 
 func calendarUserColumns() []outfmt.Column[calendarUserRow] {

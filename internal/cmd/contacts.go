@@ -28,7 +28,7 @@ type ContactsCmd struct {
 
 type ContactsSearchCmd struct {
 	Query []string `arg:"" name:"query" help:"Search query"`
-	Max   int64    `name:"max" aliases:"limit" help:"Max results" default:"50"`
+	Max   int64    `name:"max" aliases:"limit" help:"Max results (Google returns at most 30)" default:"30"`
 }
 
 func (c *ContactsSearchCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -50,7 +50,7 @@ func (c *ContactsSearchCmd) Run(ctx context.Context, flags *RootFlags) error {
 	warmSearchContactsCache(ctx, svc)
 	resp, err := svc.People.SearchContacts().
 		Query(query).
-		PageSize(c.Max).
+		PageSize(peopleSearchPageSize(u, c.Max)).
 		ReadMask(contactsReadMask).
 		Do()
 	if err != nil {
@@ -266,4 +266,19 @@ func userDefinedFields(p *people.Person) map[string]string {
 		}
 	}
 	return fields
+}
+
+// peopleSearchMaxPageSize is the most results people.searchContacts and
+// otherContacts.search return: larger pageSize values are capped to 30 and
+// neither method returns a page token.
+const peopleSearchMaxPageSize = 30
+
+func peopleSearchPageSize(u *ui.UI, requested int64) int64 {
+	if requested <= peopleSearchMaxPageSize {
+		return requested
+	}
+	if u != nil {
+		u.Err().Linef("# Google returns at most %d contact search results; showing up to %d of the requested %d", peopleSearchMaxPageSize, peopleSearchMaxPageSize, requested)
+	}
+	return peopleSearchMaxPageSize
 }

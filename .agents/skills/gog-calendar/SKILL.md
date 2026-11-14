@@ -1,6 +1,6 @@
 ---
 name: gog-calendar
-description: "Google Calendar operations through gog."
+description: "Google Calendar through gog. Use for calendars, events, availability, and scheduling; use gog-meeting-prep for meeting briefings or gog-weekly-digest for a cross-service summary."
 ---
 
 # Google Calendar

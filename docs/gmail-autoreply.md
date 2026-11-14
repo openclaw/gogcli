@@ -44,3 +44,5 @@ If you cannot use GitHub or are unsure which repo is affected, reply to this ema
 - It sends replies in-thread with `In-Reply-To` and `References`.
 - It adds `Auto-Submitted: auto-replied` and suppresses common auto-response loops.
 - By default it skips bulk/list/auto-generated mail.
+- It also skips mail from your account or any send-as alias, even if the message has an external `Reply-To`. Use `--allow-self` to allow those replies.
+- Without `--allow-self`, a failed send-as lookup stops the run before searching or sending, so an unavailable alias list cannot cause replies to your own addresses.

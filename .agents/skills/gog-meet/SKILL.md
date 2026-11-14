@@ -1,6 +1,6 @@
 ---
 name: gog-meet
-description: "Google Meet operations through gog."
+description: "Google Meet through gog. Use for Google Meet spaces, configuration, call history, and participants."
 ---
 
 # Google Meet

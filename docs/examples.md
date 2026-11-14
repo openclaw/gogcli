@@ -27,6 +27,11 @@ permanent deletion is intentional.
 
 ## Calendar
 
+`calendar freebusy` rejects empty or inverted windows before querying Google,
+including RFC3339 bounds. Calendar names containing `@` resolve as names,
+while email-form IDs and `primary` can be queried directly. For event updates,
+an empty `--attendees` clears the list; nonblank input must contain an attendee.
+
 See the [`gog calendar`](commands/gog-calendar.md) reference and
 [Zoom setup](zoom-auth-setup.md).
 
@@ -214,6 +219,11 @@ gog docs raw <docId> --pretty
 ```
 
 ## Sheets
+
+`sheets append --values-json` preserves numeric tokens in its outgoing request;
+Google Sheets still applies its own storage precision. Use JSON output to
+preserve cell content exactly. Text and `--plain` output keep each row on one
+line, displaying embedded newlines as `\n` and tabs as spaces.
 
 See [batch updates](sheets-batch-update.md), [tables](sheets-tables.md), and
 [formatting](sheets-formatting.md).

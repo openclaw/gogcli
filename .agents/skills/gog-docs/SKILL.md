@@ -1,6 +1,6 @@
 ---
 name: gog-docs
-description: "Google Docs operations through gog."
+description: "Google Docs through gog. Use for Google Docs text, formatting, tabs, comments, and document exports."
 ---
 
 # Google Docs

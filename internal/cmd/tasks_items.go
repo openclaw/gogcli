@@ -349,7 +349,7 @@ type TasksUpdateCmd struct {
 	Title      string `name:"title" help:"New title (set empty to clear)"`
 	Notes      string `name:"notes" help:"New notes (set empty to clear)"`
 	Due        string `name:"due" help:"New due date (RFC3339 or YYYY-MM-DD; time may be ignored; set empty to clear)"`
-	Status     string `name:"status" help:"New status: needsAction|completed (set empty to clear)"`
+	Status     string `name:"status" help:"New status: needsAction|completed"`
 }
 
 func (c *TasksUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *RootFlags) error {

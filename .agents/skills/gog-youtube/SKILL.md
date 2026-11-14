@@ -1,6 +1,6 @@
 ---
 name: gog-youtube
-description: "YouTube operations through gog."
+description: "YouTube through gog. Use for YouTube search, videos, channels, activities, comments, playlists, and subscriptions."
 ---
 
 # YouTube

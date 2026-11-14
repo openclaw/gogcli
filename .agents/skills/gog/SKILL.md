@@ -1,6 +1,6 @@
 ---
 name: gog
-description: "gog CLI: safe Google Workspace automation, JSON, auth, scoped reads/writes."
+description: "Use the gog CLI when Google connectors lack an operation, shell automation needs stable JSON, or local Google auth needs inspection. Shared account, auth, output, and safety guidance for all gog service skills."
 ---
 
 # gog
@@ -142,8 +142,9 @@ the pane width. A truncated consent URL does not fail loudly: Google renders
 client misconfiguration and sends you debugging the wrong thing. Verify the
 captured URL contains `response_type` before using it.
 
-Write the URL to a mode-0600 file and hand it to the browser by file reference
-(see `$browser-use`); never echo it. Appending `&login_hint=user@example.com`
+Write the URL to a mode-0600 file and use a browser automation tool that can
+read that file and open the consent URL without displaying it in logs; never
+echo it. Appending `&login_hint=user@example.com`
 skips the account chooser and removes a whole class of wrong-account risk.
 
 Expect up to two interstitials when the OAuth client is unverified or in

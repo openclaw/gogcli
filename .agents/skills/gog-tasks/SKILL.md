@@ -1,6 +1,6 @@
 ---
 name: gog-tasks
-description: "Google Tasks operations through gog."
+description: "Google Tasks through gog. Use for Google Tasks lists, task creation, updates, completion, and materialized repeats."
 ---
 
 # Google Tasks

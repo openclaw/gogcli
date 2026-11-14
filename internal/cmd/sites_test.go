@@ -181,3 +181,92 @@ func TestSitesGetRejectsNonSite(t *testing.T) {
 		t.Fatalf("expected url not-site error, got %v", err)
 	}
 }
+
+// TestSitesGet_JSONKeepsRequestedFalseBools proves sites get JSON keeps
+// requested boolean fields when they are false. drive.File tags them
+// omitempty, so starred and hasThumbnail disappear unless ForceSendFields
+// is set. Drive get already does that; sites get must too.
+func TestSitesGet_JSONKeepsRequestedFalseBools(t *testing.T) {
+	cases := []struct {
+		name    string
+		args    []string
+		body    map[string]any
+		want    map[string]bool
+		notWant []string
+	}{
+		{
+			name: "default fields",
+			args: []string{"site1"},
+			body: map[string]any{
+				"id":           "site1",
+				"name":         "Team Site",
+				"mimeType":     driveMimeGoogleSite,
+				"starred":      false,
+				"hasThumbnail": false,
+				"trashed":      false,
+			},
+			want:    map[string]bool{"starred": false, "hasThumbnail": false},
+			notWant: []string{"trashed"},
+		},
+		{
+			name: "custom trashed mask",
+			args: []string{"site1", "--fields", "id,name,trashed"},
+			body: map[string]any{
+				"id":           "site1",
+				"name":         "Team Site",
+				"mimeType":     driveMimeGoogleSite,
+				"starred":      false,
+				"hasThumbnail": false,
+				"trashed":      false,
+			},
+			want:    map[string]bool{"trashed": false},
+			notWant: []string{"starred", "hasThumbnail"},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			svc, closeSrv := newDriveTestService(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if !strings.Contains(r.URL.Path, "/files/site1") {
+					http.NotFound(w, r)
+					return
+				}
+
+				w.Header().Set("Content-Type", "application/json")
+				_ = json.NewEncoder(w).Encode(tc.body)
+			}))
+			defer closeSrv()
+
+			var stdout bytes.Buffer
+			ctx := withSitesDriveTestService(newCmdRuntimeJSONOutputContext(t, &stdout, io.Discard), svc)
+			flags := &RootFlags{Account: "a@b.com"}
+
+			if err := runKong(t, &SitesGetCmd{}, tc.args, ctx, flags); err != nil {
+				t.Fatalf("run: %v", err)
+			}
+
+			var envelope struct {
+				Site map[string]any `json:"site"`
+			}
+			if err := json.Unmarshal(stdout.Bytes(), &envelope); err != nil {
+				t.Fatalf("invalid JSON: %v\nraw: %s", err, stdout.String())
+			}
+
+			for key, want := range tc.want {
+				got, ok := envelope.Site[key]
+				if !ok {
+					t.Fatalf("missing %q in output: %s", key, stdout.String())
+				}
+
+				if got != want {
+					t.Fatalf("%q = %v, want %v", key, got, want)
+				}
+			}
+
+			for _, key := range tc.notWant {
+				if _, ok := envelope.Site[key]; ok {
+					t.Fatalf("unexpected %q in output: %s", key, stdout.String())
+				}
+			}
+		})
+	}
+}

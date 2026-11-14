@@ -27,6 +27,33 @@ const titles = {
   slides: "Google Slides", tasks: "Google Tasks", youtube: "YouTube",
 };
 
+const uses = {
+  admin: "Use for Workspace Admin Directory users, groups, and organizational units; use gog-groups for Cloud Identity group membership lookup.",
+  adsense: "Use for AdSense accounts, sites, payments, and earnings reports.",
+  analytics: "Use for Google Analytics account summaries and GA4 reports.",
+  appscript: "Use for Apps Script projects, source files, deployments, and executions.",
+  calendar: "Use for calendars, events, availability, and scheduling; use gog-meeting-prep for meeting briefings or gog-weekly-digest for a cross-service summary.",
+  chat: "Use for Google Chat spaces, messages, threads, and members.",
+  classroom: "Use for Classroom courses, rosters, coursework, submissions, and announcements.",
+  contacts: "Use for personal contacts, contact groups, and other contacts, with directory lookup also available; use gog-people for the caller profile or Workspace directory profiles.",
+  docs: "Use for Google Docs text, formatting, tabs, comments, and document exports.",
+  drive: "Use for Drive file search, uploads, downloads, sharing, folders, and metadata; use gog-drive-audit for a sharing audit.",
+  forms: "Use for Google Forms structure, questions, responses, and watches.",
+  gmail: "Use for Gmail search, messages, threads, drafts, sending, labels, filters, and settings; use gog-inbox-triage for inbox review or gog-save-attachments for attachment archival.",
+  groups: "Use for listing Cloud Identity groups and members; use gog-admin to manage Workspace Admin Directory groups.",
+  keep: "Use for Google Keep notes and attachments.",
+  maps: "Use for Maps place search, place details, directions, and geocoding.",
+  meet: "Use for Google Meet spaces, configuration, call history, and participants.",
+  people: "Use for the caller profile, a person profile, or Workspace directory search; use gog-contacts to manage personal contacts and contact groups.",
+  photos: "Use for Google Photos media and albums available to the app, including uploads and the picker.",
+  searchconsole: "Use for Search Console sites, search analytics, sitemaps, and URL inspection.",
+  sheets: "Use for spreadsheet cells, formulas, formatting, notes, validation, and sheet structure.",
+  sites: "Use for finding Google Sites in Drive, reading site metadata, and printing editor URLs; use gog-drive for file sharing.",
+  slides: "Use for presentations, slides, text, images, speaker notes, and exports.",
+  tasks: "Use for Google Tasks lists, task creation, updates, completion, and materialized repeats.",
+  youtube: "Use for YouTube search, videos, channels, activities, comments, playlists, and subscriptions.",
+};
+
 const examples = {
   calendar: "gog --readonly --account user@example.com calendar events --today --json --wrap-untrusted",
   contacts: "gog --readonly --account user@example.com contacts search alice --json --wrap-untrusted",
@@ -68,7 +95,7 @@ function skillMarkdown(service, command) {
   const example = examples[service] || `gog --readonly --account user@example.com ${service} --help`;
   return `---
 name: gog-${service}
-description: "${title} operations through gog."
+description: ${JSON.stringify(`${title} through gog. ${uses[service]}`)}
 ---
 
 # ${title}

@@ -1,6 +1,6 @@
 ---
 name: gog-slides
-description: "Google Slides operations through gog."
+description: "Google Slides through gog. Use for presentations, slides, text, images, speaker notes, and exports."
 ---
 
 # Google Slides

@@ -1,6 +1,6 @@
 ---
 name: gog-gmail
-description: "Gmail operations through gog."
+description: "Gmail through gog. Use for Gmail search, messages, threads, drafts, sending, labels, filters, and settings; use gog-inbox-triage for inbox review or gog-save-attachments for attachment archival."
 ---
 
 # Gmail

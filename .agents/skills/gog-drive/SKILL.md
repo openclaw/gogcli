@@ -1,6 +1,6 @@
 ---
 name: gog-drive
-description: "Google Drive operations through gog."
+description: "Google Drive through gog. Use for Drive file search, uploads, downloads, sharing, folders, and metadata; use gog-drive-audit for a sharing audit."
 ---
 
 # Google Drive

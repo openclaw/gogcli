@@ -1,6 +1,6 @@
 ---
 name: gog-appscript
-description: "Apps Script operations through gog."
+description: "Apps Script through gog. Use for Apps Script projects, source files, deployments, and executions."
 ---
 
 # Apps Script

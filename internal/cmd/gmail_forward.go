@@ -189,6 +189,11 @@ func (c *GmailForwardOptions) buildForwardComposeMessage(ctx context.Context, sv
 	origSubject := headerValue(origMsg.Payload, "Subject")
 	origPlain := gmailcontent.FindPartBody(origMsg.Payload, "text/plain")
 	origHTML := gmailcontent.FindPartBody(origMsg.Payload, "text/html")
+	// An original with no usable plain text still forwards its body in the
+	// plain part, as a reply's plain quote does.
+	if strings.TrimSpace(origPlain) == "" && strings.TrimSpace(origHTML) != "" {
+		origPlain = htmlToPlainText(origHTML)
+	}
 
 	// Build forward subject (avoid stacking prefixes).
 	fwdSubject := buildForwardSubject(origSubject)
