@@ -1,6 +1,8 @@
 # Changelog
 
-## 0.48.1 - Unreleased
+## 0.48.1 - 2026-11-15
+
+**Highlights:** Safer Gmail replies exclude every send-as alias, Calendar queries and recurring updates handle edge cases correctly, and Go security updates address GO-2026-6859.
 
 - Security: build with Go 1.27.4 and test the minimum series on Go 1.26.11 to address GO-2026-6859, preserving the Go 1.26.0 source minimum.
 - Dependencies: refresh Google clients, networking libraries, and tracking-worker tools while retaining the 24-hour worker cooldown and security overrides.
