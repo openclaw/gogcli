@@ -1,5 +1,7 @@
 # Changelog
 
+## Unreleased
+
 ## 0.48.1 - 2026-11-15
 
 **Highlights:** Safer Gmail replies exclude every send-as alias, Calendar queries and recurring updates handle edge cases correctly, and Go security updates address GO-2026-6859.
