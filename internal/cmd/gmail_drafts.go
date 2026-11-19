@@ -309,6 +309,7 @@ type GmailDraftsCreateCmd struct {
 	ReplyAll                bool     `name:"reply-all" help:"Auto-populate recipients from original message (requires --reply-to-message-id or --thread-id)"`
 	ReplyTo                 string   `name:"reply-to" help:"Reply-To header address"`
 	Quote                   bool     `name:"quote" help:"Include quoted original message in reply (requires --reply-to-message-id or --thread-id)"`
+	MissingInlineImages     string   `name:"missing-inline-images" enum:"error,placeholder" default:"error" help:"Missing quoted CID images with --quote: error or visible placeholders"`
 	Attach                  []string `name:"attach" help:"Attachment file path (repeatable)"`
 	From                    string   `name:"from" help:"Send from this email address (must be a verified send-as alias)"`
 	AutoFromAddressedAlias  bool     `name:"auto-from-addressed-alias" help:"When --from is omitted, reply from the verified send-as alias addressed by the original message" env:"GOG_GMAIL_AUTO_FROM_ADDRESSED_ALIAS"`
@@ -341,7 +342,9 @@ type draftComposeInput struct {
 	ReplyAll   bool
 	ReplyTo    string
 	Quote      bool
-	Attach     []string
+	// MissingInlineImages is the validated policy for quoted CID images with no MIME part.
+	MissingInlineImages string
+	Attach              []string
 	// PrebuiltAttachments carry already-resolved attachment bytes (e.g. existing
 	// draft attachments preserved across an update) alongside any --attach paths.
 	PrebuiltAttachments []mailmime.Attachment
@@ -409,16 +412,16 @@ func (c *draftComposeInput) keepDraftRecipients(payload *gmail.MessagePart) {
 	}
 }
 
-func buildDraftMessage(ctx context.Context, svc *gmail.Service, account string, input draftComposeInput) (*gmail.Message, draftThreading, []mailmime.AttachmentMetadata, error) {
+func buildDraftMessage(ctx context.Context, svc *gmail.Service, account string, input draftComposeInput) (*gmail.Message, draftThreading, []mailmime.AttachmentMetadata, []inlineImageWarning, error) {
 	sendAs, sendAsErr := listSendAs(ctx, svc)
 	from, err := resolveComposeFrom(ctx, svc, account, input.From, sendAs, sendAsErr)
 	if err != nil {
-		return nil, draftThreading{}, nil, err
+		return nil, draftThreading{}, nil, nil, err
 	}
 
-	info, err := fetchReplyInfo(ctx, svc, input.ReplyToMessageID, input.ReplyToThreadID, input.Quote, "")
+	info, err := fetchReplyInfo(ctx, svc, input.ReplyToMessageID, input.ReplyToThreadID, input.Quote, input.MissingInlineImages)
 	if err != nil {
-		return nil, draftThreading{}, nil, err
+		return nil, draftThreading{}, nil, nil, err
 	}
 	body, htmlBody := input.Body, directedHTML(input.BodyHTML)
 	replyContextSource := ""
@@ -459,7 +462,7 @@ func buildDraftMessage(ctx context.Context, svc *gmail.Service, account string, 
 	// after the alias is picked, and add it before the quote so it stays above it.
 	signature, err := input.requestedSignature(ctx, svc, from.sendingEmail)
 	if err != nil {
-		return nil, draftThreading{}, nil, err
+		return nil, draftThreading{}, nil, nil, err
 	}
 	if htmlBody == "" && signature.htmlBlock() != "" {
 		htmlBody = directedTextToHTML(strings.TrimSpace(body))
@@ -467,14 +470,14 @@ func buildDraftMessage(ctx context.Context, svc *gmail.Service, account string, 
 	body, htmlBody = appendComposeSignature(body, htmlBody, signature)
 	body, htmlBody, err = applyReplyQuote(ctx, input.Quote, info, body, htmlBody)
 	if err != nil {
-		return nil, draftThreading{}, nil, err
+		return nil, draftThreading{}, nil, nil, err
 	}
 	atts := attachmentsFromPaths(input.Attach)
 	atts = append(atts, input.PrebuiltAttachments...)
 	atts = append(atts, info.InlineResources...)
 	atts, attachmentMetadata, err := mailmime.PrepareAttachments(atts, os.ReadFile)
 	if err != nil {
-		return nil, draftThreading{}, nil, err
+		return nil, draftThreading{}, nil, nil, err
 	}
 	subject := input.Subject
 	if strings.TrimSpace(subject) == "" {
@@ -483,7 +486,7 @@ func buildDraftMessage(ctx context.Context, svc *gmail.Service, account string, 
 
 	toRecipients, ccRecipients, bccRecipients, err := parseComposeRecipients(input.To, input.Cc, input.Bcc)
 	if err != nil {
-		return nil, draftThreading{}, nil, err
+		return nil, draftThreading{}, nil, nil, err
 	}
 	// A kept-existing To (update without --to) was resolved leniently by
 	// keptDraftRecipients; input.To is empty then, so the parse above yields
@@ -508,7 +511,7 @@ func buildDraftMessage(ctx context.Context, svc *gmail.Service, account string, 
 			nil,
 		)
 		if recipientErr != nil {
-			return nil, draftThreading{}, nil, recipientErr
+			return nil, draftThreading{}, nil, nil, recipientErr
 		}
 		// --reply-all auto-populates from the original message, but an explicit
 		// flag (parsed above) overrides the corresponding auto-populated field.
@@ -537,10 +540,10 @@ func buildDraftMessage(ctx context.Context, svc *gmail.Service, account string, 
 		Bcc: bccRecipients,
 	}, true)
 	if err != nil {
-		return nil, draftThreading{}, nil, err
+		return nil, draftThreading{}, nil, nil, err
 	}
 
-	return msg, threading, attachmentMetadata, nil
+	return msg, threading, attachmentMetadata, info.InlineImageWarnings, nil
 }
 
 // draftHasHTMLBodyPart reports whether a draft message's stored payload carries
@@ -825,6 +828,10 @@ func (c *GmailDraftsCreateCmd) Run(ctx context.Context, flags *RootFlags) error 
 	if c.Quote && replyToMessageID == "" && threadID == "" {
 		return usage("--quote requires --reply-to-message-id or --thread-id")
 	}
+	missingInlineImages, err := validateDraftMissingInlineImages(c.MissingInlineImages, c.Quote)
+	if err != nil {
+		return err
+	}
 
 	attachPaths, err := expandComposeAttachmentPaths(c.Attach)
 	if err != nil {
@@ -843,6 +850,7 @@ func (c *GmailDraftsCreateCmd) Run(ctx context.Context, flags *RootFlags) error 
 		ReplyAll:                c.ReplyAll,
 		ReplyTo:                 c.ReplyTo,
 		Quote:                   c.Quote,
+		MissingInlineImages:     missingInlineImages,
 		Attach:                  attachPaths,
 		From:                    c.From,
 		AutoFromAddressedAlias:  c.AutoFromAddressedAlias,
@@ -873,6 +881,7 @@ func (c *GmailDraftsCreateCmd) Run(ctx context.Context, flags *RootFlags) error 
 		"reply_all":                 input.ReplyAll,
 		"reply_to":                  strings.TrimSpace(input.ReplyTo),
 		"quote":                     input.Quote,
+		"missing_inline_images":     input.MissingInlineImages,
 		"from":                      strings.TrimSpace(input.From),
 		"auto_from_addressed_alias": input.AutoFromAddressedAlias,
 		"attachments":               attachPaths,
@@ -888,7 +897,7 @@ func (c *GmailDraftsCreateCmd) Run(ctx context.Context, flags *RootFlags) error 
 		return err
 	}
 
-	msg, threading, attachmentMetadata, err := buildDraftMessage(ctx, svc, account, input)
+	msg, threading, attachmentMetadata, warnings, err := buildDraftMessage(ctx, svc, account, input)
 	if err != nil {
 		return err
 	}
@@ -897,27 +906,28 @@ func (c *GmailDraftsCreateCmd) Run(ctx context.Context, flags *RootFlags) error 
 	if err != nil {
 		return err
 	}
-	return writeDraftResult(ctx, u, draft, threading, attachmentMetadata, nil)
+	return writeDraftResult(ctx, u, draft, threading, attachmentMetadata, warnings)
 }
 
 type GmailDraftsUpdateCmd struct {
-	DraftID          string   `arg:"" name:"draftId" help:"Draft ID"`
-	RawFile          string   `name:"raw-file" help:"Replace the entire draft with an exact RFC822 message file, or '-' for stdin (cannot be combined with compose flags)"`
-	To               *string  `name:"to" help:"Recipients (comma-separated; omit to keep existing)"`
-	Cc               string   `name:"cc" help:"CC recipients (comma-separated; omit to keep existing, empty to clear)"`
-	Bcc              string   `name:"bcc" help:"BCC recipients (comma-separated; omit to keep existing, empty to clear)"`
-	Subject          string   `name:"subject" help:"Subject (required)"`
-	Body             string   `name:"body" help:"Body (plain text; required unless --body-html is set)"`
-	BodyFile         string   `name:"body-file" help:"Body file path (plain text; '-' for stdin)"`
-	BodyHTML         string   `name:"body-html" help:"Body (HTML; optional)"`
-	BodyHTMLFile     string   `name:"body-html-file" help:"HTML body file path ('-' for stdin)"`
-	ReplyToMessageID string   `name:"reply-to-message-id" help:"Reply to Gmail message ID (sets In-Reply-To/References and thread)"`
-	ThreadID         string   `name:"thread-id" help:"Reply within a Gmail thread (raw mode sets only the thread ID); overrides the draft's existing thread"`
-	ReplyAll         bool     `name:"reply-all" help:"Auto-populate recipients from original message (requires --reply-to-message-id or --thread-id)"`
-	ReplyTo          string   `name:"reply-to" help:"Reply-To header address"`
-	Quote            bool     `name:"quote" help:"Include quoted original message in reply"`
-	Attach           []string `name:"attach" help:"Attachment file path (repeatable). Replaces existing attachments; omit to preserve them, or use --clear-attachments to remove all."`
-	ClearAttachments bool     `name:"clear-attachments" help:"Remove all attachments from the draft. By default, omitting --attach preserves the draft's existing attachments."`
+	DraftID             string   `arg:"" name:"draftId" help:"Draft ID"`
+	RawFile             string   `name:"raw-file" help:"Replace the entire draft with an exact RFC822 message file, or '-' for stdin (cannot be combined with compose flags)"`
+	To                  *string  `name:"to" help:"Recipients (comma-separated; omit to keep existing)"`
+	Cc                  string   `name:"cc" help:"CC recipients (comma-separated; omit to keep existing, empty to clear)"`
+	Bcc                 string   `name:"bcc" help:"BCC recipients (comma-separated; omit to keep existing, empty to clear)"`
+	Subject             string   `name:"subject" help:"Subject (required)"`
+	Body                string   `name:"body" help:"Body (plain text; required unless --body-html is set)"`
+	BodyFile            string   `name:"body-file" help:"Body file path (plain text; '-' for stdin)"`
+	BodyHTML            string   `name:"body-html" help:"Body (HTML; optional)"`
+	BodyHTMLFile        string   `name:"body-html-file" help:"HTML body file path ('-' for stdin)"`
+	ReplyToMessageID    string   `name:"reply-to-message-id" help:"Reply to Gmail message ID (sets In-Reply-To/References and thread)"`
+	ThreadID            string   `name:"thread-id" help:"Reply within a Gmail thread (raw mode sets only the thread ID); overrides the draft's existing thread"`
+	ReplyAll            bool     `name:"reply-all" help:"Auto-populate recipients from original message (requires --reply-to-message-id or --thread-id)"`
+	ReplyTo             string   `name:"reply-to" help:"Reply-To header address"`
+	Quote               bool     `name:"quote" help:"Include quoted original message in reply"`
+	MissingInlineImages string   `name:"missing-inline-images" enum:"error,placeholder" default:"error" help:"Missing quoted CID images with --quote: error or visible placeholders"`
+	Attach              []string `name:"attach" help:"Attachment file path (repeatable). Replaces existing attachments; omit to preserve them, or use --clear-attachments to remove all."`
+	ClearAttachments    bool     `name:"clear-attachments" help:"Remove all attachments from the draft. By default, omitting --attach preserves the draft's existing attachments."`
 	//nolint:lll // flag help text
 	ClearReplyContext       bool   `name:"clear-reply-context" help:"Strip In-Reply-To/References from the draft, making it a standalone message. By default an update preserves the draft's existing reply headers."`
 	From                    string `name:"from" help:"Send from this email address (must be a verified send-as alias)"`
@@ -964,6 +974,10 @@ func (c *GmailDraftsUpdateCmd) runCompose(ctx context.Context, flags *RootFlags)
 	if c.ClearReplyContext && (replyToMessageID != "" || threadID != "" || c.Quote) {
 		return usage("use only one of --clear-reply-context or --reply-to-message-id/--thread-id/--quote")
 	}
+	missingInlineImages, err := validateDraftMissingInlineImages(c.MissingInlineImages, c.Quote)
+	if err != nil {
+		return err
+	}
 
 	attachPaths, err := expandComposeAttachmentPaths(c.Attach)
 	if err != nil {
@@ -992,6 +1006,7 @@ func (c *GmailDraftsUpdateCmd) runCompose(ctx context.Context, flags *RootFlags)
 		ReplyAll:                c.ReplyAll,
 		ReplyTo:                 c.ReplyTo,
 		Quote:                   c.Quote,
+		MissingInlineImages:     missingInlineImages,
 		Attach:                  attachPaths,
 		From:                    c.From,
 		AutoFromAddressedAlias:  c.AutoFromAddressedAlias,
@@ -1027,6 +1042,7 @@ func (c *GmailDraftsUpdateCmd) runCompose(ctx context.Context, flags *RootFlags)
 		"reply_all":                 input.ReplyAll,
 		"reply_to":                  strings.TrimSpace(input.ReplyTo),
 		"quote":                     input.Quote,
+		"missing_inline_images":     input.MissingInlineImages,
 		"from":                      strings.TrimSpace(input.From),
 		"auto_from_addressed_alias": input.AutoFromAddressedAlias,
 		"attachments":               attachPaths,
@@ -1137,7 +1153,7 @@ func (c *GmailDraftsUpdateCmd) runCompose(ctx context.Context, flags *RootFlags)
 	input.InReplyTo = carriedInReplyTo
 	input.References = carriedReferences
 
-	msg, threading, attachmentMetadata, err := buildDraftMessage(ctx, svc, account, input)
+	msg, threading, attachmentMetadata, warnings, err := buildDraftMessage(ctx, svc, account, input)
 	if err != nil {
 		return err
 	}
@@ -1146,5 +1162,5 @@ func (c *GmailDraftsUpdateCmd) runCompose(ctx context.Context, flags *RootFlags)
 	if err != nil {
 		return err
 	}
-	return writeDraftResult(ctx, u, draft, threading, attachmentMetadata, nil)
+	return writeDraftResult(ctx, u, draft, threading, attachmentMetadata, warnings)
 }

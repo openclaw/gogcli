@@ -34,7 +34,7 @@ func validateRawDraftFlagPresence(kctx *kong.Context, source string) error {
 	}
 	for _, flag := range []string{
 		"to", "cc", "bcc", "subject", "body", "body-file", "body-html", "body-html-file",
-		"attach", "from", "reply-to", "reply-to-message-id", "signature-from", "signature-file",
+		"attach", "from", "reply-to", "reply-to-message-id", "signature-from", "signature-file", "missing-inline-images",
 	} {
 		if flagProvided(kctx, flag) {
 			return usagef("--raw-file cannot be combined with --%s", flag)

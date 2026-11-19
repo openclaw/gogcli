@@ -57,7 +57,8 @@ func executeInlineDraftFixture(t *testing.T, fixture inlineDraftFixture, args ..
 				return
 			}
 			_ = json.NewEncoder(w).Encode(map[string]any{"data": base64.RawURLEncoding.EncodeToString([]byte("png-data"))})
-		case r.Method == http.MethodPost && r.URL.Path == "/gmail/v1/users/me/drafts":
+		case (r.Method == http.MethodPost && r.URL.Path == "/gmail/v1/users/me/drafts") ||
+			(r.Method == http.MethodPut && r.URL.Path == "/gmail/v1/users/me/drafts/draft-1"):
 			posts.Add(1)
 			var draft gmail.Draft
 			if err := json.NewDecoder(r.Body).Decode(&draft); err != nil || draft.Message == nil {
@@ -218,6 +219,78 @@ func TestMissingInlineDraftPolicyIsOfflineAndDraftOnly(t *testing.T) {
 		result = executeWithTestRuntime(t, append(args, "--no-quote"), nil)
 		if ExitCode(result.err) != 2 || !strings.Contains(result.stderr, "cannot be combined with --no-quote") {
 			t.Fatalf("no-quote policy accepted: %v; stderr=%q", result.err, result.stderr)
+		}
+	}
+}
+
+func TestMissingInlineDraftCreateAndUpdateWithQuote(t *testing.T) {
+	cases := map[string][]string{
+		"update": {"gmail", "drafts", "update", "draft-1", "--to", "alice@example.com", "--cc", "", "--bcc", "", "--subject", "Re: Project update", "--body", "Thanks", "--reply-to-message-id", "msg-1", "--quote", "--clear-attachments"},
+		"create": {"gmail", "drafts", "create", "--to", "alice@example.com", "--subject", "Re: Project update", "--body", "Thanks", "--reply-to-message-id", "msg-1", "--quote"},
+	}
+	for name, base := range cases {
+		t.Run(name+"/placeholder", func(t *testing.T) {
+			args := append(append([]string{}, base...), "--missing-inline-images=placeholder")
+			result, draft, calls := executeInlineDraftFixture(t, newInlineDraftFixture(missingInlineTestHTML), args...)
+			if result.err != nil || draft == nil || calls.posts != 1 {
+				t.Fatalf("error=%v, calls=%+v, stderr=%q", result.err, calls, result.stderr)
+			}
+			if !strings.Contains(result.stdout, `"degraded": true`) || !strings.Contains(result.stdout, `"missing_inline_image"`) || !strings.Contains(result.stderr, "review before sending") {
+				t.Fatalf("missing degradation report: stdout=%q stderr=%q", result.stdout, result.stderr)
+			}
+			raw, err := base64.RawURLEncoding.DecodeString(draft.Raw)
+			if err != nil {
+				t.Fatal(err)
+			}
+			message, err := parseBackupEmail(raw)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if strings.Contains(message.HTMLBody, "cid:missing@example.com") || !strings.Contains(message.HTMLBody, "[Inline image unavailable:") {
+				t.Fatalf("placeholder missing: %q", message.HTMLBody)
+			}
+		})
+		t.Run(name+"/default stays strict", func(t *testing.T) {
+			result, draft, calls := executeInlineDraftFixture(t, newInlineDraftFixture(missingInlineTestHTML), base...)
+			if result.err == nil || !strings.Contains(result.stderr, "no matching MIME part") || draft != nil || calls.posts != 0 {
+				t.Fatalf("error=%v, calls=%+v, stderr=%q", result.err, calls, result.stderr)
+			}
+		})
+	}
+}
+
+func TestMissingInlineDraftCreateUpdatePlaceholderNeedsQuote(t *testing.T) {
+	for _, args := range [][]string{
+		{"gmail", "drafts", "create", "--to", "a@example.com", "--subject", "S", "--body", "B", "--missing-inline-images=placeholder"},
+		{"gmail", "drafts", "update", "draft-1", "--to", "a@example.com", "--subject", "S", "--body", "B", "--missing-inline-images=placeholder"},
+	} {
+		result := executeWithTestRuntime(t, append([]string{"--dry-run"}, args...), nil)
+		if ExitCode(result.err) != 2 || !strings.Contains(result.stderr, "requires --quote") {
+			t.Fatalf("placeholder without --quote accepted: %v; stderr=%q", result.err, result.stderr)
+		}
+	}
+}
+
+func TestMissingInlineDraftCreateUpdateDryRunReportsPolicy(t *testing.T) {
+	for _, base := range [][]string{
+		{"gmail", "drafts", "create"},
+		{"gmail", "drafts", "update", "draft-1"},
+	} {
+		args := append([]string{"--json", "--dry-run"}, base...)
+		args = append(args, "--body", "Reply", "--reply-to-message-id", "msg-1", "--quote", "--missing-inline-images=placeholder")
+		result := executeWithTestRuntime(t, args, nil)
+		if result.err != nil || !strings.Contains(result.stdout, `"missing_inline_images": "placeholder"`) {
+			t.Fatalf("dry-run: error=%v stdout=%q stderr=%q", result.err, result.stdout, result.stderr)
+		}
+	}
+}
+
+func TestMissingInlineDraftRawModeRejectsPolicy(t *testing.T) {
+	for _, operation := range []string{"create", "update"} {
+		args := append(rawDraftArgs(operation, "-"), "--missing-inline-images=placeholder")
+		result := executeWithTestRuntime(t, args, nil)
+		if ExitCode(result.err) != 2 || !strings.Contains(result.stderr, "--raw-file cannot be combined with --missing-inline-images") {
+			t.Fatalf("raw policy accepted: error=%v stderr=%q", result.err, result.stderr)
 		}
 	}
 }
