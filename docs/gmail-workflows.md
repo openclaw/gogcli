@@ -473,8 +473,9 @@ gog --gmail-no-send gmail drafts reply <messageId> --body "Thanks" \
   --missing-inline-images=placeholder --json
 ```
 
-This policy is available only on `drafts reply` and `drafts reply-all`, and cannot
-be combined with `--no-quote`. It preserves the remaining quoted HTML and valid
+This policy is available on `drafts reply`, `drafts reply-all`, and on
+`drafts create` and `drafts update` with `--quote`. It cannot be combined with
+`--no-quote` or `--raw-file`. It preserves the remaining quoted HTML and valid
 inline resources. Placeholders include the missing Content-ID and image alt
 text; the plain alternative retains its original text plus corresponding
 markers, or is derived from the repaired HTML when no plain text exists.

@@ -2,6 +2,8 @@
 
 ## 0.48.2 - Unreleased
 
+- Gmail: extend `--missing-inline-images=placeholder` to `drafts create` and `drafts update` with `--quote`. Keep strict defaults and report draft degradation for review. (#1342) — thanks @pedro-pscunha.
+
 ## 0.48.1 - 2026-11-15
 
 **Highlights:** Safer Gmail replies exclude every send-as alias, Calendar queries and recurring updates handle edge cases correctly, and Go security updates address GO-2026-6859.

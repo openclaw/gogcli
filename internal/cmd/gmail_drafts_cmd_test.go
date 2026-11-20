@@ -1891,7 +1891,7 @@ func TestBuildDraftMessageAutoSelectsFromAddressedAliasOnlyWhenRequested(t *test
 		{name: "opt in", autoSelect: true, wantFrom: "alias@example.com"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			msg, _, _, err := buildDraftMessage(context.Background(), svc, "me@example.com", draftComposeInput{
+			msg, _, _, _, err := buildDraftMessage(context.Background(), svc, "me@example.com", draftComposeInput{
 				Body:                   "Thanks",
 				ReplyToMessageID:       "m1",
 				AutoFromAddressedAlias: tc.autoSelect,

@@ -39,6 +39,19 @@ func validateMissingInlineImagesPolicy(policy string, noQuote bool) (string, err
 	}
 }
 
+// validateDraftMissingInlineImages checks the policy for drafts create/update,
+// where the quote is opt-in (--quote) instead of the default.
+func validateDraftMissingInlineImages(policy string, quote bool) (string, error) {
+	policy, err := validateMissingInlineImagesPolicy(policy, false)
+	if err != nil {
+		return "", err
+	}
+	if policy == missingInlineImagesPlaceholder && !quote {
+		return "", usage("--missing-inline-images=placeholder requires --quote")
+	}
+	return policy, nil
+}
+
 func prepareReplyInlineResources(ctx context.Context, svc *gmail.Service, msg *gmail.Message, info *replyInfo, policy string) error {
 	if policy != missingInlineImagesPlaceholder {
 		resources, err := preserveReferencedInlineResources(ctx, svc, msg.Id, msg.Payload, info.BodyHTML)
