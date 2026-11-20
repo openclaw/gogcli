@@ -33,6 +33,7 @@ gog drive (drv) upload <localPath> [flags]
 | `-h`<br>`--help` | `kong.helpFlag` |  | Show context-sensitive help. |
 | `--home` | `string` |  | Override gogcli config/data/state/cache root (equivalent to GOG_HOME) |
 | `--if-version` | `*int64` |  | Replace only if the current Drive version matches; uses an atomic precondition and reports a conflict if the file changes (requires --replace; re-read and reapply on conflict) |
+| `--include-committed-revision` | `bool` |  | Include the committed content revision and available checksums in JSON (requires --if-version) |
 | `-j`<br>`--json`<br>`--machine` | `bool` | false | Output JSON to stdout (best for scripting) |
 | `--keep-frontmatter` | `bool` |  | Keep YAML frontmatter (---) in Markdown when converting to a Google Doc (--convert or --convert-to doc; default: strip) |
 | `--keep-revision-forever` | `bool` |  | Keep the new head revision forever (binary files only) |

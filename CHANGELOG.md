@@ -3,6 +3,7 @@
 ## 0.48.2 - Unreleased
 
 - Dependencies: refresh the MCP and Google API clients, networking libraries, and tracking-worker tooling while preserving the Go 1.26 minimum, 24-hour worker cooldown, and security overrides.
+- Drive: include the committed content revision and available checksums in guarded upload JSON with `--include-committed-revision`.
 
 ## 0.48.1 - 2026-11-15
 
