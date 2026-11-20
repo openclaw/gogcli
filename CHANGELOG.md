@@ -2,7 +2,7 @@
 
 ## 0.48.2 - Unreleased
 
-- Gmail: extend `--missing-inline-images=placeholder` to `drafts create` and `drafts update` with `--quote`. Keep strict defaults and report draft degradation for review.
+- Gmail: extend `--missing-inline-images=placeholder` to `drafts create` and `drafts update` with `--quote`. Keep strict defaults and report draft degradation for review. (#1342) — thanks @pedro-pscunha.
 
 ## 0.48.1 - 2026-11-15
 
