@@ -20,17 +20,14 @@ For internal-only work, name the actual developer or operator workflow affected.
 
 <!--
 Describe the concrete user, product, or operational problem.
-In 1–3 short, plain-language sentences, explain what someone is trying to do,
-what goes wrong or is missing, and why it matters. For a fix, include the trigger
-when known. For other changes, describe the need without inventing a bug.
+In 1–3 plain sentences, say who is affected, what happens today, and why it
+matters to them. For a bug, name the trigger if known. For a feature or internal
+work, describe the need in the actual workflow without inventing harm.
+Could a reader understand the problem without knowing your proposed fix?
 
-Illustrative wording only:
-Good: "A script reading Gmail search results as JSON cannot parse the output
-when a warning is mixed into it."
-Bad: "Fixes incorrect output-stream selection in the command handler."
-
-Describe the experienced problem, not just the code change. Save function names,
-missing checks, and the root-cause walkthrough for the explanation below.
+Good: "Background checks can use up a new user's model allowance before they've
+asked the assistant to monitor anything."
+Bad: "Turn off periodic checks on fresh installs."
 -->
 
 ## User Impact
