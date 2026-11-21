@@ -3,6 +3,7 @@
 ## 0.48.2 - Unreleased
 
 - Dependencies: refresh the MCP and Google API clients, networking libraries, and tracking-worker tooling while preserving the Go 1.26 minimum, 24-hour worker cooldown, and security overrides.
+- Calendar: clear timed fields when an update converts an event to all day, and clear all-day dates for the inverse conversion. (#1348) — thanks @finn-atlas.
 
 ## 0.48.1 - 2026-11-15
 

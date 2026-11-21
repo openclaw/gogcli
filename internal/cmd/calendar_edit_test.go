@@ -89,6 +89,59 @@ func TestCalendarUpdatePatchClearsReminders(t *testing.T) {
 	}
 }
 
+func TestCalendarUpdatePatchClearsPreviousTimeRepresentation(t *testing.T) {
+	tests := []struct {
+		name      string
+		args      []string
+		wantStart string
+		wantEnd   string
+		wantNulls []string
+	}{
+		{
+			name:      "timed to all-day",
+			args:      []string{"cal1", "evt1", "--from", "2030-01-01", "--to", "2030-01-02", "--all-day"},
+			wantStart: "2030-01-01",
+			wantEnd:   "2030-01-02",
+			wantNulls: []string{"DateTime", "TimeZone"},
+		},
+		{
+			name:      "all-day to timed",
+			args:      []string{"cal1", "evt1", "--from", "2030-01-01T09:00:00Z", "--to", "2030-01-01T10:00:00Z"},
+			wantStart: "2030-01-01T09:00:00Z",
+			wantEnd:   "2030-01-01T10:00:00Z",
+			wantNulls: []string{"Date"},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			cmd := &CalendarUpdateCmd{}
+			kctx := parseKongContext(t, cmd, test.args)
+			patch, changed, err := buildCalendarUpdatePatch(calendarUpdateInputFromCommand(cmd), calendarUpdateFieldsFromKong(kctx))
+			if err != nil {
+				t.Fatalf("buildUpdatePatch: %v", err)
+			}
+			if !changed || patch.Start == nil || patch.End == nil {
+				t.Fatalf("unexpected time patch: changed=%t patch=%#v", changed, patch)
+			}
+
+			if cmd.AllDay {
+				if patch.Start.Date != test.wantStart || patch.End.Date != test.wantEnd {
+					t.Fatalf("unexpected all-day range: start=%#v end=%#v", patch.Start, patch.End)
+				}
+			} else if patch.Start.DateTime != test.wantStart || patch.End.DateTime != test.wantEnd {
+				t.Fatalf("unexpected timed range: start=%#v end=%#v", patch.Start, patch.End)
+			}
+
+			for _, field := range test.wantNulls {
+				if !hasStringValue(patch.Start.NullFields, field) || !hasStringValue(patch.End.NullFields, field) {
+					t.Fatalf("expected %s to be cleared: start=%#v end=%#v", field, patch.Start, patch.End)
+				}
+			}
+		})
+	}
+}
+
 func TestCalendarUpdatePatchDisablesReminders(t *testing.T) {
 	cmd := &CalendarUpdateCmd{}
 	kctx := parseKongContext(t, cmd, []string{"cal1", "evt1", "--no-reminders"})

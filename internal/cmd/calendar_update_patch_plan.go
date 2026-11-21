@@ -155,7 +155,7 @@ func applyUpdateTimeFields(input calendarUpdateInput, fields calendarUpdateField
 		if err != nil {
 			return false, err
 		}
-		patch.Start, err = buildEventDateTimeWithTimezone(input.From, allDay, input.StartTimezone, "--start-timezone")
+		patch.Start, err = buildUpdateEventDateTime(input.From, allDay, input.StartTimezone, "--start-timezone")
 		if err != nil {
 			return false, err
 		}
@@ -166,13 +166,29 @@ func applyUpdateTimeFields(input calendarUpdateInput, fields calendarUpdateField
 		if err != nil {
 			return false, err
 		}
-		patch.End, err = buildEventDateTimeWithTimezone(input.To, allDay, input.EndTimezone, "--end-timezone")
+		patch.End, err = buildUpdateEventDateTime(input.To, allDay, input.EndTimezone, "--end-timezone")
 		if err != nil {
 			return false, err
 		}
 		changed = true
 	}
 	return changed, nil
+}
+
+func buildUpdateEventDateTime(value string, allDay bool, timezone, flagName string) (*calendar.EventDateTime, error) {
+	dt, err := buildEventDateTimeWithTimezone(value, allDay, timezone, flagName)
+	if err != nil {
+		return nil, err
+	}
+
+	// Calendar PATCH merges nested date-time fields. Clear the representation
+	// that the update replaces so Google never receives both date and dateTime.
+	if allDay {
+		dt.NullFields = []string{"DateTime", "TimeZone"}
+	} else {
+		dt.NullFields = []string{"Date"}
+	}
+	return dt, nil
 }
 
 func applyUpdateAttendees(input calendarUpdateInput, fields calendarUpdateFields, patch *calendar.Event) (bool, error) {
