@@ -155,7 +155,7 @@ func executeWithRuntime(args []string, runtime *app.Runtime) (err error) {
 	if err != nil {
 		return reportEarlyError(kctx, runtimeIO.Err, err)
 	}
-	if err = verifyLockedFlagsExist(parser.Model.Node); err != nil {
+	if err = verifyBakedFlagPolicyExists(parser.Model.Node); err != nil {
 		return reportEarlyError(kctx, runtimeIO.Err, err)
 	}
 	args = rewriteDocsCellUpdateContentArgs(parser.Model, args)
@@ -210,7 +210,7 @@ func executeWithRuntime(args []string, runtime *app.Runtime) (err error) {
 	if err = enforceBakedSafetyProfile(kctx); err != nil {
 		return reportEarlyError(kctx, runtimeIO.Err, err)
 	}
-	err = enforceLockedFlags(kctx)
+	err = enforceBakedFlagPolicy(kctx)
 	jsonErrors = cli.JSON
 	if err != nil {
 		return reportEarlyError(kctx, runtimeIO.Err, err)
