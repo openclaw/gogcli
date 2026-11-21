@@ -256,6 +256,8 @@ chat:
   dm:
     send: false
     space: false
+  attachments:
+    download: true
 
 forms:
   get: true
