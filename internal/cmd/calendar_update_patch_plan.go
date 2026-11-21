@@ -282,9 +282,11 @@ func cloneEventDateTime(in *calendar.EventDateTime) *calendar.EventDateTime {
 		return nil
 	}
 	return &calendar.EventDateTime{
-		Date:     in.Date,
-		DateTime: in.DateTime,
-		TimeZone: in.TimeZone,
+		Date:            in.Date,
+		DateTime:        in.DateTime,
+		TimeZone:        in.TimeZone,
+		ForceSendFields: append([]string(nil), in.ForceSendFields...),
+		NullFields:      append([]string(nil), in.NullFields...),
 	}
 }
 

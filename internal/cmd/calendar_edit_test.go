@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/alecthomas/kong"
+	"google.golang.org/api/calendar/v3"
 
 	"github.com/openclaw/gogcli/internal/googleauth"
 )
@@ -139,6 +140,35 @@ func TestCalendarUpdatePatchClearsPreviousTimeRepresentation(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestCalendarUpdatePatchKeepsTimeClearsWhenAddingRecurrence(t *testing.T) {
+	cmd := &CalendarUpdateCmd{}
+	kctx := parseKongContext(t, cmd, []string{
+		"cal1", "evt1",
+		"--from", "2030-01-01",
+		"--to", "2030-01-02",
+		"--all-day",
+		"--rrule", "RRULE:FREQ=DAILY",
+	})
+	patch, changed, err := buildCalendarUpdatePatch(calendarUpdateInputFromCommand(cmd), calendarUpdateFieldsFromKong(kctx))
+	if err != nil {
+		t.Fatalf("buildUpdatePatch: %v", err)
+	}
+	if !changed || len(patch.Recurrence) != 1 {
+		t.Fatalf("unexpected recurring patch: changed=%t patch=%#v", changed, patch)
+	}
+
+	fallbackStart := &calendar.EventDateTime{DateTime: "2029-12-31T09:00:00Z", TimeZone: "UTC"}
+	fallbackEnd := &calendar.EventDateTime{DateTime: "2029-12-31T10:00:00Z", TimeZone: "UTC"}
+	patch.Start = normalizeRecurringPatchDateTime(patch.Start, fallbackStart)
+	patch.End = normalizeRecurringPatchDateTime(patch.End, fallbackEnd)
+
+	for _, field := range []string{"DateTime", "TimeZone"} {
+		if !hasStringValue(patch.Start.NullFields, field) || !hasStringValue(patch.End.NullFields, field) {
+			t.Fatalf("expected %s to stay cleared: start=%#v end=%#v", field, patch.Start, patch.End)
+		}
 	}
 }
 
