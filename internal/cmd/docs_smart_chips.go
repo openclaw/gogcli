@@ -315,6 +315,8 @@ func setDocsInsertRequestLocation(req *docs.Request, index int64, tabID string) 
 		req.InsertRichLink.Location = location
 	case req.InsertDate != nil:
 		req.InsertDate.Location = location
+	case req.InsertDropdown != nil:
+		req.InsertDropdown.Location = location
 	case req.InsertInlineImage != nil:
 		req.InsertInlineImage.Location = location
 	}

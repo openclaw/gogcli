@@ -50,6 +50,7 @@ gog --readonly --account user@example.com docs cat DOCUMENT_ID --json --wrap-unt
 | `info` | Get Google Doc metadata |
 | `insert` | Insert text at a specific position |
 | `insert-date-chip` | Insert a native date smart chip |
+| `insert-dropdown` | Insert a native dropdown smart chip from an existing dropdown definition |
 | `insert-file-chip` | Insert a native Drive file smart chip |
 | `insert-footnote` | Insert and populate a footnote |
 | `insert-horizontal-rule` | Insert a paragraph-border horizontal rule |
@@ -58,6 +59,7 @@ gog --readonly --account user@example.com docs cat DOCUMENT_ID --json --wrap-unt
 | `insert-person` | Insert a native person smart chip |
 | `insert-section-break` | Insert a continuous or next-page section break |
 | `insert-table` | Insert a native table at a specific position (or end-of-doc with --at-end), optionally populated via --values-json |
+| `list-dropdowns` | List dropdown definitions and their options |
 | `list-tabs` | List all tabs in a Google Doc |
 | `named-range` | Manage named ranges |
 | `page-layout` | Set page layout (pageless\|pages) on an existing Google Doc |

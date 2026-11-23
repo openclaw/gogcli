@@ -316,6 +316,7 @@ Generated from `gog schema --json`.
     - [`gog docs (doc) info (get,show) <docId>`](commands/gog-docs-info.md) - Get Google Doc metadata
     - [`gog docs (doc) insert <docId> [<content>] [flags]`](commands/gog-docs-insert.md) - Insert text at a specific position
     - [`gog docs (doc) insert-date-chip --date=STRING <docId> [flags]`](commands/gog-docs-insert-date-chip.md) - Insert a native date smart chip
+    - [`gog docs (doc) insert-dropdown --definition=STRING <docId> [flags]`](commands/gog-docs-insert-dropdown.md) - Insert a native dropdown smart chip from an existing dropdown definition
     - [`gog docs (doc) insert-file-chip (insert-rich-link) --file-id=STRING <docId> [flags]`](commands/gog-docs-insert-file-chip.md) - Insert a native Drive file smart chip
     - [`gog docs (doc) insert-footnote <docId> [flags]`](commands/gog-docs-insert-footnote.md) - Insert and populate a footnote
     - [`gog docs (doc) insert-horizontal-rule (insert-hr,hr) <docId> [flags]`](commands/gog-docs-insert-horizontal-rule.md) - Insert a paragraph-border horizontal rule
@@ -324,6 +325,7 @@ Generated from `gog schema --json`.
     - [`gog docs (doc) insert-person --email=STRING <docId> [flags]`](commands/gog-docs-insert-person.md) - Insert a native person smart chip
     - [`gog docs (doc) insert-section-break <docId> [flags]`](commands/gog-docs-insert-section-break.md) - Insert a continuous or next-page section break
     - [`gog docs (doc) insert-table --rows=INT --cols=INT <docId> [flags]`](commands/gog-docs-insert-table.md) - Insert a native table at a specific position (or end-of-doc with --at-end), optionally populated via --values-json
+    - [`gog docs (doc) list-dropdowns <docId> [flags]`](commands/gog-docs-list-dropdowns.md) - List dropdown definitions and their options
     - [`gog docs (doc) list-tabs <docId>`](commands/gog-docs-list-tabs.md) - List all tabs in a Google Doc
     - [`gog docs (doc) named-range (named-ranges,namedranges,nr) <command>`](commands/gog-docs-named-range.md) - Manage named ranges
       - [`gog docs (doc) named-range (named-ranges,namedranges,nr) create (add,new) <docId> [flags]`](commands/gog-docs-named-range-create.md) - Create a named range

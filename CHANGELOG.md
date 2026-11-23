@@ -3,6 +3,7 @@
 ## 0.48.2 - Unreleased
 
 - Auth: automatic reauthorization no longer replays a stored Google Ads (`adwords`) grant unless the failing command needs Ads, so an old Ads grant cannot trigger Google's passkey gate; restore it with `gog auth add <email> --services user,ads`. (#1353)
+- Docs: add `docs insert-dropdown` to insert native dropdown smart chips from an existing definition (by ID or title, option by ID or display value, with `--at` replace), and `docs list-dropdowns` to list definitions and options. Follows up #638, which shipped person, date and file chips.
 - Dependencies: refresh the MCP and Google API clients, networking libraries, and tracking-worker tooling while preserving the Go 1.26 minimum, 24-hour worker cooldown, and security overrides.
 
 ## 0.48.1 - 2026-11-15
