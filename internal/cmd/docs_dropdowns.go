@@ -82,7 +82,7 @@ func (c *DocsInsertDropdownCmd) Run(ctx context.Context, kctx *kong.Context, fla
 		if err != nil {
 			return err
 		}
-		defs, err := fetchDocsDropdownDefinitions(ctx, svc, strings.TrimSpace(c.DocID), "")
+		defs, err := fetchDocsDropdownDefinitions(ctx, svc, strings.TrimSpace(c.DocID), c.Tab, true)
 		if err != nil {
 			return err
 		}
@@ -121,7 +121,7 @@ func (c *DocsListDropdownsCmd) Run(ctx context.Context, flags *RootFlags) error 
 	if err != nil {
 		return err
 	}
-	defs, err := fetchDocsDropdownDefinitions(ctx, svc, docID, c.Tab)
+	defs, err := fetchDocsDropdownDefinitions(ctx, svc, docID, c.Tab, false)
 	if err != nil {
 		return err
 	}
@@ -148,7 +148,10 @@ func docsDropdownNeedsLookup(definition, option string) bool {
 	return option != "" && !strings.HasPrefix(option, docsDropdownOptionIDPrefix)
 }
 
-func fetchDocsDropdownDefinitions(ctx context.Context, svc *docs.Service, docID, tabQuery string) ([]docsDropdownDefinitionInfo, error) {
+// Definition IDs are only unique within a tab, so an insert resolves names in
+// the tab it writes to: --tab, or the first tab, which is where the API writes
+// when no tab is given.
+func fetchDocsDropdownDefinitions(ctx context.Context, svc *docs.Service, docID, tabQuery string, insertTarget bool) ([]docsDropdownDefinitionInfo, error) {
 	doc, err := svc.Documents.Get(docID).IncludeTabsContent(true).Context(ctx).Do()
 	if err != nil {
 		if isDocsNotFound(err) {
@@ -166,6 +169,8 @@ func fetchDocsDropdownDefinitions(ctx context.Context, svc *docs.Service, docID,
 			return nil, tabErr
 		}
 		tabs = []*docs.Tab{tab}
+	} else if insertTarget && len(tabs) > 0 {
+		tabs = tabs[:1]
 	}
 	return docsDropdownDefinitionsFromTabs(tabs), nil
 }

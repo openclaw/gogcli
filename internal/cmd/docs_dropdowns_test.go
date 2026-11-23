@@ -128,3 +128,69 @@ func TestDocsListDropdownsJSON(t *testing.T) {
 		t.Fatalf("definition = %#v", def)
 	}
 }
+
+func docsDropdownTwoTabDoc() *docs.Document {
+	statusTab := func(id, title, defID, optID, value string) *docs.Tab {
+		return &docs.Tab{
+			TabProperties: &docs.TabProperties{TabId: id, Title: title},
+			DocumentTab: &docs.DocumentTab{
+				Body: &docs.Body{Content: []*docs.StructuralElement{docsFindRangeParagraph(1, "Status here\n")}},
+				DropdownDefinitions: map[string]docs.DropdownDefinition{
+					defID: {
+						DropdownDefinitionId: defID,
+						DropdownDefinitionProperties: &docs.DropdownDefinitionProperties{
+							Title:   "Status",
+							Options: []*docs.DropdownOption{{OptionId: optID, DisplayValue: value}},
+						},
+					},
+				},
+			},
+		}
+	}
+	doc := docsFindRangeDoc(docsFindRangeParagraph(1, "Status here\n"))
+	doc.Tabs = []*docs.Tab{
+		statusTab("t.plan", "Planning", "kix.status", "dropdownItem.plan", "Active"),
+		statusTab("t.arch", "Archive", "kix.status", "dropdownItem.arch", "Archived"),
+	}
+	return doc
+}
+
+func TestDocsInsertDropdownResolvesWithinTargetTab(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name     string
+		args     []string
+		wantOpt  string
+		wantTab  string
+		wantFail string
+	}{
+		{name: "explicit tab", args: []string{"--tab", "Archive", "--option", "archived"}, wantOpt: "dropdownItem.arch", wantTab: "t.arch"},
+		{name: "default first tab", args: []string{"--option", "active"}, wantOpt: "dropdownItem.plan"},
+		{name: "value from another tab", args: []string{"--tab", "Planning", "--option", "archived"}, wantFail: `option "archived" not in dropdown`},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			rec := &docsAtAnchorRecorder{}
+			svc := setupDocsAtAnchorTestService(t, docsDropdownTwoTabDoc(), rec)
+			ctx := withDocsTestService(newCmdRuntimeOutputContext(t, io.Discard, io.Discard), svc)
+
+			args := append([]string{"doc1", "--definition", "Status", "--at-end"}, tc.args...)
+			err := runKong(t, &DocsInsertDropdownCmd{}, args, ctx, &RootFlags{Account: "a@b.com"})
+			if tc.wantFail != "" {
+				if err == nil || !strings.Contains(err.Error(), tc.wantFail) {
+					t.Fatalf("err = %v, want %q", err, tc.wantFail)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("insert-dropdown: %v", err)
+			}
+			dd := rec.batchRequests[0][len(rec.batchRequests[0])-1].InsertDropdown
+			if dd == nil || dd.DropdownDefinitionId != "kix.status" || dd.SelectedOptionId != tc.wantOpt || dd.Location.TabId != tc.wantTab {
+				t.Fatalf("insert dropdown = %#v, want option %s in tab %q", dd, tc.wantOpt, tc.wantTab)
+			}
+		})
+	}
+}
