@@ -293,6 +293,98 @@ func TestReauthPreservesStoredScopes(t *testing.T) {
 	}
 }
 
+func TestReauthReplaysStoredAdsScopeOnlyForAdsRequests(t *testing.T) {
+	const (
+		gmailScope = "https://www.googleapis.com/auth/gmail.modify"
+		adsScope   = "https://www.googleapis.com/auth/adwords"
+	)
+
+	for _, tc := range []struct {
+		name         string
+		services     []string
+		scopes       []string
+		wantScopes   []string
+		wantServices []string
+		wantNarrowed bool
+		wantNotice   bool
+	}{
+		{
+			name:         "gmail request drops stored ads",
+			services:     []string{"gmail"},
+			scopes:       []string{gmailScope},
+			wantScopes:   []string{gmailScope},
+			wantServices: []string{"gmail"},
+			wantNarrowed: true,
+			wantNotice:   true,
+		},
+		{
+			name:         "ads request keeps stored ads",
+			services:     []string{"ads"},
+			scopes:       []string{adsScope},
+			wantScopes:   []string{gmailScope, adsScope},
+			wantServices: []string{"gmail", "ads"},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var requestedScopes, requestedServices []string
+			var narrowed bool
+
+			stderr := &bytesBuffer{}
+			opts := ReauthOptions{
+				Email:    "user@example.com",
+				Client:   "default",
+				Services: tc.services,
+				Scopes:   tc.scopes,
+				StoredToken: &secrets.Token{
+					Scopes:   []string{gmailScope, adsScope},
+					Services: []string{"gmail", "ads"},
+				},
+				EnsureKeychainAccess: func(context.Context) error { return nil },
+				Confirm:              func(context.Context, string) (bool, error) { return true, nil },
+				AuthorizeFunc: func(ctx context.Context, authOpts AuthorizeOptions) (string, error) {
+					requestedScopes = authOpts.Scopes
+					narrowed = authOpts.DisableIncludeGrantedScopes
+
+					for _, svc := range authOpts.Services {
+						requestedServices = append(requestedServices, string(svc))
+					}
+
+					return "new-refresh-token", nil
+				},
+				FetchIdentityFunc: func(context.Context, string, string, []string, time.Duration) (Identity, error) {
+					return Identity{Subject: "sub123", Email: "user@example.com"}, nil
+				},
+				Stderr: stderr,
+			}
+
+			tok, err := Reauth(context.Background(), opts)
+			if err != nil {
+				t.Fatalf("Reauth: %v", err)
+			}
+
+			if strings.Join(requestedScopes, " ") != strings.Join(tc.wantScopes, " ") {
+				t.Fatalf("requested scopes = %v, want %v", requestedScopes, tc.wantScopes)
+			}
+
+			if strings.Join(requestedServices, " ") != strings.Join(tc.wantServices, " ") {
+				t.Fatalf("requested services = %v, want %v", requestedServices, tc.wantServices)
+			}
+
+			if strings.Join(tok.Scopes, " ") != strings.Join(tc.wantScopes, " ") {
+				t.Fatalf("stored scopes = %v, want %v", tok.Scopes, tc.wantScopes)
+			}
+
+			if narrowed != tc.wantNarrowed {
+				t.Fatalf("DisableIncludeGrantedScopes = %v, want %v", narrowed, tc.wantNarrowed)
+			}
+
+			if gotNotice := strings.Contains(string(stderr.data), "--services user,ads"); gotNotice != tc.wantNotice {
+				t.Fatalf("ads notice shown = %v, want %v; stderr: %s", gotNotice, tc.wantNotice, stderr.data)
+			}
+		})
+	}
+}
+
 func TestReauthPreservesLimitedGmailGrants(t *testing.T) {
 	for _, tc := range []struct {
 		name   string
