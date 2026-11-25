@@ -10,6 +10,7 @@ import (
 	"slices"
 	"sync/atomic"
 	"testing"
+	"time"
 )
 
 type tasksRepeatTestResult struct {
@@ -87,6 +88,21 @@ func TestTasksAddCmd_RecurAliasCreatesMultiple(t *testing.T) {
 func TestTasksAddCmd_RecurRRuleIntervalCreatesMultiple(t *testing.T) {
 	result := runTasksRepeatTest(t, "--due", "2025-01-01", "--recur-rrule", "FREQ=DAILY;INTERVAL=2", "--repeat-count", "3")
 	assertTaskDueOrder(t, result.due, []string{"2025-01-01T00:00:00Z", "2025-01-03T00:00:00Z", "2025-01-05T00:00:00Z"})
+}
+
+func TestTasksAddCmd_RepeatMonthlyKeepsMonthEnd(t *testing.T) {
+	result := runTasksRepeatTest(t, "--due", "2026-01-31", "--repeat", "monthly", "--repeat-count", "4")
+	assertTaskDueOrder(t, result.due, []string{"2026-01-31T00:00:00Z", "2026-02-28T00:00:00Z", "2026-03-31T00:00:00Z", "2026-04-30T00:00:00Z"})
+}
+
+func TestTasksAddCmd_RepeatMonthlyUntilKeepsOneTaskPerMonth(t *testing.T) {
+	result := runTasksRepeatTest(t, "--due", "2026-01-31T09:00:00Z", "--recur-rrule", "FREQ=MONTHLY", "--repeat-until", "2026-04-30")
+	assertTaskDueOrder(t, result.due, []string{"2026-01-31T09:00:00Z", "2026-02-28T09:00:00Z", "2026-03-31T09:00:00Z", "2026-04-30T09:00:00Z"})
+}
+
+func TestTasksAddCmd_RepeatYearlyFromLeapDay(t *testing.T) {
+	result := runTasksRepeatTest(t, "--due", "2028-02-29", "--repeat", "yearly", "--repeat-count", "3")
+	assertTaskDueOrder(t, result.due, []string{"2028-02-29T00:00:00Z", "2029-02-28T00:00:00Z", "2030-02-28T00:00:00Z"})
 }
 
 func assertTaskDueOrder(t *testing.T, got, want []string) {
@@ -170,5 +186,25 @@ func TestParseRepeatRRule(t *testing.T) {
 				t.Fatalf("got unit=%v interval=%d want unit=%v interval=%d", gotUnit, gotInterval, tc.wantUnit, tc.wantInterval)
 			}
 		})
+	}
+}
+
+func TestAddMonthsClampedIgnoresMidnightDSTGap(t *testing.T) {
+	t.Parallel()
+	// Paraguay started daylight saving at midnight on 2023-10-01, so that
+	// day has no 00:00. A local --due such as "2023-09-15 00:00" parses in
+	// time.Local, and the next month must still be October.
+	loc, err := time.LoadLocation("America/Asuncion")
+	if err != nil {
+		t.Skipf("tzdata: %v", err)
+	}
+	start := time.Date(2023, time.September, 15, 0, 0, 0, 0, loc)
+	got := addMonthsClamped(start, 1)
+	if got.Year() != 2023 || got.Month() != time.October || got.Day() != 15 {
+		t.Fatalf("addMonthsClamped(%s, 1) = %s, want 2023-10-15", start, got)
+	}
+	end := time.Date(2023, time.August, 31, 0, 30, 0, 0, loc)
+	if got := addMonthsClamped(end, 1); got.Month() != time.September || got.Day() != 30 {
+		t.Fatalf("addMonthsClamped(%s, 1) = %s, want 2023-09-30", end, got)
 	}
 }
