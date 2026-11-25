@@ -10,6 +10,9 @@ import (
 
 const literalAll = "all"
 
+// anyValue as the sole entry of a denied-values list refuses every non-empty value.
+const anyValue = "*"
+
 // Parse validates the YAML form of a safety profile and returns the Profile
 // the generator emits as code. Allow and deny lists are sorted and
 // deduplicated; "all" / "*" entries on the allow side collapse into the
@@ -29,6 +32,23 @@ func Parse(raw string) (*Profile, error) {
 		out.LockedFlags = append(out.LockedFlags, LockedFlag{Name: name, Value: value})
 	}
 	sort.Slice(out.LockedFlags, func(i, j int) bool { return out.LockedFlags[i].Name < out.LockedFlags[j].Name })
+	for path, flags := range parsed.deniedValues {
+		for flag, values := range flags {
+			rule := DeniedValue{Path: path, Flag: flag}
+			for value := range values {
+				rule.Values = append(rule.Values, value)
+			}
+			sort.Strings(rule.Values)
+			out.DeniedValues = append(out.DeniedValues, rule)
+		}
+	}
+	sort.Slice(out.DeniedValues, func(i, j int) bool {
+		a, b := out.DeniedValues[i], out.DeniedValues[j]
+		if a.Path != b.Path {
+			return a.Path < b.Path
+		}
+		return a.Flag < b.Flag
+	})
 	for k := range parsed.allow {
 		if k == literalAll || k == "*" {
 			continue
@@ -48,6 +68,8 @@ type rawProfile struct {
 	allow       map[string]bool
 	deny        map[string]bool
 	lockedFlags map[string]string
+	// deniedValues maps a command path to a flag name to the set of refused values.
+	deniedValues map[string]map[string]map[string]bool
 }
 
 func parseRaw(raw string) (*rawProfile, error) {
@@ -57,10 +79,11 @@ func parseRaw(raw string) (*rawProfile, error) {
 	}
 
 	profile := &rawProfile{
-		name:        "unnamed",
-		allow:       map[string]bool{},
-		deny:        map[string]bool{},
-		lockedFlags: map[string]string{},
+		name:         "unnamed",
+		allow:        map[string]bool{},
+		deny:         map[string]bool{},
+		lockedFlags:  map[string]string{},
+		deniedValues: map[string]map[string]map[string]bool{},
 	}
 
 	if rawName, present := root["name"]; present {
@@ -79,10 +102,13 @@ func parseRaw(raw string) (*rawProfile, error) {
 	if err := addLockedFlags(profile.lockedFlags, root["locked-flags"]); err != nil {
 		return nil, fmt.Errorf("locked-flags: %w", err)
 	}
+	if err := addDeniedValues(profile.deniedValues, root["denied-values"]); err != nil {
+		return nil, fmt.Errorf("denied-values: %w", err)
+	}
 
 	for key, value := range root {
 		switch key {
-		case "name", "description", "allow", "deny", "locked-flags":
+		case "name", "description", "allow", "deny", "locked-flags", "denied-values":
 			continue
 		}
 		prefix := []string{key}
@@ -145,6 +171,67 @@ func addLockedFlags(out map[string]string, value any) error {
 			return fmt.Errorf("%s: expected boolean value, got %T", flag, raw)
 		}
 		out[flag] = fmt.Sprintf("%t", value)
+	}
+	return nil
+}
+
+// addDeniedValues reads the denied-values mapping of command path to flag name to a
+// list of refused values. Paths are normalized like command rules, flag names and
+// values are lowercased and trimmed so the runtime compares case-insensitively.
+// A list holding only "*" refuses any non-empty value of the flag.
+func addDeniedValues(out map[string]map[string]map[string]bool, value any) error {
+	if value == nil {
+		return nil
+	}
+	commands, ok := value.(map[string]any)
+	if !ok {
+		return fmt.Errorf("expected mapping of command path to flags")
+	}
+	for rawPath, rawFlags := range commands {
+		path := normalize(rawPath)
+		if path == "" {
+			return fmt.Errorf("empty command path")
+		}
+		if path == literalAll || path == "*" {
+			return fmt.Errorf("%s: wildcard paths are not allowed; list specific commands", rawPath)
+		}
+		flags, ok := rawFlags.(map[string]any)
+		if !ok {
+			return fmt.Errorf("%s: expected mapping of flag name to list of values, got %T", path, rawFlags)
+		}
+		for rawFlag, rawValues := range flags {
+			flag := strings.TrimSpace(strings.ToLower(rawFlag))
+			if flag == "" {
+				return fmt.Errorf("%s: empty flag name", path)
+			}
+			items, ok := rawValues.([]any)
+			if !ok {
+				return fmt.Errorf("%s.%s: expected list of values, got %T", path, flag, rawValues)
+			}
+			if len(items) == 0 {
+				return fmt.Errorf("%s.%s: expected at least one value", path, flag)
+			}
+			if out[path] == nil {
+				out[path] = map[string]map[string]bool{}
+			}
+			if out[path][flag] == nil {
+				out[path][flag] = map[string]bool{}
+			}
+			for _, item := range items {
+				s, ok := item.(string)
+				if !ok {
+					return fmt.Errorf("%s.%s: expected string value, got %T", path, flag, item)
+				}
+				s = strings.TrimSpace(strings.ToLower(s))
+				if s == "" {
+					return fmt.Errorf("%s.%s: empty value", path, flag)
+				}
+				out[path][flag][s] = true
+			}
+			if out[path][flag][anyValue] && len(out[path][flag]) > 1 {
+				return fmt.Errorf("%s.%s: %q denies every value and cannot be combined with others", path, flag, anyValue)
+			}
+		}
 	}
 	return nil
 }
