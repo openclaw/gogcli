@@ -4,6 +4,7 @@
 
 - Auth: automatic reauthorization no longer replays a stored Google Ads (`adwords`) grant unless the failing command needs Ads, so an old Ads grant cannot trigger Google's passkey gate; restore it with `gog auth add <email> --services user,ads`. (#1353)
 - Dependencies: refresh the MCP and Google API clients, networking libraries, and tracking-worker tooling while preserving the Go 1.26 minimum, 24-hour worker cooldown, and security overrides.
+- Calendar: clear timed fields when an update converts an event to all day, and clear all-day dates for the inverse conversion. (#1348) — thanks @finn-atlas.
 
 ## 0.48.1 - 2026-11-15
 
