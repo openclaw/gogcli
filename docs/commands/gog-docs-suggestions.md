@@ -16,6 +16,7 @@ gog docs (doc) suggestions <command>
 
 ## Subcommands
 
+- [gog docs suggestions batch](gog-docs-suggestions-batch.md) - Propose a batch of supported Google Docs operations
 - [gog docs suggestions insert](gog-docs-suggestions-insert.md) - Propose a plain-text insertion as a pending suggestion
 - [gog docs suggestions list](gog-docs-suggestions-list.md) - List pending text insertions and deletions
 

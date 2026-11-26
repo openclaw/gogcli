@@ -340,7 +340,8 @@ Generated from `gog schema --json`.
     - [`gog docs (doc) sed <docId> [<expression>] [flags]`](commands/gog-docs-sed.md) - Regex find/replace (sed-style: s/pattern/replacement/g)
     - [`gog docs (doc) structure (struct) <docId> [flags]`](commands/gog-docs-structure.md) - Show document structure with numbered paragraphs
     - [`gog docs (doc) suggestions <command>`](commands/gog-docs-suggestions.md) - List and propose pending text suggestions
-      - [`gog docs (doc) suggestions insert --index=INT-64 --revision=STRING <docId> <text>`](commands/gog-docs-suggestions-insert.md) - Propose a plain-text insertion as a pending suggestion
+      - [`gog docs (doc) suggestions batch --file=STRING --revision=STRING <docId>`](commands/gog-docs-suggestions-batch.md) - Propose a batch of supported Google Docs operations
+      - [`gog docs (doc) suggestions insert --index=INT-64 --revision=STRING <docId> <text> [flags]`](commands/gog-docs-suggestions-insert.md) - Propose a plain-text insertion as a pending suggestion
       - [`gog docs (doc) suggestions list (ls) <docId> [flags]`](commands/gog-docs-suggestions-list.md) - List pending text insertions and deletions
     - [`gog docs (doc) table-column <command>`](commands/gog-docs-table-column.md) - Insert or delete native table columns
       - [`gog docs (doc) table-column delete (rm,remove,del) --col=INT <docId> [flags]`](commands/gog-docs-table-column-delete.md) - Delete a native table column

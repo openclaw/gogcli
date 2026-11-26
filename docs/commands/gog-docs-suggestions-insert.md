@@ -7,7 +7,7 @@ Propose a plain-text insertion as a pending suggestion
 ## Usage
 
 ```bash
-gog docs (doc) suggestions insert --index=INT-64 --revision=STRING <docId> <text>
+gog docs (doc) suggestions insert --index=INT-64 --revision=STRING <docId> <text> [flags]
 ```
 
 ## Parent
@@ -30,7 +30,7 @@ gog docs (doc) suggestions insert --index=INT-64 --revision=STRING <docId> <text
 | `--gmail-no-send` | `bool` | false | Block Gmail send operations (agent safety) |
 | `-h`<br>`--help` | `kong.helpFlag` |  | Show context-sensitive help. |
 | `--home` | `string` |  | Override gogcli config/data/state/cache root (equivalent to GOG_HOME) |
-| `--index` | `int64` |  | Docs UTF-16 offset in the first tab body (minimum 1) |
+| `--index` | `int64` |  | Docs UTF-16 offset in the selected tab body (minimum 1) |
 | `-j`<br>`--json`<br>`--machine` | `bool` | false | Output JSON to stdout (best for scripting) |
 | `--no-input`<br>`--non-interactive`<br>`--noninteractive` | `bool` |  | Never prompt; fail instead (useful for CI) |
 | `-p`<br>`--plain`<br>`--tsv` | `bool` | false | Output stable, parseable text to stdout (TSV; no colors) |
@@ -39,6 +39,7 @@ gog docs (doc) suggestions insert --index=INT-64 --revision=STRING <docId> <text
 | `--results-only` | `bool` |  | In JSON mode, emit only the primary result (drops envelope fields like nextPageToken) |
 | `--revision` | `string` |  | Required document revision ID from the same read as the index |
 | `--select`<br>`--pick`<br>`--project` | `string` |  | In JSON mode, select comma-separated fields (best-effort; supports dot paths). Desire path: use --fields for most commands. |
+| `--tab-id` | `string` |  | Exact tab ID (defaults to the first tab) |
 | `-v`<br>`--verbose` | `bool` |  | Enable verbose logging |
 | `--version` | `kong.VersionFlag` |  | Print version and exit |
 | `--wrap-untrusted` | `bool` | false | In JSON/raw output, wrap fetched text fields in external untrusted-content markers |

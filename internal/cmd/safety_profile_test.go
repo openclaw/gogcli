@@ -266,9 +266,9 @@ func TestBundledSafetyProfilesAllowReadingButNotCreatingDocsSuggestions(t *testi
 				t.Fatalf("expected docs suggestions to be allowed by %s profile, got: %q", profile, out)
 			}
 
-			err = Execute([]string{"docs", "suggestions", "insert", "doc1", "text", "--index=1", "--revision=r1", "--dry-run"})
-			if err == nil || !strings.Contains(err.Error(), `command "docs suggestions insert" is not included in baked safety profile`) {
-				t.Fatalf("expected suggesting text to be blocked by %s profile, got: %v", profile, err)
+			blockedErr := Execute([]string{"docs", "suggestions", "insert", "doc1", "text", "--index=1", "--revision=r1", "--dry-run"})
+			if blockedErr == nil || !strings.Contains(blockedErr.Error(), `command "docs suggestions insert" is not included in baked safety profile`) {
+				t.Fatalf("expected suggesting text to be blocked by %s profile, got: %v", profile, blockedErr)
 			}
 		})
 	}

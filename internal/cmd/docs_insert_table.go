@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"strings"
 
+	"google.golang.org/api/docs/v1"
+
 	"github.com/openclaw/gogcli/internal/docsedit"
 	"github.com/openclaw/gogcli/internal/outfmt"
 	"github.com/openclaw/gogcli/internal/ui"
@@ -17,17 +19,21 @@ import (
 // drops them mid-insert in some scenarios — see #592/#607/#608/#609 — and
 // agents needed a path that bypasses the markdown converter entirely (#602).
 type DocsInsertTableCmd struct {
-	DocID      string `arg:"" name:"docId" help:"Doc ID"`
-	Rows       int    `name:"rows" required:"" help:"Number of rows (>=1)"`
-	Cols       int    `name:"cols" required:"" help:"Number of columns (>=1)"`
-	Index      *int64 `name:"index" help:"Character index to insert at (1 = beginning). Omit or use --at-end for end-of-doc."`
-	AtEnd      bool   `name:"at-end" help:"Insert at end-of-doc/tab (mutually exclusive with --index)"`
-	ValuesJSON string `name:"values-json" help:"Cell values as a JSON 2D string array; dimensions must match --rows x --cols when supplied"`
-	Tab        string `name:"tab" help:"Target a specific tab by title or ID (see docs list-tabs)"`
-	TabID      string `name:"tab-id" hidden:"" help:"(deprecated) Use --tab"`
+	DocID      string           `arg:"" name:"docId" help:"Doc ID"`
+	Rows       int              `name:"rows" required:"" help:"Number of rows (>=1)"`
+	Cols       int              `name:"cols" required:"" help:"Number of columns (>=1)"`
+	Index      *int64           `name:"index" help:"Character index to insert at (1 = beginning). Omit or use --at-end for end-of-doc."`
+	AtEnd      bool             `name:"at-end" help:"Insert at end-of-doc/tab (mutually exclusive with --index)"`
+	ValuesJSON string           `name:"values-json" help:"Cell values as a JSON 2D string array; dimensions must match --rows x --cols when supplied"`
+	Tab        string           `name:"tab" help:"Target a specific tab by title or ID (see docs list-tabs)"`
+	Suggestion DocsSuggestFlags `embed:""`
+	TabID      string           `name:"tab-id" hidden:"" help:"(deprecated) Use --tab"`
 }
 
 func (c *DocsInsertTableCmd) Run(ctx context.Context, flags *RootFlags) error {
+	if err := c.Suggestion.validate(c.ValuesJSON != ""); err != nil {
+		return err
+	}
 	u := ui.FromContext(ctx)
 	docID := strings.TrimSpace(c.DocID)
 	if docID == "" {
@@ -58,6 +64,13 @@ func (c *DocsInsertTableCmd) Run(ctx context.Context, flags *RootFlags) error {
 	c.Tab = tab
 
 	resolveEnd := c.AtEnd || c.Index == nil
+	placement, err := docsedit.PlanEndInsertPlacement(docsedit.EndInsertPlacementOptions{Index: c.Index, AtEnd: c.AtEnd})
+	if err != nil {
+		return usage(err.Error())
+	}
+	if suggestErr := c.Suggestion.validatePlacement(placement); suggestErr != nil {
+		return suggestErr
+	}
 
 	dryRunPayload := map[string]any{
 		"documentId": docID,
@@ -70,6 +83,7 @@ func (c *DocsInsertTableCmd) Run(ctx context.Context, flags *RootFlags) error {
 	} else {
 		dryRunPayload["atIndex"] = *c.Index
 	}
+	c.Suggestion.addPlan(dryRunPayload)
 	if dryRunErr := dryRunExit(ctx, flags, "docs.insert-table", dryRunPayload); dryRunErr != nil {
 		return dryRunErr
 	}
@@ -77,6 +91,16 @@ func (c *DocsInsertTableCmd) Run(ctx context.Context, flags *RootFlags) error {
 	svc, err := requireDocsService(ctx, flags)
 	if err != nil {
 		return err
+	}
+
+	if c.Suggestion.Suggest {
+		resolved, resolveErr := c.Suggestion.resolve(ctx, svc, docID, c.Tab, "", placement)
+		if resolveErr != nil {
+			return resolveErr
+		}
+		return submitDocsSuggestions(ctx, flags, docID, resolved.RequiredRevisionID, []*docs.Request{{InsertTable: &docs.InsertTableRequest{
+			Rows: int64(c.Rows), Columns: int64(c.Cols), Location: &docs.Location{Index: resolved.Index, TabId: resolved.TabID},
+		}}})
 	}
 
 	var insertIndex int64

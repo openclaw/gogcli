@@ -14,15 +14,16 @@ import (
 )
 
 type DocsFindReplaceCmd struct {
-	DocID       string `arg:"" name:"docId" help:"Doc ID"`
-	Find        string `arg:"" name:"find" help:"Text to find"`
-	ReplaceText string `arg:"" optional:"" name:"replace" help:"Replacement text (omit when using --content-file)"`
-	ContentFile string `name:"content-file" help:"Read replacement from a file instead of the positional argument."`
-	MatchCase   bool   `name:"match-case" help:"Case-sensitive matching"`
-	Format      string `name:"format" help:"Replacement format: plain|markdown. Markdown converts formatting, tables, and inline images from public HTTPS URLs." default:"plain" enum:"plain,markdown"`
-	First       bool   `name:"first" help:"Replace only the first occurrence instead of all."`
-	Tab         string `name:"tab" help:"Target a specific tab by title or ID (see docs list-tabs)"`
-	TabID       string `name:"tab-id" hidden:"" help:"(deprecated) Use --tab"`
+	DocID       string           `arg:"" name:"docId" help:"Doc ID"`
+	Find        string           `arg:"" name:"find" help:"Text to find"`
+	ReplaceText string           `arg:"" optional:"" name:"replace" help:"Replacement text (omit when using --content-file)"`
+	ContentFile string           `name:"content-file" help:"Read replacement from a file instead of the positional argument."`
+	MatchCase   bool             `name:"match-case" help:"Case-sensitive matching"`
+	Format      string           `name:"format" help:"Replacement format: plain|markdown. Markdown converts formatting, tables, and inline images from public HTTPS URLs." default:"plain" enum:"plain,markdown"`
+	First       bool             `name:"first" help:"Replace only the first occurrence instead of all."`
+	Tab         string           `name:"tab" help:"Target a specific tab by title or ID (see docs list-tabs)"`
+	Suggestion  DocsSuggestFlags `embed:""`
+	TabID       string           `name:"tab-id" hidden:"" help:"(deprecated) Use --tab"`
 }
 
 func (c *DocsFindReplaceCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -45,13 +46,17 @@ func (c *DocsFindReplaceCmd) Run(ctx context.Context, flags *RootFlags) error {
 		format = docsContentFormatPlain
 	}
 
+	if suggestErr := c.Suggestion.validate(format != docsContentFormatPlain); suggestErr != nil {
+		return suggestErr
+	}
+
 	tab, tabErr := resolveTabArg(ctx, c.Tab, c.TabID)
 	if tabErr != nil {
 		return tabErr
 	}
 	c.Tab = tab
 
-	if dryRunErr := dryRunExit(ctx, flags, "docs.find-replace", map[string]any{
+	payload := map[string]any{
 		"document_id": docID,
 		"find":        c.Find,
 		"replace":     replaceText,
@@ -59,13 +64,19 @@ func (c *DocsFindReplaceCmd) Run(ctx context.Context, flags *RootFlags) error {
 		"first":       c.First,
 		"match_case":  c.MatchCase,
 		"tab":         c.Tab,
-	}); dryRunErr != nil {
+	}
+	c.Suggestion.addPlan(payload)
+	if dryRunErr := dryRunExit(ctx, flags, "docs.find-replace", payload); dryRunErr != nil {
 		return dryRunErr
 	}
 
 	svc, err := requireDocsService(ctx, flags)
 	if err != nil {
 		return err
+	}
+
+	if c.Suggestion.Suggest {
+		return c.runSuggestions(ctx, flags, svc, docID, replaceText)
 	}
 
 	if c.Tab != "" {
@@ -271,4 +282,35 @@ func (c *DocsFindReplaceCmd) resolveReplaceText() (string, error) {
 		return "", fmt.Errorf("read content file: %w", err)
 	}
 	return string(data), nil
+}
+
+func (c *DocsFindReplaceCmd) runSuggestions(ctx context.Context, flags *RootFlags, svc *docs.Service, id, replacement string) error {
+	loaded, err := c.Suggestion.load(ctx, svc, id, c.Tab, "")
+	if err != nil {
+		return err
+	}
+	var requests []*docs.Request
+	if c.First {
+		matches := docsedit.FindTextRanges(loaded.target, c.Find, docsedit.SearchOptions{
+			MatchCase: c.MatchCase, PreserveHTMLEntities: true, RequireTextSegment: true,
+		})
+		if len(matches) == 0 {
+			return usage("no matching text found")
+		}
+		r := docsedit.Range{Start: matches[0].StartIndex, End: matches[0].EndIndex}
+		requests = append(requests, docsedit.BuildDeleteRequest(r, loaded.tabID))
+		if replacement != "" {
+			requests = append(requests, docsedit.BuildInsertRequest(replacement, r.Start, loaded.tabID))
+		}
+	} else {
+		req := &docs.ReplaceAllTextRequest{
+			ContainsText: &docs.SubstringMatchCriteria{Text: c.Find, MatchCase: c.MatchCase},
+			ReplaceText:  replacement,
+		}
+		if loaded.tabID != "" {
+			req.TabsCriteria = &docs.TabsCriteria{TabIds: []string{loaded.tabID}}
+		}
+		requests = []*docs.Request{{ReplaceAllText: req}}
+	}
+	return submitDocsSuggestions(ctx, flags, id, loaded.full.RevisionId, requests)
 }

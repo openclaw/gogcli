@@ -15,21 +15,25 @@ import (
 )
 
 type DocsInsertCmd struct {
-	DocID      string `arg:"" name:"docId" help:"Doc ID"`
-	Content    string `arg:"" optional:"" name:"content" help:"Text to insert (or use --file / stdin)"`
-	Index      *int64 `name:"index" help:"Character index to insert at (1 = beginning). Defaults to end-of-doc when omitted."`
-	At         string `name:"at" help:"Anchor by literal text and insert at the start of the matched range"`
-	Occurrence *int   `name:"occurrence" help:"Use the Nth --at match (1-based; required when --at is ambiguous)"`
-	MatchCase  bool   `name:"match-case" help:"Use case-sensitive --at matching"`
-	File       string `name:"file" short:"f" help:"Read content from file (use - for stdin)"`
-	Markdown   bool   `name:"markdown" help:"Convert markdown to Google Docs formatting before inserting"`
-	Tab        string `name:"tab" help:"Target a specific tab by title or ID (see docs list-tabs)"`
-	Segment    string `name:"segment" help:"Target an exact header, footer, or footnote segment ID"`
-	TabID      string `name:"tab-id" hidden:"" help:"(deprecated) Use --tab"`
-	Batch      string `name:"batch" help:"Append requests to a persisted Docs batch instead of submitting"`
+	DocID      string           `arg:"" name:"docId" help:"Doc ID"`
+	Content    string           `arg:"" optional:"" name:"content" help:"Text to insert (or use --file / stdin)"`
+	Index      *int64           `name:"index" help:"Character index to insert at (1 = beginning). Defaults to end-of-doc when omitted."`
+	At         string           `name:"at" help:"Anchor by literal text and insert at the start of the matched range"`
+	Occurrence *int             `name:"occurrence" help:"Use the Nth --at match (1-based; required when --at is ambiguous)"`
+	MatchCase  bool             `name:"match-case" help:"Use case-sensitive --at matching"`
+	File       string           `name:"file" short:"f" help:"Read content from file (use - for stdin)"`
+	Markdown   bool             `name:"markdown" help:"Convert markdown to Google Docs formatting before inserting"`
+	Tab        string           `name:"tab" help:"Target a specific tab by title or ID (see docs list-tabs)"`
+	Segment    string           `name:"segment" help:"Target an exact header, footer, or footnote segment ID"`
+	TabID      string           `name:"tab-id" hidden:"" help:"(deprecated) Use --tab"`
+	Batch      string           `name:"batch" help:"Append requests to a persisted Docs batch instead of submitting"`
+	Suggestion DocsSuggestFlags `embed:""`
 }
 
 func (c *DocsInsertCmd) Run(ctx context.Context, kctx *kong.Context, flags *RootFlags) error {
+	if err := c.Suggestion.validate(c.Markdown || c.Batch != ""); err != nil {
+		return err
+	}
 	u := ui.FromContext(ctx)
 	docID := strings.TrimSpace(c.DocID)
 	if docID == "" {
@@ -54,6 +58,9 @@ func (c *DocsInsertCmd) Run(ctx context.Context, kctx *kong.Context, flags *Root
 	})
 	if err != nil {
 		return usage(err.Error())
+	}
+	if suggestErr := c.Suggestion.validatePlacement(placement); suggestErr != nil {
+		return suggestErr
 	}
 	at := placement.Anchor.Text
 
@@ -85,6 +92,7 @@ func (c *DocsInsertCmd) Run(ctx context.Context, kctx *kong.Context, flags *Root
 	default:
 		dryRunPayload["atIndex"] = docsAtIndexEnd
 	}
+	c.Suggestion.addPlan(dryRunPayload)
 	if dryRunErr := dryRunExit(ctx, flags, "docs.insert", dryRunPayload); dryRunErr != nil {
 		return dryRunErr
 	}
@@ -101,7 +109,7 @@ func (c *DocsInsertCmd) Run(ctx context.Context, kctx *kong.Context, flags *Root
 		return err
 	}
 
-	resolvedPlacement, err := resolveDocsPlacementTarget(ctx, svc, docID, c.Tab, c.Segment, placement)
+	resolvedPlacement, err := c.Suggestion.resolve(ctx, svc, docID, c.Tab, c.Segment, placement)
 	if err != nil {
 		return err
 	}
@@ -118,6 +126,9 @@ func (c *DocsInsertCmd) Run(ctx context.Context, kctx *kong.Context, flags *Root
 	}
 	applyDocsRequestTarget(batchReq.Requests, docsTargetFromPlacement(resolvedPlacement.ResolvedPlacement))
 	batchReq.WriteControl = docsRequiredRevisionWriteControl(resolvedPlacement.RequiredRevisionID)
+	if c.Suggestion.Suggest {
+		return submitDocsSuggestions(ctx, flags, docID, resolvedPlacement.RequiredRevisionID, batchReq.Requests)
+	}
 	if queued, queueErr := queueDocsBatchRequests(ctx, flags, c.Batch, docID, "docs.insert", batchRevision, batchReq.Requests, false); queued || queueErr != nil {
 		return queueErr
 	}

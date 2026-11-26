@@ -2,7 +2,7 @@
 
 Every `gog` command has a generated docs page. The source of truth is the live CLI schema; run `make docs-commands` after changing command names, flags, help text, aliases, or arguments.
 
-Generated pages: 782.
+Generated pages: 783.
 
 ## Top-level Commands
 
@@ -394,6 +394,7 @@ Generated pages: 782.
     - [gog docs sed](gog-docs-sed.md) - Regex find/replace (sed-style: s/pattern/replacement/g)
     - [gog docs structure](gog-docs-structure.md) - Show document structure with numbered paragraphs
     - [gog docs suggestions](gog-docs-suggestions.md) - List and propose pending text suggestions
+      - [gog docs suggestions batch](gog-docs-suggestions-batch.md) - Propose a batch of supported Google Docs operations
       - [gog docs suggestions insert](gog-docs-suggestions-insert.md) - Propose a plain-text insertion as a pending suggestion
       - [gog docs suggestions list](gog-docs-suggestions-list.md) - List pending text insertions and deletions
     - [gog docs table-column](gog-docs-table-column.md) - Insert or delete native table columns

@@ -14,17 +14,18 @@ import (
 )
 
 type DocsFormatCmd struct {
-	DocID     string          `arg:"" name:"docId" help:"Doc ID"`
-	Match     string          `name:"match" help:"Only format the first text match"`
-	MatchAll  bool            `name:"match-all" help:"Format all matches instead of only the first"`
-	MatchCase bool            `name:"match-case" help:"Use case-sensitive matching with --match"`
-	Tab       string          `name:"tab" help:"Target a specific tab by title or ID (see docs list-tabs)"`
-	Segment   string          `name:"segment" help:"Target an exact header, footer, or footnote segment ID"`
-	TabID     string          `name:"tab-id" hidden:"" help:"(deprecated) Use --tab"`
-	Link      string          `name:"link" help:"Set hyperlink target (http://, https://, mailto:, #bookmarkId, or #heading-slug)"`
-	NoLink    bool            `name:"no-link" help:"Clear hyperlink"`
-	Batch     string          `name:"batch" help:"Append requests to a persisted Docs batch instead of submitting"`
-	Format    DocsFormatFlags `embed:""`
+	DocID      string           `arg:"" name:"docId" help:"Doc ID"`
+	Match      string           `name:"match" help:"Only format the first text match"`
+	MatchAll   bool             `name:"match-all" help:"Format all matches instead of only the first"`
+	MatchCase  bool             `name:"match-case" help:"Use case-sensitive matching with --match"`
+	Tab        string           `name:"tab" help:"Target a specific tab by title or ID (see docs list-tabs)"`
+	Segment    string           `name:"segment" help:"Target an exact header, footer, or footnote segment ID"`
+	TabID      string           `name:"tab-id" hidden:"" help:"(deprecated) Use --tab"`
+	Link       string           `name:"link" help:"Set hyperlink target (http://, https://, mailto:, #bookmarkId, or #heading-slug)"`
+	NoLink     bool             `name:"no-link" help:"Clear hyperlink"`
+	Batch      string           `name:"batch" help:"Append requests to a persisted Docs batch instead of submitting"`
+	Format     DocsFormatFlags  `embed:""`
+	Suggestion DocsSuggestFlags `embed:""`
 }
 
 type DocsFormatFlags struct {
@@ -76,6 +77,9 @@ const (
 )
 
 func (c *DocsFormatCmd) Run(ctx context.Context, flags *RootFlags) error {
+	if err := c.Suggestion.validate(c.Batch != "" || strings.HasPrefix(strings.TrimSpace(c.Link), "#")); err != nil {
+		return err
+	}
 	id := strings.TrimSpace(c.DocID)
 	if id == "" {
 		return usage("empty docId")
@@ -97,7 +101,7 @@ func (c *DocsFormatCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
-	if err := dryRunExit(ctx, flags, "docs.format", map[string]any{
+	payload := map[string]any{
 		"document_id": id,
 		"match":       c.Match,
 		"match_all":   c.MatchAll,
@@ -138,7 +142,9 @@ func (c *DocsFormatCmd) Run(ctx context.Context, flags *RootFlags) error {
 			"keep_with_next":      c.Format.KeepWithNext,
 			"keep_lines_together": c.Format.KeepLinesTogether,
 		},
-	}); err != nil {
+	}
+	c.Suggestion.addPlan(payload)
+	if err := dryRunExit(ctx, flags, "docs.format", payload); err != nil {
 		return err
 	}
 	if err := validateDocsBatchTarget(ctx, flags, c.Batch, id); err != nil {
@@ -154,7 +160,7 @@ func (c *DocsFormatCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
-	ranges, target, err := c.targetRanges(ctx, svc, id)
+	ranges, target, revision, err := c.targetRanges(ctx, svc, id)
 	if err != nil {
 		return err
 	}
@@ -202,6 +208,9 @@ func (c *DocsFormatCmd) Run(ctx context.Context, flags *RootFlags) error {
 		}
 	}
 	applyDocsRequestTarget(reqs, target)
+	if c.Suggestion.Suggest {
+		return submitDocsSuggestions(ctx, flags, id, revision, reqs)
+	}
 	if queued, queueErr := queueDocsBatchRequests(ctx, flags, c.Batch, id, "docs.format", batchRevision, reqs, false); queued || queueErr != nil {
 		return queueErr
 	}
@@ -217,10 +226,16 @@ func (c *DocsFormatCmd) Run(ctx context.Context, flags *RootFlags) error {
 	return c.writeResult(ctx, resp, len(reqs), len(ranges), target)
 }
 
-func (c *DocsFormatCmd) targetRanges(ctx context.Context, svc *docs.Service, docID string) ([]docsFormatTargetRange, docsRequestTarget, error) {
-	loaded, err := loadDocsTargetSegment(ctx, svc, docID, c.Tab, c.Segment)
+func (c *DocsFormatCmd) targetRanges(ctx context.Context, svc *docs.Service, docID string) ([]docsFormatTargetRange, docsRequestTarget, string, error) {
+	var loaded *docsLoadedTarget
+	var err error
+	if c.Suggestion.Suggest {
+		loaded, err = c.Suggestion.load(ctx, svc, docID, c.Tab, c.Segment)
+	} else {
+		loaded, err = loadDocsTargetSegment(ctx, svc, docID, c.Tab, c.Segment)
+	}
 	if err != nil {
-		return nil, docsRequestTarget{}, err
+		return nil, docsRequestTarget{}, "", err
 	}
 	targetDoc := loaded.target
 	target := docsRequestTarget{TabID: loaded.tabID, SegmentID: loaded.segmentID, SegmentKind: loaded.segmentKind}
@@ -258,7 +273,7 @@ func (c *DocsFormatCmd) targetRanges(ctx context.Context, svc *docs.Service, doc
 		}
 		targets = append(targets, target)
 	}
-	return targets, target, nil
+	return targets, target, loaded.full.RevisionId, nil
 }
 
 type docsFormatTargetRange struct {

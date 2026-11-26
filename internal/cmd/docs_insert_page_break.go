@@ -19,18 +19,22 @@ import (
 // since markdown has no native page-break construct that the markdown writer
 // could translate.
 type DocsInsertPageBreakCmd struct {
-	DocID      string `arg:"" name:"docId" help:"Doc ID"`
-	Index      *int64 `name:"index" help:"Character index to insert at (1 = beginning). Omit or use --at-end for end-of-doc."`
-	At         string `name:"at" help:"Anchor by literal text and insert at the start of the matched range"`
-	Occurrence *int   `name:"occurrence" help:"Use the Nth --at match (1-based; required when --at is ambiguous)"`
-	MatchCase  bool   `name:"match-case" help:"Use case-sensitive --at matching"`
-	AtEnd      bool   `name:"at-end" help:"Insert at end-of-doc/tab (mutually exclusive with --index)"`
-	Tab        string `name:"tab" help:"Target a specific tab by title or ID (see docs list-tabs)"`
-	TabID      string `name:"tab-id" hidden:"" help:"(deprecated) Use --tab"`
-	Batch      string `name:"batch" help:"Append requests to a persisted Docs batch instead of submitting"`
+	DocID      string           `arg:"" name:"docId" help:"Doc ID"`
+	Index      *int64           `name:"index" help:"Character index to insert at (1 = beginning). Omit or use --at-end for end-of-doc."`
+	At         string           `name:"at" help:"Anchor by literal text and insert at the start of the matched range"`
+	Occurrence *int             `name:"occurrence" help:"Use the Nth --at match (1-based; required when --at is ambiguous)"`
+	MatchCase  bool             `name:"match-case" help:"Use case-sensitive --at matching"`
+	AtEnd      bool             `name:"at-end" help:"Insert at end-of-doc/tab (mutually exclusive with --index)"`
+	Tab        string           `name:"tab" help:"Target a specific tab by title or ID (see docs list-tabs)"`
+	TabID      string           `name:"tab-id" hidden:"" help:"(deprecated) Use --tab"`
+	Batch      string           `name:"batch" help:"Append requests to a persisted Docs batch instead of submitting"`
+	Suggestion DocsSuggestFlags `embed:""`
 }
 
 func (c *DocsInsertPageBreakCmd) Run(ctx context.Context, kctx *kong.Context, flags *RootFlags) error {
+	if err := c.Suggestion.validate(c.Batch != ""); err != nil {
+		return err
+	}
 	u := ui.FromContext(ctx)
 	docID := strings.TrimSpace(c.DocID)
 	if docID == "" {
@@ -48,6 +52,9 @@ func (c *DocsInsertPageBreakCmd) Run(ctx context.Context, kctx *kong.Context, fl
 	})
 	if err != nil {
 		return usage(err.Error())
+	}
+	if suggestErr := c.Suggestion.validatePlacement(placement); suggestErr != nil {
+		return suggestErr
 	}
 	at := placement.Anchor.Text
 
@@ -71,6 +78,7 @@ func (c *DocsInsertPageBreakCmd) Run(ctx context.Context, kctx *kong.Context, fl
 	case docsedit.PlacementIndex:
 		dryRunPayload["atIndex"] = placement.Index
 	}
+	c.Suggestion.addPlan(dryRunPayload)
 	if dryRunErr := dryRunExit(ctx, flags, "docs.insert-page-break", dryRunPayload); dryRunErr != nil {
 		return dryRunErr
 	}
@@ -87,7 +95,7 @@ func (c *DocsInsertPageBreakCmd) Run(ctx context.Context, kctx *kong.Context, fl
 		return err
 	}
 
-	resolvedPlacement, err := resolveDocsPlacement(ctx, svc, docID, c.Tab, placement)
+	resolvedPlacement, err := c.Suggestion.resolve(ctx, svc, docID, c.Tab, "", placement)
 	if err != nil {
 		return err
 	}
@@ -107,6 +115,9 @@ func (c *DocsInsertPageBreakCmd) Run(ctx context.Context, kctx *kong.Context, fl
 			},
 		}},
 		WriteControl: docsRequiredRevisionWriteControl(resolvedPlacement.RequiredRevisionID),
+	}
+	if c.Suggestion.Suggest {
+		return submitDocsSuggestions(ctx, flags, docID, resolvedPlacement.RequiredRevisionID, batchReq.Requests)
 	}
 	if queued, queueErr := queueDocsBatchRequests(ctx, flags, c.Batch, docID, "docs.insert-page-break", batchRevision, batchReq.Requests, false); queued || queueErr != nil {
 		return queueErr

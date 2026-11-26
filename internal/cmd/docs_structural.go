@@ -30,10 +30,11 @@ type DocsFootnoteCmd struct {
 }
 
 type DocsSectionBreakCmd struct {
-	DocID     string                 `arg:"" name:"docId" help:"Doc ID"`
-	Type      string                 `name:"type" help:"Section type: next-page or continuous" default:"next-page"`
-	Batch     string                 `name:"batch" help:"Append requests to a persisted Docs batch instead of submitting"`
-	Placement DocsBodyPlacementFlags `embed:""`
+	DocID      string                 `arg:"" name:"docId" help:"Doc ID"`
+	Type       string                 `name:"type" help:"Section type: next-page or continuous" default:"next-page"`
+	Batch      string                 `name:"batch" help:"Append requests to a persisted Docs batch instead of submitting"`
+	Placement  DocsBodyPlacementFlags `embed:""`
+	Suggestion DocsSuggestFlags       `embed:""`
 }
 
 type DocsHorizontalRuleCmd struct {
@@ -43,20 +44,22 @@ type DocsHorizontalRuleCmd struct {
 }
 
 type DocsSectionColumnsCmd struct {
-	DocID     string                 `arg:"" name:"docId" help:"Doc ID"`
-	Count     int                    `name:"count" required:"" help:"Number of columns (1-3; 1 resets to one column)"`
-	Separator string                 `name:"separator" help:"Column separator: none or between" default:"none"`
-	Batch     string                 `name:"batch" help:"Append requests to a persisted Docs batch instead of submitting"`
-	Placement DocsBodyPlacementFlags `embed:""`
+	DocID      string                 `arg:"" name:"docId" help:"Doc ID"`
+	Count      int                    `name:"count" required:"" help:"Number of columns (1-3; 1 resets to one column)"`
+	Separator  string                 `name:"separator" help:"Column separator: none or between" default:"none"`
+	Batch      string                 `name:"batch" help:"Append requests to a persisted Docs batch instead of submitting"`
+	Placement  DocsBodyPlacementFlags `embed:""`
+	Suggestion DocsSuggestFlags       `embed:""`
 }
 
 type docsBodyMutation struct {
-	action    string
-	docID     string
-	batch     string
-	placement DocsBodyPlacementFlags
-	payload   map[string]any
-	build     func(docsResolvedPlacement) ([]*docs.Request, error)
+	action     string
+	docID      string
+	batch      string
+	placement  DocsBodyPlacementFlags
+	suggestion DocsSuggestFlags
+	payload    map[string]any
+	build      func(docsResolvedPlacement) ([]*docs.Request, error)
 }
 
 func (p DocsBodyPlacementFlags) plan(kctx *kong.Context) (docsedit.Placement, error) {
@@ -93,6 +96,9 @@ func (p DocsBodyPlacementFlags) dryRunPayload(placement docsedit.Placement) map[
 }
 
 func runDocsBodyMutation(ctx context.Context, kctx *kong.Context, flags *RootFlags, mutation docsBodyMutation) error {
+	if err := mutation.suggestion.validate(mutation.batch != ""); err != nil {
+		return err
+	}
 	docID := normalizeGoogleID(strings.TrimSpace(mutation.docID))
 	if docID == "" {
 		return usage("empty docId")
@@ -101,7 +107,11 @@ func runDocsBodyMutation(ctx context.Context, kctx *kong.Context, flags *RootFla
 	if err != nil {
 		return err
 	}
+	if suggestErr := mutation.suggestion.validatePlacement(placement); suggestErr != nil {
+		return suggestErr
+	}
 	payload := mutation.placement.dryRunPayload(placement)
+	mutation.suggestion.addPlan(payload)
 	payload["documentId"] = docID
 	payload["batch"] = mutation.batch
 	for key, value := range mutation.payload {
@@ -122,7 +132,7 @@ func runDocsBodyMutation(ctx context.Context, kctx *kong.Context, flags *RootFla
 	if err != nil {
 		return err
 	}
-	resolved, err := resolveDocsPlacement(ctx, svc, docID, mutation.placement.Tab, placement)
+	resolved, err := mutation.suggestion.resolve(ctx, svc, docID, mutation.placement.Tab, "", placement)
 	if err != nil {
 		return err
 	}
@@ -134,6 +144,9 @@ func runDocsBodyMutation(ctx context.Context, kctx *kong.Context, flags *RootFla
 		return err
 	}
 	applyDocsRequestTarget(requests, docsTargetFromPlacement(resolved.ResolvedPlacement))
+	if mutation.suggestion.Suggest {
+		return submitDocsSuggestions(ctx, flags, docID, resolved.RequiredRevisionID, requests)
+	}
 	if queued, queueErr := queueDocsBatchRequests(ctx, flags, mutation.batch, docID, mutation.action, batchRevision, requests, false); queued || queueErr != nil {
 		return queueErr
 	}
@@ -182,7 +195,7 @@ func (c *DocsSectionBreakCmd) Run(ctx context.Context, kctx *kong.Context, flags
 		return err
 	}
 	return runDocsBodyMutation(ctx, kctx, flags, docsBodyMutation{
-		action: "docs.insert-section-break", docID: c.DocID, batch: c.Batch, placement: c.Placement,
+		action: "docs.insert-section-break", docID: c.DocID, batch: c.Batch, placement: c.Placement, suggestion: c.Suggestion,
 		payload: map[string]any{"sectionType": sectionType},
 		build: func(resolved docsResolvedPlacement) ([]*docs.Request, error) {
 			return []*docs.Request{{InsertSectionBreak: &docs.InsertSectionBreakRequest{
@@ -225,15 +238,19 @@ func (c *DocsSectionColumnsCmd) Run(ctx context.Context, kctx *kong.Context, fla
 		return err
 	}
 	return runDocsBodyMutation(ctx, kctx, flags, docsBodyMutation{
-		action: "docs.section-columns", docID: c.DocID, batch: c.Batch, placement: c.Placement,
+		action: "docs.section-columns", docID: c.DocID, batch: c.Batch, placement: c.Placement, suggestion: c.Suggestion,
 		payload: map[string]any{"count": c.Count, "separator": separator},
 		build: func(resolved docsResolvedPlacement) ([]*docs.Request, error) {
+			rangeEnd := resolved.Index + 1
+			if c.Suggestion.Suggest {
+				rangeEnd = resolved.NextIndex
+			}
 			columns := make([]*docs.SectionColumnProperties, c.Count)
 			for index := range columns {
 				columns[index] = &docs.SectionColumnProperties{PaddingEnd: &docs.Dimension{Magnitude: 36, Unit: "PT"}}
 			}
 			return []*docs.Request{{UpdateSectionStyle: &docs.UpdateSectionStyleRequest{
-				Range:        &docs.Range{StartIndex: resolved.Index, EndIndex: resolved.Index + 1},
+				Range:        &docs.Range{StartIndex: resolved.Index, EndIndex: rangeEnd},
 				SectionStyle: &docs.SectionStyle{ColumnProperties: columns, ColumnSeparatorStyle: separator},
 				Fields:       "columnProperties,columnSeparatorStyle",
 			}}}, nil

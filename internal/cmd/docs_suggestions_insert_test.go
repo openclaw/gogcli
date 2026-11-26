@@ -2,17 +2,18 @@ package cmd
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"sync/atomic"
 	"testing"
 
-	"google.golang.org/api/docs/v1"
-	"google.golang.org/api/option"
+	"github.com/openclaw/gogcli/internal/app"
 
 	"github.com/openclaw/gogcli/internal/googleapi"
 	"github.com/openclaw/gogcli/internal/outfmt"
@@ -31,6 +32,8 @@ func TestDocsSuggestionsInsertWire(t *testing.T) {
 		{name: "wrong document", status: 200, response: `{"documentId":"other","commentUpdateState":"ALL_SAVED","suggestionResponses":[{"createdSuggestionIds":["suggest.123"]}]}`, wantError: "did not confirm creation"},
 		{name: "thread failed", status: 200, response: `{"documentId":"doc1","commentUpdateState":"ALL_FAILED_UNKNOWN_REASON","suggestionResponses":[{"createdSuggestionIds":["suggest.123"]}]}`, wantError: "did not confirm creation"},
 		{name: "missing thread state", status: 200, response: `{"documentId":"doc1","suggestionResponses":[{"createdSuggestionIds":["suggest.123"]}]}`, wantError: "did not confirm creation"},
+		{name: "redirect", status: 307, wantError: "inspect the document before retrying"},
+		{name: "permanent redirect", status: 308, wantError: "inspect the document before retrying"},
 		{name: "server error", status: 503, response: `{"error":{"code":503,"message":"unavailable"}}`, wantError: "inspect the document before retrying"},
 		{name: "unsupported", status: 400, response: `{"error":{"code":400,"message":"SUGGEST is not supported"}}`, wantError: "SUGGEST is not supported"},
 		{name: "stale revision", status: 400, response: `{"error":{"code":400,"message":"required revision does not match"}}`, wantError: "required revision does not match"},
@@ -56,18 +59,26 @@ func TestDocsSuggestionsInsertWire(t *testing.T) {
 					t.Errorf("request = %s, want %s", gotJSON, wantJSON)
 				}
 				w.Header().Set("Content-Type", "application/json")
+				if tc.status == 307 || tc.status == 308 {
+					w.Header().Set("Location", "/v1/documents/doc1:batchUpdate")
+				}
 				w.WriteHeader(tc.status)
 				fmt.Fprint(w, tc.response)
 			}))
 			t.Cleanup(server.Close)
-			client := server.Client()
-			client.Transport = googleapi.NewRetryTransport(client.Transport)
-			svc, err := docs.NewService(t.Context(), option.WithHTTPClient(client), option.WithEndpoint(server.URL+"/"))
+			base, err := url.Parse(server.URL)
 			if err != nil {
 				t.Fatal(err)
 			}
+			client := &http.Client{Transport: googleapi.NewRetryTransport(roundTripperFunc(func(request *http.Request) (*http.Response, error) {
+				request = request.Clone(request.Context())
+				request.URL.Scheme, request.URL.Host = base.Scheme, base.Host
+				return http.DefaultTransport.RoundTrip(request)
+			}))}
 			var out bytes.Buffer
-			ctx := withDocsTestService(newCmdRuntimeOutputContext(t, &out, io.Discard), svc)
+			ctx := withTestRuntime(newCmdRuntimeOutputContext(t, &out, io.Discard), func(runtime *app.Runtime) {
+				runtime.Services.DocsHTTP = func(context.Context, string) (*http.Client, error) { return client, nil }
+			})
 			ctx = outfmt.WithMode(ctx, outfmt.Mode{JSON: true})
 			err = runKong(t, &DocsSuggestionsInsertCmd{}, []string{"doc1", " proposed 😀 ", "--index=7", "--revision=opaque-revision"}, ctx, &RootFlags{Account: "a@b.com"})
 			if calls.Load() != 1 {
