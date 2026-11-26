@@ -12,7 +12,8 @@ import (
 )
 
 type DocsSuggestionsCmd struct {
-	List DocsSuggestionsListCmd `cmd:"" name:"list" aliases:"ls" help:"List pending text insertions and deletions"`
+	List   DocsSuggestionsListCmd   `cmd:"" name:"list" aliases:"ls" help:"List pending text insertions and deletions"`
+	Insert DocsSuggestionsInsertCmd `cmd:"" name:"insert" help:"Propose a plain-text insertion as a pending suggestion"`
 }
 
 type DocsSuggestionsListCmd struct {

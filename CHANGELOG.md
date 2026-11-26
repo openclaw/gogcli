@@ -2,6 +2,7 @@
 
 ## 0.48.2 - Unreleased
 
+- Docs: add `gog docs suggestions insert` to propose a plain-text insertion for review without applying it as an ordinary edit.
 - Auth: automatic reauthorization no longer replays a stored Google Ads (`adwords`) grant unless the failing command needs Ads, so an old Ads grant cannot trigger Google's passkey gate; restore it with `gog auth add <email> --services user,ads`. (#1353)
 - Dependencies: refresh the MCP and Google API clients, networking libraries, and tracking-worker tooling while preserving the Go 1.26 minimum, 24-hour worker cooldown, and security overrides.
 

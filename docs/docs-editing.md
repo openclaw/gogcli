@@ -572,6 +572,32 @@ their nested text. The current surface intentionally excludes style-only
 suggestions and accept/reject mutation. Google Docs API responses do not expose
 suggestion authors.
 
-Command page:
+To propose a plain-text insertion instead of applying a direct edit, use
+`docs suggestions insert`. Read the first tab with `docs raw` using the same
+account. Check that the result uses `SUGGESTIONS_INLINE`, then take the
+UTF-16 insertion index and `revisionId` from that same response:
+
+```bash
+gog docs raw "$doc_id" --account "$account"
+gog docs suggestions insert "$doc_id" 'Proposed wording' --index 12 \
+  --revision "$revision_id" --account "$account" --json
+gog docs suggestions list "$doc_id" --account "$account" --json
+```
+
+The index is in the first tab's body, including any inline suggestions.
+The command requires a writable Docs grant and a document revision ID. A stale
+revision is rejected rather than rebased; re-read and recalculate the index.
+`--dry-run` shows the request without calling Google. The command sends one
+suggestion-mode insertion without automatic retries or fallback to a direct
+edit. Success requires Google to confirm both the new suggestion IDs and the
+suggestion thread save. If creation is not confirmed, inspect the document
+before attempting another write.
+
+This command does not support other tabs or segments, deletions, replacements,
+formatting, batching, or accepting/rejecting suggestions. Other editing
+commands retain their existing behavior.
+
+Command pages:
 
 - [`gog docs suggestions list`](commands/gog-docs-suggestions-list.md)
+- [`gog docs suggestions insert`](commands/gog-docs-suggestions-insert.md)
