@@ -570,8 +570,111 @@ segment. Contiguous runs for the same suggestion are combined, and structural
 suggestions on tables, rows, cells, and tables of contents are carried into
 their nested text. The current surface intentionally excludes style-only
 suggestions and accept/reject mutation. Google Docs API responses do not expose
-suggestion authors.
+suggestion authors in the text-only list; use raw threads for available metadata.
 
-Command page:
+### Propose changes instead of editing directly
+
+Use `--suggest` with `docs insert`, `delete`, `update`, `find-replace`, `edit`,
+`format`, `insert-page-break`, `insert-section-break`, `section-columns`, and
+`insert-table` (empty table only). The normal commands still apply direct edits
+when `--suggest` is absent.
+
+```bash
+gog docs insert "$doc_id" 'Proposed wording ' --at 'existing text' --suggest
+gog docs delete "$doc_id" --at 'obsolete wording' --suggest
+gog docs update "$doc_id" --at 'old wording' --text 'new wording' --suggest
+gog docs find-replace "$doc_id" 'old' 'new' --tab Review --suggest
+gog docs format "$doc_id" --tab Review --match 'Key point' --bold --suggest
+gog docs insert-table "$doc_id" --tab Review --rows 2 --cols 2 --at-end --suggest
+```
+
+These commands resolve anchors, matches, tab selectors and end positions from an
+explicit `SUGGESTIONS_INLINE` snapshot. They pin the same revision in the write.
+Pass `--tab` with an exact ID or a unique title. As with ordinary changes, most
+commands default to the first tab. A replace-all (`find-replace` without `--first`,
+or `edit`) applies to **all** tabs unless you supply `--tab`. Where supported,
+`--segment` uses the segment's own indices. `--dry-run` is offline and shows that
+suggestion mode was requested; it does not resolve live positions.
+
+For explicit offsets (`--index`, `--start`/`--end`, or `--replace-range`), take
+the UTF-16 offsets and `revisionId` from the **same** inline read with the same
+account. The end of a range is exclusive. Inline suggestions count toward the
+offsets, and a supplementary Unicode character occupies two UTF-16 code units.
+Do not derive offsets from either preview mode or plain text exports.
+
+```bash
+gog docs raw "$doc_id" --all-tabs --suggestions-view=inline --account "$account"
+gog docs update "$doc_id" --tab "$tab_id" --replace-range 4:9 --text 'new text' \
+  --revision "$revision_id" --account "$account" --suggest --json
+```
+
+`docs suggestions insert` also accepts explicit offsets and `--revision`, plus an
+optional exact `--tab-id`. It defaults to the first tab. A stale revision never
+rebases: reread the inline view and plan the edit again.
+
+### Submit structured suggestions
+
+Use `docs suggestions batch` for a JSON array of Google Docs request objects,
+not a `batchUpdate` envelope. Each object must have exactly one supported
+operation. `gog` supplies the pinned revision and `writeMode=SUGGEST`; callers
+cannot override them. Use actual tab IDs in the request locations, ranges,
+`tabsCriteria`, or the request's documented `tabId` field. Review the request with
+`--dry-run` before submitting. The batch supports at most 500 requests and 4 MiB
+of input; all requests go in one call, in the order supplied.
+
+```bash
+printf '%s\n' '[{"updateTextStyle":{"range":{"startIndex":4,"endIndex":9,"tabId":"t.example"},"textStyle":{"italic":true},"fields":"italic"}}]' |
+  gog docs suggestions batch "$doc_id" --revision "$revision_id" --file=- --json
+```
+
+Supported request types (subject to Google Docs' normal restrictions):
+
+- Text: `insertText`, `deleteContentRange`, `replaceAllText`, `updateTextStyle`,
+  `updateParagraphStyle`, `createParagraphBullets`, `deleteParagraphBullets`.
+- Tables: `insertTable`, `insertTableRow`, `deleteTableRow`, `insertTableColumn`,
+  `deleteTableColumn`, `mergeTableCells`, `unmergeTableCells`, `updateTableCellStyle`,
+  `updateTableRowStyle`, `pinTableHeaderRows`.
+- Structure: `insertPageBreak`, `insertSectionBreak`, `updateSectionStyle`
+  (`columnProperties` and `columnSeparatorStyle` only),
+  `createHeader`, `createFooter`, `createFootnote`, and `updateDocumentStyle`
+  (explicit `marginTop`, `marginBottom`, `marginLeft`, or `marginRight` masks only).
+- Inline objects: `insertPerson`, `insertDate`, `insertRichLink`,
+  `insertInlineImage`, and `replaceImage`. Images must already be reachable by
+  Google's image fetcher; no Drive uploads or sharing changes are performed.
+
+Google rejects tab create/delete/rename, named range create/delete, header/footer
+**deletion**, and table column properties (including widths) in suggestion mode.
+It also rejects page format (`documentFormat`) and first/even-page header/footer
+settings. `gog` does not offer suggestion-thread accept, reject, or delete here,
+even though Google has separate APIs for them. Unknown request types and document
+style masks are rejected locally. See Google's [suggestions guide](https://developers.google.com/workspace/docs/api/how-tos/suggestions#unsupported_requests_in_suggest_mode).
+
+Normal multi-step workflows such as Markdown conversion, local image uploads,
+populating a just-created table or footnote, and persisted `gog batch` queues are
+not switched into suggestion mode. `--suggest` rejects incompatible options,
+including `--pageless` and formatting links that require heading-slug resolution.
+A command without a documented `--suggest` flag must not be used to propose an
+edit; build an allowed JSON request instead.
+
+### Check the result
+
+Success reports the pending suggestion IDs that Google confirms it saved.
+Use `docs suggestions list` for insertions and deletions, or inspect style,
+structural changes, and threads in the inline raw view:
+
+```bash
+gog docs raw "$doc_id" --all-tabs --suggestions-view=inline --suggestion-threads
+gog docs raw "$doc_id" --all-tabs --suggestions-view=without
+```
+
+The CLI does not retry the POST on transport errors, follow write redirects, fall back to direct edits,
+or report incomplete acknowledgements as success. A no-op may produce no ID.
+Google can commit document-model changes before saving suggestion threads. If
+Google does not confirm all changes (including a missing thread or missing ID),
+inspect the actual document before retrying; the error is not proof of rollback.
+
+Command pages:
 
 - [`gog docs suggestions list`](commands/gog-docs-suggestions-list.md)
+- [`gog docs suggestions insert`](commands/gog-docs-suggestions-insert.md)
+- [`gog docs suggestions batch`](commands/gog-docs-suggestions-batch.md)

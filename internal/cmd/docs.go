@@ -64,7 +64,7 @@ type DocsCmd struct {
 	Images           DocsImagesCmd           `cmd:"" name:"images" help:"List document images"`
 	Headings         DocsHeadingsCmd         `cmd:"" name:"headings" help:"List document headings"`
 	Paragraphs       DocsParagraphsCmd       `cmd:"" name:"paragraphs" help:"List document paragraphs"`
-	Suggestions      DocsSuggestionsCmd      `cmd:"" name:"suggestions" help:"List pending text suggestions"`
+	Suggestions      DocsSuggestionsCmd      `cmd:"" name:"suggestions" help:"List and propose pending text suggestions"`
 	NamedRanges      DocsNamedRangesCmd      `cmd:"" name:"named-range" aliases:"named-ranges,namedranges,nr" help:"Manage named ranges"`
 	Raw              DocsRawCmd              `cmd:"" name:"raw" help:"Dump raw Google Docs API response as JSON (Documents.Get; lossless; for scripting and LLM consumption)"`
 	PageLayout       DocsPageLayoutCmd       `cmd:"" name:"page-layout" aliases:"set-page-layout,page-setup" help:"Set page layout (pageless|pages) on an existing Google Doc"`
@@ -85,10 +85,12 @@ type DocsTabsCmd struct {
 // REST reference: https://developers.google.com/docs/api/reference/rest/v1/documents/get
 // Go type: https://pkg.go.dev/google.golang.org/api/docs/v1#Document
 type DocsRawCmd struct {
-	DocID   string `arg:"" name:"docId" help:"Doc ID"`
-	Pretty  bool   `name:"pretty" help:"Pretty-print JSON (default: compact single-line)"`
-	Tab     string `name:"tab" help:"Return one tab by title or ID in the legacy top-level Document shape"`
-	AllTabs bool   `name:"all-tabs" help:"Return the canonical Document response with all tab content populated"`
+	DocID             string `arg:"" name:"docId" help:"Doc ID"`
+	Pretty            bool   `name:"pretty" help:"Pretty-print JSON (default: compact single-line)"`
+	Tab               string `name:"tab" help:"Return one tab by title or ID in the legacy top-level Document shape"`
+	AllTabs           bool   `name:"all-tabs" help:"Return the canonical Document response with all tab content populated"`
+	SuggestionsView   string `name:"suggestions-view" default:"default" enum:"default,inline,without,accepted" help:"Select the inline suggestion view or preview without/with accepted suggestions"`
+	SuggestionThreads bool   `name:"suggestion-threads" help:"Include suggestion threads; requires --all-tabs and --suggestions-view=inline"`
 }
 
 func (c *DocsRawCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -100,6 +102,9 @@ func (c *DocsRawCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return usage("--tab and --all-tabs cannot be used together")
 	}
 
+	if c.SuggestionThreads && (!c.AllTabs || c.SuggestionsView != "inline") {
+		return usage("--suggestion-threads requires --all-tabs and --suggestions-view=inline")
+	}
 	account, err := requireAccount(flags)
 	if err != nil {
 		return err
@@ -109,6 +114,17 @@ func (c *DocsRawCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 	query := make(url.Values)
+	switch c.SuggestionsView {
+	case "inline":
+		query.Set("suggestionsViewMode", docsSuggestionsInline)
+	case "without":
+		query.Set("suggestionsViewMode", "PREVIEW_WITHOUT_SUGGESTIONS")
+	case "accepted":
+		query.Set("suggestionsViewMode", "PREVIEW_SUGGESTIONS_ACCEPTED")
+	}
+	if c.SuggestionThreads {
+		query.Set("commentsViewMode", "COMMENTS_VIEW_MODE_INCLUDED")
+	}
 	if strings.TrimSpace(c.Tab) != "" || c.AllTabs {
 		query.Set("includeTabsContent", "true")
 	}
@@ -120,7 +136,7 @@ func (c *DocsRawCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 	if strings.TrimSpace(c.Tab) != "" {
-		doc, err = projectRawDocumentJSONTab(doc, c.Tab)
+		doc, err = projectRawDocumentJSONTab(doc, c.Tab, c.SuggestionsView == "inline")
 		if err != nil {
 			return err
 		}
@@ -135,7 +151,7 @@ type rawDocumentTab struct {
 	ChildTabs     []*rawDocumentTab          `json:"childTabs"`
 }
 
-func projectRawDocumentJSONTab(doc map[string]json.RawMessage, query string) (map[string]json.RawMessage, error) {
+func projectRawDocumentJSONTab(doc map[string]json.RawMessage, query string, inline bool) (map[string]json.RawMessage, error) {
 	var rawTabs []*rawDocumentTab
 	if raw := doc["tabs"]; len(raw) > 0 {
 		if err := json.Unmarshal(raw, &rawTabs); err != nil {
@@ -157,7 +173,11 @@ func projectRawDocumentJSONTab(doc map[string]json.RawMessage, query string) (ma
 		}
 	}
 	collect(rawTabs)
-	tab, err := findTab(tabs, query)
+	find := findTab
+	if inline {
+		find = findDocsSuggestionTab
+	}
+	tab, err := find(tabs, query)
 	if err != nil {
 		return nil, err
 	}

@@ -50,6 +50,10 @@ func resolveDocsAtAnchor(ctx context.Context, svc *docs.Service, docID string, a
 	if err != nil {
 		return docsResolvedAtAnchor{}, err
 	}
+	return resolveDocsAnchorInTarget(loaded, anchor)
+}
+
+func resolveDocsAnchorInTarget(loaded *docsLoadedTarget, anchor docsAtAnchorFlags) (docsResolvedAtAnchor, error) {
 	matches := docsedit.FindTextRanges(loaded.target, anchor.At, docsedit.SearchOptions{
 		MatchCase:            anchor.MatchCase,
 		NormalizeWhitespace:  false,

@@ -14,19 +14,23 @@ import (
 )
 
 type DocsDeleteCmd struct {
-	DocID      string `arg:"" name:"docId" help:"Doc ID"`
-	Start      *int64 `name:"start" help:"Start index (>= 1; required unless --at is set)"`
-	End        *int64 `name:"end" help:"End index (> start; required unless --at is set)"`
-	At         string `name:"at" help:"Anchor by literal text and delete that matched range"`
-	Occurrence *int   `name:"occurrence" help:"Use the Nth --at match (1-based; required when --at is ambiguous)"`
-	MatchCase  bool   `name:"match-case" help:"Use case-sensitive --at matching"`
-	Tab        string `name:"tab" help:"Target a specific tab by title or ID (see docs list-tabs)"`
-	Segment    string `name:"segment" help:"Target an exact header, footer, or footnote segment ID"`
-	TabID      string `name:"tab-id" hidden:"" help:"(deprecated) Use --tab"`
-	Batch      string `name:"batch" help:"Append requests to a persisted Docs batch instead of submitting"`
+	DocID      string           `arg:"" name:"docId" help:"Doc ID"`
+	Start      *int64           `name:"start" help:"Start index (>= 1; required unless --at is set)"`
+	End        *int64           `name:"end" help:"End index (> start; required unless --at is set)"`
+	At         string           `name:"at" help:"Anchor by literal text and delete that matched range"`
+	Occurrence *int             `name:"occurrence" help:"Use the Nth --at match (1-based; required when --at is ambiguous)"`
+	MatchCase  bool             `name:"match-case" help:"Use case-sensitive --at matching"`
+	Tab        string           `name:"tab" help:"Target a specific tab by title or ID (see docs list-tabs)"`
+	Segment    string           `name:"segment" help:"Target an exact header, footer, or footnote segment ID"`
+	TabID      string           `name:"tab-id" hidden:"" help:"(deprecated) Use --tab"`
+	Batch      string           `name:"batch" help:"Append requests to a persisted Docs batch instead of submitting"`
+	Suggestion DocsSuggestFlags `embed:""`
 }
 
 func (c *DocsDeleteCmd) Run(ctx context.Context, kctx *kong.Context, flags *RootFlags) error {
+	if err := c.Suggestion.validate(c.Batch != ""); err != nil {
+		return err
+	}
 	u := ui.FromContext(ctx)
 	docID := strings.TrimSpace(c.DocID)
 	if docID == "" {
@@ -46,6 +50,9 @@ func (c *DocsDeleteCmd) Run(ctx context.Context, kctx *kong.Context, flags *Root
 	if err != nil {
 		return usage(err.Error())
 	}
+	if suggestErr := c.Suggestion.validatePlacement(placement); suggestErr != nil {
+		return suggestErr
+	}
 	at := placement.Anchor.Text
 
 	tab, tabErr := resolveTabArg(ctx, c.Tab, c.TabID)
@@ -63,6 +70,7 @@ func (c *DocsDeleteCmd) Run(ctx context.Context, kctx *kong.Context, flags *Root
 		"batch":       c.Batch,
 	}
 	addDocsAtAnchorDryRunPayload(dryRunPayload, docsAtAnchorFlags{At: at, Occurrence: c.Occurrence, MatchCase: c.MatchCase})
+	c.Suggestion.addPlan(dryRunPayload)
 	if dryRunErr := dryRunExit(ctx, flags, "docs.delete", dryRunPayload); dryRunErr != nil {
 		return dryRunErr
 	}
@@ -78,7 +86,7 @@ func (c *DocsDeleteCmd) Run(ctx context.Context, kctx *kong.Context, flags *Root
 	if err != nil {
 		return err
 	}
-	resolvedPlacement, err := resolveDocsPlacementTarget(ctx, svc, docID, c.Tab, c.Segment, placement)
+	resolvedPlacement, err := c.Suggestion.resolve(ctx, svc, docID, c.Tab, c.Segment, placement)
 	if err != nil {
 		return err
 	}
@@ -92,6 +100,9 @@ func (c *DocsDeleteCmd) Run(ctx context.Context, kctx *kong.Context, flags *Root
 	}
 	applyDocsRequestTarget(batchReq.Requests, docsTargetFromPlacement(resolvedPlacement.ResolvedPlacement))
 	batchReq.WriteControl = docsRequiredRevisionWriteControl(resolvedPlacement.RequiredRevisionID)
+	if c.Suggestion.Suggest {
+		return submitDocsSuggestions(ctx, flags, docID, resolvedPlacement.RequiredRevisionID, batchReq.Requests)
+	}
 	if queued, queueErr := queueDocsBatchRequests(ctx, flags, c.Batch, docID, "docs.delete", batchRevision, batchReq.Requests, false); queued || queueErr != nil {
 		return queueErr
 	}

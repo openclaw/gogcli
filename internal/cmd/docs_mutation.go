@@ -36,8 +36,15 @@ func loadDocsTargetDocument(ctx context.Context, svc *docs.Service, docID, tabID
 }
 
 func loadDocsTargetSegment(ctx context.Context, svc *docs.Service, docID, tabQuery, segmentID string) (*docsLoadedTarget, error) {
+	return loadDocsTargetSegmentView(ctx, svc, docID, tabQuery, segmentID, "")
+}
+
+func loadDocsTargetSegmentView(ctx context.Context, svc *docs.Service, docID, tabQuery, segmentID, view string) (*docsLoadedTarget, error) {
 	segmentID = strings.TrimSpace(segmentID)
 	getCall := svc.Documents.Get(docID).Context(ctx)
+	if view != "" {
+		getCall = getCall.SuggestionsViewMode(view)
+	}
 	if tabQuery != "" || segmentID != "" {
 		getCall = getCall.IncludeTabsContent(true)
 	}
@@ -51,6 +58,18 @@ func loadDocsTargetSegment(ctx context.Context, svc *docs.Service, docID, tabQue
 	}
 	if doc == nil {
 		return nil, errors.New("doc not found")
+	}
+	if view != "" {
+		if doc.DocumentId != docID || doc.SuggestionsViewMode != view || strings.TrimSpace(doc.RevisionId) == "" {
+			return nil, fmt.Errorf("could not verify an inline document revision for suggestions")
+		}
+		if tabQuery != "" {
+			tab, tabErr := findDocsSuggestionTab(flattenTabs(doc.Tabs), tabQuery)
+			if tabErr != nil {
+				return nil, tabErr
+			}
+			tabQuery = tab.TabProperties.TabId
+		}
 	}
 	if tabQuery == "" && segmentID == "" {
 		return &docsLoadedTarget{full: doc, target: doc}, nil

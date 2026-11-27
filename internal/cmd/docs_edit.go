@@ -25,10 +25,12 @@ func resolveTabArg(ctx context.Context, tab, tabID string) (string, error) {
 }
 
 type DocsEditCmd struct {
-	DocID      string `arg:"" name:"docId" help:"Doc ID"`
-	Find       string `arg:"" name:"find" help:"Text to find"`
-	ReplaceStr string `arg:"" name:"replace" help:"Replacement text"`
-	MatchCase  bool   `name:"match-case" help:"Case-sensitive matching"`
+	DocID      string           `arg:"" name:"docId" help:"Doc ID"`
+	Find       string           `arg:"" name:"find" help:"Text to find"`
+	ReplaceStr string           `arg:"" name:"replace" help:"Replacement text"`
+	MatchCase  bool             `name:"match-case" help:"Case-sensitive matching"`
+	Suggestion DocsSuggestFlags `embed:""`
+	Tab        string           `name:"tab" help:"Limit replacement to a specific tab by title or ID"`
 }
 
 func (c *DocsEditCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -37,5 +39,7 @@ func (c *DocsEditCmd) Run(ctx context.Context, flags *RootFlags) error {
 		Find:        c.Find,
 		ReplaceText: c.ReplaceStr,
 		MatchCase:   c.MatchCase,
+		Suggestion:  c.Suggestion,
+		Tab:         c.Tab,
 	}).Run(ctx, flags)
 }

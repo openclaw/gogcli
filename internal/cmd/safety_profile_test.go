@@ -240,7 +240,7 @@ func TestBundledSafetyProfilesExposeAutomationSchema(t *testing.T) {
 	}
 }
 
-func TestBundledSafetyProfilesAllowDocsSuggestions(t *testing.T) {
+func TestBundledSafetyProfilesAllowReadingButNotCreatingDocsSuggestions(t *testing.T) {
 	setTestConfigHome(t)
 
 	for _, profile := range []string{"agent-safe.yaml", "readonly.yaml"} {
@@ -264,6 +264,11 @@ func TestBundledSafetyProfilesAllowDocsSuggestions(t *testing.T) {
 			}
 			if strings.Contains(out, "blocked by baked safety profile") {
 				t.Fatalf("expected docs suggestions to be allowed by %s profile, got: %q", profile, out)
+			}
+
+			blockedErr := Execute([]string{"docs", "suggestions", "insert", "doc1", "text", "--index=1", "--revision=r1", "--dry-run"})
+			if blockedErr == nil || !strings.Contains(blockedErr.Error(), `command "docs suggestions insert" is not included in baked safety profile`) {
+				t.Fatalf("expected suggesting text to be blocked by %s profile, got: %v", profile, blockedErr)
 			}
 		})
 	}

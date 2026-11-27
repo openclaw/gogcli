@@ -12,7 +12,8 @@ import (
 
 type docsResolvedPlacement struct {
 	docsedit.ResolvedPlacement
-	Document *docs.Document
+	Document  *docs.Document
+	NextIndex int64 // following UTF-16 code point boundary for suggestion-mode structural styles
 }
 
 func resolveDocsPlacement(

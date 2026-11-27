@@ -15,23 +15,27 @@ import (
 )
 
 type DocsUpdateCmd struct {
-	DocID        string `arg:"" name:"docId" help:"Doc ID"`
-	Text         string `name:"text" help:"Text to insert"`
-	File         string `name:"file" help:"Text file path ('-' for stdin)"`
-	Index        int64  `name:"index" help:"Insert index (default: end of document)"`
-	ReplaceRange string `name:"replace-range" help:"Replace UTF-16 Docs API range START:END instead of inserting"`
-	At           string `name:"at" help:"Anchor by literal text and replace that matched range"`
-	Occurrence   *int   `name:"occurrence" help:"Use the Nth --at match (1-based; required when --at is ambiguous)"`
-	MatchCase    bool   `name:"match-case" help:"Use case-sensitive --at matching"`
-	Markdown     bool   `name:"markdown" help:"Convert markdown to Google Docs formatting"`
-	Pageless     bool   `name:"pageless" help:"Set document to pageless mode"`
-	Tab          string `name:"tab" help:"Target a specific tab by title or ID (see docs list-tabs)"`
-	Segment      string `name:"segment" help:"Target an exact header, footer, or footnote segment ID"`
-	TabID        string `name:"tab-id" hidden:"" help:"(deprecated) Use --tab"`
-	Batch        string `name:"batch" help:"Append requests to a persisted Docs batch instead of submitting"`
+	DocID        string           `arg:"" name:"docId" help:"Doc ID"`
+	Text         string           `name:"text" help:"Text to insert"`
+	File         string           `name:"file" help:"Text file path ('-' for stdin)"`
+	Index        int64            `name:"index" help:"Insert index (default: end of document)"`
+	ReplaceRange string           `name:"replace-range" help:"Replace UTF-16 Docs API range START:END instead of inserting"`
+	At           string           `name:"at" help:"Anchor by literal text and replace that matched range"`
+	Occurrence   *int             `name:"occurrence" help:"Use the Nth --at match (1-based; required when --at is ambiguous)"`
+	MatchCase    bool             `name:"match-case" help:"Use case-sensitive --at matching"`
+	Markdown     bool             `name:"markdown" help:"Convert markdown to Google Docs formatting"`
+	Pageless     bool             `name:"pageless" help:"Set document to pageless mode"`
+	Tab          string           `name:"tab" help:"Target a specific tab by title or ID (see docs list-tabs)"`
+	Segment      string           `name:"segment" help:"Target an exact header, footer, or footnote segment ID"`
+	TabID        string           `name:"tab-id" hidden:"" help:"(deprecated) Use --tab"`
+	Batch        string           `name:"batch" help:"Append requests to a persisted Docs batch instead of submitting"`
+	Suggestion   DocsSuggestFlags `embed:""`
 }
 
 func (c *DocsUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *RootFlags) error {
+	if err := c.Suggestion.validate(c.Markdown || c.Pageless || c.Batch != ""); err != nil {
+		return err
+	}
 	u := ui.FromContext(ctx)
 	id := strings.TrimSpace(c.DocID)
 	if id == "" {
@@ -48,20 +52,9 @@ func (c *DocsUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *Root
 	if text == "" {
 		return usage("empty text")
 	}
-	placement, err := docsedit.PlanUpdatePlacement(docsedit.UpdatePlacementOptions{
-		Index:         c.Index,
-		IndexProvided: flagProvided(kctx, "index"),
-		AllowZero:     strings.TrimSpace(c.Segment) != "",
-		ReplaceRange:  c.ReplaceRange,
-		Anchor: docsedit.AnchorOptions{
-			Text:       c.At,
-			Provided:   flagProvided(kctx, "at"),
-			Occurrence: c.Occurrence,
-			MatchCase:  c.MatchCase,
-		},
-	})
+	placement, err := c.planPlacement(kctx)
 	if err != nil {
-		return usage(err.Error())
+		return err
 	}
 	at := placement.Anchor.Text
 	replacing := placement.Kind == docsedit.PlacementRange
@@ -79,7 +72,9 @@ func (c *DocsUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *Root
 	if c.Batch != "" && (c.Markdown || c.Pageless) {
 		return usage("--batch supports plain text updates without --pageless")
 	}
-	if dryRunErr := dryRunExit(ctx, flags, "docs.update", c.dryRunPayload(id, len(text), replacing, replaceStart, replaceEnd, at)); dryRunErr != nil {
+	payload := c.dryRunPayload(id, len(text), replacing, replaceStart, replaceEnd, at)
+	c.Suggestion.addPlan(payload)
+	if dryRunErr := dryRunExit(ctx, flags, "docs.update", payload); dryRunErr != nil {
 		return dryRunErr
 	}
 	if batchErr := validateDocsBatchTarget(ctx, flags, c.Batch, id); batchErr != nil {
@@ -95,7 +90,7 @@ func (c *DocsUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *Root
 		return err
 	}
 
-	resolvedPlacement, err := resolveDocsPlacementTarget(ctx, svc, id, c.Tab, c.Segment, placement)
+	resolvedPlacement, err := c.Suggestion.resolve(ctx, svc, id, c.Tab, c.Segment, placement)
 	if err != nil {
 		return err
 	}
@@ -178,6 +173,9 @@ func (c *DocsUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *Root
 		requestCount = len(reqs)
 		batchReq := &docs.BatchUpdateDocumentRequest{Requests: reqs}
 		batchReq.WriteControl = docsRequiredRevisionWriteControl(resolvedPlacement.RequiredRevisionID)
+		if c.Suggestion.Suggest {
+			return submitDocsSuggestions(ctx, flags, id, resolvedPlacement.RequiredRevisionID, reqs)
+		}
 		if queued, queueErr := queueDocsBatchRequests(ctx, flags, c.Batch, id, "docs.update", batchRevision, reqs, false); queued || queueErr != nil {
 			return queueErr
 		}
@@ -244,6 +242,28 @@ func (c *DocsUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *Root
 		u.Out().Linef("revision\t%s", resp.WriteControl.RequiredRevisionId)
 	}
 	return nil
+}
+
+func (c *DocsUpdateCmd) planPlacement(kctx *kong.Context) (docsedit.Placement, error) {
+	placement, err := docsedit.PlanUpdatePlacement(docsedit.UpdatePlacementOptions{
+		Index:         c.Index,
+		IndexProvided: flagProvided(kctx, "index"),
+		AllowZero:     strings.TrimSpace(c.Segment) != "",
+		ReplaceRange:  c.ReplaceRange,
+		Anchor: docsedit.AnchorOptions{
+			Text:       c.At,
+			Provided:   flagProvided(kctx, "at"),
+			Occurrence: c.Occurrence,
+			MatchCase:  c.MatchCase,
+		},
+	})
+	if err != nil {
+		return docsedit.Placement{}, usage(err.Error())
+	}
+	if suggestErr := c.Suggestion.validatePlacement(placement); suggestErr != nil {
+		return docsedit.Placement{}, suggestErr
+	}
+	return placement, nil
 }
 
 func (c *DocsUpdateCmd) dryRunPayload(docID string, written int, replacing bool, replaceStart, replaceEnd int64, at string) map[string]any {
