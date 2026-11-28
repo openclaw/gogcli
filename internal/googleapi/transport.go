@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -21,7 +22,8 @@ const (
 	maxInspectedResponseBodyBytes = int64(1 << 20)
 	// maxRetryAfter caps Retry-After waits. Google may send delta-seconds
 	// or an HTTP-date far in the future; CLI contexts often have no deadline.
-	maxRetryAfter = 60 * time.Second
+	maxRetryAfter      = 60 * time.Second
+	maxRateLimitSpread = 250 * time.Millisecond
 )
 
 var errRequestBodyTooLarge = errors.New("request body too large to buffer for retry")
@@ -48,7 +50,7 @@ func retriesDisabled(ctx context.Context) bool {
 // rate limits (429, or 403 with a rate-limit reason) and server errors (5xx).
 type RetryTransport struct {
 	Base           http.RoundTripper
-	MaxRetries429  int
+	MaxRetries429  int // Maximum rate-limit responses per request, including the first.
 	MaxRetries5xx  int
 	BaseDelay      time.Duration
 	CircuitBreaker *CircuitBreaker
@@ -59,8 +61,13 @@ type RetryTransport struct {
 	// If Reauth is nil, invalid_grant errors are surfaced without retry.
 	Reauth func(context.Context) error
 
-	// sleepFn replaces the backoff wait in tests.
+	rateLimitMu     sync.Mutex
+	pauseUntil      time.Time
+	rateLimitStreak int
+
+	// sleepFn and nowFn replace wall-clock timing in tests.
 	sleepFn func(context.Context, time.Duration) error
+	nowFn   func() time.Time
 }
 
 // NewRetryTransport creates a RetryTransport with sensible defaults.
@@ -95,7 +102,16 @@ func (t *RetryTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	}
 
 	var resp *http.Response
-	retries429 := 0
+
+	var lastRateLimit *http.Response
+	defer func() {
+		if lastRateLimit != nil && lastRateLimit.Body != nil {
+			_ = lastRateLimit.Body.Close()
+		}
+	}()
+	var rateLimitDeadline time.Time
+	rateLimitResponses := 0
+	rateLimitCeiling := min(t.MaxRetries429, MaxRateLimitRetries)
 	retries5xx := 0
 	retriedAuth := false
 	retriedReauth := false
@@ -111,6 +127,23 @@ func (t *RetryTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 				return nil, fmt.Errorf("reset request body: %w", getErr)
 			} else {
 				req.Body = body
+			}
+		}
+
+		if !retryDisabled {
+			ready, waitErr := t.waitForRateLimit(req.Context(), rateLimitDeadline)
+			if !ready {
+				if req.Body != nil {
+					_ = req.Body.Close()
+				}
+
+				if waitErr != nil {
+					return nil, waitErr
+				}
+				// The budget expired while waiting. Hand the response back intact.
+				resp, lastRateLimit = lastRateLimit, nil
+
+				return resp, nil
 			}
 		}
 
@@ -146,6 +179,10 @@ func (t *RetryTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 
 		// Success
 		if resp.StatusCode < 400 {
+			t.rateLimitMu.Lock()
+			t.rateLimitStreak = max(0, t.rateLimitStreak-1)
+			t.rateLimitMu.Unlock()
+
 			if t.CircuitBreaker != nil {
 				t.CircuitBreaker.RecordSuccess()
 			}
@@ -155,24 +192,37 @@ func (t *RetryTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 
 		// Rate limit (429, or 403 with a rate-limit reason)
 		if resp.StatusCode == http.StatusTooManyRequests || responseIndicatesRateLimit(resp) {
-			if retryDisabled || retries429 >= t.MaxRetries429 || !replayable {
-				return resp, nil // Return the rate-limit response after max retries
+			now, delay := t.recordRateLimit(resp)
+
+			rateLimitResponses++
+			if rateLimitResponses == 1 {
+				rateLimitDeadline = now.Add(MaxRateLimitWait)
 			}
 
-			delay := t.calculateBackoff(retries429, resp)
-			slog.Debug("rate limited, retrying",
+			if retryDisabled || !replayable || rateLimitResponses >= rateLimitCeiling || now.After(rateLimitDeadline) {
+				return resp, nil
+			}
+
+			slog.Debug("rate limited, waiting to retry",
 				"status", resp.StatusCode,
 				"delay", delay,
-				"attempt", retries429+1,
-				"max_retries", t.MaxRetries429)
+				"rate_limit_responses", rateLimitResponses,
+				"max_rate_limit_responses", rateLimitCeiling)
 
-			drainAndClose(resp.Body)
-
-			if err := t.sleep(req.Context(), delay); err != nil {
-				return nil, err
+			// If a later retry runs out of time at the gate, return the latest
+			// rate-limit response even if a server or auth error prompted that retry.
+			if lastRateLimit != nil && lastRateLimit.Body != nil {
+				_ = lastRateLimit.Body.Close()
 			}
 
-			retries429++
+			// A rate-limited 403 is already buffered by responseIndicatesRateLimit.
+			// Buffer short 429 bodies too, so the next attempt can reuse the connection.
+			if resp.StatusCode == http.StatusTooManyRequests {
+				if _, _, err := peekResponseBody(resp); err != nil {
+					slog.Debug("could not buffer rate-limit response", "err", err)
+				}
+			}
+			lastRateLimit = resp
 
 			continue
 		}
@@ -231,6 +281,68 @@ func (t *RetryTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	}
 }
 
+func (t *RetryTransport) now() time.Time {
+	if t.nowFn != nil {
+		return t.nowFn()
+	}
+
+	return time.Now()
+}
+
+func (t *RetryTransport) recordRateLimit(resp *http.Response) (time.Time, time.Duration) {
+	t.rateLimitMu.Lock()
+	defer t.rateLimitMu.Unlock()
+
+	now := t.now()
+	t.rateLimitStreak++
+
+	delay := t.calculateBackoff(t.rateLimitStreak-1, resp, now)
+	if until := now.Add(delay); until.After(t.pauseUntil) {
+		t.pauseUntil = until
+	}
+
+	return now, delay
+}
+
+// waitForRateLimit returns false when the request's retry budget runs out.
+// The deadline is zero until the request receives its first rate-limit response.
+func (t *RetryTransport) waitForRateLimit(ctx context.Context, deadline time.Time) (bool, error) {
+	waited := false
+
+	for {
+		if err := ctx.Err(); err != nil {
+			return false, fmt.Errorf("rate-limit wait interrupted: %w", err)
+		}
+
+		t.rateLimitMu.Lock()
+		now := t.now()
+		delay := t.pauseUntil.Sub(now)
+		t.rateLimitMu.Unlock()
+
+		if !deadline.IsZero() && now.After(deadline) {
+			return false, nil
+		}
+
+		switch {
+		case delay > 0:
+			waited = true
+		case waited:
+			delay, _ = randomDurationBelow(maxRateLimitSpread)
+			waited = false
+		default:
+			return true, nil
+		}
+
+		if !deadline.IsZero() && delay > deadline.Sub(now) {
+			return false, t.sleep(ctx, deadline.Sub(now))
+		}
+		// Check again after sleeping in case another response extended the pause.
+		if err := t.sleep(ctx, delay); err != nil {
+			return false, err
+		}
+	}
+}
+
 func capRetryAfter(wait time.Duration) time.Duration {
 	if wait > maxRetryAfter {
 		return maxRetryAfter
@@ -239,7 +351,7 @@ func capRetryAfter(wait time.Duration) time.Duration {
 	return wait
 }
 
-func (t *RetryTransport) calculateBackoff(attempt int, resp *http.Response) time.Duration {
+func (t *RetryTransport) calculateBackoff(exponent int, resp *http.Response, now time.Time) time.Duration {
 	// Check Retry-After header
 	if retryAfter := resp.Header.Get("Retry-After"); retryAfter != "" {
 		if seconds, err := strconv.ParseInt(retryAfter, 10, 64); err == nil || errors.Is(err, strconv.ErrRange) {
@@ -255,8 +367,8 @@ func (t *RetryTransport) calculateBackoff(attempt int, resp *http.Response) time
 			return time.Duration(seconds) * time.Second
 		}
 
-		if t, err := http.ParseTime(retryAfter); err == nil {
-			d := time.Until(t)
+		if at, err := http.ParseTime(retryAfter); err == nil {
+			d := at.Sub(now)
 			if d < 0 {
 				return 0
 			}
@@ -270,13 +382,12 @@ func (t *RetryTransport) calculateBackoff(attempt int, resp *http.Response) time
 		return 0
 	}
 
-	var baseDelay time.Duration
-
-	if bd := t.BaseDelay * time.Duration(1<<attempt); bd <= 0 {
-		return 0
-	} else {
-		baseDelay = bd
+	exponent = min(exponent, 5)
+	if t.BaseDelay >= maxRetryAfter>>exponent {
+		return maxRetryAfter
 	}
+
+	baseDelay := t.BaseDelay << exponent
 
 	jitterRange := baseDelay / 2
 	if jitterRange <= 0 {
@@ -288,7 +399,7 @@ func (t *RetryTransport) calculateBackoff(attempt int, resp *http.Response) time
 		return baseDelay
 	}
 
-	return baseDelay + jitter
+	return capRetryAfter(baseDelay + jitter)
 }
 
 func randomDurationBelow(upperBound time.Duration) (time.Duration, error) {

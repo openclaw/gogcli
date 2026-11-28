@@ -3,11 +3,11 @@ package googleapi
 import "time"
 
 const (
-	// MaxRateLimitRetries is the maximum number of retries on rate-limit
-	// responses (429, or 403 with a rate-limit reason). Six doublings from
-	// RateLimitBaseDelay wait 63s to just under 94.5s in total, enough to outlast Google's
-	// per-minute quotas such as Gmail's "Units per minute per user".
-	MaxRateLimitRetries = 6
+	// MaxRateLimitRetries caps rate-limit responses per request, including the
+	// first one. The shared backoff may exhaust MaxRateLimitWait sooner.
+	MaxRateLimitRetries = 12
+	// MaxRateLimitWait bounds retry waits from a request's first rate-limit response.
+	MaxRateLimitWait = 120 * time.Second
 	// RateLimitBaseDelay is the initial delay for rate limit exponential backoff.
 	RateLimitBaseDelay = 1 * time.Second
 	// Max5xxRetries is the maximum retries for server errors.
